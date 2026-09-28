@@ -10,7 +10,8 @@ through ported as the game builds them. Started 2026-09-28.
   start (`--mode story:N`, `crate::start`) driven by `StoryPilot` with
   `PINEY_SURVEY_GOD`; "done" once the event's flag is closed or done. 101 is
   the new game's desktop.
-- `mutation_whole_story`: one run from the new game to 116's end.
+- `mutation_whole_story`: one run from the new game to 116's end. It
+  ends 101-107 and walks into field 9 for 108 (worklog 270).
 
 ## Where it stands (2026-09-28)
 
@@ -38,6 +39,14 @@ through ported as the game builds them. Started 2026-09-28.
 - A boss with its protect broken out of Data Drain's reach: walk to it.
 - `PINEY_SURVEY_GOD` also holds Kite's infection at 0, so a drain cannot
   roll its game over (side effect 30).
+- Gate Out from a field or dungeon: the PERSONAL menu is 1 there, 2 in a
+  dungeon (0 only in town).
+- A dungeon room whose doors are shut (`door_anm` false) is fought out,
+  foes the pilot calls hopeless or not.
+- The gate hack (62): god mode gives the Virus Cores its area asks for;
+  the pilot drains no common foes to find them.
+- The desktop: Mail only for the listed inbox (mail sent while the
+  desktop is up is listed at its next opening).
 
 ## Story maps Mutation needs
 

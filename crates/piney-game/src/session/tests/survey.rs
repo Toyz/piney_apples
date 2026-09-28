@@ -176,7 +176,8 @@ impl StoryPilot {
 
     /// Out of a field or dungeon the story wants nothing of (none of its
     /// wants names it; no event NPC waits, no fight, no event playing) for
-    /// 300 frames: PERSONAL, Gate Out (menu 10), YES, back to town.
+    /// 300 frames: PERSONAL (menu 1, or 2 in a dungeon), Gate Out (menu
+    /// 10), YES, back to town.
     fn gate_out(&mut self, a: &crate::area::AreaMode, f: u64) -> Option<Raw> {
         let w = a.world();
         let sc = w.scene();
@@ -220,7 +221,8 @@ impl StoryPilot {
             (-1, _) => press(Buttons::TRIANGLE),
             // A menu changing to the next (`MENU_CHANGING`): wait.
             (88, _) => still,
-            (0, 1) => {
+            // PERSONAL: menu 1 in a field, 2 in a dungeon (0 in a town).
+            (1 | 2, 1) => {
                 let l = m.list();
                 match l.items.iter().take(l.y.max(0) as usize).position(|&it| it == 10) {
                     Some(r) => press(go_to(r as i16)),
@@ -910,6 +912,38 @@ fn mutation_story_survey() {
     }
 }
 
+/// The party, the members' address and call bits and the story's wants,
+/// for `mutation_whole_story`'s trace.
+fn whole_state(s: &Session) -> String {
+    let (party, vm, save) = match &s.stage {
+        Stage::Area(a) => (a.world().party(), a.vm(), &a.world().state().save),
+        Stage::World(w) => (w.world().party(), w.vm(), &w.world().state().save),
+        _ => return String::new(),
+    };
+    let wants = vm.map(|vm| story_wants(vm, save));
+    let o = piney_data::save::offset::PARTY_MEMBER_FLAG;
+    let c = piney_data::save::offset::PARTY_MEMBER_CALL;
+    format!("party {party:?} address {:x} call {:x} wants {wants:?}", save.i32(o), save.i32(c))
+}
+
+/// With the gate hack (62) open, the Virus Cores its area asks for, given
+/// through the console: the pilot drains no common foes to find them. A
+/// harness aid, as god is.
+fn cores_for_hack(s: &mut Session) {
+    let Stage::World(w) = &s.stage else { return };
+    let Some(h) = w.ui().ctrl.hack.as_deref() else { return };
+    let save = &w.world().state().save;
+    let short: Vec<(i32, i32)> = (0..4)
+        .map(|k| (h.protect[2 * k], h.protect[2 * k + 1]))
+        .filter(|&(_, need)| need > 0)
+        .map(|(id, need)| (id, need - i32::from(save.u8(piney_data::save::offset::IMP_ITEM_LIST + id as usize) as i8)))
+        .filter(|&(_, n)| n > 0)
+        .collect();
+    for (id, n) in short {
+        s.console(&format!("core {} {n}", (b'A' + id as u8) as char));
+    }
+}
+
 /// Event `n`'s flag, from the save of whatever stage the session is on.
 fn event_flag(s: &mut Session, n: i32) -> Option<u64> {
     let save = match &mut s.stage {
@@ -935,9 +969,10 @@ fn mutation_whole_story() {
     let mut pilot = StoryPilot::default();
     let mut ended: Vec<i32> = Vec::new();
     for f in 0..frames {
-        // As the survey's god: the infection held at 0.
+        // As the survey's god: the infection held at 0, the hack's cores.
         if f.is_multiple_of(30) {
             s.console("infection 0");
+            cores_for_hack(&mut s);
         }
         let raw = pilot.next(&s, f);
         pilot.after(&mut s);
@@ -946,6 +981,9 @@ fn mutation_whole_story() {
         s.take_events();
         if !f.is_multiple_of(300) {
             continue;
+        }
+        if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(3000) {
+            eprintln!("WHOLE {f} {} {}", Mode::title(&s), whole_state(&s));
         }
         for &n in crate::start::MUT_STORY.iter() {
             if !ended.contains(&n) && event_flag(&mut s, n).is_some_and(|x| x & 3 << 62 != 0) {
@@ -978,8 +1016,9 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
             let mut s = story_session_on(disc, n, |_| {})?;
             // `PINEY_SURVEY_GOD`: the console's god (the party at full HP
             // and SP in the fields and dungeons), to follow the story past
-            // fights the pilot would lose; and Kite's infection held at 0,
-            // so a boss's Data Drain cannot roll its game over (effect 30).
+            // fights the pilot would lose; Kite's infection held at 0, so a
+            // boss's Data Drain cannot roll its game over (effect 30); and
+            // the gate hack's Virus Cores given.
             let god = std::env::var_os("PINEY_SURVEY_GOD").is_some();
             if god {
                 s.console("god");
@@ -991,6 +1030,7 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
             for f in 0..frames {
                 if god && f.is_multiple_of(30) {
                     s.console("infection 0");
+                    cores_for_hack(&mut s);
                 }
                 let raw = pilot.next(&s, f);
                 // `PINEY_DEBUG_PILOT`: the pilot's actions and goals, and

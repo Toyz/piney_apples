@@ -1822,9 +1822,14 @@ mod tests {
         if std::env::var("PINEY_SURVEY_TRACE").is_ok() && f.is_multiple_of(120) {
             let m = desk.mailer();
             eprintln!(
-                "desktop f{f}: events {:?} icon {} mode {:?} mail {} {:?} cursor {} unread {:?} news {} {:?}",
+                "desktop f{f}: events {:?} icon {} operate {:x} menu {} {} {} {} mode {:?} mail {} {:?} cursor {} unread {:?} news {} {:?}",
                 d.vm().map(|v| (v.phase(), v.playing())),
                 desk.selection(),
+                save.operate,
+                desk.menu().menu,
+                desk.menu().menu_status,
+                desk.menu().open_req,
+                desk.menu().proccess,
                 desk.mode(),
                 m.mail_mode,
                 m.reply_state(),
@@ -1861,8 +1866,11 @@ mod tests {
                 _ => Buttons::NONE,
             },
             Some(_) => Buttons::CIRCLE,
+            // Mail an event sends while the desktop is up
+            // is listed only at its next opening (`AddAllList`): only the
+            // listed inbox counts, or the pilot goes in and out for ever.
             None => {
-                let target = if desk.mailer().list.iter().any(|&n| mail_unread(n)) || (0..512).any(mail_unread) {
+                let target = if desk.mailer().list.iter().any(|&n| mail_unread(n)) {
                     Icon::Mail
                 } else if news.list.iter().any(|&r| news.unread(r)) {
                     Icon::News
