@@ -38,7 +38,7 @@ Maybe an ingame quake console so we can debug and test various game features mor
 
   - [x] started: F1 (or `) opens a console; `help` lists: item, core (virus cores), gold, heal, address (a member's address, then PERSONAL > Party > Add), flag, time, where, story N (restart at a story start). `--console "cmd;cmd"` runs them headless with --shot.
 
-- [ ] the launcher's turning icons glitch: close to the title menu's turning icons but not the same (worklog 253 turns OBJ_xdt_ico_X1_ about its y by Scene::turn_y; compare against the title's ANM_xdt_ic00 pose by pose)
+- [ ] the launcher's turning icons glitch: close to the title menu's turning icons but not the same (worklog 253 turns OBJ_xdt_ico_X1_ about its y by Scene::turn_y. Compared pose by pose: the title's `ANM_xdt_ic00`-`ic04` turn X1 about y the same way, one turn in 120 frames, eased over the first quarter (28 and 59 degrees at frames 10 and 20). Shot side by side (`selector_icon_shots` against the title's `--every` shots), two things differ: the title's turning X1 is its crystal's shell about a still letter, where the selector's X1 is the letter, which reads mirrored half the turn; and the selector steps at 30 a second against the title's 60. The selector's own code does not survive, so which of its objects should turn is open; what was seen as the glitch is still to be told)
 
 - [x] the dungeon's music kept playing from the Gott statue room through Skeith's scene and on under the Helba theme (the desktop set-up's `ccAllSoundOff` sends SNDBASE's 0x140, whose `allSoundOff` stops every sequencer; the port's only silenced the voices sounding, so the dungeon's sequencer played on under streams 4-6; `all_sound_off_stops_the_music`; fixed)
 

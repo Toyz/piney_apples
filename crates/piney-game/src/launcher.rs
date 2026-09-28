@@ -481,6 +481,46 @@ mod tests {
         assert!(menu_heard > 100, "the selector heard for {menu_heard} frames");
     }
 
+    /// The rows' icons turning, shot headless every 5 frames of a turn
+    /// once the rows answer, to hold against the title's
+    /// (`PINEY_SHOTS=DIR`, default `/mnt/data/claude/scratch/icons`).
+    #[test]
+    #[ignore]
+    fn selector_icon_shots() {
+        let out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/outbreak/outbreak.iso");
+        if !out.exists() {
+            return;
+        }
+        let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/icons".into());
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut l =
+            LauncherMode::new([Some(out.clone()), Some(out.clone()), Some(out.clone()), Some(out)], None, None, None);
+        let mut pad = Pad::default();
+        let mut gs = None;
+        let mut shots = 0;
+        for f in 0..2000u32 {
+            let b = if f.is_multiple_of(20) && !l.menu { Buttons::CROSS } else { Buttons::NONE };
+            pad.read(&piney_input::Raw { buttons: b, ..piney_input::Raw::default() });
+            let frame = l.step(&pad);
+            l.take_events();
+            if !l.menu || !l.frame.is_multiple_of(5) {
+                continue;
+            }
+            let gs =
+                gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(l.archive().unwrap())).unwrap());
+            gs.set_overlay(l.archive());
+            gs.render(&frame);
+            let (w, h) = gs.target_size();
+            let path = format!("{dir}/l-{:03}.png", l.frame % ICON_TURN);
+            std::fs::write(&path, piney_gs::png::encode(w, h, &gs.read_back())).unwrap();
+            shots += 1;
+            if shots == 12 {
+                break;
+            }
+        }
+        assert_eq!(shots, 12);
+    }
+
     /// Once the opening is over the four rows stand one under the other,
     /// each with a still highlight to bring onto it.
     #[test]
