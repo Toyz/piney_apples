@@ -1,17 +1,10 @@
 //! `battle_probe` requests for Skeith (`piney_battle::boss`), as
-//! `tools/test_battle_boss_rs.py` sends them:
-//!
-//! - `bossclips`: every clip of `x11` and `xeffect` as `{name: [frames,
-//!   looping]}`.
-//! - `boss N CHAR... NPC i... MEMBERS[3] IDS[3] BOSS CENTER[3] KPOS[4]
-//!   KDIRC[4] RAND CCSEED MTI COUNT FRAMES NS (FRAME KIND P0)... NM
-//!   (FRAME TYPE)...`: a scene (the boss among its characters, the party
-//!   members' affects off), Skeith made on it, then FRAMES frames of
-//!   `Main` with the scripted affects on the boss before each (KIND 0 a
-//!   hit of P0 from Kite, 1 the protect gauge set to P0, 2 affect 13, 3
-//!   affect 21, 4 the break count set to P0) and the menu type the frames
-//!   from FRAME on see. One JSON line: the state after the constructor,
-//!   then after each frame.
+//! `tools/test_battle_boss_rs.py` sends them: `bossclips` (every clip of `x11`
+//! and `xeffect` as `{name: [frames, looping]}`) and `boss ...`: a scene with
+//! the boss, Skeith made on it, then FRAMES frames of `Main` with scripted
+//! affects on the boss before each (KIND 0 a hit of P0 from Kite, 1 the
+//! protect gauge set to P0, 2 affect 13, 3 affect 21, 4 the break count set
+//! to P0). One JSON line: the state after the constructor, then each frame.
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::{Boss, BossEnv, Cx, EffKind, Out, SkeithData, Tbl};

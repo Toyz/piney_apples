@@ -1,45 +1,11 @@
-//! Bosses: `ccBoss` (boss.cpp, gcmn 0x0045bcf0-0x0045fbd0) and Infection's
-//! one boss, Skeith (`ccBoss01`, boss01.cpp, 0x0047b300-0x0047ee68), whom
-//! event 30 (ML0180) enters with `entry` type 7 code 0.
-//!
-//! # The task
-//!
-//! `ccBossEntryStart(0)` (0x0045b2a0) starts `ccThBossEffect` (the effect
-//! manager, [`Effects`]) and `bossFunc[0]` = `ccThBoss01` (0x0047b340), both
-//! at priority 66, the effects first. `ccThBoss01` makes the boss
-//! ([`Boss::new`]) and then, every frame, runs `Main` ([`Boss::main`]) until
-//! `CheckExit`; its param +0x14 then goes to 1, which the events read as
-//! the boss gone (`absent` type 7).
-//!
-//! # The frame (`ccBoss::Main` 0x0045c270, `ccBoss01::Main` 0x0047bd50)
-//!
-//! ```text
-//! CalcReal(0); CalcTargetInfo; centerPosP, centerDist, centerDirc
-//! stop (the hold affect 5): 60 frames still
-//! Think (by actNum: the handlers below); Action (11 the Epitaph, 14 death)
-//! lockPlayer: the party held (EntryAffect 5); the menu barred once free
-//! Move: posP by moveSpd along moveDirc and moveVector; the body hit
-//! [runtime] the boss camera, the stage effect, the draw
-//! PreDrawAnm: the animation forward (anmStatus), the wave's at 512
-//! condition.hold = 0; Skeith's break held while the party is held
-//! ```
-//!
-//! # Skeith's patterns
-//!
-//! A boss runs a table of patterns (`ExecPatternIndex`): waits, walks
-//! (chase, escape, return, wander, dash) and attacks. Skeith's are read
-//! from the executable ([`SkeithData`]): `boss01NormalActTbl`, then from
-//! its protect gauge at half `boss01SuperActTbl` (with the member drain),
-//! and after Kite's Data Drain (affect 13) `boss01EpitaphActTbl`. Until
-//! then `cheatHP` holds it: a fifth of the damage, never below half its HP.
-//! The drain (affect 21) sets its HP to 4500; at 0 it dies (act 14).
-//!
-//! # What is left to the runtime
-//!
-//! Everything [`Out`] lists: sounds, flashes, the effects' pictures, the
-//! camera (`ccBossCam`), the stage effect, the menu's bar and member-drain
-//! movie (menu 74), the event area's layer switch, and the draw: the
-//! boss's `ccAnm` ([`Boss::anm`]) and the wave's ([`Boss::anm_wave`]).
+//! Bosses: `ccBoss` (boss.cpp, gcmn 0x0045bcf0-0x0045fbd0) and Infection's one
+//! boss, Skeith (`ccBoss01`, boss01.cpp, 0x0047b300-0x0047ee68), whom event 30
+//! (ML0180) enters with `entry` type 7 code 0. `ccBossEntryStart(0)`
+//! (0x0045b2a0) starts the effect manager ([`Effects`]) and `ccThBoss01`
+//! (0x0047b340), which makes the boss ([`Boss::new`]) and runs [`Boss::main`]
+//! each frame. Skeith's patterns are read from the executable ([`SkeithData`]);
+//! sounds, the camera, the effects' pictures and the draw are [`Out`]s. The
+//! frame and the patterns are in docs/engine/boss.md.
 
 use piney_data::field::ee;
 use piney_data::libm;

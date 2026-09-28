@@ -1,23 +1,11 @@
 //! `battle_probe` requests for Kite's code (`piney_battle::kite`), as
-//! `tools/test_battle_kite_rs.py` sends them:
-//!
-//! ```text
-//! kite FN FRAMES NARGS ARGS... WORLD KITE SCRIPT NPOKES POKES...
-//! kite frames BOUNDS[4] PLAYER[4] POINT[4]
-//! ```
-//!
-//! `MainRunAi` runs `ccPlayer::Main` FRAMES times with the party AI's
-//! calls performed by the ported code ([`kite::Host`] over the script,
-//! [`piney_battle::party_motion::Movement`]) and answers every frame's
-//! state (`{"frames":[...]}`, each frame's calls those it made).
-//!
-//! `WORLD` is the party AI's world (`tools/test_battle_party_ai_rs.py`'s
-//! `ser_world`: the characters, the lists, the party, the game globals,
-//! the skill and item lists, the AIs, the message bus, the AI globals, the
-//! RNG and the scripts of `ccHitCheckLM` and `CheckGoalBeaconPos`); `KITE`
-//! is Kite's `ccPlayer` beyond it (the harness's `ser_kite`); `SCRIPT` what
-//! the world's calls answer. The answer is everything the call can change,
-//! in the shapes the harness reads the game's memory in.
+//! `tools/test_battle_kite_rs.py` sends them: `kite FN FRAMES NARGS ARGS...
+//! WORLD KITE SCRIPT NPOKES POKES...` and `kite frames BOUNDS[4] PLAYER[4]
+//! POINT[4]`. `WORLD` is the party AI harness's world, `KITE` Kite's
+//! `ccPlayer` beyond it, `SCRIPT` what the world's calls answer. `MainRunAi`
+//! runs `ccPlayer::Main` FRAMES times with the party AI's calls performed by
+//! the port ([`kite::Host`]) and answers every frame's state. The answer is
+//! everything the call can change, as the harness reads the game's memory.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;

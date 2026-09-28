@@ -1,28 +1,11 @@
 //! A skill's life (`ccSkill`, skill.cpp): the request that starts it, the
-//! frames it runs for, and the moments it takes effect; and the normal
-//! attack's hit, which Kite's and a party member's own animation notes
-//! decide (`ccPlayer::CheckNote`, `ccFellow::CheckNote`).
-//!
-//! Every skill use is a [`SkillRun`] on the list `ccThSkill` (gcmn
-//! 0x005722e0) walks once a frame in order, running `ccSkill::Main`
-//! (0x005731d0) and deleting a skill whose status turns non-zero. Main
-//! drops a caster that died or left, ends the skill when its target died
-//! or left (unless the skill goes on without one), plays the skill's
-//! animation and handles its notes, and then, by kind:
-//!
-//! - a condition or buff skill: `ConditionModifySystem` on the first frame;
-//! - a heal (150-155, 295): `HealingSystem` at frame 75 (at once for an
-//!   item);
-//! - a cure (178-180): `RecoverySystem` on the first frame;
-//! - an attack spell: its element's system (Fall, Tornado, Upheaval,
-//!   Summons, Convergence), whose damage lands when the spell's effect
-//!   objects say so; those systems belong to the effects and are the
-//!   runtime's ([`SpellSystem`]);
-//! - an art or the normal attack: the animation's notes (0x8005 with 1 or 3)
-//!   deal the damage ([`SkillRun::note_event_affect`]).
-//!
-//! The animation is the runtime's: it tells [`SkillRun::main`] whether the
-//! skill's own animation finished this frame and which notes it passed.
+//! frames it runs for (`ccThSkill` 0x005722e0 runs each [`SkillRun`]'s
+//! `ccSkill::Main` 0x005731d0 in list order) and the moments it takes effect;
+//! and the normal attack's hit, which Kite's and a party member's animation
+//! notes decide. An attack spell's element systems belong to the effects and
+//! are the runtime's ([`SpellSystem`]); the animation is the runtime's too and
+//! tells [`SkillRun::main`] whether it finished and which notes it passed. The
+//! rules are in docs/engine/battle.md ("A skill's life").
 
 use piney_data::field::ee;
 
@@ -622,14 +605,10 @@ pub struct Step {
 
 impl Skills {
     /// `ccSkillCheck(ch)` (gcmn 0x005723e0): the id of the first running
-    /// skill `ch` cast whose status is 0 that a hit interrupts: one
-    /// flagged so, a physical skill, or a spell while Kite (`player_act`,
-    /// the player's `actNum`) is in a casting act (17, 18); 0 for none.
-    /// Only for characters of type 0x0700000f.
-    ///
-    /// From Mutation on (MUT 0x00597bb0) the rule is another: any such
-    /// skill of a character without those type bits, and of one with them
-    /// only the skill that is its `skillID`.
+    /// skill `ch` cast whose status is 0 that a hit interrupts: one flagged
+    /// so, a physical skill, or a spell while Kite (`player_act`) is in a
+    /// casting act (17, 18); 0 for none. Only for characters of type
+    /// 0x0700000f; Mutation's rule (0x00597bb0) is in docs/engine/battle.md.
     pub fn check(&self, t: &Tables, scene: &Scene, ch: usize, player_act: i16) -> i32 {
         if t.volume != piney_data::volume::Volume::Inf {
             let c = &scene.chars[ch];

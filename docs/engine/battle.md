@@ -2,7 +2,7 @@
 title: Battle rules
 status: partial
 volumes: all
-covers: INF gcmn.prg:0x00431970 ccThEntryCtrl, 0x00431d10 ccThEntryCtrlDelete, 0x00431070 ccEntryCtrl::restoreEntry, 0x004312d0 deleteEnemy, 0x004314e0 deleteMagicCircle, 0x004316a0 deleteGimmick, 0x00431860 deleteNpc, 0x0042df10 ccCheckActiveEnemy, 0x0042df70 ccCheckActiveObject, 0x0042fa60 ccEntryObj::routine, 0x0042fe40 ccEntryObj::deleteCmnd, 0x0042f7d0 ccEntryObj::ccEntryObj, 0x00519630 ccEntryCmnd, 0x00519700 ccDeleteCmnd, 0x004307f0 ccEntryCtrl::entryObject, 0x00430c90 entryObject, 0x00430530 entryObjectCheck, 0x00430ec0 initObject, 0x00431220 entryEnemy, 0x004313f0 entryMagicCircle, 0x004315f0 entryGimmick, 0x004317b0 entryNpc, 0x00430360 entryCircleObject, 0x00430250 entryEnemyObject, 0x0042e750 ccInitRegisterEnemy, 0x0042e8d0 ccRegisterEnemyOne, 0x0042ed70 ccRegisterEnemyList, 0x0042f290 ccAnalyzeEnemyList, 0x00455900 ccMagicCircle::ccMagicCircle, 0x00455b60 ccMagicCircle::main, 0x004548e0 ccMcPart::main, 0x005ab610 WORLD::SetMagicCircle, 0x005bf590 DUNGEON::SetMagicCircle, 0x00432a90 ccEnemy::ccEnemy, 0x00442190 ccEnemyB::ccEnemyB, 0x00446070 ccEnemyG::ccEnemyG, 0x0044a7e0 ccEnemyK::ccEnemyK, 0x0044e550 ccEnemyP::ccEnemyP, 0x00451460 ccEnemyV::ccEnemyV, 0x00447200 ccEnemyG::checkGold, 0x0043a250 ccCheckDustColor, 0x0042e580 ccGetNameBossAnm, 0x00433e80 ccEnemy::moveEnemy, 0x00434560 animEnemy, 0x004328b0 ccEnemyCheckNote, 0x004348b0 dispEnemy, 0x004371e0 actMove, 0x00437420 actFollow, 0x00437460 actSlide, 0x004374a0 actEscape, 0x00437610 actEscape(int, float), 0x00437960 actEscapeX, 0x0043f200 ccEnemy1::action, 0x004424e0 ccEnemyB::action, 0x004426d0 moveEB, 0x004467e0 ccEnemyG::action, 0x00446aa0 moveEG, 0x00446d50 moveEGG, 0x00446710 ccEnemyG::freeze, 0x0044aa90 ccEnemyK::action, 0x0044e860 ccEnemyP::action, 0x004518d0 ccEnemyV::action, 0x0043ad60 ccPiLimit, 0x0041b5f0 ccFellow::Main, 0x0041bc50 ccFellow::Move, 0x0041c670 ccFellow::Action, 0x0059ee20 ccSpcChar::HitCheck, 0x00581580 ccAI::FollowPlayer, 0x00581cb0 LeavePlayer, 0x00582090 FollowTarget, 0x00582ad0 FollowTargetDirc, 0x00589e90 CheckFrontObstacle, 0x00589fe0 CheckFrontObstacleF, 0x005148e0 ccNavi::PathFindingInDungeon, 0x00514cc0 HeuristicType1, 0x00514f60 ShortPath, 0x005150c0 MakeBeaconTbl, 0x00515470 SetBeacon, 0x00514770 GetDestination, 0x00515aa0 SetPathFindingMap, 0x005130b0 ccSetNaviMap, 0x00513300 ccNaviSearchNearLandmark, 0x00582d50 ccAI::MoveP2P, 0x00582930 FollowBeacon, 0x005975b0 CheckGoalBeaconPos, 0x00580ef0 ManualControl, 0x0057f660 ActInTown, 0x005826b0 FollowTargetTown, 0x00598310 ccPlayer::Main, 0x00598af0 ControlMove, 0x005993c0 AnimCtrl, 0x0059c580 ccPlayer::Attack, 0x0059cad0 AttackCancel, 0x0059cbd0 BreakSomething, 0x0059b3c0 MapLoopAdjustPos, 0x0059b470 W2MPos, 0x0059b710 P2WPos, 0x005a0530 ccThSpc, 0x005a1930 ccSpcSetOperation, 0x005a17e0 ccSpcShoutOperationName, 0x0056ba30 ccChar::CalcReal, 0x0056bfd0 ccChar::ConditionTimeCount, 0x0056c940 ccChar::ConditionBattleEffect, 0x0056cb50 ccChar::ClearCondition, 0x0056d300 ccClearSpcCondition, 0x0056f950 ccChar::DispConditionEffect, 0x00570180 ccChar::ClearConditionEffect, 0x005703f0 ccClearParamElement, 0x0056d430 ccChar::CheckLevelUp, 0x0056d640 ccChar::LevelDown, 0x0056d8a0 ccChar::CalcBattleDamage(t, sid, mag, h), 0x0056d910 ccChar::CalcBattleDamage, 0x0056b020 ccChar::EntryAffect, 0x005701d0 ccChar::CheckCharAttribute, 0x00570440 ccAddParamElement, 0x00571100 ccGetJobWeaponParam, 0x00571290 ccExpDistributor, 0x00571830 ccCheckConditionSkillSuccess, 0x00571a00 ccSetLevelParam, 0x005722e0 ccThSkill, 0x005723e0 ccSkillCheck, 0x005725a0 ccSkillAttributeCheck, 0x00572860 _ccSkillRequest, 0x00572f80 ccSkill::ccSkill, 0x005731d0 ccSkill::Main, 0x005738e0 ccSkill::NoteEventAffect, 0x00573a10 ccSkillCheckNote, 0x00573af0 ccSkillCheckTypeAttribute, 0x00573c30 _ccSkillCheckType, 0x00573cc0 ccGetArmsEffectAttribute, 0x00573e60 ccSkillDamage, 0x005743c0 ccSkillDamage (point), 0x005746d0 ccSkillDamage2, 0x00574bc0 ccSkillRecovery, 0x00574f70 ccSkillRecovery (point), 0x005752b0 ccSkillHold, 0x00575520 ccSkillHold (point), 0x005756f0 ccSkillModifyCondition, 0x00575a50 ccSkillModifyCondition (point), 0x00575cf0 _ccSkillModifyCondition, 0x00576c50 ccSkill::ConditionModifySystem, 0x00576ea0 ccSkill::HealingSystem, 0x00577070 ccSkill::RecoverySystem, 0x00579750 ccCheckTargetConditionBySkill, 0x00594e90 ccSkillDamageValue, 0x00432840 ccEnemyInfluence, 0x00433a70 ccEnemy::affectEnemy, 0x0041bdb0 ccFellow::Influence, 0x0041e1e0 ccFellow::CheckNote, 0x0059ac50 Influence, 0x0059c300 ccPlayer::CheckNote, 0x0059d080 checkPartyAnnihilation, 0x0059d100 checkPartyMenberNum, 0x0059e860 ccSpcChar::DistanceToTarget, 0x0059ec70 ccSpcChar::ConditionAdjustment, 0x0059f380 ccSpcChar::CheckSpRegeneSpeed, 0x0059f530 ccSpcChar::CheckSysMsgID, 0x005a1630 ccSpcCheckLevelUp, 0x00532ae0 ccMenuCtrl::DataDrainMenu, 0x00544c00 ccMenuCtrl::AreaItem, 0x00453420 ccEntryGimBox, 0x004534a0 ccGimBox::ccGimBox, 0x004545d0 ccGimBox::main, 0x00453d80 ccGimBox::boxMain, 0x00454140 ccGimBox::objectMain, 0x00454410 ccGimBox::virusMain, 0x00453be0 ccGimBox::invokeTrap, 0x00453ac0 ccGimBox::breakObject, 0x00453400 ccGimmickAffect, 0x00459620 ccEntryGimIdol, 0x004596a0 ccGimIdol::ccGimIdol, 0x00459920 ccGimIdol::main, 0x00438ac0 ccPrimRadiate::ccPrimRadiate, 0x0043a1c0 ccPrimRadiate::main, 0x0043c1b0 ccGimBoxRad::ctrl, 0x0043c140 entryBoxRadiate, 0x005beb30 DUNGEON::SetItemBox, 0x005be750 DUNGEON::SetIDOL, 0x005a19b0 ccSpcMessageOpenTrapBox, 0x00432cd0 ccEnemy::main, 0x00434ac0 ccEnemy::defaultThink, 0x004353f0 ccEnemy::interruptThink, 0x00433470 ccEnemy::setAct, 0x00436940 ccEnemy::selectAttack, 0x004360d0 ccEnemy::checkSkillList, 0x004366a0 ccEnemy::selectSkillTarget, 0x00435ef0 ccEnemy::setSkillRate, 0x00436cb0 ccEnemy::selectTarget, 0x00433260 ccEnemy::initEnemy, 0x0042e3c0 ccGetDrainId, 0x00586130 ccAI::ChatMessage, 0x00586190 ChatMessageModify, 0x00586420 ChatMessageSender, 0x00586570 AffectMessages, 0x00583190 Greeting, 0x0058dc40 MessageIndex, 0x0058d7b0 ChatMessageAttackTarget, 0x0058dc80 ChatMessageAccept, 0x0058ddd0 ChatMessageHealStart, 0x0058deb0 ChatMessageCureStart, 0x0058df90 ChatMessageResurrectStart, 0x0058e070 ChatMessageOOM, 0x0058e130 ChatMessageCanNot, 0x0058e1f0 ChatMessageNoBattleModeDeny, 0x0058e2b0 ChatMessageGhost, 0x0058e390 ChatMessageConditionMinus, 0x0058e450 ChatMessageThanksHeal, 0x0058e5b0 ChatMessageThanksResurrect, 0x0058e680 ChatMessageThanksBuff, 0x0058e750 ChatMessageUseOcarina, 0x0058e810 ChatMessageNoOcarinaDeny, 0x0058e8d0 ChatMessageDisableOcarinaDeny, 0x0058e990 ChatMessageEnteredField, 0x0058eae0 ChatMessageVictory, 0x0058ec30 ChatMessageNeutral, 0x0058f480 ChatMessageHealPlz, 0x0058f540 ChatMessageTreatmentPlz, 0x0058f600 ChatMessageResurrectPlz, 0x0058f6e0 ChatMessageReencounter, 0x0058f810 ChatMessageEnteredTown, 0x0058fb40 ChatMessageChatCmdAccept, 0x005901d0 ChatMessageDamage, 0x00590790 ChatMessageAttack, 0x00590c90 ChatMessageEquipOK, 0x00590d50 ChatMessageEquipNOT, 0x00590ea0 ChatMessageAttributeCritical, 0x00590f60 ChatMessageAttributeGuard, 0x00591040 ChatMessageAttributeFollow, 0x00591140 ChatMessageHealPlzAccept, 0x00591200 ChatMessageSkillAccept, 0x005912c0 ChatMessageAssignAccept, 0x00591380 ChatMessageConditionModify, 0x005918f0 ChatMessageWaitPlz, 0x005919d0 ChatMessageGhostCondition, 0x00591a90 ChatMessageLevelDown, 0x00591b50 ChatMessageLevelUp, 0x00591c10 ChatMessagePresentOtherFellow, 0x00591e00 ChatMessageDeadOtherFellow, 0x00591ec0 ChatMessageOpenTrapBox, 0x00592070 ChatMessageQuitPucciguso, 0x00592150 ChatMessageConditionModifyEnemy, 0x00592210 ChatMessageOpenTreasureBox, 0x005923f0 ChatMessageALotOfEnemy, 0x005924b0 ChatMessageBetterWeapon, 0x00592590 ChatMessageWorseWeaponMessages, 0x00592670 ChatMessageFellowIsHighLevel, 0x00592750 ChatMessageGratsLevelUp, 0x00592900 ChatMessageWalkingTalk, 0x00597760 getAttributeStr, 0x00651ae0-0x00654050 the chat tables, 0x0057ca00 ccAI::Brains, 0x0058aeb0 ccAI::ReadSysMsg, 0x00592aa0 ccAI::Reconnoiter, 0x0057cd00 ccAI::ActInField, 0x0057e0c0 ccAI::ActInDungeon, 0x005941f0 ccAI::SelectAttackSkill, 0x00589820 ccAI::CheckNeedHealing, 0x00586630 ccAI::AttackTarget, 0x00586bd0 ccAI::SearchTargetNear, 0x00583440 ccAI::RequestChatCmd, 0x0058ce10 ccAI::ChatCommandExecute, 0x005959c0 ccAI::CheckSolution, 0x00587440 ccAI::levelCheck, 0x0057aa80 ccUseItemRequest, 0x0057a6d0 ccCheckItemUseful, 0x0057a890 ccCheckSkillUseful, 0x00572790 ccItemSkillRequest, 0x005833a0 ccAI::SetGoalPos, 0x0059e920 CheckBootStatus, 0x0059f850 DelSpc, 0x005a02d0 DeleteNoPartyMember, 0x0042f5a0 ccAddRequestFileListEntry, 0x0042feb0 ccEntryCtrl::initEntryCCS, 0x0042f400 ccRegisterGimmick, 0x0042f380 ccInitRegisterGimmick, 0x00432fc0 ccEnemy::initEnemyCCS, 0x0042e270 ccCheckMiddleBoss, 0x006e10d0 ccChar::Draw's condition colours, 0x005a08a0 ccSpcConditionEffectSW, 0x005a06d0 ccThSpcDelete, 0x00456540 ccGimEtc::ccGimEtc, 0x00456ba0 initFountain, 0x00456760 ccGimEtc::main, 0x00456fb0 ctrlFountain, 0x005c9ba0 DUNGEON::GetNearDoorPosition, 0x005aa990 WORLD::SetFood, 0x005aae90 WORLD::SetSpecialObj, 0x005abd20 WORLD::SetDungeonEnter (the in-points), 0x005b63a0 CheckBossEffect, 0x0042e0c0 ccCheckFountain, 0x0043e760 ccEnemyWeaponCtrl::ccEnemyWeaponCtrl, 0x0043e850 ccEnemyWeaponCtrl::~ccEnemyWeaponCtrl, 0x0043e900 ccEnemyWeaponCtrl::ctrl, 0x0043eae0 ccEnemyWeaponCtrl::note, 0x0043c970 ccEnemyWeapon::ccEnemyWeapon, 0x0043cc30 ccEnemyWeapon::~ccEnemyWeapon, 0x0043cda0 ccEnemyWeapon::init, 0x0043ce60 ccEnemyWeapon::setEdgeRate, 0x0043d130 ccEnemyWeapon::initCell, 0x0043d190 ccEnemyWeapon::initCellColorHSV, 0x0043d2c0 ccEnemyWeapon::getNewCell, 0x0043d3b0 ccEnemyWeapon::interpolateCell, 0x0043d720 ccEnemyWeapon::makePacketCell, 0x0043db50 ccEnemyWeapon::setCell, 0x0043de90 ccEnemyWeapon::ctrlCell, 0x0043e110 ccEnemyWeapon::dispCell, 0x0043e3f0 ccEnemyWeapon::ctrlRadiate, 0x0043e680 ccEnemyWeapon::checkWeapon, 0x0043c600 ccEnemyWeaponRad::ctrl, 0x004382a0 eneSplineH, 0x004393a0 ccPrimRadiate::create, 0x00438580 ccPrimPacket::makePacket, 0x00438820 ccPrimPacket::sendPacket; INF SLUS_202.67:0x001da150 ccSetRad, 0x001da5d0 ccSetDist, 0x001da030 ccGetDircChgF, 0x001da0b0 ccSetDirc, 0x001d9c10 ccRandS, 0x00110c28 sceVu0RotMatrix, 0x00153220 ccCharHit::ccCharHit, 0x00153470 ccCharHit::CollisionDetection, 0x00153930 _ccHitCheckLM, 0x001da710 ccCheckCameraDeg, 0x001da880 ccGetCameraTransparency, 0x00152210 ccAnm::NoteProcess, 0x001a1f20 WORLD_MAN::EntryGimmick, 0x001b62e0 ccEntryEventMng, 0x001a22f0 WORLD_MAN::Get2DMapInfo, 0x00178030 ccSaveData::CheckEventEntry, 0x00133a38 rand, 0x001787a0 AddLvErosion, 0x001d9a10 ccRand, 0x001d9620 genrand, 0x001d9a90 ccRandF, 0x00177730 ccSaveData::AddItem, 0x001aa290 remove, 0x001ad8ac pc_walk_pos, 0x001ad9b0 pc_run_pos, 0x001adab0 pc_walk_dir, 0x001adbf4 pc_walk_marker, 0x001adda4 pc_walk_char, 0x001ae164 pc_command, 0x001ae9e8 party_put_marker, 0x001aec5c party_put, 0x001aeb84 pc_put, 0x001aee30 pc_face, 0x001af028 enemy_put, 0x001b09fc hold, 0x001b0a68 hold_end, 0x001b5040 ccThEvHold, 0x001b1f04 player_skill, 0x001b23a8 battle_ready, 0x001da610 ccGetDircPL, 0x001a3c40 WORLD_MAN::SetEventData, 0x0013d610 ccClump::ChangeClut, 0x0013df20 ccSetFogBlendColor, 0x001057f0 ccDrawEnv::SetFogBlend, 0x00378ce4 spcConditionEffectFlag, 0x0015a6a0 ccThControl, 0x001782f0 ccSaveData::CheckFountain, 0x001a3960 WORLD_MAN::GetFood, 0x001a4180 WORLD_MAN::GetDungeonMarkerPoint, 0x001a4130 SetDungeonMarkerPoint, 0x001b71b0 ccRegisterRegularGimmick, 0x0059ddd0 ccSpcChar::ArmsEffect, 0x0059e3b0 ccSpcChar::ClearArmsEffect, 0x0059e460 ccSpcChar::SetArmsEffectColor, 0x0059e4b0 ccSpcChar::_SetArmsEffectColor, 0x0059e530 ccSpcChar::StartArmsEffect, 0x0014d4d0 ccStream::Decode_DummyPos
+covers: INF gcmn.prg:0x00431970 ccThEntryCtrl, 0x00431d10 ccThEntryCtrlDelete, 0x00431070 ccEntryCtrl::restoreEntry, 0x004312d0 deleteEnemy, 0x004314e0 deleteMagicCircle, 0x004316a0 deleteGimmick, 0x00431860 deleteNpc, 0x0042df10 ccCheckActiveEnemy, 0x0042df70 ccCheckActiveObject, 0x0042fa60 ccEntryObj::routine, 0x0042fe40 ccEntryObj::deleteCmnd, 0x0042f7d0 ccEntryObj::ccEntryObj, 0x00519630 ccEntryCmnd, 0x00519700 ccDeleteCmnd, 0x004307f0 ccEntryCtrl::entryObject, 0x00430c90 entryObject, 0x00430530 entryObjectCheck, 0x00430ec0 initObject, 0x00431220 entryEnemy, 0x004313f0 entryMagicCircle, 0x004315f0 entryGimmick, 0x004317b0 entryNpc, 0x00430360 entryCircleObject, 0x00430250 entryEnemyObject, 0x0042e750 ccInitRegisterEnemy, 0x0042e8d0 ccRegisterEnemyOne, 0x0042ed70 ccRegisterEnemyList, 0x0042f290 ccAnalyzeEnemyList, 0x00455900 ccMagicCircle::ccMagicCircle, 0x00455b60 ccMagicCircle::main, 0x004548e0 ccMcPart::main, 0x005ab610 WORLD::SetMagicCircle, 0x005bf590 DUNGEON::SetMagicCircle, 0x00432a90 ccEnemy::ccEnemy, 0x00442190 ccEnemyB::ccEnemyB, 0x00446070 ccEnemyG::ccEnemyG, 0x0044a7e0 ccEnemyK::ccEnemyK, 0x0044e550 ccEnemyP::ccEnemyP, 0x00451460 ccEnemyV::ccEnemyV, 0x00447200 ccEnemyG::checkGold, 0x0043a250 ccCheckDustColor, 0x0042e580 ccGetNameBossAnm, 0x00433e80 ccEnemy::moveEnemy, 0x00434560 animEnemy, 0x004328b0 ccEnemyCheckNote, 0x004348b0 dispEnemy, 0x004371e0 actMove, 0x00437420 actFollow, 0x00437460 actSlide, 0x004374a0 actEscape, 0x00437610 actEscape(int, float), 0x00437960 actEscapeX, 0x0043f200 ccEnemy1::action, 0x004424e0 ccEnemyB::action, 0x004426d0 moveEB, 0x004467e0 ccEnemyG::action, 0x00446aa0 moveEG, 0x00446d50 moveEGG, 0x00446710 ccEnemyG::freeze, 0x0044aa90 ccEnemyK::action, 0x0044e860 ccEnemyP::action, 0x004518d0 ccEnemyV::action, 0x0043ad60 ccPiLimit, 0x0041b5f0 ccFellow::Main, 0x0041bc50 ccFellow::Move, 0x0041c670 ccFellow::Action, 0x0059ee20 ccSpcChar::HitCheck, 0x00581580 ccAI::FollowPlayer, 0x00581cb0 LeavePlayer, 0x00582090 FollowTarget, 0x00582ad0 FollowTargetDirc, 0x00589e90 CheckFrontObstacle, 0x00589fe0 CheckFrontObstacleF, 0x005148e0 ccNavi::PathFindingInDungeon, 0x00514cc0 HeuristicType1, 0x00514f60 ShortPath, 0x005150c0 MakeBeaconTbl, 0x00515470 SetBeacon, 0x00514770 GetDestination, 0x00515aa0 SetPathFindingMap, 0x005130b0 ccSetNaviMap, 0x00513300 ccNaviSearchNearLandmark, 0x00582d50 ccAI::MoveP2P, 0x00582930 FollowBeacon, 0x005975b0 CheckGoalBeaconPos, 0x00580ef0 ManualControl, 0x0057f660 ActInTown, 0x005826b0 FollowTargetTown, 0x00598310 ccPlayer::Main, 0x00598af0 ControlMove, 0x005993c0 AnimCtrl, 0x0059c580 ccPlayer::Attack, 0x0059cad0 AttackCancel, 0x0059cbd0 BreakSomething, 0x0059b3c0 MapLoopAdjustPos, 0x0059b470 W2MPos, 0x0059b710 P2WPos, 0x005a0530 ccThSpc, 0x005a1930 ccSpcSetOperation, 0x005a17e0 ccSpcShoutOperationName, 0x0056ba30 ccChar::CalcReal, 0x0056bfd0 ccChar::ConditionTimeCount, 0x0056c940 ccChar::ConditionBattleEffect, 0x0056cb50 ccChar::ClearCondition, 0x0056d300 ccClearSpcCondition, 0x0056f950 ccChar::DispConditionEffect, 0x00570180 ccChar::ClearConditionEffect, 0x005703f0 ccClearParamElement, 0x0056d430 ccChar::CheckLevelUp, 0x0056d640 ccChar::LevelDown, 0x0056d8a0 ccChar::CalcBattleDamage(t, sid, mag, h), 0x0056d910 ccChar::CalcBattleDamage, 0x0056b020 ccChar::EntryAffect, 0x005701d0 ccChar::CheckCharAttribute, 0x00570440 ccAddParamElement, 0x00571100 ccGetJobWeaponParam, 0x00571290 ccExpDistributor, 0x00571830 ccCheckConditionSkillSuccess, 0x00571a00 ccSetLevelParam, 0x005722e0 ccThSkill, 0x005723e0 ccSkillCheck, 0x005725a0 ccSkillAttributeCheck, 0x00572860 _ccSkillRequest, 0x00572f80 ccSkill::ccSkill, 0x005731d0 ccSkill::Main, 0x005738e0 ccSkill::NoteEventAffect, 0x00573a10 ccSkillCheckNote, 0x00573af0 ccSkillCheckTypeAttribute, 0x00573c30 _ccSkillCheckType, 0x00573cc0 ccGetArmsEffectAttribute, 0x00573e60 ccSkillDamage, 0x005743c0 ccSkillDamage (point), 0x005746d0 ccSkillDamage2, 0x00574bc0 ccSkillRecovery, 0x00574f70 ccSkillRecovery (point), 0x005752b0 ccSkillHold, 0x00575520 ccSkillHold (point), 0x005756f0 ccSkillModifyCondition, 0x00575a50 ccSkillModifyCondition (point), 0x00575cf0 _ccSkillModifyCondition, 0x00576c50 ccSkill::ConditionModifySystem, 0x00576ea0 ccSkill::HealingSystem, 0x00577070 ccSkill::RecoverySystem, 0x00579750 ccCheckTargetConditionBySkill, 0x00594e90 ccSkillDamageValue, 0x00432840 ccEnemyInfluence, 0x00433a70 ccEnemy::affectEnemy, 0x0041bdb0 ccFellow::Influence, 0x0041e1e0 ccFellow::CheckNote, 0x0059ac50 Influence, 0x0059c300 ccPlayer::CheckNote, 0x0059d080 checkPartyAnnihilation, 0x0059d100 checkPartyMenberNum, 0x0059e860 ccSpcChar::DistanceToTarget, 0x0059ec70 ccSpcChar::ConditionAdjustment, 0x0059f380 ccSpcChar::CheckSpRegeneSpeed, 0x0059f530 ccSpcChar::CheckSysMsgID, 0x005a1630 ccSpcCheckLevelUp, 0x00532ae0 ccMenuCtrl::DataDrainMenu, 0x00544c00 ccMenuCtrl::AreaItem, 0x00453420 ccEntryGimBox, 0x004534a0 ccGimBox::ccGimBox, 0x004545d0 ccGimBox::main, 0x00453d80 ccGimBox::boxMain, 0x00454140 ccGimBox::objectMain, 0x00454410 ccGimBox::virusMain, 0x00453be0 ccGimBox::invokeTrap, 0x00453ac0 ccGimBox::breakObject, 0x00453400 ccGimmickAffect, 0x00459620 ccEntryGimIdol, 0x004596a0 ccGimIdol::ccGimIdol, 0x00459920 ccGimIdol::main, 0x00438ac0 ccPrimRadiate::ccPrimRadiate, 0x0043a1c0 ccPrimRadiate::main, 0x0043c1b0 ccGimBoxRad::ctrl, 0x0043c140 entryBoxRadiate, 0x005beb30 DUNGEON::SetItemBox, 0x005be750 DUNGEON::SetIDOL, 0x005a19b0 ccSpcMessageOpenTrapBox, 0x00432cd0 ccEnemy::main, 0x00434ac0 ccEnemy::defaultThink, 0x004353f0 ccEnemy::interruptThink, 0x00433470 ccEnemy::setAct, 0x00436940 ccEnemy::selectAttack, 0x004360d0 ccEnemy::checkSkillList, 0x004366a0 ccEnemy::selectSkillTarget, 0x00435ef0 ccEnemy::setSkillRate, 0x00436cb0 ccEnemy::selectTarget, 0x00433260 ccEnemy::initEnemy, 0x0042e3c0 ccGetDrainId, 0x00586130 ccAI::ChatMessage, 0x00586190 ChatMessageModify, 0x00586420 ChatMessageSender, 0x00586570 AffectMessages, 0x00583190 Greeting, 0x0058dc40 MessageIndex, 0x0058d7b0 ChatMessageAttackTarget, 0x0058dc80 ChatMessageAccept, 0x0058ddd0 ChatMessageHealStart, 0x0058deb0 ChatMessageCureStart, 0x0058df90 ChatMessageResurrectStart, 0x0058e070 ChatMessageOOM, 0x0058e130 ChatMessageCanNot, 0x0058e1f0 ChatMessageNoBattleModeDeny, 0x0058e2b0 ChatMessageGhost, 0x0058e390 ChatMessageConditionMinus, 0x0058e450 ChatMessageThanksHeal, 0x0058e5b0 ChatMessageThanksResurrect, 0x0058e680 ChatMessageThanksBuff, 0x0058e750 ChatMessageUseOcarina, 0x0058e810 ChatMessageNoOcarinaDeny, 0x0058e8d0 ChatMessageDisableOcarinaDeny, 0x0058e990 ChatMessageEnteredField, 0x0058eae0 ChatMessageVictory, 0x0058ec30 ChatMessageNeutral, 0x0058f480 ChatMessageHealPlz, 0x0058f540 ChatMessageTreatmentPlz, 0x0058f600 ChatMessageResurrectPlz, 0x0058f6e0 ChatMessageReencounter, 0x0058f810 ChatMessageEnteredTown, 0x0058fb40 ChatMessageChatCmdAccept, 0x005901d0 ChatMessageDamage, 0x00590790 ChatMessageAttack, 0x00590c90 ChatMessageEquipOK, 0x00590d50 ChatMessageEquipNOT, 0x00590ea0 ChatMessageAttributeCritical, 0x00590f60 ChatMessageAttributeGuard, 0x00591040 ChatMessageAttributeFollow, 0x00591140 ChatMessageHealPlzAccept, 0x00591200 ChatMessageSkillAccept, 0x005912c0 ChatMessageAssignAccept, 0x00591380 ChatMessageConditionModify, 0x005918f0 ChatMessageWaitPlz, 0x005919d0 ChatMessageGhostCondition, 0x00591a90 ChatMessageLevelDown, 0x00591b50 ChatMessageLevelUp, 0x00591c10 ChatMessagePresentOtherFellow, 0x00591e00 ChatMessageDeadOtherFellow, 0x00591ec0 ChatMessageOpenTrapBox, 0x00592070 ChatMessageQuitPucciguso, 0x00592150 ChatMessageConditionModifyEnemy, 0x00592210 ChatMessageOpenTreasureBox, 0x005923f0 ChatMessageALotOfEnemy, 0x005924b0 ChatMessageBetterWeapon, 0x00592590 ChatMessageWorseWeaponMessages, 0x00592670 ChatMessageFellowIsHighLevel, 0x00592750 ChatMessageGratsLevelUp, 0x00592900 ChatMessageWalkingTalk, 0x00597760 getAttributeStr, 0x00651ae0-0x00654050 the chat tables, 0x0057ca00 ccAI::Brains, 0x0058aeb0 ccAI::ReadSysMsg, 0x00592aa0 ccAI::Reconnoiter, 0x0057cd00 ccAI::ActInField, 0x0057e0c0 ccAI::ActInDungeon, 0x005941f0 ccAI::SelectAttackSkill, 0x00589820 ccAI::CheckNeedHealing, 0x00586630 ccAI::AttackTarget, 0x00586bd0 ccAI::SearchTargetNear, 0x00583440 ccAI::RequestChatCmd, 0x0058ce10 ccAI::ChatCommandExecute, 0x005959c0 ccAI::CheckSolution, 0x00587440 ccAI::levelCheck, 0x0057aa80 ccUseItemRequest, 0x0057a6d0 ccCheckItemUseful, 0x0057a890 ccCheckSkillUseful, 0x00572790 ccItemSkillRequest, 0x005833a0 ccAI::SetGoalPos, 0x0059e920 CheckBootStatus, 0x0059f850 DelSpc, 0x005a02d0 DeleteNoPartyMember, 0x0042f5a0 ccAddRequestFileListEntry, 0x0042feb0 ccEntryCtrl::initEntryCCS, 0x0042f400 ccRegisterGimmick, 0x0042f380 ccInitRegisterGimmick, 0x00432fc0 ccEnemy::initEnemyCCS, 0x0042e270 ccCheckMiddleBoss, 0x006e10d0 ccChar::Draw's condition colours, 0x005a08a0 ccSpcConditionEffectSW, 0x005a06d0 ccThSpcDelete, 0x00456540 ccGimEtc::ccGimEtc, 0x00456ba0 initFountain, 0x00456760 ccGimEtc::main, 0x00456fb0 ctrlFountain, 0x005c9ba0 DUNGEON::GetNearDoorPosition, 0x005aa990 WORLD::SetFood, 0x005aae90 WORLD::SetSpecialObj, 0x005abd20 WORLD::SetDungeonEnter (the in-points), 0x005b63a0 CheckBossEffect, 0x0042e0c0 ccCheckFountain, 0x0043e760 ccEnemyWeaponCtrl::ccEnemyWeaponCtrl, 0x0043e850 ccEnemyWeaponCtrl::~ccEnemyWeaponCtrl, 0x0043e900 ccEnemyWeaponCtrl::ctrl, 0x0043eae0 ccEnemyWeaponCtrl::note, 0x0043c970 ccEnemyWeapon::ccEnemyWeapon, 0x0043cc30 ccEnemyWeapon::~ccEnemyWeapon, 0x0043cda0 ccEnemyWeapon::init, 0x0043ce60 ccEnemyWeapon::setEdgeRate, 0x0043d130 ccEnemyWeapon::initCell, 0x0043d190 ccEnemyWeapon::initCellColorHSV, 0x0043d2c0 ccEnemyWeapon::getNewCell, 0x0043d3b0 ccEnemyWeapon::interpolateCell, 0x0043d720 ccEnemyWeapon::makePacketCell, 0x0043db50 ccEnemyWeapon::setCell, 0x0043de90 ccEnemyWeapon::ctrlCell, 0x0043e110 ccEnemyWeapon::dispCell, 0x0043e3f0 ccEnemyWeapon::ctrlRadiate, 0x0043e680 ccEnemyWeapon::checkWeapon, 0x0043c600 ccEnemyWeaponRad::ctrl, 0x004382a0 eneSplineH, 0x004393a0 ccPrimRadiate::create, 0x00438580 ccPrimPacket::makePacket, 0x00438820 ccPrimPacket::sendPacket; INF SLUS_202.67:0x001da150 ccSetRad, 0x001da5d0 ccSetDist, 0x001da030 ccGetDircChgF, 0x001da0b0 ccSetDirc, 0x001d9c10 ccRandS, 0x00110c28 sceVu0RotMatrix, 0x00153220 ccCharHit::ccCharHit, 0x00153470 ccCharHit::CollisionDetection, 0x00153930 _ccHitCheckLM, 0x001da710 ccCheckCameraDeg, 0x001da880 ccGetCameraTransparency, 0x00152210 ccAnm::NoteProcess, 0x001a1f20 WORLD_MAN::EntryGimmick, 0x001b62e0 ccEntryEventMng, 0x001a22f0 WORLD_MAN::Get2DMapInfo, 0x00178030 ccSaveData::CheckEventEntry, 0x00133a38 rand, 0x001787a0 AddLvErosion, 0x001d9a10 ccRand, 0x001d9620 genrand, 0x001d9a90 ccRandF, 0x00177730 ccSaveData::AddItem, 0x001aa290 remove, 0x001ad8ac pc_walk_pos, 0x001ad9b0 pc_run_pos, 0x001adab0 pc_walk_dir, 0x001adbf4 pc_walk_marker, 0x001adda4 pc_walk_char, 0x001ae164 pc_command, 0x001ae9e8 party_put_marker, 0x001aec5c party_put, 0x001aeb84 pc_put, 0x001aee30 pc_face, 0x001af028 enemy_put, 0x001b09fc hold, 0x001b0a68 hold_end, 0x001b5040 ccThEvHold, 0x001b1f04 player_skill, 0x001b23a8 battle_ready, 0x001da610 ccGetDircPL, 0x001a3c40 WORLD_MAN::SetEventData, 0x0013d610 ccClump::ChangeClut, 0x0013df20 ccSetFogBlendColor, 0x001057f0 ccDrawEnv::SetFogBlend, 0x00378ce4 spcConditionEffectFlag, 0x0015a6a0 ccThControl, 0x001782f0 ccSaveData::CheckFountain, 0x001a3960 WORLD_MAN::GetFood, 0x001a4180 WORLD_MAN::GetDungeonMarkerPoint, 0x001a4130 SetDungeonMarkerPoint, 0x001b71b0 ccRegisterRegularGimmick, 0x0059ddd0 ccSpcChar::ArmsEffect, 0x0059e3b0 ccSpcChar::ClearArmsEffect, 0x0059e460 ccSpcChar::SetArmsEffectColor, 0x0059e4b0 ccSpcChar::_SetArmsEffectColor, 0x0059e530 ccSpcChar::StartArmsEffect, 0x0014d4d0 ccStream::Decode_DummyPos; INF gcmn.prg:0x0045a0d0 ccGimSymbol::ccGimSymbol, 0x0045aa40 ccGimSymbol::main, 0x0045ab00 symMain, 0x0045aed0 objMain, 0x0041e590 ccFellow::Attack, 0x00589410 ccAI::UseItem, 0x00587e20 ccAI::CheckHealParty, 0x00596b00 ccAI::HealSPC, 0x005937d0 ccAI::DebuffForUnusedEnemy, 0x00593ce0 ccAI::BuffForUnusedFellow, 0x005962d0 ccAI::ChatCommandHealPlz, 0x005857c0 ccAI::ChatCommandDeBuffPlz, 0x00585c70 ccAI::ChatCommandBuffPlz, 0x00583750 ccAI::ChatCommandFulfilCheck, 0x00583d60 ccAI::ChatCommand, 0x0041a990 ccThBook, 0x0042e4f0 ccClearConditionAllEnemy, 0x005a0880 ccSpcConditionEffectON, 0x0059aa90 ccPlayer::SetTargetDirc, 0x0059ab80 ccPlayer::SetTargetDist, 0x0059c550 ccPlayerCheckNote, 0x0059ca40 ccPlayer::DamageActuate, 0x0059d630 ccSpcChar::SetActNum, 0x0059d640 ccSpcChar::SetActNumOld, 0x006fa900 ccRegisterEnemyTbl, 0x006fa920 ccRegisterDrainTbl, 0x00443330 ccEnemyC::moveECS, 0x00450b30 ccEnemyU::moveEU, 0x00448b10 ccEnemyG::actEscapeGold, 0x00438d10 ccPrimRadiate::init, 0x00438e30 ccPrimRadiate::setColorRadiate, 0x00439520 ccPrimRadiate::createPlate, 0x00439df0 ccPrimRadiate::disp; INF SLUS_202.67:0x00378190 ccRegisterEnemyRange, 0x00378194 ccRegisterEnemyNum, 0x00378198 ccRegisterDrainNum, 0x0037890c ccCharHitTop, 0x00378910 ccCharHitTail; MUT gcmn.prg:0x00597bb0 ccSkillCheck, 0x005b25f0 ccAI::ReadSysMsg's uses, 0x005a3810 ccAI::ActInField (mode 4), 0x005a5104 ccAI::ActInDungeon (mode 4), 0x005a97e0 ccAI::RequestChatCmd, 0x005acaf0 ccAI::ChatCommandDeBuffPlz, 0x005ad010 ccAI::ChatCommandBuffPlz, 0x00597cb0 the maxSP check, 0x005c2380 an item's heal
 worklog: 22, 25, 170
 ---
 
@@ -198,7 +198,8 @@ is started against a foe: the skill's element opposes the foe's strongest
 (bit 0x1 with a physical skill, 0x2 with magic), and `(rand() >> 3) % 100 <
 50`. In `ccSkillDamage` (0x00573e60) the aimed target of a skill with the
 flag then takes a sure hit (`h = 100`) at `mag = 2.0`, and later hits of the
-same skill stay doubled. In an area, the others of a splash skill (bit
+same skill stay doubled (`acFlag` left at -1; in an area the sure hit carries
+to the characters after it too). In an area, the others of a splash skill (bit
 0x8000) take `mag = 0.5`.
 
 ## The protect gauge
@@ -269,7 +270,10 @@ start and stop holding.
 **Interrupts.** `ccSkillCheck(ch)` (0x005723e0) finds the first running
 skill of `ch`'s, status 0, that a hit interrupts: one flagged so (flag
 bit 7), a physical skill, or a spell while Kite is in a casting act (17,
-18). Only characters of type 0x0700000f have one.
+18). Only characters of type 0x0700000f have one. From Mutation on
+(0x00597bb0) the rule is another: any such skill of a character without
+those type bits, and of one with them only the skill that is its
+`skillID`.
 
 **Healing** (`ccSkillRecovery`, 0x00574bc0): the Repth skills heal 150, 400,
 and the target's maxHP; skill 295 heals its parameter. A single target
@@ -565,7 +569,15 @@ still on the command lists and it lands (an object attacker never misses:
 **The rays.** `ccPrimRadiate` (0x00438ac0) with `ccGimBoxRad::ctrl`
 (0x0043c1b0): gouraud strips (`PRIM` 0x4c, `ALPHA` 0x44, `TEST` 0x73001,
 `ZMSK`) on layer priority 30, from the object's position, turning about x
-and pulsing for 52 frames with an omni light in the scene's group.
+and pulsing for 52 frames with an omni light in the scene's group. Act 0
+takes the user's position, the colours `ccFractionalHsv(0x802affff, 1.0,
+0.4)` inside and `(.., 0, 0)` outside, length 80, width 60, zoom 4,
+`dpLength` and `dpBank` 0.1 and the height it shines from (`param[2]` its
+z), and goes on to act 1 at once. Act 1, for 52 frames, turns it about x
+(0.18 a frame), pulses it with `param[0]` (alpha 0.5 sin, the light 3 sin,
+length 30 + 60 sin, width 30 + 30 sin, zoom 1 + 2 sin, `dpLength` 0.2 sin,
+`dpBank` 0.1 sin; +0.0628 a frame) and sways it with `param[1]` (bank pi/2
+sin, z `param[2]` - 10 + 60 cos; +0.0314 a frame); act 2 puts it out.
 
 **The idol.** `ccEntryGimIdol` makes a `ccGimIdol`: `CMP_trall` with
 `idolAnimTbl[row - 38]`'s clips (standing, opening, open); one whose event
@@ -575,6 +587,32 @@ heading), affect 11 opens it (sound 73, effOpenBox, the rays; the Zeit
 statue sound 164 and effRemoveTrap), its entry used, `param[2]` 0; at frame
 100 sound 56, then every other frame a dust ring until the clip ends. It
 is drawn with `ccChar::Draw`.
+
+**The symbol.** `ccEntryGimSymbol` (rows 17 and 18) makes a `ccGimSymbol`
+(0x0045a0d0): `trapNum` (+0x7c) a skill of `symbolSkillTbl`
+(`ccRand() & 15`), an omni light over it, and for row 17 (the story
+dungeons', `XGSYMBOL.CCS`) a body, `CMP_xgsymbo0` playing `ANM_xgsymbol`
+and 40 fires (`ccSymFire`, `EFF_x008`) run 20 frames ahead. Its `main`
+(0x0045aa40) does nothing while frozen, then runs row 17's `symMain`
+(0x0045ab00) or row 18's `objMain` (0x0045aed0, the lakes', no body or
+fires):
+
+```text
+symMain  a symbol already used (act not 0) starts spent (act 2, its fires
+         out). Acts 0, 1: the light at 1 + ccRandF(0.2), in the group
+  act 0  a fire every other frame; affect 11 (SymbolMenu): act 1
+  act 1  frame 0 off the command lists, param[2] 0, sound 35,
+         effUseSymbol(light), ccItemSkillRequest(this, affectPerson,
+         trapNum, 0); each frame a fire and invokeEff (a spark,
+         ccParticleExplode); frame 30 act 2, the light out
+  in view (ccCheckCameraDeg 12288): the clip forward, ccChar::Draw, the
+         fires on layer 3
+objMain  every frame the light as above; act 0 the count up, affect 11:
+         act 1; act 1 as symMain's (deleteCmnd(1)); act 2 the object goes
+         with its light; on an even count a puff: effSmoke from 10 out
+         along a heading of three ccRand() turns, flying out along it and
+         2.5 up
+```
 
 **The food.** `ccEntryGimFood` makes a `ccGimFood` (0x240 bytes): the
 entry copied in, a body (the base's width, half its height, its type) in
@@ -598,7 +636,9 @@ dungeon, each `GIMMICKDATA` row of type 0 (a box at (x, y, 250), rows 0, 2,
 4 by kind, its item `ccGetItemEditCode` of the row's code, `param[0]` the
 event entry counter) and type 3 (the table at 0x006965f0 by kind: 6, 1, 0,
 0, 17, the food (`GetFood()` overwrites word 5), 19, ...; kinds 7-26 are
-the warps; kind 6 is the boss room's warning, below). `DUNGEON::SetIDOL`
+the warps; kinds 27 and up a virus crystal holding the item `(kind - 27) |
+0xf0000`; kind 6 is the boss room's warning, below). A row faces by its
+`direc` (0: 0, 1: pi, 2: pi/2, 3: -pi/2). `DUNGEON::SetIDOL`
 (0x005be750) puts an idol at each kind-2 slot: 44 in a time-symbol
 dungeon, 20 at a lake, else by the field's element 38-43, turned by the
 room's `rotate` plus pi, and in a story dungeon the room's item.
@@ -656,19 +696,22 @@ main            (0x00456760) nothing while frozen; the first frame with
 9   affect 11: 10
 10  frame 0 effsw 0, a spring of 3 (0.9, over 180); 30 faded out over
     60, a spring of 7, sound 215; 90 EntryFlash(10, white): 11. To
-    frame 30 down to -200, then up to 1800, the bounce off, scale0 to
-    0; frames 6-59, when the count is 2 mod 4, effOpenBox
+    frame 30 down to -200 (rate 0.02), then up to 1800 (0.08), the
+    bounce off, scale0 to 0 (0.12); frames 6-59, when the count is 2 mod 4, effOpenBox
 11  SetFountain(the area's code), off the command lists, the lights
     out: gone
 then (states 0-10): under 10, every fourth count a dust ring (3.0,
-    30.0, 4, 35, 110) up to 100 out at z -50; windowOfs to 150 in
-    states 3-10, else to 0; the bounce (bounceDeg on by ccRandS(), scale0
-    1.2 + 0.22 cos, 1.1 + 0.23 cos, 1 + 0.12 sin, z + 20 sin); the
+    30.0, 4, 35, 110) ccRandF(100) out at a ccRandF(pi) heading, at z
+    -50; windowOfs to 150 (rate 0.04) in states 3-10, else to 0 (0.01);
+    the bounce (bounceDeg on by ccRandS() & 0xff, & 0x7f the fourth,
+    plus 837, 1110, 564, 1110; scale0 1.2 + 0.22 cos, 1.1 + 0.23 cos,
+    1 + 0.12 sin, z + 20 sin); the
     spring (scale1 x 1 + zoom cnt cos(pi/2 + 2 pi cnt), z 1 + zoom cnt
     sin(2 pi cnt), springCnt down by springDec); scale = scale0 * scale1;
     in view with the spirit on: drawn on layer 6 (refLayer, priority 30)
     with blend 4 (alphaBlendTbl[4] 0x09), the lights 30 under and 100
-    over vpos, intensity 1.5 + sin(bounceDeg[3])
+    over vpos, intensity (1 + sin(bounceDeg[3])) + 0.5 in double,
+    farDown 1000 + 1000 (1 + sin)
 ```
 
 `SetFountain(code | server << 29)` records the area in the save's 100
@@ -779,6 +822,68 @@ frames, with `ccExpDistributor` and the enemy book's record
   its middle boss's base form, else the first row of its race group
   (`ccGetDrainId`, 0x0042e3c0).
 
+**`defaultThink`** in full. Every fourth frame of an act (not an attack) an
+enemy with a close range retargets the nearest, then its preferred kind if
+the nearest is not close. Then by act:
+
+```text
+0 wait    paralysed or asleep: nothing; held: strike back (6) if it was just
+          flinching, with no delay, a target within atkRangeC and a race row past
+          the first; with a target: beyond atkRangeC chase (3) after 30 frames,
+          within atkRangeA close in (1), else attack (6) once the delay is over;
+          without: a target found means chase, else every 64th frame a coin toss
+          wanders (2)
+1 close   no target: stop (5); beyond atkRangeB after 16 frames: attack, or (a
+          later race row with a delay, healthy, a coin toss) halve the delay and
+          stop; after 240 frames (or 90 with 90 hit frames): attack; then with no
+          delay (later rows, 16 frames): attack if one is ready (when held: if
+          flinching lately)
+2 wander  every 256th frame 3 in 4 stop; a target found means chase
+3 chase   within atkRangeB or no target: stop; after 240 frames 1 in 8
+4 return  home within territory: stop; after 240 frames, every 32nd, a coin toss
+5 stop    below speed 1: wait
+6 attack  a special attack holds its target in range; the animation's end (or
+          240 frames): wait, and the delay restarts
+7 flinch  counts; at the animation's end: wait if paralysed, asleep or held in a
+          puppet show; with a close range: close in on a random kind of target
+          (first rows, below half life, 1 in 4) else wait; else attack a target
+          found once the delay is over
+8, 9      count
+```
+
+**`interruptThink`** in full, after `think()` every frame:
+
+- a target beyond `viewRange` (not mid-attack) is dropped: stop, wait;
+- beyond `area` from home while waiting, closing, wandering or chasing:
+  drop the target and return (4);
+- charm or confusion starting sets `madFlag`; ending clears it and
+  retargets (from Mutation on also waits); while mad it retargets every
+  frame, and if it targets itself its delay runs down and it attacks (from
+  closing or chasing);
+- held, paralysed or asleep: speed 0; paralysed, asleep or held in a puppet
+  show, and not attacking, flinching or dying: drop the target and wait;
+- the affect just taken: a revival (20) of a dying enemy wakes it (`dead`
+  0, wait); poison (3) or damage (1) with no HP left starts dying (8);
+  damage of 1 or more flinches (7) unless attacking or flinching, and from
+  level 31 only if not flinching lately;
+- no HP: dying (8). Dying's first frame sets `dead` 2 and clears the
+  conditions; after 90 frames it is dead (9), off the lists, the experience
+  given, fading out over 30 frames, the book's record kept; dead for 30
+  frames, `dead` 3, removed the next frame.
+
+**`selectTarget(lttype)`** in full: with the whole party down (or none)
+while waiting, no target, conditions cleared, `actCnt` 1 (unless riding).
+Charmed: the nearest other foe; confused: the nearest of the party or the
+foes (`ccSearchNearPerson`, types 0x60 and 0x63, within `viewRange`). Else
+among the first six of the party in `viewRange` (on the ground from its
+world position), living and not a character that cannot die while others
+are there: type 0 the nearest, 1 the lowest HP, 2 the lowest level;
+failing that the nearest player (`ccSearchNearPerson(me, 3, 0,
+viewRange)`). A target found or kept is measured at once (`checkEnemy`).
+Other types (the `rand() % 3` of a flinch can be -2 or -1) compare an
+uninitialised register instead of HP or level; every call `main` makes
+leaves it 0, which picks the first in list order.
+
 ## Party AI
 
 A party member the game drives has a `ccAI` (`personal.cpp`, gcmn
@@ -840,6 +945,283 @@ never filled.
 debuff, buff duties; 11 attack the commanded target; 19 the Sprite Ocarina
 (the party made unkillable, Kite's AI under manual control). A member
 paralysed, asleep, confused or charmed only answers that it cannot.
+
+### The decisions
+
+Function by function; "from Mutation on" names what the later volumes
+change (their addresses are Mutation's gcmn). A member's frame around
+`Brains` is [a party member's frame](#a-party-members-frame).
+
+**`Brains`** (0x0057ca00), not before a mode is set nor without a body:
+
+```text
+not Kite         distPl = distance to Kite (party slot 0); dircTg = heading to the target
+talking          turn to gDeg and stop here
+off the bus      enter it (SysMsgEntry); on it: ReadSysMsg
+levelCheck
+in the party     ChatCommand; not: skillMask 3
+alive            out of mode 6 (to 1)
+down (4, 5)      a ghost goes to mode 6 and acts; dead otherwise: no action
+act              manual: ManualControl; else by area: dungeon ActInDungeon, field
+                 ActInField, Root Town ActInTown (ActInField for ccGame +0x24 == 13)
+ChatMessageSender, count + 1, detourCnt down to 0
+```
+
+It returns what the act returned (0 without one: the game leaves a stale
+register there), -1 with no mode or body.
+
+**`ReadSysMsg`** (0x0058aeb0) reads the whole queue, front first, and
+carries each message out (none while the ocarina plays): 2 heals the
+patient (the id in the name) with `SearchHealSkill`'s skill; 3, 4, 5 cure
+(178, 179) or revive (180) the patient; 6 casts the buff or debuff skill
+`param` on `pointer`, 7 uses the item `param` on `pointer`; 8-0xb use the
+item `param` on the patient. A skill out of reach is asked again in 45
+frames (kinds 2-6); a heal, cure or revive command (16), or out of battle a
+buff command (17, 18, for kind 6), is done after trying. The broadcasts
+answer calls (1, 4: come in mode 1 or 2 with 0x10002, else 0x10003), level
+changes (9-11), a death (12), a ghost's lament (13, every 90 frames),
+treasure and traps (15, 16) and meetings (17), and repeat the idle talk
+(18-22: every 150, 300, 300-322, 500-522 frames); the ocarina's 6 and 7
+make the member leave. Once a message the member sent itself is read, the
+rest of the batch is read as its own too. It returns the last use's
+result. From Mutation on (0x005b25f0) a use is skipped unless its patient
+needs it: a revive one down (`dead` 2-4), anything else one alive or
+reviving (0, 5), not at full HP for a heal (kinds 2, 8, a skill of type
+0x40000), with a condition `CheckConditionMinus` finds (-1 for 178, -2 for
+179). A skill use by id (2-5) the member did not send itself is announced,
+the item uses say nothing (`UseItem` remarks), and only a debuff command
+(17) is done after 6 and 7.
+
+**`ActInField`, `ActInDungeon`** (0x0057cd00, 0x0057e0c0), one function
+with the dungeon's differences: the command (`ChatCommandExecute`); nothing
+more while asleep, held or paralysed; the heal, debuff and buff duties;
+then by mode (it returns 0):
+
+```text
+1  idle: Reconnoiter (a strategy-3 healer keeps watch); follow Kite beyond 280 (in a
+   dungeon also when out of sight or with a route to him), turning back from 3500 in a
+   field; walking talk out of battle
+2  wary: look again, keep to Kite (or face the target)
+3  fighting: a healer (strategy 3) goes back to 2, strategy 2 falls back (1) when Kite
+   attacks from beyond 280, strategy 1 lets its target go when Kite has another;
+   AttackTarget while the target is up (in a field only within cautionRange, unless a
+   boss or 0x40 enemy, strategy 1 or 4, or commands 5 and 11), else drop it
+4  a skill command: in range (50 beyond the skill's triggerRange) UseSkill (a hit foe
+   hears the damage estimate, mode 3), else close in
+5  called over: step away from Kite within 150, look within 260, else stand down (1)
+6  down: follow Kite beyond 280 (in a field only as a ghost)
+```
+
+From Mutation on mode 4 (`ActInField` 0x005a3810, `ActInDungeon`
+0x005a5104) is a member holding its place (strategy 6): unless charmed or
+confused, a party member of another strategy goes to fighting (3) and one
+heading back falls in (1). Its target, while up, is attacked (with the
+field's `cautionRange` rule of mode 3), else let go and the member halted;
+a target that is the member itself is let go at once. With none it looks
+around (`Reconnoiter`) and halts.
+
+**`Reconnoiter`** (0x00592aa0) chooses the target and mode. A member out
+of the party searches for any foe (`SearchTarget` 224); a party member none
+while the ocarina plays, while heading back or while riding; otherwise by
+strategy: 0 and 3 (and a charmed or confused member) the nearest foe, 1
+Kite's target (a listed foe of neither side's own, up), 2 a foe only when
+Kite is neither attacking nor standing still (`stopCnt` 15 up) in modes 1
+and 3, 4 the commanded target (taken at once, mode 3, when no skill runs).
+With a target and able to act: a charmed, confused or unallied member, or
+strategy 1, goes for it (mode 3; strategy 1 says so); strategies 3 and 4
+only aim; the others go for it within `territory` (mode 3, saying so), let
+a foe that is not a boss or 0x40 enemy go beyond `cautionRange` in mode 2
+(mode 1), and otherwise aim, going to mode 3 for a boss or 0x40 enemy and 2
+for the rest. Without one the member stands down (1) unless in mode 1 or 5.
+`distTg` is kept up to date; it returns 1 when the mode changed. From
+Mutation on a charmed or confused member searches before anything else
+holds it back, strategy 6 searches and only aims as 3 does, and a member
+holding its place with no target stays so.
+
+**`AttackTarget(tp)`** (0x00586630): a member neither confused nor charmed
+lets go of a target of its own side (a charmed one of a foe), ending a
+normal attack. One in the party (`partyFlag` 1), not already heading back,
+in a field with no boss fight and more than 3500 from Kite turns back to
+him: `goBackFlag` and `followSW` set, a 0x10013 note to itself in 40
+frames, the target let go. Otherwise it closes in (`FollowTarget` once the
+navigation has arrived, else `FollowBeacon`, arriving within 150 or, every
+90th count, when the route's goal is at the target) and attacks: Kite
+through `ccPlayer::Attack`, a member of type 4 through `ccFellow::Attack`,
+with its strategy.
+
+**`ccFellow::Attack(tp, n)`** (0x0041e590), while no skill runs: before its
+first action, or every 180th frame of its task (`cycle`), a member neither
+confused nor charmed, able to act and allowed arts or spells chooses
+(`SelectAttackSkill`; none is the normal attack). It faces `tp` and
+measures the distance; the normal attack starts within `armsRange` (the
+AI's `distTg` for a distance of exactly -1, or within 30 of its stride
+while moving under its own power) and a running one ends on a target at
+`dead` 1; a skill starts within its `triggerRange`; an item is used
+(`UseItem`). Every attempt counts in `atkTargetCnt`, and a skill or item
+announces its estimate at once (0x10008, param the estimate, pointer the
+target). It returns 1 done, -1 out of range, 0 unable.
+
+**`SelectAttackSkill(tp)`** in full: with no affordable art (type 0), attack
+spell (type 1) nor attack item, none. The candidates are its attack spells
+(not 2-5) if allowed magic (`skillMask` 2), its arts (the normal attack
+included) if allowed and not of job 5, then its attack spell items. A
+spell or art costs no more than the SP it may spend (all of it, or down to
+`maxSP * savingSP / 400` once below `maxSP * savingSP / 100`; items only
+below that). A candidate displaces the first kept one it matches in damage
+unless that one did more damage per SP, and unless (with `mercy`, before
+its first action, not job 5) both overkill the target's HP left (its HP
+less the damage announced against it in the last 5 frames); mercy also
+holds back altogether when a normal attack would do a third of that. The
+other rank is `(rand() >> 3) % 4 + 1` (rank 4 redrawn as 1-3; in a boss
+fight rank 4 is rank 1, and an empty or zero-damage pick climbs to a better
+rank). It returns 1 for a skill, 2 for an item (the id or code in
+`SelectAttackSkillResult`), -1 for none. From Mutation on the 22% goes with
+the level difference, and of two candidates that do no damage the cheaper
+is kept.
+
+**`UseItem(code, target)`** (0x00589410): not asleep, held, paralysed,
+charmed or confused (from Mutation on free to act, `CheckAction(7)`, and
+held only with a boss in, which returns -1; it then remarks on the item),
+the member uses an item it carries (categories 10-15) on a listed target
+not down past 1 (or down, for a Rip Maen item): `ccUseItemRequest(body,
+target, code, 0)`, one used up, and a command to use it (99) done. It
+returns 1 for an item of categories 11 and 12 and of category 10 other
+than ids 18-22, 0 otherwise; failing, the command is dropped and the
+target let go.
+
+**`CheckHealParty(flag)`** (0x00587e20): the need is a bit per kind over
+the three members: 1 someone down, 2 someone hurt (`CheckNeedHealing`), 4 a
+body condition, 8 a spirit condition (`CheckConditionMinus` -1 and -2).
+Each need the member's skills (180, 150-155, 178, 179, with the SP) or
+items (Rip Maen items, healing items, 178 and 179 items; counts not
+consulted) cover is cleared. It returns -2 when nothing is needed, 2 when
+every need is covered, 1 when some are, -1 when none is but a skill lacked
+only the SP, 0 otherwise. From Mutation on the argument is the rate for
+`CheckNeedHealing` (its callers give 100.0), and a healing item's category
+is looked for as 10 (Infection's code looks for 0, which no item has).
+
+**`HealSPC(tp, rate)`** (0x00596b00) heals `tp` (itself with `selfFlag`;
+with none, the party member alive or down, in the party, below `rate`% of
+its maxHP, whom no one is healing, with the least HP) when below `rate`%
+(`fptosi(rate * maxHP / 100)`). With a healing skill it plans it (0x20000)
+or, out of battle and not keeping to itself, hands it half the time to a
+member that heals better with a skill; with a healing item for the loss it
+plans the item (0x80000) or, mostly (`rand() >> 3` not 0), hands it to such
+a member. It returns 1 when planned. From Mutation on (a third argument,
+`item_first`) the least-HP member wins ties (in battle the one with more
+SP); the skill is handed only when it heals less than the loss, to a
+member healing more than it does (an item's heal, 0x005c2380, likewise);
+and with `item_first` the item is tried before the skill.
+
+**`DebuffForUnusedEnemy(sid)`** (0x005937d0) and **`BuffForUnusedFellow`**
+(0x00593ce0) plan `sid` on the nearest foe (member) without it: with the
+skill and the SP the member posts itself a 0x60000 message (param the
+skill, pointer the target), with an item casting it a 0x70000 one (param
+the item), due in 30 frames, unless the same plan waits or went out within
+90 (skill) or 180 (item) frames. They return 1 when planned (or with no
+free slot). From Mutation on (a third argument, `check`): with `check` 2
+the maxSP alone need cover the skill (0x00597cb0); an area skill (type bits
+0x6000) planned by anyone within 90 frames (either form) is not planned
+again; a target already planned gives way to the next unplanned one; with
+`check` non-zero a target found is only reported (1); and the message is
+due in 30 frames on the member's first turn (`firstTime`), else in 1.
+
+**`ChatCommandHealPlz`** (0x005962d0): a member allowed to heal
+(`skillMask` 4), able (not confused, asleep, charmed, held, paralysed or
+dead), not in a skill and with nothing scheduled looks after the party (the
+battle or the normal mode's check). Out of battle it then goes back to its
+strategy (a strategy-3 healer to keeping to itself and healing only) and a
+heal command (16) is done. From Mutation on a member that has acted looks
+only every tenth frame, a held member heals too, the member must be free to
+use a skill or an item (`CheckAction(6)` or `(7)`), and out of battle the
+strategy comes back only once no one is below full HP (`CheckHealParty`).
+
+**`ChatCommandDeBuffPlz`** (0x005857c0) and **`ChatCommandBuffPlz`**
+(0x00585c70): a member allowed debuffs (8) or buffs (16), on its first
+action or every 55th (90th) count, able, idle, with nothing scheduled and
+with such skills or items, plans the first of its character's priority
+list (`spcDebuffPriorityType[debuffTableIndex[id]]`, nine entries, or the
+buff table's five) that some foe (member) still lacks: a skill id; -1 the
+six stat skills of `debuffSkillAbilityTable`; -2 the element skill of the
+field's element, then the other five. A debuff planned returns 1 at once;
+out of battle the member then (buffs: in any case) goes back to its
+strategy and a command 17 (18) is done. From Mutation on (0x005acaf0,
+0x005ad010): every 35th count, a held member too, only when free to use a
+skill or an item. A plan returns 1 at once. With none, in battle nothing
+more (a buffer's next action is no longer its first); out of battle, only
+once no one needs one (and, for buffs, no buff for the member waits or came
+in the last 37 frames), the member goes back to its strategy, drops the
+command and remarks that there is nothing to do (`OnlyDebuff`,
+`OnlyBuff`).
+
+**`RequestChatCmd(cmd, tp, sid)`** in full: the command takes effect on the
+settings at once and is noted for `ChatCommand` (`chatCmdNew`, the skill,
+the target, `chatCmdFlag` 6):
+
+```text
+7 8 9 10   strategy 0 1 2 3, commanded (strategyCMD) and applied
+1 2 3 4    strategy 0 1 2 3, applied only
+           (3 and 10 also set skillMask 4 and selfFlag; the rest clear skillMask)
+0 13 14    skillMask 3, 1, 2 (arts and spells, arts, spells); a commanded strategy
+           0, 2 or 3 reset to 0
+15 16      skillMask 0; 4 (heal) clearing selfFlag
+17 18      skillMask 8 (debuff); 16 (buff) clearing selfFlag
+11         strategy 4, skillMask 3 for job 5
+5 12 19    nothing more
+6, 20 up   strategy 0, skillMask 0
+```
+
+Mutation's (0x005a97e0), past the condition check, is the same table with
+a standing hold: `strategyCMD` 6 becomes 3 before most commands; the arts
+and spells commands (0, 13) keep a standing 1 or 4 (applied) and otherwise
+clear it; the spells command (14) makes a standing 3, or 0 or 2 with
+strategy 3, into 6.
+
+**`ChatCommandFulfilCheck`** (0x00583750): can the member do what it was
+told? A dead member says so a quarter of the time (`ChatMessageGhost`), a
+troubled one always (`ChatMessageConditionMinus`); then by command: 5 needs
+the skill and its SP (else an item casting it, which turns the command
+into 99); 13, 14 and 0 need a battle and arts or attack spells (or items)
+aimed at foes; 16 a heal the party needs and the member can give
+(`CheckHealParty`; nothing needed is told `Accept`); 18 buffs; 17 a battle
+and debuffs; 19 a place the ocarina works, the ocarina and a free moment.
+It returns 1 accepted (`firstTime` set), 0 refused (back to the standing
+strategy, the command dropped).
+
+**`ChatCommand`** (0x00583d60), once a frame: a member that cannot have
+strategies keeps strategy 0. A command waiting for the member
+(`chatCmdFlag` 2) starts once it can act (1). A new one (-2) waits while the
+member heads back to Kite from beyond 1750, then is checked (the same
+command again is taken as it is when the member is able) and accepted:
+`chatCmd`, `chatCmdTime` 0, `chatCmdFlag` 2, `ChatMessageChatCmdAccept`,
+the navigation reset, and for 11 `skillMask` 2 on job 5, for 3 and 9
+outside the Root Town heading back. A command in force ends: 11 when its
+target is gone or dead or Kite is more than 3500 away outside a dungeon; 5
+once the skill runs on its target, or on confusion or charm; 3 and 9 after
+900 frames in the Root Town or out of battle elsewhere; 1, 2, 4, 13, 14 and
+17 out of battle (strategy 3 keeping its mask). The battle's start
+(`spcBattleCondition` 3) resets the strategy to the party's (dropping
+commands other than 16 and 18); during it (1) a strategy-3 member heals; at
+the win (5) a member in battle mode says so (`ChatMessageVictory`) and
+leaves it.
+
+**`ChatCommandExecute`** carries out the command in force (`chatCmdFlag` 1
+or 2) for a member in the party, not in mode 6, not troubled or held and
+not heading back, a running normal attack ended first:
+
+```text
+11     attack the commanded target (mode 3), once no skill runs
+2 8    let go of the target when Kite's target is a living foe
+4 10   in battle, stop following and fall in (mode 1) unless in modes 1, 2, 5; stop moving
+5      close in on the target for the skill (mode 4); a target gone ends it (mode 1)
+99     use the item (UseItem)
+19     play the Sprite Ocarina (not twice, not in an event, not with a menu open): the
+       item used on itself, Kite's AI under manual control, messages 6 (next frame) and
+       7 (in 50) to everyone, ocarinaUseFlag the member's id
+```
+
+It returns 0 when the command was carried out or does not apply (the
+caller goes on with its own decisions), 1 while it holds the member.
 
 ## The chat lines
 
@@ -1040,23 +1422,33 @@ the item menu does that first (`DelItem`, in `ItemMenu` 0x0052db30 and
 | ---: | --- |
 | 10 recovery | on a listed target: rows 18-20 `EntryAffect(8)` of 100, 250, maxSP; 21-22 full HP, then 10 frames later full SP; 23 its skill with a heal of 800; the rest their skill on the target alone (stype 1) |
 | 11 spells | the skill through the user (stype 2) |
-| 12 books | a stat of the target's for good: +10 or +20 (capped at 999), +30 water, -10 magic attack, maxHP +30/+10, maxSP +15/+5 |
+| 12 books | a stat of the target's for good (`ccSpcParam.elm`, or maxHP/maxSP): +10 or +20 (capped at 999), +30 water, -10 magic attack, maxHP +30/+10 (HP rises too, up to 9999), maxSP +15/+5; the player's on the player names the stat in a message; on a foe the same offsets land in its `temp` and `time` blocks |
 | 13 tools | row 0 disarms the targeted trap (`EntryAffect(12)`), row 1 leaves the dungeon (`dneFlag`, the party made unkillable, menu 86), row 2 shows the map |
 | 14 trade | nothing |
-| 15 important | epitaphs and notes show their text (normal or Parody tables), the flute (49) calls a Grunty, 60, 61 and 69 warn, 273-280 open the book viewer |
+| 15 important | epitaphs and notes (42-48, 68, 287-290) show their text (normal or Parody tables), the flute (49) calls a Grunty (`ccPuccigusoStart` 0x005109c0), 60, 61 and 69 warn, the Ryu books 273-280 open the book viewer (`ccThBook` 0x0041a990) |
 
 `ccCheckItemUseful` (0x0057a6d0) tells the menu how an item is used: 0 never,
 1 on a target chosen next, 2 at once on the user. `ccCheckSkillUseful`
 (0x0057a890) greys out a skill with no target: party-aimed skills need a
 member (Resurrect one who is down), others a target of the right type within
 `triggerRange` plus its width, alive and in view, and the drain skills a foe
-whose protect is broken. `ccItemSkillRequest` (0x00572790),
+whose protect is broken (`PPcount` running) or a target that is no foe;
+from Mutation on none at all while the bracelet is off
+(`saveData.eventStatus[40]`). An id below 1 or past the skill table reads
+past the table (the port gives no use). `ccItemSkillRequest` (0x00572790),
 `ccItemSkillRequestParam` (0x005727d0) and `ccItemSkillCompel` (0x00572730)
 start an item's skill (stype 1, or 2 with the flag), with its amount and the
 compel bit. The save's lists: `AddItem` (main 0x00177730) stacks on the last
 stack of the item or takes the first empty slot, caps at 99, then sorts by
 `addItemCategoryTbl` (main 0x00307140); `DelItem` 0x00177af0 and the
 player's own lists (`AddPlItem` 0x00177bc0, ...).
+
+The party AI's use is `ccAI::UseItem` (0x00589410) once its checks pass,
+and the ocarina command of `ChatCommandExecute` (the call at 0x0058d558:
+the member uses 13:1 on itself); from Mutation on the member then remarks
+on it. Around the rules the call also clears the enemies' conditions
+(`ccClearConditionAllEnemy`, 0x0042e4f0), shows the trap's removal and
+sets the player's AI mode and system messages.
 
 ## The motion layer
 
@@ -1081,9 +1473,12 @@ the game asks it and as often:
 | animation | `ccStream::GetChunkAdrsF` + `ccAnm::SetAnm` (main 0x00150f50), `ccAnm.frameNow` (+0x98), `ccAnm::_AnimateForward` (main 0x00152270), `ccAnm::NoteProcess` (main 0x00152210) |
 
 A character's body in the collision is its `ccCharHit` (0x50 bytes: +0x00
-`hitSW`, +0x04 `mask`, +0x08 `mask2`, +0x0c `type`, +0x14 `radius`, +0x18
-`height`, +0x20 `pos`, +0x30 `offset`, +0x40 `attribute`; the constructor,
-main 0x00153220, sets both masks to -1 and the radius to 1). A note an
+`hitSW`, +0x04 `mask`, +0x08 `mask2`, +0x0c `type`, +0x10 `next`, +0x14
+`radius`, +0x18 `height`, +0x20 `pos`, +0x30 `offset`, +0x40 `attribute`;
+the constructor, main 0x00153220, sets both masks to -1 and the radius to
+1). An enemy's is at `ccEntryObj` +0x160, a party member's `bodyHit` at
++0x1a0; the list of bodies is `ccCharHitTop`/`ccCharHitTail` (main
+0x0037890c, 0x00378910). A note an
 animation passes is a `ccAnmNote` (+0x4 `event`, +0x8 `param`), from the
 clip's `F_Note` records; `NoteProcess` hands each to the character's note
 function (`ccEnemyCheckNote`, `ccFellowCheckNote`, `ccPlayerCheckNote`).
@@ -1122,7 +1517,8 @@ main 0x00168960, starts them):
 
 `ccThSpc` and `ccThAISystem` share priority 48; `ccThSpc` starts the other
 from its own set-up, so it runs first (tasks of one priority taken to run
-in the order they were started, as in [the town](field-game.md)). `ccThSpc`'s set-up also builds the
+in the order they were started, as in [the town](field-game.md)). `ccThSpc`'s set-up also turns the
+condition effects on (`ccSpcConditionEffectON`, 0x005a0880) and builds the
 dungeon room's path-finding map (`SetPathFindingMap`, 0x00515aa0), which
 runs again whenever a room is built. When an area starts, the entry
 control registers the area's enemy rows (`ccRegisterEnemyList`,
@@ -1192,7 +1588,7 @@ A poison tick that leaves him at 0 HP inside `CalcReal` downs him there (`Influe
 - Asleep or paralysed: the combo stops.
 - `hold` lasts one frame: `Main` clears it.
 
-**The stick** (`ControlMove`, `ctrlType` 0): nothing moves him while a skill runs, during the first swing (`attack` 1), or under `pauseSW` / `restraintSW`. Leaning during the second swing ends it. `ctrlType` 1 (steering: the stick's x turns him by `5 (|sin| - 0.4) power`, its y drives him at `|power cos| / 255` in double precision) and other types (backing along the stick) are ported, but only the constructor writes `ctrlType`, and it writes 0 (*inferred*).
+**The stick** (`ControlMove`, `ctrlType` 0): nothing moves him while a skill runs, during the first swing (`attack` 1), or under `pauseSW` / `restraintSW`. Leaning during the second swing ends it. `ctrlType` 1 (steering: the stick's x turns him by `5 (|sin| - 0.4) power` a frame past 0.4, its y drives him at `|power cos| / 255` in double precision, `pos` moved at once as well as `movePos`) and other types (backing along the stick) are ported, but only the constructor writes `ctrlType`, and it writes 0 (*inferred*).
 
 **Acts** (`actNum`, each a clip of `playerAnimTbl` 0x006f0560):
 
@@ -1217,12 +1613,13 @@ A poison tick that leaves him at 0 HP inside `CalcReal` downs him there (`Influe
 
 **Skills and the combo.** `skillStatus` bit 0 (a request) starts the act and sets bit 1. For a target that is not listed the skill ends (`ccSkillRequest(this, 0, 0)`), except for skill 180.
 - **Skill 1:** swings 15, or 16 while `attack` is 1.
-- **Starting a skill:** faces the target (`SetTargetDirc`: `atan2f(dx, -dy)`, not in the eye view), colours the trails, and, for an art or attack spell when not in manual mode, charmed or confused, sends 0x10008 to his own AI id with `ccSkillDamageValue`.
+- **Starting a skill:** faces the target (`SetTargetDirc` 0x0059aa90: `atan2f(dx, -dy)`, not in the eye view; `SetTargetDist` 0x0059ab80 keeps `distTg`, the ground distance less the target's width, and drops a target that is down), colours the trails, and, for an art or attack spell when not in manual mode, charmed or confused, sends 0x10008 to his own AI id with `ccSkillDamageValue`.
 - **Ending the normal attack:** it ends when its swing ends or he stands (act 0), and `actOneTwoCnt` then allows 30 frames for a second press to swing 16; when the count runs out, `attack` goes back to 0.
 - **The third swing:** `attack` 3 moves to 4 after 50 frames, and 4 swings again within `armsRange`, but no gcmn code stores 3 (*inferred*).
-- **The hit:** note 0x8005 of his swing lands the normal attack's or art's hit (`ccPlayer::CheckNote` 0x0059c300), and its `EntryAffect` on the target runs the target's `affectFunc` at once.
+- **The hit:** note 0x8005 of his swing lands the normal attack's or art's hit (`ccPlayer::CheckNote` 0x0059c300, through `ccPlayerCheckNote` 0x0059c550), and its `EntryAffect` on the target runs the target's `affectFunc` at once.
+- **The rumble:** `DamageActuate(dmg)` (0x0059ca40) rumbles the pad `DamActuTbl[0]` under 10 damage, `[1]` under 100, else `[2]` (nothing in act 14 or for no damage). `Influence` calls it before it sets the hurt or down act, so it sees Kite's act from before the hit.
 
-**Kite's AI attack** (`ccPlayer::Attack` 0x0059c580): it is `ccFellow::Attack` without `firstTime`. `cycle % 180` sets when he chooses; `targetChar` is set on the character.
+**Kite's AI attack** (`ccPlayer::Attack(tp, n)` 0x0059c580, asked for while his AI drives him): it is `ccFellow::Attack` without `firstTime`. While no skill runs, every 180th frame of his task (`cycle % 180`), neither confused nor charmed, able to act and allowed arts or spells, he chooses (`ccAI::SelectAttackSkill`; none is the normal attack). `tp` becomes his target (`targetChar` set on the character). The normal attack starts within `armsRange` (the AI's `distTg` for a distance of exactly -1, or within 30 of his stride while moving), and a running one ends on a target at `dead` 1; a skill starts within its `triggerRange`; an item is used (`ccAI::UseItem`). Every attempt counts in the AI's `atkTargetCnt`, and a skill or item announces its damage to the party (0x10008). It returns 1 done, -1 out of range, 0 unable.
 
 **Frames.**
 - `W2MPos` (0x0059b470) wraps a world position into the map's bounds (`WORLD_MAN` +0x420: minX minY maxX maxY).
@@ -1240,8 +1637,9 @@ A poison tick that leaves him at 0 HP inside `CalcReal` downs him there (`Influe
 
 ## A party member's frame
 
-`ccFellow::Main` (0x0041b5f0) runs a member the AI drives once a frame, in
-this order:
+`ccFellow::Main` (0x0041b5f0; `ccFellow` is 0x0041b5f0-0x0041e46c) runs a
+member the AI drives once a frame, in this order. It sets acts through
+`ccSpcChar::SetActNum` and `SetActNumOld` (0x0059d630, 0x0059d640).
 
 1. The weapon swap: `weaponChangeSW` (+0xe1 bits 0-1) 1 loads the weapon
    (`ccSpcChar::EquipWeapon`, 0x0059d650) and leaves -1, which the next frame
@@ -1406,7 +1804,7 @@ decisions' side (`party_ai`): `followSW`, `goBackFlag`, `detourCnt`,
   (below). Walking: within 70 of the point, or `distPl` within `fpOkRange`
   (120), it has arrived (`goBackFlag` 0) - beside a walking Kite beyond 20 it
   keeps walking, else it stops and takes his heading; otherwise it walks,
-  runs beyond 250 unless Kite walks. Standing beyond 280 it sets off if it can
+  stops running within 50, runs beyond 250 unless Kite walks. Standing beyond 280 it sets off if it can
   (`CheckAction(1)`), running unless Kite walks, or beyond 350. Kite gone
   (off the lists): stop, `followSW` and `goBackFlag` 0.
 - **`LeavePlayer`** (0x00581cb0): steps away from Kite (mode 5) until
@@ -1417,8 +1815,8 @@ decisions' side (`party_ai`): `followSW`, `goBackFlag`, `detourCnt`,
 - **`FollowTarget(tg)`** (0x00582090): closes in on a target on the lists.
   `dircTg` is the heading to its `pos` (in the player's frame), `distTg` the
   ground distance less both widths, truncated to a whole number; the member
-  turns when able (`CheckAction(2)`) beyond `noTurnRange` and while no skill
-  runs. A dungeon's wall asks for a route; a field's obstacle a detour.
+  turns when able (`CheckAction(2)`) beyond `noTurnRange` (from Mutation on
+  at any distance) and while no skill runs. A dungeon's wall asks for a route; a field's obstacle a detour.
   Wary (mode 2) it runs after the target beyond `stopRange` or while Kite is
   within `territory`, stops within `stopRange` or with Kite beyond
   `territory`; otherwise it runs beyond `attackRange` and stops within
@@ -1544,15 +1942,16 @@ turns at once and sets `dircTg`.
 
 | cmd | what |
 | ---: | --- |
-| 0 | stand, turn toward `gDeg` by `gRotSp` (`ccSetDirc`) |
-| 1, 2 | walk, run to `gPos`, straight or along the town route to landmark `gPoint`; done within 50 |
-| 3 | transfer in (`TransferIn`) until `actNum` 2 |
-| 4 | transfer out until `actNum` 14 |
-| 5 | transfer out and leave the party (`resignParty` 0x0059d150, or `disbandSpc` 0x005a0f50 outside it); `partyFlag` -2 |
+| 0 | stand, turn toward `gDeg` by `gRotSp` (`ccSetDirc`); `remoteFlag` 0 once facing it while `stopFlag` is set, else 1 |
+| 1, 2 | walk, run to `gPos`: straight for `gPoint` -1, else along the town route to landmark `gPoint` (`TownNavigatorPoint`, then `gPoint` -2); within 50 of the end: stand, `remoteCmd` 0, `remoteFlag` 1, `gDeg` the heading it had this frame |
+| 3 | in the area (`actNum` 2): done; transferred out (14): `TransferIn` |
+| 4 | out (14): done; else, unless leaving (12), `TransferOut` |
+| 5 | unless out or leaving: `TransferOut` and out of the party (`resignParty` 0x0059d150, or `disbandSpc` 0x005a0f50 for a member of none); `partyFlag` -2 |
 | 6 | hide: `actNum` 14, transparency and cloak 0 |
-| 7 | show: `actNum` 2 (the body back in the world), transparency and cloak 1 |
+| 7 | show: `actNum` 2 if it was 14 (its body into the world, `HitEnable`, while alive or down), transparency and cloak 1, `dispSW` |
 
-`remoteFlag` stays 1 until a command is done. The turn compares `gDeg`,
+"Done" clears `remoteCmd` and `remoteFlag`; the others leave `remoteFlag` 1
+until done. The turn compares `gDeg`,
 read unsigned, with the new heading's sign-extended 16-bit angle, and
 `RAD2DEG(DEG2RAD(s))` is not `s` for any positive `s` (measured over every
 angle), so a turn only ever counts as done facing heading 0. A `gRotSp` of
@@ -1653,7 +2052,7 @@ All of this is measured.
 
 `entryEnemyObject` (gcmn 0x00430250) runs when a dead enemy is taken away and its `param[2]` is not 0. With `(ccRand() & 3) == 0` it leaves a treasure box (gimmick `ccRand() & 1`, `entRoot` 1) where the enemy stood, with the trap-removal effect and sound 215 (measured).
 
-Registration: `ccRegisterEnemyList(server, type, rank)` (gcmn 0x0042ed70) registers `ccRegisterEnemyRange` (3) rows of `ccEnemyListInfo[server][type]` (gcmn 0x005da200) from `rank`, staying on the last row past the end. Each registered row also registers its drained form into `ccRegisterDrainTbl` (gcmn 0x006fa920) once, and a middle boss registers its base form's drained form as well. `ccRegisterEnemyOne` (gcmn 0x0042e8d0) registers one row. The two tables are contiguous and unchecked, so a ninth registered row lands in the drain table (measured). `ccAnalyzeEnemyList` (gcmn 0x0042f290) is the highest level among the three rows that would be registered.
+Registration: `ccRegisterEnemyList(server, type, rank)` (gcmn 0x0042ed70) registers `ccRegisterEnemyRange` (main 0x00378190, 3) rows of `ccEnemyListInfo[server][type]` (gcmn 0x005da200) from `rank` into `ccRegisterEnemyTbl` (gcmn 0x006fa900, `int[8]`, count `ccRegisterEnemyNum` main 0x00378194), staying on the last row past the end. Each registered row also registers its drained form into `ccRegisterDrainTbl` (gcmn 0x006fa920, `int[16]`, count `ccRegisterDrainNum` main 0x00378198) once, and a middle boss registers its base form's drained form as well. `ccRegisterEnemyOne` (gcmn 0x0042e8d0) registers one row. The two tables are contiguous and unchecked, so a ninth registered row lands in the drain table (measured). `ccAnalyzeEnemyList` (gcmn 0x0042f290) is the highest level among the three rows that would be registered.
 
 ### The magic circle
 
@@ -1830,7 +2229,7 @@ The other races with their motion ported (`action()` at 0x0043fbf0 (2),
 The clips: F and I as P; 2, C, H and U as B. `ccEnemy2` types 0, 1 and 3
 turn the facing after the walk as `ccEnemy1` does.
 
-- **The scorpion's spin** (`moveECS` act 5): on the act's first frame
+- **The scorpion's spin** (`moveECS` 0x00443330, act 5): on the act's first frame
   `pi/2 speed / maxSpd`, to a side by a coin (`optFlag0`), from the
   target's heading (or its own facing without one), wrapped once, is kept
   at +0x340. Then `actMove(dirc.z, 0, spin, 0.1, 0, 0.1, 0)`: the facing
@@ -1840,7 +2239,7 @@ turn the facing after the walk as `ccEnemy1` does.
   0x005dec10: (200, -300), (-200, -300), (130, 200), (-130, 200)) through
   the model's world matrix (`anm` +0, what the last draw left), every
   other frame of the spin: `ccEnemyEffDust(p, 2, 3.0, 20, eneSmoke)`.
-- **`moveEU`** first cuts the target's heading to its top bits: `td >>
+- **`moveEU`** (0x00450b30) first cuts the target's heading to its top bits: `td >>
   r << r` (arithmetic), `r = 18 + (ccRand() & 3)`, every frame. The tails
   escape of types 3-6, on the act's first frame, runs `actEscape(2, 0.8)`
   once only to see which way it turns the walk, puts the walk, facing and
@@ -2092,7 +2491,7 @@ moveGold (goldParam[2], [3] in hundredths)
             3) - 1.5), goldDisHold 1 on the act's first frame; volume 1:
             slow; else actEscapeGold(-0.8)
   8 dying   slow (0.5)
-actEscapeGold(zoom)
+actEscapeGold(zoom)  (0x00448b10)
   away = piLimit(pi + targetDirc) dispersed by goldParam[0]: 0
     ccRandF(0.3 pi (1 - c)), 1 ccRandF(pi (1 - c), pi/10 (1 - c)),
     else none (under crisisRate 0.3 a ccRandF(pi/10) drawn and dropped);
@@ -2620,7 +3019,8 @@ own frames call after their condition counts (Kite's `ccPlayer::Main`,
 dead other than 0 and 1        an effect (+0x2c) killed, num -1
 a party character (type & 4)   ccSpcConditionEffectSW() off, or Kite
                                (base id 0) in the eye view: an effect
-                               deleted, num -1
+                               deleted, num -1 (from Mutation on num -1
+                               with no effect too)
 otherwise, in this order, each active condition: if it is the current
 num, it stays (its effect kept, or remade if the effect's own number
 +0x1c differs, or made if there is none); else the first active one is
@@ -2759,6 +3159,23 @@ ccEnemyCell (0xd0)    +0 bit 0 put between two; +2 life; +4 alpha; +8 newer;
 | `makePacketCell(v, cont)` | 0x0043d720 | edges e and e + 1: each the first time this frame `ccTransPosFW2LW` in place and `sceVu0RotTransPers` on `ccLayer::active`'s view; the strip packet as they are, the line packet with the alphas 1.1 times (held to 0-255) |
 | `ctrlRadiate` | 0x0043e3f0 | a skill's flash moved to the node's edges each frame; while it shines `ccEnemyWeaponRad::ctrl`, `create`, `disp` |
 | `ccEnemyWeaponRad::ctrl` | 0x0043c600 | act 0: colours `ccFractionalHsv(hsv, 1, 0.7)` inside and `(hsv, 0, 0)` outside, length and zoom 0, width 2 pi / pnum; act 1: 0.24 a frame about x, alpha `sin p`, the light 1.5 `sin p` in `cc3d`'s group at its place in Kite's frame, length 40 `sin p`, width 20 `sin p`, zoom 10 `sin p`, p on by pi / life; after life + 2 frames act 2 puts it out |
+
+`ccPrimRadiate` (gcmn prim.cpp, 0x00438ac0-0x0043a248) builds rays of
+light round a point each frame and draws them as triangle strips on layer
+6, with a `ccOmniLight` in the scene's light group while it shines:
+
+| function | gcmn | what |
+| --- | --- | --- |
+| `ccPrimRadiate(inf, chr)` | 0x00438ac0 | every member 0; user `chr`, info `inf`; `init`; `pnum` `ccPrimPart`s (`new[]`; the centre's too for type bit 0x10); a `ccOmniLight`; `init` again |
+| `init` | 0x00438d10 | pos (0, 0, 0, 1), rot 0; type, `pnum`, centre, length, width, zoom and the colours from the info; angle 2 pi / `pnum`; bank 0; scale, lscale, alpha 1; `dpLength`, `dpBank` 0; `radFlag`, `lgtFlag`, life, act, count, param 0 |
+| `setColorRadiate(c0, c1)` | 0x00438e30 | (no centre part) each ray's inner points c0, outer c1; the light's reach (0, 1000, 1e6) and colour (c0's RGB) |
+| `main` | 0x0043a1c0 | with `radFlag`: the class's `ctrl` (vtable +8), `create`, `disp` of the rays (and of the centre) |
+| `create` | 0x004393a0 | the turn (below); m = RotZ RotY RotX of the unit; with parts, type bit 4 `createPlate(m)`, else bit 8 `createRing(m)` |
+| `createPlate(m)` | 0x00439520 | ray i: RotX(angle i) under m at pos; inner (0, -+w, c), outer (0, -+w zoom, c + l), l drawn afresh a ray with `dpLength` (l + ccRandF(l dp)); the outer points turned by bank (+ ccRandF(bank dpBank)) unless facing; each ray's alpha |
+| `disp(part)` | 0x00439df0 | each point into Kite's frame (in place) and through the view: a strip of two triangles a ray, on layer 6 |
+
+Only the plate (type bit 4) is ported: the ring (bit 8) and the centre part
+(bit 0x10) belong to rays nothing the port makes uses.
 
 `ccPrimRadiate::create` (0x004393a0) turns a plate that faces the camera
 (type bit 1): y `ccPiLimit(-cam.x)`, z `ccPiLimit(pi/2 + cam.z)`, from

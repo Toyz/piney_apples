@@ -1,30 +1,11 @@
 //! The party's movement assembled: one [`Runtime`] that performs every
-//! movement call the party AI makes with the ported code, in place of the
-//! runtime's.
-//!
-//! In the game these are all methods of the same `ccAI` (`personal.cpp`)
-//! and the `ccNavi` inside it, calling each other directly. The port has
-//! them in three modules, each checked on its own with the others'
-//! calls recorded:
-//!
-//! | call | performed by |
-//! | --- | --- |
-//! | `FollowPlayer`, `LeavePlayer`, `FollowTarget`, `FollowTargetDirc` | [`crate::follow::Follow`] |
-//! | `PathFinding` | [`crate::navi::Navi::path_finding`] on the member's navigation |
-//! | `FollowBeacon`, `GoalBeacon`, `ManualControl`, `ActInTown` | [`crate::ai_move::perform`] |
-//! | `PlayerAttack` | [`crate::kite::attack`] |
-//! | `HitEnable` | [`World::hit_switch`] on the member's `bodyHit` ([`crate::party_ai::Spc::body_hit`]) |
-//!
-//! Everything else (skill and item requests, the chat lines, transfers,
-//! the party changes, line checks the decisions make) goes on to the
-//! runtime's own [`Runtime`], `inner`.
-//!
-//! These functions call the world while the frame that called them also
-//! holds it (a member's frame calls the collision, then `ccAI::Brains`
-//! asks to follow Kite, which calls the collision again). Both borrow one
-//! world through a [`RefCell`], never at the same time: [`Share`] is a
-//! handle on it that implements the world's traits by borrowing it for
-//! each call.
+//! movement call the party AI makes with the ported code: the following
+//! ([`crate::follow::Follow`]), `PathFinding`
+//! ([`crate::navi::Navi::path_finding`]), the movers
+//! ([`crate::ai_move::perform`]), `PlayerAttack` ([`crate::kite::attack`]) and
+//! `HitEnable` ([`World::hit_switch`]); the rest goes on to the runtime's own,
+//! `inner`. The frame and these calls borrow one world through a [`RefCell`],
+//! never at once: [`Share`] is a handle that borrows it for each call.
 
 use std::cell::RefCell;
 

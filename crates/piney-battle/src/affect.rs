@@ -1,20 +1,10 @@
-//! Affects: what a character does with an `EntryAffect` (gcmn
-//! 0x0056b020), the one way damage, healing, SP changes, revival and a Data
-//! Drain reach a character. `EntryAffect` stores the affect and calls the
-//! character's `affectFunc` at once: `ccEnemyInfluence` then
-//! `ccEnemy::affectEnemy` (0x00432840, 0x00433a70) for an enemy,
-//! `ccFellow::Influence` (0x0041bdb0) for a party member the AI drives, and
-//! `Influence` (player.cpp 0x0059ac50) for Kite.
-//!
-//! Affect kinds: 0 none (a party member's AI stops talking), 1 damage and
-//! 3 poison (`p0` the HP, -1 a miss; `p1` the skill), 2 and 4 SP loss, 5
-//! hold (sets `cond.hold` and goes no further), 6 nothing, 7 and 9 HP
-//! gain, 8 and 10 SP gain, 13 a Data Drain, 14 and 15 greetings, 16-18
-//! cures and buffs (messages only), 20 revival.
-//!
-//! A combat loop applies the [`Event::Affect`]s a rule returns, in order,
-//! with [`apply`] (each may add events of its own: numbers, hit marks, the
-//! acts to play, messages).
+//! Affects: what a character does with an `EntryAffect` (gcmn 0x0056b020), the
+//! one way damage, healing, SP changes, revival and a Data Drain reach a
+//! character. The character's `affectFunc` runs at once: `ccEnemyInfluence`
+//! then `ccEnemy::affectEnemy` (0x00432840, 0x00433a70) for an enemy,
+//! `ccFellow::Influence` (0x0041bdb0) for a party member, `Influence`
+//! (0x0059ac50) for Kite. A combat loop applies the [`Event::Affect`]s a rule
+//! returns, in order, with [`apply`]. The kinds are in docs/engine/battle.md.
 
 use crate::chara::{AffectFunc, Char, spc_flag};
 use crate::event::{Event, Events, Who};
@@ -141,15 +131,11 @@ pub fn enemy_influence(t: &Tables, scene: &mut Scene, on: usize, ev: &mut Events
     }
 }
 
-/// `ccEnemy::affectEnemy` (gcmn 0x00433a70). Damage and poison (1, 3):
-/// the number, the hit mark, then HP falls by the amount (not below 0);
-/// a party member of type 4 out of the party does no damage; a virus-
-/// flagged enemy takes a tenth and never falls below half its maxHP. Hit
-/// or missed, the enemy picks its target again. HP gain (7, 9) and SP gain
-/// (10) stop at the maxima, SP loss (4) at 0; revival (20) of an enemy
-/// down (`dead` 2) restores full HP and no SP. After damage, a hit on a
-/// defence the enemy is immune to (Exdefense) shows its shield. Returns
-/// true for a Data Drain (13), which changes nothing here.
+/// `ccEnemy::affectEnemy` (gcmn 0x00433a70): damage and poison lower HP (a
+/// virus-flagged enemy takes a tenth, never below half its maxHP), gains and
+/// losses stop at the limits, revival restores a downed enemy, and hit or
+/// missed the enemy picks its target again. Returns true for a Data Drain
+/// (13), which changes nothing here (docs/engine/battle.md, "Affects").
 pub fn affect_enemy(t: &Tables, scene: &mut Scene, on: usize, ev: &mut Events) -> bool {
     let me = Who::Char(on);
     let by = scene.chars[on].affect.person;
@@ -305,20 +291,12 @@ pub fn player_influence(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut
     spc_influence(scene, ctx, on, Kind::Player, rng, ev);
 }
 
-/// Kite's and a party member's affects, one body with the differences
-/// marked. Damage and poison (1, 3): the number (-1 a miss, and nothing
-/// more), the hit mark (Kite's pad rumbles), the party panel shakes; HP
-/// falls by the amount, not below 0 (a party member loses it even when
-/// already down; Kite does not). A member hit by a foe's attack turns to
-/// it. Poison that leaves HP stops there. A hit interrupts the running
-/// normal attack; a surviving character hit by an attack (kind 1) plays a
-/// hurt act (7 or 8, `rand() >> 3 & 1`) unless already past act 7. HP 0
-/// is death unless the character has 1000 exp waiting (a level up) or
-/// `noDeathFlag`: the down act (9), `dead` 2, conditions cleared, SP 0,
-/// the "down" message to the party's AI. SP loss (2, 4), HP and SP gain
-/// (7-10, not on a character down) and revival (20: `dead` 5, the getting-
-/// up act) as `affectEnemy`; a Data Drain (13) leaves a spread of
-/// conditions and halves HP and SP.
+/// Kite's and a party member's affects (`Influence`, `ccFellow::Influence`),
+/// one body with the differences marked: damage and poison (a party member
+/// loses HP even when down, Kite does not), the hurt act, death at HP 0 unless
+/// a level up waits or `noDeathFlag` (act 9, `dead` 2, the "down" message),
+/// gains, revival (`dead` 5) and a Data Drain's spread of conditions with HP
+/// and SP halved. The rules are in docs/engine/battle.md ("Affects").
 fn spc_influence(scene: &mut Scene, ctx: &AffectCtx, on: usize, who_is: Kind, rng: &mut dyn Rng, ev: &mut Events) {
     let me = Who::Char(on);
     let by = scene.chars[on].affect.person;

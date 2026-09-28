@@ -1,17 +1,11 @@
 //! The EE arithmetic the motion layer computes with: the FPU's scalar
-//! operations ([`piney_data::field::ee`]), newlib's maths
-//! ([`piney_data::libm`]), the VU0 macro-mode vector routines of Sony's
-//! `libvu0` (`sceVu0*`, main), and the main executable's angle helpers
-//! (`ccGetDirc`, `ccSetDirc`, `RAD2DEG` ...), all on raw bit patterns so
-//! that positions and headings come out as the game computes them.
-//!
-//! VU0 arithmetic follows the FPU's rules (no denormals, no infinities,
-//! results truncated); its multiply-adds round the product first
-//! (`tools/test_anim.py`'s VU0 model, and `crates/piney-world/src/ee.rs`,
-//! whose functions these are).
-//!
-//! Angles are radians in -pi..pi (0 faces -y, the heading grows toward
-//! +x), or the game's 16-bit units where 32768 is pi (`RAD2DEG`).
+//! operations ([`piney_data::field::ee`]), newlib's maths ([`piney_data::libm`]),
+//! libvu0's macro-mode vector routines (`sceVu0*`, main) and the angle helpers
+//! (`ccGetDirc`, `ccSetDirc`, `RAD2DEG` ...), on raw bit patterns. VU0 follows
+//! the FPU's rules (no denormals or infinities, results truncated) and rounds
+//! a multiply-add's product first (piney-world's `ee.rs`). Angles are radians
+//! in -pi..pi (0 faces -y, growing toward +x), or 16-bit units where 32768 is
+//! pi (`RAD2DEG`).
 
 pub use piney_data::field::ee::{add, cmp, div, from_int, le, lt, mul, sqrt, sub, to_int};
 pub use piney_data::libm::{atan2f, cosf, fabsf, neg, sinf, sqrtf};

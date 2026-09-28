@@ -1,30 +1,11 @@
-//! `battle_probe` requests for the party's AI (`piney_battle::party_ai`),
-//! as `tools/test_battle_party_ai_rs.py` sends them:
-//!
-//! ```text
-//! pai FN ARGS... WORLD
-//! ```
-//!
-//! `WORLD` is every character (the `read_char` format, then `pos[4] height
-//! actNum targetChar moveFlag nowSpeed cycle distTg SpcListNum runFlag ghostFlag stopFlag stopCnt
-//! walkRunCnt`), the
-//! lists, the party, the game globals, the save's skill and item lists,
-//! the AIs, the message bus, the AI globals, the RNG state and the scripts
-//! of what `ccHitCheckLM` and `CheckGoalBeaconPos` answer. The answer is
-//! the return value and everything the call can change, in the shapes the
-//! harness reads the game's memory in.
-//!
-//! ```text
-//! chat FN N ME ARGS... SAVE220D AREAPREV SERVER K TRICKS[K] L TEXT[L] WORLD
-//! ```
-//!
-//! runs a party chat line ([`piney_battle::party_chat`]; `FN` the game's
-//! function, `ChatMessageSender` or `Greeting`) the same way, with the
-//! save's +0x220d, `ccGame.areaPrev` and `server`, each character's enemy
-//! skills that change conditions, the text `ME`'s AI kept from an earlier
-//! line, and every character named `N<index>`;
-//! the answer adds each AI's text (+0x24), each character's heading (its
-//! `dirc` z) and the balloon the sender opened.
+//! `battle_probe` requests for the party's AI (`piney_battle::party_ai`), as
+//! `tools/test_battle_party_ai_rs.py` sends them: `pai FN ARGS... WORLD`, and
+//! `chat FN N ME ARGS... SAVE220D AREAPREV SERVER K TRICKS[K] L TEXT[L] WORLD`
+//! for a chat line ([`piney_battle::party_chat`]). `WORLD` is every character
+//! (the `read_char` format and its motion fields), the lists, the party, the
+//! game globals, the save's lists, the AIs, the bus, the AI globals, the RNG
+//! and the scripts of `ccHitCheckLM` and `CheckGoalBeaconPos`. The answer is
+//! everything the call can change (a chat also each AI's text and the balloon).
 
 use std::collections::VecDeque;
 

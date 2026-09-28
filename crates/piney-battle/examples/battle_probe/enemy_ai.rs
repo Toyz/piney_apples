@@ -1,22 +1,11 @@
-//! `battle_probe` requests for the enemies' AI (`piney_battle::enemy_ai`),
-//! as `tools/test_battle_enemy_ai_rs.py` sends them:
-//!
-//! - `escene N CHAR... NPC i... NENE i... POS[4]xN FOE... WORLD RNG ENV
-//!   KILL OP ME ARGS`: a scene of characters on the command lists, each
-//!   foe's `ccEnemy` state (`0`, or `1` and [`read_enemy`]'s fields), the
-//!   globals (`puppetShow pgRideFlag activeEnemies player`), the
-//!   generators (`randState ccSeed mti`), an environment, the enemy book
-//!   (`count server A B C` of the acting enemy's row), then one of
-//!   `think`, `interrupt`, `begin`, `routine`, `check`, `crisis`,
-//!   `setact A`, `attack`, `skills`, `target LT`, `target0`, `interval`,
-//!   `start`, `affect`, `clearcond`, `skilltarget SID`
-//! - `eskills ID ANM[6]`: `clearSkillList`, `initSkillList`
-//! - `einit ENT ANM[6] DUST SEED MTI`: `initEnemy`
-//! - `genrand SEED MTI N`, `drainid ID`, `race ID`
-//! - `epatch ID THINK[10] MAG[2] (TYPE TRIGGER COST)x4 ESIZE TYPE GOLD
-//!   MAXPP`, `erestore ID`: change an `enemyTbl` row, and put it back
-//! - `eprep HASROW [ROW] N (SID SKILL)...`, `eunprep HASROW ID N SID...`: a
-//!   row and some `skillTbl` rows changed in one request, and put back
+//! `battle_probe` requests for the enemies' AI (`piney_battle::enemy_ai`), as
+//! `tools/test_battle_enemy_ai_rs.py` sends them: `escene` (a scene, each foe's
+//! `ccEnemy` state by [`read_enemy`], the globals, generators, environment and
+//! enemy book, then one operation: `think`, `interrupt`, `begin`, `routine`,
+//! `check`, `crisis`, `setact`, `attack`, `skills`, `target`, `target0`,
+//! `interval`, `start`, `affect`, `clearcond`, `skilltarget`), `eskills`,
+//! `einit`, `genrand`, `drainid`, `race`, and `epatch`/`erestore`,
+//! `eprep`/`eunprep` (table rows changed and put back).
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -231,15 +220,12 @@ fn ent_json(e: &EntryParam) -> String {
     list(v)
 }
 
-/// An enemy's state: `dirc[4] affectType affectParam0 entryObjFlags
-/// fadeFlag fadeCnt ENT eneId race raceId enemyFlags eneType eneRand
-/// eneSmoke enePart actNum actCnt atkNum atkCnt atkDellay drainCnt
-/// damageCnt target targetDirc targetDist crisisRate baseDirc baseDist
-/// bpos[4] mdirc[4] maxSpd radCnt hitCnt hitSpd speed yoffs zoffs anmNum
-/// anmNumOld frameNum anmFlag lifeRate skillId skillParam skillTarget
-/// skillNum (flags atkId skiId percentage skiParam skiTarget)x6`; pointers
-/// are scene indices (-1 none), skill pointers codes (-1 none, 1000 + slot
-/// for the row's own, else the `skillTbl` id).
+/// An enemy's state, in the order the harness sends it: `dirc[4]`, the affect,
+/// the entry, the row and race, the acts and counts, the target, the movement,
+/// the animation, the life rate and the skill slots (`(flags atkId skiId
+/// percentage skiParam skiTarget)x6`). Pointers are scene indices (-1 none),
+/// skill pointers codes (-1 none, 1000 + slot for the row's own, else the
+/// `skillTbl` id).
 pub(crate) fn read_enemy(t: &mut Toks) -> Enemy {
     let mut e = Enemy { dirc: v4(t), affect_type: t.i16(), affect_param0: t.i16(), ..Enemy::default() };
     let f = t.int();

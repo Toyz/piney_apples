@@ -1,23 +1,11 @@
-//! `battle_probe` requests for the party's navigation and the AI's own
-//! movers (`piney_battle::navi`, `piney_battle::ai_move`), as
-//! `tools/test_battle_navi_rs.py` sends them:
-//!
-//! ```text
-//! navi PATH NOPS (OP NARGS ARGS...)... WORLD
-//! ```
-//!
-//! The operations run in order on one world, each answered with its return
-//! value and a snapshot of everything the movers can change (the AIs with
-//! their navigation, the message bus, the bodies, the RNG, the calls the
-//! operation made; with `PATH` 1 also the path finding's maps). `WORLD` is
-//! the characters ([`read_char`] and `dirc[4] actNumOld transparency
-//! setTransparency bodyHit.radius velocity`), the party, `game.area`,
-//! `saveData` +0x220d, `ccSpcRegistryNum()`, the AIs (with their `ccNavi`),
-//! the bus, the RNG state, the path map (`bufFlag` and a region of `buf`
-//! and `buf2` as hex), a region of the dungeon's 2D map, what
-//! `Get2DMapInfo` answers, the town's landmarks, and the scripts of what
-//! `RouteSearchByMap`, the town's name dummies and the `DMY_marker`s
-//! answer.
+//! `battle_probe` requests for the party's navigation and the AI's own movers
+//! (`piney_battle::navi`, `piney_battle::ai_move`), as
+//! `tools/test_battle_navi_rs.py` sends them: `navi PATH NOPS (OP NARGS
+//! ARGS...)... WORLD`. The operations run in order on one world, each answered
+//! with its return and a snapshot of what the movers can change (with `PATH` 1
+//! also the path finding's maps). `WORLD` is the characters ([`read_char`] and
+//! their motion fields), the party, the AIs with their `ccNavi`, the bus, the
+//! RNG, the maps, the landmarks and the scripts of the world's answers.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};

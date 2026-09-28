@@ -1,59 +1,11 @@
-//! The party members' navigation (`ccnavi.cpp`, gcmn
-//! 0x005130b0-0x00515d2c): a member's `ccNavi` (inside its `ccAI` at
-//! +0xf0), the path finding a dungeon room runs on (`buf`, `buf2`,
-//! `bufFlag`), and a Root Town's landmarks (`landMarkNum`, `naviMapPtr`).
-//! The movers that walk what it finds are [`crate::ai_move`]'s.
-//!
-//! **A dungeon room.** The dungeon keeps a map of 300-unit cells per floor
-//! (`u8[256][256]`, `[x][y]`, at `DUNGEON` +0x33538 + floor * 0x10000):
-//! `DUNGEON::MakeMiniMap(room)` (gcmn 0x005cd850) fills a room's square
-//! (12, 22 or 42 cells for a small, medium or large room, 82 for a story
-//! room of type 16 up) once, by dropping a line from 1500 to -500 through
-//! each cell's centre (`ccHitCheckLM`, mask -1) and writing, into a cell
-//! still 0, 3 for a ground attribute with 0x20000, 2 for 0x80000, 4 for
-//! `attribute & 0xf0f0f0 == 0xc0c0`, 0 for 0x303030 and 1 otherwise; a
-//! cell nothing is under stays 0. `SetPathFindingMap` (0x00515aa0) turns
-//! the current room's square (`WORLD_MAN::Get2DMapInfo`, main 0x001a22f0:
-//! `DUNGEON::GetRoom2DPos`, gcmn 0x005cf080, the room's position / 300
-//! less half its size of 10, 20, 40 or 80 cells) into `buf`: per walkable
-//! cell (not 0 or 4) a bit for each walkable neighbour, 1 at y - 1, 2 at
-//! x + 1, 4 at y + 1, 8 at x - 1. The runtime calls it where the game does:
-//! when the members' task starts (`ccThSpc`, 0x005a0530) and after a room
-//! is built (`DUNGEON::Draw` with `DUNGEON` +0x4c set).
-//!
-//! `ccNavi::PathFindingInDungeon(s, g)` (0x005148e0) then finds a way
-//! within the member's own window (`mapX`, `mapY`, `mapS`: the room its
-//! `ccAI` was made in, `SetDungeonMapInfo` at construction): a breadth
-//! first wave over `buf2` from the start (0) outwards (`HeuristicType1`),
-//! a walk back down the wave from the goal (-2) marking `buf` 0x80
-//! (`ShortPath`), the cells of the way as beacons (`MakeBeaconTbl`,
-//! `SetBeacon`: the corners marked 0x20), and the member walks them one by
-//! one ([`crate::ai_move`]'s `FollowBeacon`). What the game does and the
-//! port with it:
-//!
-//! - the wave runs `mapS * 14 / 10` steps (14, 28, 56 or 112), so a way is
-//!   found only within that many cells; it stops early once two
-//!   neighbours of the goal are reached, where a neighbour at a multiple
-//!   of 16 steps does not count, and it never reports the goal reached
-//!   (`HeuristicType1` returns 0 on both of its ways out);
-//! - `ShortPath` tests `buf2` where it means `buf`: a wave value with bit 7
-//!   (128-255, ...) ends the walk as a failure (unreachable from the wave,
-//!   whose values stay below 113);
-//! - `route[48]` is filled with one index per beacon: a way of 49 to 54
-//!   cells writes into the two bytes after it and over `beacon.num` (which
-//!   the port models byte for byte); from 55 cells (a large room's or a
-//!   story room's way) the game overwrites the pointer to its beacon table
-//!   (and from 67 its message queue), which the port does not follow: it
-//!   keeps its table.
-//!
-//! **A Root Town.** Its landmarks are `naviMapTownN` (0x30 bytes each,
-//! position first, `name` at +0x10), counted by `naviMarkTable`;
-//! `ccSetNaviMap` (0x005130b0) moves each to its `DMY_markerNN` dummy.
-//! The route between two landmarks (`ccNavi::RouteSearchByMap`,
-//! 0x00513720, with its main lines and junctions) is the world's
-//! ([`NaviWorld::route_search_by_map`]; `piney-world`'s `navi.rs` has it).
-//!
-//! Everything is in the EE's arithmetic ([`crate::geom`]).
+//! The party members' navigation (`ccnavi.cpp`, gcmn 0x005130b0-0x00515d2c):
+//! a member's `ccNavi` (in its `ccAI` at +0xf0), the dungeon room's path
+//! finding (`SetPathFindingMap` 0x00515aa0, `PathFindingInDungeon` 0x005148e0,
+//! over `buf`, `buf2`, `bufFlag`) and a Root Town's landmarks (`ccSetNaviMap`;
+//! the routes are [`NaviWorld::route_search_by_map`]'s). A way of 49-54
+//! cells overruns `route[48]` byte for byte as in the game; from 55 the port
+//! keeps its beacon table. The movers are [`crate::ai_move`]'s; the rules are
+//! in docs/engine/battle.md ("Party navigation").
 
 use crate::damage::fptosi;
 use crate::geom::{self, F, V4, add, dot, from_int, mul, sqrtf, sub, vsub};

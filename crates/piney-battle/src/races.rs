@@ -1,34 +1,11 @@
 //! The enemies' race constructors (`enemy1.cpp` - `enemyZ.cpp`, gcmn
 //! 0x0043ecf0-0x00452d00, with `ccEnemy::ccEnemy` 0x00432a90,
 //! `ccEntryObj::ccEntryObj` 0x0042f7d0 and `ccEnemy::initEnemy` 0x00433260):
-//! what an enemy is when it is made, for every race but `ccEnemyL` (14).
-//!
-//! `ccEntryRaceTbl` (gcmn 0x005f1d60) gives each race its `ccEntryEnemyX`
-//! wrapper (`operator new` then the constructor), which
-//! `ccInitRegisterEnemy` puts in every row's `entry.func`; the entry
-//! control calls it from `entryEnemy` ([`crate::entry::EntryCtrl::
-//! entry_enemy`]). [`construct`] is that dispatch for the races above.
-//!
-//! Every constructor runs `ccEnemy::ccEnemy` ([`Enemy::default`]: display
-//! on, fading in over 30 frames, see-through, full life) and `initEnemy`
-//! ([`init_enemy`]: [`crate::enemy_ai::init_enemy`]'s rules with the
-//! animation (`anmTbl`, slot 6 played), the body (`bodyHit`: the base's
-//! width and half its height, kind the base's type, ground mask 0x40000002, into
-//! the collision list), `ccEnemyInfluence` and the dust colour), then its
-//! own: act 0, animation 6 (`anmNumOld` -1), its `eneType` from the row by
-//! a table of the race, the weapon trail and dust controllers of that type
-//! or row ([`Out::Weapon`], [`Out::Dust`]: presentation), `anmFlag` and
-//! `frameNum` for some races, and its clean-up hook: the row tables here
-//! (`RaceCtor`), read off the constructors. G's gold goblins (rows
-//! 131-138, 140-143, 147-150, 154-157) run `checkGold` ([`check_gold`],
-//! drawing `ccRandS`), rows 154-157 swap their palette; G type 4 and
-//! `ccEnemy3`/`ccEnemy4` types 1-2 reweight their attacks; `ccEnemyH` types
-//! 3-4 make their two fire breaths ([`Out::Breath`]).
-//!
-//! Models, animation players, the weapon and dust controllers and palettes
-//! are the runtime's; the constructors' calls into them are [`World`] calls
-//! (`anim_set`, `hit_switch`, and `land`/`hit_attribute` for the dust
-//! colour) and [`Out`]s.
+//! what an enemy is when it is made. [`construct`] is the dispatch of
+//! `ccEntryRaceTbl` (gcmn 0x005f1d60); the row tables (`RaceCtor`) are read off
+//! the constructors. Models, animation players, the weapon and dust
+//! controllers and palettes are the runtime's ([`World`] calls and [`Out`]s).
+//! The constructors are in docs/engine/battle.md ("The race constructors").
 
 use std::cell::RefCell;
 
@@ -674,18 +651,12 @@ impl Frame for WorldFrame<'_> {
 }
 
 /// `ccEnemy::ccEnemy` (0x00432a90) then `ccEnemy::initEnemy(entry)`
-/// (0x00433260) for enemy `who` of entry `ent`: the world calls
-/// `initEnemyCCS` makes (the model playing `anmTbl[6]`, and for a middle
-/// boss its second model playing that name through `ccGetNameBossAnm`),
-/// the body (`bodyHit`: at the position, radius the base's width, height
-/// half the base's, kind the base's type, ground mask (`mask2`)
-/// 0x40000002, into the
-/// collision list), `ccCheckDustColor`, and the rules of
-/// [`enemy_ai::init_enemy`]; `affectFunc` `ccEnemyInfluence`, a middle
-/// boss fully opaque.
-///
-/// A middle boss's row has no animation table: the game reads its names at
-/// EE address 0xb4 (not on the disc; empty here, as in the checks).
+/// (0x00433260) for enemy `who` of entry `ent`: the model and animation
+/// `initEnemyCCS` makes (a middle boss's second model through
+/// `ccGetNameBossAnm`), the body into the collision list, `ccCheckDustColor`,
+/// and the rules of [`enemy_ai::init_enemy`]. A middle boss's row has no
+/// animation table: the game reads its names at EE address 0xb4 (not on the
+/// disc; empty here, as in the checks).
 pub fn init_enemy(cx: &mut Cx, ent: &EntryParam, who: usize) -> (Char, Enemy) {
     let row = &cx.t.enemies[ent.id as usize];
     let name = row.anm.and_then(|n| n.get(6)).copied().unwrap_or_default().to_string();

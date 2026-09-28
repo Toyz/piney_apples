@@ -1,19 +1,11 @@
-//! The enemies' fire breath ([`piney_battle::breath::Breath`]) driven line
-//! by line for `tools/test_enemy_breath_rs.py`, which runs the game's own
-//! `ccEnemyBreath` in eemu and compares.
-//!
-//! ```text
-//! new KIND SMOKE SEED MTI          a breath (initBreath), ccRand seeded
-//! set PARAMHEX DISP TRANS CNT M..  setBreath: the attack's row, the enemy,
-//!                                  the node's matrix (16 words)
-//! ctrl NL L.. NW W..               ctrlBreath, the ground's heights and the
-//!                                  walls' answers in the order asked
-//! ```
-//!
-//! Every line answers the breath (`count`, then each flame) and, for
-//! `set`, the node's matrix after, for `ctrl` what the frame put out and
-//! ccRand's state, as JSON. ccTransPosW2P is (x + 0.5, y - 0.25, z, w) and
-//! P2W (x - 0.5, y + 0.25, z, w), as the harness hooks them.
+//! The enemies' fire breath ([`piney_battle::breath::Breath`]) driven line by
+//! line for `tools/test_enemy_breath_rs.py`, which runs the game's own
+//! `ccEnemyBreath` in eemu and compares: `new KIND SMOKE SEED MTI`
+//! (`initBreath`), `set PARAMHEX DISP TRANS CNT M..` (`setBreath` with the
+//! node's matrix), `ctrl NL L.. NW W..` (`ctrlBreath` with the ground's and
+//! walls' answers in order). Each line answers the breath as JSON (and the
+//! matrix after `set`, the outputs and ccRand's state after `ctrl`). W2P is
+//! (x + 0.5, y - 0.25, z, w) and P2W its inverse, as the harness hooks them.
 
 use std::collections::VecDeque;
 use std::io::{BufRead, Write};

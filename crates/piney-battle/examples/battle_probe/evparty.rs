@@ -1,24 +1,11 @@
 //! `battle_probe` requests for the events' battle instructions
-//! (`piney_battle::evparty`), as `tools/test_battle_event_rs.py` sends them.
-//! Every request ends with a world (see [`read_world`]):
-//!
-//! ```text
-//! evp OP ARGS... WORLD     one instruction: command pc on | walkpos pc x y z run |
-//!                          walkdir pc rot dist | walkmarker pc marker |
-//!                          walkchar pc ty code rot dist | put pc x y z |
-//!                          partyput pc x y z | putmarker pc marker |
-//!                          partyputmarker pc marker | enemyput enemy posnum |
-//!                          turn pc dirc chg | face pc ty code chg |
-//!                          remove ty code | holdop ty code running | holdend running
-//! evhold TY CODE BOSSENTRY BOSSPARAM N WORLD FRAME*N
-//!                          ccThEvHold from its start over N + 1 frames; a frame is
-//!                          ND (WHO KIND VALUE...)*ND then the entry control's enemy list
-//! evskill N ASSIGNOK MENU[5] WORLD FRAME*N
-//!                          player_skill; a frame is PUSH SKILLCHECK TARGETDEAD NEWTARGET
-//! battleready              battle_ready's inBattleDist
-//! ```
-//!
-//! Replies are the world as the harness reads the game's (see [`state`]).
+//! (`piney_battle::evparty`), as `tools/test_battle_event_rs.py` sends them,
+//! each ending with a world ([`read_world`]): `evp OP ARGS... WORLD` (one
+//! instruction: `command`, the walks, the puts, `enemyput`, `turn`, `face`,
+//! `remove`, `holdop`, `holdend`), `evhold` (`ccThEvHold` over N + 1 frames,
+//! each frame's affects and enemy list given), `evskill` (`player_skill`, each
+//! frame's pad and target given) and `battleready`. Replies are the world as
+//! the harness reads the game's ([`state`]).
 
 use std::cell::RefCell;
 

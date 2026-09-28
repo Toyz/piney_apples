@@ -1,34 +1,10 @@
-//! The party members' chat lines: `ccAI::ChatMessage*` (`personal.cpp`,
-//! gcmn 0x00586130-0x00592a98), the line each situation picks from the
-//! tables in GCMN.PRG's data, the `#` codes `ChatMessageModify` fills in,
-//! and `ChatMessageSender`, which opens the balloon ([`crate::party_ai`]'s
-//! `Call::ChatMessageSender`).
-//!
-//! A line is not shown where it is picked. Each function writes its text
-//! into the AI (`+0x24`, 80 bytes) and sets `chatRequest`; the member's
-//! next `ChatMessageSender` (from `Brains`, once a frame) opens it over the
-//! member with `ccChatMsg::OpenChat` and clears the request. A later line
-//! the same frame overwrites an earlier one.
-//!
-//! ```text
-//! every line   partyFlag (ccSpcChar +0xe0 bits 14-16, signed) 1, else
-//!              nothing; the table's row MessageIndex(): the character id,
-//!              18 for id 1 while saveData +0x220d is set (its lines
-//!              garbled); nothing said under manual control
-//!              (manualSW) or where the table has no line
-//! a 19 table   one line a character
-//! a 57 table   three a character: (rand() >> 3) % 100 below 60 the first,
-//!              below 90 the second, else the third ("variant"), or
-//!              (rand() >> 3) % 3 where noted
-//! ChatMessageModify(line, a1, a2, a3)  0x00586190 into +0x24: #0 the
-//!              leader's name (getPartyMenberChar(0)), #1 a1 or the
-//!              leader's, #a a2 or " " (@3726), #b a3 or " "; stops once
-//!              79 bytes are written (a name copied whole)
-//! ```
-//!
-//! The chance a line has, and what else it does, are each function's own
-//! ([`Ctx::chat_line`]); `docs/engine/battle.md` ("The chat lines") lists
-//! them.
+//! The party members' chat lines: `ccAI::ChatMessage*` (`personal.cpp`, gcmn
+//! 0x00586130-0x00592a98), the line each situation picks from the tables in
+//! GCMN.PRG's data, the `#` codes `ChatMessageModify` fills in, and
+//! `ChatMessageSender`, which opens the balloon. A line is written into the AI
+//! (+0x24) and shown by the member's next `ChatMessageSender`; a later line in
+//! the same frame overwrites it. Each line's chance and what else it does are
+//! [`Ctx::chat_line`]'s; docs/engine/battle.md ("The chat lines") lists them.
 
 use std::collections::BTreeMap;
 

@@ -1,101 +1,11 @@
-//! A party member's frame: `ccFellow` (`fellow.cpp`, gcmn
-//! 0x0041b5f0-0x0041e46c) and the `ccSpcChar` pieces it calls
-//! (`SetActNum`/`SetActNumOld` 0x0059d630/40, `HitCheck` 0x0059ee20): what
-//! a member the AI drives does once a frame around its decisions - the
-//! step it takes, how it is kept out of walls and other bodies, which act
-//! (animation) it plays, how its skill and normal attack combo run, how it
-//! goes down, fades to a ghost and gets up, and the hit its attack lands
-//! on the animation's note.
-//!
-//! A member is a [`Char`] of the [`Scene`] plus its [`Spc`] and [`crate::party_ai::Ai`] in
-//! the [`Crew`] (`party_ai`), all under its scene index. [`Frame`] borrows
-//! everything a frame reads and writes; [`Frame::main`] is
-//! `ccFellow::Main`, in the game's order:
-//!
-//! ```text
-//! weapon swap                  EquipWeapon / DeleteWeaponCCS (Out)
-//! CalcReal(dead)               crate::chara::calc_real (-1 for id 8 under an event's lock),
-//!                              the timers' affects applied where they are made
-//! CheckLevelUp                 the level-up effect (Out) unless leaving (act 14)
-//! W2P, P2W; movePos = 0        World::w2p / p2w
-//! a carried body               WORLD_MAN::GetTransMode / GetTransCenter (FellowWorld)
-//! dead 2 counting down         cnt below 0: dead 3, act 10, two box effects (Out)
-//! recall, exit                 partyFlag, the AI's invite; leaving the lists (Out)
-//! ccAI::Brains                 party_ai::Ctx::brains on the frame's runtime
-//! Move                         unless held, asleep or paralysed (then moveFlag 0)
-//! HitCheck(movePos)            World::land / collide / line / hit_switch
-//! pos += movePos; the ground   World::land, World::hit_attribute; W2P, P2W
-//! Action                       the act state machine (below)
-//! NoteProcess                  World::anim_notes -> CheckNote each
-//! SetMatrix, Draw, arms effect (Out, FellowWorld::draw)
-//! dispWait, the carrier offset, hold 0, stopCnt, cycle
-//! ```
-//!
-//! `ccFellow::Action` (0x0041c670) starts a requested skill (`skillStatus`
-//! 1 -> 2: the attack act 15, a spell's act 17-21 by its type), runs the
-//! normal attack's combo (`attack` 1-4: act 15, then 16 after the first
-//! swing's end, `consecutiveCnt` frames between combos, each swing in
-//! `armsRange` or the attack is called off), ends it (`skillID` 0), draws
-//! the idle fidgets (`rand() % 60`, act 1 or 3, and the 0x10015 chat
-//! message in 0, 11 or 22 frames), ends acts on the animation's end
-//! (`anmFlag`, the next attack's delay `((rand() >> 3) & 31) + 70`),
-//! fades a member down (act 10, 50 frames) into a ghost and back up
-//! (`dead` 5, 78 frames), picks walking (6) or running (5) from `moveFlag`
-//! and `runFlag`, sets the clip on a change of act (`fellowAnimTbl`,
-//! [`MotionTables`]) and steps it (`ccAnm::_AnimateForward`, at 256/256
-//! frames a frame, 1.375 `speedRate` when running), and the transfer acts
-//! 12 (out) and 13 (in). The damage estimate of each swing or spell goes
-//! to the party at once (0x10008, `ccAISysMsgSendP`).
-//!
-//! # State
-//!
-//! `ccChar.targetChar`, `actNum` and the flags `moveFlag`, `stopFlag`,
-//! `runFlag`, `ghostFlag` have two copies in the port: [`Char`] (what the
-//! affects read and write) and [`Spc`] (what the decisions read and
-//! write). A frame starts by copying the [`Char`]'s into the [`Spc`]
-//! ([`sync_in`]) and ends by copying them back ([`sync_out`]); in between
-//! the [`Spc`]'s are the member's. `bodyHit` ([`Spc::body_hit`]) is the
-//! one the world's collision list holds (`hitSW`), mirrored into
-//! [`crate::chara::SpcChar::hit_enabled`].
-//!
-//! # Affects
-//!
-//! Every `EntryAffect` the frame's rules make - `ConditionTimeCount`'s
-//! ticks (9, 3, 10, 4 on the member itself) and the normal attack's hit (1
-//! on its target, in `CheckNote`) - is applied at the point the game makes
-//! it ([`crate::affect::entry_affect`] with the character's `affectFunc`),
-//! so that what follows in the frame sees it: a member poisoned down in
-//! `CalcReal` is down (act 9, `dead` 2, conditions cleared) for the SP
-//! ticks after it, for `Brains`, `Move` and `Action`; a second hit in the
-//! same frame sees the first. What the affect functions call that is not
-//! presentation is done there too: `ccSkillRequest(ch, 0, 0)` (the
-//! runtime's), `ccCharHit::HitDisable`/`HitEnable` (the world's), the
-//! party's "down" and "up" messages on the bus (0x1000c sent, 0x1000d
-//! withdrawn), the AI's `talkFlag`. The rest (numbers, hit marks, the
-//! panel, the pad, the AI's lines, `ccEnemy::selectTarget` of an enemy
-//! hit) goes out as [`Out::Rule`] in order; [`Frame::menu`] and
-//! [`Frame::skill_check`] are what the affects read beyond the scene.
-//! A party member other than this one that an affect lands on has its
-//! [`Spc`] copies refreshed from its [`Char`].
-//!
-//! # What the runtime supplies
-//!
-//! - The world ([`FellowWorld`]): the player's frame, the ground, lines of
-//!   sight, the collision list, the animation player (clip, step, notes),
-//!   the carrier (`WORLD_MAN`), and whether the body was drawn.
-//! - The rest of the game ([`Runtime`]): `ccSkillRequest` (a normal attack
-//!   called off is [`Call::SkillRequest`] with sid 0), and everything the
-//!   decisions call, the movement included: [`crate::party_motion::Movement`]
-//!   performs the following ([`crate::follow::Follow`]), the dungeon's path
-//!   finding and the AI's movers over a world it shares with the frame
-//!   ([`crate::party_motion::Share`]: the frame's [`Frame::world`] is a
-//!   `Share` of the same cell), and hands the rest to the runtime's own.
-//! - Presentation: every [`Out`], in call order.
-//! - Kite's [`Spc`] (`dirc`, `moveFlag`, `runFlag`) and the party
-//!   ([`Party`]), kept current.
-//!
-//! Every function is a transcription of the game's, checked against it in
-//! `tools/eemu.py` by `tools/test_battle_fellow_rs.py`.
+//! A party member's frame: `ccFellow` (`fellow.cpp`, gcmn 0x0041b5f0-0x0041e46c)
+//! and the `ccSpcChar` pieces it calls (`SetActNum`/`SetActNumOld`
+//! 0x0059d630/0x0059d640, `HitCheck` 0x0059ee20). [`Frame::main`] is
+//! `ccFellow::Main`; the order, the acts and the affects in the frame are in
+//! docs/engine/battle.md ("A party member's frame"). The flags the affects and
+//! the decisions share live twice, in [`Char`] and [`Spc`]: [`sync_in`] copies
+//! the first into the second as a frame starts, [`sync_out`] back as it ends.
+//! The world is [`FellowWorld`], the rest of the game [`Runtime`].
 
 use piney_data::save::SaveData;
 
@@ -912,17 +822,10 @@ impl Frame<'_> {
     }
 
     /// `ccSpcChar::HitCheck(movePos)` (gcmn 0x0059ee20): the move checked
-    /// against the other bodies and the walls. The body (`bodyHit`, radius
-    /// `width + nowSpeed`) stands where the move lands on the ground; out
-    /// of a field's event area, a member beyond 7000 of the player on the
-    /// ground is not checked (0). A member leaving (act 14) or a ghost
-    /// (`dead` 4) leaves the collision list. Under manual control its mask
-    /// is -8 for the check (no party member's body pushes it). Pushed by a
-    /// body, the push is added and the body tried again; pushed twice, it
-    /// goes halfway. A wall between the feet (raised by the body's height)
-    /// and where it lands, or where the move takes it, stops the move.
-    /// Returns 1 when a party member's body (kind 2) was touched, plus 2
-    /// when a push left less than 1 (8 running) of move on the ground.
+    /// against the other bodies and the walls (the rules are in
+    /// docs/engine/battle.md, "Collision"). Returns 1 when a party member's
+    /// body (kind 2) was touched, plus 2 when a push left less than 1 (8
+    /// running) of move on the ground.
     pub fn hit_check(&mut self, me: usize) -> i32 {
         let mut res = 0;
         let mv = self.sp(me).move_pos;

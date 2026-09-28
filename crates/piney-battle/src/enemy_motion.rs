@@ -1,67 +1,11 @@
-//! The enemies' movement and animation, and `ccEnemy::main` as a whole
-//! frame: `enemy.cpp` (gcmn 0x00433e80-0x00434ab8: `moveEnemy`,
-//! `animEnemy`, `noteEnemy`, `dispEnemy`; 0x004328b0 `ccEnemyCheckNote`;
-//! 0x004371e0-0x00437bd0: the act helpers) and the races' `action()`,
-//! `exclusive()`, `note()` and movement ([`Kind`]: `enemyG.cpp`
-//! 0x00446710-0x004492cc, `enemyP.cpp` 0x0044e860-0x0044ee68, `enemyK.cpp`
-//! 0x0044aa90-0x0044b12c, `enemyV.cpp` 0x004518d0-0x00451f88, `enemyB.cpp`
-//! 0x004424e0-0x00442a7c, `enemy1.cpp` 0x0043f200-0x0043f90c, `enemy2.cpp`
-//! 0x0043fbf0-0x004402c8, `enemyC.cpp` 0x00442e30-0x004438d8, `enemyF.cpp`
-//! 0x00445910-0x00445fbc, `enemyH.cpp` 0x00449810-0x00449e58, `enemyI.cpp`
-//! 0x0044a120-0x0044a72c, `enemyU.cpp` 0x00450940-0x004513a8, and the
-//! same of `enemy3.cpp`, `enemy4.cpp`, `enemyA.cpp`, `enemyD.cpp`,
-//! `enemyE.cpp`, `enemyS.cpp`, `enemyT.cpp`, `enemyW.cpp` and
-//! `enemyZ.cpp`). `ccEnemyL` ([`Kind::Other`]) does nothing in its
-//! `action()` here.
-//!
-//! The decisions are [`crate::enemy_ai`]'s; this module moves the enemy by
-//! what they leave (`act_num`, `act_cnt`, the target's heading and
-//! distance), plays its animations and hands everything that is not rules
-//! to the world, through [`MotionWorld`], at the point the game makes the
-//! call.
-//!
-//! # The frame
-//!
-//! [`Motion::enemy_main`] is `ccEnemy::main` (0x00432cd0) with the race's
-//! virtual functions (`ccEntryRaceTbl`'s constructors set the vtable;
-//! [`Kind`] names the class by the row's race group):
-//!
-//! ```text
-//! begin                  drainCnt, removal, freeze(), routineEnemy, checkEnemy, a drain
-//! think()                Ai::default_think (every race)
-//! Ai::interrupt_think
-//! action()               the race's acts and movement (Motion::action)
-//! Ai::end_action         condition.hold = 0
-//! move_enemy             moveEnemy: collision, ground, walls; ccRand
-//! anim_enemy             animEnemy: clip, speed, notes (check_note, the race's note())
-//! disp_enemy             dispEnemy, when dispSW: the model's matrix, the draw
-//! exclusive()            the race's weapon and dust controllers
-//! ```
-//!
-//! The runtime calls it once a frame for each enemy of the entry
-//! control's list (`ccThEntryCtrl`, whose `ccEntryObj::routine`
-//! 0x0042fa60 runs the fade, `dispSW` and freezing by the player's
-//! distance around it).
-//!
-//! The affects the frame makes are applied where the game calls
-//! `EntryAffect`, as the game's own affect functions run at once:
-//! `routineEnemy`'s timers (poison, curse, regeneration) on the enemy, the
-//! hold of a special attack on its target, and the enemy's hit on note
-//! 0x8005 (`affectSkill`, [`Motion::skill_damage`], the party member's
-//! `Influence` included); an affect on an enemy retargets it
-//! (`selectTarget()` in `affectEnemy`) at once and leaves its copy of the
-//! affect ([`Motion::entry_affect`]). Everything else goes to the world in
-//! the game's order through [`MotionWorld::call`], with the scene and both
-//! generators at hand ([`At`]) so that a call with effects (a skill request,
-//! the weapon and dust controllers and the camera shake, which draw
-//! `ccRand()` and `rand()`) is carried out at that point.
-//!
-//! Gold goblins (`ccEnemyG.goldFlag`, rows 131-138, 140-143, 147-150,
-//! 154-157) think and move with `thinkGold` (0x00447b20,
-//! [`crate::enemy_ai`]) and `moveGold` (0x00448520, [`Motion::move_gold`]):
-//! they flee, shake off holds and wear off conditions by their hoard. Rows
-//! 130 and 151, the first field and dungeon's goblins, never set the flag
-//! (`ccEnemyG::ccEnemyG`, 0x00446070).
+//! The enemies' movement and animation, and `ccEnemy::main` as a whole frame
+//! ([`Motion::enemy_main`], 0x00432cd0): `moveEnemy`, `animEnemy`,
+//! `dispEnemy` and the act helpers of `enemy.cpp`, and each race's `action()`,
+//! `exclusive()` and `note()` by [`Kind`] (the files' ranges are in
+//! docs/engine/source-tree.md; [`Kind::Other`] does nothing here). The
+//! decisions are [`crate::enemy_ai`]'s; the affects land where the game calls
+//! `EntryAffect`, and the rest goes to the world through [`MotionWorld::call`].
+//! The motion is in docs/engine/battle.md ("Enemy movement and animation").
 
 use piney_data::Result;
 use piney_data::iso::Iso;
@@ -940,23 +884,12 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
     // moveEnemy ----------------------------------------------------------------
 
     /// `ccEnemy::moveEnemy()` (0x00433e80): the step along `mdirc.z` at
-    /// `speed`, through the player's frame, put on the ground
-    /// (`ccLandHitCheck`, less then plus `zoffs`) and tried against the
-    /// other bodies ([`World::collide`], up to six times: each time the step
-    /// turns toward where the push leads (`ccSetDirc`, by 128, or 32 when
-    /// fast), slows with the width, the body shrinks (the fifth time to 200
-    /// and a sharper, doubled step) and a tall one flattens); a fast enemy
-    /// (above 30) swells its body first. Then the wall line from where it
-    /// stands to the step's end, half its height up ([`World::line`] kind
-    /// 1): only with nothing in the way does it move. Blocked by the ground
-    /// it slows and backs off half the step. A blocked walk swerves:
-    /// `mdirc.z` toward the step's heading and on by `pi/24` a try (with
-    /// the turn's sign, the speed's share of `maxSpd` and `1 + 0.05
-    /// hitCnt`), rates by size. `hitCnt` counts the blocked frames; an
-    /// unblocked one clears it and tosses a coin into `optFlag1`
-    /// (`ccRand`). `hitSpd` sinks toward 0.8 once a try, else rises toward
-    /// 1; the body is reset to the width and half the height at the new
-    /// position.
+    /// `speed`, through the player's frame and onto the ground, tried against
+    /// the other bodies ([`World::collide`], up to six times) and then the
+    /// walls ([`World::line`] kind 1): only with nothing in the way does it
+    /// move. A blocked walk swerves and counts `hitCnt`; an unblocked one
+    /// tosses a `ccRand` coin into `optFlag1`. The rules are in
+    /// docs/engine/battle.md ("moveEnemy").
     pub fn move_enemy(&mut self, me: usize) {
         let (width, height) = {
             let b = self.ai.scene.chars[me].base();
@@ -1089,14 +1022,9 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
 
     /// `ccEnemy::animEnemy()` (0x00434560): a new `anmNum` plays its clip
     /// (`anmTbl + 30 anmNum`; a middle boss's second model its
-    /// [`boss_clip`]). The frame speed (`ccAnm.frameSpd`, 1/256 frames) is
-    /// 256 unless the row's `anmSpd` is 1: by `moveFlag`, 1 walking at
-    /// `anmSpd 256 speed/maxSpd`, 2 closing (`256 + 512 (1 - dist/400)`,
-    /// the distance of the nearest target, [`Ai::anim_retarget`]), else
-    /// `256 (1 + crisisRate)` while alive and not attacking; at least 64.
-    /// `frameNum` is the frame before the step, `anmFlag` whether a
-    /// play-once clip ended; the notes the step passed are handled
-    /// ([`Motion::check_note`]), then the second model steps too.
+    /// [`boss_clip`]) at a frame speed by `moveFlag` ([`Ai::anim_retarget`]
+    /// for 2), at least 64; `anmFlag` is whether a play-once clip ended, and
+    /// the notes the step passed go to [`Motion::check_note`].
     pub fn anim_enemy(&mut self, me: usize) {
         let e = self.en(me);
         if e.anm_num_old != e.anm_num {
@@ -1386,29 +1314,10 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
         }
     }
 
-    /// `ccEnemyG::moveGold()` (gcmn 0x00448520), a gold goblin's movement
-    /// by act (`goldParam[2]`, `[3]` in hundredths):
-    ///
-    /// ```text
-    /// 0 wait    a target: turn to it (0.125), stop (0.2); none: slow (0.3)
-    /// 1 flee    held: zoom = goldParam[3]; volume 3-4: base 2.5 moved by
-    ///           the target's nearness (d = dist / 500: under 1 + d^2 / 30
-    ///           / goldEscCnt, else - d / 30 goldEscCnt), crisisRate =
-    ///           max(1 - d, 0.7) + ccRandF(0.1); volume 1-2: zoom at most
-    ///           2.5; actEscapeGold(zoom - base); not held:
-    ///           actEscapeGold(goldParam[2])
-    /// 2 wander  as moveEG's
-    /// 3 chase   a target: follow it (0.0625, maxSpd, 0.03)
-    /// 4 home    actMove(baseDirc, 0.05, mdirc.z, 0.2, goldSpeed,
-    ///           goldAccel, 1)
-    /// 5 stop    a target: turn to it (0.125), stop (0.05); none: slow
-    /// 6 attack  actEscapeGold(min(goldParam[2], 1.6) - 1.6)
-    /// 7 flinch  paralysed, asleep, or held in a puppet show: slow (0.5);
-    ///           volume 3-4: crisisRate 0.8, actEscapeGold(min(goldParam[3],
-    ///           3) - 1.5), on the act's first frame goldDisHold 1 if 0;
-    ///           volume 1: slow; else actEscapeGold(-0.8)
-    /// 8 dying   slow (0.5)
-    /// ```
+    /// `ccEnemyG::moveGold()` (gcmn 0x00448520), a gold goblin's movement by
+    /// act (`goldParam[2]`, `[3]` in hundredths): fleeing through
+    /// `actEscapeGold` at a speed its hoard and the target's nearness set. The
+    /// table is in docs/engine/battle.md ("The gold goblins").
     pub fn move_gold(&mut self, me: usize) {
         let hundredths = |v: i16| div(from_int(i32::from(v)), K_100);
         let act = self.en(me).act_num;
@@ -1515,18 +1424,11 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
     }
 
     /// `ccEnemyG::actEscapeGold(zoom)` (gcmn 0x00448b10): running from the
-    /// target. The heading (`goldDirc`, set on frames 2 mod 4) is away from
-    /// it, `pi + targetDirc`, dispersed by `goldParam[0]`: 0 `ccRandF(0.3 pi
-    /// (1 - crisisRate))`, 1 `ccRandF(pi (1 - c), pi/10 (1 - c))`, else
-    /// straight (under crisisRate 0.3 a `ccRandF(pi/10)` drawn and
-    /// dropped). The turn rate (`goldRotate`, set on frames 1 mod 4) by
-    /// `goldParam[1]`: 0 `1.5 ccRandF(0.2 (1 - c))`; else `c / 5 - (a +
-    /// ccRandF(a c))` with `a = 0.1 + ccRandF(0.1)` (beyond 1200 `0.1 a`),
-    /// a quarter while held. Volume 1: `goldSpeed = maxSpd + zoom maxSpd c`
-    /// (for a negative zoom `(1.1 - c)`), `goldAccel = c / 10`; else with
-    /// `q = (20 c)^2 / 400` both `maxSpd + zoom maxSpd q` and `q`. Then
-    /// `actMove(goldDirc, goldRotate, mdirc.z, 0.2, goldSpeed, goldAccel,
-    /// 1)`.
+    /// target along `pi + targetDirc`, dispersed by `goldParam[0]` (`goldDirc`
+    /// on frames 2 mod 4), turning at a rate by `goldParam[1]` (`goldRotate` on
+    /// frames 1 mod 4) and a speed by the volume and `crisisRate`, then
+    /// `actMove(goldDirc, goldRotate, mdirc.z, 0.2, goldSpeed, goldAccel, 1)`.
+    /// The formulas are in docs/engine/battle.md ("The gold goblins").
     fn act_escape_gold(&mut self, me: usize, zoom: F) {
         let e = self.en(me);
         let (p0, p1, c) = (e.gold.param[0], e.gold.param[1], e.crisis_rate);
@@ -2100,13 +2002,9 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
 
     /// `ccEnemyC::moveECS()` (0x00443330), a scorpion: it walks the way it
     /// faces and turns to its heading (`actSlide`). Closing in it clatters
-    /// (sound 179) and slides off (escape 2, reduction 1.8). A stop spins
-    /// it: on the act's first frame a quarter turn times its share of
-    /// `maxSpd`, to one side by a coin (`optFlag0`), from the target's
-    /// heading or its own, is kept (`+0x340`, wrapped once into -pi..pi);
-    /// the facing turns there (0.1) as it slows (0.1), rattling (sound 179
-    /// on the first frame, 36 every 8th); under 5 it stops dead and waits
-    /// (act 0).
+    /// (sound 179) and slides off (escape 2, reduction 1.8); a stop spins it
+    /// (+0x340) until it slows under 5 and waits. The spin is in
+    /// docs/engine/battle.md ("The scorpion's spin").
     pub fn move_ecs(&mut self, me: usize) {
         let tf = self.en(me).target_flag;
         match self.en(me).act_num {
@@ -2321,20 +2219,12 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
         self.walk_flag(me);
     }
 
-    /// `ccEnemyU::moveEU()` (0x00450b30). Every frame first the target's
-    /// heading loses its low 18-21 bits (`ccRand() & 3`). By act as
-    /// [`Motion::move_eb`] (chasing with reduction 1), but: a wanderer's
-    /// rates go by type (0-1: 0.05, 1; 2-3: 0.02, 0.8; 4-6: 0.005, 0.6) and
-    /// its facing follows its walk (0.05); closing in, types 0-2 back off as
-    /// any enemy, types 3-6 toss two coins on the first frame and back off
-    /// by the first (heads: facing the target; tails: sliding, the walk
-    /// first turned away by up to 3pi/4 (`ccRandF`) on the side the escape
-    /// would turn, the escape's own turn and speed of that frame undone),
-    /// reduction 0.8. Row 245 (Death Head) snaps to the target when its
-    /// attack starts and runs at 1.5 `maxSpd` for 32 frames while beyond
-    /// its `atkRangeA`, and bobs: `zoffs = 80 + 30 sin(radCnt)`, `radCnt`
-    /// on by 584 a frame (291 in attacks 0 and 1, no bob), sinking to 0
-    /// (0.08) when a flinch or dying.
+    /// `ccEnemyU::moveEU()` (0x00450b30): every frame first the target's
+    /// heading loses its low 18-21 bits (`ccRand() & 3`); then by act as
+    /// [`Motion::move_eb`] (chasing with reduction 1), with the wanderer's
+    /// rates by type, the tails escape of types 3-6 turned aside first, and
+    /// row 245 (Death Head) snapping, dashing and bobbing. The rates are in
+    /// docs/engine/battle.md ("Enemy movement and animation").
     pub fn move_eu(&mut self, me: usize) {
         let r = (self.cc() & 3) + 18;
         {
@@ -3367,13 +3257,9 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
     /// The start of `ccEnemy::main()` (0x00432cd0), up to `think()`: as
     /// [`Ai::begin_frame`], with the race's `freeze()` ([`freeze_g`] for a
     /// goblin) and the affects of `routineEnemy`'s timers (`CalcReal(0)`:
-    /// poison, curse, regeneration) applied inside it, before `checkEnemy`.
-    /// A drained form's grace counts down (held, revived at its end); a
-    /// corpse (`dead` 3) is taken away; a frozen enemy has its conditions
-    /// cleared and, unless off the lists or dying, drops its target and
-    /// waits, stopped; else `routineEnemy`, `checkEnemy`, and a Data Drain
-    /// taken last frame ends it (the book's record, conditions cleared, off
-    /// the lists, the drained form spawned).
+    /// poison, curse, regeneration) applied inside it, before `checkEnemy`. A
+    /// Data Drain taken last frame ends it (the book's record, conditions
+    /// cleared, off the lists, the drained form spawned).
     pub fn begin(&mut self, me: usize) -> Begin {
         {
             let e = self.ai.foes[me].as_mut().expect("an enemy's state");

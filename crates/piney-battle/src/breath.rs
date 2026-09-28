@@ -1,44 +1,11 @@
 //! The enemies' fire breath (gcmn 0x0043ae90-0x0043c134): `ccEnemyBreath`,
-//! its 64 flames (`ccEnemyBrPart`) and the two turns it reads off a
-//! matrix and a movement (`ccSetMat2Rot`, `mov2rot`).
-//!
-//! `ccEnemyH` types 3 and 4 have two breaths, `ccEnemyL` types 2 and 4 one
-//! (`entry::Out::Breath`). The race's `exclusive()` runs each breath every
-//! frame the enemy is displayed ([`Breath::ctrl`]), and in its breath
-//! attacks asks for a flame ([`Breath::set`]):
-//!
-//! ```text
-//! setBreath(param, obj)   displayed, transparency 0.05 or more, actCnt in
-//!                         param.start..=end and (actCnt & mask) == 0: the
-//!                         first free flame starts at the node (init), its
-//!                         phase the breath's count over the flames the
-//!                         attack makes ((end - start) / (mask + 1))
-//! init                    at the node's place, turned as the node (kind
-//!                         0: turned by (pi/2, pi/2, 0) first, the node's
-//!                         own matrix changed so), speed param.vel, size
-//!                         param.scale, clear
-//! ctrlBreath              each live flame: move, anim, ccEff::Draw(pattern)
-//!                         on layer 3; its life counts down
-//! move  flying (1)        the first frame the forward speed times
-//!                         cos(pi/2 phase - pi/4); speed += speed accel
-//!       falling (2)       speed += grav count
-//!                         never backwards; the step turned by the flame;
-//!                         a wall in the way stops it (state 2, forward 0),
-//!                         the ground (under it, 15 size up) lands it (state
-//!                         2, kept on the ground); a landed or blocked flame
-//!                         bursts on its odd frames before the 7th; it
-//!                         faces its movement (mov2rot) and wraps through
-//!                         the player's frame
-//! anim  flying            pattern + 4 (0-15), size + grow, alpha to 1 (0.36)
-//!       falling           pattern + 1 (to 31), size + grow2, alpha to -0.5
-//!                         (0.02), 0 under 0.01
-//! explode                 effSmoke(place + ccRandF(50) each, half the turned
-//!                         speed, size cos(pi/2 phase - pi/4), 8, smoke kind,
-//!                         512, 32)
-//! ```
-//!
-//! The ground, the walls and the player's frame are [`BreathWorld`]'s; the
-//! draws and the smoke are [`BreathOut`]s.
+//! its 64 flames (`ccEnemyBrPart`) and the two turns it reads off a matrix and
+//! a movement (`ccSetMat2Rot`, `mov2rot`). `ccEnemyH` types 3 and 4 have two
+//! breaths, `ccEnemyL` types 2 and 4 one. The race's `exclusive()` runs each
+//! breath every frame the enemy is displayed ([`Breath::ctrl`]) and in its
+//! breath attacks asks for a flame ([`Breath::set`]). The ground, the walls and
+//! the player's frame are [`BreathWorld`]'s; the draws and the smoke are
+//! [`BreathOut`]s. The flames' rules are in docs/engine/battle.md.
 
 use piney_data::libm;
 

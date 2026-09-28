@@ -1,40 +1,11 @@
-//! The party AI's own movers (`personal.cpp`, gcmn 0x0057f660-0x005833a0
-//! and 0x005975b0): walking a navigation route (`FollowBeacon`), a step
-//! between two points (`MoveP2P`), turning to a point (`SetTargetPosDirc`),
-//! the route's goal test (`CheckGoalBeaconPos`), the remote control the
-//! events drive (`ManualControl`, `ManualMode`, `SetRemoteCmd`,
-//! `SetGoalPos`), and a member's life in the Root Town (`ActInTown`,
-//! `FollowTargetTown`, `TownNavigator*`): Orca in Mac Anu after he joins.
-//! The routes are [`crate::navi`]'s.
-//!
-//! These are what [`crate::party_ai::Runtime::call`] receives as
-//! [`Call::PathFinding`], [`Call::FollowBeacon`], [`Call::GoalBeacon`],
-//! [`Call::ManualControl`] and [`Call::ActInTown`]; [`perform`] runs any of
-//! them, so a runtime can hand those calls here and the rest elsewhere. A
-//! mover is a method of the decisions' [`Ctx`] with a [`Nav`] (the world's
-//! navigation queries and the maps); what it calls that is not its own goes
-//! out through [`Ctx::rt`] as the decisions' calls do:
-//! `FollowPlayer`, `LeavePlayer` ([`Call::FollowPlayer`],
-//! [`Call::LeavePlayer`]), `TransferIn`/`Out`, `resignParty`,
-//! `disbandSpc`, `HitEnable`, and the chat lines
-//! ([`Chat::Reencounter`], [`Chat::Line`]).
-//!
-//! The body a mover drives is the AI's `bodyPtr` (a `ccSpcChar`): its
-//! position and `posP` are the scene [`crate::chara::Char`]'s, its heading
-//! (`dirc`), `moveFlag`, `runFlag`, `actNum`, `targetChar`, `bodyHit` and
-//! transparency the member's [`crate::party_ai::Spc`], and the other bits
-//! of its flag word (`dispSW` bit 1, `recallFlag` bit 12), `actNumOld` and
-//! `cloak` the `Char`'s [`crate::chara::SpcChar`]. Every function is a
-//! transcription of the game's, checked against it in `tools/eemu.py` by
-//! `tools/test_battle_navi_rs.py`.
-//!
-//! Where the game reads a destination it never set, the port starts from
-//! (0, 0, 0, 0): `GetDestination` in a field (the walks of `FollowBeacon`
-//! and a remote route are only made in a town or a dungeon), a landmark
-//! `ActInTown` looks up that is not in the table (`actDummy` -1 after
-//! `ccNaviSearchNearLandmark` found none within 10000, a shop's name
-//! missing), and `ccSetDirc` by a `gRotSp` of 0 divides by zero in the
-//! game (the port's [`crate::geom::get_dirc_chg`] does too).
+//! The party AI's own movers (`personal.cpp`, gcmn 0x0057f660-0x005833a0 and
+//! 0x005975b0): `FollowBeacon`, `MoveP2P`, `SetTargetPosDirc`,
+//! `CheckGoalBeaconPos`, the events' remote control (`ManualControl` and its
+//! set-up) and a member's life in the Root Town (`ActInTown`,
+//! `FollowTargetTown`, `TownNavigator*`). [`perform`] runs the calls they
+//! answer; a mover is a method of [`Ctx`] with a [`Nav`]. Where the game reads
+//! a destination it never set, the port starts from (0, 0, 0, 0). The rules
+//! are in docs/engine/battle.md ("Party navigation").
 
 use piney_data::volume::Volume;
 
@@ -361,27 +332,12 @@ impl Ctx<'_> {
         self.ai_at(me).g_pos = v;
     }
 
-    /// `ccAI::ManualControl()` (gcmn 0x00580ef0): the member under an
-    /// event's remote control, by `remoteCmd`:
-    ///
-    /// ```text
-    /// 0  stand and turn toward gDeg (ccSetDirc by gRotSp); remoteFlag 0 once
-    ///    facing it while stopFlag is set, else 1
-    /// 1  walk (2 run) to gPos: straight for gPoint -1, else along the town
-    ///    route to landmark gPoint (TownNavigatorPoint, then gPoint -2);
-    ///    within 50 of the end: stand, remoteCmd 0, remoteFlag 1, gDeg the
-    ///    heading it had this frame
-    /// 3  in the area (actNum 2): done; transferred out (14): TransferIn
-    /// 4  out (14): done; else unless leaving (12): TransferOut
-    /// 5  unless out or leaving: TransferOut, out of the party
-    ///    (resignParty, or disbandSpc for a member of none), partyFlag -2
-    /// 6  hidden: actNum 14, transparency, cloak 0
-    /// 7  shown: actNum 2 (and its body into the world, HitEnable, while
-    ///    alive or down) if it was 14, transparency, cloak 1, dispSW
-    /// ```
-    ///
-    /// "done" clears `remoteCmd` and `remoteFlag`; the others leave
-    /// `remoteFlag` 1 until done. Returns 0.
+    /// `ccAI::ManualControl()` (gcmn 0x00580ef0): the member under an event's
+    /// remote control, by `remoteCmd`: 0 stand and turn toward `gDeg`, 1 walk
+    /// (2 run) to `gPos` straight or along the town route, 3 and 4 transfer in
+    /// and out, 5 leave the party, 6 hide, 7 show. "Done" clears `remoteCmd`
+    /// and `remoteFlag`; the others leave `remoteFlag` 1. Returns 0. The table
+    /// is in docs/engine/battle.md ("Remote control").
     pub fn manual_control(&mut self, nav: &mut Nav, me: usize) -> i32 {
         let body = self.body_of(me);
         let dirc = self.spc_ref(body).dirc;
@@ -640,36 +596,13 @@ impl Ctx<'_> {
         }
     }
 
-    /// `ccAI::ActInTown()` (gcmn 0x0057f660): a member in the Root Town,
-    /// once a frame. First the party's orders: a recalled member (`recallFlag`,
-    /// out of the party, not transferring: acts 12-14) rejoins
-    /// (`partyFlag` 1, `actType` 3); a member leaving (`partyFlag` -1)
-    /// becomes a stranger (-2, `actType` 2: walk to landmark 1), and with
-    /// five registered says goodbye and leaves (`actType` 1); the chat
-    /// commands 12 (stop: `actType` 0) and 9 (follow: `actType` 3), each
-    /// with `ChangeMode(1, 0)`. Then by mode: 5 keeps its distance from
-    /// Kite (`LeavePlayer` from 150, turning away at 170; back to mode 1
-    /// beyond 260), 1 walks the town by `actType`:
-    ///
-    /// ```text
-    /// 0      stand, rest (99) 30-300 frames      99  rest, then a shop at random
-    /// 1      wait, then TransferOut (98)             (5-10; not twice, not 7 for
-    /// 2      to landmark 1, then goodbye (1)          character 1)
-    /// 3      to Kite by the route, then follow   94  follow Kite (FollowTargetTown);
-    /// 4, 12  to landmark actDummy, then rest         within 150: 97; lost beyond 500: 3
-    /// 5-9    to a shop's landmark (2, 3, 6, 4, 5) 95 stand; 96
-    ///        with its line, then rest (11)       96  wait for Kite: 94 with the
-    /// 10     to a landmark at random, its line       greeting, or rest (99)
-    /// 11     rest, then 99                       97  FollowPlayer; lost beyond 500: 3
-    /// 20     walk the route                      100 back up (actNum 2): 0
-    ///                                            101 after a pause, back to actTypeOld
-    /// ```
-    ///
-    /// A walk ends within twice the stride of the destination, facing the
-    /// landmark's point, resting (11) for 100-520 frames; stuck for 200
-    /// frames (`noMoveCnt`) it looks for the nearest landmark (12). Each
-    /// frame of mode 1 counts `actCnt` and, while moving, a frame without
-    /// progress in `noMoveCnt`; `posOld` keeps the position. Returns 0.
+    /// `ccAI::ActInTown()` (gcmn 0x0057f660): a member in the Root Town, once a
+    /// frame: the party's orders (a recall, a member leaving, the chat commands
+    /// 12 and 9), then mode 5 keeps its distance from Kite and mode 1 walks the
+    /// town by `actType` (rest, the shops, a landmark at random, following
+    /// Kite). A walk ends within twice the stride of its landmark; stuck for
+    /// 200 frames (`noMoveCnt`) it looks for the nearest landmark. Returns 0.
+    /// The `actType` table is in docs/engine/battle.md ("The town walk").
     pub fn act_in_town(&mut self, nav: &mut Nav, me: usize) -> i32 {
         let body = self.body_of(me);
         let mp = self.scene.chars[body].pos;

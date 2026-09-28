@@ -1,96 +1,11 @@
-//! The entry control (`entctrl.cpp`, gcmn 0x0042df10-0x00431d04), the
-//! magic portal (`gmcircle.cpp`, `ccMagicCircle`, 0x00454840-0x0045621c)
-//! and where a field's and a dungeon's portals come from
-//! (`WORLD_MAN::EntryGimmick`, main 0x001a1f20; `WORLD::SetMagicCircle`,
-//! gcmn 0x005ab610; `DUNGEON::SetMagicCircle`, 0x005bf590; the event
-//! manager's `entry_mc` and enemy entries in `ccEntryEventMng`, main
-//! 0x001b62e0): how enemies appear in a field and a dungeon.
-//!
-//! # The entry control
-//!
-//! `g_entCtrl` (`ccEntryCtrl`, 0x40 bytes) keeps four doubly linked lists of
-//! `ccEntryObj`s: enemies, magic circles, gimmicks and NPCs. Here every
-//! object is a character of the [`Scene`] (its `ccChar`, by scene index);
-//! [`EntryCtrl`] keeps the lists (`head`, `foot`, `num` and each object's
-//! `pre`/`next`) and, for objects that are not enemies, their `ccEntryObj`
-//! members ([`EntryObj`], [`MagicCircle`]). An enemy's are in its
-//! [`Enemy`] (`foes[i]`, as for the enemy AI).
-//!
-//! `ccThEntryCtrl` (0x00431970), the task at priority 64, sets the lists up
-//! when an area starts (`restoreEntry` or an empty control, `initEntryCCS`,
-//! `WORLD_MAN::EntryGimmick` in a field or dungeon, `ccEntryEventMng`) and
-//! then, once a frame, [`EntryCtrl::frame`]: each list in turn, in list
-//! order, `count` objects from the head (the count and each `next` taken
-//! before the object runs), each with `objFlag` set running
-//! `ccEntryObj::routine` ([`routine`]) and then its class's `main` through
-//! its vtable (+8); a non-zero result deletes the object. The Root Town runs
-//! the same loop (piney-world runs its merchants and walking PCs); only the
-//! set-up differs (`EntryGimmick` is not called in a town, and
-//! `ccEntryEventMng` places the merchants, the Chaos Gate and the PCs).
-//!
-//! The objects' `main`s other than the magic circle's are called through
-//! [`Seam`] exactly where the game calls them; they may call back into the
-//! control (`entryEnemyObject`, `entryObject`). An enemy's is
-//! `ccEnemy::main` (0x00432cd0): [`EnemySeam`] runs it as
-//! [`crate::enemy_motion::Motion::enemy_main`] (the enemy AI of
-//! [`crate::enemy_ai`], the movement and animation, the affects) on the
-//! control's scene and world and carries out what it asks of the control
-//! (the corpse's treasure box, the drained form) and the save (the enemy
-//! book); a gimmick's or an NPC's is its class's, which [`EnemySeam`]
-//! hands to an inner [`Seam`]. [`Cx::world`] is therefore a
-//! [`MotionWorld`]: the control's own queries are its [`World`] part.
-//!
-//! # Spawning
-//!
-//! [`EntryCtrl::entry_object`] (`entryObject(ep)`, 0x00430c90) decides how
-//! many objects an entry makes (an enemy row's `esize`, drawing `ccRand`)
-//! and [`EntryCtrl::entry_object_n`] (`entryObject(ep, n)`, 0x004307f0)
-//! places them: one on the spot, or `n` round the spot 300 away. Each is
-//! checked first ([`EntryCtrl::entry_object_check`]: a gimmick an event
-//! already used is not made again; a gimmick of id 15 becomes a magic
-//! circle; an enemy of row -1 takes a registered row at random), then made
-//! by [`EntryCtrl::entry_enemy`] (the race constructor of
-//! `ccEntryRaceTbl`, [`crate::races`]), [`EntryCtrl::entry_gimmick`] or
-//! [`EntryCtrl::entry_npc`] (through [`Seam`]), and switched on by
-//! [`EntryCtrl::init_object`] when it belongs to the area, floor and block
-//! the control runs.
-//!
-//! A magic circle ([`MagicCircle`], `ccMagicCircle::main` 0x00455b60)
-//! waits until Kite is on the command list within 3000, then opens over 31
-//! and 21 frames and gives what its entry says
-//! ([`EntryCtrl::entry_circle_object`]): enemies (a row, or a registered
-//! one at random) or a treasure box; then it waits for its animation's end
-//! and 65 frames and goes, counting the circles opened in the save. Its 128
-//! particles ([`McPart`]) draw `ccRand` as they are made, so they are
-//! simulated here too.
-//!
-//! The rows an area may spawn are registered first ([`Register`]:
-//! `ccInitRegisterEnemy`, `ccRegisterEnemyList`, `ccRegisterEnemyOne`).
-//!
-//! # Where the entries come from
-//!
-//! - A field: `WORLD::SetMagicCircle` ([`world_set_magic_circle`]) places
-//!   16 entries on the field's free chips from `fieldrand` (the area
-//!   generator's RNG as the field left it), 4, 8 or 12 of them magic
-//!   circles by the area's `circleOfs`, the rest enemies of a registered
-//!   row; a story area makes them all circles, and event area 14 (the
-//!   tutorial field) none. `SetFood` and `SetSpecialObj` run around it
-//!   ([`EntryGimmickSeam`]).
-//! - A dungeon: `DUNGEON::SetMagicCircle` ([`dungeon_set_magic_circle`])
-//!   makes a circle for every magic-circle slot of the generator's
-//!   `gimPos` list and, in a story dungeon, for every `GIMMICKDATA` row of
-//!   type 1 (piney-data's `EditDungeon` rows); `SetItemBox`, `SetIDOL` and
-//!   `EntryBreakObject` run around it.
-//! - An event: `entry_mc TYPE CODE MARKER PARAM` with `set_pos` makes a
-//!   magic circle ([`event_magic_circle`]); an `entry` of type 5 or 6 an
-//!   enemy ([`event_enemy`]).
-//!
-//! # Outputs
-//!
-//! Sounds, effects, the circle's draws and the models the constructors
-//! make are [`Out`]s in call order; the queries into collision, the camera,
-//! the animation players and the player's frame are [`World`] calls.
-//! `ccRand` is [`Cx::cc`], `ccRandS` [`Cx::rnds`].
+//! How enemies appear in a field and a dungeon: the entry control
+//! (`entctrl.cpp`, gcmn 0x0042df10-0x00431d04), the magic portal
+//! (`gmcircle.cpp`, `ccMagicCircle`, 0x00454840-0x0045621c) and where the
+//! portals come from (`WORLD_MAN::EntryGimmick` main 0x001a1f20,
+//! `WORLD::SetMagicCircle` 0x005ab610, `DUNGEON::SetMagicCircle` 0x005bf590,
+//! `ccEntryEventMng` main 0x001b62e0). [`EntryCtrl`] keeps the four lists; the
+//! objects' `main`s go through [`Seam`], an enemy's through [`EnemySeam`]. The
+//! rules are in docs/engine/battle.md ("Enemies appearing").
 
 use piney_data::save::SaveData;
 use piney_data::tables::types::EntryFunc;
@@ -196,14 +111,10 @@ impl SpawnTables {
 // the registered rows ---------------------------------------------------------------
 
 /// The rows an area may spawn: `ccRegisterEnemyTbl` (gcmn 0x006fa900,
-/// `int[8]`) with `ccRegisterEnemyNum` (main 0x00378194), their drained
-/// forms `ccRegisterDrainTbl` (0x006fa920, `int[16]`) with
-/// `ccRegisterDrainNum` (main 0x00378198), `ccRegisterEnemyRange` (main
-/// 0x00378190), and `enemyTbl[i].entry.exist` (the rows whose files
-/// `initEntryCCS` looks up).
-///
-/// The two tables lie one after the other, and the registration functions
-/// do not check the counts: `cells` holds both, so a ninth registered row
+/// `int[8]`, count main 0x00378194), their drained forms `ccRegisterDrainTbl`
+/// (0x006fa920, `int[16]`, count main 0x00378198), `ccRegisterEnemyRange`
+/// (main 0x00378190) and `enemyTbl[i].entry.exist`. The registration does
+/// not check the counts: `cells` holds both tables, so a ninth registered row
 /// lands in the drain table as it does in the game.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Register {
@@ -1082,28 +993,12 @@ impl McPart {
     }
 
     /// `ccMcPart::main` (gcmn 0x004548e0), a live particle's frame: its
-    /// effect's position through the player's frame
-    /// (`ccTransPosFW2LW`: W2P then P2W); on its first frame (`cnt` 0) its
-    /// life, a scale of 5 and a random turn (three `ccRand`s, then for
-    /// kinds 1, 2 and 4 a `ccRandF`), later frames its motion by kind:
-    ///
-    /// ```text
-    /// 1 life 120  radCnt += 838;  pos += mat (6 sin radCnt, 0, 0, 1)
-    ///             + (0, 0, 6 sin(1383 cnt)); scale to 1 by 0.04
-    /// 2 life 10   made at 400 - 6 mcActCnt + ccRandF(20) along its turn;
-    ///             radCnt += 1638; turns by 0.072 cos radCnt about x, y, z;
-    ///             pos += mat (-18 sin radCnt, 0, 0, 1); scale to 1 by 0.28
-    /// 3 life 30   speed 30; radCnt += 582; speed -= sin radCnt;
-    ///             pos += mat (speed, 0, 0, 0) + (0, 0, -4); scale to 2 by 0.06
-    /// 4 life 120  radCnt += 758; pos += mat (8 sin radCnt, 0,
-    ///             ccRandF(1.2), 1); scale to 1 by 0.03
-    /// ```
-    ///
-    /// then `fade`, `cnt` up (past its life it is over and freed), and the
-    /// effect's pattern steps round `patNum`.
-    ///
-    /// From Mutation on `ccTransPosFW2LW` leaves the position as it is
-    /// without a player (`frame` false).
+    /// effect's position through the player's frame (`ccTransPosFW2LW`); on
+    /// its first frame its life, a scale of 5 and a random turn (three
+    /// `ccRand`s, then a `ccRandF` for kinds 1, 2 and 4), later its motion by
+    /// kind (docs/engine/effects.md, "The magic portal"); then `fade`, `cnt` up
+    /// and the pattern round `patNum`. From Mutation on `ccTransPosFW2LW`
+    /// leaves the position as it is without a player (`frame` false).
     pub fn main(&mut self, world: &mut dyn World, cc: &mut dyn Rng, frame: bool) {
         if frame {
             let p = world.w2p(self.eff.pos);
@@ -1706,15 +1601,11 @@ impl EntryCtrl {
     }
 
     /// `ccEntryCtrl::entryObject(ep, n)` (gcmn 0x004307f0): after
-    /// `entryObjectCheck`, one object on the spot for `n` 1 (on the ground
-    /// with `land` -1; an enemy's `param[3]` 0), else `n` round the spot:
-    /// the `i`th 300 away at `a + (a/2 + i a)` from 90 degrees before the
-    /// entry's heading (`a` = 2 pi / n through `RAD2DEG`/`DEG2RAD`,
-    /// `sceVu0RotMatrixZ`), on the ground with `land` -1, facing 90 degrees
-    /// on, `param[3]` its number; after each enemy with an `entRoot` other
-    /// than 0 and 3, a registered row at random (`ccRand`) takes the
-    /// entry's row when its `esize` is 3 or 4. The entry is changed in
-    /// place. Returns the last object made.
+    /// `entryObjectCheck`, one object on the spot for `n` 1, else `n` objects
+    /// 300 away round it, each facing 90 degrees on with `param[3]` its number;
+    /// after each enemy of an `entRoot` other than 0 and 3 a registered row may
+    /// take the entry's row (docs/engine/battle.md, "Spawning"). The entry is
+    /// changed in place. Returns the last object made.
     pub fn entry_object_n(&mut self, cx: &mut Cx, seam: &mut dyn Seam, ep: &mut EntryParam, n: i32) -> Option<usize> {
         if self.entry_object_check(cx, ep) {
             return None;
@@ -1890,15 +1781,12 @@ impl EntryCtrl {
         }
     }
 
-    /// `ccThEntryCtrlDelete(ctrl)` (gcmn 0x00431d10), when the task ends:
-    /// with `keep` (`ccGame::CheckSceneReplace()` false and `game`'s mode
-    /// word 5: the area is left for a moment) the enemies with an
-    /// `entRoot` other than -1 and 0 (what circles and corpses made), the
-    /// gimmicks likewise and those fading out (`fadeFlag` 2), and every NPC
-    /// are deleted, the magic circles and the rest kept; otherwise every
-    /// object is deleted. Each list is walked from its head for the count it
-    /// held, the next object taken first. Returns the lists as
-    /// `g_entryList` keeps them for [`EntryCtrl::restore_entry`].
+    /// `ccThEntryCtrlDelete(ctrl)` (gcmn 0x00431d10), when the task ends: with
+    /// `keep` (the area left for a moment) the enemies and gimmicks circles and
+    /// corpses made (`entRoot` not -1 or 0), the gimmicks fading out and every
+    /// NPC are deleted, the rest kept; otherwise every object is deleted.
+    /// Returns the lists as `g_entryList` keeps them for
+    /// [`EntryCtrl::restore_entry`].
     pub fn leave(&mut self, cx: &mut Cx, keep: bool) -> [List; 4] {
         let owned = |r: i32| r != -1 && r != 0;
         for k in [Kind::Enemy, Kind::Circle, Kind::Gimmick, Kind::Npc] {
@@ -2033,29 +1921,12 @@ impl EntryCtrl {
         }
     }
 
-    /// `ccMagicCircle::main` (gcmn 0x00455b60). A closed circle far from
-    /// Kite (frozen) frees its particles and does nothing else; otherwise
-    /// the particles' effects are made if they are not, the position goes
-    /// through the player's frame and back, and by `actNum`:
-    ///
-    /// ```text
-    /// 0  Kite on the command list (ccCheckTarget(plw.pw)) within 3000:
-    ///    sounds 216 and 217, act 1
-    /// 1  from frame 31: ANM_xmagcir2, act 2, destFlag
-    /// 2  from frame 21: sound 215, what it gives (entryCircleObject), act 3
-    /// 3  when its animation has ended (anmFlag): act 4
-    /// 4  from frame 65: the circle goes (main true); an entry with an
-    ///    entRoot counts it (saveData +0x6864), and the area's last circle
-    ///    (mcNum 1) starts ccThDfComp and counts the area cleared (+0x6866
-    ///    a field or a field type 4's first dungeon, else +0x6868)
-    /// ```
-    ///
-    /// then `createPart` and every live particle's `main`; open, or within
-    /// 7000 of Kite, the animation steps (`anmFlag` its end) and, shown
-    /// and in the camera's view (`ccCheckCameraDeg(pos, 12288)`, which sets
-    /// `dispSW`), the circle and its particles are drawn at the camera's
-    /// transparency (`ccGetCameraTransparency(pos, 0, 0, 7000, 600)`) times
-    /// its own, each particle's held to 0..1.
+    /// `ccMagicCircle::main` (gcmn 0x00455b60): a closed circle far from Kite
+    /// frees its particles; otherwise acts 0-4 (Kite within 3000 opens it, the
+    /// animation, what it gives through `entryCircleObject`, and after 65
+    /// frames it goes, counted in the save), then `createPart`, the particles'
+    /// `main`s, the animation and the draw. The acts are in
+    /// docs/engine/battle.md ("The magic circle").
     pub fn circle_main(&mut self, cx: &mut Cx, seam: &mut dyn Seam, who: usize) -> bool {
         let Obj::Circle(mut mc) = std::mem::take(&mut self.objs[who]) else {
             panic!("not a magic circle");
@@ -2236,18 +2107,12 @@ fn get_dist(a: V4, b: V4) -> F {
     crate::enemy_ai::get_dist(a, b)
 }
 
-/// `WORLD::SetMagicCircle()` (gcmn 0x005ab610): the field's 16 entries.
-/// `circleOfs` 0, 1, 2 (else 12) pick 4, 8 or 12 of the 16 slots at random
-/// (`fieldrand(16)` until a free one) to be magic circles; 3 places none.
-/// A story area (`game.field`) makes every slot a circle. Then for each of
-/// the 4 x 4 blocks of 10 x 10 chips (x inner), tries of two
-/// `fieldrand(10)` until a site passes: a free chip's centre, on the
-/// ground (`WORLD::GetHeight`), that is within 6000 of an earlier entry or
-/// more than 3500 from the start (`worldman->fieldStartPos`) (the game
-/// sets the distance to 4000 near an earlier entry, which passes). Event
-/// area 14 (the tutorial field) keeps the positions but makes no entry;
-/// elsewhere a circle is gimmick 15 (`x`, `y` its chip), anything else an
-/// enemy of a registered row, both with `entRoot` and `land` -1.
+/// `WORLD::SetMagicCircle()` (gcmn 0x005ab610): the field's 16 entries, 4, 8
+/// or 12 of them magic circles by `circleOfs` (3: none; a story area: all),
+/// one in each of the 4 x 4 blocks of 10 x 10 chips at a site `fieldrand`
+/// finds; event area 14 draws the sites but makes no entry. Circles are
+/// gimmick 15, the rest enemies of a registered row, all with `entRoot` and
+/// `land` -1 (docs/engine/battle.md, "Where the entries come from").
 #[allow(clippy::too_many_arguments)]
 pub fn world_set_magic_circle(
     ctrl: &mut EntryCtrl,
@@ -2619,15 +2484,12 @@ pub fn dungeon_set_magic_circle(ctrl: &mut EntryCtrl, cx: &mut Cx, seam: &mut dy
     }
 }
 
-/// The other setters `WORLD_MAN::EntryGimmick` calls, which place
-/// gimmicks from the field's objects' and the dungeon rooms' dummy nodes
-/// (models the runtime holds) and draw `fieldrand` and `ccRand`:
-/// `WORLD::SetFood` (gcmn 0x005aa990), `WORLD::SetSpecialObj`
-/// (0x005aae90), `DUNGEON::SetItemBox` (0x005beb30), `DUNGEON::SetIDOL`
-/// (0x005be750), `DUNGEON::EntryBreakObject` (0x005bff10); and the two
-/// magic-circle setters ([`world_set_magic_circle`],
-/// [`dungeon_set_magic_circle`]), which the runtime runs with the field or
-/// dungeon it holds. Each is called where `EntryGimmick` calls it.
+/// The other setters `WORLD_MAN::EntryGimmick` calls, which place gimmicks
+/// from the field's and the dungeon rooms' dummy nodes and draw `fieldrand`
+/// and `ccRand`: `WORLD::SetFood` (gcmn 0x005aa990), `SetSpecialObj`
+/// (0x005aae90), `DUNGEON::SetItemBox` (0x005beb30), `SetIDOL` (0x005be750),
+/// `EntryBreakObject` (0x005bff10), and the two magic-circle setters. Each is
+/// called where `EntryGimmick` calls it.
 pub trait EntryGimmickSeam {
     fn set_food(&mut self, ctrl: &mut EntryCtrl, cx: &mut Cx);
     fn world_set_magic_circle(&mut self, ctrl: &mut EntryCtrl, cx: &mut Cx);
@@ -2709,15 +2571,11 @@ pub(crate) fn event_pos(positions: &[EvPos], marker: i16, kite: V4) -> Option<Ev
 }
 
 /// The entry `ccEntryEventMng` (main 0x001b62e0) makes for an event's
-/// `entry_mc TYPE CODE MARKER PARAM` (`eventMng.entryMc[]`, type 0 or 1):
-/// a magic circle (gimmick 15, `entRoot` 0) at the marker's position (see
-/// [`EvPos`]), on the current area, floor and block (`x`, `y` its chip,
-/// `areaNum` the field or dungeon), giving `param[1]` = TYPE (0 enemies, 1
-/// a gimmick), `param[2]` = CODE (the row or the gimmick) and `param[3]` =
-/// PARAM of them (0 and 1 mean 1). The runtime hands it to
-/// [`EntryCtrl::entry_object`] (which turns it into
-/// [`EntryCtrl::entry_magic_circle`]); in a dungeon the game also closes
-/// the room's doors (`DUNGEON::CloseDoor(floor, block)`).
+/// `entry_mc TYPE CODE MARKER PARAM` (type 0 or 1): a magic circle (gimmick
+/// 15, `entRoot` 0) at the marker's position ([`EvPos`]) on the current area,
+/// floor and block, giving `param[1]` TYPE, `param[2]` CODE and `param[3]`
+/// PARAM (0 and 1 mean 1). The runtime hands it to [`EntryCtrl::entry_object`];
+/// in a dungeon the game also closes the room's doors (`DUNGEON::CloseDoor`).
 pub fn event_magic_circle(e: [i16; 4], positions: &[EvPos], kite: V4, game: &Game) -> Option<EntryParam> {
     if e[0] != 0 && e[0] != 1 {
         return None;
@@ -2782,32 +2640,12 @@ pub fn event_enemy(e: [i16; 4], positions: &[EvPos], kite: V4, game: &Game) -> (
 
 /// The enemies' `main` for [`EntryCtrl::frame`]: a [`Seam`] whose
 /// [`Seam::enemy_main`] runs `ccEnemy::main` (0x00432cd0) as
-/// [`Motion::enemy_main`] does (the rules of [`crate::enemy_ai`], the
-/// movement and animation of [`crate::enemy_motion`], the affects applied
-/// where the game calls `EntryAffect`) on the entry control's scene, with
-/// `cx.world` as the motion's world, and carries out what that frame asks
-/// of the entry control and the save where the game does it:
-///
-/// - the enemy book's record of a Data Drain (`KillRecord`) goes into
-///   `cx.save` at once ([`crate::enemy_ai::record_kill`], with
-///   `game.server` and [`EnemySeam::book_area`]);
-/// - a corpse taken away (`Remove`) is `entryEnemyObject`
-///   ([`EntryCtrl::entry_enemy_object`]) and a Data Drain's end
-///   (`DrainSpawn`) `entryDrainEnemy`'s spawn (the drained form made with
-///   `entryObject(ep, 1)`, fully opaque (`transparency` and
-///   `setTransparency` 1.0), `dead` 1 and its grace
-///   ([`crate::enemy_ai::after_drain_spawn`]), then [`Out::AfterDrain`]);
-///   both are the last thing the game's `main` does before it returns 1,
-///   so they are done as [`Motion::enemy_main`] returns;
-/// - everything else goes to the world ([`MotionWorld::call`]) where the
-///   frame makes it.
-///
-/// `ccCheckActiveEnemy` (the count `setInterval` reads) is counted on the
-/// lists ([`EntryCtrl::check_active_enemy`]) when the enemy's turn comes.
-/// The gimmicks' and NPCs' `main`s and the constructors this crate does
-/// not have go to [`EnemySeam::inner`]. A race [`crate::enemy_motion`]
-/// does not move ([`crate::enemy_motion::Kind::Other`]) thinks and moves
-/// with [`Motion`]'s defaults; the runtime should not spawn one.
+/// [`Motion::enemy_main`] on the entry control's scene, with `cx.world` as the
+/// motion's world. The enemy book's record of a Data Drain goes into the save
+/// at once; a corpse taken away (`entryEnemyObject`) and a drain's spawn of
+/// the drained form are done as `main` returns, as the game does them last.
+/// The gimmicks' and NPCs' `main`s go to [`EnemySeam::inner`]; a race
+/// [`crate::enemy_motion`] does not move should not be spawned.
 pub struct EnemySeam<'s> {
     /// The animation names and sound categories.
     pub data: &'s MotionData,

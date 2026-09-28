@@ -1,32 +1,11 @@
 //! Answers `tools/test_ride_rs.py`: runs `piney_battle::ride` (the riding
-//! Grunty, `ccPucciguso`) on the states and scripts it is sent and prints
-//! one JSON line per request, in the shapes the harness reads the game's
-//! own results in.
-//!
-//! ```text
-//! cargo build --release -p piney-battle --example ride_probe
-//! ride_probe ISO < requests
-//! ```
-//!
-//! A request is a command and whitespace-separated integers (hex with
-//! `0x`):
-//!
-//! - `tables`: the tables the ride reads.
-//! - `new KIND RAND POS[4] ROT[4] CAMERA SCRIPT`: the constructor.
-//! - `main FRAMES RIDE INPUT GLOBALS RAND CAMERA SCRIPT`: `Main` FRAMES
-//!   times, the state after each.
-//! - `fn NAME RIDE INPUT GLOBALS RAND CAMERA SCRIPT [ARGS]`: one of
-//!   `control_move`, `anim_ctrl`, `draw_pg`, `note EVENT PARAM`, `smoke
-//!   DIRC LEGS`.
-//! - `lever POWER`: `PadLeverPower`.
-//! - `place POS[4] ROT[4] SLOT`: `ccPuccigusoExit`'s place for a member.
-//! - `adult SERVER SLOT WORDS[60]`: `ccPgAdultCheck` over the five
-//!   `GROWTH_PARAM` records.
-//!
-//! `RIDE` is the object's members as [`read_ride`] reads them, `INPUT`
-//! `powL dircL pause dne bounds[4] area`, `GLOBALS` `pgR pgDIN`, `CAMERA`
-//! `type id rot[4] resetFlag resetDirc`, `SCRIPT` what the world's calls
-//! answer ([`read_script`]).
+//! Grunty, `ccPucciguso`) on the states and scripts it is sent and prints one
+//! JSON line per request (`ride_probe ISO < requests`). The commands:
+//! `tables`, `new` (the constructor), `main FRAMES ...`, `fn NAME ...`
+//! (`control_move`, `anim_ctrl`, `draw_pg`, `note`, `smoke`), `lever`
+//! (`PadLeverPower`), `place` (`ccPuccigusoExit`'s place) and `adult`
+//! (`ccPgAdultCheck`). `RIDE` is read by [`read_ride`], `SCRIPT` by
+//! [`read_script`]; the other fields are the harness's.
 
 use std::collections::VecDeque;
 use std::io::{BufRead, Write};

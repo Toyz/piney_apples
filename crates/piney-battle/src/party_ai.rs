@@ -1,82 +1,11 @@
 //! The party members' decisions: `ccAI` (`personal.cpp`, gcmn
-//! 0x0057c5f0-0x005977cc), the AI message bus `ccAISystem` it talks
-//! through, and the rules half of `ccFellow` (`fellow.cpp`): what a party
-//! member the game drives decides to do in a fight, not how it walks.
-//!
-//! A member's AI is an [`Ai`] (the `ccAI` fields the decisions read and
-//! write) kept in a [`Crew`] under the scene index of the character it
-//! drives, with the `ccSpcChar`/`ccFellow` fields they read in [`Spc`]
-//! and the message bus in [`AiSystem`]. Combat stats stay in the scene's
-//! [`Char`]s; the party is [`Party`] (`ccPartyManager`); skill and item
-//! lists are the save's (`saveData.skillList[18][20]` at +0x1ec4,
-//! `saveData.itemList[18][40]` at +0x30). A decision is a method of
-//! [`Ctx`], which borrows all of these for the call.
-//!
-//! The members coordinate through messages rather than directly: a member
-//! that decides to heal, cure, revive, buff or debuff someone posts a
-//! message to itself (or asks a better placed member) delivered 30 frames
-//! later, and every member checks the pending messages and the recent
-//! history before deciding the same thing twice ([`AiSystem`], the
-//! `ccThAISystem` thread's [`Crew::tick`]). A message's name is a kind
-//! in the high half and, for the healing kinds, the patient's AI id in the
-//! low half:
-//!
-//! ```text
-//! 0x2  heal HP with a skill        0x8  heal HP with an item
-//! 0x3  cure with Rip Teyn (178)    0x9  cure with an item (178)
-//! 0x4  cure with Rip Synk (179)    0xa  cure with an item (179)
-//! 0x5  revive with Rip Maen (180)  0xb  revive with an item (180)
-//! 0x6  a buff or debuff skill      0x7  a buff or debuff item
-//! 0xc  a mode change (low half the new mode)
-//! 0x1xxxx broadcasts: 0x10008 damage about to be dealt (param the
-//!      estimate, pointer the target), 0x10009 / 0x1000a level down / up,
-//!      0x10013 going back to the player
-//! ```
-//!
-//! Everything else the decisions call (starting a skill or an item,
-//! following, the navigation queries, line of sight, the attack
-//! animations, the chat window) is the runtime's: each is a [`Call`] made
-//! through [`Runtime::call`] at the point the game makes it, so the
-//! runtime can run it in the same order against the same RNG. The chat
-//! message functions (`ChatMessage*`) draw from the RNG and some post
-//! messages of their own; the runtime runs them where the [`Call::Chat`]
-//! says, with [`crate::party_chat`] (`Ctx::chat_line`).
-//!
-//! A frame of a party member (`ccFellow::Main`, gcmn 0x0041b5f0), in the
-//! game's order; the rules are this module's, the rest the runtime's:
-//!
-//! ```text
-//! runtime  weapon swap; CalcReal(dead) (crate::chara::calc_real); level-up effect; W2P
-//! runtime  a fellow down at dead 2 counting down to 3 (actNum 10); recall and exit
-//! rules    Ctx::brains (ccAI::Brains): distances, ReadSysMsg, levelCheck,
-//!          ChatCommand, then ActInField / ActInDungeon (commands, heal/buff/debuff
-//!          duties, Reconnoiter, AttackTarget -> Ctx::fellow_attack -> ccSkillRequest)
-//! runtime  Move (unless held, asleep, paralysed); HitCheck; pos += movePos; land
-//! runtime  ccFellow::Action: the skill/attack animation state machine (skillStatus
-//!          1 -> 2, the combo, actNum), which also ends attacks and posts 0x10008
-//! runtime  ccAnm::NoteProcess -> ccFellow::CheckNote: the normal attack's hit
-//!          (CalcBattleDamage h = -1, EntryAffect 1) lands on its note
-//! runtime  draw, arms effect; stopCnt, cycle
-//! ```
-//!
-//! and once a frame, before the members, [`Crew::tick`] (`ccThAISystem`).
-//! The movement the decisions call is the runtime's, and it writes AI state
-//! the decisions read back (the runtime gets the [`Crew`] in
-//! [`Runtime::call`] for that): `FollowPlayer` and `LeavePlayer` clear
-//! `followSW` and `goBackFlag` when Kite is gone and `goBackFlag` on
-//! arriving; `FollowPlayer` and `FollowTarget` set `detourCnt` in a field;
-//! `FollowTarget` and `FollowTargetDirc` set `distTg` and `dircTg`;
-//! `FollowBeacon` sets `navi_finish` on arrival (and in the Root Town
-//! `actType`/`actTime`, drawing from the RNG), dungeon path finding clears
-//! it; `ManualControl` owns `remoteCmd`, `remoteFlag`, `gDeg`, `gPoint`,
-//! `gPos`; all of them move and turn the body (`moveFlag`, `runFlag`,
-//! `dirc`). None writes `mode`, `targetPtr`, `targetFlag`, `distPl` (Brains
-//! sets it), `posOld` or `noMoveCnt`. Queries answer through calls too:
-//! [`Call::HitCheckLm`] (line of sight), [`Call::GoalBeacon`],
-//! [`Call::PathFinding`], [`Runtime::w2p`].
-//!
-//! Every function is a transcription of the game's code, checked against
-//! it in `tools/eemu.py` by `tools/test_battle_party_ai_rs.py`.
+//! 0x0057c5f0-0x005977cc), the message bus `ccAISystem` it talks through
+//! ([`AiSystem`], [`Crew::tick`]) and the rules half of `ccFellow`. A member's
+//! AI is an [`Ai`] in a [`Crew`] under its character's scene index, with the
+//! `ccSpcChar` fields in [`Spc`]; a decision is a method of [`Ctx`]. What the
+//! decisions call beyond the rules (skills, items, movement, chat) is a
+//! [`Call`] through [`Runtime::call`] where the game makes it. The rules and
+//! the message kinds are in docs/engine/battle.md ("Party AI").
 
 use std::collections::BTreeMap;
 
@@ -1576,21 +1505,12 @@ impl Ctx<'_> {
         best
     }
 
-    /// `ccAI::CheckHealParty(flag)` (gcmn 0x00587e20): what the party needs
-    /// and whether the member can give it. The need is a bit per kind over
-    /// the three members: 1 someone down, 2 someone hurt
-    /// ([`Ctx::check_need_healing`]), 4 someone with a body condition, 8
-    /// one with a spirit condition ([`Ctx::check_condition_minus`] -1 and
-    /// -2). Each need the member's skills (180, 150-155, 178, 179, with
-    /// the SP) or items (Rip Maen items, healing items, 178 and 179 items;
-    /// counts not consulted) cover is cleared. Returns -2 when nothing is
-    /// needed, 2 when every need is covered, 1 when some are, -1 when none
-    /// is but a skill lacked only the SP, 0 otherwise.
-    ///
-    /// From Mutation on the argument is the rate for
-    /// [`Ctx::check_need_healing`] (its callers give 100.0), and a healing
-    /// item's category is looked for as 10 (Infection's code looks for 0,
-    /// which no item has).
+    /// `ccAI::CheckHealParty(flag)` (gcmn 0x00587e20): what the party needs (a
+    /// bit per kind: 1 down, 2 hurt, 4 a body condition, 8 a spirit condition)
+    /// and whether the member's skills or items cover it. Returns -2 nothing
+    /// needed, 2 all covered, 1 some, -1 none but a skill lacked only the SP, 0
+    /// otherwise. From Mutation on `flag` is the rate for
+    /// [`Ctx::check_need_healing`] (docs/engine/battle.md, "The decisions").
     pub fn check_heal_party(&mut self, me: usize, flag: i32) -> i32 {
         let mut need = 0;
         for n in 0..3 {
@@ -2413,21 +2333,11 @@ impl Ctx<'_> {
     }
 
     /// `ccAI::DebuffForUnusedEnemy(sid)` (gcmn 0x005937d0) and
-    /// `BuffForUnusedFellow` (0x00593ce0): plan `sid` on the nearest foe
-    /// (or member) without it. With the skill and the SP the member posts
-    /// itself a 0x60000 message (param the skill, pointer the target), with
-    /// an item casting it a 0x70000 one (param the item), due in 30
-    /// frames, unless the same plan waits or went out within 90 (skill) or
-    /// 180 (item) frames. Returns 1 when planned (or with no free slot), 0
-    /// otherwise.
-    ///
-    /// From Mutation on (`check` its third argument): with `check` 2 the maxSP
-    /// alone need cover the skill (gcmn 0x00597cb0); an area skill (type bits 0x6000) already
-    /// planned by anyone within 90 frames (skill or item form) is not
-    /// planned again; a target already planned gives way to the next of
-    /// [`Crew::unused`]; with `check` non-zero a target found is only
-    /// reported (1); and the message is due in 30 frames on the member's
-    /// first turn (`firstTime`), else in 1.
+    /// `BuffForUnusedFellow` (0x00593ce0): plan `sid` on the nearest foe (or
+    /// member) without it, a 0x60000 (skill) or 0x70000 (item) message to
+    /// itself due in 30 frames, unless the same plan waits or went out within
+    /// 90 (skill) or 180 (item) frames. Returns 1 when planned (or with no free
+    /// slot). Mutation's `check` rules are in docs/engine/battle.md.
     fn plan_for_unused(&mut self, me: usize, sid: i32, ene: bool, check: i32) -> i32 {
         let body = self.ai(me).body;
         let later = self.t.volume != Volume::Inf;
@@ -2666,15 +2576,11 @@ impl Ctx<'_> {
         1
     }
 
-    /// `ccAI::UseItem(code, target)` (gcmn 0x00589410): not asleep, held,
-    /// paralysed, charmed or confused (from Mutation on free to act,
-    /// `CheckAction(7)`, and held only with a boss in, which returns -1;
-    /// it then remarks on the item), the member uses an item it carries
-    /// (categories 10-15) on a listed target not down past 1 (or down, for
-    /// a Rip Maen item): `ccUseItemRequest(body, target, code, 0)`, one
-    /// used up, and a command to use it (99) done. Returns 1 for an item
-    /// of categories 11 and 12 and of category 10 other than ids 18-22, 0
-    /// otherwise; failing, the command is dropped and the target let go.
+    /// `ccAI::UseItem(code, target)` (gcmn 0x00589410): a member able to act
+    /// uses an item it carries (categories 10-15) on a listed target not down
+    /// past 1 (or down, for a Rip Maen item) and a command 99 is done. Returns
+    /// 1 for categories 11, 12 and 10 other than ids 18-22, 0 otherwise;
+    /// failing, the command is dropped and the target let go.
     pub fn use_item(&mut self, me: usize, code: i32, target: Option<usize>) -> i32 {
         let body = self.ai(me).body;
         let later = self.t.volume != Volume::Inf;
@@ -2726,29 +2632,13 @@ impl Ctx<'_> {
 }
 
 impl Ctx<'_> {
-    /// `ccAI::SelectAttackSkill(tp)` (gcmn 0x005941f0): the skill or item
-    /// to open on `tp` with, by [`crate::damage::skill_damage_value`].
-    ///
-    /// With no affordable art (type 0), attack spell (type 1) nor attack
-    /// item, none. The member keeps its four best candidates by damage: its
-    /// attack spells (not 2-5) if allowed magic (`skillMask` 2), its arts
-    /// (the normal attack included) if allowed and not of job 5, then its
-    /// attack spell items; a spell or art costs no more than the SP it may
-    /// spend (all of it, or down to `maxSP * savingSP / 400` once below
-    /// `maxSP * savingSP / 100`; items only below that). A candidate
-    /// displaces the first kept one it matches in damage unless that one
-    /// did more damage per SP, and unless (with `mercy`, before its first
-    /// action, not job 5) both overkill the target's HP left (its HP less
-    /// the damage announced against it in the last 5 frames). Mercy also
-    /// holds back altogether when a normal attack would do a third of that.
-    ///
-    /// The best is taken, or 22% of the time (`(rand() >> 3) % 100 < 22`)
-    /// one of the first four ranks by `(rand() >> 3) % 4 + 1` (rank 4
-    /// redrawn as 1-3; in a boss fight rank 4 is rank 1, and an empty or
-    /// zero-damage pick climbs to a better rank). Returns 1 for a skill, 2
-    /// for an item (the id or code in `SelectAttackSkillResult`), -1 for
-    /// none. From Mutation on the 22% goes with the level difference, and
-    /// of two candidates that do no damage the cheaper is kept.
+    /// `ccAI::SelectAttackSkill(tp)` (gcmn 0x005941f0): the skill or item to
+    /// open on `tp` with, by [`crate::damage::skill_damage_value`]: the four
+    /// best candidates within the SP it may spend, `mercy` holding back
+    /// overkill; the best, or 22% of the time (`(rand() >> 3) % 100 < 22`)
+    /// another rank. Returns 1 for a skill, 2 for an item (the id or code in
+    /// `SelectAttackSkillResult`), -1 for none. The rules, and Mutation's, are
+    /// in docs/engine/battle.md ("The decisions").
     pub fn select_attack_skill(&mut self, me: usize, tp: usize) -> i32 {
         self.crew.select_attack_skill_result = -1;
         let body = self.ai(me).body;
@@ -3205,21 +3095,12 @@ impl Ctx<'_> {
         self.cure_with(me, tgt, crate::skill::recovery_check(k), true, false, item_first)
     }
 
-    /// `ccAI::HealSPC(tp, rate)` (gcmn 0x00596b00): heal `tp` (itself with
-    /// `selfFlag`; with none, the party member alive or down, in the party,
-    /// below `rate`% of its maxHP, no one is healing, with the least HP),
-    /// when below `rate`% (`fptosi(rate * maxHP / 100)`). With a healing
-    /// skill (see [`Ctx::check_heal_hp_skill`]) it plans it (0x20000), or,
-    /// out of battle and not keeping to itself, hands it half the time to
-    /// a member that heals better with a skill; with a healing item for the
-    /// loss it plans the item (0x80000) or, mostly (`rand() >> 3` not 0),
-    /// hands it to such a member. Returns 1 when planned.
-    ///
-    /// From Mutation on (`item_first` its third argument) the least-HP
-    /// member wins ties (in battle the one with more SP); the skill is
-    /// handed only when it heals less than the loss, to a member healing
-    /// more than it does (an item's heal, `0x005c2380`, likewise); and with
-    /// `item_first` the item is tried before the skill.
+    /// `ccAI::HealSPC(tp, rate)` (gcmn 0x00596b00): heal `tp` (or the neediest
+    /// member) when below `rate`% of its maxHP: plan a healing skill (0x20000)
+    /// or item (0x80000), or hand the heal to a member that heals better.
+    /// Returns 1 when planned. From Mutation on ties and hand-overs change and
+    /// `item_first` tries the item first (docs/engine/battle.md, "The
+    /// decisions").
     pub fn heal_spc(&mut self, me: usize, tp: Option<usize>, rate: u32, item_first: i32) -> i32 {
         if self.t.volume != Volume::Inf {
             return self.heal_spc_later(me, tp, rate, item_first);
@@ -3631,19 +3512,11 @@ impl Ctx<'_> {
         self.party.num - down as i32
     }
 
-    /// `ccAI::ChatCommandHealPlz` (gcmn 0x005962d0): a member allowed to
-    /// heal (`skillMask` 4), able (not confused, asleep, charmed, held,
-    /// paralysed or dead), not in the middle of a skill and with nothing
-    /// scheduled looks after the party ([`Ctx::heal_plz_battle_mode`] or
-    /// [`Ctx::heal_plz_normal_mode`]). Out of battle it then goes back to
-    /// its strategy (a strategy-3 healer to keeping to itself and healing
-    /// only) and a heal command (16) is done.
-    ///
-    /// From Mutation on a member that has acted looks only every tenth
-    /// frame (`count`), a held member heals too, the member must be free
-    /// to use a skill or an item (`CheckAction(6)` or `(7)`), and out of
-    /// battle the strategy comes back only once no one is below full HP
-    /// ([`Ctx::check_heal_party`]).
+    /// `ccAI::ChatCommandHealPlz` (gcmn 0x005962d0): a member allowed to heal
+    /// (`skillMask` 4), able, not in a skill and with nothing scheduled looks
+    /// after the party; out of battle it then goes back to its strategy and a
+    /// heal command (16) is done. Mutation's changes are in
+    /// docs/engine/battle.md ("The decisions").
     pub fn chat_command_heal_plz(&mut self, me: usize) -> i32 {
         if self.ai(me).skill_mask & 4 == 0 {
             return 0;
@@ -3689,17 +3562,11 @@ impl Ctx<'_> {
         v
     }
 
-    /// `ccAI::AttackTarget(tp)` (gcmn 0x00586630): attack `tp`. A member
-    /// neither confused nor charmed lets go of a target of its own side (a
-    /// charmed one of a foe), ending a normal attack. One in the party
-    /// (`partyFlag` 1) not already going back, in a field with no boss
-    /// fight and more than 3500 from Kite, turns back to him: `goBackFlag`
-    /// and `followSW` set, a 0x10013 note to itself in 40 frames, the
-    /// target let go. Otherwise it closes in (movement: `FollowTarget`
-    /// once the navigation has arrived, else `FollowBeacon`, arriving
-    /// within 150 or, every 90th count, when the route's goal is at the
-    /// target) and attacks: Kite through `ccPlayer::Attack`, a member of
-    /// type 4 through [`Ctx::fellow_attack`], with its strategy.
+    /// `ccAI::AttackTarget(tp)` (gcmn 0x00586630): attack `tp`. A target of
+    /// the member's own side is let go; a party member in a field with no boss
+    /// fight more than 3500 from Kite turns back to him (0x10013 to itself in
+    /// 40 frames). Otherwise it closes in and attacks: Kite through
+    /// `ccPlayer::Attack`, a member of type 4 through [`Ctx::fellow_attack`].
     pub fn attack_target(&mut self, me: usize, tp: usize) {
         let body = self.ai(me).body;
         let c = &self.scene.chars[body].cond;
@@ -3773,19 +3640,12 @@ impl Ctx<'_> {
         }
     }
 
-    /// `ccFellow::Attack(tp, n)` (gcmn 0x0041e590): a member's attack on
-    /// `tp`. While no skill runs: before its first action, or every 180th
-    /// frame of its task (`cycle`), a member neither confused nor charmed,
-    /// able to act and allowed arts or spells chooses
-    /// ([`Ctx::select_attack_skill`]; none is the normal attack). It faces
-    /// `tp` and measures the distance, then: the normal attack starts
-    /// within `armsRange` (the AI's `distTg` for a distance of exactly -1,
-    /// or within 30 of its stride while moving under its own power) and a
-    /// running one ends on a target at `dead` 1; a skill starts within its
-    /// `triggerRange`, an item is used ([`Ctx::use_item`]). Every attempt
-    /// counts in `atkTargetCnt`, and a skill or item announces its expected
-    /// damage to the party at once (0x10008, param the estimate, pointer
-    /// the target). Returns 1 done, -1 out of range, 0 unable.
+    /// `ccFellow::Attack(tp, n)` (gcmn 0x0041e590): a member's attack on `tp`.
+    /// Before its first action or every 180th `cycle` it may choose an art or
+    /// spell ([`Ctx::select_attack_skill`]); then the normal attack starts
+    /// within `armsRange`, a skill within its `triggerRange`, an item through
+    /// [`Ctx::use_item`], each announcing its estimate (0x10008). Returns 1
+    /// done, -1 out of range, 0 unable.
     pub fn fellow_attack(&mut self, body: usize, tp: usize, _n: i32) -> i32 {
         let mut s0 = 1;
         let mut item = false;
@@ -3914,27 +3774,12 @@ impl Ctx<'_> {
         c[cond::PARALYSIS] != 0 || c[cond::SLEEP] != 0 || c[cond::CONFUSION] != 0 || c[cond::CHARM] != 0
     }
 
-    /// `ccAI::RequestChatCmd(cmd, tp, sid)` (gcmn 0x00583440): the player
-    /// gives the member a command. A member paralysed, asleep, confused or
-    /// charmed only answers that it cannot (`ChatMessageConditionMinus`).
-    /// Otherwise the command takes effect on the member's settings at once
-    /// and is noted for [`Ctx::chat_command`] (`chatCmdNew`, the skill,
-    /// the target, `chatCmdFlag` 6):
-    ///
-    /// ```text
-    /// 7 8 9 10   strategy 0 1 2 3, commanded (strategyCMD) and applied
-    /// 1 2 3 4    strategy 0 1 2 3, applied only
-    ///            (3 and 10 also set skillMask 4 and selfFlag; the rest clear skillMask)
-    /// 0 13 14    skillMask 3, 1, 2 (arts and spells, arts, spells), a commanded
-    ///            strategy 0, 2 or 3 reset to 0
-    /// 15 16      skillMask 0; 4 (heal) clearing selfFlag
-    /// 17 18      skillMask 8 (debuff); 16 (buff) clearing selfFlag
-    /// 11         strategy 4, skillMask 3 for job 5
-    /// 5 12 19    nothing more
-    /// 6, 20 up   strategy 0, skillMask 0
-    /// ```
-    ///
-    /// From Mutation on see [`Ctx::request_chat_cmd_later`].
+    /// `ccAI::RequestChatCmd(cmd, tp, sid)` (gcmn 0x00583440): the player gives
+    /// the member a command. A member paralysed, asleep, confused or charmed
+    /// only answers that it cannot (`ChatMessageConditionMinus`); otherwise the
+    /// command sets the strategy and `skillMask` at once (the table is in
+    /// docs/engine/battle.md, "The decisions") and is noted for
+    /// [`Ctx::chat_command`]. From Mutation on see [`Ctx::request_chat_cmd_later`].
     pub fn request_chat_cmd(&mut self, me: usize, cmd: i32, tp: Option<usize>, sid: i32) {
         let body = self.ai(me).body;
         if self.troubled(body) {
@@ -3998,23 +3843,10 @@ impl Ctx<'_> {
         a.chat_cmd_flag = -2;
     }
 
-    /// Mutation's `RequestChatCmd` (gcmn 0x005a97e0) past the condition
-    /// check. A standing hold (strategyCMD 6) becomes 3 before most
-    /// commands; the arts and spells commands (0, 13) keep a standing 1 or
-    /// 4 (applied) and otherwise clear it; the spells command (14) makes a
-    /// standing 3, or 0 or 2 with strategy 3, into 6:
-    ///
-    /// ```text
-    /// 7 8 9 10   strategy 0 1 2 3, commanded and applied
-    /// 1 2 3 4    strategy 0 1 2 3, applied only
-    ///            (3 and 10 set skillMask 4 and selfFlag, the rest clear skillMask)
-    /// 0 13 14    skillMask 3, 1, 2
-    /// 15 16      skillMask 0; 4 clearing selfFlag
-    /// 17 18      skillMask 8; 16 clearing selfFlag
-    /// 11         strategy 4, skillMask 3 for job 5
-    /// 5 12 19    nothing more
-    /// 6, 20 up   strategy 0, skillMask 0
-    /// ```
+    /// Mutation's `RequestChatCmd` (gcmn 0x005a97e0) past the condition check:
+    /// Infection's table with a standing hold (`strategyCMD` 6), which most
+    /// commands turn into 3; 0 and 13 keep a standing 1 or 4 and otherwise
+    /// clear it; 14 makes a standing 3 (or 0 or 2 with strategy 3) into 6.
     fn request_chat_cmd_later(&mut self, me: usize, cmd: i32, tp: Option<usize>, sid: i32) {
         let body = self.ai(me).body;
         let unhold = |ctx: &mut Self| {
@@ -4129,16 +3961,10 @@ impl Ctx<'_> {
         1
     }
 
-    /// `ccAI::ChatCommandFulfilCheck` (gcmn 0x00583750): can the member do
-    /// what it was told (`chatCmdNew`)? A dead member says so a quarter of
-    /// the time (`ChatMessageGhost`), a troubled one always
-    /// (`ChatMessageConditionMinus`); then by command: 5 needs the skill and
-    /// its SP (else an item casting it, which turns the command into 99);
-    /// 13, 14 and 0 need a battle and arts or attack spells (or items) aimed
-    /// at foes; 16 a heal the party needs and the member can give
-    /// ([`Ctx::check_heal_party`], nothing needed being told `Accept`); 18
-    /// buffs; 17 a battle and debuffs; 19 a place the ocarina works, the
-    /// ocarina, and a free moment. Returns 1 accepted (`firstTime` set), 0
+    /// `ccAI::ChatCommandFulfilCheck` (gcmn 0x00583750): can the member do what
+    /// it was told (`chatCmdNew`)? A dead or troubled member says it cannot;
+    /// then each command needs its means (the skill and SP, a battle, a heal
+    /// the party needs, the ocarina). Returns 1 accepted (`firstTime` set), 0
     /// refused (back to the standing strategy, the command dropped).
     pub fn chat_command_fulfil_check(&mut self, me: usize) -> i32 {
         let body = self.ai(me).body;
@@ -4260,25 +4086,12 @@ impl Ctx<'_> {
         }
     }
 
-    /// `ccAI::ChatCommand` (gcmn 0x00583d60), once a frame: the command
-    /// state. A member that cannot have strategies keeps strategy 0. A
-    /// command waiting for the member (`chatCmdFlag` 2) starts once it can
-    /// act (1). A new one (-2) waits while the member heads back to Kite
-    /// from beyond 1750, then is checked ([`Ctx::chat_command_fulfil_check`];
-    /// the same command again is taken as it is when the member is able)
-    /// and accepted: `chatCmd`, `chatCmdTime` 0, `chatCmdFlag` 2,
-    /// `ChatMessageChatCmdAccept`, the navigation reset, and for 11 skillMask
-    /// 2 on job 5, for 3 and 9 outside the Root Town heading back.
-    ///
-    /// A command in force ends: 11 when its target is gone or dead or
-    /// Kite is more than 3500 away outside a dungeon; 5 once the skill is
-    /// running on its target, or on confusion or charm; 3 and 9 after 900
-    /// frames in the Root Town or out of battle elsewhere; 1 2 4 13 14 17
-    /// out of battle (strategy 3 keeping its mask). The battle's start
-    /// (`spcBattleCondition` 3) resets the strategy to the party's
-    /// (dropping commands other than 16 and 18); during it (1) a
-    /// strategy-3 member heals; at the win (5) a member in battle mode says
-    /// so (`ChatMessageVictory`) and leaves it.
+    /// `ccAI::ChatCommand` (gcmn 0x00583d60), once a frame: the command state.
+    /// A new command (`chatCmdFlag` -2) is checked
+    /// ([`Ctx::chat_command_fulfil_check`]) and accepted (`chatCmdFlag` 2), a
+    /// waiting one starts once the member can act (1), and a command in force
+    /// ends on its own condition; the battle's start resets the strategy to
+    /// the party's. The rules are in docs/engine/battle.md ("The decisions").
     pub fn chat_command(&mut self, me: usize) {
         let body = self.ai(me).body;
         if self.crew.spc.get(&body).is_none_or(|s| s.spc_list_num == 0) && self.ai(me).strategy != 0 {
@@ -4432,27 +4245,12 @@ impl Ctx<'_> {
         }
     }
 
-    /// `ccAI::ChatCommandExecute` (gcmn 0x0058ce10): carry out the command
-    /// in force (`chatCmdFlag` 1 or 2) for a member in the party, not in
-    /// mode 6, not troubled or held and not heading back:
-    ///
-    /// ```text
-    /// 11      attack the commanded target (mode 3), once no skill runs
-    /// 2 8     let go of the target when Kite's target is a living foe
-    /// 4 10    in battle, stop following and fall in (mode 1) unless in
-    ///         modes 1, 2, 5; the member stops moving
-    /// 5       close in on the target for the skill (mode 4); a target gone
-    ///         ends the command (mode 1)
-    /// 99      use the item (UseItem)
-    /// 19      play the Sprite Ocarina (not twice, not in an event, not
-    ///         with a menu open): the item used on itself, Kite's AI taken
-    ///         under manual control, messages 6 (next frame) and 7 (in 50)
-    ///         to everyone, ocarinaUseFlag the member's id
-    /// ```
-    ///
-    /// A running normal attack is ended first. Returns 0 when the command
-    /// was carried out or not applicable here (so the caller goes on with
-    /// its own decisions), 1 while it holds the member.
+    /// `ccAI::ChatCommandExecute` (gcmn 0x0058ce10): carry out the command in
+    /// force (`chatCmdFlag` 1 or 2) for a member in the party, not in mode 6,
+    /// troubled, held or heading back: 11 attack, 2 and 8 let go, 4 and 10
+    /// fall in, 5 close in for the skill, 99 the item, 19 the Sprite Ocarina.
+    /// Returns 0 when carried out or not applicable here (the caller goes on
+    /// with its own decisions), 1 while it holds the member.
     pub fn chat_command_execute(&mut self, me: usize) -> i32 {
         let flag = self.ai(me).chat_cmd_flag;
         if flag != 2 && flag != 1 {
@@ -4639,19 +4437,12 @@ impl Ctx<'_> {
         }
     }
 
-    /// `ccAI::ChatCommandDeBuffPlz` (gcmn 0x005857c0) and
-    /// `ChatCommandBuffPlz` (0x00585c70): a member allowed debuffs (8) or
-    /// buffs (16), on its first action or every 55th (90th) count, able,
-    /// idle and with nothing scheduled, and with such skills or items,
-    /// plans the first of its character's priority list
-    /// (`spcDebuffPriorityType[debuffTableIndex[id]]`, nine entries, or the
-    /// buff table's five) that some foe (member) still lacks: a skill id, -1
-    /// the six stat skills of `debuffSkillAbilityTable`, -2 the element skill
-    /// of the field's element and then the other five. A debuff planned
-    /// returns 1 at once; out of battle the member then (buffs: in any
-    /// case) goes back to its strategy and a command 17 (18) is done.
-    ///
-    /// From Mutation on see [`Ctx::chat_command_plz_later`].
+    /// `ccAI::ChatCommandDeBuffPlz` (gcmn 0x005857c0) and `ChatCommandBuffPlz`
+    /// (0x00585c70): a member allowed debuffs (8) or buffs (16), on its first
+    /// action or every 55th (90th) count, able and idle, plans the first entry
+    /// of its character's priority list some foe (member) still lacks. A
+    /// debuff planned returns 1 at once. From Mutation on see
+    /// [`Ctx::chat_command_plz_later`].
     fn chat_command_plz(&mut self, me: usize, buff: bool) -> i32 {
         if self.t.volume != Volume::Inf {
             return self.chat_command_plz_later(me, buff);
@@ -4716,14 +4507,10 @@ impl Ctx<'_> {
     }
 
     /// Mutation's `ChatCommandDeBuffPlz` (gcmn 0x005acaf0) and
-    /// `ChatCommandBuffPlz` (0x005ad010): every 35th count, a held member
-    /// too, only when free to use a skill or an item (`CheckAction(6)` or
-    /// `(7)`). A plan returns 1 at once. With none, in battle nothing more
-    /// (a buffer's next action is no longer its first); out of battle,
-    /// only once [`Ctx::plz_check`] finds no one who needs one (and, for
-    /// buffs, no buff for the member waits or came in the last 37 frames),
-    /// the member goes back to its strategy, drops a command 17 (18) and
-    /// remarks that there is nothing to do (`OnlyDebuff`, `OnlyBuff`).
+    /// `ChatCommandBuffPlz` (0x005ad010): every 35th count, a held member too,
+    /// only when free to use a skill or an item; a plan returns 1 at once. Out
+    /// of battle, once [`Ctx::plz_check`] finds no one in need, the member goes
+    /// back to its strategy, drops the command and says there is nothing to do.
     fn chat_command_plz_later(&mut self, me: usize, buff: bool) -> i32 {
         let bit = if buff { 16 } else { 8 };
         if self.ai(me).skill_mask & bit == 0 {
@@ -4885,26 +4672,12 @@ impl Ctx<'_> {
 }
 
 impl Ctx<'_> {
-    /// `ccAI::Brains` (gcmn 0x0057ca00): a member's AI, once a frame. Not
-    /// before a mode is set, nor without a body.
-    ///
-    /// ```text
-    /// not Kite:        distPl = distance to Kite (party slot 0); dircTg = heading to the target
-    /// talking:         turn to gDeg (runtime) and stop here
-    /// off the bus:     enter it (SysMsgEntry)      on it: ReadSysMsg
-    /// levelCheck
-    /// in the party:    ChatCommand                 not: skillMask 3
-    /// alive:           out of mode 6 (to 1)
-    /// down (4, 5):     a ghost goes to mode 6 and acts; else no action
-    /// dead otherwise:  no action
-    /// act:             manual: ManualControl (runtime); else by area: dungeon
-    ///                  ActInDungeon, field ActInField, Root Town ActInTown
-    ///                  (runtime) or ActInField for ccGame +0x24 == 13
-    /// ChatMessageSender (runtime), count + 1, detourCnt down to 0
-    /// ```
-    ///
-    /// Returns what the act returned (0 without one; the game leaves a
-    /// stale register there), -1 with no mode or body.
+    /// `ccAI::Brains` (gcmn 0x0057ca00): a member's AI, once a frame: the
+    /// distances, the bus (`ReadSysMsg`), `levelCheck`, `ChatCommand`, then the
+    /// act by area (`ActInField`, `ActInDungeon`, the runtime's `ActInTown` and
+    /// `ManualControl`). Returns what the act returned (0 without one; the game
+    /// leaves a stale register there), -1 with no mode or body. The order is in
+    /// docs/engine/battle.md ("The decisions").
     pub fn brains(&mut self, me: usize) -> i32 {
         if self.ai(me).mode == 0 {
             return -1;
@@ -4997,28 +4770,13 @@ impl Ctx<'_> {
         }
     }
 
-    /// `ccAI::ReadSysMsg` (gcmn 0x0058aeb0), once a frame: the member reads
-    /// its whole queue, front first, and carries each message out:
-    ///
-    /// ```text
-    /// 2       heal the patient (id in the name) with SearchHealSkill's skill
-    /// 3 4 5   cure (178, 179) or revive (180) the patient
-    /// 6       the buff or debuff skill (param) on the pointer
-    /// 7       the buff or debuff item (param) on the pointer
-    /// 8-0xb   the item (param) on the patient
-    /// ```
-    ///
-    /// (none while the ocarina plays). A skill out of reach is asked again
-    /// in 45 frames (kinds 2-6); a heal, cure or revive command (16) or buff
-    /// command (17, 18, for kind 6) out of battle is done after trying. The
-    /// broadcasts answer calls (1, 4: come if in mode 1 or 2, 0x10002, else
-    /// 0x10003), level changes (9-11), a death (12), a ghost's lament (13,
-    /// repeating every 90 frames), treasure and traps (15, 16), meetings
-    /// (17), and repeat the idle talk (18-22: every 150, 300, 300-322,
-    /// 500-522 frames); the ocarina's 6 and 7 make the member leave. Once a
-    /// message the member sent itself has been read, the rest of the batch
-    /// is read as its own too (`of`). Returns the last skill or item use's
-    /// result, 0 without one.
+    /// `ccAI::ReadSysMsg` (gcmn 0x0058aeb0), once a frame: the member reads its
+    /// whole queue, front first, and carries each message out (the skill and
+    /// item uses of kinds 2-0xb, the broadcasts' answers and idle talk). A
+    /// skill out of reach is asked again in 45 frames. Once a message the
+    /// member sent itself is read, the rest of the batch is read as its own
+    /// too (`of`). Returns the last use's result, 0 without one. The kinds are
+    /// in docs/engine/battle.md ("The decisions").
     pub fn read_sys_msg(&mut self, me: usize) -> i32 {
         let body = self.ai(me).body;
         let mut of = false;
@@ -5120,15 +4878,9 @@ impl Ctx<'_> {
     }
 
     /// Mutation's skill and item uses in [`Ctx::read_sys_msg`] (kinds 2-0xb,
-    /// gcmn 0x005b25f0). The use is skipped unless its patient needs it: a
-    /// revive (180) one down (2-4); anything else one alive or reviving (0,
-    /// 5), not at full HP for a heal (kinds 2, 8, a skill of type 0x40000),
-    /// with a condition [`Ctx::check_condition_minus`] finds (-1 for 178,
-    /// -2 for 179). A skill out of reach is asked again in 45 frames; a
-    /// skill use by id (2-5) the member did not send itself is announced;
-    /// the item uses say nothing here (`UseItem` remarks), and only a
-    /// debuff command (17) is done after 6 and 7. Returns the new result,
-    /// `result` when skipped.
+    /// gcmn 0x005b25f0): skipped unless the patient needs it (down for a
+    /// revive; else alive, hurt for a heal, or with the condition 178 or 179
+    /// cures). Returns the new result, `result` when skipped.
     fn read_use_later(&mut self, me: usize, m: &SysMsg, kind: i32, low: i32, result: i32) -> i32 {
         let tp = if kind == 6 || kind == 7 { m.pointer } else { self.crew.entry_char(low) };
         // A missing patient reads as all zeros, as the game's null does.
@@ -5422,13 +5174,8 @@ impl Ctx<'_> {
 
     /// Mutation's mode 4 ([`MODE_HOLD`]; `ActInField` 0x005a3810,
     /// `ActInDungeon` 0x005a5104): a member holding its place (strategy 6)
-    /// stays and fights what comes. Unless charmed or confused, a party
-    /// member of another strategy goes to fighting (3) and one heading back
-    /// falls in (1). Its target, while up, is attacked (in a field only
-    /// within `cautionRange`, unless a boss or 0x40 enemy, strategy 1 or 4,
-    /// or commands 5 and 11), else let go and the member halted; a target
-    /// that is the member itself is let go at once. With none it looks
-    /// around (Reconnoiter) and halts. Always returns 0.
+    /// stays and fights what comes, attacking its target while it is up and
+    /// otherwise halting; with none it looks around. Always returns 0.
     fn hold(&mut self, me: usize, dungeon: bool) -> i32 {
         let body = self.ai(me).body;
         let c = self.scene.chars[body].cond;
@@ -5511,30 +5258,12 @@ impl Ctx<'_> {
         distance_to_target(self.scene, self.ai(me).body, t)
     }
 
-    /// `ccAI::Reconnoiter` (gcmn 0x00592aa0): choose the member's target
-    /// and mode. A member out of the party searches for any foe
-    /// ([`Ctx::search_target`] 224); a party member none while the ocarina
-    /// plays, while heading back or while riding; otherwise by strategy: 0
-    /// and 3 (and a charmed or confused member) the nearest foe, 1 Kite's
-    /// target (a listed foe of neither side's own, up), 2 a foe only when
-    /// Kite is neither attacking nor standing still (`stopCnt` 15 up) in
-    /// modes 1 and 3, 4 the commanded target (taken at once, mode 3, when
-    /// no skill runs).
-    ///
-    /// With a target and able to act: a charmed, confused or unallied
-    /// member, or strategy 1, goes for it (mode 3; strategy 1 says so);
-    /// strategies 3 and 4 only aim; the others go for it within
-    /// `territory` (mode 3, saying so), let a foe that is not a boss or
-    /// 0x40 enemy go beyond `cautionRange` in mode 2 (mode 1), and
-    /// otherwise aim at it, going to mode 3 for a boss or 0x40 enemy and
-    /// mode 2 (wary) for the rest. Without one the member stands down
-    /// (mode 1) unless in mode 1 or 5. `distTg` is kept up to date. Returns
-    /// 1 when the mode changed.
-    ///
-    /// From Mutation on a charmed or confused member searches before
-    /// anything else holds it back, strategy 6 (holding its place) searches
-    /// and only aims as 3 does, and a member holding its place
-    /// ([`MODE_HOLD`]) with no target stays so.
+    /// `ccAI::Reconnoiter` (gcmn 0x00592aa0): choose the member's target and
+    /// mode by strategy (0 and 3 the nearest foe, 1 Kite's target, 2 a foe
+    /// while Kite fights, 4 the commanded target), then go for it (mode 3),
+    /// stay wary (2) or stand down (1) by `territory` and `cautionRange`.
+    /// Returns 1 when the mode changed. The rules, and Mutation's, are in
+    /// docs/engine/battle.md ("The decisions").
     pub fn reconnoiter(&mut self, me: usize) -> i32 {
         let body = self.ai(me).body;
         let mut ret = 0;
@@ -5796,31 +5525,11 @@ impl Ctx<'_> {
     }
 
     /// `ccAI::ActInField` (gcmn 0x0057cd00) and `ActInDungeon` (0x0057e0c0),
-    /// one function with the dungeon's differences switched: the member's
-    /// command ([`Ctx::chat_command_execute`]); nothing more while asleep,
-    /// held or paralysed; its heal, debuff and buff duties; then by mode:
-    ///
-    /// ```text
-    /// 1  idle: look for a fight (Reconnoiter; a strategy-3 healer keeps
-    ///    watch); follow Kite beyond 280 (in a dungeon also when out of
-    ///    sight or with a route to him), turning back from 3500 in a field;
-    ///    walking talk out of battle
-    /// 2  wary: look again, keep to Kite (or face the target)
-    /// 3  fighting: a healer (strategy 3) goes back to 2, strategy 2 falls
-    ///    back (1) when Kite attacks from beyond 280, strategy 1 lets its
-    ///    target go when Kite has another; attack the target
-    ///    (AttackTarget) while it is up (in a field only within
-    ///    cautionRange, unless a boss or 0x40 enemy, strategy 1 or 4, or
-    ///    commands 5 and 11), else drop it
-    /// 4  a skill command: in range (50 beyond the skill's triggerRange)
-    ///    use it (UseSkill; a hit foe hears the damage estimate, mode 3),
-    ///    else close in
-    /// 5  called over: step away from Kite within 150, look within 260,
-    ///    else stand down (1)
-    /// 6  down: follow Kite beyond 280 (in a field only as a ghost)
-    /// ```
-    ///
-    /// Always returns 0.
+    /// one function with the dungeon's differences switched: the command
+    /// ([`Ctx::chat_command_execute`]), nothing more while asleep, held or
+    /// paralysed, the heal, debuff and buff duties, then by mode (1 idle, 2
+    /// wary, 3 fighting, 4 a skill command, 5 called over, 6 down; the table is
+    /// in docs/engine/battle.md, "The decisions"). Always returns 0.
     fn act_in(&mut self, me: usize, dungeon: bool) -> i32 {
         let body = self.ai(me).body;
         let later = self.t.volume != Volume::Inf;

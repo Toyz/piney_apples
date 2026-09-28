@@ -1,131 +1,11 @@
-//! The dungeon's objects: treasure boxes, wooden boxes, barrels, pots and
-//! the other breakables, the virus crystal (`ccGimBox`, gmbox.cpp, gcmn
-//! 0x00453400-0x00454838) and the idols, the Gott and Zeit statues
-//! (`ccGimIdol`, gmidol.cpp, 0x00459620-0x00459d4c); and the setters of
-//! `WORLD_MAN::EntryGimmick` that place them in a dungeon
-//! (`DUNGEON::SetItemBox` 0x005beb30, `DUNGEON::SetIDOL` 0x005be750,
-//! `DUNGEON::EntryBreakObject` 0x005bff10).
-//!
-//! # The box
-//!
-//! `ccEntryGimBox` (gimmick rows 0-14) makes a `ccGimBox` ([`box_new`]):
-//! the entry copied in, its model (`XGBBOX0.CCS` ...: [`box_model`]), a
-//! body in the collision list, the opening's rays ([`crate::prim`]) and,
-//! for a trapped row (1, 3, 5), a trap: `param[2]` 0-2 as the entry says,
-//! else `ccRand() & 3` (3: 2, 2: 1, else 0). Trap 0 hits with skill 1,
-//! trap 1 casts skill 156, trap 2 skill 162. It fades in over 10 frames.
-//!
-//! Its `main` ([`main`], `ccGimBox::main` 0x004545d0) runs the rays, then
-//! by row: a treasure box (0, 1) `boxMain`, the virus crystal (6)
-//! `virusMain`, the rest `objectMain`; the animation one step; and draws
-//! it while it is in front of the camera.
-//!
-//! ```text
-//! boxMain (0x00453d80)
-//!   affect 11 (opened)      act 2
-//!   affect 12 (disarmed)    row 1: a treasure box (row 0) made in its
-//!                           place (param[2] 3), effRemoveTrap, sound 104,
-//!                           gone
-//!   act 0                   a box a foe or portal left (entRoot 1-3) goes
-//!                           after 902 frames out of battle
-//!   act 1                   fades out over 30 frames, gone
-//!   act 2                   first frame: row 1's trap goes off; off the
-//!                           command list; its event entry used; the lid
-//!                           opens (ANM_xgbbox02), sound 73, effOpenBox,
-//!                           the rays shine. Then act 3 once the lid is
-//!                           open and 31 frames passed
-//!   act 3                   fades out over 30 frames, gone
-//! objectMain (0x00454140)   affect 11: act 1 (it breaks: rows 3, 5 their
-//!                           trap, the others their debris), fades over 5
-//!                           frames, gone; affect 12 on rows 3, 5: the
-//!                           untrapped row (2, 4) in its place
-//! virusMain (0x00454410)    affect 11: act 1, off the list, then after 29
-//!                           frames act 2: sound 75, effVirusCrystal, a
-//!                           30-frame fade, gone
-//! invokeTrap (0x00453be0)   ccSpcMessageOpenTrapBox; trap 0: CalcBattle-
-//!                           Damage(opener, skill, 1.0, -1) and the
-//!                           opener's EntryAffect(1, damage); traps 1, 2:
-//!                           ccItemSkillRequest(this, opener, skill, 0);
-//!                           sound 39, effOpenTrapBox
-//! ```
-//!
-//! The opener is `affectPerson`: the menus open a box with
-//! `EntryAffect(box, plw, 11)` (the item they give is the menu's), the
-//! Fortune Wire with 12. A box's item is `param[1]` (`category << 16 |
-//! id`, -1 for a draw from the area's list).
-//!
-//! # The idol
-//!
-//! `ccEntryGimIdol` (rows 38-44) makes a `ccGimIdol` ([`idol_new`]): its
-//! model `CMP_trall` with `idolAnimTbl[row - 38]`'s clips (standing,
-//! opening, open); an idol whose event entry is used (`param[2]` 0) stands
-//! open. Its `main` ([`idol_main`]): the statue's glow once
-//! (`effStatueOfGod`), affect 11 opens it (sound 73, effOpenBox and the
-//! rays; the Zeit statue sound 164 and effRemoveTrap), its event entry
-//! used, `param[2]` 0; at frame 100 sound 56, then every other frame a
-//! dust ring until the clip ends; it is drawn with `ccChar::Draw`.
-//!
-//! # The symbol
-//!
-//! `ccEntryGimSymbol` (rows 17 and 18) makes a `ccGimSymbol`
-//! ([`symbol_new`], gcmn 0x0045a0d0): `trapNum` (+0x7c) a skill of
-//! `symbolSkillTbl` (`ccRand() & 15`), an omni light over it, and for row
-//! 17 (the story dungeons' symbol, `XGSYMBOL.CCS`) a body, `CMP_xgsymbo0`
-//! playing `ANM_xgsymbol` and 40 fires (`ccSymFire`, `EFF_x008`) run 20
-//! frames ahead. Its `main` ([`symbol_main`]) flickers the light, lights a
-//! fire every other frame, and on `SymbolMenu`'s affect 11 casts the
-//! skill on the opener (`ccItemSkillRequest(this, opener, trapNum, 0)`,
-//! the world's [`Call::TrapSkill`]) with sound 35 and `effUseSymbol`, a
-//! spark each frame for 30 frames (`invokeEff`), then puts the light out.
-//! Row 18 (the lakes', `objMain`) has no body or fires: its light
-//! flickers, it puffs smoke every other frame, and it casts the same way
-//! ([`obj_main`]).
-//!
-//! # The food
-//!
-//! `ccEntryGimFood` (rows 22-37, `FOOD_00` .. `FOOD_0F`: the Grunty foods,
-//! key items 26-41; row 22 the Golden Egg) makes a `ccGimFood`
-//! ([`food_new`], gmfood.cpp, gcmn 0x00458280): the entry copied in, a body
-//! in the collision list (the base's width, half its height, its type),
-//! its clip `foodAnimTbl[row - 22]` (`ANM_xgfood00a` ..) on `CMP_trall`, the
-//! scale (1, 1, 1). Its `main` ([`food_main`], 0x00458710):
-//!
-//! ```text
-//! freezeFlag: nothing; posP and back
-//! plDist > 1000   turns back toward its heading (ccSetDirc 128), then
-//!                 toward plDirc + 180 degrees; not near
-//! else            the first frame near: its wobble and roll stopped and
-//!                 ccVoicePgFood(food) (it calls to Kite); turns toward
-//!                 plDirc; near
-//! wobble (+0x210 amp): above 0.01 amp -= step and scale.z = 1 + gain amp
-//!                 sin(2 pi amp); below, 0. None: far, one time in four
-//!                 amp = ccRand() & 3, gain 0.2 / amp, step amp / 90; near,
-//!                 sound 164 (not act 2) and amp = ccRand() & 7, gain 0.3 /
-//!                 amp, step amp / 30
-//! roll (+0x21c)   actRolling (0x00458580): rot.y turned by its speed and
-//!                 the speed eased to 0 (ccSetDirc), wrapped to -pi..pi;
-//!                 once under 0.01 a new speed back to 0, and under 0.01
-//!                 again the roll ends (rot.x, rot.y 0). None: far, one
-//!                 time in four a roll (rates 128, 256), near always (48,
-//!                 76), speeds ccGetDircChgF(rot, ccRandF(pi/4), rate)
-//! act 0           count up (a ccRandS at 0, kept); affect 11 (FoodMenu):
-//!                 act 1
-//! act 1           frame 0 off the command lists, ccSeOn3DNote(179, pos,
-//!                 70); frame 20 act 2
-//! act 2           frame 0 effOpenBox, sound 77, a 30-frame fade out; each
-//!                 frame no wobble or roll and scale.z = 0.5 + 0.02 n +
-//!                 0.01 n |sin(b)| (n the count, b up 9029 a frame); frame
-//!                 30 gone (1)
-//! in view (dispSW, ccCheckCameraDeg 12288): the clip forward, the model
-//!                 at SetMatrix_PosRotZYXScale(pos, rot, scale), ccChar::Draw
-//! ```
-//!
-//! # The calls
-//!
-//! The trap's damage and skill are [`Call::TrapDamage`] and
-//! [`Call::TrapSkill`] of the world ([`MotionWorld::call`]), carried out
-//! where the game makes them; sounds, effects, the rays and the draws are
-//! [`Out`]s.
+//! The dungeon's objects: `ccGimBox` (treasure boxes, the breakables, the
+//! virus crystal; gmbox.cpp, gcmn 0x00453400-0x00454838), `ccGimIdol` (the
+//! Gott and Zeit statues, 0x00459620-0x00459d4c), `ccGimSymbol` (0x0045a0d0)
+//! and `ccGimFood` (the Grunty foods, 0x00458280), with the setters that place
+//! them (`DUNGEON::SetItemBox` 0x005beb30, `SetIDOL` 0x005be750,
+//! `EntryBreakObject` 0x005bff10). The trap's damage and skill are the world's
+//! [`Call::TrapDamage`] and [`Call::TrapSkill`]; sounds, effects, rays and
+//! draws are [`Out`]s. The acts are in docs/engine/battle.md.
 
 use crate::chara::{AffectFunc, Char, spc_flag};
 use crate::enemy_ai::EntryParam;
@@ -1183,23 +1063,12 @@ fn idol_main(cx: &mut Cx, who: usize, o: &mut EntryObj) -> bool {
     false
 }
 
-/// `ccGimSymbol::main()` (gcmn 0x0045aa40): nothing while frozen;
-/// `posP` and back; row 17's `symMain` (0x0045ab00), row 18's `objMain`
-/// ([`obj_main`]).
-///
-/// ```text
-/// symMain  initFlag: a symbol already used (act not 0) spent (act 2, its
-///          fires out); initFlag off
-///          act 0, 1: the light at 1 + ccRandF(0.2), at its place,
-///          in the group
-///          act 0: a fire every other frame; affect 11 (SymbolMenu): act 1
-///          act 1: frame 0 off the command lists, param[2] 0, sound 35,
-///          effUseSymbol(light), ccItemSkillRequest(this, affectPerson,
-///          trapNum, 0); frame 30 act 2, the light out; each frame a fire
-///          and invokeEff (a spark: ccParticleExplode)
-///          in view (ccCheckCameraDeg 12288): the clip forward, the model
-///          drawn (ccChar::Draw), the fires on layer 3
-/// ```
+/// `ccGimSymbol::main()` (gcmn 0x0045aa40): nothing while frozen; `posP` and
+/// back; row 17's `symMain` (0x0045ab00), row 18's `objMain` ([`obj_main`]).
+/// `symMain`: a used symbol starts spent; act 0 lights a fire every other
+/// frame until affect 11; act 1 casts (frame 0: off the command lists, sound
+/// 35, `effUseSymbol`, `ccItemSkillRequest(this, opener, trapNum, 0)`), a fire
+/// and a spark each frame, and at frame 30 is spent with its light out.
 fn symbol_main(cx: &mut Cx, who: usize, o: &mut EntryObj) -> bool {
     if o.freeze_flag {
         return false;
@@ -1287,20 +1156,10 @@ fn symbol_main(cx: &mut Cx, who: usize, o: &mut EntryObj) -> bool {
     false
 }
 
-/// `ccGimSymbol::objMain()` (gcmn 0x0045aed0), row 18's (the lakes'
-/// symbol, no body):
-///
-/// ```text
-/// every frame  the light at 1 + ccRandF(0.2), at its place, in the group
-/// act 0        the count up; affect 11 (SymbolMenu): act 1
-/// act 1        frame 0 off the command lists (deleteCmnd(1)), sound 35 at
-///              the symbol, effUseSymbol(light), ccItemSkillRequest(this,
-///              affectPerson, trapNum, 0); frame 30 act 2, the light out
-/// act 2        1: the object goes (its light with it)
-/// then         on an even count, a puff: effSmoke from 10 out along a
-///              heading of three ccRand() turns, flying out along it and
-///              2.5 up
-/// ```
+/// `ccGimSymbol::objMain()` (gcmn 0x0045aed0), row 18's (the lakes' symbol,
+/// no body): the light each frame; it casts as `symMain` does, and act 2
+/// removes it with its light. On an even count it puffs `effSmoke` from 10 out
+/// along a heading of three `ccRand()` turns, flying out along it and 2.5 up.
 fn obj_main(cx: &mut Cx, who: usize, o: &mut EntryObj, sym: &mut Symbol) -> bool {
     let intensity = add(ONE, crate::enemy_ai::rand_f(cx.cc, 0x3e4c_cccd));
     let q = cx.world.w2p(sym.light_pos);
@@ -1496,23 +1355,14 @@ fn special_room(d: &DungeonGims, floor: i32, block: i32) -> bool {
     matches!(ty, 16..=24 | 34)
 }
 
-/// `DUNGEON::SetItemBox()` (gcmn 0x005beb30).
-///
-/// Every `gimPos` slot of kind 0 in turn: a treasure box (row 0) or, on
-/// `fieldrand(100)` below 10, a golden egg (row 22; the lake types
-/// `GetFood()`), below 30 `GetFood()`'s food; `entRoot` -1, facing the
-/// slot's way, on its floor and room. Then, in a story dungeon, each
-/// `GIMMICKDATA` row: type 0 a box at (x, y, 250) (kind 0 a treasure box,
-/// 1 a wooden box, 2 a barrel) with the item its flag names
-/// ([`item_edit_code`]); type 3 of kind 0-6 or 27 on the row `KIND_GIMMICK`
-/// gives (kind 5 the area's food; kind 0 the virus crystal with `param[1]` 0, 1 the trapped
-/// treasure box, 27 on a virus crystal with the item `(kind - 27) |
-/// 0xf0000`; row 19, the boss room's warning, at the room's nearest gate
-/// or door, and only while [`check_boss_effect`] and with no banned room),
-/// each with the
-/// next event entry number in `param[0]`, `entRoot` 0, facing by `direc`
-/// (0: 0, 1: pi, 2: pi/2, 3: -pi/2) and `w` 0. The rooms `SetRoom` builds
-/// for the land checks and deletes after are the runtime's.
+/// `DUNGEON::SetItemBox()` (gcmn 0x005beb30): each kind-0 `gimPos` slot a
+/// treasure box, a golden egg (`fieldrand(100)` under 10; a lake's food) or
+/// the area's food (under 30), `entRoot` -1. In a story dungeon each
+/// `GIMMICKDATA` row too, `entRoot` 0 with the next event entry number: type 0
+/// a box at (x, y, 250), type 3 the row `KIND_GIMMICK` gives (kinds 7-26
+/// skipped; the warning only with no banned room and while
+/// [`check_boss_effect`]). The rooms `SetRoom` builds for the land checks are
+/// the runtime's.
 pub fn set_item_box(
     ctrl: &mut EntryCtrl,
     cx: &mut Cx,

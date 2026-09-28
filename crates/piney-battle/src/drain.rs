@@ -1,20 +1,10 @@
-//! Data Drain: the rules of `ccMenuCtrl::DataDrainMenu` (gcmn 0x00532ae0),
-//! the menu state machine that plays a drain once Kite picks it. Its step
-//! (`ccMenuCtrl` +0x1a) goes:
-//!
-//! - 0: the drain movie (a stream chosen by the target's size or the
-//!   party member's id, `ccThExecuteStream`), the enemy's transformation
-//!   (`ccThDrainEnemy`), then [`drain`]: the infection rises, the drops
-//!   are rolled, the target leaves the command lists; then at once step 1;
-//! - 1: [`side_effect_happens`]: to 10 on a side effect, else 2;
-//! - 2, 3: the warning message over 45 frames of noise, then 20;
-//! - 10: [`side_effect`]; 11: its message, and at frame 30 a level lost
-//!   ([`SideEffect::level_down`]); 12: the message closed, then 20 (a
-//!   lost key item ends the game: `compulsionGameOver`);
-//! - 20: [`evolution`]: the drain count and the bracelet's growth.
-//!
-//! The drops are handed out one at a time through the item menu
-//! (`DataDrainSubMenu`, 0x00535210, menu 29).
+//! Data Drain: the rules of `ccMenuCtrl::DataDrainMenu` (gcmn 0x00532ae0), the
+//! menu state machine that plays a drain once Kite picks it (step `ccMenuCtrl`
+//! +0x1a): 0 the movie, the transformation and [`drain`]; 1
+//! [`side_effect_happens`]; 2, 3 the warning; 10-12 [`side_effect`] and its
+//! message (a level lost, [`SideEffect::level_down`]); 20 [`evolution`]. The
+//! drops go out one at a time through `DataDrainSubMenu` (0x00535210, menu
+//! 29). The steps are in docs/engine/battle.md ("Data Drain").
 
 use piney_data::field::ee;
 use piney_data::save::SaveData;
@@ -67,20 +57,12 @@ fn pick(item: &[i32; 3], roll: i32, aimed: bool) -> i32 {
 }
 
 /// Step 0 of `DataDrainMenu` after the movie (gcmn 0x00533010-0x00533470):
-/// Kite (`kite`) drains `target` with skill `sid` (2 Data Drain, 3 Drain
-/// Arc, 4 2128 Drain, 5 Drain Heart).
-///
-/// - The infection rises by `AddLvErosion(target level - Kite's level,
-///   factor)` ([`exp::add_lv_erosion`], [`exp::drain_factor`]).
-/// - An enemy target drops by `rand() % 100 + 60` (2128 Drain, Drain
-///   Heart) or `rand() % 100 + infection / 2`; a boss always `item[0]`.
-/// - Drain Arc and Drain Heart also take each other living foe on the
-///   foes' list whose protect is broken and whose ground distance from the
-///   target's `posP` is within the skill's `targetRange` plus its width,
-///   at most 16, each rolling `rand() % 100 + infection / 2` with the items
-///   the other way round.
-///
-/// Before the movie a boss target takes `EntryAffect(21)` from Kite
+/// Kite (`kite`) drains `target` with skill `sid` (2 Data Drain, 3 Drain Arc,
+/// 4 2128 Drain, 5 Drain Heart): the infection rises
+/// ([`exp::add_lv_erosion`]), the target drops by `rand() % 100 + 60` (2128
+/// Drain, Drain Heart) or `rand() % 100 + infection / 2` (a boss always
+/// `item[0]`), and Drain Arc and Drain Heart take up to 16 more foes with a
+/// broken protect in range. Before the movie a boss takes `EntryAffect(21)`
 /// ([`drain_start`]).
 pub fn drain(
     t: &Tables,
@@ -255,24 +237,13 @@ fn condition_on(scene: &mut Scene, c: usize, k: usize, roll: i32, out: &mut Side
     out.starts.push(SideStart::Effect(c));
 }
 
-/// Step 10 of `DataDrainMenu` (gcmn 0x005337a4): the side effect. `kite`
-/// is the player's character (`plw` +0x20), `party` the party's members.
-/// Two draws: the effect, `rand() & 15` into the infection's row, and one
-/// resistance roll `rand() % 1001` that every condition of the effect is
-/// tested against (resisted below the tolerance).
-///
-/// 0: every living member's HP and SP full. 1-6: Kite's pAtk, pDef, pHit,
-/// mAtk, mDef, mHit -20 for 900 frames. 7-13: Kite poisoned (5400),
-/// paralysed (450), slowed (x0.5, 900), charmed (300), confused (300),
-/// asleep (450), cursed (5400); the first three resisted by body, the rest
-/// by spirit. 14-20: the same on every living member. 21, 22: every living
-/// member's HP, SP halved (`(v + 1) / 2`). 23-27: Kite loses 200, 400, 600,
-/// 800, 1000 exp; below 0 he gets 1000 back and loses a level at level 2
-/// or more, else stops at 0. 28: every living member left with 1 HP and 1
-/// SP. 29: an item of Kite's list lost: the first from slot `rand() % 20`
-/// on, unless a key item (category 15) comes first; failing that, the
-/// first from the start that is not a key item. 30: nothing.
-/// Nothing happens to Kite while he is down.
+/// Step 10 of `DataDrainMenu` (gcmn 0x005337a4): the side effect. `kite` is
+/// the player's character (`plw` +0x20), `party` the party's members. Two
+/// draws: the effect, `rand() & 15` into the infection's row, and one
+/// resistance roll `rand() % 1001` every condition of the effect is tested
+/// against (resisted below the tolerance). The 31 effects are in
+/// docs/engine/battle.md ("Side effects"); nothing happens to Kite while he
+/// is down.
 pub fn side_effect(
     t: &Tables,
     scene: &mut Scene,

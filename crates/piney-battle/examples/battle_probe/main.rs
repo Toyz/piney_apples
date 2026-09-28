@@ -1,32 +1,11 @@
-//! Answers `tools/test_battle_rs.py`: runs the port's rules on the states
-//! it is sent and prints one JSON line per request, in the shapes the
-//! harness reads the game's own results in, so the two compare directly.
-//!
-//! ```text
-//! cargo build --release -p piney-battle --example battle_probe
-//! battle_probe ISO < requests
-//! ```
-//!
-//! A request is a command and whitespace-separated integers (hex with
-//! `0x`). A character is `P`, `E`, `B` or `O` and its fields (see
-//! [`read_char`]); a skill is its row fields (see [`read_skill`]); an
-//! environment is `plcol forbid inBattle count menuType spRegene area`.
-//! Commands, as `tools/test_battle_rs.py` sends them:
-//!
-//! - `damage ATT TGT SKILL MAG H ENV STATE LISTED`: `CalcBattleDamage`
-//! - `skilldmg ATT TGT SKILL SID AC ENV STATE`: `ccSkillDamage`, single
-//!   target
-//! - `value CP TP SID TYPE`: `ccSkillDamageValue`, skill row `SID`'s type
-//!   replaced by `TYPE` (-1 keeps it)
-//! - `recovery CREATOR TGT SID PARAM`, `cure CREATOR TGT SID COUNT STYPE
-//!   ANNIHILATED ANMFLAG`
-//! - `calcreal CH FLAG ENV`, `levelup PC`, `leveldown PC`, `setlevel PC LVS`
-//! - `modcond CREATOR TGT SID`, `condsucc TGT SID STATE`, `targetcond CH SID`
-//! - `erosion E N F`, `exp` (see [`exp_request`])
-//! - `scene N CHAR... LISTS` then an area command (see [`scene_request`])
-//! - `patch SID SKILL`, `restore SID`: change a `skillTbl` row, and put it
-//!   back, as the harness does in the game's memory
-//! - `bossclips`, `boss ...`: Skeith (see the `boss` module)
+//! Answers `tools/test_battle_rs.py`: runs the port's rules on the states it is
+//! sent and prints one JSON line per request, in the shapes the harness reads
+//! the game's own results in (`battle_probe ISO < requests`). A request is a
+//! command and whitespace-separated integers (hex with `0x`); characters are
+//! read by [`read_char`], skills by [`read_skill`]. The commands (`damage`,
+//! `skilldmg`, `value`, `recovery`, `cure`, `calcreal`, the levels, the
+//! conditions, `erosion`, `exp`, `scene`, `patch`/`restore`, `boss`) are the
+//! harness's; the other modules answer the other harnesses.
 
 use std::io::{BufRead, Write};
 
@@ -717,17 +696,11 @@ fn exp_request(tables: &Tables, t: &mut Toks) -> String {
     format!("{{\"exp\":{{{}}},\"erosion\":{}}}", v.join(","), save.i16(exp::SAVE_EROSION))
 }
 
-/// `scene N CHAR... PCLIST ENELIST` (each list `K i...`) then one of:
-/// - `skilldmg ME TARGET SKILL SID AC ENV STATE`
-/// - `skilldmgat ME POS[4] TTYPE SKILL SID ENV STATE`
-/// - `skilldmg2 ME TARGET POS[4] TTYPE SKILL SID AC ENV STATE`
-/// - `recovery ME TARGET SID PARAM` / `recoveryat ME POS[4] SID PARAM`
-/// - `hold ME TARGET SKILL` / `holdat ME POS[4] TTYPE SKILL`
-/// - `modify ME TARGET SID STYPE FORCE STATE` / `modifyat ME POS[4] TTYPE SID STYPE FORCE STATE`
-/// - `request ME TARGET SID STYPE RUNNING STATE`
-///
-/// Characters are named `c0`, `c1`, ... in the events. Prints the return,
-/// the RNG, the events and every character's state.
+/// `scene N CHAR... PCLIST ENELIST` (each list `K i...`) then an area command:
+/// `skilldmg`, `skilldmgat`, `skilldmg2`, `recovery`, `recoveryat`, `hold`,
+/// `holdat`, `modify`, `modifyat` or `request`, with the arguments
+/// `tools/test_battle_rs.py` sends. Characters are named `c0`, `c1`, ... in the
+/// events. Prints the return, the RNG, the events and every character's state.
 fn scene_request(tables: &Tables, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut s = Scene::default();

@@ -1,42 +1,11 @@
 //! The riding Grunty: `ccPucciguso` (gcmn `pgrider.cpp`,
-//! 0x00510880-0x005130ac), the adult Grunty the Grunty Flute calls in a
-//! field, Kite on its back.
-//!
-//! - [`adult_check`]: `ccPgAdultCheck(server, slot)` (0x00510650, the end
-//!   of `pgbreed.cpp`), which grown Grunty the flute can call from a
-//!   server's record.
-//! - [`Ride::new`]: the constructor (0x00510f30): Kite's riding clump
-//!   (`ctu1body`'s `CMP_trall`) and the Grunty's (`cdogbodN`), both on
-//!   act 2, where Kite stands.
-//! - [`main`]: `ccPucciguso::Main()` (0x005114e0), a frame of the ride on
-//!   its task (`ccThPucciguso`, priority 49): the stick
-//!   ([`control_move`] 0x005119c0, [`pad_lever_power`] 0x00511ed0), the
-//!   push out of the bodies and the walls, the ground and a dungeon's way
-//!   in ([`collision_test`] 0x00512360), the field's wrap
-//!   ([`map_loop_adjust_pos`] 0x005123f0), Kite's place (`plw`), the
-//!   camera ([`camera_pos_calc`] 0x005124b0, [`camera_pos_set`]
-//!   0x00512540), the acts ([`anim_ctrl`] 0x00511f80, the Grunty's notes
-//!   [`check_note`] 0x00512fb0), the draws (`ccChar::Draw` for Kite,
-//!   [`draw_pg`] 0x00512c80 for the Grunty) and the dust
-//!   ([`paw_smoke`] 0x00512670).
-//! - [`exit_place`]: where `ccPuccigusoExit` (0x00510bd0) puts each party
-//!   member when the ride ends (`puccigusoAngleTbl`).
-//!
-//! What happens around it - `ccPuccigusoStart` (0x005109c0) on the menu
-//! task, `ccThPucciguso` (0x00510880) and `ccPuccigusoExit` with their
-//! fades, the party asleep (`ccSpcSleep`, `ccSpcWakeup`), the music
-//! (`ccPgBgmInit`, `ccPgBgmEnd`) - is the runtime's (piney-world's
-//! `combat::ride`, piney-game's area); `docs/engine/grunty-ride.md` has the
-//! whole.
-//!
-//! # State
-//!
-//! A [`Ride`] is the object's members (0x1d0 bytes over `ccChar`): its
-//! place, heading, flag byte (+0xe0), acts, speeds, the camera's points,
-//! the move and its smoothed copy, the body (`ccCharHit` +0x170). Every
-//! world call goes through [`RideWorld`] where and as often as the game
-//! makes it; what only shows or sounds is an [`Out`]. The globals it reads
-//! and writes are [`Globals`] (`pgR`, `pgDIN`) and [`Input`].
+//! 0x00510880-0x005130ac), the adult Grunty the Grunty Flute calls in a field,
+//! Kite on its back: [`adult_check`] (`ccPgAdultCheck` 0x00510650),
+//! [`Ride::new`] (0x00510f30), [`main`] (`ccPucciguso::Main` 0x005114e0, on
+//! `ccThPucciguso` at priority 49) and [`exit_place`] (`ccPuccigusoExit`
+//! 0x00510bd0). The start, the fades, the party asleep and the music are the
+//! runtime's. World calls go through [`RideWorld`]; what shows or sounds is an
+//! [`Out`]. docs/engine/grunty-ride.md has the whole.
 
 use crate::damage::fptosi;
 use crate::geom::{self, F, MINUS_ONE, ONE, PI, V4, VF0, add, cosf, div, from_int, le, lt, mul, neg, sinf, sqrtf, sub};
@@ -414,19 +383,12 @@ impl Ride {
     }
 }
 
-/// `ccPucciguso::Main()` (gcmn 0x005114e0): one frame of the ride.
-///
-/// `pauseSW` from `plw`; the move from the stick ([`control_move`]); where
-/// it would land (the ground under it), pushed out of the bodies and the
-/// walls as `ccSpcChar::HitCheck` does for a walker (twice, the second
-/// halfway), then along the walls: blocked, the move shrinks to half the
-/// way past the body's radius (toward the push); unpushed, a wall in the
-/// way stops it; the place on by the move; the ground and the way in
-/// ([`collision_test`]); `hitAttribute`; the wrap ([`map_loop_adjust_pos`]);
-/// both players' matrices, `plw`'s place, heading and pause; the camera;
-/// the acts; nothing of Kite drawn in the eye view (`LOST_HEAD`), else at
-/// its own transparency; Kite's clump (`ccChar::Draw`), the Grunty
-/// ([`draw_pg`]); the count on.
+/// `ccPucciguso::Main()` (gcmn 0x005114e0): one frame of the ride: the move
+/// from the stick ([`control_move`]), pushed out of the bodies and the walls
+/// as `ccSpcChar::HitCheck` does for a walker, the ground and the way in
+/// ([`collision_test`]), the wrap, `plw`'s place, the camera, the acts and the
+/// draws (Kite's clump, then the Grunty's, [`draw_pg`]). The order is in
+/// docs/engine/grunty-ride.md ("A frame: Main").
 pub fn main(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, g: &mut Globals, t: &RideTables, rng: &mut dyn Rng) {
     r.flags = (r.flags & !flag::PAUSE) | u8::from(input.pause);
     r.move_pos = VF0;
@@ -511,17 +473,10 @@ pub fn pad_lever_power(power: F) -> F {
 }
 
 /// `ccPucciguso::ControlMove()` (gcmn 0x005119c0): the move from the left
-/// stick, eased.
-///
-/// Not leaning (or paused): `MOVE` off, the eased move 1/8 of the way
-/// back to nothing a frame, and every fourth frame with it still over 10,
-/// dust from all four legs thrown back along it. Leaning: `speedRate` the
-/// lean over 255, `MOVE` on, `RUN` past 240; the heading against the
-/// camera's (straight ahead while a camera reset runs and the stick stays
-/// within 2047 of it, else the reset ends); walking at `6.2 * lean / 140`
-/// (at most 1.3 of it), running at `60 * lean / 255`; the move 0.08 of the
-/// way toward that a frame. It turns to the heading unless in the eye
-/// view.
+/// stick, eased (0.08 of the way a frame leaning, 1/8 back to nothing not
+/// leaning, with dust every fourth frame). It walks at `6.2 * lean / 140` (at
+/// most 1.3 of it) and runs past 240 at `60 * lean / 255`, and turns to the
+/// heading unless in the eye view (docs/engine/grunty-ride.md, "The stick").
 pub fn control_move(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mut dyn Rng) -> i32 {
     let mut s0 = (i32::from(geom::rad2deg(add(PI, r.rot[2]))) - 32768) as i16;
     let mut power = pad_lever_power(from_int(i32::from(input.pad.pow_l)));
@@ -596,16 +551,11 @@ pub fn control_move(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mu
     1
 }
 
-/// `ccPucciguso::AnimCtrl()` (gcmn 0x00511f80): the acts and both
-/// players.
-///
-/// Standing (acts 0-3) the idle count runs to 451, then 2 fidgets (3), 0
-/// fidgets (1); a fidget's clip ended, 3 goes on to 4 and 1 back to 2.
-/// Starting to move: `STOP` off, walking (6); stopping: `STOP` on, a walk
-/// or run back to 2; moving, `RUN` switches 6 and 5. A new act sets both
-/// clips; the frame speed is `2 * 256 * speedRate` walking, `256 *
-/// speedRate` running, else 256; both step, the second's end kept, and
-/// the Grunty's notes go to [`check_note`].
+/// `ccPucciguso::AnimCtrl()` (gcmn 0x00511f80): the acts and both players'
+/// clips: the idle fidgets after 451 frames standing, walking (6) and running
+/// (5) by `RUN`, back to 2 on stopping; the frame speed `2 * 256 * speedRate`
+/// walking, `256 * speedRate` running, else 256; the Grunty's notes go to
+/// [`check_note`] (docs/engine/grunty-ride.md, "The acts").
 pub fn anim_ctrl(r: &mut Ride, w: &mut dyn RideWorld, t: &RideTables, rng: &mut dyn Rng) {
     if r.act < 4 {
         r.idle = r.idle.wrapping_add(1);

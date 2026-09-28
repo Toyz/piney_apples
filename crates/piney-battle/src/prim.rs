@@ -1,50 +1,11 @@
 //! `ccPrimRadiate` (gcmn prim.cpp, 0x00438ac0-0x0043a248): rays of light
-//! spread round a point, built each frame from a few numbers and drawn as
-//! triangle strips on layer 6, with a `ccOmniLight` put into the scene's
-//! light group while it shines. A treasure box's opening (`ccGimBoxRad`,
-//! [`box_ctrl`]) and an idol's use one; so do the enemies' weapon flashes
-//! (`ccEnemyWeaponRad`, [`crate::weapon::rad_ctrl`]).
-//!
-//! ```text
-//! ccPrimRadiate(inf, chr)  0x00438ac0  every member 0; user chr, info inf;
-//!                                      init; pnum ccPrimParts (new[]; the
-//!                                      centre's too for type bit 0x10); a
-//!                                      ccOmniLight; init again
-//! init                     0x00438d10  pos (0,0,0,1), rot 0; type, pnum,
-//!                                      centre, length, width, zoom and the
-//!                                      colours from the info; angle 2 pi /
-//!                                      pnum; bank 0; scale, lscale, alpha 1;
-//!                                      dpLength, dpBank 0; radFlag, lgtFlag,
-//!                                      life, act, count, param 0
-//! setColorRadiate(c0, c1)  0x00438e30  (no centre part) each ray's inner
-//!                                      points c0, outer c1; the light's reach
-//!                                      (0, 1000, 1e6) and colour (c0's RGB)
-//! main                     0x0043a1c0  with radFlag: the class's ctrl
-//!                                      (vtable +8), create, disp of the rays
-//!                                      (and of the centre)
-//! create                   0x004393a0  rot; for type bit 1 (facing) y
-//!                                      piLimit(-cam.x), z piLimit(pi/2 +
-//!                                      cam.z), w 0, cam cameraGetRot2 in the
-//!                                      eye view (checkCameraType 1), else
-//!                                      cameraGetRot; m = RotZ RotY RotX of
-//!                                      the unit; with parts, type bit 4
-//!                                      createPlate(m), else bit 8
-//!                                      createRing(m)
-//! createPlate(m)           0x00439520  ray i: RotX(angle i) under m at pos;
-//!                                      inner (0, -+w, c), outer (0, -+w
-//!                                      zoom, c + l), l drawn afresh a ray
-//!                                      with dpLength (l + ccRandF(l dp)), the
-//!                                      outer points turned by bank (+
-//!                                      ccRandF(bank dpBank)) unless facing;
-//!                                      each ray's alpha
-//! disp(part)               0x00439df0  each point into Kite's frame (in
-//!                                      place) and through the view: a strip
-//!                                      of two triangles a ray, on layer 6
-//! ```
-//!
-//! Only the plate (type bit 4) is here; the ring (bit 8) and the centre
-//! part (bit 0x10) belong to rays nothing the port makes uses. The world
-//! the rays are built and drawn in is a [`RadWorld`].
+//! spread round a point, built each frame and drawn as triangle strips on
+//! layer 6, with a `ccOmniLight` in the scene's light group while it shines.
+//! A treasure box's and an idol's opening (`ccGimBoxRad`, [`box_ctrl`]) use
+//! one, and so do the enemies' weapon flashes ([`crate::weapon::rad_ctrl`]).
+//! Only the plate (type bit 4) is here. The functions are in
+//! docs/engine/battle.md ("The weapon trails and flashes"); the world the rays
+//! are built and drawn in is a [`RadWorld`].
 
 use crate::entry::Cx;
 use crate::geom::{
@@ -382,16 +343,10 @@ impl Radiate {
 }
 
 /// `ccGimBoxRad::ctrl()` (gcmn 0x0043c1b0), a box's or an idol's opening
-/// light: act 0 takes the user's position, the colours
-/// (`ccFractionalHsv(0x802affff, 1.0, 0.4)` inside, `(.., 0, 0)` outside),
-/// length 80, width 60, zoom 4, dpLength and dpBank 0.1, the height it
-/// shines from (`param[2]` its z), and goes on at once to act 1; act 1
-/// for 52 frames turns it about x (0.18 a frame), pulses it with
-/// `param[0]` (alpha 0.5 sin, the light 3 sin, length 30 + 60 sin, width
-/// 30 + 30 sin, zoom 1 + 2 sin, dpLength 0.2 sin, dpBank 0.1 sin; +0.0628
-/// a frame) and sways it with `param[1]` (bank pi/2 sin, z `param[2]` -
-/// 10 + 60 cos; +0.0314 a frame), its light in the scene's group; act 2
-/// puts it out.
+/// light: act 0 sets the colours, sizes and height it shines from, act 1 for
+/// 52 frames turns it about x, pulses it with `param[0]` and sways it with
+/// `param[1]`, its light in the scene's group; act 2 puts it out. The
+/// constants are in docs/engine/battle.md ("The rays").
 pub fn box_ctrl(r: &mut Radiate, cx: &mut Cx, out: &mut Vec<RadOut>) {
     const ROT_STEP: F = 0x3e38_51ec;
     const K_0_4: F = 0x3ecc_cccd;

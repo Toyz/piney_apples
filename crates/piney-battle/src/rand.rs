@@ -1,20 +1,10 @@
-//! The game's `rand()`: newlib's (`INF SLUS_202.67:0x00133a38`), one
-//! generator for the whole game. Its state is the 64-bit
-//! `_impure_ptr->_new._reent._rand_next` (`*_impure_ptr + 168`):
-//!
-//! ```text
-//! state = state * 6364136223846793005 + 1
-//! return (state >> 32) & 0x7fffffff
-//! ```
-//!
-//! Battle draws from the same generator as every other caller (the field,
-//! the enemies' movement, the effects), so the functions here take it as a
-//! [`Rng`] and the runtime owns the one instance: a [`Rand`], or any
-//! `FnMut() -> i32` that forwards to the runtime's own.
-//!
-//! The enemies draw from a second generator, `ccRand()` (main 0x001d9a10):
-//! [`Genrand`], a Mersenne Twister the field and the enemies' movement
-//! share too (see [`crate::enemy_ai`]).
+//! The game's `rand()`: newlib's (`INF SLUS_202.67:0x00133a38`), one generator
+//! for the whole game, state `*_impure_ptr + 168` (64 bits):
+//! `state = state * 6364136223846793005 + 1`, returning
+//! `(state >> 32) & 0x7fffffff`. Every caller draws from it, so the rules take
+//! it as a [`Rng`] and the runtime owns the one instance (a [`Rand`], or any
+//! `FnMut() -> i32` forwarding to its own). The enemies' second generator,
+//! `ccRand()` (main 0x001d9a10), is [`Genrand`] (docs/engine/battle.md, "RNG").
 
 /// Something that answers `rand()`.
 pub trait Rng {

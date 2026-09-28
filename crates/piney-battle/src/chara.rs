@@ -1,15 +1,10 @@
 //! A fighter's battle state (`ccChar` and what it points at) and the
-//! per-character rules of `common.cpp`: effective stats (`CalcReal`),
-//! the per-frame condition timers (`ConditionTimeCount`), the equipment's
-//! battle effects (`ConditionBattleEffect`), levels (`CheckLevelUp`,
-//! `LevelDown`, `ccSetLevelParam`) and the strongest element
-//! (`CheckCharAttribute`).
-//!
-//! A [`Char`] keeps the `ccChar` members the rules read and write and a
-//! [`Body`]: a party member's `ccSpcParam` (the save's record), an enemy's
-//! or boss's table row with its `ccEnemyParam`/`ccBossParam`, or another
-//! object (a trap, a gimmick) with no stats of its own. Which one a rule
-//! treats it as is decided, as in the game, by `base.type`.
+//! per-character rules of `common.cpp`: `CalcReal`, `ConditionTimeCount`,
+//! `ConditionBattleEffect`, levels (`CheckLevelUp`, `LevelDown`,
+//! `ccSetLevelParam`) and `CheckCharAttribute`. A [`Char`] keeps the `ccChar`
+//! members the rules use and a [`Body`] (a party member's `ccSpcParam`, an
+//! enemy's or boss's row, or an object with no stats); which one a rule treats
+//! it as is decided, as in the game, by `base.type`.
 
 use crate::event::{Event, Events, Who};
 use crate::param::*;
@@ -430,18 +425,12 @@ fn piece<'a>(t: &'a Tables, p: &SpcParam, s: usize) -> (&'a Elm, &'a Beff) {
     }
 }
 
-/// `ccChar::CalcReal(flag)` (gcmn 0x0056ba30): effective stats.
-///
-/// ```text
-/// party member:  tune = head + body + leg + arm + weapon   each addition clamped to +-999
-///                real = clamp(clamp(elm + tune, +-999) + temp, +-999)
-///                maxHP, maxSP = ccSpcParam's
-/// enemy, boss:   real = clamp(row elm + temp, 0..32767)    an enemy's maxHP/maxSP from its row
-/// ```
-///
-/// `flag == 0` (once a frame) first runs [`condition_time_count`] and, for
-/// a foe, counts a protect break down; `flag <= 0` outside the Root Town
-/// then shows the condition effect.
+/// `ccChar::CalcReal(flag)` (gcmn 0x0056ba30): effective stats. A party
+/// member's `real` is `elm` plus the equipment's `tune` plus `temp`, each
+/// addition clamped to +-999; a foe's is its row's `elm` plus `temp`, held to
+/// 0..32767. `flag == 0` (once a frame) first runs [`condition_time_count`]
+/// and, for a foe, counts a protect break down; `flag <= 0` outside the Root
+/// Town then shows the condition effect (docs/engine/battle.md).
 pub fn calc_real(t: &Tables, ch: &mut Char, flag: i32, env: &Env, ev: &mut Events) {
     let tyb = ch.ty();
     if tyb & ty::PC != 0 {
@@ -527,26 +516,12 @@ pub enum CondFx {
 }
 
 /// `ccChar::DispConditionEffect()` (gcmn 0x0056f950): which condition the
-/// character shows (`conditionNum`, +0x30: the effect and the tint), by
-/// priority, and what becomes of its effect. `ep` is the live effect's
-/// own number (+0x1c), if there is one; `shown` is
-/// `ccSpcConditionEffectSW()` for a party character, and `eye` the eye
-/// view (`checkCameraType() == 1`), in which Kite (id 0) shows none.
-///
-/// ```text
-/// dead other than 0 and 1   an effect killed (num -1)
-/// a party character         the switch off, or Kite in the eye view: an
-///                           effect deleted (num -1)
-///                           (from Mutation on num -1 in both cases with
-///                           no effect too)
-/// else, in order, the first active whose number is the current keeps it
-/// (its effect, remade if its own number differs); else the first
-/// active is the new one:
-///   paralysis 1, sleep 5, confusion 4, charm 3, speed 22 (faster) or 2
-///   (slower), the stat changes (pAtk pDef pHit mAtk mDef mHit and the
-///   six elements, with a timer: 23-34 raised, 7-18 lowered), HP regain
-///   20, SP regain 21, poison 0, curse 6
-/// ```
+/// character shows (`conditionNum`, +0x30), by priority (paralysis, sleep,
+/// confusion, charm, speed, the stat changes, regain, poison, curse), and
+/// what becomes of its effect. `ep` is the live effect's own number, `shown`
+/// is `ccSpcConditionEffectSW()` for a party character, and `eye` the eye
+/// view, in which Kite shows none. The order is in docs/engine/battle.md
+/// ("Which condition shows").
 pub fn disp_condition_effect(ch: &mut Char, ep: Option<i32>, shown: bool, eye: bool, volume: Volume) -> CondFx {
     let later = volume != Volume::Inf;
     let dead = ch.cond[cond::DEAD];

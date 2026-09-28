@@ -1,14 +1,10 @@
 //! `battle_probe` requests for the party's bookkeeping task
 //! (`piney_battle::frame`), as `tools/test_battle_frame_rs.py` sends them:
-//!
-//! ```text
-//! spcthread OPN OLD COND STRAT N (AREA INBATTLE PUPPET OPERATION PARTYNUM)*N
-//! ```
-//!
-//! `ccThSpc` from its start over N frames, the inputs of frame `i` in place
-//! before its pass; per frame the battle condition, `spcOpnCnt`, the
-//! strategy, `spcCheckInBattleOld` and the operation Kite shouted (-2 for
-//! none).
+//! `spcthread OPN OLD COND STRAT N (AREA INBATTLE PUPPET OPERATION
+//! PARTYNUM)*N` runs `ccThSpc` from its start over N frames, the inputs of
+//! frame `i` in place before its pass; per frame it prints the battle
+//! condition, `spcOpnCnt`, the strategy, `spcCheckInBattleOld` and the
+//! operation Kite shouted (-2 for none).
 
 use piney_battle::exp::Party;
 use piney_battle::frame::{SAVE_OPERATION, SpcOut, SpcThread};

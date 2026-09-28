@@ -1,86 +1,11 @@
-//! The event instructions that act on the party and the enemies in a
-//! fight's state: the cases of `ccEvent::Execute` (main 0x001a8d20) that
-//! walk, place, list and hold characters, the `ccThEvHold` task one of them
-//! starts, and `player_skill`'s set-up, wait and step. The interpreter
-//! (piney-event) decodes the instructions and calls its host; a host whose
-//! characters are this crate's calls these.
-//!
-//! ```text
-//! case  instruction       main        here
-//!   13  remove 5/6 code   0x001aa290  get_enemy, remove_enemy (deleteEnemy)
-//!   61  pc_walk_pos       0x001ad8ac  EvParty::pc_walk_pos (remote command 1)
-//!  164  pc_run_pos        0x001ad9b0  EvParty::pc_walk_pos (remote command 2)
-//!   62  pc_walk_dir       0x001adab0  EvParty::pc_walk_dir
-//!   63  pc_walk_marker    0x001adbf4  EvParty::pc_walk_marker
-//!   64  pc_walk_char      0x001adda4  EvParty::pc_walk_char
-//!   66  pc_command        0x001ae164  EvParty::pc_command (ccEntryCmnd / ccDeleteCmnd)
-//!   67  pc_put_marker     0x001ae7d8  EvParty::pc_put_marker
-//!   68  party_put_marker  0x001ae9e8  EvParty::party_put_marker
-//!   69  party_put         0x001aec5c  EvParty::party_put
-//!   70  pc_put            0x001aeb84  EvParty::pc_put
-//!   71  pc_turn           0x001aed5c  EvParty::pc_turn
-//!   72  pc_face           0x001aee30  EvParty::pc_face
-//!   74  enemy_put         0x001af028  EvParty::enemy_put
-//!  132  hold              0x001b09fc  hold; the task ccThEvHold (0x001b5040): hold_frame
-//!  133  hold_end          0x001b0a68  hold_end
-//!  153  player_skill      0x001b1f04  player_skill_begin / _busy / _step / _end
-//!  163  battle_ready      0x001b23a8  battle_ready
-//! ```
-//!
-//! # Who `pc` names
-//!
-//! The instructions name party characters three ways (a [`Roster`] holds
-//! what they read: `ccSpcManager`'s registry, gcmn 0x00730340, and
-//! `ccPartyManager`, 0x00730310):
-//!
-//! - `GetSpc(code)` (main 0x001b2bb0, [`Roster::get_spc`]): for `code` >= 0
-//!   the first registry slot whose id is `code`, its character; for a
-//!   negative code the id `memberID[-code]` holds (-3 reads `num` there),
-//!   looked up the same way.
-//! - [`Roster::named`] (`pc_walk_pos`, `pc_run_pos`, `pc_put`,
-//!   `pc_put_marker`, `pc_turn`, `pc_face`): `GetSpc(pc)` for `pc` >= 0,
-//!   else `memberChar[-pc]`
-//!   (-1, -2 the companions; -3 reads `memberID[0]`, Kite's id 0, as the
-//!   pointer, so no one).
-//! - [`Roster::registered`] (`pc_walk_dir`, `pc_walk_marker`,
-//!   `pc_walk_char`): the first registry slot whose id equals `pc`, sign
-//!   extended; a negative `pc` matches only a free slot (id -1).
-//! - [`Roster::commanded`] (`pc_command`): the first slot of id `pc`; for
-//!   -3 each party slot's member; for -1/-2 that slot's member.
-//! - [`Roster::companion`] (`party_put`, `party_put_marker`): the first of
-//!   `memberChar[1]`, `memberChar[2]` whose character is not `pc` (by its
-//!   base id).
-//!
-//! A character is a scene index. What these write is the `ccChar` /
-//! `ccSpcChar` members the rest of the crate keeps: the position is the
-//! [`Char`]'s, the heading and `bodyHit` its [`Spc`]'s, the act, the
-//! ghost flag, `cloak` and `dead` the [`Char`]'s (with the [`Spc`] copies of
-//! `actNum` and `ghostFlag` kept equal, as between frames), the AI's
-//! members the crew's [`Ai`]. An enemy's heading is its
-//! [`Enemy::dirc`](crate::enemy_ai::Enemy).
-//!
-//! # The remote walks
-//!
-//! Each walk puts the character under manual control
-//! (`ccSpcChar::ManualModeAI(1)`, gcmn 0x0059eba0: a dead character is
-//! revived, a fallen one stood up, then `ccAI::ManualMode` 0x00583270), sets
-//! the remote command (`SetRemoteCmd` 0x005832e0: 1, or 2 for `pc_run_pos`)
-//! and the goal (`SetGoalPos(v, 0)` 0x005833a0: `gPoint` -1, `gPos` v); the
-//! AI's `ManualControl` then walks there ([`crate::ai_move`]). Remote
-//! command 1 moves with `runFlag` set and 2 without it, so `pc_walk_pos` is
-//! the running one of the two (the names are the instruction set's). The
-//! goals:
-//!
-//! ```text
-//! pc_walk_pos  (10 x, 10 y, 10 z, 1)
-//! pc_walk_dir  the character's position + 10 dist (sinf(a), -cosf(a)), a = DEG2RAD(rot); w kept
-//! pc_walk_char the target's position + the same offset; w the target's
-//! pc_walk_marker  field, dungeon: the first event position with that number;
-//!              Root Town: the marker's dummy (markerEvTbl); w 1
-//! ```
-//!
-//! Every multiply and add is the FPU's (`crate::geom`), in the game's
-//! order.
+//! The event instructions that act on the party and the enemies in a fight's
+//! state: the cases of `ccEvent::Execute` (main 0x001a8d20) that walk, place,
+//! list and hold characters (`remove`, the `pc_walk_*` and `*_put*` family,
+//! `pc_command`, `enemy_put`, `hold`/`hold_end` and the `ccThEvHold` task
+//! 0x001b5040, `player_skill`, `battle_ready`). The interpreter (piney-event)
+//! decodes them; a host whose characters are this crate's calls these. The
+//! cases, who `pc` names ([`Roster`]) and the goals are in
+//! docs/engine/battle.md ("The events' battle instructions").
 
 use crate::affect::{self, AffectCtx};
 use crate::chara::spc_flag;
@@ -682,23 +607,11 @@ pub struct Boss {
     pub task_param: Option<i32>,
 }
 
-/// One frame of `ccThEvHold` (priority 33: after `ccThEvent` (32),
-/// `ccThGameCtrl` and any event camera task started before it (both 33),
-/// before `ccThMenu` (34), the camera (40), the party (48-50) and the entry
-/// control (64)). In the frame the task started it only sets itself up.
-/// Then each frame, by type:
-///
-/// - 5, 6: each object of the entry control's enemy list (walked for the
-///   count it has at the start) whose base type has bit `1 << type` and
-///   whose base id is `code` takes `EntryAffect(0, 5, 0, 0, 0)` (hold:
-///   `cond.hold` 1, [`affect::entry_affect`], nothing for one off the
-///   command lists or drained), and for `code` 130 (the tutorial's
-///   goblins) turns at once to Kite: its heading `(0, 0,
-///   ccGetDirc(its position, Kite's), 1)`;
-/// - 7: when `bossEntry` is `code` and the boss task's param is not 0, the
-///   boss `ccCheckTargetTypeId(0x80, code)` finds takes the same hold;
-/// - anything else: nothing.
-///
+/// One frame of `ccThEvHold` (priority 33, after `ccThEvent` and before the
+/// menus, the camera, the party and the entry control); in the frame the task
+/// started it only sets itself up. Types 5 and 6 hold each listed enemy of
+/// base type bit `1 << type` and id `code` (`EntryAffect(0, 5, 0, 0, 0)`), and
+/// for `code` 130 turn it to Kite at once; type 7 holds the boss `code` names.
 /// `kite` is `plw.pw` (the game reads through it without a check).
 #[allow(clippy::too_many_arguments)]
 pub fn hold_frame(

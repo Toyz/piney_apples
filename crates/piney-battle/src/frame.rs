@@ -1,15 +1,10 @@
-//! The party's bookkeeping task, `ccThSpc` (gcmn 0x005a0530, priority
-//! 48): once a frame, before Kite and the party members move, it levels up
-//! the members away from the party, sets the party's strategy from the
-//! save, has Kite shout the strategy when a fight starts, and turns
-//! `ccGame.inBattle` into the battle condition the party's AI reads
-//! (`spcBattleCondition`, [`crate::party_ai::Game::spc_battle_condition`]).
-//!
-//! Its start (before the loop) turns the condition effects on
-//! (`ccSpcConditionEffectON`, 0x005a0880), sets the strategy, starts the AI
-//! system's task (`ccThAISystem`, 0x0058c850, also priority 48 and so run
-//! right after this one: [`crate::party_ai::Crew::tick`]) and builds the
-//! dungeon's path-finding map (`SetPathFindingMap`, 0x00515aa0).
+//! The party's bookkeeping task, `ccThSpc` (gcmn 0x005a0530, priority 48):
+//! once a frame, before Kite and the party members move, it levels up the
+//! members away from the party, sets the party's strategy, has Kite shout it
+//! when a fight starts, and turns `ccGame.inBattle` into the battle condition
+//! the party AI reads ([`crate::party_ai::Game::spc_battle_condition`]). Its
+//! start also starts `ccThAISystem` ([`crate::party_ai::Crew::tick`]) and
+//! builds the path-finding map (docs/engine/battle.md, "A frame of the field").
 
 use piney_data::save::SaveData;
 
@@ -75,17 +70,10 @@ impl SpcThread {
 
     /// One pass of `ccThSpc`'s loop: `ccSpcCheckLevelUp`
     /// ([`exp::level_up_absent`]), `ccSpcSetOperation`,
-    /// `ccSpcShoutOperationName` (0x005a17e0), then the battle condition
-    /// from `inBattle` and the last frame's:
-    ///
-    /// ```text
-    /// inBattle 0: 5 if it was 2, else 0
-    /// inBattle 1: 1 if it was 0, else 2
-    /// inBattle 2: 3 if it was 1, else 4
-    /// ```
-    ///
-    /// `area` is `ccGame.area`, `in_battle` `ccGame.inBattle`,
-    /// `puppet_show` `eventMng->puppetShow` (+0x78c).
+    /// `ccSpcShoutOperationName` (0x005a17e0), then the battle condition from
+    /// `inBattle` and the last frame's (0: 5 after 2, else 0; 1: 1 after 0,
+    /// else 2; 2: 3 after 1, else 4). `area` is `ccGame.area`, `in_battle`
+    /// `ccGame.inBattle`, `puppet_show` `eventMng->puppetShow` (+0x78c).
     pub fn frame(
         &mut self,
         t: &Tables,

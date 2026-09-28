@@ -1,70 +1,10 @@
 //! The enemies' weapon trails and flashes: `ccEnemyWeaponCtrl`,
 //! `ccEnemyWeapon` and `ccEnemyWeaponRad` (gcmn 0x0043c600-0x0043ece8). A
 //! race's constructor makes a controller over its type's `ccEnemyWpInfo`
-//! rows (`entry::Out::Weapon`); the race's `exclusive()` runs it each frame
-//! ([`WeaponCtrl::ctrl`]) and its `note()` hands it every note
-//! ([`WeaponCtrl::note`]).
-//!
-//! ```text
-//! ccEnemyWpInfo (0x60 bytes): +0 chunk name (one row's is set), +4
-//!   node name, +8 flags, +0xc the flash's scale, +0x10 the spline's
-//!   tension, +0x14 cells put between two (u16), +0x16 a cell's life (u16),
-//!   +0x18 edges (u16, 1-4), +0x20 the edges' points under the node
-//! flags: 1 rgb colours (attrRgbTable), 2 hsv colours (attrHsvTable), 4
-//!   the strip packet (cczGsPrimPoly), 8 the line packet (cczGsPrimLine),
-//!   0x10 the flash, 0x20 bezier, 0x40 spline, 0x80 << atkNum the attacks
-//!   it shows on (actNum 6)
-//! ccEnemyWeaponCtrl(n, info, obj) 0x0043e760  a ccEnemyWeapon a row
-//! ccEnemyWeapon(info, obj)   0x0043c970  cells: 1 for a life below 2, else
-//!                                        life (between + 1); edges, flags;
-//!                                        setEdgeRate; init(0); the node:
-//!                                        GetSubstAdrsF of the anm for a name
-//!                                        whose part before '_' is EXT (bit
-//!                                        0, looked up again each frame), else
-//!                                        GetObjAdrsF of the clump; a
-//!                                        ccEnemyWeaponRad (wpRadInfo: a
-//!                                        plate of 8 rays facing the camera)
-//! setEdgeRate                0x0043ce60  each edge's share along the axis
-//!                                        the first and last edges differ
-//!                                        most on (in doubles)
-//! ctrl(obj)                  0x0043e900  each weapon: ctrlCell; with dispSW:
-//!                                        if checkWeapon(actNum, atkNum) (on
-//!                                        actCnt 0 init(the skill's element
-//!                                        first) and setCell), dispCell;
-//!                                        ctrlRadiate
-//! note(obj, note)            0x0043eae0  atkNum 0, 1, 4, 5 on 0x8005: weapon
-//!                                        param (1 up to the count) flashes
-//!                                        for 20 frames; atkNum 2, 3 on
-//!                                        0x8003: every weapon for 80, kept
-//!                                        on the node (bit 2)
-//! setCell                    0x0043db50  a new cell (the first free, else
-//!                                        the oldest) at the front: the edges
-//!                                        under the node's matrix, the full
-//!                                        life; bezier or spline cells put
-//!                                        between the second and third once
-//!                                        there are 4; a flash asked for
-//!                                        starts at the middle of the last two
-//!                                        edges
-//! ctrlCell                   0x0043de90  each cell fades by 0.4 / life, its
-//!                                        colours' alphas times that; one
-//!                                        out of life leaves the list
-//! dispCell                   0x0043e110  layer 6: for each pair of edges,
-//!                                        each cell from the newest, the two
-//!                                        points into Kite's frame (once a
-//!                                        frame) and into the packets; the
-//!                                        line packet's alphas 1.1 times
-//! ccEnemyWeaponRad::ctrl     0x0043c600  act 0: colours from the element,
-//!                                        width 2 pi / 8; act 1: turning 0.24
-//!                                        about x, alpha sin, a light 1.5 sin,
-//!                                        length 40 sin, width 20 sin, zoom
-//!                                        10 sin, the angle on by pi / life;
-//!                                        after life + 2 frames act 2 puts it
-//!                                        out
-//! ```
-//!
-//! Nothing here draws a random number: the flash's plate has no dpLength or
-//! dpBank. `tools/test_enemy_weapon_rs.py` runs the game's controller
-//! against [`WeaponCtrl`].
+//! rows; the race's `exclusive()` runs it each frame ([`WeaponCtrl::ctrl`])
+//! and its `note()` hands it every note ([`WeaponCtrl::note`]). Nothing here
+//! draws a random number. The layouts and the functions are in
+//! docs/engine/battle.md ("The weapon trails and flashes").
 
 use crate::damage::fptosi;
 use crate::geom::{

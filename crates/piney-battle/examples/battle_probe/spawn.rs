@@ -1,27 +1,11 @@
 //! `battle_probe` requests for the entry control, the magic circle and the
 //! race constructors (`piney_battle::entry`, `piney_battle::races`), as
-//! `tools/test_battle_spawn_rs.py` sends them:
-//!
-//! - `spawn SCENE OP ARGS`: a scene (see [`read_scene`]: where the game
-//!   is, the player's frame, the control and its lists, the registered
-//!   rows, the generators, the save's counters, the world's and the
-//!   objects' scripted answers, the objects, the command lists), then one
-//!   of `routine W`, `check EP`, `entry EP`, `entryn EP N`, `mc EP`,
-//!   `circleobj W`, `enemyobj W`, `init W`, `delete K W`, `active F B`,
-//!   `cmain W`, `race RACE EP`, `frame N`, `worldmc FIELD ...`,
-//!   `dungeonmc ...`, `eventmc ...`, `evenemy ...`, `entrygim ...`,
-//!   `leave KEEP`, `restore ...`, `fenemies ...`;
-//!   answers the scene after it ([`scene_json`]) with the world's calls and
-//!   the outputs in order.
-//! - `fenemies` ([`enemies_request`]) runs `ccThEntryCtrl`'s frames with the
-//!   enemies' own `ccEnemy::main` through [`EnemySeam`]: the scene then
-//!   holds party members (kind 5, in the main probe's character format),
-//!   the world answers the enemies' queries too (collision, walls, the
-//!   camera shake's range, the animation players' frames and notes), and
-//!   characters are compared in the enemy motion harness's full format.
-//! - `sreg OPS...`: the registration functions; `rands SEED N`: `ccRandS`;
-//!   `dust ATTR`: `ccCheckDustColor`'s choice; `evsave ...`: the save's
-//!   event entries and fountains.
+//! `tools/test_battle_spawn_rs.py` sends them: `spawn SCENE OP ARGS` (a scene
+//! by [`read_scene`], then one operation, answered by [`scene_json`] with the
+//! world's calls and outputs), `fenemies` ([`enemies_request`]: frames of
+//! `ccThEntryCtrl` with the enemies' own `main` through [`EnemySeam`]), `sreg`
+//! (the registration), `rands` (`ccRandS`), `dust` (`ccCheckDustColor`) and
+//! `evsave` (the save's event entries and fountains).
 
 use std::cell::RefCell;
 use std::collections::HashMap;

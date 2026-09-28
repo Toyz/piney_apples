@@ -1,19 +1,10 @@
 //! The enemies' weapon controller ([`piney_battle::weapon::WeaponCtrl`])
 //! driven line by line for `tools/test_enemy_weapon_rs.py`, which runs the
-//! game's own `ccEnemyWeaponCtrl` in eemu and compares.
-//!
-//! ```text
-//! new ROWHEX:CHUNKHEX:NAMEHEX ... a controller over these ccEnemyWpInfo rows
-//! chunk NAMEHEX P0..P3 R0..R3     the scene file's chunk's place and turn
-//! mat NAMEHEX none|M0..M15        the node's matrix from now on
-//! note EVENT PARAM AT             WeaponCtrl::note
-//! ctrl AT CAM0..CAM3              WeaponCtrl::ctrl, the camera's rotation CAM
-//! AT = DISP ACT CNT ATK ATTR
-//! ```
-//!
-//! Every line answers the controller's state and what the step put out, as
-//! JSON: `{"w": [weapon...], "out": [...]}`. ccTransPosFW2LW is (x + 0.5,
-//! y - 0.25, z, w), as the harness hooks it.
+//! game's own `ccEnemyWeaponCtrl` in eemu and compares: `new` (a controller
+//! over `ccEnemyWpInfo` rows), `chunk` (a chunk's place and turn), `mat` (the
+//! node's matrix), `note` and `ctrl` (with `AT = DISP ACT CNT ATK ATTR` and
+//! the camera's rotation). Each line answers `{"w": [weapon...], "out":
+//! [...]}`. ccTransPosFW2LW is (x + 0.5, y - 0.25, z, w), as the harness hooks it.
 
 use std::collections::BTreeMap;
 use std::io::{BufRead, Write};

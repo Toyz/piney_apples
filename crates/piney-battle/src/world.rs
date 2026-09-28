@@ -1,29 +1,19 @@
-//! What the motion layer asks of the world: the queries and calls the
-//! game's movement, spawning and animation code makes into code that is not
-//! rules - collision, the camera, the player's frame, the animation
-//! players. The field runtime implements [`World`] over its own systems
-//! (piney-world's `hit.rs`, `camera.rs`, the `ccAnm`s its `chara.rs` and
-//! `body.rs` play); the checks implement it with scripts that answer what
-//! the harness answers the game's own code with.
-//!
-//! Every method stands for one game function and is called exactly where,
-//! and as often as, the game calls that function, so a world with state
-//! (a hit list, an animation's clock) sees the same sequence the game's
-//! does. Characters are scene indices ([`crate::scene::Scene`]); floats are
-//! bit patterns ([`crate::geom`]).
+//! What the motion layer asks of the world: collision, the camera, the
+//! player's frame, the animation players. The field runtime implements
+//! [`World`] over its own systems (piney-world's `hit.rs`, `camera.rs`, the
+//! `ccAnm`s it plays); the checks answer with scripts. Every method stands for
+//! one game function and is called exactly where, and as often as, the game
+//! calls it, so a world with state sees the game's sequence. Characters are
+//! scene indices ([`crate::scene::Scene`]); floats are bit patterns.
 
 use crate::geom::{F, V4};
 
 /// `ccCharHit` (0x50 bytes, main `libhit.cpp`): a character's body in the
-/// collision. The motion code owns it (an enemy's at `ccEntryObj` +0x160,
-/// a party member's `bodyHit` at +0x1a0) and fills `pos`, `radius` and
-/// `height` before [`World::collide`]; the world keeps the list of bodies
-/// (`ccCharHitTop`/`Tail`, main 0x0037890c/10) and answers `offset`.
-///
-/// ```text
-/// +0x00 hitSW  +0x04 mask  +0x08 mask2  +0x0c type  +0x10 next
-/// +0x14 radius  +0x18 height  +0x20 pos  +0x30 offset  +0x40 attribute
-/// ```
+/// collision. The motion code owns it (an enemy's at `ccEntryObj` +0x160, a
+/// party member's `bodyHit` at +0x1a0) and fills `pos`, `radius` and `height`
+/// before [`World::collide`]; the world keeps the list (`ccCharHitTop`/`Tail`,
+/// main 0x0037890c/10) and answers `offset`. The layout is in
+/// docs/engine/battle.md ("The motion layer").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CharHit {
     /// `hitSW`: in the world's list of bodies.

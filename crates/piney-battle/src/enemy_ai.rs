@@ -1,69 +1,11 @@
-//! The enemies' decisions (`enemy.cpp`, gcmn 0x00432840-0x00437bd0): how a
-//! `ccEnemy` picks whom to fight, which of its attacks or spells to use,
-//! when it chases, circles, backs off, goes home, flinches and dies, and
-//! what it is when it spawns or is Data Drained.
-//!
-//! An enemy is a [`Char`] of the [`Scene`] (its `ccChar` and
-//! `ccEnemyParam`: stats, conditions, HP) plus an [`Enemy`]: the
-//! `ccEntryObj` and `ccEnemy` members the rules read and write, kept by the
-//! runtime next to the scene, one per scene index (`None` for the party).
-//! Positions and angles are float bits, computed with the EE's arithmetic.
-//!
-//! # Two generators
-//!
-//! The enemies draw from `ccRand()` (main 0x001d9a10), not newlib's
-//! `rand()`: `genrand()` (main 0x001d9620), a Mersenne Twister whose state
-//! is `mt[624]` (main 0x003ff400, 64-bit words holding 32-bit values) and
-//! `mti` (main 0x00377fd0), seeded with 4352 on its first use
-//! (`ccInitRand`, main 0x001d9900, seeds the same way at boot). `ccRand`
-//! returns the 32-bit value as an `int`, so half its values are negative.
-//! [`Genrand`] is that generator. The rules take it as `cc` and newlib's as
-//! `rand` (only [`crate::skill::condition_success`] draws from it here).
-//! The race's movement (`action()`) and the field draw from the same
-//! `ccRand`, so the runtime owns one [`Genrand`] for all of them.
-//!
-//! # The frame
-//!
-//! `ccEnemy::main` (0x00432cd0) runs an enemy once a frame, and a combat
-//! loop does the same with these functions, through an [`Ai`]:
-//!
-//! ```text
-//! begin_frame(me, env)       drainCnt, removal, freezing, routineEnemy
-//!                            (CalcReal, timers), checkEnemy, a pending drain
-//!   -> Continue:
-//! default_think(me)          the race's think() (every race calls defaultThink)
-//! interrupt_think(me)        losing the target, leaving the area, charm and
-//!                            confusion, holds, the affect just taken, dying
-//! [runtime] action()         the race's movement for actNum (actFollow,
-//!                            actEscape, actSlide, actMove), anmNum, atkCnt,
-//!                            actionFlag at the end of an attack animation
-//! end_action(me)             condition.hold = 0
-//! [runtime] moveEnemy, animEnemy (anim_retarget when moveFlag is 2),
-//!           dispEnemy, exclusive
-//! ```
-//!
-//! Animation notes call [`Ai::start_skill`] (note 0x8003) and
-//! [`Ai::affect_skill`] (note 0x8005) through `ccEnemyCheckNote`
-//! (0x004328b0). An affect landing on an enemy (`ccEnemyInfluence`,
-//! 0x00432840, and `affectEnemy`, the coordinator's) leaves
-//! `affect_flag`, `affect_type`, `affect_param0` and, for a Data Drain,
-//! `drain_flag` for the next frame's `interrupt_think` and `begin_frame`.
-//!
-//! # What is left to the runtime
-//!
-//! Movement is `moveEnemy` (0x00433e80) and the races' `action()`
-//! (`ccEnemy1::action` 0x0043f200 and the other races'), which call
-//! `actMove` (0x004371e0), `actFollow` (0x00437420), `actSlide`
-//! (0x00437460), `actEscape()` (0x004374a0), `actEscape(int, float)`
-//! (0x00437610) and `actEscapeX` (0x00437960). They read `act_num`,
-//! `act_cnt`, `target_dirc`, `target_dist`, `base_dirc`, `max_spd`,
-//! `crisis_rate`, `mdirc`, `speed`, `hit_cnt` and write `speed`, `mdirc`,
-//! `rad_cnt`, `hit_cnt`, `hit_spd`, `anm_num`, `atk_cnt`, `action_flag`,
-//! `move_flag`, `opt_flag0`, `ccChar.pos`/`posP`/`dirc` and the body hit.
-//! `actEscapeX` also calls [`Ai::select_attack`] and [`Ai::set_act`].
-//! Animation is `animEnemy` (0x00434560, `anm_flag`, `frame_num`, the
-//! notes), drawing `dispEnemy` (0x004348b0), models `initEnemyCCS`
-//! (0x00432fc0).
+//! The enemies' decisions (`enemy.cpp`, gcmn 0x00432840-0x00437bd0): whom a
+//! `ccEnemy` fights, which attack it uses, when it chases, backs off, goes
+//! home, flinches and dies, and what it is when it spawns or is drained. An
+//! enemy is a [`Char`] of the [`Scene`] plus an [`Enemy`] (its `ccEntryObj`
+//! and `ccEnemy` members). They draw from `ccRand` ([`Genrand`], main
+//! 0x001d9a10), which the races' movement and the field share, so the runtime
+//! owns one; newlib's `rand` is a separate argument. The frame, the acts and
+//! the RNGs are in docs/engine/battle.md ("Enemy AI", "RNG").
 
 use piney_data::field::ee;
 use piney_data::libm;
@@ -1384,21 +1326,12 @@ fn select_attack(cx: &mut Cx, e: &mut Enemy) -> bool {
     false
 }
 
-/// `ccEnemy::selectTarget(lttype)` (0x00436cb0): whom to fight. With the
-/// whole party down (or none) while waiting: no target, conditions
-/// cleared, `act_cnt` 1 (unless riding). Charmed: the nearest other foe;
-/// confused: the nearest of the party or the foes (`ccSearchNearPerson`,
-/// types 0x60 and 0x63, within `viewRange`). Else among the first six of
-/// the party in `viewRange` (on the ground from its world position),
-/// living and not a character that cannot die while others are there:
-/// type 0 the nearest, 1 the lowest HP, 2 the lowest level; failing that
-/// the nearest player (`ccSearchNearPerson(me, 3, 0, viewRange)`). A
-/// target found (or kept) is measured at once ([`Ai::check_enemy`]).
-///
-/// Other types (the `rand() % 3` of a flinch can be -2 or -1) compare an
-/// uninitialised register instead of HP or level; taken as 0 here, the
-/// value in every call the game makes from `main`, which picks the first
-/// in list order.
+/// `ccEnemy::selectTarget(lttype)` (0x00436cb0): whom to fight. Charmed the
+/// nearest other foe, confused the nearest of either side; else among the
+/// first six of the party in `viewRange`, type 0 the nearest, 1 the lowest
+/// HP, 2 the lowest level, failing that the nearest player. Other types
+/// compare an uninitialised register, taken as 0 here (the value in every
+/// call `main` makes). The rules are in docs/engine/battle.md ("Enemy AI").
 fn select_target_by(cx: &mut Cx, e: &mut Enemy, lttype: i32) -> bool {
     let me = cx.me;
     let pcs = cx.scene.pc_list.clone();
@@ -1680,39 +1613,10 @@ fn set_act_gold(cx: &mut Cx, e: &mut Enemy, a: i16) {
     }
 }
 
-/// `ccEnemyG::thinkGold` (gcmn 0x00447b20), a gold goblin's think in
-/// place of `defaultThink`:
-///
-/// ```text
-/// selectTarget(0); beyond atkRangeA selectTarget()
-/// sleep, confusion, charm, paralysis wear off faster: each held one less
-///   goldVolume (4, 3, 2; 1: 0), down to 0
-/// goldDisHold 1: inBattleDist -2, off the command lists, 2
-///             2: inBattleDist 2200, back on them, 3;  3: 0
-/// goldVolume 2 on: just hit (affectFlag) while held (not paralysed,
-///   asleep or in a puppet show) by affect type 1 or 3: goldDisHold 1;
-///   else from 3: held, the first frame marks the place (goldEscPos,
-///   goldEscCnt 1 if 0), later frames count and, once more than 500
-///   from it, goldDisHold 1; not held, goldEscCnt counts down;
-///   volume 2: let go (held before, not now): goldDisHold 1
-/// goldPreHold = hold
-/// act 0 (wait): held: flee (1) unless a puppet show; a target beyond
-///   atkRangeC: chase (3); within atkRangeA: flee; else attack (6) or,
-///   with a delay left, flee; no target: a new one, chase; every 64th
-///   frame by ccRand() & 1 wander (2)
-/// act 1 (flee): beyond atkRangeB from the 17th frame, or no target: stop
-///   (5)
-/// act 2 (wander): every 256th frame by ccRand() & 3 stop; a target:
-///   chase
-/// act 3 (chase): within atkRangeB wait (0); no target: stop
-/// act 4 (home): inside the territory: stop
-/// act 5 (stop): slower than 1: speed 0, wait; from the 33rd frame, one
-///   in four (ccRand() & 3): ccRand() & 3 0 chase, 1 flee, else speed 0
-///   and wait
-/// act 6 (attack): its end (actionFlag) or 300 frames: wait,
-///   setInterval; no target: wait
-/// act 7 (flinch): its end: wait
-/// ```
+/// `ccEnemyG::thinkGold` (gcmn 0x00447b20), a gold goblin's think in place of
+/// `defaultThink`: conditions wear off faster by `goldVolume`, holds are
+/// shaken off (`goldDisHold`), and the acts flee rather than close in. The
+/// table is in docs/engine/battle.md ("The gold goblins").
 fn think_gold(cx: &mut Cx, e: &mut Enemy) {
     let me = cx.me;
     let tp = think(cx.t, e);
@@ -1898,36 +1802,11 @@ fn think_gold(cx: &mut Cx, e: &mut Enemy) {
     }
 }
 
-/// `ccEnemy::defaultThink` (0x00434ac0): every race's `think()`. Every
-/// fourth frame of an act (not an attack) an enemy with a close range
-/// retargets the nearest, then its preferred kind if the nearest is not
-/// close. Then by act:
-///
-/// ```text
-/// 0 wait    paralysed/asleep: nothing; held: strike back (6) if it was
-///           just flinching, no delay, a target within atkRangeC and a
-///           race row past the first; with a target: beyond atkRangeC
-///           chase (3) after 30 frames, within atkRangeA close in (1),
-///           else attack (6) once the delay is over; without: a target
-///           found means chase, else every 64th frame a coin toss wanders (2)
-/// 1 close   no target: stop (5); beyond atkRangeB after 16 frames: attack,
-///           or (a later race row with a delay, healthy, a coin toss)
-///           halve the delay and stop; after 240 frames (or 90 with 90 hit
-///           frames): attack; then with no delay (later rows, 16 frames):
-///           attack if one is ready (when held: if flinching lately)
-/// 2 wander  every 256th frame 3 in 4 stop; a target found means chase
-/// 3 chase   within atkRangeB or no target: stop; after 240 frames 1 in 8
-/// 4 return  home within territory: stop; after 240 frames, every 32nd,
-///           a coin toss
-/// 5 stop    below speed 1: wait
-/// 6 attack  a special attack holds its target in range; the animation's
-///           end (or 240 frames): wait, and the delay restarts
-/// 7 flinch  counts; at the animation's end: wait if paralysed, asleep or
-///           held in a puppet show; with a close range: close in on a
-///           random kind of target (first rows, below half life, 1 in 4)
-///           else wait; else attack a target found once the delay is over
-/// 8, 9      count
-/// ```
+/// `ccEnemy::defaultThink` (0x00434ac0): every race's `think()`. Every fourth
+/// frame of an act (not an attack) an enemy with a close range retargets;
+/// then the act moves on by the row's think parameters (`atkRangeA`-`C`, the
+/// attack delay, the 240-frame limits). The acts are in
+/// docs/engine/battle.md ("Enemy AI").
 fn default_think(cx: &mut Cx, e: &mut Enemy) {
     let me = cx.me;
     let tp = think(cx.t, e);
@@ -2115,26 +1994,12 @@ fn default_think(cx: &mut Cx, e: &mut Enemy) {
     }
 }
 
-/// `ccEnemy::interruptThink` (0x004353f0), after `think()` every frame:
-///
-/// - a target beyond `viewRange` (not mid-attack) is dropped: stop, wait;
-/// - beyond `area` from home while waiting, closing, wandering or
-///   chasing: drop the target and return (4);
-/// - charm or confusion starting sets `mad_flag`; ending clears it and
-///   retargets (from Mutation on also waits); while mad it retargets every frame, and if it targets
-///   itself its delay runs down and it attacks (from closing or chasing);
-/// - held, paralysed or asleep: speed 0; paralysed, asleep or held in a
-///   puppet show, and not attacking, flinching or dying: drop the target
-///   and wait;
-/// - the affect just taken: a revival (20) of a dying enemy wakes it
-///   (`dead` 0, wait); poison (3) with no HP left, or damage (1) with no HP
-///   left, starts dying (8); damage of 1 or more flinches (7) unless
-///   attacking or flinching, and from level 31 only if not flinching
-///   lately;
-/// - no HP: dying (8). Dying's first frame sets `dead` 2 and clears the
-///   conditions; after 90 frames: dead (9), off the lists, the experience
-///   ([`Out::Exp`]), fading out over 30 frames, the book's record. Dead
-///   for 30 frames: `dead` 3, removed next frame.
+/// `ccEnemy::interruptThink` (0x004353f0), after `think()` every frame: a
+/// target out of `viewRange` or an enemy out of its `area` is let go, charm
+/// and confusion (`mad_flag`) and holds, the affect just taken (a revival,
+/// dying, a flinch), and dying itself: `dead` 2, after 90 frames dead (9) with
+/// the experience ([`Out::Exp`]) and the book's record, `dead` 3 30 frames
+/// later. The rules are in docs/engine/battle.md ("Enemy AI").
 fn interrupt_think(cx: &mut Cx, e: &mut Enemy) {
     let me = cx.me;
     let tp = think(cx.t, e);
@@ -2236,16 +2101,12 @@ fn interrupt_think(cx: &mut Cx, e: &mut Enemy) {
     }
 }
 
-/// `ccEnemy::initEnemy(ent)` (0x00433260), the spawn's rules, after the
-/// constructors: the entry kept, the row (`ent.id`) and its race, the
-/// spawn point as home, the stats of the row (`SetBaseParam`: `real` the
-/// row's, full HP and SP, no conditions, `dead` 0), a first attack delay of
-/// 32-95 frames (`ccRand`), a middle boss with a gauge marked (`virusFlag`,
-/// from `initEnemyCCS`), the skill list ([`init_skill_list`], `anm` its
-/// animation slots), the dust colour (`ccCheckDustColor`, gcmn 0x0043a250,
-/// the ground's: given) and a random `ene_rand` (`ccRand`). The models,
-/// animations and body hit are the runtime's; the race's constructor then
-/// sets `act_num`, `act_cnt` 0 and its animation.
+/// `ccEnemy::initEnemy(ent)` (0x00433260), the spawn's rules after the
+/// constructors: the entry, the row and its race, home at the spawn point,
+/// the row's stats (`SetBaseParam`), a first attack delay of 32-95 frames, a
+/// middle boss's gauge (`virusFlag`), the skill list ([`init_skill_list`]),
+/// the dust colour (given) and `ene_rand` (`ccRand`). The models, animations
+/// and body hit are the runtime's.
 pub fn init_enemy(
     t: &Tables,
     ent: &EntryParam,

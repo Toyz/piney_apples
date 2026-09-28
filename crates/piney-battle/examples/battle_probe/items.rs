@@ -1,22 +1,11 @@
 //! `battle_probe` requests for items (`piney_battle::item`), as
-//! `tools/test_battle_items_rs.py` sends them:
-//!
-//! - `useful CAT ID`: `ccCheckItemUseful`
-//! - `skilluseful SCENE PARTY[3] NSORT (CH DIST INVIEW)... SID`:
-//!   `ccCheckSkillUseful`
-//! - `itemskill SCENE KIND CP TP SID PARAM FLAG RUNNING STATE`: KIND 0
-//!   `ccItemSkillRequest`, 1 `ccItemSkillRequestParam`, 2
-//!   `ccItemSkillCompel`
-//! - `useitem SCENE ENV CP TP CODE PN POS[4] STATE`: `ccUseItemRequest`
-//! - `give SCENE ENV CH ID NUM STATE`: `ccMenuCtrl::AddSpcItem` with books
-//! - `aiuse SCENE ENV CH TP CODE LIST STATE`: `ccAI::UseItem` past its
-//!   checks (the member's list as hex bytes)
-//! - `inv OP CH CAT ID NUM LIST PL IMP`: the item lists (`add del num slot
-//!   addpl delpl numpl slotpl consume`), the lists as hex bytes
-//!
-//! A SCENE is `N CHAR... NPC i... NENE i...`; an ENV is `PLAYER PARTY[3]
-//! PAUSE PLWPAUSE DNE PARODY CTRLMODE SYSMSGID` (-1 for no player or
-//! member). Characters are named `c0`, `c1`, ... in the calls.
+//! `tools/test_battle_items_rs.py` sends them: `useful` (`ccCheckItemUseful`),
+//! `skilluseful` (`ccCheckSkillUseful`), `itemskill` (KIND 0
+//! `ccItemSkillRequest`, 1 `ccItemSkillRequestParam`, 2 `ccItemSkillCompel`),
+//! `useitem` (`ccUseItemRequest`), `give` (`AddSpcItem` with books), `aiuse`
+//! (`ccAI::UseItem` past its checks) and `inv` (the item lists). A SCENE is
+//! `N CHAR... NPC i... NENE i...`; an ENV is `PLAYER PARTY[3] PAUSE PLWPAUSE
+//! DNE PARODY CTRLMODE SYSMSGID` (-1 for none). Characters are `c0`, `c1`, ...
 
 use std::sync::OnceLock;
 

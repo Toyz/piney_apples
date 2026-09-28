@@ -1,68 +1,11 @@
-//! Items (`useitem.cpp`, gcmn 0x0057a6d0-0x0057c5e4): what using an item
-//! does ([`use_item_request`], `ccUseItemRequest`), which items the menu
-//! offers and how ([`item_useful`], [`skill_useful`]), the skill an item
-//! casts ([`item_skill_request`] and its variants from `skill.cpp`), and the
-//! save's item lists the party carries them in (`ccSaveData`'s
-//! `AddItem`/`DelItem`/... in main, `ccAI::ConsumeItemList`).
-//!
-//! An item code is `category << 16 | row`: categories 0-5 are the weapons
-//! of each job, 6-9 armour (head body arm leg), and 10-15 the items proper
-//! ([`category`]). The item tables are [`Tables::item`]; a recovery or
-//! spell item names the skill it casts (`ccItemParam.skillID`).
-//!
-//! # Using an item
-//!
-//! `ccUseItemRequest(cp, tp, code, pn)` is one blocking call in the game: it
-//! changes the characters and a few globals, starts a skill, and in between
-//! draws the menu for a number of frames, shows messages and waits for them
-//! (the save is only read; the callers take the item from it). The
-//! port applies every rule effect to the [`Scene`] and the [`ItemEnv`] and
-//! returns the whole call as a script of [`Step`]s in the game's order:
-//! the affects (`EntryAffect`, applied through `crate::affect`), the skill
-//! request (a [`skill::Request`], the `ccSkill` the combat loop then runs),
-//! and every presentation or runtime call with its arguments. Waits are
-//! steps too ([`Step::WaitMessage`], [`Step::Frames`], ...): a runtime plays
-//! the script frame by frame; the rules' outcome does not depend on how
-//! long a wait lasts.
-//!
-//! What each category does:
-//!
-//! - Recovery items (10), on a target that is on a command list: rows 18-20
-//!   restore SP (`EntryAffect(8)`: 100, 250, the target's maxSP), 21 and 22
-//!   restore all HP (`EntryAffect(7, maxHP)`) and, ten frames later, all SP;
-//!   23 casts its skill (295) with a heal of 800; every other row casts its
-//!   skill on the target alone (`_ccSkillRequest` stype 1).
-//! - Spells (11) cast their skill through the user (stype 2: the user's
-//!   `skillStatus` 9, the cast animation).
-//! - Books (12) raise one of the target's own stats (`ccSpcParam.elm`, or
-//!   maxHP/maxSP) for good: +10 or +20 (capped at 999), +30 water, -10
-//!   magic attack, +30/+10 maxHP (HP rises too, up to 9999), +15/+5 maxSP;
-//!   used by the player on the player, a message names the stat. (On a
-//!   foe the same offsets land in its `temp` and `time` blocks.)
-//! - Tools (13): row 0 disarms the trap targeted (`EntryAffect(12)` on it
-//!   after a message), row 1 leaves the dungeon (`dneFlag`, the party made
-//!   unkillable, the gate-out menu 86), row 2 shows the map.
-//! - Trade items (14) do nothing.
-//! - Important items (15): the epitaphs and notes (42-48, 68, 287-290) show
-//!   their text, the flute (49) calls a Grunty, three books (60, 61, 69)
-//!   show a warning, and the eight Ryu books (273-280) open the book viewer
-//!   (`ccThBook`).
-//!
-//! Using an item from the menu consumes one first ([`menu_use_item`]); a
-//! party member the AI drives consumes it after ([`ai_use_item`]); a
-//! member given books uses them all at once ([`give_stat_items`]).
-//!
-//! # Boundary
-//!
-//! Rules (ported): the item effects above, the skill request, the item
-//! lists. Runtime (steps, not ported): the menu and message windows
-//! (`ccMenuCtrl`, `ccMessage`), the book viewer thread (`ccThBook`, gcmn
-//! 0x0041a990), the world map (`WORLD_MAN::ShowMap`), the Grunty ride
-//! (`ccPuccigusoStart`, gcmn 0x005109c0), the enemies' condition clear
-//! (`ccClearConditionAllEnemy`, gcmn 0x0042e4f0, over the spawned enemy
-//! entities), the trap's removal effect, the player's AI mode and system
-//! messages, and the targeting list and camera view `ccCheckSkillUseful`
-//! reads (passed in as [`SortEntry`]).
+//! Items (`useitem.cpp`, gcmn 0x0057a6d0-0x0057c5e4): what using an item does
+//! ([`use_item_request`], `ccUseItemRequest`), which items the menu offers
+//! ([`item_useful`], [`skill_useful`]), the skill an item casts
+//! ([`item_skill_request`]) and the save's item lists. `ccUseItemRequest` is
+//! one blocking call in the game; the port applies its rules to the [`Scene`]
+//! and the [`ItemEnv`] and returns the rest as a script of [`Step`]s in the
+//! game's order (waits included), which a runtime plays frame by frame. What
+//! each category does is in docs/engine/battle.md ("Items").
 
 use piney_data::field::ee;
 use piney_data::save::SaveData;
@@ -164,17 +107,12 @@ pub struct SortEntry {
     pub in_view: bool,
 }
 
-/// `ccCheckSkillUseful(sid)` (gcmn 0x0057a890): whether the skill (or the
-/// skill of an item) has anyone to use it on, which the skill and item
-/// menus show. A skill aimed at the party (target type bits 0x3) needs a
-/// party member, and Resurrect (180) a fallen one (`dead` set and not 5).
-/// Any other needs someone on the targeting list of a type it aims at,
-/// alive, in view and within its `triggerRange` plus the target's width;
-/// the Data Drain skills (2-5) need a foe whose protect gauge is broken
-/// (`PPcount` running), or a target that is no foe; from Mutation on none
-/// at all while `drain_off` (`saveData.eventStatus[40]`, the bracelet
-/// turned off). An id below 1 or past the skill table has no use (the
-/// game reads past the table there).
+/// `ccCheckSkillUseful(sid)` (gcmn 0x0057a890): whether the skill (or an
+/// item's skill) has anyone to use it on, which the skill and item menus show:
+/// a party member for a party skill (a fallen one for Resurrect, 180), else
+/// someone of its target type alive, in view and in range; the drain skills
+/// (2-5) need a broken protect gauge, and from Mutation on the bracelet on
+/// (`drain_off`). An id below 1 or past the skill table has no use.
 pub fn skill_useful(t: &Tables, scene: &Scene, party: &Party, sorted: &[SortEntry], sid: i32, drain_off: bool) -> bool {
     if sid <= 0 {
         return false;
@@ -886,16 +824,13 @@ pub fn menu_use_item(
     use_item_request(t, scene, env, pl, target, code, 0, rng)
 }
 
-/// A party member the AI drives uses an item: `ccUseItemRequest(ch,
-/// target, code, 0)`, then one is taken from the member's list
+/// A party member the AI drives uses an item: `ccUseItemRequest(ch, target,
+/// code, 0)`, then one is taken from the member's list
 /// ([`consume_item_list`]). Returns the steps and what is left. This is
-/// `ccAI::UseItem` (gcmn 0x00589410) once its checks pass (the member not
-/// asleep, held, paralysed, charmed or confused; a category 10-15 item it
-/// carries; the target on a command list and `dead` below 2, or the item
-/// a Resurrect: those are the party AI's), and the ocarina command of
-/// `ccAI::ChatCommandExecute` (gcmn 0x0058ce10, the call at 0x0058d558:
-/// the member uses code 13:1 on itself). From Mutation on the member then
-/// remarks on it ([`Step::UseItemRemark`]).
+/// `ccAI::UseItem` (gcmn 0x00589410) once the party AI's checks pass, and the
+/// ocarina command of `ChatCommandExecute` (the call at 0x0058d558: code 13:1
+/// on itself). From Mutation on the member then remarks on it
+/// ([`Step::UseItemRemark`]).
 #[allow(clippy::too_many_arguments)]
 pub fn ai_use_item(
     t: &Tables,

@@ -1,77 +1,10 @@
 //! The spring and the boss room's warning (`ccGimEtc`, gcmn gmetc.cpp,
-//! 0x00456450-0x00458218): `gimmickTbl` rows 19 (`WARNING`), 20 (the
-//! lakes' Spring of Myst, `FOUNTAIN`, `XGWATER0.CCS`) and 21
-//! (`ENTRANCE`).
-//!
-//! ```text
-//! ccGimEtc(ent)       (0x00456540) the entry copied in, posP, dirc, gimId,
-//!                     the row's base; act 0; effsw (+0x1e0) 1
-//!   row 19            off the command lists; param[2] 0: the rays
-//!                     (gimRadInfo, param[3] their user; SetItemBox
-//!                     leaves param[2] -1)
-//!   row 20            initFountain
-//!   row 21            off the command lists
-//! initFountain        (0x00456ba0) spirit off, every scale 1, vpos the
-//!                     place, bounceCnt 1, bounceDeg four ccRandS();
-//!                     areaLevel under 4: CMP_trall1 playing
-//!                     ANM_xgwater1a, else (spiritType 1) CMP_trall2 and
-//!                     ANM_xgwater2a, blend 4; two omni lights
-//! main                (0x00456760) nothing while frozen; initFlag with
-//!                     effsw 1: row 19 (param[2] not 0)
-//!                     effBossRoomEntrance(pos, &effsw), 20
-//!                     effFountain(pos, &effsw), 21
-//!                     effDungeonEntrance(pos, &effsw, 2); posP and back;
-//!                     row 20 ctrlFountain, the others nothing
-//! ```
-//!
-//! `ctrlFountain` (0x00456fb0), `actNum` and `actCnt` its state and count;
-//! "affect 11" is `FountainMenu3`'s `EntryAffect(fountain, plw, 11)`
-//! (`docs/engine/field-ui.md`, "The spring (40 - 42)"):
-//!
-//! ```text
-//! 0   affect 11: 1
-//! 1   frame 0 sounds 85, 216, 217; 10 EntryFlash2(30, 30, white);
-//!     60: 2
-//! 2   frame 0: faded in over 10 (fadeFlag 1), turned to face away from
-//!     Kite, 400 under the ground, the spring (springCnt 6, over 90), the
-//!     spirit on, sound 215, both lights (farDown 0 to 1500, blue, or red
-//!     for spiritType 1: ccSetColor's low byte is red), lgtFlag down; 90:
-//!     3. Each frame the spirit rises to 150 + 230 sin(2 radCnt) and turns
-//!     by 0.6 sin(radCnt), radCnt on by 2 degrees
-//! 3   frame 0 the bounce on; now and then (ccRand() & 7 0) a spring of
-//!     1-3 when none runs; down to 150, turned toward plDirc;
-//!     affect 11: 4
-//! 4   frame 0 a spring of 7 (0.5, over 90); 30: 5
-//! 5   affect 11: 6
-//! 6   frame 0 a spring of 7, sound 104; frames 4-28 every fourth
-//!     effRemoveTrap; to frame 30 a turn of 24 degrees a frame; 80: 7
-//! 7   affect 11: 8
-//! 8   as 4; 30: 9
-//! 9   affect 11: 10
-//! 10  frame 0 effsw 0, a spring of 3 (0.9, over 180); 30 faded out over
-//!     60 (fadeFlag 2), a spring of 7, sound 215; 90 EntryFlash(10,
-//!     white): 11. To frame 30 down to -200 (0.02), then up to 1800
-//!     (0.08), the bounce off, scale0 to 0 (0.12); frames 6-59, when the
-//!     count is 2 mod 4, effOpenBox
-//! 11  SetFountain(area's code), off the command lists, the lights out:
-//!     gone
-//! then (states 0-10)
-//!     under 10, every fourth count: a dust ring (3.0, 30.0, 4, 35, 110)
-//!       ccRandF(100) out at a ccRandF(pi) heading, at z -50
-//!     vpos the place; windowOfs to 150 (0.04) in states 3-10, else to 0
-//!       (0.01); vpos.z + windowOfs
-//!     the bounce: bounceDeg on by ccRandS() & 0xff (& 0x7f the fourth)
-//!       and 837, 1110, 564, 1110; scale0 1.2 + 0.22 cos, 1.1 + 0.23 cos,
-//!       1 + 0.12 sin; vpos.z + 20 sin
-//!     the spring: springCnt down by springDec to 0 (below 0.01);
-//!       scale1.x 1 + zoom cnt cos(pi/2 + 2 pi cnt), .z 1 + zoom cnt
-//!       sin(2 pi cnt)
-//!     scale = scale0 * scale1
-//!     in view with the spirit on: the clip on, drawn on layer 6 at vpos,
-//!       dirc, scale; the lights 30 under and 100 over vpos, intensity
-//!       1.5 + sin(bounceDeg[3]) (in double), farDown to 1000 (1 + 1 +
-//!       sin), in the group
-//! ```
+//! 0x00456450-0x00458218): `gimmickTbl` rows 19 (`WARNING`), 20 (the lakes'
+//! Spring of Myst, `FOUNTAIN`, `XGWATER0.CCS`) and 21 (`ENTRANCE`). The
+//! constructor (0x00456540), `initFountain` (0x00456ba0), `main` (0x00456760)
+//! and the spring's states in `ctrlFountain` (0x00456fb0) are in
+//! docs/engine/battle.md ("The spring and the boss room's warning"). Affect 11
+//! is `FountainMenu3`'s `EntryAffect(fountain, plw, 11)`.
 
 use crate::chara::Char;
 use crate::enemy_ai::{EntryParam, rand_f};

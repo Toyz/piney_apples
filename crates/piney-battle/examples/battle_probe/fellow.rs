@@ -1,37 +1,11 @@
 //! `battle_probe` requests for a party member's frame and its following
 //! (`piney_battle::fellow`, `piney_battle::follow`), as
-//! `tools/test_battle_fellow_rs.py` sends them:
-//!
-//! ```text
-//! fel FN NARGS ARGS... WORLD FELLOW SCRIPT [NAVI] [RUN]
-//! ```
-//!
-//! `WORLD` is `tools/test_battle_party_ai_rs.py`'s (the characters, lists,
-//! party, globals, save lists, AIs, message bus, AI globals, rand and the
-//! decisions' scripts). `FELLOW` is every character's `ccSpcChar` /
-//! `ccFellow` state as the game's memory holds it (see [`read_fellow`]),
-//! which sets both the [`Char`] and the [`Spc`] copies. `SCRIPT` is what
-//! the world answers, queue by queue, and the frame's globals. `RUN` (FN
-//! `Run`, `RunNavi`) is the frames of a run: Kite's state each frame.
-//!
-//! `Run` hands the frame a runtime that performs the following
-//! ([`Follow`]) and records the rest. `RunNavi` hands it the party's
-//! movement as the game runtime will ([`Movement`]: the following, the
-//! dungeon's path finding, `FollowBeacon` and `CheckGoalBeaconPos`
-//! performed by the port), over the world shared the way it shares it
-//! ([`Share`]); `NAVI` is then the members registered, each AI's
-//! `ccNavi`, the dungeon's 2D map (a region of it) and the room window
-//! `Get2DMapInfo` answers. The path finding's map starts empty and is made
-//! by `SetPathFindingMap` before the first frame, as the game makes it
-//! (unless the request says it is not made).
-//!
-//! The answer is the return value, every character's rule state and
-//! frame state, the AIs, the bus, the lists, the globals and rand, and
-//! three logs in order: the runtime's calls (the decisions' format), the
-//! world's calls, and the outputs (the rules' events in the harness's
-//! format, then the frame's own). `Run` answers one such state per frame;
-//! `RunNavi` adds every AI's `ccNavi` and the path finding's map (`bufFlag`
-//! and the CRC-32 of `buf` and `buf2`).
+//! `tools/test_battle_fellow_rs.py` sends them: `fel FN NARGS ARGS... WORLD
+//! FELLOW SCRIPT [NAVI] [RUN]`. `WORLD` is the party AI harness's world,
+//! `FELLOW` each character's state ([`read_fellow`]), `SCRIPT` the world's
+//! answers. `Run` performs the following ([`Follow`]) and records the rest;
+//! `RunNavi` runs the party's movement as the game runtime will ([`Movement`]
+//! over [`Share`]), with `NAVI` the members' `ccNavi`s and the dungeon's map.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -677,16 +651,13 @@ fn read_nav(t: &mut Toks, c: &mut Case) -> bool {
     made
 }
 
-/// A character's `ccSpcChar` / `ccFellow` state, both copies set:
-///
-/// ```text
-/// flags(+0xe0 word) armsEffectSW actNum actNumOld atkAnmCnt anmFlag actCnt reactCnt stopCnt
-/// attack transferLag speed speedRate nowSpeed cloak cnt cycle consecutiveCnt walkRunCnt
-/// dirc[4] hitAttribute transparency setTransparency
-/// bodyHit: hitSW mask mask2 type radius height pos[4] offset[4] attribute
-/// fellowFlags(+0x200) dispWait atkDellay distTg diskOffset[4] movePos[4] motion
-/// targetChar skillID skillStatus pos[4] posP[4]
-/// ```
+/// A character's `ccSpcChar` / `ccFellow` state, both copies set: `flags`
+/// (+0xe0 word) `armsEffectSW actNum actNumOld atkAnmCnt anmFlag actCnt
+/// reactCnt stopCnt attack transferLag speed speedRate nowSpeed cloak cnt cycle
+/// consecutiveCnt walkRunCnt dirc[4] hitAttribute transparency setTransparency`,
+/// `bodyHit` (`hitSW mask mask2 type radius height pos[4] offset[4]
+/// attribute`), `fellowFlags` (+0x200) `dispWait atkDellay distTg diskOffset[4]
+/// movePos[4] motion targetChar skillID skillStatus pos[4] posP[4]`.
 fn read_fellow(t: &mut Toks, c: &mut Char, s: &mut Spc) {
     let w = t.u32();
     c.spc_char.flags = w & !(0x80 | 7 << 14);

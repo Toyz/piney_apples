@@ -1,14 +1,10 @@
-//! The battle tables, read at run time from the executable
-//! (`SLUS_202.67`), `DATA/GCMN.PRG` (the field game, where nearly all of
-//! them live) and `DATA/DEMO.PRG` (`charTbl`) by the addresses Infection's
-//! code uses. The overlay's static constructors do not touch any of them,
-//! so the file bytes are the tables as the game reads them. Names and
-//! descriptions are game text: they are read from the disc and never copied
-//! into the port.
-//!
-//! Row counts are the DWARF sizes, which `tools/battle.py` also derives
-//! from the code that reads each table (`tools/test_battle.py` checks
-//! the two agree).
+//! The battle tables, read at run time from the executable (`SLUS_202.67`),
+//! `DATA/GCMN.PRG` (nearly all of them) and `DATA/DEMO.PRG` (`charTbl`) by the
+//! addresses Infection's code uses. The overlay's static constructors touch
+//! none of them, so the file bytes are the tables as the game reads them.
+//! Names and descriptions are game text, read from the disc and never copied
+//! into the port. Row counts are the DWARF sizes (`tools/test_battle.py`
+//! checks them against the code that reads each table).
 
 use piney_data::Result;
 use piney_data::iso::Iso;

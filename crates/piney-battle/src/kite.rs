@@ -1,96 +1,11 @@
-//! Kite himself: the player's side of a fight (`ccPlayer`, gcmn
-//! `player.cpp`, 0x005977d0-0x0059ce00), beyond a player walking alone in
-//! a town. Where piney-world's `player.rs` and `motion.rs` port the town
-//! case of `ccPlayer::Main` (0x00598310), `ControlMove` (0x00598af0) and
-//! `AnimCtrl` (0x005993c0), this module ports them whole:
-//!
-//! - [`anim_ctrl`]: every act (standing, the fidget, walking and running,
-//!   the normal attack's acts 15/16 and its combo, the spells and skills
-//!   17-21, the "hack" act 24/23, hurt 7/8, down 9/10 and the ghost,
-//!   getting up 2, the arrival 13, the gate act 12, breaking a box 25),
-//!   the skill state machine (`skillStatus` 1 -> 2), the targets
-//!   (`SetTargetDist` 0x0059ab80, `SetTargetDirc` 0x0059aa90), the fade of
-//!   a ghost and of a revival, and the animation's notes
-//!   (`ccPlayerCheckNote` 0x0059c550 -> [`check_note`] 0x0059c300);
-//! - [`main`]: the frame (`ccPlayer::Main`): conditions, the AI when he is
-//!   charmed, confused or in manual mode (`ccAI::Brains`), [`control_move`]
-//!   otherwise, the collision, the field's map wrap
-//!   ([`map_loop_adjust_pos`] 0x0059b3c0), the camera's placement and the
-//!   draw;
-//! - [`attack`] (`ccPlayer::Attack` 0x0059c580, his AI's attack, which
-//!   [`crate::party_ai::Call::PlayerAttack`] asks for), [`attack_cancel`]
-//!   (0x0059cad0), [`break_something`] (0x0059cbd0), [`damage_actuate`]
-//!   (0x0059ca40), [`result_of_conditions`] (0x0059c270), [`menu_check`]
-//!   (`ccPlayerMenuCheck` 0x0059cd70);
-//! - the frames a position is given in: the map ([`w2m_pos`] 0x0059b470,
-//!   `ccTransPosW2M` 0x0059b900) and the player's ([`w2p_pos`] 0x0059b5a0,
-//!   [`p2w_pos`] 0x0059b710, `ccTransPosW2P` 0x0059b940, `ccTransPosP2W`
-//!   0x0059b980, [`fw2lw`] 0x0059b9c0), pure functions of the map's
-//!   bounds ([`MapBounds`], `WORLD_MAN` +0x420) with which the runtime
-//!   implements [`World::w2p`] and [`World::p2w`].
-//!
-//! # State
-//!
-//! Kite is a scene character ([`Char`]) whose `ccChar`/`ccSpcChar`
-//! members the rules share: `actNum`, `actNumOld`, the flag word at +0xe0
-//! (`pauseSW`, `dispSW`, `restraintSW`, `moveFlag`, `stopFlag`, `runFlag`,
-//! `ghostFlag`, `weaponChangeSW`, `trajectorySW`, `lostHeadFlag`),
-//! `attack`, `cnt`, `cloak`, `anmFlag`, `armsEffectSW`, `targetChar`, the
-//! skill, the conditions. His motion members are his [`Spc`] in the
-//! [`Crew`] (`dirc`, `speed`, `speedRate`, `nowSpeed`, `movePos`, `cycle`,
-//! `stopCnt`, `walkRunCnt`, the act counters `atkAnmCnt`, `actCnt`,
-//! `reactCnt`, `transferLag`, `bodyHit`, `hitAttribute`, `transparency`,
-//! `setTransparency`: what the party's movement, [`crate::follow`] and
-//! [`crate::ai_move`], also reads and writes on him), his `ccAI` is the
-//! crew's [`crate::party_ai::Ai`] under his scene index, and the rest of
-//! `ccPlayer` is a [`Player`].
-//! The party AI reads and writes the copies [`Spc`] keeps of `actNum`,
-//! `targetChar`, `moveFlag`, `runFlag`, `ghostFlag` and `stopFlag`; for
-//! Kite the [`Char`] holds them, and every function here copies them into
-//! his [`Spc`] before it calls into the party AI and when it returns, and
-//! back from it after the AI ran.
-//!
-//! # The runtime
-//!
-//! Every call the game makes into code that is not rules goes through
-//! [`KiteWorld`] (a [`World`] and a [`Runtime`]) at the point and as often
-//! as the game makes it: the animation player, the collision, the camera,
-//! the draw, `ccSkillRequest` ([`Call::SkillRequest`], which the runtime
-//! runs with [`crate::flow::Skills::request`]); what only shows, sounds or
-//! is kept for other systems is an [`Out`] handed to [`KiteWorld::out`]
-//! in the game's order, the rules' events among them ([`Out::Rule`]). The
-//! AI's own decisions (`ccAI::Brains`, `levelCheck`, `SelectAttackSkill`,
-//! `UseItem`) run here through [`crate::party_ai::Ctx`].
-//!
-//! The party AI's movement calls - `FollowTarget`, `FollowTargetDirc`,
-//! `FollowPlayer`, `LeavePlayer`, `PathFinding`, `FollowBeacon`,
-//! `ManualControl`, `ccPlayer::Attack`, `HitEnable` - are the same game's
-//! code as the rest of `ccAI`. A runtime has them performed by the ported
-//! code by wrapping its world in a [`Host`]: its [`Runtime`] is
-//! [`crate::party_motion::Movement`], which passes what it does not
-//! perform on to the world's own. `tools/test_battle_kite_rs.py`'s
-//! `main_run_ai` runs [`main`] so, frame by frame against the game with
-//! all of those running natively, Kite charmed, confused, a charmed ghost
-//! or under an event's remote control in a field.
-//!
-//! Every `ccChar::EntryAffect` Kite's code makes (his `CalcReal` timers'
-//! poison, curse and regeneration in [`main`], his normal attack's or art's
-//! hit in [`check_note`]) is applied where the game makes it, with the
-//! character's `affectFunc` ([`crate::affect::entry_affect`]: `Influence`
-//! for Kite, `ccFellow::Influence`, `ccEnemyInfluence`), so what follows
-//! in the same frame sees it: a poison tick that downs him inside
-//! `CalcReal` has him falling (act 9) by `AnimCtrl`. What an affect leads
-//! to is made there too where the rules keep the state (see
-//! [`Out::Rule`]); no [`crate::event::Event::Affect`] is ever handed out,
-//! and the runtime applies none of Kite's.
-//!
-//! Once a frame, on the task `ccThPlayer` (priority 49), the runtime calls
-//! [`main`], which calls [`anim_ctrl`] after the camera; when the party
-//! AI asks for [`Call::PlayerAttack`] it calls [`attack`]; the item and
-//! trap menus call [`break_something`] and [`attack_cancel`]; `Influence`'s
-//! [`crate::event::Event::DamageActuate`] from any other caller of
-//! `EntryAffect` on Kite is [`damage_actuate`] (on his act from before the
-//! affect); `ccThGameCtrl` asks [`menu_check`] and [`check_control_mode`].
+//! Kite in a fight: `ccPlayer` (gcmn `player.cpp`, 0x005977d0-0x0059ce00)
+//! whole, where piney-world's `player.rs` and `motion.rs` port the town case:
+//! [`main`] (`ccPlayer::Main` 0x00598310), [`control_move`], [`anim_ctrl`], his
+//! AI's [`attack`], and the frame conversions ([`w2p_pos`], [`p2w_pos`]) with
+//! which the runtime implements [`World::w2p`]. His state is split across his
+//! [`Char`], his [`Spc`] in the [`Crew`] and a [`Player`]; the calls go through
+//! [`KiteWorld`], and [`Host`] has the party AI's movement performed by the
+//! ported code. The acts and the frame are in docs/engine/battle.md ("Kite").
 
 use std::cell::RefCell;
 
@@ -309,22 +224,13 @@ pub struct Input {
 /// answer: presentation, and the rules' events, in the game's order.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Out {
-    /// An event of the crate's rules (`CalcReal`, `CalcBattleDamage`, the
-    /// `affectFunc` of a character an affect reached) for the runtime to
-    /// show or run. Never an [`Event::Affect`]: every `EntryAffect` of
-    /// Kite's code is applied where the game calls it (see [`Cx`]'s
-    /// `entry_affect`), and of what it leads to, the calls with state the
-    /// rules keep are made there too: `ccSkillRequest(ch, 0, 0)`
-    /// ([`Event::CancelAttack`], through [`Runtime::call`]),
-    /// `ccCharHit::HitEnable`/`HitDisable` on Kite's body, his
-    /// `DamageActuate` ([`Out::Actuate`]), the "down" and "up" messages on
-    /// the AI bus ([`Event::SysMsgDown`], [`Event::SysMsgUp`]) and a
-    /// member's `talkFlag` ([`Event::TalkOff`]). Left to the runtime, and
-    /// so run after the call: an enemy's `selectTarget`
-    /// ([`Event::EnemyRetarget`]), the AI's lines
-    /// ([`Event::ChatDamage`], [`Event::ChatResurrectPlz`],
-    /// [`Event::AffectMessages`], [`Event::Greeting`]) and another
-    /// character's body switch.
+    /// An event of the crate's rules (`CalcReal`, `CalcBattleDamage`, an
+    /// `affectFunc`) for the runtime to show or run. Never an
+    /// [`Event::Affect`]: every `EntryAffect` of Kite's code is applied where
+    /// the game calls it, with its stateful consequences (the attack called
+    /// off, the body's switch, `DamageActuate`, the bus's down and up
+    /// messages, `talkFlag`). Left to the runtime, and run after the call: an
+    /// enemy's `selectTarget`, the AI's lines, another character's body switch.
     Rule(Event),
     /// `ccSpcChar::SetArmsEffectColor(sid)` (gcmn 0x0059e460): the weapon
     /// trails take the skill's element's colour.
@@ -634,15 +540,12 @@ impl Cx<'_> {
         }
     }
 
-    /// `ccChar::EntryAffect(by, kind, p0, p1, p2)` (gcmn 0x0056b020) on
-    /// `on`, where the game calls it: [`crate::affect::entry_affect`] with
-    /// the character's `affectFunc`, then what it leads to in order
-    /// ([`Cx::consequence`]); a party member's copies in its [`Spc`] follow.
-    ///
-    /// `Influence` calls `DamageActuate` before it sets the hurt or down
-    /// act, so the rumble is decided on the act the character had when
-    /// the affect came (the event carries it: held, act 14, feels nothing
-    /// even when the hit downs him).
+    /// `ccChar::EntryAffect(by, kind, p0, p1, p2)` (gcmn 0x0056b020) on `on`,
+    /// where the game calls it: [`crate::affect::entry_affect`] with the
+    /// character's `affectFunc`, then what it leads to ([`Cx::consequence`]);
+    /// a party member's [`Spc`] copies follow. `Influence` calls
+    /// `DamageActuate` before it sets the hurt or down act, so the rumble sees
+    /// the act from before the affect.
     fn entry_affect(&mut self, me: usize, on: usize, by: Option<usize>, kind: i16, p: [i16; 3]) {
         let running = self.w.skill_check(self.scene, on);
         let check = move |_: usize| running;
@@ -700,25 +603,13 @@ impl Cx<'_> {
 // ---------------------------------------------------------------------------
 // The host: the party's movement performed by the ported code
 
-/// A [`KiteWorld`] over a world `W` whose party-AI calls are performed by
-/// the ported code: its [`Runtime`] is [`crate::party_motion::Movement`] (the
-/// following, the dungeon's path finding, the AI's movers, his own
-/// [`attack`], `HitEnable`), and what that does not perform goes on to
-/// `W`'s own [`Runtime`] (the skill and item requests, the chat lines,
-/// the transfers, the lines of sight the decisions ask). Every [`World`]
-/// and [`KiteWorld`] call is `W`'s.
-///
-/// `W` is shared through a [`RefCell`] with the movement, which calls the
-/// world while Kite's frame holds it (his `Main` asks `ccAI::Brains`,
-/// which asks `FollowTarget`, which asks the collision): each call
-/// borrows it for the call alone. A host keeps [`crate::party_motion::Keep`]
-/// across frames and makes one of these for each call into this module:
-///
-/// ```text
-/// let cell = RefCell::new(&mut my_world);     // W: KiteWorld + NaviWorld
-/// let mut host = kite::Host { t, mt, party, game, keep: &mut keep, spc_registry_num, world: &cell };
-/// kite::main(&mut Cx { t, kt, scene, party, save, crew, game, ents, env, input, p, rng, w: &mut host }, me);
-/// ```
+/// A [`KiteWorld`] over a world `W` whose party-AI calls are performed by the
+/// ported code: its [`Runtime`] is [`crate::party_motion::Movement`], and what
+/// that does not perform goes on to `W`'s own. `W` is shared through a
+/// [`RefCell`] with the movement, which calls the world while Kite's frame
+/// holds it; each call borrows it for the call alone. A host keeps
+/// [`crate::party_motion::Keep`] across frames and makes one of these for each
+/// call into this module.
 pub struct Host<'a, 'c, 'w, W: ?Sized> {
     pub t: &'a Tables,
     pub mt: &'a MotionTables,
@@ -960,24 +851,10 @@ fn start_arms_effect(cx: &mut Cx, me: usize, sid: i32) {
 // AnimCtrl
 
 /// `ccPlayer::AnimCtrl()` (gcmn 0x005993c0), once a frame from [`main`]
-/// after the camera: the act from the skill, the stick and the
-/// conditions, and the act's animation.
-///
-/// ```text
-/// SetTargetDist; a normal attack aimed at the wrong side ends
-/// paused while moving: standing (2 in a town, else 0)
-/// skillStatus bit 0 (a skill starts): the normal attack swings (15, or 16
-///     after a first), a spell or art plays 17-21 by its type bits, any
-///     other skill 24; the target turned to, the expected damage announced
-/// bit 1 (it runs): the combo (attack 1-4: 30 frames to chain, a third
-///     swing when the target is within armsRange)
-/// the fidget: 451 frames standing (rand() % 60 again)
-/// the animation ended: the act that follows (the jump table 0x006f07e0)
-/// down: the fade to a ghost (dead 3 -> 4), a revival's fade in (dead 5)
-/// starting and stopping, walking and running (6, 5)
-/// SetAnm on a new act; frameSpd; _AnimateForward; the arrival (13) and
-/// the gate (12) fades; the notes (CheckNote)
-/// ```
+/// after the camera: the act from the skill, the stick and the conditions
+/// (the combo, the fidget, the ghost's and the revival's fades, the jump
+/// table at 0x006f07e0 when a clip ends), then the act's clip and its notes.
+/// The acts are in docs/engine/battle.md ("Kite").
 pub fn anim_ctrl(cx: &mut Cx, me: usize) {
     set_target_dist(cx.scene, me, cx.p);
     let ch = &cx.scene.chars[me];
@@ -1507,21 +1384,11 @@ const K04: F = 0x3ecc_cccd;
 const K5: F = 0x40a0_0000;
 
 /// `ccPlayer::ControlMove()` (gcmn 0x00598af0): the move from the left
-/// stick. Held, asleep or paralysed he does not move (returns 0). By
-/// `ctrlType`:
-///
-/// - 0: nothing while a skill (or the first swing) or `pauseSW` /
-///   `restraintSW` holds him; leaning ends a running normal attack, walks
-///   (`power / 140`, at most 1.3, times `speedValue * tsp`) or runs (past
-///   230, `power / 255 * speedValue * speed`) toward the stick against the
-///   camera's heading (straight ahead while a camera reset runs and the
-///   stick stays within 2047 of it);
-/// - 1: steering: the stick's x turns him (`5 (|sin| - 0.4) power` a frame
-///   past 0.4), its y drives him forward or back at `|power cos| / 255`,
-///   `pos` moved at once as well as `movePos`;
-/// - other: backwards along the stick.
-///
-/// He faces the move's heading unless the camera is the eye view.
+/// stick; held, asleep or paralysed he does not move (returns 0). `ctrlType`
+/// 0 walks or runs against the camera's heading, 1 steers (the stick's x
+/// turns him, its y drives him), other types back along the stick. He faces
+/// the move's heading unless the camera is the eye view. The formulas are in
+/// docs/engine/field-game.md ("ControlMove") and docs/engine/battle.md.
 pub fn control_move(cx: &mut Cx, me: usize) -> i32 {
     let r = control_move_body(cx, me);
     to_spc(cx.scene, cx.crew, me);
@@ -1880,26 +1747,11 @@ pub fn read_sys_msg2(crew: &mut Crew, me: usize, battle_won: bool) {
     }
 }
 
-/// `ccPlayer::Main()` (gcmn 0x00598310), Kite's frame on `ccThPlayer`:
-///
-/// ```text
-/// his AI onto the message bus; a weapon change
-/// CalcReal(dead); ResultOfConditions; a level up (effLevelUp); ccAI::levelCheck
-/// movePos = (0, 0, 0, 1)
-/// acts 23, 24: GateHackingOut, then the camera
-/// on a moving floor: carried with it (diskOffset)
-/// down (dead 2): 90 frames, then lying (act 10, dead 3), effOpenBox twice
-/// the party wiped out: still
-/// in manual mode, charmed or confused: ccAI::Brains drives him (held,
-///     asleep or paralysed he does not move), movePos from his heading
-/// else ControlMove (not in a cutscene, alive, a ghost or reviving), his
-///     AI's targetFlag cleared and its messages dropped
-/// HitCheck (stress against walls: 0x10004 to the party at 101); pos += movePos
-/// CollisionTest; hitAttribute; MapLoopAdjustPos
-/// CameraPosCalc, CameraPosSet; AnimCtrl
-/// the matrix; plw; transparency (0 when the eye view hides him)
-/// the draw and the weapon's trails; diskOffset; hold cleared; stopCnt; cycle
-/// ```
+/// `ccPlayer::Main()` (gcmn 0x00598310), Kite's frame on `ccThPlayer`: his
+/// AI on the bus, `CalcReal`, the down count, `ControlMove` or, in manual
+/// mode, charmed or confused, `ccAI::Brains`; `HitCheck`, `CollisionTest`,
+/// `MapLoopAdjustPos`, the camera, `AnimCtrl`, the matrix and the draw.
+/// The order is in docs/engine/battle.md ("Kite").
 pub fn main(cx: &mut Cx, me: usize) {
     if cx.crew.ais.get(&me).is_some_and(|a| a.sys_msg.id == -1) {
         cx.crew.add_entry(me);
@@ -2085,18 +1937,11 @@ fn motion(cx: &mut Cx, me: usize) {
 // ---------------------------------------------------------------------------
 // The AI's attack, the menus' calls
 
-/// `ccPlayer::Attack(tp, n)` (gcmn 0x0059c580): Kite's attack on `tp`
-/// when his AI drives him ([`Call::PlayerAttack`]). While no skill runs:
-/// every 180th frame of his task (`cycle`), neither confused nor charmed,
-/// able to act and allowed arts or spells, he chooses
-/// (`ccAI::SelectAttackSkill`; none is the normal attack). `tp` becomes
-/// his target; then the normal attack starts within `armsRange` (the AI's
-/// `distTg` for a distance of exactly -1, or within 30 of his stride while
-/// moving) and a running one ends on a target at `dead` 1; a skill starts
-/// within its `triggerRange`, an item is used (`ccAI::UseItem`). Every
-/// attempt counts in the AI's `atkTargetCnt`, and a skill or item
-/// announces its damage to the party (0x10008). Returns 1 done, -1 out of
-/// range, 0 unable.
+/// `ccPlayer::Attack(tp, n)` (gcmn 0x0059c580): Kite's attack on `tp` when his
+/// AI drives him ([`Call::PlayerAttack`]), `ccFellow::Attack` without
+/// `firstTime`: every 180th `cycle` he may choose an art or spell, then the
+/// normal attack starts within `armsRange`, a skill within its `triggerRange`.
+/// Returns 1 done, -1 out of range, 0 unable (the rules: docs/engine/battle.md).
 pub fn attack(ctx: &mut party_ai::Ctx, me: usize, tp: usize, _n: i32) -> i32 {
     from_spc(ctx.scene, ctx.crew, me);
     let r = attack_body(ctx, me, tp);

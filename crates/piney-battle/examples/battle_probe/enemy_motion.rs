@@ -1,23 +1,11 @@
 //! `battle_probe` requests for the enemies' motion
 //! (`piney_battle::enemy_motion`), as `tools/test_battle_enemy_motion_rs.py`
-//! sends them:
-//!
-//! - `mhelp FN ARGS`: one of the helpers (`setrad`, `setdist`, `dircchgf`,
-//!   `setdirc`, `getdirc`, `getdist`, `disperse`, `pilimit`, `pilimitp`,
-//!   `rotz`, `rotx`, `roty`, `rot`, `apply`, `trans`, `unit`, `boss`).
-//! - `mscene SCENE GLOBALS EXTRAS SCRIPT OP ME ARGS`: the enemy scene of
-//!   `enemy_ai`'s `escene` (characters, lists, positions, each foe's
-//!   `ccEnemy` state, `puppetShow pgRideFlag activeEnemies player`, the
-//!   generators, an environment, the enemy book), then each character's
-//!   height, each foe's motion members (`bodyHit` 15, `anmTbl`,
-//!   `setTransparency`, `wc`, `dc`, `goldFlag`, the two players' frames),
-//!   the world's script (the player's frame offset, then the answers of
-//!   `ccLandHitCheck`, `CollisionDetection`, `ccHitCheckLM2`,
-//!   `checkCameraShakeRange`, `ccGetCameraTransparency` and
-//!   `_AnimateForward` with the notes it passes), and one of `move`,
-//!   `anim`, `note N (EV PAR)...`, `disp`, `act K T[7]`, `escape`,
-//!   `escapeby TYPE RED`, `escapex`, `action`, `moveeg`, `moveegg`,
-//!   `moveeb`, `excl`, `rnote EV PAR`, `freeze`, `main FRAMES ...`.
+//! sends them: `mhelp FN ARGS` (one of the helpers: `setrad`, `setdist`,
+//! `dircchgf`, `setdirc`, `getdirc`, `getdist`, `disperse`, `pilimit`, the
+//! rotations, `boss`) and `mscene`: `enemy_ai`'s `escene`, each foe's motion
+//! members, the world's script (the answers of the collision, camera and
+//! animation calls in order), then one operation (`move`, `anim`, `note`,
+//! `disp`, `act`, the escapes, `action`, the races' movers, `main FRAMES`...).
 
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};

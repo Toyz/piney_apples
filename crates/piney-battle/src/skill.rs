@@ -1,16 +1,10 @@
-//! Skills (`skill.cpp`): what a skill's type bits mean, its SP cost, range
-//! and element; healing (`ccSkillRecovery`), holding (`ccSkillHold`),
-//! status conditions and buffs (`ccCheckConditionSkillSuccess`,
-//! `_ccSkillModifyCondition`, `ccSkillModifyCondition`), the cures of
-//! `ccSkill::RecoverySystem`, and `ccCheckTargetConditionBySkill`.
-//!
-//! Area rules walk the target side's command list and take every living
-//! character of the matching type whose ground distance from the centre,
-//! less its width, is within the skill's `targetRange`
-//! ([`crate::damage::ground_distance`]). The positional variants take the
-//! centre in the player's frame (`posP`): the game converts a world point
-//! with `ccTransPosW2P` (`ccPlayer::W2PPos`, gcmn 0x0059b940) first, which
-//! is the runtime's.
+//! Skills (`skill.cpp`): what a skill's type bits mean, its SP cost, range and
+//! element; healing (`ccSkillRecovery`), holding (`ccSkillHold`), conditions
+//! and buffs (`ccCheckConditionSkillSuccess`, `_ccSkillModifyCondition`,
+//! `ccSkillModifyCondition`), the cures of `ccSkill::RecoverySystem`, and
+//! `ccCheckTargetConditionBySkill`. Area rules take every living character of
+//! the target's side within `targetRange` ([`crate::damage::ground_distance`]);
+//! the positional variants take the centre in the player's frame (`posP`).
 
 use piney_data::field::ee;
 
@@ -743,14 +737,12 @@ pub struct Request {
 }
 
 /// `_ccSkillRequest(cp, tp, sid, stype)`: `stype` 0 is a character's own
-/// skill, 1 an item's effect on the target alone (`ccItemSkillRequest`),
-/// 2 an item used through the caster. `running_attack` is whether the
-/// caster has a normal attack (skill 1) running. A caster using a skill
-/// (stype 0, sid 2 up, not a buff or heal, not 178-180) pays its SP here;
-/// buffs, heals and cures pay when they take effect. The caster's
-/// `skillID`, `skillStatus` (1, or 9 for stype 2) and target are set. An
-/// attack on a foe whose strongest element the skill's opposes is an
-/// attribute critical half the time: `(rand() >> 3) % 100 < 50`.
+/// skill, 1 an item's effect on the target alone, 2 an item used through the
+/// caster. `running_attack` is whether the caster has a normal attack running.
+/// An own skill (sid 2 up, not a buff, heal or cure) pays its SP here; the
+/// caster's `skillID`, `skillStatus` (1, or 9 for stype 2) and target are set,
+/// and an attack against the opposed element is an attribute critical half
+/// the time (`(rand() >> 3) % 100 < 50`).
 #[allow(clippy::too_many_arguments)]
 pub fn request(
     t: &Tables,

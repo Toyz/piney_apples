@@ -1,54 +1,11 @@
 //! The AI's following (`personal.cpp`, gcmn 0x00581500-0x00582c44 and
-//! 0x00589e90-0x0058ae4c): how a party member the AI drives walks after
-//! Kite, steps away from him, closes in on its target and turns to face
-//! it, and how it steers round what stands in its way.
-//!
-//! The decisions ([`crate::party_ai`]) ask for these through
-//! [`Runtime::call`]: [`Call::FollowPlayer`], [`Call::LeavePlayer`],
-//! [`Call::FollowTarget`] and [`Call::FollowTargetDirc`]. [`Follow`] is a
-//! [`Runtime`] that performs those four with the functions of this module
-//! and hands every other call to an inner runtime (the skills, items,
-//! chat, the dungeon navigation). A runtime composes it around its own:
-//!
-//! ```text
-//! let mut rt = Follow { t, mt, party, game, state, world, inner: &mut my_runtime };
-//! Ctx { .., rt: &mut rt }.brains(me)
-//! ```
-//!
-//! [`crate::party_motion::Movement`] does that for the party's movement
-//! (with the path finding as the inner runtime's `PathFinding`), and
-//! [`crate::fellow::Frame::main`] hands its decisions such a runtime.
-//! Every other call, [`Runtime::call_ctx`]'s included, goes on to the
-//! inner runtime unchanged.
-//!
-//! A follow function moves nothing: it turns the body (`ccChar.dirc`, in
-//! [`Spc::dirc`]) and sets `moveFlag` and `runFlag` ([`Spc::move_flag`],
-//! [`Spc::run_flag`]), which `ccFellow::Move` turns into the step and the
-//! animation into walking or running. What each writes of the AI:
-//!
-//! ```text
-//! FollowPlayer      followSW, goBackFlag (0 when Kite is gone), goBackFlag (0 on
-//!                   arriving), detourCnt (a field)
-//! LeavePlayer       followSW, goBackFlag (0 when Kite is gone), goBackFlag (0 far
-//!                   enough away)
-//! FollowTarget      distTg, dircTg, detourCnt (a field)
-//! FollowTargetDirc  distTg, dircTg
-//! ```
-//!
-//! and the one global they share, `aiOpenDirc` (main 0x00378ca4, in
-//! [`FollowState`]): the heading `CheckFrontObstacleF` found open. In a
-//! dungeon a blocked way asks the navigation for a route
-//! (`ccNavi::PathFindingInDungeon`, [`Call::PathFinding`], passed to the
-//! inner runtime); in a field the member detours round the obstacle for
-//! 30 or 60 frames (`detourCnt`, counted down by `ccAI::Brains`).
-//!
-//! The world is asked for lines of sight ([`World::line`], `ccHitCheckLM`)
-//! and positions in the player's frame ([`World::w2p`]) exactly where the
-//! game asks. Kite's heading and walking are read from his [`Spc`]
-//! (`dirc`, `moveFlag`, `runFlag`), which the runtime keeps up to date.
-//!
-//! Every function is a transcription of the game's, checked against it in
-//! `tools/eemu.py` by `tools/test_battle_fellow_rs.py`.
+//! 0x00589e90-0x0058ae4c): how a member the AI drives walks after Kite, steps
+//! away from him, closes in on and faces its target, and steers round what
+//! stands in its way. [`Follow`] is a [`Runtime`] that performs
+//! [`Call::FollowPlayer`], [`Call::LeavePlayer`], [`Call::FollowTarget`] and
+//! [`Call::FollowTargetDirc`] and hands every other call to an inner runtime.
+//! A follow function only turns the body and sets `moveFlag` and `runFlag`.
+//! The rules are in docs/engine/battle.md ("Following").
 
 use piney_data::volume::Volume;
 
@@ -204,27 +161,12 @@ impl Follow<'_> {
         }
     }
 
-    /// `ccAI::FollowPlayer()` (gcmn 0x00581580): walk after Kite. A member
-    /// already walking heads for a point 200 in front of Kite's heading,
-    /// turned by `fpAngleOffset[slot]` (main 0x003782a0: 0, 20480, 45056
-    /// for slots 0-2), unless within 200 of him (`distPl`); one standing
-    /// measures by `distPl` alone. In a dungeon, a wall in the way asks the
-    /// navigation for a route to Kite's feet (a route found: nothing more;
-    /// none: stop). In a field, `CheckFrontObstacleF` toward Kite's feet
-    /// steers round an obstacle: an open heading is taken for 30 frames (60
-    /// when only the widest detours are open) and held while `detourCnt`
-    /// runs; a clear way cuts a long detour to 5. Then:
-    ///
-    /// ```text
-    /// walking:   within 70 of the point, or distPl within fpOkRange (120): arrived
-    ///            (goBackFlag 0) - keep walking beside a walking Kite beyond 20,
-    ///            else stop and take his heading; otherwise walk, stop running
-    ///            within 50, run beyond 250 unless Kite walks
-    /// standing:  beyond 280 start walking if able (CheckAction 1), running when
-    ///            Kite stands or runs, or beyond 350; within 280 goBackFlag 0, stay
-    /// ```
-    ///
-    /// The heading is set unless a detour holds it.
+    /// `ccAI::FollowPlayer()` (gcmn 0x00581580): walk after Kite, toward a point
+    /// 200 in front of him turned by `fpAngleOffset[slot]` (main 0x003782a0).
+    /// In a dungeon a wall in the way asks the navigation for a route; in a
+    /// field `CheckFrontObstacleF` starts a detour. It arrives within 70 of the
+    /// point or `fpOkRange` (120) of Kite and sets off beyond 280, running
+    /// beyond 350. The rules are in docs/engine/battle.md ("Following").
     pub fn follow_player(&mut self, body: usize, scene: &mut Scene, crew: &mut Crew, rng: &mut dyn Rng) {
         let pl = self.party.members[0];
         let Some(pl) = pl.filter(|&p| scene.listed(p)) else {
@@ -342,15 +284,11 @@ impl Follow<'_> {
         }
     }
 
-    /// `ccAI::LeavePlayer()` (gcmn 0x00581cb0): step away from Kite (a
-    /// member called over, mode 5). The heading away from him (his `posP`
-    /// to the member's) is taken at once standing, or while walking within
-    /// 200 (`distPl`). In a dungeon a wall that way asks the navigation for
-    /// a route to the member's feet from 280 along the way out (the game
-    /// passes the direction, scaled, as the goal); none: stop. Walking
-    /// beyond 260 it arrives: `goBackFlag` 0, it turns about and stops.
-    /// Standing within 150 it starts walking if able (`CheckAction(1)`).
-    /// The heading is set while it walks.
+    /// `ccAI::LeavePlayer()` (gcmn 0x00581cb0): step away from Kite (a member
+    /// called over, mode 5), heading away from his `posP`. In a dungeon a wall
+    /// that way asks for a route (the game passes the direction, scaled, as the
+    /// goal); none: stop. Walking beyond 260 it arrives (`goBackFlag` 0, it
+    /// turns about and stops); standing within 150 it starts walking if able.
     pub fn leave_player(&mut self, body: usize, scene: &mut Scene, crew: &mut Crew, rng: &mut dyn Rng) {
         let pl = self.party.members[0];
         let Some(pl) = pl.filter(|&p| scene.listed(p)) else {
@@ -393,20 +331,12 @@ impl Follow<'_> {
         }
     }
 
-    /// `ccAI::FollowTarget(target)` (gcmn 0x00582090): close in on a
-    /// target on the lists. `dircTg` is the heading to its `pos` (in the
-    /// player's frame) and `distTg` the ground distance less both widths,
-    /// truncated to a whole number; the member turns to it when able
-    /// (`CheckAction(2)`) beyond `noTurnRange` (from Mutation on at any
-    /// distance). In a dungeon a wall that
-    /// way asks the navigation for a route to the target's feet (none:
-    /// stop); in a field the detour of `FollowPlayer` steers toward its
-    /// feet. The heading is set unless a skill runs or a detour holds it.
-    /// Then, wary (mode 2): walking, stop within `stopRange`, else run
-    /// while Kite is within `territory` and stop beyond; standing, run
-    /// after it beyond `stopRange` or while Kite is within `territory`.
-    /// Otherwise: walking, stop within `stopRange`, else run; standing, run
-    /// beyond `attackRange`. Starting needs `CheckAction(1)`.
+    /// `ccAI::FollowTarget(target)` (gcmn 0x00582090): close in on a target on
+    /// the lists. `dircTg` is the heading to it and `distTg` the ground distance
+    /// less both widths, truncated; the member turns to it beyond `noTurnRange`
+    /// (from Mutation on at any distance). A dungeon's wall asks for a route, a
+    /// field's obstacle a detour; then it runs or stops by `stopRange`,
+    /// `attackRange` and, wary (mode 2), Kite's `territory`.
     pub fn follow_target(
         &mut self,
         body: usize,
@@ -546,24 +476,12 @@ impl Follow<'_> {
         !clear(self.world.line(a, v, 1, 0))
     }
 
-    /// `ccAI::CheckFrontObstacleF(goal)` (gcmn 0x00589fe0): the field's
-    /// look ahead toward `goal`. From the feet raised by `bodyHit.height`,
-    /// a line of 1.5 `r` along the heading to the goal (`r = CFOFP x
-    /// bodyHit.radius`, CFOFP 2.5 at main 0x003782ac): clear, 0. Otherwise
-    /// six probes, each a line from the feet out (blocked: 2) and on to the
-    /// goal (blocked: 1, else 0):
-    ///
-    /// ```text
-    /// 0, 1   r sqrt 2  at -/+ 8192 (45 degrees)
-    /// 2, 3   r sqrt 5  at -/+ atan 2 (63 degrees)
-    /// 4, 5   2 r       at -/+ 18432 (101 degrees)
-    /// ```
-    ///
-    /// The first pair with a probe open (not 2) sets `aiOpenDirc`: the
-    /// second of the pair when the first is half open (1) and the second
-    /// fully (0), else the other side of the pair's; returns 1, 2 for the
-    /// last pair, -1 with every probe blocked. The double arithmetic
-    /// (`sqrt`, `atan2`, `dpmul`, `dptofp`) rounds as IEEE doubles do.
+    /// `ccAI::CheckFrontObstacleF(goal)` (gcmn 0x00589fe0): the field's look
+    /// ahead toward `goal`: a line of 1.5 `r` (`r = CFOFP x bodyHit.radius`,
+    /// CFOFP 2.5), clear: 0; else six probes in pairs at 45, 63 and 101 degrees,
+    /// the first pair with an open one setting `aiOpenDirc` (returns 1, 2 for
+    /// the last pair, -1 all blocked). The double arithmetic (`sqrt`, `atan2`)
+    /// rounds as IEEE doubles do. The probes are in docs/engine/battle.md.
     pub fn check_front_obstacle_f(&mut self, body: usize, goal: V4, scene: &Scene, crew: &mut Crew) -> i32 {
         let s = spc(crew, body);
         let height = s.body_hit.height;

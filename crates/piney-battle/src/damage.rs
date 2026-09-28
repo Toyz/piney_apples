@@ -1,12 +1,10 @@
 //! Hit and damage: `ccChar::CalcBattleDamage` (gcmn 0x0056d910) with the
-//! protect gauge, Exdefense, element absorption and the equipment's battle
-//! effects; `ccSkillDamage` (gcmn 0x00573e60), which applies a skill to its
-//! target or its area; and `ccSkillDamageValue` (gcmn 0x00594e90), the
-//! party AI's estimate.
-//!
-//! Integer arithmetic is C's on the EE: products wrap at 32 bits, division
-//! truncates, stored fields wrap at 16. `mag` is a float's bits and the
-//! scaling is the EE's (`cvt.s.w`, `mul.s`, libgcc `__fixsfsi`).
+//! protect gauge, Exdefense, element absorption and the equipment's effects;
+//! `ccSkillDamage` (0x00573e60), a skill on its target or area; and
+//! `ccSkillDamageValue` (0x00594e90), the party AI's estimate. Integer
+//! arithmetic is the EE's C (products wrap at 32 bits, division truncates,
+//! stored fields wrap at 16); `mag` is a float's bits, scaled by `cvt.s.w`,
+//! `mul.s` and libgcc `__fixsfsi`.
 
 use piney_data::field::ee;
 use piney_data::volume::Volume;
@@ -124,20 +122,12 @@ const EXDEF: [(i32, usize); 8] = [
     (0x80, elm::DARK),
 ];
 
-/// `ccChar::CalcBattleDamage(t, sk, mag, h)` (gcmn 0x0056d910): `att`
-/// hits `tgt` with `sk`. `listed` is `ccCheckTarget(this) &&
-/// ccCheckTarget(t)`: both must be on the command lists. Emits the
-/// calls the game makes with `att` as [`Who::Me`] and `tgt` as
-/// [`Who::Target`], and updates `tgt`'s protect gauge.
-///
-/// ```text
-/// roll = rand() % 101
-/// roll < 5: miss;  roll >= 95: hit at 100
-/// else hit = roll + (atk.Hit + sk.hit - 2*tgt.Eva/3) / 10, a miss below 50, at most 100
-/// a = max(atk.Atk + sk.atk, 1);  d = max(tgt.Def, 1)
-/// dmg = max(a*a / (2*d) * hit / 100, 1) + element terms
-/// dmg = (int)((float)(dmg * sk.dmgRate / 100) * mag), at most 9999
-/// ```
+/// `ccChar::CalcBattleDamage(t, sk, mag, h)` (gcmn 0x0056d910): `att` hits
+/// `tgt` with `sk`. `listed` is `ccCheckTarget(this) && ccCheckTarget(t)`:
+/// both must be on the command lists. Emits the calls the game makes with
+/// `att` as [`Who::Me`] and `tgt` as [`Who::Target`], and updates `tgt`'s
+/// protect gauge. The roll and the formula are in docs/engine/battle.md
+/// ("Hit and damage").
 #[allow(clippy::too_many_arguments)]
 pub fn calc_battle_damage(
     t: &Tables,
@@ -497,20 +487,14 @@ pub fn calc_damage_in(
     r
 }
 
-/// `ccSkillDamage(attacker, target, sk, acFlag, sid)` (gcmn 0x00573e60):
-/// the skill's damage. A single-target skill (`targetRange <= 0`) hits the
-/// target; an area skill hits every living character of the target's side
-/// (party members for a target of type 2 or 4, foes for 0xe0) whose
-/// distance on the ground from the centre, less its width, is within
-/// `targetRange`. The centre is the attacker (type bit 0x2000) or the
-/// target. Each takes `EntryAffect(1, dmg, sid)`.
-///
-/// `ac_flag` 1 is an attribute critical `_ccSkillRequest` rolled: on the
-/// aimed target it becomes a sure hit (`h = 100`) at x2, and `ac_flag`
-/// stays -1 so later hits of the same skill are doubled too (in the area
-/// branch the sure hit also carries to the characters after it). Other
-/// targets of a splash skill (bit 0x8000) take x0.5. Returns the number of
-/// characters hit.
+/// `ccSkillDamage(attacker, target, sk, acFlag, sid)` (gcmn 0x00573e60): a
+/// single-target skill (`targetRange <= 0`) hits the target; an area skill
+/// every living character of the target's side within `targetRange` (less its
+/// width) of the centre (the attacker for type bit 0x2000, else the target).
+/// Each takes `EntryAffect(1, dmg, sid)`. `ac_flag` 1 (an attribute critical)
+/// makes the aimed target a sure hit at x2 and stays -1 so later hits are
+/// doubled too; a splash skill's others (bit 0x8000) take x0.5. Returns the
+/// number of characters hit.
 #[allow(clippy::too_many_arguments)]
 pub fn skill_damage(
     t: &Tables,
