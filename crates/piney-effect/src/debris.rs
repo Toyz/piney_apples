@@ -1,10 +1,11 @@
 //! The tumbling debris: `ccEffect::Main`'s shared first-switch case
 //! 0x001c4034 (ids -15, 9-11, 15-18, 25-28, 42-55, 66-78, 114-129, 134-149,
-//! 155-163) and second-chain case 0x001c7dd0 (ids -15, 9-11, 25-28, 114-129,
-//! 138-149): spinning, falling, and bouncing on the land it checks one frame
-//! in four. Also the spells' spawners of it, `effSmokeRock` (main 0x001cda30,
-//! rocks 9-11) and `effDarkSmoke` (0x001d4a20, controllers -15). The rules
-//! are in docs/engine/effects.md ("ConvergenceSystem").
+//! 155-163) and second-chain cases 0x001c7dd0 (ids -15, 9-11, 25-28,
+//! 114-129, 138-149) and 0x001c839c (the ice rocks 15-18): spinning, falling,
+//! and bouncing on the land it checks one frame in four. Also the spawners,
+//! `effSmokeRock` (main 0x001cda30, rocks 9-11), `effIceRock` (0x001ceaa0)
+//! and `effDarkSmoke` (0x001d4a20, controllers -15). The rules are in
+//! docs/engine/effects.md ("ConvergenceSystem", "The ice rocks").
 
 use crate::ee::{self, F, ONE, V4, VF0};
 use crate::effect::{EffectCtrl, Next, ONE_VECTOR, Obj};
@@ -22,6 +23,10 @@ pub fn has_motion(id: i16) -> bool {
 pub fn has_bounce(id: i16) -> bool {
     matches!(id, -15 | 9..=11 | 25..=28 | 114..=129 | 138..=149)
 }
+
+/// The ice rocks `effIceRock` throws (CMP_x202a-d).
+pub const ICE_ROCK_FIRST: i16 = 15;
+pub const ICE_ROCK_LAST: i16 = 18;
 
 /// `(short)(u16 + (short)RAD2DEG(a))`, back to radians.
 fn spin(a: F, by: u16) -> F {
@@ -94,6 +99,12 @@ pub fn debris_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
     bounce_post(ctrl, cx, i, 0x3f4c_cccd, 0xbf00_0000);
 }
 
+/// The ice rocks 15-18's case of the second chain (main 0x001c839c): the
+/// landing and bounce, 0.75 a bounce (the same code as 42-45's 0x001c9b44).
+pub fn ice_rock_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
+    bounce_post(ctrl, cx, i, 0x3f40_0000, 0xbf40_0000);
+}
+
 /// The landing and bouncing second-chain cases (0x001c7dd0 with 0.8 and
 /// -0.5, 0x001c9b44 and 0x001ca0a8 with 0.75 and -0.75).
 pub fn bounce_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize, xy: F, zd: F) {
@@ -163,7 +174,8 @@ pub fn eff_smoke_rock(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, n:
 /// `effIceRock(p, r, v, s, n)` (main 0x001ceaa0): n ice rocks 15-18
 /// (`rn & 3`) thrown out from `p` as `effSmokeRock` throws its rocks, life
 /// 90, scale `s`, the rise of their speed cut to 0.6, spinning by `rn`'s
-/// bits 8-11 and 12-15 (x and z); the last one.
+/// bits 8-11 and 12-15 (x and z); the last one. The bosses' ice throws
+/// them: `ccBossEffIceBreak::Draw` (gcmn 0x0046cc10) and Innis's missile.
 pub fn eff_ice_rock(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, s: F, n: i32) -> Option<usize> {
     let mut last = None;
     for _ in 0..n {
@@ -394,4 +406,74 @@ pub fn eff_smoke_electric(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F
 /// `pTexMod` 31.
 pub fn eff_smoke_smoke(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, s: F, n: i32) -> Option<usize> {
     smoke(ctrl, cx, p, r, v, s, n, Smoke { id: |_| 129, tex: Some(31), leaf: false })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::draw::Camera;
+    use crate::ee::k;
+    use crate::{CharRef, Host};
+
+    /// Flat land at 0; rand an LCG.
+    struct Land(u32);
+
+    impl Host for Land {
+        fn rand(&mut self) -> i32 {
+            self.0 = self.0.wrapping_mul(1_103_515_245).wrapping_add(12345);
+            (self.0 >> 1) as i32
+        }
+        fn player_pos(&self) -> V4 {
+            [0, 0, 0, ONE]
+        }
+        fn camera(&self) -> Camera {
+            Camera::default()
+        }
+        fn char_pos(&self, _c: CharRef) -> V4 {
+            [0, 0, 0, ONE]
+        }
+        fn char_dirc(&self, _c: CharRef) -> V4 {
+            [0; 4]
+        }
+        fn char_height(&self, _c: CharRef) -> F {
+            0
+        }
+        fn char_width(&self, _c: CharRef) -> F {
+            0
+        }
+        fn land_hit_check2(&mut self, pos: V4, offset_z: F, _mask: u32) -> F {
+            let (a, b) = (f32::from_bits(pos[2]), f32::from_bits(ee::add(pos[2], offset_z)));
+            if a.min(b) <= 0.0 && 0.0 <= a.max(b) { 0 } else { NO_HIT }
+        }
+    }
+
+    /// An IceBreak's middle throw (25, size 1, five rocks from 100 up):
+    /// rocks 15-18 that land on the land, come to rest (flags 3) and fade
+    /// out before their life of 90 is over.
+    #[test]
+    fn ice_rocks_land_rest_and_fade() {
+        let Some(mut fx) = crate::testing::effects() else { return };
+        fx.ctrl.town = false;
+        let mut host = Land(7);
+        {
+            let (ctrl, mut cx) = fx.split(&mut host);
+            assert!(eff_ice_rock(ctrl, &mut cx, [0, 0, k(100.0), ONE], [0; 4], k(25.0), ONE, 5).is_some());
+        }
+        let rocks: Vec<usize> = (0..fx.ctrl.effects.len()).filter(|&i| fx.ctrl.effects[i].status != 0).collect();
+        assert_eq!(rocks.len(), 5);
+        assert!(rocks.iter().all(|&i| (ICE_ROCK_FIRST..=ICE_ROCK_LAST).contains(&fx.ctrl.effects[i].id)));
+        let (mut rested, mut faded) = (0, false);
+        for _ in 0..95 {
+            fx.step(&mut host);
+            for &i in &rocks {
+                let e = &fx.ctrl.effects[i];
+                if e.status != 0 && e.flags == 3 && e.pos[2] == 0 {
+                    rested += 1;
+                }
+                faded |= e.status != 0 && e.transparency != ONE && e.transparency != 0;
+            }
+        }
+        assert!(rested > 0 && faded);
+        assert!(rocks.iter().all(|&i| fx.ctrl.effects[i].status == 0));
+    }
 }

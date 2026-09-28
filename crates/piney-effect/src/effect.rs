@@ -3,8 +3,9 @@
 //! on its own layer or the effect layer, 20), `InitEffect` (0x001c3af0) and
 //! `Main` (0x001c3e10: the first switch on id, the draw, the second chain,
 //! then the count and age). The ids' own code lives with each kind of effect
-//! ([`crate::arrival`] and the rest); an id not ported only draws and ages.
-//! The rules are in docs/engine/effects.md ("ccEffect").
+//! ([`crate::arrival`] and the rest); every id with a case of its own in
+//! either pass has one here, and an id with none only draws and ages. The
+//! rules are in docs/engine/effects.md ("ccEffect").
 
 use piney_world::pose::Play;
 
@@ -589,7 +590,7 @@ fn pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
         tornado::RING_A | tornado::RING_B | tornado::RING_C => tornado::ring_pre(ctrl, cx, i),
         tornado::OBJ_FIRST..=tornado::OBJ_LAST => tornado::obj_pre(ctrl, cx, i),
         fall::FIRE_FLAME => fall::flame_pre(ctrl, cx, i),
-        fall::FIRE_METEOR | fall::SOIL_METEOR | fall::DARK_METEOR => fall::meteor_pre(ctrl, cx, i),
+        fall::METEOR_ANM | fall::FIRE_METEOR | fall::SOIL_METEOR | fall::DARK_METEOR => fall::meteor_pre(ctrl, cx, i),
         fall::FLARE_RING => fall::flare_ring_pre(ctrl, cx, i),
         convergence::PIECE_FIRST..=convergence::PIECE_LAST => convergence::piece_pre(ctrl, cx, i),
         upheaval::PILLAR_FIRST..=upheaval::PILLAR_LAST => upheaval::pillar_pre(ctrl, cx, i),
@@ -605,6 +606,7 @@ fn pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
         shockwave::WAVE => shockwave::wave_pre(ctrl, cx, i),
         shockwave::WAVE2 => shockwave::wave2_pre(ctrl, cx, i),
         shockwave::WAVE3 => shockwave::wave3_pre(ctrl, cx, i),
+        shockwave::WAVE2_HELD => shockwave::held_pre(ctrl, cx, i),
         skillstart::EXEC_RING => skillstart::exec_ring_pre(ctrl, cx, i),
         skillstart::FORCE_RING => skillstart::force_ring_pre(ctrl, cx, i),
         skillstart::FORCE_RING2 => skillstart::force_ring2_pre(ctrl, cx, i),
@@ -627,8 +629,12 @@ fn post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
         19..=21 => hit::protect_post(ctrl, cx, i),
         tornado::OBJECT_POS => tornado::object_pos_post(ctrl, cx, i),
         thunder::THUNDER_POS => thunder::thunder_pos_post(ctrl, cx, i),
-        fall::FIRE_METEOR | fall::SOIL_METEOR | fall::DARK_METEOR => fall::meteor_post(ctrl, cx, i),
+        fall::METEOR_ANM | fall::FIRE_METEOR | fall::SOIL_METEOR | fall::DARK_METEOR => fall::meteor_post(ctrl, cx, i),
         fall::THUNDER_METEOR => fall::thunder_meteor_post(ctrl, cx, i),
+        debris::ICE_ROCK_FIRST..=debris::ICE_ROCK_LAST => debris::ice_rock_post(ctrl, cx, i),
+        // 0x001c9b34: a store of 0 to address 0, the game's "cannot happen"
+        // (no function of any volume makes these ids), then on to the end.
+        -11..=-8 => {}
         convergence::CHARGE => convergence::charge_post(ctrl, cx, i),
         convergence::PIECE_FIRST..=convergence::PIECE_LAST => convergence::piece_post(ctrl, cx, i),
         upheaval::FRAGMENT_FIRST..=upheaval::FRAGMENT_BOUNCING => upheaval::fragment_post(ctrl, cx, i),

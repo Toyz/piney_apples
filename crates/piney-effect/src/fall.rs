@@ -16,6 +16,9 @@ use crate::thunder::{self, ThunderBolt, ThunderData};
 use crate::{CharRef, Cx, Event, IntRef, NO_HIT, VecRef, pfx, space, vu};
 use piney_data::volume::Volume;
 
+/// ANM_x300, the fire meteor's animation: it shares the meteors' cases of
+/// both passes, but no function of any volume makes it.
+pub const METEOR_ANM: i16 = 0;
 pub const FIRE_FLAME: i16 = 5;
 pub const FIRE_METEOR: i16 = 6;
 pub const FLARE_RING: i16 = 7;
@@ -291,9 +294,9 @@ pub fn eff_meteo_fire_ball2(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, t: CharRe
     Some(i)
 }
 
-/// Meteors 6, 87 and 88's case of the first switch (main 0x001c41a0,
-/// shared with id 0): FadeInOut(10, 3); turning about y (not the dark
-/// one); at the target's position plus the offset, z the offset's.
+/// Meteors 0, 6, 87 and 88's case of the first switch (main 0x001c41a0):
+/// FadeInOut(10, 3); turning about y (not the dark one); at the target's
+/// position plus the offset, z the offset's.
 pub fn meteor_pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
     let e = &mut ctrl.effects[i];
     let life = i32::from(e.life_time);
@@ -336,8 +339,8 @@ pub fn flame_pre(ctrl: &mut EffectCtrl, _cx: &mut Cx, i: usize) -> Next {
     Next::Draw
 }
 
-/// Meteors 6, 87 and 88's case of the second chain (main 0x001c8900): the
-/// fall, and the landing.
+/// Meteors 0, 6, 87 and 88's case of the second chain (main 0x001c8900):
+/// the fall, and the landing.
 pub fn meteor_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
     let e = &mut ctrl.effects[i];
     if e.flags == 0 {
@@ -852,5 +855,42 @@ mod tests {
         assert_eq!(rem(0, 0), 0);
         assert_eq!(rem(5, 0), 5);
         assert_eq!(rem(40, 20), 0);
+    }
+
+    /// Id 0 (ANM_x300) set up as effMeteoFireBall2 sets up a fire meteor:
+    /// it falls from 400 as the meteors do and lands on its temp[0], with
+    /// the fire's sound and a flare ring.
+    #[test]
+    fn the_meteor_animation_falls_and_lands() {
+        use crate::draw::Camera;
+        use crate::ee::k;
+        use crate::effect::Obj;
+        let Some(mut fx) = crate::testing::effects() else { return };
+        fx.ctrl.town = false;
+        let mut r = || 0;
+        let mut host = crate::host::Simple::new(&mut r, [0, 0, 0, ONE], Camera::default());
+        let i = {
+            let (ctrl, cx) = fx.split(&mut host);
+            ctrl.new_effect(&cx, METEOR_ANM).unwrap()
+        };
+        assert!(matches!(fx.ctrl.effects[i].obj, Obj::Anm { .. }));
+        let e = &mut fx.ctrl.effects[i];
+        e.life_time = 300;
+        e.param = attr::FIRE;
+        e.offset = [0, 0, k(400.0), ONE];
+        e.pos_t = [0, 0, 0, ONE];
+        e.speed[2] = 0xc1a0_0000;
+        e.flags = 1;
+        e.temp[0] = 0;
+        let mut landed = None;
+        for f in 0..40 {
+            fx.step(&mut host);
+            if landed.is_none() && fx.ctrl.effects.iter().any(|e| e.status != 0 && e.id == FLARE_RING) {
+                landed = Some(f);
+                assert_eq!(fx.ctrl.effects[i].flags, 0);
+                assert!(fx.take_events().iter().any(|e| matches!(e, Event::Sound3d { se: 35, .. })));
+            }
+        }
+        assert!(landed.is_some_and(|f| f > 5));
     }
 }

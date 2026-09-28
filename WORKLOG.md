@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-279 entries: audio 18, battle 47, build 14, content 3, decomp 20, disc 4, engine 7, format 14, iop 2, render 67, save 8, script 27, test 124, tooling 22, ui 49, video 9, volumes 51, world 77.
+280 entries: audio 18, battle 48, build 14, content 3, decomp 20, disc 4, engine 7, format 14, iop 2, render 68, save 8, script 27, test 125, tooling 22, ui 49, video 9, volumes 52, world 77.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -291,3 +291,4 @@ The [reference](docs/README.md) says what is true now.
 | 277 | [Spoken to while running: the greeting's stop reaches the member; the field's talk target and the town's faces](worklog/0277-spoken-to-while-running-the-greeting-s-stop-reaches-the.md) | 2026-09-28 | ui, world, test |
 | 278 | [Each volume's animation-note sounds: setbl per volume, Outbreak's 21 party tables](worklog/0278-each-volume-s-animation-note-sounds-setbl-per-volume.md) | 2026-09-28 | audio, volumes |
 | 279 | [An enemy's condition effect outlived a Data Drain: clearConditionEnemy's ClearConditionEffect carried out](worklog/0279-an-enemy-s-condition-effect-outlived-a-data-drain.md) | 2026-09-28 | battle, render |
+| 280 | [Skeith's ice rocks fell through the floor: ccEffect::Main's last cases ported](worklog/0280-skeith-s-ice-rocks-fell-through-the-floor-cceffect-main-s.md) | 2026-09-28 | battle, render, volumes, test |

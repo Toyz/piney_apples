@@ -26,7 +26,13 @@ the resistant shield.
     (0x001d0300-0x001d0660) with the fragments (x 0, and x not 0 for the
     CLUT swap); effOpenTrapBox (0x001d0780) and its controller -5;
     effStatueOfGod (0x001d0e60), its syncSW a character's +0x1e0 (the
-    idol's effsw), set 1 at the start and 0 some frames on.
+    idol's effsw), set 1 at the start and 0 some frames on;
+  - the ids whose ccEffect::Main cases the port once lacked: effIceRock
+    (0x001ceaa0; the rocks 15-18, an IceBreak's twelve throws together)
+    over a flat land (ccLandHitCheck2) at a random height; and, made by
+    ccNewEffect and set up as a creator would since nothing in the game
+    makes them, 0 (ANM_x300) as effMeteoFireBall2 sets up a meteor, 113
+    (CMP_x042) with lives about its 5 and 15, and -11..-8.
 
 The machine is test_effect_spell_rs's SpellMachine (main and GCMN.PRG in
 eemu, the effect files served from DATA.BIN, ccEffectCtrl::Main and
@@ -89,6 +95,8 @@ EFFECT_STARTERS = {
     "crushcorpse": "effCrushCorpse__FPfi",
     "opentrap": "effOpenTrapBox__FPfii",
     "statue": "effStatueOfGod__FPfPi",
+    "icerock": "effIceRock__FPfPfffi",
+    "spawn": "ccNewEffect__Fi",
 }
 # The starters taking a position first.
 POS_FIRST = ("shock", "openbox", "removetrap", "virus", "crushbarrel", "crushegg", "crushpot", "crushcorpse",
@@ -110,6 +118,7 @@ class SkillFxMachine(spell.SpellMachine):
         super().__init__(seed=seed, gseed=gseed, area=1)
         self.m.hooks[self.sym("__ct__5ccAnmFv")] = self.anm_ctor
         self.vecbuf = self.malloc(self.m, 0x10)
+        self.vecbuf2 = self.malloc(self.m, 0x10)
 
     @staticmethod
     def anm_ctor(m, a, *r):
@@ -131,17 +140,35 @@ class SkillFxMachine(spell.SpellMachine):
         a = EFFWORK + 0xC0 * k + 0x60
         self.m.store(a, 1, self.m.load(a, 1) | 8)
 
+    def set_field(self, slot, key, *v):
+        """The base's fields, and posT, param and flags."""
+        a = EFFWORK + 0xC0 * slot
+        if key == "posT":
+            self.vec(a + 0x50, list(v))
+        elif key in ("param", "flags"):
+            self.m.store(a + (0x64 if key == "param" else 0x68), 4, v[0] & 0xFFFFFFFF)
+        else:
+            super().set_field(slot, key, *v)
+
     def start(self, name, args):
         """A starter with the probe's arguments (characters by id, vectors
         as bits): its answer, events, generators and the generators' states."""
         self.events, self.gens = [], []
         ch = lambda c: self.chars[c]           # noqa: E731
 
-        def vec(x, y, z):
-            self.vec(self.vecbuf, [x, y, z, ONE])
-            return self.vecbuf
+        def vec(x, y, z, buf=None):
+            buf = buf or self.vecbuf
+            self.vec(buf, [x, y, z, ONE])
+            return buf
         a = list(args)
-        if name == "statue":
+        fargs = ()
+        if name == "icerock":
+            # effIceRock(p, r, v, s, n): v and s in f12, f13.
+            call = [vec(*a[:3]), vec(*a[3:6], buf=self.vecbuf2), a[8]]
+            fargs = (a[6], a[7])
+        elif name == "spawn":
+            call = a
+        elif name == "statue":
             call = [vec(*a[:3]), ch(a[3]) + EFFSW]
         elif name in POS_FIRST:
             call = [vec(*a[:3])] + a[3:]
@@ -149,7 +176,7 @@ class SkillFxMachine(spell.SpellMachine):
             call = [ch(a[0]), SKILL_TBL + 0x38 * a[1]] + a[2:]
         else:
             call = [ch(a[0])] + a[1:]
-        r = self.call(EFFECT_STARTERS[name], *[v & 0xFFFFFFFF for v in call]) & 0xFFFFFFFF
+        r = self.call(EFFECT_STARTERS[name], *[v & 0xFFFFFFFF for v in call], fargs=fargs) & 0xFFFFFFFF
         if name == "shield":
             ret = -1 if r == 0 else self.element_slot(r, -1)
         elif EFFWORK <= r < EFFWORK + 0xC0 * 500:
@@ -196,6 +223,15 @@ class Run:
     def affect(self, cid, by):
         self.sm.set_affect(cid, by)
         self.lines.append("affect %x %x" % (cid, 0xFFFFFFFF if by is None else by))
+
+    def ground(self, z):
+        """The flat land ccLandHitCheck2 meets, at height z."""
+        self.sm.ground = fb(z)
+        self.lines.append("ground %x" % fb(z))
+
+    def set(self, k, key, *v):
+        self.sm.set_field(k, key, *v)
+        self.lines.append("set %x %s %s" % (k, key, hexs(*v)))
 
     def start(self, name, *args):
         self.lines.append(name + " " + hexs(*args))
@@ -339,7 +375,80 @@ def random_spec(run, rng, group):
         c = rng.choice([k for k in chs if run.chars[k]["ctype"] & 0xE0] or chs)
         return "shield", [c, rng.choice([-1, 0, 1, 2, 5]) & 0xFFFFFFFF,
                           rng.choice([-1, -1, 0, 1, 2, 3, 4]) & 0xFFFFFFFF], None
+    if group == "ids":
+        k = rng.random()
+        if k < 0.4:
+            return ice_rock(run, rng)
+        if k < 0.7:
+            return meteor_anm(run, rng)
+        if k < 0.9:
+            return held_wave(run, rng)
+        return no_code(run, rng)
     raise KeyError(group)
+
+
+# The ids whose ccEffect::Main cases the port once lacked: the ice rocks
+# 15-18 (effIceRock), and 0, 113 and -11..-8, which no function of any
+# volume makes: spawned by ccNewEffect and set up as a creator would.
+ICE_BREAK = [(50.0, 0.2, 10), (25.0, 1.0, 5), (10.0, 5.0, 1)]
+DIRS = [0.0, 1.5707963705062866, -3.1415927410125732, -1.5707963705062866]
+
+
+def ice_rock(run, rng, vsn=None, d=None, p=None):
+    """effIceRock(p, r, v, s, n) as ccBossEffIceBreak::Draw calls it (100
+    above a point, turned about z, one of its three sizes) or at random."""
+    if p is None:
+        p = random_pos(run, rng)
+        p[2] = fb(fu(p[2]) + 100.0)
+    if d is None:
+        d = rng.choice(DIRS) if rng.random() < 0.6 else rng.uniform(-3.2, 3.2)
+    r = [0, 0, fb(d)]
+    if rng.random() < 0.2:
+        r = [fb(rng.uniform(-3.2, 3.2)) for _ in range(3)]
+    if vsn is None:
+        vsn = rng.choice(ICE_BREAK) if rng.random() < 0.6 else (rng.uniform(0, 80), rng.uniform(0.1, 6),
+                                                                 rng.randrange(0, 12))
+    v, s, n = vsn
+    return "icerock", p + r + [fb(v), fb(s), n], None
+
+
+fu = spell.fu
+
+
+def meteor_anm(run, rng, atr=None, falling=True):
+    """Id 0 (ANM_x300) as effMeteoFireBall2 sets up its meteors: life 300,
+    param the element, offset above the target, posT the target's place, a
+    turn, falling at 20 from pos to temp[0]."""
+    c = rng.choice(list(run.chars))
+    t = run.chars[c]["pos"]
+    if atr is None:
+        atr = rng.choice([4, 16, 64, 128, 8, 32, 0x14, 0x44, 0x84, 3, 0])
+    off = [rng.uniform(-400, 400), rng.uniform(-400, 400), t[2] + rng.uniform(150, 900)]
+    land = rng.choice([t[2], fu(run.sm.ground), t[2] - rng.uniform(0, 80), t[2] + rng.uniform(0, 60)])
+    rot = [fb(rng.uniform(-3.2, 3.2)) for _ in range(3)] + [0]
+    sets = [("life", 300), ("param", atr), ("offset", *[fb(x) for x in off], ONE), ("target", c),
+            ("posT", *[fb(x) for x in t], ONE), ("rot", *rot), ("speed", 0, 0, fb(-20.0), 0),
+            ("pos", fb(t[0] + off[0]), fb(t[1] + off[1]), fb(off[2]), ONE), ("flags", int(falling)),
+            ("temp", fb(land), 0, 0, 0)]
+    return "spawnset", [0, sets], None
+
+
+def held_wave(run, rng, life=None):
+    """Id 113 (CMP_x042) somewhere, with a life (-1 ended at random)."""
+    if life is None:
+        life = rng.choice([0, 1, 4, 5, 6, 14, 15, 16, 19, 20, 21, 30, 45, rng.randrange(0, 90), -1])
+    p = random_pos(run, rng) + [ONE]
+    rot = [fb(rng.uniform(-3.2, 3.2)) for _ in range(3)] + [0]
+    sets = [("life", life & 0xFFFF), ("pos", *p), ("rot", *rot)]
+    return "spawnset", [113, sets], rng.randrange(10, 80) if life < 0 else None
+
+
+def no_code(run, rng, eid=None):
+    """Ids -11..-8 (no object; their case stores to address 0)."""
+    eid = rng.randrange(-11, -7) if eid is None else eid
+    life = rng.choice([0, 3, 20, rng.randrange(0, 60), -1])
+    sets = [("life", life & 0xFFFF), ("pos", *random_pos(run, rng), ONE)]
+    return "spawnset", [eid, sets], rng.randrange(5, 40) if life < 0 else None
 
 
 CRUSHES = ("crushbarrel", "crushegg", "crushpot", "crushcorpse")
@@ -383,6 +492,22 @@ def sweep_specs(group):
         specs = [("shield", [c, m & 0xFFFFFFFF, n & 0xFFFFFFFF], None)
                  for c in range(1, 5) for m in (-1, 0, 1, 2) for n in (-1, 0, 1, 3, 4)]
         return [specs[k:k + 20] for k in range(0, len(specs), 20)]
+    if group == "ids":
+        # An IceBreak's twelve throws; each element's meteor 0, falling and
+        # not; 113 at lives around its 5 and 15; each of -11..-8.
+        at = {}
+
+        def burst(r, g, vsn, d):
+            if r not in at:
+                at[r] = random_pos(r, g)
+                at[r][2] = fb(fu(at[r][2]) + 100.0)
+            return ice_rock(r, g, vsn, d, list(at[r]))
+        chunks = [[lambda r, g, vsn=vsn, d=d: burst(r, g, vsn, d) for d in DIRS for vsn in ICE_BREAK]]
+        chunks.append([lambda r, g, a=a: meteor_anm(r, g, a) for a in (4, 16, 64, 128, 8, 0)]
+                      + [lambda r, g: meteor_anm(r, g, 16, False)])
+        chunks.append([lambda r, g, n=n: held_wave(r, g, n) for n in (0, 1, 4, 5, 6, 15, 19, 20, 21, 40, -1)])
+        chunks.append([lambda r, g, e=e: no_code(r, g, e) for e in range(-11, -7)])
+        return chunks
     raise KeyError(group)
 
 
@@ -411,7 +536,14 @@ def play(run, rng, plan, moving):
                 run.effsw(args[3], 1)
                 offs.setdefault(f + rng.randrange(5, 120), []).append(args[3])
                 last = max(last, f + 120)
-            ret = run.start(name, *args)
+            if name == "spawnset":
+                # ccNewEffect(id), then the fields as a creator sets them.
+                eid, sets = args
+                ret = run.start("spawn", eid & 0xFFFFFFFF)
+                for key, *v in sets if ret >= 0 else ():
+                    run.set(ret, key, *v)
+            else:
+                ret = run.start(name, *args)
             if end is not None and ret is not None and ret >= 0:
                 ends.setdefault(f + end, []).append(ret)
                 last = max(last, f + end)
@@ -432,6 +564,8 @@ def run_case(group, seed):
     rng = random.Random(seed * 7919 + GROUPS.index(group))
     run = Run(rng.randrange(1, 1 << 31), rng.randrange(1, 1 << 31))
     world(run, rng, rng.randrange(2, 6))
+    if group == "ids":
+        ground(run, rng)
     plan = {}
     for _ in range(rng.randrange(1, 5)):
         plan.setdefault(rng.randrange(0, 40), []).append(lambda r, g, grp=group: random_spec(r, g, grp))
@@ -447,14 +581,25 @@ def run_sweep(group, k, chunk):
         world(run, rng, len(SHIELD_TYPES), SHIELD_TYPES)
     else:
         world(run, rng, rng.randrange(2, 6))
+    # The ids' chunks start together (an IceBreak's twelve in one Draw).
+    per = 3
+    if group == "ids":
+        ground(run, rng)
+        per = len(chunk)
     plan = {}
     for i, spec in enumerate(chunk):
-        plan.setdefault(i // 3, []).append(spec)
+        plan.setdefault(i // per, []).append(spec)
     play(run, rng, plan, rng.random() < 0.6)
     return run.check("%s sweep %d" % (group, k))
 
 
-GROUPS = ("start", "shock", "heal", "ability", "shield", "gimmick")
+def ground(run, rng):
+    """The land at, under or over the player's feet, or at 0."""
+    pz = run.player[2]
+    run.ground(rng.choice([pz, pz - rng.uniform(0, 60), pz + rng.uniform(0, 40), 0.0]))
+
+
+GROUPS = ("start", "shock", "heal", "ability", "shield", "gimmick", "ids")
 
 
 def run_group(group, n, first=1, sweeps=True):
@@ -504,6 +649,9 @@ class SkillEffectsAgainstGame(unittest.TestCase):
 
     def test_gimmicks(self):
         self.check("gimmick", 30)
+
+    def test_ice_rocks_and_unmade_ids(self):
+        self.check("ids", 30)
 
 
 if __name__ == "__main__":

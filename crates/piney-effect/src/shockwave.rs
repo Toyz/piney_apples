@@ -17,6 +17,9 @@ use crate::{Cx, Event, debris};
 pub const WAVE: i16 = 79;
 pub const WAVE2: i16 = 80;
 pub const WAVE3: i16 = 81;
+/// 80's model (CMP_x042) with a case of its own, held wide; no function
+/// of any volume makes it.
+pub const WAVE2_HELD: i16 = 113;
 /// `ccSeOn3D(35, p)`.
 pub const SE_SHOCK: i32 = 35;
 
@@ -174,6 +177,32 @@ pub fn wave3_pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
     Next::Draw
 }
 
+/// 113's case of the first switch (main 0x001c5a80): x, y 2.6; z 2.5 ->
+/// 2.2 over the first 5 counts, 2.2 until 15 before its life, then back
+/// to 0.5 at it (as `from + (to - from) t / n`); FadeInOut(5, 0, life).
+pub fn held_pre(ctrl: &mut EffectCtrl, _cx: &mut Cx, i: usize) -> Next {
+    const XY: F = 0x4026_6666;
+    const START: F = 0x4020_0000;
+    const HOLD: F = 0x400c_cccd;
+    const IN: i32 = 5;
+    const OUT: i32 = 15;
+    let e = &mut ctrl.effects[i];
+    e.scale[0] = XY;
+    e.scale[1] = XY;
+    let (cnt, life) = (i32::from(e.cnt), i32::from(e.life_time));
+    e.scale[2] = if cnt < IN {
+        let d = ee::mul(ee::from_int(cnt), ee::sub(HOLD, START));
+        ee::add(START, ee::div(d, ee::from_int(IN)))
+    } else if cnt < life - OUT {
+        HOLD
+    } else {
+        let d = ee::mul(ee::sub(HOLD, HALF), ee::from_int(life - cnt));
+        ee::add(HALF, ee::div(d, ee::from_int(OUT)))
+    };
+    e.fade_in_out(IN, 0, life);
+    Next::Draw
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,5 +232,36 @@ mod tests {
             fx.step(&mut host);
         }
         assert!(fx.ctrl.effects.iter().all(|e| e.status == 0));
+    }
+
+    /// 113 with life 30: z 2.5 at count 0, 2.2 from 5 to 14 (at 15 the
+    /// sinking's 0.5 + 1.7 comes out an ulp under), 0.5 at 30; faded in by
+    /// 5, and at count 30 FadeInOut's fade-out of 0 frames divides by zero
+    /// (the EE's largest number), then 0; gone after 31.
+    #[test]
+    fn the_held_wave_stretches_holds_and_sinks() {
+        let Some(mut fx) = crate::testing::effects() else { return };
+        fx.ctrl.town = false;
+        let mut r = || 0;
+        let mut host = Simple::new(&mut r, [0, 0, 0, crate::ONE], Camera::default());
+        let i = {
+            let (ctrl, cx) = fx.split(&mut host);
+            ctrl.new_effect(&cx, WAVE2_HELD).unwrap()
+        };
+        fx.ctrl.effects[i].life_time = 30;
+        let (mut z, mut t) = (Vec::new(), Vec::new());
+        for _ in 0..40 {
+            fx.step(&mut host);
+            let e = &fx.ctrl.effects[i];
+            if e.status != 0 {
+                assert_eq!((e.scale[0], e.scale[1]), (0x4026_6666, 0x4026_6666));
+                z.push(e.scale[2]);
+                t.push(e.transparency);
+            }
+        }
+        assert_eq!(z.len(), 32);
+        assert_eq!((z[0], z[5], z[14], z[15], z[30]), (k(2.5), 0x400c_cccd, 0x400c_cccd, 0x400c_cccc, HALF));
+        assert!(f32::from_bits(z[20]) < 2.2 && f32::from_bits(z[20]) > 0.5);
+        assert_eq!((t[0], t[5], t[15], t[30], t[31]), (0, ONE, ONE, 0x7fff_ffff, 0));
     }
 }

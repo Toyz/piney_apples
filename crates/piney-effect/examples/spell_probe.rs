@@ -4,8 +4,9 @@
 //! frames through the game's own code in eemu (`spell_probe ISO < requests`).
 //! Numbers are hex; floats travel as their bit patterns. The requests (`reset`,
 //! `player`, `camera`, `char`, `skill`, `frame`, `posp`, `affect`, the
-//! starters, `endflag`) are the tests'. `ccSkill::Main` is the battle crate's;
-//! the probe does what it does for a spell around [`Effects::spell_system`].
+//! starters, `spawn`, `set`, `endflag`) are the tests'. `ccSkill::Main` is
+//! the battle crate's; the probe does what it does for a spell around
+//! [`Effects::spell_system`].
 
 use std::collections::HashMap;
 use std::io::BufRead;
@@ -836,14 +837,18 @@ fn effect2(fx: &Effects, i: usize, e: &Effect2) -> String {
     )
 }
 
+/// The volume's `particleForceFieldTbl` (INF main 0x00343850, 4736 bytes).
+static FF_TBL: std::sync::OnceLock<std::ops::Range<u32>> = std::sync::OnceLock::new();
+
 fn generator(g: &Generator) -> String {
     // A force field passed to the constructor (outside
-    // particleForceFieldTbl, 0x00343850, 4736 bytes), as the harness names
-    // it: its address; the row's own: null.
+    // particleForceFieldTbl), as the harness names it: its address; the
+    // row's own: null.
+    let tbl = FF_TBL.get().cloned().unwrap_or(0..0);
     let ff: Vec<String> =
         g.ff.iter()
             .map(|f| match f {
-                Some(f) if !(0x0034_3850..0x0034_3850 + 4736).contains(&f.va) => f.va.to_string(),
+                Some(f) if !tbl.contains(&f.va) => f.va.to_string(),
                 _ => "null".into(),
             })
             .collect();
@@ -986,7 +991,10 @@ fn main() {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path).unwrap();
     let archive = Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap();
-    let mut fx = Effects::new(&archive, iso.volume().unwrap()).unwrap();
+    let volume = iso.volume().unwrap();
+    let t = piney_data::tables::effect::of(volume);
+    FF_TBL.set(t.force_fields_va()..t.force_fields_va() + 0x20 * t.force_fields().len() as u32).unwrap();
+    let mut fx = Effects::new(&archive, volume).unwrap();
     let fresh = fx.spells.clone();
     let mut host = Probe::new(0, 4352, (1, 0, 0));
     let stdin = std::io::stdin();
@@ -1149,6 +1157,31 @@ fn main() {
                 fx.ctrl.effects[n(1) as usize].end_flag = true;
                 println!("{{}}");
             }
+            "set" => {
+                let e = &mut fx.ctrl.effects[n(1) as usize];
+                let v4 = [
+                    n(3),
+                    w.get(4).map_or(0, |s| hex(s)),
+                    w.get(5).map_or(0, |s| hex(s)),
+                    w.get(6).map_or(0, |s| hex(s)),
+                ];
+                match w[2] {
+                    "pos" => e.pos = v4,
+                    "offset" => e.offset = v4,
+                    "rot" => e.rot = v4,
+                    "speed" => e.speed = v4,
+                    "scale" => e.scale = v4,
+                    "posT" => e.pos_t = v4,
+                    "temp" => e.temp = v4,
+                    "life" => e.life_time = n(3) as i16,
+                    "transparency" => e.transparency = n(3),
+                    "param" => e.param = n(3) as i32,
+                    "flags" => e.flags = n(3) as i32,
+                    "target" => e.target = (n(3) != u32::MAX).then_some(n(3)),
+                    other => panic!("unknown field {other}"),
+                }
+                println!("{{}}");
+            }
             name => {
                 let i = |k: usize| n(k) as i32;
                 let ret = match name {
@@ -1189,6 +1222,14 @@ fn main() {
                     "abilityup" => fx.ability_up(&mut host, n(1), i(2)),
                     "abilitydown" => fx.ability_down(&mut host, n(1), i(2)),
                     "shield" => fx.resistant_shield(&mut host, n(1), i(2), i(3)),
+                    "icerock" => {
+                        let (ctrl, mut cx) = fx.split(&mut host);
+                        piney_effect::debris::eff_ice_rock(ctrl, &mut cx, v3(1), v3(4), n(7), n(8), i(9))
+                    }
+                    "spawn" => {
+                        let (ctrl, cx) = fx.split(&mut host);
+                        ctrl.new_effect(&cx, n(1) as i16)
+                    }
                     other => panic!("unknown request {other}"),
                 };
                 let events: Vec<String> = fx.take_events().iter().filter_map(event).collect();

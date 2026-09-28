@@ -2,7 +2,7 @@
 title: The field's effects - ccThEffect and ccThParticle
 status: partial
 volumes: INF
-covers: INF SLUS_202.67:0x001c2e60 ccThEffect, 0x001c3030 ccEffectCtrl::ccEffectCtrl, 0x001c38a0 ccEffectCtrl::Main, 0x001c2f70 ccThEffectStr, 0x001c39c0 ccEffectCtrl::MainStr, 0x001d8810 ccEffect::MainStr, 0x001cc620 effHitMarkStr, 0x001ce220 effTransferStr, 0x001c0620 ccParticle::MainStr, 0x001c2a20 ccParticleCtrlAddGenerator, 0x001c2af0 ccParticleCtrlGenerateParticle, 0x001c0e10 ccParticleCtrl::InitParticleCtrl, 0x001c3a60 ccNewEffect, 0x001c3af0 ccEffect::InitEffect, 0x001c3e10 ccEffect::Main, 0x001cc0c0 FadeIn, 0x001cc120 FadeOut, 0x001cc190 FadeInOut, 0x001ce020 effTransfer, 0x001cdef0 effTransferRing, 0x001ce120 effWarpTransfer, 0x0013ba20 ccEff::Init, 0x0013bc00 ccEff::SetBlendType, 0x0014cca0 ccStream::Decode_Eff, 0x001da710 ccCheckCameraDeg, 0x00138050 ccCoord::SetMatrix_PosRotXYZScale, 0x00138120 ccCoord::SetMatrix_PosRotZYXScale, 0x002fd4f0 effectCCSTbl, 0x0033fa60 effectTbl2, 0x0033f230 oneVector, 0x00348580 alphaBlendTbl, 0x0013bcb0 ccEff::Draw, 0x0013bc90 ccEff::Draw(pos, pat), 0x0013bb40 ccEff::SetRenderState, VU1 micro 0x595 mc_DrawEff, 0x001052c0 ccView::SetView, 0x001107b0 sceVu0InversMatrix, 0x00108260 ccLayer::Init, 0x001081d0 ccDLSort::Add, 0x001054d0 ccDrawEnv::Reset, 0x00105820 ccDrawEnv::SetFog, 0x0013f470 ccClump::Draw, 0x0013d7d0 ccClump::SetTransparency, 0x0013c5e0 ccClump::Init, 0x0013f220 ccObj::Draw, 0x00138380 ccCoord::_SetLWMatrix, 0x00138490 ccCoord::_GetTransparency, 0x001524d0 ccAnm::Draw, 0x001cc3e0 effHitMark, 0x001cc410 effHitRing, 0x001cc550 effHitPhoton, 0x001cf250 effProtect, 0x001cc890 effAttributeGuard, 0x001ccb40 effAttributeCritical, 0x001d9510 effCheckAttributeGuardEntry, 0x001d9560 effAddAttributeGuardEntry, 0x001d95c0 effDelAttributeGuardEntry, 0x001bca90 ccParticleAttributeCritical, 0x001bcc40 ccParticleAttributeGuard, 0x001bc540 ccParticleCritical, 0x001bc6d0 ccParticleDying, 0x001bc8c0 ccParticleNoDamage, 0x00162f10 checkCameraShakeRange, 0x001633c0 ccTransPosW2CZW, 0x00162cd0 cameraShake, 0x0015aed0 ccSprite::MakePacketStr, 0x0015cde0 MakeSignedNum, 0x0015cfc0 sdec2str, 0x001cdde0 effLevelUp, 0x001d79f0 effDrainCtrl, 0x001d7c40 effDrain, 0x001cd380 effAfterDrain, 0x00155210 normal2Angle, 0x00123b38 __ieee754_acosf, 0x001274c8 sin, 0x00126ee0 cos, 0x001d9620 genrand, 0x001d9a90 ccRandF, 0x0033f240 effectTbl, 0x003feeb0 effAttributeGuardEntry, 0x00377eec panelCamDist; INF gcmn.prg:0x0059b9c0 ccTransPosFW2LW, 0x0059b5a0 ccPlayer::W2PPos, 0x0059b710 ccPlayer::P2WPos, 0x00421630 ROOTTOWN01's SetFog, 0x005714e0 ccHitMarkDisp, 0x0051a8c0 ccInitFlyFont, 0x0051a900 ccEntryFlyFontNum, 0x0051aa10 ccCtrlFlyFont, 0x0051afc0 ccEntryFlyFontNew, 0x0051aea0 ccEntryFlyFontNewExp, 0x0051af20 ccEntryFlyFontNewLevelDown, 0x0051af70 ccEntryFlyFontNewMiss, 0x0051add0 Int2StrFF, 0x0072ebd0 flyFontCtrl, 0x0051b710 ccDamUprStr::ResetAll, 0x0051b780 ccDamUprStr::CtrlAll, 0x0051bb20 ccDamUprStr::DrawAll, 0x0051bb80 ccDamUprStr::AddStr, 0x0051b0b0 ccUprollStr::ccUprollStr, 0x0051b140 ccUprollStr::AddStr, 0x0051b530 ccUprollStr::Ctrl, 0x0051b320 ccUprollStr::Draw, 0x0052170c ccMenuCtrl::Disp (the numbers), 0x0059a7f4 ccPlayer::AnimCtrl (the transfers), 0x00598404 ccPlayer::Main (level up), 0x004353f0 ccEnemy::interruptThink, 0x004313f0 ccEntryCtrl::entryMagicCircle, 0x00455820 ccEntryGimCircle, 0x00455900 ccMagicCircle::ccMagicCircle, 0x00455b60 ccMagicCircle::main, 0x00455710 ccMagicCircle::createPart, 0x00455510 ccMagicCircle::setPart, 0x004548e0 ccMcPart::main, 0x00454840 ccMcPart::fade, 0x0042e670 ccEntryChangeCLUT, 0x001d1090 effMagicAttackSign, 0x001cd4e0 effMeteoFireBall2, 0x001ccec0 effFlareRing, 0x001d80c0 effSkillBreakSE, 0x001d3d80 effSkillTornadeRingsPos, 0x001d57b0 effSkillTornadeObjPos, 0x001d48b0 effSkillTornadeSmoke, 0x001d5da0 effSkillChargeObject, 0x001d5eb0 effSkillChargeObj, 0x001d12a0 effUpheavalFragment, 0x001d1740 effUpheavalFlash, 0x001d1aa0 effSummonsRing, 0x001d1d30 effSummonsElement, 0x001d1f10 effSummonsShockWave, 0x001d22b0 effSmmonsFragment, 0x001d8190 effSBLockon, 0x001d8410 effTCDrillMissile, 0x001cda30 effSmokeRock, 0x001d4a20 effDarkSmoke, 0x001d4cd0 effRadiateSomething, 0x001d5110 effRadiateSomething2, 0x001d6410 effSmokeIce, 0x001cc240 ccEffect2::InitEffect, 0x001cc290 ccEffect2::Main, 0x00123f78 __ieee754_asinf; INF gcmn.prg:0x005731d0 ccSkill::Main, 0x00577a30 FallSystem, 0x00577540 TornadoSystem, 0x00578060 ConvergenceSystem, 0x005787c0 UpheavalSystem, 0x00579000 SummonsSystem, 0x004e8da0 ccEffectElementManager::Main, 0x004fef30 ccFallElementGenerate, 0x00500bd0 ccSkillTornadeElementsGenerate, 0x004ffd10 ccConvergenceElementGenerate, 0x005007e0 ccUpheavalElementGenerate, 0x005006b0 ccSummonsElementGenerate, 0x00500dc0 ccThunderBoltElement, 0x004fbbe0 ccRingElement, 0x005000b0 effExplode3, 0x004fff50 effEnergyGrow, 0x005002a0 effThunderShock; INF SLUS_202.67:0x001d35f0 effSkillStart, 0x001d3650 effSkillStart(ccSkillParam), 0x001d39d0 effSkillStartEffect, 0x001d2d80 effSkillExecRing, 0x001d2f50 effSkillExecForceRing, 0x001d3100 effSkillExecForceRing2, 0x001d32b0 effSkillExecSummonsCircle, 0x001d3450 effSkillExecCircle, 0x001d2790 effPhysicalSkillHitShockWave, 0x001ccd20 effHeal, 0x001cccf0 effHealSkill, 0x001cef50 effCure, 0x001cf0d0 effSanity, 0x001cedd0 effResurrect, 0x001ced40 effOpenBox, 0x001d0ae0 effFountain, 0x001d0be0 effBossRoomEntrance, 0x001d0c90 effDungeonEntrance, 0x003401f0 effDungeonEntranceColor, 0x001d0980 effRemoveTrap, 0x001d0f00 effEvolvePG, 0x001d0fd0 effGrowPG, 0x001d7380 effAbilityUp, 0x001d7630 effAbilityDown, 0x001d78c0 checkEffAbilityColor, 0x0033fdf0 tableAbilityUpS1-S4, 0x0033fe70 tableAbilityDownS1-S3, 0x00340170 the cures' generator rows, 0x00377ef0 the rings' and waves' tables, 0x001d9ce0 ccGetDirc; INF gcmn.prg:0x00573a10 ccSkillCheckNote, 0x00573be0 ccSkillCheckType, 0x00573c30 _ccSkillCheckType, 0x00501ab0 effResistantShield, 0x00501cb0 effResistantShield(scale), 0x00501970 ccResistantShieldElement::Main, 0x005018e0 ~ccResistantShieldElement, 0x0059b980 ccTransPosP2W, 0x0056f950 ccChar::DispConditionEffect
+covers: INF SLUS_202.67:0x001c2e60 ccThEffect, 0x001c3030 ccEffectCtrl::ccEffectCtrl, 0x001c38a0 ccEffectCtrl::Main, 0x001c2f70 ccThEffectStr, 0x001c39c0 ccEffectCtrl::MainStr, 0x001d8810 ccEffect::MainStr, 0x001cc620 effHitMarkStr, 0x001ce220 effTransferStr, 0x001c0620 ccParticle::MainStr, 0x001c2a20 ccParticleCtrlAddGenerator, 0x001c2af0 ccParticleCtrlGenerateParticle, 0x001c0e10 ccParticleCtrl::InitParticleCtrl, 0x001c3a60 ccNewEffect, 0x001c3af0 ccEffect::InitEffect, 0x001c3e10 ccEffect::Main, 0x001cc0c0 FadeIn, 0x001cc120 FadeOut, 0x001cc190 FadeInOut, 0x001ce020 effTransfer, 0x001cdef0 effTransferRing, 0x001ce120 effWarpTransfer, 0x0013ba20 ccEff::Init, 0x0013bc00 ccEff::SetBlendType, 0x0014cca0 ccStream::Decode_Eff, 0x001da710 ccCheckCameraDeg, 0x00138050 ccCoord::SetMatrix_PosRotXYZScale, 0x00138120 ccCoord::SetMatrix_PosRotZYXScale, 0x002fd4f0 effectCCSTbl, 0x0033fa60 effectTbl2, 0x0033f230 oneVector, 0x00348580 alphaBlendTbl, 0x0013bcb0 ccEff::Draw, 0x0013bc90 ccEff::Draw(pos, pat), 0x0013bb40 ccEff::SetRenderState, VU1 micro 0x595 mc_DrawEff, 0x001052c0 ccView::SetView, 0x001107b0 sceVu0InversMatrix, 0x00108260 ccLayer::Init, 0x001081d0 ccDLSort::Add, 0x001054d0 ccDrawEnv::Reset, 0x00105820 ccDrawEnv::SetFog, 0x0013f470 ccClump::Draw, 0x0013d7d0 ccClump::SetTransparency, 0x0013c5e0 ccClump::Init, 0x0013f220 ccObj::Draw, 0x00138380 ccCoord::_SetLWMatrix, 0x00138490 ccCoord::_GetTransparency, 0x001524d0 ccAnm::Draw, 0x001cc3e0 effHitMark, 0x001cc410 effHitRing, 0x001cc550 effHitPhoton, 0x001cf250 effProtect, 0x001cc890 effAttributeGuard, 0x001ccb40 effAttributeCritical, 0x001d9510 effCheckAttributeGuardEntry, 0x001d9560 effAddAttributeGuardEntry, 0x001d95c0 effDelAttributeGuardEntry, 0x001bca90 ccParticleAttributeCritical, 0x001bcc40 ccParticleAttributeGuard, 0x001bc540 ccParticleCritical, 0x001bc6d0 ccParticleDying, 0x001bc8c0 ccParticleNoDamage, 0x00162f10 checkCameraShakeRange, 0x001633c0 ccTransPosW2CZW, 0x00162cd0 cameraShake, 0x0015aed0 ccSprite::MakePacketStr, 0x0015cde0 MakeSignedNum, 0x0015cfc0 sdec2str, 0x001cdde0 effLevelUp, 0x001d79f0 effDrainCtrl, 0x001d7c40 effDrain, 0x001cd380 effAfterDrain, 0x00155210 normal2Angle, 0x00123b38 __ieee754_acosf, 0x001274c8 sin, 0x00126ee0 cos, 0x001d9620 genrand, 0x001d9a90 ccRandF, 0x0033f240 effectTbl, 0x003feeb0 effAttributeGuardEntry, 0x00377eec panelCamDist; INF gcmn.prg:0x0059b9c0 ccTransPosFW2LW, 0x0059b5a0 ccPlayer::W2PPos, 0x0059b710 ccPlayer::P2WPos, 0x00421630 ROOTTOWN01's SetFog, 0x005714e0 ccHitMarkDisp, 0x0051a8c0 ccInitFlyFont, 0x0051a900 ccEntryFlyFontNum, 0x0051aa10 ccCtrlFlyFont, 0x0051afc0 ccEntryFlyFontNew, 0x0051aea0 ccEntryFlyFontNewExp, 0x0051af20 ccEntryFlyFontNewLevelDown, 0x0051af70 ccEntryFlyFontNewMiss, 0x0051add0 Int2StrFF, 0x0072ebd0 flyFontCtrl, 0x0051b710 ccDamUprStr::ResetAll, 0x0051b780 ccDamUprStr::CtrlAll, 0x0051bb20 ccDamUprStr::DrawAll, 0x0051bb80 ccDamUprStr::AddStr, 0x0051b0b0 ccUprollStr::ccUprollStr, 0x0051b140 ccUprollStr::AddStr, 0x0051b530 ccUprollStr::Ctrl, 0x0051b320 ccUprollStr::Draw, 0x0052170c ccMenuCtrl::Disp (the numbers), 0x0059a7f4 ccPlayer::AnimCtrl (the transfers), 0x00598404 ccPlayer::Main (level up), 0x004353f0 ccEnemy::interruptThink, 0x004313f0 ccEntryCtrl::entryMagicCircle, 0x00455820 ccEntryGimCircle, 0x00455900 ccMagicCircle::ccMagicCircle, 0x00455b60 ccMagicCircle::main, 0x00455710 ccMagicCircle::createPart, 0x00455510 ccMagicCircle::setPart, 0x004548e0 ccMcPart::main, 0x00454840 ccMcPart::fade, 0x0042e670 ccEntryChangeCLUT, 0x001d1090 effMagicAttackSign, 0x001cd4e0 effMeteoFireBall2, 0x001ccec0 effFlareRing, 0x001d80c0 effSkillBreakSE, 0x001d3d80 effSkillTornadeRingsPos, 0x001d57b0 effSkillTornadeObjPos, 0x001d48b0 effSkillTornadeSmoke, 0x001d5da0 effSkillChargeObject, 0x001d5eb0 effSkillChargeObj, 0x001d12a0 effUpheavalFragment, 0x001d1740 effUpheavalFlash, 0x001d1aa0 effSummonsRing, 0x001d1d30 effSummonsElement, 0x001d1f10 effSummonsShockWave, 0x001d22b0 effSmmonsFragment, 0x001d8190 effSBLockon, 0x001d8410 effTCDrillMissile, 0x001cda30 effSmokeRock, 0x001d4a20 effDarkSmoke, 0x001d4cd0 effRadiateSomething, 0x001d5110 effRadiateSomething2, 0x001d6410 effSmokeIce, 0x001cc240 ccEffect2::InitEffect, 0x001cc290 ccEffect2::Main, 0x00123f78 __ieee754_asinf; INF gcmn.prg:0x005731d0 ccSkill::Main, 0x00577a30 FallSystem, 0x00577540 TornadoSystem, 0x00578060 ConvergenceSystem, 0x005787c0 UpheavalSystem, 0x00579000 SummonsSystem, 0x004e8da0 ccEffectElementManager::Main, 0x004fef30 ccFallElementGenerate, 0x00500bd0 ccSkillTornadeElementsGenerate, 0x004ffd10 ccConvergenceElementGenerate, 0x005007e0 ccUpheavalElementGenerate, 0x005006b0 ccSummonsElementGenerate, 0x00500dc0 ccThunderBoltElement, 0x004fbbe0 ccRingElement, 0x005000b0 effExplode3, 0x004fff50 effEnergyGrow, 0x005002a0 effThunderShock; INF SLUS_202.67:0x001d35f0 effSkillStart, 0x001d3650 effSkillStart(ccSkillParam), 0x001d39d0 effSkillStartEffect, 0x001d2d80 effSkillExecRing, 0x001d2f50 effSkillExecForceRing, 0x001d3100 effSkillExecForceRing2, 0x001d32b0 effSkillExecSummonsCircle, 0x001d3450 effSkillExecCircle, 0x001d2790 effPhysicalSkillHitShockWave, 0x001ccd20 effHeal, 0x001cccf0 effHealSkill, 0x001cef50 effCure, 0x001cf0d0 effSanity, 0x001cedd0 effResurrect, 0x001ced40 effOpenBox, 0x001d0ae0 effFountain, 0x001d0be0 effBossRoomEntrance, 0x001d0c90 effDungeonEntrance, 0x003401f0 effDungeonEntranceColor, 0x001d0980 effRemoveTrap, 0x001d0f00 effEvolvePG, 0x001d0fd0 effGrowPG, 0x001d7380 effAbilityUp, 0x001d7630 effAbilityDown, 0x001d78c0 checkEffAbilityColor, 0x0033fdf0 tableAbilityUpS1-S4, 0x0033fe70 tableAbilityDownS1-S3, 0x00340170 the cures' generator rows, 0x00377ef0 the rings' and waves' tables, 0x001d9ce0 ccGetDirc; INF gcmn.prg:0x00573a10 ccSkillCheckNote, 0x00573be0 ccSkillCheckType, 0x00573c30 _ccSkillCheckType, 0x00501ab0 effResistantShield, 0x00501cb0 effResistantShield(scale), 0x00501970 ccResistantShieldElement::Main, 0x005018e0 ~ccResistantShieldElement, 0x0059b980 ccTransPosP2W, 0x0056f950 ccChar::DispConditionEffect, INF SLUS_202.67:0x001ceaa0 effIceRock; INF gcmn.prg:0x00462d00 ccBossEffIceMissile::Draw, 0x0046cc10 ccBossEffIceBreak::Draw
 ---
 
 # The field's effects - ccThEffect and ccThParticle
@@ -163,6 +163,18 @@ the second dispatch on id (a compare chain at 0x001c77f8): children,
 the end (0x001cc000): cnt++; lifeTime != -1: age++, and endFlag when
   lifeTime < the age before it; the scratch stack released
 ```
+
+The first switch gives 161 of its 188 ids a case (27 go straight to the
+draw); the chain names 124 ids, sharing 34 cases. Some cases have no maker:
+of the 88 calls to `InitEffect` and `ccNewEffect` in each volume's main and
+overlays (the same calls and ids in all four), none makes id 0, 113 or
+-11..-8, and only `InitEffect` writes +0x6c. Id 0 (`ANM_x300`, the fire
+meteor's animation) shares the meteors' cases ([FallSystem](#fallsystem));
+113 (`CMP_x042`, 80's model) has its own ([a physical skill's
+blow](#a-physical-skills-blow-effphysicalskillhitshockwave)); -11..-8 have
+no object and no first-switch case, and their chain case (0x001c9b34) is
+`sw $zero, 0($zero)`: the game's "cannot happen" store to address 0, then
+the end.
 
 The pattern step, by `effectTbl[id].type`: 3 `texAnmPat++`, endFlag once it
 reaches `patNum`; 4 `++`, back to 0 at `patNum`; 5 `++`, held at `patNum -
@@ -445,6 +457,11 @@ effPhysicalSkillHitShockWave(p, attr)   (main 0x001d2790), attr exactly:
                  -2184 (2184); param 1 rises 12.6 a frame
 81 (0x001c4da4)  x, y 1 -> 3 (2), z 1 -> 5.3 (8.9); turning -1092 (1092)
                  each FadeInOut(5, 5, life)
+113 (0x001c5a80) CMP_x042 like 80, made by nothing: x, y 2.6; z
+                 2.5 + cnt (2.2 - 2.5) / 5 while cnt < 5, 2.2 while cnt <
+                 life - 15, then 0.5 + (2.2 - 0.5) (life - cnt) / 15;
+                 FadeInOut(5, 0, life): at cnt = life the fade-out's 0 / 0
+                 is the EE's largest number (0x7fffffff), after it 0
 ```
 
 The tables: 80's main 0x00377ef0 (turns 0x00377f10), 81's 0x00377f18
@@ -559,6 +576,29 @@ effBossRoomEntrance(pos, sw)
 pots, bodies the bones, eggs), `invokeTrap` kind 0 for a treasure box and
 1 for a wooden box or barrel with trap 0, 3 or 4. The only CLUT swap is
 a trapped wooden box's.
+
+### The ice rocks
+
+The bosses' ice throws rocks 15-18 (`CMP_x202a`-`d`):
+
+```text
+effIceRock(p, r, v, s, n)   (main 0x001ceaa0) n rocks, each: rn = rand()
+  >> 3; id 15 + (rn & 3); thrown from p as effSmokeRock throws its rocks
+  (the direction turned by r, speed v (100 - (rn >> 8) % 50) / 100), the
+  rise (speed.z) cut to 0.6; life 90, scale s, velocity v; rotSpeed x
+  (rn >> 4) & 0xf00, z (rn >> 8) & 0xf00; the last rock
+first switch 0x001c4034: the debris' tumble (ConvergenceSystem)
+second chain 0x001c839c: the upheaval rocks' landing (0x001c9b44, the
+  same code): 0.75 a bounce, z by -0.75; FadeOut(10, lifeTime)
+```
+
+| caller | throws |
+| --- | --- |
+| `ccBossEffIceBreak::Draw` (gcmn 0x0046cc10), from Skeith's magic (`ccBoss01::OnMagicAtk`, [the boss](boss.md)) and Fidchell's `ccBoss04::OnIceBreak` | twelve, 60 Draws after its smoke is killed, from 100 above pos turned about z by 0, pi/2, -pi, -pi/2: (v, s, n) (50, 0.2, 10), (25, 1, 5), (10, 5, 1) each way, 64 rocks |
+| `ccBossEffIceMissile::Draw` (gcmn 0x00462d00), from Innis's `ccBoss02::IceAttack` ([Innis](boss-innis.md)) | two at its impact, turned -pi/2 about x: (50, 1, 20), (100, 0.5, 20), 40 rocks |
+
+The callers are the same in all four volumes (Infection's names, carried),
+and so is Mutation's case.
 
 ### Smoke and dust
 
@@ -1561,6 +1601,9 @@ a shake (0, 1, 10, 0) in the camera's range, `effSmokeRock` (soil, fire:
 9 rocks at 45) or `effDarkSmoke` (dark), `effFlareRing(p + 20 up, n)`,
 fire's sparks (generators 91, 93). The thunder meteor -14 instead drops a
 `ccThunderBoltElement` (`skillThunderEff`, main 0x0033fcc0) at its count 20.
+Id 0 (`ANM_x300`, an animation of the fire meteor) shares the meteors'
+cases of both passes (first switch 0x001c41a0, second chain 0x001c8900,
+turning as 6 and 87 do), but nothing makes it.
 
 Levels 3 and 4: `ccFallElementGenerate` (gcmn 0x004fef30) makes
 `ccFallElement` (ctor 0x004e9610, Main 0x004e9b30: 8 or 15 meteors - the
@@ -2251,6 +2294,7 @@ every draw in order, every event and `rand()`'s state:
   | heal: `effHeal`, `effHealSkill`, `effCure`, `effSanity`, `effResurrect`, `effOpenBox`, `effRemoveTrap` | 262 | 83 | 7,537 | 3,041 draws, 11,815 slot-frames, 761 generators, 119 sounds |
   | ability: `effAbilityUp`, `effAbilityDown` | 288 | 84 | 14,129 | 25,121 slot-frames, 3,054 generators with their textures |
   | shield: `effResistantShield` | 262 | 84 | 2,964 | 3,096 element-frames, 3,090 animation draws, 209 sounds |
+  | ids: `effIceRock` over a flat land at a random height; 0, 113, -11..-8 by `ccNewEffect`, set up as a maker would | 169 | 64 | 5,604 | 19,453 draws, 31,403 slot-frames (ids -15, -11..-8, 0, 7, 9-11, 15-18, 113), 610 generators, 64 events |
 
   All 0 mismatches (36,605 frames; the default run is the sweeps and
   20-30 random cases a group). Each of 18 one-constant mutations of the
@@ -2258,6 +2302,17 @@ every draw in order, every event and `rand()`'s state:
   rise, a turn, a piece count, a scale's end, a trigger count, a modulus,
   a lift, a colour column, the shield's hundredth, its pi/2, its
   animation's choice) fails the checks.
+  The ids group's sweep is an IceBreak's twelve throws at once, the meteor
+  0 for each element (and one not falling), 113 with lives 0-40 and -1
+  (ended at random) and each of -11..-8. Each of 8 mutations (the ice
+  rocks' bounce as the debris', their case dropped, 0 dropped from either
+  pass, 113's case dropped, its start, its fade-out time, its hold) fails
+  it; with the ice rocks' case dropped, as the port had it, the rocks part
+  from the game at the first landing check. Run on Mutation's disc
+  (`PINEY_VOLUME=mutation`) it agrees too: 34 cases, 2,786 frames, 10,079
+  draws, 15,968 slot-frames. On Outbreak's and Quarantine's it parts at the first draw
+  the distance fades: their `Main` has `sqrt.s` where Infection's calls
+  `sqrtf`, an ulp or two apart, for every effect.
 - `tools/test_effect_draw_rs.py`'s `ModelsAgainstGame` also draws the
   shield's two animations (ANM_x069, ANM_x070) and the magic portal's
   file after the effect files (`XMAGCIR.CCS`: its clump, the idle loop
