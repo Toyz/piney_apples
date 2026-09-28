@@ -5,9 +5,10 @@
 //! "Mutation's other effect tasks").
 
 use piney_desktop::noiz::Sampling;
-use piney_world::ee::{self, F};
+use piney_world::ee::{self, F, ONE};
 
 use crate::effect::{Ctrl, Cue, Draws, EFFECT_LAYER, FADE_WHITE, HitMark, MAX_CUES, Rand, Tables, Transfer, hit_mark};
+use crate::ending::PartDraw;
 use crate::scene::SceneFog;
 
 /// `SetFog(0, 0, 0, 0, 0)`: no fog (the EE's 0 / 0 is the largest float).
@@ -25,6 +26,9 @@ pub const STR0932: &str = "str0932";
 pub const STR1040: &str = "str1040";
 pub const STR1041: &str = "str1041";
 pub const STR1050: &str = "str1050";
+pub const STR1070: &str = "str1070";
+/// `Func_str1070`'s effect file (`str1070e`, else `str1070ep`).
+pub const EFF_FILE_1070: &str = "str1070e";
 pub const STR1090: &str = "str1090";
 pub const STR9204: &str = "str9204";
 pub const STR9205: &str = "str9205";
@@ -576,9 +580,274 @@ impl Str9204 {
     }
 }
 
+/// A `Func_str1070` part creator's block: base and random pairs (radius,
+/// angle and turn in degrees, height, rise, the spins about y and z in
+/// degrees), then the parts a frame in 1/4096, its random part, and the
+/// frames it makes them for.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Param1070 {
+    pub f: [F; 14],
+    pub rate: i32,
+    pub rate_rand: i32,
+    pub life: i32,
+}
+
+/// What `Func_str1070` reads (MUT main): its creators' blocks (0x00321c00),
+/// the parts' models (0x00366f70: a chunk and a scale) and the chunks'
+/// names (0x00321e30, in `str1070e`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Tables1070 {
+    pub params: Vec<Param1070>,
+    pub models: Vec<(usize, F)>,
+    pub chunks: Vec<String>,
+}
+
+impl Tables1070 {
+    /// The volume's (`tables::stream`): Mutation's only.
+    pub fn read(volume: piney_data::volume::Volume) -> Tables1070 {
+        let t = piney_data::tables::stream::of(volume);
+        let params = t
+            .part_params_1070()
+            .iter()
+            .map(|p| Param1070 { f: p.f.map(f32::to_bits), rate: p.rate, rate_rand: p.rate_rand, life: p.life })
+            .collect();
+        let models = t.part_models_1070().iter().map(|m| (m.chunk.max(0) as usize, m.scale.to_bits())).collect();
+        let chunks = t.part_chunks_1070().iter().map(|n| n.unwrap_or_default().to_string()).collect();
+        Tables1070 { params, models, chunks }
+    }
+}
+
+/// A creator (`ccPartCreate`, 0x44): its block, its two counters in 1/4096
+/// (+0x18, +0x1c) and the frames it has run (+0x08).
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Creator1070 {
+    param: Param1070,
+    a: i32,
+    b: i32,
+    count: i32,
+}
+
+/// A part (0x120): an object circling the scene's origin as it rises and
+/// spins.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Part1070 {
+    chunk: usize,
+    pos: V4,
+    vel: V4,
+    rot: V4,
+    drot: V4,
+    scale: V4,
+    angle: F,
+    dangle: F,
+    radius: F,
+}
+
+const PI: F = 0x4049_0fdb;
+const HALF_TURN: F = 0x4334_0000;
+const FULL_TURN: F = 0x43b4_0000;
+const MINUS_HALF_TURN: F = 0xc334_0000;
+/// 0.0174533: the angle's degrees to radians.
+const DEG: F = 0x3c8e_fa35;
+
+type V4 = [F; 4];
+
+/// `base + range rand() / 2^31`.
+fn spread(base: F, range: F, rand: &mut Rand) -> F {
+    ee::add(base, crate::ending::rand_in(range, rand))
+}
+
+/// The creator's `Ctrl` (MUT main 0x001a6510): the counters stepped, and
+/// `a >> 12` parts made, plus `rand() % (b >> 12)` when that is not 0;
+/// true once it has run its `life` frames.
+fn creator_1070(c: &mut Creator1070, t: &Tables1070, parts: &mut Vec<Part1070>, rand: &mut Rand) -> bool {
+    c.a = (c.a & 0xfff) + c.param.rate;
+    c.b = (c.b & 0xfff) + c.param.rate_rand;
+    let more = c.b >> 12;
+    let extra = if more != 0 { rand.rand() % more } else { 0 };
+    for _ in 0..(c.a >> 12) + extra {
+        parts.push(new_part_1070(&c.param, t, rand));
+    }
+    c.count += 1;
+    c.count >= c.param.life
+}
+
+/// A part made: the radius, the angle (degrees less 180, back by a turn
+/// past 180), the turn, the height, the rise, random turns about x and y,
+/// the spins, then its model (`rand() % 10`), each drawing `rand()`.
+fn new_part_1070(p: &Param1070, t: &Tables1070, rand: &mut Rand) -> Part1070 {
+    let f = &p.f;
+    let radius = spread(f[0], f[1], rand);
+    let mut a = ee::sub(spread(f[2], f[3], rand), HALF_TURN);
+    if !ee::le(a, HALF_TURN) {
+        a = ee::sub(a, FULL_TURN);
+    }
+    let angle = ee::mul(a, DEG);
+    let dangle = ee::div(ee::mul(PI, spread(f[4], f[5], rand)), HALF_TURN);
+    let z = spread(f[6], f[7], rand);
+    let vz = spread(f[8], f[9], rand);
+    let turn = |rand: &mut Rand| {
+        let r = crate::ending::rand_in(FULL_TURN, rand);
+        ee::div(ee::mul(PI, ee::add(MINUS_HALF_TURN, r)), HALF_TURN)
+    };
+    let rx = turn(rand);
+    let ry = turn(rand);
+    let dx = ee::div(ee::mul(PI, spread(f[10], f[11], rand)), HALF_TURN);
+    let dy = ee::div(ee::mul(PI, spread(f[12], f[13], rand)), HALF_TURN);
+    let (chunk, s) = t.models.get((rand.rand() % 10) as usize).copied().unwrap_or((0, ONE));
+    Part1070 {
+        chunk,
+        pos: [0, 0, z, ONE],
+        vel: [0, 0, vz, 0],
+        rot: [rx, ry, 0, 0],
+        drot: [dx, dy, 0, 0],
+        scale: [s, s, s, 0],
+        angle,
+        dangle,
+        radius,
+    }
+}
+
+/// The part's `Ctrl` (MUT main 0x001a63e0): the angle turned, the part
+/// risen and spun, placed on its circle (`SetMatrix_PosRotXYZScale`) and
+/// drawn. Gone once above 200 and out of view; the port takes the parts'
+/// models to have no Bbox (as the ending's rocks), so always in view.
+fn part_1070(p: &mut Part1070, out: &mut Vec<PartDraw>) {
+    p.angle = crate::ending::rotate(p.angle, p.dangle);
+    let off = [ee::mul(p.radius, ee::sinf(p.angle)), ee::mul(p.radius, ee::cosf(p.angle)), 0, 0];
+    p.pos = ee::vadd(p.pos, p.vel);
+    p.rot[1] = crate::ending::rotate(p.rot[1], p.drot[1]);
+    p.rot[2] = crate::ending::rotate(p.rot[2], p.drot[2]);
+    let at = ee::vadd(off, p.pos);
+    let matrix = piney_world::field_ambient::pos_rot_xyz_scale(at, p.rot, [p.scale[0], p.scale[1], p.scale[2]]);
+    out.push(PartDraw::Xpart { chunk: p.chunk, matrix });
+}
+
+/// `Func_str1070` (MUT main 0x001a6af0), stream 34: parts circling and
+/// rising out of `str1070e`, made in bursts and streams at set frames.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Str1070 {
+    pub ctrl: Ctrl,
+    tables: Tables1070,
+    creators: Vec<Creator1070>,
+    parts: Vec<Part1070>,
+    draws: Vec<PartDraw>,
+}
+
+impl Str1070 {
+    /// Started: the objects; no parts.
+    pub fn new(tables: &Tables1070, rand: &mut Rand) -> Str1070 {
+        Str1070 {
+            ctrl: Ctrl::new(Some(EFFECT_LAYER), rand),
+            tables: tables.clone(),
+            creators: Vec::new(),
+            parts: Vec::new(),
+            draws: Vec::new(),
+        }
+    }
+
+    /// The parts' draws of the last pass.
+    pub fn part_draws(&self) -> &[PartDraw] {
+        &self.draws
+    }
+
+    /// The group emptied and new creators on blocks `k`.
+    fn restart(&mut self, k: &[usize]) {
+        self.creators.clear();
+        self.parts.clear();
+        for &i in k {
+            if let Some(&param) = self.tables.params.get(i) {
+                self.creators.push(Creator1070 { param, a: 0, b: 0, count: 0 });
+            }
+        }
+    }
+
+    /// One pass: the scene frame's shades and part creators (260, 411,
+    /// 505, 636, 781; the shades off at 932); the cues, last queued first
+    /// (899 to black, 1-4 noise and inversion, 5 / 15 / 25 the feedback
+    /// with a fade over 10 ready, 6 / 16 / 26 fading); the creators, then
+    /// the parts, newest first; then [`Ctrl::pass`].
+    pub fn step(&mut self, cues: &[Cue], frame_now: u32, frame_end: u32, paused: bool, rand: &mut Rand) -> Draws {
+        self.draws.clear();
+        match frame_now {
+            260 => self.restart(&[0, 1]),
+            261 => shades_n(&mut self.ctrl, 7, 0x43fa_0000, 0x4000_0000, 0x4080_8080, 2),
+            411 => self.restart(&[2, 3]),
+            505 => {
+                shades_n(&mut self.ctrl, 7, 0x4541_c000, ONE, 0x5080_8080, 1);
+                self.restart(&[4, 5]);
+            }
+            636 => {
+                shades_n(&mut self.ctrl, 8, 0x451c_4000, 0x4000_0000, 0x4080_8080, 2);
+                self.restart(&[4, 5]);
+            }
+            781 => {
+                shades_n(&mut self.ctrl, 8, 0x4604_d000, 0x3fa6_6666, 0x5080_8080, 2);
+                self.restart(&[6]);
+            }
+            932 => self.ctrl.shades.count = 0,
+            _ => {}
+        }
+        let c = &mut self.ctrl;
+        for &Cue { param, .. } in cues[..cues.len().min(MAX_CUES)].iter().rev() {
+            match param {
+                899 => fade_out(c, frame_now, frame_end),
+                6 | 16 | 26 => c.feedback.flag = 2,
+                5 | 15 | 25 => c.feedback.reflex_timed(0x3f81_47ae, 0x4080_8080, 0, 10),
+                4 => c.reverse = false,
+                3 => c.reverse = true,
+                2 => c.noise_on = false,
+                1 => c.noise_start(rand),
+                _ => {}
+            }
+        }
+        let mut k = self.creators.len();
+        while k > 0 {
+            k -= 1;
+            if creator_1070(&mut self.creators[k], &self.tables, &mut self.parts, rand) {
+                self.creators.remove(k);
+            }
+        }
+        for p in self.parts.iter_mut().rev() {
+            part_1070(p, &mut self.draws);
+        }
+        self.ctrl.pass(paused, rand)
+    }
+}
+
+/// Shades `SetShade(0, 896, 0, tw - i, tw - i, z_i, colour)` as the loop
+/// makes two, the depth `z` then `z * k`, and `count` of them drawn.
+fn shades_n(c: &mut Ctrl, tw: u8, z: F, k: F, colour: u32, count: usize) {
+    let sh = &mut c.shades;
+    sh.list.clear();
+    let mut z = z;
+    for i in 0..2u8 {
+        sh.list.push(Sampling::shade_own(tw - i, tw - i, z, colour));
+        z = ee::mul(z, k);
+    }
+    sh.count = count;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Frame 260's two creators: block 0 bursts 16 parts (65536 / 4096, one
+    /// frame), block 1 streams one every other frame (2048 / 4096).
+    #[test]
+    fn str1070_bursts_then_streams() {
+        let t = Tables1070::read(piney_data::volume::Volume::Mut);
+        if t.params.len() != 7 {
+            return;
+        }
+        assert_eq!(t.chunks[0], "OBJ_xpart00");
+        let mut r = Rand::default();
+        let mut s = Str1070::new(&t, &mut r);
+        s.step(&[], 260, 5000, false, &mut r);
+        assert_eq!(s.part_draws().len(), 16);
+        s.step(&[], 261, 5000, false, &mut r);
+        assert_eq!(s.part_draws().len(), 17);
+        assert_eq!(s.ctrl.shades.count, 2);
+    }
 
     #[test]
     fn shades_double_and_triple() {

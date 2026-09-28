@@ -28,6 +28,39 @@ impl crate::store::Load for EventObj {
     }
 }
 
+/// A `Func_str1070` part creator's block: base and random pairs (radius, angle, turn, height, rise, the two spins), then the rate, its random part and the life.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PartParam1070 {
+    pub f: [f32; 14],
+    pub rate: i32,
+    pub rate_rand: i32,
+    pub life: i32,
+}
+
+impl crate::store::Load for PartParam1070 {
+    fn load(r: &mut crate::store::Reader) -> Self {
+        PartParam1070 {
+            f: crate::store::Load::load(r),
+            rate: crate::store::Load::load(r),
+            rate_rand: crate::store::Load::load(r),
+            life: crate::store::Load::load(r),
+        }
+    }
+}
+
+/// A `Func_str1070` part's model: the chunk and its scale.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PartModel1070 {
+    pub chunk: i32,
+    pub scale: f32,
+}
+
+impl crate::store::Load for PartModel1070 {
+    fn load(r: &mut crate::store::Reader) -> Self {
+        PartModel1070 { chunk: crate::store::Load::load(r), scale: crate::store::Load::load(r) }
+    }
+}
+
 /// The `stream` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct Stream {
@@ -75,6 +108,12 @@ pub struct Stream {
     pub opening_events: &'static [EventObj],
     /// The opening's texts (`Func_str0710`'s cues 700 and 710), each normal then Parody Mode's; none on Infection.
     pub opening_text: [Option<&'static str>; 4],
+    /// `Func_str1070`'s part creators' blocks (MUT main 0x00321c00); none on Infection.
+    pub part_params_1070: &'static [PartParam1070],
+    /// `Func_str1070`'s part models (MUT main 0x00366f70, ten); none on Infection.
+    pub part_models_1070: &'static [PartModel1070],
+    /// The `str1070e` chunks `Func_str1070`'s parts draw (MUT main 0x00321e30); none on Infection.
+    pub part_chunks_1070: [Option<&'static str>; 6],
     /// `Func_str0880`'s hit marks' rotations (MUT main 0x00366ed0: x, y, z degrees); none on Infection.
     pub hit_rot_0880: &'static [[f32; 3]],
 }
@@ -104,6 +143,9 @@ impl crate::store::Load for Stream {
             rock_scale: crate::store::Load::load(r),
             opening_events: crate::store::Load::load(r),
             opening_text: crate::store::Load::load(r),
+            part_params_1070: crate::store::Load::load(r),
+            part_models_1070: crate::store::Load::load(r),
+            part_chunks_1070: crate::store::Load::load(r),
             hit_rot_0880: crate::store::Load::load(r),
         }
     }
@@ -175,6 +217,15 @@ impl Stream {
     }
     pub fn opening_text(&self) -> [Option<&'static str>; 4] {
         self.opening_text
+    }
+    pub fn part_params_1070(&self) -> &'static [PartParam1070] {
+        self.part_params_1070
+    }
+    pub fn part_models_1070(&self) -> &'static [PartModel1070] {
+        self.part_models_1070
+    }
+    pub fn part_chunks_1070(&self) -> [Option<&'static str>; 6] {
+        self.part_chunks_1070
     }
     pub fn hit_rot_0880(&self) -> &'static [[f32; 3]] {
         self.hit_rot_0880

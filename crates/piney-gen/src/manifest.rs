@@ -1938,6 +1938,95 @@ fn opening_text(c: &Ctx) -> Read {
     Ok(Value::List(out))
 }
 
+/// A `Func_str1070` part creator's block (0x50 bytes): base and random
+/// pairs for the orbit's radius, its angle and turn (degrees), the height,
+/// the rise, and the spins about y and z (degrees); then the parts a frame
+/// (1/4096), its random part, and the frames it makes them for.
+fn part_param_1070() -> Layout {
+    strukt(
+        "PartParam1070",
+        0x50,
+        vec![("f", 0, fixed(float(), 14)), ("rate", 0x38, I32), ("rate_rand", 0x3c, I32), ("life", 0x40, I32)],
+        "A `Func_str1070` part creator's block: base and random pairs (radius, angle, turn, height, rise, the two spins), then the rate, its random part and the life.",
+    )
+}
+
+/// The addresses each `ccPartCreate` of `Func_str1070` takes (`sw $zero,
+/// 56($v0)`, then its block built), in the order made, and its creator's
+/// `Ctrl` (the class's vtable slot 3). Mutation's only: Outbreak's
+/// `Func_str1070` is other code, not read yet.
+fn str1070_blocks(c: &Ctx) -> Result<Option<(Vec<u32>, u32)>, String> {
+    if c.volume != Vol::Mut {
+        return Ok(None);
+    }
+    let Some(code) = demo_func(c, b"str1070")? else { return Ok(None) };
+    let mut blocks = Vec::new();
+    for i in 0..code.len() {
+        if code[i] == 0xac40_0038
+            && let Some(b) = (i + 1..(i + 4).min(code.len())).find_map(|j| lui_addiu(&code, j, None))
+            && !blocks.contains(&b)
+        {
+            blocks.push(b);
+        }
+    }
+    // The class's own vtable: the last `sw $v1, 44($v0)` before the first
+    // creator takes its group (`sw $s2, 48($v0)`).
+    let group = code.iter().position(|&w| w == 0xac52_0030).ok_or("Func_str1070 makes no ccPartCreate")?;
+    let vt = (2..group)
+        .rev()
+        .find(|&i| code[i] == 0xac43_002c)
+        .and_then(|i| lui_addiu(&code, i - 2, Some(3)))
+        .ok_or("Func_str1070's creator has no vtable")?;
+    Ok(Some((blocks, c.p.u32(vt + 12)?)))
+}
+
+/// `Func_str1070`'s creators' blocks (MUT main 0x00321c00, seven); none on
+/// Infection.
+fn part_params_1070(c: &Ctx) -> Read {
+    let Some((blocks, _)) = str1070_blocks(c)? else { return Ok(Value::List(Vec::new())) };
+    blocks.into_iter().map(|b| part_param_1070().read(c, b)).collect::<Result<Vec<_>, _>>().map(Value::List)
+}
+
+/// The models its parts take (MUT main 0x00366f70, `rand() % 10`): the
+/// chunk (of [`part_chunks_1070`]) and the scale; the table its creators'
+/// `Ctrl` builds the address of twice (the scale's +4 first).
+fn part_models_1070(c: &Ctx) -> Read {
+    let Some((_, ctrl)) = str1070_blocks(c)? else { return Ok(Value::List(Vec::new())) };
+    let mut code = Vec::new();
+    for i in 0..0x200 {
+        let w = c.p.u32(ctrl + 4 * i)?;
+        code.push(w);
+        if w == 0x03e0_0008 {
+            break;
+        }
+    }
+    let table = (0..code.len())
+        .filter_map(|i| lui_addiu(&code, i, Some(2)))
+        .filter(|&a| a >= 0x0010_0000)
+        .min()
+        .ok_or("the creator's Ctrl builds no table")?;
+    let row = strukt(
+        "PartModel1070",
+        8,
+        vec![("chunk", 0, I32), ("scale", 4, float())],
+        "A `Func_str1070` part's model: the chunk and its scale.",
+    );
+    array(row, 10).read(c, table)
+}
+
+/// The chunks `Func_str1070` finds in `str1070e` (MUT main 0x00321e30, six
+/// name pointers): the first address it builds after its effect file's.
+fn part_chunks_1070(c: &Ctx) -> Read {
+    let none = || Ok(Value::List(vec![Value::None; 6]));
+    if c.volume != Vol::Mut {
+        return none();
+    }
+    let Some(code) = demo_func(c, b"str1070")? else { return none() };
+    let at = code.iter().position(|&w| w == 0x0c05_0eb4).ok_or("Func_str1070 reads no effect file")?;
+    let table = (at..code.len()).find_map(|i| lui_addiu(&code, i, Some(2))).ok_or("Func_str1070 names no chunks")?;
+    fixed(ptr(cstr()), 6).read(c, table)
+}
+
 /// `Func_str0880`'s hit marks' rotations (MUT main 0x00366ed0): the table
 /// it builds just before loading pi (`ori $v0, $v0, 0x0fdb`), four rows of
 /// x, y, z degrees and a pad; none on Infection.
@@ -1992,6 +2081,9 @@ fn stream() -> Group {
             e("rock_scale", 0x0034_E490, fixed(float(), 3), MAIN, "`rockScaleTbl`: a rock's scale by its model."),
             derived("opening_events", custom(Rc::new(opening_events), array(event_obj(), 0)), MAIN, "`eventObjTbl_0710` (MUT main 0x00366e30): the opening's (`Func_str0710`) cues, up to its end row; none on Infection."),
             derived("opening_text", custom(Rc::new(opening_text), fixed(opt(cstr()), 4)), MAIN, "The opening's texts (`Func_str0710`'s cues 700 and 710), each normal then Parody Mode's; none on Infection."),
+            derived("part_params_1070", custom(Rc::new(part_params_1070), array(part_param_1070(), 0)), MAIN, "`Func_str1070`'s part creators' blocks (MUT main 0x00321c00); none on Infection."),
+            derived("part_models_1070", custom(Rc::new(part_models_1070), array(strukt("PartModel1070", 8, vec![("chunk", 0, I32), ("scale", 4, float())], "A `Func_str1070` part's model: the chunk and its scale."), 0)), MAIN, "`Func_str1070`'s part models (MUT main 0x00366f70, ten); none on Infection."),
+            derived("part_chunks_1070", custom(Rc::new(part_chunks_1070), fixed(opt(cstr()), 6)), MAIN, "The `str1070e` chunks `Func_str1070`'s parts draw (MUT main 0x00321e30); none on Infection."),
             derived("hit_rot_0880", custom(Rc::new(hit_rot_0880), array_stride(fixed(float(), 3), 4, 16)), MAIN, "`Func_str0880`'s hit marks' rotations (MUT main 0x00366ed0: x, y, z degrees); none on Infection."),
         ],
     )

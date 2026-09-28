@@ -803,6 +803,14 @@ impl Stream {
                     e.color = colour;
                     e.render(&fx.assets, &mut ctx.layers, SYS_LAYER, pattern, &camera);
                 }
+                ending::PartDraw::Xpart { chunk, matrix } => {
+                    let names = &self.tables.parts_1070.chunks;
+                    let x = self.loaded.files.iter().position(|f| f.stem.trim_end_matches('p') == file);
+                    let (Some(x), Some(name)) = (x, names.get(chunk)) else { continue };
+                    let Some(obj) = self.loaded.files[x].sf.ccs.find_object(name) else { continue };
+                    let Some(m) = self.loaded.obj_model(x, obj) else { continue };
+                    draw::draw_rigid(ctx, &self.loaded, scene, m, &matrix, SYS_LAYER);
+                }
                 ending::PartDraw::Rock { model, matrix } => {
                     let Some(g) = g else { continue };
                     let Some(obj) = self.loaded.files[g].sf.ccs.find_object(ending::ROCKS[model]) else { continue };

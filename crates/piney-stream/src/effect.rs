@@ -108,6 +108,8 @@ pub struct Tables {
     /// `Func_str1040`'s texts (cues 700-730): stream 31's subtitle records
     /// 16-19 (MUT main 0x00327640), each `[normal, Parody Mode]`, four lines.
     pub text_1040: [[Vec<Vec<u8>>; 2]; 4],
+    /// `Func_str1070`'s creators, models and chunks.
+    pub parts_1070: crate::mutation::Tables1070,
     /// Stream 24's (Mutation's opening) event table and texts.
     pub opening: crate::opening::Tables,
     /// `saveData.parodyFlag`: the opening's Parody Mode texts.
@@ -128,6 +130,7 @@ impl Tables {
             ending: crate::ending::Tables::read(volume),
             hit_rot_0880: t.hit_rot_0880().iter().map(|&r| bits(r)).collect(),
             text_1040: crate::mutation::text_1040(volume),
+            parts_1070: crate::mutation::Tables1070::read(volume),
             opening: crate::opening::Tables::read(volume),
             parody: false,
         }
@@ -1479,6 +1482,7 @@ pub enum Task {
     Str1040(Box<crate::mutation::Str1040>),
     Str1041(crate::mutation::Str1041),
     Str1050(crate::mutation::Str1050),
+    Str1070(Box<crate::mutation::Str1070>),
     Str1090(crate::mutation::Str1090),
     Str9204(crate::mutation::Str9204),
 }
@@ -1579,6 +1583,9 @@ impl Task {
             crate::mutation::STR1040 => Some(Task::Str1040(Box::new(crate::mutation::Str1040::new(tables, rand)))),
             crate::mutation::STR1041 => Some(Task::Str1041(crate::mutation::Str1041::new(rand))),
             crate::mutation::STR1050 => Some(Task::Str1050(crate::mutation::Str1050::new(rand))),
+            crate::mutation::STR1070 => {
+                Some(Task::Str1070(Box::new(crate::mutation::Str1070::new(&tables.parts_1070, rand))))
+            }
             crate::mutation::STR1090 => Some(Task::Str1090(crate::mutation::Str1090::new(rand))),
             crate::mutation::STR9204 | crate::mutation::STR9205 | crate::mutation::STR9206 => {
                 let (near, far, near_rate, far_rate, colour) = FOG_9000;
@@ -1623,6 +1630,7 @@ impl Task {
             Task::Str1040(t) => t.step(cues, frame_now, frame_end, paused, rand),
             Task::Str1041(t) => t.step(cues, frame_now, frame_end, paused, rand),
             Task::Str1050(t) => t.step(cues, frame_now, frame_end, paused, rand),
+            Task::Str1070(t) => t.step(cues, frame_now, frame_end, paused, rand),
             Task::Str1090(t) => t.step(cues, paused, rand),
             Task::Str9204(t) => t.step(cues, paused, rand),
             Task::Str0001(t) => t.step(cues, frame_now, frame_end, paused, rand),
@@ -1681,6 +1689,7 @@ impl Task {
             Task::Str0580(t) => t.part_draws(),
             Task::Str0581(t) => t.part_draws(),
             Task::Str0710(t) => t.part_draws(),
+            Task::Str1070(t) => t.part_draws(),
             _ => &[],
         }
     }
@@ -1699,6 +1708,7 @@ impl Task {
     pub fn puff_file(&self) -> &'static str {
         match self {
             Task::Str0710(_) => crate::opening::EFF_FILE,
+            Task::Str1070(_) => crate::mutation::EFF_FILE_1070,
             _ => crate::ending::EFF_FILE,
         }
     }
@@ -1745,6 +1755,7 @@ impl Task {
             Task::Str1040(t) => &t.ctrl,
             Task::Str1041(t) => &t.ctrl,
             Task::Str1050(t) => &t.ctrl,
+            Task::Str1070(t) => &t.ctrl,
             Task::Str1090(t) => &t.ctrl,
             Task::Str9204(t) => &t.ctrl,
         }

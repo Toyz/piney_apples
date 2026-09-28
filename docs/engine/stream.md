@@ -1023,7 +1023,7 @@ feedback off, waits a frame and deletes itself.
 ## Mutation's other effect tasks
 
 The rest of Mutation's new rows keep the same `ccStrEffectCtrl` and pass,
-with no walker or parts but `Func_str1070`'s. Each is started for its
+with no walker or parts but `Func_str1070`'s (below the table). Each is started for its
 scene as the tasks above; "black over the frames left" is
 `EntryFade(frameEnd - frameNow, 0, 0x80000000)` (1 frame when none are
 left), and a transfer is `effTransferStr` at the note's object with a row
@@ -1076,9 +1076,35 @@ A new set leaves a fade in progress running over it. Fades: 809 to black
 over 20, 800 from black over 20, 819 to 0x40 black, 801 from it, 829 black
 over the frames left.
 
-`Func_str1070` (0x001a6af0) adds a part system of its own (a creator,
-0x001a6510, and a thrown object, `Ctrl` 0x001a63e0, over `str1070e`'s
-models and parameter blocks at MUT main 0x00321c00); not described here.
+`Func_str1070` (0x001a6af0, stream 34) keeps a part group as stream 15's
+tasks do, with a part class of its own: objects of `str1070e` (the chunks
+named at MUT main 0x00321e30, `OBJ_xpart00`-`05`) circling the scene's
+origin as they rise and spin. At set scene frames it empties the group
+and starts creators, each on a block of MUT main 0x00321c00 (0x50 bytes):
+
+```text
++0x00 f[14]      base and random pairs: radius, angle (deg), turn (deg a
+                 frame), height, rise a frame, spin about y, spin about z
+                 (deg a frame)
++0x38 rate       parts a frame in 1/4096; +0x3c its random part; +0x40 life
+260  blocks 0 and 1 (16 at once; one every other frame for 300)
+411  blocks 2 and 3;  505 blocks 4 and 5;  636 4 and 5;  781 block 6
+```
+
+A creator (`ccPartCreate`, 0x44; `Ctrl` 0x001a6510) steps its counters
+as the ending's rock thrower does and makes each part (0x120) drawing
+`rand()` for, in order: the radius, the angle (less 180, back by a turn
+past 180), the turn, the height, the rise, turns about x and y in [-180,
+180), the two spins, and its model (`rand() % 10` into MUT main
+0x00366f70: a chunk and a scale). A part's `Ctrl` (0x001a63e0) turns its
+angle (`ccRotate`), rises, spins about y and z, and is placed at `(r sin
+a, r cos a, 0)` plus its place (`SetMatrix_PosRotXYZScale`) and drawn;
+above 200 and out of view (`CheckBoundingBox`) it is gone. The shades:
+261 two at 500 and 1000 (7, 6); 505 one at 3100; 636 two at 2500 and
+5000 (8, 7); 781 two at 8500 and 11050; 932 none. Cues: 899 black over
+the frames left; 1-4 noise and inversion; 5, 15, 25 `SetReflex(1.01, 0,
+0x40808080)` with a fade over 10 ready; 6, 16, 26 fading. Outbreak's
+`Func_str1070` is other code, not read.
 `str9201` and `str9301` run `Func_str9101`'s (0x00189ed0).
 
 ## The drain streams' effect tasks

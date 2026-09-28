@@ -270,13 +270,13 @@ fn randf(rand: &mut Rand) -> F {
 }
 
 /// `range * rand() / 2^31`.
-fn rand_in(range: F, rand: &mut Rand) -> F {
+pub(crate) fn rand_in(range: F, rand: &mut Rand) -> F {
     ee::div(ee::mul(range, randf(rand)), RAND_RANGE)
 }
 
 /// `ccRotate(a, d)` (0x00102190): `a + d`, brought back by a turn once past
 /// pi the way it went.
-fn rotate(a: F, d: F) -> F {
+pub(crate) fn rotate(a: F, d: F) -> F {
     let a = ee::add(a, d);
     if ee::le(d, 0) {
         if ee::lt(a, ee::neg(PI)) { ee::add(a, TWO_PI) } else { a }
@@ -338,6 +338,9 @@ pub enum PartDraw {
     /// `ccObj::Draw(1.0)` of rock `model` ([`ROCKS`]) at this matrix
     /// (stored columns).
     Rock { model: usize, matrix: [V4; 4] },
+    /// `ccObj::Draw(1.0)` of `str1070e`'s chunk `chunk`
+    /// ([`crate::mutation::Tables1070::chunks`]) at this matrix.
+    Xpart { chunk: usize, matrix: [V4; 4] },
 }
 
 /// `ccStrPartGrp`: the creators and the parts, each in the order made.

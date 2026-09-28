@@ -174,6 +174,9 @@ fn part_line(d: &PartDraw) -> String {
         PartDraw::Rock { model, matrix } => {
             format!("rock {model} {} 3f800000", hex(&matrix.iter().flatten().copied().collect::<Vec<_>>()))
         }
+        PartDraw::Xpart { chunk, matrix } => {
+            format!("xpart {chunk} {}", hex(&matrix.iter().flatten().copied().collect::<Vec<_>>()))
+        }
     }
 }
 
