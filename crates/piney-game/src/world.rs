@@ -260,6 +260,19 @@ impl WorldMode {
         &mut self.world
     }
 
+    /// The party the last area left (`ccSpcManager`, `ccPartyManager`), and
+    /// each slot's menu face from it: `ccCheckMenuFaceNameParty` (gcmn
+    /// 0x0056a930) reads `memberID[slot]` whenever it is asked.
+    pub fn set_spcs(&mut self, spcs: piney_world::party::Spcs) {
+        self.world.set_spcs(spcs);
+        let plcol = self.world.state().save.u8(offset::PLCOL) != 0;
+        for (slot, &id) in self.world.party().iter().enumerate() {
+            if id >= 0 {
+                self.ui.set_menu_face(slot, id, plcol);
+            }
+        }
+    }
+
     /// The field UI, for tests.
     #[allow(dead_code)]
     pub fn ui(&self) -> &FieldUi {

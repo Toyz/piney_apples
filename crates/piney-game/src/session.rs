@@ -328,7 +328,7 @@ impl Session {
             let mut w = WorldMode::enter(&self.iso, self.archive.clone(), state, vm)?;
             // ccSpcManager and ccPartyManager as the last area left them.
             if let Some(spcs) = self.spcs.clone() {
-                w.world_mut().set_spcs(spcs);
+                w.set_spcs(spcs);
             }
             w.set_card(self.card.as_deref(), self.card_position);
             if faded {

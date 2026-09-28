@@ -717,3 +717,76 @@ fn the_grown_grunty_talks() {
     let Stage::World(w) = &s.stage else { panic!("left the town") };
     assert_eq!(w.ui().menu_type(), -1);
 }
+
+/// Mac Anu from a new game: a walking PC spoken to (Kite put before it,
+/// the action button) opens TalkMenu (22), and the PC stands and faces
+/// Kite (`rTownNPCInfluence` 15, act 2) until the talk's pages close.
+#[test]
+fn a_walker_stands_through_its_talk() {
+    use piney_event::host::PcCommand;
+    use piney_world::entry::Npc as _;
+    let Some((iso, archive)) = disc() else { return };
+    let mut d = Iso::open(&iso).unwrap();
+    let mut state = crate::world::new_game_state(&mut d).unwrap();
+    state.save.set_u8(offset::LAST_TOWN, 0);
+    let scene = piney_world::area::Scene::log_in(&mut state.save);
+    let mut s = Session::in_world(iso, archive, None, state, None, scene, None).unwrap();
+    let mut pad = Pad::default();
+    let mut step = |s: &mut Session, b: Buttons| {
+        pad.read(&still(b));
+        s.step(&pad);
+        s.take_events();
+    };
+    let mut code = None;
+    for _ in 0..3000 {
+        step(&mut s, Buttons::NONE);
+        if let Stage::World(w) = &s.stage {
+            code = w.world().pcs().iter().find(|n| n.think_type == 0 && n.act_num == 3).map(|n| n.code());
+            if code.is_some() {
+                break;
+            }
+        }
+    }
+    let code = code.expect("no walker out");
+    let pc = |s: &Session| {
+        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let n = w.world().pcs().iter().find(|n| n.code() == code).expect("the walker");
+        (n.act_num, n.char.pos.map(|v| f32::from_bits(v) as i32), w.ui().menu_type())
+    };
+    let mut opened = false;
+    for f in 0..900u64 {
+        let Stage::World(w) = &mut s.stage else { panic!("left the town") };
+        if w.ui().menu_type() == 22 {
+            opened = true;
+            break;
+        }
+        let target = w.world().command_target();
+        let on = target == Some((Kind::Npc, code));
+        if !on {
+            let p = w.world().pcs().iter().find(|n| n.code() == code).unwrap().char.pos.map(f32::from_bits);
+            let (x, y, z) = ((p[0] / 10.0) as i16, (p[1] / 10.0) as i16 - 12, (p[2] / 10.0) as i16);
+            let world = w.world_mut();
+            world.pc_command(PcCommand::Put { pc: 0, x, y, z });
+            world.pc_command(PcCommand::Turn { pc: 0, dirc: -32768, chg: 0 });
+        }
+        step(&mut s, if on && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE });
+    }
+    assert!(opened, "TalkMenu did not open for walker {code}");
+    let first = pc(&s);
+    let mut moved = Vec::new();
+    for f in 0..900u64 {
+        let now = pc(&s);
+        if now.2 == -1 {
+            break;
+        }
+        if now.0 != 2 || now.1[..3] != first.1[..3] {
+            moved.push((f, now));
+        }
+        step(&mut s, if f.is_multiple_of(30) { Buttons::CROSS } else { Buttons::NONE });
+    }
+    assert!(
+        moved.is_empty(),
+        "walker {code} moved during its talk (first {first:?}): {:?}",
+        &moved[..moved.len().min(5)]
+    );
+}

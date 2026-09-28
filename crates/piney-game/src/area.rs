@@ -1072,6 +1072,21 @@ impl AreaMode {
     }
 
     fn talk(&mut self, t: TalkRequest) {
+        // The talk menus read the one spoken to (cmndTarget) from before the
+        // step that opens them, as the town's do: a party member (21), an
+        // administrator (23), a breeder (27), a dog (44), a Grunty (45, 46).
+        use piney_fieldui::talk::{Speaker, TalkTarget};
+        if let TalkRequest::Menu { menu: 21 | 23 | 27 | 44 | 45 | 46, kind, code } = t {
+            let target = if kind == piney_world::entry::Kind::Spc {
+                TalkTarget { handle: (1 << 24) | u32::from(code as u16), who: Speaker::Spc(code) }
+            } else {
+                // An event NPC's stand-in: its scene index, its npcTbl row.
+                let npcs = &self.world.combat().npcs;
+                let row = npcs.iter().find(|n| n.who == code as usize).map_or(code, |n| i32::from(n.code));
+                TalkTarget { handle: (2 << 24) | code as u32, who: Speaker::Npc(row) }
+            };
+            self.ui.talk_to(Some(target));
+        }
         let c = &mut self.ui.ctrl;
         let mut open = |menu: i16, mode: i16| {
             c.open_req = menu;

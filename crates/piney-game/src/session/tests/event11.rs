@@ -542,3 +542,89 @@ fn event_11_warp_shots() {
         }
     }
 }
+
+/// Event 11 with BlackRose in the party on the holy ground, then back to
+/// Mac Anu before the church (the console's `town 0`, as a Gate Out): she
+/// is still a member at the change of scene, so the fellows' delete keeps
+/// her; the town has her in the party and the registry, `partyFlag` 1.
+#[test]
+fn event_11_gate_out_keeps_blackrose() {
+    let Some(mut s) = story_11() else { return };
+    let mut pad = Pad::default();
+    let mut left = false;
+    for f in 0..40_000u64 {
+        let raw = match &s.stage {
+            Stage::World(_) if left => break,
+            Stage::World(w) => player(w, f),
+            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
+                if !left && a.world().party().contains(&BLACKROSE) {
+                    left = true;
+                    s.console("town 0");
+                    continue;
+                }
+                field_player(a, f, [95.0, 3800.0])
+            }
+            Stage::Area(a) => {
+                field_player(a, f, a.world().player().body.pos.map(f32::from_bits)[..2].try_into().unwrap())
+            }
+            _ => still(Buttons::NONE),
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    assert!(left, "never on the holy ground with BlackRose: {}", Mode::title(&s));
+    let Stage::World(w) = &s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    let reg = w.world().spcs().registry.iter().find(|r| r.id == BLACKROSE).map(|r| r.party_flag);
+    assert!(w.world().party().contains(&BLACKROSE), "not in Mac Anu's party: {:?}", w.world().party());
+    assert_eq!(reg, Some(1), "her registry slot");
+    let slot = w.world().party().iter().position(|&id| id == BLACKROSE).unwrap();
+    assert_eq!(w.ui().ctrl.face_tex[slot], BLACKROSE, "her menu face");
+    let at = piney_data::save::by_id::spc_param(BLACKROSE as usize);
+    let save = &w.world().state().save;
+    println!("her record: id {} head {:?}", save.i16(at + 0x0c), &save.bytes()[at..at + 0x40]);
+}
+
+/// On the holy ground, BlackRose spoken to: her menu (21) opens with her
+/// as the one spoken to (`TalkTarget`), which Talk, Trade and Gift read
+/// (`cmndTargetPrev->base`); without it Gift gave to id 0, unnamed.
+#[test]
+fn event_11_blackrose_spoken_to_on_the_holy_ground() {
+    let Some(mut s) = story_11() else { return };
+    let mut pad = Pad::default();
+    let mut opened = None;
+    for f in 0..40_000u64 {
+        let raw = match &s.stage {
+            Stage::World(w) => player(w, f),
+            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n >= 2) => {
+                let w = a.world();
+                let c = w.combat();
+                if a.ui().menu_type() == 21 {
+                    opened = a.ui().ctrl.talk.target;
+                    break;
+                }
+                match c.who(BLACKROSE) {
+                    Some(k) if w.party().contains(&BLACKROSE) => {
+                        if w.command_target_code() == Some((piney_world::entry::Kind::Spc, BLACKROSE)) {
+                            still(if f.is_multiple_of(12) { Buttons::CROSS } else { Buttons::NONE })
+                        } else {
+                            let q = c.scene.chars[k].pos.map(f32::from_bits);
+                            field_player(a, f, [q[0], q[1]])
+                        }
+                    }
+                    _ => field_player(a, f, [95.0, 3800.0]),
+                }
+            }
+            Stage::Area(a) => {
+                field_player(a, f, a.world().player().body.pos.map(f32::from_bits)[..2].try_into().unwrap())
+            }
+            _ => still(Buttons::NONE),
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    let t = opened.expect("her menu never opened");
+    assert_eq!(t.who, piney_fieldui::talk::Speaker::Spc(BLACKROSE));
+    assert_eq!(t.handle, (1 << 24) | BLACKROSE as u32);
+}
