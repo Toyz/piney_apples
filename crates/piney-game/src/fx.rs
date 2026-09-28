@@ -587,6 +587,11 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         Show::DrainLevelDown(k) => {
             fx.fly_font_level_down(Some(cref(*k)), 23);
         }
+        // A leaf of Magus's lands: ccEnemyEffDust(pos, 30, 4.0).
+        Show::Boss(_, piney_battle::boss::Out::Magus(piney_battle::boss::magus::Pic::Dust { pos })) => {
+            let (life, tex) = (piney_effect::dust::DUST_LIFE, piney_effect::dust::DUST_TEX);
+            fx.enemy_dust(h, *pos, 30, 0x4080_0000, life, tex);
+        }
         // The boss's ccBossEff*Create (those the effects have).
         Show::Boss(_, piney_battle::boss::Out::Effect { kind, pos, dirc, .. }) => {
             if let Some(m) = boss_make(*kind, *pos, *dirc) {
@@ -615,8 +620,8 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
 
 /// A `ccBossEff*Create` as the bosses call it (`docs/engine/boss.md`,
 /// "Effects"): the rules name the effect, where and which way. Innis's
-/// rings and missiles and Kyvia's meteors have no picture yet
-/// (boss-innis.md, boss-kyvia.md).
+/// rings and missiles, Kyvia's meteors and Magus's needles have no
+/// picture yet (boss-innis.md, boss-kyvia.md, boss-magus.md).
 fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
     use piney_battle::boss::EffKind;
     use piney_effect::boss::Make;
@@ -631,7 +636,11 @@ fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<pin
         EffKind::AutoSamonRing { n } => Make::AutoSamonRing { pos, rot: dirc, param: [0, 0x3eaa_aaab, TEN, 0], n },
         EffKind::IceBreak => Make::IceBreak { pos, scale: 0x4000_0000 },
         EffKind::Dead => Make::Dead { pos },
-        EffKind::SamonRing { .. } | EffKind::Missile { .. } | EffKind::Meteorite { .. } => return None,
+        // Magus's leaf's ring (model 195, DeadEffect's parameter).
+        EffKind::LeafRing => Make::AutoSamonRing { pos, rot: dirc, param: [0x3f00_0000, ONE, 0, 0x4220_0000], n: 195 },
+        EffKind::SamonRing { .. } | EffKind::Missile { .. } | EffKind::Meteorite { .. } | EffKind::Needle { .. } => {
+            return None;
+        }
     })
 }
 

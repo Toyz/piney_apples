@@ -21,7 +21,7 @@ through ported as the game builds them. Started 2026-09-28.
 | 102-106, 109-114, 116 | done |
 | 107 | done (worklog 268): Innis drained and beaten, the town's breeder, the top page's Quit |
 | 108 | done (worklogs 272, 273): Kyvia's disc, the core and gomoras fought through the menus, the party held at level 60 for it |
-| 115 | slow in field 52's dungeon; then field 13 (`EVENTAREA01`) |
+| 115 | done (worklogs 274, 275): field 13's six talks, Magus drained and beaten |
 
 ## The pilot's fixes so far
 
@@ -83,7 +83,7 @@ draws. docs/engine/evarea.md has it all.
 | --- | --- | --- | --- | --- |
 | 107 | 1 | `ccBoss02` Innis (+ `ccBoss02Slave`) | 54 functions, 38.6 KB | yes (worklog 266) |
 | 108 | 12 | `ccThKyvia01` (+ the `kyvia*` classes, `EVENTAREAB8`) | 98 functions, 74.4 KB shared | yes (worklog 272) |
-| 115 | 2 | `ccBoss03` Magus (+ `ccBoss03Leaf`) | 70 functions, 38.2 KB | no |
+| 115 | 2 | `ccBoss03` Magus (+ `ccBoss03Leaf`) | 70 functions, 38.2 KB | yes (worklog 274) |
 
 One agent at a time ports them, in story order, after the Skeith port
 (docs/engine/boss.md, piney-battle's `boss.rs`, the harness

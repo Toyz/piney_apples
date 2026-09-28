@@ -1590,7 +1590,9 @@ fn event_115_field_13_talks_to_six() {
         }
     }
     let status: Vec<u8> = match &s.stage {
-        Stage::Area(a) => (10..16).map(|k| a.world().state().save.u8(piney_data::save::offset::EVENT_STATUS + k)).collect(),
+        Stage::Area(a) => {
+            (10..16).map(|k| a.world().state().save.u8(piney_data::save::offset::EVENT_STATUS + k)).collect()
+        }
         _ => Vec::new(),
     };
     assert!(story_map, "field 13 was not EVENTAREA01");
@@ -1641,4 +1643,127 @@ fn event_13_leaves_mia_and_elk_out() {
     assert!(met, "Mia and Elk were never entered: {}", Mode::title(&s));
     assert!(done.is_some(), "event 13 did not end: {}", Mode::title(&s));
     assert!(!registered(&s, 1) && !registered(&s, 10), "still in the town: {}", Mode::title(&s));
+}
+
+/// Event 14 at the Expansive Haunted Sea of Sand's dungeon: the pilot to
+/// the room where block 5 puts the Administrator (type 4, code 29), then
+/// Kite talks to him (block 7) and to BlackRose (15), and what the screen
+/// does after is printed. A diagnostic (`--ignored --nocapture`).
+#[test]
+#[ignore]
+fn event_14_blackrose_after_the_administrator() {
+    let Some(mut s) = story_session_on("infection", 14, |_| {}) else { return };
+    s.console("god");
+    let mut pad = Pad::default();
+    let mut pilot = StoryPilot::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let press = |b: Buttons| Raw { buttons: b, ..still };
+    // 0 the pilot, 1 to the Administrator, 2 his talk, 3 to BlackRose, 4 after.
+    let (mut step, mut at) = (0, 0u64);
+    for f in 0..80000u64 {
+        let raw = match &s.stage {
+            Stage::Area(a) if step > 0 => {
+                let w = a.world();
+                let c = w.combat();
+                let playing = a.vm().is_some_and(|v| v.playing().is_some()) || a.streaming();
+                let aimed = match w.command_target_code() {
+                    Some((piney_world::entry::Kind::Npc, c)) => Some((4, c)),
+                    Some((piney_world::entry::Kind::Gimmick, i)) => {
+                        c.npcs.iter().find(|n| n.who == i as usize).map(|n| (4, i32::from(n.code)))
+                    }
+                    Some((piney_world::entry::Kind::Spc, id)) => Some((2, id)),
+                    _ => None,
+                };
+                let p = w.player().body.pos.map(f32::from_bits);
+                let cam_z = f32::from_bits(w.camera().rot()[2]);
+                let toward = |q: [f32; 4]| stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
+                match step {
+                    1 | 3 if playing || a.ui().menu_type() != -1 => {
+                        if f.is_multiple_of(24) {
+                            press(Buttons::CROSS)
+                        } else {
+                            still
+                        }
+                    }
+                    1 if aimed == Some((4, 29)) => {
+                        step = 2;
+                        at = f;
+                        press(Buttons::CROSS)
+                    }
+                    1 => w.char_pos(4, 29).map(|q| toward(q.map(f32::from_bits))).unwrap_or(still),
+                    2 if playing || a.ui().menu_type() != -1 => {
+                        if f.is_multiple_of(24) {
+                            press(Buttons::CROSS)
+                        } else {
+                            still
+                        }
+                    }
+                    2 if f > at + 120 => {
+                        step = 3;
+                        still
+                    }
+                    3 if aimed == Some((2, 15)) => {
+                        step = 4;
+                        at = f;
+                        println!("{f}: to BlackRose - {}", Mode::title(&s));
+                        press(Buttons::CROSS)
+                    }
+                    3 => c.who(15).map(|k| toward(c.scene.chars[k].pos.map(f32::from_bits))).unwrap_or(still),
+                    _ if playing => {
+                        if f.is_multiple_of(24) {
+                            press(Buttons::CROSS)
+                        } else {
+                            still
+                        }
+                    }
+                    _ if a.ui().menu_type() != -1 && f > at + 300 => {
+                        if f.is_multiple_of(40) {
+                            press(Buttons::CIRCLE)
+                        } else {
+                            still
+                        }
+                    }
+                    _ => still,
+                }
+            }
+            _ => pilot.next(&s, f),
+        };
+        if step == 0 {
+            pilot.after(&mut s);
+        }
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if step == 0
+            && let Stage::Area(a) = &s.stage
+            && a.world().event_targets().contains(&(4, 29))
+            && a.world().char_pos(4, 29).is_some()
+            && matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 12)
+        {
+            step = 1;
+            println!("{f}: the Administrator - {}", Mode::title(&s));
+        }
+        if step >= 1 && f.is_multiple_of(60) {
+            let (menu, cam) = match &s.stage {
+                Stage::Area(a) => {
+                    let c = a.world().camera();
+                    let cam = format!(
+                        "cam {} dist {:.0} kind {} puppet {} lock {}",
+                        c.cam_id,
+                        f32::from_bits(c.tcam.dist),
+                        c.tcam.kind,
+                        c.puppet_show,
+                        c.type_lock
+                    );
+                    (a.ui().menu_type(), cam)
+                }
+                _ => (-9, String::new()),
+            };
+            println!("{f} step {step} menu {menu} {cam} - {}", Mode::title(&s));
+        }
+        if step == 4 && f > at + 1500 {
+            break;
+        }
+    }
+    println!("end: step {step} - {}", Mode::title(&s));
 }

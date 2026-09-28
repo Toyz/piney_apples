@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-273 entries: audio 17, battle 45, build 14, content 3, decomp 20, disc 4, engine 7, format 14, iop 2, render 66, save 8, script 26, test 120, tooling 22, ui 48, video 9, volumes 47, world 75.
+275 entries: audio 17, battle 46, build 14, content 3, decomp 20, disc 4, engine 7, format 14, iop 2, render 66, save 8, script 27, test 122, tooling 22, ui 48, video 9, volumes 49, world 76.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -285,3 +285,5 @@ The [reference](docs/README.md) says what is true now.
 | 271 | [Mutation's str7100, str8800 and str0300 are Infection's code](worklog/0271-mutation-s-str7100-str8800-and-str0300-are-infection-s-code.md) | 2026-09-28 | video, volumes, decomp |
 | 272 | [Kyvia's first fight and its disc](worklog/0272-kyvia-s-first-fight-and-its-disc.md) | 2026-09-28 | battle, world, test |
 | 273 | [Event 108 under the autopilot: shut doors, Kyvia's parts and its healing gomora](worklog/0273-event-108-under-the-autopilot-shut-doors-kyvia-s-parts-and.md) | 2026-09-28 | test, battle |
+| 274 | [Magus and its leaves](worklog/0274-magus-and-its-leaves.md) | 2026-09-28 | battle, test, volumes |
+| 275 | [Field 13's talks: area n for the numbered maps, field markers, and the fellows' delete](worklog/0275-field-13-s-talks-area-n-for-the-numbered-maps-field-markers.md) | 2026-09-28 | script, world, volumes, test |

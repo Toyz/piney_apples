@@ -1,14 +1,15 @@
 //! Bosses: `ccBoss` (boss.cpp, gcmn 0x0045bcf0-0x0045fbd0) and Skeith
 //! (`ccBoss01`, boss01.cpp, 0x0047b300-0x0047ee68), entry type 7 code 0;
-//! Innis (`ccBoss02`, code 1) is [`innis`], Kyvia (`ccBossKyvia01`, 12)
-//! [`kyvia`]. `ccBossEntryStart(code)` (0x0045b2a0) starts the effect
-//! manager ([`Effects`]) and `bossFunc[code]`, which makes the boss and runs
-//! [`Boss::main`] each frame. The tables come from the build ([`BossData`]);
-//! sounds, the camera and the pictures are [`Out`]s. docs/engine/boss.md,
-//! boss-innis.md, boss-kyvia.md.
+//! Innis (`ccBoss02`, code 1) is [`innis`], Magus (`ccBoss03`, 2) [`magus`],
+//! Kyvia (`ccBossKyvia01`, 12) [`kyvia`]. `ccBossEntryStart(code)` (0x0045b2a0)
+//! starts the effect manager ([`Effects`]) and `bossFunc[code]`, which makes
+//! the boss and runs [`Boss::main`] each frame. The tables come from the build
+//! ([`BossData`]); sounds, the camera and the pictures are [`Out`]s.
+//! docs/engine/boss.md, boss-innis.md, boss-magus.md, boss-kyvia.md.
 
 pub mod innis;
 pub mod kyvia;
+pub mod magus;
 
 use piney_data::field::ee;
 use piney_data::libm;
@@ -97,11 +98,12 @@ impl SkeithData {
 }
 
 /// Every boss's tables, for the volume ([`SkeithData`], [`innis::InnisData`],
-/// [`kyvia::KyviaData`]).
+/// [`magus::MagusData`], [`kyvia::KyviaData`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BossData {
     pub skeith: SkeithData,
     pub innis: innis::InnisData,
+    pub magus: magus::MagusData,
     pub kyvia: kyvia::KyviaData,
 }
 
@@ -111,6 +113,7 @@ impl BossData {
         BossData {
             skeith: SkeithData::of(volume),
             innis: innis::InnisData::of(volume),
+            magus: magus::MagusData::of(volume),
             kyvia: kyvia::KyviaData::of(volume),
         }
     }
@@ -125,6 +128,10 @@ pub enum Class {
     Skeith,
     /// `ccBoss02` and its three slaves.
     Innis(Box<innis::Innis>),
+    /// `ccBoss03`: the body; its leaves are bosses of their own characters.
+    Magus(Box<magus::Magus>),
+    /// `ccBoss03Leaf`.
+    MagusLeaf(Box<magus::leaf::Leaf>),
     /// `ccBossKyvia01`: the body; its core and gomoras are bosses of their
     /// own characters.
     Kyvia(Box<kyvia::Kyvia>),
@@ -275,6 +282,8 @@ pub struct Eff {
     pub missile: Option<Box<innis::Missile>>,
     /// The meteors' flights ([`kyvia::Meteorite`]).
     pub meteorite: Option<Box<kyvia::Meteorite>>,
+    /// Magus's needles ([`magus::Needle`]).
+    pub needle: Option<Box<magus::Needle>>,
 }
 
 /// The effects the bosses make (`ccBossEff*Create`).
@@ -303,6 +312,12 @@ pub enum EffKind {
     /// `ccBossEffMeteoriteMissileCreate(pos, range, IN, OUT, cb, cam)` (MUT
     /// 0x0048d9f0): `IN` meteors falling round `pos` (Kyvia's MegidFlame).
     Meteorite { count: i32 },
+    /// `ccBossEffNeedleCreate(pos, 0, 50, 0.3, n, 3, 15, 15)` (MUT
+    /// 0x0048e430): `n` needles out of the ground (Magus's).
+    Needle { n: i32 },
+    /// `ccBossEffAutoSamonRingCreate(pos, rot, (0.5, 1, 0, 40), 195)`: a
+    /// leaf of Magus's dies.
+    LeafRing,
 }
 
 impl Effects {
@@ -314,7 +329,7 @@ impl Effects {
         if self.slots.is_empty() {
             self.slots = vec![None; Self::SLOTS];
         }
-        let e = Eff { kind, enabled: true, count: 0, proc: 0, fade: ONE, missile: None, meteorite: None };
+        let e = Eff { kind, enabled: true, count: 0, proc: 0, fade: ONE, missile: None, meteorite: None, needle: None };
         match self.slots.iter().position(Option::is_none) {
             Some(k) => {
                 self.slots[k] = Some(e);
@@ -367,7 +382,7 @@ impl Eff {
             EffKind::ForceGenerator { num, life } => life + (num - 1) / 2 * 10 + 3,
             // ccBossEffAutoSamonRing::Draw (0x0046ed70): its
             // ccEffSamonRing fades out in 20 frames, whatever the model.
-            EffKind::AutoSamonRing { .. } => 20,
+            EffKind::AutoSamonRing { .. } | EffKind::LeafRing => 20,
             // ccBossEffIceBreak::Draw (0x0046cc10): the flash (1 frame),
             // 61 frames, 61 more; the last one clears it.
             EffKind::IceBreak => 1 + 61 + 61,
@@ -381,7 +396,7 @@ impl Eff {
                 }
                 return;
             }
-            EffKind::Missile { .. } | EffKind::Meteorite { .. } => return,
+            EffKind::Missile { .. } | EffKind::Meteorite { .. } | EffKind::Needle { .. } => return,
         };
         if self.count >= life {
             self.enabled = false;
@@ -569,6 +584,42 @@ pub enum Out {
         pos: V4,
         dirc: V4,
     },
+    /// `changeCamera(n)` (main): the active camera (1 the field's, 3 the
+    /// event's).
+    CameraChange(i32),
+    /// `cameraSetPos(pos, cam)`, `cameraSetView(view, cam)`.
+    CameraPos {
+        cam: i32,
+        pos: V4,
+    },
+    CameraView {
+        cam: i32,
+        view: V4,
+    },
+    /// `if (checkCameraShakeRange(pos)) cameraShake(s[0], s[1], s[2],
+    /// s[3])`: the runtime checks the range and shakes (its `rand()`).
+    CameraShake {
+        pos: V4,
+        s: [i32; 4],
+    },
+    /// `scFadeDef->EntryFlash2(t0, t1, colour)` (`t[2]` 0) or
+    /// `EntryFlash3(t0, t1, t2, colour)`.
+    FlashFade {
+        t: [i32; 3],
+        colour: u32,
+    },
+    /// `ccSeOnNote(se, note)`.
+    SeNote {
+        se: i32,
+        note: u8,
+    },
+    /// `ccSeOn3DLoop(se, pos)` (with `pos`) or `ccSeOffLoop(se, voice)`.
+    SeLoop {
+        se: i32,
+        pos: Option<V4>,
+    },
+    /// What Magus shows beside ([`magus::Pic`]).
+    Magus(magus::Pic),
 }
 
 /// `ccBoss`, with `ccBoss01`'s members (Skeith's); another class's own
@@ -818,6 +869,7 @@ impl Boss {
     pub fn main(&mut self, cx: &mut Cx) {
         match self.class {
             Class::Innis(_) => innis::main(self, cx),
+            Class::Magus(_) => magus::main(self, cx),
             Class::Kyvia(_) => kyvia::main(self, cx),
             _ => self.skeith_main(cx),
         }
@@ -1376,6 +1428,18 @@ impl Boss {
             Some(p) => self.damage_at(cx, p, &sk),
             None => self.damage_on(cx, target, &sk),
         };
+        if erased != 0 {
+            self.erase_cmnd_target(cx);
+        }
+        n
+    }
+
+    /// `ccBossSkillDamage(this, pos, &sk)` (MUT gcmn 0x00475140): as
+    /// [`Boss::skill_damage`] at a place with a skill of the boss's own.
+    fn skill_damage_with(&mut self, cx: &mut Cx, pos: V4, sk: &SkillParam) -> i32 {
+        let erased = self.erase_target;
+        self.entry_cmnd_target(cx);
+        let n = self.damage_at(cx, pos, sk);
         if erased != 0 {
             self.erase_cmnd_target(cx);
         }
@@ -2113,6 +2177,8 @@ impl Boss {
     pub fn affect(&mut self, cx: &mut Cx) {
         match self.class {
             Class::Innis(_) => return innis::affect(self, cx),
+            Class::Magus(_) => return magus::affect(self, cx),
+            Class::MagusLeaf(_) => return magus::leaf::affect(self, cx),
             Class::KyviaCore(_) => return kyvia::core::affect(self, cx),
             Class::Gomora(_) => return kyvia::gomora::affect(self, cx),
             _ => {}
@@ -2223,8 +2289,13 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
     let Some(benv) = ctx.boss else {
         let a = &scene.chars[on].affect;
         let q = (a.ty, a.param, a.person);
-        if let Some(b) = scene.chars[on].foe_state_mut().and_then(|f| f.boss.as_mut()) {
-            b.queued.push(q);
+        let Some(b) = scene.chars[on].foe_state_mut().and_then(|f| f.boss.as_mut()) else { return };
+        b.queued.push(q);
+        // Every class's Affect takes a drain (13) at once unless held, and
+        // leaves the type 0; kept at 13 until the boss's frame, it would
+        // stop the drain menu's 21 (the world paused) at `EntryAffect`.
+        if q.0 == 13 && b.act_forbid != 2 && b.lock_player == 0 {
+            scene.chars[on].affect.ty = 0;
         }
         return;
     };

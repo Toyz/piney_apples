@@ -1130,3 +1130,329 @@ fn event_108_ends_with_kyvia() {
     assert!(exited, "never exited");
     assert_eq!(status, 2, "block 23 did not run");
 }
+
+/// Mutation's event 115 in field 13 of town 2 (`EVENTAREA01`, area 13's
+/// `WORLD_MAN`), blocks 0-20 played and `eventStatus[10]`-`[15]` set: block
+/// 21 (whose settings, from blocks 12 and 14, are that field and phase 4)
+/// takes the party to field 3 (`EVENTAREAB0`), where block 22 makes Magus
+/// (`entry 7 2`, `battle_ready`).
+fn event_115_session() -> Option<Session> {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    if !iso.exists() {
+        return None;
+    }
+    let mut d = Iso::open(&iso).unwrap();
+    let archive = Arc::new(Archive::new(d.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let start = crate::start::build(&iso, 115).unwrap();
+    let mut state = start.state;
+    let f = state.save.event_flag(115);
+    state.save.set_event_flag(115, f | ((1 << 21) - 1));
+    for k in 10..=15 {
+        state.save.set_u8(offset::EVENT_STATUS + k, 1);
+    }
+    let mut scene = piney_world::area::Scene::log_in(&mut state.save);
+    // Area 52's `WORLD_MAN` (the event comes from its dungeon), then block
+    // 11's `area 13`, which names no words but sets the event's area number.
+    let wm = crate::area::story_world_man(&mut d, 52, false).unwrap();
+    let wm = crate::area::ev_area_number(&iso, 13, &wm, &state.save).unwrap();
+    scene.change_scene(1, 2, 13, -1, -1, -1, &mut state.save);
+    Some(Session::in_world(iso, archive, None, state, Some(start.vm), scene, Some(wm)).unwrap())
+}
+
+/// Magus's Epitaph flag, when the boss is Magus.
+fn magus_epitaph(b: &piney_battle::boss::Boss) -> Option<i32> {
+    match &b.class {
+        piney_battle::boss::Class::Magus(x) => Some(x.epitaph),
+        _ => None,
+    }
+}
+
+/// Event 115 into Magus's arena: the boss is made with its twelve leaves,
+/// drops them, and a leaf lands on the lists; the drain's affects (13, then
+/// 21) and heavy hits go on it as Kite's frame would, the fight runs to its
+/// end (the Epitaph's patterns, death, the exit), and block 24's `if absent
+/// 7 2` ends the event.
+#[test]
+fn event_115_ends_with_magus() {
+    let Some(mut s) = event_115_session() else { return };
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let mut acts = BTreeSet::new();
+    let (mut made, mut landed, mut drained, mut exited, mut done) = (false, false, false, false, false);
+    let mut since = 0u32;
+    for i in 0..40000u32 {
+        // While a block plays (its menus banned) or a stream shows, CROSS
+        // every 8th frame moves its messages on.
+        let talking = match &s.stage {
+            Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
+            _ => false,
+        };
+        let raw = if talking && i.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if let Some(v) = s.save_mut() {
+            done = v.event_flag(115) & (3 << 62) != 0;
+        }
+        if done {
+            break;
+        }
+        let Stage::Area(a) = &mut s.stage else { continue };
+        let c = a.world_mut().combat_mut();
+        for &(_, k) in &c.members {
+            let ch = &mut c.scene.chars[k];
+            ch.max_hp = 9999;
+            ch.hp = 9999;
+        }
+        let Some(me) = c.boss.as_ref().filter(|r| r.code == 2).map(|r| r.me) else { continue };
+        made = true;
+        since += 1;
+        let parts = c.boss.as_ref().map(|r| r.parts.clone()).unwrap_or_default();
+        landed |= parts.iter().any(|&p| c.scene.listed(p));
+        let kite = c.kite;
+        let Some(b) = c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()) else { continue };
+        assert!(magus_epitaph(b).is_some(), "entry 7 2 made another boss");
+        acts.insert(b.act_num);
+        exited |= b.exit != 0;
+        if since >= 600 && !drained && b.lock_player == 0 && b.act_forbid != 2 {
+            b.queued.push((13, [0; 3], kite));
+            b.queued.push((21, [0; 3], kite));
+            drained = true;
+        }
+        if drained && since.is_multiple_of(20) && b.exit == 0 && b.lock_player == 0 && magus_epitaph(b) == Some(1) {
+            b.queued.push((1, [800, 0, 0], kite));
+        }
+    }
+    println!("acts {acts:?}");
+    assert!(made, "block 22 made no Magus");
+    assert!(landed, "no leaf landed on the lists");
+    assert!(acts.contains(&20), "no leaf drop: {acts:?}");
+    assert!(drained);
+    assert!(acts.contains(&12), "no Epitaph: {acts:?}");
+    assert!(acts.contains(&14), "never died: {acts:?}");
+    assert!(exited, "never exited");
+    assert!(done, "block 24 did not end the event");
+}
+
+/// Magus under the story autopilot from block 21, as the survey runs it
+/// (god mode, BlackRose along, the party at level 60): Kite's skills at
+/// the target menu's pick, the member's CHAT order, the drain when the
+/// protect breaks. Prints the target and drain menus' aim, Magus's drain,
+/// and every 600 frames its HP, gauge and break and what the hits took off
+/// it and the leaves. A diagnostic (`--ignored --nocapture`;
+/// `PINEY_MAGUS_FRAMES`, 60,000).
+#[test]
+#[ignore]
+fn magus_under_the_autopilot() {
+    let frames: u64 = std::env::var("PINEY_MAGUS_FRAMES").ok().and_then(|v| v.parse().ok()).unwrap_or(60_000);
+    let Some(mut s) = event_115_session() else { return };
+    s.console("god");
+    let mut pilot = super::survey::StoryPilot::default();
+    let mut pad = Pad::default();
+    let (mut last_hp, mut body_dmg, mut leaf_dmg, mut kills, mut rises) = (None, 0i32, 0i32, 0, 0);
+    let mut leaf_hp: std::collections::HashMap<usize, i16> = Default::default();
+    let (mut drained, mut last_act) = (false, -1);
+    let (mut last_menu, mut last_state) = (-1, None);
+    // The survey's pilot brings BlackRose (blocks 3-5) from town; here she
+    // comes with the next area.
+    println!("{}", s.console("invite_party 15"));
+    for f in 0..frames {
+        if f.is_multiple_of(30) {
+            s.console("infection 0");
+            // The survey's party levels for a boss's parts (60).
+            let low = match &s.stage {
+                Stage::Area(a) => {
+                    let c = a.world().combat();
+                    c.members.iter().filter_map(|&(_, k)| c.scene.chars[k].spc()).map(|p| p.base.level).min()
+                }
+                _ => None,
+            };
+            if let Some(lv) = low.filter(|&lv| lv < 60) {
+                s.console(&format!("exp {}", (i32::from(60 - lv) * 1000).min(30000)));
+            }
+        }
+        let raw = pilot.next(&s, f);
+        pilot.after(&mut s);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if s.save_mut().is_some_and(|v| v.event_flag(115) & (3 << 62) != 0) {
+            println!("{f}: event 115 done");
+            break;
+        }
+        if f.is_multiple_of(3000) {
+            let party = match &s.stage {
+                Stage::Area(a) => Some(a.world().party()),
+                _ => None,
+            };
+            println!("{f}: {} - party {party:?}", Mode::title(&s));
+        }
+        let Stage::Area(a) = &s.stage else { continue };
+        let c = a.world().combat();
+        let Some(r) = c.boss.as_ref().filter(|r| r.code == 2 && !r.exit) else { continue };
+        let me = r.me;
+        let hp = c.scene.chars[me].hp;
+        let Some(b) = c.scene.chars[me].foe_state().and_then(|x| x.boss.as_ref()) else { continue };
+        // The target menu (65) and the drain (66): whom they aim at.
+        let menu = a.ui().ctrl.menu;
+        if menu != last_menu && (menu == 65 || menu == 66) {
+            let t = a.world().targeting().target;
+            let who = match t {
+                Some((_, k)) if k as usize == me => "Magus".to_string(),
+                Some((_, k)) => {
+                    r.parts.iter().position(|&p| p == k as usize).map_or(format!("{t:?}"), |i| format!("leaf {i}"))
+                }
+                None => "none".to_string(),
+            };
+            println!("{f}: menu {menu} at {who}");
+        }
+        last_menu = menu;
+        let state = (magus_epitaph(b), b.cheat_hp, c.scene.chars[me].max_hp);
+        // The drain's 21 sets the HP: not a hit.
+        if let Some(h) = last_hp
+            && hp < h
+            && last_state.is_none_or(|(_, _, m)| m == state.2)
+        {
+            body_dmg += i32::from(h - hp);
+        }
+        last_hp = Some(hp);
+        if last_state != Some(state) {
+            println!("{f}: Magus epitaph, cheat HP, max HP {state:?} (act {}, hp {hp})", b.act_num);
+            last_state = Some(state);
+        }
+        drained |= magus_epitaph(b) == Some(1);
+        if b.act_num == 27 && last_act != 27 {
+            rises += 1;
+        }
+        last_act = b.act_num;
+        for &p in &r.parts {
+            let h = c.scene.chars[p].hp;
+            let was = leaf_hp.insert(p, h).unwrap_or(h);
+            if h < was {
+                leaf_dmg += i32::from(was - h);
+                if h == 0 {
+                    kills += 1;
+                }
+            }
+        }
+        if f.is_multiple_of(600) {
+            let f2 = c.scene.chars[me].foe_state().unwrap();
+            let down = r.parts.iter().filter(|&&p| c.scene.listed(p)).count();
+            println!(
+                "{f}: Magus act {} hp {hp}/{} pp {} break {} drained {drained} - body -{body_dmg}, leaves -{leaf_dmg}, \
+                 leaves killed {kills}, on the lists {down}",
+                b.act_num, c.scene.chars[me].max_hp, f2.pp, f2.pp_count,
+            );
+        }
+    }
+    println!("rises {rises}, body -{body_dmg}, leaves -{leaf_dmg}, killed {kills}, drained {drained}");
+}
+
+/// Magus drained through the menus, as a player does it: Kite (with Data
+/// Drain, stout) walks up to the boss while it is free, on the targets and
+/// its protect broken, opens the menu, and PERSONAL, Skills, the Data Drain
+/// page, Magus: menu 66 runs, the boss takes the drain's 13 and 21, and its
+/// Epitaph (4500 HP) begins.
+#[test]
+fn magus_drained_through_the_menus() {
+    let Some(mut s) = event_115_session() else { return };
+    let mut pad = Pad::default();
+    let (mut drain_menu, mut epitaph, mut menus, mut prepared) = (false, false, BTreeSet::new(), false);
+    let mut renewed = false;
+    for i in 0..30000u64 {
+        let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+        let press = |b: Buttons| if i.is_multiple_of(8) { Raw { buttons: b, ..still } } else { still };
+        // Between stages (a load, a fade): OK now and then.
+        if !matches!(s.stage, Stage::Area(_)) {
+            pad.read(&press(Buttons::CROSS));
+            s.step(&pad);
+            s.take_events();
+            continue;
+        }
+        let raw = {
+            let Stage::Area(a) = &mut s.stage else { unreachable!() };
+            if !prepared {
+                let save = &mut a.world_mut().state_mut().save;
+                let has = (0..20).any(|k| save.i16(piney_fieldui::items::SKILL_LIST + 2 * k) == 2);
+                if !has {
+                    let free = (0..20).find(|&k| save.i16(piney_fieldui::items::SKILL_LIST + 2 * k) < 0).unwrap();
+                    save.set_i16(piney_fieldui::items::SKILL_LIST + 2 * free, 2);
+                }
+                save.set_u8(offset::PLCOL, 1);
+                save.set_u8(piney_fieldui::menus::drain::DRAIN_DEMO, 0);
+                prepared = true;
+            }
+            {
+                let c = a.world_mut().combat_mut();
+                if let Some(k) = c.kite {
+                    let ch = &mut c.scene.chars[k];
+                    ch.max_hp = 9999;
+                    ch.hp = 9999;
+                }
+                // Enough hits would have broken its protect.
+                if let Some(me) = c.boss_char()
+                    && let Some(f) = c.scene.chars[me].foe_state_mut()
+                    && f.boss.as_ref().is_some_and(|b| magus_epitaph(b) == Some(0))
+                {
+                    f.pp_count = f.pp_count.max(5);
+                }
+            }
+            let w = a.world();
+            let c = w.combat();
+            let ui = a.ui();
+            let m = &ui.ctrl;
+            menus.insert(m.menu);
+            drain_menu |= m.menu == 66;
+            let boss = c
+                .boss_char()
+                .and_then(|me| c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map(|b| (me, b)));
+            if let Some((me, b)) = boss {
+                epitaph |= magus_epitaph(b) == Some(1);
+                // The drain's 21 (before its movie): 4500 HP.
+                if epitaph && c.scene.chars[me].max_hp == 4500 {
+                    renewed = true;
+                    break;
+                }
+            }
+            let go_to = |row: usize| match m.list().select.max(0) as usize {
+                s if s == row => Buttons::CROSS,
+                s if s < row => Buttons::DOWN,
+                _ => Buttons::UP,
+            };
+            let playing = a.vm().is_some_and(|v| v.playing().is_some());
+            match (ui.menu_type(), boss) {
+                // A block playing (its menus banned): move its messages on.
+                (-1, _) if playing => press(Buttons::CROSS),
+                (-1, _) if epitaph => still,
+                (-1, Some((me, b))) if b.lock_player == 0 && m.forbid == 0 => {
+                    let k = c.kite.unwrap();
+                    let p = c.scene.chars[k].pos.map(f32::from_bits);
+                    let q = c.scene.chars[me].pos.map(f32::from_bits);
+                    let (dx, dy) = (q[0] - p[0], q[1] - p[1]);
+                    if dx * dx + dy * dy < 600.0 * 600.0 && b.erase_target == 0 {
+                        press(Buttons::TRIANGLE)
+                    } else {
+                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        stick_toward(cam_z, dx.atan2(-dy))
+                    }
+                }
+                (-1, _) => still,
+                (0..=2, _) => press(go_to(m.list().items.iter().position(|&x| x == 4).unwrap_or(0))),
+                (4, _) if m.list().page < 5 => press(Buttons::RIGHT),
+                (4, _) => press(go_to(0)),
+                // The target menu: down to Magus, then take it.
+                (65, Some((me, _))) if w.targeting().target != Some((piney_world::entry::Kind::Enemy, me as i32)) => {
+                    press(Buttons::DOWN)
+                }
+                _ => press(Buttons::CROSS),
+            }
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    println!("menus {menus:?}");
+    assert!(drain_menu, "menu 66 never ran");
+    assert!(epitaph, "the drain did not bring the Epitaph");
+    assert!(renewed, "the drain's 21 did not give Magus its 4500 HP");
+}

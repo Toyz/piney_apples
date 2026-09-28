@@ -19,7 +19,11 @@ pub const MARKERS: i16 = 33;
 
 /// `markerEvTbl[n]` as a dummy of `file` (a town's, or an event map's for
 /// `marker_pos` in a field): its position (w 1) and its rotation's z, bits.
-pub fn marker_in(file: &piney_desktop::assets::SceneFile, volume: piney_data::volume::Volume, n: i16) -> Option<(V4, F)> {
+pub fn marker_in(
+    file: &piney_desktop::assets::SceneFile,
+    volume: piney_data::volume::Volume,
+    n: i16,
+) -> Option<(V4, F)> {
     if !(0..MARKERS).contains(&n) {
         return None;
     }

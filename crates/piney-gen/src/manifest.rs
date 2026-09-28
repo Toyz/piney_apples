@@ -1744,6 +1744,29 @@ fn combat() -> Group {
                 "`AllGomoraList_1[0]`: Kyvia 01's gomora lists, each gomora's attribute (4 none) by slave.",
             ),
             e(
+                "magus_epitaph",
+                0x005E_BAA0,
+                array_through(I32, Rc::new(|v| v.int() == -1)),
+                GCMN,
+                "`boss03EpitaphActTbl`: Magus's patterns once drained, up to and with its -1.",
+            ),
+            e("magus_anims", 0x005E_BB20, array(opt(cstr()), 32), GCMN, "`Boss03AnmTbl`: Magus's clip by act."),
+            e(
+                "magus_leaf_anims",
+                0x005E_BBC0,
+                array(opt(cstr()), 24),
+                GCMN,
+                "`Boss03SlaveAnmTbl`: a leaf's clip by act.",
+            ),
+            e("magus_skills", 0x005E_BBA0, array(I32, 3), GCMN, "`@1538`: pattern 10's skills, one by `ccRand() % 3`."),
+            e(
+                "magus_drop_skills",
+                0x005E_BBB0,
+                array(I32, 3),
+                GCMN,
+                "`@2301`: the skills `OnThinkLeafDrop` casts as its sixth leaf falls.",
+            ),
+            e(
                 "cinema_skill_names",
                 0x005E_B040,
                 array(

@@ -119,6 +119,16 @@ pub struct Combat {
     pub kyvia_downer_skills: &'static [i16],
     /// `AllGomoraList_1[0]`: Kyvia 01's gomora lists, each gomora's attribute (4 none) by slave.
     pub kyvia_gomora_lists: &'static [&'static [i16]],
+    /// `boss03EpitaphActTbl`: Magus's patterns once drained, up to and with its -1.
+    pub magus_epitaph: &'static [i32],
+    /// `Boss03AnmTbl`: Magus's clip by act.
+    pub magus_anims: &'static [Option<&'static str>],
+    /// `Boss03SlaveAnmTbl`: a leaf's clip by act.
+    pub magus_leaf_anims: &'static [Option<&'static str>],
+    /// `@1538`: pattern 10's skills, one by `ccRand() % 3`.
+    pub magus_skills: &'static [i32],
+    /// `@2301`: the skills `OnThinkLeafDrop` casts as its sixth leaf falls.
+    pub magus_drop_skills: &'static [i32],
     /// `_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.
     pub cinema_skill_names: &'static [CinemaSkillName],
     /// Every `*WpInfo`: the races' weapon trail blocks, by name.
@@ -176,6 +186,11 @@ impl crate::store::Load for Combat {
             kyvia_various_skills: crate::store::Load::load(r),
             kyvia_downer_skills: crate::store::Load::load(r),
             kyvia_gomora_lists: crate::store::Load::load(r),
+            magus_epitaph: crate::store::Load::load(r),
+            magus_anims: crate::store::Load::load(r),
+            magus_leaf_anims: crate::store::Load::load(r),
+            magus_skills: crate::store::Load::load(r),
+            magus_drop_skills: crate::store::Load::load(r),
             cinema_skill_names: crate::store::Load::load(r),
             weapon_infos: crate::store::Load::load(r),
             dust_infos: crate::store::Load::load(r),
@@ -276,6 +291,21 @@ impl Combat {
     }
     pub fn kyvia_gomora_lists(&self) -> &'static [&'static [i16]] {
         self.kyvia_gomora_lists
+    }
+    pub fn magus_epitaph(&self) -> &'static [i32] {
+        self.magus_epitaph
+    }
+    pub fn magus_anims(&self) -> &'static [Option<&'static str>] {
+        self.magus_anims
+    }
+    pub fn magus_leaf_anims(&self) -> &'static [Option<&'static str>] {
+        self.magus_leaf_anims
+    }
+    pub fn magus_skills(&self) -> &'static [i32] {
+        self.magus_skills
+    }
+    pub fn magus_drop_skills(&self) -> &'static [i32] {
+        self.magus_drop_skills
     }
     pub fn cinema_skill_names(&self) -> &'static [CinemaSkillName] {
         self.cinema_skill_names
@@ -412,6 +442,21 @@ pub static KYVIA_DOWNER_SKILLS: std::sync::LazyLock<&'static [i16]> =
 /// `AllGomoraList_1[0]`: Kyvia 01's gomora lists, each gomora's attribute (4 none) by slave.
 pub static KYVIA_GOMORA_LISTS: std::sync::LazyLock<&'static [&'static [i16]]> =
     std::sync::LazyLock::new(|| shared().kyvia_gomora_lists);
+
+/// `Boss03AnmTbl`: Magus's clip by act.
+pub static MAGUS_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().magus_anims);
+
+/// `Boss03SlaveAnmTbl`: a leaf's clip by act.
+pub static MAGUS_LEAF_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().magus_leaf_anims);
+
+/// `@1538`: pattern 10's skills, one by `ccRand() % 3`.
+pub static MAGUS_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().magus_skills);
+
+/// `@2301`: the skills `OnThinkLeafDrop` casts as its sixth leaf falls.
+pub static MAGUS_DROP_SKILLS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().magus_drop_skills);
 
 /// `ehkBreathInfo`: `ccEnemyH`'s two fire breaths.
 pub static EHK_BREATH_INFO: std::sync::LazyLock<&'static [EnemyBrInfo]> =

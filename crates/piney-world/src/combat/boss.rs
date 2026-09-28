@@ -2,9 +2,9 @@
 //! starts for an event's `entry 7 code` - `ccThBossEffect` and
 //! `bossFunc[code]` at priority 66 - over the battle's scene
 //! ([`piney_battle::boss`]). Code 0 is Skeith (`ccThBoss01`), 1 Innis
-//! (`ccThBoss02`), 12 Kyvia's first fight (`ccThKyvia01`, its core and
-//! gomoras characters of their own); the others are not ported and start
-//! nothing. Once `CheckExit()` the task sets its parameter's +0x14, which
+//! (`ccThBoss02`), 2 Magus (`ccThBoss03`, its leaves characters of their
+//! own), 12 Kyvia's first fight (`ccThKyvia01`, its core and gomoras
+//! characters of their own); the others are not ported and start nothing. Once `CheckExit()` the task sets its parameter's +0x14, which
 //! `absent 7` reads.
 
 use std::cell::RefCell;
@@ -29,10 +29,11 @@ use crate::cinema::{Cinema, Name as CinemaName, Sent as CinemaSent};
 use crate::ee::{self, ONE, V4};
 use crate::lattice::{Lattice, StripVertex};
 
-/// `bossFunc`'s codes the port has: Skeith (`bossTbl` row 0) and Innis
-/// (row 1).
+/// `bossFunc`'s codes the port has: Skeith (`bossTbl` row 0), Innis
+/// (row 1), Magus (row 2) and Kyvia 01 (row 12).
 pub const SKEITH: i32 = 0;
 pub const INNIS: i32 = 1;
+pub const MAGUS: i32 = 2;
 pub const KYVIA: i32 = 12;
 
 /// Skeith's file and model (`x11`, `CMP_trall`), and the effects' file.
@@ -47,6 +48,9 @@ pub const IMAGES: [&str; 3] = ["CMP_ex21mon1", "CMP_ex21mon2", "CMP_ex21mon3"];
 pub const KYVIA_FILE: &str = "x01";
 pub const KYVIA_CLUMP: &str = "CMP_trallex01";
 pub const KYVIA_PARTS: [&str; 2] = ["CMP_trall2", "CMP_ex01gom2"];
+/// Magus's file (`x31`): its body (`CMP_trall`) and its leaves' model.
+pub const MAGUS_FILE: &str = "x31";
+pub const MAGUS_LEAF: &str = "CMP_ex31leaf";
 /// The wave's animation in [`EFF_FILE`].
 pub const ANM_WAVE: &str = "ANM_xx11wave";
 
@@ -146,6 +150,7 @@ impl BossLook {
     ) -> piney_data::Result<BossLook> {
         let (file, clump) = match code {
             INNIS => (INNIS_FILE, CLUMP),
+            MAGUS => (MAGUS_FILE, CLUMP),
             KYVIA => (KYVIA_FILE, KYVIA_CLUMP),
             _ => (FILE, CLUMP),
         };
@@ -185,6 +190,10 @@ impl BossLook {
                 let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, KYVIA_FILE)?);
                 KYVIA_PARTS.iter().filter_map(|c| Body::of(file.clone(), c).ok().map(Rc::new)).collect()
             }
+            MAGUS => {
+                let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, MAGUS_FILE)?);
+                Body::of(file, MAGUS_LEAF).ok().map(Rc::new).into_iter().collect()
+            }
             _ => Vec::new(),
         };
         Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, images })
@@ -206,7 +215,7 @@ impl Combat {
         camera: &mut Camera,
     ) {
         let code = look.code;
-        if self.boss.is_some() || !matches!(code, SKEITH | INNIS | KYVIA) {
+        if self.boss.is_some() || !matches!(code, SKEITH | INNIS | MAGUS | KYVIA) {
             return;
         }
         let d = self.data.clone();
@@ -251,6 +260,7 @@ impl Combat {
         };
         let b = match code {
             INNIS => boss::innis::new(&mut cx, kite_pos, kite_dirc, center),
+            MAGUS => boss::magus::new(&mut cx, kite_pos, kite_dirc, center),
             KYVIA => boss::kyvia::new(&mut cx),
             _ => Boss::new(&mut cx, kite_pos, kite_dirc, center),
         };
@@ -280,6 +290,7 @@ impl Combat {
                 }
                 v
             }
+            Class::Magus(x) => x.leaves.clone(),
             _ => Vec::new(),
         };
         if let Some(f) = self.scene.chars[me].foe_state_mut() {
@@ -293,11 +304,15 @@ impl Combat {
             _ => CAM_TRANSFER,
         };
         // InitBossCamera(z, y), in the constructor, and what the
-        // constructor set on it then.
-        let mut cam = BossCam::new(camera, transfer, kite_pos);
-        for o in &ctor_out {
-            cam_out(&mut cam, o, camera);
-        }
+        // constructor set on it then. Magus makes none: it turns camera 3
+        // itself (`CalcCamera`).
+        let cam = (code != MAGUS).then(|| {
+            let mut cam = BossCam::new(camera, transfer, kite_pos);
+            for o in &ctor_out {
+                cam_out(&mut cam, o, camera);
+            }
+            cam
+        });
         self.boss = Some(BossRun {
             code,
             me,
@@ -307,8 +322,8 @@ impl Combat {
             look: look.clone(),
             afterimages: Vec::new(),
             wave: None,
-            cam: Some(cam),
-            cam_sw: true,
+            cam_sw: cam.is_some(),
+            cam,
             reverse: false,
             lattice: Lattice::new(2, 7),
             trail: (Vec::new(), 0),
@@ -366,6 +381,11 @@ impl Combat {
         }
         let Some(mut b) = self.scene.chars[me].foe_state_mut().and_then(|f| f.boss.take()) else { return ev };
         let mut out = b.take_pending();
+        // Magus's leaves hang where its body was last posed: `Init` reads
+        // `OBJ_ex31leafNN`'s world matrix.
+        if let (Class::Magus(x), Some(a)) = (&mut b.class, self.cast.actors.get(&me)) {
+            x.leaf_pos = leaf_points(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc, x.leaf_pos);
+        }
         // ccBoss::Move: SetHitSW(bodyHitSW), then the body at the new place
         // pushed out of the others (CollisionDetection).
         let kite = self.kite;
@@ -433,6 +453,7 @@ impl Combat {
         let dirc = b.dirc;
         let wave_time = match &b.class {
             Class::Innis(x) => x.anm_w.posed,
+            Class::Magus(x) => x.anm_w.posed,
             _ => b.anm_wave.posed,
         };
         let clip = b.anm.clip.clone().unwrap_or_default();
@@ -478,6 +499,10 @@ impl Combat {
                         }
                     }
                     Out::DiscNextStage => r.disc_next = true,
+                    // Magus's cameras: changeCamera, cameraSetPos/View.
+                    Out::CameraChange(n) => camera.change_camera(*n as i16),
+                    Out::CameraPos { cam, pos } => camera.cam_mut(*cam as i16).pos = *pos,
+                    Out::CameraView { cam, view } => camera.cam_mut(*cam as i16).view = *view,
                     Out::DeadCamera { eye, view, .. } => {
                         if r.cam_sw {
                             if r.cam.is_some() {
@@ -553,6 +578,13 @@ impl Combat {
         for o in out {
             match &o {
                 Out::DeleteCmnd => self.scene.ene_list.retain(|&c| c != me),
+                // checkCameraShakeRange(pos), then cameraShake: its `rand()`.
+                Out::CameraShake { pos, s } => {
+                    if shake_range(camera, &world, *pos) {
+                        let rand = &mut self.rand;
+                        camera.shake.shake(s[0], s[1], s[2], s[3], &mut || piney_battle::Rng::rand(rand));
+                    }
+                }
                 // ccItemSkillRequest: the skill run from the boss on its
                 // target, as an item's through a character.
                 Out::Skill(tp, k) => self.item_skill(me, *tp, k),
@@ -624,7 +656,9 @@ impl Combat {
         for (k, &p) in parts.iter().enumerate() {
             let Some(pb) = self.scene.chars[p].foe_state().and_then(|f| f.boss.as_ref()) else { continue };
             let shown = pb.draw_sw != 0 && pb.exit == 0 && !exited;
-            let Some(body) = look.images.get(usize::from(k > 0)).cloned() else { continue };
+            // Kyvia's core then its gomoras; Magus's leaves, one model.
+            let pick = usize::from(k > 0 && look.code != MAGUS);
+            let Some(body) = look.images.get(pick).cloned() else { continue };
             let (anm, dirc, alpha) = (pb.anm.clone(), pb.dirc, pb.set_transparency);
             let pos = self.scene.chars[p].pos;
             let a = match self.cast.actors.entry(p) {
@@ -704,6 +738,35 @@ fn sword_points(body: &crate::body::Body, play: &crate::pose::Play, pos: V4, dir
         Some([p.x.to_bits(), p.y.to_bits(), p.z.to_bits(), p.w.to_bits()])
     };
     Some([point("DMY_xdummy_w01")?, point("DMY_xdummy_w02")?])
+}
+
+/// `checkCameraShakeRange(pos)` (main 0x00162f10): `pos` in the active
+/// camera's view (`ccCheckCameraDeg(pos, 12288)`) and nearer its eye than
+/// 2000, all through `W2PPos`.
+fn shake_range(camera: &Camera, world: &World, pos: V4) -> bool {
+    let cam = camera.active();
+    let (p, c, v) = (world.frame.w2p(pos), world.frame.w2p(cam.pos), world.frame.w2p(cam.view));
+    let a = ee::rad2deg(ee::atan2f(ee::sub(p[1], c[1]), ee::sub(p[0], c[0])));
+    let b = ee::rad2deg(ee::atan2f(ee::sub(v[1], c[1]), ee::sub(v[0], c[0])));
+    let d = (12288 + (i32::from(a) - i32::from(b))) as i16;
+    if !(d > 0 && i32::from(d) < 2 * 12288) {
+        return false;
+    }
+    let dv = ee::vsub(pos, cam.pos);
+    ee::lt(ee::sqrtf(ee::dot(dv, dv)), 0x44fa_0000)
+}
+
+/// Where each of Magus's twelve leaves hangs (`OBJ_ex31leaf`,
+/// `OBJ_ex31leaf01`-`11` of x31) on the body posed by `play` at `pos`,
+/// `dirc`; a leaf the model lacks keeps `last`'s.
+fn leaf_points(body: &crate::body::Body, play: &crate::pose::Play, pos: V4, dirc: V4, last: [V4; 12]) -> [V4; 12] {
+    let worlds = body.worlds(play, crate::body::root(pos, dirc));
+    std::array::from_fn(|k| {
+        let name = if k == 0 { "OBJ_ex31leaf".to_string() } else { format!("OBJ_ex31leaf{k:02}") };
+        let Some(m) = body.node(&name).and_then(|n| worlds.get(&n)) else { return last[k] };
+        let p = *m * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
+        [p.x.to_bits(), p.y.to_bits(), p.z.to_bits(), p.w.to_bits()]
+    })
 }
 
 /// What a boss asks of its camera beside the frame's moves: a mode with a

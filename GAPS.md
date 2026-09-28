@@ -87,8 +87,8 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 - [ ] Mutation's bosses: [x] Innis (`ccBoss02`, worklog 266; its pictures
   and event 107 under the autopilot still open), [x] Kyvia 01 (`ccThKyvia01`,
   the `kyvia*` classes, worklog 272; event 108 under the autopilot still
-  open), [ ] Magus (`ccBoss03`) (worklog 264,
-  plans/mutation-story.md)
+  open), [x] Magus (`ccBoss03`, `ccBoss03Leaf`, worklog 274; its pictures
+  and event 115 under the autopilot still open)
 
 ## Asked for, not the game's
 

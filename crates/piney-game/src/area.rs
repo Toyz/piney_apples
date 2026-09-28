@@ -824,6 +824,15 @@ impl AreaMode {
                     out.push(Event::Se(*se));
                     (None, [0; 4])
                 }
+                // Magus's ccSeOnNote, and its grow's ccSeOn3DLoop (played
+                // once here; its ccSeOffLoop has nothing to stop).
+                Show::Boss(_, piney_battle::boss::Out::SeNote { se, note }) => {
+                    out.push(Event::SeNote { n: (*se).max(0) as usize, note: *note as i8 });
+                    (None, [0; 4])
+                }
+                Show::Boss(_, piney_battle::boss::Out::SeLoop { se, pos: Some(p) }) => {
+                    (usize::try_from(*se).ok().map(|code| se3d::NoteSe { code, note: None }), *p)
+                }
                 // The riding Grunty's notes: ccSeSetParamInu(param, pcgs).
                 Show::Ride(piney_battle::ride::Out::Sound { param, attribute }) => {
                     let at = c.ride.obj.as_ref().map_or([0, 0, 0, 0x3f80_0000], |o| o.ride.pos);
@@ -985,6 +994,10 @@ impl AreaMode {
             match s {
                 Show::Boss(_, Out::Flash { t, colour }) => {
                     self.st.fade_def.flash(*t as i16, *colour);
+                }
+                // EntryFlash2 / EntryFlash3: one flash over the whole time.
+                Show::Boss(_, Out::FlashFade { t, colour }) => {
+                    self.st.fade_def.flash((t[0] + t[1] + t[2]) as i16, *colour);
                 }
                 Show::Boss(_, Out::SwitchLayer) => self.world.arena_switch_layer(),
                 // LockPlayer's and UnlockPlayer's ccMenu->forbid (+0xfe) and
