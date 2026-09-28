@@ -6027,6 +6027,11 @@ mod tests {
         starts_open_their_event("mutation");
     }
 
+    #[test]
+    fn outbreak_story_starts_open_their_event() {
+        starts_open_their_event("outbreak");
+    }
+
     /// Each start point of the disc's story opens its event where it
     /// should, without the story before it playing again.
     fn starts_open_their_event(disc: &str) {
@@ -6034,8 +6039,10 @@ mod tests {
         let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
         let Some(volume) = Iso::open(&iso).ok().and_then(|mut d| d.volume().ok()) else { return };
         let story = crate::start::story(volume);
+        let mut checked = 0;
         for n in POINTS.into_iter().filter(|n| story.contains(n)) {
             let Some(mut s) = story_session_on(disc, n, |_| {}) else { return };
+            checked += 1;
             let mut pad = Pad::default();
             run(&mut s, &mut pad, 0..120, &[]);
             let place = crate::start::place(n).unwrap();
@@ -6058,6 +6065,8 @@ mod tests {
             let before: Vec<_> = played.iter().filter(|(e, _)| story.contains(e) && *e < n).collect();
             assert!(before.is_empty(), "story:{n}: the story before it played again: {before:?}");
         }
+        assert_eq!(checked, story.iter().filter(|n| POINTS.contains(n)).count(), "{disc}: starts checked");
+        eprintln!("{disc}: {checked} starts open their events");
     }
 
     /// Event 4's end (E4-7, E4-8, E4-9): its `mode 3` from the dungeon

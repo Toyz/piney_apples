@@ -948,6 +948,17 @@ fn mutation_story_survey() {
     }
 }
 
+/// Outbreak's (M3, 201-219).
+#[test]
+#[ignore]
+fn outbreak_story_survey() {
+    let only = std::env::var("PINEY_SURVEY_ONLY").ok().and_then(|v| v.parse().ok());
+    match only {
+        Some(n) => survey("outbreak", n..=n),
+        None => survey("outbreak", 201..=219),
+    }
+}
+
 /// The party, the members' address and call bits and the story's wants,
 /// for `mutation_whole_story`'s trace.
 fn whole_state(s: &Session) -> String {
@@ -1018,8 +1029,25 @@ fn event_flag(s: &mut Session, n: i32) -> Option<u64> {
 #[test]
 #[ignore]
 fn mutation_whole_story() {
+    whole_story("mutation");
+}
+
+/// Outbreak's, as [`mutation_whole_story`]: 201 to 219.
+#[test]
+#[ignore]
+fn outbreak_whole_story() {
+    whole_story("outbreak");
+}
+
+/// The disc's story from its new game to its last event's end under the
+/// autopilot, the survey's aids on.
+fn whole_story(disc: &str) {
     let frames: u64 = std::env::var("PINEY_SURVEY_FRAMES").ok().and_then(|v| v.parse().ok()).unwrap_or(2_000_000);
-    let Some(mut s) = story_session_on("mutation", 101, |_| {}) else { return };
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
+    let Some(volume) = Iso::open(&iso).ok().and_then(|mut d| d.volume().ok()) else { return };
+    let story = crate::start::story(volume);
+    let (Some(&first), Some(&last)) = (story.first(), story.last()) else { return };
+    let Some(mut s) = story_session_on(disc, first, |_| {}) else { return };
     s.console("god");
     let mut pad = Pad::default();
     let mut pilot = StoryPilot::default();
@@ -1042,13 +1070,13 @@ fn mutation_whole_story() {
         if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(3000) {
             eprintln!("WHOLE {f} {} {}", Mode::title(&s), whole_state(&s));
         }
-        for &n in crate::start::MUT_STORY.iter() {
+        for &n in story {
             if !ended.contains(&n) && event_flag(&mut s, n).is_some_and(|x| x & 3 << 62 != 0) {
                 ended.push(n);
                 println!("{f}: event {n} ended - {}", Mode::title(&s));
             }
         }
-        if ended.contains(&116) {
+        if ended.contains(&last) {
             return;
         }
     }
