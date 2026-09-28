@@ -346,17 +346,6 @@ impl StoryPilot {
             }
         }
         let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
-        if std::env::var_os("PINEY_DEBUG_TALK").is_some() && f.is_multiple_of(500) {
-            eprintln!(
-                "TALK {f} phase {:?} banned {banned} menu {} talking {:?} talked {:?} targets {:?} cmnd {:?}",
-                w.phase(),
-                a.ui().menu_type(),
-                self.talking,
-                self.talked,
-                w.event_targets(),
-                w.command_target_code()
-            );
-        }
         if !playing || banned || a.ui().menu_type() != -1 || self.talking.is_some() {
             return None;
         }
@@ -367,7 +356,16 @@ impl StoryPilot {
             .map(|&(_, c)| i32::from(c))
             .find(|c| !self.talked.contains(c))?;
         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
-        if w.command_target_code() == Some((piney_world::entry::Kind::Npc, code)) {
+        // An event NPC's stand-in is on the entry control's object list:
+        // the command target names it by its scene index.
+        let aimed = match w.command_target_code() {
+            Some((piney_world::entry::Kind::Npc, c)) => Some(c),
+            Some((piney_world::entry::Kind::Gimmick, i)) => {
+                w.combat().npcs.iter().find(|n| n.who == i as usize).map(|n| i32::from(n.code))
+            }
+            _ => None,
+        };
+        if aimed == Some(code) {
             if f.is_multiple_of(8) {
                 self.talking = Some((code, f));
                 return Some(Raw { buttons: Buttons::CROSS, ..still });
@@ -1546,12 +1544,13 @@ fn after_a_fight_shots() {
     assert!(ended.is_some(), "no fight ended");
 }
 
-/// Event 115 in field 13 (`EVENTAREA01`) with blocks 0-12 played and
-/// `eventStatus[0]` 1: block 13's six NPCs, and whether the pilot can find
-/// them. A diagnostic (`--ignored --nocapture`).
+/// Event 115 in field 13 with blocks 0-12 played: block 11's `area 13`
+/// gives `WORLD_MAN` area 13's row, so the field is `EVENTAREA01`; block
+/// 14's `marker_pos` reads its `DMY_marker_evNN` dummies and puts the six
+/// NPCs there; the pilot talks to each (block 15-20's statuses), and block
+/// 21 goes on to the arena, field 3.
 #[test]
-#[ignore]
-fn event_115_field_13_npcs() {
+fn event_115_field_13_talks_to_six() {
     let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
     if !iso.exists() {
         return;
@@ -1565,35 +1564,39 @@ fn event_115_field_13_npcs() {
     state.save.set_u8(piney_data::save::offset::EVENT_STATUS, 1);
     let mut scene = piney_world::area::Scene::log_in(&mut state.save);
     let wm = crate::area::story_world_man(&mut d, 52, false).unwrap();
+    let wm = crate::area::ev_area_number(&iso, 13, &wm, &state.save).unwrap();
     scene.change_scene(1, 2, 13, -1, -1, -1, &mut state.save);
     let mut s = Session::in_world(iso, archive, None, state, Some(start.vm), scene, Some(wm)).unwrap();
     let mut pad = Pad::default();
     let mut pilot = StoryPilot::default();
-    for f in 0..6000u64 {
+    let (mut story_map, mut placed, mut arena) = (false, false, false);
+    for f in 0..8000u64 {
         let raw = pilot.next(&s, f);
         pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
-        if f.is_multiple_of(500)
-            && let Stage::Area(a) = &s.stage
-        {
+        if let Stage::Area(a) = &s.stage {
             let w = a.world();
-            let codes: Vec<_> = w.npcs().list.iter().map(|n| n.npc().code()).collect();
-            let at: Vec<_> = w.event_targets().iter().map(|&(t, c)| (c, w.char_pos(t, c).map(|p| p.map(f32::from_bits)))).collect();
-            if f == 1000 {
-                for (t, c) in a.calls().iter().filter(|(_, c)| ["npc", "trans", "marker", "fault", "block"].iter().any(|k| c.contains(k))) {
-                    println!("CALL {t} {c}");
-                }
+            if w.scene().field == 13 {
+                story_map |= matches!(w.place(), Place::Story(_));
+                placed |= w.event_targets().len() == 6
+                    && w.event_targets().iter().all(|&(t, c)| w.char_pos(t, c).is_some_and(|p| p[0] != 0 || p[1] != 0));
             }
-            println!(
-                "N115 {f} {} placed {} classes {codes:?} targets {at:?} calls {:?}",
-                Mode::title(&s),
-                w.combat().npcs.len(),
-                a.calls().iter().rev().take(3).collect::<Vec<_>>()
-            );
+            if w.scene().field == 3 {
+                arena = true;
+                break;
+            }
         }
     }
+    let status: Vec<u8> = match &s.stage {
+        Stage::Area(a) => (10..16).map(|k| a.world().state().save.u8(piney_data::save::offset::EVENT_STATUS + k)).collect(),
+        _ => Vec::new(),
+    };
+    assert!(story_map, "field 13 was not EVENTAREA01");
+    assert!(placed, "the six NPCs were not at their markers");
+    assert_eq!(status, vec![1; 6], "not every talk ran");
+    assert!(arena, "block 21 did not go to field 3: {}", Mode::title(&s));
 }
 
 /// Event 13 (MG0340) in Mac Anu: Mia and Elk are entered for the talk

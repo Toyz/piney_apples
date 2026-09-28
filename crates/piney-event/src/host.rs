@@ -513,6 +513,9 @@ pub trait Host {
         unported("marker");
         None
     }
+    /// The event manager's positions after a `set_pos` or `marker_pos`:
+    /// outside the towns an NPC's put or walk to a marker reads them.
+    fn event_positions(&mut self, _positions: &[crate::vm::EvPos]) {}
     /// The distance from the player (`plw`) to a point after
     /// `ccTransPosW2P`; `None` when the game would use an unset vector.
     fn player_distance(&self, pos: Option<[f32; 4]>) -> f32 {

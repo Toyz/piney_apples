@@ -486,11 +486,15 @@ impl Vm {
             Op::SetPos { floor, block, posnum, dirc, x, y, z } => {
                 let pos = [x as i32 as f32 * 10.0, y as i32 as f32 * 10.0, z as i32 as f32 * 10.0, 1.0];
                 self.set_pos(floor, block, posnum as i32, deg2rad(dirc), pos);
+                host.event_positions(&self.mng.positions);
             }
             Op::MarkerPos { marker, posnum } => {
                 let g = host.game();
                 match host.marker(marker) {
-                    Some(m) => self.set_pos(g.floor as i16, g.block as i16, posnum as i32, m.dirc, m.pos),
+                    Some(m) => {
+                        self.set_pos(g.floor as i16, g.block as i16, posnum as i32, m.dirc, m.pos);
+                        host.event_positions(&self.mng.positions);
+                    }
                     None => self.fault(n, b, "marker_pos without a marker in the loaded area"),
                 }
             }

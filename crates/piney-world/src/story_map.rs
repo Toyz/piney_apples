@@ -91,6 +91,11 @@ pub trait StoryMap: Any {
     fn trans_center(&self) -> Option<V4> {
         None
     }
+    /// The map's scene file, where `marker_pos` finds `markerEvTbl`'s
+    /// dummies (`WORLD_MAN` +0x444's stream); None where not ported.
+    fn file(&self) -> Option<&piney_desktop::assets::SceneFile> {
+        None
+    }
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn into_any(self: Box<Self>) -> Box<dyn Any>;

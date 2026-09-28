@@ -325,6 +325,31 @@ impl WorldMan {
         }
     }
 
+    /// Instruction 118 `area n` for `n` 1-13 (`ccEvAreaCodeAdd`):
+    /// `WORLD_MAN::Quit()` (which frees the map, not these fields) and
+    /// `eventAreaNumber = n`; what `GO` reads of the story area follows the
+    /// new number's row (`GetEventAreaInfo()`).
+    pub fn with_event_number(
+        &self,
+        tables: &piney_data::area::AreaTables,
+        n: i32,
+        flag71: bool,
+        crisis: bool,
+    ) -> WorldMan {
+        let info = tables.event_area_info(n, flag71).filter(|_| n != 0);
+        WorldMan {
+            event: n,
+            protect: tables.is_protect_area(n, flag71),
+            hack: match info {
+                Some(i) if !crisis => i.flag as u32,
+                _ => self.hack,
+            },
+            field_model: info.map_or(0, |i| i.model),
+            ev_enemy: info.map_or(255, |i| i.enemy),
+            ..*self
+        }
+    }
+
     /// `WORLD_MAN.timeSym` (+0x134, `SimGenerateCode`): the first word is
     /// "Chronicling" (131), whose dungeon ends at the Zeit statue.
     pub fn time_sym(&self) -> bool {

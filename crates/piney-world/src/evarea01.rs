@@ -180,6 +180,9 @@ impl StoryMap for Area13 {
     fn hits(&self) -> &Hits {
         &self.base.hits
     }
+    fn file(&self) -> Option<&piney_desktop::assets::SceneFile> {
+        Some(&self.base.file)
+    }
     fn hits_mut(&mut self) -> &mut Hits {
         &mut self.base.hits
     }

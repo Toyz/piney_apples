@@ -370,13 +370,15 @@ impl Session {
         let (mut state, vm) = match stage {
             Stage::World(mut w) => {
                 // ccSetupGameCtrl's ccStoreSpcCondition, for the next
-                // scene's party.
+                // scene's party; the old scene's fellow tasks deleted.
                 w.world_mut().store_conditions();
+                w.world_mut().delete_fellows();
                 self.spcs = Some(w.world().spcs().clone());
                 w.leave()
             }
-            Stage::Area(a) => {
+            Stage::Area(mut a) => {
                 self.gt_hack = a.world().gt_hack();
+                a.world_mut().delete_fellows();
                 let (state, vm, _, wm, dungeon, spcs) = a.leave();
                 self.world_man = Some(wm);
                 self.dungeon = dungeon;
@@ -388,11 +390,6 @@ impl Session {
                 return Err("a change of scene outside The World".into());
             }
         };
-        // The old scene's tasks are deleted: the fellows' delete drops
-        // whoever the events registered outside the party.
-        if let Some(s) = &mut self.spcs {
-            s.delete_fellows();
-        }
         match self.pending.take() {
             Some(Pending::Go(go)) => self.scene.go(go, &mut state.save),
             Some(Pending::Words(words)) => {
@@ -415,7 +412,19 @@ impl Session {
                             self.world_man = Some(wm);
                             self.dungeon = None;
                         }
-                        Ok(None) => {}
+                        // 1-13: no words; the same WORLD_MAN takes the
+                        // number (its fixed story map, model and flags).
+                        Ok(None) => {
+                            if let Some(cur) = self.world_man {
+                                match crate::area::ev_area_number(&self.iso, i32::from(n), &cur, &state.save) {
+                                    Ok(wm) => {
+                                        self.world_man = Some(wm);
+                                        self.dungeon = None;
+                                    }
+                                    Err(e) => eprintln!("{e}"),
+                                }
+                            }
+                        }
                         Err(e) => eprintln!("{e}"),
                     }
                 }

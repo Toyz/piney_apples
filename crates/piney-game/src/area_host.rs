@@ -497,6 +497,22 @@ impl Host for AreaHost<'_> {
         f32::from_bits(self.world.player_distance(p.map(f32::to_bits)))
     }
 
+    /// `marker_pos`'s marker: an event map's `markerEvTbl` dummy.
+    fn marker(&self, marker: i16) -> Option<piney_event::host::Marker> {
+        self.world.marker(marker)
+    }
+
+    fn event_positions(&mut self, positions: &[piney_event::vm::EvPos]) {
+        let to = |p: &piney_event::vm::EvPos| piney_battle::entry::EvPos {
+            floor: p.floor,
+            block: p.block,
+            num: p.num,
+            dirc: p.dirc.to_bits(),
+            pos: p.pos.map(f32::to_bits),
+        };
+        self.world.set_event_positions(positions.iter().map(to).collect());
+    }
+
     /// The event's NPCs outside the towns (`piney_world::field_npcs`).
     fn npc(&mut self, c: NpcCommand) {
         let done = self.world.npc_command(c);

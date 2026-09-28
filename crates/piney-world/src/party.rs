@@ -221,13 +221,19 @@ impl Spcs {
     }
 
     /// The fellow tasks' deletes at a change of scene (`ccThFellow01Delete`
-    /// .. `17Delete`, gcmn 0x0041ec20 ..): each registered character but
-    /// Kite that is not in the party (`partyFlag` 1) leaves the registry
-    /// (`DelSpc`), so an event's extras are not built again next scene.
-    pub fn delete_fellows(&mut self) {
+    /// .. `17Delete`, INF gcmn 0x0041ec20 ..): each registered character but
+    /// Kite whose own `partyFlag` is not 1 leaves the registry (`DelSpc`),
+    /// so an event's extras are not built again next scene. From Mutation
+    /// (MUT gcmn 0x004327b0) one with `recallFlag` stays too.
+    pub fn delete_fellows(&mut self, chars: &mut dyn SpcChars, keep_recalled: bool) {
         for i in 0..REGISTRY {
             let r = self.registry[i];
-            if r.id > 0 && r.party_flag != 1 {
+            if r.id <= 0 {
+                continue;
+            }
+            let own = chars.spc(r.id).map(|c| (*c.party_flag, *c.recall));
+            let keep = own.map_or(r.party_flag == 1, |(flag, recall)| flag == 1 || (keep_recalled && recall));
+            if !keep {
                 self.del_spc(i);
             }
         }
@@ -766,6 +772,13 @@ impl crate::World {
         f: impl FnOnce(&mut Spcs, &mut crate::town_party::TownChars, &mut Hits) -> R,
     ) -> R {
         self.party.with_chars(&mut self.player, &mut self.spcs, &mut self.town.base.hits, f)
+    }
+
+    /// The town's fellow tasks deleted as the scene changes
+    /// ([`Spcs::delete_fellows`]).
+    pub fn delete_fellows(&mut self) {
+        let keep_recalled = self.volume != piney_data::volume::Volume::Inf;
+        self.with_party(|spcs, chars, _| spcs.delete_fellows(chars, keep_recalled));
     }
 
     /// `ccSPC::Reboot` (gcmn 0x005a00d0) as the town's set-up runs it

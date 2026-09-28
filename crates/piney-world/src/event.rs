@@ -17,6 +17,20 @@ use crate::party::{self, FaceTarget, SpcChars};
 /// `markerEvTbl` (INF main 0x00317da0, `world::markers`): 33 dummy names.
 pub const MARKERS: i16 = 33;
 
+/// `markerEvTbl[n]` as a dummy of `file` (a town's, or an event map's for
+/// `marker_pos` in a field): its position (w 1) and its rotation's z, bits.
+pub fn marker_in(file: &piney_desktop::assets::SceneFile, volume: piney_data::volume::Volume, n: i16) -> Option<(V4, F)> {
+    if !(0..MARKERS).contains(&n) {
+        return None;
+    }
+    let name = piney_data::tables::world::of(volume).markers().get(n as usize)?.to_string();
+    let obj = file.ccs.find_object(&name)?;
+    let d = file.scene.dummies.get(&obj)?;
+    let pos = [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE];
+    let rot = d.rot.map_or(0, |r| piney_data::anim::const_radians([0, 0, r.z.to_bits()])[2]);
+    Some((pos, rot))
+}
+
 /// `ccAI::SetDircZ(d)` as a heading: `DEG2RAD(d)`.
 fn heading(d: i16) -> F {
     ee::deg2rad(d)
@@ -42,16 +56,7 @@ impl World {
     /// `markerEvTbl[n]` in the town: the dummy's position (w 1) and its
     /// rotation's z, bits.
     pub fn marker_bits(&self, n: i16) -> Option<(V4, F)> {
-        if !(0..MARKERS).contains(&n) {
-            return None;
-        }
-        let name = piney_data::tables::world::of(self.volume).markers().get(n as usize)?.to_string();
-        let file = &self.town.base.file;
-        let obj = file.ccs.find_object(&name)?;
-        let d = file.scene.dummies.get(&obj)?;
-        let pos = [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE];
-        let rot = d.rot.map_or(0, |r| piney_data::anim::const_radians([0, 0, r.z.to_bits()])[2]);
-        Some((pos, rot))
+        marker_in(&self.town.base.file, self.volume, n)
     }
 
     /// [`World::marker_bits`] as the interpreter's `Host::marker`.

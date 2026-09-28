@@ -895,6 +895,22 @@ impl FieldWorld {
     /// Where a party character (type 2 and code, 0 Kite) or an event NPC
     /// (type 3 or 4 and its row) stands, as the events and the event camera
     /// look them up.
+    /// `marker_pos`'s marker in a field (`ccEvent::Execute` case 144, INF
+    /// main 0x001b1aa4): on an event map, `markerEvTbl[n]`'s dummy of the
+    /// map's stream; a plain field's (`WORLD_MAN` +0x438) is not ported.
+    pub fn marker(&self, n: i16) -> Option<piney_event::host::Marker> {
+        let Place::Story(m) = &self.place else { return None };
+        let (p, r) = crate::event::marker_in(m.file()?, self.volume, n)?;
+        Some(piney_event::host::Marker { pos: p.map(f32::from_bits), dirc: f32::from_bits(r) })
+    }
+
+    /// The event manager's 16 positions as the script has set them since
+    /// the area's set-up (`set_pos`, `marker_pos`): what an NPC's put or
+    /// walk to a marker reads (`evPos`, eventMng +0x1c0).
+    pub fn set_event_positions(&mut self, positions: Vec<piney_battle::entry::EvPos>) {
+        self.event_entries.2 = positions;
+    }
+
     pub fn char_pos(&self, ty: i16, code: i16) -> Option<V4> {
         if matches!(ty, 3 | 4) {
             return self.npcs.by_code(i32::from(code)).map(|n| n.npc().char().pos);
@@ -2915,6 +2931,13 @@ impl FieldWorld {
         ev.frame(&mut cam, self, &input);
         self.evcam = ev;
         self.camera = cam;
+    }
+
+    /// The field's fellow tasks deleted as the scene changes
+    /// ([`crate::party::Spcs::delete_fellows`]).
+    pub fn delete_fellows(&mut self) {
+        let keep_recalled = self.volume != piney_data::volume::Volume::Inf;
+        self.with_party(|spcs, chars, _| spcs.delete_fellows(chars, keep_recalled));
     }
 
     /// The party's characters as the event instructions see them

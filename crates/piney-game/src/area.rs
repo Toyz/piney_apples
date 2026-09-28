@@ -1721,6 +1721,20 @@ pub fn ev_area_world_man(
     }
 }
 
+/// Instruction 118 `area n` for a numbered story area (1-13): `wm` with
+/// `eventAreaNumber` n ([`WorldMan::with_event_number`]).
+pub fn ev_area_number(
+    iso: &Path,
+    n: i32,
+    wm: &WorldMan,
+    save: &piney_data::save::SaveData,
+) -> Result<WorldMan, String> {
+    let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+    let tables = area_tables(&mut disc)?;
+    let crisis = save.u8(offset::CRISIS) != 0;
+    Ok(wm.with_event_number(tables, n, piney_data::area::flag71(save), crisis))
+}
+
 /// `WORLD_MAN::SetGenerateCode(a, b, c)` on `server` with `save`'s flags:
 /// the area and the change of scene to it.
 pub fn set_generate_code(
