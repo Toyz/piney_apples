@@ -1,15 +1,10 @@
 //! The records the talk pages reach through the pointers the game keeps:
 //! `npcTbl`'s `base.msg` (which the save's party records hold too),
-//! `spcMsgTbl`, the present tables, the breeder's and the Grunty's records
-//! and `errorData`. Every record array (`ccEvMsgData[]`) and pointer table
-//! (`ccEvMsgData *[]`, `**[]`) reachable from them, with its address in the
-//! volume, since the port looks records up by the addresses the save
-//! stores.
-//!
-//! Infection's DWARF declares each; a later volume's are carried with
-//! Infection's kind and count, and one the carry has not is told by its
-//! shape: a record is an `emode`, a name and a text; a pointer table is
-//! pointers or nulls.
+//! `spcMsgTbl`, the present tables, the breeder's and the Grunty's records,
+//! `errorData` and `kiteSelfTalk`: every record array and pointer table
+//! reachable from them, with its address, since the port looks records up by
+//! the addresses the save stores. Infection's DWARF declares each; a later
+//! volume's are carried, or told by shape (`emode`, a name and a text).
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
@@ -152,6 +147,7 @@ fn roots(v: Vol) -> Vec<u32> {
         "breed_teach2_va",
         "pg_evo_msg_va",
         "error_data_va",
+        "kite_self_talk_va",
     ] {
         out.push(get("fieldui", k).int() as u32);
     }

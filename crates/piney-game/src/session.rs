@@ -1916,9 +1916,12 @@ mod tests {
         // Log in.
         let save = &page.state().save;
         let unread = (0..piney_data::save::MAIL_SLOTS).any(|n| matches!(save.mail(n), 1 | 2));
-        let want = if unread {
+        // A command the events take over (`add_operate`, command + 6) is
+        // passed by: its message would only come round again.
+        let taken = |c: i32| page.state().operate & (1u64 << (c + piney_toppage::control::OPERATE_BASE[0])) != 0;
+        let want = if unread && !taken(CMD_QUIT) {
             CMD_QUIT
-        } else if ctl.bbs_new {
+        } else if ctl.bbs_new && !taken(CMD_BBS) {
             CMD_BBS
         } else {
             CMD_LOGIN
@@ -1947,6 +1950,8 @@ mod tests {
                         Some(r) => row(b.msg_page.index, r),
                         None => Buttons::CIRCLE,
                     },
+                    // A post to write (state 7): OK types it out, OK posts it.
+                    2 => Buttons::CROSS,
                     _ => Buttons::CIRCLE,
                 }
             }
@@ -2097,8 +2102,8 @@ mod tests {
         Town(i32),
         /// A story area, by its words.
         Area(i16),
-        /// That area's dungeon.
-        Dungeon(i16),
+        /// That area's dungeon, by its index (a lake's 1 is below it).
+        Dungeon(i16, i16),
         /// Event point `num` of the dungeon.
         Point(i32),
         Party(i32),
@@ -2163,6 +2168,10 @@ mod tests {
                 if b < 62 && flag & (1 << b) != 0 {
                     continue;
                 }
+                // A block that plays again each time is a side line: its
+                // event point is not where the story goes next (event 115's
+                // point 3, 113's point 2).
+                let repeats = block.ops.iter().any(|o| matches!(o, piney_event::ir::Op::Repeatable {}));
                 if !held || (after >= 0 && flag & (1 << (after & 63)) == 0) {
                     continue;
                 }
@@ -2179,17 +2188,19 @@ mod tests {
                 match scene {
                     [0, town, ..] if town >= 0 => out.push(Want::Town(i32::from(town))),
                     [1, _, field, ..] if field >= 0 => out.push(Want::Area(field)),
-                    [2, _, field, ..] if field >= 0 => out.extend([Want::Area(field), Want::Dungeon(field)]),
+                    [2, _, field, dungeon, ..] if field >= 0 => {
+                        out.extend([Want::Area(field), Want::Dungeon(field, dungeon)])
+                    }
                     _ => {}
                 }
-                if point >= 0 {
+                if point >= 0 && !repeats {
                     out.push(Want::Point(point));
                 }
                 for c in &block.conds {
                     match *c {
                         Cond::GateWords { area, .. } => out.push(Want::Area(area)),
                         Cond::InParty { pc } if required.contains(&pc) => out.push(Want::Party(i32::from(pc))),
-                        Cond::InPoint { num } => out.push(Want::Point(i32::from(num))),
+                        Cond::InPoint { num } if !repeats => out.push(Want::Point(i32::from(num))),
                         _ => {}
                     }
                 }
@@ -2248,7 +2259,7 @@ mod tests {
 
     /// What the story autopilot goes to the Chaos Gate for.
     #[derive(Clone, Copy)]
-    enum GateGoal {
+    pub(super) enum GateGoal {
         /// The marked story area at this row of the Word List.
         Area(usize),
         /// The town at this row of the Towns list, whose server has one.
@@ -2262,21 +2273,20 @@ mod tests {
         Invite(i32),
     }
 
-    /// The story autopilot's way from a town: Kite walks to the Chaos Gate
-    /// (gimmick 16) and speaks to it; the gate's menu (28), then Word List
-    /// (59), the marked area's row and Warp, or else, with a mail unread,
-    /// Log Out (11) and OK. None with neither, or while a window waits
-    /// (the rest of [`story_player`] then).
-    fn gate_player(w: &crate::world::WorldMode, f: u64) -> Option<Raw> {
+    /// What the story autopilot goes for in a town, in order: an event's
+    /// NPC to talk to, a mail or post unread (log out), another town, a
+    /// member to call, an area's words, the marks. None with none.
+    pub(super) fn gate_goal(w: &crate::world::WorldMode) -> Option<GateGoal> {
         use piney_world::entry::Kind;
-        let still =
-            |buttons: Buttons| Raw { buttons, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
         let save = &w.world().state().save;
         // A mail unread, or a post new on the board (posted, or written
-        // for the player: 1, 7): the top page reads them.
+        // for the player: 1, 7): the top page reads them. Not the posts
+        // while the events hold the board (operate 7, event 108).
+        let board = w.vm().is_none_or(|vm| vm.operate() & (1 << 7) == 0);
         let unread = (0..piney_data::save::MAIL_SLOTS).any(|n| matches!(save.mail(n), 1 | 2))
-            || (0..piney_data::save::BBS_THREADS)
-                .any(|t| (0..piney_data::save::BBS_MESSAGES).any(|m| matches!(save.bbs(t, m), 1 | 7)));
+            || board
+                && (0..piney_data::save::BBS_THREADS)
+                    .any(|t| (0..piney_data::save::BBS_MESSAGES).any(|m| matches!(save.bbs(t, m), 1 | 7)));
         // An NPC of this town the events wait to be spoken to (`add_target`)
         // comes before the gate.
         let world = w.world();
@@ -2327,14 +2337,27 @@ mod tests {
                     _ => None,
                 })
             });
-        let goal = match (talk, wanted, marked_areas(w).last(), marked_town(w)) {
+        Some(match (talk, wanted, marked_areas(w).last(), marked_town(w)) {
             (Some((code, _)), ..) => GateGoal::Talk(code),
             _ if unread => GateGoal::LogOut,
             (None, Some(g), ..) => g,
             (None, None, Some(&(row, _)), _) => GateGoal::Area(row),
             (None, None, None, Some(row)) => GateGoal::Town(row),
             (None, None, None, None) => return None,
-        };
+        })
+    }
+
+    /// The story autopilot's way from a town: Kite walks to the Chaos Gate
+    /// (gimmick 16) and speaks to it; the gate's menu (28), then Word List
+    /// (59), the marked area's row and Warp, or else, with a mail unread,
+    /// Log Out (11) and OK. None with neither, or while a window waits
+    /// (the rest of [`story_player`] then).
+    fn gate_player(w: &crate::world::WorldMode, f: u64) -> Option<Raw> {
+        use piney_world::entry::Kind;
+        let still =
+            |buttons: Buttons| Raw { buttons, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+        let goal = gate_goal(w)?;
+        let world = w.world();
         let ui = w.ui();
         let c = &ui.ctrl;
         let every = |n: u64, b: Buttons| still(if f.is_multiple_of(n) { b } else { Buttons::NONE });
@@ -5769,6 +5792,8 @@ mod tests {
     /// A Fairy's Orb used in a field: the map's portals.
     mod fairy_orb;
 
+    /// Mutation's area 43's story map (`EVENTAREA03`).
+    mod area43;
     /// The enemies' weapon trails: a goblin's swing.
     mod weapon;
 
@@ -6224,7 +6249,6 @@ mod area15 {
     use std::path::{Path, PathBuf};
 
     use piney_input::{Buttons, Raw};
-    use piney_world::field_world::Place;
 
     use super::*;
 
@@ -6336,7 +6360,7 @@ mod area15 {
         // ccSndSQLoad(5): the story map's event bank.
         assert!(matches!(banks[..], [piney_audio::SqContext::Event { field: 15, .. }]), "{banks:?}");
         let w = playing(&s).unwrap();
-        assert!(matches!(w.place(), Place::Event(e) if e.block == 0));
+        assert!(w.place().story::<piney_world::evarea::EventArea>().is_some_and(|e| e.block == 0));
         assert_eq!((w.scene().field, w.scene().block), (15, -1));
         assert!(at(w, [0.0, -3600.0, 0.0]), "{}", Mode::title(&s));
         // Up the bridge: Enter on the door, the scene's block 1, a new set-up.
@@ -6344,14 +6368,14 @@ mod area15 {
         let banks = hold(&mut s, 128, 0, 1500, |s| arrived(s).is_some_and(|w| w.scene().block == 1));
         assert!(banks.is_empty(), "the same scene: no bank loaded");
         let w = arrived(&s).unwrap();
-        assert!(matches!(w.place(), Place::Event(e) if e.block == 1 && e.rev.is_some()));
+        assert!(w.place().story::<piney_world::evarea::EventArea>().is_some_and(|e| e.block == 1 && e.rev.is_some()));
         assert!(at(w, [0.0, 900.0, 0.0]), "{}", Mode::title(&s));
         assert_eq!(w.player().acts.act, 2, "through the door he stands at once");
         assert_eq!(w.scene().area_prev, 1);
         // Back down the nave and out.
         hold(&mut s, 128, 255, 1500, |s| arrived(s).is_some_and(|w| w.scene().block == 0));
         let w = arrived(&s).unwrap();
-        assert!(matches!(w.place(), Place::Event(e) if e.block == 0));
+        assert!(w.place().story::<piney_world::evarea::EventArea>().is_some_and(|e| e.block == 0));
         assert!(at(w, [0.0, 2700.0, 200.0]), "{}", Mode::title(&s));
     }
 
@@ -6366,7 +6390,9 @@ mod area15 {
         let banks = hold(&mut s, 128, 128, 200, |s| playing(s).is_some());
         assert!(matches!(banks[..], [piney_audio::SqContext::Event { field: 16, .. }]), "{banks:?}");
         let w = playing(&s).unwrap();
-        assert!(matches!(w.place(), Place::Giant(g) if g.block == 0 && g.clouds.len() == 25));
+        assert!(
+            w.place().story::<piney_world::evarea07::Giant>().is_some_and(|g| g.block == 0 && g.clouds.len() == 25)
+        );
         assert!(at(w, [0.0, -5400.0, -50.0]), "{}", Mode::title(&s));
         hold(&mut s, 128, 128, 120, |s| playing(s).is_some_and(|w| w.player().acts.act == 2));
         hold(&mut s, 128, 0, 1500, |s| arrived(s).is_some_and(|w| w.scene().area == 2));
@@ -6374,9 +6400,11 @@ mod area15 {
         assert_eq!((w.scene().area, w.scene().field), (2, 16), "{}", Mode::title(&s));
         let Stage::Area(a) = &mut s.stage else { panic!("not in the dungeon") };
         assert!(a.world_mut().go_field());
-        hold(&mut s, 128, 128, 600, |s| arrived(s).is_some_and(|w| matches!(w.place(), Place::Giant(_))));
+        hold(&mut s, 128, 128, 600, |s| {
+            arrived(s).is_some_and(|w| w.place().story::<piney_world::evarea07::Giant>().is_some())
+        });
         let w = arrived(&s).unwrap();
-        assert!(matches!(w.place(), Place::Giant(g) if g.block == 0), "{}", Mode::title(&s));
+        assert!(w.place().story::<piney_world::evarea07::Giant>().is_some_and(|g| g.block == 0), "{}", Mode::title(&s));
         assert_eq!(w.scene().area_prev, 2);
         let back = piney_world::evarea07::Giant::new(&archive, 0, 2, 0).unwrap().start.map(f32::from_bits);
         assert!(at(w, [back[0], back[1], back[2]]), "{} (DMY_marker02 {back:?})", Mode::title(&s));
@@ -6398,7 +6426,7 @@ mod area15 {
         let w = playing(&s).unwrap();
         assert_eq!((w.scene().area, w.scene().field), (1, 15));
         assert_eq!(w.world_man().field_model, 1);
-        assert!(matches!(w.place(), Place::Event(e) if e.block == 0));
+        assert!(w.place().story::<piney_world::evarea::EventArea>().is_some_and(|e| e.block == 0));
         assert!(at(w, [0.0, -3600.0, 0.0]), "{}", Mode::title(&s));
     }
 
@@ -6647,7 +6675,7 @@ mod area15 {
         hold(&mut s, 128, 128, 600, |s| playing(s).is_some());
         let w = playing(&s).unwrap();
         assert_eq!((w.scene().area, w.scene().field), (1, 15));
-        assert!(matches!(w.place(), Place::Event(e) if e.block == 0));
+        assert!(w.place().story::<piney_world::evarea::EventArea>().is_some_and(|e| e.block == 0));
         assert!(at(w, [0.0, -3600.0, 0.0]), "{}", Mode::title(&s));
         // The event task's passes there are over: play goes on, the events
         // at phase 5.

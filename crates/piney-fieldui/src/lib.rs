@@ -565,6 +565,16 @@ impl FieldUi {
         message::open(&mut self.ctrl, call, &save.names(), &mut self.requests);
     }
 
+    /// `ccMsg->Open(rec, rec->name, -1, -1)` from a story map's scene (area
+    /// 43's `kiteSelfTalk`): the speech window with the record at `rec`, no
+    /// voice; [`FieldUi::message_check`] answers it.
+    pub fn story_message(&mut self, rec: u32, save: &SaveState) {
+        let r = self.texts.talk.ev_msg(rec);
+        let name = self.texts.talk.record(rec).and_then(|d| d.name).map(piney_data::tables::sjis::encode);
+        let lines: Vec<&[u8]> = r.lines.iter().map(|l| &l[..]).collect();
+        self.ctrl.msg.open_record(r.emode, name.as_deref(), &lines, &save.names());
+    }
+
     /// `Host::message_check`: `ccMsg->Check(0)` with this frame's pad: 0
     /// while the window waits, else 1 or the question's answer.
     pub fn message_check(&mut self, pad: &Pad, save: &SaveState) -> i32 {

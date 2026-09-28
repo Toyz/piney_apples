@@ -147,9 +147,7 @@ impl FieldWorld {
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.hits,
             Place::Dungeon(d) => &mut d.hits,
-            Place::Event(e) => &mut e.hits,
-            Place::Arena(a) => &mut a.hits,
-            Place::Giant(g) => &mut g.hits,
+            Place::Story(m) => m.hits_mut(),
         };
         if let Some(o) = self.combat.ride.obj.as_deref_mut() {
             let mut b = spc::to_body(BODY_WHO, None, &o.ride.hit, false);
@@ -240,9 +238,7 @@ impl FieldWorld {
         let hits = match &mut self.place {
             Place::Field(f) => &mut f.hits,
             Place::Dungeon(d) => &mut d.hits,
-            Place::Event(e) => &mut e.hits,
-            Place::Arena(a) => &mut a.hits,
-            Place::Giant(g) => &mut g.hits,
+            Place::Story(m) => m.hits_mut(),
         };
         let r = &mut self.combat.ride;
         if let Some(o) = r.obj.take() {

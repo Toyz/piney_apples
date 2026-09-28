@@ -35,6 +35,7 @@ use piney_world::area::{Scene, WorldMan};
 use piney_world::evarea::Kept;
 use piney_world::field_world::{FieldWorld, Request};
 use piney_world::party::Spcs;
+use piney_world::story_map::StoryRequest;
 use piney_world::talk::{self, TalkRequest};
 use piney_world::{Phase, Request as GameRequest};
 
@@ -68,6 +69,8 @@ pub struct AreaMode {
     /// its labels are drawn with.
     map_st: piney_world::map::MapState,
     asleep: bool,
+    /// A story map's message is up (area 43's `kiteSelfTalk`).
+    story_message: bool,
     fonts: Option<piney_desktop::kanji::Fonts>,
     /// The scripts' cutscene streams (`stream`).
     stream: area_host::AreaStream,
@@ -298,6 +301,7 @@ impl AreaMode {
             leaving: false,
             map_st,
             asleep: false,
+            story_message: false,
             item_use: None,
             world_hidden: false,
             drain_movie: None,
@@ -392,7 +396,7 @@ impl AreaMode {
         self.world.add_play_time(rate);
     }
 
-    #[cfg(test)]
+    /// The field's world to change (the console's `invite_party`).
     pub fn world_mut(&mut self) -> &mut FieldWorld {
         &mut self.world
     }
@@ -1330,6 +1334,16 @@ impl Mode for AreaMode {
         {
             self.ride_task_slot(pad);
         }
+        // A story map's message: `ccMsg->Check(0)` as its Draw asks, with
+        // this frame's pad.
+        if self.story_message {
+            let r = self.ui.message_check(pad, self.world.state());
+            if r != 0 {
+                self.story_message = false;
+                self.st.log(format!("message_check {r}"));
+                self.world.story_message_closed();
+            }
+        }
         self.world.step_into(pad, &mut ctx);
         // ccThGameCtrl's first step of the game over: CloseMenu,
         // ccMessage::Close, ccMenu.forbid (the party's AI and the enemies'
@@ -1525,6 +1539,19 @@ impl Mode for AreaMode {
         let mut out = Vec::new();
         for r in self.world.take_requests() {
             match r {
+                // A story map's scene: the menus (logged as the events'
+                // `menu_ban`), its message.
+                Request::Story(StoryRequest::MenuBan(on)) => {
+                    self.st.log(format!("menu_ban {on}"));
+                    self.ui.menu_ban(on);
+                }
+                Request::Story(StoryRequest::Message { rec }) => {
+                    self.st.log("message_open story".into());
+                    let save = self.world.state().clone();
+                    self.ui.story_message(rec, &save);
+                    self.story_message = true;
+                }
+                Request::Story(StoryRequest::ChangeArea(..)) => {}
                 Request::Game(GameRequest::SoundFadeOut) => out.push(Event::SoundFadeOut),
                 Request::Game(GameRequest::AllSoundOff) => out.push(Event::AllSoundOff),
                 // ccSndSQLoad: the area's bank as ccSetupGameCtrl picks it.

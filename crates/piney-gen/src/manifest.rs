@@ -1339,6 +1339,14 @@ fn fieldui() -> Group {
             e("error_data", 0x0035_5888, ev_msg(), GCMN, "`errorData`: the record shown for a missing line."),
             derived("error_data_va", addr(), GCMN, "Where `errorData` is, which a chain of records holds.")
                 .after("error_data", 0),
+            e(
+                "kite_self_talk",
+                0x0063_9548,
+                ev_msg(),
+                GCMN,
+                "`kiteSelfTalk`: Kite's line as area 43's map sends the party back (`EVENTAREA03::Draw`).",
+            ),
+            derived("kite_self_talk_va", addr(), GCMN, "Where `kiteSelfTalk` is.").after("kite_self_talk", 0),
             derived(
                 "voice_groups",
                 custom(Rc::new(voice_groups), array(I32, 17)),
@@ -2341,16 +2349,13 @@ fn voice_branch() -> Layout {
     )
 }
 
-/// `ccEvVoiceRequest` (main 0x0017e810) as the volume's own code has it,
-/// by `event / 100` (the story's volumes 1-4): each hundred's main events
-/// (0-49 of it), its side events (50-99) and, where the code has one,
-/// Parody Mode's table for the main events (without one a main event has
-/// no voice in Parody Mode). The code is read as it stands: every
-/// `lui`/`addiu` table base before a `voiceFile` store is that file's,
-/// Japanese first; the file names the hundred and the kind (6 + 3 (v - 1)
-/// main, + 1 side, + 2 parody); a base is its table less 4 times the
-/// first event. A table runs to the next table (at most 50 events), a
-/// row array to the next row array or table, over its rows.
+/// `ccEvVoiceRequest` (main 0x0017e810) as the volume's own code has it, by
+/// `event / 100`: each hundred's main (0-49), side (50-99) and, where the code
+/// has one, Parody Mode table. Every `lui`/`addiu` table base before a
+/// `voiceFile` store is that file's, Japanese first; the file names the
+/// hundred and kind (6 + 3 (v - 1) main, + 1 side, + 2 parody); a base is its
+/// table less 4 times the first event, and a table runs to the next (at most
+/// 50 events).
 fn event_voices(c: &Ctx) -> Read {
     use std::collections::{BTreeSet, HashMap};
     let f = find(c, 0x0017_E810, MAIN);
@@ -2594,20 +2599,12 @@ struct VoiceCaseAlt {
 }
 
 /// A voice case's code, words `lo..hi` of the function at `f`, read as it
-/// stands:
-///
-/// - The `lb` of `saveData.voice` (+0x842c) and the `bnez` after it: the
-///   English branch starts at that branch's target.
-/// - Each `lui`/`addiu` pair builds a table. Its file is the first
-///   `voiceFile` store after it (`sw $zero`, or a register's `li`).
-/// - A call is to a getter of `talkNum` (+0x220c, `li $a1, n` the
-///   index), and the table built next is an alternative: its code tests
-///   the message with two `slti` (from the first bound, below the second),
-///   and its row is the message plus the `addiu` between the call and the
-///   table (0 without one).
-/// - Before the English branch there is one table, the Japanese. From it
-///   there is one besides any alternative, the English. Both set the same
-///   file.
+/// stands: the `lb` of `saveData.voice` (+0x842c) and its `bnez` start the
+/// English branch; each `lui`/`addiu` pair builds a table whose file is the
+/// next `voiceFile` store; a call to a `talkNum` (+0x220c) getter makes the
+/// next table an alternative for the messages its two `slti` bound, its row
+/// the message plus the `addiu` before it. One Japanese table before the
+/// branch, one English after it besides any alternative, both one file.
 fn voice_case(c: &Ctx, w: &[u32], f: u32, lo: usize, hi: usize) -> Result<VoiceCase, String> {
     use std::collections::HashMap;
     let voice_file = find(c, 0x0037_89E4, MAIN);

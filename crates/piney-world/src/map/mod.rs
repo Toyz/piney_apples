@@ -239,7 +239,7 @@ pub fn setup_area(
             }
         }
         // A story map of its own draws no map (EVENTAREA02::Draw).
-        Place::Event(_) | Place::Arena(_) | Place::Giant(_) => {}
+        Place::Story(_) => {}
     }
     Ok(())
 }
@@ -314,7 +314,7 @@ pub fn area_frame(
             map.render(&st.last, fonts, ctx);
             d.map = Some(map);
         }
-        Place::Event(_) | Place::Arena(_) | Place::Giant(_) => {}
+        Place::Story(_) => {}
     }
     status
 }
@@ -332,7 +332,7 @@ pub fn show_map(place: &mut Place, field_model: i32, pos: V4) -> bool {
         },
         Place::Dungeon(d) => dungeon::show_map_step(d, pos),
         // The story area's map is its own: nothing to show.
-        Place::Event(_) | Place::Arena(_) | Place::Giant(_) => true,
+        Place::Story(_) => true,
     }
 }
 

@@ -77,9 +77,9 @@ pub fn story(volume: Volume) -> &'static [i32] {
 }
 
 /// The events a start can be made at: Infection's, then Mutation's.
-pub const POINTS: [i32; 39] = [
-    3, 4, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 102, 103, 104, 105,
-    106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116,
+pub const POINTS: [i32; 40] = [
+    3, 4, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 101, 102, 103, 104,
+    105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116,
 ];
 
 /// `charTbl` row 2, Orca.
@@ -106,7 +106,8 @@ pub enum Place {
 /// `game_status` 2 (the desktop) or 3 (the board), or `in_town` (a town,
 /// entered from Log in, where logging out leaves the party empty).
 /// Mutation's: the desktop but for M204 and M205 (the board) and M215
-/// (`game_status 5`, `in_town 2`: Carmina Gade).
+/// (`game_status 5`, `in_town 2`: Carmina Gade). M201, the new game's, is
+/// the desktop as the boot leaves it, nothing brought forward.
 pub fn place(n: i32) -> Option<Place> {
     Some(match n {
         3 => Place::Field,
@@ -114,7 +115,7 @@ pub fn place(n: i32) -> Option<Place> {
         10 | 12 | 16 | 17 | 24 | 25 | 29 | 31 => Place::Desktop,
         11 | 13 | 15 | 18 | 19 | 21 | 27 | 28 => Place::Town,
         14 | 20 | 22 | 23 | 26 | 30 => Place::Board,
-        102 | 103 | 106..=114 | 116 => Place::Desktop,
+        101..=103 | 106..=114 | 116 => Place::Desktop,
         104 | 105 => Place::Board,
         115 => Place::Town,
         _ => return None,

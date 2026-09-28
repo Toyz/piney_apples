@@ -97,31 +97,93 @@ impl StoryPilot {
             let sc = w.scene();
             let wants = story_wants(vm, &w.state().save);
             if sc.area == kind::DUNGEON {
-                let to = wants.iter().find_map(|&x| match x {
-                    Want::Point(n) => vm.mng.point(n).filter(|p| p.floor >= 0 && p.block >= 0),
-                    _ => None,
-                });
+                let to = lake_below(w, &wants)
+                    .or_else(|| {
+                        wants.iter().find_map(|&x| match x {
+                            Want::Point(n) => vm.mng.point(n).filter(|p| p.floor >= 0 && p.block >= 0),
+                            _ => None,
+                        })
+                    })
+                    .map(|p| (p.floor as usize, p.block as usize))
+                    .or_else(|| arena_door(w, &wants));
                 if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(500) {
                     eprintln!("GOAL {to:?} at {:?} wants {wants:?}", (sc.floor, sc.block));
                 }
-                if let Some(p) = to
-                    && let Some(raw) = self.walker.step(s, (p.floor as usize, p.block as usize), f)
+                if let Some(to) = to
+                    && let Some(raw) = self.walker.step(s, to, f)
                 {
                     return raw;
                 }
             }
             if sc.area == kind::FIELD
-                && wants.contains(&Want::Dungeon(sc.field as i16))
+                && wants.iter().any(|w| matches!(*w, Want::Dungeon(f, _) if f == sc.field as i16))
                 && let Some(raw) = self.walk_into_dungeon(a, f)
             {
                 return raw;
             }
         }
-        if !matches!(&s.stage, Stage::Area(_)) {
+        if let Stage::World(w) = &s.stage
+            && !w.streaming()
+            && let Some(raw) = self.walk_in_town(w, f)
+        {
+            return raw;
+        }
+        if !matches!(&s.stage, Stage::Area(_) | Stage::World(_)) {
             self.path.clear();
             self.mark = None;
         }
         story_player(s, f)
+    }
+
+    /// In a town, the way round the walls to whom [`gate_goal`] walks to
+    /// (an event's NPC, else the Chaos Gate), planned again when Kite
+    /// stops; within 400 of him, or with a menu or window up, None (the
+    /// straight walk and the talk of [`story_player`]).
+    fn walk_in_town(&mut self, w: &crate::world::WorldMode, f: u64) -> Option<Raw> {
+        use piney_world::entry::Kind;
+        let world = w.world();
+        let target = match gate_goal(w)? {
+            GateGoal::Talk(code) => (Kind::Npc, code),
+            GateGoal::Area(_) | GateGoal::Town(_) => (Kind::Gimmick, 16),
+            GateGoal::LogOut | GateGoal::Invite(_) => return None,
+        };
+        let waiting = w.calls().iter().rev().find_map(|(_, c)| {
+            if c.starts_with("message_open") || c.starts_with("announce") {
+                Some(true)
+            } else if c.starts_with("message_check") || c.starts_with("message_close") {
+                Some(false)
+            } else {
+                None
+            }
+        });
+        if w.ui().menu_type() != -1 || waiting == Some(true) || world.command_target() == Some(target) {
+            self.path.clear();
+            return None;
+        }
+        let (to, _) = world.char_place(target.0, target.1)?;
+        let to = to.map(f32::from_bits);
+        let p = world.player().body.pos.map(f32::from_bits);
+        if (to[0] - p[0]).hypot(to[1] - p[1]) < 400.0 {
+            self.path.clear();
+            return None;
+        }
+        if f.is_multiple_of(60) {
+            let stopped = self.mark.is_some_and(|m| (m[0] - p[0]).hypot(m[1] - p[1]) < 60.0);
+            if stopped || self.path.is_empty() {
+                let mid = [(p[0] + to[0]) / 2.0, (p[1] + to[1]) / 2.0];
+                let span = (to[0] - p[0]).abs().max((to[1] - p[1]).abs());
+                let n = ((span + 4000.0) / 150.0) as i32 | 1;
+                let near = |q: [f32; 2], _| (q[0] - to[0]).hypot(q[1] - to[1]) < 300.0;
+                self.path = path_to(&world.town().base.hits, [p[0], p[1], p[2]], mid, n, 150.0, near);
+            }
+            self.mark = Some([p[0], p[1]]);
+        }
+        while self.path.len() > 1 && (self.path[0][0] - p[0]).hypot(self.path[0][1] - p[1]) < 150.0 {
+            self.path.remove(0);
+        }
+        let q = self.path.first().copied()?;
+        let cam_z = f32::from_bits(world.camera().rot()[2]);
+        Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
 
     /// The fight through the menus, one action at a time and a second
@@ -222,6 +284,7 @@ impl StoryPilot {
         if [0, 1, 2, 3, 4, 5, 65, 71, 72, 73].contains(&t) {
             let message = (t == 65 && m.proccess == 2)
                 || (t == 73 && m.proccess == 10)
+                || (t == 71 && (10..=11).contains(&m.proccess))
                 || ((0..=2).contains(&t) && (2..=3).contains(&m.proccess));
             return Some(press(if message { Buttons::CROSS } else { Buttons::CIRCLE }));
         }
@@ -290,7 +353,9 @@ impl StoryPilot {
         let state = w.state();
         let down = |ch: &piney_battle::chara::Char| ch.hp <= 0;
         let limit = if fighting { 45 } else { 70 };
-        let low = |ch: &piney_battle::chara::Char| ch.hp > 0 && i32::from(ch.hp) * 100 < i32::from(ch.max_hp) * limit;
+        let low = |ch: &piney_battle::chara::Char| {
+            ch.hp > 0 && ch.cond.v[0] == 0 && i32::from(ch.hp) * 100 < i32::from(ch.max_hp) * limit
+        };
         // The menus' target rows: the party in order, the fallen for a
         // revive, those in a normal condition else.
         let fallen = |ch: &piney_battle::chara::Char| ch.cond.v[0] != 0 && ch.cond.v[0] != 5;
@@ -306,9 +371,12 @@ impl StoryPilot {
                 .map(|k| piney_fieldui::items::save_item(state, 0, k))
                 .any(|it| (it.cat, it.id) == (cat, id) && it.num > 0)
         };
+        // ChatMenu1 refuses an order to a member whose `condition[0]` is
+        // not 0 (down, or still getting up from a revive: 5).
+        let can_order = |ch: &&piney_battle::chara::Char| !down(ch) && ch.cond.v[0] == 0;
         let member_skill = |revive: bool| {
             (1..party.len()).find_map(|slot| {
-                let ch = chars[slot].filter(|ch| !down(ch))?;
+                let ch = chars[slot].filter(can_order)?;
                 let list = piney_fieldui::items::skill_list(items, state, party[slot] as usize, 2);
                 let skill = list.iter().copied().filter(|&x| x >= 0).find(|&x| {
                     let cost = items.skill(i32::from(x)).map_or(i32::MAX, |p| p.cost);
@@ -330,6 +398,7 @@ impl StoryPilot {
             let short = (1..party.len()).find(|&slot| {
                 chars[slot].is_some_and(|ch| {
                     !down(ch)
+                        && ch.cond.v[0] == 0
                         && i32::from(ch.sp) < cost
                         && piney_fieldui::items::skill_list(items, state, party[slot] as usize, 2).contains(&RIP_MAEN)
                 })
@@ -371,7 +440,9 @@ impl StoryPilot {
         }
         if !fighting {
             let dry = chars.iter().position(|ch| {
-                ch.is_some_and(|ch| !down(ch) && ch.max_sp > 0 && i32::from(ch.sp) * 3 < i32::from(ch.max_sp))
+                ch.is_some_and(|ch| {
+                    !down(ch) && ch.cond.v[0] == 0 && ch.max_sp > 0 && i32::from(ch.sp) * 3 < i32::from(ch.max_sp)
+                })
             })?;
             return (kite.is_some() && carried(MAGES_SOUL)).then(|| Action::Item {
                 cat: MAGES_SOUL.0,
@@ -395,7 +466,7 @@ impl StoryPilot {
             };
             let best = (1..party.len())
                 .filter_map(|slot| {
-                    let ch = chars[slot].filter(|ch| !down(ch))?;
+                    let ch = chars[slot].filter(can_order)?;
                     let list = piney_fieldui::items::skill_list(items, state, party[slot] as usize, 1);
                     let skill = list
                         .iter()
@@ -483,19 +554,33 @@ impl StoryPilot {
 /// the knees and waist, [`WIDE`] either side, and a diagonal only where
 /// both its sides are open too. Empty when there is none.
 fn entrance_path(hits: &piney_world::hit::Hits, from: [f32; 3], mid: [f32; 2]) -> Vec<[f32; 2]> {
-    const N: i32 = 61;
-    const STEP: f32 = 100.0;
+    path_to(hits, from, mid, 61, 100.0, |_, door| door)
+}
+
+/// A way for Kite at `from` over an `n` by `n` grid of `step` round `mid`
+/// to the first floor `goal` takes (its place, whether it is a door):
+/// breadth first, a step open where no wall crosses it at knee and waist
+/// height his width either side and the floor moves less than 120. The
+/// turns only, the end last; empty with no way.
+fn path_to(
+    hits: &piney_world::hit::Hits,
+    from: [f32; 3],
+    mid: [f32; 2],
+    n: i32,
+    step: f32,
+    goal: impl Fn([f32; 2], bool) -> bool,
+) -> Vec<[f32; 2]> {
     // Half his width, and some.
     const WIDE: f32 = 100.0;
     let mut hits = hits.clone();
     let v = |x: f32, y: f32, z: f32| [x.to_bits(), y.to_bits(), z.to_bits(), 1f32.to_bits()];
-    let at = |i: i32, j: i32| [mid[0] + (i - N / 2) as f32 * STEP, mid[1] + (j - N / 2) as f32 * STEP];
-    let key = |(i, j): (i32, i32)| (j * N + i) as usize;
-    let inside = |(i, j): (i32, i32)| (0..N).contains(&i) && (0..N).contains(&j);
+    let at = |i: i32, j: i32| [mid[0] + (i - n / 2) as f32 * step, mid[1] + (j - n / 2) as f32 * step];
+    let key = |(i, j): (i32, i32)| (j * n + i) as usize;
+    let inside = |(i, j): (i32, i32)| (0..n).contains(&i) && (0..n).contains(&j);
     // Each cell's floors: (z, a door).
-    let mut floors: Vec<Vec<(f32, bool)>> = vec![Vec::new(); (N * N) as usize];
-    for j in 0..N {
-        for i in 0..N {
+    let mut floors: Vec<Vec<(f32, bool)>> = vec![Vec::new(); (n * n) as usize];
+    for j in 0..n {
+        for i in 0..n {
             let [x, y] = at(i, j);
             hits.line(v(x, y, from[2] + 1500.0), v(x, y, from[2] - 1500.0), 0x2000_0001, 1);
             let mut fl: Vec<(f32, bool)> =
@@ -530,8 +615,8 @@ fn entrance_path(hits: &piney_world::hit::Hits, from: [f32; 3], mid: [f32; 2]) -
     };
     // The floor of cell `c` a step from height `z` reaches.
     let level = |c: (i32, i32), z: f32| floors[key(c)].iter().position(|f| (f.0 - z).abs() < 120.0);
-    let i0 = ((from[0] - mid[0]) / STEP).round() as i32 + N / 2;
-    let j0 = ((from[1] - mid[1]) / STEP).round() as i32 + N / 2;
+    let i0 = ((from[0] - mid[0]) / step).round() as i32 + n / 2;
+    let j0 = ((from[1] - mid[1]) / step).round() as i32 + n / 2;
     let mut prev: std::collections::HashMap<Node, Node> = std::collections::HashMap::new();
     let mut queue = std::collections::VecDeque::new();
     // The cells round him he can walk straight to, on his floor.
@@ -549,7 +634,7 @@ fn entrance_path(hits: &piney_world::hit::Hits, from: [f32; 3], mid: [f32; 2]) -
     }
     let mut end = None;
     while let Some(n) = queue.pop_front() {
-        if floors[key(n.0)][n.1].1 {
+        if goal(at(n.0.0, n.0.1), floors[key(n.0)][n.1].1) {
             end = Some(n);
             break;
         }
@@ -652,7 +737,36 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                     && f.is_multiple_of(50)
                     && let Stage::Area(a) = &s.stage
                 {
-                    eprintln!("PILOT {f} {} {:?} {}", Mode::title(&s), raw.buttons, fighters(a));
+                    let m = &a.ui().ctrl;
+                    eprintln!(
+                        "PILOT {f} {} {:?} proccess {} status {} {}",
+                        Mode::title(&s),
+                        raw.buttons,
+                        m.proccess,
+                        m.menu_status,
+                        fighters(a)
+                    );
+                }
+                if std::env::var_os("PINEY_DEBUG_PILOT").is_some()
+                    && f.is_multiple_of(50)
+                    && let Stage::World(w) = &s.stage
+                {
+                    let world = w.world();
+                    let at = |p: [u32; 4]| p.map(|v| f32::from_bits(v) as i32);
+                    let targets: Vec<_> = world
+                        .event_targets()
+                        .iter()
+                        .map(|&(t, c)| {
+                            (t, c, world.char_place(piney_world::entry::Kind::Npc, i32::from(c)).map(|p| at(p.0)))
+                        })
+                        .collect();
+                    eprintln!(
+                        "TOWN {f} {} {:?} kite {:?} targets {targets:?} command {:?}",
+                        Mode::title(&s),
+                        raw.buttons,
+                        at(world.player().body.pos),
+                        world.command_target()
+                    );
                 }
                 pilot.after(&mut s);
                 pad.read(&raw);
@@ -667,10 +781,15 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                 if titles.last() != Some(&key) {
                     titles.push(key);
                 }
-                match &mut s.stage {
-                    Stage::World(w) => flag = w.world().state().save.event_flag(n as usize),
-                    Stage::Area(a) => flag = a.save_mut().event_flag(n as usize),
-                    _ => {}
+                let save = match &mut s.stage {
+                    Stage::World(w) => Some(&w.world().state().save),
+                    Stage::Area(a) => Some(&*a.save_mut()),
+                    Stage::Desktop(d) => d.save_mut().map(|s| &*s),
+                    Stage::TopPage(t) => t.save_mut().map(|s| &*s),
+                    _ => None,
+                };
+                if let Some(save) = save {
+                    flag = save.event_flag(n as usize);
                 }
             }
             if std::env::var("PINEY_SURVEY_CALLS").is_ok() {
@@ -688,7 +807,9 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
         let unported = piney_event::host::take_unported();
         match r {
             Ok(Some((t, flag))) => {
-                let state = if flag & 1 << 62 != 0 { "done".to_string() } else { format!("blocks {:#x}", flag) };
+                // Closed (bit 63, its `end_event` played) turns done (62) at
+                // the next mode's `ccStartThEvent`: both are the end.
+                let state = if flag & 3 << 62 != 0 { "done".to_string() } else { format!("blocks {:#x}", flag) };
                 println!("story {n:2}: {state}; {} places; last: {}", t.len(), t.last().cloned().unwrap_or_default());
                 if t.len() > 1 {
                     // `PINEY_SURVEY_PATH` prints every place, one a line.
@@ -717,6 +838,28 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
     }
 }
 
+/// A lake's dungeon 1 wanted from its dungeon 0: a goal one floor past the
+/// lake's last, which takes that floor's stairs down (`Enter`'s -1 on field
+/// type 4: `ChangeScene(2, -2, -2, 1, 0, 0)`).
+fn lake_below(w: &piney_world::field_world::FieldWorld, wants: &[Want]) -> Option<piney_event::vm::EvPoint> {
+    let sc = w.scene();
+    let Place::Dungeon(d) = w.place() else { return None };
+    let below =
+        wants.iter().any(|x| matches!(*x, Want::Dungeon(f, n) if f == sc.field as i16 && i32::from(n) > sc.dungeon));
+    below.then_some(piney_event::vm::EvPoint { floor: d.floors.len() as i16, block: 0, num: -1 })
+}
+
+/// The room of this dungeon whose door leads out to a boss arena the story
+/// wants: `GotoNextRoom`'s -255 into `special::exit_field`'s field, through
+/// the dungeon's room of type 16 or more (area 46's to field 2).
+fn arena_door(w: &piney_world::field_world::FieldWorld, wants: &[Want]) -> Option<(usize, usize)> {
+    let Place::Dungeon(d) = w.place() else { return None };
+    let field = piney_data::dungeon::special::exit_field(d.event_area, w.volume().number() as u32)?;
+    wants.contains(&Want::Area(field as i16)).then_some(())?;
+    let r = d.edit?.rooms.iter().find(|r| r.room_type >= 16)?;
+    Some((r.floor as usize, r.index as usize))
+}
+
 /// The party's and the foes' HP and levels (the foes by name), for
 /// `PINEY_DEBUG_PILOT`.
 fn fighters(a: &crate::area::AreaMode) -> String {
@@ -725,7 +868,16 @@ fn fighters(a: &crate::area::AreaMode) -> String {
     let one = |k: usize| {
         let ch = &c.scene.chars[k];
         match &ch.body {
-            Body::Spc(p) => format!("{}/{} lv {}", ch.hp, ch.max_hp, p.base.level),
+            Body::Spc(p) => format!(
+                "{}/{} lv {} cond {:?} act {} cnt {} flags {:#x}",
+                ch.hp,
+                ch.max_hp,
+                p.base.level,
+                &ch.cond.v[..2],
+                ch.spc_char.act_num,
+                ch.spc_char.cnt,
+                ch.spc_char.flags
+            ),
             Body::Foe(f) => {
                 format!("{} {}/{} lv {}", String::from_utf8_lossy(&f.row.name), ch.hp, ch.max_hp, f.row.base.level)
             }

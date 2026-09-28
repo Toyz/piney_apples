@@ -57,7 +57,8 @@ time: plans/volumes.md, plans/build-data.md. Status on 2026-09-27.
   `ccSndStreamCtrl` (the music around streams) and `setbl` (the animation
   notes' sounds) - BUGS.md
 - [ ] Phase 4: each volume's story end to end. Infection: done. Mutation: in
-  progress (plans/volumes.md). Outbreak and Quarantine: power-on to the
+  progress, 13 of 16 events finish under the autopilot
+  (plans/mutation-story.md). Outbreak and Quarantine: power-on to the
   desktop with the opening streams' sound; the rest after Mutation
 
 What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
@@ -73,9 +74,9 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 - [ ] Kyvia's fights (`kyviaCore`, the `ex0`-`ex4` models)
 - [x] The Root Towns 02-05 (`ROOTTOWN03`-`05`, their `DrawMap`; worklogs
   218, 260) - the party of 21 (`SPC_01`-`SPC_20`) still to check
-- [ ] The other `EVENTAREA` classes (01, 03-06, B8; areas 13, 43, 66, 67,
-  91, 9-12). Area 16's `EVENTAREA07`, which Infection's post-ending side
-  event 62 uses, is ported (worklog 177)
+- [ ] The other `EVENTAREA` classes (01, 04-06, B8; areas 13, 66, 67, 91,
+  9-12). Area 16's `EVENTAREA07` (worklog 177) and area 43's
+  `EVENTAREA03` (worklog 263) are ported, all behind `StoryMap`
 
 ## Asked for, not the game's
 

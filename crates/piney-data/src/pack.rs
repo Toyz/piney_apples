@@ -349,7 +349,7 @@ pub fn default_build() -> Option<PathBuf> {
 pub const PORT_DIR: &str = "PINEY";
 /// Which version of the port's data a disc's `PINEY/` holds: raised
 /// whenever what a producer writes changes, so older data is made again.
-pub const DATA_VERSION: u32 = 8;
+pub const DATA_VERSION: u32 = 9;
 /// The file holding [`DATA_VERSION`], as text.
 pub const VERSION_FILE: &str = "PINEY/VERSION";
 

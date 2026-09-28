@@ -1,9 +1,9 @@
 ---
-title: The story maps - EVENTAREA02 (area 15), EVENTAREA07 (area 16) and EVENTAREAB0 (the boss arenas)
+title: The story maps - EVENTAREA02 (area 15), EVENTAREA03 (area 43), EVENTAREA07 (area 16) and EVENTAREAB0 (the boss arenas)
 status: partial
-volumes: INF
-covers: INF gcmn.prg:0x00405a00 EVENTAREA07::EVENTAREA07, 0x00405c80 EVENTAREA07::ChangeBlock, 0x00406b80 EVENTAREA07::Draw, 0x00406730 EVENTAREA07::DrawBG, 0x004068b0 EVENTAREA07::DrawObj, 0x004069a0 EVENTAREA07::DrawObj2, 0x00406a90 EVENTAREA07::DrawFloor, 0x005d2160 EA_MODELTABLE07, 0x005d2200 EA_OBJTABLE07, 0x005d2230 EA_BGNAME07, 0x005d2240 EA_moveTex07, 0x005d2270 EA_MODELTABLE0702, 0x005d22a0 eventarea0702Light, 0x005cff60 STATICOBJECT::SetPos, 0x005d03f0 STATICMODEL::SetPos, 0x004079f0 EVENTAREAB0::EVENTAREAB0, 0x004095e0 EVENTAREAB0::Draw, 0x004091c0 EVENTAREAB0::DrawBG, 0x00409460 EVENTAREAB0::DrawObj, 0x00409510 EVENTAREAB0::DrawFloor, 0x004095b0 EVENTAREAB0::SwitchLayer, 0x004098e0 EVENTAREAB0::NextStage, 0x005d2580 EA_MODELTABLEB0, 0x005d2640 eventareaB0Light, 0x005d26e0 bossFireFlyEff, 0x005d2730 the fireflies' markers (@1153), 0x005b4550 FIREFLY2::FIREFLY2, 0x005b4d30 FIREFLY2::Init, 0x005b49f0 FIREFLY2::SetBasePosition, 0x005b4ba0 FIREFLY2::SetBasePosition2, 0x005b5050 FIREFLY2::Move, 0x005b5eb0 FIREFLY2::Draw, 0x0059b940 ccTransPosW2P, 0x00401e00 EVENTAREA02::EVENTAREA02, 0x00402300 EVENTAREA02::ChangeBlock, 0x004033e0 EVENTAREA02::Draw, 0x00402ff0 DrawBG, 0x00403280 DrawObj2, 0x00403190 DrawObj, 0x00403340 DrawFloor, 0x00402dc0 DrawLensFlare, 0x00400f00 EVENTAREA::EVENTAREA, 0x004010a0 EVENTAREA::SetCenter, 0x004010b0 EVENTAREA::AddCenter, 0x005d1c00 EA_MODELTABLE02, 0x005d1c50 EA_OBJTABLE02, 0x005d1c70 EA_MODELTABLE0202, 0x005d1d00 EA_OBJTABLE0202, 0x005d1d50 EA_moveTex02, 0x005d1d20 eventarea0202Light, 0x005d02d0 STATICMODEL::DrawWithOutFog, 0x005d01c0 STATICMODEL::Draw, 0x00571da0 initHitCheck; INF SLUS_202.67:0x0019f8e0 WORLD_MAN::GO (EVENTAREA branch), 0x0019dda0 WORLD_MAN::Enter (the story maps' doors), 0x001a1ea0 WORLD_MAN::SetStartPos, 0x001a1190 WORLD_MAN::SetCharPosition (event area), 0x0019c740 WORLD_MAN::Quit, 0x0019f2d0 WORLD_MAN::DeleteEvent, 0x001a20b0 WORLD_MAN::SetActiveLayer, 0x001a10c0 WORLD_MAN::GetHeight, 0x0019c4b0 MoveTexture, 0x00377ff0 eventarea02Light, 0x0013bb40 ccEff::SetRenderState, 0x00161590 cameraGetPos, 0x00161700 cameraGetRot2, 0x00138f80 ccLight::~ccLight
-worklog: 84, 112, 117
+volumes: INF, MUT
+covers: INF gcmn.prg:0x00405a00 EVENTAREA07::EVENTAREA07, 0x00405c80 EVENTAREA07::ChangeBlock, 0x00406b80 EVENTAREA07::Draw, 0x00406730 EVENTAREA07::DrawBG, 0x004068b0 EVENTAREA07::DrawObj, 0x004069a0 EVENTAREA07::DrawObj2, 0x00406a90 EVENTAREA07::DrawFloor, 0x005d2160 EA_MODELTABLE07, 0x005d2200 EA_OBJTABLE07, 0x005d2230 EA_BGNAME07, 0x005d2240 EA_moveTex07, 0x005d2270 EA_MODELTABLE0702, 0x005d22a0 eventarea0702Light, 0x005cff60 STATICOBJECT::SetPos, 0x005d03f0 STATICMODEL::SetPos, 0x004079f0 EVENTAREAB0::EVENTAREAB0, 0x004095e0 EVENTAREAB0::Draw, 0x004091c0 EVENTAREAB0::DrawBG, 0x00409460 EVENTAREAB0::DrawObj, 0x00409510 EVENTAREAB0::DrawFloor, 0x004095b0 EVENTAREAB0::SwitchLayer, 0x004098e0 EVENTAREAB0::NextStage, 0x005d2580 EA_MODELTABLEB0, 0x005d2640 eventareaB0Light, 0x005d26e0 bossFireFlyEff, 0x005d2730 the fireflies' markers (@1153), 0x005b4550 FIREFLY2::FIREFLY2, 0x005b4d30 FIREFLY2::Init, 0x005b49f0 FIREFLY2::SetBasePosition, 0x005b4ba0 FIREFLY2::SetBasePosition2, 0x005b5050 FIREFLY2::Move, 0x005b5eb0 FIREFLY2::Draw, 0x0059b940 ccTransPosW2P, 0x00401e00 EVENTAREA02::EVENTAREA02, 0x00402300 EVENTAREA02::ChangeBlock, 0x004033e0 EVENTAREA02::Draw, 0x00402ff0 DrawBG, 0x00403280 DrawObj2, 0x00403190 DrawObj, 0x00403340 DrawFloor, 0x00402dc0 DrawLensFlare, 0x00400f00 EVENTAREA::EVENTAREA, 0x004010a0 EVENTAREA::SetCenter, 0x004010b0 EVENTAREA::AddCenter, 0x005d1c00 EA_MODELTABLE02, 0x005d1c50 EA_OBJTABLE02, 0x005d1c70 EA_MODELTABLE0202, 0x005d1d00 EA_OBJTABLE0202, 0x005d1d50 EA_moveTex02, 0x005d1d20 eventarea0202Light, 0x005d02d0 STATICMODEL::DrawWithOutFog, 0x005d01c0 STATICMODEL::Draw, 0x00571da0 initHitCheck, 0x00403590 EVENTAREA03::EVENTAREA03, 0x00403bf0 EVENTAREA03::Draw, 0x00403ab0 EVENTAREA03::DrawBG, 0x00403b50 EVENTAREA03::DrawFloor, 0x00639548 kiteSelfTalk; MUT gcmn.prg:0x00416590 EVENTAREA03::EVENTAREA03, 0x00416bf0 EVENTAREA03::Draw, 0x00416ab0 DrawBG, 0x00416b50 DrawFloor, 0x006000f0 EA_MODELTABLE03, 0x00600140 its start, 0x00600170 the fly-over's camera, 0x00669470 kiteSelfTalk; MUT SLUS_205.62:0x0038af98 eventarea03Light; INF SLUS_202.67:0x0019f8e0 WORLD_MAN::GO (EVENTAREA branch), 0x0019dda0 WORLD_MAN::Enter (the story maps' doors), 0x001a1ea0 WORLD_MAN::SetStartPos, 0x001a1190 WORLD_MAN::SetCharPosition (event area), 0x0019c740 WORLD_MAN::Quit, 0x0019f2d0 WORLD_MAN::DeleteEvent, 0x001a20b0 WORLD_MAN::SetActiveLayer, 0x001a10c0 WORLD_MAN::GetHeight, 0x0019c4b0 MoveTexture, 0x00377ff0 eventarea02Light, 0x0013bb40 ccEff::SetRenderState, 0x00161590 cameraGetPos, 0x00161700 cameraGetRot2, 0x00138f80 ccLight::~ccLight
+worklog: 84, 112, 117, 177, 263
 ---
 
 # Area 15's story map - EVENTAREA02, Hidden Forbidden Holy Ground
@@ -335,6 +335,55 @@ the doors, Kite standing at `DMY_marker01_2` and `DMY_marker02`);
 area 15's words; `story_11_warps_to_the_holy_ground` does the same from
 `--mode story:11` with the event task, whose set-up passes there end and
 play goes on. These are the runtime's checks.
+
+## Area 43: EVENTAREA03
+
+Mutation's event 102 goes to field 43 and leaves at once. Out of the story,
+the map shows a scene of its own and sends the party back. The class is the
+same on both volumes but for 4 bytes a function (MUT gcmn 0x00416590
+constructor, 0x00416bf0 `Draw`; INF 0x00403590, 0x00403bf0).
+
+```text
+EVENTAREA03 (0x1cc bytes): EVENTAREA, then
++0x1c4  int cnt     the fly-over's frame
++0x1c8  int flag    gateListMark[game.server][1] & 0x800: area 43 marked
+```
+
+**The constructor.**
+
+- The scene is `se2_1`, with `modelArray`, `anmArray` and `bg` cleared.
+- `SetFog(150, 4000, 0, 80, 0x1e1e1e)`, and `ccSys.bgColor` 0x1e1e1e.
+- `EA_MODELTABLE03`: two models, both pass 0 (`MDL_se2_1fl1`,
+  `MDL_se2_1ba1`, clip 99999.9).
+- `lgtAnm` is `ANM_se2_1_1a`, stepped once, with its ambient.
+- `eventarea03Light` has one row: `LGT_se2_1lig1`, a distant light (type
+  0: `AddGrp` and `WORLD_MAN::SetLightDirection`; type 1 would be an omni
+  light, `AddGrp` only).
+- `BLT_bg` and `BLT_floor`; `SetStartPos((0, 0, 0), w 1.0)`.
+
+**Draw.** While `flag` is 0:
+
+| `cnt` | what happens |
+| --- | --- |
+| 0 | `changeCamera(3)`, the view at (1322, -1128, 1014) and the position at (1678, -1433, 1188), `cameraGetRot` into `cameraSetRot`, `ccEvent::MenuBan` |
+| 0-139 | t = min(cnt / 120, 1); the view and position move linearly to (-210, 167, 36) and (162, -133, 178); `cnt` + 1 |
+| 140 | `ccMsg->Open(&kiteSelfTalk, kiteSelfTalk.name, -1, -1)` (emode 0x100, one line, no voice); `cnt` + 1 |
+| 141 | once `ccMsg->Check(0)` answers: `ccEvent::MenuClr`, `changeCamera(1)`, `ChangeArea(0, 1)` |
+
+The moves write x, y and z; w, and the scratch `cameraGetRot` reads,
+are unset stack. Every frame then does `SetActiveLayer(1)`, `DrawFloor`
+through the vtable (the pass-1 models inside `BLT_floor`: none here) and
+the pass-0 models. `DrawBG` would draw `bg[0]`, which is never set, and
+`Draw` does not call it.
+
+During event 102 the area is marked, so the event's block 4 fades out and
+changes scene while the map only draws.
+
+**The port.** `piney_world::evarea03::Area43`, a `StoryMap`. Its `frame`
+runs the scene: it moves camera 3, and sends `MenuBan` and the message to
+the game as `Request::Story`. `AreaMode` answers `Check(0)` with the
+frame's pad before the field steps. `kiteSelfTalk` is the fieldui
+group's `kite_self_talk` (and its address), a root of the talk records.
 
 ## Area 16: EVENTAREA07, Hideous Someone's Giant
 

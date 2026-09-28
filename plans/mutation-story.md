@@ -1,0 +1,61 @@
+# Mutation's story end to end
+
+Goal: a new game of Mutation plays to its ending, every story event (M201-M216,
+101-116) finishing under the story autopilot, with the story maps it passes
+through ported as the game builds them. Started 2026-09-28.
+
+## How it is checked
+
+- `mutation_story_survey` (piney-game, `--ignored --nocapture`): each event's
+  start (`--mode story:N`, `crate::start`) driven by `StoryPilot` with
+  `PINEY_SURVEY_GOD`; "done" once the event's flag is closed or done. 101 is
+  the new game's desktop.
+- Last: one run from the new game to 116's staff roll (to write).
+
+## Where it stands (2026-09-28)
+
+| event | state |
+| --- | --- |
+| 101 | done (new game: Mac Anu, field 27's dungeon, on into 104's field) |
+| 102-106, 109-114, 116 | done |
+| 107 | at the arena boss (field 2): the pilot does not Data Drain |
+| 108 | loops logging in to Dun Loireag |
+| 115 | slow in field 52's dungeon; then field 13 (`EVENTAREA01`) |
+
+## The pilot's fixes so far
+
+- The survey reads the event flag on every stage, and a closed event
+  (`end_event`, bit 63) counts as its end.
+- A dungeon's arena door (`GotoNextRoom` -255, `special::exit_field`) and a
+  lake's dungeon 1 (`Enter` -1 on field type 4) are goals.
+- Members still getting up from a revive (`condition[0]` 5) are not given
+  orders: `ChatMenu1` refuses them, and the open menu pauses the fight, so
+  the revive never ended.
+- The top page skips a command the events take over (`add_operate`,
+  command + 6), and writes a post waiting to be written (state 7).
+- A repeatable block's event point is not a goal (a side line).
+- Towns: a breadth-first way round the walls (`path_to`).
+
+## Story maps Mutation needs
+
+`WORLD_MAN::GO(1)` builds a story map by field (docs/engine/evarea.md):
+
+| field | class | event | ported |
+| --- | --- | --- | --- |
+| 2, 3 | `EVENTAREAB0` (arenas) | 107, 115 | yes |
+| 43 | `EVENTAREA03` | 102 | yes (worklog 263) |
+| 9 | `EVENTAREAB8` | 108 | no |
+| 13 | `EVENTAREA01` | 115 | no |
+
+One `StoryMap` trait (`piney_world::story_map`), held as
+`Place::Story(Box<dyn StoryMap>)`; every ported class is one.
+
+`EVENTAREA03` (MUT gcmn 0x00416590 constructor, 0x00416bf0 `Draw`): scene
+`se2_1`; `EA_MODELTABLE03` (two pass-0 models); `eventarea03Light` one
+distant light; fog (150, 4000, 0, 80, 0x1e1e1e); start (0, 0, 0) w 1.0.
+`Draw` flies the camera (camera 3) from view (1322, -1128, 1014) and pos
+(1678, -1433, 1188) to (-210, 167, 36) and (162, -133, 178) over 120 of 140
+frames, opens `kiteSelfTalk` at 140, and on its close `MenuClr`,
+`changeCamera(1)` and `ChangeArea(0, 1)`; unless area 43 is marked on the
+server (`gateListMark[server][1] & 0x800`, event 102's mark), when it only
+draws. docs/engine/evarea.md has it all.

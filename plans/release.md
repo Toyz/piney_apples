@@ -91,9 +91,8 @@ stashes, the worktrees' branches).
 2. ~~Clean the tree~~ (done, above).
 3. The README's "no game data" claim (plans/build-data.md step 4) once 2 holds.
 4. ~~History~~ (done 2026-09-28, the safe way): the cleaned tree became a
-   new single-root `main`, pushed to `github.com/Toyz/piney_apples`
-   (private until the owner makes it public). The old history is kept only
-   in the local branch `archive/full-history` and the verified bundles
-   (`/mnt/data/claude/backup/`, `~/piney-backups/`); nothing was rewritten
-   in place. Push `main` only: the worktrees' branches share the old
-   history.
+   new single-root `main`, pushed to `github.com/Toyz/piney_apples`, public
+   the same day with the worklog and reference on GitHub Pages. The old
+   history was taken off the working repository and is kept offline only,
+   in a bare backup and verified bundles; nothing was rewritten in place.
+   Push `main` only.

@@ -316,6 +316,10 @@ pub struct FieldUi {
     pub error_data: EvMsgData,
     /// Where `errorData` is, which a chain of records holds.
     pub error_data_va: u32,
+    /// `kiteSelfTalk`: Kite's line as area 43's map sends the party back (`EVENTAREA03::Draw`).
+    pub kite_self_talk: EvMsgData,
+    /// Where `kiteSelfTalk` is.
+    pub kite_self_talk_va: u32,
     /// `ccCheckVoiceGrp(id)`: ids 141-157's voice groups (its jump table's `li $v0, n`), -1 none.
     pub voice_groups: &'static [i32],
     /// `gtHackInfo`
@@ -451,6 +455,8 @@ impl crate::store::Load for FieldUi {
             pg_evo_msg_va: crate::store::Load::load(r),
             error_data: crate::store::Load::load(r),
             error_data_va: crate::store::Load::load(r),
+            kite_self_talk: crate::store::Load::load(r),
+            kite_self_talk_va: crate::store::Load::load(r),
             voice_groups: crate::store::Load::load(r),
             hack_info: crate::store::Load::load(r),
             hack_bar: crate::store::Load::load(r),
@@ -821,6 +827,12 @@ impl FieldUi {
     pub fn error_data_va(&self) -> u32 {
         self.error_data_va
     }
+    pub fn kite_self_talk(&self) -> EvMsgData {
+        self.kite_self_talk
+    }
+    pub fn kite_self_talk_va(&self) -> u32 {
+        self.kite_self_talk_va
+    }
     pub fn voice_groups(&self) -> &'static [i32] {
         self.voice_groups
     }
@@ -1110,6 +1122,9 @@ pub static FRIENDSHIP_CAP: std::sync::LazyLock<&'static [i32]> = std::sync::Lazy
 
 /// `errorData`: the record shown for a missing line.
 pub static ERROR_DATA: std::sync::LazyLock<EvMsgData> = std::sync::LazyLock::new(|| shared().error_data);
+
+/// `kiteSelfTalk`: Kite's line as area 43's map sends the party back (`EVENTAREA03::Draw`).
+pub static KITE_SELF_TALK: std::sync::LazyLock<EvMsgData> = std::sync::LazyLock::new(|| shared().kite_self_talk);
 
 /// `ccCheckVoiceGrp(id)`: ids 141-157's voice groups (its jump table's `li $v0, n`), -1 none.
 pub static VOICE_GROUPS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().voice_groups);
