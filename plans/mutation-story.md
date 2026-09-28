@@ -20,7 +20,7 @@ through ported as the game builds them. Started 2026-09-28.
 | 101 | done (new game: Mac Anu, field 27's dungeon, on into 104's field) |
 | 102-106, 109-114, 116 | done |
 | 107 | done (worklog 268): Innis drained and beaten, the town's breeder, the top page's Quit |
-| 108 | reaches field 9 (worklog 265); Kyvia and `EVENTAREAB8` being ported |
+| 108 | done (worklogs 272, 273): Kyvia's disc, the core and gomoras fought through the menus, the party held at level 60 for it |
 | 115 | slow in field 52's dungeon; then field 13 (`EVENTAREA01`) |
 
 ## The pilot's fixes so far
@@ -47,6 +47,9 @@ through ported as the game builds them. Started 2026-09-28.
   the pilot drains no common foes to find them.
 - The desktop: Mail only for the listed inbox (mail sent while the
   desktop is up is listed at its next opening).
+- A boss's parts (Kyvia's core and gomoras) are foes; the healing gomora
+  first, then the core, through the target menus; god mode holds the
+  party at level 60 while they are up (the console's `exp`).
 
 ## Story maps Mutation needs
 
@@ -56,7 +59,7 @@ through ported as the game builds them. Started 2026-09-28.
 | --- | --- | --- | --- |
 | 2, 3 | `EVENTAREAB0` (arenas) | 107, 115 | yes |
 | 43 | `EVENTAREA03` | 102 | yes (worklog 263) |
-| 9 | `EVENTAREAB8` | 108 | no |
+| 9 | `EVENTAREAB8` | 108 | yes (worklog 272) |
 | 13 | `EVENTAREA01` | 115 | yes (worklog 264) |
 
 One `StoryMap` trait (`piney_world::story_map`), held as
@@ -79,7 +82,7 @@ draws. docs/engine/evarea.md has it all.
 | event | code | boss | size (MUT) | ported |
 | --- | --- | --- | --- | --- |
 | 107 | 1 | `ccBoss02` Innis (+ `ccBoss02Slave`) | 54 functions, 38.6 KB | yes (worklog 266) |
-| 108 | 12 | `ccThKyvia01` (+ the `kyvia*` classes, `EVENTAREAB8`) | 98 functions, 74.4 KB shared | no |
+| 108 | 12 | `ccThKyvia01` (+ the `kyvia*` classes, `EVENTAREAB8`) | 98 functions, 74.4 KB shared | yes (worklog 272) |
 | 115 | 2 | `ccBoss03` Magus (+ `ccBoss03Leaf`) | 70 functions, 38.2 KB | no |
 
 One agent at a time ports them, in story order, after the Skeith port

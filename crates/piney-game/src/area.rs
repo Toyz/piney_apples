@@ -358,6 +358,22 @@ impl AreaMode {
         foes.len()
     }
 
+    /// The console's `exp N`: `n` experience to each member in the field,
+    /// Kite too; `CheckLevelUp` makes each 1000 a level on the member's next
+    /// frame, as a fight's exp does. The number given.
+    pub fn give_exp(&mut self, n: i16) -> usize {
+        let c = self.world.combat_mut();
+        let who: Vec<usize> = c.members.iter().map(|&(_, k)| k).collect();
+        let mut given = 0;
+        for k in who {
+            if let Some(p) = c.scene.chars[k].spc_mut() {
+                p.base.exp = p.base.exp.saturating_add(n);
+                given += 1;
+            }
+        }
+        given
+    }
+
     /// The console's `protect`: each enemy's protect broken for 60 seconds
     /// (`ppCount` 1800 frames), so Data Drain takes it. The number broken.
     pub fn break_protects(&mut self) -> usize {
@@ -1025,9 +1041,13 @@ impl AreaMode {
                 }
                 // The boss's death: ccClearSpcCondition.
                 Show::Boss(_, Out::ClearSpcCondition) => self.world.clear_spc_condition(),
-                // BeginDeadEffect: ccSqFade(0, 0, 30, 3), the music out.
+                // BeginDeadEffect: ccSqFade(0, 0, 30, 3), the music out;
+                // Kyvia's death its own.
                 Show::Boss(_, Out::DeadCamera { music_fade: true, .. }) => {
                     self.events.push(Event::SqFade { seq: 0, volume: 0, time: 30, mode: 3 });
+                }
+                Show::Boss(_, Out::MusicFade { t }) => {
+                    self.events.push(Event::SqFade { seq: 0, volume: 0, time: *t, mode: 3 });
                 }
                 _ => {}
             }

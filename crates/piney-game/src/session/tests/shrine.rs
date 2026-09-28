@@ -212,10 +212,11 @@ impl Walker {
                     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
                     let toward = |q: [f32; 2]| stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
                     let here = d.here(c.scene.chars[k].pos);
-                    // The room's doors stay shut while its foes stand
-                    // (`MoveDoor`'s `doorAnm`): then every foe is fought,
-                    // however far or hopeless.
-                    let shut = !d.door.door_anm;
+                    // Doors made shut (`SetDoor`) stay so until no foe is
+                    // active (`doorFlag` then): with the goal past them,
+                    // every foe is fought, however far or hopeless.
+                    let in_goal = sc.floor as usize == to.0 && here == Some(to.1);
+                    let shut = !d.door.door_flag && !d.doors.is_empty() && !in_goal;
                     let near = |e: usize| {
                         let q = c.scene.chars[e].pos.map(f32::from_bits);
                         !self.wary || self.puts > 0 || shut || (q[0] - p[0]).hypot(q[1] - p[1]) < 600.0

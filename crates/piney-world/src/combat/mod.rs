@@ -806,6 +806,13 @@ impl Combat {
         s.cycle = cycle;
         self.kite = Some(who);
         self.player = kite::Player::default();
+        // ccPlayer::ccPlayer (MUT gcmn 0x005c2d8c): on a moving floor
+        // (WORLD_MAN::GetTransMode), his place from its centre.
+        if let Some(c) = hits.trans {
+            let mut d = piney_battle::geom::vsub(pos, c);
+            d[3] = ONE;
+            self.player.disk_offset = d;
+        }
         // SetBootStatus before the AI exists, restraintSW unless standing.
         let mut r = spc::SpcRec::read(&self.scene, &self.crew, who, self.kite, true);
         r.spc_ref().set_boot_status(boot, hits);
@@ -904,6 +911,13 @@ impl Combat {
         s.act_num = act;
         s.stop_flag = true;
         s.disp_wait = if hacked { 65 } else { 0 };
+        // ccFellow::Initialize (MUT gcmn 0x0042ebdc): on a moving floor,
+        // its place from the floor's centre.
+        if let Some(c) = hits.trans {
+            let mut d = piney_battle::geom::vsub(pos, c);
+            d[3] = ONE;
+            s.disk_offset = d;
+        }
         s.body_hit = CharHit {
             pos,
             radius: width,

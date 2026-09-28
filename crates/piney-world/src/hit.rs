@@ -298,6 +298,10 @@ pub struct Hits {
     pub chars: Vec<Body>,
     /// `hitResultCharType`: the kinds the last `CollisionDetection` touched.
     pub char_type: u32,
+    /// `WORLD_MAN::GetTransMode()` (+0x00) and `GetTransCenter` (+0xb0):
+    /// the party rides a moving floor (`EVENTAREAB8`'s disc) about this
+    /// centre.
+    pub trans: Option<V4>,
 }
 
 /// A prepared `HIT_LINE`.

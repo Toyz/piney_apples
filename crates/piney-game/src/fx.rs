@@ -615,7 +615,8 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
 
 /// A `ccBossEff*Create` as the bosses call it (`docs/engine/boss.md`,
 /// "Effects"): the rules name the effect, where and which way. Innis's
-/// rings and missiles have no picture yet (boss-innis.md).
+/// rings and missiles and Kyvia's meteors have no picture yet
+/// (boss-innis.md, boss-kyvia.md).
 fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
     use piney_battle::boss::EffKind;
     use piney_effect::boss::Make;
@@ -630,7 +631,7 @@ fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<pin
         EffKind::AutoSamonRing { n } => Make::AutoSamonRing { pos, rot: dirc, param: [0, 0x3eaa_aaab, TEN, 0], n },
         EffKind::IceBreak => Make::IceBreak { pos, scale: 0x4000_0000 },
         EffKind::Dead => Make::Dead { pos },
-        EffKind::SamonRing { .. } | EffKind::Missile { .. } => return None,
+        EffKind::SamonRing { .. } | EffKind::Missile { .. } | EffKind::Meteorite { .. } => return None,
     })
 }
 

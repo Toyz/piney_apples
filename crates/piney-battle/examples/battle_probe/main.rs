@@ -20,6 +20,7 @@ mod frame;
 mod innis;
 mod items;
 mod kite;
+mod kyvia;
 mod navi;
 mod party_ai;
 mod spawn;
@@ -640,6 +641,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if cmd.starts_with("boss") { boss::handle(cmd, &mut t, &mut tables, &iso_path) } else { None }
                     })
                     .or_else(|| innis::handle(cmd, &mut t, &mut tables, &iso_path))
+                    .or_else(|| kyvia::handle(cmd, &mut t, &mut tables, &iso_path))
                 {
                     Some(r) => r,
                     None => format!("{{\"error\":\"unknown command {cmd}\"}}"),

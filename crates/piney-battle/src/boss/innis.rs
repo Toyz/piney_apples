@@ -2541,6 +2541,7 @@ mod tests {
                 boss_cam: true,
                 cam: CamView::default(),
                 land: &mut land,
+                disc: crate::boss::DiscView::default(),
                 me: self.me,
                 out: Vec::new(),
                 ev: Events::new(),

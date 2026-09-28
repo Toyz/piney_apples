@@ -1,13 +1,14 @@
 //! Bosses: `ccBoss` (boss.cpp, gcmn 0x0045bcf0-0x0045fbd0) and Skeith
-//! (`ccBoss01`, boss01.cpp, 0x0047b300-0x0047ee68), whom Infection's event 30
-//! enters with `entry` type 7 code 0; Innis (`ccBoss02`, code 1) is
-//! [`innis`]. `ccBossEntryStart(code)` (0x0045b2a0) starts the effect
-//! manager ([`Effects`]) and `bossFunc[code]`, which makes the boss
-//! ([`Boss::new`], [`innis::new`]) and runs [`Boss::main`] each frame. The
-//! tables come from the build ([`BossData`]); sounds, the camera and the
-//! pictures are [`Out`]s. docs/engine/boss.md and boss-innis.md.
+//! (`ccBoss01`, boss01.cpp, 0x0047b300-0x0047ee68), entry type 7 code 0;
+//! Innis (`ccBoss02`, code 1) is [`innis`], Kyvia (`ccBossKyvia01`, 12)
+//! [`kyvia`]. `ccBossEntryStart(code)` (0x0045b2a0) starts the effect
+//! manager ([`Effects`]) and `bossFunc[code]`, which makes the boss and runs
+//! [`Boss::main`] each frame. The tables come from the build ([`BossData`]);
+//! sounds, the camera and the pictures are [`Out`]s. docs/engine/boss.md,
+//! boss-innis.md, boss-kyvia.md.
 
 pub mod innis;
+pub mod kyvia;
 
 use piney_data::field::ee;
 use piney_data::libm;
@@ -95,17 +96,23 @@ impl SkeithData {
     }
 }
 
-/// Every boss's tables, for the volume ([`SkeithData`], [`innis::InnisData`]).
+/// Every boss's tables, for the volume ([`SkeithData`], [`innis::InnisData`],
+/// [`kyvia::KyviaData`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BossData {
     pub skeith: SkeithData,
     pub innis: innis::InnisData,
+    pub kyvia: kyvia::KyviaData,
 }
 
 impl BossData {
     /// The volume's.
     pub fn of(volume: piney_data::volume::Volume) -> BossData {
-        BossData { skeith: SkeithData::of(volume), innis: innis::InnisData::of(volume) }
+        BossData {
+            skeith: SkeithData::of(volume),
+            innis: innis::InnisData::of(volume),
+            kyvia: kyvia::KyviaData::of(volume),
+        }
     }
 }
 
@@ -118,6 +125,13 @@ pub enum Class {
     Skeith,
     /// `ccBoss02` and its three slaves.
     Innis(Box<innis::Innis>),
+    /// `ccBossKyvia01`: the body; its core and gomoras are bosses of their
+    /// own characters.
+    Kyvia(Box<kyvia::Kyvia>),
+    /// `kyviaCore`.
+    KyviaCore(Box<kyvia::core::Core>),
+    /// `kyviaGomora`.
+    Gomora(Box<kyvia::gomora::Gomora>),
     /// A bare `ccBoss` (a slave's base).
     Plain,
 }
@@ -259,6 +273,8 @@ pub struct Eff {
     pub fade: F,
     /// A missile's flight ([`innis::Missile`]).
     pub missile: Option<Box<innis::Missile>>,
+    /// The meteors' flights ([`kyvia::Meteorite`]).
+    pub meteorite: Option<Box<kyvia::Meteorite>>,
 }
 
 /// The effects the bosses make (`ccBossEff*Create`).
@@ -284,6 +300,9 @@ pub enum EffKind {
     /// `ccBossEff{Ice,Lightning,Blaze}MissileCreate(vec, NO, cb, cam)`
     /// (MUT 0x0048d750, 0x0048d830, 0x0048d910): a spline through `ctrl`.
     Missile { element: innis::Element, no: i32, ctrl: [V4; 4] },
+    /// `ccBossEffMeteoriteMissileCreate(pos, range, IN, OUT, cb, cam)` (MUT
+    /// 0x0048d9f0): `IN` meteors falling round `pos` (Kyvia's MegidFlame).
+    Meteorite { count: i32 },
 }
 
 impl Effects {
@@ -295,7 +314,7 @@ impl Effects {
         if self.slots.is_empty() {
             self.slots = vec![None; Self::SLOTS];
         }
-        let e = Eff { kind, enabled: true, count: 0, proc: 0, fade: ONE, missile: None };
+        let e = Eff { kind, enabled: true, count: 0, proc: 0, fade: ONE, missile: None, meteorite: None };
         match self.slots.iter().position(Option::is_none) {
             Some(k) => {
                 self.slots[k] = Some(e);
@@ -362,7 +381,7 @@ impl Eff {
                 }
                 return;
             }
-            EffKind::Missile { .. } => return,
+            EffKind::Missile { .. } | EffKind::Meteorite { .. } => return,
         };
         if self.count >= life {
             self.enabled = false;
@@ -495,6 +514,61 @@ pub enum Out {
     },
     /// `effResistantShield(this, 1, -1)`: a spell struck the boss.
     Shield,
+    /// A particle generator of Kyvia's fight started, by table and row, at
+    /// `pos` (or following `who`'s place).
+    KyviaParticles {
+        which: kyvia::Gen,
+        pos: V4,
+    },
+    /// `bossCam->SetRotXLimit(v)` (MUT gcmn 0x00475a40).
+    CamRotXLimit(F),
+    /// `bossCam` +0x139: the pad's sway (Kyvia's).
+    CamSway(bool),
+    /// `EVENTAREAB8::Move()` (MUT gcmn 0x0041e750): the disc on to its next
+    /// stage.
+    DiscNextStage,
+    /// `ccSqFade(0, 0, t, 3)`: the music out.
+    MusicFade {
+        t: i32,
+    },
+    /// `ccItemSkillRequest(user, target, sid, flag)` or
+    /// `ccSkillRequestParam(user, target, sid, param)` from one of a boss's
+    /// parts: the request made.
+    SkillFrom {
+        user: usize,
+        target: usize,
+        skill: ItemSkill,
+    },
+    /// `effSkillStart(who, sid, 0, 0)`.
+    SkillStart {
+        who: usize,
+        sid: i32,
+    },
+    /// `ccCharHit::HitEnable` / `HitDisable` of a part's `bodyHit`.
+    PartHit {
+        who: usize,
+        on: bool,
+    },
+    /// `effSmokeRock(pos, rot, 0, 20, -1, 75)`: a meteor's landing.
+    SmokeRock {
+        pos: V4,
+        rot: V4,
+    },
+    /// `bossCam->SetMode(mode, range, 0, 0)` (MUT gcmn 0x00475ae0) for modes
+    /// 3 and 4: the eye eased to `range` behind (3), then back (4).
+    CamModeRange {
+        mode: i32,
+        range: F,
+    },
+    /// `bossCam` +0x01 `InitLock` set: the next turn goes straight to the
+    /// boss.
+    CamInitLock,
+    /// Kyvia's arm (`anmw`, `ANM_ex0batc0`) drawn this frame at `pos`
+    /// turned by `dirc` (`DrawParts`).
+    DrawArm {
+        pos: V4,
+        dirc: V4,
+    },
 }
 
 /// `ccBoss`, with `ccBoss01`'s members (Skeith's); another class's own
@@ -600,6 +674,8 @@ pub struct Cx<'a> {
     pub cam: CamView,
     /// `ccLandHitCheck(pos, 0x20000000)`: the ground's height under `pos`.
     pub land: &'a mut dyn FnMut(V4) -> F,
+    /// `EVENTAREAB8`'s disc as Kyvia reads it ([`DiscView`]).
+    pub disc: DiscView,
     pub me: usize,
     pub out: Vec<Out>,
     pub ev: Events,
@@ -607,13 +683,24 @@ pub struct Cx<'a> {
 
 /// The cameras as a boss's rules read them: `cameraGetRot(camID)` (the
 /// active camera's turn), `cameraGetPos(2)`, `cameraGetView(2)` (the boss
-/// camera's eye and view) and `bossCam->CheckMoveCamera()`.
+/// camera's eye and view), `bossCam->CheckMoveCamera()` and the boss
+/// camera's `ResetFlg` (+0x04: 0 once a mode 3 or 4 move is done).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CamView {
     pub rot: V4,
     pub pos: V4,
     pub view: V4,
     pub moving: bool,
+    pub reset: i32,
+}
+
+/// `WORLD_MAN.eventmap` as an `EVENTAREAB8` for Kyvia's rules: `IsMove()`,
+/// `discPrevPos` (+0xca0), `DMY_marker01`'s place in its file.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DiscView {
+    pub moving: bool,
+    pub prev_pos: V4,
+    pub marker: V4,
 }
 
 impl Cx<'_> {
@@ -729,10 +816,10 @@ impl Boss {
     /// The boss task's frame: the effect manager's pass (its task runs
     /// first in the frame), then the class's `Main`.
     pub fn main(&mut self, cx: &mut Cx) {
-        if matches!(self.class, Class::Innis(_)) {
-            innis::main(self, cx);
-        } else {
-            self.skeith_main(cx);
+        match self.class {
+            Class::Innis(_) => innis::main(self, cx),
+            Class::Kyvia(_) => kyvia::main(self, cx),
+            _ => self.skeith_main(cx),
         }
     }
 
@@ -2024,9 +2111,11 @@ impl Boss {
     /// Skeith's own - the drain's 4500 HP, and the Super patterns once a
     /// hit leaves its protect gauge at half.
     pub fn affect(&mut self, cx: &mut Cx) {
-        if matches!(self.class, Class::Innis(_)) {
-            innis::affect(self, cx);
-            return;
+        match self.class {
+            Class::Innis(_) => return innis::affect(self, cx),
+            Class::KyviaCore(_) => return kyvia::core::affect(self, cx),
+            Class::Gomora(_) => return kyvia::gomora::affect(self, cx),
+            _ => {}
         }
         let me = cx.me;
         let t = cx.scene.chars[me].affect.ty;
@@ -2162,6 +2251,7 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
         boss_cam: false,
         cam: CamView::default(),
         land: &mut land,
+        disc: DiscView::default(),
         me: on,
         out: Vec::new(),
         ev: Events::new(),

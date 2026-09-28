@@ -38,6 +38,12 @@ use crate::{FADE_FRAMES, FRAME_RATE, HOLD_FRAMES, Phase, draw, talk};
 
 mod ride;
 
+/// `WORLD_MAN.eventmap` as Kyvia's rules read an `EVENTAREAB8`: `IsMove()`,
+/// `discPrevPos` and `DMY_marker01`'s place.
+fn disc_view(a: &crate::evarea_b8::DiscArea) -> piney_battle::boss::DiscView {
+    piney_battle::boss::DiscView { moving: a.is_move(), prev_pos: a.disc_prev, marker: a.disc_pos }
+}
+
 /// What a frame asks of the rest of the game.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Request {
@@ -321,15 +327,19 @@ impl FieldWorld {
             Some(Kept::Event(e)) => (Some(Kept::Event(e)), None),
             k => (None, k),
         };
+        // ccRand: the battle's generator, which a story map's constructor
+        // may draw from first (EVENTAREAB8's rocks).
+        let mut cc = piney_battle::enemy_ai::Genrand::default();
         let mut story = if scene.area == kind::FIELD {
             let at = crate::story_map::At {
                 volume,
                 field: scene.field,
                 area_prev: scene.area_prev,
+                field_prev: scene.field_prev,
                 server: scene.server,
                 save: &save.save,
             };
-            crate::story_map::build(&archive, &at, world_man.field_model, kept_map, def_se)?
+            crate::story_map::build(&archive, &at, world_man.field_model, kept_map, def_se, &mut cc)?
         } else {
             None
         };
@@ -392,6 +402,7 @@ impl FieldWorld {
             None => Kite::read(&archive)?,
         };
         let mut combat = Combat::new(data.clone(), 1);
+        combat.cc = cc;
         // The looks the entry control's enemies and portals may take: the
         // rows ccRegisterDifficultyEnemy registers (with their drained
         // forms) and the magic portal.
@@ -2216,7 +2227,7 @@ impl FieldWorld {
                         puppet_show: self.camera.puppet_show,
                         world_screen: self.camera.world_screen,
                     };
-                    let sprites = m.draw(&mut ctx.layers, to_screen, &v, awake);
+                    let sprites = m.draw_rand(&mut ctx.layers, to_screen, &v, awake, &mut self.combat.cc);
                     self.fx.story_sprites(&sprites, &self.camera, ctx);
                 }
             }
@@ -2254,9 +2265,21 @@ impl FieldWorld {
     fn combat_frame(&mut self, cpad: &CamPad) {
         self.entry_setup(cpad);
         let info = self.task_info();
+        // Kyvia's disc as the boss reads it this frame (`IsMove`,
+        // `discPrevPos`, `DMY_marker01`).
+        if let (Some(r), Some(a)) = (self.combat.boss.as_mut(), self.place.story::<crate::evarea_b8::DiscArea>()) {
+            r.disc = disc_view(a);
+        }
         let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, *cpad, &info);
         x.path_map = std::mem::take(&mut self.path_map);
         self.combat.frame(&mut x, self.fx.tasks());
+        // EVENTAREAB8::Move from the boss's CheckDiscMove.
+        if let Some(r) = self.combat.boss.as_mut()
+            && std::mem::take(&mut r.disc_next)
+            && let Some(a) = self.place.story_mut::<crate::evarea_b8::DiscArea>()
+        {
+            a.next_stage();
+        }
     }
 
     /// `ccThEntryCtrl`'s first slice (gcmn 0x00431970, before its first
@@ -2462,13 +2485,14 @@ impl FieldWorld {
             Some(a) => [a.start[0], a.start[1], a.start[2], ONE],
             None => self.player.body.pos,
         };
+        let disc = self.place.story::<crate::evarea_b8::DiscArea>().map(disc_view).unwrap_or_default();
         let env = piney_battle::chara::Env {
             count: self.count,
             menu_type: self.menu_type,
             area: self.scene.area,
             ..piney_battle::chara::Env::default()
         };
-        self.combat.start_boss(&look, center, &env, &mut self.camera);
+        self.combat.start_boss(&look, center, disc, &env, &mut self.camera);
     }
 
     /// `worldman->eventArea->SwitchLayer()` in a boss arena.

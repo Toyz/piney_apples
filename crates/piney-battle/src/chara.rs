@@ -120,6 +120,8 @@ pub struct AffectState {
     pub color_cnt: i16,
     pub color_rate: i16,
     pub color: u32,
+    /// `affectColorFix` (+0xa6).
+    pub color_fix: i16,
     pub cond_color_cnt: i16,
     pub cond_color_rate: i16,
     pub cond_color: u32,

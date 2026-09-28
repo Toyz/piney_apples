@@ -74,16 +74,20 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 - [ ] The Grunty race (`PG_RACE`, `town06`) and Quarantine's staff roll and
   hacking logos
 - [ ] A new menu after `AreaInfoMenu` (messages, number input)
-- [ ] Kyvia's fights (`kyviaCore`, the `ex0`-`ex4` models)
+- [ ] Kyvia's fights: [x] the first (`ccBossKyvia01`, `kyviaCore`,
+  `kyviaGomora`, worklog 272), [ ] the later ones (levels 2-5, the EX
+  mode, the `ex2`-`ex4` models)
 - [x] The Root Towns 02-05 (`ROOTTOWN03`-`05`, their `DrawMap`; worklogs
   218, 260) - the party of 21 (`SPC_01`-`SPC_20`) still to check
-- [ ] The other `EVENTAREA` classes (04-06, B8; areas 66, 67, 91, 9-12).
+- [ ] The other `EVENTAREA` classes (04-06; areas 66, 67, 91).
   Area 16's `EVENTAREA07` (worklog 177), area 43's `EVENTAREA03` (worklog
-  263) and area 13's `EVENTAREA01` (worklog 264) are ported, all behind
+  263), area 13's `EVENTAREA01` (worklog 264) and Kyvia's disc
+  `EVENTAREAB8` (fields 9-12, worklog 272) are ported, all behind
   `StoryMap`
 - [ ] Mutation's bosses: [x] Innis (`ccBoss02`, worklog 266; its pictures
-  and event 107 under the autopilot still open), [ ] Kyvia 01 (`ccThKyvia01`,
-  the `kyvia*` classes), [ ] Magus (`ccBoss03`) (worklog 264,
+  and event 107 under the autopilot still open), [x] Kyvia 01 (`ccThKyvia01`,
+  the `kyvia*` classes, worklog 272; event 108 under the autopilot still
+  open), [ ] Magus (`ccBoss03`) (worklog 264,
   plans/mutation-story.md)
 
 ## Asked for, not the game's

@@ -499,6 +499,7 @@ impl Session {
                 "infection N       the bracelet's infection (0-100)",
                 "address ID        a member's address (call them: PERSONAL > Party)",
                 "invite_party ID   a character into the party whatever the story says (a town: now, at the gate; a field: with the next area)",
+                "exp N             N experience to each member in a field or dungeon (1000 a level)",
                 "flag N [VALUE]    event N's flag (hex VALUE sets it)",
                 "time              the play time",
                 "where             where the game is",
@@ -537,6 +538,13 @@ impl Session {
         }
         if cmd == "invite_party" {
             return self.invite_party(num(1));
+        }
+        if cmd == "exp" {
+            return match (&mut self.stage, num(1).filter(|n| (1..=30000).contains(n))) {
+                (Stage::Area(a), Some(n)) => format!("{n} exp to {} members", a.give_exp(n as i16)),
+                (_, None) => "exp N (1-30000; 1000 a level)".into(),
+                _ => "exp works in a field or dungeon".into(),
+            };
         }
         if cmd == "protect" {
             return match &mut self.stage {

@@ -3,9 +3,9 @@
 //! and run by `CamMain` each frame: over the player, behind him on the line
 //! from the boss, the boss straight ahead, the heading turning at most
 //! `RemitRotMax` a frame; the pad raises and lowers it; `QuakeCam` shakes it
-//! for a frame. Innis uses modes 5 and 6 and raises `Xrot`; `SetTransfer`'s
-//! cases 3 and 4 and Mutation's lift are left out. `tools/test_bosscam_rs.py`
-//! checks it (docs/engine/boss.md).
+//! for a frame. Innis uses modes 5 and 6 and `Xrot`; Kyvia modes 3 and 4
+//! (Mutation's `SetTransfer`) and `SetRotXLimit`; the pad's sway (+0x139)
+//! is left out. `tools/test_bosscam_rs.py` checks it (docs/engine/boss.md).
 
 use crate::camera::{CamPad, Camera, id, kind};
 use crate::ee::{self, F, ONE, V4, add, deg2rad, div, le, lt, mul, rad2deg, sub, vadd};
@@ -77,6 +77,12 @@ pub struct BossCam {
     pub temp_view: V4,
     pub temp_pos: V4,
     pub temp_rot: V4,
+    /// Mutation's +0xd0 (the range `SetMode` was given, then the distance
+    /// modes 3 and 4 ease to), +0x130 (their start taken) and +0x134 (the
+    /// distance mode 3 left, for mode 4).
+    pub trans_target: i32,
+    pub trans_started: bool,
+    pub trans_saved: F,
 }
 
 impl BossCam {
@@ -115,7 +121,24 @@ impl BossCam {
             temp_view: [0; 4],
             temp_pos: [0; 4],
             temp_rot: [0; 4],
+            trans_target: 0,
+            trans_started: false,
+            trans_saved: 0,
         }
+    }
+
+    /// `SetMode(mode, range, 0, 0)` (MUT gcmn 0x00475ae0) with a range:
+    /// `+0xd0` the range as an int, then [`BossCam::set_mode`].
+    pub fn set_mode_range(&mut self, mode: i32, range: F, camera: &mut Camera) {
+        self.trans_target = ee::to_int(range);
+        self.set_mode(mode, camera);
+    }
+
+    /// `SetRotXLimit(v)` (MUT gcmn 0x00475a40): the pitch's share at the
+    /// nearest (`v`) and what the zoom adds (`1 - v`).
+    pub fn set_rot_x_limit(&mut self, v: F) {
+        self.basis_rot = v;
+        self.limit_rot = sub(ONE, v);
     }
 
     /// `ccBossCam::SetMode(mode, 0, 0, 0)` (MUT gcmn 0x00475ae0) for modes
@@ -242,7 +265,44 @@ impl BossCam {
                     self.reset = 0;
                 }
             }
+            3 | 4 => self.ease_to_range(),
             _ => {}
+        }
+    }
+
+    /// Mutation's `SetTransfer` modes 3 and 4 (MUT gcmn 0x00476380): the
+    /// first frame takes the distance (mode 3: the eye's y off the view,
+    /// kept that far from the range; mode 4: back to what mode 3 left),
+    /// then `MoveTransfer.y` eases a quarter of the way a frame and snaps
+    /// within 8, ending the mode.
+    fn ease_to_range(&mut self) {
+        if !self.trans_started {
+            if self.reset == 3 {
+                let d = ee::vsub(self.pos, self.view);
+                let dy = f64::from(ee::f(d[1])).abs() as i32;
+                let s2 = f64::from(dy - self.trans_target).abs() as i32;
+                let off = ee::from_int(s2);
+                let near = f64::from(ee::f(self.pos[1])).abs() < f64::from(self.trans_target);
+                let y = self.move_transfer[1];
+                self.trans_target = ee::to_int(if near { add(y, off) } else { sub(y, off) });
+                self.trans_saved = y;
+            } else {
+                if !ee::eq(0, self.trans_saved) {
+                    self.trans_target = ee::to_int(self.trans_saved);
+                }
+                self.trans_saved = 0;
+            }
+            self.trans_started = true;
+            return;
+        }
+        let t = ee::from_int(self.trans_target);
+        let y = self.move_transfer[1];
+        let d = if le(y, t) { sub(t, y) } else { sub(y, t) };
+        self.move_transfer[1] = if le(y, t) { add(y, div(d, FOUR)) } else { sub(y, div(d, FOUR)) };
+        if lt(d, EIGHT) {
+            self.move_transfer[1] = t;
+            self.reset = 0;
+            self.trans_started = false;
         }
     }
 

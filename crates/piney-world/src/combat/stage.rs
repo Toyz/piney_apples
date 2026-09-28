@@ -470,10 +470,10 @@ impl NaviWorld for Stage<'_> {
 
 impl FellowWorld for Stage<'_> {
     fn trans_mode(&mut self) -> bool {
-        false
+        self.hits.trans.is_some()
     }
     fn trans_center(&mut self) -> V4 {
-        ee::VF0
+        self.hits.trans.unwrap_or(ee::VF0)
     }
     fn event_area(&mut self) -> bool {
         self.event_area
@@ -720,10 +720,10 @@ impl KiteWorld for Stage<'_> {
         (self.hits.num != 0).then_some(self.hits.nearest.att)
     }
     fn trans_mode(&mut self) -> bool {
-        false
+        self.hits.trans.is_some()
     }
     fn trans_center(&mut self) -> V4 {
-        ee::VF0
+        self.hits.trans.unwrap_or(ee::VF0)
     }
     fn draw(&mut self, me: usize, pos: V4, set_transparency: BF, transparency: &mut BF) -> bool {
         let Some(a) = self.cast.get(me) else { return false };

@@ -160,7 +160,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let mut blur = 0u32;
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
-    let view = |r: u32, moving: bool| CamView { rot: [0, 0, r, 0], pos: cam_pos, view: cam_view, moving };
+    let view = |r: u32, moving: bool| CamView { rot: [0, 0, r, 0], pos: cam_pos, view: cam_view, moving, reset: 0 };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
     let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false };
@@ -184,6 +184,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         boss_cam: true,
         cam: view(rot.first().copied().unwrap_or(0), false),
         land: &mut land,
+        disc: piney_battle::boss::DiscView::default(),
         me,
         out: Vec::new(),
         ev: Events::new(),
@@ -238,6 +239,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             boss_cam: true,
             cam: view(rot[f], moving[f]),
             land: &mut land,
+            disc: piney_battle::boss::DiscView::default(),
             me,
             out: Vec::new(),
             ev: Events::new(),

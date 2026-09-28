@@ -2,8 +2,10 @@
 //! starts for an event's `entry 7 code` - `ccThBossEffect` and
 //! `bossFunc[code]` at priority 66 - over the battle's scene
 //! ([`piney_battle::boss`]). Code 0 is Skeith (`ccThBoss01`), 1 Innis
-//! (`ccThBoss02`); the others are not ported and start nothing. Once
-//! `CheckExit()` the task sets its parameter's +0x14, which `absent 7` reads.
+//! (`ccThBoss02`), 12 Kyvia's first fight (`ccThKyvia01`, its core and
+//! gomoras characters of their own); the others are not ported and start
+//! nothing. Once `CheckExit()` the task sets its parameter's +0x14, which
+//! `absent 7` reads.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -31,6 +33,7 @@ use crate::lattice::{Lattice, StripVertex};
 /// (row 1).
 pub const SKEITH: i32 = 0;
 pub const INNIS: i32 = 1;
+pub const KYVIA: i32 = 12;
 
 /// Skeith's file and model (`x11`, `CMP_trall`), and the effects' file.
 pub const FILE: &str = "x11";
@@ -40,6 +43,10 @@ pub const EFF_FILE: &str = "xeffect";
 pub const INNIS_FILE: &str = "x21";
 /// Innis's images (`Mon1`-`Mon3`' models).
 pub const IMAGES: [&str; 3] = ["CMP_ex21mon1", "CMP_ex21mon2", "CMP_ex21mon3"];
+/// Kyvia's file (`x01`), its body, and its core's and gomoras' models.
+pub const KYVIA_FILE: &str = "x01";
+pub const KYVIA_CLUMP: &str = "CMP_trallex01";
+pub const KYVIA_PARTS: [&str; 2] = ["CMP_trall2", "CMP_ex01gom2"];
 /// The wave's animation in [`EFF_FILE`].
 pub const ANM_WAVE: &str = "ANM_xx11wave";
 
@@ -47,6 +54,8 @@ pub const ANM_WAVE: &str = "ANM_xx11wave";
 /// eye 1000 behind Kite and 200 up at its nearest; Innis's (200, 900).
 pub const CAM_TRANSFER: V4 = [0, 0x447a_0000, 0x4348_0000, ONE];
 pub const INNIS_CAM_TRANSFER: V4 = [0, 0x4461_0000, 0x4348_0000, ONE];
+/// Kyvia's `InitBossCamera(450, 1050)`.
+pub const KYVIA_CAM_TRANSFER: V4 = [0, 0x4483_4000, 0x43e1_0000, ONE];
 
 /// A clip's frames and whether it loops, by name, in the boss's files.
 pub type Clips = HashMap<String, (u32, bool)>;
@@ -86,6 +95,13 @@ pub struct BossRun {
     pub cinema_sent: CinemaSent,
     /// Innis's images' scene indices, drawn while theirs `drawSW` holds.
     pub images: Vec<usize>,
+    /// Kyvia's core and gomoras (their characters), drawn while theirs
+    /// `drawSW` holds.
+    pub parts: Vec<usize>,
+    /// `WORLD_MAN.eventmap` as an `EVENTAREAB8` this frame (Kyvia's disc),
+    /// and whether the boss asked it on (`EVENTAREAB8::Move`).
+    pub disc: boss::DiscView,
+    pub disc_next: bool,
 }
 
 /// One `ccBossAfterImageEx`: the boss's pose when it was entered, fading
@@ -116,7 +132,8 @@ pub struct BossLook {
     /// name), by `n`: on Infection Skeith's 2 (x11's `TEX_ske_skl`, row
     /// 0); on Mutation Innis's 5-8 and 70 (`TEX_ini_skl`, rows 0-4).
     pub names: HashMap<i32, CinemaName>,
-    /// Innis's images (`CMP_ex21mon1`-`3` of x21), by `MonsterID`.
+    /// Innis's images (`CMP_ex21mon1`-`3` of x21), by `MonsterID`;
+    /// Kyvia's core and gomora ([`KYVIA_PARTS`] of x01).
     pub images: Vec<Rc<Body>>,
 }
 
@@ -127,8 +144,12 @@ impl BossLook {
         code: i32,
         volume: piney_data::volume::Volume,
     ) -> piney_data::Result<BossLook> {
-        let file = if code == INNIS { INNIS_FILE } else { FILE };
-        let body = Rc::new(Body::read(archive, file, CLUMP)?);
+        let (file, clump) = match code {
+            INNIS => (INNIS_FILE, CLUMP),
+            KYVIA => (KYVIA_FILE, KYVIA_CLUMP),
+            _ => (FILE, CLUMP),
+        };
+        let body = Rc::new(Body::read(archive, file, clump)?);
         let mut clips = Clips::new();
         for stem in [file, EFF_FILE] {
             let ccs = piney_data::ccs::Ccs::parse(archive.inflate_named(stem)?)?;
@@ -155,11 +176,16 @@ impl BossLook {
                 names.insert(n as i32, CinemaName { tex: w.tex.clone(), tex_h: w.tex_h, row: row.row });
             }
         }
-        let images = if code == INNIS {
-            let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, INNIS_FILE)?);
-            IMAGES.iter().filter_map(|c| Body::of(file.clone(), c).ok().map(Rc::new)).collect()
-        } else {
-            Vec::new()
+        let images = match code {
+            INNIS => {
+                let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, INNIS_FILE)?);
+                IMAGES.iter().filter_map(|c| Body::of(file.clone(), c).ok().map(Rc::new)).collect()
+            }
+            KYVIA => {
+                let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, KYVIA_FILE)?);
+                KYVIA_PARTS.iter().filter_map(|c| Body::of(file.clone(), c).ok().map(Rc::new)).collect()
+            }
+            _ => Vec::new(),
         };
         Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, images })
     }
@@ -167,12 +193,20 @@ impl BossLook {
 
 impl Combat {
     /// `ccBossEntryStart(code)`: the boss made (`ccBoss01::ccBoss01`,
-    /// `ccBoss02::ccBoss02`) at the arena's centre `center` (`DMY_center01`)
-    /// and its actor. Nothing for a code the port lacks, without the tables
-    /// or without Kite.
-    pub fn start_boss(&mut self, look: &Rc<BossLook>, center: V4, env: &Env, camera: &mut Camera) {
+    /// `ccBoss02::ccBoss02`, `ccBossKyvia01::ccBossKyvia01(1)`) at the
+    /// arena's centre `center` (`DMY_center01`) or Kyvia's disc (`disc`)
+    /// and its actor. Nothing for a code the port lacks, without the
+    /// tables or without Kite.
+    pub fn start_boss(
+        &mut self,
+        look: &Rc<BossLook>,
+        center: V4,
+        disc: boss::DiscView,
+        env: &Env,
+        camera: &mut Camera,
+    ) {
         let code = look.code;
-        if self.boss.is_some() || !matches!(code, SKEITH | INNIS) {
+        if self.boss.is_some() || !matches!(code, SKEITH | INNIS | KYVIA) {
             return;
         }
         let d = self.data.clone();
@@ -210,17 +244,19 @@ impl Combat {
             boss_cam: true,
             cam: cam_view(camera, None),
             land: &mut land,
+            disc,
             me,
             out: Vec::new(),
             ev: Events::new(),
         };
-        let b = if code == INNIS {
-            boss::innis::new(&mut cx, kite_pos, kite_dirc, center)
-        } else {
-            Boss::new(&mut cx, kite_pos, kite_dirc, center)
+        let b = match code {
+            INNIS => boss::innis::new(&mut cx, kite_pos, kite_dirc, center),
+            KYVIA => boss::kyvia::new(&mut cx),
+            _ => Boss::new(&mut cx, kite_pos, kite_dirc, center),
         };
         let out = std::mem::take(&mut cx.out);
         drop(cx);
+        let ctor_out = out.clone();
         for o in out {
             self.shows.push(Show::Boss(me, o));
         }
@@ -234,12 +270,34 @@ impl Combat {
             Class::Innis(x) => x.slaves.iter().map(|s| s.me).collect(),
             _ => Vec::new(),
         };
+        let parts = match &b.class {
+            Class::Kyvia(x) => {
+                let mut v = vec![x.core];
+                if let Some(Class::KyviaCore(c)) =
+                    self.scene.chars[x.core].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class)
+                {
+                    v.extend(c.gomoras.iter().copied());
+                }
+                v
+            }
+            _ => Vec::new(),
+        };
         if let Some(f) = self.scene.chars[me].foe_state_mut() {
             f.boss = Some(Box::new(b));
         }
         let ty = self.scene.chars[me].ty() as u32;
         let hit = CharHit { pos, radius: w, height: h, kind: ty, ..CharHit::default() };
-        let transfer = if code == INNIS { INNIS_CAM_TRANSFER } else { CAM_TRANSFER };
+        let transfer = match code {
+            INNIS => INNIS_CAM_TRANSFER,
+            KYVIA => KYVIA_CAM_TRANSFER,
+            _ => CAM_TRANSFER,
+        };
+        // InitBossCamera(z, y), in the constructor, and what the
+        // constructor set on it then.
+        let mut cam = BossCam::new(camera, transfer, kite_pos);
+        for o in &ctor_out {
+            cam_out(&mut cam, o, camera);
+        }
         self.boss = Some(BossRun {
             code,
             me,
@@ -249,8 +307,7 @@ impl Combat {
             look: look.clone(),
             afterimages: Vec::new(),
             wave: None,
-            // InitBossCamera(200, y), in the constructor.
-            cam: Some(BossCam::new(camera, transfer, kite_pos)),
+            cam: Some(cam),
             cam_sw: true,
             reverse: false,
             lattice: Lattice::new(2, 7),
@@ -258,6 +315,9 @@ impl Combat {
             cinema: Cinema::new(),
             cinema_sent: CinemaSent::default(),
             images,
+            parts,
+            disc,
+            disc_next: false,
         });
     }
 
@@ -293,6 +353,17 @@ impl Combat {
         let actx =
             AffectCtx { party: &party, menu: true, skill_check: check, boss: Some(&benv), volume: self.data.volume };
         boss::apply_queued(&mut self.scene, &actx, me, &mut self.rand, &mut ev);
+        // Kyvia's core and gomoras: their affects of the frame so far, and
+        // what they asked (their hits' marks and numbers).
+        let parts = run.parts.clone();
+        let disc = run.disc;
+        let mut part_out = Vec::new();
+        for &p in &parts {
+            boss::apply_queued(&mut self.scene, &actx, p, &mut self.rand, &mut ev);
+            if let Some(pb) = self.scene.chars[p].foe_state_mut().and_then(|f| f.boss.as_mut()) {
+                part_out.extend(pb.take_pending().into_iter().map(|o| (p, o)));
+            }
+        }
         let Some(mut b) = self.scene.chars[me].foe_state_mut().and_then(|f| f.boss.take()) else { return ev };
         let mut out = b.take_pending();
         // ccBoss::Move: SetHitSW(bodyHitSW), then the body at the new place
@@ -325,6 +396,7 @@ impl Combat {
             boss_cam: true,
             cam: cv,
             land: &mut land,
+            disc,
             me,
             out: Vec::new(),
             ev: Events::new(),
@@ -400,6 +472,12 @@ impl Combat {
                             c.xrot = if *add { ee::add(c.xrot, *v) } else { *v };
                         }
                     }
+                    Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) => {
+                        if let Some(c) = r.cam.as_mut() {
+                            cam_out(c, o, camera);
+                        }
+                    }
+                    Out::DiscNextStage => r.disc_next = true,
                     Out::DeadCamera { eye, view, .. } => {
                         if r.cam_sw {
                             if r.cam.is_some() {
@@ -458,12 +536,28 @@ impl Combat {
         if let Some(f) = self.scene.chars[me].foe_state_mut() {
             f.boss = Some(b);
         }
+        self.part_actors(&parts, exited);
+        for (p, o) in part_out {
+            match &o {
+                Out::HitMark { by } => {
+                    let by = by.map_or(Who::Nobody, Who::Char);
+                    self.shows.push(Show::Rule(Event::HitMark { on: Who::Char(p), by }));
+                }
+                Out::FlyFont { kind, n } => {
+                    self.shows.push(Show::Rule(Event::FlyFont { on: Who::Char(p), kind: *kind, value: *n }));
+                }
+                _ => {}
+            }
+            self.shows.push(Show::Boss(p, o));
+        }
         for o in out {
             match &o {
                 Out::DeleteCmnd => self.scene.ene_list.retain(|&c| c != me),
                 // ccItemSkillRequest: the skill run from the boss on its
                 // target, as an item's through a character.
                 Out::Skill(tp, k) => self.item_skill(me, *tp, k),
+                // A gomora's skill (ccItemSkillRequest, ccSkillRequestParam).
+                Out::SkillFrom { user, target, skill } => self.item_skill(*user, *target, skill),
                 // ccHitMarkDisp and ccEntryFlyFontNew over the boss: the
                 // effects' as for any character's.
                 Out::HitMark { by } => {
@@ -480,7 +574,7 @@ impl Combat {
         if exited && let Some(r) = self.boss.as_mut() {
             r.exit = true;
             self.cast.actors.remove(&me);
-            for k in std::mem::take(&mut r.images) {
+            for k in std::mem::take(&mut r.images).into_iter().chain(std::mem::take(&mut r.parts)) {
                 self.cast.actors.remove(&k);
             }
         }
@@ -518,6 +612,35 @@ impl Combat {
             pose(a, &s.b.anm, pos, s.b.dirc);
             a.drawn = shown;
             a.alpha = s.transparency;
+            a.trans_dist = false;
+        }
+    }
+
+    /// Kyvia's core and gomoras (`ccBoss::Draw` of each): the core's
+    /// model and the gomoras' at their clips, places and turns, at their
+    /// `Alpha`, while their `drawSW` holds.
+    fn part_actors(&mut self, parts: &[usize], exited: bool) {
+        let Some(look) = self.boss.as_ref().map(|r| r.look.clone()) else { return };
+        for (k, &p) in parts.iter().enumerate() {
+            let Some(pb) = self.scene.chars[p].foe_state().and_then(|f| f.boss.as_ref()) else { continue };
+            let shown = pb.draw_sw != 0 && pb.exit == 0 && !exited;
+            let Some(body) = look.images.get(usize::from(k > 0)).cloned() else { continue };
+            let (anm, dirc, alpha) = (pb.anm.clone(), pb.dirc, pb.set_transparency);
+            let pos = self.scene.chars[p].pos;
+            let a = match self.cast.actors.entry(p) {
+                std::collections::btree_map::Entry::Occupied(o) => o.into_mut(),
+                std::collections::btree_map::Entry::Vacant(v) => {
+                    if !shown {
+                        continue;
+                    }
+                    let clip = anm.clip.clone().unwrap_or_default();
+                    let Some(a) = Actor::new(body, &clip, Look::Boss, pos, dirc, 0, 0) else { continue };
+                    v.insert(a)
+                }
+            };
+            pose(a, &anm, pos, dirc);
+            a.drawn = shown;
+            a.alpha = alpha;
             a.trans_dist = false;
         }
     }
@@ -560,7 +683,13 @@ fn pose(a: &mut Actor, anm: &piney_battle::boss::Anm, pos: V4, dirc: V4) {
 /// the boss camera's `CheckMoveCamera`.
 fn cam_view(camera: &Camera, bcam: Option<&BossCam>) -> CamView {
     let c = camera.cam(id::BATTLE);
-    CamView { rot: camera.rot(), pos: c.pos, view: c.view, moving: bcam.is_some_and(BossCam::check_move_camera) }
+    CamView {
+        rot: camera.rot(),
+        pos: c.pos,
+        view: c.view,
+        moving: bcam.is_some_and(BossCam::check_move_camera),
+        reset: bcam.map_or(0, |b| b.reset),
+    }
 }
 
 /// The sword's two trail points (`DMY_xdummy_w01`, `_w02` of the boss's
@@ -575,6 +704,18 @@ fn sword_points(body: &crate::body::Body, play: &crate::pose::Play, pos: V4, dir
         Some([p.x.to_bits(), p.y.to_bits(), p.z.to_bits(), p.w.to_bits()])
     };
     Some([point("DMY_xdummy_w01")?, point("DMY_xdummy_w02")?])
+}
+
+/// What a boss asks of its camera beside the frame's moves: a mode with a
+/// range (Kyvia's 3 and 4), `InitLock`, `SetRotXLimit` and the pitch.
+fn cam_out(c: &mut BossCam, o: &Out, camera: &mut Camera) {
+    match o {
+        Out::CamModeRange { mode, range } => c.set_mode_range(*mode, *range, camera),
+        Out::CamInitLock => c.init_lock = true,
+        Out::CamRotXLimit(v) => c.set_rot_x_limit(*v),
+        Out::CamPitch { add, v } => c.xrot = if *add { ee::add(c.xrot, *v) } else { *v },
+        _ => {}
+    }
 }
 
 /// The boss's position with its z raised by `dz`, for a sound or a look.

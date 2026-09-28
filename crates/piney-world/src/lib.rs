@@ -28,6 +28,7 @@ pub mod evarea01;
 pub mod evarea03;
 pub mod evarea07;
 pub mod evarea_b0;
+pub mod evarea_b8;
 pub mod evcam;
 pub mod event;
 pub mod field_ambient;

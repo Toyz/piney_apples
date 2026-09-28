@@ -1537,6 +1537,36 @@ fn skeith_acts(c: &Ctx) -> Read {
     Ok(Value::List(out))
 }
 
+/// `AllGomoraList_1[0]` (a `short **` in main's small data): the lists
+/// `kyviaGomora::GomoraInit` (INF gcmn 0x004e3570) gives Kyvia 01's gomoras,
+/// found by the function's first `lw rX, off($gp)`; each list a gomora's
+/// attribute by slave, the pointers to a null.
+fn kyvia_gomora_lists(c: &Ctx) -> Read {
+    let f = find(c, 0x004E_3570, GCMN);
+    let gp = c.p.gp.ok_or("no gp")?;
+    let mut global = None;
+    for k in 0..64 {
+        let w = c.p.u32(f + 4 * k)?;
+        if w >> 26 == 0x23 && (w >> 21) & 31 == 28 {
+            global = Some(gp.wrapping_add(sext16(w) as u32));
+            break;
+        }
+    }
+    let lists = c.p.u32(global.ok_or_else(|| format!("0x{f:08x} reads no small global"))?)?;
+    let mut out = Vec::new();
+    for k in 0..16 {
+        let l = c.p.u32(lists + 4 * k)?;
+        if l == 0 {
+            break;
+        }
+        let row = (0..5)
+            .map(|j| c.p.read(l + 2 * j, 2).map(|b| Value::Int(i128::from(i16::from_le_bytes([b[0], b[1]])))))
+            .collect::<Result<Vec<_>, _>>()?;
+        out.push(Value::List(row));
+    }
+    Ok(Value::List(out))
+}
+
 /// Every GCMN.PRG global of Infection's named `*{suffix}` (the enemies'
 /// weapon and dust blocks), by name: each where the volume keeps it, and
 /// its rows.
@@ -1576,7 +1606,7 @@ fn combat() -> Group {
         "combat",
         "Combat",
         "What Kite's, the members' and the ride's frames read besides the battle's parameters: their clips, \
-         the following's constants, Skeith's and Innis's patterns.",
+         the following's constants, the bosses' patterns and clips.",
         vec![
             e(
                 "player_anims",
@@ -1677,6 +1707,41 @@ fn combat() -> Group {
                 array(I32, 3),
                 GCMN,
                 "`EnemyBurst`'s rings' model (`particle` clump) by image.",
+            ),
+            e(
+                "kyvia01_anims",
+                0x005E_CB70,
+                array(opt(cstr()), 15),
+                GCMN,
+                "`Kyvia01AnmTbl`: Kyvia's clip by act in its first fight.",
+            ),
+            e(
+                "kyvia_core_anims",
+                0x005E_CD20,
+                array(opt(cstr()), 18),
+                GCMN,
+                "`kyviaCoreAnmTbl`: the core's clip by act.",
+            ),
+            e(
+                "kyvia_gomora_anims",
+                0x005E_CF30,
+                array(opt(cstr()), 15),
+                GCMN,
+                "`kyviaGomoraAnmTbl`: a gomora's clip by act.",
+            ),
+            e(
+                "kyvia_various_skills",
+                0x005E_CEF8,
+                array(I16, 7),
+                GCMN,
+                "`Skill_VARIOUS`: the spells a gomora of attribute 1 picks from.",
+            ),
+            e("kyvia_downer_skills", 0x005E_CF10, array(I16, 12), GCMN, "`Skill_DOWNER`: those of attribute 2."),
+            derived(
+                "kyvia_gomora_lists",
+                custom(Rc::new(kyvia_gomora_lists), array(array(I16, 5), 0)),
+                GCMN,
+                "`AllGomoraList_1[0]`: Kyvia 01's gomora lists, each gomora's attribute (4 none) by slave.",
             ),
             e(
                 "cinema_skill_names",

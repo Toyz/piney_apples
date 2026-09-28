@@ -74,17 +74,36 @@ pub trait StoryMap: Any {
     /// `Draw` into the field's layers, stepping only when `step`; the
     /// sprites for the effects to draw.
     fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite>;
+    /// [`StoryMap::draw`] with the game's `ccRand` (the battle's), for a
+    /// map whose `Draw` draws from it (`EVENTAREAB8`'s rocks).
+    fn draw_rand(
+        &mut self,
+        layers: &mut Layers,
+        to_screen: Mat4,
+        v: &TownView,
+        step: bool,
+        _cc: &mut dyn piney_battle::rand::Rng,
+    ) -> Vec<StorySprite> {
+        self.draw(layers, to_screen, v, step)
+    }
+    /// `WORLD_MAN::GetTransMode()` and `GetTransCenter`: the centre the
+    /// party rides about, when the map carries it.
+    fn trans_center(&self) -> Option<V4> {
+        None
+    }
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn into_any(self: Box<Self>) -> Box<dyn Any>;
 }
 
 /// Where `GO(1)` makes a map: the volume, `game.field`, `game.areaPrev`,
-/// `game.server`, and the save.
+/// `game.fieldPrev`, `game.server`, and the save.
 pub struct At<'a> {
     pub volume: Volume,
     pub field: i32,
     pub area_prev: i32,
+    /// `game.fieldPrev`.
+    pub field_prev: i32,
     pub server: i32,
     pub save: &'a SaveData,
 }
@@ -92,12 +111,14 @@ pub struct At<'a> {
 /// `GO(1)`'s map for `at.field` (its `EVENTAREA_INFO.model` `model`), or
 /// None for a generated field. Area 15's map comes back as `WORLD_MAN::Quit`
 /// kept it (`kept`, from a field); area 16's starts by `game.areaPrev`.
+/// `cc` is the game's `ccRand`, which `EVENTAREAB8`'s rocks draw from.
 pub fn build(
     archive: &Arc<Archive>,
     at: &At,
     model: i32,
     kept: Option<Kept>,
     def_se: u32,
+    cc: &mut dyn piney_battle::rand::Rng,
 ) -> Result<Option<Box<dyn StoryMap>>> {
     let (field, area_prev) = (at.field, at.area_prev);
     let map: Box<dyn StoryMap> = match field {
@@ -113,6 +134,9 @@ pub fn build(
         crate::evarea07::AREA => Box::new(Giant::new(archive, def_se, area_prev, 0)?),
         crate::evarea03::AREA => Box::new(Area43::new(archive, at.volume, at.save, at.server, def_se)?),
         crate::evarea01::AREA => Box::new(crate::evarea01::Area13::new(archive, at.volume, def_se)?),
+        f if crate::evarea_b8::is_disc(f) => {
+            Box::new(crate::evarea_b8::DiscArea::new(archive, at.volume, f, at.field_prev, def_se, cc)?)
+        }
         _ => return Ok(None),
     };
     Ok(Some(map))

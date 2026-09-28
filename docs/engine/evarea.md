@@ -1,9 +1,9 @@
 ---
-title: The story maps - EVENTAREA01 (area 13), EVENTAREA02 (area 15), EVENTAREA03 (area 43), EVENTAREA07 (area 16) and EVENTAREAB0 (the boss arenas)
+title: The story maps - EVENTAREA01 (area 13), EVENTAREA02 (area 15), EVENTAREA03 (area 43), EVENTAREA07 (area 16), EVENTAREAB0 (the boss arenas) and EVENTAREAB8 (Kyvia's disc)
 status: partial
 volumes: INF, MUT
-covers: INF gcmn.prg:0x00405a00 EVENTAREA07::EVENTAREA07, 0x00405c80 EVENTAREA07::ChangeBlock, 0x00406b80 EVENTAREA07::Draw, 0x00406730 EVENTAREA07::DrawBG, 0x004068b0 EVENTAREA07::DrawObj, 0x004069a0 EVENTAREA07::DrawObj2, 0x00406a90 EVENTAREA07::DrawFloor, 0x005d2160 EA_MODELTABLE07, 0x005d2200 EA_OBJTABLE07, 0x005d2230 EA_BGNAME07, 0x005d2240 EA_moveTex07, 0x005d2270 EA_MODELTABLE0702, 0x005d22a0 eventarea0702Light, 0x005cff60 STATICOBJECT::SetPos, 0x005d03f0 STATICMODEL::SetPos, 0x004079f0 EVENTAREAB0::EVENTAREAB0, 0x004095e0 EVENTAREAB0::Draw, 0x004091c0 EVENTAREAB0::DrawBG, 0x00409460 EVENTAREAB0::DrawObj, 0x00409510 EVENTAREAB0::DrawFloor, 0x004095b0 EVENTAREAB0::SwitchLayer, 0x004098e0 EVENTAREAB0::NextStage, 0x005d2580 EA_MODELTABLEB0, 0x005d2640 eventareaB0Light, 0x005d26e0 bossFireFlyEff, 0x005d2730 the fireflies' markers (@1153), 0x005b4550 FIREFLY2::FIREFLY2, 0x005b4d30 FIREFLY2::Init, 0x005b49f0 FIREFLY2::SetBasePosition, 0x005b4ba0 FIREFLY2::SetBasePosition2, 0x005b5050 FIREFLY2::Move, 0x005b5eb0 FIREFLY2::Draw, 0x0059b940 ccTransPosW2P, 0x00401e00 EVENTAREA02::EVENTAREA02, 0x00402300 EVENTAREA02::ChangeBlock, 0x004033e0 EVENTAREA02::Draw, 0x00402ff0 DrawBG, 0x00403280 DrawObj2, 0x00403190 DrawObj, 0x00403340 DrawFloor, 0x00402dc0 DrawLensFlare, 0x00400f00 EVENTAREA::EVENTAREA, 0x004010a0 EVENTAREA::SetCenter, 0x004010b0 EVENTAREA::AddCenter, 0x005d1c00 EA_MODELTABLE02, 0x005d1c50 EA_OBJTABLE02, 0x005d1c70 EA_MODELTABLE0202, 0x005d1d00 EA_OBJTABLE0202, 0x005d1d50 EA_moveTex02, 0x005d1d20 eventarea0202Light, 0x005d02d0 STATICMODEL::DrawWithOutFog, 0x005d01c0 STATICMODEL::Draw, 0x00571da0 initHitCheck, 0x00403590 EVENTAREA03::EVENTAREA03, 0x00403bf0 EVENTAREA03::Draw, 0x00403ab0 EVENTAREA03::DrawBG, 0x00403b50 EVENTAREA03::DrawFloor, 0x00639548 kiteSelfTalk; MUT gcmn.prg:0x00416590 EVENTAREA03::EVENTAREA03, 0x00416bf0 EVENTAREA03::Draw, 0x00416ab0 DrawBG, 0x00416b50 DrawFloor, 0x006000f0 EA_MODELTABLE03, 0x00600140 its start, 0x00600170 the fly-over's camera, 0x00669470 kiteSelfTalk; MUT gcmn.prg:0x00414110 EVENTAREA01::EVENTAREA01, 0x00414c00 EVENTAREA01::Draw, 0x00414900 DrawBG, 0x00414980 DrawObj, 0x00414a70 DrawObj2, 0x00414b60 DrawFloor, 0x005ffd80 EA_MODELTABLE01, 0x005ffe10 EA_OBJTABLE01, 0x005ffe30 eventarea01Light, 0x005ffeb0 the glows' dummies; MUT SLUS_205.62:0x0038af98 eventarea03Light; INF SLUS_202.67:0x0019f8e0 WORLD_MAN::GO (EVENTAREA branch), 0x0019dda0 WORLD_MAN::Enter (the story maps' doors), 0x001a1ea0 WORLD_MAN::SetStartPos, 0x001a1190 WORLD_MAN::SetCharPosition (event area), 0x0019c740 WORLD_MAN::Quit, 0x0019f2d0 WORLD_MAN::DeleteEvent, 0x001a20b0 WORLD_MAN::SetActiveLayer, 0x001a10c0 WORLD_MAN::GetHeight, 0x0019c4b0 MoveTexture, 0x00377ff0 eventarea02Light, 0x0013bb40 ccEff::SetRenderState, 0x00161590 cameraGetPos, 0x00161700 cameraGetRot2, 0x00138f80 ccLight::~ccLight
-worklog: 84, 112, 117, 177, 263, 264
+covers: INF gcmn.prg:0x00405a00 EVENTAREA07::EVENTAREA07, 0x00405c80 EVENTAREA07::ChangeBlock, 0x00406b80 EVENTAREA07::Draw, 0x00406730 EVENTAREA07::DrawBG, 0x004068b0 EVENTAREA07::DrawObj, 0x004069a0 EVENTAREA07::DrawObj2, 0x00406a90 EVENTAREA07::DrawFloor, 0x005d2160 EA_MODELTABLE07, 0x005d2200 EA_OBJTABLE07, 0x005d2230 EA_BGNAME07, 0x005d2240 EA_moveTex07, 0x005d2270 EA_MODELTABLE0702, 0x005d22a0 eventarea0702Light, 0x005cff60 STATICOBJECT::SetPos, 0x005d03f0 STATICMODEL::SetPos, 0x004079f0 EVENTAREAB0::EVENTAREAB0, 0x004095e0 EVENTAREAB0::Draw, 0x004091c0 EVENTAREAB0::DrawBG, 0x00409460 EVENTAREAB0::DrawObj, 0x00409510 EVENTAREAB0::DrawFloor, 0x004095b0 EVENTAREAB0::SwitchLayer, 0x004098e0 EVENTAREAB0::NextStage, 0x005d2580 EA_MODELTABLEB0, 0x005d2640 eventareaB0Light, 0x005d26e0 bossFireFlyEff, 0x005d2730 the fireflies' markers (@1153), 0x005b4550 FIREFLY2::FIREFLY2, 0x005b4d30 FIREFLY2::Init, 0x005b49f0 FIREFLY2::SetBasePosition, 0x005b4ba0 FIREFLY2::SetBasePosition2, 0x005b5050 FIREFLY2::Move, 0x005b5eb0 FIREFLY2::Draw, 0x0059b940 ccTransPosW2P, 0x00401e00 EVENTAREA02::EVENTAREA02, 0x00402300 EVENTAREA02::ChangeBlock, 0x004033e0 EVENTAREA02::Draw, 0x00402ff0 DrawBG, 0x00403280 DrawObj2, 0x00403190 DrawObj, 0x00403340 DrawFloor, 0x00402dc0 DrawLensFlare, 0x00400f00 EVENTAREA::EVENTAREA, 0x004010a0 EVENTAREA::SetCenter, 0x004010b0 EVENTAREA::AddCenter, 0x005d1c00 EA_MODELTABLE02, 0x005d1c50 EA_OBJTABLE02, 0x005d1c70 EA_MODELTABLE0202, 0x005d1d00 EA_OBJTABLE0202, 0x005d1d50 EA_moveTex02, 0x005d1d20 eventarea0202Light, 0x005d02d0 STATICMODEL::DrawWithOutFog, 0x005d01c0 STATICMODEL::Draw, 0x00571da0 initHitCheck, 0x00403590 EVENTAREA03::EVENTAREA03, 0x00403bf0 EVENTAREA03::Draw, 0x00403ab0 EVENTAREA03::DrawBG, 0x00403b50 EVENTAREA03::DrawFloor, 0x00639548 kiteSelfTalk; MUT gcmn.prg:0x00416590 EVENTAREA03::EVENTAREA03, 0x00416bf0 EVENTAREA03::Draw, 0x00416ab0 DrawBG, 0x00416b50 DrawFloor, 0x006000f0 EA_MODELTABLE03, 0x00600140 its start, 0x00600170 the fly-over's camera, 0x00669470 kiteSelfTalk; MUT gcmn.prg:0x0041d200 EVENTAREAB8::EVENTAREAB8, 0x0041ed30 EVENTAREAB8::Draw, 0x0041e8c0 its ride, 0x0041e420 DrawBG, 0x0041e5e0 DrawObj, 0x0041e6b0 DrawFloor, 0x0041f130 DrawRock, 0x0041cc80 SetFloatRockParam, 0x0041e750 Move, 0x0041e7d0 IsMove, 0x0041e7e0 HitDisable, 0x0041e850 HitEnable, 0x00600ab0 EA_MODELTABLEB8, 0x00600ad0 EA_OBJTABLEB8, 0x00600af0 rockname, 0x0073eb00 floatRockPos; MUT SLUS_205.62:0x0038afc0 eventareaB8Light, 0x001b8bb0 WORLD_MAN::SetTransMode, 0x001b8bd0 WORLD_MAN::SetTransCenter; MUT gcmn.prg:0x00414110 EVENTAREA01::EVENTAREA01, 0x00414c00 EVENTAREA01::Draw, 0x00414900 DrawBG, 0x00414980 DrawObj, 0x00414a70 DrawObj2, 0x00414b60 DrawFloor, 0x005ffd80 EA_MODELTABLE01, 0x005ffe10 EA_OBJTABLE01, 0x005ffe30 eventarea01Light, 0x005ffeb0 the glows' dummies; MUT SLUS_205.62:0x0038af98 eventarea03Light; INF SLUS_202.67:0x0019f8e0 WORLD_MAN::GO (EVENTAREA branch), 0x0019dda0 WORLD_MAN::Enter (the story maps' doors), 0x001a1ea0 WORLD_MAN::SetStartPos, 0x001a1190 WORLD_MAN::SetCharPosition (event area), 0x0019c740 WORLD_MAN::Quit, 0x0019f2d0 WORLD_MAN::DeleteEvent, 0x001a20b0 WORLD_MAN::SetActiveLayer, 0x001a10c0 WORLD_MAN::GetHeight, 0x0019c4b0 MoveTexture, 0x00377ff0 eventarea02Light, 0x0013bb40 ccEff::SetRenderState, 0x00161590 cameraGetPos, 0x00161700 cameraGetRot2, 0x00138f80 ccLight::~ccLight
+worklog: 84, 112, 117, 177, 263, 264, 272
 ---
 
 # Area 15's story map - EVENTAREA02, Hidden Forbidden Holy Ground
@@ -659,6 +659,79 @@ between the markers and the origin: every piece in order with its layer
 transparency and scale), the bobbing positions, the scroll's v and
 `fieldrand`'s seed. They match.
 
+## Kyvia's disc: EVENTAREAB8
+
+`GO(1)` makes an `EVENTAREAB8` (areabk0.cpp) for fields 9-12, Kyvia's
+four stages ([Kyvia's first fight](boss-kyvia.md)). Fields 9-11 are
+`se1_6`: a sky, 40 rising rocks and a disc that carries the party along
+a path with `WORLD_MAN::SetTransMode` on. Field 12 adds `se4_9`'s three
+pieces and no disc.
+
+**The constructor** (MUT gcmn 0x0041d200):
+
+1. The models of `EA_MODELTABLEB8` (one, `MDL_se1_6flo1`, the floor) and
+   the objects of `EA_OBJTABLEB8` (one, the disc `ANM_se1_6ob1a`).
+2. `bg[0..3]`: `CMP_se1_6bac1`, `clo1_1`, `clo1_2`, `moo1` on `bgLayer`
+   0-3, fog off. `SetFog(6000, 20000, 0, 90, 0)`, `bgColor` 0. One light,
+   `LGT_se1_6lig1` of `eventareaB8Light`, from `ANM_se1_6bg1a`.
+3. By field, the disc's animation (+0xcb0), the camera and dummy of its
+   path (+0x1cc) and `discCnt` (+0x1c4):
+
+```text
+field  animation       camera          dummy          discCnt
+9      ANM_se2_4_1_c   CAM_camera2_4   OBJ_dummy2_4   2
+10     ANM_se3_3_1_c   CAM_camera3_3   OBJ_dummy3_3   0
+11     ANM_se4_4_1_c   CAM_camera4_4   OBJ_dummy4_4   0
+```
+
+4. Back in the field it came from (`fieldPrev` == field), field 9's disc
+   starts at frame 419 (0x1a300) and field 11's at 2339 (0x92300).
+5. `discPos` (+0xc90) is `DMY_marker01`. The start is the path's dummy
+   (its world translation) plus the marker, facing 2.0; field 12's is its
+   own, (82, -11122, 910) facing pi, with `CMP_hit01`-`03` at their places
+   under `ANM_se4_7_1a`.
+6. 40 `FLOATROCK`s (`SetFloatRockParam`, 0x0041cc80): a life of
+   `fieldrand(150) + 90`, a rise of `fieldrand(20) + 5`, the place's own
+   draws (then overwritten), a free cell of the 10 x 10 `floatRockPos`
+   by two `ccRand() % 10` (the centre, 6 x 6 in fields 10-12, 4 x 4 in 9,
+   taken first), 800 a cell (1500 in field 10) from the grid's middle, a
+   turn of `fieldrand(15) / 1000` either way; the rock's clump
+   (`rockname`) by `fieldrand(6)`.
+7. 25 `CLOUD`s of type 1, made and never moved or drawn.
+8. Fields 9-11: `SetTransCenter(start)`, `SetTransDiff(0)`, and the
+   disc's collision (`HitEnable`, `SetHitMatrix` at its root).
+
+**Draw** (0x0041ed30):
+
+1. `DrawBG` (fields 9-11): `MAT_se1_6clo1`'s v from a static that falls
+   0.003 a frame from 1.0, back to 1.0 below 0; the four clumps.
+2. effLayer: `DrawObj`, the disc.
+3. Fields 9 and 10: each rock's `DrawRock` (0x0041f130): fading in over
+   40 frames and out over its last 40, turning and rising, drawn when
+   `ccCheckCameraDeg(pos, 12288)`; at the end of its life its cell is
+   freed and `SetFloatRockParam` again.
+4. objLayer: `DrawFloor`.
+5. The disc steps: field 9 to its animation's end; field 10 to frame
+   420, 800, then the end; field 11 to 400, 1270, 2340, then the end, by
+   `discCnt`. `move` (+0x1c8) clears where it stops; `IsMove`
+   (0x0041e7d0) reads it and `Move` (0x0041e750, from Kyvia) raises
+   `discCnt` (held at 2 in field 10 and 3 in field 11).
+6. The ride (0x0041e8c0), fields 9-11: the disc steps again, is put where
+   its path was the frame before (`STATICOBJECT::SetPos`, its hits with
+   it), that place becomes the party's centre (`SetTransCenter`) and the
+   path's point now is kept (`discPrevPos`, +0xca0), which Kyvia reads.
+
+While the trans mode is on, `ccPlayer::ccPlayer` (MUT gcmn 0x005c2d8c) and
+`ccFellow::Initialize` (0x0042ebdc) set `diskOffset` to the character's
+place less the centre, and the party rides with the disc.
+
+**The port.** `piney_world::evarea_b8::DiscArea`, a `StoryMap`; its tests
+(`the_disc_of_field_9`, `the_disc_rides_to_its_end`,
+`the_later_discs_stop_at_their_stages`) hold the pieces, the light, the
+hits, the rocks' cells and the ride. `FieldWorld` hands Kyvia the disc
+(`IsMove`, `discPrevPos`, `DMY_marker01`) each frame and carries out
+`Move`.
+
 ## Unknown
 
 - The fog by depth (`piney_draw::DepthFog`, worklog 0145) is not
@@ -668,9 +741,11 @@ transparency and scale), the bobbing positions, the scroll's v and
 - `EA_moveTex02` lives in `gcmn.prg`'s data: the port keeps the scroll
   with the map through its doors, but a new map (after the town) starts
   it at 0, where the game carries it on.
-- The other `EVENTAREA` classes (01, 03-06, B8) are not ported (no
-  Infection script reaches their areas: 13, 43, 66, 67, 91, 9-12), nor
-  `EVENTAREAB0`'s `NextStage`, nor the fields' type-1 fireflies: their
-  story areas still get a generated field.
+- `EVENTAREAB8` is not compared with the game's `Draw` frame by frame:
+  its pieces and the ride are held by unit tests only, and fields 10-12
+  have not been played through their events.
+- The other `EVENTAREA` classes (04-06) are not ported (areas 66, 67,
+  91), nor `EVENTAREAB0`'s `NextStage`, nor the fields' type-1 fireflies:
+  their story areas still get a generated field.
 - Event 11's instructions in the map (the arrival's camera, BlackRose,
   the church's streams) are the events' to host.

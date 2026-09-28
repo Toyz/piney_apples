@@ -1033,3 +1033,100 @@ fn innis_drained_through_the_menus() {
     assert!(drain_menu, "menu 66 never ran");
     assert!(epitaph, "the drain did not bring the Epitaph");
 }
+
+/// Mutation's event 108 brought to Kyvia's disc: field 9 of town 2
+/// (`EVENTAREAB8`) as area 47's dungeon leaves the game, blocks 0-20 played
+/// and `eventStatus[0]` 1 (block 17's `set status`).
+fn event_108_disc() -> Option<Session> {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    if !iso.exists() {
+        return None;
+    }
+    let mut d = Iso::open(&iso).unwrap();
+    let archive = Arc::new(Archive::new(d.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let start = crate::start::build(&iso, 108).unwrap();
+    let mut state = start.state;
+    let f = state.save.event_flag(108);
+    state.save.set_event_flag(108, f | ((1 << 21) - 1));
+    state.save.set_u8(offset::EVENT_STATUS, 1);
+    let mut scene = piney_world::area::Scene::log_in(&mut state.save);
+    let wm = crate::area::story_world_man(&mut d, 47, false).unwrap();
+    scene.change_scene(1, 2, 9, -1, -1, -1, &mut state.save);
+    Some(Session::in_world(iso, archive, None, state, Some(start.vm), scene, Some(wm)).unwrap())
+}
+
+/// Kyvia's body, core and gomoras as a frame leaves them: the body's act
+/// and exit, the core's act, HP, exit and whether it is on the lists.
+fn kyvia_parts(c: &piney_world::combat::Combat) -> Option<(i16, i8, i16, i16, i8, bool)> {
+    use piney_battle::boss::Class;
+    let me = c.boss.as_ref()?.me;
+    let b = c.scene.chars[me].foe_state()?.boss.as_ref()?;
+    let Class::Kyvia(x) = &b.class else { return None };
+    let cb = c.scene.chars[x.core].foe_state()?.boss.as_ref()?;
+    Some((b.act_num, b.exit, cb.act_num, c.scene.chars[x.core].hp, cb.exit, c.scene.listed(x.core)))
+}
+
+/// Event 108 on the disc: block 21 makes Kyvia (`entry 7 12`,
+/// `battle_ready`), the disc rides in and stops, the core rises and its
+/// gomoras come out; Kite's hits go on the core while it can be targeted
+/// (as Kite's frame would put them), the body strikes back, the core dies,
+/// the body falls and exits, and block 23's `if absent 7 12` sets
+/// `eventStatus[0]` to 2.
+#[test]
+fn event_108_ends_with_kyvia() {
+    let Some(mut s) = event_108_disc() else { return };
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let (mut acts, mut core_acts) = (BTreeSet::new(), BTreeSet::new());
+    let (mut made, mut rose, mut exited, mut status) = (false, false, false, 0);
+    for i in 0..30000u32 {
+        // While a block plays (its menus banned) or a stream shows, CROSS
+        // every 8th frame moves its messages on.
+        let talking = match &s.stage {
+            Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
+            _ => false,
+        };
+        let raw = if talking && i.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if let Some(v) = s.save_mut() {
+            status = v.u8(offset::EVENT_STATUS);
+        }
+        if status == 2 {
+            break;
+        }
+        let Stage::Area(a) = &mut s.stage else { continue };
+        let c = a.world_mut().combat_mut();
+        for &(_, k) in &c.members {
+            let ch = &mut c.scene.chars[k];
+            ch.max_hp = 9999;
+            ch.hp = 9999;
+        }
+        let Some((act, exit, core_act, hp, core_exit, listed)) = kyvia_parts(c) else { continue };
+        made = true;
+        acts.insert(act);
+        core_acts.insert(core_act);
+        exited |= exit != 0;
+        rose |= listed;
+        let kite = c.kite;
+        let core = c.boss.as_ref().and_then(|r| r.parts.first().copied());
+        if listed
+            && core_exit == 0
+            && hp > 0
+            && i.is_multiple_of(20)
+            && let Some(core) = core
+            && let Some(b) = c.scene.chars[core].foe_state_mut().and_then(|f| f.boss.as_mut())
+        {
+            b.queued.push((1, [400, 1, 0], kite));
+        }
+    }
+    println!("acts {acts:?}, the core's {core_acts:?}, eventStatus[0] {status}");
+    assert!(made, "block 21 made no Kyvia");
+    assert!(rose, "the core never rose");
+    assert!(acts.contains(&1), "the body never flinched: {acts:?}");
+    assert!(core_acts.contains(&14), "the core never died: {core_acts:?}");
+    assert!(acts.contains(&14), "the body never died: {acts:?}");
+    assert!(exited, "never exited");
+    assert_eq!(status, 2, "block 23 did not run");
+}

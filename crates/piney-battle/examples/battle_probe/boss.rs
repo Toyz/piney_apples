@@ -134,6 +134,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         boss_cam: false,
         cam: CamView::default(),
         land: &mut land,
+        disc: piney_battle::boss::DiscView::default(),
         me,
         out: Vec::new(),
         ev: Events::new(),
@@ -186,6 +187,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             boss_cam: false,
             cam: CamView::default(),
             land: &mut land,
+            disc: piney_battle::boss::DiscView::default(),
             me,
             out: Vec::new(),
             ev: Events::new(),
@@ -245,6 +247,7 @@ pub(crate) fn eff_num(k: EffKind) -> i32 {
         EffKind::Missile { element: Element::Ice, .. } => 7,
         EffKind::Missile { element: Element::Lightning, .. } => 8,
         EffKind::Missile { element: Element::Blaze, .. } => 9,
+        EffKind::Meteorite { .. } => 10,
     }
 }
 
@@ -286,6 +289,7 @@ pub(crate) fn out_json(o: &Out) -> Option<String> {
         | Out::CamPitch { .. }
         | Out::Blur { .. }
         | Out::DeleteCmnd => return None,
+        _ => return None,
     })
 }
 

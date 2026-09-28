@@ -25,13 +25,15 @@ pub(super) struct StoryPilot {
     path: Vec<[f32; 2]>,
     mark: Option<[f32; 2]>,
     /// The fight's action under way, whether its menus have opened, when
-    /// it began; when the last one ended; whether this fight's Skills!
-    /// order went out.
+    /// it began; when the last one ended; this fight's Skills! (false) or
+    /// Magic! (true) order, once out; the target menu's presses toward a
+    /// boss's core.
     action: Option<Action>,
     opened: bool,
     began: u64,
     ended: Option<u64>,
-    skills_ordered: bool,
+    skills_ordered: Option<bool>,
+    target_tries: u32,
     /// The frame, and when First Aid! last went out.
     now: u64,
     first_aid_at: Option<u64>,
@@ -86,7 +88,8 @@ impl Default for StoryPilot {
             opened: false,
             began: 0,
             ended: None,
-            skills_ordered: false,
+            skills_ordered: None,
+            target_tries: 0,
             now: 0,
             first_aid_at: None,
             talked: Vec::new(),
@@ -413,7 +416,7 @@ impl StoryPilot {
         let c = w.combat();
         let fighting = c.battle.in_battle != 0;
         if !fighting {
-            self.skills_ordered = false;
+            self.skills_ordered = None;
         }
         if let Some(act) = self.action {
             self.opened |= t != -1;
@@ -422,6 +425,22 @@ impl StoryPilot {
                 // A skill takes its time to land.
                 self.ended = Some(if matches!(act, Action::Chat { .. }) { f } else { f + 180 });
                 return None;
+            }
+            // A skill at a boss's part: the cursor down the candidates
+            // until the command target is [`focus`]'s (a few rounds at most).
+            let aim = (t == 65 && m.proccess == 1 && matches!(act, Action::Skill { target: None, .. }))
+                || (t == 73 && m.proccess != 10 && matches!(act, Action::Designate { page: 1, .. }));
+            if aim && let Some(part) = focus(c) {
+                let on = w.targeting().target == Some((piney_world::entry::Kind::Enemy, part as i32));
+                if !on && self.target_tries < 24 {
+                    if f.is_multiple_of(8) {
+                        self.target_tries += 1;
+                    }
+                    return Some(press(Buttons::DOWN));
+                }
+                if on && t == 73 {
+                    return Some(press(Buttons::CROSS));
+                }
             }
             let party = w.party();
             return Some(match (t, act) {
@@ -502,7 +521,7 @@ impl StoryPilot {
         if !playing || banned == Some(true) {
             return None;
         }
-        if let Some(raw) = approach_boss(a) {
+        if let Some(raw) = approach_boss(a).or_else(|| approach_part(a)) {
             return Some(raw);
         }
         let act = self.choose(a)?;
@@ -510,13 +529,14 @@ impl StoryPilot {
             eprintln!("ACT {f} {act:?}");
         }
         match act {
-            Action::Chat { page: 0, row: 0 | 6 } => self.skills_ordered = true,
+            Action::Chat { page: 0, row: r @ (0 | 6) } => self.skills_ordered = Some(r == 6),
             Action::Chat { page: 0, row: 1 } => self.first_aid_at = Some(f),
             _ => {}
         }
         self.action = Some(act);
         self.opened = false;
         self.began = f;
+        self.target_tries = 0;
         Some(still)
     }
 
@@ -537,12 +557,14 @@ impl StoryPilot {
             party.iter().map(|&id| if id < 0 { None } else { c.who(id).map(|k| &c.scene.chars[k]) }).collect();
         let members = chars.iter().skip(1).filter(|ch| ch.is_some()).count();
         let kite_at = chars.first().copied().flatten().map(|k| k.pos.map(f32::from_bits));
-        let foe = c.enemies().into_iter().filter(|&e| c.scene.chars[e].hp > 0).min_by(|&x, &y| {
-            let d = |e: usize| {
-                let q = c.scene.chars[e].pos.map(f32::from_bits);
-                kite_at.map_or(0.0, |p| (q[0] - p[0]).hypot(q[1] - p[1]))
-            };
-            d(x).total_cmp(&d(y))
+        let foe = focus(c).or_else(|| {
+            foes(c).into_iter().filter(|&e| c.scene.chars[e].hp > 0).min_by(|&x, &y| {
+                let d = |e: usize| {
+                    let q = c.scene.chars[e].pos.map(f32::from_bits);
+                    kite_at.map_or(0.0, |p| (q[0] - p[0]).hypot(q[1] - p[1]))
+                };
+                d(x).total_cmp(&d(y))
+            })
         });
         let magic = foe.is_some_and(|e| match &c.scene.chars[e].body {
             piney_battle::chara::Body::Foe(fo) => {
@@ -551,7 +573,9 @@ impl StoryPilot {
             }
             _ => false,
         });
-        if fighting && !self.skills_ordered && members > 0 {
+        // Again when the boss part fought needs the other kind.
+        let reorder = focus(c).is_some() && self.skills_ordered != Some(magic);
+        if fighting && members > 0 && (self.skills_ordered.is_none() || reorder) {
             return Some(Action::Chat { page: 0, row: if magic { 6 } else { 0 } });
         }
         // A boss with its protect broken (`pp_count` frames left): Kite's
@@ -692,14 +716,17 @@ impl StoryPilot {
                     Some((slot, skill, resist(skill)))
                 })
                 .min_by_key(|&(_, _, r)| r);
+            // At a boss part that magic hurts (Kyvia's core resists no
+            // element but guards against one kind), any spell.
+            let at_part = magic && focus(c) == Some(e);
             if let Some((slot, skill, r)) = best
-                && r < 100
+                && (r < 100 || at_part)
             {
                 return Some(Action::Designate { slot, page: 1, skill, target: 0 });
             }
         }
         let kite = kite?;
-        let near = c.enemies().into_iter().filter(|e| !self.walker.hopeless.contains(e)).any(|e| {
+        let near = foes(c).into_iter().filter(|e| !self.walker.hopeless.contains(e)).any(|e| {
             let (p, q) = (kite.pos.map(f32::from_bits), c.scene.chars[e].pos.map(f32::from_bits));
             c.scene.chars[e].hp > 0 && (q[0] - p[0]).hypot(q[1] - p[1]) < 400.0
         });
@@ -944,6 +971,26 @@ fn cores_for_hack(s: &mut Session) {
     }
 }
 
+/// The level the party is held at while a boss's parts are up (Kyvia's).
+const BOSS_PARTS_LEVEL: i16 = 60;
+
+/// With a boss's parts up, the party raised to [`BOSS_PARTS_LEVEL`]
+/// through the console's `exp` (the game's own level-ups): the pilot does
+/// not grind, and at the story's start levels (30 or so) the party cannot
+/// outpace Kyvia's healing gomora. A harness aid, as god is.
+fn levels_for_boss(s: &mut Session) {
+    let Stage::Area(a) = &s.stage else { return };
+    let c = a.world().combat();
+    if focus(c).is_none() {
+        return;
+    }
+    let low = c.members.iter().filter_map(|&(_, k)| c.scene.chars[k].spc()).map(|p| p.base.level).min();
+    if let Some(lv) = low.filter(|&lv| lv < BOSS_PARTS_LEVEL) {
+        let n = (i32::from(BOSS_PARTS_LEVEL - lv) * 1000).min(30000);
+        s.console(&format!("exp {n}"));
+    }
+}
+
 /// Event `n`'s flag, from the save of whatever stage the session is on.
 fn event_flag(s: &mut Session, n: i32) -> Option<u64> {
     let save = match &mut s.stage {
@@ -973,6 +1020,7 @@ fn mutation_whole_story() {
         if f.is_multiple_of(30) {
             s.console("infection 0");
             cores_for_hack(&mut s);
+            levels_for_boss(&mut s);
         }
         let raw = pilot.next(&s, f);
         pilot.after(&mut s);
@@ -1017,8 +1065,8 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
             // `PINEY_SURVEY_GOD`: the console's god (the party at full HP
             // and SP in the fields and dungeons), to follow the story past
             // fights the pilot would lose; Kite's infection held at 0, so a
-            // boss's Data Drain cannot roll its game over (effect 30); and
-            // the gate hack's Virus Cores given.
+            // boss's Data Drain cannot roll its game over (effect 30); the
+            // gate hack's Virus Cores given; the party's levels for Kyvia.
             let god = std::env::var_os("PINEY_SURVEY_GOD").is_some();
             if god {
                 s.console("god");
@@ -1031,6 +1079,7 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                 if god && f.is_multiple_of(30) {
                     s.console("infection 0");
                     cores_for_hack(&mut s);
+                    levels_for_boss(&mut s);
                 }
                 let raw = pilot.next(&s, f);
                 // `PINEY_DEBUG_PILOT`: the pilot's actions and goals, and
@@ -1173,6 +1222,59 @@ fn approach_boss(a: &crate::area::AreaMode) -> Option<Raw> {
     Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
 }
 
+/// The foes the pilot fights: the field's, and a boss's parts while its
+/// lists hold them (Kyvia's core and gomoras; the body is not a target).
+fn foes(c: &piney_world::combat::Combat) -> Vec<usize> {
+    let mut v = c.enemies();
+    if let Some(r) = c.boss.as_ref().filter(|r| !r.exit) {
+        v.extend(r.parts.iter().copied().filter(|&p| c.scene.listed(p) && c.scene.chars[p].hp > 0));
+    }
+    v
+}
+
+/// The boss part to fight first while the lists hold it: a gomora of
+/// attribute 0 (its attack heals Kyvia's core 200), else the core (the
+/// first part).
+fn focus(c: &piney_world::combat::Combat) -> Option<usize> {
+    use piney_battle::boss::Class;
+    let r = c.boss.as_ref().filter(|r| !r.exit)?;
+    let up = |p: usize| c.scene.listed(p) && c.scene.chars[p].hp > 0;
+    let healer = r.parts.iter().skip(1).copied().filter(|&p| up(p)).find(|&p| {
+        let b = c.scene.chars[p].foe_state().and_then(|f| f.boss.as_ref());
+        matches!(b.map(|b| &b.class), Some(Class::Gomora(g)) if g.my_attribute == 0)
+    });
+    healer.or_else(|| r.parts.first().copied().filter(|&p| up(p)))
+}
+
+/// In a fight with no field foe near, a walk to within 350 of [`focus`]'s
+/// part, else of the boss's nearest listed part.
+fn approach_part(a: &crate::area::AreaMode) -> Option<Raw> {
+    let w = a.world();
+    let c = w.combat();
+    if c.battle.in_battle == 0 {
+        return None;
+    }
+    let r = c.boss.as_ref().filter(|r| !r.exit)?;
+    let p = w.player().body.pos.map(f32::from_bits);
+    let dist = |e: usize| {
+        let q = c.scene.chars[e].pos.map(f32::from_bits);
+        (q[0] - p[0]).hypot(q[1] - p[1])
+    };
+    let part = focus(c).or_else(|| {
+        r.parts
+            .iter()
+            .copied()
+            .filter(|&e| c.scene.listed(e) && c.scene.chars[e].hp > 0)
+            .min_by(|&x, &y| dist(x).total_cmp(&dist(y)))
+    })?;
+    if dist(part) < 350.0 || c.enemies().into_iter().any(|e| c.scene.chars[e].hp > 0 && dist(e) < 400.0) {
+        return None;
+    }
+    let q = c.scene.chars[part].pos.map(f32::from_bits);
+    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
+}
+
 /// The room of this dungeon whose door leads out to a boss arena the story
 /// wants: `GotoNextRoom`'s -255 into `special::exit_field`'s field, through
 /// the dungeon's room of type 16 or more (area 46's to field 2).
@@ -1218,7 +1320,7 @@ fn fighters(a: &crate::area::AreaMode) -> String {
         }
     };
     let party: Vec<_> = c.members.iter().map(|&(_, k)| one(k)).collect();
-    let foes: Vec<_> = c.enemies().into_iter().map(one).collect();
+    let foes: Vec<_> = foes(c).into_iter().map(one).collect();
     format!("party {party:?} foes {foes:?}")
 }
 
