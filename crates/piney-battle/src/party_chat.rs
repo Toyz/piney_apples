@@ -351,6 +351,9 @@ const MODIFY_MAX: usize = 79;
 /// text the AI keeps, `leader` the name `#0` (and `#1` without `a1`)
 /// gives, `none` what `#a` and `#b` give without theirs. A `#` with any
 /// other code would never end (the game loops on it); the port stops.
+/// The game checks the length only between codes, so a name copied from
+/// near the end (Balmung's line naming two elements) runs past its 80-byte
+/// `chatText` and crashes it; the port keeps the whole name.
 pub fn modify(
     line: &[u8],
     leader: &[u8],
@@ -1138,6 +1141,17 @@ impl Ctx<'_> {
 #[cfg(test)]
 mod tests {
     use super::modify;
+
+    /// A name that starts before 79 is copied whole, past the game's 80
+    /// bytes (where the game writes over the AI's next fields); the length
+    /// is checked again only before the next code.
+    #[test]
+    fn modify_runs_past_the_game_buffer() {
+        let line = [b"x".repeat(75), b"#a#b".to_vec()].concat();
+        let out = modify(&line, b"Kite", None, Some(b"Thunder!!!"), Some(b"Darkness!!"), b" ");
+        assert_eq!(out.len(), 85);
+        assert!(out.ends_with(b"Thunder!!!"));
+    }
 
     #[test]
     fn modify_fills_the_codes() {
