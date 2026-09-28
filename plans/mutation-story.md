@@ -108,5 +108,5 @@ more, 13 functions (Outbreak has the same names):
 | `str9201`, `str9301` | 0x00189ed0 | `Func_str9101`'s, mapped to it |
 
 Without a task a stream plays bare. `str7100`, `str8800` and `str0300`
-carry no Infection name: their code changed, and the port runs
-Infection's. To diff and port Mutation's.
+carry no Infection name, but their code is Infection's (worklog 271): the
+port's tasks are Mutation's too.

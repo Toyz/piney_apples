@@ -65,8 +65,9 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 "What the later volumes' code adds"):
 
 - [ ] The new streams' effect functions: all thirteen of Mutation's ported
-  (worklog 267, 269); the changed `str7100` / `str8800` / `str0300`, and
-  Outbreak's and Quarantine's own (`str1430` ...) not yet
+  (worklog 267, 269); Mutation's `str7100` / `str8800` / `str0300` are
+  Infection's code (worklog 271); Outbreak's and Quarantine's own
+  (`str1430` ...) not yet
 - [ ] The event engine's new instructions: decoded by volume (99 `noise`,
   168 `grunty_mail`, 169 `ending_kanji`); `grunty_mail` is ported (the
   desktop's), Quarantine's `ending_kanji` not

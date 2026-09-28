@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-270 entries: audio 17, battle 43, build 14, content 3, decomp 19, disc 4, engine 7, format 14, iop 2, render 66, save 8, script 26, test 118, tooling 22, ui 48, video 8, volumes 46, world 74.
+271 entries: audio 17, battle 43, build 14, content 3, decomp 20, disc 4, engine 7, format 14, iop 2, render 66, save 8, script 26, test 118, tooling 22, ui 48, video 9, volumes 47, world 74.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -282,3 +282,4 @@ The [reference](docs/README.md) says what is true now.
 | 268 | [Event 107 under the autopilot: to Innis and past the breeder](worklog/0268-event-107-under-the-autopilot-to-innis-and-past-the-breeder.md) | 2026-09-28 | test, battle |
 | 269 | [Stream 34's parts: Func_str1070 circling and rising objects](worklog/0269-stream-34-s-parts-func-str1070-circling-and-rising-objects.md) | 2026-09-28 | video, volumes |
 | 270 | [The whole story to Kyvia's field: the gate hack's cores and the desktop's late mail](worklog/0270-the-whole-story-to-kyvia-s-field-the-gate-hack-s-cores-and.md) | 2026-09-28 | test, script |
+| 271 | [Mutation's str7100, str8800 and str0300 are Infection's code](worklog/0271-mutation-s-str7100-str8800-and-str0300-are-infection-s-code.md) | 2026-09-28 | video, volumes, decomp |
