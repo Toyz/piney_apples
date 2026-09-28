@@ -1,35 +1,11 @@
 //! The Recorder's page: `RecordMenu` (gcmn 0x00558260, menu 53: Save) and
 //! `RecordMenuDisp` (0x00558db0), over `ccSaveSys` (main sdmng.cpp, the
 //! desktop Data screen's own: [`piney_desktop::savesys::SaveSys`]).
-//!
 //! `StartReq(3)` starts the `ccThSaveSys` task (priority 20: it runs before
-//! `ccThMenu` from the next frame on) whose `MainProccess` does the card
-//! work; the page asks it for each step and follows its `result`: the low
-//! 12 bits a `saveSysMsg` message, 0x1000 / 0x2000 one to acknowledge,
-//! 0x8000 a YES / NO question, 0x10000 busy.
-//!
-//! ```text
-//! proccess 0    StartReq(3); the dim; the list keeps the card slot
-//!               (index), the file (page) and the last result (sx); then 1
-//! proccess 1    the window gone and waited: the card slot list (x 11, y
-//!               2), SlotSelectReq
-//! proccess 2    Select; OK: LoadInfoReq(slot), 3; cancel: 100
-//! proccess 3    until result 1 (the index read): 4
-//! proccess 4    the window gone and waited: the file list (x 27, y 12),
-//!               SaveSelectReq
-//! proccess 5    at result 25 (choose a file): Select; OK: SaveDataReq(file),
-//!               6; cancel: 1
-//! proccess 6, 7 until result 1 (saved) and the wait: 4
-//! proccess 100  EndReq; the window and the dim out
-//! proccess 101  the window gone: the Recorder the target again, the tasks
-//!               woken, back to its list
-//! every frame   (proccess 1-99) result 0 outside 1: NextProccess(0), back
-//!               to 1; 2: LoadInfoReq; a new result waits 10 frames (28,
-//!               34 and 38 with sound 74); an acknowledgement: OK
-//!               NextProccess(0); a question: OK / Cancel (disp 11) and
-//!               NextProccess(1 - row) or (0); then the message: DispInfo
-//!               for flagged results, else the page's help (DispMsg)
-//! ```
+//! `ccThMenu` from the next frame on); the page asks it for each step and
+//! follows its `result`: the low 12 bits a `saveSysMsg` message, 0x1000 /
+//! 0x2000 one to acknowledge, 0x8000 a YES / NO question, 0x10000 busy.
+//! The steps are in docs/engine/field-ui.md (the Recorder's Save).
 
 use piney_data::save::SaveData;
 use piney_data::volume::Volume;

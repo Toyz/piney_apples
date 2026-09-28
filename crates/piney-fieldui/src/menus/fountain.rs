@@ -5,60 +5,7 @@
 //! (0x00549ed0) and `FountainMenuDisp3` (0x0054a260), and
 //! `SetFountainCamera` (0x00526c60). The spring's own frames are
 //! piney-battle's `gimetc`; each `EntryAffect(spring, plw, 11)` here moves
-//! it on a state (0-1, 3-4, 5-6, 7-8, 9-10).
-//!
-//! ```text
-//! 40  0  the dim; target fixed and dropped; the greeting
-//!        (line 0) (voice -20/0); dialogDefault's rows, the first
-//!     1  Select; OK on the first row: into 41; OK on the second, or
-//!        cancel: the menu shuts
-//! 41  every frame: the bag's items of categories 0-9 counted (my)
-//!     0  none: the empty-bag line (1), then the menu shuts
-//!        after Check; else y = min(count, 8), dy 0, the page (2)
-//!     2  SelectScr; triangle: the item's status (64); OK: into 42 with
-//!        the item; cancel: the menu shuts. Then the item's name and
-//!        comment in the window (DispMsg)
-//! 42  0  the throw-in question (line 2), dialogDefault's rows
-//!     1  OK on "Yes": the spring on (affect); "No" or cancel: back to 41
-//!     2  the menu, dim and map out (a breath if still); the party held
-//!        (conditions stored, manual, remote 0, off the lists, conditions
-//!        cleared, the others' transDist 0), the enemies' conditions
-//!        cleared; the thrown-in line (line 3)
-//!     3  the message shut at 60; when the spring stands (its state 3):
-//!        the item gone (DelItem), the area level's count up (+0x7470
-//!        under 4, else +0x7472) and talkNum 4 or 15; the three answers
-//!        (x 6, y 3, disp 11); the Golden Axe question (voice
-//!        -20/talkNum)
-//!     4  OK: the answer kept, the spring on
-//!     5  from frame 11, once the spring is in state 5: Golden or Silver
-//!        Axe: the answer repeated (talkNum + 1, 2) and 10; Neither: the "neither"
-//!        reply (+ 3)
-//!     6  Check: the pause (+ 4), the guess (+ 5),
-//!        then 7
-//!     7  the item in feTbl[category]'s first f_limitTbl[server (+ 10 at
-//!        level 4 on, + 5 for category 2)] rows: the spring on, 11; else
-//!        8
-//!     8  from frame 11: the aside (+ 6)
-//!     9  Check: the level remark (+ 7), the harder-level
-//!        advice (+ 8), the consolation (+ 9)
-//!    10  Check: the spring on
-//!    11  from frame 11, once the spring is in state 7: 12
-//!    12  the spring on; the farewell (+ 10)
-//!    13  Check: the spring on
-//!    14  once the spring is gone: the target free, the player's camera,
-//!        the party back (on the lists, conditions restored and adjusted,
-//!        skill 0, manual off, the others' transDist 1 unless down)
-//!    15  from frame 11: the others asleep, the map in; Golden Axe: key
-//!        item 0x3003c; Silver: 0x3003d; Neither: the item found in the
-//!        table becomes its row + 2 or + 1 (bgnum 0/3 or 1/2 for weapons,
-//!        1/2 or 4 on for armour; else - 1), held to 0 .. the limit,
-//!        the success line (26, sound 92), the changed line (27,
-//!        91) or the unchanged line (28, 93); not found: the item
-//!        back and both axes
-//!    16  Check: 17
-//!    17  frame 7: into 67 (DataDrainSubMenu), which hands the items out
-//! 2 <= proccess < 15: SetFountainCamera after each frame
-//! ```
+//! it on a state. The steps are in docs/engine/field-ui.md (the spring).
 
 use crate::Request;
 use crate::ctrl::{After, Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_OK};

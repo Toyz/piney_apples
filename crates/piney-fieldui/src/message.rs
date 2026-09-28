@@ -1,22 +1,11 @@
 //! The event scripts' windows in the field: `ccMsg`, the `ccMessage` the
-//! menu task draws (`docs/engine/field-ui.md`, "Messages").
-//!
-//! In The World (`game.status` 5, phase 4 on) the event task calls the
-//! window directly; there is no dim menu as on the desktop:
-//!
-//! ```text
-//! message   wait for CheckMenuType -1 or 62; ccMsg->Change(record, name,
-//!           event, msg) (the ccMsgData form); 5 frames; Check(0) each
-//!           frame; a plain line or a question then 10 frames; then 1
-//! info      wait for CheckMenuType -1; ChangeInfo(lines, event, msg)
-//!           (info_now: the frame zeroed); 5 (10) frames; Check; Close; 10
-//! teach_camera1..3   Open(event 3's message 7, 9, 11 or 55-57); until the
-//!           camera has moved for 150 frames (3: a button, then 45)
-//! member_add_msg ... sound 74; ChangeInfo of a composed line; as info
-//! ```
-//!
-//! These are the [`piney_event::host::Host`] calls for [`Place::Field`];
-//! the VM supplies the frame counts, [`crate::FieldUi`] the window.
+//! menu task draws. In The World (`game.status` 5, phase 4 on) the event
+//! task calls the window directly, with no dim menu as on the desktop:
+//! `message` waits for menu type -1 or 62 and `Change`s the window, `info`
+//! for -1 and `ChangeInfo`s it, `teach_camera1`-`3` `Open` event 3's
+//! messages. These are the [`piney_event::host::Host`] calls for
+//! [`Place::Field`]; the VM supplies the frame counts (docs/engine/event-vm.md)
+//! and [`crate::FieldUi`] the window (docs/engine/field-ui.md).
 
 use piney_event::host::{Announce, MessageCall, MessageKind};
 

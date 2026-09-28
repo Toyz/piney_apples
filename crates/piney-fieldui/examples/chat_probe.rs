@@ -1,14 +1,9 @@
 //! Answers `tools/test_chat_msg_rs.py`: the chat balloons
 //! (`piney_fieldui::chat_msg::ChatMsg`, `ccChatMsg`). One request a line
-//! (numbers in hex), one JSON line back.
-//!
-//! ```text
-//! open WHO TEXT-HEX            OpenChat
-//! close                        CloseChat
-//! disp STILL PLAYER [WHO LISTED ON X Y]...
-//!                              Disp(still) with the speakers where they are:
-//!                              the slots, the window's cells and the texts
-//! ```
+//! (numbers in hex), one JSON line back: `open WHO TEXT-HEX` (OpenChat),
+//! `close` (CloseChat) and `disp STILL PLAYER [WHO LISTED ON X Y]...`
+//! (Disp(still) with the speakers where they are: the slots, the window's
+//! cells and the texts).
 
 use std::io::BufRead;
 

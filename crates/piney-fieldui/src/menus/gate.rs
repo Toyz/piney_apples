@@ -2,23 +2,10 @@
 //! Random (57), New Keyword (58), Word List (59), Warp History (60) and
 //! Other Servers (61), with `GtNewMenuDisp` (the keyword screen, also
 //! drawn by 59, 60 and 87), `GtListMenuDisp`, `GtRecordMenuDisp` and
-//! `GtTownMenuDisp`.
-//!
-//! ```text
-//! GateMenu      the gate's circle opens (EntryAffect 11, a flash); Word
-//!               List, Warp History, Other Servers greyed when empty;
-//!               cancel: the circle closes (EntryAffect 0), shut; OK: the
-//!               other tasks asleep, into the page; the page's help
-//! the pages     pick three words (A, B, C: at random, by hand from the
-//!               word list, from the story areas the events gave, from the
-//!               history), show the area they make (SimGenerateCode), and
-//!               on "Warp": ccEvent::CheckAreaCode (barred: shut), a
-//!               protected story area: the gate hack (62), else the party
-//!               leaves one by one (TransferOut at frames 5, 35, 65), and
-//!               at 211 WORLD_MAN::SetGenerateCode (the area change)
-//! Other Servers the towns of townMoveFlag; OK and "Warp": the same leave,
-//!               then ccGame::ChangeArea(0, town)
-//! ```
+//! `GtTownMenuDisp`. Every page picks three words, shows the area they make
+//! (`SimGenerateCode`), and on "Warp" runs the same code: the area check,
+//! the gate hack (62) for a protected story area, else the party's leave
+//! and the area change. The steps are in docs/engine/field-ui.md.
 
 use piney_desktop::eef::{add, div, from_int, mul};
 

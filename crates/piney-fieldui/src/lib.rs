@@ -1,26 +1,11 @@
 //! The field game's user interface in .hack//Infection: `ccMenuCtrl` and
-//! its task `ccThMenu` (gcmn.prg `menu.cpp`), with the event windows'
-//! `ccMessage` (`ccMsg`) it draws (`docs/engine/field-ui.md`).
-//!
-//! One [`FieldUi::step`] is one pass of the task between two
-//! `ccTscb::Breath` calls:
-//!
-//! ```text
-//! ccThMenu                                   gcmn 0x005280d0
-//!   ccMenu = new ccMenuCtrl                  the sprites, ccChat, ccMsg, InitMenuList
-//!   breathe until party slot 0 is filled
-//!   loop: breathe
-//!         openReqNum >= 0: OpenMenu(n) (0x1000: OpenMenuNWD)
-//!         CheckMenuType 88 and the window shut: menu = menuNext
-//!         the menu's handler (jump table 0x006e0300, by menu + 1)
-//!         Disp                               the HUD, the menu's window, ccMsg
-//! ```
-//!
-//! The pad comes in with each step, the world ([`World`]) is read-only,
-//! a [`piney_draw::Frame`] of the menu layer (242) comes out, and what the
-//! menus do to the rest of the game comes out as [`Request`]s. The save
-//! (`ccSaveData`, with `ccEvent`'s operation lock) is
-//! [`piney_desktop::SaveState`], shared with the event engine.
+//! its task `ccThMenu` (gcmn 0x005280d0, `menu.cpp`), with the event
+//! windows' `ccMessage` (`ccMsg`) it draws. One [`FieldUi::step`] is one
+//! pass of the task between two `ccTscb::Breath` calls: the pad comes in,
+//! the world ([`World`]) is read-only, a [`piney_draw::Frame`] of the menu
+//! layer (242) comes out, and what the menus do to the rest of the game
+//! comes out as [`Request`]s. The save is [`piney_desktop::SaveState`],
+//! shared with the event engine. See docs/engine/field-ui.md.
 
 pub mod chat_msg;
 pub mod ctrl;
@@ -740,11 +725,9 @@ impl FieldUi {
     /// the events' `item_add` calls it for a companion
     /// ([`menus::talk::add_spc_item`] with no `ccThEquipMenu`, so it never
     /// breathes): the item given to party member `sid` (`member` its
-    /// character), worn when it is better than what the member wears, read
-    /// when a book, else into its bag; `world` is the frame's view (a town
-    /// sells what the bag cannot hold). The requests it makes (`CalcReal`,
-    /// a book's use) wait in the queue. Returns 0 put in the bag, 1 worn,
-    /// 2 used.
+    /// character) is worn, read or bagged; `world` is the frame's view (a
+    /// town sells what the bag cannot hold). The requests it makes wait in
+    /// the queue. Returns 0 bagged, 1 worn, 2 used.
     #[allow(clippy::too_many_arguments)]
     pub fn add_spc_item(
         &mut self,

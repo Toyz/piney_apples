@@ -1,47 +1,11 @@
 //! The field objects' menus the action button opens without the dim
 //! (`ccThGameCtrl`'s table, by the target's base type): `ItemObjMenu`
-//! (gcmn 0x00546fd0, menu 34, type 0x10000: a breakable), `TrapObjMenu`
-//! (0x00547360, 35, 0x20000: a trapped breakable), `SymbolMenu`
-//! (0x00546aa0, 36, 0x40000: a symbol), `VirusMenu` (0x00546dd0, 37,
-//! 0x80000: a virus crystal), `TimeIdolMenu` (0x00547a50, 39,
-//! 0x200000: the Zeit statue) and `FoodMenu` (0x0054a420, 43, 0x800000: a
-//! Grunty food, gimmick rows 22-37). 32, 33 and 38 are
-//! [`super::getitem`]'s.
-//!
-//! ```text
-//! 34 ItemObjMenu   the target fixed; 4 frames; itemNum = its +0x14c,
-//!                  plw->BreakSomething(0); 12 frames, AttackCancel; the
-//!                  target opened (EntryAffect 11) and dropped;
-//!                  breakCount (+0x7442) up; rand() % 3: not 0, the menu
-//!                  shuts (cmndTargetFix 0); 0: 17 frames, the others
-//!                  asleep, AreaItem(itemNum, 3), into 29
-//! 35 TrapObjMenu   as 34 to the open, trapNum = its skillID (+0x7c); 27
-//!                  frames, asleep; "Set off trap!" and the trap's line (1,
-//!                  156, 162) after nothing, 12 frames, the OK button (18),
-//!                  Close; AreaItem(itemNum, 3), breakCount up, into 29;
-//!                  no trap (-1) or another skill: proccess 4 again, for
-//!                  good (the game's)
-//! 36 SymbolMenu    the target opened and dropped, trapNum = its skillID;
-//!                  22 frames, asleep; "Received effects of #Y<skill>#W!";
-//!                  12 frames; Check: symbolCount (+0x7444) up, Close, the
-//!                  menu shut
-//! 37 VirusMenu     the target opened and dropped, itemNum = its +0x14c;
-//!                  22 frames, asleep; no item: 0xf0000 (key item 0, a
-//!                  Virus Core); into 29
-//! 43 FoodMenu     the target fixed, opened (it goes: ccGimFood's act 1)
-//!                  and dropped; itemNum 0xf0000 | (its base->id + 4): key
-//!                  items 26-41; 22 frames, asleep; no item: 0xf001a;
-//!                  foodCount[item - 26] (+0x7446) up; into 29
-//! 39 TimeIdolMenu  the target opened and dropped; 22 frames, asleep;
-//!                  gameCnt[2] as hh:mm:ss (sixtieths: / 216000, / 3600,
-//!                  / 60); CheckTimeIdolRankIn: out of the ranking, one
-//!                  item (0xb0038); above the best rank so far
-//!                  (+0x6774, 5 when none), timeIdolItem[rank ..] for each
-//!                  place gained and SetTimeIdolRank; else one item
-//!                  (0xb0036), the rank kept when it equals the best; the
-//!                  message (Open, 0x100); Check: into 67, which hands the
-//!                  items out
-//! ```
+//! (gcmn 0x00546fd0, menu 34, a breakable), `TrapObjMenu` (0x00547360, 35,
+//! a trapped breakable), `SymbolMenu` (0x00546aa0, 36), `VirusMenu`
+//! (0x00546dd0, 37), `TimeIdolMenu` (0x00547a50, 39, the Zeit statue) and
+//! `FoodMenu` (0x0054a420, 43, a Grunty food). 32, 33 and 38 are
+//! [`super::getitem`]'s. TrapObjMenu with no trap or another skill repeats
+//! proccess 4 for good, as the game does. See docs/engine/field-ui.md.
 
 use crate::Request;
 use crate::ctrl::{Ctx, Flow, MenuCtrl, SE_OK};

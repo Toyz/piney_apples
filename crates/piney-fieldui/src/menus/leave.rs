@@ -2,25 +2,9 @@
 //! Gate Out), `LogoutMenu` (0x0053cd60, menu 11, Log Out) and
 //! `TransFieldMenu` (0x0056a640, menu 86); and where the party is:
 //! `AreaInfoMenu` (0x0056a7f0, menu 87, Area Information), whose page is
-//! the Chaos Gate's keyword screen (`GtNewMenuDisp`, [`crate::menus::gate`]).
-//!
-//! ```text
-//! Gate Out  proccess 0   in battle: "Cannot use during battle." (list disp
-//!                        4) and back after Check (10); else "Return to
-//!                        town." with OK / Cancel (disp 11, Cancel first)
-//!           proccess 1   Select; OK on OK: the window out, the screen to
-//!                        black over 20 (menuFade); Cancel or cancel: back
-//!           proccess 2   the fade done: CloseMenu; ccSPC::DeleteNoPartyMember,
-//!                        ccGame::ChangeArea(0, town)
-//! Log Out   as Gate Out without the battle check; at the end
-//!           ccGame::ChangeRequest(4, 7): The World's top page
-//! 86        the window and the dim out, the tasks woken; 121 frames; then,
-//!           unless the party is wiped out or the game is over, CloseMenu
-//!           and WORLD_MAN::GoField
-//! 87        exceptionDisp 4, temp[0..3] = WORLD_MAN's A, B, C (the area's
-//!           keywords, [`crate::FieldUi::set_area_words`]); cancel (19)
-//!           back
-//! ```
+//! the Chaos Gate's keyword screen (`GtNewMenuDisp`, [`crate::menus::gate`])
+//! over the area's keywords ([`crate::FieldUi::set_area_words`]). The steps
+//! are in docs/engine/field-ui.md (PERSONAL's pages).
 
 use crate::Request;
 use crate::ctrl::{Cont, Ctx, Flow, MenuCtrl};

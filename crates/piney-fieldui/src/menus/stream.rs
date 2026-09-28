@@ -1,25 +1,11 @@
 //! `ccMenuCtrl::StreamMenu` (gcmn 0x00535340), menu 74: a stream played
 //! over the field with party members drawn into it - Skeith's Data Drain
 //! on a member (ccBoss01's `OnDataDrainAtk` asks for stream 20 with the
-//! member's slot).
-//!
-//! ```text
-//! unless streamFlag 0x100: menuFade->EntryFade(12 (1 with 0x200), 0,
-//!     0x80000000 (0x80ffffff)); Disp; Breath(1) until CheckFade is over
-//! still: fontOnFlip, menuLayer's OnFlipExcept
-//! ccSys.bgColor kept, 0; Breath(2)
-//! ccStartThread(ccThExecuteStream, 65) on streamNum; Breath(2)
-//! Breath(1) until the stream is there and playing (status bit 8)
-//! DeleteFade; Breath(2)
-//! streamFlag & 7: ccStartThread(ccThStrParty) with streamFlag and the stream
-//! Breath(1) until the stream's param is -1 (ended)
-//! both tasks deleted; bgColor back; ccWakeAllThread; menuNext = menu = -1,
-//! menuStatus 3, bgStatus 3, panelStatus 1, panelAlpha -24,
-//! cmndTargetFix 0, firstTime 0
-//! ```
-//!
-//! The runtime plays the stream ([`Request::StreamMenu`]) and draws the
-//! members ([`Request::StrParty`]); it is there and playing from its start.
+//! member's slot). One call that breathes its own frames: the fade, the
+//! stream and `ccThStrParty`, then the menu shut. The runtime plays the
+//! stream ([`Request::StreamMenu`]) and draws the members
+//! ([`Request::StrParty`]); it is there and playing from its start. The
+//! steps are in docs/engine/field-ui.md (a member drained).
 
 use crate::Request;
 use crate::ctrl::{After, Cont, Flow, MenuCtrl};

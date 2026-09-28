@@ -1,35 +1,11 @@
 //! An item used from the menus: `ccUseItemRequest(plw, target, code, 0)`
 //! (gcmn 0x0057aa80) is one blocking call on the menu task in the game.
-//! It opens and waits on the menu's own windows, draws the menu and
-//! breathes, and meanwhile changes the world. The port splits it:
-//! `piney_battle::item::use_item_request` works out the rules and the
-//! whole use as steps ([`Step`]), the runtime answers the menu's
+//! The port splits it: `piney_battle::item::use_item_request` works out
+//! the whole use as steps ([`Step`]), the runtime answers the menu's
 //! [`Request::UseItem`] with them ([`crate::FieldUi::answer_item`]), and
-//! this module plays them on the menu task where the call stood. The menu's
-//! own steps run here (its windows, statuses, sleeps, frames). The world's
-//! go back one at a time as [`Request::ItemStep`]. When the steps are
-//! done, the handler goes on after the call ([`Resume`]).
-//!
-//! ```text
-//! CloseMenuDisp   menuStatus and bgStatus 3, panelStatus 1, panelAlpha
-//!                 -24; still: WakeAll, Disp, breath, still 0 and the
-//!                 flips back on; else Disp, breath
-//! Frames(n)       n times Disp, breath
-//! WaitMessage     while (!ccMsg->Check(0)) Disp, breath
-//! WaitMap         worldman->ShowMap() once a frame (the runtime's, which
-//!                 answers through World::map_showing) until it is done,
-//!                 each failed call a Disp and breath, then Disp and breath
-//!                 until 20 in all
-//! WaitParty       while the party is down or the game is over: the chat
-//!                 balloons (ccChatMsg::Disp(0)), breath - no Disp
-//! Pucciguso(n)    ccPuccigusoStart(n) on the world, which fades out and
-//!                 in while the menu breathes (World::pg_starting)
-//! WaitRide        while pgRideFlag: the chat balloons, breath
-//! ```
-//!
-//! (`WaitParty`'s and `WaitRide`'s `ccDamUprStr::CtrlAll` moves the flying
-//! numbers, which `Disp` alone draws; their `ccSprite::Trans` of the menu's
-//! and `menuWin`'s sprites loads their textures. Neither draws.)
+//! this module plays them where the call stood: the menu's own steps here,
+//! the world's back one at a time as [`Request::ItemStep`], then the
+//! handler goes on ([`Resume`]). See docs/engine/field-ui.md.
 
 use std::collections::VecDeque;
 

@@ -1,13 +1,10 @@
 //! What PERSONAL's and OPTION's pages share: the pad's OK / cancel as the
 //! handlers read it, the item and dialog texts, the menu fader
 //! (`ccScFade`, `menuFade`), and the frames a handler resumes after it
-//! breathed itself ([`Tail`]).
-//!
-//! A handler that calls `Disp` and `ccBreathThread(1)` in the middle of
-//! its work (Gate Out's and Log Out's fades, a Ryu Book, a closing menu)
-//! returns [`Flow::Breathed`] with an [`After::Pers`] tail; the task runs
-//! [`tail`] at the start of the next frame, before anything else, and the
-//! task loop's own `Disp` only when the handler finally returns.
+//! breathed itself ([`Tail`]). Such a handler (Gate Out's fade, a Ryu Book,
+//! a closing menu) returns [`Flow::Breathed`] with an [`After::Pers`] tail;
+//! the task runs [`tail`] at the start of the next frame, before anything
+//! else, and the task loop's own `Disp` only when the handler returns.
 
 use crate::Request;
 use crate::ctrl::{After, Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_OK};

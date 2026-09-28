@@ -1,45 +1,11 @@
 //! Data Drain (gcmn menu.cpp): `DataDrainMenu` (66, 0x00532ae0), the menu
 //! TargetMenu opens when Kite drains (`itemNum` +0x238 the skill: 2 Data
 //! Drain, 3 Drain Arc, 4 2128 Drain, 5 Drain Heart; the target
-//! `cmndTarget`). The rules it applies are `piney_battle::drain`'s, which
-//! the runtime runs on its world ([`Request::DataDrain`],
-//! [`Request::DrainSideEffect`]) and answers with
-//! [`crate::FieldUi::drain_drops`] and [`crate::FieldUi::drain_side_effect`].
-//!
-//! ```text
-//! 0   the screen breaks up and goes black (EntryFade(25), noise each
-//!     frame, rand() % 3 + 3 every sixth); still off; bgColor 0; two
-//!     frames. With drainDemo (+0x8427) on, the movie: a stream by the
-//!     target (enemies 109-111 by ccCheckObjectSize; the others by id)
-//!     with ccThDrainEnemy changing the enemy on its frames 30 and 229 -
-//!     not ported: the port goes on as with drainDemo off. Then the rules
-//!     (a boss's EntryAffect(21), AddLvErosion, the drops into drainItem
-//!     and their count, ccDeleteCmnd on all but a boss), cmndTarget and
-//!     cmndTargetPrev cleared, bgColor back, a flash (20, 0x70c0a020), the
-//!     tasks woken, three frames; then 1's roll
-//! 1   infection / 2 < rand() % 100: on (proccess + 1), else a side
-//!     effect (10); from 0 the roll is made twice
-//! 2   noise (rand() % 4 + 3 each eighth frame, else Br 10) until the
-//!     count passes 45; then two frames, "Viral infection has spread!"
-//!     (dataDrainWarn 0), the world asleep and frozen
-//! 3   the window closed: 20
-//! 10  the side effect (dataDrainErosionTbl[infection / 25][rand() & 15],
-//!     the runtime's), SetNoiz(8)
-//! 11  61 frames of noise (5-9 at 10, 18, 45; 3 at 30, with a level lost
-//!     then: ccChar::LevelDown); then "Data drain out of control!" with
-//!     the effect's line (dataDrainWarn id + 2; 29 the item lost with
-//!     " disappeared!", sound 79 and a red flash, or "But nothing
-//!     happened."), the world asleep and frozen
-//! 12  the window closed; effect 30 (SYSTEM ERROR) ends the game
-//!     (compulsionGameOver); 20
-//! 20  drainCount up; the bracelet's growth (piney_battle::drain::
-//!     evolution, its key item 273-280 added) with its pages
-//!     (dataDrainEvolutionStr); cmndTargetFix off; ChangeMenu(67): the
-//!     drops handed out
-//! ```
-//!
-//! `waitCount` (+0x1c) is only zeroed at 0's start, so 2 and 11 go on from
-//! the count 0's fade left.
+//! `cmndTarget`). The rules are `piney_battle::drain`'s, which the runtime
+//! runs on its world ([`Request::DataDrain`], [`Request::DrainSideEffect`])
+//! and answers with [`crate::FieldUi::drain_drops`] and
+//! [`crate::FieldUi::drain_side_effect`]. `waitCount` is only zeroed at 0's
+//! start. The steps are in docs/engine/field-ui.md (Data Drain).
 
 use piney_event::ScriptSave;
 

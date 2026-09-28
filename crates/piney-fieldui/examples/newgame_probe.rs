@@ -2,16 +2,9 @@
 //! enters The World with, built as the runtime builds it
 //! ([`piney_fieldui::newgame::new_game_save`], then at Log in
 //! `ccSetupNewGame`'s [`piney_fieldui::newgame::setup_new_game`]). One
-//! request a line:
-//!
-//! ```text
-//! save PARODY            the whole ccSaveData in hex (PARODY 1: the title's
-//!                        Parody chosen, parodyFlag set before NewGame(0))
-//! newgame PARODY         the save after the title's part alone (the boot,
-//!                        NewGame(1), parodyFlag, NewGame(0)), as the
-//!                        disc's volume's slot file: on a later volume the
-//!                        extension after ccSaveData
-//! ```
+//! request a line: `save PARODY` (the whole ccSaveData in hex; PARODY 1 sets
+//! parodyFlag before NewGame(0)) and `newgame PARODY` (the save after the
+//! title's part alone, as the disc's volume's slot file).
 
 use std::io::BufRead;
 

@@ -1,66 +1,11 @@
 //! The OPTION pages (gcmn `menu.cpp`), the eight rows of OPTION's list
-//! (menu 12, `SystemMenu`):
-//!
-//! | menu | handler | page (`ExceptionDisp`) | the save |
-//! | ---: | --- | --- | --- |
-//! | 13 | `ControllerMenu` (0x0053d0e0) | `ControllerMenuDisp` | `camType` +0x8429 |
-//! | 14 | `VibrationMenu` (0x0053ea80) | `VibrationMenuDisp` | `vibration` +0x8428 |
-//! | 15 | `ScreenMenu` (0x0053f060) | `ScreenMenuDisp` | `screenX`, `screenY` +0x841a |
-//! | 16 | `SoundMenu` (0x0053f800) | `SoundMenuDisp` | `mainVol`, `seVol`, `bgmVol`, `output` +0x841e |
-//! | 17 | `ResetMenu` (0x00540270) | (list disp 11) | |
-//! | 18 | `DataDrainDemoMenu` (0x00540730) | `DataDrainDemoMenuDisp` | `drainDemo` +0x8427 |
-//! | 19 | `VoiceMenu` (0x00540d20) | `VoiceMenuDisp` | `voice` +0x842c |
-//! | 20 | `StrwinMenu` (0x005412e0) | `StrwinMenuDisp` | `strWinMode` +0x8430 |
-//!
-//! Every page goes back to OPTION the same way: `menuNext = prev`, the
-//! window out, `proccess` and `waitCount` 0, both select cursors reset.
-//! What the pages ask of the rest of the system comes out as
-//! [`Request::DisplayOffset`], [`Request::SoundEnv`],
-//! [`Request::Vibration`], [`Request::CameraType`] and
-//! [`Request::ChangeMode`]. The pages' drawing is in [`disp`].
-//!
-//! ```text
-//! ControllerMenu
-//!   proccess 0  exceptionDisp 0, the window out; ctrlMenuStr into menuKanji;
-//!               select = index = camType
-//!   proccess 1  ccStartThread(ccThControllerMenu, 34, 2048) with its flag 1;
-//!               Disp and breathe until the task's ccLoadFLAddOne(flContMenu)
-//!               clears it; ccDeleteThread; ccStream::GetCCSAdrs("xcontrol");
-//!               menuMask->SetTex("xcontrol", "TEX_xcontrol"); the window in,
-//!               exceptionDisp 1; ChangeInfo(ctrlMenuHelp[index]) at (39, 444)
-//!   proccess 2  Select; cancel: Close, the window out; OK: index = select,
-//!               camType = select, setCameraCtrlType(select), the help again
-//!   proccess 3  the window gone: exceptionDisp 0, Disp and breathe twice,
-//!               ccFileListDeleteOne(flContMenu), back to OPTION
-//! VibrationMenu, DataDrainDemoMenu, VoiceMenu, StrwinMenu
-//!   proccess 0  dialogOnOff (Voiceover: dialogVoice) into menuKanji; x 6, y 2;
-//!               the row of the value in force selected; OpenInfo(its line);
-//!               exceptionDisp 1; then on as proccess 1
-//!   proccess 1  Select; cancel: Close, back; OK: the field set by the row
-//!               (row 0 on, row 1 off; Vibrate also ccPad::actuaterSw, and a
-//!               buzz switching on); ChangeInfo(its line); the cursors reset
-//! ScreenMenu
-//!   proccess 0  the dim in again; sx, sy = screenX + 48, screenY + 16;
-//!               exceptionDisp 1, waitCount 0
-//!   proccess 1  waitCount = (waitCount + 1) % 30; SelectXY(0, 96, 0, 32, 3,
-//!               3, 1); SetDisplayOffset(sx - 48, sy - 16) and the save;
-//!               cancel: back
-//! SoundMenu
-//!   proccess 0  exceptionDisp 1, y 4; the three volumes in 32 steps
-//!               (v * 32 / 256) and the output into +0x18c
-//!   proccess 1  Select; left / right move the row's value (0-32, the
-//!               output 0-1); cancel: back; a value moved: the save
-//!               (v * 256 / 32) and SetSoundEnv
-//! ResetMenu ("Title Screen")
-//!   proccess 0  the dim in again; dialogDefault into menuKanji; Cancel
-//!               selected; OpenInfo(resetMenuInfo[0])
-//!   proccess 1  Select; cancel or OK on Cancel: Close, back; OK on OK: Close,
-//!               the window out
-//!   proccess 2  the window gone: in again, OpenInfo(resetMenuInfo[1]'s two
-//!               lines), Cancel selected
-//!   proccess 3  as 1, but OK on OK: ccGame::ChangeRequest(1, 7)
-//!   proccess 4  nothing: the game leaves the field
-//! ```
+//! (menu 12, `SystemMenu`): `ControllerMenu` (13, 0x0053d0e0),
+//! `VibrationMenu` (14, 0x0053ea80), `ScreenMenu` (15, 0x0053f060),
+//! `SoundMenu` (16, 0x0053f800), `ResetMenu` (17, 0x00540270),
+//! `DataDrainDemoMenu` (18, 0x00540730), `VoiceMenu` (19, 0x00540d20) and
+//! `StrwinMenu` (20, 0x005412e0). Every page goes back to OPTION the same
+//! way; what they ask of the system comes out as `Request`s, and their
+//! drawing is in [`disp`]. The steps are in docs/engine/field-ui.md.
 
 mod disp;
 

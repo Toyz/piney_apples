@@ -2,65 +2,10 @@
 //! `BreederMenu` (gcmn 0x00543930, menu 27: Talk and the three "About"
 //! pages), and Give Food: `BreedingMenu` (0x0054bdd0, 56) with
 //! `BreedingMenuDisp` (0x0054cd70), which a Grunty's own menus open
-//! (`OtonainuMenu`, `InuMenu`, 45 and 46, [`super::inu`]: they drop the
-//! target and `ChangeMenu`), so the Grunty fed is `cmndTargetPrev`, a
-//! `ccPGuso` (gcmn pgbreed.cpp). Its state is the world's ([`Grunty`],
-//! [`crate::World::grunty`]); the one write the menu makes to it is a
-//! request ([`TalkReq::GruntyGrowth`]).
-//!
-//! ```text
-//! BreederMenu
-//! proccess 0  cmndTargetFix; no target: CloseMenu. The rows: the list's
-//!             first item's name (Talk) and breederMenuStr's three lines
-//!             (About Grunties, About Food, About Breeding); the first
-//!             time the breeder stops, faces Kite (EntryAffect 14) and
-//!             greets (base->msg[game.server]), the cursor on Talk;
-//!             talkNum 3 with key item 49, else 1 (Talk's line); the
-//!             minimap out; SetMerchantCamera
-//! proccess 1  Select; cmndTarget gone: changeCamera(1), the minimap
-//!             back, CloseMenu, ccMsg->Close - then the keys, next frame
-//!             cancel (19): EntryAffect 0, changeCamera(1), the minimap
-//!             back, CloseMenu, ccMsg->Close
-//!             OK (18): Talk: ChangeMenu, ccMsg->Close; the others: the
-//!             window out, 2
-//! proccess 2  EntryAffect 15; breedTeachMsgTbl[row - 1] (town 1), else
-//!             breedTeachMsgTbl2's (no target: as cancel); 3
-//! proccess 3  Check(1) (emode 1 chains): the list again (window in,
-//!             proccess 0, firstTime 0)
-//!
-//! BreedingMenu (cmndTargetPrev: the Grunty)
-//! proccess 0  the foods held (key items 26-41), 8 rows at most; none:
-//!             the Grunty the target again (ccChangeCmndTarget(prev)),
-//!             back to the Grunty's list
-//! proccess 1  SelectScr; cancel: the same; OK: the count
-//! proccess 2  itemNum the food; up / down one, left / right ten (1 ..
-//!             held); cancel: 1; OK: the window out, 3
-//! proccess 3  the window gone: "Give N #Gfood#W." (breedingMenuHelp[1]),
-//!             OK / Cancel (disp 11, the row kept in sx)
-//! proccess 4  Select; OK on OK: EntryAffect(pg, plw, 19, food - 26, N)
-//!             (it eats) and DelItem(0, 15, food, N); 5
-//! proccess 5  the window out; 6
-//! proccess 6  the window gone: the Grunty idle (growthNum 0): the foods
-//!             again (0); else 10
-//! proccess 10 by growthNum: 0 the foods again (11); 1 eating: wait; 2
-//!             growing up: pgEvoMsg at 0 frames, its second record at 60,
-//!             shut at 120; 3 its line (base->msg[msgNum], voice
-//!             ccCheckVoiceGrp(id), msgNum): 12; 5 gone off: index 1, 20
-//! proccess 12 Check(1): index 1; growthNum 4 (the menu's write); the
-//!             Grunty staying (exist): 13; key item 49 held: 20; else the
-//!             tasks asleep, the dim: 14
-//! proccess 13 until growthNum 5: 20
-//! proccess 14 ten frames: "You now have #G<key item 49>#W!" (and
-//!             getItemMenuStr[8]), AddItem(0, 15, 49, 1), sound 74
-//! proccess 15 Check(0): Close, the tasks woken (a breath), the dim out;
-//!             20
-//! proccess 20 menuFade->EntryFade(10, 0, 0x80000000): to black in 10
-//! proccess 21 CheckFade done: EntryAffect(pg, plw, 11)
-//! proccess 22 ContinueFade(10, 0): back
-//! proccess 23 CheckFade done: DeleteFade; index 0: the Grunty the target
-//!             again, back to the list; else EntryAffect(pg, 0), the
-//!             minimap back, cursolOff 0, CloseMenu
-//! ```
+//! ([`super::inu`]), so the Grunty fed is `cmndTargetPrev`, a `ccPGuso`.
+//! Its state is the world's ([`Grunty`], [`crate::World::grunty`]); the one
+//! write the menu makes to it is a request ([`TalkReq::GruntyGrowth`]). The
+//! steps are in docs/engine/field-ui.md.
 
 use piney_battle::item as bitem;
 use piney_data::tables::fieldui;

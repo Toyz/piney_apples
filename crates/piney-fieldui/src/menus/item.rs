@@ -1,23 +1,9 @@
 //! `ItemMenu` (gcmn 0x0052db30, menu 5) and `ItemMenuDisp` (0x0052e6c0):
 //! the Items list, a page each for items, scrolls, books, treasure and
-//! equipment, with the carried and stored counts.
-//!
-//! ```text
-//! proccess 0   target fixed and dropped; five pages; the dim in
-//! proccess 1   SelectScr; triangle on equipment: its status (64);
-//!              cancel (19) back to PERSONAL; OK (18) by ccCheckItemUseful:
-//!              0 "cannot use" (help 0); in town only 12 and 15 (help 1);
-//!              2 used at once (the Sprite of Return, 13/1, asks first:
-//!              only in dungeons (help 3), not the special floors, not in
-//!              battle (help 5), not while the events hold operation 14
-//!              (help 4)); 1 TARGET (65); else the item's name and comment
-//! proccess 2-4 the help as an information window, as SkillMenu
-//! proccess 10  "Return to the field." with OK / Cancel (list disp 11)
-//! proccess 11  Select; OK on OK: 12, else 13
-//! proccess 12  the Sprite of Return used (every frame until the field
-//!              changes)
-//! proccess 13  the list again
-//! ```
+//! equipment, with the carried and stored counts. OK goes by
+//! `ccCheckItemUseful`: used at once, TARGET (65), or refused; the Sprite
+//! Ocarina (13/1) asks "Return to the field." first and only in a
+//! dungeon. The steps are in docs/engine/field-ui.md (Items).
 
 use piney_desktop::eef::from_int;
 

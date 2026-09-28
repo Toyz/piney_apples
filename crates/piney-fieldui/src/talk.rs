@@ -1,27 +1,11 @@
 //! The seam of the menus the action button opens (gcmn `menu.cpp`: 21-27
 //! and their pages 47-56): who is spoken to, what the menus ask of the
-//! world, and the state `ccMenuCtrl` keeps for them.
-//!
-//! The game's menus read the character spoken to through `cmndTarget`
-//! (and, once a shop page has dropped it, `cmndTargetPrev`): its
-//! `ccChar::base`, which for a town NPC is its `npcTbl` row (gcmn
-//! 0x00619460) - name, type flags, id and `msg`, the table of its lines.
-//! The runtime says which row a target is with [`crate::FieldUi::talk_to`]
+//! world, and the state `ccMenuCtrl` keeps for them. The menus read the
+//! character spoken to through `cmndTarget` (or `cmndTargetPrev` once a
+//! shop page has dropped it): for a town NPC its `npcTbl` row (gcmn
+//! 0x00619460), which the runtime names with [`crate::FieldUi::talk_to`]
 //! when `ccThGameCtrl` opens the menu. The lines are the volume's talk
-//! records and pointer tables (`piney_data::tables::talk`), looked up by
-//! the addresses `npcTbl` and the save hold; `game.server` comes from
-//! [`crate::Game::server`].
-//!
-//! ```text
-//! ccThGameCtrl   cmndTarget = the NPC; openReqNum = 22 / 24 / 25 / 26 ...
-//!                (mode 1, firstTime 1)          -> FieldUi::talk_to
-//! PcMenu, VenderMenu, RecorderMenu, FairyshopMenu (first frame)
-//!                EntryAffect(cmndTarget, plw, 14)   the NPC stops, faces Kite
-//!                ccMsg->Open(greeting, base->name)  (-> Request::Affect)
-//!                SetMerchantCamera (the shops)  -> Request::Talk(TalkReq ...)
-//! ... the pages (Talk, Trade, Buy, Sell, Save, Store, Withdraw)
-//! cancel         EntryAffect(cmndTarget, plw, 0); changeCamera(1); CloseMenu
-//! ```
+//! records (`piney_data::tables::talk`). See docs/engine/field-ui.md.
 
 use piney_data::tables::types::EvMsgData;
 use piney_data::tables::{battle, fieldui, sjis};

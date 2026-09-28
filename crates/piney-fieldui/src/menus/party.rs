@@ -1,17 +1,7 @@
 //! The party's pages: the members who can join (`PartyInMenuDisp`, gcmn
 //! 0x0053b6e0, for PARTY's Add (68) and the tutorial's (77)) and a
-//! member's level box (`LevelDisp`, 0x00523a30).
-//!
-//! ```text
-//! PartyInMenuDisp   the names of the members of partyMemberFlag not in
-//!                   the party, rows dy to dy + y, into menuKanji; the
-//!                   chosen member's face (menuFace[3]) and panel at
-//!                   (220, 96) with full HP and SP from spcParam; the
-//!                   level box under it at (220, 192)
-//! LevelDisp         Level, EXP, Money, Class (statusMenuStr[0]) and the
-//!                   class's name in settingKanji[0], the numbers in
-//!                   fontTex's type 1 digits: "n/1000", "nGP"
-//! ```
+//! member's level box (`LevelDisp`, 0x00523a30: Level, EXP, Money and
+//! Class). The layout is in docs/engine/field-ui.md (the tutorials).
 
 use piney_desktop::eef::add;
 

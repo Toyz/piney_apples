@@ -1,88 +1,11 @@
 //! Trading with a PC (or a party member): `TradeMenu` (gcmn 0x0054e720,
 //! menu 48: what the trader offers), `TradeSubMenu` (0x0054f4b0, 49: what
 //! Kite gives for it) and `TradeMenuDisp` (0x00551570), the page both
-//! draw. A party member is handed what it traded for by
-//! `ccMenuCtrl::AddSpcItem` ([`crate::menus::talk::add_spc_item`], which
-//! Gift shares).
-//!
-//! PcMenu (22) drops the target (it is `cmndTargetPrev` here) and goes into
-//! 48. Who trades what (each page builds the lists again every frame):
-//!
-//! ```text
-//! the bag       saveData.itemList[0][40] (+0x30): every held slot but key
-//!               items (category 15)
-//! the offers    a party member (type 4): spcTradeList[id - 1][16] (+0xe3c)
-//!               a trading PC (type 0x02000018, id 66-79): tpcTradeList
-//!               [id - 66][3] (main 0x00347f90), four ccItemLists a trade
-//!               (what it gives, then up to three it wants), each while
-//!               tpcTradeListSW[id - 66][k] (+0x1e7c) is set
-//!               another PC: npcTradeList[row][16] (+0x127c), row id - 30
-//!               (145-153: id - 109)
-//! ```
-//!
-//! ```text
-//! TradeMenu (48)
-//! proccess 0   talkTradeFlag 1; the page (disp 4). An empty bag: 20;
-//!              nothing offered: 30. Unless the list's index is set: temp[8]
-//!              0, drainItem[0..4] -1, "Please select an item ..."
-//!              (tradeMenuHelp[0], OpenInfo). The dim; the other tasks
-//!              asleep; the list shut (y, my 0)
-//! proccess 1   until Check (the index 0), else 6 in waitCount
-//! proccess 2   waitCount to 7: the offers (my, y at most 8), the window in,
-//!              exceptionDisp 1
-//! proccess 3   SelectScr (select, dy kept in temp[4], temp[5]); triangle on
-//!              equipment: its status (64); cancel (19): 100; OK (18): the
-//!              item in drainItem[0], its count in temp[0], into 49. The
-//!              item's name and comment (DispMsg)
-//! 20, 30       "There is no item to trade." (tradeMenuHelp[3]); 21, 31
-//!              until Check: 100
-//! 40, 41       tradeMenuHelp[4]; until Check: 100
-//! proccess 100 the window and dim out, the target back (ccChangeCmndTarget
-//!              (cmndTargetPrev)); with mode 1 and the tasks asleep: woken,
-//!              Disp, a breath, the flips back on; back to the list (22)
-//!
-//! TradeSubMenu (49)
-//! proccess 0   the page; unless the index is set "Select item(s) to trade
-//!              with ..." (tradeMenuHelp[1])
-//! proccess 1-2 as 48's, over the bag (exceptionDisp 2)
-//! proccess 3   SelectScr (temp[6], temp[7]); triangle as 48's; the keys
-//!              read from the pad's repeat:
-//!              cancel on an item offered: one fewer (none left: out of the
-//!                offer; sound 19); on another, pushed: 100
-//!              OK: the trade balanced (a trading PC: each thing it wants
-//!                offered in its count; else the offer's worth at least the
-//!                item's, below) and OK pushed: 4 (sound 18); not balanced:
-//!                one more of the item offered (a new one takes the first
-//!                free of drainItem[1..4], up to three; sound 18)
-//! proccess 4   the window gone: OK / Cancel (disp 11), "Trade under these
-//!              conditions?" (tradeMenuHelp[2])
-//! proccess 5   Select; cancel, or Cancel: 100; OK: 6
-//! proccess 6   the window gone: 99 of the item after it: 40 with
-//!              tradeMenuHelp[5]; the bag full, the item not held and no
-//!              offered stack given up whole: 40 with tradeMenuHelp[4].
-//!              Else DelItem of each offered, AddItem of the item (sound
-//!              74), AddTradeCount, EntryAffect(cmndTargetPrev, 0), the
-//!              trade struck off the trader's list, "You now have #G<item>
-//!              #W!"
-//! proccess 7   until Check: a PC: the menu shut (CloseMenu inlined); a
-//!              member: 8
-//! 8 - 19       a member: after 10 frames each book given it (category 12)
-//!              read ("<name> used #G<book>#W.", sound 92); each piece of
-//!              equipment with a price it may wear equipped when dearer
-//!              than its own ("<name> equipped ..."); the rest into its
-//!              bag (AddSpcItem); cmndTargetFix 0, EntryAffect 0, shut
-//! 20 - 41      as 48's (40: tradeMenuHelp[waitCount], its third line when
-//!              it has one)
-//! proccess 100 as 48's, and 49's prev becomes 48's (back to 22)
-//! ```
-//!
-//! The worth (TradeSubMenu's OK and the page's gauge): `temp[k] *
-//! ccGetItemPrice(item k)` for each, an offered item the same as the one
-//! wanted counting nothing (member 1's 14/10 counts 50000 a piece), each
-//! times its rate (`ccGetItemTradeRate` over the trader's row of
-//! `spcTradeRateTbl` or `npcTradeRateTbl`, 14 shorts: categories 10-14,
-//! the three armour classes, the six weapons; 10 by default); a member
-//! adds `friendship / 200` (at most 5) to the offered items' rates.
+//! draw; each page builds its lists again every frame. A party member is
+//! handed what it traded for by `ccMenuCtrl::AddSpcItem`
+//! ([`crate::menus::talk::add_spc_item`], which Gift shares). The lists,
+//! steps and the trade's worth (`ccGetItemTradeRate`) are in
+//! docs/engine/field-ui.md (Trade).
 
 use piney_battle::item as bitem;
 use piney_desktop::eef::{add, from_int, sub};
@@ -1042,25 +965,11 @@ fn gauge(s: &mut Spr, n: i32, c: usize, dx: f32, a: i32) {
 }
 
 /// `TradeMenuDisp` (gcmn 0x00551570): the page `ExceptionDisp` draws for
-/// menus 48 and 49.
-///
-/// ```text
-/// settingKanji[0]  tradeMenuStr's two rows, the trader's name, Kite's,
-///                  the item wanted, the three offered (16 glyphs each)
-/// (40, 24)         the trader's name frame (DispTarget); (24, 56) the
-///                  item wanted and its count
-/// (24, 128)        the offers, 8 rows (grey unless on 48): icon, name,
-///                  count (less what is being traded)
-/// (322, 24)        Kite's name; (306, 56) the three offered and counts,
-///                  the one under 49's cursor in colour 22
-/// (278, 128)       the bag (grey unless on 49), counts less the offer
-/// (214, 56)        "Approve" lit when the trade balances, over a gauge
-///                  of eight: a trading PC's wants met (2 each), else the
-///                  offer's worth * 4 / the item's
-/// ```
-///
-/// The font's shadow bit (ctrl 0x10) is set and left set, as BuyMenuDisp
-/// does.
+/// menus 48 and 49: the trader's name and the item wanted (40, 24), the
+/// offers (24, 128), Kite's name and the three offered (322, 24), the bag
+/// (278, 128), and "Approve" over the balance gauge (214, 56). The font's
+/// shadow bit (ctrl 0x10) is set and left set, as BuyMenuDisp does. The
+/// layout is in docs/engine/field-ui.md (Trade).
 pub fn trade_menu_disp(m: &mut MenuCtrl, x: &mut Ctx) {
     let texts = x.texts;
     let items = &texts.items;

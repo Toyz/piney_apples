@@ -3,36 +3,9 @@
 //! `VenderMenu` (0x00542840, 24: Talk, Buy, Sell - the weapon, item and
 //! magic shops), `RecorderMenu` (0x00542df0, 25: Talk, Save) and
 //! `FairyshopMenu` (0x00543390, 26: Talk, Store Items, Withdraw Items).
-//! Their windows are target lists (`disp` 6) that `Disp` draws.
-//!
-//! ```text
-//! the merchants (24, 25, 26; the three handlers differ only in Vender's
-//! list.index)
-//! proccess 0  cmndTargetFix; no target: CloseMenu. The rows' names; the
-//!             first time the merchant stops and faces Kite (EntryAffect
-//!             14) and greets (ccMsg->Open(base->msg[game.server],
-//!             base->name)), the cursor on Talk; talkNum 1; the minimap
-//!             out (mapStatus 3); SetMerchantCamera
-//! proccess 1  Select; the target gone: changeCamera(1), the minimap
-//!             back, CloseMenu, ccMsg->Close - then the keys, next frame
-//!             cancel (19): EntryAffect 0, changeCamera(1), the minimap
-//!             back, CloseMenu, ccMsg->Close
-//!             OK (18): off Talk the other tasks asleep, (Vender) the
-//!             list's index the shop's type, the target dropped;
-//!             ChangeMenu; ccMsg->Close
-//!
-//! the PC (22)
-//! proccess 0  as the merchants' up to the greeting, which by the PC's id
-//!             is msg[0] (66-79, the trading PCs; 30-65 with talkNum a
-//!             random 0-2 and two rows), else msg itself (one row); the
-//!             PC's trade count started (CheckTradeCount < 0:
-//!             AddTradeCount). The trading PCs pick the line whose trade
-//!             is still open (tpcTradeListSW), from a random one the first
-//!             time, and show two rows
-//! proccess 1  Select; no target, or in battle: CloseMenu, ccMsg->Close;
-//!             cancel: EntryAffect 0, CloseMenu, ccMsg->Close; OK: off
-//!             Talk the target dropped; ChangeMenu; ccMsg->Close
-//! ```
+//! Their windows are target lists (`disp` 6) that `Disp` draws; the three
+//! merchants' handlers differ only in Vender's `list.index`. The steps are
+//! in docs/engine/field-ui.md (the lists).
 
 use crate::Request;
 use crate::ctrl::{Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_OK};

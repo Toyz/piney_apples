@@ -2,28 +2,10 @@
 //! area shows when its last magic portal is opened. The entry control
 //! starts it (`ccEntryObj::routine`'s circle, act 4, when `g_entCtrl`
 //! +0x1c is 1: `piney_battle::entry::Out::AreaCleared`); the task runs
-//! `ccDfComp::Main` once a frame until it answers 0.
-//!
-//! ```text
-//! Init (0x00400da0)  count = total = 90; scale 2.0; kind = game+0x14;
-//!                    a ccSprite SetPrim(20, 0) on xwindow::TEX_xwindo01,
-//!                    on ccMenu's layer (+0x58)
-//!                    kind 1 (a field): row 33; kind 2 (a dungeon): row 0,
-//!                    x + 5, but row 33, x + 0 for dungeon 0 of field type 4
-//!                    (a lake)
-//! Main (0x00400980)  count 0: reset, answer 0 (the task ends)
-//!                    count 1-5: count - 1, nothing drawn
-//!                    else the alpha: (90 - count) * 96 / 15 above 75,
-//!                    96 down to 16, (count - 5) * 96 / 10 below; the
-//!                    halves' slide above 75: from 0.5, count - 75 times
-//!                    s += s / 2.75, the sum; below 15 the scale + 0.06 and
-//!                    the spread + 0.5 a frame; colour ccSpriteColorTable[6]
-//!                    the top half: rows row..row+16, 128 x 16 at scale,
-//!                    pivot (-64, -9) at scale, at (252 - slide + x,
-//!                    110 - spread); the bottom: rows row+16..row+31,
-//!                    128 x 15, at (260 + slide, 147 + spread)
-//!                    count - 1, SendPacket
-//! ```
+//! `ccDfComp::Main` (0x00400980) once a frame until it answers 0. `Init`
+//! (0x00400da0) picks the banner's rows from the area's kind; the 90
+//! frames' alpha, slide and scale are in docs/engine/field-ui.md (all
+//! portals open).
 
 use piney_desktop::eef;
 

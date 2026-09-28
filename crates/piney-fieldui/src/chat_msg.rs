@@ -1,29 +1,10 @@
 //! The chat balloons over the characters: `ccChatMsg` (main 0x001a6160-
 //! 0x001a6c68, `ccChat`), which `ccMenuCtrl`'s constructor makes on the
 //! menu's layer (its window on `menuIcon`'s texture) and its `Disp` draws
-//! between the dim and the damage numbers.
-//!
-//! ```text
-//! 4 slots: text (70 bytes), cf (frames left), cn (its width), chatChar,
-//!   scope (x, y, width, height 30)
-//! OpenChat(ch, text)  (0x001a67c0) a balloon already over ch closed; the
-//!   first free slot: the text, cf 120, cn ccKanjiStrWidth(text, 0), ch
-//! CloseChat()          (0x001a6900) every cf 0
-//! Disp(still)          (0x001a6320) each slot: cf down by one unless still;
-//!   with cf left: off the command lists (ccCheckTarget) cf 0; else
-//!   ccCalcTagPosChar(ch, p, (0, 0, 0.9 height), 0), when it passes:
-//!   scope (p.x - cn / 3, p.y - 16, cn); then CheckScope; each shown:
-//!   DrawWindow(x, y, cn, col, a) (col 18 over the player, else 1; a 72,
-//!   72 cf / 10 in the last 10 frames) and the text at (x, y), colour 7,
-//!   alpha 128 a / 72; the window's packets sent last
-//! CheckScope()         (0x001a6690) each shown balloon that meets the band
-//!   of those before it is moved up above the first it overlaps, again
-//!   until it overlaps none
-//! DrawWindow(x, y, n, col, a)  (0x001a6940) colour col, alpha a; 14 x 16
-//!   cells: 0 at (x - 14, y - 8), 1 n wide at (x, y - 8), 2 at (x + n,
-//!   y - 8), 8, 9, 10 the same at y + 8, 7 (the tail) at (x + n / 3,
-//!   y + 24)
-//! ```
+//! between the dim and the damage numbers. Four slots of up to 70 bytes of
+//! text, each shown 120 frames and faded over the last 10; `CheckScope`
+//! moves an overlapping balloon up until it meets none. The steps are in
+//! docs/engine/field-ui.md (the chat balloons).
 
 use piney_desktop::kanji::{Fonts, Kt, Names, str_width};
 

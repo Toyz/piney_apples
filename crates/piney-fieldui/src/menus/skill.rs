@@ -1,19 +1,9 @@
 //! `SkillMenu` (gcmn 0x0052cae0, menu 4) and `SkillMenuDisp` (0x0052d180,
 //! menus 4, 72 and 81): the Skills list, a page each for attack, magic,
-//! recovery, strengthen, weaken and (with the bracelet) Data Drain.
-//!
-//! ```text
-//! proccess 0  target fixed and dropped; the page (6 with the bracelet);
-//!             the drain gauge on the Data Drain page; the dim in
-//! proccess 1  SelectScr over the pages; cancel (19) back to PERSONAL;
-//!             OK (18) on a skill: in town "no skills in towns" (help 0),
-//!             short of SP (help 1), Data Drain while the events hold
-//!             operation 17 or eventStatus[40] (help 2), else TARGET (65);
-//!             otherwise the skill's name and help (DispMsg)
-//! proccess 2  the window gone: the help as an information window
-//! proccess 3  until Check: Close
-//! proccess 4  8 frames, then the list again
-//! ```
+//! recovery, strengthen, weaken and (with the bracelet) Data Drain. OK on a
+//! skill refuses in town, short of SP, or Data Drain while the events hold
+//! operation 17 or `eventStatus[40]`; else TARGET (65). The steps are in
+//! docs/engine/field-ui.md (Skills).
 
 use piney_desktop::eef::from_int;
 

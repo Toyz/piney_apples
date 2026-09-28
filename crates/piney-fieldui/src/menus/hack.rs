@@ -1,58 +1,11 @@
 //! The gate hack (gcmn menu.cpp): `GtHackMenu` (62, 0x005661e0), the load
 //! task it starts (`ccThGtHackMenu`, 0x00566cb0), its button bar
 //! (`GtHackMenuDisp`, 0x00566d00), and the screen it runs, `ccHackMenu`
-//! (constructor 0x00564ff0, `Draw` 0x00565510, `Select` 0x00565ed0).
-//!
-//! The gate's Warp opens it for a story area on this server with
-//! protection (`protect[1, 3, 5, 7]`) not yet in `protectArea`. The area's
-//! `protect` row is four (virus core, count) pairs: the cores (key items,
-//! category 15, `impItemList`) to put in.
-//!
-//! ```text
-//! proccess 0  the window out, the count at 30, the flashes 0; the field's
-//!             music fades (ccSndGateHack(0))
-//! proccess 1  each frame the count up: below 25 "PROTECTED" and "You
-//!             cannot warp to this area." (DispInfo); past 30 a red flash
-//!             (EntryFlash2(2, 8, 0x1c4040ff)), sound 20, the count 0; after
-//!             the fourth flash the dim out and on
-//! proccess 2  the menu's own frames from here:
-//!   fall      the load task started; noise (rand() % 4 + 3) on every sixth
-//!             frame from 26 to 59; at 45 a fade to black over 20; on until
-//!             it ends
-//!   black     the chat closed, the noise off, the layers flipping again
-//!             over bgColor 0 (the world asleep draws nothing); two frames
-//!   intro     the load done, a flash (EntryFlash(10, 0x50e0c000)), the
-//!             screen built (ccHackMenu on xdhhack); 55 frames
-//!   crystals  a flash, the crystals; 60 frames
-//!   select    a flash, the frame, the texts and the button bar;
-//!             ccHackMenu::Select until OK passes or cancel
-//!   complete  OK: 90 frames with ANM_xdhcomp0
-//!   out       a fade to black over 20, ANM_xdhfram1, the texts out; two
-//!             frames, the screen deleted, two frames, the file let go
-//!   cancel    the music back (ccSndGateHack(1)), bgColor back, a fade
-//!             from black (20), the tasks woken; 40 frames with noise on
-//!             every sixth; the music's state reset (2); two frames; shut
-//!   hacked    the cores taken, protectArea's bit set, the others let go,
-//!             setupMode 1 and gtHackFlag (the arrival hacks in),
-//!             ccSndGateHack(2), areaCount up (at most 10000), then
-//!             WORLD_MAN::SetGenerateCode to the area; proccess stays 2
-//! ```
-//!
-//! `Select`: an event's operation lock 15 holds it; a turn in progress
-//! (`selectCnt`, 10 frames either way) runs out first. OK passes only when
-//! every slot holds its count (sound 222; else 220); cancel returns the
-//! button; left and right turn the ring a slot (221); up puts in a core
-//! the player has (219, 220 at the slot's count), down takes one out.
-//!
-//! `Draw`: the camera (ANM_xdhcamer) on layer 127's view; the background
-//! (ANM_xdhback0, then ANM_xdhback1 looping); with `crystal`, the ring
-//! (OBJ_xdhroll turned -90 degrees a slot, with the turn in between) and
-//! each slot's crystals, lit (on, on-f) for those put in, unlit (off) for
-//! those still needed, none past the slot's count; with `frame` and
-//! `complete` their animations; the texts' alpha (in by 16 to 128, out by
-//! 6); with any alpha, the 26 cores' counts left (the global `font`, type
-//! 2, two columns of 13) and on layer 128 the slot's core and the count
-//! still to put in (TEX_xdhroma1), faded across a turn.
+//! (constructor 0x00564ff0, `Draw` 0x00565510, `Select` 0x00565ed0). The
+//! gate's Warp opens it for a story area on this server with protection
+//! (`protect[1, 3, 5, 7]`) not yet in `protectArea`; the area's `protect`
+//! row is four (virus core, count) pairs, the cores key items of category
+//! 15. The steps are in docs/engine/field-ui.md (the gate hack).
 
 use std::rc::Rc;
 

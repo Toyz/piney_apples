@@ -1143,6 +1143,14 @@ or the game over, and while `pgRideFlag` is set; `Pucciguso(n)` goes to
 the runtime (`ccPuccigusoStart`) and breathes, drawing nothing, while its
 fades run (`World::pg_starting`).
 
+The Fairy's Orb (13/2) waits on the task as well: sound 97, 7 frames, its
+information line, 7 frames, then `WORLD_MAN::ShowMap()` once a frame
+([map.md](map.md#showmap-the-fairys-orb)) with a `Disp` and breath after
+each call that is not yet done, and more `Disp` and breaths until 20
+frames have passed in all; then the window closes. The port's `WaitMap`
+sends the first call to the runtime (`Request::ItemStep`) and reads each
+answer in the next frame's `World::map_showing`.
+
 ## PERSONAL's pages
 
 What PERSONAL's rows open, besides Skills and Items: Key Items (6),

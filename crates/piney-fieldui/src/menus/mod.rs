@@ -1,42 +1,11 @@
 //! The menus' handlers, called by the task once a frame by the menu open
 //! (`ccThMenu`'s jump table at gcmn 0x006e0300, by `CheckMenuType() + 1`).
-//!
-//! | menu | handler | what |
-//! | ---: | --- | --- |
-//! | 0, 1, 2 | `SystemMenu` | PERSONAL: town, field, dungeon (triangle) |
-//! | 3 | `ChatMenu` | CHAT: the party's orders (square) |
-//! | 71 - 73 | `ChatMenu1`, `ChatMenu2`, `ChatMenu3` | CHAT's member: its orders, skill, target ([`chat_member`]) |
-//! | 4 | `SkillMenu` | Skills (PERSONAL) |
-//! | 5 | `ItemMenu` | Items (PERSONAL) |
-//! | 6, 7 | `ImportantItemMenu`, `ThrowItemMenu` | Key Items, Discard Item |
-//! | 8, 31, 64 | `StatusMenu`, `ItemStatusMenu`, `EquipStatusMenu` | Status, a member's items, a piece's status |
-//! | 9, 68 - 70 | `PartyMenu`, `PartyInMenu`, `PartyOutMenu`, `PartyDisbandMenu` | PARTY: Add, Remove, Disband |
-//! | 10, 11 | `GateoutMenu`, `LogoutMenu` | Gate Out, Log Out |
-//! | 63 | `EquipmentMenu` | Equipment |
-//! | 86, 87 | `TransFieldMenu`, `AreaInfoMenu` | back to the field; Area Information |
-//! | 12 | `SystemMenu` | OPTION (START) |
-//! | 28 | `GateMenu` | the Chaos Gate |
-//! | 57 - 61 | `GtRandomMenu`, `GtNewMenu`, `GtListMenu`, `GtRecordMenu`, `GtTownMenu` | its pages |
-//! | 62 | `GtHackMenu` | the gate hack, a protected area's cores ([`hack`]) |
-//! | 21, 23, 47, 50 | `SpcMenu`, `NpcMenu`, `TalkMenu`, `PresentMenu` | talking, Gift ([`talk`]) |
-//! | 22, 24, 25, 26 | `PcMenu`, `VenderMenu`, `RecorderMenu`, `FairyshopMenu` | the lists the action button opens on a PC and the merchants ([`merchant`]) |
-//! | 27, 56 | `BreederMenu`, `BreedingMenu` | the Grunty breeders ([`breeder`]) |
-//! | 44 - 46 | `NorainuMenu`, `OtonainuMenu`, `InuMenu` | Dun Loireag's stray dogs and Grunties ([`inu`]) |
-//! | 48, 49 | `TradeMenu`, `TradeSubMenu` | trading with a PC ([`trade`]) |
-//! | 51, 52, 54, 55 | `SellMenu`, `BuyMenu`, `ItemDepositMenu`, `ItemDrawMenu` | the shops and Elf's Haven ([`shop`]) |
-//! | 53 | `RecordMenu` | the Recorder's Save ([`record`]) |
-//! | 13 - 20 | `ControllerMenu`, `VibrationMenu`, `ScreenMenu`, `SoundMenu`, `ResetMenu`, `DataDrainDemoMenu`, `VoiceMenu`, `StrwinMenu` | the OPTION pages |
-//! | 29, 30, 32, 33, 38, 67 | `GetItemMenu`, `ReplaceItemMenu`, `ItemBoxMenu`, `TrapBoxMenu`, `ItemIdolMenu`, `DataDrainSubMenu` | an item got, the boxes and idols ([`getitem`]) |
-//! | 34 - 37, 39, 43 | `ItemObjMenu`, `TrapObjMenu`, `SymbolMenu`, `VirusMenu`, `TimeIdolMenu`, `FoodMenu` | the breakables, symbols, virus crystals, the Zeit statue and the Grunty foods ([`objects`]) |
-//! | 65 | `TargetMenu` | a skill's or an item's target, and its use |
-//! | 66, 67 | `DataDrainMenu`, `DataDrainSubMenu` | Data Drain ([`drain`]) and its drops |
-//! | 75 | `PersonalMenuT` | PERSONAL, the party tutorial (event 2) |
-//! | 76 | `PartyMenuT` | PARTY, the party tutorial |
-//! | 77 | `PartyInMenuT` | Add to party, the party tutorial |
-//!
-//! Every other number is listed in `docs/engine/field-ui.md`; the port
-//! closes a menu it has no handler for (and says so with
-//! [`crate::Request::Unported`]).
+//! One module per menu or family: PERSONAL and OPTION (`system`), the
+//! battle menus, the talk and shop menus ([`talk`], [`merchant`],
+//! [`trade`], [`shop`]), the Chaos Gate (`gate`, [`hack`]) and the field
+//! objects ([`objects`], [`getitem`]). Every number and its handler is
+//! listed in docs/engine/field-ui.md; the port closes a menu it has no
+//! handler for (and says so with [`crate::Request::Unported`]).
 
 pub mod breeder;
 pub mod chat;

@@ -1,12 +1,10 @@
 //! The sprites `ccMenuCtrl` owns, as the menu code drives them: a
 //! `ccSprite`'s fields set one by one, then `MakePacket` (a cell of the
 //! grid) or `MakePacketStr` (a string of cells) queues a packet, and
-//! `SendPacket` hands the queue to the layer.
-//!
-//! [`Spr`] keeps exactly the fields the code writes (position, size, cell
-//! grid, colour, rotation), and each queued [`Packet`] a copy of them at
-//! the call, so the port can be compared call for call with the game and
-//! drawn afterwards by [`crate::render`].
+//! `SendPacket` hands the queue to the layer. [`Spr`] keeps exactly the
+//! fields the code writes, and each queued [`Packet`] a copy of them at the
+//! call, so the port can be compared call for call with the game and drawn
+//! afterwards by [`crate::render`].
 
 use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
 

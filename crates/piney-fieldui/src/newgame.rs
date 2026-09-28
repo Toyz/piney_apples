@@ -1,30 +1,11 @@
 //! What `ccSetupNewGame` (main 0x001687a0) does to the save as The World
 //! starts, after the overlay (GCMN.PRG) is in: `ccSaveData::InitSpcParam`
 //! (main 0x00175d30), `newGameFlag` (+0x6770) = 1, `SetSpcBaseMsg`
-//! (0x00176200, [`crate::menus::talk::set_spc_base_msg`]).
-//!
-//! `InitSpcParam` gives a new game its starting kit, and does nothing once
-//! `newGameFlag` is 1:
-//!
-//! ```text
-//! newGameFlag 0 or 2: for member i in 1..18 (2: only those not in partyMemberFlag's bit i)
-//!     ChangeEquipment(i, ccGetJobWeaponCategory(spcParam[i].job), -1)
-//!     ChangeEquipment(i, 6, -1) .. (i, 9, -1)
-//!     spcDefaultItemList[i][0..10] (gcmn 0x00647d80, 40 bytes a member):
-//!         AddItem(i, category, id, num) for each whose category is not negative
-//! newGameFlag 0 only, Kite:
-//!     ChangeEquipment(0, ccGetJobWeaponCategory(spcParam[0].job), -1), then 6 .. 9
-//!     AddItem(0, ...) for each of playerDefaultItemList[24] (0x00647cc0) and
-//!         playerDefaultImportantItemList[24] (0x00647d20), whatever the category
-//!     parodyFlag: spcParam[0].level = 1, 30, 50, 70 and ccSetLevelParam(spcParam[0],
-//!         20, 50, 70, 90) by volumeNum 1-4; AddItem(0, 15, k, 50) for k in 0..12
-//! ```
-//!
-//! `ChangeEquipment(sid, cat, -1)` changes no piece: it adds the skills of
-//! the piece `NewGame` put in that slot (from `charTbl`) and the sets' to
-//! the member's `skillList`, which is where the starting skills come from.
-//! `ccGetJobWeaponCategory(job)` (gcmn 0x005711f0) is the job for 0-5 and 0
-//! for anything else.
+//! (0x00176200, [`crate::menus::talk::set_spc_base_msg`]). `InitSpcParam`
+//! gives a new game its starting kit and does nothing once `newGameFlag`
+//! is 1; `ChangeEquipment(sid, cat, -1)` changes no piece but adds the
+//! skills of the one in the slot, which is where the starting skills come
+//! from. The steps are in docs/engine/field-game.md.
 
 use piney_battle::Tables;
 use piney_battle::item::{self as bitem, CategoryOrder};

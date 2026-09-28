@@ -1,41 +1,11 @@
 //! `ImportantItemMenu` (gcmn 0x0052f980, menu 6, Key Items) with
 //! `ImportantItemMenuDisp` (0x005305d0), and `ThrowItemMenu` (0x00530d60,
-//! menu 7, Discard Item) with `ThrowItemMenuDisp` (0x00531820).
-//!
-//! Key Items lists `saveData.impItemList[291]` (+0xcfc, a count per key
-//! item) by page (`SetImportantItemList` 0x005274f0): 0 Event Item (ids
-//! 42-73 and 281-290), 1 Grunty Food (26-41), 2 Virus Core (0-25), 3 Book
-//! of 1000 (273-280); two pages before the bracelet, three in Parody Mode.
-//!
-//! ```text
-//! proccess 0   target fixed and dropped; the pages; the dim in
-//! proccess 1   SelectScr; cancel (19) back; OK (18) by ccCheckItemUseful:
-//!              0 help 0; in town only 12 and 15 (help 1); 2 used at once:
-//!              the Grunty Flute (15/49) only in a field (help 2), not on
-//!              fields 13 and 67 (help 4), not in battle (help 5): 20; a
-//!              Ryu Book (15/273-280) only in town (help 8); else 2;
-//!              1 TARGET (65); else the item's name and comment
-//! proccess 2   the window gone: ccUseItemRequest on the player; a Ryu
-//!              Book fades out, lets the tasks run a frame and fades back
-//!              in over 10 (then 3 frames); else 8 frames: the list again
-//! proccess 10  the help as an information window, Check, 8 frames
-//! proccess 20  the Grunty Flute: from slot rand() % 3 the first Grunty
-//!              ccPgAdultCheck finds; none: "There are no Grunties ..."
-//! ```
-//!
-//! Discard Item runs over the player's items as the Items menu shows them
-//! (`SetItemList`, `ItemMenuDisp`):
-//!
-//! ```text
-//! proccess 0   as Items (five pages)
-//! proccess 1   SelectScr; triangle on equipment: its status (64); cancel
-//!              back; OK on an item: the count (exceptionDisp 2)
-//! proccess 2   up / down one, left / right ten (1 to the count held);
-//!              cancel back; OK: the window out
-//! proccess 3   "Discard N #Gitem#W." with OK / Cancel (list disp 11)
-//! proccess 4   Select; OK on OK: ccSaveData::DelItem(0, cat, id, N)
-//! proccess 5   the list again
-//! ```
+//! menu 7, Discard Item) with `ThrowItemMenuDisp` (0x00531820). Key Items
+//! lists `saveData.impItemList[291]` (+0xcfc) by page
+//! (`SetImportantItemList` 0x005274f0): Event Items, Grunty Food, Virus
+//! Cores, the Book of 1000. Discard Item runs over the player's items as
+//! the Items menu shows them. The steps are in docs/engine/field-ui.md
+//! (PERSONAL's pages).
 
 use piney_desktop::eef::from_int;
 

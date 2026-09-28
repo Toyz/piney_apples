@@ -4,25 +4,8 @@
 //! equipment piece's, `EquipStatusMenu` (0x00539430, menu 64) with
 //! `EquipStatusMenuDisp` (0x00539ca0); and the boxes those pages and
 //! Equipment (63) share: `ParameterDisp` (0x00523e50), `SkillDisp`
-//! (0x00524e20) and `BeffDisp` (0x005251f0, and the `ccCondition` form
-//! 0x00525150). The level box is [`crate::menus::party::level_disp`].
-//!
-//! The page is a grid the cursor walks (`list.sx` the column, `list.sy`
-//! the row): the equipment (column 0, rows 0-4), the skills (columns 1-2,
-//! rows 0-7), the added effects (rows 8-10), the parameters (rows 11-14,
-//! columns 0-3); L1 / R1 through the party's members (the list's page).
-//!
-//! ```text
-//! Status   triangle on a piece of equipment: its status (64, itemNum the
-//!          piece); square: the member's items (31, temp[0] the member);
-//!          cancel (19) back; on every move the row's help (ccMsg->Change
-//!          at (39, 334)): statusMenuHelp[sx * 15 + sy], a skill's own help,
-//!          an effect's (statusBeffStr)
-//! 31       Items (SetItemList of the member), five pages; triangle on
-//!          equipment: 64; cancel back; the item's name and comment
-//! 64       the piece: its name and comment, its three skills, its added
-//!          effects, its parameters; cancel back
-//! ```
+//! (0x00524e20) and `BeffDisp` (0x005251f0; 0x00525150 on `ccCondition`s).
+//! The grid and the steps are in docs/engine/field-ui.md (PERSONAL's pages).
 
 use piney_desktop::eef::{add, from_int, mul, sub};
 

@@ -1,78 +1,11 @@
 //! Dun Loireag's dogs and Grunties: `NorainuMenu` (gcmn 0x0054a680, menu
-//! 44, a stray dog: `npcTbl` rows 141-144, base type 0x04000000),
-//! `OtonainuMenu` (0x0054ac40, 45, a grown Grunty: rows 145-153, type
-//! 0x02000000) and `InuMenu` (0x0054b1d0, 46, a young one: rows 154-157,
-//! type 0x01000000) with `InuMenuDisp` (0x0054bb10). Their lists are Talk
-//! (47) alone (`defNorainuMenu`), Talk and Trade (48, `defOtonainuMenu`),
-//! Talk and Give Food (56, `defInuMenu`).
-//!
-//! ```text
-//! NorainuMenu
-//! proccess 0  cmndTargetFix; no target: CloseMenu (firstTime 0). The rows:
-//!             the list's items' names; the first time the dog sits and
-//!             faces Kite (EntryAffect 14) and greets (base->msg's first
-//!             record, voice ccCheckVoiceGrp(id), 0), the cursor on the
-//!             first row; talkNum 1, 3 or 5 (ccRand() & 3, 3 read as 0,
-//!             times 2 plus 1): Talk's line
-//! proccess 1  Select; cmndTarget gone: CloseMenu, ccMsg->Close,
-//!             ccEvVoiceStop, then the keys (next frame's pad)
-//!             cancel (19): EntryAffect 0 (it walks on), CloseMenu,
-//!             ccMsg->Close, ccEvVoiceStop
-//!             OK (18): a row past the first drops the target (the tasks
-//!             asleep, ccChangeCmndTarget(0)); ChangeMenu, ccMsg->Close,
-//!             ccEvVoiceStop
-//!
-//! OtonainuMenu
-//! proccess 0  cmndTargetFix; no target: CloseMenu. The rows; the first
-//!             time EntryAffect 14 (dogAction2 / dogActionAdult: line 7)
-//!             and the greeting (base->msg's first record, voice
-//!             ccCheckVoiceGrp(id), 0); the cursor on Talk; talkNum the
-//!             Grunty's msgNum
-//! proccess 1  Select; cmndTarget gone: ccEvVoiceStop, CloseMenu,
-//!             ccMsg->Close, then the keys (next frame's pad)
-//!             cancel (19): EntryAffect 0 (a target still there),
-//!             ccEvVoiceStop, CloseMenu, ccMsg->Close
-//!             OK (18): Trade drops the target (the tasks asleep,
-//!             ccChangeCmndTarget(0)); ccEvVoiceStop, ChangeMenu,
-//!             ccMsg->Close
-//!
-//! InuMenu
-//! proccess 0  no target: CloseMenu. cmndTargetFix; the rows; the first
-//!             time the cursor on Talk, menuFade->EntryFade(10, 0,
-//!             0x80000000), the minimap and the window out, cursolOff 1,
-//!             the target dropped (the Grunty now cmndTargetPrev): 1; else
-//!             4
-//! proccess 1  the fade done: EntryAffect(cmndTargetPrev, plw, 11) (the
-//!             fixed camera, Kite and the Grunty at their places)
-//! proccess 2  ContinueFade(fade, 10, 0)
-//! proccess 3  the fade done: DeleteFade, the Grunty the target again,
-//!             EntryAffect 14 and its greeting (base->msg's first record,
-//!             voice ccCheckVoiceGrp(id), its msgNum)
-//! proccess 4  exceptionDisp 1 (the STATUS window), the window in; the
-//!             Grunty's foodMode 0
-//! proccess 5  Select; cancel (19): ccEvVoiceStop, ccMsg->Close, the window
-//!             out, 20
-//!             OK (18): ccEvVoiceStop, ccMsg->Close; Talk: EntryAffect 15,
-//!             talkNum its msgNum, ChangeMenu. Give Food with none of the
-//!             foods (key items 26-41): the window out, the dim, the tasks
-//!             asleep, the target dropped, 10; with some: its foodMode and
-//!             chatFlag 1, the target dropped, ChangeMenu
-//! proccess 10 the window gone: "There is no food." (breedingMenuHelp[0])
-//! proccess 11 Check(0): Close, the tasks woken (a breath), the Grunty the
-//!             target again, the dim out, 4
-//! proccess 20 menuFade->EntryFade(10, 0, 0x80000000)
-//! proccess 21 the fade done: EntryAffect 11 (the field camera back)
-//! proccess 22 ContinueFade(fade, 10, 0)
-//! proccess 23 the fade done: DeleteFade, EntryAffect 0 (it walks on), the
-//!             minimap back, cursolOff 0, CloseMenu
-//! ```
-//!
-//! The game draws NorainuMenu's `talkNum` from `ccRand`, the town's
-//! Mersenne Twister; the menu here has only `rand()`
+//! 44, a stray dog: `npcTbl` rows 141-144), `OtonainuMenu` (0x0054ac40, 45,
+//! a grown Grunty: rows 145-153) and `InuMenu` (0x0054b1d0, 46, a young one:
+//! rows 154-157) with `InuMenuDisp` (0x0054bb10). The game draws
+//! NorainuMenu's `talkNum` from `ccRand`; the menu here has only `rand()`
 //! ([`talk::TalkState::rand`]). The Grunty's affect functions change its
-//! msgNum at once in the game; the menus here read the world's Grunty as
-//! the frame began, so they make the same change to it themselves
-//! ([`after_affect`]).
+//! msgNum at once, so the menus make the same change to the world's copy
+//! ([`after_affect`]). The steps are in docs/engine/field-ui.md.
 
 use piney_desktop::eef::from_int;
 

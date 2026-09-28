@@ -1,53 +1,10 @@
 //! CHAT's per-member menus: `ChatMenu1` (gcmn 0x0052a950, menu 71) the
 //! member's own orders, `ChatMenu2` (0x0052ba80, 72) the skill it is to
 //! use (drawn by `SkillMenuDisp`), `ChatMenu3` (0x0052c0b0, 73) whom on.
-//! CHAT's Members page opens 71 on the `chatMember`th member.
-//!
-//! ```text
-//! 71 proccess 0  no member: back. The rows (reverseHead greys a row):
-//!                  in town     Change Equipment (grey when the member
-//!                              cannot change: CheckChangeEquip)
-//!                  in battle   Designate Skill, Change Equipment, First
-//!                              Aid!, Designate Target, Assemble, Standby
-//!                              (0, 2, 3 grey for a fallen member)
-//!                  else        Designate Skill, Change Equipment, First
-//!                              Aid! (0, 2 grey for a fallen member)
-//!    proccess 1  Select; cancel (19) back to CHAT; OK (18):
-//!                  a fallen member's skill, aid or target: "Cannot be
-//!                  used while dead." (proccess 10, warning 0)
-//!                  Change Equipment the member cannot: chatMenuWarn 1
-//!                  (a skill under way) or 2 (proccess 10)
-//!                  else chatAction = 5 (skill: menu 72), 20 (equipment:
-//!                  menu 63 on the member, firstTime), 16 / 3 / 4 (aid,
-//!                  assemble, standby: RequestChatCmd(member, cmd, 0, 0)
-//!                  and "<name>, first Aid!" / "come here!" / "standby!"
-//!                  in the player's balloon, the menu shut), 11 (target:
-//!                  menu 73); chatSkill = -1
-//!                then the row's help (DispMsg)
-//!    10 11 12    the window gone: the warning; Check: Close; 8 frames,
-//!                then proccess 0
-//! 72 proccess 0  no member: back; no skill known: "There is no skill you
-//!                can use." (proccess 11); else the member's skills,
-//!                five pages (SetSkillList on the member)
-//!    proccess 1  SelectScr; cancel back to 71; OK on a skill: short of
-//!                SP, skillMenuHelp[1] (proccess 10); else chatSkill =
-//!                the skill, menu 73; then the skill's name and help
-//!    10 11 12    as 71's, but back to 71 at the end
-//! 73 proccess 0  the candidates: a skill for allies (targetType & 3) the
-//!                party standing (skill 180: fallen, but not state 5);
-//!                else cmndSortRoot's enemies within 2200 in front of the
-//!                camera, standing (16 at most); none: targetMenuWarn
-//!                (proccess 10); else at most 8 rows
-//!    proccess 1  the names, SelectScr, ccChangeCmndTarget to the
-//!                cursor's, an area skill's sub-targets around it; cancel
-//!                (19) the target dropped, back; OK (18):
-//!                RequestChatCmd(member, chatAction, target, chatSkill)
-//!                and the order in the balloon ("<name>, attack <target>!"
-//!                or "<name>, use <skill> on <target>!"), the target
-//!                dropped, the menu shut; then the help (DispMsg: 12, or
-//!                13 with a skill)
-//!    proccess 10 Check: Close, back
-//! ```
+//! CHAT's Members page opens 71 on the `chatMember`th member; the order
+//! goes out as `RequestChatCmd(member, chatAction, target, chatSkill)` with
+//! the player's line in the balloon. The rows, warnings and candidates are
+//! in docs/engine/field-ui.md (a member's orders).
 
 use crate::Request;
 use crate::ctrl::{Ctx, Flow, MenuCtrl, SE_BACK, SE_OK};

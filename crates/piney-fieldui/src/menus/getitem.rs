@@ -1,23 +1,9 @@
 //! An item got (`GetItemMenu`, gcmn 0x00544020, menu 29), the full bag's
 //! exchange (`ReplaceItemMenu`, 0x00544e50, menu 30), the box's draw
 //! (`AreaItem`, 0x00544c00) and the treasure box of the item tutorial
-//! (`ItemBoxMenuT`, 0x0056a300, menus 84 and 85).
-//!
-//! ```text
-//! GetItemMenu      "You now have <item>!" (sound 74); into the bag
-//!                  (AddItem; a key item into impItemList); 99 already:
-//!                  "You already have 99", "Gave up"; the bag full (40
-//!                  kinds): "Exchange with a current item?" OK: 30,
-//!                  Cancel: "Gave up"; then back to the Data Drain (67)
-//!                  or shut
-//! ReplaceItemMenu  the Items pages (ItemMenuDisp); an item picked:
-//!                  "Discard <it> for <new>?" OK: it goes (DelItem 99),
-//!                  the new one in; Cancel: "Give up <new>?" OK: "Gave
-//!                  up"; triangle on equipment: its status (64)
-//! ItemBoxMenuT     event 4's line 16 (84) or 20 (85); the action button:
-//!                  the box opens (EntryAffect 11), its item (or a draw
-//!                  from the area's list), itemBoxCount up, into 29
-//! ```
+//! (`ItemBoxMenuT`, 0x0056a300, menus 84 and 85). Both 29 and 30 end back
+//! in the Data Drain (67) when 29 came from it, else shut. The steps are in
+//! docs/engine/field-ui.md (an item got, the tutorials).
 
 use piney_event::ScriptSave;
 

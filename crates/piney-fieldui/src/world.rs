@@ -1,14 +1,10 @@
-//! What the field UI reads of the world each frame.
-//!
-//! `ccMenuCtrl` reaches into the game through globals: `game` (the mode,
-//! the area, the battle flags), `ccPartyManager` (the three party slots),
-//! `cmndTarget` / `cmndTargetPrev` (what the player faces, from
-//! `ccThGameCtrl`), `cmndSortRoot` (the characters in reach, sorted), `plw`
-//! (the player), `eventMng` and `ccSys.count`. The runtime fills a
-//! [`World`] with the same facts before each [`crate::FieldUi::step`]; the
-//! UI never changes it. Screen positions of characters are the world's to
-//! compute (`ccCalcTagPosChar` / `ccCalcTagPos` project through the field
-//! camera); the UI takes them as given.
+//! What the field UI reads of the world each frame. `ccMenuCtrl` reaches
+//! into the game through globals: `game`, `ccPartyManager`, `cmndTarget` /
+//! `cmndTargetPrev`, `cmndSortRoot`, `plw`, `eventMng` and `ccSys.count`.
+//! The runtime fills a [`World`] with the same facts before each
+//! [`crate::FieldUi::step`]; the UI never changes it. Screen positions of
+//! characters are the world's to compute (`ccCalcTagPosChar` /
+//! `ccCalcTagPos` project through the field camera).
 
 /// `ccGame` as the menus read it.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

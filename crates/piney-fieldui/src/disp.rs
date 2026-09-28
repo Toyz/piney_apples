@@ -1,20 +1,10 @@
 //! `ccMenuCtrl::Disp` (gcmn 0x0051cfb0), once a frame from the task: the
-//! whole field HUD on the menu layer.
-//!
-//! ```text
-//! the battle band's clock (in battle, before the fight, no menu)
-//! the target: cmndTarget, else cmndTargetPrev, else dummyTarget
-//! menuStatus: alpha and kanjiAlpha in by 24, out by 28
-//! the menu's own page (ExceptionDisp), the list's window and rows
-//! the dim (bgStatus, to 104 by 15), the minimap's alpha (mapStatus)
-//! the bracelet's gauge (drainStatus)
-//! nameKanji: target name, its action, the three party names, ...
-//! the target cursor and the target's window (name, HP, SP)
-//! the party panels (panelStatus): faces, names, HP and SP bars
-//! the enemies' life bars, the protect marks
-//! the battle banner; the new-mail notice (towns)
-//! ccMsg->Disp; then every sprite's SendPacket in a fixed order
-//! ```
+//! whole field HUD on the menu layer. In order: the battle band's clock,
+//! the target, the menu's fades and page, the dim, the minimap's alpha, the
+//! bracelet's gauge, `nameKanji`, the target's cursor and window, the party
+//! panels, the enemies' life bars, the banners, `ccMsg->Disp`, then every
+//! sprite's `SendPacket` in a fixed order. The details are in
+//! docs/engine/field-ui.md (the HUD).
 
 use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
 use piney_desktop::eef::{add, div, from_int, mul, sub, to_int};
@@ -289,23 +279,13 @@ pub fn noiz(m: &mut MenuCtrl, x: &mut Ctx, n: Noise) {
     }
 }
 
-/// `Disp`'s `interNoiz` (INF 0x00522220 - 0x005223e4), before
-/// `ccNoiz::Draw`:
-/// - 2: a burst, `SetNoiz(12, 12, 12)`, once (`interNoiz` back to 0).
-/// - Infection's 3 in town 4: every 16th frame `SetNoiz(rand() % 10 + 4,
-///   255, rand() % 10 + 4)`, the sampling held on.
-/// - Mutation on (MUT 0x005403c8 - 0x005406fc, the same on Outbreak and
-///   Quarantine), the events' `noise level` 1 - 3:
-///   - 3: every 128th frame, and every other 64th by `rand() & 1`,
-///     `SetNoiz(rand() % 10 + 10, rand() % 10 + 15, rand() % 10 + 4)`;
-///   - 4: every 16th frame `SetNoiz(255, 255, 255)`;
-///   - 5: every 32nd frame the same random noise (on frames with bit 6
-///     set, only when `rand() & 3` is 0, else `SetNoiz(255, 255, 255)`)
-///     and `cameraShake(2, 1, 30, 2)`; every 8th frame sound 258.
-/// - Otherwise (1, and Infection's 3 elsewhere): riding a Grunty or with
-///   no menu, ban or event, every 64th frame a one-in-four chance
-///   (`rand() & 3`) of `SetNoiz(n, n, n)`, n `rand() % 9 + 4`; in a menu
-///   but Data Drain's (66) and the gate hack's (62), the noise off.
+/// `Disp`'s `interNoiz` (INF 0x00522220 - 0x005223e4; MUT 0x005403c8 -
+/// 0x005406fc, the same on Outbreak and Quarantine), before `ccNoiz::Draw`:
+/// 2 is one `SetNoiz(12, 12, 12)` burst; Infection's 3 in town 4 and, from
+/// Mutation on, the event levels 3 - 5 make their own noise; otherwise, on
+/// a Grunty or with no menu, ban or event, a one-in-four chance every 64th
+/// frame, and in a menu but Data Drain's (66) and the gate hack's (62) the
+/// noise off. The rules are in docs/engine/field-ui.md (the noise).
 fn inter_noiz(m: &mut MenuCtrl, x: &mut Ctx) {
     let level = m.inter_noiz;
     if level == 0 {

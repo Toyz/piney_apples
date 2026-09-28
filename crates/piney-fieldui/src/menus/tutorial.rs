@@ -1,19 +1,9 @@
 //! The tutorial menus the opening's events open (`menu num=75` ...): the
 //! real menus' lists with every row but one greyed, and Orca's lines from
 //! the event's own message table (`evMsgTblM1[2]`, or `evMsgTblM1p` in
-//! Parody Mode) opened by the menu itself.
-//!
-//! ```text
-//! 75 PersonalMenuT (0x005670c0)  message 12 ("press triangle"); the button
-//!                                opens the list, message 13; only Party
-//!                                (row 6) goes on (to 76), the rest buzz (20)
-//! 76 PartyMenuT (0x00567410)     message 14; only Add (row 0) goes on (to 77)
-//! 77 PartyInMenuT (0x00567660)   messages 15 - 18 over the members who can
-//!                                join (Orca, member 2), OK / Cancel (only
-//!                                OK), the call, the member added, message
-//!                                19, the panels in (7 frames on) and out
-//!                                (61 on), shut
-//! ```
+//! Parody Mode) opened by the menu itself: `PersonalMenuT` (75,
+//! 0x005670c0), `PartyMenuT` (76, 0x00567410), `PartyInMenuT` (77,
+//! 0x00567660). The lines and rows are in docs/engine/field-ui.md.
 
 use crate::Request;
 use crate::ctrl::{After, Cont, Ctx, Flow, MenuCtrl, SE_BUZZ, SE_OK, SE_OPEN};

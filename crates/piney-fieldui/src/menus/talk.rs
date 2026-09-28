@@ -1,31 +1,11 @@
 //! The talk pages: `TalkMenu` (gcmn 0x0054de30, menu 47: what the
 //! character says), `SpcMenu` (0x005418a0, 21, a party member), `NpcMenu`
 //! (0x00542510, 23, an administrator) and `PresentMenu` (0x00553cd0, 50,
-//! Gift) with `PresentMenuDisp` (0x00555020).
-//!
-//! ```text
-//! TalkMenu
-//! proccess 0  no target: CloseMenu (proccess still goes on to 1).
-//!             base->msg 0: back to the list (menuNext = prev, proccess 1).
-//!             Else EntryAffect(cmndTarget, plw, 15) and the line, by the
-//!             character's type:
-//!   party (4)   msg[saveData.talkNum[id]][talkNum], voice (-31, 2 id + 1)
-//!   a PC (8), 66-79 (the trading PCs)
-//!               the next open trade after talkNum (unless talkTradeFlag);
-//!               none: tradeMenuHelp[6]; else talkTradeFlag 0 and the trade
-//!               in words from tpcTradeList[id - 66][talkNum]: tpcTalkStr's
-//!               "... N #Gitem ..." and up to three "N #Gitem#W, " offers
-//!   a PC, others
-//!               msg[(saveData.talkNum[0] + 1) * 3 + talkNum] for the first
-//!               three talks (talkNum 0-2 round), then msg[1]
-//!   a merchant or breeder (0x08001f00)
-//!               msg[game.server][talkNum]
-//!   anyone else msg[talkNum], voice (ccCheckVoiceGrp(id), talkNum)
-//!             proccess 1
-//! proccess 1  no target: CloseMenu. Check(1) (emode 1 chains the table's
-//!             next record) until the line is done: back to the list
-//!             (menuNext = prev, proccess 0 - the list goes on at 1)
-//! ```
+//! Gift) with `PresentMenuDisp` (0x00555020). TalkMenu picks the line by
+//! the character's type (a member's by `talkNum[id]`, a trading PC's the
+//! next open trade in words, a merchant's by server) and goes back to the
+//! list when `Check(1)` answers. The steps are in docs/engine/field-ui.md
+//! (Talk, SpcMenu, Gift).
 
 use piney_battle::item as bitem;
 use piney_desktop::eef::from_int;
@@ -274,16 +254,8 @@ pub fn set_spc_base_msg(save: &mut piney_desktop::SaveState, volume: piney_data:
 
 /// `NpcMenu` (gcmn 0x00542510, menu 23): an administrator (`npcTbl` rows
 /// 29 and 158, type 0x10, whose `msg` is `sysopeMsg`) says its line; there
-/// is no list.
-///
-/// ```text
-/// proccess 0  no target, or base->msg 0: CloseMenu, then proccess 1 (the
-///             menu is shut by then). Else EntryAffect(cmndTarget, plw,
-///             15) and ccMsg->Open(base->msg, base->name, -1, -1)
-/// proccess 1  no target, or a battle: CloseMenu, ccMsg->Close. Check(1)
-///             (emode 1 chains the table's next record) until the line is
-///             done: CloseMenu
-/// ```
+/// is no list. `Check(1)` chains an emode-1 record to the next in its
+/// table; the menu shuts when the line is done, or at once in a battle.
 pub fn npc_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     match m.proccess {
         0 => {
@@ -314,22 +286,8 @@ pub fn npc_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
 
 /// `SpcMenu` (gcmn 0x005418a0, menu 21): a party member spoken to (its
 /// base is `saveData.spcParam[id].base`); the list is Talk (47), Trade
-/// (48), Gift (50).
-///
-/// ```text
-/// proccess 0  cmndTargetFix; no target: CloseMenu. The rows' names; the
-///             first time the member stops and faces Kite (EntryAffect
-///             14) and greets (ccMsg->Open(base->msg[talkNum[id]],
-///             base->name, voice -31, 2 id)), the cursor on Talk, its
-///             trade count started (CheckTradeCount < 0: AddTradeCount);
-///             talkNum 1
-/// proccess 1  Select; no target: CloseMenu, ccMsg->Close; a battle:
-///             EntryAffect 0, the same
-///             cancel (19): ccEvVoiceStop, EntryAffect 0, CloseMenu,
-///             ccMsg->Close
-///             OK (18): ccEvVoiceStop; off Talk the target dropped;
-///             ChangeMenu; ccMsg->Close
-/// ```
+/// (48), Gift (50). The first time it greets (voice -31, `2 id`) and starts
+/// the member's trade count. The steps are in docs/engine/field-ui.md.
 pub fn spc_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     let i = idx(m);
     match m.proccess {
@@ -605,13 +563,10 @@ pub enum Added {
 
 /// `ccMenuCtrl::AddSpcItem(spc, cat, id, num, tf)` (gcmn 0x00527950): an
 /// item given to party member `sid` (the character `member`). A book (12)
-/// is read at once, `num` times (2). Equipment the member can wear (a
-/// weapon of its job; armour of a weight class its job takes: 2, 3, 3, 3,
-/// 2, 1 by job) that is dearer than what it wears is put on (1):
-/// `ChangeEquipment`, `CalcReal`, and with `tf` the thread `ccThEquipMenu`
-/// (`ChangeEquip`), which the menu breathes once for; one fewer then goes
-/// to the bag, with the piece taken off. Anything else goes to the bag
-/// (0).
+/// is read at once, `num` times (2). Equipment the member can wear that is
+/// dearer than what it wears is put on (1), with `tf` the thread
+/// `ccThEquipMenu`, which the menu breathes once for; one fewer then goes
+/// to the bag, with the piece taken off. Anything else goes to the bag (0).
 #[allow(clippy::too_many_arguments)]
 pub fn add_spc_item(
     m: &mut MenuCtrl,
@@ -758,37 +713,8 @@ fn bag_item(m: &MenuCtrl, x: &Ctx, k: i16) -> Item {
 /// is given goes to the member's bag (or is worn, or read), the gift's
 /// worth to `spcPresent` and the member's friendship, and the member
 /// thanks Kite. The member is `cmndTargetPrev` (SpcMenu dropped it).
-///
-/// ```text
-/// proccess 0  the other tasks asleep (unless still); the page (five
-///             tabs), the dim
-/// proccess 1  SelectScr; triangle on equipment: its status (64); cancel
-///             (19): 10; OK (18) on an item: the count (exceptionDisp 2,
-///             waitCount 1). The item's name and comment (DispMsg)
-/// proccess 2  up / down one, left / right ten (1 .. carried); cancel: 1;
-///             OK: 3. presentMenuHelp[0] meanwhile
-/// proccess 3  the window gone: "Give N #Gitem#W." (OpenInfo), OK / Cancel
-/// proccess 4  Select; Cancel: 5. OK: spcPresent[id - 1] += price x N (at
-///             most 9999999); AddSpcItem(member, item, N, 1) into trapNum;
-///             itemNum; DelItem(0, item, N); the dim out; in town the
-///             tasks woken (a breath); 6
-/// proccess 5  the window gone: the page again (1)
-/// proccess 6  the window gone: the gift's worth (its price x the
-///             member's rate / 10; Mia's 14/10: 50000) picks the thanks
-///             (spcMsgPresent10/11[id] + 0-4: under 100, 5000, 10000,
-///             20000) and the friendship (+1, 10, 20, 50, 100);
-///             ccMsg->Open(thanks, name, voice -32, 5 id + n)
-/// proccess 7  Check(0): Close; the tasks asleep; the dim; 8
-/// proccess 8  ten frames, then "<name> received #G<item>#W." (by trapNum:
-///             received, equipped (sound 92 for used), used) (OpenInfo)
-/// proccess 9  Check(0): Close, the dim out, the tasks woken (a breath);
-///             cmndTargetFix 0; EntryAffect(member, 0) and
-///             ccSpcMessagePresentOtherFellow(member); CloseMenu
-/// proccess 10 the member the target again; the tasks woken (a breath)
-///             when the action button put them to sleep; back to the list
-/// proccess 20-22  "No items you can give." for 16 frames, then cancel: 10
-///             (nothing sets proccess 20 on menu 50)
-/// ```
+/// Nothing sets proccess 20 ("No items you can give.") on menu 50. The
+/// steps and the worth's thresholds are in docs/engine/field-ui.md (Gift).
 pub fn present_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     let i = idx(m);
     match m.proccess {

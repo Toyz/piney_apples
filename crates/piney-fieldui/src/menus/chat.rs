@@ -1,29 +1,11 @@
 //! `ChatMenu` (gcmn 0x00528f20, menu 3) and `ChatMenuDisp` (0x00529fa0,
-//! menus 3 and 83): CHAT, the party's orders (the square button).
-//!
-//! ```text
-//! proccess 0   target fixed and dropped; the dim in; alone: "You cannot
-//!              use this command unless in a party." (proccess 50)
-//!              in town (proccess 10): two pages, the town orders and
-//!              the members; else (proccess 20) three: Skill Usage (seven
-//!              orders, eight with the Sprite Ocarina's where it can be
-//!              used), Strategy (four), Members
-//!              the first time: each member's chat settings kept
-//! proccess 10  Select over 2 pages; cancel (19): shut (any member whose
-//!              settings changed told so); OK (18): the order to every
-//!              member and the player's line in the chat balloon, or the
-//!              member's own orders (ChatMenu1, 71)
-//! proccess 20  SelectScr over 3 pages, the same; a strategy is kept in
-//!              saveData.tactics
-//! proccess 50  until Check: Close, and shut
-//! then         while proccess < 50: the order's help (DispMsg)
-//! ```
-//!
-//! The settings record: `proccess 0` writes -1 at `equipSpcNum + 2 k` and
-//! the member's six settings at `chatMember + 12 k` for party slots k = 1,
-//! 2 (the two strides differ, so the -1 marks stay; the cancel reads the
-//! marks and so tells no member anything unless the first-time pass was
-//! skipped). The port keeps the same 36 bytes ([`MenuCtrl::chat_mem`]).
+//! menus 3 and 83): CHAT, the party's orders (the square button): two
+//! pages in town, three elsewhere (Skill Usage, Strategy, Members). The
+//! first pass writes -1 at `equipSpcNum + 2 k` and the members' settings at
+//! `chatMember + 12 k`; the strides differ, so the cancel tells no member
+//! anything unless that pass was skipped or a member's Change Equipment
+//! wrote its mark. The port keeps the same 36 bytes
+//! ([`MenuCtrl::chat_mem`]). The steps are in docs/engine/field-ui.md.
 
 use crate::Request;
 use crate::ctrl::{After, Cont, Ctx, Draw, Flow, MenuCtrl, SE_BACK, SE_OK};

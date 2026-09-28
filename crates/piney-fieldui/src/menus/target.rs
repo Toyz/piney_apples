@@ -1,28 +1,10 @@
 //! `TargetMenu` (gcmn 0x00531af0, menu 65): who a skill or an item goes
-//! to, and its use.
-//!
-//! ```text
-//! proccess 0  the cursor to the top, the sub-targets cleared
-//! proccess 1  the candidates, every frame (at most 8, names 16 glyphs):
-//!               a skill (from Skills) or an item's skill: the party (3 in
-//!               targetType; 180 the fallen), then cmndSortRoot's
-//!               characters of its target types in reach (triggerRange +
-//!               width), standing, in front of the camera, Data Drain only
-//!               on a broken protect
-//!               item 13/0: those within 7000 of type 0x28000
-//!               item 10/18 on: the standing party
-//!             none: "No target in range." / Data Drain's warning (proccess
-//!             2); else Select, ccChangeCmndTarget to the cursor's, an area
-//!             skill's sub-targets (targetRange + width from the target, or
-//!             from the user), the help line; cancel (19) back; OK (18) or
-//!             targetType -1: the use
-//! proccess 2  until Check: Close, back
-//! the use     an item: DelItem, ccUseItemRequest; Data Drain: EntryAffect
-//!             (13) on the target and sub-targets, the SP paid, DATA DRAIN
-//!             (66); a skill: ccSkillRequest; then (item or skill) the
-//!             window shuts while the skill runs (ccSkillCheck >= 2), the
-//!             target is dropped, six frames, and the menu closes
-//! ```
+//! to, and its use. The candidates are rebuilt every frame (at most 8);
+//! the cursor's is `cmndTarget` and an area skill gathers its sub-targets.
+//! OK spends an item (`ccUseItemRequest`), marks a Data Drain's targets and
+//! opens DATA DRAIN (66), or requests the skill; then the window shuts
+//! while the skill runs, the target is dropped, six frames, and the menu
+//! closes. The rules are in docs/engine/field-ui.md (TARGET).
 
 use crate::Request;
 use crate::ctrl::{After, Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_OK, UseTail};

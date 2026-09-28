@@ -1,18 +1,8 @@
 //! `SystemMenu` (gcmn 0x00528810): the PERSONAL lists (menus 0, 1, 2:
-//! town, field, dungeon; the triangle button) and OPTION (12, START).
-//!
-//! ```text
-//! proccess 0  the items' names into menuKanji (16 glyphs each); target
-//!             fixed and dropped; the dim in; Gate Out greyed in battle or
-//!             while the events hold operation 14; Skills, Items and Key
-//!             Items greyed while the player is down
-//! proccess 1  Select; cancel (19) back to prev or shut; OK (18) into the
-//!             item, or (Skills, Items, Key Items while down) proccess 2
-//! proccess 2  the window gone: "Cannot be used while dead." (OpenInfo)
-//! proccess 3  until Check: Close
-//! proccess 4  11 frames, then the list again
-//! then        while proccess < 2: the item's help line (DispMsg, emode 0x100)
-//! ```
+//! town, field, dungeon; the triangle button) and OPTION (12, START). Gate
+//! Out is greyed in battle or while the events hold operation 14; Skills,
+//! Items and Key Items while the player is down, where OK on them says
+//! "Cannot be used while dead.". The steps are in docs/engine/field-ui.md.
 
 use crate::Request;
 use crate::ctrl::{After, Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_OK};

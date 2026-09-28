@@ -2,33 +2,10 @@
 //! `BuyMenuDisp` (0x005572e0), `SellMenu` (0x005552f0, 51) with
 //! `SellMenuDisp` (0x00555ee0), and Elf's Haven's `ItemDepositMenu`
 //! (0x00559960, 54) and `ItemDrawMenu` (0x0055ac40, 55) with their Disps.
-//!
 //! The merchant's list (`VenderMenu`, 24) puts the other tasks to sleep,
 //! keeps the shop's type in its own list's `index` and drops the target
-//! (it is `cmndTargetPrev` on these pages) before `ChangeMenu`.
-//!
-//! ```text
-//! BuyMenu: the stock is {equip,magic,item}ShopItemList[game.server] by the
-//! weapon (0x100) and magic (0x800) bits of the list's index, else items
-//! proccess 0   the page (disp 4, 18 cells, 8 rows of the stock's count),
-//!              the dim; then as 1
-//! proccess 1   SelectScr; triangle on equipment: its status (64); cancel
-//!              (19): the merchant the target again, the tasks woken, back
-//!              to the list; OK (18) on an item: the count (exceptionDisp 2,
-//!              waitCount 1, or 0 at 99 carried), proccess 2. The item's
-//!              name and comment (DispMsg)
-//! proccess 2   up / down one, left / right ten (1 .. 99 - carried);
-//!              cancel: the list (proccess 0); OK: not enough gold
-//!              (buyMenuHelp[2]), no room (3), 99 carried (4): proccess 10;
-//!              else 3. buyMenuHelp[0] (DispMsg) meanwhile
-//! proccess 3   the window gone: "Buy N #Gitem#W for P GP?" (OpenInfo),
-//!              OK / Cancel (disp 11, dialogDefault)
-//! proccess 4   Select; cancel or Cancel: 5; OK: the gold paid (at most
-//!              9999999 left), AddItem(0, item, N): 5
-//! proccess 5   the window gone: the list again (proccess 0)
-//! proccess 10  the window gone: the refusal (OpenInfo); 11 until Check;
-//!              12 eight frames; the list again
-//! ```
+//! (it is `cmndTargetPrev` on these pages) before `ChangeMenu`. Buy's stock
+//! and the steps are in docs/engine/field-ui.md (Buy, Sell, Elf's Haven).
 
 use piney_battle::item::{self as bitem, CategoryOrder};
 use piney_desktop::eef::from_int;
@@ -616,20 +593,9 @@ pub fn buy_menu_disp(m: &mut MenuCtrl, x: &mut Ctx) {
     make_num(&mut m.font, 2, bitem::get_item_num(&x.save.save, 0, cat, id));
 }
 
-/// `SellMenu`: the Items pages of the player's bag, sold at half price.
-///
-/// ```text
-/// proccess 0  the page (five tabs), the dim
-/// proccess 1  SelectScr over the tabs; triangle on equipment: its status
-///             (64); cancel: the merchant the target again, the tasks woken,
-///             back to the list; OK on an item: the count (exceptionDisp 2,
-///             waitCount 1), proccess 2. The item's name and comment
-/// proccess 2  up / down one, left / right ten (1 .. carried); cancel: 1;
-///             OK: 3. sellMenuHelp[0] meanwhile
-/// proccess 3  the window gone: "Sell N #Gitem#W for P GP?", OK / Cancel
-/// proccess 4  Select; OK: the gold (at most 9999999), DelItem: 5
-/// proccess 5  the window gone: the page again (proccess 1)
-/// ```
+/// `SellMenu`: the Items pages of the player's bag, sold at half price
+/// (`price / 2`, the gold at most 9999999). The steps are in
+/// docs/engine/field-ui.md (Sell).
 pub fn sell_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     let i = idx(m);
     match m.proccess {
@@ -832,24 +798,10 @@ fn other_slot(x: &Ctx, h: Haven) -> i32 {
 }
 
 /// `ItemDepositMenu` and `ItemDrawMenu`: an item moved between the bag
-/// and Elf's Haven's storage (99 of a kind at most on either side).
-///
-/// ```text
-/// proccess 0  the page (five tabs), the window in, the dim
-/// proccess 1  SelectScr; the rows the other side cannot take greyed
-///             (reverseHead); triangle on equipment: its status (64);
-///             cancel: the merchant the target again, the tasks woken, back
-///             to the list; OK on an item: no room (help 2) or 99 there
-///             (help 3): proccess 10; else the count (exceptionDisp 2,
-///             waitCount 1). The item's name and comment
-/// proccess 2  the count, 1 .. the least of carried and the room left;
-///             cancel: 1; OK: 3. help[0] meanwhile
-/// proccess 3  the window gone: "... N #Gitem#W." (help[1]), OK / Cancel
-/// proccess 4  Select; OK: the item moved (Add first, then Del): 5
-/// proccess 5  the window gone: the page again (proccess 1)
-/// proccess 10 the window gone: the refusal; 11 until Check; 12 eight
-///             frames; the page again
-/// ```
+/// and Elf's Haven's storage (99 of a kind at most on either side), the
+/// same code with the two sides swapped. The rows the other side cannot
+/// take are greyed (`reverseHead`); the move adds first, then deletes. The
+/// steps are in docs/engine/field-ui.md (Elf's Haven).
 fn haven_menu(m: &mut MenuCtrl, x: &mut Ctx, h: Haven) -> Flow {
     let i = idx(m);
     let help = match h {

@@ -2,25 +2,8 @@
 //! `Disp` (menuFont is `font` then): `ControllerMenuDisp` (0x0053d550),
 //! `VibrationMenuDisp` (0x0053ed90) and its three twins,
 //! `ScreenMenuDisp` (0x0053f250), `SoundMenuDisp` (0x0053fbc0), with
-//! `ccMenuWindow::DispSlideBar` (main 0x001b97f0).
-//!
-//! ```text
-//! Controller  the list at (39, 56) (its title, the select cursor, the camera
-//!             scheme in force in colour 6); the picture (menuMask, xcontrol's
-//!             256 x 128 texture) at (88, 168); round it the boxes: the
-//!             buttons (320, 128) and START / SELECT (179, 300) with
-//!             settingKanji 0, the left stick (39, 300) with settingKanji 1,
-//!             the right stick (347, 300) and the shoulder buttons (165, 56)
-//!             with settingKanji 2, their labels by the scheme; the rotation
-//!             arrows (mirrored with ctrl 0x20, upside down with 0x40)
-//! on / off    the list at (200, 248), rows at (214, 264 + 20 r), the save's
-//!             row in colour 6
-//! Screen      a box at (200, 188), "X :" and "Y :" with the offsets in
-//!             menuFont (shadowed), and twelve marks round the screen's edge
-//!             pulsing with waitCount (menuWindowA, colour 10)
-//! Sound       the window at (152, 96), three rows with a slide bar each,
-//!             Output with Mono and Stereo, the one in force in colour 6
-//! ```
+//! `ccMenuWindow::DispSlideBar` (main 0x001b97f0). The positions, cells and
+//! colours are in docs/engine/field-ui.md (the OPTION pages).
 
 use piney_desktop::eef::{add, from_int, sub};
 

@@ -1,33 +1,10 @@
 //! PARTY (PERSONAL in a town, menu 9, `PartyMenu` gcmn 0x0053a370) and its
 //! pages: Add (68, `PartyInMenu` 0x0053a7a0, its page `PartyInMenuDisp` in
 //! [`crate::menus::party`]), Remove (69, `PartyOutMenu` 0x0053ba90) and
-//! Disband (70, `PartyDisbandMenu` 0x0053c340).
-//!
-//! ```text
-//! 9    outside a town: "You can only form parties in towns." and back;
-//!      else Add greyed with a full party, Remove and Disband alone
-//!      (reverseHead), the rows into menuKanji, the target dropped; Select;
-//!      cancel (19) back, OK (18) into the row; the row's help (DispMsg)
-//! 68   refused with three in the party or none to call; the members of
-//!      partyMemberFlag not in the party (at most 8 rows shown, the page
-//!      PartyInMenuDisp); OK: "Add <name> to your party." OK / Cancel; OK:
-//!      "Calling party member." then, when partyMemberCall has the member
-//!      and there is room for its character (fewer than five loaded, or it
-//!      is one of them), ccThPartyAdd (ccParty::AddMember), the face, 40
-//!      frames, the message closed, at 51 the member's greeting
-//!      (spcMsgPartyIn10 / 11, or 20 / 21 when its character was loaded
-//!      and idle; by talkNum), then the menu shut; else 41 frames, "There
-//!      is no response to the Flash Mail." and back to the list
-//! 69   refused alone; the members but Kite; OK: "Remove <name> from your
-//!      party." OK / Cancel; OK: the member's farewell (spcMsgPartyOut10 /
-//!      11), ccParty::DelMember(slot), the menu shut
-//! 70   refused alone; "Removing all members." OK / Cancel; OK: each
-//!      member's farewell and DelMember in turn (slots 1, 2), the menu shut
-//! ```
-//!
-//! The greetings and farewells open with the member's voice
-//! (`ccEvVoiceRequest(-30, id * 3 + n)`: n 0 a greeting, 1 the idle
-//! one's, 2 a farewell).
+//! Disband (70, `PartyDisbandMenu` 0x0053c340). The greetings and
+//! farewells open with the member's voice (`ccEvVoiceRequest(-30, id * 3 +
+//! n)`: n 0 a greeting, 1 the idle one's, 2 a farewell). The steps are in
+//! docs/engine/field-ui.md (PARTY).
 
 use crate::Request;
 use crate::ctrl::{Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_OK};

@@ -1,60 +1,11 @@
-//! The probe `tools/test_fieldui_rs.py` drives: the field UI over a script
-//! read from stdin, a JSON line out per frame.
-//!
-//! ```text
-//! party SLOT HANDLE TYPES ID HP SP MHP MSP NAMEHEX [COND...]   a party slot (0-2)
-//! target HANDLE TYPES ID HP SP MHP MSP NAMEHEX TAGX TAGY       cmndTarget (TAGX -9999: no tag)
-//! game AREA INBATTLE INBATTLECNT DUNGEONTYPE
-//! dead 0|1                                                     the player is down
-//! save OFF SIZE VALUE                                          a byte, short or word of the save
-//! operate BITS                                                 ccEvent.operate
-//! pad F PUSH REPEAT
-//! open F NUM                                                   openReqNum = NUM before frame F
-//! ban F 0|1                                                    menu_ban / menu_clear before frame F
-//! noise F LEVEL                                                 the events' noise (interNoiz) before frame F
-//! msg F EMODE NAMEHEX L0HEX L1HEX L2HEX                        ccMsg->Change before frame F ("-" none)
-//! info F L0HEX L1HEX L2HEX                                     ccMsg->ChangeInfo before frame F
-//! check F                                                      Check(0) each frame from F until it answers
-//! sort HANDLE TYPES ID HP SP MHP MSP NAMEHEX DIST RES BARX BARY ARROWX ARROWY PP DEAD
-//!                                                              a character on cmndSortRoot's chain
-//! pos HANDLE WIDTH INVIEW X Y Z                                a character's width, camera check, posP
-//! chain KIND HANDLE...                                         cmndPcRoot / EneRoot / ObjRoot (0 1 2)
-//! skill F V                                                    ccSkillCheck(plw) from frame F on
-//! chat HANDLE V0 .. V5                                         a member's chat settings (personality +200)
-//! first F                                                      firstTime = 1 before frame F (the chat button)
-//! server S TOWN AREALEVEL                                      ccGame.server, town, areaLevel
-//! areacode K CODE MODE                                         ccEvent.areaCode[K]
-//! npc HANDLE ROW TAGX TAGY                                     cmndTarget is npcTbl[ROW] (FieldUi::talk_to)
-//! rand V...                                                    rand()'s values in turn (0 after)
-//! mode F V                                                     ccMenu.mode = V before frame F (the action button: 1)
-//! tk                                                           the talk state after st (talkNum ... temp[8])
-//! watch OFF LEN                                                the save's bytes after st, as hex
-//! card PORT PRESENT PS2 FORMATTED FULL FAILWRITE FAILSYS FAILFMT
-//!                                                              a memory card (FieldUi::set_card)
-//! dir PORT                                                     its save directory made
-//! file PORT NAME HEX                                           a file in it
-//! cardpos PORT FILE                                            ccSaveSys's port and fileNum
-//! savebytes HEX                                                the whole ccSaveData
-//!   (after run, once a card is set: a line {"files": ...} with its files)
-//! grunty K V / rng V / wiped 0|1 / field N / town N            ccPgAdultCheck, the menu's rand() (always V),
-//!                                                              checkPartyAnnihilation, game
-//! areawords A B C                                              the area's keywords (SimGenerateCode into WORLD_MAN)
-//! spc ID BOOT                                                  a ccSpcManager registry entry (id, bootParam)
-//! trade                                                        drainItem[0..4] after the talk state
-//! talkspc HANDLE ID                                            cmndTarget is party member ID (FieldUi::talk_to)
-//! spcmsg                                                       ccSaveData::SetSpcBaseMsg on the save
-//! drop F                                                       ccChangeCmndTarget(0) before frame F (the target lost)
-//! pguso HANDLE ROW EXIST                                       cmndTargetPrev is a Grunty (ccPGuso), base npcTbl[ROW]
-//! growth F V / pgmsg F V                                       its growthNum / msgNum from frame F
-//! pgtarget HANDLE ROW EXIST LEVEL SIZE FOOD                    the talk target is a Grunty (InuMenu, OtonainuMenu)
-//! breed                                                        menuFade and the Grunty after the watches
-//! run N                                                        run frames 1..N, printing each
-//!
-//! Between frames the probe does to its world what the runtime would with
-//! the requests: `ccChangeCmndTarget` and the player's SP. The OPTION pages'
-//! loading task and file calls come from the trace; `ccPad::actuaterSw` is
-//! printed when a vibration request changes it.
-//! ```
+//! The probe `tools/test_fieldui_rs.py` (and the tests built on it)
+//! drives: the field UI over a script read from stdin, a JSON line out per
+//! frame. The script sets the world (`party`, `target`, `sort`, `game`,
+//! `server`, `npc`, `pguso` ...), the save and cards (`save`, `savebytes`,
+//! `card`), the inputs due before a frame (`pad`, `open`, `msg`, `check`
+//! ...) and what to print (`tk`, `watch`, `trade`); `run N` runs frames
+//! 1..N. Between frames the probe does what the runtime would with the
+//! requests. Each command's arguments are as `main` reads them.
 
 use std::collections::HashMap;
 use std::io::{self, BufRead};

@@ -3,37 +3,9 @@
 //! (0x00538de0) works out, and the save's side of a change,
 //! `ccSaveData::ChangeEquipment` (main 0x00177010, `ccChangeEquipment`
 //! 0x00177070 with `ccCheckSkillCount` 0x00176ce0, `ccAddSkill` 0x00177590
-//! and `ccDelSkill` 0x001776e0).
-//!
-//! The page is on member `equipSpcNum` (PERSONAL opens it on Kite, 0) and
-//! one slot a page (`list.page`): the job's weapon (0), head (1), body (2),
-//! hands (3), legs (4). The candidates are the member's items of the page's
-//! category, not the one worn, of a level (`ccEquipParam.level`) the job
-//! may wear: jobs 0-5 wear weapon category 0-5 up to level 2, 3, 3, 3, 2
-//! and 1. The cursor is in one of three places (`list.index`): the piece
-//! worn (0), the candidates (1, `list.select`), or the grid of skills,
-//! added effects and parameters (2, `list.sx` / `sy` as Status's).
-//!
-//! ```text
-//! proccess 0    exceptionDisp 1, the rows shown (at most 8); the first
-//!               time (firstTime) all back to the top
-//! proccess 1    R1 / L1 the page (17); the moves; cancel (19) back; OK on
-//!               a candidate (18): refused when 99 of the worn piece are
-//!               carried (warning 1) or, the list full, none of it carried
-//!               and two or more of the new one (warning 0); else DelItem
-//!               (the new), AddItem (the old), ChangeEquipment, CalcReal(1)
-//!               and ccThEquipMenu (ccSPC::ChangeEquip, the model), the
-//!               cursor back on the piece worn; triangle on the piece worn
-//!               or a candidate: its status (64, itemNum)
-//! proccess 2    the model task done: back to 1
-//! proccess 10   the window closed: the warning (equipMenuWarn[waitCount])
-//! proccess 11   Check: the window back, proccess 0
-//! ```
-//!
-//! On every move the help (ccMsg->Change at (39, 334)): a skill's own
-//! help, an added effect's (`statusBeffStr`), `statusMenuHelp[sx * 15 +
-//! sy]` in the grid, `statusMenuHelp[60 + index]` on the piece worn and the
-//! candidates.
+//! and `ccDelSkill` 0x001776e0). The page is on member `equipSpcNum`, one
+//! slot a page; jobs 0-5 wear weapon category 0-5 up to level 2, 3, 3, 3,
+//! 2 and 1. The steps are in docs/engine/field-ui.md (Equipment).
 
 use piney_battle::chara::add_elm;
 use piney_battle::param::{Elm, SpcParam};
