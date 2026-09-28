@@ -151,6 +151,14 @@ impl StoryPilot {
             {
                 return raw;
             }
+            if sc.area == kind::FIELD
+                && wants
+                    .iter()
+                    .any(|w| matches!(*w, Want::FieldBlock(f, b) if f == sc.field as i16 && i32::from(b) != sc.block))
+                && let Some(raw) = walk_to_door(a)
+            {
+                return raw;
+            }
         }
         if let Stage::World(w) = &s.stage {
             self.note_town_talk(w, f);
@@ -281,7 +289,7 @@ impl StoryPilot {
         let target = match gate_goal(w, &self.town_talked)? {
             GateGoal::Talk(code) => (Kind::Npc, code),
             GateGoal::Area(_) | GateGoal::Town(_) => (Kind::Gimmick, 16),
-            GateGoal::LogOut | GateGoal::Invite(_) => return None,
+            GateGoal::LogOut | GateGoal::Invite(_) | GateGoal::Disband => return None,
         };
         let waiting = w.calls().iter().rev().find_map(|(_, c)| {
             if c.starts_with("message_open") || c.starts_with("announce") {
@@ -1150,11 +1158,12 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                         })
                         .collect();
                     eprintln!(
-                        "TOWN {f} {} {:?} kite {:?} targets {targets:?} command {:?}",
+                        "TOWN {f} {} {:?} kite {:?} targets {targets:?} command {:?} {}",
                         Mode::title(&s),
                         raw.buttons,
                         at(world.player().body.pos),
-                        world.command_target()
+                        world.command_target(),
+                        whole_state(&s)
                     );
                 }
                 pilot.after(&mut s);
@@ -1310,6 +1319,26 @@ fn approach_part(a: &crate::area::AreaMode) -> Option<Raw> {
     let q = c.scene.chars[part].pos.map(f32::from_bits);
     let cam_z = f32::from_bits(w.camera().rot()[2]);
     Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
+}
+
+/// Kite straight to the story map's door ([`piney_world::field_world::FieldWorld::door`]),
+/// the story wanting the block beyond it: while the field plays, no menu
+/// is up and the events do not bar it.
+fn walk_to_door(a: &crate::area::AreaMode) -> Option<Raw> {
+    let w = a.world();
+    let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+    let banned = a.calls().iter().rev().find_map(|(_, c)| match c.as_str() {
+        "menu_ban true" => Some(true),
+        "menu_ban false" => Some(false),
+        _ => None,
+    });
+    if !playing || banned == Some(true) || a.ui().menu_type() != -1 {
+        return None;
+    }
+    let door = w.door()?.map(f32::from_bits);
+    let p = w.player().body.pos.map(f32::from_bits);
+    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    Some(stick_toward(cam_z, (door[0] - p[0]).atan2(-(door[1] - p[1]))))
 }
 
 /// The room of this dungeon whose door leads out to a boss arena the story

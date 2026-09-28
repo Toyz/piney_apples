@@ -898,6 +898,25 @@ impl FieldWorld {
     /// `marker_pos`'s marker in a field (`ccEvent::Execute` case 144, INF
     /// main 0x001b1aa4): on an event map, `markerEvTbl[n]`'s dummy of the
     /// map's stream; a plain field's (`WORLD_MAN` +0x438) is not ported.
+    /// A story map's door (`WORLD_MAN::Enter` on it swaps the block): the
+    /// middle of the floor polygons whose attribute has the Enter bit
+    /// (0x8_0000) in the block standing now, in world space.
+    pub fn door(&self) -> Option<V4> {
+        let Place::Story(m) = &self.place else { return None };
+        let (mut sum, mut n) = ([0f32; 3], 0f32);
+        for h in &m.hits().models {
+            for p in h.polys.iter().filter(|p| p.att & 0x8_0000 != 0) {
+                for v in &p.vp {
+                    for k in 0..3 {
+                        sum[k] += f32::from_bits(v[k]) + f32::from_bits(h.rm[3][k]);
+                    }
+                    n += 1.0;
+                }
+            }
+        }
+        (n > 0.0).then(|| [(sum[0] / n).to_bits(), (sum[1] / n).to_bits(), (sum[2] / n).to_bits(), ONE])
+    }
+
     pub fn marker(&self, n: i16) -> Option<piney_event::host::Marker> {
         let Place::Story(m) = &self.place else { return None };
         let (p, r) = crate::event::marker_in(m.file()?, self.volume, n)?;

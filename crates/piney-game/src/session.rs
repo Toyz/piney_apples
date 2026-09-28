@@ -2127,9 +2127,16 @@ mod tests {
         Area(i16),
         /// That area's dungeon, by its index (a lake's 1 is below it).
         Dungeon(i16, i16),
+        /// A block of that field's story map (area 15's church, 1), which
+        /// its door swaps to.
+        FieldBlock(i16, i16),
         /// Event point `num` of the dungeon.
         Point(i32),
         Party(i32),
+        /// Kite alone: a block takes a wanted area off the gate's barred
+        /// list (`del_area_code`) only with no one else in the party
+        /// (`not_in_party -1`: event 204's area 15).
+        Alone,
         /// The desktop or the top page (a block set on `game_status` 2 or 3).
         Leave,
     }
@@ -2214,6 +2221,12 @@ mod tests {
                     Cond::NotInParty { .. } | Cond::Answer { .. } => false,
                     _ => true,
                 });
+                // A block that unbars an area only with Kite alone is no
+                // refusal: it is the way there.
+                let unbars = block.ops.iter().any(|o| matches!(o, piney_event::ir::Op::DelAreaCode { .. }));
+                if unbars && block.conds.iter().any(|c| matches!(*c, Cond::NotInParty { pc: -1 })) {
+                    out.push(Want::Alone);
+                }
                 if !reachable {
                     continue;
                 }
@@ -2222,7 +2235,12 @@ mod tests {
                 }
                 match scene {
                     [0, town, ..] if town >= 0 => out.push(Want::Town(i32::from(town))),
-                    [1, _, field, ..] if field >= 0 => out.push(Want::Area(field)),
+                    [1, _, field, .., block] if field >= 0 => {
+                        out.push(Want::Area(field));
+                        if block >= 0 {
+                            out.push(Want::FieldBlock(field, block));
+                        }
+                    }
                     [2, _, field, dungeon, ..] if field >= 0 => {
                         out.extend([Want::Area(field), Want::Dungeon(field, dungeon)])
                     }
@@ -2306,6 +2324,9 @@ mod tests {
         Talk(i32),
         /// Call this member into the party (PERSONAL, Party, Add).
         Invite(i32),
+        /// Send the members away (PERSONAL, Party, Disband): the story
+        /// wants Kite alone.
+        Disband,
     }
 
     /// What the story autopilot goes for in a town, in order: an event's
@@ -2337,16 +2358,19 @@ mod tests {
         let party = world.party();
         let flags = save.i32(piney_data::save::offset::PARTY_MEMBER_FLAG) as u32;
         let calls = save.i32(piney_data::save::offset::PARTY_MEMBER_CALL) as u32;
+        let alone = wants.contains(&Want::Alone);
         let wanted = wants
             .iter()
             .find_map(|&x| match x {
                 Want::Town(t) if t != here => town_row(w, t).map(GateGoal::Town),
                 _ => None,
             })
+            .or_else(|| (alone && party.iter().skip(1).any(|&m| m != -1)).then_some(GateGoal::Disband))
             .or_else(|| {
                 wants.iter().find_map(|&x| match x {
                     Want::Party(pc)
-                        if !party.contains(&pc)
+                        if !alone
+                            && !party.contains(&pc)
                             && party.contains(&-1)
                             && flags & (1 << pc) != 0
                             && calls & (1 << pc) != 0 =>
@@ -2361,7 +2385,7 @@ mod tests {
                 // would, with the members who answer calls, those who
                 // revive or heal first.
                 let out = wants.iter().any(|&x| matches!(x, Want::Area(a) if area_way(w, a).is_some()));
-                (out && party.contains(&-1))
+                (out && !alone && party.contains(&-1))
                     .then(|| companion(w, &party, flags & calls))
                     .flatten()
                     .map(GateGoal::Invite)
@@ -2436,6 +2460,12 @@ mod tests {
             (68, 2, GateGoal::Invite(_)) => return Some(every(8, Buttons::DOWN)),
             (68, 5, _) => return Some(every(8, Buttons::CROSS)),
             (68, p, _) if p >= 20 => return Some(every(24, Buttons::CROSS)),
+            // The disband: PERSONAL, Party, Disband, Yes, and each
+            // member's goodbye closed.
+            (0, 1, GateGoal::Disband) => return Some(every(8, go_to_item(9))),
+            (9, 1, GateGoal::Disband) => return Some(every(8, go_to_item(70))),
+            (70, 1, _) => return Some(every(8, go_to(0))),
+            (70, p, _) if p >= 10 => return Some(every(24, Buttons::CROSS)),
             // A protected area's hack: each slot's cores up to the count
             // its protect row asks, the next slot, and OK.
             // An event's lines over the hack (event 18's lesson on the
@@ -2468,7 +2498,7 @@ mod tests {
         if waiting == Some(true) {
             return None;
         }
-        if let GateGoal::LogOut | GateGoal::Invite(_) = goal {
+        if let GateGoal::LogOut | GateGoal::Invite(_) | GateGoal::Disband = goal {
             return Some(every(30, Buttons::TRIANGLE));
         }
         let (kind, code) = match goal {

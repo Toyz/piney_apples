@@ -30,23 +30,33 @@ Events 203 and 218 end in a dungeon's boss room (`boss_smoke`, floor 3).
 
 ## Where it stands (2026-09-28)
 
-First survey (`PINEY_SURVEY_GOD=1 PINEY_SURVEY_FRAMES=30000`), each event from
-its own start:
+Survey (`PINEY_SURVEY_GOD=1 PINEY_SURVEY_FRAMES=30000`), each event from its
+own start:
 
 | event | state | last place |
 | --- | --- | --- |
-| 201, 202, 205, 208, 210, 212, 213, 216, 217 | done | |
+| 201, 202, 204, 205, 208, 210, 212, 213, 216, 217 | done | |
 | 219 | done: the ending's stream 65, the staff roll | desktop |
-| 203 | blocks 0x1ff | area 2 field 71 (its boss room) |
-| 204 | blocks 0xf | Mac Anu, target Gimmick 16 |
-| 206 | blocks 0x7f | Fort Ouph, target Gimmick 16, block 9 |
-| 207 | blocks 0x18f | area 2 field 73, menu 2 |
-| 209 | blocks 0xc73 | area 1 field 74 |
-| 211 | blocks 0x1c1f | area 1 field 10 |
-| 214 | blocks 0xf | area 2 field 76 |
-| 215 | blocks 0x3 | area 2 field 77 |
-| 218 | blocks 0x8f | area 2 field 71 (its boss room) |
+| 203 | blocks 0x1ff: points 2, 3 reached, not 4 | dungeon of field 71 |
+| 206 | blocks 0x7f | dungeon of field 72, menu 65 |
+| 207 | blocks 0x18f | dungeon of field 73, menu 2 |
+| 209 | blocks 0xc73 | field 74 |
+| 211 | blocks 0x1c1f | field 10 |
+| 214 | blocks 0xf | dungeon of field 76 |
+| 215 | blocks 0x3 | dungeon of field 77 |
+| 218 | blocks 0x8f | dungeon of field 71 |
 
 Seen on the way: `entry 3 29` (a walking PC, file `ctr1`) is not found
 ("not a walking PC's file"); the dungeon walker is put back in rooms it
 cannot leave.
+
+## The pilot's fixes so far
+
+- Kite alone: a block that takes a wanted area off the gate's barred list
+  (`del_area_code`) only with `not_in_party -1` makes the story want him
+  alone (`Want::Alone`); the pilot disbands (PERSONAL, Party, Disband) and
+  calls no one. Events 204 (area 15) and 206 (area 72). `in_party -1` in
+  the VM is "someone else in the party" (`num >= 2`).
+- A story map's other block (`scene` with a block in a field: area 15's
+  church): the pilot walks to the map's door, the floor polygons with the
+  Enter bit (`FieldWorld::door`).
