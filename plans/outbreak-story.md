@@ -30,20 +30,17 @@ Events 203 and 218 end in a dungeon's boss room (`boss_smoke`, floor 3).
 
 ## Where it stands (2026-09-28)
 
-Survey (`PINEY_SURVEY_GOD=1 PINEY_SURVEY_FRAMES=30000`), each event from its
+Survey (`PINEY_SURVEY_GOD=1 PINEY_SURVEY_FRAMES=60000`), each event from its
 own start:
 
 | event | state | last place |
 | --- | --- | --- |
-| 201, 202, 204, 205, 208, 210, 212, 213, 216, 217 | done | |
+| 201-205, 208, 210, 212-217 | done | |
 | 219 | done: the ending's stream 65, the staff roll | desktop |
-| 203 | blocks 0x1ff: points 2, 3 reached, not 4 | dungeon of field 71 |
-| 206 | blocks 0x7f | dungeon of field 72, menu 65 |
-| 207 | blocks 0x18f | dungeon of field 73, menu 2 |
+| 206 | blocks 0x7f | dungeon of field 72 |
+| 207 | blocks 0x78f | field 4 |
 | 209 | blocks 0xc73 | field 74 |
 | 211 | blocks 0x1c1f | field 10 |
-| 214 | blocks 0xf | dungeon of field 76 |
-| 215 | blocks 0x3 | dungeon of field 77 |
 | 218 | blocks 0x8f | dungeon of field 71 |
 
 Seen on the way: `entry 3 29` (a walking PC, file `ctr1`) is not found
@@ -60,3 +57,6 @@ cannot leave.
 - A story map's other block (`scene` with a block in a field: area 15's
   church): the pilot walks to the map's door, the floor polygons with the
   Enter bit (`FieldWorld::door`).
+- A Data Bug (enemy `type` 0x40: event 203's row 164, 20,624 HP, a
+  protect of 7,250) is fought on in the goal room, never called
+  hopeless, and drained once its protect breaks, as a boss is.

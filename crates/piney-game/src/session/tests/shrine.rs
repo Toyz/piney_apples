@@ -232,8 +232,11 @@ impl Walker {
                         let hp = c.scene.chars[e].hp;
                         match self.fought.iter().find(|x| x.0 == e) {
                             None => self.fought.push((e, hp, f)),
+                            // The goal room's foes are the story's (a Data
+                            // Bug the event waits on): never given up.
                             Some(&(_, first, since))
-                                if !self.hopeless.contains(&e)
+                                if !in_goal
+                                    && !self.hopeless.contains(&e)
                                     && f > since + HOPELESS
                                     && (hp >= first || f > since + 3 * HOPELESS) =>
                             {

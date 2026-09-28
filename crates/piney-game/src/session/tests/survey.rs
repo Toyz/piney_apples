@@ -595,12 +595,10 @@ impl StoryPilot {
         if fighting && members > 0 && (self.skills_ordered.is_none() || reorder) {
             return Some(Action::Chat { page: 0, row: if magic { 6 } else { 0 } });
         }
-        // A boss with its protect broken (`pp_count` frames left): Kite's
-        // Data Drain (Skills, page 5, skill 2) before the break mends.
-        let broken = c.enemies().into_iter().any(|e| {
-            let ch = &c.scene.chars[e];
-            ch.hp > 0 && matches!(&ch.body, piney_battle::chara::Body::Foe(f) if f.boss.is_some() && f.pp_count > 0)
-        });
+        // A boss or a Data Bug with its protect broken (`pp_count` frames
+        // left): Kite's Data Drain (Skills, page 5, skill 2) before the
+        // break mends.
+        let broken = c.enemies().into_iter().any(|e| drainable(&c.scene.chars[e]));
         let drains = piney_fieldui::items::skill_list(&ui.texts().items, w.state(), 0, 5)[0] == DATA_DRAIN;
         if fighting && broken && drains && chars.first().copied().flatten().is_some_and(|k| k.hp > 0) {
             return Some(Action::Skill { page: 5, skill: DATA_DRAIN, target: None });
@@ -1241,6 +1239,19 @@ fn lake_below(w: &piney_world::field_world::FieldWorld, wants: &[Want]) -> Optio
 }
 
 /// How near a broken boss the pilot walks before it drains: well inside
+/// A Data Bug: `type` 0x40 (the common foes are 0x20), a foe of some
+/// 20,000 HP that the story drains (Infection's rows 115, 201, 224, 235;
+/// Outbreak's event 203 row 164).
+const DATA_BUG: i32 = 0x40;
+
+/// A boss or a Data Bug alive with its protect broken (`pp_count` frames
+/// left): Data Drain's to take.
+fn drainable(ch: &piney_battle::chara::Char) -> bool {
+    ch.hp > 0
+        && matches!(&ch.body, piney_battle::chara::Body::Foe(f)
+            if (f.boss.is_some() || ch.ty() & DATA_BUG != 0) && f.pp_count > 0)
+}
+
 /// Data Drain's reach (2000 plus the boss's width).
 const DRAIN_NEAR: f32 = 1200.0;
 
@@ -1255,10 +1266,7 @@ fn approach_boss(a: &crate::area::AreaMode) -> Option<Raw> {
     {
         return None;
     }
-    let boss = c.enemies().into_iter().find(|&e| {
-        let ch = &c.scene.chars[e];
-        ch.hp > 0 && matches!(&ch.body, piney_battle::chara::Body::Foe(f) if f.boss.is_some() && f.pp_count > 0)
-    })?;
+    let boss = c.enemies().into_iter().find(|&e| drainable(&c.scene.chars[e]))?;
     let p = w.player().body.pos.map(f32::from_bits);
     let q = c.scene.chars[boss].pos.map(f32::from_bits);
     if (q[0] - p[0]).hypot(q[1] - p[1]) < DRAIN_NEAR {
