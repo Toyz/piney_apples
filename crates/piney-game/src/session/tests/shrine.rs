@@ -169,6 +169,16 @@ pub(super) struct Walker {
 const HOPELESS: u64 = 1800;
 
 impl Walker {
+    /// A foe of this room fought for three times [`HOPELESS`] and still
+    /// standing (healers out of a lone Kite's reach): the story pilot
+    /// drains any foe whose protect breaks then.
+    pub(super) fn held(&self, a: &crate::area::AreaMode, now: u64) -> bool {
+        let c = a.world().combat();
+        self.fought
+            .iter()
+            .any(|&(e, _, since)| now > since + 3 * HOPELESS && c.scene.chars.get(e).is_some_and(|ch| ch.hp > 0))
+    }
+
     /// The story's walk ([`Walker::wary`]).
     pub(super) fn wary() -> Walker {
         Walker { wary: true, ..Walker::default() }

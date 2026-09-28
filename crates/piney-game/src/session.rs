@@ -3325,6 +3325,29 @@ mod tests {
         }
     }
 
+    /// The goblin's drained form after [`drain_in_a_fight`] takes a blow:
+    /// `EntryAffect(1, 20)` from Kite lowers its HP.
+    #[test]
+    fn a_drained_form_can_be_hurt() {
+        let Some(mut s) = drain_in_a_fight(false, |_, _, _| {}) else { return };
+        let (form, hp0) = {
+            let Stage::Area(a) = &mut s.stage else { panic!() };
+            let c = a.world().combat();
+            let k = c.kite.unwrap();
+            let form = c.enemies().into_iter().find(|&e| c.scene.chars[e].hp > 0).expect("no drained form");
+            let hp0 = c.scene.chars[form].hp;
+            a.world_mut().entry_affect(form, Some(k), 1, [20, 0, 0]);
+            (form, hp0)
+        };
+        let mut pad = Pad::default();
+        run(&mut s, &mut pad, 0..30, &[]);
+        let Stage::Area(a) = &s.stage else { panic!() };
+        let c = a.world().combat();
+        let ch = &c.scene.chars[form];
+        eprintln!("drained form {form}: row {:?} hp {hp0} -> {}", ch.id(), ch.hp);
+        assert!(ch.hp < hp0, "the drained form took no damage: {hp0} -> {}", ch.hp);
+    }
+
     /// [`drain_in_a_fight`] with `drainDemo` off: no movie.
     #[test]
     fn data_drain_in_a_fight() {

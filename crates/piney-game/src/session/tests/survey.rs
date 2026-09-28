@@ -37,6 +37,9 @@ pub(super) struct StoryPilot {
     /// The frame, and when First Aid! last went out.
     now: u64,
     first_aid_at: Option<u64>,
+    /// A foe of this room has held the walk (see [`Walker::held`]): any
+    /// foe's broken protect is drained then, not only a boss's.
+    held: bool,
     /// In a field: the event NPCs spoken to here (`add_target`s stay on
     /// the list after), the one just spoken to and when, and the place.
     talked: Vec<i32>,
@@ -92,6 +95,7 @@ impl Default for StoryPilot {
             target_tries: 0,
             now: 0,
             first_aid_at: None,
+            held: false,
             talked: Vec::new(),
             talking: None,
             talk_place: None,
@@ -412,6 +416,7 @@ impl StoryPilot {
     /// in a fight, Kite's first attack skill he has the SP for.
     fn fight(&mut self, a: &crate::area::AreaMode, f: u64) -> Option<Raw> {
         self.now = f;
+        self.held = self.walker.held(a, f);
         let w = a.world();
         let ui = a.ui();
         let m = &ui.ctrl;
@@ -598,7 +603,7 @@ impl StoryPilot {
         // A boss or a Data Bug with its protect broken (`pp_count` frames
         // left): Kite's Data Drain (Skills, page 5, skill 2) before the
         // break mends.
-        let broken = c.enemies().into_iter().any(|e| drainable(&c.scene.chars[e]));
+        let broken = c.enemies().into_iter().any(|e| drainable(&c.scene.chars[e], self.held));
         let drains = piney_fieldui::items::skill_list(&ui.texts().items, w.state(), 0, 5)[0] == DATA_DRAIN;
         if fighting && broken && drains && chars.first().copied().flatten().is_some_and(|k| k.hp > 0) {
             return Some(Action::Skill { page: 5, skill: DATA_DRAIN, target: None });
@@ -1250,11 +1255,13 @@ fn lake_below(w: &piney_world::field_world::FieldWorld, wants: &[Want]) -> Optio
 const DATA_BUG: i32 = 0x40;
 
 /// A boss or a Data Bug alive with its protect broken (`pp_count` frames
-/// left): Data Drain's to take.
-fn drainable(ch: &piney_battle::chara::Char) -> bool {
+/// left), or with `any` any foe (a fight that holds the walk: event 206's
+/// Napylons, who heal each other faster than a lone Kite hurts them):
+/// Data Drain's to take.
+fn drainable(ch: &piney_battle::chara::Char, any: bool) -> bool {
     ch.hp > 0
         && matches!(&ch.body, piney_battle::chara::Body::Foe(f)
-            if (f.boss.is_some() || ch.ty() & DATA_BUG != 0) && f.pp_count > 0)
+            if (any || f.boss.is_some() || ch.ty() & DATA_BUG != 0) && f.pp_count > 0)
 }
 
 /// Data Drain's reach (2000 plus the boss's width).
@@ -1271,7 +1278,7 @@ fn approach_boss(a: &crate::area::AreaMode) -> Option<Raw> {
     {
         return None;
     }
-    let boss = c.enemies().into_iter().find(|&e| drainable(&c.scene.chars[e]))?;
+    let boss = c.enemies().into_iter().find(|&e| drainable(&c.scene.chars[e], false))?;
     let p = w.player().body.pos.map(f32::from_bits);
     let q = c.scene.chars[boss].pos.map(f32::from_bits);
     if (q[0] - p[0]).hypot(q[1] - p[1]) < DRAIN_NEAR {

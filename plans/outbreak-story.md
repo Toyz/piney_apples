@@ -37,7 +37,7 @@ own start:
 | --- | --- | --- |
 | 201-205, 208-210, 212-217 | done | |
 | 219 | done: the ending's stream 65, the staff roll | desktop |
-| 206 | blocks 0x7f: block 10 wants dungeon 1 of field 72 | dungeon of field 72 |
+| 206 | blocks 0x7f: a lone Kite through the dungeon of field 72, slow (floor 1 by 150,000 frames) | dungeon of field 72 |
 | 207 | blocks 0x78f: field 4's boss, bossTbl row 3 (Fidchell), not ported | field 4 |
 | 211 | blocks 0x1c1f: field 10's boss, row 13 (Cubia, the second Kyvia), not ported | field 10 |
 | 218 | blocks 0x8f: field 5's boss, row 4 (Gorre), not ported | dungeon of field 71 |
@@ -62,3 +62,8 @@ cannot leave.
 - A field's dungeon far off with a wall between: the entrance path is
   planned on a grid wide enough to hold Kite (81 cells, the step the
   distance asks) when he is found stopped (event 209's field 74).
+- A room whose foe has held the walk three times its give-up time (event
+  206's Napylons, healing each other faster than a lone Kite hurts them):
+  any foe's broken protect is drained then. Raising the party's level
+  instead (to 85) did not help: the fight turns on the healing, not the
+  level.
