@@ -2396,6 +2396,8 @@ mod tests {
             (11, 1, _) => return Some(every(8, go_to(0))),
             // A talk the events do not take (the NPC's own line): on.
             (22, _, GateGoal::Talk(_)) => return Some(every(8, Buttons::CROSS)),
+            // A shop's or a breeder's own menu, opened by a talk: back out.
+            (23..=27 | 44..=46, ..) => return Some(every(8, Buttons::CIRCLE)),
             // The call: PERSONAL, Party, Add, the member's face, OK, and
             // the greeting closed.
             (0, 1, GateGoal::Invite(_)) => return Some(every(8, go_to_item(9))),

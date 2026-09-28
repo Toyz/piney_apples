@@ -4,7 +4,7 @@
 //! diagnostic: `cargo test --release -p piney-game story_survey -- --ignored
 //! --nocapture`. `PINEY_SURVEY_ONLY=N` one start, `PINEY_SURVEY_FRAMES` the
 //! frames, `PINEY_SURVEY_CALLS` the last host calls, `PINEY_SURVEY_GOD` the
-//! party kept up, `PINEY_DEBUG_PILOT` the pilot's trace.
+//! party kept up (and the infection at 0), `PINEY_DEBUG_PILOT` the pilot's trace.
 
 use piney_world::area::kind;
 use piney_world::field_world::Place;
@@ -246,8 +246,11 @@ impl StoryPilot {
             "menu_ban false" => Some(false),
             _ => None,
         }) == Some(true);
+        // The talk's block banned the menus, or the NPC's own menu opened
+        // (a shop, a breeder: menus 21-27, 44-46).
+        let own_menu = matches!(w.ui().menu_type(), 21..=27 | 44..=46);
         match self.town_talking {
-            Some((code, _)) if banned => {
+            Some((code, _)) if banned || own_menu => {
                 self.town_talked.push(code);
                 self.town_talking = None;
             }
@@ -496,6 +499,9 @@ impl StoryPilot {
         });
         if !playing || banned == Some(true) {
             return None;
+        }
+        if let Some(raw) = approach_boss(a) {
+            return Some(raw);
         }
         let act = self.choose(a)?;
         if std::env::var_os("PINEY_DEBUG_PILOT").is_some() {
@@ -929,6 +935,10 @@ fn mutation_whole_story() {
     let mut pilot = StoryPilot::default();
     let mut ended: Vec<i32> = Vec::new();
     for f in 0..frames {
+        // As the survey's god: the infection held at 0.
+        if f.is_multiple_of(30) {
+            s.console("infection 0");
+        }
         let raw = pilot.next(&s, f);
         pilot.after(&mut s);
         pad.read(&raw);
@@ -968,8 +978,10 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
             let mut s = story_session_on(disc, n, |_| {})?;
             // `PINEY_SURVEY_GOD`: the console's god (the party at full HP
             // and SP in the fields and dungeons), to follow the story past
-            // fights the pilot would lose.
-            if std::env::var_os("PINEY_SURVEY_GOD").is_some() {
+            // fights the pilot would lose; and Kite's infection held at 0,
+            // so a boss's Data Drain cannot roll its game over (effect 30).
+            let god = std::env::var_os("PINEY_SURVEY_GOD").is_some();
+            if god {
                 s.console("god");
             }
             let mut pad = Pad::default();
@@ -977,6 +989,9 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
             let mut flag = 0u64;
             let mut pilot = StoryPilot::default();
             for f in 0..frames {
+                if god && f.is_multiple_of(30) {
+                    s.console("infection 0");
+                }
                 let raw = pilot.next(&s, f);
                 // `PINEY_DEBUG_PILOT`: the pilot's actions and goals, and
                 // every 50 frames in a field or dungeon the place, the
@@ -1088,6 +1103,34 @@ fn lake_below(w: &piney_world::field_world::FieldWorld, wants: &[Want]) -> Optio
     let below =
         wants.iter().any(|x| matches!(*x, Want::Dungeon(f, n) if f == sc.field as i16 && i32::from(n) > sc.dungeon));
     below.then_some(piney_event::vm::EvPoint { floor: d.floors.len() as i16, block: 0, num: -1 })
+}
+
+/// How near a broken boss the pilot walks before it drains: well inside
+/// Data Drain's reach (2000 plus the boss's width).
+const DRAIN_NEAR: f32 = 1200.0;
+
+/// In a fight, a boss with its protect broken farther than [`DRAIN_NEAR`]
+/// from Kite, who knows Data Drain: the stick toward it (the target menu
+/// finds no one out of reach, and Innis roams where Skeith came to him).
+fn approach_boss(a: &crate::area::AreaMode) -> Option<Raw> {
+    let w = a.world();
+    let c = w.combat();
+    if c.battle.in_battle == 0
+        || piney_fieldui::items::skill_list(&a.ui().texts().items, w.state(), 0, 5)[0] != DATA_DRAIN
+    {
+        return None;
+    }
+    let boss = c.enemies().into_iter().find(|&e| {
+        let ch = &c.scene.chars[e];
+        ch.hp > 0 && matches!(&ch.body, piney_battle::chara::Body::Foe(f) if f.boss.is_some() && f.pp_count > 0)
+    })?;
+    let p = w.player().body.pos.map(f32::from_bits);
+    let q = c.scene.chars[boss].pos.map(f32::from_bits);
+    if (q[0] - p[0]).hypot(q[1] - p[1]) < DRAIN_NEAR {
+        return None;
+    }
+    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
 }
 
 /// The room of this dungeon whose door leads out to a boss arena the story

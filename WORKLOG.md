@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-267 entries: audio 17, battle 42, build 14, content 3, decomp 19, disc 4, engine 7, format 14, iop 2, render 66, save 8, script 25, test 116, tooling 22, ui 48, video 7, volumes 45, world 74.
+268 entries: audio 17, battle 43, build 14, content 3, decomp 19, disc 4, engine 7, format 14, iop 2, render 66, save 8, script 25, test 117, tooling 22, ui 48, video 7, volumes 45, world 74.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -279,3 +279,4 @@ The [reference](docs/README.md) says what is true now.
 | 265 | [Mutation's dungeons on Mutation's tables, and the pilot's way past side lines](worklog/0265-mutation-s-dungeons-on-mutation-s-tables-and-the-pilot-s.md) | 2026-09-28 | world, test, volumes |
 | 266 | [Innis, Mutation's first boss, and the bosses by code](worklog/0266-innis-mutation-s-first-boss-and-the-bosses-by-code.md) | 2026-09-28 | battle, test, volumes |
 | 267 | [Mutation's stream effect tasks: the opening's text and eleven more](worklog/0267-mutation-s-stream-effect-tasks-the-opening-s-text-and.md) | 2026-09-28 | video, volumes |
+| 268 | [Event 107 under the autopilot: to Innis and past the breeder](worklog/0268-event-107-under-the-autopilot-to-innis-and-past-the-breeder.md) | 2026-09-28 | test, battle |

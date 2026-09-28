@@ -18,8 +18,8 @@ through ported as the game builds them. Started 2026-09-28.
 | --- | --- |
 | 101 | done (new game: Mac Anu, field 27's dungeon, on into 104's field) |
 | 102-106, 109-114, 116 | done |
-| 107 | at the arena boss (field 2): the pilot does not Data Drain |
-| 108 | loops logging in to Dun Loireag |
+| 107 | done (worklog 268): Innis drained and beaten, the town's breeder, the top page's Quit |
+| 108 | reaches field 9 (worklog 265); Kyvia and `EVENTAREAB8` being ported |
 | 115 | slow in field 52's dungeon; then field 13 (`EVENTAREA01`) |
 
 ## The pilot's fixes so far
@@ -35,6 +35,9 @@ through ported as the game builds them. Started 2026-09-28.
   command + 6), and writes a post waiting to be written (state 7).
 - A repeatable block's event point is not a goal (a side line).
 - Towns: a breadth-first way round the walls (`path_to`).
+- A boss with its protect broken out of Data Drain's reach: walk to it.
+- `PINEY_SURVEY_GOD` also holds Kite's infection at 0, so a drain cannot
+  roll its game over (side effect 30).
 
 ## Story maps Mutation needs
 
@@ -66,7 +69,7 @@ draws. docs/engine/evarea.md has it all.
 
 | event | code | boss | size (MUT) | ported |
 | --- | --- | --- | --- | --- |
-| 107 | 1 | `ccBoss02` Innis (+ `ccBoss02Slave`) | 54 functions, 38.6 KB | no |
+| 107 | 1 | `ccBoss02` Innis (+ `ccBoss02Slave`) | 54 functions, 38.6 KB | yes (worklog 266) |
 | 108 | 12 | `ccThKyvia01` (+ the `kyvia*` classes, `EVENTAREAB8`) | 98 functions, 74.4 KB shared | no |
 | 115 | 2 | `ccBoss03` Magus (+ `ccBoss03Leaf`) | 70 functions, 38.2 KB | no |
 
