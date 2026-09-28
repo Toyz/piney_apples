@@ -1,14 +1,8 @@
 //! Mode 4, The World's top page (`ccSetupToppage`, `TOPPAGE.PRG`), with the
-//! event task running over it as on the desktop.
-//!
-//! ```text
-//! setup      the event passes at phases 0 and 2 (ccGame.status 3); a
-//!            script asking for another mode abandons the page
-//! page       TopPage::new, then phase 4; each frame the event task, then
-//!            the page (its system menu, its task, the fader)
-//! Log out    ChangeRequest(3, 7): the desktop
-//! Log in     ChangeRequest(5, 8), ChangeArea(0, lastTown), ChangeRequest(6, 7)
-//! ```
+//! event task running over it as on the desktop: the passes at 0 and 2
+//! (`ccGame.status` 3) in the setup, then the page with phase 4, the event task
+//! first each frame. Log out is `ChangeRequest(3, 7)`; Log in is
+//! `ChangeRequest(5, 8)`, `ChangeArea(0, lastTown)`, `ChangeRequest(6, 7)`.
 
 use std::path::PathBuf;
 use std::sync::Arc;

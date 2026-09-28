@@ -1,43 +1,11 @@
-//! A party character's weapon trails and weapon points (gcmn spcchar.cpp):
-//! what `ccSpcChar::EquipWeapon` finds in the weapon's file besides its
-//! models, and what `ccSpcChar::ArmsEffect` makes of it each frame.
-//!
-//! ```text
-//! EquipWeapon (0x0059d650), by job (jump table 0x006f09e0), in the
-//!   weapon's own file (GetChunkAdrsF(name, 1)), each DummyPos chunk's
-//!   +0x10 place (w 1.0, Decode_DummyPos 0x0014d4d0):
-//!   job 0     w01..w04 into +0x140..+0x14c; ccLattice(2, 0) into +0x150
-//!             and +0x154
-//!   jobs 1,2,5  w01, w02 into +0x140, +0x144; ccLattice(2, 0) into +0x154
-//!   job 3     w01, w02; ccLattice(2, 0) into +0x150
-//!   job 4     w02, w01, w03 into +0x140..+0x148; ccLattice(3, 0) into
-//!             +0x154
-//!   (a lattice already made is kept)
-//! ArmsEffect (0x0059ddd0), nothing when all four dummies are null; by job
-//!   (jump table 0x006f0a00), the points weaponEffPos (+0x160..+0x190)
-//!   each the hand's matrix (+0x130 the right hand's node, +0x12c the
-//!   left's: ccObj's first member, its world matrix) times a dummy, w 1:
-//!   job 0     P0 = R d0, P1 = L d1, P2 = R d2, P3 = L d3; ClearCnt +0x154,
-//!             +0x150; then +0x154: next, P0 col 0, P2 col 1; +0x150:
-//!             next, P1 col 0, P3 col 1
-//!   job 4     P0..P2 = R d0..d2; ClearCnt +0x154; next, P1 0, P0 1, P2 2
-//!   jobs 1,2,5  P0, P1 = R d0, d1; ClearCnt +0x154; next, P1 0, P0 1
-//!   job 3     P0, P1 = L d0, d1; ClearCnt +0x150; next, P1 0, P0 1
-//!   the aura: ccGetEquipParam(job, spcParam +0xd0 the weapon) +8; the
-//!   rows laid only with trajectorySW (+0xe1 bit 3) on or an aura (not
-//!   -1); _SetArmsEffectColor(aura) with trajectorySW off (and an aura),
-//!   or on with an aura and the normal attack (skill +0x7c 1); then Disp
-//!   of the lattices the job uses
-//! ClearArmsEffect (0x0059e3b0): +0x72c 1 on the job's lattices (table
-//!   0x006f0a20), so the next ArmsEffect's ClearCnt empties them
-//! _SetArmsEffectColor(t) (0x0059e4b0): +4 = t on the job's lattices
-//!   (table 0x006f0a40; no null check)
-//! SetArmsEffectColor(sid) (0x0059e460):
-//!   _SetArmsEffectColor(ccSkillCheckTypeAttribute(skill's type))
-//! ```
-//!
-//! A dummy the file lacks (GetChunkAdrsF's null) is read at the hand's
-//! origin here; the game reads address 0x10.
+//! A party character's weapon trails and points (gcmn spcchar.cpp):
+//! `ccSpcChar::EquipWeapon` (0x0059d650) finds the weapon file's dummies and
+//! makes the job's `ccLattice`s (job table 0x006f09e0); `ArmsEffect`
+//! (0x0059ddd0) sets the points from the hands' matrices each frame (job table
+//! 0x006f0a00) and lays the rows; `ClearArmsEffect` (0x0059e3b0, table
+//! 0x006f0a20) and `_SetArmsEffectColor` (0x0059e4b0, table 0x006f0a40). A
+//! dummy the file lacks reads the hand's origin here; the game reads address
+//! 0x10. The per-job layout is in docs/engine/battle.md.
 
 use std::collections::HashMap;
 

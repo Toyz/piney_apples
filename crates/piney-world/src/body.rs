@@ -1,16 +1,10 @@
 //! A character's model as the field draws it: a scene file's clump
-//! (`ccClump::Init`), models hung on its nodes in place of their own
-//! (`ccObj::SetModel` 0x0013b8f0, the weapons), palette swaps
-//! (`ccAnm::ChangeClut`), posed by one of the file's animations
-//! (`ccAnm::SetAnm`, [`Play`]) and drawn by `ccAnm::Draw` (0x001524d0)
-//! through `ccObj::Draw` (0x0013f220): every clump node with a model, in the
-//! clump's order, at the node's world matrix (`ccCoord::_SetLWMatrix`
-//! 0x00138380) under the anm's `T(pos) Rx Ry Rz(dirc)`; skinned and boned
-//! meshes take every node's matrix; lit models the draw environment's
-//! lights at their position (`ccDrawEnv::SetLightMatrix`).
-//!
-//! Kite ([`crate::chara::Kite`]), the Root Towns' merchants and walking PCs
-//! and every other character with a `CMP_trall` skeleton share this.
+//! (`ccClump::Init`), models hung on its nodes (`ccObj::SetModel` 0x0013b8f0,
+//! the weapons), palette swaps (`ccAnm::ChangeClut`), posed by an animation
+//! ([`Play`]) and drawn by `ccAnm::Draw` (0x001524d0) through `ccObj::Draw`
+//! (0x0013f220) at each node's world matrix under `T(pos) Rx Ry Rz(dirc)`.
+//! Kite, the towns' merchants and walking PCs and every `CMP_trall` skeleton
+//! share it.
 
 use std::collections::HashMap;
 use std::rc::Rc;

@@ -1,7 +1,7 @@
 ---
 title: The minimap - town, field and dungeon maps, the map button and ShowMap
 status: partial
-volumes: INF
+volumes: INF, MUT
 covers: INF SLUS_202.67:0x001a4430 ccThFieldDisp, 0x001a3fd0 WORLD_MAN::ChangeMapMode, 0x001a3b70 WORLD_MAN::SetMapAlpha, 0x001a3b80 WORLD_MAN::GetMapAlpha, 0x001a3ee0 WORLD_MAN::ShowMap, 0x0015a960 ccSprite::SetPrim, 0x0015ae80 ccSprite::MakePacket, 0x0015aed0 ccSprite::MakePacketStr, 0x0015c4b0 ccMask::ccMask, 0x0015c690 ccMask::MakePacketS, 0x0015c5e0 ccMask::SendPacketS, 0x00102190 ccRotate, 0x00104ae0 ccView::SetFrame, 0x001538d0 ccHitCheckLM, 0x00129d08 fptoui; INF gcmn.prg:0x00517800 ccThGameCtrl, 0x00421470 ROOTTOWN01::ROOTTOWN01, 0x00422d00 ROOTTOWN01::DrawMap, 0x005d4ad0 RT01ICONPOS, 0x004240c0 ROOTTOWN02::ROOTTOWN02, 0x00425760 ROOTTOWN02::DrawMap, 0x005d4e90 RT02ICONPOS, 0x005a4cd0 WORLD::Init, 0x005a6da0 WORLD::Generate, 0x005a97b0 WORLD::Draw, 0x005a3940 WORLD::DrawMiniMap, 0x005a3170 WORLD::DrawHeightOnMiniMap, 0x005a1b60 WORLD::DrawKeyObjectOnMiniMap, 0x005a1ff0 WORLD::DrawSubObjectOnMiniMap, 0x005a2510 WORLD::DrawLakeOnMiniMap, 0x005a2840 WORLD::DrawCircleOnMiniMap, 0x005a2c60 WORLD::DrawDungeonOnMiniMap, 0x005ad990 WORLD::ShowMap, 0x0042e0c0 ccCheckFountain, 0x00658680 KeyIconTBL, 0x006586b0 SubIconTBL, 0x006586e0 BaseIconTBL, 0x00658710 TreeIconTBL, 0x006584b0 FP_DUNGEON, 0x006571f0 fieldminimap, 0x005b7c00 DUNGEON::DUNGEON, 0x005ce930 DUNGEON::Draw, 0x005cd850 DUNGEON::MakeMiniMap, 0x005cc160 DUNGEON::DrawMap, 0x005cf260 DUNGEON::ShowMap, 0x00695550 levelstr; INF SLUS_202.67:0x003782f8 mapmsg
 ---
 
@@ -184,6 +184,41 @@ signs       RT02ICONPOS (gcmn 0x005d4e90), six of them
 ```
 
 The sends, the scroll, the shades and the fading out are Mac Anu's.
+
+## From Mutation: Dun Loireag and Carmina Gade
+
+From Mutation on (MUT gcmn: `ROOTTOWN02` 0x00437e70 / `DrawMap`
+0x00439740, `ROOTTOWN03` 0x0043b980 / 0x0043cfb0) the town class keeps
+its map part 4 bytes further on (`mapw` +0x80 .. `steph` +0x8c). Mac
+Anu's map is otherwise Infection's. Dun Loireag's and Carmina Gade's
+(`game.town` 2) change:
+
+```text
+ROOTTOWN0n()  two layers of the class's own: +0x1b4 of priority 40 with
+              mapLayer's frame, +0x1b8 of priority 45 over the screen
+              SetFrame(0, 0, 512, 384, 256, 192, 1, 1)
+              map[0] ccMask(128, 32) on +0x1b4
+              map[3] ccMask(128, 32) on +0x1b8, the same texture
+              map[2] (the arrow) on mapLayer
+              Dun Loireag: town02(d), stepw 1.28, steph 1.2921
+              Carmina Gade: town03(d)::TEX_sr3map1, RT03ICONPOS, stepw
+              1.02 (0x3f828f5c), steph 1.013 (0x3f81a9fc)
+DrawMap()     Carmina Gade: (x, y) move by (16, 46) before the scroll
+              the arrow at (68 + x, (80 + y) - 14), Carmina Gade's at
+              (70 + x, (80 + y) - 14); Dun Loireag still dims a sign
+              under the arrow's point in screen pixels
+              while the flag race runs in the town (0x005ff790: the
+              area 0 and the race's state 0x0038bd44 set), each of its
+              three racers (0x00774a90) with its place inside the map's
+              view: map[3], 24 x 24 at (3712, 144 + 24 i), at 12 + ((420
+              + px) - 24), y - 12; alpha 128 fade (+0x1ec, 0x005fd100),
+              12 fade per pixel within 11 of the view's top or bottom
+              and then no sign draws (each still fades in or out)
+              Carmina Gade's sign 3 draws its balloon mirrored and
+              flipped (ctrl 0x60), and left of the middle its label 6
+              lower; no sign dims
+              SendPacketS: map[2], map[3], map[0], map[1]
+```
 
 ## A field: WORLD::DrawMiniMap
 

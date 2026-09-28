@@ -1,13 +1,9 @@
 //! Kite's acts and animation: `ccPlayer::AnimCtrl` (gcmn 0x005993c0) for a
 //! player with no skill, target, enemy or condition - standing, walking,
-//! running, the idle fidget and the arrival fade-in - over the `ccAnm`
-//! playing his clump.
-//!
-//! Every act is one animation of `playerAnimTbl` (gcmn 0x006f0560), cut to
-//! frame 0 when the act changes (`ccAnm::SetAnm` ignores its change-frame
-//! argument; nothing blends). Walking and running play faster with the
-//! lean: `frameSpd = 256 (k speedRate speedValue)`, k 1.1 walking and 1.375
-//! running.
+//! running, the idle fidget and the arrival fade-in. Every act is one
+//! animation of `playerAnimTbl` (gcmn 0x006f0560), cut to frame 0 when the
+//! act changes (nothing blends). Walking and running play faster with the
+//! lean: `frameSpd = 256 (k speedRate speedValue)`, k 1.1 and 1.375.
 
 use piney_data::anim::{Animation, Ticks};
 

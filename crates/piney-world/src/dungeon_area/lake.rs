@@ -1,24 +1,10 @@
-//! The lakes (`DUNGEON` types 8 and 9): their sky and their fireflies
-//! (`docs/engine/dungeon.md`, "The lakes' sky and fireflies").
-//!
-//! ```text
-//! DUNGEON()     (0x005b8e84) type 8: by GetBG (WORLD_MAN.bgnum, 0-3) the
-//!               clumps CMP_o_bac_l{n}_, bac_m, clo_l, clo_m of the
-//!               dungeon's file; type 9: bac_l, bac_m, ero_l, ero_m,
-//!               ero_s; each SetFogSw(0)
-//! SetRoom       (0x005c3830) the lakes, by night (GetTime 2) or hacked
-//!               (DUNGEON +0x40, WORLD_MAN.hackFlag, 3): five FIREFLYs
-//!               up to 1000 on from the room's centre in x and y (the
-//!               hacked kind when hacked), their sprites field_eff's
-//! DrawBG(here)  (0x005ce3d0) the scroll's V into MAT_sfp7bac{n + 1}
-//!               (type 8) or MAT_sfp9dat{n + 1}_3 (type 9), then the
-//!               scroll on by 0.003 (back by 1 past 1); each clump at
-//!               room[level][here]'s centre, scaled 0.5, 1 or 1.5 by the
-//!               room's size, unturned, on the layers of priority -100,
-//!               -90, -80, -70 and -60
-//! DrawEff       (0x005cdee0) after the sparks and glows, by night or
-//!               hacked: each firefly's Move and Draw
-//! ```
+//! The lakes (`DUNGEON` types 8 and 9): their sky and their fireflies. The
+//! constructor (0x005b8e84) makes the sky clumps by `GetBG`; `SetRoom`
+//! (0x005c3830) makes five `FIREFLY`s near the room's centre by night or
+//! hacked; `DrawBG` (0x005ce3d0) scrolls the sky's V by 0.003 a frame and
+//! draws each clump at the room's centre, scaled by the room's size, on the
+//! layers -100 .. -60; `DrawEff` moves and draws the fireflies
+//! (docs/engine/dungeon.md, "The lakes' sky and fireflies").
 
 use std::collections::HashMap;
 

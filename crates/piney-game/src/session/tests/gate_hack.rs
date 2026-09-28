@@ -243,16 +243,12 @@ fn gate_hack_shots() {
 /// frame, and its own frames until shown.
 type Arrival = ((bool, bool, i16), Option<u32>);
 
-/// After the hack, the arrival in area 19 as `ccSetupGameCtrl` makes it
-/// with `setupMode` 1: the Chaos Gate's movie while the field loads (Mac
-/// Anu's departure `str7100`, `str7200`, the loop `str7300`, the arrival
-/// `str7404`), then the party built with `gtHackFlag` kept
-/// (`ccClearGtHack`: a field from a town): Kite in act 24 with `ghoFlag`,
-/// the camera on `x7404cam`'s markers (`ecam`), his blades hidden, then
-/// act 23 with the blades fading in, then standing (act 2) with the field
-/// camera back and `ghoFlag` clear. Mia and Elk, put in the party as the
-/// area starts, arrive hidden and standing (`ccFellow::Initialize`), off
-/// the command list, and appear 65 frames later.
+/// After the hack, the arrival in area 19 with `setupMode` 1: the Chaos Gate's
+/// movie while the field loads (`str7100`, `str7200`, the loop `str7300`, the
+/// arrival `str7404`), then Kite in act 24 with `ghoFlag` on `x7404cam`'s
+/// markers, his blades hidden, act 23 as they fade in, then standing with the
+/// field camera back and `ghoFlag` clear. Mia and Elk arrive hidden and
+/// standing, off the command list, and appear 65 frames later.
 #[test]
 fn gate_hack_arrives_hacking_out() {
     let Some(mut s) = story_19() else { return };

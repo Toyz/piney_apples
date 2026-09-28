@@ -1,33 +1,11 @@
-//! The event scripts in The World: `piney-event`'s interpreter hosted by
-//! the field (`Place::Field`), as `ccThEvent` (priority 32) runs beside the
-//! field's tasks.
-//!
-//! What each instruction reaches:
-//!
-//! ```text
-//! message, info, member_add_msg   the field UI's ccMsg (FieldUi::message_open,
-//!                                 message_check with this frame's pad,
-//!                                 message_close, announce), its voice asked
-//!                                 by the window
-//! menu, menu_ban, target_forbid,  ccMenu: FieldUi::open_menu, menu_ban ...;
-//! map_on, noise                   field_menu is CheckMenuType
-//! camera, cam*, camz*             the world's event camera
-//! pc_*, npc_*, entry, remove      the world's characters (event.rs)
-//! party_add, party_remove         ccPartyManager
-//! fade, fade_more                 ccMenu's ccScFade (ScFade below)
-//! gate_add, gate_mark             the save, through the story areas
-//! stream                          ccEventStream(num, 1): the stream played
-//!                                 while the call waits (Wait::Stream), its
-//!                                 frames shown instead of the town's
-//! area, scene                     recorded for the session, which builds
-//!                                 the story area and changes the scene;
-//!                                 scene's ChangeRequest(6, 7) puts the task
-//!                                 to sleep (Wait::ChangeRequest)
-//! sound                           ccSndEvRequest (mode::sound_request)
-//! ```
-//!
-//! Every call is also logged with its frame ([`FieldState::calls`]) for the
-//! runtime's checks.
+//! The event scripts in The World's towns: `piney-event`'s interpreter hosted by
+//! the town, as `ccThEvent` (priority 32) runs beside its tasks. Windows go to
+//! the field UI's `ccMsg` (their voice asked by the window), menus to `ccMenu`,
+//! the camera instructions to the event camera, `pc_*` and `npc_*` to the
+//! world's characters, `stream` to `ccEventStream(num, 1)`, `scene` to the
+//! session (the task sleeps in its `ChangeRequest(6, 7)`), `sound` to
+//! `ccSndEvRequest`. Every call is logged with its frame ([`FieldState::calls`]);
+//! the instructions are in docs/engine/events.md.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -51,25 +29,12 @@ use crate::stream::StreamPlayer;
 /// `ccGame.status` in The World.
 pub const STATUS_WORLD: i32 = 5;
 
-/// `ccScFade` (fade.cpp): a word the fader is off by (+0x00), then four
-/// fading elements of 36 bytes at +0x04 (`status` +0x00, `cnt` +0x02,
-/// `tcnt` +0x04, two more counts at +0x06 and +0x08, the rectangle
-/// +0x0c-+0x18, `col0` +0x1c, `col1` +0x20), and the layer (+0x94). The
-/// events use `ccMenu`'s (`ccMenu +0xb8`, sent by `ccMenuCtrl::Disp` on
-/// the menu layer):
-///
-/// - `EntryFade(n, col0, col1, 0, 0, 512, 448)` (0x00160400) takes the
-///   first element whose status is 0: status 1, `cnt` 0, `tcnt` n; its
-///   number (-1 when none is free) is what the event keeps
-///   (`eventMng.fadeNum` +0x788).
-/// - `ContinueFade(i, n, col1)` (0x00160490): status 1, `cnt` 0, `tcnt` n,
-///   `col0` the old `col1`.
-/// - `SendPacket` (0x0015fb80): each element with status bit 0 is drawn
-///   (one flat strip, colour `c0 + (c1 - c0) cnt / tcnt` per channel, as
-///   `piney_desktop::fade`), then `cnt` counts up; past `tcnt`, status bit
-///   1 ends the element, bit 2 turns it into a fade back to alpha 0 over
-///   the count at +0x06 (status 2), bit 3 into a hold over the count at
-///   +0x08 (status 4), and otherwise it holds at `tcnt`.
+/// `ccScFade` (fade.cpp): four fading elements (`status`, `cnt`, `tcnt`, two
+/// more counts, the rectangle, `col0`, `col1`) and a layer; the events use
+/// `ccMenu`'s. `EntryFade` (0x00160400) takes the first free element (its
+/// number the event keeps, `eventMng.fadeNum`), `ContinueFade` (0x00160490)
+/// goes on from the old colour, `SendPacket` (0x0015fb80) draws and counts
+/// each (docs/engine/event-vm.md).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ScFade {
     /// +0x00: nothing is sent while it is set.

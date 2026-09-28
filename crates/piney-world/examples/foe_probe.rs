@@ -1,32 +1,9 @@
-//! Answers `tools/test_foe_rs.py` and renders enemies and a magic portal to
-//! PNG (`piney_world::foe`).
-//!
-//! ```text
-//! cargo build --release -p piney-world --example foe_probe
-//! foe_probe ISO < requests
-//! foe_probe ISO --shot OUT [--rows 130,151,...] [--frame N] [--circle ANIM,N]
-//!     [--dist D] [--pitch P] [--yaw Y] [--dead ROW] [--flash ROW]
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests, one a
-//! line:
-//! - `look ROW`: `EnemyLook::load` of `enemyTbl` row ROW: the file, the
-//!   clump, the palette swaps (material, clut), the wait clip, a middle
-//!   boss's second file.
-//! - `pose ROW ANIM TIME M0 .. M15`: that row's clump posed by animation
-//!   ANIM (by name) at time TIME (`frameNow * 256 + frameCnt`) under the
-//!   matrix M (four columns, as `dispEnemy` leaves it): every clump node's
-//!   name, world matrix and transparency.
-//! - `circle ANIM TIME X Y Z DX DY DZ`: the portal's clump likewise, under
-//!   `SetMatrix_PosRotZYX(pos, dirc)`.
-//! - `draw DEAD NUM SW CNT RATE COLOR CCNT CRATE CCOLOR X Y Z W H SET TD
-//!   ATTR PX PY PZ CX CY CZ DEG1 EYE TOWN`: `ccChar::Draw` up to the draw
-//!   for a character at (X Y Z) of width W and height H with
-//!   `condition.dead` DEAD, `conditionNum` NUM, the condition effects SW,
-//!   the affect flash (CNT RATE COLOR) and tint (CCNT CRATE CCOLOR),
-//!   `setTransparency` SET, `transDist` TD, `hitAttribute` ATTR, the player
-//!   at P and the camera at C with pitch DEG1, the eye view EYE, a town
-//!   TOWN; prints the decisions and the affect members after.
+//! Answers `tools/test_foe_rs.py` (`foe_probe ISO < requests`: `look`, `pose`,
+//! `circle`, `draw` - an enemy row's files, its clump posed, the portal's,
+//! and `ccChar::Draw`'s decisions) and renders enemies and a magic portal to
+//! PNG (`piney_world::foe`): `foe_probe ISO --shot OUT [--rows 130,151,...]
+//! [--frame N] [--circle ANIM,N] [--dist D] [--pitch P] [--yaw Y] [--dead
+//! ROW] [--flash ROW]`. Numbers hex, floats their bits.
 
 use std::collections::HashMap;
 use std::io::BufRead;

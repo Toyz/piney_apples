@@ -1,39 +1,9 @@
-//! Answers `tools/test_field_rt.py`: a field as `WORLD_MAN::GO(1)` builds
-//! it (`piney_world::field_area`), its collision, its object passes and
-//! Kite and the camera walking it, one request a line, one JSON line an
-//! answer, so the test can run the same through the game's code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example field_probe
-//! field_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests:
-//! - `new SEED TYPE WEATHER GROUND OBJECT EVENT`: the field; answers its
-//!   objects (kind, FOBJECT2, chip, wp, anm, hit indices), its hit models
-//!   (HIT_ object and parent model ids), the height map and `check3`,
-//!   `defSE`.
-//! - `charpos AREAPREV TYPE SX SY SZ DX DY DZ`: where
-//!   `WORLD_MAN::SetCharPosition` puts the leader in a field of type TYPE
-//!   come from area AREAPREV, `fieldStartPos` S, `dungeonPos[0]` D.
-//!   Answers the leader's place and facing, then `StartPos[1..3]` as
-//!   `ccGetStartPositions` asks for them.
-//! - `dgpos X Y Z W`: `SetCharPosition` in a dungeon (`WORLD_MAN.area`
-//!   2) with `WORLD_MAN.position` (X, Y, Z) facing W: `StartPos[1..3]`.
-//! - `place K`: object K's hits set at its `wp` and enabled; answers the
-//!   list.
-//! - `clear`: the hit list emptied.
-//! - `land X Y Z`: `ccLandHitCheck(pos, 0x20000001)`: z, the result count,
-//!   the nearest result's attribute and point.
-//! - `hitcheck X Y Z MX MY NOWSPEED RUN`: `ccSpcChar::HitCheck` for Kite
-//!   (width 45) at (X, Y, Z) moving (MX, MY): the result and the move.
-//! - `step X Y Z`: the draw's object passes for a player at (X, Y, Z):
-//!   each object's place, fade, whether drawn and its anm's time, and the
-//!   hit list with each hit's translation.
-//! - `start X Y Z DIRCZ SCHEME MODE SEED`: Kite arriving at (X, Y, Z) in
-//!   the field last made, the camera behind him, `WORLD_MAN::SetCenter`.
-//! - `pad DIRECT PUSH POWL DIRCL POWR DIRCR POW0 .. POW11`: one frame -
-//!   `cameraMain`, `ccPlayer::Main`, then the object passes.
+//! Answers `tools/test_field_rt.py` (`field_probe ISO < requests`): a field as
+//! `WORLD_MAN::GO(1)` builds it (`piney_world::field_area`), its collision,
+//! its object passes and Kite and the camera walking it, one JSON line a
+//! request. Requests: `new`, `charpos`, `dgpos`, `place`, `clear`, `land`,
+//! `hitcheck`, `step`, `start`, `pad`; numbers hex, floats their bits, the
+//! fields the harness's.
 
 use std::io::BufRead;
 use std::sync::Arc;

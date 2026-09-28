@@ -1,18 +1,10 @@
 //! The enemies' weapon trails and flashes ([`piney_battle::weapon`]): the
-//! controller a race's constructor makes (`entry::Out::Weapon`), run from
-//! the race's `exclusive()` ([`enemy_motion::Call::WeaponCtrl`]) and handed
-//! its notes ([`enemy_motion::Call::WeaponNote`]), each at what the enemy
-//! then was.
-//!
-//! The controllers draw nothing random, so they run where the effects
-//! start the frame's shows (`Combat::fx_call`), in their order, after the
-//! entry control's frame: each enemy's nodes are its body posed as this
-//! frame drew it (`Call::Draw`'s matrix, the clip where `animEnemy` left
-//! it), as `ccAnm::Draw` left the coordinates the game reads. An enemy not
-//! drawn this frame keeps its last matrix. The trails go to
-//! [`Combat::trails`], the flashes' rays to [`Combat::rays`] (drawn as the
-//! boxes'); the flashes' lights, like the boxes', are not put in the
-//! scene's light group.
+//! controller a race's constructor makes, run from the race's `exclusive()`
+//! and handed its notes. They draw nothing random, so they run where the
+//! effects start the frame's shows (`Combat::fx_call`), on each enemy's body
+//! as this frame drew it (one not drawn keeps its last matrix). The trails go
+//! to [`Combat::trails`], the flashes' rays to [`Combat::rays`]; the flashes'
+//! lights are not put in the scene's light group.
 
 use std::collections::HashMap;
 

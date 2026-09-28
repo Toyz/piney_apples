@@ -1,12 +1,8 @@
-//! Not the game's: `--mode loose:PATH[:N]`, the scenes of an archive no
-//! stream table lists, played for looking at them. Outbreak's
-//! `STREAM/STRT.BIN` holds six that no code opens (`docs/disc/outbreak.md`).
-//!
-//! The archive is read off the disc and split into streams
-//! ([`piney_stream::load::scan`], [`piney_stream::load::loose_streams`]): a
-//! setup file (`str9999e`) with its scene, or a scene alone. Stream N plays
-//! at the event streams' 30 frames a second, again from its start when it
-//! ends; START (Enter) goes on to the next.
+//! Not the game's: `--mode loose:PATH[:N]`, the scenes of an archive no stream
+//! table lists, played for looking at them (Outbreak's `STREAM/STRT.BIN` holds
+//! six, docs/disc/outbreak.md). The archive is split into streams
+//! ([`piney_stream::load::loose_streams`]); stream N plays at 30 frames a
+//! second, again from its start at its end; START (Enter) goes to the next.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

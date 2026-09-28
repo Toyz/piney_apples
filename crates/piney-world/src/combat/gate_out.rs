@@ -1,56 +1,11 @@
-//! A gate-hacked arrival: `ccPlayer::GateHackingOut()` (gcmn 0x0059bc00)
-//! and the globals around it.
-//!
-//! After the gate hack (menu 62's OK: `ccGame.setupMode = 1`,
-//! `ccSetGtHack()`), a field entered from the town keeps `gtHackFlag`
-//! (`ccClearGtHack`), and its set-up plays the Chaos Gate's movie while the
-//! field loads (`ccRequestLoadStreamGateHack`). Then:
-//!
-//! ```text
-//! ccAddRequestFileListSpc   gateHackingOutID from game.field (below), and
-//!                           x<name>.ccs added to the file list
-//!                           (GateHackOutFileList)
-//! ccPlayer::ccPlayer        ghoFlag 1, act 24 (ANM_ctu1hac4b), his body
-//!                           on the collision list; instead of act 13
-//! ccFellow::Initialize      hidden (dispSW off), dispWait 65, act 2, body
-//!                           on the list; instead of the transfer in
-//! ccAI::ccAI                arrivalChatCnt -1 instead of 150
-//! ```
-//!
-//! All of that needs `game.area` 1 (or a dungeon of a field of type 4 with
-//! `game+0x28` 0), `areaPrev` 0 (from a town), `gtHackFlag` set,
-//! `gateHackingOutID` not -1 and `volumeNum` below 4.
-//!
-//! `GateHackingOut` runs from `ccPlayer::Main` in acts 23 and 24 on
-//! `progCtrlFlag` (+0x208):
-//!
-//! ```text
-//! 0  ghoCam = new ccAnm; SetAnm(x<name> ANM_str<name>0); ghoCamPosC,
-//!    ghoCamPosV, ghoCamPosM = GetSubstAdrsF(OBJ_marker_cam1, _target0,
-//!    _man0); changeCamera(3); one _AnimateForward; place (below);
-//!    ghoCamArmsT 0; +0x114 0; speedRate 1; cameraFlag on; +0x224 100;
-//!    stopFlag on, moveFlag off; both blades' dispSW 0; 1
-//! 1  _AnimateForward; ended: 7, the blades' dispSW 3; place
-//! 2  +0x114 to 41, then 3        (2-6 are not reached: 1 goes to 7)
-//! 3  +0x114 to 111, then 4
-//! 4  speedRate += (1 - speedRate) / 7.5 until 1, then 5
-//! 5  +0x224 += 1.25 (120 - it) until 120, then 6
-//! 6  7
-//! 7  act 23 and ghoCamArmsT >= 1: 8; else +0x114 + 1, ghoCamArmsT + 0.1
-//!    (to 1)
-//! 8  changeCamera(1); cameraSetPos(+0x250), cameraSetView(+0x240),
-//!    cameraParamChange; act 2; restraint off; cameraFlag off; 0;
-//!    ghoFlag 0; ghoCam deleted
-//! place: the camera's eye at OBJ_marker_cam1 (kept at +0x250), its target
-//!    at OBJ_marker_target0 (+0x240, posView), Kite at OBJ_marker_man0;
-//!    cameraParamChange(+0x250, +0x240)
-//! ```
-//!
-//! Act 24's clip ends into act 23 (`AnimCtrl`), whose clip loops; in acts
-//! 23 and 24 `ccPlayer::Main` gives his blades `ghoCamArmsT` as their
-//! transparency. `ccThGameCtrl` does nothing while `ghoFlag` is set, nor
-//! does the party's AI (`ccFellow::Main`), and the event instruction
-//! `gate_hack_anim` waits on it (`ccCheckGtHackAnm`).
+//! A gate-hacked arrival: `ccPlayer::GateHackingOut()` (gcmn 0x0059bc00) and
+//! the globals around it. After the gate hack (menu 62's OK), a field entered
+//! from the town keeps `gtHackFlag`, and its set-up loads the field's
+//! `x<name>.ccs`, builds Kite in act 24 with `ghoFlag` set and hides the
+//! party for 65 frames. `GateHackingOut` then runs the camera along the
+//! file's markers (`progCtrlFlag` 0, 1, 7, 8; 2-6 are never reached) and
+//! gives the blades `ghoCamArmsT` as their transparency. `ccThGameCtrl`, the
+//! party's AI and `gate_hack_anim` wait on `ghoFlag` (docs/engine/field-walk.md).
 
 use std::rc::Rc;
 

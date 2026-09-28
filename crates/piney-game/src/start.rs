@@ -1,46 +1,11 @@
-//! The story's start points (`--mode story:N`): the game where event N of
-//! the opening arc opens, with the save and the event task as the game has
-//! them there, so that work on a later event need not play the ones before.
-//!
-//! The save is a new game's (the title's New Game over the boot's
-//! `ccSaveData::Init`, the player named Kite) and the event task the boot's
-//! (`ccEvent::Init`, `ccStartEvent(1, 0)`). Each event of the story before N
-//! is then brought forward by the task's own `ccEventFlagSet(n)` (INF
-//! 0x001b6160), as `ccStartEvent` brings an earlier volume's events forward:
-//! every block run at level 1, which applies its bookkeeping - block bits,
-//! mails, board posts, news, items, the gate and word lists, the call and
-//! member bits, `eventStatus`, `end_event` - and nothing the player sees.
-//! The first Log in's `ccSetupNewGame`, between events 1 and 2, is made where
-//! the story makes it. The mode's set-up then makes its own
-//! `ccStartThEvent`, which turns the closed events done, and its passes, in
-//! which event N opens.
-//!
-//! ```text
-//! N   brought forward   where it starts
-//! 3   1 2               story area 14's field, as event 2's `area 14` and `scene` leave it
-//! 4   1 2 3             its dungeon's first room (the entrance's ChangeArea(2, 0))
-//! 10  1 2 3 4           the desktop (event 4 closes itself and event 3 there)
-//! 11  ... 10            Mac Anu, from Log in
-//! 12  ... 11            the desktop
-//! 13  ... 12            Mac Anu, from Log in
-//! 14  ... 13            the top page (the board), where Log out leaves Mac Anu
-//! 15-31 ... N-1         the desktop (16 17 24 25 29 31), Mac Anu from Log in
-//!                       (15 18 19 21 27 28) or the board (20 22 23 26 30), as
-//!                       each event's first located block has it
-//! ```
-//!
-//! Events 5-9 do not exist; 3 and 4 both open on event 2's end, and event 4
-//! closes event 3. The side events are not brought forward: those that open
-//! on the story (50 on event 11's end, 55 on event 12's) open in the start's
-//! own passes.
-//!
-//! What the replay leaves as a player would not: `ccEventFlagSet` delivers
-//! mails already read (`ReadNewMail`) and board posts at state 3; the fights'
-//! experience and drops are not there, but for the story's Data Bugs'
-//! virus cores and the story's gate hacks, which [`fights`] adds (event
-//! 18's gate needs event 17's drained core). The party of a field or dungeon
-//! start, which is `ccPartyManager`'s and not the save's, is made by the
-//! party instructions event 2 (and 3) ran: [`party`].
+//! The story's start points (`--mode story:N`): the game where event N
+//! opens, so that work on a later event need not play the ones before. A
+//! new game's save and the boot's event task, each story event before N
+//! brought forward by the task's own `ccEventFlagSet` (INF 0x001b6160: every
+//! block at level 1, its bookkeeping and nothing seen), the first Log in's
+//! `ccSetupNewGame` where the story makes it, and what the replay does not
+//! bring ([`fights`], [`party`]). Where each event starts, and why, is in
+//! docs/engine/event-vm.md ("Starting later in the story").
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -173,18 +138,11 @@ const DATA_BUGS: [(i32, i16); 4] = [(17, 12), (18, 13), (21, 15), (24, 16)];
 /// area's cores.
 const HACKS: [(i32, i16); 3] = [(18, 19), (25, 23), (30, 27)];
 
-/// What the story's fights and gate hacks before event `n` leave in the
-/// save, which the replay (blocks, not fights or the gate's menu) does not:
-/// each Data Bug drained gives its core; each hack sets its area's
-/// `protectArea` bit and takes the cores its `protect` row asks for (as
-/// `virus_core` does at level 1). A start at a hack's event is given the
-/// cores that gate asks for beyond the drained ones (the letters a player
-/// gathers from ordinary foes), so that the hack can be made.
-///
-/// Past Infection's listed hacks the same holds for any start: each story
-/// area event `n`'s own blocks go to (`goes`) that is still protected gets
-/// the cores its gate asks for beyond those held (Mutation's area 45 at
-/// event 105, two of core 1).
+/// What the fights and gate hacks before event `n` leave in the save, which
+/// the replay does not: each Data Bug drained gives its core; each hack sets
+/// its area's `protectArea` bit and takes its cores (as `virus_core` at
+/// level 1). The gates event `n` itself goes to (`goes`) are given the cores
+/// their `protect` row asks beyond those held (docs/engine/event-vm.md).
 fn fights(save: &mut SaveData, areas: &HashMap<i16, StoryArea>, story: &[i32], n: i32, goes: &[i16]) {
     use piney_data::save::offset;
     use piney_event::ScriptSave;
@@ -248,21 +206,10 @@ fn goes(vm: &Vm, n: i32) -> Vec<i16> {
 }
 
 /// The party a field or dungeon start carries: `ccSpcManager` and
-/// `ccPartyManager` as the party instructions before event `n` leave them.
-///
-/// ```text
-/// Log in           ccSPC::Initialise, ccParty::InitParty: Kite, bootParam 0
-/// event 2 block 0  entry 2 2 3 5: ccRegisterEventMng, EntrySpc(2), bootParam 5
-///         block 1  pc_mode -3 6 at phase 0: the party is Kite alone, his bootParam 6
-/// Mac Anu          ccSPC::Reboot's SetParty: memberChar[0] Kite
-/// event 2 block 2  menu 75: Orca invited, ccParty::AddMember(2)
-/// event 3 block 2  pc_mode -3 4 (story:4): Kite's and Orca's bootParam 4
-/// ```
-///
-/// `AddMember`'s `inviteSpc` also sets the character's own `partyFlag`; the
-/// next area's `ccSPC::Reboot` builds it from the registry's, so only the
-/// managers' part is kept: the registry's `partyFlag`, the slot's
-/// `memberID` and `memberChar`, and `num`.
+/// `ccPartyManager` as event 2's (and 3's) party instructions leave them,
+/// Orca registered and added. Only the managers' part is kept (the
+/// registry's `partyFlag`, the slot's `memberID` and `memberChar`, `num`);
+/// the next area's `ccSPC::Reboot` builds the character from them.
 pub fn party(n: i32) -> Spcs {
     let mut spcs = Spcs::new_game();
     let i = spcs.entry_spc(ORCA);

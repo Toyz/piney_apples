@@ -1,17 +1,9 @@
 //! Answers `tools/test_merchcam_rs.py`: the shop's camera
 //! (`Camera::set_merchant`, `SetMerchantCamera`) and `changeCamera(1)` over
 //! the field's camera and player tasks, as `world_probe` runs them. One
-//! request a line (numbers in hex), one JSON line back.
-//!
-//! ```text
-//! merchants                         Mac Anu's merchants as ccSetMerchant(0) places them
-//! start T X Y Z DIRCZ SCHEME MODE SEED   Kite and the camera as the field's set-up leaves them
-//! frame [DIRECT PUSH POWL DIRCL POWR DIRCR PW0..PW11]
-//!                                   one frame of the tasks, then the cameras
-//! merchant BREEDER SERVER P0..P3 D0..D3  set_merchant on that character, then the cameras
-//! change N                          changeCamera(N), then the cameras
-//! getrot N S0..S3                   cameraGetRot(out = S, N)
-//! ```
+//! request a line (numbers in hex), one JSON line back: `merchants` (Mac
+//! Anu's as `ccSetMerchant(0)` places them), `start`, `frame`, `merchant`
+//! (`set_merchant` on that character), `change N` and `getrot N S0..S3`.
 
 use std::io::BufRead;
 use std::sync::Arc;

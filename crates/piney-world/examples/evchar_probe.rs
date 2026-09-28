@@ -1,40 +1,10 @@
-//! Answers `tools/test_evchar_rs.py`: the characters' event commands - Kite
-//! built with a registry `bootParam`, a party member placed by an event, the
-//! party instructions (`pc_act`, `pc_mode`, `pc_turn`, `pc_face`,
-//! `menu_ban`, `menu_clear`, `party_add`, `party_remove`) and the frames
-//! that follow (`cameraMain`, `ccPlayer::Main`, then each party member's
-//! `ccFellow::Main`) - printing the state as JSON lines, so the test can run
-//! the same through the game's own code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example evchar_probe
-//! evchar_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests, one a
-//! line:
-//! - `start X Y Z DIRCZ SCHEME MODE SEED BOOT`: Mac Anu's collision, a new
-//!   game's registry and party, Kite built at (X, Y, Z) facing DIRCZ with
-//!   `bootParam` BOOT (`Player::build`), the camera as `ccThCamera`'s
-//!   set-up leaves it, `rand` seeded with SEED: {}.
-//! - `marker N`: `markerEvTbl[N]` in town01: {"pos", "rot"}.
-//! - `fellow CODE BOOT LAG PARAM X Y Z W DD VEL HEIGHT WIDTH FLAGS`: the
-//!   `charTbl` row CODE registered (`EntrySpc`, `bootParam` BOOT), its
-//!   `spcParam` row cleared but for the velocity, height, width, flags and
-//!   maxHP 120 / maxSP 40, built as `ccSPC::Reboot` builds it
-//!   (`TownParty::build` at the origin, its `rand()` draws answered as the
-//!   test scripts them: `transferLag` LAG, the rest 0), `SetParty`, and put
-//!   where `ccEntryEventMng` puts an entry: at (X, Y, Z, W),
-//!   `ccAI::SetDircZ(DD)`, on the command list when PARAM is 5: {"list"}.
-//! - `act PC ACT`, `mode PC PARAM`, `turn PC DIRC CHG`, `face PC TYPE CODE
-//!   CHG`, `ban ON` (menu_ban 1 / menu_clear 0), `add CODE`, `remove PC`:
-//!   the instruction: {"ok"}. `talk ID ON DEG`: the AI of character ID
-//!   talking (`talkFlag`) toward DEG (`gDeg`), as its `affectFunc` leaves
-//!   it: {"ok"}.
-//! - `pad DIRECT PUSH POWL DIRCL POWR DIRCR POW0 .. POW11`: one frame
-//!   (`cameraMain` with L2 held off while `menu_ban` holds, as its
-//!   `eventMng +0x78c` test does): {"kite": ..., "fellows": [...], "party":
-//!   ..., "chars": the character list's bodies in order}.
+//! Answers `tools/test_evchar_rs.py` (`evchar_probe ISO < requests`): the
+//! characters' event commands - Kite built with a registry `bootParam`, a
+//! party member placed by an event, the party instructions and the frames
+//! that follow (`cameraMain`, `ccPlayer::Main`, each member's
+//! `ccFellow::Main`) - as JSON lines. Requests: `start`, `marker`, `fellow`,
+//! `act`, `mode`, `turn`, `face`, `ban`, `add`, `remove`, `talk`, `pad`;
+//! numbers hex, floats their bits, the fields the harness's.
 
 use std::io::BufRead;
 use std::sync::Arc;

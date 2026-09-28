@@ -1,34 +1,11 @@
-//! The minimap at the top right of the field's screen (`docs/engine/map.md`),
-//! as `ccThFieldDisp` (main 0x001a4430, priority 96) draws it each frame and
-//! `ccThGameCtrl` (gcmn 0x00517800) switches it:
-//!
-//! ```text
-//! a town      ROOTTOWN01::Draw -> DrawMap (gcmn 0x00422d00)      town.rs
-//! a field     WORLD::Draw -> DrawMiniMap (gcmn 0x005a3940)       field.rs
-//!             unless ccGame.inBattle
-//! a dungeon   DUNGEON::Draw -> MakeMiniMap (0x005cd850), then    dungeon.rs
-//!             DrawMap (0x005cc160) unless ccGame.inBattle
-//! ```
-//!
-//! Each map draws on `mapLayer` (a layer of priority 50 with its own view,
-//! 160 x 160 at (340, 36) in a town, (340, 28) outside) and the font
-//! layer, every sprite's `transp` the alpha the field UI fades
-//! (`WORLD_MAN::SetMapAlpha`, main 0x001a3b70, from `ccMenu.mapStatus`).
-//!
-//! The map button, `saveData.assignPADmap` (+0x840c, select), is
-//! `ccThGameCtrl`'s first test each frame, before `ccPlayerMenuCheck`
-//! ([`button`]): pushed, and `ccEvent::CheckOperate(13, 0)` passes,
-//! `WORLD_MAN::ChangeMapMode` (main 0x001a3fd0) steps the area's mode -
-//! `townMapMode` (+0x128) 0-1, `fieldMapMode` (+0x12c) 0-2,
-//! `dungeonMapMode` (+0x130) 0-1 by `WORLD_MAN.flag` - and the mode goes
-//! back to `saveData.mapMode[game.area]` (+0x842d). The task's set-up reads
-//! the three from the save.
-//!
-//! `WORLD_MAN::ShowMap` (main 0x001a3ee0), the events' `show_map`
-//! ([`show_map`]): nothing in a town; in a field `WORLD::ShowMap` (the
-//! magic portals appear on the map) unless the story area's map is its own
-//! (`EVENTAREA_INFO.model` 1); in a dungeon `DUNGEON::ShowMap`, one room a
-//! call until every room of the floor is on the map.
+//! The minimap at the top right of the field's screen, as `ccThFieldDisp`
+//! (main 0x001a4430, priority 96) draws it and `ccThGameCtrl` (gcmn
+//! 0x00517800) switches it: a town's `DrawMap` ([`town`]), a field's
+//! `WORLD::DrawMiniMap` ([`field`]), a dungeon's `MakeMiniMap` and `DrawMap`
+//! ([`dungeon`]), on `mapLayer` faded by `WORLD_MAN::SetMapAlpha`. The map
+//! button ([`button`]) steps the area's map mode by `ChangeMapMode`;
+//! [`show_map`] is the events' `show_map` (`WORLD_MAN::ShowMap`, main
+//! 0x001a3ee0). The rules are in docs/engine/map.md.
 
 pub mod dungeon;
 pub mod field;

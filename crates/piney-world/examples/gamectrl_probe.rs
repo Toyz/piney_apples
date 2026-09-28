@@ -1,31 +1,10 @@
 //! Answers `tools/test_gamectrl_rs.py`: the battle half of `ccThGameCtrl`
-//! (`piney_world::talk`) on the cases it is sent, one JSON line each, so
-//! the test can run the same cases through the game's own code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example gamectrl_probe
-//! gamectrl_probe < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns, signed values as
-//! 32-bit two's complement. Requests, one a line:
-//! - `inbattle IN CNT V`: `ccGame::SetInBattle(V)` from `inBattle` IN and
-//!   `inBattleCnt` CNT: `[inBattle, inBattleCnt]`.
-//! - `inarea LX LY LZ LFLAGS LLISTED LAT LID LDEAD CKIND CIDX CX CY TY MODE
-//!   DIST TID N (FLAGS ID DEAD X Y Z)*N`: the leader at (LX, LY, LZ), LAT
-//!   his place on the party's list; the candidates in list order; the
-//!   centre the leader (CKIND 0), candidate
-//!   CIDX (1) or someone unlisted at (CX, CY) (2): `[ccCheckInAreaCmnd(ch,
-//!   TY, MODE, DIST), ccCheckTargetTypeId(TY, TID)]`.
-//! - `select LX LY LZ DIRCZ LWIDTH LLISTED LDEAD LSLEEP LCONF LCHARM LPARA
-//!   EYE MODE PRI INBATTLE FIELD N (FLAGS WIDTH X Y Z DEAD SLEEP CONF CHARM
-//!   PARA ACT)*N`: `ccSortCmnd`, `ccCheckTargetRange` and `ccSelectTarget`
-//!   as `test_world_rs.py`'s `target`, with the conditions, the fight and
-//!   the field.
-//! - `ctrl_start`: a new task (`Targeting`, `inBattle` 0, 0, 2200, the
-//!   recoveries empty).
-//! - `ctrl_frame ...`: one frame of the loop (`Targeting::frame`); see
-//!   `ctrl_frame` below for the fields.
+//! (`piney_world::talk`) on the cases it is sent, one JSON line each.
+//! Requests: `inbattle` (`ccGame::SetInBattle`), `inarea`
+//! (`ccCheckInAreaCmnd`, `ccCheckTargetTypeId`), `select` (`ccSortCmnd`,
+//! `ccCheckTargetRange`, `ccSelectTarget`), `ctrl_start` (a new task) and
+//! `ctrl_frame` (`Targeting::frame`; see `ctrl_frame` below). Numbers hex,
+//! floats their bits, signed values 32-bit two's complement.
 
 use std::collections::HashMap;
 use std::io::BufRead;

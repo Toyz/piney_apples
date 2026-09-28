@@ -1,31 +1,11 @@
-//! The field's effects (piney-effect's `ccThEffect` and `ccThParticle`)
-//! over the battle of a field or dungeon: installed into the area's world
-//! ([`piney_world::field_world::FieldFx`]), which runs them at their places
-//! in the frame - `ccThEffect` (80) after the entry control and before
-//! `ccThSkill` (82), `ccThParticle` (98) after it - and draws them after
-//! the characters.
-//!
-//! Each task first starts what the tasks before it asked for: the battle's
-//! presentation ([`Show`]) since it last looked, in order - piney-battle's
-//! events as `docs/engine/effects.md` maps them (hit marks, numbers,
-//! protect, the particles of a critical, a death, a guard; Data Drain's
-//! orbs and wave, and its side effects' rings, words and numbers), Kite's
-//! arrival (`effTransfer`), a level up
-//! (`effLevelUp`) and a kill's experience over each member
-//! (`ccEntryFlyFontNewExp(19, ..)`). The game calls each starter inside the
-//! task that raises it; here they run in a batch at the next effect task,
-//! so their draws from `rand()` come after the rest of that task's (the
-//! effects step in the same frame either way).
-//!
-//! An attack spell's element system runs from `ccThSkill`'s walk
-//! ([`FxTasks::spell`]): the effects' `Spell` made at its first call and
-//! synced from the run, `Effects::spell_system` stepped, and its damage
-//! calls and releases handed back to the battle in order.
-//!
-//! The magic portals are piney-battle's entry control's (`ccMagicCircle`
-//! and `ccMcPart` as logic); they are drawn through piney-effect's
-//! `MagicCircle::render`: the circle's `ccAnm::Draw` with its palette and
-//! each live spark's `ccEff::Draw` of `EFF_xmagpat1`.
+//! The field's effects (piney-effect's `ccThEffect` and `ccThParticle`) over a
+//! field's or dungeon's battle, installed into the world
+//! ([`piney_world::field_world::FieldFx`]) and run at their places in the frame
+//! (`ccThEffect` 80, `ccThParticle` 98). Each task first starts what the tasks
+//! before it asked for ([`Show`], Kite's arrival, a level up, a kill's
+//! experience); here the starters run in a batch at the next effect task, so
+//! their `rand()` draws come after that task's. Spells run from `ccThSkill`'s
+//! walk ([`FxTasks::spell`]); docs/engine/effects.md.
 
 mod ambient;
 
@@ -607,9 +587,11 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         Show::DrainLevelDown(k) => {
             fx.fly_font_level_down(Some(cref(*k)), 23);
         }
-        // The boss's ccBossEff*Create, with Skeith's arguments.
+        // The boss's ccBossEff*Create (those the effects have).
         Show::Boss(_, piney_battle::boss::Out::Effect { kind, pos, dirc, .. }) => {
-            fx.boss_create(h, boss_make(*kind, *pos, *dirc));
+            if let Some(m) = boss_make(*kind, *pos, *dirc) {
+                fx.boss_create(h, m);
+            }
         }
         // An event NPC's effTransfer as it comes or goes (a PC's act 4,
         // the Administrator's sysopeAct); his act -5's
@@ -631,23 +613,25 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
     }
 }
 
-/// A `ccBossEff*Create` as `ccBoss01` calls it (`docs/engine/boss.md`,
-/// "Effects"): the rules name the effect, where and which way.
-fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> piney_effect::boss::Make {
+/// A `ccBossEff*Create` as the bosses call it (`docs/engine/boss.md`,
+/// "Effects"): the rules name the effect, where and which way. Innis's
+/// rings and missiles have no picture yet (boss-innis.md).
+fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
     use piney_battle::boss::EffKind;
     use piney_effect::boss::Make;
     const TEN: u32 = 0x4120_0000;
     const R: u32 = 0x4348_0000;
-    match kind {
+    Some(match kind {
         EffKind::WaveShock => Make::WaveShock { pos, dirc, scale: ONE },
-        EffKind::MagicSquare => Make::MagicSquare { pos, n: 0 },
+        EffKind::MagicSquare { n } => Make::MagicSquare { pos, n },
         EffKind::ForceGenerator { num, life } => {
             Make::ForceGenerator { p: pos, rot: dirc, speed: TEN, r0: R, r1: R, num, life, clt: 8 }
         }
         EffKind::AutoSamonRing { n } => Make::AutoSamonRing { pos, rot: dirc, param: [0, 0x3eaa_aaab, TEN, 0], n },
         EffKind::IceBreak => Make::IceBreak { pos, scale: 0x4000_0000 },
         EffKind::Dead => Make::Dead { pos },
-    }
+        EffKind::SamonRing { .. } | EffKind::Missile { .. } => return None,
+    })
 }
 
 /// A rule's event's starter (`docs/engine/effects.md`, "From

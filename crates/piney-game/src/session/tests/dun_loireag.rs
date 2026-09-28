@@ -419,17 +419,12 @@ fn open_grunty(s: &mut Session, pad: &mut Pad, code: i32, menu: i32) -> Option<u
     None
 }
 
-/// A new game in Dun Loireag with three of the first Grunty food (key item
-/// 26, size +2 each): `ccSetChibiGuso` places the young Grunty (row 154,
-/// Little Grunty at level 0) at its route's first dummy, walking it
-/// (act 3). Kite before it and the action button: `InuMenu` (46) fades to
-/// the fixed camera (`changeCamera(3)`), the Grunty sits facing him (act
-/// 0). Give Food (`BreedingMenu`, 56): the food, three of it (up twice), OK - it eats
-/// (act 6, growthNum 1), its record's size becomes 6 and it grows to level
-/// 1 (`evoActChibi2`: row 155, its voice and `effEvolvePG`), and the
-/// menu goes back to the list (growthNum 0: no line). Talk: it sits up
-/// (act 2) with its food line. Back out: the field camera and its walk
-/// again.
+/// A new game in Dun Loireag with three of the first Grunty food (key item 26):
+/// `ccSetChibiGuso` places the young Grunty (row 154) walking; the action
+/// button opens `InuMenu` (46) on the fixed camera, Give Food (`BreedingMenu`,
+/// 56) feeds it three (act 6, growthNum 1, size 6) and it grows to level 1
+/// (`evoActChibi2`, row 155, `effEvolvePG`); Talk has it sit up with its food
+/// line; backing out gives the field camera and its walk again.
 #[test]
 fn the_grunty_eats_and_grows() {
     let Some((iso, archive)) = disc() else { return };

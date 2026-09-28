@@ -594,6 +594,20 @@ Who raises dust:
   it fires once per `every` frames. It raises a ring at the row's offset,
   in the enemy's `eneSmoke` texture (`ccCheckDustColor`: 116 on stone,
   else 117).
+
+  ```text
+  ccEnemyDustInfo (0x20 bytes): +0 anm (2 and 3 match either), +1 n, +2
+    life, +3 every, +4 first frame, +6 last frame (shorts), +8 s, +0xc r,
+    +0x10 ofs
+  ctrl(obj, flag) (gcmn 0x0043aa90), with dispSW, each row whose anm is
+    the enemy's anmNum and whose frames hold its frameNum:
+      every 0: only on a note (flag)
+      first == last: every frame
+      else once a bucket: k = first + (frame - first) / every * every,
+        skipped while it is the node's last, which it becomes
+    ccEnemyEffDustRing at FW2LW(pos) + Rot(dirc) ofs, (s, r, n, life,
+    eneSmoke)
+  ```
 - **A gold goblin running.** `ccEnemyEffDust(FW2LW(pos), 1, size, 6,
   eneSmoke)`.
 - **An idol opening** (from frame 100). `ccEnemyEffDustRing(idol, (0,

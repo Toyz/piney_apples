@@ -1,50 +1,11 @@
-//! The World (`DATA/GCMN.PRG`, the field game) as a state machine: a pad
-//! in, a [`piney_draw::Frame`] out, once per game frame at 30 frames a
-//! second (`docs/engine/field-game.md`).
-//!
-//! This is the arrival of a new game in Mac Anu, the first Root Town, and
-//! Kite walking in it: TOPPAGE's New Game queues `ChangeRequest(5)`
-//! (`ccSetupNewGame`, main 0x001687a0: GCMN.PRG, frame rate 2) and
-//! `ChangeArea(0, lastTown)`, which queues `ChangeRequest(6)`
-//! (`ccSetupGameCtrl`, 0x00168960). That one fades out over 10 frames,
-//! loads the town, starts the field's tasks, builds the town
-//! (`WORLD_MAN::GO`), places Kite (`ccGetStartPositions`: (0, 5600, 600)
-//! facing south, 700 units in front of the Chaos Gate) and fades in over
-//! 10 frames while the tasks run. [`World::step`] is one frame of those
-//! tasks, in their priority order:
-//!
-//! ```text
-//! ccThGameCtrl (33)  the command target, the action button     talk.rs
-//! ccThCameraExecute  the event camera, while an event runs it   evcam.rs
-//!              (33)
-//! ccThCamera   (40)  cameraMain: L2, the reset button          camera.rs
-//! ccThPlayer   (49)  ccPlayer::Main: stick, walls, floor,       player.rs, hit.rs
-//!                    camera placement, act and animation, draw  motion.rs, chara.rs
-//! ccThFellow   (50)  the party members: the battle's            town_party.rs,
-//!                    ccFellow::Main (ActInTown, ManualControl)  combat/town.rs
-//! ccThEntryCtrl(64)  the Chaos Gate (ccChgate::main), then the  gate.rs
-//!                    merchants and the walking PCs              merchant.rs, rtownpc.rs
-//! ccThFieldDisp(96)  the town class's Draw (ROOTTOWN01 in Mac   town.rs, town01.rs ..
-//!                    Anu .. ROOTTOWN05 in Lia Fail; Dun         town05.rs, cloud.rs,
-//!                    Loireag's and Fort Ouph's clouds and lens  lensflare.rs
-//!                    flare too)
-//! ```
-//!
-//! Characters are [`char::Char`]s (a [`body::Body`] at a place); the entry
-//! control's are [`entry::Npc`]s. Talking comes out of
-//! [`World::take_talk`] as [`talk::TalkRequest`]s; the event scripts
-//! place and drive characters through [`World::entry`],
-//! [`World::pc_command`], [`World::npc_command`] and the rest of event.rs.
-//!
-//! The party's registry and members (`ccSpcManager`, `ccPartyManager`:
-//! party.rs) and their AI under the event scripts' manual control (ai.rs)
-//! are here, and the event camera (evcam.rs). The event interpreter runs
-//! outside, in the runtime (`piney-game`'s field host), before these tasks
-//! each frame; while `ccSetupGameCtrl` waits on its passes the set-up holds
-//! on its last black frame ([`World::set_loading`]). Without an event (no
-//! registry `bootParam`) Kite arrives and is free to walk at once. The rest
-//! of the party's AI, most menus and sound are not here (the docs page
-//! lists them).
+//! The World (`DATA/GCMN.PRG`, the field game) as a state machine: a pad in,
+//! a [`piney_draw::Frame`] out, once per game frame at 30 frames a second.
+//! [`World::step`] is one frame of the town's tasks in priority order:
+//! `ccThGameCtrl` (33, talk.rs), `ccThCameraExecute` (33, evcam.rs),
+//! `ccThCamera` (40, camera.rs), `ccThPlayer` (49, player.rs), `ccThFellow`
+//! (50, town_party.rs), `ccThEntryCtrl` (64, gate.rs, merchant.rs,
+//! rtownpc.rs) and `ccThFieldDisp` (96, town*.rs). The event interpreter runs
+//! outside, in `piney-game` (docs/engine/field-game.md).
 
 pub mod ai;
 pub mod area;
@@ -620,16 +581,13 @@ impl World {
         self.rand_count = count;
     }
 
-    /// `ccEntryEventMng` (main 0x001b62e0) for a Root Town, when the town's
-    /// tasks start: the events' town NPC entries (`ccSetRtownPC`, then the
-    /// marker's position and rotation), `ccSetMerchant(0)`'s merchants (the
-    /// Chaos Gate is already up), then `ccEntryRandomNpc` (0x001b6cf0): the
-    /// walking PCs `ccRegisterRandomNpc(n)` chose from `ccRand` as
-    /// `ccInitRand` seeded it ([`World::set_rand_count`]), `n` counting
-    /// Kite, the party members and the NPCs the events placed (15 PCs for
-    /// Kite alone, 14 with Orca). Each goes onto the entry control's list
-    /// and its body onto the character list in that order. The first frame
-    /// of play does it if it has not been called.
+    /// `ccEntryEventMng` (main 0x001b62e0) for a Root Town, when the town's tasks
+    /// start: the events' town NPCs (`ccSetRtownPC`), `ccSetMerchant(0)`'s
+    /// merchants (the Chaos Gate is already up), then `ccEntryRandomNpc`
+    /// (0x001b6cf0): the walking PCs `ccRegisterRandomNpc(n)` drew
+    /// ([`World::set_rand_count`]), 15 for Kite alone, 14 with Orca. Each goes
+    /// onto the entry list and its body onto the character list in that order.
+    /// The first frame of play does it if it has not been called.
     pub fn place_entries(&mut self) -> piney_data::Result<()> {
         if self.placed {
             return Ok(());

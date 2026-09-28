@@ -1,32 +1,10 @@
 //! A field's weather and ambient pictures: what `WORLD::Init` (gcmn
 //! 0x005a4cd0) and `WORLD::Generate` (0x005a6da0) make beside the ground and
-//! the objects, and what `WORLD::Draw` (0x005a97b0) and `WORLD::DrawEffect`
-//! (0x005a9070) draw of it each frame
-//! ([`docs/engine/field.md`](../../../docs/engine/field.md), "Weather and
-//! ambient pictures").
-//!
-//! ```text
-//! WORLD::Init       after the models: SNOW for the snow fields (types 5
-//!                   and 6: 100 light, or 200 heavy for GetWeather 5) and
-//!                   16 embers for type 0; the 2D smoke's sleep and five
-//!                   puffs (types 2, 3, 5, 6); DrawSteam(0) for type 0;
-//!                   the heat haze's animation (types 0-3)
-//! WORLD::Generate   after the start position: TOBJ (fieldrand(100) >= 86),
-//!                   the rain (GetWeather 2, 3) and the thunder's four
-//!                   sprites (3), five FIREFLY at night or hacked (not type
-//!                   9), fifteen FIREFLY2 for type 9, BIRD (type 10 by day,
-//!                   no rain)
-//! WORLD::Draw       first call: ten DrawSnow; the heat haze (layer 6);
-//!                   DrawEffect (layer 3); TOBJ, BIRD (layer 5); the lens
-//!                   flare (layer 3); DrawSteam(1) for type 0
-//! WORLD::DrawEffect DrawRain (the drops, the thunder); type 7's fires'
-//!                   smoke; DrawSnow and type 0's embers; the 2D smoke;
-//!                   the fireflies at night, hacked, or in type 9
-//! ```
-//!
-//! The pictures come out as [`Op`]s in the order the game asks for them;
-//! the runtime draws them (the sprites through the effects, the models
-//! into the layers, the smoke through `effSmoke`).
+//! the objects - snow, embers, smoke, steam, heat haze, rain and thunder,
+//! fireflies, birds - and what `WORLD::Draw` (0x005a97b0) and
+//! `WORLD::DrawEffect` (0x005a9070) draw of it each frame. The pictures come
+//! out as [`Op`]s in the game's order; the runtime draws them
+//! (docs/engine/field.md, "Weather and ambient pictures").
 
 use piney_data::dungeon::Rng;
 

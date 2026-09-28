@@ -1,37 +1,11 @@
-//! The characters as the event scripts see and drive them: the event
-//! interpreter (`piney-event`) asks its host for markers, the command
-//! target and the characters, and hands it the character instructions
-//! ([`NpcCommand`], [`PcCommand`], `entry`, `remove`); the runtime's host
-//! forwards those to these [`World`] methods.
-//!
-//! A character is named by an event `type` and `code` (`ccEvent::GetSpc`,
-//! `GetNpc`, `GetEnemy`; [`crate::event_kind`]):
-//!
-//! ```text
-//! type 0-2   the party: code a charTbl row (0 Kite, 2 Orca), -1/-2 a party
-//!            slot, -3 the whole party (ccPartyManager)
-//! type 3-4   a town NPC: code its npcTbl row (merchants 0-4, 29 and 158
-//!            are merchant-like)
-//! type 5-6   an enemy or object entry
-//! ```
-//!
-//! and a place by a marker: in a Root Town `markerEvTbl[marker]`
-//! (gcmn 0x00317da0: 0 `DMY_gate`, 1-30 `DMY_marker_ev01`-`30`, 31
-//! `DMY_marker71`, 32 `DMY_marker30`), a dummy of the town's file - its
-//! position (+0x10) and rotation (+0x20, radians; z the heading).
-//!
-//! What is done here: markers; putting a character at a point or a marker
-//! (`ccEvPcPos` 0x001ae7d8 and its NPC twin: the position, then
-//! `ccAI::SetDircZ(RAD2DEG(marker.rot.z))`); turning at once (`chg` 0:
-//! `ccAI::SetDircZ` 0x00581500 - the heading `DEG2RAD(dirc)`); facing
-//! another character at once; the command target; talk handed to the
-//! event. For the party (party.rs, ai.rs): `pc_act`, `pc_mode` and the
-//! gradual turns (`chg` != 0: `gRotSp = chg`, 1 meaning 64, and `gDeg` the
-//! heading, turned by the AI's remote command 0 each frame). NPCs' walking,
-//! acts and gradual turns go to the NPC's own event mode
-//! ([`crate::entry::Npc::command`]); the party's walking (`pc_walk_*`,
-//! remote commands 1 and 2) and the rest are not ported. These methods
-//! return false for what they do not do.
+//! The characters as the event scripts see and drive them: `piney-event` asks
+//! its host for markers, the command target and the characters, and hands it
+//! the character instructions ([`NpcCommand`], [`PcCommand`], `entry`,
+//! `remove`), which the host forwards to these [`World`] methods. A character
+//! is named by an event `type` and `code` ([`crate::event_kind`]), a place by
+//! a marker (`markerEvTbl`, gcmn 0x00317da0, in a Root Town). Puts, instant
+//! turns, facing, the command target and talk are here; NPCs' walks go to
+//! their own event mode. False for what is not done (docs/engine/events.md).
 
 use piney_event::host::{CharRef, Marker, NpcCommand, PcCommand};
 

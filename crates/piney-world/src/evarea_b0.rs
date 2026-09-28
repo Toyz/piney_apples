@@ -1,38 +1,11 @@
-//! The boss arenas: `EVENTAREAB0` (gcmn areab0.cpp), the story map
-//! `WORLD_MAN::GO(1)` (main 0x0019f8e0) makes for fields 1-8. Each field is
-//! a stage of its own scene file; Infection's Skeith is fought on field 1,
-//! `se1_5`, which area 27's last door leads to (`docs/engine/boss.md`).
-//!
-//! ```text
-//! EVENTAREAB0()          0x004079f0  sw = (0, 1, 0), layerSw 0; by
-//!                                    game.field the stage's file, and
-//!                                    EA_MODELTABLEB0's and eventareaB0Light's
-//!                                    names patched to it; SetFog(1500, 12000,
-//!                                    0, 70, 0x1e1e1e); ccSys.bgColor 0x1e1e1e;
-//!                                    the 9 STATICMODELs; lgtAnm (SetLightEnv
-//!                                    1) the stage's ANM_*bac1a, bg[0..2] its
-//!                                    CMP_*bac1, clo1, clo2 (fog off); the
-//!                                    lights (the distant one first) and the
-//!                                    ambient at frame 1; BLT_bg, obj, floor;
-//!                                    SetStartPos(DMY_center01); 54 FIREFLY2s
-//!                                    at DMY_marker01..18 (EFF_*fir1,
-//!                                    [`crate::firefly`])
-//! Draw()                 0x004095e0  DrawBG; objLayer: DrawObj; floorLayer:
-//!                                    DrawFloor; refLayer (objLayer with
-//!                                    layerSw): modelArray[5]; effLayer: the
-//!                                    fireflies (each Draw, then Move);
-//!                                    modelArray[6..8] bob
-//! DrawBG()               0x004091c0  MAT_*clo1's v scrolls 0.0015 a frame
-//!                                    (a static, wrapping past 1); bg[k] on
-//!                                    bgLayer[k] at the identity
-//! SwitchLayer()          0x004095b0  layerSw ^= 1 (Skeith's magic)
-//! NextStage()            0x004098e0  field 8 only: the stage deleted, the
-//!                                    last stage's anm drawn instead
-//! ```
-//!
-//! The collision is the floor model's Hit chunk (`HIT_se1_5fl0hit`), as for
-//! `EVENTAREA02` ([`crate::evarea`]): `ccLandHitCheck` never falls back on a
-//! height map in a story map, and the bounds are `GO`'s.
+//! The boss arenas: `EVENTAREAB0` (gcmn areab0.cpp, constructor 0x004079f0,
+//! `Draw` 0x004095e0), the story map `WORLD_MAN::GO(1)` makes for fields 1-8,
+//! each a stage of its own scene file (Infection's Skeith on field 1,
+//! `se1_5`). Nine static models, three sky clumps with a scrolling cloud
+//! layer, 54 `FIREFLY2`s ([`crate::firefly`]), a reflection model on the
+//! layer `SwitchLayer` flips (Skeith's magic) and three bobbing models. The
+//! collision is the floor model's Hit chunk, with no height map
+//! (docs/engine/evarea.md).
 
 use std::collections::HashMap;
 use std::rc::Rc;

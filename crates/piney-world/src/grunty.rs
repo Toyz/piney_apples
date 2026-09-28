@@ -1,38 +1,11 @@
-//! Dun Loireag's Grunties: `ccSetChibiGuso` (gcmn 0x0050f0b0), which
-//! places the town's Grunties from the save's growth record, and `ccPGuso`
-//! (pgbreed.cpp, 0x0050ac00 on, 0x330 bytes over `ccGimmick`): the young
-//! Grunty (`npcTbl` rows 154-157, Little Grunty and Grunty the Kid) that
-//! walks its route, sits to be spoken to, eats what Kite feeds it and grows
-//! up through four stages to a grown Grunty, and the grown ones (rows
-//! 145-153) that stand at the town's pens.
-//!
-//! ```text
-//! ccSetChibiGuso   area 0 only; growth[town] (saveData +0x2194, 24 bytes
-//!                  a town): each of type[0..3] set places a grown one
-//!                  (145, then by town 146/148/150/152 and 147/149/151/153)
-//!                  at DMY_cdog0-2; level 4 with a type free clears the
-//!                  record's first seven shorts; then level 0-3 places the
-//!                  young one, rows 154-157, at markPosTbl's first dummy
-//! ccPGuso::ccPGuso the entry's stream (cdogboda/b, cdogbod0/2-9), clumps
-//!                  and anms for it and for cdogbodb; bodyHit radius 65,
-//!                  height 60, kind 2; grow copied from the save; young:
-//!                  the route markPosTbl[(town - 1) * 2], walking (act 3)
-//!                  toward its second dummy, pgScale by level (1, 1.5, 1,
-//!                  1.2); grown: act 9, standing; pgPtr = this
-//! ccPGuso::main    acts: 0 sits facing Kite (spoken to), 1 rests 151
-//!                  frames, 2 sits up (a line), 3 walks (move), 4 and 5
-//!                  wait, 6 eats (paramCalc, then evoAct: growing up), 7
-//!                  grows into a grown Grunty (evoActAdult), 9 a grown one
-//!                  (adultMain); then the body pushed out of others, and
-//!                  the anm of dmylevel (0-1 anm, 2-3 anmB, 4 anmC) stepped
-//!                  and drawn
-//! ```
-//!
-//! The action button opens `InuMenu` (46) on a young one and `OtonainuMenu`
-//! (45) on a grown one; Give Food (`BreedingMenu`, 56) feeds it (affect
-//! 19). The menus' commands come through the affect functions
-//! (`dogAction`, `dogAction2`, `dogActionAdult`): 14 the menu opens, 15 a
-//! line, 0 it shuts, 11 the fixed camera for eating (and back), 19 eat.
+//! Dun Loireag's Grunties: `ccSetChibiGuso` (gcmn 0x0050f0b0), which places
+//! the town's Grunties from the save's growth record (`saveData +0x2194`),
+//! and `ccPGuso` (pgbreed.cpp, 0x0050ac00 on, 0x330 bytes over `ccGimmick`):
+//! the young Grunty (`npcTbl` 154-157) that walks its route, sits to be
+//! spoken to, eats what Kite feeds it and grows through four stages, and the
+//! grown ones (145-153) at the town's pens. The menus (`InuMenu` 46,
+//! `OtonainuMenu` 45, `BreedingMenu` 56) reach it through its affect
+//! functions (docs/engine/town02.md, "The Grunties").
 
 use std::rc::Rc;
 use std::sync::Arc;

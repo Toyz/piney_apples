@@ -1,29 +1,10 @@
-//! Modes 5 and 6, The World itself (`ccSetupNewGame` loading `GCMN.PRG`,
-//! then `ccSetupGameCtrl`): the top page's Log in hands over the save and
-//! the event task, and the player stands in the Root Town of
-//! `ChangeArea(0, lastTown)`.
-//!
-//! Mac Anu (town 0) and Dun Loireag (town 1) are ported (`piney-world`),
-//! with the field's menus and HUD (`piney-fieldui`) over them and the event
-//! scripts running beside them (`piney-event`, hosted by
-//! [`crate::field_host`]); Dun Loireag's lens flare and clouds are drawn by
-//! [`crate::town_fx`].
-//!
-//! A frame runs the tasks in their priority order as far as the crates
-//! split them: the event task `ccThEvent` (32) first, then the world's
-//! tasks (`ccThGameCtrl` 33, the event camera, camera 40, player 49,
-//! fellows 50, entries 64, the town 96), then `ccThMenu` (34) with the
-//! menu's fader. The menu opened by a button is seen by the camera and
-//! player one frame later than in the game; the action button's menus hold
-//! Kite (`pauseSW`) from the frame they are asked for.
-//!
-//! `ccSetupGameCtrl` and the event task (main 0x00168960): after the fade
-//! out and its two black frames, `ccStartThEvent` and `ccEnableThEvent(0)`;
-//! the pass at phase 0 made (event 2 registers Orca's entry and sets
-//! Kite's boot mode), `ccEnableThEvent(2)`; that pass made, the load and
-//! the tasks' start, then `ccEnableThEvent(4)` in the frame the tasks set
-//! themselves up (F0). The event task's first play pass is the next frame,
-//! F1, before any other task runs.
+//! Modes 5 and 6, The World itself (`ccSetupNewGame` loading `GCMN.PRG`, then
+//! `ccSetupGameCtrl`): the Root Towns (`piney-world`) with the field's menus and
+//! HUD (`piney-fieldui`) and the event scripts ([`crate::field_host`]). A frame
+//! runs `ccThEvent` (32), the world's tasks (`ccThGameCtrl` 33 ... the town 96),
+//! then `ccThMenu` (34); a button's menu reaches the camera and player a frame
+//! later than in the game. The set-up's passes (0, 2, then 4 at F0) are in
+//! docs/engine/event-vm.md.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -79,20 +60,11 @@ pub fn new_game_state(disc: &mut Iso) -> Result<SaveState, String> {
     piney_fieldui::newgame::new_game_save(disc, false)
 }
 
-/// The event task and the save as a new game brings them to Log in, for a
-/// world entered straight from a new game's save (`--mode world`):
-///
-/// - the boot (`ccThMother`): `ccEvent::Init`, `ccStartEvent(1, 0)`;
-/// - the desktop (`game.status` 2): `ccStartThEvent`, the passes at 0, 2
-///   and 4 - event 1's opening: the first mails, the board, the news, the
-///   operation locks - then play until the player has read mails 4 and 5
-///   (state 4, as the mailer leaves them) and event 1's block 2 has closed
-///   it;
-/// - the board (`game.status` 3): `ccStartThEvent` (event 1 closed becomes
-///   done), its passes, and Log in's `ChangeRequest` (the phase disabled).
-///
-/// Every window and wait answers at once (`LogHost`): the scripts' own
-/// state is what they leave, the desktop's own bookkeeping is not run.
+/// The event task and the save as a new game brings them to Log in (for
+/// `--mode world`): the boot's `ccStartEvent(1, 0)`; the desktop's passes and
+/// play until mails 4 and 5 are read and event 1's block 2 has closed it; the
+/// board's `ccStartThEvent` and passes, and Log in. Every window and wait
+/// answers at once (`LogHost`).
 pub fn new_game_events(disc: &mut Iso, state: &mut SaveState) -> Result<Vm, String> {
     let mut vm = crate::desktop::boot(disc, state)?;
     let mut h = LogHost::new(state.save.clone());
@@ -1484,21 +1456,12 @@ mod tests {
         assert_eq!(vm.phase(), -1, "Log in disabled the task");
     }
 
-    /// Event 2 plays in Mac Anu from the arrival to its `scene`: every
-    /// call the field host takes, on the frame the event task makes it.
-    ///
-    /// The frames follow from the set-up and the instructions' own counts
-    /// (docs/engine/event-vm.md): the fade out (1-10) and the hold (11-12);
-    /// the pass at phase 0 in 13 (event 2 blocks 0 and 1); phase 2's in 15;
-    /// F0 16 (ccEnableThEvent(4)); the play pass from F1, 17. `wait n`
-    /// takes n + 1 frames (camz_speed at 19, pc_act at 100, the camera and
-    /// message 0 at 221); a message opens, waits 5, polls, then 11 frames
-    /// for a plain line (emode 0) or 1 (emode 2: messages 4, 8-10, 21-27);
-    /// member_add_msg: sound 74, the window, 5, poll, closed, 10; `menu`: 2
-    /// frames then until the menu is shut. The player ([`player`]) presses
-    /// CROSS every 24 frames while a window waits and walks the tutorial
-    /// menus (75-77 from 949, 78-79 from 1783, whose party leave ends
-    /// 211 frames after the last OK).
+    /// Event 2 plays in Mac Anu from the arrival to its `scene`: every call the
+    /// field host takes, on the frame the event task makes it. The frames follow
+    /// from the set-up (fade 1-10, hold 11-12, the pass at 0 in 13, at 2 in 15, F0
+    /// 16, play from 17) and the instructions' own counts (docs/engine/event-vm.md);
+    /// the player presses CROSS every 24 frames while a window waits and walks the
+    /// tutorial menus.
     #[test]
     fn event_2_plays_to_the_scene_change() {
         let Some((mode, f, events, _)) = play_event_2() else { return };

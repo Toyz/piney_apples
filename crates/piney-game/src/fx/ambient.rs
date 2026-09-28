@@ -1,16 +1,10 @@
 //! A field's weather and ambient pictures as the effects draw them
-//! (`piney_world::field_ambient`): each `ccEff` of `WORLD::Draw` and
-//! `DrawEffect` (the rain and its splashes, the thunder, the snow and the
-//! embers, the fireflies, the lens flare) and of a dungeon's `DrawEff` (its
-//! rooms' sparks and glows) made once per name as `ccEff::Init` left it and
-//! drawn where the frame put it, and the steam's and the fires' `effSmoke`
-//! puffs.
-//!
-//! The game calls `effSmoke` from `WORLD::Draw` (ccThFieldDisp, 96), before
-//! `ccThParticle` (98) steps the frame's particles. Here the drawing runs
-//! after the tasks, so a puff starts at the next frame's first effect task
-//! and steps a frame later than the game's; its `rand()` draws come after
-//! that task's shows' own.
+//! (`piney_world::field_ambient`): each `ccEff` of `WORLD::Draw`, `DrawEffect`
+//! and a dungeon's `DrawEff`, made once per name as `ccEff::Init` left it, and
+//! the steam's and fires' `effSmoke` puffs. The game calls `effSmoke` from
+//! `WORLD::Draw` (96) before `ccThParticle` (98); here a puff starts at the next
+//! frame's first effect task, a frame later, its `rand()` draws after that
+//! task's shows'.
 
 use piney_effect::Effects;
 use piney_effect::draw::Camera as FxCamera;

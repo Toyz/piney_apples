@@ -1,47 +1,11 @@
 //! A dungeon's map: `DUNGEON::DrawMap` (gcmn 0x005cc160) with the rooms
 //! `DUNGEON::MakeMiniMap` (0x005cd850) puts on it as the party enters them,
-//! `DUNGEON::ShowMap` (0x005cf260) for the Fairy's Orb, and the sprites
-//! the constructor (0x005b7c00) makes.
-//!
-//! ```text
-//! DUNGEON()     mapLayer: priority 50, SetFrame(340, 28, 160, 160, 80, 80, 1, 1)
-//!               map  ccMask(2, 0)  DungeonName[type]::TEX_xdsmap01 (the
-//!                                  backdrop, and map1's cells)
-//!               map1 ccMask(50, 5) TEX_xdsmap01: the dots and signs
-//!               map2 ccMask(2, 0)  TEX_xdsmap02: the rooms seen
-//!               map3 ccMask(50, 5) xallow0::TEX_xallow0: the arrow
-//!               kanji ccInitKanji(16, 0), ctrl 0x10, on fontLayer
-//! smallmap      [10][256][256], a byte a 300-unit square: 0 nothing, 1
-//!               floor, 2 a door (ground 0x80000), 3 stairs (0x20000), 4 a
-//!               ground of kind 0xc0c0
-//! MakeMiniMap   (from Draw, for the room under the player; 0 when seen or
-//!  (here)       no room) the room seen; a grid of vertical rays from 1500
-//!               to -500 every 300 units over the room (12, 22 or 42 a
-//!               side by its size; 82 for a story room of type 16 or more)
-//!               through ccHitCheckLM, each hit on a square still 0 marking
-//!               it by the ground's attribute; the ray's end becomes the
-//!               hit point and walks on from there. Then Draw paints
-//!               TEX_xdsmap02: square (x, y) is texel (211 - x, 243 - y),
-//!               1 -> 255, 2 -> 254, 3 -> 253, 4 -> 251
-//! DrawMap       nothing when dungeonMapMode (WORLD_MAN +0x130) is 1 or in
-//!               a special room (WORLD_MAN.specialRoom not -1)
-//!               mapHideFlag: the texture painted again (0 -> 1) and
-//!               ccMenu.mapStatus back to 1 (unless it was 2 or an event
-//!               holds the map)
-//!               the magic portals (u 239) and the gimmicks (u 243) in
-//!               rooms seen on this floor, 4 x 4
-//!               the up stairs (u 233, v 45) and the down stairs (u 225,
-//!               v 19) at startpos[0], [1] when their room is seen,
-//!               pulsing; not in types 8 and 9, where the first fountain
-//!               (u 225, v 70) is drawn instead
-//!               the arrow (map3, turning, upside down) at (80, 80)
-//!               map (224 x 224 texels drawn 448 x 448, alpha 64 x 0.7)
-//!               and map2 over it, both at (-24, -24) less the player's
-//!               place: 2 px a 300-unit square, x mirrored
-//!               SendPacketS map3, map1; SendPacket map2, map
-//!               the floor, "B 1" .. (levelstr), at (350, 34) on the font
-//!               layer but in types 8 and 9
-//! ```
+//! `DUNGEON::ShowMap` (0x005cf260) for the Fairy's Orb, and the sprites the
+//! constructor (0x005b7c00) makes. `MakeMiniMap` casts a grid of vertical
+//! rays over the room into `smallmap` (a byte a 300-unit square: floor,
+//! door, stairs), painted into `TEX_xdsmap02`; `DrawMap` draws it at 2 px a
+//! square under the arrow, with portals, gimmicks, stairs and the floor's
+//! name (docs/engine/map.md).
 
 use std::sync::Arc;
 

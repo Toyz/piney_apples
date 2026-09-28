@@ -1,40 +1,11 @@
-//! `FIREFLY` (gcmn firefly.cpp, 0x1e0 bytes): the fields' fireflies at
-//! night (or, hacked, the data bugs): five made by `WORLD::Generate`, each
-//! flying a loop of three natural splines about its base with a trail of
-//! sixteen sprites, throwing off `FIREFLY2` sparks
-//! ([`crate::firefly`]).
-//!
-//! ```text
-//! FIREFLY()          0x005b1ed0  pattern fieldrand(100); the trail's
-//!                                count 0, period 1, timer 1, most 8
-//! SetBasePosition(p) 0x005b2100  base p, its z raised by fieldrand(200)
-//!                                + 100; the last place the base
-//! Init(s, a, b, T)   0x005b21a0  a (EFF_sfpfir_1) the firefly, sixteen b
-//!                                (EFF_sfpfir_2) its trail, scale 0.6
-//!                                down by 0.04, all without fog; the x
-//!                                spline 5 keys over T frames, 0 600 1200
-//!                                600 0 when fieldrand(100) >= 51, else
-//!                                1200 600 0 600 1200; y 4 keys of
-//!                                fieldrand(1200), z of fieldrand(350),
-//!                                each closed (key 3 = key 0)
-//! Init(s, T)         0x005b2900  hacked: EFF_sfzdigi0 and sixteen
-//!                                EFF_sfzdigi1, scale 2.4; the trail
-//!                                every sixth frame, up to sixteen; the
-//!                                same splines
-//! Move()             0x005b30a0  the fade in (0.1 a frame); the place the
-//!                                base plus the three splines; the trail
-//!                                moved on every period; farther than 3000
-//!                                across: transparency 0 and a new base
-//!                                2500 about the player on the ground; not
-//!                                hacked, a spark when fieldrand(100) >=
-//!                                81 (under three); the sparks' Move
-//! Draw()             0x005b3a60  (nothing on a hidden chip, base z -500)
-//!                                the firefly, its trail (hacked: each
-//!                                pattern fieldrand(15)), the sparks
-//! ```
-//!
-//! `NSPLINE::PreCalc` (0x005b1b60) is `FRAC2::InitNaturalSpline`'s
-//! Hermite spline; `Move` evaluates it as `u^3 a + u^2 b + u c + d`.
+//! `FIREFLY` (gcmn firefly.cpp, 0x1e0 bytes, 0x005b1ed0-0x005b3a60): the
+//! fields' fireflies at night (or, hacked, the data bugs): five made by
+//! `WORLD::Generate`, each flying a loop of three closed natural splines about
+//! its base with a trail of sixteen sprites, throwing off `FIREFLY2` sparks
+//! ([`crate::firefly`]). Farther than 3000 across from the player, one takes a
+//! new base 2500 about him. `NSPLINE::PreCalc` (0x005b1b60) is
+//! `FRAC2::InitNaturalSpline`'s Hermite spline, evaluated as `u^3 a + u^2 b
+//! + u c + d` (docs/engine/field.md).
 
 use piney_data::dungeon::Rng;
 

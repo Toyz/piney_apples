@@ -13,6 +13,8 @@ pub mod ending;
 pub mod event;
 pub mod file;
 pub mod load;
+pub mod mutation;
+pub mod opening;
 pub mod scene;
 pub mod subtitle;
 pub mod table;
@@ -63,11 +65,20 @@ pub struct Options {
     /// banner (`Func_str9000`): give it when the game is running (it makes
     /// no banner while `game` is missing or its status is 2 or 7).
     pub skill_names: Option<SkillNames>,
+    /// `saveData.parodyFlag` (+0x842b): Parody Mode's lines in the opening's
+    /// text (`Func_str0710`).
+    pub parody: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { english: false, cancel: Buttons::CIRCLE, title_after_desktop: false, skill_names: None }
+        Options {
+            english: false,
+            cancel: Buttons::CIRCLE,
+            title_after_desktop: false,
+            skill_names: None,
+            parody: false,
+        }
     }
 }
 
@@ -241,9 +252,10 @@ pub struct Stream {
     /// `Func_str0580` after its scene: it passes on (before the next
     /// scene's task) until it ends.
     tail: Option<Box<ending::Str0580>>,
-    /// Stream 15's puff (`EFF_x001` of `str0580e`, as `ccEff::Init(chunk,
-    /// 1)` leaves it), once read into the effects' assets.
-    puff: Option<piney_effect::eff::Eff>,
+    /// The parts' puff (`EFF_x001` of `str0580e`, or of `str0710e` for the
+    /// opening, as `ccEff::Init(chunk, 1)` leaves it) by its file, once read
+    /// into the effects' assets.
+    puff: Option<(&'static str, Option<piney_effect::eff::Eff>)>,
     /// The scene files' effect nodes' Eff chunks (file, EFF_ object), each
     /// as `ccEffObj::Init` leaves it (`ccEff::Init(chunk, 1)`), once read
     /// into the effects' assets; None: not found there.
@@ -378,6 +390,7 @@ impl Stream {
                         piney_draw::TexRef::Ccs { file: SkillNames::FILE.into(), texture: n.texture, clut: n.clut };
                     (tex, n.tex_h)
                 }),
+                parody: opts.parody,
                 ..effect::Tables::read(volume)
             },
             event_msg: subtitle::MSG_NONE,
@@ -671,9 +684,16 @@ impl Stream {
             ctx.layers.prepend(*layer, cmds.clone());
         }
         self.effect_draws.extend(d);
+        if let Some(fog) = task.take_fog()
+            && let Some(s) = self.scene.as_mut()
+        {
+            s.fog = Some(fog);
+        }
+        let Some(task) = self.task.as_mut() else { return };
         let parts = task.part_draws().to_vec();
         if !parts.is_empty() {
-            self.draw_parts(ctx, &parts);
+            let file = task.puff_file();
+            self.draw_parts(ctx, &parts, file);
         }
         let (Some(task), Some(s)) = (self.task.as_mut(), self.scene.as_ref()) else { return };
         // An object's lwMatrix translation now: the frame the scene has
@@ -756,24 +776,25 @@ impl Stream {
     /// Stream 15's parts on the scene's layer: each puff a `ccEff::Draw` of
     /// `EFF_x001` (when the player gave the effects, whose assets read
     /// `str0580e` from the stream), each rock its model.
-    fn draw_parts(&mut self, ctx: &mut Ctx, parts: &[ending::PartDraw]) {
+    fn draw_parts(&mut self, ctx: &mut Ctx, parts: &[ending::PartDraw], file: &'static str) {
         let Some(scene) = self.scene.as_ref() else { return };
-        if self.puff.is_none()
+        if self.puff.as_ref().is_none_or(|(f, _)| *f != file)
             && let Some(fx) = self.fx.as_mut()
         {
-            self.puff = [ending::EFF_FILE.to_string(), format!("{}p", ending::EFF_FILE)].iter().find_map(|stem| {
+            let eff = [file.to_string(), format!("{file}p")].iter().find_map(|stem| {
                 fx.assets.add_file(&self.archive, stem).ok()?;
                 let o = fx.assets.find(stem, ending::EFF_NAME)?;
                 let (j, chunk) = fx.assets.eff_chunk(o)?;
                 Some(piney_effect::eff::Eff::init(o.file, j, chunk, true, &fx.assets.alpha_blend))
             });
+            self.puff = Some((file, eff));
         }
         let g = self.loaded.files.iter().position(|f| f.stem.trim_end_matches('p') == ending::EFF_FILE);
         let camera = fx_camera(scene);
         for p in parts {
             match *p {
                 ending::PartDraw::Puff { pos, pattern, scale, tp, colour } => {
-                    let (Some(fx), Some(e)) = (self.fx.as_ref(), self.puff.as_ref()) else { continue };
+                    let (Some(fx), Some((_, Some(e)))) = (self.fx.as_ref(), self.puff.as_ref()) else { continue };
                     let mut e = e.clone();
                     e.pos = pos;
                     e.scale_x = scale[0];

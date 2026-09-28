@@ -1,38 +1,10 @@
 //! The story areas as the event scripts ask for them (`Host::story_area`):
-//! `eventAreaInfo` (world_man.cpp, `EVENTAREA_INFO[126]` in Infection, 127
-//! from Mutation on, 0x54 bytes each) and the Chaos Gate's keyword tables,
-//! the volume's (`piney_data::area`).
-//!
-//! ```text
-//! EVENTAREA_INFO  +0x00 code   +0x04 wordA  +0x08 wordB  +0x0c wordC (char *)
-//!                 +0x10 server ... +0x34 protect[4] (item id, count)
-//! WORDPARAM       +0x00 text (char *)  +0x04 id  ... (0x30 bytes)
-//! ```
-//!
-//! `WORLD_MAN::GetWordParamFromEvCode(code, k)` (0x001a29a0) finds the
-//! record whose code is `code` (the first of 126, or 127), then word `k`'s text
-//! among `word_a1`..`word_a4` (k 0), `word_b*` (1) or `word_c*` (2), group
-//! 1 first, by `strcmp`; the event code reads the match's +4. A record
-//! with no such text gives no word.
-//!
-//! [`Announcements`] are the information boxes `ccEvent::Execute` composes
-//! for `ccEvent::DispInfo` (0x001b27b0), which the desktop and the board
-//! show in their own message window (`Host::announce`):
-//!
-//! ```text
-//! member_add_msg pc    (case 80, 0x001af440)  "You now have "         getItemMenuStr[0]
-//!                                             "#Y" name "'s member address!"
-//!                                                 name: spcParam[pc] +0x00 (char *), getItemMenuStr[6]
-//! gate_add_msg area    (case 90, 0x001af980)  "#B" server " " wordA " " wordB " " wordC
-//!                                             "#W is added to the Word List."   getItemMenuStr[7]
-//!                          GetEventAreaInfo(area): the first record of that code;
-//!                          server: ccKanjiStrSeparate(serverStr, info.server)
-//! desktop_item type id (case 167, 0x001aff34) bookWallPaperAdd / bookBgmAdd / bookMovieAdd,
-//!                                             dec2sjis(id, 3, 0), bookItemAddMsg
-//! ```
-//!
-//! `DispInfo(l0, l1, l2)` hands them to `ccMessage::ChangeInfo(l0, l1, l2,
-//! null)`; the lines not given are null.
+//! `eventAreaInfo` (`EVENTAREA_INFO[126]` in Infection, 127 from Mutation on)
+//! and the Chaos Gate's keywords, the volume's (`piney_data::area`), words
+//! found as `WORLD_MAN::GetWordParamFromEvCode` (0x001a29a0) finds them. And
+//! [`Announcements`], the boxes `ccEvent::Execute` composes for
+//! `ccEvent::DispInfo` (0x001b27b0): `member_add_msg`, `gate_add_msg`,
+//! `desktop_item`. The layouts and lines are in docs/engine/event-vm.md.
 
 use std::collections::HashMap;
 

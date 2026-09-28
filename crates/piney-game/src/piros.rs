@@ -1,38 +1,10 @@
 //! The event instruction `piros_colour` (137; `ccEvent::Execute`'s case at
-//! main 0x001b0c1c), which event 22 (PIRO02) uses on Piros as his colour
-//! changes: a sequence of flashes, sound 74, an information line and the
-//! affect tint of his `ccChar`, with breaths between.
-//!
-//! Only playing (`mode` 2 and up), and only with Piros (`charTbl` row 8) in
-//! `ccSpcManager`'s registry. It switches on `eventStatus[1]` (the save's
-//! +0x64f9, signed; 0-13, else nothing):
-//!
-//! ```text
-//! 0, 10      the tint cleared
-//! 1          flash (8, 0x602080ff); tint 1 65 0x002080ff; breath 5; again
-//! 3          sound 74, the line; flash (8, 0x608080ff); 1 65 0x008080ff; breath 5; again
-//! 5          sound 74, the line; flash (8, 0x6000ffff); 1 65 0x0040c8ff; breath 5; again
-//! 2, 8       tint 1 65 0x002080ff        4  1 65 0x008080ff     6  1 65 0x0040c8ff
-//! 7          sound 74, the line; flash (8, 0x60ffffff); the pulse in 0x002080ff
-//! 11, 12, 13 flash (8, 0x60ffffff); the pulse in 0x002080ff, 0x008080ff, 0x0040c8ff;
-//!            tint 1 65 in the same colour
-//! 9          by the instruction's operand:
-//!              0  sound 74, the line, flash (8, 0x60ffffff)
-//!              1-4  flash (8, 0x60ffffff); the tint in 0x002080ff, 0x008080ff,
-//!                   0x00204070, 0x000000ff, its rate 65 k / 6 for k 6 down to 0
-//!                   and back up, a frame each
-//!              5  flash (20, 0x80ffffff); the tint cleared
-//! ```
-//!
-//! The pulse: 13 ramps, ramp r of r + 2 frames, the rate `fptosi(65 k /
-//! (r + 1))` for k from r + 1 down to 0 on the even ramps and from 0 up on
-//! the odd ones, a frame each (`ccBreathThread(1)` after each). The tint is
-//! `affectColorFix` (+0xa6), `affectColorRate` (+0xaa) and `affectColor`
-//! (+0xac): with the fix set, `ccChar::Draw` blends the character at that
-//! rate without letting it decay (`ccDrawEnv::SetFogBlend`). The flashes
-//! are `scFadeDef`'s `EntryFlash(n, colour, 0, 0, 512, 384)`; the line is
-//! the first line (`ccKanjiStrSeparate(text, 0)`) of the event's message
-//! numbered by the save's +0x6510, shown by `ccEvent::DispInfo`.
+//! main 0x001b0c1c), which event 22 uses on Piros as his colour changes:
+//! flashes (`scFadeDef`'s `EntryFlash`), sound 74, an information line, and
+//! the affect tint of his `ccChar` (`affectColorFix` +0xa6, `affectColorRate`
+//! +0xaa, `affectColor` +0xac), with breaths between. Only playing, with Piros
+//! (`charTbl` row 8) registered; it switches on `eventStatus[1]` (0-13). The
+//! cases and the pulse are in docs/engine/event-vm.md.
 
 use std::collections::VecDeque;
 

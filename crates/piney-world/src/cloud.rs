@@ -1,54 +1,10 @@
-//! `CLOUD` (gcmn cloud.cpp, 0x00504380-0x00504d94): a drifting cloud or
-//! puff of smoke, one `ccEff` sprite of `town_z` that a map scatters around
-//! the player and moves each frame. Dun Loireag's `ROOTTOWN02::Draw` makes 25
-//! of type 0 on its first frame; `EVENTAREA04`-`07`, `EVENTAREAB8` and
-//! `ROOTTOWN04` use the class too.
-//!
-//! ```text
-//! CLOUD         +0x00 f32 angle (degrees)   +0x04 f32 its step a frame
-//! (0x40 bytes)  +0x08 int type              +0x0c int the pattern drawn
-//!               +0x10 int speed             +0x20 f32[4] pos
-//!               +0x30 ccEff *
-//! Init(s, t)    0x00504860  type t; pattern 0; step 0.25 (type 2: 5); the
-//!                           ccEff of EFF_srzsmo1 (types 0, 1, 3) or
-//!                           EFF_sfsmo1 (2) in s, Init(chunk, 1),
-//!                           SetRenderState(0, 0), PRIM's fog bit off;
-//!                           SetPos
-//! SetPos        0x00504400  the eff's scale 2 x 2; by type (below); then
-//!                           rotate = DEG2RAD-like (short)(angle 182.04445)
-//!                           pi / 32768; pattern = fieldrand(patNum)
-//! Move          0x00504a10  pattern + 1, back to 0 at patNum; angle +=
-//!                           step, 0 when it reaches 360; rotate again; by
-//!                           type (below)
-//! Draw          0x00504ce0  within 67.5 degrees of the camera's view
-//!                           (ccCheckCameraDeg(pos, 12288)) and nearer the
-//!                           player than 7000 on the ground: ccEff::Draw(pos,
-//!                           pattern)
-//! ```
-//!
-//! By type (`fieldrand` is the area generator's RNG, main 0x0019c460):
-//!
-//! ```text
-//! 0  SetPos: the player's pos + (fieldrand(5000) - 2500, fieldrand(5000) -
-//!            2500, fieldrand(400) - 200); transparency 0.8; speed
-//!            fieldrand(15) + 5
-//!    Move:   x += speed; SetPos again once farther than 5000 from the
-//!            player on the ground
-//! 1  SetPos: (fieldrand(25000) - 12500, fieldrand(25000) - 12500, -800 -
-//!            fieldrand(300)); speed fieldrand(100) + 100
-//!    Move:   y -= speed; SetPos again below y -25000
-//! 2  SetPos: scale 0.5 x 0.5; (fieldrand(15000) - 7500, fieldrand(15000) -
-//!            7500, 0); speed fieldrand(20) + 60
-//!    Move:   x and y -= speed; through W2P and back (P2W); z the ground's
-//!            height there (WORLD_MAN::GetHeight), at least 0
-//! 3  SetPos: transparency 0.8; x and y the player's +- (fieldrand(1000) +
-//!            500) (+ when a fieldrand(100) is above 50), z + fieldrand(400)
-//!            - 200; speed fieldrand(15) + 20
-//!    Move:   x += speed; SetPos again once farther than 3000
-//! ```
-//!
-//! Each `SetPos` then draws the angle, `fieldrand(360)`, last but for the
-//! pattern. `CLOUD` never frees its `ccEff` itself but in its destructor.
+//! `CLOUD` (gcmn cloud.cpp, 0x00504380-0x00504d94): a drifting cloud or puff of
+//! smoke, one `ccEff` of `town_z` a map scatters round the player and moves
+//! each frame (Dun Loireag's 25, `EVENTAREA04`-`07`, `EVENTAREAB8`,
+//! `ROOTTOWN04`): `Init` (0x00504860), `SetPos` (0x00504400), `Move`
+//! (0x00504a10) and `Draw` (0x00504ce0), each type (0-3) with its own place,
+//! speed and drift from `fieldrand` (main 0x0019c460). The rules are in
+//! docs/engine/town02.md.
 
 use piney_data::ccs::Ccs;
 use piney_data::dungeon::Rng;

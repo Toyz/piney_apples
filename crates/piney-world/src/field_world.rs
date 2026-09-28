@@ -1,41 +1,11 @@
-//! The World outside the towns: a field (area 1) and its dungeon (area 2),
-//! as `ccSetupGameCtrl` (main 0x00168960) sets them up and the field's tasks
-//! run them (`docs/engine/field-walk.md`). The town is [`crate::World`];
-//! each change of scene (`ccGame::ChangeScene` then `ChangeRequest(6, 7)`)
-//! ends one and makes the other.
-//!
-//! ```text
-//! ccSetupGameCtrl, area 1       the fade out (10 frames), sounds off, the
-//!                               tasks deleted, two frames held
-//!   SetTradeItemTown            (the scene changed and it came from a town)
-//!   fieldSel; ccSetFileListField
-//!   ccSndSQLoad(3), or 5 for a story map (EVENTAREA_INFO.model 1)
-//!   the tasks                   ccThGameCtrl 33, ccThMenu 34, ccThEntryCtrl
-//!                               64, ccThFieldDisp 96, ccThCamera 40, ccThSpc
-//!                               48, ccThSkill 82, ccThEffect 80,
-//!                               ccThParticle 98
-//!   WORLD_MAN::GO(1)            the field generated (field_area.rs)
-//!   ccGetStartPositions         WORLD_MAN::SetCharPosition: from a town,
-//!                               fieldStartPos facing 0; from its dungeon,
-//!                               beside the entrance
-//!   rebootSpcManager            ccPlayer::ccPlayer: from a town act 13 (the
-//!                               arrival), from the dungeon act 2 at once;
-//!                               WORLD_MAN::SetCenter at his feet
-//!   the fade in (10 frames), ccSndBgmCtrl
-//! ```
-//!
-//! Each frame: `ccThGameCtrl` ([`talk::Targeting::frame`]: the command
-//! target over the battle's command lists, `inBattle`, the menu buttons, the
-//! attack button on an enemy), the event camera and `ccThEvHold`,
-//! `cameraMain`, then the battle's tasks ([`crate::combat`]: `ccThSpc`,
-//! `ccThAISystem`, `ccPlayer::Main`, each member's `ccFellow::Main`, the
-//! entry control with its enemies and magic portals, the effects'
-//! `ccThEffect`, `ccThSkill`, `ccThParticle` through [`FieldFx`]) over the
-//! field's collision (its objects' hit models and the height map), then
-//! the characters, the effects and `ccThFieldDisp`'s `WORLD::Draw`, which
-//! also leaves the objects' hit list for the next frame. Standing on the dungeon
-//! entrance (ground attribute 0x80000) calls `WORLD_MAN::Enter`:
-//! `ChangeArea(2, 0)`.
+//! The World outside the towns: a field (area 1) and its dungeon (area 2), as
+//! `ccSetupGameCtrl` (main 0x00168960) sets them up - the fade, the file
+//! lists, the tasks, `WORLD_MAN::GO(1)`, the start positions,
+//! `rebootSpcManager`, the fade in - and the field's tasks run them. Each
+//! frame: `ccThGameCtrl` ([`talk::Targeting::frame`]), the event camera,
+//! `cameraMain`, the battle's tasks ([`crate::combat`]) over the field's
+//! collision, then the draw. The town is [`crate::World`]; each change of
+//! scene ends one and makes the other (docs/engine/field-walk.md).
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -404,6 +374,7 @@ impl FieldWorld {
                     }
                     None => Box::new(DungeonArea::new_banned(
                         &archive,
+                        volume,
                         &world_man,
                         &scene,
                         crate::dungeon_area::bans_of(&save.save),
@@ -608,17 +579,13 @@ impl FieldWorld {
         combat::Entrance { chat, hacked, member_transfer }
     }
 
-    /// `rebootSpcManager` (`ccSPC::Reboot`, gcmn 0x005a00d0) at the end of
-    /// the set-up, after the event passes that set the `bootParam`s: Kite
-    /// built at the leader's place (`ccPlayer::ccPlayer`, `SetBootStatus`),
-    /// arriving (act 13) from a town, standing (act 2) with his body on the
-    /// list back from the dungeon or inside one; each registered party
-    /// member in the party (`ccFellow::Initialize`) at its slot's
-    /// `StartPos`, facing as Kite does; each registered character outside
-    /// the party at the origin; then `SetParty`. They are the battle's
-    /// characters ([`Combat::add_kite`], [`Combat::add_member`]). Then
-    /// `ccEntryEventMng` puts the event's party-character entries at their
-    /// event positions ([`piney_battle::evparty::EvParty::place_entry`]).
+    /// `rebootSpcManager` (`ccSPC::Reboot`, gcmn 0x005a00d0) at the end of the
+    /// set-up: Kite built at the leader's place (act 13 from a town, act 2 back
+    /// from the dungeon or inside one), each registered party member at its
+    /// slot's `StartPos` facing as he does, each character outside the party at
+    /// the origin, then `SetParty`, all as the battle's characters; then
+    /// `ccEntryEventMng` puts the event's party entries at their positions
+    /// ([`piney_battle::evparty::EvParty::place_entry`]).
     fn reboot(&mut self) {
         if self.rebooted {
             return;
@@ -793,6 +760,25 @@ impl FieldWorld {
             }
         }
         n
+    }
+
+    /// Not the game's: the console's god gets a fallen member up (affect 20,
+    /// the game's revive: condition 5 and its 78 frames), his HP back.
+    pub fn revive_party(&mut self) {
+        let kite = self.combat.kite;
+        let fallen: Vec<usize> = (self.combat.members.iter().map(|&(_, w)| w))
+            .filter(|&w| {
+                self.combat.scene.chars.get(w).is_some_and(|c| {
+                    c.hp <= 0 && !matches!(c.cond[piney_battle::param::cond::DEAD], 0 | 5) && Some(w) != kite
+                })
+            })
+            .collect();
+        for w in fallen {
+            self.entry_affect(w, kite, 20, [0; 3]);
+            if let Some(ch) = self.combat.scene.chars.get_mut(w) {
+                ch.hp = ch.max_hp;
+            }
+        }
     }
 
     pub fn combat_mut(&mut self) -> &mut Combat {
@@ -1042,16 +1028,12 @@ impl FieldWorld {
         self.camera.scheme = Scheme::new(t);
     }
 
-    /// `WORLD_MAN::RoomSelect(floor, block)` (main 0x0019dca0; the events'
-    /// `room` and `room_point`): in a dungeon the room built afresh and
-    /// `WORLD_MAN.position` set in it
-    /// ([`DungeonArea::room_select`]), then `ChangeScene(-2, -2, -2, -2,
-    /// floor, block)`, which the session makes as it makes a door's. (Its
-    /// `ccSys.bgColor` 0 and the GS words it resets are not modelled: the
-    /// change's fade covers the frames until the next set-up.) The game
-    /// reads `WORLD_MAN.dungeon[game.dungeon]` whatever the area, so
-    /// only a dungeon's events call it; elsewhere nothing happens here.
-    /// True when it asked for the change.
+    /// `WORLD_MAN::RoomSelect(floor, block)` (main 0x0019dca0; the events' `room`
+    /// and `room_point`): in a dungeon the room built afresh and
+    /// `WORLD_MAN.position` set in it ([`DungeonArea::room_select`]), then
+    /// `ChangeScene(-2, -2, -2, -2, floor, block)`, made as a door's. Its
+    /// `bgColor` and GS resets are not modelled (the fade covers them); elsewhere
+    /// nothing happens. True when it asked for the change.
     pub fn room_select(&mut self, floor: i32, block: i32) -> bool {
         let (Ok(f), Ok(b)) = (usize::try_from(floor), usize::try_from(block)) else { return false };
         let clear = room_clear(&self.combat, floor, block);
@@ -2279,14 +2261,10 @@ impl FieldWorld {
 
     /// `ccThEntryCtrl`'s first slice (gcmn 0x00431970, before its first
     /// `Breath`): `restoreEntry`, `WORLD_MAN::EntryGimmick` and
-    /// `ccEntryEventMng`, whose `DUNGEON::CloseDoor` shuts the room's doors
-    /// for each event entry it makes in a dungeon. `ccSetupGameCtrl` starts
-    /// the task in the slice that ends the set-up (`GO`,
-    /// `rebootSpcManager`, `ccEnableThEvent(4)`), so this runs on the
-    /// frame of [`Phase::Play`] 0, before the event's first pass that
-    /// plays, and the loop's first frame comes a frame after: event 4's
-    /// trap room opens its doors then (`open_door`) to shut them on camera
-    /// a frame later (`close_door`).
+    /// `ccEntryEventMng` (whose `DUNGEON::CloseDoor` shuts the room's doors for
+    /// each event entry in a dungeon), on the frame of [`Phase::Play`] 0, before
+    /// the event's first pass that plays; so event 4's trap room opens its doors
+    /// then to shut them on camera a frame later.
     fn entry_setup(&mut self, cpad: &CamPad) {
         if !self.combat.started {
             let (ty, rank) = {
@@ -2332,10 +2310,10 @@ impl FieldWorld {
                 f.rng = rng;
             }
             self.build_npcs();
-            // An `entry 7 0`: ccEntryEventMng's ccBossEntryStart(0), Skeith
-            // at the arena's centre (InitCenterPos: DMY_center01).
-            if en.iter().any(|e| e[0] == 7 && e[1] == 0) {
-                self.start_boss();
+            // An `entry 7 code`: ccEntryEventMng's ccBossEntryStart(code),
+            // the boss at the arena's centre (DMY_center01).
+            if let Some(e) = en.iter().find(|e| e[0] == 7) {
+                self.start_boss(i32::from(e[1]));
             }
             let n = mc.iter().filter(|e| e[0] >= 0).count() + en.iter().filter(|e| matches!(e[0], 5 | 6)).count();
             let (f, b) = (self.scene.floor, self.scene.block);
@@ -2470,9 +2448,10 @@ impl FieldWorld {
         std::mem::take(&mut self.noise)
     }
 
-    /// `ccBossEntryStart(0)`: the boss's look read and its tasks started.
-    fn start_boss(&mut self) {
-        let look = match combat::boss::BossLook::load(&self.archive) {
+    /// `ccBossEntryStart(code)`: the boss's look read and its tasks
+    /// started.
+    fn start_boss(&mut self, code: i32) {
+        let look = match combat::boss::BossLook::load(&self.archive, code, self.combat.data.volume) {
             Ok(l) => Rc::new(l),
             Err(e) => {
                 eprintln!("the boss's files: {e}");
@@ -2504,6 +2483,11 @@ impl FieldWorld {
     /// 1 once it has exited.
     pub fn boss_task(&self) -> Option<i32> {
         self.combat.boss.as_ref().map(|b| i32::from(b.exit))
+    }
+
+    /// `eventMng.bossEntry`: the code of the boss the event entered.
+    pub fn boss_entry(&self) -> Option<i32> {
+        self.combat.boss.as_ref().map(|b| b.code)
     }
 
     /// What [`tasks`] copies of the field world.
@@ -2777,15 +2761,12 @@ impl FieldWorld {
     }
 
     /// `ccEnemyWeapon::dispCell`'s packets, each weapon's sent by
-    /// `ccPrimPacket::sendPacket` (gcmn 0x00438820) as the rays are drawn
-    /// (blend `(Cs - Cd) As + Cd`, depth GREATER, no depth write, on
-    /// `refLayer`): the lines first (`cczGsPrimLine`, a line a pair, one
-    /// pixel wide here), then the strip (`cczGsPrimPoly`, PRIM 0x4c) through
-    /// every pair. `makePacket` (0x00438580) sets ADC on a pair that starts
-    /// an edge's run, one with a point behind the eye, or one whose points
-    /// are both more than 352 pixels across or both more than 288 down off
-    /// the screen's centre; a vertex with ADC draws nothing, so each goes as
-    /// the triangles (lines) it draws. Under two pairs nothing is sent.
+    /// `ccPrimPacket::sendPacket` (gcmn 0x00438820) on `refLayer` (blend `(Cs -
+    /// Cd) As + Cd`, depth GREATER, no depth write): the lines, then the strip
+    /// through every pair. `makePacket` (0x00438580) sets ADC on a pair that
+    /// starts a run, has a point behind the eye, or lies far off the screen; such
+    /// a vertex draws nothing. Under two pairs nothing is sent
+    /// (docs/engine/battle.md).
     fn draw_trails(&self, ctx: &mut Ctx) {
         use piney_desktop::view::{XYOFFSET_X, XYOFFSET_Y};
         use piney_draw::{
@@ -2954,15 +2935,11 @@ impl FieldWorld {
         self.condition_fx = on;
     }
 
-    /// `ccClearSpcCondition()` (gcmn 0x0056d300), which a boss's death
-    /// calls (Skeith's `ccBoss::Affect`): the condition effects off
-    /// (`ccSpcConditionEffectOFF`), then each character built (`CheckSpc`
-    /// over the registry, Kite too): under manual control at remote command
-    /// 0 (`ManualModeAI(1)`; its revival of the fallen is taken back, as
-    /// the function puts `condition.dead` back as it was), `noDeathFlag`
-    /// on, off the command lists (`ccDeleteCmnd`), its conditions cleared
-    /// and its record's stat changes zeroed (`ClearCondition`,
-    /// `ccClearParamElement` on the record's +0x88 and +0xa8).
+    /// `ccClearSpcCondition()` (gcmn 0x0056d300), which a boss's death calls:
+    /// the condition effects off, then each character built put under manual
+    /// control at remote command 0 (its revival of the fallen taken back),
+    /// `noDeathFlag` on, off the command lists, its conditions cleared and its
+    /// record's stat changes zeroed (`ClearCondition`, `ccClearParamElement`).
     pub fn clear_spc_condition(&mut self) {
         self.condition_fx = false;
         let members = self.combat.members.clone();

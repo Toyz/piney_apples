@@ -1,25 +1,10 @@
 //! Answers `tools/test_field_ambient_rs.py`: a field's weather and ambient
 //! pictures (`piney_world::field_ambient`) as `WORLD::Init`, `Generate` and
 //! `Draw` make and draw them, one request a line, one JSON line an answer.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example ambient_probe
-//! ambient_probe < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests:
-//! - `field SEED TYPE B GROUND OBJECT EVENT PROTECT HACK SERVER CX CY`:
-//!   `WORLD::Init` (the ambient part, with `WORLD_MAN`'s centre at CX, CY
-//!   and the heights not yet made), the layout (`piney_data::field`), then
-//!   `Generate`'s ambient part; answers `fieldrand`'s count after each and
-//!   what they made.
-//! - `fires N X Y Z ...`: type 7's fire places (`WORLD` +0x358, +0x360).
-//! - `frame P(4) EYE(4) EYE1(4) ROT(4) ROT2(4) VIEW(4) EYEVIEW ODD OFSX
-//!   OFSY CX CY SUN(4) R0(4) R1(4)`: one `WORLD::Draw` with the player at
-//!   P, the camera's eye (camID) and eye 1, its turns, view and the eye
-//!   view, the frame counter's low bit, `WORLD`'s centre, `WORLD_MAN`'s,
-//!   the lens flare's dummy and Ω's runners; answers the pictures in
-//!   order and the counts of `fieldrand` and `ccRand`.
+//! Numbers are hex, floats their bit patterns. Requests: `field` (`Init` and
+//! `Generate`'s ambient parts, with `fieldrand`'s counts), `fires` (type 7's
+//! fire places) and `frame` (one `WORLD::Draw`: the pictures in order and the
+//! counts of `fieldrand` and `ccRand`); the fields are the harness's.
 
 use std::io::BufRead;
 

@@ -1,52 +1,11 @@
-//! The enemies and the magic portals drawn on the field: what an enemy's
-//! row loads (`ccEntryCtrl::initEntryCCS`, `ccEnemy::initEnemyCCS`, the race
+//! The enemies and the magic portals drawn on the field: what an enemy's row
+//! loads (`ccEntryCtrl::initEntryCCS`, `ccEnemy::initEnemyCCS`, the race
 //! constructors), `ccChar::Draw` (gcmn 0x0056b1c0) at the matrix
-//! `ccEnemy::dispEnemy` (0x004348b0) builds, a middle boss's second model,
-//! and the portal's model (`ccMagicCircle`, gcmn 0x00455900) at the
-//! transparency `ccMagicCircle::main` (0x00455b60) draws it at.
-//!
-//! ```text
-//! ccAddRequestFileListEntry (0x0042f5a0)  every registered row's fileList
-//!                          loaded; a middle boss (base.type 0x40) first
-//!                          takes its base form's anm table, clut and
-//!                          fileList (base.gold is that row), and loads
-//!                          the file named with its fourth letter 'X' too
-//! ccEntryCtrl::initEntryCCS (0x0042feb0)  entry.ccsc = GetCCSAdrs(the
-//!                          fileList name cut at '.', lower case): EGN1 ->
-//!                          egn1; a middle boss's ccsc2 the 'X' file
-//! ccEnemy::initEnemyCCS (0x00432fc0)  clump CMP_trall of ccsc (ccClump::
-//!                          Init), ccEntryChangeCLUT (0x0042e670: with an
-//!                          entry.clut, Duplicate(0x2000) and ChangeClut(
-//!                          that CLT_, MAT_clut)), a ccAnm on it playing
-//!                          anmTbl[6]; a middle boss's second clump
-//!                          CMP_trall of ccsc2, its ccAnm playing the name
-//!                          with its eighth letter 'x', its shadow off
-//! ccEnemyG::ccEnemyG (0x00446070)  rows 154-157: ChangeClut(
-//!                          CLT_egmfrod1c1, MAT_clut2) as well
-//! dispEnemy               the matrix into the anm (+0x40), the second
-//!                          model on layer 5 at ccGetCameraTransparency(pos,
-//!                          width, height, 7000, 600) x setTransparency,
-//!                          then ccChar::Draw
-//! ccChar::Draw            layer 5 (priority 10); the fog blend by
-//!                          condition.dead: 0-1 the affect flash or the
-//!                          condition tint, 4 (60, 0xc0c060), 5 none, else
-//!                          (60, black); the camera's transparency (a town
-//!                          4000 / 400, else 7000 / 600) times
-//!                          setTransparency; not drawn under 0.05 unless the
-//!                          camera's nearness faded it; the distant light
-//!                          asleep on shaded ground; ccAnm::Draw
-//! ccMagicCircle           CMP_xmagcir0 of gimmickTbl[15]'s XMAGCIR.CCS
-//!                          (fog off, ChangeClut(CLT_x031c2, MAT_clut)),
-//!                          playing ANM_xmagcir1, then ANM_xmagcir2; drawn
-//!                          on layer 3 (priority 20) at
-//!                          SetMatrix_PosRotZYX(pos, dirc)
-//! ```
-//!
-//! `ccSetFogBlendColor` (main 0x0013df20) turns the draw environment's blend
-//! into each model's fog: for a model whose fog is on (`ccObj::Init` leaves
-//! every node's on, 0x0013b7b4) the coefficient is `2.55 (100 - rate)` and
-//! the colour the blend's, the fog forced on; with no blend (rate 0) the
-//! model draws as it would.
+//! `ccEnemy::dispEnemy` (0x004348b0) builds, a middle boss's second model
+//! (its fourth letter 'X'), and the portal's model (`ccMagicCircle`, gcmn
+//! 0x00455900) at the transparency `ccMagicCircle::main` (0x00455b60) draws
+//! it at. `ccSetFogBlendColor` (main 0x0013df20) turns the draw environment's
+//! blend into each model's fog (docs/engine/battle.md).
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -546,19 +505,12 @@ impl EnemyLook {
 // ccThDrainEnemy ------------------------------------------------------------------------
 
 /// `ccThDrainEnemy` (gcmn 0x00432000): Data Drain's movie draws the drained
-/// enemy into its scene. The task builds the enemy's clump from its row's
-/// file (`CMP_trall`, its palette), a `ccAnm` on its animation slot 6 (and
-/// a middle boss's second model with the same clip, 'x' its eighth
-/// letter), and each frame, while the stream plays and its layer is on,
-/// animates them forward and draws them at (0, -900, 130) turned half
-/// about z, on the stream's layer through its draw environment
-/// (`ccLayer::active` = stream +0x154, `ccDrawEnv::active` = +0x158).
-///
-/// `state` (+0x18) is `DataDrainMenu`'s: 0 nothing drawn; 1 from the
-/// stream's frame 30; 3 from 229, and at the end. It also builds the race's
-/// base form (the row's +0x14 for type 0x40 rows, else the first row of its
-/// `ccEntryRaceTbl` group, 203 for 203-206) for a state 2 no caller sets;
-/// the port does not.
+/// enemy into its scene: its clump, palette and animation slot 6 (and a
+/// middle boss's second model), animated forward and drawn at (0, -900, 130)
+/// turned half about z, on the stream's layer and draw environment. `state`
+/// (+0x18) is `DataDrainMenu`'s: 0 nothing drawn; 1 from the stream's frame
+/// 30; 3 from 229. The race's base form it builds for a state 2 no caller
+/// sets is not ported (docs/engine/battle.md).
 pub struct DrainEnemy {
     look: EnemyLook,
     play: Option<Play>,

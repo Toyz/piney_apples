@@ -1,22 +1,10 @@
 //! Mode 6 outside the towns: `ccSetupGameCtrl` for a field (area 1) or a
 //! dungeon (area 2), with the field's menus and HUD (`piney-fieldui`) over
-//! it (`piney_world::field_world`). The town is `world.rs`'s; a change of
-//! scene (`ccGame::ChangeScene`, then `ChangeRequest(6, 7)`) goes back
-//! through the session, which makes the next area's mode.
-//!
-//! As in the town, a frame runs the event task (`ccThEvent`, hosted by
-//! [`crate::area_host`]), the world's tasks (`ccThGameCtrl`, the event
-//! camera, the camera, the player, the party, the draw) and then
-//! `ccThMenu` with the menu's fader.
-//!
-//! The event task comes from the scene before, asleep inside the `scene`
-//! that asked for this one (`ccSleepNoSleepThread` in `ChangeRequest`); the
-//! event thread keeps its no-sleep bit, so it wakes on the next frame and
-//! ends the instruction - event 2's `end_event` closes it - before the
-//! set-up's `ccStartThEvent` turns the closed events done. Then, as in the
-//! town, the passes at phases 0 and 2 over the held black frame,
-//! `rebootSpcManager` (Kite and the party built with the `bootParam`s the
-//! passes set) and `ccEnableThEvent(4)` at F0.
+//! `piney_world::field_world`. A frame runs the event task (`ccThEvent`,
+//! [`crate::area_host`]), the world's tasks, then `ccThMenu`. The event task
+//! arrives asleep in the `scene` that asked for this area and ends it before
+//! `ccStartThEvent`; then the passes at 0 and 2, `rebootSpcManager`, and
+//! `ccEnableThEvent(4)` at F0 (docs/engine/field-game.md).
 
 use std::path::Path;
 use std::sync::Arc;
@@ -350,6 +338,11 @@ impl AreaMode {
     /// The debug console's `heal`.
     pub fn heal_party(&mut self) -> usize {
         self.world.heal_party()
+    }
+
+    /// The console's god: the fallen members got up.
+    pub fn revive_party(&mut self) {
+        self.world.revive_party();
     }
 
     /// The console's `kill`: each enemy standing takes `EntryAffect(1,
@@ -1025,8 +1018,11 @@ impl AreaMode {
                     let names = self.world.state().names();
                     self.ui.shout(1 << 24, i32::from(*operation), &names);
                 }
-                // OnDataDrainAtk's member drain: StreamMenu on stream 20.
-                Show::Boss(_, Out::StreamMenu { slot }) => self.ui.open_stream_menu(20, 1 << slot),
+                // StreamMenu over the fight: a drained member (Skeith's 20,
+                // Innis's 42), Innis's images (39-41).
+                Show::Boss(_, Out::StreamMenu { stream, mask }) => {
+                    self.ui.open_stream_menu(*stream as i16, *mask as i16)
+                }
                 // The boss's death: ccClearSpcCondition.
                 Show::Boss(_, Out::ClearSpcCondition) => self.world.clear_spc_condition(),
                 // BeginDeadEffect: ccSqFade(0, 0, 30, 3), the music out.

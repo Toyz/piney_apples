@@ -1,35 +1,11 @@
-//! `LENSFLARE` (gcmn lensflare.cpp, 0x00503090-0x00503644): six `ccEff`s
-//! of `town_z` strung on the line from a map's sun toward a point before
-//! the eye. Dun Loireag (`ROOTTOWN02::Draw`), `ROOTTOWN04`,
-//! `EVENTAREA04`, `05`, `07` and the fields (`WORLD::Init`) make one; area
-//! 15's `EVENTAREA02` has its own copy of the same drawing
-//! (`DrawLensFlare`, [`crate::evarea`]).
-//!
-//! ```text
-//! LENSFLARE(s)           0x00503090  EFF_sflenz_2 .. _6, then _1 of s, each
-//!                                    Init(chunk, 1), SetRenderState(
-//!                                    CCRS_ZENABLE, 0), PRIM's fog bit off
-//! Draw(s, name, mode)    0x00503360  nothing while eventMng.puppetShow
-//!                                    (+0x78c) is 1; with mode 0 nothing
-//!                                    unless the sun (the dummy name's
-//!                                    position in s) is within 67.5 degrees
-//!                                    of the camera's view
-//!                                    (ccCheckCameraDeg(sun, 12288)); then
-//!                                    the six flares (below), each
-//!                                    ccEff::Draw(pos, 0)
-//! ```
-//!
-//! Each flare, as [`points`] computes it:
-//!
-//! ```text
-//! ahead = RotMatrix(cameraGetRot(1), or cameraGetRot2(1) in the eye view)
-//!         (0, -2500, 0, view.w) + eye;  ahead.z += 500
-//! v     = (sun - ahead) x (-0.2, -0.2, 0) + ahead;  v.z = -200
-//! flare k = (v - sun) @973[k] + sun     @973 = 0.2 0.3 0.5 0.55 0.75 0.8
-//! ```
-//!
-//! Mode 1 (the fields) takes the sun through `ccTransPosP2W` and each flare
-//! through `W2P` and back; the towns use mode 0.
+//! `LENSFLARE` (gcmn lensflare.cpp, 0x00503090-0x00503644): six `ccEff`s of
+//! `town_z` strung on the line from a map's sun toward a point 2500 before
+//! the eye, at the fractions `@973` (0.2 .. 0.8) of the way ([`points`]).
+//! Dun Loireag, `ROOTTOWN04`, `EVENTAREA04`, `05`, `07` and the fields make
+//! one; area 15's `EVENTAREA02` has its own copy ([`crate::evarea`]). Drawn
+//! only when the sun is within 67.5 degrees of the camera's view (mode 0,
+//! the towns) and no puppet show runs; mode 1 (the fields) takes the sun
+//! through `P2W` (docs/engine/town02.md, "LENSFLARE").
 
 use crate::ee::{self, F, V4};
 use crate::evarea::FlareCamera;

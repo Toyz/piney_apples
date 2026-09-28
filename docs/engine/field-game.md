@@ -823,6 +823,22 @@ control calls - `ccEntryRtownMerchant` 0x00505a50 or `ccEntryRtownPC`
 five shops, rows 0-4; `CTBU2.CCS`, `CTWM3.CCS`... for the walking PCs,
 rows 30-79). Their height is 180 and their width 100 (shops) or 45.
 
+```text
++0x00 name        "Weapon Shop", "Wing"...
++0x04 label       "EQUIPSHOP", "PC0"... (not a file)
++0x08 type        flags: 0x08 a walking PC, 0x10 an administrator
+                  (merchant-like), 0x100-0x1000 the five shops
++0x0c id          the row (`ccEvent::GetNpc` matches it)
++0x0e level  +0x10 exp  +0x14 gold
++0x18 height (180) +0x1c width (100 for shops, 45 for PCs): the size
+                  ccChar::Draw's camera fade measures
++0x20 msg         the NPC's lines (a table of message pointers)
++0x28 entry: exist, func (ccEntryRtownMerchant or ccEntryRtownPC),
+      esize, ep, ccsc, ccsc2, anm,
+      +0x48 clut[30] (a CLUT/TEX name, may be empty),
+      +0x68 fileList: DATA.BIN category, file name ("CTR1.CCS")
+```
+
 The port's layer: `Body` (body.rs) is a file's `CMP_trall` clump with
 models hung on its nodes (`ccObj::SetModel`: Kite's blades) and palette
 swaps, drawn by `ccAnm::Draw`'s rule - every clump node with a model, in
@@ -920,6 +936,30 @@ The other "players" wandering Mac Anu are `ccRtownPC`s (gcmn rtownnpc.cpp,
   starts walking (acts 1 and 6 to 3), in a chat group and at the gate's
   far side, and off it (`ccDeleteCmnd`) as it hides; `routine` never puts
   it back (its `cmndFlag` stays set).
+
+The routes (gcmn `ccnavi.cpp`, tables in `navitbl.cpp`): a town is a
+graph of numbered landmarks (`naviMapTown1`-`5`, gcmn 0x006144a0...,
+`ccLandmark` 0x30 bytes), each at a dummy of the town's file
+(`DMY_marker01`...; `ccSetNaviMap` 0x005130b0 copies their positions in
+when the player task starts). A landmark lists up to eight neighbours it
+links to directly, its junction (`near[0]`; negative on a landmark that is
+not one itself) and the main lines (`line[]`) through it. A main line
+(`naviMainLinesOfTownN[line]`) is
+
+```text
+u8 from, to, n;  n x (u8 line, u8 junction): the lines it meets and where
+u8 count;  count x u8 landmark: its landmarks in order
+```
+
+`ccNavi::RouteSearchByMap(start, goal)` (0x00513720) routes from the
+landmark nearest `start` to the one nearest `goal` (within 10000, and
+within 301 in height): directly when they link, else along the start's
+junction, the main lines between the two junctions (a common line, or
+`SearchRouteMainLineLink`'s shortest chain of at most four lines by the
+landmarks' distances) and the goal's junction; duplicates are squeezed
+out. The route is `route[]` (254, landmarks..., 255), `step` its length
+and `landmark` the index being walked to; `GetDestination` (0x00514770)
+gives that landmark's position.
 
 `ccCharHit::CollisionDetection` (0x00153470) pushes a body on the
 character list (`ccCharHitTop`, in `HitEnable` order: the merchants, the
@@ -1070,6 +1110,25 @@ gives id 29 `sysopeAnmTbl` (0x005ed850) and 158 `quizmanAnmTbl`
 and `merchan2AnmTbl` (`ANM_ctr1nut0`, `act0`, `act2`; `ctr2`). Both
 take `breederInfluence` and a live `bodyHit`, and `main` runs
 `sysopeAct` for them.
+
+`ccMerchan::sysopeAct` (gcmn 0x00506170) runs the act the events' `npc_act
+29 N` sets (`actNum` N, `actProcess` 0); `transrate` is what `main` draws
+the character at:
+
+```text
+2, other   anmTbl[0], transrate 1
+3          anmTbl[0], transrate 0; effTransfer; then transrate + 0.02 a
+           frame to 1, then act 2
+4, 5       transrate 1, off the command list, effTransfer; then
+           transrate - 0.02 a frame to 0; after 141 frames act 4 stays,
+           act 5 ends (deleted)
+6          transrate 0 (hidden)
+7          transrate 1, act 2
+-3         anmTbl[2], turning toward Kite (ccSetDirc 64) until its frame
+           reaches 120, then act 0
+-5         transrate 1, anmTbl[2] at speed 384, sound 217, the force
+           rings and the tornado's rings; 31 frames on, interNoiz 2
+```
 
 The instructions event 29 uses on them: `npc_put`, `npc_turn` (`chg` 0),
 `trans_off 3|4` (`ccChar` +0x90 off: no fade as the camera comes

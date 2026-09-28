@@ -1,30 +1,10 @@
-//! The event scripts outside the towns: `piney-event`'s interpreter hosted
-//! by a field or dungeon (`piney_world::field_world`), as the town's
-//! [`crate::field_host`] hosts it in Mac Anu, with the same state
-//! ([`FieldState`]: `ccGame`, the fader, the call log).
-//!
-//! ```text
-//! message, info, member_add_msg   the field UI's windows, as in the town
-//! menu, menu_ban, target_forbid,  ccMenu (the field UI); menu_ban's camera
-//! map_on                          and party parts the area's
-//! show_map                        WORLD_MAN::ShowMap (piney_world::map)
-//! camera, cam*, camz*, teach_*    the area's event camera (evcam.rs)
-//! pc_act, pc_mode, pc_turn,       piney-battle's EvParty over Kite and
-//! pc_face, pc_command, the walks  the characters built in the area
-//! (pc_walk_*), the puts
-//! npc_*                           the area's NPCs (field_npcs)
-//! entry                           the VM's entries, set up by the area
-//!                                 mode (ccEntryEventMng, EntryGimmick)
-//! enemy_put, hold, battle_ready   the fights' event instructions
-//! fade, fade_more                 ccMenu's ccScFade
-//! scene, area                     ccGame::ChangeScene: the session makes
-//!                                 the change; the task sleeps in it
-//! room, room_point                WORLD_MAN::RoomSelect: a change of scene
-//!                                 to the room (FieldWorld::room_select)
-//! item_add (a companion's)        ccMenu->AddSpcItem on the member built
-//!                                 here (FieldUi::add_spc_item)
-//! save_party                      the registry's party (Host::party)
-//! ```
+//! The event scripts outside the towns: `piney-event`'s interpreter hosted by
+//! a field or dungeon (`piney_world::field_world`), as [`crate::field_host`]
+//! hosts it in a town, with the same [`FieldState`]. Windows and menus go to
+//! the field UI, the camera instructions to the area's event camera, the
+//! characters' to piney-battle's `EvParty`, `scene` and `area` to the session,
+//! `room` to `FieldWorld::room_select`. What each instruction does is in
+//! docs/engine/events.md.
 
 use std::path::PathBuf;
 
@@ -200,9 +180,10 @@ impl Host for AreaHost<'_> {
         self.world.entry_present(list == EntryList::Gimmicks, ty, code)
     }
 
-    /// `eventMng.bossEntry` (Skeith's 0) and its task's parameter.
+    /// `eventMng.bossEntry` (the boss's code) and its task's parameter.
     fn boss(&self) -> Option<piney_event::host::Boss> {
-        self.world.boss_task().map(|p| piney_event::host::Boss { entry: 0, task_param: Some(p) })
+        let entry = self.world.boss_entry().unwrap_or(0);
+        self.world.boss_task().map(|p| piney_event::host::Boss { entry, task_param: Some(p) })
     }
 
     fn no_active_object(&self) -> bool {

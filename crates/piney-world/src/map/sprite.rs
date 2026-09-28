@@ -1,35 +1,10 @@
 //! The minimap's sprites: `ccSprite` and `ccMask` as the map code drives
-//! them, the packets they queue, and the GS primitives `MakePacketStr`
-//! (main 0x0015aed0) makes of them.
-//!
-//! A `ccMask(m, ms)` (`ccMask::ccMask` 0x0015c4b0) is a TF sprite of `m`
-//! packets (`SetPrim(m, 0)`) holding a second sprite at +0xd0, a TRF one of
-//! `ms` packets (`SetPrim(ms, 1)`: textured, rotated, flat) when `ms` is not
-//! 0. `MakePacket(code, t)` queues a cell on the mask itself;
-//! `ccMask::MakePacketS(code, t)` (0x0015c690) copies the mask's fields
-//! into the second sprite and queues the cell there, so it can be turned;
-//! `SendPacketS` (0x0015c5e0) sends the second sprite, then the mask. A
-//! send puts the queue at the front of the sprite's layer, so the last sent
-//! is drawn first.
-//!
-//! [`Spr`] keeps the fields the map writes and [`Packet`] a copy of them at
-//! each call (floats as bits), so the port can be compared call for call
-//! with the game (`tools/test_map_rs.py`); [`prims`] draws them as the
-//! game's `MakePacketStr` does:
-//!
-//! ```text
-//! TF   (x, y) = layer_screen (dx + cx, dy + cy), (w, h) = FTOI0 (sx ls00,
-//!      sy ls11), in 12.4; a SPRITE from (x, y) to (x + w, y + h), culled
-//!      when it lies wholly outside XYOFFSET .. (0x9000, 0x8e00)
-//! TRF  M = RotZ(-rot) (sceVu0RotMatrixZ); o = M (cx, cy) + (dx, dy),
-//!      ex = M (sx, 0), ey = M (0, sy); a strip o, o + ey, o + ex,
-//!      o + ex + ey, each corner through layer_screen; dropped when all
-//!      four corners are off the screen
-//! UV   u0 = (code % wi) su16 + wu, v0 = th16 - wv - (code / wi) sv16 - 1,
-//!      to u0 + su16 and v0 - (sv16 - 1); ctrl 0x20 swaps the u's less one,
-//!      0x40 the v's
-//! RGBA the colour words' low bytes; A = trunc(alpha transp)
-//! ```
+//! them, the packets they queue, and the GS primitives `MakePacketStr` (main
+//! 0x0015aed0) makes of them. A `ccMask` is a TF sprite holding a TRF one
+//! that `MakePacketS` queues turned cells on. [`Spr`] keeps the fields the map
+//! writes and [`Packet`] a copy at each call (floats as bits), compared call
+//! for call with the game by `tools/test_map_rs.py`; [`prims`] draws them as
+//! `MakePacketStr` does (docs/engine/map.md, "The sprites").
 
 use piney_desktop::view::{CULL_X1, CULL_Y1, LayerView, XYOFFSET_X, XYOFFSET_Y};
 use piney_draw::{Blend, Cmd, DrawState, Prim, PrimKind, Rgba, TexRef, TexState, Vertex};

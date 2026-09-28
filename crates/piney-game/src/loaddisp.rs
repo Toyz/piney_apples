@@ -1,32 +1,11 @@
 //! `ccLoadDisp` (main 0x0019ac00-0x0019c430): the loading display between
-//! areas. `ccFileListLoad` puts it up (`ccLoadDispInit`, 0x0019ad70)
-//! whenever the new scene's file list has a file the old one lacked
-//! (`loadCheck`, 0x00165530), unless one is already up:
-//!
-//! ```text
-//! a town                                   the town's card and the server's
-//! a field from a town, no stream playing   the area's name and the server's
-//!   (the gate hack's stream 107 is one; field 8 has none)
-//! a type 4 field's dungeon from a town,    the area's name and the server's
-//!   no stream playing
-//! a field from its dungeon, or a dungeon   the "NOW LOADING" animation only
-//! ```
-//!
-//! Its task (`ccLoadDispTh`, 0x0019c290, priority 17) draws, each frame
-//! until `ccSnd.gameStart`, the card fading in (`allDisp(0)`: alpha up by 8
-//! to 128) and `xdl_load`'s `ANM_xdl_lod1` (with its camera) on the world's
-//! layer; then, with a card, 30 frames at full (`allDisp(1)`) and 17 fading
-//! out by 8 (`allDisp(2)`), without the animation. The port's loads take no
-//! time, so the card mostly shows those 47 frames, over the new area's
-//! fade in, as the game's does after its load; `--dvd` holds the new scene
-//! for about the disc's time first (`crate::dvd`).
-//!
-//! The card (`allDisp`, 0x0019ba50): `xdl_tit`'s title in two cells (256 x
-//! 128 at (56, 128), 144 x 128 from V 128 at (312, 128)); the texts in
-//! `ccKanji` type 2 (ef12x20), white: the town's two lines (`townNameTbl`)
-//! centred at y 168 and 196, or the area's three words centred at y 182;
-//! the server's symbol (`serverNameTbl`) at (364, 40) and "Server" 24 to its
-//! right, in the server's colour (`serverDisp`).
+//! areas, put up by `ccFileListLoad` (`ccLoadDispInit`, 0x0019ad70) when the new
+//! scene's file list has a file the old one lacked (`loadCheck`, 0x00165530):
+//! the town's or area's card with the server's, or "NOW LOADING" alone. Its
+//! task (`ccLoadDispTh`, 0x0019c290, priority 17) fades the card in until
+//! `ccSnd.gameStart`, holds 30 frames and fades 17 more; the port's loads take
+//! no time, so the card mostly shows those 47 (`--dvd`, [`crate::dvd`]). The
+//! card's layout is in docs/engine/field-walk.md.
 
 use std::rc::Rc;
 

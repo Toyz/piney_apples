@@ -1,42 +1,11 @@
-//! The riding Grunty's sequence around `ccPucciguso` (gcmn
-//! `pgrider.cpp`), on the area's fader (`scFadeDef`), menu and music
-//! and the field's calls (`piney_world::field_world`'s `ride_*`).
-//!
-//! The Grunty Flute's use (`ccUseItemRequest(plw, plw, 0xf0031, kind)`)
-//! reaches its `Pucciguso` step on the menu task:
-//!
-//! ```text
-//! ccPuccigusoStart(kind)    (gcmn 0x005109c0, on the menu task)
-//!   only in a field, not riding (pgR); ccMenu forbid 1, panelStatus 3;
-//!   pgRideFlag 1, pgR 1, pgDIN 0, camTypeLock 1; ccPgBgmInit
-//!   EntryFade(10, clear, black), breaths until it is over
-//!   ccSpcSleep; each in the party's body out, its condition effect off
-//!   ccLoadFLAddOne(the kind's file); ccStartThread(ccThPucciguso, 49)
-//!   ContinueFade(15, clear), breaths until it is over; DeleteFade
-//!   camTypeLock 0; ccBgmPlay(0)             BGM.BIN track 0
-//! (the menu: plw.pauseSW 0, then breaths while pgRideFlag)
-//!
-//! ccThPucciguso             (0x00510880, priority 49)
-//!   new ccPucciguso(kind); 31 frames of Main, then Main each frame until
-//!   the cancel button is pushed while pgRideFlag
-//! ccPuccigusoExit           (0x00510bd0)
-//!   pgDIN, or not a field: ccPgBgmEnd(1); the object and file deleted
-//!   else camTypeLock 1, the body out, EntryFade(10, clear, black) with
-//!   Main each frame until it is over; the members placed, the bodies in,
-//!   ccSpcWakeup, panelStatus 1; ContinueFade(15, clear), breaths until
-//!   it is over; DeleteFade, forbid 0, ccPgBgmEnd(0); the object and file
-//!   deleted; pgRideFlag, pgR, camTypeLock 0
-//! (the menu: the player's noDeathFlag back, the menu shut)
-//! ```
-//!
-//! The menu task runs before the field's tasks in the game and after them
-//! here: the start's slices after its fades run before the menu's frame
+//! The riding Grunty's sequence around `ccPucciguso` (gcmn `pgrider.cpp`):
+//! `ccPuccigusoStart` (0x005109c0, on the menu task), `ccThPucciguso`
+//! (0x00510880, priority 49) and `ccPuccigusoExit` (0x00510bd0), on the area's
+//! fader, menu and music and the field's `ride_*` calls. The menu task runs
+//! after the field's tasks here: the start's slices run before the menu's frame
 //! ([`AreaMode::ride_menu_slot`]), the task's before the field's
-//! ([`AreaMode::ride_task_slot`]), and the menu sees `pgRideFlag` as the
-//! frame began ([`RideSeq::seen`]). The task's first `Main` comes a frame
-//! after the game's (on a black screen); a scene change while riding (a
-//! dungeon's way in: `pgDIN`) ends it as `ccThPuccigusoDelete` does
-//! ([`AreaMode::ride_leave`]).
+//! ([`AreaMode::ride_task_slot`]); a way into a dungeon ends a ride as
+//! `ccThPuccigusoDelete` does. The steps are in docs/engine/grunty-ride.md.
 
 use piney_audio::PgBgm;
 use piney_input::Pad;

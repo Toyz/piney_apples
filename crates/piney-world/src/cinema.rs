@@ -1,36 +1,11 @@
 //! `ccBossEffCinemaFade` (gcmn 0x0046a7e0-0x0046b35c): the boss fight's
 //! "cinema", black bars sliding in over the top and bottom of the picture
-//! with the skill's name in the top one (`docs/engine/boss.md`, "The
+//! with the skill's name in the top one. `OnCinemaMode(n)` starts it for a
+//! skill with a name in `_g_cinemaSkillName`; `CineMode` steps it: 2-3 the
+//! bars slide in (each gap divided by 1.5 a frame) and the name fades in by
+//! 1/15, 1 at rest, 4-5 out again. Each bar is a one-frame
+//! `ccScFade::EntryFlash` black at alpha 0x80 (docs/engine/boss.md, "The
 //! cinema").
-//!
-//! ```text
-//! ccBossEffManager::OnCinemaMode(n)   ignored while CineMode is 1-3, the
-//!                                     party is wiped out or the game over
-//!                                     forced; else CinemaOn(n)
-//! CinemaOn(n)    0 <= n < 61 with a name in _g_cinemaSkillName[n]:
-//!                SetupSkillName (the name's texture, transparency 0, shown);
-//!                CineMode 2
-//! OffCinemaMode  CinemaOff (CineMode 4) unless CineMode is 0, 4 or 5
-//! Draw, each frame (the manager's, before the boss's task):
-//!   the name, when shown: cell 0 of 256 x 20 texels at (128, 10), row
-//!     `wv` = name row x 320, at the name's transparency
-//!   CineMode 0  the name no longer shown
-//!            1  the bars at rest: top at y 0, bottom at 354, 30 high;
-//!               the name's transparency up by 1/15 to 1
-//!            2  the bars where they were; CineMode 3
-//!            3  sliding in: each of NowTop (from 30) and NowBot (from -30)
-//!               divided by 1.5, 0 once under 1 in size; the bars at
-//!               0 - NowTop and 354 - NowBot; both 0 before this frame:
-//!               CineMode 1, NowTop 30, NowBot -30
-//!            4  the bars where they were; CineMode 5
-//!            5  sliding out: the name's transparency down by 1/15 to 0;
-//!               NowTop and NowBot as in 3, the bars at 0 - (30 - NowTop)
-//!               and 354 + (30 + NowBot); both 0 before: CineMode 0,
-//!               NowTop 30, NowBot -30
-//!   the bars: ccScFade::EntryFlash(1, 0x80000000, 0, y, 512, 30), a
-//!   one-frame element black at alpha 0x80, on the cinema's layer (241,
-//!   sysLayer's view); both elements' SendPacket
-//! ```
 
 use piney_data::anim::ee;
 use piney_desktop::anm::Ctx;

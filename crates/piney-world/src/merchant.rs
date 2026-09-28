@@ -1,82 +1,11 @@
 //! The Root Towns' merchants: `ccMerchan` (gcmn merchan.cpp, 0x210 bytes, a
-//! `ccGimmick` and so a `ccEntryObj`), the shopkeepers standing in their
-//! booths. Mac Anu has five, `npcTbl` rows 0-4, all `CTR1.CCS`:
-//!
-//! ```text
-//! row  name         flags   dummy          position              heading
-//!  0   Weapon Shop  0x0100  DMY_merchant1  ( 2400, -2450,   0)   -180 deg
-//!  1   Elf's Haven  0x0200  DMY_merchant4  ( 2400,  2450,   0)      0
-//!  2   Item Shop    0x0400  DMY_merchant3  (-2400,  2450,   0)      0
-//!  3   Magic Shop   0x0800  DMY_merchant2  (-2400, -2450,   0)   -180 deg
-//!  4   Recorder     0x1000  DMY_merchant5  ( -850,  3600, 300)     90 deg
-//! ```
-//!
-//! How the game places them (`ccEntryEventMng`, main 0x001b62e0, in a town:
-//! `ccSetMerchant(0)` before `ccSetChaosGate` and the walking PCs):
-//!
-//! ```text
-//! ccSetMerchant(0) 0x005057f0    area 0: setMerchant of the town's rows (town 0:
-//!                                0-4; 1: 5-10; 2: 11-16; 3: 17-22; 4: 23-28)
-//! setMerchant(id) 0x00505590     ccEntryParamClear (all -1, type/id 0, pos and
-//!                                dirc (0,0,0,1)); type 2 (an NPC), id, the game's
-//!                                area/town/floor/block, entRoot -1; the dummy of
-//!                                the jump table 0x006ac890 (ids 0-4: merchant 1,
-//!                                4, 3, 2, 5; the breeders 10/16/22/28: 6) from the
-//!                                town's stream: pos = its +0x10 (w 1), dirc = its
-//!                                +0x20 (Decode_DummyPosRot's pi deg / 180, w 0)
-//! ccEntryCtrl::entryObject       npcTbl's esize (1): land still -1, so pos.z =
-//!   0x00430c90 / 0x004307f0      ccLandHitCheck(pos, 0x20000002); entryNpc
-//! entryNpc 0x004317b0            entry.ep = &param; ccEntryRtownMerchant
-//!                                (0x00505a50): new ccMerchan; initObject; onto
-//!                                the NPC list (after the gimmicks, run last)
-//! ccMerchan::ccMerchan 0x00505aa0
-//!   entParam, pos, dirc and defaultDirc (+0x1e0) from the param; base =
-//!   npcTbl[id] (height 180, width 100); bodyHit: pos, radius 35, height 120,
-//!   type 2; the CMP_trall clump; anmTbl (+0x204) = merchanAnmPtr[town]
-//!   (0x005ed870: ANM_ctrNnut0, ANM_ctrNact0, ANM_ctrNact2 of CTRN), the
-//!   administrator's (29) and the quiz man's (158) their own; ids 10, 16, 22,
-//!   28, 29 and 158 bodyHit.HitEnable and affectFunc = breederInfluence, the
-//!   rest HitDisable (the affectFunc stays ccGimmick's ccGimmickAffect);
-//!   SetAnm(anmTbl[0]); actNum, actProcess, anmOld 0; transrate 1
-//! ccEntryCtrl::initObject        its area is the entry control's: objFlag,
-//!   0x00430ec0                   initFlag, bodyHit.SetHitSW(1) (on the
-//!                                character hit list, after all); land -1
-//!                                again: pos.z = ccLandHitCheck(pos, 0x20000002);
-//!                                entParam.pos = pos; posP = W2PPos(pos)
-//! ```
-//!
-//! No palette is swapped (the rows' `clut` is empty and `ccMerchan` never
-//! calls `ccEntryChangeCLUT`). Each frame `ccThEntryCtrl` (priority 64, after
-//! the player) runs, for each NPC in list order, [`EntryObj::routine`]
-//! (`ccEntryObj::routine` 0x0042fa60) then `ccMerchan::main` (0x00505e20):
-//!
-//! ```text
-//! posP = W2PPos(pos); d = |posP| (x, y less Kite's, the merchant's own z)
-//! cam = ccCheckCameraDeg(pos, 12288)       main 0x001da710
-//! npcID 29 or 158: sysopeAct 0x00506170 (the Administrator: comes and
-//! goes through the gate's transfer, see [`Merchant::sysope_act`]); else
-//! breederAct 0x00505fc0
-//! bodyHit.pos = pos; CollisionDetection: bodyHitFlag, bodyHitCnt
-//! if d < 4600 and cam:
-//!     _AnimateForward(frameSpd); SetMatrix_PosRotZYX(pos, dirc)
-//!     transparency = setTransparency = transrate; ccChar::Draw
-//! ```
-//!
-//! So a merchant steps and draws only within 4600 of Kite and inside 67.5
-//! degrees either side of the camera's line of sight (measured on the
-//! ground from the camera's eye); `ccChar::Draw` then fades it near the
-//! camera and beyond 4000 ([`Char::fade`]).
-//!
-//! Facing: in Mac Anu nothing turns a merchant. `breederAct` turns one
-//! toward Kite (`plDirc`, act 1, `ccSetDirc(.., 64)`, playing anmTbl[2] for
-//! 120 frames) or back to `defaultDirc` (act 2, `ccSetDirc(.., 128)`,
-//! anmTbl[0]) only when `breederInfluence` (0x005065d0) set the act: the
-//! menu's `EntryAffect` of command 14 (the shop opening) or 15 gives act 1,
-//! command 0 (closing) act 2. Only the Grunt Shops (10, 16, 22, 28), the
-//! administrator and the quiz man have it; Mac Anu's five keep
-//! `ccGimmickAffect` (0x00453400), which only sets `affectFlag`. The event
-//! scripts' turn (`grotDeg`/`grotSpd`, `ccSetDirc` in `routine` until within
-//! 0.003) and fades (`fadeFlag`/`fadeCnt`) are in [`EntryObj`].
+//! `ccGimmick` and so a `ccEntryObj`), the shopkeepers in their booths, placed
+//! by `ccSetMerchant(0)` (0x005057f0) at the dummies of the jump table
+//! 0x006ac890 and dropped on the floor. Each frame `ccMerchan::main`
+//! (0x00505e20) steps and draws one only within 4600 of Kite and 67.5 degrees
+//! of the camera's line of sight. Only the Grunt shops, the administrator and
+//! the quiz man turn toward Kite (`breederInfluence`); Mac Anu's five never
+//! turn (docs/engine/field-game.md, "The merchants").
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -499,25 +428,11 @@ impl Merchant {
         self.ch.set_anim(self.anm_tbl[k]);
     }
 
-    /// `ccMerchan::sysopeAct` (gcmn 0x00506170): the Administrator's acts,
-    /// which the events' `npc_act 29 N` sets (`actNum` N, `actProcess` 0);
-    /// true when it is done with (act 5's end). `transrate` is what `main`
-    /// draws him at.
-    ///
-    /// ```text
-    /// 2, other   anmTbl[0], transrate 1
-    /// 3          anmTbl[0], transrate 0; effTransfer; then transrate + 0.02 a
-    ///            frame to 1, then act 2
-    /// 4, 5       transrate 1, off the command list, effTransfer; then
-    ///            transrate - 0.02 a frame to 0; after 141 frames act 4 stays,
-    ///            act 5 ends (deleted)
-    /// 6          transrate 0 (hidden)
-    /// 7          transrate 1, act 2
-    /// -3         anmTbl[2], turning toward Kite (ccSetDirc 64) until its frame
-    ///            reaches 120, then act 0
-    /// -5         transrate 1, anmTbl[2] at speed 384, sound 217, the force
-    ///            rings and the tornado's rings; 31 frames on, interNoiz 2
-    /// ```
+    /// `ccMerchan::sysopeAct` (gcmn 0x00506170): the Administrator's acts, which
+    /// the events' `npc_act 29 N` sets (`actNum` N, `actProcess` 0): shown,
+    /// transferring in (3) or out (4, 5), hidden (6), turning toward Kite (-3),
+    /// the force rings (-5); the table is in docs/engine/field-game.md. True when
+    /// it is done with (act 5's end). `transrate` is what `main` draws him at.
     pub fn sysope_act(&mut self) -> bool {
         // 0.02.
         const STEP: F = 0x3ca3_d70a;

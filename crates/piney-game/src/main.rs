@@ -1,66 +1,11 @@
-//! The game, run from the disc image.
-//!
-//!     piney-game [--iso PATH] [--mode MODE]
-//!     piney-game [--iso PATH] [--mode MODE] --shot OUT.png [--frames N] [--press F[-G]:BUTTON,...]
-//!
-//! Reads `DATA/DATA.BIN` from the disc image (default
-//! `work/infection/infection.iso`) and runs one mode on the game's own
-//! clock: NTSC vertical blanks at 59.94 a second, a game frame every
-//! `frameRate` of them. Each frame the pad is read as `ccPad::Read` reads it
-//! and the mode's draw list is drawn as the GS draws it (`piney-gs`), in the
-//! game's 512 x 448 frame buffer, shown at 4:3.
-//!
-//! Modes: `game` (the default) runs from power-on as `ccThMother` does: the
-//! title (`DEMO.PRG`: the card check, the logos, the menu), New Game into the
-//! desktop, START's Title Screen back again. `desktop` starts on the ALTIMIT
-//! desktop of a new game, skipping the title; `world` starts in Mac Anu on
-//! a new game's save, the player named Kite, with the field's HUD and
-//! menus and the event task as a new game leaves it at Log in (event 2,
-//! Orca's welcome, plays, and its `scene` takes Kite to story area 14's
-//! field; `--no-events` for none), `world:1` the same in Dun Loireag (the
-//! save's `lastTown` 1); `field:N` in story area N's field (14,
-//! the first, made from its words as event 2 makes it), where `--press
-//! F:gateout` goes back to the town as the Gate Out menu does (`F:gofield`
-//! from a dungeon to its field, as TransFieldMenu does), and
-//! `field:N/TYPE,ROW[,HACK[,SEED]]` has another field type, weather row,
-//! hack flag and seed over it (`field:14/7,5` type 7's night);
-//! `dungeon:N` in its dungeon's first room, as its entrance leads in;
-//! `story:N` where event N of the opening arc opens (3, 4, 10, 11, 12, 13,
-//! 14), the save and the event task as the story before it leaves them
-//! (each earlier event brought forward by `ccEventFlagSet`, `start.rs`): 3
-//! in story area 14's field, 4 in its dungeon, 10 and 12 on the desktop,
-//! 11 and 13 in Mac Anu, 14 on the top page;
-//! `test-card[:FILE]` shows every texture of a `DATA.BIN` member (default
-//! `xddesk01`) with a cursor the D-pad moves.
-//!
-//! The desktop runs the game's own event scripts from the disc beside it,
-//! from the boot on, as a new game does: event 1 delivers the first mails,
-//! posts the board and news, and locks every icon but the mailer until the
-//! first two mails are read. The scripts' messages are printed to the
-//! terminal for now. `--no-events` leaves them out; `--mail N,...` and
-//! `--news N,...` deliver mails and post headlines by hand.
-//!
-//! The Data screen saves to a memory card kept as a directory
-//! (`work/memcard/slot1` by default, `--card DIR`, `--no-card` for none),
-//! in the card's own layout: `BASLUS-20267DOTHACK/` with its index and
-//! `dhdata01`-`12`.
-//!
-//! Sound effects and music play through `piney-audio` (the game's own sound
-//! driver, sequencer and synthesizer; `--mute` for none). Mode changes and
-//! movies are printed until those parts exist.
-//!
-//! `--shot` runs N frames (default 60) with no window, pressing BUTTON on
-//! frame F for each `F:BUTTON` (see `input::button`), or holding it over
-//! frames F to G for `F-G:BUTTON` (`lup`, `ldown`, `lleft`, `lright` push
-//! the left stick, `rup` ... the right), and writes the last frame's frame buffer as a 512 x
-//! 448 PNG. `--webp OUT.webp` also writes the frames (from `--webp-from F`,
-//! every `--webp-every N`th, at `--webp-quality Q`) as one animated WebP,
-//! timed on the game's clock, for sharing (`webp`).
-//!
-//! Keyboard and pad: see `input`. Escape asks whether to quit (`quit`):
-//! the game stops under the desktop menu's own confirmation window; OK
-//! quits, Cancel or Escape again goes back. `--quit N` opens it at frame N
-//! of a `--shot`.
+//! The game, run from the disc image or a build: `piney-game [--iso PATH]
+//! [--mode MODE] [--shot OUT.png ...]`. One mode on the game's own clock (NTSC
+//! 59.94, a game frame every `frameRate` vertical blanks), the pad read as
+//! `ccPad::Read` reads it and each draw list drawn as the GS draws it
+//! (`piney-gs`) in a 512 x 448 frame at 4:3. Modes: `game` (power-on),
+//! `desktop`, `world[:N]`, `field:N[/TYPE,ROW[,HACK[,SEED]]]`, `dungeon:N`,
+//! `story:N`, `test-card[:FILE]`, `loose:PATH`. `--help` lists the options;
+//! the README has the keys and the pad.
 
 mod area;
 mod area_host;
@@ -840,15 +785,11 @@ fn make_mode(name: &str, assets: &mut Assets, o: &Options) -> Result<Box<dyn Mod
             let d = desktop::DesktopMode::new(o.iso.clone(), archive, state, o.scripts, o.card.clone(), o.name_entry)?;
             Ok(Box::new(d))
         }
-        // Straight into Mac Anu on a new game's save (NewGame(0) over
-        // ccSaveData::Init), the player named Kite.
         // Straight into The World on a new game's save (NewGame(0) over
-        // ccSaveData::Init), the player named Kite: `world` in Mac Anu,
-        // `world:N` in Root Town N (`saveData.lastTown`: 1 Dun Loireag),
-        // `field:N` in story area N's field (as event 2's `area` and `scene`
-        // leave it for N = 14); `field:N/TYPE,ROW[,HACK[,SEED]]` with the
-        // field's type, weather row, hack flag and seed put in its
-        // WORLD_MAN's place (another field's weather over the story area).
+        // ccSaveData::Init), the player named Kite: `world` in Mac Anu, `world:N` in
+        // Root Town N (`saveData.lastTown`), `field:N` in story area N's field (as
+        // event 2's `area` and `scene` leave it for 14); `field:N/TYPE,ROW[,HACK
+        // [,SEED]]` with another field's type, weather row, hack flag and seed.
         "world" | "field" | "dungeon" => {
             let mut disc = Iso::open(&o.iso).map_err(|e| format!("{}: {e}", o.iso.display()))?;
             let mut state = world::new_game_state(&mut disc)?;

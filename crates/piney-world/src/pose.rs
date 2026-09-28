@@ -37,15 +37,12 @@ impl Play {
         f.ended
     }
 
-    /// [`Play::forward`], and the (event, param) of each note the step
-    /// passed, in the order `ccAnm::NoteProcess` (main 0x00152210) hands
-    /// them to the note function (the last frame's first, a frame's last
-    /// record first; [`piney_data::anim::Animation::passed_notes`]). Empty
-    /// when the frame did not change. The game keeps these on the anm
-    /// (`noteRoot`) until its next `_AnimateForward`: `SetAnm` and
-    /// `NoteProcess` do not clear them, so a caller that hands notes on
-    /// after a clip change without a step in between should keep the last
-    /// ones.
+    /// [`Play::forward`], and the (event, param) of each note the step passed, in
+    /// the order `ccAnm::NoteProcess` (main 0x00152210) hands them on
+    /// ([`piney_data::anim::Animation::passed_notes`]). Empty when the frame did
+    /// not change. The game keeps these on the anm (`noteRoot`) until its next
+    /// `_AnimateForward`, so a caller that hands notes on after a clip change
+    /// without a step in between should keep the last ones.
     pub fn forward_notes(&mut self, file: &SceneFile) -> (bool, Vec<(u32, u32)>) {
         let (f, notes) = file.anims[self.anim].forward_notes(self.time, self.frame_spd);
         if let Some(t) = f.pose_at {

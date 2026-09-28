@@ -1,17 +1,9 @@
-//! `--dvd [SPEED]`: the original's disc reads timed, so the loading
-//! display between areas stays up about as long as it did on a PS2. The
-//! port's own reads take no time (the files are in memory), so without
-//! this the card only shows its 47 frames over the new area's fade in
-//! (`crate::loaddisp`).
-//!
-//! The time is an estimate, not a measurement. It counts the archive
-//! members the scene's set-up reads that the last scene's did not
-//! (`ccFileListLoad` loads only those, `loadCheck` main 0x00165530): a seek
-//! for each run of them lying end to end on the disc, then their bytes at
-//! SPEED times DVD 1x (1,385,000 bytes a second). The PS2's drive reads DVD
-//! at up to 4x, at constant angular velocity, so slower near the centre of
-//! the disc; the default is 3x. The EE's inflate of each file is not
-//! counted.
+//! Not the game's: `--dvd [SPEED]`, the original's disc reads timed so the
+//! loading display between areas stays up about as long as on a PS2 (the port's
+//! reads take no time). An estimate: for the archive members a scene's set-up
+//! reads that the last one did not (`loadCheck`, main 0x00165530), a seek per
+//! run lying end to end, then their bytes at SPEED times DVD 1x (1,385,000
+//! bytes a second; default 3x). The inflate is not counted.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;

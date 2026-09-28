@@ -1,17 +1,10 @@
-//! The enemies' fire breath ([`piney_battle::breath`]): the breaths a
-//! race's constructor makes (`entry::Out::Breath`), asked for a flame
-//! ([`Call::BreathSet`]) and run ([`Call::BreathCtrl`]) from the race's
-//! `exclusive()`.
-//!
-//! Like the weapon trails, the breaths run where the effects start the
-//! frame's shows (`Combat::fx_call`), in their order, after the entry
-//! control's frame: a flame starts at its node as this frame drew the
-//! enemy (`Call::Draw`'s matrix, the clip where `animEnemy` left it). The
-//! flames' bursts draw `ccRand()` then, not inside the enemy's frame as the
-//! game's do, so the enemies after a bursting breath see ccRand a few draws
-//! on. The flames are drawn as the field's ambient sprites
-//! ([`Combat::breath_ops`]: the effect chunk of the enemy's own file, on
-//! layer 3), their bursts are `effSmoke` puffs.
+//! The enemies' fire breath ([`piney_battle::breath`]): the breaths a race's
+//! constructor makes, asked for a flame ([`Call::BreathSet`]) and run
+//! ([`Call::BreathCtrl`]) from the race's `exclusive()`. Like the weapon
+//! trails they run in `Combat::fx_call`, so the flames' bursts draw
+//! `ccRand()` there, not inside the enemy's frame: the enemies after a
+//! bursting breath see `ccRand` a few draws on. The flames draw as ambient
+//! sprites ([`Combat::breath_ops`]), the bursts as `effSmoke` puffs.
 
 use std::collections::HashMap;
 

@@ -1,29 +1,11 @@
-//! `ccBossCam` (gcmn 0x0045fbe0-0x004610d0): the camera a boss fights
-//! under. `ccBoss::InitBossCamera(z, y)` (0x0045e750) makes it with the
-//! boss's `pos` to look toward and `transfer` (0, y, z, 1); it takes camera
-//! 2 (`bcam`), and each frame `ccBoss::Main` runs `CamMain` after `Move`
-//! while `bossCamSW` holds.
-//!
-//! `CamMain` stands the camera over the player (`tempChar`, `plw+0x20` when
-//! it was made), `MoveTransfer` behind him on the line from the boss to
-//! him, and looks 1000 ahead along it, so the boss is always straight in
-//! front. The heading turns toward the boss's by at most `RemitRotMax`
-//! (1280, about 7 degrees) a frame, twice that after 20 frames of catching
-//! up. The pad pulls `MoveTransfer.y` between `transfer.y` and
-//! `transfer.y + MaxRenge` (the right stick up and down, or R1/R2), and two
-//! buttons ease it to either end (`ResetFlg` 1 and 2). A quake
-//! (`QuakeCam`) moves the eye and the point looked at together for one
-//! frame.
-//!
-//! Skeith (`InitBossCamera(200, 1000)`) uses none of `SetMode`,
-//! `SetFreeCamPosView` or `SetRotXLimit`. Without them `ExLock`,
-//! `ZrotControlFlg`, `Xrot` and `ZrotCont` stay 0, `lock` is only ever
-//! cleared (`OnThinkRandDrive`) and `ResetFlg` is never 3 or 4; the port
-//! leaves out what only they reach: `SetTransfer`'s cases 3 and 4 and
-//! `Pad_Control`'s turning with `ZrotControlFlg`.
-//!
-//! `tools/test_bosscam_rs.py` checks it against the game's own code in
-//! eemu.
+//! `ccBossCam` (gcmn 0x0045fbe0-0x004610d0): the camera a boss fights under,
+//! made by `ccBoss::InitBossCamera(z, y)` (0x0045e750) on camera 2 (`bcam`)
+//! and run by `CamMain` each frame: over the player, behind him on the line
+//! from the boss, the boss straight ahead, the heading turning at most
+//! `RemitRotMax` a frame; the pad raises and lowers it; `QuakeCam` shakes it
+//! for a frame. Innis uses modes 5 and 6 and raises `Xrot`; `SetTransfer`'s
+//! cases 3 and 4 and Mutation's lift are left out. `tools/test_bosscam_rs.py`
+//! checks it (docs/engine/boss.md).
 
 use crate::camera::{CamPad, Camera, id, kind};
 use crate::ee::{self, F, ONE, V4, add, deg2rad, div, le, lt, mul, rad2deg, sub, vadd};
@@ -90,6 +72,11 @@ pub struct BossCam {
     /// +0x10c `CameraType`: `cameraControlType` as `Pad_Control` last read
     /// it (the constructor's 0 or 1 until then).
     pub camera_type: i32,
+    /// +0x40 `TempCamView`, +0x50 `TempCamPos`, +0x60 `TempCamRot`: what
+    /// mode 5 kept and mode 6 puts back.
+    pub temp_view: V4,
+    pub temp_pos: V4,
+    pub temp_rot: V4,
 }
 
 impl BossCam {
@@ -125,7 +112,50 @@ impl BossCam {
             basis_rot: 0,
             limit_rot: ONE,
             camera_type: i32::from(matches!(camera.scheme.number, 2 | 3)),
+            temp_view: [0; 4],
+            temp_pos: [0; 4],
+            temp_rot: [0; 4],
         }
+    }
+
+    /// `ccBossCam::SetMode(mode, 0, 0, 0)` (MUT gcmn 0x00475ae0) for modes
+    /// 5 and 6: 5 locks the eye and keeps it; 6 puts it back, sets camera
+    /// 2 there at once and unlocks. `ResetFlg` is the mode (6 then 0).
+    pub fn set_mode(&mut self, mode: i32, camera: &mut Camera) {
+        self.reset = mode;
+        match mode {
+            5 => {
+                self.lock = true;
+                self.temp_view = self.view;
+                self.temp_pos = self.pos;
+                self.temp_rot = self.rot;
+            }
+            6 => {
+                self.lock = false;
+                self.view = self.temp_view;
+                self.pos = self.temp_pos;
+                let c = camera.cam_mut(id::BATTLE);
+                c.pos = self.pos;
+                c.view = self.view;
+                self.reset = 0;
+            }
+            _ => {}
+        }
+    }
+
+    /// `ccBossCam::SetFreeCamPosView(pos, view)` (MUT 0x00475c90): in
+    /// mode 5 the eye and the point looked at.
+    pub fn free_cam_pos_view(&mut self, pos: V4, view: V4) {
+        if self.reset == 5 {
+            self.view = view;
+            self.pos = pos;
+        }
+    }
+
+    /// `ccBossCam::CheckMoveCamera()` (MUT 0x004766d0): the heading still
+    /// catching up (`count`, Mutation's +0xec).
+    pub fn check_move_camera(&self) -> bool {
+        self.count & 0xffff != 0
     }
 
     /// `ccBossCam::QuakeCam(q)` (0x0045ff80): the next `CamMain` shakes by

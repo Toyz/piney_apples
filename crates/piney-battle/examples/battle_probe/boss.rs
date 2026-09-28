@@ -7,7 +7,7 @@
 //! to P0). One JSON line: the state after the constructor, then each frame.
 
 use piney_battle::affect::{self, AffectCtx};
-use piney_battle::boss::{Boss, BossEnv, Cx, EffKind, Out, SkeithData, Tbl};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Cx, EffKind, Out, Tbl};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -25,12 +25,12 @@ use crate::{Toks, read_char};
 type Clips = std::collections::HashMap<String, (u32, bool)>;
 
 thread_local! {
-    static DATA: std::cell::RefCell<Option<(SkeithData, Clips)>> = const { std::cell::RefCell::new(None) };
+    static DATA: std::cell::RefCell<Option<(BossData, Clips)>> = const { std::cell::RefCell::new(None) };
 }
 
-fn load(iso_path: &str) -> (SkeithData, Clips) {
+fn load(iso_path: &str) -> (BossData, Clips) {
     let mut iso = Iso::open(iso_path).expect("the ISO");
-    let data = SkeithData::of(iso.volume().expect("the volume"));
+    let data = BossData::of(iso.volume().expect("the volume"));
     let arc = Archive::new(iso.read_path("DATA/DATA.BIN").expect("DATA.BIN")).expect("DATA.BIN");
     let mut clips = std::collections::HashMap::new();
     for stem in ["x11", "xeffect"] {
@@ -74,7 +74,7 @@ fn v4(t: &mut Toks) -> [u32; 4] {
     std::array::from_fn(|_| t.u32())
 }
 
-fn run(tables: &Tables, data: &SkeithData, clips: &Clips, t: &mut Toks) -> String {
+fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut scene = Scene::default();
     for _ in 0..n {
@@ -116,6 +116,7 @@ fn run(tables: &Tables, data: &SkeithData, clips: &Clips, t: &mut Toks) -> Strin
     let actx =
         AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: crate::probe_volume() };
     let mut none = |_| None;
+    let mut land = |p: [u32; 4]| p[2];
     let mut cx = Cx {
         t: tables,
         data,
@@ -131,6 +132,8 @@ fn run(tables: &Tables, data: &SkeithData, clips: &Clips, t: &mut Toks) -> Strin
         game_over: false,
         // InitBossCamera is a no-op in the harness: no bossCam, no quake.
         boss_cam: false,
+        cam: CamView::default(),
+        land: &mut land,
         me,
         out: Vec::new(),
         ev: Events::new(),
@@ -181,6 +184,8 @@ fn run(tables: &Tables, data: &SkeithData, clips: &Clips, t: &mut Toks) -> Strin
             collide: &mut none,
             game_over: false,
             boss_cam: false,
+            cam: CamView::default(),
+            land: &mut land,
             me,
             out: Vec::new(),
             ev: Events::new(),
@@ -202,10 +207,10 @@ fn run(tables: &Tables, data: &SkeithData, clips: &Clips, t: &mut Toks) -> Strin
                     }
                 }
                 Out::CursorOff(on) => menu[2] = i32::from(*on),
-                Out::StreamMenu { slot } => {
+                Out::StreamMenu { stream, mask } => {
                     menu[3] = 0x104a;
-                    menu[4] = 1 << slot;
-                    menu[5] = 20;
+                    menu[4] = *mask;
+                    menu[5] = *stream;
                 }
                 _ => {}
             }
@@ -227,18 +232,24 @@ fn tbl_num(t: Tbl) -> i32 {
     }
 }
 
-fn eff_num(k: EffKind) -> i32 {
+pub(crate) fn eff_num(k: EffKind) -> i32 {
+    use piney_battle::boss::innis::Element;
     match k {
         EffKind::WaveShock => 0,
-        EffKind::MagicSquare => 1,
+        EffKind::MagicSquare { .. } => 1,
         EffKind::ForceGenerator { .. } => 2,
         EffKind::AutoSamonRing { .. } => 3,
         EffKind::IceBreak => 4,
         EffKind::Dead => 5,
+        EffKind::SamonRing { .. } => 6,
+        EffKind::Missile { element: Element::Ice, .. } => 7,
+        EffKind::Missile { element: Element::Lightning, .. } => 8,
+        EffKind::Missile { element: Element::Blaze, .. } => 9,
     }
 }
 
-fn out_json(o: &Out) -> Option<String> {
+pub(crate) fn out_json(o: &Out) -> Option<String> {
+    use piney_battle::boss::innis::Gen;
     Some(match o {
         Out::Se3d { se, .. } => format!("[\"se3d\",{se}]"),
         Out::Se { se } => format!("[\"se\",{se}]"),
@@ -254,6 +265,12 @@ fn out_json(o: &Out) -> Option<String> {
         Out::FlyFont { kind, n } => format!("[\"flyfont\",{kind},{n}]"),
         Out::ClearSpcCondition => "[\"clear_spc\"]".into(),
         Out::AfterImage => "[\"afterimage\"]".into(),
+        Out::Shield => "[\"shield\"]".into(),
+        Out::Particles { which, .. } => match which {
+            Gen::InisField(r) => format!("[\"particles\",\"InisField\",{r}]"),
+            Gen::Tornado => "[\"particles\",\"Tornado\",0]".into(),
+            Gen::Burst(r) => format!("[\"particles\",\"Burst\",{r}]"),
+        },
         // The camera's quake and the reverse layer's draw: the runtime's
         // (the harness has no boss camera); the menu's writes are compared
         // as the menu's state; the rest by their effects.
@@ -264,6 +281,10 @@ fn out_json(o: &Out) -> Option<String> {
         | Out::MenuForbid { .. }
         | Out::StreamMenu { .. }
         | Out::DeadCamera { .. }
+        | Out::CamMode { .. }
+        | Out::FreeCam { .. }
+        | Out::CamPitch { .. }
+        | Out::Blur { .. }
         | Out::DeleteCmnd => return None,
     })
 }

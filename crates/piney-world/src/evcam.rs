@@ -1,33 +1,11 @@
 //! The event camera: the camera instructions of the event scripts
-//! (`ccEvent::Execute`, `INF SLUS_202.67:0x001a8d20`, codes 22-36 and
-//! 40-50) and the task that runs it, `ccThCameraExecute` (0x001b4ff0),
-//! which the first of them starts (`ccStartThread(fn, 33, 0x800)`) and
-//! `camera_end` stops.
-//!
-//! The state is `eventMng.cam` (`ccEvent`+0x440, a `ccEvCamCtrl` of 0x310
-//! bytes): a look-at point (`vp`) and a camera point (`cp`), each driven
-//! one of several ways, and the two-point camera `zcam` the `camz_*`
-//! instructions move. The task's first frame switches the game to the
-//! event camera (`changeCamera(3)`: `ecam`, [`crate::camera`]); each frame
-//! `ccEvent::CamCtrl` (0x001b3680) writes `ecam`'s eye, target and
-//! rotation, which the player's `CameraPosSet` then turns into the view
-//! matrix (`cameraSet`) instead of placing `tcam`.
-//!
-//! ```text
-//! vpCtrl 0    vp eases to vpTarget over vpRate frames (0: at once)
-//!        1    as 0, vpTarget the character's position + height each frame
-//!        8    CamzCtrl: zcam[0] is vp, zcam[1] is cp (cpCtrl ignored)
-//!        9    CamzInpCtrl: the same along the camz_point path
-//! cpCtrl 2    rot and dist ease to rotTarget, distTarget over cpRate frames
-//!        3    the heading turns by cpRate a frame
-//!        4    cp left where it is (cam_mode4)
-//!        5-7  the camera tutorial: the pad turns, zooms and resets it
-//!        else nothing; cp = vp + Rz(rot[1]) Rx(rot[0]) (0, dist, 0)
-//! ```
-//!
-//! Everything is EE single precision on bit patterns ([`crate::ee`]);
-//! `tools/test_evcam_rs.py` checks it against the game's own
-//! `ccEvent::Execute`, `ccThCameraExecute` and `CamCtrl` run in eemu.
+//! (`ccEvent::Execute`, INF main 0x001a8d20, codes 22-36 and 40-50) and the
+//! task that runs it, `ccThCameraExecute` (0x001b4ff0, priority 33). The
+//! state is `eventMng.cam` (`ccEvCamCtrl`, 0x310 bytes): a look-at point
+//! driven by `vpCtrl`, a camera point by `cpCtrl`, and the two-point `zcam`
+//! of the `camz_*` instructions; `ccEvent::CamCtrl` (0x001b3680) writes
+//! `ecam` each frame. EE single precision ([`crate::ee`]), checked by
+//! `tools/test_evcam_rs.py` (docs/engine/field-game.md).
 
 use piney_event::host::CameraCommand;
 

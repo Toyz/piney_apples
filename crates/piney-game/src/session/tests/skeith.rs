@@ -163,15 +163,11 @@ fn skeith_shots() {
     });
 }
 
-/// Shots of one of the boss's acts: at frame `$PINEY_AT` (default 80) the
-/// boss is put into act `$PINEY_ACT` (default 6, the magic; 3 the cross, 4
-/// the wave) as
-/// `ChangeAction` would, and every `$PINEY_EVERY`th frame (default 6) of
-/// the next `$PINEY_FRAMES` (default 480) goes to `$PINEY_SHOTS` (default
-/// /mnt/data/claude/scratch/skeith-act), named by frame. `$PINEY_WALK`
-/// (`LX,LY,FROM,TO`) holds the left stick there from frame FROM to before
-/// TO (Kite walks off toward the fireflies, which move and show only
-/// within 1000 of him).
+/// Shots of one of the boss's acts: at frame `$PINEY_AT` (80) the boss is put
+/// into act `$PINEY_ACT` (6 the magic, 3 the cross, 4 the wave) as
+/// `ChangeAction` would, and every `$PINEY_EVERY`th frame (6) of the next
+/// `$PINEY_FRAMES` (480) goes to `$PINEY_SHOTS`. `$PINEY_WALK`
+/// (`LX,LY,FROM,TO`) holds the left stick over those frames.
 #[test]
 #[ignore]
 fn skeith_act_shots() {
@@ -223,16 +219,12 @@ fn event_30_arena() -> Option<Session> {
     Some(Session::in_world(iso, archive, None, state, Some(start.vm), scene, Some(wm)).unwrap())
 }
 
-/// Event 30 with the story brought to it, in the arena: its block 20 makes
-/// the boss (`entry 7 0`, `battle_ready`, `save_party`) at the set-up.
-/// Kite is kept alive; the drain's two affects (13, then 21) and then
-/// heavy hits are put on the boss as Kite's frame would, and the fight
-/// runs to its end: the Epitaph's patterns, death, the exit, and block
-/// 22's `if absent 7` - `area_ban`, `gate_unmark`, `mode 3`. The death
-/// clears the party's conditions (`ccClearSpcCondition`): Kite, poisoned
-/// and with a stat raised in his record before it, has neither after, and
-/// `noDeathFlag`. Then the desktop's event 31 (ENDING): stream 15, the
-/// closing lines, the staff roll.
+/// Event 30 in the arena: block 20 makes the boss (`entry 7 0`, `battle_ready`,
+/// `save_party`); the drain's affects (13, then 21) and heavy hits go on it as
+/// Kite's frame would, and the fight runs to its end (the Epitaph's patterns,
+/// death, the exit) and block 22's `if absent 7`. The death clears the
+/// party's conditions (`ccClearSpcCondition`). Then the desktop's event 31:
+/// stream 15, the closing lines, the staff roll.
 #[test]
 fn event_30_ends_with_skeith() {
     let Some(mut s) = event_30_arena() else { return };
@@ -858,4 +850,186 @@ fn drain_side_effect_shots() {
             println!("{path}");
         }
     }
+}
+
+/// Mutation's event 107 brought to Innis's arena: field 2 of town 2
+/// (`EVENTAREAB0`) as area 46's last door leaves the game, blocks 0-16
+/// played and `eventStatus[0]` 1 (block 4's `status_set 0 1`).
+fn event_107_arena() -> Option<Session> {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    if !iso.exists() {
+        return None;
+    }
+    let mut d = Iso::open(&iso).unwrap();
+    let archive = Arc::new(Archive::new(d.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let start = crate::start::build(&iso, 107).unwrap();
+    let mut state = start.state;
+    let f = state.save.event_flag(107);
+    state.save.set_event_flag(107, f | ((1 << 17) - 1));
+    state.save.set_u8(offset::EVENT_STATUS, 1);
+    let mut scene = piney_world::area::Scene::log_in(&mut state.save);
+    let wm = crate::area::story_world_man(&mut d, 46, false).unwrap();
+    scene.change_scene(1, 2, 2, -1, -1, -1, &mut state.save);
+    Some(Session::in_world(iso, archive, None, state, Some(start.vm), scene, Some(wm)).unwrap())
+}
+
+/// Innis's Epitaph flag, when the boss is Innis.
+fn innis_epitaph(b: &piney_battle::boss::Boss) -> Option<i32> {
+    match &b.class {
+        piney_battle::boss::Class::Innis(x) => Some(x.epitaph_flg),
+        _ => None,
+    }
+}
+
+/// Event 107 in the arena: block 17 makes Innis (`entry 7 1`,
+/// `battle_ready`); the drain's affects (13, then 21) and heavy hits go on
+/// it as Kite's frame would, and the fight runs to its end (the Epitaph's
+/// patterns, death, the exit), and block 20's `if absent 7 1` sets
+/// `eventStatus[0]` to 2.
+#[test]
+fn event_107_ends_with_innis() {
+    let Some(mut s) = event_107_arena() else { return };
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let mut acts = BTreeSet::new();
+    let (mut made, mut drained, mut exited, mut status) = (false, false, false, 0);
+    let mut since = 0u32;
+    for i in 0..12000u32 {
+        // While a block plays (its menus banned), CROSS every 8th frame
+        // moves its messages on.
+        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        let raw = if playing && i.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if let Some(v) = s.save_mut() {
+            status = v.u8(offset::EVENT_STATUS);
+        }
+        if status == 2 {
+            break;
+        }
+        let Stage::Area(a) = &mut s.stage else { continue };
+        let c = a.world_mut().combat_mut();
+        if let Some(k) = c.kite {
+            let ch = &mut c.scene.chars[k];
+            ch.max_hp = 9999;
+            ch.hp = 9999;
+        }
+        let Some(me) = c.boss.as_ref().map(|b| b.me) else { continue };
+        made = true;
+        since += 1;
+        let kite = c.kite;
+        let Some(b) = c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()) else { continue };
+        assert!(innis_epitaph(b).is_some(), "entry 7 1 made another boss");
+        acts.insert(b.act_num);
+        exited |= b.exit != 0;
+        if since >= 400 && !drained && b.act_num == 0 && b.lock_player == 0 {
+            b.queued.push((13, [0; 3], kite));
+            b.queued.push((21, [0; 3], kite));
+            drained = true;
+        }
+        if drained && since.is_multiple_of(20) && b.exit == 0 && b.lock_player == 0 && innis_epitaph(b) == Some(1) {
+            b.queued.push((1, [800, 0, 0], kite));
+        }
+    }
+    println!("acts {acts:?}, eventStatus[0] {status}");
+    assert!(made, "block 17 made no boss");
+    assert!(drained);
+    assert!(acts.contains(&12), "no Epitaph: {acts:?}");
+    assert!(acts.contains(&14), "never died: {acts:?}");
+    assert!(exited, "never exited");
+    assert_eq!(status, 2, "block 20 did not run");
+}
+
+/// Innis drained through the menus, as a player does it: Kite (with Data
+/// Drain, stout) walks up to the boss while it is free, on the targets and
+/// its protect broken, opens the menu, and PERSONAL, Skills, the Data Drain
+/// page, Innis: menu 66 runs, the boss takes the drain's 13 and 21, and its
+/// Epitaph (3000 HP) begins.
+#[test]
+fn innis_drained_through_the_menus() {
+    let Some(mut s) = event_107_arena() else { return };
+    {
+        let Stage::Area(a) = &mut s.stage else { panic!("not in the area") };
+        let save = &mut a.world_mut().state_mut().save;
+        let has = (0..20).any(|k| save.i16(piney_fieldui::items::SKILL_LIST + 2 * k) == 2);
+        if !has {
+            let free = (0..20).find(|&k| save.i16(piney_fieldui::items::SKILL_LIST + 2 * k) < 0).unwrap();
+            save.set_i16(piney_fieldui::items::SKILL_LIST + 2 * free, 2);
+        }
+        save.set_u8(offset::PLCOL, 1);
+        save.set_u8(piney_fieldui::menus::drain::DRAIN_DEMO, 0);
+    }
+    let mut pad = Pad::default();
+    let (mut drain_menu, mut epitaph, mut menus) = (false, false, BTreeSet::new());
+    for i in 0..20000u64 {
+        let raw = {
+            let Stage::Area(a) = &mut s.stage else { panic!("left the area: {}", Mode::title(&s)) };
+            {
+                let c = a.world_mut().combat_mut();
+                if let Some(k) = c.kite {
+                    let ch = &mut c.scene.chars[k];
+                    ch.max_hp = 9999;
+                    ch.hp = 9999;
+                }
+                // Enough hits would have broken its protect.
+                if let Some(me) = c.boss_char()
+                    && let Some(f) = c.scene.chars[me].foe_state_mut()
+                    && f.boss.as_ref().is_some_and(|b| innis_epitaph(b) == Some(0))
+                {
+                    f.pp_count = f.pp_count.max(5);
+                }
+            }
+            let w = a.world();
+            let c = w.combat();
+            let ui = a.ui();
+            let m = &ui.ctrl;
+            menus.insert(m.menu);
+            drain_menu |= m.menu == 66;
+            let boss = c
+                .boss_char()
+                .and_then(|me| c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map(|b| (me, b)));
+            if let Some((_, b)) = boss {
+                epitaph |= innis_epitaph(b) == Some(1);
+            }
+            if epitaph {
+                break;
+            }
+            let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+            let press = |b: Buttons| if i.is_multiple_of(8) { Raw { buttons: b, ..still } } else { still };
+            let go_to = |row: usize| match m.list().select.max(0) as usize {
+                s if s == row => Buttons::CROSS,
+                s if s < row => Buttons::DOWN,
+                _ => Buttons::UP,
+            };
+            let playing = a.vm().is_some_and(|v| v.playing().is_some());
+            match (ui.menu_type(), boss) {
+                // A block playing (its menus banned): move its messages on.
+                (-1, _) if playing => press(Buttons::CROSS),
+                (-1, Some((me, b))) if b.lock_player == 0 && m.forbid == 0 => {
+                    let k = c.kite.unwrap();
+                    let p = c.scene.chars[k].pos.map(f32::from_bits);
+                    let q = c.scene.chars[me].pos.map(f32::from_bits);
+                    let (dx, dy) = (q[0] - p[0], q[1] - p[1]);
+                    if dx * dx + dy * dy < 600.0 * 600.0 && b.erase_target == 0 {
+                        press(Buttons::TRIANGLE)
+                    } else {
+                        let cam_z = f32::from_bits(w.camera().rot()[2]);
+                        stick_toward(cam_z, dx.atan2(-dy))
+                    }
+                }
+                (-1, _) => still,
+                (0..=2, _) => press(go_to(m.list().items.iter().position(|&x| x == 4).unwrap_or(0))),
+                (4, _) if m.list().page < 5 => press(Buttons::RIGHT),
+                (4, _) => press(go_to(0)),
+                _ => press(Buttons::CROSS),
+            }
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    println!("menus {menus:?}");
+    assert!(drain_menu, "menu 66 never ran");
+    assert!(epitaph, "the drain did not bring the Epitaph");
 }

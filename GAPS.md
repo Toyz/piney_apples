@@ -64,10 +64,13 @@ time: plans/volumes.md, plans/build-data.md. Status on 2026-09-27.
 What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 "What the later volumes' code adds"):
 
-- [ ] The new streams' effect functions (`Func_str0710e`, `str1070e`,
-  `str1430e`: raster noise, buffer sampling and reversing)
-- [ ] The event engine's new instructions (Mutation's `ccEvent::Execute`
-  additions; opcodes 168, 169, 99's new operand)
+- [ ] The new streams' effect functions: Mutation's `str0710` (with its
+  text) and eleven more ported (worklog 267); `str1070`'s part system, the
+  changed `str7100` / `str8800` / `str0300`, and Outbreak's and
+  Quarantine's own (`str1430` ...) not yet
+- [ ] The event engine's new instructions: decoded by volume (99 `noise`,
+  168 `grunty_mail`, 169 `ending_kanji`); `grunty_mail` is ported (the
+  desktop's), Quarantine's `ending_kanji` not
 - [ ] The Grunty race (`PG_RACE`, `town06`) and Quarantine's staff roll and
   hacking logos
 - [ ] A new menu after `AreaInfoMenu` (messages, number input)
@@ -78,9 +81,10 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   Area 16's `EVENTAREA07` (worklog 177), area 43's `EVENTAREA03` (worklog
   263) and area 13's `EVENTAREA01` (worklog 264) are ported, all behind
   `StoryMap`
-- [ ] Mutation's bosses: Innis (`ccBoss02`), Kyvia 01 (`ccThKyvia01`, the
-  `kyvia*` classes) and Magus (`ccBoss03`); Skeith is the only one ported
-  (worklog 264, plans/mutation-story.md)
+- [ ] Mutation's bosses: [x] Innis (`ccBoss02`, worklog 266; its pictures
+  and event 107 under the autopilot still open), [ ] Kyvia 01 (`ccThKyvia01`,
+  the `kyvia*` classes), [ ] Magus (`ccBoss03`) (worklog 264,
+  plans/mutation-story.md)
 
 ## Asked for, not the game's
 

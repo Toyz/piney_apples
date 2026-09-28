@@ -1,33 +1,11 @@
 //! The fights in a field and a dungeon: piney-battle's scene run in the
-//! field's tasks (`docs/engine/battle.md`, "How it plugs into
-//! piney-world").
-//!
-//! [`Combat`] keeps what the battle's code works on - the characters
-//! ([`Scene`]), the enemies' state, the party AI's bus and records
-//! ([`Crew`]), the party ([`Party`]), the running skills ([`Skills`], in a
-//! [`RefCell`] since `ccSkillCheck` is asked while they are lent), the entry
-//! control ([`EntryCtrl`]) with the registered rows, `ccThSpc`'s globals,
-//! Kite's `ccPlayer` members and both generators - and runs one frame of the
-//! field's tasks in the game's order ([`Combat::frame`]):
-//!
-//! ```text
-//! ccThSpc (48)         frame::SpcThread::frame   the strategy, the shout,
-//!                                                spcBattleCondition
-//! ccThAISystem (48)    party_ai::Crew::tick      the AI bus
-//! ccThPlayer (49)      kite::main                Kite, through kite::Host
-//! ccThFellowNN (50)    fellow::Frame::main       each party member, its
-//!                                                runtime party_motion::Movement
-//! ccThEntryCtrl (64)   entry::EntryCtrl::frame   enemies (entry::EnemySeam),
-//!                                                magic portals, gimmicks
-//! ccThSkill (82)       flow::Skills::frame       every running skill
-//! ```
-//!
-//! The world every task asks is a [`stage::Stage`] over the area's
-//! collision, the camera and the actors' animation players ([`cast`]); what
-//! only shows or sounds comes out as [`Show`]s. The party is built where
-//! `rebootSpcManager` builds it ([`Combat::add_kite`], [`Combat::add_member`]),
-//! the entry control set up at the tasks' first frame
-//! ([`Combat::start_entries`]).
+//! field's tasks. [`Combat`] keeps what the battle's code works on - the
+//! characters ([`Scene`]), the party AI's bus ([`Crew`]), the party
+//! ([`Party`]), the running skills ([`Skills`]), the entry control
+//! ([`EntryCtrl`]), `ccThSpc`'s globals and both generators - and runs one
+//! frame of the tasks in the game's order ([`Combat::frame`]): `ccThSpc`,
+//! `ccThAISystem`, `ccThPlayer`, each `ccThFellowNN`, `ccThEntryCtrl`,
+//! `ccThSkill` (docs/engine/battle.md, "How it plugs into piney-world").
 
 pub mod boss;
 pub mod breath;
@@ -89,6 +67,8 @@ pub struct BattleData {
     pub md: MotionData,
     /// Skeith's tables (`piney_battle::boss`), None if they did not read.
     pub skeith: Option<piney_battle::boss::SkeithData>,
+    /// Every boss's tables (`piney_battle::boss::BossData`).
+    pub bosses: Option<piney_battle::boss::BossData>,
 }
 
 impl BattleData {
@@ -105,6 +85,7 @@ impl BattleData {
             st,
             md,
             skeith: Some(piney_battle::boss::SkeithData::of(volume)),
+            bosses: Some(piney_battle::boss::BossData::of(volume)),
         })
     }
 }
@@ -522,14 +503,10 @@ pub struct EventNpc {
 
 /// `ccEntryEventMng`'s `entry 3|4 CODE MARKER` outside the towns:
 /// `ccSetRtownPC(code)` (gcmn 0x00506640) or `ccSetMerchant(code)`
-/// (0x005057f0, through `setMerchant`), each an `entryObject` of type 2 on
-/// the current area, floor and block (`entRoot` -1; the PC's `param[0]`
-/// -1: no landmark), then the object put at the marker's `evPos` (Kite's
-/// position added for floor and block 9999; with no such number the last
-/// of the 16 looked at; a negative marker the origin) facing its heading.
-/// A PC comes off the command list for good (`ccDeleteCmnd`, and its
-/// constructor's `deleteCmnd(1)`). The stand-in's body stays out of the
-/// hit list: the world's character is the one that collides.
+/// (0x005057f0), an `entryObject` of type 2 (a PC with no landmark), put at
+/// the marker's `evPos` facing its heading (Kite's position added for floor
+/// and block 9999). A PC comes off the command list for good. The stand-in's
+/// body stays out of the hit list: the world's character collides.
 fn event_npc(
     ctrl: &mut EntryCtrl,
     cx: &mut entry::Cx,

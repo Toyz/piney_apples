@@ -1,21 +1,11 @@
-//! The party in a Root Town through the battle's machinery: the members
-//! are the battle's characters ([`Combat::add_member`], area 0), each run
-//! by `ccFellow::Main` ([`piney_battle::fellow::Frame::main`]) on its task
-//! (`ccThFellowNN`, priority 50), whose `ccAI::Brains` in a town walks,
-//! follows and waits by `ccAI::ActInTown` ([`piney_battle::ai_move`]) when
-//! no event holds the member, and by `ManualControl` when one does.
-//!
-//! Kite is the town's own ([`crate::player::Player`], checked frame by
-//! frame against the game); the battle's scene holds a stand-in for him
-//! ([`Combat::add_leader`]), made when the town's `rebootSpcManager` builds
-//! him and kept up with him each frame ([`Combat::mirror_leader`]): what the
-//! members read of the leader - his place, heading, act, the flags of his
-//! step, whether he is on the command list. He has no body of his own in
-//! the collision list (the player's is there) and no animation.
-//!
-//! The town gives the navigation [`TownNav`]: `ccSetNaviMap`'s landmarks
-//! (piney-world's [`crate::navi::NaviMap`], which also routes:
-//! `ccNavi::RouteSearchByMap`) and `naviPointNameTable`'s dummies.
+//! The party in a Root Town through the battle's machinery: the members are
+//! the battle's characters ([`Combat::add_member`], area 0), each run by
+//! `ccFellow::Main` on its task (priority 50), walking by `ccAI::ActInTown`
+//! or, under an event, `ManualControl`. Kite is the town's own
+//! ([`crate::player::Player`]); the battle's scene holds a stand-in for him
+//! ([`Combat::add_leader`], kept up by [`Combat::mirror_leader`]) with no body
+//! or animation of its own. The town gives the navigation [`TownNav`]: the
+//! landmarks ([`crate::navi::NaviMap`]) and `naviPointNameTable`'s dummies.
 
 use std::cell::RefCell;
 

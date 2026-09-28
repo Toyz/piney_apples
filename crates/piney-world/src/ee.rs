@@ -1,12 +1,9 @@
 //! The EE's single-precision arithmetic as the field code uses it: the FPU's
 //! scalar operations ([`piney_data::field::ee`]), newlib's maths
-//! ([`piney_data::libm`]) and the VU0 macro-mode vector routines of Sony's
-//! `libvu0` (`sceVu0*`), all on raw bit patterns so that positions, angles
-//! and the camera come out as the game computes them, to the bit.
-//!
-//! VU0 arithmetic follows the same rules as the FPU here (no denormals,
-//! no infinities, results truncated), as `tools/test_anim.py`'s VU0 model
-//! does; its multiply-adds round the product first.
+//! ([`piney_data::libm`]) and `libvu0`'s macro-mode vector routines, on raw bit
+//! patterns so the results are the game's to the bit. VU0 follows the FPU's
+//! rules here (no denormals, no infinities, truncated); its multiply-adds round
+//! the product first.
 
 pub use piney_data::field::ee::{add, cmp, div, from_int, le, lt, mul, sqrt, sub, to_int};
 pub use piney_data::libm::{atan2f, cosf, fabsf, fmodf, neg, sinf, sqrtf, tanf};

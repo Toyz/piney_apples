@@ -1,50 +1,9 @@
 //! Dun Loireag's stray dogs: `ccSetDog` (gcmn 0x00509f30) and `ccDog`
-//! (0x00509390, over `ccGimmick`), `npcTbl` rows 141-144 (Johnny, Sal,
-//! Lottel, Suzie; base type 0x04000000, `CDOGBOD1.CCS`).
-//!
-//! ```text
-//! ccSetDog         area 0, town 1 only: inuNum 0, then four entries (type
-//!                  2, rows 141-144, entRoot -1), each at the first dummy
-//!                  of markPosTbl[inuNum] (the constructor counts inuNum up)
-//! ccDog::ccDog     the file's CMP_trall, anm inuAnmTbl[0], note callback
-//!                  inuCheckNote; bodyHit radius 65, height 120, kind 2,
-//!                  mask2 0x40000001, HitEnable; act 3; the route
-//!                  markPosTbl[n], the target its second dummy, the heading
-//!                  toward it; affectFunc dogAction
-//! ccDog::main      posP; by act (+0x204, +0x210 its step):
-//!                    3  anm run0 once, then move (runs, 12 a frame)
-//!                    4  anm wal0 once, then move (walks, 1.5 a frame)
-//!                    1  anm nut1 once, turning to face Kite (ccSetDirc 64)
-//!                    2  anm nut0 once, the same
-//!                    5  anm nut1, 101 frames, then act +0x20c (3 or 4)
-//!                  mask2 0x40000001 nearer Kite than 300, else 1;
-//!                  CollisionDetection: pushed out (pos and posP), the
-//!                  touch flag and count (+0x218, +0x21a) - else both 0;
-//!                  the anm forward, NoteProcess, ccChar::Draw
-//! ccDog::move      the turn toward the target by a sixteenth
-//!                  (ccGetDircChg 256); within 4096 of it:
-//!                    target within 80 or stuck (+0x21c past 120): at the
-//!                    target (nearer than 80) rand() & 1 picks walk (4) or
-//!                    run (3), through act 5 when it changes, and the next
-//!                    dummy (the list wraps); else back to the last one;
-//!                    +0x21c 0
-//!                    else a step along the heading to the target, turned
-//!                    -0.5 in the first 40 frames of a touch and +0.5 in
-//!                    60-99 (the count wraps at 120)
-//!                  the ground (0x20000002) and its attribute; every 120
-//!                  frames, not 50 from where it was 120 frames ago in x, y
-//!                  and z: stuck
-//! dogAction        affectType 0: act 4; 14: act 1; 15: act 2 (step 0)
-//! inuCheckNote     a note 1 or 2 of param p: p != 0 ccSeSetParamInu(p),
-//!                  p == 1 also ccDog::effect
-//! ccDog::effect    running and more than 0.05 seen: effSmoke(pos, Rz(dirc)
-//!                  (0, 0.1 (0.075 (-10) (10 - rand() % 5)), 0, 1), 3.0, 10,
-//!                  1, 512, 32)
-//! ```
-//!
-//! The action button opens `NorainuMenu` (44) on a dog, which calls
-//! `EntryAffect` 14 (it sits and faces Kite) and 0 when shut (it walks
-//! on); Talk's `TalkMenu` calls 15.
+//! (0x00509390, a `ccGimmick`), `npcTbl` rows 141-144 (Johnny, Sal, Lottel,
+//! Suzie; `CDOGBOD1.CCS`). Each runs or walks its route of dummies, turns to
+//! face Kite when the action button's `NorainuMenu` (44) or Talk affects it
+//! (14, 15), walks on at 0, is pushed out by bodies, and raises dust
+//! (`effSmoke`) running. The acts are in docs/engine/town02.md.
 
 use std::rc::Rc;
 use std::sync::Arc;

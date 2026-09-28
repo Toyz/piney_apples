@@ -1,30 +1,11 @@
 //! The field and the dungeon as the battle's code sees them: one [`Stage`]
 //! borrowed for a frame's tasks implements piney-battle's world traits
-//! ([`World`], [`NaviWorld`], [`FellowWorld`], [`MotionWorld`],
-//! [`KiteWorld`]) and the party AI's own runtime ([`Runtime`]) over the
-//! area's collision ([`Hits`]), the camera ([`Camera`]), the actors'
-//! animation players ([`Cast`]) and the running skills.
-//!
-//! Each method is the game function the trait names, asked where the game
-//! asks it:
-//!
-//! ```text
-//! ccTransPosW2P/P2W        kite::w2p_pos / p2w_pos over WORLD_MAN's bounds
-//!                          and Kite's position (set before each task)
-//! ccLandHitCheck           Hits::land
-//! checkHitResultAttlibute  Hits::attribute
-//! _ccHitCheckLM            Hits::line (the distance; -1.0 for none)
-//! CollisionDetection       Hits::collision_detection on the body's copy
-//! HitEnable / HitDisable   Hits::hit_enable / hit_disable
-//! ccCheckCameraDeg         the active camera's line of sight on the ground
-//! ccGetCameraTransparency  char::camera_transparency
-//! ccAnm::SetAnm ...        the actor's Play (cast.rs)
-//! the camera's calls       Camera (eye_level, set_manual, set/set_wrapped)
-//! ccSkillRequest           flow::Skills::request
-//! ```
-//!
-//! What only shows or sounds goes into [`Show`]s, in order: the hook the
-//! effects and the sound read.
+//! ([`World`], [`NaviWorld`], [`FellowWorld`], [`MotionWorld`], [`KiteWorld`])
+//! and the party AI's [`Runtime`] over the area's collision ([`Hits`]), the
+//! camera ([`Camera`]), the actors' animation players ([`Cast`]) and the
+//! running skills. Each method is the game function the trait names
+//! (`ccTransPosW2P`, `ccLandHitCheck`, `_ccHitCheckLM`, `ccCheckCameraDeg`,
+//! ...). What only shows or sounds goes into [`Show`]s, in order.
 
 use std::cell::RefCell;
 

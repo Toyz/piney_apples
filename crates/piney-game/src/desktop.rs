@@ -1,37 +1,11 @@
 //! The ALTIMIT desktop (`piney_desktop`) as a mode, with the event scripts
 //! (`piney_event`) running beside it as `ccThEvent` runs beside the desktop
-//! task.
-//!
-//! The order is the game's:
-//! - **Boot.** `ccThMother` calls `ccSaveData::Init(1)` and
-//!   `ccStartEvent(1, 0)`.
-//! - **Setup.** `ccSetupDesktop` calls `ccStartThEvent`, then
-//!   `ccEnableThEvent(0)` before its files load and `(2)` after, each
-//!   waiting for its pass, then `(4)` when play starts. The passes run one
-//!   event frame per game frame. A new game's event 1 plays in the pass at
-//!   phase 0 (59 frames: its setup messages, name entry, the first mails and
-//!   the operation locks), and the desktop is built on the save those passes
-//!   leave. Until its `SetFrameRate(1)`, after the pass at 2, the setup runs
-//!   at the rate the mode before left (2 from The World); a pass that asks
-//!   for another mode (`mode 3`) ends it there, with no desktop.
-//! - **Announcements.** `member_add_msg`, `gate_add_msg` and `desktop_item`
-//!   open `DispInfo`'s lines ([`crate::story::Announcements`]) in the
-//!   desktop's, the board's or the setup screen's window; the gate
-//!   instructions read the story areas from `eventAreaInfo`.
-//! - **Every frame.** The desktop checks its operations against the events'
-//!   lock mask (`ccEvent.operate`) and records the first one tried
-//!   (`operateSet`); then the event task makes its pass, which may react to
-//!   it.
-//!
-//! The scripts' windows open in the desktop's own message window
-//! (`ccMessage` under `ccDtMenu`), which dims and freezes the desktop until
-//! the player closes them. Setup lines - event 1's, before the desktop
-//! exists - open on the setup screen (`SetupScreen`: black, and the event's
-//! own window), and the player presses through them. Name entry keeps the
-//! new game's default name.
-//!
-//! The frame order is the game's task order: the event task (priority 32)
-//! first, then the desktop's menu task and the desktop.
+//! task. `ccSetupDesktop` calls `ccStartThEvent`, then `ccEnableThEvent` 0, 2
+//! and 4, a pass one event frame per game frame (a new game's event 1 plays in
+//! the pass at 0). Each frame the desktop checks its operations against
+//! `ccEvent.operate` (`operateSet`), then the event task passes. The scripts'
+//! windows open in the desktop's message window, a setup's on the setup
+//! screen. The order is in docs/engine/desktop.md.
 
 use std::collections::VecDeque;
 use std::path::PathBuf;

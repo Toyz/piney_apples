@@ -1,41 +1,8 @@
 //! Fort Ouph: `ROOTTOWN04` (OUT gcmn town04.cpp, constructor 0x00439c50,
-//! `Draw` 0x0043c430 through the vtable at 0x003842d0), the fourth Root
-//! Town (`game.town` 3, the server Sigma), new in Outbreak. Infection's
-//! executable carries an earlier `ROOTTOWN04` no disc reaches; this is
-//! Outbreak's (Quarantine's is the same).
-//!
-//! ```text
-//! ROOTTOWN04()  the map's layers; town04 (town04d in crisis); SetFog(1500,
-//!   0x00439c50  10000, 0, 30, 0x00c8f0fb) and ccSys.bgColor the same; 16
-//!               STATICMODELs (RT_MODELTABLE04) and 1 STATICOBJECT
-//!               (RT_OBJTABLE04); the clumps CMP_sr4bac1 (+0x228),
-//!               CMP_sr4clo1_1, _1_2, CMP_sr4clo2 (+0x22c..+0x234),
-//!               CMP_sr4sun1 (+0x238), each SetFogSw(0); in crisis
-//!               CMP_sr4dat1_1-3 (+0x74..+0x7c); the map's sprites
-//!               (TEX_sr4map1 three times, xallow0); the lights from
-//!               ANM_sr4bac1a (town04Light: LGT_sr4lig1, LGT_sr4omn1-5);
-//!               BLT_bg, _obj, _obj2, _floor; town_z (+0x1c0), 25 CLOUDs
-//!               (+0x1c4) and its LENSFLARE (+0x1bc)
-//! Draw()        the clouds' Init on the first call (+0x04); cameraGetPos;
-//!   0x0043c430  on objLayer DrawBG, DrawObj2, DrawObj, DrawFloor, DrawMap;
-//!               on effLayer LENSFLARE::Draw(town04, DMY_sr4lig1point, 0),
-//!               then each cloud's Move and Draw
-//! DrawBG()      v$ (gp 0x00386ed0) += 0.01, v2 (0x00386ed4) += 0.002, each
-//!   0x0043aa40  back to 0 past 1; MAT_sr4clo1's and _2's U offsets vftoi12
-//!               of the first less their crops; the sky on bgLayer[0]
-//!               (-100), the sun at DMY_sr4lig1point on bgLayer[1] (-90); in
-//!               crisis MAT_sr4dat1_2's U and _3's U and V from the second,
-//!               CMP_sr4dat1_1-3 on bgLayer[2]-[4] (-80, -70, -60); the three
-//!               cloud clumps on bgLayer[5] (-50)
-//! DrawObj2, DrawObj, DrawFloor  0x0043af40, 0x0043ae50, 0x0043b030: the
-//!               rows of type 3, 2, 1 (and the static object of types 3
-//!               and 2)
-//! ```
-//!
-//! Unlike Dun Loireag it has no water, draws no type-0 rows, puts its
-//! cloud layers on `bgLayer[5]` rather than effLayer and scrolls them in U.
-//! The BLT chunks only load textures into the GS. The clouds and the lens
-//! flare are Dun Loireag's (`CLOUD`, `LENSFLARE`, `town_z`).
+//! `Draw` 0x0043c430 through the vtable at 0x003842d0), the fourth Root Town
+//! (`game.town` 3, the server Sigma), new in Outbreak (Quarantine's is the
+//! same). Dun Loireag's clouds and lens flare, but no water, no type-0 rows,
+//! and cloud layers on `bgLayer[5]` scrolled in U (docs/engine/root-towns.md).
 
 use std::collections::HashMap;
 use std::sync::Arc;

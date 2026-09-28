@@ -1,40 +1,11 @@
 //! The Chaos Gate: `ccChgate` (gcmn chgate.cpp), the gimmick of
-//! `gimmickTbl[16]` ("Chaos Gate", `CHGATE.CCS`) that every Root Town puts
-//! at its `DMY_gate`, and where the game saves and leaves for the fields.
-//!
-//! ```text
-//! ccEntryEventMng (main 0x001b62e0), in a town   ccSetMerchant(0), then
-//! ccSetChaosGate (gcmn 0x00458df0)   an entry: gimmick 16 at DMY_gate's
-//!                                    position, heading DEG2RAD(-32768)
-//! ccEntryGimGate (0x00458ec0)        new ccChgate (0x00458f60):
-//!    +0xd4  the ccChar's anm: CMP_xmgtwav0 (the gate) posed by ANM_xmgtcir1
-//!           (a 91-frame loop), SetLightEnv(1), SetFogSw(0)
-//!    +0x1e4 a second anm: CMP_xmgtcir0 (the magic circle) with ANM_xmgtcir2,
-//!           SetLightEnv(1), SetFogSw(0); drawn only while the gate is used
-//! ccThEntryCtrl (priority 64), each frame after ccThPlayer (49):
-//!    ccEntryObj::routine (0x0042fa60)    fades and the command target
-//!    ccChgate::main (0x00459280)         gateAnm; within 4500 of Kite (the
-//!                                        gate's x, y less his, and its own
-//!                                        z): the anm steps, T(pos) Rx Ry Rz,
-//!                                        ccChar::Draw on layer 5 (priority
-//!                                        10); while used the circle steps
-//!                                        and draws (on sysLayer, priority 0)
-//! ```
-//!
-//! `ccChar::Draw` (0x0056b1c0) fades the gate when the camera comes within
-//! 1.25 times its size (height 100, width 60: at least 180) and beyond 4000
-//! (`ccGetCameraTransparency`), and skips it under 0.05. `SetLightEnv(1)`
-//! puts each anm's light in the draw environment's group, after the town's
-//! (`ccAnm::SetAnm` 0x00150f..: `ccLightGrp::AddGrp` into `ccDrawEnv::
-//! active + 0x80`, the light's parent the anm): the gate's omni light 166.8
-//! above it, its colour going between blue (110, 137, 214) and (104, 174,
-//! 203) over the loop, reaching 500, lights the gate and whoever stands in it;
-//! the circle's light stays black (`ccOmniLight::Init`) until the circle
-//! first steps. `gateAnm` (0x004593e0) runs the circle when the gate menu
-//! asks (`chaosGateInfluence` 0x00459570): command 11 opens it (state 1:
-//! ANM_xmgtcir2, sound 71 when its count passes 30, then the ANM_xmgtcir3
-//! loop),
-//! command 0 closes it (ANM_xmgtcir4, sound 72, back to state 0).
+//! `gimmickTbl[16]` (`CHGATE.CCS`) every Root Town puts at its `DMY_gate`
+//! (`ccSetChaosGate` 0x00458df0), where the game saves and leaves for the
+//! fields. Two anms: the gate (`CMP_xmgtwav0`, a 91-frame loop whose omni
+//! light lights whoever stands in it) and the magic circle (`CMP_xmgtcir0`),
+//! drawn only while the gate menu has it open (`chaosGateInfluence`: command
+//! 11 opens, 0 closes). `ccChgate::main` (0x00459280) draws within 4500 of
+//! Kite (docs/engine/field-game.md).
 
 use std::collections::HashMap;
 use std::rc::Rc;

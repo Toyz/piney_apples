@@ -1,48 +1,11 @@
-//! Dun Loireag: `ROOTTOWN02` (gcmn town02.cpp, constructor 0x004240c0,
-//! `Draw` 0x004266a0 through the vtable at 0x00375ff0), the second Root
-//! Town (`game.town` 1, the server Theta), and what it adds to the
-//! [`Base`] every town builds.
-//!
-//! ```text
-//! ROOTTOWN02()  mapLayer; fog SetFog(1500, 10000, 0, 75, 0xf0c080) and
-//!   0x004240c0  ccSys.bgColor 0xf0c080; town02 (town02d in crisis); 20
-//!               STATICMODELs (RT_MODELTABLE02) and 9 STATICOBJECTs
-//!               (RT_OBJTABLE02); the clumps CMP_sr2bac1 (+0x244),
-//!               CMP_sr2clo_1_1, _1_2 (+0x248, +0x24c), CMP_sr2sun1 (+0x250),
-//!               each SetFogSw(0); in crisis CMP_sr2dat1_1-3 (+0x70..+0x78);
-//!               the map's sprites (TEX_sr2map1, xallow0); the lights from
-//!               ANM_sr2bac1a (town02Light: LGT_sr2lig1, LGT_sr2omn01-05);
-//!               town_z (+0x240), its LENSFLARE (+0x23c); 25 CLOUDs
-//!               (+0x1d8); three ccAnms of ANM_sr2wat1a (+0x1b0..+0x1b8),
-//!               SetFogSw(0), OBJ_sr2wat00 duplicated (8200, 8192, 8192),
-//!               rooted at (0, 4200, 0) and stepped once; a 128 x 128
-//!               ccTexChunk (+0x1d4) swapped into water 0's model
-//! Draw()        the clouds' Init on the first call (+0x04); cameraGetPos;
-//!   0x004266a0  SetUV of water 1 (U) and 2 (V); waterUVModifi2 of water 0
-//!               (reach 32000); on effLayer water 2, water 1; on objLayer
-//!               water 0, then MakePacketDrawBuffTrans into its texture; the
-//!               scroll u$1777 += 0.005, back to 0 at 1; DrawBG; on objLayer
-//!               DrawObj2, DrawObj, DrawFloor, DrawMap, the type-0 rows; on
-//!               effLayer LENSFLARE::Draw(town02, DMY_sr2lig_1point, 0), then
-//!               each cloud's Move and Draw
-//! DrawBG()      v$1346 += (0.01, 0.02), v2$1347 += 0.001, each back to 0
-//!   0x00425130  past 1; MAT_sr2clo_1's and _2's V offsets vftoi12 of the
-//!               first two less their crops; the sky on bgLayer[0] (-100),
-//!               the sun at DMY_sr2lig_1point on bgLayer[1] (-90); on
-//!               effLayer the cloud layers; in crisis MAT_sr2dat1_2's U and
-//!               _3's U and V from v2, CMP_sr2dat1_1-3 on bgLayer[2]-[4]
-//!               (-80, -70, -60)
-//! DrawObj2, DrawObj, DrawFloor  0x004255e0, 0x00425500, 0x004256c0: the
-//!               rows of type 3, 2, 1 (and the static objects of types 3
-//!               and 2), without the clip rules Mac Anu has
-//! ```
-//!
-//! The scrolls are the game's statics: `u$1777` starts at 0 on the first
-//! `Draw` after power-on and `v$1346` in the data, so they carry across
-//! visits; here they start at 0 with each town. The clouds draw from the
-//! area generator's `fieldrand`, whose state is the game's own global
-//! `seed`: whatever the last area left, 13 in the executable. The town
-//! starts from 13 unless the host sets [`DunLoireag::rng`].
+//! Dun Loireag: `ROOTTOWN02` (gcmn town02.cpp, constructor 0x004240c0, `Draw`
+//! 0x004266a0 through the vtable at 0x00375ff0), the second Root Town
+//! (`game.town` 1, the server Theta), and what it adds to the [`Base`]: the
+//! sky, clouds and sun clumps, 25 `CLOUD`s, the lens flare, and three waters,
+//! one drawn through a frame-buffer copy (docs/engine/town02.md). The game's
+//! scroll statics carry across visits; here they start at 0 with each town.
+//! The clouds draw from `fieldrand`, which starts from 13 unless the host sets
+//! [`DunLoireag::rng`].
 
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -1,16 +1,10 @@
-//! The port's quit prompt (not the game's): Escape opens the desktop menu's
-//! own confirmation window (`ccDtMenu`'s Reset, menu 6, with the port's
-//! lines, [`piney_desktop::dtmenu::QUIT_INFO`]) over whatever the game
-//! shows. The game stands still under it: its last finished picture, read
-//! back from the GS once, is shown under the window each frame, and nothing
-//! else runs. (Drawing the game's frame again would not do: the desktop's
-//! frames sample the previous picture, `TexRef::PreviousFrame`, which then
-//! holds the window, and each frame fed it back into the next.) OK closes
-//! the port; Cancel, or Escape again, goes back to the game.
-//!
-//! The window reads the pad as the game's menus do: the save's OK and
-//! Cancel buttons, the directions to move. Enter (START on the keyboard)
-//! counts as OK here.
+//! Not the game's: the quit prompt. Escape opens the desktop menu's own
+//! confirmation window (`ccDtMenu`'s Reset, menu 6, with the port's lines,
+//! [`piney_desktop::dtmenu::QUIT_INFO`]) over the game, which stands still
+//! under it: its last picture, read back from the GS once, is shown each frame
+//! (drawing the game again would feed the window back through
+//! `TexRef::PreviousFrame`). OK closes the port; Cancel or Escape goes back.
+//! The window reads the save's OK and Cancel buttons; Enter counts as OK.
 
 use std::sync::Arc;
 

@@ -1,25 +1,11 @@
-//! The Root Towns as `ccThFieldDisp` (priority 96) draws them each frame,
-//! and what else their constructors set up: the collision mesh, the lights
-//! and the fog.
-//!
-//! Each town is a class of its own in the game (`ROOTTOWN01` .. `05`, one
-//! per `game.town`), whose virtual `Draw` runs `DrawBG`, `DrawObj2`,
-//! `DrawObj`, `DrawFloor` and `DrawMap` in an order of its own. Here
-//! [`Base`] holds what every class's constructor builds the same way (the
-//! scene file, the static models of its `RT_MODELTABLE` and objects of its
-//! `RT_OBJTABLE`, the lights, the fog, the hits); each class is a type in a
-//! module of its own that implements [`RootTown`] (Mac Anu
-//! [`crate::town01`], Dun Loireag [`crate::town02`], Carmina Gade
-//! [`crate::town03`], Fort Ouph [`crate::town04`], Lia Fail
-//! [`crate::town05`]); and [`Town`] is what the field holds, the base and
-//! its class.
-//!
-//! Each class's `select` is its `Draw`'s choice of pieces for this frame,
-//! in its order and as its own `Piece`s, with what it steps on the way;
-//! [`RootTown::draw`] draws them. `STATICMODEL::Draw` never culls by
-//! distance (it computes the distance and drops it); `STATICOBJECT::Draw`
-//! draws within its row's clip only, and its animation advances only while
-//! drawn.
+//! The Root Towns as `ccThFieldDisp` (priority 96) draws them each frame, and
+//! what else their constructors set up: the collision mesh, the lights and
+//! the fog. Each town is a class of its own in the game (`ROOTTOWN01` .. `05`);
+//! here [`Base`] holds what every constructor builds the same way, each class
+//! is a module implementing [`RootTown`] (town01.rs .. town05.rs), and
+//! [`Town`] is the base and its class. A class's `select` is its `Draw`'s
+//! choice of pieces for the frame; [`RootTown::draw`] draws them
+//! (docs/engine/statics.md).
 
 use std::any::Any;
 use std::collections::HashMap;
@@ -477,17 +463,13 @@ const SCREEN_W: F = 0x4400_0000; // 512
 const SCREEN_H: F = 0x43e0_0000; // 448
 const K256: F = 0x4380_0000;
 
-/// `waterUVModifi2(obj, eye, reach)` (gcmn 0x005025d0), which both towns'
-/// `Draw` run on water 0 just before it steps: nothing when the object is
-/// out of view (`ccObj::CheckBoundingBox`: a model without a Bbox, as both
-/// waters are, is always in) or its place `at` (its coordinate's local
-/// translation, +0x70) is farther than `reach` from the eye on the ground
-/// (`sqrt` in double); else, for each vertex of the model's first mmat, its
-/// stored position times `scale / 4096` (w 1) through the object's world
-/// matrix `lw` and `sceVu0RotTransPers(world_screen)`, the screen point
-/// (its 12.4 fixed point over 16, toward zero) as a fraction of the frame
-/// buffer, `fptoui(256 x)` of each: the water samples the picture behind
-/// it where its unbent vertex would be.
+/// `waterUVModifi2(obj, eye, reach)` (gcmn 0x005025d0), which the towns'
+/// `Draw` run on water 0 just before it steps: nothing when the object is out
+/// of view or farther than `reach` from the eye on the ground; else each
+/// vertex of the model's first mmat, through the object's world matrix and
+/// `sceVu0RotTransPers`, becomes its screen point as a fraction of the frame
+/// buffer, `fptoui(256 x)`: the water samples the picture behind it where its
+/// unbent vertex would be (docs/engine/town02.md).
 pub fn water_st(
     model: &piney_data::model::Model,
     lw: &[V4; 4],

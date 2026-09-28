@@ -1,56 +1,11 @@
 //! Talking and fighting: the command target and the buttons, as
 //! `ccThGameCtrl` (gcmn 0x00517800, priority 33: before the camera and the
-//! player) runs them in a town, a field and a dungeon.
-//!
-//! Characters that can be spoken to or acted on put themselves on one of
-//! three command lists with `ccEntryCmnd` (0x00519630): the party (base
-//! type & 7), enemies (& 0xe0) and everything else (NPCs, merchants,
-//! gimmicks), linked through `ccChar::cmndLink` (+0xbc). Each frame:
-//!
-//! ```text
-//! checkPartyAnnihilation (0x0059d080) or compulsionGameOver: the game over
-//! ccCtrlRecoveryReq (0x0051a7f0)  the delayed recoveries (RecoveryReqs)
-//! ccSortCmnd (0x00518af0)       for every listed character but the leader:
-//!                               d = posP - leader.posP (z 0), cmndDist =
-//!                               sqrtf(d.d), cmndDirc = atan2f(d.y, d.x);
-//!                               those within 3000 into one list by distance
-//!                               (cmndSort +0xc0; equal distances keep their
-//!                               order)
-//! game.inBattle                 unless ccMenu.menu is 66 (Data Drain):
-//!                               SetInBattle (main 0x001676a0) of 1 when an
-//!                               enemy is within inBattleDist of a party
-//!                               member (ccCheckInAreaCmnd 0x0051a000)
-//! ghoFlag, menuClrWait          wait
-//! ccPlayerMenuCheck (0x0059cd70) the party standing, no skill of the
-//!                               player's past the normal attack, not at a
-//!                               gate (acts 12, 13); the first 5 frames wait
-//! ccSelectTarget (0x00518cc0)   (mode 0 with no target, 2 on a fresh lean of
-//!                               the left stick past 64, else 1): the nearest
-//!                               in range (ccCheckTargetRange 0x00519240:
-//!                               within 60 + both widths, or within 300 + both
-//!                               widths and 1.2 rad of straight ahead; 500 /
-//!                               0.49 rad in the eye view; in battle 150 or
-//!                               60, and 2.0 rad for the wider ring), enemies
-//!                               first, then characters, then the party; mode
-//!                               2 steps through them (cmndTargetPriNum)
-//! ccChangeCmndTarget (0x005198c0)
-//! the buttons                   chat, option, personal: a menu; the action
-//!                               button (assignPADaction, saveData+0x8404,
-//!                               X by default) on the target: ccMenu opens
-//!                               with the type the target's base flags choose
-//!                               - 22 a walking PC, 24 a weapon, item or
-//!                               magic shop, 25 the Recorder, 26 Elf's Haven,
-//!                               28 the Chaos Gate ... - and the player's
-//!                               +0xe0 bit 0 (pauseSW) is set until the menu
-//!                               closes; on an enemy the normal attack,
-//!                               ccSkillRequest(plw, target, 1), with
-//!                               ccMenu.plAttack and cmndTargetFix set
-//! ```
-//!
-//! [`Targeting::frame`] is the whole loop body; [`Targeting::step`] is the
-//! town's call of it. The menus themselves (the message window, the shops)
-//! are not this crate's: the port raises a [`TalkRequest`]
-//! ([`crate::World::take_talk`]) and waits for [`crate::World::close_menu`].
+//! player) runs them in a town, a field and a dungeon. Characters put
+//! themselves on three command lists (`ccEntryCmnd` 0x00519630): the party,
+//! enemies, and everything else. Each frame sorts them by distance, sets
+//! `inBattle`, selects the target and reads the buttons ([`Targeting::frame`]).
+//! The menus are not this crate's: the port raises a [`TalkRequest`] and
+//! waits for [`crate::World::close_menu`] (docs/engine/field-game.md).
 
 use crate::ee::{self, F, V4};
 use crate::entry::Kind;
@@ -376,14 +331,11 @@ pub struct Scope {
 }
 
 /// `ccSelectTarget(mode)` (gcmn 0x00518cc0): the target among the sorted
-/// candidates, `pri` the running `cmndTargetPriNum` (mode 2 steps it).
-///
-/// None while the leader is off the lists, down or held. Anyone down is
-/// passed over; the party and the walking PCs (type & 0x0700000f) are
-/// passed over in a fight, on fields 1-12, while held, and a party member
-/// (bit 4) at a gate (acts 12-14). The rest in reach go into two stack
-/// arrays of 8 - ranged 1 and ranged 2 - that lie one after the other, so
-/// a ninth in reach overwrites the wider ring's first (kept here).
+/// candidates, `pri` the running `cmndTargetPriNum` (mode 2 steps it). None
+/// while the leader is off the lists, down or held. Anyone down is passed
+/// over, and the party and walking PCs in a fight, on fields 1-12, while held
+/// and at a gate. The rest go into two stack arrays of 8 that lie one after
+/// the other, so a ninth in reach overwrites the wider ring's first (kept).
 pub fn select_target(
     leader: &Leader,
     kite: &LeaderState,
@@ -878,16 +830,12 @@ impl Host for Town<'_> {
 }
 
 impl Targeting {
-    /// One frame of `ccThGameCtrl` (gcmn 0x00517800) in its play states:
-    /// sort, select the command target, then the buttons in the game's
-    /// order - chat (or only chat under `menu_ban`), option, personal, and
-    /// the action button on the target. `check` is
-    /// `ccEvent::CheckOperate(n, 0)`: 10 chat, 12 option, 11 personal, 14
-    /// the personal menu's field case, 9 action.
-    ///
-    /// The town's call of [`Targeting::frame`]: Kite alone, `held`,
-    /// `dead` and `skill_one` from `input`, `player_ok` false for a frame
-    /// that waits; a menu's wait ends with [`Targeting::close_menu`].
+    /// One frame of `ccThGameCtrl` (gcmn 0x00517800) in its play states: sort,
+    /// select the command target, then chat (only chat under `menu_ban`),
+    /// option, personal, and the action button on the target. `check` is
+    /// `ccEvent::CheckOperate(n, 0)`: 10 chat, 12 option, 11 personal, 14 the
+    /// personal menu's field case, 9 action. The town's call of
+    /// [`Targeting::frame`]; a menu's wait ends with [`Targeting::close_menu`].
     pub fn step(
         &mut self,
         leader: &Leader,
@@ -911,32 +859,14 @@ impl Targeting {
         }
     }
 
-    /// One frame of `ccThGameCtrl`'s loop (gcmn 0x005178f0-0x00518a98), in
-    /// the game's order:
-    ///
-    /// - the party wiped out or `compulsionGameOver`: [`Ctrl::GameOver`]
-    ///   once, then nothing (the next frame clears the target, as the game
-    ///   over's `ccChangeCmndTarget(0)` does);
-    /// - [`Host::recovery`], [`sort`];
-    /// - unless `ccMenu.menu` is 66, [`InBattle::set`] of [`battle_now`]
-    ///   while the leader's type and id are listed
-    ///   (`ccCheckTargetTypeId`), else `inBattle` and `inBattleCnt` 0;
-    /// - `ghoFlag`, `menuClrWait` (counted down), `ccPlayerMenuCheck` and
-    ///   `ccLoadDispCheck`, the first 5 frames: wait;
-    /// - a requested menu: wait for `CheckMenuType() == -1`, then pauseSW
-    ///   off;
-    /// - [`Input::menu_idle`], then [`select_target`] (unless
-    ///   `cmndTargetFix`, which only drops a target gone from the lists)
-    ///   while the leader is listed and `ccSkillCheck < 2`;
-    /// - the events' manual control of the leader: nothing more;
-    /// - the buttons: `menu_ban`, chat, option, the leader held (clears
-    ///   `plAttack` and `cmndTargetFix`), personal, the leader down (the
-    ///   same), the action button;
-    /// - `plAttack` with `ccSkillCheck != 1`: `plAttack` and
-    ///   `cmndTargetFix` cleared.
-    ///
-    /// `game` is `ccGame`'s battle state, read and written; the map button
-    /// (select) is not here.
+    /// One frame of `ccThGameCtrl`'s loop (gcmn 0x005178f0-0x00518a98), in the
+    /// game's order: the game over ([`Ctrl::GameOver`] once); [`Host::recovery`],
+    /// [`sort`]; [`InBattle::set`] of [`battle_now`] unless `ccMenu.menu` is 66;
+    /// the waits (`ghoFlag`, `menuClrWait`, the first 5 frames, a requested
+    /// menu); [`select_target`] unless `cmndTargetFix`; nothing more under the
+    /// events' manual control; then the buttons, and `plAttack` cleared once the
+    /// skill is over. `game` is `ccGame`'s battle state; the map button is not
+    /// here.
     pub fn frame(
         &mut self,
         leader: &Leader,

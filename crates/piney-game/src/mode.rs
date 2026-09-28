@@ -36,17 +36,10 @@ pub fn voice_options(save: &piney_data::save::SaveData) -> Event {
 }
 
 /// `ccSndEvRequest(cmd, p0, p1, p2)` (0x0017de80), the event instruction
-/// `sound`, as the sound it asks for. Its switch has eleven cases:
-///
-/// - 0: `ccSqPlay(p0)`.
-/// - 2: `ccSqFade(p0, p1, p2, 3)`: to `p1` 256ths over `p2` frames, then
-///   stop.
-/// - 4: `ccSeOn(p0)`, or with `p1` not -1 `ccSeOnNote(p0, note)`, the note
-///   being `p1`'s low byte, below 0 taken as 0.
-/// - 7: `ccEvVoiceStop`.
-/// - 8: `ccPortVolSet(p0, p1)`.
-/// - 10: the next `ccSndBgmCtrl` held.
-/// - 1, 3, 5, 6, 9: nothing (None).
+/// `sound`: 0 `ccSqPlay(p0)`; 2 `ccSqFade(p0, p1, p2, 3)` (to `p1` 256ths over
+/// `p2` frames, then stop); 4 `ccSeOn(p0)`, or `ccSeOnNote(p0, p1 & 0xff)`
+/// with `p1` not -1 (below 0 as 0); 7 `ccEvVoiceStop`; 8 `ccPortVolSet(p0,
+/// p1)`; 10 the next `ccSndBgmCtrl` held; 1, 3, 5, 6, 9 nothing.
 pub fn sound_request(cmd: i16, p0: i16, p1: i16, p2: i16) -> Option<Event> {
     match cmd {
         0 => Some(Event::SqPlay(i32::from(p0))),

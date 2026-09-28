@@ -73,3 +73,28 @@ draws. docs/engine/evarea.md has it all.
 One agent at a time ports them, in story order, after the Skeith port
 (docs/engine/boss.md, piney-battle's `boss.rs`, the harness
 `tools/test_battle_boss_rs.py`).
+
+## Stream effects Mutation adds or changes
+
+`StreamDemoFuncTbl` (MUT main 0x00367210, 40 rows) runs a stream's effect
+task by the scene's name. Infection's 22 rows come first; Mutation adds 18
+more, 13 functions (Outbreak has the same names):
+
+| scene | MUT main | state |
+| --- | --- | --- |
+| `str0710` | 0x0019c140 | stream 24, event 101's opening: ported (`opening.rs`), its table and texts still to go into the build |
+| `str0770` | 0x0019df80 | stream 25: ported (`mutation.rs`) |
+| `str0780` | 0x0019e9e0 | stream 26: ported |
+| `str0820`, `str0821` | 0x0019f5d0, 0x001a03a0 | stream 27: ported |
+| `str0880`, `str0885` | 0x001a1050 | ported; its rotations still to go into the build |
+| `str0932` | 0x001a1cb0 | ported |
+| `str1040`, `str1041` | 0x001a2880, 0x001a4930 | ported |
+| `str1050` | 0x001a5640 | ported |
+| `str1070` | 0x001a6af0 | not yet: a part system of its own |
+| `str1090` | 0x001a8570 | ported |
+| `str9204`-`str9206` | 0x001a92a0 | ported |
+| `str9201`, `str9301` | 0x00189ed0 | `Func_str9101`'s, mapped to it |
+
+Without a task a stream plays bare. `str7100`, `str8800` and `str0300`
+carry no Infection name: their code changed, and the port runs
+Infection's. To diff and port Mutation's.

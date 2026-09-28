@@ -1,46 +1,11 @@
-//! Answers `tools/test_map_rs.py`: the minimap (`piney_world::map`) of Mac
-//! Anu, of a field and of a dungeon, frame by frame on the requests it is
-//! sent, one JSON line an answer, so the test can run the same through the
-//! game's own code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example map_probe
-//! map_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests:
-//! - `town STEM`: `ROOTTOWN01`'s map over `STEM` (`town01`), or
-//!   `ROOTTOWN02`'s over `town02`; answers `RT01ICONPOS` (`RT02ICONPOS`).
-//! - `tframe MODE ALPHA X Y Z DIRCZ`: one `ROOTTOWN01::DrawMap` (or
-//!   `ROOTTOWN02`'s) with the player at (X, Y, Z) heading DIRCZ: what it
-//!   sent, the signs after.
-//! - `field SEED TYPE WEATHER GROUND OBJECT EVENT`: a field as
-//!   `WORLD_MAN::GO(1)` builds it and its map: `fobj2[]`, `fobj[][]` (with
-//!   the chips), `water`, the entrance's cell, the heights and the painted
-//!   texture's height rows.
-//! - `fframe MODE ALPHA X Y Z DIRCZ EVENT FOUNTAIN MAPFLAG N (MX MY FADING
-//!   ALPHA)*N`: one `WORLD::DrawMiniMap`; what it sent and the portals'
-//!   alphas after.
-//! - `dungeon S0 S1 S2 TYPE WEATHER LEVELMAX ROOMMAX HACK FIELD DUNGEON
-//!   SERVER`: a dungeon as `dungeon_probe`'s `new` and its map.
-//! - `droom F I`: `SetRoom(F, I)` then `MakeMiniMap(I)` on floor F: whether
-//!   it was new and the floor's squares.
-//! - `dframe F MODE SPECIAL ALPHA X Y Z DIRCZ HIDE HOLD NC (ID FLOOR BLOCK
-//!   X Y P2)*NC NG (...)*NG`: one `DUNGEON::DrawMap` on floor F; what it
-//!   sent, whether `ccMenu.mapStatus` was set, and a hash of the texture.
-//!
-//! - `modes FLAG TOWN FIELD DUNGEON`: `WORLD_MAN::ChangeMapMode` with
-//!   `WORLD_MAN.flag` FLAG over those modes.
-//! - `showmap EVENT`: `WORLD_MAN::ShowMap` in the field last made with
-//!   `eventAreaNumber` EVENT: done, and `WORLD.mapFlag`.
-//! - `dshow F X Y`: one call of `DUNGEON::ShowMap` on floor F with the
-//!   player at (X, Y): done, and the room built.
-//! - `dset F I`: `DUNGEON::SetRoom(F, I)` alone.
-//! - `dsquares F`: floor F's squares.
-//!
-//! What was sent: `["send", spr, sub, packets]` (each packet its fields and
-//! the corners `MakePacketStr` writes, or null when culled) or `["text",
-//! spr, bytes, dx, dy, rgba, transp]`.
+//! Answers `tools/test_map_rs.py` (`map_probe ISO < requests`): the minimap
+//! (`piney_world::map`) of Mac Anu and Dun Loireag, of a field and of a
+//! dungeon, frame by frame, one JSON line a request. Requests: `town`,
+//! `tframe`, `field`, `fframe`, `dungeon`, `droom`, `dframe`, `modes`,
+//! `showmap`, `dshow`, `dset`, `dsquares`; numbers hex, floats their bits.
+//! What was sent: `["send", spr, sub, packets]` (each packet's fields and the
+//! corners `MakePacketStr` writes, null when culled) or `["text", spr, bytes,
+//! dx, dy, rgba, transp]`.
 
 use std::io::BufRead;
 use std::sync::Arc;

@@ -1,48 +1,11 @@
 //! Story area 15, Hidden Forbidden Holy Ground: `EVENTAREA02` (gcmn
-//! area02.cpp), the hand-built story map `WORLD_MAN::GO(1)` (main 0x0019f8e0)
-//! makes in place of a generated field when the story area's
-//! `EVENTAREA_INFO.model` is not 0 (`docs/engine/evarea.md`). Its scene file
-//! `se1_2` holds two blocks: 0 the holy ground outside, 1 the church.
-//!
-//! ```text
-//! EVENTAREA02()          0x00401e00  se1_2; SetFog(1500, 12000, 0, 70,
-//!                                    0x1e1e1e); ccSys.bgColor 0x1e1e1e;
-//!                                    ChangeBlock(0); SetStartPos(DMY_marker01);
-//!                                    town_z; ccEff EFF_sflenz_2..6, 1
-//!                                    (Init(chunk, 1)), each SetRenderState(
-//!                                    CCRS_ZENABLE, 0), PRIM's fog bit off
-//! ChangeBlock(b)         0x00402300  blk = b; the pieces and lights of the
-//!                                    block before deleted; for 0 (else 1):
-//!                                    SetFog(250, 7800, 0, 90, 0x323232)
-//!                                    ((10000, 15000, ..)); EA_MODELTABLE02's 4
-//!                                    STATICMODELs (EA_MODELTABLE0202's 7 and
-//!                                    EA_OBJTABLE0202's STATICOBJECT); the
-//!                                    background clumps bg1_1, wa1_1, cl1_1,
-//!                                    cl2_1 (bg1_2); ANM_se1_2bac1a's light
-//!                                    (bac2a's five); SetStartPos(DMY_marker02)
-//!                                    (DMY_marker01_2); block 1's revAnm
-//!                                    ANM_se1_2la1a
-//! Draw()                 0x004033e0  DrawBG; obj2Layer: DrawObj2, DrawObj,
-//!                                    revAnm; objLayer: DrawFloor, the type-0
-//!                                    rows; effLayer: DrawLensFlare in block 1
-//!                                    with no event scene (puppetShow)
-//! ```
-//!
-//! A `STATICMODEL`'s model registers its Hit chunk on the `ccModelHit` list
-//! as it is built (`HitEnable(0)`, at the identity) and its destructor takes
-//! it off: each block's floor model carries the block's whole collision
-//! (`HIT_se1_2fl1_1hit`, `HIT_se1_2fl1_2hit`). `ccLandHitCheck` never falls
-//! back on a height map in an event area (`WORLD_MAN::CheckEventArea`), and
-//! `WORLD_MAN::GetHeight` answers 0 there. The map is not a torus: `GO` sets
-//! the bounds -48000..48000, which nothing reaches, so the wraps are the
-//! identity but for the rounding of `(p - player) + player`.
-//!
-//! `WORLD_MAN::Enter` (main 0x0019dda0) on the door (ground attribute
-//! 0x80000) of area 15: in block 0 or -1 `ChangeBlock(1)` and
-//! `ChangeScene(-2, -2, -2, -2, -2, 1)`, else `ChangeBlock(0)` and block 0.
-//! The set-up that follows keeps the `EVENTAREA02` (`WORLD_MAN::Quit` spares
-//! `eventmap` for area 15 when the next area is a field): it stands the
-//! party where the block's `SetStartPos` left `eventStartPos`.
+//! area02.cpp, constructor 0x00401e00, `ChangeBlock` 0x00402300, `Draw`
+//! 0x004033e0), the hand-built story map `WORLD_MAN::GO(1)` makes in place of
+//! a generated field. Its scene `se1_2` holds two blocks: 0 the holy ground
+//! outside, 1 the church, swapped by `WORLD_MAN::Enter` on the door. Each
+//! block's floor model carries its whole collision; the map is not a torus
+//! and has no height map. Also [`StorySprite`] and the pieces the other story
+//! maps share (docs/engine/evarea.md).
 
 use std::collections::HashMap;
 use std::rc::Rc;

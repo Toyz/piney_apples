@@ -1,26 +1,10 @@
-//! What `DUNGEON::SetRoom` stands in the room it builds, after the room's
-//! anm and its hits (`docs/engine/dungeon.md`, "The dressing"), and what
-//! `DUNGEON::Draw` does with it each frame:
-//!
-//! ```text
-//! SetWater      (gcmn 0x005c3f30) the water at OBJ_0paf0_ (three copies of
-//!               the type's ANM_sdNaf0_a, no hits); a SNOW spark at each
-//!               OBJ_o_magma* dummy, its palette changed by clutType
-//!               (DUNGEON::ChangeClut 0x005c17b0)
-//! SetLight      (0x005c4560) at OBJ_o_light_m0*, OBJ_o_light_s0* and (types
-//!               2 and 6) OBJ_o_altar_l0*: ROOMLIGHTs, each a glow (and a
-//!               second), a fieldrand pattern and an omni light in cc3d's
-//!               group
-//! SetObject     (0x005c70c0) the lakes' statues and flowers at OBJ_0ps*
-//!               (ccClumps, EntryObject 0x005c6e80, fieldrand for OBJ_0ps4*);
-//!               types 3 and 7's walls at OBJ_0paw0* / OBJ_0paw1* (ccAnms);
-//!               both with hits
-//! SetAnmObject  (0x005c3ad0) types 0-3's animated objects (ccAnms, hits)
-//! DrawWater     (0x005ce1c0) the water stepped, scrolled and drawn
-//! DrawEff       (0x005cdee0) the sparks moved and drawn, the glows drawn,
-//!               each light's intensity following its glow's pattern
-//! Draw          (0x005ce930) the clumps and animated objects (stepped)
-//! ```
+//! What `DUNGEON::SetRoom` stands in the room it builds, after the room's anm
+//! and its hits, and what `DUNGEON::Draw` does with it each frame: the water
+//! and magma sparks (`SetWater` 0x005c3f30), the room lights and their glows
+//! (`SetLight` 0x005c4560), the lakes' statues and flowers and types 3 and
+//! 7's walls (`SetObject` 0x005c70c0), types 0-3's animated objects
+//! (`SetAnmObject` 0x005c3ad0); `DrawWater`, `DrawEff` and `Draw` step and
+//! draw them (docs/engine/dungeon.md, "The dressing").
 
 use std::collections::HashMap;
 
@@ -478,15 +462,12 @@ impl DungeonArea {
     }
 
     /// `SetObject(f, i)`. The lake types: a clump at each `OBJ_0ps0*` ..
-    /// `OBJ_0ps3*` dummy of `room[level][i]` (the port's built room when
-    /// `level` is f), then `OBJ_0ps4*`'s each picked by `fieldrand(4)`
-    /// (drawn for every dummy; only the first ten pieces are made). Types
-    /// 3 and 7: a wall anm at each `OBJ_0paw0*`, then `OBJ_0paw1*`, dummy
-    /// (at most ten), one step on; the game stores each new anm's matrix
-    /// into `anmobj[s0]`, the dummy's index in its own search, so a paw1
-    /// wall moves the paw0 wall of its index (after that one's hits were
-    /// placed) and keeps its own unit matrix, placing its hits there,
-    /// unless the room has no paw0 walls.
+    /// `OBJ_0ps3*` dummy of `room[level][i]`, then `OBJ_0ps4*`'s each picked by
+    /// `fieldrand(4)`. Types 3 and 7: a wall anm at each `OBJ_0paw0*`, then
+    /// `OBJ_0paw1*` dummy (at most ten). The game stores each new anm's matrix by
+    /// the dummy's index in its own search, so a paw1 wall moves the paw0 wall of
+    /// its index and keeps its own unit matrix, unless the room has no paw0
+    /// walls (docs/engine/dungeon.md).
     pub(super) fn set_object(&mut self, f: usize, slot: &Slot) {
         if matches!(self.dtype, 8 | 9) && self.level == f {
             let mut num = 0;

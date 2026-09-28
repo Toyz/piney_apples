@@ -1,14 +1,8 @@
 //! Answers `tools/test_camera_shake_rs.py`: the screen shake
-//! (`piney_world::camera::Shake`: `cameraShake`, `cameraShockAbsorber`).
-//! One request a line, one JSON line back with the state after it.
-//!
-//! ```text
-//! seed S                       newlib's rand() state (decimal)
-//! shake POWER CYCLE TIME DIRC  cameraShake(...)
-//! absorb                       cameraShockAbsorber()
-//! set P0 P1 P2 V0 V1 V2        cameraSet's eye and target for camera 1 at
-//!                              pos P, view V (float bits): [eye, target]
-//! ```
+//! (`piney_world::camera::Shake`: `cameraShake`, `cameraShockAbsorber`). One
+//! request a line, one JSON line back with the state after it: `seed S`
+//! (newlib's `rand()` state, decimal), `shake POWER CYCLE TIME DIRC`, `absorb`,
+//! and `set P0 P1 P2 V0 V1 V2` (`cameraSet`'s eye and target for camera 1).
 
 use std::io::BufRead;
 

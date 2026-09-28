@@ -1,37 +1,10 @@
-//! Answers `tools/test_world_rs.py`: runs the field's logic tasks - the
-//! camera task's `cameraMain`, then `ccPlayer::Main` - on the pads it is
-//! sent and prints each frame's state as one JSON line, so the test can run
-//! the same frames through the game's own code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example world_probe
-//! world_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests, one a
-//! line:
-//! - `start TOWN X Y Z DIRCZ SCHEME MODE SEED`: Mac Anu's collision from
-//!   `TOWN` (0 `town01`, 1 `town01d`), Kite arriving at (X, Y, Z) facing
-//!   DIRCZ, camera scheme SCHEME (0-3) and `cameraMode` MODE, `rand` seeded
-//!   with SEED; then the camera as ccThCamera's set-up leaves it.
-//! - `pad DIRECT PUSH POWL DIRCL POWR DIRCR POW0 .. POW11`: one frame.
-//! - `libm NAME A [B]`: `sinf`, `cosf`, `tanf`, `atan2f`, `fmodf` of the
-//!   bits.
-//! - `avoid TPX TPY TPZ CPX CPY CPZ DEG0 ROTX GA GB GC`: `avoidObstacle`
-//!   from target TP to camera CP with the camera's heading DEG0 (16-bit)
-//!   and pitch ROTX over the ground `(x GA + y GB) + GC`.
-//! - `move POW DIRCL CMND RESET RESETDIRC CAMROTZ CAMTYPE DIRCZ SPEEDVALUE
-//!   SPEED TARGETCOUNT INACTIVE`: `ControlMove` alone.
-//! - `land X Y Z`: `ccLandHitCheck` in the town last started.
-//! - `weapon ACT POSED X Y Z DX DY DZ`: Kite's weapons (`chara::Kite`) with
-//!   act ACT's animation at time POSED and the anm at `T(X Y Z) Rx Ry
-//!   Rz(DX DY DZ)`: each hand's node and model name and the matrix its
-//!   model is drawn at.
-//! - `lights N (KIND PRI PX PY PZ DX DY DZ R G B INTENSITY START END)*N AX AY
-//!   AZ`: a light group in the order its lights were added (KIND 1 distant,
-//!   4 omni; PRI signed), `chara::light_matrix` for a model standing at (AX,
-//!   AY, AZ): each slot's direction toward its light and colour (before
-//!   VU1's doubling).
+//! Answers `tools/test_world_rs.py` (`world_probe ISO < requests`): the
+//! field's logic tasks - `cameraMain`, then `ccPlayer::Main` - on the pads it
+//! is sent, and the town's pieces around them, one JSON line a request, as
+//! the game's code does in eemu. Requests: `start`, `pad`, `libm`, `avoid`,
+//! `move`, `land`, `weapon`, `lights`, `tagpos`, `party`, the town's (`town`,
+//! `gate`), the merchants' (`merch`), the walking PCs' (`pc*`) and `gho`;
+//! numbers hex, floats their bits, the fields the harness's.
 
 use std::io::BufRead;
 use std::sync::Arc;
@@ -338,17 +311,10 @@ fn main() {
                 let d = piney_world::event::dirc_to([n(1), n(2), 0, ee::ONE], [n(3), n(4), 0, ee::ONE]);
                 println!("{d}");
             }
-            // `tagpos M00 .. M33 PX PY PZ OX OY OZ MODE`: ccCalcTagPosChar
-            // with world_screen M (stored columns), the character at P and
-            // the offset O: [its answer, x, y] (x and y 0x7fffffff when
-            // ccCalcTagPos left them).
-            // `party (ID PF)x5 MC0 MC1 MC2 MID0 MID1 MID2 NUM (BUILT PF
-            // RECALL)x5 N (OP ARG)xN`: the party manager and the registry
-            // (`MC` a registry slot, ffffffff none), each registry slot's
-            // character (BUILT 0: none), then N calls - 1
-            // `ccParty::AddMember(ARG)`, 2 `DelMember(ARG)`, 3
-            // `expulsionSpc(ARG)` - on party.rs's `Spcs`: {"ret", "reg",
-            // "mc", "mid", "num", "chars"}.
+            // `tagpos M.. P.. O.. MODE`: ccCalcTagPosChar with world_screen M, the
+            // character at P and offset O (x and y 0x7fffffff when ccCalcTagPos left
+            // them). `party ...`: the party manager and the registry, then N calls (1
+            // `AddMember`, 2 `DelMember`, 3 `expulsionSpc`) on party.rs's `Spcs`.
             Some("party") => println!("{}", party_probe(&w[1..])),
             // `gtclear AREA AREAPREV DTYPE`: ccClearGtHack's rule;
             // `ghoid AREA AREAPREV FIELDTYPE DUNGEON FIELD GT`:
@@ -388,19 +354,11 @@ fn main() {
 
 // --- Mac Anu's props: ROOTTOWN01::Draw's choices ----------------------------
 //
-// - `town CRISIS X Y Z`: `Town::select` for a camera eye at (X, Y, Z) on the
-//   town kept for CRISIS (0 `town01`, 1 `town01d`), made on first use and
-//   stepped by every call: {"clip", "uv" (the water's SetUV value), "bg"
-//   (the crisis sky's offset), "pieces": ["obj", row, time] | ["sky"] |
-//   ["crisis", k] | ["model", row, [x, y, z]] | ["water", k, time] | ["map"]}.
-// - `townobj CRISIS`: each static object's [row, root matrix (16 words)].
-// - `townreset`: forget the towns.
-// - `gate PX PY PZ CX CY CZ DEG1 EYE [CMND]`: one frame of the Chaos Gate
-//   (made on first use, in town01) for Kite at P and the camera at C with
-//   pitch DEG1 (EYE 1: the eye view), after `chaosGateInfluence` of CMND if
-//   given: {"near", "drawn", "ring", "t" (its transparency), "times",
-//   "state", "count", "ended", "sound", "root"}.
-// - `gatereset`: a new gate.
+// `town CRISIS X Y Z`: `Town::select` for a camera eye there (the town kept
+// per CRISIS and stepped by every call); `townobj CRISIS`: each static
+// object's root matrix; `townreset`. `gate PX PY PZ CX CY CZ DEG1 EYE
+// [CMND]`: one frame of the Chaos Gate after `chaosGateInfluence` of CMND;
+// `gatereset`.
 
 #[derive(Default)]
 struct Props {
@@ -491,16 +449,9 @@ fn props_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, props: &mut Prop
 
 // --- Mac Anu's merchants: ccSetMerchant(0), routine and ccMerchan::main ------
 //
-// - `merchstart PX PY PZ`: `ccSetMerchant(0)` in town01 with Kite at P:
-//   each merchant's [{"id", "name", "pos", "pos_p", "dirc", "default_dirc",
-//   "anim", "hit_sw"}].
-// - `merch PX PY PZ CX CY CZ VX VY VZ DEG1 EYE KITEHIT [OP K A [B]]...`: one
-//   frame of `ccThEntryCtrl` for the merchants, Kite at P, the camera's eye
-//   at C looking at V with pitch DEG1 (EYE 1: the eye view), Kite's body on
-//   the hit list when KITEHIT; before it the OPs on merchant K: `inf CMD`
-//   (its affectFunc), `breed CMD` (`breederInfluence`), `grot DEG SPD` (an
-//   event's turn), `fade FLAG CNT`. Each merchant's state after it.
-// - `merchreset`: forget them.
+// `merchstart PX PY PZ`: `ccSetMerchant(0)` with Kite at P. `merch ...`: one
+// frame of `ccThEntryCtrl` for the merchants, after the OPs on merchant K
+// (`inf`, `breed`, `grot`, `fade`); each merchant's state. `merchreset`.
 
 #[derive(Default)]
 struct Merchants {
@@ -637,34 +588,13 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
     true
 }
 
-// --- Mac Anu's walking PCs (rtownpc.rs, navi.rs, mt.rs) and character collision -----------------
+// --- Mac Anu's walking PCs (rtownpc.rs, navi.rs, mt.rs) and character collision
 //
-// - `pcsel COUNT RESERVED`: `ccInitRand` with `ccSys+0x358` COUNT, then
-//   `ccRegisterRandomNpc(RESERVED)`: {"rows": the 16 slots, "next": the
-//   following `ccRand`}.
-// - `pcroute SX SY SZ GX GY GZ`: `ccNavi::RouteSearchByMap` in town01 from S
-//   to G, then `GetDestination`: {"ret", "route" (to its 255), "step",
-//   "landmark", "name", "dist", "dirc", "dest", "near": [nearest of S, of G]}.
-// - `pcstart COUNT RESERVED X Y Z DIRCZ SCHEME MODE SEED [MANUAL]`: Kite
-//   arriving at (X, Y, Z) as `start` makes him (MANUAL 1: his AI in manual
-//   mode), then Mac Anu's walking PCs as the town's set-up places them
-//   (`ccRand` from COUNT, RESERVED rows kept back): {"town": the shared
-//   state, "pcs": each PC}.
-// - `pchit MANUAL X Y Z MX MY WIDTH SPEED RUN N [BX BY BZ BR KIND] x N`:
-//   `ccSpcChar::HitCheck` for Kite at (X, Y, Z) moving (MX, MY) with the
-//   bodies B (radius BR, kind KIND) in the character list before his:
-//   {"r", "move", "hitpos", "offset", "chartype"}.
-// - `pcpad DIRECT PUSH POWL DIRCL POWR DIRCR POW0 .. POW11`: one frame -
-//   `cameraMain`, `ccPlayer::Main` (Kite's body entering the character list
-//   when his arrival ends), then each PC's `routine` and `main` in list
-//   order: {"kite": Kite as `pad` prints him (and "kitechar", the kinds his
-//   HitCheck touched), "town", "pcs"}.
-// - `pcinfl SLOT CMD`: `rTownNPCInfluence` of the menu's command CMD on the
-//   PC in SLOT (list order). `pcadd ROW MARKER`: `ccSetRtownPC(ROW,
-//   MARKER)` now, the PC at the list's end. `pcev SLOT KIND A B C`: an
-//   event instruction on it (KIND 0 npc_act A, 1 npc_walk_pos A B C, 2
-//   npc_walk_dir rot A dist B, 3 npc_turn A chg B): {"ok"}. `pcpos SLOT X Y
-//   Z W`: the PC's position set (held in place, for the checks).
+// `pcsel` (`ccInitRand`, `ccRegisterRandomNpc`), `pcroute`
+// (`RouteSearchByMap`, `GetDestination`), `pcstart` (Kite and the town's
+// walking PCs), `pchit` (`HitCheck` against scripted bodies), `pcpad` (one
+// frame, then each PC's `routine` and `main`), `pcinfl` (`rTownNPCInfluence`),
+// `pcadd` (`ccSetRtownPC`), `pcev` (an event instruction), `pcpos`.
 
 struct PcRun {
     hits: Hits,
@@ -1110,15 +1040,10 @@ fn party_probe(w: &[&str]) -> String {
 }
 
 /// The `gho` request: `ccPlayer::GateHackingOut` over a scripted `ghoCam`.
-///
-/// ```text
-/// prog cnt k224 speedRate armsT armsDisp ghoFlag cameraFlag flags act pos[4]
-/// posCam[4] posView[4] camID; tcam, then ecam: pos[4] view[4] rot[4]
-/// dist deg0 deg1; set (the animation set); N; per frame: ended, act
-/// (ffffffff: as it is), the three markers' x y z
-/// ```
-///
-/// Out, per frame: the same state after the call.
+/// In: the player's state (prog, counters, flags, act, positions, camID), then
+/// `tcam` and `ecam` (pos, view, rot, dist, deg0, deg1), the animation set,
+/// N, and per frame: ended, act (ffffffff as it is) and the three markers'
+/// x y z. Out, per frame: the same state after the call.
 fn gate_probe(w: &[&str]) -> String {
     use piney_world::combat::gate_out::{GateState, GhoCam, Kite, Marker, gate_hacking_out};
     let mut at = 0usize;

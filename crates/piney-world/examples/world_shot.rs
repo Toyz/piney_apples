@@ -1,22 +1,11 @@
-//! Enter Mac Anu as a new game does and write a frame as a PNG.
-//!
-//! ```text
-//! cargo run --release -p piney-world --example world_shot -- \
-//!     [--iso work/infection/infection.iso] [--frames 120] [--walk N] \
-//!     [--turn N] [--steps N,LX,LY,RX,RY[,BUTTONS];...] [--out world.png]
-//!     [--soft] [--info] [--entry TYPE,CODE,MARKER,PARAM;...]
-//! ```
-//!
-//! The pad is left alone until the arrival ends, then the left stick is
-//! pushed up (away from the camera) for `--walk` frames and the right stick
-//! turns the camera for `--turn` frames; or, with `--steps`, each step holds
-//! the sticks (0-255, 128 centred) and buttons (hex, `piney_input::Buttons`
-//! bits) for N frames, one after another; the frame after `--frames` steps
-//! is drawn by `piney-gs` on the GPU when there is one (it lights and skins
-//! models), else, or with `--soft`, by the CPU GS in `piney_desktop::soft`
-//! (which draws no skinned models). `--entry` places characters as an
-//! event's `entry` does before the first frame (`1,2,3,5`: Orca at marker
-//! 3); with `--info`, what the action button asked for is printed.
+//! Enter Mac Anu as a new game does and write a frame as a PNG:
+//! `world_shot [--iso ISO] [--frames 120] [--walk N] [--turn N] [--steps
+//! N,LX,LY,RX,RY[,BUTTONS];...] [--out world.png] [--soft] [--info] [--entry
+//! TYPE,CODE,MARKER,PARAM;...]`. After the arrival the sticks walk or turn
+//! (or `--steps` holds them, 0-255, and buttons, hex); the frame after
+//! `--frames` is drawn by `piney-gs` on the GPU, or with `--soft` by the CPU
+//! GS (no skinned models). `--entry` places characters as an event's `entry`
+//! does; `--info` prints what the action button asked for.
 
 use std::sync::Arc;
 

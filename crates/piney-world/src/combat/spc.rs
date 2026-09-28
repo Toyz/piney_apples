@@ -1,14 +1,9 @@
 //! The party's characters in the battle's state as the event instructions
-//! and the AI's manual paths of [`crate::party`] and [`crate::ai`] see
-//! them: a [`SpcRec`] copies what a [`SpcRef`] lends out of the battle's
-//! [`Scene`] (`ccChar`, its flag word), the [`Crew`] (the character's `Spc`
-//! and `ccAI`) and the cast (`transDist`), and writes it back after.
-//!
-//! The copies are exact: every field a [`SpcRef`] holds is one the battle
-//! keeps (`piney_battle::chara::SpcChar::flags`' bits for `dispSW` ...
-//! `ghostFlag` and `recallFlag`; `condition.dead`; `partyFlag`), and the
-//! body a copy of the character's `bodyHit` ([`CharHit`]) under the key
-//! [`body_id`] gives it in [`Hits::chars`].
+//! and the AI's manual paths ([`crate::party`], [`crate::ai`]) see them: a
+//! [`SpcRec`] copies what a [`SpcRef`] lends out of the battle's [`Scene`],
+//! the [`Crew`] and the cast, and writes it back after. The copies are
+//! exact: every field is one the battle keeps, and the body a copy of the
+//! character's `bodyHit` ([`CharHit`]) under [`body_id`] in [`Hits::chars`].
 
 use piney_battle::chara::spc_flag;
 use piney_battle::party_ai::{Ai as BAi, Crew};

@@ -1,20 +1,11 @@
-//! The game's Mersenne Twister, `ccRand` (`INF SLUS_202.67:0x001d9a10`):
-//! the 1998 MT19937 of Matsumoto and Nishimura as `genrand` (0x001d9620)
-//! runs it, its state 624 64-bit words (`mt`, 0x003ff400) that never hold
-//! more than 32 bits, `mti` at 0x00377fd0 (625 until seeded).
-//!
-//! `sgenrand` is the old one: each word takes the top halves of two steps
-//! of `seed = 69069 seed + 1`. A `genrand` before any seeding seeds with
-//! 4352 (0x1100, not the reference 4357); `ccInitRand` (0x001d9900), which
-//! `ccSetupGameCtrl` calls on every scene change before the town's files
-//! are listed, seeds with 4352 too and then draws `ccSys+0x358` times (a
-//! counter of frames since the machine started) from both `ccRand` and the
-//! unrelated 16-bit `ccRandS`. That count is the only thing that differs
-//! between two arrivals, so [`Mt::init`] takes it as the seed.
-//!
-//! One generator serves the whole game: the town's walking PCs
-//! (`ccRegisterRandomNpc`'s choice, their routes and chats), the entry
-//! control's enemy picks, and a few effects.
+//! The game's Mersenne Twister, `ccRand` (INF main 0x001d9a10): MT19937 with
+//! the 1998 `sgenrand` seeding as `genrand` (0x001d9620) runs it, 624 64-bit
+//! words (`mt`, 0x003ff400) holding 32 bits, `mti` at 0x00377fd0. It seeds
+//! with 4352 (not the reference 4357); `ccInitRand` (0x001d9900), on every
+//! scene change, seeds so and then draws `ccSys+0x358` times (frames since
+//! the machine started), the only thing that differs between two arrivals,
+//! so [`Mt::init`] takes that count. One generator serves the walking PCs,
+//! the enemy picks and a few effects (docs/engine/battle.md).
 
 /// `mag01`: 0 and the twist matrix `0x9908b0df`.
 const MAG01: [u32; 2] = [0, 0x9908_b0df];

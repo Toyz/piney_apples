@@ -1,27 +1,10 @@
-//! Answers `tools/test_grunty_rs.py`: Dun Loireag's Grunties
-//! (`piney_world::grunty`: `ccSetChibiGuso`, `ccPGuso`) one request a
-//! line, one JSON line an answer, so the test can run the same through the
-//! game's code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example grunty_probe
-//! grunty_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests:
-//! - `set TOWN L S SM CR CU IQ PU T0 T1 T2 FOOD FLUTE`: the save's growth
-//!   record for TOWN (level, size, the five stats, the three kinds, the
-//!   food line) and key item 49's count; answers the rows
-//!   `ccSetChibiGuso` places and the record after it.
-//! - `new ID TOWN SEED`: row ID built by `setDog` and `ccPGuso::ccPGuso`
-//!   in town TOWN over its collision, `rand()` seeded SEED, `ccRand`
-//!   fresh; answers the state.
-//! - `poke growth V`, `poke foodmode V`: the menus' writes to the Grunty
-//!   (`growthNum`, `foodMode`), no answer.
-//! - `frame PX PY PZ PD CX CY CZ DEG1 EYE [CMD A1 A2]`: Kite at P facing
-//!   PD, the camera at C with pitch DEG1 (EYE the eye view), the menu's
-//!   affect CMD (with its arguments) first when given, then the frame:
-//!   the state, the events, the notes and what it drew.
+//! Answers `tools/test_grunty_rs.py` (`grunty_probe ISO < requests`): Dun
+//! Loireag's Grunties (`piney_world::grunty`: `ccSetChibiGuso`, `ccPGuso`),
+//! one JSON line a request. Requests: `set` (the growth record and what
+//! `ccSetChibiGuso` places), `new` (a row built by `setDog` and the
+//! constructor), `poke growth|foodmode` (the menus' writes) and `frame` (Kite,
+//! the camera and a menu's affect, then the frame's state, events, notes and
+//! draws). Numbers hex, floats their bits.
 
 use std::io::BufRead;
 use std::rc::Rc;

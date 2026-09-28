@@ -1,25 +1,11 @@
-//! Not the game's: the port's launcher, for a build of several discs
-//! (`piney-build`; the build's format is laid out in `piney_data::pack`).
-//!
-//! It plays the four-part selector left unused on Outbreak's disc
-//! (`STREAM/STRT.BIN`'s `trial_v2st`, `docs/disc/outbreak.md`): the party's
-//! art, then the rows `.hack//INFECTION Part 1` to `.hack//QUARANTINE Part
-//! 4`, each with its icon. No code for it survives, so the port drives it:
-//! the scene holds its last frame, the chosen row glows (its `lig` objects,
-//! the glow textures), a volume the build lacks is dimmed, and the demo
-//! disc's labels (`mes`: PLAYABLE DEMO, TRAILER, COMING SOON) are hidden.
-//! Up and down choose, cross or START starts that volume's game, and a push
-//! during the opening goes to the rows at once. Without Outbreak in the
-//! build the same choice is a list in the game's font.
-//!
-//! Before the choice come the title's three logo movies, Bandai's,
-//! CyberConnect2's and Project .hack's ([`LOGOS`], from Outbreak's disc or
-//! the first the build has), silent as the title plays them; a push stops
-//! them as it stops the title's. The chosen game's title then starts at
-//! its own opening movie. The choice sounds like the title: its sound bank
-//! and music from the launcher's disc. Under the rows, as on the title,
-//! the disc's copyright line (its title file's `OBJ_xdt_cop_00_`), and on
-//! the right the port's own credit ([`PORTED_BY`]).
+//! Not the game's: the port's launcher for a build of several discs
+//! (`piney-build`, `piney_data::pack`). It plays the four-part selector left
+//! unused on Outbreak's disc (`STREAM/STRT.BIN`'s `trial_v2st`,
+//! docs/disc/outbreak.md), which the port drives: the chosen row glows, a
+//! volume the build lacks is dimmed, the demo's labels hidden; without
+//! Outbreak, a list in the game's font. Before it, the title's three logo
+//! movies ([`LOGOS`]); under it, the disc's copyright and the port's credit
+//! ([`PORTED_BY`]).
 
 use std::path::{Path, PathBuf};
 use std::rc::Rc;

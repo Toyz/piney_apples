@@ -102,6 +102,16 @@ pub struct Tables {
     pub skill_names: Option<(piney_draw::TexRef, i32)>,
     /// Stream 15's event tables and rock scales.
     pub ending: crate::ending::Tables,
+    /// `Func_str0880`'s hit marks' rotations (MUT main 0x00366ed0, four
+    /// rows of degrees: x, y, z, pad), as f32 bits; none on Infection.
+    pub hit_rot_0880: Vec<[u32; 3]>,
+    /// `Func_str1040`'s texts (cues 700-730): stream 31's subtitle records
+    /// 16-19 (MUT main 0x00327640), each `[normal, Parody Mode]`, four lines.
+    pub text_1040: [[Vec<Vec<u8>>; 2]; 4],
+    /// Stream 24's (Mutation's opening) event table and texts.
+    pub opening: crate::opening::Tables,
+    /// `saveData.parodyFlag`: the opening's Parody Mode texts.
+    pub parody: bool,
 }
 
 impl Tables {
@@ -116,6 +126,10 @@ impl Tables {
             hit_rot_0301: bits(t.hit_rot_0301()),
             skill_names: None,
             ending: crate::ending::Tables::read(volume),
+            hit_rot_0880: t.hit_rot_0880().iter().map(|&r| bits(r)).collect(),
+            text_1040: crate::mutation::text_1040(volume),
+            opening: crate::opening::Tables::read(volume),
+            parody: false,
         }
     }
 }
@@ -135,7 +149,7 @@ fn set_fog(loaded: &Loaded, scene: &mut Scene, fog: SceneFog, off: &[&str]) {
 
 /// A hit mark at `obj` turned by the `n`th row of `table` (degrees; a row
 /// past it is 0): `pi * deg / 180` in the EE's float.
-fn hit_mark(table: &[[u32; 3]], obj: u32, n: usize) -> HitMark {
+pub(crate) fn hit_mark(table: &[[u32; 3]], obj: u32, n: usize) -> HitMark {
     const PI: u32 = 0x4049_0fdb;
     const HALF_TURN: u32 = 0x4334_0000;
     let deg = table.get(n).copied().unwrap_or_default();
@@ -1455,6 +1469,18 @@ pub enum Task {
     Str8800(Str8800),
     Str0580(Box<crate::ending::Str0580>),
     Str0581(Box<crate::ending::Str0581>),
+    Str0710(Box<crate::opening::Str0710>),
+    Str0770(crate::mutation::Str0770),
+    Str0780(crate::mutation::Str0780),
+    Str0820(crate::mutation::Str0820),
+    Str0821(crate::mutation::Str0821),
+    Str0880(crate::mutation::Str0880),
+    Str0932(crate::mutation::Str0932),
+    Str1040(Box<crate::mutation::Str1040>),
+    Str1041(crate::mutation::Str1041),
+    Str1050(crate::mutation::Str1050),
+    Str1090(crate::mutation::Str1090),
+    Str9204(crate::mutation::Str9204),
 }
 
 /// The scene a task reads objects from: `GetSubstAdrsF` over the scene
@@ -1515,7 +1541,7 @@ impl Task {
                 set_fog(loaded, scene, SceneFog::with_rates(near, far, near_rate, far_rate, colour), &[]);
                 Some(Task::Str9000(Str9000::start(scene, tables, rand)))
             }
-            STR9101 => Some(Task::Str9001(Str9001::new(rand))),
+            STR9101 | crate::mutation::STR9201 | crate::mutation::STR9301 => Some(Task::Str9001(Str9001::new(rand))),
             STR7100 => Some(Task::Str7100(Str7100::new(rand))),
             STR8800 => Some(Task::Str8800(Str8800::new(rand))),
             STR0300 => Some(Task::Str0300(Str0300::new(rand))),
@@ -1528,6 +1554,41 @@ impl Task {
                 set_fog(loaded, scene, SceneFog::new(near, far, colour), &crate::ending::FOG_OFF_0581);
                 let world = SceneWorld { loaded, scene };
                 Some(Task::Str0581(Box::new(crate::ending::Str0581::new(&tables.ending, &world, rand))))
+            }
+            crate::mutation::STR0770 | crate::mutation::STR0780 => {
+                let (near, far, near_rate, far_rate, colour) = crate::mutation::FOG_0770;
+                set_fog(loaded, scene, SceneFog::with_rates(near, far, near_rate, far_rate, colour), &[]);
+                Some(if task_name(stem) == crate::mutation::STR0770 {
+                    Task::Str0770(crate::mutation::Str0770::new(rand))
+                } else {
+                    Task::Str0780(crate::mutation::Str0780::new(rand))
+                })
+            }
+            crate::mutation::STR0820 => Some(Task::Str0820(crate::mutation::Str0820::new(rand))),
+            crate::mutation::STR0880 | crate::mutation::STR0885 => {
+                let (near, far, near_rate, far_rate, colour) = crate::mutation::FOG_0880;
+                set_fog(loaded, scene, SceneFog::with_rates(near, far, near_rate, far_rate, colour), &[]);
+                Some(Task::Str0880(crate::mutation::Str0880::new(tables, rand)))
+            }
+            crate::mutation::STR0821 => Some(Task::Str0821(crate::mutation::Str0821::new(rand))),
+            crate::mutation::STR0932 => {
+                let (near, far, near_rate, far_rate, colour) = crate::mutation::FOG_0932;
+                set_fog(loaded, scene, SceneFog::with_rates(near, far, near_rate, far_rate, colour), &[]);
+                Some(Task::Str0932(crate::mutation::Str0932::new(rand)))
+            }
+            crate::mutation::STR1040 => Some(Task::Str1040(Box::new(crate::mutation::Str1040::new(tables, rand)))),
+            crate::mutation::STR1041 => Some(Task::Str1041(crate::mutation::Str1041::new(rand))),
+            crate::mutation::STR1050 => Some(Task::Str1050(crate::mutation::Str1050::new(rand))),
+            crate::mutation::STR1090 => Some(Task::Str1090(crate::mutation::Str1090::new(rand))),
+            crate::mutation::STR9204 | crate::mutation::STR9205 | crate::mutation::STR9206 => {
+                let (near, far, near_rate, far_rate, colour) = FOG_9000;
+                set_fog(loaded, scene, SceneFog::with_rates(near, far, near_rate, far_rate, colour), &[]);
+                Some(Task::Str9204(crate::mutation::Str9204::start(scene, rand)))
+            }
+            crate::opening::STR0710 => {
+                let world = SceneWorld { loaded, scene };
+                let t = crate::opening::Str0710::new(&tables.opening, &world, tables.parody, rand);
+                Some(Task::Str0710(Box::new(t)))
             }
             _ => None,
         }
@@ -1552,6 +1613,18 @@ impl Task {
         match self {
             Task::Str0580(t) => t.step(world, cues, frame_now, paused, rand),
             Task::Str0581(t) => t.step(world, cues, frame_now, paused, rand),
+            Task::Str0710(t) => t.step(world, cues, frame_now, paused, rand),
+            Task::Str0770(t) => t.step(cues, frame_now, frame_end, paused, rand),
+            Task::Str0780(t) => t.step(cues, frame_now, frame_end, paused, rand),
+            Task::Str0820(t) => t.step(cues, frame_now, frame_end, paused, rand),
+            Task::Str0821(t) => t.step(cues, frame_now, frame_end, paused, rand),
+            Task::Str0880(t) => t.step(cues, paused, rand),
+            Task::Str0932(t) => t.step(cues, frame_now, frame_end, paused, rand),
+            Task::Str1040(t) => t.step(cues, frame_now, frame_end, paused, rand),
+            Task::Str1041(t) => t.step(cues, frame_now, frame_end, paused, rand),
+            Task::Str1050(t) => t.step(cues, frame_now, frame_end, paused, rand),
+            Task::Str1090(t) => t.step(cues, paused, rand),
+            Task::Str9204(t) => t.step(cues, paused, rand),
             Task::Str0001(t) => t.step(cues, frame_now, frame_end, paused, rand),
             Task::Str0090(t) => t.step(cues, paused, rand),
             Task::Str0110(t) => t.step(cues, paused, rand),
@@ -1581,6 +1654,7 @@ impl Task {
             Task::Str0240(t) => t.take_marks(),
             Task::Str0250(t) => t.take_marks(),
             Task::Str0301(t) => std::mem::take(&mut t.marks),
+            Task::Str0880(t) => std::mem::take(&mut t.marks),
             _ => Vec::new(),
         }
     }
@@ -1593,6 +1667,10 @@ impl Task {
             Task::Str0570(t) => std::mem::take(&mut t.transfers),
             Task::Str0610(t) => std::mem::take(&mut t.transfers),
             Task::Str0581(t) => t.take_transfers(),
+            Task::Str0820(t) => std::mem::take(&mut t.transfers),
+            Task::Str0821(t) => std::mem::take(&mut t.transfers),
+            Task::Str1050(t) => std::mem::take(&mut t.transfers),
+            Task::Str1090(t) => std::mem::take(&mut t.transfers),
             _ => Vec::new(),
         }
     }
@@ -1602,6 +1680,34 @@ impl Task {
         match self {
             Task::Str0580(t) => t.part_draws(),
             Task::Str0581(t) => t.part_draws(),
+            Task::Str0710(t) => t.part_draws(),
+            _ => &[],
+        }
+    }
+
+    /// The fog the last pass set on the scene (`SetFog` mid-scene).
+    pub fn take_fog(&mut self) -> Option<crate::scene::SceneFog> {
+        if let Task::Str0932(t) = self
+            && std::mem::take(&mut t.fog_off)
+        {
+            return Some(crate::mutation::no_fog());
+        }
+        None
+    }
+
+    /// The effect file whose `EFF_x001` the parts' puffs draw.
+    pub fn puff_file(&self) -> &'static str {
+        match self {
+            Task::Str0710(_) => crate::opening::EFF_FILE,
+            _ => crate::ending::EFF_FILE,
+        }
+    }
+
+    /// The opening's text lines drawn in the last pass.
+    pub fn text_draws(&self) -> &[crate::opening::TextDraw] {
+        match self {
+            Task::Str0710(t) => t.text_draws(),
+            Task::Str1040(t) => t.text_draws(),
             _ => &[],
         }
     }
@@ -1629,6 +1735,18 @@ impl Task {
             Task::Str8800(t) => &t.ctrl,
             Task::Str0580(t) => &t.ctrl,
             Task::Str0581(t) => &t.ctrl,
+            Task::Str0710(t) => &t.ctrl,
+            Task::Str0770(t) => &t.ctrl,
+            Task::Str0780(t) => &t.ctrl,
+            Task::Str0820(t) => &t.ctrl,
+            Task::Str0821(t) => &t.ctrl,
+            Task::Str0880(t) => &t.ctrl,
+            Task::Str0932(t) => &t.ctrl,
+            Task::Str1040(t) => &t.ctrl,
+            Task::Str1041(t) => &t.ctrl,
+            Task::Str1050(t) => &t.ctrl,
+            Task::Str1090(t) => &t.ctrl,
+            Task::Str9204(t) => &t.ctrl,
         }
     }
 }

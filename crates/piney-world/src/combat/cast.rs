@@ -1,13 +1,9 @@
 //! The battle's characters as the field draws them: each scene character's
-//! body and `ccAnm` ([`Actor`], a [`crate::char::Char`] with the notes its
-//! last step passed), made when the character first plays a clip and taken
-//! away when it goes.
-//!
-//! Kite and the party members are made with their own files when the party
-//! is built; an enemy or a magic portal is made the first time the entry
-//! control's code sets its clip (`ccAnm::SetAnm` in the constructor,
-//! [`piney_battle::world::World::anim_set`]), from the looks loaded for the
-//! area ([`Looks`]): the one whose file has that clip.
+//! body and `ccAnm` ([`Actor`]), made when the character first plays a clip
+//! and taken away when it goes. Kite and the party are made with their own
+//! files when the party is built; an enemy or a magic portal the first time
+//! the entry control sets its clip ([`piney_battle::world::World::anim_set`]),
+//! from the area's [`Looks`]: the one whose file has that clip.
 
 use std::collections::BTreeMap;
 use std::rc::Rc;

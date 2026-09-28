@@ -1,27 +1,11 @@
-//! The field camera (`camera.cpp`, `INF SLUS_202.67:0x00160610`-0x00163440)
-//! as a town uses it: `tcam` behind the player, turned and zoomed by the
-//! right stick, L1/R1/R2 by the control scheme, reset behind him on a
-//! button, L2 to look from his eyes; pulled in front of whatever is between
-//! him and it and pushed out of walls; in a field, kept above the ground
-//! (`avoidObstacle`); and the view matrix the frame is drawn with
-//! (`cameraSet` 0x00161260, `ccCam::SetMatrix_PosTarget` 0x001387a0,
-//! `ccView::SetView` 0x001052c0).
-//!
-//! camera.cpp keeps three cameras - `tcam` (the field's), `bcam` and
-//! `ecam` (the event camera's, [`crate::evcam`]) - and draws from the one
-//! `changeCamera` made active (`camID`, `activeCamPtr`): the view matrix,
-//! the town's draw, the characters' fades and the player's heading all read
-//! the active camera, while `cameraMain`'s L2 and reset and the player's
-//! placement of `tcam` only act with camera 1 active.
-//!
-//! Everything is EE single precision on bit patterns ([`crate::ee`]), as
-//! the game computes it; `tools/test_world_rs.py` and
-//! `tools/test_evcam_rs.py` check it against the game's own functions run
-//! in eemu.
-//!
-//! Angles come in two forms: radians (`rot`) and the game's 16-bit angle
-//! (`deg`, 65536 a turn) - [`ee::rad2deg`] and [`ee::deg2rad`] convert, and
-//! do not round-trip, so each conversion is kept where the game makes it.
+//! The field camera (`camera.cpp`, INF main 0x00160610-0x00163440): `tcam`
+//! behind the player, turned and zoomed by the right stick and the scheme's
+//! buttons, reset behind him, L2 for his eyes; pulled in front of what is
+//! between them, and in a field kept above the ground (`avoidObstacle`); and the
+//! view matrix (`cameraSet` 0x00161260). Three cameras (`tcam`, `bcam`, `ecam`),
+//! drawn from the one `changeCamera` made active. EE single precision on bit
+//! patterns ([`crate::ee`]); angles as radians or the game's 16-bit angle, each
+//! conversion where the game makes it (docs/engine/field-game.md).
 
 use piney_input::{Pad, pressure};
 
@@ -340,15 +324,11 @@ impl Shake {
         (ee::vadd(pos, o), ee::vadd(ee::vadd(view, o), ee::vscale(o, s)))
     }
 
-    /// `cameraShockAbsorber()` (main 0x001629b0), at the end of every
-    /// `cameraMain`: the strongest held shock (the first of the highest
-    /// power) raises `vibrateForce` to its table value if that is more,
-    /// taking its cycle, its turn (`vibrateRotate`, -1 without `rot`) and
-    /// `vibrateMatrix = Ry(dirc)`; a turning one turns 0x1000 a frame; the
-    /// oscillator steps 0x10000 / cycle, the offset's z is `force *
-    /// sinf(oscillator)`, each crossing of 0 keeps a fifth of the force,
-    /// under 1 it stops; every held shock counts its time down and frees
-    /// its slot at 0.
+    /// `cameraShockAbsorber()` (main 0x001629b0), at the end of each `cameraMain`:
+    /// the strongest held shock raises `vibrateForce` to its table value, taking its
+    /// cycle, turn and `vibrateMatrix = Ry(dirc)`; the oscillator steps 0x10000 /
+    /// cycle, the offset's z is `force * sinf`, each crossing of 0 keeps a fifth,
+    /// under 1 it stops; each held shock counts down and frees its slot at 0.
     pub fn absorb(&mut self) {
         let mut best: Option<(usize, ShockForce)> = None;
         for (i, s) in self.sf.iter().enumerate() {
@@ -414,15 +394,12 @@ const OBSTACLE_STEP: F = 0x4396_0000; // 300.0
 /// How far above the ground it keeps the camera.
 const OBSTACLE_CLEARANCE: F = 0x4248_0000; // 50.0
 
-/// `avoidObstacle(np, tp, cp, cam)` (0x00162430), a field's floor handling
-/// (`cameraPosCalc` calls it when `game.area` is 1): from the target `tp`
-/// toward the camera `cp` in steps of 300 along the ground (divided by the
-/// cosine of the heading folded into 0-45 degrees, a quarter of that when
-/// the camera is nearer than one step), climbing at the camera's pitch; the
-/// first step less than 50 above the ground (`CameraHits::ground`) is lifted
-/// to 50 above it and becomes the camera; if none, the camera itself is
-/// checked the same way. The steps stop short of the camera by the whole
-/// steps that fit, less one when the remainder is under a quarter step.
+/// `avoidObstacle(np, tp, cp, cam)` (0x00162430), a field's floor handling:
+/// from the target toward the camera in steps of 300 along the ground (over the
+/// cosine of the heading folded into 0-45 degrees; a quarter of that when the
+/// camera is nearer), climbing at the camera's pitch; the first step under 50
+/// above the ground is lifted to 50 and becomes the camera; if none, the camera
+/// itself is checked (docs/engine/field-game.md).
 pub fn avoid_obstacle(tp: V4, cp: V4, cam: &Cam, hits: &mut dyn CameraHits) -> V4 {
     // The heading folded into 0..=8192 (0-45 degrees).
     let mut a = cam.deg[0] as u16;
@@ -524,27 +501,12 @@ impl Camera {
         self.cam_id = n;
     }
 
-    /// `ccMenuCtrl::SetMerchantCamera()` (gcmn 0x005269d0), as a shop's
-    /// menu opens: `changeCamera(3)`, then `ecam` (`cameraList[3]`) filled
-    /// through `cameraSetView`, `cameraSetPos` and `cameraSetRot` (which
-    /// copy whole vectors to its +0x10, +0x00, +0x20):
-    ///
-    /// ```text
-    /// breeder   view, pos = the town's fixed pair
-    /// else      view = pos + (0, 0, 100)
-    ///           r = dirc; r.y -= 0x3e060a92 (0.1309); r.z -= 0x3faf7641 (1.3708),
-    ///           then r.z < -pi: + 2 pi, else r.z > pi: - 2 pi
-    ///           M = Rz(r.z) Ry(r.y) Rx(r.x) (sceVu0UnitMatrix, RotMatrixX/Y/Z)
-    ///           pos = M (500, 0, 0, 1) + view, all four lanes (w 1 + view.w)
-    /// rot       cameraGetRot(3) over the ccSys scratch that held r: x the
-    ///           pitch, z the heading of view - pos, y and w as they were
-    /// ```
-    ///
-    /// For a breeder the scratch's y and w are whatever the last user of
-    /// `ccSys`'s work area left at +0x24 and +0x2c; the port writes 0
-    /// (nothing reads `ecam.rot`'s y or w). `tcam` is untouched and keeps
-    /// following Kite; `changeCamera(1)` ([`Camera::change_camera`]) as the
-    /// shop closes brings it back.
+    /// `ccMenuCtrl::SetMerchantCamera()` (gcmn 0x005269d0), as a shop's menu
+    /// opens: `changeCamera(3)`, `ecam`'s view and position (a breeder's the town's
+    /// fixed pair; else 500 out from the merchant at his heading less 1.3708 and
+    /// pitch less 0.1309, looking 100 above him), then `cameraGetRot`. The scratch's
+    /// y and w are unset for a breeder in the game; 0 here. `changeCamera(1)` as the
+    /// shop closes (docs/engine/field-ui.md).
     pub fn set_merchant(&mut self, target: MerchantView) {
         self.change_camera(id::EVENT);
         let n = self.cam_id;
@@ -577,17 +539,10 @@ impl Camera {
         self.cam_mut(n).rot = rot;
     }
 
-    /// `ccMenuCtrl::SetFountainCamera()` (gcmn 0x00526c60), each frame of
-    /// the spring's talk (`FountainMenu3` steps 2-14): `changeCamera(3)`,
-    /// then `ecam` looking at the spring and standing behind Kite:
-    ///
-    /// ```text
-    /// view  the spring's place, z + 100 held to 0 .. 800
-    /// pos   Kite's place, z + 100, plus Rz(a) (240, 0, 0, 1) on all four
-    ///       lanes, a = atan2f(pos.y - view.y, pos.x - view.x) - 0.2094395
-    ///       (12 degrees; below -pi + 2 pi)
-    /// rot   cameraGetRot(3) over the scratch that held Rz(a) (240, 0, 0)
-    /// ```
+    /// `ccMenuCtrl::SetFountainCamera()` (gcmn 0x00526c60), each frame of the
+    /// spring's talk: `changeCamera(3)`, `ecam` looking at the spring (z + 100, held
+    /// to 0..800) from 240 behind Kite at 12 degrees off the line to it, then
+    /// `cameraGetRot` (docs/engine/field-ui.md).
     pub fn set_fountain(&mut self, spring: V4, player: V4) {
         self.change_camera(id::EVENT);
         let n = self.cam_id;
@@ -664,20 +619,11 @@ impl Camera {
         [x, out[1], z, out[3]]
     }
 
-    /// `cameraMain` (0x00160cc0) on the camera task (priority 40), before
-    /// the player moves: L2 switches between following and the eye view
-    /// (only with camera 1 active, no menu open (`menu_idle`) and no
-    /// puppet show), the reset button starts turning the camera
-    /// behind the player (`player_dirc_z`, last frame's heading; not with
-    /// camera 2 or 3 active), and the reset turns `tcam` one step while the
-    /// active camera follows. `camera_mode` is `saveData.cameraMode`, which
-    /// L2 writes. No screen shake is ported: without one
-    /// `cameraShockAbsorber` changes nothing the town reads.
-    ///
-    /// With the party wiped out (`checkPartyAnnihilation`, `annihilated`)
-    /// the eye view goes back to following, and the buttons are read only
-    /// then: with camera 1 active in the eye view. Otherwise only the
-    /// reset's turn runs.
+    /// `cameraMain` (0x00160cc0) on the camera task (priority 40), before the
+    /// player moves: L2 switches following and the eye view (camera 1 active, no
+    /// menu, no puppet show), the reset button starts turning the camera behind
+    /// the player (not with camera 2 or 3 active), and the reset turns `tcam` a
+    /// step. With the party wiped out the eye view goes back to following.
     pub fn main(&mut self, pad: &CamPad, player_dirc_z: F, menu_idle: bool, annihilated: bool, camera_mode: &mut i8) {
         let n = self.cam_id;
         if annihilated {

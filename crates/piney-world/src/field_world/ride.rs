@@ -1,30 +1,9 @@
-//! The riding Grunty's calls on the field (`pgrider.cpp`), for the
-//! sequence piney-game runs (`ride.rs`: `ccPuccigusoStart` on the menu
-//! task, `ccThPucciguso`, `ccPuccigusoExit` with their fades, the menu and
-//! the music): the flags, the party put to sleep and woken, the object
-//! made and deleted. The ride's frame itself is the battle's
-//! ([`crate::combat::ride`]).
-//!
-//! ```text
-//! ride_start        ccPuccigusoStart's first slice: only in a field and
-//!                   not riding (pgR); pgRideFlag, pgR 1, pgDIN 0,
-//!                   camTypeLock
-//! ride_sleep_party  its fade out done: ccSpcSleep (every registered
-//!                   character standing, off the command lists, asleep),
-//!                   then each in the party's body out of the collision
-//!                   and its condition effect cleared
-//! ride_create       ccLoadFLAddOne of the kind's file and ccThPucciguso:
-//!                   the object made on the task's first frame, Main from
-//!                   then on
-//! ride_start_done   its fade in done: camTypeLock 0
-//! ride_exit_begin   ccPuccigusoExit in a field: camTypeLock 1, the ride's
-//!                   body out (ccDeleteCmnd finds it on no list)
-//! ride_exit_wake    its fade out done: each party member not down back in
-//!                   the collision, the members 150 behind Kite
-//!                   (puccigusoAngleTbl), ccSpcWakeup
-//! ride_end          its fade in done (or a dungeon entered): the object
-//!                   gone, pgRideFlag and pgR 0, camTypeLock 0
-//! ```
+//! The riding Grunty's calls on the field (`pgrider.cpp`), for the sequence
+//! piney-game runs (`ccPuccigusoStart`, `ccThPucciguso`, `ccPuccigusoExit`
+//! with their fades, the menu and the music): the flags (`pgRideFlag`, `pgR`,
+//! `camTypeLock`), the party put to sleep and woken, the object made and
+//! deleted, one call per step (`ride_start` .. `ride_end`). The ride's frame
+//! itself is the battle's ([`crate::combat::ride`]; docs/engine/grunty-ride.md).
 
 use std::rc::Rc;
 
@@ -156,18 +135,12 @@ impl FieldWorld {
         }
     }
 
-    /// `ccPuccigusoExit` after its fade out (gcmn 0x00510ca8): over the
-    /// registry's first five, each in the party not down back in the
-    /// collision (`HitEnable`), each member but Kite turned to Kite's
-    /// heading and put 150 out from him at `puccigusoAngleTbl`'s angle
-    /// ([`ride::exit_place`]); then `ccSpcWakeup` (`ccSPC::Wakeup`, gcmn
-    /// 0x005a02e0): each in the party with no skill (`skillID`,
-    /// `skillStatus` 0), act 0 from none (`actNumOld` -1), `armsEffectSW`
-    /// 0, standing and free (`restraintSW`, `trajectorySW`, `pauseSW`,
-    /// `moveFlag`, `runFlag` 0, `stopFlag` 1), its condition adjusted
-    /// (`ConditionAdjustment`), on its command list and awake; and the
-    /// party's AI told (`ccAISysMsgSend(0x1000e, -1, Kite's id, 0xffff, 0,
-    /// 15)`: `ChatMessageQuitPucciguso`). `Main` stops.
+    /// `ccPuccigusoExit` after its fade out (gcmn 0x00510ca8): each party member
+    /// not down back in the collision, each but Kite put 150 out from him at
+    /// `puccigusoAngleTbl`'s angle ([`ride::exit_place`]); then `ccSpcWakeup`
+    /// (gcmn 0x005a02e0): each with no skill, act 0, standing and free, its
+    /// condition adjusted, on its command list and awake; and the party's AI
+    /// told (`ChatMessageQuitPucciguso`). `Main` stops.
     pub fn ride_exit_wake(&mut self) {
         let Some(k) = self.combat.kite else { return };
         let Some(tables) = self.combat.ride.obj.as_ref().map(|o| o.tables.clone()) else { return };

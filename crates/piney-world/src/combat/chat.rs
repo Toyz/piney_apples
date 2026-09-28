@@ -1,14 +1,8 @@
 //! The party's chat lines in the field's frame ([`piney_battle::party_chat`]).
-//!
-//! The lines the decisions call for (`Call::Chat`) and the balloon
-//! `ChatMessageSender` opens run in the stage's runtime
-//! ([`super::stage::Stage`]'s `call_ctx`), where the decision makes them.
-//! The lines a hit or an affect raises (`ChatMessageAttack`,
-//! `AttributeCritical`, `Damage`, `ResurrectPlz`, `AffectMessages` and
-//! `Greeting`) come out of the rules as events ([`line_of`]); the frame
-//! runs them after the task that raised them: a member's frame, the entry
-//! control's pass (the enemies' hits), the skills' pass, a box's trap, the
-//! boss.
+//! The lines the decisions call for and `ChatMessageSender`'s balloon run in
+//! the stage's runtime ([`super::stage::Stage`]); the lines a hit or an
+//! affect raises come out of the rules as events ([`line_of`]), which the
+//! frame runs after the task that raised them.
 
 use piney_battle::enemy_ai::Enemy;
 use piney_battle::event::{Event, Who};

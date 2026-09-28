@@ -1576,7 +1576,7 @@ fn combat() -> Group {
         "combat",
         "Combat",
         "What Kite's, the members' and the ride's frames read besides the battle's parameters: their clips, \
-         the following's constants, Skeith's patterns.",
+         the following's constants, Skeith's and Innis's patterns.",
         vec![
             e(
                 "player_anims",
@@ -1641,6 +1641,58 @@ fn combat() -> Group {
                 "`Boss01AnmTbl`: Skeith's clip by act, none for some.",
             ),
             e("skeith_rand_skills", 0x005E_B608, array(I32, 3), GCMN, "The skills Skeith picks from at random."),
+            e(
+                "innis_pattern",
+                0x005E_B660,
+                array(I32, 150),
+                GCMN,
+                "`Pattern`: Innis's action words, three runs by protect gauge, each ended by a 29.",
+            ),
+            e("innis_epitaph", 0x005E_B8C0, array(I32, 53), GCMN, "`EPITAPH_Pattern`: Innis's words once drained."),
+            e("innis_anims", 0x005E_B620, array(opt(cstr()), 15), GCMN, "`boss02AnmTbl`: Innis's clip by act."),
+            e(
+                "innis_various_skills",
+                0x005E_B998,
+                array(I16, 7),
+                GCMN,
+                "`Skill_VARIOUS_INIS`: the skills Innis picks from in its first mode.",
+            ),
+            e(
+                "innis_downer_skills",
+                0x005E_B9B0,
+                array(I16, 12),
+                GCMN,
+                "`Skill_DOWNER_INIS`: the skills Innis picks from in its second.",
+            ),
+            e(
+                "innis_monster_anims",
+                0x005E_B9D0,
+                array_stride(fixed(opt(cstr()), 15), 3, 0x40),
+                GCMN,
+                "`Mon1`-`Mon3`: the clips of the three images Innis sends out, by act.",
+            ),
+            e(
+                "innis_ring_models",
+                0x005E_BA90,
+                array(I32, 3),
+                GCMN,
+                "`EnemyBurst`'s rings' model (`particle` clump) by image.",
+            ),
+            e(
+                "cinema_skill_names",
+                0x005E_B040,
+                array(
+                    strukt(
+                        "CinemaSkillName",
+                        12,
+                        vec![("file", 0, opt(cstr())), ("tex", 4, opt(cstr())), ("row", 8, I32)],
+                        "A boss cinema's skill name: the file and texture it is in, and its row.",
+                    ),
+                    72,
+                ),
+                GCMN,
+                "`_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.",
+            ),
             // The enemies' weapon trails, dust and breath (enemy1.cpp - enemyZ.cpp).
             derived(
                 "weapon_infos",
@@ -1777,31 +1829,126 @@ fn event_obj() -> Layout {
 /// as nothing).
 fn event_objs(c: &Ctx) -> Read {
     let (a, b) = (find(c, 0x0034_EB60, None), find(c, 0x0034_F1F0, None));
-    let (eff, rock) = (ty("ccEffPartParam0580", vec![]), ty("ccObjPartParam0580", vec![]));
     let mut out = Vec::new();
     for at in (a..b).step_by(16).chain((b..b + 6 * 16).step_by(16)) {
-        let (cue, name, kind, param) = (c.p.u32(at)?, c.p.u32(at + 4)?, c.p.u32(at + 8)?, c.p.u32(at + 12)?);
-        let name = if name == 0 { Value::None } else { cstr().read(c, name).unwrap_or(Value::None) };
-        let (e, r) = match kind {
-            0 => (eff.read(c, param).ok(), None),
-            1 => (None, rock.read(c, param).ok()),
-            2 => match (c.p.u32(param), c.p.u32(param.wrapping_add(4))) {
-                (Ok(p0), Ok(p1)) => match (eff.read(c, p0), rock.read(c, p1)) {
-                    (Ok(e), Ok(r)) => (Some(e), Some(r)),
-                    _ => (None, None),
-                },
+        out.push(event_obj_row(c, at)?);
+    }
+    Ok(Value::List(out))
+}
+
+/// One `ccEventObjTbl` row at `at`, as [`event_obj`] lays it out.
+fn event_obj_row(c: &Ctx, at: u32) -> Read {
+    let (eff, rock) = (ty("ccEffPartParam0580", vec![]), ty("ccObjPartParam0580", vec![]));
+    let (cue, name, kind, param) = (c.p.u32(at)?, c.p.u32(at + 4)?, c.p.u32(at + 8)?, c.p.u32(at + 12)?);
+    let name = if name == 0 { Value::None } else { cstr().read(c, name).unwrap_or(Value::None) };
+    let (e, r) = match kind {
+        0 => (eff.read(c, param).ok(), None),
+        1 => (None, rock.read(c, param).ok()),
+        2 => match (c.p.u32(param), c.p.u32(param.wrapping_add(4))) {
+            (Ok(p0), Ok(p1)) => match (eff.read(c, p0), rock.read(c, p1)) {
+                (Ok(e), Ok(r)) => (Some(e), Some(r)),
                 _ => (None, None),
             },
             _ => (None, None),
-        };
-        out.push(Value::List(vec![
-            Value::Int(i128::from(cue)),
-            name,
-            e.unwrap_or(Value::None),
-            r.unwrap_or(Value::None),
-        ]));
+        },
+        _ => (None, None),
+    };
+    Ok(Value::List(vec![Value::Int(i128::from(cue)), name, e.unwrap_or(Value::None), r.unwrap_or(Value::None)]))
+}
+
+/// The code of the effect task `StreamDemoFuncTbl` (main 0x0034f420)
+/// names for `scene`, up to its `jr $ra`; None where the volume's table
+/// has no such row before its end (a name pointer that is 0 or not
+/// mapped: Infection's 22 rows run into other data).
+fn demo_func(c: &Ctx, scene: &[u8]) -> Result<Option<Vec<u32>>, String> {
+    let t = find(c, 0x0034_F420, None);
+    for k in 0..64 {
+        let name = c.p.u32(t + 8 * k)?;
+        if name == 0 || !c.p.mapped(name) {
+            return Ok(None);
+        }
+        if c.p.cstr(name, 16)? == scene {
+            let f = c.p.u32(t + 8 * k + 4)?;
+            let mut code = Vec::new();
+            for i in 0..0x1000 {
+                let w = c.p.u32(f + 4 * i)?;
+                code.push(w);
+                if w == 0x03e0_0008 {
+                    break;
+                }
+            }
+            return Ok(Some(code));
+        }
+    }
+    Ok(None)
+}
+
+/// The address a `lui rt` / `addiu rt, rt` pair at `code[i..]` builds
+/// (`rt` any when None).
+fn lui_addiu(code: &[u32], i: usize, rt: Option<u32>) -> Option<u32> {
+    let (w, x) = (*code.get(i)?, *code.get(i + 1)?);
+    let r = (w >> 16) & 31;
+    let pair = w >> 26 == 0x0f && x >> 26 == 0x09 && (x >> 21) & 31 == r && (x >> 16) & 31 == r;
+    (pair && rt.is_none_or(|t| t == r)).then(|| ((w & 0xffff) << 16).wrapping_add(sext16(x) as u32))
+}
+
+/// `eventObjTbl_0710` (MUT main 0x00366e30): the table `Func_str0710`
+/// gives its walker (the first address it builds after its `new` of 12
+/// bytes), up to its end row; none on Infection.
+fn opening_events(c: &Ctx) -> Read {
+    let Some(code) = demo_func(c, b"str0710")? else { return Ok(Value::List(Vec::new())) };
+    let at = code.iter().position(|&w| w == 0x2404_000c).ok_or("Func_str0710 makes no ccEventObj")?;
+    let table = (at..code.len()).find_map(|i| lui_addiu(&code, i, None)).ok_or("Func_str0710 builds no table")?;
+    let mut out = Vec::new();
+    for k in 0..64 {
+        let row = event_obj_row(c, table + 16 * k)?;
+        let end = row.list()[0].int() == 100_000;
+        out.push(row);
+        if end {
+            break;
+        }
     }
     Ok(Value::List(out))
+}
+
+/// The opening's texts: after each `lb $v0, -0x7bd5($at)` in
+/// `Func_str0710` (`saveData.parodyFlag`), the two strings it builds in
+/// $a1, the normal one then Parody Mode's; cue 700's, then cue 710's.
+fn opening_text(c: &Ctx) -> Read {
+    let Some(code) = demo_func(c, b"str0710")? else { return Ok(Value::List(vec![Value::None; 4])) };
+    let mut out = Vec::new();
+    for (i, &w) in code.iter().enumerate() {
+        if w != 0x8022_842b {
+            continue;
+        }
+        let mut n = 0;
+        for j in i..(i + 16).min(code.len()) {
+            if let Some(va) = lui_addiu(&code, j, Some(5)) {
+                out.push(cstr().read(c, va)?);
+                n += 1;
+                if n == 2 {
+                    break;
+                }
+            }
+        }
+    }
+    if out.len() != 4 {
+        return Err(format!("Func_str0710 builds {} texts", out.len()));
+    }
+    Ok(Value::List(out))
+}
+
+/// `Func_str0880`'s hit marks' rotations (MUT main 0x00366ed0): the table
+/// it builds just before loading pi (`ori $v0, $v0, 0x0fdb`), four rows of
+/// x, y, z degrees and a pad; none on Infection.
+fn hit_rot_0880(c: &Ctx) -> Read {
+    let Some(code) = demo_func(c, b"str0880")? else { return Ok(Value::List(Vec::new())) };
+    let pi = code.iter().position(|&w| w == 0x3442_0fdb).ok_or("Func_str0880 loads no pi")?;
+    let table = (pi.saturating_sub(12)..pi)
+        .rev()
+        .find_map(|i| lui_addiu(&code, i, None))
+        .ok_or("Func_str0880 builds no table")?;
+    array_stride(fixed(float(), 3), 4, 16).read(c, table)
 }
 
 fn stream() -> Group {
@@ -1843,6 +1990,9 @@ fn stream() -> Group {
             e("hit_rot_0301", 0x0034_F310, fixed(float(), 3), MAIN, "`hitRot0301`: `Func_str0301`'s rotation."),
             e("event_objs", 0x0034_EB60, custom(Rc::new(event_objs), array(event_obj(), 0)), MAIN, "`eventObjTbl_0580` read on through `eventObjTbl_0581`: the ending's cues."),
             e("rock_scale", 0x0034_E490, fixed(float(), 3), MAIN, "`rockScaleTbl`: a rock's scale by its model."),
+            derived("opening_events", custom(Rc::new(opening_events), array(event_obj(), 0)), MAIN, "`eventObjTbl_0710` (MUT main 0x00366e30): the opening's (`Func_str0710`) cues, up to its end row; none on Infection."),
+            derived("opening_text", custom(Rc::new(opening_text), fixed(opt(cstr()), 4)), MAIN, "The opening's texts (`Func_str0710`'s cues 700 and 710), each normal then Parody Mode's; none on Infection."),
+            derived("hit_rot_0880", custom(Rc::new(hit_rot_0880), array_stride(fixed(float(), 3), 4, 16)), MAIN, "`Func_str0880`'s hit marks' rotations (MUT main 0x00366ed0: x, y, z degrees); none on Infection."),
         ],
     )
 }

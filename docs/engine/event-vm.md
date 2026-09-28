@@ -445,6 +445,19 @@ by his `entry`, Kite's 6 from `pc_mode -3 6`, the town's `SetParty`, Orca
 added (`AddMember`), and for 4 event 3's `pc_mode -3 4`. The replay leaves mails read and board
 posts at state 3, as `ccEventFlagSet` does, and no fight's experience.
 
+What the replay does not bring, the start adds (`start::fights`): each Data
+Bug drained before N gives its virus core (Infection's events 17, 18, 21,
+24: cores 12, 13, 15, 16); each gate hack before N sets its area's
+`protectArea` bit and takes its cores (events 18, 25, 30: areas 19, 23,
+27); and the gates event N itself goes to (its `in_field`, `in_dungeon`,
+field `scene` and `gate_words` areas) are given the cores their `protect`
+row asks for beyond those held.
+
+Mutation's starts are 101-116 in the story's order. 101, the new game's,
+is the desktop as the boot leaves it, with nothing brought forward. 104 and
+105 start on the board, 115 in Carmina Gadelica (`in_town 2`), and the
+rest on the desktop, each where its first located block is.
+
 ## The World
 
 In the field (`game.status` 5) the task runs beside the field's tasks, the

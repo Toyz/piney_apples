@@ -1,21 +1,10 @@
-//! The debug console: F1 (or the ` key) opens a line typed on the
-//! keyboard; Enter hands it to the mode ([`crate::mode::Mode::console`])
-//! and keeps the answer; Escape or F1 again closes it. While it is open the
-//! game runs on with its pad held neutral.
-//!
-//! In the window it is drawn at the window's own pixels over the picture
-//! ([`Console::overlay`]), in the game's `ef8x16` font at its size, on a
-//! dark band over the top of the screen; `--shot` draws it into the frame
-//! instead ([`Console::draw`]).
-//!
-//! Keys: Left / Right, Home / End (Ctrl+A / Ctrl+E), Backspace, Delete,
-//! Ctrl+U (the line), Ctrl+L (the answers), Up / Down (the lines typed
-//! before), Page Up / Page Down (the answers scrolled back), Tab (a command
-//! completed).
-//!
-//! Not the game's: a tool for playing the port (items, virus cores, gold,
-//! the party's health, god mode, event flags). `help` lists the commands the
-//! mode takes.
+//! Not the game's: the debug console. F1 (or the ` key) opens a line typed on
+//! the keyboard; Enter hands it to the mode ([`crate::mode::Mode::console`])
+//! and keeps the answer; Escape or F1 again closes it, while the game runs on
+//! with its pad held neutral. It draws in the game's `ef8x16` font on a dark
+//! band ([`Console::overlay`], or [`Console::draw`] under `--shot`). The keys
+//! are the usual line-editing ones, Up / Down for the lines before, Page Up /
+//! Down to scroll, Tab to complete; `help` lists the commands.
 
 use piney_desktop::anm::Ctx;
 use piney_desktop::kanji::{Fonts, Kanji, Names};

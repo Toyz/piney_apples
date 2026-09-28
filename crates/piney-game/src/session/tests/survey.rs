@@ -1,12 +1,10 @@
-//! A survey of Infection's main events (M1, 1-31) and Mutation's (M2,
+//! A survey of the story's main events (Infection's 1-31, Mutation's
 //! 101-116): each `--mode story:N` start driven by the story autopilot
-//! (`story_player`) for a while, with what it reached, the host calls
-//! still at their defaults, and any panic. A diagnostic, not a check:
-//! `cargo test --release -p piney-game story_survey -- --ignored
-//! --nocapture`. `PINEY_SURVEY_ONLY=N` runs one start,
-//! `PINEY_SURVEY_FRAMES` sets the frames, `PINEY_SURVEY_CALLS` prints the
-//! last host calls at the end, `PINEY_SURVEY_GOD` keeps the party at full
-//! HP and SP.
+//! ([`StoryPilot`]) for a while, with what it reached and any panic. A
+//! diagnostic: `cargo test --release -p piney-game story_survey -- --ignored
+//! --nocapture`. `PINEY_SURVEY_ONLY=N` one start, `PINEY_SURVEY_FRAMES` the
+//! frames, `PINEY_SURVEY_CALLS` the last host calls, `PINEY_SURVEY_GOD` the
+//! party kept up, `PINEY_DEBUG_PILOT` the pilot's trace.
 
 use piney_world::area::kind;
 use piney_world::field_world::Place;
@@ -42,6 +40,14 @@ pub(super) struct StoryPilot {
     talked: Vec<i32>,
     talking: Option<(i32, u64)>,
     talk_place: Option<(i32, i32)>,
+    /// In a town: the same for its event NPCs, and the town.
+    town_talked: Vec<i32>,
+    town_talking: Option<(i32, u64)>,
+    talk_town: Option<i32>,
+    /// In a field or dungeon the story wants nothing of: since when, and
+    /// whether the pilot is on its way out (PERSONAL, Gate Out).
+    idle_since: Option<u64>,
+    gating: bool,
 }
 
 /// What the pilot does in a fight through the menus.
@@ -86,6 +92,11 @@ impl Default for StoryPilot {
             talked: Vec::new(),
             talking: None,
             talk_place: None,
+            town_talked: Vec::new(),
+            town_talking: None,
+            talk_town: None,
+            idle_since: None,
+            gating: false,
         }
     }
 }
@@ -138,17 +149,118 @@ impl StoryPilot {
                 return raw;
             }
         }
+        if let Stage::World(w) = &s.stage {
+            self.note_town_talk(w, f);
+        }
         if let Stage::World(w) = &s.stage
             && !w.streaming()
             && let Some(raw) = self.walk_in_town(w, f)
         {
             return raw;
         }
+        if let Stage::Area(a) = &s.stage
+            && !a.streaming()
+            && let Some(raw) = self.gate_out(a, f)
+        {
+            return raw;
+        }
+        if !matches!(&s.stage, Stage::Area(_)) {
+            (self.idle_since, self.gating) = (None, false);
+        }
         if !matches!(&s.stage, Stage::Area(_) | Stage::World(_)) {
             self.path.clear();
             self.mark = None;
         }
-        story_player(s, f)
+        story_player_with(s, f, &self.town_talked)
+    }
+
+    /// Out of a field or dungeon the story wants nothing of (none of its
+    /// wants names it; no event NPC waits, no fight, no event playing) for
+    /// 300 frames: PERSONAL, Gate Out (menu 10), YES, back to town.
+    fn gate_out(&mut self, a: &crate::area::AreaMode, f: u64) -> Option<Raw> {
+        let w = a.world();
+        let sc = w.scene();
+        let vm = a.vm()?;
+        let wants = story_wants(vm, &w.state().save);
+        let here = wants.iter().any(|x| match *x {
+            Want::Area(fd) | Want::Dungeon(fd, _) => i32::from(fd) == sc.field,
+            Want::Point(_) => sc.area == kind::DUNGEON,
+            _ => false,
+        });
+        let banned = a.calls().iter().rev().find_map(|(_, c)| match c.as_str() {
+            "menu_ban true" => Some(true),
+            "menu_ban false" => Some(false),
+            _ => None,
+        }) == Some(true);
+        let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+        let busy = !playing
+            || banned
+            || w.combat().battle.in_battle != 0
+            || !w.event_targets().is_empty()
+            || vm.playing().is_some();
+        if here || (busy && !self.gating) {
+            (self.idle_since, self.gating) = (None, false);
+            return None;
+        }
+        let since = *self.idle_since.get_or_insert(f);
+        if f < since + 300 {
+            return None;
+        }
+        self.gating = true;
+        let ui = a.ui();
+        let m = &ui.ctrl;
+        let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+        let press = |b: Buttons| if f.is_multiple_of(8) { Raw { buttons: b, ..still } } else { still };
+        let go_to = |row: i16| match m.list().select {
+            r if r == row => Buttons::CROSS,
+            r if r < row => Buttons::DOWN,
+            _ => Buttons::UP,
+        };
+        Some(match (ui.menu_type(), m.proccess) {
+            (-1, _) => press(Buttons::TRIANGLE),
+            // A menu changing to the next (`MENU_CHANGING`): wait.
+            (88, _) => still,
+            (0, 1) => {
+                let l = m.list();
+                match l.items.iter().take(l.y.max(0) as usize).position(|&it| it == 10) {
+                    Some(r) => press(go_to(r as i16)),
+                    None => press(Buttons::CIRCLE),
+                }
+            }
+            (10, 1) => press(go_to(0)),
+            (10, _) => press(Buttons::CROSS),
+            _ => press(Buttons::CIRCLE),
+        })
+    }
+
+    /// A town's event NPC spoken to: once the talk the pilot started bans
+    /// the menus (its event block plays), he is passed by after, as the
+    /// `add_target`s of repeatable lines stay on the list (event 108's six).
+    fn note_town_talk(&mut self, w: &crate::world::WorldMode, f: u64) {
+        let town = w.town_number();
+        if self.talk_town != Some(town) {
+            (self.town_talked, self.town_talking, self.talk_town) = (Vec::new(), None, Some(town));
+        }
+        let banned = w.calls().iter().rev().find_map(|(_, c)| match c.as_str() {
+            "menu_ban true" => Some(true),
+            "menu_ban false" => Some(false),
+            _ => None,
+        }) == Some(true);
+        match self.town_talking {
+            Some((code, _)) if banned => {
+                self.town_talked.push(code);
+                self.town_talking = None;
+            }
+            Some((_, at)) if f > at + 120 => self.town_talking = None,
+            Some(_) => {}
+            None => {
+                if let Some(GateGoal::Talk(code)) = gate_goal(w, &self.town_talked)
+                    && w.world().command_target() == Some((piney_world::entry::Kind::Npc, code))
+                {
+                    self.town_talking = Some((code, f));
+                }
+            }
+        }
     }
 
     /// In a town, the way round the walls to whom [`gate_goal`] walks to
@@ -158,7 +270,7 @@ impl StoryPilot {
     fn walk_in_town(&mut self, w: &crate::world::WorldMode, f: u64) -> Option<Raw> {
         use piney_world::entry::Kind;
         let world = w.world();
-        let target = match gate_goal(w)? {
+        let target = match gate_goal(w, &self.town_talked)? {
             GateGoal::Talk(code) => (Kind::Npc, code),
             GateGoal::Area(_) | GateGoal::Town(_) => (Kind::Gimmick, 16),
             GateGoal::LogOut | GateGoal::Invite(_) => return None,
@@ -356,6 +468,8 @@ impl StoryPilot {
                     press(if r >= m.list().my { Buttons::CIRCLE } else { go_to(r) })
                 }
                 (65, _) => press(Buttons::CROSS),
+                // Data Drain's own menu: its movie, messages and drops take OK.
+                (66, _) => press(Buttons::CROSS),
                 // Anything else the action opened: back out.
                 _ => press(Buttons::CIRCLE),
             });
@@ -363,8 +477,9 @@ impl StoryPilot {
         // A menu of the last action's still up (its target gone): out.
         // (The target menu's message, no target left, takes OK.)
         // (In a field or dungeon only the pilot opens these.)
-        if [0, 1, 2, 3, 4, 5, 65, 71, 72, 73].contains(&t) {
-            let message = (t == 65 && m.proccess == 2)
+        if !self.gating && [0, 1, 2, 3, 4, 5, 65, 66, 71, 72, 73].contains(&t) {
+            let message = t == 66
+                || (t == 65 && m.proccess == 2)
                 || (t == 73 && m.proccess == 10)
                 || (t == 71 && (10..=11).contains(&m.proccess))
                 || ((0..=2).contains(&t) && (2..=3).contains(&m.proccess));
@@ -576,7 +691,7 @@ impl StoryPilot {
             }
         }
         let kite = kite?;
-        let near = c.enemies().into_iter().any(|e| {
+        let near = c.enemies().into_iter().filter(|e| !self.walker.hopeless.contains(e)).any(|e| {
             let (p, q) = (kite.pos.map(f32::from_bits), c.scene.chars[e].pos.map(f32::from_bits));
             c.scene.chars[e].hp > 0 && (q[0] - p[0]).hypot(q[1] - p[1]) < 400.0
         });
@@ -636,15 +751,10 @@ impl StoryPilot {
 }
 
 /// The way from `from` to the nearest door floor of the dungeon entrance
-/// round `mid` (a floor whose attribute has bit 0x80000, where
-/// `ccPlayer::CollisionTest` calls `WORLD_MAN::Enter`): a breadth-first
-/// walk over the floors of a 100-unit grid 3000 either side of `mid`, then
-/// only the corners kept. Each cell has every floor a line straight down
-/// meets (the entrance's roof, its ramp and the doorway under the roof),
-/// or the height map's ground where no model has one. A step to the next
-/// cell goes floor to floor, no more than 120 up or down, clear of walls at
-/// the knees and waist, [`WIDE`] either side, and a diagonal only where
-/// both its sides are open too. Empty when there is none.
+/// round `mid` (attribute bit 0x80000, where `ccPlayer::CollisionTest` calls
+/// `WORLD_MAN::Enter`): [`path_to`] over a 100-unit grid 3000 either side.
+/// Each cell holds every floor a line straight down meets (the entrance's
+/// roof, ramp and doorway), or the height map's ground.
 fn entrance_path(hits: &piney_world::hit::Hits, from: [f32; 3], mid: [f32; 2]) -> Vec<[f32; 2]> {
     path_to(hits, from, mid, 61, 100.0, |_, door| door)
 }

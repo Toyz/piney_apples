@@ -421,6 +421,14 @@ impl Vm {
         }
     }
 
+    /// [`Vm::playing`] with the instruction the block is on.
+    pub fn playing_op(&self) -> Option<(i32, usize, usize)> {
+        match self.task {
+            Task::Pass(Pass { walk: Some(Walk { event, exec: Some(e), .. }), .. }) => Some((event, e.block, e.op)),
+            _ => None,
+        }
+    }
+
     /// `eventMng.operate` (+0x770): bit per player operation the events
     /// intercept. The desktop tests icon `n` and `n + 19`; see
     /// [`Vm::check_operate`], which is how the game asks.

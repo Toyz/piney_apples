@@ -1,28 +1,10 @@
 //! A character on the field: `ccChar` (gcmn chara.cpp, 0xe0 bytes) as every
-//! entry-controlled character extends it (`ccEntryObj`, entctrl.cpp,
-//! 0x1d0 bytes; `ccGimmick`; the merchants' `ccMerchan` and the walking
-//! PCs' `ccRtownPC`): a body ([`Body`]) posed by one animation, a position
-//! and heading, the base parameters' size, a transparency, a ground
-//! attribute, a collision body, and `ccChar::Draw`'s rules for drawing it.
-//!
-//! ```text
-//! ccChar     +0x00 base (ccCharBaseParam: +0x08 flags, +0x0c id, +0x18
-//!                  height, +0x1c width)   +0x40 pos  +0x50 posP  +0x60 dirc
-//!            +0x80 hitAttribute  +0x88 transparency  +0x8c setTransparency
-//!            +0x90 transDist  +0x94 affectFunc (the menu's "influence")
-//!            +0xcc ccsc  +0xd0 clump  +0xd4 anm
-//! ccEntryObj +0xe0 flags (dispSW bit 4, cmndFlag bit 6)  +0xe4 plDist
-//!            +0xe8 plDirc  +0xec alpha  +0xf0 fadeFlag  +0xf2 fadeCnt
-//!            +0x100 entParam (ccEntryParam)  +0x160 bodyHit (ccCharHit)
-//!            +0x1b0 anmTbl
-//! ```
-//!
-//! [`Char::fade`] and [`Char::draw`] are `ccChar::Draw` (0x0056b1c0) in a
-//! town: `SetActiveLayer(5)` (priority 10), the transparency
-//! `setTransparency * ccGetCameraTransparency(pos, width, height, 4000,
-//! 400, &hide)` (`INF SLUS_202.67:0x001da8b0`), nothing drawn under 0.05
-//! unless the camera's nearness faded it, the lights of the draw
-//! environment, the main one dimmed on shaded ground.
+//! entry-controlled character extends it (`ccEntryObj`, entctrl.cpp, 0x1d0
+//! bytes; `ccGimmick`; `ccMerchan`, `ccRtownPC`): a body posed by one
+//! animation, a place and heading, a transparency, a ground attribute, a
+//! collision body. [`Char::fade`] and [`Char::draw`] are `ccChar::Draw`
+//! (0x0056b1c0) in a town, with `ccGetCameraTransparency` (INF main
+//! 0x001da8b0). The layouts are in docs/engine/field-game.md.
 
 use std::rc::Rc;
 

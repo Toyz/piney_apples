@@ -156,7 +156,17 @@ pub(super) struct Walker {
     /// checks for the portals; once put, every foe of the room: an event's
     /// entries shut its doors until they fall).
     pub(super) wary: bool,
+    /// The story's walk: each foe fought, its HP and the frame it was first
+    /// fought; one that has lost none after [`HOPELESS`] frames, or still
+    /// stands after three times that, is walked past (a level-49 Squidbod
+    /// against a level-35 party), unless Kite is stuck in the room.
+    fought: Vec<(usize, i16, u64)>,
+    pub(super) hopeless: Vec<usize>,
 }
+
+/// Frames of fighting a foe that loses no HP before the story's walk goes
+/// past it.
+const HOPELESS: u64 = 1800;
 
 impl Walker {
     /// The story's walk ([`Walker::wary`]).
@@ -184,6 +194,8 @@ impl Walker {
                 self.via = None;
                 self.stuck = 0;
                 self.puts = 0;
+                self.fought.clear();
+                self.hopeless.clear();
             }
             self.room = Some((sc.floor, sc.block));
             let banned = a.calls().iter().rev().find_map(|(_, c)| match c.as_str() {
@@ -204,7 +216,28 @@ impl Walker {
                         let q = c.scene.chars[e].pos.map(f32::from_bits);
                         !self.wary || self.puts > 0 || (q[0] - p[0]).hypot(q[1] - p[1]) < 600.0
                     };
-                    if let Some(e) = c.enemies().into_iter().find(|&e| c.scene.chars[e].hp > 0 && near(e)) {
+                    let (hopeless, stuck) = (&self.hopeless, self.puts > 0);
+                    let foe = c
+                        .enemies()
+                        .into_iter()
+                        .find(|&e| c.scene.chars[e].hp > 0 && near(e) && (stuck || !hopeless.contains(&e)));
+                    if let Some(e) = foe
+                        && self.wary
+                    {
+                        let hp = c.scene.chars[e].hp;
+                        match self.fought.iter().find(|x| x.0 == e) {
+                            None => self.fought.push((e, hp, f)),
+                            Some(&(_, first, since))
+                                if !self.hopeless.contains(&e)
+                                    && f > since + HOPELESS
+                                    && (hp >= first || f > since + 3 * HOPELESS) =>
+                            {
+                                self.hopeless.push(e)
+                            }
+                            Some(_) => {}
+                        }
+                    }
+                    if let Some(e) = foe {
                         let q = c.scene.chars[e].pos.map(f32::from_bits);
                         if (q[0] - p[0]).hypot(q[1] - p[1]) > 180.0 {
                             toward([q[0], q[1]])

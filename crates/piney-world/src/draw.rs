@@ -1,18 +1,9 @@
-//! Drawing the field: `ccModel::Draw` (0x0013eab0) for a model at a world
-//! matrix through the field view (`ccView.world_screen` as the camera left
-//! it), into the layers `WORLD_MAN::GO` makes, in the order
-//! `docs/engine/desktop.md` gives for layers (the desktop's [`Layers`]).
-//!
-//! The per-mmat rules (transparency, the sorted group, alpha test, blend by
-//! the model's blend type) are the ones `piney_desktop::anm::draw_model`
-//! applies; this takes the screen matrix, lights, nodes, morph weights and
-//! palette swaps a field model needs.
-//!
-//! Near the camera the programs differ (`docs/engine/render.md`): the town's
-//! unlit pieces go through `mc_DrawTriSFast`, which cuts a triangle crossing
-//! the near plane (w 8) when its last vertex is nearer than `divZ` (1000),
-//! so a floor or wall the camera is pressed against is still drawn up to the
-//! lens; Kite and other lit or skinned models drop such triangles.
+//! Drawing the field: `ccModel::Draw` (0x0013eab0) for a model at a world matrix
+//! through the field view, into `WORLD_MAN::GO`'s layers, with the per-mmat rules
+//! `piney_desktop::anm::draw_model` applies, plus the screen matrix, lights,
+//! nodes, morph weights and palette swaps. Near the camera the unlit pieces go
+//! through `mc_DrawTriSFast`, which cuts a triangle crossing the near plane, and
+//! the lit or skinned ones drop it (docs/engine/render.md).
 
 use std::collections::HashMap;
 

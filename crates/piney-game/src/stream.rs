@@ -1,41 +1,10 @@
-//! An in-engine stream (`ccRequestLoadStream`) as its callers play it: the
-//! title's intro, the event scripts' `stream`, the desktop Audio screen's
-//! movies. The caller holds its own work while the stream plays, one step a
-//! game frame at its own frame rate, and takes it up again at [`done`].
-//!
-//! The stream owns SEWORDS channel 0 from `ccPcmSound::Open` to `Close`:
-//! voice and `BGM.BIN` are stopped as it starts, and its sound is queued
-//! there until it ends.
-//!
-//! The event scripts' `stream` ([`StreamPlayer::event`], `ccEventStream(num,
-//! 1)`) also shows the stream's subtitles over its frames and changes the
-//! area's music around it: [`Event::StreamMusic`] before the first frame
-//! and after the last (`ccSndStreamCtrl`), [`Event::StreamBgm`] at its notes
-//! (`ccSndStreamBGM`). The title's stream and the Audio screen's movies
-//! ([`StreamPlayer::start`]) have neither: no table, and the movie player
-//! holds the music (`ccSndMoviePlayer`, `ccSnd +0x62`).
-//!
-//! Hosting a stream anywhere - the desktop, the town, a field or dungeon -
-//! is the same calls:
-//!
-//! ```text
-//! // the event instruction `stream num` (the host's Host::stream):
-//! let p = StreamPlayer::event(&iso, Some(&data_bin), num, &save,
-//!                             StreamGame { status: game.status, field: game.field }, &mut events)?;
-//! // each game frame while the instruction waits (Host::busy(Wait::Stream)):
-//! match p.step(&pad, &mut events) {
-//!     Some(frame) => show frame instead of the host's own (the stream's picture,
-//!                    the subtitle window over it); give the renderer p.archive()
-//!                    as the overlay archive,
-//!     None => the call has returned: drop p, the instruction goes on,
-//! }
-//! ```
-//!
-//! `events` carries the PCM (`Event::StreamPcm`, `MovieAudioStop`), the
-//! music (`StreamMusic`, `StreamBgm`) and the voice stop; the host passes
-//! them on as it does its own.
-//!
-//! [`done`]: StreamPlayer::step
+//! An in-engine stream (`ccRequestLoadStream`) as its callers play it (the
+//! title's intro, the scripts' `stream`, the Audio screen's movies): the caller
+//! holds its work while the stream steps a game frame at a time, and takes it
+//! up again at [`done`](StreamPlayer::step). The stream owns SEWORDS channel 0 from
+//! `ccPcmSound::Open` to `Close`. The scripts' `stream` ([`StreamPlayer::event`],
+//! `ccEventStream(num, 1)`) also shows subtitles and changes the music around
+//! it (`ccSndStreamCtrl`, `ccSndStreamBGM`); docs/engine/stream.md.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -66,6 +35,7 @@ fn options(save: &SaveData, title_after_desktop: bool) -> Options {
         cancel: Buttons(u32::from(save.assign_pad_cancel())),
         title_after_desktop,
         skill_names: None,
+        parody: save.parody(),
     }
 }
 

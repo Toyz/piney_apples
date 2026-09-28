@@ -1,8 +1,8 @@
 ---
 title: In-engine streams
 status: partial
-volumes: INF
-covers: INF SLUS_202.67:0x0013af10 ccMorpher::Modify, 0x0013a440 ccModel::Init, 0x00348580 alphaBlendTbl, 0x001695a0 ccThExecuteStream, 0x00198da0 ccRequestLoadStream, 0x00198ee0 ccStreamInit, 0x00198fc0 ccStreamLoadPlay::RequestStrPlay, 0x00199690 searchPreLoad, 0x00198330 ReadThread, 0x00198830 DecodeThread, 0x00197f40 WaitEnd, 0x00198250 CheckPause, 0x00198220 ResetPause, 0x0019aaf0 ccGetStreamFrame, 0x0019ab80 ccGetStreamAdrs, 0x0030ef90 streamTbl, 0x003102f0 streamTblE, 0x0030b950 strSndTbl, 0x00159620 ccCdInit, 0x00143890 ccStream::Init, 0x001443b0 DecodeSetup, 0x00149e10 DecodeIndexSection, 0x001476c0 CompleteIndexChunkAdrs, 0x00147a60 CompleteChunk, 0x0014c200 Decode_Clump, 0x0014cb80 Decode_ExtObj, 0x0014c8f0 Decode_Obj2, 0x0014c5d0 Decode_Layer, 0x0014d440 Decode_Light, 0x0014ddb0 Decode_Pcm, 0x00148640 InitScene, 0x0013c5e0 ccClump::Init, 0x0013b5c0 ccObj::Init, 0x00149450 PlayScene, 0x001494c0 PlaySceneMain, 0x00149730 EndScene, 0x00149790 ResetScene, 0x00155d10 ccRingBufferTh::OpenData, 0x00155dd0 OpenBufferData, 0x00155e60 OpenBuffer, 0x0014ded0 DecodeFrameSection, 0x0014e1b0 DecodeFrameChunk, 0x0014e950 DecodeF_Obj, 0x0014ece0 DecodeF_Camera, 0x0014eef0 DecodeF_Ambient, 0x0014ef80 DecodeF_DistantLight, 0x0014f6a0 DecodeF_OmniLight, 0x0014e5b0 DecodeF_Material, 0x0014e6e0 DecodeF_Morpher, 0x0014f830 DecodeF_Note, 0x0014e4a0 DecodeF_Pcm, 0x00148400 ccStreamDrawLayerList::Draw, 0x0013f220 ccObj::Draw, 0x00138380 ccCoord::_SetLWMatrix, 0x00138490 _GetTransparency, 0x00138120 SetMatrix_PosRotZYXScale, 0x00105900 ccDrawEnv::SetLightMatrix, 0x00139830 ccOmniLight::CheckRange, 0x00139170 ccDistantLight::CheckRange, 0x001389b0 ccCreateLight, 0x00139060 ccLightGrp::AddGrp, 0x001092f0 ccPcmSound::Open, 0x00109640 PlayThread, 0x0017d190 ccSndStreamCtrl, 0x0017caa0 ccSndStreamSE, 0x00184340 ccSetStreamDemoNote, 0x001979c0 ccSetStreamDemoThread, 0x0034f420 StreamDemoFuncTbl, 0x001885d0 Func_str0001, 0x0034e370 fogt, 0x0030bd80 fogOffObj, 0x00144630 ccStream::GetSubstAdrsF, 0x00101ad0 ccMatchIndex, 0x0013b970 ccObj::SetRenderState, 0x00105890 ccDrawEnv::SetFog, 0x00106170 ccRasterNoize::Init, 0x001061e0 ccRasterNoize::SetYH, 0x00106280 ccRasterNoize::SetY, 0x001062d0 ccRasterNoize::SetTex, 0x00106320 ccRasterNoize::SetNoize, 0x001063d0 ccRasterNoize::MakePacket, 0x00108a10 ccMakePacketDrawBuffTrans, 0x001089c0 iFuncDrawBuffTrans, 0x001038d0 ccGetBuffAdrs, 0x00106b20 ccBufferSampling::Init, 0x00106bb0 ccBufferSampling::SetReflex, 0x00106dd0 ccBufferSampling::MakePacket, 0x00106d20 iFuncBuffSampling0, 0x00106890 ccBufferReverce::MakePacket, 0x0015fb80 ccScFade::SendPacket, 0x00160400 ccScFade::EntryFade, 0x00160510 ccScFade::DeleteFade, 0x0034b380 ccFadeGIFtag, 0x00133a38 rand, 0x00133a20 srand, 0x0010a5f0 ccSystem::Ctrl, 0x0010ac40 ccSystem::SwapDoubleBuffer, 0x0010ad40 ccSystem::SetScreenModeMain, 0x0015a5c0 ccThControl, 0x00159d40 ccTscb::GoThread, 0x001b5670 ccEventStream, 0x003112f0 evStrMsgTbl, 0x00311510 evStrMsgTblp, 0x00184440 ccGetStreamDemoMsg, 0x0015f860 ccKanjiStrSeparate, 0x0015c210 ccSprite::Trans, 0x00189e10 Func_str0300, 0x0034e3a0 Func_str0300's cue table, 0x001950b0 Func_str0120, 0x0034f350 Func_str0120's cue table, 0x0034f320 hitRot0120a, 0x001cc620 effHitMarkStr, 0x0014f830 DecodeF_Note, 0x00106890 ccBufferReverce::MakePacket, 0x00199f00 ccRequestLoadStreamGateHack, 0x0019a0e0 ccStreamLoadPlay::RequestStrPlayGH, 0x0030e1a0 str7000TblPre, 0x0030e1d0 str7000TblTown, 0x0030e2b0 str7000TblTownC, 0x0030e390 str7000TblAfter, 0x0030f1b0 str7000Out, 0x001919f0 Func_str0090, 0x00194410 Func_str0110, 0x001961c0 Func_str0130, 0x00104ae0 ccView::SetFrame, 0x00189320 Func_str0150, 0x0018abb0 Func_str0240, 0x0018b700 Func_str0250, 0x001ce220 effTransferStr, 0x0034e3d0 hitRot0240, 0x0034e450 hitRot0250, 0x00377cf8 fogObj0150, 0x00106bb0 ccBufferSampling::SetReflex, 0x001923b0 Func_str0301, 0x001938d0 Func_str0305, 0x00192e80 Func_str0350, 0x0018c780 Func_str0570, 0x00196c00 Func_str0610, 0x0034f310 hitRot0301, 0x0034e460 Func_str0570's cue table, 0x00377d10 fogOffObj (str0350), 0x00377d18 fogObj0610, 0x0034e150 charHeightTbl, 0x00184460 Func_str8000, 0x0034e250 Func_str8000's cue table, 0x00186af0 Func_str9000, 0x0034e2e0 Func_str9000's cue table, 0x0034e200 bossSkillNameTbl, 0x00186210 Func_str9001, 0x00185e30 Func_str9001sub, 0x0034e2b0 Func_str9001sub's cue table, 0x0015c2f0 ccSprite::SetTex, 0x0015aed0 ccSprite::MakePacketStr, 0x00187ad0 Func_str7100, 0x0034e310 Func_str7100's cue table, 0x00185170 Func_str8800, 0x0034e280 Func_str8800's cue table, 0x0018e340 Func_str0580, 0x001904a0 Func_str0581, 0x0018d7e0 ccObjPart0580::Ctrl, 0x0018d8a0 ccObjPartCreate0580::Ctrl, 0x0018dee0 ccEffPart0580::Ctrl, 0x0018dfc0 ccEffPart0580::Create, 0x00184220 ccStrPart::~ccStrPart, 0x00184320 ccStrPart::Ctrl, 0x00184150 ccEventObj::SetObj, 0x0034eb60 eventObjTbl_0580, 0x0034f1f0 eventObjTbl_0581, 0x0030bda0 p0580, 0x0030be00 p0580_1, 0x0030be60 p0580_2, 0x0030bf20 p0580_3, 0x0030bec0 p0580_4, 0x00377d00 p0580_0, 0x00377d08 str0581Fog, 0x0030bf60 fogOffObj (str0581), 0x0034e490 rockScaleTbl, 0x00102190 ccRotate, 0x00106bf0 ccBufferSampling::SetShade, 0x0013f3b0 ccObj::CheckBoundingBox; INF demo.prg:0x004066b0 PlayOpeningStream; INF desktop.prg:0x00407100 Audio_control::SimplePlayStream; INF MODULES/SEWORDS.IRX:0x0800 strPcmFunc
+volumes: INF, MUT
+covers: INF SLUS_202.67:0x0013af10 ccMorpher::Modify, 0x0013a440 ccModel::Init, 0x00348580 alphaBlendTbl, 0x001695a0 ccThExecuteStream, 0x00198da0 ccRequestLoadStream, 0x00198ee0 ccStreamInit, 0x00198fc0 ccStreamLoadPlay::RequestStrPlay, 0x00199690 searchPreLoad, 0x00198330 ReadThread, 0x00198830 DecodeThread, 0x00197f40 WaitEnd, 0x00198250 CheckPause, 0x00198220 ResetPause, 0x0019aaf0 ccGetStreamFrame, 0x0019ab80 ccGetStreamAdrs, 0x0030ef90 streamTbl, 0x003102f0 streamTblE, 0x0030b950 strSndTbl, 0x00159620 ccCdInit, 0x00143890 ccStream::Init, 0x001443b0 DecodeSetup, 0x00149e10 DecodeIndexSection, 0x001476c0 CompleteIndexChunkAdrs, 0x00147a60 CompleteChunk, 0x0014c200 Decode_Clump, 0x0014cb80 Decode_ExtObj, 0x0014c8f0 Decode_Obj2, 0x0014c5d0 Decode_Layer, 0x0014d440 Decode_Light, 0x0014ddb0 Decode_Pcm, 0x00148640 InitScene, 0x0013c5e0 ccClump::Init, 0x0013b5c0 ccObj::Init, 0x00149450 PlayScene, 0x001494c0 PlaySceneMain, 0x00149730 EndScene, 0x00149790 ResetScene, 0x00155d10 ccRingBufferTh::OpenData, 0x00155dd0 OpenBufferData, 0x00155e60 OpenBuffer, 0x0014ded0 DecodeFrameSection, 0x0014e1b0 DecodeFrameChunk, 0x0014e950 DecodeF_Obj, 0x0014ece0 DecodeF_Camera, 0x0014eef0 DecodeF_Ambient, 0x0014ef80 DecodeF_DistantLight, 0x0014f6a0 DecodeF_OmniLight, 0x0014e5b0 DecodeF_Material, 0x0014e6e0 DecodeF_Morpher, 0x0014f830 DecodeF_Note, 0x0014e4a0 DecodeF_Pcm, 0x00148400 ccStreamDrawLayerList::Draw, 0x0013f220 ccObj::Draw, 0x00138380 ccCoord::_SetLWMatrix, 0x00138490 _GetTransparency, 0x00138120 SetMatrix_PosRotZYXScale, 0x00105900 ccDrawEnv::SetLightMatrix, 0x00139830 ccOmniLight::CheckRange, 0x00139170 ccDistantLight::CheckRange, 0x001389b0 ccCreateLight, 0x00139060 ccLightGrp::AddGrp, 0x001092f0 ccPcmSound::Open, 0x00109640 PlayThread, 0x0017d190 ccSndStreamCtrl, 0x0017caa0 ccSndStreamSE, 0x00184340 ccSetStreamDemoNote, 0x001979c0 ccSetStreamDemoThread, 0x0034f420 StreamDemoFuncTbl, 0x001885d0 Func_str0001, 0x0034e370 fogt, 0x0030bd80 fogOffObj, 0x00144630 ccStream::GetSubstAdrsF, 0x00101ad0 ccMatchIndex, 0x0013b970 ccObj::SetRenderState, 0x00105890 ccDrawEnv::SetFog, 0x00106170 ccRasterNoize::Init, 0x001061e0 ccRasterNoize::SetYH, 0x00106280 ccRasterNoize::SetY, 0x001062d0 ccRasterNoize::SetTex, 0x00106320 ccRasterNoize::SetNoize, 0x001063d0 ccRasterNoize::MakePacket, 0x00108a10 ccMakePacketDrawBuffTrans, 0x001089c0 iFuncDrawBuffTrans, 0x001038d0 ccGetBuffAdrs, 0x00106b20 ccBufferSampling::Init, 0x00106bb0 ccBufferSampling::SetReflex, 0x00106dd0 ccBufferSampling::MakePacket, 0x00106d20 iFuncBuffSampling0, 0x00106890 ccBufferReverce::MakePacket, 0x0015fb80 ccScFade::SendPacket, 0x00160400 ccScFade::EntryFade, 0x00160510 ccScFade::DeleteFade, 0x0034b380 ccFadeGIFtag, 0x00133a38 rand, 0x00133a20 srand, 0x0010a5f0 ccSystem::Ctrl, 0x0010ac40 ccSystem::SwapDoubleBuffer, 0x0010ad40 ccSystem::SetScreenModeMain, 0x0015a5c0 ccThControl, 0x00159d40 ccTscb::GoThread, 0x001b5670 ccEventStream, 0x003112f0 evStrMsgTbl, 0x00311510 evStrMsgTblp, 0x00184440 ccGetStreamDemoMsg, 0x0015f860 ccKanjiStrSeparate, 0x0015c210 ccSprite::Trans, 0x00189e10 Func_str0300, 0x0034e3a0 Func_str0300's cue table, 0x001950b0 Func_str0120, 0x0034f350 Func_str0120's cue table, 0x0034f320 hitRot0120a, 0x001cc620 effHitMarkStr, 0x0014f830 DecodeF_Note, 0x00106890 ccBufferReverce::MakePacket, 0x00199f00 ccRequestLoadStreamGateHack, 0x0019a0e0 ccStreamLoadPlay::RequestStrPlayGH, 0x0030e1a0 str7000TblPre, 0x0030e1d0 str7000TblTown, 0x0030e2b0 str7000TblTownC, 0x0030e390 str7000TblAfter, 0x0030f1b0 str7000Out, 0x001919f0 Func_str0090, 0x00194410 Func_str0110, 0x001961c0 Func_str0130, 0x00104ae0 ccView::SetFrame, 0x00189320 Func_str0150, 0x0018abb0 Func_str0240, 0x0018b700 Func_str0250, 0x001ce220 effTransferStr, 0x0034e3d0 hitRot0240, 0x0034e450 hitRot0250, 0x00377cf8 fogObj0150, 0x00106bb0 ccBufferSampling::SetReflex, 0x001923b0 Func_str0301, 0x001938d0 Func_str0305, 0x00192e80 Func_str0350, 0x0018c780 Func_str0570, 0x00196c00 Func_str0610, 0x0034f310 hitRot0301, 0x0034e460 Func_str0570's cue table, 0x00377d10 fogOffObj (str0350), 0x00377d18 fogObj0610, 0x0034e150 charHeightTbl, 0x00184460 Func_str8000, 0x0034e250 Func_str8000's cue table, 0x00186af0 Func_str9000, 0x0034e2e0 Func_str9000's cue table, 0x0034e200 bossSkillNameTbl, 0x00186210 Func_str9001, 0x00185e30 Func_str9001sub, 0x0034e2b0 Func_str9001sub's cue table, 0x0015c2f0 ccSprite::SetTex, 0x0015aed0 ccSprite::MakePacketStr, 0x00187ad0 Func_str7100, 0x0034e310 Func_str7100's cue table, 0x00185170 Func_str8800, 0x0034e280 Func_str8800's cue table, 0x0018e340 Func_str0580, 0x001904a0 Func_str0581, 0x0018d7e0 ccObjPart0580::Ctrl, 0x0018d8a0 ccObjPartCreate0580::Ctrl, 0x0018dee0 ccEffPart0580::Ctrl, 0x0018dfc0 ccEffPart0580::Create, 0x00184220 ccStrPart::~ccStrPart, 0x00184320 ccStrPart::Ctrl, 0x00184150 ccEventObj::SetObj, 0x0034eb60 eventObjTbl_0580, 0x0034f1f0 eventObjTbl_0581, 0x0030bda0 p0580, 0x0030be00 p0580_1, 0x0030be60 p0580_2, 0x0030bf20 p0580_3, 0x0030bec0 p0580_4, 0x00377d00 p0580_0, 0x00377d08 str0581Fog, 0x0030bf60 fogOffObj (str0581), 0x0034e490 rockScaleTbl, 0x00102190 ccRotate, 0x00106bf0 ccBufferSampling::SetShade, 0x0013f3b0 ccObj::CheckBoundingBox; INF demo.prg:0x004066b0 PlayOpeningStream; INF desktop.prg:0x00407100 Audio_control::SimplePlayStream; INF MODULES/SEWORDS.IRX:0x0800 strPcmFunc; MUT SLUS_205.62:0x0019c140 Func_str0710, 0x00187960 the text block constructor, 0x00187ac0 its fade, 0x00187bd0 SetText, 0x00366e30 eventObjTbl_0710, 0x00366ea0 its cue jump table, 0x00367210 StreamDemoFuncTbl
 worklog: 52
 ---
 
@@ -959,6 +959,127 @@ sixteenths of the view's size.
 the game's: the draw list, each object's transparency and matrix, the
 camera and the lights at the first object drawn. The lights needed a fix:
 the distant light goes after the omni ones ([a scene](#a-scene)).
+
+## Stream 24's effect task (MUT)
+
+Stream 24 is Mutation's opening (event 101's `stream 24`), scene
+`str0710`. `StreamDemoFuncTbl` (MUT main 0x00367210) names
+`Func_str0710` (MUT main 0x0019c140-0x0019df6c) for it, a row Infection
+does not have. It keeps the `ccStrEffectCtrl` and pass of the tasks
+above, on the task's layer (100), with stream 15's walker and puffs
+(`Func_str0581`'s, over its own table), and two blocks of text lines.
+
+- **The effect file.** `str0710e` (else `str0710ep`) and its `EFF_x001`.
+- **The table.** `eventObjTbl_0710` (MUT main 0x00366e30): cue 0 on
+  `EXT_t0` (type 2, never asked for), 602, 603 and 604 on `EXT_t0` and
+  607 on `OBJ_marker01` (each type 0, a burst), then 100000. `SetObj`
+  and `ccEffPart0580::Create` are Infection's code (same instructions).
+- **A block of lines** (0x298 bytes, new in Mutation): ten slots of 64
+  bytes (+0x00 a `ccKanji`, `Init(3, 8)`; +0x08 the length; +0x0c the
+  text; +0x38 x; +0x3c y), +0x280 the alpha, +0x284 its step a frame,
+  +0x288 where the step stops, +0x28c the lines in use, +0x290 20 and
+  +0x294 24 (the width per byte and the line height). The constructor
+  (0x00187960) makes each slot's `ccKanji`; the task puts them on a layer
+  of priority 1000 with `sysLayer`'s view, colour `ccSpriteColorTable[2]`,
+  alpha 0.
+- **`SetText(s)`** (0x00187bd0) empties the old lines, then splits `s` at
+  `\n` into at most ten lines of at most 40 bytes, line `i` at (0, 24 i).
+- **The fade** (0x00187ac0), each frame: nothing while the step is 0;
+  else the alpha moves by the step and is held at its stop (the step then
+  0), and every line's sprite alpha becomes `fptosi(128 alpha)`. While
+  the alpha is not 0 each line is drawn: `ccKanji::Disp(text, -1, 1, 1)`
+  at (x, y).
+
+The pass: at scene frame 465 the shades go off (count 0); at 1050
+`SetReflex(1.005, 0, 0x58808080)`; at 1155 the feedback and the shades
+off. Then the cues, last queued first:
+
+```text
+602-610   SetObj(cue); a type-0 entry bursts puffs at its object
+700, 710  block 1 (2): SetText of its text (Parody Mode's when
+          saveData.parodyFlag), each line at x 256 - 20 n / 2 / 2, the
+          block at y 24 i + 175 - 24 lines / 2 / 2; alpha 0 rising 0.05
+          a frame to 1
+709, 719  block 1 (2): alpha 1 falling 0.05 a frame to 0
+600, 601  EntryFade(20, 0, 0x40000000), (20, 0x40000000, 0x80000000)
+800       EntryFade(30, 0x80000000, 0)
+999       EntryFade(1, 0x80000000, 0x80000000)
+900       EntryFade(16, 0x80ffffff, 0x00ffffff)
+901-904   EntryFade(10, 0x80ffffff, 0x00ffffff)
+65        SetReflex(1.005, 0, 0x40808080), a fade over 15 ready
+56        the shades and the feedback off
+55        two shades SetShade(0, 896, 0, 7 - i, 7 - i, 250, 0x40808080);
+          SetReflex(1.01, 0, 0x50808080), its depth 1000
+else      the last digit (jump table MUT main 0x00366ea0): 1 noise on,
+          2 off, 3 inversion on, 4 off, 5 SetReflex(1.02, 0, 0x40808080),
+          6 the feedback fading, 7 and 8 a one-frame white flash
+```
+
+Then the parts, the two blocks' fades and draws, and the `Ctrl`'s
+packets (noise at `SetNoize(20)`). The task starts with
+`EntryFade(1, 0x80000000, 0x80000000)`. When the loop ends it turns the
+feedback off, waits a frame and deletes itself.
+
+## Mutation's other effect tasks
+
+The rest of Mutation's new rows keep the same `ccStrEffectCtrl` and pass,
+with no walker or parts but `Func_str1070`'s. Each is started for its
+scene as the tasks above; "black over the frames left" is
+`EntryFade(frameEnd - frameNow, 0, 0x80000000)` (1 frame when none are
+left), and a transfer is `effTransferStr` at the note's object with a row
+of Mutation's `charHeightTbl` (main 0x00365b40: 0 160, 6 180, 15 165, 17
+210). A digit is the cue's last one through the task's jump table.
+
+| task (MUT main) | set-up | frames | cues |
+| --- | --- | --- | --- |
+| `str0770` (0x0019df80) | fog (0, 4000, 0, 50, 0x008c5000); shades at 310, 620 | | 899 black |
+| `str0780` (0x0019e9e0) | the same fog; shades at 1000, 3000 | 287, 2540 shades 310, 620; 2469 800, 1600 | 899 black |
+| `str0820` (0x0019f5d0) | white for a frame | | 500, 510 transfers (160, 165); 900 white out over 20; 999 to white over the frames left; 5 grey out over 10 and `SetReflex(1.01, 0, 0x34808080)`; 15, 25 `SetReflex(1.01, 0, 0x50808080)` with a fade over 20 ready; 6, 16, 26 feedback fading |
+| `str0821` (0x001a03a0) | white for a frame | 2 white out over 20 | 501, 502 transfers (210, 165); 900 white out over 20; 899 black |
+| `str0880`, `str0885` (0x001a1050) | fog (0, 4000, 0, 60, 0x0078145a) | | 601-604 a hit mark, each the next of four rotations (0x00366ed0: (0, 30, 180), (0, 30, 0), twice); digits (0x00366f10) 1-4 noise and inversion, 5 `SetReflex(1.015, 0, 0x50808080)`, 6 off |
+| `str0932` (0x001a1cb0) | fog (200, 4000, 0, 60, 0x0019140a) | 1700 `SetFog(0, 0, 0, 0, 0)` | 899 black; digits 1, 2 noise, 5 `SetReflex(1.02, 0, 0x48808080)`, 6 off |
+| `str1040` (0x001a2880) | two text blocks | shades (below) | 700-730 a text; 709-739 its fade out; 800, 801, 809, 819, 829 fades |
+| `str1041` (0x001a4930) | black for a frame | 2 black out over 30 | 899 black; 800 nothing; digits (0x00366f30) 1 noise and `SetReflex(1.02, 0, 0x40808080)`, 2-4, 5 `SetReflex(1.015, 0, 0x48808080)`, 6 off |
+| `str1050` (0x001a5640) | | | 9, 7 transfers (180, 210); 899 black; digits (0x00366f50) 1-4, 5 `SetReflex(1.01, 0, 0x48808080)`, 6 off |
+| `str1090` (0x001a8570) | | | 500, 501 transfers (160, 165); 900-950 white out over 6; 809-859 to 0x60 black over 40; 869 black at once; digits 5 `SetReflex(1.01, 0, 0x30808080)`, 6 off |
+| `str9204`-`str9206` (0x001a92a0) | `Func_str9000`'s letterbox and fog | | the cue itself (0x00367030): 1-4, 5 `SetReflex(1.01, 0, 0x58808080)` with a fade over 60 ready, 6 fading |
+
+The shades are two `SetShade(0, 896, 0, 8 - i, 8 - i, z_i, colour)`, the
+second's depth a multiple of the first's.
+
+`SetFog` with `near` equal to `far` divides 0 by 0; the EE gives the
+largest float, so the fog term is held at its near value: `str0932`'s
+frame 1700 clears the fog.
+
+`Func_str1040` (stream 31) keeps two text blocks as the opening's, and
+which one the next text goes to (+0x12, 0 first). Cues 700, 710, 720 and
+730 `SetLines` (0x00187cf0: `last + 1` NUL-separated lines, here 4) the
+current block from stream 31's subtitle records 16 to 19 (MUT main
+0x00327640 and Parody Mode's 0x00327ec0, at `evStrMsgTbl[31]` + 192), then
+place and fade it in as cue 700 does; 709, 719, 729 and 739 fade it out
+and make the other block current. The blocks fade and draw after the
+`Ctrl`'s packets. Its shades by scene frame:
+
+```text
+340             310, 620, colour 0x00808080; their alpha from 0 to 96 over
+                20 frames (+0xec 20, +0xf0 (0 - 96) << 16 / 20, +0xee 96)
+1331, 1752      1000, 1600, 0x40808080
+1676            150, 300, 0x50808080
+2400            335, 670, 0x50808080
+2566            750, 1500, 0x50808080
+3170            1500, 3000, 0x40808080
+4146, 4306, 4725  1500, 1500, 0x50808080
+621, 1586, 2106, 2961, 3411, 4416  none drawn
+```
+
+A new set leaves a fade in progress running over it. Fades: 809 to black
+over 20, 800 from black over 20, 819 to 0x40 black, 801 from it, 829 black
+over the frames left.
+
+`Func_str1070` (0x001a6af0) adds a part system of its own (a creator,
+0x001a6510, and a thrown object, `Ctrl` 0x001a63e0, over `str1070e`'s
+models and parameter blocks at MUT main 0x00321c00); not described here.
+`str9201` and `str9301` run `Func_str9101`'s (0x00189ed0).
 
 ## The drain streams' effect tasks
 

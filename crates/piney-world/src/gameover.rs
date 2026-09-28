@@ -1,13 +1,10 @@
 //! The game over's picture (`ccThGameOver`, gcmn 0x00516a80, and
 //! `ccGameOverNoise`, 0x00516d30-0x005177f4): bursts of `ccNoiz` over the
-//! frozen field, then the screen switched off like a television, the
-//! picture squeezed to a line (sound 90, a white flash) and the line to a
-//! dot (`docs/engine/field-walk.md`, "The game over").
-//!
-//! [`GameOverNoise::main`] is one frame of `ccGameOverNoise::Main`: what it
-//! drew (`ccNoiz::Draw`), the sounds (`ccSeOn`), the flash
-//! (`ccScFade::EntryFlash` on sysLayer) and sysLayer's view frame
-//! (`ccView::SetFrame`) it left.
+//! frozen field, then the screen switched off like a television, squeezed to
+//! a line (sound 90, a white flash) and the line to a dot
+//! (docs/engine/field-walk.md, "The game over"). [`GameOverNoise::main`] is
+//! one frame of `ccGameOverNoise::Main`: its draws, sounds, flash and
+//! sysLayer's view frame.
 
 use piney_desktop::noiz::Noiz;
 use piney_draw::Cmd;

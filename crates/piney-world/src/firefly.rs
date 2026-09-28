@@ -1,63 +1,11 @@
-//! `FIREFLY2` (gcmn firefly.cpp, 0x120 bytes): a firefly that wanders
-//! about a base point near the player and throws off sparks, each a
-//! `ccEff` sprite. The boss arenas make 54 of them
-//! (`EVENTAREAB0::EVENTAREAB0`, [`crate::evarea_b0`]); `WORLD::Generate`
-//! makes fifteen of type 1 for field type 9 (`SetDirc`), and the fields'
-//! `FIREFLY` makes type 0 sparks of its own
-//! ([`crate::field_firefly`]).
-//!
-//! ```text
-//! FIREFLY2()          0x005b4550  type 0, speed 1, spread 15.0,
-//!                                 timer fieldrand(20) + 10, pattern
-//!                                 fieldrand(100), no sparks, velocity
-//!                                 (0, 0, 1.0), transparency 0
-//! Init(stream, name)  0x005b4d30  life fieldrand(200) + 220; a ccEff
-//!                                 Init(chunk, 1) (fog on), scale 1.5; the
-//!                                 name kept for the sparks
-//! SetBasePosition(p)  0x005b49f0  base p; pos = (fieldrand(500) - 250,
-//!                                 fieldrand(500) - 250) + base (4 lanes),
-//!                                 then z fieldrand(100) (not the base's),
-//!                                 w 1
-//! Draw()              0x005b5eb0  a firefly (not a spark) under life 100:
-//!                                 transparency 0.1 life; the ccEff takes
-//!                                 it; drawn at P2W(W2P(pos)) with pattern
-//!                                 +0x90 while sqrt(x x + y y) of W2P(pos)
-//!                                 (in double) is 1000 or less, its sparks
-//!                                 after it
-//! Move()              0x005b5050  (type 0) nothing while W2P(pos) is
-//!                                 past 1000 across; else the fade, life
-//!                                 down, pos += velocity * speed, pattern
-//!                                 on (0 at 100); a firefly with under 3
-//!                                 sparks makes one when fieldrand(100) is
-//!                                 61 or more; the sparks' Move, a dead one
-//!                                 deleted; then the firefly's timer down
-//!                                 (at 0 a new turn) and, at life 0,
-//!                                 SetBasePosition(W2P(pos)) and a new life
-//! ```
-//!
-//! The last `SetBasePosition` takes the position relative to the player as
-//! the new base, so a firefly that lives out its life starts again near
-//! the world's origin by as much as it stood from the player.
-//!
-//! Type 1 (`SetDirc(d)`: type 1, speed 2, velocity d) differs in `Move`
-//! and `SetBasePosition`:
-//!
-//! ```text
-//! Move              no reach test; farther than 2000 on the ground from
-//!                   the camera (cameraGetPos(camID)): transparency 0,
-//!                   SetBasePosition2(the player's place) and a new
-//!                   velocity ((fieldrand(2000) - 1000) / 1000 each way);
-//!                   its sparks are type 1 at transparency 0.2; the turn
-//!                   every 60-119 frames to such a velocity; at life 0
-//!                   SetBasePosition2(the camera's or the player's place)
-//! SetBasePosition   x, y fieldrand(3000) - 1500 about the base; z the
-//!                   ground's there plus fieldrand(300) (after the
-//!                   fieldrand(100) type 0 keeps)
-//! SetBasePosition2  0x005b4ba0: (fieldrand(3000) - 1500, fieldrand(3000)
-//!                   - 1500, fieldrand(300)) turned by the camera's z
-//!                   angle, z then the ground's height at that offset (not
-//!                   at the place), plus the base
-//! ```
+//! `FIREFLY2` (gcmn firefly.cpp, 0x120 bytes): a firefly that wanders about a
+//! base point near the player and throws off sparks, each a `ccEff` sprite.
+//! The boss arenas make 54 ([`crate::evarea_b0`]); `WORLD::Generate` makes
+//! fifteen of type 1 for field type 9 (`SetDirc`); the fields' `FIREFLY`
+//! makes type 0 sparks of its own ([`crate::field_firefly`]). A type-0
+//! firefly that lives out its life starts again near the world's origin, by
+//! as much as it stood from the player: `SetBasePosition` takes the relative
+//! place as the new base (docs/engine/evarea.md, docs/engine/field.md).
 
 use piney_data::dungeon::Rng;
 

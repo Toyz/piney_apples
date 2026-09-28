@@ -1,39 +1,10 @@
-//! Answers `tools/test_evcam_rs.py`: the event camera (evcam.rs) and the
-//! field's tasks around it - the event's camera instructions, then each
-//! frame `ccThCameraExecute`'s `CamCtrl`, `cameraMain` and
-//! `ccPlayer::Main` - printing the state as one JSON line, so the test can
-//! run the same through the game's own code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example evcam_probe
-//! evcam_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns, signed values as
-//! their 32-bit two's complement. Requests, one a line:
-//! - `start X Y Z DIRCZ SCHEME MODE SEED`: Mac Anu (`town01`), Kite
-//!   arriving at (X, Y, Z) facing DIRCZ, camera scheme SCHEME and
-//!   `cameraMode` MODE, `rand` seeded with SEED; the camera as ccThCamera's
-//!   set-up leaves it, no event camera. Prints the state.
-//! - `char TYPE CODE X Y Z W`: what the scene answers for the character
-//!   (TYPE, CODE); `kite TYPE CODE`: Kite's position, as he moves;
-//!   `unchar TYPE CODE`: nothing (the leader, Kite, stands in).
-//! - `mark N X Y Z W`: marker N's position; `markerpos N`: `markerEvTbl[N]`'s
-//!   dummy in `town01` (`World::marker_bits`), printed.
-//! - `cmd OP A0 A1 ..`: one camera instruction (code OP, its operands as the
-//!   script has them) at play level. Prints the state.
-//! - `teach PART`, `ban ON`: `teach_camera`'s and `menu_ban` / `menu_clear`'s
-//!   camera parts. Print the state.
-//! - `pad DIRECT PUSH POWL DIRCL POWR DIRCR POW0 .. POW11 ZOOMIN ZOOMOUT`:
-//!   one frame (the event camera's task if it runs, `cameraMain`,
-//!   `ccPlayer::Main`). Prints the state.
-//!
-//! The state: `ctrl`, `ccEvCamCtrl` as the game lays it out (196 words,
-//! padding zero); `running`, `cam_id`, `normal`, `puppet`; `tcam`, `ecam`,
-//! `bcam` as `CAMERA`'s first 26 words (`cptr` zero); `resetting`,
-//! `mem_dirc_z`, `mode`, `world_view`, `world_screen`; and Kite's
-//! position, heading, move, speeds, flags, act, counters, cloak,
-//! transparency, `angle`, `lost_head`.
+//! Answers `tools/test_evcam_rs.py` (`evcam_probe ISO < requests`): the event
+//! camera (evcam.rs) and the field's tasks around it - the event's camera
+//! instructions, then each frame `CamCtrl`, `cameraMain` and
+//! `ccPlayer::Main` - printing the state (`ccEvCamCtrl` as the game lays it
+//! out, the three cameras, Kite) as one JSON line. Requests: `start`, `char`,
+//! `kite`, `unchar`, `mark`, `markerpos`, `cmd`, `teach`, `ban`, `pad`;
+//! numbers hex, floats their bits, the fields the harness's.
 
 use std::collections::HashMap;
 use std::io::BufRead;

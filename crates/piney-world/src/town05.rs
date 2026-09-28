@@ -1,34 +1,9 @@
-//! Lia Fail: `ROOTTOWN05` (OUT gcmn town05.cpp, constructor 0x0043c5e0,
-//! `Draw` 0x0043e8e0 through the vtable at 0x00384300), the fifth Root Town
+//! Lia Fail: `ROOTTOWN05` (OUT gcmn town05.cpp, constructor 0x0043c5e0, `Draw`
+//! 0x0043e8e0 through the vtable at 0x00384300), the fifth Root Town
 //! (`game.town` 4, the server Omega), new in Outbreak (Quarantine's is the
-//! same). Infection's executable carries an earlier `ROOTTOWN05` no disc
-//! reaches.
-//!
-//! ```text
-//! ROOTTOWN05()  the map's layers; town05 (no crisis file); SetFog(1500,
-//!   0x0043c5e0  10000, 0, 75, 0x00f0c080) and ccSys.bgColor the same; 7
-//!               STATICMODELs (RT_MODELTABLE05), no STATICOBJECTs; the sky
-//!               CMP_sr5bac1 (+0x4c4), SetFogSw(0); the map's sprites
-//!               (TEX_sr5map1 three times, xallow0); the lights from
-//!               ANM_sr5bac1a (town05Light: LGT_fdirect01, LGT_omni01-19);
-//!               BLT_bg, _obj, _obj2, _floor; town_z and six ccEffs of its
-//!               lens flare (EFF_sflenz_1-6, never drawn); 19 ccEffs of
-//!               EFF_se1_1ef1 (+0x1b4), each with a pattern fieldrand(patNum)
-//!               (+0x330), a wait fieldrand(100) + 30 (+0x37c) and a flicker
-//!               fieldrand(15) + 1 (+0x3c8), at DMY_omnpoint01-19 (+0x200)
-//! Draw()        DrawBG; on objLayer DrawObj2, DrawObj, DrawFloor, DrawMap,
-//!   0x0043e8e0  the type-0 rows; on effLayer each omni point's glow: while
-//!               it waits, its pattern drawn and stepped (back to 0 at
-//!               patNum); then it flickers, a pattern fieldrand(patNum) a
-//!               frame for its count, and waits again (both drawn anew)
-//! DrawBG()      three scrolls stepped (0.01, 0.02, 0.001, each back to 0
-//!   0x0043d200  past 1) that nothing reads; the sky at the origin on
-//!               bgLayer[0] (-100)
-//! DrawObj2, DrawObj, DrawFloor  0x0043d410, 0x0043d370, 0x0043d4b0: the
-//!               rows of type 3, 2, 1
-//! ```
-//!
-//! The BLT chunks only load textures into the GS.
+//! same). A sky, 7 static models, and 19 glows (`EFF_se1_1ef1`) at the omni
+//! points that wait, then flicker through patterns from `fieldrand`
+//! (docs/engine/root-towns.md).
 
 use std::collections::HashMap;
 use std::sync::Arc;

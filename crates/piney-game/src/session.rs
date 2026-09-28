@@ -1,25 +1,9 @@
 //! The game from power-on, as `ccThMother` runs it: the boot, then one mode
-//! at a time, each asking for the next with `ccGame::ChangeRequest`.
-//!
-//! ```text
-//! boot         ccSaveData::Init, ccEvent::Init, ccStartEvent(1, 0)
-//! 2  title     DEMO.PRG: the card check, logos, intro, menu    (piney-demo)
-//! 3  desktop   DESKTOP.PRG                                      (piney-desktop)
-//! 1  reset     back to the title, the save and events started again, logos skipped
-//! 4  The World TOPPAGE.PRG: the top page and the board              (piney-toppage)
-//! 5, 6 The World  GCMN.PRG: the Root Town, walking (Mac Anu, Dun Loireag) (piney-world)
-//!      then fields and dungeons                                      (area.rs)
-//! ```
-//!
-//! The save and the event task outlive the modes and are handed from one to
-//! the next; so do `ccGame`'s scene and `WORLD_MAN`'s area, which a change
-//! of scene in The World (`ccGame::ChangeScene`, `ChangeRequest(6, 7)`)
-//! reads to make the next mode 6: the town's, or a field's or dungeon's.
-//! So does `ccSystem`'s frame rate, which the desktop's setup keeps until
-//! its own `SetFrameRate(1)`. Mode 3 comes from the title, the board, The
-//! World (the scripts' `mode 3`, event 4's end in the dungeon) and the
-//! desktop's own setup (event 4's second `mode 3`), which sets the desktop
-//! up again on the same event task.
+//! at a time (2 the title, 3 the desktop, 4 the top page, 5 and 6 The World,
+//! 1 a reset), each asking for the next with `ccGame::ChangeRequest`. The
+//! save and the event task are handed from mode to mode, as are `ccGame`'s
+//! scene, `WORLD_MAN`'s area and `ccSystem`'s frame rate. The modes and their
+//! overlays are in docs/engine/overview.md.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -508,7 +492,7 @@ impl Session {
                 "core LETTER [N]   virus cores (A-Z)",
                 "gold N            Kite's gold, plus N",
                 "heal              the party at full HP/SP (field)",
-                "god               the party kept at full HP/SP (on / off)",
+                "god               the party kept at full HP/SP, the fallen got up (on / off)",
                 "kill              every enemy here felled by Kite",
                 "protect           every enemy's protect broken (Data Drain)",
                 "town N            to a Root Town (0 Mac Anu, 1 Dun Loireag, 2 Carmina Gadelica, 3 Fort Ouph, 4 Lia Fail)",
@@ -1000,6 +984,7 @@ impl Mode for Session {
             Stage::Area(a) => {
                 let frame = a.step(pad);
                 if self.god {
+                    a.revive_party();
                     a.heal_party();
                 }
                 let events = a.take_events();
@@ -1923,6 +1908,9 @@ mod tests {
             CMD_QUIT
         } else if ctl.bbs_new && !taken(CMD_BBS) {
             CMD_BBS
+        } else if taken(CMD_LOGIN) && !taken(CMD_QUIT) {
+            // Log in and the board both taken (event 107's end): Quit.
+            CMD_QUIT
         } else {
             CMD_LOGIN
         };
@@ -1964,9 +1952,14 @@ mod tests {
     /// the same for the windows and the camera tutorial's prompts held (a
     /// scheme A player: L1 to turn, the right stick to zoom, R2 to reset).
     fn story_player(s: &Session, f: u64) -> Raw {
+        story_player_with(s, f, &[])
+    }
+
+    /// [`story_player`], passing by the town NPCs in `talked`.
+    pub(super) fn story_player_with(s: &Session, f: u64, talked: &[i32]) -> Raw {
         if let Stage::World(w) = &s.stage
             && !w.streaming()
-            && let Some(raw) = gate_player(w, f)
+            && let Some(raw) = gate_player(w, f, talked)
         {
             return raw;
         }
@@ -2107,6 +2100,8 @@ mod tests {
         /// Event point `num` of the dungeon.
         Point(i32),
         Party(i32),
+        /// The desktop or the top page (a block set on `game_status` 2 or 3).
+        Leave,
     }
 
     pub(super) fn story_wants(vm: &piney_event::vm::Vm, save: &piney_data::save::SaveData) -> Vec<Want> {
@@ -2142,17 +2137,24 @@ mod tests {
             let mut point = -1i32;
             let mut after = -1i16;
             let mut held = true;
+            let mut away = false;
             for (b, block) in script.blocks.iter().enumerate() {
                 for t in &block.tags {
                     match *t {
-                        Tag::GameStatus { status } if status != 5 => (scene, point) = ([-1; 6], -1),
-                        Tag::Scene { area, town, field, dungeon, floor, block } => {
-                            (scene, point) = ([area, town, field, dungeon, floor, block], -1)
+                        Tag::GameStatus { status } if status != 5 => {
+                            (scene, point) = ([-1; 6], -1);
+                            away = matches!(status, 2 | 3);
                         }
-                        Tag::InTown { town } => (scene, point) = ([0, town, -1, -1, -1, -1], -1),
-                        Tag::InField { town, field } => (scene, point) = ([1, town, field, -1, -1, -1], -1),
+                        Tag::GameStatus { .. } => away = false,
+                        Tag::Scene { area, town, field, dungeon, floor, block } => {
+                            (scene, point, away) = ([area, town, field, dungeon, floor, block], -1, false)
+                        }
+                        Tag::InTown { town } => (scene, point, away) = ([0, town, -1, -1, -1, -1], -1, false),
+                        Tag::InField { town, field } => {
+                            (scene, point, away) = ([1, town, field, -1, -1, -1], -1, false)
+                        }
                         Tag::InDungeon { town, field, dungeon } => {
-                            (scene, point) = ([2, town, field, dungeon, -1, -1], -1)
+                            (scene, point, away) = ([2, town, field, dungeon, -1, -1], -1, false)
                         }
                         Tag::BlockDone { num } => after = num,
                         Tag::InPoint { num } => point = i32::from(num),
@@ -2184,6 +2186,9 @@ mod tests {
                 });
                 if !reachable {
                     continue;
+                }
+                if away {
+                    out.push(Want::Leave);
                 }
                 match scene {
                     [0, town, ..] if town >= 0 => out.push(Want::Town(i32::from(town))),
@@ -2276,7 +2281,7 @@ mod tests {
     /// What the story autopilot goes for in a town, in order: an event's
     /// NPC to talk to, a mail or post unread (log out), another town, a
     /// member to call, an area's words, the marks. None with none.
-    pub(super) fn gate_goal(w: &crate::world::WorldMode) -> Option<GateGoal> {
+    pub(super) fn gate_goal(w: &crate::world::WorldMode, talked: &[i32]) -> Option<GateGoal> {
         use piney_world::entry::Kind;
         let save = &w.world().state().save;
         // A mail unread, or a post new on the board (posted, or written
@@ -2292,7 +2297,7 @@ mod tests {
         let world = w.world();
         let talk = world.event_targets().iter().find_map(|&(_, code)| {
             let code = i32::from(code);
-            world.char_place(Kind::Npc, code).map(|(pos, _)| (code, pos))
+            (!talked.contains(&code)).then(|| world.char_place(Kind::Npc, code).map(|(pos, _)| (code, pos))).flatten()
         });
         // What the story waits for, in order: a talk here, another town,
         // a member it wants in the party (one with an address who answers
@@ -2345,6 +2350,9 @@ mod tests {
             _ if mail => GateGoal::LogOut,
             (None, Some(g), ..) => g,
             _ if posts => GateGoal::LogOut,
+            // The story goes on on the desktop or the top page (event 107's
+            // Quit after its town).
+            _ if wants.contains(&Want::Leave) => GateGoal::LogOut,
             (None, None, Some(&(row, _)), _) => GateGoal::Area(row),
             (None, None, None, Some(row)) => GateGoal::Town(row),
             (None, None, None, None) => return None,
@@ -2356,11 +2364,11 @@ mod tests {
     /// (59), the marked area's row and Warp, or else, with a mail unread,
     /// Log Out (11) and OK. None with neither, or while a window waits
     /// (the rest of [`story_player`] then).
-    fn gate_player(w: &crate::world::WorldMode, f: u64) -> Option<Raw> {
+    fn gate_player(w: &crate::world::WorldMode, f: u64, talked: &[i32]) -> Option<Raw> {
         use piney_world::entry::Kind;
         let still =
             |buttons: Buttons| Raw { buttons, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
-        let goal = gate_goal(w)?;
+        let goal = gate_goal(w, talked)?;
         let world = w.world();
         let ui = w.ui();
         let c = &ui.ctrl;
@@ -2776,15 +2784,11 @@ mod tests {
         }
     }
 
-    /// A skill used in a fight names itself: after event 3, at the east
-    /// portal with its goblin out and the battle on, Kite opens PERSONAL,
-    /// Skills, the third page's first skill (Repth, the lesson's) and a
-    /// party member in TARGET, as a player does; the request's
-    /// `ccWordsPlay(sid, Kite)` reaches the session as
-    /// `Event::SkillWords` for the sound task, with Kite's base type (5:
-    /// the player and a party character) and `charTbl` row (0), the
-    /// skill's id and type bit, outside an event; the sound task's
-    /// `skillVoicePlay` has Kite's line for it.
+    /// A skill used in a fight names itself: after event 3, in the battle at
+    /// the east portal, Kite uses Repth on a member through PERSONAL, Skills
+    /// and TARGET; `ccWordsPlay(sid, Kite)` reaches the session as
+    /// `Event::SkillWords` (base type 5, `charTbl` row 0, the skill's id and
+    /// type bit, outside an event), and `skillVoicePlay` has Kite's line.
     #[test]
     fn a_skill_in_a_fight_names_itself() {
         let Some((mut s, mut f)) = story_to_field(0) else { return };
@@ -3723,19 +3727,12 @@ mod tests {
         leg
     }
 
-    /// Event 4 (TEACH-D, eventTblM104) plays through in the field's
-    /// dungeon, each block in its own room: after event 3, Kite walks down
-    /// the entrance's steps onto its doorway floor (`WORLD_MAN::Enter`) into
-    /// `D0001`'s first room, where block 4 plays (event point 4; the points
-    /// from `WORLD_MAN::SetEventData`) with the treasure-box menus 84 and 85
-    /// and `remove_trap`; room 1's set-up plays stream 3 (block 2, point
-    /// 1); the dead end, room 2, block 3 (point 6); room 3 puts its magic
-    /// portal (block 5's `entry_mc`, the doors shut by `ccEntryEventMng`),
-    /// shows the doors (block 6: `open_door`, `close_door`) and the goblin
-    /// comes out: Kite's and Orca's hits land, it goes down, and with the
-    /// portal gone the doors open (`MoveDoor`); down the stairs, the statue
-    /// room's block 7 (point 5) sets the event status and block 8 in floor
-    /// 1's room 1 (point 3) ends it with `mode 3`, back to the desktop.
+    /// Event 4 (TEACH-D) plays through in the field's dungeon `D0001`, each
+    /// block in its own room (the points from `WORLD_MAN::SetEventData`):
+    /// the treasure boxes (menus 84, 85, `remove_trap`), stream 3, the dead
+    /// end, the magic portal whose goblin falls and opens the doors
+    /// (`MoveDoor`), the statue room, and floor 1's `mode 3` back to the
+    /// desktop.
     #[test]
     fn event_4_plays_in_the_dungeon() {
         let Some((mut s, mut f)) = story_to_field(0) else { return };
@@ -5043,19 +5040,12 @@ mod tests {
         }
     }
 
-    /// `--mode story:4` played through as a player plays it
-    /// ([`STORY_4_LEGS`], the pad scripted): each room's blocks run in their
-    /// rooms; the tutorial's two boxes in the first room are made (the
-    /// plain one holding a Resurrect, the booby-trapped one its trap 0),
-    /// the first opened by menu 84, the trapped one disarmed by Orca's
-    /// Fortune Wire (`remove_trap`: EntryAffect 12 puts an untrapped twin,
-    /// `param[2]` 3, in its place, and Kite is not hurt) and opened by 85;
-    /// the dead end's box opened with the action button (menu 32); floor
-    /// 1's minimap drawn after the stairs; the statue room's Gott statue
-    /// opened (menu 38: its three items through 67); the items in the save
-    /// (the Resurrect and the dead end's spell one each, the idol's own,
-    /// `itemBoxCount` 3 up, `itemIdolCount` 1 up); `mode 3` back to the
-    /// desktop; and no host call left at its default.
+    /// `--mode story:4` played as a player plays it ([`STORY_4_LEGS`]): the
+    /// tutorial's boxes (the trapped one disarmed by Orca's Fortune Wire,
+    /// EntryAffect 12's untrapped twin), the dead end's box, floor 1's
+    /// minimap, the Gott statue's three items; the save's items and counts
+    /// (`itemBoxCount` 3 up, `itemIdolCount` 1 up); `mode 3` to the desktop;
+    /// no host call left at its default.
     #[test]
     fn story_4_plays_through() {
         use piney_data::save::offset;
@@ -5594,14 +5584,9 @@ mod tests {
 
     /// `--mode story:4` played by [`play_dungeon`], with shots into
     /// `$PINEY_SHOTS`: one at each mark of `$PINEY_MARKS` (`CALL,DELAY,NAME`
-    /// by `;`: a call's start, or `box` for the tutorial boxes both
-    /// standing, `rays` for a box's rays shining, `idol` for the statue
-    /// room's idol drawn), and a run every other frame from 6 frames before
-    /// each room change of `$PINEY_RUNS` (their numbers, from 0; default
-    /// the first door, the trap room's and the stairs) to 30 frames after
-    /// it, each named for its rooms and frame, with the camera and Kite
-    /// printed: `cargo test --release -p piney-game story_4_shots --
-    /// --ignored --nocapture`.
+    /// by `;`; or `box`, `rays`, `idol`), and every other frame around each
+    /// room change of `$PINEY_RUNS` (numbers from 0). `cargo test --release
+    /// -p piney-game story_4_shots -- --ignored --nocapture`.
     #[test]
     #[ignore]
     fn story_4_shots() {
@@ -5895,13 +5880,6 @@ mod tests {
         }
     }
 
-    /// Each story start is in its place, and its event opens there: block 0
-    /// plays (the first block of each of 3, 4, 10-14), and no event of the
-    /// story before it plays again. The field and dungeon starts carry the
-    /// party event 2 made: Kite and Orca.
-    /// A story start in the dungeon hands the sound driver the save's voice
-    /// language, as the desktop and the town do: English on a new game's
-    /// save. Without it the driver kept its Japanese default.
     /// An area's last magic portal opened (the entry control's
     /// `ccStartThread(ccThDfComp)`) puts up "ALL FIELD PORTALS OPEN" on
     /// the menu's layer: its 90 frames, then gone.

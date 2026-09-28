@@ -1,77 +1,11 @@
-//! A Root Town's map. Mac Anu's is `ROOTTOWN01::DrawMap` (gcmn
-//! 0x00422d00, through the vtable at 0x00375f90 +0x1c from
-//! `ROOTTOWN01::Draw`), with the sprites the constructor (0x00421470) makes
-//! for it; Dun Loireag's `ROOTTOWN02::DrawMap` (0x00425760) differs where
-//! the list after this one says.
-//!
-//! ```text
-//! ROOTTOWN01()  mapLayer: a ccLayer of priority 50 (WORLD_MAN +0x490),
-//!               its view SetFrame(340, 36, 160, 160, 80, 80, 1, 1)
-//!               map[0] ccMask(128, 32) on mapLayer, town01(d)::TEX_sr1map1
-//!               map[1] ccMask(128, 32) on fontLayer (240), the same texture
-//!               map[2] ccMask(6, 6) on mapLayer, xallow0::TEX_xallow0
-//!               mapw 140, maph 256, stepw 1.55, steph 1.6
-//! DrawMap()     nothing when townMapMode (WORLD_MAN +0x128) is 1
-//!               the arrow's pulse: ccRotate(r, 0.3134); alpha = 64 cos r +
-//!               80, at most 128
-//!               the three sprites' transp = WORLD_MAN::GetMapAlpha()
-//!               (x, y) = (pos.x / 100 * stepw, -pos.y / 100 * steph);
-//!               the map scrolls up and down by addy within cy = (maph -
-//!               160) / 2 of its middle, the arrow takes the rest
-//!               map[0]: 140 x 160 texels from row cy + addy, at (0, 0)
-//!               map[2] (turning): the arrow, 16 x 16 at (68 + x, 84 + y)
-//!               about (-8, -10), turned by the player's heading
-//!               map[1]: RT01ICONPOS's six signs, each a balloon (54 x 59
-//!               at u 164) and its label (25 x 24 at the row's u, v), where
-//!               the sign is below the map's top row; each fades in (and
-//!               out, from where it last stood) by 4 a frame
-//!               map[0] (turning): the top and bottom shades (24 x 140 at u
-//!               140, turned a quarter each way), faded as the map nears
-//!               an end
-//!               SendPacketS: map[2], map[0], map[1]
-//! ```
-//!
-//! `ROOTTOWN02` (constructor 0x004240c0, `DrawMap` 0x00425760) makes the
-//! same three sprites from `town02(d)::TEX_sr2map1` with stepw 1.28 and
-//! steph 1.2921, but its arrow's mask is on the font layer. `DrawMap`
-//! then puts the arrow in screen pixels, at (68 + (340 + x), (116 + y) -
-//! 14), and a sign's balloon and label draw at alpha 64, not their own,
-//! while the arrow's point (taken to whole pixels) is inside the
-//! balloon's box (its left edge to 54 right of it, 10 below its top to 49
-//! below). The signs are `RT02ICONPOS`.
-//!
-//! From Mutation on (gcmn: `ROOTTOWN02` 0x00437e70 / `DrawMap` 0x00439740,
-//! `ROOTTOWN03` 0x0043b980 / 0x0043cfb0) the class keeps its map part 4
-//! bytes further on (mapw +0x80 .. steph +0x8c). Mac Anu's map is
-//! otherwise Infection's. Dun Loireag's and Carmina Gade's (`game.town` 2)
-//! change:
-//!
-//! ```text
-//! ROOTTOWN0n()  two layers of the class's own: +0x1b4 of priority 40 with
-//!               mapLayer's frame, +0x1b8 of priority 45 over the screen
-//!               SetFrame(0, 0, 512, 384, 256, 192, 1, 1)
-//!               map[0] ccMask(128, 32) on +0x1b4
-//!               map[3] ccMask(128, 32) on +0x1b8, the same texture
-//!               map[2] (the arrow) on mapLayer
-//!               Dun Loireag: town02(d), stepw 1.28, steph 1.2921
-//!               Carmina Gade: town03(d)::TEX_sr3map1, RT03ICONPOS, stepw
-//!               1.02 (0x3f828f5c), steph 1.013 (0x3f81a9fc)
-//! DrawMap()     Carmina Gade: (x, y) move by (16, 46) before the scroll
-//!               the arrow at (68 + x, (80 + y) - 14), Carmina Gade's at
-//!               (70 + x, (80 + y) - 14); Dun Loireag still dims a sign
-//!               under the arrow's point in screen pixels
-//!               while the flag race runs in the town (0x005ff790: the
-//!               area 0 and the race's state 0x0038bd44 set), each of its
-//!               three racers (0x00774a90) with its place inside the map's
-//!               view: map[3], 24 x 24 at (3712, 144 + 24 i), at 12 + ((420
-//!               + px) - 24), y - 12; alpha 128 fade (+0x1ec, 0x005fd100),
-//!               12 fade per pixel within 11 of the view's top or bottom
-//!               and then no sign draws (each still fades in or out)
-//!               Carmina Gade's sign 3 draws its balloon mirrored and
-//!               flipped (ctrl 0x60), and left of the middle its label 6
-//!               lower; no sign dims
-//!               SendPacketS: map[2], map[3], map[0], map[1]
-//! ```
+//! A Root Town's map. Mac Anu's is `ROOTTOWN01::DrawMap` (gcmn 0x00422d00,
+//! through the vtable at 0x00375f90 +0x1c from `ROOTTOWN01::Draw`), with the
+//! three sprites the constructor (0x00421470) makes: the map scrolled under
+//! the arrow, the arrow turned by the player's heading, and the signs fading
+//! in and out. Dun Loireag's `DrawMap` (0x00425760) puts the arrow in screen
+//! pixels and dims a sign under it. From Mutation on, Dun Loireag and
+//! Carmina Gade draw on two layers of their own and show the flag race's
+//! racers (docs/engine/map.md).
 
 use std::sync::Arc;
 

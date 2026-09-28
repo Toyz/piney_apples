@@ -1,34 +1,9 @@
-//! Answers `tools/test_town02_rs.py`: Dun Loireag as `ROOTTOWN02` builds and
-//! draws it (`piney_world::town02`, `cloud`, `lensflare`), one request a
-//! line, one JSON line an answer, so the test can run the same through the
-//! game's code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example town02_probe
-//! town02_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests:
-//! - `new CRISIS SEED`: `ROOTTOWN02::ROOTTOWN02` (`town02d` when CRISIS),
-//!   `fieldrand`'s seed SEED; answers the town's state: its STATICMODELs
-//!   (row, type, model, position), STATICOBJECTs (row, animation, root,
-//!   position, clip, time), lights (distant or omni, colour, intensity,
-//!   place), `SetFog`, the clear colour, the sun's place, the water's
-//!   times.
-//! - `draw EX EY EZ PX PY PZ PUPPET VX VY VZ VW RX RY RZ RW QX QY QZ QW
-//!   KIND`: one `ROOTTOWN02::Draw` with the camera's eye E (`cameraGetPos`,
-//!   also `tcam`'s pos), the player at P, `puppetShow`, `tcam`'s view V,
-//!   rot R and rot2 Q, its type KIND (1 the eye view): the pieces, then the
-//!   state after it - `SetUV`'s value, `DrawBG`'s offsets, the clouds
-//!   (angle, step, pattern, speed, pos), `fieldrand`'s seed and count, the
-//!   scrolls.
-//! - `watermodel TOWN`: the model water 0 draws in Mac Anu (0: `wat1`'s
-//!   `MDL_wat00`) or Dun Loireag (1: `MDL_sr2wat00`): its vertex scale and
-//!   its first mmat's stored positions.
-//! - `wateruv TOWN EX EY EZ LW(16) AX AY AZ AW WS(16)`: `waterUVModifi2` of
-//!   that water with the eye E, the object's world matrix LW and place A,
-//!   and the view's `world_screen` WS: the texture coordinates it writes
-//!   (null when out of reach).
+//! Answers `tools/test_town02_rs.py` (`town02_probe ISO < requests`): Dun
+//! Loireag as `ROOTTOWN02` builds and draws it (`piney_world::town02`,
+//! `cloud`, `lensflare`), one JSON line a request. Requests: `new CRISIS SEED`
+//! (the town's state), `draw` (one `ROOTTOWN02::Draw`: the pieces, then the
+//! clouds, scrolls and `fieldrand`), `watermodel TOWN` and `wateruv`
+//! (`waterUVModifi2`'s coordinates); numbers hex, floats their bits.
 
 use std::io::BufRead;
 use std::sync::Arc;

@@ -1,20 +1,11 @@
 //! Mac Anu: `ROOTTOWN01` (gcmn town01.cpp, constructor 0x00421470, `Draw`
 //! 0x00423b10 through the vtable at 0x00375f90), the first Root Town
-//! (`game.town` 0), and what it adds to the [`Base`] every town builds.
-//!
-//! ```text
-//! ROOTTOWN01()   town01 (town01d in crisis) and wat1; fog; 32 STATICMODELs
-//!                (RT_MODELTABLE00) and 11 STATICOBJECTs (RT_OBJTABLE00);
-//!                the sky clump; three copies of the water; the lights from
-//!                ANM_sr1town1a (ambient, LGT_sr1lig1, LGT_sr1omn01-05)
-//! Draw()         where the camera eye is decides what is skipped (clip);
-//!                ships; sky; obj2 rows and the flags; obj rows (two with a
-//!                far version); the water, its UVs scrolling; floor rows;
-//!                the minimap; the tower. All on objLayer.
-//! ```
-//!
-//! `tools/test_world_rs.py` runs the game's `Draw` in eemu over camera eyes
-//! all over the town beside [`MacAnu::select`].
+//! (`game.town` 0), and what it adds to the [`Base`] every town builds: the
+//! town and water files, fog, 32 static models and 11 static objects, the sky,
+//! three copies of the water, and the camera-eye clip rules of its `Draw`
+//! (docs/engine/field-game.md, "What the town draws"). `tools/test_world_rs.py`
+//! runs the game's `Draw` in eemu over eyes all over the town beside
+//! [`MacAnu::select`].
 
 use std::collections::HashMap;
 use std::rc::Rc;

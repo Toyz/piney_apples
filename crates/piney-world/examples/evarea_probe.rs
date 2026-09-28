@@ -1,44 +1,10 @@
-//! Answers `tools/test_evarea_rs.py`: area 15's story map as `EVENTAREA02`
-//! builds and draws it (`piney_world::evarea`), its collision, the door, the
-//! lens flare, and Kite and the camera walking it, one request a line, one
-//! JSON line an answer, so the test can run the same through the game's
-//! code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example evarea_probe
-//! evarea_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests:
-//! - `new`: `EVENTAREA02::EVENTAREA02`; answers the map's state: the block,
-//!   its STATICMODELs (row, type, model, position), STATICOBJECTs (row,
-//!   animation, root, position, clip, time), background clumps, lights,
-//!   `SetFog`, `eventStartPos`, the hit models on the list, `revAnm`'s
-//!   time, the scrolls.
-//! - `block B`: `ChangeBlock(B)`; the state.
-//! - `enter BLOCK`: `WORLD_MAN::Enter` on the door with `game.block` BLOCK:
-//!   the block it changes to, then the state.
-//! - `revroot`: `revAnm`'s root matrix.
-//! - `charpos`: `SetCharPosition` in the map: the leader (x, y, z, facing)
-//!   and `StartPos[1..3]`.
-//! - `draw EX EY EZ EW PX PY PZ PUPPET VX VY VZ VW RX RY RZ RW`: one
-//!   `EVENTAREA02::Draw` with the camera's eye E (`cameraGetPos`), the
-//!   player at P, `puppetShow`, the flare's view V and rotation R: the
-//!   pieces, then the scrolls' offsets.
-//! - `land X Y Z`: `ccLandHitCheck(pos, 0x20000001)` on the block's hits.
-//! - `start X Y Z DIRCZ SCHEME MODE SEED`: Kite arriving at (X, Y, Z) in
-//!   the map, the camera behind him, `WORLD_MAN::SetCenter`.
-//! - `pad DIRECT PUSH POWL DIRCL POWR DIRCR POW0 .. POW11`: one frame -
-//!   `cameraMain`, then `ccPlayer::Main` over the block's collision.
-//! - `arena FIELD SEED`: `EVENTAREAB0::EVENTAREAB0` for game.field FIELD
-//!   (`piney_world::evarea_b0`), `fieldrand`'s seed SEED: its state (the
-//!   STATICMODELs, background clumps, lights, `SetFog`, `eventStartPos`,
-//!   hit models).
-//! - `arenadraw PX PY PZ`: one `EVENTAREAB0::Draw` with the player at P:
-//!   the pieces (a firefly's with its position, pattern, transparency and
-//!   scale), the bobbing models' positions after it, the scroll's v
-//!   offset and `fieldrand`'s seed.
-//! - `arenaswitch`: `SwitchLayer`.
+//! Answers `tools/test_evarea_rs.py` (`evarea_probe ISO < requests`): area
+//! 15's story map as `EVENTAREA02` builds and draws it (`piney_world::evarea`),
+//! its collision, the door, the lens flare, and Kite and the camera walking
+//! it; and the boss arena (`EVENTAREAB0`, `piney_world::evarea_b0`). One JSON
+//! line a request. Requests: `new`, `block`, `enter`, `revroot`, `charpos`,
+//! `draw`, `land`, `start`, `pad`, `arena`, `arenadraw`, `arenaswitch`;
+//! numbers hex, floats their bits, the fields the harness's.
 
 use std::io::BufRead;
 use std::sync::Arc;

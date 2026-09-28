@@ -1,20 +1,10 @@
-//! The `ccEff`s a Root Town draws itself (the lens flares and clouds,
-//! Lia Fail's glows: `piney_world::town::TownSprite`), drawn through
-//! piney-effect's `ccEff::Draw` as the town's `Draw` asks for them: each
-//! made once from its file as `ccEff::Init(chunk, 1)` leaves it, then for
-//! the flares and clouds `SetRenderState(CCRS_ZENABLE, 0)` (no depth test)
-//! and PRIM's fog bit off, as `LENSFLARE`'s and `CLOUD`'s constructors do;
-//! its place, scale, turn and transparency set before each draw.
-//!
-//! And the town's `ccEffectCtrl(0)` with `ccThEffect` (80) and
-//! `ccThParticle` (98): what the town's characters start in it, the
-//! transfer through the Chaos Gate - `effTransfer` from `ccPlayer::AnimCtrl`
-//! (Kite arriving, act 13, and leaving, act 12), `ccFellow::Action` (the
-//! members), `ccRtownPC` (the walking players) and the Administrator's
-//! `sysopeAct` (with his act -5's rings), `effWarpTransfer` for a warp -
-//! each following the character's position, drawn after the
-//! characters. The starters run after the town's tasks, then the effects
-//! step, so their draws from `rand()` come after the frame's others.
+//! The `ccEff`s a Root Town draws itself (`piney_world::town::TownSprite`:
+//! lens flares, clouds, Lia Fail's glows) through piney-effect's `ccEff::Draw`,
+//! each made once as `ccEff::Init(chunk, 1)` leaves it, the flares and clouds
+//! with no depth test and no fog. And the town's `ccEffectCtrl(0)` with
+//! `ccThEffect` (80) and `ccThParticle` (98): the transfers through the Chaos
+//! Gate (`effTransfer`, `effWarpTransfer`) the characters start, run after the
+//! town's tasks, so their `rand()` draws come after the frame's others.
 
 use std::collections::HashMap;
 use std::sync::Arc;

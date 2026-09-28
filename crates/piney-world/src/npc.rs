@@ -1,24 +1,9 @@
-//! `npcTbl` (npctbl.cpp; the volume's `tables::battle::npcs`): the town
-//! NPCs (175 on Infection), each a `ccNpcTable` of 0x70 bytes - its base
-//! parameters (`ccNpcParam`, what `ccChar::SetBaseParam` points
-//! `ccChar::base` at) and its entry (`ccEntry`: the constructor the entry
-//! control calls, the file it loads, a palette to swap in).
-//!
-//! ```text
-//! +0x00 name        "Weapon Shop", "Wing"...
-//! +0x04 label       "EQUIPSHOP", "PC0"... (not a file)
-//! +0x08 type        flags: 0x08 a walking PC, 0x10 an administrator
-//!                   (merchant-like), 0x100-0x1000 the five shops
-//! +0x0c id          the row (`ccEvent::GetNpc` matches it)
-//! +0x0e level  +0x10 exp  +0x14 gold
-//! +0x18 height (180) +0x1c width (100 for shops, 45 for PCs): the size
-//!                   ccChar::Draw's camera fade measures
-//! +0x20 msg         the NPC's lines (a table of message pointers)
-//! +0x28 entry: exist, func (ccEntryRtownMerchant or ccEntryRtownPC),
-//!       esize, ep, ccsc, ccsc2, anm,
-//!       +0x48 clut[30] (a CLUT/TEX name, may be empty),
-//!       +0x68 fileList: DATA.BIN category, file name ("CTR1.CCS")
-//! ```
+//! `npcTbl` (npctbl.cpp; the volume's `tables::battle::npcs`): the town NPCs
+//! (175 on Infection), each a `ccNpcTable` of 0x70 bytes: its base parameters
+//! (`ccNpcParam`, what `ccChar::SetBaseParam` points `ccChar::base` at: name,
+//! type flags, id, height and width, lines) and its entry (`ccEntry`: the
+//! constructor the entry control calls, the file it loads, a palette to swap
+//! in). The layout is in docs/engine/field-game.md.
 
 use piney_data::tables::battle;
 use piney_data::tables::types::EntryFunc;

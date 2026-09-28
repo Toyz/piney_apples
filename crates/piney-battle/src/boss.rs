@@ -1,11 +1,13 @@
-//! Bosses: `ccBoss` (boss.cpp, gcmn 0x0045bcf0-0x0045fbd0) and Infection's one
-//! boss, Skeith (`ccBoss01`, boss01.cpp, 0x0047b300-0x0047ee68), whom event 30
-//! (ML0180) enters with `entry` type 7 code 0. `ccBossEntryStart(0)`
-//! (0x0045b2a0) starts the effect manager ([`Effects`]) and `ccThBoss01`
-//! (0x0047b340), which makes the boss ([`Boss::new`]) and runs [`Boss::main`]
-//! each frame. Skeith's patterns are read from the executable ([`SkeithData`]);
-//! sounds, the camera, the effects' pictures and the draw are [`Out`]s. The
-//! frame and the patterns are in docs/engine/boss.md.
+//! Bosses: `ccBoss` (boss.cpp, gcmn 0x0045bcf0-0x0045fbd0) and Skeith
+//! (`ccBoss01`, boss01.cpp, 0x0047b300-0x0047ee68), whom Infection's event 30
+//! enters with `entry` type 7 code 0; Innis (`ccBoss02`, code 1) is
+//! [`innis`]. `ccBossEntryStart(code)` (0x0045b2a0) starts the effect
+//! manager ([`Effects`]) and `bossFunc[code]`, which makes the boss
+//! ([`Boss::new`], [`innis::new`]) and runs [`Boss::main`] each frame. The
+//! tables come from the build ([`BossData`]); sounds, the camera and the
+//! pictures are [`Out`]s. docs/engine/boss.md and boss-innis.md.
+
+pub mod innis;
 
 use piney_data::field::ee;
 use piney_data::libm;
@@ -91,6 +93,33 @@ impl SkeithData {
             anm_tbl: t.skeith_anims().iter().map(|a| a.map(str::to_string)).collect(),
         }
     }
+}
+
+/// Every boss's tables, for the volume ([`SkeithData`], [`innis::InnisData`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BossData {
+    pub skeith: SkeithData,
+    pub innis: innis::InnisData,
+}
+
+impl BossData {
+    /// The volume's.
+    pub fn of(volume: piney_data::volume::Volume) -> BossData {
+        BossData { skeith: SkeithData::of(volume), innis: innis::InnisData::of(volume) }
+    }
+}
+
+/// Which class a [`Boss`] is (`ccBoss`'s vtable): what its `Main` and
+/// `Affect` run.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum Class {
+    /// `ccBoss01`.
+    #[default]
+    Skeith,
+    /// `ccBoss02` and its three slaves.
+    Innis(Box<innis::Innis>),
+    /// A bare `ccBoss` (a slave's base).
+    Plain,
 }
 
 /// Which table `patTbl` points at.
@@ -209,11 +238,11 @@ impl Fade {
     }
 }
 
-/// The boss effects whose `m_bEnabled` Skeith waits on, as the manager
+/// The boss effects whose `m_bEnabled` a boss waits on, as the manager
 /// (`ccBossEffManager::Draw`, gcmn 0x00461750) runs them: once a frame
 /// before the boss, each enabled effect's `Draw` and each disabled one
-/// deleted. Only their lifetimes are kept here; their pictures are the
-/// runtime's ([`Out::Effect`]).
+/// deleted. Only their lifetimes (and Innis's missiles' flight) are kept
+/// here; their pictures are the runtime's ([`Out::Effect`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Effects {
     pub slots: Vec<Option<Eff>>,
@@ -226,15 +255,19 @@ pub struct Eff {
     pub enabled: bool,
     pub count: i32,
     pub proc: i32,
+    /// `ccEffSamonRing.Transparency` (+0x6c) as it bursts.
+    pub fade: F,
+    /// A missile's flight ([`innis::Missile`]).
+    pub missile: Option<Box<innis::Missile>>,
 }
 
-/// The effects Skeith makes (`ccBossEff*Create`).
+/// The effects the bosses make (`ccBossEff*Create`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EffKind {
     /// `ccBossEffWaveShockCreate(pos, dirc, scale)` (0x00478820).
     WaveShock,
     /// `ccBossEffMagicSquareCreate(pos, n)` (0x00478b10).
-    MagicSquare,
+    MagicSquare { n: i32 },
     /// `ccBossEffForceGeneratorCreate` (0x004797e0): a
     /// `ccBossEffBrightMagicSquare` of `num` photons living `life` frames.
     ForceGenerator { num: i32, life: i32 },
@@ -244,6 +277,13 @@ pub enum EffKind {
     IceBreak,
     /// `ccBossEffDeadCreate(pos, pos, 0)` (0x004795d0).
     Dead,
+    /// `ccBossEffSamonRingCreate(pos, rot, scale, model)` (MUT gcmn
+    /// 0x0048d670) and the burst the caller sets: `BurstScale(spoint)`,
+    /// `BurstTransparency(tpoint)`, `EnyFlg` 1.
+    SamonRing { model: i32, scale: V4, spoint: V4, tpoint: F },
+    /// `ccBossEff{Ice,Lightning,Blaze}MissileCreate(vec, NO, cb, cam)`
+    /// (MUT 0x0048d750, 0x0048d830, 0x0048d910): a spline through `ctrl`.
+    Missile { element: innis::Element, no: i32, ctrl: [V4; 4] },
 }
 
 impl Effects {
@@ -255,7 +295,7 @@ impl Effects {
         if self.slots.is_empty() {
             self.slots = vec![None; Self::SLOTS];
         }
-        let e = Eff { kind, enabled: true, count: 0, proc: 0 };
+        let e = Eff { kind, enabled: true, count: 0, proc: 0, fade: ONE, missile: None };
         match self.slots.iter().position(Option::is_none) {
             Some(k) => {
                 self.slots[k] = Some(e);
@@ -289,17 +329,20 @@ impl Effects {
 
 impl Eff {
     /// The effect's `Draw` as far as its life goes: the `Draw`s until it
-    /// clears `m_bEnabled`, as tools/test_battle_boss_rs.py measures them
-    /// by running the game's `Create` and `Draw` (see `docs/engine/boss.md`).
-    fn draw(&mut self) {
+    /// clears `m_bEnabled`, as tools/test_battle_boss_rs.py and
+    /// test_battle_innis_rs.py measure them by running the game's `Create`
+    /// and `Draw` (docs/engine/boss.md, boss-innis.md). A missile's `Draw`
+    /// is [`innis::Missile::draw`].
+    pub(crate) fn draw(&mut self) {
         self.count += 1;
         let life = match self.kind {
             // ccBossEffWaveShock::Draw (0x0046b3f0): its ccAnm to the end
             // of ANM_ex31lhit (46 frames).
             EffKind::WaveShock => 45,
-            // ccBossEffMagicSquareCreate(pos, 0) makes a ccBossEffLight
-            // (pos, 0, 80, 10): 1 + 80 + 10 Draws.
-            EffKind::MagicSquare => 91,
+            // ccBossEffMagicSquareCreate(pos, n) makes a ccBossEffLight
+            // (pos, n, 80, 10), for n 1 (pos, 1, 60, 10): 1 + life + wait.
+            EffKind::MagicSquare { n: 1 } => 71,
+            EffKind::MagicSquare { .. } => 91,
             // ccBossEffBrightMagicSquare (0x0046dd90): photon k waits
             // (k / 2) * 10 frames, then lives `life`.
             EffKind::ForceGenerator { num, life } => life + (num - 1) / 2 * 10 + 3,
@@ -310,6 +353,16 @@ impl Eff {
             // 61 frames, 61 more; the last one clears it.
             EffKind::IceBreak => 1 + 61 + 61,
             EffKind::Dead => 120,
+            // ccEffSamonRing::Draw (MUT 0x004786b0), bursting: the
+            // transparency falls by Tpoint a Draw; gone once below 0.
+            EffKind::SamonRing { tpoint, .. } => {
+                self.fade = ee::sub(self.fade, tpoint);
+                if ee::lt(self.fade, 0) {
+                    self.enabled = false;
+                }
+                return;
+            }
+            EffKind::Missile { .. } => return,
         };
         if self.count >= life {
             self.enabled = false;
@@ -364,11 +417,12 @@ pub enum Out {
         on: bool,
         chat_except: bool,
     },
-    /// The member drain's menu: `ccMenu +0xf2` 20, `+0xf0` `1 << slot`,
-    /// `openReqNum` 0x104a (StreamMenu, 74, no dim), `mode` 0,
-    /// `firstTime` 1.
+    /// A stream shown over the fight: `ccMenu +0xf2` the stream, `+0xf0`
+    /// `mask` (a drained member's `1 << slot`, else 0), `openReqNum`
+    /// 0x104a (StreamMenu, 74, no dim), `mode` 0, `firstTime` 1.
     StreamMenu {
-        slot: i32,
+        stream: i32,
+        mask: i32,
     },
     /// `_g_bossEffManager->OnCinemaMode(n)` / `OffCinemaMode()`.
     Cinema(Option<i32>),
@@ -411,13 +465,46 @@ pub enum Out {
     /// `ccClearSpcCondition()`: the party's conditions cleared (the boss
     /// is down).
     ClearSpcCondition,
+    /// `bossCam->SetMode(mode, range, hi, who)` (MUT gcmn 0x00475ae0).
+    CamMode {
+        mode: i32,
+    },
+    /// `bossCam->SetFreeCamPosView(pos, view)` (MUT 0x00475c90): the eye
+    /// and the point looked at while the camera is in mode 5.
+    FreeCam {
+        pos: V4,
+        view: V4,
+    },
+    /// `bossCam` +0xe0 (Mutation's pitch) set to `v`, or with `add` raised
+    /// by it.
+    CamPitch {
+        add: bool,
+        v: F,
+    },
+    /// `bossBlur`'s colour (+0x1c): Innis's constructor turns the blur on
+    /// (+0x24 1, `m_exit` 0, scale 1.01, turn 0.02); its acts switch the
+    /// colour between `DefaultARGB` and `ExARGB`.
+    Blur {
+        colour: u32,
+    },
+    /// A particle generator started (`startParticleGenerator`), by its
+    /// rows, at `pos`.
+    Particles {
+        which: innis::Gen,
+        pos: V4,
+    },
+    /// `effResistantShield(this, 1, -1)`: a spell struck the boss.
+    Shield,
 }
 
-/// `ccBoss` and `ccBoss01`: Skeith's state. Floats are bits; positions
-/// `[x, y, z, w]`.
+/// `ccBoss`, with `ccBoss01`'s members (Skeith's); another class's own
+/// state is in [`Boss::class`]. Floats are bits; positions `[x, y, z, w]`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Boss {
     // ccBoss
+    /// `actAnmTbl` (+0x1a8): the act's clip, by act (none for some).
+    pub anm_tbl: Vec<Option<String>>,
+    pub class: Class,
     pub target_pos: V4,
     pub target_pos_p: V4,
     pub target_dist: F,
@@ -489,7 +576,7 @@ pub struct Boss {
 /// player's frame, both generators and what a frame knows.
 pub struct Cx<'a> {
     pub t: &'a Tables,
-    pub data: &'a SkeithData,
+    pub data: &'a BossData,
     pub scene: &'a mut Scene,
     pub party: &'a Party,
     pub world: World<'a>,
@@ -509,9 +596,24 @@ pub struct Cx<'a> {
     /// `bossCam` is set: `InitBossCamera` made the camera, so `QuakeCam`
     /// runs and draws from `ccRand`.
     pub boss_cam: bool,
+    /// What the cameras show this frame ([`CamView`]).
+    pub cam: CamView,
+    /// `ccLandHitCheck(pos, 0x20000000)`: the ground's height under `pos`.
+    pub land: &'a mut dyn FnMut(V4) -> F,
     pub me: usize,
     pub out: Vec<Out>,
     pub ev: Events,
+}
+
+/// The cameras as a boss's rules read them: `cameraGetRot(camID)` (the
+/// active camera's turn), `cameraGetPos(2)`, `cameraGetView(2)` (the boss
+/// camera's eye and view) and `bossCam->CheckMoveCamera()`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CamView {
+    pub rot: V4,
+    pub pos: V4,
+    pub view: V4,
+    pub moving: bool,
 }
 
 impl Cx<'_> {
@@ -526,6 +628,13 @@ impl Cx<'_> {
             let v = std::array::from_fn(|_| rand_f(self.cc, q));
             self.out(Out::Quake(v));
         }
+    }
+
+    /// `bossCam->QuakeCam(q)` (0x0045ff80) where the caller has no
+    /// `if (bossCam)`: Innis's fight always has the camera.
+    fn quake_vec(&mut self, q: [F; 3]) {
+        let v = std::array::from_fn(|k| rand_f(self.cc, q[k]));
+        self.out(Out::Quake(v));
     }
 
     fn pos(&self) -> V4 {
@@ -577,6 +686,7 @@ impl Boss {
     /// area's `DMY_center01` (`center`, world).
     pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
         let mut b = Boss {
+            anm_tbl: cx.data.skeith.anm_tbl.clone(),
             wait_pat_num: -2,
             pat_num: 13,
             stage_eff_id: -1,
@@ -607,7 +717,7 @@ impl Boss {
         b.stop_time = 0;
         b.stop_counter = 0;
         b.set_pattern_tbl(Tbl::Normal);
-        let _ = b.exec_pattern_index(cx, Tbl::Normal.words(cx.data).to_vec().as_slice(), 0);
+        let _ = b.exec_pattern_index(cx, Tbl::Normal.words(&cx.data.skeith).to_vec().as_slice(), 0);
         b.pat_mode = 0;
         b.center_pos = [center[0], center[1], center[2], ONE];
         b.center_pos_p = w2p(cx, b.center_pos);
@@ -616,11 +726,23 @@ impl Boss {
 
     // --- the frame ----------------------------------------------------------------------
 
-    /// `ccBoss01::Main` (gcmn 0x0047bd50), with the effect manager's pass
-    /// before it (the effects' task runs first in the frame).
+    /// The boss task's frame: the effect manager's pass (its task runs
+    /// first in the frame), then the class's `Main`.
     pub fn main(&mut self, cx: &mut Cx) {
+        if matches!(self.class, Class::Innis(_)) {
+            innis::main(self, cx);
+        } else {
+            self.skeith_main(cx);
+        }
+    }
+
+    /// `ccBoss01::Main` (gcmn 0x0047bd50), with the manager's pass before.
+    fn skeith_main(&mut self, cx: &mut Cx) {
         self.effects.tick();
-        self.boss_main(cx);
+        self.base_main(cx, &mut |b, cx| {
+            b.think(cx);
+            b.action(cx);
+        });
         let me = cx.me;
         cx.scene.chars[me].cond[cond::HOLD] = 0;
         // DrawCross (0x0047c390): in the cross it finds the sword's dummies
@@ -637,8 +759,9 @@ impl Boss {
         }
     }
 
-    /// `ccBoss::Main` (0x0045c270).
-    fn boss_main(&mut self, cx: &mut Cx) {
+    /// `ccBoss::Main` (0x0045c270), the class's `Think` and `Action` in
+    /// `class`.
+    pub(crate) fn base_main(&mut self, cx: &mut Cx, class: &mut dyn FnMut(&mut Boss, &mut Cx)) {
         if self.exit != 0 {
             return;
         }
@@ -659,8 +782,7 @@ impl Boss {
         } else {
             self.stop_count = 0;
         }
-        self.think(cx);
-        self.action(cx);
+        class(self, cx);
         if self.lock_player != 0 {
             for m in cx.party.members.into_iter().flatten() {
                 if cx.valid(Some(m)) {
@@ -711,7 +833,7 @@ impl Boss {
     /// (0x0045d440): the wave's speed 512 in its acts; the boss's
     /// animation forward, its end in `anmStatus`.
     fn pre_draw_anm(&mut self, _cx: &mut Cx) {
-        if self.act_num == act::WAVE || self.act_num == act::EPITAPH_WAVE {
+        if self.class == Class::Skeith && (self.act_num == act::WAVE || self.act_num == act::EPITAPH_WAVE) {
             self.anm_wave.speed = 512;
         }
         self.anm_status = i8::from(self.anm.forward());
@@ -740,7 +862,7 @@ impl Boss {
         self.act_num = n;
         self.act_proccess = 0;
         self.act_count = 0;
-        if af && let Some(Some(clip)) = usize::try_from(n).ok().and_then(|k| cx.data.anm_tbl.get(k)) {
+        if af && let Some(Some(clip)) = usize::try_from(n).ok().and_then(|k| self.anm_tbl.get(k)) {
             let clip = clip.clone();
             self.anm.set(&clip, cx.clips);
         }
@@ -756,7 +878,7 @@ impl Boss {
 
     /// `ccBoss::ChangeNextPattern` (0x0045d210).
     fn change_next_pattern(&mut self, cx: &mut Cx) {
-        let tbl = self.pat_tbl.words(cx.data).to_vec();
+        let tbl = self.pat_tbl.words(&cx.data.skeith).to_vec();
         if tbl.get(self.pat_index as usize) == Some(&-1) {
             self.pat_index = 0;
         }
@@ -840,7 +962,7 @@ impl Boss {
                 self.calc_target_info(cx);
                 let (on, sid) = if pat == 10 {
                     let k = (cx.cc.rand() % 3).unsigned_abs() as usize;
-                    (target, cx.data.rand_skills[k])
+                    (target, cx.data.skeith.rand_skills[k])
                 } else {
                     let sid = word(i);
                     i += 1;
@@ -985,8 +1107,12 @@ impl Boss {
             }
             _ => {}
         }
-        // Types 2-14 compare the members alive: `a0` the most, `v1` the
-        // least; Skeith asks only for 3, the lowest HP.
+        // Types 2-14 compare the members alive (jump table @2063, INF
+        // gcmn 0x006aa3d0): `a0` the most, `v1` the least of HP (2, 3),
+        // `real`'s physical attack (4, 5) and defence (6, 7), magic attack
+        // (8, 9) and defence (10, 11); 12 the last with no condition, 13
+        // the most conditions; 14 counts them as 13 does but against the
+        // least's 32767, and never picks.
         let (mut hi, mut lo) = (i32::from(i16::MIN), i32::from(i16::MAX));
         let (mut a0, mut v1) = (None, None);
         for &c in &pcs {
@@ -994,17 +1120,39 @@ impl Boss {
             if ch.hp <= 0 {
                 continue;
             }
-            let hp = i32::from(ch.hp);
-            match ty {
-                2 if hi < hp => {
-                    hi = hp;
-                    a0 = Some(c);
+            let field = |k: usize| i32::from(ch.real()[k]);
+            let conds = || {
+                let v = &ch.cond.v;
+                let slow = v[15] != 0 && ee::lt(ch.cond.speed_value, ONE);
+                [v[8], v[9], v[10], v[11], v[13], v[14]].iter().filter(|&&x| x != 0).count() as i32 + i32::from(slow)
+            };
+            let (most, v) = match ty {
+                2 => (true, i32::from(ch.hp)),
+                3 => (false, i32::from(ch.hp)),
+                4 => (true, field(crate::param::elm::P_ATK)),
+                5 => (false, field(crate::param::elm::P_ATK)),
+                6 => (true, field(crate::param::elm::P_DEF)),
+                7 => (false, field(crate::param::elm::P_DEF)),
+                8 => (true, field(crate::param::elm::M_ATK)),
+                9 => (false, field(crate::param::elm::M_ATK)),
+                10 => (true, field(crate::param::elm::M_DEF)),
+                11 => (false, field(crate::param::elm::M_DEF)),
+                12 => {
+                    let v = &ch.cond.v;
+                    if [v[8], v[9], v[10], v[11], v[13], v[14], v[15]].iter().all(|&x| x == 0) {
+                        v1 = Some(c);
+                    }
+                    continue;
                 }
-                3 if hp < lo => {
-                    lo = hp;
-                    v1 = Some(c);
-                }
-                _ => {}
+                13 => (true, conds()),
+                _ => continue,
+            };
+            if most && hi < v {
+                hi = v;
+                a0 = Some(c);
+            } else if !most && v < lo {
+                lo = v;
+                v1 = Some(c);
             }
         }
         let pick = v1.or(a0)?;
@@ -1050,6 +1198,24 @@ impl Boss {
                 self.body_hit_on_erase = 0;
             }
             self.erase_target = 0;
+        }
+    }
+
+    /// `ccBoss::BeginStageEffect(rgba, t0, t1, t2)` (0x0045e8d0): the
+    /// stage fader's element (the first, 0), or -1 without a fader.
+    fn begin_stage_effect(&mut self, cx: &mut Cx, rgba: u32, t: [i32; 3]) -> i32 {
+        if !self.use_stage_eff {
+            return -1;
+        }
+        cx.out(Out::StageBegin { rgba, t });
+        0
+    }
+
+    /// `ccBoss::EndStageEffect(id, rgba, t)` (0x0045e9b0), for an element
+    /// 0-3 (the runtime checks it still runs).
+    fn end_stage_effect(&mut self, cx: &mut Cx, id: i32, rgba: u32, t: i32) {
+        if self.use_stage_eff && (0..4).contains(&id) {
+            cx.out(Out::StageEnd { rgba, t });
         }
     }
 
@@ -1647,7 +1813,7 @@ impl Boss {
             1 if c == 45 => {
                 let id = cx.scene.chars[me].target_char.map_or(-1, |t| i32::from(cx.scene.chars[t].id()));
                 let slot = cx.party.slot_of(id);
-                cx.out(Out::StreamMenu { slot });
+                cx.out(Out::StreamMenu { stream: 20, mask: 1 << slot });
                 self.act_count = 0;
                 self.act_proccess += 1;
             }
@@ -1699,7 +1865,7 @@ impl Boss {
                 self.erase_cmnd_target(cx);
                 Self::cursor_off(cx, true);
                 self.anm.set(ANM_MAGIC, cx.clips);
-                self.effect(cx, EffKind::MagicSquare);
+                self.effect(cx, EffKind::MagicSquare { n: 0 });
                 cx.se3d(225);
                 cx.out(Out::Cinema(Some(2)));
                 self.act_proccess += 1;
@@ -1799,7 +1965,7 @@ impl Boss {
             act::EPITAPH => {
                 self.cheat_hp = 0;
                 self.set_pattern_tbl(Tbl::Epitaph);
-                let tbl = Tbl::Epitaph.words(cx.data).to_vec();
+                let tbl = Tbl::Epitaph.words(&cx.data.skeith).to_vec();
                 // The index is discarded, as in the constructor.
                 let _ = self.exec_pattern_index(cx, &tbl, 0);
                 self.pat_mode = 2;
@@ -1858,6 +2024,10 @@ impl Boss {
     /// Skeith's own - the drain's 4500 HP, and the Super patterns once a
     /// hit leaves its protect gauge at half.
     pub fn affect(&mut self, cx: &mut Cx) {
+        if matches!(self.class, Class::Innis(_)) {
+            innis::affect(self, cx);
+            return;
+        }
         let me = cx.me;
         let t = cx.scene.chars[me].affect.ty;
         if t != 21 && (self.act_forbid == 2 || self.lock_player != 0) {
@@ -1875,7 +2045,7 @@ impl Boss {
             let max = cx.t.bosses.get(id).map_or(0, |r| r.max_pp);
             if pp >= max >> 1 {
                 self.set_pattern_tbl(Tbl::Super);
-                let tbl = Tbl::Super.words(cx.data).to_vec();
+                let tbl = Tbl::Super.words(&cx.data.skeith).to_vec();
                 let _ = self.exec_pattern_index(cx, &tbl, 0);
                 self.pat_mode = 1;
             }
@@ -1950,7 +2120,7 @@ impl Boss {
 /// What a boss's affect needs from outside the scene ([`AffectCtx::boss`]).
 pub struct BossEnv<'a> {
     pub t: &'a Tables,
-    pub data: &'a SkeithData,
+    pub data: &'a BossData,
     pub clips: &'a dyn Fn(&str) -> Option<(u32, bool)>,
     pub env: &'a Env,
     /// `compulsionGameOver`.
@@ -1971,9 +2141,10 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
     };
     let Some(mut boss) = scene.chars[on].foe_state_mut().and_then(|f| f.boss.take()) else { return };
     // `ccRand` is not drawn from an affect of Skeith's (the Super table
-    // starts with a wait).
+    // starts with a wait) or Innis's.
     let mut cc = crate::rand::Rand::default();
     let mut collide = |_| None;
+    let mut land = |_| 0;
     let mut cx = Cx {
         t: benv.t,
         data: benv.data,
@@ -1989,6 +2160,8 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
         game_over: benv.game_over,
         // Affect never quakes.
         boss_cam: false,
+        cam: CamView::default(),
+        land: &mut land,
         me: on,
         out: Vec::new(),
         ev: Events::new(),

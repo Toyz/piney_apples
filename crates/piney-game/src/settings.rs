@@ -1,17 +1,9 @@
-//! Not the game's: the options kept across the four parts. Each volume
-//! keeps its options in its own save (`ccSaveData`'s option block, which
-//! the title's and the START menu's Option pages write), so a volume
-//! started fresh, or a save from another part, came up with other volumes
-//! and the like. The port keeps one copy in `settings.toml` in its folder
-//! (`piney_data::pack::home`):
-//!
-//! - put into every save as it is made or loaded (the title's new save, a
-//!   save the title's Load reads);
-//! - written back whenever a menu changes one of them.
-//!
-//! The file is TOML, one `name = number` a line, each the save's own value
-//! (the volumes 0-256, the screen's offsets in pixels, the switches 0 or
-//! 1 as the menus store them).
+//! Not the game's: the options kept across the four parts. Each volume keeps
+//! its options in its own save, so a fresh volume came up with others; the
+//! port keeps one copy in `settings.toml` in its folder
+//! (`piney_data::pack::home`), put into every save as it is made or loaded and
+//! written back whenever a menu changes one. One `name = number` a line, each
+//! the save's own value.
 
 use std::path::{Path, PathBuf};
 

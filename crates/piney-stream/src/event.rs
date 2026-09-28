@@ -1,11 +1,11 @@
 //! `ccEventStream(num, 1)` (0x001b5670): the event instruction `stream`, the
 //! stream as the scripts play it - the call [`Stream`] models, the subtitles
-//! under it ([`Subtitles`]) and the background colour 0 for the call (`ccSys
-//! +0x18`, restored after). A host builds an `EventStream`, then each game
-//! frame calls `step(&pad)` and `take_requests()` until `done()`: the PCM for
-//! SEWORDS channel 0, [`Request::Music`] before the first frame and after the
-//! last ([`EventStream::music_bits`]) and [`Request::StreamBgm`] at the notes,
-//! which `piney_audio::stream` carries out on the area's bank.
+//! under it ([`Subtitles`]), the effect task's text lines (Mutation's opening,
+//! [`crate::opening`]) and the background colour 0 for the call. A host
+//! builds an `EventStream`, then each game frame calls `step(&pad)` and
+//! `take_requests()` until `done()`: the PCM, [`Request::Music`] before the
+//! first frame and after the last ([`EventStream::music_bits`]) and
+//! [`Request::StreamBgm`] at the notes.
 
 use std::sync::Arc;
 
@@ -13,11 +13,16 @@ use piney_data::Result;
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_data::save::SaveData;
+use piney_desktop::anm::Ctx;
+use piney_desktop::assets::read_fonts;
+use piney_desktop::kanji::{Fonts, Kanji, Names};
 use piney_desktop::message::MsgDraw;
+use piney_desktop::view::View;
 use piney_draw::Frame;
 use piney_input::Pad;
 
-use crate::effect::Rand;
+use crate::effect::{Rand, task_name};
+use crate::opening;
 use crate::subtitle::{Look, Subtitles};
 use crate::{Options, Request, Stream};
 
@@ -27,6 +32,9 @@ pub struct EventStream {
     subtitles: Option<Subtitles>,
     /// The window's `Disp` calls on the last step.
     draws: Vec<MsgDraw>,
+    /// The fonts the opening's text lines draw with; None for a stream
+    /// without `str0710`.
+    text_fonts: Option<Fonts>,
 }
 
 impl EventStream {
@@ -48,13 +56,15 @@ impl EventStream {
             Some(s) => Some(s.with_look(Look::read(volume, data)?)),
             None => None,
         };
-        Ok(EventStream { stream, subtitles, draws: Vec::new() })
+        let opening = stream.scenes().iter().any(|e| task_name(&e.name) == opening::STR0710);
+        let text_fonts = if opening { Some(read_fonts(volume, data)?) } else { None };
+        Ok(EventStream { stream, subtitles, draws: Vec::new(), text_fonts })
     }
 
     /// A stream with subtitles built by the caller (or none): for checks
     /// without fonts.
     pub fn with_subtitles(stream: Stream, subtitles: Option<Subtitles>) -> EventStream {
-        EventStream { stream, subtitles, draws: Vec::new() }
+        EventStream { stream, subtitles, draws: Vec::new(), text_fonts: None }
     }
 
     /// One game frame: the stream's step, then the call's pass - the line
@@ -85,7 +95,34 @@ impl EventStream {
             self.draws = s.pass(msg);
             s.draw_into(&self.draws, &mut f);
         }
+        self.draw_text(&mut f);
         f
+    }
+
+    /// The opening's text lines (`ccKanji::Disp` on layer 1000, over the
+    /// window's 242).
+    fn draw_text(&self, f: &mut Frame) {
+        let (Some(fonts), Some(task), Some(scene)) = (&self.text_fonts, self.stream.effect(), self.stream.scene())
+        else {
+            return;
+        };
+        let lines = task.text_draws();
+        if lines.is_empty() {
+            return;
+        }
+        let mut ctx = Ctx::new(View::default());
+        let view = scene.frame.layer();
+        let [r, g, b, _] = piney_data::tables::kanji::SPRITE_COLOR_TABLE[opening::TEXT_COLOUR];
+        for l in lines {
+            let mut k = Kanji::init(opening::KANJI_L, opening::KANJI_PACKETS);
+            k.colour = [r, g, b, l.alpha];
+            k.dx = l.x as f32;
+            k.dy = l.y as f32;
+            ctx.disp(fonts, &mut k, opening::TEXT_LAYER, &view, &l.text, &Names::default());
+        }
+        let t = ctx.finish();
+        f.uploads.extend(t.uploads);
+        f.cmds.extend(t.cmds);
     }
 
     /// The window's `Disp` calls on the last step (none without a table).

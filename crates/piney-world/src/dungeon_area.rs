@@ -1,42 +1,11 @@
 //! A dungeon, area 2: `DUNGEON` (gcmn dungeon.cpp) as `WORLD_MAN::GO(2)`
-//! (main 0x0019f8e0, 0x001a0b08) builds it and `ccThFieldDisp` draws it
-//! with `DUNGEON::Draw` (gcmn 0x005ce930), one room at a time
-//! (`docs/engine/dungeon.md`, "Entering and walking a dungeon").
-//!
-//! ```text
-//! GO(2)             bounds 0..60000; the story area's hackFlag; the
-//!                   dungeon kept (WORLD_MAN.dungeon[game.dungeon]) or made:
-//!                   seed = dungeonSeed[d], randcnt 0, DUNGEON(d), Generate
-//!                   (its last act SetRoom(0, 0)), GetStartPosition into
-//!                   WORLD_MAN.position (startpos[0][0])
-//! SetRoom(f, b)     SetFog / SetAmbient from the fog row; the room's ccAnm:
-//!                   SetAnm(its model), one _AnimateForward,
-//!                   SetMatrix_PosRotZYX((pos, 0), (0, 0, rotate)),
-//!                   HitEnable(1), SetHitMatrix; SetWater, SetLight,
-//!                   SetObject, SetDoor (a door ccAnm on each OBJ_0pae0_
-//!                   dummy, run to its last frame when the room is empty,
-//!                   HitEnable(1), SetHitMatrix), SetAnmObject
-//! GotoNextRoom      from WORLD_MAN::Enter on ground with bit 0x80000: the
-//!                   cell under the player; the room deleted; the stairs (15
-//!                   up, -1 down: the next floor's room built and the player
-//!                   put at its startpos) or a door (the player moved 1,125
-//!                   through it, the room behind built); Enter then asks for
-//!                   the scene change
-//! Draw              the room under the player (realmap), its doors
-//! ```
-//!
-//! The dungeon outlives the scene changes inside it: each door and stairs
-//! is a `ccGame::ChangeScene` (a new block or floor), and `GO(2)` finds the
-//! dungeon it made on the way in and keeps it, with the room `GotoNextRoom`
-//! built. `initHitCheck` (gcmn 0x00571da0) empties the hit lists only on
-//! the way into a town, from a town into a field, or at boot, so the room's
-//! `ccModelHit`s stay registered across those scene changes.
-//!
-//! The room's collision is its model's own pieces: every object the room's
-//! Anime chunk places (ExtObj copies each their own `ccObj`, `ccModel` and
-//! `ccModelHit`) whose model carries a Hit chunk, in the anime's index
-//! order, each at its object's world matrix with `type` 1 (queries rotated
-//! into the piece's space), then each door's frame and leaf.
+//! (main 0x0019f8e0) builds it and `ccThFieldDisp` draws it with
+//! `DUNGEON::Draw` (gcmn 0x005ce930), one room at a time: `SetRoom` builds
+//! the room, its dressing, doors and hits; `GotoNextRoom` takes the party
+//! through a door or stairs. The dungeon outlives the scene changes inside
+//! it, and its rooms' `ccModelHit`s stay registered across them. The room's
+//! collision is its Anime chunk's pieces with Hit chunks, then each door's
+//! frame and leaf (docs/engine/dungeon.md, "Entering and walking a dungeon").
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -563,14 +532,12 @@ pub struct EventData {
 }
 
 /// `WORLD_MAN::SetEventData()` (main 0x001a3c40), from `ccSetupGameCtrl`
-/// between `ccStartThEvent` and `ccEnableThEvent(0)`: in a dungeon
-/// (`game.area` 2) of a story area whose `EditDungeon` entry exists
-/// (`GetEditDungeonPtr(eventAreaNumber)`, gcmn 0x005b6720: the first entry
-/// of that area, whichever dungeon the party is in), the rooms' event
-/// numbers become event points, the type-2 gimmick rows event positions
-/// (facing by `direc` 0: 0, 1: pi, 2: pi/2, 3: -pi/2, else the heading the
-/// row before left, the first time `f20`: the caller's register), and the
-/// type-3 rows of kind 7-26 warp points. Anything else, nothing.
+/// between `ccStartThEvent` and `ccEnableThEvent(0)`: in a dungeon of a story
+/// area whose `EditDungeon` entry exists (the area's first, whichever dungeon
+/// the party is in), the rooms' event numbers become event points, the
+/// type-2 gimmick rows event positions (facing by `direc`, else the heading
+/// the row before left, the first time `f20`), and the type-3 rows of kind
+/// 7-26 warp points.
 pub fn set_event_data(tables: &Tables, event_area: i32, area: i32, f20: F) -> EventData {
     let mut out = EventData::default();
     if event_area == 0 || area != 2 {
@@ -607,13 +574,20 @@ impl DungeonArea {
     /// story area's `EditDungeon`), `SetRoom(0, 0)`, `GetStartPosition`;
     /// no room banned.
     pub fn new(archive: &Archive, world_man: &WorldMan, scene: &Scene) -> Result<DungeonArea> {
-        Self::new_banned(archive, world_man, scene, NO_BANS)
+        Self::new_banned(archive, piney_data::volume::Volume::Inf, world_man, scene, NO_BANS)
     }
 
-    /// [`DungeonArea::new`] with the save's area bans (`SetRoom(0, 0)`'s
+    /// [`DungeonArea::new`] on `volume`'s tables (its story dungeons, floor
+    /// counts and exits differ), with the save's area bans (`SetRoom(0, 0)`'s
     /// `SetDoor` reads them).
-    pub fn new_banned(archive: &Archive, world_man: &WorldMan, scene: &Scene, bans: Bans) -> Result<DungeonArea> {
-        let tables = &dungeon::INF;
+    pub fn new_banned(
+        archive: &Archive,
+        volume: piney_data::volume::Volume,
+        world_man: &WorldMan,
+        scene: &Scene,
+        bans: Bans,
+    ) -> Result<DungeonArea> {
+        let tables = dungeon::tables_of(volume);
         let code = scene.dungeon.clamp(0, 2) as usize;
         // eventAreaNumber is game.field, as GO(1) set it; DUNGEON::DUNGEON
         // takes it as isEventArea but for dungeon 0 of field type 4.
@@ -1108,20 +1082,12 @@ impl DungeonArea {
         self.set_room_with(f, i, true);
     }
 
-    /// `DUNGEON::SetRoom(f, i)`: `stillOpenDoor` and `CloseStart` 0, the
-    /// event room's light out of the group (`DelGrp`), the room's anm, its
-    /// doors (`SetDoor` 0x005c7c30; `clear` is its
-    /// `ccCheckActiveObject(f, i)`: no enemy or magic circle of the entry
-    /// control's belongs to the room), the hit list rebuilt. The room built
-    /// before it is deleted first (`DeleteRoom`, the anms' destructors
-    /// taking their hits off the list).
-    ///
-    /// An ordinary room sets the fog row's fog and ambient again. An event
-    /// room (a row of type 25-35 at (f, i), jump table @5452) is played
-    /// from `spccs` lit (`SetLightEnv(1)`, `SetAnm`, `_AnimateForward`
-    /// twice), at `pos[f][i]` turned by the type's `rotate` (which it
-    /// stores), under `SetFog(32767, 65536, 0, 100, 0)`; its `LGT_` light
-    /// joins the group and the ambient becomes the anm's
+    /// `DUNGEON::SetRoom(f, i)`: the room built before deleted, then the room's
+    /// anm, its doors (`SetDoor` 0x005c7c30; `clear` its `ccCheckActiveObject(f,
+    /// i)`) and the hit list rebuilt. An ordinary room sets the fog row's fog
+    /// and ambient again. An event room (a row of type 25-35 at (f, i)) is
+    /// played from `spccs` lit, at `pos[f][i]` turned by the type's `rotate`,
+    /// under `SetFog(32767, 65536, 0, 100, 0)`, with its own light and ambient
     /// ([`DungeonArea::event_room_lights`]).
     pub fn set_room_with(&mut self, f: usize, i: usize, clear: bool) {
         self.room = None;
@@ -1175,19 +1141,13 @@ impl DungeonArea {
         piney_draw::DepthFog::set_fog(f.near, f.far, 0.0, f.max, f.colour_bytes())
     }
 
-    /// `WORLD_MAN::RoomSelect(f, i)`'s part in the dungeon (main
-    /// 0x0019dca0): `DUNGEON::ClearRoom` and `SetRoom(f, i)` (see
-    /// [`DungeonArea::set_room_with`], `clear` its `ccCheckActiveObject`),
-    /// then `DUNGEON::RoomSelect(&WORLD_MAN.position, f, i)` (gcmn
-    /// 0x005c95c0): `roomEnterFlag` 1, `mapHideFlag` 2 (the map painted
-    /// again and left closed), `level` f, and `position` 200 in front of
-    /// the room's first gate wall (`OBJ_w_0g10_*`), else its first door
-    /// dummy (`OBJ_0pae0_*`): that object's world matrix applied to (0,
-    /// -200, 0, 1), so w (the heading the arrival takes) is 1.0; with
-    /// neither, the room's centre (x, y, 0, 1). In areas 71 and 77 a story
-    /// room of type 30 or 31 stands the party at its `OBJ_user_point`
-    /// instead (`specialRoom` 0). The caller asks for `ChangeScene(-2, -2,
-    /// -2, -2, f, i)` and sets `ccMenu`'s map status 3.
+    /// `WORLD_MAN::RoomSelect(f, i)`'s part in the dungeon (main 0x0019dca0):
+    /// `DUNGEON::ClearRoom` and [`DungeonArea::set_room_with`], then
+    /// `DUNGEON::RoomSelect` (gcmn 0x005c95c0): the map painted again and left
+    /// closed, `level` f, and `position` 200 in front of the room's first gate
+    /// wall or door (w 1.0), else the room's centre. In areas 71 and 77 a story
+    /// room of type 30 or 31 stands the party at its `OBJ_user_point`. The
+    /// caller asks for the scene change and sets the map status 3.
     pub fn room_select(&mut self, f: usize, i: usize, clear: bool) {
         self.set_room_with(f, i, clear);
         self.room_enter = true;
@@ -1350,18 +1310,12 @@ impl DungeonArea {
         pick
     }
 
-    /// `SetDoor`'s tail (gcmn 0x005c8370): the old block deleted
-    /// (`~ccClump`, its hits off the list); then with `game.field` not 0,
-    /// when [`DungeonArea::ban_room`]'s `next` is this room (on its floor),
-    /// a block of `CMP_o_block_m0_` at the room's gate wall
-    /// (`GetSubstAdrs("OBJ_w_0g10_*")`, with none its door dummies)
-    /// nearest the banned room's centre (`ccGetDist` from `pos[floor][index]`
-    /// to each of the first four candidates' place, 400,000 for a missing
-    /// one; the nearer of 0 and 1 against the nearer of 2 and 3, ties to
-    /// the later), each candidate's place its local matrix turned by
-    /// `(0, 0, rotate[f][i])` (`sceVu0RotMatrix`) and moved by `(pos[f][i],
-    /// 0)` (`sceVu0TransMatrix`). Its hits join the list's tail
-    /// (`ccClump::HitEnable(1)`) at that matrix (`SetHitMatrix`).
+    /// `SetDoor`'s tail (gcmn 0x005c8370): the old block deleted; then with
+    /// `game.field` not 0, when [`DungeonArea::ban_room`]'s `next` is this room,
+    /// a block of `CMP_o_block_m0_` at the room's gate wall (or door dummy)
+    /// nearest the banned room's centre: the nearer of the first two candidates
+    /// against the nearer of the next two, ties to the later, a missing one at
+    /// 400,000. Its hits join the list's tail at that matrix.
     fn set_block(&mut self, slot: &Slot) {
         self.block = None;
         self.joined.retain(|&(k, _)| k != BLOCK);
@@ -1490,21 +1444,13 @@ impl DungeonArea {
         SE.get(usize::from(self.dtype)).copied()
     }
 
-    /// `DUNGEON::MoveDoor(here)` (gcmn 0x005cd3d0), from `Draw` each frame
-    /// for the room under the player: `doorAnm` = `clear_all`
-    /// (`ccCheckActiveObject()`: no enemy and no magic circle switched on);
-    /// nothing more unless `room[level][here]` is built. Then for each door
-    /// (unless `stillOpenDoor`): with `doorAnm` it steps open
-    /// (`_AnimateForward`, its answer `lockOff`), back on the hit list and,
-    /// but in types 3, 7, 8 and 9, its hits placed again; in those types
-    /// the leaf's hits come off once `lockOff`. Without `doorAnm`, while
-    /// `CloseStart` runs, the leaf (`OBJ_w_9e20_`) sinks 6.4 a frame (its
-    /// local matrix a translation) and the door's hits are placed again.
-    /// Then `doorFlag` follows `doorAnm`; at `CloseStart` 1 the doors are
-    /// made again (`SetDoor(level, here)`, `clear_here` its
-    /// `ccCheckActiveObject(level, here)`), and `CloseStart` counts down.
-    /// Returns the doors' sounds (`ccSeOn3D`: 0 the opening's, 1 the
-    /// closing's, at the door); [`DungeonArea::door_se`] names them.
+    /// `DUNGEON::MoveDoor(here)` (gcmn 0x005cd3d0), from `Draw` each frame for
+    /// the room under the player: with the room clear (`ccCheckActiveObject()`)
+    /// each door steps open and its hits are placed again (in types 3, 7, 8 and 9
+    /// the leaf's hits come off once open); else, while `CloseStart` runs, the
+    /// leaf sinks 6.4 a frame, and at `CloseStart` 1 the doors are made again.
+    /// Returns the doors' sounds (0 opening, 1 closing, at the door;
+    /// [`DungeonArea::door_se`]).
     pub fn move_door(&mut self, here: usize, clear_all: bool, clear_here: bool) -> Vec<(u8, V4)> {
         let mut sounds = Vec::new();
         self.door.door_anm = clear_all;
@@ -1624,15 +1570,13 @@ impl DungeonArea {
         out
     }
 
-    /// `DUNGEON::GotoNextRoom(nxt, now)` (0x005c9e10) with
-    /// `WORLD_MAN.position` as `nxt`: the stairs or the door under `now`.
-    /// Returns 15 for the up stairs, -1 for the down stairs, else the room
+    /// `DUNGEON::GotoNextRoom(nxt, now)` (0x005c9e10) with `WORLD_MAN.position`
+    /// as `nxt`: 15 for the up stairs, -1 for the down stairs, else the room
     /// behind the door. The story areas' event rooms take their own branches
-    /// ([`special::event_branch`]): a banned room (`CheckAreaBan`) rebuilds
-    /// the room left and answers -100; areas 108, 73, 47, 66, 46 and 27
-    /// answer -255 (a way out of the dungeon); the others stand the party in
-    /// the room. (The warps of a story room's side flags are not ported:
-    /// they take the door path.) `save` holds the area bans.
+    /// ([`special::event_branch`]): a banned room rebuilds the room left and
+    /// answers -100; areas 108, 73, 47, 66, 46 and 27 answer -255 (a way out).
+    /// The warps of a story room's side flags are not ported. `save` holds the
+    /// area bans.
     pub fn goto_next_room(&mut self, now: V4, scene: &Scene, save: &mut SaveData) -> i32 {
         self.goto_next_room_with(now, scene, &|_, _| true, save)
     }
@@ -1785,15 +1729,11 @@ impl DungeonArea {
         Some([ee::add(m[0], pos[0]), ee::add(m[1], pos[1]), ee::add(m[2], 0), ee::add(m[3], ONE)])
     }
 
-    /// `WORLD_MAN::Enter(pos)` in the dungeon (main 0x0019e018):
-    /// `GotoNextRoom`, then the change of scene its answer asks for - a
-    /// room (`ChangeScene(-2, -2, -2, -2, -2, b)`), the floor above or below
-    /// (`DUNGEON.level` moved, `ChangeScene(2, -2, -2, -2, level, room)`), or
-    /// from floor 0's up stairs the field (`ChangeArea(1,
-    /// eventAreaNumber)`).
-    ///
-    /// -255 (an event area's way out, [`special::event_branch`]) is
-    /// `ChangeArea(1, n)` by `eventAreaNumber` ([`special::exit_field`]).
+    /// `WORLD_MAN::Enter(pos)` in the dungeon (main 0x0019e018): `GotoNextRoom`,
+    /// then the change of scene its answer asks for - a room, the floor above or
+    /// below, or from floor 0's up stairs the field (`ChangeArea(1,
+    /// eventAreaNumber)`). -255 (an event area's way out) is `ChangeArea(1, n)`
+    /// by `eventAreaNumber` ([`special::exit_field`]).
     pub fn enter(
         &mut self,
         pos: V4,
@@ -1917,15 +1857,12 @@ impl DungeonArea {
         self.fog.colour_bytes()
     }
 
-    /// `DUNGEON::Draw` for this frame: the dressing ([`Dressing`]: the
-    /// water, the sparks and glows, the clumps and animated objects, each
-    /// stepped with `step`), then `room[level][here]` for the player's
-    /// cell, if it is built ([`DungeonArea::shown`]) - its doors
-    /// (`MoveDoor`: an open door stays at its last frame) and the room's
-    /// pieces, on `objLayer`, fogged by each vertex's depth, and the ban
-    /// block. With `step` false as the last frame left it. `world_screen`
-    /// is the camera's (the water samples the picture behind it through
-    /// it). Returns the `ccEff`s `DrawEff` draws, for the effects.
+    /// `DUNGEON::Draw` for this frame: the dressing ([`Dressing`]), then the room
+    /// under the player if built ([`DungeonArea::shown`]): its doors
+    /// (`MoveDoor`), the room's pieces on `objLayer` fogged by depth, and the ban
+    /// block. With `step` false as the last frame left it. `world_screen` is the
+    /// camera's (the water samples the picture behind it). Returns the `ccEff`s
+    /// `DrawEff` draws.
     pub fn draw(
         &mut self,
         layers: &mut Layers,
@@ -2001,19 +1938,13 @@ impl crate::hit::Heights for Heights {
 const GIM_KINDS: [i8; 8] = [0, 1, 2, 2, 3, 4, 5, 6];
 
 impl DungeonArea {
-    /// `DUNGEON::SetAllGim(room)` (gcmn 0x005bb340) over every room the
-    /// dungeon built, in `MakeRoom`'s order: each dummy of the room's model
-    /// that a search finds (and a roll keeps) becomes a `gimPos` slot at its
-    /// world position under the room's matrix, heading along its x axis
-    /// (`atan2f(y, x)`). A random room's rolls are the generator's; a story
-    /// room's (`CheckEntryItemBox`, `CheckEntryCircle`): no box or portal in
-    /// a room with a `GIMMICKDATA` row of types 0-4 (a portal: 1-4) or an
-    /// event, else a box on `fieldrand(100) >= 20` and a portal always; a
-    /// special object on `fieldrand(100) >= 31`. The statue's slot is the
-    /// one event 4's dungeon uses; the box and portal dummies' headings
-    /// (`atan2` of the dummy's offset from the room's centre in the game)
-    /// and a story dungeon's `fieldrand` state are not checked against the
-    /// game.
+    /// `DUNGEON::SetAllGim(room)` (gcmn 0x005bb340) over every room the dungeon
+    /// built, in `MakeRoom`'s order: each dummy of the room's model that a search
+    /// finds (and a roll keeps) becomes a `gimPos` slot, heading along its x
+    /// axis. A story room holds no box or portal where a `GIMMICKDATA` row or an
+    /// event is; else a box on `fieldrand(100) >= 20`, a portal always, a
+    /// special object on `>= 31`. The box and portal headings and a story
+    /// dungeon's `fieldrand` state are not checked against the game.
     pub fn gim_slots(&mut self) -> Vec<piney_battle::entry::GimSlot> {
         let mut out = Vec::new();
         let patterns = self.tables.gim_patterns;
@@ -2072,19 +2003,12 @@ impl DungeonArea {
         }
     }
 
-    /// What `WORLD_MAN::EntryGimmick`'s dungeon setters read of this
-    /// dungeon: its type, the story rows, the slots of [`Self::gim_slots`],
-    /// each room's turn, `lakeFlag` (the lake types), and `WORLD_MAN`'s
-    /// `timeSym` ([`crate::area::WorldMan::time_sym`]),
-    /// `GetFieldAttrb()` and `GetFood()` (by the dungeon's type: 34-37 for
-    /// types 0-7 in fours, 33 for the lakes, else 23).
-    /// `DUNGEON::EntryBreakObject()` (gcmn 0x005bff10) for the room built
-    /// at `level`, `block`: the breakables' dummies `EntryBreakObjectMain`
-    /// (0x005bfc40) finds in the room's anm (`GetSubstAdrs`), its calls in
-    /// order - `OBJ_0pr2*`, then `OBJ_0pr4*` .. `OBJ_0pr7*`, each in the
-    /// anm's order - with the family (2, 4-7) and the world position. None
-    /// in the lake types, in `game.field` 14 (the tutorial's dungeon) or in
-    /// a story room with an event.
+    /// `DUNGEON::EntryBreakObject()` (gcmn 0x005bff10) for the room built at
+    /// `level`, `block`: the breakables' dummies `EntryBreakObjectMain`
+    /// (0x005bfc40) finds in the room's anm, in its call order (`OBJ_0pr2*`,
+    /// then `OBJ_0pr4*` .. `OBJ_0pr7*`), with the family (2, 4-7) and the world
+    /// position. None in the lake types, in `game.field` 14 (the tutorial's
+    /// dungeon) or in a story room with an event.
     pub fn breakables_here(&self, field: i32, block: i32) -> Vec<(u8, V4)> {
         if matches!(self.dtype, 8 | 9) || field == 14 {
             return Vec::new();
@@ -2108,6 +2032,12 @@ impl DungeonArea {
         out
     }
 
+    /// What `WORLD_MAN::EntryGimmick`'s dungeon setters read of this
+    /// dungeon: its type, the story rows, the slots of [`Self::gim_slots`],
+    /// each room's turn, `lakeFlag` (the lake types), and `WORLD_MAN`'s
+    /// `timeSym` ([`crate::area::WorldMan::time_sym`]), `GetFieldAttrb()`
+    /// and `GetFood()` (by the dungeon's type: 34-37 for types 0-7 in fours,
+    /// 33 for the lakes, else 23).
     pub fn dungeon_gims(&mut self, field_attr: i32, time_sym: bool) -> piney_battle::entry::DungeonGims {
         use piney_battle::entry::{DungeonGims, EditGim, EditRoom};
         let slots = self.gim_slots();

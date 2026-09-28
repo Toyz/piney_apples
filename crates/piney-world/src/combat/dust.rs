@@ -1,25 +1,11 @@
 //! The enemies' feet: `ccEnemyDustCtrl` (gcmn dust.cpp 0x0043a8e0), the
-//! controller a race's constructor makes over its `ccEnemyDustInfo` rows
-//! (`entry::Out::Dust`), run from the race's `exclusive()` (flag 0) and on
-//! its notes 1 and 2 (flag 1) ([`enemy_motion::Call::DustCtrl`]).
-//!
-//! ```text
-//! ccEnemyDustInfo (0x20 bytes): +0 anm (2 and 3 match either), +1 n, +2
-//!   life, +3 every, +4 first frame, +6 last frame (shorts), +8 s, +0xc r,
-//!   +0x10 ofs
-//! ctrl(obj, flag)   (0x0043aa90) with dispSW, each row whose anm is the
-//!   enemy's anmNum and whose frames hold its frameNum:
-//!     every 0: only on a note (flag)
-//!     first == last: every frame
-//!     else once a bucket: k = first + (frame - first) / every * every,
-//!       skipped while it is the node's last, which it becomes
-//!   ccEnemyEffDustRing at FW2LW(pos) + Rot(dirc) ofs, (s, r, n, life,
-//!   eneSmoke)
-//! ```
-//!
-//! The controller itself draws nothing random, so it runs where the
-//! effects start the frame's shows (`Combat::fx_call`), in their order.
-//! `tools/test_dust_ctrl_rs.py` runs the game's `ctrl` against [`ctrl`].
+//! controller a race's constructor makes over its `ccEnemyDustInfo` rows, run
+//! from the race's `exclusive()` (flag 0) and on its notes 1 and 2 (flag 1)
+//! ([`enemy_motion::Call::DustCtrl`]): each row raises dust rings in a window
+//! of its animation's frames. It draws nothing random, so it runs where the
+//! effects start the frame's shows (`Combat::fx_call`).
+//! `tools/test_dust_ctrl_rs.py` runs the game's `ctrl` against [`ctrl`]
+//! (docs/engine/effects.md).
 
 use piney_battle::blocks::{self, InfoRef};
 use piney_battle::enemy_motion::{Call, DustAt};

@@ -1,17 +1,9 @@
-//! Answers `tools/test_bosscam_rs.py`: the boss camera
-//! (`piney_world::bosscam`, `ccBossCam`) over the field's camera and player
-//! tasks, as `merchcam_probe` runs them. One request a line (numbers in
-//! hex), one JSON line back.
-//!
-//! ```text
-//! start T X Y Z DIRCZ SCHEME MODE SEED   Kite and the camera as the field's set-up leaves them
-//! frame [DIRECT PUSH POWL DIRCL POWR DIRCR PW0..PW11]
-//!                                   one frame of the tasks, then the cameras
-//! boss T0..T3                       BossCam::new(transfer T) over Kite, then the cameras
-//! quake Q0 Q1 Q2                    QuakeCam with the vector drawn
-//! main B0..B3 [pad as frame]        CamMain toward the boss at B, then the boss camera and the cameras
-//! off                               OffBossCamera, then the cameras
-//! ```
+//! Answers `tools/test_bosscam_rs.py`: the boss camera (`piney_world::bosscam`,
+//! `ccBossCam`) over the field's camera and player tasks, as `merchcam_probe`
+//! runs them. One request a line (numbers in hex), one JSON line back:
+//! `start` (Kite and the camera), `frame` (one frame of the tasks), `boss`
+//! (`BossCam::new`), `quake` (`QuakeCam`), `main` (`CamMain` toward the boss)
+//! and `off` (`OffBossCamera`), each followed by the cameras.
 
 use std::io::BufRead;
 use std::sync::Arc;

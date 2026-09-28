@@ -1,80 +1,11 @@
-//! Answers `tools/test_dungeon_rt.py`: builds a dungeon as `WORLD_MAN::GO(2)`
-//! does (`piney_world::dungeon_area`), sets its rooms up, queries their
-//! collision and walks through their doors and stairs on the requests it
-//! is sent, and prints one JSON line for each, so the test can run the same
-//! through the game's own code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example dungeon_probe
-//! dungeon_probe ISO < requests
-//! ```
-//!
-//! Numbers are decimal; floats travel as their bit patterns (hex in the
-//! requests). Requests, one a line:
-//! - `new S0 S1 S2 FIELDTYPE WEATHER LEVELMAX ROOMMAX HACK FIELD DUNGEON
-//!   SERVER`: the dungeon of an area with those `WORLD_MAN` words and
-//!   `game.field`, `game.dungeon`, `game.server` (`DungeonArea::new`):
-//!   its type, file, fog row, each floor's stairs rooms, startpos and
-//!   rooms, and `SetRoom(0, 0)`'s hit list and dressing.
-//! - `room F I`: `DUNGEON::SetRoom(F, I)`; the hit list, and the dressing
-//!   (the water, the sparks, the room lights and their omni lights, the
-//!   clumps and animated objects) with `fieldrand` after it.
-//! - `land X Y Z`: `ccLandHitCheck(pos, 0x20000001)` over the hit list:
-//!   the height, the result count, the nearest result and
-//!   `checkHitResultAttlibute`.
-//! - `height X Y`: `WORLD_MAN::GetHeight`.
-//! - `goto X Y Z LEVEL FLOOR BLOCK`: `DUNGEON::GotoNextRoom(position, now)`
-//!   on floor LEVEL with `game.floor` FLOOR and `game.block` BLOCK: the
-//!   answer, `WORLD_MAN.position`, the room built and its hit list.
-//! - `drawn X Y` (hex): what `DUNGEON::Draw` draws of the room for a
-//!   player at (X, Y): the cell's room (-1 none), the room (0 / 1) and its
-//!   doors.
-//! - `roomc F I CLEAR`: `DUNGEON::SetRoom(F, I)` with `ccCheckActiveObject(F,
-//!   I)` answering CLEAR (0 / 1): the doors, the door words and the hit
-//!   list.
-//! - `movedoor LEVEL HERE CLEARALL CLEARHERE`: one `DUNGEON::MoveDoor(HERE)`
-//!   on floor LEVEL with `ccCheckActiveObject()` answering CLEARALL and
-//!   `ccCheckActiveObject(LEVEL, HERE)` CLEARHERE: the doors' sounds (0
-//!   opening, 1 closing, and where), the door words and the hit list.
-//! - `opendoor F I`, `closedoor F I`, `closedoor2`: `DUNGEON::OpenDoor`,
-//!   `CloseDoor`, `CloseDoor2`; the door words and the hit list.
-//! - `info F I`: `DUNGEON::GetRoom2DPos` of room I on floor F.
-//! - `draweff N [X Y]`: N frames of `DUNGEON::DrawEff`: each frame's
-//!   `ccEff::Draw`s (name, place, pattern, transparency), the room lights'
-//!   intensities and `fieldrand`; in a lake, the fireflies' too, with the
-//!   player at (X, Y, 0) (hex).
-//! - `drawbg HERE N`: N frames of a lake's `DUNGEON::DrawBG(HERE)`: the
-//!   halfword it writes to the scrolled material's V, and the clumps'
-//!   matrix.
-//! - `rng SEED COUNT`: `fieldrand`'s seed and `randcnt` set (a story
-//!   dungeon's `Generate` draws for its gimmicks, which the port does not).
-//! - `select F I`: `WORLD_MAN::RoomSelect(F, I)`'s dungeon part
-//!   (`ClearRoom`, `SetRoom(F, I)` with the room clear,
-//!   `DUNGEON::RoomSelect`): `WORLD_MAN.position`, `level`,
-//!   `roomEnterFlag`, `specialRoom` and the hit list.
-//! - `ban A D F B`: `ccSaveData::SetAreaBan` on the probe's save (a new
-//!   game's: every entry -1), which the dungeon reads from then on
-//!   (`GetBanRoom`, `GotoNextRoom`); `bans`: the 32 entries.
-//! - `enter X Y Z LEVEL FLOOR BLOCK`: `WORLD_MAN::Enter`'s dungeon part: the
-//!   change it asks for (`scene` or `area`, or none).
-//! - `fog`: the last `SetRoom`'s `SetFog` (near, far, 0, max, colour) and
-//!   `SetAmbient` (the light group's ambient, bits).
-//! - `eventdata EVENT AREA F20` (F20 hex): `WORLD_MAN::SetEventData` for
-//!   story area EVENT with `game.area` AREA and the caller's `$f20`: the
-//!   points, positions and warp points.
-//! - `slots P0..P15 Q0..Q15 CALL..`: `ccEvent::SetEventPoint` (`p:F:B:N`)
-//!   and `SetEventPos` (`q:F:B:N:DIRC:X:Y:Z`, the floats hex) called in
-//!   turn on an event manager whose 16 points and 16 positions hold the
-//!   numbers P and Q (-1 free; floor and block -1, the rest 0): every
-//!   point and position after.
-//! - `start X Y Z DIRCZ SCHEME MODE SEED` (hex): Kite standing in the room
-//!   built, as `ccPlayer::ccPlayer` leaves him in a dungeon (act 2 at once,
-//!   his body on the character list), the camera as `cameraInit(0)` leaves
-//!   it, scheme SCHEME, `cameraMode` MODE, `rand` seeded with SEED.
-//! - `pad DIRECT PUSH POWL DIRCL POWR DIRCR POW0 .. POW11` (hex): one frame
-//!   of `cameraMain` and `ccPlayer::Main` over the room's collision, as
-//!   `world_probe`'s, and whether he stepped on an entrance
-//!   (`WORLD_MAN::Enter`).
+//! Answers `tools/test_dungeon_rt.py` (`dungeon_probe ISO < requests`):
+//! builds a dungeon as `WORLD_MAN::GO(2)` does (`piney_world::dungeon_area`),
+//! sets its rooms up, queries their collision, walks its doors and stairs,
+//! and prints one JSON line a request, as the game's code does in eemu.
+//! Requests: `new`, `room`, `roomc`, `select`, `land`, `height`, `goto`,
+//! `enter`, `drawn`, `movedoor`, `opendoor`, `closedoor`, `closedoor2`,
+//! `info`, `draweff`, `drawbg`, `rng`, `ban`, `bans`, `fog`, `eventdata`,
+//! `slots`, `start`, `pad`; the fields are the harness's.
 
 use std::io::BufRead;
 use std::sync::Arc;

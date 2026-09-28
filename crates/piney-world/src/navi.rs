@@ -1,30 +1,10 @@
 //! Routes through a Root Town (gcmn `ccnavi.cpp` 0x005130b0-0x00514888,
-//! tables in `navitbl.cpp`): the walking PCs' `ccNavi`.
-//!
-//! A town is a graph of numbered landmarks (`naviMapTown1`-`5`, gcmn
-//! 0x006144a0..., `ccLandmark` 0x30 bytes), each at a dummy of the town's
-//! file (`DMY_marker01`...; `ccSetNaviMap` 0x005130b0 copies their
-//! positions in when the player task starts). A landmark lists up to eight
-//! neighbours it links to directly, its junction (`near[0]`; negative on a
-//! landmark that is not one itself) and the main lines (`line[]`) through
-//! it. A main line (`naviMainLinesOfTownN[line]`) is
-//!
-//! ```text
-//! u8 from, to, n;  n x (u8 line, u8 junction): the lines it meets and where
-//! u8 count;  count x u8 landmark: its landmarks in order
-//! ```
-//!
-//! `ccNavi::RouteSearchByMap(start, goal)` (0x00513720) routes from the
-//! landmark nearest `start` to the one nearest `goal` (within 10000, and
-//! within 301 in height): directly when they link, else along the start's
-//! junction, the main lines between the two junctions (a common line, or
-//! `SearchRouteMainLineLink`'s shortest chain of at most four lines by the
-//! landmarks' distances) and the goal's junction; duplicates are squeezed
-//! out. The route is `route[]` (254, landmarks..., 255), `step` its
-//! length and `landmark` the index being walked to; `GetDestination`
-//! (0x00514770) gives that landmark's position.
-//!
-//! All in the EE's arithmetic ([`crate::ee`]).
+//! tables in `navitbl.cpp`): the walking PCs' `ccNavi`. A town is a graph of
+//! numbered landmarks at its `DMY_markerNN` dummies, joined by main lines;
+//! `ccNavi::RouteSearchByMap` (0x00513720) routes from the landmark nearest
+//! the start to the one nearest the goal, directly or through the junctions
+//! and at most four main lines. All in the EE's arithmetic ([`crate::ee`]);
+//! the tables' layout is in docs/engine/field-game.md.
 
 use piney_data::Result;
 use piney_desktop::assets::SceneFile;

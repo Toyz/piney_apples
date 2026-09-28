@@ -1,67 +1,11 @@
 //! The walking PCs of a Root Town: `ccRtownPC` (gcmn `rtownnpc.cpp`,
 //! 0x00506640-0x0050933c, 0x2f0 bytes over `ccGimmick`), the other "players"
-//! wandering Mac Anu between its landmarks.
-//!
-//! **Who.** `ccSetupGameCtrl` seeds the Mersenne Twister (`ccInitRand`,
-//! [`Mt::init`]) and, listing the town's files, `ccRegisterEventMng` calls
-//! `ccRegisterRandomNpc(n)` (main 0x001b7660), [`register_random_npc`]:
-//! `16 - n` distinct rows of `npcTbl` 30-79, each `30 + |ccRand() % 50|`
-//! (the next free one on a repeat), into `eventMng+0x20[0..16-n]`. `n` is
-//! `eventMng+0x1c`: the event's registered NPCs plus `ccSpcManager+0xdc`,
-//! the registered party characters (1 for Kite alone, so 15 PCs; 2 with
-//! event 2's Orca, 14).
-//!
-//! **Where.** `ccThEntryCtrl`'s set-up runs `ccEntryEventMng` (main
-//! 0x001b62e0): in a town `ccSetMerchant(0)`, `ccSetChaosGate`, then in
-//! towns 0-3 `ccEntryRandomNpc` (0x001b6cf0), which gives slot `k`'s row to
-//! `ccSetRtownPC(row, k)` (gcmn 0x00506640): marker `k` of `markPosTbl`
-//! ([`Tables::mark_pos`]) picks four landmarks for the town -
-//! the start, the first target (-1: stand and chat), the chat group and
-//! the PC's place in it. The PC starts on the start landmark (its z from
-//! `ccLandHitCheck(.., 0x20000002)`), is built by `ccEntryRtownPC` ->
-//! [`RtownPc::place`] (the constructor 0x005067f0 and
-//! `ccEntryCtrl::initObject`, which puts its body in the character list),
-//! and goes on the entry control's NPC list after the merchants.
-//!
-//! **Each frame** (`ccThEntryCtrl`, priority 64, after the player):
-//! `ccEntryObj::routine` (0x0042fa60, [`RtownPc::routine`]: the distance
-//! and heading to Kite in the plane, `dispSW` within 7000, `freezeFlag`
-//! beyond 10000) and `ccRtownPC::main` (0x00507c20, [`RtownPc::main`]):
-//!
-//! ```text
-//! posP = W2P(pos)              relative to Kite (z kept: |posP| counts the height)
-//! normalMode (acts below); a hidden act ends the frame
-//! bodyHit.mask2 = plDist < 300 ? walls : every polygon   (bit 0)
-//! CollisionDetection -> pos += offset (the other bodies and the town)
-//! if ccCheckCameraDeg(pos, 12288) (within 67.5 degrees of the camera's view):
-//!     the anm steps; its matrix T(pos) Rx Ry Rz(dirc); notes (footsteps)
-//!     transparency = transrate; ccChar::Draw (the camera fade, 4000 + 400)
-//! ```
-//!
-//! **Acts** (`normalMode` 0x00507de0, `actNum` +0x2a4, `actProcess` +0x2a6):
-//!
-//! | act | what |
-//! | --- | --- |
-//! | 6 | a walker's start: route to its first target, then 3 |
-//! | 3 | walking the route (`anmTbl[2]`, 10.5 a frame); hidden (0) beyond 4400 |
-//! | 0 | hidden: back at the start landmark once Kite is within 4400 (1) |
-//! | 1 | waits unseen at the start landmark while Kite is 4200-4400 away and not leaving; then 3 |
-//! | 4 | arrived: faces its shop's merchant 60 frames (a shop landmark) and chats |
-//! | 7 | at landmark 44, the Chaos Gate: fades out, 90 frames away, fades in |
-//! | 5 | a chat group standing round a landmark, taking turns to speak |
-//! | 2 | spoken to: faces Kite (`rTownNPCInfluence`) |
-//!
-//! At most ten PCs show at once (`eventMng+0x18`), walkers aside.
-//! [`RtownPc::route_move`] is `ccRtownPC::move` (0x005077f0): a quarter of
-//! the turn to the next landmark each frame, a step of `walkSpd` straight at
-//! it once facing within 4096/65536, sidestepping (+-0.5 rad) while pressed
-//! against another body; every 60 frames a PC that moved less than 100
-//! turns back (`returnRoute`), one 60 frames on a landmark picks a new route.
-//!
-//! What the frame asks of the rest of the game comes out as [`PcEvent`]s:
-//! the chat bubbles (`ccChatMsg::OpenChat`, the texts of `rtpcChatTbl`,
-//! `rtpcChatMesShop` and `rtpcChatMes`), `effTransfer` at the gate, and the
-//! command list (`ccEntryCmnd` / `ccDeleteCmnd`, [`RtownPc::listed`]).
+//! wandering Mac Anu between its landmarks. Who: [`register_random_npc`]
+//! (`ccRegisterRandomNpc`, main 0x001b7660) off the game's MT19937. Where:
+//! `ccSetRtownPC` from [`Tables::mark_pos`], built by [`RtownPc::place`]. Each
+//! frame [`RtownPc::routine`] and [`RtownPc::main`] (acts in `normalMode`,
+//! routes by [`RtownPc::route_move`]); what it asks of the game comes out as
+//! [`PcEvent`]s (docs/engine/field-game.md, "The walking PCs").
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -1340,15 +1284,12 @@ impl RtownPc {
     }
 
     /// `ccEvent::Execute`'s NPC instructions on a walking PC (main
-    /// 0x001acbe0-0x001ae7c0), what its event mode then does: `npc_act`
-    /// sets `evActNum` (0-2 stand, 3 fade in, 4 / 5 transfer out (5 then
-    /// stops it for good), 6 hidden, 7 shown; the PC's `thinkMode` is left
-    /// as it is: only a PC an event placed runs its event mode); the walks
-    /// set `evActNum` -1 (run to `evNextPos`): a point (x, y, z times 10), a
-    /// distance (times 10) along a heading from the PC or from `target`, or
-    /// the marker's position; a gradual `npc_turn` / `npc_face` (`chg` not
-    /// 0) sets `ccEntryObj`'s `grotDeg` and `grotSpd` (1: 64) for
-    /// `routine`. False for what the world does itself (puts, instant turns).
+    /// 0x001acbe0-0x001ae7c0): `npc_act` sets `evActNum` (0-2 stand, 3 fade in, 4
+    /// / 5 transfer out, 5 then for good, 6 hidden, 7 shown); the walks set
+    /// `evActNum` -1 toward `evNextPos` (a point, a distance along a heading, or
+    /// the marker); a gradual `npc_turn` / `npc_face` sets `grotDeg` and
+    /// `grotSpd` for `routine`. Only a PC an event placed runs its event mode.
+    /// False for what the world does itself (puts, instant turns).
     pub fn command(&mut self, c: &NpcCommand, marker: Option<(V4, F)>, target: Option<V4>) -> bool {
         const TEN: F = 0x4120_0000;
         let spd = |chg: i16| if chg == 1 { 64 } else { chg };

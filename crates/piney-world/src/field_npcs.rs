@@ -1,21 +1,11 @@
-//! An event's NPCs outside the towns: the town PCs (`entry 3`, `npcTbl`
-//! rows 83-90: Meg and the other named players) and the Administrator
-//! (`entry 4 29`) that story events stand in fields and dungeons.
-//!
-//! `ccEntryEventMng` makes them as it does in a town (`ccSetRtownPC`,
-//! `ccSetMerchant`: a `ccRtownPC` or `ccMerchan` on the entry control's NPC
-//! list) and puts them at the marker's `evPos`. There is no navigation map
-//! outside the towns, and none is needed: an event's PC starts in its event
-//! mode (`param[0]` -1) and only walks where the event's instructions send
-//! it.
-//!
-//! The port keeps each as two halves. The entry control holds a stand-in
-//! ([`crate::combat::EventNpc`]: the row's base, on the command lists as
-//! the class leaves it) for what the battle's side reads - the command
-//! target, `talked_to`, the effects that follow a character. The world
-//! holds the class itself ([`RtownPc`], [`Merchant`], the towns' ports),
-//! which moves, animates, collides and draws; after each frame the stand-in
-//! is put where the class stands.
+//! An event's NPCs outside the towns: the town PCs (`entry 3`, `npcTbl` rows
+//! 83-90: Meg and the other named players) and the Administrator (`entry 4
+//! 29`) that story events stand in fields and dungeons, made as in a town and
+//! put at the marker's `evPos`; they only walk where the event sends them.
+//! The port keeps each as two halves: the entry control's stand-in
+//! ([`crate::combat::EventNpc`]) for what the battle's side reads, and the
+//! class itself ([`RtownPc`], [`Merchant`]), which moves, animates, collides
+//! and draws; after each frame the stand-in is put where the class stands.
 
 use std::cell::RefCell;
 use std::rc::Rc;

@@ -1,32 +1,10 @@
 //! The party manager and the SPC registry as the event scripts use them:
-//! `ccSpcManager` (gcmn 0x00730340, a `ccSPC`) and `ccPartyManager`
-//! (0x00730310, a `ccParty`), and the party instructions of
-//! `ccEvent::Execute` (main 0x001a8d20) that act through them - `pc_act`,
-//! `pc_mode`, `pc_turn`, `pc_face`, `party_add`, `party_remove`, `menu_ban`
-//! and `menu_clear`'s party part.
-//!
-//! ```text
-//! ccSPC          +0x00 registry[5] (ccSPCRegistry, 0x2c each)  +0xdc registryNum
-//! ccSPCRegistry  +0x00 id (charTbl row, -1 free)  +0x04 partyFlag  +0x08 bootParam
-//!                +0x0c reserveWeapon  +0x0e oldWeapon  +0x10 equip (6 shorts)
-//!                +0x1c charPtr  +0x20 body  +0x24 weapon  +0x28 weaponNew
-//! ccParty        +0x00 memberChar[3]  +0x0c memberID[3] (-1 empty)  +0x18 num
-//! ```
-//!
-//! A new game starts with Kite alone (`ccSPC::Initialise` 0x0059f5f0:
-//! registry 0 is `charTbl` row 0 in the party, `bootParam` 0;
-//! `ccParty::InitParty` 0x0059ce00: member 0 Kite, `num` 1). An event's
-//! `entry` of a party character adds it to the registry with its `param` as
-//! the `bootParam` (`ccRegisterEventMng` main 0x001b6d70, `EntrySpc`
-//! 0x0059f740) when the area's files are listed; `ccSPC::Reboot`
-//! (0x005a00d0) then builds every registered character (`ccSpcStart[id]`,
-//! each constructor applying `SetBootStatus(bootParam)`), gives each its
-//! `ccAI` (mode 1, manual when `bootParam` has bit 2) and fills
-//! `memberChar` (`SetParty` 0x0059fe80).
-//!
-//! The characters themselves are the World's (Kite's `Player`, the members
-//! the battle's characters: [`crate::town_party`]); [`SpcChars`] lends them
-//! by id as [`SpcRef`]s.
+//! `ccSpcManager` (gcmn 0x00730340, a `ccSPC`: five `ccSPCRegistry` rows) and
+//! `ccPartyManager` (0x00730310, a `ccParty`: three members), and the party
+//! instructions of `ccEvent::Execute` (main 0x001a8d20) that act through them
+//! (`pc_act`, `pc_mode`, `pc_turn`, `pc_face`, `party_add`, `party_remove`,
+//! `menu_ban`). The characters themselves are the World's; [`SpcChars`] lends
+//! them by id as [`SpcRef`]s (docs/engine/field-game.md).
 
 use crate::ai::{self, PartyLeave, SpcRef};
 use crate::ee::{self, V4};
@@ -490,21 +468,12 @@ impl Spcs {
     }
 }
 
-/// `pc_act pc act` (`ccEvent::Execute` case 60, main 0x001ad0c0, level 2),
-/// on each character `pc` names (jump tables 0x00355fa0 for `pc` >= 0,
-/// 0x00355f70 for -3, 0x00355f40 for -1/-2):
-///
-/// ```text
-/// 0      manual control off
-/// 1      pc >= 0 and the character is Kite (base id 0): ManualModeAI(1);
-///        otherwise manual control off
-/// 2, 8   ManualModeAI(1), SetRemoteCmd(0)
-/// 3-7    ManualModeAI(1), SetRemoteCmd(act)
-/// ```
-///
-/// then `noDeathFlag` (+0xe0 bit 7) set for 1, 5 and 8 - 1 and 8 also
-/// putting it on the command list - and cleared for the rest. True when
-/// some character was acted on.
+/// `pc_act pc act` (`ccEvent::Execute` case 60, main 0x001ad0c0, level 2), on
+/// each character `pc` names: 0 manual control off; 1 `ManualModeAI(1)` for
+/// Kite named by id, else off; 2 and 8 `SetRemoteCmd(0)`; 3-7
+/// `SetRemoteCmd(act)`, all under manual control. Then `noDeathFlag` set for
+/// 1, 5 and 8 (1 and 8 also put it on the command list), cleared for the
+/// rest. True when some character was acted on.
 pub fn pc_act(spcs: &Spcs, chars: &mut dyn SpcChars, hits: &mut Hits, pc: i32, act: i32) -> bool {
     let ids = spcs.named(pc);
     let annihilated = spcs.annihilated(chars);
@@ -668,14 +637,11 @@ pub fn pc_face(spcs: &Spcs, chars: &mut dyn SpcChars, pc: i32, to: V4, chg: i16)
 }
 
 /// `ccEvent::MenuBan` (main 0x001b2460), its party part: each party slot's
-/// member noted (`spcMode`: its `manualSW`) and put under manual control at
-/// remote command 0 (`ManualModeAI(1)`, `SetRemoteCmd(0)`); then every
-/// registered character off the command list (`ccDeleteCmnd`) and its near
-/// fade off (`transDist` 0). Its `ccStoreSpcCondition` and each
-/// character's `ClearCondition` are the field's
-/// (`FieldWorld::menu_ban_party`, `Combat::menu_ban_conditions`);
-/// `ccSpcConditionEffectOFF`, which hides the condition effects, is not
-/// kept.
+/// member noted (`spcMode`) and put under manual control at remote command 0;
+/// then every registered character off the command list and its near fade
+/// off (`transDist` 0). `ccStoreSpcCondition` and `ClearCondition` are the
+/// field's (`FieldWorld::menu_ban_party`, `Combat::menu_ban_conditions`);
+/// `ccSpcConditionEffectOFF` is not kept.
 pub fn menu_ban(spcs: &mut Spcs, chars: &mut dyn SpcChars, hits: &mut Hits) {
     let annihilated = spcs.annihilated(chars);
     for s in 0..SLOTS {
@@ -790,15 +756,11 @@ impl crate::World {
     }
 
     /// `ccSPC::Reboot` (gcmn 0x005a00d0) as the town's set-up runs it
-    /// (`rebootSpcManager`, before the fade in): every registered character
-    /// built afresh with its `bootParam` - Kite at the start position
-    /// ([`crate::player::Player::build`], with his stand-in among the
-    /// battle's characters), the others through `ccFellow::Initialize` as
-    /// the battle's characters ([`crate::town_party::TownParty::build`]) at
-    /// their `StartPos` (a party member beside Kite, one the events
-    /// registered outside the party at the origin, where its entry's marker
-    /// then puts it) - each with its AI, then `SetParty`.
-    /// [`crate::World::place_entries`] runs it first.
+    /// (`rebootSpcManager`, before the fade in): every registered character built
+    /// afresh with its `bootParam` - Kite at the start position
+    /// ([`crate::player::Player::build`]), the others as the battle's characters
+    /// ([`crate::town_party::TownParty::build`]) at their `StartPos` - each with
+    /// its AI, then `SetParty`. [`crate::World::place_entries`] runs it first.
     pub(crate) fn reboot(&mut self) {
         if self.rebooted {
             return;

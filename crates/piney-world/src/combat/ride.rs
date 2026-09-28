@@ -1,26 +1,11 @@
 //! The riding Grunty on the field's tasks: `ccPucciguso`
-//! ([`piney_battle::ride`]) and the state around it that the battle's
-//! tasks read ([`Riding`]).
-//!
-//! `ccThPucciguso` (gcmn 0x00510880, priority 49) is started by
-//! `ccPuccigusoStart` on the menu task after `ccSpcSleep` has put Kite's
-//! and the party's tasks to sleep; it runs after the sleeping `ccThPlayer`
-//! and before the (sleeping) members' tasks, so [`frame`] runs where
-//! `kite::main` would, while [`Riding::main_on`] says the task calls
-//! `Main` this frame. Its world is the frame's [`Stage`] ([`RideStage`]:
-//! the collision, the camera, the draw test), with the ride's two clumps
-//! (Kite's riding one over his own `ctu1body`, the Grunty's `cdogbodN`)
-//! as their animation players; `plw`'s place, heading and pause it writes
-//! are Kite's. What sounds and throws dust goes out as
-//! [`Show::Ride`]; the two draws are kept for the field's draw
-//! ([`Riding::draw`]).
-//!
-//! While [`Riding::asleep`] Kite's and the members' frames do not run and
-//! nothing draws them (their tasks sleep); `pgRideFlag` ([`Riding::flag`])
-//! turns the enemies home (`selectTarget`) and the party's AI off
-//! (`Reconnoiter`). The sequence around it (the fades, the menu, the
-//! music) is piney-game's (`ride.rs`), on `FieldWorld`'s calls
-//! (`field_world/ride.rs`).
+//! ([`piney_battle::ride`]) and the state around it the battle's tasks read
+//! ([`Riding`]). `ccThPucciguso` (gcmn 0x00510880, priority 49) runs where
+//! `kite::main` would while Kite's and the party's tasks sleep; its world is
+//! the frame's [`Stage`] ([`RideStage`]), with the ride's two clumps as its
+//! animation players. Sounds and dust go out as [`Show::Ride`]; `pgRideFlag`
+//! ([`Riding::flag`]) turns the enemies home and the party's AI off. The
+//! sequence around it is piney-game's (docs/engine/grunty-ride.md).
 
 use std::rc::Rc;
 

@@ -1,44 +1,11 @@
-//! A field's map: `WORLD::DrawMiniMap` (gcmn 0x005a3940, from
-//! `WORLD::Draw` 0x005a97b0 unless `ccGame.inBattle`) and its helpers, with
-//! the sprites `WORLD::Init` (0x005a4cd0) makes and the texture
-//! `WORLD::Generate` (0x005a6da0) paints.
-//!
-//! ```text
-//! Init        mapLayer: priority 50, SetFrame(340, 28, 160, 160, 80, 80, 1, 1)
-//!             minimap  ccMask(512, 64) on mapLayer: fieldccs[type] (hackFlag
-//!                      2, else fieldccs2) :: fieldminimap[type] (TEX_sfamap
-//!                      ...), 256 x 256 PSMT8
-//!             minimap2 ccMask(16, 16) on mapLayer: xallow0::TEX_xallow0
-//!             kanji    ccInitKanji(16, 0), ctrl 0x10, on mapLayer
-//! Generate    the texture's last 80 rows and first 80 columns become the
-//!             height map: texel (79 - x, 255 - y) = (char) fptoui(FIELD::
-//!             GetHeight(x, y) * 0.124) + 128, an index into the texture's
-//!             own palette; the rest of the texture is the icons
-//! DrawMiniMap nothing when fieldMapMode (WORLD_MAN +0x12c) is 2
-//!             the label: "Overall Map" (mode 1) or "Default Map" (mapmsg,
-//!             main 0x003782f8) at (10, 6) in ccSpriteColorTable[7]
-//!             the player's cell (x / 300, y / 300); the height map scrolls
-//!             under the arrow, which stands at (80, 80), and wraps (the
-//!             field is a torus): mode 0 the four 40 x 40 quarters of it
-//!             drawn 160 x 160 (4 px a cell) where they fall, mode 1 all of
-//!             it 160 x 160 (2 px a cell) and its eight neighbours; alpha
-//!             112 x 0.7
-//!             mode 0: the key and sub objects (fobj2[]: KeyIconTBL,
-//!             SubIconTBL), then the base and tree objects (fobj[40][40]:
-//!             BaseIconTBL, TreeIconTBL), each its table's cell at its
-//!             height cell, alpha 64 x 0.7
-//!             the dungeon entrance (FP_DUNGEON and the red arrow at u 81,
-//!             v 65) but in twenty story areas
-//!             the fountain (u 185, v 13) when the entry control has one
-//!             (ccCheckFountain: a gimmick of type 20)
-//!             after WORLD::ShowMap (mapFlag): the magic portals (the entry
-//!             control's circles), a portal opened fading by 1 a draw
-//!             the arrow (minimap2, turning, upside down), pulsing
-//!             the frame: minimap's cell (96, 96) 160 x 160, alpha 112
-//!             SendPacketS: minimap2, minimap
-//! ```
-//!
-//! On the map, x runs right to left (column 79 - x) and y top to bottom.
+//! A field's map: `WORLD::DrawMiniMap` (gcmn 0x005a3940, from `WORLD::Draw`
+//! 0x005a97b0 unless `ccGame.inBattle`) and its helpers, with the sprites
+//! `WORLD::Init` (0x005a4cd0) makes and the texture `WORLD::Generate`
+//! (0x005a6da0) paints: a 80 x 80 height map in the texture's corner that
+//! scrolls and wraps under the arrow (the field is a torus), the objects'
+//! icons, the dungeon entrance, the fountain and the magic portals. On the
+//! map x runs right to left (column 79 - x) and y top to bottom
+//! (docs/engine/map.md).
 
 use std::sync::Arc;
 

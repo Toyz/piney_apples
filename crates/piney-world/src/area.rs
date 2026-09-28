@@ -1,23 +1,10 @@
-//! Where The World is: `ccGame`'s scene (main 0x003789cc's object, `ccGame`
-//! 0x88 bytes) - the area (0 a Root Town, 1 a field, 2 a dungeon), the
-//! town, field, dungeon, floor and block, each with the one before - and
-//! the two calls that change it and ask for `ccSetupGameCtrl` again.
-//!
-//! ```text
-//! ChangeArea(a, n)   0x001674a0   a 0: ChangeScene(0, n, -1, -1, -1, -1)
-//!                                 a 1: ChangeScene(1, -2, n, -1, -1, -1)
-//!                                 a 2: ChangeScene(2, -2, -2, n, 0, 0)
-//!                                 else ChangeScene(0, 0, -1, -1, -1, -1)
-//! ChangeScene(a, t, fd, d, f, b)  0x00167380
-//!                    townPrev = town; t >= -1: town = t, saveData.lastTown = t
-//!                    serverPrev = server; town >= 0: server = {0,1,2,3,4,0,1,2}[town]
-//!                    fieldPrev = field; fd >= -1: field = fd   (dungeon, floor,
-//!                    block likewise); areaPrev = area; a >= -1: area = a
-//!                    inBattle = inBattleCnt = 0; inBattleDist = 2200
-//!                    ChangeRequest(6, 7): ccSetupGameCtrl
-//! ```
-//!
-//! -2 keeps a value (its "previous" still takes the old one); -1 is "none".
+//! Where The World is: `ccGame`'s scene (main 0x003789cc's object, 0x88 bytes):
+//! the area (0 a Root Town, 1 a field, 2 a dungeon), town, field, dungeon, floor
+//! and block, each with the one before, and the calls that change it:
+//! `ChangeArea(a, n)` (0x001674a0) and `ChangeScene` (0x00167380), which set
+//! `lastTown` and the server by town, clear the battle and ask
+//! `ChangeRequest(6, 7)`. -2 keeps a value, -1 is none
+//! (docs/engine/field-game.md).
 
 use piney_data::save::{SaveData, offset};
 

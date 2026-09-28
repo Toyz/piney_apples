@@ -1,29 +1,11 @@
-//! `ccPlayer` (gcmn `player.cpp`, 0x005977d0-0x0059ce00): Kite, moved by
-//! the pad as `ccPlayer::Main` (0x00598310) moves him once a frame on the
-//! task `ccThPlayer` (priority 49), after the camera task (40) and before
-//! the town draws (96).
-//!
-//! ```text
-//! movePos = (0,0,0,1)
-//! ControlMove          the left stick against the camera's heading: movePos,
-//!                      the heading (dirc.z), walk or run
-//! HitCheck(movePos)    the move slid along the walls (hit.rs)
-//! pos.xy += movePos.xy
-//! CollisionTest        pos.z = the floor under him (ccLandHitCheck)
-//! MapLoopAdjustPos     (no wrap in a town)
-//! CameraPosCalc/Set    by the active camera: tcam placed behind his head
-//!                      (camera.rs) while camera 1 is active
-//! AnimCtrl             the act and its animation (motion.rs)
-//! root = T(pos) Rz Ry Rx(dirc)      ccCoord::SetMatrix_PosRotZYX
-//! transparency, draw
-//! ```
-//!
-//! Only what a player in a town, a field or a dungeon reaches is ported:
-//! the AI only in manual mode (the event scripts' control: `ccAI::Brains`
-//! then the move from the heading and `moveFlag`, ai.rs), no conditions,
-//! skills, targets or gate hacking. The area's collision ([`Hits`]: its
-//! `game.area`, the map's wrap, the ground under a field) decides what the
-//! ground, the map wrap, the camera's floor rule and the stopping act are.
+//! `ccPlayer` (gcmn `player.cpp`, 0x005977d0-0x0059ce00): Kite, moved by the
+//! pad as `ccPlayer::Main` (0x00598310) moves him once a frame on
+//! `ccThPlayer` (priority 49): `ControlMove`, `HitCheck` along the walls,
+//! `CollisionTest` onto the floor, `MapLoopAdjustPos`, the camera, `AnimCtrl`
+//! (motion.rs), the matrix and the draw. Only what a player reaches is
+//! ported: the AI only in manual mode, no conditions, skills, targets or gate
+//! hacking. The area's [`Hits`] decide the ground, the map's wrap, the
+//! camera's floor rule and the stopping act (docs/engine/field-game.md).
 
 use piney_data::anim::Animation;
 
@@ -383,15 +365,12 @@ impl Player {
         }
     }
 
-    /// `ccPlayer::ccPlayer(0)` (gcmn 0x00597910) in a town with the
-    /// registry's `bootParam`, then `ccSPC::Reboot`'s AI (0x005a00d0): the
-    /// arrival of [`Player::new`], off the command list when `boot` has
-    /// bit 2, `SetBootStatus(boot)` (before the AI exists, so its bit 2
-    /// does nothing there), `restraintSW` unless standing (act 2); then a
-    /// `ccAI` in mode 1 (`ChangeMode(1, 1)`), in manual mode when `boot` has
-    /// bit 2 (`ManualMode`). A new game's `bootParam` 0 leaves the arrival
-    /// as it was; event 2's `pc_mode -3 6` makes him start out of sight
-    /// (act 14) under manual control.
+    /// `ccPlayer::ccPlayer(0)` (gcmn 0x00597910) in a town with the registry's
+    /// `bootParam`, then `ccSPC::Reboot`'s AI (0x005a00d0): the arrival of
+    /// [`Player::new`], off the command list when `boot` has bit 2,
+    /// `SetBootStatus(boot)`, `restraintSW` unless standing; then a `ccAI` in mode
+    /// 1, manual when `boot` has bit 2. Event 2's `pc_mode -3 6` makes him start
+    /// out of sight (act 14) under manual control.
     pub fn build(pos: V4, dirc: V4, speed: F, width: F, height: F, boot: i32, hits: &mut Hits) -> Self {
         let mut p = Player::new(pos, dirc, speed, width, height);
         p.listed = boot & 4 == 0;

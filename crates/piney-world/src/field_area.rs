@@ -1,32 +1,11 @@
 //! A field, area 1: `WORLD` (gcmn world.cpp) as `WORLD_MAN::GO(1)` (main
-//! 0x0019f8e0) builds it and `ccThFieldDisp` (0x001a4430, priority 96)
-//! draws it with `WORLD::Draw` (gcmn 0x005a97b0) each frame
-//! (`docs/engine/field-walk.md`).
-//!
-//! ```text
-//! GO(1)            eventAreaNumber = game.field; defSE by field type;
-//!                  WORLD_MAN bounds 0..48000; seed = fieldSeed, randcnt 0;
-//!                  new WORLD; SetHackFlag; WORLD::Init; WORLD::Generate
-//!                  (piney_data::field): the ground, the objects - the
-//!                  dungeon entrance, key, sub and lake objects as FOBJECT2s
-//!                  (fobj2[], the entrance's hit enabled at once), base and
-//!                  tree objects as FOBJECTs at their chips (fobj[40][40])
-//! WORLD::Draw      layer 1 (objLayer, 0): DrawObject - the FOBJECT2s but
-//!                  the entrance, key and type-6 ones, then the FOBJECTs of
-//!                  the 12 x 12 chips round the centre, each first taken off
-//!                  the hit list, then drawn (and put back at its tail)
-//!                  layer 2 (obj2Layer, -10): the entrance and key objects
-//!                  layer 4 (floorLayer, -20): DrawMesh - the ground tiles
-//!                  and cover of those chips
-//!                  the lake's water; DrawBG on the background layers
-//! ```
-//!
-//! An object's hit models (the `HIT_` nodes of its clump, or the ones its
-//! Anime chunk carries) go into the collision list (`ccModelHit`) as it is
-//! drawn, at the copy of its place nearest the player: a `FOBJECT2` drops out
-//! beyond 9,600 units, a `FOBJECT` only when its chip is redrawn. Between
-//! them the height map is the ground (`ccLandHitCheck`'s field path,
-//! [`crate::hit::Hits::land`]).
+//! 0x0019f8e0) builds it and `ccThFieldDisp` (0x001a4430, priority 96) draws
+//! it with `WORLD::Draw` (gcmn 0x005a97b0): the ground (piney_data::field),
+//! the `FOBJECT2`s (entrance, key, sub, lake) and the `FOBJECT`s at their
+//! chips, the 12 x 12 chips round the centre drawn each frame. An object's
+//! hit models join the collision list as it is drawn, at the copy of its
+//! place nearest the player; between them the height map is the ground
+//! (docs/engine/field-walk.md).
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -1176,13 +1155,10 @@ impl FieldArea {
 
     /// What `WORLD::SetFood` and `WORLD::SetSpecialObj` (gcmn 0x005aa990,
     /// 0x005aae90, from `WORLD_MAN::EntryGimmick`) read of this field, the
-    /// objects as `Generate` left them (their animations stepped once, no
-    /// draw yet: the entry task's set-up runs before the field's first
-    /// draw). An object's nodes are its anm's controllers (`GetSubstAdrs`,
-    /// in the chunk's order, the root at the identity), or with no anm
-    /// its clump's nodes (`GetObjAdrsF`, at the rest: their places 0).
-    /// `inPoint[k]` is `DMY_inpoint<k>` (w 1) plus the entrance's `wp`
-    /// (`SetDungeonEnter`); `water` the lake's index among the `FOBJECT2`s.
+    /// objects as `Generate` left them (animations stepped once, no draw yet).
+    /// An object's nodes are its anm's controllers, or with no anm its clump's
+    /// nodes at rest. `inPoint[k]` is `DMY_inpoint<k>` plus the entrance's `wp`;
+    /// `water` the lake's index among the `FOBJECT2`s.
     pub fn field_gims(&self, event_area: i32) -> piney_battle::entry::FieldGims {
         use piney_battle::entry::{FieldGims, FieldObj};
         let file = &self.file;
@@ -1359,14 +1335,11 @@ pub fn set_fog(fog: &field::Fog) -> piney_draw::DepthFog {
 }
 
 /// `WORLD_MAN`'s two `ccBufferSampling`s (+0x418, +0x41c), which every
-/// `WORLD::Draw` sends first on sysLayer (+0x41c, then +0x418, each
-/// prepended): `SetShade(0, 896, 0, 8, 7, 3000, 0x48808080)` and `(0, 896,
-/// 0, 7, 6, 6000, ...)`. Each copies the picture so far into its own
-/// texture at 256 x 128 (then 128 x 64) and draws it back over every pixel
-/// farther than 3,000 (then 6,000), blended at 0x48: the far scene
-/// softened, and more so beyond 6,000. sysLayer draws after objLayer, so
-/// the ground, the objects and the sky are softened, not the characters or
-/// the effects.
+/// `WORLD::Draw` sends first on sysLayer: `SetShade(0, 896, 0, 8, 7, 3000,
+/// 0x48808080)` and `(0, 896, 0, 7, 6, 6000, ...)`. Each copies the picture
+/// into a small texture and draws it back over every pixel farther than
+/// 3,000 (then 6,000), blended at 0x48: the ground, objects and sky are
+/// softened with distance, not the characters or effects (docs/engine/field.md).
 fn depth_shades() -> Vec<piney_draw::Cmd> {
     use piney_desktop::noiz::Sampling;
     [(8, 7, 3000.0f32), (7, 6, 6000.0)]

@@ -1,52 +1,10 @@
 //! Area 16's story map, Hideous Someone's Giant: `EVENTAREA07` (gcmn
 //! 0x00405a00-0x00406cdc), which `WORLD_MAN::GO(1)` makes for
-//! `eventAreaNumber` 16 (`docs/engine/evarea.md`). Infection reaches it
-//! after the ending: side event 62, "SERVER1", gives its words and waits
-//! in its dungeon.
-//!
-//! ```text
-//! EVENTAREA07()     0x00405a00  ccs se1_7_1, effccs town_z, a LENSFLARE of
-//!                               it; modelArray[50], anmArray[25], bg[0..5],
-//!                               the 25 CLOUDs, lgtAnm cleared; the bob (+0x1d0
-//!                               .. +0x1d8) and its direction (+0x1c4) 0;
-//!                               ChangeBlock(0)
-//! ChangeBlock(b)    0x00405c80  blk (+0x1e4) = b; the block before's pieces
-//!                               and clouds deleted; then by block (below)
-//! Draw()            0x00406b80  block 0: DrawBG; objLayer: DrawObj2,
-//!                               DrawObj, DrawFloor; effLayer: each cloud's
-//!                               Move then Draw; LENSFLARE::Draw(se1_7_1,
-//!                               DMY_se1_7lig1point, 0). Block 1: objLayer:
-//!                               DrawObj; floorLayer: DrawFloor
-//! DrawBG()          0x00406730  the bob: fieldrand(25) up to 350, then
-//!                               down to 0 (+0x1d8, turning at the ends);
-//!                               MoveTexture of EA_moveTex07's two rows;
-//!                               bg[k] on bgLayer[k] at (0, 0, bob)
-//! DrawObj, DrawObj2, DrawFloor  the type-2, -3, -1 models, then objects
-//! ```
-//!
-//! By block:
-//!
-//! ```text
-//!                 block 0                         block 1
-//! SetFog          (15000, 35000, 0, 80, 0xdcfae6) (500, 5000, 0, 80, 0)
-//! ccSys.bgColor   0xdcfae6                        (kept)
-//! models          EA_MODELTABLE07 (8)             EA_MODELTABLE0702 (2)
-//! objects         EA_OBJTABLE07 (2)               none
-//! bg              EA_BGNAME07: bg1, cl3, cl1, cl2  none
-//! lights          ANM_se1_7bg1a: LGT_se1_7lig1     ANM_se1_7bg2a: LGT_se1_7lig2,
-//!                                                 LGT_omn01, LGT_omn02
-//! SetStartPos     DMY_marker02 back from the      DMY_marker03
-//!                 dungeon (game.areaPrev 2),
-//!                 else DMY_marker01
-//! then            25 CLOUDs of type 1 (town_z);
-//!                 objects[1], models[0] and [4]
-//!                 SetPos at the bob
-//! ```
-//!
-//! Block 1's names are `se1_7_2`'s, though the constructor looks them up
-//! through `se1_7_1`'s handle; the port reads them from `se1_7_2`. Its
-//! start, `DMY_marker03`, is in neither file. No Infection script brings
-//! the map to block 1.
+//! `eventAreaNumber` 16. Infection reaches it after the ending (side event
+//! 62). Block 0 is the giant's plain under a bobbing sky with 25 `CLOUD`s and
+//! a lens flare; block 1 (`se1_7_2`'s names, read through `se1_7_1`'s handle
+//! in the game) is one no Infection script reaches. The tables by block are
+//! in docs/engine/evarea.md.
 
 use std::collections::HashMap;
 use std::rc::Rc;

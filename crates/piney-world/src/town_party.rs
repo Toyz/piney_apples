@@ -1,13 +1,9 @@
 //! The party in a Root Town: the registered characters other than Kite as
 //! the battle's characters, run by the battle's machinery
-//! ([`crate::combat::town`]: `ccFellow::Main`, `ccAI::Brains` and
-//! `ActInTown`), with the town's navigation.
-//!
-//! The event instructions reach them as they reach the field's
-//! ([`TownChars`]: Kite the town's own player, the others through the
-//! battle's records, [`crate::combat::spc::SpcRec`]); what the town reads
-//! of them (their place, the command list, the draw) comes from the
-//! battle's scene and cast.
+//! ([`crate::combat::town`]: `ccFellow::Main`, `ccAI::Brains`, `ActInTown`)
+//! with the town's navigation. The event instructions reach them as they
+//! reach the field's ([`TownChars`], [`crate::combat::spc::SpcRec`]); what
+//! the town reads of them comes from the battle's scene and cast.
 
 use std::rc::Rc;
 use std::sync::Arc;

@@ -1,28 +1,10 @@
-//! Kite drawn: `ccChar::Draw` (gcmn 0x0056b1c0) through `ccAnm::Draw`
-//! (0x001524d0) on the character layer, his clump `CMP_trall` posed by the
-//! act's animation under `T(pos) Rx Ry Rz(dirc)`, the skinned body lit by
-//! the town's lights (`ccDrawEnv::SetLightMatrix` 0x00105900), the weapon
-//! in each hand, and before the Data Drain bracelet (`saveData.plcol` 0)
-//! the body's palette swapped for `CLT_ctu1bodyc1`.
-//!
-//! The weapons: `ccPlayer::ccPlayer` (gcmn 0x00597910) looks the hands up
-//! among the clump's own nodes by name (`ccClump::GetObjAdrsF` 0x0013d300:
-//! `OBJ_t0 l hand` into `+0x12c` at 0x00598038, `OBJ_t0 r hand` into
-//! `+0x130` at 0x00598060), then `ccSpcChar::EquipWeapon` (gcmn 0x0059d650)
-//! takes the weapon's file and, for job 0 (twin blades: jump table
-//! 0x006f09e0 to 0x0059d854), makes `ccModel`s of `MDL_<file>r` and
-//! `MDL_<file>l` (`ccMakeModelName` 0x005a1530, suffix 1 "r", 2 "l") and
-//! `ccObj::SetModel`s (0x0013b8f0) them onto the right and the left hand,
-//! in place of the hands' own empty models. From then on a blade is one of
-//! the clump's models: `ccAnm::Draw` draws every clump node the act's
-//! animation poses (all 22 of `ctu1body`'s pose both hands) through
-//! `ccObj::Draw` (0x0013f220), at the node's world matrix from
-//! `ccCoord::_SetLWMatrix` (0x00138380). So each blade is a rigid model in
-//! its hand's space: the hand's world matrix, no offset, scale or dummy of
-//! its own, the body's transparency and lights, in every act and area. The
-//! weapon file's own clumps and objects (`CMP_cwdhsw02r`, `OBJ_cwdhsw02r`)
-//! are never built; its `DMY_xdummy_w01`-`w04` only place the weapon
-//! trails (`ccSpcChar::ArmsEffect` 0x0059ddd0), not drawn here.
+//! Kite drawn: `ccChar::Draw` (gcmn 0x0056b1c0) through `ccAnm::Draw`, his
+//! `CMP_trall` posed by the act's animation, the skinned body lit by the
+//! lights (`ccDrawEnv::SetLightMatrix` 0x00105900), before the bracelet
+//! (`plcol` 0) with `CLT_ctu1bodyc1`. `ccPlayer::ccPlayer` (0x00597910) finds
+//! the hands' nodes and `EquipWeapon` (0x0059d650) hangs each blade's model on
+//! its hand (`ccObj::SetModel` 0x0013b8f0): a rigid model in the hand's space.
+//! The weapon file's dummies only place the trails (docs/engine/field-game.md).
 
 use std::collections::HashMap;
 use std::rc::Rc;

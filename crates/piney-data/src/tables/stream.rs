@@ -71,6 +71,12 @@ pub struct Stream {
     pub event_objs: &'static [EventObj],
     /// `rockScaleTbl`: a rock's scale by its model.
     pub rock_scale: [f32; 3],
+    /// `eventObjTbl_0710` (MUT main 0x00366e30): the opening's (`Func_str0710`) cues, up to its end row; none on Infection.
+    pub opening_events: &'static [EventObj],
+    /// The opening's texts (`Func_str0710`'s cues 700 and 710), each normal then Parody Mode's; none on Infection.
+    pub opening_text: [Option<&'static str>; 4],
+    /// `Func_str0880`'s hit marks' rotations (MUT main 0x00366ed0: x, y, z degrees); none on Infection.
+    pub hit_rot_0880: &'static [[f32; 3]],
 }
 
 impl crate::store::Load for Stream {
@@ -96,6 +102,9 @@ impl crate::store::Load for Stream {
             hit_rot_0301: crate::store::Load::load(r),
             event_objs: crate::store::Load::load(r),
             rock_scale: crate::store::Load::load(r),
+            opening_events: crate::store::Load::load(r),
+            opening_text: crate::store::Load::load(r),
+            hit_rot_0880: crate::store::Load::load(r),
         }
     }
 }
@@ -160,6 +169,15 @@ impl Stream {
     }
     pub fn rock_scale(&self) -> [f32; 3] {
         self.rock_scale
+    }
+    pub fn opening_events(&self) -> &'static [EventObj] {
+        self.opening_events
+    }
+    pub fn opening_text(&self) -> [Option<&'static str>; 4] {
+        self.opening_text
+    }
+    pub fn hit_rot_0880(&self) -> &'static [[f32; 3]] {
+        self.hit_rot_0880
     }
 }
 

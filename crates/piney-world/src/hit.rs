@@ -1,37 +1,11 @@
-//! Collision against a town's hit mesh (`libhit.cpp`, `INF SLUS_202.67:
-//! 0x00152ec0`-0x00155c60; gcmn `hit.cpp` and `ccSpcChar::HitCheck`).
-//!
-//! A town's scene file carries one Hit chunk (0x0b00; Mac Anu's is
-//! `HIT_sr1town1hit`, 828 triangles on `MDL_floor_02`), which
-//! `ccStream::Decode_Hit` (0x0014ce50) and `ccSetHitData` (0x00149990) turn
-//! into polygons with their plane, edges and a class from the normal's
-//! elevation: floor (at least about 39 degrees up) or wall. The town
-//! registers it once, in world coordinates, and every query runs over it:
-//!
-//! - [`Hits::land`]: `ccLandHitCheck` (gcmn 0x00571e00), a segment from 105
-//!   above to 1000 below a point against the floors: the ground height.
-//! - [`Hits::line`]: `_ccHitCheckLM` (0x00153930), a segment against the
-//!   polygons crossed front to back: walls between two points, and the
-//!   camera's line of sight.
-//! - [`Hits::sphere`]: `ccModelHitCheckQ`/`QZ` (0x00155600, 0x00155930), a
-//!   sphere against faces, edges and vertices, and the push out of them.
-//! - [`Hits::hit_check`]: `ccSpcChar::HitCheck` (gcmn 0x0059ee20), the
-//!   player's move slid along the walls and pushed out of the characters.
-//! - [`Hits::collision_detection`], `ccCharHit::CollisionDetection`
-//!   (0x00153470): a character's body pushed out of every other body in
-//!   the `ccCharHit` list whose kind its mask names, then out of the town.
-//!
-//! The character list (`ccCharHitTop`/`Tail` 0x0037890c/10, filled by
-//! `ccCharHit::HitEnable` 0x00153310 and emptied by `HitDisable`
-//! 0x00153360) is [`Hits::chars`]: copies of the registered [`Body`]s in
-//! list order, each owner's copy refreshed whenever its body goes through a
-//! query ([`Hits::collision_detection`]) or [`Hits::sync`]. Kite (kind 7)
-//! enters it when his arrival ends; a town's walking PCs (kind 2) when the
-//! entry control places them (`ccEntryCtrl::initObject`'s `SetHitSW(1)`),
-//! leaving and re-entering (at the tail) as they hide and reappear.
-//!
-//! All of it in the EE's arithmetic ([`crate::ee`]), as the game does it;
-//! `tools/test_world_rs.py` runs the game's own functions beside it.
+//! Collision against a town's hit mesh (`libhit.cpp`, INF main
+//! 0x00152ec0-0x00155c60; gcmn `hit.cpp` and `ccSpcChar::HitCheck`): the scene
+//! file's Hit chunk (0x0b00) as floors and walls, and the queries over it -
+//! [`Hits::land`], [`Hits::line`], [`Hits::sphere`], [`Hits::hit_check`] and
+//! [`Hits::collision_detection`]. [`Hits::chars`] is the character list
+//! (`ccCharHitTop`), copies of the registered [`Body`]s in list order. All in
+//! the EE's arithmetic ([`crate::ee`]); `tools/test_world_rs.py` runs the
+//! game's own functions beside it (docs/engine/field-game.md).
 
 use std::rc::Rc;
 
@@ -82,19 +56,12 @@ pub struct Polygon {
     pub dvs: [F; 3],
 }
 
-/// A decoded Hit chunk: `HIT_MODEL` (one `HIT_OBJECT`) and its polygons,
-/// and the `ccModelHit` (0xa0 bytes) that puts it in the world.
-///
-/// ```text
-/// ccModelHit +0x00 hitSW  +0x04 next  +0x08 type  +0x0c data (HIT_MODEL)
-///            +0x10 rm (model to world)  +0x50 im (its inverse)
-/// ```
-///
-/// A query takes its points into the model's space by subtracting `rm`'s
-/// translation, and for `type` other than 0 by `im`'s rotation too
-/// (`prepareHitLine` 0x00153a30, `prepareHitSphere` 0x00153be0); results come
-/// back through all of `rm`. A town's model sits at the identity; a field's
-/// objects are translated (`ccClump::HitEnable` enables with `type` 0).
+/// A decoded Hit chunk: `HIT_MODEL` (one `HIT_OBJECT`) and its polygons, and
+/// the `ccModelHit` (0xa0 bytes: +0x00 hitSW, +0x08 type, +0x10 `rm` model to
+/// world, +0x50 `im` its inverse) that puts it in the world. A query takes its
+/// points into the model's space by `rm`'s translation, and for `type` not 0
+/// by `im`'s rotation too (`prepareHitLine` 0x00153a30, `prepareHitSphere`
+/// 0x00153be0); results come back through all of `rm`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct HitModel {
     /// The HIT_ object and the model it belongs to.

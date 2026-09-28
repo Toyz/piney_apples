@@ -17,6 +17,7 @@ mod enemy_motion;
 mod evparty;
 mod fellow;
 mod frame;
+mod innis;
 mod items;
 mod kite;
 mod navi;
@@ -637,7 +638,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .or_else(|| evparty::handle(cmd, &mut t, &mut tables))
                     .or_else(|| {
                         if cmd.starts_with("boss") { boss::handle(cmd, &mut t, &mut tables, &iso_path) } else { None }
-                    }) {
+                    })
+                    .or_else(|| innis::handle(cmd, &mut t, &mut tables, &iso_path))
+                {
                     Some(r) => r,
                     None => format!("{{\"error\":\"unknown command {cmd}\"}}"),
                 }

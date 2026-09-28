@@ -1,50 +1,11 @@
 //! Carmina Gade: `ROOTTOWN03` (MUT gcmn town03.cpp, constructor 0x0043b980,
-//! `Draw` 0x0043e400 through the vtable at 0x00388f60), the third Root
-//! Town (`game.town` 2), new in Mutation. Infection's executable carries an
-//! earlier `ROOTTOWN03` no disc reaches; this is Mutation's.
-//!
-//! ```text
-//! ROOTTOWN03()  the map's layers: WORLD_MAN +0x490 (50), +0x1b4 (40) over
-//!   0x0043b980  (340, 36) 160 x 160, +0x1b8 (45) the screen; town03
-//!               (town03d in crisis); the AIRSHIP (town03Ship); SetFog(3000,
-//!               15000, 0, 85, 0x0014140c) and ccSys.bgColor the same; 34
-//!               STATICMODELs (RT_MODELTABLE03), no STATICOBJECTs; the
-//!               clumps CMP_sr3bac1, _bac2, _mou1, _mou2 (+0x1c8..+0x1d4),
-//!               in crisis CMP_sr3dat1_1-3 (+0x74..+0x7c), each SetFogSw(0);
-//!               the map's four sprites (TEX_sr3map1 three times, xallow0);
-//!               the lights from ANM_sr3bac1a (town03Light: LGT_sr3lig1,
-//!               LGT_omni01-11); BLT_bg, _obj, _obj2, _floor; three ccAnms
-//!               of ANM_sr3wat1a, SetFogSw(0), OBJ_sr3wat00 duplicated
-//!               (8200, 8192, 8192), rooted at the origin and stepped once;
-//!               a 128 x 128 ccTexChunk (+0x1f4) swapped into water 0's
-//!               model
-//! Draw()        cameraGetPos; on effLayer waterUVModifi2 of water 0 (reach
-//!   0x0043e400  32000); on objLayer water 0 stepped and drawn, then
-//!               MakePacketDrawBuffTrans into its texture; the airship's
-//!               Move and its ccAnm's Draw; DrawBG; on obj2Layer DrawObj2,
-//!               DrawObj, DrawFloor, DrawWithOutFog of rows 29-33 and of the
-//!               type-0 rows below 29 (24-28), DrawMap; u$1875 += 0.005
-//!               (back to 0 at 1, read by nothing)
-//! DrawBG()      v$1474 += (0.001, 0.002), each back to 0 past 1; the four
-//!   0x0043cb30  clumps at the origin on bgLayer[0]-[3] (-100 .. -70); in
-//!               crisis MAT_sr3dat1_2's U and _3's U and V from vftoi12 of
-//!               the second, CMP_sr3dat1_1-3 on bgLayer[4]-[6] (-60, -50,
-//!               -45)
-//! DrawObj2, DrawObj  0x0043ce60, 0x0043cdc0: the rows of type 3, 2
-//! DrawFloor     0x0043cf00: rows 0-7
-//! ```
-//!
-//! Water 1 and 2 are made and stepped once but never drawn. The BLT chunks
-//! (`ccBltGrpChunk::LockBlt`, `MakePacketLoadData`) load the textures into
-//! the GS, which the port's renderer does not need.
-//!
-//! The airship (`AIRSHIP`, 0x0043af10, `Move` 0x0043b0c0) flies a round of
-//! six legs between the dummies `DMY_marker69`-`72`: 69 to 70, 70 to 71,
-//! 71 to 72, then back. A leg takes 2000 frames (its `t` += 0.0005), then
-//! the ship turns for 300 frames (`dirc.z` by pi/300 or pi/600 a frame, to
-//! the leg's heading), then waits 300 frames. It puffs smoke from its two
-//! chimneys while it flies and while it waits, and sounds (SE 257) as each
-//! puff comes while it waits. The puffs draw from `fieldrand`.
+//! `Draw` 0x0043e400 through the vtable at 0x00388f60), the third Root Town
+//! (`game.town` 2), new in Mutation. Infection's executable carries an earlier
+//! `ROOTTOWN03` no disc reaches; this is Mutation's. Four sky clumps, 34
+//! static models, one water drawn through a frame-buffer copy (two more made
+//! but never drawn), and the `AIRSHIP` flying six legs between
+//! `DMY_marker69`-`72`, puffing smoke from `fieldrand`
+//! (docs/engine/root-towns.md).
 
 use std::collections::HashMap;
 use std::sync::Arc;

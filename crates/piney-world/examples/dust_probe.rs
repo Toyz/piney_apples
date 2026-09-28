@@ -1,13 +1,8 @@
 //! Answers `tools/test_dust_ctrl_rs.py`: `piney_world::combat::dust::ctrl`
-//! (`ccEnemyDustCtrl::ctrl`) over rows the harness sends. One request a
-//! line (numbers in hex), one JSON line back.
-//!
-//! ```text
-//! rows HEX                 the controller's ccEnemyDustInfo rows (0x20 bytes
-//!                          each, as hex), its nodes' last frames 0
-//! ctrl FLAG ANM FRAME      ctrl(obj, FLAG) with anmNum ANM and frameNum FRAME:
-//!                          the rings as [row, n, life, s, r]
-//! ```
+//! (`ccEnemyDustCtrl::ctrl`) over rows the harness sends. One request a line
+//! (numbers in hex), one JSON line back: `rows HEX` (the controller's
+//! `ccEnemyDustInfo` rows, 0x20 bytes each) and `ctrl FLAG ANM FRAME` (the
+//! rings as [row, n, life, s, r]).
 
 use std::io::BufRead;
 

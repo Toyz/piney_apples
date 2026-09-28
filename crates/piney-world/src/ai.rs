@@ -1,40 +1,11 @@
 //! `ccAI` (gcmn ai.cpp, 0x260 bytes) as the event scripts drive it: a party
-//! character in manual mode (`manualSW`) standing, turning and transferring
-//! by remote command, and the `ccSpcChar` members those commands touch.
-//!
-//! ```text
-//! ccAI  +0x00 manualSW bit 0, followSW 1, talkFlag 2, runFlag 3, remoteFlag 4,
-//!             goBackFlag 5, inviteFlag 6, selfFlag 7
-//!       +0x01 battleFlag bits 0-1, targetFlag 2-3, chatCmdFlag 4-6, firstTime 7
-//!       +0x02 chatRequest bit 0      +0x03 skillMask
-//!       +0x04 strategyCMD  +0x06 strategy  +0x08 mode  +0x0c modeOld  +0x10 count
-//!       +0x18 bodyPtr  +0x74 remoteCmd  +0x76 chatCmd  +0x80 arrivalChatCnt
-//!       +0x9a gDeg (u16)  +0x9c gRotSp  +0xb4 detourCnt  +0xb6 levelOld
-//!       +0x160 sysMsg (ccAIEntry: +0 id, -1 until SysMsgEntry)
-//! ```
-//!
-//! The field names follow the game's (and `piney-battle`'s `party_ai::Ai`).
-//! What is here:
-//!
-//! - `ccAI::ManualMode` (gcmn 0x00583270), `SetRemoteCmd` (0x005832e0),
-//!   `SetDircZ` (0x00581500), `ChangeMode` (0x00589740), the constructor's
-//!   fields (0x0057c5f0);
-//! - `ccAI::Brains` (0x0057ca00) on its `talkFlag` and manual paths, with
-//!   `ChatCommand` (0x00583d60) and `ChatMessageSender` (0x00586420) as far
-//!   as a character with no chat command queued reaches them;
-//! - `ccAI::ManualControl` (0x00580ef0) for remote commands 0 and 3-7, and
-//!   1 and 2 on a straight goal (`gPoint` -1, the events' walks:
-//!   `MoveP2P` 0x00582d50);
-//! - `ccSpcChar::ManualModeAI` (0x0059eba0), `SetBootStatus` (0x0059e950),
-//!   `TransferIn` (0x0059ea60), `TransferOut` (0x0059ea80);
-//! - `ccSetDirc` / `ccGetDircChg` (main 0x001da0b0 / 0x001d9eb0) exactly as
-//!   the AI calls them.
-//!
-//! What is not: the non-manual paths (`ActInTown`, `ActInField`,
-//! `ActInDungeon`, following, fighting), remote walks along the town
-//! navigator's route (`gPoint` not -1: no event asks for one), the AI message system (`SysMsgEntry`,
-//! `ReadSysMsg`, `ccAISysMsgSend*`: with nothing queued `ReadSysMsg` reads
-//! nothing), chat commands and chat lines, `distPl` / `dircTg`.
+//! character in manual mode (`manualSW`) standing, turning and transferring by
+//! remote command. Ported: `ManualMode` (0x00583270), `SetRemoteCmd`
+//! (0x005832e0), `SetDircZ` (0x00581500), `ChangeMode` (0x00589740), `Brains`
+//! (0x0057ca00) on its talk and manual paths, `ManualControl` (0x00580ef0), the
+//! `ccSpcChar` transfers; `ccSetDirc` / `ccGetDircChg` (main 0x001da0b0 /
+//! 0x001d9eb0). Not: the non-manual paths and the AI's message system. The
+//! layout and the AI proper are in docs/engine/battle.md.
 
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::{self, Hits};
@@ -173,15 +144,12 @@ impl Ai {
     }
 }
 
-/// `ccGetDircChg(cur, tgt, spd)` (main 0x001d9eb0): the step from `cur`
-/// toward `tgt` the shorter way, in sixteenths of the game's 16-bit angle:
-/// `d = 16 ((tgt - cur) & 0xffff)`, folded to `0x100000 - d` (negated at the
-/// end) past half a turn; divided by `spd & 0xffff` (and at least 1) when
-/// `spd & 0xf0000` is 0; at most 24576. The game's switch compares
-/// `spd & 0xf0000` with 1 and 2, which it can never equal, so any other rate
-/// (a negative `gRotSp`) takes the whole `d`. A rate of 0 (never set by the
-/// AI: `pc_turn`'s `chg` 0 turns at once) divides by zero in `__divdi3`;
-/// here it takes the whole `d`.
+/// `ccGetDircChg(cur, tgt, spd)` (main 0x001d9eb0): the step from `cur` toward
+/// `tgt` the shorter way, in sixteenths of the 16-bit angle, divided by `spd &
+/// 0xffff` (at least 1) when `spd & 0xf0000` is 0, at most 24576. The game's
+/// switch on `spd & 0xf0000` can never match 1 or 2, so any other rate takes the
+/// whole step; a rate of 0 divides by zero in the game (`__divdi3`), here the
+/// whole step.
 pub fn get_dirc_chg(cur: i16, tgt: i16, spd: i32) -> i32 {
     let d = i32::from(tgt).wrapping_sub(i32::from(cur));
     if d == 0 {
@@ -414,26 +382,12 @@ pub enum PartyLeave {
     Disband,
 }
 
-/// `ccAI::ManualControl` (0x00580ef0), the remote command's frame:
-///
-/// ```text
-/// 0  stand: moveFlag, runFlag 0; turn toward gDeg at gRotSp (ccSetDirc);
-///    remoteFlag while not stopped there (gDeg read unsigned: a heading of
-///    0x8000 or more never counts as reached)
-/// 3  the arrival: in act 2 done (command 0); in act 14 TransferIn
-/// 4  out through the gate: in act 14 done; else TransferOut unless in 12
-/// 5  leaving the party: TransferOut (not in 12 or 14), resignParty or
-///    disbandSpc, partyFlag -2
-/// 6  out of sight at once: act 14, transparency and cloak 0; done
-/// 7  back in sight at once: act 14 to 2 (the body on the list when alive
-///    or coming back), transparency and cloak 1, dispSW; done
-/// ```
-///
-/// Commands 1 (running: `runFlag`) and 2 (walking) step toward `gPos` by
-/// `MoveP2P` and, within 50, stand with the command done, `remoteFlag` 1
-/// and `gDeg` the heading the body had this frame; along the town route
-/// (`gPoint` not -1) they do nothing here. Returns what command 5 asks of
-/// the party.
+/// `ccAI::ManualControl` (0x00580ef0), the remote command's frame: 0 stand and
+/// turn toward `gDeg` (read unsigned, so a heading of 0x8000 or more never
+/// counts as reached), 3 the arrival, 4 out through the gate, 5 leaving the
+/// party, 6 out of sight, 7 back in sight; 1 (running) and 2 (walking) step
+/// toward `gPos` by `MoveP2P` and stand within 50. Returns what command 5 asks
+/// of the party (docs/engine/battle.md).
 pub fn manual_control(ch: &mut SpcRef, hits: &mut Hits) -> Option<PartyLeave> {
     let cmd = ch.ai.as_ref().map_or(-1, |a| a.remote_cmd);
     let mut leave = None;
@@ -582,23 +536,11 @@ fn busy(ch: &mut SpcRef) {
     }
 }
 
-/// `ccAI::Brains` (0x0057ca00) for a character whose AI is in manual mode
-/// or talking (`talkFlag`), the only ways the event scripts drive it:
-///
-/// ```text
-/// mode 0: nothing (-1)
-/// talkFlag: the body turns toward gDeg at 64; 0
-/// SysMsgEntry or ReadSysMsg (nothing queued: nothing); levelCheck (manual:
-///   only levelOld); partyFlag 1: ChatCommand, else skillMask = 3
-/// dead 0: mode 6 back to 1; dead 4/5 as a ghost: mode 6; other deaths skip
-///   the control
-/// manualSW: ManualControl
-/// ChatMessageSender; count++; detourCnt--
-/// ```
-///
-/// A character not in manual mode goes to `ActInTown` and the rest, which
-/// are not ported: nothing happens then but the counters. Returns
-/// `ManualControl`'s party request.
+/// `ccAI::Brains` (0x0057ca00) for a character in manual mode or talking
+/// (`talkFlag`: the body turns toward `gDeg` at 64), the ways the event scripts
+/// drive it: the level check, `ChatCommand` for a party member, the death
+/// modes, `ManualControl`, then `ChatMessageSender` and the counters. Not in
+/// manual mode, only the counters run. Returns `ManualControl`'s party request.
 pub fn brains(ch: &mut SpcRef, hits: &mut Hits, input: &BrainsInput) -> Option<PartyLeave> {
     let party_flag = *ch.party_flag;
     let dead = *ch.dead;

@@ -353,11 +353,17 @@ impl SceneFog {
 
     /// `SetFog(near, far, nearRate, farRate, colour)` (0x00105820): `F`
     /// from `2.55 (100 - nearRate)` at `near` to `2.55 (100 - farRate)` at
-    /// `far`, held beyond.
+    /// `far`, held beyond. With `near` equal to `far` the EE's division by
+    /// zero gives the largest float (signed as the quotient would be).
     pub fn with_rates(near: f32, far: f32, near_rate: f32, far_rate: f32, colour: u32) -> SceneFog {
         let min = 2.55 * (100.0 - far_rate);
         let max = 2.55 * (100.0 - near_rate);
-        let a = (min - max) / (far - near);
+        let (n, d) = (min - max, far - near);
+        let a = if d == 0.0 {
+            if n.is_sign_negative() != d.is_sign_negative() { -f32::MAX } else { f32::MAX }
+        } else {
+            n / d
+        };
         SceneFog { a, b: max - near * a, min, max, colour: [colour as u8, (colour >> 8) as u8, (colour >> 16) as u8] }
     }
 

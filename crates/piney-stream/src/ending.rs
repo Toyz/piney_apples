@@ -161,21 +161,7 @@ impl Tables {
     /// The volume's.
     pub fn read(volume: piney_data::volume::Volume) -> Tables {
         let t = piney_data::tables::stream::of(volume);
-        let entries = t
-            .event_objs()
-            .iter()
-            .map(|o| EventEntry {
-                cue: o.cue,
-                name: o.name.map(str::to_string),
-                kind: match (&o.eff, &o.rock) {
-                    (Some(e), Some(r)) => EventKind::Both(eff_param(e), rock_param(r)),
-                    (Some(e), None) => EventKind::Eff(eff_param(e)),
-                    (None, Some(r)) => EventKind::Rock(rock_param(r)),
-                    (None, None) => EventKind::Other,
-                },
-            })
-            .collect();
-        Tables { entries, rock_scale: t.rock_scale().map(f32::to_bits) }
+        Tables { entries: entries_of(t.event_objs()), rock_scale: t.rock_scale().map(f32::to_bits) }
     }
 
     /// Where `eventObjTbl_0581` starts in the run (entry 105 on Infection):
@@ -183,6 +169,22 @@ impl Tables {
     pub fn first_0581(&self) -> usize {
         self.entries.len().saturating_sub(EVENT_OBJ_0581_ENTRIES)
     }
+}
+
+/// A run of `ccEventObjTbl` rows as the walker reads them.
+pub(crate) fn entries_of(objs: &[piney_data::tables::stream::EventObj]) -> Vec<EventEntry> {
+    objs.iter()
+        .map(|o| EventEntry {
+            cue: o.cue,
+            name: o.name.map(str::to_string),
+            kind: match (&o.eff, &o.rock) {
+                (Some(e), Some(r)) => EventKind::Both(eff_param(e), rock_param(r)),
+                (Some(e), None) => EventKind::Eff(eff_param(e)),
+                (None, Some(r)) => EventKind::Rock(rock_param(r)),
+                (None, None) => EventKind::Other,
+            },
+        })
+        .collect()
 }
 
 /// `eventObjTbl_0581`'s entries.
@@ -216,14 +218,14 @@ pub struct EventObj {
 
 impl EventObj {
     /// The constructor's: the table's first entry and its object.
-    fn new(tables: &Tables, at: usize, world: &dyn World) -> EventObj {
+    pub(crate) fn new(tables: &Tables, at: usize, world: &dyn World) -> EventObj {
         let obj = tables.entries.get(at).and_then(|e| e.name.as_deref()).and_then(|n| world.find(n));
         EventObj { at, obj }
     }
 
     /// `SetObj(cue)` (0x00184150): the entry found (and its object, which
     /// the result is), or None and nothing changed.
-    fn set_obj(&mut self, tables: &Tables, cue: u32, world: &dyn World) -> Option<u32> {
+    pub(crate) fn set_obj(&mut self, tables: &Tables, cue: u32, world: &dyn World) -> Option<u32> {
         let e = &tables.entries;
         let cur = e.get(self.at)?.cue;
         let mut i = self.at;
@@ -340,14 +342,14 @@ pub enum PartDraw {
 
 /// `ccStrPartGrp`: the creators and the parts, each in the order made.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct Parts {
+pub(crate) struct Parts {
     creators: Vec<Creator>,
     parts: Vec<Part>,
 }
 
 impl Parts {
     /// `ccEffPart0580::Create(grp, chunk, coord, param)` (0x0018dfc0).
-    fn puffs(&mut self, at: V4, p: &EffPartParam, rand: &mut Rand) {
+    pub(crate) fn puffs(&mut self, at: V4, p: &EffPartParam, rand: &mut Rand) {
         let extra = if p.count_rand != 0 { rand.rand() % p.count_rand } else { 0 };
         for _ in 0..p.count + extra {
             let a = ee::sub(rand_in(p.angle, rand), HALF_TURN);
@@ -397,7 +399,7 @@ impl Parts {
 
     /// The creators' then the parts' `Ctrl`, newest first, each dropped
     /// when done; the parts' draws.
-    fn step(&mut self, world: &dyn World, tables: &Tables, rand: &mut Rand, out: &mut Vec<PartDraw>) {
+    pub(crate) fn step(&mut self, world: &dyn World, tables: &Tables, rand: &mut Rand, out: &mut Vec<PartDraw>) {
         let mut gone = Vec::new();
         for k in (0..self.creators.len()).rev() {
             if self.create(k, world, tables, rand) {

@@ -1,37 +1,10 @@
-//! `ccLattice` (gcmn lattice.cpp): a ribbon of vertex rows, the newest at
-//! the head, each fading over the frames after it was laid; the boss's
-//! cross swing leaves one behind its sword (`ccBoss01::DrawCross`, gcmn
-//! 0x0047c390, `new ccLattice(2, 7)`), the party's weapons theirs
-//! (`ccSpcChar::ArmsEffect`, [`crate::arms`]: 2 columns, 3 for job 4).
-//!
-//! ```text
-//! ccLattice(cols, type) (0x00579ad0) Init: 16 rows of `cols` vertices
-//!   (2 or 3; a row 0x70 bytes: +0x20 the world places, +0x50 the screen
-//!   places, +0x80 the made flags, +0x86 the life), the type +4 (the
-//!   colour MakePacket reads, latticeAttributeColorTable[type] 0x006519b0),
-//!   the alpha 48, no row made, head and tail 0
-//! ClearCnt (0x00579c50): with +0x72c set (ClearArmsEffect), every row dead,
-//!   the tail onto the head and +0x72c cleared
-//! NextVertex (0x0057a3a0): head == tail marks the first row; the head one
-//!   back (15 after 0), the tail with it when they meet; the new head
-//!   row's life 6; rows made counted to 16 (then `full`)
-//! SetPos(p, col) (0x0057a300): the head row's vertex col (the tail's too
-//!   for the first row)
-//! Disp (0x0057a470), on effLayer: for each pair of neighbouring columns,
-//!   from the head row to the tail row, a strip of each row's two vertices
-//!   (MakePacket 0x00579cb0: each vertex
-//!   through ccTransPosFW2LW and the view's RotTransPers; RGBA the colour
-//!   with alpha life * 48 / 5 below life 5, else 48; ADC (no triangle) for
-//!   the strip's first pair, a vertex behind the eye or more than 640 x
-//!   576 pixels off XYOFFSET; each vertex made once a Disp, its world z
-//!   summed, so a middle column's once); SendPacket (0x0057a0e0): only
-//!   once 16 rows have been made and with 2 pairs or more (head apart from
-//!   tail always gives 2) - TEST 0x73001, ZBUF (ccSys +0xbc8), ALPHA 0x44,
-//!   PRIM 0x4c (a gouraud, blended strip), ccDLSort::Add(the z sum over
-//!   twice the pairs); the first-row flag and the vertices' made flags
-//!   cleared - then each row's life down by 1: a row reaching 0 moves the
-//!   tail one row back (all 16 dead: the tail onto the head)
-//! ```
+//! `ccLattice` (gcmn lattice.cpp, 0x00579ad0-0x0057a470): a ribbon of 16
+//! vertex rows, the newest at the head, each fading over the 6 frames after
+//! it was laid; the boss's cross swing leaves one behind its sword
+//! (`ccBoss01::DrawCross`, `new ccLattice(2, 7)`), the party's weapons
+//! theirs (`ccSpcChar::ArmsEffect`, [`crate::arms`]: 2 columns, 3 for job 4).
+//! `Disp` sends a gouraud, blended strip per pair of columns, only once all
+//! 16 rows have been made (docs/engine/boss.md).
 
 use crate::ee::{self, F, V4};
 

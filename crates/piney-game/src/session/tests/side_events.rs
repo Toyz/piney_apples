@@ -1,12 +1,9 @@
-//! A survey of Infection's side events (S1, 50-62) where they play: each
-//! event's story start (the main event its opening needs), its earlier
-//! blocks marked as run and the side events it needs done, the session put
-//! in the field (or the dungeon room of the event point) its first placed
-//! block names, then driven by the story autopilot (`story_player`). What
-//! each reached: the blocks run, the entries and windows its host was
-//! asked for, the host calls still at their defaults, any panic. A
-//! diagnostic, not a check: `cargo test --release -p piney-game
-//! side_event_survey -- --ignored --nocapture`.
+//! A survey of Infection's side events (S1, 50-62) where they play: each from
+//! its main event's start, its earlier blocks marked run, put in the place its
+//! first located block names, then driven by the story autopilot. It prints
+//! the blocks run, the entries and windows asked for, the host calls left at
+//! their defaults, any panic. A diagnostic: `cargo test --release -p
+//! piney-game side_event_survey -- --ignored --nocapture`.
 
 use piney_event::state::{CLOSED, DONE, ScriptSave as _};
 

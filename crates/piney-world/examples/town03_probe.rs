@@ -1,22 +1,9 @@
-//! Answers `tools/test_town03_rs.py`: Carmina Gade as Mutation's
-//! `ROOTTOWN03` builds and draws it (`piney_world::town03`, with its
-//! airship), one request a line, one JSON line an answer, so the test can
-//! run the same through the game's code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-world --example town03_probe
-//! town03_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests:
-//! - `new CRISIS SEED`: `ROOTTOWN03::ROOTTOWN03` (`town03d` when CRISIS),
-//!   `fieldrand`'s seed SEED; answers the town's state: its STATICMODELs
-//!   (row, type, model, position), lights (distant or omni), `SetFog`, the
-//!   clear colour, the water's times and the airship.
-//! - `draw EX EY EZ`: one `ROOTTOWN03::Draw` with the camera's eye E
-//!   (`cameraGetPos`): the pieces, then the state after it - the airship
-//!   and the root its `Move` set, the puffs and sounds it made,
-//!   `fieldrand`'s seed, `DrawBG`'s scrolls and offset, the water's scroll.
+//! Answers `tools/test_town03_rs.py` (`town03_probe ISO < requests`): Carmina
+//! Gade as Mutation's `ROOTTOWN03` builds and draws it
+//! (`piney_world::town03`, with its airship), one JSON line a request:
+//! `new CRISIS SEED` (the town's state) and `draw EX EY EZ` (one `Draw`: the
+//! pieces, the airship, its puffs and sounds, `fieldrand`, the scrolls).
+//! Numbers hex, floats their bits.
 
 use std::io::BufRead;
 use std::sync::Arc;
