@@ -388,6 +388,11 @@ impl Session {
                 return Err("a change of scene outside The World".into());
             }
         };
+        // The old scene's tasks are deleted: the fellows' delete drops
+        // whoever the events registered outside the party.
+        if let Some(s) = &mut self.spcs {
+            s.delete_fellows();
+        }
         match self.pending.take() {
             Some(Pending::Go(go)) => self.scene.go(go, &mut state.save),
             Some(Pending::Words(words)) => {

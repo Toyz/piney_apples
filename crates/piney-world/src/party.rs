@@ -220,6 +220,19 @@ impl Spcs {
         self.registry_num -= 1;
     }
 
+    /// The fellow tasks' deletes at a change of scene (`ccThFellow01Delete`
+    /// .. `17Delete`, gcmn 0x0041ec20 ..): each registered character but
+    /// Kite that is not in the party (`partyFlag` 1) leaves the registry
+    /// (`DelSpc`), so an event's extras are not built again next scene.
+    pub fn delete_fellows(&mut self) {
+        for i in 0..REGISTRY {
+            let r = self.registry[i];
+            if r.id > 0 && r.party_flag != 1 {
+                self.del_spc(i);
+            }
+        }
+    }
+
     /// `ccParty::CheckMemberID(id)` (0x0059cfe0): the slot, or -1.
     pub fn check_member_id(&self, id: i32) -> i32 {
         let want = id & 0xffff;

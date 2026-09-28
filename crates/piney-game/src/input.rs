@@ -132,13 +132,15 @@ pub fn read(keyboard: &Keyboard, gilrs: Option<&mut Gilrs>, log: Option<&mut Str
         if let Some(log) = log {
             let v = |a| pad.value(a);
             *log = format!(
-                "pad {id} events {events} ls {:+.3} {:+.3} rs {:+.3} {:+.3} lz {:+.3} rz {:+.3}",
+                "pad {id} events {events} ls {:+.3} {:+.3} rs {:+.3} {:+.3} lz {:+.3} rz {:+.3} dpad {:+.3} {:+.3}",
                 v(Axis::LeftStickX),
                 v(Axis::LeftStickY),
                 v(Axis::RightStickX),
                 v(Axis::RightStickY),
                 v(Axis::LeftZ),
-                v(Axis::RightZ)
+                v(Axis::RightZ),
+                v(Axis::DPadX),
+                v(Axis::DPadY)
             );
         }
         for (b, bits) in PAD {
@@ -146,6 +148,7 @@ pub fn read(keyboard: &Keyboard, gilrs: Option<&mut Gilrs>, log: Option<&mut Str
                 raw.buttons |= bits;
             }
         }
+        raw.buttons |= hat(pad.value(Axis::DPadX), pad.value(Axis::DPadY));
         let (lx, ly) = square_stick(pad.value(Axis::LeftStickX), pad.value(Axis::LeftStickY));
         let (rx, ry) = square_stick(pad.value(Axis::RightStickX), pad.value(Axis::RightStickY));
         raw.lx = axis_byte(lx, false);
@@ -154,6 +157,24 @@ pub fn read(keyboard: &Keyboard, gilrs: Option<&mut Gilrs>, log: Option<&mut Str
         raw.ry = axis_byte(ry, true);
     }
     raw
+}
+
+/// A D-pad that gilrs reports as a hat (`DPadX`, `DPadY`: pads with no
+/// SDL mapping, DirectInput) rather than as buttons: its directions, Y up
+/// positive as gilrs gives its sticks.
+fn hat(x: f32, y: f32) -> Buttons {
+    let mut b = Buttons::NONE;
+    if x > 0.5 {
+        b |= Buttons::RIGHT;
+    } else if x < -0.5 {
+        b |= Buttons::LEFT;
+    }
+    if y > 0.5 {
+        b |= Buttons::UP;
+    } else if y < -0.5 {
+        b |= Buttons::DOWN;
+    }
+    b
 }
 
 /// Buttons by name, for scripted presses: `cross`, `circle`, `square`,
@@ -184,6 +205,14 @@ pub fn button(name: &str) -> Option<Buttons> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hat_directions() {
+        assert_eq!(hat(0.0, 0.0), Buttons::NONE);
+        assert_eq!(hat(1.0, 0.0), Buttons::RIGHT);
+        assert_eq!(hat(-1.0, 1.0), Buttons::LEFT | Buttons::UP);
+        assert_eq!(hat(0.0, -1.0), Buttons::DOWN);
+    }
 
     #[test]
     fn stick_bytes() {

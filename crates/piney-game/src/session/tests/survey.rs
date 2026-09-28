@@ -346,6 +346,17 @@ impl StoryPilot {
             }
         }
         let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+        if std::env::var_os("PINEY_DEBUG_TALK").is_some() && f.is_multiple_of(500) {
+            eprintln!(
+                "TALK {f} phase {:?} banned {banned} menu {} talking {:?} talked {:?} targets {:?} cmnd {:?}",
+                w.phase(),
+                a.ui().menu_type(),
+                self.talking,
+                self.talked,
+                w.event_targets(),
+                w.command_target_code()
+            );
+        }
         if !playing || banned || a.ui().menu_type() != -1 || self.talking.is_some() {
             return None;
         }
@@ -1533,4 +1544,98 @@ fn after_a_fight_shots() {
         }
     }
     assert!(ended.is_some(), "no fight ended");
+}
+
+/// Event 115 in field 13 (`EVENTAREA01`) with blocks 0-12 played and
+/// `eventStatus[0]` 1: block 13's six NPCs, and whether the pilot can find
+/// them. A diagnostic (`--ignored --nocapture`).
+#[test]
+#[ignore]
+fn event_115_field_13_npcs() {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    if !iso.exists() {
+        return;
+    }
+    let mut d = Iso::open(&iso).unwrap();
+    let archive = std::sync::Arc::new(Archive::new(d.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let start = crate::start::build(&iso, 115).unwrap();
+    let mut state = start.state;
+    let flag = state.save.event_flag(115);
+    state.save.set_event_flag(115, flag | ((1 << 13) - 1));
+    state.save.set_u8(piney_data::save::offset::EVENT_STATUS, 1);
+    let mut scene = piney_world::area::Scene::log_in(&mut state.save);
+    let wm = crate::area::story_world_man(&mut d, 52, false).unwrap();
+    scene.change_scene(1, 2, 13, -1, -1, -1, &mut state.save);
+    let mut s = Session::in_world(iso, archive, None, state, Some(start.vm), scene, Some(wm)).unwrap();
+    let mut pad = Pad::default();
+    let mut pilot = StoryPilot::default();
+    for f in 0..6000u64 {
+        let raw = pilot.next(&s, f);
+        pilot.after(&mut s);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if f.is_multiple_of(500)
+            && let Stage::Area(a) = &s.stage
+        {
+            let w = a.world();
+            let codes: Vec<_> = w.npcs().list.iter().map(|n| n.npc().code()).collect();
+            let at: Vec<_> = w.event_targets().iter().map(|&(t, c)| (c, w.char_pos(t, c).map(|p| p.map(f32::from_bits)))).collect();
+            if f == 1000 {
+                for (t, c) in a.calls().iter().filter(|(_, c)| ["npc", "trans", "marker", "fault", "block"].iter().any(|k| c.contains(k))) {
+                    println!("CALL {t} {c}");
+                }
+            }
+            println!(
+                "N115 {f} {} placed {} classes {codes:?} targets {at:?} calls {:?}",
+                Mode::title(&s),
+                w.combat().npcs.len(),
+                a.calls().iter().rev().take(3).collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
+/// Event 13 (MG0340) in Mac Anu: Mia and Elk are entered for the talk
+/// (`entry 2 1`, `entry 2 10`); block 2, near marker 31, runs `remove -1
+/// -1` and `scene -2` to reload the town. The old scene's fellow tasks
+/// drop them from the registry, so the town comes back without them.
+/// (Kite is put at the marker; the pilot does not walk to markers.)
+#[test]
+fn event_13_leaves_mia_and_elk_out() {
+    let Some(mut s) = story_session_on("infection", 13, |_| {}) else { return };
+    let mut pad = Pad::default();
+    let mut pilot = StoryPilot::default();
+    let registered = |s: &Session, id: i32| match &s.stage {
+        Stage::World(w) => w.world().spcs().registry.iter().any(|r| r.id == id),
+        _ => false,
+    };
+    let (mut met, mut done) = (false, None);
+    for f in 0..30000u64 {
+        let raw = pilot.next(&s, f);
+        pilot.after(&mut s);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        met |= registered(&s, 1) && registered(&s, 10);
+        if f.is_multiple_of(60)
+            && event_flag(&mut s, 13).is_some_and(|x| x & 2 != 0)
+            && let Stage::World(w) = &mut s.stage
+            && !w.streaming()
+        {
+            w.world_mut().pc_command(piney_event::host::PcCommand::PutMarker { pc: 0, marker: 31 });
+        }
+        if done.is_none() && event_flag(&mut s, 13).is_some_and(|x| x & 3 << 62 != 0) {
+            done = Some(f);
+        }
+        if let Some(d) = done
+            && f > d + 600
+            && matches!(s.stage, Stage::World(_))
+        {
+            break;
+        }
+    }
+    assert!(met, "Mia and Elk were never entered: {}", Mode::title(&s));
+    assert!(done.is_some(), "event 13 did not end: {}", Mode::title(&s));
+    assert!(!registered(&s, 1) && !registered(&s, 10), "still in the town: {}", Mode::title(&s));
 }

@@ -77,3 +77,11 @@ Maybe an ingame quake console so we can debug and test various game features mor
 - [x] the later volumes' music around streams: `ccSndStreamCtrl` was Infection's switch for every volume (fixed: each volume's own, Quarantine's being Outbreak's: `stream_ctrl` takes the volume; piney-stream no longer filters by Infection's stream lists, the switch decides as the game's does; the Chaos Gate stream is 113 from Mutation on, not 107, `table::gate_stream`; each volume's code run in eemu, `tools/test_stream_rs.py music` with `PINEY_VOLUME`, 1399 scenarios each: `the_later_volumes_music_around_the_streams`)
 
 - [ ] the later volumes' animation-note sounds: `setbl` (`spc0SeData` .. `inuSeData`) is Infection's for every volume
+
+- [ ] Infection, towns: an NPC being talked to can run off mid-talk
+- [x] Infection, Mac Anu: after the cut scene with Mia and Elk (event 13, MG0340: `entry 2 1`, `entry 2 10`, then `remove -1 -1` and `scene -2`) both stay in the town (the game drops them at the change of scene: each fellow task's delete, `ccThFellow01Delete` .. `17Delete` (gcmn 0x0041ec20 ..), frees the registry slot of a character whose own partyFlag is not 1; the port kept them registered and built them again. Fixed: `Spcs::delete_fellows` at every change of scene; `event_13_leaves_mia_and_elk_out`)
+- [x] a gamepad's D-pad did nothing while the sticks worked (a pad with no SDL mapping, DirectInput among them, reports its D-pad as a hat, gilrs's `DPadX` / `DPadY` axes, not as buttons; those axes now press the directions too, and the pad log shows them)
+- [ ] Infection: some particle effects are missing (which ones not yet known)
+- [ ] Infection, the Haunted Expansive Sea of Sand's dungeon entrance: talking to BlackRose after the Administrator leaves the screen stuck as the church once did, and it persists
+- [ ] the members' chat: Balmung's line that names two elements (Thunder against Darkness) overflows the game's chat buffer and crashes the game (a community find; the same overflow explains a Rachel party oddity in Infection); check the port neither crashes nor differs
+- [ ] the community's word on story areas' enemies: the first enemy list of each server (`enemyList00` for Delta's event fields); the executable (`ccRegisterDifficultyEnemy`, all four volumes) passes type 6, `ccEnemyListInfo[server][6]`: compare

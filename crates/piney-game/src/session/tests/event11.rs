@@ -378,7 +378,9 @@ fn event_11_church_ends_with_blackrose_out() {
     assert!(!w.world().party().contains(&BLACKROSE), "in Mac Anu's party: {:?}", w.world().party());
     let Some(sp) = &s.spcs else { panic!("the field left no party") };
     assert!(!sp.party().contains(&BLACKROSE), "in the party the field left: {:?}", sp.party());
-    assert_eq!(sp.registry.iter().find(|r| r.id == BLACKROSE).map(|r| r.party_flag), Some(0));
+    // Her fellow task's delete at the change of scene (`ccThFellow15Delete`,
+    // her own partyFlag not 1) freed her registry slot.
+    assert_eq!(sp.registry.iter().find(|r| r.id == BLACKROSE).map(|r| r.party_flag), None);
     assert_eq!(piney_event::host::take_unported(), Vec::<&str>::new());
 }
 
