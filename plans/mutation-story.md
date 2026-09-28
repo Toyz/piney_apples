@@ -10,7 +10,7 @@ through ported as the game builds them. Started 2026-09-28.
   start (`--mode story:N`, `crate::start`) driven by `StoryPilot` with
   `PINEY_SURVEY_GOD`; "done" once the event's flag is closed or done. 101 is
   the new game's desktop.
-- Last: one run from the new game to 116's staff roll (to write).
+- `mutation_whole_story`: one run from the new game to 116's end.
 
 ## Where it stands (2026-09-28)
 
@@ -45,7 +45,7 @@ through ported as the game builds them. Started 2026-09-28.
 | 2, 3 | `EVENTAREAB0` (arenas) | 107, 115 | yes |
 | 43 | `EVENTAREA03` | 102 | yes (worklog 263) |
 | 9 | `EVENTAREAB8` | 108 | no |
-| 13 | `EVENTAREA01` | 115 | no |
+| 13 | `EVENTAREA01` | 115 | yes (worklog 264) |
 
 One `StoryMap` trait (`piney_world::story_map`), held as
 `Place::Story(Box<dyn StoryMap>)`; every ported class is one.
@@ -59,3 +59,17 @@ frames, opens `kiteSelfTalk` at 140, and on its close `MenuClr`,
 `changeCamera(1)` and `ChangeArea(0, 1)`; unless area 43 is marked on the
 server (`gateListMark[server][1] & 0x800`, event 102's mark), when it only
 draws. docs/engine/evarea.md has it all.
+
+## Bosses Mutation needs
+
+`ccBossEntryStart(code)` starts `bossFunc[code]` (worklog 264):
+
+| event | code | boss | size (MUT) | ported |
+| --- | --- | --- | --- | --- |
+| 107 | 1 | `ccBoss02` Innis (+ `ccBoss02Slave`) | 54 functions, 38.6 KB | no |
+| 108 | 12 | `ccThKyvia01` (+ the `kyvia*` classes, `EVENTAREAB8`) | 98 functions, 74.4 KB shared | no |
+| 115 | 2 | `ccBoss03` Magus (+ `ccBoss03Leaf`) | 70 functions, 38.2 KB | no |
+
+One agent at a time ports them, in story order, after the Skeith port
+(docs/engine/boss.md, piney-battle's `boss.rs`, the harness
+`tools/test_battle_boss_rs.py`).

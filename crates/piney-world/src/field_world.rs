@@ -1440,6 +1440,25 @@ impl FieldWorld {
         self.target_index(self.targeting.target)
     }
 
+    /// The command target (`cmndTarget`) by kind and code.
+    pub fn command_target_code(&self) -> Option<(crate::entry::Kind, i32)> {
+        self.targeting.target
+    }
+
+    /// The event targets as [`FieldWorld::set_event_targets`] left them.
+    pub fn event_targets(&self) -> &[(i16, i16)] {
+        &self.event_targets
+    }
+
+    /// The place's collision.
+    pub fn place_hits(&self) -> &Hits {
+        match &self.place {
+            Place::Field(f) => &f.hits,
+            Place::Dungeon(d) => &d.hits,
+            Place::Story(m) => m.hits(),
+        }
+    }
+
     /// Whether `ccThGameCtrl` set `ccMenu.plAttack` since the last call.
     pub fn take_pl_attack(&mut self) -> bool {
         std::mem::take(&mut self.pl_attack_set)

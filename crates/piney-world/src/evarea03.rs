@@ -203,7 +203,7 @@ impl StoryMap for Area43 {
         for m in self.models.iter().filter(|m| m.pass == DrawPass::Floor) {
             self.model_draw(layers, to_screen, m);
         }
-        for m in self.models.iter().filter(|m| m.pass == DrawPass::Obj) {
+        for m in self.models.iter().filter(|m| m.pass == DrawPass::Other) {
             self.model_draw(layers, to_screen, m);
         }
         Vec::new()
@@ -245,6 +245,11 @@ mod tests {
         assert!(!a.hits.models.is_empty());
         assert_eq!(a.lights.lights.len(), 1);
         assert!(!a.flag);
+        // Draw: both pass-0 models go out on objLayer.
+        let mut a = a;
+        let mut layers = Layers::default();
+        a.draw(&mut layers, Mat4::IDENTITY, &TownView::default(), true);
+        assert!(!layers.flatten().is_empty(), "nothing drawn");
         let at = piney_data::save::offset::GATE_LIST_MARK + 20 + 4;
         save.set_i32(at, MARK_BIT as i32);
         assert!(Area43::new(&archive, Volume::Mut, &save, 1, 0).unwrap().flag);

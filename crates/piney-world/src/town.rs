@@ -644,16 +644,23 @@ impl Base {
     /// (`STATICMODEL`, `STATICOBJECT`), the light animation's lights at
     /// frame 1, the collision mesh, the fog and the clear colour.
     pub(crate) fn read(archive: &Arc<Archive>, stem: &str, spec: &Spec) -> Result<Base> {
+        Base::read_volume(archive, piney_data::volume::Volume::Inf, stem, spec)
+    }
+
+    /// [`Base::read`] with `volume`'s tables (the story maps').
+    pub(crate) fn read_volume(
+        archive: &Arc<Archive>,
+        volume: piney_data::volume::Volume,
+        stem: &str,
+        spec: &Spec,
+    ) -> Result<Base> {
         let file = Rc::new(SceneFile::read(archive, stem)?);
-        let table = statics::tables()
-            .iter()
-            .find(|t| t.name == spec.models)
-            .ok_or_else(|| Error::NotFound(spec.models.into()))?;
+        let (models_of, objs_of, _) = statics::of(volume);
+        let table =
+            models_of.iter().find(|t| t.name == spec.models).ok_or_else(|| Error::NotFound(spec.models.into()))?;
         let obj_table: Option<&ObjTable> = spec
             .objects
-            .map(|name| {
-                statics::obj_tables().iter().find(|t| t.name == name).ok_or_else(|| Error::NotFound(name.into()))
-            })
+            .map(|name| objs_of.iter().find(|t| t.name == name).ok_or_else(|| Error::NotFound(name.into())))
             .transpose()?;
         let (c, sc) = (&file.ccs, &file.scene);
         let mut models = vec![None; table.rows.len()];

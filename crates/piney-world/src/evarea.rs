@@ -202,7 +202,11 @@ pub struct StorySprite {
     /// `ccEff` +0x28 (a `CLOUD`'s turn); 0 for the others.
     pub rotate: F,
     pub transparency: F,
+    /// `LENSFLARE`'s and `CLOUD`'s: no depth test and no fog.
     pub flare: bool,
+    /// Whether it keeps `Init`'s fog (`EVENTAREA01`'s effects clear PRIM's
+    /// fog bit, and keep the depth test).
+    pub fog: bool,
 }
 
 /// What the camera gives `DrawLensFlare`.
@@ -267,7 +271,7 @@ pub struct EventArea {
 }
 
 /// A clump's models as `ccClump::Draw` draws them: each node's own model.
-fn clump_models(file: &SceneFile, name: &str) -> Option<(u32, Vec<u32>)> {
+pub(crate) fn clump_models(file: &SceneFile, name: &str) -> Option<(u32, Vec<u32>)> {
     let c = file.ccs.find_object(name)?;
     let nodes = file.scene.clumps.iter().find(|(cl, _)| *cl == c).map(|(_, n)| n.clone())?;
     let mut m: Vec<u32> = nodes.iter().filter_map(|n| file.obj_model.get(n).copied()).collect();
@@ -667,6 +671,7 @@ impl EventArea {
                     rotate: 0,
                     transparency: ONE,
                     flare: true,
+                    fog: true,
                 }),
             }
         }

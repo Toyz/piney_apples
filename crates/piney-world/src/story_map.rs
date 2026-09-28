@@ -112,6 +112,7 @@ pub fn build(
         }
         crate::evarea07::AREA => Box::new(Giant::new(archive, def_se, area_prev, 0)?),
         crate::evarea03::AREA => Box::new(Area43::new(archive, at.volume, at.save, at.server, def_se)?),
+        crate::evarea01::AREA => Box::new(crate::evarea01::Area13::new(archive, at.volume, def_se)?),
         _ => return Ok(None),
     };
     Ok(Some(map))

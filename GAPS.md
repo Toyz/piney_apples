@@ -74,9 +74,13 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 - [ ] Kyvia's fights (`kyviaCore`, the `ex0`-`ex4` models)
 - [x] The Root Towns 02-05 (`ROOTTOWN03`-`05`, their `DrawMap`; worklogs
   218, 260) - the party of 21 (`SPC_01`-`SPC_20`) still to check
-- [ ] The other `EVENTAREA` classes (01, 04-06, B8; areas 13, 66, 67, 91,
-  9-12). Area 16's `EVENTAREA07` (worklog 177) and area 43's
-  `EVENTAREA03` (worklog 263) are ported, all behind `StoryMap`
+- [ ] The other `EVENTAREA` classes (04-06, B8; areas 66, 67, 91, 9-12).
+  Area 16's `EVENTAREA07` (worklog 177), area 43's `EVENTAREA03` (worklog
+  263) and area 13's `EVENTAREA01` (worklog 264) are ported, all behind
+  `StoryMap`
+- [ ] Mutation's bosses: Innis (`ccBoss02`), Kyvia 01 (`ccThKyvia01`, the
+  `kyvia*` classes) and Magus (`ccBoss03`); Skeith is the only one ported
+  (worklog 264, plans/mutation-story.md)
 
 ## Asked for, not the game's
 

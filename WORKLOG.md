@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-263 entries: audio 17, battle 40, build 14, content 3, decomp 19, disc 4, engine 7, format 14, iop 2, render 66, save 8, script 25, test 113, tooling 22, ui 48, video 6, volumes 41, world 72.
+264 entries: audio 17, battle 41, build 14, content 3, decomp 19, disc 4, engine 7, format 14, iop 2, render 66, save 8, script 25, test 114, tooling 22, ui 48, video 6, volumes 42, world 73.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -275,3 +275,4 @@ The [reference](docs/README.md) says what is true now.
 | 261 | [Root Towns as a trait](worklog/0261-root-towns-as-a-trait.md) | 2026-09-27 | world, build |
 | 262 | [The tree cleaned of the games' dialogue](worklog/0262-the-tree-cleaned-of-the-games-dialogue.md) | 2026-09-28 | build, tooling |
 | 263 | [Mutation's story under the autopilot, and area 43's map](worklog/0263-mutation-s-story-under-the-autopilot-and-area-43-s-map.md) | 2026-09-28 | world, test, volumes |
+| 264 | [Area 13's map, the pilot's talks in fields, and Mutation's bosses](worklog/0264-area-13-s-map-the-pilot-s-talks-in-fields-and-mutation-s.md) | 2026-09-28 | world, test, battle, volumes |

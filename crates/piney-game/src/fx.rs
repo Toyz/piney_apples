@@ -64,7 +64,7 @@ pub struct AreaFx {
     /// A story map's `ccEff`s by name as its constructor made them (area
     /// 15's lens flare, an arena's fireflies; a flare's render state is its
     /// own), and the disc their file is read from.
-    story: std::collections::HashMap<(&'static str, bool), Option<Eff>>,
+    story: std::collections::HashMap<(&'static str, bool, bool), Option<Eff>>,
     /// A field's weather's `ccEff`s (and a dungeon's sparks and glows) by
     /// file, name, fog bit, depth test and palette change, and its smoke
     /// puffs waiting for the next effect task ([`ambient`]).
@@ -117,7 +117,7 @@ impl AreaFx {
         let assets = &mut self.fx.assets;
         let archive = &self.archive;
         self.story
-            .entry((s.eff, s.flare))
+            .entry((s.eff, s.flare, s.fog))
             .or_insert_with(|| {
                 assets.add_file(archive, s.file).ok()?;
                 let o = assets.find(s.file, s.eff)?;
@@ -125,6 +125,9 @@ impl AreaFx {
                 let mut e = Eff::init(o.file, j, chunk, true, &assets.alpha_blend);
                 if s.flare {
                     e.test &= !0x1_0000;
+                    e.prim &= !0x20;
+                }
+                if !s.fog {
                     e.prim &= !0x20;
                 }
                 Some(e)

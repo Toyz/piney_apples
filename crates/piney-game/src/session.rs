@@ -2283,10 +2283,10 @@ mod tests {
         // for the player: 1, 7): the top page reads them. Not the posts
         // while the events hold the board (operate 7, event 108).
         let board = w.vm().is_none_or(|vm| vm.operate() & (1 << 7) == 0);
-        let unread = (0..piney_data::save::MAIL_SLOTS).any(|n| matches!(save.mail(n), 1 | 2))
-            || board
-                && (0..piney_data::save::BBS_THREADS)
-                    .any(|t| (0..piney_data::save::BBS_MESSAGES).any(|m| matches!(save.bbs(t, m), 1 | 7)));
+        let mail = (0..piney_data::save::MAIL_SLOTS).any(|n| matches!(save.mail(n), 1 | 2));
+        let posts = board
+            && (0..piney_data::save::BBS_THREADS)
+                .any(|t| (0..piney_data::save::BBS_MESSAGES).any(|m| matches!(save.bbs(t, m), 1 | 7)));
         // An NPC of this town the events wait to be spoken to (`add_target`)
         // comes before the gate.
         let world = w.world();
@@ -2337,10 +2337,14 @@ mod tests {
                     _ => None,
                 })
             });
+        // A mail comes before the story's wants (events wait on it); a
+        // post only when the story wants nothing here (event 108 holds the
+        // board on the top page, not in town).
         Some(match (talk, wanted, marked_areas(w).last(), marked_town(w)) {
             (Some((code, _)), ..) => GateGoal::Talk(code),
-            _ if unread => GateGoal::LogOut,
+            _ if mail => GateGoal::LogOut,
             (None, Some(g), ..) => g,
+            _ if posts => GateGoal::LogOut,
             (None, None, Some(&(row, _)), _) => GateGoal::Area(row),
             (None, None, None, Some(row)) => GateGoal::Town(row),
             (None, None, None, None) => return None,

@@ -63,6 +63,7 @@ pub mod dungeon_area;
 pub mod ee;
 pub mod entry;
 pub mod evarea;
+pub mod evarea01;
 pub mod evarea03;
 pub mod evarea07;
 pub mod evarea_b0;

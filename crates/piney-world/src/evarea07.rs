@@ -63,7 +63,7 @@ use piney_desktop::layers::Layers;
 use crate::cloud::{self, Cloud};
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
-use crate::evarea::{BOUNDS, MoveTex, StaticModel, StaticObject, StorySprite, layer};
+use crate::evarea::{BOUNDS, MoveTex, StaticModel, StaticObject, StorySprite, clump_models, layer};
 use crate::hit::{HitModel, Hits, UNIT};
 use crate::lensflare::{self, FLARES};
 use crate::pose::Play;
@@ -161,15 +161,6 @@ pub struct Giant {
     pub flares: Option<[V4; 6]>,
     hit_models: [Vec<HitModel>; 2],
     pub hits: Hits,
-}
-
-/// A clump's models as `ccClump::Draw` draws them.
-fn clump_models(file: &SceneFile, name: &str) -> Option<(u32, Vec<u32>)> {
-    let c = file.ccs.find_object(name)?;
-    let nodes = file.scene.clumps.iter().find(|(cl, _)| *cl == c).map(|(_, n)| n.clone())?;
-    let mut m: Vec<u32> = nodes.iter().filter_map(|n| file.obj_model.get(n).copied()).collect();
-    m.sort_unstable();
-    Some((c, m))
 }
 
 /// A dummy's position with its turn about z in w (the chunk's +0x28
@@ -544,6 +535,7 @@ impl Giant {
                         rotate: c.eff.rotate,
                         transparency: c.eff.transparency,
                         flare: true,
+                        fog: true,
                     });
                 }
                 Piece::Flare { k, pos } => sprites.push(StorySprite {
@@ -556,6 +548,7 @@ impl Giant {
                     rotate: 0,
                     transparency: ONE,
                     flare: true,
+                    fog: true,
                 }),
             }
         }

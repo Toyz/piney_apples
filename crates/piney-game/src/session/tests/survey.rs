@@ -37,6 +37,11 @@ pub(super) struct StoryPilot {
     /// The frame, and when First Aid! last went out.
     now: u64,
     first_aid_at: Option<u64>,
+    /// In a field: the event NPCs spoken to here (`add_target`s stay on
+    /// the list after), the one just spoken to and when, and the place.
+    talked: Vec<i32>,
+    talking: Option<(i32, u64)>,
+    talk_place: Option<(i32, i32)>,
 }
 
 /// What the pilot does in a fight through the menus.
@@ -59,6 +64,7 @@ enum Action {
 /// The recovery Kite carries or knows: Repth, a Healing Potion,
 /// Resurrect, a Mage's Soul.
 const REPTH: i16 = 150;
+const DATA_DRAIN: i16 = 2;
 const RIP_MAEN: i16 = 180;
 const POTION: (i8, i16) = (10, 1);
 const RESURRECT: (i8, i16) = (10, 5);
@@ -77,6 +83,9 @@ impl Default for StoryPilot {
             skills_ordered: false,
             now: 0,
             first_aid_at: None,
+            talked: Vec::new(),
+            talking: None,
+            talk_place: None,
         }
     }
 }
@@ -86,6 +95,13 @@ impl StoryPilot {
         if let Stage::Area(a) = &s.stage
             && !a.streaming()
             && let Some(raw) = self.fight(a, f)
+        {
+            return raw;
+        }
+        if let Stage::Area(a) = &s.stage
+            && !a.streaming()
+            && a.world().scene().area == kind::FIELD
+            && let Some(raw) = self.talk_in_field(a, f)
         {
             return raw;
         }
@@ -183,6 +199,72 @@ impl StoryPilot {
         }
         let q = self.path.first().copied()?;
         let cam_z = f32::from_bits(world.camera().rot()[2]);
+        Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
+    }
+
+    /// In a field, an event NPC the events wait to be spoken to
+    /// (`add_target`) and not yet spoken to here: the way to him round
+    /// the walls, and OK once he is the command target. A talk counts once
+    /// the event it starts bans the menus; else it is tried again.
+    fn talk_in_field(&mut self, a: &crate::area::AreaMode, f: u64) -> Option<Raw> {
+        let w = a.world();
+        let sc = w.scene();
+        if self.talk_place != Some((sc.area, sc.field)) {
+            (self.talked, self.talking, self.talk_place) = (Vec::new(), None, Some((sc.area, sc.field)));
+        }
+        let banned = a.calls().iter().rev().find_map(|(_, c)| match c.as_str() {
+            "menu_ban true" => Some(true),
+            "menu_ban false" => Some(false),
+            _ => None,
+        }) == Some(true);
+        if let Some((code, at)) = self.talking {
+            if banned {
+                self.talked.push(code);
+                self.talking = None;
+            } else if f > at + 120 {
+                self.talking = None;
+            }
+        }
+        let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+        if !playing || banned || a.ui().menu_type() != -1 || self.talking.is_some() {
+            return None;
+        }
+        let code = w
+            .event_targets()
+            .iter()
+            .filter(|&&(t, _)| matches!(t, 3 | 4))
+            .map(|&(_, c)| i32::from(c))
+            .find(|c| !self.talked.contains(c))?;
+        let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+        if w.command_target_code() == Some((piney_world::entry::Kind::Npc, code)) {
+            if f.is_multiple_of(8) {
+                self.talking = Some((code, f));
+                return Some(Raw { buttons: Buttons::CROSS, ..still });
+            }
+            return Some(still);
+        }
+        let to = w.char_pos(3, code as i16)?.map(f32::from_bits);
+        let p = w.player().body.pos.map(f32::from_bits);
+        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        if (to[0] - p[0]).hypot(to[1] - p[1]) < 400.0 {
+            self.path.clear();
+            return Some(stick_toward(cam_z, (to[0] - p[0]).atan2(-(to[1] - p[1]))));
+        }
+        if f.is_multiple_of(60) {
+            let stopped = self.mark.is_some_and(|m| (m[0] - p[0]).hypot(m[1] - p[1]) < 60.0);
+            if stopped || self.path.is_empty() {
+                let mid = [(p[0] + to[0]) / 2.0, (p[1] + to[1]) / 2.0];
+                let span = (to[0] - p[0]).abs().max((to[1] - p[1]).abs());
+                let n = ((span + 4000.0) / 150.0) as i32 | 1;
+                let near = |q: [f32; 2], _| (q[0] - to[0]).hypot(q[1] - to[1]) < 300.0;
+                self.path = path_to(w.place_hits(), [p[0], p[1], p[2]], mid, n, 150.0, near);
+            }
+            self.mark = Some([p[0], p[1]]);
+        }
+        while self.path.len() > 1 && (self.path[0][0] - p[0]).hypot(self.path[0][1] - p[1]) < 150.0 {
+            self.path.remove(0);
+        }
+        let q = self.path.first().copied().unwrap_or([to[0], to[1]]);
         Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
 
@@ -348,6 +430,16 @@ impl StoryPilot {
         });
         if fighting && !self.skills_ordered && members > 0 {
             return Some(Action::Chat { page: 0, row: if magic { 6 } else { 0 } });
+        }
+        // A boss with its protect broken (`pp_count` frames left): Kite's
+        // Data Drain (Skills, page 5, skill 2) before the break mends.
+        let broken = c.enemies().into_iter().any(|e| {
+            let ch = &c.scene.chars[e];
+            ch.hp > 0 && matches!(&ch.body, piney_battle::chara::Body::Foe(f) if f.boss.is_some() && f.pp_count > 0)
+        });
+        let drains = piney_fieldui::items::skill_list(&ui.texts().items, w.state(), 0, 5)[0] == DATA_DRAIN;
+        if fighting && broken && drains && chars.first().copied().flatten().is_some_and(|k| k.hp > 0) {
+            return Some(Action::Skill { page: 5, skill: DATA_DRAIN, target: None });
         }
         let items = &ui.texts().items;
         let state = w.state();
@@ -702,6 +794,52 @@ fn mutation_story_survey() {
     }
 }
 
+/// Event `n`'s flag, from the save of whatever stage the session is on.
+fn event_flag(s: &mut Session, n: i32) -> Option<u64> {
+    let save = match &mut s.stage {
+        Stage::World(w) => Some(&w.world().state().save),
+        Stage::Area(a) => Some(&*a.save_mut()),
+        Stage::Desktop(d) => d.save_mut().map(|s| &*s),
+        Stage::TopPage(t) => t.save_mut().map(|s| &*s),
+        _ => None,
+    };
+    save.map(|s| s.event_flag(n as usize))
+}
+
+/// Mutation from a new game to its ending under the autopilot, the party
+/// kept up: each story event's end as it comes, until event 116's. A
+/// diagnostic (`--ignored --nocapture`; `PINEY_SURVEY_FRAMES`, 2,000,000).
+#[test]
+#[ignore]
+fn mutation_whole_story() {
+    let frames: u64 = std::env::var("PINEY_SURVEY_FRAMES").ok().and_then(|v| v.parse().ok()).unwrap_or(2_000_000);
+    let Some(mut s) = story_session_on("mutation", 101, |_| {}) else { return };
+    s.console("god");
+    let mut pad = Pad::default();
+    let mut pilot = StoryPilot::default();
+    let mut ended: Vec<i32> = Vec::new();
+    for f in 0..frames {
+        let raw = pilot.next(&s, f);
+        pilot.after(&mut s);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if !f.is_multiple_of(300) {
+            continue;
+        }
+        for &n in crate::start::MUT_STORY.iter() {
+            if !ended.contains(&n) && event_flag(&mut s, n).is_some_and(|x| x & 3 << 62 != 0) {
+                ended.push(n);
+                println!("{f}: event {n} ended - {}", Mode::title(&s));
+            }
+        }
+        if ended.contains(&116) {
+            return;
+        }
+    }
+    panic!("the story stopped after {ended:?} at {frames} frames: {}", Mode::title(&s));
+}
+
 /// Each start among `events` on the disc `disc`, driven for
 /// `PINEY_SURVEY_FRAMES` frames (4000).
 fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
@@ -781,15 +919,8 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                 if titles.last() != Some(&key) {
                     titles.push(key);
                 }
-                let save = match &mut s.stage {
-                    Stage::World(w) => Some(&w.world().state().save),
-                    Stage::Area(a) => Some(&*a.save_mut()),
-                    Stage::Desktop(d) => d.save_mut().map(|s| &*s),
-                    Stage::TopPage(t) => t.save_mut().map(|s| &*s),
-                    _ => None,
-                };
-                if let Some(save) = save {
-                    flag = save.event_flag(n as usize);
+                if let Some(x) = event_flag(&mut s, n) {
+                    flag = x;
                 }
             }
             if std::env::var("PINEY_SURVEY_CALLS").is_ok() {
@@ -879,7 +1010,16 @@ fn fighters(a: &crate::area::AreaMode) -> String {
                 ch.spc_char.flags
             ),
             Body::Foe(f) => {
-                format!("{} {}/{} lv {}", String::from_utf8_lossy(&f.row.name), ch.hp, ch.max_hp, f.row.base.level)
+                format!(
+                    "{} {}/{} lv {} pp {} break {}{}",
+                    String::from_utf8_lossy(&f.row.name),
+                    ch.hp,
+                    ch.max_hp,
+                    f.row.base.level,
+                    f.pp,
+                    f.pp_count,
+                    if f.boss.is_some() { " boss" } else { "" }
+                )
             }
             Body::Other { .. } => String::new(),
         }

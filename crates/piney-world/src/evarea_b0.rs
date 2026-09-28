@@ -48,7 +48,7 @@ use piney_desktop::layers::Layers;
 
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
-use crate::evarea::{BOUNDS, StaticModel, StorySprite, layer};
+use crate::evarea::{BOUNDS, StaticModel, StorySprite, clump_models, layer};
 use crate::firefly::{Firefly, FireflyDraw};
 use crate::hit::{HitModel, Hits};
 use crate::town::{FogParams, Light, TownLights};
@@ -160,15 +160,6 @@ pub struct Arena {
     pub fireflies: Vec<Firefly>,
     hit_models: Vec<HitModel>,
     pub hits: Hits,
-}
-
-/// A clump's models as `ccClump::Draw` draws them.
-fn clump_models(file: &SceneFile, name: &str) -> Option<(u32, Vec<u32>)> {
-    let c = file.ccs.find_object(name)?;
-    let nodes = file.scene.clumps.iter().find(|(cl, _)| *cl == c).map(|(_, n)| n.clone())?;
-    let mut m: Vec<u32> = nodes.iter().filter_map(|n| file.obj_model.get(n).copied()).collect();
-    m.sort_unstable();
-    Some((c, m))
 }
 
 /// A name of `se1_5`'s with the stage's digits: the constructor writes the
@@ -411,6 +402,7 @@ impl Arena {
                     rotate: 0,
                     transparency: draw.transparency,
                     flare: false,
+                    fog: true,
                 }),
             }
         }
