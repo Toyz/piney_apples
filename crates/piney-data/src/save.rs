@@ -1,15 +1,11 @@
 //! The game's save data: `ccSaveData`, 0x8530 bytes, the one record every
-//! part of the game reads and writes - the event scripts' flags, the
-//! desktop's mail and news, the party, the options - and what a memory card
-//! slot file holds (`docs/formats/save.md`).
-//!
-//! [`SaveData`] keeps the bytes as the game lays them out, so a slot file
-//! reads and writes as it is and any member can be reached by its offset;
-//! the members the port uses have accessors. Offsets are Infection's DWARF
-//! layout, the same on every volume up to +0x8432. From Mutation on the
-//! game adds a 0x854-byte extension for characters 18-20 (save.md, "The
-//! extension"); the record holds it after the 0x8530 bytes, as the slot
-//! file does ([`EXT`]), zero and unwritten on Infection.
+//! part of the game reads and writes, and what a memory card slot file holds
+//! (`docs/formats/save.md`). [`SaveData`] keeps the bytes as the game lays
+//! them out, so a slot file reads and writes as it is; the members the port
+//! uses have accessors, at Infection's DWARF offsets (the same on every
+//! volume up to +0x8432). From Mutation on, the 0x854-byte extension for
+//! characters 18-20 follows the 0x8530 bytes as in the slot file ([`EXT`]);
+//! on Infection it is zero and unwritten.
 
 use crate::{Error, Result};
 

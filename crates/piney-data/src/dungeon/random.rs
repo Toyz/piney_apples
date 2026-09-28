@@ -1,18 +1,9 @@
-//! A random dungeon: `DUNGEON::Generate` (`INF gcmn.prg:0x005c12a0`) and
-//! what it calls, as `tools/dungeon.py`'s `Generator` models them.
-//!
-//! ```text
-//! floors = levelMax (4 if the first keyword is word 131; types 8, 9: 1)
-//! for each floor:
-//!   floorRoomNum = fieldrand(5) + roomMax;  >= 15 becomes 12
-//!   MakeFloor: grow rooms from a room at the map centre until there are
-//!     floorRoomNum; start over (RNG not rewound) after 2 * floorRoomNum
-//!     passes, or with fewer than 2 rooms that opened one exit
-//!   down stairs (every floor but the last): a room with one connection
-//!     passing fieldrand(100) >= 91, not room 0; up stairs: room 0
-//!   MakeRoom per room: a model by size, exits and stairs; the Gott statue
-//!     room; SetAllGim rolls for the model's dummies
-//! ```
+//! A random dungeon: `DUNGEON::Generate` (`INF gcmn.prg:0x005c12a0`) and what
+//! it calls, as `tools/dungeon.py`'s `Generator` models them: per floor
+//! `fieldrand(5) + roomMax` rooms grown from the map centre by `MakeFloor`,
+//! the stairs, then `MakeRoom` per room (a model by size and exits, the Gott
+//! statue room, `SetAllGim`'s rolls for the dummies). The steps are on
+//! `docs/engine/dungeon.md`.
 
 use super::{CELL, Exits, MAP};
 use super::{

@@ -1,21 +1,11 @@
-//! Our own instruction set: a typed form of an event script.
-//!
-//! A script is a list of open conditions, then up to [`MAX_BLOCKS`] blocks.
-//! Each block has persistent precondition settings ([`Tag`]), conditions
-//! ([`Cond`]) and a body of instructions ([`Op`]). There are no jumps: the
-//! block is the unit of control flow, and a block that has run is marked in
-//! the event's flag word so it does not run again (unless it contains
-//! [`Op::Repeatable`]).
-//!
-//! Nothing here depends on the game's bytecode: there are no opcode numbers
-//! and no byte offsets. The names and the order of the fields are those of
-//! the game's operand structs (`tools/evscript.py`), because that order is
-//! how the reference pages describe them; [`crate::official`] maps them to
-//! and from the game's `short` arrays. Message text lives in a separate
-//! table ([`Message`]), which instructions refer to by index.
-//!
-//! Every field is a signed 16-bit value, as in the game, except comparisons,
-//! which are a [`Cmp`]. The text form of all of this is in [`crate::text`].
+//! Our own instruction set: a typed form of an event script with no opcode
+//! numbers or offsets ([`crate::official`] maps it to the game's shorts,
+//! [`crate::text`] is its readable form). A script is its open conditions, then
+//! up to [`MAX_BLOCKS`] blocks of settings ([`Tag`]), conditions ([`Cond`]) and
+//! instructions ([`Op`]); a block that has run is marked in the event's flag
+//! word and does not run again unless it holds [`Op::Repeatable`]. Fields keep
+//! the operand structs' names and order (`tools/evscript.py`), each an `i16`
+//! but comparisons ([`Cmp`]); messages are a separate table ([`Message`]).
 
 use std::fmt;
 

@@ -1,11 +1,8 @@
-//! The CCSF scene file (`docs/formats/ccs.md`).
-//!
-//! A flat run of chunks: `u16 kind, u16 tag, u32 size in words, payload`.
-//! The game never skips a chunk by `size`: `ccStream::DecodeSetupSection`
-//! dispatches on `kind` and each decoder reads what it needs. `size` is right
-//! for every kind except textures and `mtype & 4` models, whose lengths
-//! follow from their own fields; with those two rules every file on the
-//! discs walks to its last byte. After the Frame chunk (0x0005) the frame
+//! The CCSF scene file (`docs/formats/ccs.md`): a flat run of chunks, `u16
+//! kind, u16 tag, u32 size in words, payload`. The game never skips a chunk by
+//! `size` (`ccStream::DecodeSetupSection` dispatches on `kind`); `size` is
+//! right for every kind but textures and `mtype & 4` models, whose lengths
+//! follow from their own fields. After the Frame chunk (0x0005) the frame
 //! section has its own kinds, each exactly `size` words.
 
 use crate::{Bytes, Result, align4, cstr, format_err};

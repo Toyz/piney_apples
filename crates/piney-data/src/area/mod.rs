@@ -1,17 +1,11 @@
 //! The Chaos Gate keywords and the area generator
 //! (`docs/engine/area-words.md`): three words typed at a gate make an area
-//! code, seed the RNG, and pin what they say about the area; a story area
-//! on its server pins more. [`sim_generate_code`] is
-//! `WORLD_MAN::SimGenerateCode` (`INF SLUS_202.67:0x0019e5c0`) and gives
-//! everything it leaves in `WORLD_MAN`.
-//!
-//! The tables - the twelve `WORDPARAM` tables `word_a1` .. `word_c4`,
-//! `dungeonData`, `eventAreaInfo` and `volumeNum` - are each volume's,
-//! read from its executable by `piney-gen` (`placement::area`) into the
-//! build ([`AreaTables::of`], `plans/build-data.md`); the keywords' text is
-//! the executable's, byte for byte. `tools/areas.py` is the reference, and `tools/test_area_rs.py`
-//! runs the game's own functions in `tools/eemu.py` against this port
-//! (`examples/area_probe.rs`).
+//! code, seed the RNG and pin what they say about the area; a story area on
+//! its server pins more. [`sim_generate_code`] is `WORLD_MAN::SimGenerateCode`
+//! (`INF SLUS_202.67:0x0019e5c0`). The tables (`word_a1` .. `word_c4`,
+//! `dungeonData`, `eventAreaInfo`, `volumeNum`) are each volume's, generated
+//! into the build by `piney-gen` ([`AreaTables::of`]); `tools/areas.py` is the
+//! reference, and `tools/test_area_rs.py` holds the port to the game's code.
 
 use crate::dungeon;
 use crate::store::{Load, Reader};

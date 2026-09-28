@@ -1,17 +1,10 @@
-//! The game's single-precision maths library - newlib's fdlibm float
-//! functions as linked into `SLUS_202.67` - computed with the EE FPU's own
-//! rules ([`crate::field::ee`]), so results match the game to the bit.
-//!
-//! The field game calls these from its movement and camera code
-//! (`ccPlayer::ControlMove` takes `sinf`/`cosf` of the heading, the camera
-//! `atan2f` of offsets). Each function here is a transcription of the
-//! compiled routine, operation for operation; the addresses are Infection's.
-//!
-//! Values are raw `u32` bit patterns, as in [`crate::field::ee`]: the EE has
-//! no infinities, NaNs or denormals, and its adds and multiplies truncate,
-//! so IEEE `f32` arithmetic would drift from the game in the last bits.
-//! This newlib was built for a target whose largest exponent is normal
-//! (`_FLT_LARGEST_EXPONENT_IS_NORMAL`): there are no NaN or infinity cases.
+//! The game's single-precision maths library, newlib's fdlibm float functions
+//! as linked into `SLUS_202.67`, computed with the EE FPU's own rules
+//! ([`crate::field::ee`]) on raw `u32` bit patterns, so results match the game
+//! to the bit. Each function is a transcription of the compiled routine,
+//! operation for operation; the addresses are Infection's. The library was
+//! built with `_FLT_LARGEST_EXPONENT_IS_NORMAL`: there are no NaN or infinity
+//! cases (`docs/engine/field.md`, EE floating point).
 
 use crate::field::ee::{add, div, from_int, lt, mul, sub, to_int};
 

@@ -1,13 +1,7 @@
 //! Answers `tools/test_morph_rs.py`: one request a line, the rigid positions
-//! `Model::morph` gives, one line of numbers back.
-//!
-//! ```text
-//! request   BASE_SCALE N K  x y z (N times)  then K times: SCALE WEIGHT x y z (N times)
-//! answer    x y z (N times)
-//! ```
-//!
-//! Scales and weights are f32 bit patterns in hex, so nothing is lost on the
-//! way.
+//! `Model::morph` gives, one line of numbers back. A request is `BASE_SCALE N
+//! K`, N base positions `x y z`, then K times `SCALE WEIGHT` and N positions;
+//! the answer is N positions. Scales and weights are f32 bit patterns in hex.
 
 use std::io::{BufRead, Write};
 

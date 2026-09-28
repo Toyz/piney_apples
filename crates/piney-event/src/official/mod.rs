@@ -1,29 +1,11 @@
-//! The adapter for the game's own scripts.
-//!
-//! The scripts are `short` arrays in the boot executable, and the messages
-//! are tables of `{emode, name, text}` records beside them. The port does not
-//! read the executable at play time: [`events`] parses a disc's scripts and
-//! messages from the text form the build wrote into its port data
-//! ([`EVENTS_FILE`], [`events_text`]; `plans/build-data.md`). [`load_iso`]
-//! reads them from a disc's executable, for the build and the checks; the
-//! tables are found through the game's code ([`locate()`]), so the same
-//! reader works on every volume.
-//!
-//! The encoding (`docs/engine/events.md`): no header, no jumps, every code
-//! has a fixed number of `short` operands.
-//!
-//! ```text
-//! open conditions ... 0
-//! block, up to 62:
-//!   (-2 TAG operands)*      precondition settings
-//!   conditions ... 0
-//!   instructions ... 0
-//! -1
-//! ```
-//!
-//! [`decode`] turns that into [`Script`] and [`encode`] turns a script back
-//! into exactly the same shorts; the crate's tests check that for every
-//! script on the disc.
+//! The adapter for the game's own scripts: `short` arrays in the boot
+//! executable, with tables of `{emode, name, text}` message records beside
+//! them. Play does not read the executable: [`events`] parses a disc's scripts
+//! from the text form the build wrote into its port data ([`EVENTS_FILE`],
+//! [`events_text`]). [`load_iso`] reads them from a disc's executable for the
+//! build and the checks, finding the tables through the code ([`locate()`]).
+//! [`decode`] and [`encode`] convert to and from [`Script`] exactly, for every
+//! script on the disc; the encoding is on `docs/engine/events.md`.
 
 pub mod elf;
 pub mod locate;

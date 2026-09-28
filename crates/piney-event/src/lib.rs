@@ -1,19 +1,10 @@
-//! The event script engine.
-//!
-//! - [`ir`]: our own instruction set, a typed form of a script with no tie
-//!   to the game's bytecode, and [`text`], its readable form, which parses
-//!   back to exactly the same IR. A clean-room script set is written in it.
-//! - [`official`]: the adapter for the game's own scripts. It reads them and
-//!   their message tables from the boot executable on a disc image at run
-//!   time, finding the tables through the game's code, and converts them to
-//!   and from the IR without loss. Nothing read from a disc is kept here.
-//! - [`vm`]: the interpreter, `ccEvent::CheckOpen` and `Execute`, `eventSub`,
-//!   `ccEventFlagSet` and the event task `ccThEvent`, as Infection runs them.
-//! - [`host`]: everything the interpreter asks of the rest of the port, as
-//!   named methods, and [`host::LogHost`], which records them.
-//! - [`state`]: the save record the scripts read and write, which the
-//!   caller owns.
-//!
+//! The event script engine: [`ir`], our own instruction set, and [`text`], its
+//! readable form, which round-trips; [`official`], the adapter that finds the
+//! game's scripts and message tables through a disc's executable and converts
+//! them to and from the IR without loss; [`vm`], the interpreter
+//! (`ccEvent::CheckOpen` and `Execute`, `eventSub`, `ccEventFlagSet`, the task
+//! `ccThEvent`, as Infection runs them); [`host`], what it asks of the rest of
+//! the port; [`state`], the save record the scripts use, which the caller owns.
 //! The reference is `docs/engine/events.md` and `docs/engine/event-vm.md`.
 
 pub mod extras;

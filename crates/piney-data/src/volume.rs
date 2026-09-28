@@ -1,14 +1,9 @@
-//! Which volume a disc is.
-//!
-//! The port reads a disc's data files at run time (`DATA/DATA.BIN`, the
-//! overlays `DATA/*.PRG`, the streams and the voices), never its boot
-//! executable. What the port needs from the executable is generated into
-//! this crate, per volume, by the tools (`plans/volumes.md`), as the
-//! dungeon, field, sound and statics tables already are.
-//!
-//! [`Volume::detect`] tells the four discs apart by `DATA/GCMN.PRG`, which
-//! the port loads anyway: its size picks the volume and its hash confirms
-//! it, so a patched overlay is not taken for a known one.
+//! Which volume a disc is. [`Volume::detect`] tells the four discs apart by
+//! `DATA/GCMN.PRG`, which the port loads anyway: its size picks the volume
+//! and its hash confirms it, so a patched overlay is not taken for a known
+//! one. The port reads a disc's data files at run time, never its boot
+//! executable; what it needs from that is generated per volume by the tools
+//! (`plans/volumes.md`).
 
 use std::fmt;
 

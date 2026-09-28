@@ -1,18 +1,11 @@
-//! Finding the event tables through the game's code, without symbols.
-//!
-//! The same patterns hold on all four volumes (checked against the symbol
-//! table on Infection and `tools/xfer.py`'s names on the others):
-//!
-//! - `ccEvent::Execute` and `ccEvent::CheckOpen` are the only two loops of
-//!   the form `lw a,0(p); addiu b,a,2; sw b,0(p); lh c,0(a); beqz c;
-//!   sltiu at,c,N` (step the script pointer, stop at 0, bound the code).
-//!   N is 41 for CheckOpen and 168, 169 or 170 for Execute; that count
-//!   tells the volume. The jump table is the `lui`/`addiu` pair after it.
-//! - `eventTbl` is the table `eventSub` and `ccEventFlagSet` index right
-//!   after dividing the event number by 50 (`lui 0x51eb`); both call
-//!   CheckOpen.
-//! - `evMsgTblp` and `evMsgTbl` are the first two addresses Execute's
-//!   message case (code 6) builds: the Parody Mode table first.
+//! Finding the event tables through the game's code, without symbols; the same
+//! patterns hold on all four volumes (`docs/engine/event-vm.md`, Finding the
+//! tables). `ccEvent::Execute` and `CheckOpen` are the only loops shaped `lw
+//! a,0(p); addiu b,a,2; sw b,0(p); lh c,0(a); beqz c; sltiu at,c,N` (N is 41
+//! for CheckOpen, 168-170 for Execute by volume); the jump table is the
+//! `lui`/`addiu` pair after the bound. `eventTbl` is indexed right after the
+//! divide by 50 (`lui 0x51eb`) in `eventSub` and `ccEventFlagSet`; `evMsgTblp`
+//! and `evMsgTbl` are the first two addresses Execute's message case (6) builds.
 
 use crate::official::Error;
 use crate::official::elf::Executable;

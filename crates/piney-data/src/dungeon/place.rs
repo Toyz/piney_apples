@@ -1,28 +1,11 @@
-//! Where the game puts a random dungeon's room geometry and doors.
-//!
-//! `DUNGEON::SetRoom` (`INF gcmn.prg:0x005c1ca0`) plays the room's `ANM_`
-//! animation in a `ccAnm` and gives it the matrix
-//! `ccCoord::SetMatrix_PosRotZYX(pos, (0, 0, rotate))`: the room's centre
-//! and the `ROOM_INFO` row's angle in radians, `T(pos) * Rz(rotate)`. libvu0
-//! keeps a matrix as its four basis vectors and `sceVu0RotMatrixZ` (main
-//! 0x00110a30) builds the basis `(c, s, 0)`, `(-s, c, 0)` - a positive angle
-//! turns +x towards +y, as [`Mat4::from_rotation_z`] does. The same holds
-//! for every room table of every type, large and medium alike.
-//!
-//! A room model marks each exit with an object 600 units inside its edge,
-//! on the side's middle, whose +y points out of the room ([`Exit`]): a door
-//! dummy (`OBJ_0pae0_*`) or a gate wall (`OBJ_w_0g10_*`, drawn as part of
-//! the room). `DUNGEON::SetDoor` (0x005c7c30) plays the type's door
-//! animation at each door dummy under `T(pos) * Rz(rotate) * dummy`, at its
-//! last frame (open) when no entity is in the room, at its first (closed)
-//! otherwise (`ccCheckActiveObject`). A door or gate reaches 800 along its
-//! +y (the lakes' 1,306), past the edge, so the two rooms' doorways overlap
-//! there; its far end is shaded to black. The Gott statue rooms (`symroom`)
-//! are built through their doorway instead and have no door dummy.
-//!
-//! The game draws one room at a time: `DUNGEON::GotoNextRoom` (0x005c9e10)
-//! deletes the room the player leaves before it sets up the next, and
-//! `DUNGEON::Draw` draws `room[floor][here]` alone.
+//! Where the game puts a random dungeon's rooms and doors
+//! (`docs/engine/dungeon.md`). `DUNGEON::SetRoom` (`INF gcmn.prg:0x005c1ca0`)
+//! gives the room's `ANM_` animation `T(pos) * Rz(rotate)`, the `ROOM_INFO`
+//! row's angle in radians turning +x towards +y as [`Mat4::from_rotation_z`]
+//! does (`sceVu0RotMatrixZ`, main 0x00110a30). Each exit is marked by an
+//! object 600 inside the edge, +y out ([`Exit`]): a gate wall, or a door dummy
+//! where `DUNGEON::SetDoor` (0x005c7c30) plays the door, open when the room is
+//! empty. The game draws only the room the player is in.
 
 use std::collections::HashMap;
 

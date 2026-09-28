@@ -1,20 +1,11 @@
 //! The Model chunk, 0x0800 (`docs/formats/ccs-model.md`), as
 //! `ccStream::Decode_Model` (0x0014bce0) reads it: a header, then per "mmat"
-//! (a run of vertices sharing one material) a few header words and a body in
-//! one of four layouts chosen by the model's `mtype`:
-//!
-//! - `mtype & 4`: `Decode_Mmat02` (0x0014a600). With `offsetNum` 0, "bone":
-//!   every vertex rides one clump node. Otherwise "skin": each vertex is one
-//!   or more weighted entries, each in its own node's space.
-//! - `mtype & 8`: `DecodeShadowModel` (0x00140920), a triangle list.
-//! - otherwise: `Decode_Mmat01` (0x0014b890), "rigid", in the owning
-//!   object's space.
-//!
-//! Values are kept as stored; the accessors convert them. Positions are
-//! `s16 * vertexScale / 4096`, normals `s8 / 64`, colours RGBA with 0x80 =
-//! 1.0, ST `u16 / 256` per texture repeat. The normal word's fourth byte is
-//! the GS strip flag: 1 starts a strip, 0 closes a triangle with the two
-//! vertices before it.
+//! (vertices sharing one material) a body chosen by `mtype`: `& 4`
+//! `Decode_Mmat02` (0x0014a600; "bone" with `offsetNum` 0, else weighted
+//! "skin"), `& 8` `DecodeShadowModel` (0x00140920), otherwise `Decode_Mmat01`
+//! (0x0014b890, "rigid"). Values are kept as stored and the accessors convert
+//! them: positions `s16 * vertexScale / 4096`, normals `s8 / 64`, colours with
+//! 0x80 = 1.0, ST `u16 / 256`; the normal's fourth byte is the strip flag.
 
 use glam::Vec3;
 
@@ -116,16 +107,13 @@ impl Model {
         self.scale / 4096.0
     }
 
-    /// `ccMorpher::Modify` (0x0013af10): mmat `index`'s positions blended
-    /// toward the same mmat of each `(target, weight)`, as the EE does it.
-    /// A target is first brought to this model's vertex scale (each value
-    /// `trunc(v * (target.scale / scale))` in EE arithmetic, once, in place). Each weight is
-    /// `vftoi12`'s 1/4096 fixed point, spread over the lanes as [`lanes`]
-    /// says; per axis the differences from the
-    /// base are 16-bit (`psubh`), the products summed in 32 bits
-    /// (`pmaddh`), shifted down 12 (`psraw`) and added back with 16-bit
-    /// saturation (`paddsh`). Only rigid positions are touched; None when
-    /// the mmat has none.
+    /// `ccMorpher::Modify` (0x0013af10): mmat `index`'s rigid positions blended
+    /// toward the same mmat of each `(target, weight)` as the EE does it: targets
+    /// brought to this vertex scale once (`trunc(v * (target.scale / scale))`),
+    /// weights in `vftoi12`'s 1/4096 fixed point spread as [`lanes`] says, 16-bit
+    /// differences (`psubh`), products summed in 32 bits (`pmaddh`), shifted down
+    /// 12 (`psraw`) and added back saturating (`paddsh`). None when the mmat has
+    /// no rigid positions.
     pub fn morph(&self, index: usize, targets: &[(&Model, f32)]) -> Option<Vec<[i16; 3]>> {
         let base = &self.mmats.get(index)?.positions;
         if base.is_empty() {

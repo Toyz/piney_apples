@@ -1,57 +1,11 @@
-//! What the interpreter needs from the rest of the port.
-//!
-//! The interpreter owns the event manager's own state (phases, answers,
-//! intercepted operations, registered entries and positions; see
-//! [`crate::vm::EventMng`]). Everything else goes through [`Host`]: the
-//! save it reads and writes, the facts about the world that conditions
-//! test, and every effect an instruction has outside the interpreter.
-//!
-//! Every method has a default, so a host only implements what it has. The
-//! defaults describe a world with nothing in it: no party, no menus open,
-//! and every wait over at once. [`LogHost`] records each call as a line of
-//! text.
-//!
-//! Instructions that take several frames open something (a window, a
-//! stream, a menu), then poll the host once per frame until it says the
-//! wait is over (`message_check`, `name_entry_step`, `field_menu`, `busy`),
-//! then close it. The interpreter adds the game's own fixed frame counts
-//! around them, so with a host that answers at once the frames are the
-//! game's (`tests/vm.rs` checks them against it).
-//!
-//! The host's methods, by group:
-//!
-//! - the save: [`Host::save`];
-//! - the world the conditions read: [`Host::game`], [`Host::volume`],
-//!   [`Host::party`], [`Host::spc_present`], [`Host::entry_present`],
-//!   [`Host::boss`], [`Host::no_active_object`], [`Host::no_entries`],
-//!   [`Host::field_menu`], [`Host::desktop_menu`], [`Host::pad_pushed`],
-//!   [`Host::enemy_pp`], [`Host::marker`], [`Host::player_distance`],
-//!   [`Host::command_target`], [`Host::target_alive`],
-//!   [`Host::story_area`], [`Host::game_over`], [`Host::frame_rate`];
-//! - windows: [`Host::message_open`], [`Host::message_check`],
-//!   [`Host::message_close`], [`Host::desktop_message_done`],
-//!   [`Host::announce`], [`Host::teach_input`], [`Host::camera_type`];
-//! - modes and the screen: [`Host::change_request`], [`Host::change_area`],
-//!   [`Host::change_scene`], [`Host::load_overlay`], [`Host::set_frame_rate`],
-//!   [`Host::stream`], [`Host::fade`], [`Host::noise`], [`Host::sound`],
-//!   [`Host::sound_effect`], [`Host::clear_gate_hack`],
-//!   [`Host::play_pass_done`];
-//! - the desktop: [`Host::name_entry_start`], [`Host::name_entry_step`],
-//!   [`Host::name_entry_end`], [`Host::desktop_menu_open`],
-//!   [`Host::bgm_control`], [`Host::staff_roll_done`];
-//! - waits of other shapes: [`Host::begin`], [`Host::busy`], [`Host::end`],
-//!   [`Host::player_skill_step`];
-//! - the field: [`Host::camera`], [`Host::npc`], [`Host::pc`],
-//!   [`Host::gimmick`], [`Host::remove`], [`Host::affect`],
-//!   [`Host::party_add`], [`Host::party_remove`], [`Host::enemy_put`],
-//!   [`Host::menu_ban`], [`Host::add_spc_item`], [`Host::item_get_menu`],
-//!   [`Host::item_get_menu_end`], [`Host::open_menu`], [`Host::area`],
-//!   [`Host::generate_area`], [`Host::map_on`], [`Host::show_map`],
-//!   [`Host::prev_room`], [`Host::room`], [`Host::hold`],
-//!   [`Host::piros_colour`], [`Host::condition_effect`],
-//!   [`Host::target_forbid`], [`Host::trans`], [`Host::battle_ready`],
-//!   [`Host::remove_trap`], [`Host::remove_trap_done`];
-//! - later volumes: [`Host::grunty_mail`], [`Host::ending_kanji`].
+//! What the interpreter needs from the rest of the port: [`Host`] carries the
+//! save, the facts the conditions test and every effect an instruction has
+//! outside the interpreter, which owns only [`crate::vm::EventMng`]. Every
+//! method has a default describing an empty world (no party, no menus open,
+//! every wait over at once); [`LogHost`] records each call as a line of text.
+//! An instruction that takes frames opens something, polls the host once a
+//! frame until the wait is over, then closes it, with the game's own frame
+//! counts around it (`docs/engine/event-vm.md`, Instructions that take frames).
 
 use std::fmt;
 
@@ -449,14 +403,10 @@ pub enum Wait {
     /// interpreter calls [`Host::player_skill_step`]; `end` restores the menu.
     PlayerSkill,
     /// `scene`, after [`Host::change_scene`]: `ccGame::ChangeScene`
-    /// (0x00167380) ends in `ChangeRequest(6, 7)` (0x001671e0), which
-    /// disables the phase (`ccDisableThEvent`) and, for `sf` 7, calls
-    /// `ccSleepNoSleepThread(1, 1)`: the event task itself sleeps inside the
-    /// instruction until the next mode's set-up wakes it. `busy` from the
-    /// frame of the call while it sleeps; the rest of the pass runs once it
-    /// says no. A host that does not model the mode change answers no at
-    /// once (the default), which is what the checks' hooked `ChangeScene`
-    /// does.
+    /// (0x00167380) ends in `ChangeRequest(6, 7)` (0x001671e0), which puts the
+    /// event task itself to sleep inside the instruction until the next mode's
+    /// set-up wakes it. `busy` while it sleeps; a host that does not model the
+    /// mode change answers no at once (the default), as the checks' hook does.
     ChangeRequest,
 }
 

@@ -1,28 +1,11 @@
-//! The port's tables, from the build (`plans/build-data.md`): each
-//! generator group's values for a volume are a file, `PINEY/TABLES/
-//! <group>.bin`, in that volume's disc of the build (or an image's data
-//! folder, [`crate::pack::image_data_dir`]). [`group`] reads one the first
-//! time it is asked for, keeps it for the run, and hands out `&'static`
-//! references into it, as the generated modules' `of(volume)` did when the
-//! values were compiled in.
-//!
-//! Where a volume's files come from: the disc the game registered for it
-//! ([`use_disc`], at start); else, for the tools and the checks, the
-//! values `piney-gen gen` writes into `work/data/<volume>/TABLES/`.
-//!
-//! The format is the generated types' own, field by field in declaration
-//! order ([`Load`]), all little-endian:
-//!
-//! ```text
-//! u8 i8 u16 i16 u32 i32 u64 i64   as they are
-//! f32                             its bits, as a u32
-//! &str                            u32 byte count, then UTF-8
-//! &[T]                            u32 count, then each T
-//! [T; N]                          each T (N from the type)
-//! Option<T>                       u8 0 (None) or 1, then T
-//! a struct                        each field in turn
-//! a function's name (an enum)     its variant's name, as a &str
-//! ```
+//! The port's tables, from the build (`plans/build-data.md`): each generator
+//! group's values for a volume are a file, `PINEY/TABLES/<group>.bin`, in the
+//! disc registered for the volume ([`use_disc`]; an image's in
+//! [`crate::pack::image_data_dir`]), or for the tools and the checks in
+//! `work/data/<volume>/TABLES/`. [`group`] reads one once a run and hands out
+//! `&'static` references into it. The format is the types' own ([`Load`]),
+//! little-endian: numbers as they are, `f32` as bits, text and slices a u32
+//! count first, `Option` a u8 tag, a struct field by field, an enum by name.
 
 use std::any::Any;
 use std::collections::HashMap;

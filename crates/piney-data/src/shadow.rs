@@ -1,24 +1,11 @@
 //! A shadow model's mmat made ready for the shadow volume, as
-//! `DecodeShadowModel` (main 0x00140920) leaves it
-//! (`docs/engine/shadow.md`): the directions of its faces, each triangle
-//! with the direction it faces, and the edges between faces.
-//!
-//! - Each triangle's direction is the cross product `(p1 - p0) x (p2 - p0)`
-//!   of its stored positions, in 64-bit integers kept to their low 32 bits
-//!   (`SetShadowNormal2`, 0x001400e0). A direction within 0.99609375 (the
-//!   cosine, of the unit vectors) of one already kept is that one; so
-//!   nearly flat neighbours share a direction and never meet at a
-//!   silhouette.
-//! - Each triangle's edges `(a, b)`, `(b, c)`, `(c, a)` in turn look for an
-//!   edge kept the other way round, `(b, a)` (`SetShadowWork2`,
-//!   0x001403c0). None: the edge is kept with the triangle's direction on
-//!   one side and `-1 - direction` on the other (an open edge). One with
-//!   the same direction: the two triangles lie flat together and the edge
-//!   goes (the last edge takes its place). Another direction: the edge
-//!   joins the two, the new one first; the third vertex before the old
-//!   face's plane counts the join convex, behind it concave.
-//! - A model with more concave joins than convex, 495 directions or more
-//!   (VU1's memory) or no edges is refused: it casts no shadow.
+//! `DecodeShadowModel` (main 0x00140920) leaves it (`docs/engine/shadow.md`):
+//! the directions of its faces (`SetShadowNormal2` 0x001400e0: integer cross
+//! products, one within cosine 0.99609375 of a kept direction merged into
+//! it), each triangle with its direction, and the edges between faces
+//! (`SetShadowWork2` 0x001403c0: open, dropped between coplanar faces, or a
+//! convex or concave join). A model with more concave joins than convex, 495
+//! directions or more, or no edges casts no shadow.
 
 use crate::model::{Kind, Mmat};
 

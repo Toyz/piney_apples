@@ -1,12 +1,8 @@
-//! What the port adds to the game's scripts. Not the game's content: each
-//! patch here is the port's own, applied after the scripts are loaded
-//! ([`apply`]) so `official::events` stays the game's.
-//!
-//! - Infection's event 1 (the new game, "MG0001 OPENING") sends one more
-//!   mail, Helba's ([`HELBA_MAIL`], its text in `piney_desktop::extras`),
-//!   between Yasuhiko's (mail 4) and CC Corporation's two (5 and 320).
-//!   The mailer lists the newest first, so hers shows straight below CC
-//!   Corporation's and above Yasuhiko's.
+//! What the port adds to the game's scripts, applied after they are loaded
+//! ([`apply`]) so `official::events` stays the game's. Infection's event 1 (the
+//! new game) sends one more mail, Helba's ([`HELBA_MAIL`], its text in
+//! `piney_desktop::extras`), between Yasuhiko's (mail 4) and CC Corporation's
+//! two (5 and 320), so the mailer, newest first, lists it between them.
 
 use piney_data::volume::Volume;
 

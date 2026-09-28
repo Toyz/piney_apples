@@ -71,10 +71,14 @@ end
 
 `open` holds the open conditions; each `block` holds `set` lines
 (precondition settings), then `if` lines (conditions), then instructions.
-Fields are `name=value` with the operand struct's names; comparisons are
-`eq`, `ge`, `le`. Strings are the game's bytes (ASCII, Shift-JIS as
-characters, `\xNN` for anything else); `#` starts a comment outside quotes.
-`parody` follows `messages` for Parody Mode's table.
+`block N` may carry its index, which the parser checks. Fields are
+`name=value` with the operand struct's names, all required, in any order,
+decimal or `0x` hex; comparisons are `eq`, `ge`, `le`, or a number, which
+never passes. Strings are the game's bytes (printable ASCII as itself, `\"`
+and `\\`, Shift-JIS as characters, `\xNN` for anything else); `#` starts a
+comment outside quotes. A message record is its index, `mode=`, an optional
+`name="..."` and up to three quoted lines. `parody` follows `messages` for
+Parody Mode's table. Printing is canonical, so print and parse round-trip.
 
 ### Finding the tables
 

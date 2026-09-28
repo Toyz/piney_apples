@@ -338,6 +338,12 @@ toward zero, and `madd`/`msub` round the product first. Real hardware
 sometimes differs from exact truncation in the last bit; that is not
 modelled and has not shown up in any case checked.
 
+The maths library linked into the executable (`sinf`, `cosf`, `atan2f`,
+`tanf`, `fmodf` and their kernels) is newlib's fdlibm, built for a target
+whose largest exponent is normal (`_FLT_LARGEST_EXPONENT_IS_NORMAL`), so
+it has no NaN or infinity cases. `piney_data::libm` transcribes each
+routine operation for operation under these rules.
+
 ## Other volumes
 
 Each volume's own `WORLD::Init` and `WORLD::Generate` in eemu against

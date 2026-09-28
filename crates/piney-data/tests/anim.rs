@@ -1,13 +1,9 @@
 //! `anim` against `tools/anim.py`, whose values `tools/test_anim.py` checked
-//! against the game's own code. The fixture (`anim_fixture.txt`, written by
-//! `python3 tools/test_anim.py fixture`) holds only evaluated numbers; the
-//! animations and models come from the disc. Skipped when the disc image is
-//! not extracted; set PINEY_ISO to point at it elsewhere.
-//!
-//! Positions, scales, transparencies, morph weights, blended positions,
-//! playback times and the notes a step hands on must match exactly; rotation
-//! matrices to 1e-6 per element (anim.py prints them as doubles, the port
-//! rounds them to f32).
+//! against the game's own code. The fixture (`anim_fixture.txt`, from `python3
+//! tools/test_anim.py fixture`) holds only numbers; the animations and models
+//! come from the disc (skipped when it is not extracted; set PINEY_ISO to point
+//! at it elsewhere). Everything must match exactly but rotation matrices, to
+//! 1e-6 per element (anim.py prints them as doubles, the port rounds to f32).
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;

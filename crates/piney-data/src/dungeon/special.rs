@@ -1,16 +1,9 @@
 //! The story dungeons' event rooms: `ROOMDATA` rows of `room_type` 16 and
 //! up, which `MakeRoom(ROOMDATA *)` (`INF gcmn.prg:0x005bcbb0`), `SetRoom`
-//! (0x005c1ca0) and `GotoNextRoom` (0x005c9e10) treat apart.
-//!
-//! - 16-24 and 34: no room. `MakeRoom` stores the centre and deletes the
-//!   anm; walking into one is `GotoNextRoom`'s business (a way out of the
-//!   dungeon for the areas that have one).
-//! - 25-35 but 27 and 34: a room from a scene file of its own
-//!   ([`EventRoom`]), loaded into `DUNGEON.spccs` (+0xd3888).
-//! - 15, 27 and 36 on: an empty anm.
-//!
-//! The names are the code's own constants (lui/addiu pairs in those
-//! functions), not a table.
+//! (0x005c1ca0) and `GotoNextRoom` (0x005c9e10) treat apart: 16-24 and 34 are
+//! no room (the centre only), 25-35 but 27 and 34 a room from its own scene
+//! file ([`EventRoom`], in `DUNGEON.spccs` +0xd3888), and 15, 27 and 36 on an
+//! empty anm. The names are the code's own constants, not a table.
 
 /// A room of type 25-35 built from its own scene file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

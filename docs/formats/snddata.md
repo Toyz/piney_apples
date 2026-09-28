@@ -146,9 +146,14 @@ follows PCSX2 (`XA_decode_block`: the two products summed, then `+ 32 >>
 6 on its own, with no rounding. ffmpeg truncates the sum, and over these
 banks differs from the rounded sum by up to 112 LSB.
 
+The decoder (`tools/adpcm.py`, `piney_data::sound::adpcm`) takes a shift
+of 13-15 as 9, as the SPU2 is taken to; no frame on the discs has one
+(Counts), so it is not checked.
+
 A VAG runs from its `Vagi` offset to the next VAG's. Its first frame is 16
 zero bytes. A looped VAG ends with a frame whose flags are 0x03, and loops
-from the last frame with bit 2; exactly those have `Vagi.loop` = 1. A
+from the last frame with bit 2, keeping its filter history (`s1`, `s2`);
+the end frame itself is played. Exactly those have `Vagi.loop` = 1. A
 one-shot's end frame is followed by one unplayed `00 07 77 ... 77` frame.
 
 ## Counts

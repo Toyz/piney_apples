@@ -1,24 +1,11 @@
 //! Prints what `piney_data::field` makes, one JSON line per request, for
 //! `tools/test_field_rs.py` to compare with `tools/field.py` and
-//! `tools/eemu.py`.
-//!
-//!     field_snapshot [DATA.BIN] < requests
-//!
-//! Requests, one per line:
-//!
-//!     field SEED FIELD_TYPE WEATHER GROUND OBJECT EVENT PROTECT SKIP_INIT
-//!     render SEED FIELD_TYPE WEATHER GROUND OBJECT EVENT PROTECT SKIP_INIT
-//!            AMBIENT ROT_X ROT_Y ROT_Z COLOUR
-//!                         what the game draws of that field under that light:
-//!                         vertex normals and colours, every chip's ground
-//!                         tile (scale 600), every cover (scale 300), and
-//!                         WORLD::GetHeight at 200 fixed points
-//!     light CCS ANIME LGT the frame-0 light of a background file (DATA.BIN)
-//!     objcol AMBIENT ROT_X ROT_Y ROT_Z COLOUR NORMAL COLOUR ...
-//!                         CalcObjectVertexColor on packed normals and colours
-//!     fpu OP A [B]        OP: add sub mul div cmp from_int to_int sqrt sqrtf
-//!
-//! Floats are printed as their bit patterns, in decimal.
+//! `tools/eemu.py` (`field_snapshot [DATA.BIN] < requests`). The requests are
+//! `field`, `render` (what the game draws of a field under a light: vertex
+//! normals and colours, the ground tiles and covers, `WORLD::GetHeight` at 200
+//! fixed points), `light` (a background file's frame-0 light), `objcol`
+//! (`CalcObjectVertexColor`) and `fpu` (one FPU operation), with the arguments
+//! the test sends. Floats are printed as their bit patterns, in decimal.
 
 use std::fmt::Write as _;
 use std::io::{BufRead, Write as _};

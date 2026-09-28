@@ -1,16 +1,8 @@
 //! PS-ADPCM, the SPU2's sample format (`docs/formats/snddata.md`), decoded
-//! as `tools/adpcm.py` decodes it, bit for bit.
-//!
-//! 16-byte frames of 28 samples:
-//!
-//! ```text
-//! u8      shift | filter << 4     shift 0..12 (13..15 act as 9), filter 0..4
-//! u8      flags                   bit 0 end, bit 1 repeat, bit 2 loop start
-//! u8[14]  nibbles                 low nibble first, signed 4-bit
-//!
-//! s = (nibble << 12 >> shift) + ((s1 * F0[filter] + s2 * F1[filter] + 32) >> 6)
-//! ```
-//!
+//! as `tools/adpcm.py` decodes it, bit for bit: 16-byte frames of 28 samples,
+//! `shift | filter << 4` (shift 13-15 acts as 9), flags (bit 0 end, 1 repeat,
+//! 2 loop start), 14 bytes of signed nibbles, low first; each sample is
+//! `(nibble << 12 >> shift) + ((s1 * F0[filter] + s2 * F1[filter] + 32) >> 6)`
 //! clamped to 16 bits. A sample ends with the frame whose end bit is set,
 //! which is played; with the repeat bit too the voice jumps back to the last
 //! loop-start frame, keeping its filter history.

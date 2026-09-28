@@ -1,30 +1,11 @@
-//! The interpreter: `ccEvent`, `eventSub`, `ccEventFlagSet` and the event
-//! task `ccThEvent`, as Infection runs them, with the later volumes' pass
-//! order (each walks its own main story; see `Vm::next_event`).
-//!
-//! [`Vm`] holds the event manager's state ([`EventMng`], which is not
-//! saved) and where the event task is. Scripts come from a [`Library`]; the
-//! save and everything else from the [`Host`].
-//!
-//! # Levels
-//!
-//! The game runs a block at one of three levels (`lv`):
-//! 0 steps over it; 1 applies only its bookkeeping (what `ccEventFlagSet`
-//! does to bring earlier volumes' flags forward); 2 plays it. An
-//! instruction runs at level 1 and 2 (flags and save data), only at 2
-//! (everything shown), or differently at each (see [`crate::ir::Op`]).
-//! A block that ends at level 1 or 2 sets its bit in the event's flag word,
-//! unless it ran `repeatable`.
-//!
-//! # The event task
-//!
-//! [`Vm::frame`] is one frame of `ccThEvent`. The task makes one pass over
-//! the live events at phase 0 (before a mode loads its files), one at 2
-//! (after), and then one per frame from 4 (play; the phase reads 5 from the
-//! second play pass on). A mode's setup moves the phase with [`Vm::enable`]
-//! and, for 0 and 2, waits until [`Vm::enable_settled`] says the pass has
-//! been made. An instruction that takes several frames keeps the task in
-//! the middle of its pass; the rest of the pass continues when it finishes.
+//! The interpreter: `ccEvent`, `eventSub`, `ccEventFlagSet` and the event task
+//! `ccThEvent`, as Infection runs them, with the later volumes' pass order
+//! (`Vm::next_event`). [`Vm`] holds the unsaved [`EventMng`] and where the task
+//! is; scripts come from a [`Library`], the save and the rest from the [`Host`].
+//! A block runs at level 0 (stepped over), 1 (bookkeeping only, as
+//! `ccEventFlagSet`) or 2 (played). [`Vm::frame`] is one frame of `ccThEvent`: a
+//! pass at phase 0, one at 2, then one a frame from 4; a mode's setup moves the
+//! phase with [`Vm::enable`] and waits on [`Vm::enable_settled`].
 
 mod cond;
 mod exec;

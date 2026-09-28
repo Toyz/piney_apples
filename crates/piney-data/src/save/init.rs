@@ -1,21 +1,11 @@
 //! `ccSaveData::Init(flag)` (`INF SLUS_202.67:0x001743d0`): the record's
-//! starting values, and the boot that runs it twice.
-//!
-//! Init is a run of member fills, not a clear: what it does not name keeps
-//! its bytes. It never touches `plName`, the trade lists (`spcTradeList`,
-//! `npcTradeList`, `tpcTradeListSW`: `NewGame`'s `InitTradeItem`),
-//! `partyMemberCallStore`, `spcParam`, `reserved` or the padding. `flag`
-//! 0 also writes the options (the camera type, vibration, voice, the
-//! display offset, the volumes from `ccSnd`, `drainDemo`, `strWinMode`);
-//! 1 leaves them. The game builds its one save in `ccThMother`
-//! (0x00167940): `new ccSaveData` (the constructor 0x00174320 zeroes the
-//! 0x8530 bytes and runs `Init(0)`), then, after `ccGame::Init`,
-//! `Init(1)` ([`SaveData::boot`]).
-//!
-//! One loop runs long: `protectArea[5]` (+0x65c8) is cleared with the
-//! bound of the `areaBan` loop before it, 32, so the 27 words after it,
-//! `fountainRecord[0..27]`, end 0 although the loop before set every
-//! `fountainRecord` to -1. The port keeps it.
+//! starting values, and the boot that runs it twice (`ccThMother` 0x00167940:
+//! the constructor 0x00174320 zeroes the record and runs `Init(0)`, then
+//! `Init(1)` after `ccGame::Init`; [`SaveData::boot`]). Init is a run of
+//! member fills, not a clear; `flag` 0 also writes the options. One loop runs
+//! long: `protectArea[5]` is cleared with the `areaBan` loop's bound, 32, so
+//! `fountainRecord[0..27]` end 0 although set to -1 before; the port keeps
+//! it. The full list is on `docs/formats/save.md` (Starting values).
 
 use super::{SIZE, SaveData, by_id, ext, offset::*};
 use crate::Result;
@@ -99,19 +89,12 @@ impl SaveData {
         s
     }
 
-    /// `ccSaveData::Init(flag)` (0x001743d0; MUT 0x00175740, the same in
-    /// OUT and QUA), in the game's order, for `text.volume`. `snd` is read
-    /// only when `flag` is 0.
-    ///
-    /// The later volumes' Init differs in five places, each keyed below on
-    /// `later`: the lists of 21 characters through the accessors
-    /// ([`by_id`]), 18-20's in the extension; `talkNum` through its setter;
-    /// the trade counts through theirs (characters 1-20, NPCs 30-79 and the
-    /// extension's six), which leaves Infection's last 10 bytes of
-    /// `pcTradeCount` alone; `partyTime` and `spcPresent` through theirs
-    /// for ids 0-19, id 0 writing the word before each (the last of
-    /// `enemyKillArea`, then of `partyTime`) and 20 left; and the blocks at
-    /// +0x8432 and +0x8462 cleared, then the extension's tail.
+    /// `ccSaveData::Init(flag)` (0x001743d0; MUT 0x00175740, the same in OUT and
+    /// QUA), in the game's order, for `text.volume`. `snd` is read only when
+    /// `flag` is 0. The later volumes' five differences (the accessors for 21
+    /// characters, the `talkNum`, trade count, `partyTime` and `spcPresent`
+    /// setters, the blocks at +0x8432 and +0x8462) are keyed on `later`
+    /// (`docs/formats/save.md`, The extension).
     pub fn init(&mut self, flag: i32, snd: &SoundLevels, text: &InitText) {
         let later = text.volume != Volume::Inf;
         self.set_u8(PL_REAL_NAME, 0);
@@ -240,29 +223,14 @@ impl SaveData {
         }
     }
 
-    /// A repair for saves the port itself wrote before it ran `Init`
-    /// whole, applied when a slot is loaded: those saves hold only ok and
-    /// cancel of the eleven button assignments and zero bytes where Init
-    /// fills lists with -1. Neither is a state the game can reach, so a
-    /// save the game wrote is never changed:
-    ///
-    /// - `assignPADaction` .. `assignPADmap` (+0x8404 .. +0x840e) all zero
-    ///   with `assignPADok` and `assignPADcancel` set: each assignment that
-    ///   is zero gets Init's (the game has no way to leave one unassigned);
-    /// - a whole list that is zero bytes where Init writes -1 gets Init's
-    ///   fill: `itemList` and `plItemList` (id and category -1, count 0;
-    ///   `AddItem` merges an item into its entry, so at most one entry of a
-    ///   list can be item 0 of category 0), `skillList` (`ccAddSkill` adds
-    ///   a skill once), `mailOrderList` (`NewMail` adds a mail once),
-    ///   `gateOrderList`, `gateRecord`, `fountainRecord` and `areaBan`
-    ///   (`SetGateList`, `SetGateRecord`, `SetFountain` and `SetAreaBan`
-    ///   add an entry once). `fountainRecord` gets Init's own result, the
-    ///   first 27 left 0.
-    ///
-    /// Left alone because zero is a state the game can reach:
-    /// `pcTradeCount` (-1 no trade, `AddTradeCount` counts from there),
-    /// `eventEntry` (bits `ClearEventEntry` clears), `enemyKillArea` and
-    /// `growth`. True when anything changed.
+    /// A repair for saves the port itself wrote before it ran `Init` whole,
+    /// applied when a slot is loaded. Those hold only ok and cancel of the eleven
+    /// button assignments (each zero one of `assignPADaction` .. `assignPADmap`
+    /// gets Init's) and zero bytes where Init fills a list with -1 (`itemList`,
+    /// `plItemList`, `skillList`, `mailOrderList`, `gateOrderList`, `gateRecord`,
+    /// `fountainRecord`, `areaBan`: a whole zero list gets Init's fill). The game
+    /// can reach neither state, so its own saves never change (the lists where
+    /// zero is reachable are left). True when anything changed.
     pub fn repair_port_save(&mut self) -> bool {
         let mut changed = false;
         let zero = |s: &SaveData, at: usize, len: usize| s.0[at..at + len].iter().all(|&b| b == 0);

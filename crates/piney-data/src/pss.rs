@@ -1,21 +1,10 @@
-//! PSS movies (`PSS/*.PSS`): an MPEG-2 program stream with one video
-//! elementary stream and, in `OPENING.PSS`, one audio stream carried in
-//! private stream 1 (`docs/formats/pss.md`).
-//!
-//! The layout, as `sceMpegDemuxPssRing` (INF SLUS_202.67:0x00116c68) reads
-//! it: 16,384-byte packs (`00 00 01 BA`, the MPEG-2 pack header, 14 bytes
-//! with no stuffing on the disc), each holding four PES packets of up to
-//! 4,096 bytes (the first pack also the system header). Video is stream
-//! `0xE0`. Audio is `0xBD` whose payload starts with a 4-byte PSS
-//! sub-stream header `FF A0 00 ch` (`A0` PCM, `A1` PS-ADPCM, `_strmap`
-//! 0x002f75f8); the first audio payload opens with a 40-byte `SShd` /
-//! `SSbd` header, and the rest is the sound itself. The file's last four
-//! bytes are the end code `00 00 01 B9`.
-//!
-//! `OPENING.PSS`'s audio is 16-bit little-endian PCM, 48,000 Hz, stereo, in
-//! 512-byte blocks: 256 left samples, then 256 right samples - the SPU2's
-//! own streaming format, which the game's player hands to core 0's sound
-//! data input untouched (`audioDecStart`, demo.prg 0x0040d3e0).
+//! PSS movies (`PSS/*.PSS`, `docs/formats/pss.md`): an MPEG-2 program stream
+//! of 16,384-byte packs, as `sceMpegDemuxPssRing` (INF SLUS_202.67:0x00116c68)
+//! reads it, ending in `00 00 01 B9`. Video is stream `0xE0`; audio, in
+//! `OPENING.PSS` only, is private stream 1 (`0xBD`) whose payloads start with
+//! the sub-stream header `FF A0 00 ch`, the first also with a 40-byte `SShd` /
+//! `SSbd` header. It is 16-bit PCM, 48,000 Hz stereo, in 512-byte blocks of
+//! 256 left then 256 right samples, the SPU2's own streaming format.
 
 use crate::{Bytes, Result, format_err};
 

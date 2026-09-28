@@ -1,47 +1,11 @@
-//! Anime chunks (0x0700) evaluated at any time, the way `ccAnm` plays them.
-//!
-//! `tools/anim.py` is the reference and its docstring the full model;
-//! `tools/test_anim.py` checks it against the game's own code run in
-//! `tools/eemu.py`, and `tests/anim.rs` checks this port against numbers from
-//! it. In short:
-//!
-//! - The chunk is u32 object, u32 frame count N, u32 data words, then
-//!   sub-chunks: Top 0, the controller records, Tops 1..N-1 each followed by
-//!   that frame's records, and an end Top (-1 plays once, -2 loops).
-//! - An object record (0x0102) holds position, rotation, scale and
-//!   transparency controllers, picked by flag bits 0-2, 3-5, 6-8, 9-11; a
-//!   material record (0x0202) holds texture offset controllers U and V. A
-//!   controller is absent (0), one value (1) or keyed (2: u32 n, then n x
-//!   (u32 frame, value)).
-//! - Keyed values are linear between keys, held before the first and after
-//!   the last, and computed in the EE's single precision exactly as
-//!   `ccAnmCtrlFVec3_Set` (0x00146890) / `ccAnmCtrlFloat_Set` (0x00146530)
-//!   do: a running sum of per-key deltas plus delta * (t / duration).
-//! - Keyed rotations are quantised to 1/65536 turn, turned into matrices
-//!   (Rx * Ry * Rz, the VU0 library's sine and cosine), and interpolated
-//!   about one axis at a constant rate from each key's orientation to the
-//!   next, the short way (`ccAnmCtrlRot_SetCtrl` 0x001470c0, `_Set`
-//!   0x00146f30). A single-value rotation is the matrix of its degrees, not
-//!   quantised.
-//! - Local matrix = T(position) * R * S(scale) (`ccAnm::SetAnmCtrlWork`
-//!   0x00150670).
-//! - Time is u32 1/256 frames; `ccAnm::_AnimateForward` (0x00152270) clamps
-//!   it to (N - 1) * 256 and a looping animation restarts on reaching frame
-//!   N - 1 (see [`Animation::forward`]).
-//! - F_Morpher (0x1901) records set a morpher's targets and weights from
-//!   their frame on, without interpolation; `ccMorpher::Modify` (0x0013af10)
-//!   blends positions in integers ([`morph`]).
-//! - F_Note (0x0108) records (u32 object, u32 event, u32 param) are what a
-//!   step hands the character's note function: each `_AnimateForward` that
-//!   changes the frame collects those of the frames it passes, and
-//!   `ccAnm::NoteProcess` (0x00152210) hands them on last first (see
-//!   [`Animation::passed_notes`]).
-//!
-//! Position, scale, transparency, texture offsets, single-value rotations,
-//! morph weights and blended positions match the game bit for bit (as far as
-//! eemu's model of the EE and VU0 arithmetic goes); keyed rotations are
-//! computed in double and match it to 1e-5 per matrix element plus 1e-7 per
-//! key passed (the game's running matrix drifts in float).
+//! Anime chunks (0x0700) evaluated at any time, the way `ccAnm` plays them:
+//! controllers absent, single or keyed, keyed values linear in EE single
+//! precision (`ccAnmCtrlFVec3_Set` 0x00146890), keyed rotations turned about
+//! one axis between quantised keys (`ccAnmCtrlRot_SetCtrl` 0x001470c0), the
+//! local matrix `T * R * S` (`ccAnm::SetAnmCtrlWork` 0x00150670), playback
+//! ([`Animation::forward`]), morphs ([`morph`]) and notes
+//! ([`Animation::passed_notes`]). The model is `docs/engine/animation.md`;
+//! `tests/anim.rs` holds the port to `tools/anim.py`, checked against the game.
 
 use std::collections::HashMap;
 
@@ -593,15 +557,11 @@ impl Track {
     }
 }
 
-/// One F_Obj record (0x0101, 13 words: object, a word never read,
-/// position, rotation in degrees, scale, transparency, flags): an object's
-/// whole transform from its frame on. `ccStream::DecodeF_Obj` (main
-/// 0x0014e950) sets it when that frame is read - for a plain object
-/// `ccCoord::SetMatrix_PosRotZYXScale` (0x00138120: `T(pos) *
-/// sceVu0RotMatrix(pi * deg / 180) * S(scale)`) and `localtp`, the
-/// transparency clamped to 0..1. Three enemies (`eex1`, `eii1`, `elgx`)
-/// move their bodies this way in their damage, down and magic clips, and
-/// the desktop's `xddesk01` in one.
+/// One F_Obj record (0x0101, 13 words: object, an unread word, position,
+/// rotation in degrees, scale, transparency, flags): an object's whole
+/// transform from its frame on, as `ccStream::DecodeF_Obj` (main 0x0014e950)
+/// sets it: `T(pos) * sceVu0RotMatrix(pi * deg / 180) * S(scale)` and
+/// `localtp`, the transparency clamped to 0..1.
 #[derive(Clone, Copy, Debug)]
 pub struct ObjRecord {
     pub frame: u32,
@@ -935,19 +895,11 @@ impl Animation {
         forward_clip(self.frames, self.looping, time, step)
     }
 
-    /// The F_Note records one `_AnimateForward(step)` from `time` leaves on
-    /// the anm's note list (`ccAnm.noteRoot`, +0xa0), in the order
-    /// `ccAnm::NoteProcess` hands them to `funcNoteProcess`.
-    ///
-    /// `_AnimateForward` first frees the list. Only a step that changes the
-    /// frame reads on (`DecodeFrameChunk` 0x0014e1b0), through the records
-    /// of frames old + 1 ..= new, the new frame clamped to the last; frame
-    /// 0's records are never read (`ConvLCNum2ALCNum` drops them). Each note
-    /// is pushed on the list's head, so they come out last first: the last
-    /// frame's before the earlier ones', and a frame's last record first. A
-    /// zero step, a step within a frame and one held at a play-once
-    /// animation's end leave the list empty. `SetAnm` and `NoteProcess`
-    /// leave it alone: it holds these until the next `_AnimateForward`.
+    /// The F_Note records one `_AnimateForward(step)` from `time` leaves on the
+    /// anm's note list (`ccAnm.noteRoot`, +0xa0), in the order
+    /// `ccAnm::NoteProcess` hands them on: those of frames old + 1 ..= new (the new
+    /// clamped to the last; frame 0's are never read), last first. A step that
+    /// does not change the frame leaves the list empty.
     pub fn passed_notes(&self, time: Ticks, step: Ticks) -> impl Iterator<Item = &NoteRecord> + '_ {
         let (old, new) = (time >> 8, time.wrapping_add(step).min(self.last()) >> 8);
         self.notes.iter().rev().filter(move |n| old < n.frame && n.frame <= new)

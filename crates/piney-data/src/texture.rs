@@ -1,12 +1,9 @@
 //! Palettes (0x0400) and textures (0x0300), as `ccStream::Decode_Clut`
-//! (0x0014d660) and `Decode_Texture` (0x0014d9a0) read them.
-//!
-//! Palette entries are in logical order in the file (the game swizzles
-//! 256-entry palettes into the GS's CSM1 order itself), so they are used as
-//! they are. GS alpha runs 0..0x80. Pixel rows are stored bottom-up - the art
-//! was authored as `.bmp` - and a model's T = 0 is the first stored row, so
-//! [`Texture::rgba`] keeps the stored order: upload it as is and sample with
-//! v = T / 256. [`flip_rows`] turns it the right way up for viewing.
+//! (0x0014d660) and `Decode_Texture` (0x0014d9a0) read them. Palette entries
+//! are in logical order (the game swizzles 256-entry palettes to CSM1
+//! itself); GS alpha runs 0..0x80. Rows are stored bottom-up and a model's
+//! T = 0 is the first stored row, so [`Texture::rgba`] keeps the stored order
+//! (sample with v = T / 256); [`flip_rows`] turns it up for viewing.
 
 use std::collections::HashMap;
 

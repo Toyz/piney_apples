@@ -1,13 +1,9 @@
-//! The EE program image: the boot ELF (`SLUS_202.67`) and the `.PRG`
-//! overlays that load over it at 0x00400800 (`docs/formats/prg.md`).
-//!
-//! Code the port has made its own does not come from here; the image is for
-//! what the game keeps in memory as content: the mail and wallpaper tables
-//! of `DESKTOP.PRG`, the bitmap fonts of the executable. Both are read by
-//! virtual address, as the game's pointers name them. The port never reads
-//! the executable at run time, in any form ([`Image::elf`] is for the tools
-//! and the checks); its main-section data is being rebuilt as generated
-//! tables (`plans/volumes.md`, "The shortcut removed").
+//! The EE program image: the boot ELF (`SLUS_202.67`) and the `.PRG` overlays
+//! that load over it at 0x00400800 (`docs/formats/prg.md`), read by virtual
+//! address as the game's pointers name them. It is for what the game keeps in
+//! memory as content (`DESKTOP.PRG`'s mail and wallpaper tables, the
+//! executable's bitmap fonts). The port never reads the executable at run
+//! time ([`Image::elf`] is for the tools and the checks).
 
 use crate::{Bytes, Result, format_err};
 

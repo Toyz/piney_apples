@@ -277,6 +277,16 @@ The fields whose use the other pages describe:
 - **`eventStatus[80]`**: counters the scripts set, add to, subtract from
   and test (`status_set` .. `status_sub`, the open condition `status`);
   what each index counts is the scripts' own.
+- **The lists the scripts keep** ([event interpreter](../engine/event-vm.md#the-save)):
+  `mailList` 0 none, 1 arrived, 2 seen, 4 read, 5 and 6 replied;
+  `webnewsList` 0 none, 1 posted, 3 read; `bbsList` 0 none, 1 posted,
+  3 read, 7 posted by `bbs_post7`; `gateList` and `gateListMark` a bit per
+  story area per server, `gateOrderList` each server's areas newest first
+  (-1 empty); `wordList` a bit per keyword; `protectArea` a bit per story
+  area whose Virus Core is gone; `plcol` 1 once Kite has Data Drain;
+  `partyTime` the frames characters 1-17 have been in the party. The
+  scripts index them flat, as the game does: `bbsList[t][p]` is byte
+  `48 t + p`, so a post past 47 lands in the next thread.
 - **`partyMemberCall`**: a bit per member who answers a call. The
   Members menu refuses a member whose bit is clear (`PartyInMenu`, gcmn
   0x0053af2c), and the scripts turn bits on and off (`call_on`,

@@ -1,19 +1,9 @@
 //! Prints what `piney_data::dungeon` makes, one JSON line per request, for
-//! `tools/test_dungeon_rs.py` to compare with `tools/dungeon.py`.
-//!
-//!     dungeon_snapshot DATA.BIN [--plain-fixed EV=T,...] < requests
-//!
-//! Requests, one per line:
-//!
-//!     random SEED TYPE LEVELS ROOMS SERVER VOLUME WORD_A FIELD_TYPE CODE
-//!     story EVENT INDEX
-//!     type e|plain FIELD_TYPE EVENT EVENT_FLAG SAVE_FLAG
-//!     dummies CCS_NAME
-//!     fog TYPE CLUT_TYPE TEX_TYPE BG
-//!     texclut SERVER FIELD_TYPE
-//!
-//! `type plain` asks a copy of Infection's rule with Mutation's save-flag
-//! rule and the `--plain-fixed` areas.
+//! `tools/test_dungeon_rs.py` to compare with `tools/dungeon.py`
+//! (`dungeon_snapshot DATA.BIN [--plain-fixed EV=T,...] < requests`). The
+//! requests are `random`, `story`, `type`, `dummies`, `fog` and `texclut`, with
+//! the arguments the test sends; `type plain` asks a copy of Infection's rule
+//! with Mutation's save-flag rule and the `--plain-fixed` areas.
 
 use std::collections::HashMap;
 use std::fmt::Write as _;

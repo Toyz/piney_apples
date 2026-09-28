@@ -1,44 +1,8 @@
-//! The readable text form of the instruction set.
-//!
-//! This is the format a script is written in by hand. [`print_event`] and
+//! The readable text form of the instruction set, the format a script is
+//! written in by hand; its syntax, with an example, is on
+//! `docs/engine/event-vm.md` (The text form). [`print_event`] and
 //! [`parse_event`] (and the per-part functions) round-trip exactly: parsing
 //! printed text gives back the same IR, and printing is canonical.
-//!
-//! ```text
-//! # A comment runs from # to the end of the line (outside quotes).
-//! event 900 label="TEST 01"
-//! open
-//!   if event_done event=0
-//!   if game_status status=2
-//! block
-//!   set phase phase=0 comp=eq
-//!   frame_rate rate=2
-//!   message msg=1
-//! block
-//!   set phase phase=4 comp=ge
-//!   if operate num=-1 except=1
-//!   message msg=0
-//!   repeatable
-//! end
-//! messages
-//!   0 mode=0 name="Hero" "Not yet."
-//!   1 mode=0 "A line." "A second line."
-//! end
-//! ```
-//!
-//! - `open` starts the open conditions, one `if` line each.
-//! - `block` starts a block (`block 3` may carry its index, which is
-//!   checked). Inside it come, in this order: `set` lines (precondition
-//!   settings, [`crate::ir::Tag`]), `if` lines (conditions), then bare
-//!   instruction lines ([`crate::ir::Op`]).
-//! - `end` closes the script.
-//! - Every field is written `name=value`, in any order, all required.
-//!   Values are decimal or `0x` hex; comparisons are `eq`, `ge`, `le` (or a
-//!   number, which never passes).
-//! - `messages` / `parody` tables list records by index: `mode=`, an
-//!   optional `name="..."`, then up to three quoted lines.
-//! - Strings are the game's bytes: printable ASCII as itself, `\"` `\\`,
-//!   `\xNN` for any byte, and any other character as Shift-JIS.
 
 use std::fmt::Write as _;
 

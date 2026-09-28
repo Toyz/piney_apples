@@ -1,32 +1,11 @@
-//! How the game draws a field (`docs/engine/field.md`), from
-//! `WORLD::DrawMesh` (`INF gcmn.prg:0x005a8570`) and what builds its pieces,
-//! as `tools/field.py`'s render section models them:
-//!
-//! - **the ground**: one copy of the field type's ground tile
-//!   ([`Tables::base_mesh`], a 2 x 2 cell template spanning -600..600) per
-//!   chip, translated to the chip's centre ([`Field::tile`]). `SetMESH2`
-//!   rewrites the template's vertex z (s16, `4096 * h / vertexScale`) from the
-//!   height cell under each vertex and its RGB from that cell's lit colour
-//!   ([`Field::vertex_colours`]); x, y and the UVs are the template's. A
-//!   chip hidden by an object (`check3`) draws no tile. The field is a torus
-//!   of 48,000 units: `DrawMesh` draws the 12 x 12 chips around the player,
-//!   each at the copy of its position nearest the player, culled beyond
-//!   8,400 units and faded out from 6,700 to 7,200;
-//! - **ground cover** ([`Field::cover_mesh`]): a 1-cell template placed at
-//!   the chip's centre plus (+-300, +-300, 2.5) by quadrant, its vertex z and
-//!   RGB rewritten like the ground's, drawn within 7,200 units;
-//! - **object heights**: `WORLD::GetHeight` ([`Field::get_height`]), a ray
-//!   cast into the height cell's two triangles;
-//! - **the light**: every vertex colour starts at 128 and is lit by the
-//!   background's distant light ([`Light`]); `WORLD::Init` lights the object
-//!   models' vertex colours the same way ([`object_colours`]).
-//!
-//! The VU0 macro code this uses (`sceVu0Normalize`, `InnerProduct`,
-//! `OuterProduct`, `Add/Sub/Scale/DivVector`, `ApplyMatrix`, the `RotMatrix`
-//! family) is modelled with the FPU's rules, as eemu's tests of the field
-//! code do: an inference. Everything else is the EE's own arithmetic
-//! ([`ee`]), and `tools/test_field.py` checks the game's code against
-//! `field.py` bit for bit.
+//! How the game draws a field (`docs/engine/field.md`, Drawing), from
+//! `WORLD::DrawMesh` (`INF gcmn.prg:0x005a8570`), as `tools/field.py`'s render
+//! section models it: the ground tile per chip ([`Field::tile`], z and RGB
+//! rewritten by `SetMESH2` from the height cells), ground cover
+//! ([`Field::cover_mesh`]), `WORLD::GetHeight` ([`Field::get_height`]) and the
+//! background's distant light ([`Light`], [`object_colours`]). The VU0 macro
+//! code it uses is modelled with the FPU's rules ([`ee`]), an inference; the
+//! rest is the EE's own arithmetic, checked bit for bit by `tools/test_field.py`.
 
 use super::ee::{self, bits};
 use super::{CHIPS, Cover, Field, MAP, MeshCell, Tables};

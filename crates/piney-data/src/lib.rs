@@ -1,38 +1,11 @@
-//! Readers for the .hack PS2 discs.
-//!
-//! Everything here follows the reference pages under `docs/` and the Python
-//! tools under `tools/` that established them; the integration tests check
-//! the results against the counts those tools measured.
-//!
-//! - [`iso`]: the DVD image (ISO 9660, 2048-byte sectors).
-//! - [`archive`]: `DATA/DATA.BIN` and `STREAM/*.BIN`, sector-aligned gzip
-//!   members named by their FNAME field (`docs/formats/data-bin.md`).
-//! - [`ccs`]: the CCSF scene file and its chunk walk (`docs/formats/ccs.md`).
-//! - [`texture`]: palettes and 4/8-bit textures.
-//! - [`model`]: the Model chunk (`docs/formats/ccs-model.md`).
-//! - [`scene`]: objects, clumps, materials, dummy positions and animation
-//!   poses, and models placed in world space.
-//! - [`anim`]: Anime chunks evaluated at any time as `ccAnm` plays them:
-//!   object poses, texture offsets, morph weights and morph blending
-//!   (`tools/anim.py`, checked against the game by `tools/test_anim.py`).
-//! - [`libm`]: the game's single-precision maths library (newlib's `sinf`,
-//!   `cosf`, `atan2f`, ...) in the EE FPU's arithmetic, bit for bit.
-//! - [`area`]: the Chaos Gate keywords, the story areas and the area
-//!   generator (`WORLD_MAN::SimGenerateCode`), the tables read from the
-//!   executable.
-//! - [`save`]: the game's save data, `ccSaveData`, as its bytes with the
-//!   members the port uses.
-//! - [`statics`]: the tables that place a town's pieces, read from the
-//!   executable into the build by `piney-gen`.
-//! - [`dungeon`]: random dungeons from `dungeonSeed` and the story dungeons'
-//!   layouts, with the tables `piney-gen` reads from the executable into the
-//!   build.
-//! - [`field`]: field terrain and objects from `fieldSeed`, the heights
-//!   bit-exact EE floats, and what the game draws of it (ground and cover
-//!   tiles, object heights, the lit vertex colours, water and background),
-//!   with the tables `piney-gen` reads from the executable into the build.
-//! - [`events`]: each volume's event scripts and messages, generated.
-//! - [`volume`]: which of the four discs this is, from `DATA/GCMN.PRG`.
+//! Readers for the .hack PS2 discs, following the reference pages under
+//! `docs/` and the Python tools under `tools/` that established them: the
+//! image ([`iso`], [`archive`] for `DATA.BIN` and the streams), CCSF scenes
+//! ([`ccs`], [`texture`], [`model`], [`scene`], [`anim`]), the game's maths
+//! ([`libm`]), the Chaos Gate words and areas ([`area`]), dungeons and fields
+//! ([`dungeon`], [`field`]), town statics ([`statics`]), the save ([`save`])
+//! and which disc it is ([`volume`]). The tables read from each volume's
+//! executable are generated into the build by `piney-gen`.
 
 pub mod anim;
 pub mod archive;

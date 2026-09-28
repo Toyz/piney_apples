@@ -1,19 +1,11 @@
 //! EE single-precision arithmetic on raw bit patterns, as `tools/eemu.py`'s
-//! `f_*` functions model the Emotion Engine's FPU (`docs/engine/field.md`,
-//! "EE floating point"):
-//!
-//! - an exponent field of 0 is zero whatever the mantissa, on input and
-//!   output: no denormals;
-//! - an exponent field of 255 is an ordinary number: no infinities or NaNs;
-//! - a result too large becomes +/-[`FMAX`], one too small a zero of the
-//!   result's sign; division by zero gives +/-[`FMAX`];
-//! - every result is the exact result truncated toward zero to 24 bits.
-//!
-//! Nothing here goes through IEEE `f32` arithmetic: each operation works on
-//! the integer mantissas, exactly, then truncates. `madd.s`/`msub.s` round
-//! the product first, so the game's multiply-adds are a [`mul`] then an
-//! [`add`]. `tools/test_field_rs.py` checks every function against eemu's on
-//! random and edge-case operands.
+//! `f_*` functions model the Emotion Engine's FPU (`docs/engine/field.md`, "EE
+//! floating point"): no denormals (exponent 0 is zero), no infinities or NaNs
+//! (exponent 255 is a number), overflow to +/-[`FMAX`] and underflow to a
+//! signed zero, division by zero +/-[`FMAX`], every result the exact one
+//! truncated toward zero to 24 bits, worked on the integer mantissas.
+//! `madd.s`/`msub.s` round the product first, so the game's multiply-adds are
+//! a [`mul`] then an [`add`].
 
 use std::cmp::Ordering;
 

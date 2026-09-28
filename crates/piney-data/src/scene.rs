@@ -1,14 +1,11 @@
 //! What a model needs from the rest of its file: Obj parents and models
 //! (`Decode_Obj` 0x0014ca40), clump node lists (`Decode_Clump` 0x0014c200),
 //! material textures (`Decode_Material` 0x0014d300), ExtObj targets
-//! (`Decode_ExtObj` 0x0014cb80: an animation's copy of an object and the
-//! object it drives), and Anime chunks.
-//!
-//! A node's local matrix is `T(pos) * Rx * Ry * Rz * S(scale)`, rotation in
-//! degrees (`ccCoord::SetMatrix_PosRotZYXScale` 0x00138120); its world matrix
-//! is its parent's times that. Bone and skin vertices are in clump-node space:
-//! slot `i` is the `i`-th node of the model's clump, and a vertex lands at
-//! node world * position (`ccModel::DrawBoneType` 0x0013f860). Z is up.
+//! (`Decode_ExtObj` 0x0014cb80) and Anime chunks. A node's local matrix is
+//! `T(pos) * Rx * Ry * Rz * S(scale)` in degrees
+//! (`ccCoord::SetMatrix_PosRotZYXScale` 0x00138120), its world matrix its
+//! parent's times that. Bone and skin vertices are in clump-node space, slot
+//! `i` the clump's `i`-th node (`ccModel::DrawBoneType` 0x0013f860); Z is up.
 
 use std::collections::HashMap;
 
@@ -162,15 +159,11 @@ impl Scene {
         self.clumps.iter().find(|(_, nodes)| nodes.contains(&obj)).map(|(_, n)| n.as_slice())
     }
 
-    /// Object transforms at frame 0 of an Anime chunk.
-    ///
-    /// The chunk is u32 object, u32 frame count, u32 data words, then
-    /// sub-chunks like the frame section's. Object controllers (0x0102) are
-    /// u32 object, u32 flags, then position, rotation (degrees) and scale
-    /// controllers picked by flag bits 0-2, 3-5, 6-8: 1 is one value, 2 a u32
-    /// key count and (u32 frame, value) keys, which hold their first value
-    /// before the first key (`ccAnmCtrlFVec3_SetCtrl` 0x00146be0,
-    /// `ccAnmCtrlRot_SetCtrl` 0x001470c0).
+    /// Object transforms at frame 0 of an Anime chunk: each object record's
+    /// (0x0102) position, rotation (degrees) and scale controllers, a keyed one
+    /// holding its first value before its first key (`ccAnmCtrlFVec3_SetCtrl`
+    /// 0x00146be0, `ccAnmCtrlRot_SetCtrl` 0x001470c0; the layout is on
+    /// `docs/engine/animation.md`).
     pub fn anime_frame0(&self, c: &Ccs, anime: &Anime) -> Result<HashMap<u32, Transform>> {
         let d = &c.data;
         let words = d.u32_at(anime.offset + 16)? as usize;

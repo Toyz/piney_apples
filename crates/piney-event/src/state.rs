@@ -1,55 +1,11 @@
-//! The saved state the scripts read and write.
-//!
-//! It is the game's own save record, [`SaveData`] (`ccSaveData`, 0x8530
-//! bytes, `docs/formats/save.md`), shared with the desktop and the rest of
-//! the port as in the game. The caller owns it; the interpreter reaches it
-//! through [`crate::host::Host::save`]. Whatever is not in the save (phases,
-//! answers, intercepted operations) is the event manager's, in
-//! [`crate::vm::EventMng`].
-//!
-//! [`ScriptSave`] adds to [`SaveData`] the members and the `ccSaveData`
-//! functions the instructions use. The members, at their Infection offsets
-//! (the same on every volume):
-//!
-//! ```text
-//! +0x0030  itemList[18][40]        short id, char category, char count; -1 -1 0 when empty
-//! +0x0cfc  impItemList[320]        counts of Kite's important items (category 15)
-//! +0x1ec4  skillList[18][20]       sorted skill ids, -1 after the last
-//! +0x220c  talkNum[18]
-//! +0x2220  partyMemberFlag         bit per character who is a member
-//! +0x2224  partyMemberCall         bit per character who can be called; bit 31 while locked
-//! +0x2228  partyMemberCallStore    the call bits kept while locked
-//! +0x222c  partyMemberExp
-//! +0x2230  partyMemberSave         the party save_party recorded
-//! +0x2234  townMoveFlag            bit per town (short)
-//! +0x2238  dtWallpaperList[3]      bit per desktop wallpaper
-//! +0x2244  dtBgmList[3]            bit per desktop music track
-//! +0x2250  dtStrList[5]            bit per desktop movie
-//! +0x2264  mailList[512]           0 none, 1 arrived, 2 seen, 4 read, 5 6 (the mailer's)
-//! +0x2464  mailOrderList[512]      arrival order, -1 after the last
-//! +0x2864  webnewsList[128]        0 none, 1 posted, 3 read
-//! +0x28e4  bbsList[128][48]        0 none, 1 posted, 3 read, 7 posted (bbs_post7)
-//! +0x4fe4  gateList[5][5]          per server, bit per story area on the Chaos Gate
-//! +0x5048  gateListMark[5][5]      per server, bit per marked story area
-//! +0x523c  wordList[15]            bit per keyword known
-//! +0x5278  gateOrderList[5][64]    per server, story areas newest first, -1 empty
-//! +0x54f8  eventFlag[512]          per event: bit b < 62 block b ran, 62 done, 63 closed
-//! +0x64f8  eventStatus[80]         the scripts' counters
-//! +0x6548  areaBan[32][4]          (field, dungeon, floor, block) barred, -1 free
-//! +0x65c8  protectArea[5]          bit per story area whose virus core is gone
-//! +0x6771  plcol                   1 once Kite has Data Drain
-//! +0x6772  crisis
-//! +0x73b8  partyTime[17]           frames characters 1-17 have been in the party
-//! +0x7488  spcParam[18]            0xdc each: base.gold +0x14 (int), friendship +0xda (short)
-//! +0x8426  lastTown
-//! +0x842a  clearFlag               volumes cleared
-//! +0x842b  parodyFlag
-//! ```
-//!
-//! Arrays keep the game's flat indexing: `bbsList[thread][post]` is byte
-//! `thread * 48 + post`, so a post past 47 lands in the next thread as it
-//! does in the game. A write that would fall outside its array is dropped
-//! (the game would write some other member).
+//! The saved state the scripts read and write: the game's save record,
+//! [`SaveData`] (`ccSaveData`, 0x8530 bytes, `docs/formats/save.md`), owned by
+//! the caller and reached through [`crate::host::Host::save`]; what is not
+//! saved is [`crate::vm::EventMng`]'s. [`ScriptSave`] adds the members and the
+//! `ccSaveData` functions the instructions use. Arrays keep the game's flat
+//! indexing (`bbsList[thread][post]` is byte `48 thread + post`, so a post past
+//! 47 lands in the next thread); a write past its array is dropped, where the
+//! game's would land in some other member.
 
 pub use piney_data::save::SaveData;
 use piney_data::save::offset as off;

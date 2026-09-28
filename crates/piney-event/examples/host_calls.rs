@@ -1,14 +1,9 @@
 //! Which `Host` methods each block of a disc's scripts reaches: every block
-//! played at level 2 on a host that ports nothing, so each method it calls
-//! falls to the trait's default and names itself. One line per block:
-//!
-//!     event block | tags ; conditions | methods
-//!
-//! with the open conditions as block `open`. The tags are the block's own;
-//! a tool adds the sticky ones. For checking the port's hosts against what
-//! the scripts need (the place a block runs in picks the host).
-//!
-//!     cargo run -p piney-event --example host_calls [ISO]
+//! played at level 2 on a host that ports nothing, so each call falls to the
+//! trait's default and names itself. One line per block, `event block | tags ;
+//! conditions | methods`, the open conditions as block `open` and the tags the
+//! block's own. For checking the port's hosts against what the scripts need
+//! (`cargo run -p piney-event --example host_calls [ISO]`).
 
 use std::path::PathBuf;
 use std::sync::Arc;

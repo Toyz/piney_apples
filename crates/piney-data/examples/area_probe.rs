@@ -1,17 +1,10 @@
 //! The area generator (`piney_data::area`) on commands from stdin, one JSON
 //! line out per command, for `tools/test_area_rs.py` to hold against the
-//! game's own code run in `tools/eemu.py`.
-//!
-//! ```text
-//! area_probe ISO
-//!   gen A B C SERVER FLAG71 CRISIS VOLUME    SimGenerateCode + dungeon types
-//!   protect N                                 IsProtectArea with eventAreaNumber N
-//!   info N                                    GetEventAreaInfo(N): the row, -1 for none
-//!   fromev N PART                             GetWordParamFromEvCode(N, PART): the ID, null for none
-//!   ev N SERVER FLAG71                        instruction 118 `area N`
-//!   wordid TEXT                               GetWordParamID(TEXT) (the rest of the line)
-//!   go A B C SERVER                           SetGenerateCode: the ChangeArea or ChangeScene
-//! ```
+//! game's own code run in `tools/eemu.py` (`area_probe ISO`). The commands are
+//! `gen` (SimGenerateCode and the dungeon types), `protect` (IsProtectArea),
+//! `info` (GetEventAreaInfo), `fromev` (GetWordParamFromEvCode), `ev`
+//! (instruction 118 `area N`), `wordid` (GetWordParamID) and `go`
+//! (SetGenerateCode), with the arguments the test sends.
 
 use std::io::{BufRead, Write};
 

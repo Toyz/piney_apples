@@ -2,7 +2,7 @@
 title: Animation playback
 status: partial
 volumes: INF
-covers: INF SLUS_202.67:0x00150670 ccAnm::SetAnmCtrlWork (its 0x0605 case), 0x0014e950 ccStream::DecodeF_Obj, 0x00138120 ccCoord::SetMatrix_PosRotZYXScale, 0x00144e90 ccAnmChunk::ConvLCNum2ALCNum, 0x00144d00 ConvALCNum_FsetMatCtrl, 0x00146be0 ccAnmCtrlFVec3_SetCtrl, 0x00146890 ccAnmCtrlFVec3_Set, 0x00146660 ccAnmCtrlFloat_SetCtrl, 0x001470c0 ccAnmCtrlRot_SetCtrl, 0x00146f30 ccAnmCtrlRot_Set, 0x00150670 SetAnmCtrlWork, 0x00152270 ccAnm::_AnimateForward, 0x0014e6e0 DecodeF_Morpher, 0x0013af10 ccMorpher::Modify, 0x001109b8 _sceVu0ecossin, 0x0014e1b0 ccStream::DecodeFrameChunk, 0x0014f830 ccStream::DecodeF_Note, 0x00147ff0 ccAnmNote::DelAll, 0x00152210 ccAnm::NoteProcess, 0x00150f50 ccAnm::SetAnm, 0x0014fc80 ccAnm::ccAnm, 0x00152400 ccAnm::_AnimateFrame, 0x00378904 funcDefaultNoteProcess, 0x001494c0 ccStream::PlaySceneMain
+covers: INF SLUS_202.67:0x00150670 ccAnm::SetAnmCtrlWork (its 0x0605 case), 0x0014e950 ccStream::DecodeF_Obj, 0x00138120 ccCoord::SetMatrix_PosRotZYXScale, 0x00144e90 ccAnmChunk::ConvLCNum2ALCNum, 0x00144d00 ConvALCNum_FsetMatCtrl, 0x00146be0 ccAnmCtrlFVec3_SetCtrl, 0x00146890 ccAnmCtrlFVec3_Set, 0x00146530 ccAnmCtrlFloat_Set, 0x00146660 ccAnmCtrlFloat_SetCtrl, 0x001470c0 ccAnmCtrlRot_SetCtrl, 0x00146f30 ccAnmCtrlRot_Set, 0x00150670 SetAnmCtrlWork, 0x00152270 ccAnm::_AnimateForward, 0x0014e6e0 DecodeF_Morpher, 0x0013af10 ccMorpher::Modify, 0x001109b8 _sceVu0ecossin, 0x0014e1b0 ccStream::DecodeFrameChunk, 0x0014f830 ccStream::DecodeF_Note, 0x00147ff0 ccAnmNote::DelAll, 0x00152210 ccAnm::NoteProcess, 0x00150f50 ccAnm::SetAnm, 0x0014fc80 ccAnm::ccAnm, 0x00152400 ccAnm::_AnimateFrame, 0x00378904 funcDefaultNoteProcess, 0x001494c0 ccStream::PlaySceneMain
 worklog: 32
 ---
 
@@ -54,7 +54,8 @@ per later key:          (256 * (frame - previous frame), key - running sum)
 at the end:             a hold of N*256 - last*256
 ```
 
-`_Set` walks the segments while a segment's duration is below the remaining
+`_Set` (`ccAnmCtrlFVec3_Set` 0x00146890, `ccAnmCtrlFloat_Set` 0x00146530)
+walks the segments while a segment's duration is below the remaining
 time, adding its delta. Then:
 
 ```
@@ -91,7 +92,11 @@ Rotations are not interpolated as Euler angles
 `sceVu0RotMatrix` takes its cosine from a polynomial (`_sceVu0ecossin`
 0x001109b8, coefficients at 0x002f7520) and its sine as `sqrt(1 − cos²)`,
 which is off by up to about 5e-4 near 0. That is the game's error, and the
-port keeps it.
+port keeps it. The port computes keyed rotations in double: they match the
+game to 1e-5 per matrix element plus 1e-7 per key passed, the game's
+running matrix drifting in float. Every other value (positions, scales,
+transparencies, texture offsets, single-value rotations, morph weights and
+blends) matches bit for bit, as far as eemu models the EE and VU0.
 
 The local matrix is `T(position) · R · S(scale)` (`SetAnmCtrlWork`
 0x00150670). The pose goes to the object in `ccAnmIndex.subst`; ExtObj

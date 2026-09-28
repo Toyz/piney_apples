@@ -1,19 +1,11 @@
 //! Rooms and doors placed as `SetRoom` and `SetDoor` place them
 //! (`piney_data::dungeon::place`) against the map the generator makes.
-//! Skipped when the disc image is not extracted; set PINEY_ISO to point at
-//! it elsewhere. Run with `--nocapture` for the counts.
-//!
-//! - Every model of every `ROOM_INFO` row of all ten types marks its exits
-//!   (door dummies, gate walls) 600 inside its edge on the side's middle,
-//!   and turned by the row's angle with `Rz(rotate)` they are exactly the
-//!   row's exits. With the opposite sign most rows fail, so the check bites.
-//! - On generated floors of every type and server, every exit lands on the
-//!   map's door cells for that side, and each pair of rooms that the map
-//!   joins has its two exits facing each other on one line, 1,200 apart,
-//!   either side of the shared edge.
-//! - The door and gate pieces reach 800 along their +y (the lakes' doors
-//!   1,306): past the edge, so the two halves of a doorway overlap. The Gott
-//!   statue rooms, which have no door, are built through their doorway.
+//! Skipped when the disc image is not extracted (set PINEY_ISO to point at it
+//! elsewhere); `--nocapture` prints the counts. It checks that every
+//! `ROOM_INFO` model's exit markers, turned by `Rz(rotate)`, are exactly its
+//! row's exits (the opposite sign fails most rows); that on generated floors
+//! every exit lands on the map's door cells, joined rooms' exits facing 1,200
+//! apart; and that door pieces reach past the edge, so doorways overlap.
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;

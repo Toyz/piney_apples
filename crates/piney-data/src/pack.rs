@@ -1,51 +1,11 @@
 //! A build of the discs: what `piney-build` makes from one to four disc
-//! images, and what [`crate::iso::Iso`] reads in their place
-//! (the README's Playing section).
-//!
-//! A build is a directory:
-//!
-//! ```text
-//! chunks.pak        "PINEYPAK", u32 version, u32 0, then the chunks, each
-//!                   stored once however many files and discs hold it,
-//!                   zstd-compressed where that makes it smaller
-//! infection.disc    one per volume in the build: the disc's files, each
-//! mutation.disc     as a run of chunks of chunks.pak
-//! outbreak.disc
-//! quarantine.disc
-//! ```
-//!
-//! A `.disc` file, all little-endian:
-//!
-//! ```text
-//! char[8]   "PINEYDSC"
-//! u32       version (2)
-//! u32       volume, 0-3 (Infection .. Quarantine)
-//! u32       entries
-//! u32       chunk references
-//! char[32]  the image's volume identifier, NUL-padded
-//! entries:
-//!   u16     path length, then the path (`DATA/DATA.BIN`; a directory too)
-//!   u32     lba on the original disc
-//!   u32     size
-//!   u8      1 for a directory
-//!   u32     first chunk reference, u32 count
-//!   u8[32]  BLAKE3 of the file's bytes (zero for a directory)
-//! chunk references:
-//!   u64     offset in chunks.pak
-//!   u32     bytes there
-//!   u32     bytes of the file it stands for
-//!   u8      0 kept as it is, 1 zstd
-//! ```
-//!
-//! A file's bytes are its chunks' bytes, each decompressed, in order.
-//!
-//! Besides the disc's own files each `.disc` holds the port's, under
-//! [`PORT_DIR`] (`PINEY/`, at LBA 0xffffffff: no place on the disc): what
-//! the port takes from the disc, made by the build from the disc's
-//! executable so that play never reads it (`plans/build-data.md`).
-//! [`VERSION_FILE`] holds [`DATA_VERSION`]; a build of another version is
-//! made again. A disc image played on its own keeps the same files in
-//! [`image_data_dir`].
+//! images, and what [`crate::iso::Iso`] reads in their place (the README's
+//! Playing section). A build directory holds `chunks.pak` ("PINEYPAK", u32
+//! version, u32 0, then each chunk once however many files hold it, zstd
+//! where that is smaller) and one `.disc` per volume (`Manifest`: the disc's
+//! files as runs of those chunks). Each `.disc` also holds the port's files
+//! under [`PORT_DIR`] (at LBA 0xffffffff), made so that play never reads the
+//! executable; a disc image keeps them in [`image_data_dir`].
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -117,7 +77,12 @@ impl PackEntry {
     }
 }
 
-/// One disc of a build: its `.disc` file.
+/// One disc of a build: its `.disc` file, all little-endian: "PINEYDSC", u32
+/// version, u32 volume (0-3), u32 entries, u32 chunk references, the image's
+/// volume identifier (32 bytes, NUL-padded), the entries (path, LBA, size,
+/// directory flag, first chunk reference and count, BLAKE3 of the bytes), then
+/// the chunk references (offset in `chunks.pak`, bytes there, bytes of the
+/// file, codec). A file's bytes are its chunks', each decompressed, in order.
 #[derive(Debug)]
 pub struct Manifest {
     pub volume: Volume,
