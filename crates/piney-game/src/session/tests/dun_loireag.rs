@@ -772,9 +772,10 @@ fn a_walker_stands_through_its_talk() {
         step(&mut s, if on && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE });
     }
     assert!(opened, "TalkMenu did not open for walker {code}");
+    // The talk read slowly: ten seconds with nothing pressed, then paged.
     let first = pc(&s);
     let mut moved = Vec::new();
-    for f in 0..900u64 {
+    for f in 0..1500u64 {
         let now = pc(&s);
         if now.2 == -1 {
             break;
@@ -782,7 +783,7 @@ fn a_walker_stands_through_its_talk() {
         if now.0 != 2 || now.1[..3] != first.1[..3] {
             moved.push((f, now));
         }
-        step(&mut s, if f.is_multiple_of(30) { Buttons::CROSS } else { Buttons::NONE });
+        step(&mut s, if f > 600 && f.is_multiple_of(30) { Buttons::CROSS } else { Buttons::NONE });
     }
     assert!(
         moved.is_empty(),
