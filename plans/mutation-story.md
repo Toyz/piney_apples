@@ -11,7 +11,8 @@ through ported as the game builds them. Started 2026-09-28.
   `PINEY_SURVEY_GOD`; "done" once the event's flag is closed or done. 101 is
   the new game's desktop.
 - `mutation_whole_story`: one run from the new game to 116's end. It
-  ends 101-107 and walks into field 9 for 108 (worklog 270).
+  ends every event, 101 to 116, and reaches the staff roll at frame
+  703,500 (worklog 276).
 
 ## Where it stands (2026-09-28)
 
