@@ -1,0 +1,59 @@
+# Publish the worklog and the reference to GitHub Pages.
+#
+# cairns is pinned to a release rather than tracking latest: a site that
+# rebuilds itself differently because a tool moved underneath it is a site that
+# changes without a commit. Bump the version here when you want the new one.
+name: worklog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worklog/**"
+      - "docs/**"
+      - "README.md"
+      - "cairns.toml"
+      - ".github/workflows/worklog.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install cairns
+        env:
+          CAIRNS_BIN_DIR: ${{ runner.temp }}/bin
+          CAIRNS_VERSION: v0.5.1
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/Toyz/cairns/main/install.sh | sh
+          echo "${{ runner.temp }}/bin" >> "$GITHUB_PATH"
+
+      # A stale index or an entry filed under an area that does not exist
+      # should stop a deploy, not ship.
+      - run: cairns check
+      - run: cairns build --out site
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5
