@@ -3,7 +3,7 @@ title: The desktop text - mail, board, news
 status: partial
 volumes: INF
 covers: INF desktop.prg MailTbl, MailTblp, ReMail, ReMailp, HtmlTbl; INF toppage.prg bbsThreadTbl, bbsThreadTblP, bbsMsgTbl, bbsMsgTblP; INF SLUS_202.67:0x0015e380 ccKanji::Disp
-worklog: 9, 18
+worklog: 9, 18, 23, 37, 58
 ---
 
 # The desktop text - mail, board, news
@@ -24,7 +24,7 @@ ccMailData          0x48 bytes     MailTbl 0x0041dfd0, MailTblp 0x00425280
   +0x08  s32       mailFlg
   +0x0c  char *    title
   +0x10  char *    from
-  +0x14  s32       fromNO          sender id
+  +0x14  s32       fromNO          sender id: the photo CMP_xddphot{fromNO + 1}
   +0x18  s32       line            lines in the body
   +0x1c  char *    sentence        `line` NUL-terminated strings, back to back
   +0x20  ccReMailData oneRes       first reply the player can send
@@ -43,7 +43,7 @@ ccBBSThreadList     0x0c bytes     bbsThreadTbl 0x00406450, bbsThreadTblP 0x0040
   +0x08  s32       msgNum
 
 ccBBSMsgList        0x14 bytes     bbsMsgTbl 0x004049a0 [341], bbsMsgTblP 0x00406750 [341]
-  +0x00  s32       dateindex
+  +0x00  s32       dateindex       the date cell, 0-5 plain, 0 in parody
   +0x04  char *    title
   +0x08  char *    transname       the poster
   +0x0c  s32       maxLines
@@ -87,7 +87,7 @@ Strings are single-byte ASCII mixed with Shift-JIS pairs. `ccKanji::Disp`
 | `#W` | the string's starting colour |
 | `%` + byte | an extended font code, passed through to the draw pass |
 | 0x20-0x7f | ASCII |
-| Shift-JIS pair | `ccGetExtendedCode`; if the result's high byte is `%` it becomes that two-byte code, otherwise `_` |
+| Shift-JIS pair | `ccGetExtendedCode` (what it maps, and how `%` codes are drawn: [font](font.md)); if the result's high byte is `%` it becomes that two-byte code, otherwise `_` |
 
 Colours are GS values, 0x80 = full intensity, alpha 0x80.
 
@@ -104,7 +104,6 @@ them as escapes regardless.
 
 ## Unknown
 
-- `reFlg`, `mailFlg`, `fromNO`'s table, `dateindex`, `HtmlData.flg`.
-- (Answered on [the text rendering page](font.md): what `ccGetExtendedCode`
-  maps, and how `%` codes are drawn.)
+- `reFlg`, `mailFlg` (their writes are ported: [desktop](desktop.md)),
+  `HtmlData.flg`.
 - Which mails and posts the game actually delivers in Infection.

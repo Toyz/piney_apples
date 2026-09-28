@@ -3,6 +3,7 @@ title: Leaving the town - Kite in a field and its dungeon
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x00168960 ccSetupGameCtrl (areas 1 and 2), 0x00165530 loadCheck, 0x0019ad70 ccLoadDispInit, 0x0019c290 ccLoadDispTh, 0x0019ba50 ccLoadDisp::allDisp, 0x0019f8e0 WORLD_MAN::GO, 0x001a1190 WORLD_MAN::SetCharPosition, 0x0019eea0 WORLD_MAN::SetGenerateCode, 0x0019dda0 WORLD_MAN::Enter, 0x0019e410 WORLD_MAN::GoField, 0x001a0ef0 WORLD_MAN::SetCenter, 0x001a0fd0 WORLD_MAN::AddCenter, 0x001a20b0 WORLD_MAN::SetActiveLayer, 0x001a4430 ccThFieldDisp, 0x00153760 ccModelHit::HitEnable, 0x001537e0 ccModelHit::HitDisable, 0x0013cf50 ccClump::HitEnable, 0x0013d0b0 ccClump::HitDisable, 0x0013d150 ccClump::SetHitMatrix, 0x00151e60 ccAnm::HitEnable, 0x001520f0 ccAnm::SetHitMatrix, 0x00153930 _ccHitCheckLM, 0x00153a30 prepareHitLine, 0x00153be0 prepareHitSphere, 0x00153e80 checkHitResultAttlibute, 0x00167380 ccGame::ChangeScene, 0x001674a0 ccGame::ChangeArea, 0x001671e0 ccGame::ChangeRequest, 0x0015a200 ccSleepNoSleepThread, 0x0015a010 ccDeleteAllThread, 0x001b5230 ccStartThEvent, 0x001ab9b4 teach_camera1-3 (ccEvent::Execute), 0x001676a0 ccGame::SetInBattle, 0x0019c430 ccLoadDispCheck, 0x001b77c0 ccClearGtHack, 0x001b7840 ccSetGtHack, 0x001b7850 ccCheckGtHack, 0x00378a98 gtHackFlag, 0x00378cc0 ghoFlag, 0x00162870 cameraParamChange; INF gcmn.prg:0x005a97b0 WORLD::Draw, 0x005a8320 WORLD::DrawObject, 0x005a8570 WORLD::DrawMesh, 0x005a7ef0 WORLD::DrawBG, 0x005aa2b0 WORLD::SetCenter, 0x005aa3d0 WORLD::AddCenter, 0x005aa520 WORLD::GetHeight, 0x005b0e90 FOBJECT::Draw, 0x005b13f0 FOBJECT2::Draw, 0x005b1700 FOBJECT2::HitEnable, 0x005b0aa0 FIELD_MESH::RelocateMesh, 0x00571e00 ccLandHitCheck, 0x00597910 ccPlayer::ccPlayer, 0x00598310 ccPlayer::Main, 0x0059b3c0 ccPlayer::MapLoopAdjustPos, 0x0059b470 ccPlayer::W2MPos, 0x0059b5a0 ccPlayer::W2PPos, 0x0059b710 ccPlayer::P2WPos, 0x0059b940 ccTransPosW2P, 0x0059b980 ccTransPosP2W, 0x0059b9c0 ccTransPosFW2LW, 0x0059ff50 ccGetStartPositions, 0x0056b1c0 ccChar::Draw, 0x0053c8e0 ccMenuCtrl::GateoutMenu, 0x0051a000 ccCheckInAreaCmnd, 0x0059cd60 ccCheckGtHackAnm, 0x0051a750 ccInitRecoveryReq, 0x0051a790 ccEntryRecoveryReq, 0x0051a7f0 ccCtrlRecoveryReq, 0x0072eb10 recoveryReq, 0x00572700 ccSkillRequest, 0x00516a80 ccThGameOver, 0x00516a20 ccAddRequestFileListGameOver, 0x00516d30 ccGameOverNoise::Main, 0x00516d90 ccGameOverNoise::NOISE, 0x005170c0 ccGameOverNoise::TV, 0x00517150 ccGameOverNoise::Noise, 0x005171d0 ccGameOverNoise::Noise2, 0x00517240 ccGameOverNoise::Noise3, 0x005172c0 ccGameOverNoise::Noise4, 0x00517330 ccGameOverNoise::StretchTV_Y, 0x005174d0 ccGameOverNoise::StretchTV_X, 0x005175b0 ccGameOverNoise::StretchTV_Init, 0x005175d0 ccGameOverNoise::InitData, 0x0056a7c0 ccOpenGameOverMenu, SLUS_202.67:0x00180580 ccSndGameOver, 0x0059a0c8 ccPlayer::AnimCtrl, 0x0059ce80 ccParty::AddMember, 0x0059cf60 ccParty::DelMember, 0x0059cfe0 ccParty::CheckMemberID, 0x005a08e0 inviteSpc, 0x005a0f50 disbandSpc, 0x005a1070 expulsionSpc, 0x0059bc00 ccPlayer::GateHackingOut, 0x005a10e0 ccAddRequestFileListSpc, 0x005a1490 ccGateHackOutCcsName, 0x006540c0 GateHackOutCcsName, 0x0041ae80 ccFellow::Initialize (the hacked arrival), 0x0057c5f0 ccAI::ccAI (arrivalChatCnt)
+worklog: 72, 74, 75, 80, 87, 98, 103, 106, 108, 110, 130, 138, 158, 164, 177, 180, 186, 191, 218, 250, 260
 ---
 
 # Leaving the town - Kite in a field and its dungeon
@@ -144,6 +145,10 @@ A character the event registers outside the party (`entry 0-2 code`,
 `ccEntryCmnd`, the event's command list. Side event 61 builds Natsume
 this way in her dungeon room; the port's `FieldWorld::set_spc_entries`
 takes the registrations and `EvParty::place_entry` the placing.
+
+The entry control in a field thus holds `EntryGimmick`'s portals, enemies,
+foods, a lake's spring, the entrance's swirls and the symbols, and the
+event's entries ([battle.md](battle.md#where-the-entries-come-from)).
 
 ## The loading display
 
@@ -877,6 +882,10 @@ field type, background row, hack flag and seed in its `WORLD_MAN`,
 TransFieldMenu's way out of a dungeon. Log Out (`ChangeRequest(4, 7)`)
 leaves a field or dungeon for the top page as it does the town.
 
+Every Root Town is built: Mac Anu (Δ), Dun Loireag (Θ,
+[town02.md](town02.md)), and the later volumes' Carmina Gade, Fort Ouph
+and Lia Fail (`ROOTTOWN03`-`05`, [root-towns.md](root-towns.md)).
+
 ## Checks
 
 `tools/test_field_rt.py` lays the field the probe makes (story area 14's)
@@ -956,9 +965,6 @@ host default (`take_unported` empty).
 
 ## Unknown
 
-- The entry control in a field holds `EntryGimmick`'s portals, enemies,
-  foods, a lake's spring, the entrance's swirls and the symbols, and the
-  event's entries ([battle.md](battle.md#where-the-entries-come-from)).
 - The water's run-time textures and the sky's clouds' blending are
   approximations. (The fog is VU1's by each vertex's depth, as the game's:
   `piney_draw::DepthFog`.)
@@ -971,9 +977,6 @@ host default (`take_unported` empty).
   a stale register holding a heap address; they cannot be matched.
 - `SimGenerateCode` also moves the global RNG (`seed`, `randcnt`), which
   the port's area words leave aside; so does `GO` (`fieldrand`).
-- Of the Root Towns, Mac Anu (Δ) and Dun Loireag (Θ, [town02.md](town02.md))
-  are built; `ROOTTOWN03`-`05` belong to the later volumes (GAPS.md, "After
-  Infection").
 - `ccPlayer::CollisionTest` guards `WORLD_MAN::Enter` only with `dneFlag`,
   so the game may call it again on the frames of the fade out while Kite
   still stands on the entrance or a door; the port takes the first change

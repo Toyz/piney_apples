@@ -7,6 +7,23 @@ into single questions, and each question is classified against the later
 worklog, the docs, BUGS.md, GAPS.md, plans/ and the code. Nothing in the
 worklog, the docs or the code was changed for this ledger.
 
+The same day the ledger was folded into the worklog as ten consolidation
+entries, one per subsystem: [[282]] the disc, formats, engine core and
+tools; [[283]] the draw path; [[284]] the effects and the streams' effect
+tasks; [[285]] towns, fields and dungeons; [[286]] battle; [[287]] the event
+scripts; [[288]] menus, the desktop and text; [[289]] sound, voices and
+movies; [[290]] the save; [[291]] the later volumes. Together they resolve
+all 271 entries below, list each answered or dead question with its
+evidence, and restate every open one (play first, then volumes, then
+research) with the entry that asked it, including the few left by entries
+54, 103, 118, 120 and 263. The worklog's open list (`cairns open`) is now
+those ten entries. Every cited entry, path and test name was checked to
+exist, and about 110 answers were read against their evidence; one was
+downgraded to open ([[28]]'s three canal waters, whose cited page
+describes Carmina Gade's). The docs' stale and dead `## Unknown` bullets
+were removed, and their answers stated in the pages' bodies where the
+bodies did not already hold them.
+
 The classes:
 
 - **play**: still open, and it changes what a player of the port sees,

@@ -3,7 +3,7 @@ title: Event scripts
 status: partial
 volumes: all
 covers: MUT SLUS_205.62:0x001bdf00 ccEvent::Execute, OUT SLUS_205.63:0x001b4250, QUA SLUS_205.64:0x001bba60; INF SLUS_202.67:0x001a8d20 ccEvent::Execute, 0x001a7400 ccEvent::CheckOpen, 0x001a6ec0 ccEvent::SetCurrentOpen, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x00317e30 eventTbl, evMsgTbl, evMsgTblp
-worklog: 18, 24, 40
+worklog: 18, 24, 40, 176, 178, 179, 239
 ---
 
 # Event scripts
@@ -378,8 +378,11 @@ The 40 conditions and 12 precondition tags have the same lengths everywhere.
   - It sets `game+0x7c = 1` and reads `\DATA\KFED.BIN` and
     `\DATA\KFAED.BIN` into two `$gp` globals (`0x0027956c`, `0x00279570`).
   - It adds the `ending.ccs` file list and runs gcmn `0x004f0a30`, which
-    starts a thread and waits for it.
-  - It then frees both buffers. No other code reads the two globals.
+    starts `STFROLL_VOL4`, the staff roll (thread `0x004f0950`), and waits
+    for it.
+  - It then frees both buffers. No other code reads the two globals: a
+    scan of every word of the executable and the four overlays finds only
+    the handler's two stores and two loads for `ccFree`.
   - It is used in event 314 "Ending", block 3; OUT's copy of that script
     already contains it and skips it.
 
@@ -451,30 +454,38 @@ page](event-vm.md) has the details. In short:
   script, every condition, every block played, and a new game reaching the
   desktop frame by frame.
 
+## Numbers and units
+
+The numbers the instructions take all have their tables:
+
+- The streams are `streamTbl`'s ([stream](stream.md#the-tables)).
+- The markers are `markerEvTbl`'s in a Root Town, and the event positions
+  elsewhere ([field game](field-game.md)).
+- The menus are `ccMenuCtrl`'s ([field UI](field-ui.md)); the operations
+  are listed above.
+- The sound commands are `ccSndEvRequest`'s
+  ([sound](sound.md#the-event-instruction-ccsndevrequest)).
+- `pc_act`'s and `npc_act`'s codes are `ccEvent::Execute`'s and
+  `ccRtownPC::eventMode`'s ([field game](field-game.md)).
+
+The boards, the windows and the camera:
+
+- `bbsList` holds 0 not posted, 1 new, 3 read, and 7 the player's own post
+  waiting to be written out ([top page](toppage.md)). Mail states 4-6 are
+  the mailer's: read, and replied with one or the other answer
+  ([desktop](desktop.md)).
+- `emode`'s low byte picks how the window ends: 0 fades it out, 1 chains to
+  the next record, 2 leaves it up, 3 asks. 0x100 shows the text at once,
+  untyped. 0x200 is a typing-speed test that gives one frame either way
+  ([desktop](desktop.md)).
+- The camera's angles are `DEG2RAD` shorts, 65536 to a turn: `rotx` the
+  pitch, `roty` the heading. The distances are tenths. `cam_mode4`
+  (`cpCtrl` 4) leaves the camera point where it is while the look-at goes
+  on moving (`piney_world::evcam`).
+
 ## Unknown
 
 - What fills OUT's and QUA's BSS message groups; what OUT's rewritten cases
-  do; what gcmn `0x004f0a30`'s thread does with the KFED buffers.
-- Nothing about the numbering the instructions take is unknown any more.
-  The streams are `streamTbl`'s ([stream](stream.md#the-tables)); the
-  markers `markerEvTbl`'s in a Root Town and the event positions elsewhere
-  ([field game](field-game.md)); the menus `ccMenuCtrl`'s
-  ([field UI](field-ui.md)); the operations above; the sound commands
-  `ccSndEvRequest`'s ([sound](sound.md#the-event-instruction-ccsndevrequest));
-  `pc_act`'s and `npc_act`'s codes `ccEvent::Execute`'s and
-  `ccRtownPC::eventMode`'s ([field game](field-game.md)). Only `npc_act`
-  -3 and -5 (row 139's drain, the Administrator's -5) are not ported, and
-  only volume 2's event 114 uses them.
-- None left about the boards, the windows or the camera:
-  - `bbsList` holds 0 not posted, 1 new, 3 read, and 7 the player's own
-    post waiting to be written out ([top page](toppage.md)). Mail states
-    4-6 are the mailer's: read, and replied with one or the other answer
-    ([desktop](desktop.md)).
-  - `emode`'s low byte picks how the window ends: 0 fades it out, 1
-    chains to the next record, 2 leaves it up, 3 asks. 0x100 shows the
-    text at once, untyped. 0x200 is a typing-speed test that gives one
-    frame either way ([desktop](desktop.md)).
-  - The camera's angles are `DEG2RAD` shorts, 65536 to a turn: `rotx`
-    the pitch, `roty` the heading. The distances are tenths. `cam_mode4`
-    (`cpCtrl` 4) leaves the camera point where it is while the look-at
-    goes on moving (`piney_world::evcam`).
+  do.
+- `npc_act` -3 and -5 (row 139's drain, the Administrator's -5) are not
+  ported; only volume 2's event 114 uses them.

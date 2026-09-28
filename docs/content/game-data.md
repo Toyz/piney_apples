@@ -3,7 +3,7 @@ title: Game data tables
 status: partial
 volumes: all
 covers: INF gcmn.prg enemyTbl, skillTbl, BossSkillTbl, itemTblE, itemTblD, equipment*Tbl, bossTbl, LevelUpParamTbl, storeCondition, EditDungeon, bookItemList, spcAIParam; INF demo.prg charTbl
-worklog: 12, 25
+worklog: 12, 13, 22, 25, 67, 78, 208, 275
 ---
 
 # Game data tables
@@ -59,7 +59,7 @@ exp         s32
 gold        s32
 height      f32         collision
 width       f32         collision
-msg         pointer
+msg         pointer     the address of the row's message table
 ```
 
 followed by `maxHP`, `maxSP`, and `elm`: `battleAbility` (`pAtk`, `pDef`,
@@ -68,6 +68,14 @@ followed by `maxHP`, `maxSP`, and `elm`: `battleAbility` (`pAtk`, `pDef`,
 `body`). Equipment carries the same `elm` block plus `name`, `ccsname` and
 `auraSW`. Print `tools/dwarf1.py type SLUS_202.67 ccEnemyTable` for the full
 layouts.
+
+What the fields drive is on the engine pages. The enemy `type` bits,
+`Exdefense` (+0x64), the AI fields, `entry` and the skill and item effect
+fields are in [battle](../engine/battle.md) (the skill types, hit and
+damage, enemy AI, items). How an area's `enemyOfs` and the lists
+`enemyList00`..`enemyList46` pick the rows it registers is in
+[area words](../engine/area-words.md) and in battle's "Where the entries
+come from"; story areas take column 6.
 
 ## Content
 
@@ -108,7 +116,4 @@ missing or wrong for some. For example, MUT's carried `skillTbl` points
 
 ## Unknown
 
-- The meaning of the enemy `type`, `Exdefense`, AI and `entry` fields.
-- Skill and item effect encodings.
-- How areas choose enemies (`enemyList00`..`enemyList15`, `enemyOfs`).
-- The `msg` field's target.
+Nothing.

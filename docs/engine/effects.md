@@ -1979,7 +1979,9 @@ Draw). The models the spells move about:
 
 ## The port
 
-`crates/piney-effect`:
+`crates/piney-effect`. `CheckCharAttribute(ch, 1)`, `ccCheckObjectSize`,
+`ccConditionIconNum`, `condition.dead` and the command lists are host
+inputs: the run-time supplies them, and this crate does not port them.
 
 | module | what |
 | --- | --- |
@@ -2417,8 +2419,6 @@ every draw in order, every event and `rand()`'s state:
 - What the effects' generator rows (157-184 the start's sparks, 211-221
   the stat changes', 61, 94-108, 118, 119) look like on screen, beyond the
   shots.
-- `CheckCharAttribute(ch, 1)`, `ccCheckObjectSize`, `ccConditionIconNum`,
-  `condition.dead` and the command lists are host inputs, not ported here.
 - `ccCheckObjectSize` sizes other than 1, 3, 4, and drain types other than
   0 or 1: the game goes on with an id it never set (`effProtect(-1)`,
   `effAfterDrain(-1)`, `effDrainCtrl`) or scales by the caller's `f20`

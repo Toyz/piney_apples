@@ -3,7 +3,7 @@ title: How the game is put together
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x0015a780 main, 0x00167940 ccThMother, 0x001671e0 ccGame::ChangeRequest, 0x001680e0 ccThLoadOverlay, 0x0010a5f0 ccSystem::Ctrl, 0x001099e0 VSyncCallBack, 0x0015a5c0 ccThControl, 0x00159e10 ccTscb::Breath, 0x00102d40 ccPad::Read, 0x00102a50 ccPad::Ctrl, 0x00102bf0 ccPad::SetActuater, 0x0010a740 ccSystem::Ctrl (the motors)
-worklog: 15
+worklog: 15, 18, 40
 ---
 
 # How the game is put together
@@ -45,8 +45,8 @@ ccThMother                             mother.cpp
 
 Overlays are loaded on the task `ccThLoadOverlay`, which retries
 `mwLoadOverlay` until it succeeds; see [the overlay format](../formats/prg.md).
-The event interpreter `ccEvent::Execute` can also load one through
-`ccLoadOverlay`. Main code calls into gcmn at fixed addresses, valid only
+The event interpreter `ccEvent::Execute` ([event VM](event-vm.md)) can also
+load one through `ccLoadOverlay`. Main code calls into gcmn at fixed addresses, valid only
 while gcmn is resident.
 
 ## Frames
@@ -144,4 +144,3 @@ The callers are `ccPlayer::DamageActuate` (Kite hit: the small motor and
 
 - Modes 1 and 0x1000.
 - Which tasks each mode starts, and their priorities.
-- `ccEvent::Execute`, the event script interpreter.

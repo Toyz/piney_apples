@@ -3,7 +3,7 @@ title: The story maps - EVENTAREA01 (area 13), EVENTAREA02 (area 15), EVENTAREA0
 status: partial
 volumes: INF, MUT
 covers: INF gcmn.prg:0x00405a00 EVENTAREA07::EVENTAREA07, 0x00405c80 EVENTAREA07::ChangeBlock, 0x00406b80 EVENTAREA07::Draw, 0x00406730 EVENTAREA07::DrawBG, 0x004068b0 EVENTAREA07::DrawObj, 0x004069a0 EVENTAREA07::DrawObj2, 0x00406a90 EVENTAREA07::DrawFloor, 0x005d2160 EA_MODELTABLE07, 0x005d2200 EA_OBJTABLE07, 0x005d2230 EA_BGNAME07, 0x005d2240 EA_moveTex07, 0x005d2270 EA_MODELTABLE0702, 0x005d22a0 eventarea0702Light, 0x005cff60 STATICOBJECT::SetPos, 0x005d03f0 STATICMODEL::SetPos, 0x004079f0 EVENTAREAB0::EVENTAREAB0, 0x004095e0 EVENTAREAB0::Draw, 0x004091c0 EVENTAREAB0::DrawBG, 0x00409460 EVENTAREAB0::DrawObj, 0x00409510 EVENTAREAB0::DrawFloor, 0x004095b0 EVENTAREAB0::SwitchLayer, 0x004098e0 EVENTAREAB0::NextStage, 0x005d2580 EA_MODELTABLEB0, 0x005d2640 eventareaB0Light, 0x005d26e0 bossFireFlyEff, 0x005d2730 the fireflies' markers (@1153), 0x005b4550 FIREFLY2::FIREFLY2, 0x005b4d30 FIREFLY2::Init, 0x005b49f0 FIREFLY2::SetBasePosition, 0x005b4ba0 FIREFLY2::SetBasePosition2, 0x005b5050 FIREFLY2::Move, 0x005b5eb0 FIREFLY2::Draw, 0x0059b940 ccTransPosW2P, 0x00401e00 EVENTAREA02::EVENTAREA02, 0x00402300 EVENTAREA02::ChangeBlock, 0x004033e0 EVENTAREA02::Draw, 0x00402ff0 DrawBG, 0x00403280 DrawObj2, 0x00403190 DrawObj, 0x00403340 DrawFloor, 0x00402dc0 DrawLensFlare, 0x00400f00 EVENTAREA::EVENTAREA, 0x004010a0 EVENTAREA::SetCenter, 0x004010b0 EVENTAREA::AddCenter, 0x005d1c00 EA_MODELTABLE02, 0x005d1c50 EA_OBJTABLE02, 0x005d1c70 EA_MODELTABLE0202, 0x005d1d00 EA_OBJTABLE0202, 0x005d1d50 EA_moveTex02, 0x005d1d20 eventarea0202Light, 0x005d02d0 STATICMODEL::DrawWithOutFog, 0x005d01c0 STATICMODEL::Draw, 0x00571da0 initHitCheck, 0x00403590 EVENTAREA03::EVENTAREA03, 0x00403bf0 EVENTAREA03::Draw, 0x00403ab0 EVENTAREA03::DrawBG, 0x00403b50 EVENTAREA03::DrawFloor, 0x00639548 kiteSelfTalk; MUT gcmn.prg:0x00416590 EVENTAREA03::EVENTAREA03, 0x00416bf0 EVENTAREA03::Draw, 0x00416ab0 DrawBG, 0x00416b50 DrawFloor, 0x006000f0 EA_MODELTABLE03, 0x00600140 its start, 0x00600170 the fly-over's camera, 0x00669470 kiteSelfTalk; MUT gcmn.prg:0x0041d200 EVENTAREAB8::EVENTAREAB8, 0x0041ed30 EVENTAREAB8::Draw, 0x0041e8c0 its ride, 0x0041e420 DrawBG, 0x0041e5e0 DrawObj, 0x0041e6b0 DrawFloor, 0x0041f130 DrawRock, 0x0041cc80 SetFloatRockParam, 0x0041e750 Move, 0x0041e7d0 IsMove, 0x0041e7e0 HitDisable, 0x0041e850 HitEnable, 0x00600ab0 EA_MODELTABLEB8, 0x00600ad0 EA_OBJTABLEB8, 0x00600af0 rockname, 0x0073eb00 floatRockPos; MUT SLUS_205.62:0x0038afc0 eventareaB8Light, 0x001b8bb0 WORLD_MAN::SetTransMode, 0x001b8bd0 WORLD_MAN::SetTransCenter; MUT gcmn.prg:0x00414110 EVENTAREA01::EVENTAREA01, 0x00414c00 EVENTAREA01::Draw, 0x00414900 DrawBG, 0x00414980 DrawObj, 0x00414a70 DrawObj2, 0x00414b60 DrawFloor, 0x005ffd80 EA_MODELTABLE01, 0x005ffe10 EA_OBJTABLE01, 0x005ffe30 eventarea01Light, 0x005ffeb0 the glows' dummies; MUT SLUS_205.62:0x0038af98 eventarea03Light; INF SLUS_202.67:0x0019f8e0 WORLD_MAN::GO (EVENTAREA branch), 0x0019dda0 WORLD_MAN::Enter (the story maps' doors), 0x001a1ea0 WORLD_MAN::SetStartPos, 0x001a1190 WORLD_MAN::SetCharPosition (event area), 0x0019c740 WORLD_MAN::Quit, 0x0019f2d0 WORLD_MAN::DeleteEvent, 0x001a20b0 WORLD_MAN::SetActiveLayer, 0x001a10c0 WORLD_MAN::GetHeight, 0x0019c4b0 MoveTexture, 0x00377ff0 eventarea02Light, 0x0013bb40 ccEff::SetRenderState, 0x00161590 cameraGetPos, 0x00161700 cameraGetRot2, 0x00138f80 ccLight::~ccLight
-worklog: 84, 112, 117, 177, 263, 264, 272
+worklog: 84, 90, 91, 112, 117, 130, 177, 263, 264, 272
 ---
 
 # Area 15's story map - EVENTAREA02, Hidden Forbidden Holy Ground
@@ -290,7 +290,9 @@ draws with piney-effect's `ccEff::Draw`. The session keeps the map
 across the church's set-up in the slot that keeps a dungeon.
 `piney-game --mode field:15` starts on the holy ground; the Chaos Gate's
 words for area 15 lead there as well (from `--mode story:11`, once
-BlackRose has given them).
+BlackRose has given them). Event 11's instructions in the map (the
+arrival's camera, BlackRose, the church's streams) are the event host's:
+`crates/piney-game/src/area_host.rs` and `field_host.rs`.
 
 ## Checks
 
@@ -564,8 +566,9 @@ wanders about a base point and throws off sparks, which are `FIREFLY2`s
 too (+0x9c set). The arena's are type 0 (+0x00). Type 1, which
 `WORLD::Generate` and `FIREFLY::Move` make for the fields, follows the
 player (`SetBasePosition2`, 0x005b4ba0: a point up to 1500 each way from
-the base, turned by the camera's heading, at the ground's height) and is
-not described further here.
+the base, turned by the camera's heading, at the ground's height); the
+fields' fireflies are on the [field](field.md) page, and both types are
+ported in `crates/piney-world/src/firefly.rs`.
 
 ```text
 FIREFLY2()            0x005b4550  timer (+0xa0) fieldrand(20) + 10, pattern
@@ -745,7 +748,5 @@ hits, the rocks' cells and the ride. `FieldWorld` hands Kyvia the disc
   its pieces and the ride are held by unit tests only, and fields 10-12
   have not been played through their events.
 - The other `EVENTAREA` classes (04-06) are not ported (areas 66, 67,
-  91), nor `EVENTAREAB0`'s `NextStage`, nor the fields' type-1 fireflies:
-  their story areas still get a generated field.
-- Event 11's instructions in the map (the arrival's camera, BlackRose,
-  the church's streams) are the events' to host.
+  91), nor `EVENTAREAB0`'s `NextStage`: their story areas still get a
+  generated field.

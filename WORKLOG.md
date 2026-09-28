@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-281 entries: audio 18, battle 49, build 14, content 3, decomp 20, disc 4, engine 7, format 14, iop 2, render 69, save 8, script 27, test 126, tooling 22, ui 49, video 9, volumes 53, world 77.
+291 entries: audio 19, battle 50, build 15, content 3, decomp 21, disc 5, engine 8, format 15, iop 2, render 71, save 9, script 28, test 126, tooling 23, ui 50, video 11, volumes 54, world 78.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -293,3 +293,13 @@ The [reference](docs/README.md) says what is true now.
 | 279 | [An enemy's condition effect outlived a Data Drain: clearConditionEnemy's ClearConditionEffect carried out](worklog/0279-an-enemy-s-condition-effect-outlived-a-data-drain.md) | 2026-09-28 | battle, render |
 | 280 | [Skeith's ice rocks fell through the floor: ccEffect::Main's last cases ported](worklog/0280-skeith-s-ice-rocks-fell-through-the-floor-cceffect-main-s.md) | 2026-09-28 | battle, render, volumes, test |
 | 281 | [Mutation's attack spells: the ccSkill's request-time aim and the later release](worklog/0281-mutation-s-attack-spells-the-ccskill-s-request-time-aim-and.md) | 2026-09-28 | battle, render, volumes, test |
+| 282 | [Open questions after the triage: the disc, the formats, the engine core and the tools](worklog/0282-open-questions-after-the-triage-the-disc-the-formats-the.md) | 2026-09-28 | disc, format, decomp, engine, tooling, build |
+| 283 | [Open questions after the triage: the draw path](worklog/0283-open-questions-after-the-triage-the-draw-path.md) | 2026-09-28 | render |
+| 284 | [Open questions after the triage: the effects and the streams' effect tasks](worklog/0284-open-questions-after-the-triage-the-effects-and-the-streams.md) | 2026-09-28 | render, video |
+| 285 | [Open questions after the triage: towns, fields and dungeons](worklog/0285-open-questions-after-the-triage-towns-fields-and-dungeons.md) | 2026-09-28 | world |
+| 286 | [Open questions after the triage: battle](worklog/0286-open-questions-after-the-triage-battle.md) | 2026-09-28 | battle |
+| 287 | [Open questions after the triage: the event scripts and their hosts](worklog/0287-open-questions-after-the-triage-the-event-scripts-and-their.md) | 2026-09-28 | script |
+| 288 | [Open questions after the triage: menus, the desktop and the text](worklog/0288-open-questions-after-the-triage-menus-the-desktop-and-the.md) | 2026-09-28 | ui |
+| 289 | [Open questions after the triage: sound, voices and movies](worklog/0289-open-questions-after-the-triage-sound-voices-and-movies.md) | 2026-09-28 | audio, video |
+| 290 | [Open questions after the triage: the save](worklog/0290-open-questions-after-the-triage-the-save.md) | 2026-09-28 | save |
+| 291 | [Open questions after the triage: the later volumes](worklog/0291-open-questions-after-the-triage-the-later-volumes.md) | 2026-09-28 | volumes |

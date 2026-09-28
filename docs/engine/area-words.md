@@ -3,7 +3,7 @@ title: Area keywords and the area generator
 status: partial
 volumes: all
 covers: INF SLUS_202.67:0x0019e5c0 WORLD_MAN::SimGenerateCode, 0x0019e500 CopyWordParam, 0x001a2340 GetWordParamPtr, 0x001a25d0 GetWordParamPtr(int), 0x001a3370 GetWordParamID, 0x001a29a0 GetWordParamFromEvCode, 0x001a4290 ccCheckEventAreaNum, 0x001a4220 ccGetEventAreaInfo, 0x0019d3b0 WORLD_MAN::GetEventAreaInfo, 0x0019ceb0 WORLD_MAN::IsProtectArea, 0x001b04b8 ccEvAreaCodeAdd (event instruction 118), 0x001b7020 ccRegisterDifficultyEnemy; INF gcmn.prg:0x0042ed70 ccRegisterEnemyList; word_a1..word_c4, eventAreaInfo, dungeonData, ccEnemyListInfo; MUT SLUS_205.62:0x001b9330 ccGetEventAreaInfo, 0x001b1f10 WORLD_MAN::GetEventAreaInfo; OUT SLUS_205.63:0x001af500 ccGetEventAreaInfo
-worklog: 11, 13, 21
+worklog: 11, 13, 21, 68, 78, 181, 220, 259
 ---
 
 # Area keywords and the area generator
@@ -146,8 +146,15 @@ register list[rank], list[rank+1], list[rank+2]   (ccRegisterEnemyRange = 3),
 | 10 | 3 | 5 | 4 |
 
 The lists (`enemyList00` .. `enemyList46`, 130 entries each) hold indexes into
-[`enemyTbl`](../content/game-data.md). Entries of base type 64 are expanded
-through `ccEntryRaceTbl` first; not modelled.
+[`enemyTbl`](../content/game-data.md). Each registered row also registers
+its drained form, and a middle boss (row type 0x40) its base form's drained
+form as well ([battle](battle.md), "Spawning").
+
+`itemOfs` feeds `AreaItem` (gcmn 0x00544c00) the same way: the index into
+the area's item list is `25 * (areaLevel - 1) + 10 + itemOfs` (the story
+area's `item` in a story area), plus `floor + 1` and `rand() % 5`, at most
+129. The lists by kind, server and element are in
+[field UI](field-ui.md).
 
 ## Lookups
 
@@ -199,7 +206,7 @@ area is the random one the same words make there.
 `crates/piney-data/src/area/`: `AreaTables::of(volume)` holds the
 twelve word tables, `dungeonData`, `eventAreaInfo` (`eventAreaInfoNum`
 rows), the substitute records (Mutation on) and `volumeNum` of each
-volume, generated from its executable by `tools/area_tables.py` (the
+volume, generated from its disc into the build by `piney-gen` (the
 keywords' text byte for byte; the port does not read the executable at
 run time). The four volumes' tables differ: Mutation on adds the
 substitutes for areas 71 and 47, and Quarantine renames slot b's word 100
@@ -225,7 +232,8 @@ nine attributes, `seed` and `randcnt`: 0 mismatches. `IsProtectArea` and
 `GetEventAreaInfo(n)` for every `n` from -1 to 130, `GetWordParamFromEvCode`
 for every code and part (378), instruction 118's generation for every code
 outside 1-13 on every server (555 areas), and `GetWordParamID` for every
-keyword and two non-words: 0 mismatches.
+keyword and two non-words: 0 mismatches. The harness runs on any volume's
+disc through `PINEY_VOLUME`.
 
 ## Story areas
 
@@ -291,8 +299,5 @@ two areas comes from the substitute too (read from the code; not run).
 
 - What the values of `fieldType`, `weather`, `ground`, `object`, `circleOfs`
   produce in the game.
-- How `itemOfs` selects items, and the type-64 enemy expansion.
 - `EVENTAREA_INFO.model` beyond the music bank, `.protect` beyond
   `protect[1]` and the event VM's item pairs, `.dungeonNum`.
-- The port reads Infection's addresses only; the other volumes' tables
-  are read by `tools/areas.py` alone.

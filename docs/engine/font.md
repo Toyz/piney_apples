@@ -3,7 +3,7 @@ title: Text rendering
 status: partial
 volumes: all
 covers: INF SLUS_202.67:0x0015e380 ccKanji::Disp, 0x0015d490 ccKanji::Extract, 0x0015d390 ccGetExtendedCode, 0x0015f2a0 ccKanjiStrWidth, 0x0015f120 ccKanjiStrlen, 0x0015eed0 ccKanjiStrcat, 0x0015f860 ccKanjiStrSeparate, 0x0015aed0 ccSprite::MakePacketStr, 0x0015cc20 ccFont::SetType, 0x0015ca70 fontSetup, 0x002f5600 ef8x16, 0x002f2180 ef12x20, 0x002fb5f0 englishFontOfsS, 0x002fb4f0 englishFontOfsL, 0x002fb430 ccSpriteColorTable; QUA DATA/KFED.BIN, DATA/KFAED.BIN
-worklog: 23, 25
+worklog: 23, 25, 37, 58, 239
 ---
 
 # Text rendering
@@ -107,6 +107,10 @@ keep the current alpha. An unknown `#x` still ends the run.
 - kt 1: BOOK's pages;
 - kt 0: chat, WORLD, DUNGEON, the mailer, the board, most menus.
 
+The callers space the lines, not `ccKanji`: a mail's body is drawn at 17
+pixels a line (y `48 + 17 r`, [desktop](desktop.md)), a board post's at 18
+(y `216 + 18 i`, [top page](toppage.md)).
+
 ## Glyph numbers
 
 | input | glyph |
@@ -204,7 +208,8 @@ board posts (INF 341) from MUT on.
 
 Quarantine reads `KFED.BIN` and `KFAED.BIN` only in event opcode 169, during
 the ending ([events](events.md#other-volumes)); the text code never touches
-them.
+them. Between the load and the free, gcmn `0x004f0a30` runs the staff roll
+(`STFROLL_VOL4`) and waits for it; nothing reads the buffers.
 
 ## Unknown
 
@@ -214,8 +219,4 @@ them.
 - The display scale of the font layer. Logical space is 512×384 and
   `ccView::SetLayerCenter` scales to 512×448, but the view the font layer uses
   was not traced; renders are 1:1 in texels.
-- Line spacing of mail and board bodies (caller code, not traced; renders
-  use the cell height).
 - Where `ccKanji`'s texture sits in VRAM next to `xasc00`.
-- What the ending routine (QUA gcmn `0x004f0a30`) does while the KFED
-  buffers are loaded.

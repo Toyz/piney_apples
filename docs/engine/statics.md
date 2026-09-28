@@ -3,7 +3,7 @@ title: Town and event-area assembly
 status: partial
 volumes: INF
 covers: INF gcmn.prg:0x005cffd0 STATICMODEL::STATICMODEL, 0x005d01c0 STATICMODEL::Draw, 0x005cf9b0 STATICOBJECT::STATICOBJECT, 0x005cfe70 STATICOBJECT::Draw, 0x00421470 ROOTTOWN01::ROOTTOWN01, 0x00423b10 ROOTTOWN01::Draw, 0x00422ba0 ROOTTOWN01::DrawFloor, 0x005d46b0 RT_MODELTABLE00, 0x005d4930 RT_OBJTABLE00, 0x004240c0 ROOTTOWN02::ROOTTOWN02, 0x004266a0 ROOTTOWN02::Draw, 0x005d4bb0 RT_MODELTABLE02, 0x005d4d40 RT_OBJTABLE02
-worklog: 27, 28, 96
+worklog: 27, 28, 96, 97, 112, 218, 260
 ---
 
 # Town and event-area assembly
@@ -104,6 +104,9 @@ Each constructor asks `ccStream::GetCCSAdrs` for its scene files by name.
 | `EVENTAREA02`, `04`-`07` | the area's file, `town_z` |
 | `EVENTAREAB0` | one of `se1_5`, `se2_3`, `se2_4`, `se3_2`, `se3_4`, `se4_3`, `se4_5`, `se4_7`, `se4_8` |
 
+`EVENTAREAB0` picks its stage by `game.field` (fields 1-8; field 8 adds
+`se4_8`), through the constructor's jump table: [the story maps](evarea.md).
+
 The `d` files are the towns in crisis. `ROOTTOWN01` (0x004215a4) takes
 `town01d` when `saveData+0x6772` - the `crisis` byte - is set and `town01`
 otherwise, and keeps the stream at `this+0x1a4`. `wat1` is loaded either
@@ -115,6 +118,18 @@ at the identity (the constants at 0x005d4a90 and 0x005d4aa0 are all zeros
 with w = 1). `town_z` holds no models: its seven Eff chunks are the lens
 flare's `EFF_sflenz_1`-`6` and the clouds' `EFF_srzsmo1`, each with its
 texture ([Dun Loireag](town02.md)).
+
+The three waters are all drawn in Mac Anu and Dun Loireag: water 0 with
+the frame-buffer copy behind it (the refraction), waters 1 and 2 with their
+UVs scrolled, water 1 in U and water 2 in V ([Dun Loireag](town02.md)).
+`ROOTTOWN01`'s constructor also builds the sky `CMP_sr1bac1` and, in
+`town01d`, `CMP_sr1dat1_1`-`3` itself; `DrawBG` draws them at the origin:
+the sky on `objLayer`, the three over it on `WORLD_MAN`'s layers at +0x49c,
++0x4a0 and +0x4a4 (priorities -80, -70, -60), `MAT_sr1dat1_2` scrolled in U
+and `MAT_sr1dat1_3` in U and V by 0.002 a frame
+(`crates/piney-world/src/town01.rs`, `CRISIS_SKY`). `ROOTTOWN03`-`05`
+(Carmina Gade, Fort Ouph, Lia Fail) are on [their page](root-towns.md);
+their `DrawMap` is on [the minimap](map.md) page.
 
 ## The tables
 
@@ -133,14 +148,5 @@ builds in turn ([area 15's story map](evarea.md)).
 
 ## Unknown
 
-- Why the water is three copies of one animation (a different
-  `Duplicate` flag for the first, 8200 against 8192).
-- How `EVENTAREAB0` chooses its area.
-- The sky `CMP_sr1bac1` and, in `town01d`, `CMP_sr1dat1_1`-`3` are clumps
-  the constructor builds directly and `DrawBG` draws at the origin: the
-  sky on `objLayer`, the three over it on `WORLD_MAN`'s layers at +0x49c,
-  +0x4a0 and +0x4a4 (priorities -80, -70, -60), `MAT_sr1dat1_2` scrolled in
-  U and `MAT_sr1dat1_3` in U and V by 0.002 a frame. What the `d` files'
-  data sky means in the story is outside this page.
-- `ROOTTOWN03`-`05`'s `Draw` and `DrawMap` (Mac Anu's and Dun Loireag's
-  are [the minimap](map.md) and [Dun Loireag](town02.md)).
+- What the first water copy's different `Duplicate` flag (8200 against
+  8192) changes.

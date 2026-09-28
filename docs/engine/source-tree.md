@@ -16,7 +16,8 @@ the unit's code; a unit with no range has only types and data.
 
 Roots: `D:\usr\RpgUS\prog\source` is the game, `D:\usr\RpgUS\prog\system`
 is the engine (`cc` classes), and `C:\CodeWarrior\...` is the compiler's
-runtime. 216 translation units, 244 source paths.
+runtime. 216 translation units, 244 source paths. Header-only files (`.h`)
+appear only when they contributed an out-of-line function.
 
 ## main (resident)
 
@@ -271,5 +272,4 @@ runtime. 216 translation units, 244 source paths.
 
 ## Unknown
 
-- Nothing about the list itself. Header-only files (`.h`) appear only when
-  they contributed an out-of-line function.
+Nothing.
