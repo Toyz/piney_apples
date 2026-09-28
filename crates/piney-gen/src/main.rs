@@ -1,14 +1,9 @@
-//! The table generator: each group of the manifest read out of the four
-//! discs' executables (and their overlays) and written as a typed Rust
-//! module under `crates/piney-data/src/tables` (`plans/volumes.md`, "The
-//! generator").
-//!
-//! ```text
-//! piney-gen gen [--group G] [--check]   write (or check) the tables
-//! piney-gen show GROUP [--volume V]     print a group's values for a volume
-//! piney-gen carry [--volume V] [--check] make (or check) a later volume's carry
-//! piney-gen syms [--volume V] [--check]  carry Infection's symbols to a later volume
-//! ```
+//! The table generator: each group of the manifest read out of the four discs'
+//! executables (and their overlays) and written as a typed Rust module under
+//! `crates/piney-data/src/tables` (`plans/volumes.md`, "The generator").
+//! Commands: `gen [--group G] [--check]` writes or checks the tables, `show
+//! GROUP [--volume V]` prints a group, `carry [--volume V] [--check]` makes a
+//! later volume's carry, `syms [--volume V] [--check]` carries the symbols.
 
 use std::process::ExitCode;
 

@@ -2,7 +2,7 @@
 title: How the game is put together
 status: partial
 volumes: INF
-covers: INF SLUS_202.67:0x0015a780 main, 0x00167940 ccThMother, 0x001671e0 ccGame::ChangeRequest, 0x001680e0 ccThLoadOverlay, 0x0010a5f0 ccSystem::Ctrl, 0x001099e0 VSyncCallBack, 0x0015a5c0 ccThControl, 0x00159e10 ccTscb::Breath
+covers: INF SLUS_202.67:0x0015a780 main, 0x00167940 ccThMother, 0x001671e0 ccGame::ChangeRequest, 0x001680e0 ccThLoadOverlay, 0x0010a5f0 ccSystem::Ctrl, 0x001099e0 VSyncCallBack, 0x0015a5c0 ccThControl, 0x00159e10 ccTscb::Breath, 0x00102d40 ccPad::Read, 0x00102a50 ccPad::Ctrl, 0x00102bf0 ccPad::SetActuater, 0x0010a740 ccSystem::Ctrl (the motors)
 worklog: 15
 ---
 
@@ -96,6 +96,49 @@ terminates, deletes and frees it at stage 3; resumes it if suspended; wakes it
 if it is in `Breath` and `sleep` is 0. `ccTscb::Breath(n)` sleeps through `n`
 wake-ups, then keeps sleeping while `sleep` or `del` is set. A task's work for
 one frame is the code between two `Breath` calls.
+
+## The pad
+
+`ccPad::Read` (0x00102d40) runs once a frame for a pad already connected
+(`ccPad::Ctrl`'s state 0x40). The pad reports its buttons active low in two
+bytes; `Read` inverts them (the first byte in bits 8-15, the second in bits
+0-7). In analog mode the left stick also presses the D-pad by its angle when
+the D-pad itself is not held. Then:
+
+```
+push   = now & ~direct          pressed this frame
+unpush = direct & ~now          released this frame
+repeat = now on the first frame of a new combination, nothing for the
+         next 15 frames it is held, then now every frame
+direct = now
+```
+
+Two quirks: a stick with its raw y exactly 128 has angle 0, down
+(`SetAnalogStick` tests the y offset before `atan2f`); and the up-right
+eighth of the circle presses right alone, where the other diagonals press
+both directions.
+
+The motors (`ccPad` +0x28..+0x3f):
+
+```
+SetActuater(small, power, ms)   0x00102bf0: with ccPad::actuaterSw on and a
+  DualShock ready, the time (3 ms + 25) / 50 in vblanks; each queued entry
+  from the top down loses that time, or is dropped when it has no more
+  (the ones above it move down); with room (at most three), the top (or
+  the idle entry 0) is marked to send again, and the new one goes on top,
+  marked: its time, the small motor on or off, the large motor's power
+ccSystem::Ctrl                  0x0010a740, each frame for each pad: the
+  finished entries off the top, then the top's time less the frame rate
+  (vblanks a frame), not below 0
+ccPad::Ctrl                     0x00102a50, state 1: with the queue empty
+  and the idle entry marked, both motors off; else a marked top with 6
+  vblanks or more left: its motors; either sent (scePadSetActDirect, state
+  2), then waited on (scePadGetReqState, state 4) before state 1 looks again
+```
+
+The callers are `ccPlayer::DamageActuate` (Kite hit: the small motor and
+`DamActuTbl` by the damage, 100 ms) and the Vibration menus switching it on
+(the small motor and 160, 200 ms). The port is `crates/piney-input`.
 
 ## Unknown
 

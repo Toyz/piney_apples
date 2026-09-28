@@ -1,18 +1,9 @@
-//! Render the game's sound headless to a WAV file.
-//!
-//!     cargo run --release -p piney-audio --example render -- se N OUT.wav [--seconds S]
-//!     cargo run --release -p piney-audio --example render -- bgm NO OUT.wav [--seconds S]
-//!     cargo run --release -p piney-audio --example render -- desktop NO OUT.wav [--seconds S]
-//!     cargo run --release -p piney-audio --example render -- stream TRACK OUT.wav [--seconds S]
-//!     cargo run --release -p piney-audio --example render -- play NO [--seconds S]
-//!     cargo run --release -p piney-audio --example render -- probe 0
-//!
-//! `se` plays sound effect N (`ccSeOn`); `bgm` the jukebox row NO
-//! (`Wave[NO]`, as the desktop's music player picks it); `desktop` the
-//! desktop starting with `dtBgm = NO`; `stream` a `VOICE/BGM.BIN` track;
-//! `play` the desktop starting with row NO through the default output
-//! device instead of a file; `probe` opens that device, reports it and
-//! plays nothing. The disc image is `work/infection/infection.iso` or
+//! Render the game's sound headless to a WAV file: `render se N OUT.wav`
+//! (`ccSeOn`), `bgm NO OUT.wav` (the jukebox row `Wave[NO]`), `desktop NO
+//! OUT.wav` (the desktop starting with `dtBgm = NO`), `stream TRACK OUT.wav`
+//! (a `VOICE/BGM.BIN` track), each with `[--seconds S]`; `play NO` plays the
+//! desktop's start through the default output device, `probe 0` only opens
+//! and reports it. The disc image is `work/infection/infection.iso` or
 //! `$PINEY_ISO`.
 
 use std::path::PathBuf;

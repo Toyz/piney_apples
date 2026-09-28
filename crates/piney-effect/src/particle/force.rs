@@ -1,34 +1,9 @@
 //! `ccParticleForceField::Calc(p)` (main 0x001bcde0): one force field of a
-//! particle's generator acting on the particle, every frame before it
-//! moves.
-//!
-//! ```text
-//! fieldType not 0-3: nothing. By forceType (a jump table at 0x003741f0):
-//!  0  calcType 1: pos += dirc * force.x; 0: pos += force
-//!  1  calcType 1: speed += force.x, velocity += dirc * force.x;
-//!     0: velocity += force
-//!  2  calcType 1: rotate[1] += rotate; offset.xy = radius (cos, sin) of it
-//!     0: about the generator (or the origin when synced): offset.xy =
-//!        the way to it plus its length along rotate[1] + that way's angle
-//!  3  a clump's rot += force (x, y, z), each through RAD2DEG / DEG2RAD
-//!  4  pos += force
-//!  6-8 s = force.x + (force.y - force.x) min(cnt, force.z) / force.z;
-//!     6 scale = size s (1, 1, 1) squashed by force.w (x by force.w below
-//!     1, else y by 1 / force.w); 7 scale.x = size s; 8 scale.y = size s
-//!  9  scale = force squashed as in 6
-//!  10 s swinging from force.x to force.y and back every force.z frames;
-//!     scale = s (1, 1, 1)
-//!  11 rotate[3] += rotate; 12 rotate[3] = rotate; 13 rot = force
-//!  14 pos = the generator's line (pos to pos2) direction times temp
-//!  15 transparency through a cycle of force.x frames in, force.y full,
-//!     force.z out, force.w off
-//!  16 calcType 1: turned about the generator's line by rotate[1]
-//!     (ccSetQuaternion, in doubles), at ofstR % of gRadius and ofstD % of
-//!     the line along it
-//! then, for forceType 1: a negative force.x brings the speed to a stop
-//! and answers 1 (the particle fades out); fieldType 3 ends a particle
-//! within two frames' flight of the generator.
-//! ```
+//! particle's generator acting on the particle, every frame before it moves,
+//! by `forceType` (the jump table at 0x003741f0, 17 cases) and `calcType`.
+//! For type 1 a negative `force.x` brings the speed to a stop and answers 1
+//! (the particle fades out); `fieldType` 3 ends a particle within two frames'
+//! flight of the generator. The cases are in docs/engine/particles.md.
 
 use super::dmath;
 use super::one::Particle;

@@ -1,44 +1,11 @@
 //! The converging spells (water, fire, wind, thunder, dark):
 //! `ccSkill::ConvergenceSystem` (gcmn 0x00578060), the charge controller
-//! `effSkillChargeObject` (effect -18) and its pieces
-//! `effSkillChargeObj` (effects 102-112).
-//!
-//! ```text
-//! ConvergenceSystem
-//!   count 0   effPtr[0] cleared; a target on the lists: its magic attack
-//!             sign, else the end and the caster released; level = id -
-//!             (212 water, 232 fire, 244 wind, 264 thunder, 276 dark)
-//!   count 20  a target on the lists: tPos its position; level 3+: the
-//!             convergence element (m_effElm); else effPtr[0] the charge
-//!             controller (effSkillChargeObject(target, type, level)) and
-//!             ccSeOn3D(63, tPos); no target: the end, the caster released
-//!   count 45  (levels 1, 2) ccSeOn3D(64, tPos)
-//!   count 40  atkCnt 1; (levels 1, 2) the controller's temp[0] 1 (the
-//!             pieces may converge); the caster released
-//!   otherwise level 3+: once the element is deleted, the end and (a
-//!             target on the lists) ccSkillDamage; nothing else
-//!             levels 1, 2: once the controller has counted a piece in
-//!             (temp[0] >= 2), once (tempCnt 0): on a target on the lists
-//!             the burst at its middle - effRadiateSomething and the
-//!             element's effSmoke*, ccSkillDamage, a shake in the camera's
-//!             range (noise 10, cameraShake(0, 2, 10, 0)), the sound
-//!             (water ccSeOn3DNote(66, tPos, 52), else effSkillBreakSE) -
-//!             then tempCnt = ConvergenceSystem's third table + 1; when the
-//!             controller's count reaches tempCnt, the end
-//! the controller -18 (life 200, on the target), second chain:
-//!   until all are made (temp[3]): temp[2] on by max(1, n / 20) (n the
-//!   pieces for the level, main 0x003401c0), a piece for each whole step
-//!   (at 100 + 15 cnt from the target's middle, cnt / 2 frames' wait),
-//!   temp[1] counting them; then over once temp[0] > n
-//!   two frames before its life ends temp[0] 99 (every piece goes)
-//! a piece 102-112 (life 60, velocity -40): rising by speed.z (effIV,
-//!   slowed by effSR from its count 7, still from 20); once the
-//!   controller's temp[0] is set and its own wait (temp[1]) has run out,
-//!   towards the target's middle, velocity growing by 10 a frame;
-//!   FadeInOut(20, 10); within |velocity| of the middle (or the target
-//!   gone, or its life all but over) it counts itself in (the
-//!   controller's temp[0] + 1) and ends
-//! ```
+//! `effSkillChargeObject` (effect -18) and its pieces `effSkillChargeObj`
+//! (effects 102-112). Levels 3 and up use the convergence element; levels 1
+//! and 2 the controller, whose pieces rise, wait, converge on the target's
+//! middle and count themselves in (its `temp[0]`) before the burst and
+//! `ccSkillDamage`. The counts are in docs/engine/effects.md
+//! ("ConvergenceSystem").
 
 use piney_data::volume::Volume;
 

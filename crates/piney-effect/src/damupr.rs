@@ -1,54 +1,10 @@
-//! The damage and recovery numbers that stack over a character (GCMN.PRG
-//! gamectrl.cpp): `ccDamUprStr` (a list from `root`, main .sbss
-//! 0x00378c80, a node per character) and its `ccUprollStr` (sixteen lines
-//! rolling up), and the `ccEntryFlyFontNew*` functions the battle code
-//! calls.
-//!
-//! ```text
-//! ccEntryFlyFontNew(kind, v, pos, ch, sx, sy)  (gcmn 0x0051afc0; pos, sx,
-//!                                   sy unused)
-//!   v -1:  AddStr(ffstrMISS "+,--", 0, 3, ch, 1, 1)             MISS
-//!   else:  AddStr(Int2StrFF(v, 5), kind, 3, ch, s, s), s 1.6 from 1000,
-//!          1.3 from 100, else 1
-//! ccEntryFlyFontNewExp(kind, v, pos, ch)   Int2StrFF(v, 5) + "./0" (EXP)
-//! ccEntryFlyFontNewLevelDown(kind, pos, ch)  "1.2.1 3456" (LEVEL DOWN)
-//! ccEntryFlyFontNewMiss(pos, ch)           "+,--", colour 0
-//!   (font type 3, the big digits: byte 0x20 + n is cell n of
-//!    " 0123456789MISEXPLVDOWN-")
-//! ccDamUprStr::AddStr(str, col, ftype, ch, sx, sy)  (0x0051bb80)
-//!   the node of ch (a new one at the head of the list when none), its
-//!   ccUprollStr::AddStr (0x0051b140), dispSw 0 (drawn once CtrlAll has
-//!   placed it)
-//! ccUprollStr::AddStr: lineTop on (mod 16), lineNum up to 16; the new
-//!   line: str (15 bytes at most), alphaCnt 24, alpha 128, colour, ftype;
-//!   the global font's SetType(ftype & 15) for the cell size:
-//!   w = fptosi(sx * (su << 4)), h = fptosi(sy * (sv << 4)) (1/16 px);
-//!   lx = -(len w) / 2, ly 0, addly 288; the line that was on top gets
-//!   addly (h + 16) - ly when its ly is less
-//! CtrlAll (0x0051b780), each node from the head:
-//!   no ch: nothing
-//!   ccCheckTarget(ch) fails: Ctrl while it has lines, else the node is
-//!     deleted
-//!   ch->base->type & 2 (a party member):
-//!     camera camID 1 of type 1 (the party view): x = slot 170 + 60,
-//!       y = 360 - ((ccConditionIconNum(ch) + 4) / 5) 32, shown
-//!     else: the point is ch's pos, no lift
-//!   else the point is ch's pos with z + 0.9 height, 16 px lower
-//!   ccCalcTagPosChar(ch, (0, 0, 160), 1) not 1 (off the screen or behind):
-//!     hidden; else the point through sceVu0RotTransPers (sysLayer's
-//!     view), converted as the fly fonts do when the depth is in range
-//!     (the raw fixed point when not), x clamped to 26..486, y to 90..436,
-//!     plus the lift; shown
-//!   then ccUprollStr::Ctrl (0x0051b530): each line from the top: ly on by
-//!   addly / 4 (at least 1); the lines' ly summed; alphaCnt down one: alpha
-//!   128, then (alphaCnt + 8) 128 / 8 over 8 frames, then 0; a line whose
-//!   sum reaches 2561 (160 px) and those under it stop, from 1281 the
-//!   alpha loses (sum - 1280) / 10; lineNum becomes the lines still seen
-//! DrawAll (0x0051bb20) each node's ccUprollStr::Draw (0x0051b320), when
-//!   dispSw and lines: from the top line down, SetType(ftype & 15), scaled
-//!   by the line's sx, sy, shadowed, its colour and alpha, at
-//!   ((x << 4) + lx) >> 4, ((y << 4) - (the lines' ly so far)) >> 4 - sy
-//! ```
+//! The damage and recovery numbers that stack over a character (gcmn
+//! gamectrl.cpp): `ccDamUprStr` (a list from `root`, main .sbss 0x00378c80, a
+//! node per character; `AddStr` 0x0051bb80, `CtrlAll` 0x0051b780, `DrawAll`
+//! 0x0051bb20) with its `ccUprollStr` (sixteen lines rolling up; `AddStr`
+//! 0x0051b140, `Ctrl` 0x0051b530, `Draw` 0x0051b320), and the
+//! `ccEntryFlyFontNew*` functions the battle code calls (0x0051afc0 ..). The
+//! rules are in docs/engine/effects.md ("The stacked numbers").
 
 use piney_desktop::view::LayerView;
 

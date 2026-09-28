@@ -1,31 +1,11 @@
-//! SEWORDS.IRX's channel 0 streaming a voice line: `wordPlay` (module
-//! offset 0x2c74) sets it up, the thread `_BgmPlay` (0x1fb4) refills it on
-//! each transfer interrupt, and the SPU2's auto-DMA plays it into core 0's
-//! sound-data input at 48 kHz (`docs/formats/voice.md`).
-//!
-//! The model keeps the module's own buffer - `BgmInit(0, 0xc000)`: the SPU
-//! buffer, two halves of 16 KiB in 1 KiB blocks of 256 left then 256 right
-//! samples, then the raw buffer, two packets of 8 KiB read from the disc -
-//! and runs the module's steps on it byte for byte:
-//!
-//! - `BgmPreLoad` (0x15e0) reads two packets and converts both into the SPU
-//!   halves, then reads the next two into the raw buffer - only when more
-//!   than two packets remain.
-//! - The transfer starts on half 0. When a half has played, the thread
-//!   converts the raw packet of that half into it (mono: each 512 bytes
-//!   copied to the left and the right block), then reads the next packet
-//!   into the raw half. The last packet (at most 8 KiB left) is read to the
-//!   next 2 KiB sector, the rest of it zeroed, and the end flagged.
-//! - After the end is flagged the thread lets two more interrupts pass
-//!   (`terminate` against the local `{2, 2}` at 0x553c), then stops the
-//!   transfer at the third, sets the input volume to 0 and closes the file
-//!   (`loopEnd`, 0x29dc).
-//!
-//! So a line plays every packet but its last - `4096 * (ceil(size / 8192) -
-//! 1)` samples - and a line of 16 KiB to 32 KiB plays its first two packets
-//! twice: consequences of the code, checked against the module run in
-//! `tools/eemu.py` (`tools/iopemu.py voice-fixture`), not heard on a
-//! console. Every event line is at least 40,756 bytes.
+//! SEWORDS.IRX's channel 0 streaming a voice line: `wordPlay` (module offset
+//! 0x2c74) sets it up, the thread `_BgmPlay` (0x1fb4) refills it on each
+//! transfer interrupt, and the SPU2's auto-DMA plays it into core 0's
+//! sound-data input at 48 kHz (`docs/formats/voice.md`). The model keeps the
+//! module's own buffer (`BgmInit(0, 0xc000)`) and runs its steps on it byte
+//! for byte, so a line plays every packet but its last, `4096 * (ceil(size /
+//! 8192) - 1)` samples, and one of 16 KiB to 32 KiB plays its first two
+//! packets twice: checked against the module in `tools/eemu.py`.
 
 /// `BgmInit(ch, 0xc000)`: the buffer `wordPlay` allocates.
 pub const ALLOC: usize = 0xc000;

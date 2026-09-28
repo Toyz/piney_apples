@@ -1,28 +1,11 @@
-//! piney-build: one game from the .hack discs.
-//!
-//!     piney-build [--out DIR] [--no-verify] [--export-symbols DIR] DISC...
-//!
-//! Each DISC is a disc image (`.iso`), or a folder to look in for them. The
-//! discs are told apart by their contents, so names and order do not
-//! matter. Every file of every disc is cut into chunks where its content
-//! says (FastCDC), and each chunk is kept once however many files and discs
-//! hold it: the four discs share their movies' logos, their sound modules,
-//! the voices, and most of `DATA.BIN` and the stream archives.
-//!
-//! The build goes to DIR (by default `game` in the port's folder,
-//! `~/.local/share/piney` on Linux; `$PINEY_HOME` moves it), where
-//! `piney-game` finds it by itself. A disc of an earlier build in DIR that
-//! is not given again is kept, so discs can be added one at a time. Every
-//! file is read back from the build and checked against its hash unless
-//! `--no-verify`. The format is laid out in `piney_data::pack`.
-//!
-//! `--export-symbols DIR` also writes each disc's executable's names into
-//! DIR, one `<executable>.syms` a disc (`section va size type name how`,
-//! tab-separated): Infection's from its own executable, the later volumes'
-//! the names the build carries to theirs from Infection's (which needs
-//! Infection's disc in the build), for anyone taking the games apart. With
-//! no DISC given it reads the build's own discs and leaves the build as it
-//! is: `piney-build --export-symbols ./dist/symbols`.
+//! piney-build: one game from the .hack discs (`piney-build [--out DIR]
+//! [--no-verify] [--export-symbols DIR] DISC...`; `README.md`). Each DISC is
+//! an image or a folder of them, told apart by content. Every file is cut into
+//! content-defined chunks (FastCDC), each kept once however many discs hold
+//! it, into DIR (by default the port's `game` folder; `$PINEY_HOME` moves it),
+//! keeping an earlier build's other discs and checking every file unless
+//! `--no-verify` (the format is `piney_data::pack`'s). `--export-symbols DIR`
+//! writes each disc's `<executable>.syms`; with no DISC, the build's own.
 
 use std::collections::HashMap;
 use std::fs::File;

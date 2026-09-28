@@ -1,37 +1,11 @@
-//! Answers `tools/test_effect_rs.py`: runs the port's effects on the
-//! requests it is sent and prints each answer as one JSON line, so the test
-//! can run the same frames through the game's own code in eemu.
-//!
-//! ```text
-//! cargo build -p piney-effect --example effect_probe
-//! effect_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests, one a
-//! line:
-//! - `reset TOWN SEED`: every slot free, `ccEffectCtrl(0)` in a town (TOWN
-//!   is 1) or a field (0), `rand` seeded with SEED; the player and the
-//!   camera at the origin, no characters.
-//! - `player X Y Z`: `plw`'s position.
-//! - `camera EX EY EZ PX PY PZ VX VY VZ`: `cameraGetPos(camID)`'s eye E,
-//!   `activeCamPtr`'s eye P and the point it looks at V.
-//! - `char ID X Y Z H W [DX DY DZ]`: a character ID at X Y Z, height H,
-//!   width W, heading D.
-//! - `transfer ID`, `warp ID`: `effTransfer(ID)`, `effWarpTransfer(ID)`;
-//!   answers the slot and the events.
-//! - `spawn ID`: `ccNewEffect(ID)`; answers the slot.
-//! - `set SLOT KEY V...`: a field of a slot, as the game's code would set
-//!   it: `pos`, `offset`, `rot`, `speed`, `scale`, `temp` (4 each), `bits`
-//!   (the +0x60 bits), `life`, `age`, `cnt`, `pat`, `transparency`,
-//!   `target` (a character, or ffffffff for none), `posptr` / `rotptr`
-//!   (KIND N: 0 a character's pos, 1 its dirc, 2 slot N's pos, 3 its rot;
-//!   ffffffff none), `link` (a slot or ffffffff), `layer` (a priority or
-//!   ffffffff for the effect layer).
-//! - `patch ID CCS OBJ TYPE`: `effectTbl[ID]` names another object and
-//!   type (the check drives every kind of object through ids with no code
-//!   of their own).
-//! - `frame`: one `ccEffectCtrl::Main`; answers every live slot, the draws
-//!   in order, the events and the particle generators started.
+//! Answers `tools/test_effect_rs.py`: runs the port's effects on the requests
+//! it is sent and prints each answer as one JSON line, so the test can run the
+//! same frames through the game's own code in eemu (`effect_probe ISO <
+//! requests`). Numbers are hex; floats travel as their bit patterns. The
+//! requests are `reset TOWN SEED`, `player`, `camera`, `char`, `transfer`,
+//! `warp`, `spawn`, `set SLOT KEY V...` (a slot's field, as the game's code
+//! would set it), `patch` (an `effectTbl` row naming another object) and
+//! `frame` (one `ccEffectCtrl::Main`), with the arguments the test sends.
 
 use std::collections::HashMap;
 use std::io::BufRead;

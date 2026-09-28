@@ -1,31 +1,10 @@
 //! `ccParticleGenerator` (main particle.cpp, 0x100 bytes): a source of
 //! particles - its constructor (0x001bd920), `Main` (0x001bed00) and
-//! `Generate` (0x001bdda0).
-//!
-//! ```text
-//! new ccParticleGenerator(param, f1..f4):
-//!   gRate pGenRate / 30 (particles a frame), gRateCnt 1 - gRate below 1;
-//!   distSW; the force fields f1..f4 or the row's ffNum; gSyncFlag and
-//!   pSyncFlag from the row, gLife and pLife; pos, pos2, offset, offset2
-//!   (0, 0, 0, 1); the next generatorSerialNum; pTexMod -1
-//! Main, each frame:
-//!   (the stream demo's strEffectStopFlag stops stream generators)
-//!   with gSyncFlag: rot = *syncRot; pos = offset + *syncPos (w 1), pos2 =
-//!     offset2 + *syncPos2
-//!   mat = RotMatrix(rot)
-//!   pauseFlag: nothing more
-//!   alive (killFlag below 2, *syncSW not 0, gAge below gLife or gLife -1):
-//!     gType 0: as many Generate as gRateCnt (+= gRate) passes whole
-//!     numbers; 1: one; 2: pGenRate of them while pNum is 0
-//!   else ParticleKill (killFlag 2: its particles fade out) and, once none
-//!     are left (pCnt 0), endFlag (ccParticleCtrl::Main deletes it)
-//!   gAge counts on while the row's gLife is not -1
-//! Generate: a free particle (none: nothing); rand() >> 3 for where,
-//!   Setup(pTexMod or pTex, pPatRnd, distSW), then by rType where it
-//!   starts, rand() >> 3 again and by dType which way and how fast (the
-//!   direction through mat), rand() >> 3 for a random turn (pRotRnd
-//!   sprites), rand() >> 3 for its life: pLife less up to pLifeRR of it
-//! ```
+//! `Generate` (0x001bdda0). `Main` follows its sync pointers, generates by
+//! `gType` while alive, and once killed and without particles sets `endFlag`.
+//! `Generate` draws `rand() >> 3` four times: where, which way, a random
+//! turn, the life. The rules are in docs/engine/particles.md
+//! ("ccParticleGenerator").
 
 use super::tables::{FfParam, GenParam};
 use super::{GenRef, IntRef, Particles, Step, normal2angle, one};

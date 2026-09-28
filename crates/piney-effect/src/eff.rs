@@ -1,26 +1,10 @@
 //! `ccEff` (main 0x0013ba20 `Init`, 0x0013bcb0 `Draw`): a textured quad
 //! facing the camera, one pattern (a UV rectangle and a transparency) at a
 //! time, from a scene file's `EFF_` object, the 0x0e00 chunk
-//! (`ccStream::Decode_Eff` 0x0014cca0).
-//!
-//! ```text
-//! 0x0e00 Eff, little-endian, sizes in words like every chunk:
-//!   u32    object         the EFF_ object
-//!   u32    texture        its TEX_ object
-//!   u16    flag           ccEffChunk +0x18; & 7 is the blend type
-//!   s16    zoffs
-//!   u16    unknown_0c     112 in all 49 of PARTICLE.CCS's; not read
-//!   u16    patNum         patterns
-//!   f32    x0, y0, x1, y1 the quad's corners, before scale and turn
-//!   u16    w, h           each pattern's UV size in 1/4096ths of the texture
-//!                         (4096 is all of it; wh = w | h << 16)
-//!   patNum x (u16 u, u16 v, u16 transparency (4096 = 1), u16 pad)
-//! ```
-//!
-//! What an effect sets on its `ccEff` before `Draw(pattern)` - position,
-//! scale, turn, colour, transparency - is [`Eff`]; how `Draw` and the VU1
-//! program `mc_DrawEff` turn that into GS primitives is
-//! [`Eff::render`] (`crate::sprite`).
+//! (`ccStream::Decode_Eff` 0x0014cca0; its layout is in
+//! docs/engine/effects.md, "The Eff chunk"). What an effect sets before
+//! `Draw(pattern)` is [`Eff`]; how it reaches the GS is [`Eff::render`]
+//! (`crate::sprite`).
 
 use piney_data::ccs::Ccs;
 

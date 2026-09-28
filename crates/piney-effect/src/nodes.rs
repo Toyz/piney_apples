@@ -1,37 +1,11 @@
-//! What an effect's `ccClump` and `ccAnm` hand `ccObj::Draw` (main
-//! 0x0013f220) and so `ccModel::Draw`: each object's model, world matrix
-//! (`lwMatrix`) and transparency, in the order they are drawn.
-//!
-//! ```text
-//! ccClump::Draw (0x0013f470): each node of objTbl in order;
-//!   an Obj (ccstag 0x100): ccObj::Draw(node, 1.0)
-//!   an EffObj (0xe00): its ccEff drawn at its lwMatrix's translation
-//!     (no clump of effectTbl has one)
-//! ccAnm::Draw (0x001524d0): each ccAnmIndex entry in order whose flag has
-//!   bit 2: an Obj: ccObj::Draw(obj, ccAnm.localtp); an EffObj: DrawNoAnm
-//! ccObj::Draw(obj, tp):
-//!   lwMatrix = the matrix with no parent, else ccCoord::_SetLWMatrix
-//!     (0x00138380): from the topmost coordinate whose matCalcSW is set,
-//!     lw = parent's lw * matrix (VU0 multiply-adds), the root's lw its
-//!     matrix
-//!   tp *= succession bit 0 ? _GetTransparency (the localtp chain) :
-//!     worldtp; nothing drawn at or below 1/128 (c.le.s 0x3c000000)
-//! ```
-//!
-//! A clump's nodes: `ccClump::Init` (0x0013c5e0) sets every node's matrix
-//! and lwMatrix to the unit matrix and its parent to the node its Obj
-//! names (else the clump itself), and nothing in the effects changes them:
-//! each node is drawn at the clump's matrix times the unit matrix once per
-//! level (the same numbers; only the sign of a zero can change).
-//! `ccClump::SetTransparency(t)` (0x0013d7d0) sets each Obj node's localtp
-//! and (without succession bit 0) worldtp; `Obj2.succession` is 0 for every
-//! object in the effect files, so every node draws at `t`.
-//!
-//! An animation's objects: each animated object's matrix is its pose, its
-//! parent the animated object its Obj names, else the `ccAnm` itself (whose
-//! matrix the effect sets); its transparency the pose's (the controllers
-//! write localtp and worldtp alike), times `ccAnm.localtp`. Effect
-//! animations fade their objects this way.
+//! What an effect's `ccClump` and `ccAnm` hand `ccObj::Draw` (main 0x0013f220)
+//! and so `ccModel::Draw`: each object's model, world matrix (`lwMatrix`) and
+//! transparency, in the order they are drawn (`ccClump::Draw` 0x0013f470,
+//! `ccAnm::Draw` 0x001524d0). A clump's nodes stay unit matrices, and every
+//! `Obj2.succession` in the effect files is 0, so every node draws at the
+//! clump's transparency; an animation's objects at the pose's times
+//! `ccAnm.localtp`. Nothing at or below 1/128 is drawn. The rules are in
+//! docs/engine/effects.md ("Drawing clumps and animations").
 
 use std::collections::HashMap;
 

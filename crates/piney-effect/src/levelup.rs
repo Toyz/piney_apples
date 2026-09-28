@@ -1,25 +1,10 @@
-//! Level up: `effLevelUp(ch)` (main 0x001cdde0), which `ccPlayer::Main`
-//! (gcmn 0x00598404) and `ccFellow::Main` (0x0041b718) call when
-//! `ccChar::CheckLevelUp` (0x0056d430) finds 1000 exp waiting and raises
-//! the level (piney-battle's `exp` and `chara::check_level_up`).
-//!
-//! ```text
-//! effLevelUp(ch)     effect 2 (PARTICLE's EFF_x035, the words LEVEL UP, a
-//!                    sprite of kind 2): target ch, posT its pos, lifeTime
-//!                    80, velocity 10, temp[0] 0, temp[1] 20 + its height;
-//!                    no depth test (SetRenderState(0, 0)), layer effSBL
-//!                    (priority 60)
-//! first switch (0x001c60cc), each frame: hidden until cnt 50, then the
-//!   words' bounce (crate::hit, ids 150-154) at scale 3, following ch while it is
-//!   on the lists: posT its pos, the word at posT raised by temp[1], 1000
-//!   from the camera
-//! second chain (0x001c8d98): ends at once when ch is off the lists or down
-//!   (condition.dead not 0 or 5); by cnt:
-//!     0, 15, 25      particleGeneratorTbl[222], [223], [224] on ch's pos,
-//!                    offset (0, 0, temp[1], 0)
-//!     40             [225] and [226] on ch's pos
-//!     50             ccSeOn3D(84, posT)
-//! ```
+//! Level up: `effLevelUp(ch)` (main 0x001cdde0), which `ccPlayer::Main` (gcmn
+//! 0x00598404) and `ccFellow::Main` (0x0041b718) call when
+//! `ccChar::CheckLevelUp` (0x0056d430) raises the level. Effect 2 (`EFF_x035`,
+//! the words LEVEL UP) on the layer `effSBL` (60) with no depth test, hidden
+//! until count 50 and then bouncing as the words do; its generators at counts
+//! 0, 15, 25 and 40, the sound at 50. The cases are in docs/engine/effects.md
+//! ("Level up").
 
 use crate::ee;
 use crate::effect::{EffectCtrl, Next, Obj};

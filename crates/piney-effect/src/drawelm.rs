@@ -1,31 +1,10 @@
-//! GCMN.PRG's drawn elements (effect2.cpp): `ccDrawElement` and the
-//! models the spell elements move about - the fire ball `ccFireElement`,
-//! the rock `ccRockElement`, the dark ball `ccDarkElement`, the ice
-//! `ccIceElement`, the lightning `ccThunderElement` - and the explosion
-//! `ccExplodeElement` that `effExplode3` puts in the element manager.
-//!
-//! ```text
-//! ccDrawElement::Main (0x004ea670): m_life counts down to m_delFlag (-1:
-//!   never), then the virtual Draw
-//! ccFireElement (ctor 0x004f96f0, Draw 0x004f99e0): ANM_x300 (looping)
-//!   and the clump CMP_x100 of particle.ccs, one matrix: scale, the cap's
-//!   turn about y (m_kasaRot, on 0.1047 a frame), a quarter about z, the
-//!   element's heading (x, y, z), a quarter back, at m_pos
-//! ccRockElement (0x004fa2c0, 0x004fa540): one of CMP_x102a-d (ccRand() &
-//!   3), PosRotZYXScale(pos, dirc, scale)
-//! ccDarkElement (0x004fa5b0, 0x004fa850): CMP_x604, its heading three
-//!   ccRandF(pi); drawn as the rock, then heading y and z on 0.2094 a frame
-//! ccIceElement(n) (0x004faf90, 0x004fb260): one of nine ice clumps (n out
-//!   of 0-8: abs(ccRand()) & 7); scale and heading, m_pos the translation
-//! ccThunderElement (0x004fa940, 0x004fabc0): CMP_x012 drawn along a
-//!   chain of 20 points from m_sp to m_ep, the 18 between redrawn each
-//!   frame at random round the line down from m_sp; one more link each
-//!   frame to 19, then m_endFlag and it fades out by 1/15 a frame
-//! ccExplodeElement(attr) (0x004fd8d0, 0x004fdcf0): ANM_x305 with its four
-//!   objects' palettes swapped for the element's (CLT_x048-51 + suffix);
-//!   drawn at PosRotZYXScale, fading and scaling as set, moving by m_speed
-//!   in the player's frame; m_delFlag when the animation ends
-//! ```
+//! GCMN.PRG's drawn elements (effect2.cpp): `ccDrawElement` (`Main`
+//! 0x004ea670) and the models the spell elements move about - the fire ball
+//! `ccFireElement`, the rock `ccRockElement`, the dark ball `ccDarkElement`,
+//! the ice `ccIceElement`, the lightning `ccThunderElement` and the rest -
+//! and the explosion `ccExplodeElement` that `effExplode3` puts in the
+//! element manager. Their constructors and draws are in
+//! docs/engine/effects.md ("The element manager and the elements").
 
 use piney_data::volume::Volume;
 use piney_world::pose::Play;

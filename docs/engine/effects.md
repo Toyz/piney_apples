@@ -1095,7 +1095,10 @@ SPRITE per cell, 160 packets), `CopyTex(fontTex)` (`xasc00::TEX_xasc00`,
 enemy bars' "ENEMY" labels are queued on it first in `Disp`; the numbers
 follow; `Disp` later `SendPacket`s the whole queue as one group at the
 front of the layer. The packet count and the 160 cap are shared with the
-labels.
+labels. `ccMenuCtrl::Disp` (gcmn 0x0052170c-0x00521754), after the labels
+and the protect marks: `font = flyFont`; `ccCtrlFlyFont(menu +0x18 != 0)`;
+unless menu +0x18, `ccDamUprStr::CtrlAll()` and, unless
+`compulsionGameOver`, `ccDamUprStr::DrawAll()`.
 
 `ccSprite::MakePacketStr(str, 0)` (main 0x0015aed0): the start is
 `ApplyLayerScreenMatrix(dx + cx, dy + cy)` truncated; the cell is
@@ -1343,8 +1346,10 @@ effects 132/133's first switch (0x001c6280):
 The orb's sin and cos (of `h`) are double precision: `fptodp`, newlib's
 `sin` (main 0x001274c8) and `cos` (0x00126ee0) with `__kernel_sin`
 (0x001259b0), `__kernel_cos` (0x00124b88) and `__ieee754_rem_pio2`
-(0x00123260) on the soft-float `dpadd`/`dpsub`/`dpmul`, then `dptofp`.
-`acosf` is `__ieee754_acosf` (0x00123b38) on the FPU. So each orb leaves
+(0x00123260) on the soft-float `dpadd` (0x0012a1b0), `dpsub`, `dpmul`
+(0x0012a270), then `dptofp` (0x0012a990; `fptodp` 0x00129cc8). These round
+to nearest like IEEE doubles, so `f64` arithmetic in the same order gives the
+same bits. `acosf` is `__ieee754_acosf` (0x00123b38) on the FPU. So each orb leaves
 the victim in a random direction, tilted, and turns toward the drainer by
 at most 11.25 degrees a frame, then from its count 31 by 0.26 degrees more
 each frame, up to 90.
@@ -1419,7 +1424,8 @@ ccMagicCircle::main (0x00455b60)
     spark: t = min(1, max(0, t * its transparency)) - the product runs
     on from spark to spark - and ccEff::Draw(effAnmPat); SetActiveLayer(0)
 ccMcPart::main (0x004548e0)
-  eff.pos = ccTransPosFW2LW(eff.pos); at cnt 0: eff.pos = mat's
+  eff.pos = ccTransPosFW2LW(eff.pos) (from Mutation on, unchanged without a
+  player); at cnt 0: eff.pos = mat's
   translation (w 1), mat = RotZ RotY RotX of three DEG2RAD((short)ccRand())
   (x drawn first) and by status:
     1  life 120, scale 5; rnd = |ccRandF(0.2)|
@@ -1427,7 +1433,7 @@ ccMcPart::main (0x004548e0)
        mat (speed, 0, 0, 1) + (0, 0, 6 sinf(DEG2RAD((short)(1383 cnt))), 0);
        scale -0.04 while above 1
     2  life 10, scale 5; mat's random turn m; eff.pos = translation +
-       m (200 - 6 mcActCnt + ccRandF(20), 0, 0, 1); mat = m
+       m (400 - 6 mcActCnt + ccRandF(20), 0, 0, 1); mat = m
        then radCnt += 1638; v = (-18 sinf(radCnt) (20 x 0.9), 0, 0, 1);
        speed = 0.072 cosf(radCnt) wrapped into -pi..pi; mat = RotZ RotY RotX
        (speed each) mat; eff.pos += mat v; scale -0.28 while above 1
@@ -1580,12 +1586,57 @@ and 0x00377fb0. From level 2: the tornado's generator 191 + level with the
 `ccEffect2` with a `ccThunderBoltElement`, `skillThunderEff2` main
 0x0033fd00).
 
+```text
+rings 89 / 90 / 91 (first switch 0x001c5198 / 0x001c5320 / 0x001c5568):
+  pos = posT (temp[0] set) or pos, plus offset; w 1
+  90, 91: z up by min(cnt, 30) rise / 30
+  rot.z on by turn / 30 a frame (89: 16384; 90, 91: +-16384 by flags)
+  scale x, y from a to b and z from c to d over 30 counts (and on past
+    30: the counts are not clamped)
+  FadeInOut(5, 25, lifeTime)
+effSkillTornadeThunderPos(pos, n)  (main 0x001d5b20) effect -17, no object:
+  life 30, level n, posT pos, param 4 (n - 1) + rand() % 4; ccSeOn3D(68, pos)
+-17 (second chain 0x001cae60): tornadeThunderTbl[param] is a list of
+  (count, bolts); when cnt reaches the flags-th pair's count, that many
+  bolts at P2W(W2P(posT) + offset), and flags on
+  each bolt: a ccEffect2 (id 1) with new ccThunderBoltElement(p, 1, 250,
+  abs(ccRand() & 7) + 1, skillThunderEff2)
+ccThunderBoltElement(vec, time, ran, num, dat):
+  Time, BottomRange = ran, Num; from dat the angles and scales (fptosi),
+  mode, EFF_SW (flg, flg2), RndPoint (built-in ones for no dat); CenterPos
+  vec; CMP_x012 of particle.ccs, duplicated and re-coloured by mode
+  (CLT_x012c1 for mode 1); SetBreakPoint: each of the Num strokes
+  abs(ccRand() & 7) + 5 segments; UnitPoint: each stroke's start
+  BottomRange - ccRandF(BottomRange / 10) out at ccRandF(pi) about z
+ccEffect2::Main (0x001cc290), ids 0 and 1: the bolt's Draw each frame
+  until its EndFlg, then the bolt deleted and the slot freed a frame after
+Draw (0x00501470): for each stroke a scale 2 + |ccRandF(2)|, then for each
+  segment a turn ccRandF(pi) about z and a tilt DefaultAngle +
+  |ccRandF(RandAngle)| about x: the clump at the stroke's point scaled
+  (scale, 0.222, scale) along the segment, the next point 200 on; after
+  Time frames m_delFlag and EndFlg
+```
+
 Levels 3 and 4: `ccTornadeElement` (gcmn 0x004ff0d0; Main 0x004ff3f0,
 `_Level3` 0x004ff4a0, `_Level4` 0x004ff8b0) makes three (four) tornados
 300 from the target a third of a turn apart, on the counts of
 `START_1`/`START_2`/`sndcode` (gcmn 0x005ed760.., 0x005ed790..), and makes
 the damage calls itself every 5 frames; the system ends once the element
-is deleted.
+is deleted:
+
+```text
+START_1[k]   (level 3: k 0-2; level 4: only k 3) the smoke at tPos +
+             m_offsets[k], and a ring (mode 195) at tPos + m_offsets[m_index]
+START_2[k]   (k 0-2; level 4 0-3) sndcode by level (level 4: the fourth's
+             sound for the last) at P2W(W2P(tPos) + m_offsets[m_index]), and
+             the rings (effSkillTornadeRingsPos with the offset, level 2;
+             level 4's last level 4), m_index on
+35 .. 75     every 5 from START_2[1] + 5 (level 4 START_2[3] + 5):
+             ccSkillDamage on the target, else round the skill's tPos,
+             while the skill runs; after: m_delFlag
+START_2[0] + 10  in range of the camera, noise 20 and a shake (level 3
+             (2, 2, 20, 2), level 4 (0, 2, 20, 2))
+```
 
 ### ConvergenceSystem
 
@@ -1636,7 +1687,24 @@ Leaf/Electric/Smoke(p, r, v, s, n)` (main 0x001d6410, 0x001d6750,
 129) life 60, speed and size shares of v and s, each with generator 85
 following it (pTexMod 110, 151, 1, none, 31); the leaves' sprites turned at
 random and fogged. All of 114-129 and 134-137 tumble and bounce with the
-rocks (first switch 0x001c4034, second chain 0x001c7dd0).
+rocks (first switch 0x001c4034, second chain 0x001c7dd0):
+
+```text
+first switch (0x001c4034; ids -15, 9-11, 15-18, 25-28, 42-55, 66-78,
+114-129, 134-149, 155-163), every frame:
+  rot.x on by rotSpeed[0], rot.z by rotSpeed[2]; pos on by speed (four
+  lanes); below z -500 (flags not yet 3): flags 3, cnt and age 80; w 1;
+  until flags bit 0, speed.z down by 2
+second chain (0x001c7dd0; ids -15, 9-11, 25-28, 114-129, 138-149):
+  falling faster than 3, one frame in four (cnt & 3 == sn & 3): the land
+  under it (ccLandHitCheck2 down by 20 more than the fall); on a hit (or
+  already bouncing) z onto it and a bounce; otherwise, bouncing (flags & 3
+  == 1), a bounce every other frame
+  a bounce: speed x, y by 0.8, z by -0.5; x, y below 4 and z below 8 (bit
+  0 then) to 0; the spins by 0.8, below 16 to 0; all still: flags bit 1,
+  cnt and age life - 10
+  FadeOut(10, lifeTime)
+```
 
 Levels 3 and 4: `ccConvergenceElement` (ctor 0x004eb250, Main 0x004ebc70,
 `Shock3`, `Shock4` 0x004ecad0): 8 (level 3) or 24 (level 4; the table at
@@ -1679,10 +1747,20 @@ waves 2 frames apart and hits (`ccSkillDamage2` while the spell is on
 
 | manager | Main | waves | pieces |
 | --- | --- | --- | --- |
-| soil `ccSoilUpheavalMngrElement` | 0x004f0d30 | 35, 55, 75 (95), hits 49, 69, 89 (109), over at 111 (131) | `ccSoilUpheavalElement` (CMP_x101a-d, 250-500 out, rising from -1170 and bursting at 14 with fragments, flashes, `effRadiateSomething2` and a ring 202) |
+| soil `ccSoilUpheavalMngrElement` | 0x004f0d30 (levels 3 / 4 0x004f0db0 / 0x004f1000) | 35, 55, 75 (95), hits 49, 69, 89 (109), over at 111 (131) | `ccSoilUpheavalElement` (CMP_x101a-d, 250-500 out, rising from -1170 and bursting at 14 with fragments, flashes, `effRadiateSomething2` and a ring 202) |
 | water `ccIceUpheavalMngrElement` | 0x004ee950 | 32 spikes (level 4: 128 round a great spike that grows over 15 frames with a flash and a mist generator), raised 11 (43) at a time; `Delete` (0x004ee710) throws 32 pieces of ice and 5 rings 161 | `ccIceElement` 6 / 8, held by the manager |
 | wind `ccTreeUpheavalMngrElement` | 0x004efd60 | as soil with `ccTreeUpheavalElement` (CMP_x401a-d_1, 450-700 out); level 4 first raises CMP_x407_1 with its roots ANM_x403 and starts the leaves, lowered at 131 | |
 | dark `ccDarkUpheavalMngrElement` | 0x004edce0 | 20, 40, 60 (80), hits 80, 100, 120 (140), over at 126 (146); at the model 500 under the target (`ccHitCheckLM2`) | `ccDarkHandElement` (ANM_x605, 150-400 out) |
+
+The pieces' Draws: the rock and the tree (gcmn 0x004fc7c0 / 0x004fcee0) at
+`PosRotZYXScale`, the height from -1170 rising at 100 slowing by 1.1 a frame
+to count 14, back by half to 17, still to 27, then sinking at 10, fading in
+by 1/8 a frame; at 14 the burst (`effUpheavalFragment` 2 and
+`effUpheavalFlash` 6 at 40, `effRadiateSomething2` 4 at 45; the rock also a
+ring 202 under it); out by 0.1 a frame from 28, then `m_delFlag`. The hand
+(0x004f8de0): from -500 at 45 (all three speeds), the same slowing and
+bounce, `ccSeOn3D(56)` at 17, still to 60, then sinking; in by 1/6, out by
+0.1 from 14, `m_delFlag` once gone after 61.
 
 ### SummonsSystem (and 289-294)
 
@@ -1762,7 +1840,12 @@ deleted:
 `ccEffectCtrl::Main` on the effect layer: an element with `m_delFlag`
 deleted, any other's virtual Main run, in slot order. Generators put a new
 element in the first empty slot (none: deleted, the generator answers 0).
-`ccAnimateObject` (0x130) and `ccEffectElement` (0x190) are the bases;
+`ccAnimateObject` (0x130: the fade, the scale animation, the motion towards
+a point) and `ccEffectElement` (0x190: the skill it serves, its target,
+level, flags and counters) are the bases; every element's constructor
+inlines both (vectors (0, 0, 0, 1), `m_scale` (1, 1, 1, 1), `m_transparency`
+1, flags clear, `m_level` 1, `m_life` -1) and leaves `m_fadeSpd` and
+`m_scaleSpd` as the heap had them (zero in the port);
 ported: `ccRingElement` (ctor 0x004fbbe0, `SetModel` 0x004fb3f0, Draw
 0x004fbf00; `effSummonRingElement` 0x004ffe20), `ccTornadeElement`, the
 fall, convergence, upheaval and summons elements above, the drawn elements
@@ -1773,6 +1856,20 @@ needle, star, dark ball, light ball), and `ccThunderBoltElement` (gcmn
 0x001cc240, `Main` 0x001cc290; 100 slots at 0x003fc160, run after the
 500). An element a summons element holds (a bubble, a star, a bat) is not
 in the manager: its owner runs it.
+
+The drawn elements (effect2.cpp) run `ccDrawElement::Main` (gcmn
+0x004ea670: `m_life` counts down to `m_delFlag`, -1 never, then the virtual
+Draw). The models the spells move about:
+
+| element | ctor / Draw | draws |
+| --- | --- | --- |
+| `ccFireElement` | 0x004f96f0 / 0x004f99e0 | `ANM_x300` (looping) and particle.ccs's `CMP_x100`, one matrix: scale, the cap's turn about y (`m_kasaRot`, on 0.1047 a frame), a quarter about z, the heading, a quarter back, at `m_pos` |
+| `ccRockElement` | 0x004fa2c0 / 0x004fa540 | one of `CMP_x102a-d` (`ccRand() & 3`) at `PosRotZYXScale(pos, dirc, scale)` |
+| `ccDarkElement` | 0x004fa5b0 / 0x004fa850 | `CMP_x604`, its heading three `ccRandF(pi)`; drawn as the rock, then heading y and z on 0.2094 a frame |
+| `ccIceElement(n)` | 0x004faf90 / 0x004fb260 | one of nine ice clumps (`abs(ccRand()) & 7`); scale and heading, `m_pos` the translation |
+| `ccThunderElement` | 0x004fa940 / 0x004fabc0 | `CMP_x012` along a chain of 20 points from `m_sp` to `m_ep`, the 18 between redrawn each frame at random round the line; one more link a frame to 19, then `m_endFlag` and a fade by 1/15 a frame |
+| `ccRingElement(VP, VR, VS, Mode)` | 0x004fbbe0 / 0x004fbf00 | `SetModel(Mode)`: a ring clump of particle.ccs, fog off, duplicated and re-coloured when the mode names a CLUT; `Transparency` 1, `Tpoint` 0.05, `Spoint` 0.5 in all four lanes; with `EnyFlg` (which `effSummonRingElement` sets; with no empty slot its ring is never run) the scale grows by `Spoint` and `Transparency` falls by `Tpoint` each Draw, `m_delFlag` below 0; the matrix from Pos, Rot (x, y, z) and Scale |
+| `ccExplodeElement(attr)` | 0x004fd8d0 / 0x004fdcf0 | `ANM_x305` with its four objects' palettes swapped for the element's (`CLT_x048`-`51` + suffix), fading and scaling as set, moving by `m_speed` in the player's frame; `m_delFlag` when the animation ends |
 
 ## The port
 

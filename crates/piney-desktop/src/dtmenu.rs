@@ -1,13 +1,10 @@
 //! `ccDtMenu` and its task `ccThDtMenu` (main executable 0x00169b00 -
-//! 0x00171250): the desktop's menu layer, which holds the event scripts'
-//! message window (`ccMsg`), the dim behind it, and the START system menu
-//! (`docs/engine/desktop.md`, "The menu task").
-//!
-//! The task runs each frame before the desktop task (`ccSetupDesktop`
-//! 0x001684f0 starts it first, both at priority 33). Opening a menu puts
-//! every other task to sleep and freezes every other layer's picture
-//! (`ccSleepAllThread`, `OffFlipExcept`), so the desktop stands still under
-//! the menu layer (priority 242) until the menu wakes it.
+//! 0x00171250): the desktop's menu layer (priority 242), which holds the event
+//! scripts' message window (`ccMsg`), the dim behind it, and the START system
+//! menu (`docs/engine/desktop.md`, "The menu task"). The task runs each frame
+//! before the desktop task (`ccSetupDesktop` 0x001684f0 starts it first, both
+//! at 33). Opening a menu sleeps every other task and freezes every other
+//! layer's picture (`ccSleepAllThread`, `OffFlipExcept`) until it wakes them.
 
 use piney_data::tables::sjis::encode;
 use piney_data::volume::Volume;
@@ -1359,15 +1356,12 @@ impl DtMenu {
         }
     }
 
-    /// `ControllerMenuDisp` (0x0016b7f0): the list of schemes, the one in
-    /// force in yellow, the pad picture, and the labelled boxes round it,
-    /// as the field's `ControllerMenuDisp` (piney-fieldui's
-    /// `option/disp.rs`) draws them: the buttons (320, 128) and START /
-    /// SELECT (179, 300) framed in colour 0 with settingKanji 0, the left
-    /// stick (39, 300) in colour 0 with settingKanji 1, the right stick
-    /// (347, 300) and the shoulder buttons (165, 56) in colour 7 with
-    /// settingKanji 2, the camera's labels and rotation arrows by
-    /// `camType`.
+    /// `ControllerMenuDisp` (0x0016b7f0): the list of schemes, the one in force
+    /// in yellow, the pad picture and the labelled boxes round it, as the
+    /// field's (piney-fieldui's `option/disp.rs`): the buttons (320, 128) and
+    /// START / SELECT (179, 300) in colour 0 with settingKanji 0, the left stick
+    /// (39, 300) in colour 0 with 1, the right stick (347, 300) and shoulders
+    /// (165, 56) in colour 7 with 2, the camera's labels and arrows by `camType`.
     fn draw_controller(&mut self, f: &mut MenuDraw) {
         let l = self.lists[MENU_CONTROLLER as usize].clone();
         let a = self.alpha;

@@ -1,35 +1,11 @@
 //! The thunder of the thunder tornado: `effSkillTornadeThunderPos` (main
-//! 0x001d5b20), its controller effect -17, `ccEffect2` (main effect.cpp, the
-//! 100 small slots `ccEffectCtrl::Main` runs after the 500) and
-//! `ccThunderBoltElement` (gcmn 0x00500dc0), the bolt a `ccEffect2` draws.
-//!
-//! ```text
-//! effSkillTornadeThunderPos(pos, n)  effect -17 (no object): life 30, level
-//!                                    n, posT pos, param 4 (n - 1) +
-//!                                    rand() % 4; ccSeOn3D(68, pos)
-//! -17's second chain (0x001cae60):   tornadeThunderTbl[param] is a list of
-//!                                    (count, bolts); when cnt reaches the
-//!                                    flags-th pair's count, that many bolts
-//!                                    at P2W(W2P(posT) + offset), and flags on
-//! each bolt: a ccEffect2 (id 1) with new ccThunderBoltElement(p, 1, 250,
-//!   abs(ccRand() & 7) + 1, skillThunderEff2)
-//! ccThunderBoltElement(vec, time, ran, num, dat):
-//!   the element's defaults; Time, BottomRange = ran, Num; from dat the
-//!   angles and scales (fptosi), mode, EFF_SW (flg, flg2), RndPoint (or the
-//!   built-in ones for no dat); CenterPos = vec; CMP_x012 of particle.ccs,
-//!   duplicated and re-coloured by mode (CLT_x012c1 for mode 1);
-//!   SetBreakPoint: each of the Num strokes abs(ccRand() & 7) + 5 segments;
-//!   UnitPoint: each stroke's start BottomRange - ccRandF(BottomRange / 10)
-//!   out at ccRandF(pi) about z, from CenterPos
-//! ccEffect2::Main (0x001cc290), ids 0 and 1: the bolt's Draw each frame
-//!   until its EndFlg, then the bolt deleted and the slot freed a frame
-//!   after
-//! Draw (0x00501470): for each stroke a scale 2 + |ccRandF(2)|, then for
-//!   each segment a turn ccRandF(pi) about z and a tilt DefaultAngle +
-//!   |ccRandF(RandAngle)| about x: the clump drawn at the stroke's point
-//!   scaled (scale, 0.222, scale) along the segment, the next point 200 on;
-//!   after Time frames m_delFlag and EndFlg
-//! ```
+//! 0x001d5b20), its controller effect -17 (second chain 0x001cae60, bolts at
+//! the counts of `tornadeThunderTbl`), `ccEffect2` (main effect.cpp, the 100
+//! small slots `ccEffectCtrl::Main` runs after the 500) and
+//! `ccThunderBoltElement` (gcmn 0x00500dc0, Draw 0x00501470), the bolt a
+//! `ccEffect2` draws: strokes of random segments of `CMP_x012`, redrawn at
+//! random each frame. The rules are in docs/engine/effects.md
+//! ("TornadoSystem").
 
 use piney_data::volume::Volume;
 

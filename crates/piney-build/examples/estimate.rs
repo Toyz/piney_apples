@@ -1,15 +1,10 @@
 //! Not part of the build: what keeping the gzip archives (`DATA.BIN`,
-//! `STREAM/*.BIN`) as their members' inflated contents would save.
-//!
-//!     cargo run --release -p piney-build --example estimate -- ISO...
-//!
-//! Every chunk is deduplicated after inflating and zstd-compressed at
-//! `LEVEL` (3 by default); `RAWONLY=1` chunks the files as they are, as the
-//! build does. On the four discs (2026-09-27): members at level 3,
-//! 7,136.5 MiB; the files as they are at level 3, 7,254.3 MiB, at 9,
-//! 7,233.1, at 15, 7,136.9. The members save nothing over level 15 on the
-//! files, so the build keeps the files as they are and the port's archive
-//! readers stay as they are.
+//! `STREAM/*.BIN`) as their members' inflated contents would save (`estimate
+//! ISO...`; zstd `LEVEL`, 3 by default; `RAWONLY=1` chunks the files as they
+//! are). On the four discs (2026-09-27): members at level 3, 7,136.5 MiB; the
+//! files as they are at level 3, 7,254.3 MiB, at 9, 7,233.1, at 15, 7,136.9.
+//! The members save nothing over level 15 on the files, so the build keeps
+//! the files as they are.
 use std::collections::HashSet;
 use std::io::Read;
 

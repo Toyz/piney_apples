@@ -1,17 +1,10 @@
 //! The shadow volumes: `ccShadowModel::Draw` (main 0x001412b0) and the VU1
-//! programs it runs (`mc_DrawShadow1`, `2`, `3` and `mc_DrawShadowClip`,
-//! VU1 0x5d2-0x759), as `docs/engine/shadow.md` sets them out.
-//!
-//! A shadow mmat ([`ShadowMesh`]) is stretched away from the light: each
-//! face direction is lit or not by the light brought into the model's
-//! space, the unlit faces are moved along the light by the shadow's
-//! length (the far cap, the lit ones the near cap), and every edge
-//! between a lit face and an unlit one becomes a quad from the edge to its
-//! moved copy. Each face and quad lands in the shadow buffer's pixels;
-//! the ones wound one way on screen count up in the buffer, the others
-//! down ([`Poly::front`]). A face or quad reaching behind the near plane
-//! is cut there: the part in front is drawn as it is, the part behind is
-//! drawn flattened onto the near plane.
+//! programs it runs (`mc_DrawShadow1`, `2`, `3` and `mc_DrawShadowClip`, VU1
+//! 0x5d2-0x759), as `docs/engine/shadow.md` sets them out. A shadow mmat
+//! ([`ShadowMesh`]) is stretched away from the light: unlit faces move along
+//! it by the shadow's length, and each edge between lit and unlit becomes a
+//! quad; faces wound one way count up in the shadow buffer, the others down
+//! ([`Poly::front`]). A part behind the near plane is flattened onto it.
 
 use glam::{Mat4, Vec3, Vec4};
 use piney_data::shadow::ShadowMesh;

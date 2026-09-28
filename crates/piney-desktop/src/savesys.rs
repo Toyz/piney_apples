@@ -1,18 +1,10 @@
 //! `ccSaveSys` (INF SLUS_202.67, sdmng.cpp) as the desktop's Data screen
 //! drives it: the requests, `MainProccess` (the `ccThSaveSys` task's frame)
-//! and `NextProccess`, over a [`MemoryCard`] (`docs/formats/save.md`).
-//!
-//! The screen and the task talk through `result`: its low 12 bits index
-//! `saveSysMsg` (the message shown), and the bits above say what the screen
-//! does with it ([`code`]). `proccess` is what the task does next.
-//!
-//! The card calls complete at once (see `card.rs`), so the states the game
-//! holds while one runs - result 0x1001a "Saving....", 0x10020
-//! "Formatting....", 0x10024 "Creating save data." with the busy bit - are
-//! set and replaced within one `MainProccess`, and the screen never sees
-//! them. `game->gameCntStop`, which stops the play-time clock
-//! (`ccAddPlayTime`) during a write, is set and cleared within the same call
-//! and so is not modelled.
+//! and `NextProccess`, over a [`MemoryCard`] (`docs/formats/save.md`). The
+//! screen and the task talk through `result` ([`code`]); `proccess` is what
+//! the task does next. The card calls complete at once (see `card.rs`), so
+//! the busy states ("Saving....", "Formatting....", "Creating save data.")
+//! and `gameCntStop` are set and replaced within one `MainProccess`.
 
 use piney_data::save::{SaveData, offset};
 use piney_data::volume::Volume;
@@ -365,20 +357,13 @@ impl SaveSys {
         }
     }
 
-    /// proccess 8 (0x0017240c): `DataRead` of the slot into a buffer
-    /// ("Loading...." 0x10013 / 0x10014 while it runs, which the screen
-    /// never sees here); a failed read is 0x2018, a 16-bit byte sum that
-    /// is not the index record's 0x203f; else the buffer is copied into
-    /// `saveData` member by member - every byte but three padding runs
-    /// ([`LOAD_KEPT`]) - and the result is 0x2017 "Load complete.".
-    ///
-    /// Not the game's: a save the port wrote before it ran
-    /// `ccSaveData::Init` whole is repaired as it is copied in
-    /// ([`SaveData::repair_port_save`]; it leaves every save the game can
-    /// write as it is).
-    ///
-    /// From Mutation on the slot holds the extension after the record,
-    /// copied in the same way ([`EXT_KEPT`]).
+    /// proccess 8 (0x0017240c): `DataRead` of the slot; a failed read is
+    /// 0x2018, a byte sum that is not the index record's 0x203f; else the
+    /// buffer is copied into `saveData` member by member, all but three
+    /// padding runs ([`LOAD_KEPT`]; from Mutation on the extension too,
+    /// [`EXT_KEPT`]), and the result is 0x2017 "Load complete.". Not the
+    /// game's: a save the port wrote before it ran `ccSaveData::Init` whole is
+    /// repaired as it is copied in ([`SaveData::repair_port_save`]).
     fn read_data(&mut self, card: &mut dyn MemoryCard, save: &mut SaveData) {
         self.proccess = 1;
         let file = self.file_index();

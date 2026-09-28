@@ -1,17 +1,9 @@
 //! The camera and the 3D view: `ccCam` from an `F_Camera` record
 //! (`ccStream::DecodeF_Camera` 0x0014ece0, `ccCam::SetMatrix_PosRotXYZ`
-//! 0x001386b0) and `world_screen` (`ccView::SetView` 0x001052c0 with
-//! Sony's view-screen matrix, `ccSetViewScreenClipMatrix` 0x00101f60).
-//!
-//! View space is +x right, +y down, +z forward. A point `v` in view space
-//! lands at GS primitive coordinates
-//!
-//! ```text
-//! X = scrz * ax * v.x / v.z + scx
-//! Y = scrz * ay * aspect * v.y / v.z + scy
-//! Z = az / v.z + cz          zmax at the near plane, zmin at the far one
-//! scrz = W / (2 tan(fov / 2)),  aspect = 1.3333334 * H / W = 7/6
-//! ```
+//! 0x001386b0) and `world_screen` (`ccView::SetView` 0x001052c0 with Sony's
+//! view-screen matrix, `ccSetViewScreenClipMatrix` 0x00101f60). View space is
+//! +x right, +y down, +z forward; the projection is in docs/engine/desktop.md
+//! ("The 3D draw").
 
 use glam::{Mat4, Vec3, Vec4};
 

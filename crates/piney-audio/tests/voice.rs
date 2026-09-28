@@ -1,19 +1,10 @@
-//! The voice lines against the game.
-//!
-//! - `voice_ee_fixture.txt` (`python3 tools/sound_ee.py voice-fixture ELF`):
-//!   what `ccEvVoiceRequest`, `ccEvVoiceStop` and `evVoicePlay` send to
-//!   SEWORDS.IRX, run in `tools/eemu.py` - every row of the four volume 1
-//!   tables in both languages, with and without Parody Mode, `ccVoiceRequest`'s
-//!   field groups (below -1, gcmn.prg's tables) likewise, the events
-//!   without a table, and the slot cases. The driver must send the same.
-//! - `voice_fixture.txt` (`python3 tools/iopemu.py voice-fixture ELF ISO`):
-//!   SEWORDS.IRX itself streaming lines, run in `tools/eemu.py` - the
-//!   samples heard and the input volume. The stream model must play the
-//!   same samples.
-//! - A headless render of event 1's message 1 (English).
-//!
-//! The disc parts are skipped without the image; set PINEY_ISO to point at
-//! it elsewhere.
+//! The voice lines against the game: `voice_ee_fixture.txt` (`python3
+//! tools/sound_ee.py voice-fixture ELF`: what `ccEvVoiceRequest`,
+//! `ccEvVoiceStop` and `evVoicePlay` send to SEWORDS.IRX for every row of the
+//! volume 1 tables, the field groups and the slot cases), `voice_fixture.txt`
+//! (`python3 tools/iopemu.py voice-fixture ELF ISO`: SEWORDS.IRX itself
+//! streaming lines, the samples heard), and a headless render of event 1's
+//! message 1. The disc parts are skipped without the image (PINEY_ISO).
 
 use std::path::PathBuf;
 

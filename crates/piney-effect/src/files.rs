@@ -1,14 +1,9 @@
-//! The effects' files and tables: `effectCCSTbl` (main 0x002fd4f0, the
-//! twelve files the effects draw from), `effectTbl` (0x0033f240, 173 rows:
-//! file, object, kind by effect id) and `effectTbl2` (0x0033fa60, the 4
-//! rows a town resolves), read from the disc and the executable.
-//!
-//! `ccEffectCtrl::ccEffectCtrl(0)` (main 0x001c3030) looks each row's
-//! object up once (`GetCCSAdrs`, `GetChunkAdrsF`) into `adrs[id]`: from
-//! `effectTbl` in a field or dungeon, from `effectTbl2` in a town
-//! (`game` +0x14, the area, 0), where only id 3 (`CMP_x032`, the
-//! arrival's ring) has an object and the others keep whatever the heap
-//! held.
+//! The effects' files and tables: `effectCCSTbl` (main 0x002fd4f0, the twelve
+//! files the effects draw from), `effectTbl` (0x0033f240, 173 rows: file,
+//! object, kind by effect id) and `effectTbl2` (0x0033fa60, the 4 rows a town
+//! resolves), read from the disc and the executable. In a town
+//! `ccEffectCtrl::ccEffectCtrl(0)` (main 0x001c3030) resolves only id 3
+//! (`CMP_x032`); the others keep whatever the heap held.
 
 use std::collections::HashMap;
 

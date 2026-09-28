@@ -1,14 +1,10 @@
-//! The driver against the game's own EE sound code. `driver_fixture.txt`
-//! (from `python3 tools/sound_ee.py fixture ELF`) is what `ccSeOn`,
-//! `ccSeOnNote`, `ccSndChangeData` + `ccSndBgmCtrl` (the desktop starting),
-//! the volume options, and `ccSndSQLoad` with `ccSqPlay`, `ccSqStop`,
-//! `ccSqFade` and the fades of the title send, run in `tools/eemu.py`; the driver must
-//! send the same. The `seq` scenarios also cover the areas: `ccSndSQLoad`
-//! for the town (2), every field type and weather (3), every dungeon type
-//! (4) and every event bank row (5), each followed by `ccSndBgmCtrl`, the
-//! event instruction `sound 10`'s hold, and battles switching the music
-//! (`ccSound::bgmChange`) both ways. Needs the disc image only for the
-//! banks' sequence offsets; skipped without it.
+//! The driver against the game's own EE sound code. `driver_fixture.txt` (from
+//! `python3 tools/sound_ee.py fixture ELF`) is what `ccSeOn`, `ccSeOnNote`,
+//! the desktop starting, the volume options, `ccSndSQLoad` with the sequence
+//! calls and fades send, run in `tools/eemu.py`; the `seq` scenarios also load
+//! every area's bank with `ccSndBgmCtrl`, `sound 10`'s hold and the battle
+//! switch both ways. The driver must send the same. Needs the disc image only
+//! for the banks' sequence offsets; skipped without it.
 
 use std::path::PathBuf;
 

@@ -1,38 +1,10 @@
 //! The upheaval spells (soil, water, wind, dark): `ccSkill::UpheavalSystem`
-//! (gcmn 0x005787c0), its pillars (effects 29-41) and what they throw when
-//! they burst: `effUpheavalFragment` (42-51) and `effUpheavalFlash`
-//! (52-55); levels 3 and 4 hand the rising to an element manager of the
-//! spell's element ([`UpheavalMngr`]) and its pieces ([`UpheavalPart`]).
-//!
-//! ```text
-//! UpheavalSystem
-//!   count 0   a target on the lists: its magic attack sign, else the end
-//!             and the caster released; level = id - (200 soil, 216 water,
-//!             248 wind, 280 dark)
-//!   count 20  level 3+: ccUpheavalElementGenerate (m_effElm); the ground
-//!             generator (soil and wind 144, water 145, dark 146) at tPos,
-//!             40 up
-//!   pillars   levels 1 and 2 (level 2 a second ring): at counts 35, 37, 39,
-//!             41 pillars 1-4, at 55-61 pillars 5-8: soil 29-32, water
-//!             33-36, wind 37-40 (by the pillar's number mod 4), dark 41,
-//!             life 80, 150 (pillars 1-4) or 200 (5-8) from tPos at the
-//!             bearing pillarDegTbl[n - 1] (gcmn 0x00651960), turned a
-//!             quarter back from it
-//!   count 49  (levels 1, 2; and 69 for level 2) ccSkillDamage2 round tPos,
-//!             ccSeOn3DNote(56, tPos, 67), in the camera's range
-//!             cameraShake(0, 2, 10, 0)
-//!   count 35  the caster released
-//!   the end   level 1 at 71, level 2 at 91, level 3+ once the element is
-//!             deleted
-//! a pillar 29-41 (main 0x001c4468): its height (offset.w) from -500,
-//!   rising at 45 slowing by 1.1 a frame to count 14, bouncing back by
-//!   half to 17, still (speed -10) to 27, then sinking at 10; placed at
-//!   offset + its turn applied to (0, 0, height); FadeInOut(6, 55); at its
-//!   count 14 it bursts: effUpheavalFragment and effUpheavalFlash (6 of
-//!   each at 40, thrown up)
-//! the fragments 42-49 fall and bounce like the rocks (0.75 a bounce, the
-//!   landing on the ground under them); 50-55 fade out over 5 frames
-//! ```
+//! (gcmn 0x005787c0), its pillars (effects 29-41, first switch 0x001c4468)
+//! and what they throw when they burst at count 14: `effUpheavalFragment`
+//! (42-51) and `effUpheavalFlash` (52-55). Levels 3 and 4 hand the rising to
+//! an element manager of the spell's element ([`UpheavalMngr`]) and its
+//! pieces ([`UpheavalPart`]). The rules are in docs/engine/effects.md
+//! ("UpheavalSystem").
 
 use piney_data::volume::Volume;
 
@@ -472,29 +444,12 @@ pub enum MngrKind {
     Dark,
 }
 
-/// The upheaval's level 3-4 managers (`ccMoveElement`s, 0x5c0 bytes and
-/// their class's own): each raises its element's pieces round the target in
-/// waves and hits at set counts.
-///
-/// ```text
-/// Main: m_tPos from the spell while it is on SkillEntryTop, then
-/// soil (0x004f0d30), level 3 / 4 (0x004f0db0 / 0x004f1000):
-///   rocks (ccSoilUpheavalElement) at counts 35-41, 55-61, 75-81 (level
-///   4: and 95-101), every other frame: rocks 1-4, 5-8, 9-12, 13-16, 250,
-///   300, 400, 500 out at rockDegTbl[n - 1], scale 1, 2, 3, 3.5 (level 3:
-///   2); ccSkillDamage2, ccSeOn3DNote(56, tPos, 67), cameraShake(0, 2,
-///   10, 0) at 49, 69, 89 (and 109); m_delFlag at 111 (131)
-/// water (0x004ee950): the ice spikes (ccIceElement 6 at level 3, 32 of
-///   them; 8 at level 4, 128 of them round a great spike), raised 11 (43)
-///   at a time; the hits as the waves come up; Delete: 8 + 24 thrown ice
-///   and 5 rings
-/// wind (0x004efd60): the rocks' timing with trees (ccTreeUpheavalElement,
-///   450-700 out; level 3 scale 3); level 4 first raises a great tree with
-///   its roots and starts the leaves falling, and lowers it at 131
-/// dark (0x004edce0): hands (ccDarkHandElement, 150-400 out) at 20-26,
-///   40-46, 60-66 (level 4: 80-86); ccSkillDamage2 and ccSeOn3DNote(171,
-///   tPos, 56) at 80, 100, 120 (140); m_delFlag at 126 (146)
-/// ```
+/// The upheaval's level 3-4 managers (`ccMoveElement`s, 0x5c0 bytes and their
+/// class's own): each raises its element's pieces round the target in waves
+/// and hits at set counts, taking `m_tPos` from the spell while it is on
+/// `SkillEntryTop`. Soil 0x004f0d30 (levels 3 / 4 0x004f0db0 / 0x004f1000),
+/// water 0x004ee950, wind 0x004efd60, dark 0x004edce0; their waves are in
+/// docs/engine/effects.md ("UpheavalSystem").
 #[derive(Clone, Debug, PartialEq)]
 pub struct UpheavalMngr {
     pub base: Base,
@@ -1187,21 +1142,10 @@ pub enum PartKind {
     Hand { hand: Option<AnmObj>, offset: V4 },
 }
 
-/// A level 3-4 upheaval piece (a `ccDrawElement` in the element manager).
-///
-/// ```text
-/// rock / tree Draw (gcmn 0x004fc7c0 / 0x004fcee0): drawn at
-///   PosRotZYXScale; its height from -1170 rising at 100 slowing by 1.1 a
-///   frame to count 14, bouncing back by half to 17, still to 27, then
-///   sinking at 10; fading in by 1/8 a frame; at 14 it bursts
-///   (effUpheavalFragment 2 and effUpheavalFlash 6 at 40,
-///   effRadiateSomething2 4 at 45; the rock also a ring 202 under it) and
-///   fades out by 0.1 a frame from 28, then m_delFlag
-/// hand Draw (0x004f8de0): the rise from -500 at 45 (all three speeds),
-///   the same slowing and bounce, ccSeOn3D(56) at 17, still to 60, then
-///   sinking; fades in by 1/6, out by 0.1 from 14, m_delFlag once gone after
-///   61
-/// ```
+/// A level 3-4 upheaval piece (a `ccDrawElement` in the element manager): the
+/// rock and tree (Draw gcmn 0x004fc7c0 / 0x004fcee0) rise from -1170, the hand
+/// (0x004f8de0) from -500, slow and bounce, burst or sound at 14 to 17, and
+/// sink and fade (docs/engine/effects.md, "UpheavalSystem").
 #[derive(Clone, Debug, PartialEq)]
 pub struct UpheavalPart {
     pub base: Base,

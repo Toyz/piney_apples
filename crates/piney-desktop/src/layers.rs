@@ -1,17 +1,10 @@
-//! `ccLayer` draw order (`docs/engine/desktop.md`, "Draw order").
-//!
-//! - Layers go to the GS in ascending priority, so a higher priority is on
-//!   top (`ccLayer::Add` 0x00108930 keeps the list sorted, `AddAll`
-//!   0x00108570 splices each layer after the root).
-//! - Within a layer, `ccSprite::SendPacket` and opaque model chains are
-//!   **prepended** (0x0015ac88, 0x0013f180): the last sent is drawn first.
-//! - A layer's sorted group (translucent mmats, one node per model, keyed
-//!   as `anm::sort_key` says) follows in ascending key, the later of equal
-//!   keys first (`ccDLSort::Add` 0x001081d0, `StoreDLNode` 0x00108100).
-//! - Of two layers of one priority the newer goes first: `Add` puts a new
-//!   layer after the equal ones in the root list (kept in descending
-//!   priority) and `AddAll` reverses it. sysLayer, made at start-up, draws
-//!   after a field's objLayer (both 0): [`Layers::older`].
+//! `ccLayer` draw order (`docs/engine/desktop.md`, "Draw order"). Layers go
+//! to the GS in ascending priority (`ccLayer::Add` 0x00108930, `AddAll`
+//! 0x00108570); within a layer sprites and opaque model chains are prepended
+//! (0x0015ac88, 0x0013f180: the last sent is drawn first), then the sorted
+//! group in ascending key, the later of equal keys first (`ccDLSort::Add`
+//! 0x001081d0). Of two layers of one priority the newer goes first, so
+//! sysLayer draws after a field's objLayer (both 0): [`Layers::older`].
 
 use std::collections::BTreeMap;
 

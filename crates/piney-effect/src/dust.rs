@@ -1,37 +1,10 @@
-//! Smoke and dust: `effSmoke` (main effect.cpp), one particle of smoke
-//! on effect.cpp's static `ccpgSmoke`, and gcmn's enemy dust built on it
-//! (`ccEnemyEffDust`, `ccEnemyEffDustRing`), which an enemy's feet
-//! (`ccEnemyDustCtrl`), a gold goblin's run and an idol opening raise.
-//!
-//! ```text
-//! effSmoke(pos, v, s, life, t, in, out)  (main 0x001ce300)
-//!     rn = rand() >> 3
-//!     ccParticleSetup(t, pos, (int)(life - 0.5 life (rn % 101) / 100), 0,
-//!       ccpgSmoke)
-//!     velocity v, speed |v|, size and scale x, y s, fadeInD in, fadeOutD
-//!     out, rotate[3] (rn >> 3) & 0xfff0; answers 1 (0 with no slot)
-//! ccEnemyEffDust(p, n, s, life, t)       (gcmn 0x0043a3e0; the three-
-//!   argument one 0x0043a3b0 with life 30, t 109) n puffs, each:
-//!     M = Rz(ccRandF(pi))
-//!     effSmoke(p + M (10 s, 0, 0), M (s / 2, 0, 0) + (0, 0, s / 4), s, life,
-//!       t, 512, 32)
-//! ccEnemyEffDustRing(p, s, r, n, life, t) (gcmn 0x0043a590) under 4: the
-//!   dust above; else a ring of n puffs from a = ccRandF(pi) on by 2 pi / n
-//!   (less 2 pi past pi): effSmoke(p + Rz(a) (r, 0, 0), Rz(a) (s, 0, 0) +
-//!   (0, 0, s / 4), s, life, t, 512, 32)
-//! ccEnemyEffDustRing(ch, ofs, s, r, n, life, t)  (gcmn 0x0043a7a0) the ring
-//!   at FW2LW(ch's pos) + Rot(ch's dirc) ofs
-//! ccEffPawSmoke(ch, speed)  (main 0x001ce640) a runner's dust:
-//!     p = the lower of "OBJ_t0 l foot" and "OBJ_t0 r foot" (their LW
-//!       matrices' places)
-//!     the ground under p (ccLandHitCheck, checkHitResultAttlibute & 0xf0f0f0):
-//!       water and grass (0xb0c000, 0xc0d000, 0x60b0d0, 0x70c0e0, 0x8080f0)
-//!       none; the grey and dark grounds texture 4, else 133
-//!     v = Rz(dirc.z) (0, 0.1 (0.0375 -speed) (10 - rand() % 5), 0)
-//!     rn = rand() >> 3; ccParticleSetup(t, p, (int)(10 - 5 (rn % 101) /
-//!       100), 0, ccpgPawSmoke); velocity v, speed |v|, size and scale x, y
-//!       1.5, fadeInD 1024, fadeOutD 64, rotate[3] (rn >> 3) & 0xfff0
-//! ```
+//! Smoke and dust: `effSmoke` (main 0x001ce300), one particle of smoke on
+//! effect.cpp's static `ccpgSmoke`; gcmn's enemy dust built on it
+//! (`ccEnemyEffDust` 0x0043a3e0, `ccEnemyEffDustRing` 0x0043a590 and
+//! 0x0043a7a0), which an enemy's feet, a gold goblin's run and an idol
+//! opening raise; and a runner's dust, `ccEffPawSmoke` (main 0x001ce640) on
+//! `ccpgPawSmoke`. The rules are in docs/engine/effects.md ("Smoke and
+//! dust").
 
 use crate::ee::{self, F, ONE, V4};
 use crate::{Cx, particle, portal, space, vu};

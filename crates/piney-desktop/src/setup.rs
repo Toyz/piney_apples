@@ -1,20 +1,10 @@
 //! What shows while `ccSetupDesktop` (0x00168320) runs the event passes at
-//! phases 0 and 2, before the desktop exists (`docs/engine/desktop.md`,
-//! "Setup and the task"): a black frame (the clear colour, `ccSys +0x18`
-//! 0, with nothing else drawn) and, on a new game, event 1's setup lines
-//! in a message window the event makes and draws itself.
-//!
-//! Each setup `message` (the event's code at 0x001a930c) makes its own
-//! layer 242 (framed as the menu layer), a fresh `ccMessage` and `Change`s
-//! it; after each of its breaths the event calls `Disp`, then from the
-//! tenth frame polls `Check`. When `Check` answers, `Disp` goes on for 15
-//! more frames (8 for `info`), two frames draw nothing, and the event
-//! deletes the window. There is no dim.
-//!
-//! The runtime calls [`SetupScreen::step`] at the start of each frame
-//! (the event's `Disp` comes before its `Check` in a frame), then runs the
-//! event pass, which opens, checks and closes through the same methods
-//! [`crate::Desktop`] has.
+//! phases 0 and 2, before the desktop exists (`docs/engine/desktop.md`, "Setup
+//! and the task"): a black frame and, on a new game, event 1's setup lines in
+//! a message window the event makes and draws itself (0x001a930c: its own
+//! layer 242, `Disp` after each breath, `Check` from the tenth frame). The
+//! runtime calls [`SetupScreen::step`] at the start of each frame, then runs
+//! the event pass through the same methods [`crate::Desktop`] has.
 
 use std::sync::Arc;
 

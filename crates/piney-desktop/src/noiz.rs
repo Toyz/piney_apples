@@ -1,21 +1,11 @@
 //! The screen breaking up: main's frame-buffer effects and `ccNoiz`
 //! (0x001bb080), which drives them for the field menu (`docs/engine/stream.md`,
-//! "Effects"; `docs/engine/field-ui.md`, "The noise").
-//!
-//! - `ccRasterNoize` ([`Band`]): a band of up to 32 frame rows copied out of
-//!   the draw buffer and drawn back a row at a time, each row shifted
-//!   sideways by its own offset.
-//! - `ccBufferSampling` ([`Sampling`]): the last frame's picture, a little
-//!   larger, blended over this one.
-//! - `ccBufferReverce` ([`reverse_prim`]): the frame inverted.
-//!
-//! The streams' effect tasks keep their own set of these
-//! (`piney_stream::effect`). `ccNoiz` ([`Noiz`]) keeps eight bands, a
-//! sampling and an inversion on a layer of its own ([`NOIZ_LAYER`]), each
-//! drawn while its frame counter runs: `ccMenuCtrl`'s (+0xe8) is the field
-//! menu's, which the Data Drain, the gate hack and the events' `noise`
-//! instructions set. `ccDtMenu`'s is never set, and `ccGameOverNoise`'s is
-//! not ported.
+//! "Effects"; `docs/engine/field-ui.md`, "The noise"): `ccRasterNoize`
+//! ([`Band`], up to 32 frame rows each shifted sideways), `ccBufferSampling`
+//! ([`Sampling`], the last frame a little larger, blended over) and
+//! `ccBufferReverce` ([`reverse_prim`], the frame inverted). [`Noiz`] keeps
+//! eight bands, a sampling and an inversion on [`NOIZ_LAYER`]; `ccMenuCtrl`'s
+//! (+0xe8) is the field menu's; `ccGameOverNoise`'s is not ported.
 
 use piney_data::anim::ee;
 use piney_draw::{

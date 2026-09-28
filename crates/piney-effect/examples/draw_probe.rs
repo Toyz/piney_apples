@@ -1,30 +1,10 @@
-//! Answers `tools/test_effect_draw_rs.py`: `ccEff::Draw` and `mc_DrawEff`
-//! as the port runs them ([`Eff::packet`], [`Eff::render`]) on the sprites
-//! it is sent, one JSON line each, so the test can compare them with the
-//! game's own `Draw` in eemu and `mc_DrawEff` in `tools/vu.py`.
-//!
-//! ```text
-//! cargo build -p piney-effect --example draw_probe
-//! draw_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns, matrices as 16
-//! words, column by column. Requests, one a line:
-//! - `view WV.. WS..`: the view's `world_view` and `world_screen`; answers
-//!   the `fview` the port derives.
-//! - `env NEAR FAR FOGNEAR FOGFAR NEARRATE FARRATE COLOUR TEX1 ZBUF`: the
-//!   view's w range, `ccDrawEnv::SetFog`'s arguments, the draw
-//!   environment's TEX1 and ZBUF; answers fMin, fMax, fogA, fogB, the
-//!   colour.
-//! - `eff FILE CHUNK PAT X0 Y0 X1 Y1 PX PY PZ PW SX SY ROT COLOUR TRANSP WH
-//!   ALPHA TEST FLAG PRIM`: a `ccEff` of Eff chunk CHUNK of effect file
-//!   FILE with those fields drawn with pattern PAT; answers the packet (or
-//!   null) and the primitives `render` puts in a layer.
-//! - `clump FILE NAME M.. ALPHA`: the CMP_ object NAME of effect file FILE
-//!   at matrix M after `SetTransparency(ALPHA)`; answers each model drawn:
-//!   its Obj and MDL_ names, world matrix and transparency.
-//! - `anm FILE NAME STEPS SPEED M.. ALPHA`: the ANM_ object NAME stepped
-//!   STEPS times at SPEED, at matrix M with localtp ALPHA; answers the same.
+//! Answers `tools/test_effect_draw_rs.py`: `ccEff::Draw` and `mc_DrawEff` as
+//! the port runs them ([`Eff::packet`], [`Eff::render`]) on the sprites it is
+//! sent, one JSON line each, so the test can compare them with the game's own
+//! `Draw` in eemu and `mc_DrawEff` in `tools/vu.py` (`draw_probe ISO <
+//! requests`). Numbers are hex; floats travel as their bit patterns, matrices
+//! as 16 words, column by column. The requests are `view`, `env`, `eff`,
+//! `clump` and `anm`, with the arguments the test sends.
 
 use std::io::BufRead;
 

@@ -1,28 +1,11 @@
 //! The seam to the event engine: the game's own `ccSaveData` record
-//! ([`piney_data::save::SaveData`], shared with the event scripts) and the
-//! two members of `ccEvent` the desktop touches.
-//!
-//! Event scripts deliver mail (`mail n` etc., `ccSaveData::NewMail`), unlock
-//! wallpapers and music, and lock icons (`ccEvent.operate`); the desktop
-//! marks mail seen, read and replied, and records which icon the player
-//! tried (`ccEvent.operateSet`). The `ccSaveData` members it reads and
-//! writes, by DWARF offset:
-//!
-//! | offset | member | desktop use |
-//! | --- | --- | --- |
-//! | +0x0000 | `plName[24]` | `#0` in text |
-//! | +0x0018 | `plRealName[24]` | `#1` in text |
-//! | +0x2236 | `dtWallpaper` | the wallpaper (`WallTbl` index) |
-//! | +0x2237 | `dtBgm` | the music (`Wave` index) |
-//! | +0x2238 | `dtWallpaperList[3]` | wallpapers unlocked, a bit each |
-//! | +0x2244 | `dtBgmList[3]` | music unlocked, a bit each |
-//! | +0x2250 | `dtStrList[5]` | streamed pieces unlocked |
-//! | +0x2264 | `mailList[512]` | each mail's [`MailState`] |
-//! | +0x2464 | `mailOrderList[512]` | delivery order, -1 empty |
-//! | +0x2864 | `webnewsList[128]` | each headline's state |
-//! | +0x840e | `assignPADok` | the decide button |
-//! | +0x8410 | `assignPADcancel` | the cancel button |
-//! | +0x842b | `parodyFlag` | MailTblp / ReMailp for text |
+//! ([`piney_data::save::SaveData`], shared with the event scripts) and the two
+//! members of `ccEvent` the desktop touches (`operate`, `operateSet`). The
+//! scripts deliver mail and unlock wallpapers and music; the desktop marks
+//! mail seen, read and replied. It reads and writes `plName`, `plRealName`,
+//! `dtWallpaper`, `dtBgm`, the unlock bits, `mailList` ([`MailState`]),
+//! `mailOrderList`, `webnewsList`, `assignPADok` / `assignPADcancel` and
+//! `parodyFlag` (their offsets are in docs/formats/save.md).
 
 pub use piney_data::save::{InitText, MAIL_SLOTS, MAX_WAVE_NUM, ORIGINAL_WALL_1, SaveData, offset};
 /// `assignPADaction` (+0x8404): the first of the eleven button assignments.

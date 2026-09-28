@@ -1,34 +1,11 @@
 //! Answers `tools/test_boss_effect_rs.py`: makes the boss's effects
-//! (`piney_effect::boss`) on the requests it is sent, runs the manager's
-//! pass frame by frame, and prints each answer as one JSON line, so the
-//! test can run the same through the game's own `ccBossEff*Create` and
-//! `Draw` in eemu.
-//!
-//! ```text
-//! cargo build -p piney-effect --example boss_probe
-//! boss_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests, one a
-//! line:
-//! - `reset SEED`: no effects, a field's effect slots, `rand` seeded with
-//!   SEED, `ccRand` counted from 0.
-//! - `player X Y Z`, `camera EX EY EZ VX VY VZ`: `plw`'s position; camera
-//!   0's eye and the point it looks at (`cameraGetRot`).
-//! - `wave P(4) D(4) S`, `square P(4) N`, `force P(4) R(4) SPEED R0 R1 NUM
-//!   LIFE CLT`, `ring P(4) R(4) Q(4) N`, `ice P(4) S`, `dead P(4)`: the
-//!   Create; answers the slot, the events and the generators started.
-//! - `frame`: one manager pass; answers the draws, events, generators
-//!   started, every started generator's `killFlag`, the lights, each
-//!   slot's `m_bEnabled`, the effect slots in use (the ice rocks), `rand`'s
-//!   state and the `ccRand` count.
-//! - `lattice COLS TYPE`, `lnext`, `lpos X Y Z W COL`, `ldisp`, `lclear`,
-//!   `lcnt`, `ltype T`: the cross's and the weapons' trails
-//!   (`piney_world::lattice`): `new ccLattice`, `NextVertex`, `SetPos`,
-//!   `Disp`, `ClearArmsEffect`'s flag, `ClearCnt`, `_SetArmsEffectColor`'s
-//!   type; each answers the lattice (head, tail, each row's
-//!   life and vertices, rows made, full, the first-row flag), `ldisp` also
-//!   the strip it sent (each vertex's RGBA and ADC) and its sort key.
+//! (`piney_effect::boss`) on the requests it is sent, runs the manager's pass
+//! frame by frame, and prints each answer as one JSON line, so the test can
+//! run the same through the game's own `ccBossEff*Create` and `Draw` in eemu
+//! (`boss_probe ISO < requests`). Numbers are hex; floats travel as their bit
+//! patterns. The requests (`reset`, `player`, `camera`, the Creates `wave`,
+//! `square`, `force`, `ring`, `ice`, `dead`, `frame`, and the lattice's
+//! `lattice`, `lnext`, `lpos`, `ldisp`, `lclear`, `lcnt`, `ltype`) are the test's.
 
 use std::cell::Cell;
 use std::io::BufRead;

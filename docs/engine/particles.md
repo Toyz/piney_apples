@@ -405,7 +405,8 @@ effect's pos/rot/posT) and `IntRef` (an int `off` bytes into a character,
 or an effect's `temp[k]`, which `effDrain`'s orbs clear to stop their
 trails), read each frame.
 The tables are read from the executable at start (`Assets::particle`),
-`Setup`'s texture switch decoded from its code. `Effects::new` installs the
+`Setup`'s texture switch decoded from each volume's code (Outbreak and
+Quarantine recompiled it). `Effects::new` installs the
 four static generators. The doubles of `ccSetQuaternion` are fdlibm's `sin`
 and `cos` in host doubles (fp-bit rounds like them). A deleted generator a
 particle still names is kept until none does.

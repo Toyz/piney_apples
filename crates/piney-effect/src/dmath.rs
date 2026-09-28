@@ -1,16 +1,9 @@
-//! The maths the drain's homing orbs reach for that `piney_data::libm`
-//! lacks: newlib's `acosf` (`__ieee754_acosf`, main 0x00123b38) on the EE
-//! FPU's rules, and the double-precision `sin` (0x001274c8) and `cos`
-//! (0x00126ee0) with their kernels (`__kernel_sin` 0x001259b0,
-//! `__kernel_cos` 0x00124b88, `__ieee754_rem_pio2` 0x00123260).
-//!
-//! The EE has no double-precision unit: `sin` and `cos` run on the
-//! compiler's soft-float routines (`dpadd` 0x0012a1b0, `dpsub`, `dpmul`
-//! 0x0012a270, `dptofp` 0x0012a990, `fptodp` 0x00129cc8), which round to
-//! nearest like IEEE doubles, so `f64` arithmetic in the same order gives
-//! the same bits (checked against the game's own routines in eemu by
-//! `tools/test_effect_misc_rs.py`). `acosf` is single precision on the
-//! FPU: each operation is [`crate::ee`]'s, in the compiled order.
+//! The maths the drain's homing orbs reach for that `piney_data::libm` lacks:
+//! newlib's `acosf` (`__ieee754_acosf`, main 0x00123b38) on the EE FPU's
+//! rules, and the double-precision `sin` (0x001274c8) and `cos` (0x00126ee0)
+//! with their kernels. The EE's soft-float doubles round like IEEE ones, so
+//! `f64` in the same order gives the same bits; `acosf` is [`crate::ee`]'s
+//! single-precision operations in the compiled order (docs/engine/effects.md).
 
 use crate::ee::{self, F, ONE};
 

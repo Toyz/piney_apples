@@ -241,23 +241,14 @@ pub fn fog_word(fog: Option<piney_draw::Fog>) -> u32 {
     })
 }
 
-/// One mmat of a model drawn through VU1: its triangles.
-///
-/// With `reject_outside`, a triangle with a vertex outside the GS space or
-/// behind the camera is dropped whole (the lit and skinned programs).
-/// Without it, as `mc_DrawTriSFast` (0x0fe, the unlit rigid program): a
-/// triangle with every vertex inside the GS space and the w range is drawn;
-/// one that is not is cut at the near plane [`NEAR_W`] (the scissor's other
-/// planes, the GS space's edges, left to the rasteriser's clipping) when its
-/// last strip vertex has w below `div_z` (the view's `divZ`,
-/// [`piney_draw::ModelDraw::div_z`]), and dropped otherwise.
-///
-/// Vertex alpha is VU1's: the unlit programs write `trunc(A * t)` of the
-/// stored vertex alpha, the lit ones `trunc(0x80 * t)`. Texture coordinates
-/// are `(S + row) / 256`, STROW added to the stored S and T. `morphed`:
-/// the rigid positions `ccMorpher::Modify` left in place of the stored
-/// ones (`Model::morph`), or the heights the EE wrote into them
-/// (`piney_draw::VertexEdits`); `colours` the vertex colours it wrote.
+/// One mmat of a model drawn through VU1: its triangles. With
+/// `reject_outside` (the lit and skinned programs) a triangle with a vertex
+/// outside the GS space or behind the camera is dropped whole; without it, as
+/// `mc_DrawTriSFast` (0x0fe), one not wholly inside is cut at [`NEAR_W`] when
+/// its last strip vertex has w below `div_z` ([`piney_draw::ModelDraw::div_z`])
+/// and dropped otherwise. Vertex alpha is VU1's (`trunc(A * t)` unlit,
+/// `trunc(0x80 * t)` lit); texture coordinates `(S + row) / 256`. `morphed`
+/// and `colours` are what the EE wrote over the stored ones.
 #[allow(clippy::too_many_arguments)]
 pub fn mmat(
     m: &Model,

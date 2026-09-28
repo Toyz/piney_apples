@@ -647,6 +647,19 @@ bit 1 after (not with `game.status` 7, the stream viewer). Its fades are
 
 Stream 9 has an after case that does nothing.
 
+Mutation, Outbreak and Quarantine have their own switch (MUT 0x0017f870,
+OUT 0x0017f2c0, QUA 0x0017f220; Quarantine's is Outbreak's). Before:
+118-125 sequence 0 to half; 25, 26 sequence 0 out, playing on; 57, 132
+sequence 1 out, stopped; 87, 134 sequence 0 out, stopped; 126, 131 sequence
+0 out, stopped (Outbreak on: sequence 1 instead while the battle music plays,
+`ccSnd +0x60`); 56 the battle switch; 133 the battle switch and
+`sqStatus[1]` 1; 8, 58, 127-130 the hand-over (8's before). After: 118-125
+sequence 0 back; 113 (the Chaos Gate, Infection's 107) in area 16 sequences 0
+and 2 again; 3, 25, 26, 134 sequence 0 in; 87, 131 sequence 1 in; 133 the
+battle switch on, sequence 1 stopped and sequence 0 in; 132 (Outbreak on) the
+battle switch on and sequence 0 in; 8 sequences 0 and 1 stop; 12 sequence 1
+plays; 13 as Infection's.
+
 A stream's note of event 4 goes to `ccSndStreamSE` (0x0017caa0), which,
 with +0x62 clear and +0xe8 set, calls `ccSndStreamBGM(param)` (0x0017cb20);
 events 1-3 do nothing, and `strse` (+0xe4) is not read there.

@@ -1,51 +1,10 @@
-//! The summons' levels 3 and 4: `ccSummonsElementGenerate` (gcmn
-//! 0x005006b0) and what it makes - `ccSummonsSystemElement`, which holds
-//! the magic circle (`ccMagicCircleElement`, in the element manager) and
-//! runs the summoned element's own class, and `effEnergyGrow`'s rising
-//! sparks (`ccEnergyGrowElement`).
-//!
-//! ```text
-//! SummonsSystem at count 30, level 3+ (not 289, 290): the system element
-//!   (m_effElm); the skill ends once it is deleted
-//! new ccSummonsSystemElement(skill, attr, level) (0x004ed180): at tPos;
-//!   the element's class (fire ccFireSummonElement, water
-//!   ccWaterSummonsElement, thunder ccThunderSummonsElement, wind
-//!   ccTreeSummonsElement, dark ccDarkSummonsElement, soil
-//!   ccSoilSummonsElement, any other ccGoblinSummonsElement); the circle
-//!   10 above tPos growing to 5 by 1/3 and fading in by 1/15;
-//!   effEnergyGrow (the element's sparks, 80 a level, life 60);
-//!   ccSeOn3DNote(56, pos, 72)
-//! Main (0x004ed840): the circle's fade done, a count; at 60 the circle
-//!   fades out over 30 frames, then is deleted; from count 30 the summoned
-//!   element's Main until it is deleted, then (the circle gone) m_delFlag
-//! ```
-//!
-//! The summoned elements, each `Main` under the system element's:
-//!
-//! ```text
-//! fire (0x004f1570 / 0x004f1b00): 1, 2, 4, 16 explosions (ccExplodeElement)
-//!   280 above the target (level 2+: 100-600 out at random), 2.5 frames
-//!   apart, each with a ring 162; as each goes off ccElementShock, sounds,
-//!   noise and a shake, the first ccSkillDamage2
-//! water (0x004f1c70 / 0x004f2320): level 3 a level-4 ice fall
-//!   (ccFallElement) and rings 161; level 4 16 bubbles (ccBubbleElement)
-//!   round the point 280 above the target, 2.5 frames apart, each bursting
-//!   into ice (effRadiateSomething2) and a ring
-//! thunder (0x004f25f0 / 0x004f30a0): six bolts (ccThunderElement) from
-//!   2000 up to round the target; level 4 first two small bolts every 8
-//!   frames for 60 frames, each with an explosion and a ring 195
-//! dark (0x004f3510 / 0x004f3f80): a dark ball 580 up; level 3 32 bats
-//!   (ccDarkBatElement) out and back along splines; level 4 four light
-//!   balls along splines, bursting on their fourth leg
-//! soil (0x004f4d10 / 0x004f5390): 16 or 32 rocks (ccRockElement) 1000-1500
-//!   out flying in faster and faster, bursting at the target
-//! wind (0x004f5850 / 0x004f6420): the great tree (CMP_x401b_1, ANM_x403)
-//!   growing and its leaves falling; level 4 32 needles (ccNeedleElement)
-//!   along splines
-//! none (0x004f7020 / 0x004f79e0): level 3 eight falling stars
-//!   (ccStarElement); level 4 stars along splines (their entry reads past
-//!   its array in the game: see `goblin_entry`)
-//! ```
+//! The summons' levels 3 and 4: `ccSummonsElementGenerate` (gcmn 0x005006b0)
+//! and what it makes - `ccSummonsSystemElement` (ctor 0x004ed180, Main
+//! 0x004ed840), which holds the magic circle (`ccMagicCircleElement`, in the
+//! element manager) and from count 30 runs the summoned element's own class
+//! by element (fire, water, thunder, dark, soil, wind, none), and
+//! `effEnergyGrow`'s rising sparks (`ccEnergyGrowElement`). The classes are
+//! in docs/engine/effects.md ("SummonsSystem").
 
 use piney_data::volume::Volume;
 

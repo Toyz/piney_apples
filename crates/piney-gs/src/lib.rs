@@ -1,35 +1,11 @@
-//! Draws [`piney_draw::Frame`]s as the GS draws them, on wgpu.
-//!
-//! The frame buffer is the game's own, [`Frame::width`] x [`Frame::height`]
-//! (512 x 448), 8 bits a channel in the art's gamma, as the GS keeps it: the
-//! GS blends in that space, so the target is not sRGB and nothing is
-//! linearised until [`Presenter`] puts it on screen, stretched to 4:3 as a
-//! television shows it.
-//!
-//! - **Geometry** is the CPU's ([`convert`]): sprites, strips and fans become
-//!   triangles, flat shading takes each triangle's last colour, and models
-//!   go through their matrices into clip space with w kept, so textures are
-//!   perspective-correct as the GS's STQ makes them. Everything moves half a
-//!   pixel, because the GS draws a pixel when its top-left corner is inside
-//!   and wgpu when its centre is.
-//! - **Pixels** are the shader's: the texture function (MODULATE, DECAL,
-//!   HIGHLIGHT, HIGHLIGHT2) with 0x80 = 1.0 colours, TCC, and the alpha test.
-//! - **Blending** is the pipeline's: the ALPHA register's
-//!   `((A - B) * C >> 7) + D` as blend factors ([`convert::blend_state`]),
-//!   FIX as the blend constant, and GS Z as depth the same way round
-//!   (`z / 2^32`, larger nearer, where floats keep their precision).
-//!
-//! - **The frame buffer as a texture**: a command textured with
-//!   [`TexRef::FrameBuffer`] ends the render pass, its rectangle of the
-//!   target is copied to a texture of its own, and drawing goes on in a new
-//!   pass that keeps what is there; [`TexRef::PreviousFrame`] is a copy of
-//!   the whole target taken before the frame's clear, the last frame as it
-//!   was left.
-//!
-//! Not modelled: a failing alpha test's FB_ONLY / RGB_ONLY still writing
-//! depth and alpha (they write colour, as they should, and the rest too),
-//! dithering, and 8-bit rounding inside the pixel pipeline (the shader works
-//! in floats).
+//! Draws [`piney_draw::Frame`]s as the GS draws them, on wgpu, into the game's
+//! own 512 x 448 frame buffer in the art's gamma (only [`Presenter`]
+//! linearises, stretching to 4:3). Geometry is the CPU's ([`convert`], moved
+//! half a pixel for the top-left rule); pixels the shader's; blending the
+//! pipeline's ([`convert::blend_state`], GS Z as depth). A frame-buffer
+//! texture ends the render pass and copies its rectangle. Not modelled: a
+//! failing alpha test's FB_ONLY / RGB_ONLY sparing depth and alpha (here they
+//! write them with the colour), dithering, 8-bit rounding in the pipeline.
 
 pub mod assets;
 pub mod convert;

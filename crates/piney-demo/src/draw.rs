@@ -1,28 +1,11 @@
 //! How the title draws a `ccAnm`: `ccAnm::Draw` (0x001524d0) through
 //! `ccObj::Draw` (0x0013f220) and `ccModel::Draw` (0x0013eab0), as
-//! `piney_desktop::anm` ports them, on the title's layer and with the
-//! title's light.
-//!
-//! Two things differ from the desktop's draw, which is why this is not
-//! `piney_desktop::anm::Anm::draw`:
-//!
-//! - **The layer.** `SetBootMemCard` and `AllDraw` make `sysLayer`
-//!   (0x00379b10, priority 0, set up by `InitCCSys` with the default view)
-//!   `ccLayer::active`; every title animation draws there, under the
-//!   Data_Control dialogs (layer 130) and the fader (240).
-//! - **Light.** The icons (`MDL_xdt_ico_*`) are lit models (mtype bit 0).
-//!   `ccOpening_Control::Init` (0x00405f50) puts one `ccOmniLight` (type 4,
-//!   priority 1, colour `ccSetColor(0xffffff, 1.0)` = white, intensity 1,
-//!   no fall-off) at (-8500, 0, 6500) in `cc3d`'s light group, and
-//!   `ccSetupDemo`'s `ccDrawEnv::Reset` leaves the ambient at
-//!   `ccDefAmbientColor` (0.35, 0.35, 0.35). For a lit model
-//!   `ccDrawEnv::SetLightMatrix` (0x00105900) asks each light
-//!   (`ccOmniLight::CheckRange` 0x00139830) for its direction from the
-//!   object's world position; it sorts the omni light into slot 2;
-//!   `sceVu0NormalLightMatrix` negates and normalises it (toward the light);
-//!   `ccSetMatrixPacket` multiplies it by the object's `lwMatrix` into model
-//!   space and VU1's `mc_SetMatrix` renormalises it and doubles the light
-//!   colours (not the ambient).
+//! `piney_desktop::anm` ports them, but on `sysLayer` (0x00379b10, priority 0)
+//! under the dialogs (130) and the fader (240), and with the title's light:
+//! one white `ccOmniLight` at (-8500, 0, 6500) from `ccOpening_Control::Init`
+//! (0x00405f50) and the ambient `ccDefAmbientColor` (0.35, 0.35, 0.35), which
+//! light the icons (`MDL_xdt_ico_*`). See docs/engine/title.md ("The 3D
+//! draw").
 
 use glam::{Mat3, Mat4, Vec3};
 use piney_desktop::anm::{

@@ -1,52 +1,11 @@
-//! A stream's own effect task: `ccSetStreamDemoThread` (0x001979c0) starts
-//! the task `StreamDemoFuncTbl` (0x0034f420) names for the scene, priority
-//! 96, and the scene's 0x8010 notes cue it (`docs/engine/stream.md`,
-//! "Effects"). Ported: stream 2's `Func_str0001` (0x001885d0), stream 5's
-//! `Func_str0120` (0x001950b0, Skeith and Orca) and stream 10's
-//! `Func_str0300` (0x00189e10, the first Data Drain), [`Task`].
-//!
-//! Each task keeps a `ccStrEffectCtrl` ([`Ctrl`]): eight raster-noise bands,
-//! a screen fade, a feedback (the last frame drawn over this one, larger), a
-//! colour inversion and buffer shades; what differs is the start and which
-//! cue does what. `Func_str0300` starts with everything off, draws its
-//! feedback on its own layer, and reads a cue by its last digit (1 noise
-//! on, 2 off, 3 inversion on, 4 off, 5 feedback, 6 off, 7 and 8 a one-frame
-//! white flash) but for 55, 75 (feedbacks of other scales and weights) and
-//! 999 (to white). `Func_str0120` is the same with its own map: feedbacks
-//! that hold, then fade out (5, 610-614), fades from and to white and to
-//! black (800, 999, 899), the view's `divZ` to 500 (12), and hit marks
-//! (`effHitMarkStr`, 601-603 and 610-614) at the note's object, which the
-//! port reports ([`HitMark`]) but does not draw.
-//!
-//! The task runs once a game frame after the scene's own task (priority 24):
-//! it takes the cues queued this frame (last first), updates its effects and
-//! sends their packets, then breathes. Its first pass is in the frame before
-//! the scene's first drawn one, and it stops when the scene's
-//! `DelSceneObject` clears state 0x40: one pass into the scene's two gap
-//! frames after a natural end, none after a skip.
-//!
-//! What `Func_str0001` does:
-//! - **At start.** `OBJ_se1_6flo1`'s model stops writing Z
-//!   (`ccObj::SetRenderState(CCRS_ZWRITEENABLE, 0)`: TEST NEVER / FB_ONLY);
-//!   the scene's draw environment fogs to black from 7,500 to 20,000
-//!   (`ccDrawEnv::SetFog`) except on the four [`FOG_OFF`] objects; eight
-//!   `ccRasterNoize` bands are set up on its own layer ([`EFFECT_LAYER`]),
-//!   drawing 8 x 27 numbers from `rand`; the feedback
-//!   (`ccBufferSampling::SetReflex(1.015, 0, 0x58808080)`) goes on on
-//!   `LYR_jm`; and a fade in from black over 30 frames starts (`ccScFade`,
-//!   on the font layer).
-//! - **Cues.** 5, 6, 15: the feedback again at alpha 0x58, 0x50, 0x60. 11:
-//!   the raster noise starts, each band at a random row, height, drift and
-//!   life; 12: it stops. 999: a fade to white over the frames left. Any
-//!   other (800, 16 in `str0001`): nothing.
-//! - **Each frame.** The feedback (the previous frame's picture 1.5% larger,
-//!   blended over the current one); the fade; the noise when on: each band
-//!   new offsets for its rows from `rand`, drifting a sixteenth of its speed
-//!   a frame, a new band when its life runs out.
-//!
-//! Its `ccBufferReverce` (colour inversion) is never switched on and its
-//! `ccBufferShade_sc` has no entries: neither draws. The fog is the
-//! scene's ([`Scene::fog`]), taken at each model's centre.
+//! A stream's own effect task: `ccSetStreamDemoThread` (0x001979c0) starts the
+//! task `StreamDemoFuncTbl` (0x0034f420) names for the scene, priority 96, and
+//! the scene's 0x8010 notes cue it. Each [`Task`] keeps a `ccStrEffectCtrl`
+//! ([`Ctrl`]: raster-noise bands, a fade, a feedback, an inversion, shades);
+//! what differs is the start and which cue does what. The task runs once a
+//! game frame after the scene's task (24), taking this frame's cues last
+//! first, and stops when `DelSceneObject` clears state 0x40. The tasks and
+//! their cues are in docs/engine/stream.md ("Stream 2's effect task" on).
 
 use crate::file;
 use crate::scene::{Loaded, Scene, SceneFog};
@@ -1318,15 +1277,11 @@ impl Str0570 {
         Str0570 { ctrl: Ctrl::new(Some(EFFECT_LAYER), rand), transfers: Vec::new() }
     }
 
-    /// One pass. First the scene's frame: at 1455 a fade from white over 10
-    /// frames, at 1470 the fade gone (`DeleteFade`, off). Then the cues
-    /// (last queued first): 500 a transfer; 999 a fade to white over the
-    /// frames left; 55 the feedback on (1.015, alpha 0x40) with a 32-frame
-    /// fade ready, 45 the same without; 25 (1.001, alpha 0x61) with a
-    /// 64-frame fade ready, 15 without. The rest by their last digit (jump
-    /// table 0x0034e460): 1 the noise on, 2 off, 3 the inversion on, 4 off,
-    /// 5 the feedback on (1.015, alpha 0x50), 6 fading, 7 and 8 a one-frame
-    /// flash to and from white. Then [`Ctrl::pass`].
+    /// One pass: at scene frame 1455 a fade from white over 10 frames, gone at
+    /// 1470; then the cues, last queued first: 500 a transfer, 999 to white,
+    /// 55 / 45 and 25 / 15 the feedback with or without a fade ready, the rest
+    /// by their last digit (jump table 0x0034e460: noise, inversion, feedback,
+    /// a one-frame flash). Then [`Ctrl::pass`].
     pub fn step(&mut self, cues: &[Cue], frame_now: u32, frame_end: u32, paused: bool, rand: &mut Rand) -> Draws {
         let c = &mut self.ctrl;
         if frame_now == 1455 {

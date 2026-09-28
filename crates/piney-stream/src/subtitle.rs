@@ -1,38 +1,11 @@
-//! The subtitles under an event's stream: `ccEventStream(num, 1)`
-//! (0x001b5670), the event instruction `stream`, shows the lines of
-//! `evStrMsgTbl[num]` (0x003112f0; `evStrMsgTblp` 0x00311510 in Parody
-//! Mode) in a speech window while the stream plays (`docs/engine/stream.md`,
-//! "Subtitles").
-//!
-//! The table is `evStrMsgTbl[num]`: a pointer per stream (NULL for none) to
-//! 12-byte records, indexed by the scene's notes:
-//!
-//! ```text
-//! EVSTRMSG    0x0c bytes
-//!   +0x00 u32   flag   0x800: shown even with Movie Text off
-//!   +0x04 char *name   the speaker ("Orca", "#0" the player), may be NULL
-//!   +0x08 char *text   three NUL-separated lines (ccKanjiStrSeparate)
-//! ```
-//!
-//! With a table, the call makes a layer of its own (priority 242, framed as
-//! the menu layer, `SetFrame(0, 0, 512, 384, 256, 192, 1, 6/7)`), the menu
-//! window (`ccInitMenuWindow`) and a fresh `ccMessage`. Then, each frame
-//! after the scene's task (priority 24) and before the stream's own task
-//! (33), one pass:
-//!
-//! ```text
-//! m = ccGetStreamDemoMsg()            eventMsg, which is then -2
-//! m == -1: ccMsg->Close()             note 0x8011, a skip
-//! m >= 0:  rec = table[m]; if saveData.strWinMode (+0x8430) or rec.flag & 0x800:
-//!            ccMsg->Change({emode 0x200, lines 0-2 of rec.text}, rec.name, -1, -1)
-//! ccMsg->Disp(); menuWin->Trans()     (Check is never called)
-//! ```
-//!
-//! When the stream has returned the window is closed and not drawn again:
-//! it vanishes without its fade. The window is the desktop's speech window
-//! ([`piney_desktop::message`]): it fades in over 6 frames, types a glyph
-//! a frame, and a new line reopens it unless it is up; no page cursor ever
-//! shows (`Check` would set it).
+//! The subtitles under an event's stream: `ccEventStream(num, 1)` (0x001b5670)
+//! shows the lines of `evStrMsgTbl[num]` (0x003112f0; `evStrMsgTblp` 0x00311510
+//! in Parody Mode), 12-byte `EVSTRMSG` records indexed by the scene's notes, in
+//! a speech window on a layer of its own (242), each frame after the scene's
+//! task and before the stream's own (`docs/engine/stream.md`, "Subtitles"). A
+//! record shows with Movie Text on or its flag 0x800. When the stream returns
+//! the window vanishes without its fade; it is the desktop's speech window
+//! ([`piney_desktop::message`]), and no page cursor ever shows.
 
 use piney_data::archive::Archive;
 use piney_data::save::{SaveData, offset};

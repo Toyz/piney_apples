@@ -1,12 +1,9 @@
 //! The C string and memory functions eemu runs in Python rather than
 //! interpreting the game's MMI-vectorised versions (`eemu.HLE`), natively.
-//!
-//! Each one does exactly what eemu's Python does to a `bytearray` of RAM,
-//! slicing rules included: a read past the end of RAM is cut short, a
-//! string with no terminator before the end is `bytearray.index`'s
-//! `ValueError`, and a write that would change the length of RAM (a slice
-//! assignment past the end) is the `BufferError` a bytearray with a live
-//! buffer export raises, which is what eemu_rs's RAM is.
+//! Each does exactly what eemu's Python does to a `bytearray` of RAM: a read
+//! past the end is cut short, a string with no terminator is `ValueError`, and
+//! a write that would change RAM's length is the `BufferError` a bytearray
+//! with a live buffer export raises, which is what eemu_rs's RAM is.
 
 use std::cmp::Ordering;
 

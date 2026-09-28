@@ -1,14 +1,10 @@
-//! `Web_control` (DESKTOP.PRG, webnews.cpp): the News screen, a list of
-//! headlines and the page image each opens (`docs/engine/desktop.md`,
-//! "News").
-//!
-//! Layout constants are the class's own (constructor 0x0040d320): the list
-//! frame `laysize` (116, 140, 180 x 364) on the kanji layer, the list's
-//! scroll bar `scrsize`, the page's `websize` and its scroll bar `scrweb`.
-//! Rows are `ccKanji` built with `Init(3, 16)` in `ccSpriteColorTable[7]`
-//! without the shadow; the NEW tag, cursor and bars are cells of
-//! `TEX_xddcurs1`; a page is one sprite cut from its 512 x 512 texture
-//! (`xddn_NNN`, `TEX_xddn_NNN`).
+//! `Web_control` (DESKTOP.PRG, webnews.cpp; constructor 0x0040d320): the News
+//! screen, a list of headlines and the page image each opens
+//! (`docs/engine/desktop.md`, "News"). The list frame `laysize` (116, 140, 180
+//! x 364) is on the kanji layer with its scroll bar `scrsize`, the page's
+//! `websize` with `scrweb`. Rows are `ccKanji` `Init(3, 16)` without the
+//! shadow; the NEW tag, cursor and bars are cells of `TEX_xddcurs1`; a page is
+//! one sprite cut from its 512 x 512 texture (`xddn_NNN`).
 
 use std::sync::Arc;
 

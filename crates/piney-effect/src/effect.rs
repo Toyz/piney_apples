@@ -1,39 +1,10 @@
-//! `ccEffect` (main effect.cpp, 0xc0 bytes) and `ccEffectCtrl` (0x2c0):
-//! the 500 effect slots `ccThEffect` runs, `InitEffect` (main 0x001c3af0)
-//! and `Main` (0x001c3e10).
-//!
-//! ```text
-//! ccEffectCtrl::Main (0x001c38a0), each frame:
-//!   for each of the 500 slots with status != 0, in order:
-//!     the active layer: the effect's own (+0x9c) or the effect layer
-//!     (WORLD_MAN::SetActiveLayer(3): +0x4c8, priority 20)
-//!     ccEffect::Main
-//!   then the 100 ccEffect2 slots
-//! ccEffect::Main:
-//!   endFlag: status 0, the object deleted; done
-//!   pos = *posPtr, rot = *rotPtr, or both the linked effect's
-//!   the first switch on id (the effect's motion): most cases fall to the
-//!     draw; two of id 168's go straight to the end
-//!   the draw (below)
-//!   the second chain on id (children, timing, sounds)
-//!   the end: cnt++; unless lifeTime is -1, age++ and endFlag once the
-//!     old age passes lifeTime
-//! the draw, when not paused:
-//!   ccAnm: pos = ccTransPosFW2LW(pos) (in place); the matrix from pos,
-//!     rot, scale (ZYX or XYZ by zyxFlag); a step (_AnimateForward); at its
-//!     end endFlag
-//!   dispSW = ccCheckCameraDeg(pos, 12288); with distSW the eye's distance
-//!     to the point fades it, 1 up to 3000, 0 from 5000, hidden past 7000
-//!   ccAnm drawn at transparency * fade; a ccEff placed at
-//!     ccTransPosFW2LW(pos) and drawn with pattern texAnmPat, which then
-//!     steps by the kind (3 once, 4 looping, 5 holding); a ccClump placed
-//!     at ccTransPosFW2LW(pos) and drawn
-//!   and (not paused) a ccEff's pattern steps a second time
-//! ```
-//!
-//! The ids' own code (the two dispatches) lives with each kind of effect:
-//! [`crate::arrival`] and the rest; an id not ported runs neither and
-//! only draws and ages.
+//! `ccEffect` (main effect.cpp, 0xc0 bytes) and `ccEffectCtrl` (0x2c0): the
+//! 500 effect slots `ccThEffect` runs (`ccEffectCtrl::Main` 0x001c38a0, each
+//! on its own layer or the effect layer, 20), `InitEffect` (0x001c3af0) and
+//! `Main` (0x001c3e10: the first switch on id, the draw, the second chain,
+//! then the count and age). The ids' own code lives with each kind of effect
+//! ([`crate::arrival`] and the rest); an id not ported only draws and ages.
+//! The rules are in docs/engine/effects.md ("ccEffect").
 
 use piney_world::pose::Play;
 

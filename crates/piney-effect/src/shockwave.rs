@@ -1,33 +1,11 @@
-//! A physical skill's blow landing: `effPhysicalSkillHitShockWave(pos,
-//! attr)` (main 0x001d2790), which `ccSkillCheckNote` (gcmn 0x00573a10)
-//! calls at the skill's target position (`nowSkillPtr` +0x60) for each
-//! 0x8002 note of the skill's animation, with the skill's element
-//! (`ccSkillParam` +0x2c `& 0xfc`).
-//!
-//! ```text
-//! effPhysicalSkillHitShockWave(p, attr)   by attr exactly:
-//!   soil 4     effSmokeRock(p, down, 30, 0, 8, -1)       CLUTs 167, 219, 212
-//!   water 8    effSmokeIce(p, down, 30, 0.5, 8)          none
-//!   fire 16    effSmokeSparks(p, down, 30, 2, 8)         162, 218, 211
-//!   wind 32    effSmokeLeaf(p, down, 30, 1, 16)          164, 220, 213
-//!   thunder 64 effSmokeElectric(p, down, 30, 1, 16)      163, 219, 212
-//!   dark 128   effSmokeSmoke(p, down, 30, 2, 8)          165, 221, 214
-//!   else       nothing, and no radiate                   166, 222, 215
-//!   (down: turned -90 degrees about x); with an element
-//!   effRadiateSomething(p, down, 30, attr, 8)
-//!   checkCameraShakeRange(p): cameraShake(0, 2, 10, 0); ccSeOn3D(35, p)
-//!   the wave 79 (CMP_x030; CLT_x030 161 made the first CLUT), life 15;
-//!   two 80 (CMP_x042; 217 made the second), life 15, param 0 and 1; two
-//!   81 (CMP_x041; 210 made the third), life 20, param 0 and 1; all at p,
-//!   level 1; the last returned
-//! 79's first switch (0x001c4b74): x, y 0.5 -> 2.8, z 0.5 -> 1.5; a turn
-//!   of 1092 (6 degrees) a frame; FadeInOut(5, 5, life)
-//! 80's (0x001c4c4c): x, y 1 -> 2.8 (param 1: 3.6), z 1 -> 2.1 (2.3);
-//!   turning -2184 (param 1: 2184) a frame; param 1 rises 12.6 a frame;
-//!   FadeInOut(5, 5, life)
-//! 81's (0x001c4da4): x, y 1 -> 3 (2), z 1 -> 5.3 (8.9); turning -1092
-//!   (1092); FadeInOut(5, 5, life)
-//! ```
+//! A physical skill's blow landing: `effPhysicalSkillHitShockWave(pos, attr)`
+//! (main 0x001d2790), which `ccSkillCheckNote` (gcmn 0x00573a10) calls at the
+//! skill's target position (`nowSkillPtr` +0x60) for each 0x8002 note of the
+//! skill's animation, with the skill's element (`ccSkillParam` +0x2c `&
+//! 0xfc`, matched exactly). It throws the element's smoke and radiate pieces,
+//! shakes the camera and starts the waves 79, 80 and 81 in the element's
+//! colours. The cases are in docs/engine/effects.md ("A physical skill's
+//! blow").
 
 use piney_data::volume::Volume;
 

@@ -1,51 +1,11 @@
-//! Answers `tools/test_desktop_rs.py`: runs pieces of the desktop's logic on
-//! states it is given and prints one JSON line per request, so the test
-//! can run the same states through the game's own code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-desktop --features trace --example desktop_probe
-//! desktop_probe ISO < requests
-//! ```
-//!
-//! Requests, one a line:
-//! - `select DSEL LR APP CHECK FLG START DRAWFLG LOCK OPERATE PUSH`
-//! - `logo DSEL LR LOCK DRAWFLG START FWD_LOGO FWD_IN FWD_OUT FWD_TITLE`
-//! - `newicon FRAMES MAIL NEWS`
-//! - `list N` then `pad D P U R` lines until `end`: MoveLine states
-//! - `body LINE` then pad lines until `end`: MoveLine(PrePos, line) states
-//! - `length N MAILNO TOP`
-//! - `alpha COUNT RATE`
-//! - `kanji KT SX SY OX OY HEX`: ccKanji::Disp of the bytes
-//! - `newscur N` then pad lines until `end`: News MoveCur states
-//! - `newslen N LISTNO TOP`: News SetLength
-//! - `weblen HEIGHT HI`: News SetWebLength
-//! - `webmove HEIGHT` then pad lines until `end`: News WebMove states
-//! - `acclist N` then pad lines until `end`: Acces_control ListMove states
-//! - `acclen N TOP`: Acces_control SetLength's packets
-//! - `walls W0 W1 W2`: AddWallList over that dtWallpaperList
-//! - `audlist N LOAD` then pad lines until `end`: Audio_control ListMove
-//! - `audlen N LISTNO TOP`: Audio_control SetLength
-//! - `audadd B0 B1 B2 S0 S1 S2 S3 S4`: AddWaveList and AddStrList
-//! - `dec N WIDTH MODE`: dec2sjis
-//! - `menu N` then `pad F PUSH REPEAT` lines until `end`: N frames of the
-//!   menu task (ccThDtMenu), one JSON line a frame
-//! - `msgchange EMODE NAME L1 L2 L3`, `msginfo L0 L1 L2 L3` (hex, `-` for
-//!   none, `=` empty), `msghide`, `msgclose`, `msgframe PUSH REPEAT CHECK`: ccMessage,
-//!   one JSON line per frame
-//! - `datascen` then scenario lines until `end`: the Data screen
-//!   (SaveData_control with ccSaveSys) over an in-memory card, one frame per
-//!   `frame D P U R COUNT` line (entered again the frame after it leaves);
-//!   `card PORT PRESENT PS2 FORMATTED FULL
-//!   FAILWRITE FAILSYS FAILFMT`, `dir PORT`, `file PORT NAME HEX`, `save
-//!   OFFSET HEX`, `sys PORT FILE` and `rate N` set it up
-//! - `datapar HEX SLOT NO`: SetSavePar on a 28-byte record
-//! - `datacur LISTNO RESULT COUNT RATE`: DrawCur
-//! - `datacursor X Y SMALL ALPHA RESULT COUNT RATE`: TimeAlphaCurDraw
-//! - `databtn X Y COUNT RATE`: DispButton
-//! - `nerun HP SP NEWGAME` then `pad PUSH UNPUSH REPEAT DRAW` lines until
-//!   `end`: NameEntry_Control from Init, one Main a pad line (the draw
-//!   calls recorded where DRAW is 1), maxHP / maxSP and newGameFlag in the
-//!   save (`tools/test_desktop_name_rs.py`)
+//! Answers `tools/test_desktop_rs.py` (and `tools/test_desktop_name_rs.py`):
+//! runs pieces of the desktop's logic on states it is given and prints one
+//! JSON line per request, so the tests can run the same states through the
+//! game's own code in eemu (`desktop_probe ISO < requests`, built with the
+//! `trace` feature). The requests name what they run: the main screen
+//! (`select`, `logo`, `newicon`), the mailer, news, accessory and audio lists,
+//! `kanji`, `dec`, the menu task (`menu`), `ccMessage` (`msg*`), the Data
+//! screen (`datascen`, `data*`) and the name entry (`nerun`).
 
 use std::collections::HashMap;
 use std::io::BufRead;

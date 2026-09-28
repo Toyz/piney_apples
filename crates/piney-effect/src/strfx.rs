@@ -1,35 +1,10 @@
-//! The stream demo's effects: `ccEffectCtrl(1)` (`effcStr`, run by
+//! The stream demo's effects: `ccEffectCtrl(1)` (`effcStr`, 50 slots, run by
 //! `ccThEffectStr` 0x001c2f70 at priority 80 with `MainStr`), what the
 //! streams' effect tasks start in it (`effHitMarkStr` 0x001cc620,
-//! `effTransferStr` 0x001ce220), and `ccEffect::MainStr` (0x001d8810).
-//!
-//! ```text
-//! ccEffectCtrl(1): 50 slots (effStrWork), effectStrTbl's three objects:
-//!   0 EFF_x007 (type 3), 1 CMP_x037, 2 CMP_x032, all of particle;
-//!   hitMarkStrClut CLT_x007c1, hitRingStrClut1 CLT_x037, hitRingStrClut2
-//!   CLT_x037c1
-//! effHitMarkStr(pos, rot, layer): each on the first free slot, layer set:
-//!   effect 0 at pos, its eff drawn through CLT_x007c1
-//!   effect 1 at pos turned by rot (XYZ), lifeTime 15, its clump duplicated
-//!     with CLT_x037 drawn as CLT_x037c1
-//!   effect -1 at pos turned by rot
-//! effTransferStr(pos, height, layer): effect -2, lifeTime 50, pos,
-//!   offset.z height
-//! MainStr: as Main, but its own cases and a draw with no ccTransPosFW2LW
-//!   and no camera cone or distance fade:
-//!   1   scale xz 0.5 -> 2.5 and y 0.4 -> 2.0 over lifeTime, fading out
-//!       over the last 8 (the field's effect 131)
-//!   2   scale 0.1 -> 1 over 10 frames, FadeInOut(10, 5, lifeTime), pos.z
-//!       plus offset.z; then speed.z at 10 so offset.z comes to 20 by
-//!       lifeTime - 5, and a turn of 2048 a frame (the field's effect 3)
-//!   -1  on counts 0 and 1, five particles (ccParticleSetup(102, pos, 12))
-//!       flying out, each drawing two rand()s; then the end (the field's
-//!       -23, their generator hitPhotonDummyStrG, their layer the effect's)
-//!   -2  on counts 0, 3 and 6 a ring (effect 2): lifeTime 40, posPtr this
-//!       effect's pos, offset.z 20 + this offset.z, scale (0, 0, 0, 1),
-//!       turned about z by DEG2RAD(rand() & 0x3f00), this layer; on count
-//!       10 particleGeneratorTbl[82] at pos, z plus offset.z, this layer
-//! ```
+//! `effTransferStr` 0x001ce220), and `ccEffect::MainStr` (0x001d8810): as
+//! `Main`, with its own cases (the field's 131, 3, -23 and the arrival) and a
+//! draw with no `ccTransPosFW2LW`, camera cone or distance fade. See
+//! docs/engine/effects.md ("The streams' effects").
 
 use crate::ee::{self, F, ONE, V4};
 use crate::effect::{EffectCtrl, Next};

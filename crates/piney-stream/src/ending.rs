@@ -1,66 +1,11 @@
 //! Stream 15's effect tasks, the ending (event 31's `stream 15`):
-//! `Func_str0580` (0x0018e340) over `str0580` and `Func_str0581`
-//! (0x001904a0) over `str0581`, the scene that follows it
-//! (`docs/engine/stream.md`, "Stream 15's effect tasks").
-//!
-//! Beside the `ccStrEffectCtrl` every task keeps ([`Ctrl`]), both hold an
-//! event table walker (`ccEventObj`) and a part group (`ccStrPartGrp`): a
-//! cue in the table names an object of the scene and what to start at it -
-//! a burst of `EFF_x001` puffs of `str0580e` (`ccEffPart0580`), a creator
-//! that throws rocks (`ccObjPartCreate0580`, each rock a `ccObjPart0580`
-//! with one of the `OBJ_se1_6ro*` models), or both.
-//!
-//! ```text
-//! Func_str0580   str0580e's EFF_x001 and its four OBJ_se1_6ro* (the game
-//!                crashes unless there are four); the scene view's divZ
-//!                2000; eventObjTbl_0580; its Ctrl (the noise bands' Init
-//!                draws 216 numbers). Each pass while param[1] is 0 and the
-//!                scene is up:
-//!   frames       1500, 1575, .., 1741: the feedback on (1.0, alpha 0x4c,
-//!                0.01 of the view down); 1565, 1592, .., 1744: fading
-//!   cues         500-610: SetObj(cue) and its part(s); 999: a fade to
-//!                white over 30; else by the last digit: 1 noise on, 2 off,
-//!                3 inversion on, 4 off, 5 as the frames' feedback, 6 off,
-//!                7 / 8 a one-frame flash to / from white
-//!   parts        on sysLayer: the creators (newest first; one gone when
-//!                its life is up), then the parts (newest first; a puff
-//!                gone below transparency 0.01)
-//!   Ctrl         feedback, fade, noise, inversion, shades
-//!   then         eventExTscb2 = the task; the feedback off; one pass;
-//!                the parts deleted; passes while param[1] is not 2 (the
-//!                next scene's ccSetStreamDemoThread sets it); three more
-//! Func_str0581   str0580e's EFF_x001; divZ 3000; the fog SetFog(30000,
-//!                50000, 0) (again every pass) but on EXT_se1_6bac1,
-//!                EXT_se1_6clo1_1, EXT_se1_6clo1_2; eventObjTbl_0581; its
-//!                Ctrl. Each pass while param[1] is 0 and the scene is up:
-//!   frames       1050: the feedback on (1.005, alpha 0x58); 1155: off
-//!   cues         600-610: SetObj(cue), a puff burst (type 0 only); 65:
-//!                feedback 1.005 alpha 0x40 with a 15-frame fade ready; 56:
-//!                shades and feedback off; 55: two shades (2- and 4-texel
-//!                blocks of the picture being drawn, alpha 0x40 and 0x30,
-//!                offsets -0.0041 and -0.0082, at depth 1000) and the
-//!                feedback (1.01, alpha 0x50, at depth 1000); 899: to black
-//!                over 30; 901-904: from white over 5; 900: from white over
-//!                45; 699: a transfer (210 high) at the note's object; else
-//!                by the last digit as Func_str0580's but 5 (1.02, alpha
-//!                0x40) and 6 (fading)
-//!   then         the feedback off; no pass; gone
-//! ```
-//!
-//! `ccEventObj::SetObj(cue)` (0x00184150) walks the table from the entry
-//! it last found, one way or the other, with its tests the wrong way
-//! round: it finds the cue only when it is the next entry (or the one
-//! before), and a cue it misses leaves it where it was. Stream 15 queues
-//! 539, 540 and 541 in one frame (frame 1456), taken last first: 541 and
-//! 540 are missed, 539 found, and every cue after it misses too - the
-//! parts stop there, 138 rocks falling from then on.
-//!
-//! A rock's model has no Bbox, so `ccObj::CheckBoundingBox` always says it
-//! is in view and a rock is never deleted: each falls (6 a frame faster)
-//! until the scene ends.
-//!
-//! The parts' draws come out as [`PartDraw`]s; the stream draws them (the
-//! puffs through `piney_effect::eff::Eff`, the rocks as the scene's models).
+//! `Func_str0580` (0x0018e340) over `str0580` and `Func_str0581` (0x001904a0)
+//! over `str0581` (`docs/engine/stream.md`, "Stream 15's effect tasks").
+//! Beside the [`Ctrl`], both hold a cue table walker (`ccEventObj`) and a part
+//! group (`ccStrPartGrp`) of puff bursts and rock throwers. `SetObj`
+//! (0x00184150) has its tests the wrong way round, so from stream 15's frame
+//! 1456 every cue misses: 200 puffs and 138 rocks in all. A rock has no Bbox
+//! and is never deleted. The parts' draws come out as [`PartDraw`]s.
 
 use piney_world::ee::{self, F, ONE, V4};
 

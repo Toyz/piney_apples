@@ -1,40 +1,10 @@
 //! Drains around a target: the orbs an HP or SP drain sends from its victim
-//! to the drainer (`effDrainCtrl` main 0x001d79f0, `effDrain` 0x001d7c40),
-//! and the drain file's wave over a character after a Data Drain
-//! (`effAfterDrain` 0x001cd380). The same file's animations when a protect
-//! breaks or comes back (`effProtect` 0x001cf250) are [`crate::hit`]'s.
-//!
-//! ```text
-//! effDrainCtrl(ap, bp, type, time, num)     type 0 HP, 1 SP: num orbs from
-//!                                           bp to ap over time frames
-//!   effect -24 (a controller): param type, lifeTime time, flags num,
-//!     target ap, posT its pos, temp[0] bp, temp[1] num / time
-//!   and the word over bp: effect 154 (HP) or 153 (SP), crate::hit's words
-//!   second chain of -24 (0x001cbcac), each frame: temp[2] += temp[1]; when
-//!     its integer part grows by k and both ap and bp are on the lists,
-//!     effDrain(ap, bp, type, k); flags -= k; ends when flags reach 0
-//! effDrain(ap, bp, type, num)               num orbs:
-//!   effect 132 (HP, EFF_x000 with CLT_x000c3) or 133 (SP, EFF_x002 with
-//!   CLT_x002): lifeTime 240, target ap, posT its pos; at bp's middle
-//!   (pos, z plus half its height); r = rand() >> 3 picks the direction
-//!   (a turn about z by (r & 0x1f00), tilted down 45 degrees, turned about
-//!   y by (r << 8 & 0xff00), then about z by the heading from ap to bp)
-//!   into rot, and the speed velocity = 33 - 3.3 (r % 101) / 100; temp[0]
-//!   2048, temp[1] 1; the sprite at scale 3, pattern sn % patNum; and a
-//!   generator (particleGeneratorTbl[227 + type]) on the orb, switched by
-//!   its temp[1]
-//!   first switch (0x001c6280): the orb flies 3 frames straight, then
-//!   homes on ap's middle turning rot toward it by at most temp[0] (a 16-bit
-//!   angle, 2048 = 11.25 degrees, growing by 48 a frame from count 31 up to
-//!   16384) as a quaternion rotation; it ends within ap's width, when ap
-//!   leaves the lists or at its last frame (temp[1], the generator's
-//!   syncSW, cleared)
-//! effAfterDrain(target, size)    effect 12 + size (ANM_xdhdref0-2) at the
-//!   target: the wave left after a Data Drain
-//! ```
-//!
-//! The animations have no code of their own: `ccEffect::Main` steps and
-//! draws them, and they end with their animation.
+//! to the drainer (`effDrainCtrl` main 0x001d79f0, controller -24;
+//! `effDrain` 0x001d7c40, orbs 132 and 133 homing on the drainer as a
+//! quaternion turn), and the drain file's wave over a character after a Data
+//! Drain (`effAfterDrain` 0x001cd380, effects 12-14, animations with no code
+//! of their own). `effProtect` (0x001cf250) is [`crate::hit`]'s. The rules
+//! are in docs/engine/effects.md ("Around a Data Drain").
 
 use crate::ee::{self, F, ONE, V4};
 use crate::effect::{EffectCtrl, Next, Obj};

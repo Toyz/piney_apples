@@ -1,44 +1,11 @@
-//! Answers `tools/test_effect_spell_rs.py`: runs the port's spells on the
-//! requests it is sent and prints each answer as one JSON line, so the test
-//! can run the same frames through the game's own code in eemu.
-//!
-//! ```text
-//! cargo build -p piney-effect --example spell_probe
-//! spell_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests, one a
-//! line:
-//! - `reset SEED GSEED AREA DUNGEON FTYPE`: every slot free, a field
-//!   (`effectTbl`), `rand` seeded with SEED and `genrand` with GSEED
-//!   (`sgenrand`), `game` +0x14 AREA, +0x28 DUNGEON, the field type FTYPE.
-//! - `player X Y Z`, `camera EX EY EZ PX PY PZ VX VY VZ`: as effect_probe.
-//! - `char ID X Y Z H W DX DY DZ LISTED DEAD TYPE SIZE`: a character: on the
-//!   command lists or not, `condition.dead`, its row's `type`, its size
-//!   class.
-//! - `skill KEY SID STYPE CREATOR TARGET`: `_ccSkillRequest`'s `ccSkill`
-//!   (CREATOR and TARGET characters, ffffffff for none); the caster's
-//!   `skillID` and `skillStatus` become SID and 1.
-//! - `frame`: ccThEffect ([`Effects::step`]) then ccThSkill (each skill's
-//!   `ccSkill::Main` as far as a spell goes, with its system); answers every
-//!   live slot, `ccEffect2`, element and skill, the characters' skill
-//!   fields, the draws, events and generators, and both generators' states.
-//!
-//! - `posp ID X Y Z W`, `affect ID BY`: a character's `posP` (+0x50) and
-//!   `affectPerson` (+0x98, ffffffff for none), for the resistant shield.
-//! - the skills' other effects (`tools/test_effect_skill_rs.py`), each
-//!   answering what it returned (an effect's slot, the shield's element
-//!   slot; -1 for none), the events, the generators and both generators'
-//!   states: `skillstart CH SID A B` (`effSkillStart` by id),
-//!   `skillstartp CH SID A B` (by `skillTbl[SID]`), `skillstarteffect CH
-//!   ATTR B`, `shock X Y Z ATTR`, `heal CH N`, `healskill CH SID`, `cure
-//!   CH`, `sanity CH`, `resurrect CH`, `openbox X Y Z`, `removetrap X Y Z
-//!   A B`, `abilityup CH NUM`, `abilitydown CH NUM`, `shield CH MAGIC N`.
-//! - `endflag SLOT`: a slot's `endFlag` set (a condition's end).
-//!
-//! `ccSkill::Main` itself is the battle crate's (`SkillRun::main`); the
-//! probe does what it does for an attack spell with no animation, as the
-//! runtime would around [`Effects::spell_system`].
+//! Answers `tools/test_effect_spell_rs.py` and `tools/test_effect_skill_rs.py`:
+//! runs the port's spells and the skills' other effects on the requests it is
+//! sent and prints each answer as one JSON line, so the tests can run the same
+//! frames through the game's own code in eemu (`spell_probe ISO < requests`).
+//! Numbers are hex; floats travel as their bit patterns. The requests (`reset`,
+//! `player`, `camera`, `char`, `skill`, `frame`, `posp`, `affect`, the
+//! starters, `endflag`) are the tests'. `ccSkill::Main` is the battle crate's;
+//! the probe does what it does for a spell around [`Effects::spell_system`].
 
 use std::collections::HashMap;
 use std::io::BufRead;

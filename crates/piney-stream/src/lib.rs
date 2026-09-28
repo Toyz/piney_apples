@@ -1,34 +1,11 @@
-//! The in-engine streams of .hack//Infection: real-time cutscenes played
-//! from the `STREAM/*.BIN` archives (`docs/engine/stream.md`).
-//!
-//! `ccRequestLoadStream(num)` (0x00198da0) plays stream `num` to its end
-//! inside the call; the title's intro (`PlayOpeningStream`, stream 0), the
-//! event scripts' `stream` instruction (`ccEventStream(num, 1)`) and the
-//! Audio screen's movies (`SimplePlayStream`) all go through it:
-//!
-//! ```text
-//! ccStreamInit(num)            streamTbl[num] (streamTblE with English voices)
-//! ccSndStreamCtrl(num, sd, 0)  music before (header size bit 0)
-//! RequestStrPlay(0):
-//!   searchPreLoad              type -2 and flag 16 files read whole
-//!   per file of the ccsTbl     DecodeSetup; InitScene(sysLayer); PlayScene;
-//!                              ccSetStreamDemoThread; play to its end Top
-//!   WaitEnd                    the skip button, every frame
-//! ccSndStreamCtrl(num, sd, 1)  music after (header size bit 1)
-//! ccPcmSound::Close            the stream's audio stopped
-//! ```
-//!
+//! The in-engine streams of .hack//Infection: real-time cutscenes played from
+//! the `STREAM/*.BIN` archives (`docs/engine/stream.md`). `ccRequestLoadStream`
+//! (0x00198da0) plays stream `num` to its end inside the call, for the title's
+//! intro, the event scripts' `stream` and the Audio screen's movies.
 //! [`Stream`] is that call as a state machine: [`Stream::step`] is one game
-//! frame and returns its picture; [`Stream::done`] says the call has
-//! returned. The files are read when the stream is built (the game streams
-//! them from the disc while it plays; the port has no load time). A scene's
-//! own effect task, where one is ported ([`effect`]: `str0001`'s), runs
-//! inside the step after the scene and draws into the same frame.
-//!
-//! [`event::EventStream`] is the event instruction's call around it,
-//! `ccEventStream(num, 1)`: the stream with its subtitles ([`subtitle`]);
-//! the music around it and during it comes out as [`Request::Music`] and
-//! [`Request::StreamBgm`], which `piney_audio::stream` carries out.
+//! frame, [`Stream::done`] says the call has returned; the files are read when
+//! it is built. A scene's own effect task ([`effect`]) runs inside the step.
+//! [`event::EventStream`] is `ccEventStream(num, 1)`, with the subtitles.
 
 pub mod draw;
 pub mod effect;

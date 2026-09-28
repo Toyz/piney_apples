@@ -1,34 +1,10 @@
-//! The tornado spells' effects (main effect.cpp): the magic attack sign
-//! every attack spell starts on its target, the smoke and the rings of
-//! `TornadoSystem`, and the rings' motion (effects 89, 90 and 91).
-//!
-//! ```text
-//! effMagicAttackSign(tp, atr)     (0x001d1090) two particle generators on
-//!                                 tp's pos by element (soil 136/140, water
-//!                                 130/137, fire 131/139, wind 133/138,
-//!                                 thunder 132/140, dark 134/141), the first
-//!                                 20 up
-//! effSkillTornadeSmoke(tpos, offset, atr, level)
-//!                                 (0x001d48b0) generator 196 at
-//!                                 P2W(W2P(tpos) + offset), 40 up, its
-//!                                 pTexMod by element
-//! effSkillTornadeRingsPos(tpos, atr, level)
-//!                                 (0x001d3d80) one ring 89, two 90 (flags
-//!                                 0, 1), four 91 (flags 0-3), each life 60,
-//!                                 param level - 1, temp[0] 1, at tpos, the
-//!                                 clump re-coloured by element (Duplicate,
-//!                                 ChangeClut); from level 2 the tornado's
-//!                                 generator (191 + level, with the
-//!                                 skillTornadeSmokePFF force fields) and the
-//!                                 thunder (thunder) or the flying objects
-//! rings 89/90/91 (first switch 0x001c5198, 0x001c5320, 0x001c5568):
-//!   pos = posT (temp[0] set) or pos, plus offset; w 1
-//!   90, 91: z up by min(cnt, 30) * rise / 30
-//!   rot.z on by turn / 30 a frame (89: 16384; 90, 91: +-16384 by flags)
-//!   scale x, y from a to b and z from c to d over 30 counts (on past 30
-//!   for all: the counts are not clamped)
-//!   FadeInOut(5, 25, lifeTime)
-//! ```
+//! The tornado spells' effects (main effect.cpp): the magic attack sign every
+//! attack spell starts on its target (`effMagicAttackSign` 0x001d1090), the
+//! smoke (`effSkillTornadeSmoke` 0x001d48b0, generator 196) and the rings
+//! (`effSkillTornadeRingsPos` 0x001d3d80) of `TornadoSystem`, and the rings'
+//! motion (effects 89, 90 and 91; first switch 0x001c5198, 0x001c5320,
+//! 0x001c5568), whose growth counts are not clamped past 30. The rules are in
+//! docs/engine/effects.md ("TornadoSystem").
 
 use piney_data::volume::Volume;
 
@@ -505,24 +481,10 @@ impl TornadeElement {
         self.level(ctrl, cx);
     }
 
-    /// `_Level3` (gcmn 0x004ff4a0) and `_Level4` (0x004ff8b0).
-    ///
-    /// ```text
-    /// count START_1[k]  (level 3: k 0-2; level 4: only k 3) the smoke at
-    ///                   tPos + m_offsets[k], and a ring (mode 195) at tPos +
-    ///                   m_offsets[m_index]
-    /// count START_2[k]  (k 0-2; level 4 0-3) sndcode by level (level 4:
-    ///                   the fourth's sound for the last) at
-    ///                   P2W(W2P(tPos) + m_offsets[m_index]), and the rings
-    ///                   (effSkillTornadeRingsPos with the offset, level 2;
-    ///                   level 4's last level 4), m_index on
-    /// count 35 .. 75    every 5 from START_2[1] + 5 (level 4 START_2[3] +
-    ///                   5): ccSkillDamage on the target, else around the
-    ///                   skill's tPos, while the skill runs; after:
-    ///                   m_delFlag
-    /// count START_2[0] + 10: in range of the camera, noise 20 and a shake
-    ///                   (level 3 (2, 2, 20, 2), level 4 (0, 2, 20, 2))
-    /// ```
+    /// `_Level3` (gcmn 0x004ff4a0) and `_Level4` (0x004ff8b0): the smoke and
+    /// rings at the counts of `START_1` and `START_2`, `ccSkillDamage` every 5
+    /// frames, the shake at `START_2[0]` + 10, then `m_delFlag`. The counts are
+    /// in docs/engine/effects.md ("TornadoSystem").
     fn level(&mut self, ctrl: &mut EffectCtrl, cx: &mut Cx) {
         let l4 = self.base.level != 3;
         let t = &cx.spells.data.tornade;

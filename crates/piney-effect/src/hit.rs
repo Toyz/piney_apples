@@ -1,46 +1,11 @@
 //! What a hit shows over the character it lands on (main effect.cpp and
-//! particle.cpp, gcmn battle.cpp): `ccHitMarkDisp` (gcmn 0x005714e0), the
-//! spark, ring and photons it starts, and the protect gauge's break and
-//! the attribute guard.
-//!
-//! ```text
-//! ccHitMarkDisp(ch, attacker)  both must pass ccCheckTarget
-//!   p  = ch's pos, z + height / 2;  q = the attacker's, the same
-//!   at = p + normalize(q - p) * ch's width      (on ch's skin, facing q)
-//!   effHitMark(at)             ccParticleHitMark: a generator of
-//!                              particleGeneratorTbl[1] at `at`
-//!   ch->hitFlip toggled (+0x84, only read here): side = +-4096 (22.5 deg)
-//!   rot = (0, side, turn, 0), turn:
-//!     ch == attacker: ch's heading (dirc.z)
-//!     else: the ground angle from ch to the attacker + 16384 (a quarter)
-//!   effHitRing(at, rot)        effect 131 (CMP_x037, CLUT CLT_x037
-//!                              swapped for CLT_x037c1), 15 frames, XYZ
-//!                              turn order: x and z grow 0.5 -> 2.5, y 0.4 ->
-//!                              2.0 over its life, FadeOut(8)
-//!   rot = (-4096, side, turn', 0), turn':
-//!     ch == attacker: heading -+ 16384 by the flip
-//!     else: flipped the ground angle itself, else it less 32768
-//!   effHitPhoton(at, rot)      controller -23, at `at`, turned by rot:
-//!                              frames 0 and 1 five particles each
-//!                              (ccParticleSetup(102, pos, 12)): a direction
-//!                              in a cone (rand: a tilt up to 10.9 deg, a
-//!                              spin), turned by rot x then z, speed 30 -
-//!                              21 (rand % 101) / 100, fades 1024 / 113,
-//!                              generator hitPhotonDummyG; frame 2 it ends
-//! effProtect(ch, broken, kind)  (main 0x001cf250)
-//!   kind -1: by ccCheckObjectSize(ch): 1 -> 2, 3 -> 1, 4 -> 0
-//!   broken 0: effect 19 + kind (ANM_xdhpros0 / m0 / l0), sound 79 at
-//!             its count 30
-//!   else:     effect 22 + kind (ANM_xdhpros1 / m1 / l1), sound 80 now
-//!   at ch's pos, following it (posPtr), target ch; the animation plays
-//!   to its end
-//! ccParticleAttributeGuard(ch, attacker)  (main 0x001bcc40)
-//!   both pass ccCheckTarget, ch not on effAttributeGuardEntry[20]:
-//!   effAttributeGuard (0x001cc890): effect 170 (ANM_x071) at ch's pos, z
-//!   + height / 2, turned to face the attacker as the ring is, scaled
-//!   (s, s, s, 0) by ccCheckObjectSize: 1 3.5, 3 2.0, 4 1.0; sound 99 at
-//!   ch's pos; ch put on the list until the animation ends
-//! ```
+//! particle.cpp, gcmn battle.cpp): `ccHitMarkDisp` (gcmn 0x005714e0) with the
+//! spark, ring (131) and photons (-23) it starts on the struck one's skin
+//! facing the attacker, its side flipping each hit (`hitFlip` +0x84); the
+//! protect gauge's break and return (`effProtect` main 0x001cf250, effects
+//! 19-24); and the attribute guard (`ccParticleAttributeGuard` 0x001bcc40,
+//! effect 170, on `effAttributeGuardEntry[20]` until it ends). The rules are
+//! in docs/engine/effects.md ("Hits and the numbers over characters").
 
 use std::collections::HashMap;
 

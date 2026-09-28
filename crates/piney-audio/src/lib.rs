@@ -1,22 +1,11 @@
-//! The game's sound, made the way the PlayStation 2 makes it.
-//!
-//! The EE decides what to play ([`driver`]: `ccSeOn`, the jukebox, the
-//! volume options, each mode's and area's bank, `ccSndBgmCtrl` and the
-//! battle music; [`se3d`]: the sound effects placed in the world and the
-//! animation notes' sounds); the IOP's MIDI sequencer ([`midi`],
-//! MODMIDI.IRX) plays the music banks' sequences into the hardware
-//! synthesizer ([`hsyn`], MODHSYN.IRX), which also takes the sound effects,
-//! and drives the SPU2's voices ([`spu`]) - all stepped on SNDBASE.IRX's
-//! 4,167 us tick and mixed at 48 kHz. `VOICE/BGM.BIN`'s streamed tracks and the voice lines
-//! ([`seword`], SEWORDS.IRX's channel 0) go straight to the SPU2's
-//! sound-data input.
-//!
-//! [`Audio`] is what the runtime holds: [`Audio::open`] plays through the
-//! default output device and falls back to silence when there is none;
-//! [`Audio::headless`] renders only when asked ([`Audio::render`]), for
-//! tests and WAV files ([`wav`]).
-//!
-//! `docs/engine/sound.md` documents the rules; the port follows it.
+//! The game's sound, made the way the PlayStation 2 makes it
+//! (`docs/engine/sound.md`). The EE decides what to play ([`driver`], [`se3d`]);
+//! the IOP's MIDI sequencer ([`midi`], MODMIDI.IRX) plays the banks'
+//! sequences into the hardware synthesizer ([`hsyn`], MODHSYN.IRX), which also
+//! takes the sound effects and drives the SPU2's voices ([`spu`]), stepped on
+//! SNDBASE.IRX's 4,167 us tick and mixed at 48 kHz; BGM.BIN's tracks and the
+//! voice lines ([`seword`]) go to the sound-data input. [`Audio::open`] plays
+//! through the default output (silence when none); [`Audio::headless`] renders.
 
 pub mod driver;
 pub mod hsyn;

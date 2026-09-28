@@ -1,22 +1,11 @@
 //! The bulletin board (bbs.cpp, toppage.prg 0x00401730-0x0040495c):
-//! `ccThBBSCtrl` with its three pages, the thread and post objects built
-//! from the save, and the scroll bars (`docs/engine/toppage.md`).
-//!
-//! The board is built by `Init` (0x00401b60), both when the top page starts
-//! and each time the player enters it. Its pages, by `m_iDrawState`:
-//!
-//! ```text
-//! 0  the thread list        DrawThreadPage (0x00402b30)
-//! 1  a thread's posts       DrawMessagePage (0x00403060), with SelectMessage
-//!                           (0x004038d0) or ShowMessage (0x00403b30)
-//! 2  the player's own post  DrawWritingMsgPage (0x00402530): typed out
-//! 3  leave                  DrawBBS sets m_exit and the top page takes over
-//! ```
-//!
-//! `saveData.bbsList[t][p]` (+0x28e4, byte `48 t + p`) holds each post's
-//! state: 0 not posted, 1 new, 3 read, 7 the player's own post waiting to
-//! be written out. The event scripts post with `bbs_post` (1) and
-//! `bbs_post7` (7).
+//! `ccThBBSCtrl` with its pages, the thread and post objects built from the
+//! save, and the scroll bars (`docs/engine/toppage.md`, "The board"). `Init`
+//! (0x00401b60) builds it when the top page starts and each time the player
+//! enters. By `m_iDrawState`: 0 the thread list (0x00402b30), 1 a thread's
+//! posts (0x00403060), 2 the player's own post typed out (0x00402530), 3
+//! leave. `saveData.bbsList[t][p]` (+0x28e4) holds each post's state: 0 not
+//! posted, 1 new, 3 read, 7 the player's own post waiting to be written out.
 
 use std::rc::Rc;
 

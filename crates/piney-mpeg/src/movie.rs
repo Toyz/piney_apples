@@ -1,27 +1,11 @@
-//! The player: what `ccDecodeMpeg` (DEMO.PRG 0x00409df0) shows and plays,
-//! for the runtime to drive on its own frame clock.
-//!
-//! How the game plays a movie (`docs/formats/pss.md`, "The player"):
-//!
-//! - The display switches to 640 x 448 interlaced, a field at a time
-//!   (`SetScreenMode(640, 448, 2)`), and back to 512 x 448 after. Each
-//!   picture is uploaded whole and drawn as one bilinear SPRITE over the
-//!   whole screen, so on the TV it fills the same area the game's 512-wide
-//!   frame does: no letterbox, no crop. [`draw`] makes that sprite on the
-//!   port's 512 x 448 frame.
-//! - Pacing is by vblank, not by time stamps: `vblankHandler` shows a new
-//!   picture on each even field and repeats it on the odd one, so a
-//!   picture lasts [`VBLANKS_PER_PICTURE`] frames of the 60 Hz game clock
-//!   (59.94 Hz on NTSC: 29.97 pictures a second, though the stream says
-//!   30). The display starts once the decoder has two pictures ready
-//!   (`voBuf`) and, with audio, once the audio is preloaded; the audio
-//!   starts on that same vblank (`readMpeg` calls `startDisplay` and
-//!   `audioDecStart` together).
-//! - Skip: `readMpeg` aborts on a push of the save's OK or cancel button or
-//!   START (`ccSys.pad[0].push & (assignPADok | assignPADcancel | 0x800)`)
-//!   once the decoder's `frameCount` - the index of the last picture it
-//!   produced - is at least 11 ([`Movie::skippable`]). `ccDecodeMpeg` then
-//!   returns -1; at the end of the stream it returns 0.
+//! The player: what `ccDecodeMpeg` (DEMO.PRG 0x00409df0) shows and plays, for
+//! the runtime to drive on its own frame clock (`docs/formats/pss.md`, "The
+//! player"). Each picture fills the whole screen as one bilinear sprite
+//! ([`draw`]), no letterbox or crop. Pacing is by vblank, not time stamps: a
+//! picture lasts [`VBLANKS_PER_PICTURE`] frames, the display and audio
+//! starting together once two pictures (and the audio) are ready. OK, cancel
+//! or START skip once the decoder's `frameCount` is at least 11
+//! ([`Movie::skippable`]).
 
 use std::collections::VecDeque;
 

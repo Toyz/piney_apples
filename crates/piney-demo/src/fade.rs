@@ -1,28 +1,11 @@
-//! `ccScFade` (fade.cpp) with its four elements, as the title uses it: the
-//! flash at the end of the opening stream, the fade to black before the
-//! attract loop and before a load (`EntryFlash` 0x00160240, `EntryFlash3`
-//! 0x00160360, `EntryFade` 0x00160400, `CheckFade` 0x001604d0, `SendPacket`
-//! 0x0015fb80), and the field menu's gate hack (`EntryFlash2` 0x001602d0).
-//!
-//! An element's `status` is a set of bits: 1 draws it, 2 ends it after its
-//! current ramp, 4 and 8 chain further ramps. Each frame `SendPacket` draws
-//! every element with bit 1, colour per channel
-//! `c0 + trunc((c1 - c0) * cnt / tcnt)`, then counts `cnt` up; when it passes
-//! `tcnt`:
-//!
-//! ```text
-//! status & 2   the element ends (status 0)
-//! status & 4   status = status & !4 | 2; cnt 0; tcnt = tcnt1; c0 = c1; c1 = c1 with alpha 0
-//! status & 8   status = status & !8 | 4; cnt 0; tcnt = tcnt2; c0 = c1
-//! otherwise    cnt = tcnt: the element holds at c1
-//! ```
-//!
-//! So `EntryFlash(t, c)` (status 3) fades from `c` to clear over `t + 1`
-//! frames; `EntryFlash3(t0, t1, t2, c)` (status 9) fades in over `t0 + 1`
-//! frames, holds `c` for `t2 + 1` and fades out over `t1 + 1`; `EntryFade`
-//! (status 1) ramps once and holds. Every element is drawn by
-//! `piney_desktop::fade::draw_colours` on the font layer: the title only
-//! ever fades the whole 512 x 384 screen.
+//! `ccScFade` (fade.cpp) with its four elements, as the title uses it
+//! (`EntryFlash` 0x00160240, `EntryFlash3` 0x00160360, `EntryFade` 0x00160400,
+//! `CheckFade` 0x001604d0, `SendPacket` 0x0015fb80), and the field menu's gate
+//! hack (`EntryFlash2` 0x001602d0). An element's `status` bits: 1 draws it, 2
+//! ends it after its ramp, 4 and 8 chain further ramps; each ramp is `c0 +
+//! trunc((c1 - c0) * cnt / tcnt)` per channel. Every element is drawn by
+//! `piney_desktop::fade::draw_colours` over the whole 512 x 384 screen on the
+//! font layer (docs/engine/title.md, "The fader").
 
 use piney_desktop::anm::Ctx;
 

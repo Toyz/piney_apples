@@ -1,35 +1,10 @@
-//! `ccConditionEffect` (main particle.cpp, 0x20 bytes): the particles about
-//! a character under a condition (poison, sleep, the stat changes...) -
+//! `ccConditionEffect` (main particle.cpp, 0x20 bytes): the particles about a
+//! character under a condition (poison, sleep, the stat changes...).
 //! `ccChar::DispConditionEffect` makes one with `setConditionEffect`
-//! (0x001c24a0) for the character's condition number (its +0x30) and ends
-//! it with `killConditionEffect` (0x001c24f0: the particles fade out) or
-//! `deleteConditionEffect` (0x001c2520: they end at once).
-//!
-//! ```text
-//! ccConditionEffect(cp, num) (0x001c13f0), h the character's height; every
-//! generator follows cp's pos, is marked to take its particles with it
-//! (killFlag 1) and started:
-//!   0, 3, 5        rows 197 (199 for 5) h up and 198 h/2 up (3: textures
-//!                  17 and 144; 5: -, 145)
-//!   1              row 198 twice, h/2 up, textures 158 and 143
-//!   2, 4, 6, 22    row 200 h up, then three of row 201 (202 for 22) h up,
-//!                  all with texture 16 (4: 18, 6: 36), then row 198 h/2 up
-//!                  (texture 145, 6: 147) as gene[4]
-//!   13-18          row 31 and row 204, h/2 up, textures by num (107/202,
-//!   29-34          -/198, 102/199, 104/43, 103/200, 105/201); 29-34 the
-//!                  same with rows 37 and 203
-//!   20, 21         row 205 h up (texture 119, 118) as gene[4], then as the
-//!                  default
-//!   -1             row 209 twice with force fields 105/107 and 106/108, h
-//!                  up; row 210 50 + h up
-//!   default        particleEffectTbl[num]'s generators (following the
-//!                  character, offset up (+h for sync 2), or placed once)
-//! then 0-18 effAbilityDown(cp, num), 20-34 effAbilityUp(cp, num): the
-//! effect and its serial number kept
-//! ~ccConditionEffect (0x001c2360): each generator still on the list killed
-//! (now 0: killFlag 2) or deleted (now -1: 3); the effect ended when it is
-//! still the one made
-//! ```
+//! (0x001c24a0; constructor 0x001c13f0) for the condition number (its +0x30)
+//! and ends it with `killConditionEffect` (0x001c24f0: the particles fade
+//! out) or `deleteConditionEffect` (0x001c2520: they end at once). The rows
+//! by condition are in docs/engine/particles.md ("ccConditionEffect").
 
 use super::{GenRef, Generator};
 use crate::ee::{self, F, V4};

@@ -1,54 +1,11 @@
-//! Look at the scene files on a .hack disc.
-//!
-//!     piney-viewer [--iso PATH] [NAME]
-//!     piney-viewer [--iso PATH] --shot OUT.png [--anime N] [--model N] [--size WxH] NAME
-//!
-//! Reads `DATA/DATA.BIN` straight from the disc image (default
-//! `work/infection/infection.iso`) and shows one scene file at a time, every
-//! model in it textured; bone and skin models are posed from frame 0 of the
-//! file's first Anime chunk. NAME starts on the first file whose name
-//! contains it; without one, on `town01` (Mac Anu).
-//!
-//! Mouse: left drag orbits, right or middle drag pans, wheel zooms.
-//! Keys: Left/Right or PageUp/PageDown the previous/next file, A the next
-//! animation pose, M the next model alone (then all again), B the exposure
-//! (1x, 2x, 4x: unlit models are as dark as their baked colours), T only the
-//! pieces the executable's table places (a town without its sky), R resets
-//! the camera, Escape quits.
-//! Gamepad (e.g. DualSense): left stick orbits, right stick pans, L2/R2 zoom,
-//! L1/R1 or D-pad left/right the previous/next file, Triangle the next
-//! animation pose, Square the next model alone, Cross resets the camera.
-//!
-//! Animations play as the game plays them (`piney_data::anim`), one frame
-//! per game frame at 29.97 frames a second as in towns and fields: a town's
-//! flags and ships, a character's chosen pose. Space or P (Options on the
-//! pad) pauses and resumes; `--time SECONDS` poses a shot at that time.
-//!
-//! `--dungeon SEED[,TYPE[,SIZE[,SERVER]]]` shows a random dungeon instead:
-//! generated from `dungeonSeed` SEED as the game does
-//! (`piney_data::dungeon`), of type TYPE (0-9, default 0) and size SIZE (a
-//! `dungeonData` row, 0-10, default 5) on server SERVER (0-4, default 0), as
-//! a random area whose field gives that type. Each room is placed and given
-//! its doors as `SetRoom` and `SetDoor` do (`dungeon::place`), against the
-//! clear colour of its `dungeonFog*` row. Left/Right (L1/R1) change floor, A
-//! (Triangle) the dungeon type, M (Square) the seed, F (Circle) turns the
-//! row's fog on or off (off at first: from overhead everything is past the
-//! fog's far distance); `--floor N` starts on floor N, `--fog` shoots with
-//! fog.
-//!
-//! `--field SEED[,TYPE[,WEATHER]]` shows a random field: generated from
-//! `fieldSeed` SEED (`piney_data::field`) of field type TYPE (0-10, not 4)
-//! in weather WEATHER (0-9), drawn as `WORLD` draws it - each chip's ground
-//! tile and cover rewritten from the height map and lit by the area's
-//! background light, objects at the game's heights, the lake's water and
-//! the background - the whole map at once. Left/Right (L1/R1) change the
-//! weather, A (Triangle) the field type, M (Square) the seed, F (Circle) the
-//! fog.
-//!
-//! `--shot` renders one frame of NAME (or of the dungeon) offscreen and writes it as a PNG, with
-//! no window: from the starting camera, or `--cam YAW,PITCH,ZOOM` (degrees,
-//! and a distance factor, 1 = the starting distance), looking at `--look
-//! X,Y,Z` (world units) instead of the scene's middle.
+//! Look at the scene files on a .hack disc: `piney-viewer [--iso PATH] [NAME]`
+//! reads `DATA/DATA.BIN` from the image (default `work/infection/infection.iso`)
+//! and shows one scene file at a time, every model textured, bone and skin
+//! models posed, starting on the first file whose name contains NAME
+//! (`town01` without one). Animations play as the game plays them
+//! (`piney_data::anim`), a frame per game frame at 29.97 a second. `--dungeon`
+//! and `--field` show a generated area (`DungeonView`, `FieldView`); `--shot`
+//! writes a PNG with no window (`Shot`); the controls are `window_event`'s.
 
 mod mesh;
 mod png;
@@ -151,6 +108,12 @@ fn build_scene(
 }
 
 /// A generated dungeon: what it was generated from, and the floor shown.
+/// `--dungeon SEED[,TYPE[,SIZE[,SERVER]]]` generates it from `dungeonSeed` SEED
+/// as the game does (type 0-9, a `dungeonData` row 0-10, server 0-4; defaults
+/// 0, 5, 0) as a random area whose field gives that type, each room placed
+/// with its doors (`dungeon::place`) against its `dungeonFog*` row's clear
+/// colour. The fog starts off (from overhead everything is past its far
+/// distance); `--floor N` starts on floor N, `--fog` shoots with fog.
 struct DungeonView {
     params: Params,
     dungeon: Dungeon,
@@ -194,7 +157,11 @@ impl DungeonView {
     }
 }
 
-/// A generated field: what it was generated from, and the result.
+/// A generated field: what it was generated from, and the result. `--field
+/// SEED[,TYPE[,WEATHER]]` generates it from `fieldSeed` SEED (type 0-10 but 4,
+/// weather 0-9) and draws it as `WORLD` does: the chips' tiles rewritten from
+/// the height map and lit, objects at the game's heights, the lake's water and
+/// the background, the whole map at once.
 struct FieldView {
     params: field::Params,
     field: field::Field,
@@ -525,6 +492,10 @@ impl Viewer {
         gpu.window.set_title(&title);
     }
 
+    /// A gamepad (a DualSense, say): the left stick orbits, the right pans,
+    /// L2/R2 zoom; R1/L1 or the D-pad's right/left act as Right/Left,
+    /// Triangle as A, Square as M, Circle as F, Start as Space, and Cross
+    /// resets the camera.
     fn poll_gamepad(&mut self, dt: f32) {
         let Some(gilrs) = &mut self.gilrs else { return };
         let mut actions = Vec::new();
@@ -590,6 +561,13 @@ impl ApplicationHandler for Viewer {
         window.request_redraw();
     }
 
+    /// Mouse: left drag orbits, right or middle drag pans, the wheel zooms.
+    /// Keys: Left/Right or PageUp/PageDown the previous/next file (a dungeon's
+    /// floor, a field's weather), A the next animation pose (the dungeon or
+    /// field type), M the next model alone, then all again (the seed), B the
+    /// exposure (1x, 2x, 4x: unlit models are as dark as their baked colours),
+    /// T only the pieces the executable's table places (a town without its
+    /// sky), F the fog, Space or P pause, R reset the camera, Escape quit.
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
@@ -670,8 +648,11 @@ impl ApplicationHandler for Viewer {
     }
 }
 
-/// Render `name` offscreen to a PNG.
-/// What `--shot` renders.
+/// What `--shot` renders: one frame of NAME (or of the dungeon or field)
+/// offscreen to a PNG with no window, from the starting camera or `--cam
+/// YAW,PITCH,ZOOM` (degrees, and a distance factor), looking at `--look X,Y,Z`
+/// instead of the scene's middle; `--anime`, `--model`, `--time SECONDS` and
+/// `--size WxH` choose the rest.
 struct Shot {
     out: String,
     anime: Option<usize>,

@@ -1,31 +1,11 @@
 //! Answers `tools/test_effect_misc_rs.py`: runs the port's level up, dying
-//! blow, drains and magic portal on the requests it is sent and prints
-//! each answer as one JSON line, for the test to compare with the game's
-//! own code in eemu.
-//!
-//! ```text
-//! cargo build -p piney-effect --example misc_probe
-//! misc_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests, one a
-//! line (those of `effect_probe` first):
-//! - `reset TOWN SEED`, `player X Y Z`, `camera E.. P.. V..`, `char ID X Y
-//!   Z H W [DX DY DZ]`, `frame`: as `effect_probe`'s.
-//! - `bounds X0 Y0 X1 Y1`: `WORLD_MAN`'s map bounds.
-//! - `listed ID 0|1`: `ccCheckTarget(ID)`; `listed player 0|1` for `plw`.
-//! - `dead ID N`: `condition.dead`; `size ID N`: `ccCheckObjectSize`.
-//! - `levelup ID`, `dying ID`, `drainctrl AP BP TYPE TIME NUM`, `drain AP BP
-//!   TYPE NUM`, `protect ID SW SIZE`, `afterdrain ID SIZE`: the starters;
-//!   each answers its slot and events.
-//! - `set SLOT KEY V..`: a slot's `pos`, `rot`, `speed`, `temp` (4 each),
-//!   `cnt` or `age`, to force a case.
-//! - `mt N`: `N` draws of `ccRand` thrown away.
-//! - `circle X Y Z DX DY DZ`: a new magic portal (`ccMagicCircle`).
-//! - `cframe FREEZE DISP PLDIST SETT LISTED ENTROOT`: one `ccMagicCircle::
-//!   main` with what `ccEntryObj::routine` left; answers the portal's whole
-//!   state, its draws and events.
-//! - `acosf X`, `sin HI LO`, `cos HI LO`: the maths (double as two words).
+//! blow, drains and magic portal on the requests it is sent and prints each
+//! answer as one JSON line, for the test to compare with the game's own code
+//! in eemu (`misc_probe ISO < requests`). Numbers are hex; floats travel as
+//! their bit patterns. The requests are `effect_probe`'s, plus `bounds`,
+//! `listed`, `dead`, `size`, the starters, `set`, `mt N` (`ccRand` draws
+//! thrown away), `circle` and `cframe` (the portal), and `acosf`, `sin`, `cos`
+//! (a double as two words).
 
 use std::collections::HashMap;
 use std::io::BufRead;

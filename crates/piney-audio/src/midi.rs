@@ -1,17 +1,10 @@
-//! MODMIDI.IRX, Sony's MIDI sequencer, as SNDBASE.IRX drives it: one
-//! sequencer per `.sq` of the loaded bank, stepped every 4,167 us, its
-//! messages going to a synthesizer port. Addresses are module offsets in
-//! MODMIDI.IRX. The Python model this follows
-//! (`tools/midi.py`) matched the module run in `tools/eemu.py` byte for
-//! byte on every tick of all 150 sequences on the disc.
-//!
-//! The data: a `Midi` block of u32 data offset (6), u16 ticks per quarter
-//! (480), then events `[varlen delta] event`. Note off (8n) has no
-//! velocity; a set bit 7 in any data byte means the next event has no
-//! delta ("compression", masked off on output); loops are NRPN - CC 99 0 /
-//! CC 6 id marks a start, CC 99 1 / CC 6 id / CC 38 n jumps back (n = 0
-//! forever, else n more times). FF 51 sets the tempo, FF 2F ends the song
-//! (no loop to the start).
+//! MODMIDI.IRX, Sony's MIDI sequencer, as SNDBASE.IRX drives it: one sequencer
+//! per `.sq` of the loaded bank, stepped every 4,167 us, its messages going to
+//! a synthesizer port. Addresses are module offsets in MODMIDI.IRX. The Python
+//! model this follows (`tools/midi.py`) matched the module run in
+//! `tools/eemu.py` byte for byte on every tick of all 150 sequences on the
+//! disc. The data (a set bit 7 means no delta next; loops are NRPN 99 / 6 /
+//! 38) is in docs/engine/sound.md ("The sequencer").
 
 use piney_data::sound::Sq;
 

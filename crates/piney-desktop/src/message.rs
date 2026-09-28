@@ -1,13 +1,10 @@
-//! `ccMessage` (message.cpp, main executable): the event scripts' speech
-//! and information windows as the desktop shows them (`docs/engine/desktop.md`,
-//! "Messages").
-//!
-//! The desktop's instance is `ccMsg`, made by `ccDtMenu`'s constructor on
-//! the menu layer (priority 242, `SetFrame(0, 0, 512, 384, 256, 192, 1,
-//! 6/7)`: one logical unit a frame-buffer pixel). The event task calls
-//! `Change` / `ChangeInfo`, then `Check` once a frame; `ccDtMenu::Disp`
-//! calls `Disp` every frame. The window is a `ccMenuWindow` (a `ccSprite`)
-//! cutting cells from `xwindow::TEX_xwindo00`; text is `ccKanji` kt 2.
+//! `ccMessage` (message.cpp, main executable): the event scripts' speech and
+//! information windows as the desktop shows them (`docs/engine/desktop.md`,
+//! "Messages"). The desktop's instance is `ccMsg`, made by `ccDtMenu` on the
+//! menu layer (242, `SetFrame(0, 0, 512, 384, 256, 192, 1, 6/7)`). The event
+//! task calls `Change` / `ChangeInfo`, then `Check` once a frame;
+//! `ccDtMenu::Disp` calls `Disp`. The window is a `ccMenuWindow` cutting cells
+//! from `xwindow::TEX_xwindo00`; text is `ccKanji` kt 2.
 
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;

@@ -1,36 +1,11 @@
 //! The tables the field generator reads (`piney_data::field::Tables`,
-//! `docs/engine/field.md`). Everything here is engine data: numbers and the
-//! names of files, models and animations. It is read from gcmn.prg:
-//!
-//! ```text
-//! FOBJECT_TABLE          EnterObjTABLE, LakeObjTABLE, KeyObjTABLE,
-//!                        SubObjTABLE, BaseObjTABLE, TreeObjTABLE: per field
-//!                        type a {FOBJECT_INFO_TABLE *p; int num}, each row
-//!                        {anmname, clumpname, type, w, h, rotflag, flat}
-//! fieldccs(2)            the field's CCS file per type
-//! BaseMeshName,          the ground tile per type and the cover tiles
-//! SmallMeshName
-//! WORLD::Generate        read from its code: the story areas with no
-//!                        dungeon entrance, the lake field types, the object
-//!                        counts and the per-type divisions, the `object`
-//!                        percentages, the hill counts per `ground` and the
-//!                        hill sizes
-//! SetLake, WORLD::Init   the lake's water surface animation and the effect
-//!                        CCS file it is in
-//! WORLD::Init draws      fieldrand calls before Generate per field type and
-//!                        weather (measured in eemu; tools/test_field.py
-//!                        re-derives them)
-//! ccGetDist              which square root the executable takes (newlib's
-//!                        sqrtf, or the FPU's sqrt.s)
-//! SetMESH2, SetSmallMESH which height cell each vertex of the ground tile
-//!                        and of a cover tile takes its z and colour from,
-//!                        read by running both in piney-eemu
-//! backgrounds            backccs(2), BGTBL(2) rows, BgMatName(2) and field
-//!                        type 6's aurora clumps
-//! ```
-//!
-//! The object rows are written once per array, and each table's field
-//! types name them by index, as the game's tables share them.
+//! `docs/engine/field.md`): engine data read from gcmn.prg. The
+//! `FOBJECT_TABLE`s (enter, lake, key, sub, base, tree objects per field type),
+//! `fieldccs(2)`, the ground and cover tiles, what `WORLD::Generate`'s code
+//! holds, the lake's water, the `fieldrand` draws before `Generate`, which
+//! square root `ccGetDist` takes, the height cells `SetMESH2` and
+//! `SetSmallMESH` read (run in piney-eemu), and the backgrounds. The object
+//! rows are written once per array and named by index, as the game shares them.
 
 use std::collections::{BTreeMap, HashMap};
 

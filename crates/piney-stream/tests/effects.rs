@@ -1,24 +1,11 @@
 //! The effect tasks beyond stream 2's against the game's: each
-//! `strNNNN_fixture.txt`, written by `python3 tools/test_stream_rs.py
-//! effects strNNNN` from the task (`Func_strNNNN`) run in `tools/eemu.py`
-//! over the whole scene as `tests/str0001.rs` describes for `Func_str0001`:
-//! its cues from the scene's notes, one pass a game frame, every layer's DMA
-//! list decoded to GS primitives.
-//!
-//! The port plays the stream for real and compares, step by step from the
-//! task's first pass to the stream's end: the cues its notes raise and on
-//! which step; every primitive the task sends (layer, order, kind,
-//! texture, blend, tests, scissor and each vertex in GS units), by the
-//! fixture's FNV-1a 64 of the lines `tests/str0001.rs` would write; and the
-//! C library's `rand` state after each pass; and what a pass starts besides
-//! its packets: the hit marks (`effHitMarkStr`: which note object, which
-//! rotation - the fixture's objects stand at their index on x) and the
-//! view's `divZ`. Stream 10 (`Func_str0300`, the first Data Drain): its
-//! raster noise, feedbacks of two scales, the inversion and the white
-//! flashes. Stream 5 (`Func_str0120`, Skeith and Orca): feedbacks that hold
-//! then fade, fades from and to white and to black, eight hit marks (the
-//! last two reading past `hitRot0120a`) and the near clip. Skipped when the
-//! disc image is not there (PINEY_ISO points elsewhere).
+//! `strNNNN_fixture.txt`, written by `python3 tools/test_stream_rs.py effects
+//! strNNNN` from `Func_strNNNN` run in `tools/eemu.py` over the whole scene
+//! (as `tests/str0001.rs`). The port plays the stream for real and compares,
+//! step by step: the cues and their steps, every primitive (by the fixture's
+//! FNV-1a 64 of the canonical lines), `rand`'s state after each pass, the hit
+//! marks and the view's `divZ`. Streams 10 (`Func_str0300`) and 5
+//! (`Func_str0120`). Skipped without the disc image (PINEY_ISO).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;

@@ -1,30 +1,11 @@
 //! Answers `tools/test_sound3d_rs.py`: the positioned sound effects and the
 //! animation notes' sounds ([`piney_audio::se3d`]) on the cases the harness
-//! runs through the game's own code. One request a line, one answer line
-//! back. Floats are bit patterns in hex, other numbers decimal; CAM is `-`
-//! (no active camera) or `CX,CY,CZ,VX,VY,VZ,KIND` (the eye and the point
-//! looked at in hex, the type in decimal); BYTES is what reaches port 0 in
-//! hex, `-` for nothing; IDS the eight loop slots.
-//!
-//! ```text
-//! vel N CAM PX PY PZ               calcVel                 -> V
-//! pan CAM PX PY PZ                 calcPan                 -> PAN CDEG
-//! on N CAM PX PY PZ                ccSeOn3D                -> BYTES
-//! note N K CAM PX PY PZ            ccSeOn3DNote            -> BYTES
-//! reset                            the loop slots all -1   -> IDS
-//! loop N CAM PX PY PZ              ccSeOn3DLoop            -> ID BYTES IDS
-//! off N ID                         ccSeOffLoop             -> BYTES IDS
-//! spc PARAM ID HIT CAM PX PY PZ    ccSeSetParamSPC         -> CODE NOTE BYTES
-//! pc PARAM TYPE HIT CAM PX PY PZ   ccSeSetParamPC          -> CODE NOTE BYTES
-//! enemy PARAM CAT CAM PX PY PZ     ccSeSetParamEnemy       -> CODE NOTE BYTES
-//! inu PARAM HIT CAM PX PY PZ       ccSeSetParamInu         -> CODE NOTE BYTES
-//! treset                           slots -1, +0x133 and looptest 0
-//! tstart                           tobjSeLoopStart         -> BYTES IDS FLAG SLOT
-//! tloop CAM PX PY PZ RATE          tobjSeLoop              -> BYTES
-//! ```
-//!
-//! CODE and NOTE are the call the note ends in (`-` for none; NOTE `-` for
-//! `ccSeOn3D`).
+//! runs through the game's own code, one request a line and one answer line
+//! back. Floats are bit patterns in hex, other numbers decimal; a camera is
+//! `-` or `CX,CY,CZ,VX,VY,VZ,KIND`. The requests name the function: `vel`,
+//! `pan`, `on`, `note`, `reset`, `loop`, `off`, `spc`, `pc`, `enemy`, `inu`,
+//! `treset`, `tstart`, `tloop`; the answers are the bytes that reach port 0,
+//! the loop slots, and for the notes the call they end in.
 
 use std::io::{BufRead, Write};
 

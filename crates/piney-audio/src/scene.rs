@@ -1,19 +1,10 @@
 //! The scenes' own sounds: what `ccSoundMain` (main 0x00181010) does after
-//! each frame of its loop while `ccSnd.gameStart` (+0x17) is set, by
-//! `ccSnd +0x105` ([`Driver::scene_mode`]):
-//!
-//! ```text
-//! 1  Mac Anu        waterTest (0x0017bac0): the canals' loop, sound effect
-//!                   42, louder as the camera nears the water
-//! 2  area 15's bank bgmChurch (0x0017c3c0): the approach's music by the
-//!                   camera's distance to the church, the church's own
-//!                   inside it (block 1)
-//! 3  another town   bgmBreed (0x0017c6d0): the Grunty breeder's tune while
-//!                   Kite is near DMY_merchant6
-//! ```
-//!
-//! The distances are `ccGetDist` (main 0x001d9dd0): on the ground, the
-//! third lane zeroed, in the EE's arithmetic.
+//! each frame of its loop while `ccSnd.gameStart` (+0x17) is set, by `ccSnd
+//! +0x105` ([`Driver::scene_mode`]): 1 Mac Anu's canals (`waterTest`
+//! 0x0017bac0), 2 area 15's church music (`bgmChurch` 0x0017c3c0), 3 the
+//! Grunty breeder's tune (`bgmBreed` 0x0017c6d0). The distances are
+//! `ccGetDist` (main 0x001d9dd0): on the ground, the third lane zeroed, in the
+//! EE's arithmetic. See docs/engine/sound.md ("The scenes' own sounds").
 
 use piney_data::field::ee::{add, div, from_int, lt, mul, sub};
 use piney_data::libm::sqrtf;
@@ -85,12 +76,9 @@ pub fn scene_sound(d: &mut Driver, tables: &Tables, s: &SceneInput, out: &mut Ve
 }
 
 /// `waterTest` (0x0017bac0), in Mac Anu. The volume is the camera's ground
-/// distance from the line y = 0 (its x and z zeroed): full within 1700,
-/// then fading out over `decay * 3000 / 256` more; `(reach - d) / 10 *
-/// velocity / 100`, 0..127. West of x -3000, and south of y -6300 while x
-/// is negative, it is at least 48 (the latter exactly 48) unless within
-/// the 1700; never above the row's velocity. The first frame starts the
-/// loop silent in a free slot as TOBJ's hum does
+/// distance from y = 0: full within 1700, then fading out over `decay * 3000
+/// / 256` more, with a floor of 48 in the west and south and never above the
+/// row's velocity. The first frame starts the loop silent in a free slot
 /// ([`se3d::tobj_se_loop_start`]) and sets `ccSnd +0x132`; every later one
 /// sends `FD 01 ch note id 60 00` and `FD 00 ch note id vol 00`.
 fn water_test(d: &mut Driver, tables: &Tables, s: &SceneInput, out: &mut Vec<Command>) {

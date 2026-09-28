@@ -1,36 +1,11 @@
 //! A scene's frame: `ccStreamDrawLayerList::Draw` (0x00148400) through
-//! `ccObj::Draw(1.0)` (0x0013f220) and `ccModel::Draw` (0x0013eab0), with
-//! the scene's camera, ambient and lights (`docs/engine/stream.md`).
-//!
-//! - **View.** Every layer of the scene shares the view of the layer
-//!   `InitScene` was given (`sysLayer`, the default `SetFrame` unless the
-//!   effect task set another, [`Scene::frame`]: its centre, aspect and
-//!   scissor), and `PlaySceneMain` sets its camera each frame from the last
-//!   `F_Camera` (`ccCam::SetMatrix_PosRotXYZDebug`, `ccView::SetView`); the
-//!   projection is `piney_desktop::camera`'s.
-//! - **Objects.** A node draws when it has a model, `dispSW` is 3 and its
-//!   transparency is above 1/128; its matrix is `lwMatrix`; bone and skin
-//!   mmats take the matrices of its clump's nodes; the per-mmat state and
-//!   draw order are the desktop's (`piney_desktop::anm::draw_model`).
-//! - **Light.** For a lit model (mtype bit 0) `ccDrawEnv::SetLightMatrix`
-//!   (0x00105900) asks each light of the scene's group, in order, for a
-//!   direction and colour at the object's position (`ccOmniLight::
-//!   CheckRange` 0x00139830: full inside `farDownStart`, falling linearly to
-//!   0 at `farDownEnd`; `ccDistantLight::CheckRange` 0x00139170: the
-//!   light's matrix times (0, 0, -1)) and fills slots 2, 1, 0; VU1 doubles
-//!   the colours, the ambient is the scene's `F_Ambient`.
-//! - **Fog.** The effect task's `SetFog` ([`Scene::fog`]) on every object
-//!   but those it took out, by each vertex's view depth as VU1 fogs
-//!   ([`piney_draw::DepthFog`]).
-//! - **Render state.** A model whose TEST the effect task set with
-//!   `ccObj::SetRenderState(CCRS_ZWRITEENABLE, 0)` (stream 2's floor) tests
-//!   NEVER with FB_ONLY: its colour is drawn and its Z never written.
-//! - **Clipping.** The view's `divZ` ([`Scene::div_z`]: 1000 from
-//!   `ccLayer::Init` and `ccSetStreamDemoThread`, 500 after stream 5's cue
-//!   12, 2000 and 3000 in stream 15): VU1 clips a triangle whose last
-//!   vertex comes nearer than that instead of dropping it, which is where a
-//!   stream's close-ups put vertices outside the GS space; the draws do not
-//!   ask the renderer to drop triangles.
+//! `ccObj::Draw(1.0)` (0x0013f220) and `ccModel::Draw` (0x0013eab0), with the
+//! scene's camera, ambient and lights (`docs/engine/stream.md`, "The draw").
+//! Every layer shares `sysLayer`'s view ([`Scene::frame`]), the camera from
+//! the last `F_Camera`; lights by `ccDrawEnv::SetLightMatrix` (0x00105900);
+//! the effect task's fog ([`Scene::fog`]) and render state; and the view's
+//! `divZ` ([`Scene::div_z`]), below which VU1 clips a triangle instead of
+//! dropping it, so the draws never ask the renderer to drop triangles.
 
 use glam::{Mat3, Mat4, Vec3};
 use piney_desktop::anm::{Ctx, OPAQUE_TRANSPARENCY, model_state, sort_key};
@@ -334,15 +309,13 @@ fn draw_model(
     }
 }
 
-/// `ccModel::Draw`'s sort key for a model without a bounding box,
-/// `M[2][3] / M[3][3]` of `world_screen * lw` (see
-/// [`piney_desktop::anm::sort_key`]), in VU0's arithmetic. The view
-/// screen's w row is (0, 0, 1, 0), so `world_screen`'s is `world_view`'s
-/// third and the key needs only the camera and `lw`, taken as the game
-/// has them (`Scene::world_view_bits`, checked against the game's own
-/// `SetMatrix_PosRotXYZDebug` in eemu): for planes square to the view the
-/// key is the camera's small tilt over the distance, which a float camera
-/// gets by rounding noise instead (Mutation's recall, stream 23).
+/// `ccModel::Draw`'s sort key for a model without a bounding box, `M[2][3] /
+/// M[3][3]` of `world_screen * lw` ([`piney_desktop::anm::sort_key`]), in
+/// VU0's arithmetic. The view screen's w row is (0, 0, 1, 0), so the key needs
+/// only `world_view`'s third row and `lw`, taken as the game has them
+/// (`Scene::world_view_bits`): for planes square to the view the key is the
+/// camera's small tilt, which a float camera gets as rounding noise instead
+/// (Mutation's recall, stream 23).
 fn exact_key(wv: &[[u32; 4]; 4], lw: &[[u32; 4]; 4]) -> f32 {
     use piney_data::anim::ee;
     let w = |c: usize| {

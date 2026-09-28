@@ -1,14 +1,9 @@
-//! [`ShadowPass`] on the GPU: the steps `ccShadowPacket::SetShadowPacket`
-//! sends the GS (`docs/engine/shadow.md`), each a render pass of its own.
-//!
-//! 1. Z copy: the frame's Z buffer read at the buffer's points into the
-//!    buffer's own depth texture (`TransFrameBuffer`).
-//! 2. Per group, the last first: the polygons into a count texture, +1 or
-//!    -1 each (additive), against the buffer's depth (GREATER, no write);
-//!    then every pixel counted above 0 writes the group's alpha into the
-//!    alpha texture (`FillTexBuffer` and `FillShadowBuff`).
-//! 3. Composite: black over the rectangle at the alpha times the darkness,
-//!    read bilinearly from the alpha texture (`TransShadowTex`).
+//! [`ShadowPass`] on the GPU: the steps `ccShadowPacket::SetShadowPacket` sends
+//! the GS (`docs/engine/shadow.md`), each a render pass of its own: the Z copy
+//! (`TransFrameBuffer`); per group, the last first, the polygons counted +1 or
+//! -1 against the buffer's depth and the counted pixels given the group's alpha
+//! (`FillTexBuffer`, `FillShadowBuff`); then black over the rectangle at the
+//! alpha times the darkness, read bilinearly (`TransShadowTex`).
 
 use std::collections::HashMap;
 

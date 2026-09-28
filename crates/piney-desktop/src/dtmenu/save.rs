@@ -1,11 +1,8 @@
-//! The save menus after the staff roll (`docs/engine/desktop.md`, "The
-//! menu task"): menu 8, `ccDtMenu::SaveSelMenu` (0x0016ef90), the clear
-//! data's question over an OK / Cancel dialog, and menu 9,
-//! `ccDtMenu::SaveMenu` (0x0016f2c0) with `SaveMenuDisp` (0x0016fe70), which
-//! drives `ccSaveSys` as the Data screen does: a memory card slot, then a
-//! file, then its questions and messages.
-//!
-//! The ending's `staff_roll` opens menu 8 (`openReqNum` 8) unless parody
+//! The save menus after the staff roll (`docs/engine/desktop.md`, "The menu
+//! task"): menu 8, `ccDtMenu::SaveSelMenu` (0x0016ef90), the clear data's
+//! question over an OK / Cancel dialog, and menu 9, `ccDtMenu::SaveMenu`
+//! (0x0016f2c0) with `SaveMenuDisp` (0x0016fe70), which drives `ccSaveSys` as
+//! the Data screen does. The ending's `staff_roll` opens menu 8 unless parody
 //! mode is on, and waits for the menus to close.
 
 use piney_data::tables::sjis::encode;

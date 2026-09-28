@@ -1,23 +1,11 @@
 //! The `eemu_rs` Python module: [`Cpu`] behind an API that mirrors
-//! `tools/eemu.py`'s `Machine` closely enough for a harness to switch with
-//! its import line (`README.md` lists what differs).
-//!
-//! - `mem` is a real `bytearray` of 32 MB, so every idiom the harnesses use
-//!   on it (slices read and written, `struct.unpack_from`, `.index`, single
-//!   bytes) works unchanged. The machine holds a buffer export on it for its
-//!   whole life, which pins its storage (a bytearray with an export cannot
-//!   be resized or freed); the interpreter reads and writes that storage
-//!   directly, only while no Python code can run.
-//! - `r`, `f`, `vf`, `vacc` and `vi` are live views onto the registers.
-//! - `hooks` is a mapping that keeps the interpreter's hooked-address bitmap
-//!   in step with every change; eemu's own HLE functions found there run
-//!   natively.
-//! - A Python subclass may override `exec`, `cop2` or `mmi` as it would
-//!   eemu's; the run loop calls the override for exactly the instructions
-//!   eemu's would, and `super()` reaches the native code.
-//! - Stops raise `eemu.Stop` itself, with eemu's messages, and a not-taken
-//!   branch-likely is `eemu.ANNUL`, so harness code that names either keeps
-//!   working.
+//! `tools/eemu.py`'s `Machine` closely enough for a harness to switch with its
+//! import line (`README.md` lists what differs). `mem` is a real 32 MB
+//! `bytearray` the machine holds a buffer export on for its life, read and
+//! written directly only while no Python code can run; `r`, `f`, `vf`, `vacc`
+//! and `vi` are live views; `hooks` keeps the hooked-address bitmap in step; a
+//! Python subclass may override `exec`, `cop2` or `mmi`; stops raise
+//! `eemu.Stop` itself, and a not-taken branch-likely is `eemu.ANNUL`.
 
 use std::slice;
 

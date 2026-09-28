@@ -1,23 +1,11 @@
-//! MODHSYN.IRX, Sony's "hardware synthesizer" (CSL hsyn, "PsIImodhsyn
-//! 2420"): MIDI messages on four ports become SPU2 voices. Addresses are
-//! MODHSYN.IRX module offsets (LIBSD ones marked). This follows the Python
-//! model `tools/hsyn.py` line for line; that model produced the same libsd
-//! calls as the module run in `tools/iopemu.py` on every case tried (every
-//! sound effect, 14,260 note ons over 8 banks, controllers, LFOs, stealing),
-//! and `tests/hsyn.rs` checks this port against the module's own writes.
-//!
-//! Per tick (`sceHSyn_ATick`, 0x182c): each port's MIDI bytes are parsed
-//! (0x15cc: no running status, 8n with one data byte, F9 / FD the SE
-//! messages); then KOFF per core, the pending voices keyed on (VOLL, VOLR,
-//! PITCH, SSA, ADSR1, ADSR2, the mix switches, then KON per core), then every
-//! sounding voice updated (LFOs, portamento, pitch and volume when they
-//! change) or freed when its envelope has ended.
-//!
-//! A note on (0x65bc) sounds every sample of every split of the channel's
-//! program whose key and velocity ranges hold it. Pitch: `sceSdNote2Pitch`
-//! from the sample's base note, times the VAG's rate over 48 kHz. Volume:
-//! program x split x sample x velocity curve x crossfade, x CC7 x CC11, x the
-//! port volume (0..256), split by a linear balance pan.
+//! MODHSYN.IRX, Sony's "hardware synthesizer" (CSL hsyn, "PsIImodhsyn 2420"):
+//! MIDI messages on four ports become SPU2 voices. Addresses are MODHSYN.IRX
+//! module offsets (LIBSD ones marked). This follows the Python model
+//! `tools/hsyn.py` line for line, which produced the same libsd calls as the
+//! module run in `tools/iopemu.py` on every case tried; `tests/hsyn.rs` checks
+//! this port against the module's own writes. The tick (`sceHSyn_ATick`
+//! 0x182c), note on (0x65bc), pitch and volume are in docs/engine/sound.md
+//! ("The synthesizer").
 
 use std::sync::Arc;
 

@@ -1,38 +1,10 @@
 //! `ccParticle` (main particle.cpp, 0xb0 bytes): one particle, set up by
-//! `Setup` (0x001bf0f0) and run by `Main` (0x001bf8d0) once a frame.
-//!
-//! ```text
-//! Setup(gene, pTex, patNum, distCheck):
-//!   with patNum, one rand(): pTex += rand() % patNum (for clumps, anms and
-//!     sprites of anm 0/1); pTex picks the particleTbl row and a CLUT
-//!     (Setup's switch: ids 101-244 are rows 0-84 with particleCcsAdrs[pTex]
-//!     for a CLUT)
-//!   the object: style 0 a ccEff (Init(chunk, 1), fog off), 1 a ccClump
-//!     (Duplicate(0x3800), fog off), 2 a ccAnm (SetAnm, fog off), each with
-//!     the CLUT swapped in
-//!   rows with pat: a random first pattern (rand() % patNum) for anm 3, or
-//!     sprites of anm 1-3
-//!   the next particleSerialNum; no direction, turn, offset or velocity;
-//!     scale 1, transparency 1, size 1, colour 0 (so it fades in); the
-//!     generator's pFadeIn / pFadeOut (512 / 256 without); lifeTime 1
-//! Main:
-//!   the generator killed (killFlag 2): fade out, or (3) end at once
-//!   ended (age past lifeTime after the fade out, or endFlag): the object
-//!     deleted, texID -1 (ccParticleCtrl::Main counts it off)
-//!   each of the generator's force fields (Calc); a 1 fades it out
-//!   pos += velocity
-//!   drawn at ccTransPosFW2LW(pos + offset (+ the generator's pos when
-//!     synced)), shown when ccCheckCameraDeg(12288) passes and, with
-//!     distSW, faded 1 up to 3000 from the eye, 0 from 5000, hidden past
-//!     7000; its transparency times colour / 2048
-//!   a sprite: scale x/y and rotate[3] as its turn, drawn with anmPat;
-//!     a clump or anm: SetMatrix_PosRotZYXScale(pos, rot, scale); an anm
-//!     steps (_AnimateForward) and ends with its animation
-//!   age on to lifeTime, then the fade out (fadeFlag 2); a sprite's pattern
-//!     steps (anm 2 once, then it ends; anm 3 loops)
-//!   colour: fading in by fadeInD to 2048 (fadeFlag 0 to 1), out by
-//!     fadeOutD to 1 (2 to 3)
-//! ```
+//! `Setup` (0x001bf0f0: the object by style - a `ccEff`, `ccClump` or `ccAnm`
+//! with its CLUT swapped in, fog off - and one `rand()` for a random pattern)
+//! and run by `Main` (0x001bf8d0) once a frame: the force fields, the move,
+//! the draw at `ccTransPosFW2LW`, the age and the fades (the colour 0-2048
+//! times the transparency). The rules are in docs/engine/particles.md
+//! ("ccParticle").
 
 use piney_world::pose::Play;
 

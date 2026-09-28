@@ -1,68 +1,11 @@
-//! How a `ccEff` sprite reaches the GS: `ccEff::Draw(pat)` (main
-//! 0x0013bcb0) builds a 27-qword VIF packet, sorts it into the active
-//! layer, and VU1's `mc_DrawEff` (micro 0x595) turns it into one textured
-//! triangle strip facing the camera.
-//!
-//! ```text
-//! ccEff::Draw(pat):
-//!   a = ftoi0(transparency * pat[pat].transparency) >> 5; a < 0: nothing;
-//!     above 255: 255
-//!   m = unit, m[0][0] scaleX, m[1][1] scaleY; RotMatrixZ(rotate) unless
-//!     rotate == 0; m = view.fview * m; m.t += pos; m = view.world_screen * m
-//!   m[3][3] (the centre's w) below view +0x1dc (8) or not <= +0x1ec (2^20):
-//!     nothing
-//!   GetWork(432); ccDLSort::Add(m[3][2] / m[3][3], the packet)
-//!   (a texture or palette not yet in VRAM: its upload is chained in first)
-//! the packet (qword: contents):
-//!    0  DMA NEXT qwc 0 -> 1 (the head, which uploads may be put before)
-//!    1  DMA NEXT qwc 25 (the tail) | STMOD 0, STCYCL 4,4
-//!    2  STMASK 0x50505050, FLUSHA, UNPACK V4-32 addr 0 num 18
-//!    3-6   VU 0-3    m
-//!    7     VU 4      not written (not read)
-//!    8     VU 5      ccDrawEnv fMin, fMax, fogB, fogA
-//!    9     VU 6      GIFtag A+D nloop 1 nreg 10          (0x002fb110)
-//!   10-19  VU 7-16   ALPHA_1  TEST_1 (below)  TEXFLUSH  TEX0_1 (tex | clut)
-//!                    TEX1_1 (tex | ccDrawEnv +0xa8)  MIPTBP1_1  CLAMP_1
-//!                    RGBAQ (color RGB, a, Q 1.0)  FOGCOL (+0xd8)
-//!                    ZBUF_1 (ccSys +0xbc8)
-//!   20     VU 17     GIFtag PACKED eop nloop 1 nreg 9, PRE PRIM = prim;
-//!                    FOG, (ST, XYZ2) x 4                 (0x002fb120)
-//!   21  STMOD 1 (add the row), STROW (u, v, 0, 1.0 bits)
-//!   22  NOP, UNPACK V2-16 masked usn addr 32 num 4: (0,0) (w,0) (0,h) (w,h)
-//!   23  NOP, UNPACK V2-32 masked addr 36 num 4: (x0,y0) (x1,y0) (x0,y1)
-//!       (x1,y1) as float bits
-//!   26  NOP, MSCAL mc_DrawEff
-//! TEST: the eff's, with (for flag bit 0x20 clear, blend type 0) AREF |=
-//!   aref * a >> 7 from the texture; ZTE off (SetRenderState(0, 0)) draws
-//!   ZTST ALWAYS with ZBUF's ZMSK set.
-//! ```
-//!
-//! The mask (z, w from the row, x, y data) and offset mode make VU 32-35
-//! the UVs `(u + du, v + dv, 0, 1.0)` and VU 36-39 the corners - with `u`
-//! and `v` added to the float bits of x and y too, which moves them by a
-//! few units in the last place: the port does the same.
-//!
-//! ```text
-//! mc_DrawEff (VU1 0x595-0x5d1), per corner p = (x, y, 0, 1):
-//!   q = m p (((m0 x + m1 y) + m2 0) + m3 1); v = q.xyz * (1 / q.w)
-//!   inside: 0 < v.x < 4095 and 0 < v.y < 4095 (the MAC sign flags of
-//!     0 - v and v - 4095, read four pairs later); any corner outside: no
-//!     XGKICK, nothing drawn (the whole sprite)
-//!   ST = itof12(u + du, v + dv): 1/4096ths of the texture; Q stays the
-//!     A+D RGBAQ's 1.0
-//!   XYZ2 = ftoi4(v), word 3 0 (drawing kick)
-//!   FOG = ftoi4(clamp(fogB + fogA m[3][3], fMin, fMax)): the centre's
-//!     depth for all four
-//!   XGKICK VU 6
-//! ```
-//!
-//! Nothing here depends on the effect: [`Eff::packet`] gives what the GS
-//! receives (bit for bit, checked by `tools/test_effect_draw_rs.py`
-//! against the game's `Draw` and `mc_DrawEff` run in eemu and
-//! `tools/vu.py`), [`Eff::render`] puts it in the layer's sorted group as a
-//! [`Prim`]. `Prim` has no fog; the effects' sprites have PRIM.FGE off
-//! (`ccEffect::InitEffect` clears it), and FOG is in [`GsSprite::fog`] for
-//! the rest.
+//! How a `ccEff` sprite reaches the GS: `ccEff::Draw(pat)` (main 0x0013bcb0)
+//! builds a 27-qword VIF packet, sorts it into the active layer, and VU1's
+//! `mc_DrawEff` (micro 0x595-0x5d1) turns it into one textured strip facing
+//! the camera, dropping the whole sprite when a corner falls outside 0..4095.
+//! The offset mode adds `u` and `v` to the corners' float bits too, moving
+//! them a few units in the last place; the port does the same. [`Eff::packet`]
+//! is what the GS receives, bit for bit; [`Eff::render`] puts it in the layer's
+//! sorted group. The packet is in docs/engine/effects.md ("Drawing a sprite").
 
 use piney_data::ccs::Ccs;
 use piney_desktop::layers::Layers;

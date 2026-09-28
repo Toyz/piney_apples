@@ -1,33 +1,11 @@
 //! The particle system (main particle.cpp): `ccThParticle` (0x001bc2f0,
-//! task priority 98), `ccParticleCtrl`, `ccParticleGenerator`,
-//! `ccParticle` and `ccParticleForceField`, and the starters the rest of
-//! the game calls.
-//!
-//! ```text
-//! ccThParticle(data): new ccParticleCtrl(data->num) - InitParticleCtrl:
-//!   particleCcsAdrs[i] = GetChunkAdrsF(GetCCSAdrs(particleCcsAnmTbl[i].ccs),
-//!   .anm) for the 245 rows, no generators, the 2000 particles free (texID
-//!   -1; 150 in particlesStr for the stream demo's second system); then
-//!   each frame (after its first Breath) ccParticleCtrl::Main:
-//!     every generator in the order started: Main; one that has ended
-//!       (endFlag) comes off the list and is deleted with its force fields
-//!     every particle slot in order with texID not -1, on its layer or the
-//!       effect layer (WORLD_MAN +0x4c8, priority 20): Main (MainStr for
-//!       the stream demo's); one that ended counts off its generator (pCnt)
-//!       and the control (pNum)
-//! startParticleGenerator(g) / ccParticleCtrlAddGenerator: onto the list's
-//!   tail (particleSystemStr's while particleThreadStrFlag)
-//! GenerateParticle: a free slot, searching from the front and from the
-//!   back by turns
-//! ```
-//!
-//! Generators are made (`new ccParticleGenerator(&particleGeneratorTbl[row],
-//! ...)`) by the effects, the battle and the spells, set up (what they
-//! follow, where, their layer) and started; the game keeps pointers to them
-//! to kill them later (`ParticleKill`: their particles fade out,
-//! `ParticleDelete`: they end at once). Here a generator is named by its
-//! serial number ([`GenRef`]), and what it follows by [`VecRef`] /
-//! [`IntRef`], read through the [`Host`] each frame.
+//! priority 98), `ccParticleCtrl` (245 animation rows, 2000 particles),
+//! `ccParticleGenerator`, `ccParticle` and `ccParticleForceField`, and the
+//! starters the rest of the game calls. Each frame runs every generator in
+//! the order started, then every live particle slot in order. The game keeps
+//! pointers to generators to kill them later; here a generator is named by
+//! its serial number ([`GenRef`]) and what it follows by [`VecRef`] /
+//! [`IntRef`], read through the [`Host`]. See docs/engine/particles.md.
 
 mod condition;
 pub mod dmath;

@@ -1,27 +1,11 @@
-//! A scene: one stream file as `ccStream::InitScene` (0x00148640) builds it
-//! and `ccStream::PlaySceneMain` (0x001494c0) plays it, frame by frame
-//! through `DecodeFrameSection` (0x0014ded0) and `DecodeFrameChunk`
-//! (0x0014e1b0) (`docs/engine/stream.md`).
-//!
-//! **Objects.** The scene draws the objects of its own Clump chunks, one
-//! `ccObj` per clump node (`ccClump::Init` 0x0013c5e0). A node is an Obj or
-//! an ExtObj of the scene file; an ExtObj stands for its target, followed
-//! across files (`ccGetExternalIndex` 0x00101a50), and an object whose
-//! index entry is `#` is the same-named object of another loaded file,
-//! the most recently loaded first (`ccStream::CompleteIndexChunkAdrs`
-//! 0x001476c0). The node draws the final Obj's model; its own Obj2 gives
-//! the transparency inheritance, the hide-at-origin flag and its layer; its
-//! parent is the node its own parent field names, or the clump. Nodes whose
-//! model is a shadow model (mtype bit 3) are taken out of the clump
-//! (`CompleteChunk` 0x00147a60) and not drawn.
-//!
-//! **Start.** InitScene zeroes every node's transparency, so nothing shows
-//! until an `F_Obj` record places it; each node starts at the identity with
-//! `dispSW` 3 when it has a model.
-//!
-//! **Frames.** Records apply as `DecodeFrameChunk` reads them: the first
-//! pass reads frames 0 and 1, each later pass one frame; the pass that
-//! reads the end Top (-1) ends the scene, -2 also rewinds it.
+//! A scene: one stream file as `ccStream::InitScene` (0x00148640) builds it and
+//! `ccStream::PlaySceneMain` (0x001494c0) plays it through `DecodeFrameSection`
+//! (0x0014ded0) and `DecodeFrameChunk` (0x0014e1b0) (`docs/engine/stream.md`,
+//! "A scene"). One `ccObj` per node of its Clump chunks, an ExtObj followed to
+//! its target across files (`ccGetExternalIndex` 0x00101a50) and a `#` entry
+//! resolved to the latest loaded file's; shadow models are taken out. Every
+//! node starts at transparency 0 until an `F_Obj` places it. The first pass
+//! reads frames 0 and 1; the end Top (-1) ends the scene, -2 also rewinds it.
 
 use std::collections::{HashMap, HashSet};
 

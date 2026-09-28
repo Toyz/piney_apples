@@ -1,26 +1,11 @@
-//! The IPU's colour space conversion (the CSC command), YCbCr 4:2:0 to
-//! RGBA32, as the game's movies are shown.
-//!
-//! libmpeg sends CSC with OFM 0 (RGBA32) and DTE 0 (no dither): `_doCSC`
-//! (INF SLUS_202.67:0x00116010) writes `0x70000000 | mbc`, `_ch3dmaCSC`
-//! likewise; `sceIpuInit` sends SETTH with both thresholds 0, so every
-//! alpha is 0x80. The conversion is the integer one the EE User's Manual
-//! gives for the IPU (BT.601, studio range), with coefficients in 1/128
-//! and a final rounding halving, as PCSX2's `yuv2rgb_reference` transcribes
-//! it:
-//!
-//! ```text
-//! lum = (0x95 * max(0, Y - 16)) >> 6          1.1640625
-//! rcr = ( 0xcc  * (Cr - 128)) >> 6            1.59375
-//! gcr = (-0x68  * (Cr - 128)) >> 6           -0.8125
-//! gcb = (-0x32  * (Cb - 128)) >> 6           -0.390625
-//! bcb = ( 0x102 * (Cb - 128)) >> 6            2.015625
-//! R = clamp((lum + rcr + 1) >> 1), G = clamp((lum + gcr + gcb + 1) >> 1),
-//! B = clamp((lum + bcb + 1) >> 1), A = 0x80
-//! ```
-//!
-//! (`>>` is arithmetic: it floors.) Chroma is not interpolated: the four
-//! samples of each 2 x 2 square share one Cb and one Cr.
+//! The IPU's colour space conversion (the CSC command), YCbCr 4:2:0 to RGBA32,
+//! as the game's movies are shown. libmpeg sends CSC with OFM 0 (RGBA32) and
+//! DTE 0 (`_doCSC`, INF SLUS_202.67:0x00116010), and SETTH with both
+//! thresholds 0, so every alpha is 0x80. The conversion is the EE User's
+//! Manual's integer one (BT.601, studio range, coefficients in 1/128, a final
+//! rounding halving, `>>` flooring) as PCSX2's `yuv2rgb_reference` has it
+//! (`docs/formats/pss.md`). Chroma is not interpolated: each 2 x 2 square
+//! shares one Cb and one Cr.
 
 use crate::decoder::Picture;
 

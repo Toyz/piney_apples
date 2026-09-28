@@ -1,20 +1,11 @@
-//! `ccOpening_Control` (DEMO.PRG, opening.cpp; DWARF layout 0x250 bytes):
-//! the title screen's scene, its menu and the panels behind the menu items.
-//!
-//! Everything on the title is a `ccAnm` of `title1` seen through
-//! `ANM_xdtcam00`: the backdrop and logo (`m_A_BACK`), a turning icon and a
-//! label per menu item (`m_A_ICO`, `m_A_APP`), dummies that place them
-//! (`m_A_ICO_D`, `m_A_APP_D`), and the Load and Option window (`m_A_WIN`).
-//! `Main` (0x004043b0) runs one frame: the action `m_MainAct` names, then
-//! `AllAnimate`, `AllTransparency`, `AllDraw` and `MOVEcount`.
-//!
-//! Every function branches on `m_NowVol` (`volumeNum`), and Infection's
-//! overlay holds all four volumes' branches and names (the later volumes'
-//! are the same code: Mutation's byte for byte, Outbreak's and
-//! Quarantine's recompiled). Volume 1 has three items (four with Parody);
-//! volumes 2-4 four (five): New Game, Load, Option, the previous volume's
-//! save (`SetNextData` / `PlayNextData`, the `NextDataLoad_Control`) and
-//! Parody.
+//! `ccOpening_Control` (DEMO.PRG, opening.cpp; DWARF layout 0x250 bytes): the
+//! title screen's scene, its menu and the panels behind the menu items, every
+//! one a `ccAnm` of `title1` seen through `ANM_xdtcam00`. `Main` (0x004043b0)
+//! runs the action `m_MainAct` names, then `AllAnimate`, `AllTransparency`,
+//! `AllDraw` and `MOVEcount`. Every function branches on `m_NowVol`, and
+//! Infection's overlay holds all four volumes' branches: volume 1 has three
+//! items (four with Parody), volumes 2-4 four (five) with the previous
+//! volume's save. See docs/engine/title.md ("ccOpening_Control").
 
 use std::rc::Rc;
 

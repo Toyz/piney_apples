@@ -1,12 +1,9 @@
-//! `Audio_control` (DESKTOP.PRG, audio.cpp): the Audio screen, a menu of
-//! Sound Mode (the desktop music) and Movie Mode (the movies unlocked), and
-//! a list for each (`docs/engine/desktop.md`, "Audio").
-//!
-//! Layout constants are the class's own (constructor 0x00405b70): the
-//! frame `laysize` (130, 131, 153 x 305) on the kanji layer, and the
-//! scroll bar `scrsize` on a layer of its own (`ScrLayer`, priority 129)
-//! framed by `Tmpsize` with the default aspect. Text is `ccKanji` with the
-//! `Init` drop shadow in `ccSpriteColorTable[7]`.
+//! `Audio_control` (DESKTOP.PRG, audio.cpp; constructor 0x00405b70): the Audio
+//! screen, a menu of Sound Mode (the desktop music) and Movie Mode (the movies
+//! unlocked), and a list for each (`docs/engine/desktop.md`, "Audio"). The
+//! frame `laysize` (130, 131, 153 x 305) is on the kanji layer, the scroll bar
+//! `scrsize` on `ScrLayer` (129) framed by `Tmpsize`; text is `ccKanji` with
+//! the drop shadow in `ccSpriteColorTable[7]`.
 
 use piney_data::tables::desktop;
 use piney_data::tables::sjis::encode;

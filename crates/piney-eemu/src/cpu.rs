@@ -1,15 +1,10 @@
-//! The interpreter: `tools/eemu.py`'s `Machine.exec`, `cop1_s` and `call`
-//! loop, `tools/test_anim.py`'s VuMachine (VU0 macro mode, lqc2 / sqc2,
-//! ldl / ldr and the MMI instructions it knows) and `tools/test_stream_rs.py`'s
-//! Vu0Machine (VU0's integer registers and data memory), each behind a
-//! [`Features`] switch so that a machine stops on exactly the instructions
-//! its Python counterpart stops on.
-//!
-//! The state is held the way the Python holds it: 128-bit GPRs, HI / LO as
-//! whatever `mthi` / `mtlo` put there (the whole 128-bit register; `mfhi`
-//! and `pmaddh` take the bits they use), raw `u32` FPU and VU0 registers,
-//! and `pc` / `npc` as 64-bit values the way Python's unbounded ints carry
-//! them. Nothing checks alignment, as eemu does not.
+//! The interpreter: `tools/eemu.py`'s `Machine.exec`, `cop1_s` and `call` loop,
+//! `tools/test_anim.py`'s VuMachine (VU0 macro mode, lqc2 / sqc2, ldl / ldr and
+//! its MMI instructions) and `tools/test_stream_rs.py`'s Vu0Machine, each
+//! behind a [`Features`] switch, so a machine stops on exactly the
+//! instructions its Python counterpart stops on. The state is held as the
+//! Python holds it: 128-bit GPRs, HI / LO whole, raw `u32` FPU and VU0
+//! registers, `pc` / `npc` as 64-bit values; nothing checks alignment.
 
 use std::collections::HashMap;
 use std::fmt;

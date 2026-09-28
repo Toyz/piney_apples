@@ -2,12 +2,9 @@
 //! Infection gets one more mail, from Helba, listed straight below CC
 //! Corporation's first two, sent by the port's patch to event 1
 //! (`piney_event::extras`); a new game on the later volumes finds it in the
-//! box already read ([`new_game`]).
-//!
-//! It takes the save's last mail slot, [`HELBA_MAIL`] (the save has 512;
-//! Infection's mails are 0-325). The real game reads the save's mail order
-//! list as indexes into its own table, so a card carrying this mail is for
-//! the port.
+//! box already read ([`new_game`]). It takes the save's last mail slot,
+//! [`HELBA_MAIL`]; the real game reads the mail order list as indexes into its
+//! own table, so a card carrying this mail is for the port.
 
 use piney_data::save::SaveData;
 use piney_data::volume::Volume;

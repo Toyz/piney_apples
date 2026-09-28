@@ -1,25 +1,10 @@
 //! Answers `tools/test_toppage_rs.py`: runs the top page's task
-//! (`ccThToppageCtrl`, without the system menu) on scenarios it is given
-//! and prints one JSON line per frame, so the test can run the same
-//! scenario through the game's own code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-toppage --features trace --example toppage_probe
-//! toppage_probe ISO < requests
-//! ```
-//!
-//! Requests, one a line:
-//! - `reset`: a new scenario on a fresh save (`SaveState::fresh`)
-//! - `save OFFSET HEX`: bytes into the save (the board's posts, the
-//!   parody flag, the last town, the Time Idol ranking)
-//! - `operate HEX`: `ccEvent.operate`
-//! - `keys CNTR FLAG`: `g_TP_pushCntr`, `g_TP_pushFlag`
-//! - `start`: the constructor; prints its calls and the state
-//! - `frame RAW MENUTYPE`: the pad read from RAW's buttons (digital), then
-//!   `Main` with `CheckMenuType()` answering MENUTYPE; prints the pad, the
-//!   calls, the requests and the state
-//! - `dump`: the board's threads and posts as the port reads them (the
-//!   tables' shape, for the test's own checks)
+//! (`ccThToppageCtrl`, without the system menu) on scenarios it is given and
+//! prints one JSON line per frame, so the test can run the same scenario
+//! through the game's own code in eemu (`toppage_probe ISO < requests`, built
+//! with the `trace` feature). The requests: `reset`, `save OFFSET HEX`,
+//! `operate HEX`, `keys CNTR FLAG`, `start` (the constructor), `frame RAW
+//! MENUTYPE` (one `Main`) and `dump` (the board as the port reads it).
 
 use std::io::{BufRead, Write};
 use std::sync::Arc;

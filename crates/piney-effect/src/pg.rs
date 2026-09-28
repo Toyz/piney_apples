@@ -1,22 +1,10 @@
-//! The Grunties' growing up (main effect.cpp): `effEvolvePG` (main
-//! 0x001d0f00), which `ccPGuso`'s growing-up acts call at their change, and
-//! `effGrowPG` (0x001d0fd0), which `evoActAdult` calls as a young one
-//! becomes a grown one.
-//!
-//! ```text
-//! effEvolvePG(ch)   the first free of the 500 slots (status 0) gets
-//!                   InitEffect(-7, 0): lifeTime 120, target ch, posT
-//!                   (+0x50) ch's pos; answers the slot (0 with none
-//!                   free)
-//! -7's second chain (0x001c9920): at count 12 generators 126 and 127, at
-//!   30 generator 128, each following ch's pos (syncPos, syncPosType 0)
-//!   half its height (base->height) over it
-//! effGrowPG(ch)     a generator 129 at ch's pos with z half its height
-//!                   (not added: the height's half is the z); answers 1
-//! ```
-//!
-//! The -7 controller has no object (a negative id): nothing of its own is
-//! drawn, and it does not look at whether its character is still listed.
+//! The Grunties' growing up (main effect.cpp): `effEvolvePG` (main 0x001d0f00,
+//! the controller -7 and its generators at counts 12 and 30), which
+//! `ccPGuso`'s growing-up acts call at their change, and `effGrowPG`
+//! (0x001d0fd0, generator 129), which `evoActAdult` calls as a young one
+//! becomes a grown one. The -7 controller draws nothing and does not look at
+//! whether its character is still listed. See docs/engine/effects.md ("A
+//! Grunty growing up").
 
 use crate::ee::{self, F, V4};
 use crate::effect::EffectCtrl;

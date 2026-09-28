@@ -1,15 +1,11 @@
-//! The positioned sound effects (`sndlib.cpp`, `INF SLUS_202.67`): a
-//! sound effect at a point of the world, its velocity from the distance to
-//! the camera (`calcVel`) and its pan from the direction of the point
-//! against the camera's (`calcPan`); and the sounds of the characters'
-//! animation notes (`ccSeSetParamSPC`, `ccSeSetParamPC`,
-//! `ccSeSetParamEnemy`, `ccSeSetParamInu`), which pick a sound effect from
-//! setbl.cpp's tables ([`crate::setbl`]) and play it at the character.
-//!
-//! Floats are raw `u32` bit patterns computed with the EE's rules
-//! ([`piney_data::field::ee`], [`piney_data::libm`]), so the velocity and
-//! pan are the game's to the bit. `tools/test_sound3d_rs.py` checks every
-//! function here against the game's own code run in eemu.
+//! The positioned sound effects (`sndlib.cpp`, `INF SLUS_202.67`): a sound
+//! effect at a point of the world, its velocity from the distance to the
+//! camera (`calcVel`) and its pan from its direction against the camera's
+//! (`calcPan`); and the sounds of the characters' animation notes
+//! (`ccSeSetParamSPC`, `PC`, `Enemy`, `Inu`) from setbl.cpp's tables
+//! ([`crate::setbl`]). Floats are `u32` bit patterns under the EE's rules
+//! ([`piney_data::field::ee`]), so the results are the game's to the bit;
+//! `tools/test_sound3d_rs.py` checks them against the game run in eemu.
 
 use std::cmp::Ordering;
 
@@ -275,16 +271,12 @@ fn row_se(r: SeNt) -> Option<NoteSe> {
     Some(NoteSe { code, note: (r.note != 0).then_some(r.note) })
 }
 
-/// `ccSeSetParamSPC(param, ch)` (0x0017aa20), a party member's note 1 or 2
-/// (Kite's `ccPlayer::CheckNote`, `ccFellow::CheckNote`,
-/// `ccSkillCheckNote`): row `param` of `spcSeTbl[id]` (`id` the
-/// character's `ccCharBaseParam.id`, +0xc); nothing for a NULL table
-/// (id 18) or a row of code -1. Param 0 is the footstep
-/// (`ccSeOnPCStep`, 0x0017a6b0): the ground's row ([`se_hit_attr`] of
-/// `ccChar.hitAttribute`) at a note by `id` - 60 for 0 (Kite), 62 for 1, 58
-/// for 2, 3 and 8, 64 for 6, 61 for 10, 63 for 15, 61 for the rest - or 67
-/// on a ground with no row. Any other param plays the row. `None` for an
-/// `id` outside the table's 19 (which the game would read past).
+/// `ccSeSetParamSPC(param, ch)` (0x0017aa20), a party member's note 1 or 2:
+/// row `param` of `spcSeTbl[id]` (`id` the `ccCharBaseParam.id`, +0xc);
+/// nothing for a NULL table (id 18) or a row of code -1. Param 0 is the
+/// footstep (`ccSeOnPCStep` 0x0017a6b0): the ground's row ([`se_hit_attr`]) at
+/// a note by `id`, or 67 on a ground with no row (docs/engine/sound.md).
+/// `None` for an `id` outside the table's 19 (which the game would read past).
 pub fn spc_note(param: u32, id: i16, hit_attribute: u32) -> Option<NoteSe> {
     let start = (*setbl::SPC.get(usize::try_from(id).ok()?)?)?;
     let r = row(start, param)?;

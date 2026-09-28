@@ -1,14 +1,9 @@
 //! The memory card seam: what `ccSaveSys::MainProccess` asks of `ccMcard`
-//! (INF SLUS_202.67, mcard.cpp), as a trait the runtime implements, and a
-//! card kept as plain files (`docs/formats/save.md`).
-//!
-//! Every call completes at once. The game's `ccMcard` calls wait on
-//! `sceMcSync` with a `ccTscb::Breath` a frame, so on the console the Data
-//! screen shows its "Saving...." / "Formatting...." messages for as long as
-//! the card takes; here those frames do not happen (see `savesys.rs`).
-//!
-//! Each call takes the card port, 0 or 1 (MEMORY CARD slot 1 or 2); the game
-//! always passes card slot 0 of the port's multitap.
+//! (INF SLUS_202.67, mcard.cpp), as a trait the runtime implements, and a card
+//! kept as plain files (`docs/formats/save.md`). Every call completes at once,
+//! so the "Saving...." frames the console shows while `ccMcard` waits on
+//! `sceMcSync` do not happen here (see `savesys.rs`). Each call takes the card
+//! port, 0 or 1; the game always passes slot 0 of the port's multitap.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -152,21 +147,12 @@ impl MemoryCard for NoCard {
 }
 
 /// Memory cards kept as directories, one per port, each holding what the
-/// card's file system would, for the disc's volume (Infection's shown; a
-/// later volume's slots are 0x8d84 bytes, the record and its extension):
-///
-/// ```text
-/// <card>/BASLUS-20267DOTHACK/BASLUS-20267DOTHACK   the index, 336 bytes
-/// <card>/BASLUS-20267DOTHACK/dhdata01 .. dhdata12  the slots, 0x8530 bytes each
-/// ```
-///
-/// A port with no directory, or whose directory does not exist, has no
-/// card. A card is always formatted, a PlayStation 2 card and roomy, so
-/// `check_port` answers `Ready` when the save directory exists and
-/// `NoDirectory` otherwise. `make_dir` writes the twelve slot files zeroed
-/// and a zeroed index; `icon.sys` and the three icons (which the game copies
-/// from `DATA/ICON.BIN`) are not written. `format` changes nothing (it is
-/// asked only of an unformatted card).
+/// card's file system would for the disc's volume: the index and the twelve
+/// `dhdata` slots (`docs/formats/save.md`). A port with no directory has no
+/// card; a card is always formatted and roomy, so `check_port` answers `Ready`
+/// when the save directory exists and `NoDirectory` otherwise. `make_dir`
+/// writes the slots and the index zeroed, without `icon.sys` and the icons;
+/// `format` changes nothing (it is asked only of an unformatted card).
 #[derive(Clone, Debug)]
 pub struct FilesCard {
     /// The disc's volume: its directory and slot size.

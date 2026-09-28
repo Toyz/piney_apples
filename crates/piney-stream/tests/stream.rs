@@ -1,17 +1,10 @@
 //! The port against the game's own stream code: `stream_fixture.txt`, written
 //! by `python3 tools/test_stream_rs.py fixture` from the game's functions run
-//! in `tools/eemu.py` (the table lookup and file list, `WaitEnd`, and
-//! `DecodeSetup` / `InitScene` / `DecodeFrameSection` /
-//! `ccStreamDrawLayerList::Draw` on streams 0, 106, 2, 15's first scene
-//! and 6). The files come
-//! from the disc; skipped when the image is not there (PINEY_ISO points
-//! elsewhere).
-//!
-//! Bit for bit: the tables and file lists, the skip rule, the draw list
-//! (order, layers, parents), per frame the frame number, the end, the notes
-//! and every object drawn (name, transparency, `lwMatrix`). To a tolerance:
-//! the view's `world_screen` (the port's is glam's, the game's VU0's) and the
-//! light directions and colours.
+//! in `tools/eemu.py` on streams 0, 106, 2, 15's first scene and 6. Bit for
+//! bit: the tables and file lists, the skip rule, the draw list, and per frame
+//! the frame number, the end, the notes and every object drawn. To a
+//! tolerance: the view's `world_screen` (glam's against VU0's) and the lights.
+//! Skipped without the disc image (PINEY_ISO points elsewhere).
 
 use std::collections::HashMap;
 use std::path::PathBuf;

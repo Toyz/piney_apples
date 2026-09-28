@@ -1,66 +1,11 @@
 //! The magic portal: `ccMagicCircle` (gcmn gmcircle.cpp, 0x39f0 bytes over
-//! `ccGimmick`), the gimmick of `gimmickTbl[15]` ("Magic Portal",
-//! `XMAGCIR.CCS`) that a field or dungeon puts where its portals stand, and
-//! what it draws: the circle (`CMP_xmagcir0` posed by an animation) and up
-//! to 128 sparks (`ccMcPart`, each a `ccEff` of `EFF_xmagpat1`).
-//!
-//! ```text
-//! ccEntryCtrl::entryMagicCircle(ep) (gcmn 0x004313f0), from
-//!   entryObjectCheck: the portal dropped on the ground (ccLandHitCheck(pos,
-//!   0x20000002) + 250 into ep.pos), gimmickTbl[15]'s entry made
-//!   (ccEntryGimCircle 0x00455820: new ccMagicCircle), initObject, linked
-//!   onto the circle list, g_entCtrl +0x1c (the circles) up by one
-//! ccMagicCircle::ccMagicCircle (0x00455900): pos and dirc the entry's,
-//!   posP W2P(pos); act 0; CMP_xmagcir0 with the entry's palette CLT_x031c2
-//!   on MAT_clut (ccEntryChangeCLUT), ANM_xmagcir1 (the idle loop); no sparks
-//!   yet; off the command lists (deleteCmnd(1))
-//! ccMagicCircle::main (0x00455b60), each frame after ccEntryObj::routine:
-//!   idle and frozen (Kite beyond 10000): the sparks' ccEffs freed; done
-//!   the 128 sparks made (ccEff::Init(EFF_xmagpat1, 0)) if they are not
-//!   pos through W2P and back (posP kept)
-//!   act 0  Kite listed (ccCheckTarget) and within 3000: sounds 216, 217;
-//!          act 1
-//!   act 1  32 frames; then ANM_xmagcir2 (the opening), act 2, destFlag
-//!   act 2  22 frames; then sound 215 and ccEntryCtrl::entryCircleObject
-//!          (what the portal holds comes out); act 3
-//!   act 3  until the opening's animation ends; act 4
-//!   act 4  66 frames; then (entRoot set) the portal counters and, for the
-//!          entry control's last circle, ccThDfComp; main returns 1: the
-//!          entry control deletes it (ccDestMagicCircle)
-//!   createPart: new sparks at the portal by act - 0: 3 of kind 1 a frame;
-//!     1: (actCnt / 4 + 1) of kind 2; 2: 8 of kind 4; 3: 2 of kind 3 while
-//!     actCnt < 16 (setPart: the first free of 128 from partTop, else the
-//!     one at partTop, which moves on)
-//!   every live spark's ccMcPart::main
-//!   idle beyond 7000 of Kite: nothing drawn; else the animation steps
-//!   (anmFlag its end) and, with dispSW (routine: within 7000) and inside
-//!   ccCheckCameraDeg(pos, 12288): on the effect layer the circle at
-//!   T(pos) Rx Ry Rz at ccGetCameraTransparency(pos, 0, 0, 7000, 600) times
-//!   setTransparency, then each live spark at that times the product of its
-//!   own transparency and every earlier spark's (the running product,
-//!   clamped to 0..1)
-//! ccMcPart::main (0x004548e0): the spark's ccEff to ccTransPosFW2LW; at its
-//!   first frame the portal's position, a random turn (three ccRand angles)
-//!   and a life; then by kind:
-//!     1 (idle)    120 frames at scale 5 shrinking to 1: bobs out along its
-//!                 turned x by 6 sin(radCnt += 838) and up and down by
-//!                 6 sin(1383 cnt)
-//!     2 (opening) 10 frames, starting 200 - 6 actCnt + ccRandF(20) out:
-//!                 turned a little more each frame (0.072 cos(radCnt += 1638)
-//!                 about x, y and z), falling in by 18 sin(radCnt)
-//!     3 (spilling) 30 frames: out along x at speed 30 less sin(radCnt +=
-//!                 582) each frame, 4 down a frame, scale 5 shrinking to 2
-//!     4 (burst)   120 frames: out along x by 8 sin(radCnt += 758),
-//!                 ccRandF(1.2) along z
-//!   fade: every fourth frame the colour's r, g and b down by one (from
-//!   0x80); the pattern steps and wraps; after its life the spark is free
-//! ```
-//!
-//! The portal draws nothing through `ccEffectCtrl`: it is an entry object
-//! of its own, run by `ccThEntryCtrl` (priority 64). The runtime makes it
-//! with [`MagicCircle::new`], runs `piney_world`'s `EntryObj::routine` on it
-//! and then [`MagicCircle::main`] each frame, draws what that returns and
-//! acts on its events.
+//! `ccGimmick`; `entryMagicCircle` 0x004313f0, constructor 0x00455900, `main`
+//! 0x00455b60), the gimmick of `gimmickTbl[15]` ("Magic Portal",
+//! `XMAGCIR.CCS`), and its up to 128 sparks (`ccMcPart::main` 0x004548e0, each
+//! a `ccEff` of `EFF_xmagpat1`); an opening spark starts 400 - 6 actCnt +
+//! ccRandF(20) out. It is an entry object run by `ccThEntryCtrl` (64), not a
+//! `ccEffect`: the runtime runs `EntryObj::routine` and then
+//! [`MagicCircle::main`] each frame. The acts are in docs/engine/effects.md.
 
 use piney_desktop::layers::Layers;
 use piney_world::draw::{self as wdraw, Draw};

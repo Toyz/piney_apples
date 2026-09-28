@@ -1,28 +1,10 @@
-//! Enter Mac Anu as a new game does, run the effects the way the field's
-//! tasks do, and write frames of an effect as PNGs.
-//!
-//! ```text
-//! cargo run --release -p piney-effect --example effect_shot -- \
-//!     [--iso work/infection/infection.iso] [--effect arrival] \
-//!     [--shots 2,8,14,20,30,40] [--dir shots] [--soft] [--list]
-//! ```
-//!
-//! Each frame is the world's (`World::step_into`: the field's logic tasks
-//! and draws), then `ccThEffect` (`Effects::step`, fed from the world
-//! through `host::Simple`) and `ccThParticle` (`Effects::step_particles`),
-//! then the effects' draws into the same layers, and the numbers on the
-//! menu layer as `ccMenuCtrl::Disp` runs them. `arrival` starts when the
-//! world asks for it (`Request::Transfer`, Kite's act 13 at its count 30),
-//! as the runtime would; the others start once the arrival is over, at
-//! Kite or at a foe 150 in front of him (a position only: no model is
-//! drawn for it). `--shots` are frames counted from the effect's start;
-//! each is written to `DIR/EFFECT_NNN.png`, drawn by `piney-gs` on the GPU
-//! when there is one, else (or with `--soft`) by the CPU GS.
-//!
-//! The effects draw from their own `rand()` here (seeded 1), not the
-//! world's; in the game they share one. Everything but the arrival uses the
-//! field's `effectTbl` over Mac Anu (a town resolves only the arrival's
-//! ring), so what the fields show is shown here in the town.
+//! Enter Mac Anu as a new game does, run the effects the way the field's tasks
+//! do, and write frames of an effect as PNGs (`--effect`, `--shots` counted
+//! from the effect's start, `--dir`, `--soft` for the CPU GS, `--list`).
+//! `arrival` starts when the world asks for it (Kite's act 13); the others
+//! once it is over, at Kite or at a point 150 in front of him. The effects draw
+//! from their own `rand()` (seeded 1), not the world's as in the game, and use
+//! the field's `effectTbl` over the town.
 
 use std::sync::Arc;
 

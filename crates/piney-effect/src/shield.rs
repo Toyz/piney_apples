@@ -1,37 +1,11 @@
-//! The resistant shield (gcmn effect2.cpp): `effResistantShield(ch,
-//! magic, n)` (gcmn 0x00501ab0), which `ccEnemy::affectEnemy` and the
-//! bosses' `Affect` call when a blow meets an immunity (Exdefense), and the
-//! element it makes, `ccResistantShieldElement` (0x1a0 bytes; Main gcmn
-//! 0x00501970), run by `ccEffectElementManager`.
-//!
-//! ```text
-//! effResistantShield(ch, magic, n)
-//!   an enemy (base->type & 0x60): the size s by n, or
-//!     ccCheckObjectSize(ch) when n < 0: 1 -> 7, 3 -> 4, 4 -> 2, else 0;
-//!     scale (s/2, s/2, s/2, 1)
-//!   a boss (& 0x80): s by n itself (no size asked); s > 0: (s, s, s, 1),
-//!     else (width, width, height / 2, 1) * 0.01, all four lanes
-//!   anyone else: nothing
-//!   effResistantShield(ch, magic, scale) (gcmn 0x00501cb0):
-//! effResistantShield(ch, magic, scale)
-//!   ch off the lists or down (condition.dead not 0 or 1), or its
-//!     affectPerson (+0x98) on the lists and down: nothing
-//!   new ccResistantShieldElement: the element's defaults; m_anmShield a
-//!     ccAnm of particle's ANM_x070 (magic 0 or below) or ANM_x069;
-//!     m_targetChar ch; into the manager's first empty slot (none: deleted,
-//!     nothing more)
-//!   m_offset (0, -width / 2, height / 2, 1), m_scale scale, m_dirc (0, 0,
-//!   ccGetDirc(ch->posP, affectPerson->posP), 1); ccSeOn3D(99, ch's pos)
-//! Main (0x00501970)
-//!   the target off the lists or down: m_delFlag; nothing drawn
-//!   m_pos = ccTransPosP2W(target->posP + RotMatrix(m_dirc) m_offset)
-//!   the animation a step (its end: m_delFlag after the draw); its matrix
-//!   SetMatrix_PosRotZYXScale(m_pos, m_dirc, m_scale); drawn (its
-//!   transparency the ccCoord constructor's 1) on the effect layer
-//! ```
-//!
-//! `ccGetDirc(a, b)` (main 0x001d9ce0) is the heading from `a` to `b`:
-//! `atan2f(b.y - a.y, b.x - a.x) + pi / 2`, brought into -pi..pi.
+//! The resistant shield (gcmn effect2.cpp): `effResistantShield(ch, magic, n)`
+//! (gcmn 0x00501ab0; by scale 0x00501cb0), which `ccEnemy::affectEnemy` and
+//! the bosses' `Affect` call when a blow meets an immunity (Exdefense), and
+//! the element it makes, `ccResistantShieldElement` (0x1a0 bytes; Main gcmn
+//! 0x00501970), run by `ccEffectElementManager`: `ANM_x070` or `ANM_x069`
+//! between the target and its attacker, following the target. `ccGetDirc(a,
+//! b)` (main 0x001d9ce0) is `atan2f(b.y - a.y, b.x - a.x) + pi / 2` brought
+//! into -pi..pi. See docs/engine/effects.md ("The resistant shield").
 
 use piney_world::pose::Play;
 

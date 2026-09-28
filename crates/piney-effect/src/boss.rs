@@ -1,58 +1,11 @@
 //! The boss's effects (gcmn bosseff.cpp): `ccBossEffManager`'s effects as
-//! Skeith makes them - their `ccBossEff*Create`, their constructors and
-//! the `Draw` the manager's task (`ccThBossEffect`, priority 66) runs over
-//! them each frame, before the boss's own task.
-//!
-//! ```text
-//! ccBossEffManager::Draw (0x00461750), each frame:
-//!   SetActiveLayer(3) (effLayer, priority 20)
-//!   each of the 1024 slots in order: an effect whose m_bEnabled (byte 0)
-//!     is 0 is deleted (vtable +0xc, 1) and the slot freed; else its Draw
-//!     (vtable +0x8)
-//!   SetActiveLayer(5); ccBossBlur::Main; the cinema's Draw (not ported)
-//! a Create: new the effect, the first free slot takes it; the slot (or -1)
-//! ```
-//!
-//! Skeith's six (`docs/engine/boss.md`, "The effects' pictures"):
-//!
-//! ```text
-//! WaveShock(pos, dirc, s)  0x00478820 SE 36, 68, 56 (note 60) at pos; an
-//!                          Eruption: g_eruptionGenerator at pos, pTexMod 158,
-//!                          into a slot disabled (the next pass deletes it);
-//!                          then ANM_ex31lhit of xeffect: each Draw a step,
-//!                          PosRotZYXScale(pos, 0, 5 s); at its end disabled
-//!                          (the dirc is not used)
-//! MagicSquare(pos, 0)      0x00478b10 SE 228; MagicSquareGenerator rows 0, 1
-//!                          and 7 at pos, distSW off; ccBossEffLight(pos, 0,
-//!                          80, 10) (returns -1)
-//! Light(pos, 0, 80, 10)    0x00466a30 an omni light at pos plus (0, 200,
-//!                          300) turned about x by -pi/2 and about z by the
-//!                          camera's heading, into the light group after 10
-//!                          Draws, blue rising by 10 a Draw to 250, 15 at
-//!                          255, then falling; 80 Draws
-//! ForceGenerator(p, r, speed, r0, r1, num, life, clt)
-//!                          0x004797e0 a ccBossEffBrightMagicSquare: num
-//!                          photons (EFF_x000 of particle, CLT_x000c(clt-3))
-//!                          spiralling down from p, pi/16 a Draw, each with
-//!                          g_energyOutGenerator following it; photon k
-//!                          waits (k / 2) 10 Draws, then lives life
-//! AutoSamonRing(pos, rot, (s, ds, _), n)
-//!                          0x00479900 a ccEffSamonRing (SetModel(n): n 35 is
-//!                          particle's CMP_x033) bursting: scale from s by ds
-//!                          a Draw, transparency from 1 by 0.05; below 0 gone
-//! IceBreak(pos, s)         0x00479240 particle's CMP_x201d at pos, scale s;
-//!                          g_IceSmokeGenerator at (pos.x, pos.y, 180); ccRand()
-//!                          drawn once; flash 60, after 60 Draws the smoke
-//!                          killed, after 60 more twelve effIceRock thrown out
-//!                          four ways, flash 30, gone
-//! Dead(pos, pos, 0)        0x004795d0 BossDeadGenerator's rows over four
-//!                          stages (at once, 35, 60 and 20 Draws apart), SE 56
-//!                          and 104; gone once the last generator has ended
-//! ```
-//!
-//! The generators go to the particle system ([`crate::particle`]); a
-//! photon's position is published as an anchor ([`VecRef::Anchor`]) for
-//! its generator to follow.
+//! Skeith makes them. `ccBossEffManager::Draw` (0x00461750, the task
+//! `ccThBossEffect`, priority 66) runs its 1024 slots in order on the effect
+//! layer, deleting a disabled one. Skeith's six: WaveShock 0x00478820,
+//! MagicSquare 0x00478b10 (with Light 0x00466a30), ForceGenerator 0x004797e0,
+//! AutoSamonRing 0x00479900, IceBreak 0x00479240 and Dead 0x004795d0, in
+//! docs/engine/boss.md ("The effects' pictures"). A photon's position is
+//! published as an anchor for the generator that follows it.
 
 use std::collections::HashMap;
 

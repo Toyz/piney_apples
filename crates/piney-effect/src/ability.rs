@@ -1,32 +1,11 @@
 //! The stat changes' effects (main effect.cpp): `effAbilityUp(ch, num)`
-//! (main 0x001d7380) and `effAbilityDown(ch, num)` (0x001d7630), which
-//! `ccConditionEffect`'s constructor (0x001c13f0, `setConditionEffect`)
-//! starts for conditions 20-34 and 0-18 and ends with the condition
-//! (`killConditionEffect`, `deleteConditionEffect`: its serial number).
-//!
-//! ```text
-//! checkEffAbilityColor(num) (0x001d78c0): 13, 29 -> 0; 14, 21, 30 -> 1;
-//!   15, 31 -> 2; 16, 20, 32 -> 3; 17, 33 -> 4; 0, 1, 4, 6, 18, 34 -> 5;
-//!   anything else 6: the textures' column in the tables below
-//! effAbilityUp(ch, num)   the controller -20: target ch, posT its pos,
-//!                         param num; with it two generators on ch's pos,
-//!                         212 (texture UpS1) and 213 50 up (UpS2); then
-//!                         the controller -21 (life -1, the same fields),
-//!                         answered
-//! -20's second chain (0x001cb418): ch off the lists: endFlag; count 4:
-//!   214 (UpS3); count 10: 215 (UpS4); from 11 endFlag
-//! -21's (0x001cb5cc): ch off the lists: endFlag; (count - 30) % 45 == 0:
-//!   212 (UpS1) and 213 50 up (UpS2); == 20: 214 (UpS3)
-//! effAbilityDown(ch, num) three generators on ch's pos, 217 (DnS1), 218
-//!                         (DnS2), 219 (DnS2); the controller -22 (life
-//!                         -1, target ch, posT its pos, param num), answered
-//! -22's (0x001cb83c): ch off the lists: endFlag; (count - 30) % 30 == 0
-//!   (count 0 too): 220 (DnS1), 221 (DnS2), 219 50 up (DnS3)
-//! ```
-//!
-//! The tables (main 0x0033fdf0 `tableAbilityUpS1` to 0x0033feb0
-//! `tableAbilityDownS3`, eight ints each, read by their low halves) name
-//! the generators' textures (`pTexMod`); `%` is C's, toward zero.
+//! (main 0x001d7380), `effAbilityDown(ch, num)` (0x001d7630) and
+//! `checkEffAbilityColor` (0x001d78c0), which `ccConditionEffect`'s
+//! constructor (0x001c13f0, `setConditionEffect`) starts for conditions 20-34
+//! and 0-18 and ends with the condition. The controllers are effects -20, -21
+//! and -22; the generators' textures come from `tableAbilityUpS1` ..
+//! `tableAbilityDownS3` (main 0x0033fdf0-0x0033feb0). The cases are in
+//! docs/engine/effects.md ("Stat changes").
 
 use piney_data::volume::Volume;
 

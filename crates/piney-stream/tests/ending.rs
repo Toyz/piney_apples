@@ -1,21 +1,11 @@
 //! Stream 15's effect tasks against the game's: `str0580_fixture.txt` and
-//! `str0581_fixture.txt`, written by `python3 tools/test_stream_rs.py
-//! effects str0580` (`str0581`), `Func_str0580` / `Func_str0581` run in
-//! `tools/eemu.py` over each scene's cues as `tests/effects.rs` describes,
-//! the objects their tables name standing in by name
-//! (`stand_in_pos(name)`: x the name's bytes summed times 10, y its length
-//! times 100, z 50) and the parts' `ccEff::Draw` and `ccObj::Draw`
-//! recorded.
-//!
-//! The port's tasks run on their own here, over the same cues and stand-ins
-//! (in the stream the objects are the scene's): step by step, the C
-//! library's `rand` state after each pass, every primitive the pass sends
-//! (by the fixture's FNV-1a 64 of the canonical lines), the parts' draws
-//! (each puff's place, pattern, scale, transparency and colour, each
-//! rock's model and matrix, hashed likewise) and the transfers.
-//! `Func_str0580` gets `param[1]` 2 in the step after the scene's last
-//! frame (the next scene's `ccSetStreamDemoThread`, as the stream sets it
-//! up at once), `Func_str0581` 1 with the scene gone after its gap frame.
+//! `str0581_fixture.txt` (`python3 tools/test_stream_rs.py effects str0580`,
+//! `str0581`), the tasks run in `tools/eemu.py` over each scene's cues, the
+//! table's objects standing in by name (`stand_in_pos(name)`). The port's
+//! tasks run on their own over the same cues and stand-ins and are compared
+//! step by step: `rand`'s state, every primitive, the parts' draws (hashed)
+//! and the transfers. `Func_str0580` gets `param[1]` 2 the step after the
+//! scene's last frame, `Func_str0581` 1 with the scene gone.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;

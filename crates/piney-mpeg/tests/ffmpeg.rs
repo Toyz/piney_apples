@@ -1,12 +1,8 @@
-//! Every PSS on Infection's disc decoded by our decoder and by ffmpeg,
-//! compared picture by picture: the count, the size, and the planar YUV
-//! 4:2:0 (`ffmpeg -f rawvideo -pix_fmt yuv420p`). The audio is compared
-//! against the SPU2 block layout read independently here, and its length
-//! against the video's.
-//!
-//! ffmpeg is used only as an outside reference, never by the port. The
-//! test is skipped when the disc image or ffmpeg is missing; set PINEY_ISO
-//! to point at the image elsewhere and FFMPEG at another ffmpeg.
+//! Every PSS on Infection's disc decoded by our decoder and by ffmpeg, compared
+//! picture by picture (count, size, planar YUV 4:2:0); the audio against the
+//! SPU2 block layout read independently here, and its length against the
+//! video's. ffmpeg is only an outside reference, never used by the port. The
+//! test is skipped without the disc image or ffmpeg (PINEY_ISO, FFMPEG).
 
 use std::io::Read;
 use std::path::PathBuf;

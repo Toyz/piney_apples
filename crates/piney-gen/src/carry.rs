@@ -1,27 +1,11 @@
-//! Where Infection's globals and functions sit in a later volume's
-//! executable: a finding aid for the generator, never shipped in the port
-//! (`plans/volumes.md`, "The shortcut removed").
-//!
-//! `work/analysis/carry/<volume>.json` holds rows of (section, Infection's
-//! address, Infection's size, the volume's address), sorted; section 0
-//! main, then the overlay ids: 1 gcmn, 2 demo, 3 desktop, 4 toppage. A
-//! main global can also have an overlay's row: where that overlay's code
-//! finds it (a copy the volume moved there). Found, in order:
-//!
-//! - by the names the symbol transfer carried, unique in their section on
-//!   both sides (an overlay's global the volume moved into main found
-//!   there);
-//! - by what the paired functions build at their aligned instructions, for
-//!   names that repeat (string literals' `@123`); this also overrules a
-//!   name that disagrees, unless the name's place reads more like
-//!   Infection's;
-//! - globals left over, of 8 bytes or more and holding no pointer, found
-//!   once by their bytes;
-//! - globals of data pointers, where the volume's words point at the same
-//!   bytes, or, for a table the volume edited, where most of them do
-//!   (`by_pointers`);
-//! - globals a changed function builds, by order (`by_sequence`);
-//! - the two bitmap fonts (no size in Infection's symbols) by content.
+//! Where Infection's globals and functions sit in a later volume's executable:
+//! a finding aid for the generator, never shipped in the port
+//! (`plans/volumes.md`, "The shortcut removed"). `work/analysis/carry/
+//! <volume>.json` holds sorted rows of (section, Infection's address and size,
+//! the volume's address); section 0 is main, then 1 gcmn, 2 demo, 3 desktop,
+//! 4 toppage. Found in order: by the carried names, by what paired functions
+//! build, by bytes, through pointers (`by_pointers`), by order in a changed
+//! function (`by_sequence`), and the two bitmap fonts by content (worklog 212).
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -541,18 +525,13 @@ fn similar(
     vec![best]
 }
 
-/// Carry, into `out`, the globals a changed function builds, by order.
-/// For each pair of same-named functions: the data addresses each builds,
-/// in instruction order. Where the two lists are as long and every address
-/// the carry already holds sits at its carried place (at least one), an
-/// uncarried global there carries to the volume's address in the same
-/// place; unanimous votes only. A compiler label (`@123`) the name pass
-/// carried counts as neither: the code outranks it, since each compile
-/// numbers its labels anew. A global with no pointer in it (Infection's
-/// relocations) moves only where the volume's bytes are Infection's: the
-/// tracker can pair a `lui` with the wrong low half. Mutation's
-/// `ConvergenceSystem` grew, so no alignment reaches its `@3328`, and the
-/// name `@3329` sits on it there.
+/// Carry, into `out`, the globals a changed function builds, by order: for
+/// each pair of same-named functions, where both lists of built addresses are
+/// as long and every address already carried sits at its carried place, an
+/// uncarried global carries to the same place (unanimous votes only). A
+/// compiler label (`@123`) the name pass carried counts as neither, and a
+/// global with no pointer moves only where the volume's bytes are Infection's.
+/// Mutation's `ConvergenceSystem` grew, so `@3329` sits on its `@3328`.
 fn by_sequence(v: Vol, out: &mut Out) {
     // {((section, address), size): {the volume's address: votes}}, in the
     // order first voted.

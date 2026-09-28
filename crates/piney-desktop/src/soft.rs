@@ -1,14 +1,10 @@
-//! A small CPU GS for checking frames without a GPU: every
-//! [`piney_draw::Cmd`] rasterised into a 512 x 448 RGBA buffer with the GS's
-//! blend, texture function, fog, alpha test, Z test and scissor.
-//!
-//! It is a checker, not the renderer (`piney-gs` is): rasterisation takes a
-//! pixel when its top-left corner lies inside the primitive, textures are
-//! sampled at that corner, and the ALPHA register, TEX0.TFX and TEST are
-//! applied in GS units (0x80 = 1.0). Model vertices go through each draw's
-//! matrix with perspective-correct texture coordinates. A frame-buffer
-//! texture ([`TexRef::FrameBuffer`]) is the canvas as the command finds it;
-//! [`TexRef::PreviousFrame`] is the picture [`Canvas::next_frame`] kept.
+//! A small CPU GS for checking frames without a GPU: every [`piney_draw::Cmd`]
+//! rasterised into a 512 x 448 RGBA buffer with the GS's blend, texture
+//! function, fog, alpha test, Z test and scissor, in GS units (0x80 = 1.0). It
+//! is a checker, not the renderer (`piney-gs` is): a pixel is taken, and a
+//! texture sampled, at its top-left corner. [`TexRef::FrameBuffer`] is the
+//! canvas as the command finds it; [`TexRef::PreviousFrame`] is the picture
+//! [`Canvas::next_frame`] kept.
 
 use std::collections::HashMap;
 use std::rc::Rc;

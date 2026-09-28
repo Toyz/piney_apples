@@ -691,15 +691,13 @@ pub fn build_dungeon(c: &Ccs, floor: &Floor, dtype: u8, env: Option<Env>, label:
 }
 
 /// A field as `WORLD` draws it (`piney_data::field::Scene`), from its CCS
-/// file, its background file and the effect file holding the lake's water.
-///
-/// Every chip's ground tile is the type's template model with the listed
-/// vertices' z and colour rewritten (`SetMESH2`), every cover likewise
-/// (`SetSmallMESH`); the objects stand at the game's z, their models lit as
-/// `WORLD::Init`'s `CalcObjectVertexColor` lights them - once per time the
-/// tables list the clump - and animated ones play; the background is drawn
-/// around the field's middle. The whole 80 x 80 map is drawn once, where the
-/// game draws the 12 x 12 chips around the player on a torus.
+/// file, its background file and the effect file holding the lake's water:
+/// each chip's ground tile and cover the type's template with the listed
+/// vertices' z and colour rewritten (`SetMESH2`, `SetSmallMESH`), the objects
+/// at the game's z lit as `CalcObjectVertexColor` lights them (once per time
+/// the tables list the clump), the background round the field's middle. The
+/// whole 80 x 80 map is drawn, where the game draws the 12 x 12 chips round
+/// the player on a torus.
 pub fn build_field(
     c: &Ccs,
     bg: &Ccs,

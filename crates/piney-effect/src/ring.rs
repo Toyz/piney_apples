@@ -1,23 +1,9 @@
-//! `ccRingElement` (gcmn effect2.cpp): a ring clump of particle.ccs,
-//! re-coloured by mode, that grows and fades; `effSummonRingElement` (gcmn
-//! 0x004ffe20) starts one in the element manager. Every spell family's
-//! shock rings are these.
-//!
-//! ```text
-//! effSummonRingElement(pos, dirc, type)
-//!   new ccRingElement(pos, dirc, (1, 1, 1, 1), type), EnyFlg 1, into the
-//!   first empty slot of the manager (none: left alone, never run)
-//! ccRingElement(VP, VR, VS, Mode) (0x004fbbe0)
-//!   the element's defaults (a ccDrawElement), EnyFlg 0, Flg 0,
-//!   Transparency 1, Tpoint 0.05; SetModel(Mode): the clump and CLUT names;
-//!   the clump of particle.ccs, fog off, and with a CLUT name duplicated
-//!   and re-coloured; Pos VP, Rot VR, Scale VS, Spoint 0.5 in all four lanes
-//! ccDrawElement::Main (0x004ea670): m_life counts down to deletion (-1:
-//!   never), then Draw
-//! Draw (0x004fbf00): with EnyFlg the scale grows by Spoint and the ring
-//!   is drawn at Transparency, which falls by Tpoint; below 0 m_delFlag;
-//!   the matrix from Pos, Rot (x, y, z) and Scale
-//! ```
+//! `ccRingElement` (gcmn effect2.cpp, ctor 0x004fbbe0, Draw 0x004fbf00): a
+//! ring clump of particle.ccs, re-coloured by mode, that grows by `Spoint`
+//! and fades by `Tpoint` each frame; `effSummonRingElement` (gcmn 0x004ffe20)
+//! starts one in the element manager. Every spell family's shock rings are
+//! these. See docs/engine/effects.md ("The element manager and the
+//! elements").
 
 use crate::draw::DrawRec;
 use crate::ee::{self, F, ONE, V4};

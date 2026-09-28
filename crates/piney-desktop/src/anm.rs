@@ -1,13 +1,10 @@
-//! `ccAnm`: one Anime chunk played on its own copies of the objects it
-//! names, drawn through the active layer's view (`docs/engine/animation.md`;
+//! `ccAnm`: one Anime chunk played on its own copies of the objects it names,
+//! drawn through the active layer's view (`docs/engine/animation.md`;
 //! `ccAnm::Draw` 0x001524d0, `ccObj::Draw` 0x0013f220, `ccModel::Draw`
-//! 0x0013eab0).
-//!
-//! Playback is `piney_data::anim`'s (checked against the game); on top of
-//! it this keeps what the desktop needs: the per-frame `F_Obj` records
-//! (pose, transparency, display switch; `ccStream::DecodeF_Obj` 0x0014e950)
-//! and `F_Camera` records, both applied when a step crosses a whole frame,
-//! and the draw with its per-mmat state.
+//! 0x0013eab0). Playback is `piney_data::anim`'s; this adds what the desktop
+//! needs: the `F_Obj` records (`ccStream::DecodeF_Obj` 0x0014e950) and
+//! `F_Camera` records, applied when a step crosses a whole frame, and the
+//! draw with its per-mmat state.
 
 use std::collections::HashMap;
 use std::rc::Rc;

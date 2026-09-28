@@ -401,17 +401,10 @@ pub struct BgmPlan {
 
 /// [`BgmPlan`] as a pure function. `context` is the last loaded
 /// [`SqContext::number`] (`ccSnd +0xf0`), `play_type` [`Pick::play_type`],
-/// `hold` `ccSnd +0x138`.
-///
-/// - Town (2, 0x0017b064): types 0 and 2 start sequence 2 during the
-///   crisis, types 1 and 3 whenever the bank has three; then sequence 0.
-/// - Field (3) and event bank (5), 0x0017b444: by play type, 0 sequence 0,
-///   1 sequences 0 and 2, 2 sequence 2, anything else none.
-/// - Dungeon (4, 0x0017b430): as the field, but only when the scene
-///   changed; otherwise nothing at all (the hold stays).
-/// - Desktop (1, 0x0017b7d4): sequence 1 for `dtBgm` 27 and 7, else 0.
-/// - Board (0) and any number past 7: sequence 0. Stream (6) and title
-///   (7): nothing.
+/// `hold` `ccSnd +0x138`. The cases by context (town 0x0017b064, field and
+/// event bank 0x0017b444, dungeon only when the scene changed, desktop
+/// 0x0017b7d4, the rest sequence 0 or nothing) are in docs/engine/sound.md
+/// ("ccSndBgmCtrl").
 pub fn bgm_plan(context: i32, play_type: i8, hold: bool, w: &BgmWorld) -> BgmPlan {
     let started = |play| BgmPlan { play, held: false, started: true };
     let held = BgmPlan { play: &[], held: true, started: true };
@@ -845,22 +838,12 @@ impl Driver {
     }
 
     /// `ccSndSQLoad(n)` (0x001821d0): the bank of a context
-    /// ([`SqContext::pick`]). `initBeforeLoad` stops fades 0 and 1, holds
-    /// the music (`bgmStopFlag`) and clears `ccSnd +0x137` and `+0x133`
-    /// (TOBJ's hum); a frame of the sound task passes (all sound off at its
-    /// end); SNDBASE is told the
-    /// context and the play type (`ccSndCmd3(0x200, n)`, `(0x300, t)`);
-    /// the bank loads; each sequence goes to its sequencer (`0x9051 + i`,
-    /// `0xa1 + i`, `0x40 + i` for each size that is not 0, sequence 0
-    /// always); port 0 back to `seVol`, ports 1-3 to the row's `SQTBL`
-    /// volumes - port 2 to 0 in the field (3), where sequence 1 is the
-    /// battle music `bgmChange` fades in; every sequence loaded and
-    /// stopped; the music no longer held; `ccSnd +0xf0` = `n`.
-    ///
-    /// A row of -1 (or past its table) loads nothing: no sequences
-    /// (`sqNum` 0), 60 frames of the sound task, port 0 back to `seVol`, and
-    /// the music stays held. Either way the loop slots are freed
-    /// (`initAfterLoad`).
+    /// ([`SqContext::pick`]): the music held and all sound off for a frame,
+    /// SNDBASE told the context and play type, each sequence of the bank to
+    /// its sequencer, the ports to the row's volumes (port 2 to 0 in the
+    /// field, where sequence 1 is the battle music), `ccSnd +0xf0` = `n`. A row
+    /// of -1 loads nothing, waits 60 frames and leaves the music held. The steps
+    /// are in docs/engine/sound.md ("A mode's bank").
     pub fn sq_load(&mut self, tables: &Tables, ctx: SqContext, out: &mut Vec<Command>) {
         let pick = ctx.pick(tables);
         self.pending = None;
@@ -1045,23 +1028,13 @@ impl Driver {
         }
     }
 
-    /// `ccEvVoiceRequest(event, msg)` (0x0017e810), which every message
-    /// window calls as it opens (`ccMessage::Change`, `ChangeInfo`, `Open`):
-    /// the row of the event's table, then `ccMesVoicePlay` claims a slot for
-    /// it. True when a slot was asked for.
-    ///
-    /// The tables are the disc's own ([`piney_data::tables::voice`]), by
-    /// `event / 100`: the hundred's main events (0-49 of it) take its main
-    /// table, in Parody Mode its Parody table or, without one, no voice;
-    /// the side events (50-99) its side table; the English table when
-    /// `saveData.voice` is set and the code has one. The branch sets
-    /// `voiceFile` whether or not the event has rows. The request is the
-    /// shared `vdRequest`: a second request in the same frame changes what
-    /// the first one's slot sends.
-    ///
-    /// Events below -1 are `ccVoiceRequest`'s ([`Driver::field_voice_request`]).
-    /// Not ported: a message past its event's table, where the game reads
-    /// the next table's rows (no script asks for one).
+    /// `ccEvVoiceRequest(event, msg)` (0x0017e810), which every message window
+    /// calls as it opens: the row of the event's table (the disc's own,
+    /// [`piney_data::tables::voice`], by `event / 100`: main, Parody, side or
+    /// English), then `ccMesVoicePlay` claims a slot; true when one was asked
+    /// for. The request is the shared `vdRequest`: a second in the same frame
+    /// changes what the first one's slot sends. Events below -1 are
+    /// [`Driver::field_voice_request`]'s. Not ported: a message past its table.
     pub fn voice_request(&mut self, event: i32, msg: i32) -> bool {
         if event < -1 {
             return self.field_voice_request(event, msg);
@@ -1092,21 +1065,13 @@ impl Driver {
         }
     }
 
-    /// `ccVoiceRequest(group, msg)` (0x0017eeb0), which `ccEvVoiceRequest`
-    /// hands every event below -1: the field's voices, from the disc's own
-    /// tables ([`piney_data::tables::voice::FieldVoice`]). The group's table
-    /// (the English one when `saveData.voice` is set; no Parody Mode test)
-    /// gives row `msg` as the request; a line (`ofs` not -1) sets
-    /// `voiceFile` to the group's and claims a slot. A group with no case
-    /// (-1, -17 to -19 and the rest) does nothing; a message past its
-    /// table, where the game reads the next table's rows, has no voice.
-    /// Mutation's English party tables stop at Infection's rows, so its new
-    /// members' English lines are such messages.
-    ///
-    /// From Mutation on, English messages in a group's `alt` range take row
-    /// `msg + add` of `MIAE.BIN`'s table while `talkNum[talk]` is set. Not
-    /// ported: Mutation drops every request while `ccFileListLoad` loads a
-    /// scene (`ccSnd +0x139`); the port loads at once, between frames.
+    /// `ccVoiceRequest(group, msg)` (0x0017eeb0): the field's voices, from the
+    /// disc's tables ([`piney_data::tables::voice::FieldVoice`]; English when
+    /// `saveData.voice` is set, no Parody test). A line sets `voiceFile` to the
+    /// group's and claims a slot; a group with no case, or a message past its
+    /// table, has no voice. From Mutation on, English messages in a group's
+    /// `alt` range take `MIAE.BIN`'s rows while `talkNum[talk]` is set. Not
+    /// ported: Mutation dropping requests while a scene loads (`ccSnd +0x139`).
     pub fn field_voice_request(&mut self, group: i32, msg: i32) -> bool {
         let Some(g) = self.voice.field.iter().find(|g| g.group == group) else { return false };
         if self.voice_english
@@ -1168,15 +1133,11 @@ impl Driver {
     }
 
     /// `skillVoicePlay` (0x0017e350), from the sound task in a field or
-    /// dungeon: the first queued word, from the character's file
-    /// (`spcVoiceData`) and rows (`voiceData`) in the disc's tables
-    /// ([`piney_data::tables::voice::SkillVoice`]), the row by a per-character
-    /// rule on the skill id (`sid` less 6, 33, 60, 96, 114, 123 or 150, by
-    /// the character and the skill's type bit), sent as `evVoicePlay` sends
-    /// a line; then the queue emptied. A character without a file, or a row
-    /// with no line, leaves the queue as it is (tried again next frame); a
-    /// row past its table, where the game reads the next table's, has no
-    /// voice either.
+    /// dungeon: the first queued word, from the character's file and rows in
+    /// the disc's tables ([`piney_data::tables::voice::SkillVoice`]), the row
+    /// by a per-character rule on the skill id, sent as `evVoicePlay` sends a
+    /// line; then the queue emptied. A character without a file, or a row with
+    /// no line, leaves the queue for next frame; a row past its table has none.
     pub fn skill_voice_play(&mut self, out: &mut Vec<Command>) {
         if self.words_num == 0 {
             return;

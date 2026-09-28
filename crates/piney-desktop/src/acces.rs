@@ -1,13 +1,10 @@
-//! `Acces_control` (DESKTOP.PRG, acces.cpp): the Accessory screen, a list
-//! of the wallpapers unlocked, their artist and caption, and choosing one
-//! (`docs/engine/desktop.md`, "Accessory").
-//!
-//! Layout constants are the class's own (constructor 0x00403d50): the list
-//! frame `laysize` (180, 130, 178 x 192) on the kanji layer, and the scroll
-//! bar `scrsize`, drawn on a layer of its own (`ScrLayer`, priority 129)
-//! with the same frame but the default aspect. Text is `ccKanji` with the
-//! `Init` drop shadow in `ccSpriteColorTable[7]`; the cursor and the bars
-//! are cells of `TEX_xddcurs1`.
+//! `Acces_control` (DESKTOP.PRG, acces.cpp; constructor 0x00403d50): the
+//! Accessory screen, a list of the wallpapers unlocked, their artist and
+//! caption, and choosing one (`docs/engine/desktop.md`, "Accessory"). The
+//! list frame `laysize` (180, 130, 178 x 192) is on the kanji layer and the
+//! scroll bar `scrsize` on `ScrLayer` (priority 129); text is `ccKanji` with
+//! the drop shadow in `ccSpriteColorTable[7]`, the cursor and bars cells of
+//! `TEX_xddcurs1`.
 
 use piney_draw::TexRef;
 use piney_input::{Buttons, Pad};

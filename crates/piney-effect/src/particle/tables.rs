@@ -1,16 +1,11 @@
-//! The particle system's tables (`tables::effect`): the generator rows
-//! (`particleGeneratorTbl`, INF main 0x003402f0, 244 rows of 0x38 bytes),
-//! the force fields (`particleForceFieldTbl`, 0x00343850, 148 of 0x20), the
-//! particle kinds (`particleTbl`, 0x00340220), the character effects
-//! (`particleEffectTbl`, 0x00344ad0, 49 of 0x20), the objects particles
-//! draw (`particleCcsAnmTbl`, 0x003739e0, 245 file and object names,
-//! looked up into `particleCcsAdrs` as `InitParticleCtrl` does),
-//! `Polyhedron82Table` (0x0033ef90: 42 points about the origin, w 1,
-//! `Generate`'s rType 3), effect.cpp's force fields for its static
-//! generators (`ccpffpSmoke1..4`, `hitPhotonDummyF1/F2`), and the
-//! texture-id map `ccParticle::Setup`'s jump table encodes (0x001bf0f0; the
-//! generator decodes it from each volume's code: Outbreak and Quarantine
-//! recompiled it).
+//! The particle system's tables (`tables::effect`, INF main): the generator
+//! rows (`particleGeneratorTbl` 0x003402f0), the force fields
+//! (`particleForceFieldTbl` 0x00343850), `particleTbl` (0x00340220),
+//! `particleEffectTbl` (0x00344ad0), `particleCcsAnmTbl` (0x003739e0, looked
+//! up as `InitParticleCtrl` does), `Polyhedron82Table` (0x0033ef90), the
+//! static generators' force fields, and `ccParticle::Setup`'s texture-id map,
+//! decoded from each volume's code (Outbreak and Quarantine recompiled it).
+//! The layouts are in docs/engine/particles.md.
 
 use piney_data::tables::effect;
 use piney_data::tables::types::{ParticleForceFieldParam, ParticleGeneratorParam};

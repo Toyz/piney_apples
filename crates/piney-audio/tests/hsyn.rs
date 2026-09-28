@@ -1,20 +1,10 @@
-//! The synthesizer against MODHSYN.IRX itself. The fixtures come from the
-//! module run in `tools/eemu.py` by `tools/iopemu.py`, with libsd's
-//! register functions recording what they are given (so ENVX and ENDX read
-//! 0, as the [`Recorder`] here makes them):
-//!
-//! - `se_fixture.txt` (`iopemu.py se-fixture ELF --ticks 3`): every sound
-//!   effect from a fresh synthesizer, some at other port volumes, some two
-//!   at once - every register write of three ticks.
-//! - `song_fixture.txt` (`iopemu.py song-fixture ELF 50 0 19 27 46 13 12
-//!   26 36 11 7 47 --ticks 12000`, six minutes): those jukebox rows played
-//!   from the desktop start for 50 s each - the sequence from
-//!   `tools/midi.py` (equal to MODMIDI.IRX) into the synthesizer - every
-//!   write hashed per 100 ticks.
-//! - `se3d_fixture.txt` (`iopemu.py se3d-fixture ELF`): the positioned sound
-//!   effects' messages - the `F9` pan and bend overrides and the `FD` note
-//!   ons and offs with an id - every register write of each tick.
-//!
+//! The synthesizer against MODHSYN.IRX itself: fixtures from the module run in
+//! `tools/eemu.py` by `tools/iopemu.py`, libsd's register functions recording
+//! what they are given (ENVX and ENDX read 0, as the [`Recorder`] makes them):
+//! `se_fixture.txt` (`se-fixture ELF --ticks 3`, every sound effect),
+//! `song_fixture.txt` (`song-fixture ELF 50 0 19 27 46 13 12 26 36 11 7 47
+//! --ticks 12000`: jukebox rows, writes hashed per 100 ticks) and
+//! `se3d_fixture.txt` (`se3d-fixture ELF`, the positioned effects' messages).
 //! Skipped without the disc image; set PINEY_ISO to point at it elsewhere.
 
 use std::path::PathBuf;

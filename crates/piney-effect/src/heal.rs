@@ -1,41 +1,11 @@
 //! Healing, the cures, a box opening and a trap removed (main effect.cpp):
-//! `effHeal` (main 0x001ccd20) and `effHealSkill` (0x001cccf0), which the
-//! healing skills (`ccSkillRecovery`), the items (`ccUseItemRequest`) and
-//! the Data Drain menu call; `effCure`, `effSanity`, `effResurrect`
-//! (0x001cef50, 0x001cf0d0, 0x001cedd0) from `ccSkill::RecoverySystem`;
-//! `effOpenBox` (0x001ced40) when a body lying down ends (Kite's and the
-//! party's) or a box, fountain, food or idol opens; `effRemoveTrap`
-//! (0x001d0980) for a treasure box appearing or a trap removed.
-//!
-//! ```text
-//! effHeal(ch, n)       effect 130 (CMP_x060) life 30 on ch's pos; the
-//!                      controller -19 life 30, level n (4 bits, signed),
-//!                      on ch's pos; with -19: ccParticleHeal(ch, 1) and
-//!                      ccSeOn3D(75, ch's pos); answers 0
-//! effHealSkill(ch, sid) effHeal(ch, sid - 149): Repth (150) 1 ... 155 6
-//! 130's first switch (0x001c5b6c): z 1 -> 2.3 until 10 before its end,
-//!   then back towards 0 (2.3 - 0.23 (10 - (life - cnt))); x and y 0.2 ->
-//!   1.2 over the first 10 frames, 1.2, then from 10 before the end 4 +
-//!   (1.2 - 4)(life - cnt) / 10; FadeInOut(5, 5, life)
-//! -19's second chain (0x001cb354): every fourth frame flags + 1, and
-//!   while the old flags are below the level a generator 211 following
-//!   ch's pos, else endFlag
-//! effCure(ch)          controller -2, life 120, target ch, posT its pos,
-//! effSanity(ch)        temp[0] (a float) half its height; a generator
-//! effResurrect(ch)     (107 cure, 108 sanity, 61 resurrect) on ch's pos
-//!                      100 over its head; the controller -3, -1
-//! -1..-3's second chain (0x001c9348): target off the lists: endFlag; at
-//!   count 12 generators A and B, at 30 D, at 55 C (the tables at main
-//!   0x00340170, 0x00340180, 0x00340190, 0x003401a0 by -id - 1:
-//!   resurrect 95, 97, 96, 98; cure 99, 101, 100, 102; sanity 103, 105,
-//!   104, 106) on the target's pos, temp[0] up
-//! effOpenBox(pos)      a generator 94 at pos; answers 1
-//! effRemoveTrap(pos, a, b)  (a -1: 101, b -1: 118) the controller -6 at
-//!                      pos, life 5, param b; a generator 118 at pos,
-//!                      texture a
-//! -6's second chain (0x001c98a8): at count == life a generator 119 at
-//!   its pos, texture param
-//! ```
+//! `effHeal` (main 0x001ccd20) and `effHealSkill` (0x001cccf0) for the healing
+//! skills, the items and the Data Drain menu; `effCure`, `effSanity`,
+//! `effResurrect` (0x001cef50, 0x001cf0d0, 0x001cedd0) from
+//! `ccSkill::RecoverySystem`; `effOpenBox` (0x001ced40) when a body lying down
+//! ends or a box, fountain, food or idol opens; `effRemoveTrap` (0x001d0980).
+//! The effects are 130, -19, -1..-3 and -6; their cases are in
+//! docs/engine/effects.md ("Heals, cures, a box, a trap").
 
 use piney_data::volume::Volume;
 

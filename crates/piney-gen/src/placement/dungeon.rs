@@ -1,38 +1,11 @@
 //! The tables the dungeon generator reads (`piney_data::dungeon::Tables`,
-//! `docs/engine/dungeon.md`). Everything here is engine data: numbers and
-//! the names of files and objects. Each table is found through the code
-//! that uses it, so the same reader runs on all four executables:
-//!
-//! ```text
-//! ROOM_INFO tables     MakeFloor's four jump tables by dungeon type (small,
-//!                      medium, large, large second set); each row
-//!                      {char **roomobj; u32 num; u8 exit; float r}
-//! symroom              MakeRoom's Gott statue room per type
-//! DungeonName(2)       the CCS file per type (texType 0 and 1)
-//! dummy patterns       the strings SetAllGim passes to ccAnm::GetSubstAdrs,
-//!                      in its order
-//! dungeonData          levelMax/roomMax per dungeonSize (SLUS)
-//! dungeon types        WORLD_MAN::SetDungeonTypeFromField: tools/dungeon.py's
-//!                      model of it (checked against the function in
-//!                      tools/test_dungeon.py) per field type, with the
-//!                      save-flag rule read from the code
-//! EditDungeon          the story dungeons: ROOMDATA and GIMMICKDATA rows per
-//!                      (event area, dungeon index), and how many floors
-//!                      MakeRealMap runs over
-//! clut lists           DUNGEON::SetClutList's CLT_ names by dungeon type
-//! doors                what DUNGEON::SetDoor names: the door dummies, the
-//!                      door animation per type and the gate walls
-//! fog tables           the dungeonFog* tables the DUNGEON constructor points
-//!                      fogParam at, and which table and row it picks
-//! texType / clutType   WORLD_MAN::SetDungeonTexClut for a random area, per
-//!                      server 0-4 and field type 0-11, run in piney-eemu
-//! ```
-//!
-//! The room tables, the fog tables and the story dungeons' row arrays are
-//! written once each and named by index where the game's tables share them.
-//! The room models' dummy objects, which also steer the generator, are
-//! asset data: `piney-data` reads them from the dungeon's CCS file at run
-//! time.
+//! `docs/engine/dungeon.md`): engine data only, each table found through the
+//! code that uses it so one reader runs on all four executables. The
+//! `ROOM_INFO` tables, `symroom`, `DungeonName(2)`, `SetAllGim`'s dummy
+//! patterns, `dungeonData`, the dungeon types by field type, `EditDungeon`'s
+//! story dungeons, the CLUT lists, the doors, the fog tables, and the
+//! texType / clutType pairs run in piney-eemu. Shared tables are written once
+//! and named by index; the room models' dummies are read from the CCS file.
 
 use std::collections::{BTreeMap, HashMap};
 

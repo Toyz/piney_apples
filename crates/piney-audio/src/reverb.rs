@@ -1,16 +1,10 @@
-//! The SPU2's reverb in the mode the game sets at start-up: `spuInit`
-//! (`INF SLUS_202.67:0x00181ee0`) gives both cores `sceSdSetEffectAttr`
-//! mode 5 (hall, with the work area cleared), effect volume 0x3fff and
-//! effects enabled; the voices whose sample asks for it (`spu_attr` bits 2
-//! and 3, set per voice as VMIXEL / VMIXER) feed it.
-//!
-//! The algorithm and the resampling filter are the PlayStation SPU's as
-//! psx-spx documents them ("SPU Reverb Formula", "Reverb Buffer
-//! Resampling"): the unit runs at half the output rate (24 kHz here) over a
-//! ring buffer, with same-side and cross reflections, four combs and two
-//! all-pass stages. The hall preset is LIBSD.IRX's (module offset 0x42d8),
-//! the same 32 register values as the PlayStation's; addresses count 8-byte
-//! units, 4 samples each.
+//! The SPU2's reverb in the mode the game sets at start-up: `spuInit` (`INF
+//! SLUS_202.67:0x00181ee0`) gives both cores mode 5 (hall), effect volume
+//! 0x3fff, and the voices whose sample asks for it (`spu_attr` bits 2, 3) feed
+//! it. The algorithm and resampling filter are the PlayStation SPU's as psx-spx
+//! documents them: half the output rate (24 kHz) over a ring buffer, same-side
+//! and cross reflections, four combs and two all-pass stages. The hall preset
+//! is LIBSD.IRX's (module offset 0x42d8); addresses count 8-byte units.
 
 /// dAPF1 ... vRIN, as the SPU's registers 0x1dc0-0x1dfe are ordered.
 #[rustfmt::skip]

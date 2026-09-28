@@ -1,20 +1,11 @@
 //! The ALTIMIT desktop of .hack//Infection (`DATA/DESKTOP.PRG`), as a state
 //! machine: a pad in, a [`piney_draw::Frame`] out, once per game frame
-//! (`docs/engine/desktop.md`).
-//!
-//! The task `ccThDesktop` (desktop.prg 0x00400910) runs, between two
-//! `ccTscb::Breath` calls per frame:
-//!
-//! ```text
-//! SetStream, SetWall; breathe            the scene and the wallpaper
-//! PlayOpening                            the opening, until it ends or ok/cancel
-//! AddAllList                             mail, news, wallpapers, music lists
-//! loop: breathe; SelectMode; ChooseMode  the main screen and the modes
-//! ```
-//!
-//! [`Desktop::step`] is one pass between breaths. The content (scenes,
-//! texts, fonts) is read from the disc image; the game state events own is
-//! [`SaveState`].
+//! (`docs/engine/desktop.md`). The task `ccThDesktop` (desktop.prg 0x00400910)
+//! sets the scene and wallpaper, plays the opening, builds the lists
+//! (`AddAllList`), then loops `SelectMode` / `ChooseMode` between two
+//! `ccTscb::Breath` calls a frame; [`Desktop::step`] is one pass between
+//! breaths. The content is read from the disc image; the game state events
+//! own is [`SaveState`].
 
 pub mod acces;
 pub mod anm;

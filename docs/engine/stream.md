@@ -1089,6 +1089,12 @@ pause: its skip path, `ExitScene` on the loop. `str7000Out` lists fields
 `str7447` three times); the first 19 are the areas `GateHackOutCcsName`
 has a camera for.
 
+The tables (INF main): `str7000TblPre` 0x0030e1a0, `str7000TblTown`
+0x0030e1d0, `str7000TblTownC` 0x0030e2b0, `str7000TblAfter` 0x0030e390;
+the `E` tables with English voices 0x0030f2b0, 0x0030f2e0, 0x0030f3c0,
+0x0030f4a0. Outbreak and Quarantine have the `E` tables alone. The rows'
+files are in the archive stream 107's header names, at its offset.
+
 The port (`piney_stream::Stream::gate_hack`, `table::gate_hack_files`)
 builds the same lists and plays them as any stream; the area's set-up
 ([field walk](field-walk.md#the-hacked-arrival)) holds until it returns

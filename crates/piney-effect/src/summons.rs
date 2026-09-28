@@ -1,49 +1,11 @@
-//! The summoning spells: `ccSkill::SummonsSystem` (gcmn 0x00579000), the
-//! summoning ring `effSummonsRing` (effect 56) with its shock waves (64,
-//! 65) and fragments (66-78), the summoned creature `effSummonsElement`
-//! (57-63, 164, 165), and the lock-on of skill 290 (`effSBLockon`, the
-//! controller -26 and its mark 166, count 167, range rings 172 and flare
-//! 171).
-//!
-//! ```text
-//! SummonsSystem (the damage at 52 and the end at 62; 289: 150 and 190,
-//! 290: 115 and 125)
-//!   count 0   a target on the lists: ccSeOn3D(62, tPos) and the magic
-//!             attack sign, else the end and the caster released; level =
-//!             id - (204 soil, 220 water, 236 fire, 252 wind, 268 thunder,
-//!             284 dark), no element: id - 290 from 291, else 1
-//!   count 30  ccSeOn3D(62, tPos); 290: effSBLockon at the target's middle;
-//!             effSummonsRing(cPos, attr, level, type) (type 1 for 289, 2
-//!             for 290, else 0); effSummonsElement(cPos, cHeight, cDirc.z,
-//!             attr, type); 289: effTCDrillMissile(cPos, tPos, by the
-//!             target's size); level 3+ (not 289, 290):
-//!             ccSummonsElementGenerate (m_effElm, [`summoned`])
-//!   289, 290  at the damage ccSkillDamage2 round tPos; at the end the end
-//!             (the caster released when it is on the lists)
-//!   others    at the damage ccSeOn3D(35, cPos) and soil 56, water
-//!             ccSeOn3DNote(66, cPos, 48), dark 69; level 3+: once the
-//!             element is deleted, the end; levels 1, 2: at the damage
-//!             ccSkillDamage2 and, cPos in the camera's range, a shake
-//!             (level 1 (0, 2, 20, 0), else (2, 2, 30, 2)) and noise 20; at
-//!             the end the end
-//! the ring 56 (life 40): 2.6 wide, rising from 0.5 to 2.2, turning; at 12
-//!   the shock waves (three 64, one 65, re-coloured by element), at 22
-//!   (type 0) 6 + 2 level fragments thrown up
-//! the creature 57-63 (life 65): rising from the caster's middle to 50
-//!   above, turning in to its heading over 20 frames
-//! the drill 168 (five, a fifth of a turn apart round the target, 300, 400
-//!   or 500 out by the target's size): each waits its turn, leaps from the
-//!   ground (a fragment burst, ccSeOn3D(39), shake, generator 241) and
-//!   drops back, turns, circles the target once rising and falling with
-//!   the land (ccLandHitCheck), turns back, waits, then leaps at the
-//!   target and bursts (effSkillBreakSE, noise 30, shake, rocks, a flare
-//!   ring, generators 239 and 240); drawn as the nut (ANM_x703nut0) or the
-//!   drill (ANM_x703atc0) of X703.CCS
-//! the lock-on -26 (life 80): the mark at 0, at 30 the count and the first
-//!   range ring, every 5 frames the count on and another ring (to 8), at
-//!   80 the blast: effSkillBreakSE, noise 50, a shake, rocks, the flare
-//!   ring, generators 242 and 243
-//! ```
+//! The summoning spells: `ccSkill::SummonsSystem` (gcmn 0x00579000; the damage
+//! at 52 and the end at 62, 289 at 150 and 190, 290 at 115 and 125), the
+//! summoning ring `effSummonsRing` (effect 56) with its shock waves (64, 65)
+//! and fragments (66-78), the summoned creature `effSummonsElement` (57-63,
+//! 164, 165), 289's drills (168, `effTCDrillMissile`), and the lock-on of
+//! skill 290 (`effSBLockon`: the controller -26 and its mark 166, count 167,
+//! range rings 172 and flare 171). Levels 3 and up are `crate::summoned`'s. The
+//! cases are in docs/engine/effects.md ("SummonsSystem").
 
 use piney_data::volume::Volume;
 

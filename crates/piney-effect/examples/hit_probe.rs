@@ -1,44 +1,11 @@
-//! Answers `tools/test_effect_hit_rs.py`: runs the port's hits, fly fonts
-//! and stacked numbers on the requests it is sent and prints each answer
-//! as one JSON line, so the test can run the same through the game's own
-//! code in eemu.
-//!
-//! ```text
-//! cargo build -p piney-effect --example hit_probe
-//! hit_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests, one a
-//! line:
-//! - `reset TOWN SEED`: every slot free, `ccEffectCtrl(0)` in a town (1) or
-//!   a field (0), `rand` seeded with SEED, the fly fonts and stacked
-//!   numbers empty, a fresh `flyFont`; no characters.
-//! - `player X Y Z`, `camera EX EY EZ PX PY PZ VX VY VZ` as effect_probe's.
-//! - `screen M0..M15`: sysLayer's view's world-to-screen matrix (columns).
-//! - `camid ID TYPE`: `camID` and `activeCamPtr` +0x5c.
-//! - `char ID X Y Z H W DX DY DZ TYPE SLOT ICONS SIZE ALIVE`: a character:
-//!   position, height, width, heading, its row's `type`, its party slot,
-//!   its condition icons, `ccCheckObjectSize`, and whether `ccCheckTarget`
-//!   passes.
-//! - `hit CH ATT`, `protect CH BROKEN KIND`, `guard CH ATT`: the starters.
-//! - `flynum COLOR NUM X Y Z SX SY OFS`: `ccEntryFlyFontNum`.
-//! - `flynew KIND VALUE CH`, `flyexp KIND VALUE CH`, `flylevel KIND CH`,
-//!   `flymiss CH` (CH ffffffff: none): the `ccEntryFlyFontNew*` functions.
-//! - `strreset SEED`: the stream demo's systems in place of the field's
-//!   (`ccEffectCtrl(1)`, `ccParticleCtrl(1)`); `rand` seeded; `frame` then
-//!   runs `MainStr`.
-//! - `strhit X Y Z RX RY RZ LAYER`, `strtransfer X Y Z H LAYER` (LAYER
-//!   ffffffff: none): `effHitMarkStr`, `effTransferStr`.
-//! - `frame`: one `ccEffectCtrl::Main` and one `ccParticleCtrl::Main`
-//!   (`ccThEffect` then `ccThParticle`): the live slots, the effects' draws,
-//!   the particles' draws, and rand's state.
-//! - `fly PAUSE GAMEOVER`: `ccMenuCtrl::Disp`'s numbers: the fly fonts,
-//!   the stacked numbers, `flyFont`'s fields and the quads it queued.
-//!
-//! Every request that changes state answers the events since the last
-//! answer, the particle system's whole state (its generators, live
-//! particles and counts, as particle_probe's), the guard list and
-//! `flyFont`'s fields.
+//! Answers `tools/test_effect_hit_rs.py`: runs the port's hits, fly fonts and
+//! stacked numbers on the requests it is sent and prints each answer as one
+//! JSON line, so the test can run the same through the game's own code in eemu
+//! (`hit_probe ISO < requests`). Numbers are hex; floats travel as their bit
+//! patterns. The requests (`reset`, `player`, `camera`, `screen`, `camid`,
+//! `char`, the starters, the `fly*` entries, the stream demo's `strreset`,
+//! `strhit`, `strtransfer`, `frame`, `fly`) are the test's; each answer that
+//! changes state carries the events, the particles, the guard list and `flyFont`.
 
 use std::collections::HashMap;
 use std::io::BufRead;

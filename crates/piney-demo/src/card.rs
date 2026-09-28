@@ -1,39 +1,11 @@
 //! The memory-card check at boot: `BootMem_Control` (DEMO.PRG,
-//! DataControl.cpp; a `Data_Control` with a state and a result after it)
-//! and the part of `ccSaveSys` it asks (`BootCheckReq` 0x00171a60,
-//! `BootCheckProccess` 0x00171a80 on the `ccThSaveSys` task,
-//! `NextProccess` 0x00173f90), on the one `ccSaveSys`
-//! ([`piney_desktop::savesys::SaveSys`]) the load screen and the desktop's
-//! Data screen use, over the runtime's [`MemoryCard`].
-//!
-//! ```text
-//! BootMem_Control::Main_Control (0x00403c00), by state (+0x8c):
-//!   0  saveSys->BootCheckReq()          result 4 (busy), proccess 16
-//!   1  mask |= 2|8|1; BootCheck()       then state 2
-//!   2  mask |= 2|8|1; BootCheck(); Data_Control::Main()
-//!   3  return (+0x90 == -1) ? 1 : 2     1: no question was asked
-//!   returns +0x90: -1 until a question is up, then 0
-//!
-//! BootCheck (0x00403d40):
-//!   s = saveSys->result; s == 1: state += 1
-//!   s & 0x8000 (a question): +0x90 = 0; mask &= ~(8|1)
-//!       cancel: m_dialog = 0; NextProccess(0)   (nothing for 0x28, 0x29)
-//!       ok:     NextProccess(m_dialog)          (1, yes: result = 1)
-//!       YesNoDialogue(m_dialog, 1)
-//!   InfoMessage(s, 1)                            (message s & 0xfff's lines)
-//!
-//! BootCheckProccess, a frame at a time until result is 1:
-//!   CheckPort(0, 0); not 0, 1 or 3: result = 1
-//!   CheckPort(1, 0); likewise
-//!   either port 3: result = 0x8029 (no room); else 0 or 1: 0x8028 (no card)
-//!   and round again, so a card put in while the question is up ends it
-//! ```
-//!
-//! With the question up, `Data_Control::Main` moves `m_dialog` with up
-//! (+1) and down (-1), wrapping 0..1, and plays se 6 for a move, 4 for ok
-//! and 7 for cancel. 1 is YES (the upper row), 0 NO. The question draws on
-//! layer 130 (`BootMem_Control::Init` 0x00403e60: `m_hi` 17, `Info_X` 85,
-//! `Info_Y` (int)(17 * 7.5) = 127).
+//! DataControl.cpp; `Main_Control` 0x00403c00, `BootCheck` 0x00403d40) and the
+//! part of `ccSaveSys` it asks (`BootCheckReq` 0x00171a60, `BootCheckProccess`
+//! 0x00171a80, `NextProccess` 0x00173f90), on the one `ccSaveSys`
+//! ([`piney_desktop::savesys::SaveSys`]) over the runtime's [`MemoryCard`]. No
+//! card or no room asks a YES / NO question (0x8028, 0x8029) and keeps
+//! checking, so a card put in ends it. The question draws on layer 130; see
+//! docs/engine/title.md ("The memory-card check").
 
 use piney_data::save::SaveData;
 use piney_desktop::card::{MemoryCard, PortState};

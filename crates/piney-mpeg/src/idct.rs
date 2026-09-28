@@ -1,13 +1,9 @@
-//! The inverse DCT: an integer 8x8 IDCT in the "simple IDCT" arithmetic
-//! (rows then columns, cosines scaled by 2^14 and rounded, a 2^11 row and a
-//! 2^20 column shift, and a DC-only row shortcut), chosen because it gives
-//! ffmpeg's `mpeg2video` output bit for bit, and it meets IEEE 1180-1990
-//! (the check is the `ieee1180` test below).
-//!
-//! The PS2 does the IDCT in the IPU (the BDEC command libmpeg sends,
-//! `_decMB0` at INF SLUS_202.67:0x00113ab0), whose arithmetic is not
-//! documented to the bit; this one agrees with any IEEE 1180 IDCT to within
-//! one level per sample.
+//! The inverse DCT: an integer 8x8 IDCT in the "simple IDCT" arithmetic (rows
+//! then columns, cosines scaled by 2^14 and rounded, a 2^11 row and a 2^20
+//! column shift, a DC-only row shortcut), chosen because it gives ffmpeg's
+//! `mpeg2video` output bit for bit and meets IEEE 1180-1990 (the `ieee1180`
+//! test). The PS2's IPU (BDEC, `_decMB0` at INF SLUS_202.67:0x00113ab0) is not
+//! documented to the bit; this agrees with any IEEE 1180 IDCT within one level.
 
 // 2^14 sqrt(2) cos(i pi / 16), rounded; W4 is one less than the rounding.
 const W1: i32 = 22725;

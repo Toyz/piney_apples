@@ -1,52 +1,11 @@
-//! Answers `tools/test_demo_rs.py`: runs pieces of the title's logic on
-//! states it is given and prints one JSON line per request, so the test can
-//! run the same states through the game's own code in eemu.
-//!
-//! ```text
-//! cargo build --release -p piney-demo --features trace --example demo_probe
-//! demo_probe ISO < requests
-//! ```
-//!
-//! Every request starts from a fresh `ccOpening_Control` on which
-//! `SetNeutral` has run (its calls not reported). Numbers may be hex
-//! (`0x..`); floats travel as their bit patterns. Requests, one a line:
-//! - `movecur CUR PUSHFLG PUSHCNT REPEAT DEMO PARO`, then `pad PUSH UNPUSH
-//!   REPEAT` lines until `end`: `MoveCurNut` frame by frame
-//! - `switch CUR PARO`: `SwitchCur`
-//! - `neutral NUTACT CUR PUSH PARO`: `PlayNeutral`
-//! - `change MODE`: `ChangeMainAct`
-//! - `movecount MAINACT DEMO`: `MOVEcount`
-//! - `fade OP...`: `ccScFade` ops `flash:T:C`, `flash3:T0:T1:T2:C`,
-//!   `fadein:T:C0:C1`, `send:N` (N frames of `SendPacket`)
-//! - `transp MAINACT DAT OPT WAIT TR TRICO TRWIN MENUTYPE PARO`
-//! - `animate MAINACT DAT OPT PARO ROTY FWD...`: `AllAnimate`, the listed
-//!   labels' steps ending
-//! - `setn NUTLOCK CUR PARO TR TRICO`, `setnew`, `setparo`,
-//!   `setload DAT PARO`, `setopt MODE PARO`
-//! - `playload DAT DATSW FLASH LOADSW RESULT PARO`, `playopt OPTACT OPTSW
-//!   MENUTYPE PUSH PARO`, `playnew NESW`, `playparo NESW`
-//! - `newgame SW SAVE_VA HEX`: `ccSaveData::NewGame(SW)` on the 0x8530
-//!   bytes given, the save at EE address SAVE_VA: the save after, and the
-//!   names written to `spcNameList` and `ccsNameList`
-//! - `consts`: the memory-card question's text addresses
-//! - `draw MAINACT PARO`: `AllDraw`
-//! - `main MAINACT MASK PUSH NUTACT DAT OPT FWD...`: `Main`
-//! - `logo ACT SKIP`: `LogoMain` as the task runs it
-//! - `boot` then `frame RESULT PUSH UNPUSH REPEAT` lines until `end`:
-//!   `PlayBootMemCard`, `ccSaveSys.result` set to RESULT first unless -99
-//! - `thread RESET BOOT... / MAIN... / SKIP...` then `pad` lines until
-//!   `end`: `ccThDemo` with `PlayBootMemCard` and `Main` scripted
-//! - `load CARD PORT FILE` then `frame PUSH UNPUSH REPEAT COUNT` lines
-//!   until `end`: the load screen (`DataLoad_Control::Main_Control`) over
-//!   `ccSaveSys`'s task, on the card kept as files in directory CARD,
-//!   `saveSys` at PORT and FILE and past the boot check: per frame the
-//!   control's and `saveSys`'s state and what was drawn; then the save
-//! - `loadgame SAVE_VA HEX`: `ccSaveData::LoadGame` on the 0x8530 bytes
-//!   given: the save after, and the names written to `ccsNameList`
-//! - `lit FRAME...`: the whole title from boot, nothing pressed, to the
-//!   menu; then, FRAME steps after reaching it, every lit object drawn: its
-//!   animation, model, `lwMatrix`, the `Lights` of its `ModelDraw`, and per
-//!   mmat the vertex colours `piney_gs::convert::mmat` gives
+//! Answers `tools/test_demo_rs.py`: runs pieces of the title's logic on states
+//! it is given and prints one JSON line per request, so the test can run the
+//! same states through the game's own code in eemu (`demo_probe ISO <
+//! requests`, built with the `trace` feature). Every request starts from a
+//! fresh `ccOpening_Control` after `SetNeutral`; numbers may be hex, floats
+//! travel as their bit patterns. The requests name the function they run
+//! (`movecur`, `switch`, `neutral`, `fade`, `animate`, `play*`, `newgame`,
+//! `draw`, `main`, `logo`, `boot`, `thread`, `load`, `loadgame`, `lit`, ...).
 
 use std::collections::HashMap;
 use std::io::BufRead;

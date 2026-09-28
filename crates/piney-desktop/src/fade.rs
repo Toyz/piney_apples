@@ -1,12 +1,8 @@
-//! `ccScFade` (fade.cpp): the screen fader the World icon uses
-//! (`EntryFade` 0x00160400, `SendPacket` 0x0015fb80, `CheckFade`
-//! 0x001604d0).
-//!
-//! A fading element is one flat TRISTRIP over its rectangle (the whole
-//! frame, unless `EntryFade` was given a smaller one) on the font layer
-//! (priority 240), blended `(Cs - Cd) As + Cd`. Its colour runs from
-//! `col0` to `col1` per channel as `c0 + trunc((c1 - c0) * cnt / tcnt)`,
-//! `cnt` counting the frames drawn and holding at `tcnt`.
+//! `ccScFade` (fade.cpp): the screen fader the World icon uses (`EntryFade`
+//! 0x00160400, `SendPacket` 0x0015fb80, `CheckFade` 0x001604d0). A fading
+//! element is one flat TRISTRIP over its rectangle on the font layer (240),
+//! blended `(Cs - Cd) As + Cd`, its colour `c0 + trunc((c1 - c0) * cnt /
+//! tcnt)` per channel, `cnt` counting the frames drawn and holding at `tcnt`.
 
 use piney_draw::{Blend, Cmd, DrawState, Prim, PrimKind, Rgba, Vertex};
 

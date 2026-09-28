@@ -1,41 +1,11 @@
-//! The dungeon objects' effects (main effect.cpp): a virus core's crystal,
-//! the breakables smashed, a trapped box going off and the Statue of God's
-//! glow, which `ccGimBox` and `ccGimIdol` (gcmn gmbox.cpp) start.
-//!
-//! ```text
-//! effVirusCrystal(pos)        (main 0x001cf420) the controller -4 at pos,
-//!                             life 60; a generator 109 at pos
-//! -4's second chain (0x001c96f8): at count 13 and 20 a generator 109 at its
-//!   pos
-//! effWoodFragment(p, r, v, s, n, x)  (main 0x001cf540; Eggshell 0x001cf8b0,
-//!   Pot 0x001cfc20, Bone 0x001cff90 the same with other ids) n pieces:
-//!     rn = rand() >> 3
-//!     d = Rot(r) Rot(0, (rn << 8) & 0xfc00, rn % 12288 + 4096) (0, -1, 0, 1)
-//!     id base + (rn & 15) % 3 (wood 25, eggshell 138, pot 142, bone 146)
-//!     speed d v (100 - (rn >> 8) % 50) / 100, velocity v
-//!     rotSpeed x (rn >> 4) & 0x3c00, z (rn >> 8) & 0x3c00; rot x and z
-//!       on by three times those
-//!     pos p + |speed| s (100 - (rn >> 16) % 50) / 100, life 90
-//!     x not 0: its clump duplicated (Duplicate(0x3800)) with CLT_x036
-//!       swapped for CLT_x036c1 (WoodClt1, WoodClt2)
-//!   the last piece
-//! effCrushBarrel(pos, x)      (main 0x001d0300; Egg, Pot, Corpse the same
-//!   with the other fragments) the fragments (pos, (-pi/2, 0, 0), 18, 50,
-//!   15, x); a generator 110 at pos
-//! effOpenTrapBox(pos, kind, trap)  (main 0x001d0780) the controller -5 at
-//!   pos, life 5, param 1 for trap 0; kind not 0 (a wooden box or barrel):
-//!   the wood fragments (pos, (-pi/2, 0, 0), 18, 50, 15, kind); a
-//!   generator 110 + trap at pos; ccSeOn3D(39, pos)
-//! -5's second chain (0x001c9770), every frame:
-//!     rn = rand() >> 3
-//!     q = pos + Rot(0, (rn << 8) & 0xfc00, rn % 12288 + 4096)
-//!           (0, -75 (100 - (rn >> 16) % 20) / 100, 0, 1), w 1
-//!     ccParticleExplode(q, speed, 1.8, param)
-//! effStatueOfGod(pos, sw)     (main 0x001d0e60) a generator 125 at pos
-//!   running while *sw (the idol's effsw) is not 0
-//! ```
-//!
-//! Each crush also copies `pos` 50 up and never uses it.
+//! The dungeon objects' effects (main effect.cpp): a virus core's crystal
+//! (`effVirusCrystal` 0x001cf420), the breakables smashed (`effWoodFragment`
+//! 0x001cf540 and its kin, `effCrushBarrel` 0x001d0300 and its kin), a
+//! trapped box going off (`effOpenTrapBox` 0x001d0780) and the Statue of
+//! God's glow (`effStatueOfGod` 0x001d0e60), which `ccGimBox` and
+//! `ccGimIdol` (gcmn gmbox.cpp) start. Each crush copies `pos` 50 up and
+//! never uses it. The rules are in docs/engine/effects.md ("The dungeon's
+//! objects").
 
 use crate::ee::{self, F, ONE, V4};
 use crate::effect::EffectCtrl;

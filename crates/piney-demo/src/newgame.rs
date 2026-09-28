@@ -1,36 +1,11 @@
-//! `ccSaveData::NewGame(sw)` (`INF SLUS_202.67:0x00174d70`): what a new
-//! game writes into the save. `ccSetupDemo` calls it with 1 on every title;
-//! `ccThDemo` calls it with 0 when the title's New Game (or Parody) leaves.
-//!
-//! ```text
-//! for i in 0..18:
-//!   spcParam[i] <- charTbl[i]            the fields below, byte for byte
-//!   name  -> i == 0 ? plName (saveData +0) : spcNameList[i - 1]   up to 20 bytes
-//!   ccsname -> ccsNameList[i]                                     up to 32 bytes
-//!   spcParam[i].name, .ccsname = those buffers' addresses
-//!   sw == 0, i == 0, saveData->parodyFlag: spcParam[0].level = 20
-//! ccResetPlayTime()        ccGame's play-time counters, saveData->playTime = 0
-//! SetDefaultWord()         wordList bits by volume (only ORs)
-//! InitTradeItem()          spcTradeList, npcTradeList, tpcTradeListSW
-//! setCameraCtrlType(camType); ccPad::actuaterSw = vibration;
-//! ccSys->SetDisplayOffset(screenX, screenY); SetSoundEnv()   (outside the save)
-//! ```
-//!
-//! `charTbl` (18 rows of 92 bytes) is DEMO.PRG's; the trade tables are the
-//! executable's. All are read from the disc ([`NewGameTables::read`]); the
-//! names they point at are copied as the game copies them.
-//!
-//! From Mutation on (MUT 0x00176270, `InitTradeItem` 0x00177be0) there are
-//! 21 rows, 20 character trade lists and 54 NPC ones, the last characters'
-//! and NPCs' records in the save's extension (`piney_data::save::by_id`);
-//! a Parody Kite starts at level 20, 50, 70 or 90 by the volume;
-//! `SetDefaultWord` ORs more words the later the volume; and `NewGame(0)`
-//! gives Kite important items, more on each later volume (and Quarantine
-//! sets some news and mail). The save keeps
-//! three kinds of EE address: each character's `name` and `ccsname` point at
-//! the buffers above (the executable's `spcNameList` and `ccsNameList`, and
-//! for character 0 the save itself), and `msg` is copied from `charTbl` as
-//! it is. [`new_game`] takes the save's own address for the first.
+//! `ccSaveData::NewGame(sw)` (`INF SLUS_202.67:0x00174d70`; MUT 0x00176270):
+//! what a new game writes into the save. `ccSetupDemo` calls it with 1 on
+//! every title, `ccThDemo` with 0 when New Game (or Parody) leaves: each of
+//! the 18 (from Mutation 21) characters from DEMO.PRG's `charTbl`, the play
+//! time, `SetDefaultWord`, `InitTradeItem`, and a Parody Kite's level. The
+//! save keeps EE addresses: each character's `name` and `ccsname` point at
+//! the executable's buffers (character 0's at the save itself, which
+//! [`new_game`] takes). See docs/engine/title.md ("ccSaveData::NewGame").
 
 use piney_data::save::{SaveData, by_id};
 use piney_data::tables::newgame::{ItemList, NewGame};
@@ -289,14 +264,12 @@ pub fn new_game(save: &mut SaveData, sw: i32, tables: &NewGameTables, save_va: u
 }
 
 /// `ccSaveData::LoadGame()` (`INF SLUS_202.67:0x00175110`; MUT's for 21
-/// characters through `GetSpcParam`) on a save just
-/// read from a card: each character's `name` and `ccsname` pointed at the
-/// buffers again (character 0's at the save, `save_va`), the `ccsNameList`
-/// names copied from `charTbl` again (a null one leaves an empty name),
-/// `velocity` (+0xd4) from `charTbl`, and `SetDefaultWord`. The names in
-/// `spcNameList` are not touched (the returned `spc` is empty). Also, outside
-/// the save: `setCameraCtrlType(camType)`, `ccPad::actuaterSw = vibration`,
-/// `ccSys->SetDisplayOffset(screenX, screenY)`, `SetSoundEnv()`.
+/// characters through `GetSpcParam`) on a save just read from a card: each
+/// character's `name` and `ccsname` pointed at the buffers again (character
+/// 0's at the save, `save_va`), the `ccsNameList` names copied from `charTbl`
+/// again, `velocity` (+0xd4) from `charTbl`, and `SetDefaultWord`; the names
+/// in `spcNameList` are not touched. Outside the save it also sets the camera
+/// type, vibration, display offset and sound environment.
 pub fn load_game(save: &mut SaveData, tables: &NewGameTables, save_va: u32) -> NameLists {
     let mut names = NameLists::default();
     let b = save.record_mut();

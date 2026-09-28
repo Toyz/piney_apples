@@ -1,13 +1,8 @@
-//! Answers `tools/test_shadow_rs.py`: one shadow draw a line, the polygons
-//! `shadow::volume` sends, one line back.
-//!
-//! ```text
-//! request   N T  x y z (N)  a b c (T)  scale  local_world (16)  world_screen (16)
-//!           near far  clip (4)  light (4)  length  mode width height
-//! answer    P  then per polygon: front n  x y z (n)
-//! ```
-//!
-//! Floats go as f32 bit patterns in hex both ways; matrices as columns.
+//! Answers `tools/test_shadow_rs.py`: one shadow draw a line (the points, the
+//! triangles, the scale, both matrices, near, far, clip, light, length, mode
+//! and size), and one line back with the polygons `shadow::volume` sends, each
+//! with its winding. Floats go as f32 bit patterns in hex both ways; matrices
+//! as columns.
 
 use std::io::{BufRead, Write};
 

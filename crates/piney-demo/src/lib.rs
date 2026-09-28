@@ -1,32 +1,11 @@
-//! The title screen of .hack//Infection (`DATA/DEMO.PRG`, mode 2), as a
-//! state machine: a pad in, a [`piney_draw::Frame`] out, once per game
-//! frame (`docs/engine/title.md`).
-//!
-//! `ccSetupDemo` (0x00168160) loads the overlay and `title1`, calls
-//! `ccSaveData::NewGame(1)` and starts two tasks, `ccThDemo` and the system
-//! menu `ccThDtMenu`. `ccThDemo` (demo.prg 0x00400900) runs, one `Breath`
-//! a frame:
-//!
-//! ```text
-//! ccSqStop(0); new ccOpening_Control; SetVolCcs      title1, the camera
-//! while !r: breathe; r = PlayBootMemCard()           the memory-card check
-//! first boot: dtMenu.dispFlag = 0 (else skip the logos: dispFlag 1,
-//!             ccSetMainVol, ccSqPlay(0))
-//! loop:
-//!   while !r: r = LogoMain(); breathe; r: dispFlag = 1   the logo movies
-//!   PlayOpeningStream()                              the in-engine intro
-//!   while !r: breathe; r = Main()                    the title
-//!   2: saveData->NewGame(0)   3: saveData->LoadGame()   leave the loop
-//!   5: ccSqStop(0); dispFlag = 0; LogoAct = 3        the attract loop
-//! ccSqFade(0, 0, 8, 3); Breath(2); ChangeRequest(3, 7)   the desktop
-//! ```
-//!
-//! [`Demo::step`] is one pass between breaths. The movies and the stream
-//! are asked of the runtime ([`Request::Movie`], [`Request::Stream`]) and
-//! count as played before the next step. The memory card is the desktop's
-//! seam (`piney_desktop::card::MemoryCard`) under the one `ccSaveSys` the
-//! boot check ([`card`]) and the load screen ([`dataload`]) share; the
-//! system menu is the [`seam`] trait.
+//! The title screen of .hack//Infection (`DATA/DEMO.PRG`, mode 2), as a state
+//! machine: a pad in, a [`piney_draw::Frame`] out, once per game frame
+//! (`docs/engine/title.md`). `ccSetupDemo` (0x00168160) starts `ccThDemo`
+//! (demo.prg 0x00400900: the memory-card check, the logos, the opening
+//! stream, the title, the attract loop) and the system menu `ccThDtMenu`.
+//! [`Demo::step`] is one pass between breaths; the movies and the stream are
+//! asked of the runtime ([`Request::Movie`], [`Request::Stream`]). The boot
+//! check ([`card`]) and the load screen ([`dataload`]) share one `ccSaveSys`.
 
 pub mod card;
 pub mod dataload;

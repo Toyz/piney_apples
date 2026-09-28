@@ -1,28 +1,10 @@
-//! Play a stream headless to a frame and write it as a PNG.
-//!
-//! ```text
-//! cargo run --release -p piney-stream --example stream_shot -- \
-//!     [--iso work/infection/infection.iso] [--stream 0] [--frame 200] \
-//!     [--out stream.png] [--english] [--soft] [--info] [--event] [--banner]
-//!     [--fx] [--no-shadows]
-//! ```
-//!
-//! `--frame N` stops on the step that draws scene frame N (or the last
-//! step when the stream ends first). The picture is drawn by `piney-gs` on
-//! the GPU when there is one (it lights and skins models), else, or with
-//! `--soft`, by the CPU GS in `piney_desktop::soft`. The steps before it are
-//! drawn too, [`LEAD_IN`] of them, for effects that feed on the previous
-//! frame (stream 2's feedback). `--info` prints the stream's files, scenes
-//! and what it asked for. `--event` plays it as the event instruction does
-//! (`ccEventStream(num, 1)`, `piney_stream::event::EventStream`): with its
-//! subtitles, for a new game's save (Movie Text on, the player Kite); the
-//! window's texture and fonts come from `DATA.BIN`, drawn on the GPU.
-//! `--banner` gives the member-drained stream (20) its skill name banner
-//! (`Options::skill_names`, from `DATA.BIN`), as the game running does.
-//! `--fx` gives it the stream demo's effects (`Stream::set_effects`), which
-//! draw the effect tasks' hit marks and transfers. `--no-shadows` leaves
-//! the shadow packets' passes out (to see what they darken); `--info` then
-//! counts what each pass holds.
+//! Play a stream headless to a frame and write it as a PNG: `--stream`,
+//! `--frame N` (the step that draws scene frame N, drawn after [`LEAD_IN`]
+//! steps for effects that feed on the previous frame), `--out`, `--english`,
+//! `--soft` (the CPU GS instead of `piney-gs`), `--info` (the files, scenes,
+//! requests and shadow passes), `--event` (as the event instruction plays it,
+//! with subtitles), `--banner` (stream 20's skill name banner), `--fx` (the
+//! stream demo's effects) and `--no-shadows`.
 
 use std::collections::VecDeque;
 use std::sync::Arc;

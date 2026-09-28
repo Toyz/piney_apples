@@ -1,55 +1,11 @@
 //! The attack spells' element systems (gcmn skill.cpp): what an attack
-//! spell's `ccSkill` does each frame once `ccSkill::Main` (gcmn 0x005731d0)
-//! reaches it through the jump table at 0x006e1210, by skill id.
-//!
-//! ```text
-//! ccSkill::Main (ccThSkill, priority 82, after ccThEffect at 80), a magic
-//! skill (skillType & 2) with an id of an attack spell:
-//!   FallSystem        (gcmn 0x00577a30)  meteors (effMeteoFireBall2), each a
-//!                                        ccSkillDamage2 as it ends; from
-//!                                        level 3 ccFallElementGenerate
-//!   TornadoSystem     (0x00577540)       smoke at 20, the rings at 30, nine
-//!                                        ccSkillDamage every 5 frames from
-//!                                        35; from level 3 the tornado element
-//!   ConvergenceSystem (0x00578060)       the charge object, then smoke and
-//!                                        ccSkillDamage when it has converged;
-//!                                        from level 3 the convergence element
-//!   UpheavalSystem    (0x005787c0)       pillars every 2 frames, ccSkillDamage2
-//!                                        at 49 (and 69); from level 3 the
-//!                                        upheaval managers
-//!   SummonsSystem     (0x00579000)       the summoning ring and element,
-//!                                        ccSkillDamage2 at 52; from level 3 the
-//!                                        summons element
-//! each: at count 0 the level from the id (level 1-4 of its element), the
-//! magic attack sign on the target (effMagicAttackSign); the end sets the
-//! skill's endFlag to 1 and clears holdFlag; ccThSkill then deletes it
-//! ```
-//!
-//! The port keeps the fields of `ccSkill` these systems and the effects
-//! read and write in a [`Spell`], owned by [`Effects`] (the effects and the
-//! elements read a spell's fields while it runs, and `ccSkillEntryCheck`
-//! asks whether it still does). A runtime that runs `ccSkill` with
-//! `piney_battle::flow::Skills`:
-//!
-//! 1. on `_ccSkillRequest` of an attack spell, [`Effects::spell_request`]
-//!    with the run's key, id, stype, caster and target;
-//! 2. each frame, after [`Effects::step`] (ccThEffect), for each run in
-//!    `SkillEntryTop`'s order, what `ccSkill::Main` does before its system
-//!    (`SkillRun::main`: the caster's position and heading into `cPos` and
-//!    `cDirc`, the target's position into `tPos`, the checks that end the
-//!    skill); when it reports `out.spell`, the spell's fields synced from
-//!    the run ([`Spell::sync`]: `count` is the value *before* Main's
-//!    increment, `SkillRun::count - 1`), then [`Effects::spell_system`];
-//!    then the run takes back `status` (endFlag), `hold`, `level` and the
-//!    [`Event::SkillRelease`]s (the caster's `skillID` and `skillStatus`
-//!    cleared);
-//! 3. when ccThSkill deletes the run, [`Effects::spell_remove`].
-//!
-//! The damage calls are [`Event`]s ([`Event::SkillDamage`],
-//! [`Event::SkillDamageAt`], [`Event::SkillDamage2`]) raised when the game
-//! makes the call; `piney_battle::damage::skill_damage`, `skill_damage_at`
-//! (its position through `ccTransPosW2P`) and `skill_damage2` apply them
-//! with the run's `ac_flag`.
+//! spell's `ccSkill` does each frame once `ccSkill::Main` (gcmn 0x005731d0,
+//! `ccThSkill`, priority 82) reaches it through the jump table at 0x006e1210:
+//! `FallSystem`, `TornadoSystem`, `ConvergenceSystem`, `UpheavalSystem` and
+//! `SummonsSystem`. The fields of `ccSkill` they use are a [`Spell`] owned by
+//! [`Effects`]; a runtime calls [`Effects::spell_request`], then each frame
+//! [`Spell::sync`] and [`Effects::spell_system`], and [`Effects::spell_remove`].
+//! The damage calls are [`Event`]s; see docs/engine/effects.md ("The spells").
 
 use piney_data::volume::Volume;
 
@@ -476,23 +432,11 @@ fn damage_at(cx: &mut Cx, s: &Spell) {
     cx.raise(Event::SkillDamageAt { attacker: s.creator, pos: s.t_pos, ttype: s.t_type, sid: s.id });
 }
 
-/// `ccSkill::TornadoSystem` (gcmn 0x00577540).
-///
-/// ```text
-/// count 0   level = id - (196 soil, 208 water, 228 fire, 240 wind, 260
-///           thunder); a target on the lists: effMagicAttackSign, and from
-///           level 3 ccSkillTornadeElementsGenerate (m_effElm); otherwise
-///           the end
-/// level 3+  with the element: when it is deleted (m_delFlag) the end;
-///           nothing else
-/// 20        effSkillTornadeSmoke(tPos, (0, 0, 0, 1), attr, level)
-/// 30        ccSeOn3D(sndcode[level - 1], tPos); effSkillTornadeRingsPos;
-///           the caster released
-/// 35 .. 75  every 5: ccSkillDamage on the target (on the lists and not
-///           down), else around tPos
-/// 40        (BLUR) in range of the camera: noise 20, cameraShake(0, 2, 20, 2)
-/// after 75  the end
-/// ```
+/// `ccSkill::TornadoSystem` (gcmn 0x00577540): level = id - (196 soil, 208
+/// water, 228 fire, 240 wind, 260 thunder); smoke at 20, the rings and sound
+/// at 30 (the caster released), `ccSkillDamage` every 5 frames from 35 to 75,
+/// the shake at 40 (`BLUR`), the end after 75. From level 3 the tornado
+/// element runs it, and the skill ends once the element is deleted.
 fn tornado_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
     const BLUR: i16 = 40;
     const LAST: i16 = 75;

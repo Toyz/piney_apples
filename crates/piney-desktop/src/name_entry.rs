@@ -1,32 +1,11 @@
 //! `NameEntry_Control` (desktop.prg, NameEntry.cpp 0x00414310 - 0x0041b5b0):
 //! the new game's name entry, which event 1 opens while the desktop's setup
-//! runs (`docs/engine/desktop.md`, "Name entry").
-//!
-//! `ccEvent::Execute` case 156 (0x001b2070) makes the control
-//! (`new` + `Init`, 0x004195b0) and then, a frame at a time, calls `Main`
-//! (0x00414310) until it returns 1; it breathes twice more and deletes it.
-//! [`NameEntry::new`] is the construction, [`NameEntry::step`] one `Main`.
-//!
-//! `Main` runs, each frame:
-//!
-//! ```text
-//! newGameFlag (saveData +0x6770) set: return 1
-//! ChangeACT; MainAct's function (the screens below)
-//! MoveCur; NameSelSet; unless ALL_Lock: JudgmentProcess, SetBufBlock, SelName
-//! AllTlans (the fades); DrawCur; KanjiDraw; DrawWindow; return 0
-//! ```
-//!
-//! The screens the US build reaches: two information pages (MainAct 1), the
-//! character grid (3 for two frames, then 7) for the user name and then the
-//! character name, the confirmation dialog (17), three more pages (19), and
-//! `SetSaveData` (20), which writes the names into `plName` and
-//! `plRealName` and returns 1. Everything is drawn on its own layer, 131,
-//! with `ccLayer::Init(131, NULL)`'s view, and the face panel's "---/---"
-//! through the system font on the font layer (240).
-//!
-//! Texts, the character grid and the forbidden names are read from the
-//! program image by the addresses the code uses; only engine numbers are
-//! constants here.
+//! runs (`ccEvent::Execute` case 156, 0x001b2070). [`NameEntry::new`] is the
+//! construction (`Init` 0x004195b0), [`NameEntry::step`] one `Main`
+//! (0x00414310). The US build reaches the information pages, the English
+//! grid for the user and character names, the confirmation and `SetSaveData`
+//! (`plName`, `plRealName`), all on layer 131. Texts, the grid and the
+//! forbidden names are read from the program image (docs/engine/desktop.md).
 
 use std::sync::Arc;
 

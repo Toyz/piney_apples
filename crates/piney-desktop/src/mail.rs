@@ -1,12 +1,10 @@
-//! `MailList_control` (DESKTOP.PRG, mailer.cpp): the inbox, reading a mail,
-//! and replying (`docs/engine/desktop.md`, "Mail").
-//!
-//! Layout constants are the class's own (constructor 0x004085a0): the list
-//! frame `laysize` (167, 70, 318 x 250), the scroll bar `scrsize`, the
-//! reply window frame `reLaysize` (90, 270, 224 x 80) and the info window
-//! size `ressize` (224 x 72). Every text is a `ccKanji` built with
-//! `Init(3, 16)` in `ccSpriteColorTable[7]` (128, 128, 128, 128); every
-//! icon, cursor and window tile is a cell of `TEX_xddcurs1` (64 x 64).
+//! `MailList_control` (DESKTOP.PRG, mailer.cpp; constructor 0x004085a0): the
+//! inbox, reading a mail, and replying (`docs/engine/desktop.md`, "Mail"). Its
+//! layout constants are the class's own: the list frame `laysize` (167, 70,
+//! 318 x 250), the scroll bar `scrsize`, the reply window `reLaysize` (90,
+//! 270, 224 x 80) and the info window `ressize` (224 x 72). Texts are
+//! `ccKanji` `Init(3, 16)` in `ccSpriteColorTable[7]`; icons, cursors and
+//! window tiles are cells of `TEX_xddcurs1` (64 x 64).
 
 use std::rc::Rc;
 

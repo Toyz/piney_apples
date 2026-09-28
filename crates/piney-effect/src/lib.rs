@@ -1,32 +1,11 @@
-//! The field's effects (`docs/engine/effects.md`): what `ccThEffect`
-//! (priority 80) and `ccThParticle` (98) run and draw each frame, started by
-//! the rest of the game - Kite's arrival, hits, the spells, deaths, level
-//! ups, Data Drain.
-//!
-//! ```text
-//! ccSetupGameCtrl (main 0x00168960) starts both tasks with the field's:
-//! ccThEffect   (main 0x001c2e60, 80)  new ccEffectCtrl(0) (effc: 500 ccEffect
-//!                                     in effWork, 100 ccEffect2 in effWork2,
-//!                                     the effect files' objects by effectTbl);
-//!                                     then each frame ccEffectCtrl::Main
-//!                                     (0x001c38a0) - every live ccEffect's
-//!                                     Main on the effect layer (20) or its
-//!                                     own - and ccEffectElementManager::Main
-//! ccThParticle (main 0x001bc2f0, 98)  new ccParticleCtrl; each frame its Main:
-//!                                     the generators, then the particles
-//! ```
-//!
-//! The port keeps the game's split between starting an effect (the `eff*`
-//! functions, called by whoever the effect is for), running them (one
-//! [`Effects::step`] a frame for `ccThEffect`, [`Effects::step_particles`]
-//! for `ccThParticle`), and drawing (each step records what `Main` sends to
-//! the GS - models, clumps, sprites - with the layer it is sent on;
-//! [`Effects::draw`] turns the records into the frame's layers).
-//!
-//! Everything the effects read of the world (characters' positions and
-//! sizes, the camera, the player's map wrap, `rand()`) comes through
-//! [`Host`], and what they ask of it (sounds, damage calls) goes out as
-//! [`Event`]s.
+//! The field's effects (docs/engine/effects.md): what `ccThEffect` (main
+//! 0x001c2e60, priority 80: `ccEffectCtrl`'s 500 `ccEffect`s and 100
+//! `ccEffect2`s, then `ccEffectElementManager::Main`) and `ccThParticle`
+//! (0x001bc2f0, 98) run and draw each frame. As in the game, the `eff*`
+//! functions start an effect; [`Effects::step`] and [`Effects::step_particles`]
+//! run the two tasks and record what they send to the GS; [`Effects::draw`]
+//! puts it in the frame's layers. The world is read through [`Host`]; sounds
+//! and damage calls go out as [`Event`]s.
 
 pub mod ability;
 pub mod arrival;

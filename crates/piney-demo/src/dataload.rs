@@ -1,31 +1,11 @@
-//! The load screen: `DataLoad_Control` (DEMO.PRG, DataControl.cpp; a
-//! `Data_Control` with `m_DataAct` after it), which `PlayDataLoad` runs a
-//! frame at a time once the Load panel is open, over the `ccSaveSys` task
-//! ([`piney_desktop::savesys::SaveSys`], started with `StartReq(1)` by
-//! `ccOpening_Control::Init`).
-//!
-//! ```text
-//! Main_Control (0x004037f0):
-//!   Data_Control::Main()                       pad -> m_CurNo / m_dialog, m_SW
-//!   m_SlotProc 0  Slot_Select()                 MEMORY CARD slot 1 / 2; cancel returns -1
-//!              1  SlotStateData()               the index read (LoadInfoReq)
-//!              2  WriteDataList(); Data_Select()   Data01 .. Data12
-//!              3  WriteDataList(); LoadData()      "Load this data?", the load;
-//!                                                  returns 1 once "Load complete." is acknowledged
-//! ```
-//!
-//! Each step reads `saveSys->result` once, at its start: 0 back to the
-//! slot choice, 1 done, 2 read the index again, bit 0x8000 a yes / no
-//! question (answered with `NextProccess(m_dialog)`, cancel `(0)`), bits
-//! 0x3000 a message to acknowledge (`NextProccess(0)`), anything else a
-//! message shown (`InfoMessage`). The push tests read `ccSys` +0x2d0 (the
-//! pad's push bits) against the save's `assignPADok` / `assignPADcancel`,
-//! not `CurRepeat`.
-//!
-//! The layout is `Data_Control::Init`'s (0x00402e40): `m_hi` 17, the slots
-//! at (75, 119) three lines apart with "MEMORY CARD" a line above and 7
-//! left, the save list at (75, 102), the message at (165, 229), the save's
-//! panel at (165, 102); layer 129, framed as the question's.
+//! The load screen: `DataLoad_Control` (DEMO.PRG, DataControl.cpp;
+//! `Main_Control` 0x004037f0), which `PlayDataLoad` runs a frame at a time once
+//! the Load panel is open, over the `ccSaveSys` task
+//! ([`piney_desktop::savesys::SaveSys`]): the card slot, the index, the save
+//! list, then "Load this data?" and the load. Each step reads
+//! `saveSys->result` once, at its start; the pushes are `ccSys` +0x2d0 against
+//! the save's `assignPADok` / `assignPADcancel`. Layout from
+//! `Data_Control::Init` (0x00402e40) on layer 129 (docs/engine/title.md).
 
 use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
 use piney_desktop::anm::Ctx;

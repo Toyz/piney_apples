@@ -1,33 +1,11 @@
-//! `streamTbl` / `streamTblE`: what a stream number plays (`docs/engine/stream.md`).
-//!
-//! Each of the 134 entries points at a `STREAMDATA` list (20 bytes a record,
-//! ended by a record with no name). Record 0 is the header: the archive the
-//! files are in (`type`, an index into `ccCd`'s file records), the byte
-//! offset of the stream's first file in it (`ofs`) and the music bits
-//! `ccSndStreamCtrl` reads (`size`). The records after it are the files, in
-//! order:
-//!
-//! ```text
-//! STREAMDATA   0x14 bytes
-//!   +0x00 char *name     the member's stem ("str0001e")
-//!   +0x04 int   ofs      bytes from the header's ofs; a sector multiple
-//!   +0x08 int   size     the gzip member's length
-//!   +0x0c short type     -1 last scene, 1 a scene another follows, 0 a setup
-//!                        file, -2 a scene already in memory
-//!   +0x0e short flag     1 pause before reading it, 2 / 4 alternatives,
-//!                        16 read whole before the scenes, 0x40 START skips
-//!                        (else cancel), 0x80 no skip
-//!   +0x10 u32   gzip     the inflated length
-//! ```
-//!
-//! `ccStreamInit` (0x00198ee0) picks `streamTblE` when `saveData.voice`
-//! (+0x842c) is set, and the file reader then reads the `E` archives
-//! (`STRCMNE.BIN`, `STR1E.BIN`): the same files with English voices.
-//! Outbreak and Quarantine have `streamTblE` alone, and their
-//! `ccStreamInit` takes it whatever the voice.
-//!
-//! The tables are the volume's generated ones (`tables::stream`):
-//! `streamTbl` and `streamTblE` are INF main 0x0030ef90 and 0x003102f0.
+//! `streamTbl` / `streamTblE` (INF main 0x0030ef90 and 0x003102f0): what a
+//! stream number plays (`docs/engine/stream.md`, "The tables"). Each of the
+//! 134 entries points at a `STREAMDATA` list (20-byte records ended by one
+//! with no name): the header (archive, offset, music bits), then the files in
+//! order. `ccStreamInit` (0x00198ee0) picks `streamTblE` and the `E` archives
+//! when `saveData.voice` (+0x842c) is set; Outbreak and Quarantine have
+//! `streamTblE` alone and take it whatever the voice. The tables are the
+//! volume's generated ones (`tables::stream`).
 
 use piney_data::tables::stream;
 use piney_data::tables::types::Streamdata;
@@ -76,22 +54,11 @@ pub fn has_stream_bgm(volume: Volume, num: usize) -> bool {
     stream::of(volume).bgm().get(num).is_some_and(|t| t.strbgm.is_some())
 }
 
-/// One record of a `strSndTbl` BGM table (`strbgm`, 12 bytes), what
-/// `ccSndStreamBGM` (0x0017cb20) acts on at a note of event 4
-/// (`piney_audio::stream` carries it out):
-///
-/// ```text
-///   +0x00 s16 sq      the sequence; below 0 a record the cursor passes over
-///   +0x02 s16 sq2     a second sequence (commands 1 and 4), -1 none
-///   +0x04 s16 time    fade frames (commands 2-4)
-///   +0x06 u16 vol     256ths of the table volume (2, 3), a port volume (1)
-///   +0x08 s16 unknown_8   not read
-///   +0x0a s16 cmd     0 play, 1 stop, 2 fade in, 3 fade out, 4 cross;
-///                     5 with sq < 0: the end, where the cursor stays
-/// ```
-///
-/// Three streams have one: 3 (stop sequence 0; play it from volume 0), 8
-/// (pass; stop sequence 1) and 58 (fade sequence 1 out over 120 frames).
+/// One record of a `strSndTbl` BGM table (`strbgm`, 12 bytes: `sq`, `sq2`,
+/// `time`, `vol`, `unknown_8`, `cmd`), what `ccSndStreamBGM` (0x0017cb20) acts
+/// on at a note of event 4 (`piney_audio::stream` carries it out; the layout
+/// and commands are in docs/engine/sound.md, "Streams"). Three streams have
+/// one: 3, 8 and 58.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StrBgm {
     pub sq: i16,
@@ -276,30 +243,12 @@ pub fn gate_hack_arrival(volume: Volume, field: i32) -> u32 {
 }
 
 /// What `ccRequestLoadStreamGateHack(107, town, field)` (0x00199f00) plays
-/// through `ccStreamLoadPlay::RequestStrPlayGH(town, field)` (0x0019a0e0),
-/// the gate hack's arrival as `ccSetupGameCtrl` runs it (`setupMode` 1):
-///
-/// ```text
-/// town < 0 -> 0
-/// the files read whole (ccLoadStreamOnMem), in order:
-///   str7000TblPre[0]; row town of str7000TblTown (TownC in the crisis,
-///   saveData +0x6772), its first record; row a of str7000TblAfter, its
-///   first record, a = str7000Out's arrival for field; then stream 107's
-///   type -2 records, then its flag 16 records
-/// the ccsTbl (the scenes, in order):
-///   the town row's second record; every record of stream 107; the
-///   arrival row's second record
-/// ```
-///
-/// The `E` tables (INF main `str7000TblPreE` 0x0030f2b0, `TownE`
-/// 0x0030f2e0, `TownCE` 0x0030f3c0, `AfterE` 0x0030f4a0; without the E
-/// 0x0030e1a0, 0x0030e1d0, 0x0030e2b0, 0x0030e390) with English voices
-/// (`saveData.voice`), and on Outbreak and Quarantine, which have them
-/// alone. `str7000TblPre` is the movie's setup file (`str7000e`); `Town`
-/// per town its setup file and departure scene (`str7100e`, `str7100` for
-/// Mac Anu), `TownC` the same in the crisis; `After` per arrival its setup
-/// file and scene (`str7404e`, `str7404`). The rows' files are in the
-/// archive stream 107's header names, at its offset (`def`).
+/// through `ccStreamLoadPlay::RequestStrPlayGH(town, field)` (0x0019a0e0), the
+/// gate hack's arrival as `ccSetupGameCtrl` runs it (`setupMode` 1): the files
+/// read whole from `str7000TblPre`, the town's row (`TownC` in the crisis),
+/// the arrival's row and stream 107's records, then the scenes of the town
+/// row, stream 107 and the arrival row. The tables and their `E` versions are
+/// in docs/engine/stream.md ("The gate hack's movie").
 pub fn gate_hack_files(volume: Volume, def: &Def, town: i32, field: i32, crisis: bool) -> Result<Files> {
     let t = stream::of(volume);
     let english = def.english || t.gate_pre().is_empty();

@@ -1,19 +1,9 @@
 //! Time a stream's frames: each step and its draw on the GPU (`piney-gs`,
-//! headless), for finding where a stream stalls.
-//!
-//! ```text
-//! cargo run --release -p piney-stream --example stream_time -- \
-//!     [--iso work/infection/infection.iso] [--stream 4] [--top 12] \
-//!     [--shots DIR FROM TO EVERY] [--dump FRAME] [--drop I,J,..]
-//! ```
-//!
-//! The stream plays as the event instruction does (`EventStream::new`, a
-//! new game's save), with the stream demo's effects. Prints the total and
-//! mean step and draw times and the slowest frames of each. `--shots`
-//! also writes every EVERYth scene frame from FROM to TO as `DIR/fN.png`;
-//! `--dump` prints the draw commands of scene frame FRAME; `--drop` leaves
-//! those of its commands out of its picture (to find which draw shows
-//! what).
+//! headless), for finding where a stream stalls. The stream plays as the event
+//! instruction does, with the stream demo's effects; it prints the total and
+//! mean times and the slowest frames (`--top`). `--shots DIR FROM TO EVERY`
+//! writes frames as PNGs, `--dump FRAME` prints a frame's draw commands and
+//! `--drop I,J,..` leaves those commands out of its picture.
 
 use std::sync::Arc;
 use std::time::Instant;

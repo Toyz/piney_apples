@@ -1,24 +1,10 @@
 //! Run the desktop headless for some frames and write the last one as a PNG,
-//! drawn by the crate's CPU GS (`piney_desktop::soft`).
-//!
-//! ```text
-//! cargo run --release -p piney-desktop --example desktop_shot -- \
-//!     [--iso work/infection/infection.iso] [--frames 400] [--out desktop.png] \
-//!     [--press 300:down,420:cross] [--hold 430-470:down] [--mail 4,5,320] \
-//!     [--news 0,1,2] [--walls 0,5,9] [--bgm 0,1] [--movies 0,1] \
-//!     [--say F:NAME:LINE/LINE] [--dump]
-//! ```
-//!
-//! `--mail` delivers mails as event 1 does (`ccSaveData::NewMail`) and
-//! `--news` posts headlines as event opcode 111 does (`webnewsList[n] = 1`)
-//! before the desktop starts; `--walls`, `--bgm` and `--movies` unlock
-//! wallpapers, music and movies (`dtWallpaperList`, `dtBgmList`,
-//! `dtStrList` bits, as event opcode 167 sets them); `--press F:BUTTON` presses a button on frame F
-//! and `--hold F-G:BUTTON` holds it from frame F to G (up, down, left, right,
-//! cross, circle, square, triangle, start, select). `--say` opens an event
-//! speech window at frame F as `message` does on the desktop (NAME may be
-//! empty; lines split by `/`), polls it each frame from five frames on, and
-//! says the line is done when it closes.
+//! drawn by the crate's CPU GS (`piney_desktop::soft`). `--mail`, `--news`,
+//! `--walls`, `--bgm` and `--movies` deliver and unlock content as the events
+//! do before the desktop starts; `--press F:BUTTON` presses a button on frame
+//! F and `--hold F-G:BUTTON` holds it; `--say F:NAME:LINE/LINE` opens an event
+//! speech window at frame F as `message` does and polls it from five frames
+//! on. `--iso`, `--frames`, `--out` and `--dump` are the rest.
 
 use std::sync::Arc;
 

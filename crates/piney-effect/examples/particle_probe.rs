@@ -1,47 +1,11 @@
-//! Answers `tools/test_effect_particle_rs.py`: runs the port's particle
-//! system on the requests it is sent and prints each answer as one JSON
-//! line, so the test can run the same frames through the game's own code
-//! in eemu.
-//!
-//! ```text
-//! cargo build -p piney-effect --example particle_probe
-//! particle_probe ISO < requests
-//! ```
-//!
-//! Numbers are hex; floats travel as their bit patterns. Requests, one a
-//! line:
-//! - `reset TOWN SEED`: `ccEffectCtrl(0)` in a town (1) or a field (0) and
-//!   a new `ccParticleCtrl(0)`, `rand` seeded with SEED; the player and
-//!   the camera at the origin, no characters.
-//! - `player X Y Z`, `camera EX EY EZ PX PY PZ VX VY VZ`, `char ID X Y Z H
-//!   W`: as effect_probe's.
-//! - `charvec ID OFF X Y Z W`: the vector OFF bytes into character ID;
-//!   `charint ID OFF V`: the int there.
-//! - `spawn ID`: `ccNewEffect(ID)` (a slot for `cond` to answer).
-//! - `gen ROW`: `new ccParticleGenerator(&particleGeneratorTbl[ROW], 0, 0,
-//!   0, 0)`, kept to be set up; `gset KEY V...` sets its fields
-//!   (`syncpos`/`syncpos2`/`syncrot` KIND ...: ffffffff none, 0 a
-//!   character's pos, 1 its dirc, 4 CHAR OFF, 5 effect SLOT's posT;
-//!   `syncsw CHAR OFF`; `pos`, `pos2`, `offset`, `offset2`, `rot` (4
-//!   each); `layer` (a priority, ffffffff none); `tex` (pTexMod); `spt`,
-//!   `spt2` (the syncPosType bits); `pause`; `kill` (killFlag); `rate`
-//!   (gRateCnt)); `gstart` starts it.
-//! - `patchgen ROW KEY V` (`gtype`, `rtype`, `dtype`) and `patchff ROW KEY
-//!   V` (`calc`, `field`, `force`): a table row changed, to drive code no
-//!   row reaches.
-//! - `pkill SN`, `pdelete SN`: `ParticleKill` / `ParticleDelete`.
-//! - the starters: `hitmark X Y Z`, `heal ID`, `explode X Y Z VX VY VZ S
-//!   T`, `psetup T X Y Z LIFE PAT GP` (GP a generator's sn or
-//!   ffffffff; effect.cpp's static generators are 0-3), `pgene SLOT SN`
-//!   (a particle's generator set, as the hit photon's), `peffect ID NUM`, `peffect2 S.. E.. NUM SWCHAR SWOFF`
-//!   (S and E as syncpos's KIND ...), `cond ID NUM` (the effect helpers'
-//!   effAbilityUp/Down stood in for by the effect SLOT given after, or
-//!   none), `condkill H`, `conddel H`.
-//! - `frame`: one `ccParticleCtrl::Main`.
-//!
-//! Every answer is the whole state: the generators, the live particles,
-//! the draws (of a `frame`), the live effect slots, the events and
-//! rand's state.
+//! Answers `tools/test_effect_particle_rs.py`: runs the port's particle system
+//! on the requests it is sent and prints each answer, the whole state, as one
+//! JSON line, so the test can run the same frames through the game's own code
+//! in eemu (`particle_probe ISO < requests`). Numbers are hex; floats travel
+//! as their bit patterns. The requests are the test's: the scene (`reset`,
+//! `player`, `camera`, `char`, `charvec`, `charint`, `spawn`), a generator
+//! (`gen`, `gset`, `gstart`, `pkill`, `pdelete`), table patches to reach code
+//! no row reaches, the starters, and `frame` (one `ccParticleCtrl::Main`).
 
 use std::collections::HashMap;
 use std::io::BufRead;

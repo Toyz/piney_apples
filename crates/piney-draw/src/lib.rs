@@ -1,40 +1,11 @@
-//! One frame of drawing, as the game tells the GS to draw it.
-//!
-//! The game logic (for example `piney-desktop`) builds a [`Frame`] per game
-//! frame and a renderer turns it into pixels. Nothing here does any drawing
-//! or touches a GPU; the types mirror what the EE sends down PATH1/PATH3, so
-//! the render can be exact:
-//!
-//! - [`Prim`]: an explicit GS primitive (SPRITE, triangle, strip or fan) with
-//!   its vertices in frame-buffer pixels, as `ccSprite`, `ccMask`, `ccKanji`
-//!   and the screen fader send them.
-//! - [`ModelDraw`]: one CCSF model through the VU1 microcode, as
-//!   `ccModel::Draw` sends it (`docs/engine/render.md`): the renderer reads
-//!   the model and its textures from the named `DATA.BIN` member with
-//!   `piney-data`, and applies the matrix and state given here.
-//! - [`Upload`]: a texture the EE builds at run time and uploads to VRAM
-//!   (the `ccKanji` text textures), referenced by [`TexRef::Upload`].
-//! - The frame buffer itself as a texture: [`TexRef::FrameBuffer`], a
-//!   rectangle of the picture as drawn so far this frame (screen effects
-//!   that shift or copy rows of it), and [`TexRef::PreviousFrame`], the
-//!   last frame's finished picture (feedback).
-//!
-//! Commands are in submission order: the GS draws [`Frame::cmds`] first to
-//! last, with the blend, test and depth state each one carries.
-//!
-//! Units and conventions, all from the GS:
-//! - Coordinates are frame-buffer pixels, with the primitive offset
-//!   (XYOFFSET) already taken off: (0, 0) is the top-left pixel of the
-//!   [`Frame::width`] x [`Frame::height`] buffer (512 x 448 for the whole
-//!   game, `ccSystem::Init` 0x0010a900), which the display stretches to 4:3.
-//!   The GS samples at pixel centres the way it rasterises: a pixel is drawn
-//!   when its top-left corner lies inside the primitive (top-left rule).
-//! - Colours are GS colours: 0x80 is 1.0 for RGB under MODULATE and for
-//!   alpha, so a vertex colour of (0x80, 0x80, 0x80, 0x80) draws a texture
-//!   unchanged and opaque. Values above 0x80 brighten.
-//! - Texture coordinates are texels (the GS UV register, FST on), in the
-//!   texture's stored row order (see [`TexRef`]).
-//! - Depth is the GS Z value: larger is nearer (ZTST GEQUAL / GREATER).
+//! One frame of drawing, as the game tells the GS to draw it: a [`Frame`] the
+//! game logic builds per game frame and a renderer turns into pixels. The
+//! types mirror what the EE sends down PATH1/PATH3, so the render can be
+//! exact: [`Prim`], [`ModelDraw`] (`docs/engine/render.md`), [`Upload`] and
+//! the frame buffer as a texture ([`TexRef::FrameBuffer`],
+//! [`TexRef::PreviousFrame`]); [`Frame::cmds`] run first to last. Units are
+//! the GS's: pixels of the 512 x 448 buffer (`ccSystem::Init` 0x0010a900) with
+//! the top-left rule, colours with 0x80 as 1.0, texels, and Z larger nearer.
 
 /// One frame for the GS.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -315,19 +286,12 @@ pub enum TexRef {
     Ccs { file: String, texture: u32, clut: u32 },
     /// A texture from [`Frame::uploads`], by [`Upload::id`].
     Upload(u32),
-    /// The frame buffer as it is when this command starts drawing: the
-    /// `width` x `height` rectangle at pixel (`x`, `y`), after the clear and
-    /// every command before this one, copied to a texture of that size
-    /// (texel (0, 0) is pixel (`x`, `y`), rows top first). Texels outside
-    /// the frame buffer (the rectangle may start above or left of it) read
-    /// as 0. The copy is made once per command, so all of a command's
-    /// primitives see the same picture, not each other.
-    ///
-    /// The game copies the draw buffer into spare VRAM with a context-2
-    /// sprite and textures from the copy (`ccMakePacketDrawBuffTrans`
-    /// 0x00108a10, as `ccRasterNoize` does); a texture wrapped with
-    /// [`Wrap::Repeat`] repeats at `width` and `height`, as a GS texture of
-    /// that TW / TH does.
+    /// The frame buffer as it is when this command starts drawing: the `width`
+    /// x `height` rectangle at pixel (`x`, `y`), after every earlier command,
+    /// copied once per command to a texture of that size (texel (0, 0) is
+    /// pixel (`x`, `y`); texels outside the buffer read 0), as the game copies
+    /// the draw buffer into spare VRAM (`ccMakePacketDrawBuffTrans` 0x00108a10).
+    /// With [`Wrap::Repeat`] it repeats at `width` and `height`.
     FrameBuffer { x: i16, y: i16, width: u16, height: u16 },
     /// The previous frame's finished picture, [`Frame::width`] x
     /// [`Frame::height`]: the buffer the display shows while this frame is
@@ -446,21 +410,11 @@ pub struct Vertex {
 
 /// One `ccShadowPacket`'s frame (`ccShadowPacket::SetShadowPacket`, main
 /// 0x00142b20; `docs/engine/shadow.md`), as the GS runs it where the command
-/// stands:
-///
-/// 1. The Z buffer as drawn so far, read at `width` x `height` points over
-///    [`ShadowPass::rect`] (texel `(x0 + i W / width, y0 + j H / height)`,
-///    W x H the rectangle, unfiltered), becomes the buffer's own Z.
-/// 2. For each group, the last first: the buffer counts from 0, each
-///    polygon adding 1 ([`ShadowPoly::add`]) or taking 1 where its Z beats
-///    the buffer's (ZTST GREATER, Z past 0x7fffffff held there, no Z
-///    written); then each pixel counted above 0 takes the group's alpha. A
-///    pixel no group counted keeps alpha 0; where groups overlap, the
-///    first in the list wins.
-/// 3. The buffer is laid over the rectangle once for each of
-///    [`ShadowPass::taps`], moved by it, filtered bilinearly: the frame
-///    goes towards black by `alpha * darkness / 0x80` (in 0x80 units) and
-///    the frame buffer's alpha becomes that.
+/// stands: the Z buffer so far sampled over [`ShadowPass::rect`]; each group,
+/// the last first, counting its polygons ([`ShadowPoly::add`]) where their Z
+/// beats the buffer's, the pixels above 0 taking the group's alpha (the first
+/// group in the list wins); then the buffer laid over the rectangle once per
+/// [`ShadowPass::taps`], filtered, darkening by `alpha * darkness / 0x80`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShadowPass {
     /// The buffer: `1 << tw` by `1 << th`.

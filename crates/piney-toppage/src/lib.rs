@@ -1,23 +1,11 @@
 //! The World's top page and its bulletin board in .hack//Infection
 //! (`DATA/TOPPAGE.PRG`, mode 4), as a state machine: a pad in, a
-//! [`piney_draw::Frame`] out, once per game frame
-//! (`docs/engine/toppage.md`).
-//!
-//! The desktop's "The World" icon asks for it (`ChangeRequest(4, 7)`).
-//! `ccSetupToppage` (0x00168570) loads the overlay and `xdttopen0`, loads
-//! the board's music bank (`ccSndSQLoad(0)`), sets one vertical blank a
-//! frame, and starts two tasks: the system menu `ccThDtMenu` and
-//! `ccThToppage` (toppage.prg 0x004008e0), which builds a
-//! `ccThToppageCtrl` ([`control`]) and runs its `Main` once a frame; then
-//! the music starts (`ccSndBgmCtrl`).
-//!
-//! [`TopPage::step`] is one frame: the menu task, the top page's task,
-//! then the fader and the menu on top. The content (the scene, the board's
-//! posts, the fonts) is read from the disc; the game state the event
-//! scripts own is [`SaveState`]. The ways out are requests: Log out goes
-//! back to the desktop (`ChangeMode { num: 3, sf: 7 }`), Log in on to the
-//! field game (`ChangeMode { num: 5, sf: 8 }`, `ChangeArea { area: 0, town:
-//! lastTown }` and the `ChangeMode { num: 6, sf: 7 }` that makes).
+//! [`piney_draw::Frame`] out, once per game frame (`docs/engine/toppage.md`).
+//! `ccSetupToppage` (0x00168570) loads the overlay, `xdttopen0` and the
+//! board's music bank, and starts `ccThDtMenu` and `ccThToppage` (toppage.prg
+//! 0x004008e0, a [`control`] `Main` a frame). [`TopPage::step`] is one frame;
+//! the save state is [`SaveState`]. The ways out are requests: Log out
+//! `ChangeMode { num: 3, sf: 7 }`, Log in `{ num: 5, sf: 8 }` and `ChangeArea`.
 
 pub mod assets;
 pub mod bbs;

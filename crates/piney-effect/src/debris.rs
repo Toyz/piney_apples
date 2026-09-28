@@ -1,30 +1,10 @@
 //! The tumbling debris: `ccEffect::Main`'s shared first-switch case
-//! 0x001c4034 (ids -15, 9-11, 15-18, 25-28, 42-55, 66-78, 114-129,
-//! 134-149, 155-163) and its second-chain case 0x001c7dd0 (ids -15, 9-11,
-//! 25-28, 114-129, 138-149), and the spells' spawners of it:
-//! `effSmokeRock` (rocks 9-11) and `effDarkSmoke` (controllers -15).
-//!
-//! ```text
-//! first switch (0x001c4034), every frame:
-//!   rot.x on by rotSpeed[0], rot.z by rotSpeed[2]; pos on by speed
-//!   (four lanes); below z -500 (flags not yet 3): flags 3, cnt and age 80;
-//!   w 1; until flags bit 0, speed.z down by 2
-//! second chain (0x001c7dd0):
-//!   falling faster than 3, one frame in four (cnt & 3 == sn & 3): the land
-//!   under it (ccLandHitCheck2 down by 20 more than the fall): on a hit (or
-//!   already bouncing) z onto it and a bounce; otherwise, bouncing
-//!   (flags & 3 == 1), a bounce every other frame
-//!   a bounce: speed x, y by 0.8, z by -0.5; x, y below 4 and z below 8
-//!   (bit 0 then) to 0; the spins by 0.8, below 16 to 0; all still: flags
-//!   bit 1, cnt and age life - 10
-//!   FadeOut(10, lifeTime)
-//! effSmokeRock(p, r, v, _, n, x)   (main 0x001cda30) n rocks 9-11 from p,
-//!   each out along a random direction turned by r at up to v, life 90,
-//!   spinning; each with smoke generators (85 and 86, or 189 for x 0)
-//!   following it
-//! effDarkSmoke(p, r, v, n)          (main 0x001d4a20) n controllers -15 the
-//!   same way, each with generator 189 (pTexMod 31) following it
-//! ```
+//! 0x001c4034 (ids -15, 9-11, 15-18, 25-28, 42-55, 66-78, 114-129, 134-149,
+//! 155-163) and second-chain case 0x001c7dd0 (ids -15, 9-11, 25-28, 114-129,
+//! 138-149): spinning, falling, and bouncing on the land it checks one frame
+//! in four. Also the spells' spawners of it, `effSmokeRock` (main 0x001cda30,
+//! rocks 9-11) and `effDarkSmoke` (0x001d4a20, controllers -15). The rules
+//! are in docs/engine/effects.md ("ConvergenceSystem").
 
 use crate::ee::{self, F, ONE, V4, VF0};
 use crate::effect::{EffectCtrl, Next, ONE_VECTOR, Obj};

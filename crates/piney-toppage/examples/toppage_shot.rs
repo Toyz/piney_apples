@@ -1,19 +1,10 @@
-//! Run the top page headless for some frames and write the last one as a
-//! PNG, drawn by the desktop crate's CPU GS (`piney_desktop::soft`).
-//!
-//! ```text
-//! cargo run --release -p piney-toppage --example toppage_shot -- \
-//!     [--iso work/infection/infection.iso] [--frames 300] [--out toppage.png] \
-//!     [--press 200:down,230:cross] [--hold 240-270:down] [--post 62:0,62:1] \
-//!     [--write 62:2] [--read 62:3] [--parody] [--info] [--dump]
-//! ```
-//!
-//! `--post T:P` posts board message P of thread T as `bbs_post` does
-//! (state 1), `--write` as `bbs_post7` (7), `--read` marks it read (3);
-//! `--press F:BUTTON` presses a button on frame F and `--hold F-G:BUTTON`
-//! holds it (up, down, left, right, cross, circle, square, triangle, start,
-//! select). `--info` prints the scene's animations and the board's tables'
-//! sizes.
+//! Run the top page headless for some frames and write the last one as a PNG,
+//! drawn by the desktop crate's CPU GS (`piney_desktop::soft`). `--post T:P`
+//! posts message P of thread T as `bbs_post` does (state 1), `--write` as
+//! `bbs_post7` (7), `--read` marks it read (3); `--press F:BUTTON` and `--hold
+//! F-G:BUTTON` press and hold buttons; `--info` prints the scene's animations
+//! and the board's sizes. `--iso`, `--frames`, `--out`, `--parody` and
+//! `--dump` are the rest.
 
 use std::sync::Arc;
 

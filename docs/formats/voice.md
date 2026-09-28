@@ -182,6 +182,9 @@ In the `STREAM/` [CCSF files](ccs.md):
   +0x04  u8   type          0
   +0x05  u8   bitNum        16
   +0x06  u8   trackType     1
+  +0x07  u8   lang          Outbreak on: one Pcm chunk per voice language,
+                            the save's voice byte (1 English, 0 Japanese);
+                            Infection's and Mutation's is 0, one chunk
   +0x08  u32  dataNum       blocks that follow
   +0x0c  u32  dataSize      words per block, 256
 

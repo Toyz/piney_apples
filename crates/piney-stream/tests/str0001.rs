@@ -1,16 +1,10 @@
 //! Stream 2's effect task against the game's: `str0001_fixture.txt`, written
 //! by `python3 tools/test_stream_rs.py effects` from `Func_str0001` run in
-//! `tools/eemu.py` over the whole stream (its cues from `str0001`'s notes)
-//! and every layer's DMA list decoded to GS primitives.
-//!
-//! Checked, step by step from the task's first pass to the stream's end:
-//! the cues the port's notes raise and on which step; every primitive the
-//! task sends - its layer and order, kind, texture (the previous frame, a
-//! frame-buffer copy's rectangle and size), filter, wrap, blend, alpha and Z
-//! tests, Z write, scissor, and each vertex's position, Z, texture
-//! coordinates and colour in GS units; and the C library's `rand` state
-//! after each pass. Skipped when the disc image is not there (PINEY_ISO
-//! points elsewhere).
+//! `tools/eemu.py` over the whole stream, every layer's DMA list decoded to GS
+//! primitives. Checked step by step: the cues and their steps, every primitive
+//! the task sends (layer, order, texture, filter, blend, tests, scissor, each
+//! vertex in GS units) and `rand`'s state after each pass. Skipped without the
+//! disc image (PINEY_ISO points elsewhere).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;

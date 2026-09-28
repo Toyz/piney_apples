@@ -1,30 +1,9 @@
-//! One CCSF file of a stream after `ccStream::DecodeSetup`: the setup
-//! chunks the scene is built from, and the frame section as a list of
-//! records (`docs/formats/ccs.md`, `docs/engine/stream.md`).
-//!
-//! What the stream uses of the setup section:
-//!
-//! ```text
-//! 0x0100 Obj     u32 obj, u32 parent, u32 model [, u32 shadow if version >= 0x96]
-//! 0x0a00 ExtObj  u32 obj, u32 parent, u32 target      a copy of another object
-//! 0x2000 Obj2    u32 obj, u32 flags, u32 modifier, u32 layer, u32 slayer
-//!                flags bit 0: transparency inherits the parent's
-//!                (ccCoord.flag 1); bit 1: hidden while at the origin
-//!                (ccObj.partFlag); modifier: the MPH_ morpher
-//! 0x0900 Clump   u32 obj, u16 n, pad, u32 node[n]     the objects drawn
-//! 0x0500 Camera  u32 obj
-//! 0x0600 Light   u32 obj, s16 type, pad    1 distant, 2 direct, 3 spot, 4 omni
-//! 0x1700 Layer   u16 n, pad, n x (u8 kind, pad, u32 obj)   draw layers
-//!                (kind 0) and shadow layers (kind 1)
-//! 0x1800 Shadow  u32 obj (a shadow layer, 0 the default), u16 x, y, w, h,
-//!                s16 page x, y, u8 [2], pad, f32 length   its packet
-//! 0x2200 Pcm     u32 id, u8 type, u8 bits, u8 channels, u8 lang, u32 blocks,
-//!                u32 words a block, then the blocks    the audio's first blocks;
-//!                Outbreak on, one a voice language (lang: the save's voice
-//!                byte, 1 English, 0 Japanese; Infection's and Mutation's
-//!                is 0 and they have one)
-//! 0x0005 Frame   u32 count                              ends the setup
-//! ```
+//! One CCSF file of a stream after `ccStream::DecodeSetup`: the setup chunks
+//! the scene is built from (Obj, ExtObj, Obj2, Clump, Camera, Light, Layer,
+//! Shadow, Pcm, then Frame), and the frame section as a list of records. The
+//! layouts are in `docs/formats/ccs.md`, the Shadow chunk in
+//! `docs/engine/shadow.md` and the Pcm chunk (one per voice language from
+//! Outbreak on) in `docs/formats/voice.md`.
 
 use std::collections::HashMap;
 use std::rc::Rc;

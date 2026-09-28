@@ -1,25 +1,11 @@
 //! Infection's symbols carried to a stripped later volume: the `<elf>.syms`
 //! sidecar the program image loads for Mutation, Outbreak and Quarantine
 //! (`tools/xfer.py` wrote it until 2026-09-27). The engine is shared, so most
-//! functions exist in all four volumes with the same instructions at other
-//! addresses.
-//!
-//! The passes, main and each overlay against their namesakes:
-//!
-//! 1. exact, call, data and order (`xfer::transfer`): functions whose
-//!    masked bodies match, their callees, the globals their code builds,
-//!    and the functions between paired neighbours by the shape of their
-//!    code;
-//! 2. cross: the globals a paired body builds, by the order of the
-//!    addresses it builds, between two it agrees on;
-//! 3. code: the data pass's globals moved where paired bodies build them;
-//! 4. content: globals found by what they hold;
-//! 5. pointer: globals reached through a pointer in a carried global;
-//! 6. layout: globals between two that sit alike in both volumes;
-//! 7. content again, then ref: functions named by the globals they build;
-//! 8. prefix: functions whose opening words match one place only;
-//! 9. pointer again;
-//! 10. ctor: the overlays' static initialisers, by their constructor lists.
+//! functions exist in all four volumes at other addresses. The passes, main
+//! and each overlay against their namesakes: exact, call, data and order;
+//! cross; code; content; pointer; layout; content again and ref; prefix;
+//! pointer again; ctor. Each is in docs/disc/volumes.md ("Names for the
+//! stripped executables").
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -568,17 +554,12 @@ fn objects(rows: &[Row]) -> (Ordered<Key, u32>, HashMap<Key, &'static str>) {
     (named, how)
 }
 
-/// Globals named through the pointers in carried globals.
-///
-/// Names are per section (main, or an overlay). A pointer in main may name
-/// an overlay's global (main's `voiceData` points at gcmn's rows): its
-/// relocation's symbol says which overlay. A carried global votes only when
-/// its words in the other volume keep Infection's layout: a pointer in the
-/// other volume's data where Infection has a relocation, and no pointer
-/// where it has none (95% of each). A candidate must fall in the same
-/// region as Infection's target (main's data, an overlay's data), and where
-/// the target is text, be text. A unanimous vote also corrects a global the
-/// data or pointer pass placed elsewhere.
+/// Globals named through the pointers in carried globals, per section (a
+/// pointer in main may name an overlay's global; its relocation says which).
+/// A carried global votes only when its words keep Infection's layout (95% of
+/// pointers where Infection has relocations, none where it has none), and a
+/// candidate must fall in the same region, text for text. A unanimous vote
+/// also corrects a global the data or pointer pass placed elsewhere.
 fn pointers(v: Vol, rows: Vec<Row>) -> (Vec<Row>, usize, usize) {
     const ROUNDS: usize = 6;
     let (mut named, mut how) = objects(&rows);
@@ -846,23 +827,14 @@ impl Agreement {
     }
 }
 
-/// Globals placed by the layout between two that agree.
-///
-/// First, two data-pass globals of one size, near each other, whose words
-/// agree better each at the other's place, change places: the data pass
-/// pairs a function's globals by the order its code builds them, which a
-/// reordered function breaks (Mutation's `WORLD::Init` builds `BGTBL2`
-/// before `BGTBL`).
-///
-/// Then, two carried globals of one section that sit the same distance
-/// apart in both volumes, their words agreeing (90%), bound a span the
-/// other volume kept whole, when nothing carried from outside the span
-/// lies inside it. The globals Infection has between them keep their
-/// offsets there: an unnamed one is named at its offset when its words
-/// agree (Mutation's `BgMatName`, which `WORLD::DrawBG` now builds after
-/// `BgMatName2`), and a data-pass name placed elsewhere moves there when
-/// the words agree better. A span holding a global another pass placed
-/// elsewhere is left alone. String literals (`@123`) are not placed.
+/// Globals placed by the layout between two that agree. First, two data-pass
+/// globals of one size whose words agree better each at the other's place
+/// swap (Mutation's `WORLD::Init` builds `BGTBL2` before `BGTBL`). Then two
+/// carried globals of one section, the same distance apart in both volumes
+/// with their words agreeing (90%), bound a span kept whole: the globals
+/// between keep their offsets, named or moved there when their words agree
+/// (better). A span holding another pass's placement is left alone; string
+/// literals (`@123`) are not placed.
 fn layout(v: Vol, rows: Vec<Row>) -> (Vec<Row>, usize, usize) {
     const MAX_SPAN: u32 = 0x2000;
     const SURE: f64 = 0.9;

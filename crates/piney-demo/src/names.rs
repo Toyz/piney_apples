@@ -1,13 +1,10 @@
 //! The names DEMO.PRG's code gives its animations, objects and files, for
-//! Infection (`volumeNum` 1). They are engine constants: string literals
-//! of the overlay the code stores into `ccOpening_Control`'s name arrays
-//! (`m_ico_D` +0x2c, `m_ico` +0x40, `m_menu_D` +0x54, `m_menu` +0x68,
-//! `m_menu_Sel` +0x7c, `m_back` +0x90, `m_window` +0xa4) before each
-//! `ccAnm::SetAnm`. Every animation is in `title1`.
-//!
-//! Slots are indexed by the menu item: 0 New Game, 1 Load, 2 Option,
-//! 3 Parody (shown only while `m_ParoFLG` is set, which Infection never
-//! does). `None` is a null pointer in the array.
+//! Infection (`volumeNum` 1): string literals of the overlay the code stores
+//! into `ccOpening_Control`'s name arrays (`m_ico_D` +0x2c .. `m_window`
+//! +0xa4) before each `ccAnm::SetAnm`; every animation is in `title1`. Slots
+//! are indexed by the menu item: 0 New Game, 1 Load, 2 Option, 3 Parody
+//! (shown only while `m_ParoFLG` is set, which Infection never does). `None`
+//! is a null pointer in the array.
 
 /// `SetVolCcs` (0x00405e80): the title's scene file for volume 1 (`title1`
 /// .. `title4` by volume), also `DemoFileList[0]` (0x0040dc40,

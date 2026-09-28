@@ -1,16 +1,10 @@
 //! The sequenced music around an in-engine stream (`docs/engine/sound.md`,
 //! "Streams"): `ccSndStreamCtrl` (0x0017d190), which `ccRequestLoadStream`
-//! calls before the stream plays and after it returns, and
-//! `ccSndStreamBGM` (0x0017cb20), which a stream's note of event 4 calls
-//! through `ccSndStreamSE` (0x0017caa0) when `strSndTbl[num]` (0x0030b950)
-//! has a BGM table.
-//!
-//! Both work on the bank that is loaded - the area's - with the pieces the
-//! driver already has: `ccSqPlay`, `ccSqStop`, `ccSqFade` inlined, and
-//! `ccSqPlayVol` (0x001799b0). The fades they set run in the sound task's
-//! frames ([`Driver::frame`]). While the desktop's Audio screen plays a
-//! movie (`ccSndMoviePlayer`, `ccSnd +0x62`) neither does anything; the
-//! caller does not call them then.
+//! calls before the stream plays and after it returns, and `ccSndStreamBGM`
+//! (0x0017cb20), which a stream's note of event 4 calls through
+//! `ccSndStreamSE` (0x0017caa0). Both work on the area's bank with the
+//! driver's pieces; their fades run in [`Driver::frame`]. While the desktop's
+//! Audio screen plays a movie (`ccSnd +0x62`) the caller does not call them.
 
 use crate::Audio;
 use crate::driver::{Command, Driver};
@@ -72,41 +66,13 @@ pub fn sq_play_vol(d: &mut Driver, sq: usize, vol: u16, out: &mut Vec<Command>) 
 }
 
 /// `ccSndStreamCtrl(num, sd, when)` (INF 0x0017d190, MUT 0x0017f870, OUT
-/// 0x0017f2c0, QUA 0x0017f220): `size` is the stream's header `size`
-/// (`sd->size`), `after` whether the stream has played. Each volume has its
-/// own switch over the stream numbers; Quarantine's is Outbreak's. The
-/// cases are made of a few pieces:
-///
-/// - out: sequence `sq` fades to 0 over 30 frames and plays on (mode 1),
-///   or stops at the end (mode 3); to half (128): sequence 0 to half its
-///   table volume and back.
-/// - in: `ccSqPlayVol(sq, 0)`, then a fade to its table volume.
-/// - hand-over (Infection's 8 and 58): port 2 at full, SNDBASE's
-///   `bgmChange`, `sqStatus[1]` 1, sequence 0 out and stopped: the area's
-///   music hands over to its second arrangement; `ccSnd +0x105` cleared.
-/// - battle switch (Infection's 56): the battle switch off (`ccSnd +0x5f`),
-///   `bgmChange`, sequence 0 out and stopped, sequence 1 in to its table
-///   volume.
-///
-/// Infection, before (bit 0): 112-119 sequence 0 to half; 25, 26 sequence 0
-/// out, playing on; 57 sequence 1 out, stopped; 56 the battle switch; 8, 58
-/// the hand-over. After (bit 1, not with `game.status` 7): 112-119 sequence
-/// 0 back; 107 in area 16 sequences 0 and 2 play again; 3, 25, 26 sequence
-/// 0 in; 8 sequences 0 and 1 stop; 12 sequence 1 plays; 13 the first
-/// looping sound effect (`ccSeOn3DLoop`, [`Driver::loop_id`]) ends and
-/// `ccSnd +0x105` is cleared.
-///
-/// Mutation, Outbreak and Quarantine, before: 118-125 sequence 0 to half;
-/// 25, 26 sequence 0 out, playing on; 57, 132 sequence 1 out, stopped; 87,
-/// 134 sequence 0 out, stopped; 126, 131 sequence 0 out, stopped (Outbreak
-/// on: sequence 1 instead while the battle music plays, `ccSnd +0x60`); 56
-/// the battle switch; 133 the battle switch and `sqStatus[1]` 1; 8, 58,
-/// 127-130 the hand-over. After: 118-125 sequence 0 back; 113 (the Chaos
-/// Gate, Infection's 107) in area 16 sequences 0 and 2 again; 3, 25, 26, 134
-/// sequence 0 in; 87, 131 sequence 1 in; 133 the battle switch on,
-/// sequence 1 stopped and sequence 0 in; 132 (Outbreak on) the battle
-/// switch on and sequence 0 in; 8 sequences 0 and 1 stop; 12 sequence 1
-/// plays; 13 as Infection's.
+/// 0x0017f2c0, QUA 0x0017f220): `size` is the stream header's `size`, `after`
+/// whether the stream has played. Each volume has its own switch over the
+/// stream numbers (Quarantine's is Outbreak's), made of a few pieces: out
+/// (fade to 0 over 30 frames, playing on or stopped), to half and back, in
+/// (`ccSqPlayVol(sq, 0)` and a fade up), the hand-over to the second
+/// arrangement, and the battle switch. The cases by volume are in
+/// docs/engine/sound.md ("Streams").
 #[allow(clippy::too_many_arguments)]
 pub fn stream_ctrl(
     d: &mut Driver,

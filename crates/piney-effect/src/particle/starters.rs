@@ -1,23 +1,10 @@
 //! What the rest of the game starts particles with (main particle.cpp): the
-//! hit spark (`ccParticleHitMark`), the heal (`ccParticleHeal`), the
-//! bosses' and effects' bursts (`ccParticleExplode`, `ccParticleSetup`),
-//! and the character effects of `particleEffectTbl` (`startParticleEffect`,
-//! `startParticleEffect2`). The battle marks particle.cpp also holds -
-//! `ccParticleCritical`, `ccParticleDying`, `ccParticleNoDamage`,
-//! `ccParticleAttributeCritical`, `ccParticleAttributeGuard`, which start
-//! effects as well as generators - are with the hits (hit.rs).
-//!
-//! ```text
-//! ccParticleHitMark(pos)          generator 1 at pos
-//! ccParticleHeal(ch, _)           generator 2 on ch's pos
-//! ccParticleExplode(pos, v, s, t) one particle (texture 10, 155, 44 or
-//!                                 202 + t for t 3-7) at pos flying v, its
-//!                                 speed |v|, scale s
-//! ccParticleSetup(t, pos, life, pat, gp)  one particle of texture t at pos
-//! startParticleEffect(ch, num)    particleEffectTbl[num]'s generators on
-//!                                 ch (following it when the row syncs)
-//! startParticleEffect2(s, e, num, sw)  ... between two points, while *sw
-//! ```
+//! hit spark (`ccParticleHitMark`, generator 1), the heal (`ccParticleHeal`,
+//! generator 2), the bursts (`ccParticleExplode`, `ccParticleSetup`), and the
+//! character effects of `particleEffectTbl` (`startParticleEffect`,
+//! `startParticleEffect2`). The battle marks particle.cpp also holds
+//! (`ccParticleCritical` and its kin) start effects too and are with the hits
+//! (hit.rs). See docs/engine/particles.md ("Starters").
 
 use super::{GenRef, Generator, one};
 use crate::ee::{self, F, V4};

@@ -148,6 +148,9 @@ inBattle = inBattleCnt = 0; inBattleDist = 2200.0
 ChangeRequest(6, 7)                                         ccSetupGameCtrl next
 ```
 
+`ChangeArea(a, n)`'s other cases: 1 a field `ChangeScene(1, -2, n, -1, -1,
+-1)`, 2 a dungeon `(2, -2, -2, n, 0, 0)`, anything else `(0, 0, -1, -1, -1,
+-1)`; `ChangeScene` sets only the members given as -1 or more.
 `@1489` (0x00306dc0) is `{0, 1, 2, 3, 4, 0, 1, 2}`. `sf` 8 does nothing
 more; `sf` 7 turns the font and layer flips off (`fontOffFlip`,
 `OffFlipExcept`) and calls `ccSleepNoSleepThread(1, 1)`, which by its name

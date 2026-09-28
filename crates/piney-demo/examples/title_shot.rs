@@ -1,23 +1,11 @@
-//! Run the title headless for some frames and write the last one as a PNG.
-//!
-//! ```text
-//! cargo run --release -p piney-demo --example title_shot -- \
-//!     [--iso work/infection/infection.iso] [--frames 200] [--out title.png] \
-//!     [--press 150:down,170:cross] [--hold 150-200:down] [--soft] \
-//!     [--no-card | --card DIR] [--reset] [--parody-item] [--skip-movies] [--dump]
-//! ```
-//!
-//! The title's movies and stream are the runtime's; here they count as
-//! played (or skipped with `--skip-movies`) at once, so the menu is up a
-//! few hundred frames in: the logos take 4 steps and 60 frames of wait,
-//! the stream 2. `--reset` starts as after a soft reset (no logos).
-//! `--no-card` answers the memory-card check with an empty slot; `--card
-//! DIR` puts the card kept as files in DIR (as the desktop saves it) in
-//! MEMORY CARD slot 1.
-//!
-//! The frame is drawn by `piney-gs` on the GPU when one is there (the icons
-//! are lit, which only it draws), else, or with `--soft`, by the CPU GS in
-//! `piney_desktop::soft`.
+//! Run the title headless for some frames and write the last one as a PNG
+//! (`--frames`, `--out`, `--press F:BUTTON`, `--hold F-G:BUTTON`, `--dump`).
+//! The title's movies and stream count as played at once (or skipped with
+//! `--skip-movies`); `--reset` starts as after a soft reset; `--no-card`
+//! answers the memory-card check with an empty slot, `--card DIR` puts a card
+//! kept as files in slot 1; `--parody-item` sets `m_ParoFLG`. The frame is
+//! drawn by `piney-gs` on the GPU (the lit icons need it), else or with
+//! `--soft` by the CPU GS.
 
 use std::sync::Arc;
 

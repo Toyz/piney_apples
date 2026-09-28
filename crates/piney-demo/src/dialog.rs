@@ -1,16 +1,10 @@
-//! What `Data_Control` (DEMO.PRG, DataControl.cpp) draws with: the texts
-//! and the cursor texture, read once from the disc. The boot's memory-card
-//! question (`BootMem_Control`, [`crate::card`]) and the load screen
-//! (`DataLoad_Control`, [`crate::dataload`]) are both `Data_Control`s and
-//! draw through the same `InfoMessage`, `YesNoDialogue` and
-//! `TimeAlphaCurDraw`.
-//!
-//! Every text is a `ccKanji` built with `Init(3, 16)` (the demo's own
-//! `ccKanji::ccKanji` 0x00403600) in `ccSpriteColorTable[7]` (0x80, 0x80,
-//! 0x80, 0x80) unless `SetLoadPar` recolours it. The messages are
-//! `saveSysMsg` (the strings `__sinit_sdmng.cpp` puts there, in the
-//! executable), split by `ccKanjiStrSeparate`; the other strings are the
-//! overlay's, through the `STR_` pointers in the executable's `.sdata`.
+//! What `Data_Control` (DEMO.PRG, DataControl.cpp) draws with: the texts and
+//! the cursor texture, read once from the disc, for the boot's question
+//! ([`crate::card`]) and the load screen ([`crate::dataload`]) alike
+//! (`InfoMessage`, `YesNoDialogue`, `TimeAlphaCurDraw`). Texts are `ccKanji`
+//! `Init(3, 16)` (the demo's own `ccKanji::ccKanji` 0x00403600) in
+//! `ccSpriteColorTable[7]`; the messages are `saveSysMsg`, split by
+//! `ccKanjiStrSeparate`, the other strings the overlay's `STR_` pointers.
 
 use piney_data::tables::sjis::encode;
 use piney_data::tables::title;

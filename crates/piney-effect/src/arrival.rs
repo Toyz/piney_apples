@@ -1,28 +1,10 @@
-//! The arrival: `effTransfer` (main 0x001ce020), the rings and sparks
-//! around a character who arrives in a town or a field (Kite's act 13 at
-//! its count 30), and `effTransferRing` (0x001cdef0).
-//!
-//! ```text
-//! effTransfer(ch)        effect 4 (no object): target ch, posT its pos,
-//!                        lifeTime 12, temp[0] 20 + its height (Kite 180);
-//!                        ccSeOn3D(76, its pos)
-//!   its second-chain case, by cnt:
-//!     0, 3, 6            effTransferRing(ch, temp[0])
-//!     10                 a particle generator (particleGeneratorTbl[82]) on
-//!                        ch's pos, offset (0, 0, temp[0], 0)
-//! effTransferRing(ch, h) effect 3 (CMP_x032, a clump): lifeTime 40, scale
-//!                        (0, 0, 0, 1), offset (0, 0, h, 1), turned about z by
-//!                        DEG2RAD(rand() & 0x3f00); target ch, posT its pos
-//!   first switch:        scale 0.1 + 0.9 cnt / 10 in all four lanes up to
-//!                        cnt 10, then 1; FadeInOut(10, 5, lifeTime); pos =
-//!                        ch's pos, z plus offset.z
-//!   second chain:        at cnt 10 speed.z = (20 - offset.z) / (lifeTime -
-//!                        15); offset.z += speed.z while cnt < lifeTime - 5;
-//!                        rot.z on by 2048 (11.25 degrees) every frame
-//! ```
-//!
-//! So three rings appear at the head three frames apart, spin, sink to 20
-//! over the feet in their last 25 frames, and fade out over the last 5.
+//! The arrival: `effTransfer` (main 0x001ce020, effect 4), the rings and
+//! sparks around a character who arrives in a town or a field (Kite's act 13
+//! at its count 30); `effTransferRing` (0x001cdef0, effect 3, `CMP_x032`) and
+//! `effWarpTransfer` (0x001ce120, effect -25). Three rings appear at the head
+//! three frames apart, spin 11.25 degrees a frame, sink to 20 over the feet in
+//! their last 25 frames and fade out over the last 5. The cases are in
+//! docs/engine/effects.md ("The arrival").
 
 use crate::ee::{self, F, ONE};
 use crate::effect::{EffectCtrl, Next, ONE_VECTOR};

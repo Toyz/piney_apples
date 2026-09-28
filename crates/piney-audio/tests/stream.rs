@@ -1,20 +1,10 @@
 //! The music around the streams against the game's: `stream_fixture.txt`,
-//! written by `python3 tools/test_stream_rs.py music` from
-//! `ccSndStreamCtrl`, `ccSndStreamSE` / `ccSndStreamBGM` and `strSeInit`
-//! run in `tools/eemu.py` between `tools/sound_ee.py`'s steps (its banks
-//! loaded as the game loads them, `ccSndBgmCtrl`, the sound task's frames).
-//!
-//! The port runs the same steps: the driver for the banks and the frames,
-//! [`stream_ctrl`] and [`stream_bgm`] for the stream's calls, and
-//! `piney_stream::table::BgmCursor` for the walk over `strSndTbl`'s BGM
-//! tables; it must send the same, in the same order, frame for frame. The
-//! scenarios: the arc's streams in their areas (3 in each dungeon bank of
-//! event 4, 8-12 in the church of area 15, 13 in Mac Anu with looping
-//! effects on), 58's table, every stream before and after over five banks
-//! with their music playing or not, the stream viewer (`game.status` 7), the Audio
-//! screen's movie, stream 107 in area 16, and a record of every command.
-//! Needs the disc image for the banks' sequence offsets and the tables;
-//! skipped without it.
+//! written by `python3 tools/test_stream_rs.py music` from `ccSndStreamCtrl`,
+//! `ccSndStreamSE` / `ccSndStreamBGM` and `strSeInit` run in `tools/eemu.py`
+//! between `tools/sound_ee.py`'s steps. The port runs the same steps (the
+//! driver, [`stream_ctrl`], [`stream_bgm`] and `piney_stream::table::BgmCursor`)
+//! and must send the same, frame for frame; the scenarios are listed in
+//! docs/engine/sound.md ("Streams"). Needs the disc image; skipped without it.
 
 use std::path::PathBuf;
 

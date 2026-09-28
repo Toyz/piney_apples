@@ -1,51 +1,11 @@
-//! The numbers over characters (GCMN.PRG gamectrl.cpp): `flyFontCtrl`
-//! (gcmn 0x0072ebd0), the sixteen rising numbers `ccEntryFlyFontNum`
-//! starts, and the `ccFont` both they and [`crate::damupr`]'s stacked
-//! numbers draw with - `ccMenuCtrl` +0xb4 `flyFont`, a 160-packet font on
-//! `xasc00::TEX_xasc00` on the menu layer (242), which
-//! `ccMenuCtrl::Disp` makes the global `font` before it runs them.
-//!
-//! ```text
-//! ccMenuCtrl::Disp (gcmn, 0x0052170c-0x00521754), each frame, after the
-//! enemy bars' labels (flyFont too) and the protect marks:
-//!   font = flyFont
-//!   ccCtrlFlyFont(menu +0x18 != 0)            the rising numbers
-//!   unless menu +0x18:
-//!     ccDamUprStr::CtrlAll()                  the stacked numbers placed
-//!     unless compulsionGameOver:
-//!       ccDamUprStr::DrawAll()                ... and drawn
-//!   (later in Disp flyFont's SendPacket puts the whole queue, labels
-//!    first, at the front of the menu layer)
-//!
-//! flyFontCtrl[16], 0x40 bytes each:
-//!   +0x00 color     ccSpriteColorTable row
-//!   +0x04 timer     40 when entered, down one a frame (not while the
-//!                   menu pauses: ccCtrlFlyFont(1)); 0 free
-//!   +0x08 num       the value (not set for a miss)
-//!   +0x10 pos[4]    the point, z + 140 when entered
-//!   +0x20 str[16]   "" (draw num) or "MISS"
-//!   +0x30 ofsX      pixels added to x
-//!   +0x34 sx, sy    the font's scale
-//!
-//! ccCtrlFlyFont(pause), each live entry in slot order:
-//!   unless pause: timer--
-//!   pos += (0, 0, 0, 0); pos.w = 1; sceVu0RotTransPers through sysLayer's
-//!   view (+0xd0 world to screen); with the depth in (0, 0x0fffffff):
-//!     x = fptosi(float(X) - 28672) / 16 + ofsX
-//!     y = (Y - 32768 + 3584) / 16 - 3 (40 - timer) / 2   (1.5 px a frame)
-//!     drawn unless x < -63 or x >= 576:
-//!       SetType(2); sx, sy, cx, cy times the entry's scale; the colour's
-//!       r, g, b; dx, dy = x, y; alpha 128, or timer * 128 / 20 in the last
-//!       20 frames; ctrl |= 0x10 (the shadow)
-//!       str "" : MakeSignedNum(1, 2, 3 or 4 digits by num < 10, 100,
-//!                1000, num)   (sdec2str: a sign column, then the digits)
-//!       else   : MakePacketStr(str)
-//! ```
-//!
+//! The numbers over characters (gcmn gamectrl.cpp): `flyFontCtrl` (gcmn
+//! 0x0072ebd0), the sixteen rising numbers `ccEntryFlyFontNum` starts and
+//! `ccCtrlFlyFont` moves (1.5 px a frame for 40 frames), and the `ccFont` both
+//! they and [`crate::damupr`]'s stacked numbers draw with: `ccMenuCtrl` +0xb4
+//! `flyFont`, 160 packets on `xasc00::TEX_xasc00` on the menu layer (242).
 //! What the calls queue is recorded as [`Quad`]s exactly as
-//! `ccSprite::MakePacketStr` (main 0x0015aed0) builds them (a TF SPRITE a
-//! glyph, the shadow first), and turned into the menu layer's primitives
-//! by [`quad_prim`].
+//! `ccSprite::MakePacketStr` (main 0x0015aed0) builds them, and turned into
+//! primitives by [`quad_prim`]. The rules are in docs/engine/effects.md.
 
 use piney_data::Result;
 use piney_data::tables::kanji::SPRITE_COLOR_TABLE;

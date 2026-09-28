@@ -1,19 +1,11 @@
 //! The subtitles under an event's stream against the game's:
 //! `subtitle_fixture.txt`, written by `python3 tools/test_stream_rs.py
 //! subtitles` from `ccEventStream(num, 1)` run in `tools/eemu.py` over each
-//! stream's own notes (`ccSetStreamDemoNote`, `ccGetStreamDemoMsg`,
-//! `ccKanjiStrSeparate` and `ccMessage`'s `Change`, `Close` and `Disp`
-//! the game's).
-//!
-//! The port plays each stream for real ([`EventStream`] over [`Stream`]:
-//! its notes, its frames, its skip) and compares, step by step, every call
-//! the window's `Disp` makes - each cell's packet (position, size, grid,
-//! alpha), each line's text, glyph count, position and colour, and the
-//! send - by the fixture's hash of them; and the step the call returns
-//! after. Every stream with a table, Movie Text on; then streams 3, 11 and
-//! 16 with it off (11's and 16's lines flagged 0x800 show all the same),
-//! 3 in Parody Mode, and two skips in the middle of a line. Skipped
-//! when the disc image is not there (PINEY_ISO points elsewhere).
+//! stream's own notes. The port plays each stream for real ([`EventStream`]
+//! over [`Stream`]) and compares, step by step, every call the window's `Disp`
+//! makes (by the fixture's hash) and the step the call returns after: every
+//! stream with a table, Movie Text on and off, Parody Mode and two skips.
+//! Skipped without the disc image (PINEY_ISO points elsewhere).
 
 use std::path::PathBuf;
 

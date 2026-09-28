@@ -1,24 +1,10 @@
-//! The game's pad reading: `ccPad::Read` (`INF SLUS_202.67:0x00102d40`),
-//! once per frame, for a pad already connected (`ccPad::Ctrl`'s state 0x40).
-//!
-//! The pad reports its buttons active low in two bytes; `Read` inverts them
-//! into [`Buttons`] (the SCE layout: the first byte in bits 8-15, the second
-//! in bits 0-7). In analog mode the left stick also presses the D-pad, by
-//! its angle, when the D-pad itself is not held. Then:
-//!
-//! ```text
-//! push   = now & !direct          pressed this frame
-//! unpush = direct & !now          released this frame
-//! repeat = now on the first frame of a new combination, nothing for the
-//!          next 15 frames it is held, then now every frame
-//! direct = now
-//! ```
-//!
-//! Two quirks of the game are kept:
-//! - a stick pushed with its raw y exactly 128 has angle 0, i.e. down
-//!   (`SetAnalogStick` tests the y offset before `atan2f`);
-//! - the up-right eighth of the stick's circle presses right alone, where
-//!   the other diagonals press both directions.
+//! The game's pad reading: `ccPad::Read` (`INF SLUS_202.67:0x00102d40`), once
+//! per frame, for a pad already connected (`ccPad::Ctrl`'s state 0x40): the
+//! active-low buttons inverted into [`Buttons`] (the SCE layout), the left
+//! stick pressing the D-pad in analog mode, and `push`, `unpush` and `repeat`
+//! (15 frames' wait) from the last frame's `direct`. Two quirks are kept: a
+//! stick with raw y exactly 128 points down, and the up-right eighth presses
+//! right alone (docs/engine/overview.md, "The pad").
 
 use std::ops::{BitAnd, BitOr, BitOrAssign, Not};
 

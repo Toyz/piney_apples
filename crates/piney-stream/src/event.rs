@@ -1,24 +1,11 @@
-//! `ccEventStream(num, 1)` (0x001b5670): the event instruction `stream`,
-//! the stream as the scripts play it - the call [`Stream`] models, the
-//! subtitles under it ([`Subtitles`]) and the background colour 0 for the
-//! call (`ccSys +0x18`, restored after; the stream's frames clear to black
-//! anyway).
-//!
-//! A host plays one this way:
-//!
-//! ```text
-//! let mut s = EventStream::new(&mut iso, &data_bin, num, &save, opts, rand)?;
-//! while !s.done() {           // one game frame each, at the caller's frame rate
-//!     let frame = s.step(&pad);   // the stream's picture, the window over it
-//!     for r in s.take_requests() { ... }   // PCM, music, BGM steps
-//! }
-//! ```
-//!
-//! The requests are [`Stream`]'s: the PCM for SEWORDS channel 0, and the
-//! music - [`Request::Music`] before the first frame and after the last
-//! (`ccSndStreamCtrl`, with [`EventStream::music_bits`]) and
-//! [`Request::StreamBgm`] at the notes (`ccSndStreamBGM`) - which
-//! `piney_audio::stream` carries out on the area's bank.
+//! `ccEventStream(num, 1)` (0x001b5670): the event instruction `stream`, the
+//! stream as the scripts play it - the call [`Stream`] models, the subtitles
+//! under it ([`Subtitles`]) and the background colour 0 for the call (`ccSys
+//! +0x18`, restored after). A host builds an `EventStream`, then each game
+//! frame calls `step(&pad)` and `take_requests()` until `done()`: the PCM for
+//! SEWORDS channel 0, [`Request::Music`] before the first frame and after the
+//! last ([`EventStream::music_bits`]) and [`Request::StreamBgm`] at the notes,
+//! which `piney_audio::stream` carries out on the area's bank.
 
 use std::sync::Arc;
 

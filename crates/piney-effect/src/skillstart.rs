@@ -1,51 +1,11 @@
 //! What shows as a skill starts (main effect.cpp): `effSkillStart` (main
-//! 0x001d35f0 by skill id, 0x001d3650 by `ccSkillParam`), which every
-//! skill's request, a party member's or an enemy's attack skill and
-//! `ccSkillModifyCondition` call on the caster (or the one a condition
-//! skill lands on), and `effSkillStartEffect` (0x001d39d0), the Data Drain
-//! menu's side effects; with the rings they start (0x001d2d80-0x001d3450).
-//!
-//! ```text
-//! effSkillStart(ch, sp, a, b)          (a: no force rings; b: over its head)
-//!   the element e = sp->type & 0xfc: soil 4, water 8, fire 16, wind 32,
-//!     thunder 64, dark 128, else none (0-6 below)
-//!   a generator of particleGeneratorTbl[r + e], r = 164 (b 178) for a
-//!     spell or support skill (ccSkillCheckType(sp) != 0), 157 (b 171) for
-//!     a physical skill or the normal attack (0), on ch's pos, offset (0,
-//!     0, b ? height : 0, 0)
-//!   effSkillExecRing(ch, (0, 0, height, 0), sp->type, b)
-//!   effect -12 (b: -13), no object: life 7, param sp->type, flags
-//!     ccSkillCheckType(sp), offset (0, 0, height, 0), target ch, posT its pos
-//!   a == 0: effSkillExecForceRing2(ch, type, b), effSkillExecForceRing(..)
-//!   ccSeOn3D(104, ch's pos) for a PC or party member (type 0x0700000f),
-//!     else ccSeOn3D(159) for an enemy or boss (0xe0); the effect returned
-//! effSkillStartEffect(ch, attr, b)     the same with rows 164 (b 178) + e,
-//!   param attr, flags 1, and the force rings always
-//! -12 / -13's second chain (0x001cac4c): target off the lists: endFlag;
-//!   at age == lifeTime (count 7) effSkillExecSummonsCircle(target,
-//!   &offset, param, id == -13) when flags (a spell), else
-//!   effSkillExecCircle (a physical skill)
-//! effSkillExecRing(ch, off, type, b)   82 (CMP_x038): life 20, param b,
-//!   offset off, on ch's pos; CLT_x003 made 200, 198, 199, -, 200, 201, 203
-//!   by e; first switch (0x001c4ee0): pos.z += offset.z; scale (all three)
-//!   0 -> 2 (b: 2 -> 0) over its life; FadeInOut(2, 15, life)
-//! effSkillExecForceRing(ch, type, b)   83 (CMP_x033): life 30, param b, on
-//!   ch's pos; CLT_x033 made 181, -, 176, 178, 177, 179, 180; (0x001c4f78)
-//!   scale x, y 0.5 -> 2.5 (b: 2.5 -> 0.5); FadeInOut(5, 15, life)
-//! effSkillExecForceRing2(ch, type, b)  84 (CMP_x030): the same, CLT_x030
-//!   made 167, -, 162, 164, 163, 165, 166; (0x001c4ffc) x, y 1 -> 3, z 0.2
-//!   -> 1.2 (b: back); FadeInOut(5, 15, life)
-//! effSkillExecSummonsCircle(ch, off, type, b)  85 (EFF_x047, a sprite):
-//!   life 25, param b, offset off, on ch's pos; its ccTex's CLUT
-//!   particleCcsAdrs[230, -, 225, 227, 226, 228, 229]
-//! effSkillExecCircle(..)               86 (EFF_x003): the same with
-//!   [130, 126, 127, -, 128, 129, 131]; 85 and 86's first switch
-//!   (0x001c50e0): pos.z += offset.z; the sprite's scale 0 -> 2 (b: 2 ->
-//!   0); FadeInOut(2, 15, life) (b: (12, 2, life))
-//! ```
-//!
-//! "->" is the rings' linear growth over their life: `from + cnt * ((to -
-//! from) / lifeTime)`, as each case computes it.
+//! 0x001d35f0 by skill id, 0x001d3650 by `ccSkillParam`), which a skill's
+//! request, a party member's or an enemy's attack skill and
+//! `ccSkillModifyCondition` call on the caster (or the one a condition skill
+//! lands on), and `effSkillStartEffect` (0x001d39d0), the Data Drain menu's
+//! side effects; with the rings and circles they start (effects 82-86,
+//! 0x001d2d80-0x001d3450) and the controllers -12 and -13. The cases are in
+//! docs/engine/effects.md ("The start: effSkillStart").
 
 use piney_data::volume::Volume;
 

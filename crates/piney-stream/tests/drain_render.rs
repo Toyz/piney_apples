@@ -1,12 +1,9 @@
-//! Stream 5's drain drawn on the GPU (`piney-gs`): at frame 2694 a gold
-//! ring (`str0120e` object 0x20c) fades in over the figure at
-//! transparency 0.02. Its vertex alpha, `trunc(0x80 * t)`, is 2 and its
-//! AREF, `trunc(aref * t)`, is 2 too, so every pixel passes and writes Z:
-//! the ring, all but invisible, erases the figure drawn after it (layer 4)
-//! from the top down. The renderer once interpolated that alpha as a float
-//! that fell a hair under 2 at some pixels, and the erased hat came out
-//! dithered with what was behind it. Skipped without the disc image or a
-//! GPU.
+//! Stream 5's drain drawn on the GPU (`piney-gs`): at frame 2694 a gold ring
+//! (`str0120e` object 0x20c) fades in at transparency 0.02. Its vertex alpha,
+//! `trunc(0x80 * t)`, and its AREF, `trunc(aref * t)`, are both 2, so every
+//! pixel passes and writes Z: the all but invisible ring erases the figure
+//! drawn after it (layer 4). The alpha must not be interpolated below 2.
+//! Skipped without the disc image or a GPU.
 
 use std::path::PathBuf;
 

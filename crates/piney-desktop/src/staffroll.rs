@@ -1,38 +1,11 @@
 //! The staff roll: `ccThStaffRoll` (desktop.prg 0x004125c0), the task the
-//! event instruction `staff_roll` runs on the desktop at the story's end,
-//! and its `ccThStaffRollCtrl` (5092 bytes) of 19 `ccThStaffRollLine`s
-//! (260 bytes each).
-//!
-//! ```text
-//! ccThStaffRoll       stfroll<vol> loaded; the controller; ccBgmPlay(1) (BGM.BIN
-//!                     track 1); Breath(2); then a Main a frame until `done`
-//!                     (+0x13a8); ccBgmStop
-//! the controller      its own layer (200), a view SetFrame(0, 0, 512, 384, 256,
-//!                     192, s, s) with the layer centre at (256, 192), srand of
-//!                     the frame counter, a ccMask for the page's picture
-//! Main                on each page (g_srDataGrp, 0x0042c500, until a row of
-//!                     three zeros) by `status` (+0x1390):
-//!   0 _Random         the view zooms from 5 to 1 and the text fades in over
-//!                     SR_RND_FADEIN_TIME; every line draws 44 random characters
-//!                     (ccRand) under the ones settled, and settles one more a
-//!                     frame (StopChar, C rand) until all 44 are
-//!   1 _Fix            the credits drawn fixed, the random characters fading out
-//!                     (SR_RND_FADEOUT_TIME) while the picture fades in
-//!                     (SR_BG_FADEIN_TIME)
-//!   2 _End            held SR_BG_FIX_TIME frames, then the view shrinks to 0
-//!                     and everything fades out (SR_BG_FADEOUT_TIME); next page
-//!   3 _BGOnly         a page with no credits: its picture fades in, holds and
-//!                     fades out (SR_ONLYBG_*); next page
-//! ```
-//!
-//! A credit (`ccSRData`, 12 bytes) is a column (-1 centred, -2 right), a line
-//! (-1 the middle, 9; -2 the last, 18) and its text, where `#0` and `#1` are
-//! the save's two names (`ccTransCode2Name`, 0x00412410). The pages, the
-//! scene file and the timings are the volume's
-//! (`piney_data::tables::staffroll`; Quarantine's desktop has none, and its
-//! roll has no pages). [`StaffRoll`] keeps
-//! the game's fields under their offsets' names and records each frame's
-//! draws ([`Draw`]); [`StaffRoll::render`] turns them into primitives.
+//! event instruction `staff_roll` runs on the desktop at the story's end, and
+//! its `ccThStaffRollCtrl` (5092 bytes) of 19 `ccThStaffRollLine`s (260 bytes
+//! each), on layer 200 with BGM.BIN track 1. Each page of `g_srDataGrp`
+//! (0x0042c500) runs `_Random`, `_Fix`, `_End` or `_BGOnly` by `status`
+//! (+0x1390). The pages, scene file and timings are the volume's
+//! (`piney_data::tables::staffroll`). [`StaffRoll`] records each frame's draws
+//! ([`Draw`]); [`StaffRoll::render`] turns them into primitives.
 
 use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
 use piney_data::tables::sjis::encode;

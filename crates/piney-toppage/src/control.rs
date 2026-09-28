@@ -1,18 +1,10 @@
 //! `ccThToppageCtrl` (toppage.cpp, toppage.prg 0x00400880-0x00401728): The
-//! World's top page, a menu of three commands over an animated scene, and
-//! the way into the board and out to the field or the desktop.
-//!
-//! `Main` (0x00400f50) sets the view from the camera animation, then runs
-//! the mode:
-//!
-//! ```text
-//! 0 _Enter   the log-in animation; at its end (or cancel) a flash, mode 1
-//! 1 _Normal  the menu: up / down pick Log in, BBS, Log out; OK leaves
-//! 2 _Exit    30 frames of fade to black, then: Log in ChangeRequest(5, 8)
-//!            and ChangeArea(0, lastTown); Log out ChangeRequest(3, 7);
-//!            BBS mode 3 and the board built
-//! 3 _BBS     the board; when it is left, the scene again and mode 1
-//! ```
+//! World's top page, a menu of three commands over an animated scene, and the
+//! way into the board and out to the field or the desktop. `Main`
+//! (0x00400f50) sets the view from the camera animation, then runs the mode:
+//! 0 `_Enter` (the log-in animation, then a flash), 1 `_Normal` (Log in, BBS,
+//! Log out), 2 `_Exit` (30 frames of fade, then the request or the board), 3
+//! `_BBS` (docs/engine/toppage.md, "ccThToppageCtrl").
 
 use std::rc::Rc;
 

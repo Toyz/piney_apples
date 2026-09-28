@@ -1,32 +1,9 @@
 //! The falling spells (soil, fire, thunder, dark): `ccSkill::FallSystem`
 //! (gcmn 0x00577a30), the meteor `effMeteoFireBall2` (main 0x001cd4e0) and
-//! its landing, and the flare rings and debris it leaves.
-//!
-//! ```text
-//! FallSystem, count 0: the sign (and for fire particle effect 38) on a
-//!   target on the lists, else the end; the caster released; level = id -
-//!   (192 soil, 224 fire, 256 thunder, 272 dark); tempCnt the meteors to
-//!   wait for (FallSystemLevelTbl, 1-4)
-//! from 20, while step < FallSystemLevelTbl[level - 1]:
-//!   level 3+: the fall element once (ccFallElementGenerate)
-//!   else every fsDelay[level - 1] frames (0 for level 1: the EE's divide
-//!   by zero leaves the count, so only at 20): a meteor above the target
-//!   (a random point within its width, 500 over its head, not above 890
-//!   in some fields) into effPtr[effNum++], step on, ccSeOn3D(57, tPos)
-//! level 3+: the end once the element is deleted
-//! from 21: each meteor that ended (endFlag) is ccSkillDamage2 around tPos
-//!   and one less to wait for; none left and all thrown: the end
-//! effMeteoFireBall2(p, t, atr): the meteor (soil 87, fire 6 with its
-//!   flame 5 linked, thunder -14, dark 88), life 300, offset p, target t,
-//!   falling from 20 a frame; temp[0] the land under it
-//!   (ccLandHitCheck2, else t's z); smoke generators following it
-//! meteors 6, 87, 88: turning; at t's pos plus offset (z the offset's);
-//!   FadeInOut(10, 3); falling faster by 3.2 a frame until below temp[0],
-//!   then the landing: effSkillBreakSE, a shake, rocks (soil, fire) or dark
-//!   smoke, a flare ring, sparks for fire; three frames to go
-//! thunder -14 at its count 20: a bolt (ccThunderBoltElement), sounds,
-//!   the flare ring, sparks; it ends two frames later
-//! ```
+//! its landing, and the flare rings and debris it leaves. Level 1's
+//! `fsDelay` of 0 is a divide by zero, which on the EE leaves the count: a
+//! meteor at 20 only. Levels 3 and up use the fall element. The rules are in
+//! docs/engine/effects.md ("FallSystem").
 
 use crate::debris;
 use crate::drawelm::{self, DrawElm, PI};

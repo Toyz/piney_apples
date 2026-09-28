@@ -1,28 +1,10 @@
-//! GCMN.PRG's effect elements (effect2.cpp): `ccAnimateObject`, the
-//! `ccEffectElement` every spell element derives from, and
-//! `ccEffectElementManager`, the 1024 slots `ccThEffect` runs after
-//! `ccEffectCtrl::Main`.
-//!
-//! ```text
-//! ccEffectElementManager::m_instance (gcmn, main 0x00378c04): made by
-//!   ccThEffect (or the first generator) with every slot empty
-//! a generator (ccSkillTornadeElementsGenerate, ccFallElementGenerate ...):
-//!   new the element, then the first empty slot; none: the element deleted,
-//!   the generator answers 0
-//! ccEffectElementManager::Main (gcmn 0x004e8da0), each frame after
-//! ccEffectCtrl::Main, on the effect layer (20):
-//!   for each of the 1024 slots in order: an element with m_delFlag set is
-//!   deleted (its virtual destructor) and the slot emptied; any other runs
-//!   its virtual Main
-//! ```
-//!
-//! `ccAnimateObject` (0x130 bytes) carries the fade, the scale animation
-//! and the motion towards a point; `ccEffectElement` (0x190) adds the skill
-//! it serves, its target, level, flags and counters. Every element's
-//! constructor starts with both constructors inlined: the vectors (0, 0, 0,
-//! 1), `m_scale` (1, 1, 1, 1), `m_transparency` 1, the flags clear, `m_level`
-//! 1, `m_life` -1; `m_fadeSpd` and `m_scaleSpd` are left as the heap had
-//! them (zero here).
+//! GCMN.PRG's effect elements (effect2.cpp): `ccAnimateObject` (0x130 bytes:
+//! the fade, the scale animation, the motion towards a point), the
+//! `ccEffectElement` (0x190) every spell element derives from, and
+//! `ccEffectElementManager` (`m_instance` main 0x00378c04; `Main` gcmn
+//! 0x004e8da0), the 1024 slots `ccThEffect` runs after `ccEffectCtrl::Main`,
+//! deleting an element with `m_delFlag` and running the others in slot
+//! order. The constructors' defaults are in docs/engine/effects.md.
 
 use crate::ee::{self, F, ONE, V4, VF0};
 use crate::effect::EffectCtrl;

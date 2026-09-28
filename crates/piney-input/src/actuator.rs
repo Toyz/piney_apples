@@ -1,27 +1,10 @@
-//! The pad's motors (`ccPad` +0x28..+0x3f, main): what the game asks of
-//! them and when it sends it.
-//!
-//! ```text
-//! SetActuater(small, power, ms)   0x00102bf0: with ccPad::actuaterSw on
-//!   and a DualShock ready, the time (3 ms + 25) / 50 in vblanks; each
-//!   queued entry from the top down loses that time, or is dropped when it
-//!   has no more (the ones above it move down); with room (at most three),
-//!   the top (or the idle entry 0) is marked to send again, and the new one
-//!   goes on top, marked to send: its time, the small motor on or off, the
-//!   large motor's power
-//! ccSystem::Ctrl                  0x0010a740, each frame for each pad:
-//!   the finished entries off the top, then the top's time less the frame
-//!   rate (vblanks a frame), not below 0
-//! ccPad::Ctrl                     0x00102a50, state 1: with the queue
-//!   empty and the idle entry marked, both motors off; else a marked top
-//!   with 6 vblanks or more left: its motors; either sent
-//!   (scePadSetActDirect, state 2), then waited on (scePadGetReqState,
-//!   state 4) before state 1 looks again
-//! ```
-//!
-//! The callers: `ccPlayer::DamageActuate` (Kite hit: the small motor and
-//! `DamActuTbl` by the damage, 100 ms) and the Vibration menus switching it
-//! on (the small motor and 160, 200 ms).
+//! The pad's motors (`ccPad` +0x28..+0x3f, main): what the game asks of them
+//! and when it sends it. `SetActuater(small, power, ms)` (0x00102bf0) queues up
+//! to three entries timed in vblanks, `ccSystem::Ctrl` (0x0010a740) counts the
+//! top one down each frame, and `ccPad::Ctrl` (0x00102a50) sends a marked top
+//! with 6 vblanks or more left (or both motors off when the queue empties).
+//! The callers are `ccPlayer::DamageActuate` and the Vibration menus. The
+//! rules are in docs/engine/overview.md ("The pad").
 
 /// What the pad's two motors do: the small one on or off, the large one's
 /// power (`scePadSetActDirect`'s two bytes).

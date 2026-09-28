@@ -1,16 +1,10 @@
 //! The hand-off to the field game: what `ccGame::ChangeArea(0, lastTown)`
-//! leaves in `ccGame` after Log in's `ChangeRequest(5, 8)`.
-//!
-//! `ChangeRequest(5, 8)` queues mode 5 (`ccSetupNewGame`, GCMN.PRG) and,
-//! as every request but 6 does, `InitScene` (0x00167320) sets every scene
-//! member to -1. `ChangeArea(a, n)` (0x001674a0) is `ChangeScene`
-//! (0x00167380) by `a`: 0 a town, `(0, n, -1, -1, -1, -1)`; 1 a field,
-//! `(1, -2, n, -1, -1, -1)`; 2 a dungeon, `(2, -2, -2, n, 0, 0)`; else
-//! `(0, 0, -1, -1, -1, -1)`. `ChangeScene` keeps each member's old value as
-//! its `Prev`, sets those given as -1 or more (a town also into
-//! `saveData.lastTown`, and the server from the town by `@1489`), clears the
-//! battle members and asks `ChangeRequest(6, 7)`: `ccSetupGameCtrl` after
-//! the field game's overlay is loaded.
+//! (0x001674a0) leaves in `ccGame` after Log in's `ChangeRequest(5, 8)`, which
+//! queues mode 5 and sets every scene member to -1 (`InitScene` 0x00167320).
+//! `ChangeScene` (0x00167380) keeps each member's old value as its `Prev`,
+//! sets those given (a town also `saveData.lastTown` and the server by
+//! `@1489`), clears the battle members and asks `ChangeRequest(6, 7)`. The
+//! cases are in docs/engine/toppage.md ("The hand-off").
 
 /// `ccGame`'s scene members (DWARF +0x14 .. +0x48).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

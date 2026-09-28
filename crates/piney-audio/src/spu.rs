@@ -1,24 +1,11 @@
-//! The SPU2 as the synthesizer drives it: 2 cores x 24 voices playing
-//! PS-ADPCM from sound RAM at 48 kHz, each with a pitch counter, 4-point
-//! interpolation, an ADSR envelope and a fixed left/right volume, and a
-//! sound-data input for streamed PCM.
-//!
-//! Registers are addressed the way libsd addresses them (`sceSdSetParam`,
-//! `sceSdSetSwitch`, `sceSdSetAddr` entries), so what MODHSYN.IRX writes -
-//! recorded by `tools/iopemu.py` - can be replayed here unchanged:
-//!
-//! ```text
-//! voice param   (param << 8) | (voice << 1) | core     0 VOLL, 1 VOLR, 2 PITCH, 3 ADSR1, 4 ADSR2
-//! voice address 0x2040 | (voice << 1) | core            SSA (0x2140 LSAX)
-//! switch        (switch << 8) | core, 24-bit mask       0x15 KON, 0x16 KOFF, 0x18 VMIXL,
-//!                                                       0x19 VMIXEL, 0x1a VMIXR, 0x1b VMIXER
-//! ```
-//!
-//! The pitch counter, the interpolation table, the envelope generator and
-//! the voice volume follow the PlayStation SPU as documented by psx-spx
-//! ("SPU ADPCM Pitch", "SPU Volume and ADSR Generator"); the SPU2 runs the
-//! same voices at 48 kHz, so pitch 0x1000 plays a sample at 48,000 Hz.
-//! The effect sends go to [`crate::reverb`].
+//! The SPU2 as the synthesizer drives it: 2 cores x 24 voices playing PS-ADPCM
+//! from sound RAM at 48 kHz, each with a pitch counter, 4-point interpolation,
+//! an ADSR envelope and a fixed volume, and a sound-data input for streamed
+//! PCM. Registers are addressed as libsd addresses them (`sceSdSetParam`,
+//! `sceSdSetSwitch`, `sceSdSetAddr`), so MODHSYN.IRX's writes recorded by
+//! `tools/iopemu.py` replay unchanged. The voices follow psx-spx's PlayStation
+//! SPU at 48 kHz (pitch 0x1000 plays at 48,000 Hz); the effect sends go to
+//! [`crate::reverb`].
 
 use piney_data::sound::adpcm::{self, History, PER_FRAME};
 

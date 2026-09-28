@@ -1,21 +1,11 @@
-//! `SaveData_control` (DESKTOP.PRG, savedata.cpp): the Data screen, saving
-//! the game to a memory card (`docs/engine/desktop.md`, "Data").
-//!
-//! The screen asks `ccSaveSys` ([`SaveSys`]) for each step and follows its
-//! `result`: choose a card slot, read that card's index, choose one of the
-//! twelve save slots (the selected slot's record on a panel), confirm, and
-//! the messages and questions of `saveSysMsg` on the way.
-//!
-//! Layout constants are the class's own (constructor 0x0040f740). The
-//! screen draws on three layers, all framed on the whole screen
-//! (`SetData` 0x0040eef0): the desktop's kanji layer (127, `Layer`, framed
-//! `SetFrame(0, 0, 512, 448, 256, 224, 1, 1)` and left so) with the cursors
-//! (`mask`) and the question's window (`info`); layer 128 (`CurLayer`, the
-//! same frame) with YES / NO; layer 129 (`infoLayer`, square pixels) with
-//! the slot panel, the message and the button (`icon`). Every text is a
-//! `ccKanji` built with `Init(3, 16)` in `ccSpriteColorTable[7]`, with the
-//! drop shadow; every cursor, tile and the button are cells of
-//! `TEX_xddcurs1`.
+//! `SaveData_control` (DESKTOP.PRG, savedata.cpp; constructor 0x0040f740):
+//! the Data screen, saving the game to a memory card (`docs/engine/desktop.md`,
+//! "Data"). The screen asks `ccSaveSys` ([`SaveSys`]) for each step and
+//! follows its `result`. It draws on three layers framed on the whole screen
+//! (`SetData` 0x0040eef0): the kanji layer (127) with the cursors and the
+//! question's window, layer 128 (`CurLayer`) with YES / NO, and layer 129
+//! (`infoLayer`, square pixels) with the slot panel, the message and the
+//! button. Texts are `ccKanji` `Init(3, 16)` with the drop shadow.
 
 use std::rc::Rc;
 
