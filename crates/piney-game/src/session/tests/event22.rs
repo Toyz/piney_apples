@@ -738,3 +738,46 @@ fn piros_menu_shot() {
     std::fs::write(&path, piney_gs::png::encode(w, h, &gs.read_back())).unwrap();
     println!("{path}: {}", Mode::title(&s));
 }
+
+/// Piros running through Mac Anu on his own, spoken to (the menu's
+/// `EntryAffect` 14): `ccAI::Greeting` clears his moveFlag and runFlag, and
+/// they reach his character before his next frame reads them back, so he
+/// stops where he is instead of running on while the menu is open.
+#[test]
+fn piros_stops_when_spoken_to_while_running() {
+    use piney_world::entry::Kind;
+    let Some((mut s, _)) = mac_anu_with_piros() else { return };
+    let mut pad = Pad::default();
+    let mut step = |s: &mut Session| {
+        pad.read(&still(Buttons::NONE));
+        s.step(&pad);
+        s.take_events();
+    };
+    let piros = |s: &Session| {
+        let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+        let tp = w.world().town_party();
+        let k = tp.member(crate::piros::PIROS).expect("Piros in town");
+        let ch = &tp.combat.scene.chars[k];
+        (ch.spc_char.act_num, ch.pos.map(|v| f32::from_bits(v) as i32))
+    };
+    let mut running = false;
+    for _ in 0..3000 {
+        step(&mut s);
+        if piros(&s).0 == piney_battle::fellow::act::RUN {
+            running = true;
+            break;
+        }
+    }
+    assert!(running, "Piros never ran");
+    let Stage::World(w) = &mut s.stage else { panic!("left the town") };
+    w.world_mut().affect(Kind::Spc, crate::piros::PIROS, 14);
+    for _ in 0..10 {
+        step(&mut s);
+    }
+    let stopped = piros(&s).1;
+    for _ in 0..300 {
+        step(&mut s);
+    }
+    let (act, now) = piros(&s);
+    assert_eq!(now[..3], stopped[..3], "Piros ran on while spoken to (act {act})");
+}

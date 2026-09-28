@@ -1298,6 +1298,15 @@ impl Combat {
         for e in &q {
             chat::run(&mut ctx, e);
         }
+        // What a line changed of a member's body (`ccAI::Greeting` stops it:
+        // moveFlag and runFlag 0) into the character, or the member's next
+        // frame reads the old flags back and it runs on while spoken to.
+        let kite = self.kite;
+        for &(_, w) in self.members.iter().filter(|m| Some(m.1) != kite) {
+            if self.crew.spc.contains_key(&w) {
+                piney_battle::fellow::sync_out(&mut self.scene, &self.crew, w);
+            }
+        }
     }
 
     /// `checkPartyAnnihilation()`.
