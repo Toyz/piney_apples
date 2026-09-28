@@ -1,0 +1,25 @@
+[package]
+name = "piney-fieldui"
+version = "0.1.0"
+description = "The field game's user interface of .hack//Infection (ccMenuCtrl, gcmn.prg menu.cpp) as a state machine: pad and world in, piney-draw frame and requests out."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+piney-data.workspace = true
+piney-battle = { path = "../piney-battle" }
+piney-draw.workspace = true
+glam.workspace = true
+piney-input.workspace = true
+piney-desktop.workspace = true
+piney-event = { path = "../piney-event" }
+piney-demo = { path = "../piney-demo" }
+
+[features]
+# Records every packet, text and sound for tools/test_fieldui_rs.py.
+trace = []
+
+[[example]]
+name = "fieldui_probe"
+required-features = ["trace"]

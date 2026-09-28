@@ -1,0 +1,9 @@
+[package]
+name = "piney-input"
+version = "0.1.0"
+description = "The game's pad reading (ccPad::Read): held, pressed, released and repeat bits, and the analog stick as a direction."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]

@@ -1,0 +1,20 @@
+[package]
+name = "piney-world"
+version = "0.1.0"
+description = "The World of .hack//Infection (GCMN.PRG): the field game entered from a new game, Kite in the Root Town under pad control with the camera following, as a state machine: pad in, piney-draw frame out."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+piney-data.workspace = true
+piney-draw.workspace = true
+piney-input.workspace = true
+piney-desktop.workspace = true
+piney-event = { path = "../piney-event" }
+piney-battle = { path = "../piney-battle" }
+glam.workspace = true
+
+[dev-dependencies]
+piney-gs.workspace = true
+piney-demo = { path = "../piney-demo" }

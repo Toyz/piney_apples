@@ -1,0 +1,12 @@
+[package]
+name = "piney-data"
+version = "0.1.0"
+description = "Readers for the .hack PS2 discs: ISO 9660, the DATA.BIN gzip archive, and CCSF scene files (textures, models, scenes)."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+flate2.workspace = true
+glam.workspace = true
+zstd = "0.13"

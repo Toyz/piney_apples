@@ -1,0 +1,10 @@
+[package]
+name = "piney-battle"
+version = "0.1.0"
+description = "The combat of .hack//Infection (GCMN.PRG) as logic: the rules (damage, skills, conditions, experience, items, Data Drain, the enemies' and party's decisions) and the motion that carries them on the field (spawning, the enemies' movement and animation, Kite's and the party's frames, following and path finding), behind a small world trait, with no drawing."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+piney-data.workspace = true

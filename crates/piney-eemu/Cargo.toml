@@ -1,0 +1,19 @@
+[package]
+name = "piney-eemu"
+version = "0.1.0"
+description = "tools/eemu.py's Emotion Engine interpreter in Rust, instruction for instruction, with a PyO3 module (eemu_rs) the Python harnesses can use in its place."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+piney-data.workspace = true
+pyo3 = { version = "0.29", optional = true }
+
+[features]
+# The Python module: cargo build --release -p piney-eemu --features python,
+# then copy target/release/libpiney_eemu.so to tools/eemu_rs.so.
+python = ["dep:pyo3"]

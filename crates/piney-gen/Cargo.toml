@@ -1,0 +1,14 @@
+[package]
+name = "piney-gen"
+version = "0.1.0"
+description = "The table generator: each volume's engine tables out of its executable, as typed Rust for piney-data (plans/volumes.md, \"The generator\"). A tool for a machine with the discs extracted; the port never runs it."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+piney-data.workspace = true
+piney-eemu = { path = "../piney-eemu" }
+encoding_rs = "0.8"
+memchr = "2"
+serde_json = "1"

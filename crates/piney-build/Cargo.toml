@@ -1,0 +1,16 @@
+[package]
+name = "piney-build"
+version = "0.1.0"
+description = "Builds one game from the four .hack discs: every disc's files kept once, deduplicated, for piney-game to run with a launcher."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+piney-data.workspace = true
+piney-event = { path = "../piney-event" }
+piney-gen = { path = "../piney-gen" }
+blake3 = "1"
+fastcdc = "3"
+flate2.workspace = true
+zstd = "0.13"

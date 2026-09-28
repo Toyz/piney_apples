@@ -1,0 +1,258 @@
+# piney_apples
+
+A native port of the engine behind the four .hack games for the
+PlayStation 2 (CyberConnect2 / Bandai, 2002-2003): .hack//Infection,
+.hack//Mutation, .hack//Outbreak and .hack//Quarantine. It is written in Rust
+from a reverse engineering of the games, and it plays your own discs.
+
+**Status: work in progress.**
+
+| part | disc | where it stands |
+| --- | --- | --- |
+| .hack//Infection | `SLUS_202.67` | Playable from power-on to the ending: the whole story, the staff roll and the save after it |
+| .hack//Mutation | `SLUS_205.62` | In progress: the title, the desktop and the story's start play; of its 16 story events, the test autopilot plays 6 through to their end so far |
+| .hack//Outbreak | `SLUS_205.63` | Boots: the title, the opening cut scenes with their sound, the desktop, the Root Towns; the story comes after Mutation's |
+| .hack//Quarantine | `SLUS_205.64` | Boots, as Outbreak |
+
+What is still missing is listed in [GAPS.md](GAPS.md), and the known bugs in
+[BUGS.md](BUGS.md).
+
+## Not an emulator
+
+An emulator runs the PlayStation 2's code: it imitates the console's
+processors and the game runs as it did on the hardware. This project runs
+none of that code.
+
+- **What runs** is the engine rewritten in Rust, part by part: the game
+  loop and its tasks, the event-script interpreter, the battle rules and the
+  AI, the Chaos Gate's area-word generator, the fields, dungeons and Root
+  Towns, the menus, the ALTIMIT desktop, the in-engine cut scenes, the
+  sound driver and synthesizer, and the movie decoder. The picture is drawn
+  with wgpu from the port's own draw lists, and the sound is mixed by the
+  port.
+- **How we know it matches.** Each part is checked against the game's own
+  code: the original functions are run one instruction at a time in a
+  small interpreter written for this project, and the port has to give the
+  same results. More than 700 tests hold it to that.
+- **What it reads** is your discs, once. `piney-build` reads them into a
+  build and generates the tables the engine needs from the discs' own
+  executables. During play nothing from the PlayStation 2 runs, and no BIOS
+  is needed.
+
+## What owning the engine gives you
+
+The games' systems become ordinary source code, so you can read them, change
+them and build on them. You do not have to patch a binary.
+
+**Today:**
+
+- **One program for all four parts.** One build holds your discs and one
+  memory card serves all four parts. It opens on the four-part selector
+  that Outbreak's disc carries but never uses.
+- **Every Root Town from any disc.** The console's `town N` reaches Mac
+  Anu, Dun Loireag, Carmina Gadelica, Fort Ouph and Lia Fail from any part.
+- **A console** (F1 or `` ` ``) into the running game. It has god mode, items
+  and gold, warps to any town, and any character into the party whatever
+  the story says. It also sets event flags and the bracelet's infection,
+  and restarts the game at any story event (`help` lists them all).
+- **A scriptable, repeatable game.** The same input gives the same game.
+  - `--pad-log` records your pad and `--replay` plays it back.
+  - `--press` scripts button presses and `--console` scripts console commands.
+  - `--mode story:N` starts at story event N.
+  - `--shot` and `--webp` capture frames and video without a window.
+
+  The test suite plays the story this way and checks what the game draws
+  and plays.
+- **A viewer** (`piney-viewer`) for every scene on the discs: models,
+  animations, towns as they are assembled, and any dungeon or field from
+  its seed.
+- **Unused content, reachable.** Outbreak's unused cut scenes play with
+  `--mode loose:STREAM/STRT.BIN:N`. The earlier builds of the later towns
+  left in Infection's executable are documented.
+- **Documentation for everyone.**
+  - [docs/](docs/README.md) is the reference for the formats and the engine.
+  - [WORKLOG.md](WORKLOG.md) records how each piece was worked out.
+  - `piney-build --export-symbols DIR` writes the function and data names of
+    all four executables for other reverse engineers.
+
+**Possible because of it** (not done yet):
+
+- Changing the rules in code: the battle, the AI, items and skills, the
+  area words, the story's events. The event scripts already have a
+  readable text form of their own.
+- Fixing the originals' bugs, or keeping them. Either way it is a choice
+  made in code.
+- Drawing beyond the PS2, such as other resolutions and aspect ratios,
+  since the picture is the port's own.
+- Running on any platform that Rust, wgpu and cpal reach.
+
+## Getting started
+
+You need:
+
+- **Your own disc images** (`.iso`) of the games, the North American
+  releases: Infection `SLUS_202.67`, Mutation `SLUS_205.62`, Outbreak
+  `SLUS_205.63` and Quarantine `SLUS_205.64`. One disc is enough to play
+  that part.
+- **Rust**, the current stable toolchain, from [rustup.rs](https://rustup.rs).
+- **A GPU with Vulkan, Metal or DirectX 12**, which is what wgpu draws with.
+
+Then:
+
+```sh
+git clone <this repository> piney_apples
+cd piney_apples
+cargo build --release
+
+# once: make the game from the discs you have (files, or a folder of them)
+target/release/piney-build path/to/infection.iso path/to/mutation.iso
+
+# play
+target/release/piney-game
+```
+
+`piney-build` tells the discs apart by their contents. It reads every file
+back to check it, then prints where the build went: `~/.local/share/piney/game`
+on Linux, `%APPDATA%\piney\game` on Windows, and
+`~/Library/Application Support/piney/game` on macOS. `$PINEY_HOME` moves
+the build, and `--out DIR` puts it somewhere else. Run it again with another
+disc and the build keeps the ones it already has. You can also play a
+single image without a build: `piney-game --iso path/to/infection.iso`.
+
+With more than one part in the build, the game opens on the four-part
+selector. `--volume 1-4` starts a part directly.
+
+### Controls
+
+| PS2 pad | keyboard | gamepad |
+| --- | --- | --- |
+| D-pad | arrow keys | D-pad |
+| Cross / Circle | Z / X | south / east button |
+| Square / Triangle | A / S | west / north button |
+| L1 / R1 | Q / W | shoulders |
+| L2 / R2 | 1 / 2 | triggers |
+| L3 / R3 | C / V | stick clicks |
+| Start / Select | Enter / Backspace | Options / Create (or Start / Back) |
+| sticks | (none) | sticks |
+
+Any gamepad that [gilrs](https://gitlab.com/gilrs-project/gilrs) knows
+works, with its buttons where a DualShock 2 has them. Escape asks to quit,
+and F1 or `` ` `` opens the console.
+
+### Saves and settings
+
+Saves go to one memory card in the build's folder (`memcard/slot1`), shared
+by all four parts. The options (volumes, voice language, screen position,
+vibration, the message window) are kept in `settings.toml` in the same
+folder. Whatever any part's Option menu sets, every part starts with.
+
+This repository does not include the games. Everything the port plays
+comes from your discs.
+
+## For developers
+
+The port is a Cargo workspace under [`crates/`](crates/):
+
+| crate | what |
+| --- | --- |
+| `piney-data` | the disc: ISO 9660, the `DATA.BIN` gzip archive, CCSF scene files - textures, palettes, models, clumps, animation playback - and the engine's generators (towns' placement tables, dungeons, fields) |
+| `piney-viewer` | every `DATA.BIN` scene textured, posed and playing, towns as their placement tables assemble them, generated dungeons and fields, with mouse, keyboard or a gamepad; `--shot` renders one to PNG without a window |
+| `piney-input` | the pad as `ccPad::Read` reads it: held, pressed, released, repeat, the stick as a direction |
+| `piney-draw` | one frame as the game hands it to the GS: primitives, model draws, run-time textures, blend and test state |
+| `piney-gs` | draws those frames as the GS does, on wgpu, in the game's 512 x 448 frame buffer |
+| `piney-game` | the game from power-on: the title with its movies and intro stream, New Game, the desktop with the game's own event scripts, the Root Towns, fields and dungeons, their cut scenes, voices and sound; modes on the game's own frame clock, pad or keyboard in, GS frames out |
+| `piney-world` | The World: the Root Towns, fields and dungeons as their tasks run them, the camera, the characters, the party and its AI |
+| `piney-battle` | the battle's rules: stats, hits, skills, items, conditions, the enemies' and members' AI, Data Drain |
+| `piney-effect` | the effects: skills, spells, transfers, the particles |
+| `piney-fieldui` | the field's menus and HUD |
+| `piney-audio` | the game's sound: sound effects and the sequenced music through ports of the IOP's MIDI sequencer and hardware synthesizer, an SPU2 model mixing at 48 kHz, `BGM.BIN`'s streams; cpal output or headless WAV |
+| `piney-desktop` | the ALTIMIT desktop (`DESKTOP.PRG`) as a state machine: the opening, the main screen, the mailer, News, Accessory, Audio and Data (saving to a memory card), the event scripts' message windows and the START menu |
+| `piney-demo` | the title screen (`DEMO.PRG`) as a state machine: the memory-card check, the logo movies and intro stream, the menu (New Game, Load, Option), and New Game's hand-off to the desktop |
+| `piney-toppage` | THE WORLD's top page: the board, the news and the log in |
+| `piney-mpeg` | the PSS movies: our own MPEG-2 decoder and the IPU's colour conversion, every picture exact against ffmpeg, and the movies' SPU2-format sound |
+| `piney-event` | the event scripts: our own instruction set and its text form, the scripts and messages read from the disc and converted without loss, and the interpreter checked against the game's own code |
+| `piney-stream` | the in-engine cut scenes (`ccRequestLoadStream`): a stream's files read from `STREAM/*.BIN`, its scenes built and played frame by frame as the game's `InitScene` / `DecodeFrameSection` do them, pad in, draw list and PCM out |
+| `piney-build` | one game from your discs: the disc images' files cut into chunks, each kept once and zstd-compressed, into a build `piney-game` finds by itself; the port's data generated from the discs into it |
+| `piney-gen` | the table generator: each volume's engine tables read out of its executable through Infection's DWARF types, into the build; the carry that finds Infection's globals in the later volumes; and the symbol transfer that names the stripped executables |
+| `piney-eemu` | the EE interpreter the checks run the game's own code in |
+
+```
+cargo run --release -p piney-viewer -- town01
+cargo run --release -p piney-viewer -- --dungeon 1234,0,5
+cargo run --release -p piney-viewer -- --field 777,2
+cargo run --release -p piney-game -- --mode story:11      # the game at story event 11
+cargo run --release -p piney-audio --example render -- desktop 50 out.wav
+cargo run --release -p piney-stream --example stream_shot -- --stream 2 --frame 600 --out stream.png
+cargo test --workspace      # the checks; the disc tests need the images under work/
+```
+
+For the checks and the tools, put your disc images in `originals/`
+and extract them under `work/` (both are ignored by git).
+[docs/](docs/README.md) is the reference: what the formats are and how the
+engine works, with an honesty status on every page.
+[WORKLOG.md](WORKLOG.md) is how each piece was worked out.
+
+### Tools
+
+The reverse engineering started on a machine with no tools for it, so they
+are written here as the work needs them, under [`tools/`](tools/), in Python
+with nothing outside the standard library:
+
+| tool | what it does |
+| --- | --- |
+| `tools/iso.py` | list, extract and cat files from an ISO 9660 DVD image; map an LBA back to a file |
+| `tools/elf.py` | the EE executable: headers, sections, symbols, reads by VA |
+| `tools/mips.py` | R5900 instruction decoder: base MIPS, EE extensions, MMI, FPU, VU0 macro mode |
+| `tools/image.py` | the program image: main plus one overlay, symbols and relocations; a stripped volume's `.syms` sidecar |
+| `tools/disasm.py` | disassemble a function or range, exact xrefs from the relocations |
+| `tools/fdtbl.py` | the DATA.BIN index compiled into the executable; `check` verifies it against the archive |
+| `tools/gzarc.py` | list, cat and extract the sector-aligned gzip archives (`DATA.BIN`, `STREAM/*.BIN`) |
+| `tools/ccs.py` | CCSF scene files: header, name table, objects, chunk walk |
+| `tools/dwarf1.py` | the DWARF 1 debug information: functions, types, globals, lines, per-unit headers |
+| `tools/demangle.py` | CodeWarrior C++ symbol demangler, works like c++filt |
+| `tools/ccstex.py` | textures and palettes out of CCSF files, as PNG |
+| `tools/ccsmodel.py` | models out of CCSF files as Wavefront OBJ, optionally posed from an animation or a cutscene frame |
+| `tools/areas.py` | the Chaos Gate keywords, the story areas, and the area generator reproduced exactly |
+| `tools/tables.py` | any global table decoded through its DWARF type: enemies, skills, items, equipment, bosses |
+| `tools/sound.py` | sound banks, voice lines, streamed music and cutscene audio, through the game's own indexes |
+| `tools/scei.py` | Sony's SCEI .hd / .sq sound-bank formats |
+| `tools/adpcm.py` | PS-ADPCM decoder |
+| `tools/midi.py`, `tools/hsyn.py` | models of the IOP's MIDI sequencer and hardware synthesizer, checked against the modules |
+| `tools/irx.py` | IOP module (.IRX) disassembler: imports, exports, functions |
+| `tools/iopemu.py` | IOP modules run in `eemu.py`, the synthesizer's register writes recorded |
+| `tools/sound_ee.py` | the game's EE sound code run in `eemu.py`, what it sends to the IOP recorded |
+| `tools/wav.py` | WAV writer |
+| `tools/vu.py` | VU0/VU1 microcode: labels, disassembly, and the game's model packets built in the interpreter |
+| `tools/vif.py` | VIF code streams, DMA tags and GIFtags |
+| `tools/evscript.py` | event scripts: list, disassemble with dialogue and voice inlined, survey, check against the game code |
+| `tools/dungeon.py` | dungeon layouts from the area seed, reproduced exactly, as ASCII maps |
+| `tools/battle.py` | the battle rules reproduced: effective stats, hit and damage, protect break, status, experience, Data Drain |
+| `tools/field.py` | field terrain and objects from the area seed, with PNG height maps |
+| `tools/anim.py` | Anime chunks evaluated at any time as the game plays them: poses, texture offsets, morphs |
+| `tools/png.py` | minimal PNG writer |
+| `tools/eemu.py` | a small EE interpreter: runs static initialisers, and game functions to check reimplementations against |
+| `tools/font.py` | text rendering: glyph tables, measuring, and strings drawn to PNG as the game draws them |
+| `tools/text.py` | the desktop's mail, bulletin board and news text, English or parody |
+| `tools/portdata.py` | the port's data files (`work/data`, the build's `PINEY/TABLES`) read back for the other tools |
+| `tools/save.py` | the memory-card save as each volume's own code writes it, and the carry-over into the next volume |
+| `tools/xfer.py` | code compared across volumes: a body with its address fields masked, the addresses it forms, its opcode shape |
+| `tools/docs.py` | regenerate and check the reference index |
+
+## License
+
+The code in this repository is licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in this work by you, as defined in the Apache-2.0
+license, shall be dual licensed as above, without any additional terms or
+conditions.
+
+The license covers this repository's own code and writing only. The games
+themselves, their data, text, art, sound and code, belong to their owners
+and are not covered by it. .hack is a trademark of its owners; this project
+is not affiliated with or endorsed by CyberConnect2 or Bandai Namco.

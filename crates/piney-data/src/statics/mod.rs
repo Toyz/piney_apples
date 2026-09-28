@@ -1,0 +1,298 @@
+//! Where a town or event area's static models go.
+//!
+//! The scene file holds each piece of a town in its own space; the game
+//! places them from tables in `gcmn.prg`. A `ROOTTOWN` or `EVENTAREA`
+//! constructor makes one `STATICMODEL` per `STATIC_MODEL_INFO` row
+//! (`STATICMODEL::STATICMODEL`, `INF gcmn.prg:0x005cffd0`), and
+//! `STATICMODEL::Draw` (0x005d01c0) draws the model with a unit matrix
+//! translated to the position of the row's dummy object - the rotation a
+//! DummyPosRot carries is stored but not applied there.
+//!
+//! Animated pieces - flags, ships, banners - are `STATIC_OBJ_INFO` rows:
+//! `STATICOBJECT::STATICOBJECT` (0x005cf9b0) sets the root of the row's
+//! clump and animation with `SetMatrix_PosRotZYX(pos, rot)` from the dummy,
+//! so one animation can stand at several dummies.
+//!
+//! The tables are each volume's, read from its executable by `piney-gen`
+//! (`placement::statics`) into the build ([`of`], `plans/build-data.md`);
+//! the positions they point at are read from the disc (the scene file's
+//! DummyPos chunks, [`crate::scene::Dummy`]).
+
+use glam::{Mat4, Vec3};
+
+use crate::ccs::Ccs;
+use crate::scene::{Dummy, Scene};
+use crate::store::{Load, Reader};
+use crate::volume::Volume;
+
+/// The clip distance nearly every row uses (210 of 222): farther than any
+/// town, so in effect "draw at any distance". The others are 5500 (Mac
+/// Anu's three banners and six flags, and `se1_1`'s `MDL_se11obj2`) and 7500
+/// (Mac Anu's two ships).
+pub const FAR: f32 = 100_000.0;
+
+/// Which of a town's draw passes draws a row: `ROOTTOWN01::DrawFloor`,
+/// `DrawObj` and `DrawObj2` (`INF gcmn.prg:0x00422ba0`, 0x004224c0,
+/// 0x00422900) test the row's `type` for 1, 2 and 3; `DrawObj2` tests the
+/// static objects for 3 too.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DrawPass {
+    /// Type 0: drawn by none of the three passes - by class-specific code
+    /// not traced yet.
+    Other,
+    Floor,
+    Obj,
+    Obj2,
+}
+
+/// Where a row goes: its `postype` with its `posname`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Position {
+    /// Postype 0: in its own space (a static object: where its animation
+    /// puts it).
+    None,
+    /// Postype 1: at a DummyPos, by name.
+    Dummy(&'static str),
+    /// Postype 2: at a DummyPosRot, by name. A static model takes only its
+    /// position; a static object its rotation too.
+    DummyRot(&'static str),
+}
+
+impl Position {
+    /// The DMY_ object's name, if there is one.
+    pub fn dummy(&self) -> Option<&'static str> {
+        match *self {
+            Position::None => None,
+            Position::Dummy(n) | Position::DummyRot(n) => Some(n),
+        }
+    }
+
+    /// The dummy in scene file `c`, as the constructors look it up
+    /// (`ccStream::GetChunkAdrsF`); None for postype 0 or a name the file
+    /// lacks, which both leave the piece at the origin.
+    pub fn find(&self, c: &Ccs, sc: &Scene) -> Option<Dummy> {
+        self.dummy().and_then(|n| c.find_object(n)).and_then(|d| sc.dummies.get(&d)).copied()
+    }
+}
+
+/// A `STATICMODEL` as its constructor (`INF gcmn.prg:0x005cffd0`) leaves it
+/// in a scene file: the row, its MDL_ object and where
+/// `STATICMODEL::Draw` (0x005d01c0) puts it - a unit matrix translated to
+/// the dummy, the dummy's rotation ignored.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlacedModel {
+    /// The row's index in its table.
+    pub row: usize,
+    pub model: u32,
+    pub pos: Vec3,
+}
+
+impl ModelTable {
+    /// Every row whose model is in `c`, placed.
+    pub fn place(&self, c: &Ccs, sc: &Scene) -> Vec<PlacedModel> {
+        self.rows
+            .iter()
+            .enumerate()
+            .filter_map(|(row, r)| {
+                let model = c.find_object(r.model)?;
+                let pos = r.position.find(c, sc).map_or(Vec3::ZERO, |d| d.pos);
+                Some(PlacedModel { row, model, pos })
+            })
+            .collect()
+    }
+}
+
+impl StaticObj {
+    /// The root `STATICOBJECT::STATICOBJECT` (0x005cf9b0) gives the row's
+    /// animation (or clump): `ccCoord::SetMatrix_PosRotZYX(pos, rot)` of its
+    /// dummy: `sceVu0RotMatrix` turns about z, then y, then x, so
+    /// T(pos) Rx Ry Rz, with the rotation in radians (`Decode_DummyPosRot`
+    /// converts the file's degrees); the identity without a dummy.
+    pub fn root(&self, c: &Ccs, sc: &Scene) -> Mat4 {
+        match self.position.find(c, sc) {
+            Some(d) => {
+                let r = d.rot.unwrap_or(Vec3::ZERO) * (std::f32::consts::PI / 180.0);
+                Mat4::from_translation(d.pos)
+                    * Mat4::from_rotation_x(r.x)
+                    * Mat4::from_rotation_y(r.y)
+                    * Mat4::from_rotation_z(r.z)
+            }
+            None => Mat4::IDENTITY,
+        }
+    }
+}
+
+/// A `STATIC_MODEL_INFO` row (0x14 bytes: int type, char *modelname, int
+/// postype, char *posname, float clip).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StaticModel {
+    pub pass: DrawPass,
+    /// The MDL_ object in the scene file.
+    pub model: &'static str,
+    pub position: Position,
+    /// Drawn only within this distance of the camera.
+    pub clip: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ModelTable {
+    /// The table's symbol, e.g. `RT_MODELTABLE00` (Mac Anu).
+    pub name: &'static str,
+    /// Its address in Infection's `gcmn.prg`.
+    pub va: u32,
+    /// The DATA.BIN scene files that hold every model it names.
+    pub scenes: &'static [&'static str],
+    pub rows: &'static [StaticModel],
+}
+
+/// A `STATIC_OBJ_INFO` row (0x18 bytes: int type, char *clumpname, char
+/// *anmname, int postype, char *posname, float clip).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct StaticObj {
+    pub pass: DrawPass,
+    /// A CMP_ clump, if the row names one.
+    pub clump: Option<&'static str>,
+    /// The ANM_ animation that poses it.
+    pub anime: Option<&'static str>,
+    pub position: Position,
+    pub clip: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ObjTable {
+    /// E.g. `RT_OBJTABLE00` (Mac Anu).
+    pub name: &'static str,
+    pub va: u32,
+    pub scenes: &'static [&'static str],
+    pub rows: &'static [StaticObj],
+}
+
+/// The scene files a town or event-area class loads, in the order its
+/// constructor asks for them (the strings it passes to
+/// `ccStream::GetCCSAdrs`). `ROOTTOWN01` takes `town01d` when the save's
+/// crisis byte (`saveData+0x6772`) is set and `town01` otherwise, and
+/// `wat1` either way; `EVENTAREAB0` picks one of nine areas.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SceneSet {
+    /// E.g. `ROOTTOWN01`.
+    pub class: &'static str,
+    pub files: &'static [&'static str],
+}
+
+/// The files loaded alongside `scene` in a town: the other files of its
+/// class's set, less the ones that are alternatives to it (the crisis and
+/// normal versions of the same town share a model table). Event areas are
+/// left alone: their constructors choose among their files, which has not
+/// been traced.
+pub fn companions(scene: &str) -> Vec<&'static str> {
+    let alternatives = for_scene(scene).map_or(&[][..], |t| t.scenes);
+    of(Volume::Inf)
+        .2
+        .iter()
+        .filter(|s| s.class.starts_with("ROOTTOWN") && s.files.iter().any(|f| f.eq_ignore_ascii_case(scene)))
+        .flat_map(|s| s.files.iter().copied())
+        .filter(|f| !f.eq_ignore_ascii_case(scene) && !alternatives.iter().any(|a| a.eq_ignore_ascii_case(f)))
+        .collect()
+}
+
+/// Every model table in Infection's executable.
+pub fn tables() -> &'static [ModelTable] {
+    of(Volume::Inf).0
+}
+
+/// Every object table in Infection's executable.
+pub fn obj_tables() -> &'static [ObjTable] {
+    of(Volume::Inf).1
+}
+
+/// A volume's statics as the build keeps them (`PINEY/TABLES/statics.bin`).
+struct Statics {
+    models: &'static [ModelTable],
+    objs: &'static [ObjTable],
+    sets: &'static [SceneSet],
+}
+
+/// A volume's model tables, object tables and the scene files each class
+/// loads (read once a run).
+pub fn of(v: Volume) -> (&'static [ModelTable], &'static [ObjTable], &'static [SceneSet]) {
+    static READ: [std::sync::OnceLock<&'static Statics>; 4] = [const { std::sync::OnceLock::new() }; 4];
+    let s = READ[v as usize].get_or_init(|| crate::store::group(v, "statics"));
+    (s.models, s.objs, s.sets)
+}
+
+// Read from the build's file, field by field (`piney_gen::placement::statics`
+// writes them).
+
+impl Load for DrawPass {
+    fn load(r: &mut Reader) -> Self {
+        match u8::load(r) {
+            1 => DrawPass::Floor,
+            2 => DrawPass::Obj,
+            3 => DrawPass::Obj2,
+            _ => DrawPass::Other,
+        }
+    }
+}
+
+impl Load for Position {
+    fn load(r: &mut Reader) -> Self {
+        match u8::load(r) {
+            1 => Position::Dummy(Load::load(r)),
+            2 => Position::DummyRot(Load::load(r)),
+            _ => Position::None,
+        }
+    }
+}
+
+impl Load for StaticModel {
+    fn load(r: &mut Reader) -> Self {
+        StaticModel { pass: Load::load(r), model: Load::load(r), position: Load::load(r), clip: Load::load(r) }
+    }
+}
+
+impl Load for ModelTable {
+    fn load(r: &mut Reader) -> Self {
+        ModelTable { name: Load::load(r), va: Load::load(r), scenes: Load::load(r), rows: Load::load(r) }
+    }
+}
+
+impl Load for StaticObj {
+    fn load(r: &mut Reader) -> Self {
+        StaticObj {
+            pass: Load::load(r),
+            clump: Load::load(r),
+            anime: Load::load(r),
+            position: Load::load(r),
+            clip: Load::load(r),
+        }
+    }
+}
+
+impl Load for ObjTable {
+    fn load(r: &mut Reader) -> Self {
+        ObjTable { name: Load::load(r), va: Load::load(r), scenes: Load::load(r), rows: Load::load(r) }
+    }
+}
+
+impl Load for SceneSet {
+    fn load(r: &mut Reader) -> Self {
+        SceneSet { class: Load::load(r), files: Load::load(r) }
+    }
+}
+
+impl Load for Statics {
+    fn load(r: &mut Reader) -> Self {
+        Statics { models: Load::load(r), objs: Load::load(r), sets: Load::load(r) }
+    }
+}
+
+/// The object table for a scene file, as [`for_scene`].
+pub fn obj_for_scene(scene: &str) -> Option<&'static ObjTable> {
+    obj_tables().iter().filter(|t| t.scenes.iter().any(|s| s.eq_ignore_ascii_case(scene))).max_by_key(|t| t.rows.len())
+}
+
+/// The table for a scene file (by its CCSF name, e.g. `town01`): of those
+/// listing it, the one with the most rows.
+pub fn for_scene(scene: &str) -> Option<&'static ModelTable> {
+    tables().iter().filter(|t| t.scenes.iter().any(|s| s.eq_ignore_ascii_case(scene))).max_by_key(|t| t.rows.len())
+}

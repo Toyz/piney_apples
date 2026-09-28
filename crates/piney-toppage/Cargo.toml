@@ -1,0 +1,22 @@
+[package]
+name = "piney-toppage"
+version = "0.1.0"
+description = "The World's top page and bulletin board of .hack//Infection (TOPPAGE.PRG) as a state machine: pad in, piney-draw frame out, content read from the disc."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+piney-data.workspace = true
+piney-draw.workspace = true
+piney-input.workspace = true
+piney-desktop.workspace = true
+piney-demo = { path = "../piney-demo" }
+
+[features]
+# Records the top page's calls for tools/test_toppage_rs.py (see trace.rs).
+trace = []
+
+[[example]]
+name = "toppage_probe"
+required-features = ["trace"]

@@ -1,0 +1,31 @@
+[package]
+name = "piney-game"
+version = "0.1.0"
+description = "The game, run from the disc: modes stepped on the game's own frame clock, pad input as ccPad reads it, frames drawn by piney-gs."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+piney-audio.workspace = true
+piney-data.workspace = true
+piney-demo = { path = "../piney-demo" }
+piney-desktop.workspace = true
+piney-event = { path = "../piney-event" }
+piney-fieldui = { path = "../piney-fieldui" }
+piney-battle = { path = "../piney-battle" }
+piney-build = { path = "../piney-build" }
+piney-effect = { path = "../piney-effect" }
+piney-draw.workspace = true
+piney-gs.workspace = true
+piney-input.workspace = true
+piney-mpeg.workspace = true
+piney-stream.workspace = true
+piney-toppage.workspace = true
+piney-world.workspace = true
+glam.workspace = true
+wgpu = "30.0.1"
+winit = "0.30.13"
+pollster = "1.0.1"
+gilrs = "0.11.2"
+webp-animation = "0.10.0"

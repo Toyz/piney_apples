@@ -1,0 +1,17 @@
+[package]
+name = "piney-viewer"
+version = "0.1.0"
+description = "Look at the models on a .hack disc: every DATA.BIN scene, textured, posed, with mouse or gamepad."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+piney-data.workspace = true
+flate2.workspace = true
+glam.workspace = true
+wgpu = "30.0.1"
+winit = "0.30.13"
+pollster = "1.0.1"
+bytemuck = { version = "1.25.2", features = ["derive"] }
+gilrs = "0.11.2"

@@ -1,0 +1,1036 @@
+//! Dungeons (`docs/engine/dungeon.md`): a random dungeon grown room by room
+//! from `dungeonSeed` ([`generate`], `DUNGEON::Generate`,
+//! `INF gcmn.prg:0x005c12a0`), and a story dungeon laid out from a hand-made
+//! table ([`story`], `DUNGEON::MakeRealMap`, 0x005be020).
+//!
+//! The tables the generator reads - the room models per dungeon type, size
+//! and exits, the Gott statue rooms, the CCS file per type, `dungeonData`,
+//! the dungeon-type rule and the story dungeons' `ROOMDATA` - are engine
+//! data, read from each volume's executable by `piney-gen`
+//! (`placement::dungeon`) into the build ([`tables_of`], [`INF`];
+//! `plans/build-data.md`). One thing the generator reads is asset
+//! data: each room model's dummy objects draw from the same RNG, so the
+//! layout depends on how many item-box and `ps` dummies the chosen models
+//! contain. Those are counted from the dungeon's CCS file at run time
+//! ([`Dummies`]).
+//!
+//! `tools/dungeon.py` is the reference; `tools/test_dungeon_rs.py` compares
+//! this port with it field by field, and `tools/test_dungeon.py` compares
+//! `dungeon.py` with the game's own code.
+//!
+//! Map cells are 750 units; a room is 4, 8 or 16 cells square. Directions:
+//! north is -y, south +y, west -x, east +x.
+//!
+//! [`place`] puts a floor's rooms and doors where `SetRoom` and `SetDoor`
+//! put them, and [`Tables::fog_row`] is the fog and ambient light `SetRoom`
+//! sets.
+
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::{LazyLock, OnceLock};
+
+use crate::archive::Archive;
+use crate::ccs::{self, Ccs};
+use crate::store::{Load, Reader};
+use crate::volume::Volume;
+use crate::{Bytes, Result, format_err};
+
+pub mod place;
+mod random;
+pub mod special;
+mod story;
+
+/// The volume's dungeon tables (the build's `PINEY/TABLES/dungeon.bin`,
+/// read once a run).
+pub fn tables_of(v: Volume) -> &'static Tables {
+    static READ: [OnceLock<&'static Tables>; 4] = [const { OnceLock::new() }; 4];
+    READ[v as usize].get_or_init(|| crate::store::group(v, "dungeon"))
+}
+
+/// Infection's dungeon tables, read on first use.
+pub static INF: LazyLock<&'static Tables> = LazyLock::new(|| tables_of(Volume::Inf));
+pub use random::{
+    DummyRoll, Dungeon, FOUR_FLOORS_WORD, Floor, GimPos, Minimap, Params, Rng, Room, RoomModel, Start, Statue, generate,
+};
+pub use story::{Story, StoryFloor, real_map, story};
+
+/// The map is `MAP_INFO realmap[80][80]`, indexed `[x][y]`.
+pub const MAP: usize = 80;
+/// `MAP_INFO.here` / `next` for "no room".
+pub const NO_ROOM: u8 = 15;
+/// One map cell, in world units.
+pub const CELL: f32 = 750.0;
+
+/// Exit and stair bits: `ROOM_INFO.exit`, `ROOMDATA.dirc`, the `direc`
+/// MakeRoom builds, and a door cell's `MAP_INFO.d`.
+pub const NORTH: u8 = 0x01;
+pub const SOUTH: u8 = 0x02;
+pub const WEST: u8 = 0x04;
+pub const EAST: u8 = 0x08;
+/// The up stairs (the way in).
+pub const UP: u8 = 0x10;
+/// The down stairs (the way on).
+pub const DOWN: u8 = 0x20;
+/// The sides in `FOOT`'s exit order (`MakeFloor`'s `direc[4]`).
+pub const SIDES: [u8; 4] = [NORTH, SOUTH, WEST, EAST];
+
+/// A set of [`NORTH`], [`SOUTH`], [`WEST`], [`EAST`], [`UP`] and [`DOWN`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Exits(pub u8);
+
+impl Exits {
+    pub fn has(self, bit: u8) -> bool {
+        self.0 & bit != 0
+    }
+    /// The four side bits.
+    pub fn sides(self) -> u8 {
+        self.0 & 0x0f
+    }
+    /// How many sides lead on.
+    pub fn count(self) -> u32 {
+        self.sides().count_ones()
+    }
+}
+
+/// `FOOT.size`: 4, 8 or 16 cells square.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum RoomSize {
+    Small,
+    Medium,
+    Large,
+}
+
+impl RoomSize {
+    /// The game's number: 0, 1, 2.
+    pub fn index(self) -> u8 {
+        self as u8
+    }
+    pub fn cells(self) -> i32 {
+        match self {
+            RoomSize::Small => 4,
+            RoomSize::Medium => 8,
+            RoomSize::Large => 16,
+        }
+    }
+    /// The offset of a side's first door cell; a door is two cells wide,
+    /// in the middle of the side.
+    pub fn door(self) -> i32 {
+        self.cells() / 2 - 1
+    }
+}
+
+/// `ROOM_INFO.r`: the model's turn about z. Every row of every table uses
+/// one of these four.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Rotation {
+    Zero,
+    HalfPi,
+    Pi,
+    MinusHalfPi,
+}
+
+impl Rotation {
+    pub fn radians(self) -> f32 {
+        use std::f32::consts::{FRAC_PI_2, PI};
+        match self {
+            Rotation::Zero => 0.0,
+            Rotation::HalfPi => FRAC_PI_2,
+            Rotation::Pi => PI,
+            Rotation::MinusHalfPi => -FRAC_PI_2,
+        }
+    }
+    /// The way a player arriving by the room's stairs faces
+    /// (`startpos` w in MakeRoom): the other way round.
+    pub fn facing(self) -> Rotation {
+        match self {
+            Rotation::Zero => Rotation::Pi,
+            Rotation::Pi => Rotation::Zero,
+            Rotation::HalfPi => Rotation::MinusHalfPi,
+            Rotation::MinusHalfPi => Rotation::HalfPi,
+        }
+    }
+}
+
+/// A `ROOM_INFO` row (`{char **roomobj; u32 num; u8 exit; float r}`): the
+/// models a room with exactly these exits and stairs picks from, and how
+/// they are turned.
+#[derive(Clone, Copy, Debug)]
+pub struct RoomInfo {
+    pub exits: Exits,
+    pub rotate: Rotation,
+    /// ANM_ objects in the dungeon's CCS file.
+    pub models: &'static [&'static str],
+}
+
+#[derive(Debug)]
+pub struct RoomTable {
+    /// The table's symbol, e.g. `sroom_infoA`.
+    pub name: &'static str,
+    /// Its address in Infection's `gcmn.prg`.
+    pub va: u32,
+    pub rows: &'static [RoomInfo],
+}
+
+/// What a dummy object in a room model becomes: `gimPos` entries of
+/// `SetAllGim` (`INF gcmn.prg:0x005bb340`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Gim {
+    /// `OBJ_0ppi*`: an item box, kept on `fieldrand(100) >= 20`
+    /// (`CheckEntryItemBox`, 0x005cf800, with no edit data).
+    ItemBox,
+    /// `OBJ_0ppm*`: a magic circle; no roll.
+    MagicCircle,
+    /// `OBJ_0ppg`; no roll.
+    Ppg,
+    /// `OBJ_o_fountain_l0_`: a fountain, the same slot type as `Ppg`; no roll.
+    Fountain,
+    /// `OBJ_0ps0*` .. `OBJ_0ps3*`: each kept on `fieldrand(100) >= 31`.
+    Ps0,
+    Ps1,
+    Ps2,
+    Ps3,
+}
+
+impl Gim {
+    /// `gimPos.type`: 0 item box, 1 magic circle, 2 ppg or fountain, 3-6 ps0-ps3.
+    pub fn slot_type(self) -> u8 {
+        match self {
+            Gim::ItemBox => 0,
+            Gim::MagicCircle => 1,
+            Gim::Ppg | Gim::Fountain => 2,
+            Gim::Ps0 => 3,
+            Gim::Ps1 => 4,
+            Gim::Ps2 => 5,
+            Gim::Ps3 => 6,
+        }
+    }
+    /// The `fieldrand(100)` roll SetAllGim makes for one, kept at this or
+    /// more; `None` draws nothing and is always kept.
+    pub fn keep_from(self) -> Option<u32> {
+        match self {
+            Gim::ItemBox => Some(20),
+            Gim::Ps0 | Gim::Ps1 | Gim::Ps2 | Gim::Ps3 => Some(31),
+            Gim::MagicCircle | Gim::Ppg | Gim::Fountain => None,
+        }
+    }
+}
+
+/// One of SetAllGim's searches (`ccAnm::GetSubstAdrs`), in its order.
+#[derive(Clone, Copy, Debug)]
+pub struct GimPattern {
+    pub name: &'static str,
+    /// The C string ends in `*`: any object whose name starts with `name`.
+    pub prefix: bool,
+    pub gim: Gim,
+}
+
+impl GimPattern {
+    pub fn matches(&self, object: &str) -> bool {
+        if self.prefix { object.starts_with(self.name) } else { object == self.name }
+    }
+}
+
+/// `dungeonData[dungeonSize]`: `levelMax` floors of `roomMax` + 0-4 rooms.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DungeonSize {
+    pub levels: u32,
+    pub rooms: u32,
+}
+
+/// What the save flag `WORLD_MAN::SetDungeonTypeFromField` reads does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SaveFlag {
+    /// Infection: the byte at `saveData+offset` (the crisis byte) gives a
+    /// story area its E type, as `EVENTAREA_INFO.flag` 3 does.
+    ETypes { offset: u32 },
+    /// Mutation on: bit `bit` of the u64 at `saveData+offset` sends a story
+    /// area down the random-area path, the fixed areas taking `plain_fixed`.
+    RandomPath { offset: u32, bit: u32 },
+}
+
+/// `WORLD_MAN::SetDungeonTypeFromField` (`INF SLUS_202.67:0x0019cf50`):
+/// `dungeonType[0..1]` from the field type, per row; row 11 is any other
+/// field type.
+#[derive(Clone, Copy, Debug)]
+pub struct TypeRule {
+    /// A random area.
+    pub random: [[u8; 2]; 12],
+    /// A story area.
+    pub story: [[u8; 2]; 12],
+    /// A story area with the E types (flag 3, or the save flag).
+    pub story_e: [[u8; 2]; 12],
+    /// Story areas with a type of their own: (event area, type).
+    pub fixed: &'static [(i32, u8)],
+    /// The same on the random path of [`SaveFlag::RandomPath`].
+    pub plain_fixed: &'static [(i32, u8)],
+    pub save_flag: SaveFlag,
+}
+
+impl TypeRule {
+    /// The flag [`SaveFlag`] names, as `save` has it.
+    pub fn save_flag_of(&self, save: &crate::save::SaveData) -> bool {
+        match self.save_flag {
+            SaveFlag::ETypes { offset } => save.u8(offset as usize) != 0,
+            SaveFlag::RandomPath { offset, bit } => save.u64(offset as usize) >> bit & 1 != 0,
+        }
+    }
+
+    /// The flag where only the crisis byte is known (a start with no save
+    /// to read): the crisis in Infection, unset from Mutation on.
+    pub fn save_flag_of_crisis(&self, crisis: bool) -> bool {
+        matches!(self.save_flag, SaveFlag::ETypes { .. }) && crisis
+    }
+
+    /// `dungeonType[0..1]` for an area: `event` 0 for a random area, else
+    /// the story area's number; `event_flag` the `EVENTAREA_INFO.flag` the
+    /// game looks up; `save_flag` the flag [`SaveFlag`] names.
+    pub fn types(&self, field_type: u32, event: i32, event_flag: i32, save_flag: bool) -> [u8; 2] {
+        let row = field_type.min(11) as usize;
+        let random_path = matches!(self.save_flag, SaveFlag::RandomPath { .. }) && save_flag;
+        if event == 0 || random_path {
+            if let Some(&(_, t)) = self.plain_fixed.iter().find(|&&(e, _)| e == event) {
+                return [t, 0];
+            }
+            return self.random[row];
+        }
+        if let Some(&(_, t)) = self.fixed.iter().find(|&&(e, _)| e == event) {
+            return [t, 0];
+        }
+        if event == -1 {
+            return [0, 0];
+        }
+        let e = event_flag == 3 || (matches!(self.save_flag, SaveFlag::ETypes { .. }) && save_flag);
+        if e { self.story_e[row] } else { self.story[row] }
+    }
+}
+
+/// A `ROOMDATA` row (0x4c bytes): one room of a story dungeon.
+#[derive(Clone, Copy, Debug)]
+pub struct RoomData {
+    pub floor: i32,
+    pub index: i32,
+    /// Top-left map cell.
+    pub x: i32,
+    pub y: i32,
+    pub room_type: i32,
+    pub size: RoomSize,
+    pub model_index: i32,
+    pub tp_flag: i32,
+    pub event_flag: i32,
+    pub exits: Exits,
+    /// nFlag, sFlag, eFlag, wFlag.
+    pub side_flags: [i32; 4],
+    /// The room through each side, in [`SIDES`] order (next0-3); read only
+    /// where `exits` has the side.
+    pub next: [i32; 4],
+    pub item: i32,
+}
+
+/// A `GIMMICKDATA` row (0x20 bytes): a story dungeon's placed gimmick.
+#[derive(Clone, Copy, Debug)]
+pub struct GimmickData {
+    pub floor: i32,
+    pub index: i32,
+    /// World units.
+    pub x: i32,
+    pub y: i32,
+    pub gim_type: i32,
+    pub kind: i32,
+    pub flag: i32,
+    pub direc: i32,
+}
+
+/// An `EditDungeon` entry: the story dungeon of one (event area, dungeon
+/// index).
+#[derive(Debug)]
+pub struct EditDungeon {
+    pub event: i32,
+    pub index: i32,
+    /// The ROOMDATA table's symbol, e.g. `D0001_room`.
+    pub name: &'static str,
+    pub rooms: &'static [RoomData],
+    pub gimmicks: &'static [GimmickData],
+}
+
+/// One executable's dungeon tables. Infection's are [`INF`]; the room
+/// tables, symroom, the CCS names and the dummy patterns are the same on all
+/// four volumes, while `edit`, the floor counts and `types.save_flag` differ.
+#[derive(Debug)]
+pub struct Tables {
+    /// The executable's `volumeNum`.
+    pub volume: u32,
+    /// `MakeFloor`'s four jump tables by dungeon type: small, medium, large,
+    /// and the large rooms' second set.
+    pub rooms: [[&'static RoomTable; 10]; 4],
+    /// `MakeRoom`'s `symroom[10]`: the Gott statue room per type.
+    pub symroom: [&'static str; 10],
+    /// `DungeonName`: the CCS file per type.
+    pub ccs: [&'static str; 10],
+    /// `DungeonName2`: the same when `WORLD_MAN.texType` is 1.
+    pub ccs_tex1: [&'static str; 10],
+    /// SetAllGim's searches, in order.
+    pub gim_patterns: [GimPattern; 8],
+    /// `dungeonData`, by `dungeonSize` (1-10 used).
+    pub dungeon_data: [DungeonSize; 11],
+    pub types: TypeRule,
+    /// `EditDungeon`.
+    pub edit: &'static [EditDungeon],
+    /// How many floors `Generate` runs `MakeRealMap` over ...
+    pub edit_floors: u32,
+    /// ... and the event areas that have another count.
+    pub edit_floors_by_event: &'static [(i32, u32)],
+    /// What `SetDoor` puts in a room's doorways.
+    pub doors: Doors,
+    /// `DUNGEON::SetClutList`'s `CLT_` names for types 0, 1, 2, 3, then 8
+    /// and 9 ([`Tables::clut_list`]).
+    pub clut_lists: [&'static [&'static str]; 5],
+    /// Which `dungeonFog*` row lights a dungeon (the `DUNGEON` constructor).
+    pub fog: FogRule,
+    /// `WORLD_MAN::SetDungeonTexClut` for a random area: `[server][field
+    /// type]`, field type 11 standing for any other.
+    pub tex_clut: [[TexClut; 12]; 5],
+}
+
+/// What `DUNGEON::SetDoor` (`INF gcmn.prg:0x005c7c30`) names.
+///
+/// A room model marks each of its exits with an object 600 units inside
+/// its edge, on the side's middle, whose +y points out of the room: either a
+/// door dummy, where `SetDoor` puts the type's door animation, or a gate
+/// wall, part of the room's own geometry.
+#[derive(Clone, Copy, Debug)]
+pub struct Doors {
+    /// The door dummies: objects whose name starts with this (`doorname[0]`,
+    /// `"OBJ_0pae0_*"`).
+    pub dummy: &'static str,
+    /// The gate walls (`"OBJ_w_0g10_*"`, which `SetDoor` also searches to
+    /// block an exit an event bans).
+    pub gate: &'static str,
+    /// The door animation per dungeon type (`ANM_sd1ae0_a` ...).
+    pub anime: [&'static str; 10],
+}
+
+/// One row of a `dungeonFog*` table (0x24 bytes, nine floats): what
+/// `DUNGEON::SetRoom` (0x005c1ca0) hands `ccDrawEnv::SetFog(near, far, 0,
+/// max, colour)` and `SetAmbient(ambient / 255)`; the constructor also
+/// makes the colour the frame's clear colour (`DUNGEON.fog`, `ccSys+0x18`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FogRow {
+    /// Fog colour, 0-255 (the constructor packs `(int)` of each).
+    pub colour: [f32; 3],
+    /// Fog starts at this depth ...
+    pub near: f32,
+    /// ... and reaches `max` percent here, then stays.
+    pub far: f32,
+    pub max: f32,
+    /// Ambient light, 0-255. The VU1 lit programs add it; unlit models -
+    /// every dungeon piece - never see it.
+    pub ambient: [f32; 3],
+}
+
+impl FogRow {
+    /// `DUNGEON.fog`: the colour as the constructor packs it, `R | G << 8 |
+    /// B << 16` of each float truncated (`fptosi`).
+    pub fn packed_colour(&self) -> u32 {
+        let c = self.colour.map(|v| v as i32 as u32);
+        c[0] | c[1] << 8 | c[2] << 16
+    }
+
+    /// The fog colour as bytes.
+    pub fn colour_bytes(&self) -> [u8; 3] {
+        self.colour.map(|v| v as i32 as u8)
+    }
+
+    /// The ambient colour as `SetRoom` passes it (each / 255).
+    pub fn ambient(&self) -> [f32; 3] {
+        self.ambient.map(|v| v / 255.0)
+    }
+
+    /// The GS fog value VU1 writes at depth `w` (255 no fog, 0 all fog):
+    /// `clamp(fogB + fogA * w, fMin, fMax)` with `ccDrawEnv::SetFog`
+    /// (main 0x00105820) making it run from 255 at `near` to
+    /// `2.55 * (100 - max)` at `far`.
+    pub fn fog_value(&self, w: f32) -> f32 {
+        let f_min = 2.55 * (100.0 - self.max);
+        let f_max = 2.55 * 100.0;
+        let t = (w - self.near) / (self.far - self.near);
+        (f_max + (f_min - f_max) * t).clamp(f_min, f_max)
+    }
+}
+
+/// A `dungeonFog*` table: one row per dungeon type 0-3 (plain), type - 4
+/// (hacked) or background number (forest).
+#[derive(Debug)]
+pub struct FogTable {
+    pub name: &'static str,
+    /// Its address in Infection's `gcmn.prg`.
+    pub va: u32,
+    pub rows: [FogRow; 4],
+}
+
+/// One of the constructor's fog blocks: the tables it picks for one
+/// `WORLD_MAN` (clutType, texType).
+#[derive(Debug)]
+pub struct FogBlock {
+    pub clut_type: u8,
+    pub tex_type: u8,
+    /// Types 0-3, row = type.
+    pub plain: &'static FogTable,
+    /// Types 4-7 (the E types), row = type - 4.
+    pub hacked: &'static FogTable,
+    /// Types 8 and 9 (the lakes), row = `WORLD_MAN::GetBG()`.
+    pub forest: &'static FogTable,
+}
+
+/// How `DUNGEON::DUNGEON` (0x005b7c00) sets `fogParam` (+0x144) and
+/// `fogIndex` (+0x148): `default` row 0, unless a block matches.
+#[derive(Debug)]
+pub struct FogRule {
+    pub default: &'static FogTable,
+    pub blocks: &'static [FogBlock],
+}
+
+/// `WORLD_MAN.clutType` (+0x140) and `texType` (+0x144): the palette set
+/// (2 plain, 3 and 4 the `CLT_` swaps `SetRoom` applies) and the texture
+/// set (1 loads `DungeonName2`, the "a" files).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TexClut {
+    pub clut_type: u8,
+    pub tex_type: u8,
+}
+
+// Read from the build's file, field by field (`piney_gen::placement::dungeon`
+// writes them).
+
+impl Load for Exits {
+    fn load(r: &mut Reader) -> Self {
+        Exits(Load::load(r))
+    }
+}
+
+impl Load for RoomSize {
+    fn load(r: &mut Reader) -> Self {
+        match u8::load(r) {
+            0 => RoomSize::Small,
+            1 => RoomSize::Medium,
+            2 => RoomSize::Large,
+            n => panic!("dungeon: room size {n}"),
+        }
+    }
+}
+
+impl Load for Rotation {
+    fn load(r: &mut Reader) -> Self {
+        match u8::load(r) {
+            0 => Rotation::Zero,
+            1 => Rotation::HalfPi,
+            2 => Rotation::Pi,
+            3 => Rotation::MinusHalfPi,
+            n => panic!("dungeon: rotation {n}"),
+        }
+    }
+}
+
+impl Load for RoomInfo {
+    fn load(r: &mut Reader) -> Self {
+        RoomInfo { exits: Load::load(r), rotate: Load::load(r), models: Load::load(r) }
+    }
+}
+
+impl Load for RoomTable {
+    fn load(r: &mut Reader) -> Self {
+        RoomTable { name: Load::load(r), va: Load::load(r), rows: Load::load(r) }
+    }
+}
+
+impl Load for Gim {
+    fn load(r: &mut Reader) -> Self {
+        match u8::load(r) {
+            0 => Gim::ItemBox,
+            1 => Gim::MagicCircle,
+            2 => Gim::Ppg,
+            3 => Gim::Fountain,
+            4 => Gim::Ps0,
+            5 => Gim::Ps1,
+            6 => Gim::Ps2,
+            7 => Gim::Ps3,
+            n => panic!("dungeon: gim {n}"),
+        }
+    }
+}
+
+impl Load for GimPattern {
+    fn load(r: &mut Reader) -> Self {
+        GimPattern { name: Load::load(r), prefix: Load::load(r), gim: Load::load(r) }
+    }
+}
+
+impl Load for DungeonSize {
+    fn load(r: &mut Reader) -> Self {
+        DungeonSize { levels: Load::load(r), rooms: Load::load(r) }
+    }
+}
+
+/// (event area, type) pairs: a count, then each.
+fn event_types(r: &mut Reader) -> &'static [(i32, u8)] {
+    let n = u32::load(r) as usize;
+    let v: Vec<(i32, u8)> = (0..n).map(|_| (Load::load(r), Load::load(r))).collect();
+    Box::leak(v.into_boxed_slice())
+}
+
+impl Load for SaveFlag {
+    fn load(r: &mut Reader) -> Self {
+        match u8::load(r) {
+            0 => SaveFlag::ETypes { offset: Load::load(r) },
+            _ => SaveFlag::RandomPath { offset: Load::load(r), bit: Load::load(r) },
+        }
+    }
+}
+
+impl Load for TypeRule {
+    fn load(r: &mut Reader) -> Self {
+        TypeRule {
+            random: Load::load(r),
+            story: Load::load(r),
+            story_e: Load::load(r),
+            fixed: event_types(r),
+            plain_fixed: event_types(r),
+            save_flag: Load::load(r),
+        }
+    }
+}
+
+impl Load for RoomData {
+    fn load(r: &mut Reader) -> Self {
+        RoomData {
+            floor: Load::load(r),
+            index: Load::load(r),
+            x: Load::load(r),
+            y: Load::load(r),
+            room_type: Load::load(r),
+            size: Load::load(r),
+            model_index: Load::load(r),
+            tp_flag: Load::load(r),
+            event_flag: Load::load(r),
+            exits: Load::load(r),
+            side_flags: Load::load(r),
+            next: Load::load(r),
+            item: Load::load(r),
+        }
+    }
+}
+
+impl Load for GimmickData {
+    fn load(r: &mut Reader) -> Self {
+        GimmickData {
+            floor: Load::load(r),
+            index: Load::load(r),
+            x: Load::load(r),
+            y: Load::load(r),
+            gim_type: Load::load(r),
+            kind: Load::load(r),
+            flag: Load::load(r),
+            direc: Load::load(r),
+        }
+    }
+}
+
+impl Load for Doors {
+    fn load(r: &mut Reader) -> Self {
+        Doors { dummy: Load::load(r), gate: Load::load(r), anime: Load::load(r) }
+    }
+}
+
+impl Load for FogRow {
+    fn load(r: &mut Reader) -> Self {
+        FogRow {
+            colour: Load::load(r),
+            near: Load::load(r),
+            far: Load::load(r),
+            max: Load::load(r),
+            ambient: Load::load(r),
+        }
+    }
+}
+
+impl Load for FogTable {
+    fn load(r: &mut Reader) -> Self {
+        FogTable { name: Load::load(r), va: Load::load(r), rows: Load::load(r) }
+    }
+}
+
+impl Load for TexClut {
+    fn load(r: &mut Reader) -> Self {
+        TexClut { clut_type: Load::load(r), tex_type: Load::load(r) }
+    }
+}
+
+impl Load for Tables {
+    /// The room tables, the story dungeons' row arrays and the fog tables
+    /// come once each, and what uses them names them by index (the game's
+    /// tables share them).
+    fn load(r: &mut Reader) -> Self {
+        let volume = Load::load(r);
+        let room_tables: &'static [RoomTable] = Load::load(r);
+        let rooms = <[[u32; 10]; 4]>::load(r).map(|row| row.map(|k| &room_tables[k as usize]));
+        let symroom = Load::load(r);
+        let ccs = Load::load(r);
+        let ccs_tex1 = Load::load(r);
+        let gim_patterns = Load::load(r);
+        let dungeon_data = Load::load(r);
+        let types = Load::load(r);
+        let room_rows: &'static [&'static [RoomData]] = Load::load(r);
+        let gim_rows: &'static [&'static [GimmickData]] = Load::load(r);
+        let n = u32::load(r) as usize;
+        let edit: Vec<EditDungeon> = (0..n)
+            .map(|_| EditDungeon {
+                event: Load::load(r),
+                index: Load::load(r),
+                name: Load::load(r),
+                rooms: room_rows[u32::load(r) as usize],
+                gimmicks: gim_rows[u32::load(r) as usize],
+            })
+            .collect();
+        let edit_floors = Load::load(r);
+        let n = u32::load(r) as usize;
+        let by_event: Vec<(i32, u32)> = (0..n).map(|_| (Load::load(r), Load::load(r))).collect();
+        let doors = Load::load(r);
+        let clut_lists = Load::load(r);
+        let fog_tables: &'static [FogTable] = Load::load(r);
+        let default = &fog_tables[u32::load(r) as usize];
+        let n = u32::load(r) as usize;
+        let blocks: Vec<FogBlock> = (0..n)
+            .map(|_| FogBlock {
+                clut_type: Load::load(r),
+                tex_type: Load::load(r),
+                plain: &fog_tables[u32::load(r) as usize],
+                hacked: &fog_tables[u32::load(r) as usize],
+                forest: &fog_tables[u32::load(r) as usize],
+            })
+            .collect();
+        Tables {
+            volume,
+            rooms,
+            symroom,
+            ccs,
+            ccs_tex1,
+            gim_patterns,
+            dungeon_data,
+            types,
+            edit: Box::leak(edit.into_boxed_slice()),
+            edit_floors,
+            edit_floors_by_event: Box::leak(by_event.into_boxed_slice()),
+            doors,
+            clut_lists,
+            fog: FogRule { default, blocks: Box::leak(blocks.into_boxed_slice()) },
+            tex_clut: Load::load(r),
+        }
+    }
+}
+
+/// Dungeon types 8 and 9 (the "X" tables, `sd4`/`sd9`): one floor, and a
+/// statue room on it.
+pub fn is_lake(dtype: u8) -> bool {
+    matches!(dtype, 8 | 9)
+}
+
+impl Tables {
+    /// The table `MakeFloor` passes for a room: the large rooms' second set
+    /// unless volume 1 on server 0 or 1.
+    pub fn room_table(&self, size: RoomSize, dtype: u8, second: bool) -> &'static RoomTable {
+        let set = match size {
+            RoomSize::Small => 0,
+            RoomSize::Medium => 1,
+            RoomSize::Large if second => 3,
+            RoomSize::Large => 2,
+        };
+        self.rooms[set][dtype as usize]
+    }
+
+    /// The CCS file a dungeon of this type loads (without `.cmp`).
+    pub fn ccs_name(&self, dtype: u8, tex_type: u32) -> &'static str {
+        if tex_type == 1 { self.ccs_tex1[dtype as usize] } else { self.ccs[dtype as usize] }
+    }
+
+    /// The story dungeon for (event area, dungeon index), as the `DUNGEON`
+    /// constructor searches `EditDungeon`.
+    pub fn edit(&self, event: i32, index: i32) -> Option<&'static EditDungeon> {
+        self.edit.iter().find(|e| e.event == event && e.index == index)
+    }
+
+    pub fn edit_floor_count(&self, event: i32) -> u32 {
+        self.edit_floors_by_event.iter().find(|&&(e, _)| e == event).map_or(self.edit_floors, |&(_, n)| n)
+    }
+
+    /// The palettes `DUNGEON::SetRoom` swaps in a dungeon of type `dtype`
+    /// (`SetClutList`, gcmn 0x005c1440, from the constructor): each name of
+    /// the type's list for the name with the suffix, "c1" or "c2" for
+    /// `WORLD_MAN` clutType 3 or 4 (types 0-3), "c1" to "c3" for the lakes'
+    /// background (`GetBG` 1-3, types 8 and 9). None for the others: no
+    /// swap.
+    pub fn clut_list(&self, dtype: u8, clut_type: u8, bg: u32) -> Option<(&'static [&'static str], &'static str)> {
+        let suffix = match (dtype, clut_type, bg) {
+            (8 | 9, _, 1) => "c1",
+            (8 | 9, _, 2) => "c2",
+            (8 | 9, _, 3) => "c3",
+            (0..=3, 3, _) => "c1",
+            (0..=3, 4, _) => "c2",
+            _ => return None,
+        };
+        let list = match dtype {
+            0..=3 => self.clut_lists[dtype as usize],
+            _ => self.clut_lists[4],
+        };
+        Some((list, suffix))
+    }
+
+    /// `WORLD_MAN::SetDungeonTexClut` for a random area on `server` whose
+    /// field is of `field_type`; servers past 4 keep its defaults (2, 0).
+    pub fn tex_clut(&self, server: u32, field_type: u32) -> TexClut {
+        match self.tex_clut.get(server as usize) {
+            Some(row) => row[field_type.min(11) as usize],
+            None => TexClut { clut_type: 2, tex_type: 0 },
+        }
+    }
+
+    /// The `fogParam` table and `fogIndex` the `DUNGEON` constructor picks
+    /// for dungeon type `dtype` under `tc`, with `bg` the value
+    /// `WORLD_MAN::GetBG` returns (`bgnum`, used by the lake types). The
+    /// index is not checked against the table: the game does not either.
+    pub fn fog_table(&self, dtype: u8, tc: TexClut, bg: u32) -> (&'static FogTable, usize) {
+        let Some(b) = self.fog.blocks.iter().find(|b| b.clut_type == tc.clut_type && b.tex_type == tc.tex_type) else {
+            return (self.fog.default, 0);
+        };
+        match dtype {
+            8 | 9 => (b.forest, bg as usize),
+            4.. => (b.hacked, dtype as usize - 4),
+            _ => (b.plain, dtype as usize),
+        }
+    }
+
+    /// The row `SetRoom` lights a room of a random dungeon with, when there
+    /// is one.
+    pub fn fog_row(&self, dtype: u8, tc: TexClut, bg: u32) -> Option<&'static FogRow> {
+        let (table, index) = self.fog_table(dtype, tc, bg);
+        table.rows.get(index)
+    }
+}
+
+/// How many objects of each [`GimPattern`] one room model drives.
+pub type DummyCounts = [u16; 8];
+
+/// Where the generator gets a room model's [`DummyCounts`]: a [`Dummies`]
+/// read from the dungeon's CCS file, or any `Fn(&str) -> DummyCounts`.
+pub trait DummySource {
+    fn counts(&self, anime: &str) -> DummyCounts;
+}
+
+impl<F: Fn(&str) -> DummyCounts> DummySource for F {
+    fn counts(&self, anime: &str) -> DummyCounts {
+        self(anime)
+    }
+}
+
+/// The dummy objects of every room model (Anime chunk) in a dungeon's CCS
+/// file.
+///
+/// `ccAnm::GetSubstAdrs` (0x00151ce0) walks the anime's index table - one
+/// entry per object controller (sub-chunk 0x0102) - and `ccMatchIndex`
+/// (0x00101ad0) follows ExtObj chunks to the object they copy before
+/// comparing names, so a room counts the controllers whose target's name
+/// matches. Models not in the file count nothing.
+#[derive(Clone, Debug, Default)]
+pub struct Dummies {
+    pub by_anime: HashMap<String, DummyCounts>,
+}
+
+/// Anime sub-chunk kind of an object controller.
+const OBJECT_CONTROLLER: u16 = 0x0102;
+/// ExtObj links followed at most, as `tools/dungeon.py` does.
+const EXT_HOPS: usize = 16;
+
+impl Dummies {
+    pub fn read(c: &Ccs, patterns: &[GimPattern; 8]) -> Result<Dummies> {
+        let d = &c.data;
+        let mut ext = HashMap::new();
+        let mut animes = Vec::new();
+        for ch in c.walk().chunks {
+            match ch.kind {
+                ccs::FRAME => break,
+                ccs::EXT_OBJ => {
+                    ext.insert(d.u32_at(ch.payload())?, d.u32_at(ch.payload() + 8)?);
+                }
+                ccs::ANIME => animes.push(ch.payload()),
+                _ => {}
+            }
+        }
+        let name_of = |obj: u32| match c.objects.get(obj as usize) {
+            Some(o) => Ok(o.name.as_str()),
+            None => format_err(format!("object {obj} past the name table")),
+        };
+        let mut by_anime = HashMap::new();
+        for q in animes {
+            let name = name_of(d.u32_at(q)?)?.to_string();
+            let words = d.u32_at(q + 8)? as usize;
+            let (mut p, end) = (q + 12, q + 12 + 4 * words);
+            let mut counts = [0u16; 8];
+            while p < end {
+                let kind = d.u32_at(p)? as u16;
+                let n = d.u32_at(p + 4)? as usize;
+                if kind == OBJECT_CONTROLLER {
+                    let mut obj = d.u32_at(p + 8)?;
+                    for _ in 0..EXT_HOPS {
+                        match ext.get(&obj) {
+                            Some(&t) => obj = t,
+                            None => break,
+                        }
+                    }
+                    let target = name_of(obj)?;
+                    for (count, pat) in counts.iter_mut().zip(patterns) {
+                        if pat.matches(target) {
+                            *count += 1;
+                        }
+                    }
+                }
+                p += 8 + 4 * n;
+            }
+            by_anime.insert(name, counts);
+        }
+        Ok(Dummies { by_anime })
+    }
+
+    /// The dummies of dungeon type `dtype`'s CCS file in `DATA.BIN`.
+    pub fn load(archive: &Archive, tables: &Tables, dtype: u8, tex_type: u32) -> Result<Dummies> {
+        let c = Ccs::parse(archive.inflate_named(tables.ccs_name(dtype, tex_type))?)?;
+        Dummies::read(&c, &tables.gim_patterns)
+    }
+
+    pub fn get(&self, anime: &str) -> DummyCounts {
+        self.by_anime.get(anime).copied().unwrap_or_default()
+    }
+}
+
+impl DummySource for Dummies {
+    fn counts(&self, anime: &str) -> DummyCounts {
+        self.get(anime)
+    }
+}
+
+/// `MAP_INFO`: one map cell.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Cell {
+    /// A door cell: the side bit it faces out of its room; else 0.
+    pub door: u8,
+    /// A door cell: the room beyond it; else [`NO_ROOM`].
+    pub next: u8,
+    /// The room on this cell, or [`NO_ROOM`].
+    pub here: u8,
+}
+
+impl Cell {
+    pub const EMPTY: Cell = Cell { door: 0, next: NO_ROOM, here: NO_ROOM };
+}
+
+/// `MAP_INFO realmap[80][80]`, one per floor.
+#[derive(Clone, PartialEq, Eq)]
+pub struct RealMap {
+    cells: Vec<Cell>,
+}
+
+impl Default for RealMap {
+    fn default() -> Self {
+        RealMap { cells: vec![Cell::EMPTY; MAP * MAP] }
+    }
+}
+
+impl fmt::Debug for RealMap {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let rooms = self.cells.iter().filter(|c| c.here != NO_ROOM).count();
+        write!(f, "RealMap({rooms} room cells)")
+    }
+}
+
+impl RealMap {
+    /// The cell at (x, y); `None` off the map.
+    pub fn get(&self, x: i32, y: i32) -> Option<Cell> {
+        Self::index(x, y).map(|i| self.cells[i])
+    }
+
+    /// Every cell, `[x][y]` (x-major), as the game stores them.
+    pub fn cells(&self) -> &[Cell] {
+        &self.cells
+    }
+
+    /// The game's bytes: `{d, next, here}` per cell, `[x][y]`.
+    pub fn bytes(&self) -> Vec<u8> {
+        self.cells.iter().flat_map(|c| [c.door, c.next, c.here]).collect()
+    }
+
+    fn index(x: i32, y: i32) -> Option<usize> {
+        ((0..MAP as i32).contains(&x) && (0..MAP as i32).contains(&y)).then(|| x as usize * MAP + y as usize)
+    }
+
+    fn at(&mut self, x: i32, y: i32) -> &mut Cell {
+        let i = Self::index(x, y).unwrap_or_else(|| panic!("map cell ({x}, {y}) off the map"));
+        &mut self.cells[i]
+    }
+}
+
+/// Why [`generate`] gives up.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GenerateError {
+    /// Not one of the ten dungeon types.
+    Type(u8),
+    /// A floor with a down staircase to place has no room with a single
+    /// connection other than the up stairs: the game would loop forever.
+    NoDownStairs { floor: usize },
+}
+
+impl fmt::Display for GenerateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GenerateError::Type(t) => write!(f, "dungeon type {t} is not 0-9"),
+            GenerateError::NoDownStairs { floor } => {
+                write!(f, "floor {} has no dead end for the down stairs; the game would never finish it", floor + 1)
+            }
+        }
+    }
+}
+
+impl std::error::Error for GenerateError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tables_hang_together() {
+        // Every row count and exit mask the generator relies on.
+        for set in &INF.rooms {
+            for t in set {
+                assert!(!t.rows.is_empty(), "{}", t.name);
+                for r in t.rows {
+                    assert!(!r.models.is_empty(), "{}", t.name);
+                }
+            }
+        }
+        assert_eq!(INF.rooms[0][8].name, INF.rooms[0][9].name);
+        assert_eq!(INF.edit.len(), 88);
+        assert_eq!(INF.edit.iter().map(|e| e.rooms.len()).sum::<usize>(), 2794);
+        assert_eq!(INF.dungeon_data[3], DungeonSize { levels: 3, rooms: 7 });
+        assert_eq!(Rotation::Pi.radians().to_bits(), 0x4049_0fdb);
+        assert_eq!(Rotation::MinusHalfPi.radians().to_bits(), 0xbfc9_0fdb);
+        assert_eq!(RoomSize::Large.door(), 7);
+    }
+
+    #[test]
+    fn dungeon_types() {
+        let t = &INF.types;
+        assert_eq!(t.types(4, 0, 0, false), [8, 2]);
+        assert_eq!(t.types(7, 0, 0, true), [0, 0]);
+        assert_eq!(t.types(4, 14, 3, false), [9, 6]);
+        assert_eq!(t.types(0, 14, 0, true), [6, 0]);
+        assert_eq!(t.types(0, 120, 0, false), [3, 0]);
+        assert_eq!(t.types(11, 14, 0, false), [4, 0]);
+        assert_eq!(t.types(3, -1, 3, true), [0, 0]);
+    }
+}

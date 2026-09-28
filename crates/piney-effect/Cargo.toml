@@ -1,0 +1,19 @@
+[package]
+name = "piney-effect"
+version = "0.1.0"
+description = "The field's effects of .hack//Infection (main effect.cpp and particle.cpp; GCMN.PRG's fly fonts, hit marks and spell elements): ccThEffect and ccThParticle as state machines, the world's inputs through a trait, drawn into the field's layers."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+piney-data.workspace = true
+piney-draw.workspace = true
+piney-desktop.workspace = true
+piney-world.workspace = true
+glam.workspace = true
+
+[dev-dependencies]
+piney-gs.workspace = true
+piney-demo = { path = "../piney-demo" }
+piney-input.workspace = true

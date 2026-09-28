@@ -1,0 +1,20 @@
+[package]
+name = "piney-stream"
+version = "0.1.0"
+description = "The in-engine streams of .hack//Infection (ccRequestLoadStream): the STREAM archives' scenes played frame by frame, pad in, piney-draw frame out."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+piney-data.workspace = true
+piney-draw.workspace = true
+piney-input.workspace = true
+piney-desktop.workspace = true
+piney-effect = { path = "../piney-effect" }
+piney-world = { path = "../piney-world" }
+glam.workspace = true
+flate2.workspace = true
+
+[dev-dependencies]
+piney-gs.workspace = true

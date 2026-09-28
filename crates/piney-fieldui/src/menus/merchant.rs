@@ -1,0 +1,298 @@
+//! The lists the action button opens on a walking PC and on the town's
+//! merchants: `PcMenu` (gcmn 0x00541e90, menu 22: Talk, Trade),
+//! `VenderMenu` (0x00542840, 24: Talk, Buy, Sell - the weapon, item and
+//! magic shops), `RecorderMenu` (0x00542df0, 25: Talk, Save) and
+//! `FairyshopMenu` (0x00543390, 26: Talk, Store Items, Withdraw Items).
+//! Their windows are target lists (`disp` 6) that `Disp` draws.
+//!
+//! ```text
+//! the merchants (24, 25, 26; the three handlers differ only in Vender's
+//! list.index)
+//! proccess 0  cmndTargetFix; no target: CloseMenu. The rows' names; the
+//!             first time the merchant stops and faces Kite (EntryAffect
+//!             14) and greets (ccMsg->Open(base->msg[game.server],
+//!             base->name)), the cursor on Talk; talkNum 1; the minimap
+//!             out (mapStatus 3); SetMerchantCamera
+//! proccess 1  Select; the target gone: changeCamera(1), the minimap
+//!             back, CloseMenu, ccMsg->Close - then the keys, next frame
+//!             cancel (19): EntryAffect 0, changeCamera(1), the minimap
+//!             back, CloseMenu, ccMsg->Close
+//!             OK (18): off Talk the other tasks asleep, (Vender) the
+//!             list's index the shop's type, the target dropped;
+//!             ChangeMenu; ccMsg->Close
+//!
+//! the PC (22)
+//! proccess 0  as the merchants' up to the greeting, which by the PC's id
+//!             is msg[0] (66-79, the trading PCs; 30-65 with talkNum a
+//!             random 0-2 and two rows), else msg itself (one row); the
+//!             PC's trade count started (CheckTradeCount < 0:
+//!             AddTradeCount). The trading PCs pick the line whose trade
+//!             is still open (tpcTradeListSW), from a random one the first
+//!             time, and show two rows
+//! proccess 1  Select; no target, or in battle: CloseMenu, ccMsg->Close;
+//!             cancel: EntryAffect 0, CloseMenu, ccMsg->Close; OK: off
+//!             Talk the target dropped; ChangeMenu; ccMsg->Close
+//! ```
+
+use crate::Request;
+use crate::ctrl::{Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_OK};
+use crate::menus::system::{extract_menu, item_rows};
+use crate::talk::{self, Base, TalkReq, Then};
+
+/// `saveData.tpcTradeListSW[24][3]` (+0x1e7c): a trading PC's (66-89)
+/// three trades, 1 while open.
+pub const TPC_TRADE_LIST_SW: usize = 0x1e7c;
+/// `saveData.pcTradeCount[77]` (+0x686a).
+pub const PC_TRADE_COUNT: usize = 0x686a;
+
+/// The pages' texts (none: the lines are the NPC's own, read through
+/// `base->msg`).
+#[derive(Clone, Debug, Default)]
+pub struct Texts {}
+
+/// What the lists do after a breath.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tail {
+    /// A merchant's list after its close for a lost target: the keys, this
+    /// frame's pad (Vender stores the shop's type when `store` is set).
+    Keys { store: bool },
+}
+
+fn idx(m: &MenuCtrl) -> usize {
+    m.menu.clamp(0, 88) as usize
+}
+
+/// `ccSaveData::CheckTradeCount(type, id)` (main 0x00178680): a party
+/// member's (`type & 4`) or a PC's (30-79) trade count, -1 for anyone
+/// else (a PC's starts at -1: never spoken to).
+pub fn check_trade_count(x: &Ctx, types: u32, id: i32) -> i32 {
+    let s = &x.save.save;
+    let at = |k: i32| i32::from(s.u8((PC_TRADE_COUNT as i32 + k) as usize) as i8);
+    if types & 4 != 0 {
+        at(id - 1)
+    } else if types & 0x18 != 0 && (30..80).contains(&id) {
+        at(id - 13)
+    } else {
+        -1
+    }
+}
+
+/// `ccSaveData::AddTradeCount(type, id)` (main 0x00178700): one more,
+/// capped at 99 (a signed byte; anyone but a member or a PC 30-79 counts
+/// on entry 0).
+pub fn add_trade_count(x: &mut Ctx, types: u32, id: i32) {
+    let k = if types & 4 != 0 {
+        id - 1
+    } else if types & 0x18 != 0 && (30..80).contains(&id) {
+        id - 13
+    } else {
+        0
+    };
+    let at = (PC_TRADE_COUNT as i32 + k) as usize;
+    let s = &mut x.save.save;
+    let v = (s.u8(at) as i8).wrapping_add(1);
+    s.set_u8(at, v as u8);
+    if v >= 100 {
+        s.set_u8(at, 99);
+    }
+}
+
+/// `EntryAffect(cmndTarget, plw, n)`.
+fn affect(x: &mut Ctx, n: i16) {
+    if let Some(t) = x.target.as_ref() {
+        let target = t.handle;
+        talk::affect(x, target, n);
+    }
+}
+
+/// `ccMsg->Open(rec, base->name, -1, -1)`: a record as the greeting.
+pub fn open_greeting(m: &mut MenuCtrl, x: &mut Ctx, rec: u32, name: &[u8]) {
+    talk::open_record(m, x, rec, name, -1, -1);
+}
+
+/// The rows: each item's name, 16 glyphs a row, into menuKanji.
+fn rows(m: &mut MenuCtrl) {
+    let r = item_rows(m);
+    extract_menu(m, r);
+}
+
+/// `VenderMenu`, `RecorderMenu`, `FairyshopMenu`: `store` for Vender.
+pub fn merchant_menu(m: &mut MenuCtrl, x: &mut Ctx, store: bool) -> Flow {
+    let i = idx(m);
+    match m.proccess {
+        0 => {
+            x.req.push(Request::TargetFix(true));
+            if x.target.is_none() {
+                return m.close_menu(x);
+            }
+            rows(m);
+            if m.first_time != 0 {
+                if let Some(base) = talk::target_base(m, x)
+                    && base.msg != 0
+                {
+                    affect(x, 14);
+                    let server = x.world.game.server;
+                    let rec = x.texts.talk.word(base.msg.wrapping_add(4 * server as u32));
+                    open_greeting(m, x, rec, &base.name);
+                }
+                m.lists[i].select = 0;
+            }
+            m.talk.talk_num = 1;
+            m.map_status = 3;
+            talk::req(x, TalkReq::MerchantCamera);
+            m.proccess += 1;
+            Flow::Done
+        }
+        1 => {
+            m.select(0, 0, false, x);
+            if x.target.is_none() {
+                talk::req(x, TalkReq::Camera(1));
+                m.map_status = 1;
+                return talk::close(m, x, Then::Merchant(Tail::Keys { store }));
+            }
+            merchant_keys(m, x, store)
+        }
+        _ => Flow::Done,
+    }
+}
+
+/// The merchants' keys (0x00542b44 on).
+fn merchant_keys(m: &mut MenuCtrl, x: &mut Ctx, store: bool) -> Flow {
+    let i = idx(m);
+    let key = pushed_key(x);
+    if key == x.save.cancel() {
+        if x.target.is_some() {
+            affect(x, 0);
+        }
+        talk::req(x, TalkReq::Camera(1));
+        m.map_status = 1;
+        return talk::close(m, x, Then::MsgClose);
+    }
+    if key == x.save.ok() {
+        if m.lists[i].select != 0 {
+            if m.still == 0 {
+                talk::sleep_all(m, x);
+            }
+            if store {
+                let types = talk::target_base(m, x).map_or(0, |b| b.types);
+                m.lists[i].index = types as i16;
+            }
+            x.change_target(None);
+        }
+        let flow = m.change_menu(x);
+        m.msg.close();
+        return flow;
+    }
+    Flow::Done
+}
+
+/// The key the lists read: cancel (sound 19), else OK (18), else 0.
+fn pushed_key(x: &mut Ctx) -> u32 {
+    if x.pushed_cancel() {
+        x.se(SE_BACK);
+        x.save.cancel()
+    } else if x.pushed_ok() {
+        x.se(SE_OK);
+        x.save.ok()
+    } else {
+        0
+    }
+}
+
+/// `PcMenu`.
+pub fn pc_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
+    let i = idx(m);
+    match m.proccess {
+        0 => {
+            x.req.push(Request::TargetFix(true));
+            if x.target.is_none() {
+                return m.close_menu(x);
+            }
+            rows(m);
+            let mut first = false;
+            let base = talk::target_base(m, x).unwrap_or_default();
+            let id = i32::from(base.id);
+            if m.first_time != 0 {
+                if base.msg != 0 {
+                    affect(x, 14);
+                    let rec = if (66..80).contains(&id) {
+                        first = true;
+                        m.talk.talk_trade_flag = 0;
+                        x.texts.talk.word(base.msg)
+                    } else if (30..66).contains(&id) {
+                        m.talk.talk_num = (m.talk.rand() % 3) as i16;
+                        m.talk.talk_loop_cnt = 0;
+                        m.lists[i].y = 2;
+                        x.texts.talk.word(base.msg)
+                    } else {
+                        m.talk.talk_num = 1;
+                        m.lists[i].y = 1;
+                        base.msg
+                    };
+                    open_greeting(m, x, rec, &base.name);
+                }
+                m.lists[i].select = 0;
+                if check_trade_count(x, base.types, id) < 0 {
+                    add_trade_count(x, base.types, id);
+                }
+            }
+            if (66..80).contains(&id) {
+                trading_line(m, x, &base, first);
+                m.lists[i].y = 2;
+            }
+            m.proccess += 1;
+            Flow::Done
+        }
+        1 => {
+            m.select(0, 0, false, x);
+            if x.target.is_none() || x.world.game.in_battle != 0 {
+                return talk::close(m, x, Then::MsgClose);
+            }
+            let key = pushed_key(x);
+            if key == x.save.cancel() {
+                affect(x, 0);
+                return talk::close(m, x, Then::MsgClose);
+            }
+            if key == x.save.ok() {
+                if m.lists[i].select != 0 {
+                    x.change_target(None);
+                }
+                let flow = m.change_menu(x);
+                m.msg.close();
+                return flow;
+            }
+            Flow::Done
+        }
+        _ => Flow::Done,
+    }
+}
+
+/// A trading PC's line (0x00542168 - 0x0054224c): from a random one the
+/// first time, else the last (0-2), the first whose trade is still open
+/// (`tpcTradeListSW[id - 66]`); -1 when none is.
+fn trading_line(m: &mut MenuCtrl, x: &mut Ctx, base: &Base, first: bool) {
+    let id = i32::from(base.id);
+    let mut s = if first { m.talk.rand() % 3 } else { i32::from(m.talk.talk_num).clamp(0, 2) };
+    m.talk.talk_num = -1;
+    for _ in 0..3 {
+        let at = (TPC_TRADE_LIST_SW as i32 + (id - 66) * 3 + s) as usize;
+        if x.save.save.u8(at) != 0 {
+            m.talk.talk_num = s as i16;
+            break;
+        }
+        s += 1;
+        if s >= 3 {
+            s = 0;
+        }
+    }
+}
+
+/// The lists' tails.
+pub fn tail(m: &mut MenuCtrl, t: Tail, x: &mut Ctx) -> Option<Cont> {
+    match t {
+        Tail::Keys { store } => {
+            m.msg.close();
+            talk::then(merchant_keys(m, x, store))
+        }
+    }
+}

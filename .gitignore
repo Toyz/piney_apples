@@ -1,0 +1,12 @@
+# The game discs. `originals/` holds the 7z archives as they came, `work/` is
+# everything extracted from them. None of it belongs in the repository.
+/originals
+/work
+
+# Build output and scratch.
+/site
+/target
+__pycache__/
+*.pyc
+/.claude/worktrees/
+/dist

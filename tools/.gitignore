@@ -1,0 +1,3 @@
+# The eemu_rs Python module, built from crates/piney-eemu (see its README.md).
+eemu_rs.so
+eemu_rs.so.tmp

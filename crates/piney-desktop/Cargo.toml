@@ -1,0 +1,21 @@
+[package]
+name = "piney-desktop"
+version = "0.1.0"
+description = "The ALTIMIT desktop of .hack//Infection as a state machine: pad in, piney-draw frame out, content read from the disc."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+piney-data.workspace = true
+piney-draw.workspace = true
+piney-input.workspace = true
+glam.workspace = true
+
+[features]
+# Records ccAnm calls for tools/test_desktop_rs.py (see anm::trace).
+trace = []
+
+[[example]]
+name = "desktop_probe"
+required-features = ["trace"]

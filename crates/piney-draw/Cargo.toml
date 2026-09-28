@@ -1,0 +1,9 @@
+[package]
+name = "piney-draw"
+version = "0.1.0"
+description = "Per-frame draw lists as the game hands them to the GS: 2D primitives, CCSF model draws, texture uploads, GS blend and test state."
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]

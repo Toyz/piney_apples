@@ -1,0 +1,30 @@
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+piney-data = { path = "crates/piney-data" }
+piney-input = { path = "crates/piney-input" }
+piney-draw = { path = "crates/piney-draw" }
+piney-gs = { path = "crates/piney-gs" }
+piney-audio = { path = "crates/piney-audio" }
+piney-desktop = { path = "crates/piney-desktop" }
+piney-mpeg = { path = "crates/piney-mpeg" }
+piney-stream = { path = "crates/piney-stream" }
+piney-toppage = { path = "crates/piney-toppage" }
+piney-world = { path = "crates/piney-world" }
+flate2 = "1.1.10"
+glam = "0.33.3"
+
+# The disc tests inflate and decode hundreds of megabytes; unoptimised
+# dependencies make that painfully slow.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
