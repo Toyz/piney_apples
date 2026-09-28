@@ -255,7 +255,9 @@ impl Walker {
                         .ctrl
                         .list(piney_battle::entry::Kind::Circle)
                         .into_iter()
-                        .filter(|_| !self.wary || self.stuck >= 2 || self.puts > 0)
+                        // In the goal room too: an event's portal there
+                        // holds its `no_active` until its foes fall.
+                        .filter(|_| !self.wary || self.stuck >= 2 || self.puts > 0 || in_goal)
                         .find(|&m| {
                             matches!(c.ctrl.objs.get(m), Some(piney_battle::entry::Obj::Circle(o))
                         if (o.obj.ent.floor, o.obj.ent.block) == (sc.floor, sc.block))

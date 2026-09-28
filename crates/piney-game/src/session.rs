@@ -2438,6 +2438,9 @@ mod tests {
             (68, p, _) if p >= 20 => return Some(every(24, Buttons::CROSS)),
             // A protected area's hack: each slot's cores up to the count
             // its protect row asks, the next slot, and OK.
+            // An event's lines over the hack (event 18's lesson on the
+            // cores after `virus_core`): OK through them.
+            (62, ..) if w.vm().is_some_and(|v| v.playing().is_some()) => return Some(every(24, Buttons::CROSS)),
             (62, ..) => {
                 let Some(h) = c.hack.as_deref() else { return Some(still(Buttons::NONE)) };
                 let need = |k: usize| h.protect[2 * k + 1];

@@ -1347,7 +1347,10 @@ fn event_18_back_in_town() {
     let mut pilot = StoryPilot::default();
     let mut was_dungeon = false;
     let mut back = None;
-    for f in 0..60000u64 {
+    for f in 0..400_000u64 {
+        if f.is_multiple_of(30) {
+            cores_for_hack(&mut s);
+        }
         let raw = pilot.next(&s, f);
         pilot.after(&mut s);
         pad.read(&raw);
