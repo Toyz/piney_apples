@@ -2189,8 +2189,9 @@ impl Combat {
     }
 
     /// The `DispConditionEffect` calls the characters' own frames made
-    /// (Kite's, the members', the enemies' condition counts), shows from
-    /// `from` on.
+    /// (Kite's, the members', the enemies' condition counts), and the
+    /// enemies' `ClearConditionEffect` (`clearConditionEnemy`, as one dies),
+    /// shows from `from` on, in order.
     fn disp_conditions_shown(&mut self, from: usize) {
         use piney_battle::{enemy_ai, enemy_motion, fellow, kite};
         let who = |me: usize, w: Who| match w {
@@ -2198,17 +2199,25 @@ impl Combat {
             Who::Char(c) => Some(c),
             Who::Target | Who::Nobody => None,
         };
-        let calls: Vec<usize> = self.shows[from.min(self.shows.len())..]
+        let calls: Vec<(usize, bool)> = self.shows[from.min(self.shows.len())..]
             .iter()
             .filter_map(|s| match s {
                 Show::Kite(k, kite::Out::Rule(Event::DispCondition(w)))
                 | Show::Member(k, fellow::Out::Rule(Event::DispCondition(w)))
-                | Show::Enemy(k, enemy_motion::Call::Rule(enemy_ai::Out::Rule(Event::DispCondition(w)))) => who(*k, *w),
+                | Show::Enemy(k, enemy_motion::Call::Rule(enemy_ai::Out::Rule(Event::DispCondition(w)))) => {
+                    who(*k, *w).map(|c| (c, false))
+                }
+                Show::Enemy(k, enemy_motion::Call::Rule(enemy_ai::Out::ClearConditionEffect)) => Some((*k, true)),
                 _ => None,
             })
             .collect();
-        for c in calls {
-            self.disp_condition(c);
+        for (c, clear) in calls {
+            if !clear {
+                self.disp_condition(c);
+            } else if self.cond_fx.remove(&c).is_some() {
+                // deleteConditionEffect, conditionNum -1 (set by the rule).
+                self.shows.push(Show::ConditionEffect { who: c, act: CondFx::Delete, num: -1 });
+            }
         }
     }
 
@@ -2616,6 +2625,11 @@ impl Combat {
     /// Whether `who` is dead (`condition.dead`).
     pub fn dead(&self, who: usize) -> bool {
         self.scene.chars.get(who).is_some_and(|c| c.cond[cond::DEAD] != 0)
+    }
+
+    /// The number of `who`'s live condition effect (`ccChar` +0x2c), if any.
+    pub fn condition_effect(&self, who: usize) -> Option<i32> {
+        self.cond_fx.get(&who).copied()
     }
 
     /// The animation slot helper for the draw.

@@ -2899,7 +2899,7 @@ mod tests {
     /// 66 runs its frames, the area's rules answer (the infection rises, the
     /// goblin leaves the command lists, its drop), the windows are closed,
     /// and the drop is handed out through 67 and 29.
-    fn drain_in_a_fight(demo: bool, mut each: impl FnMut(&Session, u64, &Frame)) -> Option<Session> {
+    fn drain_in_a_fight(demo: bool, mut each: impl FnMut(&mut Session, u64, &Frame)) -> Option<Session> {
         let (mut s, mut f) = story_to_field(0)?;
         let mut log = Vec::new();
         story_until(&mut s, &mut f, "menu_ban false", 60, &mut log);
@@ -2976,7 +2976,7 @@ mod tests {
             pad.read(&raw);
             let frame = s.step(&pad);
             s.take_events();
-            each(&s, i, &frame);
+            each(&mut s, i, &frame);
         }
         assert!(fought, "the battle mode came on");
         assert!(drained, "menu 66 never ran: {}", Mode::title(&s));
@@ -3257,6 +3257,42 @@ mod tests {
         let forms: Vec<i32> = seen.iter().map(|&id| piney_battle::enemy_ai::drain_id(t, id)).collect();
         eprintln!("rows seen {seen:?}, their drained forms {forms:?}, at the end {last:?}");
         assert!(last.iter().any(|x| forms.contains(&x.1)), "no drained form: {last:?}");
+    }
+
+    /// A goblin drained with its attack down: the drain's
+    /// `clearConditionEnemy` deletes its condition's effect as it leaves
+    /// the command lists. Nothing of it runs after, so no
+    /// `DispConditionEffect` would end the effect later.
+    #[test]
+    fn a_drained_foe_keeps_no_condition_effect() {
+        let (mut worn, mut gone) = (std::collections::BTreeSet::new(), std::collections::BTreeSet::new());
+        let Some(s) = drain_in_a_fight(false, |s, _, _| {
+            let Stage::Area(a) = &mut s.stage else { return };
+            let c = a.world_mut().combat_mut();
+            if c.battle.in_battle == 0 {
+                return;
+            }
+            let listed = c.enemies();
+            for &e in &listed {
+                let (temp, time) = c.scene.chars[e].temp_time_mut().unwrap();
+                if time[0] == 0 {
+                    temp[0] = -10;
+                    time[0] = 7200;
+                }
+                if c.condition_effect(e).is_some() {
+                    worn.insert(e);
+                }
+            }
+            gone.extend(worn.iter().copied().filter(|e| !listed.contains(e)));
+        }) else {
+            return;
+        };
+        let Stage::Area(a) = &s.stage else { panic!() };
+        let c = a.world().combat();
+        assert!(!gone.is_empty(), "no foe wore its effect and left the lists: worn {worn:?}");
+        for &e in &gone {
+            assert_eq!(c.condition_effect(e), None, "foe {e}'s effect outlived its drain");
+        }
     }
 
     /// [`drain_in_a_fight`] with `drainDemo` off: no movie.
