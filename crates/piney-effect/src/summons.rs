@@ -62,25 +62,36 @@ fn damage2(cx: &mut Cx, s: &Spell) {
         spell: s.key,
         attacker: s.creator,
         target: s.target,
-        pos: s.t_pos,
+        pos: s.aim(cx.assets.volume),
         ttype: s.t_type,
         sid: s.id,
     });
 }
 
-/// `ccSkill::SummonsSystem` (gcmn 0x00579000).
+/// `ccSkill::SummonsSystem` (gcmn 0x00579000). From Mutation on (MUT gcmn
+/// 0x0059ea10) it aims at [`Spell::aim`] and lets the caster go at count 60
+/// (100 from level 3 and for 289 and 290) instead of at the end.
 pub fn summons_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
     let attr = cx.spells.runs[k].attr(&cx.spells.data);
     let s = cx.spells.runs[k].clone();
+    let inf = cx.assets.volume == Volume::Inf;
+    let aim = s.aim(cx.assets.volume);
     let (hit, end) = match s.id {
         289 => (150, 190),
         290 => (115, 125),
         _ => (52, 62),
     };
+    // Mutation's count to let the caster go at (none on Infection).
+    let release = match s.id {
+        _ if inf => None,
+        289 | 290 => Some(100),
+        _ if s.level >= 3 => Some(100),
+        _ => Some(60),
+    };
     let listed = |cx: &Cx, c: Option<CharRef>| c.is_some_and(|c| cx.host.check_target(c));
     if s.count == 0 {
         if listed(cx, s.target) {
-            cx.raise(Event::Sound3d { se: 62, pos: s.t_pos });
+            cx.raise(Event::Sound3d { se: 62, pos: aim });
             tornado::eff_magic_attack_sign(cx, s.target.unwrap_or(0), attr);
         } else {
             cx.spells.runs[k].status = 1;
@@ -98,14 +109,14 @@ pub fn summons_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
             _ => 1,
         };
     } else if s.count == 30 {
-        cx.raise(Event::Sound3d { se: 62, pos: s.t_pos });
+        cx.raise(Event::Sound3d { se: 62, pos: aim });
         let mut ty = 0;
         if s.id == 289 {
             ty = 1;
         }
         if s.id == 290 {
             ty = 2;
-            let mut p = s.t_pos;
+            let mut p = aim;
             if let Some(t) = s.target
                 && cx.host.check_target(t)
             {
@@ -126,7 +137,7 @@ pub fn summons_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
                 0
             };
             let mut cp = s.c_pos;
-            eff_tc_drill_missile(ctrl, cx, &mut cp, s.t_pos, n);
+            eff_tc_drill_missile(ctrl, cx, &mut cp, aim, n);
             cx.spells.runs[k].c_pos = cp;
         }
         if s.level >= 3 && s.id != 289 && s.id != 290 {
@@ -138,11 +149,16 @@ pub fn summons_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
         if s.count == hit {
             damage2(cx, &s);
         }
+        if Some(s.count) == release {
+            release_listed(cx, &s);
+        }
         if s.count == end {
             let r = &mut cx.spells.runs[k];
             r.hold = false;
             r.status = 1;
-            release_listed(cx, &s);
+            if inf {
+                release_listed(cx, &s);
+            }
         }
         return;
     }
@@ -156,11 +172,16 @@ pub fn summons_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
         }
     }
     if s.level >= 3 {
+        if Some(s.count) == release {
+            release_listed(cx, &s);
+        }
         if let Some(e) = s.elm
             && cx.spells.elements.get(e).is_some_and(|e| e.deleted())
         {
             cx.spells.runs[k].hold = false;
-            release_listed(cx, &s);
+            if inf {
+                release_listed(cx, &s);
+            }
             cx.spells.runs[k].status = 1;
         }
         return;
@@ -176,11 +197,16 @@ pub fn summons_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
             noise(cx, 20);
         }
     }
+    if Some(s.count) == release {
+        release_listed(cx, &s);
+    }
     if s.count == end {
         let r = &mut cx.spells.runs[k];
         r.hold = false;
         r.status = 1;
-        release_listed(cx, &s);
+        if inf {
+            release_listed(cx, &s);
+        }
     }
 }
 
@@ -675,8 +701,11 @@ fn land(cx: &mut Cx, pos: V4) -> F {
 /// 400 or 500 out (n % 3), each on the land there (or 300 down), 96.5
 /// under it, heading round; each waits 1-21 frames by its serial number.
 /// The game builds each place in `cPos` itself, which the spell keeps:
-/// its z gathers `tPos.z` each time round. The last.
+/// its z gathers `tPos.z` each time round. The last. From Mutation on (MUT
+/// main 0x001edcf0) each place is built from `tPos` in a local, `cPos`
+/// is left alone, and each drill lives 600 frames.
 pub fn eff_tc_drill_missile(ctrl: &mut EffectCtrl, cx: &mut Cx, cp: &mut V4, tp: V4, n: i32) -> Option<usize> {
+    let inf = cx.assets.volume == Volume::Inf;
     let d = ee::vsub(tp, *cp);
     let bearing = ee::rad2deg(ee::atan2f(d[1], d[0]));
     let k = (n % 3) as usize;
@@ -689,20 +718,32 @@ pub fn eff_tc_drill_missile(ctrl: &mut EffectCtrl, cx: &mut Cx, cp: &mut V4, tp:
         let step = ((i << 16) / 5) as i16;
         let turn = ee::deg2rad((i32::from(bearing) + i32::from(step) + 16384) as i16);
         let a = ee::deg2rad((i32::from(bearing) + i32::from(step) + 32767 + 1) as i16);
-        cp[0] = ee::mul(radius, ee::cosf(a));
-        cp[1] = ee::mul(radius, ee::sinf(a));
-        *cp = ee::vadd(*cp, tp);
-        cp[2] = ee::add(cp[2], 0x4396_0000);
-        cp[3] = ONE;
-        let z = cp[2];
-        let g = land(cx, *cp);
-        cp[2] = g;
-        if ee::eq(z, g) {
-            cp[2] = ee::sub(z, 0x4396_0000);
+        let mut local = tp;
+        let p = if inf { &mut *cp } else { &mut local };
+        let (x, y) = (ee::mul(radius, ee::cosf(a)), ee::mul(radius, ee::sinf(a)));
+        if inf {
+            p[0] = x;
+            p[1] = y;
+            *p = ee::vadd(*p, tp);
+        } else {
+            p[0] = ee::add(p[0], x);
+            p[1] = ee::add(p[1], y);
         }
-        cp[2] = ee::add(cp[2], 0xc2c1_0000);
+        p[2] = ee::add(p[2], 0x4396_0000);
+        p[3] = ONE;
+        let z = p[2];
+        let g = land(cx, *p);
+        p[2] = g;
+        if ee::eq(z, g) {
+            p[2] = ee::sub(z, 0x4396_0000);
+        }
+        p[2] = ee::add(p[2], 0xc2c1_0000);
+        let at = *p;
         let e = &mut ctrl.effects[s];
-        e.pos = *cp;
+        if !inf {
+            e.life_time = 600;
+        }
+        e.pos = at;
         e.pos_t = tp;
         e.rot = [0, 0, turn, 0];
         e.scale[3] = radius;
@@ -881,6 +922,11 @@ pub fn drill_pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
             ctrl.effects[i].flags += 1;
             if let Some(d) = cx.spells.drills.get_mut(&i) {
                 d.anm = [None, None];
+            }
+            // From Mutation on it ends here too (MUT main 0x001dcae8); on
+            // Infection it runs out its life.
+            if cx.assets.volume != Volume::Inf {
+                ctrl.effects[i].end_flag = true;
             }
             return Next::End;
         }

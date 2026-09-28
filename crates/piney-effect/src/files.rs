@@ -92,6 +92,8 @@ pub struct Assets {
     pub particle: crate::particle::Tables,
     /// The boss effects' generator rows (GCMN.PRG's).
     pub boss: crate::boss::Tables,
+    /// The disc's volume, for the code that differs from Mutation on.
+    pub volume: Volume,
 }
 
 fn rows(v: &[piney_data::tables::effect::EffectRow]) -> Vec<Row> {
@@ -138,6 +140,7 @@ impl Assets {
             alpha_blend,
             particle: Default::default(),
             boss: crate::boss::Tables::read(volume),
+            volume,
         };
         a.particle = crate::particle::Tables::read(volume, &a);
         Ok(a)

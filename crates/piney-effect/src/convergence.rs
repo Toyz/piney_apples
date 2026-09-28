@@ -70,10 +70,24 @@ fn middle(cx: &Cx, ch: CharRef) -> V4 {
     p
 }
 
-/// `ccSkill::ConvergenceSystem` (gcmn 0x00578060).
+/// Where a piece flies: the target's middle on Infection; from Mutation
+/// on its own `posT`, the target's feet when it was made (MUT main
+/// 0x001db248 and 0x001e08f8).
+fn piece_aim(ctrl: &EffectCtrl, cx: &Cx, i: usize, t: CharRef) -> V4 {
+    if cx.assets.volume == Volume::Inf { middle(cx, t) } else { ctrl.effects[i].pos_t }
+}
+
+/// `ccSkill::ConvergenceSystem` (gcmn 0x00578060). From Mutation on (MUT
+/// gcmn 0x0059d930) count 20 keeps the target's position in `t_pos_req`,
+/// which the sounds and the shake then aim at ([`Spell::aim`]), and the
+/// caster is let go at count 93 or at the end, whichever is first, instead
+/// of at count 40.
 pub fn convergence_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
+    const RELEASE: i16 = 93;
     let attr = cx.spells.runs[k].attr(&cx.spells.data);
     let s = cx.spells.runs[k].clone();
+    let inf = cx.assets.volume == Volume::Inf;
+    let aim = s.aim(cx.assets.volume);
     let listed = |cx: &Cx| s.target.is_some_and(|t| cx.host.check_target(t));
     match s.count {
         0 => {
@@ -100,7 +114,11 @@ pub fn convergence_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
                 && cx.host.check_target(t)
             {
                 let tpos = cx.host.char_pos(t);
-                cx.spells.runs[k].t_pos = tpos;
+                if inf {
+                    cx.spells.runs[k].t_pos = tpos;
+                } else {
+                    cx.spells.runs[k].t_pos_req = tpos;
+                }
                 if s.level >= 3 {
                     cx.spells.runs[k].elm = convergence_element_generate(cx, k, attr, s.level);
                     return;
@@ -116,7 +134,7 @@ pub fn convergence_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
         }
         45 => {
             if s.level < 3 {
-                cx.raise(Event::Sound3d { se: 64, pos: s.t_pos });
+                cx.raise(Event::Sound3d { se: 64, pos: aim });
             }
             return;
         }
@@ -127,16 +145,24 @@ pub fn convergence_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
             {
                 ctrl.effects[p].temp[0] = 1;
             }
-            s.release(cx);
+            if inf {
+                s.release(cx);
+            }
             return;
         }
         _ => {}
     }
     if s.level >= 3 {
+        if !inf && s.count == RELEASE {
+            s.release(cx);
+        }
         if let Some(e) = s.elm
             && cx.spells.elements.get(e).is_some_and(|e| e.deleted())
         {
             cx.spells.runs[k].status = 1;
+            if !inf && s.count < RELEASE {
+                s.release(cx);
+            }
             if listed(cx) {
                 crate::spell::damage(cx, &s);
             }
@@ -166,12 +192,12 @@ pub fn convergence_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
                 _ => None,
             };
             crate::spell::damage(cx, &s);
-            if check_camera_shake_range(cx, s.t_pos) {
+            if check_camera_shake_range(cx, aim) {
                 noise(cx, 10);
                 camera_shake(cx, 0, 2, 10, 0);
             }
             if attr == attr::WATER {
-                cx.raise(Event::Sound3dNote { se: 66, pos: s.t_pos, note: 52 });
+                cx.raise(Event::Sound3dNote { se: 66, pos: aim, note: 52 });
             } else {
                 eff_skill_break_se(cx, c, attr);
             }
@@ -179,19 +205,26 @@ pub fn convergence_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
         let w = by_level(&cx.spells.data.convergence.wait, s.level);
         cx.spells.runs[k].temp_cnt = w + 1;
     }
-    let s = &mut cx.spells.runs[k];
-    if ctrl.effects[p].temp[0] as i32 >= s.temp_cnt {
-        s.hold = false;
-        s.status = 1;
+    if !inf && s.count == RELEASE {
+        s.release(cx);
+    }
+    let r = &mut cx.spells.runs[k];
+    if ctrl.effects[p].temp[0] as i32 >= r.temp_cnt {
+        r.hold = false;
+        r.status = 1;
+        if !inf {
+            s.release(cx);
+        }
     }
 }
 
 /// `effSkillChargeObject(tp, type, level)` (main 0x001d5da0): the
 /// controller -18 on `tp`, life 200, its level (4 bits), the counters
-/// clear.
+/// clear. Its `posT` is the target's feet; from Mutation on (MUT main
+/// 0x001eb708) its middle, which the pieces fly to.
 pub fn eff_skill_charge_object(ctrl: &mut EffectCtrl, cx: &mut Cx, tp: CharRef, ty: i32, level: i32) -> Option<usize> {
     let i = ctrl.new_effect(cx, CHARGE)?;
-    let pos = cx.host.char_pos(tp);
+    let pos = if cx.assets.volume == Volume::Inf { cx.host.char_pos(tp) } else { middle(cx, tp) };
     let e = &mut ctrl.effects[i];
     e.life_time = 200;
     e.target = Some(tp);
@@ -219,7 +252,8 @@ pub fn charge_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
             if let Some(t) = target
                 && cx.host.check_target(t)
             {
-                eff_skill_charge_obj(ctrl, cx, t, f, param, i, i32::from(cnt) >> 1);
+                let at = ctrl.effects[i].pos_t;
+                eff_skill_charge_obj(ctrl, cx, t, at, f, param, i, i32::from(cnt) >> 1);
             }
             m -= 1;
             let e = &mut ctrl.effects[i];
@@ -242,11 +276,14 @@ pub fn charge_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
 /// counting into the controller in slot `counter` (the game keeps a
 /// pointer to its temp[0]), waiting `n` frames once the controller says go.
 /// Water 102-105 (one of four), fire 106, wind 107-110, thunder 111, dark
-/// 112 (turned to face the target).
+/// 112 (turned to face the target). From Mutation on (MUT 0x001eb7a0) a
+/// second argument, the controller's `posT` (`at`), is the centre instead.
+#[allow(clippy::too_many_arguments)]
 pub fn eff_skill_charge_obj(
     ctrl: &mut EffectCtrl,
     cx: &mut Cx,
     tp: CharRef,
+    at: V4,
     f: F,
     ty: i32,
     counter: usize,
@@ -265,7 +302,7 @@ pub fn eff_skill_charge_obj(
         _ => return None,
     };
     let i = ctrl.new_effect(cx, id)?;
-    let c = middle(cx, tp);
+    let c = if cx.assets.volume == Volume::Inf { middle(cx, tp) } else { at };
     let f = ee::sub(ee::add(f, ee::from_int((rn & 0xff0) % 20)), 0x4120_0000);
     let tilt = ee::deg2rad((rn % 24576 - 9216) as i16);
     let r = ee::mul(f, ee::cosf(tilt));
@@ -315,7 +352,9 @@ pub fn piece_pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
             e.flags = 1;
             let target = e.target;
             let speed = match target {
-                Some(t) if cx.host.check_target(t) => ee::normalize(ee::vsub(middle(cx, t), ctrl.effects[i].pos)),
+                Some(t) if cx.host.check_target(t) => {
+                    ee::normalize(ee::vsub(piece_aim(ctrl, cx, i, t), ctrl.effects[i].pos))
+                }
                 _ => [0; 4],
             };
             ctrl.effects[i].speed = speed;
@@ -345,8 +384,8 @@ pub fn piece_pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
 
 /// The pieces' case of the second chain (main 0x001cafdc): moving, the
 /// piece counts itself in (the controller's temp[0] + 1) and ends when it
-/// is within |velocity| of the target's middle, when the target is gone,
-/// or a frame before its life ends.
+/// is within |velocity| of where it flies ([`piece_aim`]), when the target
+/// is gone, or a frame before its life ends.
 pub fn piece_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
     if ctrl.effects[i].flags == 0 {
         return;
@@ -360,7 +399,7 @@ pub fn piece_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
     };
     match ctrl.effects[i].target {
         Some(t) if cx.host.check_target(t) => {
-            let d = ee::vsub(middle(cx, t), ctrl.effects[i].pos);
+            let d = ee::vsub(piece_aim(ctrl, cx, i, t), ctrl.effects[i].pos);
             let dist = ee::sqrtf(ee::dot(d, d));
             // (double)dist < fabs((double)velocity): exact in single.
             if ee::lt(dist, ee::fabsf(ctrl.effects[i].velocity)) {

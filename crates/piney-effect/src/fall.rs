@@ -84,10 +84,21 @@ fn rem(a: i32, b: i32) -> i32 {
     if b == 0 { a } else { a.wrapping_rem(b) }
 }
 
-/// `ccSkill::FallSystem` (gcmn 0x00577a30).
+/// `ccSkill::FallSystem` (gcmn 0x00577a30). From Mutation on (MUT gcmn
+/// 0x0059d1e0) it aims at [`Spell::aim`] and lets the caster go at count
+/// 120 or at the end, whichever is first, instead of at count 0 (still
+/// then when the target is gone).
 pub fn fall_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
     const START: i16 = 20;
+    const RELEASE: i16 = 120;
     let attr = cx.spells.runs[k].attr(&cx.spells.data);
+    let inf = cx.assets.volume == Volume::Inf;
+    // From Mutation on: the caster let go early, before count 120.
+    let early = |cx: &mut Cx, s: &Spell| {
+        if !inf && s.count < RELEASE {
+            s.release(cx);
+        }
+    };
     if cx.spells.runs[k].count == 0 {
         let s = cx.spells.runs[k].clone();
         match s.target {
@@ -97,12 +108,15 @@ pub fn fall_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
                     pfx::start_particle_effect(cx, t, 38);
                 }
             }
-            _ => cx.spells.runs[k].status = 1,
+            _ => {
+                if !inf {
+                    s.release(cx);
+                }
+                cx.spells.runs[k].status = 1;
+            }
         }
-        if let Some(c) = s.creator
-            && (s.stype == 0 || s.stype == 2)
-        {
-            cx.raise(Event::SkillRelease { ch: c });
+        if inf {
+            s.release(cx);
         }
         let tbl = cx.spells.data.fall.level_tbl;
         let s = &mut cx.spells.runs[k];
@@ -130,15 +144,22 @@ pub fn fall_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
         } else if rem(i32::from(s.count - START), i32::from(delay(cx, s.level))) == 0 {
             match s.target {
                 Some(t) if cx.host.check_target(t) => throw(ctrl, cx, k, t, attr),
-                _ => cx.spells.runs[k].status = 1,
+                _ => {
+                    early(cx, &s);
+                    cx.spells.runs[k].status = 1;
+                }
             }
         }
     }
     let s = cx.spells.runs[k].clone();
+    if !inf && s.count == RELEASE {
+        s.release(cx);
+    }
     if s.level >= 3 {
         if let Some(e) = s.elm
             && cx.spells.elements.get(e).is_some_and(|e| e.deleted())
         {
+            early(cx, &s);
             let s = &mut cx.spells.runs[k];
             s.elm = None;
             s.hold = false;
@@ -149,6 +170,7 @@ pub fn fall_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
     if s.count < 21 {
         return;
     }
+    let aim = s.aim(cx.assets.volume);
     for i in 0..8 {
         let Some(slot) = cx.spells.runs[k].eff_ptr[i] else { continue };
         if !ctrl.effects[slot].end_flag {
@@ -162,13 +184,15 @@ pub fn fall_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
             spell: s.key,
             attacker: s.creator,
             target: s.target,
-            pos: s.t_pos,
+            pos: aim,
             ttype: s.t_type,
             sid: s.id,
         });
     }
-    let s = &mut cx.spells.runs[k];
-    if s.temp_cnt == 0 && s.step >= level_tbl_of(&cx.spells.data.fall, s.level) {
+    let s = cx.spells.runs[k].clone();
+    if s.temp_cnt == 0 && s.step >= level_tbl(cx, s.level) {
+        early(cx, &s);
+        let s = &mut cx.spells.runs[k];
         s.hold = false;
         s.status = 1;
     }
@@ -189,7 +213,8 @@ fn delay(cx: &Cx, level: i32) -> i16 {
 /// A meteor: `FallSystem`'s throw at count 20 (and on).
 fn throw(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize, t: CharRef, attr: i32) {
     let s: Spell = cx.spells.runs[k].clone();
-    let mut p = s.t_pos;
+    let aim = s.aim(cx.assets.volume);
+    let mut p = aim;
     let zz = p[2];
     let rn = cx.host.rand() >> 3;
     let mut r = cx.host.char_width(t);
@@ -220,8 +245,7 @@ fn throw(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize, t: CharRef, attr: i32) {
     }
     s.eff_num = n.wrapping_add(1);
     s.step = s.step.wrapping_add(1);
-    let pos = s.t_pos;
-    cx.raise(Event::Sound3d { se: 57, pos });
+    cx.raise(Event::Sound3d { se: 57, pos: aim });
 }
 
 /// `effMeteoFireBall2(p, t, atr)` (main 0x001cd4e0): the meteor.

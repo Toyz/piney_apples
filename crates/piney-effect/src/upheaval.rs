@@ -74,8 +74,11 @@ impl UpheavalTables {
     }
 }
 
-/// `ccSkill::UpheavalSystem` (gcmn 0x005787c0).
+/// `ccSkill::UpheavalSystem` (gcmn 0x005787c0). From Mutation on (MUT gcmn
+/// 0x0059e170) it aims at [`Spell::aim`] and lets the caster go at count
+/// 93 or at the end, whichever is first, instead of at `TIME1`.
 pub fn upheaval_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
+    const RELEASE: i16 = 93;
     const START: i16 = 20;
     const TIME1: i16 = START + 15;
     const TIME2: i16 = TIME1 + 20;
@@ -84,6 +87,7 @@ pub fn upheaval_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
     const INTERVAL: i16 = 2;
     const END: i16 = 4 + INTERVAL + 30;
     let attr = cx.spells.runs[k].attr(&cx.spells.data);
+    let inf = cx.assets.volume == Volume::Inf;
     let s = cx.spells.runs[k].clone();
     if s.count == 0 {
         match s.target {
@@ -114,13 +118,14 @@ pub fn upheaval_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
         if s.level >= 3 {
             cx.spells.runs[k].elm = upheaval_element_generate(cx, k, s.level);
         }
-        let tpos = s.t_pos;
+        let tpos = s.aim(cx.assets.volume);
         pfx::start(cx, row, |g| {
             g.offset = [0, 0, 0x4220_0000, 0];
             g.pos = tpos;
         });
     }
     let s = cx.spells.runs[k].clone();
+    let aim = s.aim(cx.assets.volume);
     let c = s.count;
     let pick = |t: i16, first: i32| -> Option<i32> {
         if c == t || c == t + INTERVAL || c == t + 2 * INTERVAL || c == t + 3 * INTERVAL {
@@ -138,23 +143,23 @@ pub fn upheaval_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
         }
     }
     if s.level < 3 && n != 0 {
-        pillar(ctrl, cx, &s, attr, n);
+        pillar(ctrl, cx, aim, attr, n);
     }
     if (s.level < 3 && c == TIME1 + 14) || (s.level == 2 && c == TIME2 + 14) {
         cx.raise(Event::SkillDamage2 {
             spell: s.key,
             attacker: s.creator,
             target: s.target,
-            pos: s.t_pos,
+            pos: aim,
             ttype: s.t_type,
             sid: s.id,
         });
-        cx.raise(Event::Sound3dNote { se: 56, pos: s.t_pos, note: 67 });
-        if check_camera_shake_range(cx, s.t_pos) {
+        cx.raise(Event::Sound3dNote { se: 56, pos: aim, note: 67 });
+        if check_camera_shake_range(cx, aim) {
             camera_shake(cx, 0, 2, 10, 0);
         }
     }
-    if c == TIME1 {
+    if c == if inf { TIME1 } else { RELEASE } {
         s.release(cx);
     }
     let over = (s.level == 1 && c == TIME1 + END)
@@ -164,11 +169,14 @@ pub fn upheaval_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
         let r = &mut cx.spells.runs[k];
         r.hold = false;
         r.status = 1;
+        if !inf && c < RELEASE {
+            s.release(cx);
+        }
     }
 }
 
-/// Pillar `n` (1-16) round `tPos`.
-fn pillar(ctrl: &mut EffectCtrl, cx: &mut Cx, s: &crate::spell::Spell, attr: i32, n: i32) {
+/// Pillar `n` (1-16) round `at` (the spell's [`crate::spell::Spell::aim`]).
+fn pillar(ctrl: &mut EffectCtrl, cx: &mut Cx, at: V4, attr: i32, n: i32) {
     let id = match attr {
         attr::SOIL => 29 + (n % 4) as i16,
         attr::WATER => 33 + (n % 4) as i16,
@@ -186,7 +194,7 @@ fn pillar(ctrl: &mut EffectCtrl, cx: &mut Cx, s: &crate::spell::Spell, attr: i32
     };
     let deg = cx.spells.data.upheaval.pillar_deg.get((n - 1) as usize).copied().unwrap_or(0);
     let a = ee::deg2rad(deg);
-    let mut p = s.t_pos;
+    let mut p = at;
     p[0] = ee::add(p[0], ee::mul(r, ee::cosf(a)));
     p[1] = ee::add(p[1], ee::mul(r, ee::sinf(a)));
     let turn = (i32::from(ee::rad2deg(a)) + 32767 + 16385) as i16;
@@ -913,7 +921,9 @@ impl UpheavalMngr {
                 }
             }
             2 if c & 7 == 7 => {
-                if self.ice_entry(128, 43) == -1 {
+                // 43 spikes a wave; 42 from Outbreak on (OUT gcmn 0x005067e0).
+                let wave = if matches!(cx.assets.volume, Volume::Inf | Volume::Mut) { 43 } else { 42 };
+                if self.ice_entry(128, wave) == -1 {
                     self.base.count = 0;
                     self.base.proccess += 1;
                 }

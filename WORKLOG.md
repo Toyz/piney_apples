@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-280 entries: audio 18, battle 48, build 14, content 3, decomp 20, disc 4, engine 7, format 14, iop 2, render 68, save 8, script 27, test 125, tooling 22, ui 49, video 9, volumes 52, world 77.
+281 entries: audio 18, battle 49, build 14, content 3, decomp 20, disc 4, engine 7, format 14, iop 2, render 69, save 8, script 27, test 126, tooling 22, ui 49, video 9, volumes 53, world 77.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -292,3 +292,4 @@ The [reference](docs/README.md) says what is true now.
 | 278 | [Each volume's animation-note sounds: setbl per volume, Outbreak's 21 party tables](worklog/0278-each-volume-s-animation-note-sounds-setbl-per-volume.md) | 2026-09-28 | audio, volumes |
 | 279 | [An enemy's condition effect outlived a Data Drain: clearConditionEnemy's ClearConditionEffect carried out](worklog/0279-an-enemy-s-condition-effect-outlived-a-data-drain.md) | 2026-09-28 | battle, render |
 | 280 | [Skeith's ice rocks fell through the floor: ccEffect::Main's last cases ported](worklog/0280-skeith-s-ice-rocks-fell-through-the-floor-cceffect-main-s.md) | 2026-09-28 | battle, render, volumes, test |
+| 281 | [Mutation's attack spells: the ccSkill's request-time aim and the later release](worklog/0281-mutation-s-attack-spells-the-ccskill-s-request-time-aim-and.md) | 2026-09-28 | battle, render, volumes, test |

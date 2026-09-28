@@ -1568,6 +1568,16 @@ at count 0); Summons with no element: 291-294 give 1-4, 289 and 290 1.
 of its own skill (type 0 or 2) freed to act again: its `skillID` (+0x7c)
 and `skillStatus` (+0x7e) cleared.
 
+From Mutation on the `ccSkill` is 0xc0 bytes (`_ccSkillRequest`, MUT gcmn
+0x00598000, news 192; OUT's and QUA's too). A vector at +0x70 moves
+`creator` and all after it 0x10 on: creator +0x80, target +0x84, effPtr
++0x94, `m_effElm` +0xb4. The request copies the target's position into
++0x70 beside `tPos` when the target is on the lists (MUT 0x005981d4).
+`Main` (MUT 0x00598980, Infection's up to the offsets) refreshes only
+`tPos`, so +0x70 keeps where the target stood at the request (the port's
+`Spell::t_pos_req`). The systems aim at it, the elements still at `tPos`
+([from Mutation on](#from-mutation-on)).
+
 Every system starts on a target on the command lists (`ccCheckTarget`)
 with `effMagicAttackSign(tp, atr)` (main 0x001d1090): two generators on
 the target's pos by element (soil 136/140, water 130/137, fire 131/139,
@@ -1805,7 +1815,7 @@ waves 2 frames apart and hits (`ccSkillDamage2` while the spell is on
 | manager | Main | waves | pieces |
 | --- | --- | --- | --- |
 | soil `ccSoilUpheavalMngrElement` | 0x004f0d30 (levels 3 / 4 0x004f0db0 / 0x004f1000) | 35, 55, 75 (95), hits 49, 69, 89 (109), over at 111 (131) | `ccSoilUpheavalElement` (CMP_x101a-d, 250-500 out, rising from -1170 and bursting at 14 with fragments, flashes, `effRadiateSomething2` and a ring 202) |
-| water `ccIceUpheavalMngrElement` | 0x004ee950 | 32 spikes (level 4: 128 round a great spike that grows over 15 frames with a flash and a mist generator), raised 11 (43) at a time; `Delete` (0x004ee710) throws 32 pieces of ice and 5 rings 161 | `ccIceElement` 6 / 8, held by the manager |
+| water `ccIceUpheavalMngrElement` | 0x004ee950 | 32 spikes (level 4: 128 round a great spike that grows over 15 frames with a flash and a mist generator), raised 11 (43; 42 from Outbreak on, OUT gcmn 0x005067e0) at a time; `Delete` (0x004ee710) throws 32 pieces of ice and 5 rings 161 | `ccIceElement` 6 / 8, held by the manager |
 | wind `ccTreeUpheavalMngrElement` | 0x004efd60 | as soil with `ccTreeUpheavalElement` (CMP_x401a-d_1, 450-700 out); level 4 first raises CMP_x407_1 with its roots ANM_x403 and starts the leaves, lowered at 131 | |
 | dark `ccDarkUpheavalMngrElement` | 0x004edce0 | 20, 40, 60 (80), hits 80, 100, 120 (140), over at 126 (146); at the model 500 under the target (`ccHitCheckLM2`) | `ccDarkHandElement` (ANM_x605, 150-400 out) |
 
@@ -1889,6 +1899,45 @@ deleted:
 | soil `ccSoilSummonsElement` | 0x004f4d10 / 0x004f5390 | 16 or 32 `ccRockElement`s 1000-1500 out flying in faster and faster, bursting at the target (level 4 with explosions) |
 | wind `ccTreeSummonsElement` | 0x004f5850 / 0x004f6420 | the great tree CMP_x401b_1 and roots ANM_x403 growing, the leaves falling; level 4 32 `ccNeedleElement`s along splines |
 | none `ccGoblinSummonsElement` (293, 294) | 0x004f7020 / 0x004f79e0 | level 3 eight falling `ccStarElement`s; level 4 stars along splines from 680 over the target |
+
+### From Mutation on
+
+MUT's systems are Infection's with two changes, and OUT's and QUA's
+(recompiled) behave as MUT's. First, what Infection's aim at `tPos`
+(+0x60, the target's place this frame) MUT's aim at +0x70 (its place at
+the request). Second, the caster is released later:
+
+| system | MUT gcmn | aimed at +0x70 | the caster released (Infection) |
+| --- | --- | --- | --- |
+| `FallSystem` | 0x0059d1e0 | the meteor's height, sound 57, the hits' `ccSkillDamage2` | at count 0 only when the target is gone; else at 120, or at the end or a lost target before 120 (count 0) |
+| `TornadoSystem` | 0x0059ccf0 | the smoke, the rings and their sound, the hits round the place, the shake's range | at the end, after 75 (30) |
+| `ConvergenceSystem` | 0x0059d930 | count 20 writes the target's pos to +0x70, not `tPos`; sounds 63 and 64, the shake's range, note 66 | at 93, or at the end before 93 (40) |
+| `UpheavalSystem` | 0x0059e170 | the ground generator, the pillars, `ccSkillDamage2`, note 56, the shake's range | at 93, or at the end before 93 (35) |
+| `SummonsSystem` | 0x0059ea10 | sounds 62, 290's lock-on, 289's drills, `ccSkillDamage2` | at 60 (level 3 up, 289 and 290: 100) when on the lists (the end) |
+
+The convergence's burst, its smoke and `effSkillBreakSE` stay at the
+target's middle. The pieces changed in main:
+- `effSkillChargeObject` (MUT main 0x001eb650) sets the controller's
+  `posT` to the target's middle (Infection: its feet).
+- The controller passes `&posT` to `effSkillChargeObj` (MUT 0x001eb7a0)
+  as a new second argument. The pieces start round it, not round the
+  target's middle.
+- A piece flies to its own `posT`, the target's feet when it was made,
+  not to the target's middle (MUT 0x001db248, 0x001e08f8).
+
+Four effects and elements changed too:
+- `effTCDrillMissile` (MUT main 0x001edcf0) builds each drill's place
+  from `tPos` in a local: the spell's `cPos` is left alone and the height
+  no longer gathers. Each drill lives 600 frames (Infection: the row's
+  -1).
+- The drill 168 sets `endFlag` after its burst (MUT main 0x001dcae8).
+- `ccTreeSummonsElement`'s roots: Infection's loop never moves past
+  `m_rootsTbl[0]`. MUT's (gcmn 0x00511108) places all eight 100 round
+  the tree, through `ccTransPosW2P` and `ccTransPosP2W`.
+- `ccThunderSummonsElement::Main` (MUT gcmn 0x0050e0e8) plays the hit's
+  four sounds once even when the shake is out of the camera's range.
+
+The other elements differ only in the skill's offsets.
 
 ### The element manager and the elements
 
@@ -2245,6 +2294,9 @@ every draw in order, every event and `rand()`'s state:
     289-294), 3 casts each on the final build: 37057 frames (tornado 5614,
     fall 4925, convergence 6360, upheaval 6876, summons 13282), 0
     mismatches;
+  - per volume (`PINEY_VOLUME`; the `ccSkill` laid out as the disc's):
+    20 casts of each id, 2,040 casts a volume, 0 mismatches on Infection
+    (247,286 frames) and Mutation (244,762);
   - deeper runs along the way: levels 1 and 2 and 290-292 (51 ids, 6 casts
     each) 32511 frames; tornado levels 3 and 4 (10 ids, 8 casts) 7929; fall
     and convergence levels 3 and 4 (18 ids, 6 casts) 11632; upheaval levels

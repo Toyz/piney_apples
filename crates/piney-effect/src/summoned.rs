@@ -975,6 +975,7 @@ impl Summoned {
     fn thunder_bolts(&mut self, cx: &mut Cx, four: bool) -> bool {
         let tp = self.t_pos;
         let key = self.base.skill;
+        let inf = cx.assets.volume == Volume::Inf;
         let SummonKind::Thunder { bolts, shock_se_one, .. } = &mut self.kind else { return true };
         let mut all = true;
         for (i, b) in bolts.iter_mut().enumerate() {
@@ -994,14 +995,17 @@ impl Summoned {
                     damage2_of(cx, k);
                 }
             }
-            if check_camera_shake_range(cx, ep) {
-                if *shock_se_one == 0 {
-                    *shock_se_one = 1;
-                    cx.raise(Event::Sound3dNote { se: 56, pos: tp, note: 72 });
-                    cx.raise(Event::Sound3d { se: 35, pos: tp });
-                    eff_skill_break_se(cx, tp, attr::THUNDER);
-                    cx.raise(Event::Sound3d { se: 41, pos: tp });
-                }
+            // The hit's sounds, once: on Infection only when the shake is
+            // in range; from Mutation on (MUT gcmn 0x0050e0e8) always.
+            let near = check_camera_shake_range(cx, ep);
+            if (near || !inf) && *shock_se_one == 0 {
+                *shock_se_one = 1;
+                cx.raise(Event::Sound3dNote { se: 56, pos: tp, note: 72 });
+                cx.raise(Event::Sound3d { se: 35, pos: tp });
+                eff_skill_break_se(cx, tp, attr::THUNDER);
+                cx.raise(Event::Sound3d { se: 41, pos: tp });
+            }
+            if near {
                 camera_shake(cx, 2, 2, 30, 2);
             }
             if !four
@@ -1530,12 +1534,18 @@ impl Summoned {
             }
             needles = Some(v);
         }
+        // The roots 100 round the tree: Infection's loop never moves on from
+        // the first; from Mutation on (MUT gcmn 0x00511108) each is placed,
+        // about the player (ccTransPosW2P, ccTransPosP2W).
+        let inf = cx.assets.volume == Volume::Inf;
         let mut roots = [[0; 4]; 8];
         let mut a: F = 0;
-        for _ in 0..8 {
-            roots[0] = p;
-            roots[0][0] = ee::add(roots[0][0], ee::mul(0x42c8_0000, ee::cosf(a)));
-            roots[0][1] = ee::add(roots[0][1], ee::mul(0x42c8_0000, ee::sinf(a)));
+        for i in 0..8 {
+            let j = if inf { 0 } else { i };
+            let mut r = if inf { p } else { space::w2p(p, player, bounds) };
+            r[0] = ee::add(r[0], ee::mul(0x42c8_0000, ee::cosf(a)));
+            r[1] = ee::add(r[1], ee::mul(0x42c8_0000, ee::sinf(a)));
+            roots[j] = if inf { r } else { space::p2w(r, player, bounds) };
             a = ee::add(a, 0x3f49_0fdb);
             if !ee::le(a, PI) {
                 a = ee::sub(a, TWO_PI);

@@ -13,6 +13,7 @@ use std::io::BufRead;
 
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
+use piney_data::volume::Volume;
 use piney_effect::draw::{Camera, DrawRec};
 use piney_effect::drawelm::{AnmObj, DrawElm, DrawKind};
 use piney_effect::eff::Eff;
@@ -882,12 +883,15 @@ fn generator(g: &Generator) -> String {
 fn skill(fx: &Effects, s: &Spell) -> String {
     let flags = (s.stype as u32 & 15) | ((s.status as u32) & 3) << 4 | u32::from(s.hold) << 8;
     let eff: Vec<String> = s.eff_ptr.iter().map(|e| e.map_or(-1, |k| k as i64).to_string()).collect();
+    // +0x70, from Mutation on.
+    let req =
+        if fx.assets.volume == Volume::Inf { String::new() } else { format!(", \"tPosReq\": {}", list(&s.t_pos_req)) };
     format!(
         concat!(
             "{{\"key\": {}, \"live\": {}, \"id\": {}, \"flags\": {}, \"level\": {}, \"count\": {}, \"trigger\": {}, ",
             "\"step\": {}, \"effNum\": {}, \"atkCnt\": {}, \"tempCnt\": {}, \"skillType\": {}, \"tType\": {}, ",
             "\"cPos\": {}, \"cDirc\": {}, \"cHeight\": {}, \"tPos\": {}, \"creator\": {}, \"target\": {}, ",
-            "\"effPtr\": [{}], \"effElm\": {}}}"
+            "\"effPtr\": [{}], \"effElm\": {}{}}}"
         ),
         s.key,
         s.live,
@@ -914,7 +918,8 @@ fn skill(fx: &Effects, s: &Spell) -> String {
             e.to_string()
         } else {
             "\"gone\"".into()
-        })
+        }),
+        req
     )
 }
 

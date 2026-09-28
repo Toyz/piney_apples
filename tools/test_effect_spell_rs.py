@@ -15,7 +15,8 @@ spells reach for:
 
   - a ccSkill built by its own constructor and set up as _ccSkillRequest
     does (creator, target, param, cPos, cDirc, cHeight, tPos, tType,
-    skillType), run each frame by the real ccSkill::Main after
+    skillType; from Mutation on, 0xc0 bytes with the target's place at
+    +0x70 too), run each frame by the real ccSkill::Main after
     ccEffectCtrl::Main and ccEffectElementManager::Main (ccThEffect at 80,
     ccThSkill at 82), deleted by ~ccSkill when Main returns non-zero;
   - characters (ccChar with a parameter row) whose presence on the command
@@ -60,6 +61,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import volume  # noqa: E402
 from volume import va as inf_va  # noqa: E402  # Infection's addresses on PINEY_VOLUME's disc
 
 import test_effect_rs as base  # noqa: E402
@@ -92,10 +94,12 @@ _FIELDS = {}
 
 
 def dwarf():
+    """Infection's DWARF: the later volumes have none, and their effect
+    elements keep Infection's layout (only ccSkill grew)."""
     global _DWARF
     if _DWARF is None:
         import dwarf1
-        _DWARF = dwarf1.Dwarf(ELF)
+        _DWARF = dwarf1.Dwarf(volume.INF_ELF)
     return _DWARF
 
 
@@ -320,12 +324,15 @@ class SpellMachine(base.EffectMachine):
             m.hooks[sym(name)] = fn
         # Locals the game reads before it writes them (the stack's leftovers,
         # which neither side can know): zeroed as the function starts, which
-        # the probe's port takes them as. At the move of a0 just after the
+        # the probe's port takes them as. At the move just after the
         # prologue (ra saved): the locals cleared, the move done, then on.
-        for pc, lo, hi, dst, src in ((inf_va(0x004FCF00), 160, 176, 19, 4),   # ccTreeUpheavalElement::Draw's throw
-                                     (inf_va(0x004EE724), 64, 80, 17, 4),     # ccIceUpheavalMngrElement::Delete's
-                                     (inf_va(0x004F7040), 192, 208, 18, 5)):  # ccGoblinSummonsElement's rings
-            m.hooks[pc] = self.zeroing(pc, lo, hi, dst, src)
+        # OUT's and QUA's recompiled frames keep them elsewhere.
+        late = volume.NAME in ("outbreak", "quarantine")
+        for pc, early, later in ((0x004FCF00, 160, 112),   # ccTreeUpheavalElement::Draw's throw
+                                 (0x004EE724, 64, 80),     # ccIceUpheavalMngrElement::Delete's
+                                 (0x004F7040, 192, 256)):  # ccGoblinSummonsElement's rings
+            lo = later if late else early
+            m.hooks[inf_va(pc)] = self.zeroing(inf_va(pc), lo, lo + 16)
         m.hooks[inf_va(0x004F80DC)] = self.goblin_status
 
     @staticmethod
@@ -341,12 +348,15 @@ class SpellMachine(base.EffectMachine):
         return mm.r[2] & 0xFFFFFFFF
 
     @staticmethod
-    def zeroing(pc, lo, hi, dst, src):
+    def zeroing(pc, lo, hi):
         def hook(mm, *a):
             sp = mm.r[29] & 0xFFFFFFFF
             for o in range(lo, hi, 4):
                 mm.store(sp + o, 4, 0)
-            mm.r[dst] = mm.r[src]
+            # The hooked `move rd, rs` (daddu rd, rs, $zero), done here.
+            w = mm.load(pc, 4)
+            assert w >> 26 == 0 and w & 0x1F07FF == 0x2D, "0x%08x: not a move" % pc
+            mm.r[(w >> 11) & 31] = mm.r[(w >> 21) & 31]
             mm.r[31] = pc + 4
             return mm.r[2] & 0xFFFFFFFF
         return hook
@@ -552,13 +562,13 @@ class SpellMachine(base.EffectMachine):
         """new ccSkill(sid) as _ccSkillRequest sets it up (its rules - SP,
         the attribute critical, the name - are the battle crate's)."""
         m = self.m
-        sk = self.malloc(m, 0xB0)
+        sk = self.malloc(m, volume.SKILL_SIZE)
         self.call("__ct__7ccSkillFi", sk, sid)
         m.store(sk + 0x0C, 1, (m.load(sk + 0x0C, 1) & 0xF0) | (stype & 0xF))
         cp = self.chars[creator] if creator >= 0 else 0
         tp = self.chars[target] if target >= 0 else 0
-        m.store(sk + 0x70, 4, cp)
-        m.store(sk + 0x74, 4, tp)
+        m.store(sk + volume.skill_at(0x70), 4, cp)
+        m.store(sk + volume.skill_at(0x74), 4, tp)
         param = SKILL_TBL + 0x38 * sid
         m.store(sk + 0x08, 4, param)
         if cp:
@@ -567,6 +577,9 @@ class SpellMachine(base.EffectMachine):
             m.store(sk + 0x50, 4, m.load(m.load(cp, 4) + 0x18, 4))
         if tp and self.listed.get(target):
             self.vec(sk + 0x60, self.rvec(tp + 0x40))
+            if volume.NAME != "infection":
+                # +0x70 too from Mutation on (MUT gcmn 0x005981d4).
+                self.vec(sk + 0x70, self.rvec(tp + 0x40))
             m.store(sk + 0x28, 4, m.load(m.load(tp, 4) + 8, 4))
         m.store(sk + 0x24, 4, m.load(param + 0x2C, 4))
         if cp:
@@ -582,17 +595,22 @@ class SpellMachine(base.EffectMachine):
 
         def slot(p):
             return -1 if p == 0 else ((p - EFFWORK) // 0xC0 if EFFWORK <= p < EFFWORK + 0xC0 * 500 else ["?", p])
-        elm = m.load(sk + 0xA4, 4)
-        return {"key": key, "live": self.live_skill(sk), "id": m.load(sk, 4, True), "flags": flags & 0x3FF,
+        at = volume.skill_at
+        elm = m.load(sk + at(0xA4), 4)
+        d = {"key": key, "live": self.live_skill(sk), "id": m.load(sk, 4, True), "flags": flags & 0x3FF,
                 "level": m.load(sk + 0x10, 4, True), "count": m.load(sk + 0x14, 2, True),
                 "trigger": m.load(sk + 0x16, 2, True), "step": m.load(sk + 0x18, 2, True),
                 "effNum": m.load(sk + 0x1A, 2, True), "atkCnt": m.load(sk + 0x1C, 4, True),
                 "tempCnt": m.load(sk + 0x20, 4, True), "skillType": m.load(sk + 0x24, 4, True),
                 "tType": m.load(sk + 0x28, 4, True), "cPos": self.rvec(sk + 0x30), "cDirc": self.rvec(sk + 0x40),
                 "cHeight": m.load(sk + 0x50, 4), "tPos": self.rvec(sk + 0x60),
-                "creator": self.who(m.load(sk + 0x70, 4)), "target": self.who(m.load(sk + 0x74, 4)),
-                "effPtr": [slot(m.load(sk + 0x84 + 4 * i, 4)) for i in range(8)],
+                "creator": self.who(m.load(sk + at(0x70), 4)), "target": self.who(m.load(sk + at(0x74), 4)),
+                "effPtr": [slot(m.load(sk + at(0x84) + 4 * i, 4)) for i in range(8)],
                 "effElm": -1 if elm == 0 else self.element_slot(elm, "gone")}
+        if volume.NAME != "infection":
+            # The target's place at the request (+0x70, from Mutation on).
+            d["tPosReq"] = self.rvec(sk + 0x70)
+        return d
 
     def live_skill(self, sk):
         p = self.m.load(SKILL_TOP, 4)
@@ -691,7 +709,7 @@ class SpellMachine(base.EffectMachine):
                 if v == ch + 0x60:
                     return ["dirc", cid]
             for key, sk in self.skills.items():
-                if sk <= v < sk + 0xB0:
+                if sk <= v < sk + volume.SKILL_SIZE:
                     return ["skill", key, v - sk]
             return ["?", v]
         return "ptr"

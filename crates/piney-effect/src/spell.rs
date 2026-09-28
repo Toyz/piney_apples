@@ -52,8 +52,9 @@ impl System {
     }
 }
 
-/// A spell's `ccSkill` (gcmn skill.cpp, 0xb0 bytes) as the systems and the
-/// effects read and write it.
+/// A spell's `ccSkill` (gcmn skill.cpp, 0xb0 bytes; 0xc0 from Mutation on,
+/// [`Spell::t_pos_req`] at +0x70 moving `creator` and all after it 0x10 on)
+/// as the systems and the effects read and write it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Spell {
     /// Not the game's: the runtime's name for the run (the battle crate's
@@ -93,6 +94,11 @@ pub struct Spell {
     pub c_dirc: V4,
     pub c_height: F,
     pub t_pos: V4,
+    /// From Mutation on, +0x70: the target's position when the spell was
+    /// asked for (`_ccSkillRequest`, MUT gcmn 0x005981d4), which
+    /// `ccSkill::Main` leaves alone; the systems aim at it where Infection's
+    /// aim at `tPos` ([`Spell::aim`]). Unused on Infection.
+    pub t_pos_req: V4,
     /// +0x70 `creator`, +0x74 `target`.
     pub creator: Option<CharRef>,
     pub target: Option<CharRef>,
@@ -127,6 +133,7 @@ impl Spell {
             c_dirc: [0; 4],
             c_height: 0x4348_0000,
             t_pos: ee::VF0,
+            t_pos_req: [0; 4],
             creator: None,
             target: None,
             eff_ptr: [None; 8],
@@ -161,6 +168,13 @@ impl Spell {
     /// `this->param->type & 0xfc`: the spell's element bit.
     pub fn attr(&self, data: &SpellData) -> i32 {
         data.skill_type(self.id) & 0xfc
+    }
+
+    /// Where the systems' sounds, damage and effects go: `tPos` (the
+    /// target's position this frame) on Infection, from Mutation on the
+    /// target's position at the request (+0x70).
+    pub fn aim(&self, volume: Volume) -> V4 {
+        if volume == Volume::Inf { self.t_pos } else { self.t_pos_req }
     }
 
     /// `endFlag = 1`.
@@ -323,9 +337,9 @@ impl Spells {
 impl Effects {
     /// `_ccSkillRequest`'s `ccSkill` for an attack spell (gcmn 0x00572860,
     /// the constructor at 0x00572f80): the caster's position, heading and
-    /// height, the target's position and `type` when it is on the lists,
-    /// the row's `type`. The request's own rules (SP, the attribute
-    /// critical, holding) are the battle crate's.
+    /// height, the target's position (from Mutation on twice, +0x70 too) and
+    /// `type` when it is on the lists, the row's `type`. The request's own
+    /// rules (SP, the attribute critical, holding) are the battle crate's.
     pub fn spell_request(
         &mut self,
         host: &dyn Host,
@@ -348,6 +362,9 @@ impl Effects {
             && host.check_target(t)
         {
             s.t_pos = host.char_pos(t);
+            if self.assets.volume != Volume::Inf {
+                s.t_pos_req = s.t_pos;
+            }
             s.t_type = host.char_type(t);
         }
         s.skill_type = self.spells.data.skill_type(sid);
@@ -427,16 +444,18 @@ pub(crate) fn damage(cx: &mut Cx, s: &Spell) {
     cx.raise(Event::SkillDamage { spell: s.key, attacker: s.creator, target: s.target, sid: s.id });
 }
 
-/// `ccSkillDamage(creator, tPos, tType, ccGetSkillParam(ID), ID)`.
-fn damage_at(cx: &mut Cx, s: &Spell) {
-    cx.raise(Event::SkillDamageAt { attacker: s.creator, pos: s.t_pos, ttype: s.t_type, sid: s.id });
+/// `ccSkillDamage(creator, pos, tType, ccGetSkillParam(ID), ID)`.
+fn damage_at(cx: &mut Cx, s: &Spell, pos: V4) {
+    cx.raise(Event::SkillDamageAt { attacker: s.creator, pos, ttype: s.t_type, sid: s.id });
 }
 
 /// `ccSkill::TornadoSystem` (gcmn 0x00577540): level = id - (196 soil, 208
 /// water, 228 fire, 240 wind, 260 thunder); smoke at 20, the rings and sound
 /// at 30 (the caster released), `ccSkillDamage` every 5 frames from 35 to 75,
 /// the shake at 40 (`BLUR`), the end after 75. From level 3 the tornado
-/// element runs it, and the skill ends once the element is deleted.
+/// element runs it, and the skill ends once the element is deleted. From
+/// Mutation on (MUT gcmn 0x0059ccf0) it aims at [`Spell::aim`] and lets the
+/// caster go at the end instead of at 30.
 fn tornado_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
     const BLUR: i16 = 40;
     const LAST: i16 = 75;
@@ -467,6 +486,8 @@ fn tornado_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
         }
     }
     let s = cx.spells.runs[k].clone();
+    let inf = cx.assets.volume == Volume::Inf;
+    let aim = s.aim(cx.assets.volume);
     if let Some(e) = s.elm
         && s.level >= 3
     {
@@ -484,30 +505,33 @@ fn tornado_system(ctrl: &mut EffectCtrl, cx: &mut Cx, k: usize) {
     }
     match s.count {
         20 => {
-            tornado::eff_skill_tornade_smoke(cx, s.t_pos, ee::VF0, attr, s.level);
+            tornado::eff_skill_tornade_smoke(cx, aim, ee::VF0, attr, s.level);
         }
         30 => {
             let se = cx.spells.data.tornado_se[(s.level - 1).clamp(0, 3) as usize];
-            cx.raise(Event::Sound3d { se, pos: s.t_pos });
-            tornado::eff_skill_tornade_rings_pos(ctrl, cx, s.t_pos, attr, s.level);
-            if s.creator.is_some() {
+            cx.raise(Event::Sound3d { se, pos: aim });
+            tornado::eff_skill_tornade_rings_pos(ctrl, cx, aim, attr, s.level);
+            if inf && s.creator.is_some() {
                 s.release(cx);
             }
         }
         35 | 40 | 45 | 50 | 55 | 60 | 65 | 70 | 75 => match s.target {
             Some(t) if cx.host.check_target(t) && cx.host.char_dead(t) == 0 => damage(cx, &s),
-            _ => damage_at(cx, &s),
+            _ => damage_at(cx, &s, aim),
         },
         _ => {}
     }
-    if s.count == BLUR && check_camera_shake_range(cx, s.t_pos) {
+    if s.count == BLUR && check_camera_shake_range(cx, aim) {
         noise(cx, 20);
         camera_shake(cx, 0, 2, 20, 2);
     }
     if s.count > LAST {
-        let s = &mut cx.spells.runs[k];
-        s.hold = false;
-        s.end();
+        let r = &mut cx.spells.runs[k];
+        r.hold = false;
+        r.end();
+        if !inf {
+            s.release(cx);
+        }
     }
 }
 
