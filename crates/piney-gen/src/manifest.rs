@@ -1123,6 +1123,28 @@ fn fieldui() -> Group {
             ),
             e("install_warn", 0x0037_7E80, text_lines(3), GCMN, "`installWarnStr`"),
             e("epitaph_unknown", 0x0037_7E94, ptr(cstr()), GCMN, "`epitaphStr0X`'s first piece."),
+            // The epitaphs and notes `ccEpitaphMsg(strs, pages)` shows (the
+            // important items' use, piney-battle's `item::epitaph`): each a
+            // `char *[pages]` of three NUL-ended lines (`ccKanjiStrSeparate`
+            // 0..2), the parody mode's after it.
+            e("epitaph_00", 0x0037_8270, array(ptr(lines(3)), 2), GCMN, "`epitaphStr00`: item 42's pages."),
+            e("epitaph_00p", 0x0037_8278, array(ptr(lines(3)), 2), GCMN, "`epitaphStr00p`"),
+            e("epitaph_01", 0x0037_8280, array(ptr(lines(3)), 1), GCMN, "`epitaphStr01`: item 43's."),
+            e("epitaph_01p", 0x0037_8284, array(ptr(lines(3)), 1), GCMN, "`epitaphStr01p`"),
+            e("epitaph_02", 0x0065_1A30, array(ptr(lines(3)), 3), GCMN, "`epitaphStr02`: item 44's."),
+            e("epitaph_02p", 0x0065_1A40, array(ptr(lines(3)), 3), GCMN, "`epitaphStr02p`"),
+            e("epitaph_03", 0x0037_8288, array(ptr(lines(3)), 2), GCMN, "`epitaphStr03`: item 45's."),
+            e("epitaph_03p", 0x0037_8290, array(ptr(lines(3)), 2), GCMN, "`epitaphStr03p`"),
+            e("epitaph_04", 0x0065_1A50, array(ptr(lines(3)), 3), GCMN, "`epitaphStr04`: item 46's."),
+            e("epitaph_04p", 0x0065_1A60, array(ptr(lines(3)), 3), GCMN, "`epitaphStr04p`"),
+            e("epitaph_10", 0x0065_1A70, array(ptr(lines(3)), 3), GCMN, "`epitaphStr10`: item 48's."),
+            e("epitaph_10p", 0x0065_1A80, array(ptr(lines(3)), 3), GCMN, "`epitaphStr10p`"),
+            e("epitaph_11", 0x0065_1A90, array(ptr(lines(3)), 4), GCMN, "`epitaphStr11`: item 68's."),
+            e("epitaph_11p", 0x0065_1AA0, array(ptr(lines(3)), 4), GCMN, "`epitaphStr11p`"),
+            e("epitaph_m0", 0x0065_1AB0, array(ptr(lines(3)), 3), GCMN, "`epitaphStrM0`: item 287's, both modes."),
+            e("epitaph_m1", 0x0065_1AC0, array(ptr(lines(3)), 3), GCMN, "`epitaphStrM1`: item 288's."),
+            e("epitaph_m2", 0x0065_1AD0, array(ptr(lines(3)), 3), GCMN, "`epitaphStrM2`: item 289's."),
+            e("epitaph_m3", 0x0037_8298, array(ptr(lines(3)), 2), GCMN, "`epitaphStrM3`: item 290's."),
             e(
                 "item_box_list",
                 0x0064_C450,

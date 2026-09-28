@@ -176,6 +176,42 @@ pub struct FieldUi {
     pub install_warn: &'static [&'static str],
     /// `epitaphStr0X`'s first piece.
     pub epitaph_unknown: &'static str,
+    /// `epitaphStr00`: item 42's pages.
+    pub epitaph_00: &'static [&'static [&'static str]],
+    /// `epitaphStr00p`
+    pub epitaph_00p: &'static [&'static [&'static str]],
+    /// `epitaphStr01`: item 43's.
+    pub epitaph_01: &'static [&'static [&'static str]],
+    /// `epitaphStr01p`
+    pub epitaph_01p: &'static [&'static [&'static str]],
+    /// `epitaphStr02`: item 44's.
+    pub epitaph_02: &'static [&'static [&'static str]],
+    /// `epitaphStr02p`
+    pub epitaph_02p: &'static [&'static [&'static str]],
+    /// `epitaphStr03`: item 45's.
+    pub epitaph_03: &'static [&'static [&'static str]],
+    /// `epitaphStr03p`
+    pub epitaph_03p: &'static [&'static [&'static str]],
+    /// `epitaphStr04`: item 46's.
+    pub epitaph_04: &'static [&'static [&'static str]],
+    /// `epitaphStr04p`
+    pub epitaph_04p: &'static [&'static [&'static str]],
+    /// `epitaphStr10`: item 48's.
+    pub epitaph_10: &'static [&'static [&'static str]],
+    /// `epitaphStr10p`
+    pub epitaph_10p: &'static [&'static [&'static str]],
+    /// `epitaphStr11`: item 68's.
+    pub epitaph_11: &'static [&'static [&'static str]],
+    /// `epitaphStr11p`
+    pub epitaph_11p: &'static [&'static [&'static str]],
+    /// `epitaphStrM0`: item 287's, both modes.
+    pub epitaph_m0: &'static [&'static [&'static str]],
+    /// `epitaphStrM1`: item 288's.
+    pub epitaph_m1: &'static [&'static [&'static str]],
+    /// `epitaphStrM2`: item 289's.
+    pub epitaph_m2: &'static [&'static [&'static str]],
+    /// `epitaphStrM3`: item 290's.
+    pub epitaph_m3: &'static [&'static [&'static str]],
     /// `ItemBoxList`: 130 item codes by server * 6 + element.
     pub item_box_list: &'static [&'static [i32]],
     /// `DangerItemBoxList`
@@ -385,6 +421,24 @@ impl crate::store::Load for FieldUi {
             status_up: crate::store::Load::load(r),
             install_warn: crate::store::Load::load(r),
             epitaph_unknown: crate::store::Load::load(r),
+            epitaph_00: crate::store::Load::load(r),
+            epitaph_00p: crate::store::Load::load(r),
+            epitaph_01: crate::store::Load::load(r),
+            epitaph_01p: crate::store::Load::load(r),
+            epitaph_02: crate::store::Load::load(r),
+            epitaph_02p: crate::store::Load::load(r),
+            epitaph_03: crate::store::Load::load(r),
+            epitaph_03p: crate::store::Load::load(r),
+            epitaph_04: crate::store::Load::load(r),
+            epitaph_04p: crate::store::Load::load(r),
+            epitaph_10: crate::store::Load::load(r),
+            epitaph_10p: crate::store::Load::load(r),
+            epitaph_11: crate::store::Load::load(r),
+            epitaph_11p: crate::store::Load::load(r),
+            epitaph_m0: crate::store::Load::load(r),
+            epitaph_m1: crate::store::Load::load(r),
+            epitaph_m2: crate::store::Load::load(r),
+            epitaph_m3: crate::store::Load::load(r),
             item_box_list: crate::store::Load::load(r),
             danger_item_box_list: crate::store::Load::load(r),
             area_item_list: crate::store::Load::load(r),
@@ -616,6 +670,60 @@ impl FieldUi {
     }
     pub fn epitaph_unknown(&self) -> &'static str {
         self.epitaph_unknown
+    }
+    pub fn epitaph_00(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_00
+    }
+    pub fn epitaph_00p(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_00p
+    }
+    pub fn epitaph_01(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_01
+    }
+    pub fn epitaph_01p(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_01p
+    }
+    pub fn epitaph_02(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_02
+    }
+    pub fn epitaph_02p(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_02p
+    }
+    pub fn epitaph_03(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_03
+    }
+    pub fn epitaph_03p(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_03p
+    }
+    pub fn epitaph_04(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_04
+    }
+    pub fn epitaph_04p(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_04p
+    }
+    pub fn epitaph_10(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_10
+    }
+    pub fn epitaph_10p(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_10p
+    }
+    pub fn epitaph_11(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_11
+    }
+    pub fn epitaph_11p(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_11p
+    }
+    pub fn epitaph_m0(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_m0
+    }
+    pub fn epitaph_m1(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_m1
+    }
+    pub fn epitaph_m2(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_m2
+    }
+    pub fn epitaph_m3(&self) -> &'static [&'static [&'static str]] {
+        self.epitaph_m3
     }
     pub fn item_box_list(&self) -> &'static [&'static [i32]] {
         self.item_box_list
@@ -993,6 +1101,14 @@ pub static INSTALL_WARN: std::sync::LazyLock<&'static [&'static str]> =
 
 /// `epitaphStr0X`'s first piece.
 pub static EPITAPH_UNKNOWN: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().epitaph_unknown);
+
+/// `epitaphStr00`: item 42's pages.
+pub static EPITAPH_00: std::sync::LazyLock<&'static [&'static [&'static str]]> =
+    std::sync::LazyLock::new(|| shared().epitaph_00);
+
+/// `epitaphStr10`: item 48's.
+pub static EPITAPH_10: std::sync::LazyLock<&'static [&'static [&'static str]]> =
+    std::sync::LazyLock::new(|| shared().epitaph_10);
 
 /// `ItemBoxList`: 130 item codes by server * 6 + element.
 pub static ITEM_BOX_LIST: std::sync::LazyLock<&'static [&'static [i32]]> =

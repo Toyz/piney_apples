@@ -27,6 +27,9 @@ pub enum Resume {
     /// ImportantItemMenu's Grunty Flute (proccess 20, 0x00530370): the menu
     /// shuts as [`crate::menus::personal::close`] does.
     Flute,
+    /// ImportantItemMenu's other items (proccess 2): its proccess 12, the
+    /// seven frames before the list answers again.
+    KeyItem,
 }
 
 /// What the call is doing between frames.
@@ -49,6 +52,31 @@ enum Wait {
     Ride,
     /// `WaitMap`'s loops: the frames breathed so far.
     Map(u32),
+    /// Inside `ccEpitaphMsg` ([`ItemRun::epitaph`]).
+    Epitaph,
+}
+
+/// `ccEpitaphMsg(strs, pages)` (gcmn 0x0057c3e0): 8 frames, then each page
+/// in the information window (`ChangeInfo` of its three lines, a line
+/// empty as none), 5 frames and until OK is pushed; then `Close` and 8
+/// frames more.
+#[derive(Debug)]
+struct Epitaph {
+    pages: Vec<[Vec<u8>; 3]>,
+    page: usize,
+    stage: EpitaphStage,
+}
+
+#[derive(Debug)]
+enum EpitaphStage {
+    /// Frames left before the page (or the end) comes.
+    Before(u32),
+    /// The page shown: frames left before OK is read.
+    Shown(u32),
+    /// Waiting for OK.
+    Held,
+    /// After the close: frames left.
+    After(u32),
 }
 
 /// The call in progress.
@@ -57,11 +85,13 @@ pub struct ItemRun {
     /// None until the runtime answers ([`MenuCtrl::answer_item`]).
     steps: Option<VecDeque<Step>>,
     wait: Wait,
+    /// `ccEpitaphMsg`'s pages while [`Wait::Epitaph`] holds.
+    epitaph: Option<Epitaph>,
 }
 
 impl ItemRun {
     pub fn new(resume: Resume) -> Self {
-        ItemRun { resume, steps: None, wait: Wait::Next }
+        ItemRun { resume, steps: None, wait: Wait::Next, epitaph: None }
     }
 
     /// Waiting for the runtime's steps.
@@ -138,6 +168,15 @@ pub fn run(m: &mut MenuCtrl, x: &mut Ctx) -> Option<Cont> {
                 return breathe(m, x);
             }
             Wait::Map(_) => r.wait = Wait::Next,
+            Wait::Epitaph => {
+                if epitaph(m, x) {
+                    return breathe(m, x);
+                }
+                if let Some(r) = m.item.as_mut() {
+                    r.wait = Wait::Next;
+                }
+                continue;
+            }
             Wait::Next => {}
         }
         let r = m.item.as_mut()?;
@@ -204,6 +243,13 @@ fn one(m: &mut MenuCtrl, x: &mut Ctx, step: Step) -> Option<Cont> {
         Step::Se(n) => x.se(n),
         Step::WaitParty => set(m, Wait::Party),
         Step::WaitRide => set(m, Wait::Ride),
+        Step::Epitaph { item, parody } => {
+            let pages = x.texts.use_texts.epitaph(item, parody).to_vec();
+            if let Some(r) = m.item.as_mut() {
+                r.epitaph = Some(Epitaph { pages, page: 0, stage: EpitaphStage::Before(8) });
+            }
+            set(m, Wait::Epitaph);
+        }
         // ccPuccigusoStart: its first slice on the world now, then breaths
         // while it fades out and back in.
         Step::Pucciguso(_) => {
@@ -214,6 +260,46 @@ fn one(m: &mut MenuCtrl, x: &mut Ctx, step: Step) -> Option<Cont> {
         _ => x.req.push(Request::ItemStep(step)),
     }
     None
+}
+
+/// A frame of `ccEpitaphMsg`: true while it breathes, false once over.
+fn epitaph(m: &mut MenuCtrl, x: &mut Ctx) -> bool {
+    let Some(e) = m.item.as_mut().and_then(|r| r.epitaph.as_mut()) else { return false };
+    match e.stage {
+        EpitaphStage::Before(n) if n > 0 => e.stage = EpitaphStage::Before(n - 1),
+        EpitaphStage::Before(_) if e.page < e.pages.len() => {
+            let lines = e.pages[e.page].clone();
+            e.stage = EpitaphStage::Shown(5);
+            fn line(l: &[u8]) -> Option<&[u8]> {
+                (!l.is_empty()).then_some(l)
+            }
+            let names = x.save.names();
+            m.msg.change_info([line(&lines[0]), line(&lines[1]), line(&lines[2]), None], &names);
+            // +0x1e and +0x34 zeroed: the lines without the window.
+            m.msg.window_status = 0;
+            m.msg.window_alpha = 0;
+        }
+        EpitaphStage::Before(_) => {
+            m.msg.close();
+            e.stage = EpitaphStage::After(8);
+        }
+        EpitaphStage::Shown(n) if n > 1 => e.stage = EpitaphStage::Shown(n - 1),
+        EpitaphStage::Shown(_) => e.stage = EpitaphStage::Held,
+        EpitaphStage::Held => {
+            if x.pad.push.bits() & x.save.ok() != 0 {
+                e.page += 1;
+                e.stage = EpitaphStage::Before(0);
+            }
+        }
+        EpitaphStage::After(n) if n > 1 => e.stage = EpitaphStage::After(n - 1),
+        EpitaphStage::After(_) => {
+            if let Some(r) = m.item.as_mut() {
+                r.epitaph = None;
+            }
+            return false;
+        }
+    }
+    true
 }
 
 /// `ccMessage::OpenInfo` with the use's text.
@@ -255,6 +341,11 @@ fn resume_after(m: &mut MenuCtrl, x: &mut Ctx, r: Resume) -> Option<Cont> {
         }
         Resume::Ocarina => Flow::Done,
         Resume::Flute => crate::menus::personal::close(m, x),
+        Resume::KeyItem => {
+            m.wait_count = 0;
+            m.proccess = 12;
+            Flow::Done
+        }
     };
     match flow {
         Flow::Breathed(c) => Some(c),

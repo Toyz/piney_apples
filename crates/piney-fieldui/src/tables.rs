@@ -400,6 +400,8 @@ pub struct UseTexts {
     pub status_up_stop: Vec<u8>,
     pub install_warn: [Vec<u8>; 3],
     pub epitaph_unknown: Vec<u8>,
+    /// The important items' epitaphs and notes (`ccEpitaphMsg`).
+    pub epitaphs: Vec<EpitaphText>,
 }
 
 impl UseTexts {
@@ -412,8 +414,41 @@ impl UseTexts {
             status_up_stop: STATUS_UP_STOP.to_vec(),
             install_warn: three(t.install_warn()),
             epitaph_unknown: encode(t.epitaph_unknown()),
+            epitaphs: epitaphs(t),
         }
     }
+
+    /// Item `item`'s pages, the parody mode's with `parody` (none for an
+    /// item with no epitaph).
+    pub fn epitaph(&self, item: i32, parody: bool) -> &[[Vec<u8>; 3]] {
+        self.epitaphs.iter().find(|e| e.0 == item).map_or(&[][..], |e| if parody { &e.2[..] } else { &e.1[..] })
+    }
+}
+
+/// An item's epitaph: the item, its pages (three lines each) and the
+/// parody mode's.
+pub type EpitaphText = (i32, Vec<[Vec<u8>; 3]>, Vec<[Vec<u8>; 3]>);
+
+/// The build's epitaph tables by item (the use code's `ccEpitaphMsg`
+/// calls: 287's table serves both modes).
+fn epitaphs(t: &fieldui::FieldUi) -> Vec<EpitaphText> {
+    let pages = |p: &[&[&str]]| p.iter().map(|l| three(l)).collect::<Vec<_>>();
+    [
+        (42, t.epitaph_00(), t.epitaph_00p()),
+        (43, t.epitaph_01(), t.epitaph_01p()),
+        (44, t.epitaph_02(), t.epitaph_02p()),
+        (45, t.epitaph_03(), t.epitaph_03p()),
+        (46, t.epitaph_04(), t.epitaph_04p()),
+        (48, t.epitaph_10(), t.epitaph_10p()),
+        (68, t.epitaph_11(), t.epitaph_11p()),
+        (287, t.epitaph_m0(), t.epitaph_m0()),
+        (288, t.epitaph_m1(), t.epitaph_m1()),
+        (289, t.epitaph_m2(), t.epitaph_m2()),
+        (290, t.epitaph_m3(), t.epitaph_m3()),
+    ]
+    .into_iter()
+    .map(|(id, n, p)| (id, pages(n), pages(p)))
+    .collect()
 }
 
 /// The tutorial events whose messages the menus open.

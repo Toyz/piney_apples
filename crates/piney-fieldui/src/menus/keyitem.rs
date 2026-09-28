@@ -175,11 +175,12 @@ pub fn important_item_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             let list = important_list_fit(m, x);
             let it = list.get(m.lists[i].select.max(0) as usize).copied().unwrap_or(Item::NONE);
             let me = x.world.player().map_or(0, |p| p.handle);
-            x.req.push(Request::UseItem { target: me, code: it.code() });
             if it.cat == 15 && it.id == GRUNTY_FLUTE {
+                x.req.push(Request::UseItem { target: me, code: it.code() });
                 return personal::close(m, x);
             }
             if it.cat == 15 && RYU_BOOKS.contains(&it.id) {
+                x.req.push(Request::UseItem { target: me, code: it.code() });
                 // EntryFade(1, black, black, 0, 0, 512, 448): the screen
                 // covered for the book's first frame.
                 let id = m.menu_fade.entry_fade(1, 0x8000_0000, 0x8000_0000);
@@ -188,8 +189,9 @@ pub fn important_item_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                 crate::disp::disp(m, x);
                 return Flow::Breathed(pers(Tail::BookWoken(id)));
             }
-            m.wait_count = 0;
-            m.proccess = 12;
+            // ccUseItemRequest (the epitaphs' pages and the rest), then
+            // proccess 12.
+            crate::menus::useitem::call(m, x, me, it.code(), crate::menus::useitem::Resume::KeyItem);
         }
         20 => {
             if m.menu_status != 0 {

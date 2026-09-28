@@ -287,7 +287,10 @@ impl Walk {
             Step::Pucciguso(n) => self.push(format!("[\"ccPuccigusoStart\",{n}]")),
             Step::PlwPause(_) | Step::Pause { .. } => {}
             Step::WaitRide => self.push("[\"WaitRide\"]".into()),
-            Step::Epitaph { strs, pages } => self.push(format!("[\"ccEpitaphMsg\",{strs},{pages}]")),
+            Step::Epitaph { item, parody } => {
+                let (strs, pages) = epitaph_table(*item, *parody);
+                self.push(format!("[\"ccEpitaphMsg\",{strs},{pages}]"))
+            }
             Step::BookStart(page) => {
                 self.page = *page;
                 self.push("[\"ccStartThread\",\"ccThBook\",35,4096]".into())
@@ -445,4 +448,26 @@ fn inventory(t: &mut Toks) -> String {
         hex_out(&save, item::SAVE_PL_ITEM_LIST, 4 * item::PL_ITEM_SLOTS),
         hex_out(&save, item::SAVE_IMP_ITEM_LIST, item::IMP_ITEMS)
     )
+}
+
+/// The `ccEpitaphMsg(strs, pages)` call of an important item's use, as
+/// Infection's addresses (the harness records the game's through
+/// `volume.inf_of`): `epitaphStr00` .. `epitaphStrM3`, a parody table after
+/// each normal one.
+fn epitaph_table(item: i32, parody: bool) -> (u32, i32) {
+    let (normal, parody_table, pages) = match item {
+        42 => (0x0037_8270, 0x0037_8278, 2),
+        43 => (0x0037_8280, 0x0037_8284, 1),
+        44 => (0x0065_1a30, 0x0065_1a40, 3),
+        45 => (0x0037_8288, 0x0037_8290, 2),
+        46 => (0x0065_1a50, 0x0065_1a60, 3),
+        48 => (0x0065_1a70, 0x0065_1a80, 3),
+        68 => (0x0065_1a90, 0x0065_1aa0, 4),
+        287 => (0x0065_1ab0, 0x0065_1ab0, 3),
+        288 => (0x0065_1ac0, 0x0065_1ac0, 3),
+        289 => (0x0065_1ad0, 0x0065_1ad0, 3),
+        290 => (0x0037_8298, 0x0037_8298, 2),
+        _ => (0, 0, 0),
+    };
+    (if parody { parody_table } else { normal }, pages)
 }

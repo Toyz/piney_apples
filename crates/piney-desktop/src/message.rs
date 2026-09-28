@@ -422,6 +422,11 @@ impl MsgWindow {
         self.mode
     }
 
+    /// Line `k` as it stands (`None` for a null pointer).
+    pub fn line(&self, k: usize) -> Option<&[u8]> {
+        self.lines.get(k)?.as_deref()
+    }
+
     /// `ChangeInfo(l0, l1, l2, l3, grp, msg)` (0x001a6000): an information
     /// window, its lines shown at once (a null line is `None`).
     pub fn change_info(&mut self, lines: [Option<&[u8]>; 4], names: &Names) {

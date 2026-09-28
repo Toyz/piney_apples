@@ -47,28 +47,6 @@ pub const EPITAPH_STR_0X: u32 = 0x0037_7e94;
 /// The full stop a book's message ends with (gcmn 0x006e1fb8).
 pub const STATUS_UP_STOP: u32 = 0x006e_1fb8;
 
-/// The epitaph and note texts `ccEpitaphMsg(strs, pages)` shows: `char
-/// *[pages]` tables, a parody-mode variant (`saveData.parodyFlag`) after
-/// each normal one, for important items 42-46, 48, 68 and 287-290.
-pub const EPITAPH_STR_00: u32 = 0x0037_8270;
-pub const EPITAPH_STR_00P: u32 = 0x0037_8278;
-pub const EPITAPH_STR_01: u32 = 0x0037_8280;
-pub const EPITAPH_STR_01P: u32 = 0x0037_8284;
-pub const EPITAPH_STR_02: u32 = 0x0065_1a30;
-pub const EPITAPH_STR_02P: u32 = 0x0065_1a40;
-pub const EPITAPH_STR_03: u32 = 0x0037_8288;
-pub const EPITAPH_STR_03P: u32 = 0x0037_8290;
-pub const EPITAPH_STR_04: u32 = 0x0065_1a50;
-pub const EPITAPH_STR_04P: u32 = 0x0065_1a60;
-pub const EPITAPH_STR_10: u32 = 0x0065_1a70;
-pub const EPITAPH_STR_10P: u32 = 0x0065_1a80;
-pub const EPITAPH_STR_11: u32 = 0x0065_1a90;
-pub const EPITAPH_STR_11P: u32 = 0x0065_1aa0;
-pub const EPITAPH_STR_M0: u32 = 0x0065_1ab0;
-pub const EPITAPH_STR_M1: u32 = 0x0065_1ac0;
-pub const EPITAPH_STR_M2: u32 = 0x0065_1ad0;
-pub const EPITAPH_STR_M3: u32 = 0x0037_8298;
-
 /// `ccCheckItemUseful(category, id)` (gcmn 0x0057a6d0): how the item menu
 /// uses an item: 0 never, 1 on a target chosen next (`TargetMenu`), 2 at
 /// once, on the player. Recovery items and spells take a target; books are
@@ -381,10 +359,11 @@ pub enum Step {
     /// While `pgRideFlag`, a field frame: the Grunty ride.
     WaitRide,
     /// `ccEpitaphMsg(strs, pages)` (gcmn 0x0057c3e0): the pages of an
-    /// epitaph table, each until dismissed.
+    /// important item's epitaph or note (the build's `fieldui`
+    /// `epitaph_*`), the parody mode's when `parody`, each until dismissed.
     Epitaph {
-        strs: u32,
-        pages: i32,
+        item: i32,
+        parody: bool,
     },
     /// `ccStartThread(ccThBook, 35, 0x1000)` with the book's page (tcb
     /// +0x14) and its state 1 (+0x18).
@@ -453,22 +432,9 @@ const BOOKS: [(Up, i32, i32); 34] = {
     ]
 };
 
-/// The epitaph tables of important items: (normal, parody, pages).
-fn epitaph(id: i32) -> Option<(u32, u32, i32)> {
-    Some(match id {
-        42 => (EPITAPH_STR_00, EPITAPH_STR_00P, 2),
-        43 => (EPITAPH_STR_01, EPITAPH_STR_01P, 1),
-        44 => (EPITAPH_STR_02, EPITAPH_STR_02P, 3),
-        45 => (EPITAPH_STR_03, EPITAPH_STR_03P, 2),
-        46 => (EPITAPH_STR_04, EPITAPH_STR_04P, 3),
-        48 => (EPITAPH_STR_10, EPITAPH_STR_10P, 3),
-        68 => (EPITAPH_STR_11, EPITAPH_STR_11P, 4),
-        287 => (EPITAPH_STR_M0, EPITAPH_STR_M0, 3),
-        288 => (EPITAPH_STR_M1, EPITAPH_STR_M1, 3),
-        289 => (EPITAPH_STR_M2, EPITAPH_STR_M2, 3),
-        290 => (EPITAPH_STR_M3, EPITAPH_STR_M3, 2),
-        _ => return None,
-    })
+/// The important items with an epitaph or note to read (`ccEpitaphMsg`).
+fn epitaph(id: i32) -> bool {
+    matches!(id, 42..=46 | 48 | 68 | 287..=290)
 }
 
 /// The short at `off` in what `ch.personality` points at: a party
@@ -724,8 +690,8 @@ pub fn use_item_request(
                 out.push(Step::WaitBook);
             }
             _ => {
-                if let Some((normal, parody, pages)) = epitaph(id) {
-                    out.push(Step::Epitaph { strs: if env.parody { parody } else { normal }, pages });
+                if epitaph(id) {
+                    out.push(Step::Epitaph { item: id, parody: env.parody });
                     out.push(Step::CloseMessage);
                 }
             }
