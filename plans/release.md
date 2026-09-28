@@ -90,12 +90,10 @@ stashes, the worktrees' branches).
    history, and a check that fails on a match, for CI.
 2. ~~Clean the tree~~ (done, above).
 3. The README's "no game data" claim (plans/build-data.md step 4) once 2 holds.
-4. History (last; destructive; the owner's go-ahead first, after a backup:
-   `git bundle create --all` and a mirror copy off this disk). The options:
-   - a new root commit of the cleaned tree (nothing old survives; the worklog
-     keeps the story; the old history kept only in the private backup);
-   - `git filter-repo` dropping the data paths and rewriting every blob the
-     scan flags (keeps the commits, but only as safe as the scan is
-     complete).
-   The first is the safe one. The other worktrees and branches under
-   `/mnt/data/claude/wt-*` share this repository and are rewritten with it.
+4. ~~History~~ (done 2026-09-28, the safe way): the cleaned tree became a
+   new single-root `main`, pushed to `github.com/Toyz/piney_apples`
+   (private until the owner makes it public). The old history is kept only
+   in the local branch `archive/full-history` and the verified bundles
+   (`/mnt/data/claude/backup/`, `~/piney-backups/`); nothing was rewritten
+   in place. Push `main` only: the worktrees' branches share the old
+   history.
