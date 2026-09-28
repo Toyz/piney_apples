@@ -782,14 +782,19 @@ impl StoryPilot {
         let p = w.player().body.pos.map(f32::from_bits);
         let cam_z = f32::from_bits(w.camera().rot()[2]);
         let toward = |q: [f32; 2]| stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
-        if (mid[0] - p[0]).hypot(mid[1] - p[1]) > 2500.0 {
-            self.path.clear();
+        let far = (mid[0] - p[0]).hypot(mid[1] - p[1]);
+        if far > 2500.0 && self.path.is_empty() && !f.is_multiple_of(60) {
             return Some(toward([mid[0], mid[1]]));
         }
         if f.is_multiple_of(60) {
             let stopped = self.mark.is_some_and(|m| (m[0] - p[0]).hypot(m[1] - p[1]) < 60.0);
-            if stopped || self.path.is_empty() {
+            if far <= 2500.0 && (stopped || self.path.is_empty()) {
                 self.path = entrance_path(&fa.hits, [p[0], p[1], p[2]], [mid[0], mid[1]]);
+            } else if far > 2500.0 && stopped {
+                // Far and held by a wall: the same search on a grid wide
+                // enough to hold him (81 cells, the step the distance asks).
+                let step = (far * 2.2 / 81.0).max(100.0);
+                self.path = path_to(&fa.hits, [p[0], p[1], p[2]], [mid[0], mid[1]], 81, step, |_, door| door);
             }
             self.mark = Some([p[0], p[1]]);
         }

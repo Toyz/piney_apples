@@ -35,13 +35,12 @@ own start:
 
 | event | state | last place |
 | --- | --- | --- |
-| 201-205, 208, 210, 212-217 | done | |
+| 201-205, 208-210, 212-217 | done | |
 | 219 | done: the ending's stream 65, the staff roll | desktop |
-| 206 | blocks 0x7f | dungeon of field 72 |
-| 207 | blocks 0x78f | field 4 |
-| 209 | blocks 0xc73 | field 74 |
-| 211 | blocks 0x1c1f | field 10 |
-| 218 | blocks 0x8f | dungeon of field 71 |
+| 206 | blocks 0x7f: block 10 wants dungeon 1 of field 72 | dungeon of field 72 |
+| 207 | blocks 0x78f: field 4's boss, bossTbl row 3 (Fidchell), not ported | field 4 |
+| 211 | blocks 0x1c1f: field 10's boss, row 13 (Cubia, the second Kyvia), not ported | field 10 |
+| 218 | blocks 0x8f: field 5's boss, row 4 (Gorre), not ported | dungeon of field 71 |
 
 Seen on the way: `entry 3 29` (a walking PC, file `ctr1`) is not found
 ("not a walking PC's file"); the dungeon walker is put back in rooms it
@@ -60,3 +59,6 @@ cannot leave.
 - A Data Bug (enemy `type` 0x40: event 203's row 164, 20,624 HP, a
   protect of 7,250) is fought on in the goal room, never called
   hopeless, and drained once its protect breaks, as a boss is.
+- A field's dungeon far off with a wall between: the entrance path is
+  planned on a grid wide enough to hold Kite (81 cells, the step the
+  distance asks) when he is found stopped (event 209's field 74).
