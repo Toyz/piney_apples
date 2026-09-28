@@ -3,10 +3,8 @@
 //! from `spc0SeData` to the end of `inuSeData` as `SE_NT` rows, padding and
 //! the two pointer tables included, since a note's param past its array's
 //! end reads on into them. Read from the build (`PINEY/TABLES/setbl.bin`,
-//! `piney-gen`'s `placement::sound::setbl`, `plans/build-data.md`);
-//! Infection's, which the port uses for every volume.
-
-use std::sync::LazyLock;
+//! `piney-gen`'s `placement::sound::setbl`, `plans/build-data.md`), one
+//! file per volume.
 
 use piney_data::store::{Load, Reader};
 use piney_data::volume::Volume;
@@ -40,19 +38,34 @@ impl Load for Setbl {
     }
 }
 
-fn setbl() -> &'static Setbl {
-    static READ: std::sync::OnceLock<&'static Setbl> = std::sync::OnceLock::new();
-    READ.get_or_init(|| piney_data::store::group(Volume::Inf, "setbl"))
+/// Volume `v`'s tables, read once a run.
+fn of(v: Volume) -> &'static Setbl {
+    static READ: [std::sync::OnceLock<&'static Setbl>; 4] = [const { std::sync::OnceLock::new() }; 4];
+    READ[v as usize].get_or_init(|| piney_data::store::group(v, "setbl"))
 }
 
 /// gcmn's address of the first row, `spc0SeData`.
-pub static BASE: LazyLock<u32> = LazyLock::new(|| setbl().base);
+pub fn base(v: Volume) -> u32 {
+    of(v).base
+}
+
 /// The rows (code, note, velocity), padding and pointer tables included.
-pub static ROWS: LazyLock<&'static [SeNt]> = LazyLock::new(|| setbl().rows);
-/// `spcSeTbl`: by `ccCharBaseParam.id`, the row of [`ROWS`] its table
+pub fn rows(v: Volume) -> &'static [SeNt] {
+    of(v).rows
+}
+
+/// `spcSeTbl`: by `ccCharBaseParam.id`, the row of [`rows`] its table
 /// starts at.
-pub static SPC: LazyLock<&'static [Option<u16>]> = LazyLock::new(|| setbl().spc);
+pub fn spc(v: Volume) -> &'static [Option<u16>] {
+    of(v).spc
+}
+
 /// `enemySeTbl`: by the race's `seCategory`.
-pub static ENEMY: LazyLock<&'static [Option<u16>]> = LazyLock::new(|| setbl().enemy);
+pub fn enemy(v: Volume) -> &'static [Option<u16>] {
+    of(v).enemy
+}
+
 /// `inuSeData`.
-pub static INU: LazyLock<u16> = LazyLock::new(|| setbl().inu);
+pub fn inu(v: Volume) -> u16 {
+    of(v).inu
+}

@@ -453,7 +453,7 @@ impl WorldMode {
             let c = 4 << 24 | (code as u32 & 0xff_ffff);
             match e {
                 E::Note { param, pos, attribute } => {
-                    if let Some(se) = piney_audio::se3d::inu_note(param, attribute) {
+                    if let Some(se) = piney_audio::se3d::inu_note(self.world.volume(), param, attribute) {
                         self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
                     }
                 }
@@ -999,7 +999,7 @@ impl Mode for WorldMode {
             for (_, e) in self.world.take_dog_events() {
                 match e {
                     piney_world::dog::DogEvent::Note { param, pos, attribute } => {
-                        if let Some(se) = piney_audio::se3d::inu_note(param, attribute) {
+                        if let Some(se) = piney_audio::se3d::inu_note(self.world.volume(), param, attribute) {
                             let cam = self.world.camera().active();
                             let ear =
                                 Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
@@ -1117,7 +1117,7 @@ impl Mode for WorldMode {
                 let cam = camera.active();
                 let ear = Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
                 for (param, pos, attribute) in steps {
-                    if let Some(se) = piney_audio::se3d::spc_note(param, 0, attribute) {
+                    if let Some(se) = piney_audio::se3d::spc_note(self.world.volume(), param, 0, attribute) {
                         self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
                     }
                 }

@@ -202,14 +202,16 @@ pub fn bytes(v: Vol) -> Result<Vec<u8>, String> {
 /// setbl.cpp's .data from `spc0SeData` to the end of `inuSeData` as 8-byte
 /// `SE_NT` rows {int code; char note, velocity; short dummy} (padding and
 /// the pointer tables included), `spcSeTbl` and `enemySeTbl` as the row
-/// each pointer names (None for NULL), and `inuSeData`'s row. None where
-/// the volume's symbols do not name them (Outbreak and Quarantine: the
-/// port reads Infection's for every volume).
+/// each pointer names (None for NULL), and `inuSeData`'s row.
 pub fn setbl(v: Vol) -> Result<Option<Vec<u8>>, String> {
     let c = ctx(v, Some("gcmn"));
     let p = &*c.p;
-    let Some(first) = p.symbol_named("spc0SeData") else { return Ok(None) };
-    let start = first.value;
+    // Outbreak's and Quarantine's carried names miss `spc0SeData`; it is
+    // `spcSeTbl[0]` on all four (setbl.cpp's first array).
+    let start = match p.symbol_named("spc0SeData") {
+        Some(first) => first.value,
+        None => p.u32(sym(p, "spcSeTbl")?.value)?,
+    };
     let last = sym(p, "inuSeData")?;
     let end = last.value + last.size;
     if (end - start) % 8 != 0 || start % 8 != 0 {
@@ -224,10 +226,22 @@ pub fn setbl(v: Vol) -> Result<Option<Vec<u8>>, String> {
         out.u8(b[4]);
         out.u8(b[5]);
     }
-    for name in ["spcSeTbl", "enemySeTbl"] {
-        let s = sym(p, name)?;
-        out.count((s.size / 4) as usize);
+    // Each pointer table runs to the next object in the data (padding read
+    // as NULL): Outbreak's and Quarantine's `spcSeTbl` holds 21 tables, but
+    // the carried size is Infection's 19.
+    let tables = [sym(p, "spcSeTbl")?, sym(p, "enemySeTbl")?];
+    let mut starts = vec![last.value];
+    for s in &tables {
+        starts.push(s.value);
         for i in 0..s.size / 4 {
+            starts.push(p.u32(s.value + 4 * i)?);
+        }
+    }
+    for (name, s) in ["spcSeTbl", "enemySeTbl"].into_iter().zip(&tables) {
+        let next = starts.iter().copied().filter(|&a| a > s.value).min().unwrap_or(end);
+        let n = (next - s.value) / 4;
+        out.count(n as usize);
+        for i in 0..n {
             let w = p.u32(s.value + 4 * i)?;
             if w == 0 {
                 out.some(false);

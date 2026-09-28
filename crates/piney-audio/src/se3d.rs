@@ -12,6 +12,7 @@ use std::cmp::Ordering;
 use piney_data::field::ee::{add, cmp, div, from_int, lt, mul, sub, to_int};
 use piney_data::libm::{atan2f, sinf, sqrtf};
 use piney_data::sound::SeTbl;
+use piney_data::volume::Volume;
 
 use crate::setbl;
 
@@ -256,12 +257,13 @@ fn step(hit_attribute: u32, note: i8) -> NoteSe {
     NoteSe { code, note: Some(if code == 202 { 67 } else { note }) }
 }
 
-/// Row `param` of the table starting at row `start` of [`setbl::ROWS`]; a
+/// Row `param` of the table starting at row `start` of volume `v`'s
+/// [`setbl::rows`]; a
 /// param past the table's end reads on into what follows it, as the game
 /// does (`None` past the end of setbl.cpp's data).
-fn row(start: u16, param: u32) -> Option<SeNt> {
+fn row(v: Volume, start: u16, param: u32) -> Option<SeNt> {
     let i = usize::from(start).checked_add(usize::try_from(param).ok()?)?;
-    setbl::ROWS.get(i).copied()
+    setbl::rows(v).get(i).copied()
 }
 
 /// A row's call: none for code -1 (or below); `ccSeOn3DNote` when the note
@@ -276,10 +278,11 @@ fn row_se(r: SeNt) -> Option<NoteSe> {
 /// nothing for a NULL table (id 18) or a row of code -1. Param 0 is the
 /// footstep (`ccSeOnPCStep` 0x0017a6b0): the ground's row ([`se_hit_attr`]) at
 /// a note by `id`, or 67 on a ground with no row (docs/engine/sound.md).
-/// `None` for an `id` outside the table's 19 (which the game would read past).
-pub fn spc_note(param: u32, id: i16, hit_attribute: u32) -> Option<NoteSe> {
-    let start = (*setbl::SPC.get(usize::try_from(id).ok()?)?)?;
-    let r = row(start, param)?;
+/// `None` for an `id` past the table and its padding (19 and 1 on
+/// Infection, 21 and 3 on Outbreak), which the game would read past.
+pub fn spc_note(v: Volume, param: u32, id: i16, hit_attribute: u32) -> Option<NoteSe> {
+    let start = (*setbl::spc(v).get(usize::try_from(id).ok()?)?)?;
+    let r = row(v, start, param)?;
     if r.code < 0 {
         return None;
     }
@@ -318,18 +321,18 @@ pub fn pc_note(param: u32, ccstype: i32, hit_attribute: u32) -> Option<NoteSe> {
 /// `ccSeSetParamEnemy(param, ch, category)` (0x0017abd0), an enemy's notes
 /// 1 and 2 (`ccEnemyCheckNote`): row `param` of `enemySeTbl[category]`
 /// (the race's `seCategory`); nothing for a row of code -1. `None` for a
-/// category outside the table's 19.
-pub fn enemy_note(param: u32, category: i32) -> Option<NoteSe> {
-    let start = (*setbl::ENEMY.get(usize::try_from(category).ok()?)?)?;
-    row_se(row(start, param)?)
+/// category past the table and its padding.
+pub fn enemy_note(v: Volume, param: u32, category: i32) -> Option<NoteSe> {
+    let start = (*setbl::enemy(v).get(usize::try_from(category).ok()?)?)?;
+    row_se(row(v, start, param)?)
 }
 
 /// `ccSeSetParamInu(param, ch)` (0x0017ac70), a town dog's or a Grunty's
 /// note (`inuCheckNote`, `ccPuccigusoCheckNote`): row `param` of
 /// `inuSeData`, nothing for code -1; params 0 and 1 are footsteps, the
 /// ground's row at 60 (67 on a ground with no row).
-pub fn inu_note(param: u32, hit_attribute: u32) -> Option<NoteSe> {
-    let r = row(*setbl::INU, param)?;
+pub fn inu_note(v: Volume, param: u32, hit_attribute: u32) -> Option<NoteSe> {
+    let r = row(v, setbl::inu(v), param)?;
     if r.code < 0 {
         return None;
     }
@@ -422,17 +425,30 @@ mod tests {
     #[test]
     fn notes_pick_rows() {
         // Kite on a ground with no row: 202 at 67; on 0x008080f0, row 50 at 60.
-        assert_eq!(spc_note(0, 0, 0), Some(NoteSe { code: 202, note: Some(67) }));
-        assert_eq!(spc_note(0, 0, 0x0080_80f0), Some(NoteSe { code: 50, note: Some(60) }));
-        assert_eq!(spc_note(2, 0, 0), Some(NoteSe { code: 30, note: None }));
-        assert_eq!(spc_note(1, 0, 0), None);
-        assert_eq!(spc_note(0, 18, 0), None);
+        assert_eq!(spc_note(Volume::Inf, 0, 0, 0), Some(NoteSe { code: 202, note: Some(67) }));
+        assert_eq!(spc_note(Volume::Inf, 0, 0, 0x0080_80f0), Some(NoteSe { code: 50, note: Some(60) }));
+        assert_eq!(spc_note(Volume::Inf, 2, 0, 0), Some(NoteSe { code: 30, note: None }));
+        assert_eq!(spc_note(Volume::Inf, 1, 0, 0), None);
+        assert_eq!(spc_note(Volume::Inf, 0, 18, 0), None);
         // cateWarrior (category 0) row 9: 169 at 64.
-        assert_eq!(enemy_note(9, 0), Some(NoteSe { code: 169, note: Some(64) }));
-        assert_eq!(enemy_note(0, 0), None);
-        assert_eq!(inu_note(5, 0), Some(NoteSe { code: 78, note: None }));
-        assert_eq!(inu_note(1, 0xc000), Some(NoteSe { code: 21, note: Some(60) }));
+        assert_eq!(enemy_note(Volume::Inf, 9, 0), Some(NoteSe { code: 169, note: Some(64) }));
+        assert_eq!(enemy_note(Volume::Inf, 0, 0), None);
+        assert_eq!(inu_note(Volume::Inf, 5, 0), Some(NoteSe { code: 78, note: None }));
+        assert_eq!(inu_note(Volume::Inf, 1, 0xc000), Some(NoteSe { code: 21, note: Some(60) }));
         assert_eq!(pc_note(0, 1, 0xc000), Some(NoteSe { code: 21, note: Some(65) }));
         assert_eq!(pc_note(1, 1, 0xc000), None);
+    }
+
+    #[test]
+    fn notes_are_the_volumes_own() {
+        // Kite's row 11: 106 on Infection, 105 on Outbreak.
+        assert_eq!(spc_note(Volume::Inf, 11, 0, 0), Some(NoteSe { code: 106, note: None }));
+        assert_eq!(spc_note(Volume::Out, 11, 0, 0), Some(NoteSe { code: 105, note: None }));
+        // Id 18's table is NULL on Infection, Outbreak's has one.
+        assert_eq!(spc_note(Volume::Inf, 2, 18, 0), None);
+        assert_eq!(spc_note(Volume::Out, 2, 18, 0), Some(NoteSe { code: 30, note: None }));
+        // Ids 19 and 20 too, past Infection's table.
+        assert!(setbl::spc(Volume::Out)[20].is_some());
+        assert!(setbl::spc(Volume::Inf).get(20).is_none());
     }
 }

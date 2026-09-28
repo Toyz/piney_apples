@@ -766,6 +766,7 @@ impl AreaMode {
         use piney_audio::se3d;
         use piney_world::combat::Show;
         let w = &self.world;
+        let v = w.volume();
         let c = w.combat();
         let cam = w.camera().active();
         let ear = Some(se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
@@ -773,13 +774,13 @@ impl AreaMode {
         let spc = |i: usize, param: u32| {
             let ch = c.scene.chars.get(i)?;
             let hit = c.crew.spc.get(&i).map_or(0, |s| s.hit_attribute);
-            se3d::spc_note(param, ch.id(), hit)
+            se3d::spc_note(v, param, ch.id(), hit)
         };
         let mut out = Vec::new();
         for s in shows {
             let (se, at) = match s {
                 Show::Enemy(e, piney_battle::enemy_motion::Call::Sound { param, category }) => {
-                    (se3d::enemy_note(*param, *category), pos(*e))
+                    (se3d::enemy_note(v, *param, *category), pos(*e))
                 }
                 Show::Enemy(_, piney_battle::enemy_motion::Call::Sound3d { id, pos: p }) => {
                     (usize::try_from(*id).ok().map(|code| se3d::NoteSe { code, note: None }), *p)
@@ -836,7 +837,7 @@ impl AreaMode {
                 // The riding Grunty's notes: ccSeSetParamInu(param, pcgs).
                 Show::Ride(piney_battle::ride::Out::Sound { param, attribute }) => {
                     let at = c.ride.obj.as_ref().map_or([0, 0, 0, 0x3f80_0000], |o| o.ride.pos);
-                    (se3d::inu_note(*param, *attribute), at)
+                    (se3d::inu_note(v, *param, *attribute), at)
                 }
                 // The Administrator's act -5: ccSeOn(217).
                 Show::Npc(_, piney_world::merchant::SysopEvent::Vanish) => {

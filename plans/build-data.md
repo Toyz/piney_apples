@@ -47,8 +47,8 @@ and read through `Iso::read_path` as any disc file is.
   placement groups, in `piney-data`'s hand-written types, each with its
   own `Load`; where the game's tables share an array (object rows, room
   tables, fog tables, story dungeons' rows) it is written once and named
-  by index. `setbl` exists only for Infection and Mutation (Outbreak and
-  Quarantine have no `spc0SeData`); the port reads Infection's.
+  by index. `setbl` is each volume's own (Outbreak's and Quarantine's
+  start at `spcSeTbl[0]`, as no `spc0SeData` was carried there).
 
 A single disc image (no build) gets the same files once, in the port's
 folder (`data/<image>-<size>/`), which `Iso` serves as `PINEY/...` for that

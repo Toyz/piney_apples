@@ -53,9 +53,8 @@ time: plans/volumes.md, plans/build-data.md. Status on 2026-09-27.
 - [ ] Phase 3: the ported functions audited across volumes (`tools/voldiff.py
   ported`, worklog 198: 296 of 2,138 changed in MUT, 561 in OUT, 565 in QUA;
   each to be read and handled). Found so far and handled: the streams' PCM
-  track a voice language (Outbreak on); still Infection's for every volume:
-  `ccSndStreamCtrl` (the music around streams) and `setbl` (the animation
-  notes' sounds) - BUGS.md
+  track a voice language (Outbreak on); `ccSndStreamCtrl` (the music
+  around streams); `setbl` (the animation notes' sounds)
 - [ ] Phase 4: each volume's story end to end. Infection: done. Mutation: in
   progress, 13 of 16 events finish under the autopilot
   (plans/mutation-story.md). Outbreak and Quarantine: power-on to the

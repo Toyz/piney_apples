@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-277 entries: audio 17, battle 46, build 14, content 3, decomp 20, disc 4, engine 7, format 14, iop 2, render 66, save 8, script 27, test 124, tooling 22, ui 49, video 9, volumes 50, world 77.
+278 entries: audio 18, battle 46, build 14, content 3, decomp 20, disc 4, engine 7, format 14, iop 2, render 66, save 8, script 27, test 124, tooling 22, ui 49, video 9, volumes 51, world 77.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -289,3 +289,4 @@ The [reference](docs/README.md) says what is true now.
 | 275 | [Field 13's talks: area n for the numbered maps, field markers, and the fellows' delete](worklog/0275-field-13-s-talks-area-n-for-the-numbered-maps-field-markers.md) | 2026-09-28 | script, world, volumes, test |
 | 276 | [Mutation's whole story under the autopilot, 101 to 116](worklog/0276-mutation-s-whole-story-under-the-autopilot-101-to-116.md) | 2026-09-28 | test, volumes |
 | 277 | [Spoken to while running: the greeting's stop reaches the member; the field's talk target and the town's faces](worklog/0277-spoken-to-while-running-the-greeting-s-stop-reaches-the.md) | 2026-09-28 | ui, world, test |
+| 278 | [Each volume's animation-note sounds: setbl per volume, Outbreak's 21 party tables](worklog/0278-each-volume-s-animation-note-sounds-setbl-per-volume.md) | 2026-09-28 | audio, volumes |

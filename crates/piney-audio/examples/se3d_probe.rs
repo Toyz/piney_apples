@@ -12,6 +12,7 @@ use std::io::{BufRead, Write};
 use piney_audio::driver::Driver;
 use piney_audio::se3d::{self, Listener, NoteSe, V4};
 use piney_data::sound::INF;
+use piney_data::volume::Volume;
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s, 16).unwrap()
@@ -89,7 +90,7 @@ fn main() {
                 bytes(&d.tobj_se_loop(&INF.se[se3d::TOBJ_SE], &c, &pos(2), hex(w[5])))
             }
             "spc" => {
-                let s = se3d::spc_note(int(1) as u32, int(2) as i16, int(3) as u32);
+                let s = se3d::spc_note(Volume::Inf, int(1) as u32, int(2) as i16, int(3) as u32);
                 play(s, cam(w[4]).as_ref(), &pos(5))
             }
             "pc" => {
@@ -97,11 +98,11 @@ fn main() {
                 play(s, cam(w[4]).as_ref(), &pos(5))
             }
             "enemy" => {
-                let s = se3d::enemy_note(int(1) as u32, int(2) as i32);
+                let s = se3d::enemy_note(Volume::Inf, int(1) as u32, int(2) as i32);
                 play(s, cam(w[3]).as_ref(), &pos(4))
             }
             "inu" => {
-                let s = se3d::inu_note(int(1) as u32, int(2) as u32);
+                let s = se3d::inu_note(Volume::Inf, int(1) as u32, int(2) as u32);
                 play(s, cam(w[3]).as_ref(), &pos(4))
             }
             other => panic!("unknown request {other}"),

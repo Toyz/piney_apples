@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use piney_audio::driver::{AreaMusic, BgmWorld, SqContext, setup_context};
 use piney_audio::{Audio, wav};
+use piney_data::volume::Volume;
 
 fn iso_path() -> Option<PathBuf> {
     let p = std::env::var_os("PINEY_ISO")
@@ -148,7 +149,7 @@ fn a_positioned_sound_effect() {
     assert!((ln - rn).abs() < 0.2 * ln && ln > la * 0.9, "no camera: {ln:.1} {rn:.1}");
     // A footstep note: Kite on a ground with no row of its own.
     let a = Audio::headless(&iso).unwrap();
-    let step = se3d::spc_note(0, 0, 0).unwrap();
+    let step = se3d::spc_note(Volume::Inf, 0, 0, 0).unwrap();
     a.note_se(step, Some(&cam), &[k(300.0), 0, 0, 0]);
     sane("Kite's footstep", &stats(&run(&a, 0.5)));
     // A loop takes slot 0 and sounds until its note off.

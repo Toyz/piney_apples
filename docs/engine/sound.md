@@ -256,6 +256,13 @@ the 19 enemy tables) comes a row of zeros, which plays `ccSeOn3D(0)`;
 then the next array, and after the last `spcN` and `cateEtc2` the pointer
 tables.
 
+Across the volumes the readers (`ccSeSetParam*`, `ccSeOnPCStep`,
+`seHitAttr`) differ only in code layout, and the data differs. MUT's
+(gcmn 0x00669dc0) is INF's. OUT's (0x006687b0) and QUA's (0x0055fb30)
+change row 11 of each party table and the enemy tables, and their
+`spcSeTbl` points ids 18-20 at tables of their own (21 pointers and 3
+NULL, to the 16-byte boundary).
+
 The footstep (`ccSeOnPCStep`, 0x0017a6b0, for SPC) is the row
 `seHitAttr(ch->hitAttribute)` (`ccChar` +0x80; `seHitAttr` 0x0017a7f0)
 gives for `hitAttribute & 0x00f0f0f0`:
@@ -1072,8 +1079,8 @@ These are models of the hardware, not checked against a PS2.
   reads past its table: not surveyed. The port reads on as the game does
   to the end of setbl.cpp's data (gcmn 0x00639560-0x0063a8d0) and plays
   nothing beyond it, nor for rows naming no sound effect (the pointer
-  tables' words), nor for an `id` or `category` outside the pointer
-  tables' 19, where the game would read other memory.
+  tables' words), nor for an `id` or `category` past a pointer table and
+  its padding, where the game would read other memory.
 - `ccSeOffLoop` with an `id` outside 0-7 writes other `ccSound` bytes
   (-1 into +0x64 `sqNum` for -1); the port frees no slot then. No caller
   seen passes one.

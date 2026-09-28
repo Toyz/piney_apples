@@ -306,10 +306,11 @@ code, because the code that picks them changed:
   rows and 18 files. Outbreak and Quarantine list 21 files, and their
   English tables for 18-20 are still to be checked.
 - `setbl.cpp` (the animation notes' sounds, piney-audio's `setbl`) is
-  still Infection's on every volume. Mutation's rows are Infection's, laid
-  out the same. Outbreak and Quarantine changed them, and `spc0SeData`
-  carried no name there; `spcSeTbl[0]` points at it. The readers
-  (`ccSeSetParamSPC` and the rest) changed size too.
+  each volume's own (done). Mutation's rows are Infection's, laid out the
+  same. Outbreak and Quarantine changed them, and `spcSeTbl` holds 21
+  tables there (ids 18-20). `spc0SeData` carried no name there;
+  `spcSeTbl[0]` points at it. The readers (`ccSeSetParamSPC` and the rest)
+  changed size, but only in code layout.
 
 ## Saves
 
