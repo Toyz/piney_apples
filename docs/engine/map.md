@@ -2,7 +2,7 @@
 title: The minimap - town, field and dungeon maps, the map button and ShowMap
 status: partial
 volumes: INF, MUT
-covers: INF SLUS_202.67:0x001a4430 ccThFieldDisp, 0x001a3fd0 WORLD_MAN::ChangeMapMode, 0x001a3b70 WORLD_MAN::SetMapAlpha, 0x001a3b80 WORLD_MAN::GetMapAlpha, 0x001a3ee0 WORLD_MAN::ShowMap, 0x0015a960 ccSprite::SetPrim, 0x0015ae80 ccSprite::MakePacket, 0x0015aed0 ccSprite::MakePacketStr, 0x0015c4b0 ccMask::ccMask, 0x0015c690 ccMask::MakePacketS, 0x0015c5e0 ccMask::SendPacketS, 0x00102190 ccRotate, 0x00104ae0 ccView::SetFrame, 0x001538d0 ccHitCheckLM, 0x00129d08 fptoui; INF gcmn.prg:0x00517800 ccThGameCtrl, 0x00421470 ROOTTOWN01::ROOTTOWN01, 0x00422d00 ROOTTOWN01::DrawMap, 0x005d4ad0 RT01ICONPOS, 0x004240c0 ROOTTOWN02::ROOTTOWN02, 0x00425760 ROOTTOWN02::DrawMap, 0x005d4e90 RT02ICONPOS, 0x005a4cd0 WORLD::Init, 0x005a6da0 WORLD::Generate, 0x005a97b0 WORLD::Draw, 0x005a3940 WORLD::DrawMiniMap, 0x005a3170 WORLD::DrawHeightOnMiniMap, 0x005a1b60 WORLD::DrawKeyObjectOnMiniMap, 0x005a1ff0 WORLD::DrawSubObjectOnMiniMap, 0x005a2510 WORLD::DrawLakeOnMiniMap, 0x005a2840 WORLD::DrawCircleOnMiniMap, 0x005a2c60 WORLD::DrawDungeonOnMiniMap, 0x005ad990 WORLD::ShowMap, 0x0042e0c0 ccCheckFountain, 0x00658680 KeyIconTBL, 0x006586b0 SubIconTBL, 0x006586e0 BaseIconTBL, 0x00658710 TreeIconTBL, 0x006584b0 FP_DUNGEON, 0x006571f0 fieldminimap, 0x005b7c00 DUNGEON::DUNGEON, 0x005ce930 DUNGEON::Draw, 0x005cd850 DUNGEON::MakeMiniMap, 0x005cc160 DUNGEON::DrawMap, 0x005cf260 DUNGEON::ShowMap, 0x00695550 levelstr; INF SLUS_202.67:0x003782f8 mapmsg
+covers: INF SLUS_202.67:0x001a4430 ccThFieldDisp, 0x001a3fd0 WORLD_MAN::ChangeMapMode, 0x001a3b70 WORLD_MAN::SetMapAlpha, 0x001a3b80 WORLD_MAN::GetMapAlpha, 0x001a3ee0 WORLD_MAN::ShowMap, 0x0015a960 ccSprite::SetPrim, 0x0015ae80 ccSprite::MakePacket, 0x0015aed0 ccSprite::MakePacketStr, 0x0015c4b0 ccMask::ccMask, 0x0015c690 ccMask::MakePacketS, 0x0015c5e0 ccMask::SendPacketS, 0x00102190 ccRotate, 0x00104ae0 ccView::SetFrame, 0x001538d0 ccHitCheckLM, 0x00129d08 fptoui; INF gcmn.prg:0x00517800 ccThGameCtrl, 0x00421470 ROOTTOWN01::ROOTTOWN01, 0x00422d00 ROOTTOWN01::DrawMap, 0x005d4ad0 RT01ICONPOS, 0x004240c0 ROOTTOWN02::ROOTTOWN02, 0x00425760 ROOTTOWN02::DrawMap, 0x005d4e90 RT02ICONPOS, 0x005a4cd0 WORLD::Init, 0x005a6da0 WORLD::Generate, 0x005a97b0 WORLD::Draw, 0x005a3940 WORLD::DrawMiniMap, 0x005a3170 WORLD::DrawHeightOnMiniMap, 0x005a1b60 WORLD::DrawKeyObjectOnMiniMap, 0x005a1ff0 WORLD::DrawSubObjectOnMiniMap, 0x005a2510 WORLD::DrawLakeOnMiniMap, 0x005a2840 WORLD::DrawCircleOnMiniMap, 0x005a2c60 WORLD::DrawDungeonOnMiniMap, 0x005ad990 WORLD::ShowMap, 0x0042e0c0 ccCheckFountain, 0x00658680 KeyIconTBL, 0x006586b0 SubIconTBL, 0x006586e0 BaseIconTBL, 0x00658710 TreeIconTBL, 0x006584b0 FP_DUNGEON, 0x006571f0 fieldminimap, 0x005b7c00 DUNGEON::DUNGEON, 0x005ce930 DUNGEON::Draw, 0x005cd850 DUNGEON::MakeMiniMap, 0x005cc160 DUNGEON::DrawMap, 0x005cf260 DUNGEON::ShowMap, 0x005c7c30 DUNGEON::SetDoor, 0x0042e010 ccCheckActiveObject, 0x00695550 levelstr; INF SLUS_202.67:0x003782f8 mapmsg
 ---
 
 # The minimap - town, field and dungeon maps, the map button and ShowMap
@@ -385,7 +385,10 @@ until it answers 1) is the orb's reveal. `WORLD_MAN::ShowMap` (main
 ```
 
 So in a dungeon the room the party stands in is gone from the screen for a
-frame a room while the orb scans the floor.
+frame a room while the orb scans the floor. Each `SetRoom` runs `SetDoor`
+(0x005c7c30), which opens the doors only when `ccCheckActiveObject(f, i)`
+finds no foe and no magic portal of that room: an orb used in a fight
+builds the room again with its doors shut, as they were.
 
 ## The port
 
@@ -414,8 +417,10 @@ tasks' first frame, not while every task sleeps); `Request::MapAlpha` into
 `MapState`; the map drawn after the field UI's frame (the town from the
 tasks' second frame, as `ROOTTOWN01::Draw`), again as it was while every
 task sleeps; `DrawMap`'s `mapStatus` back to the UI (`map_on`). The area
-host's `show_map` is `map::show_map`; the town host's answers 1 as
-`WORLD_MAN::ShowMap` does there.
+host's `show_map` and the orb's steps call `FieldWorld::show_map`, which
+gives `map::show_map` the combat's `ccCheckActiveObject` (`room_clear`) for
+the rooms' doors; the town host's answers 1 as `WORLD_MAN::ShowMap` does
+there.
 
 ## Checks
 

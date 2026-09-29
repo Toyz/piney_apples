@@ -605,9 +605,7 @@ impl Host for AreaHost<'_> {
     /// `WORLD_MAN::ShowMap`: the field's `WORLD::ShowMap` (the portals on
     /// the map) at once, or one room of the dungeon's a frame.
     fn show_map(&mut self) -> bool {
-        let model = self.world.world_man().field_model;
-        let pos = self.world.player().body.pos;
-        let done = piney_world::map::show_map(self.world.place_mut(), model, pos);
+        let done = self.world.show_map();
         if done {
             self.st.log("show_map".into());
         }

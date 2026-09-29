@@ -19,7 +19,7 @@ use super::*;
 /// order (the first word running fastest, then the second) that makes a
 /// random area on `server` with a field (so its dungeon is not a lake)
 /// whose first dungeon is of that type.
-fn random_areas(server: i32, types: &[u8]) -> Vec<[i32; 3]> {
+pub(super) fn random_areas(server: i32, types: &[u8]) -> Vec<[i32; 3]> {
     areas_where(server, types, false)
 }
 
@@ -59,7 +59,7 @@ fn areas_where(server: i32, types: &[u8], lake: bool) -> Vec<[i32; 3]> {
 /// (`WORLD_MAN::SetGenerateCode`) and the party put in its dungeon's first
 /// room, as the field's entrance leaves it (`ChangeArea(2, 0)`). None
 /// without the disc.
-fn in_random_dungeon(town: i32, words: [i32; 3]) -> Option<Session> {
+pub(super) fn in_random_dungeon(town: i32, words: [i32; 3]) -> Option<Session> {
     let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
     if !iso.exists() {
         return None;

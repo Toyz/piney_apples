@@ -315,7 +315,8 @@ fn main() {
             "dshow" => {
                 let a = darea.as_mut().unwrap();
                 a.level = n(1) as usize;
-                let done = dungeon::show_map_step(a, [n(2), n(3), 0, ONE]);
+                // No foes here: every room clear.
+                let done = dungeon::show_map_step(a, [n(2), n(3), 0, ONE], &|_, _| true);
                 println!("[{}, {}]", u8::from(done), list(a.room_at.map_or([-1, -1], |(f, i)| [f as i32, i as i32])));
             }
             "dset" => {

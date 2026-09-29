@@ -300,14 +300,15 @@ pub fn area_frame(
 /// towns (in a town it does nothing and is done): in a field
 /// `WORLD::ShowMap` unless the story area's map is its own
 /// (`EVENTAREA_INFO.model` 1, `field_model`); in a dungeon one room of
-/// `DUNGEON::ShowMap`. True when done.
-pub fn show_map(place: &mut Place, field_model: i32, pos: V4) -> bool {
+/// `DUNGEON::ShowMap`, `clear` its rooms' `ccCheckActiveObject(f, i)`.
+/// True when done.
+pub fn show_map(place: &mut Place, field_model: i32, pos: V4, clear: &dyn Fn(i32, i32) -> bool) -> bool {
     match place {
         Place::Field(f) => match f.map.as_mut() {
             Some(map) => show_field_map(map, field_model),
             None => true,
         },
-        Place::Dungeon(d) => dungeon::show_map_step(d, pos),
+        Place::Dungeon(d) => dungeon::show_map_step(d, pos, clear),
         // The story area's map is its own: nothing to show.
         Place::Story(_) => true,
     }

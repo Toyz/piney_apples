@@ -1,7 +1,9 @@
 //! A Fairy's Orb (TOOL 2) used from PERSONAL in a random field: its
 //! `ccUseItemRequest` steps (the info window, then `WORLD_MAN::ShowMap`
 //! once a menu frame until it is done, 20 frames at least) put the magic
-//! portals on the field's map (`WORLD::ShowMap`: `mapFlag`).
+//! portals on the field's map (`WORLD::ShowMap`: `mapFlag`). In a random
+//! dungeon's fight the orb builds the room under Kite again with its doors
+//! shut, as they were.
 
 use piney_input::Buttons;
 use piney_world::field_world::Place;
@@ -126,4 +128,126 @@ fn an_epitaph_reads_its_pages() {
     assert_eq!(seen, vec![0, 1], "the pages shown");
     let c = &area(&s).ui().ctrl;
     assert_eq!((area(&s).ui().menu_type(), c.proccess), (6, 1), "the list did not answer again");
+}
+
+/// What a frame of [`an_orb_in_a_dungeon_fight`] holds: the field camera
+/// (`camID`, `tcam`'s type, eye, target, angles and distance), the room
+/// built with its doors (their count, `doorFlag`) and `inBattle`.
+#[derive(Debug, PartialEq)]
+struct Held {
+    cam: (i16, i32, [u32; 4], [u32; 4], [i16; 2], u32),
+    room: Option<(usize, usize)>,
+    doors: (usize, bool),
+    fight: i32,
+}
+
+fn held(s: &Session) -> Held {
+    let w = area(s).world();
+    let (c, t) = (w.camera(), &w.camera().tcam);
+    let (room, doors) = match w.place() {
+        Place::Dungeon(d) => (d.room_at, (d.doors.len(), d.door.door_flag)),
+        _ => (None, (0, false)),
+    };
+    Held { cam: (c.cam_id, t.kind, t.pos, t.view, t.deg, t.dist), room, doors, fight: w.combat().battle.in_battle }
+}
+
+/// Kite walks from a random dungeon's entrance until a fight starts, then
+/// PERSONAL opens: with `orb` a Fairy's Orb is used from Items, else the
+/// menu is shut. From the menu's close he backs away for 150 frames and
+/// stands; what each of those 240 frames held, and whether the room was
+/// deleted while the menu was up (`DUNGEON::ShowMap`).
+fn fight_then_back(orb: bool) -> Option<(Vec<Held>, bool)> {
+    let words = super::dressing::random_areas(0, &[0]).into_iter().next()?;
+    let mut s = super::dressing::in_random_dungeon(0, words)?;
+    s.console("god");
+    let (mut pad, mut walker) = (Pad::default(), super::shrine::Walker::default());
+    let (mut to, mut fight, mut opened, mut shut) = (None, false, false, None);
+    let (mut seen, mut vanished, mut up) = (Vec::new(), false, false);
+    for f in 0..4000u64 {
+        if to.is_none()
+            && let Stage::Area(a) = &s.stage
+            && let Place::Dungeon(d) = a.world().place()
+        {
+            to = Some((0, d.floors[0].down));
+        }
+        fight |= to.is_some() && area(&s).world().combat().battle.in_battle != 0;
+        let r = match (to, fight, shut) {
+            (Some(t), false, _) => {
+                let r = walker.step(&s, t, f).expect("out of the dungeon before a fight");
+                walker.put(&mut s);
+                r
+            }
+            (_, true, None) => {
+                let a = area(&s);
+                let c = &a.ui().ctrl;
+                if !opened {
+                    // Kite's first item: one Fairy's Orb, in both runs.
+                    let Stage::Area(a) = &mut s.stage else { unreachable!() };
+                    let save = &mut a.world_mut().state_mut().save;
+                    save.set_i16(offset::ITEM_LIST, 2);
+                    save.set_u8(offset::ITEM_LIST + 2, 13);
+                    save.set_u8(offset::ITEM_LIST + 3, 1);
+                    opened = true;
+                    raw(Buttons::TRIANGLE, 128)
+                } else if !f.is_multiple_of(8) || a.world().state().save.u8(offset::ITEM_LIST + 3) == 0 {
+                    raw(Buttons::NONE, 128)
+                } else {
+                    match (a.ui().menu_type(), c.proccess, orb) {
+                        (_, _, false) => raw(Buttons::CIRCLE, 128),
+                        (2, 1, true) if c.list().select < 1 => raw(Buttons::DOWN, 128),
+                        _ => raw(Buttons::CROSS, 128),
+                    }
+                }
+            }
+            (_, true, Some(from)) => raw(Buttons::NONE, if f - from < 150 { 255 } else { 128 }),
+            (None, false, _) => raw(Buttons::NONE, 128),
+        };
+        pad.read(&r);
+        s.step(&pad);
+        s.take_events();
+        let a = area(&s);
+        if let Place::Dungeon(d) = a.world().place() {
+            vanished |= opened && shut.is_none() && d.room_at.is_none();
+        }
+        up |= opened && a.ui().menu_type() != -1;
+        if up && shut.is_none() && a.ui().menu_type() == -1 {
+            shut = Some(f + 1);
+        }
+        if shut.is_some() {
+            seen.push(held(&s));
+            if seen.len() == 240 {
+                let used = a.world().state().save.u8(offset::ITEM_LIST + 3) == 0;
+                assert_eq!(used, orb, "the orb used");
+                return Some((seen, vanished));
+            }
+        }
+    }
+    panic!("no fight, or the menu never shut (orb {orb})");
+}
+
+/// A Fairy's Orb used as a fight starts in a random dungeon's room with
+/// its portal: `DUNGEON::ShowMap` (gcmn 0x005cf260) builds the room under
+/// Kite again with `SetRoom`, whose `SetDoor` (0x005c7c30) keeps the doors
+/// shut while `ccCheckActiveObject(f, i)` finds a foe or a portal there.
+/// Backing into the door he came through, Kite and the camera then do on
+/// every frame what they do when the menu is only opened and shut.
+#[test]
+fn an_orb_in_a_dungeon_fight() {
+    let Some((plain, shown)) = fight_then_back(false) else { return };
+    let (used, vanished) = fight_then_back(true).expect("the second run");
+    assert!(!shown && vanished, "the room deleted only by the orb");
+    assert_eq!(plain[0].fight, 1, "the fight on as the menu shuts");
+    assert!(!plain[0].doors.1 && plain[0].doors.0 > 0, "the doors shut: {:?}", plain[0]);
+    // The walk reaches the door: a shut leaf pulls the camera in.
+    let near = |h: &Held| {
+        let (eye, at) = (h.cam.2.map(f32::from_bits), h.cam.3.map(f32::from_bits));
+        (0..3).map(|i| (eye[i] - at[i]).powi(2)).sum::<f32>().sqrt()
+    };
+    assert!(plain.iter().any(|h| near(h) < 300.0), "the camera never met the door");
+    // The camera first, then the rest.
+    for same in [|a: &Held, b: &Held| a.cam == b.cam, |a: &Held, b: &Held| a == b] {
+        if let Some(k) = (0..plain.len()).find(|&k| !same(&plain[k], &used[k])) {
+            panic!("frame {k} after the menu:\nwithout {:?}\nwith    {:?}", plain[k], used[k]);
+        }
+    }
 }

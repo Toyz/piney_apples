@@ -522,15 +522,24 @@ pub fn floors_of(
 /// `show_map`): the room under the player deleted; the first room of the
 /// floor built and not yet seen built, put on the map by `MakeMiniMap`,
 /// painted and deleted (false: not done); with none left, the room under
-/// the player built again (true: done).
-pub fn show_map_step(area: &mut crate::dungeon_area::DungeonArea, player: V4) -> bool {
+/// the player built again (true: done). Each `SetRoom`'s `SetDoor` opens
+/// the doors only when `clear(f, i)` (`ccCheckActiveObject`): in a fight
+/// the room is built again with them shut.
+pub fn show_map_step(
+    area: &mut crate::dungeon_area::DungeonArea,
+    player: V4,
+    clear: &dyn Fn(i32, i32) -> bool,
+) -> bool {
     let f = area.level;
     let here = area.here(player);
     area.delete_room();
     let Some(mut map) = area.map.take() else { return true };
+    let set_room = |area: &mut crate::dungeon_area::DungeonArea, i: usize| {
+        area.set_room_with(f, i, clear(f as i32, i as i32));
+    };
     let done = match map.unseen(f) {
         Some(i) => {
-            area.set_room(f, i);
+            set_room(area, i);
             map.make_mini_map(&mut area.hits, f, i);
             map.paint(f, false);
             area.delete_room();
@@ -538,7 +547,7 @@ pub fn show_map_step(area: &mut crate::dungeon_area::DungeonArea, player: V4) ->
         }
         None => {
             if let Some(h) = here {
-                area.set_room(f, h);
+                set_room(area, h);
             }
             true
         }

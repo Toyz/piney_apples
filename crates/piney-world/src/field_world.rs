@@ -1091,6 +1091,16 @@ impl FieldWorld {
         true
     }
 
+    /// One `WORLD_MAN::ShowMap` call ([`crate::map::show_map`]) at the
+    /// player: a field's portals on its map at once, or one room of the
+    /// dungeon's floor, each room's doors as `ccCheckActiveObject` finds
+    /// it. True when done.
+    pub fn show_map(&mut self) -> bool {
+        let combat = &self.combat;
+        let clear = |f: i32, b: i32| room_clear(combat, f, b);
+        crate::map::show_map(&mut self.place, self.world_man.field_model, self.player.body.pos, &clear)
+    }
+
     /// `WORLD_MAN::GoField` (main 0x0019e410; `TransFieldMenu`, menu 86):
     /// from a dungeon back to its field, `ChangeArea(1, eventAreaNumber)`,
     /// where `SetCharPosition` stands the party beside the entrance. Nothing

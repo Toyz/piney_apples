@@ -1146,9 +1146,7 @@ impl AreaMode {
     /// `WORLD::ShowMap` (the portals on the map) at once, or one room of
     /// the dungeon's floor. True when done.
     fn item_show_map(&mut self) -> bool {
-        let model = self.world.world_man().field_model;
-        let pos = self.world.player().body.pos;
-        piney_world::map::show_map(self.world.place_mut(), model, pos)
+        self.world.show_map()
     }
 
     fn menu_request(&mut self, r: piney_fieldui::Request) {
