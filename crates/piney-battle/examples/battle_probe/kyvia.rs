@@ -200,6 +200,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         view: case.cam_view,
         moving: false,
         reset,
+        shake: false,
     };
     let disc = |f: usize| DiscView {
         moving: case.moving.get(f).copied().unwrap_or(false),

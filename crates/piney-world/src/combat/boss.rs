@@ -1,11 +1,10 @@
 //! The bosses in the field: what `ccBossEntryStart(code)` (gcmn 0x0045b2a0)
 //! starts for an event's `entry 7 code` - `ccThBossEffect` and
 //! `bossFunc[code]` at priority 66 - over the battle's scene
-//! ([`piney_battle::boss`]). Code 0 is Skeith (`ccThBoss01`), 1 Innis
-//! (`ccThBoss02`), 2 Magus (`ccThBoss03`, its leaves characters of their
-//! own), 12 Kyvia's first fight (`ccThKyvia01`, its core and gomoras
-//! characters of their own); the others are not ported and start nothing. Once `CheckExit()` the task sets its parameter's +0x14, which
-//! `absent 7` reads.
+//! ([`piney_battle::boss`]). Codes 0 Skeith, 1 Innis, 2 Magus (its leaves
+//! characters of their own), 3 Fidchell, 12 Kyvia's first fight (its core
+//! and gomoras likewise); the others start nothing. Once `CheckExit()` the
+//! task sets its parameter's +0x14, which `absent 7` reads.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -30,10 +29,11 @@ use crate::ee::{self, ONE, V4};
 use crate::lattice::{Lattice, StripVertex};
 
 /// `bossFunc`'s codes the port has: Skeith (`bossTbl` row 0), Innis
-/// (row 1), Magus (row 2) and Kyvia 01 (row 12).
+/// (row 1), Magus (row 2), Fidchell (row 3) and Kyvia 01 (row 12).
 pub const SKEITH: i32 = 0;
 pub const INNIS: i32 = 1;
 pub const MAGUS: i32 = 2;
+pub const FIDCHELL: i32 = 3;
 pub const KYVIA: i32 = 12;
 
 /// Skeith's file and model (`x11`, `CMP_trall`), and the effects' file.
@@ -51,6 +51,10 @@ pub const KYVIA_PARTS: [&str; 2] = ["CMP_trall2", "CMP_ex01gom2"];
 /// Magus's file (`x31`): its body (`CMP_trall`) and its leaves' model.
 pub const MAGUS_FILE: &str = "x31";
 pub const MAGUS_LEAF: &str = "CMP_ex31leaf";
+/// Fidchell's file (`x41`): its body, and the body its Epitaph's clips
+/// (`ANM_ex4x*`) move.
+pub const FIDCHELL_CLUMP: &str = "CMP_trall1";
+pub const FIDCHELL_EPITAPH: &str = "CMP_trallx";
 /// The wave's animation in [`EFF_FILE`].
 pub const ANM_WAVE: &str = "ANM_xx11wave";
 
@@ -60,6 +64,8 @@ pub const CAM_TRANSFER: V4 = [0, 0x447a_0000, 0x4348_0000, ONE];
 pub const INNIS_CAM_TRANSFER: V4 = [0, 0x4461_0000, 0x4348_0000, ONE];
 /// Kyvia's `InitBossCamera(450, 1050)`.
 pub const KYVIA_CAM_TRANSFER: V4 = [0, 0x4483_4000, 0x43e1_0000, ONE];
+/// Fidchell's `InitBossCamera(250, 1500)`.
+pub const FIDCHELL_CAM_TRANSFER: V4 = [0, 0x44bb_8000, 0x437a_0000, ONE];
 
 /// A clip's frames and whether it loops, by name, in the boss's files.
 pub type Clips = HashMap<String, (u32, bool)>;
@@ -151,6 +157,7 @@ impl BossLook {
         let (file, clump) = match code {
             INNIS => (INNIS_FILE, CLUMP),
             MAGUS => (MAGUS_FILE, CLUMP),
+            FIDCHELL => (boss::fidchell::FILE, FIDCHELL_CLUMP),
             KYVIA => (KYVIA_FILE, KYVIA_CLUMP),
             _ => (FILE, CLUMP),
         };
@@ -194,6 +201,10 @@ impl BossLook {
                 let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, MAGUS_FILE)?);
                 Body::of(file, MAGUS_LEAF).ok().map(Rc::new).into_iter().collect()
             }
+            FIDCHELL => {
+                let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, boss::fidchell::FILE)?);
+                Body::of(file, FIDCHELL_EPITAPH).ok().map(Rc::new).into_iter().collect()
+            }
             _ => Vec::new(),
         };
         Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, images })
@@ -215,7 +226,7 @@ impl Combat {
         camera: &mut Camera,
     ) {
         let code = look.code;
-        if self.boss.is_some() || !matches!(code, SKEITH | INNIS | MAGUS | KYVIA) {
+        if self.boss.is_some() || !matches!(code, SKEITH | INNIS | MAGUS | FIDCHELL | KYVIA) {
             return;
         }
         let d = self.data.clone();
@@ -251,7 +262,7 @@ impl Combat {
             collide: &mut none,
             game_over: false,
             boss_cam: true,
-            cam: cam_view(camera, None),
+            cam: cam_view(camera, None, false),
             land: &mut land,
             disc,
             me,
@@ -261,6 +272,7 @@ impl Combat {
         let b = match code {
             INNIS => boss::innis::new(&mut cx, kite_pos, kite_dirc, center),
             MAGUS => boss::magus::new(&mut cx, kite_pos, kite_dirc, center),
+            FIDCHELL => boss::fidchell::new(&mut cx, kite_pos, kite_dirc, center),
             KYVIA => boss::kyvia::new(&mut cx),
             _ => Boss::new(&mut cx, kite_pos, kite_dirc, center),
         };
@@ -301,6 +313,7 @@ impl Combat {
         let transfer = match code {
             INNIS => INNIS_CAM_TRANSFER,
             KYVIA => KYVIA_CAM_TRANSFER,
+            FIDCHELL => FIDCHELL_CAM_TRANSFER,
             _ => CAM_TRANSFER,
         };
         // InitBossCamera(z, y), in the constructor, and what the
@@ -359,7 +372,9 @@ impl Combat {
         let me = run.me;
         let hit = run.hit;
         let clips = run.clips.clone();
-        let cv = cam_view(camera, run.cam.as_ref());
+        // checkCameraShakeRange of the boss's place, as its Think asks it.
+        let shake = shake_range(camera, &world, self.scene.chars[me].pos);
+        let cv = cam_view(camera, run.cam.as_ref(), shake);
         let d = self.data.clone();
         let Some(data) = d.bosses.as_ref() else { return ev };
         let clip = |name: &str| clips.get(name).copied();
@@ -454,6 +469,7 @@ impl Combat {
         let wave_time = match &b.class {
             Class::Innis(x) => x.anm_w.posed,
             Class::Magus(x) => x.anm_w.posed,
+            Class::Fidchell(x) => x.anm_w.posed,
             _ => b.anm_wave.posed,
         };
         let clip = b.anm.clip.clone().unwrap_or_default();
@@ -472,6 +488,9 @@ impl Combat {
                         r.cinema.on(name);
                     }
                     Out::Cinema(None) => r.cinema.off(),
+                    // A skill's name (OUT gcmn 0x00472550's rows) is not
+                    // read: the bars alone.
+                    Out::CinemaSkill(_) => r.cinema.on(None),
                     Out::Quake(v) => {
                         if let Some(c) = r.cam.as_mut() {
                             c.quake(*v);
@@ -493,7 +512,7 @@ impl Combat {
                             c.xrot = if *add { ee::add(c.xrot, *v) } else { *v };
                         }
                     }
-                    Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) => {
+                    Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) | Out::CamMaxRange(_) => {
                         if let Some(c) = r.cam.as_mut() {
                             cam_out(c, o, camera);
                         }
@@ -550,7 +569,9 @@ impl Combat {
         }
         // The actor: ccAnm::Draw of the boss's clip at its frame, placed by
         // SetMatrix_PosRotZYX(pos, dirc), at setTransparency, while drawn.
+        // Fidchell's Epitaph clips move its other body.
         let pos = self.scene.chars[me].pos;
+        self.fidchell_body(&b, me);
         if let Some(a) = self.cast.actors.get_mut(&me) {
             pose(a, &b.anm, pos, b.dirc);
             a.drawn = b.draw_sw != 0 && !exited;
@@ -611,6 +632,25 @@ impl Combat {
             }
         }
         ev
+    }
+
+    /// Fidchell's body for its clip: `CMP_trallx` under the Epitaph's
+    /// `ANM_ex4x*`, `CMP_trall1` under the rest.
+    fn fidchell_body(&mut self, b: &Boss, me: usize) {
+        let Some(look) = self.boss.as_ref().map(|r| r.look.clone()).filter(|l| l.code == FIDCHELL) else { return };
+        let clip = b.anm.clip.clone().unwrap_or_default();
+        let body = match look.images.first() {
+            Some(x) if clip.starts_with("ANM_ex4x") => x.clone(),
+            _ => look.body.clone(),
+        };
+        let pos = self.scene.chars[me].pos;
+        let (h, w) = (self.scene.chars[me].base().height, self.scene.chars[me].base().width);
+        if let Some(a) = self.cast.actors.get_mut(&me)
+            && !Rc::ptr_eq(&a.ch.body, &body)
+            && let Some(n) = Actor::new(body, &clip, Look::Boss, pos, b.dirc, h, w)
+        {
+            *a = n;
+        }
     }
 
     /// Innis's images (`ccBoss02Slave::Draw` through `ccBoss::Draw`): each
@@ -715,7 +755,7 @@ fn pose(a: &mut Actor, anm: &piney_battle::boss::Anm, pos: V4, dirc: V4) {
 /// What a boss's rules read of the cameras this frame: the active
 /// camera's turn (`cameraGetRot(camID)`), camera 2's eye and view, and
 /// the boss camera's `CheckMoveCamera`.
-fn cam_view(camera: &Camera, bcam: Option<&BossCam>) -> CamView {
+fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> CamView {
     let c = camera.cam(id::BATTLE);
     CamView {
         rot: camera.rot(),
@@ -723,6 +763,7 @@ fn cam_view(camera: &Camera, bcam: Option<&BossCam>) -> CamView {
         view: c.view,
         moving: bcam.is_some_and(BossCam::check_move_camera),
         reset: bcam.map_or(0, |b| b.reset),
+        shake,
     }
 }
 
@@ -777,6 +818,7 @@ fn cam_out(c: &mut BossCam, o: &Out, camera: &mut Camera) {
         Out::CamInitLock => c.init_lock = true,
         Out::CamRotXLimit(v) => c.set_rot_x_limit(*v),
         Out::CamPitch { add, v } => c.xrot = if *add { ee::add(c.xrot, *v) } else { *v },
+        Out::CamMaxRange(v) => c.max_range = *v,
         _ => {}
     }
 }

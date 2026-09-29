@@ -129,6 +129,26 @@ pub struct Combat {
     pub magus_skills: &'static [i32],
     /// `@2301`: the skills `OnThinkLeafDrop` casts as its sixth leaf falls.
     pub magus_drop_skills: &'static [i32],
+    /// `boss04NormalActTbl`: Fidchell's patterns, up to and with its -1.
+    pub fidchell_normal: &'static [i32],
+    /// `boss04SuperActTbl`: Fidchell's once its gauge is half full.
+    pub fidchell_super: &'static [i32],
+    /// `boss04EpitaphActTbl`: Fidchell's once drained.
+    pub fidchell_epitaph: &'static [i32],
+    /// `boss0xAnmTbl`: Fidchell's clip by act.
+    pub fidchell_anims: &'static [Option<&'static str>],
+    /// `@1038`: the prediction's text clip (x41) by `m_predId`.
+    pub fidchell_pred_texts: &'static [Option<&'static str>],
+    /// `@1039`: the prediction's voice (`ccEvVoiceRequest(-40, n)`) by `m_predId`.
+    pub fidchell_pred_voices: &'static [i32],
+    /// `@1272`: pattern 10's skills (read, never used).
+    pub fidchell_rand_skills: &'static [i32],
+    /// `@1441`: the skill the prediction lays on each member, by `m_predId`.
+    pub fidchell_pred_skills: &'static [i32],
+    /// `@2048`: `OnThinkSkill`'s skills, one by `ccRand() % 3`.
+    pub fidchell_skills: &'static [i32],
+    /// `@2081`: `OnThinkMagic`'s spells, by `ccSys.count & 3`.
+    pub fidchell_magic_skills: &'static [i32],
     /// `_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.
     pub cinema_skill_names: &'static [CinemaSkillName],
     /// Every `*WpInfo`: the races' weapon trail blocks, by name.
@@ -191,6 +211,16 @@ impl crate::store::Load for Combat {
             magus_leaf_anims: crate::store::Load::load(r),
             magus_skills: crate::store::Load::load(r),
             magus_drop_skills: crate::store::Load::load(r),
+            fidchell_normal: crate::store::Load::load(r),
+            fidchell_super: crate::store::Load::load(r),
+            fidchell_epitaph: crate::store::Load::load(r),
+            fidchell_anims: crate::store::Load::load(r),
+            fidchell_pred_texts: crate::store::Load::load(r),
+            fidchell_pred_voices: crate::store::Load::load(r),
+            fidchell_rand_skills: crate::store::Load::load(r),
+            fidchell_pred_skills: crate::store::Load::load(r),
+            fidchell_skills: crate::store::Load::load(r),
+            fidchell_magic_skills: crate::store::Load::load(r),
             cinema_skill_names: crate::store::Load::load(r),
             weapon_infos: crate::store::Load::load(r),
             dust_infos: crate::store::Load::load(r),
@@ -306,6 +336,36 @@ impl Combat {
     }
     pub fn magus_drop_skills(&self) -> &'static [i32] {
         self.magus_drop_skills
+    }
+    pub fn fidchell_normal(&self) -> &'static [i32] {
+        self.fidchell_normal
+    }
+    pub fn fidchell_super(&self) -> &'static [i32] {
+        self.fidchell_super
+    }
+    pub fn fidchell_epitaph(&self) -> &'static [i32] {
+        self.fidchell_epitaph
+    }
+    pub fn fidchell_anims(&self) -> &'static [Option<&'static str>] {
+        self.fidchell_anims
+    }
+    pub fn fidchell_pred_texts(&self) -> &'static [Option<&'static str>] {
+        self.fidchell_pred_texts
+    }
+    pub fn fidchell_pred_voices(&self) -> &'static [i32] {
+        self.fidchell_pred_voices
+    }
+    pub fn fidchell_rand_skills(&self) -> &'static [i32] {
+        self.fidchell_rand_skills
+    }
+    pub fn fidchell_pred_skills(&self) -> &'static [i32] {
+        self.fidchell_pred_skills
+    }
+    pub fn fidchell_skills(&self) -> &'static [i32] {
+        self.fidchell_skills
+    }
+    pub fn fidchell_magic_skills(&self) -> &'static [i32] {
+        self.fidchell_magic_skills
     }
     pub fn cinema_skill_names(&self) -> &'static [CinemaSkillName] {
         self.cinema_skill_names
@@ -457,6 +517,37 @@ pub static MAGUS_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLo
 /// `@2301`: the skills `OnThinkLeafDrop` casts as its sixth leaf falls.
 pub static MAGUS_DROP_SKILLS: std::sync::LazyLock<&'static [i32]> =
     std::sync::LazyLock::new(|| shared().magus_drop_skills);
+
+/// `boss04EpitaphActTbl`: Fidchell's once drained.
+pub static FIDCHELL_EPITAPH: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().fidchell_epitaph);
+
+/// `boss0xAnmTbl`: Fidchell's clip by act.
+pub static FIDCHELL_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().fidchell_anims);
+
+/// `@1038`: the prediction's text clip (x41) by `m_predId`.
+pub static FIDCHELL_PRED_TEXTS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().fidchell_pred_texts);
+
+/// `@1039`: the prediction's voice (`ccEvVoiceRequest(-40, n)`) by `m_predId`.
+pub static FIDCHELL_PRED_VOICES: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().fidchell_pred_voices);
+
+/// `@1272`: pattern 10's skills (read, never used).
+pub static FIDCHELL_RAND_SKILLS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().fidchell_rand_skills);
+
+/// `@1441`: the skill the prediction lays on each member, by `m_predId`.
+pub static FIDCHELL_PRED_SKILLS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().fidchell_pred_skills);
+
+/// `@2048`: `OnThinkSkill`'s skills, one by `ccRand() % 3`.
+pub static FIDCHELL_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().fidchell_skills);
+
+/// `@2081`: `OnThinkMagic`'s spells, by `ccSys.count & 3`.
+pub static FIDCHELL_MAGIC_SKILLS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().fidchell_magic_skills);
 
 /// `ehkBreathInfo`: `ccEnemyH`'s two fire breaths.
 pub static EHK_BREATH_INFO: std::sync::LazyLock<&'static [EnemyBrInfo]> =

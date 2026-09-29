@@ -1,18 +1,20 @@
 //! Bosses: `ccBoss` (boss.cpp, gcmn 0x0045bcf0-0x0045fbd0) and Skeith
-//! (`ccBoss01`, boss01.cpp, 0x0047b300-0x0047ee68), entry type 7 code 0;
-//! Innis (`ccBoss02`, code 1) is [`innis`], Magus (`ccBoss03`, 2) [`magus`],
-//! Kyvia (`ccBossKyvia01`, 12) [`kyvia`]. `ccBossEntryStart(code)` (0x0045b2a0)
-//! starts the effect manager ([`Effects`]) and `bossFunc[code]`, which makes
-//! the boss and runs [`Boss::main`] each frame. The tables come from the build
-//! ([`BossData`]); sounds, the camera and the pictures are [`Out`]s.
-//! docs/engine/boss.md, boss-innis.md, boss-magus.md, boss-kyvia.md.
+//! (`ccBoss01`, 0x0047b300-0x0047ee68), entry type 7 code 0; Innis (1)
+//! [`innis`], Magus (2) [`magus`], Fidchell (3) [`fidchell`], Kyvia (12)
+//! [`kyvia`]. `ccBossEntryStart(code)` (0x0045b2a0) starts the effect
+//! manager ([`Effects`]) and `bossFunc[code]`, which makes the boss and runs
+//! [`Boss::main`] each frame. The tables come from the build ([`BossData`]);
+//! sounds, the camera and the pictures are [`Out`]s. docs/engine/boss.md
+//! and boss-innis.md, boss-magus.md, boss-kyvia.md, boss-fidchell.md.
 
+pub mod fidchell;
 pub mod innis;
 pub mod kyvia;
 pub mod magus;
 
 use piney_data::field::ee;
 use piney_data::libm;
+use piney_data::volume::Volume;
 
 use crate::affect::{self, AffectCtx};
 use crate::chara::{self, Env};
@@ -98,13 +100,14 @@ impl SkeithData {
 }
 
 /// Every boss's tables, for the volume ([`SkeithData`], [`innis::InnisData`],
-/// [`magus::MagusData`], [`kyvia::KyviaData`]).
+/// [`magus::MagusData`], [`kyvia::KyviaData`], [`fidchell::FidchellData`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BossData {
     pub skeith: SkeithData,
     pub innis: innis::InnisData,
     pub magus: magus::MagusData,
     pub kyvia: kyvia::KyviaData,
+    pub fidchell: fidchell::FidchellData,
 }
 
 impl BossData {
@@ -115,6 +118,7 @@ impl BossData {
             innis: innis::InnisData::of(volume),
             magus: magus::MagusData::of(volume),
             kyvia: kyvia::KyviaData::of(volume),
+            fidchell: fidchell::FidchellData::of(volume),
         }
     }
 }
@@ -139,6 +143,8 @@ pub enum Class {
     KyviaCore(Box<kyvia::core::Core>),
     /// `kyviaGomora`.
     Gomora(Box<kyvia::gomora::Gomora>),
+    /// `ccBoss04`.
+    Fidchell(Box<fidchell::Fidchell>),
     /// A bare `ccBoss` (a slave's base).
     Plain,
 }
@@ -284,6 +290,8 @@ pub struct Eff {
     pub meteorite: Option<Box<kyvia::Meteorite>>,
     /// Magus's needles ([`magus::Needle`]).
     pub needle: Option<Box<magus::Needle>>,
+    /// Fidchell's spells ([`fidchell::eff::Fx`]).
+    pub fidchell: Option<Box<fidchell::eff::Fx>>,
 }
 
 /// The effects the bosses make (`ccBossEff*Create`).
@@ -293,9 +301,10 @@ pub enum EffKind {
     WaveShock,
     /// `ccBossEffMagicSquareCreate(pos, n)` (0x00478b10).
     MagicSquare { n: i32 },
-    /// `ccBossEffForceGeneratorCreate` (0x004797e0): a
-    /// `ccBossEffBrightMagicSquare` of `num` photons living `life` frames.
-    ForceGenerator { num: i32, life: i32 },
+    /// `ccBossEffForceGeneratorCreate(p, rot, speed, r0, r1, num, life,
+    /// clt)` (0x004797e0): a `ccBossEffBrightMagicSquare` of `num` photons
+    /// living `life` frames.
+    ForceGenerator { num: i32, life: i32, speed: F, r0: F, r1: F, clt: i32 },
     /// `ccBossEffAutoSamonRingCreate(pos, rot, param, n)` (0x00479900).
     AutoSamonRing { n: i32 },
     /// `ccBossEffIceBreakCreate(pos, scale)` (0x00479240).
@@ -318,6 +327,13 @@ pub enum EffKind {
     /// `ccBossEffAutoSamonRingCreate(pos, rot, (0.5, 1, 0, 40), 195)`: a
     /// leaf of Magus's dies.
     LeafRing,
+    /// `ccBossEffMeteoSwormCreate(sp, ep, n, 500, 50, &camView)` (OUT gcmn
+    /// 0x00489de0): Fidchell's meteors ([`fidchell::eff::MeteoSworm`]).
+    MeteoSworm { n: i32 },
+    /// `ccBossEffThunderStormCreate(pos, 200, n)` (OUT 0x00489fa0).
+    ThunderStorm { n: i32 },
+    /// `ccBossEffRockTowerCreate(pos, n)` (OUT 0x0048a3a0).
+    RockTower { n: i32 },
 }
 
 impl Effects {
@@ -329,7 +345,17 @@ impl Effects {
         if self.slots.is_empty() {
             self.slots = vec![None; Self::SLOTS];
         }
-        let e = Eff { kind, enabled: true, count: 0, proc: 0, fade: ONE, missile: None, meteorite: None, needle: None };
+        let e = Eff {
+            kind,
+            enabled: true,
+            count: 0,
+            proc: 0,
+            fade: ONE,
+            missile: None,
+            meteorite: None,
+            needle: None,
+            fidchell: None,
+        };
         match self.slots.iter().position(Option::is_none) {
             Some(k) => {
                 self.slots[k] = Some(e);
@@ -379,7 +405,7 @@ impl Eff {
             EffKind::MagicSquare { .. } => 91,
             // ccBossEffBrightMagicSquare (0x0046dd90): photon k waits
             // (k / 2) * 10 frames, then lives `life`.
-            EffKind::ForceGenerator { num, life } => life + (num - 1) / 2 * 10 + 3,
+            EffKind::ForceGenerator { num, life, .. } => life + (num - 1) / 2 * 10 + 3,
             // ccBossEffAutoSamonRing::Draw (0x0046ed70): its
             // ccEffSamonRing fades out in 20 frames, whatever the model.
             EffKind::AutoSamonRing { .. } | EffKind::LeafRing => 20,
@@ -396,7 +422,12 @@ impl Eff {
                 }
                 return;
             }
-            EffKind::Missile { .. } | EffKind::Meteorite { .. } | EffKind::Needle { .. } => return,
+            EffKind::Missile { .. }
+            | EffKind::Meteorite { .. }
+            | EffKind::Needle { .. }
+            | EffKind::MeteoSworm { .. }
+            | EffKind::ThunderStorm { .. }
+            | EffKind::RockTower { .. } => return,
         };
         if self.count >= life {
             self.enabled = false;
@@ -620,6 +651,13 @@ pub enum Out {
     },
     /// What Magus shows beside ([`magus::Pic`]).
     Magus(magus::Pic),
+    /// What Fidchell shows or asks beside ([`fidchell::Pic`]).
+    Fidchell(fidchell::Pic),
+    /// `OnCinemaMode` with a skill's name (OUT gcmn 0x004733b0): the bars
+    /// and the name `sid`'s row gives (OUT 0x00472550).
+    CinemaSkill(i32),
+    /// `bossCam->MaxRenge` (+0xd8) set.
+    CamMaxRange(F),
 }
 
 /// `ccBoss`, with `ccBoss01`'s members (Skeith's); another class's own
@@ -734,8 +772,9 @@ pub struct Cx<'a> {
 
 /// The cameras as a boss's rules read them: `cameraGetRot(camID)` (the
 /// active camera's turn), `cameraGetPos(2)`, `cameraGetView(2)` (the boss
-/// camera's eye and view), `bossCam->CheckMoveCamera()` and the boss
-/// camera's `ResetFlg` (+0x04: 0 once a mode 3 or 4 move is done).
+/// camera's eye and view), `bossCam->CheckMoveCamera()`, the boss
+/// camera's `ResetFlg` (+0x04: 0 once a mode 3 or 4 move is done), and
+/// `checkCameraShakeRange` of the boss's place as the frame starts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CamView {
     pub rot: V4,
@@ -743,6 +782,7 @@ pub struct CamView {
     pub view: V4,
     pub moving: bool,
     pub reset: i32,
+    pub shake: bool,
 }
 
 /// `WORLD_MAN.eventmap` as an `EVENTAREAB8` for Kyvia's rules: `IsMove()`,
@@ -814,6 +854,16 @@ fn p2w(cx: &Cx, v: V4) -> V4 {
     cx.world.frame.p2w(v)
 }
 
+/// The square root `ccGetDist` and `_ccBossSkillDamage` take: newlib's
+/// `sqrtf` on Infection and Mutation, the FPU's `sqrt.s` (truncating)
+/// inline on Outbreak and Quarantine (OUT main 0x001e6ec0).
+fn sqrt_of(cx: &Cx, v: F) -> F {
+    match cx.actx.volume {
+        Volume::Out | Volume::Qua => ee::sqrt(v),
+        Volume::Inf | Volume::Mut => libm::sqrtf(v),
+    }
+}
+
 impl Boss {
     /// The constructors (`ccBoss::ccBoss` 0x0045bcf0, `ccBoss01::ccBoss01`
     /// 0x0047b410) as far as the rules go: Skeith stands 500 behind Kite
@@ -871,6 +921,7 @@ impl Boss {
             Class::Innis(_) => innis::main(self, cx),
             Class::Magus(_) => magus::main(self, cx),
             Class::Kyvia(_) => kyvia::main(self, cx),
+            Class::Fidchell(_) => fidchell::main(self, cx),
             _ => self.skeith_main(cx),
         }
     }
@@ -1462,7 +1513,7 @@ impl Boss {
         let p = cx.scene.chars[m].pos_p;
         let v = [ee::sub(p[0], c[0]), ee::sub(p[1], c[1]), 0, ONE];
         let dd = geom::dot(v, v);
-        let d = ee::sub(libm::sqrtf(dd), cx.scene.chars[m].base().width);
+        let d = ee::sub(sqrt_of(cx, dd), cx.scene.chars[m].base().width);
         ee::le(d, range)
     }
 
@@ -2030,7 +2081,14 @@ impl Boss {
                             let mut p = cx.scene.chars[m].pos;
                             p[2] = 0x447a_0000;
                             let rot = [0x3fc9_0fdb, 0, 0, ONE];
-                            let k = EffKind::ForceGenerator { num: 8, life: 100 };
+                            let k = EffKind::ForceGenerator {
+                                num: 8,
+                                life: 100,
+                                speed: 0x4120_0000,
+                                r0: 0x4348_0000,
+                                r1: 0x4348_0000,
+                                clt: 8,
+                            };
                             self.eff_force = Some(self.effect_at(cx, k, p, rot));
                             cx.se3d(226);
                         }
@@ -2154,6 +2212,16 @@ impl Boss {
         }
     }
 
+    /// `ccBoss::CalcEffectCameraPos(p, d, out)` (OUT gcmn 0x0046ffb0): `d`
+    /// from `p` along the way from it to the centre.
+    fn calc_effect_camera_pos(&self, cx: &Cx, p: V4, d: F) -> V4 {
+        let pp = w2p(cx, p);
+        let r = get_dirc(pp, self.center_pos_p);
+        let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI), r);
+        let v = geom::apply_matrix(&m, [d, 0, 0, ONE]);
+        p2w(cx, geom::vadd(pp, v))
+    }
+
     /// `ccBoss::BeginDeadEffect(dist, height)` (0x0045ee90): the camera
     /// behind the boss, the party held, the music out, the effect.
     fn begin_dead_effect(&mut self, cx: &mut Cx, dist: F, height: F) -> i32 {
@@ -2181,6 +2249,7 @@ impl Boss {
             Class::MagusLeaf(_) => return magus::leaf::affect(self, cx),
             Class::KyviaCore(_) => return kyvia::core::affect(self, cx),
             Class::Gomora(_) => return kyvia::gomora::affect(self, cx),
+            Class::Fidchell(_) => return fidchell::affect(self, cx),
             _ => {}
         }
         let me = cx.me;

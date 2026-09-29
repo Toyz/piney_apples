@@ -16,6 +16,7 @@ mod enemy_ai;
 mod enemy_motion;
 mod evparty;
 mod fellow;
+mod fidchell;
 mod frame;
 mod innis;
 mod items;
@@ -644,6 +645,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .or_else(|| innis::handle(cmd, &mut t, &mut tables, &iso_path))
                     .or_else(|| kyvia::handle(cmd, &mut t, &mut tables, &iso_path))
                     .or_else(|| magus::handle(cmd, &mut t, &mut tables, &iso_path))
+                    .or_else(|| fidchell::handle(cmd, &mut t, &mut tables, &iso_path))
                 {
                     Some(r) => r,
                     None => format!("{{\"error\":\"unknown command {cmd}\"}}"),

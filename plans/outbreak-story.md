@@ -38,7 +38,7 @@ own start:
 | 201-205, 208-210, 212-217 | done | |
 | 219 | done: the ending's stream 65, the staff roll | desktop |
 | 206 | blocks 0x7f: a lone Kite through the dungeon of field 72, slow (floor 1 by 150,000 frames) | dungeon of field 72 |
-| 207 | blocks 0x78f: field 4's boss, bossTbl row 3 (Fidchell), not ported | field 4 |
+| 207 | done (120,000 frames): Fidchell ported (worklog 294), drained at 97,100, dead at 112,100 | |
 | 211 | blocks 0x1c1f: field 10's boss, row 13 (Cubia, the second Kyvia), not ported | field 10 |
 | 218 | blocks 0x8f: field 5's boss, row 4 (Gorre), not ported | dungeon of field 71 |
 

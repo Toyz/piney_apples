@@ -531,7 +531,10 @@ impl StoryPilot {
                 || ((0..=2).contains(&t) && (2..=3).contains(&m.proccess));
             return Some(press(if message { Buttons::CROSS } else { Buttons::CIRCLE }));
         }
-        if t != -1 || self.ended.is_some_and(|at| f < at + 60) {
+        // A broken protect does not wait for the last skill to land: the
+        // break is short (Fidchell's under 300 frames).
+        let broken = c.enemies().into_iter().any(|e| drainable(&c.scene.chars[e], false));
+        if t != -1 || (!broken && self.ended.is_some_and(|at| f < at + 60)) {
             return None;
         }
         let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
@@ -543,7 +546,7 @@ impl StoryPilot {
         if !playing || banned == Some(true) {
             return None;
         }
-        if let Some(raw) = approach_boss(a).or_else(|| approach_part(a)) {
+        if let Some(raw) = approach_boss(a).or_else(|| approach_part(a)).or_else(|| approach_roamer(a)) {
             return Some(raw);
         }
         let act = self.choose(a)?;
@@ -1009,20 +1012,26 @@ fn cores_for_hack(s: &mut Session) {
 
 /// The level the party is held at while a boss's parts are up (Kyvia's).
 const BOSS_PARTS_LEVEL: i16 = 60;
+/// The level against Fidchell, whose gauge (a physical defence of 2000)
+/// and self-healing Epitaph outlast the story's levels (50 or so).
+const FIDCHELL_LEVEL: i16 = 75;
 
 /// With a boss's parts up, the party raised to [`BOSS_PARTS_LEVEL`]
-/// through the console's `exp` (the game's own level-ups): the pilot does
-/// not grind, and at the story's start levels (30 or so) the party cannot
-/// outpace Kyvia's healing gomora. A harness aid, as god is.
+/// (with Fidchell up, [`FIDCHELL_LEVEL`]) through the console's `exp`
+/// (the game's own level-ups): the pilot does not grind, and at the
+/// story's start levels (30 or so) the party cannot outpace Kyvia's
+/// healing gomora. A harness aid, as god is.
 fn levels_for_boss(s: &mut Session) {
     let Stage::Area(a) = &s.stage else { return };
     let c = a.world().combat();
-    if focus(c).is_none() {
+    let fidchell = c.boss.as_ref().is_some_and(|r| !r.exit && r.code == piney_world::combat::boss::FIDCHELL);
+    let level = if fidchell { FIDCHELL_LEVEL } else { BOSS_PARTS_LEVEL };
+    if focus(c).is_none() && !fidchell {
         return;
     }
     let low = c.members.iter().filter_map(|&(_, k)| c.scene.chars[k].spc()).map(|p| p.base.level).min();
-    if let Some(lv) = low.filter(|&lv| lv < BOSS_PARTS_LEVEL) {
-        let n = (i32::from(BOSS_PARTS_LEVEL - lv) * 1000).min(30000);
+    if let Some(lv) = low.filter(|&lv| lv < level) {
+        let n = (i32::from(level - lv) * 1000).min(30000);
         s.console(&format!("exp {n}"));
     }
 }
@@ -1337,6 +1346,33 @@ fn approach_part(a: &crate::area::AreaMode) -> Option<Raw> {
         return None;
     }
     let q = c.scene.chars[part].pos.map(f32::from_bits);
+    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
+}
+
+/// In a fight with no field foe near, a walk to within 350 of a boss
+/// that roams its arena and is a target (Fidchell: its chases, escapes
+/// and dashes leave Kite standing out of his skills' reach).
+fn approach_roamer(a: &crate::area::AreaMode) -> Option<Raw> {
+    let w = a.world();
+    let c = w.combat();
+    let r = c.boss.as_ref().filter(|r| !r.exit && r.code == piney_world::combat::boss::FIDCHELL)?;
+    if c.battle.in_battle == 0 {
+        return None;
+    }
+    let me = &c.scene.chars[r.me];
+    if !c.scene.listed(r.me) || me.hp <= 0 || me.cond[piney_battle::param::cond::DEAD] != 0 {
+        return None;
+    }
+    let p = w.player().body.pos.map(f32::from_bits);
+    let dist = |e: usize| {
+        let q = c.scene.chars[e].pos.map(f32::from_bits);
+        (q[0] - p[0]).hypot(q[1] - p[1])
+    };
+    if dist(r.me) < 350.0 || c.enemies().into_iter().any(|e| e != r.me && c.scene.chars[e].hp > 0 && dist(e) < 400.0) {
+        return None;
+    }
+    let q = me.pos.map(f32::from_bits);
     let cam_z = f32::from_bits(w.camera().rot()[2]);
     Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
 }

@@ -250,6 +250,9 @@ pub(crate) fn eff_num(k: EffKind) -> i32 {
         EffKind::Meteorite { .. } => 10,
         EffKind::Needle { .. } => 11,
         EffKind::LeafRing => 12,
+        EffKind::MeteoSworm { .. } => 13,
+        EffKind::ThunderStorm { .. } => 14,
+        EffKind::RockTower { .. } => 15,
     }
 }
 

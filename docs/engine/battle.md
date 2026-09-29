@@ -3580,7 +3580,9 @@ From Mutation on:
 - `ccSkill`'s creator and target move from +0x70/+0x74 to +0x80/+0x84.
 - **The bosses.** `ccBoss02` (Innis) and `ccBoss03` (Magus) are in
   Infection's gcmn but fought in Mutation; both are ported from Mutation's
-  code ([Innis](boss-innis.md), [Magus](boss-magus.md)). `ccBoss04` is not.
+  code ([Innis](boss-innis.md), [Magus](boss-magus.md)). `ccBoss04`
+  (Fidchell) is fought in Outbreak and ported from Outbreak's code
+  ([Fidchell](boss-fidchell.md)).
 
 OUT and QUA differ from MUT only in compilation: the durations come from a
 literal pool, and `fptosi` is inlined. The tables change from volume to volume;
@@ -3594,8 +3596,6 @@ see [game data](../content/game-data.md#other-volumes).
   gauge's rules below. `plcol` is the bracelet: the event instruction
   `data_drain` sets it to 1 together with Kite's skill 2, Data Drain (event
   11's book, [events](events.md)). Kite's menu face follows it.
-- `ccBoss04`'s `Affect` and AI: in Infection's gcmn but fought only in a
-  later volume, and not ported.
 - Kite's third swing: `attack` 3 and 4 have code in `AnimCtrl`, but no
   gcmn code stores 3 (*inferred* from a search of the stores to +0xfe).
   `ControlMove`'s `ctrlType` 1 and 2 are only reachable if something

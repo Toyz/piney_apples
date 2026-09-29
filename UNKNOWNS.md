@@ -94,7 +94,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 - [[68]] the white flash of the gate menu in town is dropped (`R::Flash` in crates/piney-game/src/world.rs) — leaving a town through the gate
 - [[266]] Innis's pictures are not drawn: missiles, SamonRings, particle generators, blur, shield, mirrors' shards; the MagicSquare for n 1 and 2 (docs/engine/boss-innis.md) — Mutation's first boss
 - [[274]] Magus's pictures are named, not drawn: the leaves' markers, charges and bursts, the laser's shocks and thunder, the needles, the smoke; the body's dropped leaves are not hidden (docs/engine/boss-magus.md) — Mutation's Magus
-- [[280]] Innis's ice missile and Fidchell's IceBreak are not ported, so nothing throws their rocks — Mutation's and Outbreak's bosses
+- [[280]] Innis's ice missile and Fidchell's IceBreak are not ported, so nothing throws their rocks — Mutation's and Outbreak's bosses (Fidchell's rules ported in [[294]]; its IceBreak's rocks are still not thrown)
 
 ### audio
 
@@ -131,7 +131,7 @@ Missing pieces that only the later volumes need.
 - [[275]] `marker_pos` on a plain field (`WORLD_MAN` +0x438's stream) is not ported, and no event map but `EVENTAREA01` answers `StoryMap::file` — Mutation's field events
 - [[225]] Mutation's flag race (menus 88-91, the `PG_FLAG` gimmick, the racers) is not ported — Mutation's Grunty race
 - [[272]] Kyvia's later fights (levels 2-5, the EX mode); fields 10-12 not played through (docs/engine/evarea.md, boss-kyvia.md, GAPS.md) — Mutation onward
-- docs/engine/battle.md `ccBoss04`'s Affect and AI are not ported — a later volume's boss
+- docs/engine/battle.md `ccBoss04`'s Affect and AI are not ported — a later volume's boss (ported in [[294]])
 - [[72]] [[84]] the other `EVENTAREA` classes (04-06; areas 66, 67, 91) get generated fields (docs/engine/evarea.md, field-walk.md) — the later volumes' story maps; no Infection script reaches them
 - [[112]] `EVENTAREAB0`'s `NextStage` (field 8, `se4_8`) is not ported (docs/engine/evarea.md) — a later volume's last arena
 - [[114]] [[157]] type 32's tree and leaves (`ANM_se4_2lea`, `LEAF`) are not ported (docs/engine/dungeon.md) — a later volume's event room
@@ -1156,8 +1156,8 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/battle.md: the labels of type bits 0x100/0x200 and the art bits' names — research (duplicates [[22]])
 - docs/engine/battle.md: that the protect break is the Data Drain window (inferred); plcol as the bracelet is settled — research (duplicates [[22]])
 - docs/engine/battle.md: the spell element systems' own timing (Fall, Convergence, Upheaval, Summons, Tornado from level 3) — answered (stale for this page; [[79]], [[281]] (tools/test_effect_spell_rs.py: every system's frames and releases, 0 mismatches))
-- docs/engine/battle.md: the other bosses' Affect and AI (ccBoss02-04) — answered (stale in part: ccBoss02 Innis [[266]], ccBoss03 Magus [[274]]; ccBoss04 not ported (play, volumes))
-- docs/engine/battle.md: ccBoss04's Affect and AI — play (a later volume's boss, not ported)
+- docs/engine/battle.md: the other bosses' Affect and AI (ccBoss02-04) — answered (stale in part: ccBoss02 Innis [[266]], ccBoss03 Magus [[274]]; ccBoss04 not ported (play, volumes)) (ccBoss04 ported in [[294]])
+- docs/engine/battle.md: ccBoss04's Affect and AI — play (a later volume's boss, not ported) (ported in [[294]])
 - docs/engine/battle.md: Kite's third swing; ControlMove's ctrlType 1 and 2 — research (inferred unreachable; duplicates [[78]])
 - docs/engine/battle.md: what the party AI does with message 0x10004 (Kite pressed against a wall) — research (not traced)
 - docs/engine/battle.md: WORLD_MAN's trans mode as a carrier; weaponChangeSW -1; fpAngleOffset[-1] — research (inferred or measured only)

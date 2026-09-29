@@ -621,24 +621,30 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
 /// A `ccBossEff*Create` as the bosses call it (`docs/engine/boss.md`,
 /// "Effects"): the rules name the effect, where and which way. Innis's
 /// rings and missiles, Kyvia's meteors and Magus's needles have no
-/// picture yet (boss-innis.md, boss-kyvia.md, boss-magus.md).
+/// picture yet, nor Fidchell's meteors, thunders and rock towers
+/// (boss-innis.md, boss-kyvia.md, boss-magus.md, boss-fidchell.md).
 fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
     use piney_battle::boss::EffKind;
     use piney_effect::boss::Make;
     const TEN: u32 = 0x4120_0000;
-    const R: u32 = 0x4348_0000;
     Some(match kind {
         EffKind::WaveShock => Make::WaveShock { pos, dirc, scale: ONE },
         EffKind::MagicSquare { n } => Make::MagicSquare { pos, n },
-        EffKind::ForceGenerator { num, life } => {
-            Make::ForceGenerator { p: pos, rot: dirc, speed: TEN, r0: R, r1: R, num, life, clt: 8 }
+        EffKind::ForceGenerator { num, life, speed, r0, r1, clt } => {
+            Make::ForceGenerator { p: pos, rot: dirc, speed, r0, r1, num, life, clt }
         }
         EffKind::AutoSamonRing { n } => Make::AutoSamonRing { pos, rot: dirc, param: [0, 0x3eaa_aaab, TEN, 0], n },
         EffKind::IceBreak => Make::IceBreak { pos, scale: 0x4000_0000 },
         EffKind::Dead => Make::Dead { pos },
         // Magus's leaf's ring (model 195, DeadEffect's parameter).
         EffKind::LeafRing => Make::AutoSamonRing { pos, rot: dirc, param: [0x3f00_0000, ONE, 0, 0x4220_0000], n: 195 },
-        EffKind::SamonRing { .. } | EffKind::Missile { .. } | EffKind::Meteorite { .. } | EffKind::Needle { .. } => {
+        EffKind::SamonRing { .. }
+        | EffKind::Missile { .. }
+        | EffKind::Meteorite { .. }
+        | EffKind::Needle { .. }
+        | EffKind::MeteoSworm { .. }
+        | EffKind::ThunderStorm { .. }
+        | EffKind::RockTower { .. } => {
             return None;
         }
     })

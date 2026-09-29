@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-293 entries: audio 19, battle 51, build 15, content 3, decomp 21, disc 5, engine 8, format 15, iop 2, render 71, save 9, script 29, test 127, tooling 23, ui 51, video 11, volumes 56, world 78.
+294 entries: audio 19, battle 52, build 15, content 3, decomp 21, disc 5, engine 8, format 15, iop 2, render 72, save 9, script 29, test 128, tooling 23, ui 51, video 11, volumes 57, world 78.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -305,3 +305,4 @@ The [reference](docs/README.md) says what is true now.
 | 291 | [Open questions after the triage: the later volumes](worklog/0291-open-questions-after-the-triage-the-later-volumes.md) | 2026-09-28 | volumes |
 | 292 | [Key items were never used: the Key Items menu's use call, and the epitaphs' pages](worklog/0292-key-items-were-never-used-the-key-items-menu-s-use-call-and.md) | 2026-09-28 | ui, battle, volumes |
 | 293 | [Outbreak's story under the autopilot: its starts, going alone, a story map's door, the Data Bugs](worklog/0293-outbreak-s-story-under-the-autopilot-its-starts-going-alone.md) | 2026-09-28 | script, test, volumes |
+| 294 | [Fidchell, Outbreak's first phase boss, and its four spells](worklog/0294-fidchell-outbreak-s-first-phase-boss-and-its-four-spells.md) | 2026-09-28 | battle, render, volumes, test |
