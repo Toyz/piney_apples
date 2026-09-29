@@ -546,6 +546,8 @@ pub fn show_map_step(
             false
         }
         None => {
+            // A cell with no room (15) is never under the player; there the
+            // game's SetRoom(level, 15) would read past its tables (worklog 302).
             if let Some(h) = here {
                 set_room(area, h);
             }

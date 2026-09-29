@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-301 entries: audio 21, battle 57, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 75, save 9, script 30, test 129, tooling 23, ui 52, video 11, volumes 58, world 79.
+302 entries: audio 21, battle 57, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 76, save 9, script 30, test 129, tooling 23, ui 52, video 11, volumes 58, world 80.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -313,3 +313,4 @@ The [reference](docs/README.md) says what is true now.
 | 299 | [A Data Bug drawn and held at half its HP: the area's entry copy, virusFlag on the character](worklog/0299-a-data-bug-drawn-and-held-at-half-its-hp-the-area-s-entry.md) | 2026-09-28 | battle, render |
 | 300 | [Party members' skill words: not reproduced, the port's path is the game's](worklog/0300-party-members-skill-words-not-reproduced-the-port-s-path-is.md) | 2026-09-28 | audio, battle |
 | 301 | [A Fairy's Orb in a dungeon fight rebuilt the room with its doors open; the camera went through](worklog/0301-a-fairy-s-orb-in-a-dungeon-fight-rebuilt-the-room-with-its.md) | 2026-09-28 | render, world |
+| 302 | [DUNGEON::ShowMap's two edges: DeleteRoom frees the one built room, and room 15 is never under the player](worklog/0302-dungeon-showmap-s-two-edges-deleteroom-frees-the-one-built.md) | 2026-09-28 | render, world |
