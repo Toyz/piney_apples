@@ -12,7 +12,10 @@ through ported as the game builds them. Started 2026-09-28.
   the new game's desktop.
 - `mutation_whole_story`: one run from the new game to 116's end. It
   ends every event, 101 to 116, and reaches the staff roll at frame
-  703,500 (worklog 276).
+  703,500 (worklog 276); again at 751,800 after Outbreak's pilot changes
+  and Fidchell (worklogs 293, 294). Event 115 from its own start stops
+  in field 52's dungeon (a level-34 party against a level-49 Squidbod);
+  the whole run passes it.
 
 ## Where it stands (2026-09-28)
 
