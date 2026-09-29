@@ -21,14 +21,23 @@ files and xeffect served from DATA.BIN, what the effects draw recorded):
     follows) and each one's killFlag (ParticleKill), the omni light
     (ccBossEffLight's: in the light group or not, its place, its colour),
     each slot's m_bEnabled, the ccEffect slots effIceRock fills, rand()'s
-    state and how many ccRand() were drawn.
+    state and how many genrand() were drawn.
 
 Stand-ins in the game: the particle system does not run
 (startParticleGenerator and ParticleKill are recorded;
 ccCheckParticleGenerator answers whether a generator was started, as the
-port's list, not stepped, keeps it); ccRand() answers a constant (counted);
+port's list, not stepped, keeps it; no ccParticleCtrl is built, so
+ccParticleSetup finds no particle and the probe's has none free either);
+genrand() (behind ccRand and ccRandF)
+answers a 32-bit LCG from 0x12345678, as the probe's host does (counted);
 cameraGetRot reads camera 0 as the probe's host gives it; ccClump::Duplicate
 and ChangeClut are recorded, not run.
+
+Fidchell's spells (Outbreak's disc only): the meteors, the thunder storm
+and the rock towers, whose rules are piney-battle's (the probe's manager
+runs them on its own generators) and whose pictures are piney-effect's
+fidchell.rs; the magic squares 1 and 2 with their lights (modes 1 and 2),
+and the swarm's omni light (its place, colour, intensity and fall-off).
 
 test_skeiths_trail drives the game's ccLattice (the cross's trail,
 ccBoss01::DrawCross) against piney_world::lattice through the probe's
@@ -47,6 +56,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import volume  # noqa: E402
 from volume import va as inf_va  # noqa: E402  # Infection's addresses on PINEY_VOLUME's disc
 
 import test_effect_rs as tfx  # noqa: E402
@@ -59,6 +69,12 @@ SCFADE = 0x01A02000             # a stand-in ccScFade
 MGR_P, SCFADE_P = inf_va(0x00378BBC), inf_va(0x00378968)
 LIGHT_VT = inf_va(0x00376700)           # ccBossEffLight's vtable
 BRIGHT_VT = inf_va(0x00376640)          # ccBossEffBrightMagicSquare's
+METEO_VT = inf_va(0x00376690)           # ccBossEffMeteoSworm's
+
+
+def next_genrand(w):
+    """The probe's stand-in genrand: a 32-bit LCG."""
+    return (w * 1664525 + 1013904223) & 0xFFFFFFFF
 
 
 def build():
@@ -90,6 +106,7 @@ class BossFx(EffectMachine):
         m.store(MGR_P, 4, MGR)
         m.store(SCFADE_P, 4, SCFADE)
         self.ccrand = 0
+        self.word = 0x12345678
         self.clump_alpha = ONE
         self.started, self.killed, self.grp = [], set(), set()
         self.clut = {}
@@ -106,9 +123,10 @@ class BossFx(EffectMachine):
             self.events.append(["flash", t, color & 0xFFFFFFFF, [mm.f[12 + k] for k in range(4)]])
             return 0
 
-        def ccrand(mm, *a):
+        def genrand(mm, *a):
             self.ccrand += 1
-            return 0x12345678
+            self.word = next_genrand(self.word)
+            return self.word
 
         def kill(mm, g, *a):
             self.killed.add(g)
@@ -117,7 +135,8 @@ class BossFx(EffectMachine):
         m.hooks[sym("ccSeOn3DNote__FiPfc")] = note
         m.hooks[sym("ccSeOnNote__Fic")] = senote
         m.hooks[sym("EntryFlash__8ccScFadeFiiffff")] = flash
-        m.hooks[sym("ccRand__Fv")] = ccrand
+        m.hooks[sym("genrand__Fv")] = genrand
+        m.hooks[sym("ccSeOn__Fi")] = lambda mm, n, *a: self.events.append(["se", n]) or 0
         m.hooks[sym("ParticleKill__19ccParticleGeneratorFv")] = kill
         m.hooks[sym("ccCheckParticleGenerator__FP19ccParticleGenerator")] = lambda mm, g, *a: int(g in self.started)
         m.hooks[sym("AddGrp__10ccLightGrpFP7ccLight")] = lambda mm, grp, l, *a: self.grp.add(l) or 0
@@ -159,6 +178,10 @@ class BossFx(EffectMachine):
                     ph = m.load(e + 0x20, 4)
                     if ph <= sync < ph + 0x60 * m.load(e + 0x4C, 4):
                         ref = ["anchor", k, (sync - 0x10 - ph) // 0x60]
+            # a ccEffect's pos (effSmokeRock's rocks)
+            if ref is None and tfx.EFFWORK <= sync < tfx.EFFWORK + 0xC0 * 500:
+                k, off = divmod(sync - tfx.EFFWORK, 0xC0)
+                ref = ["effpos", k] if off == 0 else ["?", sync]
             # made in the Create before the manager holds it: the next free slot
             if ref is None:
                 ref = ["anchor", -1, sync]
@@ -211,6 +234,11 @@ class BossFx(EffectMachine):
             if m.load(e + 12, 4) == LIGHT_VT:
                 lt = m.load(e + 0x9C, 4)
                 lights.append([int(lt in self.grp), self.rvec(lt + 0x70, 3), self.rvec(lt + 0xB0)])
+            # A meteor swarm's m_light while it has one.
+            if m.load(e + 12, 4) == METEO_VT and m.load(e + 0x30, 4):
+                lt = m.load(e + 0x30, 4)
+                lights.append(["meteo", int(lt in self.grp), self.rvec(lt + 0x70, 3), self.rvec(lt + 0xB0)]
+                              + self.rvec(lt + 0xC0, 3))
         slots = []
         for s in self.live():
             slots.append([s["i"], s["id"], s["life"], s["pos"], s["scale"], s["speed"], s["velocity"],
@@ -221,6 +249,9 @@ class BossFx(EffectMachine):
 
     def free(self):
         return all(not self.slot_ptr(k) for k in range(1024))
+
+    def set_field(self, n):
+        self.m.store(tfx.GAME + 0x24, 4, n)
 
 
 def vec_args(em, *vs):
@@ -260,6 +291,34 @@ def cases(rnd):
     return out
 
 
+def fidchell_cases(rnd):
+    """Fidchell's spells as OnMeteoSworm, OnThunderStorm and OnGroundQuake
+    make them (50 meteors from 3000 up to within 500, 16 thunders 200 round,
+    128 towers), and its magic squares 1 and 2 (1 in fields 4 and 2)."""
+    def pos(z=0.0):
+        return [fb(rnd.uniform(-3000, 3000)), fb(rnd.uniform(-3000, 3000)), fb(z), ONE]
+    out = []
+    t = pos(rnd.uniform(-20, 60))
+    sp = [fb(f32(t[0]) + rnd.uniform(-900, 900)), fb(f32(t[1]) + rnd.uniform(-900, 900)), fb(3000.0), ONE]
+    out.append(("meteo", "meteo %s %s 32 %x %x" % (hexs(*sp), hexs(*t), fb(500.0), fb(50.0)),
+                "ccBossEffMeteoSwormCreate__FPfPfiffPA4_f", [sp, t, [0, 0, 0, ONE]],
+                [("vec", 0), ("vec", 1), 50, ("vec", 2)], [500.0, 50.0], None))
+    p = pos(rnd.uniform(-20, 60))
+    out.append(("storm", "storm %s %x 10" % (hexs(*p), fb(200.0)), "ccBossEffThunderStormCreate__FPffi",
+                [p], [16], [200.0], None))
+    p = pos(rnd.uniform(-20, 60))
+    out.append(("tower", "tower %s 80" % hexs(*p), "ccBossEffRockTowerCreate__FPfi", [p], [128], [], None))
+    for n, field in ((1, 4), (1, 2), (2, 4)):
+        p = pos(rnd.uniform(-20, 60))
+        out.append(("square %d" % n, "square %s %x" % (hexs(*p), n), "ccBossEffMagicSquareCreate__FPfi", [p], [n],
+                    [], field))
+    return out
+
+
+def f32(b):
+    return struct.unpack("<f", struct.pack("<I", b))[0]
+
+
 @unittest.skipUnless(os.path.exists(ELF) and os.path.exists(ISO) and shutil.which("cargo"),
                      "needs the extracted disc and cargo")
 class BossEffectsAgainstGame(unittest.TestCase):
@@ -268,18 +327,32 @@ class BossEffectsAgainstGame(unittest.TestCase):
         build()
 
     def run_case(self, seed, case, camera):
-        name, line, sym, vecs, ints, floats = case
+        """One Create, then the manager's passes until every slot is free.
+        A case is (name, probe line, symbol, vectors, ints, floats) and,
+        for Fidchell's, the game's field (or None). The Create's arguments
+        are the vectors' addresses, then the ints; an int ("vec", k) puts
+        vector k's address there instead (the ints are then all of them)."""
+        name, line, sym, vecs, ints, floats = case[:6]
+        field = case[6] if len(case) > 6 else None
         em = BossFx(seed=seed)
         eye, view = camera
         em.vec(tfx.EYE, [fb(v) for v in eye] + [ONE])
         em.vec(tfx.EYE + 0x10, [fb(v) for v in view] + [ONE])
-        args = vec_args(em, *vecs) + list(ints)
+        ptrs = vec_args(em, *vecs)
+        if any(isinstance(x, tuple) for x in ints):
+            args = [ptrs[x[1]] if isinstance(x, tuple) else x for x in ints]
+        else:
+            args = ptrs + list(ints)
+        pre = []
+        if field is not None:
+            em.set_field(field)
+            pre.append("field %x" % field)
         k = em.create(sym, *[], ints=args, floats=floats)
         made = {"id": k, "events": em.events, "gens": em.gens, "ccrand": em.ccrand}
         frames = []
         while not em.free() and len(frames) < 400:
             frames.append(em.manager_pass())
-        lines = ["reset %x" % seed, "camera " + hexs(*map(fb, eye + view)), line] + ["frame"] * len(frames)
+        lines = ["reset %x" % seed, "camera " + hexs(*map(fb, eye + view))] + pre + [line] + ["frame"] * len(frames)
         got = [g for g in ask(lines) if g]
         self.assertEqual(got[0], made, "%s: the Create" % name)
         for f, (want, port) in enumerate(zip(frames, got[1:])):
@@ -359,6 +432,18 @@ class BossEffectsAgainstGame(unittest.TestCase):
                    (rnd.uniform(-500, 500), rnd.uniform(-500, 500), 100.0))
             frames = self.run_case(1000 + i, case, cam)
             counts[case[0]] = counts.get(case[0], 0) + len(frames)
+        print("\nframes " + " ".join("%s %d" % kv for kv in sorted(counts.items())), file=sys.stderr)
+
+    @unittest.skipUnless(volume.NAME == "outbreak", "Fidchell's spells are Outbreak's")
+    def test_fidchells_spells(self):
+        rnd = random.Random(29)
+        counts = {}
+        for rep_ in range(2):
+            for i, case in enumerate(fidchell_cases(rnd)):
+                cam = ((rnd.uniform(-2000, 2000), rnd.uniform(-2000, 2000), 600.0),
+                       (rnd.uniform(-500, 500), rnd.uniform(-500, 500), 100.0))
+                frames = self.run_case(2000 + 16 * rep_ + i, case, cam)
+                counts[case[0]] = counts.get(case[0], 0) + len(frames)
         print("\nframes " + " ".join("%s %d" % kv for kv in sorted(counts.items())), file=sys.stderr)
 
     def test_skeiths_trail(self):

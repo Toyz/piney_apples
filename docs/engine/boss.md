@@ -295,7 +295,9 @@ Each effect as Skeith makes it:
   clears `m_bEnabled`. The dirc is not used.
 - **MagicSquare(pos, 0)** (0x00478b10) plays SE 228 and starts
   `MagicSquareGenerator` rows 0, 1 and 7 at pos with `distSW` off. It
-  then makes a `ccBossEffLight(pos, 0, 80, 10)` and returns -1.
+  then makes a `ccBossEffLight(pos, 0, 80, 10)` and returns -1. (Squares
+  1 and 2, and the light's modes 1 and 2, are Fidchell's:
+  [boss-fidchell.md](boss-fidchell.md).)
 - **Light** (constructor 0x00466a30, `Draw` 0x00466df0) is an omni light:
   `ccLight(4, 1)`, `ccOmniLight::Init` (intensity 1, no fall-off). Each
   Draw places it at pos plus (0, 200, 300) turned about x by -pi/2, then
@@ -303,7 +305,11 @@ Each effect as Skeith makes it:
   then joins the light group (`AddGrp`) for 80 more. Its blue climbs by 10
   a Draw to 250, holds 255 for 15 Draws, then falls by 10. The colour is
   `ccSetColor(b << 16 | g << 8 | g)`, with g 1 while b is 2 or more. The
-  characters are lit by it with the arena's lights.
+  characters are lit by it with the arena's lights. The value goes to an
+  unsigned through `fptoui` on Infection and Mutation (0 for a negative
+  b) but an inline `cvt.w.s` on Outbreak and Quarantine: there a b below
+  0 keeps its high bits, which `ccSetColor` reads as an alpha byte and so
+  as an HSV colour (a grey).
 - **ForceGenerator** (0x004797e0) makes a `ccBossEffBrightMagicSquare`
   (0x0046dd90, `Draw` 0x0046e320) of num photons, each an `EFF_x000` of
   `particle` with `CLT_x000c5` (clt 8). Photon k waits `(k / 2) * 10`
@@ -360,11 +366,13 @@ and the dead effect alongside. It compares:
   `syncPosType`, `pTexMod`, pos, offset, the photon followed) and their
   `killFlag`;
 - the light (in the group, place, colour), each slot's `m_bEnabled`;
-- the effect slots the ice rocks fill, `rand`'s state and the `ccRand`
+- the effect slots the ice rocks fill, `rand`'s state and the `genrand`
   count.
 
-They match. The particle system itself is not run there (its own tests
-cover it).
+They match, on Infection's disc and on Outbreak's (where Fidchell's spells
+and magic squares are run too). `genrand` (behind `ccRand` and `ccRandF`)
+is a 32-bit LCG on both sides. The particle system itself is not run
+there (its own tests cover it): no particle is ever free.
 
 ### The cross's trail: `DrawCross` and `ccLattice`
 
@@ -543,6 +551,9 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
     `game`+0x24 9-12 the file is `x01`-`x04` instead.)
   - `CineMode` becomes 2.
   - Row 2 is Skeith's: `x11`'s `TEX_ske_skl`, row 0 ("Judgement").
+- **With a skill** (Outbreak on, 0x004733b0): the same checks, then a
+  row by `game.field` and the skill id (OUT 0x00472550); see
+  [boss-fidchell.md](boss-fidchell.md).
 - **`OffCinemaMode`** calls `CinemaOff` (`CineMode` 4) unless `CineMode` is
   0, 4 or 5.
 - **`Draw`** (0x0046ad10) runs each frame in `ccBossEffManager::Draw`,

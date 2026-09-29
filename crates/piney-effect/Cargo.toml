@@ -11,6 +11,7 @@ piney-data.workspace = true
 piney-draw.workspace = true
 piney-desktop.workspace = true
 piney-world.workspace = true
+piney-battle = { path = "../piney-battle" }
 glam.workspace = true
 
 [dev-dependencies]

@@ -143,6 +143,8 @@ pub struct FxWorld<'a> {
     pub bounds: MapBounds,
     /// `game` +0x14 `area`, +0x28 `dungeon`, `WORLD_MAN::GetFieldType()`.
     pub area: (i32, i32, i32),
+    /// `game` +0x24 `field`.
+    pub field: i32,
     /// The frame's presentation the effects have not seen yet, in order.
     pub shows: &'a [Show],
 }
@@ -2092,6 +2094,7 @@ impl Combat {
             hits: x.hits,
             bounds,
             area: (x.scene.area, x.scene.dungeon, x.wm.field_type as i32),
+            field: x.scene.field,
             shows: &self.shows[from..],
         };
         run(fx, &mut w);

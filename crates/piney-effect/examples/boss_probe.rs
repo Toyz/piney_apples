@@ -3,9 +3,11 @@
 //! frame by frame, and prints each answer as one JSON line, so the test can
 //! run the same through the game's own `ccBossEff*Create` and `Draw` in eemu
 //! (`boss_probe ISO < requests`). Numbers are hex; floats travel as their bit
-//! patterns. The requests (`reset`, `player`, `camera`, the Creates `wave`,
-//! `square`, `force`, `ring`, `ice`, `dead`, `frame`, and the lattice's
-//! `lattice`, `lnext`, `lpos`, `ldisp`, `lclear`, `lcnt`, `ltype`) are the test's.
+//! patterns. The requests (`reset`, `player`, `camera`, `field`, the Creates
+//! `wave`, `square`, `force`, `ring`, `ice`, `dead`, Fidchell's `meteo`,
+//! `storm`, `tower`, `frame`, and the lattice's `lattice`, `lnext`, `lpos`,
+//! `ldisp`, `lclear`, `lcnt`, `ltype`) are the test's. `genrand` is the
+//! test's stand-in sequence ([`next_genrand`]).
 
 use std::cell::Cell;
 use std::io::BufRead;
@@ -29,10 +31,19 @@ fn list(v: &[u32]) -> String {
 
 struct Probe {
     rand: Rand,
+    /// `genrand` drawn so far, and the last word.
     genrand: Cell<u32>,
+    word: Cell<u32>,
     player: V4,
     eye: V4,
     view: V4,
+    /// `game` +0x24.
+    field: i32,
+}
+
+/// The test's stand-in for `genrand()`: a 32-bit LCG from 0x12345678.
+fn next_genrand(w: u32) -> u32 {
+    w.wrapping_mul(1_664_525).wrapping_add(1_013_904_223)
 }
 
 impl Host for Probe {
@@ -42,7 +53,12 @@ impl Host for Probe {
     fn genrand(&mut self) -> u32 {
         let n = self.genrand.get();
         self.genrand.set(n + 1);
-        0x1234_5678
+        let w = next_genrand(self.word.get());
+        self.word.set(w);
+        w
+    }
+    fn game_field(&self) -> i32 {
+        self.field
     }
     fn player_pos(&self) -> V4 {
         self.player
@@ -94,6 +110,7 @@ fn lattice_state(l: &Lattice) -> String {
 fn vref(r: Option<VecRef>) -> String {
     match r {
         Some(VecRef::Anchor(k)) => format!("[\"anchor\", {}, {}]", k >> 8, k & 0xff),
+        Some(VecRef::EffectPos(k)) => format!("[\"effpos\", {k}]"),
         None => "null".into(),
         Some(other) => format!("\"{other:?}\""),
     }
@@ -146,6 +163,7 @@ fn draw(fx: &Effects, d: &DrawRec) -> String {
 fn event(e: &Event) -> String {
     match e {
         Event::Sound3d { se, pos } => format!("[\"se3d\", {se}, {}]", list(pos)),
+        Event::Sound { se } => format!("[\"se\", {se}]"),
         Event::Sound3dNote { se, pos, note } => format!("[\"se3dnote\", {se}, {}, {note}]", list(pos)),
         Event::SoundNote { se, note } => format!("[\"senote\", {se}, {note}]"),
         Event::Flash { time, color, rect } => format!("[\"flash\", {time}, {color}, {}]", list(rect)),
@@ -169,9 +187,11 @@ fn main() {
     let fresh = |seed: u64| Probe {
         rand: Rand(seed),
         genrand: Cell::new(0),
+        word: Cell::new(0x1234_5678),
         player: [0, 0, 0, ONE],
         eye: [0, 0, 0, ONE],
         view: [0, 0, 0, ONE],
+        field: 0,
     };
     let mut host = fresh(0);
     let mut lattice = Lattice::new(2, 7);
@@ -240,6 +260,9 @@ fn main() {
                 fx.ctrl.town = false;
                 fx.particles = Default::default();
                 fx.particles.install_statics(&fx.assets);
+                // The test builds no ccParticleCtrl: a particle is never
+                // free (effSmoke's puff is made on neither side).
+                fx.particles.slots.clear();
                 let _ = fx.take_events();
                 host = fresh(u64::from(n(1)));
                 started.clear();
@@ -248,6 +271,11 @@ fn main() {
             }
             "player" => {
                 host.player = [n(1), n(2), n(3), ONE];
+                println!("{{}}");
+                continue;
+            }
+            "field" => {
+                host.field = n(1) as i32;
                 println!("{{}}");
                 continue;
             }
@@ -269,14 +297,17 @@ fn main() {
                 for (k, s) in fx.boss.slots.iter().enumerate() {
                     let Some(s) = s else { continue };
                     enabled.push(format!("[{k}, {}]", u8::from(s.enabled)));
+                    // sceVu0TransMatrix of the unit matrix: 0 + x.
+                    let at = |p: V4| list(&[ee::add(0, p[0]), ee::add(0, p[1]), ee::add(0, p[2])]);
                     if let BossEff::Light(l) = &s.eff {
-                        lights.push(format!(
-                            "[{}, {}, {}]",
-                            u8::from(l.in_group),
-                            // sceVu0TransMatrix of the unit matrix: 0 + x.
-                            list(&[ee::add(0, l.pos[0]), ee::add(0, l.pos[1]), ee::add(0, l.pos[2])]),
-                            list(&l.colour)
-                        ));
+                        lights.push(format!("[{}, {}, {}]", u8::from(l.in_group), at(l.light_pos), list(&l.colour)));
+                    }
+                    // A meteor swarm's light: in the group, its intensity,
+                    // fall-off's start and end.
+                    if let BossEff::Spell(x) = &s.eff
+                        && let Some((p, c, far)) = x.light()
+                    {
+                        lights.push(format!("[\"meteo\", 1, {}, {}, {ONE}, 0, {far}]", at(p), list(&c)));
                     }
                 }
                 let slots: Vec<String> = fx
@@ -326,6 +357,9 @@ fn main() {
             "ring" => Make::AutoSamonRing { pos: v4(1), rot: v4(5), param: v4(9), n: n(13) as i32 },
             "ice" => Make::IceBreak { pos: v4(1), scale: n(5) },
             "dead" => Make::Dead { pos: v4(1) },
+            "meteo" => Make::MeteoSworm { sp: v4(1), ep: v4(5), n: n(9) as i32, radius: n(10), v: n(11) },
+            "storm" => Make::ThunderStorm { pos: v4(1), radius: n(5), n: n(6) as i32 },
+            "tower" => Make::RockTower { pos: v4(1), n: n(5) as i32 },
             other => panic!("unknown request {other}"),
         };
         let id = fx.boss_create(&mut host, make);

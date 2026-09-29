@@ -5896,6 +5896,9 @@ mod tests {
     /// Skeith in its arena.
     mod skeith;
 
+    /// Fidchell in its arena: its spells' pictures, voice and names.
+    mod fidchell;
+
     /// The ending's save menus after the staff roll.
     mod ending_save;
 

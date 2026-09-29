@@ -57,6 +57,9 @@ pub const FIDCHELL_CLUMP: &str = "CMP_trall1";
 pub const FIDCHELL_EPITAPH: &str = "CMP_trallx";
 /// The wave's animation in [`EFF_FILE`].
 pub const ANM_WAVE: &str = "ANM_xx11wave";
+/// Fidchell's prediction's layer: `m_predTxt.layer`, `ccLayer::Init(254,
+/// sysLayer's view)` in its constructor (OUT gcmn 0x004a361c).
+pub const PRED_TEXT_LAYER: i16 = 254;
 
 /// `InitBossCamera(z, y)`'s `transfer` by boss: Skeith's (200, 1000), the
 /// eye 1000 behind Kite and 200 up at its nearest; Innis's (200, 900).
@@ -103,6 +106,10 @@ pub struct BossRun {
     /// frame.
     pub cinema: Cinema,
     pub cinema_sent: CinemaSent,
+    /// Fidchell's prediction (`m_predTxt.anmText`, x41's `ANM_ex41txtN`,
+    /// no depth test) by its clip, and whether it was drawn this frame.
+    pub pred_text: Option<(String, piney_desktop::anm::Anm)>,
+    pub text_shown: bool,
     /// Innis's images' scene indices, drawn while theirs `drawSW` holds.
     pub images: Vec<usize>,
     /// Kyvia's core and gomoras (their characters), drawn while theirs
@@ -142,17 +149,23 @@ pub struct BossLook {
     /// name), by `n`: on Infection Skeith's 2 (x11's `TEX_ske_skl`, row
     /// 0); on Mutation Innis's 5-8 and 70 (`TEX_ini_skl`, rows 0-4).
     pub names: HashMap<i32, CinemaName>,
+    /// `OnCinemaMode` with a skill's name (OUT gcmn 0x004733b0): the row
+    /// OUT 0x00472550 gives for the fight's `game.field`, by skill id
+    /// (field 4: Fidchell's seven, x41's `TEX_fid_skl`).
+    pub skill_names: HashMap<i32, CinemaName>,
     /// Innis's images (`CMP_ex21mon1`-`3` of x21), by `MonsterID`;
     /// Kyvia's core and gomora ([`KYVIA_PARTS`] of x01).
     pub images: Vec<Rc<Body>>,
 }
 
 impl BossLook {
-    /// Boss `code`'s look (Skeith's for any code the port lacks).
+    /// Boss `code`'s look (Skeith's for any code the port lacks), fought
+    /// in field `field` (`game.field`).
     pub fn load(
         archive: &std::sync::Arc<piney_data::archive::Archive>,
         code: i32,
         volume: piney_data::volume::Volume,
+        field: i32,
     ) -> piney_data::Result<BossLook> {
         let (file, clump) = match code {
             INNIS => (INNIS_FILE, CLUMP),
@@ -188,6 +201,20 @@ impl BossLook {
                 names.insert(n as i32, CinemaName { tex: w.tex.clone(), tex_h: w.tex_h, row: row.row });
             }
         }
+        // SetupSkillName (OUT 0x0047bed0): in fields 9-12 the file is
+        // "x01" to "x04" whatever the row says.
+        let mut skill_names = HashMap::new();
+        let mut skill_tex: HashMap<(String, &str), Option<piney_desktop::message::WindowTexture>> = HashMap::new();
+        for row in piney_data::tables::combat::of(volume).cinema_skill_rows().iter().filter(|r| r.field == field) {
+            let (Some(f), Some(tex)) = (row.file, row.tex) else { continue };
+            let f = if (9..=12).contains(&field) { format!("x0{}", field - 8) } else { f.to_string() };
+            let w = skill_tex
+                .entry((f.clone(), tex))
+                .or_insert_with(|| piney_desktop::message::WindowTexture::read_named(archive, &f, tex, None));
+            if let Some(w) = w {
+                skill_names.insert(row.sid, CinemaName { tex: w.tex.clone(), tex_h: w.tex_h, row: row.row });
+            }
+        }
         let images = match code {
             INNIS => {
                 let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, INNIS_FILE)?);
@@ -207,7 +234,7 @@ impl BossLook {
             }
             _ => Vec::new(),
         };
-        Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, images })
+        Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, skill_names, images })
     }
 }
 
@@ -342,6 +369,8 @@ impl Combat {
             trail: (Vec::new(), 0),
             cinema: Cinema::new(),
             cinema_sent: CinemaSent::default(),
+            pred_text: None,
+            text_shown: false,
             images,
             parts,
             disc,
@@ -479,6 +508,7 @@ impl Combat {
             // Think and Action's QuakeCam, SetMode, SetFreeCamPosView and
             // BeginDeadEffect, then after Move the camera (bossCam &&
             // bossCamSW: CamMain).
+            let text_was = std::mem::take(&mut r.text_shown);
             for o in &out {
                 match o {
                     // OnCinemaMode's other checks (the party wiped out, a
@@ -488,9 +518,27 @@ impl Combat {
                         r.cinema.on(name);
                     }
                     Out::Cinema(None) => r.cinema.off(),
-                    // A skill's name (OUT gcmn 0x00472550's rows) is not
-                    // read: the bars alone.
-                    Out::CinemaSkill(_) => r.cinema.on(None),
+                    // CinemaOn with a skill (OUT 0x0047c0a0): the name OUT
+                    // 0x00472550 gives for the field, when it has one.
+                    Out::CinemaSkill(sid) => {
+                        let name = r.look.skill_names.get(sid).cloned();
+                        r.cinema.on(name);
+                    }
+                    // Fidchell's prediction: SetAnm at its step 2 (anew when
+                    // the text was not up the frame before), then
+                    // _AnimateForward and Draw each frame.
+                    Out::Fidchell(boss::fidchell::Pic::Text { clip, .. }) => {
+                        if !text_was || r.pred_text.as_ref().is_none_or(|(c, _)| c != clip) {
+                            let mut a = piney_desktop::anm::Anm::new();
+                            a.set(&r.look.body.file, clip);
+                            a.zenable = false;
+                            r.pred_text = Some((clip.clone(), a));
+                        }
+                        if let Some((_, a)) = r.pred_text.as_mut() {
+                            a.forward();
+                        }
+                        r.text_shown = true;
+                    }
                     Out::Quake(v) => {
                         if let Some(c) = r.cam.as_mut() {
                             c.quake(*v);
@@ -826,4 +874,36 @@ fn cam_out(c: &mut BossCam, o: &Out, camera: &mut Camera) {
 /// The boss's position with its z raised by `dz`, for a sound or a look.
 pub fn above(pos: V4, dz: f32) -> V4 {
     [pos[0], pos[1], ee::add(pos[2], ee::k(dz)), ONE]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn outbreak() -> Option<std::sync::Arc<piney_data::archive::Archive>> {
+        let p = std::path::Path::new("../../work/outbreak/outbreak.iso");
+        if !p.exists() {
+            eprintln!("skipped: no {}", p.display());
+            return None;
+        }
+        let mut iso = piney_data::iso::Iso::open(p).ok()?;
+        Some(std::sync::Arc::new(piney_data::archive::Archive::new(iso.read_path("DATA/DATA.BIN").ok()?).ok()?))
+    }
+
+    /// Fidchell in field 4: its seven skills' cinema names (OUT gcmn
+    /// 0x00472550's field 4 rows: `@2048` and `@2081`), rows 8-14 of x41's
+    /// `TEX_fid_skl`; none in field 3, which has no rows.
+    #[test]
+    fn fidchells_skills_have_their_names_in_field_4() {
+        let Some(a) = outbreak() else { return };
+        let look = BossLook::load(&a, FIDCHELL, piney_data::volume::Volume::Out, 4).unwrap();
+        let mut sids: Vec<i32> = look.skill_names.keys().copied().collect();
+        sids.sort();
+        assert_eq!(sids, [157, 158, 160, 203, 219, 227, 259]);
+        let rows: Vec<i32> =
+            look.skill_names.values().map(|n| n.row).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+        assert_eq!(rows, (8..=14).collect::<Vec<_>>());
+        let elsewhere = BossLook::load(&a, FIDCHELL, piney_data::volume::Volume::Out, 3).unwrap();
+        assert!(elsewhere.skill_names.is_empty());
+    }
 }

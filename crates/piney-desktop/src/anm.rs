@@ -169,6 +169,9 @@ pub struct Anm {
     pub localtp: f32,
     /// Which member of its owner this is, for [`trace`].
     pub label: &'static str,
+    /// `SetRenderState(CCRS_ZENABLE, on)` (main 0x00152b10) on every
+    /// object: off, its models draw with no depth test.
+    pub zenable: bool,
     /// An owner's writes to the animation's own objects (as
     /// `GetSubstAdrsF` hands them out), which win over the animation's:
     /// `dispSW` (+0xa2, drawn when 3) by object ...
@@ -234,6 +237,7 @@ impl Anm {
             root: Mat4::IDENTITY,
             localtp: 1.0,
             label: "",
+            zenable: true,
             disp: HashMap::new(),
             local: HashMap::new(),
         }
@@ -507,7 +511,7 @@ impl Anm {
         }
         let rows = self.uv_rows(file);
         for inst in self.instances() {
-            draw_model_on(ctx, layer, &view, file, &inst, self.localtp, &rows);
+            draw_model_z(ctx, layer, &view, file, &inst, self.localtp, &rows, self.zenable);
         }
     }
 }
@@ -546,6 +550,22 @@ pub fn draw_model_on(
     localtp: f32,
     rows: &HashMap<u32, [u8; 2]>,
 ) {
+    draw_model_z(ctx, layer, view, file, inst, localtp, rows, true);
+}
+
+/// [`draw_model_on`] with the depth test on or off (`TEST_1`'s ZTE, which
+/// `ccObj::SetRenderState(CCRS_ZENABLE)` sets): off, every pixel passes.
+#[allow(clippy::too_many_arguments)]
+fn draw_model_z(
+    ctx: &mut Ctx,
+    layer: i16,
+    view: &View,
+    file: &SceneFile,
+    inst: &Instance,
+    localtp: f32,
+    rows: &HashMap<u32, [u8; 2]>,
+    zenable: bool,
+) {
     let tp = localtp * inst.alpha;
     if tp < MIN_TRANSPARENCY {
         return;
@@ -580,7 +600,13 @@ pub fn draw_model_on(
             to_screen: to_screen.to_cols_array_2d(),
             nodes: Vec::new(),
             mmats,
-            state: model_state(info.blend_type),
+            state: {
+                let mut st = model_state(info.blend_type);
+                if !zenable {
+                    st.depth.test = ZTest::Always;
+                }
+                st
+            },
             tex: TexParams { func: TexFunc::Modulate, use_alpha: true, filter: Filter::Linear },
             clut_swaps: Vec::new(),
             tex_swaps: Vec::new(),

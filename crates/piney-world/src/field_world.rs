@@ -2509,7 +2509,7 @@ impl FieldWorld {
     /// `ccBossEntryStart(code)`: the boss's look read and its tasks
     /// started.
     fn start_boss(&mut self, code: i32) {
-        let look = match combat::boss::BossLook::load(&self.archive, code, self.combat.data.volume) {
+        let look = match combat::boss::BossLook::load(&self.archive, code, self.combat.data.volume, self.scene.field) {
             Ok(l) => Rc::new(l),
             Err(e) => {
                 eprintln!("the boss's files: {e}");
@@ -2744,6 +2744,13 @@ impl FieldWorld {
         }
         if run.reverse {
             ctx.layers.prepend(REVERSE_LAYER, vec![reverse_packet()]);
+        }
+        // Fidchell's prediction (OnThinkPrediction's step 3): its ccAnm on
+        // its own layer, on sysLayer's view through the animation's own
+        // camera, no depth test.
+        if let Some((_, a)) = run.pred_text.as_ref().filter(|_| run.text_shown) {
+            let view = ctx.view.clone();
+            a.draw_on(ctx, combat::boss::PRED_TEXT_LAYER, &view);
         }
         // The cinema's bars and name (ccBossEffManager::Draw's last step).
         let cinema = run.cinema.packets(&run.cinema_sent);
@@ -3625,6 +3632,8 @@ pub struct FxCensus {
     /// `ccDamUprStr`'s lines still showing (the characters' numbers and
     /// words), in `flyFont`'s codes.
     pub fly_fonts: Vec<Vec<u8>>,
+    /// The boss effects' draws of the frame, by the object each drew.
+    pub boss_draws: Vec<String>,
 }
 
 impl FieldFx for combat::NoFx {

@@ -24,6 +24,28 @@ impl crate::store::Load for CinemaSkillName {
     }
 }
 
+/// A boss cinema's name for a skill in a field: the file and texture it is in, and its row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CinemaSkillRow {
+    pub field: i32,
+    pub sid: i32,
+    pub file: Option<&'static str>,
+    pub tex: Option<&'static str>,
+    pub row: i32,
+}
+
+impl crate::store::Load for CinemaSkillRow {
+    fn load(r: &mut crate::store::Reader) -> Self {
+        CinemaSkillRow {
+            field: crate::store::Load::load(r),
+            sid: crate::store::Load::load(r),
+            file: crate::store::Load::load(r),
+            tex: crate::store::Load::load(r),
+            row: crate::store::Load::load(r),
+        }
+    }
+}
+
 /// An enemy weapon block (`*WpInfo`, `ccEnemyWpInfo[]`) by name, where the volume keeps it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WpInfos {
@@ -151,6 +173,8 @@ pub struct Combat {
     pub fidchell_magic_skills: &'static [i32],
     /// `_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.
     pub cinema_skill_names: &'static [CinemaSkillName],
+    /// The cinema's names by `game.field` and skill (`OnCinemaMode` with a skill, from Outbreak on); none before.
+    pub cinema_skill_rows: &'static [CinemaSkillRow],
     /// Every `*WpInfo`: the races' weapon trail blocks, by name.
     pub weapon_infos: &'static [WpInfos],
     /// Every `*DustInfo`: the races' dust blocks, by name.
@@ -222,6 +246,7 @@ impl crate::store::Load for Combat {
             fidchell_skills: crate::store::Load::load(r),
             fidchell_magic_skills: crate::store::Load::load(r),
             cinema_skill_names: crate::store::Load::load(r),
+            cinema_skill_rows: crate::store::Load::load(r),
             weapon_infos: crate::store::Load::load(r),
             dust_infos: crate::store::Load::load(r),
             ehk_breath_info: crate::store::Load::load(r),
@@ -369,6 +394,9 @@ impl Combat {
     }
     pub fn cinema_skill_names(&self) -> &'static [CinemaSkillName] {
         self.cinema_skill_names
+    }
+    pub fn cinema_skill_rows(&self) -> &'static [CinemaSkillRow] {
+        self.cinema_skill_rows
     }
     pub fn weapon_infos(&self) -> &'static [WpInfos] {
         self.weapon_infos

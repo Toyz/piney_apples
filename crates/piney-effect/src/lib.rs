@@ -22,6 +22,7 @@ pub mod eff;
 pub mod effect;
 pub mod element;
 pub mod fall;
+pub mod fidchell;
 pub mod files;
 pub mod flyfont;
 pub mod gimmick;
@@ -226,6 +227,10 @@ pub trait Host {
     fn area(&self) -> (i32, i32, i32) {
         (1, 0, 0)
     }
+    /// `game` +0x24 `field`: a thunder storm's magic square sounds by it.
+    fn game_field(&self) -> i32 {
+        0
+    }
     /// `ccLandHitCheck2(pos, offsetZ, mask)` (gcmn 0x00572100): where the
     /// segment from `pos` down (or up) by `offset_z` meets the land (the
     /// field's models through `ccHitCheckLM2`, the ground by
@@ -264,6 +269,8 @@ pub trait Host {
 pub enum Event {
     /// `ccSeOn3D(se, pos)`: a sound effect placed in the world.
     Sound3d { se: i32, pos: V4 },
+    /// `ccSeOn(se)`: a sound effect, not placed.
+    Sound { se: i32 },
     /// `cameraShake(a, b, c, d)` (main 0x00162cd0): power, cycle, time,
     /// direction (2 draws `rand()`).
     CameraShake([i32; 4]),
@@ -508,6 +515,30 @@ impl Effects {
             draws: &mut none,
         };
         self.boss.create(&mut cx, &self.assets.boss, make)
+    }
+
+    /// Fidchell's spells as the fight's rules left them (their slot there
+    /// and state), drawn after the boss's task: their draws join the
+    /// boss effects' pass's ([`boss::BossEffects::sync_spells`]).
+    pub fn boss_sync(&mut self, host: &mut dyn Host, spells: &[(i32, &piney_battle::boss::fidchell::eff::Fx)]) {
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.boss_draws,
+        };
+        self.boss.sync_spells(&mut cx, spells);
+    }
+
+    /// What one of Fidchell's rules asks beside its spells' pictures
+    /// (dust, a landing's rocks and bursts, a strike's flare and rocks):
+    /// [`fidchell::calls`].
+    pub fn fidchell_calls(&mut self, host: &mut dyn Host, pic: &piney_battle::boss::fidchell::Pic) {
+        let (ctrl, mut cx) = self.split(host);
+        fidchell::calls(ctrl, &mut cx, pic);
     }
 
     /// The boss effects' last pass's draws.

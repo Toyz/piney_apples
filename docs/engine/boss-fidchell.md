@@ -2,8 +2,8 @@
 title: Bosses - Fidchell
 status: partial
 volumes: OUT, INF
-covers: OUT gcmn.prg:0x004a34b0 ccThBoss04, 0x004a3590 ccBoss04::ccBoss04, 0x004a3d00 Affect, 0x004a3f00 Think, 0x004a40b0 ExecPatternIndex, 0x004a46b0 OnThinkNeutral, 0x004a4810 OnThinkDmg, 0x004a48e0 OnThinkWave, 0x004a4b70 OnThinkDrain, 0x004a4cb0 OnThinkPrediction, 0x004a5550 OnThinkDrainAtk, 0x004a57e0 OnThinkExecPrediction, 0x004a60b0 OnMeteoSworm, 0x004a6330 OnIceBreak, 0x004a6ae0 OnThunderStorm, 0x004a6d20 OnGroundQuake, 0x004a6fc0 OnMagicCamera(ccChar *), 0x004a7160 OnMagicCamera(vp, d, offset, cam), 0x004a7300 OffMagicCamera, 0x004a7360 OnThinkBackDash, 0x004a76b0 OnThinkJump, 0x004a76c0 OnThinkWander, 0x004a76f0 OnThinkChase, 0x004a79a0 OnThinkEscape, 0x004a7b40 OnThinkTransfer, 0x004a8140 OnThinkEpitaph, 0x004a82a0 OnThinkEpitaphWave, 0x004a8530 OnThinkDashCenter, 0x004a8750 OnThinkDead, 0x004a8860 OnThinkSkill, 0x004a8c40 OnThinkMagic, 0x006dfc30 Think's jump table, 0x006dfcb0 OnThinkPrediction's, 0x006dfce0 OnThinkTransfer's, 0x00617c30 boss04NormalActTbl, 0x00617ce0 boss04SuperActTbl, 0x00617da0 boss04EpitaphActTbl, 0x00617e20 @1038, 0x00617e30 @1039, 0x00617e40 boss0xAnmTbl, 0x00617ea8 @1272, 0x00617ec0 @1441, 0x00617ed0 @2048, 0x00617ee0 @2081, 0x0046d490 ccBoss::Main, 0x0046d940 ccBoss::Affect, 0x0046dd20 ccBoss::ExecPatternIndex, 0x0046e490 ccBoss::ChangeNextPattern, 0x0046e590 ccBoss::ChangeAction, 0x0046f100 ccBoss::IsValidArea, 0x0046ffb0 ccBoss::CalcEffectCameraPos, 0x00470150 ccBoss::BeginDeadEffect, 0x004733b0 OnCinemaMode (a skill's name), 0x0047c0a0 CinemaOn (a skill's name), 0x00472550 the skill name's row, 0x00417db0 EVENTAREAB0::SwitchLayer, 0x00489de0 ccBossEffMeteoSwormCreate, 0x0047d290 ccBossEffMeteoSworm::ccBossEffMeteoSworm, 0x0047d800 ccBossEffMeteoSworm::Draw, 0x0047dab0 ccBossEffMeteo2::Init, 0x0047dd80 ccBossEffMeteo2::Draw, 0x0047df80 ccBossEffMeteo2::Move, 0x00489fa0 ccBossEffThunderStormCreate, 0x0047efd0 ccBossEffThunderStorm::ccBossEffThunderStorm, 0x0047f290 ccBossEffThunderStorm::Draw, 0x0047e660 ccBossEffThunder2::ccBossEffThunder2, 0x0047e9a0 ccBossEffThunder2::Draw, 0x0047ee60 ccBossEffThunder2::Shock, 0x0048a3a0 ccBossEffRockTowerCreate, 0x0047fcd0 ccBossEffRockTower::ccBossEffRockTower, 0x004800f0 ccBossEffRockTower::Draw, 0x00489820 ccBossEffMagicSquareCreate, 0x00472b90 ccBoss03BlurParamCB; OUT SLUS_205.63:0x001e6e70 ccGetDist; INF gcmn.prg:0x00491af0-0x00496ee4 boss04.cpp, 0x005ebc20 boss04NormalActTbl, 0x005ebcf0 boss04SuperActTbl, 0x005ebdc0 boss04EpitaphActTbl, 0x005ebe40 @1038, 0x005ebe50 @1039, 0x005ebe60 boss0xAnmTbl, 0x005ebec8 @1272, 0x005ebee0 @1441, 0x005ebef0 @2048, 0x005ebf00 @2081
-worklog: 294
+covers: OUT gcmn.prg:0x004a34b0 ccThBoss04, 0x004a3590 ccBoss04::ccBoss04, 0x004a3d00 Affect, 0x004a3f00 Think, 0x004a40b0 ExecPatternIndex, 0x004a46b0 OnThinkNeutral, 0x004a4810 OnThinkDmg, 0x004a48e0 OnThinkWave, 0x004a4b70 OnThinkDrain, 0x004a4cb0 OnThinkPrediction, 0x004a5550 OnThinkDrainAtk, 0x004a57e0 OnThinkExecPrediction, 0x004a60b0 OnMeteoSworm, 0x004a6330 OnIceBreak, 0x004a6ae0 OnThunderStorm, 0x004a6d20 OnGroundQuake, 0x004a6fc0 OnMagicCamera(ccChar *), 0x004a7160 OnMagicCamera(vp, d, offset, cam), 0x004a7300 OffMagicCamera, 0x004a7360 OnThinkBackDash, 0x004a76b0 OnThinkJump, 0x004a76c0 OnThinkWander, 0x004a76f0 OnThinkChase, 0x004a79a0 OnThinkEscape, 0x004a7b40 OnThinkTransfer, 0x004a8140 OnThinkEpitaph, 0x004a82a0 OnThinkEpitaphWave, 0x004a8530 OnThinkDashCenter, 0x004a8750 OnThinkDead, 0x004a8860 OnThinkSkill, 0x004a8c40 OnThinkMagic, 0x006dfc30 Think's jump table, 0x006dfcb0 OnThinkPrediction's, 0x006dfce0 OnThinkTransfer's, 0x00617c30 boss04NormalActTbl, 0x00617ce0 boss04SuperActTbl, 0x00617da0 boss04EpitaphActTbl, 0x00617e20 @1038, 0x00617e30 @1039, 0x00617e40 boss0xAnmTbl, 0x00617ea8 @1272, 0x00617ec0 @1441, 0x00617ed0 @2048, 0x00617ee0 @2081, 0x0046d490 ccBoss::Main, 0x0046d940 ccBoss::Affect, 0x0046dd20 ccBoss::ExecPatternIndex, 0x0046e490 ccBoss::ChangeNextPattern, 0x0046e590 ccBoss::ChangeAction, 0x0046f100 ccBoss::IsValidArea, 0x0046ffb0 ccBoss::CalcEffectCameraPos, 0x00470150 ccBoss::BeginDeadEffect, 0x004733b0 OnCinemaMode (a skill's name), 0x0047c0a0 CinemaOn (a skill's name), 0x00472550 the skill name's row, 0x00417db0 EVENTAREAB0::SwitchLayer, 0x00489de0 ccBossEffMeteoSwormCreate, 0x0047d290 ccBossEffMeteoSworm::ccBossEffMeteoSworm, 0x0047d800 ccBossEffMeteoSworm::Draw, 0x0047dab0 ccBossEffMeteo2::Init, 0x0047dd80 ccBossEffMeteo2::Draw, 0x0047df80 ccBossEffMeteo2::Move, 0x00489fa0 ccBossEffThunderStormCreate, 0x0047efd0 ccBossEffThunderStorm::ccBossEffThunderStorm, 0x0047f290 ccBossEffThunderStorm::Draw, 0x0047e660 ccBossEffThunder2::ccBossEffThunder2, 0x0047e9a0 ccBossEffThunder2::Draw, 0x0047ee60 ccBossEffThunder2::Shock, 0x0048a3a0 ccBossEffRockTowerCreate, 0x0047fcd0 ccBossEffRockTower::ccBossEffRockTower, 0x004800f0 ccBossEffRockTower::Draw, 0x00489820 ccBossEffMagicSquareCreate, 0x00477ef0 ccBossEffLight::ccBossEffLight, 0x00478260 ccBossEffLight::Draw, 0x0047bed0 SetupSkillName, 0x004a361c m_predTxt's layer, 0x004a51e0 the prediction's text drawn, 0x00472b90 ccBoss03BlurParamCB; OUT SLUS_205.63:0x00136f90 ccSetColor, 0x00137c30 ccOmniLight::Init, 0x001e6ee0 ccGetDist3D, 0x001dae80 effSmoke, 0x001e2000 effRadiateSomething2; OUT SLUS_205.63:0x001e6e70 ccGetDist; INF gcmn.prg:0x00491af0-0x00496ee4 boss04.cpp, 0x005ebc20 boss04NormalActTbl, 0x005ebcf0 boss04SuperActTbl, 0x005ebdc0 boss04EpitaphActTbl, 0x005ebe40 @1038, 0x005ebe50 @1039, 0x005ebe60 boss0xAnmTbl, 0x005ebec8 @1272, 0x005ebee0 @1441, 0x005ebef0 @2048, 0x005ebf00 @2081
+worklog: 294, 295
 ---
 
 # Bosses - Fidchell
@@ -260,13 +260,89 @@ effect before the boss's task.
   generators `life + (num - 1) / 2 * 10 + 3` (133 and 193); the ring 20,
   the ice 123, the WaveShock 45, the dead effect 120 ([boss.md](boss.md)).
 
+## The spells' pictures
+
+Each `Draw` above also draws, on the effect layer (the manager's
+`SetActiveLayer(3)`):
+
+- **A meteor** (`ccBossEffMeteo2::Draw` 0x0047dd80, after its `Move`):
+  the matrix `RotY(m_rotLight)`, `RotZ(pi/2)`, `RotY(pitch)`,
+  `RotZ(heading)`, `RotZ(-pi/2)`, then its place. At it `m_anmFire`
+  (`particle`'s `ANM_x300`, stepped, set again at its end) and the glow
+  `m_cmpLight` (`CMP_x100`); `m_rotLight` then turns by pi/30. The swarm's
+  light (a `ccOmniLight`, `ccSetColor(0x80ffffff, 1.0)`: red, a little
+  blue; intensity 1, full to 0, nothing past 500) sits at the last
+  meteor, in the light group from the constructor until that meteor has
+  landed.
+- **A bolt** (`ccBossEffThunder2::Draw` 0x0047e9a0): ten points, the top
+  1000 up over its place, its place the last; each `Draw` sets the eight
+  between, point k+1 `(ccRandF(100), 0, -100 (k + 1))` turned by
+  `ccRandF(pi)` from the top. For each segment grown so far, from point s
+  to s+1 (through `ccTransPosW2P`): `CMP_x012` (its CLUT set to
+  `@4154[0]` "CLT_x012", its own) scaled (3, length / 900, 3), turned
+  `RotZ(-pi/2)`, `RotY(pitch)`, `RotZ(heading)`, `RotZ(-pi/2)`, at point s,
+  at the bolt's transparency; then `EFF_x011` (`CLT_x011c2`) at point s,
+  3 wide, 0.025 of the length tall, turned by pitch less pi/2, the
+  pattern `ccRand() % patNum`. The strike's calls are
+  `effFlareRing(pos 10 up, 2)`, four `effRadiateSomething2(pos, (-pi/2,
+  0, ccRandF(pi)), 45, 4, 4)` and five `ccParticleExplode(pos,
+  (ccRandF(10), ccRandF(10), 10 (ccRand() & 1)), 1, 5.0)`.
+- **A tower** (`ccBossEffRockTower::Draw` 0x004800f0): every tower each
+  `Draw`, before it moves: `CMP_x101b` (the constructor's `"abcd"[1]`) at
+  `SetMatrix_PosRotZYXScale(pos, (0, 0, turn), scale)` at its
+  transparency. A tower out of the ground makes `effSmoke(pos, 0, 10, 60,
+  114, 512, 32)` and `effRadiateSomething2(pos, (-pi/2, 0, ccRandF(pi)),
+  45, 4, 4)`.
+- **A landing** (`Move`): `effSmokeRock(pos, (-pi/2, 0, 0), 45, 2, 1,
+  -1)` and `ccParticleExplode(pos, (0, 0, 10), 1, 5.0)`, then at 15 up.
+- **The magic squares** (`ccBossEffMagicSquareCreate` 0x00489820): n 1
+  plays SE 68 at pos in fields 4-8, else SE 41 at note 57, starts
+  `MagicSquareGenerator` row 2 (force fields 3, 4) 350 up and makes
+  `ccBossEffLight(pos, 1, 60, 10)`; n 2 plays SE 35 at note 48, starts
+  rows 6 (fields 8, 7) and 5 (6, 10, 9) and makes `ccBossEffLight(pos, 2,
+  80, 10)`. The light (`Draw` 0x00478260) by its mode: 1 faces the
+  camera's heading (a `ccRandF(0.5)` tilt drawn and lost), counts, and is
+  grey (0x555555, its light moved) every third `Draw` and orange
+  (0xffab44) between; 2 swings 200 out tilted by -1.5393804 at the
+  camera's heading, which after 15 `Draw`s falls behind by 0.6 a `Draw`,
+  and pulses red as mode 0 pulses blue.
+- **`ccSetColor(out, c, s)`** (main 0x00136f90): with no alpha byte r, g,
+  b over 255; with one, an HSV colour (hue the low byte in sixths of 256,
+  saturation and value the next two), w kept. Mode 0 and 2's colour goes
+  to it through an inline `cvt.w.s` on Outbreak (Infection's `fptoui`
+  gives 0 for a negative count): a falling count below 0 is a colour with
+  an alpha byte, a grey.
+
+## The prediction's text, its voice and the skills' names
+
+- **The text** (`m_predTxt`, step 3 at 0x004a51e0): `anmText` is x41's
+  `ANM_ex41txtN` with `SetRenderState(CCRS_ZENABLE, 0)`, stepped and drawn
+  each frame with `ccLayer::active` its own layer (254 on sysLayer's view,
+  made in the constructor at 0x004a361c). Its `pos` and `dirc` are
+  written, never read: the animation's own camera (`F_Camera`) places
+  it, so it stands on the screen.
+- **The voice**: `ccEvVoiceStop()` at step 1, then `ccEvVoiceRequest(-40,
+  @1039[m_predId])` at step 2: event -40 is a field voice group
+  (`ccVoiceRequest`), Fidchell's lines.
+- **A skill's name** (`OnCinemaMode` with a skill 0x004733b0, `CinemaOn`
+  0x0047c0a0): OUT 0x00472550 picks a row by `game.field` (+0x24) and
+  skill, null where the row has no file or texture, and `SetupSkillName`
+  (0x0047bed0, as Infection's) shows it. Field 4's rows are Fidchell's:
+  157, 158, 160 (`@2048`) and 227, 219, 203, 259 (`@2081`); fields 2, 5,
+  6, 7 and 8 have rows of their own.
+
 ## In the port
 
 `piney_battle::boss::fidchell` (`Class::Fidchell`) is the rules;
 `fidchell::eff` the three spells as the rules keep them (`EffKind::
 MeteoSworm`, `ThunderStorm`, `RockTower`: their lives, `ccRand` draws,
-sounds and the meteor's camera view). The tables are the combat group's
-`fidchell_*` entries (data version 16). The base's `Main` is ported with
+sounds, the meteor's camera view, and what each `Draw` drew: a meteor
+moved, a bolt's points, segments, transparency and patterns' draws, a
+tower's place and transparency before it moved). They run on a small
+`eff::Host` (`ccRand`, the frame, `ccGetDist`, the calls): the boss's `Cx`
+in the fight. The tables are the combat group's `fidchell_*` entries
+(data version 16) and `cinema_skill_rows` (17: OUT 0x00472550 run in eemu
+by piney-gen for fields 0-31 and skills under 512). The base's `Main` is ported with
 Outbreak's `ccGetDist` (`sqrt_of`: `sqrt.s` on Outbreak and Quarantine);
 the skill damage's range test takes it too. New `Out`s: `Fidchell(Pic)`
 (the text, voices, dust, a meteor's landing, rocks, a bolt's strike),
@@ -279,8 +355,24 @@ kept by the rules (`Fidchell::cam3`), which its own `cameraGetPos(3)` and
 In the field (`piney_world::combat::boss`, code `FIDCHELL`): x41's
 `CMP_trall1`, and `CMP_trallx` under the Epitaph's `ANM_ex4x*` clips; the
 boss camera `InitBossCamera(250, 1500)` with `MaxRenge` 600; the cinema's
-names from x41's `TEX_fid_skl` (rows 14-17, 64-67). A skill's cinema shows
-its bars alone.
+names from x41's `TEX_fid_skl` (rows 14-17, 64-67), and a skill's from
+`cinema_skill_rows` for the fight's field (`BossLook::skill_names`). The
+text is a `piney_desktop::anm::Anm` (`zenable` off) set from `Pic::Text`,
+drawn on layer 254 through the frame's view and its own camera. The
+voice goes to the event voice path (`Event::Voice { event: -40, .. }`,
+`Event::VoiceStop`).
+
+The pictures are piney-effect's `fidchell` (in `boss::BossEffects`, a
+`BossEff::Spell`): after the boss's task (`FxTasks::boss_shows`) each spell
+in the boss's effect slots is drawn from its rules' state
+(`sync_spells`); the rules' `Pic`s (dust, landings, strikes, towers'
+rocks) are started as the effects' starters. The magic squares 1 and 2 and
+the lights' modes 1 and 2 are piney-effect's `boss`, with `ccSetColor`'s
+HSV and the volume's float conversion. A boss's (and a gomora's)
+`Out::SkillStart` is `effSkillStart(who, sid, 0, 0)`. Beside the game's
+order: the pictures' own draws of `ccRand` (a mode-1 light's) come in the
+effects' pass before the boss's, and a storm's magic square is made after
+its `Draw`, its first `Draw` a frame later.
 
 ## Checks
 
@@ -297,11 +389,25 @@ and its spell, each spell, the Super table and the drain to death. Under
 the story pilot (`outbreak_story_survey`, event 207, 120,000 frames with
 `PINEY_SURVEY_GOD`) the event ends done.
 
+`tools/test_boss_effect_rs.py`'s `test_fidchells_spells` (Outbreak's disc)
+runs the game's `ccBossEffMeteoSwormCreate` (50 meteors),
+`ccBossEffThunderStormCreate` (16 bolts), `ccBossEffRockTowerCreate` (128
+towers) and `ccBossEffMagicSquareCreate` 1 (fields 4 and 2) and 2, then
+the manager's pass, against `boss_probe` (whose manager runs the rules
+itself): meteo 192, storm 312, tower 436, square 1 288 and square 2 184
+frames agree on every draw, sound, generator, light (the swarm's with its
+intensity and fall-off), slot, `rand()` and `genrand` count. Skeith's
+cases now pass on Outbreak too. The session test
+`session::tests::fidchell::fidchell_spells_show` forces the prediction,
+each spell and a skill in the arena of event 207 (block 9) and sees the
+text drawn, the voice asked (-40), every spell's objects drawn, the skill's
+start and its cinema name; `fidchell_shots` (ignored) writes the frames.
+
 ## Unknown
 
-- The pictures of the prediction's text, the meteors, the thunders and
-  the rock towers are named, not drawn; the voices are not played; a
-  skill's cinema name (OUT 0x00472550's rows) is not read.
+- The text's picture, the voice and the skills' names are not checked
+  against the game's code frame by frame (the text's draw is the desktop
+  `ccAnm`'s, checked there; the names' rows are the game's own lookup).
 - `effSkillStart`'s controller's real end is not run with the boss; any
   end under 30 frames gives the same fight.
 - Acts 20, 21 and 23 are reached by no pattern; the transfer is ported

@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-294 entries: audio 19, battle 52, build 15, content 3, decomp 21, disc 5, engine 8, format 15, iop 2, render 72, save 9, script 29, test 128, tooling 23, ui 51, video 11, volumes 57, world 78.
+295 entries: audio 20, battle 53, build 15, content 3, decomp 21, disc 5, engine 8, format 15, iop 2, render 73, save 9, script 29, test 128, tooling 23, ui 51, video 11, volumes 58, world 78.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -306,3 +306,4 @@ The [reference](docs/README.md) says what is true now.
 | 292 | [Key items were never used: the Key Items menu's use call, and the epitaphs' pages](worklog/0292-key-items-were-never-used-the-key-items-menu-s-use-call-and.md) | 2026-09-28 | ui, battle, volumes |
 | 293 | [Outbreak's story under the autopilot: its starts, going alone, a story map's door, the Data Bugs](worklog/0293-outbreak-s-story-under-the-autopilot-its-starts-going-alone.md) | 2026-09-28 | script, test, volumes |
 | 294 | [Fidchell, Outbreak's first phase boss, and its four spells](worklog/0294-fidchell-outbreak-s-first-phase-boss-and-its-four-spells.md) | 2026-09-28 | battle, render, volumes, test |
+| 295 | [Fidchell's spells drawn, its prediction's text and voice, the skills' names](worklog/0295-fidchell-s-spells-drawn-its-prediction-s-text-and-voice-the.md) | 2026-09-28 | render, audio, battle, volumes |

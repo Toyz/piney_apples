@@ -825,6 +825,16 @@ impl AreaMode {
                     out.push(Event::Se(*se));
                     (None, [0; 4])
                 }
+                // Fidchell's prediction: ccEvVoiceStop, then
+                // ccEvVoiceRequest(-40, n), a field voice group's line.
+                Show::Boss(_, piney_battle::boss::Out::Fidchell(piney_battle::boss::fidchell::Pic::Voice(msg))) => {
+                    out.push(Event::Voice { event: piney_battle::boss::fidchell::PRED_VOICE_EVENT, msg: *msg });
+                    (None, [0; 4])
+                }
+                Show::Boss(_, piney_battle::boss::Out::Fidchell(piney_battle::boss::fidchell::Pic::VoiceStop)) => {
+                    out.push(Event::VoiceStop);
+                    (None, [0; 4])
+                }
                 // Magus's ccSeOnNote, and its grow's ccSeOn3DLoop (played
                 // once here; its ccSeOffLoop has nothing to stop).
                 Show::Boss(_, piney_battle::boss::Out::SeNote { se, note }) => {
@@ -887,7 +897,10 @@ impl AreaMode {
         for (se, p, note) in self.world.fx_mut().take_sounds() {
             match (usize::try_from(se), p) {
                 (Ok(n), Some(pos)) => out.push(Event::Se3d { n, pos, note, ear }),
-                (Ok(n), None) => out.push(Event::SeNote { n, note: note.unwrap_or(0) }),
+                (Ok(n), None) => out.push(match note {
+                    Some(note) => Event::SeNote { n, note },
+                    None => Event::Se(se),
+                }),
                 _ => {}
             }
         }

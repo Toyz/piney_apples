@@ -303,6 +303,70 @@ fn callee_table(caller: u32, nth: usize, layout: Layout) -> CustomFn {
     })
 }
 
+/// The cinema's name for a skill (OUT gcmn 0x00472550): the lookup the
+/// function after `CinemaOn__19ccBossEffCinemaFadeFi` calls first
+/// (Outbreak's `CinemaOn` with a skill, 0x0047c0a0), run in eemu for
+/// `game.field` 0-31 and every skill below 512; the rows it answers (none
+/// where the row lacks a file or texture). None where `CinemaOn` is
+/// followed by a named function (`CinemaOff`: Infection, Mutation).
+fn cinema_skill_rows(c: &Ctx) -> Read {
+    use piney_eemu::cpu::Features;
+    const GAME: u32 = 0x0100_0000;
+    let on = find(c, 0x0046_A9B0, None);
+    let size = match c.p.symbol_at(on, 0) {
+        Some((s, 0)) => s.size,
+        _ => return Err(format!("no function starts at 0x{on:08x}")),
+    };
+    let next = (on + size + 15) & !15;
+    if matches!(c.p.symbol_at(next, 0), Some((_, 0))) {
+        return Ok(Value::List(Vec::new()));
+    }
+    let mut look = None;
+    for k in 0..64 {
+        let w = c.p.u32(next + 4 * k)?;
+        if w >> 26 == 3 {
+            look = Some((w & 0x03ff_ffff) << 2);
+            break;
+        }
+        if w == 0x03e0_0008 {
+            break;
+        }
+    }
+    let f = look.ok_or_else(|| format!("0x{next:08x} calls nothing"))?;
+    // `game`: the first `lw $vN, off($gp)`.
+    let gp = c.p.gp.ok_or("no $gp")?;
+    let mut game = None;
+    for k in 0..8 {
+        let w = c.p.u32(f + 4 * k)?;
+        if w >> 26 == 0x23 && (w >> 21) & 31 == 28 {
+            game = Some(gp.wrapping_add(sext16(w) as u32));
+            break;
+        }
+    }
+    let game = game.ok_or_else(|| format!("0x{f:08x} reads no game"))? as usize;
+    let mut m = sinit::machine(&c.p, Features::default());
+    m.ram[game..game + 4].copy_from_slice(&GAME.to_le_bytes());
+    m.ram[GAME as usize..GAME as usize + 0x100].fill(0);
+    let mut out = Vec::new();
+    for field in 0..32u32 {
+        m.ram[GAME as usize + 0x24..GAME as usize + 0x28].copy_from_slice(&field.to_le_bytes());
+        for sid in 0..512u32 {
+            let r = m.call(f, &[sid], 10_000).map_err(|e| format!("0x{f:08x}({sid}): {e:?}"))?;
+            if r == 0 {
+                continue;
+            }
+            out.push(Value::List(vec![
+                Value::Int(i128::from(field)),
+                Value::Int(i128::from(sid)),
+                opt(cstr()).read(c, r)?,
+                opt(cstr()).read(c, r + 4)?,
+                I32.read(c, r + 8)?,
+            ]));
+        }
+    }
+    Ok(Value::List(out))
+}
+
 /// A member's remark table from Mutation on (none on Infection).
 fn remark(name: &'static str, caller: u32, nth: usize, doc: &'static str) -> Entry {
     let rows = || array(opt(cstr()), 19);
@@ -1866,6 +1930,29 @@ fn combat() -> Group {
                 ),
                 GCMN,
                 "`_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.",
+            ),
+            derived(
+                "cinema_skill_rows",
+                custom(
+                    Rc::new(cinema_skill_rows),
+                    array(
+                        strukt(
+                            "CinemaSkillRow",
+                            20,
+                            vec![
+                                ("field", 0, I32),
+                                ("sid", 4, I32),
+                                ("file", 8, opt(cstr())),
+                                ("tex", 12, opt(cstr())),
+                                ("row", 16, I32),
+                            ],
+                            "A boss cinema's name for a skill in a field: the file and texture it is in, and its row.",
+                        ),
+                        0,
+                    ),
+                ),
+                GCMN,
+                "The cinema's names by `game.field` and skill (`OnCinemaMode` with a skill, from Outbreak on); none before.",
             ),
             // The enemies' weapon trails, dust and breath (enemy1.cpp - enemyZ.cpp).
             derived(

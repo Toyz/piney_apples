@@ -238,9 +238,14 @@ impl FxTasks for AreaFx {
         self.events.extend(self.fx.take_events());
     }
 
-    /// The boss's `ccBossEff*Create`s (among the starters).
+    /// The boss's `ccBossEff*Create`s (among the starters), then
+    /// Fidchell's spells drawn as its rules' pass left them.
     fn boss_shows(&mut self, w: &mut FxWorld) {
         self.start(w);
+        let scene = w.scene;
+        let spells = boss_spells(scene);
+        let mut host = BattleHost::of(w);
+        self.fx.boss_sync(&mut host, &spells);
         self.events.extend(self.fx.take_events());
     }
 }
@@ -266,6 +271,12 @@ impl FieldFx for AreaFx {
                 .filter(|l| l.alpha > 0 && !l.text.is_empty())
                 .map(|l| l.text.clone())
                 .collect(),
+            boss_draws: (self.fx.boss_draws().iter())
+                .map(|d| match d {
+                    DrawRec::Clump { obj, .. } | DrawRec::Anm { obj, .. } => self.fx.assets.name(*obj).to_string(),
+                    DrawRec::Eff { eff, .. } => format!("eff {}", eff.chunk),
+                })
+                .collect(),
         }
     }
 
@@ -286,6 +297,10 @@ impl FieldFx for AreaFx {
             }
             piney_effect::Event::SoundNote { se, note } => {
                 out.push((se, None, Some(note as i8)));
+                false
+            }
+            piney_effect::Event::Sound { se } => {
+                out.push((se, None, None));
                 false
             }
             // The flashes, shakes and noise wait for their own takers.
@@ -412,6 +427,21 @@ fn circle_frame(view: &FxView, mc: &MagicCircle, spark: &Eff) -> CircleFrame {
         }
     }
     frame
+}
+
+/// Fidchell's spells in a boss's effect slots (a boss still in its task):
+/// the slot and the rules' state.
+fn boss_spells(scene: &Scene) -> Vec<(i32, &piney_battle::boss::fidchell::eff::Fx)> {
+    let mut out = Vec::new();
+    for ch in &scene.chars {
+        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.exit == 0) else { continue };
+        for (k, e) in b.effects.slots.iter().enumerate() {
+            if let Some(fx) = e.as_ref().and_then(|e| e.fidchell.as_deref()) {
+                out.push((k as i32, fx));
+            }
+        }
+    }
+    out
 }
 
 /// A scene index as the effects name a character.
@@ -598,6 +628,13 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
                 fx.boss_create(h, m);
             }
         }
+        // What Fidchell's rules ask beside: the back dash's and a tower's
+        // dust, a meteor's landing, a tower's and a strike's rocks.
+        Show::Boss(_, piney_battle::boss::Out::Fidchell(p)) => fx.fidchell_calls(h, p),
+        // effSkillStart(who, sid, 0, 0): Fidchell's skill, a gomora's.
+        Show::Boss(_, piney_battle::boss::Out::SkillStart { who, sid }) => {
+            fx.skill_start(h, cref(*who), *sid, 0, 0);
+        }
         // An event NPC's effTransfer as it comes or goes (a PC's act 4,
         // the Administrator's sysopeAct); his act -5's
         // effSkillExecForceRing(this, 4, 1),
@@ -621,8 +658,9 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
 /// A `ccBossEff*Create` as the bosses call it (`docs/engine/boss.md`,
 /// "Effects"): the rules name the effect, where and which way. Innis's
 /// rings and missiles, Kyvia's meteors and Magus's needles have no
-/// picture yet, nor Fidchell's meteors, thunders and rock towers
-/// (boss-innis.md, boss-kyvia.md, boss-magus.md, boss-fidchell.md).
+/// picture yet (boss-innis.md, boss-kyvia.md, boss-magus.md); Fidchell's
+/// meteors, thunders and rock towers are drawn from its rules' state
+/// ([`boss_spells`]).
 fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
     use piney_battle::boss::EffKind;
     use piney_effect::boss::Make;
@@ -854,6 +892,9 @@ impl Host for BattleHost<'_, '_> {
     }
     fn area(&self) -> (i32, i32, i32) {
         self.w.area
+    }
+    fn game_field(&self) -> i32 {
+        self.w.field
     }
     fn land_hit_check(&mut self, pos: V4, mask: u32) -> u32 {
         self.w.hits.land(pos, mask)

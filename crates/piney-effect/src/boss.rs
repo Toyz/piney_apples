@@ -1,11 +1,12 @@
 //! The boss's effects (gcmn bosseff.cpp): `ccBossEffManager`'s effects as
-//! Skeith makes them. `ccBossEffManager::Draw` (0x00461750, the task
-//! `ccThBossEffect`, priority 66) runs its 1024 slots in order on the effect
-//! layer, deleting a disabled one. Skeith's six: WaveShock 0x00478820,
+//! Skeith and Fidchell make them. `ccBossEffManager::Draw` (0x00461750, the
+//! task `ccThBossEffect`, priority 66) runs its 1024 slots in order on the
+//! effect layer, deleting a disabled one. Skeith's six: WaveShock 0x00478820,
 //! MagicSquare 0x00478b10 (with Light 0x00466a30), ForceGenerator 0x004797e0,
 //! AutoSamonRing 0x00479900, IceBreak 0x00479240 and Dead 0x004795d0, in
-//! docs/engine/boss.md ("The effects' pictures"). A photon's position is
-//! published as an anchor for the generator that follows it.
+//! docs/engine/boss.md ("The effects' pictures"); Fidchell's spells are
+//! [`crate::fidchell`]. A photon's position is published as an anchor for
+//! the generator that follows it.
 
 use std::collections::HashMap;
 
@@ -48,18 +49,20 @@ pub mod va {
     pub const DEAD_FF: u32 = 0x005e_ef80;
 }
 
-/// The rows of [`va`].
+/// The rows of [`va`], and the volume (its square root and its float to
+/// unsigned conversion differ).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Tables {
     gens: HashMap<u32, GenParam>,
     ffs: HashMap<u32, FfParam>,
+    pub volume: Volume,
 }
 
 impl Tables {
     /// The volume's (`tables::effect`).
     pub fn read(volume: Volume) -> Tables {
         let t = piney_data::tables::effect::of(volume);
-        let mut out = Tables::default();
+        let mut out = Tables { volume, ..Tables::default() };
         // Keyed by Infection's addresses (the rows' names in [`va`]).
         let mut gens = |key: u32, rows: &[piney_data::tables::types::ParticleGeneratorParam], at: u32| {
             for k in 0..rows.len() {
@@ -117,6 +120,8 @@ pub enum BossEff {
     Ring(SamonRing),
     IceBreak(IceBreak),
     Dead(Dead),
+    /// One of Fidchell's spells ([`crate::fidchell`]).
+    Spell(Box<crate::fidchell::Spell>),
 }
 
 /// `ccBossEffWaveShock` (0x40 bytes).
@@ -133,16 +138,20 @@ pub struct WaveShock {
 /// `ccBossEffLight` (0xc0 bytes): an omni light.
 #[derive(Clone, Debug)]
 pub struct Light {
-    /// +0x10 the light's place, +0x50 its offset (turned), +0x70 the base.
+    /// +0x10 its place, +0x50 its offset (turned), +0x70 the base; and
+    /// where its `ccOmniLight` stands (+0x9c's matrix), which mode 1 moves
+    /// one `Draw` in three.
     pub pos: V4,
     pub offset: V4,
     pub base: V4,
+    pub light_pos: V4,
     /// +0x80 the camera's rotation as read, +0x98 the heading the offset
     /// is turned by.
     pub cam_rot: V4,
     pub heading: F,
     /// +0x90 falling, +0x94 the Draws held at 255, +0xa8 life, +0xac the
-    /// blue, +0xb0 a count, +0xb4 the wait, +0xb8 the type.
+    /// intensity (mode 1's count), +0xb0 a count, +0xb4 the wait, +0xb8
+    /// the type (`Mode`).
     pub falling: bool,
     pub hold: i32,
     pub life: i32,
@@ -249,12 +258,58 @@ fn samon_model(n: i32) -> Option<(&'static str, &'static str, &'static str)> {
 /// A `ccBossEff*Create` call, with its arguments.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Make {
-    WaveShock { pos: V4, dirc: V4, scale: F },
-    MagicSquare { pos: V4, n: i32 },
-    ForceGenerator { p: V4, rot: V4, speed: F, r0: F, r1: F, num: i32, life: i32, clt: i32 },
-    AutoSamonRing { pos: V4, rot: V4, param: V4, n: i32 },
-    IceBreak { pos: V4, scale: F },
-    Dead { pos: V4 },
+    WaveShock {
+        pos: V4,
+        dirc: V4,
+        scale: F,
+    },
+    MagicSquare {
+        pos: V4,
+        n: i32,
+    },
+    ForceGenerator {
+        p: V4,
+        rot: V4,
+        speed: F,
+        r0: F,
+        r1: F,
+        num: i32,
+        life: i32,
+        clt: i32,
+    },
+    AutoSamonRing {
+        pos: V4,
+        rot: V4,
+        param: V4,
+        n: i32,
+    },
+    IceBreak {
+        pos: V4,
+        scale: F,
+    },
+    Dead {
+        pos: V4,
+    },
+    /// Fidchell's spells run here by their rules ([`crate::fidchell`]):
+    /// `ccBossEffMeteoSwormCreate(sp, ep, n, radius, v, &camView)`,
+    /// `ccBossEffThunderStormCreate(pos, radius, n)`,
+    /// `ccBossEffRockTowerCreate(pos, n)`.
+    MeteoSworm {
+        sp: V4,
+        ep: V4,
+        n: i32,
+        radius: F,
+        v: F,
+    },
+    ThunderStorm {
+        pos: V4,
+        radius: F,
+        n: i32,
+    },
+    RockTower {
+        pos: V4,
+        n: i32,
+    },
 }
 
 impl BossEffects {
@@ -269,6 +324,10 @@ impl BossEffects {
             Make::AutoSamonRing { pos, rot, param, n } => self.auto_samon_ring(cx, pos, rot, param, n),
             Make::IceBreak { pos, scale } => self.ice_break(cx, t, pos, scale),
             Make::Dead { pos } => self.dead(pos),
+            Make::MeteoSworm { .. } | Make::ThunderStorm { .. } | Make::RockTower { .. } => {
+                let s = crate::fidchell::Spell::create(cx, t, make);
+                s.map_or(-1, |s| self.put(true, BossEff::Spell(Box::new(s))))
+            }
         }
     }
 
@@ -295,37 +354,72 @@ impl BossEffects {
         usize::try_from(id).ok().and_then(|k| self.slots.get(k)).and_then(|s| s.as_ref()).is_some_and(|s| s.enabled)
     }
 
-    /// The omni lights in the light group: (place, colour).
-    pub fn lights(&self) -> Vec<(V4, [F; 4])> {
+    /// The omni lights in the light group: (place, colour, fall-off's
+    /// end): the magic squares' (`ccOmniLight::Init`'s: none) and a
+    /// meteor swarm's (500).
+    pub fn lights(&self) -> Vec<(V4, [F; 4], F)> {
         self.slots
             .iter()
             .flatten()
             .filter_map(|s| match &s.eff {
-                BossEff::Light(l) if l.in_group => Some((l.pos, l.colour)),
+                BossEff::Light(l) if l.in_group => Some((l.light_pos, l.colour, 0)),
+                BossEff::Spell(x) => x.light(),
                 _ => None,
             })
             .collect()
     }
 
     /// [`BossEffects::lights`] as the characters are lit by them:
-    /// `ccLight(4, 1)` after `ccOmniLight::Init` (intensity 1, no
-    /// fall-off), priority 1.
+    /// `ccLight(4, 1)` after `ccOmniLight::Init` (intensity 1), priority 1.
     pub fn omni_lights(&self) -> Vec<piney_world::town::Light> {
         let f = |v: u32| f32::from_bits(v);
         self.lights()
             .into_iter()
-            .map(|(p, c)| piney_world::town::Light {
+            .map(|(p, c, far)| piney_world::town::Light {
                 kind: 4,
                 pos: glam::Vec3::new(f(p[0]), f(p[1]), f(p[2])),
                 dir: glam::Vec3::ZERO,
                 colour: glam::Vec3::new(f(c[0]), f(c[1]), f(c[2])),
                 intensity: 1.0,
                 far_start: 0.0,
-                far_end: 0.0,
+                far_end: f(far),
                 radius: [0.0; 2],
                 priority: 1,
             })
             .collect()
+    }
+
+    /// Fidchell's spells as the fight's rules left them this frame (their
+    /// slot there and state), drawn: each one's picture made at its first
+    /// sight and dropped once its slot is gone.
+    pub fn sync_spells(&mut self, cx: &mut Cx, spells: &[(i32, &piney_battle::boss::fidchell::eff::Fx)]) {
+        for s in self.slots.iter_mut() {
+            if let Some(Slot { eff: BossEff::Spell(x), .. }) = s
+                && x.rules_slot.is_some_and(|k| !spells.iter().any(|(id, f)| *id == k && x.fits(f)))
+            {
+                *s = None;
+            }
+        }
+        for &(id, fx) in spells {
+            let at = self
+                .slots
+                .iter()
+                .position(|s| matches!(s, Some(Slot { eff: BossEff::Spell(x), .. }) if x.rules_slot == Some(id)));
+            let k = match at {
+                Some(k) => k,
+                None => {
+                    let s = crate::fidchell::Spell::of(cx, fx.clone(), Some(id));
+                    match usize::try_from(self.put(true, BossEff::Spell(Box::new(s)))) {
+                        Ok(k) => k,
+                        Err(_) => continue,
+                    }
+                }
+            };
+            if let Some(Slot { eff: BossEff::Spell(x), .. }) = self.slots[k].as_mut() {
+                x.fx = fx.clone();
+                x.draw(cx);
+            }
+        }
     }
 
     /// `ccBossEffWaveShockCreate(pos, dirc, scale)` (0x00478820).
@@ -344,35 +438,54 @@ impl BossEffects {
         self.put(true, BossEff::WaveShock(w))
     }
 
-    /// `ccBossEffMagicSquareCreate(pos, n)` (0x00478b10) for n 0: SE 228,
-    /// the square's generators (rows 0, 1 and 7) at pos with distSW off,
-    /// then `ccBossEffLightCreate(pos, 0, 80, 10)`; -1. (Other n are not
-    /// Skeith's and not ported.)
+    /// `ccBossEffMagicSquareCreate(pos, n)` (OUT gcmn 0x00489820): by `n`
+    /// a sound, the square's generators at `pos` with distSW off, then
+    /// `ccBossEffLightCreate(pos, n, life, 10)`; -1. Skeith's 0: SE 228,
+    /// rows 0, 1 and 7, life 80. Fidchell's thunders' 1: SE 68 in fields
+    /// 4-8 (else 41 at note 57), row 2 at 350 up, life 60; its meteors' 2:
+    /// SE 35 at note 48, rows 6 and 5, life 80. Any other n: nothing.
     pub fn magic_square(&mut self, cx: &mut Cx, t: &Tables, pos: V4, n: i32) -> i32 {
-        if n != 0 {
-            return -1;
-        }
         let ms = |row: u32| va::MAGIC_SQUARE + 0x38 * row;
         let ff = |k: u32| va::MAGIC_SQUARE_FF + 0x20 * k;
-        cx.raise(Event::Sound3d { se: 228, pos });
-        let s2 = t.generator(cx, ms(1), [ff(2), 0, 0, 0]);
-        let s1 = t.generator(cx, ms(7), [ff(10), ff(1), 0, 0]);
-        let s3 = t.generator(cx, ms(0), [ff(0), ff(12), 0, 0]);
-        if let Some(mut g) = s3 {
+        // Made in the game's order, started in the listed one.
+        let mut at = pos;
+        let (gens, life) = match n {
+            0 => {
+                cx.raise(Event::Sound3d { se: 228, pos });
+                let s1 = t.generator(cx, ms(1), [ff(2), 0, 0, 0]);
+                let s2 = t.generator(cx, ms(7), [ff(10), ff(1), 0, 0]);
+                let s0 = t.generator(cx, ms(0), [ff(0), ff(12), 0, 0]);
+                ([s0, s1, s2], 80)
+            }
+            1 => {
+                if (4..9).contains(&cx.host.game_field()) {
+                    cx.raise(Event::Sound3d { se: 68, pos });
+                } else {
+                    cx.raise(Event::Sound3dNote { se: 41, pos, note: 57 });
+                }
+                let s2 = t.generator(cx, ms(2), [ff(3), ff(4), 0, 0]);
+                at[2] = 0x43af_0000;
+                ([None, None, s2], 60)
+            }
+            2 => {
+                cx.raise(Event::Sound3dNote { se: 35, pos, note: 48 });
+                let s1 = t.generator(cx, ms(6), [ff(8), ff(7), 0, 0]);
+                let s2 = t.generator(cx, ms(5), [ff(6), ff(10), ff(9), 0]);
+                ([None, s1, s2], 80)
+            }
+            _ => return -1,
+        };
+        for mut g in gens.into_iter().flatten() {
             g.dist_sw = false;
-            g.pos = pos;
+            g.pos = at;
             cx.particles.start(g);
         }
-        for mut g in [s2, s1].into_iter().flatten() {
-            g.dist_sw = false;
-            g.pos = pos;
-            cx.particles.start(g);
-        }
-        self.light(pos, n, 80, 10);
+        self.light(pos, n, life, 10);
         -1
     }
 
-    /// `ccBossEffLightCreate(pos, n, life, wait)` (0x004793d0).
+    /// `ccBossEffLightCreate(pos, n, life, wait)` (0x004793d0): its
+    /// `ccOmniLight` at its place, `ccSetColor(1, 1.0)`.
     pub fn light(&mut self, pos: V4, ty: i32, life: i32, wait: i32) -> i32 {
         let mut offset = [0, 0x4348_0000, 0x4348_0000, ONE];
         if ty == 0 {
@@ -380,10 +493,13 @@ impl BossEffects {
         }
         // ApplyMatrix(unit, offset) + base, four lanes.
         let p = ee::vadd(ee::apply(&vu::UNIT, offset), pos);
+        let mut colour = [0; 4];
+        set_color(&mut colour, 1, ONE);
         let l = Light {
             pos: p,
             offset,
             base: pos,
+            light_pos: p,
             cam_rot: VF0,
             heading: 0,
             falling: false,
@@ -393,7 +509,7 @@ impl BossEffects {
             count: 0,
             wait,
             ty,
-            colour: set_color(1),
+            colour,
             in_group: false,
         };
         self.put(true, BossEff::Light(l))
@@ -528,17 +644,31 @@ impl BossEffects {
                 self.slots[k] = None;
                 continue;
             }
+            let mut square = None;
             let on = match &mut s.eff {
                 BossEff::Eruption => false,
                 BossEff::WaveShock(w) => w.draw(cx),
-                BossEff::Light(l) => l.draw(cx),
+                BossEff::Light(l) => l.draw(cx, t),
                 BossEff::Bright(b) => b.draw(ctrl, cx),
                 BossEff::Ring(r) => r.draw(cx),
                 BossEff::IceBreak(i) => i.draw(ctrl, cx),
                 BossEff::Dead(d) => d.draw(cx, t),
+                // The fight's spells are drawn as its rules leave them
+                // ([`BossEffects::sync_spells`]).
+                BossEff::Spell(x) if x.rules_slot.is_some() => continue,
+                BossEff::Spell(x) => {
+                    let (on, sq) = x.run(ctrl, cx, t);
+                    square = sq;
+                    on
+                }
             };
             if !on {
                 s.enabled = false;
+            }
+            // A storm's first bolt gone: its magic square, which this pass
+            // reaches when its slot comes later.
+            if let Some(p) = square {
+                self.magic_square(cx, t, p, 1);
             }
         }
     }
@@ -551,12 +681,55 @@ fn particle_eff(cx: &Cx, name: &str) -> Option<Box<Eff>> {
     Some(Box::new(Eff::init(o.file, j, c, true, &cx.assets.alpha_blend)))
 }
 
-/// `ccSetColor(out, color, 1.0)` (main 0x00138b60) for a colour with no
-/// alpha byte: its r, g, b over 255 (`ITOF0`, times 1/255), alpha 0.
-fn set_color(color: u32) -> [F; 4] {
+/// `ccSetColor(out, color, s)` (OUT main 0x00136f90). With no alpha byte
+/// its r, g, b over 255 (`ITOF0`, times 1/255, or s/255), w 0. With one,
+/// an HSV colour: hue the low byte (sixths of 256), saturation and value
+/// the next two over 255 (value times s), turned to r, g, b by the hue's
+/// sector; w kept.
+pub(crate) fn set_color(out: &mut [F; 4], color: u32, s: F) {
     const INV255: F = 0x3b80_8081;
-    let b = |k: u32| ee::mul(ee::from_int(((color >> (8 * k)) & 0xff) as i32), INV255);
-    [b(0), b(1), b(2), 0]
+    let byte = |k: u32| ee::from_int(((color >> (8 * k)) & 0xff) as i32);
+    if color >> 24 == 0 {
+        let k = if ee::eq(ONE, s) { INV255 } else { ee::div(s, 0x437f_0000) };
+        *out = [ee::mul(byte(0), k), ee::mul(byte(1), k), ee::mul(byte(2), k), 0];
+        return;
+    }
+    let h6 = (color & 0xff) as i32 * 6;
+    let scale = ee::div(s, 0x437f_0000);
+    let frac = ee::mul(ee::from_int(h6 & 0xff), 0x3b80_0000);
+    let v = ee::mul(byte(2), scale);
+    let sat = ee::mul(byte(1), INV255);
+    let sf = ee::mul(sat, frac);
+    let p = ee::mul(v, ee::sub(ONE, sat));
+    let q = ee::mul(v, ee::sub(ONE, sf));
+    let t = ee::mul(v, ee::sub(ee::add(ONE, sf), sat));
+    let rgb = match h6 >> 8 {
+        0 => [v, t, p],
+        1 => [q, v, p],
+        2 => [p, v, t],
+        3 => [p, q, v],
+        4 => [t, p, v],
+        5 => [v, p, q],
+        _ => return,
+    };
+    out[..3].copy_from_slice(&rgb);
+}
+
+/// A float to the unsigned colour `ccBossEffLight::Draw` hands on:
+/// Infection's and Mutation's `fptoui` (0x00129d08: 0 below 1, a negative
+/// too); Outbreak's and Quarantine's inline `cvt.w.s`, which keeps a
+/// negative as its two's complement.
+fn to_uint(v: F, volume: Volume) -> u32 {
+    match volume {
+        Volume::Inf | Volume::Mut => fptoui(v),
+        Volume::Out | Volume::Qua => {
+            if ee::le(0x4f00_0000, v) {
+                ee::to_int(ee::sub(v, 0x4f00_0000)) as u32 | 0x8000_0000
+            } else {
+                ee::to_int(v) as u32
+            }
+        }
+    }
 }
 
 /// `fptoui` (0x00129d08) of a float: 0 below 1 (a negative too).
@@ -586,9 +759,15 @@ impl WaveShock {
 }
 
 impl Light {
-    /// `ccBossEffLight::Draw` (0x00466df0) for type 0; false once its life
+    /// `ccBossEffLight::Draw` (OUT gcmn 0x00478260) by mode: 0 (Skeith's
+    /// square) swings over the base against the camera's heading and
+    /// pulses blue; 1 (the thunders') faces the camera, flickers between
+    /// grey and orange and moves its light one `Draw` in three (a
+    /// `ccRandF(0.5)` drawn and lost); 2 (the meteors') swings as 0, its
+    /// turn falling behind after 15, and pulses red. False once its life
     /// has run out.
-    fn draw(&mut self, cx: &mut Cx) -> bool {
+    fn draw(&mut self, cx: &mut Cx, t: &Tables) -> bool {
+        const NEG_TILT: F = 0xbfc5_0a6b;
         if self.wait > 0 {
             self.wait -= 1;
             return self.life >= 0;
@@ -598,27 +777,71 @@ impl Light {
             self.in_group = true;
         }
         self.life -= 1;
-        if self.ty == 0 {
-            self.cam_rot = cx.host.camera_rot(VF0);
-            self.heading = self.cam_rot[2];
-            self.count += 1;
-            self.cam_rot[2] = wrap(self.cam_rot[2]);
-            self.heading = wrap(self.heading);
-            let m = vu::rot_z(&vu::rot_x(&vu::UNIT, NEG_HALF_PI), self.heading);
-            self.pos = ee::vadd(ee::apply(&m, self.offset), self.base);
-            if self.intensity >= 250 {
-                self.falling = true;
+        match self.ty {
+            0 => {
+                self.cam_rot = cx.host.camera_rot(VF0);
+                self.heading = self.cam_rot[2];
+                self.count += 1;
+                self.cam_rot[2] = wrap(self.cam_rot[2]);
+                self.heading = wrap(self.heading);
+                let m = vu::rot_z(&vu::rot_x(&vu::UNIT, NEG_HALF_PI), self.heading);
+                self.pos = ee::vadd(ee::apply(&m, self.offset), self.base);
+                self.pulse();
+                let c = u32::from(self.intensity >= 2);
+                let v = ((self.intensity as u32) << 16) | (c << 8) | c;
+                set_color(&mut self.colour, to_uint(ee::from_int(v as i32), t.volume), ONE);
+                self.light_pos = self.pos;
             }
-            self.intensity += if self.falling { -10 } else { 10 };
-            if self.falling && self.hold < 15 {
-                self.hold += 1;
-                self.intensity = 255;
+            1 => {
+                self.cam_rot = cx.host.camera_rot(VF0);
+                self.cam_rot[2] = wrap(self.cam_rot[2]);
+                // RotMatrixX of the unit matrix, then RotMatrixZ of the unit
+                // matrix again: the tilt is lost.
+                let _ = crate::thunder::rand_f(cx, 0x3f00_0000);
+                let m = vu::rot_z(&vu::UNIT, self.cam_rot[2]);
+                self.intensity += 1;
+                self.pos = ee::vadd(ee::apply(&m, self.offset), self.base);
+                if self.intensity % 3 == 0 {
+                    set_color(&mut self.colour, 0x0055_5555, ONE);
+                    self.light_pos = self.pos;
+                } else {
+                    set_color(&mut self.colour, 0x00ff_ab44, ONE);
+                }
             }
-            let c = u32::from(self.intensity >= 2);
-            let v = ((self.intensity as u32) << 16) | (c << 8) | c;
-            self.colour = set_color(fptoui(ee::from_int(v as i32)));
+            2 => {
+                self.cam_rot = cx.host.camera_rot(VF0);
+                self.count += 1;
+                if self.count < 15 {
+                    self.heading = self.cam_rot[2];
+                } else {
+                    self.heading = ee::sub(self.heading, 0x3f19_999a);
+                    self.count = 15;
+                }
+                self.cam_rot[2] = wrap(self.cam_rot[2]);
+                self.heading = wrap(self.heading);
+                let m = vu::rot_z(&vu::rot_x(&vu::UNIT, NEG_TILT), self.heading);
+                self.pos = ee::vadd(ee::apply(&m, self.offset), self.base);
+                self.pulse();
+                let c = to_uint(ee::from_int(self.intensity), t.volume);
+                set_color(&mut self.colour, c, ONE);
+                self.light_pos = self.pos;
+            }
+            _ => {}
         }
         self.life >= 0
+    }
+
+    /// Modes 0 and 2: up 10 a `Draw` to 250, held at 255 for 15, then
+    /// down 10 a `Draw`.
+    fn pulse(&mut self) {
+        if self.intensity >= 250 {
+            self.falling = true;
+        }
+        self.intensity += if self.falling { -10 } else { 10 };
+        if self.falling && self.hold < 15 {
+            self.hold += 1;
+            self.intensity = 255;
+        }
     }
 }
 

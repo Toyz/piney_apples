@@ -298,6 +298,7 @@ fn draw(fx: &Effects, d: &DrawRec) -> String {
 fn event(e: &Event) -> Option<String> {
     Some(match e {
         Event::Sound3d { se, pos } => format!("[\"se3d\", {se}, {}]", list(pos)),
+        Event::Sound { se } => format!("[\"se\", {se}]"),
         Event::Sound3dNote { se, pos, note } => format!("[\"se3dnote\", {se}, {}, {note}]", list(pos)),
         Event::CameraShake([power, cycle, time, dirc]) => format!("[\"shake\", {power}, {cycle}, {time}, {dirc}]"),
         Event::Noise { bs } => format!("[\"noise\", {bs}]"),

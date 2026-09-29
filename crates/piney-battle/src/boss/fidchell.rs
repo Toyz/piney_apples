@@ -67,6 +67,10 @@ pub mod act {
     pub const MAGIC: i16 = 25;
 }
 
+/// The event number the prediction's voice is asked with
+/// (`ccEvVoiceRequest(-40, n)`, OUT gcmn 0x004a51c0): a field voice group.
+pub const PRED_VOICE_EVENT: i32 = -40;
+
 /// Fidchell's tables (`tables::combat`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FidchellData {
@@ -154,14 +158,15 @@ pub enum Pic {
         pos: V4,
         dirc: V4,
     },
-    /// `ccEvVoiceRequest(-40, n)`, `ccEvVoiceStop()`.
+    /// `ccEvVoiceRequest(PRED_VOICE_EVENT, n)`, `ccEvVoiceStop()`.
     Voice(i32),
     VoiceStop,
-    /// `effSmoke(pos, vel, 8 | 10, 60, 114, 512, 32)`: the back dash's
-    /// dust, a rock tower breaking out.
+    /// `effSmoke(pos, vel, size, 60, 114, 512, 32)`: the back dash's dust
+    /// (size 8), a rock tower breaking out (10).
     Smoke {
         pos: V4,
         vel: V4,
+        size: F,
     },
     /// A meteor's landing (`effSmokeRock`, two `ccParticleExplode`).
     MeteorLand {
@@ -173,9 +178,12 @@ pub enum Pic {
         rot: V4,
     },
     /// A thunder's strike (`ccBossEffThunder2::Shock`): `effFlareRing`,
-    /// four `effRadiateSomething2`, five `ccParticleExplode`.
+    /// four `effRadiateSomething2` turned by `turn`, five
+    /// `ccParticleExplode` at `vels`.
     Shock {
         pos: V4,
+        turn: F,
+        vels: [V4; 5],
     },
 }
 
@@ -1392,7 +1400,7 @@ fn on_back_dash(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
         let vel =
             [ee::mul(0x4040_0000, libm::cosf(b.move_dirc)), ee::mul(0x4040_0000, libm::sinf(b.move_dirc)), 0, ONE];
         let pos = cx.pos();
-        cx.out(Out::Fidchell(Pic::Smoke { pos, vel }));
+        cx.out(Out::Fidchell(Pic::Smoke { pos, vel, size: 0x4100_0000 }));
     }
     if b.act_count >= 31 {
         b.entry_cmnd_target(cx);
