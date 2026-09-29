@@ -1015,18 +1015,28 @@ const BOSS_PARTS_LEVEL: i16 = 60;
 /// The level against Fidchell, whose gauge (a physical defence of 2000)
 /// and self-healing Epitaph outlast the story's levels (50 or so).
 const FIDCHELL_LEVEL: i16 = 75;
+/// The level against Gorre: its two brothers share its protect gauge, so
+/// neither goes down quickly at the story's levels either.
+const GORRE_LEVEL: i16 = 75;
 
 /// With a boss's parts up, the party raised to [`BOSS_PARTS_LEVEL`]
-/// (with Fidchell up, [`FIDCHELL_LEVEL`]) through the console's `exp`
-/// (the game's own level-ups): the pilot does not grind, and at the
-/// story's start levels (30 or so) the party cannot outpace Kyvia's
-/// healing gomora. A harness aid, as god is.
+/// (with Fidchell or Gorre up, [`FIDCHELL_LEVEL`]/[`GORRE_LEVEL`])
+/// through the console's `exp` (the game's own level-ups): the pilot does
+/// not grind, and at the story's start levels (30 or so) the party cannot
+/// outpace Kyvia's healing gomora. A harness aid, as god is.
 fn levels_for_boss(s: &mut Session) {
     let Stage::Area(a) = &s.stage else { return };
     let c = a.world().combat();
     let fidchell = c.boss.as_ref().is_some_and(|r| !r.exit && r.code == piney_world::combat::boss::FIDCHELL);
-    let level = if fidchell { FIDCHELL_LEVEL } else { BOSS_PARTS_LEVEL };
-    if focus(c).is_none() && !fidchell {
+    let gorre = c.boss.as_ref().is_some_and(|r| !r.exit && r.code == piney_world::combat::boss::GORRE);
+    let level = if fidchell {
+        FIDCHELL_LEVEL
+    } else if gorre {
+        GORRE_LEVEL
+    } else {
+        BOSS_PARTS_LEVEL
+    };
+    if focus(c).is_none() && !fidchell && !gorre {
         return;
     }
     let low = c.members.iter().filter_map(|&(_, k)| c.scene.chars[k].spc()).map(|p| p.base.level).min();
@@ -1352,11 +1362,14 @@ fn approach_part(a: &crate::area::AreaMode) -> Option<Raw> {
 
 /// In a fight with no field foe near, a walk to within 350 of a boss
 /// that roams its arena and is a target (Fidchell: its chases, escapes
-/// and dashes leave Kite standing out of his skills' reach).
+/// and dashes; Gorre: its own chase and dash to the centre, leaving Kite
+/// standing out of his skills' reach).
 fn approach_roamer(a: &crate::area::AreaMode) -> Option<Raw> {
     let w = a.world();
     let c = w.combat();
-    let r = c.boss.as_ref().filter(|r| !r.exit && r.code == piney_world::combat::boss::FIDCHELL)?;
+    let r = c.boss.as_ref().filter(|r| {
+        !r.exit && matches!(r.code, piney_world::combat::boss::FIDCHELL | piney_world::combat::boss::GORRE)
+    })?;
     if c.battle.in_battle == 0 {
         return None;
     }

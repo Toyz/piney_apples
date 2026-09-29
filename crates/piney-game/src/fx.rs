@@ -682,7 +682,9 @@ fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<pin
         | EffKind::Needle { .. }
         | EffKind::MeteoSworm { .. }
         | EffKind::ThunderStorm { .. }
-        | EffKind::RockTower { .. } => {
+        | EffKind::RockTower { .. }
+        // Gorre's finishing flash (boss-gorre.md): no picture yet.
+        | EffKind::FinalPhotonFlash => {
             return None;
         }
     })

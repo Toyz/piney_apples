@@ -253,6 +253,7 @@ pub(crate) fn eff_num(k: EffKind) -> i32 {
         EffKind::MeteoSworm { .. } => 13,
         EffKind::ThunderStorm { .. } => 14,
         EffKind::RockTower { .. } => 15,
+        EffKind::FinalPhotonFlash => 16,
     }
 }
 

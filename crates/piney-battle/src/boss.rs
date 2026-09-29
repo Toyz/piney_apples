@@ -8,6 +8,7 @@
 //! and boss-innis.md, boss-magus.md, boss-kyvia.md, boss-fidchell.md.
 
 pub mod fidchell;
+pub mod gorre;
 pub mod innis;
 pub mod kyvia;
 pub mod magus;
@@ -108,6 +109,7 @@ pub struct BossData {
     pub magus: magus::MagusData,
     pub kyvia: kyvia::KyviaData,
     pub fidchell: fidchell::FidchellData,
+    pub gorre: gorre::GorreData,
 }
 
 impl BossData {
@@ -119,6 +121,7 @@ impl BossData {
             magus: magus::MagusData::of(volume),
             kyvia: kyvia::KyviaData::of(volume),
             fidchell: fidchell::FidchellData::of(volume),
+            gorre: gorre::GorreData::of(volume),
         }
     }
 }
@@ -145,6 +148,11 @@ pub enum Class {
     Gomora(Box<kyvia::gomora::Gomora>),
     /// `ccBoss04`.
     Fidchell(Box<fidchell::Fidchell>),
+    /// `ccBoss05`: the body; its two brothers are bosses of their own
+    /// characters ([`gorre::brother::Brother`]).
+    Gorre(Box<gorre::Gorre>),
+    /// `ccBoss05Brother`.
+    GorreBrother(Box<gorre::brother::Brother>),
     /// A bare `ccBoss` (a slave's base).
     Plain,
 }
@@ -334,6 +342,10 @@ pub enum EffKind {
     ThunderStorm { n: i32 },
     /// `ccBossEffRockTowerCreate(pos, n)` (OUT 0x0048a3a0).
     RockTower { n: i32 },
+    /// `ccBossEffFinalPhotonFlashCreate(pos)` (OUT gcmn, Gorre's
+    /// `OnThinkKerse`): a finishing flash at the target. No picture yet
+    /// (crates/piney-game/src/fx.rs); its life is a placeholder.
+    FinalPhotonFlash,
 }
 
 impl Effects {
@@ -413,6 +425,9 @@ impl Eff {
             // 61 frames, 61 more; the last one clears it.
             EffKind::IceBreak => 1 + 61 + 61,
             EffKind::Dead => 120,
+            // ccBossEffFinalPhotonFlashCreate: not yet measured against
+            // the game; a WaveShock-shaped placeholder.
+            EffKind::FinalPhotonFlash => 45,
             // ccEffSamonRing::Draw (MUT 0x004786b0), bursting: the
             // transparency falls by Tpoint a Draw; gone once below 0.
             EffKind::SamonRing { tpoint, .. } => {
@@ -922,6 +937,7 @@ impl Boss {
             Class::Magus(_) => magus::main(self, cx),
             Class::Kyvia(_) => kyvia::main(self, cx),
             Class::Fidchell(_) => fidchell::main(self, cx),
+            Class::Gorre(_) => gorre::main(self, cx),
             _ => self.skeith_main(cx),
         }
     }
@@ -2250,6 +2266,8 @@ impl Boss {
             Class::KyviaCore(_) => return kyvia::core::affect(self, cx),
             Class::Gomora(_) => return kyvia::gomora::affect(self, cx),
             Class::Fidchell(_) => return fidchell::affect(self, cx),
+            Class::Gorre(_) => return gorre::affect(self, cx),
+            Class::GorreBrother(_) => return gorre::brother_affect(self, cx),
             _ => {}
         }
         let me = cx.me;

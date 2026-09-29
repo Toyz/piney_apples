@@ -29,11 +29,13 @@ use crate::ee::{self, ONE, V4};
 use crate::lattice::{Lattice, StripVertex};
 
 /// `bossFunc`'s codes the port has: Skeith (`bossTbl` row 0), Innis
-/// (row 1), Magus (row 2), Fidchell (row 3) and Kyvia 01 (row 12).
+/// (row 1), Magus (row 2), Fidchell (row 3), Gorre (row 4) and Kyvia 01
+/// (row 12).
 pub const SKEITH: i32 = 0;
 pub const INNIS: i32 = 1;
 pub const MAGUS: i32 = 2;
 pub const FIDCHELL: i32 = 3;
+pub const GORRE: i32 = 4;
 pub const KYVIA: i32 = 12;
 
 /// Skeith's file and model (`x11`, `CMP_trall`), and the effects' file.
@@ -55,6 +57,9 @@ pub const MAGUS_LEAF: &str = "CMP_ex31leaf";
 /// (`ANM_ex4x*`) move.
 pub const FIDCHELL_CLUMP: &str = "CMP_trall1";
 pub const FIDCHELL_EPITAPH: &str = "CMP_trallx";
+/// Gorre's file (`x51`): its body and its two brothers' (the same model,
+/// its own characters drawn as [`BossRun::parts`]).
+pub const GORRE_CLUMP: &str = "CMP_trall";
 /// The wave's animation in [`EFF_FILE`].
 pub const ANM_WAVE: &str = "ANM_xx11wave";
 /// Fidchell's prediction's layer: `m_predTxt.layer`, `ccLayer::Init(254,
@@ -69,6 +74,8 @@ pub const INNIS_CAM_TRANSFER: V4 = [0, 0x4461_0000, 0x4348_0000, ONE];
 pub const KYVIA_CAM_TRANSFER: V4 = [0, 0x4483_4000, 0x43e1_0000, ONE];
 /// Fidchell's `InitBossCamera(250, 1500)`.
 pub const FIDCHELL_CAM_TRANSFER: V4 = [0, 0x44bb_8000, 0x437a_0000, ONE];
+/// Gorre's `InitBossCamera(200, 1500)`.
+pub const GORRE_CAM_TRANSFER: V4 = [0, 0x44bb_8000, 0x4348_0000, ONE];
 
 /// A clip's frames and whether it loops, by name, in the boss's files.
 pub type Clips = HashMap<String, (u32, bool)>;
@@ -171,6 +178,7 @@ impl BossLook {
             INNIS => (INNIS_FILE, CLUMP),
             MAGUS => (MAGUS_FILE, CLUMP),
             FIDCHELL => (boss::fidchell::FILE, FIDCHELL_CLUMP),
+            GORRE => (boss::gorre::FILE, GORRE_CLUMP),
             KYVIA => (KYVIA_FILE, KYVIA_CLUMP),
             _ => (FILE, CLUMP),
         };
@@ -253,7 +261,7 @@ impl Combat {
         camera: &mut Camera,
     ) {
         let code = look.code;
-        if self.boss.is_some() || !matches!(code, SKEITH | INNIS | MAGUS | FIDCHELL | KYVIA) {
+        if self.boss.is_some() || !matches!(code, SKEITH | INNIS | MAGUS | FIDCHELL | GORRE | KYVIA) {
             return;
         }
         let d = self.data.clone();
@@ -300,6 +308,7 @@ impl Combat {
             INNIS => boss::innis::new(&mut cx, kite_pos, kite_dirc, center),
             MAGUS => boss::magus::new(&mut cx, kite_pos, kite_dirc, center),
             FIDCHELL => boss::fidchell::new(&mut cx, kite_pos, kite_dirc, center),
+            GORRE => boss::gorre::new(&mut cx, kite_pos, kite_dirc, center),
             KYVIA => boss::kyvia::new(&mut cx),
             _ => Boss::new(&mut cx, kite_pos, kite_dirc, center),
         };
@@ -330,6 +339,7 @@ impl Combat {
                 v
             }
             Class::Magus(x) => x.leaves.clone(),
+            Class::Gorre(x) => x.brother_me.to_vec(),
             _ => Vec::new(),
         };
         if let Some(f) = self.scene.chars[me].foe_state_mut() {
@@ -341,6 +351,7 @@ impl Combat {
             INNIS => INNIS_CAM_TRANSFER,
             KYVIA => KYVIA_CAM_TRANSFER,
             FIDCHELL => FIDCHELL_CAM_TRANSFER,
+            GORRE => GORRE_CAM_TRANSFER,
             _ => CAM_TRANSFER,
         };
         // InitBossCamera(z, y), in the constructor, and what the

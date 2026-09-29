@@ -167,7 +167,7 @@ pub struct Kyvia {
 
 /// One of the fight's parts as the body's frame holds it: its `ccBoss`, its
 /// own members and its character.
-#[derive(Debug)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Part<T> {
     pub b: Box<Boss>,
     pub x: Box<T>,
