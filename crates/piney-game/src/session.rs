@@ -314,6 +314,11 @@ impl Session {
         piney_data::archive::record();
         let stage = self.enter_world(state, vm, faded);
         let files = piney_data::archive::recorded();
+        // loadCheck: no card when the scene reads nothing the last did not,
+        // as an event's `scene -2` setting the same town up again.
+        if files.keys().all(|f| self.resident.contains(f)) {
+            self.load_disp = None;
+        }
         if let Some(dvd) = self.dvd {
             self.hold = dvd.frames(&files, &self.resident);
         }
@@ -788,6 +793,8 @@ impl Session {
     fn change(&mut self, num: i32) -> Result<(), String> {
         // `ccSystem`'s frame rate, which the next setup starts with.
         let rate = Mode::frame_rate(self);
+        // The mode's own set-up loads its lists: none of The World's stays.
+        self.resident.clear();
         let stage = std::mem::replace(&mut self.stage, Stage::Gone);
         self.stage = match (num, stage) {
             (request::DESKTOP, Stage::Title(t)) => {

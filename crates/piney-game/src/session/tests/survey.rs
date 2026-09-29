@@ -1774,6 +1774,39 @@ fn event_13_leaves_mia_and_elk_out() {
     assert!(!registered(&s, 1) && !registered(&s, 10), "still in the town: {}", Mode::title(&s));
 }
 
+/// Event 13's block 2: Kite put at marker 31, the fade and `scene -2` set
+/// Mac Anu up again with nothing new to read, so `loadCheck` puts up no
+/// card (the town's card showed over the scene), and block 3's stream 13
+/// plays.
+#[test]
+fn event_13_s_town_again_has_no_card() {
+    let Some(mut s) = story_session_on("infection", 13, |_| {}) else { return };
+    let mut pad = Pad::default();
+    let mut pilot = StoryPilot::default();
+    let mut put = None;
+    for f in 0..30000u64 {
+        let raw = pilot.next(&s, f);
+        pilot.after(&mut s);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if let Some(p) = put {
+            assert!(s.load_disp.is_none(), "a card at {}: {}", f - p, Mode::title(&s));
+            if matches!(&s.stage, Stage::World(w) if w.streaming()) {
+                return;
+            }
+            assert!(f < p + 600, "no stream 13: {}", Mode::title(&s));
+        } else if event_flag(&mut s, 13).is_some_and(|x| x & 2 != 0)
+            && let Stage::World(w) = &mut s.stage
+            && !w.streaming()
+        {
+            w.world_mut().pc_command(piney_event::host::PcCommand::PutMarker { pc: 0, marker: 31 });
+            put = Some(f);
+        }
+    }
+    panic!("block 1 never ended: {}", Mode::title(&s));
+}
+
 /// Event 14 at the Expansive Haunted Sea of Sand's dungeon: the pilot to
 /// the room where block 5 puts the Administrator (type 4, code 29), then
 /// Kite talks to him (block 7) and to BlackRose (15), and what the screen

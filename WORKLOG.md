@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-297 entries: audio 20, battle 55, build 15, content 3, decomp 22, disc 5, engine 8, format 15, iop 2, render 73, save 9, script 29, test 129, tooling 23, ui 51, video 11, volumes 58, world 78.
+298 entries: audio 20, battle 55, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 73, save 9, script 30, test 129, tooling 23, ui 52, video 11, volumes 58, world 78.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -309,3 +309,4 @@ The [reference](docs/README.md) says what is true now.
 | 295 | [Fidchell's spells drawn, its prediction's text and voice, the skills' names](worklog/0295-fidchell-s-spells-drawn-its-prediction-s-text-and-voice-the.md) | 2026-09-28 | render, audio, battle, volumes |
 | 296 | [Gorre and its two brothers ported: patterns and tables solid, per-brother camera math approximated](worklog/0296-gorre-and-its-two-brothers-ported-patterns-and-tables-solid.md) | 2026-09-28 | battle, decomp |
 | 297 | [Gorre's harness: the brothers' orbit, Order and ChangeAction checked against the game](worklog/0297-gorre-s-harness-the-brothers-orbit-order-and-changeaction.md) | 2026-09-28 | battle, test |
+| 298 | ["An event's scene -2 put the town's card up: the port skipped loadCheck"](worklog/0298-an-event-s-scene-2-put-the-town-s-card-up-the-port-skipped.md) | 2026-09-28 | engine, script, ui |
