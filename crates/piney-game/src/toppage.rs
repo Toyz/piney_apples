@@ -206,8 +206,8 @@ mod tests {
     use super::*;
 
     /// The board at event 14's start (`--mode story:14`): each post read -
-    /// 3/0 (event 14 block 1), 9/0 (event 50 block 1), 10/1 (event 55
-    /// block 1) - plays its `gate_add_msg`: sound effect 74, the
+    /// 3/0 (event 14 block 1), 5/0 (event 14 block 2), 9/0 (event 50 block
+    /// 1), 10/1 (event 55 block 1) - plays its `gate_add_msg`: sound effect 74, the
     /// announcement (the gate address, "#B" and the server's letter before
     /// the three words, then the Word List line) in the board's message
     /// window over the fade menu until the player closes it, and the area
@@ -235,7 +235,7 @@ mod tests {
         for _ in 0..400 {
             step(&mut mode, Buttons::NONE);
         }
-        for (thread, post, area) in [(3, 0, 17i16), (9, 0, 28), (10, 1, 29)] {
+        for (thread, post, area) in [(3, 0, 17i16), (5, 0, 19), (9, 0, 28), (10, 1, 29)] {
             let info = areas.areas[&area];
             let shown = mode.st.announced.len();
             set_bbs_state(mode.page.as_mut().unwrap().state_mut(), thread, post, POST_READ);
