@@ -521,6 +521,29 @@ mod tests {
         assert_eq!(shots, 12);
     }
 
+    /// Infection's menu sound effects by number, each played alone on a
+    /// fresh headless audio: which are heard (a diagnostic).
+    #[test]
+    #[ignore]
+    fn menu_sounds_heard() {
+        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        if !iso.exists() {
+            return;
+        }
+        for n in [2i32, 4, 6, 7, 17, 18, 19] {
+            let audio = piney_audio::Audio::headless(&iso).unwrap();
+            crate::handle(vec![Event::Se(n)], Some(&audio));
+            let mut buf = vec![0i16; 2 * 800];
+            let mut peak = 0i32;
+            for _ in 0..30 {
+                audio.frame();
+                audio.render(&mut buf);
+                peak = peak.max(buf.iter().map(|&x| i32::from(x).abs()).max().unwrap_or(0));
+            }
+            eprintln!("Se({n}): peak {peak}");
+        }
+    }
+
     /// Once the opening is over the four rows stand one under the other,
     /// each with a still highlight to bring onto it.
     #[test]

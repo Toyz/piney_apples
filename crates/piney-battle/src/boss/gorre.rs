@@ -34,6 +34,9 @@ const FAR: F = 0x4974_23f0;
 pub const CODE: i32 = 4;
 pub const ROW: usize = 4;
 pub const FILE: &str = "x51";
+/// The brothers' own `bossTbl` rows (`ccBoss05Brother::Init`,
+/// `ccGetBossParam(id ? 41 : 40)`): distinct from Gorre's own row 4.
+pub const BROTHER_ROW: [usize; 2] = [40, 41];
 /// The brothers' formation offset off Gorre on x, one each side
 /// (`ccBoss05::ccBoss05`, OUT gcmn ctor): 300.
 pub const BROTHER_OFFSET: F = 0x4396_0000;
@@ -77,6 +80,9 @@ pub struct GorreData {
     pub epitaph: Vec<i32>,
     /// `Boss05AnmTbl`: the act's clip.
     pub anims: Vec<Option<String>>,
+    /// `boss05SlaveAnmTbl1`, `boss05SlaveAnmTbl2`: each brother's own clip
+    /// by act (`ccBoss05Brother::Init`, by `CheckSlaveID`).
+    pub brother_anims: [Vec<Option<String>>; 2],
     /// `@1261`: `OnThinkSkill`'s three spells, one by `ccRand() % 3`; the
     /// same read (and dropped) by `ExecPatternIndex`'s pattern 10.
     pub skills: [i32; 3],
@@ -96,6 +102,7 @@ impl GorreData {
             super_: t.gorre_super().to_vec(),
             epitaph: t.gorre_epitaph().to_vec(),
             anims: s(t.gorre_anims()),
+            brother_anims: [s(t.gorre_brother_anims()), s(t.gorre_brother2_anims())],
             skills: std::array::from_fn(|k| pick(t.gorre_skills(), k)),
             magic_skills: std::array::from_fn(|k| pick(t.gorre_magic_skills(), k)),
         }
@@ -216,6 +223,17 @@ fn order_brother(x: &mut Gorre, k: usize, cx: &mut Cx, on: i32) {
     cx.me = old;
 }
 
+/// `ccBoss05::ChangeAction` (OUT gcmn 0x004985c0): the base's own
+/// `ChangeAction`, then both brothers `Order`'d into the same act (not
+/// called from [`new`]: the brothers do not exist yet at its own first
+/// `ChangeAction`).
+fn change_action(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, act: i16, forbid: i16, af: bool) {
+    b.change_action(cx, act, forbid, af);
+    for k in 0..2 {
+        order_brother(x, k, cx, act as i32);
+    }
+}
+
 /// `CalcTargetInfo`'s target part, since Gorre's own `Main` only inlines
 /// the centre's (`ccBoss::CalcTargetInfo`, OUT gcmn 0x0046ff20).
 fn calc_target_info(b: &mut Boss, cx: &mut Cx) {
@@ -258,7 +276,9 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.anm_tbl = cx.data.gorre.anims.clone();
     b.exit = 0;
     b.draw_sw = 1;
-    b.body_hit_sw = 1;
+    // `OffBodyHit()` (vtable +0x60), not On: Gorre itself takes no direct
+    // hit (`Affect` is empty; the brothers carry the body hit).
+    b.body_hit_sw = 0;
     b.cheat_hp = 1;
     let mut pos = kite_pos;
     pos[1] = ee::sub(pos[1], 0x43fa_0000);
@@ -273,8 +293,9 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
 
     let mut brother_me = [0usize; 2];
     for (k, slot) in brother_me.iter_mut().enumerate() {
-        let bm = super::kyvia::new_char(cx, ROW);
-        super::kyvia::set_base_param(cx, bm, ROW);
+        let row = BROTHER_ROW[k];
+        let bm = super::kyvia::new_char(cx, row);
+        super::kyvia::set_base_param(cx, bm, row);
         crate::fellow::entry_cmnd(cx.scene, bm);
         let sign = if k == 0 { BROTHER_OFFSET } else { BROTHER_OFFSET ^ 0x8000_0000 };
         let part = brother::new(cx, bm, me, [sign, 0, 0, ONE], kite_dirc, k as i32);
@@ -354,7 +375,7 @@ fn frame(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     } else if b.epitaph != 0 && b.act_num != act::DEAD {
         x.epitaph_frames += 1;
         if x.epitaph_frames >= EPITAPH_GRACE {
-            b.change_action(cx, act::DEAD, 2, true);
+            change_action(b, x, cx, act::DEAD, 2, true);
         }
     }
     think(b, x, cx);
@@ -391,9 +412,9 @@ fn change_next_pattern(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     b.move_spd = 0;
     b.move_vector = VF0;
     if b.epitaph != 0 {
-        b.change_action(cx, act::EPITAPH, 3, true);
+        change_action(b, x, cx, act::EPITAPH, 3, true);
     } else {
-        b.change_action(cx, act::NEUTRAL, 1, true);
+        change_action(b, x, cx, act::NEUTRAL, 1, true);
     }
     b.pat_index = exec_pattern_index(b, x, cx, &tbl, b.pat_index);
 }
@@ -421,14 +442,14 @@ fn exec_pattern_index(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, tbl: &[i32], i: 
     b.pat_num = pat;
     let me = cx.me;
     match pat {
-        19 => b.change_action(cx, act::MAGIC, 3, true),
-        18 => b.change_action(cx, act::DATA_DRAIN_ATK, 3, true),
-        17 => b.change_action(cx, act::TORNADE, 3, true),
-        16 => b.change_action(cx, act::TALK, 3, true),
-        15 => b.change_action(cx, act::KERSE, 3, true),
+        19 => change_action(b, x, cx, act::MAGIC, 3, true),
+        18 => change_action(b, x, cx, act::DATA_DRAIN_ATK, 3, true),
+        17 => change_action(b, x, cx, act::TORNADE, 3, true),
+        16 => change_action(b, x, cx, act::TALK, 3, true),
+        15 => change_action(b, x, cx, act::KERSE, 3, true),
         1 => {
             let n = if b.epitaph != 0 { act::EPITAPH_WAVE } else { act::WAVE };
-            b.change_action(cx, n, 3, true);
+            change_action(b, x, cx, n, 3, true);
         }
         9..=11 => {
             if pat != 11 {
@@ -465,7 +486,7 @@ fn exec_pattern_index(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, tbl: &[i32], i: 
                 // @1261 read (rand()%3 abs) and dropped: OnThinkSkill draws
                 // its own.
                 let _ = (cx.cc.rand() % 3).abs();
-                b.change_action(cx, act::SKILL, 3, true);
+                change_action(b, x, cx, act::SKILL, 3, true);
                 return s;
             }
             let sid = word(tbl, s);
@@ -485,7 +506,21 @@ fn exec_pattern_index(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, tbl: &[i32], i: 
             }
             exec_pattern(b, x, cx, 2, 60);
         }
-        _ => return b.base_exec_pattern_index(cx, tbl, orig),
+        _ => {
+            // The base's own act numbers for patterns 2-8 and 12 already
+            // match Gorre's own `act` module; `ccBoss05::ChangeAction`'s
+            // own brother `Order` (wrapped here as [`change_action`]) is
+            // not itself reached through the base, so it is repeated here
+            // whenever the base's own call actually changed the act.
+            let before = b.act_num;
+            let r = b.base_exec_pattern_index(cx, tbl, orig);
+            if b.act_num != before {
+                for k in 0..2 {
+                    order_brother(x, k, cx, b.act_num as i32);
+                }
+            }
+            return r;
+        }
     }
     s
 }
@@ -496,7 +531,7 @@ fn exec_pattern_index(b: &mut Boss, x: &mut Gorre, cx: &mut Cx, tbl: &[i32], i: 
 fn think(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     match b.act_num {
         act::NEUTRAL => on_neutral(b, x, cx),
-        act::DMG0 | act::DMG1 => on_dmg(b, cx),
+        act::DMG0 | act::DMG1 => on_dmg(b, x, cx),
         act::KERSE => on_kerse(b, x, cx),
         act::WAVE => on_wave(b, x, cx),
         act::TALK => on_talk(b, x, cx),
@@ -543,19 +578,16 @@ fn on_epitaph(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
 }
 
 /// `OnThinkDmg` (0x004990e0): back to the neutral at once.
-fn on_dmg(b: &mut Boss, cx: &mut Cx) {
+fn on_dmg(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     let n = if b.epitaph != 0 { act::EPITAPH } else { act::NEUTRAL };
-    b.change_action(cx, n, 1, true);
+    change_action(b, x, cx, n, 1, true);
     b.spd_down(0, 0x40a0_0000);
 }
 
 /// `OnThinkDrain` (0x00498940): drained; the Epitaph's table.
 fn on_drain(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
-    b.change_action(cx, act::EPITAPH, 3, true);
+    change_action(b, x, cx, act::EPITAPH, 3, true);
     b.pat_tbl = Tbl::Epitaph;
-    for k in 0..2 {
-        order_brother(x, k, cx, brother::act::EPITAPH as i32);
-    }
     let tbl = cx.data.gorre.words(Tbl::Epitaph).to_vec();
     b.pat_index = exec_pattern_index(b, x, cx, &tbl, 0);
 }
@@ -585,7 +617,7 @@ fn on_wave(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
                 for k in 0..2 {
                     let bp = cx.scene.chars[x.brothers[k].me].pos;
                     let d = x.brothers[k].b.dirc;
-                    cx.out(Out::Effect { id: -1, kind: EffKind::WaveShock, pos: bp, dirc: d });
+                    x.brothers[k].b.effect_at(cx, EffKind::WaveShock, bp, d);
                 }
             }
             if c >= 90 {
@@ -819,7 +851,8 @@ fn on_kerse(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
             cx.se3d(234);
         }
         0 if c >= 75 => {
-            cx.out(Out::Effect { id: -1, kind: EffKind::FinalPhotonFlash, pos: b.target_pos, dirc: VF0 });
+            let tp = b.target_pos;
+            b.effect_at(cx, EffKind::FinalPhotonFlash, tp, VF0);
             cx.out(Out::SeNote { se: 191, note: 50 });
             cx.se3d(191);
             b.act_proccess += 1;
@@ -874,7 +907,8 @@ fn on_tornade(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
         }
         1 => {
             if c == 0 {
-                cx.out(Out::Effect { id: -1, kind: EffKind::WaveShock, pos: b.target_pos, dirc: VF0 });
+                let tp = b.target_pos;
+                b.effect_at(cx, EffKind::WaveShock, tp, VF0);
                 for k in 0..2 {
                     order_brother(x, k, cx, brother::act::TORNADE as i32);
                 }
@@ -952,9 +986,10 @@ fn on_skill(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
             let c = b.act_count;
             b.act_count += 1;
             if c >= 15 {
-                b.unlock_player();
                 b.entry_cmnd_target(cx);
                 cursor(cx, false);
+                cx.out(Out::SwitchLayer);
+                b.unlock_player();
                 cx.out(Out::CameraChange(2));
                 change_next_pattern(b, x, cx);
             }

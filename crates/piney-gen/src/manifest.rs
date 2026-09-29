@@ -1918,6 +1918,20 @@ fn combat() -> Group {
             ),
             e("gorre_anims", 0x005E_BF10, array(opt(cstr()), 25), GCMN, "`Boss05AnmTbl`: Gorre's clip by act."),
             e(
+                "gorre_brother_anims",
+                0x005E_BF80,
+                array(opt(cstr()), 25),
+                GCMN,
+                "`boss05SlaveAnmTbl1`: the first brother's clip by act.",
+            ),
+            e(
+                "gorre_brother2_anims",
+                0x005E_BFF0,
+                array(opt(cstr()), 25),
+                GCMN,
+                "`boss05SlaveAnmTbl2`: the second brother's clip by act.",
+            ),
+            e(
                 "gorre_normal",
                 0x005E_C060,
                 array_through(I32, Rc::new(|v| v.int() == -1)),

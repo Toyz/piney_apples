@@ -344,7 +344,7 @@ pub enum EffKind {
     RockTower { n: i32 },
     /// `ccBossEffFinalPhotonFlashCreate(pos)` (OUT gcmn, Gorre's
     /// `OnThinkKerse`): a finishing flash at the target. No picture yet
-    /// (crates/piney-game/src/fx.rs); its life is a placeholder.
+    /// (crates/piney-game/src/fx.rs); its life (72 frames) is measured.
     FinalPhotonFlash,
 }
 
@@ -425,9 +425,11 @@ impl Eff {
             // 61 frames, 61 more; the last one clears it.
             EffKind::IceBreak => 1 + 61 + 61,
             EffKind::Dead => 120,
-            // ccBossEffFinalPhotonFlashCreate: not yet measured against
-            // the game; a WaveShock-shaped placeholder.
-            EffKind::FinalPhotonFlash => 45,
+            // ccBossEffFinalPhotonFlashCreate::Draw (0x0046f460): the life
+            // (1000.0, -100.0 a Draw) goes under 0 on the 11th call, which
+            // rings and starts a 61-call countdown (old count reaching 60)
+            // before m_bEnabled clears: 11 + 61.
+            EffKind::FinalPhotonFlash => 72,
             // ccEffSamonRing::Draw (MUT 0x004786b0), bursting: the
             // transparency falls by Tpoint a Draw; gone once below 0.
             EffKind::SamonRing { tpoint, .. } => {

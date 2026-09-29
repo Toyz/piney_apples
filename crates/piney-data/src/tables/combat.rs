@@ -173,6 +173,10 @@ pub struct Combat {
     pub fidchell_magic_skills: &'static [i32],
     /// `Boss05AnmTbl`: Gorre's clip by act.
     pub gorre_anims: &'static [Option<&'static str>],
+    /// `boss05SlaveAnmTbl1`: the first brother's clip by act.
+    pub gorre_brother_anims: &'static [Option<&'static str>],
+    /// `boss05SlaveAnmTbl2`: the second brother's clip by act.
+    pub gorre_brother2_anims: &'static [Option<&'static str>],
     /// `boss05NormalActTbl`: Gorre's patterns, up to and with its -1.
     pub gorre_normal: &'static [i32],
     /// `boss05SuperActTbl`: Gorre's once its gauge is half full.
@@ -258,6 +262,8 @@ impl crate::store::Load for Combat {
             fidchell_skills: crate::store::Load::load(r),
             fidchell_magic_skills: crate::store::Load::load(r),
             gorre_anims: crate::store::Load::load(r),
+            gorre_brother_anims: crate::store::Load::load(r),
+            gorre_brother2_anims: crate::store::Load::load(r),
             gorre_normal: crate::store::Load::load(r),
             gorre_super: crate::store::Load::load(r),
             gorre_epitaph: crate::store::Load::load(r),
@@ -412,6 +418,12 @@ impl Combat {
     }
     pub fn gorre_anims(&self) -> &'static [Option<&'static str>] {
         self.gorre_anims
+    }
+    pub fn gorre_brother_anims(&self) -> &'static [Option<&'static str>] {
+        self.gorre_brother_anims
+    }
+    pub fn gorre_brother2_anims(&self) -> &'static [Option<&'static str>] {
+        self.gorre_brother2_anims
     }
     pub fn gorre_normal(&self) -> &'static [i32] {
         self.gorre_normal
@@ -616,6 +628,14 @@ pub static FIDCHELL_MAGIC_SKILLS: std::sync::LazyLock<&'static [i32]> =
 /// `Boss05AnmTbl`: Gorre's clip by act.
 pub static GORRE_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
     std::sync::LazyLock::new(|| shared().gorre_anims);
+
+/// `boss05SlaveAnmTbl1`: the first brother's clip by act.
+pub static GORRE_BROTHER_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().gorre_brother_anims);
+
+/// `boss05SlaveAnmTbl2`: the second brother's clip by act.
+pub static GORRE_BROTHER2_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().gorre_brother2_anims);
 
 /// `boss05NormalActTbl`: Gorre's patterns, up to and with its -1.
 pub static GORRE_NORMAL: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().gorre_normal);

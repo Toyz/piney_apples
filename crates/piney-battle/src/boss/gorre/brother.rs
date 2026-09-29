@@ -11,8 +11,13 @@ use piney_data::field::ee;
 use super::super::kyvia::{self, Part};
 use super::super::{Boss, Cx, Out};
 use super::Gorre;
+use crate::enemy_ai::get_dirc;
 use crate::geom::{self, V4};
 use crate::param::cond;
+
+/// `OnThinkNeutral`'s own fixed turn a frame for `m_posB`'s orbit (the
+/// only literal float constant it uses): 0x3c8efa35.
+const ORBIT_STEP: u32 = 0x3c8e_fa35;
 
 /// Brother's acts (`Think`'s switch, OUT gcmn 0x0049ca90): 4, 12, 13, 14,
 /// 21 by name; anything else is `OnThinkNeutral`.
@@ -36,16 +41,23 @@ pub struct Brother {
 }
 
 /// `ccBoss05Brother::Init` (OUT gcmn 0x0049c410): the master, the offset
-/// (`TransPosB2W`'d in the constructor) and this brother's id (0 or 1);
-/// its heading starts as Gorre's own.
+/// (kept as `m_posB`, a plain world-space addend: `ccBoss05::TransPosB2W`
+/// only adds the master's own place, no heading turn, so the caller's
+/// redundant `TransPosB2W` call after `Init` lands on the same place) and
+/// this brother's id (0 or 1); its heading starts as Gorre's own.
 pub fn new(cx: &mut Cx, me: usize, master_me: usize, offset: V4, dirc: V4, id: i32) -> Part<Brother> {
     let mut b = kyvia::plain_boss();
     b.exit = 0;
     b.draw_sw = 1;
-    b.body_hit_sw = 1;
-    cx.scene.chars[me].pos = cx.scene.chars[master_me].pos;
+    b.anm_tbl = cx.data.gorre.brother_anims[usize::try_from(id).unwrap_or(0)].clone();
+    // `pos_p` is left at its default (0): `Init` never calls
+    // `ccTransPosW2P`, only the first `Move` derives it from `pos`.
+    cx.scene.chars[me].pos = geom::vadd(cx.scene.chars[master_me].pos, offset);
     b.dirc = dirc;
-    b.act_num = act::NEUTRAL;
+    let old = cx.me;
+    cx.me = me;
+    b.change_action(cx, act::NEUTRAL, 0, true);
+    cx.me = old;
     Part { b: Box::new(b), x: Box::new(Brother { offset, id, master_me }), me }
 }
 
@@ -55,12 +67,11 @@ pub(super) fn frame(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
     let me = gx.brothers[k].me;
     let old = cx.me;
     cx.me = me;
-    let gorre_dirc = gb.dirc;
     let part = &mut gx.brothers[k];
     if part.b.exit == 0 {
         kyvia::head(&mut part.b, cx);
-        think(gb, &mut part.b, &part.x, gorre_dirc, cx);
-        mov(&mut part.b, &part.x, gorre_dirc, cx);
+        think(gb, &mut part.b, &mut part.x, cx);
+        mov(&mut part.b, &part.x, cx);
         if part.b.draw_sw != 0 {
             part.b.anm_status = i8::from(part.b.anm.forward());
         }
@@ -69,48 +80,88 @@ pub(super) fn frame(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
     cx.me = old;
 }
 
-/// `ccBoss05Brother::Move` (OUT gcmn 0x0049c7e0): its place kept at its
-/// formation offset off Gorre, turned by Gorre's own heading (its own
-/// speed added on top, the base's way).
-fn mov(b: &mut Boss, x: &Brother, gorre_dirc: V4, cx: &mut Cx) {
+/// `ccBoss05Brother::Move` (OUT gcmn 0x0049c7e0): world place kept at the
+/// master's own plus the formation offset (`m_posB`; no heading turn -
+/// see [`new`]), the base's own speed layered on top the base's way.
+/// `m_posB`'s own drift from `m_moveSpdB`/`m_moveVectorB` (the Wave
+/// attack's return and the Tornade spin) is not yet ported: those attacks
+/// hold the offset fixed instead.
+fn mov(b: &mut Boss, x: &Brother, cx: &mut Cx) {
     let me = cx.me;
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), gorre_dirc[2]);
-    let off = geom::apply_matrix(&m, x.offset);
     let base = cx.scene.chars[x.master_me].pos;
-    let mut pos = geom::vadd(base, off);
+    let pos = geom::vadd(base, x.offset);
+    let mut pos_p = super::super::w2p(cx, pos);
     if !geom::eq(0, b.move_spd) {
         let s = ee::mul(b.move_spd, piney_data::libm::sinf(b.move_dirc));
         let c = ee::mul(b.move_spd, piney_data::libm::cosf(b.move_dirc));
-        pos[0] = ee::add(pos[0], s);
-        pos[1] = ee::sub(pos[1], c);
+        pos_p[0] = ee::add(pos_p[0], s);
+        pos_p[1] = ee::sub(pos_p[1], c);
     }
-    let pp = super::super::w2p(cx, pos);
+    pos_p = geom::vadd(pos_p, b.move_vector);
+    let pos = super::super::p2w(cx, pos_p);
     let ch = &mut cx.scene.chars[me];
     ch.pos = pos;
-    ch.pos_p = pp;
+    ch.pos_p = pos_p;
 }
 
 /// `ccBoss05Brother::Think` (OUT gcmn 0x0049ca90).
-fn think(gb: &mut Boss, b: &mut Boss, x: &Brother, gorre_dirc: V4, cx: &mut Cx) {
+fn think(gb: &mut Boss, b: &mut Boss, x: &mut Brother, cx: &mut Cx) {
     match b.act_num {
-        act::WAVE | act::EPITAPH_WAVE => on_wave(b, gorre_dirc),
-        act::EPITAPH => on_neutral(b, gorre_dirc),
+        act::WAVE | act::EPITAPH_WAVE => on_wave(b, x, cx),
+        act::EPITAPH => on_epitaph(b, x, cx),
         act::DEAD => on_dead(gb, b, x, cx),
         act::TORNADE => on_tornade(gb, b),
-        _ => on_neutral(b, gorre_dirc),
+        _ => on_neutral(b, x, cx),
     }
 }
 
-/// `OnThinkNeutral` / `OnThinkEpitaph` (0x0049cb50, 0x0049cc50): faces
-/// Gorre's own heading.
-fn on_neutral(b: &mut Boss, gorre_dirc: V4) {
-    b.dirc[2] = gorre_dirc[2];
+/// Faces the master (`ccGetDirc(pos_p, master.pos_p)`, `ccSetDirc` mode
+/// 256): the turn both `OnThinkNeutral` and `OnThinkEpitaph` open with.
+fn face_master(b: &mut Boss, x: &Brother, cx: &Cx) {
+    let pp = cx.scene.chars[cx.me].pos_p;
+    let master_pp = cx.scene.chars[x.master_me].pos_p;
+    b.set_dirc(get_dirc(pp, master_pp));
 }
 
-/// `OnThinkWave` / `OnThinkEpitaphWave`: holds its place (Gorre's own
-/// `on_wave` fires the wave shock at both brothers' places at frame 30).
-fn on_wave(b: &mut Boss, gorre_dirc: V4) {
-    on_neutral(b, gorre_dirc);
+/// `m_posB` turned a fixed step (`ORBIT_STEP`) around Z: `OnThinkNeutral`
+/// and `OnThinkEpitaph`'s own slow orbit of the master while not stopped
+/// or held.
+fn orbit(x: &mut Brother) {
+    let m = geom::rot_matrix_z(&geom::unit_matrix(), ORBIT_STEP);
+    x.offset = geom::apply_matrix(&m, x.offset);
+}
+
+fn stopped_or_held(b: &Boss, cx: &Cx) -> bool {
+    b.stop != 0 || cx.scene.chars[cx.me].cond[cond::HOLD] != 0
+}
+
+/// `OnThinkNeutral` (0x0049cb50): stopped or held, a hit/pause report
+/// (`SendMessage` msg 3, not yet ported) and no turn; else faces the
+/// master and orbits it.
+fn on_neutral(b: &mut Boss, x: &mut Brother, cx: &mut Cx) {
+    b.move_spd = 0;
+    if stopped_or_held(b, cx) {
+        return;
+    }
+    face_master(b, x, cx);
+    orbit(x);
+}
+
+/// `OnThinkEpitaph` (0x0049cc50): faces the master regardless, then (not
+/// stopped or held) orbits it the same as [`on_neutral`].
+fn on_epitaph(b: &mut Boss, x: &mut Brother, cx: &mut Cx) {
+    face_master(b, x, cx);
+    if !stopped_or_held(b, cx) {
+        orbit(x);
+    }
+}
+
+/// `OnThinkWave` / `OnThinkEpitaphWave`: holds its place facing the
+/// master (Gorre's own `on_wave` fires the wave shock at both brothers'
+/// places at frame 30). Not the game's own state machine (the return to
+/// formation past frame 15, `m_moveSpdB`'s own easing): docs/engine/boss-gorre.md.
+fn on_wave(b: &mut Boss, x: &Brother, cx: &Cx) {
+    face_master(b, x, cx);
 }
 
 /// `OnThinkTornade` (0x0049d320): faces the target Gorre picked.
@@ -134,9 +185,18 @@ fn on_dead(_gb: &mut Boss, b: &mut Boss, _x: &Brother, cx: &mut Cx) {
 /// brother into an act; special `on` values (21: its stats reset to
 /// Gorre's own row) beyond a plain `ChangeAction` are approximated here as
 /// a plain act change.
+/// `ccBoss05Brother::Order(on)` (OUT gcmn 0x0049e020): most `on` values
+/// change the act with forbid 3, af true; 15 and 0 (a plain neutral) with
+/// forbid 1; 4 (`WAVE`) also resets `m_bWaveEnd` and the anm to
+/// "ANM_xx11wave" first (not yet ported, harmless: `OnThinkWave`'s own
+/// case 0 sets the same anm). 3 and 5 (Gorre's own Kerse and Talk) become
+/// act 15, unnamed in [`act`] (a plain watch: `Think`'s default).
 pub(super) fn order(b: &mut Boss, cx: &mut Cx, on: i32) {
-    let act = i16::try_from(on).unwrap_or(0);
-    b.change_action(cx, act, 1, true);
+    match on {
+        15 | 0 => b.change_action(cx, 0, 1, true),
+        3 | 5 => b.change_action(cx, 15, 3, true),
+        _ => b.change_action(cx, i16::try_from(on).unwrap_or(0), 3, true),
+    }
 }
 
 /// `ccBoss05Brother::Affect` (OUT gcmn 0x0049e220): the core/gomora kinds
