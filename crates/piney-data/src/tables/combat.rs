@@ -177,16 +177,18 @@ pub struct Combat {
     pub gorre_brother_anims: &'static [Option<&'static str>],
     /// `boss05SlaveAnmTbl2`: the second brother's clip by act.
     pub gorre_brother2_anims: &'static [Option<&'static str>],
-    /// `boss05NormalActTbl`: Gorre's patterns, up to and with its -1.
+    /// `boss05NormalActTbl`: Gorre's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too).
     pub gorre_normal: &'static [i32],
-    /// `boss05SuperActTbl`: Gorre's once its gauge is half full.
+    /// `boss05SuperActTbl`: Gorre's once its gauge is half full, through its closing -1 (Outbreak's runs 4 words past Infection's).
     pub gorre_super: &'static [i32],
-    /// `boss05EpitaphActTbl`: Gorre's once both brothers are down.
+    /// `boss05EpitaphActTbl`: Gorre's once drained, through its closing -1.
     pub gorre_epitaph: &'static [i32],
-    /// `@1261`: `OnThinkSkill`'s three spells, one by `ccRand() % 3`; the same read (and dropped) by `ExecPatternIndex`'s pattern 10.
-    pub gorre_skills: &'static [i32],
-    /// `@1777`: `OnThinkMagic`'s spells, one by `ccRand() % 3` (the fourth never drawn).
+    /// `@1672`: `OnThinkMagic`'s spells, one by `abs(ccRand()) & 3`, cast by the second brother.
     pub gorre_magic_skills: &'static [i32],
+    /// `@1777`: `OnThinkSkill`'s spells, one by `ccRand() & 3` (157 and 158 the first brother's, 159 and 160 the second's).
+    pub gorre_skills: &'static [i32],
+    /// `@2074`: `SendMessage`'s msg 7, the brother's spell in the Tornade, one by `ccRand() & 3`.
+    pub gorre_tornade_skills: &'static [i32],
     /// `_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.
     pub cinema_skill_names: &'static [CinemaSkillName],
     /// The cinema's names by `game.field` and skill (`OnCinemaMode` with a skill, from Outbreak on); none before.
@@ -267,8 +269,9 @@ impl crate::store::Load for Combat {
             gorre_normal: crate::store::Load::load(r),
             gorre_super: crate::store::Load::load(r),
             gorre_epitaph: crate::store::Load::load(r),
-            gorre_skills: crate::store::Load::load(r),
             gorre_magic_skills: crate::store::Load::load(r),
+            gorre_skills: crate::store::Load::load(r),
+            gorre_tornade_skills: crate::store::Load::load(r),
             cinema_skill_names: crate::store::Load::load(r),
             cinema_skill_rows: crate::store::Load::load(r),
             weapon_infos: crate::store::Load::load(r),
@@ -434,11 +437,14 @@ impl Combat {
     pub fn gorre_epitaph(&self) -> &'static [i32] {
         self.gorre_epitaph
     }
+    pub fn gorre_magic_skills(&self) -> &'static [i32] {
+        self.gorre_magic_skills
+    }
     pub fn gorre_skills(&self) -> &'static [i32] {
         self.gorre_skills
     }
-    pub fn gorre_magic_skills(&self) -> &'static [i32] {
-        self.gorre_magic_skills
+    pub fn gorre_tornade_skills(&self) -> &'static [i32] {
+        self.gorre_tornade_skills
     }
     pub fn cinema_skill_names(&self) -> &'static [CinemaSkillName] {
         self.cinema_skill_names
@@ -637,21 +643,22 @@ pub static GORRE_BROTHER_ANIMS: std::sync::LazyLock<&'static [Option<&'static st
 pub static GORRE_BROTHER2_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
     std::sync::LazyLock::new(|| shared().gorre_brother2_anims);
 
-/// `boss05NormalActTbl`: Gorre's patterns, up to and with its -1.
+/// `boss05NormalActTbl`: Gorre's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too).
 pub static GORRE_NORMAL: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().gorre_normal);
 
-/// `boss05SuperActTbl`: Gorre's once its gauge is half full.
-pub static GORRE_SUPER: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().gorre_super);
-
-/// `boss05EpitaphActTbl`: Gorre's once both brothers are down.
+/// `boss05EpitaphActTbl`: Gorre's once drained, through its closing -1.
 pub static GORRE_EPITAPH: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().gorre_epitaph);
 
-/// `@1261`: `OnThinkSkill`'s three spells, one by `ccRand() % 3`; the same read (and dropped) by `ExecPatternIndex`'s pattern 10.
-pub static GORRE_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().gorre_skills);
-
-/// `@1777`: `OnThinkMagic`'s spells, one by `ccRand() % 3` (the fourth never drawn).
+/// `@1672`: `OnThinkMagic`'s spells, one by `abs(ccRand()) & 3`, cast by the second brother.
 pub static GORRE_MAGIC_SKILLS: std::sync::LazyLock<&'static [i32]> =
     std::sync::LazyLock::new(|| shared().gorre_magic_skills);
+
+/// `@1777`: `OnThinkSkill`'s spells, one by `ccRand() & 3` (157 and 158 the first brother's, 159 and 160 the second's).
+pub static GORRE_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().gorre_skills);
+
+/// `@2074`: `SendMessage`'s msg 7, the brother's spell in the Tornade, one by `ccRand() & 3`.
+pub static GORRE_TORNADE_SKILLS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().gorre_tornade_skills);
 
 /// `ehkBreathInfo`: `ccEnemyH`'s two fire breaths.
 pub static EHK_BREATH_INFO: std::sync::LazyLock<&'static [EnemyBrInfo]> =

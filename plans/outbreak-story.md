@@ -40,7 +40,7 @@ own start:
 | 206 | blocks 0x7f: a lone Kite through the dungeon of field 72, slow (floor 1 by 150,000 frames) | dungeon of field 72 |
 | 207 | done (120,000 frames): Fidchell ported (worklog 294), drained at 97,100, dead at 112,100 | |
 | 211 | blocks 0x1c1f: field 10's boss, row 13 (Cubia, the second Kyvia), not ported | field 10 |
-| 218 | blocks 0x8f: field 5's boss, row 4 (Gorre), not ported | dungeon of field 71 |
+| 218 | done (150,000 frames): Gorre ported and checked (worklog 303); the brothers' protect broken at ~98,000, drained, the three down at ~107,000 | |
 
 Seen on the way: `entry 3 29` (a walking PC, file `ctr1`) is not found
 ("not a walking PC's file"); the dungeon walker is put back in rooms it
@@ -67,3 +67,7 @@ cannot leave.
   any foe's broken protect is drained then. Raising the party's level
   instead (to 85) did not help: the fight turns on the healing, not the
   level.
+- Gorre (event 218): Gorre itself is never listed, so Data Drain's
+  candidates take in its two brothers too; the fight's focus is the
+  brother whose shared protect gauge a physical hit fills (row 41, a
+  physical PP defence of 2000 against row 40's 9990), with Skills!.

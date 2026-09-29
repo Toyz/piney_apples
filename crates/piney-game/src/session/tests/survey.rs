@@ -533,7 +533,7 @@ impl StoryPilot {
         }
         // A broken protect does not wait for the last skill to land: the
         // break is short (Fidchell's under 300 frames).
-        let broken = c.enemies().into_iter().any(|e| drainable(&c.scene.chars[e], false));
+        let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene.chars[e], false));
         if t != -1 || (!broken && self.ended.is_some_and(|at| f < at + 60)) {
             return None;
         }
@@ -593,8 +593,16 @@ impl StoryPilot {
         });
         let magic = foe.is_some_and(|e| match &c.scene.chars[e].body {
             piney_battle::chara::Body::Foe(fo) => {
+                use piney_battle::boss::Class;
                 use piney_battle::param::elm;
-                fo.real[elm::P_DEF] > fo.real[elm::M_DEF]
+                // Gorre's brothers share one protect gauge, which each
+                // fills by the lower of its two PP defences (9990 against
+                // the other kind): the kind that breaks it.
+                if matches!(fo.boss.as_ref().map(|b| &b.class), Some(Class::GorreBrother(_))) {
+                    fo.row.p_def_pp > fo.row.m_def_pp
+                } else {
+                    fo.real[elm::P_DEF] > fo.real[elm::M_DEF]
+                }
             }
             _ => false,
         });
@@ -606,7 +614,7 @@ impl StoryPilot {
         // A boss or a Data Bug with its protect broken (`pp_count` frames
         // left): Kite's Data Drain (Skills, page 5, skill 2) before the
         // break mends.
-        let broken = c.enemies().into_iter().any(|e| drainable(&c.scene.chars[e], self.held));
+        let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene.chars[e], self.held));
         let drains = piney_fieldui::items::skill_list(&ui.texts().items, w.state(), 0, 5)[0] == DATA_DRAIN;
         if fighting && broken && drains && chars.first().copied().flatten().is_some_and(|k| k.hp > 0) {
             return Some(Action::Skill { page: 5, skill: DATA_DRAIN, target: None });
@@ -1297,7 +1305,7 @@ fn approach_boss(a: &crate::area::AreaMode) -> Option<Raw> {
     {
         return None;
     }
-    let boss = c.enemies().into_iter().find(|&e| drainable(&c.scene.chars[e], false))?;
+    let boss = drain_candidates(c).into_iter().find(|&e| drainable(&c.scene.chars[e], false))?;
     let p = w.player().body.pos.map(f32::from_bits);
     let q = c.scene.chars[boss].pos.map(f32::from_bits);
     if (q[0] - p[0]).hypot(q[1] - p[1]) < DRAIN_NEAR {
@@ -1305,6 +1313,16 @@ fn approach_boss(a: &crate::area::AreaMode) -> Option<Raw> {
     }
     let cam_z = f32::from_bits(w.camera().rot()[2]);
     Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
+}
+
+/// What Data Drain may take: the foes on the lists, and Gorre's brothers
+/// (Gorre itself is never listed; its brothers carry the protect gauge).
+fn drain_candidates(c: &piney_world::combat::Combat) -> Vec<usize> {
+    let mut v = c.enemies();
+    if let Some(r) = c.boss.as_ref().filter(|r| !r.exit && r.code == piney_world::combat::boss::GORRE) {
+        v.extend(r.parts.iter().copied().filter(|&p| c.scene.listed(p)));
+    }
+    v
 }
 
 /// The foes the pilot fights: the field's, and a boss's parts while its
@@ -1318,8 +1336,8 @@ fn foes(c: &piney_world::combat::Combat) -> Vec<usize> {
 }
 
 /// The boss part to fight first while the lists hold it: a gomora of
-/// attribute 0 (its attack heals Kyvia's core 200), else the core (the
-/// first part).
+/// attribute 0 (its attack heals Kyvia's core 200), Gorre's brother of the
+/// lower physical PP defence, else the core (the first part).
 fn focus(c: &piney_world::combat::Combat) -> Option<usize> {
     use piney_battle::boss::Class;
     let r = c.boss.as_ref().filter(|r| !r.exit)?;
@@ -1328,7 +1346,20 @@ fn focus(c: &piney_world::combat::Combat) -> Option<usize> {
         let b = c.scene.chars[p].foe_state().and_then(|f| f.boss.as_ref());
         matches!(b.map(|b| &b.class), Some(Class::Gomora(g)) if g.my_attribute == 0)
     });
-    healer.or_else(|| r.parts.first().copied().filter(|&p| up(p)))
+    // Gorre's brothers share one protect gauge: the one a physical hit
+    // fills (row 41's physical PP defence is 2000, row 40's 9990).
+    let brother = r
+        .parts
+        .iter()
+        .copied()
+        .filter(|&p| up(p))
+        .filter_map(|p| {
+            let f = c.scene.chars[p].foe_state()?;
+            matches!(f.boss.as_ref().map(|b| &b.class), Some(Class::GorreBrother(_))).then_some((p, f.row.p_def_pp))
+        })
+        .min_by_key(|&(_, d)| d)
+        .map(|(p, _)| p);
+    healer.or(brother).or_else(|| r.parts.first().copied().filter(|&p| up(p)))
 }
 
 /// In a fight with no field foe near, a walk to within 350 of [`focus`]'s

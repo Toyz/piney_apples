@@ -88,6 +88,29 @@ impl Fight {
         run(&mut cx)
     }
 
+    /// `EntryAffect(on, Kite, kind, p0)` between frames.
+    fn entry(&mut self, on: usize, kind: i16, p0: i16) {
+        let clip = |n: &str| Some((60, n.contains("nut")));
+        let env = Env { count: self.count, menu_type: -1, ..Env::default() };
+        let check = |_: usize| 0;
+        let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false };
+        let actx =
+            AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Out };
+        let mut ev = Events::new();
+        let kite = self.party.members[0];
+        crate::affect::entry_affect(
+            &self.t,
+            &mut self.scene,
+            &actx,
+            on,
+            kite,
+            kind,
+            [p0, 0, 0],
+            &mut self.rand,
+            &mut ev,
+        );
+    }
+
     /// A frame of the manager's pass and `Main`. Its own skills end at
     /// once.
     fn frame(&mut self) -> Vec<Out> {
@@ -131,7 +154,7 @@ fn stands_behind_kite_with_two_brothers_beside_it() {
     let Some(mut f) = fight() else { return };
     let me = f.me;
     assert_eq!(f.scene.chars[me].pos[1], (-500.0f32).to_bits(), "500 behind Kite");
-    assert!(f.scene.ene_list.contains(&me));
+    assert!(!f.scene.ene_list.contains(&me), "Gorre itself is never listed");
     assert_eq!(f.boss().pat_tbl, Tbl::Normal);
     assert_eq!(f.boss().act_num, act::NEUTRAL);
     let br = f.gorre().brother_me;
@@ -153,26 +176,65 @@ fn runs_its_first_pattern_without_panicking() {
     assert!(f.boss().pat_num != 0 || f.boss().act_num != act::NEUTRAL);
 }
 
-#[test]
-fn both_brothers_down_drains_gorre() {
-    let Some(mut f) = fight() else { return };
-    let br = f.gorre().brother_me;
-    for m in br {
-        f.scene.chars[m].hp = 0;
-    }
-    f.frame();
-    assert_eq!(f.boss().epitaph, 1);
-    assert_eq!(f.boss().pat_tbl, Tbl::Epitaph);
+/// An `EntryAffect` on a brother (Kite's), as a hit, a drain or a heal.
+fn affect_brother(f: &mut Fight, k: usize, kind: i16, p0: i16) {
+    let on = f.gorre().brother_me[k];
+    f.entry(on, kind, p0);
 }
 
 #[test]
-fn both_brothers_down_ends_the_fight() {
+fn a_hit_on_a_brother_takes_the_three_s_one_hp() {
     let Some(mut f) = fight() else { return };
     let br = f.gorre().brother_me;
-    for m in br {
-        f.scene.chars[m].hp = 0;
+    let (hp, mhp) = (f.scene.chars[br[0]].hp, f.scene.chars[br[0]].max_hp);
+    affect_brother(&mut f, 0, 1, 1000);
+    // cheatHP: a tenth, never under half.
+    let want = (hp - 100).max(mhp / 2);
+    for c in [f.me, br[0], br[1]] {
+        assert_eq!(f.scene.chars[c].hp, want);
     }
-    f.until(EPITAPH_GRACE as usize + 300, |f| f.boss().exit != 0);
-    assert_ne!(f.boss().exit, 0, "Gorre exits once its Epitaph's grace runs out");
-    assert!(!f.scene.ene_list.contains(&f.me), "off the lists");
+}
+
+#[test]
+fn a_drain_on_a_brother_drains_gorre() {
+    let Some(mut f) = fight() else { return };
+    affect_brother(&mut f, 1, 13, 0);
+    f.frame();
+    let b = f.boss();
+    assert_eq!(b.epitaph, 1);
+    assert_eq!(b.pat_tbl, Tbl::Epitaph);
+    assert_eq!(b.pat_mode, 2);
+    assert_eq!(b.cheat_hp, 0);
+}
+
+#[test]
+fn the_three_fall_together_and_the_fight_ends() {
+    let Some(mut f) = fight() else { return };
+    affect_brother(&mut f, 1, 13, 0);
+    f.frame();
+    affect_brother(&mut f, 0, 1, i16::MAX);
+    assert_eq!(f.boss().act_num, act::DEAD);
+    let br = f.gorre().brother_me;
+    f.until(600, |f| f.boss().exit != 0);
+    assert_ne!(f.boss().exit, 0, "both brothers' dead effects over");
+    for m in br {
+        assert!(!f.scene.ene_list.contains(&m), "the brothers off the lists");
+    }
+}
+
+#[test]
+fn the_tables_run_to_their_closing_minus_one() {
+    if fight().is_none() {
+        return;
+    }
+    let d = GorreData::of(Volume::Out);
+    // Pattern 10's operand is a -1 too; Outbreak's Super table is four
+    // words longer than its symbol's size (Infection's).
+    for (t, n) in [(&d.normal, 39), (&d.super_, 51), (&d.epitaph, 26)] {
+        assert_eq!(t.len(), n);
+        assert_eq!(t.last(), Some(&-1));
+    }
+    assert_eq!(d.skills, [157, 158, 159, 160]);
+    assert_eq!(d.magic_skills, [200, 212, 232, 264]);
+    assert_eq!(d.tornade_skills, [200, 212, 232, 264]);
 }

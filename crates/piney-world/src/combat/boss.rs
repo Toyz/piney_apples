@@ -581,6 +581,18 @@ impl Combat {
                     Out::CameraChange(n) => camera.change_camera(*n as i16),
                     Out::CameraPos { cam, pos } => camera.cam_mut(*cam as i16).pos = *pos,
                     Out::CameraView { cam, view } => camera.cam_mut(*cam as i16).view = *view,
+                    // Gorre's fall (OffBossCamera): the boss camera handed
+                    // to camera 1, off.
+                    Out::BossCamOff => {
+                        if r.cam_sw {
+                            if r.cam.is_some() {
+                                camera.boss_cam_off();
+                            } else {
+                                camera.change_camera(id::FIELD);
+                            }
+                        }
+                        r.cam_sw = false;
+                    }
                     Out::DeadCamera { eye, view, .. } => {
                         if r.cam_sw {
                             if r.cam.is_some() {
@@ -629,11 +641,16 @@ impl Combat {
         // The actor: ccAnm::Draw of the boss's clip at its frame, placed by
         // SetMatrix_PosRotZYX(pos, dirc), at setTransparency, while drawn.
         // Fidchell's Epitaph clips move its other body.
-        let pos = self.scene.chars[me].pos;
+        // Gorre's own body is drawn only in its Kerse, at `m_talkPos`.
+        let (pos, dirc, shown) = match (&b.class, boss::gorre::body(&b)) {
+            (Class::Gorre(_), Some((p, d))) => (p, d, true),
+            (Class::Gorre(_), None) => (self.scene.chars[me].pos, b.dirc, false),
+            _ => (self.scene.chars[me].pos, b.dirc, b.draw_sw != 0),
+        };
         self.fidchell_body(&b, me);
         if let Some(a) = self.cast.actors.get_mut(&me) {
-            pose(a, &b.anm, pos, b.dirc);
-            a.drawn = b.draw_sw != 0 && !exited;
+            pose(a, &b.anm, pos, dirc);
+            a.drawn = shown && !exited;
             a.alpha = b.set_transparency;
             a.trans_dist = false;
         }

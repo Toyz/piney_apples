@@ -387,6 +387,12 @@ impl Effects {
             .is_some_and(|e| e.enabled)
     }
 
+    /// `_g_bossEffManager->IsValidAdrs(ccGetBossEffAdrs(id))`: still in
+    /// the manager (a disabled one until the next pass frees it).
+    pub fn valid(&self, id: Option<i32>) -> bool {
+        id.and_then(|k| usize::try_from(k).ok()).and_then(|k| self.slots.get(k)).is_some_and(Option::is_some)
+    }
+
     /// One pass of the manager.
     pub fn tick(&mut self) {
         for s in &mut self.slots {
@@ -675,6 +681,10 @@ pub enum Out {
     CinemaSkill(i32),
     /// `bossCam->MaxRenge` (+0xd8) set.
     CamMaxRange(F),
+    /// `OffBossCamera()` (OUT gcmn 0x004700a0) while `useBossCam`: camera 1
+    /// takes the boss camera's eye, view and turn, `changeCamera(1)`, the
+    /// boss camera off.
+    BossCamOff,
 }
 
 /// `ccBoss`, with `ccBoss01`'s members (Skeith's); another class's own

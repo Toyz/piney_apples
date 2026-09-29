@@ -178,6 +178,26 @@ fn array_until(inner: Layout, until: Until) -> Layout {
 
 /// The rows up to and with the first `until` holds for (a table whose
 /// reader walks onto its end row).
+/// A `boss05*ActTbl` through its closing -1: the words read as patterns
+/// and their operands (one for 2, 6, 10, 11 and 12, two for 9), so pattern
+/// 10's own -1 operand does not end it.
+fn gorre_patterns() -> Until {
+    let owed = std::cell::Cell::new(0u32);
+    Rc::new(move |v| {
+        if owed.get() > 0 {
+            owed.set(owed.get() - 1);
+            return false;
+        }
+        let w = v.int();
+        owed.set(match w {
+            2 | 6 | 10 | 11 | 12 => 1,
+            9 => 2,
+            _ => 0,
+        });
+        w == -1
+    })
+}
+
 fn array_through(inner: Layout, until: Until) -> Layout {
     Layout::Array {
         inner: Box::new(inner),
@@ -1934,37 +1954,44 @@ fn combat() -> Group {
             e(
                 "gorre_normal",
                 0x005E_C060,
-                array_through(I32, Rc::new(|v| v.int() == -1)),
+                array_through(I32, gorre_patterns()),
                 GCMN,
-                "`boss05NormalActTbl`: Gorre's patterns, up to and with its -1.",
+                "`boss05NormalActTbl`: Gorre's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too).",
             ),
             e(
                 "gorre_super",
                 0x005E_C100,
-                array_through(I32, Rc::new(|v| v.int() == -1)),
+                array_through(I32, gorre_patterns()),
                 GCMN,
-                "`boss05SuperActTbl`: Gorre's once its gauge is half full.",
+                "`boss05SuperActTbl`: Gorre's once its gauge is half full, through its closing -1 (Outbreak's runs 4 words past Infection's).",
             ),
             e(
                 "gorre_epitaph",
                 0x005E_C1C0,
-                array_through(I32, Rc::new(|v| v.int() == -1)),
+                array_through(I32, gorre_patterns()),
                 GCMN,
-                "`boss05EpitaphActTbl`: Gorre's once both brothers are down.",
-            ),
-            e(
-                "gorre_skills",
-                0x005E_C228,
-                array(I32, 3),
-                GCMN,
-                "`@1261`: `OnThinkSkill`'s three spells, one by `ccRand() % 3`; the same read (and dropped) by `ExecPatternIndex`'s pattern 10.",
+                "`boss05EpitaphActTbl`: Gorre's once drained, through its closing -1.",
             ),
             e(
                 "gorre_magic_skills",
+                0x005E_C240,
+                array(I32, 4),
+                GCMN,
+                "`@1672`: `OnThinkMagic`'s spells, one by `abs(ccRand()) & 3`, cast by the second brother.",
+            ),
+            e(
+                "gorre_skills",
                 0x005E_C250,
                 array(I32, 4),
                 GCMN,
-                "`@1777`: `OnThinkMagic`'s spells, one by `ccRand() % 3` (the fourth never drawn).",
+                "`@1777`: `OnThinkSkill`'s spells, one by `ccRand() & 3` (157 and 158 the first brother's, 159 and 160 the second's).",
+            ),
+            e(
+                "gorre_tornade_skills",
+                0x005E_C260,
+                array(I32, 4),
+                GCMN,
+                "`@2074`: `SendMessage`'s msg 7, the brother's spell in the Tornade, one by `ccRand() & 3`.",
             ),
             e(
                 "cinema_skill_names",

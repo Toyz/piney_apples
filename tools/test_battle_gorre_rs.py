@@ -12,13 +12,15 @@ A case lays a party of one to three members out on the command lists
 constructor (ccBoss05::ccBoss05) at BOSS - which builds both brothers in
 turn, `operator new[]`'d - and runs ccBoss05::Main frame after frame (which
 runs each brother's own Main under it), with ccBossEffManager::Draw's pass
-before each, scripted affects between frames (Kite's hits, the drain's 13
-and 21, a member down), the menu's type changing and the camera turning.
+before each, scripted affects between frames (Kite's on Gorre and on either
+brother: hits, the drain's 13 and 21, heals; a member down), the menu's
+type changing and the camera turning.
 Compared each frame: Gorre's own acts, movement, place, target, HP, flags,
 clips and pattern; each brother's the same, plus its own formation offset
 (`m_posB`) and id; the boss camera's MaxRange, the effects alive (Gorre's
-and both brothers', unordered: the game keeps one manager array the three
-share, the port keeps each its own), the party's HP and hold, the calls
+and both brothers', unordered, and their slots left out of the calls: the
+game keeps one manager array the three share, the port keeps each its own),
+the lists, the party's HP and hold, the calls
 (sounds, flashes, cinema, stage, the cameras' changes, eyes and views,
 skills, fly fonts, hit marks), the menu's words, newlib's rand() and
 ccRand's index.
@@ -74,6 +76,9 @@ HEAP = 0x01600000               # operator new and new[] for the two brothers
 PLW, PARTY = inf_va(0x007302E0), inf_va(0x00730310)
 MENU = 0x01020000               # test_battle's ccMenu
 BOSS_SIZE = 0x29410
+
+# The brothers' scripted affects: the kind's EntryAffect type and p1.
+BROTHER_AFFECTS = {5: (1, 1), 10: (1, 0), 6: (13, 0), 8: (7, 0), 9: (21, 0)}
 
 # The stand-in effects' kinds (battle_probe's eff_num).
 WAVE, DEAD, FINAL = 0, 5, 16
@@ -213,6 +218,8 @@ class Game:
 
         def init_cam(mm, a, *_):
             mm.mem[CAM:CAM + 0x150] = bytes(0x150)
+            # ccBossCam's constructor's MaxRenge (OUT gcmn 0x00472104).
+            mm.store(CAM + 0xD8, 4, 0x447A0000)
             mm.store(a + 332, 4, CAM)
             mm.store(a + 336, 4, 1)
             return 0
@@ -266,6 +273,8 @@ class Game:
         hook("ccEntryFlyFontNew__FiiPfP6ccCharff",
              lambda mm, k, n, *_: out.append(["flyfont", s32(k), s32(n)]) or 0)
         hook("ccHitMarkDisp__FP6ccCharP6ccChar", lambda mm, *a: out.append(["hitmark"]) or 0)
+        # A brother's shield against the kind it resists: noted, no effect.
+        hook("effResistantShield__FP6ccCharii", lambda mm, *a: out.append(["shield"]) or 0)
         hook("ccClearSpcCondition__Fv", lambda mm, *a: out.append(["clear_spc"]) or 0)
         hook("checkCameraShakeRange__FPf", lambda mm, *a: int(self.shake_now))
         hook("SetMode__9ccBossCamFifPfP6ccChar", lambda mm, a, mode, *_: out.append(["cammode", s32(mode)]) or 0)
@@ -393,11 +402,23 @@ def rnd_case(c, rnd):
     max_pp = c.data.bosses[4]["maxPP"]
     script = []
     rough = rnd.random() < 0.5
+    # Gorre's own (0-4) and the brothers' (5 a hit with the normal attack's
+    # skill, 10 with none, 6 a drain, 8 a heal, 9 the drain's 21 - after
+    # which Gorre's gauge is theirs too, so no more pokes at it).
+    # A quiet case (no hits on the brothers, the gauge untouched) runs the
+    # Normal table through to its Talk.
+    quiet = rnd.random() < 0.15
+    reset = rnd.randrange(frames // 2, frames) if rnd.random() < 0.3 and not quiet else frames
+    hard = rnd.random() < 0.3
     for f in sorted(rnd.sample(range(frames), min(frames // (10 if rough else 30), 300))):
-        kind = rnd.choice((0, 0, 1, 4))
+        kinds = (0, 8) if quiet else (0, 0, 1, 4, 5, 5, 10, 8) if f < reset else (0, 5, 5, 10, 8)
+        kind = 6 if rnd.random() < 0.02 and not quiet else rnd.choice(kinds)
         p0 = {0: rnd.randrange(-1, 900), 1: rnd.randrange(0, max_pp + 1),
-              4: rnd.choice((0, 0, rnd.randrange(0, 300)))}[kind]
-        script.append((f, kind, 0, p0))
+              4: rnd.choice((0, 0, rnd.randrange(0, 300))), 5: rnd.randrange(0, 4000 if hard else 900),
+              10: rnd.randrange(0, 900), 6: 0, 8: rnd.randrange(0, 500)}[kind]
+        script.append((f, kind, rnd.randrange(2), p0))
+    if reset < frames:
+        script.append((reset, 9, rnd.randrange(2), 0))
     # A member down for a while now and then.
     if n > 1 and rnd.random() < 0.3:
         f = rnd.randrange(0, frames)
@@ -536,6 +557,9 @@ def run_game(game, case):
                 m.store(BOSS + 0xE0 + 0x62, 2, p0 & 0xFFFF)
             elif kind == 7 and who < len(party):
                 m.store(SCN + 0x1000 * who + 8, 2, p0 & 0xFFFF)
+            elif kind in BROTHER_AFFECTS:
+                ty, p1 = BROTHER_AFFECTS[kind]
+                m.call(ea, (br_of(m, min(who, 1)), kite, ty, p0 & 0xFFFF, p1, 0))
         game.effects_pass()
         m.call(game.sym("Main__8ccBoss05Fv"), (BOSS,))
         frames.append(game_state(game, len(party)))
@@ -565,7 +589,9 @@ def char_fields(game, a, has_pat_mode):
         "posp": f32s(m, a + 0x50, 3),
         "dirc": f32s(m, a + 0x60, 3),
         "hp": [ld(0x70, 2, True), ld(0x74, 2, True)],
-        "pp": [ld(0x140, 2, True), ld(0x142, 2, True)],
+        # Through the character's own `param` (+4): the drain's 21 hands
+        # both brothers Gorre's (SendMessage's SetBaseParam).
+        "pp": [s16(m.load(ld(4) + 0x60, 2)), s16(m.load(ld(4) + 0x62, 2))],
         "flags": [ld(0x1D0, 1, True), ld(0x1D1, 1, True), ld(0x1D2, 1, True), ld(0x1D3, 1, True),
                   ld(0x1D4, 1, True), ld(0x1D5, 1, True), ld(0x1D6, 1, True), ld(0x1D7, 1, True),
                   s32(ld(0x2BC)), s32(ld(0x29334)), int(ld(0x29338) != 0), ld(0x1D8, 1, True)],
@@ -589,14 +615,15 @@ def game_state(game, n):
     for k in range(n):
         va = SCN + 0x1000 * k
         party.append([s16(m.load(va + 0x70, 2)), s16(m.load(va + 10, 2)), s16(m.load(va + 8, 2))])
-    # ccBossCam's own MaxRenge (CAM + 0xD8) is not compared: under the
-    # stand-in InitBossCamera it measures 0 here (unlike Fidchell's 600),
-    # and the real mechanism setting it is not yet found.
+    # ccBossCam's MaxRenge: the constructor's 1000, which Gorre's own
+    # constructor leaves (Fidchell's sets 600 after InitBossCamera).
+    gorre["maxrange"] = m.load(CAM + 0xD8, 4)
     gorre["eff"] = game.effects()
     gorre["party"] = party
     gorre["out"] = list(game.out)
     gorre["menu"] = [s16(m.load(MENU + 0xFE, 2)), s16(m.load(MENU + 0x100, 2)), s16(m.load(MENU + 0x26, 2)),
                      s16(m.load(MENU + 0x14, 2)), s16(m.load(MENU + 0xF0, 2)), s16(m.load(MENU + 0xF2, 2))]
+    gorre["listed"] = [listed(game, a) for a in (BOSS, br_of(m, 0), br_of(m, 1))]
     gorre["rand"] = game.g.rand_now()
     gorre["cc"] = s32(m.load(eai.MTI, 4))
     gorre["br0"], gorre["br1"] = brs
@@ -656,6 +683,11 @@ def diffs(a, b_, path=""):
         for k, (x, y) in enumerate(zip(a, b_)):
             out += diffs(x, y, f"{path}[{k}]")
         return out
+    if isinstance(a, dict) and isinstance(b_, dict):
+        out = []
+        for k in a:
+            out += diffs(a[k], b_.get(k), f"{path}.{k}")
+        return out
     return [] if a == b_ else [f"{path}: game {a} port {b_}"]
 
 
@@ -665,6 +697,10 @@ def compare(game, case, label):
     p_frames = rs.ask([request(game, case, pre)])[0]
     for f, (a, b_) in enumerate(zip(g_frames, p_frames)):
         a = rs.norm(a)
+        # An effect's slot in the manager: one array for the three in the
+        # game, each its own in the port (as "eff" above), so not compared.
+        for side in (a, b_):
+            side["out"] = [o[:2] if o and o[0] == "eff" else o for o in side["out"]]
         for k in a:
             if a[k] != b_.get(k):
                 d = "\n  ".join(diffs(a[k], b_.get(k))[:12])
@@ -745,14 +781,19 @@ def bulk(n, seed0=9900):
     rs.build()
     game = Game()
     acts = set()
-    total = 0
+    total = bad = 0
     for k in range(n):
         rnd = random.Random(seed0 + k)
-        frames = compare(game, rnd_case(game.c, rnd), f"case {seed0 + k}")
+        try:
+            frames = compare(game, rnd_case(game.c, rnd), f"case {seed0 + k}")
+        except AssertionError as e:
+            bad += 1
+            print(str(e) if bad == 1 else str(e).splitlines()[0], flush=True)
+            continue
         acts |= {fr["act"][0] for fr in frames}
         total += len(frames) - 1
         print(f"case {seed0 + k} ok ({len(frames) - 1} frames)", flush=True)
-    print(f"{n} cases, {total} frames; acts reached:", sorted(acts))
+    print(f"{n} cases, {bad} mismatched, {total} frames matched; acts reached:", sorted(acts))
 
 
 if __name__ == "__main__":

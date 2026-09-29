@@ -122,6 +122,8 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let clip = |name: &str| clips.get(name).copied();
     let mut forbid = 0i16;
     let mut menu = [0i32; 6];
+    // `bossCam->MaxRenge`: the camera's own 1000 until a boss sets it.
+    let mut max_range = 0x447a_0000u32;
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
     let rot_at = |f: usize| rots.iter().rfind(|(k, _)| *k <= f).map_or(0, |(_, v)| *v);
@@ -164,26 +166,47 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let mut boss = gorre::new(&mut cx, kpos, kdirc, center);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
+    for o in &out {
+        if let Out::CamMaxRange(v) = o {
+            max_range = *v;
+        }
+    }
     let outs: Vec<String> = out.iter().filter_map(mout).collect();
-    lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu));
+    lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
         let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false };
         let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
-        scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(boss));
         let mut out = Vec::new();
+        let brothers = match &boss.class {
+            Class::Gorre(x) => x.brother_me,
+            _ => unreachable!("Gorre's own boss"),
+        };
+        scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(boss));
+        // What an affect asked for: Gorre's (its reports), then each
+        // brother's own, in the order the game makes them.
+        let pending = |scene: &mut Scene, out: &mut Vec<Out>| {
+            for c in [me, brothers[0], brothers[1]] {
+                if let Some(b) = scene.chars[c].foe_state_mut().and_then(|x| x.boss.as_mut()) {
+                    out.extend(b.take_pending());
+                }
+            }
+        };
         for &(_, kind, who, p0) in script.iter().filter(|s| s.0 == f) {
             let mut ev = Events::new();
             let kite = members[0];
-            if let Some(b) = scene.chars[me].foe_state_mut().and_then(|x| x.boss.as_mut()) {
-                out.extend(b.take_pending());
-            }
+            let br = brothers[who.min(1)];
             match kind {
                 0 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 1, [p0, 0, 0], &mut rand, &mut ev),
                 1 => scene.chars[me].foe_state_mut().unwrap().pp = p0,
                 2 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 13, [0; 3], &mut rand, &mut ev),
                 3 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 21, [0; 3], &mut rand, &mut ev),
                 4 => scene.chars[me].foe_state_mut().unwrap().pp_count = p0,
+                5 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 1, [p0, 1, 0], &mut rand, &mut ev),
+                6 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 13, [0; 3], &mut rand, &mut ev),
+                8 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 7, [p0, 0, 0], &mut rand, &mut ev),
+                9 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 21, [0; 3], &mut rand, &mut ev),
+                10 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 1, [p0, 0, 0], &mut rand, &mut ev),
                 7 => {
                     if let Some(m) = members.get(who).copied().flatten() {
                         scene.chars[m].cond[0] = p0;
@@ -191,6 +214,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
                 }
                 _ => {}
             }
+            pending(&mut scene, &mut out);
         }
         boss = *scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
         let mut all = out;
@@ -235,6 +259,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
                     }
                 }
                 Out::CursorOff(on) => menu[2] = i32::from(*on),
+                Out::CamMaxRange(v) => max_range = *v,
                 Out::StreamMenu { stream, mask } => {
                     menu[3] = 0x104a;
                     menu[4] = *mask;
@@ -243,10 +268,19 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
                 _ => {}
             }
         }
-        let outs: Vec<String> = all.iter().filter_map(mout).collect();
-        lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu));
+        let outs: Vec<String> = all.iter().filter_map(|o| out_of(o, &cam2)).collect();
+        lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range));
     }
     format!("[{}]", lines.join(","))
+}
+
+/// A call as the harness records it, `OffBossCamera`'s three (camera 2's
+/// eye and view to camera 1, then the change) as one.
+fn out_of(o: &Out, cam2: &(V4, V4)) -> Option<String> {
+    match o {
+        Out::BossCamOff => Some(format!("[\"campos\",1,{}],[\"camview\",1,{}],[\"cam\",1]", v3(&cam2.0), v3(&cam2.1))),
+        _ => mout(o),
+    }
 }
 
 fn v3(v: &V4) -> String {
@@ -338,6 +372,7 @@ fn frame_json(
     rand: &Rand,
     cc: &Genrand,
     menu: &[i32; 6],
+    max_range: u32,
 ) -> String {
     let Class::Gorre(x) = &b.class else { return "{}".into() };
     // `x.brothers` is scratch (filled only for the span of `main`/`new`);
@@ -370,9 +405,10 @@ fn frame_json(
     let br0 = format!("{{{},{}}}", part_json(b0, &scene.chars[x.brother_me[0]]), brother_json(x0));
     let br1 = format!("{{{},{}}}", part_json(b1, &scene.chars[x.brother_me[1]]), brother_json(x1));
     format!(
-        "{{{},\"br0\":{},\"br1\":{},\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
-         \"menu\":[{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
+        "{{{},\"maxrange\":{},\"br0\":{},\"br1\":{},\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
+         \"menu\":[{},{},{},{},{},{}],\"listed\":[{},{},{}],\"rand\":{},\"cc\":{}}}",
         gorre,
+        max_range,
         br0,
         br1,
         effs.join(","),
@@ -384,6 +420,9 @@ fn frame_json(
         menu[3],
         menu[4],
         menu[5],
+        u8::from(scene.listed(me)),
+        u8::from(scene.listed(x.brother_me[0])),
+        u8::from(scene.listed(x.brother_me[1])),
         rand.0,
         cc.mti,
     )
