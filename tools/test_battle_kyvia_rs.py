@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""crates/piney-battle's Kyvia (src/boss/kyvia.rs, kyvia/core.rs, gomora.rs)
-against Mutation's kyvia01.cpp, kyviacore.cpp and kyviagomora.cpp run
-natively (tools/eemu_rs.so), frame by frame with battle_probe's `kyvia`.
-PINEY_VOLUME=mutation. What is compared and what is stood in for:
-docs/engine/boss-kyvia.md "Checks".
+"""crates/piney-battle's Kyvia (src/boss/kyvia.rs, kyvia/core.rs, gomora.rs,
+thunder.rs) against the game's kyvia01.cpp or kyvia02.cpp with
+kyviacore.cpp and kyviagomora.cpp run natively (tools/eemu_rs.so), frame by
+frame with battle_probe's `kyvia`: Mutation's first fight
+(PINEY_VOLUME=mutation) or Outbreak's second (PINEY_VOLUME=outbreak;
+PINEY_KYVIA_FIGHT=1 runs Outbreak's copy of the first). What is compared
+and what is stood in for: docs/engine/boss-kyvia.md "Checks".
 
     PINEY_VOLUME=mutation python3 tools/test_battle_kyvia_rs.py             the tests
-    PINEY_VOLUME=mutation python3 tools/test_battle_kyvia_rs.py bulk N [S]  N cases from seed S
+    PINEY_VOLUME=outbreak python3 tools/test_battle_kyvia_rs.py bulk N [S]  N cases from seed S
 """
 
 import os
@@ -28,7 +30,7 @@ import test_battle_rs as rs  # noqa: E402
 from test_battle_boss_rs import forward_clip, rnd_member, s16, s32  # noqa: E402
 from test_battle_rs import F_ONE, NEW, SCN, fbits, ser_char  # noqa: E402
 
-BOSS = 0x01300000               # the ccBossKyvia01 (0x296a0 bytes)
+BOSS = 0x01300000               # the ccBossKyvia01 (0x296a0 bytes) or 02 (0x29740)
 FAKE = 0x01340000               # stand-in streams, chunks and effects
 MGR = 0x01380000                # _g_bossEffManager (0x1038 bytes)
 STAGE = 0x01390000              # the stage fader
@@ -37,13 +39,20 @@ WM = 0x013B0000                 # worldman, its event area and the area's stream
 SLAVES = 0x01400000             # operator new[]: the core, the gomoras, the meteors' arrays
 PLW, PARTY = inf_va(0x007302E0), inf_va(0x00730310)
 MENU = 0x01020000               # test_battle's ccMenu
-BOSS_SIZE = 0x296A0
 CORE_SIZE = 0x295A0
 GOMORA_SIZE = 0x295F0
 AREA = WM + 0x2000              # the EVENTAREAB8
 AREA_CCS = WM + 0x4000
 
 # The particle tables by symbol, rows 0x38 bytes.
+# Outbreak's names the sidecar lacks: the two Mains (vtable +0x1c), the
+# disc's Move and IsMove (called from CheckDiscMove) and KyviaGenerator
+# (0x690 below KyviaDmgGenerator, as in Mutation).
+UNNAMED = {"outbreak": {"Main__13ccBossKyvia01Fv": 0x004D0780, "Main__13ccBossKyvia02Fv": 0x004D7300,
+                        "IsMove__11EVENTAREAB8Fv": 0x00419D10, "Move__11EVENTAREAB8Fv": 0x00419C80,
+                        "KyviaGenerator": 0x0061D0D0}}
+FIGHT = int(os.environ.get("PINEY_KYVIA_FIGHT") or (2 if volume.NAME == "outbreak" else 1))
+
 TABLES = ("KyviaGenerator", "KyviaDmgGenerator", "CoreGenerator", "GomoraGenerator", "GomoraAuraGenerator",
           "MissileSmokeGenerator", "BurstSmokeGenerator")
 
@@ -55,17 +64,19 @@ class Game:
         self.c = rs.Checks()
         g = self.c.game
         self.g, self.m = g, g.m
-        self.clips = rs.ask(["kyviaclips"])[0]
+        self.clips = rs.ask([f"kyviaclips {FIGHT}"])[0]
         self.names = {}         # a stand-in chunk or stream -> its name
         self.anms = {}          # a ccAnm -> [clip, time]
         self.gens = {}          # a particle generator -> (param, first force field)
         self.out = []
         self.moving = 0
+        self.ride = 0           # frames the disc rides on after Move
         self.frame = {"rot": 0, "pos": [0, 0, 0, F_ONE], "view": [0, 0, 0, F_ONE]}
         self.hooks()
 
     def sym(self, name):
-        return self.g.sym(name)
+        s = self.g.prog.symbol_named(name)
+        return s.value if s is not None else UNNAMED[volume.NAME][name]
 
     def alloc(self, n, name=None):
         a = self.fake_at
@@ -202,8 +213,38 @@ class Game:
         hook("ccSkillRequestParam__FP6ccCharP6ccCharii", own_skill)
         hook("cameraSetPos__FPfi", nop)
         hook("cameraSetView__FPfi", nop)
-        hook("IsMove__11EVENTAREAB8Fv", lambda mm, *a: self.moving)
-        hook("Move__11EVENTAREAB8Fv", lambda mm, *a: out.append(["disc_next"]) or 0)
+        hook("IsMove__11EVENTAREAB8Fv", lambda mm, *a: int(self.moving or self.ride > 0))
+
+        def disc_next(mm, *a):
+            out.append(["disc_next"])
+            self.ride = self.ride2
+            return 0
+        hook("Move__11EVENTAREAB8Fv", disc_next)
+        hook("ccSeOnNote__Fic", lambda mm, se, n, *_: out.append(["senote", s32(se), n & 0xFF]) or 0)
+
+        def flash(mm, f, t, c, *_):
+            out.append(["flash", s32(t), c & 0xFFFFFFFF])
+            return 0
+        hook("EntryFlash__8ccScFadeFiiffff", flash)
+        self.stage_on = False
+
+        def begin_stage(mm, a, rgba, t0, t1, *_):
+            out.append(["stage_begin", rgba & 0xFFFFFFFF, s32(t0), s32(t1), s32(mm.r[8])])
+            self.stage_on = True
+            return 0
+        hook("BeginStageEffect__6ccBossFiiii", begin_stage)
+
+        def end_stage(mm, a, ref, rgba, t, *_):
+            i = s32(mm.load(ref, 4))
+            if 0 <= i < 4 and self.stage_on:
+                out.append(["stage_end", rgba & 0xFFFFFFFF, s32(t)])
+                self.stage_on = False
+            mm.store(ref, 4, 0xFFFFFFFF)
+            return 0
+        hook("EndStageEffect__6ccBossFRiii", end_stage)
+        # The thunderbolts' clump (their picture is not compared).
+        hook("Duplicate__7ccClumpFUi", nop)
+        hook("ChangeClut__7ccClumpFP11ccClutChunkP11ccClutChunk", nop)
 
         def cam_rot(mm, p, n, *_):
             mm.store(p, 4, 0)
@@ -267,7 +308,8 @@ class Game:
         for k in range(1024):
             e = m.load(MGR + 52 + 4 * k, 4)
             if e:
-                kind = 10 if m.load(e + 12, 4) == self.meteor_vt else -1
+                vt = m.load(e + 12, 4)
+                kind = 10 if vt == self.meteor_vt else 17 if vt == self.bolt_vt else -1
                 out.append([k, kind, m.load(e, 1)])
         return out
 
@@ -275,7 +317,9 @@ class Game:
 def rnd_case(c, rnd):
     n = rnd.randrange(1, 4)
     party = [rnd_member(c, rnd, k) for k in range(n)]
-    frames = rnd.randrange(300, 2500)
+    # The second fight's core dies twice (a stage each) before the body.
+    second = FIGHT == 2
+    frames = rnd.randrange(300, 6000 if second else 2500)
     marker = [fbits(rnd.uniform(-500, 500)), fbits(rnd.uniform(2000, 4000)), fbits(rnd.uniform(0, 400)), F_ONE]
     # The disc rides in for a while, then stops.
     ride = rnd.randrange(0, 200)
@@ -289,11 +333,12 @@ def rnd_case(c, rnd):
         moving.append(int(f < ride))
     script = []
     rough = rnd.random() < 0.5
-    hits = rnd.sample(range(frames), min(frames // (6 if rough else 20), 400))
+    hits = rnd.sample(range(frames), min(frames // (6 if rough else 20), 1000 if second else 400))
+    strong = 1200 if second else 600
     for f in sorted(hits):
         kind = rnd.choice((0, 0, 0, 1, 1, 2))
         who = rnd.randrange(0, 5)
-        p0 = {0: rnd.randrange(-1, 600 if rough else 250), 1: rnd.randrange(-1, 700), 2: rnd.randrange(0, 300)}[kind]
+        p0 = {0: rnd.randrange(-1, strong if rough else 250), 1: rnd.randrange(-1, 700), 2: rnd.randrange(0, 300)}[kind]
         p1 = rnd.choice((0, 1, 1, 1, 2, 30, 60, 100, 150, 200, 250, 300))
         script.append((f, kind, who, p0, p1))
     menus = []
@@ -315,7 +360,7 @@ def rnd_case(c, rnd):
     cam_view = [fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(0, 200)), F_ONE]
     return {"party": party, "frames": frames, "script": script, "menus": menus, "marker": marker,
             "rot": rot, "moving": moving, "prev": prev, "cam_pos": cam_pos, "cam_view": cam_view,
-            "delay": rnd.randrange(1, 40),
+            "delay": rnd.randrange(1, 40), "ride2": rnd.randrange(0, 150),
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
 
@@ -331,6 +376,9 @@ def gomora_of(m, k):
 def run_game(game, case):
     c, g, m = game.c, game.g, game.m
     c.reset()
+    # bossTbl as on the disc: a core's deaths add to its rows' maxHP.
+    rows = c.data.bosses
+    g.restore(rows[0]["va"], 0x68 * len(rows))
     c.scene.new_at = NEW
     game.fake_at = FAKE
     game.slaves_at = SLAVES
@@ -343,7 +391,10 @@ def run_game(game, case):
     game.frame["rot"] = case["rot"][0]
     game.moving = case["moving"][0]
     game.meteor_vt = game.sym("__vt__25ccBossEffMeteoriteMissile")
-    m.mem[BOSS:BOSS + BOSS_SIZE] = bytes(BOSS_SIZE)
+    game.bolt_vt = game.sym("__vt__20ccBossEffThunderbolt")
+    game.ride, game.ride2, game.stage_on = 0, case["ride2"], False
+    f_ = FIGHTS[FIGHT]
+    m.mem[BOSS:BOSS + f_["size"]] = bytes(f_["size"])
     m.mem[MGR:MGR + 0x1038] = bytes(0x1038)
     m.mem[CAM:CAM + 0x150] = bytes(0x150)
     m.mem[WM:WM + 0x5000] = bytes(0x5000)
@@ -385,7 +436,7 @@ def run_game(game, case):
         game.moving = case["moving"][f]
     disc(0)
     game.out.clear()
-    m.call(game.sym("__ct__13ccBossKyvia01Fi"), (BOSS, 1))
+    m.call(game.sym(f_["ct"]), (BOSS, f_["level"]))
     frames = [game_state(game, len(party))]
     menus = case["menus"]
     ea = game.sym("EntryAffect__6ccCharFP6ccCharssss")
@@ -415,8 +466,10 @@ def run_game(game, case):
             ty = 7 if kind == 2 else 1
             m.call(ea, (on, kite, ty, p0 & 0xFFFF, p1 & 0xFFFF, 0))
         disc(f)
+        if game.ride > 0:
+            game.ride -= 1
         game.effects_pass()
-        m.call(game.sym("Main__13ccBossKyvia01Fv"), (BOSS,))
+        m.call(game.sym(f_["main"]), (BOSS,))
         frames.append(game_state(game, len(party)))
     return frames
 
@@ -465,6 +518,22 @@ KYVIA = ([(0x29670, "u"), (0x29688, "h"), (0x29370, "h"), (0x2968A, "u"), (0x293
           (0x29520, "f"), (0x29524, "f")] + vs(0x294A0, 3) + vs(0x294D0, 3) + vs(0x29470, 3) + vs(0x29410, 6)
          + [(0x293A0, "v"), (0x293B0, "v"), (0x293C0, "v"), (0x293D0, "v"), (0x29540, "v"), (0x295E0, "v"),
             (0x29570, "v")] + [(0x29550 + 4 * k, "p") for k in range(4)] + [(0x29560, "p")])
+# ccBossKyvia02's (Outbreak's layout: Infection's DWARF with a byte at
+# +0x29350 before the rest, the cinema's, and the rest 0x10 on): the same
+# members, then ThunderType, ThunderTime, T_NUM, T_Range, StageID.
+KYVIA2 = ([(0x29710, "u"), (0x29728, "h"), (0x29380, "h"), (0x2972A, "u"), (0x293F0, "i"), (0x295D4, "i"),
+           (0x295D0, "i"), (0x29714, "i"), (0x29350, "u"), (0x29690, "i"), (0x295C8, "i"), (0x295CC, "i"),
+           (0x29370, "v"), (0x29410, "v"), (0x29670, "v"), (0x29620, "f"), (0x296A0, "v"), (0x2952C, "f"),
+           (0x29530, "f"), (0x29534, "f")] + vs(0x294B0, 3) + vs(0x294E0, 3) + vs(0x29480, 3) + vs(0x29420, 6)
+          + [(0x293B0, "v"), (0x293C0, "v"), (0x293D0, "v"), (0x293E0, "v"), (0x295E0, "v"), (0x29680, "v"),
+             (0x29610, "v")] + [(0x295F0 + 4 * k, "p") for k in range(4)] + [(0x29600, "p")]
+          + [(0x29538, "i"), (0x2953C, "i"), (0x295C0, "h"), (0x295C4, "i"), (0x29734, "i")])
+FIGHTS = {
+    1: {"ct": "__ct__13ccBossKyvia01Fi", "main": "Main__13ccBossKyvia01Fv", "level": 1, "size": 0x296A0,
+        "row": 12, "fields": KYVIA, "anmw": 0x29358},
+    2: {"ct": "__ct__13ccBossKyvia02Fi", "main": "Main__13ccBossKyvia02Fv", "level": 2, "size": 0x29740,
+        "row": 13, "fields": KYVIA2, "anmw": 0x2935C},
+}
 # kyviaCore's: Myattribute, NO, endFlg, CoreState, tempState, DeadFlg,
 # DeadCount, kAtkFlg, kDmgFlg, KyviaLV, ConeVoiceCou, NowGomoraNum,
 # GomoraCount, GsCount, Gomorahold, GomoraMeter, GomoraLock, time,
@@ -524,7 +593,8 @@ def game_state(game, n):
     a = BOSS
     ld = lambda o, s=4, sg=False: m.load(a + o, s, sg)  # noqa: E731
     clip = game.anms.get(ld(0xD4), [None, 0])
-    wclip = game.anms.get(ld(0x29358), [None, 0])
+    f_ = FIGHTS[FIGHT]
+    wclip = game.anms.get(ld(f_["anmw"]), [None, 0])
     party = []
     for k in range(n):
         va = SCN + 0x1000 * k
@@ -537,7 +607,7 @@ def game_state(game, n):
         "flags": [ld(0x1D0, 1, True), ld(0x1D1, 1, True), ld(0x1D2, 1, True), ld(0x1D4, 1, True),
                   ld(0x1D5, 1, True), ld(0x1D7, 1, True), s32(ld(0x29334)), s32(ld(0x29338))],
         "anm": [clip[0] or "", clip[1] >> 8, wclip[0] or "", wclip[1] >> 8],
-        "kyvia": fields(m, a, KYVIA),
+        "kyvia": fields(m, a, f_["fields"]),
         "core": boss_part(game, core) + fields(m, core, CORE),
         "gomoras": [boss_part(game, gomora_of(m, k)) + fields(m, gomora_of(m, k), GOMORA) for k in range(5)],
         "cam": fields(m, CAM, CAM_F),
@@ -553,13 +623,14 @@ def game_state(game, n):
 
 
 def boss_char_pre(game):
-    """The body's ccChar as SetBaseParam leaves it (bossTbl row 12)."""
+    """The body's ccChar as SetBaseParam leaves it (bossTbl row 12 or 13)."""
     import types
-    row = dict(game.c.data.bosses[12])
+    r = FIGHTS[FIGHT]["row"]
+    row = dict(game.c.data.bosses[r])
     ch = types.SimpleNamespace()
     ch.row = row
     ch.type = row.get("type", 0x80)
-    ch.id, ch.level, ch.exp = 12, row.get("level", 1), 0
+    ch.id, ch.level, ch.exp = r, row.get("level", 1), 0
     ch.real = list(row["elm"])
     ch.temp, ch.time = [0] * 16, [0] * 16
     ch.PP = ch.PPcount = ch.PPrestore = 0
@@ -581,9 +652,9 @@ def request(game, case, pre):
     n = len(party)
     members = [k if k < n else -1 for k in range(3)]
     ids = [party[k].id if k < n else -1 for k in range(3)]
-    parts = (["kyvia", len(chars)] + chars + [n] + list(range(n)) + members + ids + [n]
+    parts = (["kyvia", FIGHT, len(chars)] + chars + [n] + list(range(n)) + members + ids + [n]
              + case["marker"][:3]
-             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"]]
+             + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"], case["ride2"]]
              + case["cam_pos"] + case["cam_view"] + [case["delay"]] + case["rot"] + case["moving"])
     for p in case["prev"]:
         parts += p
@@ -614,8 +685,8 @@ def compare(game, case, label):
 class Against(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        if volume.NAME != "mutation":
-            raise unittest.SkipTest("Kyvia is Mutation's: PINEY_VOLUME=mutation")
+        if volume.NAME not in ("mutation", "outbreak"):
+            raise unittest.SkipTest("Kyvia is Mutation's and Outbreak's: PINEY_VOLUME=mutation or outbreak")
         if not (os.path.exists(rs.ELF) and os.path.exists(rs.ISO)):
             raise unittest.SkipTest("the disc is not extracted")
         rs.build()
@@ -633,14 +704,20 @@ def bulk(n, seed0=9300):
     acts = set()
     core_acts = set()
     gomora_acts = set()
+    thunders = set()
+    total = 0
     for k in range(n):
         rnd = random.Random(seed0 + k)
         frames = compare(game, rnd_case(game.c, rnd), f"case {seed0 + k}")
         acts |= {fr["act"][0] for fr in frames}
         core_acts |= {fr["core"][2] for fr in frames}
         gomora_acts |= {g[2] for fr in frames for g in fr["gomoras"]}
+        # The second fight's ThunderType while its act 6 runs.
+        thunders |= {fr["kyvia"][-5] for fr in frames if FIGHT == 2 and fr["act"][0] == 6}
+        total += len(frames) - 1
         print(f"case {seed0 + k} ok ({len(frames) - 1} frames)", flush=True)
-    print("acts reached:", sorted(acts), "core's:", sorted(core_acts), "gomoras':", sorted(gomora_acts))
+    print(f"{n} cases, {total} frames; acts reached:", sorted(acts), "core's:", sorted(core_acts),
+          "gomoras':", sorted(gomora_acts), "thunders:", sorted(thunders))
 
 
 if __name__ == "__main__":

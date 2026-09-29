@@ -11,9 +11,10 @@ use crate::scene::Scene;
 use crate::tables::Tables;
 use piney_data::volume::Volume;
 
-/// Kyvia over Kite and a member on Mutation's tables, the disc at the
+/// Kyvia over Kite and a member on its volume's tables, the disc at the
 /// origin and the body 3000 off it.
-struct Fight {
+struct Bout {
+    volume: Volume,
     t: Tables,
     data: BossData,
     scene: Scene,
@@ -35,35 +36,40 @@ fn pc(ty: i32, id: i16, x: f32) -> Char {
     c
 }
 
-fn fight() -> Option<Fight> {
-    if !piney_data::store::work_tables(Volume::Mut).join("combat.bin").is_file() {
+fn fight() -> Option<Bout> {
+    bout(Volume::Mut, Fight::First)
+}
+
+/// The fight `which` on `volume`'s tables.
+fn bout(volume: Volume, which: Fight) -> Option<Bout> {
+    if !piney_data::store::work_tables(volume).join("combat.bin").is_file() {
         return None;
     }
-    let t = Tables::of(Volume::Mut);
-    let data = BossData::of(Volume::Mut);
+    let t = Tables::of(volume);
+    let data = BossData::of(volume);
     let mut scene = Scene::default();
     let kite = scene.add(pc(7, 0, 0.0), 0);
     let member = scene.add(pc(6, 1, 300.0), 0);
-    let mut ch = Char::foe(t.bosses[ROW].clone());
+    let mut ch = Char::foe(t.bosses[which.row()].clone());
     ch.condition_num = -1;
     ch.affect.func = AffectFunc::Boss;
     let me = scene.add(ch, 3);
     let party = Party { members: [Some(kite), Some(member), None], ids: [0, 1, -1], num: 2 };
     let disc = DiscView { moving: true, prev_pos: [0, 0, 0, ONE], marker: [0, 0x453b_8000, 0x4348_0000, ONE] };
-    let mut f = Fight { t, data, scene, party, me, rand: Rand(7), cc: Genrand::seeded(4357), count: 0, disc };
-    let b = f.with_cx(new);
+    let mut f = Bout { volume, t, data, scene, party, me, rand: Rand(7), cc: Genrand::seeded(4357), count: 0, disc };
+    let b = f.with_cx(|cx| new(cx, which));
     f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));
     Some(f)
 }
 
-impl Fight {
+impl Bout {
     fn with_cx<R>(&mut self, run: impl FnOnce(&mut Cx) -> R) -> R {
         let clip = |_: &str| Some((60, false));
         let env = Env { count: self.count, menu_type: -1, ..Env::default() };
         let check = |_: usize| 0;
         let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false };
         let actx =
-            AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Mut };
+            AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: self.volume };
         let mut none = |_| None;
         let mut land = |_| 0;
         let mut cx = Cx {
@@ -230,4 +236,61 @@ fn the_meteors_fall_on_the_disc() {
         assert!((0.0..=500.0).contains(&r), "within the range: {r}");
         assert!(dp(*s) >= 0.03, "a step of 0.03 or more");
     }
+}
+
+#[test]
+fn the_second_fight_has_two_stages_and_a_level_2_core() {
+    let Some(f) = bout(Volume::Out, Fight::Second) else { return };
+    let x = f.kyvia();
+    assert_eq!((x.fight, x.disc_lv, x.disc_max_lv, x.ex_argb), (Fight::Second, 1, 2, 0x7080_8080));
+    assert_eq!(f.core().kyvia_lv, 2);
+    assert_eq!(x.switch_hp, x.max_hp / 5, "a fifth of the core's HP");
+    assert!(x.thunder.is_some());
+    assert_eq!(f.part(f.me).anm.clip.as_deref(), Some("ANM_ex02nut0"));
+    // AllGomoraList_2: two steps of three lists, none after.
+    let d = &f.data.kyvia;
+    assert_eq!(d.gomora_lists_of(2, 0).map(<[_]>::len), Some(3));
+    assert_eq!(d.gomora_lists_of(2, 1).unwrap()[2], [0, 0, 3, 3, 1]);
+    assert!(d.gomora_lists_of(2, 2).is_none());
+}
+
+#[test]
+fn the_first_stage_calls_thunder_for_the_beams() {
+    let Some(mut f) = bout(Volume::Out, Fight::Second) else { return };
+    let me = f.me;
+    let core = f.kyvia().core;
+    let mut b = f.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
+    let (act, kind) = f.with_cx(|cx| {
+        let mut x = kyvia_of(&mut b);
+        x.atk_pat_mode = 2;
+        let mut t = Tree::take(cx, core);
+        if let Some(c) = t.core.as_mut() {
+            c.x.k_atk_flg = 2;
+            c.x.core_state = 0;
+        }
+        switch_action_pattern(&mut b, &mut x, &mut t, cx);
+        t.put(cx);
+        let kind = x.thunder.map(|t| t.kind);
+        (b.act_num, kind)
+    });
+    assert_eq!(act, act::THUNDER);
+    assert_eq!(kind, Some(thunder::Kind::Strike));
+}
+
+#[test]
+fn a_thunderbolt_lives_its_time_and_one_more_draw() {
+    let Some(mut f) = bout(Volume::Out, Fight::Second) else { return };
+    let dat = thunder::BoltData { rand_scale: 4, default_scale: 1, rand_angle: ONE, eff_sw: 1, ..Default::default() };
+    let draws = f.with_cx(|cx| {
+        let mut bolt = thunder::Bolt::new(cx, VF0, 90, 100, 3, &dat);
+        assert!(bolt.break_point.iter().all(|&n| (10..=17).contains(&n)), "{:?}", bolt.break_point);
+        let mut n = 1;
+        while bolt.draw(cx) {
+            n += 1;
+        }
+        let segments: i16 = bolt.break_point.iter().sum();
+        assert_eq!(bolt.segments.len(), 3 + segments as usize);
+        n
+    });
+    assert_eq!(draws, 91);
 }

@@ -1673,6 +1673,33 @@ fn kyvia_gomora_lists(c: &Ctx) -> Read {
     Ok(Value::List(out))
 }
 
+/// `AllGomoraList_2` (INF gcmn 0x005eced0, `short **[3]`): the lists
+/// `kyviaGomora::GomoraInit(2)` and `ListStepUp(n)` give level 2's gomoras,
+/// by the core's deaths, each to its null; each list's rows to theirs.
+fn kyvia_gomora_lists_2(c: &Ctx) -> Read {
+    let at = find(c, 0x005E_CED0, GCMN);
+    let mut out = Vec::new();
+    for k in 0..3 {
+        let lists = c.p.u32(at + 4 * k)?;
+        if lists == 0 {
+            break;
+        }
+        let mut step = Vec::new();
+        for j in 0..16 {
+            let l = c.p.u32(lists + 4 * j)?;
+            if l == 0 {
+                break;
+            }
+            let row = (0..5)
+                .map(|i| c.p.read(l + 2 * i, 2).map(|b| Value::Int(i128::from(i16::from_le_bytes([b[0], b[1]])))))
+                .collect::<Result<Vec<_>, _>>()?;
+            step.push(Value::List(row));
+        }
+        out.push(Value::List(step));
+    }
+    Ok(Value::List(out))
+}
+
 /// Every GCMN.PRG global of Infection's named `*{suffix}` (the enemies'
 /// weapon and dust blocks), by name: each where the volume keeps it, and
 /// its rows.
@@ -1822,6 +1849,13 @@ fn combat() -> Group {
                 "`Kyvia01AnmTbl`: Kyvia's clip by act in its first fight.",
             ),
             e(
+                "kyvia02_anims",
+                0x005E_CBB0,
+                array(opt(cstr()), 15),
+                GCMN,
+                "`Kyvia02AnmTbl`: Kyvia's clip by act in its second fight.",
+            ),
+            e(
                 "kyvia_core_anims",
                 0x005E_CD20,
                 array(opt(cstr()), 18),
@@ -1848,6 +1882,13 @@ fn combat() -> Group {
                 custom(Rc::new(kyvia_gomora_lists), array(array(I16, 5), 0)),
                 GCMN,
                 "`AllGomoraList_1[0]`: Kyvia 01's gomora lists, each gomora's attribute (4 none) by slave.",
+            ),
+            e(
+                "kyvia_gomora_lists_2",
+                0x005E_CED0,
+                custom(Rc::new(kyvia_gomora_lists_2), array(array(array(I16, 5), 0), 0)),
+                GCMN,
+                "`AllGomoraList_2`: Kyvia 02's gomora lists by the core's deaths, as `kyvia_gomora_lists`.",
             ),
             e(
                 "magus_epitaph",

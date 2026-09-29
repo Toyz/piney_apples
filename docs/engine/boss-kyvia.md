@@ -226,6 +226,10 @@ and a mode 3 or 4 is cleared after the case's delay; W2P/P2W are
 identity; `CollisionDetection` finds nothing and `HitEnable`/`HitDisable`
 only set the flag.
 
+`PINEY_VOLUME=outbreak PINEY_KYVIA_FIGHT=1` runs Outbreak's copy of the
+fight (its `Main` and the disc's `Move` and `IsMove` by address): the
+same code, as the port has it.
+
 `piney-battle`'s `boss::kyvia::tests` and `piney-game`'s
 `event_108_ends_with_kyvia` (the event from block 21 to block 23 on the
 disc) hold the rest.
@@ -235,7 +239,8 @@ disc) hold the rest.
 - The gomoras' pushes on each other (their `CollisionDetection`) are not
   ported, nor the pad's sway (+0x139) or the arm's picture (`DrawParts` of
   `anmw`); the particles are named, not drawn.
-- The EX mode (`KyviaExFlg`) and levels 2-5 are Kyvia's later fights; the
-  shared code for them is ported as far as level 1 reads it, and the
-  gomora lists only for level 1.
+- The EX mode (`KyviaExFlg`) and levels 3-5 are Kyvia's later fights; the
+  shared code for them is ported as far as levels 1 and 2 read it, and
+  the gomora lists for those two. Level 2 is [the second
+  fight](boss-kyvia-second.md)'s.
 - Which of x01's gomora clumps (`CMP_ex01gom2`-`4`) each attribute draws.

@@ -37,6 +37,8 @@ pub const MAGUS: i32 = 2;
 pub const FIDCHELL: i32 = 3;
 pub const GORRE: i32 = 4;
 pub const KYVIA: i32 = 12;
+/// Kyvia's second fight (`ccBossKyvia02`, Outbreak's field 10).
+pub const KYVIA_SECOND: i32 = 13;
 
 /// Skeith's file and model (`x11`, `CMP_trall`), and the effects' file.
 pub const FILE: &str = "x11";
@@ -46,9 +48,12 @@ pub const EFF_FILE: &str = "xeffect";
 pub const INNIS_FILE: &str = "x21";
 /// Innis's images (`Mon1`-`Mon3`' models).
 pub const IMAGES: [&str; 3] = ["CMP_ex21mon1", "CMP_ex21mon2", "CMP_ex21mon3"];
-/// Kyvia's file (`x01`), its body, and its core's and gomoras' models.
+/// Kyvia's file (`x01`, `x02` for its second fight), its body, and its
+/// core's and gomoras' models (the same names in both files).
 pub const KYVIA_FILE: &str = "x01";
 pub const KYVIA_CLUMP: &str = "CMP_trallex01";
+pub const KYVIA_SECOND_FILE: &str = "x02";
+pub const KYVIA_SECOND_CLUMP: &str = "CMP_trallex02";
 pub const KYVIA_PARTS: [&str; 2] = ["CMP_trall2", "CMP_ex01gom2"];
 /// Magus's file (`x31`): its body (`CMP_trall`) and its leaves' model.
 pub const MAGUS_FILE: &str = "x31";
@@ -180,6 +185,7 @@ impl BossLook {
             FIDCHELL => (boss::fidchell::FILE, FIDCHELL_CLUMP),
             GORRE => (boss::gorre::FILE, GORRE_CLUMP),
             KYVIA => (KYVIA_FILE, KYVIA_CLUMP),
+            KYVIA_SECOND => (KYVIA_SECOND_FILE, KYVIA_SECOND_CLUMP),
             _ => (FILE, CLUMP),
         };
         let body = Rc::new(Body::read(archive, file, clump)?);
@@ -228,8 +234,8 @@ impl BossLook {
                 let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, INNIS_FILE)?);
                 IMAGES.iter().filter_map(|c| Body::of(file.clone(), c).ok().map(Rc::new)).collect()
             }
-            KYVIA => {
-                let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, KYVIA_FILE)?);
+            KYVIA | KYVIA_SECOND => {
+                let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, file)?);
                 KYVIA_PARTS.iter().filter_map(|c| Body::of(file.clone(), c).ok().map(Rc::new)).collect()
             }
             MAGUS => {
@@ -261,7 +267,7 @@ impl Combat {
         camera: &mut Camera,
     ) {
         let code = look.code;
-        if self.boss.is_some() || !matches!(code, SKEITH | INNIS | MAGUS | FIDCHELL | GORRE | KYVIA) {
+        if self.boss.is_some() || !matches!(code, SKEITH | INNIS | MAGUS | FIDCHELL | GORRE | KYVIA | KYVIA_SECOND) {
             return;
         }
         let d = self.data.clone();
@@ -309,7 +315,8 @@ impl Combat {
             MAGUS => boss::magus::new(&mut cx, kite_pos, kite_dirc, center),
             FIDCHELL => boss::fidchell::new(&mut cx, kite_pos, kite_dirc, center),
             GORRE => boss::gorre::new(&mut cx, kite_pos, kite_dirc, center),
-            KYVIA => boss::kyvia::new(&mut cx),
+            KYVIA => boss::kyvia::new(&mut cx, boss::kyvia::Fight::First),
+            KYVIA_SECOND => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Second),
             _ => Boss::new(&mut cx, kite_pos, kite_dirc, center),
         };
         let out = std::mem::take(&mut cx.out);
@@ -349,7 +356,7 @@ impl Combat {
         let hit = CharHit { pos, radius: w, height: h, kind: ty, ..CharHit::default() };
         let transfer = match code {
             INNIS => INNIS_CAM_TRANSFER,
-            KYVIA => KYVIA_CAM_TRANSFER,
+            KYVIA | KYVIA_SECOND => KYVIA_CAM_TRANSFER,
             FIDCHELL => FIDCHELL_CAM_TRANSFER,
             GORRE => GORRE_CAM_TRANSFER,
             _ => CAM_TRANSFER,

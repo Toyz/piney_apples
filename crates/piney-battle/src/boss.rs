@@ -1,6 +1,6 @@
 //! Bosses: `ccBoss` (boss.cpp, gcmn 0x0045bcf0-0x0045fbd0) and Skeith
 //! (`ccBoss01`, 0x0047b300-0x0047ee68), entry type 7 code 0; Innis (1)
-//! [`innis`], Magus (2) [`magus`], Fidchell (3) [`fidchell`], Kyvia (12)
+//! [`innis`], Magus (2) [`magus`], Fidchell (3) [`fidchell`], Kyvia (12, 13)
 //! [`kyvia`]. `ccBossEntryStart(code)` (0x0045b2a0) starts the effect
 //! manager ([`Effects`]) and `bossFunc[code]`, which makes the boss and runs
 //! [`Boss::main`] each frame. The tables come from the build ([`BossData`]);
@@ -139,8 +139,8 @@ pub enum Class {
     Magus(Box<magus::Magus>),
     /// `ccBoss03Leaf`.
     MagusLeaf(Box<magus::leaf::Leaf>),
-    /// `ccBossKyvia01`: the body; its core and gomoras are bosses of their
-    /// own characters.
+    /// `ccBossKyvia01` or `ccBossKyvia02`: the body; its core and gomoras
+    /// are bosses of their own characters.
     Kyvia(Box<kyvia::Kyvia>),
     /// `kyviaCore`.
     KyviaCore(Box<kyvia::core::Core>),
@@ -300,6 +300,8 @@ pub struct Eff {
     pub needle: Option<Box<magus::Needle>>,
     /// Fidchell's spells ([`fidchell::eff::Fx`]).
     pub fidchell: Option<Box<fidchell::eff::Fx>>,
+    /// A thunderbolt of Kyvia's ([`kyvia::thunder::Bolt`]).
+    pub bolt: Option<Box<kyvia::thunder::Bolt>>,
 }
 
 /// The effects the bosses make (`ccBossEff*Create`).
@@ -346,6 +348,9 @@ pub enum EffKind {
     /// `OnThinkKerse`): a finishing flash at the target. No picture yet
     /// (crates/piney-game/src/fx.rs); its life (72 frames) is measured.
     FinalPhotonFlash,
+    /// `ccBossEffThunderboltCreate(pos, time, range, num, dat)` (OUT gcmn
+    /// 0x00489540): `num` bolts of Kyvia's ([`kyvia::thunder::Bolt`]).
+    Thunderbolt { num: i32 },
 }
 
 impl Effects {
@@ -367,6 +372,7 @@ impl Effects {
             meteorite: None,
             needle: None,
             fidchell: None,
+            bolt: None,
         };
         match self.slots.iter().position(Option::is_none) {
             Some(k) => {
@@ -450,7 +456,8 @@ impl Eff {
             | EffKind::Needle { .. }
             | EffKind::MeteoSworm { .. }
             | EffKind::ThunderStorm { .. }
-            | EffKind::RockTower { .. } => return,
+            | EffKind::RockTower { .. }
+            | EffKind::Thunderbolt { .. } => return,
         };
         if self.count >= life {
             self.enabled = false;

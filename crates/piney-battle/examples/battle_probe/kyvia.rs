@@ -1,15 +1,16 @@
 //! `battle_probe` requests for Kyvia (`piney_battle::boss::kyvia`), as
-//! `tools/test_battle_kyvia_rs.py` sends them: `kyviaclips` (the clips of
-//! `x01`, `xeffect`, `particle`) and `kyvia ...`: the body made on a scene,
-//! then FRAMES frames of the manager's pass and `Main`, the disc and the
-//! camera scripted, affects before each (0 a hit on the core, 1 on gomora
-//! P1, 2 a heal on the core). One JSON line: the state after the
+//! `tools/test_battle_kyvia_rs.py` sends them: `kyviaclips F` (the clips of
+//! fight F's file, `x01` or `x02`, `xeffect`, `particle`) and `kyvia F ...`:
+//! the body made on a scene, then FRAMES frames of the manager's pass and
+//! `Main`, the disc and the camera scripted (the disc rides RIDE2 frames
+//! after each `Move`), affects before each (0 a hit on the core, 1 on
+//! gomora P1, 2 a heal on the core). One JSON line: the state after the
 //! constructor, then each frame.
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::kyvia::core::Core;
 use piney_battle::boss::kyvia::gomora::Gomora;
-use piney_battle::boss::kyvia::{Gen, Kyvia};
+use piney_battle::boss::kyvia::{Fight, Gen, Kyvia};
 use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, DiscView, EffKind, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
@@ -31,15 +32,15 @@ type Clips = std::collections::HashMap<String, (u32, bool)>;
 type V4 = [u32; 4];
 
 thread_local! {
-    static DATA: std::cell::RefCell<Option<(BossData, Clips)>> = const { std::cell::RefCell::new(None) };
+    static DATA: std::cell::RefCell<Option<(Fight, BossData, Clips)>> = const { std::cell::RefCell::new(None) };
 }
 
-fn load(iso_path: &str) -> (BossData, Clips) {
+fn load(iso_path: &str, fight: Fight) -> (Fight, BossData, Clips) {
     let mut iso = Iso::open(iso_path).expect("the ISO");
     let data = BossData::of(iso.volume().expect("the volume"));
     let arc = Archive::new(iso.read_path("DATA/DATA.BIN").expect("DATA.BIN")).expect("DATA.BIN");
     let mut clips = std::collections::HashMap::new();
-    for stem in ["x01", "xeffect", "particle"] {
+    for stem in [fight.file(), "xeffect", "particle"] {
         let Ok(raw) = arc.inflate_named(stem) else { continue };
         let ccs = Ccs::parse(raw).expect("a CCSF");
         let scene = piney_data::scene::Scene::read(&ccs).expect("its scene");
@@ -49,7 +50,7 @@ fn load(iso_path: &str) -> (BossData, Clips) {
             }
         }
     }
-    (data, clips)
+    (fight, data, clips)
 }
 
 /// Answers `kyviaclips` and `kyvia`; None for any other command.
@@ -57,21 +58,22 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) ->
     if !matches!(cmd, "kyviaclips" | "kyvia") {
         return None;
     }
+    let fight = Fight::of_code(t.i32() + 11).expect("fight 1 or 2");
     DATA.with(|d| {
-        if d.borrow().is_none() {
-            *d.borrow_mut() = Some(load(iso));
+        if d.borrow().as_ref().is_none_or(|(f, ..)| *f != fight) {
+            *d.borrow_mut() = Some(load(iso, fight));
         }
     });
     Some(DATA.with(|d| {
         let d = d.borrow();
-        let (data, clips) = d.as_ref().unwrap();
+        let (fight, data, clips) = d.as_ref().unwrap();
         if cmd == "kyviaclips" {
             let mut v: Vec<_> = clips.iter().collect();
             v.sort();
             let body: Vec<String> = v.iter().map(|(k, (f, l))| format!("\"{k}\":[{f},{}]", u8::from(*l))).collect();
             format!("{{{}}}", body.join(","))
         } else {
-            run(tables, data, clips, t)
+            run(*fight, tables, data, clips, t)
         }
     }))
 }
@@ -153,7 +155,7 @@ struct Case {
     delay: i32,
 }
 
-fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String {
+fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String {
     let n = t.int() as usize;
     let mut scene = Scene::default();
     for _ in 0..n {
@@ -171,6 +173,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     cc.mti = t.i32();
     let count0 = t.u32();
     let frames = t.int() as usize;
+    let ride2 = t.i32();
     let cam_pos = v4(t);
     let cam_view = v4(t);
     let delay = t.i32();
@@ -202,8 +205,10 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         reset,
         shake: false,
     };
-    let disc = |f: usize| DiscView {
-        moving: case.moving.get(f).copied().unwrap_or(false),
+    // The frames the disc rides on after the body's `Move`.
+    let mut ride = 0;
+    let disc = |f: usize, ride: i32| DiscView {
+        moving: case.moving.get(f).copied().unwrap_or(false) || ride > 0,
         prev_pos: case.prev.get(f).copied().unwrap_or(case.marker),
         marker: case.marker,
     };
@@ -230,12 +235,12 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         boss_cam: true,
         cam: view(0, 0),
         land: &mut land,
-        disc: disc(0),
+        disc: disc(0, 0),
         me,
         out: Vec::new(),
         ev: Events::new(),
     };
-    let mut boss = piney_battle::boss::kyvia::new(&mut cx);
+    let mut boss = piney_battle::boss::kyvia::new(&mut cx, fight);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
     for o in &out {
@@ -255,6 +260,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             volume: crate::probe_volume(),
         };
         cam.step(case.delay);
+        ride = (ride - 1).max(0);
         scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(boss));
         let (core, gomoras) = parts(&scene, me);
         let mut outs = Vec::new();
@@ -305,7 +311,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             boss_cam: true,
             cam: view(f, cam.reset),
             land: &mut land,
-            disc: disc(f),
+            disc: disc(f, ride),
             me,
             out: Vec::new(),
             ev: Events::new(),
@@ -318,6 +324,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         for o in &out {
             cam.take(o);
             match o {
+                Out::DiscNextStage => ride = ride2,
                 Out::MenuForbid { on, chat_except } => {
                     forbid = i16::from(*on);
                     menu[0] = i32::from(*on);
@@ -386,11 +393,12 @@ fn kout(o: &Out) -> Option<String> {
         Out::SkillFrom { skill, .. } => format!("[\"skill\",{}]", skill.sid),
         Out::SkillStart { sid, .. } => format!("[\"skill_start\",{sid}]"),
         Out::DiscNextStage => "[\"disc_next\"]".into(),
+        Out::SeNote { se, note } => format!("[\"senote\",{se},{note}]"),
         Out::SmokeRock { .. } => "[\"smoke_rock\"]".into(),
         Out::MusicFade { t } => format!("[\"music_fade\",{t}]"),
         // The meteors run natively in the harness: their making is seen in
         // the effects' slots.
-        Out::Effect { kind: EffKind::Meteorite { .. }, .. } => return None,
+        Out::Effect { kind: EffKind::Meteorite { .. } | EffKind::Thunderbolt { .. }, .. } => return None,
         Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) | Out::CamSway(_) | Out::DrawArm { .. } => {
             return None;
         }
@@ -548,6 +556,9 @@ fn kyvia_json(x: &Kyvia) -> String {
     ]);
     v.extend(x.dmg_gp.iter().map(|&g| u8::from(g).to_string()));
     v.push(u8::from(x.dead_gp).to_string());
+    if let Some(t) = &x.thunder {
+        v.extend([t.kind as i32, t.time, i32::from(t.num), t.range, t.stage_id].map(|n| n.to_string()));
+    }
     v.join(",")
 }
 

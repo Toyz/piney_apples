@@ -39,7 +39,7 @@ own start:
 | 219 | done: the ending's stream 65, the staff roll | desktop |
 | 206 | blocks 0x7f: a lone Kite through the dungeon of field 72, slow (floor 1 by 150,000 frames) | dungeon of field 72 |
 | 207 | done (120,000 frames): Fidchell ported (worklog 294), drained at 97,100, dead at 112,100 | |
-| 211 | blocks 0x1c1f: field 10's boss, row 13 (Cubia, the second Kyvia), not ported | field 10 |
+| 211 | done (150,000 frames): Kyvia's second fight (`ccBossKyvia02`, row 13; `bossTbl`'s Cubia is Kyvia's English name, rows 12 and 13 alike) ported and checked (worklog 304); the first stage's core down near 16,500, the second's (5000 HP) near 22,000 | |
 | 218 | done (150,000 frames): Gorre ported and checked (worklog 303); the brothers' protect broken at ~98,000, drained, the three down at ~107,000 | |
 
 Seen on the way: `entry 3 29` (a walking PC, file `ctr1`) is not found

@@ -657,8 +657,9 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
 
 /// A `ccBossEff*Create` as the bosses call it (`docs/engine/boss.md`,
 /// "Effects"): the rules name the effect, where and which way. Innis's
-/// rings and missiles, Kyvia's meteors and Magus's needles have no
-/// picture yet (boss-innis.md, boss-kyvia.md, boss-magus.md); Fidchell's
+/// rings and missiles, Kyvia's meteors and thunderbolts and Magus's
+/// needles have no picture yet (boss-innis.md, boss-kyvia.md,
+/// boss-magus.md); Fidchell's
 /// meteors, thunders and rock towers are drawn from its rules' state
 /// ([`boss_spells`]).
 fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
@@ -683,6 +684,7 @@ fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<pin
         | EffKind::MeteoSworm { .. }
         | EffKind::ThunderStorm { .. }
         | EffKind::RockTower { .. }
+        | EffKind::Thunderbolt { .. }
         // Gorre's finishing flash (boss-gorre.md): no picture yet.
         | EffKind::FinalPhotonFlash => {
             return None;

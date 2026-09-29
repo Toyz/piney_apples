@@ -98,6 +98,9 @@ pub struct Core {
     pub dead_rot: V4,
     pub off_set: V4,
     pub kyvia_lv: i16,
+    /// What the core's deaths have added to its two rows' `maxHP` (the
+    /// game writes it into `bossTbl` for good).
+    pub row_hp: i16,
     /// `anmw`: the wave (`ANM_xx11wave`) of act 13.
     pub anm_w: Anm,
 }
@@ -166,10 +169,10 @@ pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, lv: i16) -> Boss {
     b
 }
 
-/// `SetCoreBaseParam(lv, attr)` (MUT gcmn 0x004f8770): the core's row by
-/// level and attribute (32-39; 15 for level 5 with attribute -1). From level
-/// 2 a core that has died once more gets 3000, 1500 or 1000 more HP; the
-/// game adds it to both rows for good, the port only this once.
+/// `SetCoreBaseParam(lv, attr)` (MUT gcmn 0x004f8770, OUT 0x004f5150): the
+/// core's row by level and attribute (32-39; 15 for level 5 with attribute
+/// -1). From level 2, each call while the core is dead (`DeadFlg`) adds
+/// 3000, 1500 or 1000 to both rows' `maxHP` for good ([`Core::row_hp`]).
 fn set_core_base_param(cx: &mut Cx, x: &mut Core, me: usize, lv: i16, attr: i32) {
     let (a, extra) = match lv {
         1 => (32, 0),
@@ -183,10 +186,13 @@ fn set_core_base_param(cx: &mut Cx, x: &mut Core, me: usize, lv: i16, attr: i32)
         }
     };
     let row = if lv == 5 { a } else { a + usize::from(attr != 0) };
-    set_base_param(cx, me, row);
     if x.dead_flg != 0 && extra != 0 {
+        x.row_hp = x.row_hp.wrapping_add(extra);
+    }
+    set_base_param(cx, me, row);
+    if lv != 5 && x.row_hp != 0 {
         let ch = &mut cx.scene.chars[me];
-        ch.max_hp = ch.max_hp.saturating_add(extra);
+        ch.max_hp = ch.max_hp.wrapping_add(x.row_hp);
         ch.hp = ch.max_hp;
     }
     x.kyvia_lv = lv;
@@ -776,7 +782,7 @@ fn dead_fade(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
         c.b.exit = 1;
         reset_data(&mut c.x, cx, me);
         c.x.dead_pos = VF0;
-        step_all_gomora_list(c, gs);
+        step_all_gomora_list(c, gs, cx);
         c.b.change_action(cx, act::NEUTRAL, 1, true);
     }
 }
@@ -940,9 +946,9 @@ fn step_gomora_list(gs: &mut [Part<Gomora>], cx: &mut Cx) {
 
 /// `StepAllGomoraList` (MUT gcmn 0x004fd8e0): the lists of the core's next
 /// life.
-fn step_all_gomora_list(c: &Part<Core>, gs: &mut [Part<Gomora>]) {
+fn step_all_gomora_list(c: &Part<Core>, gs: &mut [Part<Gomora>], cx: &Cx) {
     for g in gs.iter_mut() {
-        gomora::list_step_up(g, c.x.dead_count);
+        gomora::list_step_up(g, &cx.data.kyvia, c.x.dead_count);
         g.x.kyvia_step += 1;
     }
 }
@@ -951,9 +957,8 @@ fn step_all_gomora_list(c: &Part<Core>, gs: &mut [Part<Gomora>]) {
 /// that is waiting or dead gets the disc; the first exited one comes out
 /// (`EntrySlave(0, 1)`), which is `NowGomoraNum`.
 fn entry_gomora(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
-    let data = cx.data;
-    let lists = &data.kyvia.gomora_lists;
-    let Some(k) = gs.iter_mut().position(|g| gomora::get_attribute(g, lists) != 4 && matches!(g.x.state, 2 | 3)) else {
+    let data = &cx.data.kyvia;
+    let Some(k) = gs.iter_mut().position(|g| gomora::get_attribute(g, data) != 4 && matches!(g.x.state, 2 | 3)) else {
         return;
     };
     gs[k].x.disc_pos = c.x.disc_pos;
@@ -981,10 +986,9 @@ fn entry_slave(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx, on: i32
 /// `StartGomora` (MUT gcmn 0x004fdda0): the gomora `NowGomoraNum` on its way
 /// out (state 1), if it has an attribute.
 fn start_gomora(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
-    let data = cx.data;
-    let lists = &data.kyvia.gomora_lists;
+    let data = &cx.data.kyvia;
     let Some(g) = usize::try_from(c.x.now_gomora_num).ok().and_then(|k| gs.get_mut(k)) else { return };
-    if gomora::get_attribute(g, lists) != 4 {
+    if gomora::get_attribute(g, data) != 4 {
         g.x.time_flg = 1;
         g.x.state = 1;
     }

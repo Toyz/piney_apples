@@ -131,6 +131,8 @@ pub struct Combat {
     pub innis_ring_models: &'static [i32],
     /// `Kyvia01AnmTbl`: Kyvia's clip by act in its first fight.
     pub kyvia01_anims: &'static [Option<&'static str>],
+    /// `Kyvia02AnmTbl`: Kyvia's clip by act in its second fight.
+    pub kyvia02_anims: &'static [Option<&'static str>],
     /// `kyviaCoreAnmTbl`: the core's clip by act.
     pub kyvia_core_anims: &'static [Option<&'static str>],
     /// `kyviaGomoraAnmTbl`: a gomora's clip by act.
@@ -141,6 +143,8 @@ pub struct Combat {
     pub kyvia_downer_skills: &'static [i16],
     /// `AllGomoraList_1[0]`: Kyvia 01's gomora lists, each gomora's attribute (4 none) by slave.
     pub kyvia_gomora_lists: &'static [&'static [i16]],
+    /// `AllGomoraList_2`: Kyvia 02's gomora lists by the core's deaths, as `kyvia_gomora_lists`.
+    pub kyvia_gomora_lists_2: &'static [&'static [&'static [i16]]],
     /// `boss03EpitaphActTbl`: Magus's patterns once drained, up to and with its -1.
     pub magus_epitaph: &'static [i32],
     /// `Boss03AnmTbl`: Magus's clip by act.
@@ -243,11 +247,13 @@ impl crate::store::Load for Combat {
             innis_monster_anims: crate::store::Load::load(r),
             innis_ring_models: crate::store::Load::load(r),
             kyvia01_anims: crate::store::Load::load(r),
+            kyvia02_anims: crate::store::Load::load(r),
             kyvia_core_anims: crate::store::Load::load(r),
             kyvia_gomora_anims: crate::store::Load::load(r),
             kyvia_various_skills: crate::store::Load::load(r),
             kyvia_downer_skills: crate::store::Load::load(r),
             kyvia_gomora_lists: crate::store::Load::load(r),
+            kyvia_gomora_lists_2: crate::store::Load::load(r),
             magus_epitaph: crate::store::Load::load(r),
             magus_anims: crate::store::Load::load(r),
             magus_leaf_anims: crate::store::Load::load(r),
@@ -359,6 +365,9 @@ impl Combat {
     pub fn kyvia01_anims(&self) -> &'static [Option<&'static str>] {
         self.kyvia01_anims
     }
+    pub fn kyvia02_anims(&self) -> &'static [Option<&'static str>] {
+        self.kyvia02_anims
+    }
     pub fn kyvia_core_anims(&self) -> &'static [Option<&'static str>] {
         self.kyvia_core_anims
     }
@@ -373,6 +382,9 @@ impl Combat {
     }
     pub fn kyvia_gomora_lists(&self) -> &'static [&'static [i16]] {
         self.kyvia_gomora_lists
+    }
+    pub fn kyvia_gomora_lists_2(&self) -> &'static [&'static [&'static [i16]]] {
+        self.kyvia_gomora_lists_2
     }
     pub fn magus_epitaph(&self) -> &'static [i32] {
         self.magus_epitaph
@@ -565,6 +577,10 @@ pub static INNIS_RING_MODELS: std::sync::LazyLock<&'static [i32]> =
 pub static KYVIA01_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
     std::sync::LazyLock::new(|| shared().kyvia01_anims);
 
+/// `Kyvia02AnmTbl`: Kyvia's clip by act in its second fight.
+pub static KYVIA02_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().kyvia02_anims);
+
 /// `kyviaCoreAnmTbl`: the core's clip by act.
 pub static KYVIA_CORE_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
     std::sync::LazyLock::new(|| shared().kyvia_core_anims);
@@ -584,6 +600,10 @@ pub static KYVIA_DOWNER_SKILLS: std::sync::LazyLock<&'static [i16]> =
 /// `AllGomoraList_1[0]`: Kyvia 01's gomora lists, each gomora's attribute (4 none) by slave.
 pub static KYVIA_GOMORA_LISTS: std::sync::LazyLock<&'static [&'static [i16]]> =
     std::sync::LazyLock::new(|| shared().kyvia_gomora_lists);
+
+/// `AllGomoraList_2`: Kyvia 02's gomora lists by the core's deaths, as `kyvia_gomora_lists`.
+pub static KYVIA_GOMORA_LISTS_2: std::sync::LazyLock<&'static [&'static [&'static [i16]]]> =
+    std::sync::LazyLock::new(|| shared().kyvia_gomora_lists_2);
 
 /// `Boss03AnmTbl`: Magus's clip by act.
 pub static MAGUS_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =

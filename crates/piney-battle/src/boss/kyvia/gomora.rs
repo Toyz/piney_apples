@@ -7,7 +7,7 @@
 
 use piney_data::field::ee;
 
-use super::{Gen, Part, as_me, catmull, dp, fp, plain_boss, rand_abs, set_base_param, wrap};
+use super::{Gen, KyviaData, Part, as_me, catmull, dp, fp, plain_boss, rand_abs, set_base_param, wrap};
 use crate::boss::{Anm, Boss, Class, Cx, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
@@ -150,39 +150,42 @@ fn reset_data(x: &mut Gomora) {
     x.sp_vec = [VF0; 4];
 }
 
-/// The attributes `MasterList[NowListNum]` gives, or none past the lists.
-fn list<'a>(x: &Gomora, lists: &'a [[i16; 5]]) -> Option<&'a [i16; 5]> {
-    // Only AllGomoraList_1[0] is in the tables: Kyvia's first fight's.
-    if x.master_list != 0 {
-        return None;
-    }
-    lists.get(x.now_list_num)
+/// `MasterList[n]`: the list `n` of the gomora's `AllGomoraList_lv` step,
+/// or none past them (the null).
+fn list_at(x: &Gomora, data: &KyviaData, n: usize) -> Option<[i16; 5]> {
+    data.gomora_lists_of(x.kyvia_lv, x.master_list)?.get(n).copied()
 }
 
 /// `GetAttribute` (MUT gcmn 0x004fe6c0): its attribute in the list now.
-pub(crate) fn get_attribute(g: &mut Part<Gomora>, lists: &[[i16; 5]]) -> i32 {
-    if list(&g.x, lists).is_none() {
+pub(crate) fn get_attribute(g: &mut Part<Gomora>, data: &KyviaData) -> i32 {
+    if list_at(&g.x, data, g.x.now_list_num).is_none() {
         g.x.now_list_num = 0;
     }
-    list(&g.x, lists).and_then(|l| l.get(g.x.slave_id as usize)).map_or(4, |&a| i32::from(a))
+    attribute_of(&g.x, data)
+}
+
+/// Its slave's attribute in `MasterList[NowListNum]`, 4 (none) past them.
+fn attribute_of(x: &Gomora, data: &KyviaData) -> i32 {
+    list_at(x, data, x.now_list_num).and_then(|l| l.get(x.slave_id as usize).copied()).map_or(4, i32::from)
 }
 
 /// `NextGList` (MUT gcmn 0x00500be0): the next list, or the first again.
 pub(crate) fn next_g_list(g: &mut Part<Gomora>, cx: &Cx) {
-    let lists = &cx.data.kyvia.gomora_lists;
-    let next = Gomora { now_list_num: g.x.now_list_num + 1, master_list: g.x.master_list, ..Gomora::default() };
-    if list(&next, lists).is_some() {
+    if list_at(&g.x, &cx.data.kyvia, g.x.now_list_num + 1).is_some() {
         g.x.now_list_num += 1;
     } else {
         g.x.now_list_num = 0;
     }
 }
 
-/// `ListStepUp(n)` (MUT gcmn 0x00500c50): `AllGomoraList_lv[n]` when there
-/// is one; level 1 has only the first.
-pub(crate) fn list_step_up(g: &mut Part<Gomora>, n: i32) {
-    if n == 0 {
-        g.x.master_list = 0;
+/// `ListStepUp(n)` (MUT gcmn 0x00500c50, OUT 0x004fd810):
+/// `AllGomoraList_lv[n]` when it is not null (level 1 has only the first,
+/// level 2 two).
+pub(crate) fn list_step_up(g: &mut Part<Gomora>, data: &KyviaData, n: i32) {
+    if let Ok(n) = usize::try_from(n)
+        && data.gomora_lists_of(g.x.kyvia_lv, n).is_some()
+    {
+        g.x.master_list = n;
     }
 }
 
@@ -391,9 +394,7 @@ fn hit(g: &mut Part<Gomora>, cx: &mut Cx, on: bool) {
 /// core: a spline up and away from it, its particles. False for none.
 fn start_init(g: &mut Part<Gomora>, cx: &mut Cx) -> bool {
     let me = g.me;
-    let data = cx.data;
-    let lists = &data.kyvia.gomora_lists;
-    let attr = list(&g.x, lists).and_then(|l| l.get(g.x.slave_id as usize)).map_or(4, |&a| i32::from(a));
+    let attr = attribute_of(&g.x, &cx.data.kyvia);
     g.x.my_attribute = attr;
     let lv = g.x.kyvia_lv;
     if attr == 4 {
