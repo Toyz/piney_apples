@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-299 entries: audio 20, battle 56, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 74, save 9, script 30, test 129, tooling 23, ui 52, video 11, volumes 58, world 78.
+300 entries: audio 21, battle 57, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 74, save 9, script 30, test 129, tooling 23, ui 52, video 11, volumes 58, world 78.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -311,3 +311,4 @@ The [reference](docs/README.md) says what is true now.
 | 297 | [Gorre's harness: the brothers' orbit, Order and ChangeAction checked against the game](worklog/0297-gorre-s-harness-the-brothers-orbit-order-and-changeaction.md) | 2026-09-28 | battle, test |
 | 298 | ["An event's scene -2 put the town's card up: the port skipped loadCheck"](worklog/0298-an-event-s-scene-2-put-the-town-s-card-up-the-port-skipped.md) | 2026-09-28 | engine, script, ui |
 | 299 | [A Data Bug drawn and held at half its HP: the area's entry copy, virusFlag on the character](worklog/0299-a-data-bug-drawn-and-held-at-half-its-hp-the-area-s-entry.md) | 2026-09-28 | battle, render |
+| 300 | [Party members' skill words: not reproduced, the port's path is the game's](worklog/0300-party-members-skill-words-not-reproduced-the-port-s-path-is.md) | 2026-09-28 | audio, battle |

@@ -273,6 +273,13 @@ impl WorldMode {
         }
     }
 
+    /// Party slot `slot`'s menu face for member `id`, as the Party menu
+    /// sets it once `ccThPartyAdd` is done (the console's `invite_party`).
+    pub fn set_menu_face(&mut self, slot: usize, id: i32) {
+        let plcol = self.world.state().save.u8(offset::PLCOL) != 0;
+        self.ui.set_menu_face(slot, id, plcol);
+    }
+
     /// The field UI, for tests.
     #[allow(dead_code)]
     pub fn ui(&self) -> &FieldUi {

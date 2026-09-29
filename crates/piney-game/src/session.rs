@@ -652,12 +652,18 @@ impl Session {
                 let world = w.world_mut();
                 let party = world.party();
                 let slot = if party.contains(&id) { -2 } else { world.party_add(id) };
+                if let Ok(s) = usize::try_from(slot) {
+                    w.set_menu_face(s, id);
+                }
                 (party, slot, false)
             }
             Stage::Area(a) => {
                 let world = a.world_mut();
                 let party = world.party();
                 let slot = if party.contains(&id) { -2 } else { world.invite_next_area(id) };
+                if let Ok(s) = usize::try_from(slot) {
+                    a.set_menu_face(s, id);
+                }
                 (party, slot, true)
             }
             _ => return "invite_party works in The World (a town, field or dungeon)".into(),
@@ -3138,14 +3144,16 @@ mod tests {
     /// The console's `invite_party`: in event 3's field BlackRose (15) is
     /// given the party's free slot and comes with the next area (the
     /// console's `town 0`), where she is built; there Mia (1) joins at
-    /// once, at the Chaos Gate; a member already in the party, or a party
-    /// full, is refused.
+    /// once, at the Chaos Gate; each takes its slot's menu face; a member
+    /// already in the party, or a party full, is refused.
     #[test]
     fn the_console_invites() {
         let Some((mut s, mut f)) = story_to_field(0) else { return };
         let mut log = Vec::new();
         story_until(&mut s, &mut f, "menu_ban false", 60, &mut log);
         assert_eq!(s.console("invite_party 15"), "15 in slot 2: with the next area");
+        let Stage::Area(a) = &s.stage else { panic!("left the field") };
+        assert_eq!(a.ui().ctrl.face_tex[2], 15, "BlackRose's menu face");
         assert_eq!(s.console("invite_party 2"), "2 is in the party already ([0, 2, 15])");
         s.console("town 0");
         let mut pad = Pad::default();
@@ -3170,6 +3178,7 @@ mod tests {
         assert_eq!(s.console("invite_party 1"), "1 in slot 1");
         let Stage::World(w) = &s.stage else { unreachable!() };
         assert_eq!(w.world().party(), [0, 1, 15]);
+        assert_eq!(w.ui().ctrl.face_tex[1], 1, "Mia's menu face, not Orca's");
         assert!(w.world().town_party().rec(1).is_some(), "Mia built at the gate");
     }
 

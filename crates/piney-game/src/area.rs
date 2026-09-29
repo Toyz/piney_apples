@@ -410,6 +410,13 @@ impl AreaMode {
         &mut self.world
     }
 
+    /// Party slot `slot`'s menu face for member `id` (the console's
+    /// `invite_party`, as the Party menu sets it).
+    pub fn set_menu_face(&mut self, slot: usize, id: i32) {
+        let plcol = self.world.state().save.u8(offset::PLCOL) != 0;
+        self.ui.set_menu_face(slot, id, plcol);
+    }
+
     #[cfg(test)]
     pub fn ui_mut(&mut self) -> &mut FieldUi {
         &mut self.ui
