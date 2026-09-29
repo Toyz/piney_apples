@@ -417,6 +417,9 @@ impl World for Stage<'_> {
         let mut hide = false;
         self.transparency(pos, width, height, far, len, &mut hide)
     }
+    fn enemy_ccs(&mut self, who: usize, row: i32) {
+        self.cast.enemy_ccs(who, row);
+    }
     fn anim_set(&mut self, who: usize, slot: AnmSlot, name: &str) {
         self.cast.set(who, slot, name);
     }

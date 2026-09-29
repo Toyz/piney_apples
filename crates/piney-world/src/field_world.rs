@@ -1183,6 +1183,36 @@ impl FieldWorld {
         self.combat.entry_gimmick(&mut x, id, pos, dirc)
     }
 
+    /// An enemy of `enemyTbl` row `row` put at `pos` facing `dirc` in the
+    /// room Kite is in, as an event's `entry 5` makes one (`entRoot` 0),
+    /// its look and its drained form's loaded when the area has none: its
+    /// scene index. For tests and tools: the areas put their own.
+    pub fn put_enemy(&mut self, row: i32, pos: V4, dirc: F) -> Option<usize> {
+        if !self.combat.started {
+            return None;
+        }
+        let mut files = crate::foe::Files::new(self.archive.clone());
+        self.combat.cast.looks.add_enemies(&mut files, &self.combat.data, &[row]);
+        let s = self.scene;
+        let mut ep = piney_battle::entry::entry_param_clear();
+        ep.pos = pos;
+        ep.dirc = [0, 0, dirc, ONE];
+        ep.id = row;
+        ep.area = s.area;
+        ep.area_num = match s.area {
+            1 => s.field,
+            2 => s.dungeon,
+            _ => s.town,
+        };
+        ep.floor = s.floor;
+        ep.block = s.block;
+        ep.ent_root = 0;
+        ep.param[2] = 0;
+        let info = self.task_info();
+        let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
+        self.combat.entry_object(&mut x, &mut ep)
+    }
+
     /// The dungeon, for the next scene of it (`WORLD_MAN.dungeon[n]` lives
     /// on); None in a field.
     pub fn into_dungeon(mut self) -> Option<Box<DungeonArea>> {

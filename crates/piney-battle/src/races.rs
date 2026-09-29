@@ -651,15 +651,15 @@ impl Frame for WorldFrame<'_> {
 }
 
 /// `ccEnemy::ccEnemy` (0x00432a90) then `ccEnemy::initEnemy(entry)`
-/// (0x00433260) for enemy `who` of entry `ent`: the model and animation
-/// `initEnemyCCS` makes (a middle boss's second model through
+/// (0x00433260) for enemy `who` of entry `ent`: the clumps and animations
+/// `initEnemyCCS` (0x00432fc0) makes (a middle boss's second model through
 /// `ccGetNameBossAnm`), the body into the collision list, `ccCheckDustColor`,
-/// and the rules of [`enemy_ai::init_enemy`]. A middle boss's row has no
-/// animation table: the game reads its names at EE address 0xb4 (not on the
-/// disc; empty here, as in the checks).
+/// and the rules of [`enemy_ai::init_enemy`]. A middle boss's entry holds
+/// its base form's animation names (the area's loading: `Tables`).
 pub fn init_enemy(cx: &mut Cx, ent: &EntryParam, who: usize) -> (Char, Enemy) {
     let row = &cx.t.enemies[ent.id as usize];
     let name = row.anm.and_then(|n| n.get(6)).copied().unwrap_or_default().to_string();
+    cx.world.enemy_ccs(who, ent.id);
     cx.world.anim_set(who, AnmSlot::Main, &name);
     let middle = enemy_ai::middle_boss(cx.t, ent.id) >= 0;
     if middle {

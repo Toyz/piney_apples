@@ -1,7 +1,8 @@
 //! The battle tables, read at run time from the executable (`SLUS_202.67`),
 //! `DATA/GCMN.PRG` (nearly all of them) and `DATA/DEMO.PRG` (`charTbl`) by the
 //! addresses Infection's code uses. The overlay's static constructors touch
-//! none of them, so the file bytes are the tables as the game reads them.
+//! none of them, so the file bytes are the tables as the game reads them,
+//! but for the middle bosses' entries, which an area's loading fills.
 //! Names and descriptions are game text, read from the disc and never copied
 //! into the port. Row counts are the DWARF sizes (`tools/test_battle.py`
 //! checks them against the code that reads each table).
@@ -128,7 +129,7 @@ impl Tables {
             volume,
             skills: skills(b.skills()),
             boss_skills: skills(b.boss_skills()),
-            enemies: b.enemies().iter().map(EnemyTable::of).collect(),
+            enemies: with_base_forms(b.enemies().iter().map(EnemyTable::of).collect()),
             bosses: b.bosses().iter().map(FoeRow::of_boss).collect(),
             items: [
                 items(b.item_r()),
@@ -236,9 +237,45 @@ impl Tables {
     }
 }
 
+/// `enemyTbl` as `ccAddRequestFileListEntry` (gcmn 0x0042f5a0) leaves it
+/// when an area loads: a middle boss's row (type 0x40, the Data Bugs), which
+/// has no animation names of its own, takes its base form's (`gold`) names,
+/// CLUT and file. It is made with the base's model and clips, and the file
+/// with its fourth letter 'X' as its second model.
+fn with_base_forms(mut enemies: Vec<EnemyTable>) -> Vec<EnemyTable> {
+    let bases: Vec<(usize, usize)> = enemies
+        .iter()
+        .enumerate()
+        .filter(|(_, row)| row.param.base.ty == ty::MIDDLE_BOSS)
+        .filter_map(|(i, row)| Some((i, usize::try_from(row.param.base.gold).ok()?)))
+        .filter(|&(_, g)| g < enemies.len())
+        .collect();
+    for (i, g) in bases {
+        let (anm, clut, file) = (enemies[g].anm, enemies[g].clut, enemies[g].file);
+        let row = &mut enemies[i];
+        (row.anm, row.clut, row.file) = (anm, clut, file);
+    }
+    enemies
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A Data Bug's row (Infection's 115, base form 113) as the area loads
+    /// it: the base's clips, CLUT and file; the base itself as it was.
+    #[test]
+    fn middle_bosses_take_their_base_forms_entry() {
+        let t = Tables::of(Volume::Inf);
+        let (bug, base) = (&t.enemies[115], &t.enemies[113]);
+        assert_eq!(bug.param.base.ty, ty::MIDDLE_BOSS);
+        assert_eq!(bug.param.base.gold, 113);
+        assert!(bug.anm.is_some_and(|n| n.get(6) == Some(&"ANM_eet1nut0")));
+        assert_eq!((bug.anm, bug.clut, bug.file), (base.anm, base.clut, base.file));
+        assert_eq!(base.file, "EET1");
+        let raw = battle::of(Volume::Inf);
+        assert!(raw.enemies()[115].entry.anm.is_none());
+    }
 
     #[test]
     fn every_volume_loads() {

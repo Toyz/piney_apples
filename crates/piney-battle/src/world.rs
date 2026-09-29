@@ -113,6 +113,12 @@ pub trait World {
     /// 0x001da880): 1.0 in the open, toward 0 as the camera closes in on
     /// the character and beyond `far` over `len`.
     fn camera_transparency(&mut self, pos: V4, width: F, height: F, far: F, len: F) -> F;
+    /// `ccEnemy::initEnemyCCS(entry)` (gcmn 0x00432fc0)'s clumps for enemy
+    /// `who` of `enemyTbl` row `row`: `CMP_trall` of the entry's file with
+    /// its CLUT (`ccEntryChangeCLUT`), and a middle boss's second clump from
+    /// its 'X' file (`ccEnemy` +0x1b4), before [`World::anim_set`] plays
+    /// clips on them. Nothing where no model is drawn.
+    fn enemy_ccs(&mut self, _who: usize, _row: i32) {}
     /// `ccStream::GetChunkAdrsF(name, 0)` then `ccAnm::SetAnm(chunk, 0)`
     /// (main 0x00150f50) on `who`'s player `slot`: play the clip `name`
     /// (an `ANM_` object of the character's scene file) from frame 0.

@@ -65,6 +65,9 @@ impl<W: World + ?Sized> World for Share<'_, '_, W> {
     fn camera_transparency(&mut self, pos: V4, width: F, height: F, far: F, len: F) -> F {
         self.cell.borrow_mut().camera_transparency(pos, width, height, far, len)
     }
+    fn enemy_ccs(&mut self, who: usize, row: i32) {
+        self.cell.borrow_mut().enemy_ccs(who, row)
+    }
     fn anim_set(&mut self, who: usize, slot: AnmSlot, name: &str) {
         self.cell.borrow_mut().anim_set(who, slot, name)
     }

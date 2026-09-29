@@ -783,7 +783,7 @@ pub fn enemy_race(t: &Tables, id: i32) -> Option<(i32, i32)> {
 /// its base form's row in `base.gold`; -1 for the rest.
 pub fn middle_boss(t: &Tables, id: i32) -> i32 {
     let r = &t.enemies[id as usize].param.base;
-    if r.ty == 0x40 { r.gold } else { -1 }
+    if r.ty == crate::param::ty::MIDDLE_BOSS { r.gold } else { -1 }
 }
 
 /// `ccGetDrainId(id)` (gcmn 0x0042e3c0): the row a drained enemy becomes:
@@ -809,8 +809,8 @@ pub fn drain_id(t: &Tables, id: i32) -> i32 {
 
 /// Which of the six skill slots have an animation: `ccEntry.anm` of the
 /// row (a `char[][30]` table), slot `i` usable when its name is not empty.
-/// None for a row without a table (the 45 middle bosses: the game reads
-/// the first bytes of EE memory there, which the disc does not hold).
+/// None for a row without a table (a middle boss's has its base form's,
+/// given as the area loads: [`crate::tables::Tables`]).
 pub fn anim_slots(row: &EnemyTable) -> Option<[bool; 6]> {
     let names = row.anm?;
     Some(std::array::from_fn(|i| names.get(i).is_some_and(|s| !s.is_empty())))
@@ -2104,7 +2104,8 @@ fn interrupt_think(cx: &mut Cx, e: &mut Enemy) {
 /// `ccEnemy::initEnemy(ent)` (0x00433260), the spawn's rules after the
 /// constructors: the entry, the row and its race, home at the spawn point,
 /// the row's stats (`SetBaseParam`), a first attack delay of 32-95 frames, a
-/// middle boss's gauge (`virusFlag`), the skill list ([`init_skill_list`]),
+/// middle boss's gauge (`virusFlag`, on the enemy and on the character's
+/// `ccEnemy` flag word), the skill list ([`init_skill_list`]),
 /// the dust colour (given) and `ene_rand` (`ccRand`). The models, animations
 /// and body hit are the runtime's.
 pub fn init_enemy(
@@ -2136,8 +2137,11 @@ pub fn init_enemy(
     if middle_boss(t, ent.id) >= 0 {
         e.ccs2_flag = true;
         e.fade_flag = 0;
+        // initEnemyCCS (0x004331f8): virusFlag, the bit affectEnemy reads
+        // off the character (a tenth of each hit, never below half).
         if row.param.max_pp != -1 {
             e.virus_flag = true;
+            ch.spc_char.enemy_flags |= crate::chara::enemy_flag::VIRUS;
         }
     }
     init_skill_list(t, &mut e, anm);
@@ -2150,6 +2154,48 @@ pub fn init_enemy(
 mod tests {
     use super::*;
     use crate::param::{Base, FoeRow};
+
+    /// Hits of 9999 on a spawned row, each through `affectEnemy`: the HP
+    /// after each and whether the whole 9999 was shown each time.
+    fn hits_on(t: &Tables, id: i32, n: usize) -> (Char, Vec<i16>, bool) {
+        let ent = EntryParam { id, ..crate::entry::entry_param_clear() };
+        let mut r = || 0;
+        let (ch, _) = init_enemy(t, &ent, [true; 6], 0, &Identity, &mut r);
+        let mut scene = Scene { chars: vec![ch.clone()], ene_list: vec![0], ..Scene::default() };
+        let mut shown = true;
+        let hp = (0..n)
+            .map(|_| {
+                scene.chars[0].affect.ty = 1;
+                scene.chars[0].affect.param = [9999, 0, 0];
+                let mut ev = crate::event::Events::new();
+                crate::affect::affect_enemy(t, &mut scene, 0, &mut ev);
+                shown &= ev.iter().any(|e| matches!(e, Event::FlyFont { kind: 2, value: 9999, .. }));
+                scene.chars[0].hp
+            })
+            .collect();
+        (ch, hp, shown)
+    }
+
+    /// A Data Bug (Infection's row 115: type 0x40, a protect gauge) as
+    /// `initEnemy` makes it is virus-flagged on its character, so
+    /// `affectEnemy` (gcmn 0x00433c0c) takes a tenth of each hit and stops
+    /// it at half its maxHP, the whole hit shown. Its base form (113) falls
+    /// to 0.
+    #[test]
+    fn a_data_bug_is_not_beaten_by_damage() {
+        let t = Tables::of(piney_data::volume::Volume::Inf);
+        let (bug, hp, shown) = hits_on(&t, 115, 40);
+        assert_ne!(bug.spc_char.enemy_flags & chara::enemy_flag::VIRUS, 0);
+        assert!(shown);
+        assert_eq!(bug.max_hp, 20169);
+        assert_eq!(hp[0], 20169 - 999);
+        assert_eq!(hp[9], 20169 - 9990);
+        assert_eq!(hp[10], 10084);
+        assert!(hp.iter().all(|&h| h >= 10084));
+        let (base, hp, _) = hits_on(&t, 113, 2);
+        assert_eq!(base.spc_char.enemy_flags & chara::enemy_flag::VIRUS, 0);
+        assert_eq!(hp[0], 0);
+    }
 
     #[test]
     fn rand_f_scales_by_two_to_the_31() {

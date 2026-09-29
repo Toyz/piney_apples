@@ -88,6 +88,9 @@ pub mod ty {
     /// A party member (Kite 0x1, the others 0x2, 0x4 on ccSpcParam).
     pub const PC: i32 = 0x07;
     pub const ENEMY: i32 = 0x60;
+    /// An `enemyTbl` row's whole type for a middle boss (the Data Bugs):
+    /// its base form's row in `gold` (`ccCheckMiddleBoss`).
+    pub const MIDDLE_BOSS: i32 = 0x40;
     pub const BOSS: i32 = 0x80;
     pub const FOE: i32 = ENEMY | BOSS;
 }
@@ -522,8 +525,8 @@ pub struct EnemyTable {
     pub exist: i32,
     pub esize: i32,
     /// `entry.anm`: its animation names (attacks 0-5, wait 6, walk 7, the
-    /// flinches, dying, ...); None for a middle boss's row (the game reads
-    /// EE memory there, which the disc does not hold: empty names).
+    /// flinches, dying, ...). A middle boss's row has none on the disc; the
+    /// area's loading gives it its base form's ([`crate::tables::Tables`]).
     pub anm: Option<&'static [&'static str]>,
     /// `entry.clut`: the CLUT its model takes (empty for its own), and
     /// `entry.fileList.name`: the model's file.

@@ -1228,9 +1228,9 @@ class Harness:
         rows = []
         for r in BUILT:
             rows += [i for i in range(self.race_first[r], self.race_first[r] + self.race_num[r]) if i not in ELG]
-        # The middle bosses among them (72, 76-78, 164-166, 224, 225) have no
-        # animation table: the game reads names at EE address 0xb4, empty in
-        # the interpreter and read as empty by the port (see races.rs).
+        # The middle bosses among them use their base forms' animation
+        # tables, copied in as the area loads (put_scene; the port's
+        # tables.rs).
         return rows
 
     def rnd_pos(self, rnd, sc, span=6000.0):
@@ -1388,6 +1388,16 @@ class Harness:
             m.store(ENEMY_TBL + ROW * i + 0x68, 4, 1 if i in reg["exist"] else 0)
             # ccInitRegisterEnemy's entry.func: the row's race constructor
             m.store(ENEMY_TBL + ROW * i + 0x6C, 4, self.race_funcs[i])
+        # ccAddRequestFileListEntry (0x0042f5a0) as the area loads: a middle
+        # boss's row (type 0x40) takes its base form's (gold) entry.anm,
+        # clut and fileList, as the port's tables hold them.
+        for i in range(303):
+            row = ENEMY_TBL + ROW * i
+            if m.load(row + 0x8, 4) == 0x40:
+                base = ENEMY_TBL + ROW * m.load(row + 0x14, 4)
+                m.mem[row + 0x80:row + 0x84] = m.mem[base + 0x80:base + 0x84]
+                m.mem[row + 0x88:row + 0xA6] = m.mem[base + 0x88:base + 0xA6]
+                m.mem[row + 0xA8:row + 0xB0] = m.mem[base + 0xA8:base + 0xB0]
         seed, mti, rnds = sc["rng"]
         self.ea.put_cc(seed, mti)
         m.store(a["lastRnd"], 2, rnds)

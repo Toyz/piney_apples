@@ -1,15 +1,19 @@
 //! The battle's characters as the field draws them: each scene character's
 //! body and `ccAnm` ([`Actor`]), made when the character first plays a clip
 //! and taken away when it goes. Kite and the party are made with their own
-//! files when the party is built; an enemy or a magic portal the first time
-//! the entry control sets its clip ([`piney_battle::world::World::anim_set`]),
-//! from the area's [`Looks`]: the one whose file has that clip.
+//! files when the party is built; an enemy with its own row's look as its
+//! clumps are made ([`Cast::enemy_ccs`]); a magic portal or other object the
+//! first time the entry control sets its clip
+//! ([`piney_battle::world::World::anim_set`]), from the area's [`Looks`]:
+//! the one whose file has that clip.
 
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use piney_battle::geom::M4;
 use piney_battle::world::{AnmSlot, Note};
+
+use piney_desktop::assets::SceneFile;
 
 use crate::body::Body;
 use crate::char::Char;
@@ -41,6 +45,9 @@ pub struct Actor {
     pub look: Look,
     /// A middle boss's second model's player (`ccEnemy` +0x1bc).
     pub second: Option<crate::pose::Play>,
+    /// The second clump's file, whose clips that player plays: the 'X'
+    /// file (`ccEnemy` +0x1b4).
+    pub second_file: Option<Rc<SceneFile>>,
     /// The notes the last `_AnimateForward` passed (`NoteProcess` hands
     /// them on), by slot.
     pub notes: Vec<Note>,
@@ -84,6 +91,7 @@ impl Actor {
             ch,
             look,
             second: None,
+            second_file: None,
             second_draw: None,
             notes: Vec::new(),
             notes2: Vec::new(),
@@ -108,7 +116,7 @@ impl Actor {
             }
             AnmSlot::Second => {
                 let spd = self.second.as_ref().map_or(256, |p| p.frame_spd);
-                self.second = self.ch.body.play(name).map(|mut p| {
+                self.second = self.second_file.as_deref().and_then(|f| crate::pose::Play::new(f, name)).map(|mut p| {
                     p.frame_spd = spd;
                     p
                 });
@@ -128,12 +136,11 @@ impl Actor {
     /// note list freed and filled with the notes of the frames the step
     /// entered (`DecodeFrameChunk`), newest first, for [`Actor::notes`].
     pub fn forward(&mut self, slot: AnmSlot, step: u16) -> i16 {
-        let file = self.ch.body.file.clone();
-        let (play, notes) = match slot {
-            AnmSlot::Main => (&mut self.ch.play, &mut self.notes),
-            AnmSlot::Second => match self.second.as_mut() {
-                Some(p) => (p, &mut self.notes2),
-                None => return 0,
+        let (play, notes, file) = match slot {
+            AnmSlot::Main => (&mut self.ch.play, &mut self.notes, self.ch.body.file.clone()),
+            AnmSlot::Second => match (self.second.as_mut(), self.second_file.clone()) {
+                (Some(p), Some(f)) => (p, &mut self.notes2, f),
+                _ => return 0,
             },
         };
         play.frame_spd = u32::from(step);
@@ -155,7 +162,7 @@ impl Actor {
 
 /// One `_AnimateForward` of `play` and the notes it collected, in the
 /// order `NoteProcess` hands them on.
-fn forward_notes(play: &mut crate::pose::Play, file: &piney_desktop::assets::SceneFile) -> (bool, Vec<(u32, u32)>) {
+fn forward_notes(play: &mut crate::pose::Play, file: &SceneFile) -> (bool, Vec<(u32, u32)>) {
     play.forward_notes(file)
 }
 
@@ -189,6 +196,24 @@ impl Looks {
         first
     }
 
+    /// The looks of `rows` and their drained forms not held yet, in row
+    /// order, each as `ccEntryCtrl::initEntryCCS` and the race's
+    /// constructor make it ([`crate::foe::EnemyLook`]).
+    pub fn add_enemies(&mut self, files: &mut crate::foe::Files, data: &super::BattleData, rows: &[i32]) {
+        let own = rows.iter().copied().filter(|&r| r >= 0);
+        let drains = own.clone().map(|r| piney_battle::enemy_ai::drain_id(&data.t, r));
+        let mut rows: Vec<i32> = own.chain(drains).filter(|&r| r >= 0).collect();
+        rows.sort_unstable();
+        rows.dedup();
+        rows.retain(|&r| self.enemy(r).is_none());
+        for r in rows {
+            let Ok(look) = crate::foe::EnemyLook::load(files, &data.t, r) else { continue };
+            let body = Rc::new(look.model.body.clone());
+            self.bodies.push((body, Look::Enemy(r), look.height, look.width));
+            self.enemies.push(Rc::new(look));
+        }
+    }
+
     /// An enemy row's look.
     pub fn enemy(&self, row: i32) -> Option<&crate::foe::EnemyLook> {
         self.enemies.iter().find(|l| l.ene_id == row).map(|l| &**l)
@@ -217,6 +242,23 @@ impl Cast {
 
     pub fn get_mut(&mut self, who: usize) -> Option<&mut Actor> {
         self.actors.get_mut(&who)
+    }
+
+    /// `ccEnemy::initEnemyCCS`'s clumps for enemy `who` of `row`: its actor
+    /// made anew from that row's look (its file, CLUT and clips; a middle
+    /// boss's second clump's file), not from the first look sharing a clip.
+    /// Nothing when the area's looks lack the row.
+    pub fn enemy_ccs(&mut self, who: usize, row: i32) {
+        let Some(look) = self.looks.enemy(row) else { return };
+        let second_file = look.second.as_ref().map(|m| m.body.file.clone());
+        let clip = look.clip(6).to_string();
+        let Some((body, _, h, w)) = self.looks.bodies.iter().find(|b| b.1 == Look::Enemy(row)).cloned() else {
+            return;
+        };
+        if let Some(mut a) = Actor::new(body, &clip, Look::Enemy(row), crate::ee::VF0, [0; 4], h, w) {
+            a.second_file = second_file;
+            self.actors.insert(who, a);
+        }
     }
 
     /// `anim_set` on `who`, making its actor from the looks when it has
@@ -269,19 +311,9 @@ pub fn load_looks(
         }
     }
     rows.extend_from_slice(extra);
-    let drains: Vec<i32> = rows.iter().map(|&r| piney_battle::enemy_ai::drain_id(&data.t, r)).collect();
-    rows.extend(drains);
-    rows.retain(|&r| r >= 0);
-    rows.sort_unstable();
-    rows.dedup();
     let mut looks = Looks::default();
     let mut files = crate::foe::Files::new(archive.clone());
-    for r in rows {
-        let Ok(look) = crate::foe::EnemyLook::load(&mut files, &data.t, r) else { continue };
-        let body = Rc::new(look.model.body.clone());
-        looks.bodies.push((body, Look::Enemy(r), look.height, look.width));
-        looks.enemies.push(Rc::new(look));
-    }
+    looks.add_enemies(&mut files, data, &rows);
     if let Ok(c) = crate::foe::Circle::load(&mut files, data.volume) {
         let body = Rc::new(c.model.body.clone());
         looks.bodies.push((body, Look::Circle, 0x4348_0000, 0x4348_0000));

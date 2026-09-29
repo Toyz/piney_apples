@@ -5920,6 +5920,9 @@ mod tests {
     /// The enemies' weapon trails: a goblin's swing.
     mod weapon;
 
+    /// A Data Bug in a field: its two models, its HP held at half.
+    mod data_bug;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {
