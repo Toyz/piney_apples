@@ -3029,7 +3029,18 @@ mod tests {
     /// 66 runs its frames, the area's rules answer (the infection rises, the
     /// goblin leaves the command lists, its drop), the windows are closed,
     /// and the drop is handed out through 67 and 29.
-    fn drain_in_a_fight(demo: bool, mut each: impl FnMut(&mut Session, u64, &Frame)) -> Option<Session> {
+    fn drain_in_a_fight(demo: bool, each: impl FnMut(&mut Session, u64, &Frame)) -> Option<Session> {
+        drain_with(demo, |_| Some(4), each)
+    }
+
+    /// [`drain_in_a_fight`] with PERSONAL's row as `plan` answers it when
+    /// the goblin is near: `None` waits, 4 is Skills (the drain), 5 Items
+    /// (the scrolls' page, category 11: its first on the target offered).
+    fn drain_with(
+        demo: bool,
+        plan: impl Fn(&Session) -> Option<i16>,
+        mut each: impl FnMut(&mut Session, u64, &Frame),
+    ) -> Option<Session> {
         let (mut s, mut f) = story_to_field(0)?;
         let mut log = Vec::new();
         story_until(&mut s, &mut f, "menu_ban false", 60, &mut log);
@@ -3050,6 +3061,7 @@ mod tests {
         let goal = [28600.0f32, 24600.0];
         let (mut fought, mut drained, mut handed) = (false, false, false);
         for i in 0..4000u64 {
+            let row = plan(&s);
             let raw = {
                 let Stage::Area(a) = &mut s.stage else { panic!("left the area") };
                 let in_battle = a.world().combat().battle.in_battle != 0;
@@ -3091,13 +3103,20 @@ mod tests {
                 let close = dx * dx + dy * dy < reach * reach;
                 match ui.menu_type() {
                     -1 if handed => break,
-                    -1 if fought && !drained && close => press(Buttons::TRIANGLE),
+                    -1 if fought && !drained && close && row.is_some() => press(Buttons::TRIANGLE),
                     -1 => {
                         let cam_z = f32::from_bits(w.camera().rot()[2]);
                         if close { still } else { stick_toward(cam_z, dx.atan2(-dy)) }
                     }
-                    0..=2 => press(go_to(m.list().items.iter().position(|&x| x == 4).unwrap_or(0))),
+                    0..=2 => press(go_to(m.list().items.iter().position(|&x| Some(x) == row).unwrap_or(0))),
                     4 if m.list().page < 5 => press(Buttons::RIGHT),
+                    // Items: the scrolls' page (category 11), its first.
+                    5 if piney_fieldui::items::item_list(&ui.texts().items, w.state(), 0, i32::from(m.list().page))
+                        [0]
+                    .cat != 11 =>
+                    {
+                        press(Buttons::RIGHT)
+                    }
                     4 => press(go_to(0)),
                     // The target, the windows, the item's.
                     _ => press(Buttons::CROSS),
@@ -3468,6 +3487,73 @@ mod tests {
         }
         let left: Vec<u32> = a.world().fx().census().char_generators;
         assert!(left.iter().all(|&g| !gone.contains(&(g as usize))), "sparks on drained foes {gone:?}: {left:?}");
+    }
+
+    /// Issue #5 with the reporter's scroll: The Hanged Man (`itemTblD` row
+    /// 37, skill 157) used on the goblin from PERSONAL's Items, then the
+    /// drain once it holds. No generator may follow the drained foe (the
+    /// sparks, row 198, `killFlag` 1); the drain file's animations over it
+    /// (`effAfterDrain` 12-14, `effProtect` 19-24) end with their clips,
+    /// as a field's `ccEffectCtrl` finds them in `effectTbl`.
+    #[test]
+    fn a_foe_paralysed_by_the_hanged_man_and_drained_leaves_nothing() {
+        use piney_battle::param::cond;
+        let paralysed = |s: &Session| match &s.stage {
+            Stage::Area(a) => {
+                let c = a.world().combat();
+                c.enemies().iter().any(|&e| c.scene.chars[e].cond[cond::PARALYSIS] != 0)
+            }
+            _ => false,
+        };
+        let given = std::cell::Cell::new(false);
+        let plan = |s: &Session| {
+            if paralysed(s) { Some(4) } else { given.get().then_some(5) }
+        };
+        let (mut held, mut gone) = (std::collections::BTreeSet::new(), std::collections::BTreeSet::new());
+        let Some(mut s) = drain_with(false, plan, |s, _, _| {
+            let Stage::Area(a) = &mut s.stage else { return };
+            if !given.get() {
+                // Kite's first item: The Hanged Man (category 11), nine
+                // of them should one be resisted.
+                let save = &mut a.world_mut().state_mut().save;
+                save.set_i16(offset::ITEM_LIST, 37);
+                save.set_u8(offset::ITEM_LIST + 2, 11);
+                save.set_u8(offset::ITEM_LIST + 3, 9);
+                given.set(true);
+            }
+            let c = a.world_mut().combat_mut();
+            if c.battle.in_battle == 0 {
+                return;
+            }
+            let listed = c.enemies();
+            for &e in &listed {
+                let ch = &mut c.scene.chars[e];
+                // Kept up for the drain: the members' blows fall on it.
+                if ch.cond[cond::DEAD] == 0 {
+                    ch.hp = 9999;
+                }
+                if ch.cond[cond::PARALYSIS] != 0 && c.condition_effect(e) == Some(1) {
+                    held.insert(e);
+                }
+            }
+            gone.extend(held.iter().copied().filter(|e| !listed.contains(e)));
+        }) else {
+            return;
+        };
+        assert!(!gone.is_empty(), "no foe the scroll paralysed left the lists: held {held:?}");
+        let drain_clips = |e: &i16| (12..=14).contains(e) || (19..=24).contains(e);
+        let mut pad = Pad::default();
+        let mut left = Vec::new();
+        for _ in 0..120 {
+            run(&mut s, &mut pad, 0..1, &[]);
+            let Stage::Area(a) = &s.stage else { panic!("left the area") };
+            let census = a.world().fx().census();
+            let sparks: Vec<u32> =
+                census.char_generators.iter().copied().filter(|&g| gone.contains(&(g as usize))).collect();
+            assert!(sparks.is_empty(), "sparks on drained foes {gone:?}: {sparks:?}");
+            left = census.effects.into_iter().filter(drain_clips).collect();
+        }
+        assert!(left.is_empty(), "the drain's clips still running 120 frames on: {left:?}");
     }
 
     /// The goblin's drained form after [`drain_in_a_fight`] takes a blow:

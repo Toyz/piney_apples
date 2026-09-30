@@ -3675,7 +3675,7 @@ pub struct FxCensus {
     /// (`StartArmsEffect`'s, along a weapon).
     pub weapon_generators: usize,
     /// The scene index each live generator not being ended (`killFlag`
-    /// 0) follows the place of (a condition effect's, a spell's...).
+    /// 0 or 1) follows the place of (a condition effect's, a spell's...).
     pub char_generators: Vec<u32>,
     /// `ccDamUprStr`'s lines still showing (the characters' numbers and
     /// words), in `flyFont`'s codes.

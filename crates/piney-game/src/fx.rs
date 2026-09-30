@@ -64,6 +64,9 @@ impl AreaFx {
     /// `ccThEffect`'s and `ccThParticle`'s set-up, the portal's file added.
     pub fn new(archive: &Arc<Archive>, volume: piney_data::volume::Volume) -> piney_data::Result<AreaFx> {
         let mut fx = Effects::new(archive, volume)?;
+        // ccEffectCtrl(0) outside a Root Town (INF 0x001c31bc: game+0x14,
+        // the area, not 0) looks its ids up in effectTbl, not effectTbl2.
+        fx.ctrl.town = false;
         // The boss effects' file (the WaveShock's animation).
         fx.assets.add_file(archive, "xeffect")?;
         let font = flyfont::font_tex(archive)?;
@@ -263,7 +266,7 @@ impl FieldFx for AreaFx {
                 .filter(|g| matches!(g.sync_sw, Some(piney_effect::IntRef::CharAt(_, piney_effect::ARMS_SW))))
                 .count(),
             char_generators: (self.fx.particles.gens.iter())
-                .filter(|g| g.kill_flag == 0)
+                .filter(|g| g.kill_flag < 2)
                 .filter_map(|g| match g.sync_pos {
                     Some(piney_effect::VecRef::CharPos(c)) => Some(c),
                     _ => None,

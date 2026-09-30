@@ -9,8 +9,10 @@ use crate::session::area15::{disc, hold, playing, start};
 
 use super::*;
 
-/// Orca's `charTbl` row.
+/// Orca's, BlackRose's and Mistral's `charTbl` rows.
 const ORCA: i32 = 2;
+const BLACKROSE: i32 = 15;
+const MISTRAL: i32 = 16;
 
 /// The town's world once its set-up is well over.
 fn in_town(s: &Session) -> Option<&crate::world::WorldMode> {
@@ -111,6 +113,110 @@ fn faces_come_back_from_a_field() {
     faces(w.world().party(), w.ui().ctrl.face_tex);
 }
 
+/// PERSONAL, Status, then R1 to party page `page` (`None` once there).
+fn status_pad(w: &crate::world::WorldMode, f: u64, page: i16) -> Option<Raw> {
+    let c = &w.ui().ctrl;
+    let still = |b: Buttons| Raw { buttons: b, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let every = |n: u64, b: Buttons| still(if f.is_multiple_of(n) { b } else { Buttons::NONE });
+    Some(match (w.ui().menu_type(), c.proccess) {
+        (-1, _) => every(30, Buttons::TRIANGLE),
+        (0, 1) => {
+            let l = c.list();
+            let b = match l.items.iter().take(l.y.max(0) as usize).position(|&it| it == 8) {
+                Some(r) if r as i16 == l.select => Buttons::CROSS,
+                Some(r) if (r as i16) > l.select => Buttons::DOWN,
+                Some(_) => Buttons::UP,
+                None => Buttons::NONE,
+            };
+            every(8, b)
+        }
+        (8, 1) if c.list().page == page => return None,
+        (8, 1) => every(8, Buttons::R1),
+        _ => still(Buttons::NONE),
+    })
+}
+
+/// PERSONAL (menu 1 in a field), Gate Out (10), YES: the pad at frame
+/// `f`.
+fn gate_out_pad(a: &crate::area::AreaMode, f: u64) -> Raw {
+    let ui = a.ui();
+    let m = &ui.ctrl;
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let press = |b: Buttons| if f.is_multiple_of(8) { Raw { buttons: b, ..still } } else { still };
+    let go_to = |row: i16| match m.list().select {
+        r if r == row => Buttons::CROSS,
+        r if r < row => Buttons::DOWN,
+        _ => Buttons::UP,
+    };
+    match (ui.menu_type(), m.proccess) {
+        (-1, _) => press(Buttons::TRIANGLE),
+        (88, _) => still,
+        (1 | 2, 1) => {
+            let l = m.list();
+            match l.items.iter().take(l.y.max(0) as usize).position(|&it| it == 10) {
+                Some(r) => press(go_to(r as i16)),
+                None => press(Buttons::CIRCLE),
+            }
+        }
+        (10, 1) => press(go_to(0)),
+        (10, _) => press(Buttons::CROSS),
+        _ => press(Buttons::CIRCLE),
+    }
+}
+
+/// Issue #3's screen: BlackRose and Mistral called in Mac Anu, a field,
+/// back by PERSONAL's Gate Out, and each one's Status page opened:
+/// `StatusMenuDisp`'s `FacePanel` sends the member's slot's `menuFace`
+/// sprite, whose face is the member's `menuFaceCcsList` row.
+#[test]
+fn the_status_portraits_come_back_from_a_field() {
+    let Some((iso, archive)) = disc() else { return };
+    let mut s = start(&iso, &archive, None);
+    hold(&mut s, 128, 128, 900, |s| in_town(s).is_some());
+    invite(&mut s, BLACKROSE);
+    invite(&mut s, MISTRAL);
+    to_the_field(&mut s, &iso);
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let mut pad = Pad::default();
+    for f in 0..3000u64 {
+        if in_town(&s).is_some() {
+            break;
+        }
+        let raw = match &s.stage {
+            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 12) => gate_out_pad(a, f),
+            _ => still,
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    let Stage::World(w) = &s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    assert_eq!(w.world().party(), [0, BLACKROSE, MISTRAL]);
+    for (page, id) in [(1i16, BLACKROSE), (2, MISTRAL)] {
+        for f in 1..3000u64 {
+            let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(&s)) };
+            let Some(raw) = status_pad(w, f, page) else { break };
+            pad.read(&raw);
+            s.step(&pad);
+            s.take_events();
+        }
+        let Stage::World(w) = &s.stage else { unreachable!() };
+        let ui = w.ui();
+        assert_eq!((ui.ctrl.menu, ui.ctrl.list().page), (8, page), "{id}'s Status page");
+        let faces: Vec<u8> = (ui.draws().iter())
+            .filter_map(|d| match d {
+                piney_fieldui::ctrl::Draw::Send(p) => p.first().and_then(|p| match p.obj {
+                    piney_fieldui::spr::Obj::MenuFace(i) => Some(i),
+                    _ => None,
+                }),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(faces, [page as u8], "{id}'s portrait draw");
+        assert_eq!(ui.ctrl.face_tex[page as usize], id, "{id}'s face");
+    }
+}
+
 /// Orca's `spcDefaultItemList` row: (category, id, count).
 fn kit(v: Volume) -> Vec<(i32, i32, i32)> {
     let rows = piney_data::tables::battle::of(v).spc_default_items();
@@ -196,9 +302,6 @@ fn trades_come_back_each_scene() {
     assert_eq!(held(&a.world().state().save), want, "in the field");
 }
 
-/// Mistral's `charTbl` row.
-const MISTRAL: i32 = 16;
-
 /// Issue #2, as the report shows it: Mistral in the party (with
 /// BlackRose) runs off through Mac Anu to a shop, and Kite goes up to her
 /// and presses the action button. Her menu (`SpcMenu`, 21) sends
@@ -210,7 +313,7 @@ fn mistral_spoken_to_while_running_stands_facing_kite() {
     let Some((iso, archive)) = disc() else { return };
     let mut s = start(&iso, &archive, None);
     hold(&mut s, 128, 128, 900, |s| in_town(s).is_some());
-    invite(&mut s, 15);
+    invite(&mut s, BLACKROSE);
     invite(&mut s, MISTRAL);
     // Her place, heading, act and flags, the heading from her to Kite, the menu.
     let mistral = |s: &Session| {
@@ -272,6 +375,90 @@ fn mistral_spoken_to_while_running_stands_facing_kite() {
         assert!(!moving && act != piney_battle::fellow::act::RUN, "Mistral moves {f} frames into Talk (act {act})");
         assert!(menu == 47 || f < 10, "not in her Talk page: menu {menu}");
     }
+}
+
+/// Issue #2, a member running after Kite: BlackRose and Mistral told to
+/// follow him (the CHAT order 9: `ActInTown`'s `actType` 3, then 94);
+/// Kite runs off and stops, turns to Mistral and speaks to her while she
+/// runs up. Her menu (21) stops her where it found her, facing Kite.
+#[test]
+fn mistral_running_after_kite_stops_when_spoken_to() {
+    use piney_world::entry::Kind;
+    let Some((iso, archive)) = disc() else { return };
+    let mut s = start(&iso, &archive, None);
+    hold(&mut s, 128, 128, 900, |s| in_town(s).is_some());
+    invite(&mut s, BLACKROSE);
+    invite(&mut s, MISTRAL);
+    let Stage::World(w) = &mut s.stage else { unreachable!() };
+    for id in [BLACKROSE, MISTRAL] {
+        w.world_mut().chat_cmd(id, 9, None, 0);
+    }
+    // Her place, heading, act and actType, the heading from Kite to her,
+    // the menu.
+    let mistral = |s: &Session| {
+        let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+        let tp = w.world().town_party();
+        let k = tp.member(MISTRAL).expect("Mistral in town");
+        let (at, dirc) = tp.place(MISTRAL).unwrap();
+        let sp = tp.combat.crew.spc.get(&k).copied().unwrap_or_default();
+        let act_type = tp.combat.crew.ais.get(&k).map_or(-1, |a| a.act_type);
+        let kite = w.world().player().body.pos;
+        let (dx, dy) =
+            (f32::from_bits(at[0]) - f32::from_bits(kite[0]), f32::from_bits(at[1]) - f32::from_bits(kite[1]));
+        (at, f32::from_bits(dirc[2]), (sp.act_num, act_type), dx.atan2(-dy), w.ui().ctrl.menu)
+    };
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let mut pad = Pad::default();
+    let mut step = |s: &mut Session, raw: Raw| {
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    };
+    // Kite runs off along a heading for 400 frames, then stands and turns
+    // to her as she runs up (a tap every 6 frames), speaking once she is
+    // the target; another heading each try.
+    let mut opened = None;
+    'tries: for k in 0..8u64 {
+        for _ in 0..400 {
+            let Stage::World(w) = &s.stage else { unreachable!() };
+            let cam = f32::from_bits(w.world().camera().rot()[2]);
+            step(&mut s, stick_toward(cam, k as f32 * 2.1));
+        }
+        for f in 0..400u64 {
+            let (at, _, (act, act_type), from_kite, menu) = mistral(&s);
+            if menu == 21 {
+                opened = Some((f, at));
+                break 'tries;
+            }
+            let Stage::World(w) = &s.stage else { unreachable!() };
+            let world = w.world();
+            let kite = world.player().body.pos;
+            let near =
+                (0..2).map(|j| (f32::from_bits(at[j]) - f32::from_bits(kite[j])).powi(2)).sum::<f32>() < 500.0 * 500.0;
+            let running = act == piney_battle::fellow::act::RUN && matches!(act_type, 3 | 94);
+            let raw = if !running {
+                still
+            } else if world.command_target() == Some((Kind::Spc, MISTRAL)) {
+                Raw { buttons: if f % 2 == 0 { Buttons::CROSS } else { Buttons::NONE }, ..still }
+            } else if near && f % 6 == 0 {
+                stick_toward(f32::from_bits(world.camera().rot()[2]), from_kite)
+            } else {
+                still
+            };
+            step(&mut s, raw);
+        }
+    }
+    let (f0, at0) = opened.expect("Mistral's menu never opened while she ran after Kite");
+    for f in 0..40 {
+        step(&mut s, still);
+        let (at, _, act, _, _) = mistral(&s);
+        let d = (0..2).map(|k| (f32::from_bits(at[k]) - f32::from_bits(at0[k])).powi(2)).sum::<f32>().sqrt();
+        assert!(d < 1.0, "Mistral ran {d:.0} on, {f} frames into her menu (act {act:?}, opened at {f0})");
+    }
+    let (_, dirc, act, from_kite, _) = mistral(&s);
+    let tau = 2.0 * std::f32::consts::PI;
+    let d = (dirc.rem_euclid(tau) - (from_kite + std::f32::consts::PI).rem_euclid(tau)).abs();
+    assert!(d.min(tau - d) < 0.01, "Mistral faces {dirc:.3}, not Kite (act {act:?})");
 }
 
 /// The CHAT menu's Operation outlasts the scene (issue #7's path): with
