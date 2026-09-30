@@ -10,7 +10,7 @@
 pub use piney_data::field::ee::{add, cmp, div, from_int, le, lt, mul, sqrt, sub, to_int};
 pub use piney_data::libm::{atan2f, cosf, fabsf, neg, sinf, sqrtf};
 
-pub use crate::enemy_ai::{get_dirc, get_dist, rad_disperse, rand_f};
+pub use crate::enemy_ai::{get_dirc, get_dist, get_dist_on, rad_disperse, rand_f};
 
 /// A float as bits.
 pub type F = u32;

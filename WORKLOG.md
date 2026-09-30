@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-304 entries: audio 21, battle 59, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 76, save 9, script 30, test 129, tooling 23, ui 52, video 11, volumes 59, world 80.
+305 entries: audio 21, battle 59, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 76, save 9, script 31, test 130, tooling 23, ui 52, video 11, volumes 60, world 80.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -316,3 +316,4 @@ The [reference](docs/README.md) says what is true now.
 | 302 | [DUNGEON::ShowMap's two edges: DeleteRoom frees the one built room, and room 15 is never under the player](worklog/0302-dungeon-showmap-s-two-edges-deleteroom-frees-the-one-built.md) | 2026-09-28 | render, world |
 | 303 | [Gorre finished: the brothers' Wave, Tornade and SendMessage ported, the harness at 0 mismatches, event 218 done](worklog/0303-gorre-finished-the-brothers-wave-tornade-and-sendmessage.md) | 2026-09-28 | battle |
 | 304 | [Kyvia's second fight ported: ccBossKyvia02, its two stages and thunderbolts; event 211 done](worklog/0304-kyvia-s-second-fight-ported-ccbosskyvia02-its-two-stages.md) | 2026-09-29 | battle, volumes |
+| 305 | [Outbreak's 206 in the survey's budget and its whole story from the new game](worklog/0305-outbreak-s-206-in-the-survey-s-budget-and-its-whole-story.md) | 2026-09-29 | script, test, volumes |

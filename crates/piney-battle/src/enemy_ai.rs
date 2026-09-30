@@ -10,6 +10,7 @@
 use piney_data::field::ee;
 use piney_data::libm;
 use piney_data::save::SaveData;
+use piney_data::volume::Volume;
 
 use crate::chara::{self, Body, Char, Env};
 use crate::event::Event;
@@ -108,11 +109,22 @@ pub fn get_dirc(a: [u32; 4], b: [u32; 4]) -> u32 {
 
 /// `ccGetDist(a, b)` (main 0x001d9dd0): the distance on the ground,
 /// `sqrtf` of `|b - a|^2` with the third lane zeroed (`sceVu0SubVector`,
-/// `sceVu0InnerProduct`).
+/// `sceVu0InnerProduct`), as Infection and Mutation have it.
 pub fn get_dist(a: [u32; 4], b: [u32; 4]) -> u32 {
+    get_dist_on(Volume::Inf, a, b)
+}
+
+/// [`get_dist`] as the volume's main has it: Outbreak's and Quarantine's
+/// take the FPU's `sqrt.s` (truncating) inline for newlib's `sqrtf` (OUT
+/// main 0x001e6ec0, QUA 0x001ee540).
+pub fn get_dist_on(volume: Volume, a: [u32; 4], b: [u32; 4]) -> u32 {
     let x = ee::sub(b[0], a[0]);
     let y = ee::sub(b[1], a[1]);
-    libm::sqrtf(ee::add(ee::add(ee::mul(x, x), ee::mul(y, y)), ee::mul(0, 0)))
+    let d = ee::add(ee::add(ee::mul(x, x), ee::mul(y, y)), ee::mul(0, 0));
+    match volume {
+        Volume::Out | Volume::Qua => ee::sqrt(d),
+        Volume::Inf | Volume::Mut => libm::sqrtf(d),
+    }
 }
 
 /// Where a position is in the player's frame and back: `ccTransPosW2P`
@@ -924,7 +936,15 @@ pub fn check_target_type_id(scene: &Scene, tyb: i32, id: i32) -> bool {
 /// type bit and not `me`; `flag` 0 the living, 2 the dying (`dead` 2), 6
 /// anyone. Later ones win ties. With nobody found, a charmed or confused
 /// `me` finds itself.
-pub fn search_near_person(scene: &Scene, world: &World, me: usize, tyb: i32, flag: i32, range: u32) -> Option<usize> {
+pub fn search_near_person(
+    scene: &Scene,
+    world: &World,
+    volume: Volume,
+    me: usize,
+    tyb: i32,
+    flag: i32,
+    range: u32,
+) -> Option<usize> {
     let mp = scene.chars[me].pos_p;
     let mut best = None;
     let mut bd = F_MINUS_ONE;
@@ -936,7 +956,7 @@ pub fn search_near_person(scene: &Scene, world: &World, me: usize, tyb: i32, fla
         if !flag_ok(c) {
             return;
         }
-        let d = get_dist(mp, scene.chars[c].pos_p);
+        let d = get_dist_on(volume, mp, scene.chars[c].pos_p);
         if ee::lt(d, range) && (!ee::lt(*bd, d) || ee::lt(*bd, 0)) {
             *best = Some(c);
             *bd = d;
@@ -973,7 +993,7 @@ pub fn search_near_person(scene: &Scene, world: &World, me: usize, tyb: i32, fla
 
 /// `ccEnemy::checkSkillRange(ch, range)` (0x004365a0): `ch` is alive and
 /// is `me`, or stands closer than `range` on the ground.
-pub fn check_skill_range(scene: &Scene, me: usize, c: usize, range: u32) -> bool {
+pub fn check_skill_range(scene: &Scene, volume: Volume, me: usize, c: usize, range: u32) -> bool {
     let ch = &scene.chars[c];
     if ch.cond[cond::DEAD] != 0 {
         return false;
@@ -981,7 +1001,7 @@ pub fn check_skill_range(scene: &Scene, me: usize, c: usize, range: u32) -> bool
     if c == me {
         return true;
     }
-    ee::lt(get_dist(scene.chars[me].pos_p, ch.pos_p), range)
+    ee::lt(get_dist_on(volume, scene.chars[me].pos_p, ch.pos_p), range)
 }
 
 impl Cx<'_, '_> {
@@ -999,7 +1019,7 @@ impl Cx<'_, '_> {
     }
 
     fn search(&self, tyb: i32, flag: i32, range: u32) -> Option<usize> {
-        search_near_person(self.scene, &self.world, self.me, tyb, flag, range)
+        search_near_person(self.scene, &self.world, self.t.volume, self.me, tyb, flag, range)
     }
 }
 
@@ -1046,7 +1066,7 @@ fn check_enemy(cx: &mut Cx, e: &mut Enemy) {
     let pp = ch.pos_p;
     let bp = f.w2p(e.bpos);
     e.base_dirc = get_dirc(pp, bp);
-    e.base_dist = ee::sub(get_dist(pp, bp), width(ch));
+    e.base_dist = ee::sub(get_dist_on(cx.t.volume, pp, bp), width(ch));
     if !e.target_flag {
         return;
     }
@@ -1077,7 +1097,7 @@ fn check_enemy(cx: &mut Cx, e: &mut Enemy) {
     }
     let tc = &cx.scene.chars[t];
     e.target_dirc = get_dirc(pp, tc.pos_p);
-    e.target_dist = get_dist(pp, tc.pos_p);
+    e.target_dist = get_dist_on(cx.t.volume, pp, tc.pos_p);
     e.target_dist = ee::sub(e.target_dist, ee::add(width(&cx.scene.chars[me]), width(tc)));
     check_crisis_rate(cx, e);
 }
@@ -1162,7 +1182,7 @@ fn select_skill_target(cx: &mut Cx, e: &Enemy, sid: i32, sk: &SkillParam) -> Opt
     let first = |rate: u32| ee::cmp(F_MINUS_ONE, rate) == std::cmp::Ordering::Equal;
     if sk.ty & bits::HEAL != 0 {
         for c in cx.scene.ene_list.clone() {
-            if check_skill_range(cx.scene, me, c, range) {
+            if check_skill_range(cx.scene, cx.t.volume, me, c, range) {
                 let lr = cx.life_rate(e, c);
                 if ee::lt(lr, F_HALF) && (!ee::le(rate, lr) || first(rate)) {
                     best = Some(c);
@@ -1174,12 +1194,13 @@ fn select_skill_target(cx: &mut Cx, e: &Enemy, sid: i32, sk: &SkillParam) -> Opt
     }
     if sk.ty & bits::BUFF != 0 {
         return cx.scene.ene_list.clone().into_iter().find(|&c| {
-            check_skill_range(cx.scene, me, c, range) && skill::target_condition_by_skill(&cx.scene.chars[c], sid) == 0
+            check_skill_range(cx.scene, cx.t.volume, me, c, range)
+                && skill::target_condition_by_skill(&cx.scene.chars[c], sid) == 0
         });
     }
     if sk.ty & bits::DEBUFF != 0 {
         for c in cx.scene.pc_list.clone() {
-            if !check_skill_range(cx.scene, me, c, range)
+            if !check_skill_range(cx.scene, cx.t.volume, me, c, range)
                 || skill::target_condition_by_skill(&cx.scene.chars[c], sid) != 0
                 || !skill::condition_success(&cx.scene.chars[c], sid, cx.scene.listed(c), cx.rand)
             {
@@ -1369,7 +1390,7 @@ fn select_target_by(cx: &mut Cx, e: &mut Enemy, lttype: i32) -> bool {
         .iter()
         .map(|&p| {
             let pc = &cx.scene.chars[p];
-            let d = get_dist(mp, pc.pos);
+            let d = get_dist_on(cx.t.volume, mp, pc.pos);
             if pc.cond[cond::DEAD] == 0 && ee::lt(d, view) {
                 let d = if pc.no_death && n != 1 { 0 } else { d };
                 (d, pc.hp, pc.level())
@@ -1679,7 +1700,7 @@ fn think_gold(cx: &mut Cx, e: &mut Enemy) {
                         e.gold.esc_cnt += 1;
                     }
                     e.gold.esc_pos = cx.world.frame.p2w(cx.world.frame.w2p(e.gold.esc_pos));
-                    let d = get_dist(cx.ch().pos, e.gold.esc_pos);
+                    let d = get_dist_on(cx.t.volume, cx.ch().pos, e.gold.esc_pos);
                     if !ee::le(d, 0x43fa_0000) && e.gold.dis_hold == 0 {
                         e.gold.dis_hold = 1;
                     }
@@ -2214,6 +2235,15 @@ mod tests {
         assert_eq!(get_dist(o, [0x4040_0000, 0x4080_0000, 0x4120_0000, F_ONE]), 0x40a0_0000);
     }
 
+    #[test]
+    fn outbreak_distance_truncates() {
+        // |(1, 2)| = sqrt(5): newlib rounds to 0x400f1bbd, sqrt.s cuts to ...bc.
+        let (o, p) = ([0, 0, 0, F_ONE], [F_ONE, 0x4000_0000, 0, F_ONE]);
+        assert_eq!(get_dist_on(Volume::Mut, o, p), 0x400f_1bbd);
+        assert_eq!(get_dist_on(Volume::Out, o, p), 0x400f_1bbc);
+        assert_eq!(get_dist_on(Volume::Qua, o, p), 0x400f_1bbc);
+    }
+
     fn scene_with(chars: Vec<(i32, [u32; 4], i16)>) -> Scene {
         let mut s = Scene::default();
         for (t, p, dead) in chars {
@@ -2237,9 +2267,9 @@ mod tests {
             (0x20, [f(1.0), 0, 0, F_ONE], 2),
         ]);
         let w = World::default();
-        assert_eq!(search_near_person(&s, &w, 0, 0x60, 0, f(10.0)), Some(2));
-        assert_eq!(search_near_person(&s, &w, 0, 0x60, 2, f(10.0)), Some(3));
-        assert_eq!(search_near_person(&s, &w, 0, 0x60, 0, f(2.0)), None);
+        assert_eq!(search_near_person(&s, &w, Volume::Inf, 0, 0x60, 0, f(10.0)), Some(2));
+        assert_eq!(search_near_person(&s, &w, Volume::Inf, 0, 0x60, 2, f(10.0)), Some(3));
+        assert_eq!(search_near_person(&s, &w, Volume::Inf, 0, 0x60, 0, f(2.0)), None);
     }
 
     #[test]

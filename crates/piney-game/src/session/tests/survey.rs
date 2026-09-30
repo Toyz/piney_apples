@@ -24,6 +24,9 @@ pub(super) struct StoryPilot {
     /// Kite stood at the last check.
     path: Vec<[f32; 2]>,
     mark: Option<[f32; 2]>,
+    /// The same for the walk to a field's Data Bug.
+    chase: Vec<[f32; 2]>,
+    chase_mark: Option<[f32; 2]>,
     /// The fight's action under way, whether its menus have opened, when
     /// it began; when the last one ended; this fight's Skills! (false) or
     /// Magic! (true) order, once out; the target menu's presses toward a
@@ -87,6 +90,8 @@ impl Default for StoryPilot {
             walker: Walker::wary(),
             path: Vec::new(),
             mark: None,
+            chase: Vec::new(),
+            chase_mark: None,
             action: None,
             opened: false,
             began: 0,
@@ -141,7 +146,7 @@ impl StoryPilot {
                     .map(|p| (p.floor as usize, p.block as usize))
                     .or_else(|| arena_door(w, &wants));
                 if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(500) {
-                    eprintln!("GOAL {to:?} at {:?} wants {wants:?}", (sc.floor, sc.block));
+                    eprintln!("GOAL {f} {to:?} at {:?} wants {wants:?}", (sc.floor, sc.block));
                 }
                 if let Some(to) = to
                     && let Some(raw) = self.walker.step(s, to, f)
@@ -464,6 +469,13 @@ impl StoryPilot {
                     return Some(press(Buttons::CROSS));
                 }
             }
+            // The target menu's "no target" (none in the skill's reach):
+            // the action given up; the menus are backed out below.
+            if t == 65 && m.proccess == 2 && matches!(act, Action::Skill { .. }) {
+                self.action = None;
+                self.ended = Some(f);
+                return Some(press(Buttons::CROSS));
+            }
             let party = w.party();
             return Some(match (t, act) {
                 (-1, Action::Skill { .. } | Action::Item { .. }) => press(Buttons::TRIANGLE),
@@ -546,7 +558,11 @@ impl StoryPilot {
         if !playing || banned == Some(true) {
             return None;
         }
-        if let Some(raw) = approach_boss(a).or_else(|| approach_part(a)).or_else(|| approach_roamer(a)) {
+        if let Some(raw) = approach_boss(a)
+            .or_else(|| approach_part(a))
+            .or_else(|| approach_roamer(a))
+            .or_else(|| self.approach_bug(a, f))
+        {
             return Some(raw);
         }
         let act = self.choose(a)?;
@@ -571,7 +587,7 @@ impl StoryPilot {
     /// someone under 45% of his HP (70% out of a fight), a member's heal,
     /// else Kite's Repth, a Healing Potion, First Aid!; out of a fight,
     /// someone under a third of his SP, a Mage's Soul; in a fight, Kite's
-    /// first skill of the page (magic or attack) he has the SP for.
+    /// strongest skill in reach of the nearest foe that he has the SP for.
     fn choose(&self, a: &crate::area::AreaMode) -> Option<Action> {
         let w = a.world();
         let ui = a.ui();
@@ -757,26 +773,91 @@ impl StoryPilot {
             }
         }
         let kite = kite?;
-        let near = foes(c).into_iter().filter(|e| !self.walker.hopeless.contains(e)).any(|e| {
-            let (p, q) = (kite.pos.map(f32::from_bits), c.scene.chars[e].pos.map(f32::from_bits));
-            c.scene.chars[e].hp > 0 && (q[0] - p[0]).hypot(q[1] - p[1]) < 400.0
-        });
-        if !near {
-            return None;
-        }
-        let page = if magic { 1 } else { 0 };
-        let list = piney_fieldui::items::skill_list(items, state, 0, page);
-        let skill = list
-            .iter()
-            .copied()
-            .filter(|&x| x >= 0)
-            .find(|&x| items.skill(i32::from(x)).is_some_and(|p| p.cost <= i32::from(kite.sp)))?;
+        let p = kite.pos.map(f32::from_bits);
+        let dist = |e: usize| {
+            let q = c.scene.chars[e].pos.map(f32::from_bits);
+            (q[0] - p[0]).hypot(q[1] - p[1])
+        };
+        let nearest = foes(c)
+            .into_iter()
+            .filter(|e| !self.walker.hopeless.contains(e) && c.scene.chars[*e].hp > 0)
+            .map(dist)
+            .min_by(f32::total_cmp)
+            .filter(|&d| d < 600.0)?;
+        // Of the skills whose reach (`triggerRange`) holds the nearest foe
+        // (the target menu offers no one beyond it: Gale of Swords' 350),
+        // the strongest (`atk` by `dmgRate`, over the foe's resistance to
+        // its element), of the page the foe is weaker to, else of the other
+        // (a spell from afar rather than a chase).
+        let resist = |sk: &piney_battle::param::SkillParam| {
+            let el = foe.and_then(|e| c.scene.chars[e].foe_state()).map(|fo| fo.real);
+            (0..6)
+                .filter(|&i| sk.attr[i] != 0)
+                .map(|i| el.map_or(100, |r| i32::from(r[8 + i])))
+                .min()
+                .unwrap_or(100)
+                .max(1)
+        };
+        let strength = |x: i16| {
+            c.data.t.skill(i32::from(x)).map_or(0, |sk| i32::from(sk.atk) * i32::from(sk.dmg_rate) * 100 / resist(sk))
+        };
+        let pages = if magic { [1, 0] } else { [0, 1] };
+        let (page, skill) = pages.into_iter().find_map(|page| {
+            let reach = |x: &i16| {
+                items.skill(i32::from(*x)).is_some_and(|sk| sk.cost <= i32::from(kite.sp) && nearest < sk.trigger_range)
+            };
+            let list = piney_fieldui::items::skill_list(items, state, 0, page);
+            list.iter().copied().filter(|&x| x >= 0).filter(reach).max_by_key(|&x| strength(x)).map(|x| (page, x))
+        })?;
         Some(Action::Skill { page: page as i16, skill, target: None })
     }
 
     /// Kite put where the walk found him stuck.
     pub(super) fn after(&mut self, s: &mut Session) {
         self.walker.put(s);
+    }
+
+    /// In a field, a Data Bug on the lists farther than 350 from Kite, who
+    /// knows Data Drain: a walk to it, fight or not (its HP stops at half;
+    /// only a drain ends it). Straight at it until a check finds him
+    /// stopped, then [`path_to`] to within 300 of it on a grid round both
+    /// (event 206's, in field 13's story map, roams far from the party).
+    fn approach_bug(&mut self, a: &crate::area::AreaMode, f: u64) -> Option<Raw> {
+        let w = a.world();
+        let c = w.combat();
+        let hits = match w.place() {
+            Place::Field(fa) => &fa.hits,
+            Place::Story(m) => m.hits(),
+            Place::Dungeon(_) => return None,
+        };
+        if piney_fieldui::items::skill_list(&a.ui().texts().items, w.state(), 0, 5)[0] != DATA_DRAIN {
+            return None;
+        }
+        let p = w.player().body.pos.map(f32::from_bits);
+        let bug = c.enemies().into_iter().find(|&e| c.scene.chars[e].hp > 0 && c.scene.chars[e].ty() & DATA_BUG != 0);
+        let q = bug.map(|e| c.scene.chars[e].pos.map(f32::from_bits))?;
+        let far = (q[0] - p[0]).hypot(q[1] - p[1]);
+        if far < 350.0 {
+            self.chase.clear();
+            return None;
+        }
+        if f.is_multiple_of(60) {
+            let stopped = self.chase_mark.is_some_and(|m| (m[0] - p[0]).hypot(m[1] - p[1]) < 60.0);
+            let lost = self.chase.last().is_some_and(|e| (e[0] - q[0]).hypot(e[1] - q[1]) > 600.0);
+            if stopped || lost {
+                let mid = [(p[0] + q[0]) / 2.0, (p[1] + q[1]) / 2.0];
+                let step = (far * 2.2 / 81.0).max(100.0);
+                let near = |x: [f32; 2], _| (x[0] - q[0]).hypot(x[1] - q[1]) < 300.0;
+                self.chase = path_to(hits, [p[0], p[1], p[2]], mid, 81, step, near);
+            }
+            self.chase_mark = Some([p[0], p[1]]);
+        }
+        while self.chase.len() > 1 && (self.chase[0][0] - p[0]).hypot(self.chase[0][1] - p[1]) < 120.0 {
+            self.chase.remove(0);
+        }
+        let to = self.chase.first().copied().unwrap_or([q[0], q[1]]);
+        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        Some(stick_toward(cam_z, (to[0] - p[0]).atan2(-(to[1] - p[1]))))
     }
 
     /// A frame of the walk into the field's dungeon, while nothing holds
@@ -1026,27 +1107,35 @@ const FIDCHELL_LEVEL: i16 = 75;
 /// The level against Gorre: its two brothers share its protect gauge, so
 /// neither goes down quickly at the story's levels either.
 const GORRE_LEVEL: i16 = 75;
+/// The level of a Kite the story sends into a dungeon alone (event 206):
+/// at the new game's 50, its locked rooms of Napylons (healers) hold him
+/// some 25,000 frames each, and in the goal room the Data Bug's drained
+/// form (Comad Goo) fells his 963 HP in one blow, past god's heal.
+const LONE_LEVEL: i16 = 75;
 
 /// With a boss's parts up, the party raised to [`BOSS_PARTS_LEVEL`]
-/// (with Fidchell or Gorre up, [`FIDCHELL_LEVEL`]/[`GORRE_LEVEL`])
+/// (with Fidchell or Gorre up, [`FIDCHELL_LEVEL`]/[`GORRE_LEVEL`]; Kite
+/// alone in a dungeon where the story wants him alone, [`LONE_LEVEL`])
 /// through the console's `exp` (the game's own level-ups): the pilot does
 /// not grind, and at the story's start levels (30 or so) the party cannot
 /// outpace Kyvia's healing gomora. A harness aid, as god is.
 fn levels_for_boss(s: &mut Session) {
     let Stage::Area(a) = &s.stage else { return };
-    let c = a.world().combat();
-    let fidchell = c.boss.as_ref().is_some_and(|r| !r.exit && r.code == piney_world::combat::boss::FIDCHELL);
-    let gorre = c.boss.as_ref().is_some_and(|r| !r.exit && r.code == piney_world::combat::boss::GORRE);
-    let level = if fidchell {
-        FIDCHELL_LEVEL
-    } else if gorre {
-        GORRE_LEVEL
-    } else {
-        BOSS_PARTS_LEVEL
+    let w = a.world();
+    let c = w.combat();
+    let boss = c.boss.as_ref().filter(|r| !r.exit).map(|r| r.code);
+    let alone = || {
+        w.scene().area == kind::DUNGEON
+            && c.members.len() == 1
+            && a.vm().is_some_and(|vm| story_wants(vm, &w.state().save).contains(&Want::Alone))
     };
-    if focus(c).is_none() && !fidchell && !gorre {
-        return;
-    }
+    let level = match boss {
+        Some(piney_world::combat::boss::FIDCHELL) => FIDCHELL_LEVEL,
+        Some(piney_world::combat::boss::GORRE) => GORRE_LEVEL,
+        _ if focus(c).is_some() => BOSS_PARTS_LEVEL,
+        _ if alone() => LONE_LEVEL,
+        _ => return,
+    };
     let low = c.members.iter().filter_map(|&(_, k)| c.scene.chars[k].spc()).map(|p| p.base.level).min();
     if let Some(lv) = low.filter(|&lv| lv < level) {
         let n = (i32::from(level - lv) * 1000).min(30000);
@@ -1275,7 +1364,6 @@ fn lake_below(w: &piney_world::field_world::FieldWorld, wants: &[Want]) -> Optio
     below.then_some(piney_event::vm::EvPoint { floor: d.floors.len() as i16, block: 0, num: -1 })
 }
 
-/// How near a broken boss the pilot walks before it drains: well inside
 /// A Data Bug: `type` 0x40 (the common foes are 0x20), a foe of some
 /// 20,000 HP that the story drains (Infection's rows 115, 201, 224, 235;
 /// Outbreak's event 203 row 164).

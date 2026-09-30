@@ -1313,7 +1313,7 @@ impl Boss {
             return None;
         }
         match ty {
-            0 => return search_near_person(cx.scene, &cx.world, me, 3, 0, radius),
+            0 => return search_near_person(cx.scene, &cx.world, cx.actx.volume, me, 3, 0, radius),
             1 => {
                 let mut best = 0x0080_0000;
                 let mut pick = None;

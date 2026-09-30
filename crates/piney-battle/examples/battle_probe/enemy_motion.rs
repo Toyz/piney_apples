@@ -125,7 +125,7 @@ fn helper(t: &mut Toks) -> String {
         }
         "getdist" => {
             let (a, b) = (v4(t), v4(t));
-            geom::get_dist(a, b).to_string()
+            geom::get_dist_on(crate::probe_volume(), a, b).to_string()
         }
         "disperse" => {
             let (v, x) = (t.u32(), t.u32());

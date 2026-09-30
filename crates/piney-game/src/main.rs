@@ -243,7 +243,8 @@ impl App {
             steps += 1;
             let mut line = String::new();
             let logging = self.pad_log.is_some();
-            let mut live = input::read(&self.keyboard, self.gilrs.as_mut(), &mut self.gamepad, logging.then_some(&mut line));
+            let mut live =
+                input::read(&self.keyboard, self.gilrs.as_mut(), &mut self.gamepad, logging.then_some(&mut line));
             // The console holds the game's pad neutral while it is open.
             if self.console.open {
                 live = Raw::default();

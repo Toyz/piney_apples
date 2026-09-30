@@ -102,6 +102,12 @@ impl TopPageMode {
         self.st.stream.is_some()
     }
 
+    /// The event task, for the story autopilot's wants.
+    #[cfg(test)]
+    pub(crate) fn vm(&self) -> Option<&Vm> {
+        self.vm.as_ref()
+    }
+
     /// Whether an event block plays (its windows wait for OK).
     #[cfg(test)]
     pub(crate) fn event_playing(&self) -> bool {

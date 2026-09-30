@@ -162,6 +162,10 @@ pub(super) struct Walker {
     /// against a level-35 party), unless Kite is stuck in the room.
     fought: Vec<(usize, i16, u64)>,
     pub(super) hopeless: Vec<usize>,
+    /// The chase of a foe: where Kite stood at the last check, and a
+    /// waypoint round what stops him.
+    chase_mark: Option<[f32; 2]>,
+    chase_via: Option<[f32; 2]>,
 }
 
 /// Frames of fighting a foe that loses no HP before the story's walk goes
@@ -206,6 +210,7 @@ impl Walker {
                 self.puts = 0;
                 self.fought.clear();
                 self.hopeless.clear();
+                self.chase_via = None;
             }
             self.room = Some((sc.floor, sc.block));
             let banned = a.calls().iter().rev().find_map(|(_, c)| match c.as_str() {
@@ -227,15 +232,25 @@ impl Walker {
                     // every foe is fought, however far or hopeless.
                     let in_goal = sc.floor as usize == to.0 && here == Some(to.1);
                     let shut = !d.door.door_flag && !d.doors.is_empty() && !in_goal;
+                    // The goal room's foes, however far: its event waits on
+                    // them (`no_active`: 203's and 206's Data Bugs and their
+                    // drained forms stand off out of reach).
                     let near = |e: usize| {
                         let q = c.scene.chars[e].pos.map(f32::from_bits);
-                        !self.wary || self.puts > 0 || shut || (q[0] - p[0]).hypot(q[1] - p[1]) < 600.0
+                        !self.wary || self.puts > 0 || shut || in_goal || (q[0] - p[0]).hypot(q[1] - p[1]) < 600.0
                     };
                     let (hopeless, stuck) = (&self.hopeless, self.puts > 0 || shut);
-                    let foe = c
+                    let dist = |e: usize| {
+                        let q = c.scene.chars[e].pos.map(f32::from_bits);
+                        (q[0] - p[0]).hypot(q[1] - p[1])
+                    };
+                    let mut live = c
                         .enemies()
                         .into_iter()
-                        .find(|&e| c.scene.chars[e].hp > 0 && near(e) && (stuck || !hopeless.contains(&e)));
+                        .filter(|&e| c.scene.chars[e].hp > 0 && near(e) && (stuck || !hopeless.contains(&e)));
+                    // The story's walk goes at the nearest (a lone Kite's
+                    // chases across a room are long).
+                    let foe = if self.wary { live.min_by(|&a, &b| dist(a).total_cmp(&dist(b))) } else { live.next() };
                     if let Some(e) = foe
                         && self.wary
                     {
@@ -258,7 +273,19 @@ impl Walker {
                     if let Some(e) = foe {
                         let q = c.scene.chars[e].pos.map(f32::from_bits);
                         if (q[0] - p[0]).hypot(q[1] - p[1]) > 180.0 {
-                            toward([q[0], q[1]])
+                            // Found stopped on the way (a wall between, event
+                            // 206's room 6 of floor 1): round it by a point
+                            // of the room that sees the foe.
+                            if f.is_multiple_of(60) {
+                                if self.chase_mark.is_some_and(|m| (m[0] - p[0]).hypot(m[1] - p[1]) < 60.0) {
+                                    self.chase_via = here.and_then(|h| waypoint(d, p, [q[0], q[1]], h));
+                                }
+                                self.chase_mark = Some([p[0], p[1]]);
+                            }
+                            if self.chase_via.is_some_and(|v| (v[0] - p[0]).hypot(v[1] - p[1]) < 150.0) {
+                                self.chase_via = None;
+                            }
+                            toward(self.chase_via.unwrap_or([q[0], q[1]]))
                         } else if f.is_multiple_of(8) {
                             Raw { buttons: Buttons::CROSS, ..still }
                         } else {

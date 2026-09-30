@@ -1939,15 +1939,19 @@ mod tests {
         }
         let Some(page) = t.page() else { return press(Buttons::CROSS) };
         let ctl = page.control();
-        // A mail unread: Log out to the desktop to read it (the events'
-        // `mail_got`); a post new on the board: read it (`bbs_read`); else
-        // Log in.
+        // A mail unread, or the story wanting only the desktop (event 208's
+        // news): Log out to the desktop (the events' `mail_got`,
+        // `news_read`); a post new on the board: read it (`bbs_read`);
+        // else Log in.
         let save = &page.state().save;
-        let unread = (0..piney_data::save::MAIL_SLOTS).any(|n| matches!(save.mail(n), 1 | 2));
+        let wants = t.vm().map(|vm| story_wants(vm, save)).unwrap_or_default();
+        let desk =
+            wants.contains(&Want::Leave { desktop: true }) && wants.iter().all(|w| matches!(w, Want::Leave { .. }));
+        let to_desktop = desk || (0..piney_data::save::MAIL_SLOTS).any(|n| matches!(save.mail(n), 1 | 2));
         // A command the events take over (`add_operate`, command + 6) is
         // passed by: its message would only come round again.
         let taken = |c: i32| page.state().operate & (1u64 << (c + piney_toppage::control::OPERATE_BASE[0])) != 0;
-        let want = if unread && !taken(CMD_QUIT) {
+        let want = if to_desktop && !taken(CMD_QUIT) {
             CMD_QUIT
         } else if ctl.bbs_new && !taken(CMD_BBS) {
             CMD_BBS
@@ -2150,8 +2154,11 @@ mod tests {
         /// list (`del_area_code`) only with no one else in the party
         /// (`not_in_party -1`: event 204's area 15).
         Alone,
-        /// The desktop or the top page (a block set on `game_status` 2 or 3).
-        Leave,
+        /// The desktop or the top page (a block set on `game_status` 2 or
+        /// 3): `desktop` for 2 (event 208's news).
+        Leave {
+            desktop: bool,
+        },
     }
 
     pub(super) fn story_wants(vm: &piney_event::vm::Vm, save: &piney_data::save::SaveData) -> Vec<Want> {
@@ -2187,24 +2194,23 @@ mod tests {
             let mut point = -1i32;
             let mut after = -1i16;
             let mut held = true;
-            let mut away = false;
+            // The `game_status` (2 or 3) the block is set on, off The World.
+            let mut away: Option<i16> = None;
             for (b, block) in script.blocks.iter().enumerate() {
                 for t in &block.tags {
                     match *t {
                         Tag::GameStatus { status } if status != 5 => {
                             (scene, point) = ([-1; 6], -1);
-                            away = matches!(status, 2 | 3);
+                            away = matches!(status, 2 | 3).then_some(status);
                         }
-                        Tag::GameStatus { .. } => away = false,
+                        Tag::GameStatus { .. } => away = None,
                         Tag::Scene { area, town, field, dungeon, floor, block } => {
-                            (scene, point, away) = ([area, town, field, dungeon, floor, block], -1, false)
+                            (scene, point, away) = ([area, town, field, dungeon, floor, block], -1, None)
                         }
-                        Tag::InTown { town } => (scene, point, away) = ([0, town, -1, -1, -1, -1], -1, false),
-                        Tag::InField { town, field } => {
-                            (scene, point, away) = ([1, town, field, -1, -1, -1], -1, false)
-                        }
+                        Tag::InTown { town } => (scene, point, away) = ([0, town, -1, -1, -1, -1], -1, None),
+                        Tag::InField { town, field } => (scene, point, away) = ([1, town, field, -1, -1, -1], -1, None),
                         Tag::InDungeon { town, field, dungeon } => {
-                            (scene, point, away) = ([2, town, field, dungeon, -1, -1], -1, false)
+                            (scene, point, away) = ([2, town, field, dungeon, -1, -1], -1, None)
                         }
                         Tag::BlockDone { num } => after = num,
                         Tag::InPoint { num } => point = i32::from(num),
@@ -2243,8 +2249,8 @@ mod tests {
                 if !reachable {
                     continue;
                 }
-                if away {
-                    out.push(Want::Leave);
+                if let Some(status) = away {
+                    out.push(Want::Leave { desktop: status == 2 });
                 }
                 match scene {
                     [0, town, ..] if town >= 0 => out.push(Want::Town(i32::from(town))),
@@ -2394,6 +2400,16 @@ mod tests {
                 })
             })
             .or_else(|| {
+                // Such a member, the party full (event 210's Piros, after
+                // 209's Balmung and Wiseman): the others sent away first.
+                let full = !party.contains(&-1);
+                let callable = |pc: i32| flags & calls & (1 << pc) != 0;
+                wants
+                    .iter()
+                    .any(|&x| matches!(x, Want::Party(pc) if !alone && full && !party.contains(&pc) && callable(pc)))
+                    .then_some(GateGoal::Disband)
+            })
+            .or_else(|| {
                 // Going out: the free slots filled first, as a player
                 // would, with the members who answer calls, those who
                 // revive or heal first.
@@ -2419,7 +2435,7 @@ mod tests {
             _ if posts => GateGoal::LogOut,
             // The story goes on on the desktop or the top page (event 107's
             // Quit after its town).
-            _ if wants.contains(&Want::Leave) => GateGoal::LogOut,
+            _ if wants.iter().any(|w| matches!(w, Want::Leave { .. })) => GateGoal::LogOut,
             (None, None, Some(&(row, _)), _) => GateGoal::Area(row),
             (None, None, None, Some(row)) => GateGoal::Town(row),
             (None, None, None, None) => return None,

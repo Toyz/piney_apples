@@ -62,7 +62,7 @@ class GameBattle:
         self.data = data
         self.prog = Program(data.elf_path, "gcmn")
         self.m = eemu.Machine(self.prog)
-        self.sym = lambda n: self.prog.symbol_named(n).value   # noqa: E731
+        self.sym = self._sym
         m = self.m
         m.store(self.sym("saveData"), 4, SAVE)
         m.store(self.sym("ccMenu"), 4, MENU)
@@ -128,6 +128,17 @@ class GameBattle:
         }
         for name, fn in hooks.items():
             m.hooks[self.sym(name)] = fn
+
+    def _sym(self, name):
+        """The volume's address of a symbol; a name the volume's sidecar
+        lacks (Outbreak's cmndTarget) is Infection's, carried (volume.va)."""
+        s = self.prog.symbol_named(name)
+        if s is not None:
+            return s.value
+        inf = volume.program(volume.INF_ELF, "gcmn").symbol_named(name)
+        if inf is None:
+            raise KeyError(f"{name} is in neither {volume.NAME} nor Infection")
+        return inf_va(inf.value)
 
     def globals_read(self, name):
         """The addresses a function and the functions it calls form (one

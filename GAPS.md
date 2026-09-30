@@ -57,11 +57,16 @@ time: plans/volumes.md, plans/build-data.md. Status on 2026-09-29.
   around streams); `setbl` (the animation notes' sounds)
 - [ ] Phase 4: each volume's story end to end. Infection: done. Mutation:
   all 16 events, one run from the new game to the ending under the
-  autopilot (plans/mutation-story.md; not yet played by hand). Outbreak: 18
-  of 19 events finish from their own starts; 206 (a lone Kite's slow
-  dungeon walk) and the one run from the new game are left
-  (plans/outbreak-story.md). Quarantine: power-on to the desktop with the
-  opening streams' sound; after Outbreak
+  autopilot (plans/mutation-story.md; not yet played by hand). Outbreak:
+  all 19 events finish from their own starts, and one run from its own new
+  game (no `ConvGame` carry-over from Mutation) reaches 219's staff roll in
+  463,200 frames under the autopilot (plans/outbreak-story.md; not yet
+  played by hand). Quarantine: power-on to the desktop with the opening
+  streams' sound; next
+- [ ] The side events of Mutation and Outbreak: never run (Infection's S1
+  and 50-62 are, `side_event_survey`). Outbreak has 37 side scripts from
+  event 250 (the goblins' GOB3, NUKE, MARLOWE, RACHEL, GALDE, SANJYURO,
+  MOON, TERASHIMA ...), Mutation its own set
 
 What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 "What the later volumes' code adds"):
