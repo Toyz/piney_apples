@@ -262,6 +262,13 @@ impl FieldFx for AreaFx {
             weapon_generators: (self.fx.particles.gens.iter())
                 .filter(|g| matches!(g.sync_sw, Some(piney_effect::IntRef::CharAt(_, piney_effect::ARMS_SW))))
                 .count(),
+            char_generators: (self.fx.particles.gens.iter())
+                .filter(|g| g.kill_flag == 0)
+                .filter_map(|g| match g.sync_pos {
+                    Some(piney_effect::VecRef::CharPos(c)) => Some(c),
+                    _ => None,
+                })
+                .collect(),
             fly_fonts: self
                 .fx
                 .dam

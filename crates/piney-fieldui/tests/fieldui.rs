@@ -178,6 +178,81 @@ fn a_skill_on_the_goblin() {
     assert!(r.requests.contains(&Request::WakeAll));
 }
 
+/// An area skill (`type` 0x6000) chosen on the goblin at (1000, 0): the
+/// small squares (`subTarget`, drawn at 0x0051f3d8) its other targets
+/// get. Beside Kite at the origin stands a goblin at (0, 300), beside the
+/// target one at (1000, 300); a third, far off, moves out of reach after.
+fn area_marks(skill: i16) -> Option<[Vec<(f32, f32)>; 2]> {
+    use piney_fieldui::ctrl::Draw;
+    use piney_fieldui::spr::Obj;
+    let mut r = Run::new()?;
+    for k in 0..20 {
+        r.save.save.set_i16(items::SKILL_LIST + 2 * k, if k == 0 { skill } else { -1 });
+    }
+    let goblin = |handle: u32, x: f32, y: f32, tag: (i32, i32)| CharInfo {
+        handle,
+        types: 0x20,
+        width: 50.0,
+        pos_p: [x, y, 0.0],
+        tag: Some(tag),
+        ..CharInfo::default()
+    };
+    let t = &mut r.world.ene_chain[0];
+    t.pos_p = [1000.0, 0.0, 0.0];
+    t.tag = Some((200, 150));
+    r.world.sorted[0] = t.clone();
+    r.world.ene_chain.push(goblin(0x301, 0.0, 300.0, (100, 150)));
+    r.world.ene_chain.push(goblin(0x302, 1000.0, 300.0, (300, 150)));
+    let marks = |r: &Run| -> Vec<(f32, f32)> {
+        let packets = r.ui.draws().iter().filter_map(|d| match d {
+            Draw::Send(p) => Some(p),
+            _ => None,
+        });
+        packets
+            .flatten()
+            .filter(|p| p.obj == Obj::TargetCursol && p.su == 24 && p.rot == 0.0)
+            .map(|p| (p.dx, p.dy))
+            .collect()
+    };
+    r.idle(2);
+    r.ui.open_menu(1);
+    r.idle(12);
+    r.press(Buttons::CROSS);
+    assert_eq!(r.menu(), 4, "Skills");
+    // The skill's page.
+    for _ in 0..6 {
+        let l = r.ui.ctrl.list();
+        if items::skill_list(&r.ui.texts().items, &r.save, 0, i32::from(l.page))[0] == skill {
+            break;
+        }
+        r.step(Buttons::NONE, Buttons::RIGHT);
+        r.idle(4);
+    }
+    r.press(Buttons::CROSS);
+    assert_eq!(r.menu(), 65, "TARGET");
+    assert_eq!(r.world.target.as_ref().map(|c| c.handle), Some(0x300));
+    let near = marks(&r);
+    for c in &mut r.world.ene_chain[1..] {
+        c.pos_p[1] = 3000.0;
+    }
+    r.idle(1);
+    Some([near, marks(&r)])
+}
+
+/// Issue #6. Tiger Claws (skill 7, type 0x2801, range 400) strikes about
+/// Kite (bit 0x2000): the goblin beside him is marked. An attack spell
+/// (skill 193, type 0xc106, range 400) strikes about its target (bit
+/// 0x4000 alone): the goblin beside the target. Out of reach, no mark.
+#[test]
+fn an_area_skill_marks_its_other_targets() {
+    let Some([art, gone]) = area_marks(7) else { return };
+    assert_eq!(art, [(100.0, 150.0)], "about Kite");
+    assert_eq!(gone, []);
+    let Some([spell, gone]) = area_marks(193) else { return };
+    assert_eq!(spell, [(300.0, 150.0)], "about the target");
+    assert_eq!(gone, []);
+}
+
 #[test]
 fn a_health_drink_on_orca() {
     let Some(mut r) = Run::new() else { return };

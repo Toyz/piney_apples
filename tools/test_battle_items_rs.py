@@ -406,11 +406,13 @@ class ItemRuntime:
     def read_chars(self, chars):
         m = self.game.m
         out = self.scene.read(chars)
+        vas = [self.scene.va(i) for i in range(len(out))]
         for i, st in enumerate(out):
-            va = self.scene.va(i)
+            va = vas[i]
             e0 = m.load(va + 0xE0, 1)
+            tc = m.load(va + 0x78, 4)
             st["extra"] = [s16(m.load(va + 0x7C, 2)), s16(m.load(va + 0x7E, 2)), (e0 >> 7) & 1,
-                           m.load(va + 0x140, 4), e0 & 1]
+                           m.load(va + 0x140, 4), e0 & 1, vas.index(tc) if tc in vas else -1]
         return out
 
     def read_skill(self):

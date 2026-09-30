@@ -3428,6 +3428,48 @@ mod tests {
         }
     }
 
+    /// Issue #5: a foe paralysed as skill 157 leaves it (900 frames,
+    /// `conditionNum` 1) wears effect 1, the sparks: two generators of row
+    /// 198 that never end by themselves. Drained, its `clearConditionEnemy`
+    /// deletes them; once the drop is handed out none may follow it.
+    #[test]
+    fn a_drained_paralysed_foe_keeps_no_sparks() {
+        use piney_battle::param::cond;
+        let (mut worn, mut gone) = (std::collections::BTreeSet::new(), std::collections::BTreeSet::new());
+        let Some(s) = drain_in_a_fight(false, |s, _, _| {
+            let Stage::Area(a) = &mut s.stage else { return };
+            let c = a.world_mut().combat_mut();
+            if c.battle.in_battle == 0 {
+                return;
+            }
+            let listed = c.enemies();
+            for &e in &listed {
+                let ch = &mut c.scene.chars[e];
+                // Kept up for the drain: the members' blows fall on it.
+                if ch.cond[cond::DEAD] == 0 {
+                    ch.hp = 9999;
+                }
+                if ch.cond[cond::PARALYSIS] == 0 && !worn.contains(&e) {
+                    ch.cond.v[cond::PARALYSIS] = 900;
+                    ch.condition_num = 1;
+                }
+                if c.condition_effect(e) == Some(1) {
+                    worn.insert(e);
+                }
+            }
+            gone.extend(worn.iter().copied().filter(|e| !listed.contains(e)));
+        }) else {
+            return;
+        };
+        let Stage::Area(a) = &s.stage else { panic!() };
+        assert!(!gone.is_empty(), "no foe wore the sparks and left the lists: worn {worn:?}");
+        for &e in &gone {
+            assert_eq!(a.world().combat().condition_effect(e), None, "foe {e}'s effect outlived its drain");
+        }
+        let left: Vec<u32> = a.world().fx().census().char_generators;
+        assert!(left.iter().all(|&g| !gone.contains(&(g as usize))), "sparks on drained foes {gone:?}: {left:?}");
+    }
+
     /// The goblin's drained form after [`drain_in_a_fight`] takes a blow:
     /// `EntryAffect(1, 20)` from Kite lowers its HP.
     #[test]
@@ -6061,7 +6103,7 @@ mod tests {
     /// The riding Grunty: the flute, the ride, the dismount.
     mod ride;
 
-    /// A Fairy's Orb used in a field: the map's portals.
+    /// Items used in a field: a Fairy's Orb's portals, a Speed Charm on Kite.
     mod fairy_orb;
 
     /// Mutation's area 43's story map (`EVENTAREA03`).

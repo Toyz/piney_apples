@@ -251,3 +251,67 @@ fn an_orb_in_a_dungeon_fight() {
         }
     }
 }
+
+/// Issue #8: a Speed Charm (category 11, id 56) Kite uses on
+/// himself from PERSONAL casts skill 177 through him: his act 18 (the
+/// spell's cast) plays and the skill ends with it. Without his
+/// `targetChar` the act never came and skill 177 held him still.
+#[test]
+fn a_speed_charm_on_kite_ends() {
+    let Some((mut s, _)) = in_field() else { return };
+    let kite = |s: &Session| {
+        let c = area(s).world().combat();
+        let ch = &c.scene.chars[c.kite?];
+        Some((ch.skill_id, ch.spc_char.act_num))
+    };
+    let mut pad = Pad::default();
+    let (mut given, mut cast_at, mut acts) = (false, None, Vec::new());
+    for f in 0..3000u32 {
+        let ready = match &s.stage {
+            Stage::Area(a) => matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 90),
+            _ => false,
+        };
+        if ready && !given {
+            let Stage::Area(a) = &mut s.stage else { unreachable!() };
+            // Kite's only item: one Speed Charm.
+            let save = &mut a.world_mut().state_mut().save;
+            for k in 0..40 {
+                let (id, cat, num) = if k == 0 { (56, 11, 1) } else { (-1, 0xff, 0) };
+                save.set_i16(offset::ITEM_LIST + 4 * k, id);
+                save.set_u8(offset::ITEM_LIST + 4 * k + 2, cat);
+                save.set_u8(offset::ITEM_LIST + 4 * k + 3, num);
+            }
+            given = true;
+        }
+        let b = if !ready || !given || !f.is_multiple_of(8) || cast_at.is_some() {
+            Buttons::NONE
+        } else {
+            let a = area(&s);
+            let c = &a.ui().ctrl;
+            // PERSONAL, Items, the charms' page, the charm, Kite.
+            let page = a.ui().texts().items.pages.iter().position(|&p| p == 11).expect("a page of charms");
+            match (a.ui().menu_type(), c.proccess) {
+                (-1, _) => Buttons::TRIANGLE,
+                (1, 1) if c.list().select < 1 => Buttons::DOWN,
+                (5, 1) if c.lists[5].page as usize != page => Buttons::RIGHT,
+                _ => Buttons::CROSS,
+            }
+        };
+        pad.read(&raw(b, 128));
+        s.step(&pad);
+        s.take_events();
+        let Some((sid, act)) = kite(&s) else { continue };
+        if cast_at.is_none() && sid == 177 {
+            cast_at = Some(f);
+        }
+        if let Some(u) = cast_at {
+            acts.push(act);
+            if f > u + 300 {
+                break;
+            }
+        }
+    }
+    let u = cast_at.expect("the charm was never used");
+    assert!(acts.contains(&18), "Kite never cast it (from frame {u})");
+    assert_eq!(kite(&s).map(|k| k.0), Some(0), "skill 177 still on Kite 300 frames on");
+}

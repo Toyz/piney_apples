@@ -274,6 +274,12 @@ impl TownParty {
         self.combat.member(id)
     }
 
+    /// Member `id`'s character as the town's frames keep it (Kite's
+    /// stand-in for 0): its conditions from the last `CalcReal`.
+    pub fn char(&self, id: i32) -> Option<&piney_battle::Char> {
+        self.member(id).and_then(|w| self.combat.scene.chars.get(w))
+    }
+
     /// The members other than Kite, (`charTbl` row, scene index).
     pub fn members(&self) -> impl Iterator<Item = (i32, usize)> + '_ {
         self.combat.members.iter().filter(|m| m.0 != 0).copied()

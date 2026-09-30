@@ -614,11 +614,13 @@ fn name_texts(m: &mut MenuCtrl, x: &mut Ctx, target: Option<&CharInfo>) {
     set_clm(&mut m.name_pr, 16, 0, 0, 1);
 }
 
-/// The target cursor and targetAlpha (0x0051ecbc - 0x0051f610).
+/// The target cursor and targetAlpha (0x0051ecbc - 0x0051f610); every
+/// path ends with subTarget cleared.
 fn target_cursor(m: &mut MenuCtrl, x: &mut Ctx, target: Option<&CharInfo>) {
     let Some(t) = target.filter(|_| m.target_forbid == 0) else {
         m.target_alpha = 0;
         m.cursol_target = 0;
+        m.sub_target = [0; 16];
         return;
     };
     let is_cmnd = x.target.as_ref().is_some_and(|c| c.handle == t.handle)
@@ -629,6 +631,7 @@ fn target_cursor(m: &mut MenuCtrl, x: &mut Ctx, target: Option<&CharInfo>) {
             m.target_alpha = 0;
         }
         m.cursol_target = 0;
+        m.sub_target = [0; 16];
         return;
     }
     if t.is(0x0fbf_dfff) && m.cursol_off == 0 {
@@ -714,8 +717,10 @@ fn target_cursor(m: &mut MenuCtrl, x: &mut Ctx, target: Option<&CharInfo>) {
                 c.make_packet(0);
             }
         }
-        // The sub-targets' dots (none in the port: subTarget is filled by
-        // the skill menus).
+        // An area skill's other targets (subTarget, filled each frame by
+        // TargetMenu or ChatMenu3): the diamond's cell square, smaller,
+        // at each one's tag point (0.45 of its height), x held to 0..512
+        // and y to 16..448 (0x0051f3d8 - 0x0051f588).
         let c = &mut m.target;
         c.set_grid(24, 24, 20.0, 20.0, 2464, 2048, 1);
         c.cx = -10.0;
@@ -725,11 +730,20 @@ fn target_cursor(m: &mut MenuCtrl, x: &mut Ctx, target: Option<&CharInfo>) {
         c.sy = mul(c.sy, f20);
         c.cx = mul(c.cx, f20);
         c.cy = mul(c.cy, f20);
+        let w = &x.world;
+        let chains = || w.pc_chain.iter().chain(&w.ene_chain).chain(&w.obj_chain);
+        for h in m.sub_target.into_iter().filter(|&h| h != 0) {
+            let Some((px, py)) = chains().find(|c| c.handle == h).and_then(|c| c.tag) else { continue };
+            c.dx = from_int(px.clamp(0, 512));
+            c.dy = from_int(py.clamp(16, 448));
+            c.make_packet(0);
+        }
     }
     m.target_alpha += 24;
     if m.target_alpha >= 129 {
         m.target_alpha = 128;
     }
+    m.sub_target = [0; 16];
 }
 
 /// The target's window: its frame and name, the action button, its HP

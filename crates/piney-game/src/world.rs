@@ -858,6 +858,12 @@ pub(crate) fn ui_world(world: &World, vm: Option<&Vm>, area_level: i32) -> piney
             world.char_info(Kind::Spc, code).map(|c| c.name).unwrap_or_default()
         };
         let mut m = member(save, at, name, handle(Kind::Spc, code));
+        // The Status menu reads the character's conditions: its CalcReal's
+        // ConditionBattleEffect puts the equipment's added effects there.
+        if let Some(ch) = world.town_party().char(code) {
+            m.condition = ch.cond.v;
+            m.speed_value = f32::from_bits(ch.cond.speed_value);
+        }
         if let Some((pos, _)) = world.char_pos(2, code as i16) {
             m.pos_p = pos.map(f32::from_bits)[..3].try_into().unwrap_or_default();
         }
@@ -1436,6 +1442,35 @@ mod tests {
         let w = &kite.weapon.as_ref().expect("the blades' file").ccs;
         let hung: Vec<&str> = kite.hands().iter().filter_map(|&(_, m)| w.object_name(m)).collect();
         assert_eq!(hung, [format!("MDL_{other}r"), format!("MDL_{other}l")]);
+    }
+
+    /// Issue #1: a save loaded into the town with a critical-hit blade on
+    /// Kite. The Status menu's added effects are his character's conditions
+    /// 2-6, which the town's CalcReal sets from the equipment each frame.
+    #[test]
+    fn a_loaded_town_shows_the_equipment_s_added_effects() {
+        use piney_battle::param::{SpcParam, cond};
+        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        if !iso.exists() {
+            return;
+        }
+        let mut disc = Iso::open(&iso).unwrap();
+        let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+        let mut state = new_game_state(&mut disc).unwrap();
+        let t = piney_battle::tables::Tables::read(&mut disc).unwrap();
+        let (i, crit) = (0..64)
+            .find_map(|i| Some((i, t.job_weapon(0, i)?.beff[2])).filter(|&(_, c)| c > 0))
+            .expect("a blade with a critical hit");
+        let mut k = SpcParam::from_save(&state.save, 0);
+        k.equipment[4] = i as i16;
+        k.store(&mut state.save, 0);
+        let mut mode = WorldMode::enter(&iso, archive, state, None).unwrap();
+        for _ in 0..40 {
+            mode.step(&Pad::default());
+        }
+        let w = ui_world(&mode.world, None, 0);
+        let kite = w.party[0].as_ref().expect("Kite in slot 0");
+        assert_eq!(kite.condition[cond::CRITICAL], crit);
     }
 
     #[test]

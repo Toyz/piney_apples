@@ -89,7 +89,7 @@ fn who(w: Who, cp: usize, tp: usize) -> String {
 }
 
 /// A character's state as the harness reads it, with `[skillID,
-/// skillStatus, noDeath, +0x140, pauseSW]`.
+/// skillStatus, noDeath, +0x140, pauseSW, targetChar]` (-1 for none).
 fn char_state(s: &Scene, i: usize, pause: bool) -> String {
     let c = &s.chars[i];
     let st = state(c);
@@ -101,7 +101,8 @@ fn char_state(s: &Scene, i: usize, pause: bool) -> String {
             i64::from(c.skill_status),
             i64::from(c.no_death),
             i64::from(c.ent_root),
-            i64::from(pause)
+            i64::from(pause),
+            c.target_char.map_or(-1, |t| t as i64)
         ])
     )
 }

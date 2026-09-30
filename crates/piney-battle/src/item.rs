@@ -162,6 +162,12 @@ fn item_skill(
     }
     let stype = if flag == 0 { 1 } else { 2 };
     let request = skill::request(t, scene, cp, tp, sid, stype, running_attack, rng);
+    // Cast through the user, `_ccSkillRequest` also sets its `targetChar`
+    // (+0x78) to `tp` (gcmn 0x00572b80): the act that casts (Kite's
+    // AnimCtrl, 0x005995c0) waits on it, and the skill on the act's end.
+    if stype == 2 && request.is_some() {
+        scene.chars[cp].target_char = Some(tp);
+    }
     Some(ItemSkill { sid, stype, param: None, compel: false, request })
 }
 
@@ -1186,6 +1192,25 @@ mod tests {
         assert_eq!(scene.chars[0].hp, 9999);
         assert_eq!(scene.chars[0].spc().unwrap().max_hp, 130);
         assert!(!env.player_pause);
+    }
+
+    /// Issue #8: a Speed Charm (skill 177) Kite casts on himself (stype 2)
+    /// aims his cast at himself, as `_ccSkillRequest` does; with no
+    /// target his act never casts and the skill never ends. On the target
+    /// alone (stype 1) the caster's aim is left as it was.
+    #[test]
+    fn an_item_cast_through_the_user_aims_it() {
+        let t = Tables::default();
+        let mut scene = Scene::default();
+        scene.add(pc(0), 0);
+        scene.add(pc(1), 0);
+        let mut rng = Rand::default();
+        let s = item_skill_request(&t, &mut scene, 0, 0, 177, 1, false, &mut rng).unwrap();
+        assert!(s.request.is_some());
+        let k = &scene.chars[0];
+        assert_eq!((k.skill_id, k.skill_status, k.target_char), (177, 9, Some(0)));
+        item_skill_request(&t, &mut scene, 1, 0, 177, 0, false, &mut rng);
+        assert_eq!(scene.chars[1].target_char, None);
     }
 
     #[test]
