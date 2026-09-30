@@ -60,3 +60,53 @@ fn a_data_bug_is_drawn_and_not_beaten_by_damage() {
     assert!(hp.iter().all(|&h| h >= HALF), "its HP fell below half: {hp:?}");
     assert_eq!(hp.last(), Some(&HALF));
 }
+
+/// The Data Bug drained (`EntryAffect(13)` from Kite) becomes its base
+/// form, row 113, which is not virus-flagged: after its grace a hit of 100
+/// takes 100.
+#[test]
+fn a_drained_data_bug_s_base_form_takes_whole_hits() {
+    let Some((mut s, _)) = super::ride::in_field() else { return };
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let (mut bug, mut drained, mut form, mut hit) = (None, false, None, None);
+    for i in 0..1200u32 {
+        pad.read(&still);
+        s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &mut s.stage else { continue };
+        let w = a.world_mut();
+        let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 30);
+        let c = w.combat_mut();
+        let Some(k) = c.kite else { continue };
+        c.scene.chars[k].hp = c.scene.chars[k].max_hp;
+        let kite = c.scene.chars[k].pos;
+        let Some(who) = bug else {
+            if playing {
+                let at = [(f32::from_bits(kite[0]) + 600.0).to_bits(), kite[1], kite[2], kite[3]];
+                bug = Some(w.put_enemy(BUG, at, 0).expect("the Data Bug made"));
+            }
+            continue;
+        };
+        if !drained && i > 60 {
+            w.entry_affect(who, Some(k), 13, [0, 0, 0]);
+            drained = true;
+            continue;
+        }
+        let c = w.combat();
+        if form.is_none() {
+            form = c.enemies().into_iter().find(|&e| e != who && c.scene.chars[e].id() == 113);
+        }
+        let Some(f) = form else { continue };
+        let ch = &c.scene.chars[f];
+        assert_eq!(ch.spc_char.enemy_flags & piney_battle::chara::enemy_flag::VIRUS, 0);
+        if ch.cond[piney_battle::param::cond::DEAD] == 0 {
+            let hp0 = ch.hp;
+            w.entry_affect(f, Some(k), 1, [100, 0, 0]);
+            hit = Some((hp0, w.combat().scene.chars[f].hp));
+            break;
+        }
+    }
+    let (before, after) = hit.expect("the base form never came up");
+    assert_eq!(after, before - 100);
+}

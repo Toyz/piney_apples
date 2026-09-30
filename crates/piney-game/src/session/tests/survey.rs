@@ -593,12 +593,13 @@ impl StoryPilot {
     }
 
     /// The next action: at a fight's start the order to both members
-    /// (Magic! against a foe whose physical defence is the higher, else
-    /// Skills!); someone down, a member's Rip Maen, else Kite's Resurrect;
-    /// someone under 45% of his HP (70% out of a fight), a member's heal,
-    /// else Kite's Repth, a Healing Potion, First Aid!; out of a fight,
-    /// someone under a third of his SP, a Mage's Soul; in a fight, Kite's
-    /// strongest skill in reach of the nearest foe that he has the SP for.
+    /// (Magic! against a foe whose Exdefense bars blows or whose physical
+    /// defence is the higher, else Skills!); someone down, a member's Rip
+    /// Maen, else Kite's Resurrect; someone under 45% of his HP (70% out of
+    /// a fight), a member's heal, else Kite's Repth, a Healing Potion, First
+    /// Aid!; out of a fight, someone under a third of his SP, a Mage's Soul;
+    /// in a fight, Kite's strongest skill in reach of the nearest foe that he
+    /// has the SP for and that its Exdefense does not bar.
     fn choose(&self, a: &crate::area::AreaMode) -> Option<Action> {
         let w = a.world();
         let ui = a.ui();
@@ -618,7 +619,37 @@ impl StoryPilot {
                 d(x).total_cmp(&d(y))
             })
         });
-        let magic = foe.is_some_and(|e| match &c.scene.chars[e].body {
+        // What a sure hit of `sk` from Kite does to foe `e` (`CalcBattleDamage`
+        // at 100, the foe untouched): 0 while its Exdefense holds against the
+        // skill (Gaia Turtle's physical, Black Death's magic).
+        let t = &c.data.t;
+        let sure = |e: usize, sk: &piney_battle::param::SkillParam| {
+            let Some(k) = chars.first().copied().flatten() else { return -1 };
+            let mut tgt = c.scene.chars[e].clone();
+            let (mut none, env) = (|| 0, piney_battle::chara::Env::default());
+            let roll = piney_battle::damage::Roll::Quiet(100);
+            let one = piney_battle::damage::F_ONE;
+            piney_battle::damage::calc_battle_damage(
+                t,
+                k,
+                &mut tgt,
+                sk,
+                one,
+                roll,
+                true,
+                &mut none,
+                &env,
+                &mut Vec::new(),
+            )
+            .dmg
+        };
+        let hurts = |sid: i32| t.skill(sid).is_none_or(|sk| foe.is_none_or(|e| sure(e, sk) != 0));
+        // Foe `e` barred by its Exdefense from blows (kind 1) or spells (2).
+        let bars = |e: usize, kind: i32| {
+            t.skill(1).is_some_and(|sk| sure(e, &piney_battle::param::SkillParam { ty: kind, ..sk.clone() }) == 0)
+        };
+        let barred = |kind: i32| foe.is_some_and(|e| bars(e, kind));
+        let by_defence = foe.is_some_and(|e| match &c.scene.chars[e].body {
             piney_battle::chara::Body::Foe(fo) => {
                 use piney_battle::boss::Class;
                 use piney_battle::param::elm;
@@ -633,6 +664,11 @@ impl StoryPilot {
             }
             _ => false,
         });
+        let magic = match (barred(1), barred(2)) {
+            (true, false) => true,
+            (false, true) => false,
+            _ => by_defence,
+        };
         // Again when the boss part fought needs the other kind.
         let reorder = focus(c).is_some() && self.skills_ordered != Some(magic);
         if fighting && members > 0 && (self.skills_ordered.is_none() || reorder) {
@@ -770,6 +806,7 @@ impl StoryPilot {
                         .copied()
                         .filter(|&x| x >= 0)
                         .filter(|&x| items.skill(i32::from(x)).is_some_and(|p| p.cost <= i32::from(ch.sp)))
+                        .filter(|&x| hurts(i32::from(x)))
                         .min_by_key(|&x| resist(x))?;
                     Some((slot, skill, resist(skill)))
                 })
@@ -789,9 +826,12 @@ impl StoryPilot {
             let q = c.scene.chars[e].pos.map(f32::from_bits);
             (q[0] - p[0]).hypot(q[1] - p[1])
         };
+        // Not a foe the walk has given up on, unless it still goes at it
+        // (the room's doors shut until it falls): its blows alone may not
+        // do (Deadly Present's Exdefense bars them).
         let nearest = foes(c)
             .into_iter()
-            .filter(|e| !self.walker.hopeless.contains(e) && c.scene.chars[*e].hp > 0)
+            .filter(|&e| (!self.walker.hopeless.contains(&e) || self.walker.foe == Some(e)) && c.scene.chars[e].hp > 0)
             .map(dist)
             .min_by(f32::total_cmp)
             .filter(|&d| d < 600.0)?;
@@ -818,7 +858,8 @@ impl StoryPilot {
                 items.skill(i32::from(*x)).is_some_and(|sk| sk.cost <= i32::from(kite.sp) && nearest < sk.trigger_range)
             };
             let list = piney_fieldui::items::skill_list(items, state, 0, page);
-            list.iter().copied().filter(|&x| x >= 0).filter(reach).max_by_key(|&x| strength(x)).map(|x| (page, x))
+            let usable = list.iter().copied().filter(|&x| x >= 0).filter(reach).filter(|&x| hurts(i32::from(x)));
+            usable.max_by_key(|&x| strength(x)).map(|x| (page, x))
         })?;
         Some(Action::Skill { page: page as i16, skill, target: None })
     }

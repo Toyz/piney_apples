@@ -12,7 +12,7 @@ use std::path::Path;
 use piney_event::ir::{Block, Cond, Tag};
 use piney_event::state::{CLOSED, DONE, ScriptSave as _};
 
-use super::survey::{LONE_LEVEL, StoryPilot, cores_for_hack, event_flag, levels_for_boss};
+use super::survey::{StoryPilot, cores_for_hack, event_flag, levels_for_boss};
 use super::*;
 
 /// A side event: its number, the story start it plays from (the one after
@@ -191,6 +191,10 @@ struct Seen {
     frames: u64,
 }
 
+/// The level a lone Kite is raised to: SIGN-7's (265) Data Bug, level 68,
+/// fells a Kite of 75 (1,395 HP) with two blows of 703 in a frame.
+const LONE_LEVEL: i16 = 90;
+
 /// A lone Kite in a field or dungeon raised to [`LONE_LEVEL`], as
 /// `levels_for_boss` raises one the story wants alone: the side events send
 /// him alone at the story's levels (50 or so) against goblins that heal and
@@ -230,6 +234,8 @@ fn play(disc: &str, iso: &Path, case: &Case, frames: u64, god: bool) -> Option<S
     let (mut left, mut ended, mut ran) = (None, None, 0);
     // `PINEY_SURVEY_CALLS`: every host call as it is made.
     let trace = std::env::var_os("PINEY_SURVEY_CALLS").is_some();
+    // `PINEY_SURVEY_HITS`: each foe's and member's HP and last affect.
+    let (hits, mut foes) = (std::env::var_os("PINEY_SURVEY_HITS").is_some(), Vec::new());
     for f in 0..frames {
         ran = f + 1;
         if god && f.is_multiple_of(30) {
@@ -261,6 +267,9 @@ fn play(disc: &str, iso: &Path, case: &Case, frames: u64, god: bool) -> Option<S
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
+        if hits {
+            log_hits(&s, f, &mut foes);
+        }
         let calls = match &s.stage {
             Stage::Area(a) => a.calls(),
             Stage::World(w) => w.calls(),
@@ -339,6 +348,33 @@ fn play(disc: &str, iso: &Path, case: &Case, frames: u64, god: bool) -> Option<S
     }
     let flags = event_flag(&mut s, n).unwrap_or(0);
     Some(Seen { b0, at, flags, entries, windows: windows.len(), places, room, wants, playing, ended, frames: ran })
+}
+
+/// A line for each foe and member of the area whose HP, `dead`, list or
+/// last affect (kind, damage, skill, from whom) changed since `seen`.
+fn log_hits(s: &Session, f: u64, seen: &mut Vec<(usize, String)>) {
+    let Stage::Area(a) = &s.stage else { return };
+    let c = a.world().combat();
+    for e in c.enemies().into_iter().chain(c.members.iter().map(|&(_, w)| w)) {
+        let ch = &c.scene.chars[e];
+        let (aff, dead) = (&ch.affect, ch.cond[piney_battle::param::cond::DEAD]);
+        let st = format!(
+            "row {} hp {}/{} dead {dead} listed {} affect {} {:?} by {:?}",
+            ch.id(),
+            ch.hp,
+            ch.max_hp,
+            c.scene.listed(e),
+            aff.ty,
+            aff.param,
+            aff.person
+        );
+        match seen.iter_mut().find(|(k, _)| *k == e) {
+            Some((_, last)) if *last == st => continue,
+            Some((_, last)) => *last = st.clone(),
+            None => seen.push((e, st.clone())),
+        }
+        eprintln!("HIT {f} char {e} {st}");
+    }
 }
 
 /// Each case on the disc `disc` for `PINEY_SURVEY_FRAMES` frames (`frames`
@@ -472,6 +508,17 @@ fn gob3_1_golden_goblin_is_run_down() {
     let seen = play("outbreak", &iso, out_case(250), 14_000, true).unwrap();
     assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
     assert!(seen.flags & (1 << 8) != 0);
+}
+
+/// SERVER-3 (263): Black Death at point 1 (OUT row 176, Exdefense 2)
+/// shrugs off magic while its magic defence holds, and its physical
+/// defence is the higher. The pilot fights it with Kite's physical skills
+/// and attack (31-35 a blow at level 75) and it falls: the event ends.
+#[test]
+fn server_3_black_death_falls_to_blows() {
+    let Some(iso) = outbreak() else { return };
+    let seen = play("outbreak", &iso, out_case(263), 28_000, true).unwrap();
+    assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
 }
 
 /// Side event 61, Natsume, in area 35's dungeon: block 2's `entry 2 11 0 5`

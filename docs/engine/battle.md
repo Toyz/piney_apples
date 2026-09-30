@@ -75,8 +75,10 @@ d = sqrtf(|posP - centre|^2, lane 2 of the difference zeroed) - base.width
 `posP` is the position in the player's frame (`sceVu0SubVector`,
 `sceVu0InnerProduct`, newlib `sqrtf`). The centre is the target, or the
 caster for type bit 0x2000; the side is the party for a target of type
-0x2 or 0x4, the foes for 0xe0. The point variants take a world position
-converted with `ccTransPosW2P` (0x0059b940).
+0x2 or 0x4, the foes for 0xe0. Only characters sharing a type bit with
+the target (or the point variant's `ttype`) count; from Outbreak on, a
+foes' side counts every foe type, 0xe0 (see Other volumes). The point
+variants take a world position converted with `ccTransPosW2P` (0x0059b940).
 
 ## Skill types
 
@@ -174,6 +176,11 @@ When a bit is set in both Exdefense and the skill type, and the target's
 current `real` value for it is not below the table's, the damage is 0.
 Lowering that stat below the table value removes the immunity. The
 "attribute guard" particle shows only when the matching bits are elements.
+A blocked hit fills no protect gauge. So a foe with bit 0x1 takes nothing
+from the normal attack or a physical skill until its pDef is lowered, and
+one with 0x2 nothing from a spell (Outbreak's Gaia Turtle, row 114, and
+Black Death, row 176; 186 of Infection's 303 rows carry a bit, 141 of
+Outbreak's).
 
 **Equipment effects.** Only on a live physical hit by a skill that costs 0 SP
 (`sk.cost`, +0x28: the normal attack). Each is a roll `rand() % 100 <= value`,
@@ -3588,7 +3595,8 @@ From Mutation on:
   0x100.
 - **`ccSkillDamage`.** The dead-target early return moved into the
   single-target branch (MUT `0x00599988`), so an area skill no longer stops
-  when its aimed target is dead (*read*).
+  when its aimed target is dead (checked: `test_battle_rs.py` area_damage,
+  1,000 cases on MUT and OUT).
 - **21 party members.** `charTbl`, `LevelUpParamTbl` and `ccExpDistributor`
   cover Tsukasa, Subaru and Sora. `ccGetCharParam` sends ids 18-20 to the save
   extension ([save](../formats/save.md#the-extension-mutation-on)).
@@ -3599,12 +3607,24 @@ From Mutation on:
   (Fidchell) is fought in Outbreak and ported from Outbreak's code
   ([Fidchell](boss-fidchell.md)).
 
-OUT and QUA differ from MUT only in compilation: the durations come from a
-literal pool, and `fptosi` is inlined. The tables change from volume to volume;
+From Outbreak on, the three area damage rules (`ccSkillDamage` OUT
+0x00595dac, its point variant 0x005962f8, `ccSkillDamage2` 0x0059664c; QUA
+0x004886ec, 0x00488c38, 0x00488f8c) set the types to 0xe0 once they walk
+the foes' list: an area skill aimed at an enemy also takes in a Data Bug
+(0x40) or a boss (0x80) in reach. Otherwise OUT and QUA differ from MUT
+only in compilation: the durations come from a literal pool, and `fptosi`
+is inlined. The tables change from volume to volume;
 see [game data](../content/game-data.md#other-volumes).
 
 ## Unknown
 
+- On Outbreak, `test_battle_kite_rs.py` `main_run` and `main_run_ai` differ
+  from the game in 10 and 31 of 200 cases, each in one float of an AI
+  record (word 34 of 71, one unit in the last place); Infection and
+  Mutation match. Not traced.
+- Which of the party's debuffs lowers Black Death's mDef (2400) or Gaia
+  Turtle's pDef (700) below the table in play, opening them to the other
+  kind, is not measured.
 - The labels of type bits 0x100/0x200 (set on spells, read by no rule) and
   the art bits' names.
 - That the protect break is the Data Drain window is *inferred* from the

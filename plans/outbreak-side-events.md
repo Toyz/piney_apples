@@ -49,7 +49,8 @@ A-20 each want a key item of Mutation's SIGN-02 to SIGN-05 (165-168): 287,
 `outbreak_side_event_survey` (`--ignored --nocapture`, crates/piney-game/
 src/session/tests/side_events.rs; `PINEY_SURVEY_ONLY=250,251`,
 `PINEY_SURVEY_FRAMES`, `PINEY_SURVEY_GOD`, `PINEY_SURVEY_CALLS`,
-`PINEY_DEBUG_PILOT`), as Infection's `side_event_survey`:
+`PINEY_SURVEY_HITS` (each foe's and member's HP and last affect as they
+change), `PINEY_DEBUG_PILOT`), as Infection's `side_event_survey`:
 
 - the story start after the last main opener (`crate::start::build`);
 - the side events it needs brought forward (`Start::bring_forward`,
@@ -67,21 +68,22 @@ src/session/tests/side_events.rs; `PINEY_SURVEY_ONLY=250,251`,
 
 ## Where it stands (2026-09-30)
 
-Survey (`PINEY_SURVEY_GOD=1 PINEY_SURVEY_FRAMES=150000`, worklog 306): 22
-of the 26 finish; no panic, no host call left at its default, no fault.
+Survey (`PINEY_SURVEY_GOD=1 PINEY_SURVEY_FRAMES=150000`, worklogs 306,
+307): 25 of the 26 finish; no panic, no host call left at its default, no
+fault.
 
 | event | state | what stops it |
 | --- | --- | --- |
-| 250-253 | done (3,687; 28,359; 35,487; 68,727) | |
-| 254 | open | GOB3-5's golden goblins in field 82 are not run down in 150,000 frames: they run and heal back (the pilot's chase, a lone Kite at 75) |
+| 250-253 | done (5,655; 6,879; 7,767; 57,543) | |
+| 254 | open | GOB3-5's golden goblins in field 82 are not run down in 150,000 frames: they run and heal back (the pilot's chase, a lone Kite at 90) |
 | 255 | done (3,588) | |
-| 256 | open | the dungeon walk stalls from ~14,000 in room 0-2 of field 84's dungeon: a foe (3,771 of 4,450 HP) takes no more damage while Kite runs about; point 1 not reached |
-| 257 | done (33,644) | the key-item trade over points 1-4 |
-| 259-261 | done (1,908; 22,294; 26,372) | |
-| 262 | open | the same stall from ~30,000 in room 2-6 of field 90's dungeon (two foes at 678 and 1,107 HP); point 2 not reached |
-| 263 | open | Black Death (OUT `enemyTbl` row 176: 9,999 HP, level 70, PP 8,888, physical PP defence 9,990, `exdefense` 2) at point 1 takes no damage from Kite at 75 |
+| 256 | done (66,308) | room 0-2's Gaia Turtle (row 114, Exdefense 1) takes no blows (see below) |
+| 257 | done (29,708) | the key-item trade over points 1-4 |
+| 259-261 | done (1,908; 18,454; 25,964) | |
+| 262 | done (41,348) | room 2-6's Deadly Presents (row 243, Exdefense 1) take no blows |
+| 263 | done (20,134) | Black Death (row 176, Exdefense 2) takes no spells |
 | 264, 266 | done (386; 62) | |
-| 265 | done (131,678) | the lone Kite at 75; at the story's 50, a game over near 106,000 |
+| 265 | done (62,918) | the lone Kite at 90: at 75 the Data Bug (row 261, level 68) fells him with two blows of 703 in a frame (1,395 HP), at 47,391 once the pilot changed |
 | 267-274 | done (3,495-3,567) | each NPC met at the six towns' gates in turn |
 | 275 | done (1,335) | ends at the second meeting (see below) |
 | 361 | done (12) | block 0 closes it once 264 is done |
@@ -91,6 +93,27 @@ and 11 are both set in town 1 and both hold `talked_to 159` in the same
 pass (`operateSet` is cleared only at the pass's top, `eventSub` runs
 every block that holds), and block 11 ends the event. That is the port
 following the game's walk; it was not seen on the game itself.
+
+## The foes that took no damage: Exdefense (worklog 307)
+
+The stalls of 256, 262 and 263 are the game's rule, not a fault. A row's
+`exdefense` (+0x64) bars a kind of hit while the defence behind it holds
+(`CalcBattleDamage`, INF gcmn 0x0056d910; the later rule MUT
+0x005933f8-0x005935bc, OUT 0x0058f5c0): bit 0x1 physical while `real` pDef
+is not below the row's, 0x2 magic by mDef, 0x4-0x80 a skill of that
+element. A barred hit does 0 and fills no protect gauge.
+`tools/battle.py damage` on OUT's code: Kite at 75 does 0 to Gaia Turtle
+(row 114: pDef 700, Exdefense 1) with ATTACK and 31-35 a blow to Black
+Death (row 176: pDef 4,500, mDef 2,400, Exdefense 2; its 9,990 is the
+physical PP defence, the gauge's). The port matched the game throughout
+(`test_battle_rs.py` damage, protect, exdefense, affect: 0 mismatches on
+INF and OUT).
+
+The pilot picked the kind by the higher defence alone: spells at Black
+Death, blows (and Skills! to the members) at the Gaia Turtle. In 262 it
+cast at the Deadly Presents (row 243, physical barred) until the walk
+gave them up (`HOPELESS`); `choose` then skipped them while the walk,
+the room's doors shut, still went at them with the attack button.
 
 ## The pilot's fixes
 
@@ -107,15 +130,19 @@ following the game's walk; it was not seen on the game itself.
 - A town NPC beside the Chaos Gate with the gate the command target: the
   stick let go and pushed again steps the target on (`ccSelectTarget`
   mode 2). The SEARCH NPCs stand at marker 0, the gate's dummy.
-- Survey aids (with god): a lone Kite in a field or dungeon at
-  `LONE_LEVEL` (75), as the story's aid for 206.
+- Survey aids (with god): a lone Kite in a field or dungeon at level 90
+  (the story's aid for 206 is 75).
+- Exdefense: a sure hit (`CalcBattleDamage` at 100 on a copy of the foe)
+  tells whether a kind is barred. A foe barred from one kind gets the
+  other (the members' order and Kite's page); Kite's and the members'
+  skills that would do 0 are left out; a foe given up as hopeless is
+  still fought with skills while the walk goes at it.
 
-Both whole runs are unchanged: `outbreak_whole_story` 463,200,
-`mutation_whole_story` 613,800.
+Both whole runs still finish, sooner: `outbreak_whole_story` 408,000
+(from 463,200; 203 at 63,300 from 77,700), `mutation_whole_story` 506,100
+(from 613,800).
 
 ## Next
 
-- 256 and 262: why the walk's foes stop taking damage (reached? hit?).
 - 254: a chase that keeps up with GOB3-5's goblins.
-- 263: Black Death at a level that hurts it, or what `exdefense` 2 asks.
 - Mutation's side events, the same way.

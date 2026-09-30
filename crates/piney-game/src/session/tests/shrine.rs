@@ -162,6 +162,8 @@ pub(super) struct Walker {
     /// against a level-35 party), unless Kite is stuck in the room.
     fought: Vec<(usize, i16, u64)>,
     pub(super) hopeless: Vec<usize>,
+    /// The foe the walk goes at this frame.
+    pub(super) foe: Option<usize>,
     /// The chase of a foe: where Kite stood at the last check, and a
     /// waypoint round what stops him.
     chase_mark: Option<[f32; 2]>,
@@ -200,9 +202,11 @@ impl Walker {
             let w = a.world();
             let sc = w.scene();
             if sc.area != kind::DUNGEON {
+                self.foe = None;
                 return None;
             }
             if self.room.is_some_and(|r| r != (sc.floor, sc.block)) {
+                self.foe = None;
                 self.stage = 0;
                 self.goal = None;
                 self.via = None;
@@ -251,6 +255,7 @@ impl Walker {
                     // The story's walk goes at the nearest (a lone Kite's
                     // chases across a room are long).
                     let foe = if self.wary { live.min_by(|&a, &b| dist(a).total_cmp(&dist(b))) } else { live.next() };
+                    self.foe = foe;
                     if let Some(e) = foe
                         && self.wary
                     {

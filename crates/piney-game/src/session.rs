@@ -3436,6 +3436,56 @@ mod tests {
         assert!(ch.hp < hp0, "the drained form took no damage: {hp0} -> {}", ch.hp);
     }
 
+    /// The goblin's drained form after [`drain_in_a_fight`] (row 129, 50
+    /// HP, no Exdefense), fought with the attack button: after its grace
+    /// (`dead` 1 for 60 frames) it is a target and falls.
+    #[test]
+    fn a_drained_form_falls_to_kites_blows() {
+        let Some(mut s) = drain_in_a_fight(false, |_, _, _| {}) else { return };
+        let mut pad = Pad::default();
+        let mut last = String::new();
+        let mut fell = None;
+        for i in 0..6000u64 {
+            let raw = {
+                let Stage::Area(a) = &s.stage else { panic!("left the area") };
+                let w = a.world();
+                let c = w.combat();
+                let k = c.kite.unwrap();
+                let Some(form) = c.enemies().into_iter().find(|&e| c.scene.chars[e].hp > 0) else {
+                    fell = Some(i);
+                    break;
+                };
+                let ch = &c.scene.chars[form];
+                let st = format!(
+                    "form {form} row {} hp {} dead {} hold {} aff {} {:?} listed {} kite target {:?}",
+                    ch.id(),
+                    ch.hp,
+                    ch.cond[piney_battle::param::cond::DEAD],
+                    ch.cond[piney_battle::param::cond::HOLD],
+                    ch.affect.ty,
+                    ch.affect.param,
+                    c.scene.listed(form),
+                    c.scene.chars[k].target_char,
+                );
+                last = st;
+                let p = c.scene.chars[k].pos.map(f32::from_bits);
+                let q = ch.pos.map(f32::from_bits);
+                let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+                if (q[0] - p[0]).hypot(q[1] - p[1]) > 150.0 {
+                    stick_toward(f32::from_bits(w.camera().rot()[2]), (q[0] - p[0]).atan2(-(q[1] - p[1])))
+                } else if i.is_multiple_of(8) {
+                    Raw { buttons: Buttons::CROSS, ..still }
+                } else {
+                    still
+                }
+            };
+            pad.read(&raw);
+            s.step(&pad);
+            s.take_events();
+        }
+        assert!(fell.is_some(), "the drained form still stands: {last}");
+    }
+
     /// [`drain_in_a_fight`] with `drainDemo` off: no movie.
     #[test]
     fn data_drain_in_a_fight() {

@@ -509,12 +509,16 @@ pub fn skill_damage(
     ev: &mut Events,
 ) -> i32 {
     let ad = scene.chars[me].cond[cond::DEAD];
-    if !scene.listed(me) || !(ad == 0 || ad == 1) || !scene.listed(target) || scene.chars[target].dead() {
+    // Infection gives up on a downed target at once; from Mutation on only
+    // a single-target skill does (MUT gcmn 0x00599988), an area one still
+    // takes in those around it.
+    let down = scene.chars[target].dead();
+    if !scene.listed(me) || !(ad == 0 || ad == 1) || !scene.listed(target) || (down && t.volume == Volume::Inf) {
         return 0;
     }
     let splash = sk.ty & bits::SPLASH_HALF != 0;
     let centred = sk.ty & bits::CENTRED_ON_USER != 0;
-    let tty = scene.chars[target].ty();
+    let tty = side_types(t, scene.chars[target].ty());
     let mut h = Roll::Draw;
     let crit = |scene: &Scene, ac_flag: &mut i16, h: &mut Roll, ev: &mut Events| {
         if *ac_flag == 1 {
@@ -573,6 +577,8 @@ pub fn skill_damage(
             n += 1;
         }
         n
+    } else if down {
+        0
     } else {
         crit(scene, ac_flag, &mut h, ev);
         let mag = if *ac_flag != 0 { F_TWO } else { F_ONE };
@@ -612,6 +618,7 @@ pub fn skill_damage_at(
     }
     let centre = if sk.ty & bits::CENTRED_ON_USER != 0 { scene.chars[me].pos_p } else { pos };
     let Some(list) = scene.side(ttype) else { return 0 };
+    let ttype = side_types(t, ttype);
     let mag = if sk.ty & bits::SPLASH_HALF != 0 { F_HALF } else { F_ONE };
     let mut n = 0;
     for c in list {
@@ -689,6 +696,7 @@ pub fn skill_damage2(
     }
     let centre = if sk.ty & bits::CENTRED_ON_USER != 0 { scene.chars[me].pos_p } else { pos };
     let Some(list) = scene.side(ttype) else { return 0 };
+    let ttype = side_types(t, ttype);
     let mut n = 0;
     for c in list {
         let ch = &scene.chars[c];
@@ -712,6 +720,14 @@ pub fn skill_damage2(
         n += 1;
     }
     n
+}
+
+/// The types an area skill takes in on the side it is aimed at: from
+/// Outbreak on, every foe type (0xe0) once the foes' list is the one
+/// walked (OUT gcmn 0x00595dac, 0x005962f8, 0x0059664c; QUA 0x004886ec,
+/// 0x00488c38, 0x00488f8c); before it, only the types aimed at.
+fn side_types(t: &Tables, tyb: i32) -> i32 {
+    if t.volume >= Volume::Out && tyb & 6 == 0 && tyb & ty::FOE != 0 { ty::FOE } else { tyb }
 }
 
 /// A character's distance on the ground from a point, less its width:
@@ -821,4 +837,83 @@ pub fn skill_damage_value(
     }
     out.dmg = dmg;
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An area skill at the foes' side around a point where a plain
+    /// enemy (type 0x20) and a Data Bug (0x40) stand, aimed at type 0x20:
+    /// Mutation's takes in the enemy alone, Outbreak's and Quarantine's
+    /// both (`ttype` made 0xe0).
+    fn taken_in(volume: Volume) -> i32 {
+        let t = Tables::of(volume);
+        let bug = t.enemies.iter().position(|e| e.param.base.ty == ty::MIDDLE_BOSS).expect("a Data Bug row");
+        let mut scene = Scene::default();
+        let me = scene.add(Char::pc(t.chars[0].param), 0);
+        scene.add(Char::foe(t.enemies[1].param.clone()), 1);
+        scene.add(Char::foe(t.enemies[bug].param.clone()), 1);
+        let mut sk = t.skill(1).unwrap().clone();
+        sk.target_range = 100f32.to_bits();
+        let mut none = || 0;
+        let env = Env::default();
+        skill_damage_at(&t, &mut scene, me, [0; 4], 0x20, &sk, 1, &mut none, &env, &mut Events::new())
+    }
+
+    /// An area skill aimed at a downed enemy with another beside it:
+    /// Infection's hits no one, Mutation's the other.
+    fn around_a_downed_target(volume: Volume) -> i32 {
+        let t = Tables::of(volume);
+        let mut scene = Scene::default();
+        let me = scene.add(Char::pc(t.chars[0].param), 0);
+        let down = scene.add(Char::foe(t.enemies[1].param.clone()), 1);
+        scene.add(Char::foe(t.enemies[1].param.clone()), 1);
+        scene.chars[down].cond[cond::DEAD] = 2;
+        let mut sk = t.skill(1).unwrap().clone();
+        sk.target_range = 100f32.to_bits();
+        let (mut none, mut ac) = (|| 0, 0);
+        let env = Env::default();
+        skill_damage(&t, &mut scene, me, down, &sk, &mut ac, 1, &mut none, &env, &mut Events::new())
+    }
+
+    #[test]
+    fn an_area_skill_at_a_downed_foe_hits_those_around_it_from_mutation_on() {
+        assert_eq!(around_a_downed_target(Volume::Inf), 0);
+        assert_eq!(around_a_downed_target(Volume::Mut), 1);
+    }
+
+    /// A sure hit's damage from Kite with skill `sid` on Outbreak's `row`,
+    /// its defence `def` lowered by `by`.
+    fn sure_hit(row: usize, sid: i32, def: usize, by: i16) -> i32 {
+        let t = Tables::of(Volume::Out);
+        let kite = Char::pc(t.chars[0].param);
+        let mut foe = Char::foe(t.enemies[row].param.clone());
+        foe.real_mut()[def] -= by;
+        let (sk, mut none) = (t.skill(sid).unwrap().clone(), || 0);
+        let env = Env::default();
+        calc_battle_damage(&t, &kite, &mut foe, &sk, F_ONE, Roll::Quiet(100), true, &mut none, &env, &mut Events::new())
+            .dmg
+    }
+
+    /// Exdefense (docs/engine/battle.md): Black Death (row 176, 2) takes
+    /// nothing from a spell (Juk Kruz, 245) while its magic defence holds
+    /// and takes a blow (ATTACK, 1); Gaia Turtle (114, 1) the reverse. Once
+    /// the defence is below the table's, it no longer guards.
+    #[test]
+    fn exdefense_bars_a_kind_while_its_defence_holds() {
+        assert_eq!(sure_hit(176, 245, elm::M_DEF, 0), 0);
+        assert!(sure_hit(176, 1, elm::M_DEF, 0) > 0);
+        assert!(sure_hit(176, 245, elm::M_DEF, 1) > 0);
+        assert_eq!(sure_hit(114, 1, elm::P_DEF, 0), 0);
+        assert!(sure_hit(114, 245, elm::P_DEF, 0) > 0);
+        assert!(sure_hit(114, 1, elm::P_DEF, 1) > 0);
+    }
+
+    #[test]
+    fn an_area_skill_takes_in_every_foe_type_from_outbreak_on() {
+        assert_eq!(taken_in(Volume::Mut), 1);
+        assert_eq!(taken_in(Volume::Out), 2);
+        assert_eq!(taken_in(Volume::Qua), 2);
+    }
 }
