@@ -10,6 +10,8 @@
 mod cond;
 mod exec;
 
+pub use cond::has_item;
+
 use std::sync::Arc;
 
 use crate::host::{CharRef, Host};

@@ -215,7 +215,7 @@ impl Vm {
 /// `num`; for Kite, important items (category 15) count from
 /// `impItemList` when the list has none. With `num` 0 and `==` or `<=` the
 /// test is "has none".
-fn has_item(s: &crate::state::SaveData, pc: i16, category: i16, id: i16, num: i16, comp: Cmp) -> bool {
+pub fn has_item(s: &crate::state::SaveData, pc: i16, category: i16, id: i16, num: i16, comp: Cmp) -> bool {
     let Some(p) = usize::try_from(pc).ok().filter(|&p| p < 18) else { return false };
     let items: Vec<Item> = (0..40).map(|k| s.item(p, k)).collect();
     let imp = |id: i16| {

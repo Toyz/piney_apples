@@ -117,6 +117,17 @@ pub struct Start {
     pub at: Resume,
 }
 
+#[cfg(test)]
+impl Start {
+    /// Event `n` brought forward as [`build`] brings the story's events
+    /// (`ccEventFlagSet`: every block at level 1): a side event another
+    /// needs, for the side-event surveys.
+    pub fn bring_forward(&mut self, n: i32) {
+        let areas = crate::story::from_tables(piney_data::area::AreaTables::of(self.vm.library().volume));
+        self.vm.flag_set(n, &mut Replay { save: &mut self.state.save, areas: &areas });
+    }
+}
+
 /// `ccEventFlagSet`'s host: the save, and the story areas `gate_add`,
 /// `gate_mark` and `gate_unmark` read (server and words).
 struct Replay<'a> {
@@ -225,22 +236,39 @@ fn goes(vm: &Vm, n: i32) -> Vec<i16> {
 /// the next area's `ccSPC::Reboot` builds the character from them.
 pub fn party(n: i32) -> Spcs {
     let mut spcs = Spcs::new_game();
-    let i = spcs.entry_spc(ORCA);
-    if let Ok(i) = usize::try_from(i) {
-        spcs.registry[i].boot_param = 5;
-        spcs.pc_mode(-3, 6);
-        spcs.set_party();
-        if let Some(slot) = spcs.member_id.iter().position(|&m| m == -1) {
-            spcs.registry[i].party_flag = 1;
-            spcs.member_id[slot] = ORCA;
-            spcs.member_char[slot] = Some(ORCA);
-            spcs.num += 1;
-        }
-    }
+    add_member(&mut spcs, ORCA);
     if n >= 4 {
         spcs.pc_mode(-3, 4);
     }
     spcs
+}
+
+/// Kite's party with `members` (`charTbl` rows) added as [`party`] adds
+/// Orca, in play (`pc_mode` 4): the members a side event refuses to go on
+/// without, for the side-event surveys.
+#[cfg(test)]
+pub fn party_of(members: &[i32]) -> Spcs {
+    let mut spcs = Spcs::new_game();
+    for &pc in members {
+        add_member(&mut spcs, pc);
+    }
+    spcs.pc_mode(-3, 4);
+    spcs
+}
+
+/// `pc` registered (`bootParam` 5), the party's `pc_mode` 6, and `pc` put
+/// in the first free slot.
+fn add_member(spcs: &mut Spcs, pc: i32) {
+    let Ok(i) = usize::try_from(spcs.entry_spc(pc)) else { return };
+    spcs.registry[i].boot_param = 5;
+    spcs.pc_mode(-3, 6);
+    spcs.set_party();
+    if let Some(slot) = spcs.member_id.iter().position(|&m| m == -1) {
+        spcs.registry[i].party_flag = 1;
+        spcs.member_id[slot] = pc;
+        spcs.member_char[slot] = Some(pc);
+        spcs.num += 1;
+    }
 }
 
 /// The save and the event task at event `n`'s start, and where it is.

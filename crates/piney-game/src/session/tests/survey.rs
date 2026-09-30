@@ -148,6 +148,11 @@ impl StoryPilot {
                 if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(500) {
                     eprintln!("GOAL {f} {to:?} at {:?} wants {wants:?}", (sc.floor, sc.block));
                 }
+                // A marker wanted in this room comes before the walker,
+                // who stands still once in its goal room.
+                if let Some(raw) = self.walk_to_marker(a, &wants, f) {
+                    return raw;
+                }
                 if let Some(to) = to
                     && let Some(raw) = self.walker.step(s, to, f)
                 {
@@ -165,6 +170,11 @@ impl StoryPilot {
                     .iter()
                     .any(|w| matches!(*w, Want::FieldBlock(f, b) if f == sc.field as i16 && i32::from(b) != sc.block))
                 && let Some(raw) = walk_to_door(a)
+            {
+                return raw;
+            }
+            if sc.area == kind::FIELD
+                && let Some(raw) = self.walk_to_marker(a, &wants, f)
             {
                 return raw;
             }
@@ -562,6 +572,7 @@ impl StoryPilot {
             .or_else(|| approach_part(a))
             .or_else(|| approach_roamer(a))
             .or_else(|| self.approach_bug(a, f))
+            .or_else(|| self.approach_foe(a, f))
         {
             return Some(raw);
         }
@@ -819,25 +830,95 @@ impl StoryPilot {
 
     /// In a field, a Data Bug on the lists farther than 350 from Kite, who
     /// knows Data Drain: a walk to it, fight or not (its HP stops at half;
-    /// only a drain ends it). Straight at it until a check finds him
-    /// stopped, then [`path_to`] to within 300 of it on a grid round both
-    /// (event 206's, in field 13's story map, roams far from the party).
+    /// only a drain ends it), as [`Self::walk_after`] goes (event 206's, in
+    /// field 13's story map, roams far from the party).
     fn approach_bug(&mut self, a: &crate::area::AreaMode, f: u64) -> Option<Raw> {
         let w = a.world();
         let c = w.combat();
+        if piney_fieldui::items::skill_list(&a.ui().texts().items, w.state(), 0, 5)[0] != DATA_DRAIN {
+            return None;
+        }
+        let bug = c.enemies().into_iter().find(|&e| c.scene.chars[e].hp > 0 && c.scene.chars[e].ty() & DATA_BUG != 0);
+        let q = bug.map(|e| c.scene.chars[e].pos.map(f32::from_bits))?;
+        self.walk_after(w, q, 350.0, f)
+    }
+
+    /// In a field whose events wait for its foes all down ([`Want::Clear`]),
+    /// no live Data Bug ([`Self::approach_bug`]'s: 206's field 13) and no
+    /// foe within 300: a walk to the live foe with the least HP (the nearest
+    /// of those), as [`Self::walk_after`] goes. Side event 251's three
+    /// golden goblins run from Kite and heal: one at a time.
+    fn approach_foe(&mut self, a: &crate::area::AreaMode, f: u64) -> Option<Raw> {
+        let w = a.world();
+        let c = w.combat();
+        let sc = w.scene();
+        let wants = story_wants(a.vm()?, &w.state().save);
+        if sc.area != kind::FIELD || !wants.contains(&Want::Clear(sc.field as i16)) {
+            return None;
+        }
+        let p = w.player().body.pos.map(f32::from_bits);
+        let at = |e: usize| c.scene.chars[e].pos.map(f32::from_bits);
+        let dist = |e: usize| (at(e)[0] - p[0]).hypot(at(e)[1] - p[1]);
+        let live: Vec<usize> = c.enemies().into_iter().filter(|&e| c.scene.chars[e].hp > 0).collect();
+        if live.iter().any(|&e| c.scene.chars[e].ty() & DATA_BUG != 0 || dist(e) < 300.0) {
+            return None;
+        }
+        let foe = live
+            .into_iter()
+            .min_by(|&x, &y| c.scene.chars[x].hp.cmp(&c.scene.chars[y].hp).then(dist(x).total_cmp(&dist(y))))?;
+        self.walk_after(w, at(foe), 300.0, f)
+    }
+
+    /// Kite to the event position a wanted block waits for him near
+    /// ([`Want::Marker`]), in this field or this room of the dungeon, while
+    /// nothing holds him: straight at it across a room, the field's way
+    /// round its walls as [`Self::walk_after`]'s.
+    fn walk_to_marker(&mut self, a: &crate::area::AreaMode, wants: &[Want], f: u64) -> Option<Raw> {
+        let w = a.world();
+        let sc = w.scene();
+        let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+        let banned = a.calls().iter().rev().find_map(|(_, c)| match c.as_str() {
+            "menu_ban true" => Some(true),
+            "menu_ban false" => Some(false),
+            _ => None,
+        });
+        if !playing || banned == Some(true) || a.ui().menu_type() != -1 {
+            return None;
+        }
+        let vm = a.vm()?;
+        let here = |p: &piney_event::vm::EvPos| {
+            sc.area != kind::DUNGEON || (i32::from(p.floor), i32::from(p.block)) == (sc.floor, sc.block)
+        };
+        let q = wants
+            .iter()
+            .find_map(|x| match *x {
+                Want::Marker(m) => vm.mng.position(i32::from(m)).filter(here),
+                _ => None,
+            })?
+            .pos;
+        if sc.area != kind::DUNGEON {
+            return self.walk_after(w, q, 200.0, f);
+        }
+        let p = w.player().body.pos.map(f32::from_bits);
+        if (q[0] - p[0]).hypot(q[1] - p[1]) < 200.0 {
+            return None;
+        }
+        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
+    }
+
+    /// Kite to `q` while farther than `close`: straight at it until a check
+    /// finds him stopped, then [`path_to`] to within 300 of it on a grid
+    /// round both. None in a dungeon, or once close.
+    fn walk_after(&mut self, w: &piney_world::field_world::FieldWorld, q: [f32; 4], close: f32, f: u64) -> Option<Raw> {
         let hits = match w.place() {
             Place::Field(fa) => &fa.hits,
             Place::Story(m) => m.hits(),
             Place::Dungeon(_) => return None,
         };
-        if piney_fieldui::items::skill_list(&a.ui().texts().items, w.state(), 0, 5)[0] != DATA_DRAIN {
-            return None;
-        }
         let p = w.player().body.pos.map(f32::from_bits);
-        let bug = c.enemies().into_iter().find(|&e| c.scene.chars[e].hp > 0 && c.scene.chars[e].ty() & DATA_BUG != 0);
-        let q = bug.map(|e| c.scene.chars[e].pos.map(f32::from_bits))?;
         let far = (q[0] - p[0]).hypot(q[1] - p[1]);
-        if far < 350.0 {
+        if far < close {
             self.chase.clear();
             return None;
         }
@@ -1084,7 +1165,7 @@ fn whole_state(s: &Session) -> String {
 /// With the gate hack (62) open, the Virus Cores its area asks for, given
 /// through the console: the pilot drains no common foes to find them. A
 /// harness aid, as god is.
-fn cores_for_hack(s: &mut Session) {
+pub(super) fn cores_for_hack(s: &mut Session) {
     let Stage::World(w) = &s.stage else { return };
     let Some(h) = w.ui().ctrl.hack.as_deref() else { return };
     let save = &w.world().state().save;
@@ -1111,7 +1192,7 @@ const GORRE_LEVEL: i16 = 75;
 /// at the new game's 50, its locked rooms of Napylons (healers) hold him
 /// some 25,000 frames each, and in the goal room the Data Bug's drained
 /// form (Comad Goo) fells his 963 HP in one blow, past god's heal.
-const LONE_LEVEL: i16 = 75;
+pub(super) const LONE_LEVEL: i16 = 75;
 
 /// With a boss's parts up, the party raised to [`BOSS_PARTS_LEVEL`]
 /// (with Fidchell or Gorre up, [`FIDCHELL_LEVEL`]/[`GORRE_LEVEL`]; Kite
@@ -1119,7 +1200,7 @@ const LONE_LEVEL: i16 = 75;
 /// through the console's `exp` (the game's own level-ups): the pilot does
 /// not grind, and at the story's start levels (30 or so) the party cannot
 /// outpace Kyvia's healing gomora. A harness aid, as god is.
-fn levels_for_boss(s: &mut Session) {
+pub(super) fn levels_for_boss(s: &mut Session) {
     let Stage::Area(a) = &s.stage else { return };
     let w = a.world();
     let c = w.combat();
@@ -1144,7 +1225,7 @@ fn levels_for_boss(s: &mut Session) {
 }
 
 /// Event `n`'s flag, from the save of whatever stage the session is on.
-fn event_flag(s: &mut Session, n: i32) -> Option<u64> {
+pub(super) fn event_flag(s: &mut Session, n: i32) -> Option<u64> {
     let save = match &mut s.stage {
         Stage::World(w) => Some(&w.world().state().save),
         Stage::Area(a) => Some(&*a.save_mut()),

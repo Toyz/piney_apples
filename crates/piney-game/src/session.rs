@@ -2130,13 +2130,13 @@ mod tests {
         })
     }
 
-    /// What the volume's main story waits for next, read from its scripts:
-    /// for every open event (its `event_done` preconditions met) not done
-    /// or closed, the blocks not yet played whose status settings and
-    /// conditions hold, walking the precondition settings in as the event
-    /// walk does. A block that wants someone `not_in_party`, or an answer,
-    /// is a refusal and wants nothing, and a member is wanted only where
-    /// such a refusal names him.
+    /// What the volume's main story (or the side event [`Follow`] names)
+    /// waits for next, read from its scripts: for every open event (its
+    /// `event_done` preconditions met) not done or closed, the blocks not
+    /// yet played whose status settings and conditions hold, walking the
+    /// precondition settings in as the event walk does. A block that wants
+    /// someone `not_in_party`, or an answer, is a refusal and wants
+    /// nothing, and a member is wanted only where such a refusal names him.
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub(super) enum Want {
         Town(i32),
@@ -2159,6 +2159,35 @@ mod tests {
         Leave {
             desktop: bool,
         },
+        /// That field's foes all down: a block there waits on `no_active`
+        /// after the event put a foe there (`entry 5`: side event 250's
+        /// golden goblin, which runs).
+        Clear(i16),
+        /// Kite near event position `n` of the place: a block waits on
+        /// `near_marker n` (side event 257's trader at point 1).
+        Marker(i16),
+    }
+
+    thread_local! {
+        /// The side event [`story_wants`] reads in place of the main story.
+        static FOLLOWED: std::cell::Cell<Option<i32>> = const { std::cell::Cell::new(None) };
+    }
+
+    /// While held, the autopilot follows side event `n` alone (the side
+    /// event surveys); the main story again once dropped.
+    pub(super) struct Follow;
+
+    impl Follow {
+        pub(super) fn side(n: i32) -> Follow {
+            FOLLOWED.set(Some(n));
+            Follow
+        }
+    }
+
+    impl Drop for Follow {
+        fn drop(&mut self) {
+            FOLLOWED.set(None);
+        }
     }
 
     pub(super) fn story_wants(vm: &piney_event::vm::Vm, save: &piney_data::save::SaveData) -> Vec<Want> {
@@ -2168,7 +2197,8 @@ mod tests {
         let done = |e: i16| save.event_flag(e.max(0) as usize) & (1 << 62) != 0;
         let status = |i: i16| i32::from(save.event_status(i.clamp(0, 79) as usize));
         let mut out = Vec::new();
-        for n in base..base + 50 {
+        let events = FOLLOWED.get().map_or(base..base + 50, |n| n..n + 1);
+        for n in events {
             let Some(script) = lib.script(n) else { continue };
             let flag = save.event_flag(n as usize);
             if flag & (3 << 62) != 0 {
@@ -2196,6 +2226,8 @@ mod tests {
             let mut held = true;
             // The `game_status` (2 or 3) the block is set on, off The World.
             let mut away: Option<i16> = None;
+            // The fields where the event put a foe (`entry 5`).
+            let mut foes: Vec<i16> = Vec::new();
             for (b, block) in script.blocks.iter().enumerate() {
                 for t in &block.tags {
                     match *t {
@@ -2223,6 +2255,9 @@ mod tests {
                         _ => {}
                     }
                 }
+                if scene[0] == 1 && block.ops.iter().any(|o| matches!(o, piney_event::ir::Op::Entry { ty: 5, .. })) {
+                    foes.push(scene[2]);
+                }
                 if b < 62 && flag & (1 << b) != 0 {
                     continue;
                 }
@@ -2237,6 +2272,9 @@ mod tests {
                     Cond::Status { index, num, comp } => comp.test(status(index), i32::from(num)).unwrap_or(false),
                     Cond::StatusRange { index, lo, hi } => (i32::from(lo)..=i32::from(hi)).contains(&status(index)),
                     Cond::EventDone { event } => done(event),
+                    Cond::HasItem { pc, category, id, num, comp } => {
+                        piney_event::vm::has_item(save, pc, category, id, num, comp)
+                    }
                     Cond::NotInParty { .. } | Cond::Answer { .. } => false,
                     _ => true,
                 });
@@ -2252,12 +2290,16 @@ mod tests {
                 if let Some(status) = away {
                     out.push(Want::Leave { desktop: status == 2 });
                 }
+                let clear = block.conds.iter().any(|c| matches!(c, Cond::NoActive {}));
                 match scene {
                     [0, town, ..] if town >= 0 => out.push(Want::Town(i32::from(town))),
                     [1, _, field, .., block] if field >= 0 => {
                         out.push(Want::Area(field));
                         if block >= 0 {
                             out.push(Want::FieldBlock(field, block));
+                        }
+                        if clear && foes.contains(&field) {
+                            out.push(Want::Clear(field));
                         }
                     }
                     [2, _, field, dungeon, ..] if field >= 0 => {
@@ -2273,6 +2315,11 @@ mod tests {
                         Cond::GateWords { area, .. } => out.push(Want::Area(area)),
                         Cond::InParty { pc } if required.contains(&pc) => out.push(Want::Party(i32::from(pc))),
                         Cond::InPoint { num } if !repeats => out.push(Want::Point(i32::from(num))),
+                        Cond::NearMarker { marker, bounds, comp }
+                            if !repeats && comp.test(0, i32::from(bounds)) == Some(true) =>
+                        {
+                            out.push(Want::Marker(marker))
+                        }
                         _ => {}
                     }
                 }
@@ -2540,6 +2587,15 @@ mod tests {
         let (gate, _) = world.char_place(kind, code)?;
         let g = gate.map(f32::from_bits);
         let p = world.player().body.pos.map(f32::from_bits);
+        // Beside the NPC with the Chaos Gate the target (the SEARCH events'
+        // NPC stands at its dummy, `DMY_gate`, and the gate comes first):
+        // the stick let go and pushed again, which steps the target on
+        // (`ccSelectTarget` mode 2, the stick's power rising past 64).
+        let beside = (g[0] - p[0]).hypot(g[1] - p[1]) < 400.0;
+        let gate = world.command_target() == Some((Kind::Gimmick, 16));
+        if matches!(goal, GateGoal::Talk(_)) && beside && gate && f % 16 < 8 {
+            return Some(still(Buttons::NONE));
+        }
         let cam_z = f32::from_bits(world.camera().rot()[2]);
         Some(stick_toward(cam_z, (g[0] - p[0]).atan2(-(g[1] - p[1]))))
     }

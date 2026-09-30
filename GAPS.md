@@ -63,10 +63,12 @@ time: plans/volumes.md, plans/build-data.md. Status on 2026-09-29.
   463,200 frames under the autopilot (plans/outbreak-story.md; not yet
   played by hand). Quarantine: power-on to the desktop with the opening
   streams' sound; next
-- [ ] The side events of Mutation and Outbreak: never run (Infection's S1
-  and 50-62 are, `side_event_survey`). Outbreak has 37 side scripts from
-  event 250 (the goblins' GOB3, NUKE, MARLOWE, RACHEL, GALDE, SANJYURO,
-  MOON, TERASHIMA ...), Mutation its own set
+- [ ] The side events of Mutation and Outbreak: Outbreak's 26 (250-275
+  but 258, and 361) run by `outbreak_side_event_survey`, 22 to their end
+  (plans/outbreak-side-events.md, worklog 306); GOB3-5's goblins, two
+  dungeon walks stalled on foes that stop taking damage (MARLOWE-2,
+  TERASHIMA-1) and SERVER-3's Black Death not. Mutation's never run
+  (Infection's S1 and 50-62 are, `side_event_survey`)
 
 What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 "What the later volumes' code adds"):

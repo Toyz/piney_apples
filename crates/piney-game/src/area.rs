@@ -504,6 +504,12 @@ impl AreaMode {
         self.vm.as_ref()
     }
 
+    /// [`Self::vm`], to change.
+    #[cfg(test)]
+    pub fn vm_mut(&mut self) -> Option<&mut Vm> {
+        self.vm.as_mut()
+    }
+
     /// Every host call the scripts made here, with its frame.
     #[allow(dead_code)]
     pub fn calls(&self) -> &[(u64, String)] {
