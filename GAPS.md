@@ -42,7 +42,7 @@ visible first. Mark them [x] with a note when done.
 ## After Infection
 
 One build boots all four discs, with no read of the boot executable at run
-time: plans/volumes.md, plans/build-data.md. Status on 2026-09-27.
+time: plans/volumes.md, plans/build-data.md. Status on 2026-09-29.
 
 - [x] Phase 0: `Volume` (`piney_data::volume`, detected from `GCMN.PRG`);
   the generators run for all four volumes
@@ -55,10 +55,13 @@ time: plans/volumes.md, plans/build-data.md. Status on 2026-09-27.
   each to be read and handled). Found so far and handled: the streams' PCM
   track a voice language (Outbreak on); `ccSndStreamCtrl` (the music
   around streams); `setbl` (the animation notes' sounds)
-- [ ] Phase 4: each volume's story end to end. Infection: done. Mutation: in
-  progress, 13 of 16 events finish under the autopilot
-  (plans/mutation-story.md). Outbreak and Quarantine: power-on to the
-  desktop with the opening streams' sound; the rest after Mutation
+- [ ] Phase 4: each volume's story end to end. Infection: done. Mutation:
+  all 16 events, one run from the new game to the ending under the
+  autopilot (plans/mutation-story.md; not yet played by hand). Outbreak: 18
+  of 19 events finish from their own starts; 206 (a lone Kite's slow
+  dungeon walk) and the one run from the new game are left
+  (plans/outbreak-story.md). Quarantine: power-on to the desktop with the
+  opening streams' sound; after Outbreak
 
 What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 "What the later volumes' code adds"):
@@ -74,8 +77,9 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   hacking logos
 - [ ] A new menu after `AreaInfoMenu` (messages, number input)
 - [ ] Kyvia's fights: [x] the first (`ccBossKyvia01`, `kyviaCore`,
-  `kyviaGomora`, worklog 272), [ ] the later ones (levels 2-5, the EX
-  mode, the `ex2`-`ex4` models)
+  `kyviaGomora`, worklog 272), [x] the second (Outbreak's `ccBossKyvia02`,
+  level 2, worklog 304; its bolts not yet drawn), [ ] the later ones
+  (levels 3-5, the EX mode, the `ex2`-`ex4` models)
 - [x] The Root Towns 02-05 (`ROOTTOWN03`-`05`, their `DrawMap`; worklogs
   218, 260) - the party of 21 (`SPC_01`-`SPC_20`) still to check
 - [ ] The other `EVENTAREA` classes (04-06; areas 66, 67, 91).
@@ -83,11 +87,16 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   263), area 13's `EVENTAREA01` (worklog 264) and Kyvia's disc
   `EVENTAREAB8` (fields 9-12, worklog 272) are ported, all behind
   `StoryMap`
-- [ ] Mutation's bosses: [x] Innis (`ccBoss02`, worklog 266; its pictures
-  and event 107 under the autopilot still open), [x] Kyvia 01 (`ccThKyvia01`,
-  the `kyvia*` classes, worklog 272; event 108 under the autopilot still
-  open), [x] Magus (`ccBoss03`, `ccBoss03Leaf`, worklog 274; its pictures
-  and event 115 under the autopilot still open)
+- [x] Mutation's bosses: Innis (`ccBoss02`, worklog 266), Kyvia 01
+  (`ccThKyvia01`, the `kyvia*` classes, worklog 272), Magus (`ccBoss03`,
+  `ccBoss03Leaf`, worklog 274); events 107, 108 and 115 finish under the
+  autopilot (worklog 276). Innis's and Magus's pictures still open
+- [ ] Outbreak's bosses: [x] Fidchell (`ccBoss04`, worklogs 294-295),
+  [x] Gorre and its brothers (`ccBoss05`, worklog 303; the shield's shape
+  and FinalPhotonFlash's picture open), [x] Kyvia 02 (above); each event
+  finishes under the autopilot
+- [x] The Data Bugs (enemy type 0x40): drawn with their base form's clips
+  and held at half their HP (`virusFlag`, worklog 299)
 
 ## Asked for, not the game's
 
