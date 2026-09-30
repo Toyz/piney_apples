@@ -38,6 +38,7 @@ pub mod party_motion;
 pub mod prim;
 pub mod races;
 pub mod rand;
+pub mod restock;
 pub mod ride;
 pub mod scene;
 pub mod skill;

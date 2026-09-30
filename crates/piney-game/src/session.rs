@@ -119,6 +119,9 @@ pub struct Session {
     resident: std::collections::BTreeSet<String>,
     /// The console's `god`: the party at full HP and SP every frame.
     god: bool,
+    /// newlib's `rand()` as the set-ups' restock draws it (the game's is
+    /// one sequence for everything; the modes keep their own).
+    rand: piney_world::Rand,
     /// Not the game's: the logo movies a launcher played before this
     /// power-on, which the title's first boot then starts after.
     logos_played: i32,
@@ -215,6 +218,7 @@ impl Session {
             hold: 0,
             resident: Default::default(),
             god: false,
+            rand: piney_world::Rand(1),
             logos_played: 0,
             settings_path: None,
             settings: None,
@@ -326,7 +330,8 @@ impl Session {
         stage
     }
 
-    fn enter_world(&mut self, state: SaveState, vm: Option<Vm>, faded: bool) -> Result<Stage, String> {
+    fn enter_world(&mut self, mut state: SaveState, vm: Option<Vm>, faded: bool) -> Result<Stage, String> {
+        self.restock(&mut state.save);
         if self.scene.area == piney_world::area::kind::TOWN {
             // ccClearGtHack in the town's set-up: the flag goes.
             self.gt_hack = false;
@@ -348,6 +353,15 @@ impl Session {
         a.set_gate_hack(self.gt_hack, self.setup_mode);
         self.setup_mode = false;
         Ok(Stage::Area(Box::new(a)))
+    }
+
+    /// `ccSetupGameCtrl`'s `SetSpcItemTown` and `SetTradeItemTown` for the
+    /// scene being set up ([`piney_world::area::Scene::restock`]).
+    fn restock(&mut self, save: &mut SaveData) {
+        match Iso::open(&self.iso).and_then(|mut d| d.volume()) {
+            Ok(v) => self.scene.restock().apply(save, v, self.scene.server, &mut self.rand),
+            Err(e) => eprintln!("the restock: {e}"),
+        }
     }
 
     /// `ccFileListLoad`'s `ccLoadDispInit` for the scene being set up
@@ -869,6 +883,7 @@ impl Session {
                 let (mut state, vm) = t.leave();
                 log_in(&self.iso, &mut state);
                 self.scene = piney_world::area::Scene::log_in(&mut state.save);
+                self.restock(&mut state.save);
                 match WorldMode::enter(&self.iso, self.archive.clone(), state.clone(), vm) {
                     Ok(mut w) => {
                         w.set_card(self.card.as_deref(), self.card_position);
@@ -6012,6 +6027,9 @@ mod tests {
 
     /// The play time the main loop counts.
     mod play_time;
+
+    /// Back in a town from a field: faces, kit and trade lists.
+    mod town_return;
 
     // Playthroughs: the story's scripts (run by piney-event's VM, as every
     // event is) played from a start point with a scripted pad, checked.

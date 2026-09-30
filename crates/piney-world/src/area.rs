@@ -162,11 +162,70 @@ impl Scene {
             || self.field != self.field_prev
             || self.dungeon != self.dungeon_prev
     }
+
+    /// What `ccSetupGameCtrl` restocks for this scene (INF main
+    /// 0x00168cb0-0x00168f74, the same in MUT and OUT): only a new scene;
+    /// a town its trade lists, and the members' kit when the area left was
+    /// not a town; a field or dungeon the trade lists when a town was left.
+    pub fn restock(&self) -> Restock {
+        match self.area {
+            _ if !self.changed() => Restock::Nothing,
+            kind::TOWN if self.area_prev != kind::TOWN => Restock::KitAndTrades,
+            kind::TOWN => Restock::Trades,
+            kind::FIELD | kind::DUNGEON if self.area_prev == kind::TOWN => Restock::Trades,
+            _ => Restock::Nothing,
+        }
+    }
+}
+
+/// A scene set-up's restock ([`Scene::restock`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Restock {
+    Nothing,
+    /// `SetTradeItemTown`.
+    Trades,
+    /// `SetSpcItemTown`, then `SetTradeItemTown`.
+    KitAndTrades,
+}
+
+impl Restock {
+    /// Into the save; `server` is the scene's, `rand` newlib's.
+    pub fn apply(self, save: &mut SaveData, volume: piney_data::volume::Volume, server: i32, rand: &mut crate::Rand) {
+        use piney_battle::restock::{set_spc_item_town, set_trade_item_town};
+        if self == Restock::KitAndTrades {
+            set_spc_item_town(save, volume);
+        }
+        if self != Restock::Nothing {
+            set_trade_item_town(save, volume, server, &mut || rand.rand());
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `ccSetupGameCtrl`'s restocks: Log in and each way out of a town the
+    /// trade lists, a town from a field or dungeon the kit too, nothing
+    /// between a field and its dungeon or from a floor to the next.
+    #[test]
+    fn restocks_by_the_scene_left() {
+        let mut save = SaveData::default();
+        let mut s = Scene::log_in(&mut save);
+        assert_eq!(s.restock(), Restock::Trades);
+        s.change_area(kind::FIELD, 14, &mut save);
+        assert_eq!(s.restock(), Restock::Trades);
+        s.change_area(kind::DUNGEON, 14, &mut save);
+        assert_eq!(s.restock(), Restock::Nothing);
+        s.change_scene(2, -2, -2, -2, 1, 0, &mut save);
+        assert_eq!(s.restock(), Restock::Nothing);
+        s.change_area(kind::TOWN, 0, &mut save);
+        assert_eq!(s.restock(), Restock::KitAndTrades);
+        s.change_area(kind::TOWN, 1, &mut save);
+        assert_eq!(s.restock(), Restock::Trades);
+        s.change_area(kind::DUNGEON, 3, &mut save);
+        assert_eq!(s.restock(), Restock::Trades);
+    }
 
     /// `gameCnt`: [2] runs from the town's gate through the field and
     /// the dungeon's floors (the Zeit statue's time); [1] restarts with
