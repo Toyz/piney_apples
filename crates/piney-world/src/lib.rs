@@ -533,6 +533,39 @@ impl World {
         }
     }
 
+    /// `ccUseItemRequest(plw, target, code, arg)` (gcmn 0x0057aa80) from
+    /// the menus in a town, on the party's scene with Kite's stand-in the
+    /// user: the steps the menu plays (a book's stat into his record, the
+    /// key items' windows). None for a target not registered here.
+    pub fn use_item(
+        &mut self,
+        target: Option<(entry::Kind, i32)>,
+        code: i32,
+        arg: i32,
+    ) -> Vec<piney_battle::item::Step> {
+        let tp = match target {
+            Some((entry::Kind::Spc, id)) => self.party.member(id),
+            _ => None,
+        };
+        let c = &mut self.party.combat;
+        let (Some(k), Some(tp)) = (c.kite, tp) else { return Vec::new() };
+        c.use_item(k, tp, code, self.save.save.parody(), arg)
+    }
+
+    /// One of [`World::use_item`]'s steps on the town as the menu reaches
+    /// it: Kite's `pauseSW`. False for a step a town use never makes.
+    pub fn item_step(&mut self, s: &piney_battle::item::Step) -> bool {
+        use piney_battle::event::Who;
+        use piney_battle::item::Step;
+        match *s {
+            Step::Pause { on: Who::Char(w), value } if Some(w) == self.party.combat.kite => {
+                self.player.acts.pause = value;
+                true
+            }
+            _ => false,
+        }
+    }
+
     /// A registered character's `ccFellow::Influence` (gcmn 0x0041bdb0)
     /// through the battle's rules, Kite's stand-in the one who affects it:
     /// 14 and 15 (its menu open) `ccAI::Greeting`, which sets its talkFlag

@@ -105,6 +105,13 @@ pub trait World {
     /// (0x00153360): `who`'s body into the list at its tail, or out of it
     /// (`hit.sw` follows).
     fn hit_switch(&mut self, who: usize, hit: &mut CharHit, on: bool);
+    /// The list's copy of `who`'s body made current. The game's list links
+    /// the `ccCharHit` itself, so a body its owner moves (a box's
+    /// `bodyHit.pos = pos`) is where the others meet it. Nothing for a
+    /// world that keeps no copies.
+    fn hit_sync(&mut self, who: usize, hit: &CharHit) {
+        let _ = (who, hit);
+    }
     /// `ccCheckCameraDeg(pos, deg)` (main 0x001da710): whether `pos` lies
     /// within `deg` (16-bit units) either side of the active camera's line
     /// of sight, on the ground.

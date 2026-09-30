@@ -315,3 +315,155 @@ fn a_speed_charm_on_kite_ends() {
     assert!(acts.contains(&18), "Kite never cast it (from frame {u})");
     assert_eq!(kite(&s).map(|k| k.0), Some(0), "skill 177 still on Kite 300 frames on");
 }
+
+/// The menus and the save of the town or the area `s` is in.
+fn menus(s: &Session) -> Option<&piney_fieldui::FieldUi> {
+    match &s.stage {
+        Stage::Area(a) => Some(a.ui()),
+        Stage::World(w) => Some(w.ui()),
+        _ => None,
+    }
+}
+
+fn save_mut(s: &mut Session) -> Option<&mut piney_data::save::SaveData> {
+    match &mut s.stage {
+        Stage::Area(a) => Some(&mut a.world_mut().state_mut().save),
+        Stage::World(w) => Some(&mut w.world_mut().state_mut().save),
+        _ => None,
+    }
+}
+
+/// Issue #11: the Book of Law (key item 60) read from PERSONAL's Key
+/// Items once `ready`: `ccUseItemRequest` (gcmn 0x0057c02c) opens
+/// `installWarnStr`'s three lines, 8 frames on `ccSeOnNote(196, 52)`, and
+/// after OK the list answers again. What the window's first line and the
+/// sounds showed.
+fn read_the_book_of_law(s: &mut Session, ready: impl Fn(&Session) -> bool) -> (bool, bool) {
+    let warn = piney_fieldui::tables::UseTexts::of(piney_data::volume::Volume::Inf).install_warn;
+    let mut pad = Pad::default();
+    let (mut given, mut shown, mut sound) = (false, false, false);
+    for f in 0..3000u32 {
+        let now = ready(s);
+        if now && !given {
+            let save = save_mut(s).expect("a town or an area");
+            for id in 0..piney_fieldui::menus::keyitem::IMP_ITEMS {
+                save.set_u8(offset::IMP_ITEM_LIST + id, u8::from(id == 60));
+            }
+            given = true;
+        }
+        let ui = menus(s).expect("a town or an area");
+        let c = &ui.ctrl;
+        shown |= c.msg.line(0).is_some_and(|l| warn[0] == l);
+        if shown && ui.menu_type() == 6 && c.proccess == 1 {
+            break;
+        }
+        let b = if !now || !given || !f.is_multiple_of(8) {
+            Buttons::NONE
+        } else {
+            // PERSONAL, Key Items, the book, and OK past the window.
+            match (ui.menu_type(), c.proccess) {
+                (-1, _) if !shown => Buttons::TRIANGLE,
+                (0 | 1, 1) => {
+                    let l = c.list();
+                    match l.items.iter().take(l.y.max(0) as usize).position(|&it| it == 6) {
+                        Some(r) if (l.select as usize) < r => Buttons::DOWN,
+                        _ => Buttons::CROSS,
+                    }
+                }
+                _ => Buttons::CROSS,
+            }
+        };
+        pad.read(&raw(b, 128));
+        s.step(&pad);
+        sound |= s.take_events().iter().any(|e| matches!(e, Event::SeNote { n: 196, note: 52 }));
+    }
+    (shown, sound)
+}
+
+/// Issue #11 where the book is got, in Mac Anu: before, nothing was
+/// carried out for an item used in a town, so no window and no sound.
+#[test]
+fn the_book_of_law_warns_in_town() {
+    use crate::session::area15::{disc, hold, start};
+    let Some((iso, archive)) = disc() else { return };
+    let mut s = start(&iso, &archive, None);
+    let in_town = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+    hold(&mut s, 128, 128, 900, in_town);
+    assert_eq!(read_the_book_of_law(&mut s, in_town), (true, true), "(the window, the sound)");
+}
+
+/// Issue #11 in a field: the window came, the sound (a step the menu
+/// handed the world, which played none) did not.
+#[test]
+fn the_book_of_law_warns_in_a_field() {
+    let Some((mut s, _)) = in_field() else { return };
+    let ready = |s: &Session| match &s.stage {
+        Stage::Area(a) => matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 90),
+        _ => false,
+    };
+    assert_eq!(read_the_book_of_law(&mut s, ready), (true, true), "(the window, the sound)");
+}
+
+/// A book (category 12, row 0: physical attack +10) read from PERSONAL's
+/// Items in Mac Anu: the use now runs on the town party's scene, and
+/// Kite's record in the save carries the rise once the menu is shut.
+#[test]
+fn a_book_read_in_town_raises_the_stat() {
+    use crate::session::area15::{disc, hold, start};
+    use piney_battle::param::{SpcParam, elm};
+    let Some((iso, archive)) = disc() else { return };
+    let mut s = start(&iso, &archive, None);
+    let in_town = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+    hold(&mut s, 128, 128, 900, in_town);
+    let save = save_mut(&mut s).expect("the town");
+    let before = SpcParam::from_save(save, 0).elm[elm::P_ATK];
+    for k in 0..40 {
+        let (id, cat, num) = if k == 0 { (0, 12, 1) } else { (-1, 0xff, 0) };
+        save.set_i16(offset::ITEM_LIST + 4 * k, id);
+        save.set_u8(offset::ITEM_LIST + 4 * k + 2, cat);
+        save.set_u8(offset::ITEM_LIST + 4 * k + 3, num);
+    }
+    let mut pad = Pad::default();
+    let mut opened = false;
+    for f in 0..3000u32 {
+        let used = save_mut(&mut s).is_some_and(|v| v.u8(offset::ITEM_LIST + 3) == 0);
+        let ui = menus(&s).expect("the town");
+        let c = &ui.ctrl;
+        if used && ui.menu_type() == -1 {
+            break;
+        }
+        let page = ui.texts().items.pages.iter().position(|&p| p == 12).expect("a page of books");
+        let b = if !f.is_multiple_of(8) {
+            Buttons::NONE
+        } else {
+            // PERSONAL, Items, the books' page, the book, OK past the
+            // window (the menu then shuts).
+            match (ui.menu_type(), c.proccess) {
+                (-1, _) if !opened => Buttons::TRIANGLE,
+                (-1, _) => Buttons::NONE,
+                (_, _) if used => Buttons::CROSS,
+                (0 | 1, 1) => {
+                    let l = c.list();
+                    match l.items.iter().take(l.y.max(0) as usize).position(|&it| it == 5) {
+                        Some(r) if (l.select as usize) < r => Buttons::DOWN,
+                        _ => Buttons::CROSS,
+                    }
+                }
+                (5, 1) if c.lists[5].page as usize != page => Buttons::RIGHT,
+                _ => Buttons::CROSS,
+            }
+        };
+        opened |= ui.menu_type() != -1;
+        pad.read(&raw(b, 128));
+        s.step(&pad);
+        s.take_events();
+    }
+    for _ in 0..4 {
+        pad.read(&raw(Buttons::NONE, 128));
+        s.step(&pad);
+        s.take_events();
+    }
+    let save = save_mut(&mut s).expect("the town");
+    assert_eq!(save.u8(offset::ITEM_LIST + 3), 0, "the book was not used");
+    assert_eq!(SpcParam::from_save(save, 0).elm[elm::P_ATK], before + 10, "Kite's physical attack");
+}

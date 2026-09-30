@@ -504,6 +504,7 @@ impl WorldMode {
         use piney_fieldui::talk::TalkReq;
         match r {
             R::Se(n) => self.events.push(Event::Se(n)),
+            R::SeNote { n, note } => self.events.push(Event::SeNote { n: n.max(0) as usize, note: note as i8 }),
             R::CameraShake { power, cycle, time, dirc } => self.world.camera_shake([power, cycle, time, dirc]),
             // No drain in a town (the Skills menu refuses it); a movie asked
             // anyway ends at once rather than hold the menu.
@@ -664,7 +665,6 @@ impl WorldMode {
             // CalcReal runs every frame
             // (calc_real_party).
             | R::UseItemArg { .. }
-            | R::ItemStep(_)
             | R::SpcMessageOpenTreasureBox
             // No breakables in a town.
             | R::BreakSomething
@@ -679,6 +679,12 @@ impl WorldMode {
             | R::DrainLevelDown
             | R::TargetsCleared
             | R::GameOver => {}
+            // An item use's step on the town, as the menu task reaches it.
+            R::ItemStep(st) => {
+                if !self.world.item_step(&st) {
+                    eprintln!("item step not carried out in town: {st:?}");
+                }
+            }
             R::WorldHidden(on) => self.hack_screen = on,
             // ccSPC::ChangeEquip: the new weapon on the model.
             R::ChangeEquip { target, cat, .. } => {
@@ -1071,13 +1077,25 @@ impl Mode for WorldMode {
                 })
                 .collect();
             self.ui.step_into(pad, &w, self.world.state_mut(), self.count, &mut ctx);
-            // An item used in town: nothing is carried out here yet, and the
-            // menu task goes on from the call this frame.
-            if self.ui.item_asked() {
-                self.ui.answer_item(Vec::new(), pad, self.world.state_mut(), self.count, Some(&mut ctx));
-            }
-            for r in self.ui.take_requests() {
-                self.menu_request(r);
+            // The menu task stops in ccUseItemRequest (a book, a key item):
+            // the use's rules on the town's party, and its steps back to the
+            // task, which goes on this frame.
+            loop {
+                let mut asked = None;
+                for r in self.ui.take_requests() {
+                    match r {
+                        piney_fieldui::Request::UseItem { target, code } if self.ui.item_asked() => {
+                            asked = Some((target, code, 0));
+                        }
+                        piney_fieldui::Request::UseItemArg { target, code, arg } if self.ui.item_asked() => {
+                            asked = Some((target, code, arg));
+                        }
+                        r => self.menu_request(r),
+                    }
+                }
+                let Some((target, code, arg)) = asked else { break };
+                let steps = self.world.use_item(unhandle(target), code, arg);
+                self.ui.answer_item(steps, pad, self.world.state_mut(), self.count, Some(&mut ctx));
             }
             // ccThGameCtrl's states 1-5 end when CheckMenuType() is -1.
             if self.world.targeting().in_menu && self.ui.menu_type() == -1 {

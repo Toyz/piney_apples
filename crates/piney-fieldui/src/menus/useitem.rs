@@ -241,6 +241,8 @@ fn one(m: &mut MenuCtrl, x: &mut Ctx, step: Step) -> Option<Cont> {
         }
         Step::ChangeMenu(n) => m.change_menu_to(n as i16),
         Step::Se(n) => x.se(n),
+        // The key items' warning (60, 61, 69).
+        Step::SeNote(n, note) => x.se_note(n, note),
         Step::WaitParty => set(m, Wait::Party),
         Step::WaitRide => set(m, Wait::Ride),
         Step::Epitaph { item, parody } => {

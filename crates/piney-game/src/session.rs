@@ -3556,6 +3556,72 @@ mod tests {
         assert!(left.is_empty(), "the drain's clips still running 120 frames on: {left:?}");
     }
 
+    /// Issue #10: an attack scroll (`itemTblD` row 0, skill 193, type
+    /// 0xc106) used on the goblin from PERSONAL's Items by a Kite with no
+    /// `targetChar`. `_ccSkillRequest`
+    /// (stype 2) aims Kite at it (gcmn 0x00572b80), so his `AnimCtrl` casts
+    /// it as act 17 (type 0x100), held where he stands (`restraintSW`,
+    /// `stopFlag`), until the act ends.
+    #[test]
+    fn a_scroll_on_a_foe_is_cast_by_kite() {
+        use piney_battle::chara::spc_flag::{RESTRAINT, STOP};
+        use piney_battle::param::cond;
+        // 0 the scroll to give, 1 to use, 2 watched, 3 the drain the
+        // helper ends on.
+        let stage = std::cell::Cell::new(0);
+        let (mut used, mut acts, mut held, mut landed) = (None, Vec::new(), false, false);
+        let plan = |_: &Session| match stage.get() {
+            1 => Some(5),
+            3 => Some(4),
+            _ => None,
+        };
+        let Some(_) = drain_with(false, plan, |s, i, _| {
+            let Stage::Area(a) = &mut s.stage else { return };
+            if stage.get() == 0 {
+                let save = &mut a.world_mut().state_mut().save;
+                save.set_i16(offset::ITEM_LIST, 0);
+                save.set_u8(offset::ITEM_LIST + 2, 11);
+                save.set_u8(offset::ITEM_LIST + 3, 1);
+                stage.set(1);
+            }
+            let c = a.world_mut().combat_mut();
+            for e in c.enemies() {
+                let ch = &mut c.scene.chars[e];
+                landed |= used.is_some() && ch.hp < 9999;
+                if ch.cond[cond::DEAD] == 0 {
+                    ch.hp = 9999;
+                }
+            }
+            let Some(k) = c.kite else { return };
+            if used.is_none() && c.scene.chars[k].skill_id == 193 {
+                used = Some(i);
+                stage.set(2);
+            }
+            // Until then no aim of his own, as when his last target fell
+            // (`SetTargetDist` drops it) or none has struck him yet.
+            if stage.get() == 1 {
+                c.scene.chars[k].target_char = None;
+            }
+            let ch = &c.scene.chars[k];
+            let Some(u) = used else { return };
+            if i < u + 240 {
+                acts.push((ch.skill_id, ch.spc_char.act_num));
+                let f = ch.spc_char.flags;
+                held |= ch.spc_char.act_num == 17 && f & RESTRAINT != 0 && f & STOP != 0;
+            } else {
+                stage.set(3);
+            }
+        }) else {
+            return;
+        };
+        let u = used.expect("the scroll was never used");
+        assert!(landed, "the spell never hurt the goblin");
+        let cast = acts.iter().position(|&(_, a)| a == 17);
+        assert!(cast.is_some(), "Kite never cast it (from frame {u}): {acts:?}");
+        assert!(held, "Kite not held through the cast");
+        assert!(acts.iter().skip(cast.unwrap_or(0)).any(|&(_, a)| a != 17), "the cast never ended: {acts:?}");
+    }
+
     /// The goblin's drained form after [`drain_in_a_fight`] takes a blow:
     /// `EntryAffect(1, 20)` from Kite lowers its HP.
     #[test]
@@ -6137,6 +6203,9 @@ mod tests {
 
     /// Event 25 in story area 23's dungeon: the Aura shrine.
     mod shrine;
+
+    /// Issue #12: the boxes' bodies in story area 18's dungeon.
+    mod boxes;
 
     /// The dungeon rooms' dressing in Δ and Θ random dungeons.
     mod dressing;

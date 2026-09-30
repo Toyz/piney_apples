@@ -410,6 +410,10 @@ impl World for Stage<'_> {
         self.hits.set_hit_sw(&mut b, on);
         hit.sw = b.sw;
     }
+    fn hit_sync(&mut self, who: usize, hit: &CharHit) {
+        let b = self.body(who, hit, false);
+        self.hits.sync(&b);
+    }
     fn camera_deg(&mut self, pos: V4, deg: i16) -> bool {
         self.check_camera_deg(pos, deg)
     }

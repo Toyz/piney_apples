@@ -818,8 +818,16 @@ fn box_act(
         }
         _ => {}
     }
-    o.hit.pos = cx.scene.chars[who].pos;
+    body_follows(cx, who, o);
     false
+}
+
+/// A box's frame ends with `bodyHit.pos = pos` (`boxMain` gcmn 0x0045410c,
+/// `objectMain` 0x004543e0, `virusMain` 0x004545a4): the body follows the
+/// box, where `initObject` set it on the ground, in the list as well.
+fn body_follows(cx: &mut Cx, who: usize, o: &mut EntryObj) {
+    o.hit.pos = cx.scene.chars[who].pos;
+    cx.world.hit_sync(who, &o.hit);
 }
 
 /// `ccGimBox::objectMain()` (gcmn 0x00454140): the breakables.
@@ -866,7 +874,7 @@ fn object_act(ctrl: &mut EntryCtrl, cx: &mut Cx, seam: &mut dyn Seam, who: usize
         2 if o.act_cnt == 0 => return true,
         _ => {}
     }
-    o.hit.pos = cx.scene.chars[who].pos;
+    body_follows(cx, who, o);
     false
 }
 
@@ -910,7 +918,7 @@ fn virus_act(cx: &mut Cx, who: usize, o: &mut EntryObj) -> bool {
         }
         _ => {}
     }
-    o.hit.pos = cx.scene.chars[who].pos;
+    body_follows(cx, who, o);
     false
 }
 

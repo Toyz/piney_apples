@@ -1192,6 +1192,7 @@ impl AreaMode {
                 }
             }
             R::Se(n) => self.events.push(Event::Se(n)),
+            R::SeNote { n, note } => self.events.push(Event::SeNote { n: n.max(0) as usize, note: note as i8 }),
             R::CameraShake { power, cycle, time, dirc } => self.world.camera_shake([power, cycle, time, dirc]),
             R::SleepAll => {
                 self.asleep = true;

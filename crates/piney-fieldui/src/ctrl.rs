@@ -178,6 +178,10 @@ impl Ctx<'_> {
     pub fn se(&mut self, n: i32) {
         self.req.push(Request::Se(n));
     }
+    /// `ccSeOnNote(n, note)`.
+    pub fn se_note(&mut self, n: i32, note: i32) {
+        self.req.push(Request::SeNote { n, note });
+    }
     /// `ccSys.pad[0].push & saveData.assignPAD*`.
     pub fn pushed_ok(&self) -> bool {
         self.pad.push.bits() & self.save.ok() != 0

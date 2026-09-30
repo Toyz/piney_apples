@@ -2723,6 +2723,9 @@ impl World for Carry<'_> {
     fn hit_switch(&mut self, who: usize, hit: &mut CharHit, on: bool) {
         self.w.hit_switch(who, hit, on)
     }
+    fn hit_sync(&mut self, who: usize, hit: &CharHit) {
+        self.w.hit_sync(who, hit)
+    }
     fn camera_deg(&mut self, pos: V4, deg: i16) -> bool {
         self.w.camera_deg(pos, deg)
     }

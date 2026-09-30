@@ -53,6 +53,8 @@ pub const GCMN_PATH: &str = "DATA/GCMN.PRG";
 pub enum Request {
     /// `ccSeOn(n)`.
     Se(i32),
+    /// `ccSeOnNote(n, note)` (main 0x00179cb0): sound `n` at another note.
+    SeNote { n: i32, note: i32 },
     /// `cameraShake(power, cycle, time, dirc)` (main 0x00162cd0): the
     /// events' strongest noise (Mutation on, `interNoiz` 5).
     CameraShake { power: i32, cycle: i32, time: i32, dirc: i32 },
