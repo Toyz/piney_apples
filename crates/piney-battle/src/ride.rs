@@ -7,8 +7,10 @@
 //! runtime's. World calls go through [`RideWorld`]; what shows or sounds is an
 //! [`Out`]. docs/engine/grunty-ride.md has the whole.
 
+use piney_data::volume::Volume;
+
 use crate::damage::fptosi;
-use crate::geom::{self, F, MINUS_ONE, ONE, PI, V4, VF0, add, cosf, div, from_int, le, lt, mul, neg, sinf, sqrtf, sub};
+use crate::geom::{self, F, MINUS_ONE, ONE, PI, V4, VF0, add, cosf, div, from_int, le, lt, mul, neg, sinf, sub};
 use crate::kite::{self, MapBounds, Pad};
 use crate::rand::Rng;
 use crate::world::{CharHit, Note};
@@ -104,11 +106,13 @@ pub struct RideTables {
     /// slot's member stands after the ride, in 16-bit angle units off the
     /// heading.
     pub angles: [i16; SLOTS],
+    /// The volume: its `sqrtf` ([`geom::sqrt_on`]).
+    pub volume: Volume,
 }
 
 impl RideTables {
     /// The volume's (`tables::combat`).
-    pub fn of(volume: piney_data::volume::Volume) -> RideTables {
+    pub fn of(volume: Volume) -> RideTables {
         let t = piney_data::tables::combat::of(volume);
         let owned = |v: &[&str]| v.iter().map(|s| s.to_string()).collect();
         let mut angles = [0; SLOTS];
@@ -118,6 +122,7 @@ impl RideTables {
             anims_pg: owned(t.ride_anims_pg()),
             files: owned(t.ride_files()),
             angles,
+            volume,
         }
     }
 
@@ -392,7 +397,7 @@ impl Ride {
 pub fn main(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, g: &mut Globals, t: &RideTables, rng: &mut dyn Rng) {
     r.flags = (r.flags & !flag::PAUSE) | u8::from(input.pause);
     r.move_pos = VF0;
-    control_move(r, w, input, rng);
+    control_move(t.volume, r, w, input, rng);
     let mut hp = moved(r.move_pos, r.pos);
     hp[2] = w.land(hp, LAND);
     r.hit.pos = hp;
@@ -477,7 +482,7 @@ pub fn pad_lever_power(power: F) -> F {
 /// leaning, with dust every fourth frame). It walks at `6.2 * lean / 140` (at
 /// most 1.3 of it) and runs past 240 at `60 * lean / 255`, and turns to the
 /// heading unless in the eye view (docs/engine/grunty-ride.md, "The stick").
-pub fn control_move(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mut dyn Rng) -> i32 {
+pub fn control_move(volume: Volume, r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mut dyn Rng) -> i32 {
     let mut s0 = (i32::from(geom::rad2deg(add(PI, r.rot[2]))) - 32768) as i16;
     let mut power = pad_lever_power(from_int(i32::from(input.pad.pow_l)));
     if r.flags & flag::PAUSE != 0 {
@@ -494,7 +499,7 @@ pub fn control_move(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mu
         r.move_pos[1] = r.move_ease[1];
         r.move_ease[2] = 0;
         if r.cycle & 3 == 0 {
-            let len = sqrtf(geom::dot(r.move_ease, r.move_ease));
+            let len = geom::length_on(volume, r.move_ease);
             if !le(len, K10) {
                 // (float)atan2((double)y, (double)x), a quarter turn on.
                 let y = f64::from(f32::from_bits(r.move_ease[1]));

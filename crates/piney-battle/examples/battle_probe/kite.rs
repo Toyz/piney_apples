@@ -1009,7 +1009,7 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables) -> Option<Str
             "ccPlayerMenuCheck" => i64::from(kite::menu_check(&w.party, &w.scene, me, args[0] as i32)),
             "CheckControlMode" => i64::from(kite::check_control_mode(&w.crew, me)),
             "SetTargetDist" => {
-                kite::set_target_dist(&mut w.scene, me, &mut w.p);
+                kite::set_target_dist(tb.volume, &mut w.scene, me, &mut w.p);
                 kite::to_spc(&w.scene, &mut w.crew, me);
                 0
             }

@@ -9,6 +9,7 @@
 
 pub use piney_data::field::ee::{add, cmp, div, from_int, le, lt, mul, sqrt, sub, to_int};
 pub use piney_data::libm::{atan2f, cosf, fabsf, neg, sinf, sqrtf};
+use piney_data::volume::Volume;
 
 pub use crate::enemy_ai::{get_dirc, get_dist, get_dist_on, rad_disperse, rand_f};
 
@@ -73,14 +74,30 @@ pub fn normalize(a: V4) -> V4 {
     [mul(a[0], r), mul(a[1], r), mul(a[2], r), 0]
 }
 
+/// The code's `sqrtf` on the volume: newlib's, rounding to nearest, on
+/// Infection and Mutation. Outbreak's and Quarantine's executables have no
+/// `sqrtf`: the FPU's `sqrt.s` (truncating) is inline at every call, in
+/// main and gcmn alike (OUT gcmn 0x005a5f54 in `ccAI::DistanceToTarget`).
+pub fn sqrt_on(volume: Volume, v: F) -> F {
+    match volume {
+        Volume::Out | Volume::Qua => sqrt(v),
+        Volume::Inf | Volume::Mut => sqrtf(v),
+    }
+}
+
 /// The ground distance between two points: `(a - b)` with the third lane
-/// zeroed, `sqrtf` of the dot product (`sceVu0SubVector`,
-/// `sceVu0InnerProduct`), as the AI's and the entry control's distances
-/// are taken.
-pub fn plane_dist(a: V4, b: V4) -> F {
+/// zeroed, the volume's `sqrtf` of the dot product (`sceVu0SubVector`,
+/// `sceVu0InnerProduct`), as the AI's distances are taken.
+pub fn plane_dist(volume: Volume, a: V4, b: V4) -> F {
     let d0 = sub(a[0], b[0]);
     let d1 = sub(a[1], b[1]);
-    sqrtf(add(add(mul(d0, d0), mul(d1, d1)), mul(0, 0)))
+    sqrt_on(volume, add(add(mul(d0, d0), mul(d1, d1)), mul(0, 0)))
+}
+
+/// The volume's `sqrtf` of a vector's dot product with itself: its length
+/// (the ground distance when the third lane is zeroed).
+pub fn length_on(volume: Volume, v: V4) -> F {
+    sqrt_on(volume, dot(v, v))
 }
 
 /// `RAD2DEG` (main 0x001dab50): radians to the game's 16-bit angle,

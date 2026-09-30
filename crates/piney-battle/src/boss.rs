@@ -15,7 +15,6 @@ pub mod magus;
 
 use piney_data::field::ee;
 use piney_data::libm;
-use piney_data::volume::Volume;
 
 use crate::affect::{self, AffectCtx};
 use crate::chara::{self, Env};
@@ -892,10 +891,7 @@ fn p2w(cx: &Cx, v: V4) -> V4 {
 /// `sqrtf` on Infection and Mutation, the FPU's `sqrt.s` (truncating)
 /// inline on Outbreak and Quarantine (OUT main 0x001e6ec0).
 fn sqrt_of(cx: &Cx, v: F) -> F {
-    match cx.actx.volume {
-        Volume::Out | Volume::Qua => ee::sqrt(v),
-        Volume::Inf | Volume::Mut => libm::sqrtf(v),
-    }
+    geom::sqrt_on(cx.actx.volume, v)
 }
 
 impl Boss {

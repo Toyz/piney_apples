@@ -8,10 +8,12 @@
 //! rules are in docs/engine/battle.md ("A skill's life").
 
 use piney_data::field::ee;
+use piney_data::volume::Volume;
 
 use crate::chara::{Char, Env};
-use crate::damage::{self, Roll, ground_distance};
+use crate::damage::{self, Roll};
 use crate::event::{Event, Events, Who};
+use crate::geom;
 use crate::param::{F_ONE, cond, ty};
 use crate::rand::Rng;
 use crate::scene::Scene;
@@ -330,10 +332,10 @@ impl SkillRun {
         let mut e = Events::new();
         match self.target {
             Some(tg) if scene.listed(tg) => {
-                skill::hold(scene, creator, tg, sk, &mut e);
+                skill::hold(t.volume, scene, creator, tg, sk, &mut e);
             }
             _ => {
-                skill::hold_at(scene, creator, (f.w2p)(self.target_pos), self.target_type, sk, &mut e);
+                skill::hold_at(t.volume, scene, creator, (f.w2p)(self.target_pos), self.target_type, sk, &mut e);
             }
         }
         nobody(&mut e);
@@ -785,16 +787,16 @@ impl Skills {
 }
 
 /// `ccSpcChar::DistanceToTarget(tt)` (gcmn 0x0059e860): the ground distance
-/// between the two, less both widths; 100000.0 for a target off the lists.
-pub fn spc_distance_to_target(scene: &Scene, me: usize, tt: usize) -> u32 {
+/// between the two (the volume's `sqrtf`), less both widths; 100000.0 for a
+/// target off the lists.
+pub fn spc_distance_to_target(volume: Volume, scene: &Scene, me: usize, tt: usize) -> u32 {
     if !scene.listed(tt) {
         return 0x47c3_5000;
     }
     let a = &scene.chars[me];
     let b = &scene.chars[tt];
-    let d: [u32; 4] = std::array::from_fn(|i| ee::sub(b.pos_p[i], a.pos_p[i]));
-    let dot = ee::add(ee::add(ee::mul(d[0], d[0]), ee::mul(d[1], d[1])), ee::mul(0, 0));
-    ee::sub(piney_data::libm::sqrtf(dot), ee::add(b.base().width, a.base().width))
+    let d = geom::plane_dist(volume, b.pos_p, a.pos_p);
+    ee::sub(d, ee::add(b.base().width, a.base().width))
 }
 
 /// `ccPlayer::CheckNote` (gcmn 0x0059c300), note 0x8005 of Kite's own
@@ -819,9 +821,8 @@ pub fn player_attack_note(
     }
     let a = scene.chars[me].pos;
     let b = &scene.chars[tg];
-    let d: [u32; 4] = std::array::from_fn(|i| ee::sub(a[i], b.pos[i]));
-    let dot = ee::add(ee::add(ee::mul(d[0], d[0]), ee::mul(d[1], d[1])), ee::mul(0, 0));
-    *last_dist = damage::fptosi(ee::sub(piney_data::libm::sqrtf(dot), b.base().width));
+    let d = geom::plane_dist(t.volume, a, b.pos);
+    *last_dist = damage::fptosi(ee::sub(d, b.base().width));
     let sid = scene.chars[me].skill_id;
     if ee::le(ee::from_int(*last_dist), 0x43e1_0000) {
         let dmg = hit_with(t, scene, me, tg, i32::from(sid), rng, env, ev);
@@ -868,7 +869,7 @@ pub fn fellow_attack_note(
     if !scene.listed(tg) || scene.chars[tg].dead() || scene.chars[tg].hp == 0 {
         return;
     }
-    let d = spc_distance_to_target(scene, me, tg);
+    let d = spc_distance_to_target(t.volume, scene, me, tg);
     let d = if ee::cmp(d, 0xbf80_0000) == std::cmp::Ordering::Equal { dist_tg } else { d };
     let sid = scene.chars[me].skill_id;
     if ee::le(d, arms_range) {
@@ -880,9 +881,4 @@ pub fn fellow_attack_note(
     } else {
         ev.push(Event::affect(Who::Char(tg), Who::Char(me), 1, -1, sid, 0));
     }
-}
-
-/// The area rules measure from `posP`; [`ground_distance`] is theirs.
-pub fn distance_from(ch: &Char, centre: [u32; 4]) -> u32 {
-    ground_distance(ch, centre)
 }

@@ -12,8 +12,8 @@ use piney_data::volume::Volume;
 use crate::exp::Party;
 use crate::fellow::MotionTables;
 use crate::geom::{
-    self, F, MINUS_ONE, ONE, V4, add, atan2f, cosf, deg2rad, dot, from_int, le, lt, mul, normalize, rad2deg, sinf,
-    sqrtf, sub, vadd, vscale, vsub,
+    self, F, MINUS_ONE, ONE, V4, add, atan2f, cosf, deg2rad, from_int, le, lt, mul, normalize, rad2deg, sinf, sub,
+    vadd, vscale, vsub,
 };
 use crate::param::AiParam;
 use crate::party_ai::{Ai, Call, Crew, Game, Parts, Runtime, Spc, check_action, distance_to_target};
@@ -190,7 +190,7 @@ impl Follow<'_> {
             let h = turn(h, 16384);
             let mut d = vsub(g, p);
             d[2] = 0;
-            let f = sqrtf(dot(d, d));
+            let f = geom::length_on(self.t.volume, d);
             if !le(dist_pl, F_200) {
                 dir[2] = h;
             }
@@ -353,7 +353,8 @@ impl Follow<'_> {
         let mut d = vsub(t, p);
         let h = heading(d);
         d[2] = 0;
-        let dist = sub(sub(sqrtf(dot(d, d)), scene.chars[body].base().width), scene.chars[tg].base().width);
+        let dist =
+            sub(sub(geom::length_on(self.t.volume, d), scene.chars[body].base().width), scene.chars[tg].base().width);
         let dist = whole(dist);
         let pr = param(self.t, &crew.ais[&key]);
         {
@@ -394,7 +395,7 @@ impl Follow<'_> {
                     halt(crew, body);
                     return;
                 }
-                if lt(distance_to_target(scene, body, kite), pr.territory) {
+                if lt(distance_to_target(self.t.volume, scene, body, kite), pr.territory) {
                     spc(crew, body).run_flag = true;
                 } else {
                     halt(crew, body);
@@ -404,7 +405,7 @@ impl Follow<'_> {
             if !can_act(scene, crew, body, 1, self.t.volume) {
                 return;
             }
-            if !le(dist, pr.stop_range) || lt(distance_to_target(scene, body, kite), pr.territory) {
+            if !le(dist, pr.stop_range) || lt(distance_to_target(self.t.volume, scene, body, kite), pr.territory) {
                 let s = spc(crew, body);
                 s.move_flag = true;
                 s.run_flag = true;
@@ -441,7 +442,7 @@ impl Follow<'_> {
         let mut d = vsub(t, p);
         let h = heading(d);
         d[2] = 0;
-        let dist = whole(sub(sqrtf(dot(d, d)), scene.chars[tg].base().width));
+        let dist = whole(sub(geom::length_on(self.t.volume, d), scene.chars[tg].base().width));
         let pr = param(self.t, &crew.ais[&key]);
         {
             let a = crew.ais.get_mut(&key).expect("the member's AI");

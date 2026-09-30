@@ -782,13 +782,13 @@ fn scene_request(tables: &Tables, t: &mut Toks) -> String {
         "hold" => {
             let target = t.int() as usize;
             let sk = read_skill(t);
-            skill::hold(&s, me, target, &sk, &mut ev)
+            skill::hold(tables.volume, &s, me, target, &sk, &mut ev)
         }
         "holdat" => {
             let pos = pos4(t);
             let ttype = t.i32();
             let sk = read_skill(t);
-            skill::hold_at(&s, me, pos, ttype, &sk, &mut ev)
+            skill::hold_at(tables.volume, &s, me, pos, ttype, &sk, &mut ev)
         }
         "modify" | "modifyat" => {
             let (target, pos, ttype) = if op == "modify" {

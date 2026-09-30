@@ -16,6 +16,7 @@ use piney_data::volume::Volume;
 use crate::chara::{Char, cdiv, cmod};
 use crate::damage::{fptosi, skill_damage_value};
 use crate::exp::Party;
+use crate::geom;
 use crate::param::{F_ONE, cond};
 use crate::party_chat::Remark;
 use crate::rand::Rng;
@@ -1296,24 +1297,14 @@ pub fn check_action(ch: &Char, act_num: i16, n: i32, volume: Volume) -> bool {
     }
 }
 
-/// The ground distance between two points in the player's frame: `(a -
-/// b)` with the third lane cleared, `sqrtf` of the dot product
-/// (`sceVu0SubVector`, `sceVu0InnerProduct`).
-pub fn plane_distance(a: [u32; 4], b: [u32; 4]) -> u32 {
-    let d0 = ee::sub(a[0], b[0]);
-    let d1 = ee::sub(a[1], b[1]);
-    let dot = ee::add(ee::add(ee::mul(d0, d0), ee::mul(d1, d1)), ee::mul(0, 0));
-    piney_data::libm::sqrtf(dot)
-}
-
 /// `ccSpcChar::DistanceToTarget(tt)` (gcmn 0x0059e860) and
-/// `ccAI::DistanceToTarget` (0x00582f50): the ground distance between two
-/// characters' `posP`, less both widths; 100000.0 for a target off the
-/// lists.
-pub fn distance_to_target(scene: &Scene, me: usize, tt: Option<usize>) -> u32 {
+/// `ccAI::DistanceToTarget` (0x00582f50; OUT 0x005a5eb0): the ground
+/// distance between two characters' `posP` (the volume's `sqrtf`), less
+/// both widths; 100000.0 for a target off the lists.
+pub fn distance_to_target(volume: Volume, scene: &Scene, me: usize, tt: Option<usize>) -> u32 {
     let Some(tt) = tt.filter(|&c| scene.listed(c)) else { return F_FAR };
     let (a, b) = (&scene.chars[me], &scene.chars[tt]);
-    let d = plane_distance(a.pos_p, b.pos_p);
+    let d = geom::plane_dist(volume, a.pos_p, b.pos_p);
     ee::sub(d, ee::add(b.base().width, a.base().width))
 }
 
@@ -2168,7 +2159,7 @@ impl Ctx<'_> {
                 if !self.in_sight(body, c) {
                     continue;
                 }
-                let d = plane_distance(self.scene.chars[c].pos_p, self.scene.chars[body].pos_p);
+                let d = geom::plane_dist(self.t.volume, self.scene.chars[c].pos_p, self.scene.chars[body].pos_p);
                 if force == 0 && !far && !ee::lt(d, caution) {
                     continue;
                 }
@@ -2193,7 +2184,7 @@ impl Ctx<'_> {
                 if !self.in_sight(body, c) {
                     continue;
                 }
-                let d = plane_distance(self.scene.chars[c].pos_p, self.scene.chars[body].pos_p);
+                let d = geom::plane_dist(self.t.volume, self.scene.chars[c].pos_p, self.scene.chars[body].pos_p);
                 if !later && self.check_boss_entry(0).is_some() {
                     found = Some(c);
                     best = d;
@@ -2228,7 +2219,7 @@ impl Ctx<'_> {
                 if !self.in_sight(body, c) {
                     continue;
                 }
-                let d = plane_distance(self.scene.chars[c].pos_p, self.scene.chars[body].pos_p);
+                let d = geom::plane_dist(self.t.volume, self.scene.chars[c].pos_p, self.scene.chars[body].pos_p);
                 if ee::le(d, range) {
                     n += 1;
                 }
@@ -2244,7 +2235,7 @@ impl Ctx<'_> {
                     continue;
                 }
                 let p = self.rt.w2p(self.scene.chars[c].pos);
-                let d = plane_distance(p, self.scene.chars[body].pos_p);
+                let d = geom::plane_dist(self.t.volume, p, self.scene.chars[body].pos_p);
                 if ee::le(d, range) {
                     n += 1;
                 }
@@ -2303,7 +2294,7 @@ impl Ctx<'_> {
             {
                 continue;
             }
-            let d = plane_distance(self.scene.chars[c].pos_p, self.scene.chars[body].pos_p);
+            let d = geom::plane_dist(self.t.volume, self.scene.chars[c].pos_p, self.scene.chars[body].pos_p);
             if !ee::lt(d, caution) {
                 continue;
             }
@@ -2562,7 +2553,7 @@ impl Ctx<'_> {
         if !self.can_act(body, 6) {
             return 0;
         }
-        let d = distance_to_target(self.scene, body, Some(tp));
+        let d = distance_to_target(self.t.volume, self.scene, body, Some(tp));
         let s = self.crew.spc.entry(body).or_default();
         s.target_char = Some(tp);
         s.dist_tg = d;
@@ -3609,7 +3600,7 @@ impl Ctx<'_> {
             && !confused
             && !charmed
             && self.ai(me).strategy == 6
-            && ee::le(distance_to_target(self.scene, body, Some(tp)), F_1900);
+            && ee::le(distance_to_target(self.t.volume, self.scene, body, Some(tp)), F_1900);
         if held {
             if self.ai(me).navi_finish == 0 {
                 self.ai_mut(me).navi_finish = 1;
@@ -3621,7 +3612,7 @@ impl Ctx<'_> {
             self.call(Call::FollowTarget { me: body, target: Some(tp) });
         } else {
             self.call(Call::FollowBeacon { me: body });
-            let d = distance_to_target(self.scene, body, Some(tp));
+            let d = distance_to_target(self.t.volume, self.scene, body, Some(tp));
             if ee::le(d, 0x4316_0000) {
                 self.ai_mut(me).navi_finish = 1;
             } else if cmod(self.ai(me).count, 90) == 0 {
@@ -3673,7 +3664,7 @@ impl Ctx<'_> {
             }
         }
         self.crew.spc.entry(body).or_default().target_char = Some(tp);
-        let dist = distance_to_target(self.scene, body, Some(tp));
+        let dist = distance_to_target(self.t.volume, self.scene, body, Some(tp));
         let dead1 = self.scene.chars[tp].cond[cond::DEAD] == 1;
         let request = if s0 == 1 {
             if !self.can_act(body, 3) {
@@ -4685,7 +4676,7 @@ impl Ctx<'_> {
         let body = self.ai(me).body;
         if self.scene.chars[body].ty() & 0xffff != 1 {
             let kite = self.party.members[0];
-            let d = distance_to_target(self.scene, body, kite);
+            let d = distance_to_target(self.t.volume, self.scene, body, kite);
             self.ai_mut(me).dist_pl = d;
             if let Some(t) = self.ai(me).target {
                 let h = direction_of_target(self.scene, body, t);
@@ -5255,7 +5246,7 @@ impl Ctx<'_> {
     }
 
     fn dist(&self, me: usize, t: Option<usize>) -> u32 {
-        distance_to_target(self.scene, self.ai(me).body, t)
+        distance_to_target(self.t.volume, self.scene, self.ai(me).body, t)
     }
 
     /// `ccAI::Reconnoiter` (gcmn 0x00592aa0): choose the member's target and
@@ -6013,6 +6004,11 @@ mod tests {
         let one = F_ONE;
         let three = ee::from_int(3);
         let four = ee::from_int(4);
-        assert_eq!(plane_distance([three, four, ee::from_int(9), one], [0, 0, 0, one]), ee::from_int(5));
+        let (a, b) = ([three, four, ee::from_int(9), one], [0, 0, 0, one]);
+        assert_eq!(geom::plane_dist(Volume::Inf, a, b), ee::from_int(5));
+        // |(1, 2)| = sqrt(5): newlib rounds up, Outbreak's sqrt.s cuts.
+        let (a, b) = ([one, ee::from_int(2), 0, one], [0, 0, 0, one]);
+        assert_eq!(geom::plane_dist(Volume::Mut, a, b), 0x400f_1bbd);
+        assert_eq!(geom::plane_dist(Volume::Out, a, b), 0x400f_1bbc);
     }
 }

@@ -105,9 +105,8 @@ pub fn drain(
             if cty & ty::FOE != 0 && ch.foe_state().is_none_or(|f| f.pp_count == 0) {
                 continue;
             }
-            let d: [u32; 4] = std::array::from_fn(|i| ee::sub(ch.pos_p[i], centre[i]));
-            let dot = ee::add(ee::add(ee::mul(d[0], d[0]), ee::mul(d[1], d[1])), ee::mul(0, 0));
-            if !ee::le(piney_data::libm::sqrtf(dot), ee::add(range, ch.base().width)) {
+            let d = crate::geom::plane_dist(t.volume, ch.pos_p, centre);
+            if !ee::le(d, ee::add(range, ch.base().width)) {
                 continue;
             }
             if cty & ty::ENEMY != 0 {

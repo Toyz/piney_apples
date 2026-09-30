@@ -181,7 +181,7 @@ impl Ctx<'_> {
         let mut d = geom::vsub(p2, p1);
         let ang = geom::deg2rad(geom::rad2deg(geom::atan2f(d[0], geom::neg(d[1]))));
         d[2] = 0;
-        let dist = geom::sqrtf(geom::dot(d, d));
+        let dist = geom::length_on(self.t.volume, d);
         let r = geom::from_int(fptosi(geom::sub(dist, self.spc_ref(body).body_hit.radius)));
         let vel = self.velocity(body);
         if self.able(body, 2) && !geom::lt(r, vel) {
@@ -538,7 +538,7 @@ impl Ctx<'_> {
         d[2] = 0;
         let bw = self.scene.chars[body].base().width;
         let tw = self.scene.chars[tg].base().width;
-        let dist = geom::sub(geom::sub(geom::sqrtf(geom::dot(d, d)), bw), tw);
+        let dist = geom::sub(geom::sub(geom::length_on(self.t.volume, d), bw), tw);
         let dist_tg = geom::from_int(fptosi(dist));
         self.ai_at(me).dist_tg = dist_tg;
         let no_turn = self.t.ai_params.get(self.ai_ref(me).param).map_or(0, |p| p.no_turn_range);
@@ -740,7 +740,7 @@ impl Ctx<'_> {
                 }
                 if self.ai_ref(me).no_move_cnt >= 201 {
                     self.ai_at(me).no_move_cnt = 0;
-                    let k = nav.town.search_near_landmark_n(mp, 3);
+                    let k = nav.town.search_near_landmark_n(self.t.volume, mp, 3);
                     self.ai_at(me).act_dummy = k as i16;
                 }
             }
@@ -785,7 +785,7 @@ impl Ctx<'_> {
                 if self.leader_near(me, leader, false) {
                     let l = leader.expect("a listed leader");
                     self.follow_target_town(me, leader);
-                    if geom::lt(distance_to_target(self.scene, body, leader), F_150) {
+                    if geom::lt(distance_to_target(self.t.volume, self.scene, body, leader), F_150) {
                         if self.spc_ref(l).stop_flag {
                             self.stand(body);
                         }
@@ -797,7 +797,7 @@ impl Ctx<'_> {
                         self.set_act(me, 97);
                     }
                     if self.ai_ref(me).no_move_cnt >= 201
-                        && !geom::le(distance_to_target(self.scene, body, leader), F_500)
+                        && !geom::le(distance_to_target(self.t.volume, self.scene, body, leader), F_500)
                     {
                         self.lost_leader(me);
                     }
@@ -883,7 +883,7 @@ impl Ctx<'_> {
             return;
         }
         let l = leader.expect("a listed leader");
-        if geom::le(distance_to_target(self.scene, body, leader), F_200) {
+        if geom::le(distance_to_target(self.t.volume, self.scene, body, leader), F_200) {
             let a = self.ai_at(me);
             a.navi_finish = 1;
             a.last_marker = a.navi.name;
@@ -916,8 +916,8 @@ impl Ctx<'_> {
                     *tp = self.scene.chars[l].pos;
                     let n = &self.ai_ref(me).navi;
                     let last = i32::from(n.route_byte(i32::from(n.step) - 1));
-                    if last == nav.town.search_near_landmark(*tp) {
-                        if !geom::le(distance_to_target(self.scene, body, leader), F_200) {
+                    if last == nav.town.search_near_landmark(self.t.volume, *tp) {
+                        if !geom::le(distance_to_target(self.t.volume, self.scene, body, leader), F_200) {
                             self.rejoin(me);
                         }
                     } else {
@@ -966,7 +966,7 @@ impl Ctx<'_> {
             a.navi_finish = 1;
             a.no_move_cnt = 0;
             self.set_act(me, 12);
-            let k = nav.town.search_near_landmark(mp);
+            let k = nav.town.search_near_landmark(self.t.volume, mp);
             self.ai_at(me).act_dummy = k as i16;
         }
     }
@@ -1015,7 +1015,7 @@ impl Ctx<'_> {
 
     /// Mode 5: out of Kite's way.
     fn keep_away(&mut self, me: usize, body: usize, leader: Option<usize>) {
-        let dt = distance_to_target(self.scene, body, leader);
+        let dt = distance_to_target(self.t.volume, self.scene, body, leader);
         if !self.ai_ref(me).follow_sw && geom::lt(dt, F_150) {
             self.ai_at(me).follow_sw = true;
         }

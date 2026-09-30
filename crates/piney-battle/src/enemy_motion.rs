@@ -645,7 +645,7 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
             let ch = &self.ai.scene.chars[c];
             if tty & ch.ty() == 0
                 || ch.cond[cond::DEAD] != 0
-                || !le(damage::ground_distance(ch, centre), sk.target_range)
+                || !le(damage::ground_distance(self.ai.t.volume, ch, centre), sk.target_range)
             {
                 continue;
             }

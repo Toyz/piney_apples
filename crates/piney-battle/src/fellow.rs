@@ -14,7 +14,7 @@ use crate::chara::{self, Char, Env, cmod, spc_flag};
 use crate::event::{Event, Events, Who};
 use crate::exp::Party;
 use crate::follow;
-use crate::geom::{F, ONE, V4, add, atan2f, cosf, div, fptoui, from_int, le, lt, mul, neg, sinf, sqrtf, sub};
+use crate::geom::{F, ONE, V4, add, atan2f, cosf, div, fptoui, from_int, le, lt, mul, neg, sinf, sub};
 use crate::param::{AiParam, F_ONE, cond};
 use crate::party_ai::{Call, Crew, Ctx, Game, Runtime, Spc, skill_check_type};
 use crate::rand::Rng;
@@ -589,7 +589,7 @@ impl Frame<'_> {
     /// exactly -1.0.
     fn in_arms(&self, me: usize) -> bool {
         let Some(tg) = self.sp(me).target_char else { return false };
-        let d = crate::flow::spc_distance_to_target(self.scene, me, tg);
+        let d = crate::flow::spc_distance_to_target(self.t.volume, self.scene, me, tg);
         let arms = self.ai_param(me).arms_range;
         let d = if crate::geom::eq(crate::geom::MINUS_ONE, d) {
             self.crew.ais.get(&me).map_or(0, |a| a.dist_tg)
@@ -849,7 +849,7 @@ impl Frame<'_> {
             let mut d = self.scene.chars[me].pos_p;
             d[2] = 0;
             d[3] = ONE;
-            if !le(sqrtf(crate::geom::dot(d, d)), F_7000) {
+            if !le(crate::geom::length_on(self.t.volume, d), F_7000) {
                 return 0;
             }
         }

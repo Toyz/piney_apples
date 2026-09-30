@@ -73,9 +73,9 @@ d = sqrtf(|posP - centre|^2, lane 2 of the difference zeroed) - base.width
 ```
 
 `posP` is the position in the player's frame (`sceVu0SubVector`,
-`sceVu0InnerProduct`, newlib `sqrtf`). The centre is the target, or the
-caster for type bit 0x2000; the side is the party for a target of type
-0x2 or 0x4, the foes for 0xe0. Only characters sharing a type bit with
+`sceVu0InnerProduct`, the volume's `sqrtf`, see Other volumes). The centre
+is the target, or the caster for type bit 0x2000; the side is the party for
+a target of type 0x2 or 0x4, the foes for 0xe0. Only characters sharing a type bit with
 the target (or the point variant's `ttype`) count; from Outbreak on, a
 foes' side counts every foe type, 0xe0 (see Other volumes). The point
 variants take a world position converted with `ccTransPosW2P` (0x0059b940).
@@ -3612,16 +3612,25 @@ From Outbreak on, the three area damage rules (`ccSkillDamage` OUT
 0x004886ec, 0x00488c38, 0x00488f8c) set the types to 0xe0 once they walk
 the foes' list: an area skill aimed at an enemy also takes in a Data Bug
 (0x40) or a boss (0x80) in reach. Otherwise OUT and QUA differ from MUT
-only in compilation: the durations come from a literal pool, and `fptosi`
-is inlined. The tables change from volume to volume;
+only in compilation: the durations come from a literal pool, `fptosi` is
+inlined, and so is `sqrtf`, as `sqrt.s` (below). The tables change from volume to volume;
 see [game data](../content/game-data.md#other-volumes).
+
+Outbreak's and Quarantine's code has no `sqrtf` call: the compiler puts
+the FPU's `sqrt.s` inline for each one, in main and gcmn alike (85 gcmn
+functions on each; on OUT only libm's `acosf` and `asinf` still reach
+`__ieee754_sqrtf`). `sqrt.s` truncates where newlib rounds to nearest, so a
+distance can come out one unit in the last place short.
+`ccAI::DistanceToTarget` (OUT gcmn 0x005a5eb0, `sqrt.s` at 0x005a5f54; INF
+0x00582f50 calls `sqrtf`) gives the AI's `distTg` so; so do
+`ccSpcChar::DistanceToTarget`, `SetTargetDist`, `CheckNote`'s reach, the
+follow and move routines, the target searches, the area rules, Data Drain's
+reach, the landmarks, `ccEntryObj::routine`'s `plDist`, the Grunty's stick
+and `ccGetDist`. The port takes each through `geom::sqrt_on` (checked:
+`test_battle_kite_rs.py`, 200 cases of every check on INF, MUT and OUT).
 
 ## Unknown
 
-- On Outbreak, `test_battle_kite_rs.py` `main_run` and `main_run_ai` differ
-  from the game in 10 and 31 of 200 cases, each in one float of an AI
-  record (word 34 of 71, one unit in the last place); Infection and
-  Mutation match. Not traced.
 - Which of the party's debuffs lowers Black Death's mDef (2400) or Gaia
   Turtle's pDef (700) below the table in play, opening them to the other
   kind, is not measured.

@@ -7,8 +7,10 @@
 //! keeps its beacon table. The movers are [`crate::ai_move`]'s; the rules are
 //! in docs/engine/battle.md ("Party navigation").
 
+use piney_data::volume::Volume;
+
 use crate::damage::fptosi;
-use crate::geom::{self, F, V4, add, dot, from_int, mul, sqrtf, sub, vsub};
+use crate::geom::{self, F, V4, add, from_int, mul, sub, vsub};
 use crate::world::World;
 
 /// The map's side: `buf`, `buf2` and the dungeon's 2D map are `[256][256]`.
@@ -662,25 +664,25 @@ impl TownMap {
         (n > 0 && n <= self.num).then(|| self.mark(n).pos)
     }
 
-    /// The distance on the ground to landmark `k` when it is within 301
-    /// in height (`fabs((double)dz) > 301.0` skips it).
-    fn ground_dist(&self, k: i32, pos: V4) -> Option<F> {
+    /// The distance on the ground to landmark `k` (the volume's `sqrtf`)
+    /// when it is within 301 in height (`fabs((double)dz) > 301.0` skips it).
+    fn ground_dist(&self, volume: Volume, k: i32, pos: V4) -> Option<F> {
         let mut d = vsub(self.mark(k).pos, pos);
         if f64::from(f32::from_bits(d[2])).abs() > 301.0 {
             return None;
         }
         d[2] = 0;
         d[3] = geom::ONE;
-        Some(sqrtf(dot(d, d)))
+        Some(geom::length_on(volume, d))
     }
 
     /// `ccNaviSearchNearLandmark(pos)` (gcmn 0x00513300): the nearest
     /// landmark (1 below `landMarkNum`) within 10000 on the ground and 301
     /// in height, the first of equals; -1.
-    pub fn search_near_landmark(&self, pos: V4) -> i32 {
+    pub fn search_near_landmark(&self, volume: Volume, pos: V4) -> i32 {
         let (mut best, mut idx) = (NEAR_MAX, -1);
         for k in 1..self.num {
-            if let Some(d) = self.ground_dist(k, pos)
+            if let Some(d) = self.ground_dist(volume, k, pos)
                 && geom::lt(d, best)
             {
                 idx = k;
@@ -695,11 +697,11 @@ impl TownMap {
     /// signed byte, distance) from (-1, 10000), each landmark within 301
     /// in height put in before the first slot it is nearer than, the last
     /// dropped. Returns the last slot's index.
-    pub fn search_near_landmark_n(&self, pos: V4, n: i32) -> i32 {
+    pub fn search_near_landmark_n(&self, volume: Volume, pos: V4, n: i32) -> i32 {
         let n = n.max(0) as usize;
         let mut list = vec![(-1i8, NEAR_MAX); n];
         for k in 1..self.num {
-            let Some(d) = self.ground_dist(k, pos) else { continue };
+            let Some(d) = self.ground_dist(volume, k, pos) else { continue };
             if let Some(i) = (0..n).find(|&i| geom::lt(d, list[i].1)) {
                 for j in (i + 1..n).rev() {
                     list[j] = list[j - 1];
@@ -871,9 +873,9 @@ mod tests {
             ],
         };
         let o = at(0.0, 0.0);
-        assert_eq!(town.search_near_landmark(o), 3);
-        assert_eq!(town.search_near_landmark_n(o, 2), 1);
-        assert_eq!(town.search_near_landmark_n(o, 3), -1);
+        assert_eq!(town.search_near_landmark(Volume::Inf, o), 3);
+        assert_eq!(town.search_near_landmark_n(Volume::Inf, o, 2), 1);
+        assert_eq!(town.search_near_landmark_n(Volume::Inf, o, 3), -1);
         assert_eq!(town.search_landmark(8), 2);
         assert_eq!(town.landmark_pos(4), Some(Landmark::default().pos));
         assert_eq!(town.landmark_pos(5), None);

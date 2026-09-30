@@ -9,13 +9,14 @@
 
 use piney_data::save::SaveData;
 use piney_data::tables::types::EntryFunc;
+use piney_data::volume::Volume;
 
 use crate::affect::AffectCtx;
 use crate::blocks::InfoRef;
 use crate::chara::{AffectFunc, Char, Env};
 use crate::enemy_ai::{self, Ai, Enemy, EntryParam, Frame};
 use crate::enemy_motion::{At, Call, Motion, MotionData, MotionWorld};
-use crate::geom::{self, F, V4, add, atan2f, deg2rad, div, from_int, le, lt, mul, rad2deg, set_dirc, sinf, sqrtf, sub};
+use crate::geom::{self, F, V4, add, atan2f, deg2rad, div, from_int, le, lt, mul, rad2deg, set_dirc, sinf, sub};
 use crate::param::{Base, Elm};
 use crate::rand::Rng;
 use crate::scene::Scene;
@@ -79,7 +80,7 @@ pub struct SpawnRow {
 /// num}`), the volume's (`battle`).
 #[derive(Clone)]
 pub struct SpawnTables {
-    pub volume: piney_data::volume::Volume,
+    pub volume: Volume,
     pub gimmicks: Vec<SpawnRow>,
     pub npcs: Vec<SpawnRow>,
     /// `ccEnemyListInfo[server][type]`: the `enemyTbl` rows by rank.
@@ -88,7 +89,7 @@ pub struct SpawnTables {
 
 impl SpawnTables {
     /// The volume's.
-    pub fn of(volume: piney_data::volume::Volume) -> SpawnTables {
+    pub fn of(volume: Volume) -> SpawnTables {
         let t = piney_data::tables::battle::of(volume);
         let row = |base, entry: &piney_data::tables::types::Entry| SpawnRow {
             base: crate::param::base_of(base),
@@ -219,7 +220,7 @@ impl Register {
 fn list_rows(t: &Tables, list: &[i32], rank: i32, range: i32) -> Vec<i32> {
     let num = list.len() as i32;
     let mut rank = rank;
-    let later = t.volume != piney_data::volume::Volume::Inf;
+    let later = t.volume != Volume::Inf;
     if later && num < rank + range {
         rank = num - range;
     }
@@ -240,7 +241,7 @@ fn list_rows(t: &Tables, list: &[i32], rank: i32, range: i32) -> Vec<i32> {
 /// would register (`ccRegisterEnemyRange`), the first three compared.
 pub fn analyze_enemy_list(t: &Tables, st: &SpawnTables, server: i32, ty: i32, rank: i32, range: i32) -> i32 {
     let list = &st.enemy_lists[server as usize][ty as usize];
-    let later = t.volume != piney_data::volume::Volume::Inf;
+    let later = t.volume != Volume::Inf;
     let rows = list_rows(t, list, rank, if later { range } else { 3 });
     rows.iter()
         .take(3)
@@ -829,7 +830,15 @@ pub(crate) fn delete_cmnd(cmnd_flag: &mut bool, scene: &mut Scene, out: &mut Vec
 /// (`cmndFlag` kept set for an entry with an `entRoot`), else on it
 /// (`ccEntryCmnd`) unless `cmndFlag`; then a fade in (`fadeFlag` 1) or out
 /// (2) of `1 / fadeCnt` a frame.
-pub fn routine(o: RoutineRef, pos: V4, who: usize, scene: &mut Scene, world: &mut dyn World, out: &mut Vec<Out>) {
+pub fn routine(
+    volume: Volume,
+    o: RoutineRef,
+    pos: V4,
+    who: usize,
+    scene: &mut Scene,
+    world: &mut dyn World,
+    out: &mut Vec<Out>,
+) {
     if *o.grot_spd != 0 {
         let mut tmp = *o.dirc;
         let r = deg2rad(o.grot_deg);
@@ -842,7 +851,7 @@ pub fn routine(o: RoutineRef, pos: V4, who: usize, scene: &mut Scene, world: &mu
     }
     let q = world.w2p(pos);
     let p = [mul(q[0], geom::MINUS_ONE), mul(q[1], geom::MINUS_ONE), 0, ONE];
-    *o.pl_dist = sqrtf(geom::dot(p, p));
+    *o.pl_dist = geom::length_on(volume, p);
     let mut d = add(HALF_PI, atan2f(p[1], p[0]));
     if !le(d, PI) {
         d = sub(d, TWO_PI);
@@ -1913,10 +1922,12 @@ impl EntryCtrl {
         match &mut self.objs[who] {
             Obj::Enemy => {
                 let e = cx.foes[who].as_mut().expect("an enemy's state");
-                routine(enemy_routine_ref(e), pos, who, cx.scene, cx.world, cx.out);
+                routine(cx.t.volume, enemy_routine_ref(e), pos, who, cx.scene, cx.world, cx.out);
             }
-            Obj::Circle(c) => routine(c.obj.routine_ref(), pos, who, cx.scene, cx.world, cx.out),
-            Obj::Gimmick(o) | Obj::Npc(o) => routine(o.routine_ref(), pos, who, cx.scene, cx.world, cx.out),
+            Obj::Circle(c) => routine(cx.t.volume, c.obj.routine_ref(), pos, who, cx.scene, cx.world, cx.out),
+            Obj::Gimmick(o) | Obj::Npc(o) => {
+                routine(cx.t.volume, o.routine_ref(), pos, who, cx.scene, cx.world, cx.out)
+            }
             Obj::None => {}
         }
     }
@@ -2023,7 +2034,7 @@ impl EntryCtrl {
             _ => {}
         }
         mc.create_part(cx.scene.chars[who].pos);
-        let frame = cx.t.volume == piney_data::volume::Volume::Inf || cx.game.player.is_some();
+        let frame = cx.t.volume == Volume::Inf || cx.game.player.is_some();
         for p in mc.parts.iter_mut() {
             if p.status != 0 {
                 p.main(cx.world, cx.cc, frame);

@@ -712,8 +712,10 @@ fn run_op(w: &mut Setup, tables: &Tables, op: &str, a: &[i64]) -> String {
             };
             format!("\"ret\":{r},\"vec\":{}", list(p))
         }
-        "SearchNearLandmark" => format!("\"ret\":{}", w.keep.town.search_near_landmark(vec_at(0))),
-        "SearchNearLandmarkN" => format!("\"ret\":{}", w.keep.town.search_near_landmark_n(vec_at(0), a[4] as i32)),
+        "SearchNearLandmark" => format!("\"ret\":{}", w.keep.town.search_near_landmark(tables.volume, vec_at(0))),
+        "SearchNearLandmarkN" => {
+            format!("\"ret\":{}", w.keep.town.search_near_landmark_n(tables.volume, vec_at(0), a[4] as i32))
+        }
         "SetNaviMap" => {
             w.keep.town.set_navi_map(&mut w.script);
             "\"ret\":0".into()
@@ -757,7 +759,7 @@ fn run_op(w: &mut Setup, tables: &Tables, op: &str, a: &[i64]) -> String {
             let r: i64 = match op {
                 "distpl" => {
                     let body = ctx.crew.ais[&key].body;
-                    let d = distance_to_target(ctx.scene, body, ctx.party.members[0]);
+                    let d = distance_to_target(tables.volume, ctx.scene, body, ctx.party.members[0]);
                     ctx.crew.ais.get_mut(&key).expect("an AI").dist_pl = d;
                     0
                 }
@@ -769,7 +771,7 @@ fn run_op(w: &mut Setup, tables: &Tables, op: &str, a: &[i64]) -> String {
                         if let Some(k) = kite {
                             ctx.scene.chars[k].pos = vec_at(5);
                         }
-                        let d = distance_to_target(ctx.scene, body, kite);
+                        let d = distance_to_target(tables.volume, ctx.scene, body, kite);
                         ctx.crew.ais.get_mut(&key).expect("an AI").dist_pl = d;
                         ctx.act_in_town(&mut nav, key).into()
                     } else {
@@ -859,7 +861,7 @@ fn composed(w: &mut Setup, tables: &Tables, op: &str, key: usize, a: &[i64]) -> 
         }
     }
     if op == "townfull" {
-        let d = distance_to_target(&w.scene, body, w.party.members[0]);
+        let d = distance_to_target(tables.volume, &w.scene, body, w.party.members[0]);
         w.crew.ais.get_mut(&key).expect("an AI").dist_pl = d;
     }
     let mut rt = Rt;

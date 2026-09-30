@@ -7,6 +7,7 @@
 //! the positional variants take the centre in the player's frame (`posP`).
 
 use piney_data::field::ee;
+use piney_data::volume::Volume;
 
 use crate::chara::{Char, Env};
 use crate::damage::ground_distance;
@@ -175,12 +176,12 @@ fn heal_one(scene: &Scene, creator: usize, c: usize, sid: i32, param: i32, ev: &
 
 /// The members of a side within `range` of `centre`, in list order, that
 /// match `tyb` and are alive.
-fn in_area(scene: &Scene, list: &[usize], tyb: i32, centre: [u32; 4], range: u32) -> Vec<usize> {
+fn in_area(volume: Volume, scene: &Scene, list: &[usize], tyb: i32, centre: [u32; 4], range: u32) -> Vec<usize> {
     list.iter()
         .copied()
         .filter(|&c| {
             let ch = &scene.chars[c];
-            tyb & ch.ty() != 0 && ch.cond[cond::DEAD] == 0 && ee::le(ground_distance(ch, centre), range)
+            tyb & ch.ty() != 0 && ch.cond[cond::DEAD] == 0 && ee::le(ground_distance(volume, ch, centre), range)
         })
         .collect()
 }
@@ -211,7 +212,7 @@ pub fn recovery(
     }
     let centre = if sk.ty & bits::CENTRED_ON_USER != 0 { cr.pos_p } else { scene.chars[target].pos_p };
     let Some(list) = scene.side(tyb) else { return 0 };
-    let hit = in_area(scene, &list, tyb, centre, sk.target_range);
+    let hit = in_area(t.volume, scene, &list, tyb, centre, sk.target_range);
     for &c in &hit {
         heal_one(scene, creator, c, sid, param, ev);
     }
@@ -240,7 +241,7 @@ pub fn recovery_at(
     let tyb = cr.ty();
     let centre = if sk.ty & bits::CENTRED_ON_USER != 0 { cr.pos_p } else { pos };
     let Some(list) = scene.side(tyb) else { return 0 };
-    let hit = in_area(scene, &list, tyb, centre, sk.target_range);
+    let hit = in_area(t.volume, scene, &list, tyb, centre, sk.target_range);
     for &c in &hit {
         heal_one(scene, creator, c, sid, param, ev);
     }
@@ -252,7 +253,7 @@ pub fn recovery_at(
 /// `hold` condition (see [`crate::affect`]). A single-target skill holds
 /// its target whatever its state; an area one every living character of
 /// the target's side in range.
-pub fn hold(scene: &Scene, creator: usize, target: usize, sk: &SkillParam, ev: &mut Events) -> i32 {
+pub fn hold(volume: Volume, scene: &Scene, creator: usize, target: usize, sk: &SkillParam, ev: &mut Events) -> i32 {
     if ee::le(sk.target_range, 0) {
         ev.push(Event::affect(Who::Char(target), Who::Char(creator), 5, 0, 0, 0));
         return 1;
@@ -260,7 +261,7 @@ pub fn hold(scene: &Scene, creator: usize, target: usize, sk: &SkillParam, ev: &
     let tyb = scene.chars[target].ty();
     let centre = if sk.ty & bits::CENTRED_ON_USER != 0 { pos_p_of(scene, creator) } else { scene.chars[target].pos_p };
     let Some(list) = scene.side(tyb) else { return 0 };
-    let hit = in_area(scene, &list, tyb, centre, sk.target_range);
+    let hit = in_area(volume, scene, &list, tyb, centre, sk.target_range);
     for &c in &hit {
         ev.push(Event::affect(Who::Char(c), Who::Char(creator), 5, 0, 0, 0));
     }
@@ -268,13 +269,21 @@ pub fn hold(scene: &Scene, creator: usize, target: usize, sk: &SkillParam, ev: &
 }
 
 /// `ccSkillHold(creator, pos, ttype, sk)` (gcmn 0x00575520).
-pub fn hold_at(scene: &Scene, creator: usize, pos: [u32; 4], ttype: i32, sk: &SkillParam, ev: &mut Events) -> i32 {
+pub fn hold_at(
+    volume: Volume,
+    scene: &Scene,
+    creator: usize,
+    pos: [u32; 4],
+    ttype: i32,
+    sk: &SkillParam,
+    ev: &mut Events,
+) -> i32 {
     if ee::le(sk.target_range, 0) {
         return 0;
     }
     let centre = if sk.ty & bits::CENTRED_ON_USER != 0 { pos_p_of(scene, creator) } else { pos };
     let Some(list) = scene.side(ttype) else { return 0 };
-    let hit = in_area(scene, &list, ttype, centre, sk.target_range);
+    let hit = in_area(volume, scene, &list, ttype, centre, sk.target_range);
     for &c in &hit {
         ev.push(Event::affect(Who::Char(c), Who::Char(creator), 5, 0, 0, 0));
     }
@@ -481,7 +490,7 @@ pub fn skill_modify_condition(
     let centre = scene.chars[target].pos_p;
     let Some(list) = scene.side(tyb) else { return 0 };
     let mut n = 0;
-    for c in in_area(scene, &list, tyb, centre, range) {
+    for c in in_area(t.volume, scene, &list, tyb, centre, range) {
         if modify_one(t, scene, creator, c, sid, stype, force, rng, out) {
             n += 1;
         }
@@ -510,7 +519,7 @@ pub fn skill_modify_condition_at(
     }
     let Some(list) = scene.side(ttype) else { return 0 };
     let mut n = 0;
-    for c in in_area(scene, &list, ttype, pos, range) {
+    for c in in_area(t.volume, scene, &list, ttype, pos, range) {
         if modify_one(t, scene, creator, c, sid, stype, force, rng, out) {
             n += 1;
         }

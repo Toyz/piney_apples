@@ -384,7 +384,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match name.as_str() {
                         "" => ride::main(&mut r, &mut s, &input, &mut g, &tables, &mut rand),
                         "control_move" => {
-                            ride::control_move(&mut r, &mut s, &input, &mut rand);
+                            ride::control_move(tables.volume, &mut r, &mut s, &input, &mut rand);
                         }
                         "anim_ctrl" => ride::anim_ctrl(&mut r, &mut s, &tables, &mut rand),
                         "draw_pg" => ride::draw_pg(&mut r, &mut s, &input),

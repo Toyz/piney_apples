@@ -10,6 +10,7 @@
 use std::cell::RefCell;
 
 use piney_data::save::SaveData;
+use piney_data::volume::Volume;
 
 use crate::chara::{Char, Env, spc_flag};
 use crate::damage::fptosi;
@@ -101,7 +102,7 @@ pub struct KiteTables {
 
 impl KiteTables {
     /// The volume's.
-    pub fn of(volume: piney_data::volume::Volume) -> KiteTables {
+    pub fn of(volume: Volume) -> KiteTables {
         let t = piney_data::tables::combat::of(volume);
         let d = t.dam_actu();
         KiteTables {
@@ -781,9 +782,9 @@ impl<W: KiteWorld + NaviWorld + ?Sized> KiteWorld for Host<'_, '_, '_, W> {
 // Targets
 
 /// `ccPlayer::SetTargetDist()` (gcmn 0x0059ab80): the ground distance from
-/// Kite to `targetChar` less its width, truncated (`distTg`); a target
-/// down is dropped. Nothing for a target off the lists.
-pub fn set_target_dist(scene: &mut Scene, me: usize, p: &mut Player) {
+/// Kite to `targetChar` (the volume's `sqrtf`) less its width, truncated
+/// (`distTg`); a target down is dropped. Nothing for a target off the lists.
+pub fn set_target_dist(volume: Volume, scene: &mut Scene, me: usize, p: &mut Player) {
     let Some(tg) = scene.chars[me].target_char else { return };
     if !scene.listed(tg) {
         return;
@@ -796,7 +797,7 @@ pub fn set_target_dist(scene: &mut Scene, me: usize, p: &mut Player) {
     let b = &scene.chars[tg];
     let d = geom::vsub(a, b.pos);
     let v = [d[0], d[1], 0, ONE];
-    p.dist_tg = fptosi(sub(geom::sqrtf(geom::dot(v, v)), b.base().width));
+    p.dist_tg = fptosi(sub(geom::length_on(volume, v), b.base().width));
 }
 
 /// `ccPlayer::SetTargetDirc()` (gcmn 0x0059aa90): the heading to
@@ -859,7 +860,7 @@ fn start_arms_effect(cx: &mut Cx, me: usize, sid: i32) {
 /// table at 0x006f07e0 when a clip ends), then the act's clip and its notes.
 /// The acts are in docs/engine/battle.md ("Kite").
 pub fn anim_ctrl(cx: &mut Cx, me: usize) {
-    set_target_dist(cx.scene, me, cx.p);
+    set_target_dist(cx.t.volume, cx.scene, me, cx.p);
     let ch = &cx.scene.chars[me];
     if ch.skill_id == 1
         && let Some(tg) = ch.target_char
@@ -1076,7 +1077,7 @@ fn skill_state(cx: &mut Cx, me: usize) {
             }
         } else if attack == 4 && cx.act(me) < 7 {
             let tc = cx.scene.chars[me].target_char;
-            let d = party_ai::distance_to_target(cx.scene, me, tc);
+            let d = party_ai::distance_to_target(cx.t.volume, cx.scene, me, tc);
             let a = &cx.crew.ais[&me];
             let arms = cx.t.ai_params.get(a.param).map_or(0, |r| r.arms_range);
             let near = if geom::eq(party_ai::F_MINUS_ONE, d) { le(a.dist_tg, arms) } else { le(d, arms) };
@@ -1275,7 +1276,7 @@ fn start_stop(cx: &mut Cx, me: usize) {
 /// ends after 60.
 fn arrive(cx: &mut Cx, me: usize) {
     let warp = cx.input.warp;
-    let later = cx.t.volume != piney_data::volume::Volume::Inf;
+    let later = cx.t.volume != Volume::Inf;
     let (eff, s, full, e) = match (warp, later) {
         (true, false) => (0, 20, 40, 40),
         (true, true) => (0, 20, 50, 60),
@@ -1903,7 +1904,7 @@ fn motion(cx: &mut Cx, me: usize) {
         if let Some(a) = cx.crew.ais.get_mut(&me) {
             a.target_flag = 0;
         }
-        let won = cx.t.volume != piney_data::volume::Volume::Inf && cx.game.spc_battle_condition == 5;
+        let won = cx.t.volume != Volume::Inf && cx.game.spc_battle_condition == 5;
         read_sys_msg2(cx.crew, me, won);
     }
     if cx.p.prog_ctrl_flag == 0 {
@@ -1979,7 +1980,7 @@ fn attack_body(ctx: &mut party_ai::Ctx, me: usize, tp: usize) -> i32 {
         }
     }
     ctx.scene.chars[me].target_char = Some(tp);
-    let dist = party_ai::distance_to_target(ctx.scene, me, Some(tp));
+    let dist = party_ai::distance_to_target(ctx.t.volume, ctx.scene, me, Some(tp));
     let dead1 = ctx.scene.chars[tp].cond[cond::DEAD] == 1;
     let range = |t: &Tables, sid: i32| t.skill(sid).is_some_and(|k| skill::range_check(k, dist));
     if s0 == 1 {

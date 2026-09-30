@@ -118,13 +118,7 @@ pub fn get_dist(a: [u32; 4], b: [u32; 4]) -> u32 {
 /// take the FPU's `sqrt.s` (truncating) inline for newlib's `sqrtf` (OUT
 /// main 0x001e6ec0, QUA 0x001ee540).
 pub fn get_dist_on(volume: Volume, a: [u32; 4], b: [u32; 4]) -> u32 {
-    let x = ee::sub(b[0], a[0]);
-    let y = ee::sub(b[1], a[1]);
-    let d = ee::add(ee::add(ee::mul(x, x), ee::mul(y, y)), ee::mul(0, 0));
-    match volume {
-        Volume::Out | Volume::Qua => ee::sqrt(d),
-        Volume::Inf | Volume::Mut => libm::sqrtf(d),
-    }
+    crate::geom::plane_dist(volume, b, a)
 }
 
 /// Where a position is in the player's frame and back: `ccTransPosW2P`

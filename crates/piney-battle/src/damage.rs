@@ -557,7 +557,7 @@ pub fn skill_damage(
             if tty & ch.ty() == 0 || ch.cond[cond::DEAD] != 0 {
                 continue;
             }
-            if !ee::le(ground_distance(ch, centre), sk.target_range) {
+            if !ee::le(ground_distance(t.volume, ch, centre), sk.target_range) {
                 continue;
             }
             if c == target {
@@ -623,7 +623,10 @@ pub fn skill_damage_at(
     let mut n = 0;
     for c in list {
         let ch = &scene.chars[c];
-        if ttype & ch.ty() == 0 || ch.cond[cond::DEAD] != 0 || !ee::le(ground_distance(ch, centre), sk.target_range) {
+        if ttype & ch.ty() == 0
+            || ch.cond[cond::DEAD] != 0
+            || !ee::le(ground_distance(t.volume, ch, centre), sk.target_range)
+        {
             continue;
         }
         let r = calc_damage_in(t, scene, me, c, sk, mag, Roll::Draw, rng, env, ev);
@@ -700,7 +703,10 @@ pub fn skill_damage2(
     let mut n = 0;
     for c in list {
         let ch = &scene.chars[c];
-        if ttype & ch.ty() == 0 || ch.cond[cond::DEAD] != 0 || !ee::le(ground_distance(ch, centre), sk.target_range) {
+        if ttype & ch.ty() == 0
+            || ch.cond[cond::DEAD] != 0
+            || !ee::le(ground_distance(t.volume, ch, centre), sk.target_range)
+        {
             continue;
         }
         if c == target && scene.listed(target) {
@@ -732,11 +738,9 @@ fn side_types(t: &Tables, tyb: i32) -> i32 {
 
 /// A character's distance on the ground from a point, less its width:
 /// `sqrtf(|posP - centre|^2 with the third lane zeroed) - base.width`
-/// (`sceVu0SubVector`, `sceVu0InnerProduct`, newlib `sqrtf`).
-pub fn ground_distance(ch: &Char, centre: [u32; 4]) -> u32 {
-    let d: [u32; 4] = std::array::from_fn(|i| ee::sub(ch.pos_p[i], centre[i]));
-    let dot = ee::add(ee::add(ee::mul(d[0], d[0]), ee::mul(d[1], d[1])), ee::mul(0, 0));
-    ee::sub(piney_data::libm::sqrtf(dot), ch.base().width)
+/// (`sceVu0SubVector`, `sceVu0InnerProduct`, the volume's `sqrtf`).
+pub fn ground_distance(volume: Volume, ch: &Char, centre: [u32; 4]) -> u32 {
+    ee::sub(crate::geom::plane_dist(volume, ch.pos_p, centre), ch.base().width)
 }
 
 /// The AI's hit count for a physical art, by job and art bit (tested in
