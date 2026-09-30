@@ -2,14 +2,15 @@
 //! that as `ccPad::Read` does ([`piney_input::Pad`]).
 //!
 //! Keyboard: arrows the D-pad, Z Cross, X Circle, A Square, S Triangle,
-//! Q / W L1 / R1, 1 / 2 L2 / R2, Enter Start, Backspace Select.
-//! Gamepad (a DualSense or any pad gilrs knows): the buttons where a
-//! DualShock 2 has them, Create as Select, Options as Start, sticks as
-//! sticks.
+//! Q / W L1 / R1, 1 / 2 L2 / R2, Enter Start, Backspace Select, C / V L3 /
+//! R3, I J K L the right stick (the camera).
+//! Gamepad (a DualSense, an Xbox pad or any pad gilrs knows): the buttons
+//! where a DualShock 2 has them, Create as Select, Options as Start, sticks
+//! as sticks; the pad that last sent input is read.
 
 use std::collections::HashSet;
 
-use gilrs::{Axis, Button, Gilrs};
+use gilrs::{Axis, Button, EventType, GamepadId, Gilrs};
 use piney_input::{Buttons, Raw};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
@@ -38,7 +39,24 @@ const KEYS: [(KeyCode, Buttons); 16] = [
     (KeyCode::KeyV, Buttons::R3),
 ];
 
+/// The right stick's keys, each a full push: I up, K down, J left, L right.
+const RIGHT_STICK: [(KeyCode, i32, i32); 4] =
+    [(KeyCode::KeyI, 0, -1), (KeyCode::KeyK, 0, 1), (KeyCode::KeyJ, -1, 0), (KeyCode::KeyL, 1, 0)];
+
 impl Keyboard {
+    /// The right stick from its keys as the pad's bytes (a diagonal in the
+    /// corner, as a DualShock 2's saturates), or None with none held.
+    pub fn right_stick(&self) -> Option<(u8, u8)> {
+        let held = RIGHT_STICK.iter().filter(|(k, ..)| self.held.contains(k));
+        let (n, x, y) = held.fold((0, 0, 0), |(n, x, y), &(_, dx, dy)| (n + 1, x + dx, y + dy));
+        let byte = |v: i32| match v.signum() {
+            -1 => 0,
+            1 => 255,
+            _ => 128,
+        };
+        (n > 0).then(|| (byte(x), byte(y)))
+    }
+
     pub fn key(&mut self, key: PhysicalKey, pressed: bool) {
         let PhysicalKey::Code(code) = key else { return };
         if pressed {
@@ -117,18 +135,46 @@ pub fn gamepads(gilrs: &Gilrs) -> String {
         .join("\n")
 }
 
-/// This frame's report: the keyboard and the first connected gamepad
-/// together. With `log`, what was read is described there: the gamepad
-/// taken, its sticks' and triggers' values as gilrs gives them, and the
-/// events drained this frame.
-pub fn read(keyboard: &Keyboard, gilrs: Option<&mut Gilrs>, log: Option<&mut String>) -> Raw {
+/// This frame's report: the keyboard and one gamepad together, the
+/// keyboard's right stick over the pad's. The pad read is `active`, the
+/// last to send a button or axis event, kept while connected (an Xbox pad
+/// can come with other devices listed first), else the first connected.
+/// With `log`, what was read is described there: the gamepad taken, its
+/// sticks' and triggers' values as gilrs gives them, and the events
+/// drained this frame.
+pub fn read(
+    keyboard: &Keyboard,
+    gilrs: Option<&mut Gilrs>,
+    active: &mut Option<GamepadId>,
+    log: Option<&mut String>,
+) -> Raw {
     let mut raw = Raw { buttons: keyboard.buttons(), ..Raw::default() };
-    let Some(gilrs) = gilrs else { return raw };
-    let mut events = 0;
-    while gilrs.next_event().is_some() {
-        events += 1;
+    if let Some(gilrs) = gilrs {
+        read_pad(gilrs, active, log, &mut raw);
     }
-    if let Some((id, pad)) = gilrs.gamepads().find(|(_, p)| p.is_connected()) {
+    if let Some((x, y)) = keyboard.right_stick() {
+        (raw.rx, raw.ry) = (x, y);
+    }
+    raw
+}
+
+fn read_pad(gilrs: &mut Gilrs, active: &mut Option<GamepadId>, log: Option<&mut String>, raw: &mut Raw) {
+    let mut events = 0;
+    while let Some(ev) = gilrs.next_event() {
+        events += 1;
+        // A press or a stick or trigger pushed past half: a resting stick's
+        // drift on another pad does not take it over.
+        match ev.event {
+            EventType::ButtonPressed(..) => *active = Some(ev.id),
+            EventType::ButtonChanged(_, v, _) | EventType::AxisChanged(_, v, _) if v.abs() > 0.5 => {
+                *active = Some(ev.id);
+            }
+            EventType::Disconnected if *active == Some(ev.id) => *active = None,
+            _ => {}
+        }
+    }
+    let chosen = active.and_then(|id| gilrs.connected_gamepad(id).map(|p| (id, p)));
+    if let Some((id, pad)) = chosen.or_else(|| gilrs.gamepads().find(|(_, p)| p.is_connected())) {
         if let Some(log) = log {
             let v = |a| pad.value(a);
             *log = format!(
@@ -156,7 +202,6 @@ pub fn read(keyboard: &Keyboard, gilrs: Option<&mut Gilrs>, log: Option<&mut Str
         raw.rx = axis_byte(rx, false);
         raw.ry = axis_byte(ry, true);
     }
-    raw
 }
 
 /// A D-pad that gilrs reports as a hat (`DPadX`, `DPadY`: pads with no
@@ -212,6 +257,23 @@ mod tests {
         assert_eq!(hat(1.0, 0.0), Buttons::RIGHT);
         assert_eq!(hat(-1.0, 1.0), Buttons::LEFT | Buttons::UP);
         assert_eq!(hat(0.0, -1.0), Buttons::DOWN);
+    }
+
+    #[test]
+    fn the_right_stick_on_the_keyboard() {
+        let mut k = Keyboard::default();
+        assert_eq!(k.right_stick(), None);
+        k.key(PhysicalKey::Code(KeyCode::KeyI), true);
+        assert_eq!(k.right_stick(), Some((128, 0)));
+        k.key(PhysicalKey::Code(KeyCode::KeyL), true);
+        assert_eq!(k.right_stick(), Some((255, 0)));
+        k.key(PhysicalKey::Code(KeyCode::KeyK), true);
+        assert_eq!(k.right_stick(), Some((255, 128)), "up and down cancel");
+        k.key(PhysicalKey::Code(KeyCode::KeyI), false);
+        k.key(PhysicalKey::Code(KeyCode::KeyL), false);
+        assert_eq!(k.right_stick(), Some((128, 255)));
+        let raw = read(&k, None, &mut None, None);
+        assert_eq!((raw.lx, raw.ly, raw.rx, raw.ry), (128, 128, 128, 255));
     }
 
     #[test]

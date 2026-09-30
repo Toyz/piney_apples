@@ -74,6 +74,8 @@ struct App {
     instance: Option<wgpu::Instance>,
     keyboard: input::Keyboard,
     gilrs: Option<Gilrs>,
+    /// The gamepad that last sent input ([`input::read`]).
+    gamepad: Option<gilrs::GamepadId>,
     pad: Pad,
     last: Instant,
     /// Vertical blanks not yet spent on a game frame.
@@ -241,7 +243,7 @@ impl App {
             steps += 1;
             let mut line = String::new();
             let logging = self.pad_log.is_some();
-            let mut live = input::read(&self.keyboard, self.gilrs.as_mut(), logging.then_some(&mut line));
+            let mut live = input::read(&self.keyboard, self.gilrs.as_mut(), &mut self.gamepad, logging.then_some(&mut line));
             // The console holds the game's pad neutral while it is open.
             if self.console.open {
                 live = Raw::default();
@@ -1411,6 +1413,7 @@ fn main() {
         instance: None,
         keyboard: input::Keyboard::default(),
         gilrs,
+        gamepad: None,
         pad: Pad::default(),
         last: Instant::now(),
         vblanks: 0.0,

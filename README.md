@@ -133,11 +133,13 @@ selector. `--volume 1-4` starts a part directly.
 | L2 / R2 | 1 / 2 | triggers |
 | L3 / R3 | C / V | stick clicks |
 | Start / Select | Enter / Backspace | Options / Create (or Start / Back) |
-| sticks | (none) | sticks |
+| left stick | (none) | left stick |
+| right stick (camera) | I / J / K / L | right stick |
 
 Any gamepad that [gilrs](https://gitlab.com/gilrs-project/gilrs) knows
-works, with its buttons where a DualShock 2 has them. Escape asks to quit,
-and F1 or `` ` `` opens the console.
+works, with its buttons where a DualShock 2 has them. With more than one
+connected, the one that last sent input is read. Escape asks to quit, and
+F1 or `` ` `` opens the console.
 
 ### Saves and settings
 
