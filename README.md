@@ -10,8 +10,8 @@ from a reverse engineering of the games, and it plays your own discs.
 | part | disc | where it stands |
 | --- | --- | --- |
 | .hack//Infection | `SLUS_202.67` | Playable from power-on to the ending: the whole story, the staff roll and the save after it |
-| .hack//Mutation | `SLUS_205.62` | In progress: the title, the desktop and the story's start play; of its 16 story events, the test autopilot plays 6 through to their end so far |
-| .hack//Outbreak | `SLUS_205.63` | Boots: the title, the opening cut scenes with their sound, the desktop, the Root Towns; the story comes after Mutation's |
+| .hack//Mutation | `SLUS_205.62` | The whole story, all 16 events, plays through under the test autopilot from the new game to the ending; not yet played through by hand |
+| .hack//Outbreak | `SLUS_205.63` | In progress: 18 of its 19 story events play through under the test autopilot, each from its own start, with the ending and staff roll; one dungeon walk is still too slow, and the run from the new game to the ending is next |
 | .hack//Quarantine | `SLUS_205.64` | Boots, as Outbreak |
 
 What is still missing is listed in [GAPS.md](GAPS.md), and the known bugs in
