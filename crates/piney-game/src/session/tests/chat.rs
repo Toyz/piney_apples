@@ -303,3 +303,32 @@ fn chat_member_shots() {
         assert_eq!(taken.len(), 4, "shots taken: {taken:?}");
     }
 }
+
+/// Issue #7's path: the party's strategy decides which foes a member takes
+/// on (`Reconnoiter`), and each time it takes one on it says a line. After
+/// event 3's lessons Orca is told "Union Battle" by the CHAT menu
+/// (`RequestChatCmd(8)`: strategy 1, Kite's target) and keeps it.
+/// `ChatCommand` holds only registry slot 0 (Kite, `SpcListNum` 0) to
+/// strategy 0; a member made without its slot was put back every frame.
+#[test]
+fn a_member_keeps_the_strategy_it_is_told() {
+    let Some((mut s, mut f)) = story_to_field(0) else { return };
+    let mut log = Vec::new();
+    story_until(&mut s, &mut f, "menu_ban false", 60, &mut log);
+    let orca = |s: &Session| {
+        let Stage::Area(a) = &s.stage else { panic!("left the area: {}", Mode::title(s)) };
+        a.world().combat().who(2).expect("Orca in the party")
+    };
+    let o = orca(&s);
+    let Stage::Area(a) = &mut s.stage else { unreachable!() };
+    a.world_mut().chat_cmd(o, 8, None, 0);
+    let mut pad = Pad::default();
+    for n in 0..60 {
+        pad.read(&Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
+        s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &s.stage else { unreachable!() };
+        let ai = &a.world().combat().crew.ais[&orca(&s)];
+        assert_eq!((ai.strategy, ai.strategy_cmd), (1, 1), "Orca's strategy {n} frames after the order");
+    }
+}

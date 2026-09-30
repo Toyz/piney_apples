@@ -847,8 +847,8 @@ impl Combat {
     }
 
     /// `ccFellow::Initialize` (gcmn 0x0041ae80) and `ccSPC::Reboot`'s AI for
-    /// registered character `id` (a `charTbl` row, 1-17): its record, at
-    /// `pos` facing `rot`, arriving (act 13) after `(rand() % 4) * 5`
+    /// registered character `id` (a `charTbl` row, 1-17) in registry slot
+    /// `list_num`: its record, at `pos` facing `rot`, arriving (act 13) after `(rand() % 4) * 5`
     /// frames, on the command list unless `boot` has bit 2, then
     /// `SetBootStatus(boot)`, `restraintSW` unless standing, the AI (mode
     /// 1, manual with bit 2).
@@ -864,6 +864,7 @@ impl Combat {
         body: Rc<Body>,
         hits: &mut Hits,
         area: i32,
+        list_num: i32,
     ) -> usize {
         let p = SpcParam::from_save(save, id as usize);
         let (width, height, velocity) = (p.base.width, p.base.height, p.velocity);
@@ -910,6 +911,8 @@ impl Combat {
         s.transparency = ONE;
         s.set_transparency = ONE;
         s.motion = id as i16;
+        // ccFellowNN(n) (gcmn 0x0041ecc0): SpcListNum, its registry slot.
+        s.spc_list_num = list_num;
         s.act_num = act;
         s.stop_flag = true;
         s.disp_wait = if hacked { 65 } else { 0 };

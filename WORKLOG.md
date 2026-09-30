@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-310 entries: audio 21, battle 62, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 77, save 10, script 32, test 131, tooling 23, ui 54, video 11, volumes 63, world 81.
+311 entries: audio 21, battle 63, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 77, save 10, script 32, test 131, tooling 23, ui 54, video 11, volumes 63, world 82.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -322,3 +322,4 @@ The [reference](docs/README.md) says what is true now.
 | 308 | [Outbreak's sqrt.s in the party's distances: Kite's harness at 0](worklog/0308-outbreak-s-sqrt-s-in-the-party-s-distances-kite-s-harness.md) | 2026-09-30 | battle, volumes |
 | 309 | [Back in town: the members' kit and the trade lists restocked, their faces](worklog/0309-back-in-town-the-members-kit-and-the-trade-lists-restocked.md) | 2026-09-30 | world, save, ui |
 | 310 | [Four player reports: added effects in town, sparks after a drain, area skills' marks, a charm cast](worklog/0310-four-player-reports-added-effects-in-town-sparks-after-a.md) | 2026-09-30 | battle, ui, render |
+| 311 | [Two player reports: a member spoken to while running, and the party's battle chatter](worklog/0311-two-player-reports-a-member-spoken-to-while-running-and-the.md) | 2026-09-30 | battle, world |

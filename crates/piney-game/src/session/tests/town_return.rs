@@ -195,3 +195,107 @@ fn trades_come_back_each_scene() {
     let Stage::Area(a) = &s.stage else { unreachable!() };
     assert_eq!(held(&a.world().state().save), want, "in the field");
 }
+
+/// Mistral's `charTbl` row.
+const MISTRAL: i32 = 16;
+
+/// Issue #2, as the report shows it: Mistral in the party (with
+/// BlackRose) runs off through Mac Anu to a shop, and Kite goes up to her
+/// and presses the action button. Her menu (`SpcMenu`, 21) sends
+/// `EntryAffect` 14 (`ccAI::Greeting`: talkFlag, gDeg); she stops where it
+/// found her and turns to face Kite, and stays stopped through Talk (47).
+#[test]
+fn mistral_spoken_to_while_running_stands_facing_kite() {
+    use piney_world::entry::Kind;
+    let Some((iso, archive)) = disc() else { return };
+    let mut s = start(&iso, &archive, None);
+    hold(&mut s, 128, 128, 900, |s| in_town(s).is_some());
+    invite(&mut s, 15);
+    invite(&mut s, MISTRAL);
+    // Her place, heading, act and flags, the heading from her to Kite, the menu.
+    let mistral = |s: &Session| {
+        let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+        let tp = w.world().town_party();
+        let k = tp.member(MISTRAL).expect("Mistral in town");
+        let (at, dirc) = tp.place(MISTRAL).unwrap();
+        let sp = tp.combat.crew.spc.get(&k).copied().unwrap_or_default();
+        let kite = w.world().player().body.pos;
+        let (dx, dy) =
+            (f32::from_bits(kite[0]) - f32::from_bits(at[0]), f32::from_bits(kite[1]) - f32::from_bits(at[1]));
+        let moving = sp.move_flag || sp.run_flag;
+        (at, f32::from_bits(dirc[2]), sp.act_num, moving, dx.atan2(-dy), w.ui().ctrl.menu)
+    };
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let mut pad = Pad::default();
+    let mut opened = None;
+    for f in 0..6000u64 {
+        let (at, _, act, _, _, menu) = mistral(&s);
+        if menu == 21 {
+            opened = Some((f, at));
+            break;
+        }
+        let Stage::World(w) = &s.stage else { unreachable!() };
+        let world = w.world();
+        let raw = if f < 300 || act != piney_battle::fellow::act::RUN {
+            still
+        } else if world.command_target() == Some((Kind::Spc, MISTRAL)) {
+            Raw { buttons: if f % 30 == 0 { Buttons::CROSS } else { Buttons::NONE }, ..still }
+        } else {
+            let kite = world.player().body.pos;
+            let (dx, dy) =
+                (f32::from_bits(at[0]) - f32::from_bits(kite[0]), f32::from_bits(at[1]) - f32::from_bits(kite[1]));
+            stick_toward(f32::from_bits(world.camera().rot()[2]), dx.atan2(-dy))
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    let (f0, at0) = opened.expect("Mistral's menu never opened");
+    let mut step = |s: &mut Session, b: Buttons| {
+        pad.read(&Raw { buttons: b, ..still });
+        s.step(&pad);
+        s.take_events();
+    };
+    for f in 0..40 {
+        step(&mut s, Buttons::NONE);
+        let (at, _, act, _, _, _) = mistral(&s);
+        let d = (0..2).map(|k| (f32::from_bits(at[k]) - f32::from_bits(at0[k])).powi(2)).sum::<f32>().sqrt();
+        assert!(d < 1.0, "Mistral ran {d:.0} on, {f} frames into her menu (act {act}, opened at {f0})");
+    }
+    let (_, dirc, act, _, to_kite, _) = mistral(&s);
+    assert!((dirc - to_kite).abs() < 0.01, "Mistral faces {dirc:.3}, Kite is at {to_kite:.3} (act {act})");
+    // Talk: she stays stopped while it is up.
+    step(&mut s, Buttons::CROSS);
+    for f in 0..300 {
+        step(&mut s, Buttons::NONE);
+        let (_, _, act, moving, _, menu) = mistral(&s);
+        assert!(!moving && act != piney_battle::fellow::act::RUN, "Mistral moves {f} frames into Talk (act {act})");
+        assert!(menu == 47 || f < 10, "not in her Talk page: menu {menu}");
+    }
+}
+
+/// The CHAT menu's Operation outlasts the scene (issue #7's path): with
+/// "Union Battle" in the save (operation 8), Orca's AI in the next field
+/// starts with strategy 1, the `partyStrategy` the town's `ccThSpc` last
+/// set (`ccAI::ccAI` reads the global before the field's `ccThSpc` runs).
+#[test]
+fn the_operation_holds_from_a_field_s_start() {
+    let Some((iso, archive)) = disc() else { return };
+    let mut s = start(&iso, &archive, None);
+    hold(&mut s, 128, 128, 900, |s| in_town(s).is_some());
+    invite(&mut s, ORCA);
+    let Stage::World(w) = &mut s.stage else { unreachable!() };
+    w.world_mut().state_mut().save.set_u8(piney_battle::frame::SAVE_OPERATION, 8);
+    let mut pad = Pad::default();
+    for _ in 0..5 {
+        pad.read(&Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
+        s.step(&pad);
+        s.take_events();
+    }
+    to_the_field(&mut s, &iso);
+    let Stage::Area(a) = &s.stage else { unreachable!() };
+    let c = a.world().combat();
+    let orca = c.who(ORCA).expect("Orca in the field");
+    let ai = &c.crew.ais[&orca];
+    assert_eq!((ai.strategy, ai.strategy_cmd), (1, 1), "Orca's strategy as the field starts");
+}

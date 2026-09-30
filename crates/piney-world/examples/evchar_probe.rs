@@ -270,7 +270,7 @@ fn main() {
                 let keep = r.rand.0;
                 let who = r
                     .party
-                    .build(&archive, &r.save, code, file, ee::VF0, 0, boot, pf, &mut r.hits, &mut r.rand)
+                    .build(&archive, &r.save, code, file, ee::VF0, 0, boot, pf, i, &mut r.hits, &mut r.rand)
                     .unwrap();
                 r.rand.0 = keep;
                 if let Some(s) = r.party.combat.crew.spc.get_mut(&who) {

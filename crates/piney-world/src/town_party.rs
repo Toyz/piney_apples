@@ -230,7 +230,8 @@ impl TownParty {
     }
 
     /// `ccFellow::Initialize` in a town and `ccSPC::Reboot`'s AI for
-    /// registered character `id` (`ccSpcStart[id]`): its body from `file`,
+    /// registered character `id` (`ccSpcStart[id]`) in registry slot
+    /// `list_num`: its body from `file`,
     /// at `pos` facing `rot`, arriving (act 13) after `(rand() % 4) * 5`
     /// frames. None when its body cannot be read.
     #[allow(clippy::too_many_arguments)]
@@ -244,6 +245,7 @@ impl TownParty {
         rot: F,
         boot: i32,
         party_flag: i8,
+        list_num: i32,
         hits: &mut Hits,
         rand: &mut crate::Rand,
     ) -> Option<usize> {
@@ -264,7 +266,7 @@ impl TownParty {
             }
         };
         self.combat.rand = piney_battle::rand::Rand(rand.0);
-        let w = self.combat.add_member(save, id, pos, rot, boot, party_flag, body, hits, 0);
+        let w = self.combat.add_member(save, id, pos, rot, boot, party_flag, body, hits, 0, list_num);
         rand.0 = self.combat.rand.0;
         Some(w)
     }

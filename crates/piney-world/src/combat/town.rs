@@ -159,6 +159,7 @@ impl Combat {
         {
             self.shows.push(Show::Shout(operation));
         }
+        x.spcs.party_strategy = self.spc.party_strategy;
         self.crew.tick();
         let env = Env {
             plcol: x.save.u8(piney_data::save::offset::PLCOL),

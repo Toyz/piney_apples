@@ -803,8 +803,10 @@ pub struct Spc {
     /// `ccFellow.distTg` (+0x20c): the distance to `targetChar` the last
     /// skill measured.
     pub dist_tg: u32,
-    /// `SpcListNum` (+0xe8): non-zero for a member whose strategy can be
-    /// changed.
+    /// `SpcListNum` (+0xe8): the character's slot in the registry
+    /// (`ccSpcManager`), which `ccSPC::Reboot` makes it with
+    /// (`ccFellowNN(n)`); Kite's is 0, and `ChatCommand` holds a character
+    /// of slot 0 to strategy 0.
     pub spc_list_num: i32,
     /// `runFlag` (+0xe0 bit 5): running.
     pub run_flag: bool,

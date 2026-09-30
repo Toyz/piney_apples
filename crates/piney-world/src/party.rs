@@ -133,6 +133,11 @@ pub struct Spcs {
     pub spc_mode: [bool; SLOTS],
     /// `storeCondition[18]` by `charTbl` row (never stored: None).
     pub store: [Option<StoredCondition>; 18],
+    /// `partyStrategy` (main 0x00378ce0): what `ccSpcSetOperation` last
+    /// took from the save's operation, and a new AI's strategy
+    /// (`ccAI::ccAI`). A global: the members a scene builds before its
+    /// `ccThSpc` first runs get the scene before's (0 after power-on).
+    pub party_strategy: i32,
 }
 
 impl Default for Spcs {
@@ -157,6 +162,7 @@ impl Spcs {
             num: 1,
             spc_mode: [false; SLOTS],
             store: [None; 18],
+            party_strategy: 0,
         }
     }
 
@@ -792,6 +798,7 @@ impl crate::World {
             return;
         }
         self.rebooted = true;
+        self.party.combat.spc.party_strategy = self.spcs.party_strategy;
         for i in 0..REGISTRY {
             self.build_spc(i);
         }
@@ -853,6 +860,7 @@ impl crate::World {
             dirc[2],
             r.boot_param,
             party_flag_bits(r.party_flag),
+            i as i32,
             &mut self.town.base.hits,
             &mut self.rand,
         );

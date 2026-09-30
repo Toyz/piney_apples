@@ -602,6 +602,8 @@ impl FieldWorld {
             return;
         }
         self.rebooted = true;
+        // The members' AIs start with partyStrategy as the last scene left it.
+        self.combat.spc.party_strategy = self.spcs.party_strategy;
         let (pos, rot, starts) = self.start;
         // A registry word's partyFlag bits (3, signed).
         let party_flag = |w: i32| (((w & 7) << 5) as i8) >> 5;
@@ -647,7 +649,7 @@ impl FieldWorld {
             if id <= 0 {
                 continue;
             }
-            let Some((_, r)) = boot(&self.spcs, id) else { continue };
+            let Some((list_num, r)) = boot(&self.spcs, id) else { continue };
             let Some(file) = self.char_files.get(id as usize).cloned() else { continue };
             let at = starts[slot - 1];
             match Body::read(&self.archive, &file, TRALL) {
@@ -672,6 +674,7 @@ impl FieldWorld {
                         Rc::new(b),
                         hits,
                         area,
+                        list_num as i32,
                     );
                 }
                 Err(e) => eprintln!("party member {id}: {e}"),
@@ -680,7 +683,7 @@ impl FieldWorld {
         // The registered characters outside the party, at the origin (an
         // event's entry then puts them at its marker).
         let members = self.spcs.member_id;
-        for r in self.spcs.registry {
+        for (list_num, r) in self.spcs.registry.into_iter().enumerate() {
             if r.id <= 0 || members.contains(&r.id) || self.combat.who(r.id).is_some() {
                 continue;
             }
@@ -706,6 +709,7 @@ impl FieldWorld {
                         Rc::new(b),
                         hits,
                         area,
+                        list_num as i32,
                     );
                 }
                 Err(e) => eprintln!("registered character {}: {e}", r.id),
@@ -2348,6 +2352,7 @@ impl FieldWorld {
         let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, *cpad, &info);
         x.path_map = std::mem::take(&mut self.path_map);
         self.combat.frame(&mut x, self.fx.tasks());
+        self.spcs.party_strategy = self.combat.spc.party_strategy;
         // EVENTAREAB8::Move from the boss's CheckDiscMove.
         if let Some(r) = self.combat.boss.as_mut()
             && std::mem::take(&mut r.disc_next)
