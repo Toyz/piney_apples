@@ -6231,6 +6231,9 @@ mod tests {
     /// Issue #16: members who leave by an event's `pc_act 5`.
     mod party_leave;
 
+    /// Issues #14 and #15: a member felled and revived, the markers.
+    mod revive;
+
     // Playthroughs: the story's scripts (run by piney-event's VM, as every
     // event is) played from a start point with a scripted pad, checked.
 

@@ -95,6 +95,9 @@ pub enum Event {
     BgmStream(usize),
     /// `ccBgmStop()`.
     BgmStreamStop,
+    /// `ccSndGateHack(n)` from the gate hack's menu: 0 the music out, 1
+    /// back, 2 done (`piney_audio::Audio::gate_hack`).
+    GateHackSound(i32),
     /// The riding Grunty's music: `ccPgBgmInit`, `ccPgBgmEnd(n)`,
     /// `pgRideFlag` (`piney_audio::Audio::pg_bgm`).
     PgBgm(piney_audio::PgBgm),

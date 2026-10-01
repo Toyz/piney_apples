@@ -1291,6 +1291,16 @@ impl Combat {
             return;
         }
         let q = std::mem::take(&mut self.chat_queue);
+        // The game keeps one record: the members' copies are first taken
+        // from the characters, so an affect since their frames (a felling's
+        // act 9, a revive's act 2, `targetChar`) is what the lines change
+        // and not undone by the copies written back below.
+        let kite = self.kite;
+        let members: Vec<usize> =
+            (self.members.iter().map(|m| m.1)).filter(|&w| Some(w) != kite && self.crew.spc.contains_key(&w)).collect();
+        for &w in &members {
+            piney_battle::fellow::sync_in(&self.scene, &mut self.crew, w);
+        }
         let game = party_ai::Game { in_battle: self.battle.in_battle, ..party_ai::Game::default() };
         let mut rt = chat::Quiet;
         let p = Parts {
@@ -1310,11 +1320,8 @@ impl Combat {
         // What a line changed of a member's body (`ccAI::Greeting` stops it:
         // moveFlag and runFlag 0) into the character, or the member's next
         // frame reads the old flags back and it runs on while spoken to.
-        let kite = self.kite;
-        for &(_, w) in self.members.iter().filter(|m| Some(m.1) != kite) {
-            if self.crew.spc.contains_key(&w) {
-                piney_battle::fellow::sync_out(&mut self.scene, &self.crew, w);
-            }
+        for w in members {
+            piney_battle::fellow::sync_out(&mut self.scene, &self.crew, w);
         }
     }
 
@@ -1464,8 +1471,21 @@ impl Combat {
         ride::frame(&mut self.ride, &mut stage, &mut self.scene, &mut self.crew, kite_i, &mut self.rand, pad, area);
         self.enter |= stage.enter;
         // The lines Kite's frame raised on the party (an affect on a
-        // member), as it ends.
+        // member), and its affects' work on a member's body, as it ends.
         for e in std::mem::take(&mut stage.chats) {
+            if RuleParts::takes(&e) {
+                let mut r = RuleParts {
+                    t,
+                    scene: &mut self.scene,
+                    crew: &mut self.crew,
+                    skills: &self.skills,
+                    hits: &mut *stage.hits,
+                    kite: self.kite,
+                    rand: &mut self.rand,
+                };
+                r.apply(&e);
+                continue;
+            }
             let p = Parts {
                 t,
                 scene: &mut self.scene,
@@ -1640,8 +1660,22 @@ impl Combat {
             self.ctrl.frame(&mut cx, &mut seam);
         }
         // The lines the enemies' hits raised on the party
-        // (ChatMessageDamage, ResurrectPlz, AffectMessages).
+        // (ChatMessageDamage, ResurrectPlz, AffectMessages) and the rest of
+        // their Influence's work, in order (RuleParts).
         for e in std::mem::take(&mut stage.chats) {
+            if RuleParts::takes(&e) {
+                let mut r = RuleParts {
+                    t,
+                    scene: &mut self.scene,
+                    crew: &mut self.crew,
+                    skills: &self.skills,
+                    hits: &mut *stage.hits,
+                    kite: self.kite,
+                    rand: &mut self.rand,
+                };
+                r.apply(&e);
+                continue;
+            }
             let p = Parts {
                 t,
                 scene: &mut self.scene,
@@ -2119,31 +2153,22 @@ impl Combat {
             self.shows.push(Show::Rule(e));
             return;
         }
+        let d = self.data.clone();
+        let mut parts = RuleParts {
+            t: &d.t,
+            scene: &mut self.scene,
+            crew: &mut self.crew,
+            skills: &self.skills,
+            hits,
+            kite: self.kite,
+            rand: &mut self.rand,
+        };
+        if parts.apply(&e) {
+            return;
+        }
         match e {
             Event::Affect { .. } => {}
             Event::RecoveryReq { on: Who::Char(c), amount } => self.recovery.entry(c, amount),
-            Event::CancelAttack(Who::Char(c)) => {
-                let t = &self.data.t;
-                self.skills.borrow_mut().request(t, &mut self.scene, c, None, 0, 0, &mut self.rand);
-            }
-            Event::HitEnable(Who::Char(c)) | Event::HitDisable(Who::Char(c)) => {
-                let on = matches!(e, Event::HitEnable(_));
-                let s = self.crew.spc.entry(c).or_default();
-                let mut b = spc::to_body(c, self.kite, &s.body_hit, false);
-                hits.set_hit_sw(&mut b, on);
-                s.body_hit.sw = b.sw;
-            }
-            Event::SysMsgDown { on: Who::Char(c), id } => {
-                self.crew.send(0x1000c, id as u16, 0xffff, 0, 30, -1, Some(c));
-            }
-            Event::SysMsgUp { id, .. } => {
-                self.crew.sys.delete_delay(0x1000d, id as u16, id as u16);
-            }
-            Event::TalkOff(Who::Char(c)) => {
-                if let Some(a) = self.crew.ais.get_mut(&c) {
-                    a.talk_flag = false;
-                }
-            }
             Event::EnemyRetarget(Who::Char(c)) => {
                 let Some(k) = self.kite else { return };
                 let pframe = stage::PlayerFrame { bounds, player: self.scene.chars[k].pos };
@@ -2201,8 +2226,9 @@ impl Combat {
 
     /// The `DispConditionEffect` calls the characters' own frames made
     /// (Kite's, the members', the enemies' condition counts), and the
-    /// enemies' `ClearConditionEffect` (`clearConditionEnemy`, as one dies),
-    /// shows from `from` on, in order.
+    /// `ClearConditionEffect`s of the frames (an enemy's
+    /// `clearConditionEnemy` as it dies, a felled party character's
+    /// `Influence`), shows from `from` on, in order.
     fn disp_conditions_shown(&mut self, from: usize) {
         use piney_battle::{enemy_ai, enemy_motion, fellow, kite};
         let who = |me: usize, w: Who| match w {
@@ -2210,24 +2236,49 @@ impl Combat {
             Who::Char(c) => Some(c),
             Who::Target | Who::Nobody => None,
         };
-        let calls: Vec<(usize, bool)> = self.shows[from.min(self.shows.len())..]
+        enum Call {
+            /// `DispConditionEffect`; `party` for Kite's and a member's,
+            /// which their frames make only while they stand.
+            Disp {
+                party: bool,
+            },
+            Clear,
+        }
+        let calls: Vec<(usize, Call)> = self.shows[from.min(self.shows.len())..]
             .iter()
             .filter_map(|s| match s {
                 Show::Kite(k, kite::Out::Rule(Event::DispCondition(w)))
-                | Show::Member(k, fellow::Out::Rule(Event::DispCondition(w)))
-                | Show::Enemy(k, enemy_motion::Call::Rule(enemy_ai::Out::Rule(Event::DispCondition(w)))) => {
-                    who(*k, *w).map(|c| (c, false))
+                | Show::Member(k, fellow::Out::Rule(Event::DispCondition(w))) => {
+                    who(*k, *w).map(|c| (c, Call::Disp { party: true }))
                 }
-                Show::Enemy(k, enemy_motion::Call::Rule(enemy_ai::Out::ClearConditionEffect)) => Some((*k, true)),
+                Show::Enemy(k, enemy_motion::Call::Rule(enemy_ai::Out::Rule(Event::DispCondition(w)))) => {
+                    who(*k, *w).map(|c| (c, Call::Disp { party: false }))
+                }
+                Show::Enemy(k, enemy_motion::Call::Rule(enemy_ai::Out::ClearConditionEffect)) => {
+                    Some((*k, Call::Clear))
+                }
+                // Influence's ClearConditionEffect from an affect in a
+                // frame (Kite or a member felled by a blow there, by poison).
+                Show::Kite(k, kite::Out::Rule(Event::ClearConditionEffect(w)))
+                | Show::Member(k, fellow::Out::Rule(Event::ClearConditionEffect(w)))
+                | Show::Enemy(k, enemy_motion::Call::Rule(enemy_ai::Out::Rule(Event::ClearConditionEffect(w)))) => {
+                    who(*k, *w).map(|c| (c, Call::Clear))
+                }
                 _ => None,
             })
             .collect();
-        for (c, clear) in calls {
-            if !clear {
-                self.disp_condition(c);
-            } else if self.cond_fx.remove(&c).is_some() {
-                // deleteConditionEffect, conditionNum -1 (set by the rule).
-                self.shows.push(Show::ConditionEffect { who: c, act: CondFx::Delete, num: -1 });
+        for (c, call) in calls {
+            match call {
+                // Shown standing, felled since: the fall's clear ends the
+                // effect at once, as in the game, not this late look's fade.
+                Call::Disp { party: true } if self.scene.chars[c].cond[cond::DEAD] != 0 => {}
+                Call::Disp { .. } => self.disp_condition(c),
+                Call::Clear => {
+                    if self.cond_fx.remove(&c).is_some() {
+                        // deleteConditionEffect, conditionNum -1 (set by the rule).
+                        self.shows.push(Show::ConditionEffect { who: c, act: CondFx::Delete, num: -1 });
+                    }
+                }
             }
         }
     }
@@ -2646,6 +2697,65 @@ impl Combat {
     /// The animation slot helper for the draw.
     pub fn slot() -> AnmSlot {
         AnmSlot::Main
+    }
+}
+
+/// What an affect on Kite or a member does beyond its record, where the
+/// game does it inside `Influence` / `ccFellow::Influence` (gcmn 0x0059ac50,
+/// 0x0041bdb0): `ccSkillRequest(ch, 0, 0)`, the body in or out of the
+/// collision, the bus's "down" (`ccAISysMsgSendP(0x1000c, ...)`) and "up"
+/// (`ccAISysMsgDeleteDelay(0x1000d, id, id)`), the talk ended.
+struct RuleParts<'a> {
+    t: &'a Tables,
+    scene: &'a mut Scene,
+    crew: &'a mut Crew,
+    skills: &'a RefCell<Skills>,
+    hits: &'a mut Hits,
+    kite: Option<usize>,
+    rand: &'a mut Rand,
+}
+
+impl RuleParts<'_> {
+    /// Whether `e` is one of these ([`RuleParts::apply`]).
+    fn takes(e: &Event) -> bool {
+        matches!(
+            e,
+            Event::CancelAttack(Who::Char(_))
+                | Event::HitEnable(Who::Char(_))
+                | Event::HitDisable(Who::Char(_))
+                | Event::SysMsgDown { on: Who::Char(_), .. }
+                | Event::SysMsgUp { .. }
+                | Event::TalkOff(Who::Char(_))
+        )
+    }
+
+    /// `e` carried out; false when it is not one of these.
+    fn apply(&mut self, e: &Event) -> bool {
+        match *e {
+            Event::CancelAttack(Who::Char(c)) => {
+                self.skills.borrow_mut().request(self.t, self.scene, c, None, 0, 0, self.rand);
+            }
+            Event::HitEnable(Who::Char(c)) | Event::HitDisable(Who::Char(c)) => {
+                let on = matches!(e, Event::HitEnable(_));
+                let s = self.crew.spc.entry(c).or_default();
+                let mut b = spc::to_body(c, self.kite, &s.body_hit, false);
+                self.hits.set_hit_sw(&mut b, on);
+                s.body_hit.sw = b.sw;
+            }
+            Event::SysMsgDown { on: Who::Char(c), id } => {
+                self.crew.send(0x1000c, id as u16, 0xffff, 0, 30, -1, Some(c));
+            }
+            Event::SysMsgUp { id, .. } => {
+                self.crew.sys.delete_delay(0x1000d, id as u16, id as u16);
+            }
+            Event::TalkOff(Who::Char(c)) => {
+                if let Some(a) = self.crew.ais.get_mut(&c) {
+                    a.talk_flag = false;
+                }
+            }
+            _ => return false,
+        }
+        true
     }
 }
 

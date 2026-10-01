@@ -366,6 +366,16 @@ ccSndChangeOption; sdCommand
 if +0x134:                                     ccSndCmd(0x140) all sound off; clear
 ```
 
+`+0x63` is the gate hack's hold (`ccSndGateHack(n)`, 0x00180780, from
+`GtHackMenu`; OUT's `GtNewMenu`). 0, as the menu opens: state 1, and
+sequence 0 and, with `sqNum` 3, sequence 2 faded inline from the port's
+volume to 0 over 20 frames with switch 3 (stopped at the end). 1, a
+cancel: state 2. 2: state 0. `ccSndGateHackCtrl` (0x00180910) runs
+`ccSceneFade` in states 1 and 3, after `ccFade`, so in a town fade 0 steps
+twice a frame (stopped at frame 11) and fade 2 once (frame 21). State 2
+is `ccSqPlayVol(0, 0)`, a switch-1 fade up to the table volume over 20,
+the same for sequence 2, then state 3. The same in all four volumes.
+
 `gameStart` is 0 from `ccSound`'s constructor and after every mode change
 (`ccGame::ChangeRequest` -> `ccSound::gameInterrupt`, 0x001811f0, unless
 `+0x105` is 2 and `ccGame::CheckSceneReplace()` is false); `ccSetupDesktop` (0x00168550, before `ccSndBgmCtrl`),

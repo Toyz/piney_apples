@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-315 entries: audio 21, battle 65, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 78, save 10, script 33, test 131, tooling 23, ui 56, video 11, volumes 64, world 85.
+316 entries: audio 22, battle 66, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 78, save 10, script 33, test 131, tooling 23, ui 57, video 11, volumes 64, world 85.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -327,3 +327,4 @@ The [reference](docs/README.md) says what is true now.
 | 313 | [Three player reports: a scroll's cast, the Book of Law, a story box's body](worklog/0313-three-player-reports-a-scroll-s-cast-the-book-of-law-a.md) | 2026-09-30 | ui, battle, world |
 | 314 | ["Outbreak's battle harnesses at 0: a menu word, swapped names, every foe type held, and sqrt.s beyond the battle"](worklog/0314-outbreak-s-battle-harnesses-at-0-a-menu-word-swapped-names.md) | 2026-09-30 | battle, volumes |
 | 315 | [Three player reports: Elk left in the party, Natsume's talk, the Gott statue's hold](worklog/0315-three-player-reports-elk-left-in-the-party-natsume-s-talk.md) | 2026-10-01 | script, world |
+| 316 | [Three player reports: the gate hack's silence, a member revived while lying, the markers of the fallen](worklog/0316-three-player-reports-the-gate-hack-s-silence-a-member.md) | 2026-10-01 | audio, battle, ui |

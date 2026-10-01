@@ -190,9 +190,9 @@ pub struct Stage<'a> {
     /// ([`super::chat::condition_skills`]), as `ChatMessageAttackTarget`
     /// counts them.
     pub tricks: Vec<i32>,
-    /// The chat lines the enemies' hits raised on the party
-    /// ([`super::chat::line_of`]), run by the frame when the entry
-    /// control's pass is done.
+    /// The chat lines the enemies' hits (or Kite's) raised on the party
+    /// ([`super::chat::line_of`]) and their affects' other work on it
+    /// (`RuleParts`), in order, run by the frame when the pass is done.
     pub chats: Vec<Event>,
     /// The members' item uses (`ccUseItemRequest` from their AI), carried
     /// out by the runtime after the frame ([`super::MemberItem`]).
@@ -542,7 +542,17 @@ impl enemy_motion::MotionWorld for Stage<'_> {
                 self.traps.push((who, target, sid, true, listed));
             }
             C::TrapSkill { target, sid } => self.traps.push((who, target, sid, false, false)),
-            C::Rule(piney_battle::enemy_ai::Out::Rule(e)) if super::chat::line_of(&e).is_some() => {
+            C::Rule(piney_battle::enemy_ai::Out::Rule(e))
+                if super::chat::line_of(&e).is_some() || super::RuleParts::takes(&e) =>
+            {
+                // HitDisable's list at once, as Influence calls it: the
+                // enemies after this one no longer meet the body.
+                if let Event::HitDisable(piney_battle::Who::Char(c)) = e {
+                    let id = super::spc::body_id(c, self.kite);
+                    if let Some(k) = self.hits.chars.iter().position(|b| b.id == id) {
+                        self.hits.chars.remove(k);
+                    }
+                }
                 self.chats.push(e);
                 self.shows.push(Show::Enemy(who, C::Rule(piney_battle::enemy_ai::Out::Rule(e))));
             }
@@ -664,7 +674,7 @@ impl KiteWorld for Stage<'_> {
                 }
             }
             kite::Out::Rule(Event::EnemyRetarget(piney_battle::Who::Char(c))) => self.retarget.push(c),
-            kite::Out::Rule(e) if super::chat::line_of(&e).is_some() => {
+            kite::Out::Rule(e) if super::chat::line_of(&e).is_some() || super::RuleParts::takes(&e) => {
                 self.chats.push(e);
                 self.shows.push(Show::Kite(me, o));
             }

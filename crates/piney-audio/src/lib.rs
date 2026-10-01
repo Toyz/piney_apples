@@ -615,6 +615,13 @@ impl Audio {
         self.engine().driver.in_battle = in_battle;
     }
 
+    /// `ccSndGateHack(n)`: the gate hack's menu silencing the music (0),
+    /// bringing it back when cancelled (1), done (2)
+    /// ([`driver::Driver::gate_hack`]).
+    pub fn gate_hack(&self, n: i32) {
+        self.engine().driver.gate_hack(n);
+    }
+
     /// The riding Grunty's music ([`PgBgm`]).
     pub fn pg_bgm(&self, p: PgBgm) {
         match p {

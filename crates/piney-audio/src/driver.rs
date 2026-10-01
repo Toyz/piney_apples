@@ -97,6 +97,8 @@ pub struct Driver {
     pub in_battle: bool,
     /// `pgRideFlag` (0x00378cdc) is 1: riding a Grunty, no battle music.
     pub riding: bool,
+    /// `ccSnd +0x63 gateHack`: the gate hack's music ([`GateHack`]).
+    pub gate_hack: GateHack,
     /// `ccSound.loopID[8]` (+0x65): the looping sound effects' slots, -1
     /// free, else the slot's own index (`ccSeOn3DLoop`, `ccSeOffLoop`);
     /// all -1 from the constructor and after every `ccSndSQLoad`
@@ -133,6 +135,19 @@ pub enum VoiceSlot {
     Play,
     /// 0x120, set by `ccEvVoiceStop`: stop channel 0.
     Stop,
+}
+
+/// `ccSnd +0x63 gateHack`, the gate hack's hold on the music.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GateHack {
+    /// 0.
+    Off,
+    /// 1: fading out under the menu (`ccSndGateHack(0)`).
+    Out,
+    /// 2: to be brought back on the next frame (`ccSndGateHack(1)`).
+    Back,
+    /// 3: brought back, fading in.
+    Faded,
 }
 
 /// `vBank` as `evVoicePlay` (0x0017eca0) fills it for `sewordCmd(0x80e0,
@@ -484,6 +499,7 @@ impl Driver {
             bgm_stop: false,
             in_battle: false,
             riding: false,
+            gate_hack: GateHack::Off,
             loop_id: [-1; 8],
             tobj_loop: false,
             water_loop: false,
@@ -699,6 +715,9 @@ impl Driver {
         }
         if !self.game_start {
             self.scene_fades(out);
+        }
+        if self.gate_hack != GateHack::Off {
+            self.gate_hack_ctrl(out);
         }
         // In a field or dungeon, the skill words first.
         if self.game_start && matches!(self.game_area, 1 | 2) {
@@ -1024,6 +1043,47 @@ impl Driver {
         self.battle_music = false;
     }
 
+    /// `ccSndGateHack(n)` (main 0x00180780), from `GtHackMenu`: 0 as the
+    /// menu opens, sequence 0 and, with three loaded, sequence 2 faded from
+    /// their ports' volumes to nothing over 20 frames and stopped (the fade
+    /// written inline with switch 3); 1 as a cancelled hack closes, the
+    /// music back ([`Driver::gate_hack_ctrl`]); 2 the control off.
+    pub fn gate_hack(&mut self, n: i32) {
+        match n {
+            0 => {
+                self.gate_hack = GateHack::Out;
+                self.sq_fade(0, 0, 20, 3);
+                if self.sq_num >= 3 {
+                    self.sq_fade(2, 0, 20, 3);
+                }
+            }
+            1 => self.gate_hack = GateHack::Back,
+            2 => self.gate_hack = GateHack::Off,
+            _ => {}
+        }
+    }
+
+    /// `ccSndGateHackCtrl()` (main 0x00180910), each frame of the sound
+    /// task while `gateHack` is set, after `ccFade`: `ccSceneFade` as well
+    /// (so the fades run twice a frame); on the way back sequences 0 and 2
+    /// restarted at volume 0 (`ccSqPlayVol(n, 0)`) and faded up to their
+    /// table volumes over 20 frames (switch 1), once.
+    fn gate_hack_ctrl(&mut self, out: &mut Vec<Command>) {
+        match self.gate_hack {
+            GateHack::Off => {}
+            GateHack::Out | GateHack::Faded => self.scene_fades(out),
+            GateHack::Back => {
+                crate::stream::sq_play_vol(self, 0, 0, out);
+                self.sq_fade(0, 256, 20, 1);
+                crate::stream::sq_play_vol(self, 2, 0, out);
+                if self.sq_num >= 3 {
+                    self.sq_fade(2, 256, 20, 1);
+                }
+                self.gate_hack = GateHack::Faded;
+            }
+        }
+    }
+
     /// Stop the music: `ccSqStop` on every sequence.
     pub fn stop(&mut self, out: &mut Vec<Command>) {
         self.pending = None;
@@ -1293,5 +1353,51 @@ mod tests {
         assert_eq!(bgm_plan(2, 0, false, &BgmWorld { crisis: true, ..w }).play, &[2, 0]);
         assert_eq!(bgm_plan(1, 0, false, &BgmWorld { dt_bgm: 27, ..w }).play, &[1]);
         assert_eq!(bgm_plan(7, 0, false, &w).play, &[] as &[usize]);
+    }
+
+    /// `ccSndGateHack` in a town with three sequences playing: 0 opens the
+    /// menu, and sequences 0 and 2 fade out and stop (0 in 11 frames, as
+    /// `ccFade` and `ccSceneFade` both run its fade; 2 in 21, only
+    /// `ccSceneFade` runs fade 2) while 1 plays on. 1 (cancelled) starts
+    /// them again at volume 0 and brings them up to their table volumes;
+    /// 2 ends the control.
+    #[test]
+    fn the_gate_hack_silences_the_music_and_a_cancel_brings_it_back() {
+        let mut d = Driver::new();
+        d.sq_num = 3;
+        for t in &mut d.sqtbl {
+            t.vol = 200;
+        }
+        d.game_start = true;
+        let mut out = Vec::new();
+        for sq in 0..3 {
+            d.sq_play(sq, &mut out);
+        }
+        d.gate_hack(0);
+        let mut stopped = [None; 3];
+        for f in 1..=40 {
+            out.clear();
+            d.task(true, &mut out);
+            for c in &out {
+                if let Command::Stop(m) = *c {
+                    stopped[m].get_or_insert(f);
+                }
+            }
+        }
+        assert_eq!(stopped, [Some(11), None, Some(21)]);
+        assert_eq!(d.sq_status, [0, 1, 0]);
+        assert_eq!((d.port_vol[1], d.port_vol[2], d.port_vol[3]), (0, 200, 0));
+        d.gate_hack(1);
+        out.clear();
+        d.task(true, &mut out);
+        assert!(out.contains(&Command::Play(0)) && out.contains(&Command::Play(2)), "{out:?}");
+        assert_eq!(d.gate_hack, GateHack::Faded);
+        for _ in 0..40 {
+            d.task(true, &mut out);
+        }
+        assert_eq!(d.sq_status, [1, 1, 1]);
+        assert_eq!((d.port_vol[1], d.port_vol[3]), (200, 200));
+        d.gate_hack(2);
+        assert_eq!(d.gate_hack, GateHack::Off);
     }
 }

@@ -398,3 +398,94 @@ fn gate_hack_arrival_shots() {
     }
     println!("{taken:?}");
 }
+
+/// The session's sound events into a headless engine, as `main` routes
+/// them (those a town and the gate hack raise).
+fn hear(a: &piney_audio::Audio, events: Vec<Event>) {
+    for e in events {
+        match e {
+            Event::SqLoad(ctx) => a.sq_load(ctx),
+            Event::BgmCtrl(w) => {
+                a.bgm_ctrl(w);
+            }
+            Event::GameStart => a.game_start(),
+            Event::GameInterrupt => a.game_interrupt(),
+            Event::AllSoundOff => a.all_sound_off(),
+            Event::SceneSound(sc) => a.scene_sound(&sc),
+            Event::GameArea(n) => a.set_game_area(n),
+            Event::InBattle(on) => a.set_in_battle(on),
+            Event::SqPlay(n) => a.sq_play(n),
+            Event::SqStop(n) => a.sq_stop(n),
+            Event::SqFade { seq, volume, time, mode } => a.sq_fade(seq, volume, time, mode),
+            Event::GateHackSound(n) => a.gate_hack(n),
+            Event::PortVolume { port, volume } => a.port_volume(port, volume),
+            Event::MainVolume(v) => a.set_main_volume(v),
+            Event::Volumes { main, se, bgm } => a.set_volumes(main, se, bgm),
+            Event::HoldBgm => a.hold_bgm(),
+            _ => {}
+        }
+    }
+}
+
+/// Issue #13: the gate hack silences Mac Anu's music. Heard on the way to
+/// the Chaos Gate; `GtHackMenu`'s `ccSndGateHack(0)` (main 0x00180780) as
+/// the menu opens fades sequences 0 and 2 out and stops them, so nothing
+/// of the music sounds under the slots; cancelled there, `ccSndGateHack(1)`
+/// starts them again at volume 0 and fades them up: the music is back.
+#[test]
+fn gate_hack_silences_the_town_s_music() {
+    let Some(mut s) = story_19() else { return };
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let audio = piney_audio::Audio::headless(&iso).unwrap();
+    let mut pad = Pad::default();
+    let mut chunk = vec![0i16; 1600];
+    // Mean squares: on the way to the gate, at the slots, after a cancel.
+    let mut level = [(0f64, 0usize); 3];
+    let (mut selecting, mut cancelled, mut after) = (0u32, false, 0u32);
+    let mut playing_at_slots = None;
+    for f in 0..20_000u64 {
+        let phase = match &s.stage {
+            Stage::World(w) if cancelled => {
+                let open = w.ui().ctrl.menu == 62 || resume(w).is_some();
+                after += u32::from(!open);
+                (after > 120).then_some(2)
+            }
+            Stage::World(w) if resume(w) == Some(Resume::Select) => {
+                selecting += 1;
+                (selecting > 30).then_some(1)
+            }
+            Stage::World(w) if w.ui().menu_type() == -1 && f > 300 => Some(0),
+            _ => None,
+        };
+        let raw = match &s.stage {
+            Stage::World(_) if cancelled => still(Buttons::NONE),
+            Stage::World(w) if resume(w) == Some(Resume::Select) && selecting >= 90 => {
+                playing_at_slots.get_or_insert_with(|| audio.with_engine(|e| e.driver.sq_status));
+                cancelled = true;
+                still(Buttons::CIRCLE)
+            }
+            Stage::World(w) if resume(w) == Some(Resume::Select) => still(Buttons::NONE),
+            Stage::World(w) => player(w, f),
+            _ => still(Buttons::NONE),
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        hear(&audio, s.take_events());
+        audio.frame();
+        audio.render(&mut chunk);
+        if let Some(k) = phase {
+            level[k].0 += chunk.iter().map(|&v| f64::from(v).powi(2)).sum::<f64>();
+            level[k].1 += chunk.len();
+        }
+        if level[2].1 >= 300 * chunk.len() {
+            break;
+        }
+    }
+    let rms: Vec<f64> = level.iter().map(|&(sq, n)| (sq / n.max(1) as f64).sqrt()).collect();
+    eprintln!("rms on the way {:.0}, at the slots {:.0}, after the cancel {:.0}", rms[0], rms[1], rms[2]);
+    assert!(rms[0] > 100.0, "no town music to begin with: {rms:?}");
+    // Sequence 0 stopped (2, the crisis layer, is not loaded here).
+    assert_eq!(playing_at_slots.map(|p| p[0]), Some(0), "sequence 0 at the slots: {playing_at_slots:?}");
+    assert!(rms[1] < 1.0, "the music under the gate hack: {rms:?}");
+    assert!(rms[2] > rms[0] / 2.0, "the music did not come back: {rms:?}");
+}

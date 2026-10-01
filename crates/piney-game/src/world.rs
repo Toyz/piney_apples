@@ -726,17 +726,9 @@ impl WorldMode {
             // GtHackMenu's OK: setupMode 1 and gtHackFlag, for the next
             // scene's set-up (the session carries them).
             R::GateHacked => self.events.push(Event::GateHacked),
-            // ccSndGateHack: 0 fades the town's sequences (0, and 2 in the
-            // crisis) to nothing over 20 frames; 1 brings them back over 20
-            // (the game restarts them at volume 0 first, ccSqPlayVol(n, 0);
-            // here they go on from where they were).
-            R::GateHackSound(n @ (0 | 1)) => {
-                for seq in [0, 2] {
-                    let volume = if n == 0 { 0 } else { 256 };
-                    self.events.push(Event::SqFade { seq, volume, time: 20, mode: 0 });
-                }
-            }
-            R::GateHackSound(_) => {}
+            // ccSndGateHack: the town's music out under the menu and
+            // stopped, back if the hack is cancelled.
+            R::GateHackSound(n) => self.events.push(Event::GateHackSound(n)),
         }
     }
 }

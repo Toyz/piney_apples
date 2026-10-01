@@ -574,6 +574,7 @@ fn handle(events: Vec<Event>, audio: Option<&Audio>) {
             (Event::GameStart, Some(a)) => a.game_start(),
             (Event::InBattle(on), Some(a)) => a.set_in_battle(*on),
             (Event::PgBgm(p), Some(a)) => a.pg_bgm(*p),
+            (Event::GateHackSound(n), Some(a)) => a.gate_hack(*n),
             (Event::StreamMusic { num, size, after, game }, Some(a)) => a.stream_music(*num, *size, *after, *game),
             (Event::StreamBgm(r), Some(a)) => a.stream_bgm(*r),
             (Event::SqPlay(n), Some(a)) => a.sq_play(*n),
@@ -600,6 +601,7 @@ fn handle(events: Vec<Event>, audio: Option<&Audio>) {
                 | Event::GameStart
                 | Event::InBattle(_)
                 | Event::PgBgm(_)
+                | Event::GateHackSound(_)
                 | Event::Se3d { .. }
                 | Event::TobjSeLoopStart
                 | Event::SoundGameOver
