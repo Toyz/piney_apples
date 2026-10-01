@@ -50,7 +50,10 @@ members' levels and gear from `InitSpcParam`; Mutation's carry-over,
 Events ended at: 201 9,900; 202 14,100; 203 77,700; 204 81,600; 205
 84,300; 206 156,600; 207 232,200; 208 233,700; 209 275,700; 210 298,800;
 211 320,400; 212 323,400; 213 338,400; 214 365,100; 215 387,900; 216
-390,000; 217 391,500; 218 461,100; 219 463,200.
+390,000; 217 391,500; 218 461,100; 219 463,200. Since then: 408,000
+after the side events' pilot work (worklog 307), and 403,800 on
+2026-10-01 after Outbreak's harnesses at 0 (worklog 314) and the
+player-report fixes (309-316).
 
 Seen on the way: `entry 3 29` (a walking PC, file `ctr1`) is not found
 ("not a walking PC's file"); the dungeon walker is put back in rooms it

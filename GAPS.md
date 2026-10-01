@@ -60,7 +60,7 @@ time: plans/volumes.md, plans/build-data.md. Status on 2026-09-29.
   autopilot (plans/mutation-story.md; not yet played by hand). Outbreak:
   all 19 events finish from their own starts, and one run from its own new
   game (no `ConvGame` carry-over from Mutation) reaches 219's staff roll in
-  463,200 frames under the autopilot (plans/outbreak-story.md; not yet
+  403,800 frames under the autopilot (plans/outbreak-story.md; not yet
   played by hand). Quarantine: power-on to the desktop with the opening
   streams' sound; next
 - [ ] The side events of Mutation and Outbreak: Outbreak's 26 (250-275
