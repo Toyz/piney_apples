@@ -176,6 +176,7 @@ fn main() {
                 let mut rng = Rng::new(params.seed);
                 let blank = |x: F, y: F| field::blank_height(x, y);
                 let env = Env {
+                    volume: piney_data::volume::Volume::Inf,
                     player: centre,
                     centre,
                     ofs: [centre[0], centre[1]],
@@ -230,7 +231,20 @@ fn main() {
                 let fl = &s.field;
                 let heights = |x: F, y: F| fl.get_height(x, y);
                 let bounds = piney_world::field_area::BOUNDS;
-                let env = Env { player, centre, ofs, height: &heights, eye, eye1, rot, rot2, eye_view, odd, bounds };
+                let env = Env {
+                    volume: piney_data::volume::Volume::Inf,
+                    player,
+                    centre,
+                    ofs,
+                    height: &heights,
+                    eye,
+                    eye1,
+                    rot,
+                    rot2,
+                    eye_view,
+                    odd,
+                    bounds,
+                };
                 let flare_cam = FlareCamera { eye, view, rot: if eye_view { rot2 } else { rot } };
                 let at = move |_: &[V4; 4]| runners;
                 let frame = Frame { env, flare_cam, sun: Some(sun), runners: &at };

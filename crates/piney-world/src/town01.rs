@@ -259,7 +259,13 @@ impl MacAnu {
         // The water: ccAnm::SetUV of vftoi12(u) into 1's U and 2's V,
         // waterUVModifi2 of water 0 (rooted at the identity, unposed), the
         // scroll steps, then 2, 1 and 0 step and draw.
-        self.water0.modify(&pos_rot_zyx([0, 0, 0, ONE], [0; 3]), [0, 0, 0, ONE], eye, &v.world_screen);
+        self.water0.modify(
+            base.hits.volume,
+            &pos_rot_zyx([0, 0, 0, ONE], [0; 3]),
+            [0, 0, 0, ONE],
+            eye,
+            &v.world_screen,
+        );
         self.water_uv = (ee::to_int(ee::mul(self.water_u, K4096)) & 0xffff) as u16;
         self.water_u = ee::add(self.water_u, WATER_STEP);
         if !ee::le(self.water_u, ONE) {

@@ -113,6 +113,7 @@ struct Run {
 fn main() {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path).unwrap();
+    let volume = iso.volume().unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let kite = SceneFile::read(&archive, "ctu1body").unwrap();
     let anims: Vec<&piney_data::anim::Animation> =
@@ -128,7 +129,7 @@ fn main() {
         let v4 = |i: usize| -> V4 { [n(i), n(i + 1), n(i + 2), n(i + 3)] };
         match w.first().copied() {
             Some("new") => {
-                let a = EventArea::new(&archive, 0).unwrap();
+                let a = EventArea::new(&archive, volume, 0).unwrap();
                 println!("{}", state(&a));
                 area = Some(a);
             }
@@ -143,7 +144,7 @@ fn main() {
                 println!("{{\"to\": {to}, \"state\": {}}}", state(a));
             }
             Some("arena") => {
-                let a = Arena::new_seeded(&archive, n(1) as i32, 0, n(2)).unwrap();
+                let a = Arena::new_seeded(&archive, volume, n(1) as i32, 0, n(2)).unwrap();
                 println!("{}", arena_state(&a));
                 arena = Some(a);
             }

@@ -14,6 +14,7 @@ use glam::{Mat4, Vec3};
 use piney_data::archive::Archive;
 use piney_data::dungeon::{self, DOWN, Dummies, FogRow, NO_ROOM, RealMap, RoomSize, Rotation, Tables, UP, special};
 use piney_data::save::SaveData;
+use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
@@ -195,7 +196,7 @@ pub struct RoomFile {
 }
 
 impl RoomFile {
-    fn new(file: Rc<SceneFile>) -> Result<RoomFile> {
+    fn new(volume: Volume, file: Rc<SceneFile>) -> Result<RoomFile> {
         // `ccStream::Decode_Model` (main 0x0014bce0) makes no model of a
         // chunk with no mmats (the data word stays 0), so its object has
         // none and its Hit chunk never joins the list (sd3's
@@ -210,7 +211,7 @@ impl RoomFile {
             v.sort_unstable();
         }
         let mut hit_models: HashMap<u32, Vec<HitModel>> = HashMap::new();
-        for h in HitModel::read(&file.ccs)? {
+        for h in HitModel::read(volume, &file.ccs)? {
             hit_models.entry(h.parent).or_default().push(h);
         }
         Ok(RoomFile { file, obj_models, hit_models })
@@ -618,7 +619,7 @@ impl DungeonArea {
                 .next_back()
         });
         let spccs = match spccs_name {
-            Some(er) => Some(RoomFile::new(Rc::new(SceneFile::read(archive, er.ccs)?))?),
+            Some(er) => Some(RoomFile::new(volume, Rc::new(SceneFile::read(archive, er.ccs)?))?),
             None => None,
         };
         let fog = *tables
@@ -640,7 +641,7 @@ impl DungeonArea {
                 out
             });
 
-        let RoomFile { obj_models, hit_models, .. } = RoomFile::new(file.clone())?;
+        let RoomFile { obj_models, hit_models, .. } = RoomFile::new(volume, file.clone())?;
         // What the dressing reads of the file: water 0's model, the glows'
         // and sparks' patterns.
         let water_model = file.ccs.find_object(dress::WATER_OBJ).and_then(|o| {
@@ -653,7 +654,7 @@ impl DungeonArea {
             .then(|| lake::Lake::new(&file, dtype, world_man.weather, world_man.field_type, world_man.hack));
 
         let heights: Rc<dyn crate::hit::Heights> = Rc::new(Heights);
-        let hits = Hits { area: 2, bounds: Some(BOUNDS), heights: Some(heights), ..Hits::default() };
+        let hits = Hits { volume, area: 2, bounds: Some(BOUNDS), heights: Some(heights), ..Hits::default() };
         let amb = ambient_bits(&fog).map(f32::from_bits);
         // The constructor's distant light (0x005b8c10): grey 0.7, turned
         // by (-0.8, 0, -0.6) (SetMatrix_RotZYX), in the light group.
@@ -1301,7 +1302,7 @@ impl DungeonArea {
         let mut best = ee::from_int(12000);
         let mut pick = None;
         for p in found {
-            let dist = piney_battle::enemy_ai::get_dist(at, p);
+            let dist = piney_battle::enemy_ai::get_dist_on(self.hits.volume, at, p);
             if !ee::le(best, dist) {
                 best = dist;
                 pick = Some(p);
@@ -1357,8 +1358,10 @@ impl DungeonArea {
         if places.is_empty() {
             return;
         }
-        let dist: [F; 4] =
-            std::array::from_fn(|k| places.get(k).map_or(FAR, |m| piney_battle::enemy_ai::get_dist(target, m[3])));
+        let volume = self.hits.volume;
+        let dist: [F; 4] = std::array::from_fn(|k| {
+            places.get(k).map_or(FAR, |m| piney_battle::enemy_ai::get_dist_on(volume, target, m[3]))
+        });
         let lt = |a: usize, b: usize| ee::f(dist[a]) < ee::f(dist[b]);
         let a = if lt(0, 1) { 0 } else { 1 };
         let b = if lt(2, 3) { 2 } else { 3 };

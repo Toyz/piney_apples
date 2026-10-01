@@ -138,7 +138,10 @@ class GameBattle:
         inf = volume.program(volume.INF_ELF, "gcmn").symbol_named(name)
         if inf is None:
             raise KeyError(f"{name} is in neither {volume.NAME} nor Infection")
-        return inf_va(inf.value)
+        # A main global by main's row: Outbreak's gcmn rows put some of
+        # menumsg.cpp's strings (showMapInfo, trapDischargeStr) elsewhere.
+        here = volume.carried(inf.value, "main") if inf.value < 0x400000 and volume.NAME != "infection" else None
+        return here if here is not None else inf_va(inf.value)
 
     def globals_read(self, name):
         """The addresses a function and the functions it calls form (one

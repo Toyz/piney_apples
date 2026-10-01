@@ -94,9 +94,9 @@ impl Area43 {
         let light = c.find_object(LIGHT).ok_or_else(|| Error::NotFound(LIGHT.into()))?;
         let group: Vec<Light> = records.iter().filter(|l| l.object == light).map(|l| l.at(256)).collect();
         let lights = TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG.depth()) };
-        let hit_models = HitModel::read(c)?;
+        let hit_models = HitModel::read(volume, c)?;
         let mut hits =
-            Hits { area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
+            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
         hits.models = models.iter().filter_map(|m| hit_models.iter().find(|h| h.parent == m.model).cloned()).collect();
         let at = piney_data::save::offset::GATE_LIST_MARK + 20 * server.clamp(0, 4) as usize + 4 * MARK_WORD;
         let flag = save.i32(at) as u32 & MARK_BIT != 0;

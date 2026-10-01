@@ -7,6 +7,7 @@
 //! cases (`docs/engine/field.md`, EE floating point).
 
 use crate::field::ee::{add, div, from_int, lt, mul, sub, to_int};
+use crate::volume::Volume;
 
 const SIGN: u32 = 0x8000_0000;
 const ABS: u32 = 0x7fff_ffff;
@@ -343,6 +344,30 @@ pub fn sqrtf(x: u32) -> u32 {
     crate::field::ee::sqrtf(x)
 }
 
+/// The code's `sqrtf` on the volume: newlib's, rounding to nearest, on
+/// Infection and Mutation. Outbreak's and Quarantine's executables call no
+/// `sqrtf` but from `acosf` and `asinf`: the FPU's truncating `sqrt.s` is
+/// inline at every other call, in main and the overlays alike (OUT gcmn
+/// 0x005a5f54 in `ccAI::DistanceToTarget`, main 0x001e6e70 `ccGetDist`).
+pub fn sqrtf_on(volume: Volume, x: u32) -> u32 {
+    match volume {
+        Volume::Out | Volume::Qua => crate::field::ee::sqrt(x),
+        Volume::Inf | Volume::Mut => sqrtf(x),
+    }
+}
+
+/// `(float)sqrt((double)x)` as the volume's code takes it: newlib's double
+/// `sqrt` between `fptodp` and `dptofp` on Infection and Mutation (the
+/// root rounded once); from Outbreak on the drawing code's `sqrt.s`
+/// (OUT gcmn 0x005f7fb8 in `STATICOBJECT::Draw`). `BIRD::Move`, `TOBJ::Move`,
+/// `STATICMODEL::Draw` and `CheckFrontObstacleF` keep the double.
+pub fn dsqrt_on(volume: Volume, x: u32) -> u32 {
+    match volume {
+        Volume::Out | Volume::Qua => crate::field::ee::sqrt(x),
+        Volume::Inf | Volume::Mut => (f64::from(f32::from_bits(x)).sqrt() as f32).to_bits(),
+    }
+}
+
 /// `T` (0x00349c88): `__kernel_tanf`'s coefficients.
 const TAN_T: [u32; 13] = [
     0x3eaa_aaab,
@@ -486,6 +511,20 @@ pub fn fmodf(x: u32, y: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// sqrt(5) is 0x400f1bbc.8...: newlib rounds it up, the later
+    /// volumes' `sqrt.s` truncates; the double root of the first two
+    /// volumes rounds as newlib does.
+    #[test]
+    fn the_later_volumes_truncate_the_root() {
+        let five = 5f32.to_bits();
+        assert_eq!(sqrtf_on(Volume::Inf, five), 0x400f_1bbd);
+        assert_eq!(sqrtf_on(Volume::Mut, five), 0x400f_1bbd);
+        assert_eq!(sqrtf_on(Volume::Out, five), 0x400f_1bbc);
+        assert_eq!(sqrtf_on(Volume::Qua, five), 0x400f_1bbc);
+        assert_eq!(dsqrt_on(Volume::Inf, five), 0x400f_1bbd);
+        assert_eq!(dsqrt_on(Volume::Out, five), 0x400f_1bbc);
+    }
 
     fn f(x: f32) -> u32 {
         x.to_bits()

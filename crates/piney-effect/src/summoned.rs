@@ -1273,7 +1273,7 @@ impl Summoned {
                         }
                     }
                     b.t = ee::add(t, 0x3cf5_c28f);
-                    let up = ee::atan2f(ee::sub(cur[2], p[2]), drawelm::get_dist(cur, p));
+                    let up = ee::atan2f(ee::sub(cur[2], p[2]), drawelm::get_dist(cx.assets.volume, cur, p));
                     let dirc = drawelm::get_dirc(cur, p);
                     b.elm.base.anim.dirc = [0, up, dirc, ONE];
                     b.elm.base.anim.pos = w;
@@ -1425,7 +1425,7 @@ impl Summoned {
                     let a = &slot.elm.base.anim;
                     let mut p = space::w2p(a.pos, player, bounds);
                     let q = space::w2p(a.ep, player, bounds);
-                    let up = ee::atan2f(ee::sub(p[2], q[2]), drawelm::get_dist(p, q));
+                    let up = ee::atan2f(ee::sub(p[2], q[2]), drawelm::get_dist(cx.assets.volume, p, q));
                     let dirc = drawelm::get_dirc(p, q);
                     let mut spd = a.speed[0];
                     let m = vu::rot_z(&vu::rot_z(&vu::rot_y(&vu::UNIT, up), dirc), NEG_HALF_PI);
@@ -1434,7 +1434,7 @@ impl Summoned {
                     a.pos = space::p2w(p, player, bounds);
                     a.dirc[1] = up;
                     a.dirc[2] = dirc;
-                    if ee::le(drawelm::get_dist3d(p, q), ee::add(0x4120_0000, spd)) {
+                    if ee::le(drawelm::get_dist3d(cx.assets.volume, p, q), ee::add(0x4120_0000, spd)) {
                         let (pos, d) = (a.pos, a.dirc);
                         ring::eff_summon_ring_element(cx, pos, d, 196);
                         if level == 4 {
@@ -1515,7 +1515,8 @@ impl Summoned {
                 d[2] = thunder::add_abs(500.0, thunder::rand_f(cx, 0x43fa_0000));
                 let q = ee::vadd(top, d);
                 n.cp[0] = space::p2w(q, player, bounds);
-                n.elm.base.anim.dirc[1] = ee::atan2f(ee::sub(top[2], q[2]), drawelm::get_dist(top, q));
+                n.elm.base.anim.dirc[1] =
+                    ee::atan2f(ee::sub(top[2], q[2]), drawelm::get_dist(cx.assets.volume, top, q));
                 n.elm.base.anim.dirc[2] = drawelm::get_dirc(top, q);
                 let r = thunder::rand_f(cx, 0x3f00_0000);
                 let x = ((1.0 - f64::from(f32::from_bits(r)).abs()) * 1000.0) as f32;
@@ -1672,7 +1673,7 @@ impl Summoned {
                             p[3] = ONE;
                             let cur = space::w2p(an.pos, player, bounds);
                             let q = space::w2p(p, player, bounds);
-                            let up = ee::atan2f(ee::sub(cur[2], q[2]), drawelm::get_dist(cur, q));
+                            let up = ee::atan2f(ee::sub(cur[2], q[2]), drawelm::get_dist(cx.assets.volume, cur, q));
                             let d = drawelm::get_dirc(cur, q);
                             let an = &mut n.elm.base.anim;
                             an.dirc[1] = up;

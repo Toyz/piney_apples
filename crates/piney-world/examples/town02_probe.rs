@@ -84,6 +84,7 @@ fn state(town: &Town) -> String {
 fn main() {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path).unwrap();
+    let volume = iso.volume().unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let mut town: Option<Town> = None;
     let mut waters: [Option<piney_world::town::WaterZero>; 2] = [None, None];
@@ -95,7 +96,7 @@ fn main() {
         let v4 = |i: usize| -> V4 { [n(i), n(i + 1), n(i + 2), n(i + 3)] };
         match w.first().copied() {
             Some("new") => {
-                let mut t = Town::open(&archive, 1, n(1) != 0).unwrap();
+                let mut t = Town::open(&archive, volume, 1, n(1) != 0).unwrap();
                 t.parts_mut::<DunLoireag>().unwrap().1.rng = Rng::new(n(2));
                 println!("{}", state(&t));
                 town = Some(t);
@@ -153,7 +154,7 @@ fn main() {
             Some("watermodel") | Some("wateruv") => {
                 let (cmd, k) = (w[0], n(1) as usize);
                 let w = waters[k].get_or_insert_with(|| {
-                    let t = Town::open(&archive, k as i32, false).unwrap();
+                    let t = Town::open(&archive, volume, k as i32, false).unwrap();
                     t.water0().unwrap_or_else(|| panic!("town {k} has no water")).clone()
                 });
                 if cmd == "watermodel" {
@@ -164,7 +165,7 @@ fn main() {
                 let eye = [n(2), n(3), n(4), ee::ONE];
                 let m16 = |i: usize| -> [V4; 4] { [v4(i), v4(i + 4), v4(i + 8), v4(i + 12)] };
                 let (lw, at, ws) = (m16(5), v4(21), m16(25));
-                match water_st(&w.model, &lw, at, eye, w.reach, &ws) {
+                match water_st(volume, &w.model, &lw, at, eye, w.reach, &ws) {
                     Some(st) => println!("{}", list(st.iter().map(|s| list(*s)))),
                     None => println!("null"),
                 }

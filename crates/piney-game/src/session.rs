@@ -6880,7 +6880,10 @@ mod area15 {
         let w = arrived(&s).unwrap();
         assert!(w.place().story::<piney_world::evarea07::Giant>().is_some_and(|g| g.block == 0), "{}", Mode::title(&s));
         assert_eq!(w.scene().area_prev, 2);
-        let back = piney_world::evarea07::Giant::new(&archive, 0, 2, 0).unwrap().start.map(f32::from_bits);
+        let back = piney_world::evarea07::Giant::new(&archive, piney_data::volume::Volume::Inf, 0, 2, 0)
+            .unwrap()
+            .start
+            .map(f32::from_bits);
         assert!(at(w, [back[0], back[1], back[2]]), "{} (DMY_marker02 {back:?})", Mode::title(&s));
     }
 

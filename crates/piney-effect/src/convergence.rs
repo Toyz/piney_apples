@@ -400,7 +400,7 @@ pub fn piece_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
     match ctrl.effects[i].target {
         Some(t) if cx.host.check_target(t) => {
             let d = ee::vsub(piece_aim(ctrl, cx, i, t), ctrl.effects[i].pos);
-            let dist = ee::sqrtf(ee::dot(d, d));
+            let dist = ee::sqrtf_on(cx.assets.volume, ee::dot(d, d));
             // (double)dist < fabs((double)velocity): exact in single.
             if ee::lt(dist, ee::fabsf(ctrl.effects[i].velocity)) {
                 arrive(ctrl);
@@ -520,7 +520,7 @@ impl ConvergenceElement {
                 slot.interval = (i as i32 / 3) * 5;
                 slot.time = 0;
                 slot.status = 0;
-                let up = ee::atan2f(ee::sub(p1[2], tpp[2]), drawelm::get_dist(p1, tpp));
+                let up = ee::atan2f(ee::sub(p1[2], tpp[2]), drawelm::get_dist(cx.assets.volume, p1, tpp));
                 let dirc = drawelm::get_dirc(p1, tpp);
                 let a = &mut slot.elm.base.anim;
                 a.dirc = [0, up, dirc, ONE];

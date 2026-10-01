@@ -355,7 +355,7 @@ impl FieldWorld {
                 params.event = scene.field.max(0);
                 let ft = params.field_type as usize;
                 let def_se = crate::field_area::DEF_SE.get(ft).copied().unwrap_or(0xc000);
-                let field = FieldArea::with_world(&archive, params, def_se, world_man.hack, scene.server)?;
+                let field = FieldArea::with_world(&archive, volume, params, def_se, world_man.hack, scene.server)?;
                 let (pos, rot) =
                     field_start(scene.area_prev, params.field_type, field.start_pos(), field.dungeon_pos());
                 (Place::Field(Box::new(field)), pos, rot)
@@ -422,7 +422,8 @@ impl FieldWorld {
         };
         let scheme = Scheme::new(i32::from(save.save.u8(offset::CAM_TYPE) as i8));
         let mode = save.save.u8(offset::CAMERA_MODE) as i8;
-        let camera = Camera::new(pos, dirc, mode, scheme);
+        let mut camera = Camera::new(pos, dirc, mode, scheme);
+        camera.volume = volume;
         // ccPlayer::ccPlayer: WORLD_MAN::SetCenter at his feet; he arrives
         // (act 13) from a town, and stands (act 2) with his body on the list
         // at once coming back from the dungeon or inside one.
@@ -1346,7 +1347,7 @@ impl FieldWorld {
         let Some(k) = c.kite else { return };
         let kc = &c.scene.chars[k];
         let dirc = c.kite_dirc();
-        let leader = talk::Leader { pos_p: [0, 0, kc.pos[2], ONE], dirc, width: kc.base().width };
+        let leader = talk::Leader { volume: self.volume, pos_p: [0, 0, kc.pos[2], ONE], dirc, width: kc.base().width };
         // The three command lists in order, Kite apart: the party's by
         // charTbl row, the enemies' and the others' by scene index.
         let cmnd = |kind: Kind, code: i32, i: usize| {
@@ -2529,7 +2530,7 @@ impl FieldWorld {
         let b = Combat::bounds(self.scene.area, hits);
         let p = self.player.body.pos;
         let at = |v: V4| piney_battle::kite::w2p_pos(&b, p, v).0;
-        piney_battle::enemy_ai::get_dist(at(pos), at(p))
+        piney_battle::enemy_ai::get_dist_on(self.volume, at(pos), at(p))
     }
 
     /// `ccStoreSpcCondition()` as the next scene's `ccSetupGameCtrl` runs
@@ -2856,8 +2857,8 @@ impl FieldWorld {
                     .map(|v| {
                         let p = ee::rot_trans_pers(&ws, v.pos);
                         Vertex {
-                            x: (p[0] - XYOFFSET_X) as f32 / 16.0,
-                            y: (p[1] - XYOFFSET_Y) as f32 / 16.0,
+                            x: p[0].wrapping_sub(XYOFFSET_X) as f32 / 16.0,
+                            y: p[1].wrapping_sub(XYOFFSET_Y) as f32 / 16.0,
                             z: p[2] as u32,
                             u: 0.0,
                             v: 0.0,
@@ -2898,11 +2899,14 @@ impl FieldWorld {
         // A pair's two vertices and whether they draw (no ADC).
         let pair = |q: &piney_battle::weapon::Pair| {
             let p = q.pos.map(|v| ee::rot_trans_pers(&ws, v));
-            let off = |k: usize, lim: i32| (p[0][k] - 0x8000).abs() > lim && (p[1][k] - 0x8000).abs() > lim;
+            // addiu -0x8000, newlib abs, slti: the EE's wrapping words (a
+            // point far off saturates cvt.w.s).
+            let far = |x: i32, lim: i32| x.wrapping_sub(0x8000).wrapping_abs() > lim;
+            let off = |k: usize, lim: i32| far(p[0][k], lim) && far(p[1][k], lim);
             let draws = q.cont && p[0][2] >= 0 && p[1][2] >= 0 && !off(0, 5632) && !off(1, 4608);
             let v = |k: usize| Vertex {
-                x: (p[k][0] - XYOFFSET_X) as f32 / 16.0,
-                y: (p[k][1] - XYOFFSET_Y) as f32 / 16.0,
+                x: p[k][0].wrapping_sub(XYOFFSET_X) as f32 / 16.0,
+                y: p[k][1].wrapping_sub(XYOFFSET_Y) as f32 / 16.0,
                 z: p[k][2] as u32,
                 u: 0.0,
                 v: 0.0,
@@ -3586,7 +3590,7 @@ fn trail_packet(strip: &[crate::lattice::StripVertex], ws: &[V4; 4]) -> Option<p
         .iter()
         .map(|v| {
             let p = ee::rot_trans_pers(ws, v.pos);
-            let (dx, dy) = (p[0] - XYOFFSET_X, p[1] - XYOFFSET_Y);
+            let (dx, dy) = (p[0].wrapping_sub(XYOFFSET_X), p[1].wrapping_sub(XYOFFSET_Y));
             // MakePacket's own clip: z negative, or more than 640 x 576
             // pixels off the offset (XYOFFSET, the display's corner).
             let off = p[2] < 0 || dx.abs() > 10240 || dy.abs() > 9216;

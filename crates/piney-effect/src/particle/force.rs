@@ -11,6 +11,7 @@ use super::tables::FfParam;
 use super::{Generator, normal2angle};
 use crate::ee::{self, F, ONE, V4};
 use crate::vu;
+use piney_data::volume::Volume;
 
 /// `oneVector` (main 0x0033ef80, particle.cpp's own): (1, 1, 1, 0).
 const ONE_VECTOR: V4 = [ONE, ONE, ONE, 0];
@@ -35,7 +36,7 @@ fn vmul(a: V4, b: V4) -> V4 {
 
 /// `Calc(p)`: true when the particle should fade out now (`Main` sets
 /// its `lifeTime` -1 and `fadeFlag` 2).
-pub fn calc(ff: &FfParam, p: &mut Particle, gene: Option<&Generator>) -> bool {
+pub fn calc(volume: Volume, ff: &FfParam, p: &mut Particle, gene: Option<&Generator>) -> bool {
     use ee::{add, div, from_int, mul, sub};
     if ff.field_type > 3 {
         return false;
@@ -71,7 +72,7 @@ pub fn calc(ff: &FfParam, p: &mut Particle, gene: Option<&Generator>) -> bool {
                 p.rotate[1] = p.rotate[1].wrapping_add(ff.rotate);
                 let a = ee::rad2deg(ee::atan2f(t[1], t[0]));
                 let a = ee::deg2rad(p.rotate[1].wrapping_add(a as u16) as i16);
-                let d = ee::sqrtf(ee::dot(t, t));
+                let d = ee::sqrtf_on(volume, ee::dot(t, t));
                 p.offset[0] = add(t[0], mul(d, ee::cosf(a)));
                 p.offset[1] = add(t[1], mul(d, ee::sinf(a)));
             }
@@ -155,7 +156,7 @@ pub fn calc(ff: &FfParam, p: &mut Particle, gene: Option<&Generator>) -> bool {
         16 => {
             if let (true, Some(g)) = (one, gene) {
                 let line = ee::vsub(g.pos2, g.pos);
-                let d = ee::sqrtf(ee::dot(line, line));
+                let d = ee::sqrtf_on(volume, ee::dot(line, line));
                 let axis = ee::normalize(line);
                 let ang = normal2angle(axis);
                 let m = vu::rot_z(&vu::rot_x(&vu::UNIT, ang[0]), ang[2]);
@@ -182,8 +183,8 @@ pub fn calc(ff: &FfParam, p: &mut Particle, gene: Option<&Generator>) -> bool {
             && let Some(g) = gene
         {
             let t = ee::vsub(p.pos, g.pos);
-            let d = ee::sqrtf(ee::dot(t, t));
-            let v = ee::sqrtf(ee::dot(p.velocity, p.velocity));
+            let d = ee::sqrtf_on(volume, ee::dot(t, t));
+            let v = ee::sqrtf_on(volume, ee::dot(p.velocity, p.velocity));
             if ee::le(d, mul(0x4000_0000, v)) {
                 p.end_flag = true;
             }

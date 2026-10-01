@@ -49,7 +49,7 @@ fn smoke(cx: &mut Cx, pos: V4, v: V4, s: F, life: i32, t: i32, (fade_in, fade_ou
     }
     p.velocity = v;
     // sqrtf, then fabs through doubles.
-    p.speed = ee::fabsf(ee::sqrtf(ee::dot(v, v)));
+    p.speed = ee::fabsf(ee::sqrtf_on(cx.assets.volume, ee::dot(v, v)));
     p.size = s;
     p.scale[1] = s;
     p.scale[0] = s;
@@ -149,7 +149,7 @@ pub fn eff_paw_smoke(cx: &mut Cx, feet: [V4; 2], dirc_z: F, speed: F) -> bool {
     let Some(s) = particle::cc_particle_setup(cx, t, p, life as i16, 0, paw) else { return false };
     let q = &mut cx.particles.slots[s];
     q.velocity = v;
-    q.speed = ee::fabsf(ee::sqrtf(ee::dot(v, v)));
+    q.speed = ee::fabsf(ee::sqrtf_on(cx.assets.volume, ee::dot(v, v)));
     q.size = 0x3fc0_0000;
     q.scale[1] = 0x3fc0_0000;
     q.scale[0] = 0x3fc0_0000;

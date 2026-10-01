@@ -154,6 +154,45 @@ def callee(caller, nth, overlay="gcmn"):
     return out[nth]
 
 
+def found(name, caller, nth, overlay="gcmn"):
+    """The volume's function `name`; where the carry did not name it (a
+    leaf too short to place), the `nth` unnamed function `caller` calls,
+    checked to have Infection's opcodes in any order (xfer.shape: the
+    later compiler schedules them anew)."""
+    import struct
+    import xfer
+    here = program(ELF, overlay).symbol_named(name)
+    if here is not None:
+        return here.value
+    inf = program(INF_ELF, overlay).symbol_named(name)
+    at = callee(caller, nth, overlay)
+    p = program(ELF, overlay)
+
+    def ops(prog, a, n):
+        return sorted(xfer.shape(struct.unpack("<%dI" % n, prog.read(a, 4 * n))))
+    want = ops(program(INF_ELF, overlay), inf.value, inf.size // 4)
+    if ops(p, at, inf.size // 4) != want:
+        raise KeyError("%s: %s's call %d at 0x%08x is not it" % (name, caller, nth, at))
+    return at
+
+
+def called(caller, prefix, overlay="gcmn"):
+    """The first function `caller` calls whose name starts with `prefix`,
+    for a harness that hooks it: where the carry swapped two overloads'
+    names (Outbreak's WORLD_MAN::GetEventAreaInfo(void) is filed as the
+    int one, main 0x001a7ce0), the call says which one runs."""
+    import struct
+    p = program(ELF, overlay)
+    start, end = span(caller, overlay)
+    for a in range(start, end, 4):
+        w = struct.unpack("<I", p.read(a, 4))[0]
+        if w >> 26 == 3:
+            hit = p.symbol_at((w & 0x03FFFFFF) << 2, 0)
+            if hit and hit[1] == 0 and hit[0].name.startswith(prefix):
+                return hit[0].value
+    raise KeyError("%s calls no %s* in %s" % (caller, prefix, NAME))
+
+
 def number():
     """The disc's `volumeNum` (1-4), as the executable holds it."""
     import struct
@@ -214,9 +253,13 @@ def remarks():
 def menu_at(inf_off):
     """ccMenuCtrl's field at Infection's offset `inf_off`, in this volume.
     From Mutation on a short at +0x12c moves protect and protectCnt 2 on,
-    and protectChar and all after it 4 on."""
+    and protectChar and all after it 4 on. From Outbreak on a word after
+    dummyTarget moves itemNum and trapNum 8 on (DataDrainMenu, OUT gcmn
+    0x0054ca44: itemNum at +0x240)."""
     if NAME == "infection" or inf_off < 0x12C:
         return inf_off
+    if inf_off >= 0x238 and NAME in ("outbreak", "quarantine"):
+        return inf_off + 8
     return inf_off + (2 if inf_off < 0x15C else 4)
 
 

@@ -892,7 +892,7 @@ pub fn drill_pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
             let old = e.pos;
             e.pos = ee::vadd(e.pos, e.speed);
             let d = ee::vsub(e.pos, old);
-            let len = ee::sqrtf(ee::dot(d, d));
+            let len = ee::sqrtf_on(cx.assets.volume, ee::dot(d, d));
             let up = ee::rad2deg(asinf(ee::div(d[2], len)));
             e.rot[0] = ee::deg2rad((16384 - i32::from(up)) as i16);
             e.speed[2] = ee::sub(e.speed[2], 0x4060_0000);

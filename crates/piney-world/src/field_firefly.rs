@@ -256,8 +256,8 @@ impl FieldFirefly {
             self.pattern = 0;
         }
         let d = env.w2p(self.pos);
-        let s = ee::add(ee::mul(d[0], d[0]), ee::mul(d[1], d[1]));
-        let dist = (f64::from(ee::f(s)).sqrt() as f32).to_bits();
+        // fptodp, sqrt, dptofp; sqrt.s from Outbreak on (OUT gcmn 0x005dd2a0).
+        let dist = ee::dsqrt_on(env.volume, ee::add(ee::mul(d[0], d[0]), ee::mul(d[1], d[1])));
         if !ee::le(dist, 0x453b_8000) {
             self.transparency = 0;
             self.base[0] = ee::sub(ee::from_int(rng.below(5000) as i32), 0x451c_4000);
@@ -352,7 +352,14 @@ fn spark(mut s: Firefly, rng: &mut Rng, pos: V4, v: V4, life: Option<i32>, scale
 }
 
 fn fly<'a>(env: &'a Env<'a>) -> Fly<'a> {
-    Fly { player: env.player, bounds: env.bounds, eye: env.eye, rot: env.cam_rot(), height: env.height }
+    Fly {
+        volume: env.volume,
+        player: env.player,
+        bounds: env.bounds,
+        eye: env.eye,
+        rot: env.cam_rot(),
+        height: env.height,
+    }
 }
 
 fn sprite(name: &'static str, pos: V4, pattern: u16, scale: F, transparency: F, fog: bool) -> Op {

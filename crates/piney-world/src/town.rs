@@ -471,6 +471,7 @@ const K256: F = 0x4380_0000;
 /// buffer, `fptoui(256 x)`: the water samples the picture behind it where its
 /// unbent vertex would be (docs/engine/town02.md).
 pub fn water_st(
+    volume: piney_data::volume::Volume,
     model: &piney_data::model::Model,
     lw: &[V4; 4],
     at: V4,
@@ -479,8 +480,8 @@ pub fn water_st(
     world_screen: &[V4; 4],
 ) -> Option<Vec<[u16; 2]>> {
     let (dx, dy) = (ee::sub(eye[0], at[0]), ee::sub(eye[1], at[1]));
-    let s = ee::add(ee::mul(dx, dx), ee::mul(dy, dy));
-    let d = (f64::from(ee::f(s)).sqrt() as f32).to_bits();
+    // fptodp, sqrt, dptofp; sqrt.s from Outbreak on (OUT gcmn 0x00518170).
+    let d = ee::dsqrt_on(volume, ee::add(ee::mul(dx, dx), ee::mul(dy, dy)));
     if !ee::le(d, reach) {
         return None;
     }
@@ -546,8 +547,15 @@ impl WaterZero {
 
     /// `waterUVModifi2(obj, eye, reach)` with the object's world matrix and
     /// place.
-    pub fn modify(&mut self, lw: &[V4; 4], at: V4, eye: V4, world_screen: &[V4; 4]) {
-        if let Some(st) = water_st(&self.model, lw, at, eye, self.reach, world_screen) {
+    pub fn modify(
+        &mut self,
+        volume: piney_data::volume::Volume,
+        lw: &[V4; 4],
+        at: V4,
+        eye: V4,
+        world_screen: &[V4; 4],
+    ) {
+        if let Some(st) = water_st(volume, &self.model, lw, at, eye, self.reach, world_screen) {
             self.st = Some(st);
         }
     }
@@ -659,7 +667,7 @@ impl Base {
         }
         let light_anim = file.anim(spec.light_anim).ok_or_else(|| Error::NotFound(spec.light_anim.into()))?;
         let lights = read_lights(&file, light_anim, spec.lights)?;
-        let hits = Hits::new(HitModel::read(c)?);
+        let hits = Hits::new(volume, HitModel::read(volume, c)?);
         let morphers = piney_data::anim::morphers(c).unwrap_or_default();
         Ok(Base {
             no: spec.no,
@@ -710,12 +718,14 @@ impl Base {
     }
 
     /// `STATICOBJECT::Draw` (0x005cfe70) up to the draw: within its clip of
-    /// the eye (`sceVu0SubVector`, x x + y y, `sqrt` in double) or with a
-    /// clip of 0, the animation steps. True when it is to be drawn.
+    /// the eye (`sceVu0SubVector`, x x + y y, `sqrt` in double; `sqrt.s`
+    /// from Outbreak on) or with a clip of 0, the animation steps. True
+    /// when it is to be drawn.
     pub(crate) fn object_step(&mut self, i: usize, eye: V4) -> bool {
+        let volume = self.hits.volume;
         let o = &mut self.objects[i];
         let (dx, dy) = (ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
-        let d = ee::sqrtf(ee::add(ee::mul(dx, dx), ee::mul(dy, dy)));
+        let d = ee::dsqrt_on(volume, ee::add(ee::mul(dx, dx), ee::mul(dy, dy)));
         if !(ee::lt(d, o.clip) || ee::eq(o.clip, 0)) {
             return false;
         }
@@ -803,15 +813,19 @@ impl Town {
 
     /// The town `WORLD_MAN::GO(0)` builds for `game.town` `no`
     /// (`ROOTTOWN01` .. `05`), `crisis` the save's crisis byte.
-    pub fn open(archive: &Arc<Archive>, no: i32, crisis: bool) -> Result<Town> {
-        match no {
+    pub fn open(archive: &Arc<Archive>, volume: piney_data::volume::Volume, no: i32, crisis: bool) -> Result<Town> {
+        let mut town = match no {
             0 => crate::town01::new(archive, crisis),
             1 => crate::town02::new(archive, crisis),
             2 => crate::town03::new(archive, crisis),
             3 => crate::town04::new(archive, crisis),
             4 => crate::town05::new(archive, crisis),
             n => Err(Error::NotFound(format!("town {n}: there are five, 0-4"))),
-        }
+        }?;
+        // The towns' tables are Infection's on every disc; the collision
+        // takes the disc's square root.
+        town.base.hits.volume = volume;
+        Ok(town)
     }
 
     /// The class, when it is a `T`.
@@ -998,7 +1012,7 @@ pub(crate) mod tests {
     #[test]
     fn town_lights() {
         let Some(archive) = archive() else { return };
-        let t = Town::open(&archive, 0, false).unwrap();
+        let t = Town::open(&archive, piney_data::volume::Volume::Inf, 0, false).unwrap();
         let l = &t.base.lights;
         assert_eq!(l.ambient, Vec3::new(113.0, 113.0, 120.0) / 255.0);
         assert_eq!(l.lights.len(), 6);

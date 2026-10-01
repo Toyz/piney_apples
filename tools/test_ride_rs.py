@@ -335,8 +335,11 @@ class RideGame:
             "__ct__5ccAnmFv": lambda mm, a, *_: a,
             "ApplyClump__5ccAnmFP7ccClumpP8ccStream": nop,
         }
+        # Outbreak's carry leaves the light's wake-up unnamed: DrawPG's call.
+        where = {"AwakeDistantLight__9WORLD_MANFv": lambda: volume.found(
+            "AwakeDistantLight__9WORLD_MANFv", "DrawPG__11ccPuccigusoFv", 0)}
         for n, f in hooks.items():
-            m.hooks[sym(n)] = f
+            m.hooks[where[n]() if n in where else sym(n)] = f
 
     # the case ------------------------------------------------------------------------
     def put(self, c):

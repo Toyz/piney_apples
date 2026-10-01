@@ -723,8 +723,8 @@ fn thunder_draw(cx: &mut Cx, a: &crate::element::Animate, bow: Option<ObjRef>, c
     for i in 0..idx.max(0) as usize {
         let (p, q) = (c[i][1], c[i + 1][1]);
         let dirc = get_dirc(p, q);
-        let d = get_dist(p, q);
-        let d3 = get_dist3d(p, q);
+        let d = get_dist(cx.assets.volume, p, q);
+        let d3 = get_dist3d(cx.assets.volume, p, q);
         let tilt = ee::atan2f(ee::sub(c[i][0][2], c[i + 1][0][2]), d);
         let mut m = vu::UNIT;
         m[0][0] = 0x4040_0000;
@@ -739,18 +739,19 @@ fn thunder_draw(cx: &mut Cx, a: &crate::element::Animate, bow: Option<ObjRef>, c
     }
 }
 
-/// `ccGetDist(a, b)` (main 0x001d9dd0): the distance on the ground.
-pub fn get_dist(a: V4, b: V4) -> F {
+/// `ccGetDist(a, b)` (main 0x001d9dd0): the distance on the ground, by
+/// the volume's `sqrtf` (OUT main 0x001e6e70 has `sqrt.s`).
+pub fn get_dist(volume: Volume, a: V4, b: V4) -> F {
     let mut d = ee::vsub(b, a);
     d[2] = 0;
     d[3] = ONE;
-    ee::sqrtf(ee::dot(d, d))
+    ee::sqrtf_on(volume, ee::dot(d, d))
 }
 
-/// `ccGetDist3D(a, b)` (main 0x001d9e40).
-pub fn get_dist3d(a: V4, b: V4) -> F {
+/// `ccGetDist3D(a, b)` (main 0x001d9e40), by the volume's `sqrtf`.
+pub fn get_dist3d(volume: Volume, a: V4, b: V4) -> F {
     let d = ee::vsub(b, a);
-    ee::sqrtf(ee::dot(d, d))
+    ee::sqrtf_on(volume, ee::dot(d, d))
 }
 
 /// `ccGetDirc(a, b)` (main 0x001d9ce0): the heading from `a` to `b`

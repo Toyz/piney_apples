@@ -6,7 +6,7 @@
 //! the product first.
 
 pub use piney_data::field::ee::{add, cmp, div, from_int, le, lt, mul, sqrt, sub, to_int};
-pub use piney_data::libm::{atan2f, cosf, fabsf, fmodf, neg, sinf, sqrtf, tanf};
+pub use piney_data::libm::{atan2f, cosf, dsqrt_on, fabsf, fmodf, neg, sinf, sqrtf, sqrtf_on, tanf};
 
 /// A float as bits.
 pub type F = u32;

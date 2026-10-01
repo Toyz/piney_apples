@@ -138,6 +138,7 @@ fn event(e: &GruntyEvent) -> String {
 fn main() {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path).unwrap();
+    let volume = iso.volume().unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let tables = Rc::new(Tables::of(iso.volume().unwrap()).unwrap());
     let mut bodies = Bodies::load(&archive).unwrap();
@@ -174,7 +175,7 @@ fn main() {
             Some("new") => {
                 let (id, t) = (n(1) as i32, n(2) as i32);
                 if town.as_ref().is_none_or(|x| x.base.no != t) {
-                    town = Some(Town::open(&archive, t, false).unwrap());
+                    town = Some(Town::open(&archive, volume, t, false).unwrap());
                 }
                 let tw = town.as_mut().unwrap();
                 rand = piney_world::Rand(u64::from(n(3)));

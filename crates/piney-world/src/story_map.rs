@@ -127,16 +127,16 @@ pub fn build(
 ) -> Result<Option<Box<dyn StoryMap>>> {
     let (field, area_prev) = (at.field, at.area_prev);
     let map: Box<dyn StoryMap> = match field {
-        f if crate::evarea_b0::is_arena(f) => Box::new(Arena::new(archive, f, def_se)?),
+        f if crate::evarea_b0::is_arena(f) => Box::new(Arena::new(archive, at.volume, f, def_se)?),
         _ if model == 0 => return Ok(None),
         crate::evarea::AREA => {
             let kept = match kept {
                 Some(Kept::Event(e)) if area_prev == crate::area::kind::FIELD => Some(e),
                 _ => None,
             };
-            EventArea::for_scene(archive, kept, def_se)?
+            EventArea::for_scene(archive, at.volume, kept, def_se)?
         }
-        crate::evarea07::AREA => Box::new(Giant::new(archive, def_se, area_prev, 0)?),
+        crate::evarea07::AREA => Box::new(Giant::new(archive, at.volume, def_se, area_prev, 0)?),
         crate::evarea03::AREA => Box::new(Area43::new(archive, at.volume, at.save, at.server, def_se)?),
         crate::evarea01::AREA => Box::new(crate::evarea01::Area13::new(archive, at.volume, def_se)?),
         f if crate::evarea_b8::is_disc(f) => {

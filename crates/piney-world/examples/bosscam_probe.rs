@@ -92,11 +92,12 @@ struct Run {
 fn main() {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path).unwrap();
+    let volume = iso.volume().unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let kite = SceneFile::read(&archive, "ctu1body").unwrap();
     let anims: Vec<&piney_data::anim::Animation> =
         PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
-    let models = HitModel::read(&Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
+    let models = HitModel::read(volume, &Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
     let mut run: Option<Run> = None;
     for line in std::io::stdin().lock().lines() {
         let line = line.unwrap();
@@ -109,7 +110,7 @@ fn main() {
                 let dirc = [0, 0, n(5), 0];
                 let mode = n(7) as i8;
                 run = Some(Run {
-                    hits: Hits::new(models.clone()),
+                    hits: Hits::new(volume, models.clone()),
                     player: Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
                     camera: Camera::new(pos, dirc, mode, Scheme::new(n(6) as i32)),
                     rand: Rand(u64::from(n(8))),

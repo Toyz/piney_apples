@@ -245,7 +245,7 @@ impl DunLoireag {
         // waterUVModifi2 of water 0 (its UVs, for the draw); 2 and 1 on
         // effLayer, 0 on objLayer and the copy after it.
         self.water_uv = vftoi12(self.water_u);
-        self.water0.modify(&water_root(), [0, 0, 0, ONE], v.eye, &v.world_screen);
+        self.water0.modify(base.hits.volume, &water_root(), [0, 0, 0, ONE], v.eye, &v.world_screen);
         for k in [2usize, 1, 0] {
             self.water[k].forward(&base.file);
             out.push(Piece::Water(k));
@@ -289,10 +289,10 @@ impl DunLoireag {
         }
         // The clouds: Move, then Draw.
         for k in 0..self.clouds.len() {
-            self.clouds[k].step(v.player, &mut self.rng, &|_, _| 0);
+            self.clouds[k].step(base.hits.volume, v.player, &mut self.rng, &|_, _| 0);
             let c = &self.clouds[k];
             let in_view = crate::rtownpc::check_camera_deg(c.pos, cloud::VIEW_DEG, &v.cam, v.player);
-            if c.drawn(v.player, in_view) {
+            if c.drawn(base.hits.volume, v.player, in_view) {
                 out.push(Piece::Cloud(k));
             }
         }

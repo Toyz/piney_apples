@@ -204,7 +204,7 @@ fn main() {
     let kite = SceneFile::read(&archive, "ctu1body").unwrap();
     let anims: Vec<&piney_data::anim::Animation> =
         PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
-    let town = HitModel::read(&Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
+    let town = HitModel::read(volume, &Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
     let dummies = piney_desktop::assets::SceneFile::read(&archive, "town01").unwrap();
     let mut run: Option<Run> = None;
     let stdin = std::io::stdin();
@@ -219,7 +219,7 @@ fn main() {
                 let dirc = [0, 0, n(4), 0];
                 let mode = n(6) as i8;
                 let boot = n(8) as i32;
-                let mut hits = Hits::new(town.clone());
+                let mut hits = Hits::new(volume, town.clone());
                 // Kite's spcParam as the test's machine has it: flags 7,
                 // height 160, width 45, velocity 27.5.
                 let mut save = SaveData::new();

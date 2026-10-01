@@ -583,6 +583,8 @@ pub struct Camera {
     pub eye: bool,
     pub bounds: [F; 4],
     pub town: bool,
+    /// The disc's volume: its code's square root.
+    pub volume: piney_data::volume::Volume,
 }
 
 impl Camera {
@@ -594,7 +596,7 @@ impl Camera {
     /// `ccGetCameraTransparency(pos, width, height, far, fade, &hide)`.
     #[allow(clippy::too_many_arguments)]
     pub fn transparency(&self, pos: V4, width: F, height: F, far: F, fade: F, hide: &mut bool) -> F {
-        camera_transparency(self.w2p(pos), self.w2p(self.cam), self.deg1, width, height, far, fade, hide)
+        camera_transparency(self.volume, self.w2p(pos), self.w2p(self.cam), self.deg1, width, height, far, fade, hide)
     }
 
     /// The five-argument `ccGetCameraTransparency(pos, width, height, far,
@@ -617,6 +619,7 @@ impl Camera {
 /// it was), 1 out to `far`, then down to 0 over `fade`.
 #[allow(clippy::too_many_arguments)]
 pub fn camera_transparency(
+    volume: piney_data::volume::Volume,
     pos_p: V4,
     cam_p: V4,
     deg1: i16,
@@ -627,7 +630,7 @@ pub fn camera_transparency(
     hide: &mut bool,
 ) -> F {
     let d = ee::vsub(cam_p, pos_p);
-    let dist = ee::sqrtf(ee::dot(d, d));
+    let dist = ee::sqrtf_on(volume, ee::dot(d, d));
     let t = ee::div(ee::from_int(8192 - i32::from(deg1)), 0x4600_0000);
     let u = ee::sub(ONE, t);
     let mut r = ee::add(ee::mul(width, t), ee::mul(height, u));

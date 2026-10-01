@@ -8,6 +8,7 @@
 
 use piney_data::ccs::Ccs;
 use piney_data::dungeon::Rng;
+use piney_data::volume::Volume;
 
 use crate::char::{p2w, w2p};
 use crate::ee::{self, F, ONE, V4};
@@ -87,10 +88,10 @@ fn fl(n: u32) -> F {
     ee::from_int(n as i32)
 }
 
-/// `sqrt(x x + y y)` in double, as `Move` and `Draw` measure.
-fn ground_dist(p: V4) -> F {
-    let s = ee::add(ee::mul(p[0], p[0]), ee::mul(p[1], p[1]));
-    (f64::from(ee::f(s)).sqrt() as f32).to_bits()
+/// `sqrt(x x + y y)` in double, as `Move` and `Draw` measure (`sqrt.s`
+/// from Outbreak on, [`ee::dsqrt_on`], OUT gcmn 0x0051a7b0 `CLOUD::Move`).
+fn ground_dist(volume: Volume, p: V4) -> F {
+    ee::dsqrt_on(volume, ee::add(ee::mul(p[0], p[0]), ee::mul(p[1], p[1])))
 }
 
 impl Cloud {
@@ -157,7 +158,7 @@ impl Cloud {
 
     /// `Move` (0x00504a10) with the player at `player`; `height` is
     /// `WORLD_MAN::GetHeight(x, y)` for type 2.
-    pub fn step(&mut self, player: V4, rng: &mut Rng, height: &dyn Fn(F, F) -> F) {
+    pub fn step(&mut self, volume: Volume, player: V4, rng: &mut Rng, height: &dyn Fn(F, F) -> F) {
         self.pattern += 1;
         if self.pattern == i32::from(self.eff.pat_num) {
             self.pattern = 0;
@@ -172,7 +173,7 @@ impl Cloud {
             0 | 3 => {
                 self.pos[0] = ee::add(self.pos[0], speed);
                 let reach = if self.kind == 0 { REACH_0 } else { REACH_3 };
-                if !ee::le(ground_dist(w2p(self.pos, player)), reach) {
+                if !ee::le(ground_dist(volume, w2p(self.pos, player)), reach) {
                     self.set_pos(player, rng);
                 }
             }
@@ -197,8 +198,8 @@ impl Cloud {
 
     /// `Draw` (0x00504ce0): whether `ccEff::Draw(pos, pattern)` is made,
     /// `in_view` being `ccCheckCameraDeg(pos, 12288)`.
-    pub fn drawn(&self, player: V4, in_view: bool) -> bool {
-        in_view && ee::lt(ground_dist(w2p(self.pos, player)), DRAW_DIST)
+    pub fn drawn(&self, volume: Volume, player: V4, in_view: bool) -> bool {
+        in_view && ee::lt(ground_dist(volume, w2p(self.pos, player)), DRAW_DIST)
     }
 }
 

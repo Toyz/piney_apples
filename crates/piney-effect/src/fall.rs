@@ -591,7 +591,7 @@ impl FallElement {
                     ep[2] = ee::add(top[2], thunder::rand_f(cx, 0x4348_0000));
                 }
                 let epw = space::p2w(ep, player, bounds);
-                let d = drawelm::get_dist(tp, ep);
+                let d = drawelm::get_dist(cx.assets.volume, tp, ep);
                 let tilt = ee::atan2f(ee::sub(tp[2], ep[2]), d);
                 let dirc = drawelm::get_dirc(tp, ep);
                 let m = vu::rot_z(&vu::rot_z(&vu::rot_y(&vu::UNIT, tilt), dirc), 0xbfc9_0fdb);
@@ -657,7 +657,7 @@ impl FallElement {
             let pos = a.pos;
             a.speed = ee::vadd(a.speed, slot.elm.base.accel);
             let a = &mut slot.elm.base.anim;
-            if !ee::le(drawelm::get_dist3d(VF0, a.speed), 0x4348_0000) {
+            if !ee::le(drawelm::get_dist3d(cx.assets.volume, VF0, a.speed), 0x4348_0000) {
                 a.speed = ee::vscale(ee::normalize(a.speed), 0x4348_0000);
             }
             slot.elm.main(cx);

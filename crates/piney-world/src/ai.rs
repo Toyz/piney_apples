@@ -396,7 +396,7 @@ pub fn manual_control(ch: &mut SpcRef, hits: &mut Hits) -> Option<PartyLeave> {
             let (g_point, g_pos) = ch.ai.as_ref().map_or((0, [0; 4]), |a| (a.g_point, a.g_pos));
             if g_point == -1 {
                 let dirc = *ch.dirc;
-                let r = move_p2p(ch, g_pos, cmd != 2);
+                let r = move_p2p(hits.volume, ch, g_pos, cmd != 2);
                 if ee::lt(r, F_50) {
                     *ch.move_flag = false;
                     *ch.run_flag = false;
@@ -498,13 +498,13 @@ fn check_action(ch: &SpcRef, n: i32) -> bool {
 /// not within its stride, starts walking (and running as asked) when it may
 /// move and is beyond it, and a body already walking starts running when
 /// asked.
-pub fn move_p2p(ch: &mut SpcRef, p2: V4, run: bool) -> F {
+pub fn move_p2p(volume: piney_data::volume::Volume, ch: &mut SpcRef, p2: V4, run: bool) -> F {
     let p1 = *ch.pos;
     let mut tmp = *ch.dirc;
     let mut d = ee::vsub(p2, p1);
     let ang = ee::deg2rad(ee::rad2deg(ee::atan2f(d[0], ee::neg(d[1]))));
     d[2] = 0;
-    let dist = ee::sqrtf(ee::dot(d, d));
+    let dist = ee::sqrtf_on(volume, ee::dot(d, d));
     let r = ee::from_int(ee::to_int(ee::sub(dist, ch.hit.radius)));
     let vel = ch.velocity;
     if check_action(ch, 2) && !ee::lt(r, vel) {

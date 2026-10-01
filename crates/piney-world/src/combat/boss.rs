@@ -877,7 +877,7 @@ fn shake_range(camera: &Camera, world: &World, pos: V4) -> bool {
         return false;
     }
     let dv = ee::vsub(pos, cam.pos);
-    ee::lt(ee::sqrtf(ee::dot(dv, dv)), 0x44fa_0000)
+    ee::lt(ee::sqrtf_on(camera.volume, ee::dot(dv, dv)), 0x44fa_0000)
 }
 
 /// Where each of Magus's twelve leaves hangs (`OBJ_ex31leaf`,

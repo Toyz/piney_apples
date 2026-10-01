@@ -116,7 +116,7 @@ fn main() {
                 println!("[{}, {}]", g.in_battle, g.cnt);
             }
             Some("inarea") => {
-                let leader = Leader { pos_p: a.v3(), dirc: [0; 4], width: 0 };
+                let leader = Leader { volume: piney_data::volume::Volume::Inf, pos_p: a.v3(), dirc: [0; 4], width: 0 };
                 let (flags, listed, at, id, dead) = (a.u(), a.b(), a.u() as usize, a.s(), a.s());
                 let cond = Cond { dead, ..Cond::default() };
                 let kite = LeaderState { flags, listed, at, id, cond, ..LeaderState::default() };
@@ -143,7 +143,7 @@ fn main() {
             }
             Some("select") => {
                 let (pos_p, dircz, width) = (a.v3(), a.u(), a.u());
-                let leader = Leader { pos_p, dirc: [0, 0, dircz, 0], width };
+                let leader = Leader { volume: piney_data::volume::Volume::Inf, pos_p, dirc: [0, 0, dircz, 0], width };
                 let kite = LeaderState { listed: a.b(), cond: a.cond(), ..LeaderState::default() };
                 let (eye, mode, mut pri, in_battle, field) = (a.b(), a.i(), a.i(), a.b(), a.i());
                 let n = a.u() as usize;
@@ -205,7 +205,7 @@ fn ctrl_frame(task: &mut Task, a: &mut Args) {
         control: a.b(),
     };
     let (pos_p, dircz, width) = (a.v3(), a.u(), a.u());
-    let leader = Leader { pos_p, dirc: [0, 0, dircz, 0], width };
+    let leader = Leader { volume: piney_data::volume::Volume::Inf, pos_p, dirc: [0, 0, dircz, 0], width };
     let num = a.i();
     let slots: Vec<Option<(i32, V4, i16)>> = (0..3)
         .map(|_| {

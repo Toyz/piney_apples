@@ -240,7 +240,7 @@ impl Stage<'_> {
         let p = self.w2p_of(pos);
         let c = self.w2p_of(cam.pos);
         let d = ee::vsub(c, p);
-        let dist = ee::sqrtf(ee::dot(d, d));
+        let dist = ee::sqrtf_on(self.camera.volume, ee::dot(d, d));
         let t = ee::div(ee::from_int(8192 - i32::from(cam.deg[1])), 0x4600_0000);
         let u = ee::sub(ONE, t);
         let mut r = ee::add(ee::mul(width, t), ee::mul(height, u));
@@ -508,7 +508,7 @@ impl enemy_motion::MotionWorld for Stage<'_> {
             return false;
         }
         let d = ee::vsub(pos, self.camera.active().pos);
-        ee::lt(ee::sqrtf(ee::dot(d, d)), 0x44fa_0000)
+        ee::lt(ee::sqrtf_on(self.camera.volume, ee::dot(d, d)), 0x44fa_0000)
     }
 
     fn call(&mut self, who: usize, c: enemy_motion::Call, at: &mut enemy_motion::At) {

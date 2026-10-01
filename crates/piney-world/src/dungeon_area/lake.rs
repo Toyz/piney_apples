@@ -160,12 +160,14 @@ impl DungeonArea {
     /// `step`) and `Draw`, about the player, their sprites `field_eff`'s
     /// (`DUNGEON` +0x34c).
     pub fn draw_fireflies(&mut self, player: V4, step: bool, out: &mut Vec<Op>) {
+        let volume = self.hits.volume;
         let Some(lake) = self.lake.as_mut() else { return };
         if !lake.night {
             return;
         }
         let flat = |_: F, _: F| 0;
         let env = Env {
+            volume,
             player,
             centre: player,
             ofs: [player[0], player[1]],

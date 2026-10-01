@@ -1473,6 +1473,13 @@ on it. Around the rules the call also clears the enemies' conditions
 (`ccClearConditionAllEnemy`, 0x0042e4f0), shows the trap's removal and
 sets the player's AI mode and system messages.
 
+Outbreak and Quarantine rewrote notes 288 and 289; the carry pairs
+Infection's two tables with each other's, so the build (`piney-gen`'s
+`item_pages`) finds them by the branch each item takes in
+`ccUseItemRequest` (OUT gcmn 0x0059e93c for 288, 0x0059e964 for 289).
+Outbreak's `showMapInfo` and `trapDischargeStr` are main's globals at
+0x00386168 and 0x00386170; the carry's gcmn rows put them elsewhere.
+
 ## The motion layer
 
 Where the rules stop, the game's code goes on moving and animating the
@@ -3611,7 +3618,12 @@ From Outbreak on, the three area damage rules (`ccSkillDamage` OUT
 0x00595dac, its point variant 0x005962f8, `ccSkillDamage2` 0x0059664c; QUA
 0x004886ec, 0x00488c38, 0x00488f8c) set the types to 0xe0 once they walk
 the foes' list: an area skill aimed at an enemy also takes in a Data Bug
-(0x40) or a boss (0x80) in reach. Otherwise OUT and QUA differ from MUT
+(0x40) or a boss (0x80) in reach. `ccSkillHold` (OUT 0x00597200, point
+0x00597478) and `ccSkillModifyCondition` (0x00597684, point 0x005979dc)
+do the same; QUA too (0x00489b40 on). An enemy's own area attack
+(`affectSkill`'s `ccSkillDamage`) then takes the attacker in with the rest.
+The port's one rule is `damage::side_types` (checked: `test_battle_flow_rs.py`
+skill_main and `test_battle_enemy_motion_rs.py` main, 0 on OUT). Otherwise OUT and QUA differ from MUT
 only in compilation: the durations come from a literal pool, `fptosi` is
 inlined, and so is `sqrtf`, as `sqrt.s` (below). The tables change from volume to volume;
 see [game data](../content/game-data.md#other-volumes).
@@ -3629,8 +3641,26 @@ reach, the landmarks, `ccEntryObj::routine`'s `plDist`, the Grunty's stick
 and `ccGetDist`. The port takes each through `geom::sqrt_on` (checked:
 `test_battle_kite_rs.py`, 200 cases of every check on INF, MUT and OUT).
 
+The same holds beyond the battle rules: every Infection function that calls
+`sqrtf` (70 in all, main and gcmn) has `sqrt.s` on Outbreak. Most of the
+drawing code's `(float)sqrt((double)x)` became `sqrt.s` as well
+(`STATICOBJECT::Draw` OUT 0x005f7fb8, `CLOUD`, `FIREFLY`, `FOBJECT`,
+`waterUVModifi2`, `ccMerchan::main`, `ccChgate::main`); `BIRD::Move`,
+`TOBJ::Move`, `STATICMODEL::Draw` and `CheckFrontObstacleF` keep the double.
+piney-world, piney-effect, piney-audio and piney-fieldui take theirs through
+`libm::sqrtf_on` and `libm::dsqrt_on` with the disc's volume.
+
+`ccMenuCtrl` grows a word after `dummyTarget` from Outbreak on: `itemNum`
+(the Data Drain skill) is at +0x240 (OUT gcmn 0x0054ca44; MUT +0x23c), and
+`trapNum` after it.
+
 ## Unknown
 
+- The riding Grunty from Mutation on: `ccPucciguso` is 0x80 bytes longer
+  (`actNum` +0x132, `bodyHit` +0x1f0, MUT and OUT) and its `ControlMove`
+  nearly doubles (INF 1288 bytes, MUT 2260, OUT 2516) with new
+  `sinf`/`cosf`/`fabs` physics. The port's ride is Infection's; its
+  harness passes only there.
 - Which of the party's debuffs lowers Black Death's mDef (2400) or Gaia
   Turtle's pDef (700) below the table in play, opening them to the other
   kind, is not measured.

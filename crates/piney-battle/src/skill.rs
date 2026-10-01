@@ -10,7 +10,7 @@ use piney_data::field::ee;
 use piney_data::volume::Volume;
 
 use crate::chara::{Char, Env};
-use crate::damage::ground_distance;
+use crate::damage::{ground_distance, side_types};
 use crate::event::{Event, Events, Who};
 use crate::param::{F_ONE, SkillParam, cond, elm, ty};
 use crate::rand::Rng;
@@ -252,7 +252,8 @@ pub fn recovery_at(
 /// skill holds while it runs take `EntryAffect(5)`, which sets their
 /// `hold` condition (see [`crate::affect`]). A single-target skill holds
 /// its target whatever its state; an area one every living character of
-/// the target's side in range.
+/// the target's side in range (from Outbreak on, of every foe type on the
+/// foes' side: [`side_types`]).
 pub fn hold(volume: Volume, scene: &Scene, creator: usize, target: usize, sk: &SkillParam, ev: &mut Events) -> i32 {
     if ee::le(sk.target_range, 0) {
         ev.push(Event::affect(Who::Char(target), Who::Char(creator), 5, 0, 0, 0));
@@ -261,7 +262,7 @@ pub fn hold(volume: Volume, scene: &Scene, creator: usize, target: usize, sk: &S
     let tyb = scene.chars[target].ty();
     let centre = if sk.ty & bits::CENTRED_ON_USER != 0 { pos_p_of(scene, creator) } else { scene.chars[target].pos_p };
     let Some(list) = scene.side(tyb) else { return 0 };
-    let hit = in_area(volume, scene, &list, tyb, centre, sk.target_range);
+    let hit = in_area(volume, scene, &list, side_types(volume, tyb), centre, sk.target_range);
     for &c in &hit {
         ev.push(Event::affect(Who::Char(c), Who::Char(creator), 5, 0, 0, 0));
     }
@@ -283,7 +284,7 @@ pub fn hold_at(
     }
     let centre = if sk.ty & bits::CENTRED_ON_USER != 0 { pos_p_of(scene, creator) } else { pos };
     let Some(list) = scene.side(ttype) else { return 0 };
-    let hit = in_area(volume, scene, &list, ttype, centre, sk.target_range);
+    let hit = in_area(volume, scene, &list, side_types(volume, ttype), centre, sk.target_range);
     for &c in &hit {
         ev.push(Event::affect(Who::Char(c), Who::Char(creator), 5, 0, 0, 0));
     }
@@ -468,8 +469,8 @@ pub struct ModifyEvents {
 
 /// `ccSkillModifyCondition(creator, target, sid, stype, force)` (gcmn
 /// 0x005756f0): a condition or buff skill on its target, or (area) every
-/// living character of the target's side near the target. Returns the
-/// number affected.
+/// living character of the target's side near the target (every foe type
+/// from Outbreak on, [`side_types`]). Returns the number affected.
 #[allow(clippy::too_many_arguments)]
 pub fn skill_modify_condition(
     t: &Tables,
@@ -490,7 +491,7 @@ pub fn skill_modify_condition(
     let centre = scene.chars[target].pos_p;
     let Some(list) = scene.side(tyb) else { return 0 };
     let mut n = 0;
-    for c in in_area(t.volume, scene, &list, tyb, centre, range) {
+    for c in in_area(t.volume, scene, &list, side_types(t.volume, tyb), centre, range) {
         if modify_one(t, scene, creator, c, sid, stype, force, rng, out) {
             n += 1;
         }
@@ -519,7 +520,7 @@ pub fn skill_modify_condition_at(
     }
     let Some(list) = scene.side(ttype) else { return 0 };
     let mut n = 0;
-    for c in in_area(t.volume, scene, &list, ttype, pos, range) {
+    for c in in_area(t.volume, scene, &list, side_types(t.volume, ttype), pos, range) {
         if modify_one(t, scene, creator, c, sid, stype, force, rng, out) {
             n += 1;
         }
@@ -845,5 +846,27 @@ mod tests {
         assert_eq!(check_type(bits::PHYSICAL | 0x800), 0);
         assert_eq!(check_type(0), -1);
         assert_eq!((skill_attribute(0x14), check_type_attribute(0x14)), (4, 2));
+    }
+
+    /// An area skill held on an enemy with a Data Bug beside it: how many
+    /// take `EntryAffect(5)` (the bug's type is not the enemy's).
+    fn held(volume: Volume) -> i32 {
+        let t = Tables::of(volume);
+        let bug = t.enemies.iter().position(|e| e.param.base.ty == ty::MIDDLE_BOSS).expect("a Data Bug row");
+        let mut scene = crate::scene::Scene::default();
+        let me = scene.add(Char::pc(t.chars[0].param), 0);
+        let foe = scene.add(Char::foe(t.enemies[1].param.clone()), 1);
+        scene.add(Char::foe(t.enemies[bug].param.clone()), 1);
+        let mut sk = t.skill(1).unwrap().clone();
+        sk.target_range = 100f32.to_bits();
+        hold(volume, &scene, me, foe, &sk, &mut Events::new())
+    }
+
+    /// OUT gcmn 0x00597200: from Outbreak on `ccSkillHold` takes in every
+    /// foe type on the foes' side, as the damages do.
+    #[test]
+    fn an_area_hold_takes_in_every_foe_type_from_outbreak_on() {
+        assert_eq!(held(Volume::Mut), 1);
+        assert_eq!(held(Volume::Out), 2);
     }
 }

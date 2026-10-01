@@ -14,6 +14,7 @@ use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::dungeon::Rng;
 use piney_data::statics::{self, DrawPass, Position};
+use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
@@ -134,7 +135,7 @@ fn marker(file: &SceneFile, name: &'static str) -> Result<V4> {
 impl Giant {
     /// `EVENTAREA07::EVENTAREA07`, `game.areaPrev` being `area_prev` (a
     /// dungeon's 2 starts at its door), `fieldrand` from `seed`.
-    pub fn new(archive: &Arc<Archive>, def_se: u32, area_prev: i32, seed: u32) -> Result<Giant> {
+    pub fn new(archive: &Arc<Archive>, volume: Volume, def_se: u32, area_prev: i32, seed: u32) -> Result<Giant> {
         let file = Rc::new(SceneFile::read(archive, FILE)?);
         let file_2 = Rc::new(SceneFile::read(archive, FILE_2)?);
         let eff = Rc::new(SceneFile::read(archive, EFF_FILE)?);
@@ -151,8 +152,9 @@ impl Giant {
             .ok_or_else(|| Error::NotFound(format!("{FILE}: {SUN}")))?;
         let mut morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
         morphers.extend(piney_data::anim::morphers(&file_2.ccs).unwrap_or_default());
-        let hit_models = [HitModel::read(&file.ccs)?, HitModel::read(&file_2.ccs)?];
-        let hits = Hits { area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
+        let hit_models = [HitModel::read(volume, &file.ccs)?, HitModel::read(volume, &file_2.ccs)?];
+        let hits =
+            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
         let mut g = Giant {
             file,
             file_2,
@@ -359,10 +361,10 @@ impl Giant {
         self.row_pieces(&mut out, DrawPass::Floor, layer::OBJ, v.eye);
         // effLayer: each cloud's Move, then its Draw.
         for k in 0..self.clouds.len() {
-            self.clouds[k].step(v.player, &mut self.rng, &|_, _| 0);
+            self.clouds[k].step(self.hits.volume, v.player, &mut self.rng, &|_, _| 0);
             let c = &self.clouds[k];
             let in_view = crate::rtownpc::check_camera_deg(c.pos, cloud::VIEW_DEG, &v.cam, v.player);
-            if c.drawn(v.player, in_view) {
+            if c.drawn(self.hits.volume, v.player, in_view) {
                 out.push(Piece::Cloud { k });
             }
         }
@@ -385,12 +387,13 @@ impl Giant {
             }
         }
         let file = self.block_file(self.block).clone();
+        let volume = self.hits.volume;
         for k in 0..self.objects.len() {
             let o = &mut self.objects[k];
             if o.pass != pass {
                 continue;
             }
-            let d = ground_dist(ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
+            let d = ground_dist(volume, ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
             if o.clip == 0 || ee::lt(d, o.clip) {
                 o.play.forward(&file);
                 out.push(Piece::Object { k, layer, time: o.play.time });
@@ -514,10 +517,10 @@ impl Giant {
     }
 }
 
-/// `sqrt(x x + y y)` in double, as `STATICOBJECT::Draw` measures.
-fn ground_dist(dx: F, dy: F) -> F {
-    let s = ee::add(ee::mul(dx, dx), ee::mul(dy, dy));
-    (f64::from(ee::f(s)).sqrt() as f32).to_bits()
+/// `sqrt(x x + y y)` in double, as `STATICOBJECT::Draw` measures
+/// (`sqrt.s` from Outbreak on, [`ee::dsqrt_on`]).
+fn ground_dist(volume: Volume, dx: F, dy: F) -> F {
+    ee::dsqrt_on(volume, ee::add(ee::mul(dx, dx), ee::mul(dy, dy)))
 }
 
 #[cfg(test)]
@@ -529,7 +532,7 @@ mod tests {
     #[test]
     fn the_giants_blocks() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let mut g = Giant::new(&archive, 0, 0, 0).unwrap();
+        let mut g = Giant::new(&archive, Volume::Inf, 0, 0, 0).unwrap();
         let name = |f: &SceneFile, o: u32| f.ccs.object_name(o).unwrap().to_string();
         assert_eq!((g.models.len(), g.objects.len()), (8, 2));
         assert!(g.bg.iter().all(|b| b.is_some()));
@@ -539,7 +542,7 @@ mod tests {
         assert_eq!(name(&g.file, g.hits.models[0].parent), "MDL_se1_7ob1_1");
         assert_eq!(g.light_objects.len(), 1);
         let arrive = g.start;
-        let back = Giant::new(&archive, 0, 2, 0).unwrap().start;
+        let back = Giant::new(&archive, Volume::Inf, 0, 2, 0).unwrap().start;
         assert_ne!(arrive, back, "DMY_marker01 and 02 are different places");
         g.change_block(1, 1).unwrap();
         assert_eq!((g.models.len(), g.objects.len(), g.clouds.len()), (2, 0, 0));
@@ -555,7 +558,7 @@ mod tests {
     #[test]
     fn the_background_bobs() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let mut g = Giant::new(&archive, 0, 0, 7).unwrap();
+        let mut g = Giant::new(&archive, Volume::Inf, 0, 0, 7).unwrap();
         let v = TownView::default();
         let (mut top, mut turns, mut last) = (0.0f32, 0, g.rising);
         for _ in 0..600 {

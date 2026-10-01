@@ -80,6 +80,7 @@ fn state(t: &Town) -> String {
 fn main() {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/mutation/mutation.iso".into());
     let mut iso = Iso::open(&iso_path).unwrap();
+    let volume = iso.volume().unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let mut town: Option<Town> = None;
     let stdin = std::io::stdin();
@@ -89,7 +90,7 @@ fn main() {
         let n = |i: usize| hex(w[i]);
         match w.first().copied() {
             Some("new") => {
-                let mut t = Town::open(&archive, 2, n(1) != 0).unwrap();
+                let mut t = Town::open(&archive, volume, 2, n(1) != 0).unwrap();
                 t.parts_mut::<CarminaGade>().unwrap().1.rng = Rng::new(n(2));
                 println!("{}", state(&t));
                 town = Some(t);

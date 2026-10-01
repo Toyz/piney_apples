@@ -224,10 +224,10 @@ impl FortOuph {
         }
         // The clouds: Move, then Draw.
         for k in 0..self.clouds.len() {
-            self.clouds[k].step(v.player, &mut self.rng, &|_, _| 0);
+            self.clouds[k].step(base.hits.volume, v.player, &mut self.rng, &|_, _| 0);
             let c = &self.clouds[k];
             let in_view = crate::rtownpc::check_camera_deg(c.pos, cloud::VIEW_DEG, &v.cam, v.player);
-            if c.drawn(v.player, in_view) {
+            if c.drawn(base.hits.volume, v.player, in_view) {
                 out.push(Piece::Cloud(k));
             }
         }

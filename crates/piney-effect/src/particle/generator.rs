@@ -301,7 +301,7 @@ impl Particles {
             }
             4 => {
                 let t = ee::vsub(g.pos2, g.pos);
-                let d = ee::sqrtf(ee::dot(t, t));
+                let d = ee::sqrtf_on(step.assets.volume, ee::dot(t, t));
                 let t = ee::normalize(t);
                 p.temp = if param.d_type == 3 {
                     ee::div(ee::mul(d, ee::from_int(i32::from(g.p_num))), ee::add(ONE, param.p_gen_rate))
@@ -320,7 +320,7 @@ impl Particles {
                 let b = ang((r << 8) & 0xff00);
                 let t = [ee::mul(radius, ee::sinf(b)), 0, ee::mul(ee::neg(radius), ee::cosf(b)), ONE];
                 let t = ee::apply(&m, t);
-                let d = ee::sqrtf(ee::dot(line, line));
+                let d = ee::sqrtf_on(step.assets.volume, ee::dot(line, line));
                 let along = if param.d_type == 3 {
                     ee::div(ee::mul(d, ee::from_int(i32::from(g.p_num))), ee::add(ONE, param.p_gen_rate))
                 } else {

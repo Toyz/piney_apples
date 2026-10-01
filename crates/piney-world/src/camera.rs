@@ -13,8 +13,9 @@ use crate::evcam::{UNIT, rot_x, rot_y, rot_z};
 
 use crate::ee::{
     self, F, ONE, V4, add, atan2f, cosf, deg2rad, div, dot, fmodf, from_int, le, lt, mul, normalize, rad2deg, sinf,
-    sqrtf, sub, tanf, to_int, vadd, vscale, vsub,
+    sqrtf_on, sub, tanf, to_int, vadd, vscale, vsub,
 };
+use piney_data::volume::Volume;
 
 /// `-1.0`.
 const MINUS_ONE: F = 0xbf80_0000;
@@ -215,6 +216,9 @@ pub struct Camera {
     pub world_screen: [V4; 4],
     /// The screen shake (`cameraShake`, `cameraShockAbsorber`).
     pub shake: Shake,
+    /// The disc's volume: its code's square root ([`sqrtf_on`]); its
+    /// owner sets it after [`Camera::new`].
+    pub volume: Volume,
 }
 
 /// `camShockForce` (8 bytes): `power` (4 signed bits, -1 a free slot),
@@ -312,14 +316,14 @@ impl Shake {
     /// double) of `d = view - pos` across the ground, `o = 0.5 (Rz(a)
     /// vibrateMatrix) vibrateOffset`; the eye moves by `o`, the target by
     /// `o` and then again by `o` times `min(|view - pos| / 280, 1)`.
-    pub fn apply(&self, pos: V4, view: V4) -> (V4, V4) {
+    pub fn apply(&self, volume: Volume, pos: V4, view: V4) -> (V4, V4) {
         let mut d = ee::vsub(view, pos);
         d[2] = 0;
         let ang = (f64::from(ee::f(d[0])).atan2(f64::from(ee::f(mul(MINUS_ONE, d[1]))))) as f32;
         let m = piney_data::anim::vu_mul(&rot_z(&UNIT, ang.to_bits()), &self.matrix);
         let o = ee::vscale(ee::apply(&m, [0, 0, self.offset_z, 0]), 0x3f00_0000);
         let dv = ee::vsub(view, pos);
-        let len = ee::sqrtf(dot(dv, dv));
+        let len = sqrtf_on(volume, dot(dv, dv));
         let s = if ee::lt(len, 0x438c_0000) { div(len, 0x438c_0000) } else { ONE };
         (ee::vadd(pos, o), ee::vadd(ee::vadd(view, o), ee::vscale(o, s)))
     }
@@ -400,7 +404,7 @@ const OBSTACLE_CLEARANCE: F = 0x4248_0000; // 50.0
 /// camera is nearer), climbing at the camera's pitch; the first step under 50
 /// above the ground is lifted to 50 and becomes the camera; if none, the camera
 /// itself is checked (docs/engine/field-game.md).
-pub fn avoid_obstacle(tp: V4, cp: V4, cam: &Cam, hits: &mut dyn CameraHits) -> V4 {
+pub fn avoid_obstacle(volume: Volume, tp: V4, cp: V4, cam: &Cam, hits: &mut dyn CameraHits) -> V4 {
     // The heading folded into 0..=8192 (0-45 degrees).
     let mut a = cam.deg[0] as u16;
     if a >= 0x8000 {
@@ -416,9 +420,9 @@ pub fn avoid_obstacle(tp: V4, cp: V4, cam: &Cam, hits: &mut dyn CameraHits) -> V
     let mut step = div(OBSTACLE_STEP, cosf(ang));
     let mut v = vsub(cp, tp);
     v[3] = ONE;
-    let whole = sqrtf(dot(v, v));
+    let whole = sqrtf_on(volume, dot(v, v));
     v[2] = 0;
-    let across = sqrtf(dot(v, v));
+    let across = sqrtf_on(volume, dot(v, v));
     v = normalize(v);
     if lt(across, step) {
         step = div(div(OBSTACLE_STEP, cosf(ang)), 0x4080_0000);
@@ -426,7 +430,7 @@ pub fn avoid_obstacle(tp: V4, cp: V4, cam: &Cam, hits: &mut dyn CameraHits) -> V
     v = vscale(v, step);
     v[2] = mul(step, tanf(cam.rot[0]));
     v[3] = ONE;
-    let len = sqrtf(dot(v, v));
+    let len = sqrtf_on(volume, dot(v, v));
     let mut n = to_int(div(whole, len));
     if lt(fmodf(whole, len), div(len, 0x4080_0000)) {
         n -= 1;
@@ -492,6 +496,7 @@ impl Camera {
             world_view: [[0; 4]; 4],
             world_screen: [[0; 4]; 4],
             shake: Shake::default(),
+            volume: Volume::Inf,
         }
     }
 
@@ -613,7 +618,7 @@ impl Camera {
         let c = self.cam(n);
         let mut d = vsub(c.view, c.pos);
         d[2] = 0;
-        let h = sqrtf(dot(d, d));
+        let h = sqrtf_on(self.volume, dot(d, d));
         let x = atan2f(sub(c.pos[2], c.view[2]), h);
         let z = atan2f(sub(c.view[0], c.pos[0]), mul(MINUS_ONE, sub(c.view[1], c.pos[1])));
         [x, out[1], z, out[3]]
@@ -742,7 +747,7 @@ impl Camera {
     /// 140 above his feet) and pulled in front of whatever lies between
     /// (`area` 0 is a town, where it is also pushed out of walls).
     pub fn pos_calc(&mut self, target: V4, pad: &CamPad, area: i32, hits: &mut dyn CameraHits) {
-        let scheme = self.scheme;
+        let (scheme, volume) = (self.scheme, self.volume);
         let dist_mod = if self.resetting { 0 } else { self.dist_mod(pad) };
         let c = &mut self.tcam;
         if !self.resetting {
@@ -812,7 +817,7 @@ impl Camera {
         let mut p = place(target, c.rot[0], c.rot[2], c.dist);
         // `game.area` 1, a field: over the ground.
         if area == 1 {
-            p = avoid_obstacle(target, p, c, hits);
+            p = avoid_obstacle(volume, target, p, c, hits);
         }
         if let Some((cp, d)) = hits.line(target, p) {
             let a = ee::normalize(vsub(cp, target));
@@ -959,7 +964,8 @@ impl Camera {
             [add(sub(p[0], player_pos[0]), player_pos[0]), add(sub(p[1], player_pos[1]), player_pos[1]), p[2], ONE]
         };
         let a = self.active();
-        let (pos, view) = if self.cam_id == id::FIELD { self.shake.apply(a.pos, a.view) } else { (a.pos, a.view) };
+        let (pos, view) =
+            if self.cam_id == id::FIELD { self.shake.apply(self.volume, a.pos, a.view) } else { (a.pos, a.view) };
         let p = fw2lw(pos);
         let v = fw2lw(view);
         self.world_view = pos_target(p, v);

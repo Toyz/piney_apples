@@ -88,7 +88,7 @@ impl World {
     /// position in his own frame.
     pub fn player_distance(&self, pos: V4) -> F {
         let p = self.player.body.pos;
-        piney_battle::enemy_ai::get_dist(crate::char::w2p(pos, p), crate::char::w2p(p, p))
+        piney_battle::enemy_ai::get_dist_on(self.volume, crate::char::w2p(pos, p), crate::char::w2p(p, p))
     }
 
     /// `trans_off` / `trans_on` (`ccEvent::Execute` cases 161 and 162, main

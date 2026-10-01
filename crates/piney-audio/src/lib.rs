@@ -335,6 +335,7 @@ impl Audio {
         let se = snd.commse(tables)?;
         let mut engine = Engine::new(se, tables);
         engine.driver.set_voice(piney_data::tables::voice::of(snd.volume()));
+        engine.driver.volume = snd.volume();
         let engine = Arc::new(Mutex::new(engine));
         Ok(Audio { engine, snd, tables, iso: None, output: None, silent_reason: None })
     }
@@ -429,8 +430,9 @@ impl Audio {
     /// direction from the view.
     pub fn se_on_3d(&self, n: usize, cam: Option<&Listener>, pos: &se3d::V4, note: Option<i8>) {
         if let Some(se) = self.tables.se.get(n) {
-            let m = Driver::se_3d(se, cam, pos, note);
-            self.engine().port0.extend(m);
+            let mut e = self.engine();
+            let m = e.driver.se_3d(se, cam, pos, note);
+            e.port0.extend(m);
         }
     }
 

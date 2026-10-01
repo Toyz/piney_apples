@@ -266,10 +266,7 @@ fn dist(volume: Volume, a: V4, b: V4, three: bool) -> F {
     }
     d[3] = ONE;
     let dd = ee::add(ee::add(ee::mul(d[0], d[0]), ee::mul(d[1], d[1])), ee::mul(d[2], d[2]));
-    match volume {
-        Volume::Out | Volume::Qua => ee::sqrt(dd),
-        Volume::Inf | Volume::Mut => ee::sqrtf(dd),
-    }
+    ee::sqrtf_on(volume, dd)
 }
 
 /// `new ccEff`, `Init(GetChunkAdrsF("particle", name), 1)`: fog on.

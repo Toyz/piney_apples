@@ -120,6 +120,9 @@ impl Cmnd {
 /// The leader (`ccPartyManager`'s first, Kite) as the targeting reads him.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Leader {
+    /// The disc's volume: its code's square root (`sqrt.s` from Outbreak
+    /// on, [`ee::sqrtf_on`]).
+    pub volume: piney_data::volume::Volume,
     pub pos_p: V4,
     /// +0x60 `dirc` (z the heading).
     pub dirc: V4,
@@ -253,7 +256,7 @@ pub fn sort(leader: &Leader, cands: &mut [Cmnd]) -> Vec<usize> {
     for i in 0..cands.len() {
         let c = &mut cands[i];
         let d = [ee::sub(c.pos_p[0], leader.pos_p[0]), ee::sub(c.pos_p[1], leader.pos_p[1]), 0, ee::ONE];
-        c.dist = ee::sqrtf(ee::dot(d, d));
+        c.dist = ee::sqrtf_on(leader.volume, ee::dot(d, d));
         c.dirc = ee::atan2f(d[1], d[0]);
         if !ee::le(c.dist, SORT_REACH) {
             continue;
@@ -461,7 +464,7 @@ pub fn in_area(leader: &Leader, kite: &LeaderState, cands: &[Cmnd], ch: &Member,
     let counts = |dead: i16| mode == 6 || (mode == 0 && dead == 0) || (mode == 2 && dead == 2);
     let within = |p: V4| {
         let d = [ee::sub(p[0], ch.pos_p[0]), ee::sub(p[1], ch.pos_p[1]), 0, ee::ONE];
-        let len = ee::sqrtf(ee::dot(d, d));
+        let len = ee::sqrtf_on(leader.volume, ee::dot(d, d));
         ee::lt(dist, 0) || ee::lt(len, dist)
     };
     if ty & 1 != 0 && type_id_listed(kite, cands, kite.flags, kite.id) && counts(kite.cond.dead) && within(leader.pos_p)
@@ -1167,10 +1170,32 @@ mod tests {
         assert_eq!(Shop::of(0x1000), Some(Shop::Recorder));
     }
 
+    /// ccSortCmnd's distance by the disc's root (OUT gcmn has `sqrt.s`
+    /// where Infection calls `sqrtf`): sqrt(5) rounds up on Infection,
+    /// truncates on Outbreak.
+    #[test]
+    fn the_sort_measures_with_the_disc_s_root() {
+        use piney_data::volume::Volume;
+        let v = |x: f32, y: f32| [x.to_bits(), y.to_bits(), 0, ee::ONE];
+        let dist = |volume| {
+            let leader = Leader { volume, pos_p: v(0.0, 0.0), dirc: [0; 4], width: 45f32.to_bits() };
+            let mut cands = vec![Cmnd::new(Kind::Npc, 1, flags::PC, 45f32.to_bits(), v(1.0, 2.0))];
+            sort(&leader, &mut cands);
+            cands[0].dist
+        };
+        assert_eq!(dist(Volume::Inf), 0x400f_1bbd);
+        assert_eq!(dist(Volume::Out), 0x400f_1bbc);
+    }
+
     #[test]
     fn nearest_in_front_is_the_target() {
         let v = |x: f32, y: f32| [x.to_bits(), y.to_bits(), 0, ee::ONE];
-        let leader = Leader { pos_p: v(0.0, 0.0), dirc: [0; 4], width: 45f32.to_bits() };
+        let leader = Leader {
+            volume: piney_data::volume::Volume::Inf,
+            pos_p: v(0.0, 0.0),
+            dirc: [0; 4],
+            width: 45f32.to_bits(),
+        };
         let w = 45f32.to_bits();
         // Heading 0 faces -y: one ahead, one behind, one far ahead.
         let mut cands = vec![
@@ -1198,7 +1223,12 @@ mod tests {
 
     #[test]
     fn menu_buttons_in_the_game_order() {
-        let leader = Leader { pos_p: [0, 0, 0, ee::ONE], dirc: [0; 4], width: 45f32.to_bits() };
+        let leader = Leader {
+            volume: piney_data::volume::Volume::Inf,
+            pos_p: [0, 0, 0, ee::ONE],
+            dirc: [0; 4],
+            width: 45f32.to_bits(),
+        };
         let mut t = Targeting { frames: 5, ..Targeting::default() };
         let mut ok = |_| true;
         let step = |t: &mut Targeting, input: &Input, check: &mut dyn FnMut(i32) -> bool| {
@@ -1280,7 +1310,12 @@ mod tests {
     #[test]
     fn the_action_button_attacks_an_enemy_in_battle() {
         let v = |x: f32, y: f32| [x.to_bits(), y.to_bits(), 0, ee::ONE];
-        let leader = Leader { pos_p: v(0.0, 0.0), dirc: [0; 4], width: 45f32.to_bits() };
+        let leader = Leader {
+            volume: piney_data::volume::Volume::Inf,
+            pos_p: v(0.0, 0.0),
+            dirc: [0; 4],
+            width: 45f32.to_bits(),
+        };
         let w = 45f32.to_bits();
         // A goblin 100 ahead, Orca beside him; another goblin 2000 off.
         let mut cands = vec![

@@ -618,7 +618,9 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
     /// critical) as `affectSkill` calls it: the rules of
     /// [`crate::damage::skill_damage`], each character's `EntryAffect(1,
     /// dmg, 0)` applied right after its roll as the game applies it (so the
-    /// rolls of an area skill interleave with the hurt acts' draws).
+    /// rolls of an area skill interleave with the hurt acts' draws). From
+    /// Outbreak on an area aimed at a foe takes every foe type in, the
+    /// attacker too ([`damage::side_types`], OUT gcmn 0x00595dac).
     pub fn skill_damage(&mut self, me: usize, target: usize, sk: &SkillParam) -> i32 {
         let scene = &*self.ai.scene;
         let ad = scene.chars[me].cond[cond::DEAD];
@@ -626,7 +628,7 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
             return 0;
         }
         let splash = sk.ty & bits::SPLASH_HALF != 0;
-        let tty = scene.chars[target].ty();
+        let tty = damage::side_types(self.ai.t.volume, scene.chars[target].ty());
         if le(sk.target_range, 0) {
             self.hit(me, target, sk, ONE);
             return 1;

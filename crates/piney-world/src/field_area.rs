@@ -14,6 +14,7 @@ use std::sync::Arc;
 use glam::{Mat4, Vec3};
 use piney_data::archive::Archive;
 use piney_data::field::{self, Field, Kind, Tables};
+use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
@@ -222,10 +223,10 @@ impl crate::hit::Heights for Heights {
 }
 
 /// `sqrt` of x x + y y in double, as `FOBJECT(2)::Draw` measure (`mula`,
-/// `madd` in singles, then `fptodp`, `sqrt`, `dptofp`).
-pub(crate) fn ground_dist(d: V4) -> F {
-    let s = ee::add(ee::mul(d[0], d[0]), ee::mul(d[1], d[1]));
-    (f64::from(ee::f(s)).sqrt() as f32).to_bits()
+/// `madd` in singles, then `fptodp`, `sqrt`, `dptofp`); `sqrt.s` from
+/// Outbreak on ([`ee::dsqrt_on`], OUT gcmn 0x005db030 `FOBJECT::Draw`).
+pub(crate) fn ground_dist(volume: Volume, d: V4) -> F {
+    ee::dsqrt_on(volume, ee::add(ee::mul(d[0], d[0]), ee::mul(d[1], d[1])))
 }
 
 /// The fade both object kinds use: 1 to `near`, then `(far - d) / len`.
@@ -236,7 +237,7 @@ fn fade(d: F, near: F, far: F, len: F) -> F {
 impl FieldArea {
     /// [`FieldArea::with_world`] on server 0, not hacked.
     pub fn new(archive: &Archive, params: field::Params, def_se: u32) -> Result<FieldArea> {
-        FieldArea::with_world(archive, params, def_se, 0, 0)
+        FieldArea::with_world(archive, Volume::Inf, params, def_se, 0, 0)
     }
 
     /// `WORLD::WORLD`, `Init` and `Generate` for `params` (a story area's
@@ -244,6 +245,7 @@ impl FieldArea {
     /// `WORLD_MAN` +0xf0 (`SetHackFlag`), `server` `ccGame.server`.
     pub fn with_world(
         archive: &Archive,
+        volume: Volume,
         params: field::Params,
         def_se: u32,
         hack: u32,
@@ -261,6 +263,7 @@ impl FieldArea {
         let start = [field.start_pos[0], field.start_pos[1], field.start_pos[2], ONE];
         let blank = |x: F, y: F| field::blank_height(x, y);
         let env = Env {
+            volume,
             player: start,
             centre: start,
             ofs: [start[0], start[1]],
@@ -287,7 +290,7 @@ impl FieldArea {
         let eff = SceneFile::read(archive, tables.effect_ccs).ok().map(Rc::new);
         let scene = field.scene(tables, &file.ccs, &bg.ccs)?;
         let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
-        let hit_models = crate::hit::HitModel::read(&file.ccs)?;
+        let hit_models = crate::hit::HitModel::read(volume, &file.ccs)?;
 
         // WORLD::Init's CalcObjectVertexColor: the tables' clumps' rigid
         // models lit in place, a clump listed twice lit twice.
@@ -466,6 +469,7 @@ impl FieldArea {
 
         let heights: Rc<dyn crate::hit::Heights> = Rc::new(Heights(field.clone()));
         let hits = Hits {
+            volume,
             area: 1,
             bounds: Some(BOUNDS),
             heights: Some(heights),
@@ -677,7 +681,7 @@ impl FieldArea {
     fn fobject_step(&mut self, k: usize, player: V4) {
         let d = w2p(self.objects[k].wp, player, BOUNDS);
         let pos = p2w(d, player, BOUNDS);
-        let dist = ground_dist(d);
+        let dist = ground_dist(self.hits.volume, d);
         let file = self.file.clone();
         let o = &mut self.objects[k];
         o.pos = pos;
@@ -697,7 +701,7 @@ impl FieldArea {
     fn fobject2_step(&mut self, k: usize, player: V4) {
         let d = w2p(self.objects[k].wp, player, BOUNDS);
         let pos = p2w(d, player, BOUNDS);
-        let dist = ground_dist(d);
+        let dist = ground_dist(self.hits.volume, d);
         let o = &mut self.objects[k];
         o.dist = dist;
         o.disp = true;
@@ -994,11 +998,13 @@ impl FieldArea {
         if !step {
             return (self.last_ops.clone(), false);
         }
+        let volume = self.hits.volume;
         let FieldArea { ambient, statics, cloth, rng, field, tobj, sun, ofs, .. } = self;
         let field = field.clone();
         let heights = move |x: F, y: F| field.get_height(x, y);
         let a = cam.active();
         let env = Env {
+            volume,
             player,
             centre: [ofs[0], ofs[1], 0, ONE],
             ofs: *ofs,
@@ -1033,6 +1039,7 @@ impl FieldArea {
         world_screen: &[V4; 4],
         step: bool,
     ) {
+        let volume = self.hits.volume;
         self.smoke_masks(ops, layers);
         let awake = self.ambient.tobj.as_ref().is_some_and(|t| t.sleep == 0);
         if let Some((file, plays)) = &mut self.tobj
@@ -1061,7 +1068,7 @@ impl FieldArea {
                     });
                     if let Some((_, lw)) = lw {
                         let lw: [V4; 4] = lw.to_cols_array_2d().map(|c| c.map(f32::to_bits));
-                        water.modify(&lw, lw[3], lw[3], world_screen);
+                        water.modify(volume, &lw, lw[3], lw[3], world_screen);
                     }
                     let edits = water.st.is_some().then(|| (water.model.object, water.edits()));
                     let rows = play.uv_rows(file);
@@ -1432,7 +1439,7 @@ mod tests {
             protect: false,
             skip_init: false,
         };
-        let mut f = FieldArea::with_world(&archive, params, DEF_SE[10], 0, 0).unwrap();
+        let mut f = FieldArea::with_world(&archive, Volume::Inf, params, DEF_SE[10], 0, 0).unwrap();
         assert_eq!(f.ambient.tobj.as_ref().map(|t| t.server), Some(0));
         assert!(f.ambient.tobj_se_start);
         let player = [24000f32.to_bits(), 24000f32.to_bits(), 0, 1f32.to_bits()];

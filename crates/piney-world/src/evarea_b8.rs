@@ -326,8 +326,9 @@ impl DiscArea {
             .dummies
             .get(&marker)
             .map_or([0, 0, 0, ONE], |d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE]);
-        let hit_models = HitModel::read(c)?;
-        let hits = Hits { area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
+        let hit_models = HitModel::read(volume, c)?;
+        let hits =
+            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
         let mut rock_models = Vec::new();
         for name in ROCKS {
             rock_models.push(clump_models(&file, name).ok_or_else(|| Error::NotFound(name.into()))?.1);
@@ -386,7 +387,7 @@ impl DiscArea {
         if field == 12 {
             a.start = START_12;
             let bf = a.body_file.clone().expect("se4_9");
-            let bhits = HitModel::read(&bf.ccs)?;
+            let bhits = HitModel::read(volume, &bf.ccs)?;
             for (name, at) in BODIES {
                 let (clump, models) =
                     clump_models(&bf, name).ok_or_else(|| Error::NotFound(format!("{BODY_FILE}: {name}")))?;
@@ -606,6 +607,7 @@ impl DiscArea {
     /// `DrawObj` or `DrawFloor`: the models of `pass`, then its static
     /// objects (each stepped and drawn within its clip of the eye).
     fn row_pieces(&mut self, out: &mut Vec<Piece>, pass: DrawPass, layer: i16, eye: V4) {
+        let volume = self.hits.volume;
         for (k, m) in self.models.iter().enumerate() {
             if m.pass == pass {
                 out.push(Piece::Model { k, layer });
@@ -617,7 +619,8 @@ impl DiscArea {
                 continue;
             }
             let (dx, dy) = (ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
-            let d = ee::sqrtf(ee::add(ee::mul(dx, dx), ee::mul(dy, dy)));
+            // STATICOBJECT::Draw's double root; sqrt.s from Outbreak on.
+            let d = ee::dsqrt_on(volume, ee::add(ee::mul(dx, dx), ee::mul(dy, dy)));
             if o.clip == 0 || ee::lt(d, o.clip) {
                 o.play.forward(&self.file);
                 out.push(Piece::Object { k, layer, time: o.play.time });

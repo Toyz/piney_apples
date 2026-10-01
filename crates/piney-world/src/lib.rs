@@ -344,7 +344,7 @@ impl World {
         if save.save.u8(offset::NEW_GAME_FLAG) as i8 != 1 {
             save.save.set_u8(offset::NEW_GAME_FLAG, 1);
         }
-        let town = Town::open(&archive, town_no, save.save.u8(offset::CRISIS) != 0)?;
+        let town = Town::open(&archive, volume, town_no, save.save.u8(offset::CRISIS) != 0)?;
         let gate = Gate::new(&archive, &town.base.file)?;
         let party = town_party::TownParty::new(iso, town_no as usize, &town.base.file)?;
         // ccPlayer::ccPlayer's EquipWeapon: the blades the save has him hold.
@@ -361,7 +361,8 @@ impl World {
         let player = Player::new(start.0, start.1, velocity, width, height);
         let scheme = Scheme::new(i32::from(save.save.u8(offset::CAM_TYPE) as i8));
         let mode = save.save.u8(offset::CAMERA_MODE) as i8;
-        let camera = Camera::new(start.0, start.1, mode, scheme);
+        let mut camera = Camera::new(start.0, start.1, mode, scheme);
+        camera.volume = volume;
         Ok(World {
             save,
             volume,
@@ -1246,7 +1247,12 @@ impl World {
         let p = &self.player;
         // Everyone's posP is W2PPos of where they stood at the end of last
         // frame: relative to Kite, him at (0, 0, z).
-        let leader = talk::Leader { pos_p: char::w2p(p.body.pos, p.body.pos), dirc: p.body.dirc, width: p.width };
+        let leader = talk::Leader {
+            volume: self.volume,
+            pos_p: char::w2p(p.body.pos, p.body.pos),
+            dirc: p.body.dirc,
+            width: p.width,
+        };
         // ccSortCmnd's order: the party's list, the enemies', everyone
         // else's.
         // The party's list in its order; each member's posP as its last
@@ -1424,7 +1430,7 @@ impl World {
         // all see the active camera (activeCamPtr).
         let t = self.camera.active();
         if awake {
-            let f = self.gate.step(self.player.body.pos, t.pos, t.deg[1], t.kind == camera::kind::EYE);
+            let f = self.gate.step(self.volume, self.player.body.pos, t.pos, t.deg[1], t.kind == camera::kind::EYE);
             if let Some(se) = f.sound {
                 self.gate_sounds.push((se, self.gate.pos));
             }

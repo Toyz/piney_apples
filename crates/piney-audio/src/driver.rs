@@ -12,6 +12,9 @@ use crate::se3d::{self, Listener, V4};
 /// `ccSound`'s state that matters to what is heard.
 #[derive(Clone, Debug)]
 pub struct Driver {
+    /// The disc's volume: its code's square root in the distances
+    /// ([`piney_data::libm::sqrtf_on`]).
+    pub volume: piney_data::volume::Volume,
     /// `saveData.mainVol`, `seVol`, `bgmVol`: 0..256, 256 by default
     /// (`ccSound::ccSound`, 0x00180ed0).
     pub main_vol: i32,
@@ -470,6 +473,7 @@ impl Driver {
             vd_request: None,
             voice_file: 0,
             voice: piney_data::tables::voice::of(piney_data::volume::Volume::Inf),
+            volume: piney_data::volume::Volume::Inf,
             context: 0,
             play_type: 0,
             battle_bank: false,
@@ -510,8 +514,8 @@ impl Driver {
     /// the active camera `cam` (`None` when there is none) - the velocity
     /// from the distance, the pan from the direction, the bend when behind
     /// ([`se3d::se_on_3d`]). Empty when out of reach, or for a note below 0.
-    pub fn se_3d(se: &SeTbl, cam: Option<&Listener>, pos: &V4, note: Option<i8>) -> Vec<u8> {
-        se3d::se_on_3d(se, cam, pos, note)
+    pub fn se_3d(&self, se: &SeTbl, cam: Option<&Listener>, pos: &V4, note: Option<i8>) -> Vec<u8> {
+        se3d::se_on_3d(self.volume, se, cam, pos, note)
     }
 
     /// `ccSeOn3DLoop(n, pos)` (0x0017a140): a looping sound effect in the
@@ -519,7 +523,7 @@ impl Driver {
     /// for [`Driver::se_off_loop`]) and the messages, or -1 and nothing
     /// when out of reach or with every slot taken.
     pub fn se_3d_loop(&mut self, se: &SeTbl, cam: Option<&Listener>, pos: &V4) -> (i32, Vec<u8>) {
-        se3d::se_on_3d_loop(&mut self.loop_id, se, cam, pos)
+        se3d::se_on_3d_loop(self.volume, &mut self.loop_id, se, cam, pos)
     }
 
     /// `ccSeOffLoop(n, id)` (0x0017a620): loop `id`'s note off; its slot
@@ -546,7 +550,7 @@ impl Driver {
         if !self.tobj_loop {
             return Vec::new();
         }
-        se3d::tobj_se_loop(se, cam, pos, rate, self.looptest)
+        se3d::tobj_se_loop(self.volume, se, cam, pos, rate, self.looptest)
     }
 
     /// `ccPortVolSet(port, vol)` (0x0017ad70): the SE port takes `seVol`

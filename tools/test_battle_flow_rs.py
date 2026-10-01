@@ -385,7 +385,7 @@ def check_area_item(checks, rnd):
     m.store(INFO + 0x28, 4, off)
     m.store(EVI + 0x1C, 4, ev_level)
     m.hooks[g.sym("GetFieldAttrb__9WORLD_MANFv")] = lambda mm, *_: attr
-    m.hooks[g.sym("GetEventAreaInfo__9WORLD_MANFv")] = lambda mm, *_: EVI
+    m.hooks[volume.called("AreaItem__10ccMenuCtrlFii", "GetEventAreaInfo__")] = lambda mm, *_: EVI
     g.set_rand(state)
     ret = checks.b.s32(m.call(g.sym("AreaItem__10ccMenuCtrlFii"), (0x01020000, item & 0xFFFFFFFF, kind & 0xFFFFFFFF)))
     req = f"areaitem {item} {kind} {server} {attr} {floor} {base} {state}"

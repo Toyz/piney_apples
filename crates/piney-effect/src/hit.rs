@@ -545,7 +545,7 @@ pub fn camera_shake_range(cx: &Cx, pos: V4) -> bool {
         return false;
     }
     let d = ee::vsub(pos, cam.cam_pos);
-    ee::lt(ee::sqrtf(ee::dot(d, d)), 0x44fa_0000)
+    ee::lt(ee::sqrtf_on(cx.assets.volume, ee::dot(d, d)), 0x44fa_0000)
 }
 
 /// `ccTransPosW2CZW(out, pos, dist)` (main 0x001633c0): the point `dist`

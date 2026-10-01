@@ -71,6 +71,30 @@ def s32(v):
     return v - (1 << 32) if v & 0x80000000 else v
 
 
+def note_table(path, item):
+    """The first table `ccUseItemRequest` builds (`lui`/`addiu`) where its
+    `li item; beq` for important item `item` goes, in executable `path`."""
+    prog = volume.program(path)
+    f = prog.symbol_named("ccUseItemRequest__FP6ccCharP6ccCharii")
+    ws = struct.unpack("<%dI" % (f.size // 4), prog.read(f.value, f.size))
+    for k in range(len(ws) - 1):
+        w, x = ws[k], ws[k + 1]
+        if w >> 21 == 0x09 << 5 and w & 0xFFFF == item and x >> 26 == 4 and (x >> 16) & 31 == (w >> 16) & 31:
+            q = k + 2 + s16(x & 0xFFFF)
+            # lui $r, hi; addiu $r, $r, lo
+            while not (ws[q] >> 26 == 0x0F and ws[q + 1] >> 21 == (0x09 << 5 | (ws[q] >> 16) & 31)):
+                q += 1
+            return ((ws[q] & 0xFFFF) << 16) + s16(ws[q + 1] & 0xFFFF)
+    raise KeyError("no item %d in ccUseItemRequest" % item)
+
+
+def note_tables():
+    """{the volume's note table: Infection's} for items 287-289 by the code
+    that shows them: Outbreak's carry pairs 288's and 289's the other way
+    round (piney-gen's `item_pages`)."""
+    return {note_table(volume.ELF, i): note_table(volume.INF_ELF, i) for i in (287, 288, 289)}
+
+
 def normalize(raw):
     """The game's recorded calls in the port's terms: menu frames (Disp,
     Breath(1)) as ["frames", n], and each wait loop as one step."""
@@ -306,6 +330,7 @@ class ItemRuntime:
         def camera(mm, p, *_):
             return int(self.in_view.get(mm.load(p, 4), 0))
 
+        notes = note_tables()
         self.item_hooks = {
             "effHeal__FP6ccChari": lambda mm, a, b, *_: rec("effHeal", g.name(a), s32(b)),
             "CloseMenuDisp__10ccMenuCtrlFv": lambda mm, *_: rec("CloseMenuDisp"),
@@ -340,7 +365,7 @@ class ItemRuntime:
             "checkPartyAnnihilation__Fv": queue("checkPartyAnnihilation", 0),
             "ccClearConditionAllEnemy__Fv": lambda mm, *_: rec("ccClearConditionAllEnemy"),
             "ccPuccigusoStart__Fi": pucciguso,
-            "ccEpitaphMsg__FPPci": lambda mm, a, b, *_: rec("ccEpitaphMsg", volume.inf_of(a), s32(b)),
+            "ccEpitaphMsg__FPPci": lambda mm, a, b, *_: rec("ccEpitaphMsg", notes.get(a) or volume.inf_of(a), s32(b)),
             "ccStartThread__FPFPv_vii": start_thread,
             "CloseChat__9ccChatMsgFv": lambda mm, *_: rec("CloseChat"),
             "ccDeleteThread__FP6ccTscb": lambda mm, a, *_: rec("ccDeleteThread", s32(mm.load(a + 0x14, 4))),

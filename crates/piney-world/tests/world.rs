@@ -46,7 +46,7 @@ fn mac_anu_collision_mesh() {
     let Some((_, archive)) = disc() else { return };
     for stem in ["town01", "town01d"] {
         let c = Ccs::parse(archive.inflate_named(stem).unwrap()).unwrap();
-        let models = HitModel::read(&c).unwrap();
+        let models = HitModel::read(piney_data::volume::Volume::Inf, &c).unwrap();
         assert_eq!(models.len(), 1, "{stem}");
         let polys = &models[0].polys;
         assert_eq!(polys.len(), 828);
@@ -56,7 +56,7 @@ fn mac_anu_collision_mesh() {
         assert_eq!(c.object_name(models[0].object), Some("HIT_sr1town1hit"));
         assert_eq!(c.object_name(models[0].parent), Some("MDL_floor_02"));
         // The gate plaza is at 600; a point off the mesh keeps its height.
-        let mut hits = Hits::new(models);
+        let mut hits = Hits::new(piney_data::volume::Volume::Inf, models);
         assert_eq!(ee::f(hits.land(piney_world::START_POS, LAND_MASK)), 600.0);
         let off = [ee::k(20000.0), ee::k(20000.0), ee::k(77.0), ee::ONE];
         assert_eq!(ee::f(hits.land(off, LAND_MASK)), 77.0);
@@ -117,7 +117,8 @@ fn arrival_then_walking() {
 fn walls_hold_him() {
     let Some((_, archive)) = disc() else { return };
     let c = Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap();
-    let mut hits = Hits::new(HitModel::read(&c).unwrap());
+    let mut hits =
+        Hits::new(piney_data::volume::Volume::Inf, HitModel::read(piney_data::volume::Volume::Inf, &c).unwrap());
     // Running east from the gate plaza for long enough to cross the town:
     // the plaza's walls stop him well short.
     let mut pos = piney_world::START_POS;

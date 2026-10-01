@@ -199,7 +199,7 @@ fn main() {
     let town = SceneFile::read(&archive, "town01").unwrap();
     let anims: Vec<&piney_data::anim::Animation> =
         PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
-    let models = HitModel::read(&Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
+    let models = HitModel::read(volume, &Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
     let mut run: Option<Run> = None;
     let stdin = std::io::stdin();
     for line in stdin.lock().lines() {
@@ -213,7 +213,7 @@ fn main() {
                 let dirc = [0, 0, n(4), 0];
                 let mode = n(6) as i8;
                 run = Some(Run {
-                    hits: Hits::new(models.clone()),
+                    hits: Hits::new(volume, models.clone()),
                     player: Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
                     camera: Camera::new(pos, dirc, mode, Scheme::new(n(5) as i32)),
                     rand: Rand(u64::from(n(7))),

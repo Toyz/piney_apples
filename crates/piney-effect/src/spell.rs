@@ -426,7 +426,7 @@ pub fn check_camera_shake_range(cx: &Cx, pos: V4) -> bool {
         return false;
     }
     let d = ee::vsub(pos, cam.cam_pos);
-    ee::lt(ee::sqrtf(ee::dot(d, d)), 0x44fa_0000)
+    ee::lt(ee::sqrtf_on(cx.assets.volume, ee::dot(d, d)), 0x44fa_0000)
 }
 
 /// `cameraShake(power, cycle, time, dirc)`.

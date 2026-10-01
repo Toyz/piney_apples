@@ -488,7 +488,7 @@ impl EffectCtrl {
         e.disp_sw = check_camera_deg(e.pos, player, bounds, cam.cam_pos, cam.cam_view, VIEW_CONE);
         let fade = if e.dist_sw {
             let d = ee::vsub(eye, lw);
-            let d = ee::sqrtf(ee::dot(d, d));
+            let d = ee::sqrtf_on(cx.assets.volume, ee::dot(d, d));
             if ee::lt(d, FADE_FAR) {
                 let mut f = ee::div(ee::sub(ee::sub(FADE_FAR, FADE_LEN), d), FADE_LEN);
                 if ee::lt(f, 0) {

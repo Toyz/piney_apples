@@ -20,7 +20,7 @@ use piney_desktop::assets::SceneFile;
 use crate::body::{Body, TRALL};
 use crate::camera::Cam;
 use crate::char::{Char, w2p};
-use crate::ee::{self, F, ONE, V4, add, atan2f, cosf, deg2rad, dot, lt, mul, rad2deg, sinf, sqrtf, sub, vadd, vsub};
+use crate::ee::{self, F, ONE, V4, add, atan2f, cosf, deg2rad, dot, lt, mul, rad2deg, sinf, sqrtf_on, sub, vadd, vsub};
 use crate::entry::{Npc, NpcCtx};
 use crate::hit::{self, Hits, WALL_MASK};
 use crate::mt::Mt;
@@ -172,10 +172,11 @@ pub fn get_dirc0(a: V4, b: V4) -> F {
     deg2rad((i32::from(s) + 16384) as i16)
 }
 
-/// `ccGetDist3D(a, b)` (0x001d9e40).
-pub fn get_dist3d(a: V4, b: V4) -> F {
+/// `ccGetDist3D(a, b)` (0x001d9e40), by the volume's `sqrtf` (`sqrt.s`
+/// from Outbreak on).
+pub fn get_dist3d(volume: Volume, a: V4, b: V4) -> F {
     let d = vsub(b, a);
-    sqrtf(dot(d, d))
+    sqrtf_on(volume, dot(d, d))
 }
 
 /// `ccGetDircChg(from, to, mode)` (0x001d9eb0): the turn toward `to`, the
@@ -298,7 +299,7 @@ impl TownPcs {
     pub fn outside(volume: Volume, area: i32, town: i32, mt: Mt) -> Result<TownPcs> {
         Ok(TownPcs {
             tables: Tables::of(volume),
-            map: NaviMap::default(),
+            map: NaviMap { volume, ..NaviMap::default() },
             area,
             town,
             merchants: [None; 5],
@@ -324,6 +325,8 @@ impl TownPcs {
 #[derive(Clone)]
 pub struct RtownPc {
     pub town: Rc<RefCell<TownPcs>>,
+    /// The disc's volume (its collision's): its code's square root.
+    pub volume: Volume,
     /// Its `npcTbl` row (base parameters and entry).
     pub row: NpcRow,
     /// The model, position (+0x40), `posP`, heading, animation,
@@ -504,6 +507,7 @@ impl RtownPc {
         t.placed += 1;
         let mut pc = RtownPc {
             town: town.clone(),
+            volume: hits.volume,
             row: row.clone(),
             char: ch,
             obj_flag: false,
@@ -632,7 +636,7 @@ impl RtownPc {
         }
         let p = w2p(self.char.pos, player);
         let v = [mul(p[0], MINUS_ONE), mul(p[1], MINUS_ONE), 0, ONE];
-        self.pl_dist = sqrtf(dot(v, v));
+        self.pl_dist = sqrtf_on(self.volume, dot(v, v));
         let mut a = add(PI_2, atan2f(v[1], v[0]));
         if !ee::le(a, ee::PI) {
             a = sub(a, TWO_PI);
@@ -724,7 +728,7 @@ impl RtownPc {
             }
             self.char.transparency = self.transrate;
             self.char.set_transparency = self.transrate;
-            self.char.fade(&ctx.view);
+            self.char.fade(ctx.hits.volume, &ctx.view);
         } else {
             self.char.drawn = false;
         }
@@ -732,7 +736,7 @@ impl RtownPc {
 
     /// |posP|: the distance to Kite in the plane and the PC's own height.
     fn pos_p_len(&self) -> F {
-        sqrtf(dot(self.char.pos_p, self.char.pos_p))
+        sqrtf_on(self.volume, dot(self.char.pos_p, self.char.pos_p))
     }
 
     /// `ccRtownPC::normalMode` (0x00507de0): true when the PC is hidden this
@@ -1002,7 +1006,7 @@ impl RtownPc {
 
     /// `ccRtownPC::move` (0x005077f0).
     pub fn route_move(&mut self, ctx: &mut NpcCtx) {
-        let d = get_dist3d(self.char.pos, self.next_pos);
+        let d = get_dist3d(self.volume, self.char.pos, self.next_pos);
         let mut a = get_dirc(self.char.pos, self.next_pos);
         let mut s1 = rad2deg(self.char.dirc[2]) as u16 as i32;
         let s2 = rad2deg(a) as u16 as i32;
@@ -1069,7 +1073,7 @@ impl RtownPc {
         self.char.pos[2] = ctx.hits.land(p, ENTRY_LAND_MASK);
         self.char.hit_attribute = ctx.hits.attribute();
         if self.pos_cnt == 60 {
-            if ee::le(get_dist3d(self.char.pos, self.old_pos), ARRIVED) {
+            if ee::le(get_dist3d(self.volume, self.char.pos, self.old_pos), ARRIVED) {
                 self.return_route(ctx.hits);
                 self.pos_cnt = 0;
                 self.change_route_flag = 1;
@@ -1155,7 +1159,7 @@ impl RtownPc {
                     }
                 }
                 1 => {
-                    let d = get_dist3d(self.char.pos, self.ev_next_pos);
+                    let d = get_dist3d(self.volume, self.char.pos, self.ev_next_pos);
                     let a = get_dirc(self.char.pos, self.ev_next_pos);
                     let s2 = rad2deg(a);
                     let chg = get_dirc_chg(s0 as u16 as i16, s2, 64);
@@ -1467,7 +1471,7 @@ mod tests {
         let mut iso = piney_data::iso::Iso::open(ISO).unwrap();
         let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let town = SceneFile::read(&archive, "town01").unwrap();
-        let hits = Hits::new(crate::hit::HitModel::read(&town.ccs).unwrap());
+        let hits = Hits::new(Volume::Inf, crate::hit::HitModel::read(Volume::Inf, &town.ccs).unwrap());
         Some(Mac { archive, town, hits })
     }
 

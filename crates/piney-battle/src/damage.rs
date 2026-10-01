@@ -518,7 +518,7 @@ pub fn skill_damage(
     }
     let splash = sk.ty & bits::SPLASH_HALF != 0;
     let centred = sk.ty & bits::CENTRED_ON_USER != 0;
-    let tty = side_types(t, scene.chars[target].ty());
+    let tty = side_types(t.volume, scene.chars[target].ty());
     let mut h = Roll::Draw;
     let crit = |scene: &Scene, ac_flag: &mut i16, h: &mut Roll, ev: &mut Events| {
         if *ac_flag == 1 {
@@ -618,7 +618,7 @@ pub fn skill_damage_at(
     }
     let centre = if sk.ty & bits::CENTRED_ON_USER != 0 { scene.chars[me].pos_p } else { pos };
     let Some(list) = scene.side(ttype) else { return 0 };
-    let ttype = side_types(t, ttype);
+    let ttype = side_types(t.volume, ttype);
     let mag = if sk.ty & bits::SPLASH_HALF != 0 { F_HALF } else { F_ONE };
     let mut n = 0;
     for c in list {
@@ -699,7 +699,7 @@ pub fn skill_damage2(
     }
     let centre = if sk.ty & bits::CENTRED_ON_USER != 0 { scene.chars[me].pos_p } else { pos };
     let Some(list) = scene.side(ttype) else { return 0 };
-    let ttype = side_types(t, ttype);
+    let ttype = side_types(t.volume, ttype);
     let mut n = 0;
     for c in list {
         let ch = &scene.chars[c];
@@ -730,10 +730,12 @@ pub fn skill_damage2(
 
 /// The types an area skill takes in on the side it is aimed at: from
 /// Outbreak on, every foe type (0xe0) once the foes' list is the one
-/// walked (OUT gcmn 0x00595dac, 0x005962f8, 0x0059664c; QUA 0x004886ec,
-/// 0x00488c38, 0x00488f8c); before it, only the types aimed at.
-fn side_types(t: &Tables, tyb: i32) -> i32 {
-    if t.volume >= Volume::Out && tyb & 6 == 0 && tyb & ty::FOE != 0 { ty::FOE } else { tyb }
+/// walked; before it, only the types aimed at. OUT gcmn: the damages
+/// 0x00595dac, 0x005962f8, 0x0059664c; `ccSkillHold` 0x00597200,
+/// 0x00597478; `ccSkillModifyCondition` 0x00597684, 0x005979dc (QUA the
+/// same, 0x004886ec on).
+pub(crate) fn side_types(volume: Volume, tyb: i32) -> i32 {
+    if volume >= Volume::Out && tyb & 6 == 0 && tyb & ty::FOE != 0 { ty::FOE } else { tyb }
 }
 
 /// A character's distance on the ground from a point, less its width:

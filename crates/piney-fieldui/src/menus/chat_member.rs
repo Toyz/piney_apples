@@ -486,7 +486,7 @@ fn sub_targets(m: &mut MenuCtrl, x: &Ctx) {
         if c.handle == t.handle || c.condition[0] != 0 {
             continue;
         }
-        let d = flat_dist(c.pos_p, t.pos_p);
+        let d = flat_dist(x.texts.volume, c.pos_p, t.pos_p);
         if piney_desktop::eef::le(d, piney_desktop::eef::add(p.target_range, c.width)) {
             m.sub_target[n] = c.handle;
             n += 1;

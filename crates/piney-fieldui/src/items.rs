@@ -369,12 +369,13 @@ pub fn drain_off(volume: piney_data::volume::Volume, save: &piney_data::save::Sa
 }
 
 /// The horizontal distance `sqrtf(|a - b|)` with z dropped, as TargetMenu
-/// measures a sub-target (`sceVu0InnerProduct` of the difference).
-pub fn flat_dist(a: [f32; 3], b: [f32; 3]) -> f32 {
+/// measures a sub-target (`sceVu0InnerProduct` of the difference), by the
+/// volume's `sqrtf` (`sqrt.s` from Outbreak on).
+pub fn flat_dist(volume: piney_data::volume::Volume, a: [f32; 3], b: [f32; 3]) -> f32 {
     let dx = piney_desktop::eef::sub(a[0], b[0]);
     let dy = piney_desktop::eef::sub(a[1], b[1]);
     let sq = add(mul(dx, dx), mul(dy, dy));
-    f32::from_bits(piney_data::libm::sqrtf(sq.to_bits()))
+    f32::from_bits(piney_data::libm::sqrtf_on(volume, sq.to_bits()))
 }
 
 #[cfg(test)]

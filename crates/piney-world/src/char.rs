@@ -98,6 +98,7 @@ pub fn p2w(pp: V4, player: V4) -> V4 {
 /// height, at least 180; `hide` set), and beyond `far`.
 #[allow(clippy::too_many_arguments)]
 pub fn camera_transparency(
+    volume: piney_data::volume::Volume,
     pos: V4,
     player: V4,
     cam: V4,
@@ -111,7 +112,7 @@ pub fn camera_transparency(
     let p = w2p(pos, player);
     let c = w2p(cam, player);
     let d = ee::vsub(c, p);
-    let dist = ee::sqrtf(ee::dot(d, d));
+    let dist = ee::sqrtf_on(volume, ee::dot(d, d));
     let t = ee::div(ee::from_int(8192 - i32::from(deg1)), 0x4600_0000);
     let u = ee::sub(ONE, t);
     let mut r = ee::add(ee::mul(width, t), ee::mul(height, u));
@@ -273,9 +274,10 @@ impl Char {
     /// `ccChar::Draw` up to the draw in a town: the camera fade (`+0x90`
     /// on: hidden only in the eye view) into `transparency`; whether it is
     /// drawn.
-    pub fn fade(&mut self, view: &View) -> bool {
+    pub fn fade(&mut self, volume: piney_data::volume::Volume, view: &View) -> bool {
         let mut hide = !self.trans_dist || view.eye;
         let t = camera_transparency(
+            volume,
             self.pos,
             view.player,
             view.cam,

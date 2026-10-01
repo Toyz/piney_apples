@@ -10,10 +10,11 @@
 use std::rc::Rc;
 
 use piney_data::ccs::Ccs;
+use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 
 use crate::ee::{
-    self, F, ONE, V4, add, atan2f, cross, div, dot, le, lt, mul, normalize, sqrtf, sub, vadd, vscale, vsub,
+    self, F, ONE, V4, add, atan2f, cross, div, dot, le, lt, mul, normalize, sqrtf_on, sub, vadd, vscale, vsub,
 };
 
 /// The Hit chunk kind.
@@ -102,8 +103,8 @@ fn fptoui(v: F) -> u32 {
 }
 
 /// `ccSetHitData(p, v, 3, attr)` (0x00149990): a triangle's box, normal,
-/// class, edges and plane.
-pub fn set_hit_data(v: [[F; 3]; 3], attr: u32) -> Polygon {
+/// class, edges and plane; the lengths by the volume's `sqrtf`.
+pub fn set_hit_data(volume: Volume, v: [[F; 3]; 3], attr: u32) -> Polygon {
     let vp: [V4; 3] = v.map(|p| [p[0], p[1], p[2], ONE]);
     let mut min = [0; 3];
     let mut max = [0; 3];
@@ -128,7 +129,7 @@ pub fn set_hit_data(v: [[F; 3]; 3], attr: u32) -> Polygon {
     nv[3] = ONE;
     let mut t = nv;
     t[2] = 0;
-    let h = sqrtf(dot(t, t));
+    let h = sqrtf_on(volume, dot(t, t));
     let ang = atan2f(nv[2], h);
     let val = sub(div(mul(ee::HALF_TURN, add(ee::PI, ang)), ee::PI), ee::HALF_TURN);
     let a = fptoui(val) & 0xffff;
@@ -144,7 +145,7 @@ pub fn set_hit_data(v: [[F; 3]; 3], attr: u32) -> Polygon {
     for (e, (p, q)) in [(1, 0), (2, 1), (0, 2)].into_iter().enumerate() {
         let mut d = vsub(vp[p], vp[q]);
         d[3] = ONE;
-        dvs[e] = sqrtf(dot(d, d));
+        dvs[e] = sqrtf_on(volume, dot(d, d));
         dv[e] = normalize(d);
     }
     let d = mul(MINUS_ONE, dot(nv, vp[0]));
@@ -155,7 +156,7 @@ impl HitModel {
     /// Every Hit chunk of a scene file (towns have one), decoded as
     /// `Decode_Hit` does: the groups' triangles in order, their stored
     /// vertex normals ignored.
-    pub fn read(c: &Ccs) -> Result<Vec<HitModel>> {
+    pub fn read(volume: Volume, c: &Ccs) -> Result<Vec<HitModel>> {
         let mut out = Vec::new();
         let d = &c.data;
         let word = |q: usize| -> Result<u32> {
@@ -190,7 +191,7 @@ impl HitModel {
                         }
                     }
                     q += 36;
-                    let p = set_hit_data(v, attr);
+                    let p = set_hit_data(volume, v, attr);
                     for (m, &v) in min.iter_mut().zip(&p.min) {
                         if !le(*m, v) {
                             *m = v;
@@ -268,6 +269,8 @@ fn is_zero3(v: &V4) -> bool {
 /// identity) and libhit's result globals.
 #[derive(Clone, Debug, Default)]
 pub struct Hits {
+    /// The disc's volume: its code's square root ([`sqrtf_on`]).
+    pub volume: Volume,
     /// The `ccModelHit` list (`ccModelHitTop`..`Tail`), in its order.
     pub models: Vec<HitModel>,
     /// `game.area`: 0 a town, 1 a field, 2 a dungeon.
@@ -325,8 +328,8 @@ struct Sphere {
 }
 
 impl Hits {
-    pub fn new(models: Vec<HitModel>) -> Self {
-        Hits { models, ..Hits::default() }
+    pub fn new(volume: Volume, models: Vec<HitModel>) -> Self {
+        Hits { volume, models, ..Hits::default() }
     }
 
     fn clear(&mut self) {
@@ -397,7 +400,7 @@ impl Hits {
             }
             // sceVu0DivVector: times the reciprocal.
             let tv = vscale(vscale(l.dv, mul(MINUS_ONE, ds)), div(ONE, dn));
-            let dist = sqrtf(dot(tv, tv));
+            let dist = sqrtf_on(self.volume, dot(tv, tv));
             let mut hp = vadd(l.sp, tv);
             hp[3] = ONE;
             let mut cp = ee::apply(&model.rm, hp);
@@ -593,7 +596,7 @@ impl Hits {
                     if !le(d2, q.r2) {
                         continue;
                     }
-                    let dd = sqrtf(d2);
+                    let dd = sqrtf_on(self.volume, d2);
                     if ev != 0 && !le(dd, dist) {
                         continue;
                     }
@@ -616,7 +619,7 @@ impl Hits {
                             stop = true;
                             break;
                         }
-                        let dd = sqrtf(d2);
+                        let dd = sqrtf_on(self.volume, d2);
                         if ev != 0 && !le(dd, dist) {
                             continue;
                         }
@@ -881,7 +884,7 @@ impl Hits {
                     continue;
                 }
                 let d = vsub(other.pos, body.pos);
-                let d = sqrtf(dot(d, d));
+                let d = sqrtf_on(self.volume, dot(d, d));
                 let over = sub(add(other.radius, body.radius), d);
                 if lt(over, 0) {
                     continue;

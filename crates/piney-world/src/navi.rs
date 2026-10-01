@@ -9,7 +9,7 @@
 use piney_data::Result;
 use piney_desktop::assets::SceneFile;
 
-use crate::ee::{self, F, ONE, V4, add, dot, sqrtf, vsub};
+use crate::ee::{self, F, ONE, V4, add, dot, vsub};
 use crate::hit::Hits;
 
 /// A route's end marks: 254 before the first landmark, 255 after the last.
@@ -34,6 +34,9 @@ pub struct Landmark {
 /// A town's navigation map as `ccSetNaviMap` leaves it.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct NaviMap {
+    /// The disc's volume: its code's square root (`sqrt.s` from Outbreak
+    /// on, [`ee::sqrtf_on`]).
+    pub volume: piney_data::volume::Volume,
     /// `landMarkNum`.
     pub num: i32,
     /// `naviMapPtr[0..=landMarkNum]`: `ccNaviGetLandmarkPos` reads one past
@@ -73,7 +76,7 @@ impl NaviMap {
             .iter()
             .map(|l| l.map_or_else(Vec::new, <[u8]>::to_vec))
             .collect();
-        Ok(NaviMap { num, marks, lines })
+        Ok(NaviMap { volume, num, marks, lines })
     }
 
     /// `naviMapPtr[i]`, a blank landmark outside the table.
@@ -102,7 +105,7 @@ impl NaviMap {
             }
             d[2] = 0;
             d[3] = ONE;
-            let dist = sqrtf(dot(d, d));
+            let dist = ee::sqrtf_on(self.volume, dot(d, d));
             if ee::lt(dist, best) {
                 idx = k;
                 best = dist;
@@ -131,7 +134,7 @@ impl NaviMap {
         let mut total = 0;
         while at(base + k) != until && base + k + 1 < line.len() {
             let d = vsub(self.mark(at(base + k)).pos, self.mark(at(base + k + 1)).pos);
-            total = add(total, sqrtf(dot(d, d)));
+            total = add(total, ee::sqrtf_on(self.volume, dot(d, d)));
             k += 1;
         }
         total
@@ -455,7 +458,7 @@ impl Navi {
             to_first = map.mark(s0).pos;
         }
         let d = vsub(to_first, start);
-        self.dist = sqrtf(dot(d, d));
+        self.dist = ee::sqrtf_on(map.volume, dot(d, d));
         self.dirc = ee::atan2f(d[0], ee::mul(MINUS_ONE, d[1]));
         self.landmark = 1;
         self.goal_pos = goal;

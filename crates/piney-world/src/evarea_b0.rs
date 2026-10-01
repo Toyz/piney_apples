@@ -15,6 +15,7 @@ use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::dungeon::Rng;
 use piney_data::statics::{self, DrawPass, Position};
+use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
@@ -143,13 +144,13 @@ fn staged(name: &str, stage: &str) -> String {
 
 impl Arena {
     /// `EVENTAREAB0::EVENTAREAB0` for `field` (1-8), `fieldrand` from 0.
-    pub fn new(archive: &Arc<Archive>, field: i32, def_se: u32) -> Result<Arena> {
-        Arena::new_seeded(archive, field, def_se, 0)
+    pub fn new(archive: &Arc<Archive>, volume: Volume, field: i32, def_se: u32) -> Result<Arena> {
+        Arena::new_seeded(archive, volume, field, def_se, 0)
     }
 
     /// `EVENTAREAB0::EVENTAREAB0` for `field` (1-8), `fieldrand` from
     /// `seed` (the fireflies draw from it as they are made).
-    pub fn new_seeded(archive: &Arc<Archive>, field: i32, def_se: u32, seed: u32) -> Result<Arena> {
+    pub fn new_seeded(archive: &Arc<Archive>, volume: Volume, field: i32, def_se: u32, seed: u32) -> Result<Arena> {
         let stage = *usize::try_from(field)
             .ok()
             .filter(|_| is_arena(field))
@@ -196,9 +197,9 @@ impl Arena {
         if c.find_object("DMY_center01").is_none() {
             return Err(Error::NotFound(format!("{stage}: DMY_center01")));
         }
-        let hit_models = HitModel::read(c)?;
+        let hit_models = HitModel::read(volume, c)?;
         let mut hits =
-            Hits { area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
+            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
         hits.models = models.iter().filter_map(|m| hit_models.iter().find(|h| h.parent == m.model).cloned()).collect();
         // The fireflies, each over its marker.
         let mut rng = Rng::new(seed);
@@ -209,7 +210,7 @@ impl Arena {
                 return Err(Error::NotFound(format!("{stage}: {marker}")));
             }
             let (at, _) = crate::town::dummy_bits(&Position::Dummy(marker), c, sc);
-            fireflies.push(Firefly::arena(&mut rng, at));
+            fireflies.push(Firefly::arena(volume, &mut rng, at));
         }
         Ok(Arena {
             field,
@@ -281,9 +282,10 @@ impl Arena {
         out.push(Piece::Model { k: 5, layer: if self.layer_sw { layer::OBJ } else { REF_LAYER } });
         // effLayer: each firefly's Draw, then its Move.
         let mut drawn = Vec::new();
+        let volume = self.hits.volume;
         for f in &mut self.fireflies {
-            f.draw(player, &mut drawn);
-            f.step(player, &mut self.rng);
+            f.draw(volume, player, &mut drawn);
+            f.step(volume, player, &mut self.rng);
         }
         out.extend(drawn.into_iter().map(|draw| Piece::Firefly { draw, layer: layer::EFF }));
         // Models 6-8 bob: up by fieldrand(5) until past 50, down until
@@ -397,7 +399,7 @@ mod tests {
     #[test]
     fn skeith_arena() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let a = Arena::new(&archive, 1, 0).unwrap();
+        let a = Arena::new(&archive, Volume::Inf, 1, 0).unwrap();
         let name = |o: u32| a.file.ccs.object_name(o).unwrap().to_string();
         assert_eq!(a.stage, "se1_5");
         assert_eq!(a.models.len(), 9);

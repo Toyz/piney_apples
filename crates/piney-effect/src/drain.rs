@@ -209,13 +209,13 @@ pub fn orb_pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
     let e = &mut ctrl.effects[i];
     let me = space::fw2lw(e.pos, player, bounds);
     let d = ee::vsub(tp, me);
-    if !ee::lt(cx.host.char_width(t), ee::sqrtf(ee::dot(d, d))) {
+    if !ee::lt(cx.host.char_width(t), ee::sqrtf_on(cx.assets.volume, ee::dot(d, d))) {
         return orb_end(ctrl, i);
     }
     let d = ee::normalize(d);
     let axis = ee::cross(d, e.rot);
     let c = ee::dot(d, e.rot);
-    let s = ee::sqrtf(ee::mul(0x4000_0000, ee::add(ONE, c)));
+    let s = ee::sqrtf_on(cx.assets.volume, ee::mul(0x4000_0000, ee::add(ONE, c)));
     let q: V4 = if ee::eq(0, s) {
         let h = ee::mul(HALF, ee::deg2rad(32767));
         let mut q = ee::vscale([0, 0, ONE, ONE], dmath::sin_fd(h));

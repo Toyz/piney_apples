@@ -1838,6 +1838,7 @@ impl Combat {
             eye: x.camera.tcam.kind == crate::camera::kind::EYE,
             bounds: [bounds.min[0], bounds.min[1], bounds.max[0], bounds.max[1]],
             town: false,
+            volume: x.camera.volume,
         };
         for (&who, a) in self.cast.actors.iter_mut() {
             a.how = None;

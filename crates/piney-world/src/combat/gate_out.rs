@@ -238,10 +238,10 @@ fn place(cam: &dyn GhoCam, camera: &mut Camera, k: &mut Kite) {
 pub fn param_change(camera: &mut Camera, pos: V4, view: V4) {
     let mut d = ee::vsub(pos, view);
     d[3] = ONE;
-    let dist = ee::sqrtf(ee::dot(d, d));
+    let dist = ee::sqrtf_on(camera.volume, ee::dot(d, d));
     let z = d[2];
     d[2] = 0;
-    let across = ee::sqrtf(ee::dot(d, d));
+    let across = ee::sqrtf_on(camera.volume, ee::dot(d, d));
     let pitch = ee::atan2f(across, ee::mul(0xbf80_0000, z));
     let heading = ee::atan2f(d[0], d[1]);
     let deg_pitch = ee::rad2deg(pitch).wrapping_sub(16384);

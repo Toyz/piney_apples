@@ -231,20 +231,22 @@ impl Gate {
     /// (nothing that shows) and `ccChgate::main` up to the draw, for Kite at
     /// `player` and the camera at `cam` (pitch `deg1`, the eye view when
     /// `eye`).
-    pub fn step(&mut self, player: V4, cam: V4, deg1: i16, eye: bool) -> GateFrame {
+    pub fn step(&mut self, volume: piney_data::volume::Volume, player: V4, cam: V4, deg1: i16, eye: bool) -> GateFrame {
         let sound = self.gate_anm().unwrap_or(None);
         let mut f = GateFrame { sound, ..GateFrame::default() };
         let rel = w2p(self.pos, player);
         let d2 = ee::add(ee::add(ee::mul(rel[0], rel[0]), ee::mul(rel[1], rel[1])), ee::mul(rel[2], rel[2]));
-        // fptodp, sqrt, dptofp: a rounded square root.
-        if ee::lt(ee::sqrtf(d2), NEAR) {
+        // fptodp, sqrt, dptofp: a rounded square root (sqrt.s from
+        // Outbreak on, OUT gcmn 0x0046a524).
+        if ee::lt(ee::dsqrt_on(volume, d2), NEAR) {
             f.near = true;
             let (file, root) = (self.file.clone(), draw::mat(&self.root));
             self.body.forward(&file, root);
             // ccChar::Draw: +0x90 is 1, so `hide` starts set only in the
             // eye view (which skips the near-camera fade).
             let mut hide = eye;
-            let fade = camera_transparency(self.pos, player, cam, deg1, WIDTH, HEIGHT, FADE_FAR, FADE_LEN, &mut hide);
+            let fade =
+                camera_transparency(volume, self.pos, player, cam, deg1, WIDTH, HEIGHT, FADE_FAR, FADE_LEN, &mut hide);
             self.transparency = ee::mul(self.cloak, fade);
             f.drawn = !(ee::lt(self.transparency, MIN_DRAWN) && !hide);
             if self.state != 0 {
@@ -311,10 +313,38 @@ mod tests {
         let player = [0, 0x45af_0000, 0x4416_0000, ONE];
         let mut hide = false;
         let far = [0, 0x45a0_0000, 0x4416_0000, ONE]; // 1000 away
-        assert_eq!(camera_transparency(gate, player, far, 1512, WIDTH, HEIGHT, FADE_FAR, FADE_LEN, &mut hide), ONE);
+        assert_eq!(
+            camera_transparency(
+                piney_data::volume::Volume::Inf,
+                gate,
+                player,
+                far,
+                1512,
+                WIDTH,
+                HEIGHT,
+                FADE_FAR,
+                FADE_LEN,
+                &mut hide
+            ),
+            ONE
+        );
         assert!(!hide);
         let close = [0, 0x45c4_e000, 0x4416_0000, ONE];
-        assert_eq!(camera_transparency(gate, player, close, 1512, WIDTH, HEIGHT, FADE_FAR, FADE_LEN, &mut hide), 0);
+        assert_eq!(
+            camera_transparency(
+                piney_data::volume::Volume::Inf,
+                gate,
+                player,
+                close,
+                1512,
+                WIDTH,
+                HEIGHT,
+                FADE_FAR,
+                FADE_LEN,
+                &mut hide
+            ),
+            0
+        );
         assert!(hide);
     }
 
@@ -335,7 +365,7 @@ mod tests {
         assert_eq!(g.root[3].map(ee::f), [0.0, 6300.0, 600.0, 1.0]);
         let kite = [0, 0x45af_0000, 0x4416_0000, ONE];
         let cam = [0, 0x45cd_0000, 0x445c_0000, ONE];
-        let f = g.step(kite, cam, 1512, false);
+        let f = g.step(piney_data::volume::Volume::Inf, kite, cam, 1512, false);
         assert_eq!((f.near, f.drawn, f.ring, f.sound), (true, true, false, None));
         assert_eq!((g.transparency, g.times()), (ONE, (256, 0)));
         let l = g.lights(&TownLights { ambient: Vec3::ZERO, lights: Vec::new(), fog: None });
@@ -347,7 +377,7 @@ mod tests {
         assert_eq!(l.lights[1].colour, Vec3::ZERO);
         // Far from Kite it neither steps nor draws.
         let far = [0, 0x4480_0000, 0, ONE];
-        assert!(!g.step(far, cam, 1512, false).near);
+        assert!(!g.step(piney_data::volume::Volume::Inf, far, cam, 1512, false).near);
         assert_eq!(g.times().0, 256);
     }
 
@@ -362,7 +392,7 @@ mod tests {
         g.influence(11);
         let mut sounds = Vec::new();
         for i in 0..120 {
-            let f = g.step(kite, cam, 1512, false);
+            let f = g.step(piney_data::volume::Volume::Inf, kite, cam, 1512, false);
             assert!(f.ring);
             if let Some(s) = f.sound {
                 sounds.push((i, s));
@@ -371,13 +401,13 @@ mod tests {
         assert_eq!(sounds, [(31, SE_OPENED)]);
         assert_eq!(g.state, 4);
         g.influence(0);
-        let f = g.step(kite, cam, 1512, false);
+        let f = g.step(piney_data::volume::Volume::Inf, kite, cam, 1512, false);
         assert_eq!((f.sound, g.state), (Some(SE_CLOSE), 6));
         for _ in 0..100 {
-            g.step(kite, cam, 1512, false);
+            g.step(piney_data::volume::Volume::Inf, kite, cam, 1512, false);
         }
         assert_eq!(g.state, 0);
-        assert!(!g.step(kite, cam, 1512, false).ring);
+        assert!(!g.step(piney_data::volume::Volume::Inf, kite, cam, 1512, false).ring);
     }
 
     /// A new game's arrival: the gate is drawn from the first frames, on the

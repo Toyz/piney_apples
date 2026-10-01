@@ -74,15 +74,11 @@ pub fn normalize(a: V4) -> V4 {
     [mul(a[0], r), mul(a[1], r), mul(a[2], r), 0]
 }
 
-/// The code's `sqrtf` on the volume: newlib's, rounding to nearest, on
-/// Infection and Mutation. Outbreak's and Quarantine's executables have no
-/// `sqrtf`: the FPU's `sqrt.s` (truncating) is inline at every call, in
-/// main and gcmn alike (OUT gcmn 0x005a5f54 in `ccAI::DistanceToTarget`).
+/// The code's `sqrtf` on the volume ([`piney_data::libm::sqrtf_on`]):
+/// newlib's on Infection and Mutation, the FPU's truncating `sqrt.s` from
+/// Outbreak on.
 pub fn sqrt_on(volume: Volume, v: F) -> F {
-    match volume {
-        Volume::Out | Volume::Qua => sqrt(v),
-        Volume::Inf | Volume::Mut => sqrtf(v),
-    }
+    piney_data::libm::sqrtf_on(volume, v)
 }
 
 /// The ground distance between two points: `(a - b)` with the third lane

@@ -73,7 +73,7 @@ pub fn cc_particle_explode(cx: &mut Cx, pos: V4, speed: V4, scale: F, kind: i32)
     let p = &mut cx.particles.slots[s];
     p.velocity = speed;
     // sqrtf, then fabs through doubles.
-    p.speed = ee::fabsf(ee::sqrtf(ee::dot(speed, speed)));
+    p.speed = ee::fabsf(ee::sqrtf_on(cx.assets.volume, ee::dot(speed, speed)));
     p.scale[1] = scale;
     p.scale[0] = scale;
     Some(s)

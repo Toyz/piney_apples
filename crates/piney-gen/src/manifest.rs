@@ -387,6 +387,38 @@ fn cinema_skill_rows(c: &Ctx) -> Read {
     Ok(Value::List(out))
 }
 
+/// The pages `ccUseItemRequest` (gcmn 0x0057aa80) shows for important
+/// item `item`: the first `lui`/`addiu` pair where its `li n; beq` goes.
+/// Outbreak and Quarantine rewrote notes 288 and 289, and the carry pairs
+/// Infection's two tables with each other's (OUT gcmn 0x0059e0a0,
+/// 0x0059e93c for 288, 0x0059e964 for 289).
+fn item_pages(item: u32, layout: Layout) -> CustomFn {
+    Rc::new(move |c| {
+        let f = find(c, 0x0057_AA80, None);
+        let size = match c.p.symbol_at(f, 0) {
+            Some((s, 0)) => s.size,
+            _ => return Err(format!("no function starts at 0x{f:08x}")),
+        };
+        let word = |k: u32| c.p.u32(f + 4 * k);
+        for k in 0..size / 4 - 1 {
+            let (w, x) = (word(k)?, word(k + 1)?);
+            // `addiu $rt, $zero, item`, then `beq $rs, $rt`.
+            if w >> 21 != 0x09 << 5 || w & 0xffff != item || x >> 26 != 0x04 || (x >> 16) & 31 != (w >> 16) & 31 {
+                continue;
+            }
+            let to = (k as i128 + 2 + sext16(x)) as u32;
+            for q in to..(to + 40).min(size / 4 - 1) {
+                let (hi, lo) = (word(q)?, word(q + 1)?);
+                if hi >> 26 == 0x0f && lo >> 26 == 0x09 && (lo >> 21) & 31 == (hi >> 16) & 31 {
+                    return layout.read(c, ((hi & 0xffff) << 16).wrapping_add(sext16(lo) as u32));
+                }
+            }
+            return Err(format!("item {item}'s branch builds no table"));
+        }
+        Err(format!("0x{f:08x} tests no item {item}"))
+    })
+}
+
 /// A member's remark table from Mutation on (none on Infection).
 fn remark(name: &'static str, caller: u32, nth: usize, doc: &'static str) -> Entry {
     let rows = || array(opt(cstr()), 19);
@@ -1226,8 +1258,18 @@ fn fieldui() -> Group {
             e("epitaph_11", 0x0065_1A90, array(ptr(lines(3)), 4), GCMN, "`epitaphStr11`: item 68's."),
             e("epitaph_11p", 0x0065_1AA0, array(ptr(lines(3)), 4), GCMN, "`epitaphStr11p`"),
             e("epitaph_m0", 0x0065_1AB0, array(ptr(lines(3)), 3), GCMN, "`epitaphStrM0`: item 287's, both modes."),
-            e("epitaph_m1", 0x0065_1AC0, array(ptr(lines(3)), 3), GCMN, "`epitaphStrM1`: item 288's."),
-            e("epitaph_m2", 0x0065_1AD0, array(ptr(lines(3)), 3), GCMN, "`epitaphStrM2`: item 289's."),
+            derived(
+                "epitaph_m1",
+                custom(item_pages(288, array(ptr(lines(3)), 3)), array(ptr(lines(3)), 3)),
+                GCMN,
+                "`epitaphStrM1`: item 288's.",
+            ),
+            derived(
+                "epitaph_m2",
+                custom(item_pages(289, array(ptr(lines(3)), 3)), array(ptr(lines(3)), 3)),
+                GCMN,
+                "`epitaphStrM2`: item 289's.",
+            ),
             e("epitaph_m3", 0x0037_8298, array(ptr(lines(3)), 2), GCMN, "`epitaphStrM3`: item 290's."),
             e(
                 "item_box_list",

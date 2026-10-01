@@ -279,7 +279,7 @@ fn shown(p: &mut Particle, at: V4, view: &View) -> Option<F> {
     let base = ee::mul(p.transparency, ee::div(ee::from_int(i32::from(p.color)), COLOR_ONE));
     if p.dist_sw {
         let d = ee::vsub(cam.eye, at);
-        let d = ee::sqrtf(ee::dot(d, d));
+        let d = ee::sqrtf_on(view.assets.volume, ee::dot(d, d));
         if !ee::lt(d, FADE_FAR) {
             p.disp_sw = false;
             return None;
@@ -346,7 +346,7 @@ fn main_in(p: &mut Particle, gene: Option<&Generator>, view: &mut View, layer: O
     }
     if let Some(g) = gene {
         for ff in g.ff.iter().flatten() {
-            if force::calc(ff, p, Some(g)) {
+            if force::calc(view.assets.volume, ff, p, Some(g)) {
                 p.life_time = -1;
                 p.fade_flag = 2;
             }

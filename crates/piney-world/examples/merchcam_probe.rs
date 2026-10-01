@@ -59,7 +59,7 @@ fn main() {
     let kite = SceneFile::read(&archive, "ctu1body").unwrap();
     let anims: Vec<&piney_data::anim::Animation> =
         PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
-    let models = HitModel::read(&Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
+    let models = HitModel::read(volume, &Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap()).unwrap();
     let mut run: Option<Run> = None;
     for line in std::io::stdin().lock().lines() {
         let line = line.unwrap();
@@ -68,7 +68,7 @@ fn main() {
         let v4 = |i: usize| [n(i), n(i + 1), n(i + 2), n(i + 3)];
         match w.first().copied() {
             Some("merchants") => {
-                let mut town = piney_world::town::Town::open(&archive, 0, false).unwrap();
+                let mut town = piney_world::town::Town::open(&archive, volume, 0, false).unwrap();
                 let player = [0, 0x45af_0000, 0x4416_0000, ee::ONE];
                 let t = &mut town.base;
                 let list_ =
@@ -92,7 +92,7 @@ fn main() {
                 let dirc = [0, 0, n(5), 0];
                 let mode = n(7) as i8;
                 run = Some(Run {
-                    hits: Hits::new(models.clone()),
+                    hits: Hits::new(volume, models.clone()),
                     player: Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
                     camera: Camera::new(pos, dirc, mode, Scheme::new(n(6) as i32)),
                     rand: Rand(u64::from(n(8))),

@@ -99,9 +99,9 @@ impl Area13 {
         let (c, sc) = (&base.file.ccs, &base.file.scene);
         // The collision: the models' Hit chunks, in the order the
         // STATICMODELs were built, over GO's bounds.
-        let hit_models = HitModel::read(c)?;
+        let hit_models = HitModel::read(volume, c)?;
         let mut hits =
-            Hits { area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
+            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
         hits.models = base
             .models
             .iter()

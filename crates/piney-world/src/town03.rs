@@ -391,7 +391,7 @@ impl CarminaGade {
     /// scrolls, the water's scroll.
     pub fn select(&mut self, base: &mut Base, v: &TownView) -> Vec<Piece> {
         let mut out = Vec::new();
-        self.water0.modify(&water_root(), [0, 0, 0, ONE], v.eye, &v.world_screen);
+        self.water0.modify(base.hits.volume, &water_root(), [0, 0, 0, ONE], v.eye, &v.world_screen);
         self.water[0].forward(&base.file);
         out.extend([Piece::Water(0), Piece::Copy]);
         self.ship.step(&base.file, &mut self.rng, &mut base.events);

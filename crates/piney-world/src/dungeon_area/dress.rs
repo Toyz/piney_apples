@@ -680,6 +680,7 @@ impl DungeonArea {
     /// `OBJ_f_8s40_`; waters 1 and 2 on `objLayer`, water 0 on `refLayer`
     /// with the picture behind it, none fogged.
     fn draw_water(&mut self, layers: &mut Layers, to_screen: Mat4, world_screen: &[V4; 4], step: bool) {
+        let volume = self.hits.volume;
         let Some(w) = &mut self.dress.water else { return };
         if step {
             for p in &mut w.plays {
@@ -701,7 +702,7 @@ impl DungeonArea {
             });
             if let Some((_, lw)) = lw {
                 let lw: [V4; 4] = lw.to_cols_array_2d().map(|c| c.map(f32::to_bits));
-                w0.modify(&lw, lw[3], lw[3], world_screen);
+                w0.modify(volume, &lw, lw[3], lw[3], world_screen);
             }
         }
         for k in [1usize, 2, 0] {

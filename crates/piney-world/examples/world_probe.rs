@@ -43,6 +43,7 @@ struct Run {
 fn main() {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path).unwrap();
+    let volume = iso.volume().unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let kite = SceneFile::read(&archive, "ctu1body").unwrap();
     let anims: Vec<&piney_data::anim::Animation> =
@@ -87,7 +88,7 @@ fn main() {
                 let cam = Cam { deg: [n(7) as i16, 0], rot: [n(8), 0, 0, 0], ..Cam::default() };
                 let tp = [n(1), n(2), n(3), ee::ONE];
                 let cp = [n(4), n(5), n(6), ee::ONE];
-                let out = avoid_obstacle(tp, cp, &cam, &mut Plane([n(9), n(10), n(11)]));
+                let out = avoid_obstacle(volume, tp, cp, &cam, &mut Plane([n(9), n(10), n(11)]));
                 println!("{}", list(&out));
             }
             Some("move") => {
@@ -126,14 +127,14 @@ fn main() {
                 let t = n(1) as usize;
                 let models = towns[t].get_or_insert_with(|| {
                     let stem = if t == 0 { "town01" } else { "town01d" };
-                    HitModel::read(&Ccs::parse(archive.inflate_named(stem).unwrap()).unwrap()).unwrap()
+                    HitModel::read(volume, &Ccs::parse(archive.inflate_named(stem).unwrap()).unwrap()).unwrap()
                 });
                 let pos = [n(2), n(3), n(4), ee::ONE];
                 let dirc = [0, 0, n(5), 0];
                 let scheme = Scheme::new(n(6) as i32);
                 let mode = n(7) as i8;
                 run = Some(Run {
-                    hits: Hits::new(models.clone()),
+                    hits: Hits::new(volume, models.clone()),
                     player: Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
                     camera: Camera::new(pos, dirc, mode, scheme),
                     rand: Rand(u64::from(n(8))),
@@ -250,7 +251,7 @@ fn main() {
             Some("target") => {
                 use piney_world::entry::Kind;
                 use piney_world::talk::{Cmnd, Leader, check_range, select, sort};
-                let leader = Leader { pos_p: [n(1), n(2), n(3), ee::ONE], dirc: [0, 0, n(4), 0], width: n(5) };
+                let leader = Leader { volume, pos_p: [n(1), n(2), n(3), ee::ONE], dirc: [0, 0, n(4), 0], width: n(5) };
                 let (eye, mode, mut pri) = (n(6) != 0, n(7) as i32, n(8) as i32);
                 let count = n(9) as usize;
                 let mut cands: Vec<Cmnd> = (0..count)
@@ -371,7 +372,8 @@ fn props_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, props: &mut Prop
     use piney_world::town01::{MacAnu, Piece};
     let n = |i: usize| hex(w[i]);
     fn town<'a>(props: &'a mut Props, archive: &Arc<Archive>, k: u32) -> &'a mut Town {
-        props.towns[k as usize].get_or_insert_with(|| Town::open(archive, 0, k == 1).unwrap())
+        props.towns[k as usize]
+            .get_or_insert_with(|| Town::open(archive, piney_data::volume::Volume::Inf, 0, k == 1).unwrap())
     }
     match cmd {
         "town" => {
@@ -418,7 +420,13 @@ fn props_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, props: &mut Prop
             if w.len() > 9 {
                 g.influence(n(9) as i16);
             }
-            let f = g.step([n(1), n(2), n(3), ee::ONE], [n(4), n(5), n(6), ee::ONE], n(7) as i16, n(8) != 0);
+            let f = g.step(
+                piney_data::volume::Volume::Inf,
+                [n(1), n(2), n(3), ee::ONE],
+                [n(4), n(5), n(6), ee::ONE],
+                n(7) as i16,
+                n(8) != 0,
+            );
             let (bt, rt) = g.times();
             println!(
                 concat!(
@@ -471,8 +479,8 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
     let v3 = |i: usize| [n(i), n(i + 1), n(i + 2), ee::ONE];
     match cmd {
         "merchstart" => {
-            let mut town = piney_world::town::Town::open(archive, 0, false).unwrap();
             let volume = Iso::open(iso_path).unwrap().volume().unwrap();
+            let mut town = piney_world::town::Town::open(archive, volume, 0, false).unwrap();
             let t = &mut town.base;
             ms.list = merchant::set_merchants(archive, volume, &t.file, &mut t.hits, 0, v3(1)).unwrap();
             ms.town = Some(town);
@@ -763,7 +771,7 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
     if pcs.town01.is_none() {
         pcs.town01 = Some(SceneFile::read(archive, "town01").unwrap());
         let c = Ccs::parse(archive.inflate_named("town01").unwrap()).unwrap();
-        pcs.models = Some(HitModel::read(&c).unwrap());
+        pcs.models = Some(HitModel::read(volume, &c).unwrap());
     }
     let town01 = pcs.town01.as_ref().unwrap();
     match cmd {
@@ -775,7 +783,7 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
         }
         "pcroute" => {
             let map = NaviMap::read(piney_data::volume::Volume::Inf, 0, town01).unwrap();
-            let mut hits = Hits::new(pcs.models.clone().unwrap());
+            let mut hits = Hits::new(volume, pcs.models.clone().unwrap());
             let (s, g) = ([n(1), n(2), n(3), ee::ONE], [n(4), n(5), n(6), ee::ONE]);
             let mut navi = Navi::default();
             let ret = navi.route_search(&map, s, g, &mut hits);
@@ -804,7 +812,7 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             let pos = [n(3), n(4), n(5), ee::ONE];
             let dirc = [0, 0, n(6), 0];
             let mode = n(8) as i8;
-            let mut hits = Hits::new(pcs.models.clone().unwrap());
+            let mut hits = Hits::new(volume, pcs.models.clone().unwrap());
             let mut player = Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000);
             player.hit_body.manual = w.len() > 10 && n(10) != 0;
             let camera = Camera::new(pos, dirc, mode, Scheme::new(n(7) as i32));
@@ -814,7 +822,7 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             pcs.run = Some(r);
         }
         "pchit" => {
-            let mut hits = Hits::new(pcs.models.clone().unwrap());
+            let mut hits = Hits::new(volume, pcs.models.clone().unwrap());
             let count = n(10) as usize;
             for k in 0..count {
                 let a = 11 + 5 * k;

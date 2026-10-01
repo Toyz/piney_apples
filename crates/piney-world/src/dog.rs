@@ -247,14 +247,14 @@ impl Dog {
             }
         }
         // ccChar::Draw.
-        self.ch.fade(&ctx.view);
+        self.ch.fade(ctx.hits.volume, &ctx.view);
         self.act_old = self.act;
     }
 
     /// `ccDog::move` (0x00509a80).
     fn walk(&mut self, ctx: &mut NpcCtx) {
         let pos = self.ch.pos;
-        let dist = get_dist3d(pos, self.target);
+        let dist = get_dist3d(ctx.hits.volume, pos, self.target);
         let mut dir = get_dirc(pos, self.target);
         let s2 = ee::rad2deg(dir);
         let s1 = ee::rad2deg(self.ch.dirc[2]);
@@ -363,7 +363,7 @@ impl Npc for Dog {
     /// `ccEntryObj::routine`, then `ccDog::main`.
     fn step(&mut self, ctx: &mut NpcCtx) {
         self.events.clear();
-        self.entry.routine(&mut self.ch, ctx.player);
+        self.entry.routine(ctx.hits.volume, &mut self.ch, ctx.player);
         self.main(ctx);
     }
 

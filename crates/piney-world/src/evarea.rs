@@ -14,6 +14,7 @@ use std::sync::Arc;
 use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::statics::{self, DrawPass, Position};
+use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
@@ -244,10 +245,10 @@ pub(crate) fn clump_models(file: &SceneFile, name: &str) -> Option<(u32, Vec<u32
 
 /// `sqrt` of x x + y y in double (`mula`, `madd` in singles, `fptodp`,
 /// `sqrt`, `dptofp`), as `STATICMODEL::DrawWithOutFog` and
-/// `STATICOBJECT::Draw` measure.
-fn ground_dist(dx: F, dy: F) -> F {
-    let s = ee::add(ee::mul(dx, dx), ee::mul(dy, dy));
-    (f64::from(ee::f(s)).sqrt() as f32).to_bits()
+/// `STATICOBJECT::Draw` measure; `sqrt.s` from Outbreak on
+/// ([`ee::dsqrt_on`], OUT gcmn 0x005f7fb8).
+fn ground_dist(volume: Volume, dx: F, dy: F) -> F {
+    ee::dsqrt_on(volume, ee::add(ee::mul(dx, dx), ee::mul(dy, dy)))
 }
 
 /// `d < clip` or `clip == 0`.
@@ -259,15 +260,16 @@ impl EventArea {
     /// `EVENTAREA02::EVENTAREA02`: the scene files, block 0 and
     /// `SetStartPos(DMY_marker01)`. `def_se` is `WORLD_MAN.defSE`, which a
     /// story map's ground never answers with.
-    pub fn new(archive: &Arc<Archive>, def_se: u32) -> Result<EventArea> {
+    pub fn new(archive: &Arc<Archive>, volume: Volume, def_se: u32) -> Result<EventArea> {
         let file = Rc::new(SceneFile::read(archive, FILE)?);
         let eff = Rc::new(SceneFile::read(archive, EFF_FILE)?);
         for name in FLARES {
             eff.ccs.find_object(name).ok_or_else(|| Error::NotFound(format!("{EFF_FILE}: {name}")))?;
         }
         let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
-        let hit_models = HitModel::read(&file.ccs)?;
-        let hits = Hits { area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
+        let hit_models = HitModel::read(volume, &file.ccs)?;
+        let hits =
+            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
         let mut a = EventArea {
             file,
             eff,
@@ -293,10 +295,15 @@ impl EventArea {
     /// The map as `GO(1)` finds it: `WORLD_MAN.eventmap` kept from the
     /// scene before (through the church's door, `Enter` having changed its
     /// block), else a new one, in block 0 whatever `game.block` says.
-    pub fn for_scene(archive: &Arc<Archive>, kept: Option<Box<EventArea>>, def_se: u32) -> Result<Box<EventArea>> {
+    pub fn for_scene(
+        archive: &Arc<Archive>,
+        volume: Volume,
+        kept: Option<Box<EventArea>>,
+        def_se: u32,
+    ) -> Result<Box<EventArea>> {
         match kept {
             Some(k) => Ok(k),
-            None => Ok(Box::new(EventArea::new(archive, def_se)?)),
+            None => Ok(Box::new(EventArea::new(archive, volume, def_se)?)),
         }
     }
 
@@ -446,6 +453,7 @@ impl EventArea {
     /// Kite's place (`DrawWithOutFog` measures from him), `puppet_show`
     /// `eventMng.puppetShow`.
     pub fn select(&mut self, eye: V4, player: V4, cam: &FlareCamera, puppet_show: bool) -> Vec<Piece> {
+        let volume = self.hits.volume;
         let mut out = Vec::new();
         // DrawBG.
         if self.block == 0 {
@@ -467,7 +475,7 @@ impl EventArea {
             }
             if k == 2 {
                 let d = crate::field_area::w2p(m.pos, player, BOUNDS);
-                if within(ground_dist(d[0], d[1]), m.clip) {
+                if within(ground_dist(volume, d[0], d[1]), m.clip) {
                     out.push(Piece::Model { k, layer: layer::OBJ2, fog: false });
                 }
             } else {
@@ -486,7 +494,7 @@ impl EventArea {
             if o.pass != DrawPass::Obj {
                 continue;
             }
-            let d = ground_dist(ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
+            let d = ground_dist(volume, ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
             if within(d, o.clip) {
                 o.play.forward(&self.file);
                 out.push(Piece::Object { k, layer: layer::OBJ2, time: o.play.time });
@@ -657,7 +665,7 @@ mod tests {
     #[test]
     fn blocks_and_the_door() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let mut a = EventArea::new(&archive, 0).unwrap();
+        let mut a = EventArea::new(&archive, Volume::Inf, 0).unwrap();
         let name = |a: &EventArea, o: u32| a.file.ccs.object_name(o).unwrap().to_string();
         assert_eq!(a.models.len(), 4);
         assert!(a.objects.is_empty() && a.rev.is_none());

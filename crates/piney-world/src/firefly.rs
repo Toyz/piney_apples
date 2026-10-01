@@ -34,6 +34,8 @@ const SPARK_ALPHA: F = 0x3e4c_cccd;
 /// bounds (`ccTransPosW2P` / `P2W`), and for type 1 the camera and the
 /// ground.
 pub struct Fly<'a> {
+    /// The disc's volume: its code's square roots.
+    pub volume: piney_data::volume::Volume,
     pub player: V4,
     pub bounds: [F; 4],
     /// `cameraGetPos(camID)`, and the camera's turn (`cameraGetRot2(1)`
@@ -47,8 +49,8 @@ pub struct Fly<'a> {
 impl Fly<'_> {
     /// The arena's: its bounds, and no camera or ground (type 0 reads
     /// neither).
-    fn arena(player: V4) -> Fly<'static> {
-        Fly { player, bounds: crate::evarea::BOUNDS, eye: [0; 4], rot: [0; 4], height: &|_, _| 0 }
+    fn arena(volume: piney_data::volume::Volume, player: V4) -> Fly<'static> {
+        Fly { volume, player, bounds: crate::evarea::BOUNDS, eye: [0; 4], rot: [0; 4], height: &|_, _| 0 }
     }
 }
 
@@ -130,11 +132,11 @@ impl Firefly {
 
     /// `new FIREFLY2`, `Init(stream, name)` and `SetBasePosition(at)`, as
     /// the arena makes each.
-    pub fn arena(rng: &mut Rng, at: V4) -> Firefly {
+    pub fn arena(volume: piney_data::volume::Volume, rng: &mut Rng, at: V4) -> Firefly {
         let mut f = Firefly::new(rng);
         f.life = rng.below(200) as i32 + 220;
         f.scale = SCALE;
-        f.set_base(rng, at, &Fly::arena(at));
+        f.set_base(rng, at, &Fly::arena(volume, at));
         f
     }
 
@@ -209,8 +211,8 @@ impl Firefly {
     }
 
     /// `FIREFLY2::Draw` in the arena, into `out`.
-    pub fn draw(&mut self, player: V4, out: &mut Vec<FireflyDraw>) {
-        self.draw_in(&Fly::arena(player), out);
+    pub fn draw(&mut self, volume: piney_data::volume::Volume, player: V4, out: &mut Vec<FireflyDraw>) {
+        self.draw_in(&Fly::arena(volume, player), out);
     }
 
     /// `FIREFLY2::Draw` (0x005b5eb0), into `out` (the firefly, then its
@@ -220,7 +222,7 @@ impl Firefly {
             self.transparency = ee::mul(TENTH, ee::from_int(self.life));
         }
         let rel = w2p(self.pos, fly.player, fly.bounds);
-        if !ee::le(ground_dist(rel), REACH) {
+        if !ee::le(ground_dist(fly.volume, rel), REACH) {
             return;
         }
         out.push(FireflyDraw {
@@ -247,8 +249,8 @@ impl Firefly {
     }
 
     /// `FIREFLY2::Move` in the arena (type 0).
-    pub fn step(&mut self, player: V4, rng: &mut Rng) {
-        self.step_in(&Fly::arena(player), rng);
+    pub fn step(&mut self, volume: piney_data::volume::Volume, player: V4, rng: &mut Rng) {
+        self.step_in(&Fly::arena(volume, player), rng);
     }
 
     /// `FIREFLY2::Move` (0x005b5050).
@@ -257,10 +259,10 @@ impl Firefly {
         // Where SetBasePosition2 takes a type 1 back to at life's end.
         let mut back = fly.eye;
         if self.kind == 0 {
-            if !ee::le(ground_dist(rel), REACH) {
+            if !ee::le(ground_dist(fly.volume, rel), REACH) {
                 return;
             }
-        } else if !ee::le(piney_battle::enemy_ai::get_dist(fly.eye, self.pos), ROAM) {
+        } else if !ee::le(piney_battle::enemy_ai::get_dist_on(fly.volume, fly.eye, self.pos), ROAM) {
             self.transparency = 0;
             back = fly.player;
             self.set_base2(rng, back, fly);
@@ -370,6 +372,7 @@ impl Firefly {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use piney_data::volume::Volume;
 
     /// A firefly out of reach neither moves nor draws; one in reach fades
     /// in, moves and in time throws a spark.
@@ -377,20 +380,20 @@ mod tests {
     fn reach_and_sparks() {
         let mut rng = Rng::new(7);
         let far = [ee::from_int(5000), 0, 0, ONE];
-        let mut f = Firefly::arena(&mut rng, far);
+        let mut f = Firefly::arena(Volume::Inf, &mut rng, far);
         let before = f.clone();
         let mut out = Vec::new();
-        f.draw([0, 0, 0, ONE], &mut out);
-        f.step([0, 0, 0, ONE], &mut rng);
+        f.draw(Volume::Inf, [0, 0, 0, ONE], &mut out);
+        f.step(Volume::Inf, [0, 0, 0, ONE], &mut rng);
         assert!(out.is_empty());
         assert_eq!(f, before);
-        let mut f = Firefly::arena(&mut rng, [0, 0, 0, ONE]);
+        let mut f = Firefly::arena(Volume::Inf, &mut rng, [0, 0, 0, ONE]);
         for _ in 0..40 {
-            f.step([0, 0, 0, ONE], &mut rng);
+            f.step(Volume::Inf, [0, 0, 0, ONE], &mut rng);
         }
         assert!(f.count > 0);
         assert!(ee::le(f.transparency, ONE));
-        f.draw([0, 0, 0, ONE], &mut out);
+        f.draw(Volume::Inf, [0, 0, 0, ONE], &mut out);
         assert_eq!(out.len(), 1 + f.count as usize);
     }
 }

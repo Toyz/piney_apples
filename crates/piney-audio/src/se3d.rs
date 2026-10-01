@@ -10,7 +10,7 @@
 use std::cmp::Ordering;
 
 use piney_data::field::ee::{add, cmp, div, from_int, lt, mul, sub, to_int};
-use piney_data::libm::{atan2f, sinf, sqrtf};
+use piney_data::libm::{atan2f, sinf, sqrtf_on};
 use piney_data::sound::SeTbl;
 use piney_data::volume::Volume;
 
@@ -79,16 +79,17 @@ pub fn deg2rad(s: i16) -> F {
 }
 
 /// `calcVel(pos, se)` (0x0017a370): 127 with no camera; else, `d` the
-/// distance from the camera's eye (`sqrtf` of the three squares),
+/// distance from the camera's eye (the volume's `sqrtf` of the three
+/// squares: `sqrt.s` from Outbreak on, OUT main 0x0017c7c0),
 /// `(int)(velocity * (max(decay * 5500 / 256 - d, 0) / 10) / 100)`, -1
 /// when that is 0 or less, at most 127.
-pub fn calc_vel(se: &SeTbl, cam: Option<&Listener>, pos: &V4) -> i32 {
+pub fn calc_vel(volume: Volume, se: &SeTbl, cam: Option<&Listener>, pos: &V4) -> i32 {
     let Some(c) = cam else { return 127 };
     let x = sub(pos[0], c.pos[0]);
     let y = sub(pos[1], c.pos[1]);
     let z = sub(pos[2], c.pos[2]);
     // mul.s, mul.s, adda.s, madd.s: the product rounded before the add.
-    let dist = sqrtf(add(add(mul(x, x), mul(y, y)), mul(z, z)));
+    let dist = sqrtf_on(volume, add(add(mul(x, x), mul(y, y)), mul(z, z)));
     let reach = div(mul(F_5500, from_int(i32::from(se.decay))), F_256);
     let mut per = sub(reach, dist);
     if lt(per, 0) {
@@ -142,11 +143,11 @@ fn messages(se: &SeTbl, pan: i32, cdeg: u16, note: u8, id: u8, vel: i32) -> Vec<
 /// pan [`calc_pan`], the note on with id 0. Nothing when the point is out
 /// of reach (velocity -1), or for a note below 0. The velocity is also
 /// `ccSound.testVelocity` (+0x148) in `ccSeOn3D`, which nothing reads.
-pub fn se_on_3d(se: &SeTbl, cam: Option<&Listener>, pos: &V4, note: Option<i8>) -> Vec<u8> {
+pub fn se_on_3d(volume: Volume, se: &SeTbl, cam: Option<&Listener>, pos: &V4, note: Option<i8>) -> Vec<u8> {
     if note.is_some_and(|k| k < 0) {
         return Vec::new();
     }
-    let vel = calc_vel(se, cam, pos).min(i32::from(se.velocity));
+    let vel = calc_vel(volume, se, cam, pos).min(i32::from(se.velocity));
     if vel < 0 {
         return Vec::new();
     }
@@ -159,8 +160,14 @@ pub fn se_on_3d(se: &SeTbl, cam: Option<&Listener>, pos: &V4, note: Option<i8>) 
 /// or with the eight slots of `ccSound.loopID` (+0x65) all taken, nothing
 /// and -1; else the first free slot (-1) takes its own index, which is the
 /// note on's id and what is returned.
-pub fn se_on_3d_loop(loop_id: &mut [i8; 8], se: &SeTbl, cam: Option<&Listener>, pos: &V4) -> (i32, Vec<u8>) {
-    let vel = calc_vel(se, cam, pos);
+pub fn se_on_3d_loop(
+    volume: Volume,
+    loop_id: &mut [i8; 8],
+    se: &SeTbl,
+    cam: Option<&Listener>,
+    pos: &V4,
+) -> (i32, Vec<u8>) {
+    let vel = calc_vel(volume, se, cam, pos);
     if vel == -1 {
         return (-1, Vec::new());
     }
@@ -208,11 +215,11 @@ pub fn tobj_se_loop_start(loop_id: &mut [i8; 8], se: &SeTbl) -> Option<(i32, Vec
 /// `(int)(vol * rate)`. Sent: `FD 01 ch note id pan 00`; behind the
 /// camera `FD 02 ch note id 120 63` (its bend 8 below the centre); `FD 00
 /// ch note id vol 00`. The caller checks `ccSnd +0x133`.
-pub fn tobj_se_loop(se: &SeTbl, cam: &Listener, pos: &V4, rate: F, id: i32) -> Vec<u8> {
+pub fn tobj_se_loop(volume: Volume, se: &SeTbl, cam: &Listener, pos: &V4, rate: F, id: i32) -> Vec<u8> {
     let x = sub(pos[0], cam.pos[0]);
     let y = sub(pos[1], cam.pos[1]);
     let z = sub(pos[2], cam.pos[2]);
-    let dist = sqrtf(add(add(mul(x, x), mul(y, y)), mul(z, z)));
+    let dist = sqrtf_on(volume, add(add(mul(x, x), mul(y, y)), mul(z, z)));
     let reach = div(mul(F_15000, from_int(i32::from(se.decay))), F_256);
     let mut per = sub(reach, dist);
     if lt(per, 0) {
@@ -357,9 +364,12 @@ mod tests {
     #[test]
     fn no_camera_is_full_and_centred() {
         let s = se(96, 256);
-        assert_eq!(calc_vel(&s, None, &[0; 4]), 127);
+        assert_eq!(calc_vel(Volume::Inf, &s, None, &[0; 4]), 127);
         assert_eq!(calc_pan(None, &[0; 4]), (63, 0));
-        assert_eq!(se_on_3d(&s, None, &[0; 4], None), [0xc2, 5, 0xf9, 1, 2, 63, 0, 0xfd, 0x10, 2, 60, 0, 96, 0]);
+        assert_eq!(
+            se_on_3d(Volume::Inf, &s, None, &[0; 4], None),
+            [0xc2, 5, 0xf9, 1, 2, 63, 0, 0xfd, 0x10, 2, 60, 0, 96, 0]
+        );
     }
 
     #[test]
@@ -367,11 +377,11 @@ mod tests {
         let s = se(127, 256);
         let cam = Listener { pos: [0, 0, 0, k(1.0)], view: [k(100.0), 0, 0, k(1.0)], kind: 0 };
         // At the eye: 127 * 5500 / 1000, capped.
-        assert_eq!(calc_vel(&s, Some(&cam), &[0; 4]), 127);
+        assert_eq!(calc_vel(Volume::Inf, &s, Some(&cam), &[0; 4]), 127);
         // 5000 of 5500 away: 127 * 50 / 100 = 63.5.
-        assert_eq!(calc_vel(&s, Some(&cam), &[k(3000.0), k(4000.0), 0, 0]), 63);
-        assert_eq!(calc_vel(&s, Some(&cam), &[k(6000.0), 0, 0, 0]), -1);
-        assert!(se_on_3d(&s, Some(&cam), &[k(6000.0), 0, 0, 0], None).is_empty());
+        assert_eq!(calc_vel(Volume::Inf, &s, Some(&cam), &[k(3000.0), k(4000.0), 0, 0]), 63);
+        assert_eq!(calc_vel(Volume::Inf, &s, Some(&cam), &[k(6000.0), 0, 0, 0]), -1);
+        assert!(se_on_3d(Volume::Inf, &s, Some(&cam), &[k(6000.0), 0, 0, 0], None).is_empty());
     }
 
     #[test]
@@ -386,7 +396,7 @@ mod tests {
         assert!(right.0 >= 125, "{right:?}");
         let back = calc_pan(Some(&cam), &[k(-50.0), k(-1.0), 0, 0]);
         assert!(behind(back.1), "{back:?}");
-        let m = se_on_3d(&se(96, 256), Some(&cam), &[k(-50.0), k(-1.0), 0, 0], None);
+        let m = se_on_3d(Volume::Inf, &se(96, 256), Some(&cam), &[k(-50.0), k(-1.0), 0, 0], None);
         assert_eq!(&m[7..12], &[0xf9, 2, 2, 120, 63]);
     }
 
@@ -394,15 +404,15 @@ mod tests {
     fn loops_take_and_free_slots() {
         let s = se(96, 256);
         let mut ids = [-1i8; 8];
-        let (a, m) = se_on_3d_loop(&mut ids, &s, None, &[0; 4]);
+        let (a, m) = se_on_3d_loop(Volume::Inf, &mut ids, &s, None, &[0; 4]);
         assert_eq!((a, m[m.len() - 2]), (0, 127));
-        assert_eq!(se_on_3d_loop(&mut ids, &s, None, &[0; 4]).0, 1);
+        assert_eq!(se_on_3d_loop(Volume::Inf, &mut ids, &s, None, &[0; 4]).0, 1);
         assert_eq!(se_off_loop(&mut ids, &s, 0), [0xfd, 0x10, 2, 60, 0, 0, 0]);
-        assert_eq!(se_on_3d_loop(&mut ids, &s, None, &[0; 4]).0, 0);
+        assert_eq!(se_on_3d_loop(Volume::Inf, &mut ids, &s, None, &[0; 4]).0, 0);
         for _ in 0..6 {
-            se_on_3d_loop(&mut ids, &s, None, &[0; 4]);
+            se_on_3d_loop(Volume::Inf, &mut ids, &s, None, &[0; 4]);
         }
-        assert_eq!(se_on_3d_loop(&mut ids, &s, None, &[0; 4]), (-1, Vec::new()));
+        assert_eq!(se_on_3d_loop(Volume::Inf, &mut ids, &s, None, &[0; 4]), (-1, Vec::new()));
     }
 
     #[test]
@@ -415,10 +425,10 @@ mod tests {
         let cam = Listener { pos: [0, 0, 0, 0], view: [k(100.0), 0, 0, 0], kind: 0 };
         // 3,000 of a reach of 7,500 away, ahead: 64 * 450 / 100 = 288,
         // clamped to 127, then 80% of it.
-        let m = tobj_se_loop(&s, &cam, &[k(3000.0), 0, 0, 0], k(0.8), id);
+        let m = tobj_se_loop(Volume::Inf, &s, &cam, &[k(3000.0), 0, 0, 0], k(0.8), id);
         assert_eq!(m, [0xfd, 1, 15, 60, 1, 63, 0, 0xfd, 0, 15, 60, 1, 101, 0]);
         // Beyond the reach: silent, never -1.
-        let m = tobj_se_loop(&s, &cam, &[k(8000.0), 0, 0, 0], k(1.0), id);
+        let m = tobj_se_loop(Volume::Inf, &s, &cam, &[k(8000.0), 0, 0, 0], k(1.0), id);
         assert_eq!(m[m.len() - 2], 0);
     }
 

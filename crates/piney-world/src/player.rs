@@ -166,13 +166,23 @@ pub fn control_move(body: &mut Body, input: &MoveInput, cam_reset: &mut bool) ->
 /// (`INF SLUS_202.67:0x001da8b0`) for a camera at `cam` and its pitch
 /// `deg1`: 1 in the open; toward 0 as the camera closes in within about
 /// 1.25 times his size (at least 180), and beyond `fade.0` over `fade.1`.
-pub fn camera_transparency(pos: V4, cam: V4, deg1: i16, width: F, height: F, fade: (F, F), hide: &mut bool) -> F {
+#[allow(clippy::too_many_arguments)]
+pub fn camera_transparency(
+    volume: piney_data::volume::Volume,
+    pos: V4,
+    cam: V4,
+    deg1: i16,
+    width: F,
+    height: F,
+    fade: (F, F),
+    hide: &mut bool,
+) -> F {
     let (far, len) = fade;
     // ccTransPosW2P of both: relative to the player, so pos - pos is zero.
     let p = [0, 0, pos[2], ONE];
     let c = [ee::sub(cam[0], pos[0]), ee::sub(cam[1], pos[1]), cam[2], ONE];
     let d = ee::vsub(c, p);
-    let dist = ee::sqrtf(ee::dot(d, d));
+    let dist = ee::sqrtf_on(volume, ee::dot(d, d));
     let t = div(ee::from_int(8192 - i32::from(deg1)), 0x4600_0000);
     let u = ee::sub(ONE, t);
     let mut r = add(mul(width, t), mul(height, u));
@@ -573,7 +583,8 @@ impl Player {
             let a = f.camera.active();
             let mut hide = !self.trans_dist || a.kind == kind::EYE;
             let far = if f.hits.area == 0 { FADE_TOWN } else { FADE_AREA };
-            let fade = camera_transparency(b.pos, a.pos, a.deg[1], self.width, self.height, far, &mut hide);
+            let fade =
+                camera_transparency(self.volume, b.pos, a.pos, a.deg[1], self.width, self.height, far, &mut hide);
             self.transparency = mul(self.set_transparency, fade);
             self.shadow_t = if hide { self.set_transparency } else { self.transparency };
             self.drawn = !(ee::lt(self.transparency, MIN_DRAWN) && !hide);

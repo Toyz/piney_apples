@@ -87,6 +87,9 @@ impl Weather {
 
 /// What the frame's drawing reads of the world around it.
 pub struct Env<'a> {
+    /// The disc's volume: its code's square root (`sqrt.s` from Outbreak
+    /// on, [`ee::sqrtf_on`]).
+    pub volume: piney_data::volume::Volume,
     /// The player's place (`plw` +0x40), which `ccTransPosW2P` / `P2W`
     /// wrap about.
     pub player: V4,
@@ -782,7 +785,7 @@ fn uint_float(u: u32) -> F {
 /// turned by three `ccRand()` angles about x, then y, then z.
 pub fn fire_smoke(fire: &mut V4, env: &Env, cc: &mut dyn FnMut() -> u32, out: &mut Vec<Op>) {
     *fire = env.p2w(env.w2p(*fire));
-    let d = piney_battle::enemy_ai::get_dist(env.eye, *fire);
+    let d = piney_battle::enemy_ai::get_dist_on(env.volume, env.eye, *fire);
     if !ee::lt(d, 0x45cb_2000) || env.odd {
         return;
     }
@@ -1291,6 +1294,7 @@ impl Ambient {
         }
         if ty == 9 {
             let fly = crate::firefly::Fly {
+                volume: env.volume,
                 player: env.player,
                 bounds: env.bounds,
                 eye: env.eye,
@@ -1373,6 +1377,7 @@ impl Ambient {
             if ty == 9 {
                 if !matches!(weather, 2 | 3) {
                     let fly = crate::firefly::Fly {
+                        volume: env.volume,
                         player: env.player,
                         bounds: env.bounds,
                         eye: env.eye,

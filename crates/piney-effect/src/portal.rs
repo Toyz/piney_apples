@@ -7,6 +7,7 @@
 //! `ccEffect`: the runtime runs `EntryObj::routine` and then
 //! [`MagicCircle::main`] each frame. The acts are in docs/engine/effects.md.
 
+use piney_data::volume::Volume;
 use piney_desktop::layers::Layers;
 use piney_world::draw::{self as wdraw, Draw};
 
@@ -114,12 +115,12 @@ fn rand_angle(host: &mut dyn Host) -> F {
 /// thing with no size: 0 at 0.8 of 180 from the active camera's eye
 /// rising to 1 at 1.25 of it, 1 out to `far`, then down to 0 over `fade`
 /// (distances through `W2PPos`).
-pub fn camera_transparency(pos: V4, eye: V4, player: V4, bounds: [F; 4], far: F, fade: F) -> F {
+pub fn camera_transparency(volume: Volume, pos: V4, eye: V4, player: V4, bounds: [F; 4], far: F, fade: F) -> F {
     let p = space::w2p(pos, player, bounds);
     let c = space::w2p(eye, player, bounds);
     let mut d = ee::vsub(c, p);
     d[3] = ONE;
-    let dist = ee::sqrtf(ee::dot(d, d));
+    let dist = ee::sqrtf_on(volume, ee::dot(d, d));
     // r = width t + height (1 - t) is 0 here, so 180 (and t, from the
     // camera's pitch, drops out).
     let r: F = 0x4334_0000;
@@ -373,7 +374,7 @@ impl MagicCircle {
             return out;
         }
         let mut t = ee::mul(
-            camera_transparency(self.pos, cam.cam_pos, player, bounds, DRAW_DIST, FADE_LEN),
+            camera_transparency(assets.volume, self.pos, cam.cam_pos, player, bounds, DRAW_DIST, FADE_LEN),
             input.set_transparency,
         );
         self.transparency = t;

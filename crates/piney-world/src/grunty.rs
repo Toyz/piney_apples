@@ -891,7 +891,7 @@ impl Grunty {
                 self.forward_a();
                 self.note_process(0);
                 // ccChar::Draw.
-                if self.ch.fade(&ctx.view) && self.has_a {
+                if self.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
                     self.drawn.push((0, self.ch.transparency, true));
                 }
             }
@@ -941,7 +941,7 @@ impl Grunty {
     /// one after, 1 or 2 moves on that many.
     fn walk(&mut self, ctx: &mut GruntyCtx) {
         let pos = self.ch.pos;
-        let dist = get_dist3d(pos, self.next_pos);
+        let dist = get_dist3d(ctx.hits.volume, pos, self.next_pos);
         let mut dir = get_dirc(pos, self.next_pos);
         if self.turn_to(dir) {
             if !le(dist, ARRIVE) && self.pos_cnt < 121 {
@@ -1507,7 +1507,7 @@ impl Grunty {
         self.step_both();
         match self.evonum {
             0 => {
-                if self.ch.fade(&ctx.view) && self.has_a {
+                if self.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
                     self.drawn.push((0, self.ch.transparency, true));
                 }
             }
@@ -1632,7 +1632,7 @@ impl Grunty {
         self.step_both();
         match self.evonum {
             0 => {
-                if self.ch.fade(&ctx.view) && self.has_a {
+                if self.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
                     self.drawn.push((0, self.ch.transparency, true));
                 }
             }
@@ -1863,7 +1863,7 @@ impl Grunty {
         }
         self.note_process(0);
         self.forward_a();
-        if self.ch.fade(&ctx.view) && self.has_a {
+        if self.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
             self.drawn.push((0, self.ch.transparency, false));
         }
     }
@@ -1889,7 +1889,7 @@ impl Grunty {
         self.events.clear();
         self.notes.clear();
         self.drawn.clear();
-        self.entry.routine(&mut self.ch, ctx.player);
+        self.entry.routine(ctx.hits.volume, &mut self.ch, ctx.player);
         self.main(ctx);
     }
 

@@ -208,7 +208,7 @@ impl EntryObj {
     /// Kite at `player`: the event's turn, `plDist`/`plDirc`, `dispSW`, the
     /// command lists (`ccEntryCmnd` within 10000, `deleteCmnd` beyond), the
     /// fade.
-    pub fn routine(&mut self, ch: &mut Char, player: V4) {
+    pub fn routine(&mut self, volume: piney_data::volume::Volume, ch: &mut Char, player: V4) {
         if self.grot_spd != 0 {
             let r = ee::deg2rad(self.grot_deg);
             let z = set_dirc(ch.dirc[2], r, i32::from(self.grot_spd));
@@ -223,7 +223,7 @@ impl EntryObj {
         p[1] = ee::mul(p[1], 0xbf80_0000);
         p[2] = 0;
         p[3] = ONE;
-        self.pl_dist = ee::sqrtf(ee::dot(p, p));
+        self.pl_dist = ee::sqrtf_on(volume, ee::dot(p, p));
         self.pl_dirc = wrap_pi(ee::add(0x3fc9_0fdb, ee::atan2f(p[1], p[0])));
         self.disp_sw = ee::le(self.pl_dist, DISP_DIST);
         if ee::le(self.pl_dist, FREEZE_DIST) {
@@ -593,9 +593,10 @@ impl Merchant {
     pub fn main(&mut self, player: V4, cam: &Cam, view: &View, hits: &mut Hits) -> MerchantFrame {
         self.ch.pos_p = w2p(self.ch.pos, player);
         let p = self.ch.pos_p;
-        // x x + y y (adda), + z z (madd); fptodp, sqrt, dptofp.
+        // x x + y y (adda), + z z (madd); fptodp, sqrt, dptofp (sqrt.s
+        // from Outbreak on, OUT gcmn 0x0051beec).
         let d2 = ee::add(ee::add(ee::mul(p[0], p[0]), ee::mul(p[1], p[1])), ee::mul(p[2], p[2]));
-        let dist = ee::sqrtf(d2);
+        let dist = ee::dsqrt_on(hits.volume, d2);
         let in_view = check_camera_deg(self.ch.pos, player, cam, VIEW_DEG);
         if SYSOPE.contains(&self.id) {
             if self.sysope_act() {
@@ -621,7 +622,7 @@ impl Merchant {
             self.ch.transparency = self.transrate;
             self.ch.set_transparency = self.transrate;
             f.stepped = true;
-            f.drawn = self.ch.fade(view);
+            f.drawn = self.ch.fade(hits.volume, view);
         } else {
             self.ch.drawn = false;
         }
@@ -663,7 +664,7 @@ impl Npc for Merchant {
     /// character list as it stands (the merchants before it already moved
     /// this frame).
     fn step(&mut self, ctx: &mut NpcCtx) {
-        self.entry.routine(&mut self.ch, ctx.player);
+        self.entry.routine(ctx.hits.volume, &mut self.ch, ctx.player);
         self.main(ctx.player, ctx.cam, &ctx.view, ctx.hits);
     }
 
@@ -818,7 +819,7 @@ mod tests {
 
     fn mac_anu() -> Option<(Vec<Merchant>, Hits)> {
         let archive = crate::town::tests::archive()?;
-        let town = crate::town::Town::open(&archive, 0, false).unwrap();
+        let town = crate::town::Town::open(&archive, piney_data::volume::Volume::Inf, 0, false).unwrap();
         let mut hits = town.base.hits.clone();
         let m = set_merchants(&archive, Volume::Inf, &town.base.file, &mut hits, 0, crate::START_POS).unwrap();
         Some((m, hits))

@@ -38,9 +38,9 @@ fn ids(d: &Driver) -> String {
     d.loop_id.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",")
 }
 
-fn play(s: Option<NoteSe>, c: Option<&Listener>, pos: &V4) -> String {
+fn play(d: &Driver, s: Option<NoteSe>, c: Option<&Listener>, pos: &V4) -> String {
     let Some(s) = s else { return "- - -".into() };
-    let m = INF.se.get(s.code).map(|se| Driver::se_3d(se, c, pos, s.note)).unwrap_or_default();
+    let m = INF.se.get(s.code).map(|se| d.se_3d(se, c, pos, s.note)).unwrap_or_default();
     let note = s.note.map_or("-".into(), |k| k.to_string());
     format!("{} {} {}", s.code, note, bytes(&m))
 }
@@ -56,13 +56,13 @@ fn main() {
         let pos = |i: usize| -> V4 { [hex(w[i]), hex(w[i + 1]), hex(w[i + 2]), 0] };
         let se = |i: usize| &INF.se[int(i) as usize];
         let answer = match w[0] {
-            "vel" => se3d::calc_vel(se(1), cam(w[2]).as_ref(), &pos(3)).to_string(),
+            "vel" => se3d::calc_vel(d.volume, se(1), cam(w[2]).as_ref(), &pos(3)).to_string(),
             "pan" => {
                 let (p, c) = se3d::calc_pan(cam(w[1]).as_ref(), &pos(2));
                 format!("{p} {c}")
             }
-            "on" => bytes(&Driver::se_3d(se(1), cam(w[2]).as_ref(), &pos(3), None)),
-            "note" => bytes(&Driver::se_3d(se(1), cam(w[3]).as_ref(), &pos(4), Some(int(2) as i8))),
+            "on" => bytes(&d.se_3d(se(1), cam(w[2]).as_ref(), &pos(3), None)),
+            "note" => bytes(&d.se_3d(se(1), cam(w[3]).as_ref(), &pos(4), Some(int(2) as i8))),
             "reset" => {
                 d.loop_id = [-1; 8];
                 ids(&d)
@@ -91,19 +91,19 @@ fn main() {
             }
             "spc" => {
                 let s = se3d::spc_note(Volume::Inf, int(1) as u32, int(2) as i16, int(3) as u32);
-                play(s, cam(w[4]).as_ref(), &pos(5))
+                play(&d, s, cam(w[4]).as_ref(), &pos(5))
             }
             "pc" => {
                 let s = se3d::pc_note(int(1) as u32, int(2) as i32, int(3) as u32);
-                play(s, cam(w[4]).as_ref(), &pos(5))
+                play(&d, s, cam(w[4]).as_ref(), &pos(5))
             }
             "enemy" => {
                 let s = se3d::enemy_note(Volume::Inf, int(1) as u32, int(2) as i32);
-                play(s, cam(w[3]).as_ref(), &pos(4))
+                play(&d, s, cam(w[3]).as_ref(), &pos(4))
             }
             "inu" => {
                 let s = se3d::inu_note(Volume::Inf, int(1) as u32, int(2) as u32);
-                play(s, cam(w[3]).as_ref(), &pos(4))
+                play(&d, s, cam(w[3]).as_ref(), &pos(4))
             }
             other => panic!("unknown request {other}"),
         };

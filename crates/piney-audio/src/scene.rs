@@ -7,8 +7,9 @@
 //! EE's arithmetic. See docs/engine/sound.md ("The scenes' own sounds").
 
 use piney_data::field::ee::{add, div, from_int, lt, mul, sub};
-use piney_data::libm::sqrtf;
+use piney_data::libm::sqrtf_on;
 use piney_data::sound::Tables;
+use piney_data::volume::Volume;
 
 use crate::driver::{Command, Driver};
 use crate::se3d::{self, V4};
@@ -50,11 +51,12 @@ const F_M3000: u32 = 0xc53b_8000;
 const F_M6300: u32 = 0xc5c4_e000;
 const F_2_56: u32 = 0x4023_d70a;
 
-/// `ccGetDist(a, b)`: `sqrtf` of the ground part of `b - a`.
-fn get_dist(a: V4, b: V4) -> u32 {
+/// `ccGetDist(a, b)`: the volume's `sqrtf` of the ground part of `b - a`
+/// (`sqrt.s` from Outbreak on, OUT main 0x001e6e70).
+fn get_dist(volume: Volume, a: V4, b: V4) -> u32 {
     let x = sub(b[0], a[0]);
     let y = sub(b[1], a[1]);
-    sqrtf(add(add(mul(x, x), mul(y, y)), mul(0, 0)))
+    sqrtf_on(volume, add(add(mul(x, x), mul(y, y)), mul(0, 0)))
 }
 
 /// A float's value truncated toward zero (`fptosi`).
@@ -87,7 +89,7 @@ fn water_test(d: &mut Driver, tables: &Tables, s: &SceneInput, out: &mut Vec<Com
         return;
     }
     let Some(se) = tables.se.get(WATER_SE) else { return };
-    let dist = get_dist([0, 0, 0x3f80_0000, 0], [0, cam[1], 0, cam[3]]);
+    let dist = get_dist(d.volume, [0, 0, 0x3f80_0000, 0], [0, cam[1], 0, cam[3]]);
     let reach = div(mul(F_3000, from_int(i32::from(se.decay))), F_256);
     let near = lt(dist, F_1700);
     let past = if near { F_0 } else { sub(dist, F_1700) };
@@ -156,7 +158,7 @@ fn bgm_church(d: &mut Driver, s: &SceneInput, out: &mut Vec<Command>) {
     }
     if block != 1 {
         let cam = s.camera.unwrap_or([0, 0, 0, 0]);
-        let dist = get_dist([0, F_3500, 0, 0], [0, cam[1], 0, cam[3]]);
+        let dist = get_dist(d.volume, [0, F_3500, 0, 0], [0, cam[1], 0, cam[3]]);
         let mut f = sub(F_3500, dist);
         if lt(f, F_0) {
             f = F_0;
@@ -180,7 +182,7 @@ fn bgm_breed(d: &mut Driver, s: &SceneInput, out: &mut Vec<Command>) {
         d.breeder = s.breeder;
     }
     let Some(at) = d.breeder else { return };
-    let dist = get_dist(at, s.kite);
+    let dist = get_dist(d.volume, at, s.kite);
     if !d.scene_bgm {
         if !lt(dist, F_1000) {
             return;
@@ -302,7 +304,7 @@ mod tests {
 
     #[test]
     fn ground_distance_ignores_height() {
-        let d = get_dist([f(0.0), f(3500.0), f(99.0), 0], [f(0.0), f(500.0), f(-7.0), 0]);
+        let d = get_dist(Volume::Inf, [f(0.0), f(3500.0), f(99.0), 0], [f(0.0), f(500.0), f(-7.0), 0]);
         assert_eq!(f32::from_bits(d), 3000.0);
     }
 }

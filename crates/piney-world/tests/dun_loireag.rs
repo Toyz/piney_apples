@@ -52,14 +52,14 @@ fn dun_loireag_collision_mesh() {
     let Some((_, archive)) = disc() else { return };
     for stem in ["town02", "town02d"] {
         let c = Ccs::parse(archive.inflate_named(stem).unwrap()).unwrap();
-        let models = HitModel::read(&c).unwrap();
+        let models = HitModel::read(piney_data::volume::Volume::Inf, &c).unwrap();
         assert_eq!(models.len(), 1, "{stem}");
         assert_eq!(c.object_name(models[0].object), Some("HIT_sr2town1hit"));
         let polys = &models[0].polys;
         let floors = polys.iter().filter(|p| p.att & FLOOR != 0).count();
         let walls = polys.iter().filter(|p| p.att & WALL != 0).count();
         assert_eq!((polys.len(), floors, walls), (1356, 354, 1002), "{stem}");
-        let mut hits = Hits::new(models);
+        let mut hits = Hits::new(piney_data::volume::Volume::Inf, models);
         let (start, _) = piney_world::start_position(1);
         // The start stands on the gate plaza's floor, at 0 to the float.
         let z = ee::f(hits.land(start, LAND_MASK));

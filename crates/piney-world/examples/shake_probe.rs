@@ -22,7 +22,7 @@ fn main() {
             Some("absorb") => shake.absorb(),
             Some("set") => {
                 let v = |i: usize| -> [u32; 4] { [n(i) as u32, n(i + 1) as u32, n(i + 2) as u32, 0x3f80_0000] };
-                let (e, t) = shake.apply(v(1), v(4));
+                let (e, t) = shake.apply(piney_data::volume::Volume::Inf, v(1), v(4));
                 let l = |a: [u32; 4]| a.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",");
                 println!("[[{}],[{}]]", l(e), l(t));
                 continue;

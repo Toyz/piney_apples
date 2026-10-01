@@ -131,7 +131,7 @@ fn sub_targets(m: &mut MenuCtrl, u: &Use, x: &Ctx) {
         if (u.skill == 3 || u.skill == 5) && (c.is(0x60) || c.is(0x80)) && c.pp == 0 {
             continue;
         }
-        let d = flat_dist(c.pos_p, centre);
+        let d = flat_dist(x.texts.volume, c.pos_p, centre);
         if piney_desktop::eef::le(d, piney_desktop::eef::add(p.target_range, c.width)) {
             m.sub_target[n] = c.handle;
             n += 1;
