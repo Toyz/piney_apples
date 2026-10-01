@@ -56,7 +56,9 @@ them and build on them. You do not have to patch a binary.
   the story says. It also sets event flags and the bracelet's infection,
   and restarts the game at any story event (`help` lists them all).
 - **A scriptable, repeatable game.** The same input gives the same game.
-  - `--pad-log` records your pad and `--replay` plays it back.
+  - `--pad-log FILE` records your pad from power-on, or type `pad_log` in
+    the console at any time to write the run so far and go on recording;
+    `--replay FILE` plays either back.
   - `--press` scripts button presses and `--console` scripts console commands.
   - `--mode story:N` starts at story event N.
   - `--shot` and `--webp` capture frames and video without a window.
@@ -140,6 +142,16 @@ Any gamepad that [gilrs](https://gitlab.com/gilrs-project/gilrs) knows
 works, with its buttons where a DualShock 2 has them. With more than one
 connected, the one that last sent input is read. Escape asks to quit, and
 F1 or `` ` `` opens the console.
+
+### Reporting a bug
+
+Open the console (F1 or `` ` ``) and type `pad_log`. The game has been
+keeping every frame's pad since power-on, so this writes the whole run so
+far and keeps recording. It prints where the file went: `padlogs/` in the
+build's folder, next to a `.card` folder with your memory card as it was
+at power-on. Play until the bug shows, then type `pad_log stop`. Attach
+the log and the `.card` folder (zipped) to the issue. `piney-game --replay
+FILE` plays the run back exactly, console commands included.
 
 ### Saves and settings
 

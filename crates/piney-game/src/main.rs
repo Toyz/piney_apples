@@ -21,6 +21,7 @@ mod loaddisp;
 mod loose;
 mod mode;
 mod movie;
+mod padlog;
 mod piros;
 mod quit;
 mod session;
@@ -82,11 +83,12 @@ struct App {
     vblanks: f64,
     /// The game's sound, when there is an output device.
     audio: Option<Audio>,
-    /// `--pad-log FILE`: every game frame's pad, as read and as decoded.
-    pad_log: Option<std::io::BufWriter<std::fs::File>>,
-    /// `--replay FILE`: a pad log's pads, one a frame, before the live
-    /// pads take over.
-    replay: std::collections::VecDeque<Raw>,
+    /// Every game frame's pad since power-on, and the card then; written
+    /// out by `--pad-log FILE` or the console's `pad_log`.
+    record: padlog::Record,
+    /// `--replay FILE`: a pad log's pads and console commands, before the
+    /// live pads take over.
+    replay: std::collections::VecDeque<padlog::Step>,
     frame_no: u64,
     /// The debug console (F1), and what its `story N` restarts from.
     console: console::Console,
@@ -117,6 +119,10 @@ impl App {
     /// the rest go to the mode.
     fn console_line(&mut self, line: &str) -> String {
         let w: Vec<&str> = line.split_whitespace().collect();
+        if w.first() == Some(&"pad_log") {
+            return self.pad_log(w.get(1).copied());
+        }
+        self.record.console(line);
         if w.first() == Some(&"story") {
             let Some(n) = w.get(1).and_then(|s| s.parse::<i32>().ok()) else {
                 return format!("story N, N one of {:?}", start::POINTS);
@@ -131,9 +137,43 @@ impl App {
         }
         let answer = self.mode.console(line);
         if w.first() == Some(&"help") {
-            return format!("{answer}\nstory N           the game again at event N's start");
+            return format!(
+                "{answer}\nstory N           the game again at event N's start\npad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it"
+            );
         }
         answer
+    }
+
+    /// The console's `pad_log`: start writing the run kept since power-on
+    /// to FILE (else a dated file in the build's `padlogs`), or `stop`.
+    fn pad_log(&mut self, arg: Option<&str>) -> String {
+        if arg == Some("stop") {
+            return match self.record.stop() {
+                Some(p) => format!("pad log closed: {} (and {}.card)", p.display(), p.display()),
+                None => "no pad log is being written".into(),
+            };
+        }
+        if let Some(p) = self.record.writing() {
+            return format!("already writing {} (pad_log stop ends it)", p.display());
+        }
+        let path = match arg {
+            Some(f) => PathBuf::from(f),
+            None => {
+                let secs =
+                    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+                let dir = piney_data::pack::home().unwrap_or_default().join("padlogs");
+                dir.join(format!("pad-{secs}.log"))
+            }
+        };
+        let header = self.gilrs.as_ref().map(input::gamepads).unwrap_or_default();
+        match self.record.start(&path, &header) {
+            Ok(n) => format!(
+                "writing {} ({n} frames since power-on so far, the card into {}.card); pad_log stop ends it. Send both.",
+                path.display(),
+                path.display()
+            ),
+            Err(e) => e,
+        }
     }
 }
 
@@ -242,7 +282,7 @@ impl App {
             self.vblanks -= rate;
             steps += 1;
             let mut line = String::new();
-            let logging = self.pad_log.is_some();
+            let logging = self.record.writing().is_some();
             let mut live =
                 input::read(&self.keyboard, self.gilrs.as_mut(), &mut self.gamepad, logging.then_some(&mut line));
             // The console holds the game's pad neutral while it is open.
@@ -254,15 +294,23 @@ impl App {
                 self.quit_frame(&live);
                 continue;
             }
-            let raw = match self.replay.pop_front() {
-                Some(r) => {
-                    if self.replay.is_empty() {
-                        eprintln!("replay: done at frame {}; the pad is yours", self.frame_no + 1);
+            let mut replayed = None;
+            while let Some(step) = self.replay.pop_front() {
+                match step {
+                    padlog::Step::Console(l) => {
+                        let answer = self.console_line(&l);
+                        eprintln!("replay console> {l}: {answer}");
                     }
-                    r
+                    padlog::Step::Pad(r) => {
+                        replayed = Some(r);
+                        break;
+                    }
                 }
-                None => live,
-            };
+            }
+            if replayed.is_some() && self.replay.is_empty() {
+                eprintln!("replay: done at frame {}; the pad is yours", self.frame_no + 1);
+            }
+            let raw = replayed.unwrap_or(live);
             self.pad.read(&raw);
             self.frame_no += 1;
             // ccSystem::Ctrl before the frame: the motors' time, then what
@@ -276,25 +324,25 @@ impl App {
                     r.set(m);
                 }
             }
-            if let Some(log) = &mut self.pad_log {
-                use std::io::Write;
+            {
                 let p = &self.pad;
-                let _ = writeln!(
-                    log,
-                    "{} {line} | bytes {} {} {} {} buttons {:04x} | l {:.3} {} r {:.3} {} direct {:04x} | {}",
-                    self.frame_no,
-                    raw.lx,
-                    raw.ly,
-                    raw.rx,
-                    raw.ry,
-                    raw.buttons.bits(),
-                    p.dirc_l,
-                    p.pow_l,
-                    p.dirc_r,
-                    p.pow_r,
-                    p.direct.bits(),
-                    self.mode.title()
-                );
+                self.record.pad(&raw, || {
+                    format!(
+                        "{} {line} | bytes {} {} {} {} buttons {:04x} | l {:.3} {} r {:.3} {} direct {:04x} | {}",
+                        self.frame_no,
+                        raw.lx,
+                        raw.ly,
+                        raw.rx,
+                        raw.ry,
+                        raw.buttons.bits(),
+                        p.dirc_l,
+                        p.pow_l,
+                        p.dirc_r,
+                        p.pow_r,
+                        p.direct.bits(),
+                        self.mode.title()
+                    )
+                });
             }
             let frame = self.mode.step(&self.pad);
             if let Some(on) = self.mode.vibration() {
@@ -608,34 +656,6 @@ const HOOKS: [&str; 2] = ["gateout", "gofield"];
 fn console_fonts(iso: &std::path::Path, archive: &Archive) -> Option<piney_desktop::kanji::Fonts> {
     let volume = Iso::open(iso).ok()?.volume().ok()?;
     piney_desktop::assets::read_fonts(volume, archive).map_err(|e| eprintln!("the console's font: {e}")).ok()
-}
-
-/// A `--pad-log` file's pads back, one a frame: each frame's line has
-/// `bytes LX LY RX RY buttons HEX` (the sticks' bytes and the held buttons,
-/// all a `Raw` from the keyboard or a gamepad carries); other lines (the
-/// gamepads' names) are skipped.
-fn read_pad_log(path: &str) -> Result<std::collections::VecDeque<Raw>, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
-    let mut out = std::collections::VecDeque::new();
-    for line in text.lines() {
-        let Some(at) = line.find("| bytes ") else { continue };
-        let w: Vec<&str> = line[at + 8..].split_whitespace().collect();
-        let bad = || format!("{path}: a pad line I cannot read: {line}");
-        if w.len() < 6 || w[4] != "buttons" {
-            return Err(bad());
-        }
-        let byte = |i: usize| w[i].parse::<u8>().map_err(|_| bad());
-        let bits = u32::from_str_radix(w[5], 16).map_err(|_| bad())?;
-        out.push_back(Raw {
-            buttons: Buttons(bits),
-            lx: byte(0)?,
-            ly: byte(1)?,
-            rx: byte(2)?,
-            ry: byte(3)?,
-            ..Raw::default()
-        });
-    }
-    Ok(out)
 }
 
 /// `dst` made a copy of the directory `src` (a memory card's: one level
@@ -1115,13 +1135,6 @@ fn main() {
         eprintln!("{}: {e}; no memory card", dir.display());
         card = None;
     }
-    // --pad-log keeps the card as the run starts beside the log; --replay
-    // plays from a copy of it, so the replay's saves leave it as it was.
-    if let (Some(path), Some(dir)) = (&pad_log, &card)
-        && let Err(e) = copy_card(dir, std::path::Path::new(&format!("{path}.card")))
-    {
-        eprintln!("{path}.card: {e}");
-    }
     let replay = match &replay {
         Some(path) => {
             let snap = PathBuf::from(format!("{path}.card"));
@@ -1134,9 +1147,9 @@ fn main() {
             } else {
                 eprintln!("{}: no card kept with the log; the current card is used", snap.display());
             }
-            match read_pad_log(path) {
+            match padlog::read(path) {
                 Ok(r) => {
-                    eprintln!("replay: {} frames from {path}", r.len());
+                    eprintln!("replay: {} frames from {path}", r.iter().filter(|s| matches!(s, padlog::Step::Pad(_))).count());
                     r
                 }
                 Err(e) => {
@@ -1147,6 +1160,9 @@ fn main() {
         }
         None => std::collections::VecDeque::new(),
     };
+    // The card as the run begins (the replay's copy when replaying), kept
+    // for a pad log written now or later from the console.
+    let record = padlog::Record::new(card.as_deref());
     let mut assets = Assets::new(archive.clone());
     // A window keeps the options across the parts; a headless run leaves
     // the file alone.
@@ -1209,7 +1225,7 @@ fn main() {
         let mut pad = Pad::default();
         let mut replay = replay;
         if !frames_given && !replay.is_empty() {
-            frames = replay.len() as u32;
+            frames = replay.iter().filter(|s| matches!(s, padlog::Step::Pad(_))).count() as u32;
         }
         // `--every`'s pictures are named after the PNG, or the WebP.
         let named = if out.is_empty() { webp_out.clone().unwrap_or_else(|| "shot".into()) } else { out.clone() };
@@ -1269,8 +1285,17 @@ fn main() {
             }
             let analog = presses.iter().any(|p| p.stick.is_some());
             let mut raw = Raw { analog, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
-            if let Some(r) = replay.pop_front() {
-                raw = r;
+            while let Some(step) = replay.pop_front() {
+                match step {
+                    padlog::Step::Console(l) => {
+                        let answer = mode.console(&l);
+                        println!("replay console> {l}\n{answer}");
+                    }
+                    padlog::Step::Pad(r) => {
+                        raw = r;
+                        break;
+                    }
+                }
             }
             for p in presses.iter().filter(|p| (p.from..=p.to).contains(&f)) {
                 raw.buttons |= p.buttons;
@@ -1389,21 +1414,14 @@ fn main() {
         .build()
         .map_err(|e| eprintln!("no gamepad support: {e}"))
         .ok();
-    let pad_log = pad_log.and_then(|path| match std::fs::File::create(&path) {
-        Ok(f) => {
-            let mut w = std::io::BufWriter::new(f);
-            if let Some(g) = &gilrs {
-                use std::io::Write;
-                let _ = writeln!(w, "{}", input::gamepads(g));
-            }
-            eprintln!("pad log: {path}");
-            Some(w)
+    let mut record = record;
+    if let Some(path) = pad_log {
+        let header = gilrs.as_ref().map(input::gamepads).unwrap_or_default();
+        match record.start(std::path::Path::new(&path), &header) {
+            Ok(_) => eprintln!("pad log: {path}"),
+            Err(e) => eprintln!("{e}"),
         }
-        Err(e) => {
-            eprintln!("{path}: {e}");
-            None
-        }
-    });
+    }
     let audio = if mute { None } else { open_audio(&iso) };
     let mut app = App {
         mode,
@@ -1419,7 +1437,7 @@ fn main() {
         last: Instant::now(),
         vblanks: 0.0,
         audio,
-        pad_log,
+        record,
         replay,
         frame_no: 0,
         console: console::Console::new(console_fonts(&iso, &archive)),
