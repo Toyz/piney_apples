@@ -15,7 +15,7 @@ const BLACKROSE: i32 = 15;
 const MISTRAL: i32 = 16;
 
 /// The town's world once its set-up is well over.
-fn in_town(s: &Session) -> Option<&crate::world::WorldMode> {
+pub(super) fn in_town(s: &Session) -> Option<&crate::world::WorldMode> {
     match &s.stage {
         Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30) => Some(w),
         _ => None,
@@ -72,7 +72,7 @@ fn invite(s: &mut Session, pc: i32) {
 }
 
 /// From the town to story area 14's field, until its fade in.
-fn to_the_field(s: &mut Session, iso: &Path) {
+pub(super) fn to_the_field(s: &mut Session, iso: &Path) {
     let mut d = Iso::open(iso).unwrap();
     s.world_man = Some(crate::area::story_world_man(&mut d, 14, false).unwrap());
     s.go(Pending::Go(piney_data::area::Go::ChangeArea(1, 14)));
@@ -81,7 +81,7 @@ fn to_the_field(s: &mut Session, iso: &Path) {
 
 /// Back to Mac Anu by the console's `town 0` (a Gate Out), until the
 /// town's set-up is over.
-fn back_to_town(s: &mut Session) {
+pub(super) fn back_to_town(s: &mut Session) {
     s.console("town 0");
     hold(s, 128, 128, 900, |s| in_town(s).is_some());
 }

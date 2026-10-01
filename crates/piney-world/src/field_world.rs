@@ -1461,7 +1461,12 @@ impl FieldWorld {
                 // ccEvent::CheckOperate(9)'s test (as the town's): a
                 // target's type is a bit of the character's base type
                 // flags, its code the base id; the event's then, no menu.
-                let id = usize::try_from(a.code).ok().and_then(|i| self.combat.scene.chars.get(i)).map(|ch| ch.id());
+                // A party character's code is its charTbl row, not its
+                // scene index.
+                let id = self
+                    .target_index(Some((a.kind, a.code)))
+                    .and_then(|i| self.combat.scene.chars.get(i))
+                    .map(|ch| ch.id());
                 let event = self.event_targets.iter().any(|&(t, c)| a.flags & (1u32 << (t & 31)) != 0 && Some(c) == id);
                 self.talks.push(if event {
                     talk::TalkRequest::Event { kind: a.kind, code: a.code }
@@ -2085,10 +2090,18 @@ impl FieldWorld {
         l[0].num == 0 && l[1].num == 0
     }
 
-    /// `ccCheckActiveObject()` (gcmn 0x0042df70): no enemy and no circle
-    /// switched on.
+    /// The event's `no_active` (INF `CheckOpen` 0x001a8614-0x001a86d4):
+    /// `ccCheckActiveObject()` (no enemy and no circle switched on), and no
+    /// gimmick on `gimHead`'s list switched on (`objFlag`) whose base type
+    /// has bit 20 (a Gott statue) and that is still on the command list
+    /// (`cmndFlag` clear): the room's statue holds it until opened.
     pub fn no_active_object(&self) -> bool {
-        no_active(&self.combat)
+        let c = &self.combat;
+        let active_gimmick = |i: usize| {
+            c.ctrl.entry_obj(i).is_some_and(|o| o.obj_flag && !o.cmnd_flag)
+                && c.scene.chars.get(i).is_some_and(|ch| ch.ty() & IDOL_TYPE != 0)
+        };
+        no_active(c) && !c.ctrl.list(piney_battle::entry::Kind::Gimmick).into_iter().any(active_gimmick)
     }
 
     /// `open_door` (`ccEvent::Execute` case 158, main 0x001b218c):
@@ -2352,8 +2365,15 @@ impl FieldWorld {
         }
         let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, *cpad, &info);
         x.path_map = std::mem::take(&mut self.path_map);
+        // resignParty and disbandSpc of a member leaving (remote command 5)
+        // on the one registry and party, as in a town.
+        let before = self.spcs.party();
+        x.spcs = Some(&mut self.spcs);
         self.combat.frame(&mut x, self.fx.tasks());
         self.spcs.party_strategy = self.combat.spc.party_strategy;
+        if self.spcs.party() != before {
+            self.combat.set_party(self.spcs.party());
+        }
         // EVENTAREAB8::Move from the boss's CheckDiscMove.
         if let Some(r) = self.combat.boss.as_mut()
             && std::mem::take(&mut r.disc_next)
@@ -3456,8 +3476,13 @@ fn tasks<'a>(
         map2d_info,
         path_map: false,
         effect_sw: i.effect_sw,
+        spcs: None,
     }
 }
+
+/// The base type's bit the event's `no_active` looks for in a gimmick
+/// (`lui 0x10`, INF main 0x001a8680): a Gott statue's (`ItemIdolMenu`).
+const IDOL_TYPE: i32 = 1 << 20;
 
 /// `ccCheckActiveObject()` (gcmn 0x0042df70): no enemy and no magic
 /// circle of the entry control's switched on (`objFlag`).

@@ -1149,7 +1149,10 @@ fn main() {
             }
             match padlog::read(path) {
                 Ok(r) => {
-                    eprintln!("replay: {} frames from {path}", r.iter().filter(|s| matches!(s, padlog::Step::Pad(_))).count());
+                    eprintln!(
+                        "replay: {} frames from {path}",
+                        r.iter().filter(|s| matches!(s, padlog::Step::Pad(_))).count()
+                    );
                     r
                 }
                 Err(e) => {

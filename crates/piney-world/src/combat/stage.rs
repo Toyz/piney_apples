@@ -586,7 +586,8 @@ impl Runtime for Stage<'_> {
                 0
             }
             // Remote command 5 leaving the party: resignParty (a member)
-            // or disbandSpc, where the registry is at hand (a town).
+            // or disbandSpc, where the registry is at hand (a town, a
+            // field or a dungeon; not the fights' harnesses).
             Call::ResignParty { id } | Call::DisbandSpc { id } if self.spcs.is_some() => {
                 let how = if matches!(call, Call::ResignParty { .. }) {
                     crate::ai::PartyLeave::Resign

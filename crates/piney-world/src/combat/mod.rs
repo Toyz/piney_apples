@@ -120,6 +120,10 @@ pub struct Tasks<'a> {
     /// `spcConditionEffectFlag` (0x00378ce4): the condition tints pulse,
     /// off while an event's `menu_ban` holds.
     pub effect_sw: bool,
+    /// The registry and the party (`ccSpcManager`, `ccPartyManager`, the
+    /// game's globals): a member's remote command 5 leaves it here as in a
+    /// town. None where no party is kept (the fights' harnesses).
+    pub spcs: Option<&'a mut crate::party::Spcs>,
 }
 
 /// What the field's effects (`ccThEffect`, `ccThParticle`, which live
@@ -1400,7 +1404,7 @@ impl Combat {
             kite_act: self.scene.chars[kite_i].spc_char.act_num,
             traps: Vec::new(),
             town: None,
-            spcs: None,
+            spcs: x.spcs.as_deref_mut(),
             tricks: chat::condition_skills(&self.data.t, &self.foes, self.scene.chars.len()),
             chats: Vec::new(),
             item_uses: &mut self.member_items,

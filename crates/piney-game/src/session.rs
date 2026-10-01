@@ -6228,6 +6228,9 @@ mod tests {
     /// Back in a town from a field: faces, kit and trade lists.
     mod town_return;
 
+    /// Issue #16: members who leave by an event's `pc_act 5`.
+    mod party_leave;
+
     // Playthroughs: the story's scripts (run by piney-event's VM, as every
     // event is) played from a start point with a scripted pad, checked.
 

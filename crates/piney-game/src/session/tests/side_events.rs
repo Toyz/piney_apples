@@ -521,6 +521,77 @@ fn server_3_black_death_falls_to_blows() {
     assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
 }
 
+/// Event 61 (Natsume) from story 18's start, blocks 0 and 1 run, in
+/// area 35's dungeon: the session once the room of event point `point`
+/// plays (well into its fade in), taken there as `room_point` goes.
+fn natsume_dungeon(point: i32) -> Option<Session> {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    if !iso.exists() {
+        return None;
+    }
+    let archive = Arc::new(Archive::new(Iso::open(&iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let mut start = crate::start::build(&iso, 18).unwrap();
+    start.state.save.update_flags(61, |f| f | 0b11);
+    let mut scene = piney_world::area::Scene::log_in(&mut start.state.save);
+    scene.change_scene(2, 0, 35, 0, 0, 0, &mut start.state.save);
+    let wm = crate::area::story_world_man(&mut Iso::open(&iso).unwrap(), 35, false).ok();
+    let at = Resume::World(Box::new(InWorld { scene, world_man: wm, spcs: None }));
+    let mut s = Session::resume(iso.clone(), archive, None, start.state, start.vm, at).unwrap();
+    let mut pad = Pad::default();
+    let (mut room, mut away) = (false, false);
+    for f in 0..2400u64 {
+        pad.read(&story_player(&s, f));
+        s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &s.stage else { continue };
+        let playing = matches!(a.world().phase(), piney_world::Phase::Play(k) if k > 10);
+        away |= room && !playing;
+        if !playing {
+            continue;
+        }
+        if room {
+            if away {
+                return Some(s);
+            }
+            continue;
+        }
+        let here = (a.world().scene().floor, a.world().scene().block);
+        let Some(p) = a.vm().and_then(|vm| vm.mng.points.iter().find(|p| p.num == point).copied()) else { continue };
+        let (floor, block) = (i32::from(p.floor), i32::from(p.block));
+        if (floor, block) == here {
+            return Some(s);
+        }
+        room = true;
+        // As `room_point` does (`RoomSelect`), the event task idled.
+        let Stage::Area(a) = &mut s.stage else { unreachable!() };
+        if let Some(vm) = a.vm_mut() {
+            vm.disable();
+        }
+        assert!(a.world_mut().room_select(floor, block));
+    }
+    panic!("event point {point}'s room never played: {}", Mode::title(&s));
+}
+
+/// Kite put 3 tenths along x from scene character `who`.
+fn put_by(s: &mut Session, who: usize) {
+    let Stage::Area(a) = &mut s.stage else { panic!("not in an area: {}", Mode::title(s)) };
+    let w = a.world_mut();
+    let at = w.combat().scene.chars[who].pos;
+    let tenth = |v: u32| (f32::from_bits(v) / 10.0).round() as i16;
+    let (x, y, z) = (tenth(at[0]) + 3, tenth(at[1]), tenth(at[2]));
+    assert!(w.pc_command(piney_event::host::PcCommand::Put { pc: 0, x, y, z }));
+}
+
+/// The event's windows opened so far (`message_open 61 N`), new ones added.
+fn windows_61(s: &Session, lines: &mut Vec<String>) {
+    let Stage::Area(a) = &s.stage else { return };
+    for (_, c) in a.calls() {
+        if c.starts_with("message_open 61 ") && !lines.contains(c) {
+            lines.push(c.clone());
+        }
+    }
+}
+
 /// Side event 61, Natsume, in area 35's dungeon: block 2's `entry 2 11 0 5`
 /// registers her (`ccRegisterEventMng`), `Reboot` builds her although she
 /// is not in the party, and `ccEntryEventMng` puts her at event position 0.
@@ -528,55 +599,176 @@ fn server_3_black_death_falls_to_blows() {
 /// plays: the fade and her three lines.
 #[test]
 fn event_61_natsume_in_her_dungeon() {
-    use piney_event::host::PcCommand;
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
-    if !iso.exists() {
-        return;
-    }
-    let archive = Arc::new(Archive::new(Iso::open(&iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap());
-    let n = 61;
-    let mut start = crate::start::build(&iso, 18).unwrap();
-    start.state.save.update_flags(n, |f| f | 0b11);
-    let mut scene = piney_world::area::Scene::log_in(&mut start.state.save);
-    scene.change_scene(2, 0, 35, 0, 0, 0, &mut start.state.save);
-    let wm = crate::area::story_world_man(&mut Iso::open(&iso).unwrap(), 35, false).ok();
-    let at = Resume::World(Box::new(InWorld { scene, world_man: wm, spcs: None }));
-    let mut s = Session::resume(iso.clone(), archive, None, start.state, start.vm, at).unwrap();
+    let Some(mut s) = natsume_dungeon(1) else { return };
+    let natsume = match &s.stage {
+        Stage::Area(a) => a.world().combat().who(11),
+        _ => None,
+    };
+    put_by(&mut s, natsume.expect("Natsume was never built in the room of event point 1"));
     let mut pad = Pad::default();
-    let (mut moved, mut put) = (false, false);
     let mut lines = Vec::new();
-    for f in 0..2400u64 {
-        let raw = story_player(&s, f);
-        pad.read(&raw);
+    for f in 0..1200u64 {
+        pad.read(&story_player(&s, f));
         s.step(&pad);
         s.take_events();
-        let Stage::Area(a) = &mut s.stage else { continue };
-        let playing = matches!(a.world().phase(), piney_world::Phase::Play(k) if k > 10);
-        if !moved && playing {
-            let Some(p) = a.vm().and_then(|vm| vm.mng.points.iter().find(|p| p.num == 1).copied()) else { continue };
-            moved = true;
-            s.go(Pending::Go(piney_data::area::Go::ChangeScene([2, 0, 35, 0, i32::from(p.floor), i32::from(p.block)])));
-            continue;
-        }
-        if moved && !put && playing {
-            let w = a.world_mut();
-            let Some(natsume) = w.combat().who(11) else { continue };
-            let at = w.combat().scene.chars[natsume].pos;
-            let tenth = |v: u32| (f32::from_bits(v) / 10.0).round() as i16;
-            let (x, y, z) = (tenth(at[0]) + 3, tenth(at[1]), tenth(at[2]));
-            assert!(w.pc_command(PcCommand::Put { pc: 0, x, y, z }));
-            put = true;
-        }
-        for (_, c) in a.calls() {
-            if c.starts_with("message_open 61") && !lines.contains(c) {
-                lines.push(c.clone());
-            }
-        }
+        windows_61(&s, &mut lines);
         if lines.len() >= 3 {
             break;
         }
     }
-    assert!(put, "Natsume was never built in the room of event point 1");
     assert!(lines.iter().any(|c| c.starts_with("message_open 61 0")), "{lines:?}");
     assert!(lines.len() >= 3, "{lines:?}");
+}
+
+/// Issue #17: Natsume spoken to after her scene, Kite without the Spiral
+/// Edge (0/60). Block 4 (`has_item 0 0 60 <= 0`, `talked_to 2 11`) answers
+/// with message 3: `ccEvent::CheckOperate(9)` (INF 0x001b32f0) refuses the
+/// talk when the target's `base->type` has a target's type bit and its
+/// `base->id` (+0xc) is its code. A party character is targeted by its
+/// `charTbl` row, not its scene index: the field took the wrong one's id
+/// and opened the PC menu (Talk, Trade, Gift) instead.
+#[test]
+fn event_61_natsume_wants_the_spiral_edge() {
+    let Some(mut s) = natsume_dungeon(1) else { return };
+    let natsume = match &s.stage {
+        Stage::Area(a) => a.world().combat().who(11),
+        _ => None,
+    };
+    put_by(&mut s, natsume.expect("Natsume built"));
+    let mut pad = Pad::default();
+    let mut lines = Vec::new();
+    let (mut menus, mut scene_over) = (Vec::new(), None);
+    for f in 0..2400u64 {
+        let Stage::Area(a) = &s.stage else { panic!("left the dungeon: {}", Mode::title(&s)) };
+        // Her scene (block 3) over and the menus closed: the action button
+        // on her, the command target.
+        let flags = a.world().state().save.flags(61);
+        let idle = a.ui().menu_type() == -1 && flags & (1 << 3) != 0;
+        if idle && scene_over.is_none() {
+            scene_over = Some(f);
+        }
+        let target = a.world().command_target();
+        let raw = if scene_over.is_some_and(|g| f > g + 30) && idle && target == natsume && f.is_multiple_of(8) {
+            Raw { buttons: Buttons::CROSS, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() }
+        } else {
+            story_player(&s, f)
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        windows_61(&s, &mut lines);
+        if let Stage::Area(a) = &s.stage
+            && a.ui().menu_type() >= 0
+            && !menus.contains(&a.ui().menu_type())
+        {
+            menus.push(a.ui().menu_type());
+        }
+        if lines.iter().any(|c| c.starts_with("message_open 61 3 ")) {
+            break;
+        }
+    }
+    assert!(scene_over.is_some(), "her scene never ended: {lines:?}");
+    assert!(lines.iter().any(|c| c.starts_with("message_open 61 3 ")), "{lines:?}, menus {menus:?}");
+    assert!(!menus.contains(&21), "the PC menu opened: {menus:?}");
+}
+
+/// Issue #18: the Gott statue's room (event point 2). Block 11's
+/// `no_active` is `ccCheckActiveObject()` and no gimmick of the room
+/// (`gimHead`'s list) active: `objFlag` set, `base->type` bit 20, and
+/// `cmndFlag` clear (INF CheckOpen 0x001a8614-0x001a86d4). The unopened
+/// statue is one, so block 11 (message 12, `room 0 0`) waits until it is
+/// opened (`deleteCmnd`); the port's world left the gimmicks out. Then at
+/// the entrance block 5 asks for the Spiral Edge; kept, block 8 asks again.
+#[test]
+fn event_61_the_statue_holds_block_11() {
+    let Some(mut s) = natsume_dungeon(2) else { return };
+    let statue = {
+        let Stage::Area(a) = &s.stage else { unreachable!() };
+        let c = a.world().combat();
+        c.ctrl.list(piney_battle::entry::Kind::Gimmick).into_iter().find(|&i| {
+            matches!(c.ctrl.objs.get(i), Some(piney_battle::entry::Obj::Gimmick(o))
+                if matches!(o.class, piney_battle::gimmick::Class::Idol(_)) && o.obj_flag)
+        })
+    };
+    let statue = statue.expect("the Gott statue in event point 2's room");
+    let mut pad = Pad::default();
+    let mut lines = Vec::new();
+    for f in 0..300u64 {
+        pad.read(&story_player(&s, f));
+        s.step(&pad);
+        s.take_events();
+        windows_61(&s, &mut lines);
+    }
+    let Stage::Area(a) = &s.stage else { panic!("left the dungeon: {}", Mode::title(&s)) };
+    assert_eq!(a.world().state().save.flags(61) & (1 << 11), 0, "block 11 ran: {lines:?}, {}", Mode::title(&s));
+    assert!(!a.world().no_active_object(), "the unopened statue is active");
+    // Opened (its act 1, as Kite's opening affect starts it): block 11 runs.
+    put_by(&mut s, statue);
+    let mut opened = false;
+    for f in 0..1200u64 {
+        let Stage::Area(a) = &s.stage else { break };
+        let target = a.world().command_target();
+        let raw = if a.ui().menu_type() == -1 && target == Some(statue) && !opened && f.is_multiple_of(8) {
+            Raw { buttons: Buttons::CROSS, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() }
+        } else {
+            story_player(&s, f)
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        windows_61(&s, &mut lines);
+        if let Stage::Area(a) = &s.stage
+            && let Some(piney_battle::entry::Obj::Gimmick(o)) = a.world().combat().ctrl.objs.get(statue)
+        {
+            opened |= o.cmnd_flag;
+        }
+        if lines.iter().any(|c| c.starts_with("message_open 61 4 ")) {
+            break;
+        }
+    }
+    assert!(opened, "the statue was never opened");
+    // Block 11's line and `room 0 0`; at the entrance, the Spiral Edge in
+    // hand, block 5 (`has_item 0 0 60 >= 1`) has Natsume ask for it.
+    let at = |m: &str| lines.iter().position(|c| c.starts_with(&format!("message_open 61 {m} ")));
+    assert!(at("12").is_some() && at("4") > at("12"), "{lines:?}");
+    // Kept (message 5's second answer): block 6's line. Spoken to again,
+    // block 8 (`talked_to 2 11`, the Spiral Edge in hand) asks once more.
+    let still = |b: Buttons| Raw { buttons: b, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let (mut down, mut kept, mut talked, mut again) = (None::<u64>, false, None::<usize>, false);
+    for f in 0..2400u64 {
+        let Stage::Area(a) = &s.stage else { panic!("left the dungeon: {}", Mode::title(&s)) };
+        let calls = a.calls();
+        let open = calls.iter().rev().find(|(_, c)| c.starts_with("message_")).map(|(_, c)| c.as_str());
+        let asked = open.is_some_and(|c| c.starts_with("message_open 61 5 "));
+        let idle = a.ui().menu_type() == -1 && !open.is_some_and(|c| c.starts_with("message_open"));
+        let natsume = a.world().combat().who(11);
+        // The window takes the pad once it is open: the cursor down a
+        // while after, then the choice.
+        let raw = match (asked, down) {
+            (true, None) => {
+                down = Some(f);
+                still(Buttons::NONE)
+            }
+            (true, Some(d)) if f == d + 30 => still(Buttons::DOWN),
+            (true, Some(d)) if f >= d + 60 && (f - d).is_multiple_of(24) => still(Buttons::CROSS),
+            (true, _) => still(Buttons::NONE),
+            _ if kept && talked.is_none() && idle && a.world().command_target() == natsume && f.is_multiple_of(8) => {
+                talked = Some(calls.len());
+                still(Buttons::CROSS)
+            }
+            _ => story_player(&s, f),
+        };
+        kept |= a.vm().is_some_and(|vm| vm.mng.msg_num == 5 && vm.mng.msg_select == 2);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if let (Some(k), Stage::Area(a)) = (talked, &s.stage) {
+            again = a.calls().iter().skip(k).any(|(_, c)| c.starts_with("message_open 61 4 "));
+        }
+        if again {
+            break;
+        }
+    }
+    assert!(kept, "message 5 never answered with its second choice");
+    assert!(talked.is_some() && again, "Natsume not spoken to again after the Spiral Edge was kept");
 }
