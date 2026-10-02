@@ -4,7 +4,9 @@
 //! `bbs_post7` (7), `--read` marks it read (3); `--press F:BUTTON` and `--hold
 //! F-G:BUTTON` press and hold buttons; `--info` prints the scene's animations
 //! and the board's sizes. `--iso`, `--frames`, `--out`, `--parody` and
-//! `--dump` are the rest.
+//! `--dump` (each frame's counts, and the last frame's models: blend,
+//! depth, alpha test, mmat alphas and the origin's screen z/w) are the rest.
+//! `PINEY_ONLY=a,b` keeps only those models in the picture.
 
 use std::sync::Arc;
 
@@ -144,9 +146,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 d.status()
             );
         }
+        if dump && f + 1 == frames {
+            for c in &frame.cmds {
+                if let Cmd::Model(m) = c {
+                    println!(
+                        "  model {} #{} blend {:?} depth {:?} alpha {:?} mmats {} test {:?} refs {:?}",
+                        m.file,
+                        m.model,
+                        m.state.blend,
+                        m.state.depth,
+                        m.mmats.iter().map(|d| d.alpha).collect::<Vec<_>>(),
+                        m.mmats.len(),
+                        m.state.alpha_test,
+                        m.mmats.iter().map(|d| d.alpha_ref).collect::<Vec<_>>()
+                    );
+                    let q = m.to_screen[3];
+                    println!("    origin z/w {}", q[2] / q[3]);
+                }
+            }
+        }
         last = Some(frame);
     }
-    let frame = last.ok_or("no frames")?;
+    let mut frame = last.ok_or("no frames")?;
+    // PINEY_ONLY=a,b: only those models drawn (a debugging aid).
+    if let Ok(only) = std::env::var("PINEY_ONLY") {
+        let keep: Vec<u32> = only.split(',').filter_map(|n| n.parse().ok()).collect();
+        frame.cmds.retain(|c| match c {
+            Cmd::Model(m) => keep.contains(&m.model),
+            _ => false,
+        });
+    }
     let mut assets = soft::Assets::new(archive);
     let mut canvas = Canvas::new(frame.width as usize, frame.height as usize, frame.clear);
     canvas.draw(&frame, &mut assets);
