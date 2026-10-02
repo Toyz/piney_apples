@@ -183,27 +183,9 @@ impl Model {
         self.swaps.iter().map(|s| (s.from, s.to)).collect()
     }
 
-    /// Each object `play`'s animation drives, with its parent object in
-    /// that animation: `ccAnm::SetAnm` puts an ExtObj copy under its own
-    /// ExtObj parent (what that copy drives; 0, the anm itself), so a node
-    /// can have another parent in each animation than its Obj chunk gives
-    /// it (`ebl1`'s `OBJ_dummy05` is under the tail in the clump and under
-    /// the head in every animation); an object driven directly keeps its
-    /// Obj parent. The first track for a target wins, as for the pose.
+    /// [`Body::parents`] of the model's body.
     pub fn parents(&self, play: &Play) -> HashMap<u32, u32> {
-        let file = &self.body.file;
-        let sc = &file.scene;
-        let mut out = HashMap::new();
-        for tr in &file.anims[play.anim].tracks {
-            let p = if sc.ext.contains_key(&tr.object) {
-                let copy = sc.ext_parent.get(&tr.object).copied().unwrap_or(0);
-                if copy == 0 { 0 } else { sc.ext.get(&copy).copied().unwrap_or(copy) }
-            } else {
-                sc.parent.get(&tr.target).copied().unwrap_or(0)
-            };
-            out.entry(tr.target).or_insert(p);
-        }
-        out
+        self.body.parents(play)
     }
 
     /// The world matrix of every clump node and every object the animation
@@ -248,40 +230,9 @@ impl Model {
         out
     }
 
-    /// Each clump node's transparency from the animation (`ccCoord::
-    /// _GetTransparency`, main 0x00138490): its own `localtp` times its
-    /// parents'.
+    /// [`Body::node_alphas`] of the model's body.
     pub fn node_alphas(&self, play: &Play) -> HashMap<u32, f32> {
-        let file = &self.body.file;
-        let a = &file.anims[play.anim];
-        let mut local = HashMap::new();
-        for (tr, pose) in a.tracks.iter().zip(a.poses_at(play.posed)) {
-            local.entry(tr.target).or_insert(pose.alpha);
-        }
-        for (target, pose) in a.obj_poses_at(play.posed) {
-            local.entry(target).or_insert(pose.alpha);
-        }
-        let parents = self.parents(play);
-        let sc = &file.scene;
-        let mut set: Vec<u32> = local.keys().copied().collect();
-        set.extend(self.body.nodes.iter().copied());
-        self.body
-            .nodes
-            .iter()
-            .map(|&n| {
-                let (mut obj, mut t, mut depth) = (n, 1.0f32, 0);
-                loop {
-                    t *= local.get(&obj).copied().unwrap_or(1.0);
-                    let parent = parents.get(&obj).or_else(|| sc.parent.get(&obj)).copied().unwrap_or(0);
-                    if parent == 0 || parent == obj || depth >= 64 || !set.contains(&parent) {
-                        break;
-                    }
-                    obj = parent;
-                    depth += 1;
-                }
-                (n, t)
-            })
-            .collect()
+        self.body.node_alphas(play)
     }
 
     /// `ccAnm::Draw` (main 0x001524d0) of the clump posed by `play` under

@@ -155,6 +155,64 @@ impl Body {
     }
 
     /// The world matrix of every clump node and every object `play` poses,
+    /// Each object `play`'s animation drives, with its parent object in
+    /// that animation: `ccAnm::SetAnm` puts an ExtObj copy under its own
+    /// ExtObj parent (what that copy drives; 0, the anm itself), so a node
+    /// can have another parent in each animation than its Obj chunk gives
+    /// it (`ebl1`'s `OBJ_dummy05` is under the tail in the clump and under
+    /// the head in every animation); an object driven directly keeps its
+    /// Obj parent. The first track for a target wins, as for the pose.
+    pub fn parents(&self, play: &Play) -> HashMap<u32, u32> {
+        let file = &self.file;
+        let sc = &file.scene;
+        let mut out = HashMap::new();
+        for tr in &file.anims[play.anim].tracks {
+            let p = if sc.ext.contains_key(&tr.object) {
+                let copy = sc.ext_parent.get(&tr.object).copied().unwrap_or(0);
+                if copy == 0 { 0 } else { sc.ext.get(&copy).copied().unwrap_or(copy) }
+            } else {
+                sc.parent.get(&tr.target).copied().unwrap_or(0)
+            };
+            out.entry(tr.target).or_insert(p);
+        }
+        out
+    }
+
+    /// Each clump node's transparency from the animation (`ccCoord::
+    /// _GetTransparency`, main 0x00138490): its own `localtp` times its
+    /// parents'.
+    pub fn node_alphas(&self, play: &Play) -> HashMap<u32, f32> {
+        let file = &self.file;
+        let a = &file.anims[play.anim];
+        let mut local = HashMap::new();
+        for (tr, pose) in a.tracks.iter().zip(a.poses_at(play.posed)) {
+            local.entry(tr.target).or_insert(pose.alpha);
+        }
+        for (target, pose) in a.obj_poses_at(play.posed) {
+            local.entry(target).or_insert(pose.alpha);
+        }
+        let parents = self.parents(play);
+        let sc = &file.scene;
+        let mut set: Vec<u32> = local.keys().copied().collect();
+        set.extend(self.nodes.iter().copied());
+        self.nodes
+            .iter()
+            .map(|&n| {
+                let (mut obj, mut t, mut depth) = (n, 1.0f32, 0);
+                loop {
+                    t *= local.get(&obj).copied().unwrap_or(1.0);
+                    let parent = parents.get(&obj).or_else(|| sc.parent.get(&obj)).copied().unwrap_or(0);
+                    if parent == 0 || parent == obj || depth >= 64 || !set.contains(&parent) {
+                        break;
+                    }
+                    obj = parent;
+                    depth += 1;
+                }
+                (n, t)
+            })
+            .collect()
+    }
+
     /// under `root`.
     pub fn worlds(&self, play: &Play, root: Mat4) -> HashMap<u32, Mat4> {
         play.worlds(&self.file, root, &self.nodes)
@@ -230,6 +288,7 @@ impl Body {
         arms: f32,
     ) {
         let worlds = self.worlds(play, root);
+        let alphas = self.node_alphas(play);
         let node_mats: Vec<Mat4> = self.nodes.iter().map(|o| worlds.get(o).copied().unwrap_or(root)).collect();
         let rows = Default::default();
         let sc = &self.file.scene;
@@ -264,7 +323,7 @@ impl Body {
                 file,
                 model,
                 world,
-                alpha: if k.is_some() { arms } else { alpha },
+                alpha: if k.is_some() { arms } else { alpha * alphas.get(&obj).copied().unwrap_or(1.0) },
                 rows: &rows,
                 lights: lit.then(|| light_matrix(lights, world, shaded)),
                 nodes: if info.mtype & 6 != 0 { &node_mats } else { &[] },

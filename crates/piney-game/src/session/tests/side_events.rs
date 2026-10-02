@@ -772,3 +772,90 @@ fn event_61_the_statue_holds_block_11() {
     assert!(kept, "message 5 never answered with its second choice");
     assert!(talked.is_some() && again, "Natsume not spoken to again after the Spiral Edge was kept");
 }
+
+/// Issue #19: the tutorial dungeon's (event 4, `TEACH-D`) Gott statue,
+/// in point 5's room (block 7), opened by Kite before the event moves on.
+/// Its glow's generators end once `effsw` is 0 (gcmn 0x00459bfc), and the
+/// yellow ring, the model's `OBJ_o_magic_m0_`, is keyed to transparency 0
+/// once the statue has fallen (`ANM_xgs?nut1`), so it is no longer drawn.
+#[test]
+fn the_tutorial_statue_s_glow_ends() {
+    let Some(mut s) = story_session_on("infection", 4, |_| {}) else { return };
+    let mut pad = Pad::default();
+    let mut pilot = StoryPilot::default();
+    let idol_of = |s: &Session| {
+        let Stage::Area(a) = &s.stage else { return None };
+        let c = a.world().combat();
+        c.ctrl.list(piney_battle::entry::Kind::Gimmick).into_iter().find_map(|i| match c.ctrl.objs.get(i) {
+            Some(piney_battle::entry::Obj::Gimmick(o)) => match &o.class {
+                piney_battle::gimmick::Class::Idol(d) => Some((i, o.act_num, d.effsw)),
+                _ => None,
+            },
+            _ => None,
+        })
+    };
+    // The pilot to the statue's room (block 7 run), then Kite by it.
+    let mut n = 0u64;
+    while event_flag(&mut s, 4).is_none_or(|x| x & (1 << 7) == 0) {
+        let raw = pilot.next(&s, n);
+        pilot.after(&mut s);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        n += 1;
+        assert!(n < 30000, "never in the statue's room: {}", Mode::title(&s));
+    }
+    let (statue, _, _) = idol_of(&s).expect("the statue in point 5's room");
+    put_by(&mut s, statue);
+    let (mut off_at, mut glow_after, mut ring) = (None, Vec::new(), None);
+    for f in 0..2000u64 {
+        let raw = match (&s.stage, idol_of(&s)) {
+            // The statue opened with the action button; the item's window
+            // (menu 29) shut with it too.
+            (Stage::Area(a), Some((_, act, _)))
+                if f.is_multiple_of(8)
+                    && ((act == 0 && a.world().command_target() == Some(statue)) || a.ui().menu_type() >= 0) =>
+            {
+                Raw { buttons: Buttons::CROSS, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() }
+            }
+            _ => Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() },
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &s.stage else { break };
+        if matches!(idol_of(&s), Some((_, act, 0)) if act >= 1) && off_at.is_none() {
+            off_at = Some(f);
+        }
+        if let Some(t) = off_at {
+            if f > t + 30 {
+                glow_after.push(a.world().fx().census().effsw_generators);
+            }
+            if f > t + 600 {
+                // The ring (`OBJ_o_magic_m0_`): `ANM_xgs?nut1` keys its
+                // transparency to 0, which `ccAnm::Draw` multiplies in. The
+                // room drawn: its yellow band across the screen's upper half.
+                let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+                let archive =
+                    Arc::new(Archive::new(Iso::open(&iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap());
+                let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap();
+                let frame = s.step(&Pad::default());
+                gs.set_overlay(Mode::archive(&s));
+                gs.render(&frame);
+                let (w, _) = gs.target_size();
+                let px = gs.read_back();
+                let yellow = (130..200)
+                    .flat_map(|y| (0..w).map(move |x| (y * w + x) as usize * 4))
+                    .filter(|&i| px[i] > 170 && px[i + 1] > 170 && px[i + 2] < 120)
+                    .count();
+                ring = Some(yellow);
+                break;
+            }
+        }
+    }
+    let t = off_at.expect("the statue was never opened");
+    assert!(!glow_after.is_empty(), "the room was left at once after frame {t}");
+    assert!(glow_after.iter().all(|&n| n == 0), "the glow lives on after effsw 0 (frame {t}): {glow_after:?}");
+    let yellow = ring.expect("the room after the fall");
+    assert!(yellow < 200, "the ring is still drawn once the statue has fallen: {yellow} yellow pixels");
+}

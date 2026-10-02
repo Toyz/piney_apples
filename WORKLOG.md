@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-318 entries: audio 23, battle 67, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 78, save 10, script 33, test 131, tooling 23, ui 59, video 11, volumes 64, world 85.
+319 entries: audio 23, battle 67, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 79, save 10, script 33, test 131, tooling 23, ui 59, video 11, volumes 64, world 85.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -330,3 +330,4 @@ The [reference](docs/README.md) says what is true now.
 | 316 | [Three player reports: the gate hack's silence, a member revived while lying, the markers of the fallen](worklog/0316-three-player-reports-the-gate-hack-s-silence-a-member.md) | 2026-10-01 | audio, battle, ui |
 | 317 | [Ryu Books begun, a voice row outside its table, condition effects on the flute and on a foe struck with the party gone](worklog/0317-ryu-books-begun-a-voice-row-outside-its-table-condition.md) | 2026-10-01 | ui, audio, battle |
 | 318 | ["A Ryu Book was never opened: its use was a bare request, and the Key Items refuse books outside towns"](worklog/0318-a-ryu-book-was-never-opened-its-use-was-a-bare-request-and.md) | 2026-10-01 | ui |
+| 319 | ["The Gott statue's ring stayed: a character's draw ignored its objects' animated transparency"](worklog/0319-the-gott-statue-s-ring-stayed-a-character-s-draw-ignored.md) | 2026-10-01 | render |
