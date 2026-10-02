@@ -18,6 +18,7 @@ mod gameover;
 mod input;
 mod launcher;
 mod loaddisp;
+mod logging;
 mod loose;
 mod mode;
 mod movie;
@@ -297,7 +298,7 @@ impl App {
         let booted = match boot(&options) {
             Ok(b) => b,
             Err(e) => {
-                eprintln!("{}: {e}", path.display());
+                tracing::error!("{}: {e}", path.display());
                 return;
             }
         };
@@ -398,6 +399,9 @@ impl App {
             let logging = self.record.writing().is_some();
             let mut live =
                 input::read(&self.keyboard, self.gilrs.as_mut(), &mut self.gamepad, logging.then_some(&mut line));
+            for l in logging::take_for_console() {
+                self.console.say(l);
+            }
             // The console holds the game's pad neutral while it is open.
             if self.console.open {
                 live = Raw::default();
@@ -412,7 +416,7 @@ impl App {
                 match step {
                     padlog::Step::Console(l) => {
                         let answer = self.console_line(&l);
-                        eprintln!("replay console> {l}: {answer}");
+                        tracing::info!("replay console> {l}: {answer}");
                     }
                     padlog::Step::Pad(r) => {
                         replayed = Some(r);
@@ -421,7 +425,7 @@ impl App {
                 }
             }
             if replayed.is_some() && self.replay.is_empty() {
-                eprintln!("replay: done at frame {}; the pad is yours", self.frame_no + 1);
+                tracing::info!("replay: done at frame {}; the pad is yours", self.frame_no + 1);
             }
             let raw = replayed.unwrap_or(live);
             self.pad.read(&raw);
@@ -568,7 +572,7 @@ impl ApplicationHandler for App {
         match result {
             Ok(w) => self.win = Some(w),
             Err(e) => {
-                eprintln!("no GPU: {e}");
+                tracing::error!("no GPU: {e}");
                 event_loop.exit();
                 return;
             }
@@ -704,7 +708,7 @@ fn handle(events: Vec<Event>, audio: Option<&Audio>) {
             (Event::SoundFadeOut, Some(a)) => a.sound_fade_out(),
             (Event::BgmStream(n), Some(a)) => {
                 if let Err(e) = a.bgm_stream(*n) {
-                    eprintln!("BGM.BIN track {n}: {e}");
+                    tracing::warn!("BGM.BIN track {n}: {e}");
                 }
             }
             (Event::BgmStreamStop, Some(a)) => a.bgm_stream_stop(),
@@ -782,7 +786,7 @@ fn handle(events: Vec<Event>, audio: Option<&Audio>) {
             (Event::Actuate { .. } | Event::DisplayOffset { .. }, _) => {}
             // The game on another disc: the loop that owns the disc does it.
             (Event::Boot(_), _) => {}
-            _ => eprintln!("mode asks: {e:?}"),
+            _ => tracing::debug!("mode asks: {e:?}"),
         }
     }
 }
@@ -814,7 +818,7 @@ const HOOKS: [&str; 2] = ["gateout", "gofield"];
 /// palette; None (no console text) when they cannot be read.
 fn console_fonts(iso: &std::path::Path, archive: &Archive) -> Option<piney_desktop::kanji::Fonts> {
     let volume = Iso::open(iso).ok()?.volume().ok()?;
-    piney_desktop::assets::read_fonts(volume, archive).map_err(|e| eprintln!("the console's font: {e}")).ok()
+    piney_desktop::assets::read_fonts(volume, archive).map_err(|e| tracing::warn!("the console's font: {e}")).ok()
 }
 
 /// `dst` made a copy of the directory `src` (a memory card's: one level
@@ -919,12 +923,12 @@ fn open_audio(path: &std::path::Path) -> Option<Audio> {
     match Audio::open(path) {
         Ok(a) => {
             if a.is_silent() {
-                eprintln!("no sound: {}", a.silent_reason.as_deref().unwrap_or("no output device"));
+                tracing::warn!("no sound: {}", a.silent_reason.as_deref().unwrap_or("no output device"));
             }
             Some(a)
         }
         Err(e) => {
-            eprintln!("no sound: {e}");
+            tracing::warn!("no sound: {e}");
             None
         }
     }
@@ -1066,6 +1070,7 @@ fn log_header(gilrs: Option<&gilrs::Gilrs>) -> String {
 }
 
 fn main() {
+    logging::init();
     println!("{}", launcher::version());
     // The disc: --iso, or a build's (--game, else the one piney-build left
     // in the port's folder), else the working tree's Infection image.
@@ -1117,7 +1122,7 @@ fn main() {
                     Some("3" | "out" | "outbreak") => Some(piney_data::volume::Volume::Out),
                     Some("4" | "qua" | "quarantine") => Some(piney_data::volume::Volume::Qua),
                     v => {
-                        eprintln!("--volume wants 1-4 or inf, mut, out, qua, not {}", v.unwrap_or("nothing"));
+                        tracing::error!("--volume wants 1-4 or inf, mut, out, qua, not {}", v.unwrap_or("nothing"));
                         std::process::exit(2);
                     }
                 }
@@ -1155,7 +1160,7 @@ fn main() {
                         dvd::set(speed);
                     }
                     _ => {
-                        eprintln!("--dvd wants a speed (DVD 1x multiples, e.g. 3), not {n}");
+                        tracing::error!("--dvd wants a speed (DVD 1x multiples, e.g. 3), not {n}");
                         return;
                     }
                 },
@@ -1168,7 +1173,7 @@ fn main() {
                 Some("en" | "english") => mode::set_voice_override(true),
                 Some("jp" | "ja" | "japanese") => mode::set_voice_override(false),
                 v => {
-                    eprintln!("--voice wants en or jp, not {}", v.unwrap_or("nothing"));
+                    tracing::error!("--voice wants en or jp, not {}", v.unwrap_or("nothing"));
                     std::process::exit(2);
                 }
             },
@@ -1215,7 +1220,7 @@ fn main() {
                 return;
             }
             other => {
-                eprintln!("unknown argument {other}");
+                tracing::error!("unknown argument {other}");
                 std::process::exit(2);
             }
         }
@@ -1228,13 +1233,13 @@ fn main() {
         None => None,
     };
     if volume_arg.is_some() && build.is_none() {
-        eprintln!("--volume picks a disc of a build: give --game DIR, or build one with piney-build");
+        tracing::error!("--volume picks a disc of a build: give --game DIR, or build one with piney-build");
         std::process::exit(2);
     }
     if let Some(dir) = &build {
         let found = piney_data::pack::volumes_in(dir);
         if found.is_empty() {
-            eprintln!("{}: no build there (piney-build makes one)", dir.display());
+            tracing::error!("{}: no build there (piney-build makes one)", dir.display());
             std::process::exit(1);
         }
         let mut discs: launcher::Discs = Default::default();
@@ -1245,7 +1250,7 @@ fn main() {
             Some(v) => match discs[v as usize].clone() {
                 Some(p) => p,
                 None => {
-                    eprintln!("{}: the build has no {}", dir.display(), v.title());
+                    tracing::error!("{}: the build has no {}", dir.display(), v.title());
                     std::process::exit(1);
                 }
             },
@@ -1265,13 +1270,13 @@ fn main() {
     // --import-card: PCSX2's saves onto the card, then done.
     if let Some(src) = import_card {
         let Some(dst) = &card else {
-            eprintln!("--import-card: no memory card (--no-card)");
+            tracing::error!("--import-card: no memory card (--no-card)");
             std::process::exit(2);
         };
         match import_saves(&src, dst, volume_arg) {
             Ok(text) => println!("{text}"),
             Err(e) => {
-                eprintln!("{e}");
+                tracing::error!("{e}");
                 std::process::exit(1);
             }
         }
@@ -1289,13 +1294,13 @@ fn main() {
             Ok(true) => println!("{}: the port's data made from the disc (once)", path.display()),
             Ok(false) => {}
             Err(e) => {
-                eprintln!("{e}");
+                tracing::error!("{e}");
                 std::process::exit(1);
             }
         }
         let ready = Iso::open(path).map(|mut d| piney_data::pack::has_port_data(&mut d)).unwrap_or(false);
         if !ready {
-            eprintln!(
+            tracing::error!(
                 "{}: no port data of version {} (a build made before it): run piney-build again",
                 path.display(),
                 piney_data::pack::DATA_VERSION
@@ -1314,7 +1319,7 @@ fn main() {
     let mut disc = match Iso::open(&iso) {
         Ok(d) => d,
         Err(e) => {
-            eprintln!("{}: {e}", iso.display());
+            tracing::error!("{}: {e}", iso.display());
             std::process::exit(1);
         }
     };
@@ -1322,14 +1327,14 @@ fn main() {
     let volume = match piney_data::volume::of_disc(&mut disc) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("{}: {e}", iso.display());
+            tracing::error!("{}: {e}", iso.display());
             std::process::exit(1);
         }
     };
     let data = match disc.read_path("DATA/DATA.BIN") {
         Ok(d) => d,
         Err(e) => {
-            eprintln!("{}: {e}", iso.display());
+            tracing::error!("{}: {e}", iso.display());
             std::process::exit(1);
         }
     };
@@ -1338,7 +1343,7 @@ fn main() {
     if let Some(dir) = &card
         && let Err(e) = std::fs::create_dir_all(dir)
     {
-        eprintln!("{}: {e}; no memory card", dir.display());
+        tracing::warn!("{}: {e}; no memory card", dir.display());
         card = None;
     }
     let replay = match &replay {
@@ -1348,21 +1353,21 @@ fn main() {
                 let copy = PathBuf::from(format!("{path}.card-replay"));
                 match copy_card(&snap, &copy) {
                     Ok(()) => card = Some(copy),
-                    Err(e) => eprintln!("{}: {e}", copy.display()),
+                    Err(e) => tracing::warn!("{}: {e}", copy.display()),
                 }
             } else {
-                eprintln!("{}: no card kept with the log; the current card is used", snap.display());
+                tracing::warn!("{}: no card kept with the log; the current card is used", snap.display());
             }
             match padlog::read(path) {
                 Ok(r) => {
-                    eprintln!(
+                    tracing::error!(
                         "replay: {} frames from {path}",
                         r.iter().filter(|s| matches!(s, padlog::Step::Pad(_))).count()
                     );
                     r
                 }
                 Err(e) => {
-                    eprintln!("{e}");
+                    tracing::error!("{e}");
                     std::process::exit(2);
                 }
             }
@@ -1405,7 +1410,7 @@ fn main() {
     let mut mode = match made {
         Ok(m) => m,
         Err(e) => {
-            eprintln!("{e}");
+            tracing::error!("{e}");
             std::process::exit(2);
         }
     };
@@ -1420,14 +1425,14 @@ fn main() {
         let presses = match parse_presses(&presses) {
             Ok(p) => p,
             Err(e) => {
-                eprintln!("{e}");
+                tracing::error!("{e}");
                 std::process::exit(2);
             }
         };
         let mut gs = match Gs::headless(assets) {
             Ok(g) => g,
             Err(e) => {
-                eprintln!("no GPU: {e}");
+                tracing::error!("no GPU: {e}");
                 std::process::exit(1);
             }
         };
@@ -1469,7 +1474,7 @@ fn main() {
                 match webp::Recorder::new(w, h, webp_quality) {
                     Ok(r) => *recorder = Some(r),
                     Err(e) => {
-                        eprintln!("{e}");
+                        tracing::error!("{e}");
                         return;
                     }
                 }
@@ -1477,7 +1482,7 @@ fn main() {
             if let Some(r) = recorder.as_mut()
                 && let Err(e) = r.add(&gs.read_back(), *since)
             {
-                eprintln!("{e}");
+                tracing::error!("{e}");
             }
             *since = 0;
         };
@@ -1518,7 +1523,7 @@ fn main() {
                 if let Some(h) = p.hook.filter(|_| f == p.from)
                     && !mode.hook(h)
                 {
-                    eprintln!("frame {f}: the mode has no hook {h}");
+                    tracing::warn!("frame {f}: the mode has no hook {h}");
                 }
             }
             // Escape's prompt from frame `quit_at`: the game's frame then
@@ -1544,7 +1549,7 @@ fn main() {
                     let (w, h) = gs.target_size();
                     let path = format!("{stem}-{:06}.png", f + 1);
                     if let Err(e) = std::fs::write(&path, piney_gs::png::encode(w, h, &gs.read_back())) {
-                        eprintln!("{path}: {e}");
+                        tracing::warn!("{path}: {e}");
                     }
                 }
                 continue;
@@ -1575,7 +1580,7 @@ fn main() {
                 let (w, h) = gs.target_size();
                 let path = format!("{stem}-{:06}.png", f + 1);
                 if let Err(e) = std::fs::write(&path, piney_gs::png::encode(w, h, &gs.read_back())) {
-                    eprintln!("{path}: {e}");
+                    tracing::warn!("{path}: {e}");
                 }
                 println!("{path}: {}", mode.title());
             }
@@ -1592,7 +1597,7 @@ fn main() {
                         mode = b.mode;
                         println!("launcher: {} at frame {}", b.volume.title(), f + 1);
                     }
-                    Err(e) => eprintln!("{}: {e}", path.display()),
+                    Err(e) => tracing::warn!("{}: {e}", path.display()),
                 }
             }
         }
@@ -1600,7 +1605,7 @@ fn main() {
         if !out.is_empty() {
             let (w, h) = gs.target_size();
             if let Err(e) = std::fs::write(&out, piney_gs::png::encode(w, h, &gs.read_back())) {
-                eprintln!("{out}: {e}");
+                tracing::error!("{out}: {e}");
                 std::process::exit(1);
             }
             println!("{} after {ran} frames -> {}", mode.title(), full(&out));
@@ -1610,7 +1615,7 @@ fn main() {
         if let (Some(r), Some(path)) = (recorder, webp_out.as_deref()) {
             match r.finish(path, mode.frame_rate() * webp_every) {
                 Ok(n) => println!("{n} frames -> {}", full(path)),
-                Err(e) => eprintln!("{e}"),
+                Err(e) => tracing::error!("{e}"),
             }
         }
         return;
@@ -1623,14 +1628,14 @@ fn main() {
     let gilrs = gilrs::GilrsBuilder::new()
         .with_default_filters(false)
         .build()
-        .map_err(|e| eprintln!("no gamepad support: {e}"))
+        .map_err(|e| tracing::warn!("no gamepad support: {e}"))
         .ok();
     let mut record = record;
     if let Some(path) = pad_log {
         let header = log_header(gilrs.as_ref());
         match record.start(std::path::Path::new(&path), &header) {
-            Ok(_) => eprintln!("pad log: {path}"),
-            Err(e) => eprintln!("{e}"),
+            Ok(_) => tracing::info!("pad log: {path}"),
+            Err(e) => tracing::error!("{e}"),
         }
     }
     let audio = if mute { None } else { open_audio(&iso) };
@@ -1679,6 +1684,6 @@ fn main() {
         app.console.keep_history(home.join("console_history.txt"));
     }
     if let Err(e) = event_loop.run_app(&mut app) {
-        eprintln!("{e}");
+        tracing::error!("{e}");
     }
 }

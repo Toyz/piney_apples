@@ -390,7 +390,7 @@ impl Host for AreaHost<'_> {
             .and_then(|n| StreamPlayer::event(&iso, data.as_deref(), n, &save, game, &mut self.st.events));
         match started {
             Ok(p) => self.stream.player = Some(p),
-            Err(e) => eprintln!("events: {e}; counted as played"),
+            Err(e) => tracing::warn!("events: {e}; counted as played"),
         }
     }
 

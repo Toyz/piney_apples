@@ -681,7 +681,7 @@ impl FieldWorld {
                         list_num as i32,
                     );
                 }
-                Err(e) => eprintln!("party member {id}: {e}"),
+                Err(e) => tracing::warn!("party member {id}: {e}"),
             }
         }
         // The registered characters outside the party, at the origin (an
@@ -716,7 +716,7 @@ impl FieldWorld {
                         list_num as i32,
                     );
                 }
-                Err(e) => eprintln!("registered character {}: {e}", r.id),
+                Err(e) => tracing::warn!("registered character {}: {e}", r.id),
             }
         }
         // ccNavi::ccNavi in a dungeon: SetDungeonMapInfo (gcmn 0x00514890),
@@ -1154,7 +1154,7 @@ impl FieldWorld {
                     self.scene.change_scene(-2, -2, -2, -2, -2, b, &mut self.save.save);
                     self.requests.push(Request::ChangeScene);
                 }
-                Err(err) => eprintln!("EVENTAREA::ChangeBlock: {err}"),
+                Err(err) => tracing::warn!("EVENTAREA::ChangeBlock: {err}"),
             },
             Place::Dungeon(d) => match d.enter(
                 self.player.body.pos,
@@ -2503,7 +2503,7 @@ impl FieldWorld {
         };
         let hits = self.place.hits();
         for m in self.npcs.build(&self.archive, self.volume, &placed, area, town, hits, player, at) {
-            eprintln!("the event's NPCs: {m}");
+            tracing::warn!("the event's NPCs: {m}");
         }
     }
 
@@ -2615,7 +2615,7 @@ impl FieldWorld {
         let look = match combat::boss::BossLook::load(&self.archive, code, self.combat.data.volume, self.scene.field) {
             Ok(l) => Rc::new(l),
             Err(e) => {
-                eprintln!("the boss's files: {e}");
+                tracing::warn!("the boss's files: {e}");
                 return;
             }
         };

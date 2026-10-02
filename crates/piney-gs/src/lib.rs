@@ -866,7 +866,7 @@ impl Gs {
                 Some(size)
             }
             None => {
-                eprintln!("gs: no texture {texture} / clut {clut} in {file}");
+                tracing::warn!("gs: no texture {texture} / clut {clut} in {file}");
                 self.missing.insert(key.clone());
                 None
             }

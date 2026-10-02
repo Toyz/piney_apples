@@ -202,7 +202,7 @@ impl LauncherMode {
             match Playing::open(&disc, path, false, &mut self.events) {
                 Ok(p) => self.logo = Some(p),
                 // Counted as played.
-                Err(e) => eprintln!("launcher: {e}"),
+                Err(e) => tracing::warn!("launcher: {e}"),
             }
         }
         if self.selector.is_none() && !self.menu {
@@ -223,7 +223,7 @@ impl LauncherMode {
                 self.discs[Volume::Out as usize].clone().and_then(|out| match selector(&out, &mut self.events) {
                     Ok(p) => Some(p),
                     Err(e) => {
-                        eprintln!("launcher: {e}; a list instead");
+                        tracing::warn!("launcher: {e}; a list instead");
                         None
                     }
                 });

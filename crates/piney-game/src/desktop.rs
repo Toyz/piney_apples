@@ -124,7 +124,7 @@ pub(crate) fn announcements(iso: &std::path::Path) -> Option<Arc<Announcements>>
             Some(a)
         }
         Err(e) => {
-            eprintln!("{e}; the gate instructions see no story areas");
+            tracing::warn!("{e}; the gate instructions see no story areas");
             None
         }
     }
@@ -309,7 +309,7 @@ impl Host for Bridge<'_> {
             d.set_menu_forbid(true);
             d.set_slept(true);
             if let Err(e) = d.start_staff_roll() {
-                eprintln!("the staff roll: {e}");
+                tracing::warn!("the staff roll: {e}");
             }
         }
     }
@@ -373,7 +373,7 @@ impl Host for Bridge<'_> {
             .and_then(|mut disc| NameEntry::new(&mut disc, archive, state).map_err(|e| e.to_string()));
         match made {
             Ok(n) => self.st.name_entry = Some(n),
-            Err(e) => eprintln!("name entry: {e}; keeping the default name"),
+            Err(e) => tracing::warn!("name entry: {e}; keeping the default name"),
         }
     }
 
@@ -436,7 +436,7 @@ impl Host for Bridge<'_> {
             .and_then(|n| StreamPlayer::event(&iso, data.as_deref(), n, &save, game, &mut self.st.events));
         match started {
             Ok(p) => self.st.stream = Some(p),
-            Err(e) => self.st.lines.push_back(format!("events: {e}; counted as played")),
+            Err(e) => tracing::warn!("events: {e}; counted as played"),
         }
     }
 
@@ -659,7 +659,7 @@ impl DesktopMode {
         if !vm.enable_settled(*phase) && *frames < SETUP_FRAMES {
             return Ok(frame);
         }
-        eprintln!("events: the pass at phase {phase} took {frames} frames");
+        tracing::debug!("events: the pass at phase {phase} took {frames} frames");
         // After each wait `ccSetupDesktop` returns if a mode change was asked
         // (event 4's `mode 3` at +0x02d8, in the pass at phase 2).
         if self.st.events.iter().any(|e| matches!(e, Event::ChangeMode { .. })) {
@@ -745,7 +745,7 @@ impl DesktopMode {
     /// Print what the scripts showed.
     fn flush(&mut self) {
         for line in self.st.lines.drain(..) {
-            eprintln!("{line}");
+            tracing::debug!("{line}");
         }
     }
 }
@@ -816,7 +816,7 @@ impl Mode for DesktopMode {
                 desktop.step(pad)
             }
             _ => self.setup_frame(pad).unwrap_or_else(|e| {
-                eprintln!("{e}");
+                tracing::warn!("{e}");
                 Frame::new()
             }),
         };
@@ -842,7 +842,7 @@ impl Mode for DesktopMode {
                                 out.push(Event::SqStop(slot));
                                 self.movie = Some((p, slot));
                             }
-                            Err(e) => eprintln!("{e}"),
+                            Err(e) => tracing::warn!("{e}"),
                         }
                     }
                     r => out.extend(event(r)),

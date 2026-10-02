@@ -54,7 +54,7 @@ fn skill_names(data: &Archive) -> Option<SkillNames> {
 /// tables. None, said, when they cannot be read.
 fn stream_effects(disc: &mut Iso, data: &Archive) -> Option<piney_effect::StreamEffects> {
     let made = disc.volume().and_then(|v| piney_effect::StreamEffects::new(data, v));
-    made.map_err(|e| eprintln!("the stream's effects: {e}")).ok()
+    made.map_err(|e| tracing::warn!("the stream's effects: {e}")).ok()
 }
 
 impl StreamPlayer {

@@ -90,7 +90,7 @@ impl AreaMode {
             Some(Start::Out(f)) if !self.check_fade(f) => {
                 self.world.ride_sleep_party();
                 if let Err(e) = self.world.ride_create(self.ride.kind) {
-                    eprintln!("the Grunty: {e}");
+                    tracing::warn!("the Grunty: {e}");
                 }
                 self.ride.task = Some(Task::Riding(0));
                 self.st.fade_def.continue_fade(f, 15, CLEAR);

@@ -293,12 +293,12 @@ impl AreaMode {
         // ccThGameCtrl's set-up reads.
         let volume = world.volume();
         if let Err(e) = piney_world::map::setup_area(world.place_mut(), &archive, volume, &scene) {
-            eprintln!("the area's map: {e}");
+            tracing::warn!("the area's map: {e}");
         }
         // ccThEffect's and ccThParticle's set-up.
         match crate::fx::AreaFx::new(&archive, disc.volume().map_err(|e| e.to_string())?) {
             Ok(fx) => world.set_fx(Box::new(fx)),
-            Err(e) => eprintln!("the field's effects: {e}"),
+            Err(e) => tracing::warn!("the field's effects: {e}"),
         }
         let map_st = piney_world::map::MapState::new(world.state());
         let fonts = disc.volume().ok().and_then(|v| piney_desktop::assets::read_fonts(v, &archive).ok());
@@ -501,7 +501,7 @@ impl AreaMode {
                     self.stream.player = Some(p);
                 }
                 Err(e) => {
-                    eprintln!("{e}; the set-up goes on");
+                    tracing::warn!("{e}; the set-up goes on");
                     self.world.gate_stream_done();
                     return;
                 }
@@ -654,7 +654,7 @@ impl AreaMode {
                 // The game would wait on; the port gives up, and says so
                 // (a block that waits inside the pass holds the screen).
                 if !vm.enable_settled(p) {
-                    eprintln!("the area's set-up pass at phase {p} did not end in {PASS_FRAMES} frames; going on",);
+                    tracing::warn!("the area's set-up pass at phase {p} did not end in {PASS_FRAMES} frames; going on",);
                 }
                 // A pass that asked for another mode (ChangeRequest's
                 // ccDisableThEvent): ccSetupGameCtrl reads game+4 and
@@ -1223,7 +1223,7 @@ impl AreaMode {
                 self.drain_movie = Some(p);
             }
             Err(e) => {
-                eprintln!("the stream: {e}; counted as played");
+                tracing::warn!("the stream: {e}; counted as played");
                 self.movie_done();
             }
         }
@@ -1566,21 +1566,26 @@ impl Mode for AreaMode {
         {
             self.menu_task(pad, &mut ctx);
         }
-        // ccThCamera (40) on; hidden (Data Drain's black, its movie), the
-        // world draws nothing.
-        let dbg = std::env::var_os("DBG_DRAIN").is_some();
+        // Kite's skill and act around the step (`PINEY_LOG=piney_game::area=trace`).
+        let dbg = tracing::enabled!(tracing::Level::TRACE);
         if dbg {
             let c = self.world.combat();
             if let Some(k) = c.kite {
                 let ch = &c.scene.chars[k];
                 if ch.spc_char.act_num == 17 || ch.skill_id != 0 {
-                    eprintln!(
+                    tracing::trace!(
                         "PRE {} skill {} act {} cnt {} anm {}",
-                        self.frames, ch.skill_id, ch.spc_char.act_num, ch.spc_char.cnt, ch.anm_flag
+                        self.frames,
+                        ch.skill_id,
+                        ch.spc_char.act_num,
+                        ch.spc_char.cnt,
+                        ch.anm_flag
                     );
                 }
             }
         }
+        // ccThCamera (40) on; hidden (Data Drain's black, its movie), the
+        // world draws nothing.
         if self.world_hidden {
             self.world.step_into(pad, &mut Ctx::new(View::default()));
         } else {
@@ -1591,7 +1596,7 @@ impl Mode for AreaMode {
             if let Some(k) = c.kite {
                 let ch = &c.scene.chars[k];
                 if ch.spc_char.act_num == 17 || ch.skill_id != 0 {
-                    eprintln!(
+                    tracing::trace!(
                         "POST {} skill {} act {} cnt {} anm {} runs {}",
                         self.frames,
                         ch.skill_id,

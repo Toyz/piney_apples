@@ -1164,7 +1164,7 @@ impl World {
                 if f == 0
                     && let Err(e) = self.place_entries()
                 {
-                    eprintln!("the town's entries: {e}");
+                    tracing::warn!("the town's entries: {e}");
                 }
                 if f >= 1 {
                     self.frame(pad, ctx, f >= 2);

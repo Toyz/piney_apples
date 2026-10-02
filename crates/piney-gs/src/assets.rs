@@ -129,7 +129,7 @@ impl Assets {
         let file = match file {
             Ok(f) => Some(Arc::new(f)),
             Err(e) => {
-                eprintln!("{stem}: {e}");
+                tracing::warn!("{stem}: {e}");
                 None
             }
         };

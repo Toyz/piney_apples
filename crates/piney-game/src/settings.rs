@@ -85,7 +85,7 @@ impl Settings {
             let _ = std::fs::create_dir_all(dir);
         }
         if let Err(e) = std::fs::write(path, text) {
-            eprintln!("{}: {e}", path.display());
+            tracing::warn!("{}: {e}", path.display());
         }
     }
 }

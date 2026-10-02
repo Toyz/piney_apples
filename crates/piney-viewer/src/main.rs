@@ -294,7 +294,7 @@ impl Viewer {
                 self.shown = None;
             }
             Err(e) => {
-                eprintln!("{}: {e}", member.name);
+                tracing::warn!("{}: {e}", member.name);
                 self.loaded = None;
             }
         }
@@ -312,7 +312,7 @@ impl Viewer {
                 self.shown = None;
             }
             Err(e) => {
-                eprintln!("dungeon: {e}");
+                tracing::warn!("dungeon: {e}");
                 self.loaded = None;
             }
         }
@@ -330,7 +330,7 @@ impl Viewer {
                 self.shown = None;
             }
             Err(e) => {
-                eprintln!("field: {e}");
+                tracing::warn!("field: {e}");
                 self.loaded = None;
             }
         }
@@ -344,7 +344,7 @@ impl Viewer {
                 self.field = Some(v);
                 self.load_field();
             }
-            Err(e) => eprintln!("field seed {} type {}: {e}", params.seed, params.field_type),
+            Err(e) => tracing::warn!("field seed {} type {}: {e}", params.seed, params.field_type),
         }
     }
 
@@ -362,7 +362,7 @@ impl Viewer {
                 self.dungeon = Some(v);
                 self.load_dungeon();
             }
-            Err(e) => eprintln!("dungeon seed {seed} type {dtype}: {e}"),
+            Err(e) => tracing::warn!("dungeon seed {seed} type {dtype}: {e}"),
         }
     }
 
@@ -548,7 +548,7 @@ impl ApplicationHandler for Viewer {
         match Gpu::new(instance, window.clone()) {
             Ok(gpu) => self.gpu = Some(gpu),
             Err(e) => {
-                eprintln!("no GPU: {e}");
+                tracing::error!("no GPU: {e}");
                 event_loop.exit();
                 return;
             }
@@ -722,6 +722,12 @@ fn shot_mesh(cname: &str, mesh: &Mesh, opts: &Shot) -> Result<(), String> {
 }
 
 fn main() {
+    // The messages to stderr, filtered by `PINEY_LOG` (an `EnvFilter`); by
+    // default the port's crates at info, the rest at warn.
+    let filter = tracing_subscriber::EnvFilter::try_from_env("PINEY_LOG")
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn,piney=info"));
+    let ansi = std::io::IsTerminal::is_terminal(&std::io::stderr());
+    tracing_subscriber::fmt().with_env_filter(filter).with_writer(std::io::stderr).with_ansi(ansi).init();
     let mut iso = PathBuf::from("work/infection/infection.iso");
     let mut start: Option<String> = None;
     let mut shot_out: Option<String> = None;
@@ -800,7 +806,7 @@ fn main() {
     let data = match Iso::open(&iso).and_then(|mut i| i.read_path("DATA/DATA.BIN")) {
         Ok(d) => d,
         Err(e) => {
-            eprintln!("{}: {e}", iso.display());
+            tracing::error!("{}: {e}", iso.display());
             std::process::exit(1);
         }
     };
@@ -810,7 +816,7 @@ fn main() {
             match DungeonView::generate(&archive, dungeon_params(seed, dtype, dsize, server), floor) {
                 Ok(v) => Some(v),
                 Err(e) => {
-                    eprintln!("dungeon seed {seed} type {dtype}: {e}");
+                    tracing::warn!("dungeon seed {seed} type {dtype}: {e}");
                     std::process::exit(1);
                 }
             }
@@ -821,7 +827,7 @@ fn main() {
         Some(p) => match FieldView::generate(p) {
             Ok(v) => Some(v),
             Err(e) => {
-                eprintln!("field seed {} type {}: {e}", p.seed, p.field_type);
+                tracing::warn!("field seed {} type {}: {e}", p.seed, p.field_type);
                 std::process::exit(1);
             }
         },
@@ -836,7 +842,7 @@ fn main() {
             m
         });
         if let Err(e) = mesh.and_then(|m| shot_mesh("field", &m, &opts)) {
-            eprintln!("field: {e}");
+            tracing::warn!("field: {e}");
             std::process::exit(1);
         }
         return;
@@ -845,19 +851,19 @@ fn main() {
         let opts = Shot { out: out.clone(), anime, only, cam, look, placed_only, size, bright, fog, time };
         let mesh = view.mesh().map_err(|e| e.to_string());
         if let Err(e) = mesh.and_then(|m| shot_mesh(&view.ccs.name, &m, &opts)) {
-            eprintln!("dungeon: {e}");
+            tracing::warn!("dungeon: {e}");
             std::process::exit(1);
         }
         return;
     }
     if let Some(out) = shot_out {
         let Some(name) = start else {
-            eprintln!("--shot needs a NAME");
+            tracing::error!("--shot needs a NAME");
             std::process::exit(2);
         };
         let opts = Shot { out, anime, only, cam, look, placed_only, size, bright, fog, time };
         if let Err(e) = shot(&archive, &name, &opts) {
-            eprintln!("{name}: {e}");
+            tracing::warn!("{name}: {e}");
             std::process::exit(1);
         }
         return;
@@ -875,9 +881,14 @@ fn main() {
         })
         .map(|(i, _)| i)
         .collect();
-    eprintln!("{} of {} files have models ({:.1} s)", files.len(), archive.members().len(), t.elapsed().as_secs_f32());
+    tracing::info!(
+        "{} of {} files have models ({:.1} s)",
+        files.len(),
+        archive.members().len(),
+        t.elapsed().as_secs_f32()
+    );
     if files.is_empty() {
-        eprintln!("nothing to show");
+        tracing::error!("nothing to show");
         std::process::exit(1);
     }
     let want = start.unwrap_or_else(|| "town01".into());
@@ -886,7 +897,7 @@ fn main() {
 
     let event_loop = EventLoop::new().expect("event loop");
     event_loop.set_control_flow(ControlFlow::Poll);
-    let gilrs = Gilrs::new().map_err(|e| eprintln!("no gamepad support: {e}")).ok();
+    let gilrs = Gilrs::new().map_err(|e| tracing::warn!("no gamepad support: {e}")).ok();
     let mut viewer = Viewer {
         archive,
         files,
@@ -919,6 +930,6 @@ fn main() {
         viewer.load(first, None, None);
     }
     if let Err(e) = event_loop.run_app(&mut viewer) {
-        eprintln!("{e}");
+        tracing::error!("{e}");
     }
 }

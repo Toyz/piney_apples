@@ -202,6 +202,10 @@ the game from the discs already in it; your saves are not touched.
   it there, and that the in-game Option menu's volumes are up.
 - **A gamepad does nothing**: plug it in before starting the game, then press
   a button on it (the game reads the pad last used).
+- **Messages**: the game's warnings and errors go to the terminal it was
+  started from, and also to the console (F1). `PINEY_LOG` picks how much
+  is shown: `PINEY_LOG=debug piney-game` for everything, or one part, e.g.
+  `PINEY_LOG=piney_world=debug,warn`. The default is `warn,piney=info`.
 - **Anything else**: see [Reporting a bug](#reporting-a-bug) below.
 
 ### Controls

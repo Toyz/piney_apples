@@ -80,7 +80,7 @@ where
                     }
                 });
             },
-            |e| eprintln!("piney-audio: {e}"),
+            |e| tracing::warn!("{e}"),
             None,
         )
         .map_err(|e| e.to_string())?;

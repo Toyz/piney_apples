@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 piney-data.workspace = true
 cpal = "0.18.2"
+tracing.workspace = true
 
 [dev-dependencies]
 piney-stream.workspace = true

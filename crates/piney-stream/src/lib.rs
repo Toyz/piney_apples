@@ -890,7 +890,7 @@ impl Stream {
                 } else {
                     self.index += 1;
                     if let Err(e) = self.start_scene() {
-                        eprintln!("stream {}: {e}", self.def.num);
+                        tracing::warn!("stream {}: {e}", self.def.num);
                         self.finish();
                     }
                 }
@@ -953,7 +953,7 @@ impl Stream {
             }
             self.index += 1;
             if let Err(e) = self.start_scene() {
-                eprintln!("stream {}: {e}", self.def.num);
+                tracing::warn!("stream {}: {e}", self.def.num);
                 self.finish();
             }
         } else {

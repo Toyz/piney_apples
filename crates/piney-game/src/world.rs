@@ -174,11 +174,11 @@ impl WorldMode {
         let mut world = World::enter(&mut disc, archive.clone(), state).map_err(|e| format!("The World: {e}"))?;
         let t = &world.town().base;
         let map = piney_world::map::town::TownMap::open(&archive, world.volume(), t.no, &t.file.stem)
-            .map_err(|e| eprintln!("the town's map: {e}"))
+            .map_err(|e| tracing::warn!("the town's map: {e}"))
             .ok()
             .map(Box::new);
         let town_fx = Some(crate::town_fx::TownFx::new(&archive, disc.volume().map_err(|e| e.to_string())?))
-            .and_then(|f| f.map_err(|e| eprintln!("the town's effects: {e}")).ok())
+            .and_then(|f| f.map_err(|e| tracing::warn!("the town's effects: {e}")).ok())
             .map(Box::new);
         let map_st = piney_world::map::MapState::new(world.state());
         let setup = if vm.is_some() { Setup::Before } else { Setup::Off };
@@ -354,7 +354,7 @@ impl WorldMode {
                 // The game would wait on; the port gives up, and says so
                 // (a block that waits inside the pass holds the screen).
                 if !vm.enable_settled(p) {
-                    eprintln!("the town's set-up pass at phase {p} did not end in {PASS_FRAMES} frames; going on",);
+                    tracing::warn!("the town's set-up pass at phase {p} did not end in {PASS_FRAMES} frames; going on",);
                 }
                 // A pass that asked for another mode (ChangeRequest's
                 // ccDisableThEvent): ccSetupGameCtrl reads game+4 and
@@ -374,7 +374,7 @@ impl WorldMode {
                     let entries: Vec<[i16; 4]> = vm.mng.entries.iter().copied().filter(|e| e[0] >= 0).collect();
                     for [ty, code, marker, param] in entries {
                         if !self.world.entry(ty, code, marker, param) {
-                            eprintln!("events: entry {ty} {code} at marker {marker} not placed");
+                            tracing::warn!("events: entry {ty} {code} at marker {marker} not placed");
                         }
                     }
                     self.world.set_loading(false);
@@ -613,7 +613,7 @@ impl WorldMode {
                         self.book_stream = true;
                     }
                     Err(e) => {
-                        eprintln!("the book's stream: {e}; counted as played");
+                        tracing::warn!("the book's stream: {e}; counted as played");
                         self.ui.book_stream_done();
                     }
                 }
@@ -792,7 +792,7 @@ impl WorldMode {
             // An item use's step on the town, as the menu task reaches it.
             R::ItemStep(st) => {
                 if !self.world.item_step(&st) {
-                    eprintln!("item step not carried out in town: {st:?}");
+                    tracing::warn!("item step not carried out in town: {st:?}");
                 }
             }
             R::WorldHidden(on) => self.hack_screen = on,

@@ -20,6 +20,8 @@ piney-toppage = { path = "crates/piney-toppage" }
 piney-world = { path = "crates/piney-world" }
 flate2 = "1.1.10"
 glam = "0.33.3"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 # The disc tests inflate and decode hundreds of megabytes; unoptimised
 # dependencies make that painfully slow.

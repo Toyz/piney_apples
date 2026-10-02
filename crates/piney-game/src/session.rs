@@ -149,7 +149,7 @@ pub(crate) fn log_in(iso: &std::path::Path, state: &mut SaveState) {
         .map_err(|e| e.to_string())
         .and_then(|mut disc| piney_fieldui::newgame::setup_new_game(state, &mut disc).map_err(|e| e.to_string()));
     if let Err(e) = done {
-        eprintln!("ccSetupNewGame: {e}");
+        tracing::warn!("ccSetupNewGame: {e}");
     }
 }
 
@@ -373,7 +373,7 @@ impl Session {
     fn restock(&mut self, save: &mut SaveData) {
         match Iso::open(&self.iso).and_then(|mut d| d.volume()) {
             Ok(v) => self.scene.restock().apply(save, v, self.scene.server, &mut self.rand),
-            Err(e) => eprintln!("the restock: {e}"),
+            Err(e) => tracing::warn!("the restock: {e}"),
         }
     }
 
@@ -432,7 +432,7 @@ impl Session {
                         self.dungeon = None;
                         self.scene.go(go, &mut state.save);
                     }
-                    Err(e) => eprintln!("{e}"),
+                    Err(e) => tracing::warn!("{e}"),
                 }
             }
             Some(Pending::Story(c)) => {
@@ -453,11 +453,11 @@ impl Session {
                                         self.world_man = Some(wm);
                                         self.dungeon = None;
                                     }
-                                    Err(e) => eprintln!("{e}"),
+                                    Err(e) => tracing::warn!("{e}"),
                                 }
                             }
                         }
-                        Err(e) => eprintln!("{e}"),
+                        Err(e) => tracing::warn!("{e}"),
                     }
                 }
                 let go = piney_data::area::Go::ChangeScene(c.scene.map(i32::from));
@@ -737,7 +737,7 @@ impl Session {
             && !Self::ported(go)
         {
             if self.refused != Some(go) {
-                eprintln!("{go:?}: not a Root Town the port has");
+                tracing::warn!("{go:?}: not a Root Town the port has");
                 self.refused = Some(go);
             }
             return;
@@ -907,7 +907,7 @@ impl Session {
                         Stage::World(Box::new(w))
                     }
                     Err(e) => {
-                        eprintln!("{e} (area {:?}); back to the desktop", self.area);
+                        tracing::warn!("{e} (area {:?}); back to the desktop", self.area);
                         let d = DesktopMode::enter(
                             self.iso.clone(),
                             self.archive.clone(),
@@ -921,7 +921,7 @@ impl Session {
                 }
             }
             (num, stage) => {
-                eprintln!("mode {num} is not ported");
+                tracing::warn!("mode {num} is not ported");
                 stage
             }
         };
@@ -960,7 +960,7 @@ impl Mode for Session {
             }
             self.loading = None;
             if let Err(e) = self.change(num) {
-                eprintln!("{e}");
+                tracing::warn!("{e}");
             }
         }
         let mut change = None;
@@ -1024,7 +1024,7 @@ impl Mode for Session {
                         {
                             Ok(p) => t.movie = Some(p),
                             // Counted as played.
-                            Err(e) => eprintln!("{e}"),
+                            Err(e) => tracing::warn!("{e}"),
                         },
                         // `PlayOpeningStream`: the intro, stream 0. A
                         // stream that does not start counts as played.
@@ -1034,12 +1034,12 @@ impl Mode for Session {
                             });
                             match started {
                                 Ok(p) => t.stream = Some(p),
-                                Err(e) => eprintln!("{e}"),
+                                Err(e) => tracing::warn!("{e}"),
                             }
                         }
                         // `NewGame` is applied inside the title.
                         Request::MenuDisplay(_) => {}
-                        other => eprintln!("title asks: {other:?}"),
+                        other => tracing::debug!("title asks: {other:?}"),
                     }
                 }
                 frame
@@ -1102,7 +1102,7 @@ impl Mode for Session {
             if matches!(self.stage, Stage::Title(_)) && num == request::DESKTOP {
                 self.loading = Some((num, LOAD_FRAMES));
             } else if let Err(e) = self.change(num) {
-                eprintln!("{e}");
+                tracing::warn!("{e}");
             }
         }
         // `ccSetupGameCtrl`'s fade out over the scene that asked for the
@@ -1133,7 +1133,7 @@ impl Mode for Session {
                 self.leaving = None;
                 self.shown = None;
                 if let Err(e) = self.change_scene() {
-                    eprintln!("{e}");
+                    tracing::warn!("{e}");
                 }
             }
         } else if matches!(self.stage, Stage::World(_) | Stage::Area(_)) {

@@ -411,13 +411,13 @@ thread_local! {
 }
 
 /// A [`Host`] method's default ran: the host has not ported it. The first
-/// time on this thread each name is printed to stderr, so a gap shows in
+/// time on this thread each name is logged as a warning, so a gap shows in
 /// play instead of silently doing nothing; [`take_unported`] hands the
 /// names to tests.
 pub fn unported(name: &'static str) {
     UNPORTED.with(|u| {
         if u.borrow_mut().insert(name) {
-            eprintln!("event host: `{name}` is not ported by this host (the default ran)");
+            tracing::warn!("event host: `{name}` is not ported by this host (the default ran)");
         }
     });
 }

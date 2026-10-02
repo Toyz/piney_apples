@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-356 entries: audio 31, battle 70, build 15, content 3, decomp 28, disc 5, engine 18, format 17, iop 3, render 87, save 13, script 42, test 133, tooling 26, ui 73, video 13, volumes 68, world 92.
+357 entries: audio 31, battle 70, build 16, content 3, decomp 28, disc 5, engine 18, format 17, iop 3, render 87, save 13, script 42, test 133, tooling 27, ui 73, video 13, volumes 68, world 92.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -368,3 +368,4 @@ The [reference](docs/README.md) says what is true now.
 | 354 | ["A HUD scale: each HUD part shrinks toward its own corner"](worklog/0354-a-hud-scale-each-hud-part-shrinks-toward-its-own-corner.md) | 2026-10-02 | ui, render |
 | 355 | ["Event 22's cures and finale: piros_colour's line waits for its window, and a room change disables the event task at once"](worklog/0355-event-22-s-cures-and-finale-piros-colour-s-line-waits-for.md) | 2026-10-02 | script, ui, world |
 | 356 | ["Each arrival in a town draws its own walking PCs: the session counts frames from power-on"](worklog/0356-each-arrival-in-a-town-draws-its-own-walking-pcs-the.md) | 2026-10-02 | world, engine |
+| 357 | ["The port's messages go through tracing: PINEY_LOG filters them, and the console shows warnings and errors"](worklog/0357-the-port-s-messages-go-through-tracing-piney-log-filters.md) | 2026-10-02 | build, tooling |

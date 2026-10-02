@@ -14,3 +14,4 @@ flate2.workspace = true
 wgpu = "30.0.1"
 pollster = "1.0.1"
 bytemuck = { version = "1.25.2", features = ["derive"] }
+tracing.workspace = true

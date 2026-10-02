@@ -14,6 +14,7 @@ piney-desktop.workspace = true
 piney-event = { path = "../piney-event" }
 piney-battle = { path = "../piney-battle" }
 glam.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 piney-gs.workspace = true

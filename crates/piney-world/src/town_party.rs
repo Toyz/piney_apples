@@ -261,7 +261,7 @@ impl TownParty {
                 Rc::new(b)
             }
             Err(e) => {
-                eprintln!("party member {id}: {e}");
+                tracing::warn!("party member {id}: {e}");
                 return None;
             }
         };

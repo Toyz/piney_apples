@@ -9,3 +9,4 @@ publish.workspace = true
 [dependencies]
 piney-data.workspace = true
 encoding_rs = "0.8.35"
+tracing.workspace = true

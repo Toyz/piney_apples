@@ -15,6 +15,7 @@ piney-effect = { path = "../piney-effect" }
 piney-world = { path = "../piney-world" }
 glam.workspace = true
 flate2.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 piney-gs.workspace = true

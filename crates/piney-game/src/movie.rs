@@ -56,7 +56,7 @@ impl Playing {
                 Ok(Some(f)) => self.frame = f,
                 Ok(None) => return Played::Ended,
                 Err(e) => {
-                    eprintln!("movie: {e}");
+                    tracing::warn!("movie: {e}");
                     return Played::Ended;
                 }
             }

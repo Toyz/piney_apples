@@ -15,3 +15,5 @@ winit = "0.30.13"
 pollster = "1.0.1"
 bytemuck = { version = "1.25.2", features = ["derive"] }
 gilrs = "0.11.2"
+tracing.workspace = true
+tracing-subscriber.workspace = true

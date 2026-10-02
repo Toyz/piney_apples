@@ -73,7 +73,7 @@ impl Mode for LooseMode {
         if pad.push.contains(Buttons::START) {
             self.n = (self.n + 1) % self.streams.len();
             if let Err(e) = self.start() {
-                eprintln!("{e}");
+                tracing::warn!("{e}");
             }
         }
         let Some(p) = &mut self.player else { return Frame::new() };
@@ -85,7 +85,7 @@ impl Mode for LooseMode {
             None => {
                 self.looped = true;
                 if let Err(e) = self.start() {
-                    eprintln!("{e}");
+                    tracing::warn!("{e}");
                 }
                 Frame::new()
             }

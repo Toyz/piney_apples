@@ -129,7 +129,7 @@ impl TopPageMode {
 
     fn flush(&mut self) {
         for line in self.st.lines.drain(..) {
-            eprintln!("{line}");
+            tracing::debug!("{line}");
         }
     }
 }
