@@ -520,15 +520,11 @@ player until one of these turns out wrong.
 - [[69]] when the field set-up enables the event task — taken from the desktop's check (docs/engine/event-vm.md Unknown)
 - [[69]] the event camera's unknowns — listed on docs/engine/field-game.md (see Docs)
 - [[74]] when the event task wakes, read from the thread code — docs/engine/field-walk.md Unknown
-- [[87]] prev_room (WORLD_MAN::GoPrevRoom) still the host default — no volume-1 script needs it ([[111]]); later volumes not surveyed
 - [[90]] ccEvent::CheckOperate(9)'s whole talk rule not run in eemu — pieces checked
 - [[91]] player_distance in town not run whole against the game — reuses checked pieces
 - [[91]] the church's messages, cameras and timing only seen to run — not compared
 - [[99]] piros_colour status 9 with an operand past 5 — no script uses it
 - [[107]] whether block 18's in_point 5 gates block 19 in the dungeon's first room — not looked into
-- [[109]] hold 7 — not ported; no script of Infection uses it (docs/engine/boss.md "Not described yet")
-- [[111]] prev_room (WORLD_MAN::GoPrevRoom) still the default — no volume-1 script needs it
-- [[117]] hold 7 — no Infection script uses it
 - [[134]] whether the game's ccGetDist in CheckOpen takes the wrapped frame for both points — assumed
 - [[143]] event 27's talk (walking PC row 85) not played through by a test — test gap
 - [[177]] event 62 not played through end to end (mail, words, portal, scene back) — test gap
@@ -1097,6 +1093,7 @@ player until one of these turns out wrong.
 - [[76]] Init's fields not repaired in old saves (townMoveFlag, partyMemberCall, tactics, cameraMode, drainDemo, idol ranks) — concerns the port's own saves made before [[76]]'s fix, not the game
 - [[81]] other agents working in the same piney-audio files — a process note, not a question
 - [[183]] "Nothing new." — no question stated
+- [[87]], [[111]] prev_room, [[109]], [[117]] hold 7 — no script of any of the four volumes uses either ([[323]])
 
 ## Closed by resolves
 
