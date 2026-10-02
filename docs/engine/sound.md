@@ -576,8 +576,12 @@ other `cmd` does nothing.
 | 1, 3, 5, 6, 9 | nothing | |
 
 Infection's scripts use 0, 2, 4 (a sound effect, most often 74, the
-announcement's chime), 7, 8 (`8 0 256`, the SE port back to full), 9 and
-10. The port maps a request to the session's sound events
+announcement's chime), 7, 8, 9 and 10. Command 8 is always `8 0 256`: five
+times in Infection's and Mutation's tables (M110's first block, and M131,
+M216, M319 and M414 right after their ending streams and `overlay 1`), and
+a sixth in Outbreak's and Quarantine's (S410, Mia's event 360, after
+stream 138). Port 0 takes `seVol` whatever `p1` says, so each puts the SE
+port back to the player's SE volume, whatever it held. The port maps a request to the session's sound events
 (`piney_game::mode::sound_request`) in all three hosts; ports past 3 are
 ignored.
 

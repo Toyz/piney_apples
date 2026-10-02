@@ -228,6 +228,16 @@ impl WorldMode {
         self.st.stream.player.is_some()
     }
 
+    /// The playing stream's frame (`ccGetStreamFrame`), once it has
+    /// stepped.
+    #[cfg(test)]
+    pub fn stream_frame(&self) -> Option<u32> {
+        self.st.stream.player.as_ref().and_then(|p| match p.frame() {
+            (f, true) => Some(f),
+            _ => None,
+        })
+    }
+
     /// `game.server`: the server of the town the player is in.
     #[cfg(test)]
     pub fn server(&self) -> i32 {
@@ -1055,12 +1065,24 @@ impl Mode for WorldMode {
             self.talk(t);
         }
         // ccThMenu (34), before the town's other tasks: what it asks for is
-        // acted on, and heard, this frame (worklog 336).
+        // acted on, and heard, this frame (worklog 336). A menu that asked
+        // for another area (the gate's SetGenerateCode, ChangeArea) sleeps
+        // in ChangeRequest: it does not run through the leave's fade, where
+        // the gate counted the area once a frame (#22).
         if let Phase::Play(f) = self.world.phase()
             && f >= 1
             && self.setup != Setup::Left
+            && self.leaving.is_none()
         {
             self.menu_task(pad, &mut ctx);
+        }
+        // A Ryu Book's cover stream (ccThBook's), stepped by the menu task:
+        // its frame shows now, as the scripts' streams' do. Kept for the
+        // next frame's check, it showed every other frame, with the town's
+        // frame between, and half the presses never reached it (#21).
+        if let Some(f) = self.st.stream.frame.take() {
+            self.events.append(&mut self.st.events);
+            return f;
         }
         // ccThCamera (40) on, and the town's own sprites (ccEff::Draw
         // inside its Draw); with the gate hack's screen, only that, over

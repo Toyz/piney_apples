@@ -471,10 +471,13 @@ fn a_book_read_in_town_raises_the_stat() {
 /// A Ryu Book (key item 273 + `book`) read from PERSONAL's Key Items once
 /// `ready`: `ccThBook` fades to black, plays the cover stream (112 +
 /// `book`), and opens the book's pages once the stream ends. Whether the
-/// cover played and the pages opened.
+/// cover played and the pages opened. In a town the cover's frame must
+/// move on every game frame it plays (#21: it stood still every other
+/// one, the town's frame between).
 fn read_a_ryu_book(s: &mut Session, book: usize, ready: impl Fn(&Session) -> bool) -> (bool, bool) {
     let mut pad = Pad::default();
     let (mut given, mut cover, mut pages) = (false, false, false);
+    let (mut last, mut still) = (None, 0);
     for f in 0..6000u32 {
         let now = ready(s);
         if now && !given {
@@ -491,6 +494,13 @@ fn read_a_ryu_book(s: &mut Session, book: usize, ready: impl Fn(&Session) -> boo
             Stage::Area(a) => a.movie_playing(),
             _ => false,
         };
+        if let Stage::World(w) = &s.stage {
+            let now = w.stream_frame();
+            if now.is_some() && now == last && now != Some(0) {
+                still += 1;
+            }
+            last = now;
+        }
         let ui = menus(s).expect("a town or an area");
         pages |= ui.ctrl.book.as_ref().is_some_and(|t| t.book.is_some());
         if pages {
@@ -519,6 +529,7 @@ fn read_a_ryu_book(s: &mut Session, book: usize, ready: impl Fn(&Session) -> boo
         s.step(&pad);
         s.take_events();
     }
+    assert_eq!(still, 0, "the cover stood still for {still} frames");
     (cover, pages)
 }
 

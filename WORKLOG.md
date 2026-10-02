@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-343 entries: audio 30, battle 68, build 15, content 3, decomp 28, disc 5, engine 17, format 17, iop 3, render 81, save 11, script 40, test 132, tooling 24, ui 66, video 12, volumes 67, world 90.
+345 entries: audio 31, battle 68, build 15, content 3, decomp 28, disc 5, engine 17, format 17, iop 3, render 82, save 12, script 41, test 132, tooling 24, ui 67, video 12, volumes 67, world 90.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -355,3 +355,5 @@ The [reference](docs/README.md) says what is true now.
 | 341 | [The map button behind ccThGameCtrl's waits, and no map in a fight](worklog/0341-the-map-button-behind-ccthgamectrl-s-waits-and-no-map-in-a.md) | 2026-10-01 | ui, world |
 | 342 | [The opening stream's flashes over the stream: the cancel's and the end's](worklog/0342-the-opening-stream-s-flashes-over-the-stream-the-cancel-s.md) | 2026-10-01 | ui, video |
 | 343 | [A lake's dungeons: every entry goes with the scene, and entryFlag places them again](worklog/0343-a-lake-s-dungeons-every-entry-goes-with-the-scene-and.md) | 2026-10-01 | world, battle |
+| 344 | ["sound 8 0 256: five uses, and port 0 always takes the SE option"](worklog/0344-sound-8-0-256-five-uses-and-port-0-always-takes-the-se.md) | 2026-10-01 | audio, script |
+| 345 | ["Three player reports: a node keeps its own transparency, the book's cover every frame, one area a gate trip"](worklog/0345-three-player-reports-a-node-keeps-its-own-transparency-the.md) | 2026-10-01 | render, ui, save |

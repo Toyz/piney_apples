@@ -179,11 +179,14 @@ impl Body {
     }
 
     /// Each clump node's transparency from the animation (`ccCoord::
-    /// _GetTransparency`, main 0x00138490): its own `localtp` times its
-    /// parents'.
+    /// _GetTransparency`, main 0x00138490): its own animated value.
+    /// `SetAnmCtrlWork` (0x001507c8) multiplies the parent's in only for a
+    /// node whose Obj2 flags (`succession`) have bit 0, and no Obj2 chunk
+    /// of any volume's `DATA.BIN` sets it; a node without one has flags 0.
+    /// So a root keyed to 0 (the d, f, l and w Gott statues' `OBJ_trall`
+    /// as they fall) hides nothing under it.
     pub fn node_alphas(&self, play: &Play) -> HashMap<u32, f32> {
-        let file = &self.file;
-        let a = &file.anims[play.anim];
+        let a = &self.file.anims[play.anim];
         let mut local = HashMap::new();
         for (tr, pose) in a.tracks.iter().zip(a.poses_at(play.posed)) {
             local.entry(tr.target).or_insert(pose.alpha);
@@ -191,26 +194,7 @@ impl Body {
         for (target, pose) in a.obj_poses_at(play.posed) {
             local.entry(target).or_insert(pose.alpha);
         }
-        let parents = self.parents(play);
-        let sc = &file.scene;
-        let mut set: Vec<u32> = local.keys().copied().collect();
-        set.extend(self.nodes.iter().copied());
-        self.nodes
-            .iter()
-            .map(|&n| {
-                let (mut obj, mut t, mut depth) = (n, 1.0f32, 0);
-                loop {
-                    t *= local.get(&obj).copied().unwrap_or(1.0);
-                    let parent = parents.get(&obj).or_else(|| sc.parent.get(&obj)).copied().unwrap_or(0);
-                    if parent == 0 || parent == obj || depth >= 64 || !set.contains(&parent) {
-                        break;
-                    }
-                    obj = parent;
-                    depth += 1;
-                }
-                (n, t)
-            })
-            .collect()
+        self.nodes.iter().map(|&n| (n, local.get(&n).copied().unwrap_or(1.0))).collect()
     }
 
     /// under `root`.
@@ -427,4 +411,30 @@ pub fn root(pos: V4, dirc: V4) -> Mat4 {
         * Mat4::from_rotation_x(ee::f(dirc[0]))
         * Mat4::from_rotation_y(ee::f(dirc[1]))
         * Mat4::from_rotation_z(ee::f(dirc[2]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Issue #20: every Gott statue lies where it fell. Its fall
+    /// (`ANM_xgs?dwn0`, last frame) and opened pose (`ANM_xgs?nut1`) key
+    /// the ring and the box to 0, and in the d, f, l and w statues the
+    /// root `OBJ_trall` too; the statue itself (`OBJ_o_god_m0_`) stays
+    /// drawn, as no node inherits its parent's transparency.
+    #[test]
+    fn a_fallen_gott_statue_stays_drawn() {
+        let Some(archive) = crate::town::tests::archive() else { return };
+        for e in ["a", "d", "e", "f", "l", "t", "w"] {
+            let b = Body::read(&archive, &format!("xgs{e}bod1"), "CMP_trall").unwrap();
+            for (anim, frame) in [(format!("ANM_xgs{e}dwn0"), 140u32), (format!("ANM_xgs{e}nut1"), 1)] {
+                let mut p = crate::pose::Play::new(&b.file, &anim).unwrap();
+                (p.time, p.posed) = (frame * 256, frame * 256);
+                let alphas = b.node_alphas(&p);
+                let of = |name: &str| b.node(name).and_then(|n| alphas.get(&n).copied());
+                assert_eq!(of("OBJ_o_god_m0_"), Some(1.0), "{anim}: the statue");
+                assert_eq!(of("OBJ_o_magic_m0_"), Some(0.0), "{anim}: the ring");
+            }
+        }
+    }
 }

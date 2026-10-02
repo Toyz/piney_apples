@@ -14,6 +14,7 @@ use super::*;
 /// The gate's menu, and its Other Servers page.
 const GATE_MENU: i32 = 28;
 const OTHER_SERVERS: i32 = 61;
+const RANDOM: i32 = 57;
 
 fn disc() -> Option<(PathBuf, Arc<Archive>)> {
     let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
@@ -820,4 +821,52 @@ fn a_walker_stands_through_its_talk() {
         "walker {code} moved during its talk (first {first:?}): {:?}",
         &moved[..moved.len().min(5)]
     );
+}
+
+/// Issue #22: a trip through the gate counts one area (+0x6862, Ryu Book
+/// I's "Number of areas visited"). A new game in Mac Anu takes the gate's
+/// Random and its Warp; once the leave is done the menu counts the area
+/// and asks for it on every frame it runs, and it ran through the
+/// session's ten-frame fade, counting each one, until the town stopped
+/// its menu task once it had asked to leave (`ChangeRequest` sleeps it).
+#[test]
+fn a_random_warp_counts_one_area() {
+    let Some((iso, archive)) = disc() else { return };
+    let mut d = Iso::open(&iso).unwrap();
+    let mut state = crate::world::new_game_state(&mut d).unwrap();
+    let scene = piney_world::area::Scene::log_in(&mut state.save);
+    let mut s = Session::in_world(iso, archive, None, state, None, scene, None).unwrap();
+    let mut pad = Pad::default();
+    for f in 0..8000u64 {
+        if let Stage::Area(a) = &s.stage {
+            assert_eq!(a.world().state().save.i16(0x6862), 1, "areas counted on one trip");
+            return;
+        }
+        let raw = match &s.stage {
+            Stage::World(w) => {
+                let ui = w.ui();
+                let c = &ui.ctrl;
+                match (ui.menu_type(), c.proccess) {
+                    (GATE_MENU, 1) if f.is_multiple_of(8) => {
+                        let l = c.list();
+                        still(match l.items.iter().take(l.y.max(0) as usize).position(|&it| i32::from(it) == RANDOM) {
+                            Some(row) if row as i16 == l.select => Buttons::CROSS,
+                            Some(row) if (row as i16) > l.select => Buttons::DOWN,
+                            Some(_) => Buttons::UP,
+                            None => Buttons::NONE,
+                        })
+                    }
+                    (RANDOM, 0..=3) if f.is_multiple_of(8) && c.list().select == 0 => still(Buttons::CROSS),
+                    (RANDOM, 0..=3) if f.is_multiple_of(8) => still(Buttons::UP),
+                    (-1, _) => to_the_gate(w, f, -1),
+                    _ => still(Buttons::NONE),
+                }
+            }
+            _ => still(Buttons::NONE),
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    panic!("never reached the area: {}", Mode::title(&s));
 }
