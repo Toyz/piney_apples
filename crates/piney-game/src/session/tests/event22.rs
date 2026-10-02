@@ -61,7 +61,11 @@ fn story_in_mac_anu(n: i32, played: u64) -> Option<Session> {
 /// Windows closed every 24 frames.
 fn player(w: &WorldMode, f: u64) -> Raw {
     let waiting = w.calls().iter().rev().find_map(|(_, c)| {
-        if c.starts_with("message_open") || c.starts_with("announce") {
+        if c.starts_with("message_open")
+            || c.starts_with("announce")
+            || c.starts_with("info_lines")
+            || c.starts_with("item_get_menu ")
+        {
             Some(true)
         } else if c.starts_with("message_check") {
             Some(false)
@@ -214,7 +218,11 @@ fn board_done(s: &mut Session) {
 /// The area's player: windows closed every 24 frames.
 fn area_player(a: &crate::area::AreaMode, f: u64) -> Raw {
     let waiting = a.calls().iter().rev().find_map(|(_, c)| {
-        if c.starts_with("message_open") || c.starts_with("announce") {
+        if c.starts_with("message_open")
+            || c.starts_with("announce")
+            || c.starts_with("info_lines")
+            || c.starts_with("item_get_menu ")
+        {
             Some(true)
         } else if c.starts_with("message_check") {
             Some(false)
@@ -261,6 +269,56 @@ fn event_22_tints_piros_in_area_31() {
         assert_eq!((t.fix, t.rate, t.colour), (1, 65, 0x0020_80ff), "dungeon {dungeon}");
         assert_eq!(piney_event::host::take_unported(), Vec::<&str>::new(), "dungeon {dungeon}");
     }
+}
+
+/// Issue #30. Kite holding the first cure (item 15/54) runs block 21:
+/// `eventStatus[1]` 3 and the line's message, +0x6510, 16. Block 25's
+/// first `piros_colour` then plays sound 74 and shows that message's first
+/// line through `DispInfo`, which waits for the window to be answered; the
+/// case's flash and message 17 come only after it.
+#[test]
+fn event_22_tells_piros_used_the_cure() {
+    use piney_event::ScriptSave;
+    let Some(mut s) = story_22_in_area_31(true) else { return };
+    piney_event::host::take_unported();
+    let mut pad = Pad::default();
+    let mut given = false;
+    let mut line_msg = None;
+    for f in 0..4000u64 {
+        let raw = match &s.stage {
+            Stage::Area(a) => area_player(a, f),
+            _ => still(Buttons::NONE),
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        board_done(&mut s);
+        let Stage::Area(a) = &mut s.stage else { continue };
+        if !given && a.calls().iter().any(|(_, c)| c.starts_with("piros_colour")) {
+            a.world_mut().state_mut().save.add_item(0, 15, 54, 1);
+            given = true;
+        }
+        if line_msg.is_none() && a.calls().iter().any(|(_, c)| c.starts_with("info_lines")) {
+            line_msg = Some(a.world().state().save.u8(0x6510));
+        }
+        if a.calls().iter().any(|(_, c)| c == "message_open 22 17 Speech") {
+            break;
+        }
+    }
+    let Stage::Area(a) = &s.stage else { panic!("left the dungeon: {}", Mode::title(&s)) };
+    let calls: Vec<(u64, &str)> = a.calls().iter().map(|(f, c)| (*f, c.as_str())).collect();
+    let log = || calls.iter().map(|(f, c)| format!("{f} {c}")).collect::<Vec<_>>().join("\n");
+    let at = |p: &dyn Fn(&str) -> bool, from: usize| calls.iter().skip(from).position(|(_, c)| p(c)).map(|i| i + from);
+    let info = at(&|c| c.starts_with("info_lines 1"), 0).unwrap_or_else(|| panic!("no line\n{}", log()));
+    assert_eq!(line_msg, Some(16));
+    assert_eq!(calls[info - 1].1, "sound_effect 74", "{}", log());
+    let answered = at(&|c| c == "message_check 1", info).unwrap_or_else(|| panic!("never answered\n{}", log()));
+    let next = at(&|c| c == "message_open 22 17 Speech", info).unwrap_or_else(|| panic!("no message 17\n{}", log()));
+    assert!(answered < next, "message 17 before the line was answered\n{}", log());
+    // DispInfo: five frames before the first poll, ten after the close.
+    assert!(calls[answered].0 >= calls[info].0 + 5, "{}", log());
+    assert!(calls[next].0 >= calls[answered].0 + 10, "{}", log());
+    assert_eq!(piney_event::host::take_unported(), Vec::<&str>::new());
 }
 
 /// A picture of Piros tinted orange in area 31's dungeon. `PINEY_SHOTS=DIR
@@ -808,4 +866,58 @@ fn a_member_reports_his_equipment_in_town() {
     s.take_events();
     let piros = crate::world::handle(piney_world::entry::Kind::Spc, crate::piros::PIROS);
     assert!(speakers(&mut s, None).contains(&piros), "Piros's line up");
+}
+
+/// Issue #31. The fourth cure (item 15/57 with `eventStatus[1]` 8) runs
+/// block 24 (status 9) and block 28: `eventStatus[0]` 2 and `room_point 5`.
+/// `RoomSelect`'s `ChangeScene` disables the task at once, so block 29
+/// (phase 4 or more, in point 5) waits for the room's set-up and plays in
+/// view: its first line opens in play, not on the loading frame, menu 29
+/// gives Piros' Diary (12/24), and the event's `scene` returns to Mac Anu.
+#[test]
+fn event_22_finale_plays_in_the_room_and_gives_the_diary() {
+    use piney_event::ScriptSave;
+    let Some(mut s) = story_22_in_area_31(true) else { return };
+    piney_event::host::take_unported();
+    let mut pad = Pad::default();
+    let mut given = false;
+    let (mut first_line, mut menu) = (None, false);
+    for f in 0..2500u64 {
+        let raw = match &s.stage {
+            Stage::Area(a) => area_player(a, f),
+            _ => still(Buttons::NONE),
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        // The board's status only before the cure: the room's own set-up
+        // must keep block 28's 2.
+        if !given {
+            board_done(&mut s);
+        }
+        let Stage::Area(a) = &mut s.stage else { continue };
+        if !given && a.calls().iter().any(|(_, c)| c.starts_with("piros_colour")) {
+            let save = &mut a.world_mut().state_mut().save;
+            save.set_u8(crate::piros::STATUS, 8);
+            save.add_item(0, 15, 57, 1);
+            given = true;
+        }
+        if first_line.is_none() && a.calls().iter().any(|(_, c)| c == "message_open 22 29 Speech") {
+            // In the old room's log, after its `room` call, or the new room's.
+            let old_room = a.calls().iter().any(|(_, c)| c.starts_with("room "));
+            first_line = Some((a.world().phase(), old_room));
+        }
+        menu |= a.ui().menu_type() == 29;
+    }
+    assert!(
+        matches!(first_line, Some((piney_world::Phase::Play(_), false))),
+        "block 29's first line (phase, in the old room): {first_line:?}"
+    );
+    assert!(menu, "menu 29 never opened");
+    let Stage::World(w) = &s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    let save = &w.world().state().save;
+    let diary = (0..40).map(|k| save.item(0, k)).find(|it| it.category == 12 && it.id == 24);
+    assert_eq!(diary.map(|it| it.count), Some(1));
+    assert_eq!(save.u8(crate::piros::STATUS), 10);
+    assert_eq!(piney_event::host::take_unported(), Vec::<&str>::new());
 }

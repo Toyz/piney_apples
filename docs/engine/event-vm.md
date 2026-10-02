@@ -3,7 +3,7 @@ title: The event interpreter
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x001b5a60 ccThEvent, 0x001b5230 ccStartThEvent, 0x001b52c0 ccEnableThEvent, 0x001b5360 ccDisableThEvent, 0x001b5380 ccStartEvent, 0x001b55f0 ccStartEventConvert, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x001a7400 ccEvent::CheckOpen, 0x001a7120 CheckCurrentOpen, 0x001a6ec0 SetCurrentOpen, 0x001a8d20 ccEvent::Execute, 0x001a6ca0 ccEvent::Init, 0x001b32f0 CheckOperate, 0x001b33d0 AddOperate, 0x001b34a0 DelOperate, 0x001b27b0 DispInfo, 0x00177730 ccSaveData::AddItem, 0x00177af0 DelItem, 0x00177590 ccAddSkill, 0x00177eb0 AddFriendship, 0x00178160 SetGateList, 0x00178480 SetAreaBan, 0x00178570 ClearAreaBan, 0x00178af0 NewMail, 0x00178b80 ReadNewMail, 0x00307140 addItemCategoryTbl, 0x00307180 the friendship caps, 0x00168960 ccSetupGameCtrl (its event passes), 0x00167380 ccGame::ChangeScene, 0x001671e0 ccGame::ChangeRequest, 0x0015a200 ccSleepNoSleepThread, 0x00160400 ccScFade::EntryFade, 0x00160490 ContinueFade, 0x0015fb80 SendPacket, 0x00315120 eventAreaInfo, 0x001a29a0 WORLD_MAN::GetWordParamFromEvCode, 0x00311790-0x00314c10 word_a1-word_c4, 0x001b1c00 fade, 0x001b1c60 fade_more, 0x001b04b8 area, 0x001b01d8 scene, 0x001af440 member_add_msg, 0x001af980 gate_add_msg, 0x001aff34 desktop_item, 0x0019d3b0 WORLD_MAN::GetEventAreaInfo, 0x0015f860 ccKanjiStrSeparate, 0x00377e5c serverStr, 0x00377e0c getItemMenuStr, 0x00378150 bookItemAddMsg, 0x00387840 spcNameList, 0x00168320 ccSetupDesktop (its passes, its return on a mode change, SetFrameRate); INF SLUS_202.67:0x001b0c1c ccEvent::Execute's piros_colour, 0x00160240 ccScFade::EntryFlash; INF gcmn.prg:0x0056b1c0 ccChar::Draw
-worklog: 18, 24, 40, 325, 329
+worklog: 18, 24, 40, 325, 329, 355
 ---
 
 # The event interpreter
@@ -246,8 +246,13 @@ registry; it switches on `eventStatus[1]` (the save's +0x64f9):
   - 5: `EntryFlash(20, 0x80ffffff)` and the tint cleared.
 
 The line is the first line (`ccKanjiStrSeparate(text, 0)`) of the event's
-message whose number is the save's +0x6510. It comes from the Parody Mode
-table when that mode is on, and is shown by `ccEvent::DispInfo`.
+message whose number is the save's +0x6510 (`eventStatus[24]`, which event
+22's blocks 21-24 set to 16, 20, 24 and 35 as each cure is taken). It
+comes from the Parody Mode table when that mode is on. `ccEvent::DispInfo`
+shows it and blocks the case (0x001b27b0, the field's branch): it waits
+for `CheckMenuType` -1, calls `ChangeInfo`, breathes 5 frames, polls
+`Check(0)` a frame at a time until the window is answered, closes it and
+breathes 10 more. The flash and the tint come after.
 
 The tint is `affectColorFix`, `affectColorRate` and `affectColor`
 (+0xa6, +0xaa, +0xac). With the fix set, `ccChar::Draw` blends the
@@ -255,10 +260,12 @@ character by `SetFogBlend(rate, colour)` every frame without letting it
 decay.
 
 In the port:
-- The interpreter reads the line and calls `Host::piros_colour(code,
-  line)`.
+- `Host::piros_colour(code)` sets the case up and answers whether it tells
+  the line. The interpreter then plays sound 74 and runs `DispInfo`'s wait
+  itself (the announcements' code, the window opened by
+  `Host::info_lines`), before the host's `Wait::PirosColour`.
 - `crates/piney-game/src/piros.rs`'s `Sequence` gives each frame's actions
-  to the host's `busy`.
+  to the host's `busy`; its first `busy` is the instruction's own frame.
 - The town host flashes its `scFadeDef` (on the font layer) and tints the
   town's Piros (`piney_world::char::AffectColour`, drawn through
   `Body::draw_char_fog`).
@@ -583,10 +590,17 @@ field and area hosts answer these the game's way:
     own set-up makes it again. The field and area hosts, which play never
     asks, set it as Area Information shows it.
 - `room` and `room_point` (cases 130 and 131, playing only) call
-  `WORLD_MAN::RoomSelect(floor, block)` ([the dungeon](dungeon.md)).
+  `WORLD_MAN::RoomSelect(floor, block)` ([the dungeon](dungeon.md));
+  `prev_room` (127, playing only) calls `WORLD_MAN::GoPrevRoom`
+  (0x001a40b0), which also ends in `ChangeScene`.
   - `room_point` uses the room of the first event point with that number.
   - The area host passes them to `FieldWorld::room_select`, which is a
     change of scene to that room, and sets `ccMenu`'s map status to 3.
+  - `RoomSelect` and `GoPrevRoom` end in `ChangeScene`, whose
+    `ChangeRequest(6, 7)` sets the phase to -1 at once, so the interpreter
+    disables itself after all three as at `scene`. A block that waits on the new room (event 22's block 29:
+    phase 4 or more, in point 5, after block 28's `room_point 5`) starts
+    only once that room is in play, not under the old room's fade.
 - `save_party` (case 88, 0x001af784, playing only) sets `partyMemberSave`
   to `1 << memberID[s]` for each filled party slot. It needs only
   `Host::party`, which both hosts answer from the registry.

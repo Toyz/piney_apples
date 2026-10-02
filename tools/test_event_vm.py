@@ -654,8 +654,8 @@ class GameEvents:
         "ContinueFade__8ccScFadeFiii", "changeCamera__Fi", "cameraSoftReset__Fv", "ccFileExistCheck__Fi",
         "ChangeArea__6ccGameFii", "ccSetFileListTown__Fv", "ccSetFileListTownDel__Fv",
         "ccSetFileListField__Fv", "ccSetFileListFieldDel__Fv", "ccSetFileListDungeon__Fv",
-        "ccSetFileListDungeonDel__Fv", "ccSndBgmCtrl__Fv", "Quit__9WORLD_MANFv", "RoomSelect__9WORLD_MANFii",
-        "GoPrevRoom__9WORLD_MANFv", "fieldSel__Fv", "dungeonSel__Fv", "Open__9ccMessageFP9ccMsgDataPcii",
+        "ccSetFileListDungeonDel__Fv", "ccSndBgmCtrl__Fv", "Quit__9WORLD_MANFv", "fieldSel__Fv",
+        "dungeonSel__Fv", "Open__9ccMessageFP9ccMsgDataPcii",
         "GetSpc__7ccEventFi", "GetNpc__7ccEventFi", "effRemoveTrap__FPfii", "ccGetDirc__FPfPf",
         "ccGetDircPL__FPf", "RAD2DEG__Ff", "DEG2RAD__Fs", "sceVu0AddVector", "sceVu0SubVector")
 
@@ -668,6 +668,10 @@ class GameEvents:
         for name in self.SUB_STUBS:
             self.hook(name, lambda mm, *a: 0)
         self.hook("ShowMap__9WORLD_MANFv", lambda mm, *a: 1)
+        # The rooms are the runtime's, but RoomSelect and GoPrevRoom end in
+        # ChangeScene, whose ChangeRequest(6, 7) disables the task.
+        for name in ("RoomSelect__9WORLD_MANFii", "GoPrevRoom__9WORLD_MANFv"):
+            self.hook(name, lambda mm, *a: mm.store(EVMNG + 0xc, 4, M32) or 0)
         self.last_task = None
 
         def start_thread(mm, *a):

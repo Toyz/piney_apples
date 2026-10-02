@@ -388,8 +388,9 @@ pub enum Wait {
     Stream,
     /// `overlay`: the overlay is loading (after [`Host::load_overlay`]).
     Overlay,
-    /// `piros_colour`: the flash and its information boxes (after
-    /// [`Host::piros_colour`]; the shape of this wait is not traced).
+    /// `piros_colour`: the case's flashes, tints and breaths (after
+    /// [`Host::piros_colour`] and the line it tells, if any). The first
+    /// `busy` is the instruction's own frame.
     PirosColour,
     /// `staff_roll`: `begin` pauses the game, puts every task to sleep and
     /// starts the desktop's staff roll task; `busy` while its `param[0]` is
@@ -556,6 +557,11 @@ pub trait Host {
     /// An information box the game composes; closed like a message.
     fn announce(&mut self, a: Announce) {
         unported("announce");
+    }
+    /// `ccEvent::DispInfo`'s window with lines the interpreter took from
+    /// the event's messages; closed like a message.
+    fn info_lines(&mut self, lines: &[&[u8]]) {
+        unported("info_lines");
     }
 
     // --- Modes, overlays and the screen ---------------------------------------------------
@@ -765,10 +771,13 @@ pub trait Host {
     fn hold(&mut self, target: Option<(i16, i16)>) {
         unported("hold");
     }
-    /// `piros_colour` with its operand and the information line the
-    /// interpreter took from the event's messages.
-    fn piros_colour(&mut self, code: i16, line: &[u8]) {
+    /// `piros_colour` with its operand: the case set up for
+    /// [`Wait::PirosColour`]. True when it first tells its information line
+    /// (sound 74 and `ccEvent::DispInfo`), which the interpreter shows and
+    /// waits on before the wait.
+    fn piros_colour(&mut self, code: i16) -> bool {
         unported("piros_colour");
+        false
     }
     fn condition_effect(&mut self, on: bool) {
         unported("condition_effect");
@@ -843,6 +852,9 @@ impl Host for LogHost {
     }
     fn announce(&mut self, a: Announce) {
         self.note(format_args!("announce {a:?}"));
+    }
+    fn info_lines(&mut self, lines: &[&[u8]]) {
+        self.note(format_args!("info_lines {}", lines.len()));
     }
     fn change_request(&mut self, num: i32, sf: i32) {
         self.note(format_args!("change_request {num} {sf}"));
@@ -940,9 +952,9 @@ impl Host for LogHost {
     fn hold(&mut self, target: Option<(i16, i16)>) {
         self.note(format_args!("hold {target:?}"));
     }
-    fn piros_colour(&mut self, code: i16, line: &[u8]) {
-        let _ = line;
+    fn piros_colour(&mut self, code: i16) -> bool {
         self.note(format_args!("piros_colour {code}"));
+        false
     }
     fn condition_effect(&mut self, on: bool) {
         self.note(format_args!("condition_effect {on}"));

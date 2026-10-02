@@ -94,17 +94,12 @@ impl AreaHost<'_> {
         Some(CharRef { handle: i as u32, types: ch.ty() as u32, code: ch.id() })
     }
 
-    /// A frame of `piros_colour`: its sounds, line, flashes (`scFadeDef`)
-    /// and Piros's tint ([`crate::piros`], as the town's host does it).
+    /// A frame of `piros_colour`: its flashes (`scFadeDef`) and Piros's
+    /// tint ([`crate::piros`], as the town's host does it).
     fn piros_actions(&mut self, acts: Vec<crate::piros::Action>) {
         use crate::piros::Action;
         for a in acts {
             match a {
-                Action::Se(n) => self.sound_effect(n),
-                Action::Info(line) => {
-                    let save = self.world.state().clone();
-                    self.ui.announce_lines(&[line], &save);
-                }
                 Action::Flash { count, colour } => {
                     self.st.fade_def.flash(count, colour);
                 }
@@ -309,14 +304,22 @@ impl Host for AreaHost<'_> {
     /// `piros_colour` ([`crate::piros`]): on `eventStatus[1]`, with Piros
     /// among the field's characters; its breaths are the wait's
     /// ([`Host::busy`]).
-    fn piros_colour(&mut self, code: i16, line: &[u8]) {
+    fn piros_colour(&mut self, code: i16) -> bool {
         self.st.log(format!("piros_colour {code}"));
         let status = self.world.state().save.u8(crate::piros::STATUS) as i8;
         let loaded = self.world.spc_loaded(crate::piros::PIROS);
-        let mut seq = crate::piros::Sequence::new(status, code, line, loaded);
-        let acts = seq.start();
-        self.piros_actions(acts);
+        let seq = crate::piros::Sequence::new(status, code, loaded);
+        let tells = seq.tells();
         self.st.piros = Some(seq);
+        tells
+    }
+
+    /// `DispInfo`'s window with `piros_colour`'s line.
+    fn info_lines(&mut self, lines: &[&[u8]]) {
+        self.st.log(format!("info_lines {}", lines.len()));
+        let lines: Vec<Vec<u8>> = lines.iter().map(|l| l.to_vec()).collect();
+        let save = self.world.state().clone();
+        self.ui.announce_lines(&lines, &save);
     }
 
     /// `player_skill`'s set-up: `ccMenu +0xc` (`panelStatus`) 1, `+0x102`

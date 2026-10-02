@@ -416,23 +416,43 @@ impl Vm {
                 host.remove_trap_done();
             }
             Op::PirosColour { code } => {
+                // Step 0 sets the case up; 1-4 its line, when it tells one;
+                // 8 on, the rest of the case.
+                const REST: u8 = 8;
                 if run.step == 0 {
-                    // The information line: the first line
-                    // (`ccKanjiStrSeparate(text, 0)`) of this event's
-                    // message numbered by the save's +0x6510, from the
-                    // Parody Mode table when it is on.
-                    let save = host.save();
-                    let parody = save.parody_on();
-                    let msg = i32::from(save.u8(0x6510) as i8);
-                    let lib = self.lib.clone();
-                    let line = lib
-                        .message(n, msg, parody)
-                        .and_then(|m| m.lines.first())
-                        .map(|t| t.as_bytes().to_vec())
-                        .unwrap_or_default();
-                    host.piros_colour(code, &line);
+                    run.step = if host.piros_colour(code) {
+                        host.sound_effect(74);
+                        1
+                    } else {
+                        REST
+                    };
                 }
-                return self.wait_on(host, run, Wait::PirosColour);
+                if run.step < REST {
+                    // The first line (`ccKanjiStrSeparate(text, 0)`) of this
+                    // event's message numbered by the save's +0x6510, from
+                    // the Parody Mode table when it is on; `DispInfo` waits
+                    // for its window to be answered.
+                    let lib = self.lib.clone();
+                    let show = move |h: &mut H| {
+                        let save = h.save();
+                        let parody = save.parody_on();
+                        let msg = i32::from(save.u8(0x6510) as i8);
+                        let line = lib.message(n, msg, parody).and_then(|m| m.lines.first()).map(|t| t.as_bytes());
+                        h.info_lines(&[line.unwrap_or_default()]);
+                    };
+                    if self.announce_from(host, run, 1, show) == Step::Yield {
+                        return Step::Yield;
+                    }
+                    run.step = REST;
+                }
+                if run.step == REST {
+                    host.begin(Wait::PirosColour);
+                    run.step = REST + 1;
+                }
+                if host.busy(Wait::PirosColour) {
+                    return Step::Yield;
+                }
+                host.end(Wait::PirosColour);
             }
             Op::StaffRoll {} => return self.staff_roll(host, run),
             Op::GateHackAnim {} => return self.wait_on(host, run, Wait::GateHackAnim),
@@ -644,13 +664,25 @@ impl Vm {
             Op::PartyRemove { pc } => host.party_remove(pc),
             Op::Area { area } => host.area(area),
             Op::MapOn {} => host.map_on(),
-            Op::PrevRoom {} => host.prev_room(),
-            Op::Room { floor, block } => host.room(floor, block),
-            Op::RoomPoint { num } => {
+            // WORLD_MAN::GoPrevRoom and RoomSelect end in ChangeScene, whose
+            // ChangeRequest(6, 7) disables the task as `scene` does: the
+            // rest of the pass runs with the phase at -1, so no block waiting
+            // on the new room starts before its set-up.
+            Op::PrevRoom {} if play => {
+                host.prev_room();
+                self.disable();
+            }
+            Op::Room { floor, block } if play => {
+                host.room(floor, block);
+                self.disable();
+            }
+            Op::RoomPoint { num } if play => {
                 if let Some(p) = self.mng.point(num as i32) {
                     host.room(p.floor, p.block);
+                    self.disable();
                 }
             }
+            Op::PrevRoom {} | Op::Room { .. } | Op::RoomPoint { .. } => {}
             Op::Hold { ty, code } => host.hold(Some((ty, code))),
             Op::HoldEnd {} => host.hold(None),
             Op::ConditionFxOn {} => host.condition_effect(true),
@@ -961,11 +993,18 @@ impl Vm {
             host.sound_effect(74);
             run.step = 1;
         }
-        self.announce_from(host, run, 1, a)
+        self.announce_from(host, run, 1, |h: &mut H| h.announce(a))
     }
 
-    /// `DispInfo`'s three shapes, with `run.step` counted from `base`.
-    fn announce_from<H: Host + ?Sized>(&mut self, host: &mut H, run: &mut OpRun, base: u8, a: Announce) -> Step {
+    /// `DispInfo`'s three shapes, with `run.step` counted from `base`;
+    /// `show` opens the window.
+    fn announce_from<H: Host + ?Sized>(
+        &mut self,
+        host: &mut H,
+        run: &mut OpRun,
+        base: u8,
+        mut show: impl FnMut(&mut H),
+    ) -> Step {
         loop {
             match run.step - base {
                 0 => {
@@ -979,7 +1018,7 @@ impl Vm {
                     if !ready {
                         return Step::Yield;
                     }
-                    host.announce(a);
+                    show(host);
                     run.step = base + 1;
                     run.n = 0;
                 }
