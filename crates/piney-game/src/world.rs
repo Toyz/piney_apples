@@ -509,6 +509,62 @@ impl WorldMode {
     }
 
     /// What the menus asked of the rest of the game.
+    /// `ccThMenu` (34), after `ccThGameCtrl` and before the camera, the
+    /// party and the entries (`ccSetupGameCtrl`'s priorities): the book's
+    /// stream, the menus and their requests, which the town acts on this
+    /// same frame.
+    fn menu_task(&mut self, pad: &Pad, ctx: &mut Ctx) {
+        let mut w = ui_world(&self.world, self.vm.as_ref(), self.area_level);
+        w.chat_at = self
+            .ui
+            .chat_speakers()
+            .into_iter()
+            .filter_map(|h| {
+                let (kind, code) = unhandle(h)?;
+                let (listed, at) = self.world.chat_point(kind, code)?;
+                Some(piney_fieldui::chat_msg::ChatAt { who: h, listed, at })
+            })
+            .collect();
+        // The book's cover stream, a frame a menu frame until it ends.
+        if self.book_stream
+            && let Some(p) = &mut self.st.stream.player
+        {
+            match p.step(&self.st.pad, &mut self.events) {
+                Some(f) => self.st.stream.frame = Some(f),
+                None => {
+                    self.st.stream.player = None;
+                    self.book_stream = false;
+                    self.ui.book_stream_done();
+                }
+            }
+        }
+        self.ui.step_into(pad, &w, self.world.state_mut(), self.count, ctx);
+        // The menu task stops in ccUseItemRequest (a book, a key item):
+        // the use's rules on the town's party, and its steps back to the
+        // task, which goes on this frame.
+        loop {
+            let mut asked = None;
+            for r in self.ui.take_requests() {
+                match r {
+                    piney_fieldui::Request::UseItem { target, code } if self.ui.item_asked() => {
+                        asked = Some((target, code, 0));
+                    }
+                    piney_fieldui::Request::UseItemArg { target, code, arg } if self.ui.item_asked() => {
+                        asked = Some((target, code, arg));
+                    }
+                    r => self.menu_request(r),
+                }
+            }
+            let Some((target, code, arg)) = asked else { break };
+            let steps = self.world.use_item(unhandle(target), code, arg);
+            self.ui.answer_item(steps, pad, self.world.state_mut(), self.count, Some(ctx));
+        }
+        // ccThGameCtrl's states 1-5 end when CheckMenuType() is -1.
+        if self.world.targeting().in_menu && self.ui.menu_type() == -1 {
+            self.world.close_menu();
+        }
+    }
+
     fn menu_request(&mut self, r: piney_fieldui::Request) {
         use piney_fieldui::Request as R;
         use piney_fieldui::talk::TalkReq;
@@ -993,21 +1049,31 @@ impl Mode for WorldMode {
         {
             self.map_st.button(self.world.state_mut(), piney_world::area::kind::TOWN, pad.push.bits());
         }
-        self.world.step_into(pad, &mut ctx);
-        // The town's own sprites (ccEff::Draw inside its Draw).
+        // ccThGameCtrl (33): the command target and the action button.
+        self.world.step_game_ctrl(pad);
+        for t in self.world.take_talk() {
+            self.talk(t);
+        }
+        // ccThMenu (34), before the town's other tasks: what it asks for is
+        // acted on, and heard, this frame (worklog 336).
+        if let Phase::Play(f) = self.world.phase()
+            && f >= 1
+            && self.setup != Setup::Left
+        {
+            self.menu_task(pad, &mut ctx);
+        }
+        // ccThCamera (40) on, and the town's own sprites (ccEff::Draw
+        // inside its Draw); with the gate hack's screen, only that, over
+        // black.
+        let mut hidden = Ctx::new(View::default());
+        let wctx = if self.hack_screen { &mut hidden } else { &mut ctx };
+        self.world.step_into(pad, wctx);
         let sprites = self.world.take_town_sprites();
         if let Some(fx) = &mut self.town_fx {
-            fx.draw(&sprites, self.world.camera(), &mut ctx);
-        }
-        if self.hack_screen {
-            // Only the gate hack's own screen, over black.
-            ctx = Ctx::new(View::default());
+            fx.draw(&sprites, self.world.camera(), wctx);
         }
         if matches!(self.world.phase(), Phase::Play(f) if f >= 1) && !self.world.asleep() {
             self.calc_real_party();
-        }
-        for t in self.world.take_talk() {
-            self.talk(t);
         }
         let mut pc_starts = Vec::new();
         // ccThMenu breathes until party slot 0 is filled: from the tasks'
@@ -1092,55 +1158,6 @@ impl Mode for WorldMode {
             // The party members' lines (ccAI::ChatMessageSender's OpenChat).
             for (id, text) in self.world.take_party_chats() {
                 self.ui.open_chat(handle(Kind::Spc, id), &text, &names);
-            }
-            let mut w = ui_world(&self.world, self.vm.as_ref(), self.area_level);
-            w.chat_at = self
-                .ui
-                .chat_speakers()
-                .into_iter()
-                .filter_map(|h| {
-                    let (kind, code) = unhandle(h)?;
-                    let (listed, at) = self.world.chat_point(kind, code)?;
-                    Some(piney_fieldui::chat_msg::ChatAt { who: h, listed, at })
-                })
-                .collect();
-            // The book's cover stream, a frame a menu frame until it ends.
-            if self.book_stream
-                && let Some(p) = &mut self.st.stream.player
-            {
-                match p.step(&self.st.pad, &mut self.events) {
-                    Some(f) => self.st.stream.frame = Some(f),
-                    None => {
-                        self.st.stream.player = None;
-                        self.book_stream = false;
-                        self.ui.book_stream_done();
-                    }
-                }
-            }
-            self.ui.step_into(pad, &w, self.world.state_mut(), self.count, &mut ctx);
-            // The menu task stops in ccUseItemRequest (a book, a key item):
-            // the use's rules on the town's party, and its steps back to the
-            // task, which goes on this frame.
-            loop {
-                let mut asked = None;
-                for r in self.ui.take_requests() {
-                    match r {
-                        piney_fieldui::Request::UseItem { target, code } if self.ui.item_asked() => {
-                            asked = Some((target, code, 0));
-                        }
-                        piney_fieldui::Request::UseItemArg { target, code, arg } if self.ui.item_asked() => {
-                            asked = Some((target, code, arg));
-                        }
-                        r => self.menu_request(r),
-                    }
-                }
-                let Some((target, code, arg)) = asked else { break };
-                let steps = self.world.use_item(unhandle(target), code, arg);
-                self.ui.answer_item(steps, pad, self.world.state_mut(), self.count, Some(&mut ctx));
-            }
-            // ccThGameCtrl's states 1-5 end when CheckMenuType() is -1.
-            if self.world.targeting().in_menu && self.ui.menu_type() == -1 {
-                self.world.close_menu();
             }
             // ccThFieldDisp's ROOTTOWN01::Draw -> DrawMap, after ccThMenu has
             // set this frame's alpha.

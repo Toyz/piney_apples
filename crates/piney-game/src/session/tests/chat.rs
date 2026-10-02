@@ -226,17 +226,19 @@ fn chat_member_heal(mut each: impl FnMut(&Session, &Frame)) -> Option<HealRun> {
         };
         pad.read(&raw);
         let frame = s.step(&pad);
+        // The order, then this frame's events: the menu task runs before
+        // the party's, so the member may name the spell in the order's frame.
+        {
+            let Stage::Area(a) = &s.stage else { panic!() };
+            let m = &a.ui().ctrl;
+            run.ordered |= m.menu == 73 && m.menu_next == -1;
+        }
         for e in s.take_events() {
             if let Event::SkillWords { char_id, sid, .. } = e {
                 run.words |= run.ordered && sid == i32::from(REPTH) && char_id != 0;
             }
         }
         each(&s, &frame);
-        {
-            let Stage::Area(a) = &s.stage else { panic!() };
-            let m = &a.ui().ctrl;
-            run.ordered |= m.menu == 73 && m.menu_next == -1;
-        }
         // A second after the cast (the balloon still up), done.
         if run.cast && run.words {
             left += 1;

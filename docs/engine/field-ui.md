@@ -2444,9 +2444,16 @@ constructor sets them (`ccCheckMenuFaceNameParty` gcmn 0x0056a930: member
 0 shows face 18 until the bracelet's colours, saveData+0x6771). What
 `ccThGameCtrl` asks for (`TalkRequest`) becomes `openReqNum`, `mode` and
 `firstTime`; `SleepAll` and `WakeAll` put the world to sleep; sounds and
-voices go to the sound driver. A task ordering difference: the world
-steps all of its tasks before the menu task, so a menu opened by a button
-stops the camera and player one frame later than in the game.
+voices go to the sound driver. The town and the field run the tasks in
+their priority order ([overview](overview.md#tasks)):
+1. `ccThGameCtrl` (`step_game_ctrl`, with its talks and its game over);
+2. the menu task;
+3. the camera, the party, the entries and the rest of the world.
+
+So a menu's request (a skill, an item, an order) is acted on, and heard,
+in its own frame. What the party and the entries raise (their chat lines,
+the battle's shows, the menu's rules from them) reaches the menus the next
+frame, as in the game.
 
 ## Checks
 

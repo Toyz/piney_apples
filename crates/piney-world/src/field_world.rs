@@ -211,6 +211,8 @@ pub struct FieldWorld {
     menu_type: i32,
     /// `ccSys.count`.
     count: u32,
+    /// `ccThGameCtrl` already run this frame ([`FieldWorld::step_game_ctrl`]).
+    ctrl_done: bool,
     /// The field's effects (piney-effect, installed by the runtime above).
     fx: Box<dyn FieldFx>,
     /// The sounds and flashes a field's weather asked for since the
@@ -465,6 +467,7 @@ impl FieldWorld {
             game_over_signal: false,
             menu_type: -1,
             count: 0,
+            ctrl_done: false,
             fx: Box::new(combat::NoFx),
             ambient_calls: Vec::new(),
             condition_fx: true,
@@ -1336,6 +1339,20 @@ impl FieldWorld {
         }
     }
 
+    /// `ccThGameCtrl` (33), the frame's first world task, run by itself so
+    /// that the menu task (34) can follow it before the rest
+    /// ([`FieldWorld::step_into`], `ccThCamera` 40 on).
+    pub fn step_game_ctrl(&mut self, pad: &Pad) {
+        if let Phase::Play(f) = self.phase
+            && f >= 1
+            && !self.asleep
+        {
+            self.count = self.count.wrapping_add(1);
+            self.game_ctrl(pad);
+            self.ctrl_done = true;
+        }
+    }
+
     /// `ccThGameCtrl` (33): the command target over the battle's command
     /// lists (the party, the enemies, the objects: `ccSortCmnd`,
     /// `ccSelectTarget`) and the menu buttons.
@@ -2162,9 +2179,12 @@ impl FieldWorld {
     /// The tasks' frame.
     fn frame(&mut self, pad: &Pad, ctx: &mut Ctx, drawn: bool) {
         let awake = !self.asleep;
+        let ctrl_done = std::mem::take(&mut self.ctrl_done);
         if awake {
-            self.count = self.count.wrapping_add(1);
-            self.game_ctrl(pad);
+            if !ctrl_done {
+                self.count = self.count.wrapping_add(1);
+                self.game_ctrl(pad);
+            }
             let cpad = CamPad::from_pad(pad);
             self.event_camera_task(&cpad);
             self.ev_hold_task();

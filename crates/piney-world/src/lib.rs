@@ -264,6 +264,8 @@ pub struct World {
     char_names: Vec<Vec<u8>>,
     /// `ccSleepAllThread`: the tasks stand still, the frame still draws.
     asleep: bool,
+    /// `ccThGameCtrl` already run this frame ([`World::step_game_ctrl`]).
+    ctrl_done: bool,
     /// `ccSetupGameCtrl` is waiting on the event task's passes at phases 0
     /// and 2 (and the load): the screen stays black after the hold.
     loading: bool,
@@ -402,6 +404,7 @@ impl World {
             char_files,
             char_names,
             asleep: false,
+            ctrl_done: false,
             loading: false,
             archive,
             evcam: evcam::EventCam::new(),
@@ -1241,6 +1244,19 @@ impl World {
         self.camera = cam;
     }
 
+    /// `ccThGameCtrl` (33), the frame's first town task, run by itself so
+    /// that the menu task (34) can follow it before the rest
+    /// ([`World::step_into`], `ccThCamera` 40 on).
+    pub fn step_game_ctrl(&mut self, pad: &Pad) {
+        if let Phase::Play(f) = self.phase
+            && f >= 1
+            && !self.asleep
+        {
+            self.game_ctrl(pad);
+            self.ctrl_done = true;
+        }
+    }
+
     /// `ccThGameCtrl` (33), before the camera and the player: the command
     /// target from where everyone stood last frame, and the action button.
     fn game_ctrl(&mut self, pad: &Pad) {
@@ -1354,8 +1370,11 @@ impl World {
         // Asleep (ccSleepAllThread), nothing steps and everyone is drawn
         // where the last frame left them.
         let awake = !self.asleep;
+        let ctrl_done = std::mem::take(&mut self.ctrl_done);
         if awake {
-            self.game_ctrl(pad);
+            if !ctrl_done {
+                self.game_ctrl(pad);
+            }
             let cpad = CamPad::from_pad(pad);
             self.event_camera_task(&cpad);
             let mut mode = self.save.save.u8(offset::CAMERA_MODE) as i8;

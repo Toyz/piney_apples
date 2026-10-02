@@ -1204,6 +1204,71 @@ impl AreaMode {
         }
     }
 
+    /// `ccThMenu` (34), after `ccThGameCtrl` and before the camera, the
+    /// party and the entries (`ccSetupGameCtrl`'s priorities): Data Drain's
+    /// movie, the ride's and the Fairy's Orb's slots, the menus and their
+    /// requests, which the world acts on this same frame.
+    fn menu_task(&mut self, pad: &Pad, ctx: &mut Ctx) {
+        // Data Drain's movie holds the screen; its end is the menu
+        // task's to see this frame.
+        if let Some(p) = &mut self.drain_movie {
+            let enemy = &mut self.drain_enemy;
+            let party = &mut self.str_party;
+            let mut extra = |ctx: &mut Ctx, scene: &piney_stream::scene::Scene| {
+                let lights = |world| piney_stream::draw::lights(scene, world);
+                let to_screen = piney_stream::draw::to_screen(scene);
+                if let Some(p) = party.as_mut() {
+                    let dummy = |name: &str| scene.world_named(name).map(|m| piney_stream::scene::to_mat4(&m));
+                    p.draw(&mut ctx.layers, scene.default_layer, to_screen, &lights, &dummy);
+                }
+                let Some(e) = enemy.as_mut() else { return };
+                // The menu task's switch reads the frame the stream
+                // drew; the enemy's task draws after it.
+                e.at_frame(scene.frame_now);
+                e.draw(&mut ctx.layers, scene.default_layer, to_screen, &lights);
+            };
+            match p.step_with(pad, &mut self.events, &mut extra) {
+                Some(f) => self.stream.frame = Some(f),
+                None => {
+                    self.drain_movie = None;
+                    self.drain_enemy = None;
+                    self.str_party = None;
+                    self.movie_done();
+                }
+            }
+        }
+        // Inside ccPuccigusoStart, the menu task's slot first.
+        self.ride_menu_slot();
+        // ccUseItemRequest's loop on a Fairy's Orb: this frame's call.
+        if self.map_showing {
+            self.map_showing = !self.item_show_map();
+        }
+        let w = self.hud_world();
+        self.ui.step_into(pad, &w, self.world.state_mut(), self.count, ctx);
+        // The menu task stops in ccUseItemRequest: the use's rules, and
+        // its steps back to the task, which goes on this frame.
+        loop {
+            let mut asked = None;
+            for r in self.ui.take_requests() {
+                match r {
+                    piney_fieldui::Request::UseItem { target, code } if self.ui.item_asked() => {
+                        asked = Some((target, code, 0));
+                    }
+                    piney_fieldui::Request::UseItemArg { target, code, arg } if self.ui.item_asked() => {
+                        asked = Some((target, code, arg));
+                    }
+                    r => self.menu_request(r),
+                }
+            }
+            let Some((target, code, arg)) = asked else { break };
+            let steps = self.use_item(target, code, arg);
+            self.ui.answer_item(steps, pad, self.world.state_mut(), self.count, Some(ctx));
+        }
+        if self.world.targeting().in_menu && self.ui.menu_type() == -1 {
+            self.world.close_menu();
+        }
+    }
+
     fn menu_request(&mut self, r: piney_fieldui::Request) {
         use piney_fieldui::Request as R;
         match r {
@@ -1446,7 +1511,8 @@ impl Mode for AreaMode {
                 self.world.story_message_closed();
             }
         }
-        self.world.step_into(pad, &mut ctx);
+        // ccThGameCtrl (33): the target and the buttons.
+        self.world.step_game_ctrl(pad);
         // ccThGameCtrl's first step of the game over: CloseMenu,
         // ccMessage::Close, ccMenu.forbid (the party's AI and the enemies'
         // conditions are not ported).
@@ -1455,16 +1521,58 @@ impl Mode for AreaMode {
             self.ui.ctrl.forbid = 1;
             self.game_over = Some(crate::gameover::GameOverTask::new(self.stream.data.clone()));
         }
-        self.gate_stream(pad);
-        if self.world_hidden {
-            ctx = Ctx::new(View::default());
-        }
         for t in self.world.take_talk() {
             self.talk(t);
         }
         if self.world.take_pl_attack() {
             self.ui.ctrl.pl_attack = 1;
         }
+        // ccThMenu (34), before the world's other tasks: what it asks for
+        // is acted on, and heard, this frame (worklog 336).
+        if let Phase::Play(f) = self.world.phase()
+            && f >= 1
+            && self.setup != Setup::Left
+        {
+            self.menu_task(pad, &mut ctx);
+        }
+        // ccThCamera (40) on; hidden (Data Drain's black, its movie), the
+        // world draws nothing.
+        let dbg = std::env::var_os("DBG_DRAIN").is_some();
+        if dbg {
+            let c = self.world.combat();
+            if let Some(k) = c.kite {
+                let ch = &c.scene.chars[k];
+                if ch.spc_char.act_num == 17 || ch.skill_id != 0 {
+                    eprintln!(
+                        "PRE {} skill {} act {} cnt {} anm {}",
+                        self.frames, ch.skill_id, ch.spc_char.act_num, ch.spc_char.cnt, ch.anm_flag
+                    );
+                }
+            }
+        }
+        if self.world_hidden {
+            self.world.step_into(pad, &mut Ctx::new(View::default()));
+        } else {
+            self.world.step_into(pad, &mut ctx);
+        }
+        if dbg {
+            let c = self.world.combat();
+            if let Some(k) = c.kite {
+                let ch = &c.scene.chars[k];
+                if ch.spc_char.act_num == 17 || ch.skill_id != 0 {
+                    eprintln!(
+                        "POST {} skill {} act {} cnt {} anm {} runs {}",
+                        self.frames,
+                        ch.skill_id,
+                        ch.spc_char.act_num,
+                        ch.spc_char.cnt,
+                        ch.anm_flag,
+                        c.skills.borrow().runs.len()
+                    );
+                }
+            }
+        }
+        self.gate_stream(pad);
         self.member_item_steps();
         // The battle's sounds this frame, then the effects', heard from the
         // active camera (the effects were started inside the frame); the
@@ -1499,64 +1607,6 @@ impl Mode for AreaMode {
             && f >= 2
             && self.setup != Setup::Left
         {
-            // Data Drain's movie holds the screen; its end is the menu
-            // task's to see this frame.
-            if let Some(p) = &mut self.drain_movie {
-                let enemy = &mut self.drain_enemy;
-                let party = &mut self.str_party;
-                let mut extra = |ctx: &mut Ctx, scene: &piney_stream::scene::Scene| {
-                    let lights = |world| piney_stream::draw::lights(scene, world);
-                    let to_screen = piney_stream::draw::to_screen(scene);
-                    if let Some(p) = party.as_mut() {
-                        let dummy = |name: &str| scene.world_named(name).map(|m| piney_stream::scene::to_mat4(&m));
-                        p.draw(&mut ctx.layers, scene.default_layer, to_screen, &lights, &dummy);
-                    }
-                    let Some(e) = enemy.as_mut() else { return };
-                    // The menu task's switch reads the frame the stream
-                    // drew; the enemy's task draws after it.
-                    e.at_frame(scene.frame_now);
-                    e.draw(&mut ctx.layers, scene.default_layer, to_screen, &lights);
-                };
-                match p.step_with(pad, &mut self.events, &mut extra) {
-                    Some(f) => self.stream.frame = Some(f),
-                    None => {
-                        self.drain_movie = None;
-                        self.drain_enemy = None;
-                        self.str_party = None;
-                        self.movie_done();
-                    }
-                }
-            }
-            // Inside ccPuccigusoStart, the menu task's slot first.
-            self.ride_menu_slot();
-            // ccUseItemRequest's loop on a Fairy's Orb: this frame's call.
-            if self.map_showing {
-                self.map_showing = !self.item_show_map();
-            }
-            let w = self.hud_world();
-            self.ui.step_into(pad, &w, self.world.state_mut(), self.count, &mut ctx);
-            // The menu task stops in ccUseItemRequest: the use's rules, and
-            // its steps back to the task, which goes on this frame.
-            loop {
-                let mut asked = None;
-                for r in self.ui.take_requests() {
-                    match r {
-                        piney_fieldui::Request::UseItem { target, code } if self.ui.item_asked() => {
-                            asked = Some((target, code, 0));
-                        }
-                        piney_fieldui::Request::UseItemArg { target, code, arg } if self.ui.item_asked() => {
-                            asked = Some((target, code, arg));
-                        }
-                        r => self.menu_request(r),
-                    }
-                }
-                let Some((target, code, arg)) = asked else { break };
-                let steps = self.use_item(target, code, arg);
-                self.ui.answer_item(steps, pad, self.world.state_mut(), self.count, Some(&mut ctx));
-            }
-            if self.world.targeting().in_menu && self.ui.menu_type() == -1 {
-                self.world.close_menu();
-            }
             // ccThFieldDisp's WORLD::Draw -> DrawMiniMap or DUNGEON::Draw ->
             // MakeMiniMap, DrawMap, after ccThMenu has set this frame's alpha.
             let p = self.world.player();

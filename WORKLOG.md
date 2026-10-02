@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-335 entries: audio 29, battle 67, build 15, content 3, decomp 28, disc 5, engine 14, format 16, iop 3, render 79, save 10, script 40, test 132, tooling 23, ui 61, video 11, volumes 67, world 87.
+336 entries: audio 30, battle 67, build 15, content 3, decomp 28, disc 5, engine 15, format 16, iop 3, render 79, save 10, script 40, test 132, tooling 23, ui 62, video 11, volumes 67, world 87.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -347,3 +347,4 @@ The [reference](docs/README.md) says what is true now.
 | 333 | ["CheckOperate run against the game: 600 random cases"](worklog/0333-checkoperate-run-against-the-game-600-random-cases.md) | 2026-10-01 | script, test |
 | 334 | ["Each mode's tasks and priorities; the port's menu task runs after the world's"](worklog/0334-each-mode-s-tasks-and-priorities-the-port-s-menu-task-runs.md) | 2026-10-01 | engine, decomp |
 | 335 | ["vBank+0x08 is never read: SEWORDS' wordPlay takes the offset, size, volume and name"](worklog/0335-vbank-0x08-is-never-read-sewords-wordplay-takes-the-offset.md) | 2026-10-01 | audio, iop |
+| 336 | ["The menu task runs in its place: ccThGameCtrl, ccThMenu, then the world"](worklog/0336-the-menu-task-runs-in-its-place-ccthgamectrl-ccthmenu-then.md) | 2026-10-01 | engine, ui, audio |

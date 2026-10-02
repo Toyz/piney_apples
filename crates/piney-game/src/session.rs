@@ -3071,6 +3071,8 @@ mod tests {
         let mut words = Vec::new();
         let mut options_with_words = None;
         let mut fought = false;
+        // The frame the target is confirmed, and the one the words come in.
+        let (mut ok_at, mut words_at) = (None, None);
         for i in 0..3000u64 {
             let raw = {
                 let Stage::Area(a) = &s.stage else { panic!("left the area") };
@@ -3086,6 +3088,9 @@ mod tests {
                     _ => Buttons::UP,
                 };
                 fought |= c.battle.in_battle != 0;
+                if ui.menu_type() == 65 && i.is_multiple_of(8) {
+                    ok_at = Some(i);
+                }
                 match ui.menu_type() {
                     -1 if fought && words.is_empty() => press(Buttons::TRIANGLE),
                     -1 => {
@@ -3105,6 +3110,9 @@ mod tests {
             pad.read(&raw);
             s.step(&pad);
             let events = s.take_events();
+            if words_at.is_none() && events.iter().any(|e| matches!(e, Event::SkillWords { .. })) {
+                words_at = Some(i);
+            }
             if options_with_words.is_none() && events.iter().any(|e| matches!(e, Event::SkillWords { .. })) {
                 options_with_words =
                     Some(events.iter().any(|e| matches!(e, Event::VoiceOptions { english: false, .. })));
@@ -3115,6 +3123,9 @@ mod tests {
             }
         }
         assert!(fought, "the battle mode came on");
+        // The menu task (34) asks before the party's (48) and the skills'
+        // (82) tasks run: the words come out in the confirming frame.
+        assert_eq!(words_at, ok_at, "the words in the frame the target was confirmed");
         // skillVoicePlay reads saveData.voice as it plays: the options go
         // with the words.
         assert_eq!(options_with_words, Some(true), "the Japanese option with the skill's words");
@@ -3712,7 +3723,11 @@ mod tests {
                 }
             }
             let Some(k) = c.kite else { return };
-            if used.is_none() && c.scene.chars[k].skill_id == 193 {
+            // The use: the scroll's skill (193) asked for, which the
+            // party's and the skills' tasks take up in the menu's frame, or
+            // the cast it starts (act 17).
+            let ch = &c.scene.chars[k];
+            if used.is_none() && (ch.skill_id == 193 || ch.spc_char.act_num == 17) {
                 used = Some(i);
                 stage.set(2);
             }
@@ -5056,8 +5071,9 @@ mod tests {
         assert!(cast.is_some(), "the goblin came out");
         assert_eq!(level, 1, "TornadoSystem set the spell's level");
         assert!(spell_hits >= 1, "the tornado's blows took HP");
-        // SetNoizBs(20), read here after the frame that drew one of them.
-        assert_eq!(noise, 19, "the blast's screen noise");
+        // SetNoizBs(20) by the effects (80) after the menu task (34) has
+        // drawn this frame's noise: 20 at the frame's end.
+        assert_eq!(noise, 20, "the blast's screen noise");
     }
 
     /// Event 3's field: Kite walked up to its goblin and, within 300, cast
@@ -6509,7 +6525,10 @@ mod tests {
             let Stage::Area(a) = &s.stage else { break };
             on += u32::from(a.ui().df_comp_on());
         }
-        assert_eq!(on, 90, "the banner's frames");
+        // Started by the entry control (64) after the menu task, the banner
+        // task makes its first Main the next frame: on from that frame's
+        // end, then its 90 Mains.
+        assert_eq!(on, 91, "the banner's frames");
     }
 
     /// Pictures of [`the_last_portal_puts_up_its_banner`]'s banner: frames

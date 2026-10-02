@@ -422,7 +422,6 @@ player until one of these turns out wrong.
 - [[50]] the load-confirmation jingle's m_tempPN never initialised — game UB; port starts at 0
 - [[60]] no check compares the music with the game's playing — only the tables and call order
 - [[89]] --voice not in any playthrough test — test gap
-- [[101]] [[334]] a request the menus make reaches the world and the sound task a frame after the game's: the port runs the menu task (34) after every world task (ccThSpc 48 on) — every menu request; its own pass (GAPS.md)
 - [[112]] sound bank 5 read from the session's WORLD_MAN, which for the arena is area 27's — not compared
 - [[150]] the travellers' hum not listened to against the game — follows the code
 - [[176]] whether the SE port's volume is ever below full when sound 8 0 256 runs — not looked for
@@ -954,6 +953,7 @@ player until one of these turns out wrong.
 - [[98]] the party AI's UseItemRequest does nothing in the field — answered by [[230]]
 - [[99]] piros_colour in the field and dungeon — answered by [[107]]
 - [[101]] Kite's strategy balloon and the party's chat lines — answered by [[120]], [[123]]
+- [[101]] a request the menus make reaches the sound task a frame after the game's — answered by [[336]] (the menu task now runs after ccThGameCtrl and before the world's other tasks; a_skill_in_a_fight_names_itself)
 - [[102]] the Data Drain movie — answered by [[105]]
 - [[102]] the side effect's visuals (effSkillStartEffect, fly fonts, effAfterDrain) — answered by [[141]]
 - [[102]] the noise (MenuNoise) — answered by [[104]]
