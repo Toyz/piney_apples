@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use piney_data::volume::Volume;
 
-use crate::savesys::{INDEX_SIZE, INFO_COUNT, slot_size};
+use crate::savesys::{INDEX_SIZE, INFO_COUNT, INFO_SIZE, SaveDataInfo, slot_size};
 
 /// `mcDirName[vol - 1]` on the disc of `volume` (`INF SLUS_202.67:0x00306be0`)
 /// without its leading `/`: volume `vol`'s (1-4) save directory, which is
@@ -307,21 +307,148 @@ fn find_saves(src: &Path) -> Result<Vec<Found>, String> {
     Ok(out)
 }
 
+/// The slot of a file named `dhdata01` to `dhdata12`.
+fn slot_of(name: &str) -> Option<usize> {
+    (0..INFO_COUNT).find(|&s| slot_file_name(s) == name)
+}
+
+/// Slot files given without their directory's index: `src` itself, or the
+/// `dhdataNN` files of the directory `src`. Empty when there are none.
+fn lone_slots(src: &Path) -> Result<Vec<(usize, Vec<u8>)>, String> {
+    let err = |e: std::io::Error| format!("{}: {e}", src.display());
+    let name = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    if src.is_file() {
+        return Ok(match slot_of(&name(src)) {
+            Some(s) => vec![(s, fs::read(src).map_err(err)?)],
+            None => Vec::new(),
+        });
+    }
+    let mut out = Vec::new();
+    for e in fs::read_dir(src).map_err(err)? {
+        let p = e.map_err(err)?.path();
+        if let (true, Some(s)) = (p.is_file(), slot_of(&name(&p))) {
+            out.push((s, fs::read(&p).map_err(err)?));
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
+/// The volume a lone slot file is of: Infection's size (0x8530) is
+/// Infection's; the later volumes' (0x8d84, also an Infection slot as a
+/// PCSX2 export can hold it) is `hint`'s, the disc being played.
+fn slot_volume(len: usize, hint: Option<Volume>) -> Result<Volume, String> {
+    match len {
+        n if n == piney_data::save::SIZE => Ok(Volume::Inf),
+        n if n == piney_data::save::FULL => {
+            hint.ok_or_else(|| "a slot of 0x8d84 bytes: which part's is it? (--volume N)".to_string())
+        }
+        n => Err(format!("a slot of {n:#x} bytes is no .hack save")),
+    }
+}
+
+/// The index record `ccSaveSys`'s save writes for a slot file's bytes
+/// (`SaveDataInfo`: used, level, clear and parody flags, the player's
+/// name, the sum of the file's bytes, the play time).
+fn slot_record(bytes: &[u8]) -> Result<[u8; INFO_SIZE], String> {
+    let save = piney_data::save::SaveData::from_bytes(bytes).map_err(|e| e.to_string())?;
+    let mut name = [0u8; 18];
+    let b = save.bytes();
+    for (d, &c) in name.iter_mut().zip(b[piney_data::save::offset::PL_NAME..].iter().take(17).take_while(|&&c| c != 0))
+    {
+        *d = c;
+    }
+    let info = SaveDataInfo {
+        status: 1,
+        level: save.level(),
+        clear_flag: save.clear_flag(),
+        parody_flag: save.u8(piney_data::save::offset::PARODY_FLAG) as i8,
+        name,
+        sum: bytes.iter().fold(0u16, |s, &c| s.wrapping_add(u16::from(c))),
+        playtime: save.play_time(),
+    };
+    Ok(info.to_bytes())
+}
+
+/// Lone slot files onto the card: into their volume's directory (made as
+/// a card's `make_dir` makes it when missing), each with its index record
+/// rebuilt from it, so the load screens see them used. The directory as it
+/// was is copied to `backup` first.
+fn import_slots(
+    card: &Path,
+    slots: Vec<(usize, Vec<u8>)>,
+    hint: Option<Volume>,
+    backup: &Path,
+) -> Result<Vec<(String, usize)>, String> {
+    let err = |p: &Path, e: std::io::Error| format!("{}: {e}", p.display());
+    let mut done = Vec::new();
+    for volume in Volume::ALL {
+        let mine: Vec<&(usize, Vec<u8>)> =
+            slots.iter().filter(|(_, b)| slot_volume(b.len(), hint).is_ok_and(|v| v == volume)).collect();
+        if mine.is_empty() {
+            continue;
+        }
+        let dir_name = own_dir_name(volume);
+        let dir = card.join(dir_name);
+        let index_path = dir.join(dir_name);
+        if dir.is_dir() {
+            let to = backup.join(dir_name);
+            fs::create_dir_all(&to).map_err(|e| err(&to, e))?;
+            for e in fs::read_dir(&dir).map_err(|e| err(&dir, e))? {
+                let p = e.map_err(|e| err(&dir, e))?.path();
+                if p.is_file() {
+                    fs::copy(&p, to.join(p.file_name().unwrap_or_default())).map_err(|e| err(&p, e))?;
+                }
+            }
+        } else {
+            fs::create_dir_all(&dir).map_err(|e| err(&dir, e))?;
+            let zero = vec![0u8; slot_size(volume)];
+            for s in 0..INFO_COUNT {
+                let p = dir.join(slot_file_name(s));
+                fs::write(&p, &zero).map_err(|e| err(&p, e))?;
+            }
+        }
+        let mut index = fs::read(&index_path).unwrap_or_default();
+        index.resize(INDEX_SIZE, 0);
+        for &(slot, bytes) in &mine {
+            let p = dir.join(slot_file_name(*slot));
+            fs::write(&p, bytes).map_err(|e| err(&p, e))?;
+            index[slot * INFO_SIZE..(slot + 1) * INFO_SIZE].copy_from_slice(&slot_record(bytes)?);
+        }
+        fs::write(&index_path, &index).map_err(|e| err(&index_path, e))?;
+        done.push((dir_name.to_string(), mine.len()));
+    }
+    if done.is_empty() {
+        // Every slot was refused: say why for the first.
+        if let Some((_, b)) = slots.first() {
+            slot_volume(b.len(), hint)?;
+        }
+    }
+    Ok(done)
+}
+
 /// Copy the `.hack` saves of `src` (see [`find_saves`]) onto the card
 /// directory `card`, each save directory whole; one it replaces is moved
-/// to `card`'s sibling `backup-<secs>` first. The directories copied, with
-/// their files' count.
-pub fn import(src: &Path, card: &Path) -> Result<Vec<(String, usize)>, String> {
-    let found = find_saves(src)?;
-    if found.is_empty() {
-        return Err(format!("{}: no .hack save directory ({})", src.display(), dothack_dirs().join(", ")));
-    }
+/// to `card`'s sibling `backup-<secs>` first. With no save directory, lone
+/// slot files (`dhdata01`-`12`, the file or a directory of them) go into
+/// their volume's directory, their index records rebuilt ([`import_slots`];
+/// `hint` the volume a later part's size is taken for). The directories
+/// written, with their files' count.
+pub fn import(src: &Path, card: &Path, hint: Option<Volume>) -> Result<Vec<(String, usize)>, String> {
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
     let beside = card.parent().unwrap_or(card);
     let backup = (0..)
         .map(|k| beside.join(if k == 0 { format!("backup-{secs}") } else { format!("backup-{secs}-{k}") }))
         .find(|p| !p.exists())
         .unwrap_or_else(|| beside.join("backup"));
+    let slots = lone_slots(src)?;
+    let found = if src.is_file() && !slots.is_empty() { Vec::new() } else { find_saves(src)? };
+    if found.is_empty() {
+        if !slots.is_empty() {
+            return import_slots(card, slots, hint, &backup);
+        }
+        return Err(format!("{}: no .hack save directory ({})", src.display(), dothack_dirs().join(", ")));
+    }
     let err = |p: &Path, e: std::io::Error| format!("{}: {e}", p.display());
     let mut done = Vec::new();
     for f in found {
@@ -394,7 +521,7 @@ mod tests {
         fs::write(src.join(dir).join("_pcsx2_index"), b"{}").unwrap();
         fs::create_dir_all(card.join(dir)).unwrap();
         fs::write(card.join(dir).join("dhdata01"), [9u8; 8]).unwrap();
-        assert_eq!(import(&src, &card).unwrap(), vec![(dir.to_string(), 1)]);
+        assert_eq!(import(&src, &card, None).unwrap(), vec![(dir.to_string(), 1)]);
         assert_eq!(fs::read(card.join(dir).join("dhdata01")).unwrap(), vec![1u8; 64]);
         assert!(!card.join(dir).join("_pcsx2_index").exists());
         let backup = fs::read_dir(card.parent().unwrap())
@@ -403,8 +530,44 @@ mod tests {
             .find(|e| e.file_name().to_string_lossy().starts_with("backup-"))
             .expect("the replaced save kept");
         assert_eq!(fs::read(backup.path().join(dir).join("dhdata01")).unwrap(), vec![9u8; 8]);
-        assert_eq!(import(&src.join(dir), &card).unwrap(), vec![(dir.to_string(), 1)]);
-        assert!(import(&root.join("memcard"), &root.join("other")).is_err());
+        assert_eq!(import(&src.join(dir), &card, None).unwrap(), vec![(dir.to_string(), 1)]);
+        assert!(import(&root.join("memcard"), &root.join("other"), None).is_err());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// A slot file given alone (a player's `dhdata12`): written into its
+    /// volume's directory with its index record rebuilt as the save writes
+    /// it, so the load screen sees it used; the other slots' records kept.
+    /// A later part's size needs the volume; one of no save's size is
+    /// refused.
+    #[test]
+    fn a_lone_slot_imports_with_its_record() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/test-tmp")
+            .join(format!("piney-lone-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let card = root.join("memcard").join("slot1");
+        fs::create_dir_all(&root).unwrap();
+        let mut save = piney_data::save::SaveData::new();
+        save.bytes_mut()[..5].copy_from_slice(b"Kite\0");
+        let lone = root.join("dhdata12");
+        fs::write(&lone, save.bytes()).unwrap();
+        let dir = own_dir_name(Volume::Inf);
+        assert_eq!(import(&lone, &card, None).unwrap(), vec![(dir.to_string(), 1)]);
+        let mut c = FilesCard::slot1(Volume::Inf, &card);
+        let index: [u8; INDEX_SIZE] = c.read_index(0).unwrap().try_into().unwrap();
+        assert!(crate::savesys::check_right_info(&index));
+        let r = SaveDataInfo::from_bytes(&index[11 * INFO_SIZE..]);
+        assert_eq!((r.status, r.name(), r.sum), (1, &b"Kite"[..], save.sum()));
+        assert!((0..11).all(|s| index[s * INFO_SIZE] == 0), "the other slots empty");
+        assert_eq!(c.read_slot(0, 11, 1, piney_data::save::SIZE).unwrap(), save.bytes().to_vec());
+        let later = root.join("dhdata01");
+        fs::write(&later, save.record()).unwrap();
+        assert!(import(&later, &card, None).is_err(), "a later part's slot needs its volume");
+        let mdir = own_dir_name(Volume::Mut);
+        assert_eq!(import(&later, &card, Some(Volume::Mut)).unwrap(), vec![(mdir.to_string(), 1)]);
+        fs::write(&later, [0u8; 100]).unwrap();
+        assert!(import(&later, &card, None).is_err());
         let _ = fs::remove_dir_all(&root);
     }
 }

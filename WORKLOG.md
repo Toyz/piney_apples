@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-345 entries: audio 31, battle 68, build 15, content 3, decomp 28, disc 5, engine 17, format 17, iop 3, render 82, save 12, script 41, test 132, tooling 24, ui 67, video 12, volumes 67, world 90.
+346 entries: audio 31, battle 68, build 15, content 3, decomp 28, disc 5, engine 17, format 17, iop 3, render 82, save 13, script 41, test 132, tooling 25, ui 67, video 12, volumes 67, world 90.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -357,3 +357,4 @@ The [reference](docs/README.md) says what is true now.
 | 343 | [A lake's dungeons: every entry goes with the scene, and entryFlag places them again](worklog/0343-a-lake-s-dungeons-every-entry-goes-with-the-scene-and.md) | 2026-10-01 | world, battle |
 | 344 | ["sound 8 0 256: five uses, and port 0 always takes the SE option"](worklog/0344-sound-8-0-256-five-uses-and-port-0-always-takes-the-se.md) | 2026-10-01 | audio, script |
 | 345 | ["Three player reports: a node keeps its own transparency, the book's cover every frame, one area a gate trip"](worklog/0345-three-player-reports-a-node-keeps-its-own-transparency-the.md) | 2026-10-01 | render, ui, save |
+| 346 | [A lone slot file imports with its index record](worklog/0346-a-lone-slot-file-imports-with-its-index-record.md) | 2026-10-01 | save, tooling |

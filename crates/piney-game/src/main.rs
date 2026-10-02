@@ -142,10 +142,10 @@ impl App {
         }
         if w.first() == Some(&"import_card") {
             let Some(src) = line.split_once(' ').map(|(_, p)| p.trim()).filter(|p| !p.is_empty()) else {
-                return "import_card PATH: a PCSX2 card (.ps2), folder card or exported save directory".into();
+                return "import_card PATH: a PCSX2 card (.ps2), folder card, exported save directory or dhdataNN slot file".into();
             };
             return match &self.card {
-                Some(dst) => import_saves(std::path::Path::new(src), dst).unwrap_or_else(|e| e),
+                Some(dst) => import_saves(std::path::Path::new(src), dst, Some(self.volume)).unwrap_or_else(|e| e),
                 None => "no memory card (--no-card)".into(),
             };
         }
@@ -165,7 +165,7 @@ impl App {
         let answer = self.mode.console(line);
         if w.first() == Some(&"help") {
             return format!(
-                "{answer}\nstory N           the game again at event N's start\nversion           the build this game was made from (give it with a bug report)\ndeflicker [on|off] the console's deflicker (each line mixed with the one above)\nimport_card PATH  copy .hack saves from PCSX2 (a .ps2 card, a folder card or one save folder) onto this card\npad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it"
+                "{answer}\nstory N           the game again at event N's start\nversion           the build this game was made from (give it with a bug report)\ndeflicker [on|off] the console's deflicker (each line mixed with the one above)\nimport_card PATH  copy .hack saves from PCSX2 (a .ps2 card, a folder card, one save folder or a dhdataNN slot file) onto this card\npad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it"
             );
         }
         answer
@@ -928,8 +928,12 @@ fn make_mode(name: &str, assets: &mut Assets, o: &Options) -> Result<Box<dyn Mod
 
 /// PCSX2's `.hack` saves (a `.ps2` card image, a folder card or one
 /// exported save directory) onto the card directory `dst`.
-fn import_saves(src: &std::path::Path, dst: &std::path::Path) -> Result<String, String> {
-    let done = piney_desktop::card::import(src, dst)?;
+fn import_saves(
+    src: &std::path::Path,
+    dst: &std::path::Path,
+    volume: Option<piney_data::volume::Volume>,
+) -> Result<String, String> {
+    let done = piney_desktop::card::import(src, dst, volume)?;
     let list: Vec<String> = done.iter().map(|(d, n)| format!("{d} ({n} files)")).collect();
     Ok(format!("imported into {}: {}", dst.display(), list.join(", ")))
 }
@@ -1135,7 +1139,7 @@ fn main() {
             eprintln!("--import-card: no memory card (--no-card)");
             std::process::exit(2);
         };
-        match import_saves(&src, dst) {
+        match import_saves(&src, dst, volume_arg) {
             Ok(text) => println!("{text}"),
             Err(e) => {
                 eprintln!("{e}");

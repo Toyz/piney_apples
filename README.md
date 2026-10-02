@@ -249,6 +249,12 @@ The four parts' save folders are copied onto the port's card. A save it
 replaces is kept in a `backup-...` folder beside the card. Only the North
 American discs' saves are recognised.
 
+A single slot file (`dhdata01` to `dhdata12`, or a folder of them) can be
+imported the same way. A slot shows as used only through its entry in its
+folder's index file, so copying the file in by hand leaves it "unused";
+the import writes that entry for it. A later part's slot file needs the
+part named (`--volume 2`, or the console of a running game).
+
 This repository does not include the games. Everything the port plays
 comes from your discs.
 
