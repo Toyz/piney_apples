@@ -721,6 +721,12 @@ impl DesktopMode {
         }
     }
 
+    /// Whether New Game's name entry is up.
+    #[cfg(test)]
+    pub(crate) fn naming(&self) -> bool {
+        self.st.name_entry.is_some()
+    }
+
     /// Whether a stream plays: the scripts' or an Audio screen movie.
     #[cfg(test)]
     pub(crate) fn streaming(&self) -> bool {

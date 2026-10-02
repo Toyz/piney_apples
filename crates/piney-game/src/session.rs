@@ -1422,6 +1422,97 @@ mod tests {
         }
     }
 
+    /// New Game's name entry heard (the report: no sound from its keyboard
+    /// nor from the confirm after). Every event through `main`'s routing into
+    /// a headless engine: each press that asks for a sound (the dialog's 18,
+    /// the keyboard's 6, 4 and 7) is heard over the 12 frames after it.
+    /// `PINEY_SURVEY_BUILD=DIR` plays a build's disc, `PINEY_SURVEY_CARD=DIR`
+    /// a copy of a player's card, `PINEY_SURVEY_SKIP` skips the streams.
+    #[test]
+    fn the_name_entry_is_heard() {
+        // PINEY_SURVEY_BUILD=DIR: the disc as a build keeps it.
+        let iso = match std::env::var_os("PINEY_SURVEY_BUILD") {
+            Some(dir) => PathBuf::from(dir).join("infection.disc"),
+            None => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso"),
+        };
+        if !iso.exists() {
+            return;
+        }
+        let archive = Arc::new(Archive::new(Iso::open(&iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap());
+        // PINEY_SURVEY_CARD=DIR: a copy of a player's card instead of an
+        // empty one.
+        let card = std::env::var_os("PINEY_SURVEY_CARD").map_or_else(empty_card, PathBuf::from);
+        let mut s = Session::new(iso.clone(), archive, true, Some(card), true).unwrap();
+        let audio = piney_audio::Audio::headless(&iso).unwrap();
+        let mut pad = Pad::default();
+        let mut volumes = Vec::new();
+        to_menu(&mut s, &mut pad, |events| {
+            volumes.extend(events.iter().filter(|e| matches!(e, Event::Volumes { .. })).map(|e| format!("{e:?}")));
+            crate::handle(events, Some(&audio));
+        });
+        eprintln!("volumes at the title: {volumes:?}");
+        new_game(&mut s, &mut pad);
+        let level = |s: &mut Session, pad: &mut Pad, b: Buttons, frames: u32| {
+            let mut chunk = vec![0i16; 1600];
+            let mut sq = 0f64;
+            let mut ses = Vec::new();
+            for k in 0..frames {
+                let events = press(s, pad, if k == 0 { b } else { Buttons::NONE });
+                ses.extend(events.iter().filter_map(|e| if let Event::Se(n) = e { Some(*n) } else { None }));
+                crate::handle(events, Some(&audio));
+                audio.frame();
+                audio.render(&mut chunk);
+                sq += chunk.iter().map(|&v| f64::from(v).powi(2)).sum::<f64>();
+            }
+            ((sq / f64::from(frames * 1600)).sqrt(), ses)
+        };
+        // The setup's streams and lines to the name entry.
+        let mut chunk = vec![0i16; 1600];
+        let mut n = 0u32;
+        while !matches!(&s.stage, Stage::Desktop(d) if d.naming()) {
+            // PINEY_SURVEY_SKIP unset: the streams play out, as a player
+            // who watches them has it.
+            let skip = std::env::var_os("PINEY_SURVEY_SKIP").is_some();
+            let b = if streaming(&s) {
+                if skip && n % 30 == 29 { Buttons::CIRCLE | Buttons::START } else { Buttons::NONE }
+            } else if n % 30 == 29 {
+                Buttons::CROSS
+            } else {
+                Buttons::NONE
+            };
+            let events = press(&mut s, &mut pad, b);
+            crate::handle(events, Some(&audio));
+            audio.frame();
+            audio.render(&mut chunk);
+            n += 1;
+            assert!(n < 20000, "no name entry: {}", Mode::title(&s));
+        }
+        level(&mut s, &mut pad, Buttons::NONE, 60);
+        let mut heard = Vec::new();
+        let keys = [
+            Buttons::CROSS,
+            Buttons::CROSS,
+            Buttons::RIGHT,
+            Buttons::RIGHT,
+            Buttons::DOWN,
+            Buttons::CROSS,
+            Buttons::CIRCLE,
+            Buttons::LEFT,
+            Buttons::CROSS,
+        ];
+        for b in keys {
+            let (quiet, _) = level(&mut s, &mut pad, Buttons::NONE, 12);
+            let (loud, ses) = level(&mut s, &mut pad, b, 12);
+            eprintln!("{b:?}: {quiet:.0} -> {loud:.0}, se {ses:?}");
+            heard.push((loud > 1000.0, ses));
+        }
+        for (k, (louder, ses)) in heard.iter().enumerate() {
+            if !ses.is_empty() {
+                assert!(louder, "press {k}: sound {ses:?} asked for, none heard");
+            }
+        }
+    }
+
     /// The options kept across the parts: the file's go into the title's
     /// new save, and a change a menu makes to the save goes into the file.
     #[test]
