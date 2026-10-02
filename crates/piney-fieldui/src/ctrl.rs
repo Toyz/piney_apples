@@ -332,6 +332,11 @@ pub struct MenuCtrl {
     pub stream_flag: i16,
     pub stream_num: i16,
     pub stream_menu: crate::menus::stream::StreamState,
+    /// `ccThBook` while a Ryu Book is read ([`crate::book::Task`]).
+    pub book: Option<Box<crate::book::Task>>,
+    /// `BookOfs[24]` (gcmn 0x005d3530): each book's window, which books III
+    /// and VIII change as their lists open and close.
+    pub book_ofs: Vec<i32>,
     /// +0x234 `dummyTarget`: a character the talk menus hold (handle).
     pub dummy_target: Option<crate::world::CharInfo>,
     /// `menuList[89]`.
@@ -478,6 +483,8 @@ impl MenuCtrl {
             stream_flag: 0,
             stream_num: 0,
             stream_menu: crate::menus::stream::StreamState::default(),
+            book: None,
+            book_ofs: piney_data::tables::book::of(texts.volume).ofs.to_vec(),
             dummy_target: None,
             lists: texts.lists.clone(),
             talk: crate::talk::TalkState::default(),

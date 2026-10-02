@@ -41,6 +41,8 @@ pub struct Textures {
     pub hack_mask: Option<WindowTexture>,
     /// `ccDfComp`'s: `xwindow::TEX_xwindo01`.
     pub df_comp: Option<WindowTexture>,
+    /// A Ryu Book's cover: `str8800e::TEX_x800bac1` (`BOOK::bg`).
+    pub book_bg: Option<WindowTexture>,
 }
 
 impl Textures {
@@ -56,13 +58,21 @@ impl Textures {
             control: t(&texts.option.control_file, &texts.option.control_tex),
             hack_mask: t(crate::menus::hack::HACK_FILE, "TEX_xdhroma1"),
             df_comp: t("xwindow", "TEX_xwindo01"),
+            book_bg: t("str8800e", "TEX_x800bac1"),
         }
     }
 }
 
 fn texture<'a>(t: &'a Textures, obj: Obj, faces: &[i32; 4]) -> Option<&'a WindowTexture> {
     match obj {
-        Obj::MenuWindow | Obj::MenuWindowPr | Obj::MenuWindowA | Obj::EneLife | Obj::TargetCursol => t.window.as_ref(),
+        Obj::MenuWindow
+        | Obj::MenuWindowPr
+        | Obj::MenuWindowA
+        | Obj::EneLife
+        | Obj::TargetCursol
+        | Obj::BookWin
+        | Obj::BookButton => t.window.as_ref(),
+        Obj::BookBg => t.book_bg.as_ref(),
         Obj::MenuMask => t.control.as_ref(),
         Obj::MenuIcon | Obj::ItemIcon | Obj::ConIcon | Obj::ChatWindow => t.icon.as_ref(),
         Obj::MenuBg => t.bg.as_ref(),
@@ -82,6 +92,7 @@ fn texture<'a>(t: &'a Textures, obj: Obj, faces: &[i32; 4]) -> Option<&'a Window
 fn layer(obj: Obj) -> i16 {
     match obj {
         Obj::HackMask => crate::menus::hack::MASK_LAYER,
+        Obj::BookButton => crate::book::BUTTON_LAYER,
         Obj::SysFont => piney_desktop::layers::FONT_LAYER,
         _ => MENU_LAYER,
     }
@@ -214,8 +225,10 @@ pub fn draw(draws: &[Draw], textures: &Textures, fonts: &Fonts, names: &Names, f
             }
             Draw::Text { text, dx, dy, rgba, count, kt, .. } => {
                 let mut k = Kanji::init(3, 24);
-                if *kt == 2 {
-                    k.kt = Kt::LargeProportional;
+                match *kt {
+                    1 => k.kt = Kt::SmallFixed,
+                    2 => k.kt = Kt::LargeProportional,
+                    _ => {}
                 }
                 k.colour = *rgba;
                 k.dx = *dx;

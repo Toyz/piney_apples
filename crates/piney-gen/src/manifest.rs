@@ -3419,20 +3419,17 @@ fn field_voices(c: &Ctx, food: bool) -> Read {
     Ok(Value::List(out))
 }
 
-/// `skillVoicePlay`'s tables (main 0x0017e350) by `charTbl` row: the file
-/// (`spcVoiceData`, to its NULL) and the rows (`voiceData`), then the same
-/// in English (`spcVoiceDataE`, `voiceDataE`). Only the rows with a file
-/// are read: the game gives up on a character without one before it looks
-/// at the rows (Mutation's `voiceData` has three more than files). A table
-/// runs to the next one, closed by its (0, 0) row.
-fn skill_voices(c: &Ctx) -> Read {
-    use std::collections::BTreeSet;
+/// `skillVoicePlay`'s tables (main 0x0017e350) by `charTbl` row, as
+/// (file, table) for Japanese (`spcVoiceData`, `voiceData`) and English
+/// (`spcVoiceDataE`, `voiceDataE`). Only the rows with a file are read: the
+/// game gives up on a character without one before it looks at the rows
+/// (Mutation's `voiceData` has three more than files).
+fn skill_voice_tables(c: &Ctx) -> Result<Vec<Vec<(Value, u32)>>, String> {
     let sides = [(0x0030_7230, 0x0030_71E0), (0x0030_72D0, 0x0030_7280)];
-    let mut sides_read = Vec::new();
-    let mut starts = BTreeSet::new();
+    let mut out = Vec::new();
     for (files, rows) in sides {
         let (files, rows) = (find(c, files, MAIN), find(c, rows, MAIN));
-        let mut out = Vec::new();
+        let mut side = Vec::new();
         for k in 0..64 {
             let name = c.p.u32(files + 4 * k)?;
             if name == 0 {
@@ -3442,32 +3439,57 @@ fn skill_voices(c: &Ctx) -> Read {
             if c.p.u32(t).is_err() {
                 return Err(format!("voiceData row {k} is no table (0x{t:08x})"));
             }
-            starts.insert(t);
-            out.push((disc_path(c, name)?, t));
+            side.push((disc_path(c, name)?, t));
         }
-        sides_read.push(out);
+        out.push(side);
     }
-    let [jp, en] = sides_read.as_slice() else { unreachable!() };
-    if jp.len() != en.len() {
-        return Err(format!("{} Japanese and {} English skill files", jp.len(), en.len()));
+    if out[0].len() != out[1].len() {
+        return Err(format!("{} Japanese and {} English skill files", out[0].len(), out[1].len()));
     }
-    let rows = |a: u32| voice_table(c, a, starts.range(a + 1..).next().copied(), true);
-    let mut out = Vec::new();
-    for (j, e) in jp.iter().zip(en) {
-        out.push(Value::List(vec![
-            Value::List(vec![j.0.clone(), rows(j.1)?]),
-            Value::List(vec![e.0.clone(), rows(e.1)?]),
-        ]));
-    }
-    Ok(Value::List(out))
+    Ok(out)
+}
+
+/// The rows `skillVoicePlay` can reach from a table: ids 0-303 less a base
+/// of 6 to 150, so 150 rows before it to 297 after.
+const SKILL_ROWS_BEFORE: u32 = 150;
+const SKILL_ROWS_AFTER: u32 = 298;
+
+/// Where `skill_memory` starts: 150 rows before the lowest table.
+fn skill_memory_start(t: &[Vec<(Value, u32)>]) -> u32 {
+    t.iter().flatten().map(|r| r.1).min().unwrap_or(0) - 8 * SKILL_ROWS_BEFORE
+}
+
+/// Each character's file and where its table's row 0 is in `skill_memory`.
+fn skill_voices(c: &Ctx) -> Read {
+    let t = skill_voice_tables(c)?;
+    let start = skill_memory_start(&t);
+    let words = |(file, a): &(Value, u32)| match (a - start) % 8 {
+        0 => Ok(Value::List(vec![file.clone(), Value::Int(i128::from((a - start) / 8))])),
+        _ => Err(format!("skill voice table 0x{a:08x} is off the rows of 0x{start:08x}")),
+    };
+    let rows = t[0].iter().zip(&t[1]).map(|(j, e)| Ok(Value::List(vec![words(j)?, words(e)?])));
+    Ok(Value::List(rows.collect::<Result<Vec<_>, String>>()?))
+}
+
+/// The memory `skillVoicePlay` reads its rows from, as `VOICE_DATA`: the
+/// tables of both languages and what lies within a row's reach of them
+/// (the next table, `itemTblE`, the message tables after them). A row
+/// outside a character's table plays what lies there, as the game does.
+fn skill_memory(c: &Ctx) -> Read {
+    let t = skill_voice_tables(c)?;
+    let start = skill_memory_start(&t);
+    let end = t.iter().flatten().map(|r| r.1).max().unwrap_or(0) + 8 * SKILL_ROWS_AFTER;
+    let row = ty("VOICE_DATA", vec![]);
+    let rows = (start..end).step_by(8).map(|a| row.read(c, a)).collect::<Result<Vec<_>, _>>()?;
+    Ok(Value::List(rows))
 }
 
 fn skill_words() -> Layout {
     strukt(
         "SkillWords",
         0,
-        vec![("file", 0, cstr()), ("rows", 4, array(ty("VOICE_DATA", vec![]), 0))],
-        "One language's skill words for a character: the file, and its rows by `skillVoicePlay`'s row.",
+        vec![("file", 0, cstr()), ("row0", 4, I32)],
+        "One language's skill words for a character: the file, and where its table's row 0 is in `skill_memory`.",
     )
 }
 
@@ -3583,8 +3605,229 @@ fn voice() -> Group {
                 GCMN,
                 "`skillVoicePlay`'s tables by `charTbl` row, for the characters with a file.",
             ),
+            derived(
+                "skill_memory",
+                custom(Rc::new(skill_memory), array(ty("VOICE_DATA", vec![]), 0)),
+                GCMN,
+                "The memory `skillVoicePlay` reads its rows from: every table and the rows within reach of them (ids 0-303), as `VOICE_DATA`.",
+            ),
         ],
     )
+}
+
+/// The Ryu Books' texts (main `char *` globals into gcmn's data), each
+/// carried to a later volume by its own symbol.
+const BOOK_TEXTS: &[(&str, u32, &str)] = &[
+    ("title1", 0x0037_8028, "`bookTitle1`"),
+    ("area_msg", 0x0037_802C, "`bookAreaMsg`"),
+    ("time_msg", 0x0037_8030, "`bookTimeMsg`"),
+    ("cnt3", 0x0037_8034, "`bookCnt3`"),
+    ("title2", 0x0037_8038, "`bookTitle2`"),
+    ("magic_circle_msg", 0x0037_803C, "`bookMagicCircleMsg`"),
+    ("magic_circle_all_open_msg", 0x0037_8040, "`bookMagicCircleAllOpenMsg`"),
+    ("magic_circle_all_open_msg2", 0x0037_8044, "`bookMagicCircleAllOpenMsg2`"),
+    ("title3", 0x0037_8048, "`bookTitle3`"),
+    ("char_list", 0x0037_804C, "`bookCharList`"),
+    ("trade_total", 0x0037_8050, "`bookTradeTotal`"),
+    ("char_msg0", 0x0037_8054, "`bookCharMsg0`"),
+    ("char_msg1", 0x0037_8058, "`bookCharMsg1`"),
+    ("trade_msg0", 0x0037_805C, "`bookTradeMsg0`"),
+    ("trade_msg1", 0x0037_8060, "`bookTradeMsg1`"),
+    ("trade_msg2", 0x0037_8064, "`bookTradeMsg2`"),
+    ("trade_msg3", 0x0037_8068, "`bookTradeMsg3`"),
+    ("on_line", 0x0037_806C, "`bookOnLine`"),
+    ("trade_item", 0x0037_8070, "`bookTradeItem`"),
+    ("char_msg2", 0x0037_8074, "`bookCharMsg2`"),
+    ("back_msg", 0x0037_8078, "`bookBackMsg`"),
+    ("title4", 0x0037_807C, "`bookTitle4`"),
+    ("enemy_list", 0x0037_8080, "`bookEnemyList`"),
+    ("enemy_list_msg0", 0x0037_8084, "`bookEnemyListMsg0`"),
+    ("enemy_list_msg1", 0x0037_8088, "`bookEnemyListMsg1`"),
+    ("enemy_list_msg2", 0x0037_808C, "`bookEnemyListMsg2`"),
+    ("enemy_slain_msg0", 0x0037_8090, "`bookEnemySlainMsg0`"),
+    ("enemy_slain_msg1", 0x0037_8094, "`bookEnemySlainMsg1`"),
+    ("enemy_name", 0x0037_8098, "`bookEnemyName`"),
+    ("enemy_data", 0x0037_809C, "`bookEnemyData`"),
+    ("enemy_level", 0x0037_80A0, "`bookEnemyLevel`"),
+    ("enemy_hp", 0x0037_80A4, "`bookEnemyHP`"),
+    ("enemy_sp", 0x0037_80A8, "`bookEnemySP`"),
+    ("enemy_skill", 0x0037_80AC, "`bookEnemySKILL`"),
+    ("enemy_item", 0x0037_80B0, "`bookEnemyItem`"),
+    ("nothing", 0x0037_80B4, "`bookNothing`"),
+    ("enemy_weak0", 0x0037_80B8, "`bookEnemyWeak0`"),
+    ("enemy_weak1", 0x0037_80BC, "`bookEnemyWeak1`"),
+    ("enemy_weak2", 0x0037_80C0, "`bookEnemyWeak2`"),
+    ("enemy_encount_msg0", 0x0037_80C4, "`bookEnemyEncountMsg0`"),
+    ("title5", 0x0037_80C8, "`bookTitle5`"),
+    ("present_total", 0x0037_80CC, "`bookPresentTotal`"),
+    ("present_total2", 0x0037_80D0, "`bookPresentTotal2`"),
+    ("present2", 0x0037_80D4, "`bookPresent2`"),
+    ("play_time", 0x0037_80D8, "`bookPlayTime`"),
+    ("time", 0x0037_80DC, "`bookTime`"),
+    ("friendly", 0x0037_80E0, "`bookFriendly`"),
+    ("friendly1", 0x0037_80E4, "`bookFriendly1`"),
+    ("gp", 0x0037_80E8, "`bookGP`"),
+    ("title6", 0x0037_80EC, "`bookTitle6`"),
+    ("box_open", 0x0037_80F0, "`bookBoxOpen`"),
+    ("break_cnt", 0x0037_80F4, "`bookBreakCnt`"),
+    ("idol_cnt", 0x0037_80F8, "`bookIdolCnt`"),
+    ("title7", 0x0037_80FC, "`bookTitle7`"),
+    ("fountain", 0x0037_8100, "`bookFountain`"),
+    ("mush", 0x0037_8104, "`bookMush`"),
+    ("granpa", 0x0037_8108, "`bookGranpa`"),
+    ("symbl", 0x0037_810C, "`bookSymbl`"),
+    ("encount_msg", 0x0037_8110, "`bookEncountMsg`"),
+    ("encount_msg2", 0x0037_8114, "`bookEncountMsg2`"),
+    ("title8", 0x0037_8118, "`bookTitle8`"),
+    ("puchi_list", 0x0037_811C, "`bookPuchiList`"),
+    ("puchi_food_list", 0x0037_8120, "`bookPuchiFoodList`"),
+    ("puchi_name", 0x0037_8124, "`bookPuchiName`"),
+    ("puchi_cnt", 0x0037_8128, "`bookPuchiCnt`"),
+    ("puchi_food_total", 0x0037_812C, "`puchiFoodTotal`"),
+    ("puchi_num", 0x0037_8130, "`bookPuchiNum`"),
+    ("puchi_food_total2", 0x0037_8134, "`puchiFoodTotal2`"),
+    ("puchi_food", 0x0037_8138, "`bookPuchiFood`"),
+    ("puchi_food_num", 0x0037_813C, "`bookPuchiFoodNum`"),
+    ("cnt0", 0x0037_8140, "`bookCnt0`"),
+    ("cnt1", 0x0037_8144, "`bookCnt1`"),
+    ("cnt2", 0x0037_8148, "`bookCnt2`"),
+    ("hidden_name", 0x0037_814C, "`hiddenName`"),
+    ("movie_notice", 0x0037_8160, "`bookMovieNotice`"),
+];
+
+/// The Ryu Books' messages (gcmn `ccMsgData`: `emode`, then `str[4]` at
+/// +8; `str[1..3]` are the window's lines).
+const BOOK_MSGS: &[(&str, u32, &str)] = &[
+    ("counter_stop_help", 0x005D_29A0, "`BookCounterStopHelpMsg`"),
+    ("help10", 0x005D_29C0, "`BookHelp10`"),
+    ("help11", 0x005D_29E0, "`BookHelp11`"),
+    ("help20", 0x005D_2A00, "`BookHelp20`"),
+    ("help21", 0x005D_2A20, "`BookHelp21`"),
+    ("help22", 0x005D_2A40, "`BookHelp22`"),
+    ("help30", 0x005D_3FF0, "`BookHelp30`"),
+    ("help40", 0x005D_4010, "`BookHelp40`"),
+    ("help50", 0x005D_2A60, "`BookHelp50`"),
+    ("help60", 0x005D_2A80, "`BookHelp60`"),
+    ("help61", 0x005D_2AA0, "`BookHelp61`"),
+    ("help62", 0x005D_2AC0, "`BookHelp62`"),
+    ("help70", 0x005D_2AE0, "`BookHelp70`"),
+    ("help71", 0x005D_2B00, "`BookHelp71`"),
+    ("help72", 0x005D_2B20, "`BookHelp72`"),
+    ("help80", 0x005D_2B40, "`BookHelp80`"),
+    ("help81", 0x005D_2B60, "`BookHelp81`"),
+    ("help82", 0x005D_2B80, "`BookHelp82`"),
+    ("item_msg1", 0x005D_2BA0, "`BookItemMsg1`"),
+    ("item_msg10", 0x005D_2BC0, "`BookItemMsg10`"),
+    ("item_msg11", 0x005D_2BE0, "`BookItemMsg11`"),
+    ("item_msg2", 0x005D_2C00, "`BookItemMsg2`"),
+    ("item_msg20", 0x005D_2C20, "`BookItemMsg20`"),
+    ("item_msg21", 0x005D_2C40, "`BookItemMsg21`"),
+    ("item_msg22", 0x005D_2C60, "`BookItemMsg22`"),
+    ("item_msg3", 0x005D_2C80, "`BookItemMsg3`"),
+    ("item_msg30", 0x005D_2CA0, "`BookItemMsg30`"),
+    ("item_msg31", 0x005D_2CC0, "`BookItemMsg31`"),
+    ("item_msg30_comp", 0x005D_2CE0, "`BookItemMsg30_comp`"),
+    ("item_msg31_comp", 0x005D_2D00, "`BookItemMsg31_comp`"),
+    ("item_msg4", 0x005D_2D20, "`BookItemMsg4`"),
+    ("item_msg40", 0x005D_2D40, "`BookItemMsg40`"),
+    ("item_msg40_comp", 0x005D_2D60, "`BookItemMsg40_comp`"),
+    ("item_msg5", 0x005D_2D80, "`BookItemMsg5`"),
+    ("item_msg50", 0x005D_2DA0, "`BookItemMsg50`"),
+    ("item_msg6", 0x005D_2DC0, "`BookItemMsg6`"),
+    ("item_msg60", 0x005D_2DE0, "`BookItemMsg60`"),
+    ("item_msg61", 0x005D_2E00, "`BookItemMsg61`"),
+    ("item_msg62", 0x005D_2E20, "`BookItemMsg62`"),
+    ("item_msg7", 0x005D_2E40, "`BookItemMsg7`"),
+    ("item_msg70", 0x005D_2E60, "`BookItemMsg70`"),
+    ("item_msg71", 0x005D_2E80, "`BookItemMsg71`"),
+    ("item_msg72", 0x005D_2EA0, "`BookItemMsg72`"),
+    ("item_msg8", 0x005D_2EC0, "`BookItemMsg8`"),
+    ("item_msg80", 0x005D_2EE0, "`BookItemMsg80`"),
+    ("item_msg81", 0x005D_2F00, "`BookItemMsg81`"),
+    ("item_msg81_comp", 0x005D_2F20, "`BookItemMsg81_comp`"),
+];
+
+/// The rewards' thresholds by book and row (`BOOKITEM` tables, each to
+/// its `cnt` -1 row).
+const BOOK_ITEMS: &[(&str, u32, &str)] = &[
+    ("items_10", 0x005D_3590, "`Book10Item`"),
+    ("items_11", 0x005D_36A0, "`Book11Item`"),
+    ("items_20", 0x005D_3730, "`Book20Item`"),
+    ("items_21", 0x005D_3830, "`Book21Item`"),
+    ("items_22", 0x005D_38A0, "`Book22Item`"),
+    ("items_30", 0x005D_3910, "`Book30Item`"),
+    ("items_31", 0x005D_3990, "`Book31Item`"),
+    ("items_32", 0x005D_3970, "`Book32Item`"),
+    ("items_33", 0x005D_3A20, "`Book33Item`"),
+    ("items_40", 0x005D_3A40, "`Book40Item`"),
+    ("items_41", 0x005D_3AA0, "`Book41Item`"),
+    ("items_50", 0x005D_3AC0, "`Book50Item`"),
+    ("items_60", 0x005D_3B40, "`Book60Item`"),
+    ("items_61", 0x005D_3C00, "`Book61Item`"),
+    ("items_62", 0x005D_3CC0, "`Book62Item`"),
+    ("items_70", 0x005D_3D40, "`Book70Item`"),
+    ("items_71", 0x005D_3DD0, "`Book71Item`"),
+    ("items_72", 0x005D_3E60, "`Book72Item`"),
+    ("items_80", 0x005D_3F20, "`Book80Item`"),
+    ("items_81", 0x005D_3F40, "`Book81Item`"),
+    ("items_82", 0x005D_3FD0, "`Book82Item`"),
+];
+
+/// `CheckBookLimit`'s tables: each book's counter caps, by volume.
+const BOOK_LIMITS: &[(&str, u32, &str, usize)] = &[
+    ("limits_1", 0x005D_2870, "`book01CountLimit`", 6),
+    ("limits_2", 0x005D_2890, "`book02CountLimit`", 9),
+    ("limits_3", 0x005D_28C0, "`book03CountLimit`", 6),
+    ("limits_4", 0x005D_28D8, "`book04CountLimit`", 3),
+    ("limits_5", 0x005D_28E8, "`book05CountLimit`", 3),
+    ("limits_6", 0x005D_2900, "`book06CountLimit`", 9),
+    ("limits_7", 0x005D_2930, "`book07CountLimit`", 9),
+    ("limits_8", 0x005D_2958, "`book08CountLimit`", 3),
+];
+
+fn book_msg() -> Layout {
+    strukt(
+        "BookMsg",
+        0x18,
+        vec![("emode", 0, I32), ("str", 8, fixed(opt(cstr()), 4))],
+        "A `ccMsgData`: its mode and four strings (the name, then the lines).",
+    )
+}
+
+fn book() -> Group {
+    let mut v = vec![
+        e("ofs", 0x005D_3530, array(I32, 24), GCMN, "`BookOfs`: each book's window (y, width, height in cells)."),
+        e(
+            "item_list",
+            0x005D_2F40,
+            array(ty("BOOKITEMDATA", vec![]), 189),
+            GCMN,
+            "`bookItemList`: the rewards in the order given (`saveData.hyItem`): 1 a BGM, 2 a wallpaper, 4 a movie.",
+        ),
+        e("server", 0x005D_2970, array(opt(cstr()), 5), GCMN, "`bookServer`: the servers' names."),
+        e("count_stop", 0x005D_2988, array(opt(cstr()), 3), GCMN, "`countStopMsg`: by `volumeNum` - 1."),
+        e(
+            "stream_cluts",
+            0x005D_4030,
+            array(ptr(cstr()), 8),
+            GCMN,
+            "The palette `ccThBook` puts on the cover's `MAT_clut` for each book past the first.",
+        ),
+    ];
+    for &(name, inf, doc) in BOOK_TEXTS {
+        v.push(e(name, inf, ptr(cstr()), GCMN, doc));
+    }
+    for &(name, inf, doc) in BOOK_MSGS {
+        v.push(e(name, inf, book_msg(), GCMN, doc));
+    }
+    for &(name, inf, doc) in BOOK_ITEMS {
+        let end: Until = Rc::new(|r| r.list()[0].int() == -1);
+        v.push(e(name, inf, array_until(ty("BOOKITEM", vec![]), end), GCMN, doc));
+    }
+    for &(name, inf, doc, n) in BOOK_LIMITS {
+        v.push(e(name, inf, array(I32, n), GCMN, doc));
+    }
+    group("book", "Book", "The Ryu Books (`BOOK`, gcmn book.cpp): the windows, the rewards and their texts.", v)
 }
 
 fn party_chat() -> Group {
@@ -3751,6 +3994,7 @@ pub fn groups() -> Rc<Vec<Group>> {
         party_chat(),
         talk(),
         voice(),
+        book(),
     ]);
     GROUPS.with(|x| *x.borrow_mut() = Some(g.clone()));
     g

@@ -19,7 +19,7 @@ const LYING: i16 = 10;
 
 /// Story 19's save (Mia's and Elk's addresses given) in story area 14's
 /// field with Mia and Elk in the party, once the field plays.
-fn field_with_mia_and_elk() -> Option<Session> {
+pub(super) fn field_with_mia_and_elk() -> Option<Session> {
     let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
     let mut s = story_session_on("infection", 19, |start| {
         let save = &mut start.state.save;
@@ -44,7 +44,7 @@ fn field_with_mia_and_elk() -> Option<Session> {
     panic!("no field with Mia: {}", Mode::title(&s));
 }
 
-fn step(s: &mut Session, n: u32) {
+pub(super) fn step(s: &mut Session, n: u32) {
     let mut pad = Pad::default();
     for _ in 0..n {
         pad.read(&Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
@@ -53,7 +53,7 @@ fn step(s: &mut Session, n: u32) {
     }
 }
 
-fn area(s: &mut Session) -> &mut crate::area::AreaMode {
+pub(super) fn area(s: &mut Session) -> &mut crate::area::AreaMode {
     match &mut s.stage {
         Stage::Area(a) => a,
         _ => panic!("left the field"),
@@ -152,7 +152,7 @@ fn a_member_felled_and_revived_while_lying_gets_up() {
 }
 
 /// Generators following `who` (the condition marker's among them).
-fn generators_on(s: &mut Session, who: usize) -> usize {
+pub(super) fn generators_on(s: &mut Session, who: usize) -> usize {
     area(s).world().fx().census().char_generators.iter().filter(|&&g| g as usize == who).count()
 }
 

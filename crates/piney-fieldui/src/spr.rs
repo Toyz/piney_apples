@@ -66,6 +66,14 @@ pub enum Obj {
     /// `ccDfComp`'s sprite (+0x24): the banner of an area whose portals
     /// are all opened, `xwindow::TEX_xwindo01` ([`crate::dfcomp`]).
     DfComp,
+    /// A Ryu Book's ([`crate::book`]): `bg`, the cover over the screen
+    /// (`str8800e`'s `TEX_x800bac1`); `win`, the page's window; `button`,
+    /// on its own layer (243); `title` and `msg[140]`, its kanji rows.
+    BookBg,
+    BookWin,
+    BookButton,
+    BookTitle,
+    BookMsg(u8),
 }
 
 impl Obj {
@@ -97,6 +105,11 @@ impl Obj {
             Obj::ChatWindow => "chat".into(),
             Obj::ChatKanji(i) => format!("chat{i}"),
             Obj::DfComp => "dfcomp".into(),
+            Obj::BookBg => "bookBg".into(),
+            Obj::BookWin => "bookWin".into(),
+            Obj::BookButton => "bookButton".into(),
+            Obj::BookTitle => "bookTitle".into(),
+            Obj::BookMsg(i) => format!("bookMsg{i}"),
         }
     }
 }

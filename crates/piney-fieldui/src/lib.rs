@@ -7,6 +7,7 @@
 //! comes out as [`Request`]s. The save is [`piney_desktop::SaveState`],
 //! shared with the event engine. See docs/engine/field-ui.md.
 
+pub mod book;
 pub mod chat_msg;
 pub mod ctrl;
 pub mod dfcomp;
@@ -156,6 +157,12 @@ pub enum Request {
     /// playing stream `num`, answered with [`FieldUi::stream_menu_done`]
     /// when it has ended.
     StreamMenu(i32),
+    /// A Ryu Book's stream (`ccThBook`: `ccThExecuteStream` with 112 + the
+    /// book; from the second book on, the cover's `MAT_clut` the book's
+    /// palette, `bookItem`'s `stream_cluts`), answered with
+    /// [`FieldUi::book_stream_done`]; `None` once the book has taken it
+    /// down (`ccDeleteThread`).
+    BookStream(Option<i32>),
     /// `StreamMenu`'s `ccThStrParty`: the members `streamFlag`'s bits 0-2
     /// name drawn into its stream.
     StrParty(i16),
@@ -394,6 +401,12 @@ impl FieldUi {
             target_prev: world.target_prev.clone(),
         };
         self.draws = self.ctrl.frame(&mut x);
+        // ccThBook (35) after ccThMenu (34): its sends behind the menu's.
+        if let Some(mut b) = self.ctrl.book.take() {
+            let draws = b.frame(&mut self.ctrl, &mut x);
+            self.draws.extend(draws);
+            self.ctrl.book = Some(b);
+        }
         // Stopped inside ccUseItemRequest: the rest of the frame runs on
         // the answer, with the world as the frame left it.
         self.held = self.ctrl.item_asked().then_some((x.world, x.target, x.target_prev));
@@ -464,6 +477,31 @@ impl FieldUi {
     /// they are in [`World::chat_at`].
     pub fn chat_speakers(&self) -> Vec<u32> {
         self.ctrl.chat.speakers()
+    }
+
+    /// The answer to [`Request::BookStream`]: the book's stream has ended
+    /// (`ccThExecuteStream`'s param back to -1).
+    pub fn book_stream_done(&mut self) {
+        if let Some(b) = self.ctrl.book.as_mut() {
+            b.stream_done = true;
+        }
+    }
+
+    /// Whether a Ryu Book is open (`ccThBook` runs).
+    pub fn book_on(&self) -> bool {
+        self.ctrl.book.is_some()
+    }
+
+    /// Ryu Book `page` read as `ccUseItemRequest`'s book branch starts it
+    /// (gcmn 0x0057c154): `ccThBook` started, `CloseChat`, `bgStatus` 3,
+    /// the menu task held in the use until the book's state is 0 (the
+    /// harnesses' entry; a key item's use goes through its steps).
+    pub fn start_book(&mut self, page: i32) {
+        self.ctrl.book = Some(Box::new(book::Task::new(page)));
+        self.ctrl.chat.close();
+        self.ctrl.bg_status = 3;
+        self.ctrl.item = Some(menus::useitem::ItemRun::book(menus::useitem::Resume::Ocarina));
+        self.ctrl.cont = Some(ctrl::Cont { woke: false, cursors: false, after: ctrl::After::Item });
     }
 
     pub fn stream_menu_done(&mut self) {

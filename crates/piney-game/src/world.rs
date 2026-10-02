@@ -137,6 +137,8 @@ pub struct WorldMode {
     hack_screen: bool,
     /// `ccGame.areaLevel`, which the Chaos Gate's keyword screen writes.
     area_level: i32,
+    /// A Ryu Book's cover stream plays (`ccThBook`'s `ccThExecuteStream`).
+    book_stream: bool,
     /// The words entered at the Chaos Gate (`ccEvent.areaCodeSet`), for the
     /// events.
     area_code_set: Option<[i16; 3]>,
@@ -200,6 +202,7 @@ impl WorldMode {
             unported: None,
             hack_screen: false,
             area_level: 0,
+            book_stream: false,
             area_code_set: None,
             leaving: None,
             map,
@@ -511,6 +514,32 @@ impl WorldMode {
             R::DrainMovie(_) => self.ui.drain_movie_done(),
             // No boss in a town: menu 74 is never opened there.
             R::StreamMenu(_) => self.ui.stream_menu_done(),
+            // ccThBook's cover, stream 112 + the book, over the town; a
+            // stream that cannot start counts as played.
+            R::BookStream(Some(page)) => {
+                let save = self.world.state().save.clone();
+                let started = match (self.st.stream.iso.clone(), self.st.stream.data.clone()) {
+                    (Some(iso), Some(data)) => usize::try_from(112 + page)
+                        .map_err(|_| format!("stream {}", 112 + page))
+                        .and_then(|n| crate::stream::StreamPlayer::drain(&iso, &data, n, &save, &mut self.events)),
+                    _ => Err("no disc for the book's stream".into()),
+                };
+                match started {
+                    Ok(p) => {
+                        self.st.stream.player = Some(p);
+                        self.book_stream = true;
+                    }
+                    Err(e) => {
+                        eprintln!("the book's stream: {e}; counted as played");
+                        self.ui.book_stream_done();
+                    }
+                }
+            }
+            R::BookStream(None) => {
+                if std::mem::take(&mut self.book_stream) {
+                    self.st.stream.player = None;
+                }
+            }
             R::StrParty(_) => {}
             R::SleepAll => self.world.set_asleep(true),
             R::WakeAll => self.world.set_asleep(false),
@@ -1068,6 +1097,19 @@ impl Mode for WorldMode {
                     Some(piney_fieldui::chat_msg::ChatAt { who: h, listed, at })
                 })
                 .collect();
+            // The book's cover stream, a frame a menu frame until it ends.
+            if self.book_stream
+                && let Some(p) = &mut self.st.stream.player
+            {
+                match p.step(&self.st.pad, &mut self.events) {
+                    Some(f) => self.st.stream.frame = Some(f),
+                    None => {
+                        self.st.stream.player = None;
+                        self.book_stream = false;
+                        self.ui.book_stream_done();
+                    }
+                }
+            }
             self.ui.step_into(pad, &w, self.world.state_mut(), self.count, &mut ctx);
             // The menu task stops in ccUseItemRequest (a book, a key item):
             // the use's rules on the town's party, and its steps back to the

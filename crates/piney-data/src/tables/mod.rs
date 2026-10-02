@@ -10,6 +10,7 @@
 #![allow(clippy::approx_constant, clippy::identity_op)]
 
 pub mod battle;
+pub mod book;
 pub mod combat;
 pub mod desktop;
 pub mod dtmenu;

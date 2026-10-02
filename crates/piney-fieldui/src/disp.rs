@@ -76,10 +76,19 @@ fn sprite_mut(m: &mut MenuCtrl, obj: Obj) -> (&mut Spr, Vec<u8>) {
         Obj::MenuProtect => (&mut m.protect_spr, Vec::new()),
         Obj::ChatWindow => (&mut m.chat.window, Vec::new()),
         // The gate hack's own two are never sent from here, nor the chat's
-        // texts (drawn at once), nor ccDfComp's (its own task's).
-        Obj::MenuMask | Obj::MenuIcon | Obj::HackMask | Obj::SysFont | Obj::ChatKanji(_) | Obj::DfComp => {
-            (&mut m.mask, Vec::new())
-        }
+        // texts (drawn at once), nor ccDfComp's or a book's (their own
+        // tasks').
+        Obj::MenuMask
+        | Obj::MenuIcon
+        | Obj::HackMask
+        | Obj::SysFont
+        | Obj::ChatKanji(_)
+        | Obj::DfComp
+        | Obj::BookBg
+        | Obj::BookWin
+        | Obj::BookButton
+        | Obj::BookTitle
+        | Obj::BookMsg(_) => (&mut m.mask, Vec::new()),
     }
 }
 
@@ -693,7 +702,9 @@ fn target_cursor(m: &mut MenuCtrl, x: &mut Ctx, target: Option<&CharInfo>) {
                 c.cx = -36.0;
                 c.cy = -16.0;
                 c.rot = 0.0;
-                let s = div(add(div(sub(32.0, from_int(ca)), 3.5), 8.0), 16.0);
+                // The pulse again from the diamond's scale (`$f20`), not
+                // from cursolAlpha (0x0051f21c): it barely pulses.
+                let s = div(add(div(sub(32.0, f20), 3.5), 8.0), 16.0);
                 c.sx = mul(c.sx, s);
                 c.sy = mul(c.sy, s);
                 c.cx = mul(c.cx, s);

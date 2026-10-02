@@ -218,6 +218,9 @@ pub struct World {
     /// whose characters are loaded, as (id, `bootParam`); `CheckSpc(id)` is
     /// the place in it.
     pub spc: Vec<(i32, i32)>,
+    /// The people on `g_entCtrl`'s NPC list (`ccEntryObj` +0x124, their
+    /// `npcTbl` rows): book III's "Online" for a person.
+    pub npcs: Vec<i32>,
     /// A Grunty in a breeder's pen (`ccPGuso`): what Give Food reads of
     /// `cmndTargetPrev` when it is this character.
     pub grunty: Option<crate::menus::breeder::Grunty>,

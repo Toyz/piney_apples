@@ -6234,6 +6234,9 @@ mod tests {
     /// Issues #14 and #15: a member felled and revived, the markers.
     mod revive;
 
+    /// A foe's condition effect ended where the game clears it.
+    mod cond_fx;
+
     // Playthroughs: the story's scripts (run by piney-event's VM, as every
     // event is) played from a start point with a scripted pad, checked.
 

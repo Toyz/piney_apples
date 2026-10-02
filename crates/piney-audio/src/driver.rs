@@ -1200,8 +1200,9 @@ impl Driver {
     /// dungeon: the first queued word, from the character's file and rows in
     /// the disc's tables ([`piney_data::tables::voice::SkillVoice`]), the row
     /// by a per-character rule on the skill id, sent as `evVoicePlay` sends a
-    /// line; then the queue emptied. A character without a file, or a row with
-    /// no line, leaves the queue for next frame; a row past its table has none.
+    /// line; then the queue emptied. A character without a file, or a row of
+    /// -1, leaves the queue for next frame. A row outside the character's
+    /// table sends what lies there (`skill_memory`) and empties it too.
     pub fn skill_voice_play(&mut self, out: &mut Vec<Command>) {
         if self.words_num == 0 {
             return;
@@ -1210,8 +1211,8 @@ impl Driver {
         let (c, sid, type_bit) = self.words[i];
         let Some(v) = usize::try_from(c).ok().and_then(|k| self.voice.skill.get(k)) else { return };
         let words = if self.voice_english { &v.en } else { &v.jp };
-        let idx = skill_row(c, sid, type_bit);
-        let row = usize::try_from(idx).ok().and_then(|k| words.rows.get(k)).copied();
+        let at = i64::from(words.row0) + i64::from(skill_row(c, sid, type_bit));
+        let row = usize::try_from(at).ok().and_then(|k| self.voice.skill_memory.get(k)).copied();
         let Some(r) = row.filter(|r| r.ofs != -1) else { return };
         out.push(Command::Voice(VoiceCmd { file: words.file, ofs: r.ofs, size: r.siz, vol: VOICE_VOL }));
         self.words = [(-1, -1, false); 4];

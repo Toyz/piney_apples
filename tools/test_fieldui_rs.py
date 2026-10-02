@@ -60,6 +60,7 @@ EXAMPLE = os.path.join(TARGET, "release", "examples", "fieldui_probe")
 CCSYS, SAVEDATA, GAME_P, WORLDMAN, EVENTMNG = inf_va(0x003788E0), inf_va(0x003789D8), inf_va(0x003789CC), inf_va(0x00378A7C), inf_va(0x00378A94)
 MENU_P, CCMSG, CCCHAT, FONTTEX, MENUWIN = inf_va(0x00378C88), inf_va(0x00378A8C), inf_va(0x00378A90), inf_va(0x00378960), inf_va(0x00378A9C)
 FONT, FONTDEF = inf_va(0x00378954), inf_va(0x00378958)
+BOOK_P = inf_va(0x00378B00)                          # book: the open Ryu Book (BOOK)
 CMNDTARGET, CMNDTARGETPREV, CMNDTARGETFIX, CMNDSORTROOT = inf_va(0x00378C64), inf_va(0x00378C68), inf_va(0x00378C6C), inf_va(0x00378C60)
 CMNDROOTS = (inf_va(0x00378C48), inf_va(0x00378C50), inf_va(0x00378C58))            # cmndPcRoot, cmndEneRoot, cmndObjRoot
 PARTY, PLW_PW, GAMEOVER, PGRIDE = inf_va(0x00730310), inf_va(0x00730300), inf_va(0x00378C74), inf_va(0x00378CDC)
@@ -93,7 +94,9 @@ def disp_noiz():
 
 
 DISP_NOIZ = disp_noiz()
-OWN_CALLS = (GT_HACK, DRAIN, DISP_NOIZ)
+# The Ryu Books' code (BOOK, ccThBook): its EntryFlash calls on menuFade.
+BOOK_CODE = (volume.span("CheckBookLimit__4BOOKFii")[0], volume.span("ccThBook__FPv")[1])
+OWN_CALLS = (GT_HACK, DRAIN, DISP_NOIZ, BOOK_CODE)
 
 
 def own_call(ra):
@@ -227,6 +230,9 @@ class Scenario:
         self.gim_acts = {}        # frame -> (handle, actNum): a gimmick's +0x1d4 (the spring's state)
         self.gones = {}           # frame -> handle: the character gone (ccCheckTarget 0)
         self.bgnum = 0            # WORLD_MAN::GetBG (+0xc)
+        self.attacks = {}         # frame -> ccMenuCtrl.plAttack (+0xf4) set before it
+        self.book = None          # (page, frame): a Ryu Book read from that frame (ccThBook)
+        self.directs = {}         # frame -> pad direct (held) bits
 
     def spc_saves(self):
         """spcParam[id]'s level, exp, money, HP, SP and class as save writes."""
@@ -324,6 +330,12 @@ class Scenario:
             out.append(f"rng {self.rng}")
         for f, v in sorted(self.modes.items()):
             out.append(f"mode {f} {v}")
+        for f, v in sorted(self.attacks.items()):
+            out.append(f"attack {f} {v}")
+        for f, v in sorted(self.directs.items()):
+            out.append(f"direct {f} {v}")
+        if self.book:
+            out.append("book %d %d" % self.book)
         if self.game_cnt:
             out.append("gamecnt %d %d %d" % self.game_cnt)
         for f, (h, st) in sorted(self.gim_acts.items()):
@@ -1135,6 +1147,7 @@ class Game:
             if self.frame > self.stop_at:
                 raise Stop("done")
             self.start_frame()
+            self.book_frame()
         return 0
 
     def start_frame(self):
@@ -1146,8 +1159,14 @@ class Game:
             if f >= k:
                 self.skill_now = v
         push, rep = sc.pads.get(f, (0, 0))
+        m.store(PAD + 0x64, 4, sc.directs.get(f, 0))
         m.store(PAD + 0x68, 4, push)
         m.store(PAD + 0x70, 4, rep)
+        if sc.book and f == sc.book[1] and not getattr(self, "book_tcb", 0):
+            # ccUseItemRequest's book branch, the menu task's frame: the
+            # task stops here and ccThBook (35) runs, the use's wait loop
+            # (Disp while its state is 1) at each frame's start.
+            raise Stop("book")
         m.store(SYS + 0x358, 4, f)
         if f in sc.gim_acts:
             h, st = sc.gim_acts[f]
@@ -1185,6 +1204,8 @@ class Game:
             m.store(c + 0xF8, 2, 1)
         if f in sc.modes:
             m.store(c + 0x16, 2, sc.modes[f])
+        if f in sc.attacks:
+            m.store(c + 0xF4, 2, sc.attacks[f])
         msg = m.load(CCMSG, 4)
         if f in sc.msgs:
             emode, name, ls = sc.msgs[f]
@@ -1206,6 +1227,26 @@ class Game:
             if r != 0:
                 self.checking = False
 
+    def run_book(self):
+        """ccThBook natively from the book's frame: the use's start (the
+        task, `bgStatus` 3, `Disp`), then the task with the use's loop at
+        each frame's start; its stream's calls answered as a stream that
+        plays `sc.movie` frames."""
+        m, page = self.m, self.sc.book[0]
+        t = self.book_tcb = self.alloc(0x60)
+        m.store(t + 0x14, 4, page)
+        m.store(t + 0x18, 4, 1)
+        m.store(self.menu() + 0xE, 2, 3)
+        self.call(sym("Disp__10ccMenuCtrlFv"), [self.menu()])
+        h = m.hooks
+        h[sym("GetChunkAdrsF__8ccStreamFPCci")] = lambda mm, *a: self.alloc(0x40)
+        h[sym("GetSubstAdrsF__8ccStreamFPCci")] = lambda mm, *a: self.alloc(0x40)
+        try:
+            self.m.call(sym("ccThBook__FPv"), [t], limit=2_000_000_000)
+        except Stop as e:
+            if str(e) != "done":
+                raise
+
     def names(self):
         """Sprite addresses to the probe's names, from the constructed ccMenuCtrl."""
         m = self.m
@@ -1224,14 +1265,27 @@ class Game:
         n[m.load(FONT, 4)] = "sysfont"
         if self.hack_mask:
             n[self.hack_mask] = "hackmask"
+        book = m.load(BOOK_P, 4)
+        if book:
+            n[m.load(book + 4, 4)] = "bookBg"
+            n[m.load(book + 8, 4)] = "bookWin"
+            n[m.load(book + 0xC, 4)] = "bookButton"
         return n
+
+    def book_frame(self):
+        """The use's wait loop at a frame's start: Disp while state 1."""
+        t = getattr(self, "book_tcb", 0)
+        if t and self.m.load(t + 0x18, 4) == 1:
+            self.call(sym("Disp__10ccMenuCtrlFv"), [self.menu()])
 
     def run(self):
         tscb = self.alloc(0x60)
         try:
             self.m.call(sym("ccThMenu__FPv"), [tscb], limit=2_000_000_000)
         except Stop as e:
-            if str(e) != "done":
+            if str(e) == "book":
+                self.run_book()
+            elif str(e) != "done":
                 raise
         names = self.names()
         frames = {}
@@ -1436,6 +1490,95 @@ class FieldUiAgainstGame(unittest.TestCase):
             sc.target = Char(0x200, types, 5, hp, sp, mhp, msp, name, tag=tag)
             sc.game = (1, 0, 0, 0)
             self.compare(sc, f"target {name}")
+
+    def test_attack_cursor(self):
+        # plAttack on an enemy target: the attack cursor (0x2912 cell),
+        # scaled from the diamond's pulse (0x0051f21c), and an area's marks.
+        sc = Scenario(70)
+        self.party(sc, 2)
+        sc.target = Char(0x200, 0x20, 5, 40, 0, 80, 0, b"Goblin", tag=(250, 200))
+        sc.game = (1, 0, 0, 0)
+        sc.attacks = {0: 1, 40: 0, 50: 1}
+        self.compare(sc, "attack cursor")
+
+    def book(self, sc, page, start=2, movie=4):
+        """Ryu Book `page` read from frame `start` (its stream `movie`
+        frames long), its rewards' save bytes watched: `hyProccess`,
+        `hyItem`, the desktop's wallpapers, BGMs and movies."""
+        sc.book = (page, start)
+        sc.movie = movie
+        sc.watch += [(0x683D, 0x21), (0x2238, 0x2C)]
+
+    def test_book_1(self):
+        # Book I: the areas visited (15, past the first reward's 10) and
+        # the play time (3:00:02); the reward's windows dismissed, the
+        # cursor moved down and up, the book closed.
+        # The harness's use ends with the book (frame 240's cancel).
+        sc = Scenario(241)
+        self.party(sc, 1)
+        sc.saves += [(0x6862, 2, 15), (0x8400, 4, 60 * (3 * 3600 + 2))]
+        self.book(sc, 0)
+        sc.pads = {f: (OK, 0) for f in range(40, 200, 20)}
+        sc.pads.update({205: (DOWN, 0), 215: (UP, 0), 225: (DOWN, 0), 240: (CANCEL, 0)})
+        self.compare(sc, "book 1")
+
+    def test_book_2(self):
+        # Book II: the portals opened (45, past rows of 10 and 15 the
+        # first reward's), the fields' all opened (12) and the dungeons'
+        # (3); the rewards' windows, the rows walked, the book closed.
+        sc = Scenario(400)
+        self.party(sc, 1)
+        sc.saves += [(0x6864, 2, 45), (0x6866, 2, 12), (0x6868, 2, 3)]
+        self.book(sc, 1)
+        sc.pads = {f: (OK, 0) for f in range(40, 330, 15)}
+        sc.pads.update({340: (DOWN, 0), 350: (DOWN, 0), 360: (DOWN, 0), 370: (UP, 0), 385: (CANCEL, 0)})
+        sc.frames = 386
+        self.compare(sc, "book 2")
+
+    def book3(self, sc):
+        """Book III's characters: BlackRose and Orca in the party flag,
+        trades with them, people met (trade counts 0 and 4), a PC's item
+        list and an online member."""
+        sc.saves += [(0x2220, 4, (1 << 2) | (1 << 3)), (0x686A + 1, 1, 3), (0x686A + 2, 1, 5),
+                     (0x686A + 17, 1, 0), (0x686A + 20, 1, 4), (0x686A + 40, 1, 0xFF)]
+        # BlackRose's trade list: two items (id, category, num).
+        sc.saves += [(0xE3C + 64 + 0, 2, 3), (0xE3C + 64 + 2, 1, 10), (0xE3C + 64 + 3, 1, 1),
+                     (0xE3C + 64 + 4, 2, 7), (0xE3C + 64 + 6, 1, 11), (0xE3C + 64 + 7, 1, 2)]
+        for k in range(14):
+            sc.saves += [(0xE3C + 64 + 8 + 4 * k, 4, 0xFFFFFFFF)]
+        # Their names as NewGame leaves them in spcParam (charTbl's).
+        sc.spc[2] = (b"Orca", 12, 345, 1500, 150, 80, 1)
+        sc.spc[3] = (b"Marlo", 10, 100, 0, 100, 40, 2)
+
+    def given(self, sc, page):
+        """Every reward of book `page` given already (`hyProccess`)."""
+        sc.saves += [(0x683D + 4 * page + k, 1, 0x7F) for k in range(4)]
+
+    def test_book_3(self):
+        # Book III: its reward (12 trades, past 5) and its windows.
+        sc = Scenario(300)
+        self.party(sc, 1)
+        self.book3(sc)
+        self.book(sc, 2)
+        sc.pads = {f: (OK, 0) for f in range(40, 200, 15)}
+        sc.pads[260] = (CANCEL, 0)
+        sc.frames = 261
+        self.compare(sc, "book 3")
+
+    def test_book_3_list(self):
+        # Book III's list: the cursor onto it (to the first one known),
+        # down and up past the unknown, a sub-window opened and closed,
+        # up off the list, the book closed.
+        sc = Scenario(300)
+        self.party(sc, 1)
+        self.book3(sc)
+        self.given(sc, 2)
+        self.book(sc, 2)
+        sc.pads = {40: (DOWN, 0), 50: (DOWN, 0), 60: (0, DOWN), 70: (0, DOWN), 80: (0, UP), 90: (OK, 0),
+                   120: (CANCEL, 0), 130: (0, DOWN), 140: (0, UP), 150: (0, UP), 160: (0, UP), 170: (UP, 0),
+                   200: (CANCEL, 0)}
+        sc.frames = 201
+        self.compare(sc, "book 3 list")
 
     def test_enemy_bars(self):
         sc = Scenario(60)

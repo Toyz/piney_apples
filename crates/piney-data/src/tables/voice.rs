@@ -102,16 +102,16 @@ impl crate::store::Load for FieldVoice {
     }
 }
 
-/// One language's skill words for a character: the file, and its rows by `skillVoicePlay`'s row.
+/// One language's skill words for a character: the file, and where its table's row 0 is in `skill_memory`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SkillWords {
     pub file: &'static str,
-    pub rows: &'static [VoiceData],
+    pub row0: i32,
 }
 
 impl crate::store::Load for SkillWords {
     fn load(r: &mut crate::store::Reader) -> Self {
-        SkillWords { file: crate::store::Load::load(r), rows: crate::store::Load::load(r) }
+        SkillWords { file: crate::store::Load::load(r), row0: crate::store::Load::load(r) }
     }
 }
 
@@ -143,6 +143,8 @@ pub struct Voice {
     pub food: VoiceTable,
     /// `skillVoicePlay`'s tables by `charTbl` row, for the characters with a file.
     pub skill: &'static [SkillVoice],
+    /// The memory `skillVoicePlay` reads its rows from: every table and the rows within reach of them (ids 0-303), as `VOICE_DATA`.
+    pub skill_memory: &'static [VoiceData],
 }
 
 impl crate::store::Load for Voice {
@@ -154,6 +156,7 @@ impl crate::store::Load for Voice {
             field: crate::store::Load::load(r),
             food: crate::store::Load::load(r),
             skill: crate::store::Load::load(r),
+            skill_memory: crate::store::Load::load(r),
         }
     }
 }
@@ -176,6 +179,9 @@ impl Voice {
     }
     pub fn skill(&self) -> &'static [SkillVoice] {
         self.skill
+    }
+    pub fn skill_memory(&self) -> &'static [VoiceData] {
+        self.skill_memory
     }
 }
 

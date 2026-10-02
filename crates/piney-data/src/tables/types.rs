@@ -225,6 +225,62 @@ impl BattleEffect {
     }
 }
 
+/// `BOOKITEM` (Infection's DWARF).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Bookitem {
+    pub cnt: i32,
+    pub category: i32,
+    pub item: i32,
+}
+
+impl crate::store::Load for Bookitem {
+    fn load(r: &mut crate::store::Reader) -> Self {
+        Bookitem {
+            cnt: crate::store::Load::load(r),
+            category: crate::store::Load::load(r),
+            item: crate::store::Load::load(r),
+        }
+    }
+}
+
+impl Bookitem {
+    /// Its size in the game's memory.
+    pub const SIZE: usize = 0xc;
+
+    /// Laid into the game's memory at its fields' offsets (a pointer
+    /// field, which the game's code sets itself, is left alone).
+    pub fn write(&self, b: &mut [u8]) {
+        b[0x0..0x4].copy_from_slice(&self.cnt.to_le_bytes());
+        b[0x4..0x8].copy_from_slice(&self.category.to_le_bytes());
+        b[0x8..0xc].copy_from_slice(&self.item.to_le_bytes());
+    }
+}
+
+/// `BOOKITEMDATA` (Infection's DWARF).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Bookitemdata {
+    pub category: i32,
+    pub item: i32,
+}
+
+impl crate::store::Load for Bookitemdata {
+    fn load(r: &mut crate::store::Reader) -> Self {
+        Bookitemdata { category: crate::store::Load::load(r), item: crate::store::Load::load(r) }
+    }
+}
+
+impl Bookitemdata {
+    /// Its size in the game's memory.
+    pub const SIZE: usize = 0x8;
+
+    /// Laid into the game's memory at its fields' offsets (a pointer
+    /// field, which the game's code sets itself, is left alone).
+    pub fn write(&self, b: &mut [u8]) {
+        b[0x0..0x4].copy_from_slice(&self.category.to_le_bytes());
+        b[0x4..0x8].copy_from_slice(&self.item.to_le_bytes());
+    }
+}
+
 /// `ccBossParamData` (Infection's DWARF).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BossParamData {

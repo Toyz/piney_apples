@@ -13,6 +13,7 @@ use crate::volume::Vol;
 /// The groups whose values are data in the build, not Rust in the repository.
 pub const IN_BUILD: &[&str] = &[
     "battle",
+    "book",
     "combat",
     "desktop",
     "dtmenu",

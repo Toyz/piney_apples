@@ -47,7 +47,7 @@ fn words(cmds: &[Command]) -> Vec<String> {
 fn the_driver_asks_what_the_game_asks() {
     let mut iso = iso_path().map(|p| Iso::open(p).unwrap());
     let (mut rows, mut elsewhere, mut other, mut field) = (0, 0, 0, 0);
-    let (mut spoken, mut outside) = (0, 0);
+    let mut spoken = 0;
     for line in include_str!("voice_ee_fixture.txt").lines().filter(|l| !l.starts_with('#')) {
         let (head, want) = line.split_once(" | ").unwrap_or((line.trim_end_matches(" |"), ""));
         // The fixture names files as the IOP opens them.
@@ -65,9 +65,6 @@ fn the_driver_asks_what_the_game_asks() {
         d.voice_english = lang == "1";
         d.parody = parody == "1";
         let mut out = Vec::new();
-        // A word whose row falls outside its character's table: the game
-        // reads the memory next to it; the port plays nothing.
-        let mut out_of_table = false;
         let mut events = Vec::new();
         for step in steps.split('+') {
             let w: Vec<&str> = step.split_whitespace().collect();
@@ -85,19 +82,6 @@ fn the_driver_asks_what_the_game_asks() {
                 "words" => {
                     let n = |i: usize| w[i].parse::<i32>().unwrap();
                     let (c, ty, sid, ev, bit) = (n(1), n(2), n(3), n(4), n(5));
-                    let skill = piney_data::tables::voice::of(piney_data::volume::Volume::Inf).skill;
-                    let len = usize::try_from(c)
-                        .ok()
-                        .and_then(|k| skill.get(k))
-                        .map_or(0, |v| if d.voice_english { v.en.rows.len() } else { v.jp.rows.len() });
-                    let row = piney_audio::driver::skill_row(c as i16, sid as i16, bit == 1);
-                    let taken = ev == 0 && ty & 5 != 0 && sid < 304;
-                    if taken
-                        && usize::try_from(c).is_ok_and(|k| k < 18)
-                        && usize::try_from(row).map_or(true, |r| r >= len)
-                    {
-                        out_of_table = true;
-                    }
                     d.words_play(ev != 0, ty as u32, c as i16, sid, bit == 1);
                 }
                 "skill" => d.skill_voice_play(&mut out),
@@ -106,10 +90,6 @@ fn the_driver_asks_what_the_game_asks() {
         }
         let got = words(&out);
         if steps.contains("words") || steps == "skill" {
-            if out_of_table && got.is_empty() {
-                outside += 1;
-                continue;
-            }
             assert_eq!(got, want, "{head}");
             spoken += 1;
             continue;
@@ -151,10 +131,32 @@ fn the_driver_asks_what_the_game_asks() {
     // frames mixing a group with an event or a stop.
     assert_eq!((rows, elsewhere, other, field), (2 * 1292 + 20 + 1, 38, 18, 2216 + 7 + 3));
     // ccWordsPlay and skillVoicePlay: each character's 304 ids in English
-    // and every seventh in Japanese, and 10 gate and queue cases; the words
-    // whose row the rule puts outside the table are the port's silence.
-    assert_eq!(spoken + outside, 18 * (304 + 44) + 10, "spoken {spoken} outside {outside}");
-    eprintln!("skill words: {spoken} as the game, {outside} outside their tables");
+    // and every seventh in Japanese (a row outside its character's table
+    // sends what lies beside it), and 10 gate and queue cases.
+    assert_eq!(spoken, 18 * (304 + 44) + 10);
+}
+
+/// A word whose row falls outside its character's table (Orca naming one
+/// of BlackRose's arts, id 6: row -27, in Mia's table) is sent as the game
+/// sends it (`voice_ee_fixture.txt`), and the queue empties, so Kite's word
+/// after it (Repth, 150) plays. The port used to keep Orca's word queued.
+#[test]
+fn a_word_outside_its_table_does_not_stick() {
+    let mut d = Driver::new();
+    d.voice_english = true;
+    let mut out = Vec::new();
+    d.words_play(false, 6, 2, 6, true);
+    d.skill_voice_play(&mut out);
+    d.words_play(false, 7, 0, 150, false);
+    d.skill_voice_play(&mut out);
+    let got: Vec<(i32, i32)> = out
+        .iter()
+        .filter_map(|c| match c {
+            Command::Voice(v) => Some((v.ofs, v.size)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(got, [(12_943_360, 137_634), (2_689_024, 51_838)]);
 }
 
 #[test]
@@ -356,9 +358,14 @@ fn field_lines(path: &std::path::Path, volume: piney_data::volume::Volume) -> us
             tables.push((voice.files_e[a.file as usize], a.rows));
         }
     }
+    // A character's own skill table: from its row 0 to its (0, 0) row.
+    let own = |w: &piney_data::tables::voice::SkillWords| {
+        let rows = &voice.skill_memory[w.row0 as usize..];
+        &rows[..rows.iter().position(|r| (r.ofs, r.siz) == (0, 0)).unwrap_or(rows.len())]
+    };
     for s in voice.skill {
-        tables.push((s.jp.file, s.jp.rows));
-        tables.push((s.en.file, s.en.rows));
+        tables.push((s.jp.file, own(&s.jp)));
+        tables.push((s.en.file, own(&s.en)));
     }
     let mut n = 0;
     for (name, rows) in tables {

@@ -1377,19 +1377,17 @@ impl EntryCtrl {
     /// `ccCheckActiveEnemy()` (gcmn 0x0042df10): the enemies on the list
     /// with `objFlag` set and `freezeFlag` clear.
     pub fn check_active_enemy(&self, cx: &Cx) -> i32 {
-        let mut n = 0;
-        let mut cur = self.lists[Kind::Enemy as usize].head;
-        for _ in 0..self.lists[Kind::Enemy as usize].num {
-            let Some(c) = cur else { break };
-            if let Some(e) = cx.foes.get(c).and_then(|f| f.as_ref())
-                && e.obj_flag
-                && !e.freeze_flag
-            {
-                n += 1;
-            }
-            cur = self.links[c].next;
-        }
-        n
+        self.active_enemies(cx.foes).count() as i32
+    }
+
+    /// The enemies on the list, in its order, with `objFlag` set and
+    /// `freezeFlag` clear: those `ccCheckActiveEnemy` counts and
+    /// `ccClearConditionAllEnemy` (0x0042e4f0) clears.
+    pub fn active_enemies<'a>(&'a self, foes: &'a [Option<Enemy>]) -> impl Iterator<Item = usize> + 'a {
+        let list = &self.lists[Kind::Enemy as usize];
+        std::iter::successors(list.head, |&c| self.links[c].next)
+            .take(list.num.max(0) as usize)
+            .filter(|&c| foes.get(c).and_then(Option::as_ref).is_some_and(|e| e.obj_flag && !e.freeze_flag))
     }
 
     /// `ccCheckActiveObject()` (gcmn 0x0042df70): true when no enemy and no

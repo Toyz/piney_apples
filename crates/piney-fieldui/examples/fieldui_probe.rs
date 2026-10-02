@@ -138,6 +138,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut cards_used = false;
     ui.set_card(Box::new(sim.clone()));
     let mut modes: HashMap<usize, i16> = HashMap::new();
+    let mut attacks: HashMap<usize, i16> = HashMap::new();
+    let mut directs: HashMap<usize, u32> = HashMap::new();
+    let mut book: Option<(i32, usize)> = None;
     let mut watches: Vec<(usize, usize)> = Vec::new();
     // ccPad::actuaterSw as the vibration requests leave it (2: not yet set).
     let mut actuater_sw = 2;
@@ -319,6 +322,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "mode" => {
                 modes.insert(n(1) as usize, n(2) as i16);
             }
+            // attack F V: ccMenuCtrl.plAttack set before frame F.
+            "attack" => {
+                attacks.insert(n(1) as usize, n(2) as i16);
+            }
+            // direct F V: the pad's held bits at frame F.
+            "direct" => {
+                directs.insert(n(1) as usize, n(2) as u32);
+            }
+            // book P F: Ryu Book P read from frame F (ccUseItemRequest's
+            // book branch).
+            "book" => book = Some((n(1) as i32, n(2) as usize)),
             // gamecnt A B C: ccGame.gameCnt[3].
             "gamecnt" => world.game.game_cnt = [n(1) as i32, n(2) as i32, n(3) as i32],
             "watch" => watches.push((n(1) as usize, n(2) as usize)),
@@ -485,11 +499,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let mut checking = false;
                 for fr in 1..=frames {
                     if movie_end == Some(fr) {
-                        ui.drain_movie_done();
+                        if ui.book_on() {
+                            ui.book_stream_done();
+                        } else {
+                            ui.drain_movie_done();
+                        }
                         movie_end = None;
                     }
                     let (push, rep) = pads.get(&fr).copied().unwrap_or((0, 0));
-                    let pad = Pad { push: Buttons(push), repeat: Buttons(rep), ..Pad::default() };
+                    let direct = Buttons(directs.get(&fr).copied().unwrap_or(0));
+                    let pad = Pad { direct, push: Buttons(push), repeat: Buttons(rep), ..Pad::default() };
+                    if book.is_some_and(|(_, f)| f == fr) {
+                        ui.start_book(book.map_or(0, |b| b.0));
+                    }
                     if let Some(&(area, inb, cnt)) = gamefs.get(&fr) {
                         world.game.area = area;
                         world.game.in_battle = inb;
@@ -540,6 +562,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     if let Some(&v) = modes.get(&fr) {
                         ui.ctrl.mode = v;
+                    }
+                    if let Some(&v) = attacks.get(&fr) {
+                        ui.ctrl.pl_attack = v;
                     }
                     let mut ev = Vec::new();
                     if let Some((emode, name, l)) = msgs.get(&fr) {
@@ -788,6 +813,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }) {
                         ev.push(match r {
                             Request::Se(s) => format!("[\"se\",{s}]"),
+                            Request::SeNote { n, note } => format!("[\"se_note\",{n},{note}]"),
                             Request::CameraShake { power, cycle, time, dirc } => {
                                 format!("[\"shake\",{power},{cycle},{time},{dirc}]")
                             }
@@ -871,6 +897,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // Menu 74's stream and ccThStrParty: the boss's, not
                             // traced by the menus' harness.
                             Request::StreamMenu(num) => format!("[\"stream_menu\",{num}]"),
+                            Request::BookStream(Some(page)) => {
+                                movie_end = Some(fr + movie_len);
+                                format!("[\"drain_movie\",{}]", 112 + page)
+                            }
+                            Request::BookStream(None) => String::new(),
                             Request::StrParty(flags) => format!("[\"str_party\",{flags}]"),
                             Request::DrainEnemy(h) => format!("[\"drain_enemy\",{h}]"),
                             Request::DataDrain { .. } if std::mem::take(&mut drain_target_cleared) => {

@@ -54,6 +54,8 @@ enum Wait {
     Map(u32),
     /// Inside `ccEpitaphMsg` ([`ItemRun::epitaph`]).
     Epitaph,
+    /// `ccThBook`'s state not 0 yet: `Disp` while it is 1, then the breath.
+    Book,
 }
 
 /// `ccEpitaphMsg(strs, pages)` (gcmn 0x0057c3e0): 8 frames, then each page
@@ -92,6 +94,11 @@ pub struct ItemRun {
 impl ItemRun {
     pub fn new(resume: Resume) -> Self {
         ItemRun { resume, steps: None, wait: Wait::Next, epitaph: None }
+    }
+
+    /// Inside the book branch's wait (`ccThBook`'s state not 0).
+    pub fn book(resume: Resume) -> Self {
+        ItemRun { resume, steps: Some(VecDeque::new()), wait: Wait::Book, epitaph: None }
     }
 
     /// Waiting for the runtime's steps.
@@ -177,6 +184,18 @@ pub fn run(m: &mut MenuCtrl, x: &mut Ctx) -> Option<Cont> {
                 }
                 continue;
             }
+            Wait::Book => match m.book.as_ref().map_or(0, |b| b.state) {
+                0 => {
+                    // ccDeleteThread(tcb).
+                    m.book = None;
+                    if let Some(r) = m.item.as_mut() {
+                        r.wait = Wait::Next;
+                    }
+                    continue;
+                }
+                1 => return breathe(m, x),
+                _ => return breathe_bare(),
+            },
             Wait::Next => {}
         }
         let r = m.item.as_mut()?;
@@ -252,6 +271,11 @@ fn one(m: &mut MenuCtrl, x: &mut Ctx, step: Step) -> Option<Cont> {
             }
             set(m, Wait::Epitaph);
         }
+        // ccStartThread(ccThBook, 35, 0x1000): the book (item - 273) in
+        // its +0x14, state 1; it runs after the menu task each frame.
+        Step::BookStart(page) => m.book = Some(Box::new(crate::book::Task::new(page))),
+        Step::CloseChat => m.chat.close(),
+        Step::WaitBook => set(m, Wait::Book),
         // ccPuccigusoStart: its first slice on the world now, then breaths
         // while it fades out and back in.
         Step::Pucciguso(_) => {

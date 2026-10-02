@@ -286,6 +286,21 @@ pub struct NoFx;
 
 impl FxTasks for NoFx {}
 
+/// An enemy's rule outputs that did not go through its frame (a
+/// `selectTarget` run from outside it): its `ClearConditionEffect` ends its
+/// condition effect at once (`deleteConditionEffect`, `conditionNum` -1).
+fn enemy_cleared(
+    fx: &mut std::collections::HashMap<usize, i32>,
+    shows: &mut Vec<Show>,
+    c: usize,
+    out: &[enemy_ai::Out],
+) {
+    let cleared = out.iter().any(|o| matches!(o, enemy_ai::Out::ClearConditionEffect));
+    if cleared && fx.remove(&c).is_some() {
+        shows.push(Show::ConditionEffect { who: c, act: CondFx::Delete, num: -1 });
+    }
+}
+
 /// The fights of one area.
 pub struct Combat {
     pub data: Rc<BattleData>,
@@ -637,13 +652,16 @@ impl Combat {
     /// `ccEvent::MenuBan`'s condition part after its `ccStoreSpcCondition`
     /// (main 0x001b2580): each built character's conditions, buffs and
     /// debuffs cleared (`ccChar::ClearCondition(ccSpcParam *)`).
-    /// `ccClearConditionAllEnemy()` (gcmn 0x0042e4f0): every enemy's
-    /// conditions cleared.
+    /// `ccClearConditionAllEnemy()` (gcmn 0x0042e4f0): `clearConditionEnemy`
+    /// on each enemy of the list with `objFlag` set and `freezeFlag` clear,
+    /// its conditions cleared and its condition effect ended
+    /// (`ClearConditionEffect`), as the Grunty Flute and the fountain do.
     pub fn clear_condition_all_enemy(&mut self) {
-        for (who, f) in self.foes.iter().enumerate() {
-            if f.is_some() {
-                affect::clear_condition(&mut self.scene.chars[who]);
-            }
+        let who: Vec<usize> = self.ctrl.active_enemies(&self.foes).collect();
+        for c in who {
+            let mut out = Vec::new();
+            enemy_ai::clear_condition_enemy(&mut self.scene.chars[c], &mut out);
+            enemy_cleared(&mut self.cond_fx, &mut self.shows, c, &out);
         }
     }
 
@@ -1605,6 +1623,7 @@ impl Combat {
         let chk = |c: usize| checks.get(c).copied().unwrap_or(0);
         let aff = AffectCtx { party: &party, menu: true, skill_check: &chk, boss: None, volume: self.data.volume };
         let pframe = stage::PlayerFrame { bounds, player: self.scene.chars[kite_i].pos };
+        let mut cleared = Vec::new();
         {
             let mut ai = enemy_ai::Ai {
                 t,
@@ -1625,7 +1644,11 @@ impl Combat {
                 if ai.foes.get(c).is_some_and(Option::is_some) {
                     ai.select_target(c);
                 }
+                cleared.push((c, std::mem::take(&mut ai.out)));
             }
+        }
+        for (c, out) in cleared {
+            enemy_cleared(&mut self.cond_fx, stage.shows, c, &out);
         }
         let mut outs = Vec::new();
         {
@@ -2190,6 +2213,8 @@ impl Combat {
                 if ai.foes.get(c).is_some_and(Option::is_some) {
                     ai.select_target(c);
                 }
+                let out = std::mem::take(&mut ai.out);
+                enemy_cleared(&mut self.cond_fx, &mut self.shows, c, &out);
             }
             Event::DispCondition(Who::Char(c)) => self.disp_condition(c),
             // ccChar::ClearConditionEffect: deleteConditionEffect, num -1

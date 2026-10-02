@@ -584,10 +584,17 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
                     self.entry_affect(me, on, idx(by), kind, p);
                 }
             }
+            // What the other enemy's selectTarget makes is its own (its
+            // ClearConditionEffect, the party gone), flushed after what
+            // this enemy's rules left so far.
             Event::EnemyRetarget(w) => {
                 if let Some(w) = idx(w).filter(|&w| self.ai.foes.get(w).is_some_and(Option::is_some)) {
+                    let pending = std::mem::take(&mut self.ai.out);
                     self.ai.select_target(w);
+                    let theirs = std::mem::replace(&mut self.ai.out, pending);
                     self.flush(me);
+                    self.ai.out = theirs;
+                    self.flush(w);
                 }
             }
             ev => self.call(me, Call::Rule(Out::Rule(ev))),
@@ -3410,6 +3417,7 @@ pub fn entry_cmnd(scene: &mut crate::scene::Scene, c: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::world::CharHit;
 
     #[test]
     fn boss_clips_change_the_eighth_letter() {
@@ -3435,6 +3443,99 @@ mod tests {
     fn fabs_through_double_clears_the_sign() {
         assert_eq!(fabs_d(neg(PI)), PI);
         assert_eq!(fabs_d(0x8000_0000), 0);
+    }
+
+    /// A world that keeps the rules' outputs by enemy and answers the rest
+    /// with nothing.
+    #[derive(Default)]
+    struct Calls(Vec<(usize, Call)>);
+
+    impl World for Calls {
+        fn w2p(&mut self, pos: V4) -> V4 {
+            pos
+        }
+        fn p2w(&mut self, pos: V4) -> V4 {
+            pos
+        }
+        fn land(&mut self, _: V4, _: u32) -> F {
+            0
+        }
+        fn hit_attribute(&mut self) -> u32 {
+            0
+        }
+        fn line(&mut self, _: V4, _: V4, _: u32, _: i32) -> F {
+            MINUS_ONE
+        }
+        fn collide(&mut self, _: usize, _: &mut CharHit) -> i32 {
+            0
+        }
+        fn hit_char_type(&mut self) -> u32 {
+            0
+        }
+        fn hit_switch(&mut self, _: usize, _: &mut CharHit, _: bool) {}
+        fn camera_deg(&mut self, _: V4, _: i16) -> bool {
+            false
+        }
+        fn camera_transparency(&mut self, _: V4, _: F, _: F, _: F, _: F) -> F {
+            0
+        }
+        fn anim_set(&mut self, _: usize, _: AnmSlot, _: &str) {}
+        fn anim_frame(&mut self, _: usize, _: AnmSlot) -> u16 {
+            0
+        }
+        fn anim_forward(&mut self, _: usize, _: AnmSlot, _: u16) -> i16 {
+            0
+        }
+        fn anim_notes(&mut self, _: usize, _: AnmSlot) -> Vec<Note> {
+            Vec::new()
+        }
+    }
+
+    impl MotionWorld for Calls {
+        fn shake_range(&mut self, _: V4) -> bool {
+            false
+        }
+        fn call(&mut self, who: usize, c: Call, _: &mut At) {
+            self.0.push((who, c));
+        }
+    }
+
+    /// A foe's blow on another (`EntryAffect` kind 1 from its frame) with
+    /// none of the party to fight: `affectEnemy`'s `selectTarget()` on the
+    /// struck foe, waiting, clears it (gcmn 0x00436d78-0x00436d84), and its
+    /// `ClearConditionEffect` is the struck foe's own. The frame handed it
+    /// to the striker, whose effect it ended in the struck one's place.
+    #[test]
+    fn a_blow_on_another_foe_clears_that_foe() {
+        let t = Tables::of(piney_data::volume::Volume::Inf);
+        let mut scene = Scene::default();
+        for _ in 0..2 {
+            let mut row = crate::param::FoeRow::default();
+            row.base.ty = ty::FOE;
+            row.max_hp = 100;
+            let mut c = crate::chara::Char::foe(row);
+            c.affect.func = AffectFunc::Enemy;
+            c.cond[cond::PARALYSIS] = 900;
+            c.condition_num = 1;
+            scene.add(c, 1);
+        }
+        let mut foes = vec![Some(Enemy::default()), Some(Enemy::default())];
+        let (mut rand, mut cc) = (|| 0, || 0);
+        let world = enemy_ai::World::default();
+        let mut ai =
+            Ai { t: &t, scene: &mut scene, foes: &mut foes, world, rand: &mut rand, cc: &mut cc, out: Vec::new() };
+        let mut w = Calls::default();
+        let party = crate::exp::Party::default();
+        let check = |_: usize| 0;
+        let affect = AffectCtx { party: &party, menu: true, skill_check: &check, boss: None, volume: t.volume };
+        let (data, env) = (MotionData::default(), Env::default());
+        let mut m = Motion { ai: &mut ai, w: &mut w, data: &data, affect: &affect, env: &env };
+        m.entry_affect(0, 1, Some(0), 1, [5, 0, 0]);
+        let cleared: Vec<usize> =
+            w.0.iter().filter(|(_, c)| *c == Call::Rule(Out::ClearConditionEffect)).map(|&(who, _)| who).collect();
+        assert_eq!(cleared, [1], "the struck foe's clear: {:?}", w.0);
+        assert_eq!(scene.chars[1].condition_num, -1);
+        assert_eq!(scene.chars[0].condition_num, 1, "the striker keeps its own");
     }
 }
 

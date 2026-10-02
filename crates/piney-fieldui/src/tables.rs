@@ -94,6 +94,11 @@ pub struct Texts {
     /// `charTbl`'s names by row (`spcParam[pc].base.name`), row 0 empty
     /// (Kite's is `plName`).
     pub char_names: Vec<Vec<u8>>,
+    /// The Ryu Books' lists: `enemyTbl`'s names, `npcTbl`'s, and each
+    /// other player's three `tpcTradeList` items (the first of each list).
+    pub enemy_names: Vec<Vec<u8>>,
+    pub npc_names: Vec<Vec<u8>>,
+    pub tpc_trade: Vec<[(i16, i8, i8); 3]>,
     /// The skill and item tables.
     pub items: crate::items::ItemTables,
     /// `skillMenuTag` / `itemMenuTag`: the pages' tab names.
@@ -313,6 +318,21 @@ impl Texts {
                     n.truncate(20);
                     n
                 }))
+                .collect(),
+            enemy_names: piney_data::tables::battle::of(volume)
+                .enemies
+                .iter()
+                .map(|e| e.param.base.name.map(encode).unwrap_or_default())
+                .collect(),
+            npc_names: piney_data::tables::battle::of(volume)
+                .npcs
+                .iter()
+                .map(|n| n.param.base.name.map(encode).unwrap_or_default())
+                .collect(),
+            tpc_trade: piney_data::tables::newgame::of(volume)
+                .tpc_trade()
+                .iter()
+                .map(|t| t.map(|l| (l[0].id, l[0].category, l[0].num)))
                 .collect(),
             announce: crate::message::AnnounceTexts {
                 you_now_have: piece(t.get_item_str(), 0),
