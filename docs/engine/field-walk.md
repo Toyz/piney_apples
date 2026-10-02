@@ -197,22 +197,20 @@ scene), and ends step 1 on the scene's `GameStart`.
 
 ## The event task across the change
 
-The event task that asked for the change is asleep inside `scene`:
+The event task that asked for the change is not put to sleep:
 `ChangeRequest(6, 7)` calls `ccSleepNoSleepThread(1, 1)` (0x0015a200),
 which raises the sleep count of every thread without the no-sleep bit
 (bit 0 of +0x10) and then, unless the caller has bit 1, puts the calling
-thread to sleep (`SleepThread`, flag 0x20). The event thread keeps its
-no-sleep bit - `ccDeleteAllThread` (0x0015a010) passes it over too - so
-its count stays 0 and it is woken at the next frame's schedule: the
-instruction returns and the block goes on. Event 2's next instruction is
-`end_event`, which closes it (bit 63); the set-up's `ccStartThEvent`
-(0x001b5230) turns every closed event done (bit 62), so event 3's
-`event_done 2` holds at the pass at phase 0. The port resumes the pass in
-the area's first frame (the game in the first frame of the fade out; the
-save's flags are all that moves between) and then runs the set-up's
-passes as the town does: 0, 2 (event 3 sets the party's `pc_mode` 4 and
-registers its magic portals), `rebootSpcManager`, 4 at F0, and one play
-pass a frame before the tasks.
+thread to sleep (`SleepThread`, flag 0x20). `ccThEvent` sets both bits
+on itself (`flags |= 3`, 0x001b5a8c), so `scene` returns and the pass
+runs on in the same frame, with the phase at -1 (`ccDisableThEvent`).
+Event 2's next instruction is `end_event`, which closes it (bit 63); the
+set-up's `ccStartThEvent` (0x001b5230) turns every closed event done (bit
+62), so event 3's `event_done 2` holds at the pass at phase 0. The port
+runs the rest of the pass in the `scene`'s frame too, its phase at -1.
+The next area then runs the set-up's passes as the town does: 0, 2 (event
+3 sets the party's `pc_mode` 4 and registers its magic portals),
+`rebootSpcManager`, 4 at F0, and one play pass a frame before the tasks.
 
 Event 3 (TEACH-F) then plays: Orca's camera lesson (messages 2-6, the
 prompts `teach_camera1..3` counting the pad as `ccEvent::Execute`

@@ -601,6 +601,9 @@ class GameEvents:
             mm.store(EVMNG + 0xc, 4, M32)        # ccDisableThEvent, inside ChangeRequest
             return log("change_request", s32(num), s32(sf))
         self.hook("ChangeRequest__6ccGameFii", change)
+        # ChangeScene's own ChangeRequest(6, 7): the task disabled, the
+        # scene left to the runtime.
+        self.hook("ChangeScene__6ccGameFiiiiii", lambda mm, *a: mm.store(EVMNG + 0xc, 4, M32) or 0)
         self.hook("CheckMenuType__8ccDtMenuFv", lambda mm, *a: M32)
 
     SUB_STUBS = (
@@ -608,7 +611,7 @@ class GameEvents:
         "cosf", "sinf", "fptosi", "ccDeleteThread__FP6ccTscb", "ccSleepAllThread__Fv", "ccWakeAllThread__Fv",
         "__dt__8ccSpriteFv", "Trans__8ccSpriteFv", "EntryFlash__8ccScFadeFiiffff", "EntryFade__8ccScFadeFiiiffff",
         "ContinueFade__8ccScFadeFiii", "changeCamera__Fi", "cameraSoftReset__Fv", "ccFileExistCheck__Fi",
-        "ChangeScene__6ccGameFiiiiii", "ChangeArea__6ccGameFii", "ccSetFileListTown__Fv", "ccSetFileListTownDel__Fv",
+        "ChangeArea__6ccGameFii", "ccSetFileListTown__Fv", "ccSetFileListTownDel__Fv",
         "ccSetFileListField__Fv", "ccSetFileListFieldDel__Fv", "ccSetFileListDungeon__Fv",
         "ccSetFileListDungeonDel__Fv", "ccSndBgmCtrl__Fv", "Quit__9WORLD_MANFv", "RoomSelect__9WORLD_MANFii",
         "GoPrevRoom__9WORLD_MANFv", "fieldSel__Fv", "dungeonSel__Fv", "Open__9ccMessageFP9ccMsgDataPcii",

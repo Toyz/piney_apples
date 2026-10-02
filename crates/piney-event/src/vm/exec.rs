@@ -535,16 +535,12 @@ impl Vm {
                 self.disable();
             }
             Op::FrameRate { rate } => host.set_frame_rate(rate),
+            // ChangeScene's ChangeRequest(6, 7) disables the task and sleeps
+            // every task but this one (its flags |= 3, INF 0x001b5a8c): the
+            // rest of the pass runs in this frame, with the phase at -1.
             Op::Scene { area, town, field, dungeon, floor, block } => {
-                // ChangeScene's ChangeRequest(6, 7) may put the task to
-                // sleep here (Wait::ChangeRequest); the default host does not.
-                if run.step == 0 {
-                    host.change_scene(area, town, field, dungeon, floor, block);
-                    run.step = 1;
-                }
-                if host.busy(Wait::ChangeRequest) {
-                    return Step::Yield;
-                }
+                host.change_scene(area, town, field, dungeon, floor, block);
+                self.disable();
             }
             Op::Sound { cmd, p0, p1, p2 } => host.sound(cmd, p0, p1, p2),
             Op::Fade { count, alpha } => host.fade(count, alpha, false, volume >= 2),

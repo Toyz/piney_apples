@@ -545,19 +545,15 @@ ChangeRequest(6, 7)
 `ChangeRequest(num, sf)` (0x001671e0) queues the mode, `InitScene` unless
 it is 6, interrupts the sound, calls `ccDisableThEvent` and, for `sf` 7,
 freezes the layers and calls `ccSleepNoSleepThread(1, 1)` (0x0015a200),
-which sleeps every task without the no-sleep flag and then the calling
-one. The event task keeps its no-sleep flag (`ccDeleteAllThread` skips it
-too), so its sleep count stays 0 and it wakes on the next frame, inside
-the next mode's set-up: it runs the instruction after `scene` (event 2's
-`end_event`, which closes event 2), and the set-up's `ccStartThEvent`
-turns closed into done, so the next area's events see `event_done 2`
-from their first pass. (Read from the thread code; the exact frame is not
-run against the game.) The interpreter models the stop as
-`Wait::ChangeRequest` after `Host::change_scene` (a host that does not
-model the mode change answers no at once, as the checks' hooked
-`ChangeScene` does); the field host says yes once `ChangeScene` is asked,
-disables the phase and puts the world to sleep, and the next area's host
-resumes the pass in its first frame ([Leaving the
+which raises the sleep count of every task without bit 0 of its flags
+(+0x10) and then sleeps the calling one unless it has bit 1. `ccThEvent`
+sets both bits on itself as it starts (`flags |= 3`, 0x001b5a8c), so
+the event task is never put to sleep. `scene` returns and the pass runs
+on in the same frame with the phase at -1. Event 2's `end_event` closes
+event 2 there, and the next area's `ccStartThEvent` turns closed into
+done, so its events see `event_done 2` from their first pass. The
+interpreter disables itself at `scene` as at `mode`, and carries on
+([Leaving the
 town](field-walk.md)).
 
 **Items for companions, the virus core, rooms, the party saved.** The

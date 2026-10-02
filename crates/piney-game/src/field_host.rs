@@ -609,7 +609,6 @@ impl Host for FieldHost<'_> {
     /// it returns. `piros_colour`: its breaths.
     fn busy(&mut self, w: Wait) -> bool {
         match w {
-            Wait::ChangeRequest => self.st.change.is_some(),
             Wait::PirosColour => {
                 let Some(mut seq) = self.st.piros.take() else { return false };
                 let (acts, busy) = seq.tick();

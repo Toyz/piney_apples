@@ -402,12 +402,6 @@ pub enum Wait {
     /// target (`cmndTarget +0x08`) has not acted; after each busy frame the
     /// interpreter calls [`Host::player_skill_step`]; `end` restores the menu.
     PlayerSkill,
-    /// `scene`, after [`Host::change_scene`]: `ccGame::ChangeScene`
-    /// (0x00167380) ends in `ChangeRequest(6, 7)` (0x001671e0), which puts the
-    /// event task itself to sleep inside the instruction until the next mode's
-    /// set-up wakes it. `busy` while it sleeps; a host that does not model the
-    /// mode change answers no at once (the default), as the checks' hook does.
-    ChangeRequest,
 }
 
 thread_local! {

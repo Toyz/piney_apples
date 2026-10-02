@@ -340,7 +340,6 @@ impl Host for AreaHost<'_> {
     /// plays a step a frame until it ends.
     fn busy(&mut self, w: Wait) -> bool {
         match w {
-            Wait::ChangeRequest => self.st.change.is_some(),
             Wait::PlayerSkill => self.world.player_skill_busy(),
             // gate_hack_anim: while ccCheckGtHackAnm() (ghoFlag).
             Wait::GateHackAnim => self.world.gate_hack_anim(),

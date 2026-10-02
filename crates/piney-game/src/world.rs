@@ -1662,17 +1662,18 @@ mod tests {
         let want: Vec<(u64, String)> = want.into_iter().map(|(f, c)| (f, c.to_string())).collect();
         assert_eq!(got, want);
         assert_eq!(f, 2295);
-        // Where it leaves: area 14 from its words, ChangeScene(1, 0, 14),
-        // the task asleep inside `scene` (block 2 not yet marked run).
+        // Where it leaves: area 14 from its words, ChangeScene(1, 0, 14).
+        // The event task is never put to sleep there: block 2 runs on to
+        // its end_event in the same frame (worklog 330).
         let c = mode.scene_change().unwrap();
         assert_eq!(c.scene, [1, 0, 14, -1, -1, -1]);
         assert_eq!(c.area, Some((14, [Some(0), Some(13), Some(26)])));
         assert!(mode.title().contains("ChangeScene(1, 0, 14, -1, -1, -1)"), "{}", mode.title());
         let vm = mode.vm().unwrap();
-        assert_eq!(vm.playing(), Some((2, 2)));
+        assert_eq!(vm.playing(), None);
         assert_eq!(vm.phase(), -1);
         let s = &mode.world().state().save;
-        assert_eq!(s.flags(2), 0b11, "blocks 0 and 1 run");
+        assert_eq!(s.flags(2), piney_event::state::CLOSED | 0b111, "blocks 0-2 run, event 2 closed");
         // gate_add / gate_mark 14: Bursting Passed Over Aqua Field on server 0,
         // its three words; member_add_msg 2: Orca's address.
         let bit = |at: usize, n: usize| s.u8(at + n / 8) >> (n % 8) & 1;
