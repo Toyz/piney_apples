@@ -422,7 +422,6 @@ player until one of these turns out wrong.
 - [[50]] the load-confirmation jingle's m_tempPN never initialised — game UB; port starts at 0
 - [[60]] no check compares the music with the game's playing — only the tables and call order
 - [[89]] --voice not in any playthrough test — test gap
-- [[95]] vBank+0x08 left as evVoicePlay last wrote it — the port sends none
 - [[101]] [[334]] a request the menus make reaches the world and the sound task a frame after the game's: the port runs the menu task (34) after every world task (ccThSpc 48 on) — every menu request; its own pass (GAPS.md)
 - [[112]] sound bank 5 read from the session's WORLD_MAN, which for the arena is area 27's — not compared
 - [[150]] the travellers' hum not listened to against the game — follows the code
@@ -938,6 +937,7 @@ player until one of these turns out wrong.
 - [[93]] the later events' fields and dungeons, fights and bosses not played — answered by [[109]]-[[117]], [[129]], [[159]] (the ending played to a saved card)
 - [[95]] the fights' calls (Event::SkillWords) not wired — answered by [[101]]
 - [[95]] Kite calling the party's strategy (Show::Shout) — answered by [[120]]
+- [[95]] vBank+0x08 left as evVoicePlay last wrote it — answered by [[335]] (SEWORDS' wordPlay never reads it) / docs/formats/voice.md
 - [[96]] the hacked arrival (GateHackingOut) — answered by [[106]]
 - [[96]] the gate hack's noise (ccNoiz) — answered by [[104]]
 - [[96]] gate_hack_anim waits on ghoFlag — answered by [[106]] (ghoFlag set by the constructor, cleared by GateHackingOut)

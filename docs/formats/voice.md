@@ -3,7 +3,7 @@ title: Voice, streamed music and cutscene PCM
 status: partial
 volumes: INF
 covers: INF VOICE/*.BIN, INF VOICE_E/*.BIN, INF VOICE/BGM.BIN, INF STREAM/*.BIN Pcm chunks; INF SLUS_202.67:0x0017e810 ccEvVoiceRequest, 0x0017ec30 ccMesVoicePlay, 0x0017eca0 evVoicePlay, 0x0017ee40 ccEvVoiceStop, 0x00183d00 sewordCmd, 0x0033cff0 evVoiceDataVol1M, 0x0033d0c0 evVoiceDataVol1S, 0x0033e670 evVoiceDataVol1ME, 0x0033e740 evVoiceDataVol1SE, 0x0017e6e0 wavPlay; INF MODULES/SEWORDS.IRX:0x0290 bgmFunc, 0x2c74 wordPlay, 0x15e0 BgmPreLoad, 0x1b20 BgmStart, 0x1fb4 _BgmPlay, 0x0af0 _BgmRaw2SpuMono, 0x29dc loopEnd, 0x33e8 bgmPlay; INF SLUS_202.67:0x0017e350 skillVoicePlay, 0x0014ddb0 ccStream::Decode_Pcm; IOPRP243.IMG CDVDMAN:0x1414 cdrom read, 0x1378 its stream read, 0x62d8 the blocking stream copy, 0x65b0 the stream dispatcher; IOPRP243.IMG IOMAN:0x053c read
-worklog: 14, 245
+worklog: 14, 245, 335
 ---
 
 # Voice, streamed music and cutscene PCM
@@ -67,6 +67,9 @@ below -1        ccVoiceRequest (0x0017eeb0), the field's voices
   taken slot in order: 0x80e0 as `vBank` {`vdRequest->ofs`,
   `vdRequest->siz`, 0, 0x6fff6fff, file name} through `sewordCmd`, 0x120
   alone. Both slots send the same `vdRequest`, the last one asked for.
+  SEWORDS (`bgmFunc`'s 0x80e0, `wordPlay` 0x2c74) reads the offset (+0x00),
+  the size (+0x04), the volume (+0x0c) and the name (+0x10). The word at
+  +0x08 is never read.
 
 Infection's four volume 1 tables hold 1,292 rows: 1,152 lines and 140 of
 -1, one row per message of their event (event 22 has one row more than
