@@ -782,18 +782,26 @@ impl FieldWorld {
     }
 
     /// Not the game's: the console's god gets a fallen member up (affect 20,
-    /// the game's revive: condition 5 and its 78 frames), his HP back.
+    /// the game's revive: condition 5 and its 78 frames), his HP back. Kite
+    /// too, by a member standing (a hit past his HP in one frame fells him
+    /// before the god's heal, and a ghost has no body to stop him).
     pub fn revive_party(&mut self) {
         let kite = self.combat.kite;
-        let fallen: Vec<usize> = (self.combat.members.iter().map(|&(_, w)| w))
-            .filter(|&w| {
-                self.combat.scene.chars.get(w).is_some_and(|c| {
-                    c.hp <= 0 && !matches!(c.cond[piney_battle::param::cond::DEAD], 0 | 5) && Some(w) != kite
-                })
-            })
-            .collect();
+        let members: Vec<usize> = self.combat.members.iter().map(|&(_, w)| w).collect();
+        let down = |c: &Combat, w: usize| {
+            c.scene
+                .chars
+                .get(w)
+                .is_some_and(|ch| ch.hp <= 0 && !matches!(ch.cond[piney_battle::param::cond::DEAD], 0 | 5))
+        };
+        let fallen: Vec<usize> = members.iter().copied().filter(|&w| down(&self.combat, w)).collect();
         for w in fallen {
-            self.entry_affect(w, kite, 20, [0; 3]);
+            let by = if Some(w) == kite {
+                members.iter().copied().find(|&m| m != w && !down(&self.combat, m))
+            } else {
+                kite
+            };
+            self.entry_affect(w, by, 20, [0; 3]);
             if let Some(ch) = self.combat.scene.chars.get_mut(w) {
                 ch.hp = ch.max_hp;
             }
@@ -2127,12 +2135,33 @@ impl FieldWorld {
     /// has bit 20 (a Gott statue) and that is still on the command list
     /// (`cmndFlag` clear): the room's statue holds it until opened.
     pub fn no_active_object(&self) -> bool {
+        no_active(&self.combat) && self.unopened_statue().is_none()
+    }
+
+    /// The gimmick switched on (`objFlag`) and still on the command list
+    /// (`cmndFlag` clear) nearest `at` (x, y): a box not yet opened, a
+    /// statue; its scene index.
+    pub fn unopened_gimmick_near(&self, at: [f32; 2]) -> Option<usize> {
         let c = &self.combat;
-        let active_gimmick = |i: usize| {
+        let dist = |i: usize| {
+            let p = c.scene.chars[i].pos.map(f32::from_bits);
+            (p[0] - at[0]).hypot(p[1] - at[1])
+        };
+        c.ctrl
+            .list(piney_battle::entry::Kind::Gimmick)
+            .into_iter()
+            .filter(|&i| c.ctrl.entry_obj(i).is_some_and(|o| o.obj_flag && !o.cmnd_flag) && i < c.scene.chars.len())
+            .min_by(|&a, &b| dist(a).total_cmp(&dist(b)))
+    }
+
+    /// A Gott statue switched on (`objFlag`) and still on the command list
+    /// (`cmndFlag` clear), not yet opened: its scene index.
+    pub fn unopened_statue(&self) -> Option<usize> {
+        let c = &self.combat;
+        c.ctrl.list(piney_battle::entry::Kind::Gimmick).into_iter().find(|&i| {
             c.ctrl.entry_obj(i).is_some_and(|o| o.obj_flag && !o.cmnd_flag)
                 && c.scene.chars.get(i).is_some_and(|ch| ch.ty() & IDOL_TYPE != 0)
-        };
-        no_active(c) && !c.ctrl.list(piney_battle::entry::Kind::Gimmick).into_iter().any(active_gimmick)
+        })
     }
 
     /// `open_door` (`ccEvent::Execute` case 158, main 0x001b218c):

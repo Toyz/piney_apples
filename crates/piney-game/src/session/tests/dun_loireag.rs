@@ -102,7 +102,7 @@ fn to_the_gate(w: &WorldMode, f: u64, to: i32) -> Raw {
         return still(b);
     }
     let waiting = w.calls().iter().rev().find_map(|(_, c)| {
-        if c.starts_with("message_open") || c.starts_with("announce") {
+        if c.starts_with("message_open") || c.starts_with("announce") || c.starts_with("info_lines") {
             Some(true)
         } else if c.starts_with("message_check") {
             Some(false)

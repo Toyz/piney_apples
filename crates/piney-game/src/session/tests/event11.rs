@@ -129,7 +129,7 @@ fn player(w: &WorldMode, f: u64) -> Raw {
     }
     // A window waiting: the last window call was an open.
     let waiting = w.calls().iter().rev().find_map(|(_, c)| {
-        if c.starts_with("message_open") || c.starts_with("announce") {
+        if c.starts_with("message_open") || c.starts_with("announce") || c.starts_with("info_lines") {
             Some(true)
         } else if c.starts_with("message_check") {
             Some(false)
@@ -292,7 +292,7 @@ fn event_11_shots() {
 /// walked toward `goal` (x, y) under the field's camera.
 fn field_player(a: &crate::area::AreaMode, f: u64, goal: [f32; 2]) -> Raw {
     let waiting = a.calls().iter().rev().find_map(|(_, c)| {
-        if c.starts_with("message_open") || c.starts_with("announce") {
+        if c.starts_with("message_open") || c.starts_with("announce") || c.starts_with("info_lines") {
             Some(true)
         } else if c.starts_with("message_check") {
             Some(false)

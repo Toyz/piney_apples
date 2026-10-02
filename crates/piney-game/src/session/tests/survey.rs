@@ -56,6 +56,11 @@ pub(super) struct StoryPilot {
     /// whether the pilot is on its way out (PERSONAL, Gate Out).
     idle_since: Option<u64>,
     gating: bool,
+    /// Rooms whose box or statue for a wanted item was found opened:
+    /// field, dungeon, floor, room.
+    statues_done: Vec<(i32, i32, i32, i32)>,
+    /// Since when the pilot has stood in such a room finding nothing to open.
+    nothing_since: Option<((i32, i32, i32, i32), u64)>,
 }
 
 /// What the pilot does in a fight through the menus.
@@ -109,6 +114,8 @@ impl Default for StoryPilot {
             talk_town: None,
             idle_since: None,
             gating: false,
+            statues_done: Vec::new(),
+            nothing_since: None,
         }
     }
 }
@@ -144,6 +151,7 @@ impl StoryPilot {
                         })
                     })
                     .map(|p| (p.floor as usize, p.block as usize))
+                    .or_else(|| self.item_spot(w, &wants).map(|(f, i, _)| (f, i)))
                     .or_else(|| arena_door(w, &wants));
                 if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(500) {
                     eprintln!("GOAL {f} {to:?} at {:?} wants {wants:?}", (sc.floor, sc.block));
@@ -151,6 +159,9 @@ impl StoryPilot {
                 // A marker wanted in this room comes before the walker,
                 // who stands still once in its goal room.
                 if let Some(raw) = self.walk_to_marker(a, &wants, f) {
+                    return raw;
+                }
+                if let Some(raw) = self.open_item(a, &wants, f) {
                     return raw;
                 }
                 if let Some(to) = to
@@ -202,6 +213,108 @@ impl StoryPilot {
             self.mark = None;
         }
         story_player_with(s, f, &self.town_talked)
+    }
+
+    /// With an important item wanted ([`Want::Item`]): where to take it in
+    /// this dungeon, not yet found done. First a box of the story rows
+    /// holding it (`GIMMICKDATA` type 0, `flag` its code `0x45_0000 | id`:
+    /// area 31's cures, one a floor), at its x, y; else a room whose row
+    /// gives its statue an item (`ROOMDATA.itemID`); else the statue room.
+    fn item_spot(
+        &self,
+        w: &piney_world::field_world::FieldWorld,
+        wants: &[Want],
+    ) -> Option<(usize, usize, Option<[f32; 2]>)> {
+        let ids: Vec<i16> = wants
+            .iter()
+            .filter_map(|x| match *x {
+                Want::Item(id) => Some(id),
+                _ => None,
+            })
+            .collect();
+        if ids.is_empty() {
+            return None;
+        }
+        let Place::Dungeon(d) = w.place() else { return None };
+        let sc = w.scene();
+        let fresh = |f: i32, i: i32| !self.statues_done.contains(&(sc.field, sc.dungeon, f, i));
+        // On the way down: the nearest floor from this one first (the walker
+        // does not climb), then any.
+        let boxed = d.edit.and_then(|e| {
+            e.gimmicks
+                .iter()
+                .filter(|g| g.gim_type == 0 && ids.iter().any(|&id| g.flag == 0x45_0000 | i32::from(id)))
+                .filter(|g| g.floor >= 0 && g.index >= 0 && fresh(g.floor, g.index))
+                .min_by_key(|g| (g.floor < sc.floor, g.floor))
+                .map(|g| (g.floor as usize, g.index as usize, Some([g.x as f32, g.y as f32])))
+        });
+        let row = || {
+            d.edit.and_then(|e| {
+                e.rooms
+                    .iter()
+                    .filter(|r| r.item != 0 && r.floor >= 0 && r.index >= 0)
+                    .find(|r| fresh(r.floor, r.index))
+                    .map(|r| (r.floor as usize, r.index as usize, None))
+            })
+        };
+        let statue = || d.statue_room().filter(|&(f, i)| fresh(f as i32, i as i32)).map(|(f, i)| (f, i, None));
+        boxed.or_else(row).or_else(statue)
+    }
+
+    /// In [`Self::item_spot`]'s room: to the box (or statue) and OK once it
+    /// is the command target (the box's and the idol's menus are
+    /// [`story_player`]'s). With none left to open, the room is noted done.
+    fn open_item(&mut self, a: &crate::area::AreaMode, wants: &[Want], f: u64) -> Option<Raw> {
+        let w = a.world();
+        let sc = w.scene();
+        let (fl, room, at) = self.item_spot(w, wants)?;
+        if (fl, room) != (sc.floor as usize, sc.block as usize) || a.ui().menu_type() != -1 {
+            return None;
+        }
+        let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+        if !playing || w.combat().battle.in_battle != 0 {
+            return None;
+        }
+        let target = match at {
+            Some(p) => w.unopened_gimmick_near(p),
+            None => w.unopened_statue(),
+        };
+        if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(500) {
+            let c = w.combat();
+            let gims: Vec<_> = c
+                .ctrl
+                .list(piney_battle::entry::Kind::Gimmick)
+                .into_iter()
+                .map(|i| {
+                    let o = c.ctrl.entry_obj(i).map(|o| (o.obj_flag, o.cmnd_flag, o.gim_id));
+                    (i, o, c.scene.chars[i].pos.map(|v| f32::from_bits(v) as i32))
+                })
+                .collect();
+            eprintln!(
+                "ITEM {f} at {at:?} target {target:?} command {:?} kite {:?} gimmicks {gims:?}",
+                w.command_target_code(),
+                w.player().body.pos.map(|v| f32::from_bits(v) as i32)
+            );
+        }
+        let key = (sc.field, sc.dungeon, sc.floor, sc.block);
+        let Some(i) = target else {
+            // Done only after a while: the room's boxes switch on with it.
+            match self.nothing_since {
+                Some((k, since)) if k == key && f > since + 300 => self.statues_done.push(key),
+                Some((k, _)) if k == key => {}
+                _ => self.nothing_since = Some((key, f)),
+            }
+            return None;
+        };
+        self.nothing_since = None;
+        let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+        if w.command_target_code() == Some((piney_world::entry::Kind::Gimmick, i as i32)) {
+            return Some(if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
+        }
+        let q = w.combat().scene.chars[i].pos.map(f32::from_bits);
+        let p = w.player().body.pos.map(f32::from_bits);
+        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
 
     /// Out of a field or dungeon the story wants nothing of (none of its
@@ -313,7 +426,7 @@ impl StoryPilot {
             GateGoal::LogOut | GateGoal::Invite(_) | GateGoal::Disband => return None,
         };
         let waiting = w.calls().iter().rev().find_map(|(_, c)| {
-            if c.starts_with("message_open") || c.starts_with("announce") {
+            if c.starts_with("message_open") || c.starts_with("announce") || c.starts_with("info_lines") {
                 Some(true)
             } else if c.starts_with("message_check") || c.starts_with("message_close") {
                 Some(false)

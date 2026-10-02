@@ -786,6 +786,15 @@ impl DungeonArea {
         self.floors.get(f).and_then(|fl| fl.rooms.get(i))
     }
 
+    /// The Gott statue's room: the one built from the type's statue model
+    /// (`symroom`), floor and room.
+    pub fn statue_room(&self) -> Option<(usize, usize)> {
+        let sym = self.tables.symroom.get(usize::from(self.dtype))?;
+        (0..self.floors.len())
+            .flat_map(|f| (0..15).map(move |i| (f, i)))
+            .find(|&(f, i)| self.slot(f, i).is_some_and(|s| s.model == Some(*sym)))
+    }
+
     /// The random dungeon's floors: `MakeRoom(int, FOOT *, ...)` (0x005ba1d0)
     /// as `piney_data::dungeon` generates them, and each floor's startpos
     /// from the stairs rooms' `OBJ_0ppp` dummies.

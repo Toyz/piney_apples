@@ -2142,11 +2142,10 @@ mod tests {
         }
         let Some(page) = t.page() else { return press(Buttons::CROSS) };
         let ctl = page.control();
-        // Kite's own post waiting to be written (`bbs_post7`, event 10's):
-        // the board, which opens on it. A mail unread, or the story wanting
-        // only the desktop (event 208's news): Log out to the desktop (the
-        // events' `mail_got`, `news_read`); a post new on the board: read it
-        // (`bbs_read`); else Log in.
+        // Kite's own post waiting to be written (`bbs_post7`, event 10's)
+        // or a post new on the board: the board (`bbs_read`). A mail unread,
+        // or the story wanting only the desktop (event 208's news): Log out
+        // to the desktop (the events' `mail_got`, `news_read`); else Log in.
         let save = &page.state().save;
         let wants = t.vm().map(|vm| story_wants(vm, save)).unwrap_or_default();
         let desk =
@@ -2156,12 +2155,13 @@ mod tests {
         // passed by: its message would only come round again.
         let taken = |c: i32| page.state().operate & (1u64 << (c + piney_toppage::control::OPERATE_BASE[0])) != 0;
         let writing = piney_toppage::bbs::check_write_bbs(page.state()).0 >= 0;
-        let want = if writing && !taken(CMD_BBS) {
+        // New posts are read before leaving: a block may wait on them here
+        // while another waits on the desktop (event 23's four posts, then
+        // its mail).
+        let want = if (writing || ctl.bbs_new) && !taken(CMD_BBS) {
             CMD_BBS
         } else if to_desktop && !taken(CMD_QUIT) {
             CMD_QUIT
-        } else if ctl.bbs_new && !taken(CMD_BBS) {
-            CMD_BBS
         } else if taken(CMD_LOGIN) && !taken(CMD_QUIT) {
             // Log in and the board both taken (event 107's end): Quit.
             CMD_QUIT
@@ -2244,7 +2244,7 @@ mod tests {
             |buttons: Buttons| Raw { buttons, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
         // The camera tutorial's prompt open: its input held.
         let last_open = calls.iter().rev().find_map(|(_, c)| {
-            if c.starts_with("message_open") || c.starts_with("announce") {
+            if c.starts_with("message_open") || c.starts_with("announce") || c.starts_with("info_lines") {
                 Some(c.as_str())
             } else if c.starts_with("message_check") || c.starts_with("message_close") {
                 Some("")
@@ -2376,6 +2376,9 @@ mod tests {
         /// Kite with this member and no one else: a block refuses the gate
         /// while anyone else is along (`party_other`, event 21's Elk).
         Only(i32),
+        /// An important item (category 15) Kite lacks, which a block waits
+        /// on (`has_item`: event 22's cures); a story room's statue holds it.
+        Item(i16),
     }
 
     thread_local! {
@@ -2501,6 +2504,26 @@ mod tests {
                     out.push(Want::Alone);
                 }
                 if !reachable {
+                    // Short of nothing but an important item: the way on.
+                    let item = block.conds.iter().find_map(|c| match *c {
+                        Cond::HasItem { pc: 0, category: 15, id, num, comp }
+                            if !piney_event::vm::has_item(save, 0, 15, id, num, comp) =>
+                        {
+                            Some(id)
+                        }
+                        _ => None,
+                    });
+                    let rest = block.conds.iter().all(|c| match *c {
+                        Cond::HasItem { .. } => true,
+                        Cond::Status { index, num, comp } => comp.test(status(index), i32::from(num)).unwrap_or(false),
+                        Cond::StatusRange { index, lo, hi } => (i32::from(lo)..=i32::from(hi)).contains(&status(index)),
+                        Cond::EventDone { event } => done(event),
+                        Cond::NotInParty { .. } | Cond::Answer { .. } => false,
+                        _ => true,
+                    });
+                    if let Some(id) = item.filter(|_| rest) {
+                        out.push(Want::Item(id));
+                    }
                     continue;
                 }
                 if let Some(status) = away {
@@ -2822,7 +2845,7 @@ mod tests {
             _ => return None,
         }
         let waiting = w.calls().iter().rev().find_map(|(_, c)| {
-            if c.starts_with("message_open") || c.starts_with("announce") {
+            if c.starts_with("message_open") || c.starts_with("announce") || c.starts_with("info_lines") {
                 Some(true)
             } else if c.starts_with("message_check") || c.starts_with("message_close") {
                 Some(false)
