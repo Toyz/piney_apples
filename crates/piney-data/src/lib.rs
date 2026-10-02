@@ -18,6 +18,7 @@ pub mod iso;
 pub mod libm;
 pub mod model;
 pub mod pack;
+pub mod ps2card;
 pub mod pss;
 pub mod save;
 pub mod scene;

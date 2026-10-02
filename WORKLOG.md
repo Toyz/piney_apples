@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-337 entries: audio 30, battle 67, build 15, content 3, decomp 28, disc 5, engine 15, format 16, iop 3, render 79, save 10, script 40, test 132, tooling 23, ui 63, video 11, volumes 67, world 88.
+338 entries: audio 30, battle 67, build 15, content 3, decomp 28, disc 5, engine 15, format 17, iop 3, render 79, save 11, script 40, test 132, tooling 24, ui 63, video 11, volumes 67, world 88.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -349,3 +349,4 @@ The [reference](docs/README.md) says what is true now.
 | 335 | ["vBank+0x08 is never read: SEWORDS' wordPlay takes the offset, size, volume and name"](worklog/0335-vbank-0x08-is-never-read-sewords-wordplay-takes-the-offset.md) | 2026-10-01 | audio, iop |
 | 336 | ["The menu task runs in its place: ccThGameCtrl, ccThMenu, then the world"](worklog/0336-the-menu-task-runs-in-its-place-ccthgamectrl-ccthmenu-then.md) | 2026-10-01 | engine, ui, audio |
 | 337 | [A member's equipment remark in town](worklog/0337-a-member-s-equipment-remark-in-town.md) | 2026-10-01 | ui, world |
+| 338 | ["Saves from PCSX2: a PS2 card image reader, the import, and Infection slots of 0x8d84"](worklog/0338-saves-from-pcsx2-a-ps2-card-image-reader-the-import-and.md) | 2026-10-01 | save, format, tooling |

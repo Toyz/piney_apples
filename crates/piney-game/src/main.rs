@@ -125,6 +125,15 @@ impl App {
         if w.first() == Some(&"version") {
             return launcher::version();
         }
+        if w.first() == Some(&"import_card") {
+            let Some(src) = line.split_once(' ').map(|(_, p)| p.trim()).filter(|p| !p.is_empty()) else {
+                return "import_card PATH: a PCSX2 card (.ps2), folder card or exported save directory".into();
+            };
+            return match &self.card {
+                Some(dst) => import_saves(std::path::Path::new(src), dst).unwrap_or_else(|e| e),
+                None => "no memory card (--no-card)".into(),
+            };
+        }
         self.record.console(line);
         if w.first() == Some(&"story") {
             let Some(n) = w.get(1).and_then(|s| s.parse::<i32>().ok()) else {
@@ -141,7 +150,7 @@ impl App {
         let answer = self.mode.console(line);
         if w.first() == Some(&"help") {
             return format!(
-                "{answer}\nstory N           the game again at event N's start\nversion           the build this game was made from (give it with a bug report)\npad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it"
+                "{answer}\nstory N           the game again at event N's start\nversion           the build this game was made from (give it with a bug report)\nimport_card PATH  copy .hack saves from PCSX2 (a .ps2 card, a folder card or one save folder) onto this card\npad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it"
             );
         }
         answer
@@ -896,6 +905,14 @@ fn make_mode(name: &str, assets: &mut Assets, o: &Options) -> Result<Box<dyn Mod
     }
 }
 
+/// PCSX2's `.hack` saves (a `.ps2` card image, a folder card or one
+/// exported save directory) onto the card directory `dst`.
+fn import_saves(src: &std::path::Path, dst: &std::path::Path) -> Result<String, String> {
+    let done = piney_desktop::card::import(src, dst)?;
+    let list: Vec<String> = done.iter().map(|(d, n)| format!("{d} ({n} files)")).collect();
+    Ok(format!("imported into {}: {}", dst.display(), list.join(", ")))
+}
+
 /// A pad log's first lines: the build, then the gamepads.
 fn log_header(gilrs: Option<&gilrs::Gilrs>) -> String {
     let pads = gilrs.map(input::gamepads).unwrap_or_default();
@@ -920,6 +937,7 @@ fn main() {
     let mut scripts = true;
     let mut mute = false;
     let mut pad_log: Option<String> = None;
+    let mut import_card: Option<PathBuf> = None;
     let mut replay: Option<String> = None;
     let mut every: Option<u32> = None;
     let mut console_lines: Option<String> = None;
@@ -988,6 +1006,7 @@ fn main() {
                 _ => dvd::set(dvd::DEFAULT_SPEED),
             },
             "--pad-log" => pad_log = args.next(),
+            "--import-card" => import_card = args.next().map(PathBuf::from),
             "--skip-name" => name_entry = false,
             "--voice" => match args.next().as_deref() {
                 Some("en" | "english") => mode::set_voice_override(true),
@@ -1009,7 +1028,7 @@ fn main() {
             "-V" | "--version" => return,
             "-h" | "--help" => {
                 println!(
-                    "piney-game [--iso PATH | --game DIR [--volume N]] [--mode MODE] [--no-events] [--mute] [--dvd [SPEED]] [--voice en|jp] [--card DIR | --no-card] [--mail N,...] [--news N,...] [--pad-log FILE] [--replay FILE] [--version]"
+                    "piney-game [--iso PATH | --game DIR [--volume N]] [--mode MODE] [--no-events] [--mute] [--dvd [SPEED]] [--voice en|jp] [--card DIR | --no-card] [--mail N,...] [--news N,...] [--pad-log FILE] [--replay FILE] [--import-card PATH] [--version]"
                 );
                 println!(
                     "--iso PATH: a disc image, or a disc of a build (DIR/outbreak.disc); --game DIR: a piney-build build (by default {}), its launcher when it holds more than one disc; --volume 1-4 (inf, mut, out, qua): that disc of the build, no launcher",
@@ -1086,6 +1105,21 @@ fn main() {
         if !card_given {
             card = piney_data::pack::home().map(|h| h.join("memcard").join("slot1"));
         }
+    }
+    // --import-card: PCSX2's saves onto the card, then done.
+    if let Some(src) = import_card {
+        let Some(dst) = &card else {
+            eprintln!("--import-card: no memory card (--no-card)");
+            std::process::exit(2);
+        };
+        match import_saves(&src, dst) {
+            Ok(text) => println!("{text}"),
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        }
+        return;
     }
     // The port's data from the disc (`plans/build-data.md`): a disc image's
     // made once into the port's folder, while the executable can still be

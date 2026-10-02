@@ -3,7 +3,7 @@ title: The memory card save
 status: solid
 volumes: all
 covers: INF SLUS_202.67:0x00306be0 mcDirName, 0x00306d40 mcFname, 0x00306c00 iconBinTbl, 0x001661d0 ccMcard::DataWrite, 0x001664b0 ccMcard::SaveSys, 0x00171c20 ccSaveSys::MainProccess, 0x001716e0 ccSaveSys::CheckRightInfo, 0x00174320 ccSaveData::ccSaveData, 0x001743d0 ccSaveData::Init, 0x0033eb90 timeIdolRankDefStr, 0x00180ed0 ccSound::ccSound, 0x00167940 ccThMother; INF DATA/ICON.BIN; MUT SLUS_205.62:0x00171b50 LoadInfoPrevReq, 0x00171c00 LoadDataPrevReq, 0x001767e0 ConvGame, 0x001cac50 ccStartEventConvert, 0x0017af20 the save extension, 0x00175740 ccSaveData::Init, 0x00176270 ccSaveData::NewGame, 0x00177be0 ccSaveData::InitTradeItem, 0x0017a010 the trade count setter, 0x0017a9d0 GetItemList, 0x0017aa20 GetSpcTradeList, 0x0017aba0 GetSkillList, 0x0017ac30 the talkNum setter, 0x0017aca0 the partyTime setter, 0x0017adf0 the spcPresent setter, 0x0017aec0 GetSpcParam, 0x0017b050 the extension tail clear; INF SLUS_202.67:0x00178030 ccSaveData::CheckEventEntry, 0x001780d0 ClearEventEntry; INF gcmn.prg:0x00430200 ccEntryCtrl::deleteEventEntry, 0x0040ffb0 BOOK::GetBookItem, 0x0040ddd0 BOOK::GetBook01Item, 0x005a1930 ccSpcSetOperation, 0x0053af2c ccMenuCtrl::PartyInMenu's call check
-worklog: 16, 24, 246
+worklog: 16, 24, 246, 338
 ---
 
 # The memory card save
@@ -46,6 +46,37 @@ fill a `ccMalloc`'d 0x8d84-byte buffer member by member and write that, so
 padding bytes come from the heap there (save sites MUT
 `0x00174338`/`0x0017515c`, OUT `0x00173ac4`/`0x001748d8`, QUA
 `0x00173954`/`0x00174768`).
+
+### Infection slots of 0x8d84 bytes
+
+A card exported from PCSX2 can hold Infection slot files of 0x8d84 bytes,
+the later volumes' size, though Infection's own `MakeDir` makes them 0x8530
+(`li 0x8530` at `0x001660d4`). In the one card seen, slots 1 and 12 hold a
+cleared game (level 34, `clearFlag` 1). The index record's `sum` covers the
+whole 0x8d84 bytes (0x599, against 0xc31b over the first 0x8530). The first
+0x8530 bytes are the same `ccSaveData`. Infection's own load sums 0x8530
+bytes and would refuse such a slot. The port takes either: the sum over the
+volume's size, or, for a longer file, over 0x8d84. What wrote these files
+is not known.
+
+### PS2 card images
+
+`piney_data::ps2card` reads a PCSX2 card image (`Mcd001.ps2`):
+- 512-byte pages, each followed by 16 bytes of ECC when the image is a
+  power-of-two count of 528-byte pages (8,650,752 bytes for 8 MB);
+- 2 pages to a cluster;
+- the superblock at cluster 0 (`page_len` +0x28, `pages_per_cluster`
+  +0x2a, `alloc_offset` +0x34, `rootdir_cluster` +0x3c, `ifc_list[32]`
+  +0x50);
+- the FAT through the indirect clusters (bit 31 in use, 0x7fffffff a
+  chain's end), relative to `alloc_offset`;
+- 512-byte directory entries: mode +0x00 (0x8000 exists, 0x20 a directory,
+  0x10 a file), length +0x04, first cluster +0x10, name +0x40.
+
+`piney_desktop::card::import` copies the four volumes' save directories
+(`mcDirName`) from such an image, from a PCSX2 folder card or from one
+exported save directory. PCSX2's own `_pcsx2_*` files are left out, and a
+save directory it replaces is moved to a `backup-<secs>` beside the card.
 
 ## Slot index
 

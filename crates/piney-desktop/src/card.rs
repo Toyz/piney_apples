@@ -107,9 +107,10 @@ pub trait MemoryCard {
 
     /// `ccMcard::DataRead(port, 0, slot, buf, size, vol)` (0x00166750, the
     /// loads): slot file `slot` (0-11) of volume `vol`'s directory (1-4:
-    /// the disc's own, or the previous volume's), its first `size` bytes;
-    /// `None` when it cannot be read (DataRead returns 5). A card that only
-    /// saves need not have it.
+    /// the disc's own, or the previous volume's), the whole file when it
+    /// holds at least `size` bytes (an Infection slot may be the later
+    /// volumes' 0x8d84 on a card from PCSX2); `None` when it cannot be read
+    /// (DataRead returns 5). A card that only saves need not have it.
     fn read_slot(&mut self, _port: i32, _slot: usize, _vol: i32, _size: usize) -> Option<Vec<u8>> {
         None
     }
@@ -233,7 +234,7 @@ impl MemoryCard for FilesCard {
             return None;
         }
         let b = fs::read(self.slot_path(port, slot, vol)?).ok()?;
-        (b.len() >= size).then(|| b[..size].to_vec())
+        (b.len() >= size).then_some(b)
     }
 
     fn make_dir(&mut self, port: i32) -> bool {
@@ -245,6 +246,98 @@ impl MemoryCard for FilesCard {
         (0..INFO_COUNT).all(|s| fs::write(d.join(slot_file_name(s)), &zero).is_ok())
             && fs::write(d.join(own_dir_name(self.volume)), [0u8; INDEX_SIZE]).is_ok()
     }
+}
+
+/// The four volumes' save directories, as their discs name them.
+fn dothack_dirs() -> Vec<&'static str> {
+    Volume::ALL.iter().map(|&v| own_dir_name(v)).collect()
+}
+
+/// A save directory's files, as found in an import's source.
+struct Found {
+    dir: String,
+    files: Vec<(String, Vec<u8>)>,
+}
+
+/// The `.hack` save directories of `src`: a PCSX2 card image (`.ps2`), a
+/// PCSX2 folder card (its save directories inside), or one save directory
+/// exported on its own. PCSX2's own files (`_pcsx2_*`) are left out.
+fn find_saves(src: &Path) -> Result<Vec<Found>, String> {
+    let names = dothack_dirs();
+    let err = |e: std::io::Error| format!("{}: {e}", src.display());
+    if src.is_file() {
+        let card = piney_data::ps2card::Card::open(fs::read(src).map_err(err)?)
+            .map_err(|e| format!("{}: {e}", src.display()))?;
+        let mut out = Vec::new();
+        for d in card.root().map_err(|e| e.to_string())? {
+            if !d.is_dir() || !names.contains(&d.name.as_str()) {
+                continue;
+            }
+            let mut files = Vec::new();
+            for f in card.dir(&d).map_err(|e| e.to_string())?.into_iter().filter(|f| f.is_file()) {
+                files.push((f.name.clone(), card.file(&f).map_err(|e| format!("{}/{}: {e}", d.name, f.name))?));
+            }
+            out.push(Found { dir: d.name, files });
+        }
+        return Ok(out);
+    }
+    let read_dir = |dir: &Path| -> Result<Vec<(String, Vec<u8>)>, String> {
+        let mut files = Vec::new();
+        for e in fs::read_dir(dir).map_err(err)? {
+            let p = e.map_err(err)?.path();
+            let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            if p.is_file() && !name.starts_with("_pcsx2") {
+                files.push((name, fs::read(&p).map_err(err)?));
+            }
+        }
+        files.sort();
+        Ok(files)
+    };
+    let own = src.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    if names.contains(&own.as_str()) {
+        return Ok(vec![Found { dir: own, files: read_dir(src)? }]);
+    }
+    let mut out = Vec::new();
+    for name in names {
+        let d = src.join(name);
+        if d.is_dir() {
+            out.push(Found { dir: name.to_string(), files: read_dir(&d)? });
+        }
+    }
+    Ok(out)
+}
+
+/// Copy the `.hack` saves of `src` (see [`find_saves`]) onto the card
+/// directory `card`, each save directory whole; one it replaces is moved
+/// to `card`'s sibling `backup-<secs>` first. The directories copied, with
+/// their files' count.
+pub fn import(src: &Path, card: &Path) -> Result<Vec<(String, usize)>, String> {
+    let found = find_saves(src)?;
+    if found.is_empty() {
+        return Err(format!("{}: no .hack save directory ({})", src.display(), dothack_dirs().join(", ")));
+    }
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    let beside = card.parent().unwrap_or(card);
+    let backup = (0..)
+        .map(|k| beside.join(if k == 0 { format!("backup-{secs}") } else { format!("backup-{secs}-{k}") }))
+        .find(|p| !p.exists())
+        .unwrap_or_else(|| beside.join("backup"));
+    let err = |p: &Path, e: std::io::Error| format!("{}: {e}", p.display());
+    let mut done = Vec::new();
+    for f in found {
+        let dst = card.join(&f.dir);
+        if dst.exists() {
+            fs::create_dir_all(&backup).map_err(|e| err(&backup, e))?;
+            fs::rename(&dst, backup.join(&f.dir)).map_err(|e| err(&dst, e))?;
+        }
+        fs::create_dir_all(&dst).map_err(|e| err(&dst, e))?;
+        for (name, bytes) in &f.files {
+            let p = dst.join(name);
+            fs::write(&p, bytes).map_err(|e| err(&p, e))?;
+        }
+        done.push((f.dir, f.files.len()));
+    }
+    Ok(done)
 }
 
 #[cfg(test)]
@@ -281,5 +374,37 @@ mod tests {
         assert_eq!(c.read_slot(0, 11, 1, size), Some(vec![7; size]));
         assert_eq!(c.read_slot(1, 11, 1, size), None);
         fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// A PCSX2 save imported onto the port's card: a folder card's save
+    /// directory copied whole but for PCSX2's own `_pcsx2_index`, the
+    /// directory it replaces moved to a `backup-` beside the card; one
+    /// exported save directory given on its own works the same; a folder
+    /// with no .hack save is refused.
+    #[test]
+    fn a_pcsx2_save_imports() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/test-tmp")
+            .join(format!("piney-import-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let (src, card) = (root.join("pcsx2"), root.join("memcard").join("slot1"));
+        let dir = own_dir_name(Volume::Inf);
+        fs::create_dir_all(src.join(dir)).unwrap();
+        fs::write(src.join(dir).join("dhdata01"), [1u8; 64]).unwrap();
+        fs::write(src.join(dir).join("_pcsx2_index"), b"{}").unwrap();
+        fs::create_dir_all(card.join(dir)).unwrap();
+        fs::write(card.join(dir).join("dhdata01"), [9u8; 8]).unwrap();
+        assert_eq!(import(&src, &card).unwrap(), vec![(dir.to_string(), 1)]);
+        assert_eq!(fs::read(card.join(dir).join("dhdata01")).unwrap(), vec![1u8; 64]);
+        assert!(!card.join(dir).join("_pcsx2_index").exists());
+        let backup = fs::read_dir(card.parent().unwrap())
+            .unwrap()
+            .filter_map(Result::ok)
+            .find(|e| e.file_name().to_string_lossy().starts_with("backup-"))
+            .expect("the replaced save kept");
+        assert_eq!(fs::read(backup.path().join(dir).join("dhdata01")).unwrap(), vec![9u8; 8]);
+        assert_eq!(import(&src.join(dir), &card).unwrap(), vec![(dir.to_string(), 1)]);
+        assert!(import(&root.join("memcard"), &root.join("other")).is_err());
+        let _ = fs::remove_dir_all(&root);
     }
 }

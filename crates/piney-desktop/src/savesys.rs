@@ -375,8 +375,13 @@ impl SaveSys {
                 return;
             }
         };
-        let sum = data[..size].iter().fold(0u16, |s, &b| s.wrapping_add(u16::from(b)));
-        if sum != self.record(file).sum {
+        // Not the game's: an Infection slot written at the later volumes'
+        // 0x8d84 (as on a PCSX2 card), its record's sum over the whole file,
+        // is taken too; its first 0x8530 bytes are the same ccSaveData.
+        let sum_of = |n: usize| data[..n].iter().fold(0u16, |s, &b| s.wrapping_add(u16::from(b)));
+        let want = self.record(file).sum;
+        let full = piney_data::save::FULL;
+        if sum_of(size) != want && !(size < full && data.len() >= full && sum_of(full) == want) {
             self.result = LOAD_BAD_SUM;
             return;
         }
@@ -579,6 +584,51 @@ fn clear_data_warning(volume: Volume) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An Infection slot loads at either size: the game's 0x8530, its
+    /// record summed over that, and the later volumes' 0x8d84 (a PCSX2
+    /// card's), summed over the whole file; a sum that matches neither is
+    /// refused. With `work/savecards` (a card exported from PCSX2) its
+    /// first slot loads too.
+    #[test]
+    fn an_infection_slot_loads_at_either_size() {
+        use crate::card::FilesCard;
+        use piney_data::save::{FULL, SIZE};
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/test-tmp")
+            .join(format!("piney-inf-slot-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let mut card = FilesCard::slot1(Volume::Inf, &root);
+        assert!(card.make_dir(0));
+        let sum = |b: &[u8]| b.iter().fold(0u16, |s, &x| s.wrapping_add(u16::from(x)));
+        for (len, summed, want) in [(SIZE, SIZE, LOAD_DONE), (FULL, FULL, LOAD_DONE), (FULL, SIZE + 1, LOAD_BAD_SUM)] {
+            let mut slot: Vec<u8> = (0..len).map(|i| (i * 31 % 251) as u8).collect();
+            slot[4..8].copy_from_slice(b"Kite");
+            std::fs::write(card.slot_path(0, 0, 1).unwrap(), &slot).unwrap();
+            let mut sys = SaveSys::new(Volume::Inf);
+            let mut rec = SaveDataInfo::from_bytes(&[0; INFO_SIZE]);
+            rec.status = 1;
+            rec.sum = sum(&slot[..summed]);
+            sys.info[..INFO_SIZE].copy_from_slice(&rec.to_bytes());
+            let mut save = SaveData::new();
+            sys.read_data(&mut card, &mut save);
+            assert_eq!(sys.result, want, "{len:#x} summed over {summed:#x}");
+            if want == LOAD_DONE {
+                assert_eq!(&save.bytes()[4..8], b"Kite");
+            }
+        }
+        let _ = std::fs::remove_dir_all(&root);
+        let real = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/savecards");
+        if real.join("BASLUS-20267DOTHACK").is_dir() {
+            let mut card = FilesCard::slot1(Volume::Inf, &real);
+            let mut sys = SaveSys::new(Volume::Inf);
+            sys.info.copy_from_slice(&card.read_index(0).unwrap()[..INDEX_SIZE]);
+            let mut save = SaveData::new();
+            sys.read_data(&mut card, &mut save);
+            assert_eq!(sys.result, LOAD_DONE, "PCSX2's slot 1");
+        }
+    }
 
     #[test]
     fn info_round_trips() {

@@ -113,6 +113,9 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 
 - [ ] Other regions' discs (PAL, Japanese): asked for by players, planned for later; likely the generator's carry applied to each region's executable, with the text, fonts and PAL frame rate the harder parts
 
+- [x] Saves from PCSX2: `--import-card PATH` and the console's `import_card`
+  take a `.ps2` card image, a folder card or one exported save directory;
+  Infection slots of 0x8d84 bytes load too (worklog 0338)
 - [x] Console `invite_party ID`: a character into the party whatever the
   story's state, for testing (a town: at once, at the gate; a field: with
   the next area; `the_console_invites`)

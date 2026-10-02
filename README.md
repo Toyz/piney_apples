@@ -231,6 +231,19 @@ by all four parts. The options (volumes, voice language, screen position,
 vibration, the message window) are kept in `settings.toml` in the same
 folder. Whatever any part's Option menu sets, every part starts with.
 
+Saves from PCSX2 can be brought over. Point the port at PCSX2's memory
+card file (`Mcd001.ps2` in PCSX2's `memcards` folder), at a folder memory
+card, or at one exported save folder such as `BASLUS-20267DOTHACK`:
+
+```
+piney-game --import-card path/to/Mcd001.ps2
+```
+
+or type `import_card path/to/Mcd001.ps2` in the console (F1 or `` ` ``).
+The four parts' save folders are copied onto the port's card. A save it
+replaces is kept in a `backup-...` folder beside the card. Only the North
+American discs' saves are recognised.
+
 This repository does not include the games. Everything the port plays
 comes from your discs.
 
