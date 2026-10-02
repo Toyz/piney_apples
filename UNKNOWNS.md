@@ -513,7 +513,6 @@ player until one of these turns out wrong.
 - [[11]] which story areas Infection itself can reach — derivable from the scripts' gate_add (events.md op 89/90); no list made
 - [[18]] how far the parody script diverges beyond the lines compared — only sampled
 - [[69]] the event camera's unknowns — listed on docs/engine/field-game.md (see Docs)
-- [[90]] ccEvent::CheckOperate(9)'s whole talk rule not run in eemu — pieces checked
 - [[91]] player_distance in town not run whole against the game — reuses checked pieces
 - [[91]] the church's messages, cameras and timing only seen to run — not compared
 - [[99]] piros_colour status 9 with an operand past 5 — no script uses it
@@ -928,6 +927,7 @@ player until one of these turns out wrong.
 - [[90]] event 11's block 17 at the gate and the rest of event 11 in area 15 — answered by [[91]], [[129]]
 - [[90]] inviteSpc's warp-in of an unregistered member at the Chaos Gate — answered for the towns by docs/engine/field-walk.md (party_add); the table-equipment copy is not ported ([[180]]: no script makes one)
 - [[90]] the gate-address window in town — answered by [[90]] itself (FieldUi::announce_lines)
+- [[90]] ccEvent::CheckOperate(9)'s whole talk rule not run in eemu — answered by [[333]] (600 random cases of the game's code; check_operate_matches_the_game)
 - [[91]] the church's streams lack subtitles and music — answered by crates/piney-game/src/area_host.rs, field_host.rs (StreamPlayer::event)
 - [[91]] party_remove, game_over and clear_gate_hack still defaults in the fields — answered by crates/piney-game/src/area_host.rs (all three implemented)
 - [[92]] piros_colour — answered by [[99]], [[107]]

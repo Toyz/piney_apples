@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-332 entries: audio 28, battle 67, build 15, content 3, decomp 27, disc 5, engine 13, format 16, iop 2, render 79, save 10, script 39, test 131, tooling 23, ui 61, video 11, volumes 67, world 87.
+333 entries: audio 28, battle 67, build 15, content 3, decomp 27, disc 5, engine 13, format 16, iop 2, render 79, save 10, script 40, test 132, tooling 23, ui 61, video 11, volumes 67, world 87.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -344,3 +344,4 @@ The [reference](docs/README.md) says what is true now.
 | 330 | ["scene does not sleep the event task: the pass runs on in its frame, disabled"](worklog/0330-scene-does-not-sleep-the-event-task-the-pass-runs-on-in-its.md) | 2026-10-01 | script, engine, decomp |
 | 331 | ["Modes 1 and 0x1000: the soft reset, and a stop nothing asks for"](worklog/0331-modes-1-and-0x1000-the-soft-reset-and-a-stop-nothing-asks.md) | 2026-10-01 | engine, decomp |
 | 332 | ["The Mono option reaches the synthesizer: ccSetOutputMode and sdCommand 3"](worklog/0332-the-mono-option-reaches-the-synthesizer-ccsetoutputmode-and.md) | 2026-10-01 | audio, ui |
+| 333 | ["CheckOperate run against the game: 600 random cases"](worklog/0333-checkoperate-run-against-the-game-600-random-cases.md) | 2026-10-01 | script, test |

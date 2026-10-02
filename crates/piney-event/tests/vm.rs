@@ -50,6 +50,8 @@ struct Fixture {
     desktop_saves: Vec<(i32, u64, Runs)>,
     sub: Vec<(u64, i32, u64, Runs)>,
     play: Vec<(u64, i32, Vec<u64>, u64, u64)>,
+    /// `operate` lines, their words after the kind.
+    operate: Vec<Vec<String>>,
 }
 
 fn parse_runs(words: &[&str]) -> Runs {
@@ -146,6 +148,7 @@ fn fixture() -> &'static Fixture {
                         .collect();
                     f.cond.push((w[1].parse().unwrap(), count, bits));
                 }
+                "operate" => f.operate.push(w[1..].iter().map(|s| s.to_string()).collect()),
                 _ => {}
             }
         }
@@ -989,4 +992,49 @@ fn mutation_s_setup_opens_its_own_story() {
         _ => None,
     });
     assert_eq!(first, Some((101, 0)));
+}
+
+/// A host whose `cmndTarget` is one character or none.
+struct OperateHost {
+    save: SaveData,
+    target: Option<CharRef>,
+}
+
+impl Host for OperateHost {
+    fn save(&mut self) -> &mut SaveData {
+        &mut self.save
+    }
+    fn command_target(&self) -> Option<CharRef> {
+        self.target
+    }
+}
+
+/// `ccEvent::CheckOperate(num, flag)` (0x001b32f0) on random registers,
+/// the game's own code run in eemu (`operate` lines): its answer,
+/// `operateSet` after and whether `operateTarget` was set, with
+/// `cmndTarget` a character (its base type flags and code) or NULL.
+#[test]
+fn check_operate_matches_the_game() {
+    let f = fixture();
+    assert!(!f.operate.is_empty(), "no operate cases in the fixture");
+    let lib = Arc::new(Library::new(piney_data::volume::Volume::Inf, Vec::new()));
+    for w in &f.operate {
+        let mut vm = Vm::new(lib.clone());
+        vm.mng.operate = u64::from_str_radix(&w[0], 16).unwrap();
+        vm.mng.operate_set = w[1].parse().unwrap();
+        for (slot, pair) in vm.mng.targets.iter_mut().zip(w[2].split(',')) {
+            let (ty, code) = pair.split_once(':').unwrap();
+            *slot = (ty.parse().unwrap(), code.parse().unwrap());
+        }
+        let target = (w[3] == "1").then(|| CharRef {
+            handle: 1,
+            types: u32::from_str_radix(&w[4], 16).unwrap(),
+            code: w[5].parse().unwrap(),
+        });
+        let mut host = OperateHost { save: SaveData::new(), target };
+        let got = vm.check_operate(w[6].parse().unwrap(), w[7].parse().unwrap(), &mut host);
+        let want = (w[8] == "1", w[9].parse::<i16>().unwrap(), w[10] == "1");
+        assert_eq!((got, vm.mng.operate_set, vm.mng.operate_target.is_some()), want, "{}", w.join(" "));
+    }
+    eprintln!("{} CheckOperate cases match the game", f.operate.len());
 }

@@ -46,6 +46,7 @@ frame counts. No script, message or label text goes in it.
 """
 
 import os
+import random
 import struct
 import sys
 import unittest
@@ -77,6 +78,8 @@ TSCB = 0x01816000
 TARGET = 0x01817000
 BOSSTSCB = 0x01818000
 ENEMY = 0x01819000
+OPERATE_CHAR = 0x0181C000   # a command target's ccChar, its base at +0x100
+OPERATE_SEED, OPERATE_CASES = 9, 600
 CHUNK = 0x0181a000
 MENU = 0x0181b000
 DTMENU = 0x0181c000
@@ -366,6 +369,44 @@ class GameEvents:
     def init_mng(self):
         self.m.mem[EVMNG:EVMNG + 0x800] = bytes(0x800)
         self.m.call(self.sym("Init__7ccEventFv"), (EVMNG,))
+
+    def operate_cases(self, seed, count):
+        """CheckOperate (0x001b32f0) on random registers: the inputs and
+        what the game's code answers, one tuple per case."""
+        rnd = random.Random(seed)
+        m, e = self.m, EVMNG
+        char, base = OPERATE_CHAR, OPERATE_CHAR + 0x100
+        out = []
+        for _ in range(count):
+            self.init_mng()
+            operate = 0 if rnd.random() < 0.3 else rnd.getrandbits(64) & rnd.getrandbits(64)
+            oset = -1 if rnd.random() < 0.5 else rnd.randrange(64)
+            targets = [(-1, -1) if rnd.random() < 0.6 else (rnd.choice((-1, rnd.randrange(32))), rnd.randrange(-1, 60))
+                       for _ in range(16)]
+            ct = rnd.random() >= 0.25
+            types, code = rnd.getrandbits(32) & rnd.getrandbits(32), rnd.randrange(-1, 60)
+            live = [t for t in targets if t != (-1, -1)]
+            if ct and live and rnd.random() < 0.4:
+                ty, code = rnd.choice(live)
+                types |= 1 << (ty & 31)
+            num = rnd.choice((-1, 9, 9, rnd.randrange(64)))
+            flag = rnd.randrange(2)
+            m.store(e + 0x770, 8, operate)
+            m.store(e + 0x778, 2, oset & 0xFFFF)
+            m.store(e + 0x780, 4, 0)
+            for k, (ty, c) in enumerate(targets):
+                m.store(e + 0x40 + 4 * k, 2, ty & 0xFFFF)
+                m.store(e + 0x42 + 4 * k, 2, c & 0xFFFF)
+            m.store(char, 4, base)
+            m.store(base + 8, 4, types)
+            m.store(base + 0xc, 2, code & 0xFFFF)
+            m.store(self.sym("cmndTarget"), 4, char if ct else 0)
+            res = m.call(self.sym("CheckOperate__7ccEventFii"), (e, num & M32, flag)) & M32
+            after = s32(m.load(e + 0x778, 2) | (0xFFFF0000 if m.load(e + 0x778, 2) & 0x8000 else 0))
+            tset = int(m.load(e + 0x780, 4) == char)
+            ts = ",".join(f"{ty}:{c}" for ty, c in targets)
+            out.append((f"{operate:x}", oset, ts, int(ct), f"{types:x}", code, num, flag, res, after, tset))
+        return out
 
     def mng_digest(self):
         """FNV-1a 64 of the event manager's registers, as mng_digest in
@@ -967,6 +1008,12 @@ def write_fixture(out):
         g.set_world(World(seed, stories))
         v = sum(1 << i for i, (n, sh) in enumerate(conds) if g.condition(n, sh))
         w(f"cond {seed} {len(conds)} {v:x}\n")
+    w("# operate OPERATE SET T:C,...x16 CT TYPES CODE NUM FLAG RESULT SET' TARGET'  CheckOperate(NUM, FLAG)\n")
+    w("#                            on eventMng's operate (hex), operateSet and target[16], with cmndTarget\n")
+    w("#                            a character (CT 1: base type flags TYPES, code CODE) or NULL; its result,\n")
+    w("#                            operateSet after and whether operateTarget was set\n")
+    for case in g.operate_cases(OPERATE_SEED, OPERATE_CASES):
+        w("operate " + " ".join(map(str, case)) + "\n")
     return 0
 
 
