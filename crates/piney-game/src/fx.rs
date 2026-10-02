@@ -265,6 +265,10 @@ impl FieldFx for AreaFx {
             weapon_generators: (self.fx.particles.gens.iter())
                 .filter(|g| matches!(g.sync_sw, Some(piney_effect::IntRef::CharAt(_, piney_effect::ARMS_SW))))
                 .count(),
+            effsw_generators: (self.fx.particles.gens.iter())
+                .filter(|g| g.kill_flag < 2)
+                .filter(|g| matches!(g.sync_sw, Some(piney_effect::IntRef::CharAt(_, piney_effect::gimmick::IDOL_EFFSW))))
+                .count(),
             char_generators: (self.fx.particles.gens.iter())
                 .filter(|g| g.kill_flag < 2)
                 .filter_map(|g| match g.sync_pos {

@@ -3706,6 +3706,9 @@ pub struct FxCensus {
     /// The scene index each live generator not being ended (`killFlag`
     /// 0 or 1) follows the place of (a condition effect's, a spell's...).
     pub char_generators: Vec<u32>,
+    /// The live generators an idol's or a `ccGimEtc`'s `effsw` switches
+    /// (`effStatueOfGod`'s glow, `effBossRoomEntrance`'s), not being ended.
+    pub effsw_generators: usize,
     /// `ccDamUprStr`'s lines still showing (the characters' numbers and
     /// words), in `flyFont`'s codes.
     pub fly_fonts: Vec<Vec<u8>>,
