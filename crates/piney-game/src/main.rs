@@ -547,7 +547,7 @@ fn handle(events: Vec<Event>, audio: Option<&Audio>) {
             (Event::TobjSeLoop { pos, rate, ear }, Some(a)) => a.tobj_se_loop(ear, pos, *rate),
             (Event::DesktopBgm(n), Some(a)) => a.desktop_bgm(*n),
             (Event::Bgm(n), Some(a)) => a.bgm(*n),
-            (Event::SoundFadeOut, Some(a)) => a.bgm_stop(),
+            (Event::SoundFadeOut, Some(a)) => a.sound_fade_out(),
             (Event::BgmStream(n), Some(a)) => {
                 if let Err(e) = a.bgm_stream(*n) {
                     eprintln!("BGM.BIN track {n}: {e}");

@@ -1084,6 +1084,16 @@ impl Driver {
         }
     }
 
+    /// `ccSoundFadeOut()` (0x0017ae60), which a mode's leaving asks for:
+    /// each loaded sequence's fade from its port's volume to nothing over 8
+    /// frames, stopping it at the end (`ccSqFade(n, 0, 8, 3)`, written
+    /// inline for `sqNum` 1-3).
+    pub fn sound_fade_out(&mut self) {
+        for sq in 0..self.sq_num {
+            self.sq_fade(sq, 0, 8, 3);
+        }
+    }
+
     /// Stop the music: `ccSqStop` on every sequence.
     pub fn stop(&mut self, out: &mut Vec<Command>) {
         self.pending = None;
@@ -1354,6 +1364,42 @@ mod tests {
         assert_eq!(bgm_plan(2, 0, false, &BgmWorld { crisis: true, ..w }).play, &[2, 0]);
         assert_eq!(bgm_plan(1, 0, false, &BgmWorld { dt_bgm: 27, ..w }).play, &[1]);
         assert_eq!(bgm_plan(7, 0, false, &w).play, &[] as &[usize]);
+    }
+
+    /// `ccSoundFadeOut` with two sequences playing in a game mode: the music
+    /// is not cut, it falls over the fades' frames (`ccFade` runs fade 0
+    /// every frame, writing port 1 on odd counts) and each sequence stops
+    /// once its fade ends.
+    #[test]
+    fn a_sound_fade_out_fades_before_it_stops() {
+        let mut d = Driver::new();
+        d.sq_num = 2;
+        for t in &mut d.sqtbl {
+            t.vol = 200;
+        }
+        d.game_start = true;
+        let mut out = Vec::new();
+        for sq in 0..2 {
+            d.sq_play(sq, &mut out);
+        }
+        d.sound_fade_out();
+        let mut stopped = [None; 2];
+        let mut first = None;
+        for f in 1..=30 {
+            out.clear();
+            d.task(true, &mut out);
+            first.get_or_insert(d.port_vol[1]);
+            for c in &out {
+                if let Command::Stop(m) = *c {
+                    stopped[m].get_or_insert(f);
+                }
+            }
+        }
+        let first = first.unwrap();
+        assert!(first > 0 && first < 200, "the first frame already {first}");
+        assert!(stopped.iter().all(|s| s.is_some_and(|f| f > 1)), "{stopped:?}");
+        assert_eq!(d.sq_status[..2], [0, 0]);
+        assert_eq!((d.port_vol[1], d.port_vol[2]), (0, 0));
     }
 
     /// `ccSndGateHack` in a town with three sequences playing: 0 opens the

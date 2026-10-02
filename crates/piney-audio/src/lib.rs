@@ -508,6 +508,11 @@ impl Audio {
         self.run(|d, _, out| d.stop(out));
     }
 
+    /// `ccSoundFadeOut()`: the music faded out over 8 frames and stopped.
+    pub fn sound_fade_out(&self) {
+        self.engine().driver.sound_fade_out();
+    }
+
     /// `saveData.mainVol`, `seVol`, `bgmVol`, each 0..256.
     pub fn set_volumes(&self, main: i32, se: i32, bgm: i32) {
         self.run(|d, _, out| d.set_volumes(main, se, bgm, out));

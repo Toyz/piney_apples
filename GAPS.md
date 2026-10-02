@@ -109,6 +109,8 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 
 ## Asked for, not the game's
 
+- [ ] Other regions' discs (PAL, Japanese): asked for by players, planned for later; likely the generator's carry applied to each region's executable, with the text, fonts and PAL frame rate the harder parts
+
 - [x] Console `invite_party ID`: a character into the party whatever the
   story's state, for testing (a town: at once, at the gate; a field: with
   the next area; `the_console_invites`)
