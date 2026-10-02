@@ -1124,6 +1124,10 @@ impl FieldWorld {
             if self.scene.dungeon != 1 {
                 return false;
             }
+            // 0x0019e45c: the second dungeon's entryFlag cleared.
+            if let Place::Dungeon(d) = &mut self.place {
+                d.gimmicks_placed = false;
+            }
             self.scene.change_scene(2, -2, -2, 0, 0, self.dungeons.last_room, &mut self.save.save);
             self.requests.push(Request::ChangeScene);
             return true;
@@ -1169,20 +1173,23 @@ impl FieldWorld {
         }
     }
 
-    /// `ccThEntryCtrlDelete` as a dungeon's room is left for another of
-    /// the same dungeon (`keep`): what survives it goes into
-    /// `g_entryList`, which the dungeon carries to the next room's set-up
-    /// (the magic portals, the boxes and idols of `EntryGimmick`, an
-    /// event's enemies; see `piney_battle::entry::EntryCtrl::keep`).
+    /// `ccThEntryCtrlDelete` (gcmn 0x00431d10) as a dungeon is left. For
+    /// another room of the same dungeon (`CheckSceneReplace()` false) what
+    /// survives it goes into `g_entryList`, which the dungeon carries to
+    /// the next room's set-up (the magic portals, the boxes and idols of
+    /// `EntryGimmick`, an event's enemies; see
+    /// `piney_battle::entry::EntryCtrl::keep`). For another scene (a lake's
+    /// other dungeon) every object is deleted and nothing is kept.
     fn keep_entries(&mut self) {
         if !matches!(self.place, Place::Dungeon(_)) || !self.combat.started {
             return;
         }
+        let keep = !self.scene.changed();
         let info = self.task_info();
         let cpad = CamPad::default();
         let kept = {
             let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, cpad, &info);
-            self.combat.with_entry_cx(&mut x, |c, cx| c.keep(cx, true))
+            self.combat.with_entry_cx(&mut x, |c, cx| c.keep(cx, keep))
         };
         let actors = kept.olds.iter().flatten().map(|o| self.combat.cast.actors.remove(o)).collect();
         if let Place::Dungeon(d) = &mut self.place {

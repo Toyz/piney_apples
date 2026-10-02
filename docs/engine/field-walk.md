@@ -980,11 +980,6 @@ host default (`take_unported` empty).
   still stands on the entrance or a door; the port takes the first change
   of scene and lets the dungeon's `GotoNextRoom` run again as the game
   would. Whether the set-up stops the old tasks sooner is not traced.
-- `WORLD_MAN+0x58[n]`, which `Enter` and `GoField` clear for the dungeon
-  being left (`game.dungeon`) on a lake's way between its dungeons: what
-  reads it is not traced. (`GoField` for field type 4, the second
-  dungeon back to the first at `lastRoom` +0x100, is ported; `Enter`
-  sets `lastRoom` from `game.block` on the lake's stairs down: dungeon.md.)
 - `inviteSpc`'s build of an unregistered character at the Chaos Gate is
   ported for the towns ([field game](field-game.md), `party_add`); its
   copy of the character table's equipment into the registry (+0x10 -

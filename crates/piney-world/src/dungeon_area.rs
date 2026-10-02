@@ -383,8 +383,11 @@ pub struct DungeonArea {
     /// `fieldrand` as the generator left it (the random dungeon's; a story
     /// dungeon's from its seed, not checked against the game).
     pub rng: dungeon::Rng,
-    /// `WORLD_MAN.entryFlag[1 + dungeon]`: `EntryGimmick` placed this
-    /// dungeon's boxes, portals and idols. It lives with the dungeon.
+    /// `WORLD_MAN.entryFlag[1 + dungeon]` (+0x58 + 4 dungeon): `EntryGimmick`
+    /// (main 0x001a1fe0) placed this dungeon's boxes, portals and idols.
+    /// It lives with the dungeon. A lake's stairs and `GoField` clear it as
+    /// the party leaves, and every entry goes with that scene, so they are
+    /// placed again on the way back.
     pub gimmicks_placed: bool,
     /// `g_entryList`: what the entry control kept when the party left a
     /// room of the dungeon, for the next room's `restoreEntry`.
@@ -1767,13 +1770,17 @@ impl DungeonArea {
                     return Some(Exit::Area { area: 1, n: self.event_area.max(0) });
                 }
                 // No field: up to the first dungeon's room left for this one
-                // (0x0019e0f8).
+                // (0x0019e0f8), this one's entryFlag cleared: its boxes,
+                // portals and idols are placed again on the way back.
+                self.gimmicks_placed = false;
                 Some(Exit::Scene { area: 2, town: keep, field: keep, dungeon: 0, floor: 0, block: *last_room })
             }
             -1 => {
                 // No field: the first dungeon's stairs down lead into the
-                // second, and lastRoom keeps the room (0x0019e238).
+                // second, and lastRoom keeps the room (0x0019e238); the
+                // first's entryFlag cleared (0x0019e240).
                 if self.field_type == 4 && scene.dungeon == 0 {
+                    self.gimmicks_placed = false;
                     *last_room = scene.block;
                     return Some(Exit::Scene { area: 2, town: keep, field: keep, dungeon: 1, floor: 0, block: 0 });
                 }
@@ -2191,16 +2198,20 @@ mod tests {
         let down = first.floors[0].down;
         scene.block = down as i32;
         let mut last_room = 0;
+        first.gimmicks_placed = true;
         let exit = first.enter(stairs(&first, down), &scene, &|_, _| true, &mut save, &mut last_room);
         assert_eq!(exit, Some(Exit::Scene { area: 2, town: -2, field: -2, dungeon: 1, floor: 0, block: 0 }));
         assert_eq!(last_room, down as i32);
+        assert!(!first.gimmicks_placed, "entryFlag[1] cleared going down (0x0019e240)");
 
         (scene.dungeon, scene.block) = (1, 0);
         let mut second = DungeonArea::new(&archive, &wm, &scene).unwrap();
         let up = second.floors[0].up;
         scene.block = up as i32;
+        second.gimmicks_placed = true;
         let exit = second.enter(stairs(&second, up), &scene, &|_, _| true, &mut save, &mut last_room);
         assert_eq!(exit, Some(Exit::Scene { area: 2, town: -2, field: -2, dungeon: 0, floor: 0, block: last_room }));
+        assert!(!second.gimmicks_placed, "entryFlag[2] cleared going up (0x0019e104)");
 
         first.come_back(last_room);
         assert_eq!((first.level, first.room_at), (0, Some((0, down))));

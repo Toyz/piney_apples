@@ -5676,8 +5676,10 @@ mod tests {
         let mut scene = piney_world::area::Scene::log_in(&mut state.save);
         scene.change_scene(1, scene.town, 33, -1, -1, -1, &mut state.save);
         scene.change_area(2, 0, &mut state.save);
+        // Each visit plays a few frames, past the entry control's set-up:
+        // the portals and gimmicks then in the lake (dungeon 0).
         let visit = |state, scene, kept| {
-            let a = AreaMode::enter(
+            let mut a = AreaMode::enter(
                 &iso,
                 archive.clone(),
                 state,
@@ -5689,25 +5691,41 @@ mod tests {
                 piney_world::party::Spcs::default(),
             )
             .unwrap();
+            let pad = Pad::default();
+            for _ in 0..400 {
+                if matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 2) {
+                    break;
+                }
+                a.step(&pad);
+            }
+            let e = a.world().map_entries();
+            let placed = (e.dungeon_circles.len(), e.gims.len());
             let (state, _, scene, _, kept, _) = a.leave();
             let Some(Kept::Dungeon(k)) = kept else { panic!("no dungeon kept") };
             let lakes: Vec<Option<bool>> =
                 k.slots.iter().map(|d| d.as_ref().map(|d| piney_data::dungeon::is_lake(d.dtype))).collect();
             let back = k.slots[0].as_ref().map(|d| (d.position, d.floors[0].start[1]));
-            (state, scene, Some(Kept::Dungeon(k)), lakes, back)
+            (state, scene, Some(Kept::Dungeon(k)), lakes, back, placed)
         };
         // The lake; then down its stairs into the second dungeon.
-        let (mut state, mut scene, kept, lakes, _) = visit(state, scene, None);
+        let (mut state, mut scene, mut kept, lakes, _, first) = visit(state, scene, None);
         assert_eq!(lakes, [Some(true), None, None]);
+        assert!(first.0 + first.1 > 0, "nothing placed in the lake: {first:?}");
+        // The lake's stairs down clear its entryFlag (WORLD_MAN::Enter).
+        if let Some(Kept::Dungeon(k)) = &mut kept {
+            k.slots[0].as_mut().unwrap().gimmicks_placed = false;
+        }
         scene.change_scene(2, -2, -2, 1, 0, 0, &mut state.save);
-        let (mut state, mut scene, kept, lakes, _) = visit(state, scene, kept);
+        let (mut state, mut scene, kept, lakes, _, _) = visit(state, scene, kept);
         assert_eq!(lakes, [Some(true), Some(false), None], "the second dungeon made, the lake kept");
-        // Back up to the lake's room left (lastRoom 0 here): the lake again.
+        // Back up to the lake's room left (lastRoom 0 here): the lake again,
+        // its portals and gimmicks placed again.
         scene.change_scene(2, -2, -2, 0, 0, 0, &mut state.save);
-        let (_, _, _, lakes, back) = visit(state, scene, kept);
+        let (_, _, _, lakes, back, again) = visit(state, scene, kept);
         assert_eq!(lakes, [Some(true), Some(false), None]);
         let (pos, stairs) = back.unwrap();
         assert_eq!(pos, stairs, "at the lake's stairs down");
+        assert_eq!(again, first, "the lake's portals and gimmicks again");
     }
 
     #[test]
