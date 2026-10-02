@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-348 entries: audio 31, battle 69, build 15, content 3, decomp 28, disc 5, engine 17, format 17, iop 3, render 83, save 13, script 41, test 132, tooling 25, ui 68, video 12, volumes 67, world 90.
+349 entries: audio 31, battle 70, build 15, content 3, decomp 28, disc 5, engine 17, format 17, iop 3, render 83, save 13, script 41, test 133, tooling 25, ui 68, video 12, volumes 67, world 90.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -360,3 +360,4 @@ The [reference](docs/README.md) says what is true now.
 | 346 | [A lone slot file imports with its index record](worklog/0346-a-lone-slot-file-imports-with-its-index-record.md) | 2026-10-01 | save, tooling |
 | 347 | ["Ryu Books IV to VIII: their pages, lists and keys, each run against the game"](worklog/0347-ryu-books-iv-to-viii-their-pages-lists-and-keys-each-run.md) | 2026-10-02 | ui |
 | 348 | ["A spell holds its targets for its whole run: the effects' copy of holdFlag was never set"](worklog/0348-a-spell-holds-its-targets-for-its-whole-run-the-effects.md) | 2026-10-02 | battle, render |
+| 349 | ["A revived member who ignores orders: not reproduced; what was ruled out"](worklog/0349-a-revived-member-who-ignores-orders-not-reproduced-what-was.md) | 2026-10-02 | battle, test |
