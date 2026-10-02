@@ -41,7 +41,17 @@ impl Run {
     fn step(&mut self, b: Buttons) -> Frame {
         self.pad.read(&Raw { buttons: b, ..Raw::default() });
         let f = self.d.step(&self.pad);
-        for r in self.d.take_requests() {
+        let asked = self.d.take_requests();
+        // The stream plays out under `PlayOpeningStream` before the title
+        // steps again: its frames 1 to `frames`, the flashes over them.
+        if let Some(&Request::Stream { frames, .. }) = asked.iter().find(|r| matches!(r, Request::Stream { .. })) {
+            self.pad.read(&Raw::default());
+            for n in 0..frames {
+                self.d.stream_tick(&self.pad, n);
+                self.d.stream_fade(&mut Frame::new());
+            }
+        }
+        for r in asked {
             self.requests.push((self.frame, r));
         }
         self.frame += 1;

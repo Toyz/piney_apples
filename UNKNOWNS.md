@@ -100,8 +100,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 ### ui
 
-- [[98]] the epitaphs (`ccEpitaphMsg`, `Step::Epitaph`) and the book viewer (`ccThBook`, `Step::BookStart`) are not carried out: crates/piney-world/src/field_world.rs `item_step` returns false and crates/piney-game/src/area.rs logs "item step not carried out" — using those items shows nothing
-- docs/engine/title.md the opening's cancel flash is not modelled — skipping the opening stream
+- [[98]] [[317]] [[318]] Ryu Books 4-8's pages and rewards (`BOOK` types 3-7, gcmn 0x0040c570-0x00410400) are not ported, the cover's palette from the second book on is not swapped, and no test turns a book's pages (the epitaphs: [[292]]; a book's use and books 1-3: [[317]], [[318]]) — reading the later Ryu Books
 
 ### script
 
@@ -951,6 +950,7 @@ player until one of these turns out wrong.
 - [[98]] the Grunty ride item step — answered by [[166]]
 - [[98]] DisableThEvent — answered by crates/piney-game/src/world.rs, area.rs (ccDisableThEvent)
 - [[98]] the party AI's UseItemRequest does nothing in the field — answered by [[230]]
+- [[98]] the epitaphs (`ccEpitaphMsg`) and a Ryu Book's use (`ccThBook`) as item steps — answered by [[292]] (the Key Items menu's use, the epitaph's pages in `menus::useitem`) and [[317]], [[318]] (books 1-3)
 - [[99]] piros_colour in the field and dungeon — answered by [[107]]
 - [[101]] Kite's strategy balloon and the party's chat lines — answered by [[120]], [[123]]
 - [[101]] a request the menus make reaches the sound task a frame after the game's — answered by [[336]] (the menu task now runs after ccThGameCtrl and before the world's other tasks; a_skill_in_a_fight_names_itself)
@@ -1424,7 +1424,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 
 - docs/engine/title.md: how many frames ccThSaveSys takes to answer the boot check — research (the port says 2)
 - docs/engine/title.md: how the opening stream's frames line up with the task's (the end flash) — research (duplicates [[52]])
-- docs/engine/title.md: the opening's cancel flash is not modelled — play (docs/engine/title.md Unknown)
+- docs/engine/title.md: the opening's cancel flash is not modelled — answered by [[342]] (`Demo::stream_tick`; the_opening_stream_flashes)
 - docs/engine/title.md: m_tempPN's first value — research (duplicates [[50]])
 - docs/engine/title.md: how many frames DataRead and the index read take on a real card — research (card timing)
 - docs/engine/title.md: volumes 2-4: Data_Control's m_PrevFlg branches and ccSaveData::ConvGame — play (duplicates [[43]], [[201]])

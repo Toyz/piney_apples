@@ -945,11 +945,17 @@ impl Mode for Session {
         let mut change = None;
         let frame = match &mut self.stage {
             Stage::Title(t) => 'title: {
-                // `ccRequestLoadStream` holds the title's task until the
-                // stream ends.
+                // `PlayOpeningStream` holds the title's task until the
+                // stream ends, flashing over it.
                 if let Some(p) = &mut t.stream {
+                    if let (frame, true) = p.frame() {
+                        t.demo.stream_tick(pad, frame);
+                    }
                     match p.step(pad, &mut self.events) {
-                        Some(frame) => break 'title frame,
+                        Some(mut frame) => {
+                            t.demo.stream_fade(&mut frame);
+                            break 'title frame;
+                        }
                         None => t.stream = None,
                     }
                 }
@@ -1621,6 +1627,57 @@ mod tests {
             })
             .count();
         assert!(drawn > 150, "stream 0 drew {drawn} of 200 frames");
+    }
+
+    /// From power-on to the opening stream's first frame, the logo movies
+    /// skipped with START.
+    fn to_opening_stream(s: &mut Session, pad: &mut Pad) {
+        let mut n = 0;
+        while !title(s).is_some_and(|t| t.stream.is_some()) {
+            let skip = title(s).is_some_and(|t| t.movie.is_some()) && n % 20 == 19;
+            press(s, pad, if skip { Buttons::START } else { Buttons::NONE });
+            n += 1;
+            assert!(n < 3000, "no opening stream: {}", Mode::title(s));
+        }
+    }
+
+    /// The opening stream's flashes, frame by frame: (the stream's frame,
+    /// streaming, scFadeDef active) after each step, `cancel` pushed at
+    /// step `at`.
+    fn opening_flashes(cancel_at: Option<u32>) -> Option<Vec<(u32, bool, bool)>> {
+        let mut s = session(false)?;
+        let mut pad = Pad::default();
+        to_opening_stream(&mut s, &mut pad);
+        let cancel = Buttons(u32::from(title(&s).unwrap().demo.save().assign_pad_cancel()));
+        let mut seen = Vec::new();
+        for f in 0..700 {
+            press(&mut s, &mut pad, if cancel_at == Some(f) { cancel } else { Buttons::NONE });
+            let Some(t) = title(&s) else { break };
+            let frame = t.stream.as_ref().map_or(0, |p| p.frame().0);
+            seen.push((frame, t.stream.is_some(), t.demo.fade().active()));
+            if t.stream.is_none() && !t.demo.fade().active() {
+                break;
+            }
+        }
+        Some(seen)
+    }
+
+    /// `PlayOpeningStream`'s flashes over the stream (`scFadeDef`). Played
+    /// through, the check sees the stream's frame 390 (410 - 20): white
+    /// comes in over its last 20 frames (391-410) and the menu comes out
+    /// of it, 47 frames lit in all. A cancel push flashes white at once,
+    /// for 50 frames; the stream ends and no end flash follows.
+    #[test]
+    fn the_opening_stream_flashes() {
+        let Some(through) = opening_flashes(None) else { return };
+        let first = through.iter().position(|x| x.2).expect("no end flash");
+        assert_eq!(through[first].0, 391);
+        assert!(through[first..first + 20].iter().all(|x| x.1), "the flash over the stream");
+        assert!(through.iter().skip_while(|x| x.1).any(|x| x.2), "the menu out of white");
+        assert_eq!(through.iter().filter(|x| x.2).count(), 47);
+        let Some(cancelled) = opening_flashes(Some(100)) else { return };
+        assert_eq!(cancelled.iter().position(|x| x.2), Some(100));
+        assert_eq!(cancelled.iter().filter(|x| x.2).count(), 50, "the cancel's flash, and no other");
     }
 
     /// The title's music plays, and event 1's setup lines are voiced: the

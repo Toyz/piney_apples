@@ -252,6 +252,13 @@ impl StreamPlayer {
         Some(frame)
     }
 
+    /// `ccGetStreamFrame()`: the scene frame the last step drew, and
+    /// whether any step has run.
+    pub fn frame(&self) -> (u32, bool) {
+        let s = self.stream.stream();
+        (s.frame(), s.steps() > 0)
+    }
+
     /// The stream under the player (the launcher holds its last frame).
     pub fn stream_mut(&mut self) -> &mut piney_stream::Stream {
         self.stream.stream_mut()

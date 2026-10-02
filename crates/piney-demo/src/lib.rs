@@ -209,6 +209,9 @@ pub struct Demo {
     dialog: Option<DialogAssets>,
     /// What `ccSaveData::NewGame` copies.
     tables: Option<NewGameTables>,
+    /// `PlayOpeningStream`'s frame count while no flash has come yet (its
+    /// `s1`): a cancel push or the stream's frame `count - 20` flashes.
+    stream_flash: Option<u32>,
 }
 
 impl Demo {
@@ -281,6 +284,7 @@ impl Demo {
             count: 0,
             dialog: None,
             tables: None,
+            stream_flash: None,
         }
     }
 
@@ -384,6 +388,11 @@ impl Demo {
             };
             self.phase = task(&mut self.open, self.phase, &mut env, &mut self.movie_skipped, self.first_boot);
         }
+        if let Some(&Request::Stream { frames, .. }) =
+            self.requests[asked..].iter().find(|r| matches!(r, Request::Stream { .. }))
+        {
+            self.stream_flash = Some(frames);
+        }
         if self.parody_flag {
             self.state.save.set_u8(offset::PARODY_FLAG, 1);
         }
@@ -409,6 +418,40 @@ impl Demo {
         }
         self.fade.send(&mut ctx);
         ctx.finish()
+    }
+}
+
+impl Demo {
+    /// `scFadeDef`: the title's screen flashes and fades.
+    pub fn fade(&self) -> &ScFade {
+        &self.fade
+    }
+
+    /// `PlayOpeningStream`'s loop (0x00406838) for a frame of the stream,
+    /// before the stream's own task: a cancel push flashes white over 50
+    /// frames; else, at the stream's frame `count - 20` (`frame`, as the
+    /// last step left it), the end flash. Either one only, once.
+    pub fn stream_tick(&mut self, pad: &Pad, frame: u32) {
+        let Some(count) = self.stream_flash else { return };
+        if pad.push.bits() & u32::from(self.state.save.assign_pad_cancel()) != 0 {
+            let (t, c) = STREAM_SKIP_FLASH;
+            self.fade.entry_flash(t, c);
+            self.stream_flash = None;
+        } else if frame + STREAM_FLASH_LEAD == count {
+            let (t0, t1, t2, c) = STREAM_FLASH;
+            self.fade.entry_flash3(t0, t1, t2, c);
+            self.stream_flash = None;
+        }
+    }
+
+    /// `scFadeDef` over a frame of the stream: the flashes advanced a frame
+    /// and drawn last.
+    pub fn stream_fade(&mut self, frame: &mut Frame) {
+        let mut ctx = Ctx::new(self.view.clone());
+        self.fade.send(&mut ctx);
+        let f = ctx.finish();
+        frame.uploads.extend(f.uploads);
+        frame.cmds.extend(f.cmds);
     }
 }
 
@@ -501,18 +544,10 @@ pub fn task<C: Control + ?Sized>(
             env.req.push(Request::MenuDisplay(true));
             stream(o, env)
         }
-        Phase::Stream => {
-            // The stream has ended: PlayOpeningStream returns, r = 0, and
-            // the task breathes. Its end flash was entered 20 frames before.
-            let (t0, t1, t2, c) = STREAM_FLASH;
-            let n = env.fade.entry_flash3(t0, t1, t2, c);
-            if n >= 0 {
-                for _ in 0..STREAM_FLASH_LEAD {
-                    advance_one(env.fade, n as usize);
-                }
-            }
-            Phase::Title
-        }
+        // The stream has ended: PlayOpeningStream returns, r = 0, and the
+        // task breathes. Its flashes ran over the stream
+        // ([`Demo::stream_tick`]).
+        Phase::Stream => Phase::Title,
         Phase::Title => match o.main(env) {
             0 => Phase::Title,
             start::NEW_GAME => {
@@ -546,14 +581,6 @@ pub fn task<C: Control + ?Sized>(
         Phase::Leaving(n) => Phase::Leaving(n - 1),
         Phase::Left => Phase::Left,
     }
-}
-
-/// One frame of element `n` only (the rest keep their counts).
-fn advance_one(fade: &mut ScFade, n: usize) {
-    let mut one = ScFade::default();
-    one.elm[0] = fade.elm[n];
-    one.advance();
-    fade.elm[n] = one.elm[0];
 }
 
 /// `LogoMain` (0x00404540) from the top, to the task's next breath.

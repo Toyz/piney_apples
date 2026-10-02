@@ -3,7 +3,7 @@ title: The title screen
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x00168160 ccSetupDemo, 0x00174d70 ccSaveData::NewGame, 0x00175500 SetDefaultWord, 0x00176610 InitTradeItem, 0x00167700 ccResetPlayTime, 0x00345f10 spcDefTradeList, 0x00346790 npcDefTradeList, 0x00347f90 tpcTradeList, 0x0015fb80 ccScFade::SendPacket, 0x00160240 EntryFlash, 0x00160360 EntryFlash3, 0x00160400 EntryFade, 0x00171a60 ccSaveSys::BootCheckReq, 0x00171a80 BootCheckProccess, 0x00173f90 NextProccess, 0x00166c50 ccMcard::CheckPort, 0x0016a8e0 ccDtMenu::CheckMenuType, 0x0016a7a0 ccDtMenu::OpenMenu, 0x0016a150 ccDtMenu::Disp, 0x0016aeb0 ccDtMenu::SystemMenu, 0x0016ac00 ccThDtMenu, 0x00105900 ccDrawEnv::SetLightMatrix, 0x00139830 ccOmniLight::CheckRange, 0x00110d50 sceVu0NormalLightMatrix, 0x0013e350 ccSetMatrixPacket, 0x00379b10 sysLayer, 0x00307040 saveSysMsg, 0x001821d0 ccSndSQLoad, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x001794b0 ccSetMainVol, 0x00181440 ccSound::ccSceneFade, 0x00182fc0 sqStatusGet, 0x00307e30 sqDataTitle, 0x0030a290 sqVolTblTitle, 0x00175110 ccSaveData::LoadGame, 0x00171990 LoadSelectReq, 0x001719b0 LoadDataReq, 0x00171c20 MainProccess, 0x00171620 ccSaveSys::ccSaveSys, 0x00171810 StartReq; INF demo.prg:0x00403af0 NextDataLoad_Control::NextDataLoad_Control, 0x00406f40 ccOpening_Control::PlayNextData, 0x00409470 ccOpening_Control::SetNextData, 0x00400900 ccThDemo, 0x0040dc80 charTbl, 0x004043b0 ccOpening_Control::Main, 0x00404540 LogoMain, 0x00404710 MOVEcount, 0x004047e0 AllAnimate, 0x00405420 AllTransparency, 0x004059d0 AllDraw, 0x00405d20 ChangeMainAct, 0x00405e80 SetVolCcs, 0x00405f50 Init, 0x004066b0 PlayOpeningStream, 0x00406950 PlayBootMemCard, 0x00406b50 PlayNeutral, 0x00406bf0 PlayNewGame, 0x00406c20 PlayParodyGame, 0x00406c60 PlayDataLoad, 0x00406de0 PlayOption, 0x004070c0 MoveCurNut, 0x004072a0 SwitchCur, 0x00407640 EndDataLoad, 0x00407670 SetStream, 0x004076f0 SetBootMemCard, 0x00407950 SetNeutral, 0x00408240 SetNewGame, 0x004082c0 SetDataLoad, 0x00408ba0 SetOption, 0x00409d40 SetParodyGame, 0x00403c00 BootMem_Control::Main_Control, 0x00403d40 BootCheck, 0x00400bc0 Data_Control::Main, 0x00403710 CurRepeat, 0x00401e80 InfoMessage, 0x004020f0 YesNoDialogue, 0x00401c40 TimeAlphaCurDraw, 0x004037f0 DataLoad_Control::Main_Control, 0x00400e20 Slot_Select, 0x00401170 SlotStateData, 0x00401390 Data_Select, 0x00401750 LoadData, 0x00401990 DispButton, 0x00402360 WriteDataList, 0x00402570 SetLoadPar, 0x00402e40 Data_Control::Init, 0x00409df0 ccDecodeMpeg, 0x0040dc40 DemoFileList; MUT DATA/DEMO.PRG:0x00419630 the max cursor setter
-worklog: 43, 45
+worklog: 43, 45, 342
 ---
 
 # The title screen
@@ -76,11 +76,26 @@ the next call starts the music.
 `PlayOpeningStream` (0x004066b0) starts `ccThExecuteStream` with a stream
 number and waits for it: volume 1 plays stream 0 (`streamTbl[0]`: `title1`,
 then `title1_st1`), or 1 with `m_ParoFLG` (`title1_st2`), and counts it to
-frame 410 (450 with `m_ParoFLG`). A cancel push during it starts
-`EntryFlash(50, 0x80ffffff)`; at the stream's frame `410 - 20` (if nothing
-flashed yet) `EntryFlash3(20, 20, 5, 0x80ffffff)`: white in over 21 frames,
-held 6, out over 21. The stream ends 20 frames after that flash begins, so
-the menu's first frames come out of white.
+frame 410 (450 with `m_ParoFLG`). It waits for the stream to start
+(`ccGetStreamAdrs()`, then its +0x17e bit 3), then each frame, before the
+stream's own task (both at 33, the stream started later):
+
+```
+cancel pushed (assignPADcancel) and s1:  EntryFlash(50, 0x80ffffff); s1 = 0
+the stream task's param +0x14 == -1:     return
+ccGetStreamFrame() == count - 20 and s1: EntryFlash3(20, 20, 5, 0x80ffffff); s1 = 0
+Breath(1)
+```
+
+So one flash at most. Played through, white comes in over the stream's
+last 20 frames (in over 21, held 6, out over 21) and the menu's first
+frames come out of it. A cancel only flashes: the stream ends on its own
+skip rule, under 50 frames of white, and the end flash never comes.
+
+The port runs this loop over the stream's frames (`Demo::stream_tick`
+before the stream's step from its first frame on, `Demo::stream_fade`
+drawing `scFadeDef` over the stream's picture);
+`the_opening_stream_flashes` checks both cases.
 
 ## The memory-card check
 
@@ -1054,9 +1069,9 @@ while playing (ports 1-3: 64, 0, 0) and `ccSetMainVol(0)` then 256 (master
 
 - How many frames `ccThSaveSys` takes to answer the boot check (the
   `sceMcSync` waits in `CheckPort`); the port says 2.
-- How the opening stream's frames line up with the task's: the port puts
-  the end flash 20 frames in when the stream is done, and does not model
-  the cancel flash.
+- How many frames the stream takes to set +0x17e bit 3 before
+  `PlayOpeningStream` looks at the pad: the port starts from the stream's
+  first step.
 - `m_tempPN`'s first value (the heap's): whether "Data loaded." plays its
   jingle on a first acknowledgement.
 - How many frames `DataRead` and the index read take on a real card; the
