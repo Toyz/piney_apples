@@ -103,7 +103,6 @@ gap, they share one line. The Docs section repeats the doc bullets.
 - [[98]] the epitaphs (`ccEpitaphMsg`, `Step::Epitaph`) and the book viewer (`ccThBook`, `Step::BookStart`) are not carried out: crates/piney-world/src/field_world.rs `item_step` returns false and crates/piney-game/src/area.rs logs "item step not carried out" — using those items shows nothing
 - [[77]] the map button is not held by `menuClrWait`, `ccCheckGtHackAnm` or a wiped-out party, and the field and dungeon map is not hidden while `ccGame.inBattle` (docs/engine/map.md; crates/piney-world/src/map `area_frame` has no battle test; check whether ccThMenu's map alpha already hides it) — the minimap in fights
 - [[50]] [[51]] [[196]] Adjust Screen's display offset (`Request::DisplayOffset`) is dropped (crates/piney-game/src/desktop.rs, world.rs) — the Screen option does nothing
-- [[67]] a member's equipment remark in town (`ChangeEquipReport`) is dropped (crates/piney-game/src/world.rs) — equipping a member in town
 - docs/engine/title.md the opening's cancel flash is not modelled — skipping the opening stream
 
 ### script
@@ -837,6 +836,7 @@ player until one of these turns out wrong.
 - [[67]] ccEnemyG::thinkGold — answered by [[167]]
 - [[67]] the chat text — answered by [[123]]
 - [[67]] ChangeEquipReport in a field or dungeon — answered by [[123]] (FieldWorld::equip_report)
+- [[67]] a member's equipment remark in town (`ChangeEquipReport`) was dropped — answered by [[337]] (`World::equip_report`; a_member_reports_his_equipment_in_town)
 - [[68]] the gate hack (62) — answered by [[96]]
 - [[68]] GoToArea and ChangeArea go nowhere — answered by [[72]]
 - [[68]] TransferOut dropped — answered by [[129]] (towns run effTransfer)

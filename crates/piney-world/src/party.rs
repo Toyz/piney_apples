@@ -1073,6 +1073,35 @@ impl crate::World {
         c.shows.clear();
     }
 
+    /// `ccSpcChar::ChangeEquipReport(n)` (gcmn 0x0059f4a0) on party member
+    /// `code`, from the CHAT menu's cancel, as in the fields
+    /// ([`crate::field_world::FieldWorld::equip_report`]): `n` 0
+    /// `ChatMessageEquipOK`, 7 `ChatMessageEquipNOT(1)`, 1-10 otherwise
+    /// `ChatMessageEquipNOT(0)`; its line goes up over the member on the
+    /// next frame, when the town's frame sends the lines raised since.
+    pub fn equip_report(&mut self, code: i32, n: i16) {
+        use piney_battle::party_ai::Chat;
+        if code == 0 || !(0..11).contains(&n) {
+            return;
+        }
+        let Some(m) = self.party.member(code).filter(|&m| self.party.combat.crew.ais.contains_key(&m)) else {
+            return;
+        };
+        let chat = match n {
+            0 => Chat::EquipOk,
+            7 => Chat::EquipNot(1),
+            _ => Chat::EquipNot(0),
+        };
+        let scene = crate::area::Scene::init();
+        let c = &mut self.party.combat;
+        c.rand = piney_battle::rand::Rand(self.rand.0);
+        c.with_ai(&mut self.town.base.hits, &mut self.camera, &scene, &mut self.save.save, 0, |ctx| {
+            ctx.chat_line(m, chat)
+        });
+        self.rand.0 = c.rand.0;
+        c.shows.clear();
+    }
+
     /// `ccSpcMessagePresentOtherFellow(ch)` (gcmn 0x005a1a70) after party
     /// member `code` was given a present: with three in the party, the
     /// other member (not Kite, not `code`) is sent message 0x10011

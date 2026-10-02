@@ -751,7 +751,6 @@ impl WorldMode {
             | R::DrainAffect(_)
             | R::PlayerSp(_)
             | R::OpenChat(_)
-            | R::ChangeEquipReport { .. }
             // Not carried out yet: the Grunty Flute's use, the way back
             // to a field (86) and Adjust Screen's offset. A member's
             // CalcReal runs every frame
@@ -789,6 +788,11 @@ impl WorldMode {
             R::ChatCmd { member, cmd } => {
                 if let Some((Kind::Spc, code)) = unhandle(member) {
                     self.world.chat_cmd(code, cmd, None, 0);
+                }
+            }
+            R::ChangeEquipReport { member, n } => {
+                if let Some((Kind::Spc, code)) = unhandle(member) {
+                    self.world.equip_report(code, n);
                 }
             }
             R::ChatOrder { member, cmd, target, skill } => {

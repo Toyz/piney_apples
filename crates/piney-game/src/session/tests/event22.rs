@@ -781,3 +781,31 @@ fn piros_stops_when_spoken_to_while_running() {
     let (act, now) = piros(&s);
     assert_eq!(now[..3], stopped[..3], "Piros ran on while spoken to (act {act})");
 }
+
+/// CHAT's cancel in Mac Anu (`ccSpcChar::ChangeEquipReport`): Piros
+/// answers the settings he was left (`ChatMessageEquipOK` for 0), his line
+/// up over him on the next frame, as in the fields; Kite and an `n` past 10
+/// say nothing.
+#[test]
+fn a_member_reports_his_equipment_in_town() {
+    let Some((mut s, _)) = mac_anu_with_piros() else { return };
+    let mut pad = Pad::default();
+    let speakers = |s: &mut Session, report: Option<(i32, i16)>| {
+        let Stage::World(w) = &mut s.stage else { panic!("not in town: {}", Mode::title(s)) };
+        if let Some((code, n)) = report {
+            w.world_mut().equip_report(code, n);
+        }
+        w.ui().chat_speakers()
+    };
+    let before = speakers(&mut s, Some((0, 0)));
+    speakers(&mut s, Some((crate::piros::PIROS, 11)));
+    pad.read(&still(Buttons::NONE));
+    s.step(&pad);
+    s.take_events();
+    assert_eq!(speakers(&mut s, None), before, "Kite, or n 11");
+    speakers(&mut s, Some((crate::piros::PIROS, 0)));
+    s.step(&pad);
+    s.take_events();
+    let piros = crate::world::handle(piney_world::entry::Kind::Spc, crate::piros::PIROS);
+    assert!(speakers(&mut s, None).contains(&piros), "Piros's line up");
+}

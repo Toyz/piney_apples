@@ -412,7 +412,8 @@ With `firstTime` set, opening keeps each member's six chat settings
 (`ChangeEquipReport`) anything in normal play (the two strides differ)
 until a member's Change Equipment (71) writes its mark: then the cancel
 tells that member (`ChangeEquipReport(n)`, n the mark, or 0 when its kept
-settings changed).
+settings changed). The member answers with its line on the next frame, in
+a town as in a field (`World::equip_report`, `FieldWorld::equip_report`).
 
 ### A member's orders (`ChatMenu1`, 71; `ChatMenu2`, 72; `ChatMenu3`, 73)
 
