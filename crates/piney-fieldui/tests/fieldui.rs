@@ -401,3 +401,54 @@ fn the_box_tutorial_gives_its_item() {
     assert_eq!(items::save_item(&r.save, 0, 1), Item { id: 1, cat: 10, num: 1 });
     assert_eq!(r.save.save.i16(0x7440), 1, "itemBoxCount");
 }
+
+/// The book's background packets in the last step's drawing.
+fn book_backgrounds(ui: &FieldUi) -> usize {
+    ui.draws()
+        .iter()
+        .map(|d| match d {
+            piney_fieldui::ctrl::Draw::Send(ps) => {
+                ps.iter().filter(|p| p.obj == piney_fieldui::spr::Obj::BookBg).count()
+            }
+            _ => 0,
+        })
+        .sum()
+}
+
+/// Not the game's: a Ryu Book is drawn exactly once on every frame of a
+/// reward. Book I with its first reward due (15 areas visited, past 10),
+/// its windows dismissed with OK: the game draws the book twice as a reward
+/// starts and not at all as one ends (the user's flicker; the harness's
+/// `test_book_1`, `as_the_game`, keeps that), the port once each frame.
+#[test]
+fn a_ryu_book_reward_draws_the_book_once_a_frame() {
+    let Some(mut r) = Run::new() else { return };
+    r.world.game.in_battle = 0;
+    r.save.save.set_i16(0x6862, 15);
+    r.ui.start_book(0);
+    let (mut open, mut counts, mut stream) = (0, Vec::new(), None);
+    for f in 0..400u32 {
+        let push = if open > 0 && f % 20 == 0 { Buttons::CROSS } else { Buttons::NONE };
+        r.step(push, Buttons::NONE);
+        if stream.is_none() && r.requests.iter().any(|q| matches!(q, Request::BookStream(Some(_)))) {
+            stream = Some(f);
+        }
+        if stream.is_some_and(|s| f == s + 4) {
+            r.ui.book_stream_done();
+        }
+        // From the frame after `BOOK::BOOK`, whose loop draws first after
+        // its breath.
+        let pages = r.ui.ctrl.book.as_ref().is_some_and(|t| t.book.is_some());
+        if pages {
+            open += 1;
+            if open > 1 {
+                counts.push((f, book_backgrounds(&r.ui)));
+            }
+        }
+    }
+    assert!(open > 100, "the book never opened ({open} frames)");
+    let given = r.save.save.u8(0x685d);
+    assert!(given > 0, "no reward given");
+    let odd: Vec<_> = counts.iter().filter(|&&(_, n)| n != 1).collect();
+    assert!(odd.is_empty(), "frames without exactly one book: {odd:?}");
+}

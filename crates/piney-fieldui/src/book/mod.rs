@@ -172,6 +172,13 @@ pub struct Book {
     pub cancel_flag: i32,
     pub exit: i32,
     steps: VecDeque<Step>,
+    /// Not the game's: false (the port's way) draws the book once on every
+    /// frame of a reward. The game draws it twice on the frame a reward
+    /// starts (the loop's `Draw`, then the first window's) and not at all
+    /// on the frame one ends (its last `Check` answered, then the loop's
+    /// next `Breath`), so the book flashes and vanishes for a frame. True,
+    /// as the harness sets it, draws as the game does.
+    pub as_the_game: bool,
 }
 
 /// What the book reads of the volume.
@@ -220,6 +227,7 @@ impl Book {
             cancel_flag: 0,
             exit: 0,
             steps: VecDeque::new(),
+            as_the_game: false,
         };
         set_type(&mut b.win, 1);
         set_type(&mut b.button, 1);
@@ -403,14 +411,20 @@ impl Book {
     }
 
     /// The loop's body (`Breath` above it): `Draw` and `CheckItemGet`, then
-    /// the pad, or after a sub-window's cancel the button let go.
+    /// the pad, or after a sub-window's cancel the button let go. Unless
+    /// [`Book::as_the_game`], the book is drawn exactly once a frame.
     fn frame(&mut self, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>) {
+        let mut drawn = false;
         if self.steps.is_empty() {
             self.draw(m, x, env, draws);
+            drawn = true;
             pages::check_item_get(self, env);
         }
-        if !self.run_steps(m, x, env, draws) {
+        if !self.run_steps(m, x, env, draws, &mut drawn) {
             return;
+        }
+        if !drawn && !self.as_the_game {
+            self.draw(m, x, env, draws);
         }
         if self.cancel_flag == 0 {
             self.pad_control(m, x);
@@ -420,7 +434,9 @@ impl Book {
     }
 
     /// The reward steps: true once none is left, false when one breathed.
-    fn run_steps(&mut self, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>) -> bool {
+    /// `drawn`: the book was drawn this frame already (then a step's draw is
+    /// the game's second one, kept only [`Book::as_the_game`]).
+    fn run_steps(&mut self, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>, drawn: &mut bool) -> bool {
         while let Some(step) = self.steps.pop_front() {
             match step {
                 Step::Row { table, idx, value, sel } => {
@@ -445,7 +461,9 @@ impl Book {
                     if n > 1 {
                         self.steps.push_front(Step::Frames(n - 1));
                     }
-                    self.draw(m, x, env, draws);
+                    if !*drawn || self.as_the_game {
+                        self.draw(m, x, env, draws);
+                    }
                     return false;
                 }
                 Step::Info(lines) => {
@@ -458,7 +476,9 @@ impl Book {
                 Step::Wait => {
                     if !crate::menus::tutorial::check(m, x) {
                         self.steps.push_front(Step::Wait);
-                        self.draw(m, x, env, draws);
+                        if !*drawn || self.as_the_game {
+                            self.draw(m, x, env, draws);
+                        }
                         return false;
                     }
                     m.msg.close();
@@ -665,11 +685,13 @@ pub struct Task {
     /// The stream has ended (the runtime's answer).
     pub stream_done: bool,
     pub book: Option<Book>,
+    /// [`Book::as_the_game`] for the book this task opens.
+    pub as_the_game: bool,
 }
 
 impl Task {
     pub fn new(page: i32) -> Task {
-        Task { page, state: 1, stage: Stage::Start, fade: -1, stream_done: false, book: None }
+        Task { page, state: 1, stage: Stage::Start, fade: -1, stream_done: false, book: None, as_the_game: false }
     }
 
     /// One frame of the task, after the menu's (priority 35).
@@ -711,7 +733,9 @@ impl Task {
                     m.still = 1;
                     x.req.push(Request::Still(true));
                     x.req.push(Request::KeepLayers);
-                    self.book = Some(Book::new(self.page, x, &env));
+                    let mut book = Book::new(self.page, x, &env);
+                    book.as_the_game = self.as_the_game;
+                    self.book = Some(book);
                     x.se(SE_START);
                     self.stage = Stage::Run;
                 }

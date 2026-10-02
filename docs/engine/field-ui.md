@@ -1404,6 +1404,16 @@ at 15 and only the page's keys count it down; a reward is checked on the
 frame it is 1. Counters past the volume's cap (`CheckBookLimit`) are
 drawn in colour 18 and stop giving rewards.
 
+A reward's windows breathe inside `CheckItemGet` (`Draw; Breath` until
+`Check(0)` answers). So the frame a reward starts draws the book twice, the
+loop's `Draw` and then the first window's, and the frame one ends draws it
+not at all: its last `Check` answers and the loop goes on to its next
+`Breath`. Run in eemu, Book I's first reward sends 36 window and 2
+background packets on its first frame (18 and 1 otherwise) and none on its
+last. The port draws the book once on every frame instead (not the game's;
+`piney_fieldui::book::Book::as_the_game` restores the game's draws, which
+`tools/test_fieldui_rs.py` uses).
+
 | book | page | counts (`saveData`) | keys |
 | --- | --- | --- | --- |
 | I | `Disp01` | areas visited +0x6862 (one a gate trip), the play time | rows |

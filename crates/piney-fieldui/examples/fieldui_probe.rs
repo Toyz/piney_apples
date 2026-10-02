@@ -511,6 +511,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let pad = Pad { direct, push: Buttons(push), repeat: Buttons(rep), ..Pad::default() };
                     if book.is_some_and(|(_, f)| f == fr) {
                         ui.start_book(book.map_or(0, |b| b.0));
+                        // The game's own draws, flicker and all.
+                        if let Some(t) = ui.ctrl.book.as_mut() {
+                            t.as_the_game = true;
+                        }
                     }
                     if let Some(&(area, inb, cnt)) = gamefs.get(&fr) {
                         world.game.area = area;
