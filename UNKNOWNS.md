@@ -423,7 +423,7 @@ player until one of these turns out wrong.
 - [[60]] no check compares the music with the game's playing — only the tables and call order
 - [[89]] --voice not in any playthrough test — test gap
 - [[95]] vBank+0x08 left as evVoicePlay last wrote it — the port sends none
-- [[101]] a request the menus make reaches the sound task a frame after the game's — task order
+- [[101]] [[334]] a request the menus make reaches the world and the sound task a frame after the game's: the port runs the menu task (34) after every world task (ccThSpc 48 on) — every menu request; its own pass (GAPS.md)
 - [[112]] sound bank 5 read from the session's WORLD_MAN, which for the arena is area 27's — not compared
 - [[150]] the travellers' hum not listened to against the game — follows the code
 - [[176]] whether the SE port's volume is ever below full when sound 8 0 256 runs — not looked for
@@ -542,7 +542,6 @@ player until one of these turns out wrong.
 
 ### engine
 
-- [[15]] the full list of tasks each mode starts and their priorities — docs/engine/overview.md Unknown (the port orders each ported mode's tasks itself)
 - [[15]] ccSystem::Ctrl's other branches (screen-mode changes, flags at +0xbd4/+0xbd5) — only the vibration countdown was read ([[232]])
 - [[69]] the load before F0 (ccLoadResourceFL) takes no frames — docs/engine/event-vm.md Unknown
 - [[82]] the load time between the mode change and the desktop's set-up — docs/engine/event-vm.md Unknown
@@ -665,6 +664,7 @@ player until one of these turns out wrong.
 - [[14]] the Pcm chunk's type, bitNum, trackType — answered by [[245]] (Decode_Pcm uses only dataNum and dataSize)
 - [[15]] ccEvent::Execute, the event script interpreter — answered by [[18]], [[40]] / docs/engine/event-vm.md (overview.md's bullet is stale)
 - [[15]] what modes 1 and 0x1000 do — answered by [[331]] (1: the soft reset, from both Reset menus and the game over; 0x1000: every task deleted, asked for by nothing on INF) / docs/engine/overview.md
+- [[15]] the full list of tasks each mode starts and their priorities — answered by [[334]] / docs/engine/overview.md "Tasks"
 - [[16]] what mcFname[0] (BISLPS-00000HUCKER) is for — answered by docs/formats/save.md (nothing uses it; only mcFname+4 is referenced)
 - [[16]] the icon.sys fields the game fills in — answered by docs/formats/save.md (title from mcTitleName, break at byte 10)
 - [[16]] which of the twelve icons each volume uses — answered by docs/formats/save.md (volume v uses iconBinTbl 3(v-1) to 3(v-1)+2)
@@ -1343,7 +1343,6 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 
 ### docs/engine/overview.md
 
-- docs/engine/overview.md: which tasks each mode starts, and their priorities — research (duplicates [[15]])
 - docs/engine/overview.md: ccEvent::Execute, the event script interpreter — answered (stale; [[40]], docs/engine/event-vm.md)
 
 ### docs/engine/particles.md

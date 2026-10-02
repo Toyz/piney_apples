@@ -26,6 +26,8 @@ visible first. Mark them [x] with a note when done.
 
 - [x] The loading display between areas (`ccLoadDisp`, main 0x0019ad70-0x0019c430, 6.4 KB: the `xdl_load` scene, the server, field and town cards, a 47-frame outro once the area's set-up is done); `ccFileListLoad` puts it up whenever the new scene list has a file the old one lacked (`loadCheck`). Found by an audit of the functions no crate or page names; ported (field-walk.md "The loading display", worklog 186)
 
+- [ ] The field's and town's task order: `ccSetupGameCtrl` starts `ccThGameCtrl` 33, `ccThMenu` 34, `ccThCamera` 40, `ccThSpc` 48, `ccThEntryCtrl` 64, `ccThExecuteStream` 65, `ccThEffect` 80, `ccThSkill` 82, `ccThFieldDisp` 96, `ccThParticle` 98, with `ccSoundMain` 112 last (overview.md "Tasks"). `AreaMode::step` and `WorldMode::step` run the menu task after every world task, so a menu's request reaches the characters, and its sound the driver, a frame later than in the game (a skill's words included, worklog 0101). Moving the menu task to its place touches talk, the menu's rules from the battle's shows, Data Drain's movie, item use and the gate hack, all pinned to frames by tests: its own pass (worklog 0334)
+
 ## Done in the sweep
 
 - [x] Kite's footsteps and running dust in town, the Chaos Gate's circle sounds, the dungeon doors' sounds (worklog 0138)

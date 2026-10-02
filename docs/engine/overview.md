@@ -115,6 +115,26 @@ if it is in `Breath` and `sleep` is 0. `ccTscb::Breath(n)` sleeps through `n`
 wake-ups, then keeps sleeping while `sleep` or `del` is set. A task's work for
 one frame is the code between two `Breath` calls.
 
+The woken tasks run in kernel priority order, the lowest number first,
+each until its next `Breath`. The tasks each set-up starts (INF, the
+priority as `ccStartThread`'s second argument):
+
+| started by | tasks, by priority |
+| --- | --- |
+| `ccThMother` (start-up) | `ccThEvent` 32, `ccSoundMain` 112 |
+| `ccSetupDemo` (title) | `ccThLoadOverlay` 17, `ccThDemo` 33, `ccThDtMenu` 33 |
+| `ccSetupDesktop` | `ccThLoadOverlay` 17, `ccThDtMenu` 33, `ccThDesktop` 33 |
+| `ccSetupToppage` | `ccThLoadOverlay` 17, `ccThDtMenu` 33, `ccThToppage` 33 |
+| `ccSetupNewGame` | `ccThLoadOverlay` 17 |
+| `ccSetupGameCtrl` (towns, fields, dungeons) | `ccThGameCtrl` 33, `ccThMenu` 34, `ccThCamera` 40, `ccThSpc` 48, `ccThEntryCtrl` 64, `ccThExecuteStream` 65, `ccThEffect` 80, `ccThSkill` 82, `ccThFieldDisp` 96, `ccThParticle` 98 |
+
+Others start on demand: `ccLoadDispTh` 17, `ccThSaveSys` 20, `ccThGameOver`
+33 ([field walk](field-walk.md)). So in The World a frame runs the event
+task, the game control, the menus, the camera, the party, the entries
+(enemies, gimmicks, NPCs), the effects, the skills, the display and the
+particles, and the sound task last. A menu's request is acted on by the
+characters and heard in the same frame.
+
 ## The pad
 
 `ccPad::Read` (0x00102d40) runs once a frame for a pad already connected
@@ -160,4 +180,6 @@ The callers are `ccPlayer::DamageActuate` (Kite hit: the small motor and
 
 ## Unknown
 
-- Which tasks each mode starts, and their priorities.
+- How the kernel orders tasks of equal priority (the title's, the
+  desktop's and the top page's two at 33): taken as their start order,
+  not checked.
