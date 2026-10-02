@@ -616,7 +616,7 @@ impl WorldMode {
             R::ChangeMode { num, sf } => self.events.push(Event::ChangeMode { num, sf }),
             // ccSaveData::SetSoundEnv from OPTION's Sound page (the save
             // already holds them; the output mode is not modelled).
-            R::SoundEnv { main, bgm, se, .. } => self.events.push(Event::Volumes { main, se, bgm }),
+            R::SoundEnv { main, bgm, se, output } => self.events.push(Event::Volumes { main, se, bgm, output }),
             // ccParty::DelMember(slot): Remove and Disband.
             R::DelMember(slot) => self.world.party_remove(-slot),
             R::CameraType(t) => self.world.set_camera_type(t),

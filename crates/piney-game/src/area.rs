@@ -1272,7 +1272,7 @@ impl AreaMode {
             // ccGame::ChangeRequest, for the session.
             R::ChangeMode { num, sf } => self.events.push(Event::ChangeMode { num, sf }),
             // ccSaveData::SetSoundEnv from OPTION's Sound page.
-            R::SoundEnv { main, bgm, se, .. } => self.events.push(Event::Volumes { main, se, bgm }),
+            R::SoundEnv { main, bgm, se, output } => self.events.push(Event::Volumes { main, se, bgm, output }),
             R::CameraType(t) => self.world.set_camera_type(t),
             // Switched on, the pad buzzes once.
             R::Vibration { on } => {

@@ -767,7 +767,7 @@ pub fn event(r: Request) -> Option<Event> {
         Request::ChangeMode { num, sf } => Some(Event::ChangeMode { num, sf }),
         Request::ChangeBgm { wave, .. } => Some(Event::Bgm(wave)),
         Request::Movie { stream, .. } => Some(Event::Movie(stream)),
-        Request::SoundEnv { main, bgm, se, .. } => Some(Event::Volumes { main, se, bgm }),
+        Request::SoundEnv { main, bgm, se, output } => Some(Event::Volumes { main, se, bgm, output }),
         Request::VoiceStop => Some(Event::VoiceStop),
         Request::BgmStream(n) => usize::try_from(n).ok().map(Event::BgmStream),
         Request::BgmStreamStop => Some(Event::BgmStreamStop),

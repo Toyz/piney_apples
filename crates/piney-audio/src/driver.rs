@@ -38,6 +38,10 @@ pub struct Driver {
     /// `sdRemote[3]` and `[4]`, 4 and 5: the reverb off and hall again,
     /// which `ccSndChangeData` asks for around its load.
     sd_reverb: bool,
+    /// `ccSnd.outputMode` (+0x0c, 1 stereo from the constructor) and
+    /// `sdRemote[2]` (3), set by `ccSetOutputMode` for the next `sdCommand`.
+    output_mode: i32,
+    sd_output: bool,
     /// The jukebox row playing (`WaveData.NO`), -1 before any.
     pub wave: i32,
     /// A jukebox change waiting for its fade (`BgmRead`'s 10 frames).
@@ -194,6 +198,9 @@ pub enum Command {
     Load(SqLoad),
     /// All sound off on every port (`ccSndCmd(0x140)`).
     AllSoundOff,
+    /// `sdCommand` case 3: SNDBASE's 0x100, `sceHSyn_SetOutputMode(m)`
+    /// (SNDBASE 0x0d68): 0 mono, 1 stereo.
+    OutputMode(i32),
     /// `sdCommand` case 4 (false): the reverb off on both cores, its work
     /// area cleared, the effect return volume 0; case 5 (true): hall again
     /// from a cleared area (mode 0x105, depth 0x7fff, delay 127), return
@@ -482,6 +489,8 @@ impl Driver {
             change_se: false,
             change_main: false,
             sd_reverb: false,
+            output_mode: 1,
+            sd_output: false,
             wave: -1,
             pending: None,
             game_start: false,
@@ -738,6 +747,10 @@ impl Driver {
             let m = self.main_vol;
             out.push(Command::Master((((m << 14) - m) >> 8).clamp(0, 0x3fff) as u16));
             self.change_main = false;
+        }
+        if self.sd_output {
+            out.push(Command::OutputMode(self.output_mode));
+            self.sd_output = false;
         }
         if self.sd_reverb {
             out.push(Command::Reverb(false));
@@ -1101,6 +1114,16 @@ impl Driver {
         }
     }
 
+    /// `ccSetOutputMode(m)` (0x001795f0), from `ccSaveData::SetSoundEnv`
+    /// with the save's `output`: 0 mono, 1 stereo, sent by the next
+    /// `sdCommand`; the same mode again, or one past 1, is ignored.
+    pub fn set_output_mode(&mut self, m: i32) {
+        if m != self.output_mode && (0..2).contains(&m) {
+            self.output_mode = m;
+            self.sd_output = true;
+        }
+    }
+
     /// `ccSoundFadeOut()` (0x0017ae60), which a mode's leaving asks for:
     /// each loaded sequence's fade from its port's volume to nothing over 8
     /// frames, stopping it at the end (`ccSqFade(n, 0, 8, 3)`, written
@@ -1381,6 +1404,25 @@ mod tests {
         assert_eq!(bgm_plan(2, 0, false, &BgmWorld { crisis: true, ..w }).play, &[2, 0]);
         assert_eq!(bgm_plan(1, 0, false, &BgmWorld { dt_bgm: 27, ..w }).play, &[1]);
         assert_eq!(bgm_plan(7, 0, false, &w).play, &[] as &[usize]);
+    }
+
+    /// `ccSetOutputMode`: Mono (0) goes out at the next frame's
+    /// `sdCommand`, once; the stereo the constructor set, or a mode past 1,
+    /// sends nothing.
+    #[test]
+    fn the_output_mode_goes_out_at_the_next_sd_command() {
+        let mut d = Driver::new();
+        let mut out = Vec::new();
+        d.set_output_mode(1);
+        d.set_output_mode(2);
+        d.task(true, &mut out);
+        assert!(!out.iter().any(|c| matches!(c, Command::OutputMode(_))), "{out:?}");
+        d.set_output_mode(0);
+        assert!(out.is_empty() || !out.iter().any(|c| matches!(c, Command::OutputMode(_))));
+        d.task(true, &mut out);
+        assert_eq!(out.iter().filter(|c| matches!(c, Command::OutputMode(0))).count(), 1);
+        d.task(true, &mut out);
+        assert_eq!(out.iter().filter(|c| matches!(c, Command::OutputMode(_))).count(), 1);
     }
 
     /// `ccSoundFadeOut` with two sequences playing in a game mode: the music

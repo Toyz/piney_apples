@@ -41,7 +41,11 @@ fn words(snd: &SndData, cmds: &[Command]) -> Vec<String> {
                 let info = bank.expect("a bank before its sequences");
                 out.push(format!("seq {i} {}", info.sequence_offset(*i).unwrap() - info.offset));
             }
-            Command::AllSoundOff | Command::Reverb(_) | Command::Voice(_) | Command::VoiceStop => {}
+            Command::AllSoundOff
+            | Command::Reverb(_)
+            | Command::OutputMode(_)
+            | Command::Voice(_)
+            | Command::VoiceStop => {}
             Command::Play(m) => out.push(format!("play {m}")),
             Command::Stop(m) => out.push(format!("stop {m}")),
             Command::Area(n) => out.push(format!("area {n}")),

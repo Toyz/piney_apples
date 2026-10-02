@@ -3,7 +3,7 @@ title: Sound - effects, music and the IOP sound driver
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x00179c10 ccSeOn, 0x00179cb0 ccSeOnNote, 0x00179d90 ccSeOn3D, 0x0017a140 ccSeOn3DLoop, 0x0017a620 ccSeOffLoop, 0x001794b0 ccSetMainVol, 0x001794f0 ccSetBgmVol, 0x00179540 ccSetSeVol, 0x00179630 ccSndChangeOption, 0x00181010 ccSoundMain, 0x0017bac0 waterTest, 0x0017c3c0 bgmChurch, 0x0017c6d0 bgmBreed, 0x0017ad70 ccPortVolSet, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x00181250 ccSound::ccFade, 0x001834e0 ccSndChangeData, 0x0017b020 ccSndBgmCtrl, 0x001821d0 ccSndSQLoad, 0x00183380 ccSound::bgmChange, 0x0017de80 ccSndEvRequest, 0x00168960 ccSetupGameCtrl, 0x00167580 ccGame::CheckSceneReplace, 0x00307bc0 sqDataField, 0x00307bf0 playTypeTbl, 0x00309f60 sqVolTblField, 0x00307c20 sqDataDungeon, 0x00307d28 dungeonPlayType, 0x0030a100 sqVolTblDungeon, 0x00307f00 sqDataEvent, 0x00308a90 eventPlayType, 0x0030a3d0 sqVolTblEvent, 0x00307d40 sqDataTown, 0x00309f90 sqVolTblTown, 0x00182050 ccSndCommSeLoad, 0x00181ee0 spuInit, 0x001816f0 ccSound::sdCommand, 0x00182dc0 ccSoundRpc, 0x0017e6e0 wavPlay, 0x00308db0 seData, 0x00181440 ccSound::ccSceneFade, 0x001811f0 ccSound::gameInterrupt, 0x0017ae10 ccAllSoundOff, 0x00183080 initBeforeLoad, 0x0017e810 ccEvVoiceRequest, 0x0017eeb0 ccVoiceRequest, 0x0017e290 ccWordsPlay, 0x0017e350 skillVoicePlay, 0x0017eca0 evVoicePlay, 0x0017ee40 ccEvVoiceStop, 0x001800e0 ccVoicePgFood, 0x00179f50 ccSeOn3DNote, 0x0017a370 calcVel, 0x0017a4c0 calcPan, 0x0017a6b0 ccSeOnPCStep, 0x0017a7f0 seHitAttr, 0x0017aa20 ccSeSetParamSPC, 0x0017aaf0 ccSeSetParamPC, 0x0017abd0 ccSeSetParamEnemy, 0x0017ac70 ccSeSetParamInu, 0x001830c0 initAfterLoad, 0x00183fb0 ccSound::strSeEnd, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x003789dc looptest; INF gcmn.prg:0x00572860 _ccSkillRequest (its ccWordsPlay), 0x005a17e0 ccSpcShoutOperationName, 0x00493370 ccBoss04::OnThinkPrediction, 0x00639560 spc0SeData, 0x00639d40 spcSeTbl, 0x0063a850 enemySeTbl, 0x0063a8a0 inuSeData; INF SLUS_202.67:0x0017d190 ccSndStreamCtrl, 0x0017caa0 ccSndStreamSE, 0x0017cb20 ccSndStreamBGM, 0x001799b0 ccSqPlayVol, 0x00183f40 ccSound::strSeInit, 0x00183fb0 ccSound::strSeEnd, 0x00180b30 ccSndMoviePlayer, 0x0030b950 strSndTbl; INF desktop.prg:0x004072c0 Audio_control::ChangeWeve, 0x0042b6f0 Wave; INF MODULES/SNDBASE.IRX:0x0a58 ccSoundFunc, 0x031c ccSoundFunc2, 0x07e4 bgmChange, 0x3564 setModuleContext, 0x3860 ATick, 0x27d4 ccSetSq, 0x257c ccSetHdSynth; INF MODULES/MODMIDI.IRX; INF MODULES/MODHSYN.IRX; INF MODULES/SEWORDS.IRX:0x0e24 BgmSetVolumeDirect
-worklog: 42, 327
+worklog: 42, 327, 332
 ---
 
 # Sound - effects, music and the IOP sound driver
@@ -191,7 +191,11 @@ the eight slots of `ccSound.loopID` (+0x65, `char[8]`) are all taken
 messages go out with `FD 10 <ch> note i velocity 00`, and it returns `i`.
 `ccSeOffLoop(n, id)` (0x0017a620) sends `FD 10 <ch> note id 00 00`, the
 synthesizer's note off of that note and id, and sets `loopID[id]` to -1
-without checking `id`. The slots are -1 from the constructor and after
+without checking `id`. No caller passes an id outside 0-7. There are three
+(`ccSound::strSeEnd` 0x00183ff8, gcmn `ccBoss03::Affect` 0x00489e58 and
+`OnThinkLeafGrow` 0x0048da7c), and each passes an id kept from
+`ccSeOn3DLoop` and skips -1 (with -1 the call would write -1 into +0x64,
+`sqNum`). The slots are -1 from the constructor and after
 every `ccSndSQLoad` (`initAfterLoad`, 0x001830c0, on each of its three
 ends). One effect loops, SE 230 (`ccBoss03::OnThinkLeafGrow`, which keeps
 the id and ends it unless it is -1); `ccSound::strSeEnd` (0x00183fb0) ends
@@ -1033,7 +1037,13 @@ Pan: `base = clamp(|prog.pan| - 128 + |split.pan| + |sample.pan| + kf,
 clamp(CC10 - 64, -63, 63) + base - 64`; for `a > 0` the left gain drops to
 `(63 - a) * 128 / 63` (0 at 63), for `a < 0` the right; the near side
 stays 128. A balance law with both sides at full in the middle.
-`sceHSyn_SetOutputMode(0)` (mono) makes both 128. Program attribute bit 0
+`sceHSyn_SetOutputMode(0)` (mono) makes both 128. The Sound option's
+Output row writes `saveData.output` (+0x8424): 0 Mono, 1 Stereo, the
+`ccSound` constructor's `outputMode` (+0x0c) that `ccSaveData::Init`
+copies. `SetSoundEnv` passes it to `ccSetOutputMode` (0x001795f0), which
+ignores the mode in force and any past 1, and queues `sdRemote[2] = 3`
+with `sdData[2] = m`. The next `sdCommand` sends `ccSndCmd(0x100, m)`,
+and SNDBASE calls `sceHSyn_SetOutputMode(m)` (0x0d68). Program attribute bit 0
 (only bank 0 program 119) wraps the pan and may invert the phase
 (negative volumes).
 
@@ -1103,9 +1113,6 @@ These are models of the hardware, not checked against a PS2.
   nothing beyond it, nor for rows naming no sound effect (the pointer
   tables' words), nor for an `id` or `category` past a pointer table and
   its padding, where the game would read other memory.
-- `ccSeOffLoop` with an `id` outside 0-7 writes other `ccSound` bytes
-  (-1 into +0x64 `sqNum` for -1); the port frees no slot then. No caller
-  seen passes one.
 - `ccSndSQLoad(6)` (`sqDataStream`, by `ccGetStreamCode`) is not ported,
   and nothing in Infection asks for it: the only callers are
   `ccSetupDemo` (7), `ccSetupToppage` (0) and `ccSetupGameCtrl` (2 to 5),
@@ -1113,9 +1120,9 @@ These are models of the hardware, not checked against a PS2.
 - Neither the canals' nor the church's volumes were compared with the
   game playing; they follow the code, run in unit tests.
 - Event bank rows past 122 (`game.field` 123 and up) read past the end of
-  `sqDataEvent`; no scenario gets there.
-- Which `sceHSyn_SetOutputMode` value the options' stereo/mono setting
-  sends (`ccSetOutputMode`, `sdCommand` case 3).
+  `sqDataEvent`. No Infection scenario gets there. Quarantine's ending
+  (event 314) sets field 126 (`eventAreaNumber` 126): whether that loads
+  the event bank's row 126 is not known.
 - The SPU2's own behaviour - envelope timing, ENVX/ENDX, interpolation,
   reverb - rests on the PlayStation SPU documentation, not on measurement.
 - The synthesizer paths no data takes: noise voices, exclusive groups,

@@ -121,11 +121,13 @@ pub enum Event {
     SceneSound(piney_audio::scene::SceneInput),
     /// A movie stream to play before the next frame (`SimplePlayStream`).
     Movie(i32),
-    /// `ccSaveData::SetSoundEnv`: the volumes, 0-256.
+    /// `ccSaveData::SetSoundEnv`: the volumes, 0-256, and the output
+    /// (0 mono, 1 stereo).
     Volumes {
         main: i32,
         se: i32,
         bgm: i32,
+        output: i32,
     },
     /// `ccEvVoiceRequest(event, msg)`: a message window's voice line.
     Voice {

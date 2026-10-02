@@ -983,6 +983,7 @@ impl Mode for Session {
                                 main: i32::from(save.i16(offset::MAIN_VOL)),
                                 se: i32::from(save.i16(offset::SE_VOL)),
                                 bgm: i32::from(save.i16(offset::BGM_VOL)),
+                                output: i32::from(save.i16(offset::OUTPUT)),
                             });
                         }
                         Request::Movie { path, audio } => match Playing::open(&self.iso, path, audio, &mut self.events)
@@ -3331,7 +3332,10 @@ mod tests {
                     Event::SqFade { seq, volume, time, mode } => a.sq_fade(seq, volume, time, mode),
                     Event::PortVolume { port, volume } => a.port_volume(port, volume),
                     Event::MainVolume(v) => a.set_main_volume(v),
-                    Event::Volumes { main, se, bgm } => a.set_volumes(main, se, bgm),
+                    Event::Volumes { main, se, bgm, output } => {
+                        a.set_volumes(main, se, bgm);
+                        a.set_output_mode(output);
+                    }
                     Event::HoldBgm => a.hold_bgm(),
                     _ => {}
                 }

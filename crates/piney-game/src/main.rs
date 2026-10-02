@@ -562,7 +562,10 @@ fn handle(events: Vec<Event>, audio: Option<&Audio>) {
             }
             (Event::GameArea(area), Some(a)) => a.set_game_area(*area),
             (Event::SceneSound(s), Some(a)) => a.scene_sound(s),
-            (Event::Volumes { main, se, bgm }, Some(a)) => a.set_volumes(*main, *se, *bgm),
+            (Event::Volumes { main, se, bgm, output }, Some(a)) => {
+                a.set_volumes(*main, *se, *bgm);
+                a.set_output_mode(*output);
+            }
             (Event::Voice { event, msg }, Some(a)) => {
                 a.voice(*event, *msg);
             }

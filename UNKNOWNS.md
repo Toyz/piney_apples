@@ -513,7 +513,6 @@ player until one of these turns out wrong.
 - [[11]] which story areas Infection itself can reach — derivable from the scripts' gate_add (events.md op 89/90); no list made
 - [[18]] how far the parody script diverges beyond the lines compared — only sampled
 - [[69]] the event camera's unknowns — listed on docs/engine/field-game.md (see Docs)
-- [[74]] when the event task wakes, read from the thread code — docs/engine/field-walk.md Unknown
 - [[90]] ccEvent::CheckOperate(9)'s whole talk rule not run in eemu — pieces checked
 - [[91]] player_distance in town not run whole against the game — reuses checked pieces
 - [[91]] the church's messages, cameras and timing only seen to run — not compared
@@ -544,7 +543,6 @@ player until one of these turns out wrong.
 
 ### engine
 
-- [[15]] what modes 1 and 0x1000 do — docs/engine/overview.md Unknown
 - [[15]] the full list of tasks each mode starts and their priorities — docs/engine/overview.md Unknown (the port orders each ported mode's tasks itself)
 - [[15]] ccSystem::Ctrl's other branches (screen-mode changes, flags at +0xbd4/+0xbd5) — only the vibration countdown was read ([[232]])
 - [[69]] the load before F0 (ccLoadResourceFL) takes no frames — docs/engine/event-vm.md Unknown
@@ -667,6 +665,7 @@ player until one of these turns out wrong.
 - [[14]] what parodyFlag changes in ccEvVoiceRequest — answered by [[95]] / docs/formats/voice.md (events 0-49 have no voice in Parody Mode)
 - [[14]] the Pcm chunk's type, bitNum, trackType — answered by [[245]] (Decode_Pcm uses only dataNum and dataSize)
 - [[15]] ccEvent::Execute, the event script interpreter — answered by [[18]], [[40]] / docs/engine/event-vm.md (overview.md's bullet is stale)
+- [[15]] what modes 1 and 0x1000 do — answered by [[331]] (1: the soft reset, from both Reset menus and the game over; 0x1000: every task deleted, asked for by nothing on INF) / docs/engine/overview.md
 - [[16]] what mcFname[0] (BISLPS-00000HUCKER) is for — answered by docs/formats/save.md (nothing uses it; only mcFname+4 is referenced)
 - [[16]] the icon.sys fields the game fills in — answered by docs/formats/save.md (title from mcTitleName, break at byte 10)
 - [[16]] which of the twelve icons each volume uses — answered by docs/formats/save.md (volume v uses iconBinTbl 3(v-1) to 3(v-1)+2)
@@ -876,6 +875,7 @@ player until one of these turns out wrong.
 - [[74]] Kite stays held after event 3 (bootParam 4) — answered by docs/engine/battle.md "The party's bootParam from area to area"
 - [[74]] the party not carried back into Mac Anu after Gate Out — answered by [[108]]
 - [[74]] registered characters outside the party are not built — answered by [[180]]
+- [[74]] when the event task wakes after `scene` — answered by [[330]] (it never sleeps: flags |= 3; the pass runs on in the frame, phase -1)
 - [[75]] the town's event host gap for teach_camera3 — answered by crates/piney-world/src/lib.rs World::teach_camera (the town's)
 - [[76]] per-frame CalcReal only in Mac Anu — answered by BUGS.md (kites_buff_times_out_in_town; the field's frame ran it already), crates/piney-game/src/world.rs calc_real_party
 - [[76]] what partyMemberCall 0x3fffe, tactics 7, drainDemo and growth are for — answered by [[246]] / docs/formats/save.md
@@ -1343,7 +1343,6 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 
 ### docs/engine/overview.md
 
-- docs/engine/overview.md: modes 1 and 0x1000 — research (duplicates [[15]])
 - docs/engine/overview.md: which tasks each mode starts, and their priorities — research (duplicates [[15]])
 - docs/engine/overview.md: ccEvent::Execute, the event script interpreter — answered (stale; [[40]], docs/engine/event-vm.md)
 
@@ -1382,11 +1381,9 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 ### docs/engine/sound.md
 
 - docs/engine/sound.md: which params the animations' notes 1 and 2 carry; reads past setbl's table — research (not surveyed)
-- docs/engine/sound.md: ccSeOffLoop with an id outside 0-7 — research (no caller passes one)
 - docs/engine/sound.md: ccSndSQLoad(6) (sqDataStream) not ported — research (nothing in Infection asks for it)
 - docs/engine/sound.md: the canals' and the church's volumes not compared with the game playing — research (duplicates [[184]])
 - docs/engine/sound.md: event bank rows past 122 read past sqDataEvent — research (no scenario)
-- docs/engine/sound.md: which sceHSyn_SetOutputMode value the stereo/mono option sends — research (the mono path is modelled (crates/piney-audio/src/hsyn.rs))
 - docs/engine/sound.md: the SPU2's own behaviour from documentation — research (duplicates [[42]])
 - docs/engine/sound.md: the synthesizer paths no data takes — research (none reached)
 

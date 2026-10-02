@@ -131,6 +131,7 @@ impl Engine {
                 // SNDBASE's allSoundOff (command 0x140, 0x2e5c): each port's
                 // notes and voices off and its volume 0, then sqAllStop -
                 // the music stops, not only the voices sounding now.
+                Command::OutputMode(m) => self.synth.mono = m == 0,
                 Command::Reverb(on) => {
                     if on {
                         self.spu.reverb = [Reverb::hall(), Reverb::hall()];
@@ -523,6 +524,11 @@ impl Audio {
     /// `saveData.mainVol`, `seVol`, `bgmVol`, each 0..256.
     pub fn set_volumes(&self, main: i32, se: i32, bgm: i32) {
         self.run(|d, _, out| d.set_volumes(main, se, bgm, out));
+    }
+
+    /// `ccSetOutputMode(m)`: 0 mono, 1 stereo, on the next frame.
+    pub fn set_output_mode(&self, m: i32) {
+        self.run(|d, _, _| d.set_output_mode(m));
     }
 
     /// `ccSetMainVol(v)`: the master volume alone, 0..256, on the next frame.

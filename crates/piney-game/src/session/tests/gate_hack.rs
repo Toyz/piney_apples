@@ -420,7 +420,7 @@ fn hear(a: &piney_audio::Audio, events: Vec<Event>) {
             Event::GateHackSound(n) => a.gate_hack(n),
             Event::PortVolume { port, volume } => a.port_volume(port, volume),
             Event::MainVolume(v) => a.set_main_volume(v),
-            Event::Volumes { main, se, bgm } => a.set_volumes(main, se, bgm),
+            Event::Volumes { main, se, bgm, .. } => a.set_volumes(main, se, bgm),
             Event::HoldBgm => a.hold_bgm(),
             _ => {}
         }
