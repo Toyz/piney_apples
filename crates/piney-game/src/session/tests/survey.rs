@@ -633,6 +633,8 @@ impl StoryPilot {
                 (73, Action::Designate { target, .. }) => press(go_to(target)),
                 // "Cannot be used while dead."
                 (0..=2, _) if (2..=3).contains(&m.proccess) => press(Buttons::CROSS),
+                // A skill refused (SP short, Data Drain barred): its window.
+                (4, _) if (2..=3).contains(&m.proccess) => press(Buttons::CROSS),
                 (0..=2, Action::Skill { .. }) => press(go_to_item(4)),
                 (0..=2, Action::Item { .. }) => press(go_to_item(5)),
                 (4, Action::Skill { page, .. }) if m.list().page != page => {
@@ -667,7 +669,8 @@ impl StoryPilot {
                 || (t == 65 && m.proccess == 2)
                 || (t == 73 && m.proccess == 10)
                 || (t == 71 && (10..=11).contains(&m.proccess))
-                || ((0..=2).contains(&t) && (2..=3).contains(&m.proccess));
+                || ((0..=2).contains(&t) && (2..=3).contains(&m.proccess))
+                || (t == 4 && (2..=3).contains(&m.proccess));
             return Some(press(if message { Buttons::CROSS } else { Buttons::CIRCLE }));
         }
         // A broken protect does not wait for the last skill to land: the
@@ -693,7 +696,13 @@ impl StoryPilot {
         {
             return Some(raw);
         }
-        let act = self.choose(a)?;
+        // No skill to pay for (god's SP hid it): the action button's plain
+        // blow at the foe the command target names.
+        let Some(act) = self.choose(a) else {
+            let on_foe = matches!(w.command_target_code(), Some((piney_world::entry::Kind::Enemy, _)));
+            let blow = if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still };
+            return (fighting && on_foe).then_some(blow);
+        };
         if std::env::var_os("PINEY_DEBUG_PILOT").is_some() {
             eprintln!("ACT {f} {act:?}");
         }
@@ -796,11 +805,27 @@ impl StoryPilot {
         // break mends.
         let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene.chars[e], self.held));
         let drains = piney_fieldui::items::skill_list(&ui.texts().items, w.state(), 0, 5)[0] == DATA_DRAIN;
-        if fighting && broken && drains && chars.first().copied().flatten().is_some_and(|k| k.hp > 0) {
-            return Some(Action::Skill { page: 5, skill: DATA_DRAIN, target: None });
-        }
         let items = &ui.texts().items;
         let state = w.state();
+        let carried = |(cat, id): (i8, i16)| {
+            (0..piney_fieldui::items::ITEMS)
+                .map(|k| piney_fieldui::items::save_item(state, 0, k))
+                .any(|it| (it.cat, it.id) == (cat, id) && it.num > 0)
+        };
+        if fighting
+            && broken
+            && drains
+            && let Some(k) = chars.first().copied().flatten().filter(|k| k.hp > 0)
+        {
+            // Short of its SP (the menu refuses it): a Mage's Soul first.
+            let cost = items.skill(i32::from(DATA_DRAIN)).map_or(0, |p| p.cost);
+            if i32::from(k.sp) >= cost {
+                return Some(Action::Skill { page: 5, skill: DATA_DRAIN, target: None });
+            }
+            if carried(MAGES_SOUL) {
+                return Some(Action::Item { cat: MAGES_SOUL.0, id: MAGES_SOUL.1, target: 0 });
+            }
+        }
         let down = |ch: &piney_battle::chara::Char| ch.hp <= 0;
         let limit = if fighting { 45 } else { 70 };
         let low = |ch: &piney_battle::chara::Char| {
@@ -816,11 +841,6 @@ impl StoryPilot {
                 .count() as i16
         };
         let kite = chars.first().copied().flatten().filter(|k| !down(k));
-        let carried = |(cat, id): (i8, i16)| {
-            (0..piney_fieldui::items::ITEMS)
-                .map(|k| piney_fieldui::items::save_item(state, 0, k))
-                .any(|it| (it.cat, it.id) == (cat, id) && it.num > 0)
-        };
         // ChatMenu1 refuses an order to a member whose `condition[0]` is
         // not 0 (down, or still getting up from a revive: 5).
         let can_order = |ch: &&piney_battle::chara::Char| !down(ch) && ch.cond.v[0] == 0;
@@ -1325,18 +1345,32 @@ fn whole_state(s: &Session) -> String {
             let near = foes(c)
                 .iter()
                 .map(|&i| {
-                    let p = c.scene.chars[i].pos.map(f32::from_bits);
-                    ((p[0] - kite[0]).hypot(p[1] - kite[1]) as i32, c.scene.chars[i].hp)
+                    let ch = &c.scene.chars[i];
+                    let p = ch.pos.map(f32::from_bits);
+                    let o = c.foes.get(i).and_then(|e| e.as_ref()).map(|e| {
+                        let bp = e.bpos.map(|v| f32::from_bits(v) as i32);
+                        (e.act_num, e.target, e.freeze_flag, e.obj_flag, e.ent.ent_root, e.ent.ty, e.ene_id, bp)
+                    });
+                    (
+                        (p[0] - kite[0]).hypot(p[1] - kite[1]) as i32,
+                        ch.hp,
+                        ch.id(),
+                        p.map(|v| v as i32),
+                        ch.spc_char.act_num,
+                        ch.target_char,
+                        o,
+                    )
                 })
                 .min();
             format!(
-                " targets {:?} foes {} nearest {near:?} battle {} menu {} phase {:?} playing {:?}",
+                " targets {:?} foes {} nearest {near:?} battle {} menu {} phase {:?} playing {:?} fighters {}",
                 w.event_targets(),
                 foes(c).len(),
                 c.battle.in_battle,
                 a.ui().menu_type(),
                 w.phase(),
-                a.vm().and_then(|v| v.playing())
+                a.vm().and_then(|v| v.playing()),
+                fighters(a)
             )
         }
         _ => String::new(),
@@ -1442,6 +1476,81 @@ fn outbreak_whole_story() {
     whole_story("outbreak");
 }
 
+/// The survey's aids in a whole story (`PINEY_SURVEY_AIDS`). A run without
+/// god stops at the first game over, which takes the game to the title.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Aids {
+    /// God, the infection held at 0, the hacks' cores, the levels for the
+    /// bosses (unset).
+    All,
+    /// No god: the party levelled to the foes it meets and Kite's potions
+    /// and souls topped up in town instead, as a player grinds and shops
+    /// (`levels`).
+    Levels,
+    /// None (`0`).
+    None,
+}
+
+impl Aids {
+    fn from_env() -> Aids {
+        match std::env::var("PINEY_SURVEY_AIDS").as_deref() {
+            Ok("0") => Aids::None,
+            Ok("levels") => Aids::Levels,
+            _ => Aids::All,
+        }
+    }
+}
+
+/// The levels a player keeps over the foes he meets ([`levels_for_foes`]).
+const OVER_FOES: i16 = 3;
+
+/// Without god: each member below the strongest foe (not a boss) standing
+/// here and [`OVER_FOES`] gets the experience to that level (the game's own
+/// level-ups on his next frame, as the console's `exp` gives them), as a
+/// player who fights his way up would have. A harness aid.
+fn levels_for_foes(s: &mut Session) {
+    use piney_battle::chara::Body;
+    let Stage::Area(a) = &mut s.stage else { return };
+    let c = a.world_mut().combat_mut();
+    // A boss's row level (Skeith's 99) is nominal: [`levels_for_boss`]'s.
+    let top = foes(c)
+        .into_iter()
+        .filter_map(|k| match &c.scene.chars[k].body {
+            Body::Foe(f) if f.boss.is_none() => Some(f.row.base.level),
+            _ => None,
+        })
+        .max();
+    let Some(top) = top.map(|lv| lv + OVER_FOES) else { return };
+    let members: Vec<usize> = c.members.iter().map(|&(_, k)| k).collect();
+    for k in members {
+        if let Some(p) = c.scene.chars[k].spc_mut()
+            && p.base.level < top
+        {
+            let n = (i32::from(top - p.base.level) * 1000).min(30000) as i16;
+            p.base.exp = p.base.exp.saturating_add(n);
+        }
+    }
+}
+
+/// In a town, Kite's Healing Potions and Mage's Souls topped up to five
+/// each, as a player buys them (the pilot does not shop). A harness aid.
+fn supplies(s: &mut Session) {
+    let Stage::World(w) = &s.stage else { return };
+    let state = w.world().state();
+    let count = |(cat, id): (i8, i16)| -> i32 {
+        (0..piney_fieldui::items::ITEMS)
+            .map(|k| piney_fieldui::items::save_item(state, 0, k))
+            .filter(|it| (it.cat, it.id) == (cat, id))
+            .map(|it| i32::from(it.num))
+            .sum()
+    };
+    let short: Vec<((i8, i16), i32)> =
+        [POTION, MAGES_SOUL].into_iter().map(|it| (it, 5 - count(it))).filter(|&(_, n)| n > 0).collect();
+    for ((cat, id), n) in short {
+        s.console(&format!("item {cat} {id} {n}"));
+    }
+}
+
 /// The disc's story from its new game to its last event's end under the
 /// autopilot, the survey's aids on.
 fn whole_story(disc: &str) {
@@ -1454,26 +1563,67 @@ fn whole_story(disc: &str) {
     let first = story.iter().copied().find(|n| crate::start::POINTS.contains(n));
     let (Some(first), Some(&last)) = (first, story.last()) else { return };
     let Some(mut s) = story_session_on(disc, first, |_| {}) else { return };
-    s.console("god");
+    let aids = Aids::from_env();
+    if aids == Aids::All {
+        s.console("god");
+    }
     let mut pad = Pad::default();
     let mut pilot = StoryPilot::default();
     let mut ended: Vec<i32> = Vec::new();
+    // The last place in The World and its state, for a game over's report.
+    let mut last_place = String::new();
+    // The fight's last 20 seconds (a line each half second), for the same.
+    let mut fight: std::collections::VecDeque<String> = std::collections::VecDeque::new();
     // `PINEY_SURVEY_STALL`: frames with no event ended before the run is
     // given up (200,000).
     let stall: u64 = std::env::var("PINEY_SURVEY_STALL").ok().and_then(|v| v.parse().ok()).unwrap_or(200_000);
     let mut last_end = 0u64;
     for f in 0..frames {
         // As the survey's god: the infection held at 0, the hack's cores.
-        if f.is_multiple_of(30) {
+        if aids != Aids::None && f.is_multiple_of(30) {
             s.console("infection 0");
             cores_for_hack(&mut s);
             levels_for_boss(&mut s);
+            if aids == Aids::Levels {
+                levels_for_foes(&mut s);
+                supplies(&mut s);
+            }
         }
         let raw = pilot.next(&s, f);
         pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
+        if matches!(s.stage, Stage::Area(_) | Stage::World(_)) && f.is_multiple_of(30) {
+            last_place = format!("{} {}", Mode::title(&s), whole_state(&s));
+        }
+        // `PINEY_TRACE_BOSS`: a boss fight a line a second: the party, the
+        // boss's act, HP and protect.
+        if std::env::var_os("PINEY_TRACE_BOSS").is_some()
+            && f.is_multiple_of(60)
+            && let Stage::Area(a) = &s.stage
+            && let Some(me) = a.world().combat().boss_char()
+        {
+            let c = a.world().combat();
+            let ch = &c.scene.chars[me];
+            let b = ch.foe_state().and_then(|fo| fo.boss.as_ref().map(|b| (b.act_num, fo.pp)));
+            println!("BOSS {f} {b:?} hp {}/{} {}", ch.hp, ch.max_hp, fighters(a));
+        }
+        if f.is_multiple_of(30)
+            && let Stage::Area(a) = &s.stage
+            && a.world().combat().battle.in_battle != 0
+        {
+            fight.push_back(format!("{f} {}", fighters(a)));
+            if fight.len() > 40 {
+                fight.pop_front();
+            }
+        }
+        if matches!(s.stage, Stage::Title(_)) && !last_place.is_empty() {
+            for l in &fight {
+                println!("FIGHT {l}");
+            }
+            panic!("a game over after {ended:?} at frame {f}; last in The World: {last_place}");
+        }
         if !f.is_multiple_of(300) {
             continue;
         }
@@ -1491,7 +1641,28 @@ fn whole_story(disc: &str) {
             return;
         }
         if f - last_end > stall {
-            panic!("the story stalled after {ended:?} at frame {f}: {} {}", Mode::title(&s), whole_state(&s));
+            let menu = match &s.stage {
+                Stage::Area(a) => {
+                    let m = &a.ui().ctrl;
+                    format!(
+                        "menu {} proccess {} status {} wait {} list {:?}",
+                        a.ui().menu_type(),
+                        m.proccess,
+                        m.menu_status,
+                        m.wait_count,
+                        m.list()
+                    )
+                }
+                _ => String::new(),
+            };
+            panic!(
+                "the story stalled after {ended:?} at frame {f}: {} {} | {menu} | pilot {:?} opened {} began {}",
+                Mode::title(&s),
+                whole_state(&s),
+                pilot.action,
+                pilot.opened,
+                pilot.began
+            );
         }
     }
     panic!("the story stopped after {ended:?} at {frames} frames: {}", Mode::title(&s));
@@ -1831,9 +2002,11 @@ fn fighters(a: &crate::area::AreaMode) -> String {
         let ch = &c.scene.chars[k];
         match &ch.body {
             Body::Spc(p) => format!(
-                "{}/{} lv {} cond {:?} act {} cnt {} flags {:#x}",
+                "{}/{} sp {}/{} lv {} cond {:?} act {} cnt {} flags {:#x}",
                 ch.hp,
                 ch.max_hp,
+                ch.sp,
+                ch.max_sp,
                 p.base.level,
                 &ch.cond.v[..2],
                 ch.spc_char.act_num,

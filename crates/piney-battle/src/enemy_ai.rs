@@ -535,8 +535,9 @@ pub enum Out {
     /// `entryDrainEnemy`: spawn the drained form ([`after_drain_spawn`]).
     DrainSpawn(DrainSpawn),
     /// `game.inBattleDist = d` (`ccGame` +0x60): a gold goblin shaking off
-    /// a hold keeps the party out of battle mode (-2) for a frame, then
-    /// puts the distance back (2200).
+    /// a hold puts the party in battle mode whatever the distance (-2:
+    /// `ccThGameCtrl` gcmn 0x00517c98) for a frame, then puts the distance
+    /// back (2200).
     InBattleDist(u32),
 }
 
