@@ -125,6 +125,10 @@ pub struct Session {
     /// newlib's `rand()` as the set-ups' restock draws it (the game's is
     /// one sequence for everything; the modes keep their own).
     rand: piney_world::Rand,
+    /// `ccSys+0x358`, which `ccSystem::Ctrl` (main 0x0010a6bc) adds one to
+    /// every frame from power-on. A town's `ccInitRand` draws the walking
+    /// PCs' generator that many times, so each arrival has its own PCs.
+    sys_frames: u32,
     /// Not the game's: the logo movies a launcher played before this
     /// power-on, which the title's first boot then starts after.
     logos_played: i32,
@@ -223,6 +227,7 @@ impl Session {
             god: false,
             hud_scale: 1.0,
             rand: piney_world::Rand(1),
+            sys_frames: 0,
             logos_played: 0,
             settings_path: None,
             settings: None,
@@ -343,6 +348,7 @@ impl Session {
             // ccClearGtHack in the town's set-up: the flag goes.
             self.gt_hack = false;
             let mut w = WorldMode::enter(&self.iso, self.archive.clone(), state, vm)?;
+            w.set_rand_count(self.sys_frames);
             // ccSpcManager and ccPartyManager as the last area left them.
             if let Some(spcs) = self.spcs.clone() {
                 w.set_spcs(spcs);
@@ -896,6 +902,7 @@ impl Session {
                 self.restock(&mut state.save);
                 match WorldMode::enter(&self.iso, self.archive.clone(), state.clone(), vm) {
                     Ok(mut w) => {
+                        w.set_rand_count(self.sys_frames);
                         w.set_card(self.card.as_deref(), self.card_position);
                         Stage::World(Box::new(w))
                     }
@@ -928,6 +935,7 @@ impl Mode for Session {
     }
 
     fn step(&mut self, pad: &Pad) -> Frame {
+        self.sys_frames = self.sys_frames.wrapping_add(1);
         match &mut self.stage {
             Stage::Area(a) => a.ui_mut().hud_scale = self.hud_scale,
             Stage::World(w) => w.ui_mut().hud_scale = self.hud_scale,
@@ -3475,6 +3483,33 @@ mod tests {
             eprintln!("   {}: rms {rms:.0}, playing {playing:?}, ports {ports:?}", Mode::title(&s));
             assert!(rms > 100.0, "silent in {}", Mode::title(&s));
         }
+    }
+
+    /// Issue #32. Each arrival in a town draws its own walking PCs: the
+    /// set-up's `ccInitRand` draws the generator `ccSys+0x358` times, the
+    /// frames since power-on. Mac Anu twice (the console's `town`, a visit
+    /// to Dun Loireag between) has two different crowds.
+    #[test]
+    fn each_arrival_in_town_has_its_own_pcs() {
+        let Some((mut s, mut f)) = story_to_field(0) else { return };
+        let mut log = Vec::new();
+        story_until(&mut s, &mut f, "menu_ban false", 60, &mut log);
+        let mut pad = Pad::default();
+        let mut crowd = |s: &mut Session, to: i32| {
+            s.console(&format!("town {to}"));
+            for _ in 0..200 {
+                pad.read(&Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
+                s.step(&pad);
+                s.take_events();
+            }
+            let Stage::World(w) = &s.stage else { panic!("not in a town: {}", Mode::title(s)) };
+            w.world().pcs().iter().map(|p| p.row.row).collect::<Vec<_>>()
+        };
+        let first = crowd(&mut s, 0);
+        crowd(&mut s, 1);
+        let again = crowd(&mut s, 0);
+        assert!(!first.is_empty() && first.len() == again.len(), "{first:?} {again:?}");
+        assert_ne!(first, again, "the same PCs on both arrivals");
     }
 
     /// The console's `invite_party`: in event 3's field BlackRose (15) is
