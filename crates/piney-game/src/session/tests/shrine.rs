@@ -505,12 +505,15 @@ fn event_25_opens_in_area_23s_shrine() {
 
 /// The minimap across the floors: on the walk from floor 0 down to floor
 /// 2's shrine, every room's play (past its first frames) draws the map but
-/// the shrine's, a special room (`specialRoom` 0), where `DrawMap` returns.
+/// the shrine's, a special room (`specialRoom` 0), where `DrawMap` returns,
+/// and the fights (`inBattle`), where `DUNGEON::Draw` does not call it.
 #[test]
 fn the_minimap_stays_across_floors() {
     let Some(mut s) = in_area_23() else { return };
-    // Per room: frames played, frames the map drew something.
+    // Per room: frames played, frames the map drew something; fight frames
+    // and those drawn among them.
     let mut rooms: Vec<((i32, i32), u32, u32)> = Vec::new();
+    let mut fights = (0, 0);
     walk_to_shrine(&mut s, 20_000, |s, _, _| {
         let Stage::Area(a) = &s.stage else { return };
         let w = a.world();
@@ -523,16 +526,22 @@ fn the_minimap_stays_across_floors() {
         {
             return;
         }
+        let drawn = u32::from(!a.map_state().last.is_empty());
+        if w.combat().battle.in_battle != 0 {
+            fights = (fights.0 + 1, fights.1 + drawn);
+            return;
+        }
         let key = (sc.floor, sc.block);
         if rooms.last().map(|r| r.0) != Some(key) {
             rooms.push((key, 0, 0));
         }
         let r = rooms.last_mut().unwrap();
         r.1 += 1;
-        r.2 += u32::from(!a.map_state().last.is_empty());
+        r.2 += drawn;
     });
-    eprintln!("rooms (room, frames, map drawn): {rooms:?}");
+    eprintln!("rooms (room, frames, map drawn): {rooms:?}; fights {fights:?}");
     assert!(rooms.iter().any(|r| r.0.0 == 2), "never reached floor 2: {rooms:?}");
+    assert!(fights.0 > 0 && fights.1 == 0, "the map in {} of {} fight frames", fights.1, fights.0);
     for (room, frames, drawn) in &rooms {
         let shrine = (SHRINE.0 as i32, SHRINE.1 as i32);
         let want = if *room == shrine { 0 } else { *frames };

@@ -605,6 +605,10 @@ pub struct Targeting {
     /// `menuClrWait` (gcmn 0x00378c78): frames the task waits after the
     /// events' `menu_clear` (`ccEvent::MenuClr` sets 2).
     pub menu_clr_wait: i32,
+    /// The last frame reached the map button's test (gcmn 0x00517d84): no
+    /// game over, `ghoFlag` or `menuClrWait` held it. The map button
+    /// itself is `piney-game`'s.
+    pub map_test: bool,
     /// The game over began ([`Ctrl::GameOver`]): the task has left its
     /// loop.
     pub over: bool,
@@ -869,7 +873,7 @@ impl Targeting {
     /// menu); [`select_target`] unless `cmndTargetFix`; nothing more under the
     /// events' manual control; then the buttons, and `plAttack` cleared once the
     /// skill is over. `game` is `ccGame`'s battle state; the map button is not
-    /// here.
+    /// here, only whether its test was reached ([`Targeting::map_test`]).
     pub fn frame(
         &mut self,
         leader: &Leader,
@@ -880,6 +884,7 @@ impl Targeting {
         host: &mut dyn Host,
     ) -> Out {
         let mut out = Out { step: None, pl_attack: input.pl_attack, pause: None };
+        self.map_test = false;
         if self.over {
             if self.over_clear {
                 self.over_clear = false;
@@ -913,6 +918,7 @@ impl Targeting {
             self.menu_clr_wait -= 1;
             return out;
         }
+        self.map_test = true;
         // ccPlayerMenuCheck: the party is standing (above), the skill, the
         // act; then ccLoadDispCheck.
         if host.skill_check() >= 2 || matches!(b.kite.act, 12 | 13) || b.load_disp {
@@ -1219,6 +1225,31 @@ mod tests {
         assert_eq!(t.step(&leader, &mut cands, &input, &mut ok), None);
         t.close_menu();
         assert!(!t.in_menu);
+    }
+
+    /// The map button's test comes after `menuClrWait`: an event's
+    /// `menu_clear` holds it for two frames, as it does the other buttons;
+    /// the task's first five frames, which only sort, do not.
+    #[test]
+    fn menu_clear_holds_the_map_button_two_frames() {
+        let leader = Leader {
+            volume: piney_data::volume::Volume::Inf,
+            pos_p: [0, 0, 0, ee::ONE],
+            dirc: [0; 4],
+            width: 45f32.to_bits(),
+        };
+        let mut t = Targeting::default();
+        let input = Input::town(0, true, false);
+        let mut ok = |_| true;
+        let mut seen = Vec::new();
+        for f in 0..5 {
+            if f == 1 {
+                t.menu_clear();
+            }
+            t.step(&leader, &mut [], &input, &mut ok);
+            seen.push(t.map_test);
+        }
+        assert_eq!(seen, [true, false, false, true, true]);
     }
 
     #[test]

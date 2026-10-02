@@ -2902,6 +2902,27 @@ mod tests {
         assert!(flag(&s), "show_map set WORLD's mapFlag");
     }
 
+    /// The map is away while a battle is on (`WORLD::Draw` skips
+    /// `DrawMiniMap` under `ccGame.inBattle`): walking to event 3's east
+    /// portal and fighting its goblins, no fight frame draws the map, and
+    /// the walk before it does.
+    #[test]
+    fn the_map_is_away_in_a_fight() {
+        let Some((mut s, mut f)) = story_to_field(0) else { return };
+        let mut log = Vec::new();
+        story_until(&mut s, &mut f, "menu_ban false", 60, &mut log);
+        let (mut fight, mut walk) = ((0, 0), (0, 0));
+        walk_to_east_portal(&mut s, 1500, true, |s| {
+            let Stage::Area(a) = &s.stage else { return };
+            let drawn = usize::from(!a.map_state().last.is_empty());
+            let n = if a.world().combat().battle.in_battle != 0 { &mut fight } else { &mut walk };
+            *n = (n.0 + 1, n.1 + drawn);
+        });
+        assert!(fight.0 > 0, "no fight");
+        assert_eq!(fight.1, 0, "the map in {} of {} fight frames", fight.1, fight.0);
+        assert!(walk.1 > 0, "the map never drawn on the walk ({} frames)", walk.0);
+    }
+
     /// The presses [`event_3_shows_the_map`]'s player makes up to Orca's
     /// "You see the Red Down Arrow on it?", as `--press` wants them (its
     /// frames count from 0) with the frame count for `--frames`:

@@ -1343,6 +1343,7 @@ impl FieldWorld {
     /// that the menu task (34) can follow it before the rest
     /// ([`FieldWorld::step_into`], `ccThCamera` 40 on).
     pub fn step_game_ctrl(&mut self, pad: &Pad) {
+        self.targeting.map_test = false;
         if let Phase::Play(f) = self.phase
             && f >= 1
             && !self.asleep
@@ -1351,6 +1352,12 @@ impl FieldWorld {
             self.game_ctrl(pad);
             self.ctrl_done = true;
         }
+    }
+
+    /// This frame's `ccThGameCtrl` reached the map button's test
+    /// ([`talk::Targeting::map_test`]).
+    pub fn map_test(&self) -> bool {
+        self.targeting.map_test
     }
 
     /// `ccThGameCtrl` (33): the command target over the battle's command

@@ -101,7 +101,6 @@ gap, they share one line. The Docs section repeats the doc bullets.
 ### ui
 
 - [[98]] the epitaphs (`ccEpitaphMsg`, `Step::Epitaph`) and the book viewer (`ccThBook`, `Step::BookStart`) are not carried out: crates/piney-world/src/field_world.rs `item_step` returns false and crates/piney-game/src/area.rs logs "item step not carried out" — using those items shows nothing
-- [[77]] the map button is not held by `menuClrWait`, `ccCheckGtHackAnm` or a wiped-out party, and the field and dungeon map is not hidden while `ccGame.inBattle` (docs/engine/map.md; crates/piney-world/src/map `area_frame` has no battle test; check whether ccThMenu's map alpha already hides it) — the minimap in fights
 - docs/engine/title.md the opening's cancel flash is not modelled — skipping the opening stream
 
 ### script
@@ -879,6 +878,7 @@ player until one of these turns out wrong.
 - [[77]] portals, gimmicks and fountains not fed into the map; Fairy's Orb's yellow areas — answered by [[164]], BUGS.md (a_fairys_orb_shows_the_portals)
 - [[77]] what sets mapHideFlag — answered by docs/engine/map.md (constructor, RoomSelect, the stairs in GotoNextRoom; BUGS.md minimap fix)
 - [[77]] Dun Loireag's DrawMap — answered by [[97]]
+- [[77]] the map button held by `menuClrWait`, `ccCheckGtHackAnm` and the game over, and the field's and dungeon's map away while `ccGame.inBattle` — answered by [[341]] (`Targeting::map_test`, `area_frame`'s `in_battle`; menu_clear_holds_the_map_button_two_frames, the_map_is_away_in_a_fight)
 - [[78]] piney-world's field and dungeon ran stand-ins with no entry control — answered by [[80]]
 - [[78]] F_Note records skipped by the animation reader — answered by [[138]], [[139]], [[278]]
 - [[78]] ccThGameCtrl's SetInBattle — answered by [[80]] (tools/test_gamectrl_rs.py inbattle)

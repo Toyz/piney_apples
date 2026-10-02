@@ -411,12 +411,15 @@ their map (`map`); the dungeon's lives as long as the dungeon, room to room.
 The `DungeonArea` slots carry the room's size, and `delete_room` is
 `DeleteRoom`.
 
-`piney-game` runs it as the game orders the tasks: the map button between
-the event task and the world's tasks (in `world.rs` and `area.rs`, from the
-tasks' first frame, not while every task sleeps); `Request::MapAlpha` into
+`piney-game` runs it as the game orders the tasks: the map button right
+after `ccThGameCtrl`'s step, when that frame reached its test
+(`Targeting::map_test`: no game over, `ghoFlag` or `menuClrWait`; in
+`world.rs` and `area.rs`, from the tasks' first frame, not while every task
+sleeps); `Request::MapAlpha` into
 `MapState`; the map drawn after the field UI's frame (the town from the
 tasks' second frame, as `ROOTTOWN01::Draw`), again as it was while every
-task sleeps; `DrawMap`'s `mapStatus` back to the UI (`map_on`). The area
+task sleeps, and not at all in a field or dungeon while `inBattle`
+(`area_frame`'s `in_battle`; `the_map_is_away_in_a_fight`); `DrawMap`'s `mapStatus` back to the UI (`map_on`). The area
 host's `show_map` and the orb's steps call `FieldWorld::show_map`, which
 gives `map::show_map` the combat's `ccCheckActiveObject` (`room_clear`) for
 the rooms' doors; the town host's answers 1 as `WORLD_MAN::ShowMap` does
@@ -481,9 +484,6 @@ its red arrow on it, and line 25's `show_map` sets `mapFlag`.
   Fairy's Orb's "yellow areas" appear once `show_map` sets `mapFlag`.
   Which gimmicks a field's or dungeon's entry control holds beyond the
   portals depends on the objects the port does not construct yet.
-- `menuClrWait` (the two frames after `menu_clear`), `ccCheckGtHackAnm` and
-  the party's annihilation, which hold the map button with the other
-  buttons, are not modelled; nor is `ccGame.inBattle`.
 - What sets `WORLD_MAN.specialRoom` (+0x160) beyond the rooms the port
   knows. `mapHideFlag` (+0x42c) is set by the constructor (0),
   `RoomSelect` (2) and both stairs in `GotoNextRoom` (1, 0x005ca074 and

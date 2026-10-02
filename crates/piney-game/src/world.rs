@@ -1045,16 +1045,12 @@ impl Mode for WorldMode {
         }
         let mut ctx = Ctx::new(View::default());
         self.world.set_menu_view(menu_view(&self.ui));
-        // ccThGameCtrl's first test, the map button (before the command
-        // target and the other buttons, which the world's task runs).
-        if let Phase::Play(f) = self.world.phase()
-            && f >= 1
-            && !self.world.asleep()
-        {
+        // ccThGameCtrl (33): the command target and the buttons; the map
+        // button where its test came (past ghoFlag and menuClrWait).
+        self.world.step_game_ctrl(pad);
+        if self.world.map_test() {
             self.map_st.button(self.world.state_mut(), piney_world::area::kind::TOWN, pad.push.bits());
         }
-        // ccThGameCtrl (33): the command target and the action button.
-        self.world.step_game_ctrl(pad);
         for t in self.world.take_talk() {
             self.talk(t);
         }

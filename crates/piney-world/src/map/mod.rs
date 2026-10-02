@@ -236,8 +236,10 @@ pub struct Entries {
 
 /// A frame of `ccThFieldDisp`'s map outside the towns, the player at `pos`
 /// heading `dirc`: in a dungeon first `DUNGEON::Draw`'s `MakeMiniMap` for
-/// the room under him. While not `awake` the last frame is drawn again.
-/// True when `DUNGEON::DrawMap` set `ccMenu.mapStatus` back to 1.
+/// the room under him. While `ccGame.inBattle` neither `DrawMiniMap`
+/// (gcmn 0x005a98a4) nor `DUNGEON::DrawMap` (0x005cef78) runs: no map.
+/// While not `awake` the last frame is drawn again. True when
+/// `DUNGEON::DrawMap` set `ccMenu.mapStatus` back to 1.
 #[allow(clippy::too_many_arguments)]
 pub fn area_frame(
     place: &mut Place,
@@ -246,6 +248,7 @@ pub fn area_frame(
     pos: V4,
     dirc: V4,
     awake: bool,
+    in_battle: bool,
     fonts: Option<&Fonts>,
     ents: &mut Entries,
     ctx: &mut Ctx,
@@ -254,7 +257,9 @@ pub fn area_frame(
     match place {
         Place::Field(f) => {
             let Some(map) = f.map.as_mut() else { return false };
-            if awake {
+            if awake && in_battle {
+                st.last.clear();
+            } else if awake {
                 // The entry control's portals and fountain.
                 let mut inp = field::Input {
                     mode: st.modes.field,
@@ -274,6 +279,11 @@ pub fn area_frame(
             if awake {
                 let here = d.here(pos);
                 map.enter_room(&mut d.hits, d.level, here);
+                if in_battle {
+                    st.last.clear();
+                    d.map = Some(map);
+                    return false;
+                }
                 let inp = dungeon::Input {
                     mode: st.modes.dungeon,
                     special_room: d.special_room,

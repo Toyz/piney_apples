@@ -1484,15 +1484,6 @@ impl Mode for AreaMode {
             pl_attack: self.ui.ctrl.pl_attack != 0,
         });
         self.world.set_menu_type(self.ui.menu_type());
-        // ccThGameCtrl's first test, the map button.
-        if let Phase::Play(f) = self.world.phase()
-            && f >= 1
-            && !self.asleep
-            && self.setup != Setup::Left
-        {
-            let area = self.world.scene().area;
-            self.map_st.button(self.world.state_mut(), area, pad.push.bits());
-        }
         // ccThPucciguso's slot (its Main runs with the field's tasks); the
         // menu task, first in the game's frame, sees pgRideFlag before it.
         self.ride.seen = self.world.pg_ride();
@@ -1512,8 +1503,13 @@ impl Mode for AreaMode {
                 self.world.story_message_closed();
             }
         }
-        // ccThGameCtrl (33): the target and the buttons.
+        // ccThGameCtrl (33): the target and the buttons; the map button
+        // where its test came, past the game over, ghoFlag and menuClrWait.
         self.world.step_game_ctrl(pad);
+        if self.world.map_test() && !self.asleep && self.setup != Setup::Left {
+            let area = self.world.scene().area;
+            self.map_st.button(self.world.state_mut(), area, pad.push.bits());
+        }
         // ccThGameCtrl's first step of the game over: CloseMenu,
         // ccMessage::Close, ccMenu.forbid (the party's AI and the enemies'
         // conditions are not ported).
@@ -1617,6 +1613,7 @@ impl Mode for AreaMode {
             // ccThFieldDisp sleeps from the frame a door or the stairs ask
             // for the change (ccSleepNoSleepThread in ChangeRequest).
             let awake = !self.asleep && !self.world.scene_change_asked();
+            let in_battle = self.world.combat().battle.in_battle != 0;
             let place = self.world.place_mut();
             let fonts = self.fonts.as_ref();
             // Hidden with the world (Data Drain's black and its movie).
@@ -1629,6 +1626,7 @@ impl Mode for AreaMode {
                 pos,
                 dirc,
                 awake,
+                in_battle,
                 fonts,
                 &mut ents,
                 map_ctx,

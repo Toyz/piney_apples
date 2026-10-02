@@ -165,7 +165,7 @@ impl App {
         let answer = self.mode.console(line);
         if w.first() == Some(&"help") {
             return format!(
-                "{answer}\nstory N           the game again at event N's start\nversion           the build this game was made from (give it with a bug report)\nimport_card PATH  copy .hack saves from PCSX2 (a .ps2 card, a folder card or one save folder) onto this card\npad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it"
+                "{answer}\nstory N           the game again at event N's start\nversion           the build this game was made from (give it with a bug report)\ndeflicker [on|off] the console's deflicker (each line mixed with the one above)\nimport_card PATH  copy .hack saves from PCSX2 (a .ps2 card, a folder card or one save folder) onto this card\npad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it"
             );
         }
         answer
