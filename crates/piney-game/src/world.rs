@@ -762,7 +762,6 @@ impl WorldMode {
             | R::AttackCancel
             | R::GoField
             | R::CalcReal { .. }
-            | R::DisplayOffset { .. }
             // Data Drain is the fields' (area.rs).
             | R::DataDrain { .. }
             | R::DrainEnemy(_)
@@ -790,6 +789,7 @@ impl WorldMode {
                     self.world.chat_cmd(code, cmd, None, 0);
                 }
             }
+            R::DisplayOffset { x, y } => self.events.push(Event::DisplayOffset { x, y }),
             R::ChangeEquipReport { member, n } => {
                 if let Some((Kind::Spc, code)) = unhandle(member) {
                     self.world.equip_report(code, n);

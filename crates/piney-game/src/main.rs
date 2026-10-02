@@ -42,7 +42,7 @@ use gilrs::Gilrs;
 use piney_audio::Audio;
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
-use piney_gs::{Assets, Gs, Presenter};
+use piney_gs::{Assets, Gs, Pcrtc, Presenter};
 use piney_input::{Buttons, Pad, Raw};
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
@@ -67,6 +67,12 @@ struct Display {
 
 struct App {
     mode: Box<dyn Mode>,
+    /// `ccSystem::SetDisplayOffset`'s last (x, y): Adjust Screen's place
+    /// for the picture.
+    display_offset: (i32, i32),
+    /// The game's deflicker (`--deflicker`, the console's `deflicker`):
+    /// each line merged with the one above, as an interlaced TV showed it.
+    deflicker: bool,
     /// Held until the window's device exists.
     assets: Option<Assets>,
     gs: Option<Gs>,
@@ -124,6 +130,15 @@ impl App {
         }
         if w.first() == Some(&"version") {
             return launcher::version();
+        }
+        if w.first() == Some(&"deflicker") {
+            match w.get(1).copied() {
+                Some("on") => self.deflicker = true,
+                Some("off") => self.deflicker = false,
+                None => {}
+                Some(_) => return "deflicker [on|off]".into(),
+            }
+            return format!("deflicker {}", if self.deflicker { "on" } else { "off" });
         }
         if w.first() == Some(&"import_card") {
             let Some(src) = line.split_once(' ').map(|(_, p)| p.trim()).filter(|p| !p.is_empty()) else {
@@ -362,8 +377,10 @@ impl App {
             }
             let events = self.mode.take_events();
             for e in &events {
-                if let Event::Actuate { small, power, ms } = *e {
-                    self.actuator.set(small, power, ms);
+                match *e {
+                    Event::Actuate { small, power, ms } => self.actuator.set(small, power, ms),
+                    Event::DisplayOffset { x, y } => self.display_offset = (x, y),
+                    _ => {}
                 }
             }
             let boot = boot_request(&events);
@@ -406,7 +423,11 @@ impl App {
         };
         let view = frame.texture.create_view(&Default::default());
         let overlay = self.console.overlay(w.config.width, w.config.height);
-        let commands = w.presenter.present(gs, &view, w.config.width, w.config.height, overlay.as_ref());
+        // SetDisplayOffset's DX / DY: 5 video clocks a pixel at 512 wide
+        // (MAGH 4), and a line of the interlaced frame a row of the 448.
+        let (dx, dy) = self.display_offset;
+        let crtc = Pcrtc { offset: [dx as f32 / 5.0, dy as f32], deflicker: self.deflicker };
+        let commands = w.presenter.present(gs, &view, w.config.width, w.config.height, crtc, overlay.as_ref());
         gs.queue().submit([commands]);
         w.window.pre_present_notify();
         gs.queue().present(frame);
@@ -636,8 +657,8 @@ fn handle(events: Vec<Event>, audio: Option<&Audio>) {
                 | Event::MovieAudioStop,
                 None,
             ) => {}
-            // The pad's motors are the app's.
-            (Event::Actuate { .. }, _) => {}
+            // The pad's motors and the picture's place are the app's.
+            (Event::Actuate { .. } | Event::DisplayOffset { .. }, _) => {}
             // The game on another disc: the loop that owns the disc does it.
             (Event::Boot(_), _) => {}
             _ => eprintln!("mode asks: {e:?}"),
@@ -936,6 +957,7 @@ fn main() {
     let mut news: Vec<usize> = Vec::new();
     let mut scripts = true;
     let mut mute = false;
+    let mut deflicker = false;
     let mut pad_log: Option<String> = None;
     let mut import_card: Option<PathBuf> = None;
     let mut replay: Option<String> = None;
@@ -992,6 +1014,7 @@ fn main() {
             "--mail" => mail = args.next().unwrap_or_default().split(',').filter_map(|m| m.parse().ok()).collect(),
             "--no-events" => scripts = false,
             "--mute" => mute = true,
+            "--deflicker" => deflicker = true,
             "--dvd" => match args.peek() {
                 Some(n) if !n.starts_with("--") => match n.parse::<f64>() {
                     Ok(speed) if speed > 0.0 => {
@@ -1028,7 +1051,7 @@ fn main() {
             "-V" | "--version" => return,
             "-h" | "--help" => {
                 println!(
-                    "piney-game [--iso PATH | --game DIR [--volume N]] [--mode MODE] [--no-events] [--mute] [--dvd [SPEED]] [--voice en|jp] [--card DIR | --no-card] [--mail N,...] [--news N,...] [--pad-log FILE] [--replay FILE] [--import-card PATH] [--version]"
+                    "piney-game [--iso PATH | --game DIR [--volume N]] [--mode MODE] [--no-events] [--mute] [--deflicker] [--dvd [SPEED]] [--voice en|jp] [--card DIR | --no-card] [--mail N,...] [--news N,...] [--pad-log FILE] [--replay FILE] [--import-card PATH] [--version]"
                 );
                 println!(
                     "--iso PATH: a disc image, or a disc of a build (DIR/outbreak.disc); --game DIR: a piney-build build (by default {}), its launcher when it holds more than one disc; --volume 1-4 (inf, mut, out, qua): that disc of the build, no launcher",
@@ -1478,6 +1501,8 @@ fn main() {
     let audio = if mute { None } else { open_audio(&iso) };
     let mut app = App {
         mode,
+        display_offset: (0, 0),
+        deflicker,
         assets: Some(assets),
         gs: None,
         win: None,

@@ -774,9 +774,9 @@ pub fn event(r: Request) -> Option<Event> {
         // Switched on, the pad buzzes once (the switch itself is the
         // save's, which the runtime reads: `Mode::vibration`).
         Request::Vibration { on } => on.then_some(Event::Actuate { small: true, power: 160, ms: 200 }),
-        // The picture's offset and the field's camera scheme have nothing
-        // to act on yet.
-        Request::DisplayOffset { .. } | Request::CameraType(_) | Request::EnableReset(_) => None,
+        Request::DisplayOffset { x, y } => Some(Event::DisplayOffset { x, y }),
+        // The field's camera scheme has nothing to act on yet.
+        Request::CameraType(_) | Request::EnableReset(_) => None,
     }
 }
 

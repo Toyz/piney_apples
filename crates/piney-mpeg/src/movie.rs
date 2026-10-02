@@ -179,13 +179,15 @@ impl Movie {
 /// the IPU's RGBA32 image uploaded (PSMCT32), and one SPRITE over the whole
 /// screen - TME, FST, no ABE; TEX0 DECAL with TCC 0; TEX1 bilinear
 /// (MMAG = MMIN = 1); UV (0.5, 0.5) to (w + 0.5, h + 0.5); ZTST ALWAYS,
-/// ZMSK - here from (0, 0) to (512, 448), the port's frame. The game's
+/// ZMSK - here from (0, 0) to (512, 448), the port's frame, in field mode
+/// (`ccDecodeMpeg`'s `SetScreenMode(640, 448, 2)`). The game's
 /// CLAMP register is left as it was (REPEAT over a 1024 x 1024 texture
 /// whose rest is whatever VRAM holds); the edge texels are clamped here.
 pub fn draw(picture: &Picture) -> Frame {
     let (w, h) = (picture.width as u16, picture.height as u16);
     let mut f = Frame::new();
     f.clear = Rgba::BLACK;
+    f.field_mode = true;
     f.uploads.push(Upload {
         id: UPLOAD_ID,
         width: w,

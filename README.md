@@ -164,6 +164,11 @@ With more than one part made, it opens on the four-part selector;
 `--volume 1` (2, 3, 4) starts a part directly. You can also play one image
 without step 3: `piney-game --iso path/to/infection.iso`.
 
+On a console the game softens the picture for an interlaced TV, mixing
+each line with the one above. The port shows it sharp, as PCSX2 does by
+default. `--deflicker` (or `deflicker on` in the console) shows it as the
+console did.
+
 ### Updating
 
 ```sh

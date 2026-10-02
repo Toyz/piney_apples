@@ -1389,6 +1389,7 @@ impl AreaMode {
             R::TargetsCleared => self.world.clear_command_targets(),
             R::GameOver => self.world.compulsion_game_over = true,
             R::WorldHidden(on) => self.world_hidden = on,
+            R::DisplayOffset { x, y } => self.events.push(Event::DisplayOffset { x, y }),
             R::Flash => self.ui.gate_flash(),
             // Data Drain's movie: the stream the target picks, played as
             // ccThExecuteStream plays one (no subtitles, no music of its

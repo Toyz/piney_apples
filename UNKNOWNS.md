@@ -102,7 +102,6 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 - [[98]] the epitaphs (`ccEpitaphMsg`, `Step::Epitaph`) and the book viewer (`ccThBook`, `Step::BookStart`) are not carried out: crates/piney-world/src/field_world.rs `item_step` returns false and crates/piney-game/src/area.rs logs "item step not carried out" — using those items shows nothing
 - [[77]] the map button is not held by `menuClrWait`, `ccCheckGtHackAnm` or a wiped-out party, and the field and dungeon map is not hidden while `ccGame.inBattle` (docs/engine/map.md; crates/piney-world/src/map `area_frame` has no battle test; check whether ccThMenu's map alpha already hides it) — the minimap in fights
-- [[50]] [[51]] [[196]] Adjust Screen's display offset (`Request::DisplayOffset`) is dropped (crates/piney-game/src/desktop.rs, world.rs) — the Screen option does nothing
 - docs/engine/title.md the opening's cancel flash is not modelled — skipping the opening stream
 
 ### script
@@ -777,6 +776,7 @@ player until one of these turns out wrong.
 - [[47]] the "transparency" report — answered by [[48]] (FB_ONLY drew colour before Z)
 - [[49]] the other volumes' movies — answered by [[245]] (later_openings_match_ffmpeg_exactly)
 - [[50]] LoadGame's vibration — answered by [[232]] (piney_input::actuator)
+- [[50]] [[51]] [[196]] Adjust Screen's display offset (`Request::DisplayOffset`) was dropped — answered by [[339]] (`Event::DisplayOffset`, the presenter moves the picture; present_moves_the_picture_by_the_display_offset) / docs/engine/overview.md "The screen"
 - [[50]] LoadGame's camera scheme — answered by crates/piney-world/src/camera.rs (camera_mode from the save), CameraType requests applied (crates/piney-game/src/world.rs, area.rs); [[254]]
 - [[51]] the port's all-sound-off cutting only the voices — answered by BUGS.md (the dungeon music under Helba's theme; all_sound_off_stops_the_music)
 - [[52]] the streams' effect objects and effect tasks (StreamDemoFuncTbl) — answered by [[54]], [[57]], [[121]], [[122]], [[124]], [[125]], [[126]], [[133]], [[156]], [[160]]

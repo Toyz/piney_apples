@@ -23,6 +23,13 @@ pub fn voice_english(save: &piney_data::save::SaveData) -> bool {
     VOICE_ENGLISH.get().copied().unwrap_or(save.u8(piney_data::save::offset::VOICE) != 0)
 }
 
+/// `SetDisplayOffset(screenX, screenY)` with a save's own (+0x841a,
+/// +0x841c), as `ccSaveData::NewGame` and `LoadGame` call it.
+pub fn display_offset(save: &piney_data::save::SaveData) -> Event {
+    use piney_data::save::offset;
+    Event::DisplayOffset { x: i32::from(save.i16(offset::SCREEN_X)), y: i32::from(save.i16(offset::SCREEN_Y)) }
+}
+
 /// What the sound driver reads of the save for a voice request: the
 /// Voiceover option ([`voice_english`]), Parody Mode, and `talkNum` by
 /// `charTbl` row (0-17 in `ccSaveData`, 18-20 in the extension).
@@ -121,6 +128,14 @@ pub enum Event {
     SceneSound(piney_audio::scene::SceneInput),
     /// A movie stream to play before the next frame (`SimplePlayStream`).
     Movie(i32),
+    /// `ccSystem::SetDisplayOffset(x, y)` (Adjust Screen, and the saves'
+    /// `screenX` / `screenY` as a game starts or loads): the picture moved
+    /// `x` video clocks across (5 a pixel) and `y` lines of the interlaced
+    /// frame (a row of the 448) down.
+    DisplayOffset {
+        x: i32,
+        y: i32,
+    },
     /// `ccSaveData::SetSoundEnv`: the volumes, 0-256, and the output
     /// (0 mono, 1 stereo).
     Volumes {

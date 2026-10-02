@@ -174,6 +174,10 @@ fn fs(i: VOut) -> FOut {
 const PRESENT: &str = r#"
 @group(0) @binding(0) var src: texture_2d<f32>;
 @group(0) @binding(1) var samp: sampler;
+// The display circuits: the picture moved this much of its own size (x,
+// y); read circuit 1's share (z) of the merge with the picture a line (w)
+// lower.
+@group(0) @binding(2) var<uniform> crtc: vec4<f32>;
 
 struct P {
     @builtin(position) pos: vec4<f32>,
@@ -216,14 +220,29 @@ fn sharp(uv: vec2<f32>) -> vec2<f32> {
     return (floor(texel) + f) / size;
 }
 
+// The frame buffer's pixel at `uv` once the display offset moved it; black
+// where the moved picture leaves the screen.
+fn picture(uv0: vec2<f32>) -> vec3<f32> {
+    let uv = uv0 - crtc.xy;
+    let c = textureSample(src, samp, sharp(uv)).rgb;
+    let inside = all(uv >= vec2<f32>(0.0)) && all(uv <= vec2<f32>(1.0));
+    return select(vec3<f32>(0.0), c, inside);
+}
+
+// The merge circuit: read circuit 2's line over circuit 1's, the line above.
+fn merged(uv: vec2<f32>) -> vec3<f32> {
+    let above = picture(uv - vec2<f32>(0.0, crtc.w));
+    return mix(picture(uv), above, crtc.z);
+}
+
 @fragment
 fn fs_srgb(p: P) -> @location(0) vec4<f32> {
-    return vec4<f32>(to_linear(textureSample(src, samp, sharp(p.uv)).rgb), 1.0);
+    return vec4<f32>(to_linear(merged(p.uv)), 1.0);
 }
 
 @fragment
 fn fs_plain(p: P) -> @location(0) vec4<f32> {
-    return vec4<f32>(textureSample(src, samp, sharp(p.uv)).rgb, 1.0);
+    return vec4<f32>(merged(p.uv), 1.0);
 }
 
 // An overlay: its texels as they are, blended by their alpha.
@@ -330,6 +349,8 @@ pub struct Gs {
     shadow: shadow::ShadowGpu,
     /// Frames rendered, for the uploads' ages.
     frame_no: u64,
+    /// The last frame's [`Frame::field_mode`].
+    field_mode: bool,
     pub assets: Assets,
 }
 
@@ -383,6 +404,7 @@ impl Gs {
             previous: None,
             shadow,
             frame_no: 0,
+            field_mode: false,
             assets,
         }
     }
@@ -452,6 +474,7 @@ impl Gs {
             self.target = make_target(&self.device, w, h);
         }
         let screen = Screen { width: w as f32, height: h as f32 };
+        self.field_mode = frame.field_mode;
 
         self.frame_no += 1;
         let now = self.frame_no;
@@ -936,6 +959,8 @@ pub struct Presenter {
     /// [`Overlay`]s: drawn blended, texel for pixel.
     overlay: wgpu::RenderPipeline,
     nearest: wgpu::Sampler,
+    /// [`Pcrtc`] as the shader's `crtc`.
+    shift: wgpu::Buffer,
 }
 
 /// Pixels drawn over the picture at the window's own size, not the PS2
@@ -957,7 +982,7 @@ impl Presenter {
             label: Some("present"),
             source: wgpu::ShaderSource::Wgsl(PRESENT.into()),
         });
-        let layout = texture_layout(device);
+        let layout = present_layout(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("present"),
             bind_group_layouts: &[Some(&layout)],
@@ -1016,17 +1041,24 @@ impl Presenter {
             cache: None,
         });
         let nearest = device.create_sampler(&wgpu::SamplerDescriptor { label: Some("overlay"), ..Default::default() });
-        Presenter { pipeline, layout, sampler, overlay, nearest }
+        let shift = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("present shift"),
+            size: 16,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        Presenter { pipeline, layout, sampler, overlay, nearest, shift }
     }
 
-    /// Draw `gs`'s frame buffer into `view`, `width` x `height` pixels, and
-    /// `overlay` over it.
+    /// Draw `gs`'s frame buffer into `view`, `width` x `height` pixels, as
+    /// `crtc` shows it, and `overlay` over it.
     pub fn present(
         &self,
         gs: &Gs,
         view: &wgpu::TextureView,
         width: u32,
         height: u32,
+        crtc: Pcrtc,
         overlay: Option<&Overlay>,
     ) -> wgpu::CommandBuffer {
         let device = gs.device();
@@ -1036,8 +1068,13 @@ impl Presenter {
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(gs.target_view()) },
                 wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                wgpu::BindGroupEntry { binding: 2, resource: self.shift.as_entire_binding() },
             ],
         });
+        let merge = if crtc.deflicker && !gs.field_mode { MERGE_ALP } else { 0.0 };
+        let frac = [crtc.offset[0] / 512.0, crtc.offset[1] / 448.0, merge, 1.0 / 448.0];
+        let bytes: Vec<u8> = frac.iter().flat_map(|v: &f32| v.to_le_bytes()).collect();
+        gs.queue().write_buffer(&self.shift, 0, &bytes);
         let (w, h) = (width.max(1) as f32, height.max(1) as f32);
         let (vw, vh) = if w / h > DISPLAY_ASPECT { (h * DISPLAY_ASPECT, h) } else { (w, w / DISPLAY_ASPECT) };
         let mut encoder = device.create_command_encoder(&Default::default());
@@ -1085,6 +1122,7 @@ impl Presenter {
                     entries: &[
                         wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&tv) },
                         wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.nearest) },
+                        wgpu::BindGroupEntry { binding: 2, resource: self.shift.as_entire_binding() },
                     ],
                 });
                 let (ow, oh) = (o.width.min(width.max(1)) as f32, o.height.min(height.max(1)) as f32);
@@ -1096,6 +1134,58 @@ impl Presenter {
         }
         encoder.finish()
     }
+}
+
+/// How the display circuits show the frame buffer.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Pcrtc {
+    /// `ccSystem::SetDisplayOffset`'s move, in pixels of the 512 x 448
+    /// frame.
+    pub offset: [f32; 2],
+    /// Read circuit 1's copy a line lower, merged as in frame mode. The
+    /// game's deflicker for an interlaced TV; off, the picture is sharp as
+    /// PCSX2's anti-blur shows it.
+    pub deflicker: bool,
+}
+
+/// PMODE.ALP in frame mode (`SetScreenModeMain`, 0x0010b51c): read circuit
+/// 1's share of the merge, of 255.
+const MERGE_ALP: f32 = 127.0 / 255.0;
+
+/// The presenter's: [`texture_layout`]'s two, and the display offset's
+/// uniform at 2.
+fn present_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("present"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+    })
 }
 
 fn texture_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -1663,8 +1753,8 @@ mod tests {
     }
 
     /// `gs`'s frame put on a `w` x `h` sRGB surface by the [`Presenter`],
-    /// read back: RGB at (x, y).
-    fn presented(gs: &Gs, w: u32, h: u32) -> impl Fn(u32, u32) -> [u8; 3] {
+    /// shown as `crtc` says, read back: RGB at (x, y).
+    fn presented(gs: &Gs, w: u32, h: u32, crtc: Pcrtc) -> impl Fn(u32, u32) -> [u8; 3] + use<> {
         let format = wgpu::TextureFormat::Rgba8UnormSrgb;
         let target = gs.device().create_texture(&wgpu::TextureDescriptor {
             label: None,
@@ -1678,7 +1768,7 @@ mod tests {
         });
         let view = target.create_view(&Default::default());
         let presenter = Presenter::new(gs.device(), format);
-        gs.queue().submit([presenter.present(gs, &view, w, h, None)]);
+        gs.queue().submit([presenter.present(gs, &view, w, h, crtc, None)]);
         let row = (w * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let buf = gs.device().create_buffer(&wgpu::BufferDescriptor {
             label: None,
@@ -1810,7 +1900,7 @@ mod tests {
         let mut frame = Frame::new();
         frame.clear = Rgba::new(0x33, 0x66, 0x99, 0);
         gs.render(&frame);
-        let at = presented(&gs, 800, 450);
+        let at = presented(&gs, 800, 450, Pcrtc::default());
         // 450 high at 4:3 is 600 wide: bars of 100 each side.
         assert_eq!(at(50, 225), [0, 0, 0]);
         assert_eq!(at(750, 225), [0, 0, 0]);
@@ -1818,6 +1908,55 @@ mod tests {
         for (got, want) in mid.iter().zip([0x33u8, 0x66, 0x99]) {
             assert!(got.abs_diff(want) <= 1, "{mid:?}");
         }
+    }
+
+    /// The display offset moves the picture inside its 4:3 box, and black
+    /// shows where it left: an eighth across and down is 75 pixels of 600
+    /// and 56 of 450 (rounded).
+    #[test]
+    fn present_moves_the_picture_by_the_display_offset() {
+        let Some(mut gs) = gs() else { return };
+        let mut frame = Frame::new();
+        frame.clear = Rgba::new(0x33, 0x66, 0x99, 0);
+        gs.render(&frame);
+        let at = presented(&gs, 600, 450, Pcrtc { offset: [64.0, 56.0], ..Pcrtc::default() });
+        assert_eq!(at(70, 225), [0, 0, 0], "left of the moved picture");
+        assert_eq!(at(300, 52), [0, 0, 0], "above it");
+        for p in [at(80, 225), at(300, 60), at(599, 449)] {
+            for (got, want) in p.iter().zip([0x33u8, 0x66, 0x99]) {
+                assert!(got.abs_diff(want) <= 1, "{p:?}");
+            }
+        }
+    }
+
+    /// With the deflicker, each line is merged with the one above it at
+    /// PMODE.ALP 127: a white line on black comes out in two rows of about
+    /// half, the first a little brighter. A movie's frame (field mode) is not
+    /// merged.
+    #[test]
+    fn present_merges_the_line_above_in_frame_mode() {
+        let Some(mut gs) = gs() else { return };
+        let line = |field_mode| {
+            let mut frame = Frame::new();
+            frame.clear = Rgba::new(0, 0, 0, 0);
+            frame.field_mode = field_mode;
+            let opaque = DrawState { blend: None, ..DrawState::sprite(Blend::MIX, None) };
+            frame.cmds.push(rect(0.0, 200.0, 512.0, 201.0, Rgba::new(0xff, 0xff, 0xff, 0x80), opaque));
+            frame
+        };
+        // 448 rows high: a row of the frame is a row of the window.
+        let (w, h) = (640, 448);
+        let on = Pcrtc { deflicker: true, ..Pcrtc::default() };
+        gs.render(&line(false));
+        let sharp = presented(&gs, w, h, Pcrtc::default());
+        assert_eq!([sharp(320, 199)[0], sharp(320, 200)[0], sharp(320, 201)[0]], [0, 255, 0]);
+        let at = presented(&gs, w, h, on);
+        let rows = [at(320, 199)[0], at(320, 200)[0], at(320, 201)[0], at(320, 202)[0]];
+        assert!(rows[0] == 0 && rows[3] == 0, "{rows:?}");
+        assert!(rows[1].abs_diff(128) <= 1 && rows[2].abs_diff(127) <= 1, "{rows:?}");
+        gs.render(&line(true));
+        let movie = presented(&gs, w, h, on);
+        assert_eq!([movie(320, 200)[0], movie(320, 201)[0]], [255, 0]);
     }
 
     /// Scaled up by more than 2, a 1-pixel line keeps a pure core wherever
@@ -1843,7 +1982,7 @@ mod tests {
         }
         gs.render(&frame);
         let (w, h) = (1600u32, 1200u32);
-        let at = presented(&gs, w, h);
+        let at = presented(&gs, w, h, Pcrtc::default());
         let src_w = gs.target_size().0 as f32;
         let scale = w as f32 / src_w;
         assert!(scale > 2.0, "scale {scale}");

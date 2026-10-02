@@ -255,6 +255,9 @@ impl Session {
         session.settings_path = settings;
         session.stage = session.boot_title(true)?;
         session.title_sound();
+        if let Stage::Title(t) = &session.stage {
+            session.events.push(crate::mode::display_offset(&t.state.save));
+        }
         Ok(session)
     }
 
@@ -840,6 +843,9 @@ impl Session {
             (request::RESET | request::TITLE, _) => {
                 let stage = self.boot_title(false)?;
                 self.title_sound();
+                if let Stage::Title(t) = &stage {
+                    self.events.push(crate::mode::display_offset(&t.state.save));
+                }
                 stage
             }
             (request::TOPPAGE, Stage::Desktop(d)) => {
@@ -985,6 +991,7 @@ impl Mode for Session {
                                 bgm: i32::from(save.i16(offset::BGM_VOL)),
                                 output: i32::from(save.i16(offset::OUTPUT)),
                             });
+                            self.events.push(crate::mode::display_offset(save));
                         }
                         Request::Movie { path, audio } => match Playing::open(&self.iso, path, audio, &mut self.events)
                         {
@@ -1524,7 +1531,8 @@ mod tests {
     }
 
     /// The options kept across the parts: the file's go into the title's
-    /// new save, and a change a menu makes to the save goes into the file.
+    /// new save (the screen's place moving the picture at power-on), and a
+    /// change a menu makes to the save goes into the file.
     #[test]
     fn options_kept_across_the_parts() {
         let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
@@ -1536,8 +1544,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("settings.toml");
-        std::fs::write(&path, "main_volume = 100\nvoice = 1\n").unwrap();
+        std::fs::write(&path, "main_volume = 100\nvoice = 1\nscreen_x = -12\nscreen_y = 7\n").unwrap();
         let mut s = Session::after_logos(iso, archive, false, None, false, 0, Some(path.clone())).unwrap();
+        assert!(s.take_events().contains(&Event::DisplayOffset { x: -12, y: 7 }));
         let mut pad = Pad::default();
         pad.read(&Raw::default());
         s.step(&pad);

@@ -2,8 +2,8 @@
 title: How the game is put together
 status: partial
 volumes: INF
-covers: INF SLUS_202.67:0x0015a780 main, 0x00167940 ccThMother, 0x001671e0 ccGame::ChangeRequest, 0x001680e0 ccThLoadOverlay, 0x0010a5f0 ccSystem::Ctrl, 0x001099e0 VSyncCallBack, 0x0015a5c0 ccThControl, 0x00159e10 ccTscb::Breath, 0x00102d40 ccPad::Read, 0x00102a50 ccPad::Ctrl, 0x00102bf0 ccPad::SetActuater, 0x0010a740 ccSystem::Ctrl (the motors)
-worklog: 15, 18, 40, 331
+covers: INF SLUS_202.67:0x0015a780 main, 0x00167940 ccThMother, 0x001671e0 ccGame::ChangeRequest, 0x001680e0 ccThLoadOverlay, 0x0010a5f0 ccSystem::Ctrl, 0x001099e0 VSyncCallBack, 0x0015a5c0 ccThControl, 0x00159e10 ccTscb::Breath, 0x00102d40 ccPad::Read, 0x00102a50 ccPad::Ctrl, 0x00102bf0 ccPad::SetActuater, 0x0010a740 ccSystem::Ctrl (the motors), 0x0010a900 ccSystem::Init, 0x0010ad20 ccSystem::SetScreenMode, 0x0010ad40 ccSystem::SetScreenModeMain, 0x0010ab30 ccSystem::SetDisplayOffset, 0x0010ac40 ccSystem::SwapDoubleBuffer, 0x0010de50 sceGsSetDefDispEnv
+worklog: 15, 18, 40, 331, 339, 340
 ---
 
 # How the game is put together
@@ -178,8 +178,52 @@ The callers are `ccPlayer::DamageActuate` (Kite hit: the small motor and
 `DamActuTbl` by the damage, 100 ms) and the Vibration menus switching it on
 (the small motor and 160, 200 ms). The port is `crates/piney-input`.
 
+## The screen
+
+`ccSystem::Init` (0x0010a900) asks `SetScreenMode(512, 448, 0)`, applied by
+`SetScreenModeMain` (0x0010ad40) on the next `Ctrl`. The mode is width
+(+0xbd0), height (+0xbd2) and a field flag (+0xbd4, forced 0 at 256 lines
+or fewer):
+
+```
+height <= 256       sceGsResetGraph(0, 0, 2, 1)   NTSC, not interlaced
+field flag 0        sceGsResetGraph(0, 1, 2, 0)   interlaced, one 448 buffer
+field flag 1        sceGsResetGraph(0, 1, 2, 1)   interlaced, 224 a field
+```
+
+then `sceGsSetDefDBuff` (the buffers at +0xbe0, their DISPLAY registers at
++0xbf8 and +0xc20), and keeps DISPLAY's DX and DY as the base (+0x1c,
++0x1e) before re-applying the offset. `sceGsSetDefDispEnv` (0x0010de50),
+NTSC interlaced: MAGH = (2559 + w) / w - 1 (4 at 512, 3 at 640), DX = 636,
+DY = 50; DH is 2h - 1 in field mode, h - 1 otherwise. So DX counts video
+clocks (2,560 across the picture at either width) and DY lines of the
+interlaced frame (one row of the 448).
+
+`SetDisplayOffset(x, y)` (0x0010ab30) keeps (x, y) (+0x20, +0x22) and
+writes base + x (0..4095) and base + y (0..2046) into both buffers' DISPLAY;
+with the field flag 0 also into read circuit 1's pair (below), there with
+y + 1.
+Adjust Screen moves x by 3 (-48..48) and y by 1 (-16..16), so the picture
+moves up to 9.6 pixels across and 16 rows down at 512 x 448. The port moves
+the presented picture by x / 5 pixels and y rows and leaves black where it
+left (`piney_gs::Presenter::present`).
+
+In frame mode (field flag 0) the picture is merged with itself a line
+lower, a deflicker for the interlaced TV. `SetScreenModeMain` sets both
+buffers' PMODE EN1 (libgraph's 0x66 already has EN2, MMOD 1, AMOD 1) and
+ALP 127 (0x0010b4e8-0x0010b520), and copies their DISPLAY with DY + 1 to
++0xe10 / +0xe20. Each frame `SwapDoubleBuffer` (0x0010ac40) writes the
+shown buffer's DISPFB to DISPFB1 (0x12000070) and its +0xe10 copy to
+DISPLAY1 (0x12000080) before `sceGsSwapDBuff` puts circuit 2. So a screen
+line is 127/255 of the buffer's line above and the rest of its own. Field
+mode (the movies) skips both. The port merges only when asked
+(`--deflicker`, `piney_gs::Pcrtc::deflicker`), since its picture is
+progressive.
+
 ## Unknown
 
 - How the kernel orders tasks of equal priority (the title's, the
   desktop's and the top page's two at 33): taken as their start order,
   not checked.
+- The merge circuit's arithmetic: the port takes ALP / 255 as PCSX2
+  does; the console's rounding is not measured.

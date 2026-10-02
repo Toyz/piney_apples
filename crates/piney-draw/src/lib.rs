@@ -21,6 +21,11 @@ pub struct Frame {
     pub uploads: Vec<Upload>,
     /// In the order the GS draws them.
     pub cmds: Vec<Cmd>,
+    /// Shown in field mode (`ccSystem` +0xbd6): the movies'
+    /// `SetScreenMode(640, 448, 2)`. Otherwise frame mode, where the GS
+    /// also shows the buffer a line lower through read circuit 1
+    /// (`docs/engine/overview.md` "The screen").
+    pub field_mode: bool,
 }
 
 /// `ccSystem::SetScreenMode(512, 448, 0)` from `ccSystem::Init`.
