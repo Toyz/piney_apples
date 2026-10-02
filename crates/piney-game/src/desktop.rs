@@ -562,9 +562,13 @@ impl DesktopMode {
             vm.start_thread(&mut h);
             vm.enable(0);
         }
-        // Each mode's setup starts with `ccAllSoundOff`.
-        st.events.push(Event::AllSoundOff);
         let scripts = vm.is_some();
+        // `ccAllSoundOff` (0x0016847c) comes after the event task's phase-0
+        // pass and `DESKTOP.PRG`'s load ([`Self::setup_frame`]); without the
+        // scripts there is no pass to wait for.
+        if !scripts {
+            st.events.push(Event::AllSoundOff);
+        }
         let mut mode = DesktopMode {
             stage: Stage::Gone,
             vm,
@@ -663,6 +667,11 @@ impl DesktopMode {
             return Ok(frame);
         }
         if *phase == 0 {
+            // `ccSetupDesktop` (0x00168320): the phase-0 pass (New Game's name
+            // entry among it) still sounds on the last mode's ports; then
+            // `ccAllSoundOff`, which zeroes every port's volume until the
+            // desktop's bank loads, and the pass at phase 2.
+            self.st.events.push(Event::AllSoundOff);
             vm.enable(2);
             (*phase, *frames) = (2, 0);
             return Ok(frame);

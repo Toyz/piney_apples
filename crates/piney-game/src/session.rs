@@ -1425,7 +1425,9 @@ mod tests {
     /// New Game's name entry heard (the report: no sound from its keyboard
     /// nor from the confirm after). Every event through `main`'s routing into
     /// a headless engine: each press that asks for a sound (the dialog's 18,
-    /// the keyboard's 6, 4 and 7) is heard over the 12 frames after it.
+    /// the keyboard's 6, 4 and 7) is heard over the 12 frames after it. The
+    /// name entry runs in event 1's phase-0 pass, before `ccSetupDesktop`'s
+    /// `ccAllSoundOff` zeroes the ports (0x0016847c).
     /// `PINEY_SURVEY_BUILD=DIR` plays a build's disc, `PINEY_SURVEY_CARD=DIR`
     /// a copy of a player's card, `PINEY_SURVEY_SKIP` skips the streams.
     #[test]
@@ -1445,13 +1447,20 @@ mod tests {
         let mut s = Session::new(iso.clone(), archive, true, Some(card), true).unwrap();
         let audio = piney_audio::Audio::headless(&iso).unwrap();
         let mut pad = Pad::default();
-        let mut volumes = Vec::new();
-        to_menu(&mut s, &mut pad, |events| {
-            volumes.extend(events.iter().filter(|e| matches!(e, Event::Volumes { .. })).map(|e| format!("{e:?}")));
-            crate::handle(events, Some(&audio));
-        });
-        eprintln!("volumes at the title: {volumes:?}");
-        new_game(&mut s, &mut pad);
+        // NEWGAME as `new_game` picks it, every event routed: the title's
+        // `GameInterrupt` and the setup's `AllSoundOff` among them.
+        to_menu(&mut s, &mut pad, |events| crate::handle(events, Some(&audio)));
+        let mut k = 0u32;
+        while title(&s).is_some() {
+            let b = match k {
+                20 => Buttons::UP,
+                30 => Buttons::CROSS,
+                _ => Buttons::NONE,
+            };
+            crate::handle(press(&mut s, &mut pad, b), Some(&audio));
+            k += 1;
+            assert!(k < 300, "New Game does not leave the title: {}", Mode::title(&s));
+        }
         let level = |s: &mut Session, pad: &mut Pad, b: Buttons, frames: u32| {
             let mut chunk = vec![0i16; 1600];
             let mut sq = 0f64;
