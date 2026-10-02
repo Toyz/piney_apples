@@ -584,8 +584,7 @@ player until one of these turns out wrong.
 
 ### format
 
-- [[5]] whether any requested name can miss its category table (it would walk past the nameless terminator) — [[5]] says the game relies on never asking; not surveyed
-- [[5]] the two s16 fields (+0x24, +0x26) of a sceneFileList entry — not mentioned again after [[5]]
+- [[324]] whether a name built at run time (sprintf names, names read from enemyTbl/gimmickTbl/npcTbl) can miss its category table — every static file list on all four volumes was checked by [[324]] and hits; the built names were not
 - [[242]] what category 19 (a loose scene file outside the archive) was for — not in the code
 
 ### decomp
@@ -645,6 +644,8 @@ player until one of these turns out wrong.
 - [[2]] what the MWo3 header's overlay id is used for — answered by [[242]] (nothing reads it) / docs/formats/prg.md
 - [[4]] the VU1 microcode is not disassembled — answered by [[17]] (tools/vu.py, tools/test_vu.py)
 - [[5]] what fills directCCSTbl and which files use category 19 — answered by [[242]] (ccAddFileList; no volume adds one) / docs/formats/data-bin.md "Category 19"
+- [[5]] the two s16 fields (+0x24, +0x26) of a sceneFileList entry — answered by [[324]] (deleteCnt, a reference count; addFlag, always -1) / docs/formats/data-bin.md "File-list entries"
+- [[5]] whether any requested name can miss its category table — static lists answered by [[324]] (all 679 rows hit on the four volumes); run-time names carried to [[324]]
 - [[6]] the contents of the .mwcats sections — answered by [[243]] (per-function size records) / docs/engine/executable.md
 - [[9]] how the game decides which mails a volume delivers — answered by [[41]] / docs/engine/desktop.md "Mail" (event opcodes 107-109; event 1 delivers 4, 5, 320)
 - [[9]] what ccGetExtendedCode maps and how % codes are drawn — answered by [[23]] / docs/engine/font.md

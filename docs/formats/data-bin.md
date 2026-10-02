@@ -3,7 +3,7 @@ title: The DATA.BIN archive
 status: solid
 volumes: all
 covers: INF DATA/DATA.BIN, INF SLUS_202.67:0x002fb750 categoryFDTbl, 0x002fb7a0 cateCDOfsTbl, 0x001651d0 searchFname, 0x00164540 ccFileListLoad, 0x001639c0 ccAddFileList, 0x00383ec0 directCCSTbl
-worklog: 3, 5, 20, 242
+worklog: 3, 5, 20, 242, 324
 ---
 
 # The DATA.BIN archive
@@ -101,6 +101,40 @@ Only category 19's entries have a `usize` of 0 (below).
 compares names with `strcmp`, 44 bytes at a time, until a match or a record
 named `"NULL"`. On `"NULL"` it draws `FILE NONE` and hangs. Category 19
 compares only the part of the name before the `.`, upper-cased.
+
+## File-list entries
+
+The run-time file list (`FILELIST`, INF DWARF, `filelib.cpp`) holds one entry
+per requested file:
+
+```
+FILELIST    0x28 bytes, little-endian
+  +0x00  s32       category
+  +0x04  char[32]  name        ".ccs" appended when it has no '.', upper-cased
+  +0x24  s16       deleteCnt   reference count
+  +0x26  s16       addFlag     always -1
+```
+
+`name` - `ccAddFileList` (`0x001639c0`), `ccAddFileListOne` (`0x00163bd0`) and
+`ccAddFileListName` (`0x00163db0`) copy the requested name, `strcat` `".ccs"`
+when `strchr(name, '.')` finds none, then `strupr`. A lower-case name in a
+static list (`xddn_010.CCS`, `cdogboda.ccs`) therefore matches its upper-case
+record.
+
+`deleteCnt` - `ccInitFileList` sets 0. Every add increments it
+(`0x00163a38`), and so does `fileConflictCheck` when the file is already in
+the list (`0x0016408c`). `ccFileListDeleteOne` decrements it (`0x00163664`);
+at 0 it destroys the file's `ccStream` (`ccsLoad[i]`), decrements `directNum`
+for category 19, and renames the entry `"NULL"`.
+
+`addFlag` - written -1 at init and by each add (`0x00163a50`, `0x00163c58`,
+`0x00163e4c`), and otherwise only copied. Its one test, `== 1` in
+`ccFileExistCheck` (`0x001641a4`), can never pass.
+
+Every static file list on the four volumes (a run of `{s32 category,
+char *name}` pairs ended by a negative category or a null name, in the
+executable and the four overlays) names a file of its own category: 142,
+152, 192 and 193 rows.
 
 ## Category 19
 

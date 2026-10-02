@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-323 entries: audio 26, battle 67, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 79, save 10, script 35, test 131, tooling 23, ui 59, video 11, volumes 65, world 85.
+324 entries: audio 26, battle 67, build 15, content 3, decomp 22, disc 5, engine 10, format 16, iop 2, render 79, save 10, script 35, test 131, tooling 23, ui 59, video 11, volumes 66, world 85.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -335,3 +335,4 @@ The [reference](docs/README.md) says what is true now.
 | 321 | [ccSoundFadeOut fades the music over 8 frames instead of cutting it](worklog/0321-ccsoundfadeout-fades-the-music-over-8-frames-instead-of.md) | 2026-10-01 | audio |
 | 322 | [A skill's words follow the Voiceover option the moment it changes](worklog/0322-a-skill-s-words-follow-the-voiceover-option-the-moment-it.md) | 2026-10-01 | audio |
 | 323 | ["prev_room and hold 7: no script of any volume uses them"](worklog/0323-prev-room-and-hold-7-no-script-of-any-volume-uses-them.md) | 2026-10-01 | script, volumes |
+| 324 | ["File-list entries: deleteCnt is a reference count, addFlag is always -1"](worklog/0324-file-list-entries-deletecnt-is-a-reference-count-addflag-is.md) | 2026-10-01 | format, engine, volumes |
