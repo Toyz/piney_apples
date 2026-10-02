@@ -77,8 +77,6 @@ pub struct AreaMode {
     member_items: Vec<MemberItem>,
     /// The movie is `StreamMenu`'s (menu 74), with its `ccThStrParty`.
     stream_menu: bool,
-    /// The movie is a Ryu Book's cover (`ccThBook`'s `ccThExecuteStream`).
-    book_movie: bool,
     /// A boss's stage fader (`ccBoss::InitStageEffect`: `scStageFade` on
     /// its `stageLayer`, priority 2, between the stage and the
     /// characters), and `m_stageEffId`.
@@ -298,7 +296,6 @@ impl AreaMode {
             drain_enemy: None,
             member_items: Vec::new(),
             stream_menu: false,
-            book_movie: false,
             str_party: None,
             stage_fade: piney_demo::fade::ScFade::default(),
             stage_fade_id: -1,
@@ -324,6 +321,12 @@ impl AreaMode {
     /// The area the scripts sent the player to, once they did.
     pub fn scene_change(&self) -> Option<&crate::field_host::SceneChange> {
         self.st.change.as_ref()
+    }
+
+    /// Whether a menu's movie plays (a drain, `StreamMenu`).
+    #[cfg(test)]
+    pub fn movie_playing(&self) -> bool {
+        self.drain_movie.is_some()
     }
 
     /// The field UI, for tests.
@@ -1159,8 +1162,8 @@ impl AreaMode {
     }
 
     /// `ccThExecuteStream(num)` over the field's resident files (a drain
-    /// movie, `StreamMenu`'s, a Ryu Book's cover): the menu task waits for
-    /// its end ([`Self::movie_done`]).
+    /// movie, `StreamMenu`'s): the menu task waits for its end
+    /// ([`Self::movie_done`]).
     fn start_movie(&mut self, num: i32) {
         self.str_party = None;
         let save = self.world.state().save.clone();
@@ -1184,9 +1187,7 @@ impl AreaMode {
 
     /// The movie has ended: the menu that asked for it is answered.
     fn movie_done(&mut self) {
-        if std::mem::take(&mut self.book_movie) {
-            self.ui.book_stream_done();
-        } else if std::mem::take(&mut self.stream_menu) {
+        if std::mem::take(&mut self.stream_menu) {
             self.ui.stream_menu_done();
         } else {
             self.ui.drain_movie_done();
@@ -1317,19 +1318,11 @@ impl AreaMode {
             // ccThExecuteStream plays one (no subtitles, no music of its
             // own) over the field's resident files; the menu task waits for
             // its end.
-            // ccThBook's cover: stream 112 + the book, as a drain movie is
-            // played; taken down when the book asks (`ccDeleteThread`).
-            R::BookStream(None) => {
-                if std::mem::take(&mut self.book_movie) {
-                    self.drain_movie = None;
-                }
-            }
-            R::BookStream(Some(page)) => {
-                (self.book_movie, self.stream_menu) = (true, false);
-                self.start_movie(112 + page);
-            }
+            // The Key Items refuse a Ryu Book outside a town (help 8), so
+            // its cover never plays here.
+            R::BookStream(_) => {}
             R::DrainMovie(num) | R::StreamMenu(num) => {
-                (self.book_movie, self.stream_menu) = (false, matches!(r, R::StreamMenu(_)));
+                self.stream_menu = matches!(r, R::StreamMenu(_));
                 self.start_movie(num);
             }
             // ccThStrParty: StreamMenu's members drawn into its stream.

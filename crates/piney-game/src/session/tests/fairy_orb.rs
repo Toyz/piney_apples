@@ -467,3 +467,82 @@ fn a_book_read_in_town_raises_the_stat() {
     assert_eq!(save.u8(offset::ITEM_LIST + 3), 0, "the book was not used");
     assert_eq!(SpcParam::from_save(save, 0).elm[elm::P_ATK], before + 10, "Kite's physical attack");
 }
+
+/// A Ryu Book (key item 273 + `book`) read from PERSONAL's Key Items once
+/// `ready`: `ccThBook` fades to black, plays the cover stream (112 +
+/// `book`), and opens the book's pages once the stream ends. Whether the
+/// cover played and the pages opened.
+fn read_a_ryu_book(s: &mut Session, book: usize, ready: impl Fn(&Session) -> bool) -> (bool, bool) {
+    let mut pad = Pad::default();
+    let (mut given, mut cover, mut pages) = (false, false, false);
+    for f in 0..6000u32 {
+        let now = ready(s);
+        if now && !given {
+            let save = save_mut(s).expect("a town or an area");
+            for id in 0..piney_fieldui::menus::keyitem::IMP_ITEMS {
+                save.set_u8(offset::IMP_ITEM_LIST + id, u8::from(id == 273 + book));
+            }
+            // The books' page (3) is there only with the bracelet.
+            save.set_u8(offset::PLCOL, 1);
+            given = true;
+        }
+        cover |= match &s.stage {
+            Stage::World(w) => w.streaming(),
+            Stage::Area(a) => a.movie_playing(),
+            _ => false,
+        };
+        let ui = menus(s).expect("a town or an area");
+        pages |= ui.ctrl.book.as_ref().is_some_and(|t| t.book.is_some());
+        if pages {
+            break;
+        }
+        let opened = ui.ctrl.book.is_some();
+        let c = &ui.ctrl;
+        let b = if !now || !given || opened || !f.is_multiple_of(8) {
+            Buttons::NONE
+        } else {
+            // PERSONAL, Key Items, its page 3 (the books), the book.
+            match (ui.menu_type(), c.proccess) {
+                (-1, _) => Buttons::TRIANGLE,
+                (6, 1) if c.list().page < 3 => Buttons::RIGHT,
+                (0 | 1, 1) => {
+                    let l = c.list();
+                    match l.items.iter().take(l.y.max(0) as usize).position(|&it| it == 6) {
+                        Some(r) if (l.select as usize) < r => Buttons::DOWN,
+                        _ => Buttons::CROSS,
+                    }
+                }
+                _ => Buttons::CROSS,
+            }
+        };
+        pad.read(&raw(b, 128));
+        s.step(&pad);
+        s.take_events();
+    }
+    (cover, pages)
+}
+
+/// Ryu Book I read in Mac Anu: its cover stream plays over the town and
+/// the pages open after it. Before, nothing played the cover and the book
+/// waited for it for good.
+#[test]
+fn a_ryu_book_opens_in_town() {
+    use crate::session::area15::{disc, hold, start};
+    let Some((iso, archive)) = disc() else { return };
+    let mut s = start(&iso, &archive, None);
+    let in_town = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+    hold(&mut s, 128, 128, 900, in_town);
+    assert_eq!(read_a_ryu_book(&mut s, 0, in_town), (true, true), "(the cover, the pages)");
+}
+
+/// In a field the Key Items refuse a Ryu Book (`ImportantItemMenu`'s
+/// help 8 when `area` is not 0): no cover, no pages.
+#[test]
+fn a_ryu_book_is_refused_in_a_field() {
+    let Some((mut s, _)) = in_field() else { return };
+    let ready = |s: &Session| match &s.stage {
+        Stage::Area(a) => matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 90),
+        _ => false,
+    };
+    assert_eq!(read_a_ryu_book(&mut s, 0, ready), (false, false), "(the cover, the pages)");
+}

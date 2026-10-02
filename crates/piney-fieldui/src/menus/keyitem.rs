@@ -180,14 +180,10 @@ pub fn important_item_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                 return personal::close(m, x);
             }
             if it.cat == 15 && RYU_BOOKS.contains(&it.id) {
-                x.req.push(Request::UseItem { target: me, code: it.code() });
-                // EntryFade(1, black, black, 0, 0, 512, 448): the screen
-                // covered for the book's first frame.
-                let id = m.menu_fade.entry_fade(1, 0x8000_0000, 0x8000_0000);
-                m.msg.close_instant();
-                x.req.push(Request::WakeAll);
-                crate::disp::disp(m, x);
-                return Flow::Breathed(pers(Tail::BookWoken(id)));
+                // ccUseItemRequest runs the book to its close, then
+                // [`book_closed`].
+                crate::menus::useitem::call(m, x, me, it.code(), crate::menus::useitem::Resume::Book);
+                return Flow::Done;
             }
             // ccUseItemRequest (the epitaphs' pages and the rest), then
             // proccess 12.
@@ -256,6 +252,17 @@ pub fn important_item_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
 }
 
 /// A Ryu Book's fade back in (0x00530208): a frame drawn and breathed
+/// After a Ryu Book's use returns (gcmn 0x005300cc): `EntryFade(1, black,
+/// black, 0, 0, 512, 448)` covers the screen for a frame, the message is
+/// shut at once, the tasks woken, and the menu fades back in.
+pub fn book_closed(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
+    let id = m.menu_fade.entry_fade(1, 0x8000_0000, 0x8000_0000);
+    m.msg.close_instant();
+    x.req.push(Request::WakeAll);
+    crate::disp::disp(m, x);
+    Flow::Breathed(pers(Tail::BookWoken(id)))
+}
+
 /// while `CheckFade`; then the fade deleted, the dim back, 3 frames.
 pub fn book_fade(m: &mut MenuCtrl, id: i32, x: &mut Ctx) -> Option<crate::ctrl::Cont> {
     if check_fade(m, id) {

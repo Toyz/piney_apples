@@ -30,6 +30,10 @@ pub enum Resume {
     /// ImportantItemMenu's other items (proccess 2): its proccess 12, the
     /// seven frames before the list answers again.
     KeyItem,
+    /// ImportantItemMenu's Ryu Books (proccess 2, gcmn 0x0052ffc8): the use
+    /// returns once the book is shut (`WaitBook`), then the screen is
+    /// covered black, the message shut and the tasks woken (0x005300cc on).
+    Book,
 }
 
 /// What the call is doing between frames.
@@ -372,6 +376,7 @@ fn resume_after(m: &mut MenuCtrl, x: &mut Ctx, r: Resume) -> Option<Cont> {
             m.proccess = 12;
             Flow::Done
         }
+        Resume::Book => crate::menus::keyitem::book_closed(m, x),
     };
     match flow {
         Flow::Breathed(c) => Some(c),
