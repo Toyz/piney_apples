@@ -176,7 +176,7 @@ impl FxTasks for AreaFx {
             self.fx.spell_request(&host, run.key, run.sid, run.stype, creator, target);
         }
         if let Some(s) = self.fx.spells.get_mut(run.key) {
-            s.sync(run.count, run.c_pos, run.c_dirc, run.t_pos, run.t_type, creator, target);
+            s.sync(run.count, run.hold, run.c_pos, run.c_dirc, run.t_pos, run.t_type, creator, target);
         }
         let ran = self.fx.spell_system(&mut host, run.key);
         let mut out = SpellOut { ran, ..SpellOut::default() };

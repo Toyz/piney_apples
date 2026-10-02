@@ -6477,6 +6477,9 @@ mod tests {
     /// A foe's condition effect ended where the game clears it.
     mod cond_fx;
 
+    /// A spell or art holds its targets where they stand.
+    mod spell_hold;
+
     // Playthroughs: the story's scripts (run by piney-event's VM, as every
     // event is) played from a start point with a scripted pad, checked.
 

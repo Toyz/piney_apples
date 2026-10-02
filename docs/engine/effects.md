@@ -2089,9 +2089,12 @@ A runtime running `ccSkill` (piney-battle's `SkillRun`):
 2. each frame, after `Effects::step` (ccThEffect), for each run in
    `SkillEntryTop`'s order: what `ccSkill::Main` does before the system
    (positions into cPos/cDirc/tPos, the checks that end it), then
-   `Spell::sync` (count = the value before Main's increment) and
+   `Spell::sync` (count = the value before Main's increment, and the
+   run's `holdFlag`, which `_ccSkillRequest` set) and
    `Effects::spell_system(host, key)`; then take back `status` (endFlag),
-   `hold`, `level` and the `SkillRelease` events;
+   `hold`, `level` and the `SkillRelease` events. One flag in two copies:
+   a copy left clear would hand clear back after the first frame, and the
+   targets would be held for one frame;
 3. when ccThSkill deletes the run, `Effects::spell_remove(key)`.
 
 The damage calls are events, raised at the moment the game makes the call

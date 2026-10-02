@@ -193,6 +193,8 @@ pub struct SpellRun {
     pub stype: i8,
     /// `count` before Main's increment.
     pub count: i16,
+    /// `holdFlag`: the targets held while the system runs.
+    pub hold: bool,
     pub c_pos: V4,
     pub c_dirc: V4,
     pub t_pos: V4,
@@ -2040,6 +2042,7 @@ impl Combat {
                 sid: r.id,
                 stype: r.stype,
                 count: r.count.wrapping_sub(1),
+                hold: r.hold,
                 c_pos: r.pos,
                 c_dirc: r.dirc,
                 t_pos: r.target_pos,

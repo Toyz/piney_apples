@@ -144,11 +144,13 @@ impl Spell {
     /// The fields `ccSkill::Main` keeps up to date before the system runs
     /// (from the battle crate's `SkillRun`): the count before its
     /// increment, the caster's position, heading and height, the target's
-    /// position and type, both characters (None once dropped).
+    /// position and type, both characters (None once dropped), and
+    /// `holdFlag`, which `_ccSkillRequest` set and `Main`'s own ends clear.
     #[allow(clippy::too_many_arguments)]
     pub fn sync(
         &mut self,
         count: i16,
+        hold: bool,
         c_pos: V4,
         c_dirc: V4,
         t_pos: V4,
@@ -157,6 +159,7 @@ impl Spell {
         target: Option<CharRef>,
     ) {
         self.count = count;
+        self.hold = hold;
         self.c_pos = c_pos;
         self.c_dirc = c_dirc;
         self.t_pos = t_pos;

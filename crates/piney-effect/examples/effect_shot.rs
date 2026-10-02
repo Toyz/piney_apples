@@ -290,7 +290,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(count) = spell {
             let (c, t) = (host.char_pos(KITE), host.char_pos(FOE));
             if let Some(s) = fx.spells.get_mut(1) {
-                s.sync(count, c, host.char_dirc(KITE), t, 0, Some(KITE), Some(FOE));
+                s.sync(count, s.hold, c, host.char_dirc(KITE), t, 0, Some(KITE), Some(FOE));
             }
             fx.spell_system(&mut host, 1);
             spell = match fx.spells.get(1) {
