@@ -275,6 +275,10 @@ pub trait Mode {
     /// For the window's title.
     fn title(&self) -> String;
 
+    /// Not the game's: the HUD drawn at `k` of its size (0.5 to 1), each
+    /// part toward its corner (`piney_fieldui::FieldUi::hud_scale`).
+    fn set_hud_scale(&mut self, _k: f32) {}
+
     /// A test hook by name (`--press F:NAME` for the ones that are not
     /// buttons: `gateout`, `gofield`): true when the mode took it.
     fn hook(&mut self, _name: &str) -> bool {

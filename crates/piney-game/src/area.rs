@@ -162,6 +162,41 @@ fn char_info(w: &FieldWorld, who: usize, names: &dyn Fn(i32) -> Vec<u8>) -> Opti
 }
 
 /// The scene index a HUD handle names.
+/// Not the game's: a drawn primitive shrunk by `k` toward `at` (frame
+/// pixels), its scissor with it.
+fn shrink_toward(c: &mut piney_draw::Cmd, k: f32, at: [f32; 2]) {
+    let piney_draw::Cmd::Prim(p) = c else { return };
+    let sprite = p.kind == piney_draw::PrimKind::Sprite && p.verts.len() == 2;
+    if sprite && p.state.texture.is_some() {
+        piney_desktop::sprite::inset_uv(p, [0.5; 2]);
+    }
+    // A sprite's far edges stop 1/16 pixel short of the next tile's start
+    // (the map's terrain, in four): scaled from there, side by side tiles
+    // keep one edge, where the gap could open across a pixel's centre.
+    if sprite {
+        let (a, b) = p.verts.split_at_mut(1);
+        let (a, b) = (&mut a[0], &mut b[0]);
+        for (p0, p1) in [(&mut a.x, &mut b.x), (&mut a.y, &mut b.y)] {
+            if *p1 >= *p0 {
+                *p1 += 1.0 / 16.0;
+            } else {
+                *p0 += 1.0 / 16.0;
+            }
+        }
+    }
+    for v in &mut p.verts {
+        v.x = at[0] + k * (v.x - at[0]);
+        v.y = at[1] + k * (v.y - at[1]);
+    }
+    // The scissor's inclusive ends, widened to whole pixels: rounded each
+    // on its own, two clips side by side could leave a row between them.
+    let s = &mut p.state.scissor;
+    let at_k = |v: f32, a: f32| a + k * (v - a);
+    let lo = |v: u16, a: f32| at_k(f32::from(v), a).floor().clamp(0.0, 4095.0) as u16;
+    let hi = |v: u16, a: f32| (at_k(f32::from(v) + 1.0, a).ceil() - 1.0).clamp(0.0, 4095.0) as u16;
+    (s.x0, s.x1, s.y0, s.y1) = (lo(s.x0, at[0]), hi(s.x1, at[0]), lo(s.y0, at[1]), hi(s.y1, at[1]));
+}
+
 fn handle_index(w: &FieldWorld, h: u32) -> Option<usize> {
     match h >> 24 {
         1 => w.combat().who((h & 0xffff) as u16 as i16 as i32),
@@ -423,7 +458,6 @@ impl AreaMode {
         self.ui.set_menu_face(slot, id, plcol);
     }
 
-    #[cfg(test)]
     pub fn ui_mut(&mut self) -> &mut FieldUi {
         &mut self.ui
     }
@@ -1619,7 +1653,8 @@ impl Mode for AreaMode {
             // Hidden with the world (Data Drain's black and its movie).
             let mut unseen = Ctx::new(View::default());
             let map_ctx = if self.world_hidden { &mut unseen } else { &mut ctx };
-            if piney_world::map::area_frame(
+            let mark = map_ctx.layers.mark();
+            let shown = piney_world::map::area_frame(
                 place,
                 &mut self.map_st,
                 &scene,
@@ -1630,7 +1665,14 @@ impl Mode for AreaMode {
                 fonts,
                 &mut ents,
                 map_ctx,
-            ) {
+            );
+            // Not the game's: the HUD scale shrinks the map toward the
+            // screen's top right.
+            let k = self.ui.hud_scale;
+            if k != 1.0 {
+                map_ctx.layers.map_since(&mark, |c| shrink_toward(c, k, [512.0, 0.0]));
+            }
+            if shown {
                 self.ui.map_on();
             }
             if awake {

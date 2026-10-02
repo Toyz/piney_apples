@@ -60,6 +60,11 @@ pub struct Sprite {
     pub vcol: Option<[[u8; 4]; 4]>,
     pub packet_max: usize,
     queued: Vec<Prim>,
+    /// Not the game's: texels each cell's texture coordinates are pulled in
+    /// by at either end (u, v), for a cell drawn shrunk (the HUD scale): a
+    /// bilinear sample at a fractional edge would otherwise read the next
+    /// cell of the atlas.
+    pub uv_inset: [f32; 2],
 }
 
 impl Sprite {
@@ -90,6 +95,7 @@ impl Sprite {
             vcol: None,
             packet_max,
             queued: Vec::new(),
+            uv_inset: [0.0; 2],
         }
     }
 
@@ -146,14 +152,18 @@ impl Sprite {
             if x > CULL_X1 || x + w < XYOFFSET_X || y > CULL_Y1 || y + h < XYOFFSET_Y {
                 continue;
             }
-            self.queued.push(sprite_prim(
+            let mut prim = sprite_prim(
                 (x, y, u0, v0),
                 (x + w, y + h, u1, v1),
                 Rgba(rgba),
                 self.tex.clone(),
                 Blend::TABLE[self.alpha_blend.min(8)],
                 view,
-            ));
+            );
+            if self.uv_inset != [0.0; 2] {
+                inset_uv(&mut prim, self.uv_inset);
+            }
+            self.queued.push(prim);
         }
         self.dx += self.sx;
     }
@@ -267,6 +277,21 @@ impl Sprite {
 
 /// A GS SPRITE from two corners in 12.4 units (x, y include the XYOFFSET;
 /// u, v are texels x 16).
+/// Not the game's: a two-corner sprite's texture coordinates pulled in by
+/// `by` texels (u, v) at either end, an axis left alone where it spans no
+/// more than twice that.
+pub fn inset_uv(prim: &mut Prim, by: [f32; 2]) {
+    let [a, b] = &mut prim.verts[..] else { return };
+    for (k, d) in by.into_iter().enumerate() {
+        let (p, q) = if k == 0 { (&mut a.u, &mut b.u) } else { (&mut a.v, &mut b.v) };
+        if (*q - *p).abs() > 2.0 * d {
+            let s = (*q - *p).signum() * d;
+            *p += s;
+            *q -= s;
+        }
+    }
+}
+
 pub fn sprite_prim(
     a: (i32, i32, i32, i32),
     b: (i32, i32, i32, i32),

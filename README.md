@@ -175,6 +175,12 @@ it, 1 to 8. `--no-vsync` (`vsync off`) stops waiting for the display's
 refresh, and `--fps-cap N` (`fps_cap N`, 0 for none) limits the pictures a
 second. The game itself runs at its own rate whatever these are.
 
+`--hud-scale N` (`hud_scale N` in the console, 0.5 to 1) draws the HUD
+smaller: the party panels toward the bottom left corner, the map toward the
+top right, the target's window toward the top left. Render scale does not
+do this: it adds detail, while the picture, HUD included, always fills the
+window as the PS2's did.
+
 ### Updating
 
 ```sh

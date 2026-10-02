@@ -292,6 +292,9 @@ pub enum Noise {
 /// The field UI.
 pub struct FieldUi {
     pub ctrl: MenuCtrl,
+    /// Not the game's: the HUD drawn this size (0.5 to 1; 1 is the game's),
+    /// each part shrunk toward its own corner ([`spr::Anchor`]).
+    pub hud_scale: f32,
     texts: Texts,
     textures: Textures,
     fonts: Fonts,
@@ -340,6 +343,7 @@ impl FieldUi {
         let setup = SetupScreen::with(fonts.clone(), textures.window.clone());
         FieldUi {
             ctrl,
+            hud_scale: 1.0,
             texts,
             textures,
             fonts,
@@ -373,7 +377,7 @@ impl FieldUi {
     pub fn step(&mut self, pad: &Pad, world: &World, save: &mut SaveState, count: u32) -> Frame {
         self.run(pad, world, save, count);
         let faces = self.ctrl.face_tex;
-        render::frame(&self.draws, &self.textures, &self.fonts, &save.names(), &faces)
+        render::frame(&self.draws, &self.textures, &self.fonts, &save.names(), &faces, self.hud_scale)
     }
 
     /// [`FieldUi::step`] drawing the menu layer into the frame the field is
@@ -388,7 +392,7 @@ impl FieldUi {
     ) {
         self.run(pad, world, save, count);
         let faces = self.ctrl.face_tex;
-        render::draw(&self.draws, &self.textures, &self.fonts, &save.names(), &faces, ctx);
+        render::draw(&self.draws, &self.textures, &self.fonts, &save.names(), &faces, ctx, self.hud_scale);
     }
 
     fn run(&mut self, pad: &Pad, world: &World, save: &mut SaveState, count: u32) {
@@ -574,7 +578,7 @@ impl FieldUi {
         self.draws = self.ctrl.item_frame(&mut x);
         if let Some(ctx) = ctx {
             let faces = self.ctrl.face_tex;
-            render::draw(&self.draws, &self.textures, &self.fonts, &save.names(), &faces, ctx);
+            render::draw(&self.draws, &self.textures, &self.fonts, &save.names(), &faces, ctx, self.hud_scale);
         }
     }
 

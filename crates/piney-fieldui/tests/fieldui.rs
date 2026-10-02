@@ -452,3 +452,48 @@ fn a_ryu_book_reward_draws_the_book_once_a_frame() {
     let odd: Vec<_> = counts.iter().filter(|&&(_, n)| n != 1).collect();
     assert!(odd.is_empty(), "frames without exactly one book: {odd:?}");
 }
+
+/// The sprite primitives of a frame: (min x, min y, max x, max y).
+fn sprite_boxes(f: &piney_draw::Frame) -> Vec<[f32; 4]> {
+    f.cmds
+        .iter()
+        .filter_map(|c| match c {
+            piney_draw::Cmd::Prim(p) if !p.verts.is_empty() => {
+                Some(p.verts.iter().fold([f32::MAX, f32::MAX, f32::MIN, f32::MIN], |b, v| {
+                    [b[0].min(v.x), b[1].min(v.y), b[2].max(v.x), b[3].max(v.y)]
+                }))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// Not the game's: `hud_scale` 0.5 draws the party panels at half their
+/// size in the screen's bottom left corner, the same primitives in the
+/// same order; at 1 the frame is the game's, unchanged.
+#[test]
+fn the_hud_scale_shrinks_the_panels_into_their_corner() {
+    let Some(mut r) = Run::new() else { return };
+    // Out of battle: the battle band scrolls.
+    r.world.game.in_battle = 0;
+    r.idle(30);
+    let full = sprite_boxes(&r.step(Buttons::NONE, Buttons::NONE));
+    let again = sprite_boxes(&r.step(Buttons::NONE, Buttons::NONE));
+    assert_eq!(full, again, "the HUD stands still");
+    r.ui.hud_scale = 0.5;
+    let half = sprite_boxes(&r.step(Buttons::NONE, Buttons::NONE));
+    assert_eq!(full.len(), half.len());
+    // The panels: everything wholly in the lower left quarter.
+    let mut panels = 0;
+    for (a, b) in full.iter().zip(&half) {
+        if a[0] >= 0.0 && a[2] <= 256.0 && a[1] >= 300.0 {
+            panels += 1;
+            let (wa, wb) = (a[2] - a[0], b[2] - b[0]);
+            assert!((wb - wa / 2.0).abs() <= 1.0, "width {wa} -> {wb}");
+            assert!(b[0] <= a[0] && b[1] >= a[1], "{a:?} -> {b:?}: not toward the corner");
+        }
+    }
+    assert!(panels > 10, "only {panels} panel primitives");
+    r.ui.hud_scale = 1.0;
+    assert_eq!(sprite_boxes(&r.step(Buttons::NONE, Buttons::NONE)), full);
+}

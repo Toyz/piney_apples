@@ -56,6 +56,24 @@ impl Layers {
         }
     }
 
+    /// Not the game's: how many groups each layer has in front now, for
+    /// [`Layers::map_since`].
+    pub fn mark(&self) -> Vec<(i16, usize)> {
+        self.layers.iter().map(|(&p, l)| (p, l.front.len())).collect()
+    }
+
+    /// Not the game's: every command put in front of a layer since `mark`
+    /// through `f` (the HUD scale's shrink of a part drawn whole, as the
+    /// minimap).
+    pub fn map_since(&mut self, mark: &[(i16, usize)], mut f: impl FnMut(&mut Cmd)) {
+        for (p, l) in self.layers.iter_mut() {
+            let from = mark.iter().find(|m| m.0 == *p).map_or(0, |m| m.1);
+            for c in l.front.iter_mut().skip(from).flatten() {
+                f(c);
+            }
+        }
+    }
+
     /// A translucent model node for layer `pri`'s sorted group.
     pub fn sorted(&mut self, pri: i16, z: f32, cmd: Cmd) {
         self.layers.entry(pri).or_default().sorted.push((z, cmd));

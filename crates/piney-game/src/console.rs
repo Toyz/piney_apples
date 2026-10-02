@@ -640,7 +640,17 @@ mod tests {
         c.set_commands(&format!("no console commands here\n{}", crate::APP_HELP));
         assert_eq!(
             c.commands,
-            ["deflicker", "fps_cap", "import_card", "pad_log", "render_scale", "story", "version", "vsync"]
+            [
+                "deflicker",
+                "fps_cap",
+                "hud_scale",
+                "import_card",
+                "pad_log",
+                "render_scale",
+                "story",
+                "version",
+                "vsync"
+            ]
         );
         assert!(crate::APP_HELP.lines().all(|l| l.contains("  ")));
         c.line = "ve".into();

@@ -119,6 +119,9 @@ pub struct Session {
     resident: std::collections::BTreeSet<String>,
     /// The console's `god`: the party at full HP and SP every frame.
     god: bool,
+    /// Not the game's: the HUD's size ([`Mode::set_hud_scale`]), handed to
+    /// the field UI every frame.
+    hud_scale: f32,
     /// newlib's `rand()` as the set-ups' restock draws it (the game's is
     /// one sequence for everything; the modes keep their own).
     rand: piney_world::Rand,
@@ -218,6 +221,7 @@ impl Session {
             hold: 0,
             resident: Default::default(),
             god: false,
+            hud_scale: 1.0,
             rand: piney_world::Rand(1),
             logos_played: 0,
             settings_path: None,
@@ -919,7 +923,16 @@ impl Session {
 }
 
 impl Mode for Session {
+    fn set_hud_scale(&mut self, k: f32) {
+        self.hud_scale = k;
+    }
+
     fn step(&mut self, pad: &Pad) -> Frame {
+        match &mut self.stage {
+            Stage::Area(a) => a.ui_mut().hud_scale = self.hud_scale,
+            Stage::World(w) => w.ui_mut().hud_scale = self.hud_scale,
+            _ => {}
+        }
         // `--dvd`: the new scene's files still loading; only the loading
         // display runs.
         if self.hold > 0 {

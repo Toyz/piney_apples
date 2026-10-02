@@ -75,7 +75,8 @@ import_card PATH  copy .hack saves from PCSX2 (a .ps2 card, a folder card, one s
 pad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it
 vsync [on|off]  the window waits for the display's refresh to show a picture (--no-vsync starts with it off)
 fps_cap [N]  at most N pictures a second, 0 for no cap (--fps-cap N); the game itself runs at its own rate either way
-render_scale [N]  draw at N times the PS2's resolution, 1 to 8 (--render-scale N)";
+render_scale [N]  draw at N times the PS2's resolution, 1 to 8 (--render-scale N)
+hud_scale [N]  the HUD at N of its size, 0.5 to 1, each part toward its corner (--hud-scale N)";
 
 struct App {
     mode: Box<dyn Mode>,
@@ -93,6 +94,8 @@ struct App {
     /// The frame buffer's scale (`--render-scale`, `render_scale`), handed
     /// to the GS once it exists.
     render_scale: u32,
+    /// The HUD's size (`--hud-scale`, `hud_scale`), handed to each mode.
+    hud_scale: f32,
     /// When the last picture was shown, for the cap.
     presented: Instant,
     /// Held until the window's device exists.
@@ -186,6 +189,17 @@ impl App {
             }
             return format!("render_scale {}", self.render_scale);
         }
+        if w.first() == Some(&"hud_scale") {
+            match w.get(1).map(|n| n.parse::<f32>()) {
+                Some(Ok(n)) if (0.5..=1.0).contains(&n) => {
+                    self.hud_scale = n;
+                    self.mode.set_hud_scale(n);
+                }
+                None => {}
+                Some(_) => return "hud_scale N, N from 0.5 to 1".into(),
+            }
+            return format!("hud_scale {}", self.hud_scale);
+        }
         if w.first() == Some(&"fps_cap") {
             match w.get(1).map(|n| n.parse::<u32>()) {
                 Some(Ok(n)) => self.fps_cap = n,
@@ -217,6 +231,7 @@ impl App {
             return match start::session(self.iso.clone(), self.archive.clone(), self.card.clone(), n) {
                 Ok(s) => {
                     self.mode = Box::new(s);
+                    self.mode.set_hud_scale(self.hud_scale);
                     format!("story {n}")
                 }
                 Err(e) => e,
@@ -299,6 +314,7 @@ impl App {
         self.archive = booted.archive;
         self.volume = booted.volume;
         self.mode = booted.mode;
+        self.mode.set_hud_scale(self.hud_scale);
         self.iso = path;
         self.options = options;
         self.launching = false;
@@ -1070,6 +1086,7 @@ fn main() {
     let mut vsync = true;
     let mut fps_cap = 0u32;
     let mut render_scale = 1u32;
+    let mut hud_scale = 1.0f32;
     let mut pad_log: Option<String> = None;
     let mut import_card: Option<PathBuf> = None;
     let mut replay: Option<String> = None;
@@ -1130,6 +1147,7 @@ fn main() {
             "--no-vsync" => vsync = false,
             "--fps-cap" => fps_cap = args.next().and_then(|n| n.parse().ok()).unwrap_or(0),
             "--render-scale" => render_scale = args.next().and_then(|n| n.parse::<u32>().ok()).unwrap_or(1).clamp(1, 8),
+            "--hud-scale" => hud_scale = args.next().and_then(|n| n.parse::<f32>().ok()).unwrap_or(1.0).clamp(0.5, 1.0),
             "--dvd" => match args.peek() {
                 Some(n) if !n.starts_with("--") => match n.parse::<f64>() {
                     Ok(speed) if speed > 0.0 => {
@@ -1166,7 +1184,7 @@ fn main() {
             "-V" | "--version" => return,
             "-h" | "--help" => {
                 println!(
-                    "piney-game [--iso PATH | --game DIR [--volume N]] [--mode MODE] [--no-events] [--mute] [--deflicker] [--no-vsync] [--fps-cap N] [--render-scale N] [--dvd [SPEED]] [--voice en|jp] [--card DIR | --no-card] [--mail N,...] [--news N,...] [--pad-log FILE] [--replay FILE] [--import-card PATH] [--version]"
+                    "piney-game [--iso PATH | --game DIR [--volume N]] [--mode MODE] [--no-events] [--mute] [--deflicker] [--no-vsync] [--fps-cap N] [--render-scale N] [--hud-scale N] [--dvd [SPEED]] [--voice en|jp] [--card DIR | --no-card] [--mail N,...] [--news N,...] [--pad-log FILE] [--replay FILE] [--import-card PATH] [--version]"
                 );
                 println!(
                     "--iso PATH: a disc image, or a disc of a build (DIR/outbreak.disc); --game DIR: a piney-build build (by default {}), its launcher when it holds more than one disc; --volume 1-4 (inf, mut, out, qua): that disc of the build, no launcher",
@@ -1414,6 +1432,7 @@ fn main() {
             }
         };
         gs.set_scale(render_scale);
+        mode.set_hud_scale(hud_scale);
         let mut pad = Pad::default();
         let mut replay = replay;
         if !frames_given && !replay.is_empty() {
@@ -1622,6 +1641,7 @@ fn main() {
         vsync,
         fps_cap,
         render_scale,
+        hud_scale,
         presented: Instant::now(),
         assets: Some(assets),
         gs: None,
@@ -1653,6 +1673,7 @@ fn main() {
         mute,
         launching,
     };
+    app.mode.set_hud_scale(app.hud_scale);
     // The console's lines typed, kept between runs in the build's folder.
     if let Some(home) = piney_data::pack::home().filter(|h| h.is_dir()) {
         app.console.keep_history(home.join("console_history.txt"));

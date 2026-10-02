@@ -11,7 +11,7 @@ use piney_desktop::eef::{add, div, from_int, mul, sub, to_int};
 
 use crate::ctrl::{Ctx, Draw, MenuCtrl};
 use crate::menus::system::str_cat;
-use crate::spr::{Obj, Spr, font_type, make_num, set_clm};
+use crate::spr::{Anchor, Obj, Spr, font_type, make_num, set_clm};
 use crate::window::{self, disp_button, disp_square, disp_square_sb, disp_square_tag, disp_target, set_type};
 use crate::world::CharInfo;
 use crate::{Noise, Request};
@@ -48,6 +48,35 @@ fn send(m: &mut MenuCtrl, obj: Obj) {
         m.draws.push(Draw::Kanji { obj, text, packets });
     } else {
         m.draws.push(Draw::Send(packets));
+    }
+}
+
+/// Not the game's: the HUD scale's anchor ([`crate::spr::Anchor`]) for
+/// every packet the menu's sprites make from now on.
+fn set_anchor(m: &mut MenuCtrl, a: Anchor) {
+    for s in [
+        &mut m.win,
+        &mut m.win_pr,
+        &mut m.win_a,
+        &mut m.ene_life,
+        &mut m.target,
+        &mut m.kanji,
+        &mut m.kanji_pr,
+        &mut m.name,
+        &mut m.name_pr,
+        &mut m.font,
+        &mut m.fly,
+        &mut m.item_icon,
+        &mut m.con_icon,
+        &mut m.bg,
+        &mut m.drain,
+        &mut m.protect_spr,
+        &mut m.mask,
+    ] {
+        s.anchor = a;
+    }
+    for s in m.setting.iter_mut().chain(m.faces.iter_mut()) {
+        s.anchor = a;
     }
 }
 
@@ -182,6 +211,8 @@ pub fn disp(m: &mut MenuCtrl, x: &mut Ctx) {
     }
     m.win.set_alpha(m.alpha);
     set_type(&mut m.win, 1);
+    // Not the game's: the HUD scale's anchors, by what each part draws.
+    set_anchor(m, Anchor::NONE);
     if m.exception_disp != 0 {
         crate::menus::exception_disp(m, x);
     }
@@ -209,22 +240,30 @@ pub fn disp(m: &mut MenuCtrl, x: &mut Ctx) {
         m.drain_alpha = 0;
     }
     if m.drain_alpha != 0 {
+        set_anchor(m, Anchor::TOP_RIGHT);
         drain_gauge(m, x);
+        set_anchor(m, Anchor::NONE);
     }
     name_texts(m, x, target.as_ref());
     target_cursor(m, x, target.as_ref());
     if m.target_alpha != 0
         && let Some(t) = target.as_ref()
     {
+        set_anchor(m, Anchor::TOP_LEFT);
         target_window(m, x, t);
     }
+    set_anchor(m, Anchor::BOTTOM_LEFT);
     panels(m, x);
+    set_anchor(m, Anchor::NONE);
     if !x.world.game_over {
         enemy_bars(m, x);
     }
     protect_marks(m, x);
+    set_anchor(m, Anchor::TOP_BAND);
     banner(m, x, blink);
+    set_anchor(m, Anchor::TOP_LEFT);
     new_mail(m, x);
+    set_anchor(m, Anchor::NONE);
     // ccMsg->Disp.
     let draws = m.msg.disp(x.frame_rate);
     m.draws.push(Draw::Msg(draws));
@@ -1127,6 +1166,8 @@ fn banner(m: &mut MenuCtrl, x: &mut Ctx, blink: i32) {
         }
     }
     let e = &mut m.ene_life;
+    // Not the game's: the announcement shrinks about the screen's centre.
+    e.anchor = Anchor::CENTRE;
     let mut code = 0;
     if g.in_battle == 1 {
         e.set_colour(2);

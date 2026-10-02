@@ -117,19 +117,34 @@ fn blend(obj: Obj) -> usize {
     }
 }
 
-/// One packet through a sprite: a cell, or a string of cells.
-fn packet(s: &mut Sprite, p: &Packet, view: &piney_desktop::view::LayerView) {
+/// Not the game's: one axis of a packet under the HUD scale `k` about its
+/// anchor `a`: (position, size, offset), the offset folded into the
+/// position. At `k` 1, or with no anchor, the packet's own.
+fn shrink(a: Option<f32>, k: f32, d: f32, size: f32, c: f32) -> (f32, f32, f32) {
+    match a {
+        Some(a) if k != 1.0 => (a + k * (d + c - a), size * k, 0.0),
+        _ => (d, size, c),
+    }
+}
+
+/// One packet through a sprite: a cell, or a string of cells; `k` the HUD
+/// scale ([`crate::spr::Anchor`]).
+fn packet(s: &mut Sprite, p: &Packet, view: &piney_desktop::view::LayerView, k: f32) {
+    let (dx, sx, cx) = shrink(p.anchor.x, k, p.dx, p.sx, p.cx);
+    let (dy, sy, cy) = shrink(p.anchor.y, k, p.dy, p.sy, p.cy);
+    let pulled = |a: Option<f32>| if a.is_some() && k != 1.0 { 0.5 } else { 0.0 };
+    s.uv_inset = [pulled(p.anchor.x), pulled(p.anchor.y)];
     s.wu = p.wu;
     s.wv = p.wv;
     s.wi = p.wi;
     s.su = p.su;
     s.sv = p.sv;
-    s.sx = p.sx;
-    s.sy = p.sy;
-    s.cx = p.cx;
-    s.cy = p.cy;
-    s.dx = p.dx;
-    s.dy = p.dy;
+    s.sx = sx;
+    s.sy = sy;
+    s.cx = cx;
+    s.cy = cy;
+    s.dx = dx;
+    s.dy = dy;
     s.flip_u = p.flip;
     s.shadow = p.shadow;
     s.colour = p.rgba;
@@ -155,11 +170,11 @@ fn packet(s: &mut Sprite, p: &Packet, view: &piney_desktop::view::LayerView) {
 /// `MakePacketStr` does by swapping the quad's two V rows): each packet
 /// made alone, its SPRITE's V swapped when flipped, all sent as the one
 /// group `SendPacket` makes.
-fn send_flipped(s: &Sprite, packets: &[Packet], view: &piney_desktop::view::LayerView, ctx: &mut DrawCtx) {
+fn send_flipped(s: &Sprite, packets: &[Packet], view: &piney_desktop::view::LayerView, ctx: &mut DrawCtx, k: f32) {
     let mut group = Vec::new();
     for p in packets {
         let mut one = s.clone();
-        packet(&mut one, p, view);
+        packet(&mut one, p, view, k);
         let mut layers = piney_desktop::layers::Layers::default();
         one.send(&mut layers);
         for mut c in layers.flatten() {
@@ -178,15 +193,24 @@ fn send_flipped(s: &Sprite, packets: &[Packet], view: &piney_desktop::view::Laye
 }
 
 /// The frame of the menu layer.
-pub fn frame(draws: &[Draw], textures: &Textures, fonts: &Fonts, names: &Names, faces: &[i32; 4]) -> Frame {
+pub fn frame(draws: &[Draw], textures: &Textures, fonts: &Fonts, names: &Names, faces: &[i32; 4], k: f32) -> Frame {
     let mut ctx = DrawCtx::new(View::default());
-    draw(draws, textures, fonts, names, faces, &mut ctx);
+    draw(draws, textures, fonts, names, faces, &mut ctx, k);
     ctx.finish()
 }
 
 /// The menu layer's packets sent into a frame the rest of the game is
-/// building (its uploads numbered after the ones already there).
-pub fn draw(draws: &[Draw], textures: &Textures, fonts: &Fonts, names: &Names, faces: &[i32; 4], ctx: &mut DrawCtx) {
+/// building (its uploads numbered after the ones already there); `k` the
+/// HUD scale ([`crate::FieldUi::hud_scale`]).
+pub fn draw(
+    draws: &[Draw],
+    textures: &Textures,
+    fonts: &Fonts,
+    names: &Names,
+    faces: &[i32; 4],
+    ctx: &mut DrawCtx,
+    hud: f32,
+) {
     let view = menu_view();
     for d in draws {
         match d {
@@ -198,11 +222,11 @@ pub fn draw(draws: &[Draw], textures: &Textures, fonts: &Fonts, names: &Names, f
                 s.alpha_blend = blend(first.obj);
                 let view = view_of(first.obj, &view);
                 if packets.iter().any(|p| p.flip_v) {
-                    send_flipped(&s, packets, &view, ctx);
+                    send_flipped(&s, packets, &view, ctx, hud);
                     continue;
                 }
                 for p in packets {
-                    packet(&mut s, p, &view);
+                    packet(&mut s, p, &view, hud);
                 }
                 s.send(&mut ctx.layers);
             }
@@ -246,7 +270,7 @@ pub fn draw(draws: &[Draw], textures: &Textures, fonts: &Fonts, names: &Names, f
                 ctx.uploads.push(k.upload(id, fonts));
                 let mut s = Sprite::mask(MENU_LAYER, TexRef::Upload(id), k.th as i32, 4096);
                 for p in packets {
-                    packet(&mut s, p, &view);
+                    packet(&mut s, p, &view, hud);
                 }
                 s.send(&mut ctx.layers);
             }

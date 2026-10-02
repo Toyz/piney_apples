@@ -299,6 +299,10 @@ impl WorldMode {
         &self.ui
     }
 
+    pub fn ui_mut(&mut self) -> &mut FieldUi {
+        &mut self.ui
+    }
+
     /// One frame of the event task (`ccThEvent`, priority 32), before the
     /// world's tasks; then `ccSetupGameCtrl`'s side of the passes.
     fn event_frame(&mut self) {

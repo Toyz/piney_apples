@@ -114,6 +114,26 @@ impl Obj {
     }
 }
 
+/// Not the game's: what a packet shrinks toward under the HUD scale
+/// ([`crate::FieldUi::hud_scale`]), a coordinate of the menu's 512 x 448
+/// space a side. An axis left `None` keeps its positions and sizes; both
+/// `None` (the default) is a packet the scale leaves alone.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Anchor {
+    pub x: Option<f32>,
+    pub y: Option<f32>,
+}
+
+impl Anchor {
+    pub const NONE: Anchor = Anchor { x: None, y: None };
+    pub const TOP_LEFT: Anchor = Anchor { x: Some(0.0), y: Some(0.0) };
+    pub const TOP_RIGHT: Anchor = Anchor { x: Some(512.0), y: Some(0.0) };
+    pub const BOTTOM_LEFT: Anchor = Anchor { x: Some(0.0), y: Some(448.0) };
+    /// A band across the top: its height alone.
+    pub const TOP_BAND: Anchor = Anchor { x: None, y: Some(0.0) };
+    pub const CENTRE: Anchor = Anchor { x: Some(256.0), y: Some(224.0) };
+}
+
 /// One queued cell or string, with the sprite's fields at the call.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Packet {
@@ -145,6 +165,7 @@ pub struct Packet {
     pub vcol: Option<[[u8; 4]; 4]>,
     /// ctrl 0x10: a dark copy a unit right and down.
     pub shadow: bool,
+    pub anchor: Anchor,
 }
 
 /// A `ccSprite` (or `ccMenuWindow`, `ccKanji`, `ccFont`) as the menu sets
@@ -179,6 +200,8 @@ pub struct Spr {
     pub vcol: Option<[[u8; 3]; 4]>,
     /// ctrl 0x10 (the gate screens set it on the font and leave it).
     pub shadow: bool,
+    /// Given to each packet made ([`Anchor`]).
+    pub anchor: Anchor,
 }
 
 impl Spr {
@@ -207,6 +230,7 @@ impl Spr {
             queue: Vec::new(),
             vcol: None,
             shadow: false,
+            anchor: Anchor::NONE,
         }
     }
 
@@ -261,6 +285,7 @@ impl Spr {
             flip_v: self.flip_v,
             vcol: self.vcol.map(|v| v.map(|c| [c[0], c[1], c[2], self.alpha as u8])),
             shadow: self.shadow,
+            anchor: self.anchor,
         }
     }
 

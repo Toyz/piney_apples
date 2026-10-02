@@ -1392,6 +1392,28 @@ record the menus changed in the save ([battle](battle.md#the-partys-hp-and-condi
 the note on the records), so the menu's writes and `CalcReal`'s hold in
 a field as in a town.
 
+## Not the game's: the HUD scale
+
+`FieldUi::hud_scale` (the port's `--hud-scale`, 0.5 to 1) draws the HUD
+smaller. Each packet carries an anchor (`piney_fieldui::spr::Anchor`, in the
+menu's 512 x 448 space), which `Disp` sets on every sprite before each part:
+
+- the party panels (`panels`): the bottom left;
+- the target's window (`target_window`) and the new-mail mark: the top left;
+- the bracelet's gauge: the top right;
+- the battle band: its height, toward the top;
+- the battle announcement: the centre.
+
+The menus, the message window, the world-anchored marks (enemy bars, the
+target cursor, chat balloons, damage numbers) and the dim keep their size.
+The renderer scales a packet's position and size about its anchor, and
+pulls its texture coordinates in by half a texel, so that a bilinear
+sample at a fractional edge stays in its cell. The field's minimap is
+shrunk toward the top right after it is drawn: its sprites, scissors, and
+far edges taken from the next tile's start, since its terrain tiles stop
+1/16 pixel short of each other. At 1 nothing is touched, and the frames
+are the game's.
+
 ## The Ryu Books (`BOOK`, gcmn book.cpp)
 
 A Ryu Book (key item 273 + n, read in a town) runs `ccThBook`
