@@ -3,7 +3,7 @@ title: How the game is put together
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x0015a780 main, 0x00167940 ccThMother, 0x001671e0 ccGame::ChangeRequest, 0x001680e0 ccThLoadOverlay, 0x0010a5f0 ccSystem::Ctrl, 0x001099e0 VSyncCallBack, 0x0015a5c0 ccThControl, 0x00159e10 ccTscb::Breath, 0x00102d40 ccPad::Read, 0x00102a50 ccPad::Ctrl, 0x00102bf0 ccPad::SetActuater, 0x0010a740 ccSystem::Ctrl (the motors)
-worklog: 15, 18, 40
+worklog: 15, 18, 40, 331
 ---
 
 # How the game is put together
@@ -41,7 +41,25 @@ ccThMother                             mother.cpp
 | 4 | `ccSetupToppage` | `cdrom0:\DATA\TOPPAGE.PRG` | 1 |
 | 5 | `ccSetupNewGame` | `cdrom0:\DATA\GCMN.PRG` | 2 |
 | 6 | `ccSetupGameCtrl` | none; gcmn stays resident | - |
-| 1, 0x1000 | inside `ccThMother` | | |
+| 1 | inside `ccThMother`: the soft reset | | 1 |
+| 0x1000 | inside `ccThMother`: every task deleted, no set-up | | |
+
+Mode 1 (INF `ccThMother` 0x00167ca0) goes back to the start-up path at
+0x00167b18:
+1. `ccAllSoundOff`, the layers flipped back and every task deleted
+   (`ccDeleteAllThread`);
+2. the system and draw environment reset, `SetFrameRate(1)`;
+3. `ccGame::Init`, `ccSaveData::Init(1)`, `ccEvent::Init`,
+   `ccStartEvent(1, 0)`;
+4. `ChangeRequest(2, 7)`: the title.
+
+Three things ask for it with `ChangeRequest(1, 7)`: the desktop's Reset
+(`ccDtMenu::ResetMenu`, 0x0016ed90), The World's Reset
+(`ccMenuCtrl::ResetMenu`, gcmn 0x00540688) and the game over
+(`ccOpenGameOverMenu`, gcmn 0x0056a7d4). Mode 0x1000 (0x00167d00) only
+flips the layers and deletes every task. None of the 12 `ChangeRequest`
+calls in main and the four overlays asks for it; the scripts' `mode`
+uses 3 and 5.
 
 Overlays are loaded on the task `ccThLoadOverlay`, which retries
 `mwLoadOverlay` until it succeeds; see [the overlay format](../formats/prg.md).
@@ -142,5 +160,4 @@ The callers are `ccPlayer::DamageActuate` (Kite hit: the small motor and
 
 ## Unknown
 
-- Modes 1 and 0x1000.
 - Which tasks each mode starts, and their priorities.
