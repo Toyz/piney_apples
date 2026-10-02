@@ -309,13 +309,14 @@ fn draw_model(
     }
 }
 
-/// `ccModel::Draw`'s sort key for a model without a bounding box, `M[2][3] /
-/// M[3][3]` of `world_screen * lw` ([`piney_desktop::anm::sort_key`]), in
-/// VU0's arithmetic. The view screen's w row is (0, 0, 1, 0), so the key needs
-/// only `world_view`'s third row and `lw`, taken as the game has them
+/// `ccModel::Draw`'s sort key for a model without a bounding box (a bone or
+/// skin model: a rigid one keys on its vertex box,
+/// [`piney_desktop::assets::vertex_box_centre`]), `M[2][3] / M[3][3]` of
+/// `world_screen * lw` ([`piney_desktop::anm::sort_key`]), in VU0's
+/// arithmetic. The view screen's w row is (0, 0, 1, 0), so the key needs only
+/// `world_view`'s third row and `lw`, taken as the game has them
 /// (`Scene::world_view_bits`): for planes square to the view the key is the
-/// camera's small tilt, which a float camera gets as rounding noise instead
-/// (Mutation's recall, stream 23).
+/// camera's small tilt, which a float camera gets as rounding noise instead.
 fn exact_key(wv: &[[u32; 4]; 4], lw: &[[u32; 4]; 4]) -> f32 {
     use piney_data::anim::ee;
     let w = |c: usize| {
