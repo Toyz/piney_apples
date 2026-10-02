@@ -1535,6 +1535,87 @@ class FieldUiAgainstGame(unittest.TestCase):
         sc.frames = 386
         self.compare(sc, "book 2")
 
+    def test_book_4(self):
+        # Book IV: twelve kinds slain (past the first reward), one more
+        # than 9 times; where the last was slain (server 1, words 3 5 7);
+        # onto the list, down it, an enemy opened and closed, up off it,
+        # closed.
+        sc = Scenario(420)
+        self.party(sc, 1)
+        for k in (0, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233):
+            sc.saves += [(0x68B7 + k, 1, 3)]
+        sc.saves += [(0x68B7 + 34, 1, 12)]
+        for k, v in enumerate((1, 3, 5, 7)):
+            sc.saves += [(0x69F0 + 8 * 2 + 2 * k, 2, v)]
+        self.book(sc, 3)
+        sc.pads = {f: (OK, 0) for f in range(40, 200, 15)}
+        sc.directs.update({250: DOWN, 251: DOWN})
+        sc.pads.update({270: (0, DOWN), 290: (0, DOWN), 300: (0, UP), 310: (OK, 0), 340: (CANCEL, 0),
+                        360: (0, UP), 375: (0, UP), 390: (0, UP), 410: (CANCEL, 0)})
+        sc.frames = 411
+        self.compare(sc, "book 4")
+
+    def test_book_5(self):
+        # Book V: BlackRose and Orca met, with gold given (the total past
+        # the first reward), their time in the party and friendliness; the
+        # reward's windows, onto the list and along it, up off it, closed.
+        sc = Scenario(400)
+        self.party(sc, 1)
+        self.book3(sc)
+        sc.saves += [(0x73F8 + 4 * 2, 4, 1200), (0x73F8 + 4 * 3, 4, 300), (0x73B4 + 4 * 2, 4, 60 * 4000),
+                     (0x7488 + 0xDC * 2 + 0xDA, 2, 77)]
+        self.book(sc, 4)
+        sc.pads = {f: (OK, 0) for f in range(40, 200, 15)}
+        # The rows move with the held buttons: DOWN held three frames.
+        sc.directs.update({260: DOWN, 261: DOWN, 262: DOWN})
+        sc.pads.update({280: (0, DOWN), 300: (0, DOWN), 320: (0, UP), 340: (0, UP), 385: (CANCEL, 0)})
+        sc.frames = 386
+        self.compare(sc, "book 5")
+
+    def test_book_6(self):
+        # Book VI: the boxes opened (30), the objects broken (12), the
+        # idols opened (5); the rewards' windows, the rows walked, the
+        # book closed.
+        sc = Scenario(400)
+        self.party(sc, 1)
+        sc.saves += [(0x7440, 2, 30), (0x7442, 2, 12), (0x746E, 2, 5)]
+        self.book(sc, 5)
+        sc.pads = {f: (OK, 0) for f in range(40, 330, 15)}
+        sc.pads.update({340: (DOWN, 0), 350: (DOWN, 0), 360: (DOWN, 0), 370: (UP, 0), 385: (CANCEL, 0)})
+        sc.frames = 386
+        self.compare(sc, "book 6")
+
+    def test_book_7(self):
+        # Book VII: the springs (4), the mushrooms' grandfather (2), the
+        # symbols (3); the rewards' windows, the rows walked, closed.
+        sc = Scenario(400)
+        self.party(sc, 1)
+        sc.saves += [(0x7470, 2, 4), (0x7472, 2, 2), (0x7444, 2, 3)]
+        self.book(sc, 6)
+        sc.pads = {f: (OK, 0) for f in range(40, 330, 15)}
+        sc.pads.update({340: (DOWN, 0), 350: (DOWN, 0), 360: (DOWN, 0), 370: (UP, 0), 385: (CANCEL, 0)})
+        sc.frames = 386
+        self.compare(sc, "book 7")
+
+    def test_book_8(self):
+        # Book VIII: four Grunties met (counts at +0x7474) and seven foods
+        # given (+0x7446, 40 in all); the menu, the Grunties' page and
+        # back, down to the foods, their page (the total, onto the list,
+        # along it, up off it) and back, the book closed.
+        sc = Scenario(560)
+        self.party(sc, 1)
+        for k, v in ((0, 3), (2, 1), (5, 7), (8, 2)):
+            sc.saves += [(0x7474 + 2 * k, 2, v)]
+        for k, v in ((1, 5), (2, 9), (4, 1), (7, 6), (9, 4), (12, 8), (15, 7)):
+            sc.saves += [(0x7446 + 2 * k, 2, v)]
+        self.book(sc, 7)
+        sc.pads = {40: (OK, 0), 80: (CANCEL, 0), 100: (DOWN, 0), 110: (OK, 0)}
+        sc.pads.update({f: (OK, 0) for f in range(140, 260, 15)})
+        sc.pads.update({280: (0, DOWN), 300: (0, DOWN), 320: (0, DOWN), 340: (0, UP), 360: (0, UP),
+                        380: (0, UP), 400: (0, DOWN), 420: (CANCEL, 0), 450: (UP, 0), 470: (CANCEL, 0)})
+        sc.frames = 471
+        self.compare(sc, "book 8")
+
     def book3(self, sc):
         """Book III's characters: BlackRose and Orca in the party flag,
         trades with them, people met (trade counts 0 and 4), a PC's item

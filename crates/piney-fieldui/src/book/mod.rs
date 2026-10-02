@@ -34,6 +34,9 @@ pub mod save {
     pub const AREA_COUNT: usize = 0x6862;
     /// `enemyKillCount[313]` (+0x68b7).
     pub const ENEMY_KILL: usize = 0x68b7;
+    /// `enemyKillArea[313][4]` (+0x69f0): where each was last slain, the
+    /// server and the area's words A, B, C.
+    pub const KILL_AREA: usize = 0x69f0;
     /// `playTime` (+0x8400), in frames.
     pub const PLAY_TIME: usize = 0x8400;
     /// `partyMemberFlag` (+0x2220).
@@ -65,7 +68,7 @@ pub const MSG_ROWS: usize = 140;
 pub const BUTTON_LAYER: i16 = 243;
 /// `hiddenName`'s rows: book III's 67 characters, book IV's 303 enemies.
 const CHARS: usize = 67;
-const ENEMIES: usize = 303;
+pub(super) const ENEMIES: usize = 303;
 
 /// `CHARINFO` (0x78): a character of book III's list.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

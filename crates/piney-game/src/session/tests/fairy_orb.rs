@@ -546,6 +546,36 @@ fn a_ryu_book_opens_in_town() {
     assert_eq!(read_a_ryu_book(&mut s, 0, in_town), (true, true), "(the cover, the pages)");
 }
 
+/// Issue #23: Ryu Books IV to VIII open in Mac Anu and close again on
+/// cancel. Their pages were not ported: the window stayed empty and,
+/// with no page's keys running its opening wait down, cancel never
+/// closed the book.
+#[test]
+fn the_later_ryu_books_open_and_close() {
+    use crate::session::area15::{disc, hold, start};
+    let Some((iso, archive)) = disc() else { return };
+    for book in 3..8 {
+        let mut s = start(&iso, &archive, None);
+        let in_town = |s: &Session| matches!(&s.stage, Stage::World(w) if matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 30));
+        hold(&mut s, 128, 128, 900, in_town);
+        assert_eq!(read_a_ryu_book(&mut s, book, in_town), (true, true), "book {}: (the cover, the pages)", book + 1);
+        let mut pad = Pad::default();
+        let mut closed = None;
+        for f in 0..600u32 {
+            let open = menus(&s).is_some_and(|ui| ui.ctrl.book.is_some());
+            if !open {
+                closed = Some(f);
+                break;
+            }
+            let b = if f % 10 == 9 { Buttons::CIRCLE } else { Buttons::NONE };
+            pad.read(&raw(b, 128));
+            s.step(&pad);
+            s.take_events();
+        }
+        assert!(closed.is_some(), "book {} never closed", book + 1);
+    }
+}
+
 /// In a field the Key Items refuse a Ryu Book (`ImportantItemMenu`'s
 /// help 8 when `area` is not 0): no cover, no pages.
 #[test]

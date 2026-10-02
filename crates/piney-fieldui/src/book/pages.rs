@@ -77,6 +77,11 @@ pub fn disp(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut 
         0 => disp01(b, m, x, env, draws),
         1 => disp02(b, m, x, env, draws),
         2 => disp03(b, m, x, env, draws),
+        3 => disp04(b, m, x, env, draws),
+        4 => disp05(b, m, x, env, draws),
+        5 => disp06(b, m, x, env, draws),
+        6 => disp07(b, m, x, env, draws),
+        7 => disp08(b, m, x, env, draws),
         _ => {}
     }
 }
@@ -87,6 +92,9 @@ pub fn pad_control(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx) {
         0 => pad_rows(b, x, 1),
         1 | 5 | 6 => pad_rows(b, x, 2),
         2 => pad_control03(b, m, x),
+        3 => pad_control04(b, x),
+        4 => pad_control05(b, x),
+        7 => pad_control08(b, m, x),
         _ => {}
     }
 }
@@ -113,6 +121,31 @@ pub fn check_item_get(b: &mut Book, env: &Env) {
             get(b, Table::T32, v[2], 2);
             get(b, Table::T31, v[1], 0);
             get(b, Table::T33, v[3], 3);
+        }
+        // CheckItemGet04 (0x004118c0): the list's page only.
+        3 if b.is_sub_win_open == 0 && b.wait == 1 => {
+            get(b, Table::T40, v[0], 0);
+            get(b, Table::T41, v[1], 1);
+        }
+        // CheckItemGet05 (0x004126e0).
+        4 if b.wait == 1 => get(b, Table::T50, v[0], 0),
+        // CheckItemGet06, 07 (0x00412730, 0x00412890).
+        5 if b.wait == 1 => {
+            get(b, Table::T60, v[0], 0);
+            get(b, Table::T61, v[1], 1);
+            get(b, Table::T62, v[2], 2);
+        }
+        6 if b.wait == 1 => {
+            get(b, Table::T70, v[0], 0);
+            get(b, Table::T71, v[1], 1);
+            get(b, Table::T72, v[2], 2);
+        }
+        // CheckItemGet08 (0x00412920): the Grunties' sub-window 1 its
+        // own table, the food's 2 the other two.
+        7 if b.wait == 1 && b.is_sub_win_open == 1 => get(b, Table::T80, v[0], 0),
+        7 if b.wait == 1 && b.is_sub_win_open != 0 => {
+            get(b, Table::T81, v[0], 1);
+            get(b, Table::T82, v[1], 2);
         }
         _ => {}
     }
@@ -264,8 +297,8 @@ fn disp01(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
 }
 
 /// A counter row of books II, VI and VII: the label, its count in fixed
-/// digits (`%5d`), its help line with the count (`bookCnt1` count
-/// `bookCnt0` `bookCnt2`) or the counter-stop line at a cap.
+/// digits (`%5d`), its help line with the count (`wrap.0` count
+/// `bookCnt0` `wrap.1`) or the counter-stop line at a cap.
 struct Row<'a> {
     label: &'a str,
     value: i32,
@@ -273,24 +306,20 @@ struct Row<'a> {
     /// the label's twice and the count's only at a cap.
     number_colour: bool,
     help: &'a BookMsg,
+    /// The label's x, the row's line and its count's x.
+    x: i32,
+    y: i32,
+    num_x: i32,
+    /// Around the count in the help line: `bookCnt1` and `bookCnt2`, or
+    /// book VII's `bookEncountMsg` and `bookEncountMsg2`.
+    wrap: (&'a str, &'a str),
 }
 
-/// Row `k` of a page of counter rows at (x0, y0 + 20 k): `msg[1 + 2k]`
-/// the label, `msg[2 + 2k]` the count `width` past x0 + 28.
-#[allow(clippy::too_many_arguments)]
-fn counter_row(
-    b: &mut Book,
-    m: &mut MenuCtrl,
-    x: &mut Ctx,
-    env: &Env,
-    draws: &mut Vec<Draw>,
-    k: i32,
-    (x0, y0): (i32, i32),
-    width: i32,
-    row: Row,
-) {
+/// Row `k` of a page of counter rows, the label at x0: `msg[1 + 2k]` the
+/// label, `msg[2 + 2k]` the count.
+fn counter_row(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>, k: i32, row: Row) {
     let t = env.t;
-    let y = y0 + 20 * k;
+    let (x0, y) = (row.x, row.y);
     if b.sel == k {
         b.cur_x = x0;
         b.cur_y = y;
@@ -300,7 +329,7 @@ fn counter_row(
     b.at(label, x0, y);
     b.over_colour(label);
     b.text(draws, label, encode(row.label), 0);
-    b.at(num, x0 + width + 28, y);
+    b.at(num, row.num_x, y);
     if row.number_colour {
         b.over_colour(num);
     } else {
@@ -314,9 +343,9 @@ fn counter_row(
         if b.count_over == 0 {
             let mut s208 = format!("{}", row.value).into_bytes();
             s208.extend_from_slice(&encode(t.cnt0));
-            let mut s336 = encode(t.cnt1);
+            let mut s336 = encode(row.wrap.0);
             s336.extend_from_slice(&s208);
-            s336.extend_from_slice(&encode(t.cnt2));
+            s336.extend_from_slice(&encode(row.wrap.1));
             help(m, x, b, row.help, 3, s336);
         } else {
             counter_stop(m, x, b, env);
@@ -330,7 +359,7 @@ fn disp02(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
     let t = env.t;
     title(b, m, t.title2, draws);
     let (y, w, _) = Book::ofs(m, b.ty);
-    let at = (Book::left(w) + 28, y + 50);
+    let (x0, y0) = (Book::left(w) + 28, y + 50);
     let width = super::width(x, &encode(t.magic_circle_all_open_msg2));
     let save = &x.save.save;
     let counts = [0x6864, 0x6866, 0x6868].map(|a| i32::from(save.i16(a)));
@@ -340,8 +369,503 @@ fn disp02(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
         (t.magic_circle_all_open_msg2, &t.help22, true),
     ];
     for (k, (label, help, number_colour)) in rows.into_iter().enumerate() {
-        let row = Row { label, value: counts[k], number_colour, help };
-        counter_row(b, m, x, env, draws, k as i32, at, width, row);
+        let (y, num_x, wrap) = (y0 + 20 * k as i32, x0 + width + 28, (t.cnt1, t.cnt2));
+        let row = Row { label, value: counts[k], number_colour, help, x: x0, y, num_x, wrap };
+        counter_row(b, m, x, env, draws, k as i32, row);
+    }
+}
+
+/// `Disp04` (0x00415790): book IV, the enemies. The kinds slain of the
+/// 303 (its cap row 0; all of them row 1's 999999999), then a page of the
+/// list, each with its number and how many were slain; with its
+/// sub-window open, the enemy's data from `enemyTbl`.
+fn disp04(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>) {
+    let t = env.t;
+    title(b, m, t.title4, draws);
+    let (y, w, _) = Book::ofs(m, b.ty);
+    let left = Book::left(w);
+    let x0 = left + 28;
+    if b.is_sub_win_open != 0 {
+        disp04_sub(b, m, x, env, draws, (x0, y + 50));
+        return;
+    }
+    let pages = b.scroll.page_index_num.max(0);
+    let mut yy = y + 90;
+    for i in 1..=pages {
+        let j = i + b.scroll.page_top - 1;
+        let e = b.enemy_data.get(j as usize).cloned().unwrap_or_default();
+        let colour = if e.kill_cnt == 0 { 16 } else { super::COL_TEXT };
+        let name = i as usize;
+        b.at(name, x0, yy);
+        b.msg[name].set_colour(colour);
+        if b.sel == 1 && b.scroll.all_index == j {
+            b.cur_x = x0;
+            b.cur_y = yy;
+        }
+        let mut row = b"      ".to_vec();
+        row.extend_from_slice(&e.name);
+        b.text(draws, name, row, 0);
+        let k = (i + pages) as usize;
+        b.at(k, x0, yy);
+        b.msg[k].set_colour(colour);
+        b.text(draws, k, format!("{:03}:                      {:2}", j + 1, e.kill_cnt).into_bytes(), 1);
+        yy += 20;
+    }
+    b.now = b.scroll.all_index;
+    let slain = b.enemy_data.iter().take(super::ENEMIES).filter(|e| e.kill_cnt != 0).count() as i32;
+    b.check_value[0] = b.check_book_limit(env, 0, slain);
+    let y0 = y + 50;
+    let all = b.enemy_data.iter().take(super::ENEMIES).all(|e| e.kill_cnt != 0);
+    b.check_value[1] = if all { 999_999_999 } else { 0 };
+    b.at(0, x0, y0);
+    b.over_colour(0);
+    let mut head = encode(t.enemy_list);
+    head.extend_from_slice(format!("       {slain:4}/{}", super::ENEMIES).as_bytes());
+    b.text(draws, 0, head, 1);
+    if b.sel == 0 {
+        b.cur_x = x0;
+        b.cur_y = y0;
+    }
+    if b.help_disp != 0 && b.sel == 0 {
+        if b.count_over == 0 {
+            let mut l1 = encode(t.enemy_list_msg0);
+            l1.extend_from_slice(format!("{slain}").as_bytes());
+            l1.extend_from_slice(&encode(t.enemy_list_msg1));
+            if b.msg_disp_flag == 0 {
+                help40(m, x, env, [Some(l1), Some(encode(t.enemy_list_msg2)), None]);
+            }
+        } else {
+            counter_stop(m, x, b, env);
+        }
+    }
+    if b.help_disp != 0 && b.sel != 0 {
+        let e = b.enemy_data.get(b.now as usize).cloned().unwrap_or_default();
+        let mut l1 = encode(t.enemy_slain_msg0);
+        l1.extend_from_slice(&e.name);
+        l1.push(b' ');
+        l1.extend_from_slice(&itoa_ns(e.kill_cnt));
+        l1.extend_from_slice(&encode(t.enemy_slain_msg1));
+        help40(m, x, env, [Some(l1), Some(encode(t.char_msg2)), None]);
+        b.button.dx = 61.0;
+        b.button.dy = 396.0;
+        crate::window::disp_button(&mut b.button, 3, x.count, x.frame_rate);
+    }
+    b.win.dx = piney_desktop::eef::from_int(left + 34);
+    b.win.dy = piney_desktop::eef::from_int(y + 70);
+    crate::window::disp_line_h(&mut b.win, 13);
+}
+
+/// Disp04 with its sub-window open: the enemy `now` from `enemyTbl`
+/// (level, HP, SP with an HP of 10000 or more in `cheatHpStr`'s digits,
+/// its two spells `mag0`, `mag1`, its three items), its weakness by its
+/// protect points, and where one was last slain.
+fn disp04_sub(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>, (x0, y0): (i32, i32)) {
+    let t = env.t;
+    let (y, w, _) = Book::ofs(m, b.ty);
+    let left = Book::left(w);
+    let now = b.now;
+    let e = b.enemy_data.get(now as usize).cloned().unwrap_or_default();
+    let tables = piney_data::tables::battle::of(x.texts.volume);
+    let row = usize::try_from(now).ok().and_then(|i| tables.enemies.get(i));
+    let mut put = |b: &mut Book, k: usize, at: (i32, i32), text: Vec<u8>, kt: i32| {
+        b.at(k, at.0, at.1);
+        b.msg[k].set_colour(super::COL_TEXT);
+        b.text(draws, k, text, kt);
+    };
+    let mut name = encode(t.enemy_name);
+    name.extend_from_slice(&e.name);
+    put(b, 1, (x0 + 42, y0), name, 0);
+    put(b, 2, (x0, y0 + 40), encode(t.enemy_data), 0);
+    put(b, 3, (x0, y0 + 60), encode(t.enemy_level), 0);
+    let level = row.map_or(0, |r| i32::from(r.param.base.level));
+    put(b, 4, (x0 + 56, y0 + 60), itoa(level), 0);
+    put(b, 5, (x0, y0 + 80), encode(t.enemy_hp), 0);
+    let hp = row.map_or(0, |r| i32::from(r.param.max_hp));
+    let hp_text = if hp < 10000 {
+        itoa(hp)
+    } else {
+        let n = hp % 10000;
+        let cheat = &x.texts.cheat_hp;
+        let d = |k: i32| cheat.get(k as usize).copied().unwrap_or(b' ');
+        vec![d(n / 1000), d(n % 1000 / 100), d(n % 100 / 10), d(n % 10)]
+    };
+    put(b, 6, (x0 + 56, y0 + 80), hp_text, 0);
+    put(b, 7, (x0, y0 + 100), encode(t.enemy_sp), 0);
+    let sp = row.map_or(0, |r| i32::from(r.param.max_sp));
+    put(b, 8, (x0 + 56, y0 + 100), itoa(sp), 0);
+    put(b, 9, (x0, y0 + 140), encode(t.enemy_skill), 0);
+    let skill = |id: i32| x.texts.items.skill(id).map(|s| s.name.clone()).unwrap_or_default();
+    let (mag0, mag1) = row.map_or((0, 0), |r| (r.skill.mag0, r.skill.mag1));
+    let first = if mag0 != 0 { skill(mag0) } else { encode(t.nothing) };
+    put(b, 10, (x0, y0 + 160), first, 0);
+    if mag1 != 0 {
+        put(b, 11, (x0, y0 + 180), skill(mag1), 0);
+    } else {
+        b.at(11, x0, y0 + 180);
+        b.msg[11].set_colour(super::COL_TEXT);
+    }
+    let (xi, yi) = (left + 28 + 126, y + 50);
+    put(b, 12, (xi, yi + 40), encode(t.enemy_item), 0);
+    let items = row.map_or([0; 3], |r| r.param.item);
+    for (k, &item) in items.iter().enumerate() {
+        let at = (xi, yi + 60 + 20 * k as i32);
+        let slot = 13 + k;
+        if item != 0 {
+            let text = x.texts.items.item_name(item >> 16, item & 0xffff);
+            put(b, slot, at, text, 0);
+        } else if k == 0 {
+            put(b, slot, at, encode(t.nothing), 0);
+        } else {
+            b.at(slot, at.0, at.1);
+            b.msg[slot].set_colour(super::COL_TEXT);
+        }
+    }
+    b.win.dx = piney_desktop::eef::from_int(left + 34);
+    b.win.dy = piney_desktop::eef::from_int(y + 70);
+    crate::window::disp_line_h(&mut b.win, 14);
+    b.win.dx = piney_desktop::eef::from_int(left + 34);
+    b.win.dy = piney_desktop::eef::from_int(y + 170);
+    crate::window::disp_line_h(&mut b.win, 6);
+    b.win.dx = piney_desktop::eef::from_int(left + 140);
+    b.win.dy = piney_desktop::eef::from_int(y + 77);
+    crate::window::disp_line_v(&mut b.win, 7);
+    let weak = match row.map(|r| (r.param.max_pp, r.param.p_def_pp, r.param.m_def_pp)) {
+        Some((-1, _, _)) => t.enemy_weak0,
+        Some((_, p, mg)) if p < mg => t.enemy_weak1,
+        _ => t.enemy_weak2,
+    };
+    b.at(16, left + 35, y + 250);
+    b.msg[16].set_colour(super::COL_OVER);
+    b.text(draws, 16, encode(weak), 0);
+    // enemyKillArea[now]: the server and the area's three words.
+    let save = &x.save.save;
+    let at = save::KILL_AREA + 8 * now.max(0) as usize;
+    let server = i32::from(save.i16(at));
+    let mut l2 = b"#B".to_vec();
+    l2.extend_from_slice(
+        &usize::try_from(server).ok().and_then(|k| t.server.get(k).copied().flatten()).map(encode).unwrap_or_default(),
+    );
+    for k in 0..3 {
+        l2.push(b' ');
+        let id = i32::from(save.i16(at + 2 + 2 * k));
+        l2.extend_from_slice(&x.texts.words.word(id).map(|w| w.text.clone()).unwrap_or_default());
+    }
+    l2.extend_from_slice(b"#W");
+    help40(m, x, env, [Some(encode(t.enemy_encount_msg0)), Some(l2), Some(encode(t.back_msg))]);
+    b.button.dx = 71.0;
+    b.button.dy = 416.0;
+    crate::window::disp_button(&mut b.button, 0, x.count, x.frame_rate);
+}
+
+/// `BookHelp40` with its three lines written, then `DispMsg`.
+fn help40(m: &mut MenuCtrl, x: &Ctx, env: &Env, lines: [Option<Vec<u8>>; 3]) {
+    let msg = &env.t.help40;
+    let names = x.save.names();
+    let name = msg.str[0].map(encode);
+    m.msg.disp_msg(msg.emode, name.as_deref(), [lines[0].as_deref(), lines[1].as_deref(), lines[2].as_deref()], &names);
+}
+
+/// `saveData` +0x7474: the nine Grunties' counts (`ccGetNpcParam(145 +
+/// i)`), +0x7446 the sixteen foods' (`gimmickTbl[22 + i]`).
+const GRUNTY: usize = 0x7474;
+const FOOD: usize = 0x7446;
+
+/// `Disp08` (0x00419740): book VIII. Its menu (the Grunties, their food),
+/// then the Grunties met and how often (row 0's reward all nine), or the
+/// food given in all (its cap) and a page of the sixteen foods.
+fn disp08(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>) {
+    let t = env.t;
+    title(b, m, t.title8, draws);
+    let (y, w, _) = Book::ofs(m, b.ty);
+    let left = Book::left(w);
+    let (x0, y0) = (left + 28, y + 50);
+    let save = &x.save.save;
+    let hidden = encode(t.hidden_name);
+    match b.is_sub_win_open {
+        0 => {
+            for (k, (label, help)) in
+                [(t.puchi_list, &t.help80), (t.puchi_food_list, &t.help81)].into_iter().enumerate()
+            {
+                let yy = y0 + 20 * k as i32;
+                b.at(k, x0, yy);
+                b.msg[k].set_colour(super::COL_TEXT);
+                b.text(draws, k, encode(label), 0);
+                if b.sel == k as i32 {
+                    b.cur_x = x0;
+                    b.cur_y = yy;
+                    b.button.dx = 61.0;
+                    b.button.dy = 394.0;
+                    crate::window::disp_button(&mut b.button, 3, x.count, x.frame_rate);
+                    let lines = [help.str[1].map(encode), Some(encode(t.char_msg2)), help.str[3].map(encode)];
+                    disp_help(m, x, help, lines);
+                }
+            }
+        }
+        1 => {
+            for (k, (label, at)) in
+                [(t.puchi_list, (x0, y0)), (t.puchi_name, (x0, y0 + 20)), (t.puchi_cnt, (x0 + 126, y0 + 20))]
+                    .into_iter()
+                    .enumerate()
+            {
+                let i = 20 + k;
+                b.at(i, at.0, at.1);
+                b.msg[i].set_colour(super::COL_TEXT);
+                b.text(draws, i, encode(label), 0);
+            }
+            let mut yy = y0 + 40;
+            for i in 0..9usize {
+                let cnt = i32::from(save.i16(GRUNTY + 2 * i));
+                let colour = if cnt == 0 { 16 } else { super::COL_TEXT };
+                b.at(i, x0, yy);
+                b.msg[i].set_colour(colour);
+                let name =
+                    if cnt != 0 { x.texts.npc_names.get(145 + i).cloned().unwrap_or_default() } else { hidden.clone() };
+                b.text(draws, i, name, 0);
+                b.at(10 + i, x0 + 182, yy);
+                b.msg[10 + i].set_colour(colour);
+                b.text(draws, 10 + i, format!("{cnt:5}").into_bytes(), 1);
+                yy += 20;
+            }
+            let all = (0..9).all(|i| save.i16(GRUNTY + 2 * i) != 0);
+            b.check_value[0] = if all { 999_999_999 } else { 0 };
+            help82(m, x, env, [Some(encode(t.back_msg)), None, None]);
+            b.button.dx = 61.0;
+            b.button.dy = 372.0;
+            crate::window::disp_button(&mut b.button, 0, x.count, x.frame_rate);
+        }
+        2 => {
+            let food = |k: i32| i32::from(save.i16(FOOD + 2 * k.max(0) as usize));
+            let total: i32 = (0..16).map(food).sum();
+            let gimmicks = piney_data::tables::battle::of(x.texts.volume).gimmicks;
+            let gim_name = |k: i32| {
+                usize::try_from(22 + k)
+                    .ok()
+                    .and_then(|i| gimmicks.get(i))
+                    .and_then(|g| g.param.base.name)
+                    .map(encode)
+                    .unwrap_or_default()
+            };
+            let pages = b.scroll.page_index_num.max(0);
+            let mut yy = y0 + 40;
+            for s in 0..pages {
+                let j = s + b.scroll.page_top;
+                if b.sel != 0 && b.scroll.all_index == j {
+                    b.cur_x = x0;
+                    b.cur_y = yy;
+                    b.now = b.scroll.all_index;
+                }
+                let cnt = food(j);
+                let colour = if cnt == 0 { 16 } else { super::COL_TEXT };
+                let k = s as usize;
+                b.at(k, x0, yy);
+                b.msg[k].set_colour(colour);
+                b.text(draws, k, if cnt == 0 { hidden.clone() } else { gim_name(j) }, 0);
+                let n = (s + pages) as usize;
+                let mut num = format!("{cnt:5}").into_bytes();
+                num.extend_from_slice(&encode(t.puchi_num));
+                b.at(n, x0 + 154, yy);
+                b.msg[n].set_colour(colour);
+                b.text(draws, n, num, 1);
+                yy += 20;
+            }
+            b.check_value[0] = b.check_book_limit(env, 0, total);
+            b.at(33, x0, y0);
+            b.over_colour(33);
+            b.text(draws, 33, encode(t.puchi_food_total), 0);
+            b.at(34, x0 + 146, y0);
+            b.over_colour(34);
+            b.text(draws, 34, format!("{total:6}").into_bytes(), 0);
+            if b.sel == 0 {
+                b.cur_x = x0;
+                b.cur_y = y0;
+            }
+            if b.help_disp != 0 {
+                if b.sel == 0 {
+                    if b.count_over == 0 {
+                        let mut l1 = format!("{total}").into_bytes();
+                        l1.extend_from_slice(&encode(t.puchi_num));
+                        l1.extend_from_slice(&encode(t.cnt2));
+                        l1.extend_from_slice(&encode(t.puchi_food_total2));
+                        b.button.dx = 61.0;
+                        b.button.dy = 396.0;
+                        crate::window::disp_button(&mut b.button, 0, x.count, x.frame_rate);
+                        if b.msg_disp_flag == 0 {
+                            help82(m, x, env, [Some(l1), Some(encode(t.back_msg)), None]);
+                        }
+                    } else {
+                        counter_stop(m, x, b, env);
+                    }
+                } else {
+                    // The count's sprintf is overwritten by the strcpy that
+                    // follows it: the line is the food's name and
+                    // `bookPuchiFood`.
+                    let mut l1 = gim_name(b.now);
+                    l1.extend_from_slice(&encode(t.puchi_food));
+                    b.button.dx = 61.0;
+                    b.button.dy = 396.0;
+                    crate::window::disp_button(&mut b.button, 0, x.count, x.frame_rate);
+                    if b.msg_disp_flag == 0 {
+                        help82(m, x, env, [Some(l1), Some(encode(t.back_msg)), None]);
+                    }
+                }
+            }
+            let all = (0..16).all(|k| food(k) != 0);
+            b.check_value[1] = if all { 999_999_999 } else { 0 };
+            b.win.dx = piney_desktop::eef::from_int(left + 34);
+            b.win.dy = piney_desktop::eef::from_int(y + 70);
+            crate::window::disp_line_h(&mut b.win, 11);
+        }
+        _ => {}
+    }
+}
+
+/// `msg`'s `DispMsg` with its three lines as given (the game patched
+/// some of them in place).
+fn disp_help(m: &mut MenuCtrl, x: &Ctx, msg: &BookMsg, lines: [Option<Vec<u8>>; 3]) {
+    let names = x.save.names();
+    let name = msg.str[0].map(encode);
+    m.msg.disp_msg(msg.emode, name.as_deref(), [lines[0].as_deref(), lines[1].as_deref(), lines[2].as_deref()], &names);
+}
+
+/// `BookHelp82` with its three lines written, then `DispMsg`.
+fn help82(m: &mut MenuCtrl, x: &Ctx, env: &Env, lines: [Option<Vec<u8>>; 3]) {
+    disp_help(m, x, &env.t.help82, lines);
+}
+
+/// `Disp05` (0x00417170): book V, the presents. The gold given to the
+/// seventeen members in all (the `present`s summed, its cap row 0), then a
+/// page of the members, each with what was given; on a member's row, its
+/// help: the gold given, the time in the party, the friendliness.
+fn disp05(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>) {
+    let t = env.t;
+    title(b, m, t.title5, draws);
+    let (y, w, _) = Book::ofs(m, b.ty);
+    let left = Book::left(w);
+    let x0 = left + 28;
+    let pages = b.scroll.page_index_num.max(0);
+    let gp = encode(t.gp);
+    let mut yy = y + 90;
+    for i in 1..=pages {
+        let j = i + b.scroll.page_top - 1;
+        if b.sel == 1 && b.scroll.all_index == j {
+            b.now = b.scroll.all_index;
+            b.cur_x = x0;
+            b.cur_y = yy;
+        }
+        let c = b.char_data.get(j as usize).cloned().unwrap_or_default();
+        let colour = if c.is_friend == -1 { 0 } else { super::COL_TEXT };
+        let name = i as usize;
+        b.at(name, x0, yy);
+        b.msg[name].set_colour(colour);
+        b.text(draws, name, c.name.clone(), 0);
+        let k = (i + pages) as usize;
+        b.at(k, x0 + 154, yy);
+        let mut given = format!("{:7}", c.present).into_bytes();
+        given.extend_from_slice(&gp);
+        b.msg[k].set_colour(colour);
+        b.text(draws, k, given, 1);
+        yy += 20;
+    }
+    let money: i32 = b.char_data.iter().take(17).map(|c| c.present).sum();
+    let y0 = y + 50;
+    if b.sel == 0 {
+        b.cur_x = x0;
+        b.cur_y = y0;
+    }
+    b.check_value[0] = b.check_book_limit(env, 0, money);
+    b.at(0, x0, y0);
+    b.over_colour(0);
+    b.over_colour(1);
+    b.text(draws, 0, encode(t.present_total), 0);
+    let mut total = format!("{money:9}").into_bytes();
+    total.extend_from_slice(&gp);
+    b.at(1, x0 + 138, y0);
+    b.text(draws, 1, total, 1);
+    if b.help_disp != 0 && b.sel == 0 {
+        if b.count_over == 0 {
+            // BookHelp50's second and third strings are left NULL.
+            let mut line = encode(t.present_total2);
+            line.extend_from_slice(format!("{money}").as_bytes());
+            line.extend_from_slice(&gp);
+            line.push(b'.');
+            if b.msg_disp_flag == 0 {
+                help50(m, x, env, [Some(line), None, None]);
+            }
+        } else {
+            counter_stop(m, x, b, env);
+        }
+    }
+    if b.help_disp != 0 && b.sel != 0 {
+        let c = b.char_data.get(b.now as usize).cloned().unwrap_or_default();
+        let (h, mi, s) = hms(c.party_time * 60);
+        let mut l1 = encode(t.present2);
+        l1.extend_from_slice(format!("{}", c.present).as_bytes());
+        l1.extend_from_slice(&gp);
+        l1.push(b'.');
+        let mut l2 = encode(t.play_time);
+        l2.extend_from_slice(format!("{h}:{mi:02}:{s:02}").as_bytes());
+        l2.extend_from_slice(&encode(t.time));
+        let mut l3 = encode(t.friendly);
+        l3.extend_from_slice(format!("{}", c.friendship).as_bytes());
+        l3.extend_from_slice(&encode(t.friendly1));
+        if b.msg_disp_flag == 0 {
+            help50(m, x, env, [Some(l1), Some(l2), Some(l3)]);
+        }
+    }
+    b.win.dx = piney_desktop::eef::from_int(left + 34);
+    b.win.dy = piney_desktop::eef::from_int(y + 70);
+    crate::window::disp_line_h(&mut b.win, 13);
+}
+
+/// `BookHelp50` with its three lines written, then `DispMsg`.
+fn help50(m: &mut MenuCtrl, x: &Ctx, env: &Env, lines: [Option<Vec<u8>>; 3]) {
+    let msg = &env.t.help50;
+    let names = x.save.names();
+    let name = msg.str[0].map(encode);
+    m.msg.disp_msg(msg.emode, name.as_deref(), [lines[0].as_deref(), lines[1].as_deref(), lines[2].as_deref()], &names);
+}
+
+/// `Disp06` (0x00417d80): book VI, the boxes opened (`saveData` +0x7440),
+/// the objects broken (+0x7442) and the idols opened (+0x746e), each
+/// count 250 past the labels.
+fn disp06(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>) {
+    let t = env.t;
+    title(b, m, t.title6, draws);
+    let (y, w, _) = Book::ofs(m, b.ty);
+    let (x0, y0) = (Book::left(w) + 28, y + 50);
+    let save = &x.save.save;
+    let counts = [0x7440, 0x7442, 0x746e].map(|a| i32::from(save.i16(a)));
+    let rows = [(t.box_open, &t.help60), (t.break_cnt, &t.help61), (t.idol_cnt, &t.help62)];
+    for (k, (label, help)) in rows.into_iter().enumerate() {
+        let (y, num_x, wrap) = (y0 + 20 * k as i32, x0 + 250, (t.cnt1, t.cnt2));
+        let row = Row { label, value: counts[k], number_colour: true, help, x: x0, y, num_x, wrap };
+        counter_row(b, m, x, env, draws, k as i32, row);
+    }
+}
+
+/// `Disp07` (0x00418a60): book VII, under `bookFountain` (`msg[7]`) the
+/// encounters at the springs (`saveData` +0x7470) and with the mushrooms'
+/// grandfather (+0x7472), and a line lower the symbols (+0x7444), each
+/// count 182 past the labels.
+fn disp07(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>) {
+    let t = env.t;
+    title(b, m, t.title7, draws);
+    let (y, w, _) = Book::ofs(m, b.ty);
+    let (x0, y0) = (Book::left(w) + 28, y + 50);
+    b.at(7, x0, y0);
+    b.msg[7].set_colour(super::COL_TEXT);
+    b.text(draws, 7, encode(t.fountain), 0);
+    let save = &x.save.save;
+    let counts = [0x7470, 0x7472, 0x7444].map(|a| i32::from(save.i16(a)));
+    let encount = (t.encount_msg, t.encount_msg2);
+    let rows = [
+        (t.mush, &t.help70, y0 + 20, encount),
+        (t.granpa, &t.help71, y0 + 40, encount),
+        (t.symbl, &t.help72, y0 + 80, (t.cnt1, t.cnt2)),
+    ];
+    for (k, (label, help, y, wrap)) in rows.into_iter().enumerate() {
+        let row = Row { label, value: counts[k], number_colour: true, help, x: x0, y, num_x: x0 + 182, wrap };
+        counter_row(b, m, x, env, draws, k as i32, row);
     }
 }
 
@@ -625,6 +1149,231 @@ fn pad_control03(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx) {
     let rep = x.pad.repeat.bits();
     if rep & PAD_DOWN != 0 {
         let target = next_row(b.scroll.all_index + 1, chars, chars, known);
+        b.key_wait = 2;
+        x.se(SE_MOVE);
+        if target != -1 && b.scroll.all_index != target {
+            scroll_to(b, target);
+        }
+    } else if rep & PAD_UP != 0 {
+        let target = prev_row(b.scroll.all_index - 1, known);
+        x.se(SE_MOVE);
+        if target == -1 {
+            scroll_to(b, 0);
+            b.sel -= 1;
+        } else {
+            if b.scroll.all_index != target {
+                scroll_to(b, target);
+            }
+            b.key_wait = 2;
+        }
+    }
+}
+
+/// `PadControl05` (0x00412050): book V's total and its list of the
+/// seventeen members (the cursor only on those met). Off the list the held
+/// buttons (`ccSys` +0x2cc) move the cursor, `keyWait` letting a held one
+/// through every third frame; down onto the list goes to the first member
+/// met from where the list stands, or nowhere with none. On it, repeat.
+fn pad_control05(b: &mut Book, x: &mut Ctx) {
+    if b.wait != 0 {
+        b.wait -= 1;
+        return;
+    }
+    if b.msg_disp_flag != 0 {
+        return;
+    }
+    let data = b.char_data.clone();
+    let known = |i: i32| data.get(i as usize).is_some_and(|c| c.is_friend > 0);
+    pad_list(b, x, 18, 17, known);
+}
+
+/// `PadControl04` (0x00411940): book IV's list as book V's (each enemy
+/// slain known; the search's bounds 304, one past the list, where the
+/// game reads `checkValue[2]` as the 304th's count, which `Draw` has
+/// zeroed), and OK on the list opens the enemy's sub-window, cancel
+/// closes it.
+fn pad_control04(b: &mut Book, x: &mut Ctx) {
+    if b.is_sub_win_open != 0 {
+        if x.pad.push.bits() & x.save.cancel() != 0 {
+            x.se(super::SE_BACK);
+            b.cancel_flag = 1;
+            b.is_sub_win_open = 0;
+            b.key_wait = 0;
+        }
+        return;
+    }
+    if b.wait != 0 {
+        b.wait -= 1;
+        return;
+    }
+    if b.msg_disp_flag != 0 {
+        return;
+    }
+    if b.sel == b.sel_max && x.pad.push.bits() & x.save.ok() != 0 {
+        x.se(super::SE_OPEN);
+        b.is_sub_win_open = 1;
+        b.key_wait = 0;
+    }
+    let data = b.enemy_data.clone();
+    let known = |i: i32| data.get(i as usize).is_some_and(|e| e.kill_cnt > 0);
+    pad_list(b, x, 304, 304, known);
+}
+
+/// `BookOfs[type]` set: the window's top, width and height.
+fn set_ofs(b: &Book, m: &mut MenuCtrl, (y, w, h): (i32, i32, i32)) {
+    let k = (b.ty * 3) as usize;
+    m.book_ofs[k] = y;
+    m.book_ofs[k + 1] = w;
+    m.book_ofs[k + 2] = h;
+}
+
+/// Back from book VIII's pages to its menu (row `sel`): the window as it
+/// was, the button let go first (`cancelFlag`).
+fn back08(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, sel: i32) {
+    b.sel = sel;
+    b.win_cursor.init(false);
+    x.se(super::SE_BACK);
+    set_ofs(b, m, (80, 12, 4));
+    b.is_sub_win_open = 0;
+    b.cancel_flag = 1;
+    b.key_wait = 0;
+}
+
+/// `PadControl08` (0x00412aa0): book VIII's menu (up and down pushed, OK
+/// opens a page, the window grown for it, `wait` 15), the Grunties' page
+/// (cancel back), and the food page: its total (down by repeat, up held,
+/// with `keyWait`) and its list of the sixteen foods given (bounds 16;
+/// none above sets `keyWait` too); cancel back to the menu's food row.
+fn pad_control08(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx) {
+    let push = x.pad.push.bits();
+    let cancel = push & x.save.cancel() != 0;
+    match b.is_sub_win_open {
+        0 => {
+            if b.wait != 0 {
+                b.wait -= 1;
+                return;
+            }
+            if push & PAD_DOWN != 0 {
+                if b.sel != 1 {
+                    x.se(SE_MOVE);
+                    b.sel += 1;
+                }
+            } else if push & PAD_UP != 0 && b.sel != 0 {
+                x.se(SE_MOVE);
+                b.sel -= 1;
+            }
+            if push & x.save.ok() == 0 {
+                return;
+            }
+            if b.sel == 0 {
+                x.se(super::SE_OPEN);
+                set_ofs(b, m, (40, 17, 13));
+                b.is_sub_win_open = 1;
+            } else {
+                b.sel = 0;
+                b.win_cursor.init(false);
+                b.scroll = super::Scroll { page_index_num: 8, all_index_num: 16, ..super::Scroll::default() };
+                x.se(super::SE_OPEN);
+                set_ofs(b, m, (40, 17, 12));
+                b.is_sub_win_open = 2;
+            }
+            b.wait = 15;
+        }
+        1 => {
+            if b.wait != 0 {
+                b.wait -= 1;
+            } else if cancel {
+                back08(b, m, x, 0);
+            }
+        }
+        _ => {
+            if b.wait != 0 {
+                b.wait -= 1;
+                return;
+            }
+            let save = &x.save.save;
+            let counts: Vec<i16> = (0..16).map(|k| save.i16(FOOD + 2 * k)).collect();
+            let known = |i: i32| counts.get(i as usize).is_some_and(|&c| c > 0);
+            if b.sel == 0 {
+                if cancel {
+                    back08(b, m, x, 0);
+                } else if x.pad.repeat.bits() & PAD_DOWN != 0 {
+                    b.key_wait = 2;
+                    x.se(SE_MOVE);
+                    b.sel += 1;
+                    let target = next_row(b.scroll.all_index, 16, 16, known);
+                    if target == -1 {
+                        b.sel -= 1;
+                    } else if b.scroll.all_index != target {
+                        scroll_to(b, target);
+                    }
+                } else if x.pad.direct.bits() & PAD_UP != 0 && b.sel != 0 {
+                    b.key_wait = 2;
+                    x.se(SE_MOVE);
+                    b.sel -= 1;
+                }
+                return;
+            }
+            if cancel {
+                back08(b, m, x, 1);
+                return;
+            }
+            let rep = x.pad.repeat.bits();
+            if rep & PAD_DOWN != 0 {
+                let target = next_row(b.scroll.all_index + 1, 16, 16, known);
+                b.key_wait = 2;
+                x.se(SE_MOVE);
+                if target != -1 && b.scroll.all_index != target {
+                    scroll_to(b, target);
+                }
+            } else if rep & PAD_UP != 0 {
+                let target = prev_row(b.scroll.all_index - 1, known);
+                x.se(SE_MOVE);
+                b.key_wait = 2;
+                if target == -1 {
+                    scroll_to(b, 0);
+                    b.sel -= 1;
+                } else if b.scroll.all_index != target {
+                    scroll_to(b, target);
+                }
+            }
+        }
+    }
+}
+
+/// A list page's keys (`PadControl04`, `05`): off the list the held
+/// buttons with `keyWait`, down onto it to the first `known` row from where
+/// it stands (`limit`, `end` the search's bounds) or nowhere with none; on
+/// it repeat, up past its first known row off it.
+fn pad_list(b: &mut Book, x: &mut Ctx, limit: i32, end: i32, known: impl Fn(i32) -> bool) {
+    if b.sel != b.sel_max {
+        if b.key_wait != 0 {
+            b.key_wait -= 1;
+            return;
+        }
+        let held = x.pad.direct.bits();
+        if held & PAD_DOWN != 0 {
+            b.key_wait = 2;
+            x.se(SE_MOVE);
+            b.sel += 1;
+            if b.sel == 1 {
+                let target = next_row(b.scroll.all_index, limit, end, &known);
+                if target == -1 {
+                    b.sel -= 1;
+                } else if b.scroll.all_index != target {
+                    scroll_to(b, target);
+                }
+            }
+        } else if held & PAD_UP != 0 && b.sel != 0 {
+            b.key_wait = 2;
+            x.se(SE_MOVE);
+            b.sel -= 1;
+        }
+        return;
+    }
+    let rep = x.pad.repeat.bits();
+    if rep & PAD_DOWN != 0 {
+        let target = next_row(b.scroll.all_index + 1, limit, end, &known);
         b.key_wait = 2;
         x.se(SE_MOVE);
         if target != -1 && b.scroll.all_index != target {

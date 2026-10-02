@@ -99,7 +99,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 ### ui
 
-- [[98]] [[317]] [[318]] Ryu Books 4-8's pages and rewards (`BOOK` types 3-7, gcmn 0x0040c570-0x00410400) are not ported, the cover's palette from the second book on is not swapped, and no test turns a book's pages (the epitaphs: [[292]]; a book's use and books 1-3: [[317]], [[318]]) — reading the later Ryu Books
+- [[317]] [[318]] [[347]] the Ryu Book cover's palette from the second book on is not swapped, and the message window's `mode` differs for a frame just after a book closes (Books IV-VIII's pages: [[347]]) — reading the Ryu Books
 
 ### script
 
@@ -948,6 +948,7 @@ player until one of these turns out wrong.
 - [[98]] DisableThEvent — answered by crates/piney-game/src/world.rs, area.rs (ccDisableThEvent)
 - [[98]] the party AI's UseItemRequest does nothing in the field — answered by [[230]]
 - [[98]] the epitaphs (`ccEpitaphMsg`) and a Ryu Book's use (`ccThBook`) as item steps — answered by [[292]] (the Key Items menu's use, the epitaph's pages in `menus::useitem`) and [[317]], [[318]] (books 1-3)
+- [[98]] [[317]] Ryu Books 4-8's pages and rewards — answered by [[347]] (`Disp04`-`08`, `PadControl04`, `05`, `08`, `CheckItemGet04`-`08`; test_book_4 to test_book_8 against the game)
 - [[99]] piros_colour in the field and dungeon — answered by [[107]]
 - [[101]] Kite's strategy balloon and the party's chat lines — answered by [[120]], [[123]]
 - [[101]] a request the menus make reaches the sound task a frame after the game's — answered by [[336]] (the menu task now runs after ccThGameCtrl and before the world's other tasks; a_skill_in_a_fight_names_itself)

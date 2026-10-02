@@ -1392,6 +1392,43 @@ record the menus changed in the save ([battle](battle.md#the-partys-hp-and-condi
 the note on the records), so the menu's writes and `CalcReal`'s hold in
 a field as in a town.
 
+## The Ryu Books (`BOOK`, gcmn book.cpp)
+
+A Ryu Book (key item 273 + n, read in a town) runs `ccThBook`
+(0x0041a990): a fade, the cover stream 112 + n, then `BOOK` (0x4d24
+bytes) one frame at a time: `Draw` (the page's `DispNN`), `CheckItemGet`
+(the page's rewards, `GetBookItem` and its windows, breathing inside),
+`PadControl` (the page's keys, then cancel closes the book unless a
+sub-window is open, `cancelFlag` is set or `wait` is not 0). `wait` starts
+at 15 and only the page's keys count it down; a reward is checked on the
+frame it is 1. Counters past the volume's cap (`CheckBookLimit`) are
+drawn in colour 18 and stop giving rewards.
+
+| book | page | counts (`saveData`) | keys |
+| --- | --- | --- | --- |
+| I | `Disp01` | areas visited +0x6862 (one a gate trip), the play time | rows |
+| II | `Disp02` | portals opened +0x6864, fields and dungeons all opened +0x6866, +0x6868 | rows |
+| III | `Disp03` | characters met (67), trades; a sub-window of a character's items | list |
+| IV | `Disp04` | enemy kinds slain of 303 (`enemyKillCount`, +0x68b7); a sub-window of the enemy's `enemyTbl` row and where it was last slain (`enemyKillArea`, +0x69f0) | list |
+| V | `Disp05` | gold given to the 17 members (`present`), each one's | list |
+| VI | `Disp06` | boxes opened +0x7440, objects broken +0x7442, idols opened +0x746e | rows |
+| VII | `Disp07` | springs +0x7470, the mushrooms' grandfather +0x7472, symbols +0x7444 | rows |
+| VIII | `Disp08` | a menu: the nine Grunties met (+0x7474), the sixteen foods given (+0x7446) | menu, list |
+
+Rows: down and up pushed (`PadControl01`, `02`, `06`, `07`). The lists
+(`PadControl03`-`05`, `08`'s food) put the cursor only on rows known (met,
+slain, given); off the list IV and V move with the held buttons and
+`keyWait` (every third frame), VIII's food total down by repeat and up
+held. Book IV's search runs one past its 303 rows into `checkValue[2]`,
+which `Draw` zeroes. Book VIII's food help line is the food's name and
+`bookPuchiFood`: its count's `sprintf` is overwritten by the `strcpy`
+after it. Opening VIII's pages resizes the window through `BookOfs`
+(40, 17, 13 or 12), and going back sets (80, 12, 4); the table is the
+game's global and keeps the last values.
+
+The port is `crates/piney-fieldui/src/book`; `tools/test_fieldui_rs.py`'s
+`test_book_1` to `test_book_8` run each book against the game's own code.
+
 ## PARTY (`PartyMenu`, menu 9; 68 - 70)
 
 PERSONAL's Party row in town (row 6). The members' greetings and
