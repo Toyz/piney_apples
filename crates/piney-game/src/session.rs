@@ -2142,10 +2142,11 @@ mod tests {
         }
         let Some(page) = t.page() else { return press(Buttons::CROSS) };
         let ctl = page.control();
-        // A mail unread, or the story wanting only the desktop (event 208's
-        // news): Log out to the desktop (the events' `mail_got`,
-        // `news_read`); a post new on the board: read it (`bbs_read`);
-        // else Log in.
+        // Kite's own post waiting to be written (`bbs_post7`, event 10's):
+        // the board, which opens on it. A mail unread, or the story wanting
+        // only the desktop (event 208's news): Log out to the desktop (the
+        // events' `mail_got`, `news_read`); a post new on the board: read it
+        // (`bbs_read`); else Log in.
         let save = &page.state().save;
         let wants = t.vm().map(|vm| story_wants(vm, save)).unwrap_or_default();
         let desk =
@@ -2154,7 +2155,10 @@ mod tests {
         // A command the events take over (`add_operate`, command + 6) is
         // passed by: its message would only come round again.
         let taken = |c: i32| page.state().operate & (1u64 << (c + piney_toppage::control::OPERATE_BASE[0])) != 0;
-        let want = if to_desktop && !taken(CMD_QUIT) {
+        let writing = piney_toppage::bbs::check_write_bbs(page.state()).0 >= 0;
+        let want = if writing && !taken(CMD_BBS) {
+            CMD_BBS
+        } else if to_desktop && !taken(CMD_QUIT) {
             CMD_QUIT
         } else if ctl.bbs_new && !taken(CMD_BBS) {
             CMD_BBS
@@ -2206,7 +2210,7 @@ mod tests {
     }
 
     /// [`story_player`], passing by the town NPCs in `talked`.
-    pub(super) fn story_player_with(s: &Session, f: u64, talked: &[i32]) -> Raw {
+    pub(super) fn story_player_with(s: &Session, f: u64, talked: &[(piney_world::entry::Kind, i32)]) -> Raw {
         if let Stage::World(w) = &s.stage
             && !w.streaming()
             && let Some(raw) = gate_player(w, f, talked)
@@ -2369,6 +2373,9 @@ mod tests {
         /// Kite near event position `n` of the place: a block waits on
         /// `near_marker n` (side event 257's trader at point 1).
         Marker(i16),
+        /// Kite with this member and no one else: a block refuses the gate
+        /// while anyone else is along (`party_other`, event 21's Elk).
+        Only(i32),
     }
 
     thread_local! {
@@ -2470,6 +2477,12 @@ mod tests {
                 let repeats = block.ops.iter().any(|o| matches!(o, piney_event::ir::Op::Repeatable {}));
                 if !held || (after >= 0 && flag & (1 << (after & 63)) == 0) {
                     continue;
+                }
+                if let Some(pc) = block.conds.iter().find_map(|c| match *c {
+                    Cond::PartyOther { pc } => Some(i32::from(pc)),
+                    _ => None,
+                }) {
+                    out.push(Want::Only(pc));
                 }
                 let reachable = block.conds.iter().all(|c| match *c {
                     Cond::Status { index, num, comp } => comp.test(status(index), i32::from(num)).unwrap_or(false),
@@ -2589,8 +2602,13 @@ mod tests {
         /// Log out: a mail waits unread (the events' `mail_got` wants it
         /// read on the desktop), or a post on the board (`bbs_read`).
         LogOut,
-        /// Speak to this NPC of the town, an event's target.
-        Talk(i32),
+        /// Speak to this one in the town, an event's target (`add_target`):
+        /// an NPC or merchant, a party character (event 11's BlackRose) or
+        /// the Chaos Gate (event 11's, type 13).
+        Talk(piney_world::entry::Kind, i32),
+        /// Walk to this marker of the town (`markerEvTbl`), which an
+        /// event's `near_marker` waits for (event 13's 31).
+        Marker(i16),
         /// Call this member into the party (PERSONAL, Party, Add).
         Invite(i32),
         /// Send the members away (PERSONAL, Party, Disband): the story
@@ -2601,7 +2619,10 @@ mod tests {
     /// What the story autopilot goes for in a town, in order: an event's
     /// NPC to talk to, a mail or post unread (log out), another town, a
     /// member to call, an area's words, the marks. None with none.
-    pub(super) fn gate_goal(w: &crate::world::WorldMode, talked: &[i32]) -> Option<GateGoal> {
+    pub(super) fn gate_goal(
+        w: &crate::world::WorldMode,
+        talked: &[(piney_world::entry::Kind, i32)],
+    ) -> Option<GateGoal> {
         use piney_world::entry::Kind;
         let save = &w.world().state().save;
         // A mail unread, or a post new on the board (posted, or written
@@ -2615,9 +2636,16 @@ mod tests {
         // An NPC of this town the events wait to be spoken to (`add_target`)
         // comes before the gate.
         let world = w.world();
-        let talk = world.event_targets().iter().find_map(|&(_, code)| {
-            let code = i32::from(code);
-            (!talked.contains(&code)).then(|| world.char_place(Kind::Npc, code).map(|(pos, _)| (code, pos))).flatten()
+        let talk = world.event_targets().iter().find_map(|&(ty, code)| {
+            // 3 and 4 a PC, 8-12 a merchant (event 16's five), both town NPCs.
+            let kind = match ty {
+                2 => Kind::Spc,
+                3 | 4 | 8..=12 => Kind::Npc,
+                13 => Kind::Gimmick,
+                _ => return None,
+            };
+            let who = (kind, i32::from(code));
+            (!talked.contains(&who) && world.char_place(kind, who.1).is_some()).then_some(who)
         });
         // What the story waits for, in order: a talk here, another town,
         // a member it wants in the party (one with an address who answers
@@ -2628,13 +2656,37 @@ mod tests {
         let flags = save.i32(piney_data::save::offset::PARTY_MEMBER_FLAG) as u32;
         let calls = save.i32(piney_data::save::offset::PARTY_MEMBER_CALL) as u32;
         let alone = wants.contains(&Want::Alone);
-        let wanted = wants
-            .iter()
-            .find_map(|&x| match x {
-                Want::Town(t) if t != here => town_row(w, t).map(GateGoal::Town),
-                _ => None,
+        // The one member the story takes along, the others sent away.
+        let only = wants.iter().find_map(|&x| match x {
+            Want::Only(pc) => Some(pc),
+            _ => None,
+        });
+        let others = only.is_some_and(|pc| party.iter().skip(1).any(|&m| m != -1 && m != pc));
+        let closing = crate::start::story(world.volume()).iter().any(|&n| {
+            let x = save.event_flag(n as usize);
+            x & 1 << 63 != 0 && x & 1 << 62 == 0
+        });
+        // A marker of this town the story waits at, unless Kite is there.
+        let kite = world.player().body.pos.map(f32::from_bits);
+        let marker = wants.iter().find_map(|&x| match x {
+            Want::Marker(m) => world
+                .marker(m)
+                .filter(|mk| (mk.pos[0] - kite[0]).hypot(mk.pos[1] - kite[1]) > 200.0)
+                .map(|_| GateGoal::Marker(m)),
+            _ => None,
+        });
+        let wanted = marker
+            .or_else(|| {
+                // Not while this town is wanted too (event 22's Mac Anu and
+                // Dun Loireag): the two would send Kite back and forth.
+                let here_wanted = wants.contains(&Want::Town(here));
+                wants.iter().find_map(|&x| match x {
+                    Want::Town(t) if t != here && !here_wanted => town_row(w, t).map(GateGoal::Town),
+                    _ => None,
+                })
             })
             .or_else(|| (alone && party.iter().skip(1).any(|&m| m != -1)).then_some(GateGoal::Disband))
+            .or_else(|| others.then_some(GateGoal::Disband))
             .or_else(|| {
                 wants.iter().find_map(|&x| match x {
                     Want::Party(pc)
@@ -2664,7 +2716,7 @@ mod tests {
                 // would, with the members who answer calls, those who
                 // revive or heal first.
                 let out = wants.iter().any(|&x| matches!(x, Want::Area(a) if area_way(w, a).is_some()));
-                (out && !alone && party.contains(&-1))
+                (out && !alone && only.is_none() && party.contains(&-1))
                     .then(|| companion(w, &party, flags & calls))
                     .flatten()
                     .map(GateGoal::Invite)
@@ -2679,13 +2731,17 @@ mod tests {
         // post only when the story wants nothing here (event 108 holds the
         // board on the top page, not in town).
         Some(match (talk, wanted, marked_areas(w).last(), marked_town(w)) {
-            (Some((code, _)), ..) => GateGoal::Talk(code),
+            (Some((kind, code)), ..) => GateGoal::Talk(kind, code),
             _ if mail => GateGoal::LogOut,
             (None, Some(g), ..) => g,
             _ if posts => GateGoal::LogOut,
             // The story goes on on the desktop or the top page (event 107's
             // Quit after its town).
             _ if wants.iter().any(|w| matches!(w, Want::Leave { .. })) => GateGoal::LogOut,
+            // A story event closed (its `end_event`) turns done, and the
+            // next one opens on it, only at the next mode's
+            // `ccStartThEvent` (event 12 after 11, 14 after 13): out first.
+            (None, None, ..) if closing => GateGoal::LogOut,
             (None, None, Some(&(row, _)), _) => GateGoal::Area(row),
             (None, None, None, Some(row)) => GateGoal::Town(row),
             (None, None, None, None) => return None,
@@ -2697,7 +2753,7 @@ mod tests {
     /// (59), the marked area's row and Warp, or else, with a mail unread,
     /// Log Out (11) and OK. None with neither, or while a window waits
     /// (the rest of [`story_player`] then).
-    fn gate_player(w: &crate::world::WorldMode, f: u64, talked: &[i32]) -> Option<Raw> {
+    fn gate_player(w: &crate::world::WorldMode, f: u64, talked: &[(piney_world::entry::Kind, i32)]) -> Option<Raw> {
         use piney_world::entry::Kind;
         let still =
             |buttons: Buttons| Raw { buttons, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
@@ -2728,7 +2784,7 @@ mod tests {
             (59, 4, _) => return Some(every(8, Buttons::CROSS)),
             (11, 1, _) => return Some(every(8, go_to(0))),
             // A talk the events do not take (the NPC's own line): on.
-            (22, _, GateGoal::Talk(_)) => return Some(every(8, Buttons::CROSS)),
+            (22, _, GateGoal::Talk(..)) => return Some(every(8, Buttons::CROSS)),
             // A shop's or a breeder's own menu, opened by a talk: back out.
             (23..=27 | 44..=46, ..) => return Some(every(8, Buttons::CIRCLE)),
             // The call: PERSONAL, Party, Add, the member's face, OK, and
@@ -2781,14 +2837,18 @@ mod tests {
             return Some(every(30, Buttons::TRIANGLE));
         }
         let (kind, code) = match goal {
-            GateGoal::Talk(code) => (Kind::Npc, code),
+            GateGoal::Talk(kind, code) => (kind, code),
             _ => (Kind::Gimmick, 16),
         };
-        if world.command_target() == Some((kind, code)) {
-            return Some(every(24, Buttons::CROSS));
-        }
-        let (gate, _) = world.char_place(kind, code)?;
-        let g = gate.map(f32::from_bits);
+        let g = match goal {
+            GateGoal::Marker(m) => world.marker(m)?.pos,
+            _ => {
+                if world.command_target() == Some((kind, code)) {
+                    return Some(every(24, Buttons::CROSS));
+                }
+                world.char_place(kind, code)?.0.map(f32::from_bits)
+            }
+        };
         let p = world.player().body.pos.map(f32::from_bits);
         // Beside the NPC with the Chaos Gate the target (the SEARCH events'
         // NPC stands at its dummy, `DMY_gate`, and the gate comes first):
@@ -2796,7 +2856,7 @@ mod tests {
         // (`ccSelectTarget` mode 2, the stick's power rising past 64).
         let beside = (g[0] - p[0]).hypot(g[1] - p[1]) < 400.0;
         let gate = world.command_target() == Some((Kind::Gimmick, 16));
-        if matches!(goal, GateGoal::Talk(_)) && beside && gate && f % 16 < 8 {
+        if matches!(goal, GateGoal::Talk(..)) && kind != Kind::Gimmick && beside && gate && f % 16 < 8 {
             return Some(still(Buttons::NONE));
         }
         let cam_z = f32::from_bits(world.camera().rot()[2]);

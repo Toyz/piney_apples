@@ -49,8 +49,8 @@ pub(super) struct StoryPilot {
     talking: Option<(i32, u64)>,
     talk_place: Option<(i32, i32)>,
     /// In a town: the same for its event NPCs, and the town.
-    town_talked: Vec<i32>,
-    town_talking: Option<(i32, u64)>,
+    town_talked: Vec<(piney_world::entry::Kind, i32)>,
+    town_talking: Option<((piney_world::entry::Kind, i32), u64)>,
     talk_town: Option<i32>,
     /// In a field or dungeon the story wants nothing of: since when, and
     /// whether the pilot is on its way out (PERSONAL, Gate Out).
@@ -282,17 +282,17 @@ impl StoryPilot {
         // (a shop, a breeder: menus 21-27, 44-46).
         let own_menu = matches!(w.ui().menu_type(), 21..=27 | 44..=46);
         match self.town_talking {
-            Some((code, _)) if banned || own_menu => {
-                self.town_talked.push(code);
+            Some((who, _)) if banned || own_menu => {
+                self.town_talked.push(who);
                 self.town_talking = None;
             }
             Some((_, at)) if f > at + 120 => self.town_talking = None,
             Some(_) => {}
             None => {
-                if let Some(GateGoal::Talk(code)) = gate_goal(w, &self.town_talked)
-                    && w.world().command_target() == Some((piney_world::entry::Kind::Npc, code))
+                if let Some(GateGoal::Talk(kind, code)) = gate_goal(w, &self.town_talked)
+                    && w.world().command_target() == Some((kind, code))
                 {
-                    self.town_talking = Some((code, f));
+                    self.town_talking = Some(((kind, code), f));
                 }
             }
         }
@@ -305,9 +305,11 @@ impl StoryPilot {
     fn walk_in_town(&mut self, w: &crate::world::WorldMode, f: u64) -> Option<Raw> {
         use piney_world::entry::Kind;
         let world = w.world();
-        let target = match gate_goal(w, &self.town_talked)? {
-            GateGoal::Talk(code) => (Kind::Npc, code),
-            GateGoal::Area(_) | GateGoal::Town(_) => (Kind::Gimmick, 16),
+        let marker = |m: i16| world.marker(m).map(|mk| mk.pos);
+        let (target, to) = match gate_goal(w, &self.town_talked)? {
+            GateGoal::Talk(kind, code) => ((kind, code), None),
+            GateGoal::Marker(m) => ((Kind::Gimmick, -1), Some(marker(m)?)),
+            GateGoal::Area(_) | GateGoal::Town(_) => ((Kind::Gimmick, 16), None),
             GateGoal::LogOut | GateGoal::Invite(_) | GateGoal::Disband => return None,
         };
         let waiting = w.calls().iter().rev().find_map(|(_, c)| {
@@ -323,8 +325,10 @@ impl StoryPilot {
             self.path.clear();
             return None;
         }
-        let (to, _) = world.char_place(target.0, target.1)?;
-        let to = to.map(f32::from_bits);
+        let to = match to {
+            Some(q) => q,
+            None => world.char_place(target.0, target.1)?.0.map(f32::from_bits),
+        };
         let p = world.player().body.pos.map(f32::from_bits);
         if (to[0] - p[0]).hypot(to[1] - p[1]) < 400.0 {
             self.path.clear();
@@ -1200,7 +1204,31 @@ fn whole_state(s: &Session) -> String {
     let wants = vm.map(|vm| story_wants(vm, save));
     let o = piney_data::save::offset::PARTY_MEMBER_FLAG;
     let c = piney_data::save::offset::PARTY_MEMBER_CALL;
-    format!("party {party:?} address {:x} call {:x} wants {wants:?}", save.i32(o), save.i32(c))
+    let area = match &s.stage {
+        Stage::Area(a) => {
+            let w = a.world();
+            let c = w.combat();
+            let kite = w.player().body.pos.map(f32::from_bits);
+            let near = foes(c)
+                .iter()
+                .map(|&i| {
+                    let p = c.scene.chars[i].pos.map(f32::from_bits);
+                    ((p[0] - kite[0]).hypot(p[1] - kite[1]) as i32, c.scene.chars[i].hp)
+                })
+                .min();
+            format!(
+                " targets {:?} foes {} nearest {near:?} battle {} menu {} phase {:?} playing {:?}",
+                w.event_targets(),
+                foes(c).len(),
+                c.battle.in_battle,
+                a.ui().menu_type(),
+                w.phase(),
+                a.vm().and_then(|v| v.playing())
+            )
+        }
+        _ => String::new(),
+    };
+    format!("party {party:?} address {:x} call {:x} wants {wants:?}{area}", save.i32(o), save.i32(c))
 }
 
 /// With the gate hack (62) open, the Virus Cores its area asks for, given
@@ -1277,6 +1305,14 @@ pub(super) fn event_flag(s: &mut Session, n: i32) -> Option<u64> {
     save.map(|s| s.event_flag(n as usize))
 }
 
+/// Infection from its first story start (event 3) to its last event's end
+/// under the autopilot, as [`mutation_whole_story`].
+#[test]
+#[ignore]
+fn infection_whole_story() {
+    whole_story("infection");
+}
+
 /// Mutation from a new game to its ending under the autopilot, the party
 /// kept up: each story event's end as it comes, until event 116's. A
 /// diagnostic (`--ignored --nocapture`; `PINEY_SURVEY_FRAMES`, 2,000,000).
@@ -1300,12 +1336,19 @@ fn whole_story(disc: &str) {
     let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
     let Some(volume) = Iso::open(&iso).ok().and_then(|mut d| d.volume().ok()) else { return };
     let story = crate::start::story(volume);
-    let (Some(&first), Some(&last)) = (story.first(), story.last()) else { return };
+    // The first event a story start can be made at (Infection's 1 and 2 are
+    // the desktop's).
+    let first = story.iter().copied().find(|n| crate::start::POINTS.contains(n));
+    let (Some(first), Some(&last)) = (first, story.last()) else { return };
     let Some(mut s) = story_session_on(disc, first, |_| {}) else { return };
     s.console("god");
     let mut pad = Pad::default();
     let mut pilot = StoryPilot::default();
     let mut ended: Vec<i32> = Vec::new();
+    // `PINEY_SURVEY_STALL`: frames with no event ended before the run is
+    // given up (200,000).
+    let stall: u64 = std::env::var("PINEY_SURVEY_STALL").ok().and_then(|v| v.parse().ok()).unwrap_or(200_000);
+    let mut last_end = 0u64;
     for f in 0..frames {
         // As the survey's god: the infection held at 0, the hack's cores.
         if f.is_multiple_of(30) {
@@ -1327,11 +1370,15 @@ fn whole_story(disc: &str) {
         for &n in story {
             if !ended.contains(&n) && event_flag(&mut s, n).is_some_and(|x| x & 3 << 62 != 0) {
                 ended.push(n);
+                last_end = f;
                 println!("{f}: event {n} ended - {}", Mode::title(&s));
             }
         }
         if ended.contains(&last) {
             return;
+        }
+        if f - last_end > stall {
+            panic!("the story stalled after {ended:?} at frame {f}: {} {}", Mode::title(&s), whole_state(&s));
         }
     }
     panic!("the story stopped after {ended:?} at {frames} frames: {}", Mode::title(&s));
