@@ -897,6 +897,9 @@ impl AreaMode {
                 Show::Words { who, sid } => {
                     if let Some(ch) = c.scene.chars.get(*who).filter(|_| !w.voices_off()) {
                         let base = ch.base();
+                        // skillVoicePlay reads saveData.voice as it plays: the
+                        // options as the save stands go with the words.
+                        out.push(crate::mode::voice_options(&w.state().save));
                         out.push(Event::SkillWords {
                             event_running: w.camera().puppet_show,
                             char_type: base.ty as u32,

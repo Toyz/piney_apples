@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-321 entries: audio 25, battle 67, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 79, save 10, script 34, test 131, tooling 23, ui 59, video 11, volumes 64, world 85.
+322 entries: audio 26, battle 67, build 15, content 3, decomp 22, disc 5, engine 9, format 15, iop 2, render 79, save 10, script 34, test 131, tooling 23, ui 59, video 11, volumes 64, world 85.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -333,3 +333,4 @@ The [reference](docs/README.md) says what is true now.
 | 319 | ["The Gott statue's ring stayed: a character's draw ignored its objects' animated transparency"](worklog/0319-the-gott-statue-s-ring-stayed-a-character-s-draw-ignored.md) | 2026-10-01 | render |
 | 320 | ["New Game's name entry was silent: ccSetupDesktop's ccAllSoundOff comes after the phase-0 pass"](worklog/0320-new-game-s-name-entry-was-silent-ccsetupdesktop-s.md) | 2026-10-01 | audio, script |
 | 321 | [ccSoundFadeOut fades the music over 8 frames instead of cutting it](worklog/0321-ccsoundfadeout-fades-the-music-over-8-frames-instead-of.md) | 2026-10-01 | audio |
+| 322 | [A skill's words follow the Voiceover option the moment it changes](worklog/0322-a-skill-s-words-follow-the-voiceover-option-the-moment-it.md) | 2026-10-01 | audio |

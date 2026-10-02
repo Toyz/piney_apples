@@ -3059,9 +3059,16 @@ mod tests {
         let Some((mut s, mut f)) = story_to_field(0) else { return };
         let mut log = Vec::new();
         story_until(&mut s, &mut f, "menu_ban false", 60, &mut log);
+        // The Voiceover option set to Japanese mid-game, as OPTION's Voice
+        // page leaves it: the next skill word reads it.
+        {
+            let Stage::Area(a) = &mut s.stage else { panic!("left the area") };
+            a.world_mut().state_mut().save.set_u8(offset::VOICE, 0);
+        }
         let mut pad = Pad::default();
         let goal = [28600.0f32, 24600.0];
         let mut words = Vec::new();
+        let mut options_with_words = None;
         let mut fought = false;
         for i in 0..3000u64 {
             let raw = {
@@ -3096,12 +3103,20 @@ mod tests {
             };
             pad.read(&raw);
             s.step(&pad);
-            words.extend(s.take_events().into_iter().filter(|e| matches!(e, Event::SkillWords { .. })));
+            let events = s.take_events();
+            if options_with_words.is_none() && events.iter().any(|e| matches!(e, Event::SkillWords { .. })) {
+                options_with_words =
+                    Some(events.iter().any(|e| matches!(e, Event::VoiceOptions { english: false, .. })));
+            }
+            words.extend(events.into_iter().filter(|e| matches!(e, Event::SkillWords { .. })));
             if !words.is_empty() && i > 0 && fought {
                 break;
             }
         }
         assert!(fought, "the battle mode came on");
+        // skillVoicePlay reads saveData.voice as it plays: the options go
+        // with the words.
+        assert_eq!(options_with_words, Some(true), "the Japanese option with the skill's words");
         let Some(&Event::SkillWords { event_running, char_type, char_id, sid, type_bit }) = words.first() else {
             panic!("no SkillWords: {}", Mode::title(&s));
         };
