@@ -2540,7 +2540,9 @@ impl FieldWorld {
 
     /// The `near_marker` condition's distance outside the towns:
     /// `ccGetDist(ccTransPosW2P(pos), plw->posP)` (`ccEvent::CheckOpen`,
-    /// main 0x001a7d9c) through the map's bounds, on the ground.
+    /// main 0x001a7d9c) through the map's bounds. Kite's `posP` is
+    /// `FZeroPosition` with his ground height (0, 0, z), or a carrier's
+    /// move this frame while he rides one (worklog 328).
     pub fn player_distance(&self, pos: V4) -> F {
         let hits = match &self.place {
             Place::Field(f) => &f.hits,
@@ -2550,7 +2552,8 @@ impl FieldWorld {
         let b = Combat::bounds(self.scene.area, hits);
         let p = self.player.body.pos;
         let at = |v: V4| piney_battle::kite::w2p_pos(&b, p, v).0;
-        piney_battle::enemy_ai::get_dist_on(self.volume, at(pos), at(p))
+        let pos_p = self.combat.kite.and_then(|k| self.combat.scene.chars.get(k)).map_or(at(p), |c| c.pos_p);
+        piney_battle::enemy_ai::get_dist_on(self.volume, at(pos), pos_p)
     }
 
     /// `ccStoreSpcCondition()` as the next scene's `ccSetupGameCtrl` runs

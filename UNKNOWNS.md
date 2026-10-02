@@ -509,6 +509,7 @@ player until one of these turns out wrong.
 
 ### script
 
+- [[328]] near_marker while Kite rides a carrier (`GetTransMode`): which areas do it — not surveyed; no test
 - [[11]] which story areas Infection itself can reach — derivable from the scripts' gate_add (events.md op 89/90); no list made
 - [[18]] how far the parody script diverges beyond the lines compared — only sampled
 - [[69]] when the field set-up enables the event task — taken from the desktop's check (docs/engine/event-vm.md Unknown)
@@ -519,7 +520,6 @@ player until one of these turns out wrong.
 - [[91]] the church's messages, cameras and timing only seen to run — not compared
 - [[99]] piros_colour status 9 with an operand past 5 — no script uses it
 - [[107]] whether block 18's in_point 5 gates block 19 in the dungeon's first room — not looked into
-- [[134]] whether the game's ccGetDist in CheckOpen takes the wrapped frame for both points — assumed
 - [[143]] event 27's talk (walking PC row 85) not played through by a test — test gap
 - [[177]] event 62 not played through end to end (mail, words, portal, scene back) — test gap
 - [[178]] walks along the town navigator's route (gPoint not -1) not ported for Kite — no event sets one
@@ -1002,6 +1002,7 @@ player until one of these turns out wrong.
 - [[131]] stream 15's Func_str0580 and Func_str0581 — answered by [[133]]
 - [[133]] the shades on the GPU (REGION_REPEAT as a plain repeat) — answered by [[146]]
 - [[133]] VU1's clip at divZ for stream 15 — answered by [[153]]
+- [[134]] whether ccGetDist in CheckOpen takes the wrapped frame for both points — answered by [[328]] (the player's posP is FZeroPosition with his ground height; a carrier's move while riding)
 - [[135]] the fountain's FountainMenu3 pair — answered by [[163]]
 - [[135]] ccClearSpcCondition, which the bosses' deaths call — answered by [[192]]
 - [[136]] piney-gs clipping at a fixed 1000, not divZ — answered by [[153]]
