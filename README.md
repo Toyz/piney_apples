@@ -210,7 +210,11 @@ F1 or `` ` `` opens the console.
 
 Bugs go to [the issues page](https://github.com/Toyz/piney_apples/issues):
 say which part (Infection, Mutation...), where you were, what you did, and
-what you expected. A screenshot helps; a recording helps most:
+what you expected. Give the build too: it is in brackets after "Ported by
+helba" on the disc menu, the first line `piney-game` prints, and the
+console's `version` (a 7-digit commit such as `fc82e63`; "unknown" for a
+tree downloaded as a ZIP, so clone with git if you can). A screenshot
+helps; a recording helps most:
 
 Open the console (F1 or `` ` ``) and type `pad_log`. The game has been
 keeping every frame's pad since power-on, so this writes the whole run so

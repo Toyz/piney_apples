@@ -122,6 +122,9 @@ impl App {
         if w.first() == Some(&"pad_log") {
             return self.pad_log(w.get(1).copied());
         }
+        if w.first() == Some(&"version") {
+            return launcher::version();
+        }
         self.record.console(line);
         if w.first() == Some(&"story") {
             let Some(n) = w.get(1).and_then(|s| s.parse::<i32>().ok()) else {
@@ -138,7 +141,7 @@ impl App {
         let answer = self.mode.console(line);
         if w.first() == Some(&"help") {
             return format!(
-                "{answer}\nstory N           the game again at event N's start\npad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it"
+                "{answer}\nstory N           the game again at event N's start\nversion           the build this game was made from (give it with a bug report)\npad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it"
             );
         }
         answer
@@ -165,7 +168,7 @@ impl App {
                 dir.join(format!("pad-{secs}.log"))
             }
         };
-        let header = self.gilrs.as_ref().map(input::gamepads).unwrap_or_default();
+        let header = log_header(self.gilrs.as_ref());
         match self.record.start(&path, &header) {
             Ok(n) => format!(
                 "writing {} ({n} frames since power-on so far, the card into {}.card); pad_log stop ends it. Send both.",
@@ -890,7 +893,14 @@ fn make_mode(name: &str, assets: &mut Assets, o: &Options) -> Result<Box<dyn Mod
     }
 }
 
+/// A pad log's first lines: the build, then the gamepads.
+fn log_header(gilrs: Option<&gilrs::Gilrs>) -> String {
+    let pads = gilrs.map(input::gamepads).unwrap_or_default();
+    format!("{}\n{pads}", launcher::version())
+}
+
 fn main() {
+    println!("{}", launcher::version());
     // The disc: --iso, or a build's (--game, else the one piney-build left
     // in the port's folder), else the working tree's Infection image.
     let mut iso = PathBuf::from("work/infection/infection.iso");
@@ -993,9 +1003,10 @@ fn main() {
                 card_given = true;
             }
             "--news" => news = args.next().unwrap_or_default().split(',').filter_map(|n| n.parse().ok()).collect(),
+            "-V" | "--version" => return,
             "-h" | "--help" => {
                 println!(
-                    "piney-game [--iso PATH | --game DIR [--volume N]] [--mode MODE] [--no-events] [--mute] [--dvd [SPEED]] [--voice en|jp] [--card DIR | --no-card] [--mail N,...] [--news N,...] [--pad-log FILE] [--replay FILE]"
+                    "piney-game [--iso PATH | --game DIR [--volume N]] [--mode MODE] [--no-events] [--mute] [--dvd [SPEED]] [--voice en|jp] [--card DIR | --no-card] [--mail N,...] [--news N,...] [--pad-log FILE] [--replay FILE] [--version]"
                 );
                 println!(
                     "--iso PATH: a disc image, or a disc of a build (DIR/outbreak.disc); --game DIR: a piney-build build (by default {}), its launcher when it holds more than one disc; --volume 1-4 (inf, mut, out, qua): that disc of the build, no launcher",
@@ -1421,7 +1432,7 @@ fn main() {
         .ok();
     let mut record = record;
     if let Some(path) = pad_log {
-        let header = gilrs.as_ref().map(input::gamepads).unwrap_or_default();
+        let header = log_header(gilrs.as_ref());
         match record.start(std::path::Path::new(&path), &header) {
             Ok(_) => eprintln!("pad log: {path}"),
             Err(e) => eprintln!("{e}"),

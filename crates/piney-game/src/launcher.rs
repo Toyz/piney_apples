@@ -5,7 +5,7 @@
 //! volume the build lacks is dimmed, the demo's labels hidden; without
 //! Outbreak, a list in the game's font. Before it, the title's three logo
 //! movies ([`LOGOS`]); under it, the disc's copyright and the port's credit
-//! ([`PORTED_BY`]).
+//! ([`credit`], with the build it was made from).
 
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -46,7 +46,9 @@ const ICON_TURN: u32 = 60;
 /// Where the credit's text starts: its right end 24 in from the screen's
 /// (the font's type 2 half-width cells are 7.5 across here), on the
 /// copyright's second line.
-const CREDIT_X: f32 = 512.0 - 24.0 - 7.5 * PORTED_BY.len() as f32;
+fn credit_x(len: usize) -> f32 {
+    512.0 - 24.0 - 7.5 * len as f32
+}
 const CREDIT_Y: f32 = 424.0;
 /// A dimmed row's transparency.
 const DIM: f32 = 0.3;
@@ -61,6 +63,22 @@ const OK: Buttons = Buttons(Buttons::CROSS.0 | Buttons::START.0);
 
 /// The port's credit, bottom right under the rows.
 pub const PORTED_BY: &str = "Ported by helba";
+/// The commit the game was built from (build.rs), empty when unknown.
+pub const BUILD: &str = env!("PINEY_BUILD");
+
+/// The credit as drawn: with the build when known, for bug reports.
+pub fn credit() -> String {
+    if BUILD.is_empty() { PORTED_BY.to_string() } else { format!("{PORTED_BY} ({BUILD})") }
+}
+
+/// The version line on stdout, the console's `version` and a pad log.
+pub fn version() -> String {
+    if BUILD.is_empty() {
+        "piney-game, build unknown (built without .git)".to_string()
+    } else {
+        format!("piney-game build {BUILD}")
+    }
+}
 
 /// The title's copyright line: `OBJ_xdt_cop_00_` of `ANM_xdt_ne09` (the
 /// title's "digits and copyright behind", `m_back[2]`), drawn as the title
@@ -316,10 +334,11 @@ impl LauncherMode {
         if let Some(fonts) = &self.fonts {
             let view = piney_desktop::message::menu_view();
             let mut k = Kanji::init(2, 96);
-            k.dx = CREDIT_X;
+            let credit = credit();
+            k.dx = credit_x(credit.len());
             k.dy = CREDIT_Y;
             k.colour = [128, 128, 128, 128];
-            ctx.disp(fonts, &mut k, 0, &view, PORTED_BY.as_bytes(), &Names::default());
+            ctx.disp(fonts, &mut k, 0, &view, credit.as_bytes(), &Names::default());
         }
         let m = ctx.finish();
         frame.uploads = m.uploads;
@@ -493,8 +512,11 @@ mod tests {
         }
         let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/icons".into());
         std::fs::create_dir_all(&dir).unwrap();
-        let mut l =
-            LauncherMode::new([Some(out.clone()), Some(out.clone()), Some(out.clone()), Some(out)], None, None, None);
+        // The disc's fonts as main gives them, so the credit is drawn too.
+        let archive = Archive::new(Iso::open(&out).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap();
+        let fonts = crate::console_fonts(&out, &archive);
+        let discs = [Some(out.clone()), Some(out.clone()), Some(out.clone()), Some(out)];
+        let mut l = LauncherMode::new(discs, None, fonts, Some((&archive, Volume::Out)));
         let mut pad = Pad::default();
         let mut gs = None;
         let mut shots = 0;
