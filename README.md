@@ -90,39 +90,102 @@ them and build on them. You do not have to patch a binary.
 
 ## Getting started
 
-You need:
+The game is built from source on your own computer, then made from your own
+discs. It takes four steps the first time; after that, updating is two
+commands.
 
-- **Your own disc images** (`.iso`) of the games, the North American
-  releases: Infection `SLUS_202.67`, Mutation `SLUS_205.62`, Outbreak
-  `SLUS_205.63` and Quarantine `SLUS_205.64`. One disc is enough to play
-  that part.
-- **Rust**, the current stable toolchain, from [rustup.rs](https://rustup.rs).
-- **A GPU with Vulkan, Metal or DirectX 12**, which is what wgpu draws with.
+### What you need
 
-Then:
+- **Your own disc images** (`.iso`) of the North American releases:
+  Infection `SLUS_202.67`, Mutation `SLUS_205.62`, Outbreak `SLUS_205.63`,
+  Quarantine `SLUS_205.64`. One disc is enough to play that part. Other
+  regions are not supported.
+- **A graphics card with Vulkan, Metal or DirectX 12**: most from the last
+  ten years, with current drivers.
+- **Disk space**: about 2 GB per disc for the game, and a few GB more for
+  compiling.
+
+### 1. Install the tools (once)
+
+You need Git and Rust (the current stable version).
+
+- **Windows**: install [Git for Windows](https://git-scm.com/download/win)
+  and run `rustup-init.exe` from [rustup.rs](https://rustup.rs). When it asks,
+  let it install the Visual Studio C++ build tools. Use the commands below
+  in PowerShell or the "Developer PowerShell".
+- **Linux**: install Git, a C compiler, `pkg-config`, and the ALSA (sound)
+  and udev (gamepads) headers, then Rust from [rustup.rs](https://rustup.rs):
+  - Debian, Ubuntu, Mint: `sudo apt install git build-essential pkg-config libasound2-dev libudev-dev`
+  - Fedora: `sudo dnf install git gcc pkgconf-pkg-config alsa-lib-devel systemd-devel`
+  - Arch: `sudo pacman -S git base-devel alsa-lib systemd-libs`
+  - then: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **macOS**: run `xcode-select --install`, then install Rust from
+  [rustup.rs](https://rustup.rs).
+
+### 2. Download and compile (once)
 
 ```sh
-git clone <this repository> piney_apples
+git clone https://github.com/Toyz/piney_apples.git
 cd piney_apples
 cargo build --release
-
-# once: make the game from the discs you have (files, or a folder of them)
-target/release/piney-build path/to/infection.iso path/to/mutation.iso
-
-# play
-target/release/piney-game
 ```
 
-`piney-build` tells the discs apart by their contents. It reads every file
-back to check it, then prints where the build went: `~/.local/share/piney/game`
-on Linux, `%APPDATA%\piney\game` on Windows, and
-`~/Library/Application Support/piney/game` on macOS. `$PINEY_HOME` moves
-the build, and `--out DIR` puts it somewhere else. Run it again with another
-disc and the build keeps the ones it already has. You can also play a
-single image without a build: `piney-game --iso path/to/infection.iso`.
+The first compile takes a while. The programs end up in `target/release/`
+(`.exe` on Windows).
 
-With more than one part in the build, the game opens on the four-part
-selector. `--volume 1-4` starts a part directly.
+### 3. Make the game from your discs (once)
+
+Give `piney-build` your disc images, or a folder holding them:
+
+```sh
+# Linux and macOS
+target/release/piney-build ~/isos/infection.iso ~/isos/mutation.iso
+
+# Windows (PowerShell)
+target\release\piney-build.exe "D:\isos\infection.iso" "D:\isos\mutation.iso"
+```
+
+It tells the discs apart by their contents, checks every file it reads,
+and prints where the game went:
+- Linux: `~/.local/share/piney/game`
+- Windows: `%APPDATA%\piney\game`
+- macOS: `~/Library/Application Support/piney/game`
+
+Got another disc later? Run it again with just that disc: the ones already
+in are kept. Your disc images are not needed after this step.
+
+### 4. Play
+
+```sh
+target/release/piney-game           # Windows: target\release\piney-game.exe
+```
+
+With more than one part made, it opens on the four-part selector;
+`--volume 1` (2, 3, 4) starts a part directly. You can also play one image
+without step 3: `piney-game --iso path/to/infection.iso`.
+
+### Updating
+
+```sh
+git pull
+cargo build --release
+```
+
+If the game then says `no port data of version N ... run piney-build
+again`, run `target/release/piney-build` with **no arguments**. It remakes
+the game from the discs already in it; your saves are not touched.
+
+### If something goes wrong
+
+- **It will not start, or says no graphics adapter**: update your graphics
+  drivers. On Linux, make sure the Vulkan driver for your card is
+  installed (`mesa-vulkan-drivers` on Debian and Ubuntu, `vulkan-radeon` or
+  `vulkan-intel` on Arch).
+- **No sound**: the game plays on your system's default output device. Check
+  it there, and that the in-game Option menu's volumes are up.
+- **A gamepad does nothing**: plug it in before starting the game, then press
+  a button on it (the game reads the pad last used).
+- **Anything else**: see [Reporting a bug](#reporting-a-bug) below.
 
 ### Controls
 
@@ -144,6 +207,10 @@ connected, the one that last sent input is read. Escape asks to quit, and
 F1 or `` ` `` opens the console.
 
 ### Reporting a bug
+
+Bugs go to [the issues page](https://github.com/Toyz/piney_apples/issues):
+say which part (Infection, Mutation...), where you were, what you did, and
+what you expected. A screenshot helps; a recording helps most:
 
 Open the console (F1 or `` ` ``) and type `pad_log`. The game has been
 keeping every frame's pad since power-on, so this writes the whole run so
