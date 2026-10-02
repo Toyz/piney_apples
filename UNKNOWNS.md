@@ -98,9 +98,6 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 ### audio
 
-- [[58]] `SoundFadeOut` stops every sequence at once (crates/piney-game/src/main.rs maps it to `bgm_stop`); the game's `ccSoundFadeOut` fades over 8 frames — every mode change that fades the music
-- [[96]] the gate hack's cancel: `ccSndGateHackCtrl` restarts sequences 0 and 2 at volume 0 and fades them in; the port fades them from where they are (docs/engine/field-ui.md) — cancelling a gate hack
-- [[89]] changing Voice in The World's Options goes through `SoundEnv`, which carries the volumes only; the driver may not follow until the next mode — the voice language option in the field
 
 ### ui
 
@@ -794,6 +791,7 @@ player until one of these turns out wrong.
 - [[57]] stream 2's fog — answered by [[127]], [[145]]
 - [[57]] the table's 21 other effect tasks — answered by [[85]], [[121]], [[122]], [[124]], [[125]], [[126]], [[133]] (all of Infection's)
 - [[58]] the field game (mode 5/6) — answered by [[59]]
+- [[58]] `SoundFadeOut` stopped every sequence at once; the game's `ccSoundFadeOut` fades over 8 frames — answered by [[321]] (`Driver::sound_fade_out`, `ccSqFade(n, 0, 8, 3)` per sequence)
 - [[59]] the event task in town (event 2's arrival with Orca) — answered by [[69]]
 - [[59]] NPCs and the Chaos Gate — answered by [[61]], [[65]]
 - [[59]] the HUD, map and field menus — answered by [[66]], [[68]], [[71]], [[77]]
@@ -922,6 +920,7 @@ player until one of these turns out wrong.
 - [[87]] the dungeon's own objects (boxes, Fortune Wire, idols) — answered by [[98]]
 - [[87]] SetDoor's ban room — answered by [[114]] (the ban block)
 - [[87]] the door palettes for clutType 3 and 4 — answered by [[147]]
+- [[89]] changing Voice in The World's Options: whether the driver follows at once — answered by [[322]] (skill words now preceded by the save's voice options)
 - [[90]] party members stand still in town — answered by [[110]] (the members under ActInTown in town)
 - [[90]] event 11's block 17 at the gate and the rest of event 11 in area 15 — answered by [[91]], [[129]]
 - [[90]] inviteSpc's warp-in of an unregistered member at the Chaos Gate — answered for the towns by docs/engine/field-walk.md (party_add); the table-equipment copy is not ported ([[180]]: no script makes one)
@@ -939,6 +938,7 @@ player until one of these turns out wrong.
 - [[96]] the hacked arrival (GateHackingOut) — answered by [[106]]
 - [[96]] the gate hack's noise (ccNoiz) — answered by [[104]]
 - [[96]] gate_hack_anim waits on ghoFlag — answered by [[106]] (ghoFlag set by the constructor, cleared by GateHackingOut)
+- [[96]] the gate hack's cancel: `ccSndGateHackCtrl` restarts sequences 0 and 2 at volume 0 and fades them in — answered by [[316]] (`Driver::gate_hack_ctrl`; `the_gate_hack_silences_the_music_and_a_cancel_brings_it_back`)
 - [[97]] ccDog and the chibi Grunties — answered by [[142]], [[162]]
 - [[97]] ROOTTOWN03-05 — answered by [[218]], [[260]]; their four-sprite DrawMap is [[77]]'s
 - [[98]] the doors' palettes for clutType 3 and 4 and their sound ids — answered by [[147]], [[138]]

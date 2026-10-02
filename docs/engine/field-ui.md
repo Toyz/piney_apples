@@ -2693,8 +2693,6 @@ game's pictures.
 - **The gate hack's pieces outside the menu.**
   - The hacked arrival after the menu (`gtHackFlag`, `setupMode` 1) is
     [field walk](field-walk.md#the-hacked-arrival)'s.
-  - `ccSndGateHackCtrl`'s cancel restarts sequences 0 and 2 at volume 0
-    before fading them in; the port fades them back from where they are.
   - The 3D is not compared with the game's pixels: the checks compare its
     calls, not its draw.
 - Equipment's model change (`ccThEquipMenu`, `ccSPC::ChangeEquip`) and
