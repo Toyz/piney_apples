@@ -622,6 +622,13 @@ impl AreaMode {
                 if !vm.enable_settled(p) {
                     eprintln!("the area's set-up pass at phase {p} did not end in {PASS_FRAMES} frames; going on",);
                 }
+                // A pass that asked for another mode (ChangeRequest's
+                // ccDisableThEvent): ccSetupGameCtrl reads game+4 and
+                // returns (0x00168ca8, 0x00168fa4).
+                if vm.mng.enable_phase < 0 {
+                    self.setup = Setup::Left;
+                    return;
+                }
                 if p == 0 {
                     vm.enable(2);
                     self.setup = Setup::Pass(2);

@@ -512,7 +512,6 @@ player until one of these turns out wrong.
 - [[328]] near_marker while Kite rides a carrier (`GetTransMode`): which areas do it — not surveyed; no test
 - [[11]] which story areas Infection itself can reach — derivable from the scripts' gate_add (events.md op 89/90); no list made
 - [[18]] how far the parody script diverges beyond the lines compared — only sampled
-- [[69]] when the field set-up enables the event task — taken from the desktop's check (docs/engine/event-vm.md Unknown)
 - [[69]] the event camera's unknowns — listed on docs/engine/field-game.md (see Docs)
 - [[74]] when the event task wakes, read from the thread code — docs/engine/field-walk.md Unknown
 - [[90]] ccEvent::CheckOperate(9)'s whole talk rule not run in eemu — pieces checked
@@ -852,6 +851,7 @@ player until one of these turns out wrong.
 - [[69]] WORLD_MAN::SetEventData — answered by [[87]]
 - [[69]] teach_input (event 3's camera lesson) — answered by [[75]]
 - [[69]] the party's AI, pc_walk remote commands 1 and 2, the message bus — answered by [[78]], [[178]] (the towns' remote walks), [[223]]
+- [[69]] when the field set-up enables the event task — answered by [[329]] (ccEnableThEvent 0, 2, 4 at 0x00168c98, 0x00168f94, 0x001694d4; the game+4 exit now followed) / docs/engine/event-vm.md
 - [[70]] the pages still to come: Trade (48/49), 21, 23, 27 and 56, 50 — answered by [[73]]
 - [[70]] SetMerchantCamera's changeCamera(3)/(1) not carried out — answered by [[76]] (the merchant's camera; tools/test_merchcam_rs.py)
 - [[71]] the runtime's new-game save (skill list zeros, stats 0) — answered by [[76]] (ccSaveData::Init, NewGame, InitSpcParam; tools/test_save_init_rs.py)
@@ -1260,7 +1260,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 
 ### docs/engine/event-vm.md
 
-- docs/engine/event-vm.md: the load between passes 2 and 4 and the set-up's side of the passes — research (duplicates [[69]])
+- docs/engine/event-vm.md: the load between passes 2 and 4 — research (duplicates [[69]])
 - docs/engine/event-vm.md: DispInfo's setup-screen branch not run against the game — research (no Infection script announces before play)
 - docs/engine/event-vm.md: a desktop-item announcement's book* strings read past DESKTOP.PRG's end — research (Infection's desktop scripts never reach desktop_item)
 - docs/engine/event-vm.md: how long ccThMother takes between ChangeRequest(3, 7) and the desktop's setup — research (duplicates [[82]])

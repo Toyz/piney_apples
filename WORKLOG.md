@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-328 entries: audio 27, battle 67, build 15, content 3, decomp 25, disc 5, engine 10, format 16, iop 2, render 79, save 10, script 37, test 131, tooling 23, ui 60, video 11, volumes 67, world 87.
+329 entries: audio 27, battle 67, build 15, content 3, decomp 25, disc 5, engine 11, format 16, iop 2, render 79, save 10, script 38, test 131, tooling 23, ui 60, video 11, volumes 67, world 87.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -340,3 +340,4 @@ The [reference](docs/README.md) says what is true now.
 | 326 | [The gate menu's flash drawn in town on the menu fader](worklog/0326-the-gate-menu-s-flash-drawn-in-town-on-the-menu-fader.md) | 2026-10-01 | ui, world |
 | 327 | ["The jukebox clears the reverb; ccSnd +98 and +0x110 settled"](worklog/0327-the-jukebox-clears-the-reverb-ccsnd-98-and-0x110-settled.md) | 2026-10-01 | audio, decomp |
 | 328 | ["near_marker's distance: the player's posP is FZeroPosition with his ground height"](worklog/0328-near-marker-s-distance-the-player-s-posp-is-fzeroposition.md) | 2026-10-01 | script, world, decomp |
+| 329 | ["The field's set-up passes checked: ccEnableThEvent and the game+4 exit"](worklog/0329-the-field-s-set-up-passes-checked-ccenablethevent-and-the.md) | 2026-10-01 | script, engine |
