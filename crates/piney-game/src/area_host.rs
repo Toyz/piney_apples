@@ -285,14 +285,9 @@ impl Host for AreaHost<'_> {
         self.st.events.push(Event::ChangeMode { num: 6, sf: 7 });
     }
 
-    fn fade(&mut self, count: i16, alpha: i16, more: bool) {
+    fn fade(&mut self, count: i16, alpha: i16, more: bool, reset: bool) {
         self.st.log(format!("fade {count} {alpha} more={more}"));
-        let col1 = (alpha as u32 & 0xff) << 24;
-        if more {
-            self.st.fade.continue_fade(self.st.fade_num, count, col1);
-        } else {
-            self.st.fade_num = self.st.fade.entry(count, 0, col1);
-        }
+        self.st.fade.event(&mut self.st.fade_num, count, alpha, more, reset);
     }
 
     fn noise(&mut self, level: i32) {

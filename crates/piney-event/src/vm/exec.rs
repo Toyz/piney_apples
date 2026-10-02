@@ -11,7 +11,8 @@ use crate::host::{
     Wait,
 };
 use crate::ir::Op;
-use crate::state::{CLOSED, DONE, ScriptSave, bit32};
+use crate::state::{CHARACTERS, CLOSED, DONE, ScriptSave, bit32};
+use piney_data::save::by_id;
 use piney_data::save::offset as off;
 
 /// Counts `n` frames: yields until `run.n` reaches `frames`.
@@ -110,10 +111,13 @@ impl Vm {
                 }
             }
             Op::CallLock {} => {
+                // Characters 0-17 on Infection; from Mutation on 0-20 (INF
+                // SLUS_202.67:0x001af6d8 `slti 18`, MUT 0x001c4990 `slti 21`).
+                let members = if volume >= 2 { 21 } else { 18 };
                 let s = host.save();
                 let call = s.member_word(off::PARTY_MEMBER_CALL);
                 s.set_member_word(off::PARTY_MEMBER_CALL_STORE, call);
-                s.set_member_word(off::PARTY_MEMBER_CALL, (call | 0x8000_0000) & !0x3ffff);
+                s.set_member_word(off::PARTY_MEMBER_CALL, (call | 0x8000_0000) & !((1u32 << members) - 1));
             }
             Op::CallUnlock {} => {
                 let s = host.save();
@@ -202,13 +206,20 @@ impl Vm {
             Op::TalkNum { pc, num } => {
                 let s = host.save();
                 let v = if pc == 1 && s.parody_on() { 0 } else { num };
-                s.set_byte_at(off::TALK_NUM, 18, pc as i32, v as i8);
+                if let Some(c) = usize::try_from(pc).ok().filter(|&c| c < CHARACTERS) {
+                    s.set_u8(by_id::talk_num(c), v as u8);
+                }
             }
 
             // --- Desktop lists --------------------------------------------------------------
             Op::WallpaperAdd { num } => host.save().set_list_bit(off::DT_WALLPAPER_LIST, 3, num as i32),
             Op::BgmAdd { num } => host.save().set_list_bit(off::DT_BGM_LIST, 3, num as i32),
             Op::DesktopItem { ty, id } => {
+                // From Mutation on, a movie is not given in Parody Mode
+                // (MUT SLUS_205.62:0x001c51e4).
+                if volume >= 2 && ty == 2 && host.save().parody_on() {
+                    return Step::Done;
+                }
                 if play && self.announce(host, run, Announce::DesktopItem { ty, id }) == Step::Yield {
                     return Step::Yield;
                 }
@@ -511,7 +522,10 @@ impl Vm {
 
             // --- Modes, overlays, sound, the screen -----------------------------------------
             Op::Mode { num } => {
-                if num == 5 {
+                // Infection's `mode 5` also returns to the last town (INF
+                // 0x001b023c); from Mutation on every mode is
+                // `ChangeRequest(num, 7)` alone (MUT 0x001c552c).
+                if num == 5 && volume == 1 {
                     host.change_request(5, 8);
                     let town = host.save().u8(off::LAST_TOWN) as i8 as i32;
                     host.change_area(0, town);
@@ -533,8 +547,8 @@ impl Vm {
                 }
             }
             Op::Sound { cmd, p0, p1, p2 } => host.sound(cmd, p0, p1, p2),
-            Op::Fade { count, alpha } => host.fade(count, alpha, false),
-            Op::FadeMore { count, alpha } => host.fade(count, alpha, true),
+            Op::Fade { count, alpha } => host.fade(count, alpha, false, volume >= 2),
+            Op::FadeMore { count, alpha } => host.fade(count, alpha, true, volume >= 2),
             Op::Noise2 {} => host.noise(2),
             Op::Noise1 {} => host.noise(1),
             Op::Noise3 {} => host.noise(3),

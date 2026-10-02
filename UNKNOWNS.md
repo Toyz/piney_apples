@@ -123,7 +123,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 Missing pieces that only the later volumes need.
 
-- [[24]] [[40]] the later volumes' changed event cases (Outbreak's 6, 8, 9, 60, 71, 72, 150) and their event task's order run with Infection's semantics; what fills Outbreak's and Quarantine's BSS message groups (docs/engine/events.md, event-vm.md) — Outbreak's and Quarantine's stories
+- [[24]] [[325]] what fills Outbreak's and Quarantine's BSS message groups; what `eventAreaNumber` 126 loads (Quarantine's ending, event 314; the port gives it no words) (docs/engine/events.md) — Quarantine's ending
 - [[65]] [[116]] `npc_act -3` (row 139's drain, with `effVirusCrystal`) and `-5` are not ported; only Mutation's event 114 uses them (docs/engine/events.md, effects.md, field-game.md) — Mutation's event 114
 - [[275]] `marker_pos` on a plain field (`WORLD_MAN` +0x438's stream) is not ported, and no event map but `EVENTAREA01` answers `StoryMap::file` — Mutation's field events
 - [[225]] Mutation's flag race (menus 88-91, the `PG_FLAG` gimmick, the racers) is not ported — Mutation's Grunty race
@@ -710,6 +710,7 @@ player until one of these turns out wrong.
 - [[24]] the extension's 256 bytes at +0x754 — answered by [[246]] (cleared and copied, nothing else)
 - [[24]] the save bit at +0x5ec8 bit 62 — answered by [[220]] (eventFlag[314] bit 62, event 314 done; the random-path dungeon flag)
 - [[24]] what the ending routine does while the KFED buffers are loaded — answered by [[239]] (gcmn 0x004f0a30 starts STFROLL_VOL4 and waits)
+- [[24]] what OUT's rewritten cases 6, 8, 9, 60, 71, 72 and 150 do — answered by [[325]] (INF's behaviour; inline writes moved into small functions) / docs/engine/events.md
 - [[25]] what saveData+0x5ec8 bit 62 means — answered by [[220]] (eventFlag[314] done)
 - [[25]] MakeFloor's story path with more than 10 floors — answered by [[181]] (area 125's 15 floors carried) / crates/piney-data/src/dungeon/mod.rs Tables::edit_floor_count
 - [[25]] ccSkillDamage's area path — answered by [[67]] (tools/test_battle_rs.py, ccSkillDamage area)
@@ -763,6 +764,7 @@ player until one of these turns out wrong.
 - [[40]] the story areas' gate words and servers not loaded from the executable — answered by [[181]], [[217]] (generated per volume) / crates/piney-data/src/area/mod.rs AreaTables
 - [[40]] piros_colour's frame shape — answered by [[99]], [[107]] (ported, tools/test_piros_rs.py)
 - [[40]] the field side of the Host (markers, distances, entries) — answered by [[74]], [[91]], [[134]], [[180]]
+- [[40]] the later volumes' own semantics in the VM — answered by [[325]] (mode, fade, fade_more, desktop_item, call_lock, characters 18-20 by volume; `later_volumes_rules`)
 - [[41]] the scripts' windows on the desktop — answered by [[45]] (the setup stage draws the event's windows)
 - [[41]] name entry (NameEntry_Control) — answered by [[45]]
 - [[41]] the script's movie streams and overlay loads skipped — answered by [[49]], [[52]] (streams), [[91]] (the desktop's overlay and pass)
@@ -1261,7 +1263,6 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/event-vm.md: how long ccThMother takes between ChangeRequest(3, 7) and the desktop's setup — research (duplicates [[82]])
 - docs/engine/event-vm.md: piros_colour 9 with an operand past 5 — research (no script does it)
 - docs/engine/event-vm.md: volume 2-4 story events have no message arrays on Infection's disc — research (not played there)
-- docs/engine/event-vm.md: the later volumes' changed cases run with Infection's semantics — play (duplicates [[40]])
 
 ### docs/engine/field-game.md
 

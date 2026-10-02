@@ -590,8 +590,10 @@ pub trait Host {
     fn stream(&mut self, num: i16) {
         unported("stream");
     }
-    /// `ccScFade::EntryFade` (`more`: `ContinueFade`).
-    fn fade(&mut self, count: i16, alpha: i16, more: bool) {
+    /// `ccScFade::EntryFade` (`more`: `ContinueFade`). `reset`, from
+    /// Mutation on: the fader emptied first (`ccScFade::Init`), and `more`
+    /// without a fade of its own starts one.
+    fn fade(&mut self, count: i16, alpha: i16, more: bool, reset: bool) {
         unported("fade");
     }
     /// `ccMenu.interNoiz`.
@@ -866,7 +868,7 @@ impl Host for LogHost {
     fn stream(&mut self, num: i16) {
         self.note(format_args!("stream {num}"));
     }
-    fn fade(&mut self, count: i16, alpha: i16, more: bool) {
+    fn fade(&mut self, count: i16, alpha: i16, more: bool, _reset: bool) {
         self.note(format_args!("fade {count} {alpha} more={more}"));
     }
     fn noise(&mut self, level: i32) {

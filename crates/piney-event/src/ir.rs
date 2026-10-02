@@ -478,7 +478,8 @@ instruction_set! {
         CallOnLater = "call_on_later" { pc: i16 },
         /// Clear `partyMemberCall` bit `pc` (and in the stored copy while locked).
         CallOff = "call_off" { pc: i16 },
-        /// Lock calls: store `partyMemberCall`, set bit 31, clear bits 0-17.
+        /// Lock calls: store `partyMemberCall`, set bit 31, clear bits 0-17
+        /// (0-20 from Mutation on).
         CallLock = "call_lock" {},
         /// Unlock calls: restore the stored copy.
         CallUnlock = "call_unlock" {},

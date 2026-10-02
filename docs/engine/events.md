@@ -3,7 +3,7 @@ title: Event scripts
 status: partial
 volumes: all
 covers: MUT SLUS_205.62:0x001bdf00 ccEvent::Execute, OUT SLUS_205.63:0x001b4250, QUA SLUS_205.64:0x001bba60; INF SLUS_202.67:0x001a8d20 ccEvent::Execute, 0x001a7400 ccEvent::CheckOpen, 0x001a6ec0 ccEvent::SetCurrentOpen, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x00317e30 eventTbl, evMsgTbl, evMsgTblp
-worklog: 18, 24, 40, 176, 178, 179, 239
+worklog: 18, 24, 40, 176, 178, 179, 239, 325
 ---
 
 # Event scripts
@@ -386,20 +386,47 @@ The 40 conditions and 12 precondition tags have the same lengths everywhere.
   - It is used in event 314 "Ending", block 3; OUT's copy of that script
     already contains it and skips it.
 
-**Same length, changed behaviour, from MUT on:**
-- 101 `mode` always calls `ChangeRequest(num, 7)`.
-- 118 `area` quits `WORLD_MAN` only while `game+0x14` is set.
-- 145 `fade` calls `ccScFade::Init` first; 146 starts a new fade when the
-  stored one is not 0-3.
-- 167 plays no movie in Parody Mode.
-- 84 `call_lock` clears bits 0-20 (was 0-17).
+**Same length, changed behaviour, from MUT on** (MUT addresses; OUT and QUA
+run the same code):
+- 101 `mode` always calls `ChangeRequest(num, 7)` (`0x001c552c`). INF's
+  `mode 5` was `ChangeRequest(5, 8)` and `ChangeArea(0, lastTown)`
+  (`0x001b023c`). Only event 314, QUA's ending, uses `mode 5` (OUT carries
+  the script, but its pass never walks 300-349).
+- 118 `area` 126 sets `eventAreaNumber` to 126 and neither quits
+  `WORLD_MAN` nor builds an area from words (`0x001c5874`). Areas 1-13
+  quit `WORLD_MAN` while `game+0x14` is set and set it, as in INF; the rest
+  are built from their words. Only event 314 uses area 126.
+- 145 `fade` calls `ccScFade::Init` (every element's status 0) before its
+  `EntryFade` (`0x001c6f50`).
+- 146 `fade_more` continues the stored fade only while `fadeNum` is 0-3.
+  Otherwise it calls `Init` and `EntryFade(count, alpha << 24, 0)`, a fade
+  from the alpha to nothing, and stores its number (`0x001c6fc0`).
+- 167 `desktop_item` gives no movie (type 2) in Parody Mode (`saveData`
+  +0x842b), at any level (`0x001c51e4`).
+- 84 `call_lock` clears bits 0-20 (`slti 21` at `0x001c4990`; INF's
+  `slti 18` at `0x001af6d8`).
 - 96, 142, 80 and conditions 33, 34 reach characters 18-20 through the save
   extension ([save](../formats/save.md#the-extension-mutation-on)).
-- 8, 9 also check `dtMenu` while waiting.
+- 8 and 9, in the desktop's states 2 and 3, test `dtMenu` for NULL before
+  waiting on it (`0x001be908`): with none they end `Execute` with 0, past
+  the instruction. INF calls `dtMenu->CheckMenuType` without the test.
 
 OUT's 147 `staff_roll` grants wallpapers 57-66 with an info box each, and
-QUA's 77-86. OUT reimplements 6, 8, 9, 60, 71, 72 and 150 through unnamed
-functions, which have not been read. Otherwise OUT and QUA differ only in
+QUA's 77-86. OUT and QUA compile 6, 8, 9, 60, 71, 72 and 150 differently,
+with the same behaviour: what INF writes inline, they write through small
+functions in main:
+- `0x001bdd90 (p, a, b)`: `+0x14 = a`, `+0x16 = b`, `+0xf8 = 1`, on
+  `ccMenu` (150's request);
+- `0x001bddb0` and `0x001bddc0`: `ccAI +0xa2` and `+0xa4`, the turn's
+  direction and speed (71, 72). INF has them at `+0x9a` and `+0x9c`;
+- `0x001bddd0`: bit 0 of a byte cleared (60, four times; INF has four
+  inline);
+- `0x001bddf0`: `ChangeInfo`, then `ccMessage +0x1e` and `+0x34` = 0 (9);
+- `0x001bde30`: a constructor that zeroes `+0x00` (6, 8, 9).
+
+The gcmn functions they call match INF's by their code (`ManualModeAI`,
+`SetRemoteCmd`, `ccEntryCmnd`, `SetDircZ`, `CheckMenuType`). QUA's are the
+same at `0x001c5410`-`0x001c5440`. Otherwise OUT and QUA differ only in
 compilation. Several structure offsets moved without a change in behaviour.
 
 **Scripts:**
@@ -485,7 +512,8 @@ The boards, the windows and the camera:
 
 ## Unknown
 
-- What fills OUT's and QUA's BSS message groups; what OUT's rewritten cases
-  do.
+- What fills OUT's and QUA's BSS message groups.
+- What `eventAreaNumber` 126 loads (QUA's ending, event 314, block 2); the
+  port gives area 126 no words and has not played that block.
 - `npc_act` -3 and -5 (row 139's drain, the Administrator's -5) are not
   ported; only volume 2's event 114 uses them.

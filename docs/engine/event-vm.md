@@ -3,7 +3,7 @@ title: The event interpreter
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x001b5a60 ccThEvent, 0x001b5230 ccStartThEvent, 0x001b52c0 ccEnableThEvent, 0x001b5360 ccDisableThEvent, 0x001b5380 ccStartEvent, 0x001b55f0 ccStartEventConvert, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x001a7400 ccEvent::CheckOpen, 0x001a7120 CheckCurrentOpen, 0x001a6ec0 SetCurrentOpen, 0x001a8d20 ccEvent::Execute, 0x001a6ca0 ccEvent::Init, 0x001b32f0 CheckOperate, 0x001b33d0 AddOperate, 0x001b34a0 DelOperate, 0x001b27b0 DispInfo, 0x00177730 ccSaveData::AddItem, 0x00177af0 DelItem, 0x00177590 ccAddSkill, 0x00177eb0 AddFriendship, 0x00178160 SetGateList, 0x00178480 SetAreaBan, 0x00178570 ClearAreaBan, 0x00178af0 NewMail, 0x00178b80 ReadNewMail, 0x00307140 addItemCategoryTbl, 0x00307180 the friendship caps, 0x00168960 ccSetupGameCtrl (its event passes), 0x00167380 ccGame::ChangeScene, 0x001671e0 ccGame::ChangeRequest, 0x0015a200 ccSleepNoSleepThread, 0x00160400 ccScFade::EntryFade, 0x00160490 ContinueFade, 0x0015fb80 SendPacket, 0x00315120 eventAreaInfo, 0x001a29a0 WORLD_MAN::GetWordParamFromEvCode, 0x00311790-0x00314c10 word_a1-word_c4, 0x001b1c00 fade, 0x001b1c60 fade_more, 0x001b04b8 area, 0x001b01d8 scene, 0x001af440 member_add_msg, 0x001af980 gate_add_msg, 0x001aff34 desktop_item, 0x0019d3b0 WORLD_MAN::GetEventAreaInfo, 0x0015f860 ccKanjiStrSeparate, 0x00377e5c serverStr, 0x00377e0c getItemMenuStr, 0x00378150 bookItemAddMsg, 0x00387840 spcNameList, 0x00168320 ccSetupDesktop (its passes, its return on a mode change, SetFrameRate); INF SLUS_202.67:0x001b0c1c ccEvent::Execute's piros_colour, 0x00160240 ccScFade::EntryFlash; INF gcmn.prg:0x0056b1c0 ccChar::Draw
-worklog: 18, 24, 40
+worklog: 18, 24, 40, 325
 ---
 
 # The event interpreter
@@ -708,4 +708,7 @@ IR; every Infection event with its messages prints and parses back.
   message there reads a record at address 12 × msg. The port treats it as
   missing; those events are not played in the checks.
 - The later volumes' changed cases (the events page lists them): the port
-  runs Infection's semantics for every dialect.
+  follows each volume's `mode`, `fade`, `fade_more`, `desktop_item`,
+  `call_lock` and characters 18-20. It does not model `area 126` (QUA's
+  ending) or the NULL `dtMenu` test of `info` and `info_now`, since it has
+  no state without a desktop menu.

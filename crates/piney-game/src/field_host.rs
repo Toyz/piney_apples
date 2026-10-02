@@ -85,6 +85,24 @@ impl ScFade {
         i
     }
 
+    /// The event's `fade` (case 145) and `fade_more` (146) on element
+    /// `*num` (`eventMng.fadeNum`). From Mutation on (`reset`), `fade`
+    /// empties the fader first (`ccScFade::Init`), and `fade_more` with no
+    /// element (`*num` outside 0-3) starts a fade from `alpha` to nothing
+    /// (MUT SLUS_205.62:0x001c6f50, 0x001c6fc0).
+    pub fn event(&mut self, num: &mut i32, count: i16, alpha: i16, more: bool, reset: bool) {
+        let col = (alpha as u32 & 0xff) << 24;
+        let own = (0..4).contains(num);
+        if more && (own || !reset) {
+            self.continue_fade(*num, count, col);
+            return;
+        }
+        if reset {
+            self.elems.iter_mut().for_each(|e| e.status = 0);
+        }
+        *num = if more { self.entry(count, col, 0) } else { self.entry(count, 0, col) };
+    }
+
     /// `ContinueFade(i, n, col1)`.
     pub fn continue_fade(&mut self, i: i32, n: i16, col1: u32) {
         let Some(e) = usize::try_from(i).ok().and_then(|i| self.elems.get_mut(i)) else { return };
@@ -523,14 +541,9 @@ impl Host for FieldHost<'_> {
         self.st.events.push(Event::ChangeMode { num: 6, sf: 7 });
     }
 
-    fn fade(&mut self, count: i16, alpha: i16, more: bool) {
+    fn fade(&mut self, count: i16, alpha: i16, more: bool, reset: bool) {
         self.st.log(format!("fade {count} {alpha} more={more}"));
-        let col1 = (alpha as u32 & 0xff) << 24;
-        if more {
-            self.st.fade.continue_fade(self.st.fade_num, count, col1);
-        } else {
-            self.st.fade_num = self.st.fade.entry(count, 0, col1);
-        }
+        self.st.fade.event(&mut self.st.fade_num, count, alpha, more, reset);
     }
 
     fn noise(&mut self, level: i32) {
@@ -791,6 +804,33 @@ impl Host for FieldHost<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The event's `fade` and `fade_more` with the fader's four elements
+    /// busy: Infection's find none (-1) and the `fade_more` after it does
+    /// nothing; from Mutation on the fader is emptied first, and a
+    /// `fade_more` with no element starts a fade from its alpha to 0.
+    #[test]
+    fn event_fades_by_volume() {
+        let busy = || ScFade { elems: [FadeElem { status: 1, ..FadeElem::default() }; 4], ..ScFade::default() };
+        let (mut inf, mut n) = (busy(), 0);
+        inf.event(&mut n, 10, 0x80, false, false);
+        assert_eq!(n, -1);
+        let before = inf.elems;
+        inf.event(&mut n, 10, 0x40, true, false);
+        assert_eq!(inf.elems, before);
+
+        let (mut later, mut n) = (busy(), 0);
+        later.event(&mut n, 10, 0x80, false, true);
+        assert_eq!(n, 0);
+        assert_eq!((later.elems[0].col0, later.elems[0].col1), (0, 0x8000_0000));
+        assert!(later.elems[1..].iter().all(|e| e.status == 0));
+        later.event(&mut n, 5, 0x40, true, true);
+        assert_eq!((later.elems[0].tcnt, later.elems[0].col0, later.elems[0].col1), (5, 0x8000_0000, 0x4000_0000));
+        let mut n = -1;
+        later.event(&mut n, 7, 0x40, true, true);
+        assert_eq!(n, 0);
+        assert_eq!((later.elems[0].tcnt, later.elems[0].col0, later.elems[0].col1), (7, 0x4000_0000, 0));
+    }
 
     fn fixture() -> Option<String> {
         let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/field_host_fixture.txt");

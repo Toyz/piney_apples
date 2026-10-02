@@ -108,3 +108,79 @@ fn our_own_script_runs_the_desktop() {
     assert_eq!(host.save.dt_wallpaper_list(0) & 4, 4);
     assert!(vm.check_operate(3, 0, &mut host));
 }
+
+/// Instructions whose rules changed after Infection, run from one script
+/// on Infection's rules and Mutation's (worklog 325).
+const LATER: &str = r#"
+event 60 label="LATER"
+open
+  if game_status status=2
+block 0
+  set phase phase=0 comp=eq
+  call_on pc=19
+  call_on pc=2
+  call_lock
+  friendship pc=19 num=10
+  talk_num pc=19 num=3
+  desktop_item type=2 id=1
+  mode num=5
+end
+"#;
+
+#[derive(Default)]
+struct Later {
+    save: SaveData,
+    changes: Vec<String>,
+}
+
+impl Host for Later {
+    fn save(&mut self) -> &mut SaveData {
+        &mut self.save
+    }
+    fn game(&self) -> Game {
+        Game { status: 2, ..Game::default() }
+    }
+    fn change_request(&mut self, num: i32, sf: i32) {
+        self.changes.push(format!("request {num} {sf}"));
+    }
+    fn change_area(&mut self, a: i32, n: i32) {
+        self.changes.push(format!("area {a} {n}"));
+    }
+}
+
+fn run_later(volume: piney_data::volume::Volume) -> Later {
+    use piney_data::save::offset as off;
+    let mut vm = Vm::new(Arc::new(Library::new(volume, text::parse_events(LATER).unwrap())));
+    let mut host = Later::default();
+    host.save.set_u8(off::PARODY_FLAG, 1);
+    host.save.set_u8(off::LAST_TOWN, 2);
+    // A side story's number (50-99), which every volume's pass walks.
+    vm.start_event(60, 0, &mut host);
+    vm.start_thread(&mut host);
+    vm.enable(0);
+    for _ in 0..200 {
+        vm.frame(&mut host);
+    }
+    host
+}
+
+/// `call_lock` clears characters 0-17 on Infection and 0-20 from Mutation
+/// on; `mode 5` returns to the last town only on Infection; a movie is not
+/// given in Parody Mode from Mutation on; characters 18-20's friendship and
+/// talk count are the extension's.
+#[test]
+fn later_volumes_rules() {
+    use piney_data::save::{by_id, offset as off};
+    let inf = run_later(piney_data::volume::Volume::Inf);
+    let mutation = run_later(piney_data::volume::Volume::Mut);
+    let call = |h: &Later| h.save.i32(off::PARTY_MEMBER_CALL) as u32;
+    let store = |h: &Later| h.save.i32(off::PARTY_MEMBER_CALL_STORE) as u32;
+    assert_eq!(store(&inf), 1 << 19 | 1 << 2);
+    assert_eq!(call(&inf), 0x8000_0000 | 1 << 19);
+    assert_eq!(call(&mutation), 0x8000_0000);
+    assert_eq!(inf.changes, ["request 5 8", "area 0 2"]);
+    assert_eq!(mutation.changes, ["request 5 7"]);
+    assert_eq!(mutation.save.i32(off::DT_STR_LIST) & 1, 0);
+    assert_eq!(mutation.save.i16(by_id::spc_param(19) + off::SPC_FRIENDSHIP), 10);
+    assert_eq!(mutation.save.u8(by_id::talk_num(19)), 3);
+}

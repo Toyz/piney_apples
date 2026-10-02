@@ -8,6 +8,7 @@
 //! game's would land in some other member.
 
 pub use piney_data::save::SaveData;
+use piney_data::save::by_id;
 use piney_data::save::offset as off;
 
 pub const DONE: u64 = 1 << 62;
@@ -50,7 +51,10 @@ pub const ADD_ITEM_ORDER: [(i16, i16); 15] = [
 /// `AddFriendship`'s cap, indexed by `volumeNum` (`INF 0x00307180`).
 pub const FRIENDSHIP_CAP: [i32; 5] = [1000, 250, 500, 750, 1000];
 
-pub const CHARACTERS: usize = 18;
+/// The party's characters: 0-17 in `ccSaveData`, and from Mutation on
+/// 18-20 (Tsukasa, Subaru, Sora) in the extension ([`by_id`]). No Infection
+/// script names 18-20.
+pub const CHARACTERS: usize = 21;
 const ITEMS: usize = 40;
 const SKILLS: usize = 20;
 
@@ -183,35 +187,35 @@ impl ScriptSave for SaveData {
         self.set_i32(at, v as i32);
     }
     fn item(&self, pc: usize, k: usize) -> Item {
-        let at = off::ITEM_LIST + 4 * (ITEMS * pc + k);
+        let at = by_id::item_list(pc) + 4 * k;
         Item { id: self.i16(at), category: self.u8(at + 2) as i8, count: self.u8(at + 3) as i8 }
     }
     fn set_item(&mut self, pc: usize, k: usize, it: Item) {
-        let at = off::ITEM_LIST + 4 * (ITEMS * pc + k);
+        let at = by_id::item_list(pc) + 4 * k;
         self.set_i16(at, it.id);
         self.set_u8(at + 2, it.category as u8);
         self.set_u8(at + 3, it.count as u8);
     }
     fn skill(&self, pc: usize, k: usize) -> i16 {
-        self.i16(off::SKILL_LIST + 2 * (SKILLS * pc + k))
+        self.i16(by_id::skill_list(pc) + 2 * k)
     }
     fn set_skill(&mut self, pc: usize, k: usize, v: i16) {
-        self.set_i16(off::SKILL_LIST + 2 * (SKILLS * pc + k), v);
+        self.set_i16(by_id::skill_list(pc) + 2 * k, v);
     }
     fn friendship(&self, pc: i32) -> i16 {
-        in_range(CHARACTERS, pc).map_or(0, |c| self.i16(off::SPC_PARAM + off::SPC_PARAM_SIZE * c + off::SPC_FRIENDSHIP))
+        in_range(CHARACTERS, pc).map_or(0, |c| self.i16(by_id::spc_param(c) + off::SPC_FRIENDSHIP))
     }
     fn set_friendship(&mut self, pc: i32, v: i16) {
         if let Some(c) = in_range(CHARACTERS, pc) {
-            self.set_i16(off::SPC_PARAM + off::SPC_PARAM_SIZE * c + off::SPC_FRIENDSHIP, v);
+            self.set_i16(by_id::spc_param(c) + off::SPC_FRIENDSHIP, v);
         }
     }
     fn gold(&self, pc: i32) -> i32 {
-        in_range(CHARACTERS, pc).map_or(0, |c| self.i32(off::SPC_PARAM + off::SPC_PARAM_SIZE * c + off::SPC_GOLD))
+        in_range(CHARACTERS, pc).map_or(0, |c| self.i32(by_id::spc_param(c) + off::SPC_GOLD))
     }
     fn set_gold(&mut self, pc: i32, v: i32) {
         if let Some(c) = in_range(CHARACTERS, pc) {
-            self.set_i32(off::SPC_PARAM + off::SPC_PARAM_SIZE * c + off::SPC_GOLD, v);
+            self.set_i32(by_id::spc_param(c) + off::SPC_GOLD, v);
         }
     }
     fn parody_on(&self) -> bool {
