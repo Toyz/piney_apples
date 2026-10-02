@@ -766,7 +766,7 @@ fn lit(iso_path: &str, archive: &Arc<Archive>, frames: &[i64]) -> Result<String,
     }
     let mut assets = piney_gs::assets::Assets::new(archive.clone());
     let gfile = assets.file(piney_demo::names::TITLE_FILE).ok_or("title1")?;
-    let screen = Screen { width: 512.0, height: 448.0 };
+    let screen = Screen { width: 512.0, height: 448.0, scale: 1.0 };
     let (mut at, mut out) = (0i64, Vec::new());
     for &want in frames {
         let mut frame = Frame::new();

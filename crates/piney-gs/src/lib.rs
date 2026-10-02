@@ -351,6 +351,9 @@ pub struct Gs {
     frame_no: u64,
     /// The last frame's [`Frame::field_mode`].
     field_mode: bool,
+    /// Not the GS's: the frame buffer this many times the frame's size each
+    /// way ([`Gs::set_scale`]); the draws keep the frame's coordinates.
+    scale: u32,
     pub assets: Assets,
 }
 
@@ -405,6 +408,7 @@ impl Gs {
             shadow,
             frame_no: 0,
             field_mode: false,
+            scale: 1,
             assets,
         }
     }
@@ -439,6 +443,18 @@ impl Gs {
         &self.target.view
     }
 
+    /// Draw at `n` times the frame's size each way (1 to 8): a sharper
+    /// picture, the same frame. Copies of the frame buffer, scissors and
+    /// the shadow packets follow; at 1 it is the GS's own size.
+    pub fn set_scale(&mut self, n: u32) {
+        self.scale = n.clamp(1, 8);
+    }
+
+    pub fn scale(&self) -> u32 {
+        self.scale
+    }
+
+    /// The frame buffer's size in pixels (the frame's times the scale).
     pub fn target_size(&self) -> (u32, u32) {
         (self.target.width, self.target.height)
     }
@@ -470,10 +486,13 @@ impl Gs {
     /// Draw `frame` into the frame buffer.
     pub fn render(&mut self, frame: &Frame) {
         let (w, h) = (u32::from(frame.width.max(1)), u32::from(frame.height.max(1)));
-        if (w, h) != (self.target.width, self.target.height) {
-            self.target = make_target(&self.device, w, h);
+        // The frame buffer's pixels: the frame's at the scale.
+        let k = self.scale;
+        let (pw, ph) = (w * k, h * k);
+        if (pw, ph) != (self.target.width, self.target.height) {
+            self.target = make_target(&self.device, pw, ph);
         }
-        let screen = Screen { width: w as f32, height: h as f32 };
+        let screen = Screen { width: w as f32, height: h as f32, scale: k as f32 };
         self.field_mode = frame.field_mode;
 
         self.frame_no += 1;
@@ -710,14 +729,14 @@ impl Gs {
         let mut encoder = self.device.create_command_encoder(&Default::default());
         // The last frame's picture, taken before this frame clears it.
         if uses_previous {
-            if self.previous.as_ref().is_none_or(|p| (p.width, p.height) != (w, h)) {
-                self.previous = Some(self.copy_texture(w, h));
+            if self.previous.as_ref().is_none_or(|p| (p.width, p.height) != (pw, ph)) {
+                self.previous = Some(self.copy_texture(pw, ph));
             }
             if let Some(p) = &self.previous {
-                copy_region(&mut encoder, &self.target.color, &p.texture, 0, 0, w, h);
+                copy_region(&mut encoder, &self.target.color, &p.texture, 0, 0, pw, ph);
             }
         }
-        self.copies = copies.iter().map(|c| self.copy_texture(c.width, c.height)).collect();
+        self.copies = copies.iter().map(|c| self.copy_texture(c.width * k, c.height * k)).collect();
         let [r, g, b, _] = frame.clear.0.map(|c| f64::from(c) / 255.0);
         // One pass per run of draws between frame-buffer copies and shadow
         // packets; the first clears, the rest keep the picture and the Z
@@ -764,8 +783,8 @@ impl Gs {
                     for d in &draws[next..stop] {
                         // SCISSOR_1, inclusive, within the frame buffer.
                         let s = d.scissor;
-                        let (x0, y0) = (u32::from(s.x0).min(w), u32::from(s.y0).min(h));
-                        let (x1, y1) = ((u32::from(s.x1) + 1).min(w), (u32::from(s.y1) + 1).min(h));
+                        let (x0, y0) = ((u32::from(s.x0) * k).min(pw), (u32::from(s.y0) * k).min(ph));
+                        let (x1, y1) = (((u32::from(s.x1) + 1) * k).min(pw), ((u32::from(s.y1) + 1) * k).min(ph));
                         if x1 <= x0 || y1 <= y0 {
                             continue;
                         }
@@ -787,10 +806,11 @@ impl Gs {
             // sees them, as it follows them in the list), then the copies.
             while let Some((_, sh)) = pending_shadows.next_if(|s| s.0 == stop) {
                 let depth = self.target.depth_texture.create_view(&Default::default());
-                self.shadow.run(&self.device, &mut encoder, &self.target.view, &depth, (w, h), sh);
+                self.shadow.run(&self.device, &mut encoder, &self.target.view, &depth, (pw, ph), k, sh);
             }
             while let Some((n, c)) = pending.next_if(|(_, c)| c.before == stop) {
-                copy_region(&mut encoder, &self.target.color, &self.copies[n].texture, c.x, c.y, c.width, c.height);
+                let (x, y) = (c.x * k as i32, c.y * k as i32);
+                copy_region(&mut encoder, &self.target.color, &self.copies[n].texture, x, y, c.width * k, c.height * k);
             }
         }
         self.queue.submit([encoder.finish()]);
@@ -1530,6 +1550,80 @@ mod tests {
         frame.cmds.push(sprite(opaque, 100, Rgba::new(0xff, 0, 0, 0x80)));
         gs.render(&frame);
         assert_eq!(pixel(&gs.read_back(), w, 15, 15)[..3], [0xff, 0, 0]);
+    }
+
+    /// Issue #28's render scale: at 2 the frame buffer is twice the frame's
+    /// size each way and a frame of flat sprites, a scissored one and a
+    /// copy of the frame buffer drawn back (nearest) is the scale-1 picture
+    /// with each pixel doubled; a shadow packet darkens the same places by
+    /// the same amount.
+    #[test]
+    fn a_scaled_frame_buffer_draws_the_frame_bigger() {
+        use piney_draw::{ShadowGroup, ShadowPass, ShadowPoly};
+        let Some(mut gs) = gs() else { return };
+        let flat = DrawState { blend: None, ..DrawState::sprite(Blend::MIX, None) };
+        let mut frame = Frame::new();
+        frame.clear = Rgba::new(0x20, 0x30, 0x40, 0);
+        frame.cmds.push(rect(10.0, 10.0, 90.0, 50.0, Rgba::new(0xc8, 0x10, 0x10, 0x80), flat.clone()));
+        let clipped = DrawState { scissor: piney_draw::Scissor { x0: 30, x1: 40, y0: 20, y1: 70 }, ..flat.clone() };
+        frame.cmds.push(rect(0.0, 0.0, 512.0, 448.0, Rgba::new(0x10, 0xc8, 0x10, 0x80), clipped));
+        let copy = piney_draw::TexState {
+            tex: TexRef::FrameBuffer { x: 0, y: 0, width: 64, height: 64 },
+            func: piney_draw::TexFunc::Modulate,
+            use_alpha: false,
+            filter: Filter::Nearest,
+            wrap: Wrap::Clamp,
+        };
+        let v = |x, y, u, v| Vertex { x, y, u, v, rgba: Rgba::NEUTRAL, ..Default::default() };
+        frame.cmds.push(Cmd::Prim(Prim {
+            kind: PrimKind::Sprite,
+            gouraud: false,
+            state: DrawState { texture: Some(copy), ..flat },
+            verts: vec![v(200.0, 200.0, 0.0, 0.0), v(264.0, 264.0, 64.0, 64.0)],
+        }));
+        let quad = |x0: f32, y0: f32, x1: f32, y1: f32, z: f32, add: bool| ShadowPoly {
+            verts: vec![[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]],
+            add,
+        };
+        frame.cmds.push(Cmd::Shadow(Box::new(ShadowPass {
+            width: 256,
+            height: 256,
+            rect: [0.0, 0.0, 512.0, 448.0],
+            darkness: 0x30,
+            taps: vec![[0.0, 0.0]],
+            groups: vec![ShadowGroup {
+                alpha: 0x80,
+                polys: vec![
+                    quad(300.0, 300.0, 400.0, 400.0, 2000.0, true),
+                    quad(300.0, 300.0, 400.0, 400.0, 0.0, false),
+                ],
+            }],
+        })));
+        gs.render(&frame);
+        let one = gs.read_back();
+        let (w1, h1) = gs.target_size();
+        gs.set_scale(2);
+        gs.render(&frame);
+        let two = gs.read_back();
+        let (w2, h2) = gs.target_size();
+        assert_eq!((w2, h2), (w1 * 2, h1 * 2));
+        let mut off = Vec::new();
+        for y in 0..h2 {
+            for x in 0..w2 {
+                let (a, b) = (pixel(&one, w1, x / 2, y / 2), pixel(&two, w2, x, y));
+                let near = a.iter().zip(&b).all(|(&p, &q)| p.abs_diff(q) <= 2);
+                // The shadow's edge, read bilinearly, may fall a pixel apart.
+                let edge = (290..410).contains(&(x / 2)) && (290..410).contains(&(y / 2));
+                if !near && !edge {
+                    off.push((x, y, a, b));
+                }
+            }
+        }
+        assert!(off.is_empty(), "{} pixels differ, first {:?}", off.len(), &off[..off.len().min(4)]);
+        assert_eq!(pixel(&two, w2, 70, 70), pixel(&one, w1, 35, 35), "the scissored sprite");
+        assert_eq!(pixel(&two, w2, 430, 430), pixel(&one, w1, 215, 215), "the copy");
+        let (a, b) = (pixel(&one, w1, 350, 350), pixel(&two, w2, 700, 700));
+        assert!(a[0] < 0x40 && a[0].abs_diff(b[0]) <= 2, "the shadow: {a:x?} {b:x?}");
     }
 
     /// A shadow packet: the floor's Z copied small, a volume's near face

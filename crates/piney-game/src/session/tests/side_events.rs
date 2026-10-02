@@ -835,10 +835,9 @@ fn the_tutorial_statue_s_glow_ends() {
                 // The ring (`OBJ_o_magic_m0_`): `ANM_xgs?nut1` keys its
                 // transparency to 0, which `ccAnm::Draw` multiplies in. The
                 // room drawn: its yellow band across the screen's upper half.
-                let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
-                let archive =
-                    Arc::new(Archive::new(Iso::open(&iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap());
-                let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap();
+                // The session's own archive: a second read of DATA.BIN ran
+                // the suite past its memory cap.
+                let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap();
                 let frame = s.step(&Pad::default());
                 gs.set_overlay(Mode::archive(&s));
                 gs.render(&frame);

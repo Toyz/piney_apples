@@ -32,16 +32,18 @@ pub struct GVertex {
     pub region: u32,
 }
 
-/// The frame buffer's size in pixels.
+/// The frame's size in pixels, and how many frame-buffer pixels make one of
+/// its pixels each way ([`crate::Gs::set_scale`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Screen {
     pub width: f32,
     pub height: f32,
+    pub scale: f32,
 }
 
 /// The GS draws a pixel when its top-left corner lies inside a primitive;
-/// wgpu when its centre does. Moving everything half a pixel right and down
-/// makes the two agree.
+/// wgpu when its centre does. Moving everything half a frame-buffer pixel
+/// right and down (half a pixel of the frame at scale 1) makes the two agree.
 pub const PIXEL_CENTRE: f32 = 0.5;
 
 /// The GS samples texel `floor(u)` at a pixel; a sprite's edge often sits
@@ -65,8 +67,8 @@ impl Screen {
     /// A frame-buffer point with GS depth `z` to clip space, at w = 1.
     pub fn clip_2d(&self, x: f32, y: f32, z: u32) -> [f32; 4] {
         [
-            (x + PIXEL_CENTRE) / (self.width / 2.0) - 1.0,
-            1.0 - (y + PIXEL_CENTRE) / (self.height / 2.0),
+            (x + PIXEL_CENTRE / self.scale) / (self.width / 2.0) - 1.0,
+            1.0 - (y + PIXEL_CENTRE / self.scale) / (self.height / 2.0),
             depth(f64::from(z)) as f32,
             1.0,
         ]
@@ -77,8 +79,8 @@ impl Screen {
     pub fn clip_3d(&self, q: Vec4) -> [f32; 4] {
         let w = f64::from(q.w);
         [
-            ((f64::from(q.x) + f64::from(PIXEL_CENTRE) * w) / f64::from(self.width / 2.0) - w) as f32,
-            (w - (f64::from(q.y) + f64::from(PIXEL_CENTRE) * w) / f64::from(self.height / 2.0)) as f32,
+            ((f64::from(q.x) + f64::from(PIXEL_CENTRE / self.scale) * w) / f64::from(self.width / 2.0) - w) as f32,
+            (w - (f64::from(q.y) + f64::from(PIXEL_CENTRE / self.scale) * w) / f64::from(self.height / 2.0)) as f32,
             (w * depth(f64::from(q.z) / w)) as f32,
             q.w,
         ]
@@ -454,7 +456,7 @@ mod tests {
     use super::*;
     use piney_draw::{Compare, DrawState, Vertex};
 
-    const SCREEN: Screen = Screen { width: 512.0, height: 448.0 };
+    const SCREEN: Screen = Screen { width: 512.0, height: 448.0, scale: 1.0 };
 
     #[test]
     fn near_clip_cuts_at_w_8() {

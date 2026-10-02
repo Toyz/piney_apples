@@ -16,7 +16,8 @@ const COUNT: wgpu::TextureFormat = wgpu::TextureFormat::R16Float;
 const ALPHA: wgpu::TextureFormat = wgpu::TextureFormat::R8Unorm;
 
 /// What every step reads: the rectangle (frame pixels x0, y0, x1, y1), the
-/// buffer's size, the group's alpha, the darkness, the frame's size.
+/// buffer's size, the group's alpha, the darkness, the frame's size, and the
+/// frame buffer's scale (its pixels to one of the frame's each way).
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Uniform {
@@ -25,7 +26,8 @@ struct Uniform {
     alpha: f32,
     darkness: f32,
     frame: [f32; 2],
-    pad: [f32; 2],
+    scale: f32,
+    pad: f32,
 }
 
 const COMMON: &str = r#"
@@ -35,7 +37,8 @@ struct U {
     alpha: f32,
     darkness: f32,
     frame: vec2<f32>,
-    pad: vec2<f32>,
+    scale: f32,
+    pad: f32,
 };
 
 @vertex
@@ -56,7 +59,7 @@ fn fs(@builtin(position) p: vec4<f32>) -> @builtin(frag_depth) f32 {
     // unfiltered.
     let ij = floor(p.xy);
     let s = (u.rect.zw - u.rect.xy) / u.size;
-    let t = vec2<i32>(floor(u.rect.xy + ij * s));
+    let t = vec2<i32>(floor((u.rect.xy + ij * s) * u.scale));
     let dims = vec2<i32>(textureDimensions(zsrc));
     return textureLoad(zsrc, clamp(t, vec2<i32>(0), dims - vec2<i32>(1)), 0);
 }
@@ -122,7 +125,7 @@ fn texel(t: vec2<i32>) -> f32 {
 @fragment
 fn fs(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
     // The GS samples at the pixel's corner; bilinear about texel centres.
-    let corner = p.xy - vec2<f32>(0.5);
+    let corner = (p.xy - vec2<f32>(0.5)) / u.scale;
     let q = (corner - u.rect.xy) * u.size / (u.rect.zw - u.rect.xy) - vec2<f32>(0.5);
     let b = floor(q);
     let w = q - b;
@@ -350,6 +353,7 @@ impl ShadowGpu {
         frame: &wgpu::TextureView,
         frame_depth: &wgpu::TextureView,
         frame_size: (u32, u32),
+        scale: u32,
         pass: &ShadowPass,
     ) {
         let (w, h) = (u32::from(pass.width), u32::from(pass.height));
@@ -364,7 +368,8 @@ impl ShadowGpu {
                 alpha: f32::from(alpha),
                 darkness: f32::from(pass.darkness),
                 frame: [frame_size.0 as f32, frame_size.1 as f32],
-                pad: [0.0; 2],
+                scale: scale as f32,
+                pad: 0.0,
             };
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("shadow"),
@@ -479,8 +484,9 @@ impl ShadowGpu {
         }
         // 3. The composite over the pixels whose corner is in the rectangle.
         let (fw, fh) = frame_size;
-        let (px0, py0) = ((x0.ceil().max(0.0) as u32).min(fw), (y0.ceil().max(0.0) as u32).min(fh));
-        let (px1, py1) = ((x1.ceil().max(0.0) as u32).min(fw), (y1.ceil().max(0.0) as u32).min(fh));
+        let at = |v: f32, max: u32| ((v.ceil().max(0.0) as u32) * scale).min(max);
+        let (px0, py0) = (at(x0, fw), at(y0, fh));
+        let (px1, py1) = (at(x1, fw), at(y1, fh));
         if px1 <= px0 || py1 <= py0 {
             return;
         }

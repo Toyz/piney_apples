@@ -220,6 +220,14 @@ mode (the movies) skips both. The port merges only when asked
 (`--deflicker`, `piney_gs::Pcrtc::deflicker`), since its picture is
 progressive.
 
+Not the game's: the port can draw its 512 x 448 frame buffer at N times
+that size (`--render-scale`, `piney_gs::Gs::set_scale`, 1 to 8). The
+draws keep the frame's coordinates. The scissor rectangles, the
+frame-buffer copies (and the texels they are read at) and the shadow
+packets' Z copy and composite scale with it. The half-pixel move that makes
+the GS's corner rule meet the GPU's centre rule becomes half a frame-buffer
+pixel (`convert::Screen::scale`). At scale 1 the picture is unchanged.
+
 ## Unknown
 
 - How the kernel orders tasks of equal priority (the title's, the

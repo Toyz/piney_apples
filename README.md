@@ -169,6 +169,12 @@ each line with the one above. The port shows it sharp, as PCSX2 does by
 default. `--deflicker` (or `deflicker on` in the console) shows it as the
 console did.
 
+The picture can be drawn sharper than the PS2's own resolution:
+`--render-scale N` (or `render_scale N` in the console) draws at N times
+it, 1 to 8. `--no-vsync` (`vsync off`) stops waiting for the display's
+refresh, and `--fps-cap N` (`fps_cap N`, 0 for none) limits the pictures a
+second. The game itself runs at its own rate whatever these are.
+
 ### Updating
 
 ```sh
@@ -209,7 +215,9 @@ the game from the discs already in it; your saves are not touched.
 Any gamepad that [gilrs](https://gitlab.com/gilrs-project/gilrs) knows
 works, with its buttons where a DualShock 2 has them. With more than one
 connected, the one that last sent input is read. Escape asks to quit, and
-F1 or `` ` `` opens the console.
+F1 or `` ` `` opens the console. Its history scrolls with Page Up / Page
+Down, the mouse wheel or the scroll bar on its right; Tab completes a
+command.
 
 ### Reporting a bug
 

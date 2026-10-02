@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-349 entries: audio 31, battle 70, build 15, content 3, decomp 28, disc 5, engine 17, format 17, iop 3, render 83, save 13, script 41, test 133, tooling 25, ui 68, video 12, volumes 67, world 90.
+350 entries: audio 31, battle 70, build 15, content 3, decomp 28, disc 5, engine 17, format 17, iop 3, render 84, save 13, script 41, test 133, tooling 26, ui 69, video 12, volumes 67, world 90.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -361,3 +361,4 @@ The [reference](docs/README.md) says what is true now.
 | 347 | ["Ryu Books IV to VIII: their pages, lists and keys, each run against the game"](worklog/0347-ryu-books-iv-to-viii-their-pages-lists-and-keys-each-run.md) | 2026-10-02 | ui |
 | 348 | ["A spell holds its targets for its whole run: the effects' copy of holdFlag was never set"](worklog/0348-a-spell-holds-its-targets-for-its-whole-run-the-effects.md) | 2026-10-02 | battle, render |
 | 349 | ["A revived member who ignores orders: not reproduced; what was ruled out"](worklog/0349-a-revived-member-who-ignores-orders-not-reproduced-what-was.md) | 2026-10-02 | battle, test |
+| 350 | ["The console wraps, scrolls with the mouse and lists its help in columns; render scale, vsync and an FPS cap"](worklog/0350-the-console-wraps-scrolls-with-the-mouse-and-lists-its-help.md) | 2026-10-02 | ui, render, tooling |

@@ -45,7 +45,7 @@ use piney_data::iso::Iso;
 use piney_gs::{Assets, Gs, Pcrtc, Presenter};
 use piney_input::{Buttons, Pad, Raw};
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, WindowEvent};
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
@@ -65,6 +65,18 @@ struct Display {
     presenter: Presenter,
 }
 
+/// The window's own console commands, after the mode's in `help`: a command,
+/// two spaces or more, what it does.
+const APP_HELP: &str = "\
+story N  the game again at event N's start
+version  the build this game was made from (give it with a bug report)
+deflicker [on|off]  the console's deflicker (each line mixed with the one above)
+import_card PATH  copy .hack saves from PCSX2 (a .ps2 card, a folder card, one save folder or a dhdataNN slot file) onto this card
+pad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it
+vsync [on|off]  the window waits for the display's refresh to show a picture (--no-vsync starts with it off)
+fps_cap [N]  at most N pictures a second, 0 for no cap (--fps-cap N); the game itself runs at its own rate either way
+render_scale [N]  draw at N times the PS2's resolution, 1 to 8 (--render-scale N)";
+
 struct App {
     mode: Box<dyn Mode>,
     /// `ccSystem::SetDisplayOffset`'s last (x, y): Adjust Screen's place
@@ -73,6 +85,16 @@ struct App {
     /// The game's deflicker (`--deflicker`, the console's `deflicker`):
     /// each line merged with the one above, as an interlaced TV showed it.
     deflicker: bool,
+    /// The window's present mode waits for the display (`--no-vsync`, the
+    /// console's `vsync`), and the most pictures a second, 0 for no cap
+    /// (`--fps-cap`, `fps_cap`); the game's frames keep their own clock.
+    vsync: bool,
+    fps_cap: u32,
+    /// The frame buffer's scale (`--render-scale`, `render_scale`), handed
+    /// to the GS once it exists.
+    render_scale: u32,
+    /// When the last picture was shown, for the cap.
+    presented: Instant,
     /// Held until the window's device exists.
     assets: Option<Assets>,
     gs: Option<Gs>,
@@ -108,6 +130,8 @@ struct App {
     rumble: Option<input::Rumble>,
     /// Ctrl held, for the console's keys.
     ctrl: bool,
+    /// The mouse in the window, in pixels, for the console's scroll bar.
+    mouse: (f64, f64),
     /// Escape's quit prompt while it is open (the game stands still).
     quit: Option<quit::QuitPrompt>,
     /// The prompt's OK: the window closes after this frame.
@@ -140,6 +164,39 @@ impl App {
             }
             return format!("deflicker {}", if self.deflicker { "on" } else { "off" });
         }
+        if w.first() == Some(&"vsync") {
+            match w.get(1).copied() {
+                Some("on") => self.set_vsync(true),
+                Some("off") => self.set_vsync(false),
+                None => {}
+                Some(_) => return "vsync [on|off]".into(),
+            }
+            return format!("vsync {}", if self.vsync { "on" } else { "off" });
+        }
+        if w.first() == Some(&"render_scale") {
+            match w.get(1).map(|n| n.parse::<u32>()) {
+                Some(Ok(n)) if (1..=8).contains(&n) => {
+                    self.render_scale = n;
+                    if let Some(gs) = &mut self.gs {
+                        gs.set_scale(n);
+                    }
+                }
+                None => {}
+                Some(_) => return "render_scale N, N from 1 to 8".into(),
+            }
+            return format!("render_scale {}", self.render_scale);
+        }
+        if w.first() == Some(&"fps_cap") {
+            match w.get(1).map(|n| n.parse::<u32>()) {
+                Some(Ok(n)) => self.fps_cap = n,
+                None => {}
+                Some(Err(_)) => return "fps_cap N (0 for no cap)".into(),
+            }
+            return match self.fps_cap {
+                0 => "fps_cap 0 (no cap)".into(),
+                n => format!("fps_cap {n}"),
+            };
+        }
         if w.first() == Some(&"import_card") {
             let Some(src) = line.split_once(' ').map(|(_, p)| p.trim()).filter(|p| !p.is_empty()) else {
                 return "import_card PATH: a PCSX2 card (.ps2), folder card, exported save directory or dhdataNN slot file".into();
@@ -148,6 +205,9 @@ impl App {
                 Some(dst) => import_saves(std::path::Path::new(src), dst, Some(self.volume)).unwrap_or_else(|e| e),
                 None => "no memory card (--no-card)".into(),
             };
+        }
+        if w.first() == Some(&"help") {
+            return self.help();
         }
         self.record.console(line);
         if w.first() == Some(&"story") {
@@ -162,13 +222,23 @@ impl App {
                 Err(e) => e,
             };
         }
-        let answer = self.mode.console(line);
-        if w.first() == Some(&"help") {
-            return format!(
-                "{answer}\nstory N           the game again at event N's start\nversion           the build this game was made from (give it with a bug report)\ndeflicker [on|off] the console's deflicker (each line mixed with the one above)\nimport_card PATH  copy .hack saves from PCSX2 (a .ps2 card, a folder card, one save folder or a dhdataNN slot file) onto this card\npad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report; --replay FILE plays it"
-            );
+        self.mode.console(line)
+    }
+
+    /// The window's present mode: waiting for the display, or not.
+    fn set_vsync(&mut self, on: bool) {
+        self.vsync = on;
+        if let (Some(gs), Some(w)) = (&self.gs, &mut self.win) {
+            w.config.present_mode = present_mode(on);
+            w.surface.configure(gs.device(), &w.config);
         }
-        answer
+    }
+
+    /// `help`: the mode's commands, then the window's (not written to a pad
+    /// log: it changes nothing).
+    fn help(&mut self) -> String {
+        let answer = self.mode.console("help");
+        [answer.as_str(), APP_HELP].join("\n")
     }
 
     /// The console's `pad_log`: start writing the run kept since power-on
@@ -225,7 +295,7 @@ impl App {
         if !self.mute {
             self.audio = open_audio(&path);
         }
-        self.console = console::Console::new(console_fonts(&path, &booted.archive));
+        self.console.set_fonts(console_fonts(&path, &booted.archive));
         self.archive = booted.archive;
         self.volume = booted.volume;
         self.mode = booted.mode;
@@ -467,14 +537,16 @@ impl ApplicationHandler for App {
             if let Some(f) = caps.formats.iter().find(|f| f.is_srgb()) {
                 config.format = *f;
             }
-            config.present_mode = wgpu::PresentMode::AutoVsync;
+            config.present_mode = present_mode(self.vsync);
             if caps.alpha_modes.contains(&wgpu::CompositeAlphaMode::Opaque) {
                 config.alpha_mode = wgpu::CompositeAlphaMode::Opaque;
             }
             surface.configure(&device, &config);
             let presenter = Presenter::new(&device, config.format);
             let assets = self.assets.take().ok_or("assets already taken")?;
-            self.gs = Some(Gs::new(device, queue, assets));
+            let mut gs = Gs::new(device, queue, assets);
+            gs.set_scale(self.render_scale);
+            self.gs = Some(gs);
             Ok(Display { window: window.clone(), surface, config, presenter })
         })();
         match result {
@@ -508,7 +580,7 @@ impl ApplicationHandler for App {
                     if pressed && matches!(code, KeyCode::F1 | KeyCode::Backquote) {
                         self.console.toggle();
                         if self.console.open {
-                            let help = self.console_line("help");
+                            let help = self.help();
                             self.console.set_commands(&help);
                         }
                         self.keyboard = input::Keyboard::default();
@@ -534,9 +606,27 @@ impl ApplicationHandler for App {
                 self.keyboard.key(event.physical_key, event.state == ElementState::Pressed);
             }
             WindowEvent::ModifiersChanged(m) => self.ctrl = m.state().control_key(),
+            // The console's scroll bar: the wheel, the thumb dragged, a page
+            // by a click on the track.
+            WindowEvent::CursorMoved { position, .. } => {
+                self.mouse = (position.x, position.y);
+                self.console.motion(position.y);
+            }
+            WindowEvent::MouseInput { state, button: MouseButton::Left, .. } => {
+                if state == ElementState::Pressed {
+                    self.console.press(self.mouse.0, self.mouse.1);
+                } else {
+                    self.console.release();
+                }
+            }
+            WindowEvent::MouseWheel { delta, .. } => self.console.wheel(match delta {
+                MouseScrollDelta::LineDelta(_, y) => y,
+                MouseScrollDelta::PixelDelta(p) => (p.y / 40.0) as f32,
+            }),
             WindowEvent::RedrawRequested => {
                 self.tick();
                 self.present();
+                self.presented = Instant::now();
                 if self.exit {
                     event_loop.exit();
                 }
@@ -545,11 +635,26 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    /// The next picture: at once, or with `fps_cap` when its time comes.
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.fps_cap > 0 {
+            let next = self.presented + std::time::Duration::from_secs_f64(1.0 / f64::from(self.fps_cap));
+            if Instant::now() < next {
+                event_loop.set_control_flow(ControlFlow::WaitUntil(next));
+                return;
+            }
+        }
+        event_loop.set_control_flow(ControlFlow::Poll);
         if let Some(w) = &self.win {
             w.window.request_redraw();
         }
     }
+}
+
+/// The surface's present mode: the display's refresh waited for, or not
+/// (the driver's choice of each).
+fn present_mode(vsync: bool) -> wgpu::PresentMode {
+    if vsync { wgpu::PresentMode::AutoVsync } else { wgpu::PresentMode::AutoNoVsync }
 }
 
 /// What a mode asked for: sound to the audio, the rest (mode changes,
@@ -962,6 +1067,9 @@ fn main() {
     let mut scripts = true;
     let mut mute = false;
     let mut deflicker = false;
+    let mut vsync = true;
+    let mut fps_cap = 0u32;
+    let mut render_scale = 1u32;
     let mut pad_log: Option<String> = None;
     let mut import_card: Option<PathBuf> = None;
     let mut replay: Option<String> = None;
@@ -1019,6 +1127,9 @@ fn main() {
             "--no-events" => scripts = false,
             "--mute" => mute = true,
             "--deflicker" => deflicker = true,
+            "--no-vsync" => vsync = false,
+            "--fps-cap" => fps_cap = args.next().and_then(|n| n.parse().ok()).unwrap_or(0),
+            "--render-scale" => render_scale = args.next().and_then(|n| n.parse::<u32>().ok()).unwrap_or(1).clamp(1, 8),
             "--dvd" => match args.peek() {
                 Some(n) if !n.starts_with("--") => match n.parse::<f64>() {
                     Ok(speed) if speed > 0.0 => {
@@ -1055,7 +1166,7 @@ fn main() {
             "-V" | "--version" => return,
             "-h" | "--help" => {
                 println!(
-                    "piney-game [--iso PATH | --game DIR [--volume N]] [--mode MODE] [--no-events] [--mute] [--deflicker] [--dvd [SPEED]] [--voice en|jp] [--card DIR | --no-card] [--mail N,...] [--news N,...] [--pad-log FILE] [--replay FILE] [--import-card PATH] [--version]"
+                    "piney-game [--iso PATH | --game DIR [--volume N]] [--mode MODE] [--no-events] [--mute] [--deflicker] [--no-vsync] [--fps-cap N] [--render-scale N] [--dvd [SPEED]] [--voice en|jp] [--card DIR | --no-card] [--mail N,...] [--news N,...] [--pad-log FILE] [--replay FILE] [--import-card PATH] [--version]"
                 );
                 println!(
                     "--iso PATH: a disc image, or a disc of a build (DIR/outbreak.disc); --game DIR: a piney-build build (by default {}), its launcher when it holds more than one disc; --volume 1-4 (inf, mut, out, qua): that disc of the build, no launcher",
@@ -1302,6 +1413,7 @@ fn main() {
                 std::process::exit(1);
             }
         };
+        gs.set_scale(render_scale);
         let mut pad = Pad::default();
         let mut replay = replay;
         if !frames_given && !replay.is_empty() {
@@ -1507,6 +1619,10 @@ fn main() {
         mode,
         display_offset: (0, 0),
         deflicker,
+        vsync,
+        fps_cap,
+        render_scale,
+        presented: Instant::now(),
         assets: Some(assets),
         gs: None,
         win: None,
@@ -1530,12 +1646,17 @@ fn main() {
         actuator: piney_input::actuator::Actuator::default(),
         rumble: None,
         ctrl: false,
+        mouse: (0.0, 0.0),
         quit: None,
         exit: false,
         options,
         mute,
         launching,
     };
+    // The console's lines typed, kept between runs in the build's folder.
+    if let Some(home) = piney_data::pack::home().filter(|h| h.is_dir()) {
+        app.console.keep_history(home.join("console_history.txt"));
+    }
     if let Err(e) = event_loop.run_app(&mut app) {
         eprintln!("{e}");
     }
