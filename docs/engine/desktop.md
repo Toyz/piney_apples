@@ -258,11 +258,14 @@ outside GS primitive space is dropped, not clipped.
 - Within a layer, opaque model chains and `ccSprite::SendPacket` packets are
   **prepended** (0x0013f180, 0x0015ac88): the last sent is drawn first.
 - Then the layer's sorted group (`ccDLSort`): one node per model's
-  translucent mmats. The key (`ccModel::Draw` 0x0013eb38) is the screen Z of
-  the model's Bbox centre when it has one; no desktop or wallpaper file does,
-  and then the key is `M[2][3] / M[3][3]` of the model's world-screen matrix
-  M, read from the w row (offsets 44 and 60) rather than the translation
-  column. `ccDLSort::Add` (0x001081d0) builds a binary tree, an equal key
+  translucent mmats. The key (`ccModel::Draw` 0x0013eb38) is the screen Z
+  (z / w) of the model's box centre: `ccModel::Init` (0x0013a550) points
+  `ccModel` +4 at the chunk's own box (`ccModelChunk` +0x10, centre +0x30,
+  [the model chunk](../formats/ccs-model.md)) for every model without
+  `mtype & 6`. A bone or skin model has none, and its key is
+  `M[2][3] / M[3][3]` of its world-screen matrix M, read from the w row
+  (offsets 44 and 60) rather than the translation column. Bbox chunks
+  (`Decode_Bbox`) go to a list of their own and play no part. `ccDLSort::Add` (0x001081d0) builds a binary tree, an equal key
   going left, read in order (0x00108100): ascending key, the later of equal
   keys first.
 - A model whose `tp` is below 1/128 is not drawn (0x0013eaf8), nor a mmat

@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-350 entries: audio 31, battle 70, build 15, content 3, decomp 28, disc 5, engine 17, format 17, iop 3, render 84, save 13, script 41, test 133, tooling 26, ui 69, video 12, volumes 67, world 90.
+351 entries: audio 31, battle 70, build 15, content 3, decomp 28, disc 5, engine 17, format 17, iop 3, render 85, save 13, script 41, test 133, tooling 26, ui 70, video 12, volumes 67, world 90.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -362,3 +362,4 @@ The [reference](docs/README.md) says what is true now.
 | 348 | ["A spell holds its targets for its whole run: the effects' copy of holdFlag was never set"](worklog/0348-a-spell-holds-its-targets-for-its-whole-run-the-effects.md) | 2026-10-02 | battle, render |
 | 349 | ["A revived member who ignores orders: not reproduced; what was ruled out"](worklog/0349-a-revived-member-who-ignores-orders-not-reproduced-what-was.md) | 2026-10-02 | battle, test |
 | 350 | ["The console wraps, scrolls with the mouse and lists its help in columns; render scale, vsync and an FPS cap"](worklog/0350-the-console-wraps-scrolls-with-the-mouse-and-lists-its-help.md) | 2026-10-02 | ui, render, tooling |
+| 351 | ["The top page's Key of the Twilight: a rigid model keys the sorted group on its own vertex box, not a Bbox chunk"](worklog/0351-the-top-page-s-key-of-the-twilight-a-rigid-model-keys-the.md) | 2026-10-02 | render, ui |

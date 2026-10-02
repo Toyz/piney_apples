@@ -40,9 +40,6 @@ pub struct MmatInfo {
     pub tex_flag: u8,
 }
 
-/// The Bbox chunk kind.
-const BBOX: u16 = 0x0c00;
-
 /// Texture flag bit: always drawn in the sorted (translucent) group.
 pub const TEX_FLAG_SORTED: u8 = 0x08;
 /// Texture flag bit: CLAMP rather than REPEAT.
@@ -58,10 +55,30 @@ pub struct ModelInfo {
     /// `ccModel.flag` 0x20), and writes no Z ([`crate::anm::model_state`]).
     pub blend_type: u8,
     pub mmats: Vec<MmatInfo>,
-    /// The Bbox chunk's centre in model space, which the sorted group is
-    /// keyed on when present (`ccModel::Draw` 0x0013eb38). No desktop or
-    /// wallpaper file has one.
+    /// The centre of the model's vertex box in model space, which the sorted
+    /// group is keyed on (`ccModel::Draw` 0x0013eb38): [`vertex_box_centre`]
+    /// for a model without `mtype & 6`; None for a bone or skin model, whose
+    /// `ccModel` +4 `ccModel::Init` leaves null (0x0013a550).
     pub centre: Option<Vec3>,
+}
+
+/// The centre `ccBbox_SetBox` (0x001388c0) gives a model's chunk box
+/// (`ccModelChunk` +0x10, centre at +0x30), which `Decode_Model` fills from
+/// every vertex: per axis the integer min and max (starting at 0x10000 and
+/// -0x10000), `((min + max) >> 1) * (vertexScale / 4096)`. A Bbox chunk
+/// (`Decode_Bbox`) goes to a list of its own and never reaches it. Checked
+/// against the game's decoder in eemu on every model of `xdttopen0` and
+/// `xddesk01`.
+pub fn vertex_box_centre(m: &piney_data::model::Model) -> Vec3 {
+    let (mut lo, mut hi) = ([0x10000i32; 3], [-0x10000i32; 3]);
+    for p in m.mmats.iter().flat_map(|mm| &mm.positions) {
+        for k in 0..3 {
+            lo[k] = lo[k].min(i32::from(p[k]));
+            hi[k] = hi[k].max(i32::from(p[k]));
+        }
+    }
+    let unit = m.scale / 4096.0;
+    Vec3::from_array(std::array::from_fn(|k| unit * ((lo[k] + hi[k]) >> 1) as f32))
 }
 
 /// One CCSF file with what the desktop draws from it.
@@ -97,21 +114,6 @@ impl SceneFile {
             obj_model.entry(o).and_modify(|x: &mut u32| *x = (*x).min(m)).or_insert(m);
         }
         let (textures, _) = piney_data::texture::read(&ccs)?;
-        // Bbox chunks (0x0c00: u32 box, u32 target, f32 min[3], f32 max[3]).
-        let mut boxes = HashMap::new();
-        for ch in ccs.walk().chunks {
-            if !ch.in_frames && ch.kind == BBOX {
-                let q = ch.payload();
-                let f = |k: usize| -> Result<f32> {
-                    let b = ccs.data.get(q + 8 + 4 * k..q + 12 + 4 * k).ok_or(Error::Format("short Bbox".into()))?;
-                    Ok(f32::from_le_bytes(b.try_into().unwrap()))
-                };
-                let target = u32::from_le_bytes(ccs.data[q + 4..q + 8].try_into().unwrap());
-                let lo = Vec3::new(f(0)?, f(1)?, f(2)?);
-                let hi = Vec3::new(f(3)?, f(4)?, f(5)?);
-                boxes.insert(target, (lo + hi) * 0.5);
-            }
-        }
         let mut models = HashMap::new();
         let mut shadows = HashMap::new();
         for m in piney_data::model::models(&ccs)? {
@@ -119,7 +121,7 @@ impl SceneFile {
                 let mesh = m.mmats.first().and_then(piney_data::shadow::ShadowMesh::build);
                 shadows.insert(m.object, (m.scale, mesh));
             }
-            let centre = boxes.get(&m.object).copied();
+            let centre = (m.mtype & 6 == 0).then(|| vertex_box_centre(&m));
             let mmats = m
                 .mmats
                 .iter()

@@ -232,3 +232,53 @@ fn start_opens_the_system_menu_over_the_page() {
     r.press(Buttons::DOWN);
     assert_eq!(r.t.control().cmd, 0);
 }
+
+/// Issue #25: on the top page the Key of the Twilight (`MDL_xdtworld1`)
+/// shows on the sword through its glow (`MDL_xdthotw`). Both are
+/// translucent and each writes Z where its alpha passes; the glow stands
+/// 1000 units nearer. `ccModel::Draw` keys a rigid model on the screen Z of
+/// its vertex box's centre, so the farther text is drawn first and the glow
+/// over it. Keyed as a model without a box (the w-row key, which the glow's
+/// 1.0-1.2 scale puts first), the glow's Z hid the text.
+#[test]
+fn the_key_of_the_twilight_is_drawn_before_its_glow() {
+    let Some(mut r) = Run::new(SaveState::fresh()) else { return };
+    let (_, archive) = open().unwrap();
+    let ccs = piney_data::ccs::Ccs::parse(archive.inflate_named("xdttopen0").unwrap()).unwrap();
+    let index = |name: &str| (0..4096u32).find(|&i| ccs.object_name(i) == Some(name)).unwrap();
+    let (text, glow) = (index("MDL_xdtworld1"), index("MDL_xdthotw"));
+    let mut done = 0;
+    for n in [150usize, 300, 421] {
+        r.idle(n - done);
+        done = n;
+        let order: Vec<u32> = r
+            .frame
+            .cmds
+            .iter()
+            .filter_map(|c| match c {
+                piney_draw::Cmd::Model(m) if m.file == "xdttopen0" => Some(m.model),
+                _ => None,
+            })
+            .collect();
+        let at = |m: u32| order.iter().position(|&x| x == m);
+        let (t, g) = (at(text), at(glow));
+        assert!(t.is_some() && g.is_some(), "frame {n}: drawn {order:?}");
+        assert!(t < g, "frame {n}: the glow drawn before the text: {order:?}");
+    }
+}
+
+/// The sort centres `ccBbox_SetBox` leaves in the model chunks, as the
+/// game's own `Decode_Model` gives them in eemu.
+#[test]
+fn model_box_centres_are_the_games() {
+    let Some((_, archive)) = open() else { return };
+    let ccs = piney_data::ccs::Ccs::parse(archive.inflate_named("xdttopen0").unwrap()).unwrap();
+    let models = piney_data::model::models(&ccs).unwrap();
+    let centre = |name: &str| {
+        let m = models.iter().find(|m| ccs.object_name(m.object) == Some(name)).unwrap();
+        piney_desktop::assets::vertex_box_centre(m).to_array()
+    };
+    assert_eq!(centre("MDL_xdtsword"), [0.0, -6784.0, 848.0]);
+    assert_eq!(centre("MDL_xdtworld1"), [-3.125, 0.0, 0.0]);
+    assert_eq!(centre("MDL_xdthotw"), [0.0, 0.0, 0.0]);
+}

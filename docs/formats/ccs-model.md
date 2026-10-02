@@ -139,8 +139,17 @@ Strips always open with two vertices flagged 1, and run on across the
 GS ADC bit. Nothing culls back faces, and winding is not consistent across
 models. See [the draw path](../engine/render.md).
 
-After the mmats, for `mtype & 6` the model's min/max box is doubled about its
-centre, and `ccBbox_SetBox(chunk+0x10, vmm, vertexScale)` stores it.
+After the mmats `ccBbox_SetBox(chunk+0x10, vmm, vertexScale)` (0x001388c0)
+stores the model's box: per axis the integer min and max over every vertex
+(starting at 0x10000 and -0x10000), first doubled about the centre for
+`mtype & 6`. With `unit = vertexScale / 4096`: min at +0x10, max at +0x20,
+each `int * unit`, and the centre at +0x30, `((min + max) >> 1) * unit`, w 1.
+`ccModel::Init` (0x0013a550) points `ccModel` +4 at it for a model without
+`mtype & 6` and leaves it null for a bone or skin model; `ccModel::Draw`
+culls by it (`_ccCheckBoundingBoxEx`) and keys the sorted group on its
+centre ([the desktop's draw order](../engine/desktop.md#draw-order)). The
+centre matches the game's decoder in eemu for all 41 models of `xdttopen0`
+and 138 of `xddesk01`.
 
 ## Posing
 
