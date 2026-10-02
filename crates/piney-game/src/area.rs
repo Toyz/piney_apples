@@ -1317,6 +1317,7 @@ impl AreaMode {
             R::TargetsCleared => self.world.clear_command_targets(),
             R::GameOver => self.world.compulsion_game_over = true,
             R::WorldHidden(on) => self.world_hidden = on,
+            R::Flash => self.ui.gate_flash(),
             // Data Drain's movie: the stream the target picks, played as
             // ccThExecuteStream plays one (no subtitles, no music of its
             // own) over the field's resident files; the menu task waits for

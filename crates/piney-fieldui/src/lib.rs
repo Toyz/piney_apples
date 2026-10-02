@@ -311,6 +311,12 @@ pub struct FieldUi {
 }
 
 impl FieldUi {
+    /// [`Request::Flash`] carried out: `ccScFade::EntryFlash(menuFade, 8,
+    /// 0x3040c0c0, 0, 0, 512, 448)` (gcmn `GateMenu` 0x0055cca8).
+    pub fn gate_flash(&mut self) {
+        self.ctrl.menu_fade.entry_flash(8, 0x3040_c0c0);
+    }
+
     /// The task's start: `new ccMenuCtrl` (0x0051c140), its textures and
     /// the menu tables.
     pub fn new(iso: &mut Iso, archive: Arc<Archive>) -> piney_data::Result<FieldUi> {

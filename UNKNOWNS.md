@@ -91,7 +91,6 @@ gap, they share one line. The Docs section repeats the doc bullets.
 - [[157]] [[161]] `EntryObject`'s palettes for the lakes' statues and flowers when `GetBG` is not 0 are not ported (docs/engine/dungeon.md) — lake dungeons by evening and night
 - [[158]] `DUNGEON.fog` is not zeroed at the game over's TV, and the squeeze moves the whole finished frame, not only what sysLayer's view draws — the game over, in a dungeon most
 - [[170]] the enemies' weapon flashes (and the boxes') put a light in the scene's light group in the game; the port does not — characters not lit by the flashes
-- [[68]] the white flash of the gate menu in town is dropped (`R::Flash` in crates/piney-game/src/world.rs) — leaving a town through the gate
 - [[266]] Innis's pictures are not drawn: missiles, SamonRings, particle generators, blur, shield, mirrors' shards; the MagicSquare for n 1 and 2 (docs/engine/boss-innis.md) — Mutation's first boss
 - [[274]] Magus's pictures are named, not drawn: the leaves' markers, charges and bursts, the laser's shocks and thunder, the needles, the smoke; the body's dropped leaves are not hidden (docs/engine/boss-magus.md) — Mutation's Magus
 - [[280]] Innis's ice missile and Fidchell's IceBreak are not ported, so nothing throws their rocks — Mutation's and Outbreak's bosses (Fidchell's rules ported in [[294]]; its IceBreak's rocks are still not thrown)
@@ -457,6 +456,7 @@ player until one of these turns out wrong.
 
 ### ui
 
+- [[326]] whether a script's fade and a menu flash ever overlap in play (the game shares `ccMenu +0xb8`; the port keeps two faders) — not surveyed
 - [[9]] the meaning of mailFlg and reFlg — their writes are ported (docs/engine/desktop.md "Mail"); readers unnamed, still in docs/engine/text.md Unknown
 - [[23]] how the GS samples the kt 0 and kt 2 sprites whose sx and su differ by a texel — docs/engine/font.md Unknown (renderer assumes top-left sampling)
 - [[23]] which view and scale the font layer uses — docs/engine/font.md Unknown
@@ -847,6 +847,7 @@ player until one of these turns out wrong.
 - [[68]] TransferOut dropped — answered by [[129]] (towns run effTransfer)
 - [[68]] the AI orders dropped — answered by [[148]] (ChatMenu1-3)
 - [[68]] Party Add made no character — answered by [[74]], [[90]], [[108]]
+- [[68]] the white flash of the gate menu in town was dropped — answered by [[326]] (`FieldUi::gate_flash` on `menu_fade`; `the_gate_menu_flashes`)
 - [[69]] end_event not reached after the scene — answered by [[72]], [[74]]
 - [[69]] WORLD_MAN::SetEventData — answered by [[87]]
 - [[69]] teach_input (event 3's camera lesson) — answered by [[75]]

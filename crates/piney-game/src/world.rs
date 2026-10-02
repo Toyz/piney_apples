@@ -676,12 +676,12 @@ impl WorldMode {
             },
             // WORLD_MAN::SetMapAlpha: the minimap's fade.
             R::MapAlpha(a) => self.map_st.set_alpha(a),
+            R::Flash => self.ui.gate_flash(),
             // The frozen layers: asleep, the world draws everyone where
             // they stand. Skills and items belong to the battle; the
-            // party's warps and the white flash are not ported here.
+            // party's warps are not ported here.
             R::Still(_)
             | R::KeepLayers
-            | R::Flash
             | R::DeleteNoPartyMember
             | R::Skill { .. }
             | R::UseItem { .. }

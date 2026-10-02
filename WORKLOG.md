@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-325 entries: audio 26, battle 67, build 15, content 3, decomp 23, disc 5, engine 10, format 16, iop 2, render 79, save 10, script 36, test 131, tooling 23, ui 59, video 11, volumes 67, world 85.
+326 entries: audio 26, battle 67, build 15, content 3, decomp 23, disc 5, engine 10, format 16, iop 2, render 79, save 10, script 36, test 131, tooling 23, ui 60, video 11, volumes 67, world 86.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -337,3 +337,4 @@ The [reference](docs/README.md) says what is true now.
 | 323 | ["prev_room and hold 7: no script of any volume uses them"](worklog/0323-prev-room-and-hold-7-no-script-of-any-volume-uses-them.md) | 2026-10-01 | script, volumes |
 | 324 | ["File-list entries: deleteCnt is a reference count, addFlag is always -1"](worklog/0324-file-list-entries-deletecnt-is-a-reference-count-addflag-is.md) | 2026-10-01 | format, engine, volumes |
 | 325 | ["The later volumes' changed event cases: seven compile differently, six change behaviour"](worklog/0325-the-later-volumes-changed-event-cases-seven-compile.md) | 2026-10-01 | script, volumes, decomp |
+| 326 | [The gate menu's flash drawn in town on the menu fader](worklog/0326-the-gate-menu-s-flash-drawn-in-town-on-the-menu-fader.md) | 2026-10-01 | ui, world |

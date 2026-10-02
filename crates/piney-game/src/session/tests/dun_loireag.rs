@@ -168,6 +168,36 @@ fn the_gate_warps_to_dun_loireag_and_back() {
     assert_eq!((s.scene.area, s.scene.town, s.scene.town_prev), (0, 0, 1));
 }
 
+/// The gate menu opening in Mac Anu flashes the screen: `GateMenu`'s
+/// `EntryFlash(menuFade, 8, 0x3040c0c0, ...)` on the menu fader, which the
+/// town carries out for the menu's `Request::Flash`.
+#[test]
+fn the_gate_menu_flashes() {
+    let Some((iso, archive)) = disc() else { return };
+    let mut d = Iso::open(&iso).unwrap();
+    let mut state = crate::world::new_game_state(&mut d).unwrap();
+    state.save.set_i16(offset::TOWN_MOVE_FLAG, 0b11);
+    let scene = piney_world::area::Scene::log_in(&mut state.save);
+    let mut s = Session::in_world(iso, archive, None, state, None, scene, None).unwrap();
+    let mut pad = Pad::default();
+    for f in 0..4000u64 {
+        let raw = match &s.stage {
+            Stage::World(w) => to_the_gate(w, f, 1),
+            _ => still(Buttons::NONE),
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        let Stage::World(w) = &s.stage else { continue };
+        if w.ui().menu_type() == GATE_MENU {
+            let flash = w.ui().ctrl.menu_fade.elm.iter().find(|e| e.col0 == 0x3040_c0c0);
+            assert!(flash.is_some_and(|e| e.tcnt == 8), "no flash: {:?}", w.ui().ctrl.menu_fade.elm);
+            return;
+        }
+    }
+    panic!("the gate menu never opened: {}", Mode::title(&s));
+}
+
 /// `--mode story:22`: the board, Log in to Mac Anu (event 21 left the
 /// party there), the gate's Other Servers to Dun Loireag - event 20's
 /// `town_move 1`, replayed, opened it - where event 22's blocks for the
