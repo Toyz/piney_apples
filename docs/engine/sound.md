@@ -3,7 +3,7 @@ title: Sound - effects, music and the IOP sound driver
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x00179c10 ccSeOn, 0x00179cb0 ccSeOnNote, 0x00179d90 ccSeOn3D, 0x0017a140 ccSeOn3DLoop, 0x0017a620 ccSeOffLoop, 0x001794b0 ccSetMainVol, 0x001794f0 ccSetBgmVol, 0x00179540 ccSetSeVol, 0x00179630 ccSndChangeOption, 0x00181010 ccSoundMain, 0x0017bac0 waterTest, 0x0017c3c0 bgmChurch, 0x0017c6d0 bgmBreed, 0x0017ad70 ccPortVolSet, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x00181250 ccSound::ccFade, 0x001834e0 ccSndChangeData, 0x0017b020 ccSndBgmCtrl, 0x001821d0 ccSndSQLoad, 0x00183380 ccSound::bgmChange, 0x0017de80 ccSndEvRequest, 0x00168960 ccSetupGameCtrl, 0x00167580 ccGame::CheckSceneReplace, 0x00307bc0 sqDataField, 0x00307bf0 playTypeTbl, 0x00309f60 sqVolTblField, 0x00307c20 sqDataDungeon, 0x00307d28 dungeonPlayType, 0x0030a100 sqVolTblDungeon, 0x00307f00 sqDataEvent, 0x00308a90 eventPlayType, 0x0030a3d0 sqVolTblEvent, 0x00307d40 sqDataTown, 0x00309f90 sqVolTblTown, 0x00182050 ccSndCommSeLoad, 0x00181ee0 spuInit, 0x001816f0 ccSound::sdCommand, 0x00182dc0 ccSoundRpc, 0x0017e6e0 wavPlay, 0x00308db0 seData, 0x00181440 ccSound::ccSceneFade, 0x001811f0 ccSound::gameInterrupt, 0x0017ae10 ccAllSoundOff, 0x00183080 initBeforeLoad, 0x0017e810 ccEvVoiceRequest, 0x0017eeb0 ccVoiceRequest, 0x0017e290 ccWordsPlay, 0x0017e350 skillVoicePlay, 0x0017eca0 evVoicePlay, 0x0017ee40 ccEvVoiceStop, 0x001800e0 ccVoicePgFood, 0x00179f50 ccSeOn3DNote, 0x0017a370 calcVel, 0x0017a4c0 calcPan, 0x0017a6b0 ccSeOnPCStep, 0x0017a7f0 seHitAttr, 0x0017aa20 ccSeSetParamSPC, 0x0017aaf0 ccSeSetParamPC, 0x0017abd0 ccSeSetParamEnemy, 0x0017ac70 ccSeSetParamInu, 0x001830c0 initAfterLoad, 0x00183fb0 ccSound::strSeEnd, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x003789dc looptest; INF gcmn.prg:0x00572860 _ccSkillRequest (its ccWordsPlay), 0x005a17e0 ccSpcShoutOperationName, 0x00493370 ccBoss04::OnThinkPrediction, 0x00639560 spc0SeData, 0x00639d40 spcSeTbl, 0x0063a850 enemySeTbl, 0x0063a8a0 inuSeData; INF SLUS_202.67:0x0017d190 ccSndStreamCtrl, 0x0017caa0 ccSndStreamSE, 0x0017cb20 ccSndStreamBGM, 0x001799b0 ccSqPlayVol, 0x00183f40 ccSound::strSeInit, 0x00183fb0 ccSound::strSeEnd, 0x00180b30 ccSndMoviePlayer, 0x0030b950 strSndTbl; INF desktop.prg:0x004072c0 Audio_control::ChangeWeve, 0x0042b6f0 Wave; INF MODULES/SNDBASE.IRX:0x0a58 ccSoundFunc, 0x031c ccSoundFunc2, 0x07e4 bgmChange, 0x3564 setModuleContext, 0x3860 ATick, 0x27d4 ccSetSq, 0x257c ccSetHdSynth; INF MODULES/MODMIDI.IRX; INF MODULES/MODHSYN.IRX; INF MODULES/SEWORDS.IRX:0x0e24 BgmSetVolumeDirect
-worklog: 42
+worklog: 42, 327
 ---
 
 # Sound - effects, music and the IOP sound driver
@@ -619,7 +619,11 @@ fed each frame by the town and area modes):
     (+0x108 = 1).
   - Going beyond 1200: the reverse (+0x108 = 0).
 
-`ccSndSQLoad` clears +0x108.
+`ccSndSQLoad` clears +0x108. +0x108-+0x114 are `int free[4]` (DWARF):
+scratch for the stage's routine (`stageParam` +0x105). `free[2]` (+0x110)
+is only ever cleared: over all 459 references to `ccSnd` in main and the
+four overlays, only `bgmChurch` (+0x108, +0x10c), `bgmBreed` (+0x108,
++0x114) and `ccSndSQLoad`'s clear loop (0x00182448) touch the array.
 
 `ccSndChangeOption` leaves these scenes' ports alone. In The World
 (`game.status` 5), a changed `bgmVol` sets:
@@ -891,8 +895,16 @@ and 0x1dffff (core 1), `sceSdSetEffectAttr` mode 5 (hall) with the area
 cleared (0x105), effect return volume `EVOL` 0x3fff, master volume 0x3fff;
 then `MMIX` core 0 = 0x0fc0 (sound-data input dry; voices dry and wet),
 core 1 = 0x0fcc (core 0's output dry; voices dry and wet), and effects
-enabled on both cores. `sdCommand` cases 4 and 5 turn the reverb off and
-back to hall later (not on the desktop). A voice reaches the reverb when
+enabled on both cores. `ccSndChangeData` (the desktop's music and every
+jukebox change) asks for `sdCommand` case 4 before its load
+(`sdRemote[3]`, 0x00183620) and case 5 after it (`sdRemote[4]`,
+0x00183880). The next `sdCommand` runs both in turn:
+- **4:** effect mode 0x100 (off, area cleared), effect return volume 0
+  and effects disabled on both cores;
+- **5:** mode 0x105 (hall, area cleared), depth 0x7fff, delay 127, return
+  volume 0x3fff and effects enabled.
+
+So the reverb starts empty with the new music. A voice reaches the reverb when
 its sample's `spu_attr` asks (bits 2 and 3; 307 of 1,402 samples).
 
 ## The sequencer (MODMIDI.IRX)
@@ -1094,13 +1106,10 @@ These are models of the hardware, not checked against a PS2.
 - `ccSeOffLoop` with an `id` outside 0-7 writes other `ccSound` bytes
   (-1 into +0x64 `sqNum` for -1); the port frees no slot then. No caller
   seen passes one.
-- `sdCommand` cases 4 and 5 (reverb off / hall again) - who asks for them.
 - `ccSndSQLoad(6)` (`sqDataStream`, by `ccGetStreamCode`) is not ported,
   and nothing in Infection asks for it: the only callers are
   `ccSetupDemo` (7), `ccSetupToppage` (0) and `ccSetupGameCtrl` (2 to 5),
   in main and every overlay alike.
-- What `ccSnd` +0x110 does (+0x108, +0x10c, +0x114, +0x120, +0x132 and
-  +0x133 are the scene sounds' and TOBJ's, above).
 - Neither the canals' nor the church's volumes were compared with the
   game playing; they follow the code, run in unit tests.
 - Event bank rows past 122 (`game.field` 123 and up) read past the end of

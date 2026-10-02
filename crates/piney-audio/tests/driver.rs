@@ -44,6 +44,11 @@ fn words(snd: &SndData, cmds: &[Command]) -> Vec<String> {
                 out.push(format!("seq {i} {}", info.sequence_offset(*i).unwrap() - info.offset));
             }
             Command::AllSoundOff => {}
+            Command::Reverb(on) => {
+                let mode = if *on { 0x105 } else { 0x100 };
+                out.push(format!("reverb 0 {mode:x}"));
+                out.push(format!("reverb 1 {mode:x}"));
+            }
             Command::Play(m) => out.push(format!("play {m}")),
             Command::Stop(m) => out.push(format!("stop {m}")),
             // tools/sound_ee.py stubs ccEvVoiceStop out here; tests/voice.rs

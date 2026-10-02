@@ -267,73 +267,73 @@ note 100 60 | msg c03b; msg 903c7f
 note 100 64 | msg c03b; msg 90407f
 note 100 127 | msg c03b; msg 907f7f
 note 100 -5 | msg c03b; msg 90007f
-desktop 0 | load 7731200; seq 0 2480; seq 1 6624; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 1 | load 19869696; seq 0 2704; seq 1 11632; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
-desktop 2 | load 2658304; seq 0 1440; vol 0 256; vol 1 160; vol 2 0; vol 3 0; vol 1 160; play 0
-desktop 3 | load 15640576; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 4 | load 21415936; seq 0 2400; seq 1 6944; seq 2 11120; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 5 | load 18948096; seq 0 2512; seq 1 9072; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 6 | load 14018560; seq 0 1984; seq 1 8480; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 7 | load 27613184; seq 0 1344; seq 1 2144; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 2 256; play 1
-desktop 8 | load 25319424; seq 0 2240; seq 1 3952; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
-desktop 9 | load 22482944; seq 0 2224; seq 1 6800; seq 2 10976; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 10 | load 28303360; seq 0 1296; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
-desktop 11 | load 39272448; seq 0 2288; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 12 | load 29351936; seq 0 1232; seq 2 2032; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
-desktop 13 | load 8921088; seq 0 2592; seq 1 6208; seq 2 17264; vol 0 256; vol 1 192; vol 2 256; vol 3 256; vol 1 192; play 0
-desktop 14 | load 27742208; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 15 | load 10020864; seq 0 2016; seq 1 13504; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 16 | load 20471808; seq 0 2304; seq 1 7904; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
-desktop 17 | load 17270784; seq 0 2496; seq 1 5904; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 18 | load 3096576; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 1 160; play 0
-desktop 19 | load 21968896; seq 0 1680; seq 1 1680; seq 2 5856; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 20 | load 3708928; seq 0 2224; seq 1 16320; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
-desktop 21 | load 27000832; seq 0 2816; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 22 | load 30820352; seq 0 1488; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 23 | load 31264768; seq 0 1600; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
-desktop 24 | load 39718912; seq 0 1280; vol 0 256; vol 1 160; vol 2 0; vol 3 0; vol 1 160; play 0
-desktop 25 | load 29855744; seq 0 1216; seq 2 2352; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
-desktop 26 | load 4151296; seq 0 2640; seq 1 14016; seq 2 16400; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0
-desktop 27 | load 3096576; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 2 256; play 1
-desktop 28 | load 28778496; seq 0 1584; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 29 | load 35340288; seq 0 1312; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 30 | load 5365760; seq 0 2208; seq 1 6192; seq 2 8576; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0
-desktop 31 | load 12349440; seq 0 1120; seq 1 7184; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 32 | load 14741504; seq 0 2160; seq 1 6256; seq 2 9504; vol 0 256; vol 1 224; vol 2 256; vol 3 256; vol 1 224; play 0
-desktop 33 | load 31868928; seq 0 1584; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
-desktop 34 | load 4751360; seq 0 2304; seq 1 4432; seq 2 6816; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0
-desktop 35 | load 32403456; seq 0 2096; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 36 | load 40095744; seq 0 1840; vol 0 256; vol 1 192; vol 2 0; vol 3 0; vol 1 192; play 0
-desktop 37 | load 30314496; seq 0 1248; seq 2 2640; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
-desktop 38 | load 17803264; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 256; vol 3 256; vol 1 224; play 0
-desktop 39 | load 18343936; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 40 | load 16211968; seq 0 1952; seq 1 5632; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-desktop 41 | load 11163648; seq 0 2256; seq 1 9888; seq 2 14128; vol 0 256; vol 1 224; vol 2 256; vol 3 256; vol 1 224; play 0
-desktop 42 | load 5986304; seq 0 2272; seq 1 3888; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
-desktop 43 | load 34770944; seq 0 1520; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 44 | load 32995328; seq 0 1744; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 45 | load 33583104; seq 0 1536; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 46 | load 34164736; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
-desktop 47 | load 34164736; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
-desktop 48 | load 40693760; seq 0 1616; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 49 | load 41148416; seq 0 1408; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-desktop 50 | load 1835008; seq 0 1648; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 0 | load 7731200; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2480; seq 1 6624; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 1 | load 19869696; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2704; seq 1 11632; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 2 | load 2658304; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1440; vol 0 256; vol 1 160; vol 2 0; vol 3 0; vol 1 160; play 0
+desktop 3 | load 15640576; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 4 | load 21415936; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2400; seq 1 6944; seq 2 11120; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 5 | load 18948096; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2512; seq 1 9072; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 6 | load 14018560; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1984; seq 1 8480; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 7 | load 27613184; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1344; seq 1 2144; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 2 256; play 1
+desktop 8 | load 25319424; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2240; seq 1 3952; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 9 | load 22482944; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2224; seq 1 6800; seq 2 10976; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 10 | load 28303360; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1296; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+desktop 11 | load 39272448; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2288; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 12 | load 29351936; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1232; seq 2 2032; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
+desktop 13 | load 8921088; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2592; seq 1 6208; seq 2 17264; vol 0 256; vol 1 192; vol 2 256; vol 3 256; vol 1 192; play 0
+desktop 14 | load 27742208; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 15 | load 10020864; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2016; seq 1 13504; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 16 | load 20471808; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2304; seq 1 7904; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 17 | load 17270784; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2496; seq 1 5904; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 18 | load 3096576; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 1 160; play 0
+desktop 19 | load 21968896; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1680; seq 1 1680; seq 2 5856; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 20 | load 3708928; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2224; seq 1 16320; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 21 | load 27000832; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2816; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 22 | load 30820352; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1488; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 23 | load 31264768; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1600; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+desktop 24 | load 39718912; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1280; vol 0 256; vol 1 160; vol 2 0; vol 3 0; vol 1 160; play 0
+desktop 25 | load 29855744; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1216; seq 2 2352; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
+desktop 26 | load 4151296; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2640; seq 1 14016; seq 2 16400; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0
+desktop 27 | load 3096576; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 2 256; play 1
+desktop 28 | load 28778496; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1584; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 29 | load 35340288; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1312; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 30 | load 5365760; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2208; seq 1 6192; seq 2 8576; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0
+desktop 31 | load 12349440; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1120; seq 1 7184; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 32 | load 14741504; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2160; seq 1 6256; seq 2 9504; vol 0 256; vol 1 224; vol 2 256; vol 3 256; vol 1 224; play 0
+desktop 33 | load 31868928; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1584; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+desktop 34 | load 4751360; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2304; seq 1 4432; seq 2 6816; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0
+desktop 35 | load 32403456; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2096; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 36 | load 40095744; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1840; vol 0 256; vol 1 192; vol 2 0; vol 3 0; vol 1 192; play 0
+desktop 37 | load 30314496; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1248; seq 2 2640; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
+desktop 38 | load 17803264; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 256; vol 3 256; vol 1 224; play 0
+desktop 39 | load 18343936; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 40 | load 16211968; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1952; seq 1 5632; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 41 | load 11163648; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2256; seq 1 9888; seq 2 14128; vol 0 256; vol 1 224; vol 2 256; vol 3 256; vol 1 224; play 0
+desktop 42 | load 5986304; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2272; seq 1 3888; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 43 | load 34770944; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1520; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 44 | load 32995328; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1744; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 45 | load 33583104; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1536; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 46 | load 34164736; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 47 | load 34164736; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 48 | load 40693760; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1616; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 49 | load 41148416; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1408; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 50 | load 1835008; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1648; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
 volume 50 256 256 256 | 
 volume 50 128 64 200 | vol 1 200; vol 2 0; vol 3 0; vol 0 64; master 981 8191; master a81 8191
 volume 46 0 256 0 | vol 1 0; vol 2 0; vol 3 0; master 981 0; master a81 0
 volume 27 256 96 32 | vol 1 20; vol 2 32; vol 3 32; vol 0 96
 volume 7 200 0 256 | vol 0 0; master 981 12799; master a81 12799
 volume 19 64 128 8 | vol 1 7; vol 2 8; vol 3 0; vol 0 128; master 981 4095; master a81 4095
-jukebox 50 11 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 39272448; seq 0 2288; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-jukebox 11 50 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 1835008; seq 0 1648; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
-jukebox 46 47 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 34164736; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 2 256; play 1
-jukebox 47 46 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; load 34164736; vol 2 0; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
-jukebox 27 18 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; stop 1; load 3096576; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 1 160; play 0
-jukebox 7 12 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; stop 1; load 29351936; seq 0 1232; seq 2 2032; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
-jukebox 19 3 | vol 1 179; vol 1 134; vol 1 89; vol 1 44; vol 1 0; vol 1 0; stop 0; load 15640576; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-jukebox 12 25 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 29855744; seq 0 1216; seq 2 2352; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
-jukebox 0 0 | vol 1 179; vol 1 134; vol 1 89; vol 1 44; vol 1 0; vol 1 0; stop 0; load 7731200; seq 0 2480; seq 1 6624; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
-jukebox 47 7 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; load 27613184; vol 2 0; seq 0 1344; seq 1 2144; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 2 256; play 1
+jukebox 50 11 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 39272448; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2288; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+jukebox 11 50 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 1835008; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1648; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+jukebox 46 47 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 34164736; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 2 256; play 1
+jukebox 47 46 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; load 34164736; vol 2 0; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+jukebox 27 18 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; stop 1; load 3096576; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 1 160; play 0
+jukebox 7 12 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; stop 1; load 29351936; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1232; seq 2 2032; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
+jukebox 19 3 | vol 1 179; vol 1 134; vol 1 89; vol 1 44; vol 1 0; vol 1 0; stop 0; load 15640576; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+jukebox 12 25 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 29855744; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1216; seq 2 2352; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
+jukebox 0 0 | vol 1 179; vol 1 134; vol 1 89; vol 1 44; vol 1 0; vol 1 0; stop 0; load 7731200; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2480; seq 1 6624; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+jukebox 47 7 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; load 27613184; vol 2 0; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1344; seq 1 2144; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 2 256; play 1
 seq load 7 | area 7; playtype 0; load 1249280; seq 0 1376; vol 0 256; vol 1 256; vol 2 0; vol 3 0
 seq load 0 | area 0; playtype 0; load 2324480; seq 0 832; vol 0 256; vol 1 256; vol 2 0; vol 3 0
 seq load 1 | area 1; playtype 0; load 1835008; seq 0 1648; vol 0 256; vol 1 256; vol 2 0; vol 3 0

@@ -35,6 +35,9 @@ pub struct Driver {
     change_bgm: bool,
     change_se: bool,
     change_main: bool,
+    /// `sdRemote[3]` and `[4]`, 4 and 5: the reverb off and hall again,
+    /// which `ccSndChangeData` asks for around its load.
+    sd_reverb: bool,
     /// The jukebox row playing (`WaveData.NO`), -1 before any.
     pub wave: i32,
     /// A jukebox change waiting for its fade (`BgmRead`'s 10 frames).
@@ -191,6 +194,11 @@ pub enum Command {
     Load(SqLoad),
     /// All sound off on every port (`ccSndCmd(0x140)`).
     AllSoundOff,
+    /// `sdCommand` case 4 (false): the reverb off on both cores, its work
+    /// area cleared, the effect return volume 0; case 5 (true): hall again
+    /// from a cleared area (mode 0x105, depth 0x7fff, delay 127), return
+    /// volume 0x3fff.
+    Reverb(bool),
     /// Give ports `i + 1` the bank and sequencer `i` its sequence
     /// (`ccSndCmd(0x9051 + i)`, `0xa1 + i`, `0x40 + i`).
     Seq(usize),
@@ -473,6 +481,7 @@ impl Driver {
             change_bgm: false,
             change_se: false,
             change_main: false,
+            sd_reverb: false,
             wave: -1,
             pending: None,
             game_start: false,
@@ -730,6 +739,11 @@ impl Driver {
             out.push(Command::Master((((m << 14) - m) >> 8).clamp(0, 0x3fff) as u16));
             self.change_main = false;
         }
+        if self.sd_reverb {
+            out.push(Command::Reverb(false));
+            out.push(Command::Reverb(true));
+            self.sd_reverb = false;
+        }
         if self.sound_off {
             out.push(Command::AllSoundOff);
             self.sound_off = false;
@@ -813,6 +827,9 @@ impl Driver {
     /// frame; the music ports.
     fn load(&mut self, tables: &Tables, w: &WaveData, fades: bool, out: &mut Vec<Command>) {
         let Some((row, vol)) = tables.wave(w) else { return };
+        // `sdRemote` 4 before the load and 5 once it is in (0x00183620,
+        // 0x00183880), for the next `sdCommand`.
+        self.sd_reverb = true;
         out.push(Command::Load(row));
         self.task(fades, out);
         out.push(Command::AllSoundOff);

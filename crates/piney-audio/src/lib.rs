@@ -30,6 +30,7 @@ use piney_data::sound::{self, Bank, SndData, Tables, voice};
 use crate::driver::{Command, Driver, VoiceCmd};
 use crate::hsyn::Synth;
 use crate::midi::Sequencer;
+use crate::reverb::Reverb;
 use crate::seword::Word;
 use crate::spu::Spu;
 
@@ -130,6 +131,12 @@ impl Engine {
                 // SNDBASE's allSoundOff (command 0x140, 0x2e5c): each port's
                 // notes and voices off and its volume 0, then sqAllStop -
                 // the music stops, not only the voices sounding now.
+                Command::Reverb(on) => {
+                    if on {
+                        self.spu.reverb = [Reverb::hall(), Reverb::hall()];
+                    }
+                    self.spu.reverb_on = on;
+                }
                 Command::AllSoundOff => {
                     for port in 0..4 {
                         self.synth.all_note_off(port, &mut self.spu);

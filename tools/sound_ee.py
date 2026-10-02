@@ -19,6 +19,7 @@ caught at the edges and written down instead of sent:
   ccSndCmd(0x9310, &dataLoad)   load OFS              a bank from SNDDATA.BIN, then
   ccSndCmd(0x40 | i, addr)        seq I OFFSET        sequence i at bank offset
   sceSdRemote(SetParam 0x0981)  master V              core 1 MVOLL (MVOLR alike)
+  sceSdRemote(SetEffectAttr)    reverb CORE MODE      sdCommand 4 (100) and 5 (105)
 
 Other commands (port attributes, bank-to-port, all sound off) are left
 out. ccBreathThread, the wait for the other threads, returns at once after
@@ -232,6 +233,9 @@ class Ee:
     def _remote(self, m, arg, func, entry, value, *a):
         if func == 0x8010 and entry in (0x0981, 0x0A81):
             self.log.append(f"master {entry:x} {value}")
+        if func == 0x8130:
+            # sdCommand 4 and 5: sceSdSetEffectAttr(core, attr), mode +4.
+            self.log.append(f"reverb {entry} {m.load(value + 4, 4):x}")
         return 0
 
     def call(self, name, *args):
@@ -285,7 +289,10 @@ class Ee:
 
     def desktop(self, no):
         self.m.store(SAVE + 0x2237, 1, no)
+        # Its breaths run the sound task, as the game's thread does.
+        frames, self.frames = self.frames, True
         self.call("ccSndChangeData__FP8WaveDatai", self.wave(no), 0xFFFFFFFF)
+        self.frames = frames
         self.m.store(SND + 23, 1, 1)      # gameStart
         self.call("ccSndBgmCtrl__Fv")
 
