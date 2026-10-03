@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-360 entries: audio 31, battle 71, build 16, content 3, decomp 28, disc 5, engine 18, format 17, iop 3, render 87, save 13, script 45, test 136, tooling 27, ui 73, video 13, volumes 68, world 93.
+361 entries: audio 31, battle 71, build 16, content 3, decomp 28, disc 5, engine 18, format 17, iop 3, render 87, save 13, script 45, test 136, tooling 27, ui 74, video 13, volumes 68, world 94.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -372,3 +372,4 @@ The [reference](docs/README.md) says what is true now.
 | 358 | [Infection's whole story under the autopilot: the pilot's gaps up to event 21](worklog/0358-infection-s-whole-story-under-the-autopilot-the-pilot-s.md) | 2026-10-02 | test, script |
 | 359 | [Infection's whole story ends under the autopilot: event 22's cure boxes, a ghost Kite under god, board posts first](worklog/0359-infection-s-whole-story-ends-under-the-autopilot-event-22-s.md) | 2026-10-02 | test, script, world |
 | 360 | [Field 28's held battle flag is event 50's game of tag; Infection's story without god, and what the pilot lacked there](worklog/0360-field-28-s-held-battle-flag-is-event-50-s-game-of-tag.md) | 2026-10-02 | test, battle, script |
+| 361 | [A grown Grunty talks and trades as its kind at once: the menus read its row as it is now](worklog/0361-a-grown-grunty-talks-and-trades-as-its-kind-at-once-the.md) | 2026-10-03 | ui, world |

@@ -2392,6 +2392,15 @@ began, so `inu::after_affect` makes the same change to their copy
 the Grunty (`foodMode`, `chatFlag`, `growthNum`) are `TalkReq`s the
 runtime carries out.
 
+The menus read `cmndTarget->base` (and `cmndTargetPrev->base`) live, and a
+Grunty's base moves as it grows: row 155 at level 1, the Kid's 156-157, and
+`adultSetup`'s grown kind (145-153). The port's talk target keeps the row
+it was spoken to as, so `talk::base_of` takes a Grunty's row from the
+world's copy (`Grunty::row`) instead. Its name, its greeting (`base->msg`)
+and Trade's list (`npcTradeList[id - 109]`, which only the grown rows'
+type 0x02000000 reaches) are then the grown kind's at once, not after the
+town is entered again (issue #33, `a_grown_grunty_talks_and_trades_as_its_kind`).
+
 ### The texts and tables of 21, 23, 27, 50 and 56
 
 | what | where |

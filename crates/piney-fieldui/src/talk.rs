@@ -343,7 +343,13 @@ pub fn msg_check(m: &mut MenuCtrl, x: &mut Ctx) -> i32 {
 pub fn base_of(m: &MenuCtrl, x: &Ctx, handle: u32) -> Option<Base> {
     let t = m.talk.target.filter(|t| t.handle == handle)?;
     match t.who {
-        Speaker::Npc(row) => Base::npc(x.texts.volume, row),
+        // A Grunty's base moves as it grows (Little Grunty to the Kid to its
+        // grown kind, `adultSetup`): the game reads `base` live, so its row
+        // now, not the one it was spoken to as.
+        Speaker::Npc(row) => {
+            let row = x.world.grunty.as_ref().filter(|g| g.handle == handle).map_or(row, |g| g.row);
+            Base::npc(x.texts.volume, row)
+        }
         Speaker::Spc(id) => {
             // spcParam[id].base: the save's record; its name is charTbl's
             // (the save keeps a pointer).

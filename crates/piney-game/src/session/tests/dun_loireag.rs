@@ -568,6 +568,105 @@ fn the_grunty_eats_and_grows() {
     assert_eq!(grunties(&s)[0].2, 3, "the Grunty did not walk on");
 }
 
+/// Issue #33. The Grunty one feeding from grown (Dun Loireag's record at
+/// level 3, size 28 of 30, no grown kind yet): one of the first food and it
+/// grows up (`adultSetup`: its base the grown kind's row, 145, Noble Grunty,
+/// whose type has the trading bit). Spoken to again it is that kind, as the
+/// game reads `cmndTarget->base` live: `OtonainuMenu` (45) opens with the
+/// grown row's name, and Trade has its trades (not the young row's none).
+#[test]
+fn a_grown_grunty_talks_and_trades_as_its_kind() {
+    let Some((iso, archive)) = disc() else { return };
+    let volume = Iso::open(&iso).unwrap().volume().unwrap();
+    let mut d = Iso::open(&iso).unwrap();
+    let mut state = crate::world::new_game_state(&mut d).unwrap();
+    state.save.set_u8(offset::LAST_TOWN, 1);
+    state.save.set_u8(0x0cfc + 26, 3);
+    let rec = piney_world::grunty::SAVE_GROWTH + 0x18;
+    state.save.set_i16(rec, 3);
+    state.save.set_i16(rec + 2, 28);
+    let scene = piney_world::area::Scene::log_in(&mut state.save);
+    let mut s = Session::in_world(iso, archive, None, state, None, scene, None).unwrap();
+    let mut pad = Pad::default();
+    let step = |s: &mut Session, pad: &mut Pad, b: Buttons| {
+        pad.read(&still(b));
+        s.step(pad);
+        s.take_events();
+    };
+    while town_of(&s) != Some(1) {
+        step(&mut s, &mut pad, Buttons::NONE);
+    }
+    let code = grunties(&s)[0].0;
+    assert_eq!(code, 157, "the young one at level 3");
+    open_grunty(&mut s, &mut pad, code, 46).expect("InuMenu did not open");
+    // Give Food: one of the first food; then OK through its growing up.
+    let mut fed = false;
+    for f in 0..6000u64 {
+        let (menu, proccess, row) = {
+            let Stage::World(w) = &s.stage else { panic!("left the town") };
+            (w.ui().menu_type(), w.ui().ctrl.proccess, w.world().grunty(code).map(|g| g.row.id))
+        };
+        if row == Some(145) && menu == -1 {
+            break;
+        }
+        let b = match (menu, proccess) {
+            (46, 5) if !fed && f.is_multiple_of(12) => {
+                fed = true;
+                Buttons::DOWN
+            }
+            (56, 2) if f.is_multiple_of(12) => Buttons::CROSS,
+            _ if f.is_multiple_of(24) => Buttons::CROSS,
+            _ => Buttons::NONE,
+        };
+        step(&mut s, &mut pad, b);
+    }
+    {
+        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let g = w.world().grunty(code).expect("the grown one stays (a new kind)");
+        assert_eq!(g.row.id, 145, "it did not grow up");
+        assert_eq!(w.ui().menu_type(), -1);
+    }
+    for _ in 0..60 {
+        step(&mut s, &mut pad, Buttons::NONE);
+    }
+    // Spoken to again: the grown kind's menu and name.
+    open_grunty(&mut s, &mut pad, code, 45).expect("OtonainuMenu did not open");
+    let noble = piney_fieldui::talk::Base::npc(volume, 145).unwrap().name;
+    {
+        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let chain = w.ui().ctrl.talk.chain.as_ref().expect("its greeting");
+        assert_eq!(chain.name, noble, "the greeting's speaker");
+    }
+    // Trade (the second row): the trade menu with something to offer.
+    let mut traded = None;
+    for f in 0..600u64 {
+        let (menu, proccess) = {
+            let Stage::World(w) = &s.stage else { panic!("left the town") };
+            (w.ui().menu_type(), w.ui().ctrl.proccess)
+        };
+        if menu == 48 && proccess != 0 {
+            traded = Some(proccess);
+            break;
+        }
+        let b = match (menu, proccess) {
+            (45, 1) => {
+                let Stage::World(w) = &s.stage else { unreachable!() };
+                if w.ui().ctrl.list().select == 0 { Buttons::DOWN } else { Buttons::CROSS }
+            }
+            _ if f.is_multiple_of(24) => Buttons::CROSS,
+            _ => Buttons::NONE,
+        };
+        if f.is_multiple_of(6) {
+            step(&mut s, &mut pad, b);
+        } else {
+            step(&mut s, &mut pad, Buttons::NONE);
+        }
+    }
+    // 30 is "nothing to trade", 100 no trader.
+    let p = traded.expect("Trade did not open the trade menu");
+    assert!(p != 30 && p != 100, "the trade menu had nothing (proccess {p})");
+}
+
 /// Pictures of the young Grunty: walking its route (toward Kite, the
 /// camera reset behind him), `InuMenu`'s list under the fixed camera,
 /// growing up after three of the first food (20, 45 and 100 frames after
