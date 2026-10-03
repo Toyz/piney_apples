@@ -699,6 +699,11 @@ pub struct Animation {
     pub notes: Vec<NoteRecord>,
     /// The F_Obj records in file order (so frame order).
     pub objs: Vec<ObjRecord>,
+    /// The objects its records name (object, F_Obj and F_Note), each once,
+    /// in the order first named, with what each drives: the object half of
+    /// the `ccAnmChunk`'s index (`ConvLCNum2ALCNum`, main 0x00144e90). An
+    /// ExtObj copy of a piece is its own entry.
+    pub objects: Vec<(u32, u32)>,
     /// Sub-chunk kinds read but not evaluated here, with counts: F_Camera
     /// 0x0502, ambient and lights 0x0601, 0x0603, 0x0605, 0x0607, 0x0609
     /// (the streams' scenes evaluate these themselves).
@@ -788,6 +793,7 @@ impl Animation {
             morphs: Vec::new(),
             notes: Vec::new(),
             objs: Vec::new(),
+            objects: Vec::new(),
             other: Vec::new(),
         };
         let mut p = anime.offset + 20;
@@ -813,6 +819,7 @@ impl Animation {
                     let scale = read_ctrl::<3>(d, &mut q, flags >> 6 & 7, frames)?;
                     let alpha = read_ctrl::<1>(d, &mut q, flags >> 9 & 7, frames)?;
                     let target = resolve(&scene.ext, object);
+                    a.name(object, target);
                     a.tracks.push(Track { object, target, flags, pos, rot, scale, alpha });
                 }
                 MATERIAL => {
@@ -834,21 +841,22 @@ impl Animation {
                         None => a.morphs.push(MorphTrack { morpher, keys: vec![(frame, targets)] }),
                     }
                 }
-                F_NOTE => a.notes.push(NoteRecord {
-                    frame,
-                    object: d.u32_at(q)?,
-                    event: d.u32_at(q + 4)?,
-                    param: d.u32_at(q + 8)?,
-                }),
+                F_NOTE => {
+                    let object = d.u32_at(q)?;
+                    a.name(object, resolve(&scene.ext, object));
+                    a.notes.push(NoteRecord { frame, object, event: d.u32_at(q + 4)?, param: d.u32_at(q + 8)? });
+                }
                 F_OBJ => {
                     let object = d.u32_at(q)?;
                     let v = |k: usize| -> Result<[u32; 3]> {
                         Ok([d.u32_at(q + k)?, d.u32_at(q + k + 4)?, d.u32_at(q + k + 8)?])
                     };
+                    let target = resolve(&scene.ext, object);
+                    a.name(object, target);
                     a.objs.push(ObjRecord {
                         frame,
                         object,
-                        target: resolve(&scene.ext, object),
+                        target,
                         pos: v(8)?,
                         rot: v(20)?,
                         scale: v(32)?,
@@ -867,6 +875,12 @@ impl Animation {
             return format_err(format!("anime sub-chunks overrun at 0x{p:x}"));
         }
         Ok(a)
+    }
+
+    fn name(&mut self, object: u32, target: u32) {
+        if !self.objects.iter().any(|&(o, _)| o == object) {
+            self.objects.push((object, target));
+        }
     }
 
     /// Every Anime chunk of a file.
@@ -933,6 +947,23 @@ impl Animation {
     /// instance of [`Track::target`]).
     pub fn controllers_at(&self, time: Ticks) -> Vec<(u32, Pose)> {
         self.tracks.iter().map(|tr| tr.object).zip(self.poses_at(time)).collect()
+    }
+
+    /// Each of [`Animation::objects`]' own pose at `time`: its track's, else
+    /// its last F_Obj record reached (as [`Animation::obj_poses_at`]), else
+    /// None (not posed yet).
+    pub fn entry_poses_at(&self, time: Ticks) -> Vec<Option<Pose>> {
+        let t = self.clamp(time);
+        let frame = t >> 8;
+        self.objects
+            .iter()
+            .map(|&(o, _)| match self.tracks.iter().find(|tr| tr.object == o) {
+                Some(tr) => Some(tr.at(t)),
+                None => {
+                    self.objs.iter().rfind(|r| r.object == o && (1..=frame).contains(&r.frame)).map(ObjRecord::pose)
+                }
+            })
+            .collect()
     }
 
     /// Local matrices by target object, the first track for a target winning
@@ -1139,6 +1170,7 @@ mod tests {
             morphs: vec![],
             notes: vec![],
             objs: vec![],
+            objects: vec![],
             other: vec![],
         };
         let f = a.forward(256, 256);
@@ -1163,6 +1195,7 @@ mod tests {
             morphs: vec![],
             notes: vec![note(0, 9, 9), note(1, 2, 0), note(3, 2, 2), note(3, 0x8005, 1), note(4, 2, 7)],
             objs: vec![],
+            objects: vec![],
             other: vec![],
         };
         // one frame at a time: frame 0's is never handed on

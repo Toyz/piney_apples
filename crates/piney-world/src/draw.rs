@@ -232,19 +232,18 @@ pub fn shadow_env<R>(layers: &mut Layers, alpha: u8, length: crate::ee::F, f: im
     r
 }
 
-/// `ccObj::Draw`'s shadow half for each of `nodes` that has a shadow model
-/// in `file` (`ccObj` +0x9c, its switch on: `ccObj::Init` sets it with
-/// the model), at the node's world matrix: [`piney_desktop::shadow::
+/// `ccObj::Draw`'s shadow half for each (object, world matrix) whose Obj
+/// has a shadow model in `file` (`ccObj` +0x9c, its switch on:
+/// `ccObj::Init` sets it with the model): [`piney_desktop::shadow::
 /// Shadows::cast`] into the draw environment's packet. Drawn whatever the
 /// object's transparency.
-pub fn cast_shadows(layers: &mut Layers, file: &SceneFile, nodes: &[u32], worlds: &HashMap<u32, Mat4>, root: Mat4) {
+pub fn cast_shadows(layers: &mut Layers, file: &SceneFile, objects: impl IntoIterator<Item = (u32, Mat4)>) {
     if layers.shadows.active.is_none() {
         return;
     }
-    for &obj in nodes {
+    for (obj, world) in objects {
         let Some(model) = file.scene.shadow_of.get(&obj) else { continue };
         let Some((scale, Some(mesh))) = file.shadows.get(model) else { continue };
-        let world = worlds.get(&obj).copied().unwrap_or(root);
         layers.shadows.cast(mesh, *scale, world);
     }
 }

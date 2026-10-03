@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-362 entries: audio 31, battle 71, build 16, content 3, decomp 28, disc 5, engine 18, format 17, iop 3, render 87, save 13, script 45, test 136, tooling 27, ui 75, video 13, volumes 68, world 95.
+363 entries: audio 31, battle 72, build 16, content 3, decomp 28, disc 5, engine 18, format 17, iop 3, render 88, save 13, script 45, test 136, tooling 27, ui 75, video 13, volumes 68, world 95.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -374,3 +374,4 @@ The [reference](docs/README.md) says what is true now.
 | 360 | [Field 28's held battle flag is event 50's game of tag; Infection's story without god, and what the pilot lacked there](worklog/0360-field-28-s-held-battle-flag-is-event-50-s-game-of-tag.md) | 2026-10-02 | test, battle, script |
 | 361 | [A grown Grunty talks and trades as its kind at once: the menus read its row as it is now](worklog/0361-a-grown-grunty-talks-and-trades-as-its-kind-at-once-the.md) | 2026-10-03 | ui, world |
 | 362 | [A lake entered from a town is its field: Kite gates in there and PERSONAL has Gate Out](worklog/0362-a-lake-entered-from-a-town-is-its-field-kite-gates-in-there.md) | 2026-10-03 | world, ui |
+| 363 | [The anm draws what its clip names: one Noisy Wisp of eight, and every ExtObj copy](worklog/0363-the-anm-draws-what-its-clip-names-one-noisy-wisp-of-eight.md) | 2026-10-03 | render, battle |

@@ -187,13 +187,13 @@ impl Body {
     /// as they fall) hides nothing under it.
     pub fn node_alphas(&self, play: &Play) -> HashMap<u32, f32> {
         let a = &self.file.anims[play.anim];
-        let mut local = HashMap::new();
-        for (tr, pose) in a.tracks.iter().zip(a.poses_at(play.posed)) {
-            local.entry(tr.target).or_insert(pose.alpha);
-        }
-        for (target, pose) in a.obj_poses_at(play.posed) {
-            local.entry(target).or_insert(pose.alpha);
-        }
+        // The node is the last entry's object that names it (`SetAnm`).
+        let local: HashMap<u32, f32> = a
+            .objects
+            .iter()
+            .zip(a.entry_poses_at(play.posed))
+            .map(|(&(_, target), pose)| (target, pose.map_or(1.0, |p| p.alpha)))
+            .collect();
         self.nodes.iter().map(|&n| (n, local.get(&n).copied().unwrap_or(1.0))).collect()
     }
 
@@ -203,10 +203,11 @@ impl Body {
     }
 
     /// `ccAnm::Draw` of the body posed by `play` under `root`, at
-    /// transparency `alpha`, on layer `layer`: every clump node with a
-    /// model (an attached one in place of the node's own), in the clump's
-    /// order; lit models lit by `lights` at their position (the main light
-    /// dimmed when `shaded`); `clut_swaps` for the body's own models.
+    /// transparency `alpha`, on layer `layer`: each of the anm's objects
+    /// with a model ([`Play::instances`]; an attached one in place of its
+    /// node's own), in the index's order; lit models lit by `lights` at
+    /// their position (the main light dimmed when `shaded`); `clut_swaps`
+    /// for the body's own models.
     #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &self,
@@ -272,42 +273,44 @@ impl Body {
         arms: f32,
     ) {
         let worlds = self.worlds(play, root);
-        let alphas = self.node_alphas(play);
         let node_mats: Vec<Mat4> = self.nodes.iter().map(|o| worlds.get(o).copied().unwrap_or(root)).collect();
         let rows = Default::default();
-        let sc = &self.file.scene;
         // No blend: the draw environment's fog, by each vertex's depth.
         let fog = match (fog, lights.fog) {
             (crate::draw::Fogging::None, Some(d)) => crate::draw::Fogging::Depth(d),
             (f, _) => f,
         };
-        let attached = |o: u32| self.attached.iter().any(|a| a.node == o);
-        // (node, model, the attached entry it comes from)
-        let mut drawn: Vec<(u32, u32, Option<usize>)> = sc
-            .model_owner
-            .iter()
-            .filter(|(_, o)| self.nodes.contains(o) && !attached(**o))
-            .map(|(&m, &o)| (o, m, None))
-            .filter(|(_, m, _)| self.file.models.get(m).is_some_and(|i| i.mtype & 8 == 0 && !i.mmats.is_empty()))
-            .collect();
-        drawn.extend(self.attached.iter().enumerate().map(|(k, a)| (a.node, a.model, Some(k))));
-        drawn.sort_unstable_by_key(|&(o, m, k)| (self.nodes.iter().position(|&n| n == o), m, k));
-        for (obj, model, k) in drawn {
+        let instances = play.instances(&self.file, root);
+        // A model hung on a node is the clump's ccObj's: the last entry
+        // naming the node (`ccAnm::SetAnm`); the others are the anm's own.
+        let hung = |k: usize| {
+            let obj = instances[k].object;
+            let last = instances[k + 1..].iter().all(|i| i.object != obj);
+            self.attached.iter().position(|a| a.node == obj).filter(|_| last && self.nodes.contains(&obj))
+        };
+        let hung: Vec<Option<usize>> = (0..instances.len()).map(hung).collect();
+        for (inst, &k) in instances.iter().zip(&hung) {
             if k.is_some() && arms <= 0.0 {
                 continue;
             }
-            let file = match k {
-                Some(k) => &self.attached[k].file,
-                None => &self.file,
+            let (file, model, info) = match k {
+                Some(k) => {
+                    let a = &self.attached[k];
+                    let Some(info) = a.file.models.get(&a.model) else { continue };
+                    (&a.file, a.model, info)
+                }
+                None => {
+                    let Some((model, info)) = self.file.drawn_model(inst.object) else { continue };
+                    (&self.file, model, info)
+                }
             };
-            let Some(info) = file.models.get(&model) else { continue };
-            let world = worlds.get(&obj).copied().unwrap_or(root);
+            let world = inst.world;
             let lit = info.mtype & 1 != 0;
             let d = Draw {
                 file,
                 model,
                 world,
-                alpha: if k.is_some() { arms } else { alpha * alphas.get(&obj).copied().unwrap_or(1.0) },
+                alpha: if k.is_some() { arms } else { alpha * inst.alpha },
                 rows: &rows,
                 lights: lit.then(|| light_matrix(lights, world, shaded)),
                 nodes: if info.mtype & 6 != 0 { &node_mats } else { &[] },
@@ -320,17 +323,13 @@ impl Body {
             let swaps: &[(u32, u32)] = if k.is_some() { &[] } else { &self.tex_swaps };
             draw::model_blended(layers, layer, to_screen, d, None, fog, swaps, self.blend);
         }
-        // The shadow models: the body's nodes', and each attached model's
-        // own object's, at the node it rides.
-        draw::cast_shadows(layers, &self.file, &self.nodes, &worlds, root);
-        for a in &self.attached {
-            if arms <= 0.0 {
-                break;
-            }
+        // The shadow models: the instances', and each attached model's own
+        // object's, at the node it rides.
+        draw::cast_shadows(layers, &self.file, instances.iter().map(|i| (i.object, i.world)));
+        for (inst, k) in instances.iter().zip(hung) {
+            let Some(a) = k.map(|k| &self.attached[k]).filter(|_| arms > 0.0) else { continue };
             let Some(&owner) = a.file.scene.model_owner.get(&a.model) else { continue };
-            let world = worlds.get(&a.node).copied().unwrap_or(root);
-            let one = HashMap::from([(owner, world)]);
-            draw::cast_shadows(layers, &a.file, &[owner], &one, world);
+            draw::cast_shadows(layers, &a.file, [(owner, inst.world)]);
         }
     }
 

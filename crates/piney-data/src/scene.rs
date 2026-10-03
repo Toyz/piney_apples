@@ -76,6 +76,9 @@ pub struct Scene {
     pub parent: HashMap<u32, u32>,
     /// MDL_ object -> the object that owns it.
     pub model_owner: HashMap<u32, u32>,
+    /// Obj object -> its model (the Obj chunk's third word), as `ccObj`
+    /// holds it (+0x94); several Objs can name one model.
+    pub model_of: HashMap<u32, u32>,
     /// Obj object -> its shadow model (the Obj chunk's fourth word).
     pub shadow_of: HashMap<u32, u32>,
     /// (clump object, node objects).
@@ -107,6 +110,9 @@ impl Scene {
                     let obj = d.u32_at(q)?;
                     s.parent.insert(obj, d.u32_at(q + 4)?);
                     let model = d.u32_at(q + 8)?;
+                    if model != 0 {
+                        s.model_of.insert(obj, model);
+                    }
                     // A shadow model word follows from version 0x96 on.
                     let shadow = if c.version >= 0x96 { d.u32_at(q + 12)? } else { 0 };
                     if shadow != 0 {

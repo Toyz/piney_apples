@@ -2,8 +2,8 @@
 title: Animation playback
 status: partial
 volumes: INF
-covers: INF SLUS_202.67:0x00150670 ccAnm::SetAnmCtrlWork (its 0x0605 case), 0x0014e950 ccStream::DecodeF_Obj, 0x00138120 ccCoord::SetMatrix_PosRotZYXScale, 0x00144e90 ccAnmChunk::ConvLCNum2ALCNum, 0x00144d00 ConvALCNum_FsetMatCtrl, 0x00146be0 ccAnmCtrlFVec3_SetCtrl, 0x00146890 ccAnmCtrlFVec3_Set, 0x00146530 ccAnmCtrlFloat_Set, 0x00146660 ccAnmCtrlFloat_SetCtrl, 0x001470c0 ccAnmCtrlRot_SetCtrl, 0x00146f30 ccAnmCtrlRot_Set, 0x00150670 SetAnmCtrlWork, 0x00152270 ccAnm::_AnimateForward, 0x0014e6e0 DecodeF_Morpher, 0x0013af10 ccMorpher::Modify, 0x001109b8 _sceVu0ecossin, 0x0014e1b0 ccStream::DecodeFrameChunk, 0x0014f830 ccStream::DecodeF_Note, 0x00147ff0 ccAnmNote::DelAll, 0x00152210 ccAnm::NoteProcess, 0x00150f50 ccAnm::SetAnm, 0x0014fc80 ccAnm::ccAnm, 0x00152400 ccAnm::_AnimateFrame, 0x00378904 funcDefaultNoteProcess, 0x001494c0 ccStream::PlaySceneMain
-worklog: 32
+covers: INF SLUS_202.67:0x00150670 ccAnm::SetAnmCtrlWork (its 0x0605 case), 0x0014e950 ccStream::DecodeF_Obj, 0x00138120 ccCoord::SetMatrix_PosRotZYXScale, 0x00144e90 ccAnmChunk::ConvLCNum2ALCNum, 0x00144d00 ConvALCNum_FsetMatCtrl, 0x00146be0 ccAnmCtrlFVec3_SetCtrl, 0x00146890 ccAnmCtrlFVec3_Set, 0x00146530 ccAnmCtrlFloat_Set, 0x00146660 ccAnmCtrlFloat_SetCtrl, 0x001470c0 ccAnmCtrlRot_SetCtrl, 0x00146f30 ccAnmCtrlRot_Set, 0x00150670 SetAnmCtrlWork, 0x00152270 ccAnm::_AnimateForward, 0x0014e6e0 DecodeF_Morpher, 0x0013af10 ccMorpher::Modify, 0x001109b8 _sceVu0ecossin, 0x0014e1b0 ccStream::DecodeFrameChunk, 0x0014f830 ccStream::DecodeF_Note, 0x00147ff0 ccAnmNote::DelAll, 0x00152210 ccAnm::NoteProcess, 0x00150f50 ccAnm::SetAnm, 0x0014fc80 ccAnm::ccAnm, 0x00152400 ccAnm::_AnimateFrame, 0x00378904 funcDefaultNoteProcess, 0x001494c0 ccStream::PlaySceneMain, 0x001474b0 ccStream::MakeAnimeIndex, 0x0014fe10 ccAnm::DeleteAnmIndex, 0x001524d0 ccAnm::Draw
+worklog: 32, 363
 ---
 
 # Animation playback
@@ -282,6 +282,62 @@ animation with notes through the game's `_AnimateForward` and
   resets, 15,529 restarts), 60,759 notes (11,812 steps with several), 0
   mismatches. A second `NoteProcess` gave the same notes all 26,586 times
   it was tried.
+
+## The anm's objects
+
+`ccAnm::SetAnm` (0x00150f50) makes the anm's objects from the chunk's
+index, and `ccAnm::Draw` (0x001524d0) draws those and nothing else.
+
+- **The index.** `ConvLCNum2ALCNum` (0x00144e90) lists each chunk the
+  records name once, in the order first named, by local chunk number: an
+  ExtObj copy is its own entry. Objects are named by the object records
+  (0x0102), F_Obj (0x0101) and F_Note (0x0108). `MakeAnimeIndex`
+  (0x001474b0) keeps the list at chunk +0x1c (count +0x20). At +0x28 it
+  keeps each Obj, ExtObj, 0xd00 and 0xe00 entry's parent slot: the entry
+  whose chunk is its chunk's parent, else -1.
+- **SetAnm.** It makes one 12-byte entry per index entry at anm +0xac:
+  +4 the object, +8 the type of the chunk it names (an ExtObj followed by
+  `ccGetExternalIndex`), +10 flags (1). Each external index's +0x30 points
+  at its entry, so of several entries naming one piece the last wins.
+  Each Obj node of the anm's clumps (+0xa8) with an entry takes it (+4 the
+  node, flags 6). Every entry still flagged 1 gets a new `ccObj` from its
+  chunk (`ccObj::Init`, flags 7; `DeleteAnmIndex`, 0x0014fe10, frees
+  those). From 0x00151a24, each entry with bit 2 hangs from its parent
+  slot's object, or from the anm itself for -1. The +0x30 pointers are
+  cleared at the end.
+- **Draw.** Each entry with bit 4 is drawn: type 0x100 by
+  `ccObj::Draw(anm +0x88)`, 0xe00 by `ccEffObj::DrawNoAnm`.
+
+So a clump node that no record of the clip names is not drawn. The
+Noisy Wisp's file (`eww1`) holds eight bodies and every clip names one;
+the mimic (`etn1`) waits as a plain chest, its legs and fangs named only
+by the clips that show them. A piece named by several ExtObj copies is
+drawn once per copy, each posed by its own record under its own parent:
+- `ecc1`'s four legs come from one model;
+- `evb1` is a swarm of four bees;
+- `eus1` holds a second sword in its hand while it draws.
+
+In Infection's DATA.BIN, 185 clump and clip pairs leave a node with a
+model unnamed: the enemies `efm1`, `eks1`, `ekx1`, `elg1`, `epx1`,
+`etn1` and `eww1`; the bosses' `x04`, `x31`, `x41`, `x51`, `x61`, `x71`
+and `x81`; the title's, `xdttopen0`'s and `drain`'s scenes; and three
+room pieces (`field_b`, `field_b1`, `se2_2`).
+
+A clump node several entries name is the last entry's object, so its
+matrix and transparency, which skinning and the code that reads a node
+use, are that entry's.
+
+The port is `Animation::objects` and `Play::instances`; `Play::worlds`,
+`foe::Model::worlds` and `Body::node_alphas` give a named node its entry's
+pose. The desktop's anm (`piney_desktop::anm`) and the effects'
+(`piney_effect::nodes::anm`) already drew by entry. `tools/test_foe_rs.py`
+checks the index against the game's `ConvLCNum2ALCNum` (`index`), and
+nodes named through several copies (`ecx1`, `ecc1`, `eus1`, `evb1`)
+against the game's poses (`pose`).
+
+MUT's `SetAnm`, `Draw`, `MakeAnimeIndex` and `ConvLCNum2ALCNum` match
+INF's except for data addresses. OUT's and QUA's are recompiled but keep
+the same flag logic. The `index` check passes on all four volumes.
 
 ## Unknown
 

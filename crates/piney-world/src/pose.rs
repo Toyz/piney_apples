@@ -9,6 +9,18 @@ use glam::Mat4;
 use piney_data::anim::Ticks;
 use piney_desktop::assets::SceneFile;
 
+/// One object of a `ccAnm` ([`Play::instances`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Instance {
+    /// The object the index names (an ExtObj copy is its own).
+    pub entry: u32,
+    /// The Obj it is an instance of: whose model and shadow it draws.
+    pub object: u32,
+    pub world: Mat4,
+    /// Its own transparency (`localtp`).
+    pub alpha: f32,
+}
+
 /// One animation's playback.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Play {
@@ -57,17 +69,18 @@ impl Play {
         self.posed >> 8
     }
 
-    /// World matrices of the objects the animation poses and of every
-    /// object in `extra` (a clump's nodes), each object's local matrix its
-    /// pose (the identity when not animated) under its Obj parent, and
-    /// `root` over those whose parent is outside the set.
+    /// World matrices of the anm's objects ([`Play::instances`]; a piece
+    /// several entries name is the last one's, as `SetAnm` gives the
+    /// clump's node to it) and of every other object in `extra` (a clump's
+    /// nodes), each of those at rest (the identity) under its Obj parent,
+    /// and `root` over those whose parent is outside the set.
     pub fn worlds(&self, file: &SceneFile, root: Mat4, extra: &[u32]) -> HashMap<u32, Mat4> {
         let a = &file.anims[self.anim];
         let locals = a.locals_at(self.posed);
         let sc = &file.scene;
         let mut set: Vec<u32> = locals.keys().copied().collect();
         set.extend(extra.iter().copied());
-        let mut out = HashMap::new();
+        let mut out: HashMap<u32, Mat4> = self.instances(file, root).into_iter().map(|i| (i.object, i.world)).collect();
         fn w(
             sc: &piney_data::scene::Scene,
             locals: &HashMap<u32, Mat4>,
@@ -94,6 +107,59 @@ impl Play {
             w(sc, &locals, &set, root, &mut out, o, 0);
         }
         out
+    }
+
+    /// The objects `ccAnm::SetAnm` (main 0x00150f50) makes and `ccAnm::Draw`
+    /// (0x001524d0) draws, in the index's order: one `ccObj` per entry of
+    /// [`piney_data::anim::Animation::objects`] (the clump's node for the
+    /// last entry naming it, a new one for each other, so every ExtObj copy
+    /// of a piece draws it again). Each hangs from the entry its chunk names
+    /// as parent, or from `root` when the index has none (0x00151a24). A
+    /// clump node no entry names is not drawn.
+    pub fn instances(&self, file: &SceneFile, root: Mat4) -> Vec<Instance> {
+        let a = &file.anims[self.anim];
+        let sc = &file.scene;
+        let poses = a.entry_poses_at(self.posed);
+        let index: HashMap<u32, usize> = a.objects.iter().enumerate().map(|(k, &(o, _))| (o, k)).collect();
+        let parents: Vec<Option<usize>> = a
+            .objects
+            .iter()
+            .map(|&(o, _)| {
+                let p = sc.ext_parent.get(&o).or_else(|| sc.parent.get(&o)).copied().unwrap_or(0);
+                index.get(&p).copied().filter(|_| p != 0 && p != o)
+            })
+            .collect();
+        let locals: Vec<Mat4> = poses.iter().map(|p| p.as_ref().map_or(Mat4::IDENTITY, |p| p.matrix())).collect();
+        fn world(
+            k: usize,
+            parents: &[Option<usize>],
+            locals: &[Mat4],
+            root: Mat4,
+            out: &mut [Option<Mat4>],
+            depth: u32,
+        ) -> Mat4 {
+            if let Some(m) = out[k] {
+                return m;
+            }
+            let m = match parents[k] {
+                Some(p) if depth < 64 => world(p, parents, locals, root, out, depth + 1) * locals[k],
+                _ => root * locals[k],
+            };
+            out[k] = Some(m);
+            m
+        }
+        let mut worlds = vec![None; a.objects.len()];
+        a.objects
+            .iter()
+            .zip(&poses)
+            .enumerate()
+            .map(|(k, (&(entry, object), pose))| Instance {
+                entry,
+                object,
+                world: world(k, &parents, &locals, root, &mut worlds, 0),
+                alpha: pose.as_ref().map_or(1.0, |p| p.alpha),
+            })
+            .collect()
     }
 
     /// The animated `ccMaterial::u/v` as STROW values, by material.

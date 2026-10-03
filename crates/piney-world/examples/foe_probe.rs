@@ -121,6 +121,12 @@ fn answer(d: &Disc, files: &mut Files, looks: &mut HashMap<i32, EnemyLook>, circ
                 None => println!("{{\"error\": \"no animation {}\"}}", w[1]),
             }
         }
+        Some("index") => {
+            // Each animation of a file: the objects its index names, in order.
+            let f = files.get(w[1]).unwrap();
+            let anims = f.anims.iter().map(|a| format!("[{}, {}]", a.object, list(a.objects.iter().map(|o| o.0))));
+            println!("{{\"anims\": {}}}", list(anims));
+        }
         Some("draw") => {
             let mut a = AffectState {
                 color_cnt: n(4) as i16,

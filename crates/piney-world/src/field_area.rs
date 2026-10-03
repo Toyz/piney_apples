@@ -1096,13 +1096,12 @@ impl FieldArea {
                     // 128) for its ccAnm::Draw, its length and alpha, then
                     // +0x410's back.
                     if let Some((length, shadow_alpha)) = *shadow {
-                        let worlds = play.worlds(file, root, &[]);
-                        let nodes: Vec<u32> = worlds.keys().copied().collect();
                         let back = layers.shadows.active;
                         layers.shadows.active = back.map(|_| piney_desktop::shadow::TOBJ_PACKET);
                         layers.shadows.length = ee::f(length);
                         layers.shadows.alpha = shadow_alpha;
-                        draw::cast_shadows(layers, file, &nodes, &worlds, root);
+                        let objects = play.instances(file, root).into_iter().map(|i| (i.object, i.world));
+                        draw::cast_shadows(layers, file, objects);
                         layers.shadows.active = back;
                     }
                 }
@@ -1300,8 +1299,8 @@ fn runner_places(tobj: Option<&(Rc<SceneFile>, Vec<Play>)>, m: &[V4; 4]) -> [V4;
     out
 }
 
-/// An animation's objects drawn at `root` with `alpha` and the materials'
-/// scrolls `rows`, one model with `edits`.
+/// An animation's objects ([`Play::instances`]) drawn at `root` with
+/// `alpha` and the materials' scrolls `rows`, one model with `edits`.
 #[allow(clippy::too_many_arguments)]
 fn anim_edited(
     layers: &mut Layers,
@@ -1312,17 +1311,13 @@ fn anim_edited(
     alpha: f32,
     edits: Option<(u32, Arc<VertexEdits>)>,
 ) {
-    let worlds = play.worlds(file, root, &[]);
-    let mut objs: Vec<(&u32, &Mat4)> = worlds.iter().collect();
-    objs.sort_by_key(|(o, _)| **o);
-    for (&obj, &world) in objs {
-        let target = file.scene.ext.get(&obj).copied().unwrap_or(obj);
-        let Some(&model) = file.obj_model.get(&target) else { continue };
+    for inst in play.instances(file, root) {
+        let Some((model, _)) = file.drawn_model(inst.object) else { continue };
         let e = edits.as_ref().filter(|(m, _)| *m == model).map(|(_, e)| e);
         let d = Draw {
             file,
             model,
-            world,
+            world: inst.world,
             alpha,
             rows,
             lights: None,

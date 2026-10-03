@@ -147,6 +147,13 @@ impl SceneFile {
     pub fn anim(&self, name: &str) -> Option<usize> {
         self.anim_by_name.get(name).copied()
     }
+
+    /// The model `ccObj::Draw` draws for the Obj `obj`: its chunk's, when
+    /// that is not a shadow and has something to draw.
+    pub fn drawn_model(&self, obj: u32) -> Option<(u32, &ModelInfo)> {
+        let &m = self.scene.model_of.get(&obj)?;
+        self.models.get(&m).filter(|i| i.mtype & 8 == 0 && !i.mmats.is_empty()).map(|i| (m, i))
+    }
 }
 
 /// Everything the desktop reads from the disc.

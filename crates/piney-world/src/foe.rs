@@ -190,8 +190,10 @@ impl Model {
 
     /// The world matrix of every clump node and every object the animation
     /// drives under the anm's `root` (`ccCoord::_SetLWMatrix`, main
-    /// 0x00138380): its pose (the identity when not driven) under its
-    /// parent's ([`Model::parents`]; a node not driven, its Obj parent).
+    /// 0x00138380): the anm's objects' ([`Play::instances`], a node several
+    /// entries name the last one's), then each other node at rest (the
+    /// identity) under its parent's ([`Model::parents`], else its Obj
+    /// parent).
     pub fn worlds(&self, play: &Play, root: Mat4) -> HashMap<u32, Mat4> {
         let file = &self.body.file;
         let locals = file.anims[play.anim].locals_at(play.posed);
@@ -199,7 +201,7 @@ impl Model {
         let sc = &file.scene;
         let mut set: Vec<u32> = locals.keys().copied().collect();
         set.extend(self.body.nodes.iter().copied());
-        let mut out = HashMap::new();
+        let mut out: HashMap<u32, Mat4> = play.instances(file, root).into_iter().map(|i| (i.object, i.world)).collect();
         #[allow(clippy::too_many_arguments)]
         fn w(
             sc: &piney_data::scene::Scene,
@@ -236,11 +238,12 @@ impl Model {
     }
 
     /// `ccAnm::Draw` (main 0x001524d0) of the clump posed by `play` under
-    /// `root` on `layer`: every node with a model, in the clump's order, at
-    /// its world matrix and `alpha` times its transparency; lit models lit
-    /// by `lights` at their position (the main light asleep when shaded);
-    /// skinned and boned models over every node's matrix; the animation's
-    /// texture offsets and morph weights, the palette swaps, and `fog`.
+    /// `root` on `layer`: each of the anm's objects with a model
+    /// ([`Play::instances`], in the index's order), at its world matrix and
+    /// `alpha` times its transparency; lit models lit by `lights` at their
+    /// position (the main light asleep when shaded); skinned and boned
+    /// models over every node's matrix; the animation's texture offsets and
+    /// morph weights, the palette swaps, and `fog`.
     #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &self,
@@ -282,22 +285,14 @@ impl Model {
         let file = &self.body.file;
         let nodes = &self.body.nodes;
         let worlds = self.worlds(play, root);
-        let alphas = self.node_alphas(play);
         let node_mats: Vec<Mat4> = nodes.iter().map(|o| worlds.get(o).copied().unwrap_or(root)).collect();
         let rows = play.uv_rows(file);
         let morph = play.morph(file);
         let swaps = self.clut_swaps();
-        let mut drawn: Vec<(usize, u32, u32)> = file
-            .scene
-            .model_owner
-            .iter()
-            .filter_map(|(&m, &o)| Some((nodes.iter().position(|&n| n == o)?, o, m)))
-            .filter(|&(_, _, m)| file.models.get(&m).is_some_and(|i| i.mtype & 8 == 0 && !i.mmats.is_empty()))
-            .collect();
-        drawn.sort_unstable();
-        for (_, obj, model) in drawn {
-            let Some(info) = file.models.get(&model) else { continue };
-            let world = worlds.get(&obj).copied().unwrap_or(root);
+        let instances = play.instances(file, root);
+        for inst in &instances {
+            let Some((model, info)) = file.drawn_model(inst.object) else { continue };
+            let world = inst.world;
             let lit = info.mtype & 1 != 0;
             let m: Vec<(u32, f32)> = morph
                 .iter()
@@ -308,7 +303,7 @@ impl Model {
                 file,
                 model,
                 world,
-                alpha: alpha * alphas.get(&obj).copied().unwrap_or(1.0),
+                alpha: alpha * inst.alpha,
                 rows: &rows,
                 lights: lights.filter(|_| lit).map(|l| l(world)),
                 nodes: if info.mtype & 6 != 0 { &node_mats } else { &[] },
@@ -318,7 +313,7 @@ impl Model {
             draw::model_edited(layers, layer, to_screen, d, None, fog);
         }
         if self.shadow {
-            draw::cast_shadows(layers, file, nodes, &worlds, root);
+            draw::cast_shadows(layers, file, instances.iter().map(|i| (i.object, i.world)));
         }
     }
 }
@@ -1075,6 +1070,35 @@ mod tests {
                 assert!((g - w).abs() <= tolerance, "{name} element {k}: {g} against the game's {w}");
             }
         }
+    }
+
+    /// `ccAnm::Draw` draws the objects the animation's index names, one per
+    /// entry (`tools/test_foe_rs.py`'s `index` checks the index against the
+    /// game's): the Noisy Wisp one body of its eight, the mimic a closed
+    /// chest while it waits, the swarm four bees, the knight's sword twice
+    /// as it draws it (#35).
+    #[test]
+    fn the_anm_draws_what_its_animation_names() {
+        let Some(mut d) = disc() else { return };
+        let drawn = |d: &mut Disc, row: i32, clip: &str| -> Vec<(String, Mat4)> {
+            let l = EnemyLook::load(&mut d.files, &d.t, row).unwrap();
+            let f = l.model.file().clone();
+            let p = l.play(clip).unwrap();
+            p.instances(&f, Mat4::IDENTITY)
+                .into_iter()
+                .filter(|i| f.drawn_model(i.object).is_some())
+                .map(|i| (f.ccs.object_name(i.object).unwrap().to_string(), i.world))
+                .collect()
+        };
+        let names = |v: &[(String, Mat4)]| v.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>();
+        assert_eq!(names(&drawn(&mut d, 281, "ANM_eww1nut0")), ["OBJ_eww1bod01"]);
+        assert_eq!(names(&drawn(&mut d, 240, "ANM_etn1nut0")), ["OBJ_etn1bod1", "OBJ_etn1bod2"]);
+        let bees = drawn(&mut d, 271, "ANM_evb1nut0");
+        let bodies: Vec<Mat4> = bees.iter().filter(|(n, _)| n == "OBJ_evb1body").map(|(_, w)| *w).collect();
+        assert_eq!((bees.len(), bodies.len()), (16, 4));
+        assert!(bodies.windows(2).all(|w| w[0].w_axis != w[1].w_axis));
+        let swords = drawn(&mut d, 246, "ANM_eus1ski0").into_iter().filter(|(n, _)| n == "OBJ_eus1swo1").count();
+        assert_eq!(swords, 2);
     }
 
     #[test]

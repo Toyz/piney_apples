@@ -23,6 +23,9 @@ for the port.
           transparency: the world matrix ccCoord::_SetLWMatrix composes and
           the alpha ccModel::Draw is handed, for every node, against
           foe::Model::worlds and node_alphas.
+  index   each animation of the files in INDEX_FILES compiled by the game
+          (ConvLCNum2ALCNum): its Obj and ExtObj entries in order, against
+          Animation::objects, the objects ccAnm::Draw draws.
   circle  the portal's CMP_xmagcir0 posed by ANM_xmagcir1 or 2 the same
           way, the anm placed by ccCoord::SetMatrix_PosRotZYX (main
           0x001382f0), against foe::Circle::root and the node matrices.
@@ -72,7 +75,9 @@ RACE_TBL = inf_va(0x005F1D60)
 LOOK_ROWS = [67, 130, 151, 185, 189, 219, 268, 66, 129, 131, 154, 155, 156, 157, 184, 187, 218, 267, 72, 76, 164,
              165, 224, 225]
 # The rows whose clumps the pose check moves (field 14's).
-POSE_ROWS = [67, 130, 151, 185, 189, 219, 268]
+# The field-14 rows, then rows whose clips name a node through several
+# ExtObj copies (ecx1, ecc1, eus1, evb1).
+POSE_ROWS = [67, 130, 151, 185, 189, 219, 268, 79, 80, 246, 271]
 # Matrix elements: the game's VU0 products truncate, the port's f32 ones
 # round, and its keyed rotations come from tools/anim.py's double arithmetic
 # (test_world_rs.py's KiteWeapons bounds, over as many nodes).
@@ -333,12 +338,14 @@ class Poser:
         for o, co in self.coords.items():
             p = parent.get(o, 0)
             m.store(co + 128, 4, self.coords[p] if p else ta.ANM)
-        # The clump's nodes: the coords of the objects driving them.
-        self.node_of = {}
+        # The clump's nodes: each the coord of the last entry driving it
+        # (ccAnm::SetAnm gives the node to the last entry naming it).
+        last = {}
         for o, co in self.coords.items():
             t = target.get(o, o)
-            if t in self.clump and t not in self.node_of.values():
-                self.node_of[co] = t
+            if t in self.clump:
+                last[t] = co
+        self.node_of = {co: t for t, co in last.items()}
         for co in self.node_of:
             model = g.malloc(m, 0x40)
             m.call(self.sym("SetModel__5ccObjFP7ccModel"), (co, model))
@@ -506,6 +513,45 @@ def run_circle(n, seed=12):
     t = tally(games, port)
     t["root_bad"] = root_bad
     return t
+
+
+# --- index: the objects an animation names ---------------------------------------------
+
+# Files whose animations name only some of the clump's pieces, or name a
+# piece more than once through ExtObj copies (the wisps, the crab, the bee
+# swarm, the knight's second sword, the mimic, ...).
+INDEX_FILES = ["eww1", "ecc1", "ecx1", "evb1", "evba", "evbb", "eus1", "etn1", "eka1", "efm1", "epx1", "eks1", "ebl1"]
+
+
+def check_index(stems=INDEX_FILES):
+    """Each animation's index as ConvLCNum2ALCNum (main 0x00144e90) builds
+    it, run by the game over the Anime chunk (GameAnim.load): its Obj and
+    ExtObj entries in order, against Animation::objects. ccAnm::SetAnm
+    makes one ccObj per entry and ccAnm::Draw draws those alone. Returns
+    (animations, mismatches)."""
+    import test_anim
+    g = test_anim.GameAnim()
+    answers = ask([f"index {s}" for s in stems])
+    count, bad = 0, []
+    for stem, ans in zip(stems, answers):
+        c = test_anim.member(stem + ".cmp")
+        objs, anims = set(), []
+        for off, t, n, end in c.chunks():
+            if t is None:
+                break
+            if t & 0xFFFF in (0x0100, 0x0A00):
+                objs.add(struct.unpack_from("<I", c.data, off + 8)[0])
+            elif t & 0xFFFF == 0x0700:
+                anims.append((struct.unpack_from("<I", c.data, off + 8)[0], off))
+        port = {a: o for a, o in ans["anims"]}
+        for anim, off in anims:
+            count += 1
+            game = [o for o, _ in g.load(c.data, off) if o in objs]
+            got = [o for o in port.get(anim, []) if o in objs]
+            if game != got:
+                bad.append((stem, c.objects[anim][0], [c.objects[o][0] for o in game],
+                            [c.objects[o][0] for o in got]))
+    return count, bad
 
 
 # --- draw: ccChar::Draw ----------------------------------------------------------------
@@ -701,6 +747,11 @@ class FoeAgainstGame(unittest.TestCase):
         missing = {k[0]: v for k, v in unposed.items() if v}
         self.assertEqual(missing, {"eks1": ["OBJ_trall"]})
         self.assertEqual(t["bad"], 0, t["first"])
+
+    def test_index(self):
+        count, bad = check_index()
+        print(f"index: {count} animations of {len(INDEX_FILES)} files, {len(bad)} mismatches")
+        self.assertEqual(bad, [], bad[:1])
 
     def test_circle(self):
         t = run_circle(120)
