@@ -1199,6 +1199,7 @@ impl Mode for WorldMode {
             if let Some(map) = self.map.as_mut().filter(|_| !self.hack_screen) {
                 let p = self.world.player();
                 let (pos, dirc) = (p.body.pos, p.body.dirc);
+                self.map_st.hud_scale = self.ui.hud_scale;
                 piney_world::map::town_frame(map, &mut self.map_st, pos, dirc, !self.world.asleep(), &mut ctx);
             }
         }

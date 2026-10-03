@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-366 entries: audio 31, battle 72, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 89, save 13, script 45, test 136, tooling 27, ui 75, video 13, volumes 68, world 98.
+367 entries: audio 31, battle 72, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 89, save 13, script 45, test 136, tooling 27, ui 76, video 13, volumes 68, world 98.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -378,3 +378,4 @@ The [reference](docs/README.md) says what is true now.
 | 364 | [The game's one rand(): the town's trades draw on from the field, not from a stream of their own](worklog/0364-the-game-s-one-rand-the-town-s-trades-draw-on-from-the.md) | 2026-10-03 | engine, world |
 | 365 | [A field object's bone and skin models take their clump's nodes: the dungeon mouth's hands, not a pink block](worklog/0365-a-field-object-s-bone-and-skin-models-take-their-clump-s.md) | 2026-10-03 | render, world |
 | 366 | [Every field object has its own hits: rocks and trees of one model all stand in the way](worklog/0366-every-field-object-has-its-own-hits-rocks-and-trees-of-one.md) | 2026-10-03 | world |
+| 367 | [The HUD scale shrinks the towns' map too](worklog/0367-the-hud-scale-shrinks-the-towns-map-too.md) | 2026-10-03 | ui |

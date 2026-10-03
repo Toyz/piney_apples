@@ -151,19 +151,22 @@ pub fn colour(i: usize, a: u8) -> [u8; 4] {
 /// What a runtime keeps of the map between frames: `WORLD_MAN`'s modes and
 /// `mapAlpha`, and the frame last drawn (while every task sleeps the layers
 /// keep it).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct MapState {
     pub modes: MapModes,
     /// `WORLD_MAN.mapAlpha` (+0x148), as the field UI last set it.
     pub alpha: F,
     pub last: Vec<Out>,
+    /// Not the game's: the HUD scale (the field UI's `hud_scale`), which
+    /// shrinks the map toward the screen's top right.
+    pub hud_scale: f32,
 }
 
 impl MapState {
     /// `ccThGameCtrl`'s set-up: the modes from the save; the alpha 0 until
     /// the field UI sets it.
     pub fn new(save: &SaveState) -> MapState {
-        MapState { modes: MapModes::from_save(save), alpha: 0, last: Vec::new() }
+        MapState { modes: MapModes::from_save(save), alpha: 0, last: Vec::new(), hud_scale: 1.0 }
     }
 
     /// `WORLD_MAN::SetMapAlpha(a)` (main 0x001a3b70), the field UI's
@@ -188,7 +191,52 @@ pub fn town_frame(map: &mut town::TownMap, st: &mut MapState, pos: V4, dirc: V4,
         st.last = map.draw(&town::Input { mode: st.modes.town, alpha: st.alpha, pos, dirc, race: None });
     }
     let place = |spr: u8| map.place(spr).cloned();
+    let mark = ctx.layers.mark();
     render(&st.last, &place, &|_| None, None, ctx);
+    hud_shrink(ctx, &mark, st.hud_scale);
+}
+
+/// Not the game's: everything drawn since `mark` shrunk by the HUD scale
+/// `k` toward the screen's top right, where the map stands.
+fn hud_shrink(ctx: &mut Ctx, mark: &[(i16, usize)], k: f32) {
+    if k != 1.0 {
+        ctx.layers.map_since(mark, |c| shrink_toward(c, k, [512.0, 0.0]));
+    }
+}
+
+/// Not the game's: a drawn primitive shrunk by `k` toward `at` (frame
+/// pixels), its scissor with it.
+fn shrink_toward(c: &mut piney_draw::Cmd, k: f32, at: [f32; 2]) {
+    let piney_draw::Cmd::Prim(p) = c else { return };
+    let sprite = p.kind == piney_draw::PrimKind::Sprite && p.verts.len() == 2;
+    if sprite && p.state.texture.is_some() {
+        piney_desktop::sprite::inset_uv(p, [0.5; 2]);
+    }
+    // A sprite's far edges stop 1/16 pixel short of the next tile's start
+    // (the map's terrain, in four): scaled from there, side by side tiles
+    // keep one edge, where the gap could open across a pixel's centre.
+    if sprite {
+        let (a, b) = p.verts.split_at_mut(1);
+        let (a, b) = (&mut a[0], &mut b[0]);
+        for (p0, p1) in [(&mut a.x, &mut b.x), (&mut a.y, &mut b.y)] {
+            if *p1 >= *p0 {
+                *p1 += 1.0 / 16.0;
+            } else {
+                *p0 += 1.0 / 16.0;
+            }
+        }
+    }
+    for v in &mut p.verts {
+        v.x = at[0] + k * (v.x - at[0]);
+        v.y = at[1] + k * (v.y - at[1]);
+    }
+    // The scissor's inclusive ends, widened to whole pixels: rounded each
+    // on its own, two clips side by side could leave a row between them.
+    let s = &mut p.state.scissor;
+    let at_k = |v: f32, a: f32| a + k * (v - a);
+    let lo = |v: u16, a: f32| at_k(f32::from(v), a).floor().clamp(0.0, 4095.0) as u16;
+    let hi = |v: u16, a: f32| (at_k(f32::from(v) + 1.0, a).ceil() - 1.0).clamp(0.0, 4095.0) as u16;
+    (s.x0, s.x1, s.y0, s.y1) = (lo(s.x0, at[0]), hi(s.x1, at[0]), lo(s.y0, at[1]), hi(s.y1, at[1]));
 }
 
 /// The map of the field or dungeon `place` as its set-up makes it (once:
@@ -242,6 +290,26 @@ pub struct Entries {
 /// `DUNGEON::DrawMap` set `ccMenu.mapStatus` back to 1.
 #[allow(clippy::too_many_arguments)]
 pub fn area_frame(
+    place: &mut Place,
+    st: &mut MapState,
+    scene: &Scene,
+    pos: V4,
+    dirc: V4,
+    awake: bool,
+    in_battle: bool,
+    fonts: Option<&Fonts>,
+    ents: &mut Entries,
+    ctx: &mut Ctx,
+) -> bool {
+    let mark = ctx.layers.mark();
+    let status = area_map(place, st, scene, pos, dirc, awake, in_battle, fonts, ents, ctx);
+    hud_shrink(ctx, &mark, st.hud_scale);
+    status
+}
+
+/// [`area_frame`]'s map, at the game's size.
+#[allow(clippy::too_many_arguments)]
+fn area_map(
     place: &mut Place,
     st: &mut MapState,
     scene: &Scene,
@@ -331,4 +399,34 @@ pub fn show_field_map(map: &mut field::FieldMap, field_model: i32) -> bool {
         map.map_flag = true;
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Not the game's: under the HUD scale the town's map is the one at
+    /// full size shrunk toward the screen's top right, every corner and
+    /// scissor with it. The town's map had been left at full size.
+    #[test]
+    fn the_hud_scale_shrinks_the_town_map() {
+        let Some(archive) = crate::town::tests::archive() else { return };
+        let mut map = town::TownMap::new(&archive, piney_data::volume::Volume::Inf, "town01").unwrap();
+        let mut draw = |k: f32| {
+            let mut st = MapState::new(&SaveState::fresh());
+            st.set_alpha(1.0);
+            st.hud_scale = k;
+            let mut ctx = Ctx::new(piney_desktop::view::View::default());
+            town_frame(&mut map, &mut st, crate::START_POS, [0; 4], true, &mut ctx);
+            ctx.layers.flatten()
+        };
+        let (full, half) = (draw(1.0), draw(0.5));
+        assert!(full.iter().any(|c| matches!(c, piney_draw::Cmd::Prim(_))), "the map draws");
+        let mut want = full.clone();
+        for c in &mut want {
+            shrink_toward(c, 0.5, [512.0, 0.0]);
+        }
+        assert_ne!(half, full);
+        assert_eq!(half, want);
+    }
 }
