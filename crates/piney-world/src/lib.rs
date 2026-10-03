@@ -365,6 +365,7 @@ impl World {
         let mode = save.save.u8(offset::CAMERA_MODE) as i8;
         let mut camera = Camera::new(start.0, start.1, mode, scheme);
         camera.volume = volume;
+        let rand = Rand(save.rand);
         Ok(World {
             save,
             volume,
@@ -375,7 +376,7 @@ impl World {
             camera,
             phase: Phase::FadeOut(0),
             requests: vec![Request::SoundFadeOut, Request::EnableReset(false)],
-            rand: Rand(1),
+            rand,
             merchants: Vec::new(),
             dogs: Vec::new(),
             dog_events: Vec::new(),
@@ -943,6 +944,18 @@ impl World {
     /// The save as the field has left it (`cameraMode` is written by L2).
     pub fn state(&self) -> &SaveState {
         &self.save
+    }
+
+    /// The state the next mode takes: the save, with `rand()` as the town
+    /// left it.
+    pub fn state_out(&self) -> SaveState {
+        SaveState { rand: self.rand.0, ..self.save.clone() }
+    }
+
+    /// The game's `rand()` handed back by what played in this mode (a
+    /// stream).
+    pub fn set_rand(&mut self, rand: u64) {
+        self.rand.0 = rand;
     }
 
     /// The save, for what the field's menus write (items, tactics, the

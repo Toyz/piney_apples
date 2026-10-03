@@ -33,10 +33,13 @@ pub(super) fn field_with_mia_and_elk() -> Option<Session> {
         start.at = Resume::World(Box::new(InWorld { scene, world_man: wm, spcs }));
     })?;
     for _ in 0..1200 {
-        if let Stage::Area(a) = &s.stage
+        if let Stage::Area(a) = &mut s.stage
             && matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 60)
             && a.world().combat().who(MIA).is_some()
         {
+            // The fights below as they go from the game's rand() at 1,
+            // whatever the set-up drew before.
+            a.world_mut().set_rand(1);
             return Some(s);
         }
         step(&mut s, 1);

@@ -348,7 +348,7 @@ impl AreaMode {
     pub fn leave(mut self) -> (SaveState, Option<Vm>, Scene, WorldMan, Option<Kept>, Spcs) {
         // ccSetupGameCtrl's ccStoreSpcCondition, for the next scene's party.
         self.world.store_conditions();
-        let (state, scene, wm) = (self.world.state().clone(), self.world.scene(), *self.world.world_man());
+        let (state, scene, wm) = (self.world.state_out(), self.world.scene(), *self.world.world_man());
         let spcs = self.world.spcs().clone();
         (state, self.vm, scene, wm, self.world.into_kept(), spcs)
     }
@@ -491,7 +491,7 @@ impl AreaMode {
     /// the field's files take to read.
     fn gate_stream(&mut self, pad: &Pad) {
         if let Some(g) = self.world.take_gate_stream() {
-            let save = self.world.state().save.clone();
+            let save = self.world.state_out();
             let game = piney_audio::stream::StreamGame { status: crate::field_host::STATUS_WORLD, field: g.field };
             let iso = self.stream.iso.clone();
             match crate::stream::StreamPlayer::gate_hack(&iso, g.town, g.field, g.crisis, &save, game, &mut self.events)
@@ -524,6 +524,7 @@ impl AreaMode {
         match p.step(pad, &mut self.events) {
             Some(f) => self.stream.frame = Some(f),
             None => {
+                self.world.set_rand(p.rand());
                 self.stream.player = None;
                 self.world.gate_stream_done();
                 self.st.log("gate hack stream done".into());
@@ -1210,7 +1211,7 @@ impl AreaMode {
     /// ([`Self::movie_done`]).
     fn start_movie(&mut self, num: i32) {
         self.str_party = None;
-        let save = self.world.state().save.clone();
+        let save = self.world.state_out();
         let started = match (usize::try_from(num), self.stream.data.as_deref()) {
             (Ok(n), Some(data)) => {
                 crate::stream::StreamPlayer::drain(&self.stream.iso, data, n, &save, &mut self.events)
@@ -1264,6 +1265,7 @@ impl AreaMode {
             match p.step_with(pad, &mut self.events, &mut extra) {
                 Some(f) => self.stream.frame = Some(f),
                 None => {
+                    self.world.set_rand(p.rand());
                     self.drain_movie = None;
                     self.drain_enemy = None;
                     self.str_party = None;

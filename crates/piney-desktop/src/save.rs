@@ -68,11 +68,16 @@ pub struct SaveState {
     /// `ccEvent.operateSet` (+0x778): the first operation the player tried
     /// since the events last cleared it, -1 for none; events wait on it.
     pub operate_set: i16,
+    /// newlib's `rand()` state (`*_impure_ptr + 168`): one generator for
+    /// the whole game, from 1 at power-on; only the staff roll reseeds it
+    /// (`ccThStaffRollCtrl`, desktop.prg 0x0041270c). Each mode draws from
+    /// it and hands it on.
+    pub rand: u64,
 }
 
 impl SaveState {
     pub fn new(save: SaveData) -> Self {
-        SaveState { save, operate: 0, operate_set: -1 }
+        SaveState { save, operate: 0, operate_set: -1, rand: 1 }
     }
 
     /// The save the port starts from when it does not boot through the

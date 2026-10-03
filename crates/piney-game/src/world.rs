@@ -387,7 +387,7 @@ impl WorldMode {
 
     /// Leave The World: the save and the event task, for the next mode.
     pub fn leave(self) -> (SaveState, Option<Vm>) {
-        (self.world.state().clone(), self.vm)
+        (self.world.state_out(), self.vm)
     }
 
     /// `ccSys+0x358` at the set-up's `ccInitRand`: the draws before the
@@ -552,6 +552,7 @@ impl WorldMode {
             match p.step(&self.st.pad, &mut self.events) {
                 Some(f) => self.st.stream.frame = Some(f),
                 None => {
+                    self.world.set_rand(p.rand());
                     self.st.stream.player = None;
                     self.book_stream = false;
                     self.ui.book_stream_done();
@@ -600,7 +601,7 @@ impl WorldMode {
             // ccThBook's cover, stream 112 + the book, over the town; a
             // stream that cannot start counts as played.
             R::BookStream(Some(page)) => {
-                let save = self.world.state().save.clone();
+                let save = self.world.state_out();
                 let started = match (self.st.stream.iso.clone(), self.st.stream.data.clone()) {
                     (Some(iso), Some(data)) => usize::try_from(112 + page)
                         .map_err(|_| format!("stream {}", 112 + page))
@@ -619,8 +620,10 @@ impl WorldMode {
                 }
             }
             R::BookStream(None) => {
-                if std::mem::take(&mut self.book_stream) {
-                    self.st.stream.player = None;
+                if std::mem::take(&mut self.book_stream)
+                    && let Some(p) = self.st.stream.player.take()
+                {
+                    self.world.set_rand(p.rand());
                 }
             }
             R::StrParty(_) => {}

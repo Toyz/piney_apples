@@ -13,6 +13,7 @@ use piney_audio::stream::{StrBgm, StreamGame};
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_data::save::SaveData;
+use piney_desktop::save::SaveState;
 use piney_draw::Frame;
 use piney_input::{Buttons, Pad};
 use piney_stream::event::EventStream;
@@ -52,12 +53,23 @@ fn skill_names(data: &Archive) -> Option<SkillNames> {
 /// particle system, [`piney_effect::StreamEffects`]), which the streams'
 /// effect tasks start their hit marks and transfers in, on the volume's
 /// tables. None, said, when they cannot be read.
+/// The game's one `rand()` as the mode starting a stream has it.
+fn rand_of(state: &SaveState) -> piney_stream::effect::Rand {
+    piney_stream::effect::Rand { next: state.rand }
+}
+
 fn stream_effects(disc: &mut Iso, data: &Archive) -> Option<piney_effect::StreamEffects> {
     let made = disc.volume().and_then(|v| piney_effect::StreamEffects::new(data, v));
     made.map_err(|e| tracing::warn!("the stream's effects: {e}")).ok()
 }
 
 impl StreamPlayer {
+    /// The game's `rand()` as the stream has left it, for the mode it
+    /// played in to go on from.
+    pub fn rand(&self) -> u64 {
+        self.stream.stream().rand().next
+    }
+
     /// Stream `num` from the disc at `iso`, set up from `save` (the voice
     /// language and the cancel button). `title_after_desktop`: the title's
     /// stream once the desktop has run (`DESKTOP_FLG`), which cancel always
@@ -66,13 +78,14 @@ impl StreamPlayer {
     pub fn start(
         iso: &Path,
         num: usize,
-        save: &SaveData,
+        save: &SaveState,
         title_after_desktop: bool,
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
         let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
-        let opts = options(save, title_after_desktop);
-        let stream = Stream::with_options(&mut disc, num, opts).map_err(|e| format!("stream {num}: {e}"))?;
+        let opts = options(&save.save, title_after_desktop);
+        let stream =
+            Stream::with_rand(&mut disc, num, opts, rand_of(save)).map_err(|e| format!("stream {num}: {e}"))?;
         // `ccPcmSound::Open`: the channel is the stream's.
         events.extend([Event::VoiceStop, Event::MovieAudioStop]);
         Ok(StreamPlayer { stream: EventStream::with_subtitles(stream, None), num, music: None })
@@ -87,9 +100,10 @@ impl StreamPlayer {
         iso: &Path,
         data: &Archive,
         num: usize,
-        save: &SaveData,
+        state: &SaveState,
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
+        let save = &state.save;
         let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let err = |e: piney_data::Error| format!("stream {num}: {e}");
 
@@ -99,7 +113,7 @@ impl StreamPlayer {
             .collect::<piney_data::Result<Vec<_>>>()
             .map_err(err)?;
         let opts = Options { skill_names: skill_names(data), ..options(save, false) };
-        let mut stream = Stream::with_resident(&mut disc, num, opts, Default::default(), resident).map_err(err)?;
+        let mut stream = Stream::with_resident(&mut disc, num, opts, rand_of(state), resident).map_err(err)?;
         if let Some(fx) = stream_effects(&mut disc, data) {
             stream.set_effects(fx);
         }
@@ -118,17 +132,18 @@ impl StreamPlayer {
         iso: &Path,
         data: Option<&Archive>,
         num: usize,
-        save: &SaveData,
+        state: &SaveState,
         game: StreamGame,
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
+        let save = &state.save;
         let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let err = |e: piney_data::Error| format!("stream {num}: {e}");
 
         let opts = Options { skill_names: data.and_then(skill_names), ..options(save, false) };
         let mut stream = match data {
-            Some(data) => EventStream::new(&mut disc, data, num, save, opts, Default::default()),
-            None => Stream::with_rand(&mut disc, num, opts, Default::default())
+            Some(data) => EventStream::new(&mut disc, data, num, save, opts, rand_of(state)),
+            None => Stream::with_rand(&mut disc, num, opts, rand_of(state))
                 .and_then(|s| Ok(EventStream::with_subtitles(s, Subtitles::read(disc.volume()?, num, save)?))),
         }
         .map_err(err)?;
@@ -150,16 +165,17 @@ impl StreamPlayer {
         town: i32,
         field: i32,
         crisis: bool,
-        save: &SaveData,
+        state: &SaveState,
         game: StreamGame,
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
+        let save = &state.save;
         let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let volume = disc.volume().map_err(|e| format!("{}: {e}", iso.display()))?;
         let num = piney_stream::table::gate_stream(volume);
         let err = |e: piney_data::Error| format!("stream {num} (the gate hack): {e}");
         let opts = options(save, false);
-        let stream = Stream::gate_hack(&mut disc, town, field, crisis, opts, Default::default()).map_err(err)?;
+        let stream = Stream::gate_hack(&mut disc, town, field, crisis, opts, rand_of(state)).map_err(err)?;
         events.extend([Event::VoiceStop, Event::MovieAudioStop]);
         Ok(StreamPlayer { stream: EventStream::with_subtitles(stream, None), num, music: Some(game) })
     }

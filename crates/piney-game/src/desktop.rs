@@ -154,10 +154,22 @@ impl Bridge<'_> {
     }
 
     fn save_ref(&self) -> &SaveData {
+        &self.state_ref().save
+    }
+
+    fn state_ref(&self) -> &SaveState {
         match &self.target {
-            Target::Setup(state, _) => &state.save,
-            Target::Desktop(d) => &d.state().save,
-            Target::TopPage(t) => &t.state().save,
+            Target::Setup(state, _) => state,
+            Target::Desktop(d) => d.state(),
+            Target::TopPage(t) => t.state(),
+        }
+    }
+
+    fn state_mut(&mut self) -> &mut SaveState {
+        match &mut self.target {
+            Target::Setup(state, _) => state,
+            Target::Desktop(d) => d.state_mut(),
+            Target::TopPage(t) => t.state_mut(),
         }
     }
 }
@@ -428,7 +440,7 @@ impl Host for Bridge<'_> {
     /// at a time. A stream not on this disc counts as played.
     fn stream(&mut self, num: i16) {
         let iso = self.st.iso.clone();
-        let save = self.save().clone();
+        let save = self.state_ref().clone();
         let game = piney_audio::stream::StreamGame { status: self.st.status, field: 0 };
         let data = self.st.archive.clone();
         let started = usize::try_from(num)
@@ -457,7 +469,9 @@ impl Host for Bridge<'_> {
                 true
             }
             None => {
+                let rand = p.rand();
                 st.stream = None;
+                self.state_mut().rand = rand;
                 false
             }
         }
@@ -795,6 +809,7 @@ impl Mode for DesktopMode {
                             // `ccSndMoviePlayer(1, bgm)`: the music again
                             // from the start.
                             self.st.events.push(Event::SqPlay(*slot));
+                            desktop.state_mut().rand = m.rand();
                             self.movie = None;
                         }
                     }
@@ -832,7 +847,7 @@ impl Mode for DesktopMode {
                     // `SimplePlayStream`: the movie is a stream, played
                     // between `ccSndMoviePlayer(0, bgm)` and `(1, bgm)`.
                     Request::Movie { stream, bgm } => {
-                        let save = desktop.state().save.clone();
+                        let save = desktop.state().clone();
                         let started = usize::try_from(stream)
                             .map_err(|_| format!("stream {stream}"))
                             .and_then(|n| StreamPlayer::start(&self.iso, n, &save, false, &mut out));

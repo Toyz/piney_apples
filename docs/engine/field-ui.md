@@ -1810,6 +1810,26 @@ title screen](title.md)); entering a town, `SetTradeItemTown` (main
 0x001767a0) resets the lists from the defaults and, on a coin toss per
 row, adds a piece of equipment near what Kite wears.
 
+The pick, for each of the 48 `npcTradeList` rows after its reset:
+- **The toss.** On an odd `rand()`, the category is `rand() % 10`.
+- **Kite's row.** For the weapons (0-5), the row of Kite's weapon
+  (`equipment[4]`) in `feTbl1`. For armour, 6-9, Kite's piece of that
+  kind (`equipment[cat - 6]`) in its own table.
+- **The tables.** `feTbl` (gcmn 0x0069a260) points at `feTbl1`-`feTbl6`,
+  `feTblH`, `feTblA`, `feTblG`, `feTblB`, by category.
+- **The limit.** Only the first `f_limitTbl[10 + server]` rows count:
+  9, 19, 30, 42, 55 by server. Category 2 uses `[15 + server]`: 15, 25,
+  40, 56, 73. Kite's piece outside them: no pick.
+- **The offer.** Kite's row moved by `rand() % 4 - 1`, held within 0 and
+  the limit; `feTbl[category]`'s piece there goes in slot 15, unless
+  the list has it already.
+
+So every offer follows Kite's own gear. A Kite with Hell's Gate-class
+blades meets PCs offering the blades around them, of every weapon
+kind. The draws are the game's one `rand()` (newlib, main 0x00133a38),
+which runs from 1 at power-on and which everything draws from, so the
+picks change each time a town is entered.
+
 ```
 TradeMenu (48)
 proccess 0    talkTradeFlag 1 (TalkMenu then keeps the trading PC's line);

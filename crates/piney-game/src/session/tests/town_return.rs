@@ -302,6 +302,32 @@ fn trades_come_back_each_scene() {
     assert_eq!(held(&a.world().state().save), want, "in the field");
 }
 
+/// The town's trades come from the game's one `rand()` as the field left
+/// it: `SetTradeItemTown` draws on from the field's last draw. The port
+/// had drawn the restocks from a stream of their own from 1, so every
+/// boot's towns offered the same whatever was played before.
+#[test]
+fn the_town_restocks_from_the_rand_the_field_left() {
+    use piney_data::save::by_id::npc_trade_list;
+    let Some((iso, archive)) = disc() else { return };
+    let npcs = piney_data::tables::newgame::of(Volume::Inf).npc_trade().len();
+    // Each NPC's last slot back in Mac Anu, the field's rand() at `seed`
+    // as Kite leaves.
+    let offers = |seed: u64| -> Vec<(i16, u8)> {
+        let mut s = start(&iso, &archive, Some(14));
+        hold(&mut s, 128, 128, 900, |s| playing(s).is_some());
+        let Stage::Area(a) = &mut s.stage else { unreachable!() };
+        a.world_mut().set_rand(seed);
+        back_to_town(&mut s);
+        let Stage::World(w) = &s.stage else { unreachable!() };
+        let save = &w.world().state().save;
+        (0..npcs).map(|k| npc_trade_list(k) + 4 * 15).map(|at| (save.i16(at), save.u8(at + 2))).collect()
+    };
+    let a = offers(7);
+    assert_eq!(a, offers(7), "the same draws, the same trades");
+    assert_ne!(a, offers(0x1234_5678_9abc), "other draws, other trades");
+}
+
 /// Issue #2, as the report shows it: Mistral in the party (with
 /// BlackRose) runs off through Mac Anu to a shop, and Kite goes up to her
 /// and presses the action button. Her menu (`SpcMenu`, 21) sends

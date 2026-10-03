@@ -321,6 +321,8 @@ impl Desktop {
         t.ctrl.main();
         if t.ctrl.done {
             self.requests.push(Request::BgmStreamStop);
+            // Its `srand` reseeded the game's one `rand()`.
+            self.save.rand = t.ctrl.rand.0;
             self.staff_roll = None;
             return;
         }

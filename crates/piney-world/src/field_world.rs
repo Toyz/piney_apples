@@ -403,7 +403,7 @@ impl FieldWorld {
             Some((w, _)) => Kite::read_armed(&archive, &w)?,
             None => Kite::read(&archive)?,
         };
-        let mut combat = Combat::new(data.clone(), 1);
+        let mut combat = Combat::new(data.clone(), save.rand);
         combat.cc = cc;
         // The looks the entry control's enemies and portals may take: the
         // rows ccRegisterDifficultyEnemy registers (with their drained
@@ -1038,6 +1038,18 @@ impl FieldWorld {
 
     pub fn state(&self) -> &SaveState {
         &self.save
+    }
+
+    /// The state the next mode takes: the save, with `rand()` as the area
+    /// left it.
+    pub fn state_out(&self) -> SaveState {
+        SaveState { rand: self.combat.rand.0, ..self.save.clone() }
+    }
+
+    /// The game's `rand()` handed back by what played in this mode (a
+    /// stream).
+    pub fn set_rand(&mut self, rand: u64) {
+        self.combat.rand.0 = rand;
     }
 
     pub fn state_mut(&mut self) -> &mut SaveState {

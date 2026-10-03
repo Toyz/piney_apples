@@ -122,9 +122,6 @@ pub struct Session {
     /// Not the game's: the HUD's size ([`Mode::set_hud_scale`]), handed to
     /// the field UI every frame.
     hud_scale: f32,
-    /// newlib's `rand()` as the set-ups' restock draws it (the game's is
-    /// one sequence for everything; the modes keep their own).
-    rand: piney_world::Rand,
     /// `ccSys+0x358`, which `ccSystem::Ctrl` (main 0x0010a6bc) adds one to
     /// every frame from power-on. A town's `ccInitRand` draws the walking
     /// PCs' generator that many times, so each arrival has its own PCs.
@@ -226,7 +223,6 @@ impl Session {
             resident: Default::default(),
             god: false,
             hud_scale: 1.0,
-            rand: piney_world::Rand(1),
             sys_frames: 0,
             logos_played: 0,
             settings_path: None,
@@ -343,7 +339,7 @@ impl Session {
     }
 
     fn enter_world(&mut self, mut state: SaveState, vm: Option<Vm>, faded: bool) -> Result<Stage, String> {
-        self.restock(&mut state.save);
+        self.restock(&mut state);
         if self.scene.area == piney_world::area::kind::TOWN {
             // ccClearGtHack in the town's set-up: the flag goes.
             self.gt_hack = false;
@@ -369,10 +365,15 @@ impl Session {
     }
 
     /// `ccSetupGameCtrl`'s `SetSpcItemTown` and `SetTradeItemTown` for the
-    /// scene being set up ([`piney_world::area::Scene::restock`]).
-    fn restock(&mut self, save: &mut SaveData) {
+    /// scene being set up ([`piney_world::area::Scene::restock`]), drawing
+    /// from the game's one `rand()` as the last mode left it.
+    fn restock(&mut self, state: &mut SaveState) {
         match Iso::open(&self.iso).and_then(|mut d| d.volume()) {
-            Ok(v) => self.scene.restock().apply(save, v, self.scene.server, &mut self.rand),
+            Ok(v) => {
+                let mut rand = piney_world::Rand(state.rand);
+                self.scene.restock().apply(&mut state.save, v, self.scene.server, &mut rand);
+                state.rand = rand.0;
+            }
             Err(e) => tracing::warn!("the restock: {e}"),
         }
     }
@@ -850,10 +851,21 @@ impl Session {
                 self.desktop_run = true;
                 Stage::Desktop(Box::new(d))
             }
-            (request::RESET | request::TITLE, _) => {
-                let stage = self.boot_title(false)?;
+            (request::RESET | request::TITLE, old) => {
+                // The soft reset is the mother task's (no new boot): the
+                // C library's rand() runs on.
+                let rand = match old {
+                    Stage::Title(t) => Some(t.state.rand),
+                    Stage::Desktop(d) => Some(d.leave().0.rand),
+                    Stage::TopPage(t) => Some(t.leave().0.rand),
+                    Stage::World(w) => Some(w.leave().0.rand),
+                    Stage::Area(a) => Some(a.leave().0.rand),
+                    Stage::Gone => None,
+                };
+                let mut stage = self.boot_title(false)?;
                 self.title_sound();
-                if let Stage::Title(t) = &stage {
+                if let Stage::Title(t) = &mut stage {
+                    t.state.rand = rand.unwrap_or(t.state.rand);
                     self.events.push(crate::mode::display_offset(&t.state.save));
                 }
                 stage
@@ -899,7 +911,7 @@ impl Session {
                 let (mut state, vm) = t.leave();
                 log_in(&self.iso, &mut state);
                 self.scene = piney_world::area::Scene::log_in(&mut state.save);
-                self.restock(&mut state.save);
+                self.restock(&mut state);
                 match WorldMode::enter(&self.iso, self.archive.clone(), state.clone(), vm) {
                     Ok(mut w) => {
                         w.set_rand_count(self.sys_frames);
@@ -977,7 +989,10 @@ impl Mode for Session {
                             t.demo.stream_fade(&mut frame);
                             break 'title frame;
                         }
-                        None => t.stream = None,
+                        None => {
+                            t.state.rand = p.rand();
+                            t.stream = None;
+                        }
                     }
                 }
                 // `ccDecodeMpeg` holds the title's task until the movie ends.
@@ -1029,8 +1044,10 @@ impl Mode for Session {
                         // `PlayOpeningStream`: the intro, stream 0. A
                         // stream that does not start counts as played.
                         Request::Stream { num, .. } => {
+                            // The title's own copy of the save, the game's `rand()`.
+                            let state = SaveState { save: t.demo.save().clone(), ..t.state.clone() };
                             let started = usize::try_from(num).map_err(|_| format!("stream {num}")).and_then(|n| {
-                                StreamPlayer::start(&self.iso, n, t.demo.save(), self.desktop_run, &mut self.events)
+                                StreamPlayer::start(&self.iso, n, &state, self.desktop_run, &mut self.events)
                             });
                             match started {
                                 Ok(p) => t.stream = Some(p),
@@ -3364,6 +3381,9 @@ mod tests {
         story_until(&mut s, &mut f, "menu_ban false", 60, &mut log);
         {
             let Stage::Area(a) = &mut s.stage else { panic!("left the area") };
+            // The fight as it goes from the game's rand() at 1, whatever
+            // the set-up drew before.
+            a.world_mut().set_rand(1);
             let save = &mut a.world_mut().state_mut().save;
             let free = (0..20).find(|&k| save.i16(piney_fieldui::items::SKILL_LIST + 2 * k) < 0).unwrap();
             save.set_i16(piney_fieldui::items::SKILL_LIST + 2 * free, 2);

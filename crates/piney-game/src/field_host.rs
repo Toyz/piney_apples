@@ -630,6 +630,7 @@ impl Host for FieldHost<'_> {
                         true
                     }
                     None => {
+                        self.world.set_rand(p.rand());
                         st.stream.player = None;
                         false
                     }
@@ -646,7 +647,7 @@ impl Host for FieldHost<'_> {
     fn stream(&mut self, num: i16) {
         self.st.log(format!("stream {num}"));
         let Some(iso) = self.st.stream.iso.clone() else { return };
-        let save = self.world.state().save.clone();
+        let save = self.world.state_out();
         let game = piney_audio::stream::StreamGame { status: self.st.game.status, field: self.st.game.field };
         let data = self.st.stream.data.clone();
         let started = usize::try_from(num)

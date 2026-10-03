@@ -364,6 +364,7 @@ impl Host for AreaHost<'_> {
                         true
                     }
                     None => {
+                        self.world.set_rand(p.rand());
                         self.stream.player = None;
                         self.st.log("stream done".into());
                         false
@@ -379,7 +380,7 @@ impl Host for AreaHost<'_> {
     /// stream that does not start counts as played.
     fn stream(&mut self, num: i16) {
         self.st.log(format!("stream {num}"));
-        let save = self.world.state().save.clone();
+        let save = self.world.state_out();
         let iso = self.stream.iso.clone();
         // ccEventStream(num, 1): the subtitles and ccSndStreamCtrl's music
         // as the town has them.
