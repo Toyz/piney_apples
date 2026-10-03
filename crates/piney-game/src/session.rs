@@ -5786,6 +5786,58 @@ mod tests {
         }
     }
 
+    /// Issue #34. A lake (field type 4: story area 33) is entered from the
+    /// town straight into its first dungeon, which is its field:
+    /// `ccPlayer::ccPlayer` has Kite arrive there (act 13, the gate-in), and
+    /// the triangle opens the field's PERSONAL (menu 1, Gate Out its last
+    /// row), as the lakes' dungeon types (8, 9) choose it.
+    #[test]
+    fn a_lake_entered_from_town_is_its_field() {
+        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        if !iso.exists() {
+            return;
+        }
+        let mut disc = Iso::open(&iso).unwrap();
+        let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+        let mut state = crate::world::new_game_state(&mut disc).unwrap();
+        let wm = crate::area::story_world_man(&mut disc, 33, false).unwrap();
+        assert_eq!(wm.field_type, 4, "area 33 is a lake");
+        let mut scene = piney_world::area::Scene::log_in(&mut state.save);
+        scene.change_scene(2, scene.town, 33, 0, 0, 0, &mut state.save);
+        assert_eq!(scene.area_prev, 0, "from the town");
+        let mut a =
+            AreaMode::enter(&iso, archive, state, None, scene, wm, None, false, piney_world::party::Spcs::default())
+                .unwrap();
+        let mut pad = Pad::default();
+        let kite_act = |a: &AreaMode| {
+            let c = a.world().combat();
+            c.kite.map(|k| c.scene.chars[k].spc_char.act_num)
+        };
+        let mut arrived = false;
+        for _ in 0..600 {
+            arrived |= kite_act(&a) == Some(piney_battle::kite::act::ARRIVE);
+            if arrived && matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 120) {
+                break;
+            }
+            a.step(&pad);
+        }
+        assert!(arrived, "Kite did not arrive (act 13)");
+        let mut opened = None;
+        for f in 0..120u32 {
+            let b = if f.is_multiple_of(30) { Buttons::TRIANGLE } else { Buttons::NONE };
+            pad.read(&Raw { buttons: b, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
+            a.step(&pad);
+            if a.ui().menu_type() != -1 {
+                opened = Some(a.ui().menu_type());
+                break;
+            }
+        }
+        assert_eq!(opened, Some(1), "the lake's PERSONAL is the field's");
+        let l = a.ui().ctrl.list();
+        let rows: Vec<i16> = l.items.iter().take(l.y.max(0) as usize).copied().collect();
+        assert_eq!(rows.last(), Some(&10), "Gate Out is its last row: {rows:?}");
+    }
+
     /// A lake (field type 4, story area 33) has two dungeons, and
     /// `WORLD_MAN` keeps each (`dungeon[n]`): the lake's stairs down make
     /// the second, of its own type (`dungeonType[1]`, not a lake), and the

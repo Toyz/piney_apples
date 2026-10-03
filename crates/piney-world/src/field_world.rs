@@ -616,9 +616,17 @@ impl FieldWorld {
         };
         let (_slot0, r0) =
             boot(&self.spcs, 0).unwrap_or((0, crate::party::Registry { id: 0, party_flag: 1, boot_param: 0 }));
-        let arriving = !(self.scene.area_prev == kind::DUNGEON
-            || self.scene.area == kind::DUNGEON
-            || (self.scene.area == kind::FIELD && self.scene.area_prev == kind::FIELD));
+        // ccPlayer::ccPlayer (gcmn 0x00597d84): a lake area's first dungeon
+        // (field type 4, which has no field) is its field, so Kite arrives
+        // there from a town as on a field (act 13, the gate-in).
+        let lake_entry = self.scene.area == kind::DUNGEON && self.world_man.field_type == 4 && self.scene.dungeon == 0;
+        let arriving = if lake_entry {
+            self.scene.area_prev == kind::TOWN
+        } else {
+            !(self.scene.area_prev == kind::DUNGEON
+                || self.scene.area == kind::DUNGEON
+                || (self.scene.area == kind::FIELD && self.scene.area_prev == kind::FIELD))
+        };
         let area = self.scene.area;
         self.combat.entrance = self.entrance();
         // ccRestoreSpcCondition's test, for the constructors below.
@@ -1438,7 +1446,13 @@ impl FieldWorld {
             skill_one: skill == 1,
             area: self.scene.area,
             field: self.scene.field,
-            dungeon_type: 0,
+            // `ccGame.dungeonType`: a lake's (8, 9) PERSONAL is the field's,
+            // with Gate Out.
+            dungeon_type: self
+                .world_man
+                .dungeon_type
+                .get(self.scene.dungeon.max(0) as usize)
+                .map_or(0, |&t| i32::from(t)),
         };
         // ccPartyManager: Kite, then the members, each found on the
         // candidates' list or off it.
