@@ -78,9 +78,8 @@ pub struct FieldObject {
     pub play: Option<Play>,
     /// The clump's nodes (a bare clump's models are drawn at `pos`).
     pub nodes: Vec<u32>,
-    /// Its models' `ccModelHit`s, indices into [`FieldArea::model_hits`]:
-    /// a Hit chunk hangs on the model (`ccModel.hit`, +0x3c), which every
-    /// object of that model shares.
+    /// Its models' `ccModelHit`s (`ccModel.hit`, +0x3c), its own, as
+    /// indices into [`FieldArea::model_hits`].
     pub hits: Vec<usize>,
 }
 
@@ -102,10 +101,11 @@ pub struct FieldArea {
     fobj: HashMap<(u32, u32), usize>,
     /// `WORLD.ofs_x`, `ofs_y`: the centre the chips are drawn round.
     pub ofs: [F; 2],
-    /// One `ccModelHit` per Hit chunk (per model), its matrix as the last
-    /// object of that model drawn set it; the list (`ccModelHitTop`..)
-    /// as indices into it, in order; and the collision world the player and
-    /// camera query, the list's models in its order.
+    /// Every object's own `ccModelHit`s (one per model of it with a Hit
+    /// chunk), each at its object's place as its draw last set it; the
+    /// list (`ccModelHitTop`..) as indices into them, in order; and the
+    /// collision world the player and camera query, the list's models in
+    /// its order.
     pub model_hits: Vec<HitModel>,
     pub list: Vec<usize>,
     pub hits: Hits,
@@ -291,6 +291,7 @@ impl FieldArea {
         let scene = field.scene(tables, &file.ccs, &bg.ccs)?;
         let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
         let hit_models = crate::hit::HitModel::read(volume, &file.ccs)?;
+        let mut model_hits = Vec::new();
 
         // WORLD::Init's CalcObjectVertexColor: the tables' clumps' rigid
         // models lit in place, a clump listed twice lit twice.
@@ -344,29 +345,23 @@ impl FieldArea {
                     (None, nodes)
                 }
             };
-            // Its hit models: a Hit chunk hangs on the model it names as its
-            // parent (`ccModel` +0x3c), and `ccClump::HitEnable` /
-            // `ccAnm::HitEnable` enable those of the models of its clump's
-            // nodes, or of the objects its Anime chunk carries (through
-            // their ExtObj targets).
+            // Its hits. A Hit chunk hangs on the model it names as its
+            // parent. Each object's `ccObj`s make their own `ccModel`s
+            // (`ccObj::Init`, main 0x0013b63c) and each of those its own
+            // `ccModelHit` (`ccModel::Init`, 0x0013a574): a copy per object,
+            // the polygons shared. `ccClump::HitEnable` / `ccAnm::HitEnable`
+            // enable those of the clump's nodes or of the anm's objects.
             let objs: Vec<u32> = match &play {
-                Some(p) => file.anims[p.anim]
-                    .locals_at(0)
-                    .keys()
-                    .map(|o| file.scene.ext.get(o).copied().unwrap_or(*o))
-                    .collect(),
-                None => nodes.clone(),
+                Some(p) => file.anims[p.anim].objects.iter().map(|&(_, t)| t).collect(),
+                None => nodes.iter().map(|n| file.scene.ext.get(n).copied().unwrap_or(*n)).collect(),
             };
-            let owned: Vec<u32> = objs.iter().filter_map(|o| file.obj_model.get(o).copied()).collect();
-            let hits: Vec<usize> = owned.iter().filter_map(|m| hit_models.iter().position(|h| h.parent == *m)).fold(
-                Vec::new(),
-                |mut v, h| {
-                    if !v.contains(&h) {
-                        v.push(h);
-                    }
-                    v
-                },
-            );
+            let mut hits = Vec::new();
+            for m in objs.iter().filter_map(|o| file.obj_model.get(o)) {
+                for h in hit_models.iter().filter(|h| h.parent == *m) {
+                    hits.push(model_hits.len());
+                    model_hits.push(HitModel { id: model_hits.len() as u32, ..h.clone() });
+                }
+            }
             let k = objects.len();
             objects.push(FieldObject {
                 kind: o.kind,
@@ -545,7 +540,7 @@ impl FieldArea {
             fobj2,
             fobj,
             ofs: [0, 0],
-            model_hits: hit_models,
+            model_hits,
             list: Vec::new(),
             hits,
             lit,
@@ -587,7 +582,7 @@ impl FieldArea {
     /// `ccClump::SetHitMatrix` / `ccAnm::SetHitMatrix` for an object at
     /// `pos` unrotated: its models' hits at `T(pos)`
     /// (`SetMatrix_PosRotZYX(pos, 0)`'s world matrix; the inverse is not read
-    /// for `type` 0). Another object of the same model moves the same hit.
+    /// for `type` 0).
     fn set_hit_matrix(&mut self, k: usize, pos: V4) {
         let rm = crate::town::pos_rot_zyx(pos, [0; 3]);
         for i in 0..self.objects[k].hits.len() {
@@ -1414,6 +1409,27 @@ mod tests {
             skip_init: false,
         };
         FieldArea::new(archive, params, DEF_SE[10]).unwrap()
+    }
+
+    /// Issue #38: each field object owns its `ccModelHit`s (`ccObj::Init`
+    /// makes a `ccModel` per Obj, `ccModel::Init` a hit per model), so two
+    /// objects of one model both stand in the way, each at its own place.
+    /// One hit per model had left only the last placed solid.
+    #[test]
+    fn objects_of_one_model_each_keep_their_hit() {
+        let Some(archive) = crate::town::tests::archive() else { return };
+        let mut f = area14(&archive);
+        let parent = |f: &FieldArea, k: usize| f.objects[k].hits.first().map(|&h| f.model_hits[h].parent);
+        let n = f.objects.len();
+        let (a, b) = (0..n)
+            .flat_map(|a| (a + 1..n).map(move |b| (a, b)))
+            .find(|&(a, b)| parent(&f, a).is_some() && parent(&f, a) == parent(&f, b))
+            .expect("two objects of one model with a hit");
+        f.place(a);
+        f.place(b);
+        let model = parent(&f, a);
+        let at: Vec<V4> = f.hits.models.iter().filter(|h| Some(h.parent) == model).map(|h| h.rm[3]).collect();
+        assert_eq!(at, [f.objects[a].wp, f.objects[b].wp]);
     }
 
     /// Issue #37: Cursed Despaired Paradise's dungeon mouth (field type 8,

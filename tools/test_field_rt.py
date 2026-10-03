@@ -7,8 +7,9 @@ The field_probe example builds a field as WORLD_MAN::GO(1) does
 answers the requests below; the game's side is the same field laid out in
 the interpreter's memory the way WORLD::Generate leaves it - the FIELD's
 height map and hidden chips, the chip meshes, the FOBJECT and FOBJECT2
-objects - with one ccModelHit per Hit chunk of field_p, decoded by the
-game's own ccStream::Decode_Hit, as the file's models carry them:
+objects - with each object's own ccModelHits (ccObj::Init makes a ccModel
+per Obj, ccModel::Init a ccModelHit per model with a Hit chunk), their
+polygons decoded by the game's own ccStream::Decode_Hit:
 
   - WORLD_MAN::SetCharPosition (main 0x001a1190) in a field, for every
     field type, from a town and from the dungeon, with the party members'
@@ -24,7 +25,7 @@ game's own ccStream::Decode_Hit, as the file's models carry them:
     FOBJECT2::Draw 0x005b13f0: ccTransPosW2P then P2W), whether drawn, its
     fade, its anm's steps, and the ccModelHit list left behind - order and
     each hit's matrix - with ccClump/ccAnm's HitEnable, HitDisable and
-    SetHitMatrix acting on the shared per-model ccModelHits;
+    SetHitMatrix acting on each object's own ccModelHits;
   - the frame: cameraMain, ccPlayer::Main over the field (its ground, the
     objects' hits, the map wrap and WORLD::AddCenter, the camera's
     avoidObstacle over the height map, cameraSet's ccTransPosFW2LW, the
@@ -105,8 +106,9 @@ class FieldGame(tw.Field):
 
     # --- the field's ccModelHits --------------------------------------------
     def decode_hits(self):
-        """One ccModelHit per Hit chunk of field_p (ccModel +0x3c), each
-        decoded by ccStream::Decode_Hit, in the probe's order."""
+        """One ccModelHit per hit the probe lists (each object's own, ccModel
+        +0x3c), its polygons decoded by ccStream::Decode_Hit, in the probe's
+        order."""
         m, c = self.m, self.town
         by_object = {}
         for off, t, n, end in c.chunks():
@@ -436,11 +438,10 @@ class FieldAgainstGame(unittest.TestCase):
         placed = [k for k, o in enumerate(objs) if o[6]]
         for k in placed:
             lines.append("place %x" % k)
-        # A hit belongs to a model, so it stands at the last object of that
-        # model placed: the points go round those.
-        last = sorted(set({h: k for k in placed for h in objs[k][6]}.values()))
+        # Each object's hits are its own: the points go round them all.
+        last = placed
         pts = []
-        for i in range(1500):
+        for i in range(4000):
             if i % 3 == 0:
                 x, y = rng.uniform(0, 48000), rng.uniform(0, 48000)
                 z = rng.choice([0.0, 50.0, 200.0, rng.uniform(-100, 900)])
