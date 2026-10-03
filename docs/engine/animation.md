@@ -3,7 +3,7 @@ title: Animation playback
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x00150670 ccAnm::SetAnmCtrlWork (its 0x0605 case), 0x0014e950 ccStream::DecodeF_Obj, 0x00138120 ccCoord::SetMatrix_PosRotZYXScale, 0x00144e90 ccAnmChunk::ConvLCNum2ALCNum, 0x00144d00 ConvALCNum_FsetMatCtrl, 0x00146be0 ccAnmCtrlFVec3_SetCtrl, 0x00146890 ccAnmCtrlFVec3_Set, 0x00146530 ccAnmCtrlFloat_Set, 0x00146660 ccAnmCtrlFloat_SetCtrl, 0x001470c0 ccAnmCtrlRot_SetCtrl, 0x00146f30 ccAnmCtrlRot_Set, 0x00150670 SetAnmCtrlWork, 0x00152270 ccAnm::_AnimateForward, 0x0014e6e0 DecodeF_Morpher, 0x0013af10 ccMorpher::Modify, 0x001109b8 _sceVu0ecossin, 0x0014e1b0 ccStream::DecodeFrameChunk, 0x0014f830 ccStream::DecodeF_Note, 0x00147ff0 ccAnmNote::DelAll, 0x00152210 ccAnm::NoteProcess, 0x00150f50 ccAnm::SetAnm, 0x0014fc80 ccAnm::ccAnm, 0x00152400 ccAnm::_AnimateFrame, 0x00378904 funcDefaultNoteProcess, 0x001494c0 ccStream::PlaySceneMain, 0x001474b0 ccStream::MakeAnimeIndex, 0x0014fe10 ccAnm::DeleteAnmIndex, 0x001524d0 ccAnm::Draw
-worklog: 32, 363
+worklog: 32, 363, 365
 ---
 
 # Animation playback
@@ -302,9 +302,12 @@ index, and `ccAnm::Draw` (0x001524d0) draws those and nothing else.
   Each Obj node of the anm's clumps (+0xa8) with an entry takes it (+4 the
   node, flags 6). Every entry still flagged 1 gets a new `ccObj` from its
   chunk (`ccObj::Init`, flags 7; `DeleteAnmIndex`, 0x0014fe10, frees
-  those). From 0x00151a24, each entry with bit 2 hangs from its parent
-  slot's object, or from the anm itself for -1. The +0x30 pointers are
-  cleared at the end.
+  those). Each made object whose model is bone or skin (model +0x20 & 6)
+  then gets the model's node table (0x00151950-0x00151a04): the model
+  chunk's node list (+0x44, count +0x48), each node the object of its
+  entry, and model +0x24 |= 0x40. From 0x00151a24, each entry with bit 2
+  hangs from its parent slot's object, or from the anm itself for -1. The
+  +0x30 pointers are cleared at the end.
 - **Draw.** Each entry with bit 4 is drawn: type 0x100 by
   `ccObj::Draw(anm +0x88)`, 0xe00 by `ccEffObj::DrawNoAnm`.
 

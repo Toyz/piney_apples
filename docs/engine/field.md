@@ -3,7 +3,7 @@ title: Field generation
 status: partial
 volumes: all
 covers: INF gcmn.prg:0x005a6da0 WORLD::Generate, 0x005a4cd0 WORLD::Init, 0x005adc60 FIELD::MakeField, 0x005a6b00 WORLD::MakeHill, 0x005b4070 FRACTAL2::Generate, 0x005abd20 SetDungeonEnter, 0x005ac7e0 SetLake, 0x005ac120 SetKeyObject, 0x005aba50 SetCover, 0x005a8570 WORLD::DrawMesh, 0x005b0aa0 FIELD_MESH::RelocateMesh, 0x005ae940 FIELD::CalcWorldMeshPosition, 0x005b1890 FCOVER::SetPosition, 0x005b19d0 FCOVER::Draw, 0x005a9070 WORLD::DrawEffect, 0x005a97b0 WORLD::Draw (its weather), 0x005a4840 WORLD::SetRainEffect, 0x005a8860 WORLD::DrawRain, 0x005a8f40 WORLD::DrawSnow, 0x005a6a50 WORLD::SetSmoke2d, 0x005ad600 WORLD::DrawSteam, 0x005aae90 WORLD::SetSpecialObj (the fires), 0x00503650 SNOW::SNOW, 0x00503e80 SNOW::Move, 0x005042f0 SNOW::Draw, 0x005028e0 calcPos, 0x00502ba0 calcPos2, 0x00502330 waterUVModifi, 0x005b1ed0 FIREFLY::FIREFLY, 0x005b2100 FIREFLY::SetBasePosition, 0x005b21a0 FIREFLY::Init, 0x005b2900 FIREFLY::Init (hacked), 0x005b30a0 FIREFLY::Move, 0x005b3a60 FIREFLY::Draw, 0x005b1b60 NSPLINE::PreCalc, 0x005d0560 TOBJ::Init, 0x005d0db0 TOBJ::Move, 0x005d08d0 TOBJ::Draw, 0x005d1440 BIRD::Init, 0x005d1540 BIRD::SetPos, 0x005d1590 BIRD::Move, 0x005d1560 BIRD::Draw, 0x00503360 LENSFLARE::Draw (mode 1); INF SLUS_202.67:0x00106c70 ccBufferSampling::SetShade (the seven-argument form), 0x00106dd0 ccBufferSampling::MakePacket, 0x00108930 ccLayer::Add, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x0019f190 WORLD_MAN::GetWeather, 0x0019ef50 WORLD_MAN::GetTime, 0x0019f0d0 WORLD_MAN::CheckLensFlare, 0x001da710 ccCheckCameraDeg, 0x001ce300 effSmoke, 0x001412b0 ccShadowModel::Draw, 0x00105820 ccDrawEnv::SetFog, 0x0015c4b0 ccMask::ccMask
-worklog: 19, 25, 33, 38, 130, 145, 164
+worklog: 19, 25, 33, 38, 130, 145, 164, 365
 ---
 
 # Field generation
@@ -95,6 +95,14 @@ checked by running the game's functions in eemu (`tools/test_field.py`).
   `fptosi(4096·h / scale)`, and that cell's lit RGB, keeping its alpha. x, y
   and UVs stay the template's.
 - **Hidden chips.** A chip under a levelled object or the lake draws no tile.
+
+**Animated objects.** An object whose row names an animation (the
+entrances, keys and lakes) is a `ccAnm` and draws as `ccAnm::Draw` does
+([animation.md](animation.md#the-anms-objects)): the objects its
+animation names, each bone or skin model over its clump's nodes as the
+anm poses them. Field type 8's entrance (`field_k`, `CMP_sfk1sto1`,
+`ANM_sfk1sto1a`) is a head whose two hands, `MDL_sfk1sto1_a`-`h`, are bone
+and skin models over the clump's finger nodes, out at the mouth's sides.
 
 **Lighting.** The ground's vertex colours are the map's own:
 - `InitQuad` makes two face normals per cell, from opposite diagonals.

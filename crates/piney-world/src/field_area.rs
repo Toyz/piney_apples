@@ -804,14 +804,15 @@ impl FieldArea {
             let f = fog_at(root.w_axis.truncate());
             match &o.play {
                 Some(p) => {
-                    let worlds = p.worlds(&file, root, &[]);
                     let own = p.uv_rows(&file);
                     let morph = p.morph(&file);
-                    let mut objs: Vec<(&u32, &Mat4)> = worlds.iter().collect();
-                    objs.sort_by_key(|(o, _)| **o);
-                    for (&obj, &world) in objs {
-                        let target = file.scene.ext.get(&obj).copied().unwrap_or(obj);
-                        let Some(&model) = file.obj_model.get(&target) else { continue };
+                    // ccAnm::Draw's objects. A bone or skin model takes its
+                    // clump's nodes as the anm poses them (`SetAnm` builds
+                    // its node table from the anm's own objects).
+                    for inst in p.instances(&file, root) {
+                        let Some((model, _)) = file.drawn_model(inst.object) else { continue };
+                        let world = inst.world;
+                        let node_mats = skin_nodes(&file, p, root, inst.object, model);
                         let m: Vec<(u32, f32)> = morph
                             .iter()
                             .filter(|(mph, _)| self.morphers.get(mph) == Some(&model))
@@ -824,7 +825,7 @@ impl FieldArea {
                             alpha,
                             rows: &own,
                             lights: None,
-                            nodes: &[],
+                            nodes: &node_mats,
                             morph: m,
                             clut_swaps: Vec::new(),
                         };
@@ -1299,6 +1300,18 @@ fn runner_places(tobj: Option<&(Rc<SceneFile>, Vec<Play>)>, m: &[V4; 4]) -> [V4;
     out
 }
 
+/// A bone or skin model's node matrices: the nodes of its object's clump
+/// as `play` poses them under `root`, for `SetAnm` builds an anm-made
+/// model's node table from the anm's own objects (main 0x00151950); none
+/// for any other model.
+fn skin_nodes(file: &SceneFile, play: &Play, root: Mat4, obj: u32, model: u32) -> Vec<Mat4> {
+    let skinned = file.models.get(&model).is_some_and(|i| i.mtype & 6 != 0);
+    let Some(nodes) = file.scene.clump_of(obj).filter(|_| skinned) else { return Vec::new() };
+    let nodes: Vec<u32> = nodes.iter().map(|n| file.scene.ext.get(n).copied().unwrap_or(*n)).collect();
+    let worlds = play.worlds(file, root, &nodes);
+    nodes.iter().map(|n| worlds.get(n).copied().unwrap_or(root)).collect()
+}
+
 /// An animation's objects ([`Play::instances`]) drawn at `root` with
 /// `alpha` and the materials' scrolls `rows`, one model with `edits`.
 #[allow(clippy::too_many_arguments)]
@@ -1314,6 +1327,7 @@ fn anim_edited(
     for inst in play.instances(file, root) {
         let Some((model, _)) = file.drawn_model(inst.object) else { continue };
         let e = edits.as_ref().filter(|(m, _)| *m == model).map(|(_, e)| e);
+        let node_mats = skin_nodes(file, play, root, inst.object, model);
         let d = Draw {
             file,
             model,
@@ -1321,7 +1335,7 @@ fn anim_edited(
             alpha,
             rows,
             lights: None,
-            nodes: &[],
+            nodes: &node_mats,
             morph: Vec::new(),
             clut_swaps: Vec::new(),
         };
@@ -1400,6 +1414,31 @@ mod tests {
             skip_init: false,
         };
         FieldArea::new(archive, params, DEF_SE[10]).unwrap()
+    }
+
+    /// Issue #37: Cursed Despaired Paradise's dungeon mouth (field type 8,
+    /// `ANM_sfk1sto1a`) has two hands, bone and skin models over the
+    /// clump's finger nodes. Drawn with no node matrices they fell to the
+    /// mouth's origin as a pink block; they take their clump's nodes as
+    /// the anm poses them, out at the mouth's sides.
+    #[test]
+    fn the_mouths_hands_take_their_bones() {
+        let Some(archive) = crate::town::tests::archive() else { return };
+        let file = SceneFile::read(&archive, crate::field_ambient::field_file(8)).unwrap();
+        let mut play = Play::new(&file, "ANM_sfk1sto1a").unwrap();
+        play.forward(&file);
+        let obj = |n: &str| file.ccs.find_object(n).unwrap();
+        // The objects by their models (an animation's ExtObj copies share
+        // the names).
+        let owner = |m: &str| (file.scene.model_owner[&obj(m)], obj(m));
+        let (hand, model) = owner("MDL_sfk1sto1_a");
+        let bones = skin_nodes(&file, &play, Mat4::IDENTITY, hand, model);
+        assert_eq!(bones.len(), 49, "CMP_sfk1sto1's nodes");
+        let nodes = file.scene.clump_of(hand).unwrap();
+        let finger = nodes.iter().position(|&n| file.ccs.object_name(n) == Some("OBJ_l index finger 01")).unwrap();
+        assert!(bones[finger].w_axis.x > 500.0, "the left hand out at the side: {:?}", bones[finger].w_axis);
+        let (head, model) = owner("MDL_sfk1sto1");
+        assert!(skin_nodes(&file, &play, Mat4::IDENTITY, head, model).is_empty(), "rigid");
     }
 
     #[test]
