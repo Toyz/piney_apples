@@ -38,8 +38,8 @@ The [reference](docs/README.md) says what is true now.
 | 24 | [Event scripts on every volume, and how a save carries into the next](worklog/0024-event-scripts-on-every-volume-and-how-a-save-carries-into.md) | 2026-09-23 | script, save, volumes, test |
 | 25 | [Dungeons, fields, battle and text checked on every volume](worklog/0025-dungeons-fields-battle-and-text-checked-on-every-volume.md) | 2026-09-23 | world, battle, ui, volumes, test |
 | 26 | [The port begins: piney-data reads the disc, piney-viewer draws it](worklog/0026-the-port-begins-piney-data-reads-the-disc-piney-viewer.md) | 2026-09-23 | build, render, test |
-| 27 | ["Towns are assembled by code: the placement tables, carried into the port as data"](worklog/0027-towns-are-assembled-by-code-the-placement-tables-carried.md) | 2026-09-23 | world, render, build, test |
-| 28 | ["A town's other files: the crisis versions, and the canal water"](worklog/0028-a-town-s-other-files-the-crisis-versions-and-the-canal-water.md) | 2026-09-23 | world, render, build |
+| 27 | [Towns are assembled by code: the placement tables, carried into the port as data](worklog/0027-towns-are-assembled-by-code-the-placement-tables-carried.md) | 2026-09-23 | world, render, build, test |
+| 28 | [A town's other files: the crisis versions, and the canal water](worklog/0028-a-town-s-other-files-the-crisis-versions-and-the-canal-water.md) | 2026-09-23 | world, render, build |
 | 29 | [Material crop values are a UV animation's reference, not an offset](worklog/0029-material-crop-values-are-a-uv-animation-s-reference-not-an.md) | 2026-09-23 | render, format |
 | 30 | [The dungeon generator ported to Rust, with its tables as generated data](worklog/0030-the-dungeon-generator-ported-to-rust-with-its-tables-as.md) | 2026-09-23 | world, build, test |
 | 31 | [Dungeons in the viewer, and ExtObj copies are instances](worklog/0031-dungeons-in-the-viewer-and-extobj-copies-are-instances.md) | 2026-09-23 | world, render, format |
@@ -124,102 +124,102 @@ The [reference](docs/README.md) says what is true now.
 | 110 | [The party follows Kite in town: the members as the battle's characters under ActInTown](worklog/0110-the-party-follows-kite-in-town-the-members-as-the-battle-s.md) | 2026-09-25 | world, battle, test |
 | 111 | [The scripts' last host gaps: a companion's item_add, virus_core's level, room by RoomSelect, save_party](worklog/0111-the-scripts-last-host-gaps-a-companion-s-item-add-virus.md) | 2026-09-25 | script, world, test |
 | 112 | [Skeith's arena: EVENTAREAB0 for fields 1-8, and how area 27's last door gets there](worklog/0112-skeith-s-arena-eventareab0-for-fields-1-8-and-how-area-27-s.md) | 2026-09-25 | world, render, test |
-| 113 | ["Skeith in the field: the boss entry, its task each frame, and what it asks of the area"](worklog/0113-skeith-in-the-field-the-boss-entry-its-task-each-frame-and.md) | 2026-09-25 | battle, world |
-| 114 | ["The story dungeons' event rooms: Aura's shrine, the ways out, and the ban block"](worklog/0114-the-story-dungeons-event-rooms-aura-s-shrine-the-ways-out.md) | 2026-09-25 | world, test |
-| 115 | ["Skeith's camera: ccBossCam behind Kite, facing the boss"](worklog/0115-skeith-s-camera-ccbosscam-behind-kite-facing-the-boss.md) | 2026-09-25 | battle, world, test |
-| 116 | ["The dungeon objects' effects: crystals, breakables, trap boxes and the Statue of God's glow"](worklog/0116-the-dungeon-objects-effects-crystals-breakables-trap-boxes.md) | 2026-09-25 | battle, render, test |
-| 117 | ["Skeith's pictures: the effects, the cross's trail, the reversed layer and the arena's fireflies"](worklog/0117-skeith-s-pictures-the-effects-the-cross-s-trail-the.md) | 2026-09-25 | battle, render, world |
-| 118 | ["Smoke and dust: effSmoke, the enemies' feet, a gold goblin's run and an idol opening"](worklog/0118-smoke-and-dust-effsmoke-the-enemies-feet-a-gold-goblin-s.md) | 2026-09-25 | battle, render, test |
-| 119 | ["The runners' dust: ccEffPawSmoke at Kite's and the party's feet"](worklog/0119-the-runners-dust-cceffpawsmoke-at-kite-s-and-the-party-s.md) | 2026-09-25 | battle, render, test |
-| 120 | ["The chat balloons: ccChatMsg, Mac Anu's players and Kite's calls"](worklog/0120-the-chat-balloons-ccchatmsg-mac-anu-s-players-and-kite-s.md) | 2026-09-25 | ui, world, test |
+| 113 | [Skeith in the field: the boss entry, its task each frame, and what it asks of the area](worklog/0113-skeith-in-the-field-the-boss-entry-its-task-each-frame-and.md) | 2026-09-25 | battle, world |
+| 114 | [The story dungeons' event rooms: Aura's shrine, the ways out, and the ban block](worklog/0114-the-story-dungeons-event-rooms-aura-s-shrine-the-ways-out.md) | 2026-09-25 | world, test |
+| 115 | [Skeith's camera: ccBossCam behind Kite, facing the boss](worklog/0115-skeith-s-camera-ccbosscam-behind-kite-facing-the-boss.md) | 2026-09-25 | battle, world, test |
+| 116 | [The dungeon objects' effects: crystals, breakables, trap boxes and the Statue of God's glow](worklog/0116-the-dungeon-objects-effects-crystals-breakables-trap-boxes.md) | 2026-09-25 | battle, render, test |
+| 117 | [Skeith's pictures: the effects, the cross's trail, the reversed layer and the arena's fireflies](worklog/0117-skeith-s-pictures-the-effects-the-cross-s-trail-the.md) | 2026-09-25 | battle, render, world |
+| 118 | [Smoke and dust: effSmoke, the enemies' feet, a gold goblin's run and an idol opening](worklog/0118-smoke-and-dust-effsmoke-the-enemies-feet-a-gold-goblin-s.md) | 2026-09-25 | battle, render, test |
+| 119 | [The runners' dust: ccEffPawSmoke at Kite's and the party's feet](worklog/0119-the-runners-dust-cceffpawsmoke-at-kite-s-and-the-party-s.md) | 2026-09-25 | battle, render, test |
+| 120 | [The chat balloons: ccChatMsg, Mac Anu's players and Kite's calls](worklog/0120-the-chat-balloons-ccchatmsg-mac-anu-s-players-and-kite-s.md) | 2026-09-25 | ui, world, test |
 | 121 | [Streams 3, 4 and 6's effect tasks and the letterbox](worklog/0121-streams-3-4-and-6-s-effect-tasks-and-the-letterbox.md) | 2026-09-25 | render, test |
-| 122 | ["Streams 7, 8 and 9's effect tasks: a transfer, hit marks and a turned feedback"](worklog/0122-streams-7-8-and-9-s-effect-tasks-a-transfer-hit-marks-and-a.md) | 2026-09-25 | render, test |
-| 123 | ["The party's chat lines: ccAI::ChatMessage* and ChatMessageSender"](worklog/0123-the-party-s-chat-lines-ccai-chatmessage-and.md) | 2026-09-25 | battle, ui, world, test |
-| 124 | ["Streams 11 to 14 and 16's effect tasks"](worklog/0124-streams-11-to-14-and-16-s-effect-tasks.md) | 2026-09-25 | render, test |
-| 125 | ["The drain streams' effect tasks and the Data Drain banner"](worklog/0125-the-drain-streams-effect-tasks-and-the-data-drain-banner.md) | 2026-09-25 | render, battle, test |
-| 126 | ["The gate hack's and streams 112-119's effect tasks"](worklog/0126-the-gate-hack-s-and-streams-112-119-s-effect-tasks.md) | 2026-09-25 | render, test |
-| 127 | ["The streams' fog"](worklog/0127-the-streams-fog.md) | 2026-09-25 | render |
-| 128 | ["Skeith's cinema: the bars and the skill's name"](worklog/0128-skeith-s-cinema-the-bars-and-the-skill-s-name.md) | 2026-09-25 | battle, render, test |
+| 122 | [Streams 7, 8 and 9's effect tasks: a transfer, hit marks and a turned feedback](worklog/0122-streams-7-8-and-9-s-effect-tasks-a-transfer-hit-marks-and-a.md) | 2026-09-25 | render, test |
+| 123 | [The party's chat lines: ccAI::ChatMessage* and ChatMessageSender](worklog/0123-the-party-s-chat-lines-ccai-chatmessage-and.md) | 2026-09-25 | battle, ui, world, test |
+| 124 | [Streams 11 to 14 and 16's effect tasks](worklog/0124-streams-11-to-14-and-16-s-effect-tasks.md) | 2026-09-25 | render, test |
+| 125 | [The drain streams' effect tasks and the Data Drain banner](worklog/0125-the-drain-streams-effect-tasks-and-the-data-drain-banner.md) | 2026-09-25 | render, battle, test |
+| 126 | [The gate hack's and streams 112-119's effect tasks](worklog/0126-the-gate-hack-s-and-streams-112-119-s-effect-tasks.md) | 2026-09-25 | render, test |
+| 127 | [The streams' fog](worklog/0127-the-streams-fog.md) | 2026-09-25 | render |
+| 128 | [Skeith's cinema: the bars and the skill's name](worklog/0128-skeith-s-cinema-the-bars-and-the-skill-s-name.md) | 2026-09-25 | battle, render, test |
 | 129 | [The first play-test's bugs: the holy ground, the weapons, the fades, the transfers](worklog/0129-the-first-play-test-s-bugs-the-holy-ground-the-weapons-the.md) | 2026-09-25 | engine, render, world, save, tooling, test |
-| 130 | ["The field's weather: rain, snow, fireflies and the rest of WORLD::Draw"](worklog/0130-the-field-s-weather-rain-snow-fireflies-and-the-rest-of.md) | 2026-09-25 | world, render, test |
+| 130 | [The field's weather: rain, snow, fireflies and the rest of WORLD::Draw](worklog/0130-the-field-s-weather-rain-snow-fireflies-and-the-rest-of.md) | 2026-09-25 | world, render, test |
 | 131 | [The streams' own effects: effcStr's hit marks and transfers, checked against the game](worklog/0131-the-streams-own-effects-effcstr-s-hit-marks-and-transfers.md) | 2026-09-25 | render, test |
 | 132 | [The event's NPCs outside the towns: Meg and the Administrator in the dungeons](worklog/0132-the-event-s-npcs-outside-the-towns-meg-and-the.md) | 2026-09-25 | world |
-| 133 | ["Stream 15's effect tasks: the ending's puffs, rocks and shades"](worklog/0133-stream-15-s-effect-tasks-the-ending-s-puffs-rocks-and-shades.md) | 2026-09-25 | render |
+| 133 | [Stream 15's effect tasks: the ending's puffs, rocks and shades](worklog/0133-stream-15-s-effect-tasks-the-ending-s-puffs-rocks-and-shades.md) | 2026-09-25 | render |
 | 134 | [near_marker outside the towns: event 17's Data Drain lesson plays through](worklog/0134-near-marker-outside-the-towns-event-17-s-data-drain-lesson.md) | 2026-09-26 | script |
 | 135 | [The party's HP and conditions through the doors and the event scenes: storeCondition](worklog/0135-the-party-s-hp-and-conditions-through-the-doors-and-the.md) | 2026-09-26 | battle |
-| 136 | ["Stream 15's opening: the black is the game's, and the stream lights' order"](worklog/0136-stream-15-s-opening-the-black-is-the-game-s-and-the-stream.md) | 2026-09-26 | render, test |
+| 136 | [Stream 15's opening: the black is the game's, and the stream lights' order](worklog/0136-stream-15-s-opening-the-black-is-the-game-s-and-the-stream.md) | 2026-09-26 | render, test |
 | 137 | [The animation engine's loose ends: F_Obj, texture offsets, cameras, lights and frame speed](worklog/0137-the-animation-engine-s-loose-ends-f-obj-texture-offsets.md) | 2026-09-26 | engine |
 | 138 | [The dungeon doors', the Chaos Gate's and Kite's town footsteps' sounds](worklog/0138-the-dungeon-doors-the-chaos-gate-s-and-kite-s-town.md) | 2026-09-26 | world |
 | 139 | [The walking PCs' texture variants and steps: changeTEX, rtpcCheckNote](worklog/0139-the-walking-pcs-texture-variants-and-steps-changetex.md) | 2026-09-26 | render |
 | 140 | [The dungeons' breakables: EntryBreakObject](worklog/0140-the-dungeons-breakables-entrybreakobject.md) | 2026-09-26 | world |
-| 141 | ["Data Drain's side effects on screen, and the areas' light group checked"](worklog/0141-data-drain-s-side-effects-on-screen-and-the-areas-light.md) | 2026-09-26 | render, test |
+| 141 | [Data Drain's side effects on screen, and the areas' light group checked](worklog/0141-data-drain-s-side-effects-on-screen-and-the-areas-light.md) | 2026-09-26 | render, test |
 | 142 | [Dun Loireag's dogs: ccSetDog, ccDog and NorainuMenu](worklog/0142-dun-loireag-s-dogs-ccsetdog-ccdog-and-norainumenu.md) | 2026-09-26 | world |
 | 143 | [Talking to an event's NPC outside the towns](worklog/0143-talking-to-an-event-s-npc-outside-the-towns.md) | 2026-09-26 | world |
 | 144 | [The target cursor turned and the drain gauge shaded: TRF and TG sprites](worklog/0144-the-target-cursor-turned-and-the-drain-gauge-shaded-trf-and.md) | 2026-09-26 | ui |
 | 145 | [The fog by each vertex's depth, as VU1 writes it](worklog/0145-the-fog-by-each-vertex-s-depth-as-vu1-writes-it.md) | 2026-09-26 | render |
 | 146 | [REGION_REPEAT in the GPU renderer: the stream shades' blocks](worklog/0146-region-repeat-in-the-gpu-renderer-the-stream-shades-blocks.md) | 2026-09-26 | render |
 | 147 | [The dungeons' palette swaps: SetClutList and ChangeClut](worklog/0147-the-dungeons-palette-swaps-setclutlist-and-changeclut.md) | 2026-09-26 | world |
-| 148 | ["A member's own orders and the field objects' menus: ChatMenu1-3, ItemObjMenu to TimeIdolMenu"](worklog/0148-a-member-s-own-orders-and-the-field-objects-menus-chatmenu1.md) | 2026-09-26 | ui, test |
+| 148 | [A member's own orders and the field objects' menus: ChatMenu1-3, ItemObjMenu to TimeIdolMenu](worklog/0148-a-member-s-own-orders-and-the-field-objects-menus-chatmenu1.md) | 2026-09-26 | ui, test |
 | 149 | [The story dungeons' symbols: ccGimSymbol](worklog/0149-the-story-dungeons-symbols-ccgimsymbol.md) | 2026-09-26 | battle |
 | 150 | [The travellers' hum: tobjSeLoopStart and tobjSeLoop](worklog/0150-the-travellers-hum-tobjseloopstart-and-tobjseloop.md) | 2026-09-26 | world |
 | 151 | [The event rooms' direct lights](worklog/0151-the-event-rooms-direct-lights.md) | 2026-09-26 | render |
 | 152 | [The field's depth shades, and model Z at the GS's scale](worklog/0152-the-field-s-depth-shades-and-model-z-at-the-gs-s-scale.md) | 2026-09-26 | render |
 | 153 | [The streams' models clip at their view's divZ](worklog/0153-the-streams-models-clip-at-their-view-s-divz.md) | 2026-09-26 | render |
-| 154 | ["The Zeit statue: timeSym and the gameCnt clocks"](worklog/0154-the-zeit-statue-timesym-and-the-gamecnt-clocks.md) | 2026-09-26 | world |
-| 155 | ["The lakes' symbols: ccGimSymbol::objMain"](worklog/0155-the-lakes-symbols-ccgimsymbol-objmain.md) | 2026-09-26 | battle |
-| 156 | ["The streams' effect nodes: str0001's clouds"](worklog/0156-the-streams-effect-nodes-str0001-s-clouds.md) | 2026-09-26 | render |
-| 157 | ["The dungeon rooms' dressing: SetWater, SetLight, SetObject, SetAnmObject"](worklog/0157-the-dungeon-rooms-dressing-setwater-setlight-setobject.md) | 2026-09-26 | world |
+| 154 | [The Zeit statue: timeSym and the gameCnt clocks](worklog/0154-the-zeit-statue-timesym-and-the-gamecnt-clocks.md) | 2026-09-26 | world |
+| 155 | [The lakes' symbols: ccGimSymbol::objMain](worklog/0155-the-lakes-symbols-ccgimsymbol-objmain.md) | 2026-09-26 | battle |
+| 156 | [The streams' effect nodes: str0001's clouds](worklog/0156-the-streams-effect-nodes-str0001-s-clouds.md) | 2026-09-26 | render |
+| 157 | [The dungeon rooms' dressing: SetWater, SetLight, SetObject, SetAnmObject](worklog/0157-the-dungeon-rooms-dressing-setwater-setlight-setobject.md) | 2026-09-26 | world |
 | 158 | [The game over: ccThGameOver, its noise and the television](worklog/0158-the-game-over-ccthgameover-its-noise-and-the-television.md) | 2026-09-26 | world |
-| 159 | ["The save menus after the staff roll: SaveSelMenu and SaveMenu"](worklog/0159-the-save-menus-after-the-staff-roll-saveselmenu-and-savemenu.md) | 2026-09-26 | ui |
+| 159 | [The save menus after the staff roll: SaveSelMenu and SaveMenu](worklog/0159-the-save-menus-after-the-staff-roll-saveselmenu-and-savemenu.md) | 2026-09-26 | ui |
 | 160 | [The shadow volumes: ccShadowModel, ccShadowPacket and the VU1 programs](worklog/0160-the-shadow-volumes-ccshadowmodel-ccshadowpacket-and-the-vu1.md) | 2026-09-26 | render |
 | 161 | [The lakes' sky and fireflies: DrawBG and SetRoom's FIREFLYs](worklog/0161-the-lakes-sky-and-fireflies-drawbg-and-setroom-s-fireflys.md) | 2026-09-26 | world |
-| 162 | ["Dun Loireag's Grunties and the Grunty foods: ccPGuso, ccGimFood and menus 43, 45 and 46"](worklog/0162-dun-loireag-s-grunties-and-the-grunty-foods-ccpguso.md) | 2026-09-26 | world |
+| 162 | [Dun Loireag's Grunties and the Grunty foods: ccPGuso, ccGimFood and menus 43, 45 and 46](worklog/0162-dun-loireag-s-grunties-and-the-grunty-foods-ccpguso.md) | 2026-09-26 | world |
 | 163 | [The Spring of Myst and the boss rooms' warnings: ccGimEtc and menus 40-42](worklog/0163-the-spring-of-myst-and-the-boss-rooms-warnings-ccgimetc-and.md) | 2026-09-26 | ui |
 | 164 | [A field's gimmicks: SetFood, SetMagicCircle and SetSpecialObj](worklog/0164-a-field-s-gimmicks-setfood-setmagiccircle-and-setspecialobj.md) | 2026-09-26 | world |
 | 165 | [The screen shake: cameraShake, cameraShockAbsorber and cameraSet's offset](worklog/0165-the-screen-shake-camerashake-camerashockabsorber-and.md) | 2026-09-26 | render |
-| 166 | ["The riding Grunty: ccPucciguso, the Grunty Flute and pgRideFlag"](worklog/0166-the-riding-grunty-ccpucciguso-the-grunty-flute-and.md) | 2026-09-26 | world, battle, audio, ui, test |
+| 166 | [The riding Grunty: ccPucciguso, the Grunty Flute and pgRideFlag](worklog/0166-the-riding-grunty-ccpucciguso-the-grunty-flute-and.md) | 2026-09-26 | world, battle, audio, ui, test |
 | 167 | [The gold goblins: thinkGold, moveGold and actEscapeGold](worklog/0167-the-gold-goblins-thinkgold-movegold-and-actescapegold.md) | 2026-09-26 | world |
 | 168 | [The other enemy races: every constructor, and the motion of 2, C, F, H, I and U](worklog/0168-the-other-enemy-races-every-constructor-and-the-motion-of-2.md) | 2026-09-26 | world |
-| 169 | ["The enemy races' motion: A, D, E, S, T, W, 3, 4 and Z"](worklog/0169-the-enemy-races-motion-a-d-e-s-t-w-3-4-and-z.md) | 2026-09-26 | world |
-| 170 | ["The enemies' weapon trails and flashes: ccEnemyWeaponCtrl"](worklog/0170-the-enemies-weapon-trails-and-flashes-ccenemyweaponctrl.md) | 2026-09-26 | battle, world, render, test |
-| 171 | ["ccEnemyL: the snakoids, wyrms and dragons"](worklog/0171-ccenemyl-the-snakoids-wyrms-and-dragons.md) | 2026-09-26 | world |
-| 172 | ["The fire breath: ccEnemyBreath, and the controllers of a field's first enemies"](worklog/0172-the-fire-breath-ccenemybreath-and-the-controllers-of-a.md) | 2026-09-26 | world |
-| 173 | ["What volumes 2 to 4 add: the code no carried name covers"](worklog/0173-what-volumes-2-to-4-add-the-code-no-carried-name-covers.md) | 2026-09-26 | disc |
-| 174 | ["The church's black screen: a field set-up's windows on the set-up's own screen"](worklog/0174-the-church-s-black-screen-a-field-set-up-s-windows-on-the.md) | 2026-09-26 | ui |
-| 175 | ["Skeith's stall and the drain's dither: stream files read ahead, vertex alpha as the GS's integer"](worklog/0175-skeith-s-stall-and-the-drain-s-dither-stream-files-read.md) | 2026-09-26 | render |
-| 176 | ["Every host call the scripts reach, and the sound instruction's eleven cases"](worklog/0176-every-host-call-the-scripts-reach-and-the-sound-instruction.md) | 2026-09-26 | script |
-| 177 | ["Hideous Someone's Giant: area 16's EVENTAREA07 for the post-ending side event"](worklog/0177-hideous-someone-s-giant-area-16-s-eventarea07-for-the-post.md) | 2026-09-26 | world |
-| 178 | ["The towns' remote walks, the side events surveyed, and the operations numbered"](worklog/0178-the-towns-remote-walks-the-side-events-surveyed-and-the.md) | 2026-09-26 | world |
-| 179 | ["The hacked areas' noise, the game's DEG2RAD, and the event pages' unknowns"](worklog/0179-the-hacked-areas-noise-the-game-s-deg2rad-and-the-event.md) | 2026-09-26 | script |
-| 180 | ["The event's characters outside the party, built and placed in the fields"](worklog/0180-the-event-s-characters-outside-the-party-built-and-placed.md) | 2026-09-26 | world |
-| 181 | ["One core for the four volumes: detection, the first generated tables, and a mail from Helba"](worklog/0181-one-core-for-the-four-volumes-detection-the-first-generated.md) | 2026-09-26 | volumes |
-| 182 | ["No executable at run time: each volume's main data in piney-data"](worklog/0182-no-executable-at-run-time-each-volume-s-main-data-in-piney.md) | 2026-09-26 | volumes |
-| 183 | ["The desktop's and title's Controller page: the labelled boxes round the pad"](worklog/0183-the-desktop-s-and-title-s-controller-page-the-labelled.md) | 2026-09-26 | ui |
-| 184 | ["The scenes' own sounds: Mac Anu's canals, area 15's church, the breeder's tune; and the camera's wiped-out party"](worklog/0184-the-scenes-own-sounds-mac-anu-s-canals-area-15-s-church-the.md) | 2026-09-26 | audio |
-| 185 | ["The towns' gameStart and ccSndBgmCtrl: Mac Anu's crisis music and Dun Loireag's second sequence"](worklog/0185-the-towns-gamestart-and-ccsndbgmctrl-mac-anu-s-crisis-music.md) | 2026-09-26 | audio |
-| 186 | ["The loading display between areas: the town's and the area's cards"](worklog/0186-the-loading-display-between-areas-the-town-s-and-the-area-s.md) | 2026-09-26 | ui |
+| 169 | [The enemy races' motion: A, D, E, S, T, W, 3, 4 and Z](worklog/0169-the-enemy-races-motion-a-d-e-s-t-w-3-4-and-z.md) | 2026-09-26 | world |
+| 170 | [The enemies' weapon trails and flashes: ccEnemyWeaponCtrl](worklog/0170-the-enemies-weapon-trails-and-flashes-ccenemyweaponctrl.md) | 2026-09-26 | battle, world, render, test |
+| 171 | [ccEnemyL: the snakoids, wyrms and dragons](worklog/0171-ccenemyl-the-snakoids-wyrms-and-dragons.md) | 2026-09-26 | world |
+| 172 | [The fire breath: ccEnemyBreath, and the controllers of a field's first enemies](worklog/0172-the-fire-breath-ccenemybreath-and-the-controllers-of-a.md) | 2026-09-26 | world |
+| 173 | [What volumes 2 to 4 add: the code no carried name covers](worklog/0173-what-volumes-2-to-4-add-the-code-no-carried-name-covers.md) | 2026-09-26 | disc |
+| 174 | [The church's black screen: a field set-up's windows on the set-up's own screen](worklog/0174-the-church-s-black-screen-a-field-set-up-s-windows-on-the.md) | 2026-09-26 | ui |
+| 175 | [Skeith's stall and the drain's dither: stream files read ahead, vertex alpha as the GS's integer](worklog/0175-skeith-s-stall-and-the-drain-s-dither-stream-files-read.md) | 2026-09-26 | render |
+| 176 | [Every host call the scripts reach, and the sound instruction's eleven cases](worklog/0176-every-host-call-the-scripts-reach-and-the-sound-instruction.md) | 2026-09-26 | script |
+| 177 | [Hideous Someone's Giant: area 16's EVENTAREA07 for the post-ending side event](worklog/0177-hideous-someone-s-giant-area-16-s-eventarea07-for-the-post.md) | 2026-09-26 | world |
+| 178 | [The towns' remote walks, the side events surveyed, and the operations numbered](worklog/0178-the-towns-remote-walks-the-side-events-surveyed-and-the.md) | 2026-09-26 | world |
+| 179 | [The hacked areas' noise, the game's DEG2RAD, and the event pages' unknowns](worklog/0179-the-hacked-areas-noise-the-game-s-deg2rad-and-the-event.md) | 2026-09-26 | script |
+| 180 | [The event's characters outside the party, built and placed in the fields](worklog/0180-the-event-s-characters-outside-the-party-built-and-placed.md) | 2026-09-26 | world |
+| 181 | [One core for the four volumes: detection, the first generated tables, and a mail from Helba](worklog/0181-one-core-for-the-four-volumes-detection-the-first-generated.md) | 2026-09-26 | volumes |
+| 182 | [No executable at run time: each volume's main data in piney-data](worklog/0182-no-executable-at-run-time-each-volume-s-main-data-in-piney.md) | 2026-09-26 | volumes |
+| 183 | [The desktop's and title's Controller page: the labelled boxes round the pad](worklog/0183-the-desktop-s-and-title-s-controller-page-the-labelled.md) | 2026-09-26 | ui |
+| 184 | [The scenes' own sounds: Mac Anu's canals, area 15's church, the breeder's tune; and the camera's wiped-out party](worklog/0184-the-scenes-own-sounds-mac-anu-s-canals-area-15-s-church-the.md) | 2026-09-26 | audio |
+| 185 | [The towns' gameStart and ccSndBgmCtrl: Mac Anu's crisis music and Dun Loireag's second sequence](worklog/0185-the-towns-gamestart-and-ccsndbgmctrl-mac-anu-s-crisis-music.md) | 2026-09-26 | audio |
+| 186 | [The loading display between areas: the town's and the area's cards](worklog/0186-the-loading-display-between-areas-the-town-s-and-the-area-s.md) | 2026-09-26 | ui |
 | 187 | [Equipment changed in a field stays, and the new weapon hangs on the model](worklog/0187-equipment-changed-in-a-field-stays-and-the-new-weapon-hangs.md) | 2026-09-26 | battle |
-| 188 | ["The fields' tables for all four volumes; xfer's layout pass and the misnamed tables it found"](worklog/0188-the-fields-tables-for-all-four-volumes-xfer-s-layout-pass.md) | 2026-09-26 | volumes |
-| 189 | ["The ML events open in Infection: twelve of the members' mail events, Black Rose's run on the desktop"](worklog/0189-the-ml-events-open-in-infection-twelve-of-the-members-mail.md) | 2026-09-26 | script |
-| 190 | ["The spells' screen noise on the field UI; the effects' smoke callers all accounted for"](worklog/0190-the-spells-screen-noise-on-the-field-ui-the-effects-smoke.md) | 2026-09-26 | battle |
-| 191 | ["A lake's two dungeons: each kept by its number, lastRoom, and the way back up (GoField for field type 4)"](worklog/0191-a-lake-s-two-dungeons-each-kept-by-its-number-lastroom-and.md) | 2026-09-26 | world |
-| 192 | ["Skeith's death clears the party's conditions (ccClearSpcCondition); the records' reload keeps what the world changed between frames"](worklog/0192-skeith-s-death-clears-the-party-s-conditions.md) | 2026-09-26 | battle |
-| 193 | ["ALL FIELD PORTALS OPEN: the banner of an area's last portal (ccThDfComp); the entries' placeless sounds"](worklog/0193-all-field-portals-open-the-banner-of-an-area-s-last-portal.md) | 2026-09-26 | ui |
-| 194 | ["The heals', cures', revivals' and resistant shield's effects started in play; the party panels shake and the protect marks show"](worklog/0194-the-heals-cures-revivals-and-resistant-shield-s-effects.md) | 2026-09-26 | battle |
-| 195 | ["The skills' starts, the shock waves and the condition effects in play; DispConditionEffect ported and checked against the game"](worklog/0195-the-skills-starts-the-shock-waves-and-the-condition-effects.md) | 2026-09-26 | battle |
-| 196 | ["A book given to a party member in town raises its stat; the third member remarks on a present"](worklog/0196-a-book-given-to-a-party-member-in-town-raises-its-stat-the.md) | 2026-09-26 | ui |
-| 197 | ["The party's weapon trails and element particles: ccSpcChar::ArmsEffect on ccLattice"](worklog/0197-the-party-s-weapon-trails-and-element-particles-ccspcchar.md) | 2026-09-26 | battle |
-| 198 | ["The port's functions audited across the four volumes: voldiff.py ported"](worklog/0198-the-port-s-functions-audited-across-the-four-volumes.md) | 2026-09-26 | volumes |
-| 199 | ["Infection's addresses carried to the later volumes: Image::at; the first reads of Mutation's boot"](worklog/0199-infection-s-addresses-carried-to-the-later-volumes-image-at.md) | 2026-09-26 | volumes |
-| 200 | ["The later volumes' save: the extension, Init and NewGame checked against their own code; Mutation reaches its title"](worklog/0200-the-later-volumes-save-the-extension-init-and-newgame.md) | 2026-09-26 | volumes |
-| 201 | ["The later volumes' title: five items, the previous volume's save, every branch of the opening checked on the four volumes"](worklog/0201-the-later-volumes-title-five-items-the-previous-volume-s.md) | 2026-09-26 | volumes |
-| 202 | ["The carry made reliable and every reader through it: Mutation boots from its title into the desktop's setup"](worklog/0202-the-carry-made-reliable-and-every-reader-through-it.md) | 2026-09-26 | volumes |
-| 203 | ["The later volumes' sound tables: each disc's banks placed by its own executable"](worklog/0203-the-later-volumes-sound-tables-each-disc-s-banks-placed-by.md) | 2026-09-26 | volumes |
-| 204 | ["The later volumes' New Game to the desktop: the carry's pointers, each volume's mail, the streams' archives, the bound constants"](worklog/0204-the-later-volumes-new-game-to-the-desktop-the-carry-s.md) | 2026-09-26 | volumes |
-| 205 | ["The stream effects on every disc: Setup's switch by register, the effects' literal tables carried, the carry's sequence pass"](worklog/0205-the-stream-effects-on-every-disc-setup-s-switch-by-register.md) | 2026-09-26 | volumes |
-| 206 | ["The carry's votes checked against content: a name whose table reads like Infection's stays"](worklog/0206-the-carry-s-votes-checked-against-content-a-name-whose.md) | 2026-09-26 | volumes |
-| 207 | ["The executable's embedded data and the carry removed from the port"](worklog/0207-the-executable-s-embedded-data-and-the-carry-removed-from.md) | 2026-09-26 | volumes |
-| 208 | ["The table generator: the title rebuilt on typed per-volume tables"](worklog/0208-the-table-generator-the-title-rebuilt-on-typed-per-volume.md) | 2026-09-26 | volumes |
+| 188 | [The fields' tables for all four volumes; xfer's layout pass and the misnamed tables it found](worklog/0188-the-fields-tables-for-all-four-volumes-xfer-s-layout-pass.md) | 2026-09-26 | volumes |
+| 189 | [The ML events open in Infection: twelve of the members' mail events, Black Rose's run on the desktop](worklog/0189-the-ml-events-open-in-infection-twelve-of-the-members-mail.md) | 2026-09-26 | script |
+| 190 | [The spells' screen noise on the field UI; the effects' smoke callers all accounted for](worklog/0190-the-spells-screen-noise-on-the-field-ui-the-effects-smoke.md) | 2026-09-26 | battle |
+| 191 | [A lake's two dungeons: each kept by its number, lastRoom, and the way back up (GoField for field type 4)](worklog/0191-a-lake-s-two-dungeons-each-kept-by-its-number-lastroom-and.md) | 2026-09-26 | world |
+| 192 | [Skeith's death clears the party's conditions (ccClearSpcCondition); the records' reload keeps what the world changed between frames](worklog/0192-skeith-s-death-clears-the-party-s-conditions.md) | 2026-09-26 | battle |
+| 193 | [ALL FIELD PORTALS OPEN: the banner of an area's last portal (ccThDfComp); the entries' placeless sounds](worklog/0193-all-field-portals-open-the-banner-of-an-area-s-last-portal.md) | 2026-09-26 | ui |
+| 194 | [The heals', cures', revivals' and resistant shield's effects started in play; the party panels shake and the protect marks show](worklog/0194-the-heals-cures-revivals-and-resistant-shield-s-effects.md) | 2026-09-26 | battle |
+| 195 | [The skills' starts, the shock waves and the condition effects in play; DispConditionEffect ported and checked against the game](worklog/0195-the-skills-starts-the-shock-waves-and-the-condition-effects.md) | 2026-09-26 | battle |
+| 196 | [A book given to a party member in town raises its stat; the third member remarks on a present](worklog/0196-a-book-given-to-a-party-member-in-town-raises-its-stat-the.md) | 2026-09-26 | ui |
+| 197 | [The party's weapon trails and element particles: ccSpcChar::ArmsEffect on ccLattice](worklog/0197-the-party-s-weapon-trails-and-element-particles-ccspcchar.md) | 2026-09-26 | battle |
+| 198 | [The port's functions audited across the four volumes: voldiff.py ported](worklog/0198-the-port-s-functions-audited-across-the-four-volumes.md) | 2026-09-26 | volumes |
+| 199 | [Infection's addresses carried to the later volumes: Image::at; the first reads of Mutation's boot](worklog/0199-infection-s-addresses-carried-to-the-later-volumes-image-at.md) | 2026-09-26 | volumes |
+| 200 | [The later volumes' save: the extension, Init and NewGame checked against their own code; Mutation reaches its title](worklog/0200-the-later-volumes-save-the-extension-init-and-newgame.md) | 2026-09-26 | volumes |
+| 201 | [The later volumes' title: five items, the previous volume's save, every branch of the opening checked on the four volumes](worklog/0201-the-later-volumes-title-five-items-the-previous-volume-s.md) | 2026-09-26 | volumes |
+| 202 | [The carry made reliable and every reader through it: Mutation boots from its title into the desktop's setup](worklog/0202-the-carry-made-reliable-and-every-reader-through-it.md) | 2026-09-26 | volumes |
+| 203 | [The later volumes' sound tables: each disc's banks placed by its own executable](worklog/0203-the-later-volumes-sound-tables-each-disc-s-banks-placed-by.md) | 2026-09-26 | volumes |
+| 204 | [The later volumes' New Game to the desktop: the carry's pointers, each volume's mail, the streams' archives, the bound constants](worklog/0204-the-later-volumes-new-game-to-the-desktop-the-carry-s.md) | 2026-09-26 | volumes |
+| 205 | [The stream effects on every disc: Setup's switch by register, the effects' literal tables carried, the carry's sequence pass](worklog/0205-the-stream-effects-on-every-disc-setup-s-switch-by-register.md) | 2026-09-26 | volumes |
+| 206 | [The carry's votes checked against content: a name whose table reads like Infection's stays](worklog/0206-the-carry-s-votes-checked-against-content-a-name-whose.md) | 2026-09-26 | volumes |
+| 207 | [The executable's embedded data and the carry removed from the port](worklog/0207-the-executable-s-embedded-data-and-the-carry-removed-from.md) | 2026-09-26 | volumes |
+| 208 | [The table generator: the title rebuilt on typed per-volume tables](worklog/0208-the-table-generator-the-title-rebuilt-on-typed-per-volume.md) | 2026-09-26 | volumes |
 | 209 | [The desktop on typed per-volume tables; each disc opens its own story](worklog/0209-the-desktop-on-typed-per-volume-tables-each-disc-opens-its.md) | 2026-09-26 | volumes |
 | 210 | [The top page, the field's menus and the battle's tables on generated tables](worklog/0210-the-top-page-the-field-s-menus-and-the-battle-s-tables-on.md) | 2026-09-26 | volumes |
 | 211 | [The table generator in Rust](worklog/0211-the-table-generator-in-rust.md) | 2026-09-27 | volumes |
@@ -309,7 +309,7 @@ The [reference](docs/README.md) says what is true now.
 | 295 | [Fidchell's spells drawn, its prediction's text and voice, the skills' names](worklog/0295-fidchell-s-spells-drawn-its-prediction-s-text-and-voice-the.md) | 2026-09-28 | render, audio, battle, volumes |
 | 296 | [Gorre and its two brothers ported: patterns and tables solid, per-brother camera math approximated](worklog/0296-gorre-and-its-two-brothers-ported-patterns-and-tables-solid.md) | 2026-09-28 | battle, decomp |
 | 297 | [Gorre's harness: the brothers' orbit, Order and ChangeAction checked against the game](worklog/0297-gorre-s-harness-the-brothers-orbit-order-and-changeaction.md) | 2026-09-28 | battle, test |
-| 298 | ["An event's scene -2 put the town's card up: the port skipped loadCheck"](worklog/0298-an-event-s-scene-2-put-the-town-s-card-up-the-port-skipped.md) | 2026-09-28 | engine, script, ui |
+| 298 | [An event's scene -2 put the town's card up: the port skipped loadCheck](worklog/0298-an-event-s-scene-2-put-the-town-s-card-up-the-port-skipped.md) | 2026-09-28 | engine, script, ui |
 | 299 | [A Data Bug drawn and held at half its HP: the area's entry copy, virusFlag on the character](worklog/0299-a-data-bug-drawn-and-held-at-half-its-hp-the-area-s-entry.md) | 2026-09-28 | battle, render |
 | 300 | [Party members' skill words: not reproduced, the port's path is the game's](worklog/0300-party-members-skill-words-not-reproduced-the-port-s-path-is.md) | 2026-09-28 | audio, battle |
 | 301 | [A Fairy's Orb in a dungeon fight rebuilt the room with its doors open; the camera went through](worklog/0301-a-fairy-s-orb-in-a-dungeon-fight-rebuilt-the-room-with-its.md) | 2026-09-28 | render, world |
@@ -325,50 +325,50 @@ The [reference](docs/README.md) says what is true now.
 | 311 | [Two player reports: a member spoken to while running, and the party's battle chatter](worklog/0311-two-player-reports-a-member-spoken-to-while-running-and-the.md) | 2026-09-30 | battle, world |
 | 312 | [Three reports again: a field's effects table, the Status portraits, a member spoken to while running](worklog/0312-three-reports-again-a-field-s-effects-table-the-status.md) | 2026-09-30 | ui, render, world |
 | 313 | [Three player reports: a scroll's cast, the Book of Law, a story box's body](worklog/0313-three-player-reports-a-scroll-s-cast-the-book-of-law-a.md) | 2026-09-30 | ui, battle, world |
-| 314 | ["Outbreak's battle harnesses at 0: a menu word, swapped names, every foe type held, and sqrt.s beyond the battle"](worklog/0314-outbreak-s-battle-harnesses-at-0-a-menu-word-swapped-names.md) | 2026-09-30 | battle, volumes |
+| 314 | [Outbreak's battle harnesses at 0: a menu word, swapped names, every foe type held, and sqrt.s beyond the battle](worklog/0314-outbreak-s-battle-harnesses-at-0-a-menu-word-swapped-names.md) | 2026-09-30 | battle, volumes |
 | 315 | [Three player reports: Elk left in the party, Natsume's talk, the Gott statue's hold](worklog/0315-three-player-reports-elk-left-in-the-party-natsume-s-talk.md) | 2026-10-01 | script, world |
 | 316 | [Three player reports: the gate hack's silence, a member revived while lying, the markers of the fallen](worklog/0316-three-player-reports-the-gate-hack-s-silence-a-member.md) | 2026-10-01 | audio, battle, ui |
 | 317 | [Ryu Books begun, a voice row outside its table, condition effects on the flute and on a foe struck with the party gone](worklog/0317-ryu-books-begun-a-voice-row-outside-its-table-condition.md) | 2026-10-01 | ui, audio, battle |
-| 318 | ["A Ryu Book was never opened: its use was a bare request, and the Key Items refuse books outside towns"](worklog/0318-a-ryu-book-was-never-opened-its-use-was-a-bare-request-and.md) | 2026-10-01 | ui |
-| 319 | ["The Gott statue's ring stayed: a character's draw ignored its objects' animated transparency"](worklog/0319-the-gott-statue-s-ring-stayed-a-character-s-draw-ignored.md) | 2026-10-01 | render |
-| 320 | ["New Game's name entry was silent: ccSetupDesktop's ccAllSoundOff comes after the phase-0 pass"](worklog/0320-new-game-s-name-entry-was-silent-ccsetupdesktop-s.md) | 2026-10-01 | audio, script |
+| 318 | [A Ryu Book was never opened: its use was a bare request, and the Key Items refuse books outside towns](worklog/0318-a-ryu-book-was-never-opened-its-use-was-a-bare-request-and.md) | 2026-10-01 | ui |
+| 319 | [The Gott statue's ring stayed: a character's draw ignored its objects' animated transparency](worklog/0319-the-gott-statue-s-ring-stayed-a-character-s-draw-ignored.md) | 2026-10-01 | render |
+| 320 | [New Game's name entry was silent: ccSetupDesktop's ccAllSoundOff comes after the phase-0 pass](worklog/0320-new-game-s-name-entry-was-silent-ccsetupdesktop-s.md) | 2026-10-01 | audio, script |
 | 321 | [ccSoundFadeOut fades the music over 8 frames instead of cutting it](worklog/0321-ccsoundfadeout-fades-the-music-over-8-frames-instead-of.md) | 2026-10-01 | audio |
 | 322 | [A skill's words follow the Voiceover option the moment it changes](worklog/0322-a-skill-s-words-follow-the-voiceover-option-the-moment-it.md) | 2026-10-01 | audio |
-| 323 | ["prev_room and hold 7: no script of any volume uses them"](worklog/0323-prev-room-and-hold-7-no-script-of-any-volume-uses-them.md) | 2026-10-01 | script, volumes |
-| 324 | ["File-list entries: deleteCnt is a reference count, addFlag is always -1"](worklog/0324-file-list-entries-deletecnt-is-a-reference-count-addflag-is.md) | 2026-10-01 | format, engine, volumes |
-| 325 | ["The later volumes' changed event cases: seven compile differently, six change behaviour"](worklog/0325-the-later-volumes-changed-event-cases-seven-compile.md) | 2026-10-01 | script, volumes, decomp |
+| 323 | [prev_room and hold 7: no script of any volume uses them](worklog/0323-prev-room-and-hold-7-no-script-of-any-volume-uses-them.md) | 2026-10-01 | script, volumes |
+| 324 | [File-list entries: deleteCnt is a reference count, addFlag is always -1](worklog/0324-file-list-entries-deletecnt-is-a-reference-count-addflag-is.md) | 2026-10-01 | format, engine, volumes |
+| 325 | [The later volumes' changed event cases: seven compile differently, six change behaviour](worklog/0325-the-later-volumes-changed-event-cases-seven-compile.md) | 2026-10-01 | script, volumes, decomp |
 | 326 | [The gate menu's flash drawn in town on the menu fader](worklog/0326-the-gate-menu-s-flash-drawn-in-town-on-the-menu-fader.md) | 2026-10-01 | ui, world |
-| 327 | ["The jukebox clears the reverb; ccSnd +98 and +0x110 settled"](worklog/0327-the-jukebox-clears-the-reverb-ccsnd-98-and-0x110-settled.md) | 2026-10-01 | audio, decomp |
-| 328 | ["near_marker's distance: the player's posP is FZeroPosition with his ground height"](worklog/0328-near-marker-s-distance-the-player-s-posp-is-fzeroposition.md) | 2026-10-01 | script, world, decomp |
-| 329 | ["The field's set-up passes checked: ccEnableThEvent and the game+4 exit"](worklog/0329-the-field-s-set-up-passes-checked-ccenablethevent-and-the.md) | 2026-10-01 | script, engine |
-| 330 | ["scene does not sleep the event task: the pass runs on in its frame, disabled"](worklog/0330-scene-does-not-sleep-the-event-task-the-pass-runs-on-in-its.md) | 2026-10-01 | script, engine, decomp |
-| 331 | ["Modes 1 and 0x1000: the soft reset, and a stop nothing asks for"](worklog/0331-modes-1-and-0x1000-the-soft-reset-and-a-stop-nothing-asks.md) | 2026-10-01 | engine, decomp |
-| 332 | ["The Mono option reaches the synthesizer: ccSetOutputMode and sdCommand 3"](worklog/0332-the-mono-option-reaches-the-synthesizer-ccsetoutputmode-and.md) | 2026-10-01 | audio, ui |
-| 333 | ["CheckOperate run against the game: 600 random cases"](worklog/0333-checkoperate-run-against-the-game-600-random-cases.md) | 2026-10-01 | script, test |
-| 334 | ["Each mode's tasks and priorities; the port's menu task runs after the world's"](worklog/0334-each-mode-s-tasks-and-priorities-the-port-s-menu-task-runs.md) | 2026-10-01 | engine, decomp |
-| 335 | ["vBank+0x08 is never read: SEWORDS' wordPlay takes the offset, size, volume and name"](worklog/0335-vbank-0x08-is-never-read-sewords-wordplay-takes-the-offset.md) | 2026-10-01 | audio, iop |
-| 336 | ["The menu task runs in its place: ccThGameCtrl, ccThMenu, then the world"](worklog/0336-the-menu-task-runs-in-its-place-ccthgamectrl-ccthmenu-then.md) | 2026-10-01 | engine, ui, audio |
+| 327 | [The jukebox clears the reverb; ccSnd +98 and +0x110 settled](worklog/0327-the-jukebox-clears-the-reverb-ccsnd-98-and-0x110-settled.md) | 2026-10-01 | audio, decomp |
+| 328 | [near_marker's distance: the player's posP is FZeroPosition with his ground height](worklog/0328-near-marker-s-distance-the-player-s-posp-is-fzeroposition.md) | 2026-10-01 | script, world, decomp |
+| 329 | [The field's set-up passes checked: ccEnableThEvent and the game+4 exit](worklog/0329-the-field-s-set-up-passes-checked-ccenablethevent-and-the.md) | 2026-10-01 | script, engine |
+| 330 | [scene does not sleep the event task: the pass runs on in its frame, disabled](worklog/0330-scene-does-not-sleep-the-event-task-the-pass-runs-on-in-its.md) | 2026-10-01 | script, engine, decomp |
+| 331 | [Modes 1 and 0x1000: the soft reset, and a stop nothing asks for](worklog/0331-modes-1-and-0x1000-the-soft-reset-and-a-stop-nothing-asks.md) | 2026-10-01 | engine, decomp |
+| 332 | [The Mono option reaches the synthesizer: ccSetOutputMode and sdCommand 3](worklog/0332-the-mono-option-reaches-the-synthesizer-ccsetoutputmode-and.md) | 2026-10-01 | audio, ui |
+| 333 | [CheckOperate run against the game: 600 random cases](worklog/0333-checkoperate-run-against-the-game-600-random-cases.md) | 2026-10-01 | script, test |
+| 334 | [Each mode's tasks and priorities; the port's menu task runs after the world's](worklog/0334-each-mode-s-tasks-and-priorities-the-port-s-menu-task-runs.md) | 2026-10-01 | engine, decomp |
+| 335 | [vBank+0x08 is never read: SEWORDS' wordPlay takes the offset, size, volume and name](worklog/0335-vbank-0x08-is-never-read-sewords-wordplay-takes-the-offset.md) | 2026-10-01 | audio, iop |
+| 336 | [The menu task runs in its place: ccThGameCtrl, ccThMenu, then the world](worklog/0336-the-menu-task-runs-in-its-place-ccthgamectrl-ccthmenu-then.md) | 2026-10-01 | engine, ui, audio |
 | 337 | [A member's equipment remark in town](worklog/0337-a-member-s-equipment-remark-in-town.md) | 2026-10-01 | ui, world |
-| 338 | ["Saves from PCSX2: a PS2 card image reader, the import, and Infection slots of 0x8d84"](worklog/0338-saves-from-pcsx2-a-ps2-card-image-reader-the-import-and.md) | 2026-10-01 | save, format, tooling |
+| 338 | [Saves from PCSX2: a PS2 card image reader, the import, and Infection slots of 0x8d84](worklog/0338-saves-from-pcsx2-a-ps2-card-image-reader-the-import-and.md) | 2026-10-01 | save, format, tooling |
 | 339 | [Adjust Screen moves the picture: SetDisplayOffset's units, and the presenter's shift](worklog/0339-adjust-screen-moves-the-picture-setdisplayoffset-s-units.md) | 2026-10-01 | render, ui, engine |
 | 340 | [The frame-mode deflicker: read circuit 1 a line lower, merged at ALP 127](worklog/0340-the-frame-mode-deflicker-read-circuit-1-a-line-lower-merged.md) | 2026-10-01 | render, engine |
 | 341 | [The map button behind ccThGameCtrl's waits, and no map in a fight](worklog/0341-the-map-button-behind-ccthgamectrl-s-waits-and-no-map-in-a.md) | 2026-10-01 | ui, world |
 | 342 | [The opening stream's flashes over the stream: the cancel's and the end's](worklog/0342-the-opening-stream-s-flashes-over-the-stream-the-cancel-s.md) | 2026-10-01 | ui, video |
 | 343 | [A lake's dungeons: every entry goes with the scene, and entryFlag places them again](worklog/0343-a-lake-s-dungeons-every-entry-goes-with-the-scene-and.md) | 2026-10-01 | world, battle |
-| 344 | ["sound 8 0 256: five uses, and port 0 always takes the SE option"](worklog/0344-sound-8-0-256-five-uses-and-port-0-always-takes-the-se.md) | 2026-10-01 | audio, script |
-| 345 | ["Three player reports: a node keeps its own transparency, the book's cover every frame, one area a gate trip"](worklog/0345-three-player-reports-a-node-keeps-its-own-transparency-the.md) | 2026-10-01 | render, ui, save |
+| 344 | [sound 8 0 256: five uses, and port 0 always takes the SE option](worklog/0344-sound-8-0-256-five-uses-and-port-0-always-takes-the-se.md) | 2026-10-01 | audio, script |
+| 345 | [Three player reports: a node keeps its own transparency, the book's cover every frame, one area a gate trip](worklog/0345-three-player-reports-a-node-keeps-its-own-transparency-the.md) | 2026-10-01 | render, ui, save |
 | 346 | [A lone slot file imports with its index record](worklog/0346-a-lone-slot-file-imports-with-its-index-record.md) | 2026-10-01 | save, tooling |
-| 347 | ["Ryu Books IV to VIII: their pages, lists and keys, each run against the game"](worklog/0347-ryu-books-iv-to-viii-their-pages-lists-and-keys-each-run.md) | 2026-10-02 | ui |
-| 348 | ["A spell holds its targets for its whole run: the effects' copy of holdFlag was never set"](worklog/0348-a-spell-holds-its-targets-for-its-whole-run-the-effects.md) | 2026-10-02 | battle, render |
-| 349 | ["A revived member who ignores orders: not reproduced; what was ruled out"](worklog/0349-a-revived-member-who-ignores-orders-not-reproduced-what-was.md) | 2026-10-02 | battle, test |
-| 350 | ["The console wraps, scrolls with the mouse and lists its help in columns; render scale, vsync and an FPS cap"](worklog/0350-the-console-wraps-scrolls-with-the-mouse-and-lists-its-help.md) | 2026-10-02 | ui, render, tooling |
-| 351 | ["The top page's Key of the Twilight: a rigid model keys the sorted group on its own vertex box, not a Bbox chunk"](worklog/0351-the-top-page-s-key-of-the-twilight-a-rigid-model-keys-the.md) | 2026-10-02 | render, ui |
-| 352 | ["Mutation's recall fades are smooth: its boards are rigid and key on their boxes"](worklog/0352-mutation-s-recall-fades-are-smooth-its-boards-are-rigid-and.md) | 2026-10-02 | render, video, volumes |
-| 353 | ["A Ryu Book reward's flicker is the game's own; the port draws the book once a frame"](worklog/0353-a-ryu-book-reward-s-flicker-is-the-game-s-own-the-port.md) | 2026-10-02 | ui |
-| 354 | ["A HUD scale: each HUD part shrinks toward its own corner"](worklog/0354-a-hud-scale-each-hud-part-shrinks-toward-its-own-corner.md) | 2026-10-02 | ui, render |
-| 355 | ["Event 22's cures and finale: piros_colour's line waits for its window, and a room change disables the event task at once"](worklog/0355-event-22-s-cures-and-finale-piros-colour-s-line-waits-for.md) | 2026-10-02 | script, ui, world |
-| 356 | ["Each arrival in a town draws its own walking PCs: the session counts frames from power-on"](worklog/0356-each-arrival-in-a-town-draws-its-own-walking-pcs-the.md) | 2026-10-02 | world, engine |
-| 357 | ["The port's messages go through tracing: PINEY_LOG filters them, and the console shows warnings and errors"](worklog/0357-the-port-s-messages-go-through-tracing-piney-log-filters.md) | 2026-10-02 | build, tooling |
-| 358 | ["Infection's whole story under the autopilot: the pilot's gaps up to event 21"](worklog/0358-infection-s-whole-story-under-the-autopilot-the-pilot-s.md) | 2026-10-02 | test, script |
-| 359 | ["Infection's whole story ends under the autopilot: event 22's cure boxes, a ghost Kite under god, board posts first"](worklog/0359-infection-s-whole-story-ends-under-the-autopilot-event-22-s.md) | 2026-10-02 | test, script, world |
-| 360 | ["Field 28's held battle flag is event 50's game of tag; Infection's story without god, and what the pilot lacked there"](worklog/0360-field-28-s-held-battle-flag-is-event-50-s-game-of-tag.md) | 2026-10-02 | test, battle, script |
+| 347 | [Ryu Books IV to VIII: their pages, lists and keys, each run against the game](worklog/0347-ryu-books-iv-to-viii-their-pages-lists-and-keys-each-run.md) | 2026-10-02 | ui |
+| 348 | [A spell holds its targets for its whole run: the effects' copy of holdFlag was never set](worklog/0348-a-spell-holds-its-targets-for-its-whole-run-the-effects.md) | 2026-10-02 | battle, render |
+| 349 | [A revived member who ignores orders: not reproduced; what was ruled out](worklog/0349-a-revived-member-who-ignores-orders-not-reproduced-what-was.md) | 2026-10-02 | battle, test |
+| 350 | [The console wraps, scrolls with the mouse and lists its help in columns; render scale, vsync and an FPS cap](worklog/0350-the-console-wraps-scrolls-with-the-mouse-and-lists-its-help.md) | 2026-10-02 | ui, render, tooling |
+| 351 | [The top page's Key of the Twilight: a rigid model keys the sorted group on its own vertex box, not a Bbox chunk](worklog/0351-the-top-page-s-key-of-the-twilight-a-rigid-model-keys-the.md) | 2026-10-02 | render, ui |
+| 352 | [Mutation's recall fades are smooth: its boards are rigid and key on their boxes](worklog/0352-mutation-s-recall-fades-are-smooth-its-boards-are-rigid-and.md) | 2026-10-02 | render, video, volumes |
+| 353 | [A Ryu Book reward's flicker is the game's own; the port draws the book once a frame](worklog/0353-a-ryu-book-reward-s-flicker-is-the-game-s-own-the-port.md) | 2026-10-02 | ui |
+| 354 | [A HUD scale: each HUD part shrinks toward its own corner](worklog/0354-a-hud-scale-each-hud-part-shrinks-toward-its-own-corner.md) | 2026-10-02 | ui, render |
+| 355 | [Event 22's cures and finale: piros_colour's line waits for its window, and a room change disables the event task at once](worklog/0355-event-22-s-cures-and-finale-piros-colour-s-line-waits-for.md) | 2026-10-02 | script, ui, world |
+| 356 | [Each arrival in a town draws its own walking PCs: the session counts frames from power-on](worklog/0356-each-arrival-in-a-town-draws-its-own-walking-pcs-the.md) | 2026-10-02 | world, engine |
+| 357 | [The port's messages go through tracing: PINEY_LOG filters them, and the console shows warnings and errors](worklog/0357-the-port-s-messages-go-through-tracing-piney-log-filters.md) | 2026-10-02 | build, tooling |
+| 358 | [Infection's whole story under the autopilot: the pilot's gaps up to event 21](worklog/0358-infection-s-whole-story-under-the-autopilot-the-pilot-s.md) | 2026-10-02 | test, script |
+| 359 | [Infection's whole story ends under the autopilot: event 22's cure boxes, a ghost Kite under god, board posts first](worklog/0359-infection-s-whole-story-ends-under-the-autopilot-event-22-s.md) | 2026-10-02 | test, script, world |
+| 360 | [Field 28's held battle flag is event 50's game of tag; Infection's story without god, and what the pilot lacked there](worklog/0360-field-28-s-held-battle-flag-is-event-50-s-game-of-tag.md) | 2026-10-02 | test, battle, script |

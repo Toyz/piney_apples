@@ -12,6 +12,47 @@ readme = "README.md"
 dir   = "docs"
 label = "Reference"
 
+# The World's own menus, as IMOQ drew them: deep navy panels, cyan-white text,
+# and the gold of the cursor and the Twilight Bracelet. Light mode is the
+# ALTIMIT desktop by day.
+[colors.dark]
+paper         = "#0a1020"
+paper-sunk    = "#111b33"
+ink           = "#e4eeff"
+ink-soft      = "#a7bbdc"
+ink-faint     = "#6b7fa3"
+rule          = "#22345a"
+rule-faint    = "#16233f"
+link          = "#71d4ff"
+accent        = "#f6c453"
+code-bg       = "#0e1830"
+mark          = "#4a3a10"
+code-keyword  = "#ff8a65"
+code-string   = "#8fe3c8"
+code-comment  = "#5f7398"
+code-number   = "#f6c453"
+code-function = "#71d4ff"
+code-type     = "#c6a6ff"
+
+[colors.light]
+paper         = "#f2f6fc"
+paper-sunk    = "#e5edf8"
+ink           = "#0c1730"
+ink-soft      = "#34466b"
+ink-faint     = "#6a7a99"
+rule          = "#cfdaeb"
+rule-faint    = "#e0e8f4"
+link          = "#1659a8"
+accent        = "#b07800"
+code-bg       = "#e8eef8"
+mark          = "#fbe6a6"
+code-keyword  = "#c2410c"
+code-string   = "#0f766e"
+code-comment  = "#7a88a3"
+code-number   = "#a16207"
+code-function = "#1659a8"
+code-type     = "#7c3aed"
+
 [index]
 header = """
 # Worklog
