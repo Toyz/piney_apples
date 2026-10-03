@@ -12,6 +12,17 @@ readme = "README.md"
 dir   = "docs"
 label = "Reference"
 
+[[link]]
+label = "GitHub"
+icon = "github"
+url  = "https://github.com/toyz/piney_apples"
+
+#issues
+[[link]]
+label = "GitHub Issues"
+icon = "github"
+url  = "https://github.com/toyz/piney_apples/issues"
+
 # The World's own menus, as IMOQ drew them: deep navy panels, cyan-white text,
 # and the gold of the cursor and the Twilight Bracelet. Light mode is the
 # ALTIMIT desktop by day.
