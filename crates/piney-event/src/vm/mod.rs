@@ -520,14 +520,7 @@ impl Vm {
     }
 
     /// Runs a block's instructions at level 0 or 1, which never wait.
-    pub(crate) fn execute_now<H: Host + ?Sized>(
-        &mut self,
-        host: &mut H,
-        n: i32,
-        b: usize,
-        lv: i32,
-        ops: &[crate::ir::Op],
-    ) {
+    pub fn execute_now<H: Host + ?Sized>(&mut self, host: &mut H, n: i32, b: usize, lv: i32, ops: &[crate::ir::Op]) {
         assert!(lv < 2);
         self.mng.status = 1;
         let mut set_bit = lv > 0;

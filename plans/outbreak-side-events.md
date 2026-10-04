@@ -58,7 +58,10 @@ change), `PINEY_DEBUG_PILOT`), as Infection's `side_event_survey`:
   given;
 - its blocks before the first set in a field or dungeon (else a town)
   marked run, but for leading blocks with no settings, which play
-  wherever the event is open (361's end);
+  wherever the event is open (361's end), and for repeatable ones
+  (`repeatable` keeps a block's bit clear: GOB3's town blocks, which bar
+  the area while anyone goes along); their gate words, gate marks and
+  town moves played, as a player passing them has them;
 - the session put there, the members it refuses to go on without
   (`not_in_party`) in the party (`start::party_of`); in a dungeon, the
   first located block's event point reached as `room_point` goes
@@ -66,24 +69,27 @@ change), `PINEY_DEBUG_PILOT`), as Infection's `side_event_survey`:
 - driven by `StoryPilot` following that event alone (`Follow::side`:
   `story_wants` reads it in place of the main story).
 
-## Where it stands (2026-09-30)
+## Where it stands (2026-10-04)
 
-Survey (`PINEY_SURVEY_GOD=1 PINEY_SURVEY_FRAMES=150000`, worklogs 306,
-307): 25 of the 26 finish; no panic, no host call left at its default, no
-fault.
+Survey (`PINEY_SURVEY_GOD=1 PINEY_SURVEY_FRAMES=150000`, worklog 374, the
+whole table run again): 23 of the 26 finish; no panic, no host call left
+at its default, no fault. The golden goblins of 250-253 fall with no HP
+aid (worklogs 373, 374).
 
 | event | state | what stops it |
 | --- | --- | --- |
-| 250-253 | done (5,655; 6,879; 7,767; 57,543) | |
-| 254 | open | GOB3-5's golden goblins in field 82 are not run down in 150,000 frames: they run and heal back (the pilot's chase, a lone Kite at 90) |
-| 255 | done (3,588) | |
-| 256 | done (66,308) | room 0-2's Gaia Turtle (row 114, Exdefense 1) takes no blows (see below) |
-| 257 | done (29,708) | the key-item trade over points 1-4 |
-| 259-261 | done (1,908; 18,454; 25,964) | |
-| 262 | done (41,348) | room 2-6's Deadly Presents (row 243, Exdefense 1) take no blows |
-| 263 | done (20,134) | Black Death (row 176, Exdefense 2) takes no spells |
-| 264, 266 | done (386; 62) | |
-| 265 | done (62,918) | the lone Kite at 90: at 75 the Data Bug (row 261, level 68) fells him with two blows of 703 in a frame (1,395 HP), at 47,391 once the pilot changed |
+| 250 | done (13,551) | |
+| 251-253 | done (16,911; 20,199; 31,095) | a trip to Fort Ouph's magic shop for Speed Charms first (worklog 374) |
+| 254 | open | GOB3-5's golden goblins (row 156) evade blows, bar spells while their mDef holds, and shake off a spell's hold; their heals outpace what lands (worklog 374) |
+| 255 | done (3,986) | |
+| 256 | done (66,778) | room 0-2's Gaia Turtle (row 114, Exdefense 1) takes no blows (see below) |
+| 257 | done (29,386) | the key-item trade over points 1-4 |
+| 259 | done (1,908) | |
+| 260, 261 | open | already open at 268db68 (done 2026-09-30: 18,454; 25,964): 260 waits at point 7, 261 at point 2 |
+| 262 | done (41,540) | room 2-6's Deadly Presents (row 243, Exdefense 1) take no blows |
+| 263 | done (9,372) | Black Death (row 176, Exdefense 2) takes no spells |
+| 264, 266 | done (376; 62) | |
+| 265 | done (84,966) | the lone Kite at 90: at 75 the Data Bug (row 261, level 68) fells him with two blows of 703 in a frame (1,395 HP), at 47,391 once the pilot changed |
 | 267-274 | done (3,495-3,567) | each NPC met at the six towns' gates in turn |
 | 275 | done (1,335) | ends at the second meeting (see below) |
 | 361 | done (12) | block 0 closes it once 264 is done |
@@ -135,8 +141,12 @@ the room's doors shut, still went at them with the attack button.
 - Golden goblins of `goldVolume` 2 up (worklog 373): a blow makes one
   flinch and run, and it outruns Kite. The pilot uses a Speed Charm, the
   plain attack (an art lands one hit), the goblin casting its heal first,
-  else one standing still, rushed with the stick at the rim; while all
-  run it waits for one to stop.
+  else one standing still, rushed with the stick at the rim (round a
+  wall that stops the rush); while all run it waits for one to stop.
+- Speed Charms bought (worklog 374): once Kite can act, the blows the
+  goblins' HP takes at 15 a charm, and one more; short of them, Gate
+  Out (after leaving the fight: it refuses in one), the town's magic
+  shop (Buy, the count, OK), and back by the gate (`GateGoal::Shop`).
 - Exdefense: a sure hit (`CalcBattleDamage` at 100 on a copy of the foe)
   tells whether a kind is barred. A foe barred from one kind gets the
   other (the members' order and Kite's page); Kite's and the members'
@@ -149,5 +159,7 @@ Both whole runs still finish, sooner: `outbreak_whole_story` 408,000
 
 ## Next
 
-- 254: a chase that keeps up with GOB3-5's goblins.
+- 254: a way to out-damage GOB3-5's heals (worklog 374): summon scrolls
+  (server 4's shop), or a player's record of the fight.
+- 260, 261: what stops them at points 7 and 2 since 2026-09-30.
 - Mutation's side events, the same way.

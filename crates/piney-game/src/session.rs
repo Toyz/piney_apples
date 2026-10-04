@@ -2223,14 +2223,19 @@ mod tests {
     /// the same for the windows and the camera tutorial's prompts held (a
     /// scheme A player: L1 to turn, the right stick to zoom, R2 to reset).
     fn story_player(s: &Session, f: u64) -> Raw {
-        story_player_with(s, f, &[])
+        story_player_with(s, f, &[], &[])
     }
 
     /// [`story_player`], passing by the town NPCs in `talked`.
-    pub(super) fn story_player_with(s: &Session, f: u64, talked: &[(piney_world::entry::Kind, i32)]) -> Raw {
+    pub(super) fn story_player_with(
+        s: &Session,
+        f: u64,
+        talked: &[(piney_world::entry::Kind, i32)],
+        buys: &[Buy],
+    ) -> Raw {
         if let Stage::World(w) = &s.stage
             && !w.streaming()
-            && let Some(raw) = gate_player(w, f, talked)
+            && let Some(raw) = gate_player(w, f, talked, buys)
         {
             return raw;
         }
@@ -2654,6 +2659,58 @@ mod tests {
         /// Send the members away (PERSONAL, Party, Disband): the story
         /// wants Kite alone.
         Disband,
+        /// Buy from this merchant (an NPC's code) what [`Buy`] asks for.
+        Shop(i32),
+    }
+
+    /// An item the autopilot carries out of town: so many of it, bought
+    /// at a shop of the town when Kite has fewer (the survey pilot's
+    /// Speed Charms for golden goblins).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(super) struct Buy {
+        pub(super) item: (i8, i16),
+        pub(super) carry: i32,
+    }
+
+    /// The Buy menu's stock row of `item` at merchant `code` of this town:
+    /// its list by the merchant's type (`BuyMenu`: 0x100 the equipment's,
+    /// 0x800 the magic's, else the items') on this server.
+    fn stock_row(w: &crate::world::WorldMode, code: i32, (cat, id): (i8, i16)) -> Option<usize> {
+        let world = w.world();
+        let ty = world.merchants().iter().find(|m| piney_world::entry::Npc::code(*m) == code)?.flags;
+        let f = piney_data::tables::fieldui::of(world.volume());
+        let lists = match ty {
+            t if t & 0x100 != 0 => f.equip_shop(),
+            t if t & 0x800 != 0 => f.magic_shop(),
+            _ => f.item_shop(),
+        };
+        let stock = lists.get(w.server().clamp(0, 4) as usize)?;
+        stock.iter().take_while(|&&c| c > 0).position(|&c| c == (i32::from(cat) << 16 | i32::from(id)))
+    }
+
+    /// How many of `buy` Kite still wants (none past 99 carried), as many
+    /// as his gold pays for.
+    fn short_of(w: &crate::world::WorldMode, buy: &Buy) -> i32 {
+        let state = w.world().state();
+        let (cat, id) = buy.item;
+        let have: i32 = (0..piney_fieldui::items::ITEMS)
+            .map(|k| piney_fieldui::items::save_item(state, 0, k))
+            .filter(|it| (it.cat, it.id) == (cat, id))
+            .map(|it| i32::from(it.num))
+            .sum();
+        let price = w.ui().texts().items.item(i32::from(cat), i32::from(id)).map_or(0, |p| p.price).max(1);
+        let gold = state.save.i32(piney_fieldui::menus::shop::GOLD);
+        (buy.carry.min(99) - have).min(gold / price).max(0)
+    }
+
+    /// The merchant of this town who sells the first of `buys` Kite is
+    /// short of: its code.
+    fn shop_for(w: &crate::world::WorldMode, buys: &[Buy]) -> Option<i32> {
+        let world = w.world();
+        buys.iter().filter(|b| short_of(w, b) > 0).find_map(|b| {
+            let code = |m: &piney_world::merchant::Merchant| piney_world::entry::Npc::code(m);
+            world.merchants().iter().map(code).find(|&c| stock_row(w, c, b.item).is_some())
+        })
     }
 
     /// What the story autopilot goes for in a town, in order: an event's
@@ -2662,6 +2719,7 @@ mod tests {
     pub(super) fn gate_goal(
         w: &crate::world::WorldMode,
         talked: &[(piney_world::entry::Kind, i32)],
+        buys: &[Buy],
     ) -> Option<GateGoal> {
         use piney_world::entry::Kind;
         let save = &w.world().state().save;
@@ -2715,7 +2773,10 @@ mod tests {
                 .map(|_| GateGoal::Marker(m)),
             _ => None,
         });
-        let wanted = marker
+        // What Kite is to carry out, bought here first.
+        let wanted = shop_for(w, buys)
+            .map(GateGoal::Shop)
+            .or(marker)
             .or_else(|| {
                 // Not while this town is wanted too (event 22's Mac Anu and
                 // Dun Loireag): the two would send Kite back and forth.
@@ -2793,11 +2854,16 @@ mod tests {
     /// (59), the marked area's row and Warp, or else, with a mail unread,
     /// Log Out (11) and OK. None with neither, or while a window waits
     /// (the rest of [`story_player`] then).
-    fn gate_player(w: &crate::world::WorldMode, f: u64, talked: &[(piney_world::entry::Kind, i32)]) -> Option<Raw> {
+    fn gate_player(
+        w: &crate::world::WorldMode,
+        f: u64,
+        talked: &[(piney_world::entry::Kind, i32)],
+        buys: &[Buy],
+    ) -> Option<Raw> {
         use piney_world::entry::Kind;
         let still =
             |buttons: Buttons| Raw { buttons, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
-        let goal = gate_goal(w, talked)?;
+        let goal = gate_goal(w, talked, buys)?;
         let world = w.world();
         let ui = w.ui();
         let c = &ui.ctrl;
@@ -2825,8 +2891,31 @@ mod tests {
             (11, 1, _) => return Some(every(8, go_to(0))),
             // A talk the events do not take (the NPC's own line): on.
             (22, _, GateGoal::Talk(..)) => return Some(every(8, Buttons::CROSS)),
+            // The shop: Buy (52), the item's row, the count up to what
+            // Kite is short of, OK, and OK to the question; a refusal's
+            // lines closed. Once nothing is short, back out.
+            (24, 1, GateGoal::Shop(_)) => return Some(every(8, go_to_item(52))),
+            (52, 1, GateGoal::Shop(code)) => {
+                let row = buys.iter().filter(|b| short_of(w, b) > 0).find_map(|b| stock_row(w, code, b.item));
+                return Some(every(8, row.map_or(Buttons::CIRCLE, go_to)));
+            }
+            (52, 2, GateGoal::Shop(code)) => {
+                let want = buys
+                    .iter()
+                    .find(|b| short_of(w, b) > 0 && stock_row(w, code, b.item) == Some(c.list().select.max(0) as usize))
+                    .map_or(0, |b| short_of(w, b));
+                let b = match i32::from(c.wait_count) {
+                    n if n < want => Buttons::UP,
+                    n if n > want => Buttons::DOWN,
+                    _ => Buttons::CROSS,
+                };
+                return Some(every(8, b));
+            }
+            (52, 4, GateGoal::Shop(_)) => return Some(every(8, go_to(0))),
+            (52, 10..=12, _) => return Some(every(8, Buttons::CROSS)),
+            (52, _, GateGoal::Shop(_)) => return Some(still(Buttons::NONE)),
             // A shop's or a breeder's own menu, opened by a talk: back out.
-            (23..=27 | 44..=46, ..) => return Some(every(8, Buttons::CIRCLE)),
+            (23..=27 | 44..=46 | 52, ..) => return Some(every(8, Buttons::CIRCLE)),
             // The call: PERSONAL, Party, Add, the member's face, OK, and
             // the greeting closed.
             (0, 1, GateGoal::Invite(_)) => return Some(every(8, go_to_item(9))),
@@ -2878,6 +2967,7 @@ mod tests {
         }
         let (kind, code) = match goal {
             GateGoal::Talk(kind, code) => (kind, code),
+            GateGoal::Shop(code) => (Kind::Npc, code),
             _ => (Kind::Gimmick, 16),
         };
         let g = match goal {

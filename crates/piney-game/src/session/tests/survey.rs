@@ -29,8 +29,12 @@ pub(super) struct StoryPilot {
     chase: Vec<[f32; 2]>,
     chase_mark: Option<[f32; 2]>,
     /// The golden goblin run after ([`Self::approach_foe`]), kept to while
-    /// it lives: turning to whichever is nearest loses them all.
+    /// it lives: turning to whichever is nearest loses them all. Where and
+    /// when the last check of the rush found Kite, and until when he goes
+    /// round a wall that stopped it.
     quarry: Option<usize>,
+    rush_mark: Option<(u64, [f32; 2])>,
+    detour_until: u64,
     /// The fight's action under way, whether its menus have opened, when
     /// it began; when the last one ended; this fight's Skills! (false) or
     /// Magic! (true) order, once out; the target menu's presses toward a
@@ -65,6 +69,12 @@ pub(super) struct StoryPilot {
     statues_done: Vec<(i32, i32, i32, i32)>,
     /// Since when the pilot has stood in such a room finding nothing to open.
     nothing_since: Option<((i32, i32, i32, i32), u64)>,
+    /// What Kite carries out of town (bought there when short), the fields
+    /// whose foes it was weighed for (once each), and whether he is on his
+    /// way out of one to buy it ([`Self::provision`]).
+    buys: Vec<Buy>,
+    stocked: Vec<i32>,
+    leaving: bool,
 }
 
 /// What the pilot does in a fight through the menus.
@@ -94,6 +104,9 @@ const RESURRECT: (i8, i16) = (10, 5);
 const MAGES_SOUL: (i8, i16) = (10, 18);
 /// A Speed Charm (`itemTblD` row 56): Ap Do (177), haste for 9000 frames.
 const SPEED_CHARM: (i8, i16) = (11, 56);
+/// The blows a Speed Charm's haste (9000 frames) lands on golden goblins,
+/// about: 27 in 14,000 frames on GOB3-1's, 37 in 18,000 on GOB3-4's.
+const BLOWS_A_CHARM: i32 = 15;
 
 impl Default for StoryPilot {
     fn default() -> Self {
@@ -104,6 +117,8 @@ impl Default for StoryPilot {
             chase: Vec::new(),
             chase_mark: None,
             quarry: None,
+            rush_mark: None,
+            detour_until: 0,
             action: None,
             opened: false,
             began: 0,
@@ -123,12 +138,28 @@ impl Default for StoryPilot {
             gating: false,
             statues_done: Vec::new(),
             nothing_since: None,
+            buys: Vec::new(),
+            stocked: Vec::new(),
+            leaving: false,
         }
     }
 }
 
 impl StoryPilot {
     pub(super) fn next(&mut self, s: &Session, f: u64) -> Raw {
+        if let Stage::Area(a) = &s.stage
+            && !a.streaming()
+        {
+            self.provision(a);
+            if self.leaving
+                && let Some(raw) = self.gate_out(a, f).or_else(|| out_of_battle(a))
+            {
+                return raw;
+            }
+        }
+        if let Stage::World(_) = &s.stage {
+            self.leaving = false;
+        }
         if let Stage::Area(a) = &s.stage
             && !a.streaming()
             && let Some(raw) = self.fight(a, f)
@@ -219,7 +250,7 @@ impl StoryPilot {
             self.path.clear();
             self.mark = None;
         }
-        story_player_with(s, f, &self.town_talked)
+        story_player_with(s, f, &self.town_talked, &self.buys)
     }
 
     /// With an important item wanted ([`Want::Item`]): where to take it in
@@ -349,12 +380,13 @@ impl StoryPilot {
             || w.combat().battle.in_battle != 0
             || !w.event_targets().is_empty()
             || vm.playing().is_some();
+        let here = here && !self.leaving;
         if here || (busy && !self.gating) {
             (self.idle_since, self.gating) = (None, false);
             return None;
         }
         let since = *self.idle_since.get_or_insert(f);
-        if f < since + 300 {
+        if f < since + 300 && !self.leaving {
             return None;
         }
         self.gating = true;
@@ -409,7 +441,7 @@ impl StoryPilot {
             Some((_, at)) if f > at + 120 => self.town_talking = None,
             Some(_) => {}
             None => {
-                if let Some(GateGoal::Talk(kind, code)) = gate_goal(w, &self.town_talked)
+                if let Some(GateGoal::Talk(kind, code)) = gate_goal(w, &self.town_talked, &self.buys)
                     && w.world().command_target() == Some((kind, code))
                 {
                     self.town_talking = Some(((kind, code), f));
@@ -426,8 +458,9 @@ impl StoryPilot {
         use piney_world::entry::Kind;
         let world = w.world();
         let marker = |m: i16| world.marker(m).map(|mk| mk.pos);
-        let (target, to) = match gate_goal(w, &self.town_talked)? {
+        let (target, to) = match gate_goal(w, &self.town_talked, &self.buys)? {
             GateGoal::Talk(kind, code) => ((kind, code), None),
+            GateGoal::Shop(code) => ((Kind::Npc, code), None),
             GateGoal::Marker(m) => ((Kind::Gimmick, -1), Some(marker(m)?)),
             GateGoal::Area(_) | GateGoal::Town(_) => ((Kind::Gimmick, 16), None),
             GateGoal::LogOut | GateGoal::Invite(_) | GateGoal::Disband => return None,
@@ -1025,6 +1058,50 @@ impl StoryPilot {
         Some(Action::Skill { page: page as i16, skill, target: None })
     }
 
+    /// In a field whose events wait for its foes all down ([`Want::Clear`]),
+    /// the first time golden goblins that Kite's blows hurt are seen there:
+    /// the Speed Charms (see [`haste_for_gold`]) for the blows their HP
+    /// takes, at [`BLOWS_A_CHARM`] a charm, and one more. Short of them, he
+    /// goes back to town to buy them (100 GP at any magic shop), as a
+    /// player who has met them would; the event's repeatable `entry 5`
+    /// block puts them back on his return. GOB3-4's (row 149, pDef 1950:
+    /// 70-105 a blow) take some 50 blows: five charms; Kite has two.
+    fn provision(&mut self, a: &crate::area::AreaMode) {
+        let w = a.world();
+        let sc = w.scene();
+        if self.leaving || self.action.is_some() || sc.area != kind::FIELD || self.stocked.contains(&sc.field) {
+            return;
+        }
+        let Some(vm) = a.vm() else { return };
+        // Once the event's lines are over and Kite is free to act.
+        let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+        if !playing
+            || vm.playing().is_some()
+            || !story_wants(vm, &w.state().save).contains(&Want::Clear(sc.field as i16))
+        {
+            return;
+        }
+        let c = w.combat();
+        let gold: Vec<usize> = c
+            .enemies()
+            .into_iter()
+            .filter(|&e| c.scene.chars[e].hp > 0 && shakes_off_holds(c, e) && blows_land(c, e))
+            .collect();
+        if gold.is_empty() {
+            return;
+        }
+        let blows: i32 = gold.iter().map(|&e| i32::from(c.scene.chars[e].hp) / kite_hit(c, e, 1, 100).max(1) + 1).sum();
+        let charms = (blows + BLOWS_A_CHARM - 1) / BLOWS_A_CHARM + 1;
+        self.stocked.push(sc.field);
+        self.buys = vec![Buy { item: SPEED_CHARM, carry: charms }];
+        let carried: i32 = (0..piney_fieldui::items::ITEMS)
+            .map(|n| piney_fieldui::items::save_item(w.state(), 0, n))
+            .filter(|it| (it.cat, it.id) == SPEED_CHARM)
+            .map(|it| i32::from(it.num))
+            .sum();
+        self.leaving = carried < charms;
+    }
+
     /// Kite put where the walk found him stuck.
     pub(super) fn after(&mut self, s: &mut Session) {
         self.walker.put(s);
@@ -1042,7 +1119,7 @@ impl StoryPilot {
         }
         let bug = c.enemies().into_iter().find(|&e| c.scene.chars[e].hp > 0 && c.scene.chars[e].ty() & DATA_BUG != 0);
         let q = bug.map(|e| c.scene.chars[e].pos.map(f32::from_bits))?;
-        self.walk_after(w, q, 350.0, f)
+        self.walk_after(w, q, 350.0, f, false)
     }
 
     /// In a field whose events wait for its foes all down ([`Want::Clear`]),
@@ -1085,13 +1162,33 @@ impl StoryPilot {
             .or_else(|| live.iter().copied().min_by(weakest))?;
         self.quarry = shakes_off_holds(c, foe).then_some(foe);
         if self.quarry.is_some() && !standing(&foe) {
+            self.rush_mark = None;
             return Some(Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
         }
         if self.quarry.is_some() {
+            // Straight at it; a rush that a wall stopped (under 60 in 60
+            // frames) goes round it on [`Self::walk_after`]'s way a while.
+            let stuck = match self.rush_mark {
+                Some((at, m)) if f >= at + 60 => {
+                    self.rush_mark = Some((f, [p[0], p[1]]));
+                    (m[0] - p[0]).hypot(m[1] - p[1]) < 60.0
+                }
+                Some(_) => false,
+                None => {
+                    self.rush_mark = Some((f, [p[0], p[1]]));
+                    false
+                }
+            };
+            if stuck {
+                self.detour_until = f + 180;
+            }
+            if f < self.detour_until {
+                return self.walk_after(w, at(foe), close(foe), f, true);
+            }
             let (q, cam_z) = (at(foe), f32::from_bits(w.camera().rot()[2]));
             return Some(run_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))));
         }
-        self.walk_after(w, at(foe), close(foe), f)
+        self.walk_after(w, at(foe), close(foe), f, false)
     }
 
     /// Kite to the event position a wanted block waits for him near
@@ -1122,7 +1219,7 @@ impl StoryPilot {
             })?
             .pos;
         if sc.area != kind::DUNGEON {
-            return self.walk_after(w, q, 200.0, f);
+            return self.walk_after(w, q, 200.0, f, false);
         }
         let p = w.player().body.pos.map(f32::from_bits);
         if (q[0] - p[0]).hypot(q[1] - p[1]) < 200.0 {
@@ -1134,8 +1231,16 @@ impl StoryPilot {
 
     /// Kite to `q` while farther than `close`: straight at it until a check
     /// finds him stopped, then [`path_to`] to within 300 of it on a grid
-    /// round both. None in a dungeon, or once close.
-    fn walk_after(&mut self, w: &piney_world::field_world::FieldWorld, q: [f32; 4], close: f32, f: u64) -> Option<Raw> {
+    /// round both; with `rush`, the stick at the rim ([`run_toward`]). None
+    /// in a dungeon, or once close.
+    fn walk_after(
+        &mut self,
+        w: &piney_world::field_world::FieldWorld,
+        q: [f32; 4],
+        close: f32,
+        f: u64,
+        rush: bool,
+    ) -> Option<Raw> {
         let hits = match w.place() {
             Place::Field(fa) => &fa.hits,
             Place::Story(m) => m.hits(),
@@ -1163,7 +1268,8 @@ impl StoryPilot {
         }
         let to = self.chase.first().copied().unwrap_or([q[0], q[1]]);
         let cam_z = f32::from_bits(w.camera().rot()[2]);
-        Some(stick_toward(cam_z, (to[0] - p[0]).atan2(-(to[1] - p[1]))))
+        let h = (to[0] - p[0]).atan2(-(to[1] - p[1]));
+        Some(if rush { run_toward(cam_z, h) } else { stick_toward(cam_z, h) })
     }
 
     /// A frame of the walk into the field's dungeon, while nothing holds
@@ -1950,7 +2056,7 @@ fn haste_for_gold(a: &crate::area::AreaMode) -> Option<Action> {
     let carried = (0..piney_fieldui::items::ITEMS)
         .map(|n| piney_fieldui::items::save_item(state, 0, n))
         .any(|it| (it.cat, it.id) == SPEED_CHARM && it.num > 0);
-    let gold = c.enemies().into_iter().any(|e| c.scene.chars[e].hp > 0 && shakes_off_holds(c, e));
+    let gold = c.enemies().into_iter().any(|e| c.scene.chars[e].hp > 0 && shakes_off_holds(c, e) && blows_land(c, e));
     (gold && carried && c.scene.chars[k].hp > 0 && c.scene.chars[k].cond[piney_battle::param::cond::SPEED] == 0)
         .then_some(Action::Item { cat: SPEED_CHARM.0, id: SPEED_CHARM.1, target: 0 })
 }
@@ -1981,6 +2087,57 @@ fn shakes_off_holds(c: &piney_world::combat::Combat, e: usize) -> bool {
 /// so both swings of the normal attack land.
 fn casting_gold(c: &piney_world::combat::Combat, e: usize) -> bool {
     shakes_off_holds(c, e) && c.foes.get(e).and_then(Option::as_ref).is_some_and(|f| f.act_num == enemy_act::ATTACK)
+}
+
+/// What Kite's skill `sid` does to foe `e` at the roll `roll`
+/// (`CalcBattleDamage` on a copy of the foe, no side effects): -1 a miss,
+/// 0 a hit its Exdefense bars.
+fn kite_hit(c: &piney_world::combat::Combat, e: usize, sid: i32, roll: i32) -> i32 {
+    let (Some(&(_, k)), Some(sk)) = (c.members.first(), c.data.t.skill(sid)) else { return -1 };
+    let mut tgt = c.scene.chars[e].clone();
+    let (mut none, env) = (|| 0, piney_battle::chara::Env::default());
+    let roll = piney_battle::damage::Roll::Quiet(roll);
+    let (t, one) = (&c.data.t, piney_battle::damage::F_ONE);
+    piney_battle::damage::calc_battle_damage(
+        t,
+        &c.scene.chars[k],
+        &mut tgt,
+        sk,
+        one,
+        roll,
+        true,
+        &mut none,
+        &env,
+        &mut Vec::new(),
+    )
+    .dmg
+}
+
+/// Whether Kite's plain blow can hurt foe `e`: at the best roll short of
+/// a sure hit (94) it lands and does damage. GOB3-5's golden goblins
+/// (row 156, pEva 9990) evade all but the sure hits, at pDef 9990.
+fn blows_land(c: &piney_world::combat::Combat, e: usize) -> bool {
+    kite_hit(c, e, 1, 94) > 0
+}
+
+/// In a fight with nothing holding Kite: away from the nearest foe until
+/// the fight is over (Gate Out refuses in one: `GateoutMenu`).
+fn out_of_battle(a: &crate::area::AreaMode) -> Option<Raw> {
+    let w = a.world();
+    let c = w.combat();
+    let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+    if c.battle.in_battle == 0 || !playing || a.ui().menu_type() != -1 {
+        return None;
+    }
+    let p = w.player().body.pos.map(f32::from_bits);
+    let d = |e: usize| {
+        let q = c.scene.chars[e].pos.map(f32::from_bits);
+        (q[0] - p[0]).hypot(q[1] - p[1])
+    };
+    let e = c.enemies().into_iter().filter(|&e| c.scene.chars[e].hp > 0).min_by(|&x, &y| d(x).total_cmp(&d(y)))?;
+    let q = c.scene.chars[e].pos.map(f32::from_bits);
+    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    Some(run_toward(cam_z, (p[0] - q[0]).atan2(-(p[1] - q[1]))))
 }
 
 /// The foes the pilot fights: the field's, and a boss's parts while its

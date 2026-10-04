@@ -126,6 +126,13 @@ impl Start {
         let areas = crate::story::from_tables(piney_data::area::AreaTables::of(self.vm.library().volume));
         self.vm.flag_set(n, &mut Replay { save: &mut self.state.save, areas: &areas });
     }
+
+    /// The instructions `ops` of event `n`'s block `b` run at level 1, as
+    /// [`Self::bring_forward`] runs a whole event's.
+    pub fn play_ops(&mut self, n: i32, b: usize, ops: &[piney_event::ir::Op]) {
+        let areas = crate::story::from_tables(piney_data::area::AreaTables::of(self.vm.library().volume));
+        self.vm.execute_now(&mut Replay { save: &mut self.state.save, areas: &areas }, n, b, 1, ops);
+    }
 }
 
 /// `ccEventFlagSet`'s host: the save, and the story areas `gate_add`,

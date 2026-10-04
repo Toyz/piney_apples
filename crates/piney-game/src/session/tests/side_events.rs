@@ -9,7 +9,7 @@
 
 use std::path::Path;
 
-use piney_event::ir::{Block, Cond, Tag};
+use piney_event::ir::{Block, Cond, Op, Tag};
 use piney_event::state::{CLOSED, DONE, ScriptSave as _};
 
 use super::survey::{StoryPilot, cores_for_hack, event_flag, levels_for_boss};
@@ -138,7 +138,26 @@ fn place(iso: &Path, start: &mut crate::start::Start, n: i32, done: &[i32]) -> O
     // The leading blocks with no settings play wherever the event is open
     // (361's end once 264 is done): left to play.
     let first = blocks.iter().position(|k| !k.tags.is_empty()).unwrap_or(b0).min(b0);
-    start.state.save.update_flags(n, |f| f | ((1u64 << b0) - (1u64 << first)));
+    // Their way out as a player passing them has it: the areas added to
+    // the gate and marked, the towns opened. A repeatable block is left
+    // unmarked (`repeatable` keeps its bit clear): GOB3's town blocks bar
+    // the area while anyone goes along.
+    let mut run = 0u64;
+    for (k, block) in blocks.iter().enumerate().take(b0).skip(first) {
+        let way: Vec<Op> = block
+            .ops
+            .iter()
+            .copied()
+            .filter(|op| {
+                matches!(op, Op::GateAdd { .. } | Op::GateAddMsg { .. } | Op::GateMark { .. } | Op::TownMove { .. })
+            })
+            .collect();
+        start.play_ops(n, k, &way);
+        if !block.ops.iter().any(|op| matches!(op, Op::Repeatable {})) {
+            run |= 1 << k;
+        }
+    }
+    start.state.save.update_flags(n, |f| (f & !((1u64 << b0) - (1u64 << first))) | run);
     let save = &mut start.state.save;
     let (scene, world_man) = match at {
         Spot::Town(town) => {
@@ -513,6 +532,19 @@ fn gob3_1_golden_goblin_is_run_down() {
     let seen = play("outbreak", &iso, out_case(250), 18_000, true).unwrap();
     assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
     assert!(seen.flags & (1 << 8) != 0);
+}
+
+/// GOB3-4 (253) in field 81: row 149's goblins (pDef 1950) take some 50
+/// blows of 70-105, more than the haste of Kite's two Speed Charms lands.
+/// The pilot weighs them once he can act, gates out to Fort Ouph, buys
+/// Speed Charms at its magic shop (Buy, menu 52), comes back by the gate
+/// and runs them down alone: block 8's `no_active` ends the event.
+#[test]
+fn gob3_4_golden_goblins_fall_after_a_shop() {
+    let Some(iso) = outbreak() else { return };
+    let seen = play("outbreak", &iso, out_case(253), 40_000, true).unwrap();
+    assert!(seen.places.iter().any(|(_, k)| k.contains("menu 52")), "no shop: {:?}", seen.places);
+    assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
 }
 
 /// SERVER-3 (263): Black Death at point 1 (OUT row 176, Exdefense 2)
