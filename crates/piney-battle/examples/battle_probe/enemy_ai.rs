@@ -10,7 +10,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use piney_battle::chara::Char;
+use piney_battle::chara::{Char, enemy_flag, spc_flag};
 use piney_battle::enemy_ai::{
     self, Ai, Begin, Enemy, EnemySkill, EntryParam, Genrand, IDENTITY, Out, SkillRef, SkillUse, World,
 };
@@ -45,7 +45,7 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables) -> Option<Str
             let dust = t.i16();
             let mut cc = genrand(t);
             let (ch, e) = enemy_ai::init_enemy(tables, &ent, anm, dust, &IDENTITY, &mut cc);
-            format!("{{\"char\":{},\"foe\":{},\"cc\":{}}}", char_json(&ch), enemy_json(&e), cc_json(&cc))
+            format!("{{\"char\":{},\"foe\":{},\"cc\":{}}}", char_json(&ch), enemy_json(&e, &ch), cc_json(&cc))
         }
         "genrand" => {
             let mut cc = genrand(t);
@@ -226,13 +226,14 @@ fn ent_json(e: &EntryParam) -> String {
 /// percentage skiParam skiTarget)x6`). Pointers are scene indices (-1 none),
 /// skill pointers codes (-1 none, 1000 + slot for the row's own, else the
 /// `skillTbl` id).
-pub(crate) fn read_enemy(t: &mut Toks) -> Enemy {
-    let mut e = Enemy { dirc: v4(t), affect_type: t.i16(), affect_param0: t.i16(), ..Enemy::default() };
+pub(crate) fn read_enemy(t: &mut Toks) -> (Enemy, OnChar) {
+    let mut e = Enemy { dirc: v4(t), ..Enemy::default() };
+    let mut on = OnChar { ty: t.i16(), p0: t.i16(), ..OnChar::default() };
     let f = t.int();
     e.obj_flag = f & 1 != 0;
     e.init_flag = f & 2 != 0;
     e.freeze_flag = f & 4 != 0;
-    e.affect_flag = f & 8 != 0;
+    on.flag = f & 8 != 0;
     e.disp_sw = f & 0x10 != 0;
     e.dest_flag = f & 0x20 != 0;
     e.cmnd_flag = f & 0x40 != 0;
@@ -246,7 +247,7 @@ pub(crate) fn read_enemy(t: &mut Toks) -> Enemy {
     let f = t.int();
     e.target_flag = f & 1 != 0;
     e.action_flag = f & 2 != 0;
-    e.drain_flag = f & 4 != 0;
+    on.drain = f & 4 != 0;
     e.move_flag = ((f >> 3) & 3) as u8;
     e.mad_flag = f & 0x20 != 0;
     e.virus_flag = f & 0x40 != 0;
@@ -301,7 +302,47 @@ pub(crate) fn read_enemy(t: &mut Toks) -> Enemy {
             ski_target: idx(t.int()),
         };
     }
-    e
+    (e, on)
+}
+
+/// The words of `ccEnemy` the port keeps on the enemy's character only:
+/// `affectType`, `affectParam[0]`, `affectFlag` (`spc_flag::AFFECT`) and
+/// `drainFlag` (`enemy_flag::DRAIN`).
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct OnChar {
+    ty: i16,
+    p0: i16,
+    flag: bool,
+    drain: bool,
+}
+
+impl OnChar {
+    fn of(c: &Char) -> OnChar {
+        OnChar { ty: c.affect.ty, p0: c.affect.param[0], flag: c.enemy_affected(), drain: c.enemy_drained() }
+    }
+
+    /// Onto the enemy's character, read before or after it.
+    pub(crate) fn put(self, c: &mut Char) {
+        c.affect.ty = self.ty;
+        c.affect.param[0] = self.p0;
+        c.spc_char.flags = (c.spc_char.flags & !spc_flag::AFFECT) | if self.flag { spc_flag::AFFECT } else { 0 };
+        let d = c.spc_char.enemy_flags & !enemy_flag::DRAIN;
+        c.spc_char.enemy_flags = d | if self.drain { enemy_flag::DRAIN } else { 0 };
+    }
+}
+
+/// `n` foes (each flagged present first) onto `chars`, read already.
+pub(crate) fn read_foes(t: &mut Toks, chars: &mut [Char]) -> Vec<Option<Enemy>> {
+    chars
+        .iter_mut()
+        .map(|c| {
+            (t.int() != 0).then(|| {
+                let (e, on) = read_enemy(t);
+                on.put(c);
+                e
+            })
+        })
+        .collect()
 }
 
 fn skill_list_json(e: &Enemy) -> String {
@@ -312,18 +353,19 @@ fn skill_list_json(e: &Enemy) -> String {
     }))
 }
 
-pub(crate) fn enemy_json(e: &Enemy) -> String {
+pub(crate) fn enemy_json(e: &Enemy, c: &Char) -> String {
+    let on = OnChar::of(c);
     let ef = u8::from(e.obj_flag)
         | u8::from(e.init_flag) << 1
         | u8::from(e.freeze_flag) << 2
-        | u8::from(e.affect_flag) << 3
+        | u8::from(on.flag) << 3
         | u8::from(e.disp_sw) << 4
         | u8::from(e.dest_flag) << 5
         | u8::from(e.cmnd_flag) << 6
         | u8::from(e.ccs2_flag) << 7;
     let fl = u16::from(e.target_flag)
         | u16::from(e.action_flag) << 1
-        | u16::from(e.drain_flag) << 2
+        | u16::from(on.drain) << 2
         | u16::from(e.move_flag & 3) << 3
         | u16::from(e.mad_flag) << 5
         | u16::from(e.virus_flag) << 6
@@ -346,7 +388,7 @@ pub(crate) fn enemy_json(e: &Enemy) -> String {
         "{{\"dirc\":{},\"affect\":{},\"eflags\":{},\"fade\":{},\"ent\":{},\"ids\":{},\"flags\":{},\"shorts\":{},\
          \"target\":{},\"f5\":{},\"bpos\":{},\"mdirc\":{},\"move\":{},\"anm\":{},\"life\":{},\"skill\":{},\"list\":{}}}",
         list(e.dirc),
-        list([e.affect_type, e.affect_param0]),
+        list([on.ty, on.p0]),
         ef,
         list([e.fade_flag, e.fade_cnt]),
         ent_json(&e.ent),
@@ -417,7 +459,7 @@ fn scene_request(tables: &Tables, t: &mut Toks) -> String {
     for c in s.chars.iter_mut() {
         c.pos = v4(t);
     }
-    let mut foes: Vec<Option<Enemy>> = (0..n).map(|_| if t.int() != 0 { Some(read_enemy(t)) } else { None }).collect();
+    let mut foes = read_foes(t, &mut s.chars);
     let puppet_show = t.int() != 0;
     let ride = t.int() != 0;
     let active_enemies = t.i32();
@@ -553,7 +595,8 @@ fn scene_request(tables: &Tables, t: &mut Toks) -> String {
         i32::from(save.i16(at + 6)),
     ]);
     let chars = list(s.chars.iter().map(char_json));
-    let foes_json = list(foes.iter().map(|f| f.as_ref().map_or("null".into(), enemy_json)));
+    let foes_json =
+        list(foes.iter().zip(&s.chars).map(|(f, c)| f.as_ref().map_or("null".into(), |e| enemy_json(e, c))));
     format!(
         "{{\"ret\":{},\"rand\":{},\"cc\":{},\"calls\":[{}],\"chars\":{},\"foes\":{},\"lists\":[{},{}],\"kill\":{},\"new\":{}}}",
         ret,

@@ -234,18 +234,11 @@ pub struct EntryParam {
 pub struct Enemy {
     /// `ccChar.dirc`.
     pub dirc: [u32; 4],
-    /// `ccChar.affectType` and `affectParam[0]`: the last affect taken
-    /// (1 damage, 3 poison, 20 revival...), set with `affect_flag` by the
-    /// affect handling.
-    pub affect_type: i16,
-    pub affect_param0: i16,
     // ccEntryObj
     pub obj_flag: bool,
     pub init_flag: bool,
     /// Frozen (far from the player): `begin_frame` only clears it.
     pub freeze_flag: bool,
-    /// An affect was taken since the last `interrupt_think`.
-    pub affect_flag: bool,
     pub disp_sw: bool,
     pub dest_flag: bool,
     /// Off the command lists (`deleteCmnd` ran).
@@ -263,8 +256,6 @@ pub struct Enemy {
     pub target_flag: bool,
     /// The attack or flinch animation ended (the race's `action()`).
     pub action_flag: bool,
-    /// A Data Drain landed.
-    pub drain_flag: bool,
     pub move_flag: u8,
     /// Charmed or confused.
     pub mad_flag: bool,
@@ -372,12 +363,9 @@ impl Default for Enemy {
     fn default() -> Self {
         Enemy {
             dirc: [0; 4],
-            affect_type: 0,
-            affect_param0: 0,
             obj_flag: false,
             init_flag: false,
             freeze_flag: false,
-            affect_flag: false,
             disp_sw: true,
             dest_flag: false,
             cmnd_flag: false,
@@ -390,7 +378,6 @@ impl Default for Enemy {
             race_id: 0,
             target_flag: false,
             action_flag: false,
-            drain_flag: false,
             move_flag: 0,
             mad_flag: false,
             virus_flag: false,
@@ -450,38 +437,6 @@ impl Default for Enemy {
             spin: 0,
             l_rand: [0; 4],
             anm_lw: [[0; 4]; 4],
-        }
-    }
-}
-
-impl Enemy {
-    /// What `ccEnemyInfluence` (0x00432840) leaves when an affect lands:
-    /// the flag `interrupt_think` reads, the kind and first parameter
-    /// (`EntryAffect`'s), and the drain flag when `affectEnemy` reported a
-    /// Data Drain (affect 13).
-    pub fn note_affect(&mut self, kind: i16, p0: i16, drained: bool) {
-        self.affect_flag = true;
-        self.affect_type = kind;
-        self.affect_param0 = p0;
-        if drained {
-            self.drain_flag = true;
-        }
-    }
-
-    /// The same for an `EntryAffect(kind, p0)` as it landed
-    /// ([`crate::enemy_motion::affect_lands`]): the kind and first
-    /// parameter once stored, `affectFlag` (and a Data Drain's
-    /// `drainFlag`, affect 13) once the enemy's influence ran.
-    pub fn note_landed(&mut self, l: crate::enemy_motion::Landed, kind: i16, p0: i16) {
-        if l.stored {
-            self.affect_type = kind;
-            self.affect_param0 = p0;
-        }
-        if l.influenced {
-            self.affect_flag = true;
-            if kind == 13 {
-                self.drain_flag = true;
-            }
         }
     }
 }
@@ -1591,7 +1546,7 @@ fn begin_frame(cx: &mut Cx, e: &mut Enemy, env: &Env) -> Begin {
     }
     routine_enemy(cx, e, env);
     check_enemy(cx, e);
-    if e.drain_flag {
+    if cx.ch().enemy_drained() {
         cx.out.push(Out::KillRecord { ene_id: e.ene_id });
         clear_condition_enemy(&mut cx.scene.chars[me], cx.out);
         delete_cmnd(cx, e, true);
@@ -1679,8 +1634,13 @@ fn think_gold(cx: &mut Cx, e: &mut Enemy) {
     let hold = cx.ch().cond[cond::HOLD];
     if e.gold.volume >= 2 {
         let c = cx.ch().cond;
-        if e.affect_flag && hold != 0 && c[cond::PARALYSIS] == 0 && c[cond::SLEEP] == 0 && !cx.world.puppet_show {
-            if e.affect_type == 3 || e.affect_type == 1 {
+        if cx.ch().enemy_affected()
+            && hold != 0
+            && c[cond::PARALYSIS] == 0
+            && c[cond::SLEEP] == 0
+            && !cx.world.puppet_show
+        {
+            if matches!(cx.ch().affect.ty, 1 | 3) {
                 e.gold.dis_hold = 1;
             }
         } else if e.gold.volume >= 3 {
@@ -2063,9 +2023,9 @@ fn interrupt_think(cx: &mut Cx, e: &mut Enemy) {
         clear_target(e);
         set_act(cx, e, act::WAIT);
     }
-    if e.affect_flag {
+    if let Some((kind, p0)) = cx.scene.chars[me].take_enemy_affect() {
         let hp = cx.ch().hp;
-        match e.affect_type {
+        match kind {
             20 => {
                 if cx.ch().cond[cond::DEAD] == 2 {
                     cx.scene.chars[me].cond[cond::DEAD] = 0;
@@ -2082,16 +2042,15 @@ fn interrupt_think(cx: &mut Cx, e: &mut Enemy) {
                 if hp <= 0 {
                     set_act(cx, e, act::DYING);
                 } else if cx.ch().level() >= 31 {
-                    if e.damage_cnt == 0 && e.affect_param0 > 0 && !busy {
+                    if e.damage_cnt == 0 && p0 > 0 && !busy {
                         set_act(cx, e, act::DAMAGE);
                     }
-                } else if e.affect_param0 > 0 && !busy {
+                } else if p0 > 0 && !busy {
                     set_act(cx, e, act::DAMAGE);
                 }
             }
             _ => {}
         }
-        e.affect_flag = false;
     }
     if cx.ch().hp <= 0 && e.act_num < act::DYING {
         set_act(cx, e, act::DYING);

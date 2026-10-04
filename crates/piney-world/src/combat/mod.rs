@@ -2662,15 +2662,8 @@ impl Combat {
         let checks = self.skill_checks();
         let chk = |c: usize| checks.get(c).copied().unwrap_or(0);
         let aff = AffectCtx { party: &party, menu: true, skill_check: &chk, boss: None, volume: self.data.volume };
-        let lands = piney_battle::enemy_motion::affect_lands(&self.scene, on, kind);
         let mut ev = Events::new();
         affect::entry_affect(t, &mut self.scene, &aff, on, by, kind, p, &mut self.rand, &mut ev);
-        // The enemy's own copy of what landed (`ccEnemyInfluence`): its
-        // think interrupted, and a Data Drain (13) turning it into its
-        // drained form on its next frame.
-        if let Some(e) = self.foes.get_mut(on).and_then(Option::as_mut) {
-            e.note_landed(lands, kind, p[0]);
-        }
         for e in ev {
             self.consequence(e, hits, bounds, false);
         }

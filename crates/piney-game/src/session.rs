@@ -6686,6 +6686,9 @@ mod tests {
     /// Issues #14 and #15: a member felled and revived, the markers.
     mod revive;
 
+    /// Issue #41: an enemy revives a dying ally.
+    mod enemy_revive;
+
     /// A foe's condition effect ended where the game clears it.
     mod cond_fx;
 

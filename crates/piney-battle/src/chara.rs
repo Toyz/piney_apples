@@ -341,6 +341,27 @@ impl Char {
     pub fn dead(&self) -> bool {
         self.cond[cond::DEAD] != 0
     }
+
+    /// An enemy's `ccEntryObj.affectFlag`, set by `ccEnemyInfluence`
+    /// whoever made the affect (a foe, Kite, a member, a skill, a menu):
+    /// one landed since `interruptThink` last took it. This bit and
+    /// `affect` (kind, parameters) are the enemy's only copy.
+    pub fn enemy_affected(&self) -> bool {
+        self.spc_char.flags & spc_flag::AFFECT != 0
+    }
+
+    /// `interruptThink`'s read of [`Char::enemy_affected`], which clears
+    /// it: the affect's kind and first parameter, when one landed.
+    pub fn take_enemy_affect(&mut self) -> Option<(i16, i16)> {
+        let landed = self.enemy_affected();
+        self.spc_char.flags &= !spc_flag::AFFECT;
+        landed.then_some((self.affect.ty, self.affect.param[0]))
+    }
+
+    /// An enemy's `drainFlag`: `ccEnemyInfluence` took a Data Drain (13).
+    pub fn enemy_drained(&self) -> bool {
+        self.spc_char.enemy_flags & enemy_flag::DRAIN != 0
+    }
 }
 
 /// The globals the rules consult.

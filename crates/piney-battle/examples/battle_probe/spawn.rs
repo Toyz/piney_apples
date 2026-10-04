@@ -12,7 +12,7 @@ use std::collections::HashMap;
 
 use piney_battle::affect::AffectCtx;
 use piney_battle::blocks::InfoRef;
-use piney_battle::chara::{AffectFunc, Body, Char};
+use piney_battle::chara::{AffectFunc, Body, Char, enemy_flag, spc_flag};
 use piney_battle::enemy_ai::{self, Enemy, EntryParam, Frame, Genrand, SkillRef};
 use piney_battle::enemy_motion::{At, Call, MotionData, MotionWorld};
 use piney_battle::entry::{
@@ -815,8 +815,9 @@ fn char_vec(c: &Char) -> Vec<i64> {
 
 /// An enemy: the enemy AI's `read_enemy` fields, then `plDist plDirc alpha
 /// grotDeg grotSpd transparency setTransparency destFunc hit[10] anmTbl`.
-fn read_enemy_full(t: &mut Toks) -> Enemy {
-    let mut e = read_enemy(t);
+fn read_enemy_full(t: &mut Toks, ch: &mut Char) -> Enemy {
+    let (mut e, on) = read_enemy(t);
+    on.put(ch);
     e.pl_dist = t.u32();
     e.pl_dirc = t.u32();
     e.alpha = t.i32();
@@ -930,7 +931,7 @@ fn read_scene(t_: &Tables, st: &SpawnTables, t: &mut Toks) -> Setup {
         scene.chars.push(ch);
         match kind {
             1 => {
-                *foe = Some(read_enemy_full(t));
+                *foe = Some(read_enemy_full(t, &mut scene.chars[i]));
                 ctrl.objs[i] = Obj::Enemy;
             }
             2 => {
@@ -1029,7 +1030,7 @@ fn obj_json(s: &Setup, i: usize, full: bool) -> String {
             };
             format!(
                 "{{\"kind\":1,\"char\":{ch},\"link\":{link},\"enemy\":{},\"extra\":{}}}",
-                enemy_json(e),
+                enemy_json(e, &s.scene.chars[i]),
                 list(extra)
             )
         }
@@ -1567,12 +1568,12 @@ fn apply_event(s: &mut Setup, i: usize, kind: i64, a: i32, b: i32) {
     match kind {
         0 => ch.hp = a as i16,
         1 => {
-            e.note_affect(a as i16, b as i16, false);
+            ch.spc_char.flags |= spc_flag::AFFECT;
             ch.affect.ty = a as i16;
             ch.affect.param[0] = b as i16;
         }
         2 => ch.cond[a as usize] = b as i16,
-        3 => e.drain_flag = true,
+        3 => ch.spc_char.enemy_flags |= enemy_flag::DRAIN,
         _ => e.freeze_flag = a != 0,
     }
 }

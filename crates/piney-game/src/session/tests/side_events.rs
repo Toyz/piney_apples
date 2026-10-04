@@ -211,6 +211,26 @@ fn lone_level(s: &mut Session) {
     }
 }
 
+/// A golden goblin's HP held to one of Kite's blows ([`GOLD_HP`]). From
+/// Mutation on a held goblin that a blow reaches breaks free (`ccEnemyG`'s
+/// think), so each blow ends the skill or combo that held it, and the
+/// goblins heal each other without end (their SP never falls): GOB3-1's
+/// trio outlasts a lone Kite. A harness aid, as god is.
+fn gold_within_a_blow(s: &mut Session) {
+    let Stage::Area(a) = &mut s.stage else { return };
+    let c = a.world_mut().combat_mut();
+    for e in c.enemies() {
+        let gold = c.foes.get(e).and_then(Option::as_ref).is_some_and(|f| f.gold.flag && f.gold.volume >= 2);
+        let ch = &mut c.scene.chars[e];
+        if gold && ch.hp > GOLD_HP {
+            ch.hp = GOLD_HP;
+        }
+    }
+}
+
+/// [`gold_within_a_blow`]'s HP: under a level-90 Kite's blow (about 290).
+const GOLD_HP: i16 = 250;
+
 /// One side event played for `frames` frames, with the survey's aids when
 /// `god` (the party kept up, the infection at 0, the levels for a boss).
 fn play(disc: &str, iso: &Path, case: &Case, frames: u64, god: bool) -> Option<Seen> {
@@ -243,6 +263,7 @@ fn play(disc: &str, iso: &Path, case: &Case, frames: u64, god: bool) -> Option<S
             cores_for_hack(&mut s);
             levels_for_boss(&mut s);
             lone_level(&mut s);
+            gold_within_a_blow(&mut s);
         }
         // `PINEY_DEBUG_PILOT`: every 500 frames the place, the pilot's
         // wants, the event targets and the foes' HP.

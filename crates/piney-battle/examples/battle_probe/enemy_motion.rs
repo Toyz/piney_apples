@@ -12,7 +12,7 @@ use std::collections::{HashMap, VecDeque};
 
 use piney_battle::affect::AffectCtx;
 use piney_battle::blocks::InfoRef;
-use piney_battle::chara::{AffectFunc, Char};
+use piney_battle::chara::{AffectFunc, Char, enemy_flag, spc_flag};
 use piney_battle::enemy_ai::{self, Ai, Enemy, Frame, Out, SkillRef};
 use piney_battle::enemy_motion::{self, At, Call, Kind, Motion, MotionData, MotionWorld};
 use piney_battle::event::Event;
@@ -471,8 +471,7 @@ fn scene_request(tables: &Tables, t: &mut Toks) -> String {
     for c in s.chars.iter_mut() {
         c.pos = v4(t);
     }
-    let mut foes: Vec<Option<Enemy>> =
-        (0..n).map(|_| if t.int() != 0 { Some(crate::enemy_ai::read_enemy(t)) } else { None }).collect();
+    let mut foes = crate::enemy_ai::read_foes(t, &mut s.chars);
     let puppet_show = t.int() != 0;
     let ride = t.int() != 0;
     let active_enemies = t.i32();
@@ -536,9 +535,8 @@ fn scene_request(tables: &Tables, t: &mut Toks) -> String {
     // an enemy's copies of its ccChar and ccEnemy words
     for (c, f) in s.chars.iter_mut().zip(&foes) {
         if let Some(e) = f {
-            c.affect.ty = e.affect_type;
-            c.affect.param[0] = e.affect_param0;
-            c.spc_char.enemy_flags = u16::from(e.virus_flag) << 6 | u16::from(e.drain_flag) << 2;
+            let drain = c.spc_char.enemy_flags & enemy_flag::DRAIN;
+            c.spc_char.enemy_flags = u16::from(e.virus_flag) << 6 | drain;
             if c.affect.func == AffectFunc::None {
                 c.affect.func = AffectFunc::Enemy;
             }
@@ -729,7 +727,9 @@ fn state_json(s: &Scene, foes: &[Option<Enemy>]) -> String {
             c.target_char.map_or(-1, |i| i as i64)
         )
     }));
-    let foes_json = list(foes.iter().map(|f| f.as_ref().map_or("null".into(), crate::enemy_ai::enemy_json)));
+    let foes_json = list(
+        foes.iter().zip(&s.chars).map(|(f, c)| f.as_ref().map_or("null".into(), |e| crate::enemy_ai::enemy_json(e, c))),
+    );
     let hits = list(foes.iter().map(|f| f.as_ref().map_or("null".into(), |e| hit_json(&e.hit))));
     format!(
         "{{\"chars\":{},\"foes\":{},\"hits\":{},\"lists\":[{},{}]}}",
@@ -750,13 +750,13 @@ fn apply_event(s: &mut Scene, foes: &mut [Option<Enemy>], i: usize, kind: i64, a
     match kind {
         0 => ch.hp = a as i16,
         1 => {
-            // ccEnemyInfluence's marks, on the enemy's copy and its ccChar
-            e.note_affect(a as i16, b as i16, false);
+            // ccEnemyInfluence's marks, on the enemy's ccChar
+            ch.spc_char.flags |= spc_flag::AFFECT;
             ch.affect.ty = a as i16;
             ch.affect.param[0] = b as i16;
         }
         2 => ch.cond[a as usize] = b as i16,
-        3 => e.drain_flag = true,
+        3 => ch.spc_char.enemy_flags |= enemy_flag::DRAIN,
         _ => e.freeze_flag = a != 0,
     }
 }

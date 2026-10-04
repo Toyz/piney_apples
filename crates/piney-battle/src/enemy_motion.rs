@@ -12,7 +12,7 @@ use piney_data::iso::Iso;
 
 use crate::affect::{self, AffectCtx};
 use crate::blocks::InfoRef;
-use crate::chara::{self, AffectFunc, Body, Env};
+use crate::chara::{self, Body, Env};
 use crate::damage::{self, Roll};
 use crate::enemy_ai::{self, Ai, Begin, DrainSpawn, Enemy, Out, SkillUse, act, object_size, rad_disperse, rand_f};
 use crate::event::{Event, Events, Who};
@@ -603,18 +603,12 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
 
     /// `ccChar::EntryAffect(by, kind, p0, p1, p2)` (gcmn 0x0056b020) on
     /// `on` where the game calls it inside the frame
-    /// ([`crate::affect::entry_affect`]), with the enemy's own copy of what
-    /// it leaves kept as `ccEnemyInfluence` (0x00432840) would leave it:
-    /// the kind and first parameter once stored, `affectFlag` (and a
-    /// drain's `drainFlag`) once the enemy's influence ran. The events it
-    /// makes follow in order.
+    /// ([`crate::affect::entry_affect`]); an enemy's `affectFlag` and
+    /// `drainFlag` are its character's ([`chara::Char::enemy_affected`]). The
+    /// events it makes follow in order.
     pub fn entry_affect(&mut self, me: usize, on: usize, by: Option<usize>, kind: i16, p: [i16; 3]) {
-        let lands = affect_lands(self.ai.scene, on, kind);
         let mut ev = Events::new();
         affect::entry_affect(self.ai.t, self.ai.scene, self.affect, on, by, kind, p, self.ai.rand, &mut ev);
-        if let Some(e) = self.ai.foes.get_mut(on).and_then(Option::as_mut) {
-            e.note_landed(lands, kind, p[0]);
-        }
         for x in ev {
             self.event(me, x);
         }
@@ -3313,7 +3307,7 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
         self.routine(me);
         self.ai.check_enemy(me);
         self.flush(me);
-        if !self.en(me).drain_flag {
+        if !self.ai.scene.chars[me].enemy_drained() {
             return Begin::Continue;
         }
         let ene_id = self.en(me).ene_id;
@@ -3417,6 +3411,7 @@ pub fn entry_cmnd(scene: &mut crate::scene::Scene, c: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chara::AffectFunc;
     use crate::world::CharHit;
 
     #[test]
@@ -3537,30 +3532,4 @@ mod tests {
         assert_eq!(scene.chars[1].condition_num, -1);
         assert_eq!(scene.chars[0].condition_num, 1, "the striker keeps its own");
     }
-}
-
-/// What `ccChar::EntryAffect(kind)` (gcmn 0x0056b020) will do on `on`,
-/// decided before it stores the affect: `stored`, the kind and first
-/// parameter kept (not on a character off the lists, not over a foe's
-/// pending Data Drain, not for kinds 5 and 6, not without an `affectFunc`);
-/// `influenced`, `ccEnemyInfluence` run on it (stored, the kind not masked,
-/// an enemy's function). The enemy's own copy follows from these
-/// ([`crate::enemy_ai::Enemy::note_landed`]), wherever the affect comes
-/// from: an enemy's frame or the menus.
-pub fn affect_lands(scene: &Scene, on: usize, kind: i16) -> Landed {
-    let ch = &scene.chars[on];
-    let stored = scene.listed(on)
-        && !(ch.ty() & ty::FOE != 0 && ch.affect.ty == 13)
-        && kind != 5
-        && kind != 6
-        && ch.affect.func != AffectFunc::None;
-    let influenced = stored && ch.affect.mask & (1 << (kind & 31)) == 0 && ch.affect.func == AffectFunc::Enemy;
-    Landed { stored, influenced }
-}
-
-/// [`affect_lands`]'s answer.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Landed {
-    pub stored: bool,
-    pub influenced: bool,
 }
