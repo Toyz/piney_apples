@@ -6,6 +6,7 @@
 //! frames, `PINEY_SURVEY_CALLS` the last host calls, `PINEY_SURVEY_GOD` the
 //! party kept up (and the infection at 0), `PINEY_DEBUG_PILOT` the pilot's trace.
 
+use piney_battle::enemy_ai::act as enemy_act;
 use piney_world::area::kind;
 use piney_world::field_world::Place;
 
@@ -27,6 +28,9 @@ pub(super) struct StoryPilot {
     /// The same for the walk to a field's Data Bug.
     chase: Vec<[f32; 2]>,
     chase_mark: Option<[f32; 2]>,
+    /// The golden goblin run after ([`Self::approach_foe`]), kept to while
+    /// it lives: turning to whichever is nearest loses them all.
+    quarry: Option<usize>,
     /// The fight's action under way, whether its menus have opened, when
     /// it began; when the last one ended; this fight's Skills! (false) or
     /// Magic! (true) order, once out; the target menu's presses toward a
@@ -88,6 +92,8 @@ const RIP_MAEN: i16 = 180;
 const POTION: (i8, i16) = (10, 1);
 const RESURRECT: (i8, i16) = (10, 5);
 const MAGES_SOUL: (i8, i16) = (10, 18);
+/// A Speed Charm (`itemTblD` row 56): Ap Do (177), haste for 9000 frames.
+const SPEED_CHARM: (i8, i16) = (11, 56);
 
 impl Default for StoryPilot {
     fn default() -> Self {
@@ -97,6 +103,7 @@ impl Default for StoryPilot {
             mark: None,
             chase: Vec::new(),
             chase_mark: None,
+            quarry: None,
             action: None,
             opened: false,
             began: 0,
@@ -644,9 +651,16 @@ impl StoryPilot {
                     let list = piney_fieldui::items::skill_list(&ui.texts().items, w.state(), 0, i32::from(page));
                     press(go_to(list.iter().position(|&x| x == skill).unwrap_or(0) as i16))
                 }
-                (5, Action::Item { .. }) if m.list().page != 0 => press(Buttons::LEFT),
+                (5, Action::Item { cat, .. }) if m.list().page != item_page(&ui.texts().items, cat) => {
+                    press(if m.list().page < item_page(&ui.texts().items, cat) {
+                        Buttons::RIGHT
+                    } else {
+                        Buttons::LEFT
+                    })
+                }
                 (5, Action::Item { cat, id, .. }) => {
-                    let list = piney_fieldui::items::item_list(&ui.texts().items, w.state(), 0, 0);
+                    let page = i32::from(item_page(&ui.texts().items, cat));
+                    let list = piney_fieldui::items::item_list(&ui.texts().items, w.state(), 0, page);
                     let row = list.iter().position(|it| (it.cat, it.id) == (cat, id));
                     press(row.map_or(Buttons::CIRCLE, |r| go_to(r as i16)))
                 }
@@ -688,19 +702,24 @@ impl StoryPilot {
         if !playing || banned == Some(true) {
             return None;
         }
-        if let Some(raw) = approach_boss(a)
-            .or_else(|| approach_part(a))
-            .or_else(|| approach_roamer(a))
-            .or_else(|| self.approach_bug(a, f))
-            .or_else(|| self.approach_foe(a, f))
+        let haste = haste_for_gold(a);
+        if haste.is_none()
+            && let Some(raw) = approach_boss(a)
+                .or_else(|| approach_part(a))
+                .or_else(|| approach_roamer(a))
+                .or_else(|| self.approach_bug(a, f))
+                .or_else(|| self.approach_foe(a, f))
         {
             return Some(raw);
         }
         // No skill to pay for (god's SP hid it): the action button's plain
         // blow at the foe the command target names.
-        let Some(act) = self.choose(a) else {
+        let Some(act) = haste.or_else(|| self.choose(a)) else {
             let on_foe = matches!(w.command_target_code(), Some((piney_world::entry::Kind::Enemy, _)));
-            let blow = if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still };
+            // A golden goblin is in reach for a frame or two: at once.
+            let gold = self.quarry.is_some_and(|q| shakes_off_holds(c, q) && c.scene.chars[q].hp > 0);
+            let every = if gold { 2 } else { 8 };
+            let blow = if f.is_multiple_of(every) { Raw { buttons: Buttons::CROSS, ..still } } else { still };
             return (fighting && on_foe).then_some(blow);
         };
         if std::env::var_os("PINEY_DEBUG_PILOT").is_some() {
@@ -966,12 +985,17 @@ impl StoryPilot {
         // Not a foe the walk has given up on, unless it still goes at it
         // (the room's doors shut until it falls): its blows alone may not
         // do (Deadly Present's Exdefense bars them).
-        let nearest = foes(c)
+        let (near, nearest) = foes(c)
             .into_iter()
             .filter(|&e| (!self.walker.hopeless.contains(&e) || self.walker.foe == Some(e)) && c.scene.chars[e].hp > 0)
-            .map(dist)
-            .min_by(f32::total_cmp)
-            .filter(|&d| d < 600.0)?;
+            .map(|e| (e, dist(e)))
+            .min_by(|x, y| x.1.total_cmp(&y.1))
+            .filter(|&(_, d)| d < 600.0)?;
+        // A golden goblin that shakes off holds (see [`shakes_off_holds`]):
+        // the plain blow.
+        if shakes_off_holds(c, near) {
+            return None;
+        }
         // Of the skills whose reach (`triggerRange`) holds the nearest foe
         // (the target menu offers no one beyond it: Gale of Swords' 350),
         // the strongest (`atk` by `dmgRate`, over the foe's resistance to
@@ -1038,13 +1062,36 @@ impl StoryPilot {
         let at = |e: usize| c.scene.chars[e].pos.map(f32::from_bits);
         let dist = |e: usize| (at(e)[0] - p[0]).hypot(at(e)[1] - p[1]);
         let live: Vec<usize> = c.enemies().into_iter().filter(|&e| c.scene.chars[e].hp > 0).collect();
-        if live.iter().any(|&e| c.scene.chars[e].ty() & DATA_BUG != 0 || dist(e) < 300.0) {
+        // Up to a golden goblin that runs: within the command target's
+        // reach (150 and both widths in a fight, `ccCheckTargetRange`).
+        let close = |e: usize| if shakes_off_holds(c, e) { 150.0 } else { 300.0 };
+        if live.iter().any(|&e| c.scene.chars[e].ty() & DATA_BUG != 0 || dist(e) < close(e)) {
             return None;
         }
-        let foe = live
-            .into_iter()
-            .min_by(|&x, &y| c.scene.chars[x].hp.cmp(&c.scene.chars[y].hp).then(dist(x).total_cmp(&dist(y))))?;
-        self.walk_after(w, at(foe), 300.0, f)
+        // Golden goblins (see [`shakes_off_holds`]): one casting its heal
+        // first (see [`casting_gold`]), else the one run after while it
+        // stands, else the weakest that stands. On the run one outpaces
+        // Kite (see [`haste_for_gold`]); it stops once he is past
+        // `atkRangeB`, and from a stand it gathers speed slowly
+        // (`goldAccel` is `crisisRate` squared): rushed from there.
+        let act = |e: usize| c.foes.get(e).and_then(Option::as_ref).map_or(-1, |f| f.act_num);
+        let standing = |e: &usize| shakes_off_holds(c, *e) && !matches!(act(*e), enemy_act::CLOSE | enemy_act::DAMAGE);
+        let weakest =
+            |x: &usize, y: &usize| c.scene.chars[*x].hp.cmp(&c.scene.chars[*y].hp).then(dist(*x).total_cmp(&dist(*y)));
+        let casting = live.iter().copied().filter(|&e| casting_gold(c, e)).min_by(|&x, &y| dist(x).total_cmp(&dist(y)));
+        let foe = casting
+            .or_else(|| self.quarry.filter(|q| live.contains(q) && standing(q)))
+            .or_else(|| live.iter().copied().filter(standing).min_by(weakest))
+            .or_else(|| live.iter().copied().min_by(weakest))?;
+        self.quarry = shakes_off_holds(c, foe).then_some(foe);
+        if self.quarry.is_some() && !standing(&foe) {
+            return Some(Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
+        }
+        if self.quarry.is_some() {
+            let (q, cam_z) = (at(foe), f32::from_bits(w.camera().rot()[2]));
+            return Some(run_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))));
+        }
+        self.walk_after(w, at(foe), close(foe), f)
     }
 
     /// Kite to the event position a wanted block waits for him near
@@ -1864,6 +1911,76 @@ fn drain_candidates(c: &piney_world::combat::Combat) -> Vec<usize> {
         v.extend(r.parts.iter().copied().filter(|&p| c.scene.listed(p)));
     }
     v
+}
+
+/// [`stick_toward`] with the stick pushed to the square's rim: a lean
+/// that the per-axis dead zone leaves under 231 walks (`ControlMove`'s
+/// 230), and Kite walking cannot close on a goblin.
+fn run_toward(cam_z: f32, h: f32) -> Raw {
+    use std::f32::consts::PI;
+    let want = (cam_z - PI - h).rem_euclid(2.0 * PI);
+    (0..128)
+        .map(|k| {
+            let a = k as f32 * PI / 64.0;
+            let r = 127.0 / a.cos().abs().max(a.sin().abs());
+            let (lx, ly) =
+                ((128.0 + r * a.cos()).clamp(0.0, 255.0) as u8, (128.0 + r * a.sin()).clamp(0.0, 255.0) as u8);
+            Raw { analog: true, lx, ly, rx: 128, ry: 128, ..Raw::default() }
+        })
+        .filter_map(|raw| {
+            let mut p = Pad::default();
+            p.read(&raw);
+            let d = (p.dirc_l.rem_euclid(2.0 * PI) - want).abs();
+            (p.pow_l > 230).then_some((d.min(2.0 * PI - d), raw))
+        })
+        .min_by(|x, y| x.0.total_cmp(&y.0))
+        .map_or_else(|| stick_toward(cam_z, h), |(_, raw)| raw)
+}
+
+/// A Speed Charm on Kite while a golden goblin that runs (see
+/// [`shakes_off_holds`]) is on the field and he is not hasted. One runs at
+/// `maxSpd` (22) times 1 + 1.6 `crisisRate` squared (`moveGold` act 1,
+/// `crisisRate` 1 - distance / 1300): 40 within 400. Kite runs about 26 a
+/// frame, 46 hasted (x1.75).
+fn haste_for_gold(a: &crate::area::AreaMode) -> Option<Action> {
+    let w = a.world();
+    let c = w.combat();
+    let &(_, k) = c.members.first()?;
+    let state = w.state();
+    let carried = (0..piney_fieldui::items::ITEMS)
+        .map(|n| piney_fieldui::items::save_item(state, 0, n))
+        .any(|it| (it.cat, it.id) == SPEED_CHARM && it.num > 0);
+    let gold = c.enemies().into_iter().any(|e| c.scene.chars[e].hp > 0 && shakes_off_holds(c, e));
+    (gold && carried && c.scene.chars[k].hp > 0 && c.scene.chars[k].cond[piney_battle::param::cond::SPEED] == 0)
+        .then_some(Action::Item { cat: SPEED_CHARM.0, id: SPEED_CHARM.1, target: 0 })
+}
+
+/// The Items menu's page that lists category `cat` (`SetItemList`'s
+/// filters: -1 recovery and tools, -2 the equipment, else one category).
+fn item_page(t: &piney_fieldui::items::ItemTables, cat: i8) -> i16 {
+    let c = i32::from(cat);
+    let lists = |f: i32| match f {
+        -1 => c == 10 || c == 13,
+        -2 => (0..10).contains(&c),
+        f => c == f,
+    };
+    t.pages.iter().position(|&f| lists(f)).unwrap_or(0) as i16
+}
+
+/// Whether foe `e` is a golden goblin that a blow frees from a hold
+/// (`goldFlag`, `goldVolume` 2 up: `thinkGold`'s `goldDisHold`): an art
+/// lands one hit of its combo, the normal attack (which holds nothing)
+/// one blow before the goblin flinches and runs (`moveGold` act 7).
+fn shakes_off_holds(c: &piney_world::combat::Combat, e: usize) -> bool {
+    c.foes.get(e).and_then(Option::as_ref).is_some_and(|f| f.gold.flag && f.gold.volume >= 2)
+}
+
+/// Whether foe `e` is a golden goblin that shakes off holds in its attack
+/// act: GOB3-1's cast La Repth (`mag0` 153) there, backing off at no more
+/// than `maxSpd`. `interruptThink` makes no foe in its attack act flinch,
+/// so both swings of the normal attack land.
+fn casting_gold(c: &piney_world::combat::Combat, e: usize) -> bool {
+    shakes_off_holds(c, e) && c.foes.get(e).and_then(Option::as_ref).is_some_and(|f| f.act_num == enemy_act::ATTACK)
 }
 
 /// The foes the pilot fights: the field's, and a boss's parts while its

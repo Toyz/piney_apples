@@ -211,26 +211,6 @@ fn lone_level(s: &mut Session) {
     }
 }
 
-/// A golden goblin's HP held to one of Kite's blows ([`GOLD_HP`]). From
-/// Mutation on a held goblin that a blow reaches breaks free (`ccEnemyG`'s
-/// think), so each blow ends the skill or combo that held it, and the
-/// goblins heal each other without end (their SP never falls): GOB3-1's
-/// trio outlasts a lone Kite. A harness aid, as god is.
-fn gold_within_a_blow(s: &mut Session) {
-    let Stage::Area(a) = &mut s.stage else { return };
-    let c = a.world_mut().combat_mut();
-    for e in c.enemies() {
-        let gold = c.foes.get(e).and_then(Option::as_ref).is_some_and(|f| f.gold.flag && f.gold.volume >= 2);
-        let ch = &mut c.scene.chars[e];
-        if gold && ch.hp > GOLD_HP {
-            ch.hp = GOLD_HP;
-        }
-    }
-}
-
-/// [`gold_within_a_blow`]'s HP: under a level-90 Kite's blow (about 290).
-const GOLD_HP: i16 = 250;
-
 /// One side event played for `frames` frames, with the survey's aids when
 /// `god` (the party kept up, the infection at 0, the levels for a boss).
 fn play(disc: &str, iso: &Path, case: &Case, frames: u64, god: bool) -> Option<Seen> {
@@ -254,7 +234,7 @@ fn play(disc: &str, iso: &Path, case: &Case, frames: u64, god: bool) -> Option<S
     let (mut left, mut ended, mut ran) = (None, None, 0);
     // `PINEY_SURVEY_CALLS`: every host call as it is made.
     let trace = std::env::var_os("PINEY_SURVEY_CALLS").is_some();
-    // `PINEY_SURVEY_HITS`: each foe's and member's HP and last affect.
+    // `PINEY_SURVEY_HITS`: each foe's and member's HP, SP and last affect.
     let (hits, mut foes) = (std::env::var_os("PINEY_SURVEY_HITS").is_some(), Vec::new());
     for f in 0..frames {
         ran = f + 1;
@@ -263,7 +243,6 @@ fn play(disc: &str, iso: &Path, case: &Case, frames: u64, god: bool) -> Option<S
             cores_for_hack(&mut s);
             levels_for_boss(&mut s);
             lone_level(&mut s);
-            gold_within_a_blow(&mut s);
         }
         // `PINEY_DEBUG_PILOT`: every 500 frames the place, the pilot's
         // wants, the event targets and the foes' HP.
@@ -380,10 +359,12 @@ fn log_hits(s: &Session, f: u64, seen: &mut Vec<(usize, String)>) {
         let ch = &c.scene.chars[e];
         let (aff, dead) = (&ch.affect, ch.cond[piney_battle::param::cond::DEAD]);
         let st = format!(
-            "row {} hp {}/{} dead {dead} listed {} affect {} {:?} by {:?}",
+            "row {} hp {}/{} sp {}/{} dead {dead} listed {} affect {} {:?} by {:?}",
             ch.id(),
             ch.hp,
             ch.max_hp,
+            ch.sp,
+            ch.max_sp,
             c.scene.listed(e),
             aff.ty,
             aff.param,
@@ -520,13 +501,16 @@ fn search_bt_meets_its_npc_at_six_gates() {
     assert!(seen.ended.is_some(), "open after {} frames", seen.frames);
 }
 
-/// GOB3-1 (250) in field 78: the golden goblin block 5 enters runs from
-/// Kite; the pilot walks after it (`Want::Clear`) and fights it down, and
+/// GOB3-1 (250) in field 78: block 5's three golden goblins (row 135,
+/// volume 3) run from Kite and heal each other (La Repth, 150), and a blow
+/// makes one flinch and run. The pilot (`Want::Clear`) plays them as a
+/// player would: a Speed Charm, plain blows, the goblin casting its heal
+/// first, else one that stands, rushed. All three fall by frame 13,600 and
 /// block 8's `no_active` ends the event.
 #[test]
 fn gob3_1_golden_goblin_is_run_down() {
     let Some(iso) = outbreak() else { return };
-    let seen = play("outbreak", &iso, out_case(250), 14_000, true).unwrap();
+    let seen = play("outbreak", &iso, out_case(250), 18_000, true).unwrap();
     assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
     assert!(seen.flags & (1 << 8) != 0);
 }

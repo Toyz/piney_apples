@@ -88,7 +88,9 @@ through every heal. Under the pilot they held at 400-870 of 1,170 HP
 for 40,000 frames. The
 survey's `god` aids now include `gold_within_a_blow`, which keeps a golden
 goblin's HP at 250 so one blow fells it. Then the event's flow (block 5's
-goblins, block 8's `no_active`) passes again.
+goblins, block 8's `no_active`) passes again. (Replaced by 373: the aid
+is gone, and the pilot wins GOB3-1 by playing the goblins as a player
+would.)
 
 The ignored `infection_whole_story` stalls in Mac Anu after events 1-4
 and 10, at frame 215,400. It does so on 38f58bf as well, at the same

@@ -132,6 +132,11 @@ the room's doors shut, still went at them with the attack button.
   mode 2). The SEARCH NPCs stand at marker 0, the gate's dummy.
 - Survey aids (with god): a lone Kite in a field or dungeon at level 90
   (the story's aid for 206 is 75).
+- Golden goblins of `goldVolume` 2 up (worklog 373): a blow makes one
+  flinch and run, and it outruns Kite. The pilot uses a Speed Charm, the
+  plain attack (an art lands one hit), the goblin casting its heal first,
+  else one standing still, rushed with the stick at the rim; while all
+  run it waits for one to stop.
 - Exdefense: a sure hit (`CalcBattleDamage` at 100 on a copy of the foe)
   tells whether a kind is barred. A foe barred from one kind gets the
   other (the members' order and Kite's page); Kite's and the members'
