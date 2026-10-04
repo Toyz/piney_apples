@@ -105,9 +105,11 @@ pub struct Session {
     /// The picture on screen: the last frame of The World the layers
     /// flipped to, held through a change of scene's fade.
     shown: Option<Frame>,
-    /// `ccLoadDisp`, put up as a scene's set-up loads its files, and
-    /// whether that scene has started (`ccSnd.gameStart`).
+    /// `ccLoadDisp`, put up as a scene's set-up loads its files, whether
+    /// the set-up has reached that load (its event passes made) and whether
+    /// the scene has started (`ccSnd.gameStart`).
     load_disp: Option<crate::loaddisp::LoadDisp>,
+    at_load: bool,
     load_started: bool,
     /// `--dvd`'s disc timing, when on ...
     dvd: Option<crate::dvd::Dvd>,
@@ -217,6 +219,7 @@ impl Session {
             setup_mode: false,
             shown: None,
             load_disp: None,
+            at_load: false,
             load_started: false,
             dvd: crate::dvd::get(),
             hold: 0,
@@ -384,7 +387,7 @@ impl Session {
     fn put_up_load_disp(&mut self) {
         use crate::loaddisp::{LoadDisp, kind};
         let field_type = self.world_man.map_or(0, |w| w.field_type as i32);
-        self.load_started = false;
+        (self.at_load, self.load_started) = (false, false);
         self.load_disp = kind(&self.scene, field_type, self.setup_mode).map(|k| {
             let mut disc = Iso::open(&self.iso).ok();
             let v = disc.as_mut().and_then(|d| d.volume().ok()).unwrap_or(piney_data::volume::Volume::Inf);
@@ -953,9 +956,17 @@ impl Mode for Session {
             Stage::World(w) => w.ui_mut().hud_scale = self.hud_scale,
             _ => {}
         }
+        // `ccLoadResourceFL` comes after the set-up's passes at phases 0
+        // and 2 (`ccEnableThEvent(2)` waits at 0x00168f94), so a pass's
+        // streams play before the load and its display.
+        self.at_load |= match &self.stage {
+            Stage::Area(a) => a.setup().passes_made(),
+            Stage::World(w) => w.setup().passes_made(),
+            _ => true,
+        };
         // `--dvd`: the new scene's files still loading; only the loading
         // display runs.
-        if self.hold > 0 {
+        if self.hold > 0 && self.at_load {
             self.hold -= 1;
             let mut frame = Frame::new();
             if let Some(ld) = &mut self.load_disp
@@ -1158,8 +1169,10 @@ impl Mode for Session {
         } else {
             self.shown = None;
         }
-        // ccLoadDispTh (priority 17) over the new scene.
-        if let Some(ld) = &mut self.load_disp {
+        // ccLoadDispTh (priority 17) over the new scene, from the load.
+        if let Some(ld) = self.load_disp.as_mut()
+            && self.at_load
+        {
             if ld.frame(self.load_started) {
                 ld.draw(&mut frame);
             } else {

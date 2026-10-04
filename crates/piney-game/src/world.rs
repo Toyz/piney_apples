@@ -47,6 +47,15 @@ pub enum Setup {
     Left,
 }
 
+impl Setup {
+    /// Whether `ccSetupGameCtrl` is past its event passes, at its load
+    /// (`ccLoadResourceFL`) or later. A set-up a pass abandoned
+    /// (`Left` before `Start`) never loads; the session latches this.
+    pub fn passes_made(self) -> bool {
+        matches!(self, Setup::Off | Setup::Start | Setup::Play)
+    }
+}
+
 /// Frames a set-up pass may take before the runtime gives up waiting.
 const PASS_FRAMES: u32 = 10_000;
 

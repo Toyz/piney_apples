@@ -3,7 +3,7 @@ title: Event scripts
 status: partial
 volumes: all
 covers: MUT SLUS_205.62:0x001bdf00 ccEvent::Execute, OUT SLUS_205.63:0x001b4250, QUA SLUS_205.64:0x001bba60; INF SLUS_202.67:0x001a8d20 ccEvent::Execute, 0x001a7400 ccEvent::CheckOpen, 0x001a6ec0 ccEvent::SetCurrentOpen, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x00317e30 eventTbl, evMsgTbl, evMsgTblp
-worklog: 18, 24, 40, 176, 178, 179, 239, 325
+worklog: 18, 24, 40, 176, 178, 179, 239, 325, 376
 ---
 
 # Event scripts
@@ -72,7 +72,9 @@ Flag bits: bit `b` < 62 - block `b` has run (set when a block ends at `lv` >
 restarts. An event with 62 or 63 set is not walked.
 
 Phases (`eventMng.enablePhase`, set through `ccEnableThEvent` by each mode's
-setup): 0 before the mode's files load, 2 after, 4 during play. The event task
+setup): 0 before the mode's file list is made, 2 after it (still before the
+files load: `ccSetupGameCtrl` waits on the pass at 0x00168f94, then calls
+`ccLoadResourceFL`), 4 during play. The event task
 makes one pass at 0, one at 2, then one per frame from 4; after the first
 play pass the phase reads 5. `phase` preconditions pick the pass. The walk,
 the task and every instruction's effect are on

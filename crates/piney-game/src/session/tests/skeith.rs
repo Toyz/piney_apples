@@ -286,6 +286,12 @@ fn skeith_act_shots() {
 /// `eventStatus[0]` 4, as the board, the mail, Dun Loireag and the
 /// dungeon leave them.
 fn event_30_arena() -> Option<Session> {
+    event_30_arena_from(1)
+}
+
+/// [`event_30_arena`] entered from area `prev` (2: area 27's dungeon, the
+/// player's way in).
+fn event_30_arena_from(prev: i32) -> Option<Session> {
     let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
     if !iso.exists() {
         return None;
@@ -303,7 +309,89 @@ fn event_30_arena() -> Option<Session> {
     let mut scene = piney_world::area::Scene::log_in(&mut state.save);
     let wm = crate::area::story_world_man(&mut d, 27, false).unwrap();
     scene.change_scene(1, 1, 1, -1, -1, -1, &mut state.save);
+    scene.area_prev = prev;
     Some(Session::in_world(iso, archive, None, state, Some(start.vm), scene, Some(wm)).unwrap())
+}
+
+/// Whether `frame` draws the loading display's animation (`xdl_load`'s
+/// THE WORLD band).
+fn draws_the_load_band(frame: &Frame) -> bool {
+    frame.cmds.iter().any(|c| matches!(c, piney_draw::Cmd::Model(m) if m.file == "xdl_load"))
+}
+
+/// Shots of event 30's Skeith entrance (stream 17, `str9101`) as the
+/// session plays it from the dungeon: every 10th of its steps 760-840 (all
+/// drawn from 700, as the feedback reads the last picture) to
+/// `$PINEY_SHOTS` (/mnt/data/claude/scratch/event30).
+#[test]
+#[ignore]
+fn event_30_stream_shots() {
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/event30".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let Some(mut s) = event_30_arena_from(2) else { return };
+    let mut pad = Pad::default();
+    pad.read(&Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
+    let mut gs: Option<piney_gs::Gs> = None;
+    let mut step = 0u32;
+    while step <= 840 {
+        let frame = s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &s.stage else { break };
+        if a.stream_scene().as_deref() != Some("str9101") {
+            continue;
+        }
+        step += 1;
+        // Every step from 700 drawn: the feedback reads the last picture.
+        if step < 700 {
+            continue;
+        }
+        let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
+        g.set_overlay(Mode::archive(&s));
+        g.render(&frame);
+        if step < 760 || !step.is_multiple_of(10) {
+            continue;
+        }
+        let (w, h) = g.target_size();
+        let path = format!("{dir}/str9101-{step:04}.png");
+        std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+        println!("{path}");
+    }
+}
+
+/// Issue #42: event 30's block 21 plays streams 14 and 17 (Skeith's
+/// entrance) at phase 2 as the arena is entered from the dungeon.
+/// `ccSetupGameCtrl` waits on that pass (`ccEnableThEvent(2)`, 0x00168f94)
+/// before `ccLoadResourceFL` puts the loading display up, so no frame of
+/// the streams carries its band; it shows after them, here over 30 frames
+/// of disc (`--dvd`'s hold; the port's own loads take none).
+#[test]
+fn event_30_streams_play_before_the_loading_display() {
+    let Some(mut s) = event_30_arena_from(2) else { return };
+    s.hold = 30;
+    let mut pad = Pad::default();
+    pad.read(&Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
+    let (mut streamed, mut over, mut after) = (BTreeSet::new(), 0u32, 0u32);
+    for _ in 0..4000u32 {
+        let frame = s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &s.stage else { break };
+        let band = draws_the_load_band(&frame);
+        match a.stream_scene() {
+            Some(scene) => {
+                streamed.insert(scene);
+                over += u32::from(band);
+            }
+            None if !streamed.is_empty() => after += u32::from(band),
+            None => {}
+        }
+        if a.world().combat().boss.is_some() {
+            break;
+        }
+    }
+    println!("streams {streamed:?}; the band over them {over} frames, after {after}");
+    assert!(streamed.contains("str0570") && streamed.contains("str9101"), "{streamed:?}");
+    assert_eq!(over, 0, "the loading display drawn over the streams");
+    assert_eq!(after, 30, "the loading display after the streams");
 }
 
 /// Event 30 in the arena: block 20 makes the boss (`entry 7 0`, `battle_ready`,

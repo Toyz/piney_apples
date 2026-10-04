@@ -523,6 +523,11 @@ impl AreaMode {
         &self.st.calls
     }
 
+    /// Where the set-up is with the event task.
+    pub fn setup(&self) -> Setup {
+        self.setup
+    }
+
     /// Whether the scripts play a stream.
     #[allow(dead_code)]
     pub fn streaming(&self) -> bool {
