@@ -72,9 +72,9 @@ change), `PINEY_DEBUG_PILOT`), as Infection's `side_event_survey`:
 ## Where it stands (2026-10-04)
 
 Survey (`PINEY_SURVEY_GOD=1 PINEY_SURVEY_FRAMES=150000`, worklog 374, the
-whole table run again): 23 of the 26 finish; no panic, no host call left
-at its default, no fault. The golden goblins of 250-253 fall with no HP
-aid (worklogs 373, 374).
+whole table run again; 260 and 261 since, worklog 375): 25 of the 26
+finish; no panic, no host call left at its default, no fault. The golden
+goblins of 250-253 fall with no HP aid (worklogs 373, 374).
 
 | event | state | what stops it |
 | --- | --- | --- |
@@ -85,7 +85,7 @@ aid (worklogs 373, 374).
 | 256 | done (66,778) | room 0-2's Gaia Turtle (row 114, Exdefense 1) takes no blows (see below) |
 | 257 | done (29,386) | the key-item trade over points 1-4 |
 | 259 | done (1,908) | |
-| 260, 261 | open | already open at 268db68 (done 2026-09-30: 18,454; 25,964): 260 waits at point 7, 261 at point 2 |
+| 260, 261 | done (16,908; 31,570) | the Gott statue at point 7 and point 2 opened first: `no_active` waits on it (#18; worklog 375) |
 | 262 | done (41,540) | room 2-6's Deadly Presents (row 243, Exdefense 1) take no blows |
 | 263 | done (9,372) | Black Death (row 176, Exdefense 2) takes no spells |
 | 264, 266 | done (376; 62) | |
@@ -147,6 +147,8 @@ the room's doors shut, still went at them with the attack button.
   goblins' HP takes at 15 a charm, and one more; short of them, Gate
   Out (after leaving the fight: it refuses in one), the town's magic
   shop (Buy, the count, OK), and back by the gate (`GateGoal::Shop`).
+- A wanted event point's room with its Gott statue still shut after 300
+  frames there, no foe about: the statue opened (worklog 375).
 - Exdefense: a sure hit (`CalcBattleDamage` at 100 on a copy of the foe)
   tells whether a kind is barred. A foe barred from one kind gets the
   other (the members' order and Kite's page); Kite's and the members'
@@ -155,11 +157,10 @@ the room's doors shut, still went at them with the attack button.
 
 Both whole runs still finish, sooner: `outbreak_whole_story` 408,000
 (from 463,200; 203 at 63,300 from 77,700), `mutation_whole_story` 506,100
-(from 613,800).
+(from 613,800). On 2026-10-04 (worklog 375): 423,600 and 497,100.
 
 ## Next
 
 - 254: a way to out-damage GOB3-5's heals (worklog 374): summon scrolls
   (server 4's shop), or a player's record of the fight.
-- 260, 261: what stops them at points 7 and 2 since 2026-09-30.
 - Mutation's side events, the same way.

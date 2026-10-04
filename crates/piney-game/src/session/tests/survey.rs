@@ -35,6 +35,9 @@ pub(super) struct StoryPilot {
     quarry: Option<usize>,
     rush_mark: Option<(u64, [f32; 2])>,
     detour_until: u64,
+    /// Until when, and to which side (1 or -1, a right angle off the
+    /// way), the walk to a dungeon goes round what stopped it.
+    sidestep: (u64, f32),
     /// The fight's action under way, whether its menus have opened, when
     /// it began; when the last one ended; this fight's Skills! (false) or
     /// Magic! (true) order, once out; the target menu's presses toward a
@@ -69,6 +72,9 @@ pub(super) struct StoryPilot {
     statues_done: Vec<(i32, i32, i32, i32)>,
     /// Since when the pilot has stood in such a room finding nothing to open.
     nothing_since: Option<((i32, i32, i32, i32), u64)>,
+    /// Since when he has stood in a wanted event point's room (see
+    /// [`Self::open_point_statue`]).
+    point_since: Option<((i32, i32, i32, i32), u64)>,
     /// What Kite carries out of town (bought there when short), the fields
     /// whose foes it was weighed for (once each), and whether he is on his
     /// way out of one to buy it ([`Self::provision`]).
@@ -119,6 +125,7 @@ impl Default for StoryPilot {
             quarry: None,
             rush_mark: None,
             detour_until: 0,
+            sidestep: (0, -1.0),
             action: None,
             opened: false,
             began: 0,
@@ -138,6 +145,7 @@ impl Default for StoryPilot {
             gating: false,
             statues_done: Vec::new(),
             nothing_since: None,
+            point_since: None,
             buys: Vec::new(),
             stocked: Vec::new(),
             leaving: false,
@@ -200,6 +208,9 @@ impl StoryPilot {
                     return raw;
                 }
                 if let Some(raw) = self.open_item(a, &wants, f) {
+                    return raw;
+                }
+                if let Some(raw) = self.open_point_statue(a, &wants, f) {
                     return raw;
                 }
                 if let Some(to) = to
@@ -345,6 +356,42 @@ impl StoryPilot {
             return None;
         };
         self.nothing_since = None;
+        let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+        if w.command_target_code() == Some((piney_world::entry::Kind::Gimmick, i as i32)) {
+            return Some(if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
+        }
+        let q = w.combat().scene.chars[i].pos.map(f32::from_bits);
+        let p = w.player().body.pos.map(f32::from_bits);
+        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
+    }
+
+    /// In the room of a wanted event point, no foe about, its Gott statue
+    /// still shut after 300 frames there: the statue opened, as
+    /// [`Self::open_item`] goes. A block that waits on `no_active` waits on
+    /// a switched-on statue too (`no_active_object`): MOON-2's (261) point
+    /// 2 gives the Moon Knife it then takes.
+    fn open_point_statue(&mut self, a: &crate::area::AreaMode, wants: &[Want], f: u64) -> Option<Raw> {
+        let w = a.world();
+        let sc = w.scene();
+        let vm = a.vm()?;
+        let at_point = wants.iter().any(|&x| {
+            matches!(x, Want::Point(n) if vm.mng.point(n).is_some_and(|p| (i32::from(p.floor), i32::from(p.block)) == (sc.floor, sc.block)))
+        });
+        let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+        let quiet = playing && a.ui().menu_type() == -1 && w.combat().battle.in_battle == 0;
+        let key = (sc.field, sc.dungeon, sc.floor, sc.block);
+        if !at_point || !quiet {
+            return None;
+        }
+        let since = match self.point_since {
+            Some((k, since)) if k == key => since,
+            _ => {
+                self.point_since = Some((key, f));
+                f
+            }
+        };
+        let i = w.unopened_statue().filter(|_| f >= since + 300)?;
         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
         if w.command_target_code() == Some((piney_world::entry::Kind::Gimmick, i as i32)) {
             return Some(if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
@@ -1292,6 +1339,13 @@ impl StoryPilot {
         let cam_z = f32::from_bits(w.camera().rot()[2]);
         let toward = |q: [f32; 2]| stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
         let far = (mid[0] - p[0]).hypot(mid[1] - p[1]);
+        // Pressed into a rock or tree with no way found round it (every
+        // field object has its hit: worklog 366): sideways a while, the
+        // other way each time.
+        if f < self.sidestep.0 {
+            let h = (mid[0] - p[0]).atan2(-(mid[1] - p[1])) + self.sidestep.1 * std::f32::consts::FRAC_PI_2;
+            return Some(stick_toward(cam_z, h));
+        }
         if far > 2500.0 && self.path.is_empty() && !f.is_multiple_of(60) {
             return Some(toward([mid[0], mid[1]]));
         }
@@ -1304,6 +1358,10 @@ impl StoryPilot {
                 // enough to hold him (81 cells, the step the distance asks).
                 let step = (far * 2.2 / 81.0).max(100.0);
                 self.path = path_to(&fa.hits, [p[0], p[1], p[2]], [mid[0], mid[1]], 81, step, |_, door| door);
+                if self.path.is_empty() {
+                    let side = if self.sidestep.1 > 0.0 { -1.0 } else { 1.0 };
+                    self.sidestep = (f + 90, side);
+                }
             }
             self.mark = Some([p[0], p[1]]);
         }
@@ -2305,6 +2363,32 @@ fn fighters(a: &crate::area::AreaMode) -> String {
     let party: Vec<_> = c.members.iter().map(|&(_, k)| one(k)).collect();
     let foes: Vec<_> = foes(c).into_iter().map(one).collect();
     format!("party {party:?} foes {foes:?}")
+}
+
+/// Outbreak's story start 211 in area 47's field: the straight walk to
+/// the dungeon's mouth runs into a rock (every field object has its hit,
+/// worklog 366), and no way round is found from where he stands
+/// pressed to it. The pilot steps aside and goes on: Kite is in the
+/// dungeon within 10,000 frames.
+#[test]
+fn story_211_walks_round_the_rock_into_area_47_s_dungeon() {
+    let Some(mut s) = story_session_on("outbreak", 211, |_| {}) else { return };
+    s.console("god");
+    let (mut pad, mut pilot) = (Pad::default(), StoryPilot::default());
+    for f in 0..10_000u64 {
+        let raw = pilot.next(&s, f);
+        pilot.after(&mut s);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if let Stage::Area(a) = &s.stage
+            && a.world().scene().area == kind::DUNGEON
+            && a.world().scene().field == 47
+        {
+            return;
+        }
+    }
+    panic!("not in area 47's dungeon: {}", Mode::title(&s));
 }
 
 /// Event 18 to its end in area 19's dungeon (the autopilot, the party

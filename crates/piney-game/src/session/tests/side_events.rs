@@ -547,6 +547,18 @@ fn gob3_4_golden_goblins_fall_after_a_shop() {
     assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
 }
 
+/// SANJYURO-4 (260): block 23 at point 7 waits on `no_active`, which a
+/// switched-on Gott statue holds too (`no_active_object`, #18), and then
+/// takes the key item the statue gives (283). The pilot opens a wanted
+/// point room's statue once it has stood there 300 frames with no foe
+/// about: the event ends.
+#[test]
+fn sanjyuro_4_opens_point_7_s_statue() {
+    let Some(iso) = outbreak() else { return };
+    let seen = play("outbreak", &iso, out_case(260), 22_000, true).unwrap();
+    assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
+}
+
 /// SERVER-3 (263): Black Death at point 1 (OUT row 176, Exdefense 2)
 /// shrugs off magic while its magic defence holds, and its physical
 /// defence is the higher. The pilot fights it with Kite's physical skills

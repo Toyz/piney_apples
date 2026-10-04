@@ -2889,8 +2889,16 @@ mod tests {
             (59, 2, GateGoal::Area(row)) => return Some(every(8, go_to(row))),
             (59, 4, _) => return Some(every(8, Buttons::CROSS)),
             (11, 1, _) => return Some(every(8, go_to(0))),
+            // A walking PC's list opened on a passer-by, not on the one
+            // the pilot went to (he stepped in as the command target as
+            // OK went): back out.
+            (22, ..) if !matches!(goal, GateGoal::Talk(k, n) if world.command_target() == Some((k, n))) => {
+                return Some(every(8, Buttons::CIRCLE));
+            }
             // A talk the events do not take (the NPC's own line): on.
             (22, _, GateGoal::Talk(..)) => return Some(every(8, Buttons::CROSS)),
+            // The PC's line (`TalkMenu`): OK closes it, back to his list.
+            (47, ..) => return Some(every(8, Buttons::CROSS)),
             // The shop: Buy (52), the item's row, the count up to what
             // Kite is short of, OK, and OK to the question; a refusal's
             // lines closed. Once nothing is short, back out.
