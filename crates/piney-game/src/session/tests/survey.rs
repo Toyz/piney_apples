@@ -2503,3 +2503,29 @@ fn event_14_blackrose_after_the_administrator() {
     }
     println!("end: step {step} - {}", Mode::title(&s));
 }
+
+/// Issue #39: Bob gives story area 24's keywords in a field (event 26,
+/// `gate_add_msg 24`), and `DispInfo`'s window came up empty: the field's
+/// host composed only a member's address. Its two lines are the
+/// desktop's: the gate address, and `getItemMenuStr[7]`.
+#[test]
+fn bob_s_keywords_show_in_the_field() {
+    let Some(mut s) = story_session_on("infection", 26, |_| {}) else { return };
+    s.console("god");
+    let mut pad = Pad::default();
+    let mut pilot = StoryPilot::default();
+    for f in 0..200_000u64 {
+        let raw = pilot.next(&s, f);
+        pilot.after(&mut s);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &s.stage else { continue };
+        if a.calls().iter().any(|(_, c)| c == "announce GateAddress { area: 24 }") {
+            let sf = a.ui().ctrl.msg.sf;
+            assert!(sf[0] > 0 && sf[1] > 0, "the window's lines: {sf:?}");
+            return;
+        }
+    }
+    panic!("Bob never gave the keywords: {}", Mode::title(&s));
+}

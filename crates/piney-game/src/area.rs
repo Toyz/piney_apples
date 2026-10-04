@@ -252,6 +252,7 @@ impl AreaMode {
         };
         let mut st = FieldState::new(&state.save, stories);
         st.game = area_host::game_of(&scene);
+        st.announcements = crate::desktop::announcements(iso);
         let mut world = FieldWorld::enter(&mut disc, archive.clone(), state, scene, world_man, kept, faded, spcs)
             .map_err(|e| format!("area {} field {} dungeon {}: {e}", scene.area, scene.field, scene.dungeon))?;
         // WORLD::Init's or the DUNGEON constructor's map, and the modes

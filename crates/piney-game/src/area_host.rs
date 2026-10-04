@@ -248,14 +248,23 @@ impl Host for AreaHost<'_> {
         self.ui.message_close();
     }
 
+    /// `DispInfo` (0x001b27b0): a member's address as the field UI words
+    /// it; a gate address or a desktop item as the desktop composes it
+    /// ([`crate::story::Announcements`]). The field had shown those boxes
+    /// empty.
     fn announce(&mut self, a: Announce) {
         self.st.log(format!("announce {a:?}"));
-        let name = match a {
-            Announce::Member { pc } => self.world.char_name(i32::from(pc)),
-            _ => Vec::new(),
-        };
         let save = self.world.state().clone();
-        self.ui.announce(a, &name, &save);
+        match a {
+            Announce::Member { pc } => {
+                let name = self.world.char_name(i32::from(pc));
+                self.ui.announce(a, &name, &save);
+            }
+            _ => {
+                let lines = self.st.announcements.as_ref().map(|t| t.lines(a, &save.save)).unwrap_or_default();
+                self.ui.announce_lines(&lines, &save);
+            }
+        }
     }
 
     // --- Modes and the screen -------------------------------------------------------------
