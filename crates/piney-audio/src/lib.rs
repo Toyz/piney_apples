@@ -729,6 +729,11 @@ impl Audio {
         Ok(())
     }
 
+    /// Whether a `BGM.BIN` track holds channel 0 now.
+    pub fn bgm_streaming(&self) -> bool {
+        matches!(self.engine().input, Some(Input::Bgm(_)))
+    }
+
     pub fn bgm_stream_stop(&self) {
         let mut e = self.engine();
         if matches!(e.input, Some(Input::Bgm(_))) {

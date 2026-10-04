@@ -3,7 +3,7 @@ title: Sound - effects, music and the IOP sound driver
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x00179c10 ccSeOn, 0x00179cb0 ccSeOnNote, 0x00179d90 ccSeOn3D, 0x0017a140 ccSeOn3DLoop, 0x0017a620 ccSeOffLoop, 0x001794b0 ccSetMainVol, 0x001794f0 ccSetBgmVol, 0x00179540 ccSetSeVol, 0x00179630 ccSndChangeOption, 0x00181010 ccSoundMain, 0x0017bac0 waterTest, 0x0017c3c0 bgmChurch, 0x0017c6d0 bgmBreed, 0x0017ad70 ccPortVolSet, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x00181250 ccSound::ccFade, 0x001834e0 ccSndChangeData, 0x0017b020 ccSndBgmCtrl, 0x001821d0 ccSndSQLoad, 0x00183380 ccSound::bgmChange, 0x0017de80 ccSndEvRequest, 0x00168960 ccSetupGameCtrl, 0x00167580 ccGame::CheckSceneReplace, 0x00307bc0 sqDataField, 0x00307bf0 playTypeTbl, 0x00309f60 sqVolTblField, 0x00307c20 sqDataDungeon, 0x00307d28 dungeonPlayType, 0x0030a100 sqVolTblDungeon, 0x00307f00 sqDataEvent, 0x00308a90 eventPlayType, 0x0030a3d0 sqVolTblEvent, 0x00307d40 sqDataTown, 0x00309f90 sqVolTblTown, 0x00182050 ccSndCommSeLoad, 0x00181ee0 spuInit, 0x001816f0 ccSound::sdCommand, 0x00182dc0 ccSoundRpc, 0x0017e6e0 wavPlay, 0x00308db0 seData, 0x00181440 ccSound::ccSceneFade, 0x001811f0 ccSound::gameInterrupt, 0x0017ae10 ccAllSoundOff, 0x00183080 initBeforeLoad, 0x0017e810 ccEvVoiceRequest, 0x0017eeb0 ccVoiceRequest, 0x0017e290 ccWordsPlay, 0x0017e350 skillVoicePlay, 0x0017eca0 evVoicePlay, 0x0017ee40 ccEvVoiceStop, 0x001800e0 ccVoicePgFood, 0x00179f50 ccSeOn3DNote, 0x0017a370 calcVel, 0x0017a4c0 calcPan, 0x0017a6b0 ccSeOnPCStep, 0x0017a7f0 seHitAttr, 0x0017aa20 ccSeSetParamSPC, 0x0017aaf0 ccSeSetParamPC, 0x0017abd0 ccSeSetParamEnemy, 0x0017ac70 ccSeSetParamInu, 0x001830c0 initAfterLoad, 0x00183fb0 ccSound::strSeEnd, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x003789dc looptest; INF gcmn.prg:0x00572860 _ccSkillRequest (its ccWordsPlay), 0x005a17e0 ccSpcShoutOperationName, 0x00493370 ccBoss04::OnThinkPrediction, 0x00639560 spc0SeData, 0x00639d40 spcSeTbl, 0x0063a850 enemySeTbl, 0x0063a8a0 inuSeData; INF SLUS_202.67:0x0017d190 ccSndStreamCtrl, 0x0017caa0 ccSndStreamSE, 0x0017cb20 ccSndStreamBGM, 0x001799b0 ccSqPlayVol, 0x00183f40 ccSound::strSeInit, 0x00183fb0 ccSound::strSeEnd, 0x00180b30 ccSndMoviePlayer, 0x0030b950 strSndTbl; INF desktop.prg:0x004072c0 Audio_control::ChangeWeve, 0x0042b6f0 Wave; INF MODULES/SNDBASE.IRX:0x0a58 ccSoundFunc, 0x031c ccSoundFunc2, 0x07e4 bgmChange, 0x3564 setModuleContext, 0x3860 ATick, 0x27d4 ccSetSq, 0x257c ccSetHdSynth; INF MODULES/MODMIDI.IRX; INF MODULES/MODHSYN.IRX; INF MODULES/SEWORDS.IRX:0x0e24 BgmSetVolumeDirect
-worklog: 42, 327, 332, 370
+worklog: 42, 327, 332, 370, 371
 ---
 
 # Sound - effects, music and the IOP sound driver
@@ -327,7 +327,10 @@ index, then a terminating row with category -1. `saveData.dtBgm`
    `sqDataStream`, 7 `sqDataTitle` (jump table 0x0034e130; 0 loads
    nothing), row `bgNum`, and the `SQTBL`s of the matching volume table
    (0x0034e110). Port 0 back to `seVol`; ports 1-3 to their `vol`.
-3. Unless `old` is -1: `ccSqPlay(1)` if `wave->NO` is 47, 27 or 7, else
+3. `sqStatus` -1, the loop slots free, +0x60 and `bgmStopFlag` cleared,
+   and +0xf0 = 1 (0x00183c68): `ccSndBgmCtrl` takes the desktop's case
+   from here, whatever `ccSndSQLoad` loaded before.
+4. Unless `old` is -1: `ccSqPlay(1)` if `wave->NO` is 47, 27 or 7, else
    `ccSqPlay(0)`.
 
 Three jukebox rows share a bank with another row and play its second
@@ -339,7 +342,11 @@ The desktop starting (`ccSetupDesktop`, 0x00168320) calls
 whose desktop case (`sqLoadParam` 1, 0x0017b7d4) plays sequence 1 when
 `dtBgm` is 27 or 7 and sequence 0 otherwise. Row 47 is missing there, so
 a desktop started with `dtBgm` 47 plays row 46's music, which the jukebox
-itself never does.
+itself never does. The case honours the hold (+0x138): the endings' set-up
+pass runs `sound 10` (event 31, block 0), so the desktop after the ending
+is silent, and the staff roll's `BGM.BIN` track 1 plays alone. Its
+`ccSndBgmCtrl` after the save menus starts the theme. `tools/sound_ee.py`'s
+`seq ... hold+desktop NO+...` lines check both, after a town and a field.
 
 The jukebox (`Audio_control::ChangeWeve`, desktop.prg 0x004072c0) plays SE
 4 on a selection, starts a thread (`BgmRead`) that calls
@@ -494,7 +501,7 @@ Dun Loireag's sequence 2, and with `gameStart` never set the town ran
 ### ccSndBgmCtrl
 
 `ccSndBgmCtrl` (0x0017b020) switches on +0xf0, the last loaded context
-(jump table 0x0034d350). Each start is `ccSqPlay` inlined: only a
+(`ccSndSQLoad`'s `n`, or 1 after `ccSndChangeData`; jump table 0x0034d350). Each start is `ccSqPlay` inlined: only a
 sequence below `sqNum` that is not playing, its port set to its `vol`,
 0x110 sent, `sqStatus` 1. At the end +0x137 is set, which lets `bgmChange`
 run.

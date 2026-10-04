@@ -82,7 +82,8 @@ pub struct Driver {
     /// [`Driver::set_voice`]).
     voice: &'static piney_data::tables::voice::Voice,
     /// `ccSnd +0xf0`: the [`SqContext::number`] of the last bank
-    /// `ccSndSQLoad` loaded, which `ccSndBgmCtrl` switches on.
+    /// `ccSndSQLoad` loaded (1 after `ccSndChangeData`), which
+    /// `ccSndBgmCtrl` switches on.
     pub context: i32,
     /// `ccSnd +0x104`: [`Pick::play_type`] of the last load.
     pub play_type: i8,
@@ -816,7 +817,10 @@ impl Driver {
     pub fn change(&mut self, tables: &Tables, w: WaveData, out: &mut Vec<Command>) {
         let old = self.wave;
         if old < 0 {
-            self.desktop(tables, w, out);
+            // Nothing loaded to fade: load and play the row at once.
+            self.change_data_fresh(tables, &w, out);
+            let sq = if SECOND_SEQUENCE.contains(&w.no) { 1 } else { 0 };
+            self.sq_play(sq, out);
             return;
         }
         let sq = if SECOND_SEQUENCE.contains(&old) { 1 } else { 0 };
@@ -870,24 +874,40 @@ impl Driver {
         }
         self.sq_status = [-1; 3];
         self.wave = w.no;
+        // 0x00183c34: the loop slots free, the battle music and
+        // `bgmStopFlag` off, and `+0xf0` 1 - the desktop's case of
+        // `ccSndBgmCtrl`, whatever `ccSndSQLoad` loaded last.
+        self.loop_id = [-1; 8];
+        self.battle_music = false;
+        self.bgm_stop = false;
+        self.context = SqContext::Desktop.number();
     }
 
-    /// The desktop starting (`ccSetupDesktop`, 0x00168320):
-    /// `ccSndChangeData(&Wave[dtBgm], -1)` - fades cleared, all sound off,
-    /// the music held while the bank loads, no play - then `ccSndBgmCtrl`
-    /// (0x0017b020, case 1) plays sequence 1 for rows 27 and 7 and
-    /// sequence 0 for every other - row 47 included, which the jukebox plays
-    /// as sequence 1.
-    pub fn desktop(&mut self, tables: &Tables, w: WaveData, out: &mut Vec<Command>) {
+    /// `ccSndChangeData(wave, -1)` (0x00183540): fades cleared,
+    /// `bgmStopFlag` set, all sound off, TOBJ's hum and `+0x137` cleared,
+    /// then the load; nothing plays.
+    fn change_data_fresh(&mut self, tables: &Tables, w: &WaveData, out: &mut Vec<Command>) {
         self.pending = None;
         self.fade[0].sw = 0;
         self.fade[1].sw = 0;
+        self.bgm_stop = true;
         self.tobj_loop = false;
+        self.bgm_started = false;
         out.push(Command::AllSoundOff);
-        self.load(tables, &w, false, out);
+        self.load(tables, w, false, out);
+    }
+
+    /// The desktop starting (`ccSetupDesktop`, 0x00168320):
+    /// `ccSndChangeData(&Wave[dtBgm], -1)`, load only; `gameStart` set;
+    /// then `ccSndBgmCtrl`'s desktop case: nothing while `sound 10` holds
+    /// it (the endings'), else sequence 1 for rows 27 and 7 and sequence
+    /// 0 for every other - row 47 included, which the jukebox plays as
+    /// sequence 1.
+    pub fn desktop(&mut self, tables: &Tables, w: WaveData, out: &mut Vec<Command>) {
+        self.change_data_fresh(tables, &w, out);
         self.game_start = true;
-        let sq = if matches!(w.no, 27 | 7) { 1 } else { 0 };
-        self.sq_play(sq, out);
+        let world = BgmWorld { scene_replaced: false, town: 0, crisis: false, dt_bgm: w.no };
+        self.bgm_ctrl(&world, out);
     }
 
     /// `ccSndSQLoad(n)` (0x001821d0): the bank of a context

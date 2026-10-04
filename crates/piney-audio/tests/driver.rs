@@ -194,6 +194,10 @@ fn the_driver_sends_what_the_game_sends() {
                             d.bgm_ctrl(&world.bgm(), &mut out);
                         }
                         "hold" => d.hold_bgm(),
+                        "desktop" => {
+                            world.set("dtBgm", n[0]);
+                            d.desktop(&INF, INF.wave[n[0] as usize], &mut out);
+                        }
                         "battle" => d.in_battle = n[0] != 0,
                         "ride" => d.riding = n[0] != 0,
                         "pginit" => d.pg_bgm_init(),
@@ -218,5 +222,5 @@ fn the_driver_sends_what_the_game_sends() {
         }
         assert_eq!(words(&snd, &out), want, "{head}");
     }
-    assert_eq!(counts, [237, 30, 51, 6, 10, 367]);
+    assert_eq!(counts, [237, 30, 51, 6, 10, 370]);
 }

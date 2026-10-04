@@ -481,11 +481,10 @@ impl Host for Bridge<'_> {
     fn set_frame_rate(&mut self, rate: i16) {
         let rate = u32::try_from(rate).unwrap_or(1).max(1);
         self.st.frame_rate = Some(rate);
-        // The staff roll's `SetFrameRate(2)` (everything but the menu
-        // asleep) holds for the save menus it opens.
-        if let Target::Desktop(d) = &mut self.target
-            && d.slept()
-        {
+        // `ccSys` has one rate: the endings' `frame_rate 2` before
+        // `staff_roll` runs the roll at 30 frames a second, as long as its
+        // music, and the instruction's own `SetFrameRate(2)` its save menus.
+        if let Target::Desktop(d) = &mut self.target {
             d.set_frame_rate(rate);
         }
     }

@@ -37,23 +37,64 @@ struct Player {
     s: Session,
     pad: Pad,
     frames: u32,
+    /// Vertical blanks played: each frame's `ccSystem` frame rate.
+    vblanks: u32,
     last: Option<Frame>,
     /// Where [`Player::shot`] writes, when shots are asked for.
     shots: Option<(String, Option<piney_gs::Gs>)>,
+    /// A headless engine every frame's events go to, as `main` routes
+    /// them, rendered a vertical blank's samples at a time.
+    audio: Option<piney_audio::Audio>,
 }
 
 impl Player {
     fn new(s: Session) -> Self {
-        Player { s, pad: Pad::default(), frames: 0, last: None, shots: None }
+        Player { s, pad: Pad::default(), frames: 0, vblanks: 0, last: None, shots: None, audio: None }
+    }
+
+    /// With a headless engine hearing everything from the session's start.
+    fn hearing(s: Session) -> Self {
+        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        Player { audio: Some(piney_audio::Audio::headless(&iso).unwrap()), ..Player::new(s) }
     }
 
     fn step(&mut self, buttons: Buttons) {
         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
         self.pad.read(&Raw { buttons, ..still });
+        let rate = Mode::frame_rate(&self.s);
         let f = self.s.step(&self.pad);
-        self.s.take_events();
+        let events = self.s.take_events();
+        if let Some(a) = &self.audio {
+            crate::handle(events, Some(a));
+            a.frame();
+            a.render(&mut vec![0i16; 1600 * rate as usize]);
+        }
         self.last = Some(f);
         self.frames += 1;
+        self.vblanks += rate;
+    }
+
+    /// Whether `ccThStaffRoll` runs.
+    fn rolling(&self) -> bool {
+        desktop(&self.s).is_some_and(Desktop::staff_roll_running)
+    }
+
+    /// The sequencers playing.
+    fn sequences(&self) -> [bool; 3] {
+        self.audio.as_ref().map_or([false; 3], |a| a.with_engine(|e| e.seq.each_ref().map(|q| q.playing())))
+    }
+
+    /// The ending played, cross every 30 frames for its lines, to the
+    /// staff roll's first frame.
+    fn play_to_staff_roll(&mut self) {
+        for i in 0..20_000u32 {
+            if self.rolling() {
+                println!("the staff roll at frame {}", self.frames);
+                return;
+            }
+            self.step(if i % 30 == 0 { Buttons::CROSS } else { Buttons::NONE });
+        }
+        panic!("no staff roll: {}", Mode::title(&self.s));
     }
 
     /// `n` frames with nothing held.
@@ -196,6 +237,75 @@ fn ending_saves_the_clear_data() {
     assert_eq!(saved.clear_flag(), 1);
     assert_eq!(saved.cstr(offset::PL_NAME, 24), p.desktop().state().save.cstr(offset::PL_NAME, 24));
     let _ = std::fs::remove_dir_all(&card);
+}
+
+/// `VOICE/BGM.BIN` track 1, the staff roll's music: 46,073,124 bytes of
+/// 16-bit stereo at 48 kHz.
+const ROLL_MUSIC_SECONDS: f64 = 46_073_124.0 / 4.0 / 48_000.0;
+
+/// Issue #46. Event 31's `frame_rate 2` just before `staff_roll` holds for
+/// the whole roll. After the frame it starts in, `ccThStaffRoll` runs two
+/// frames of `Breath` and its 7,230 `Main`s (the game's own, in
+/// `staffroll_fixture.txt`), two vertical blanks each: as long as its
+/// music (239.96 s), not half of it.
+#[test]
+fn the_staff_roll_runs_at_the_music_s_pace() {
+    let Some(s) = ending(empty_card()) else { return };
+    let mut p = Player::new(s);
+    p.play_to_staff_roll();
+    let (frames, vblanks) = (p.frames, p.vblanks);
+    let mut rates = std::collections::BTreeSet::new();
+    while p.rolling() {
+        rates.insert(Mode::frame_rate(&p.s));
+        p.step(Buttons::NONE);
+        assert!(p.frames - frames < 20_000, "the staff roll does not end");
+    }
+    let (frames, vblanks) = (p.frames - frames, p.vblanks - vblanks);
+    let seconds = f64::from(vblanks) / 60.0;
+    println!("the staff roll: {frames} frames, {vblanks} vertical blanks, {seconds:.2} s, rates {rates:?}");
+    assert_eq!(rates.into_iter().collect::<Vec<_>>(), [2], "the roll's frame rate");
+    assert_eq!(frames, 2 + 7230, "the roll's frames after its first");
+    assert!((ROLL_MUSIC_SECONDS..ROLL_MUSIC_SECONDS + 2.0).contains(&seconds), "{seconds:.2} s");
+}
+
+/// Issue #45. Event 31's `sound 10` (block 0, at phase 2) holds the
+/// desktop's `ccSndBgmCtrl`: its theme is loaded (`ccSndChangeData`) but
+/// never started, so only `BGM.BIN` track 1 sounds through the roll. The
+/// `ccSndBgmCtrl` after the save menus starts the theme (sequence 0, or 1
+/// for rows 27 and 7). Every frame's events go to the engine from the
+/// session's start.
+#[test]
+fn the_staff_roll_plays_over_no_desktop_theme() {
+    let Some(s) = ending(empty_card()) else { return };
+    let mut p = Player::hearing(s);
+    p.play_to_staff_roll();
+    assert_eq!(p.sequences(), [false; 3], "the desktop's theme before the roll");
+    let mut streamed = 0u32;
+    while p.rolling() {
+        p.step(Buttons::NONE);
+        assert_eq!(p.sequences(), [false; 3], "a sequence under the roll at its frame {}", p.frames);
+        streamed += u32::from(p.audio.as_ref().unwrap().bgm_streaming());
+    }
+    assert!(streamed > 7000, "BGM.BIN track 1 streamed {streamed} frames");
+    // Menu 8's cancel; then the instruction's ccSndBgmCtrl and wake.
+    for _ in 0..600 {
+        if p.desktop().menu().menu == 8 {
+            break;
+        }
+        p.step(Buttons::NONE);
+    }
+    p.wait(40);
+    p.tap(Buttons::CIRCLE);
+    for _ in 0..120 {
+        if !p.desktop().slept() {
+            break;
+        }
+        p.step(Buttons::NONE);
+    }
+    assert!(!p.desktop().slept(), "the desktop was not woken");
+    p.wait(10);
+    let sq = if matches!(p.desktop().state().dt_bgm(), 27 | 7) { 1 } else { 0 };
+    assert!(p.sequences()[sq], "the desktop's theme after the roll: {:?}", p.sequences());
 }
 
 /// The save menus after the staff roll to `PINEY_SHOTS` (default

@@ -49,7 +49,8 @@ Scenarios, one fixture line each:
                          `set NAME V` a field of the world ccSndSQLoad and
                          ccSndBgmCtrl read (see WORLD), `bgm`
                          ccSndBgmCtrl, `hold` ccSndEvRequest(10, 0, 0, 0)
-                         (the event instruction `sound 10`), `battle B`
+                         (the event instruction `sound 10`), `desktop NO`
+                         as the `desktop` scenario (dtBgm NO), `battle B`
                          game.inBattle, `ride R` pgRideFlag, `pginit`
                          ccPgBgmInit, `pgend N` ccPgBgmEnd(N)
 
@@ -273,6 +274,8 @@ class Ee:
                 self.call("ccSndBgmCtrl__Fv")
             elif word == "hold":
                 self.call("ccSndEvRequest__Fiiii", 10, 0, 0, 0)
+            elif word == "desktop":
+                self.desktop(a[0])
             elif word == "battle":
                 self.m.store(GAME + 0x58, 4, a[0])
             elif word == "ride":
@@ -404,6 +407,14 @@ def area_scenarios():
     out.append(["set area 1", "set fieldtype 10", "set bg 0", "hold", "load 3", "start 1", "bgm", "frames 1",
                 "bgm", "frames 1"])
     out.append(["hold", "set area 2", "set areaPrev 2", "load 4", "start 1", "bgm", "bgm", "frames 1"])
+    # The desktop's ccSndChangeData sets +0xf0 to 1 whatever loaded last:
+    # its ccSndBgmCtrl takes the hold (the endings' `sound 10`), and the
+    # staff roll's ccSndBgmCtrl afterwards starts the theme.
+    for no in (50, 27):
+        out.append(["set area 0", "load 2", "start 1", "bgm", "frames 1", "hold", f"desktop {no}", "frames 1",
+                    "bgm", "frames 1"])
+    out.append(["set area 1", "set fieldtype 2", "set bg 2", "load 3", "start 1", "bgm", "frames 1",
+                "desktop 12", "frames 1", "bgm", "frames 1"])
     # Battles: a field and a dungeon of each play type, and on a Grunty.
     fight = ["frames 2", "battle 1", "frames 34", "battle 0", "frames 34"]
     for ft, bg in ((0, 0), (2, 2), (4, 2), (10, 5)):

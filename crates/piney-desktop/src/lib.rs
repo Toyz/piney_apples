@@ -148,10 +148,14 @@ pub enum Request {
     BgmStreamStop,
 }
 
-/// `ccThStaffRoll` while it runs: its controller, the `Breath(2)` before the
+/// `ccThStaffRoll` while it runs: its controller, the frames before the
 /// first `Main`, and the page picture found for the texture last asked.
 struct StaffRollTask {
     ctrl: staffroll::StaffRoll,
+    /// The task starts in the instruction's frame (`GoThread`, priority 33
+    /// under `ccThEvent`'s 32) and sleeps there; `Breath(2)` returns on
+    /// the second frame after, the loop's `Breath(1)` on the third, where
+    /// the first `Main` runs.
     wait: u8,
     picture: Option<(String, Option<(piney_draw::TexRef, i32)>)>,
 }
@@ -228,8 +232,8 @@ pub struct Desktop {
     /// of the desktop is drawn (the layers flip to nothing), from the
     /// `staff_roll` instruction until its `ccWakeAllThread()`.
     slept: bool,
-    /// `ccSystem.frameRate`: [`FRAME_RATE`] from the setup; the staff
-    /// roll's `SetFrameRate(2)` for its save menus.
+    /// `ccSystem.frameRate`: [`FRAME_RATE`] from the setup; the endings'
+    /// `frame_rate 2` for the staff roll and its save menus.
     frame_rate: u32,
 }
 
@@ -280,7 +284,7 @@ impl Desktop {
         let name = |at: usize| -> Vec<u8> { b[at..at + 24].iter().take_while(|&&c| c != 0).copied().collect() };
         let names = (name(piney_data::save::offset::PL_NAME), name(piney_data::save::offset::PL_REAL_NAME));
         let ctrl = staffroll::StaffRoll::new(tables, self.count, staffroll::CcRand::seeded(0x1100), names);
-        self.staff_roll = Some(StaffRollTask { ctrl, wait: 2, picture: None });
+        self.staff_roll = Some(StaffRollTask { ctrl, wait: 3, picture: None });
         self.requests.push(Request::BgmStream(1));
         Ok(())
     }
@@ -297,9 +301,9 @@ impl Desktop {
         self.slept
     }
 
-    /// `ccSystem::SetFrameRate(rate)`: the staff roll's 2 before its save
-    /// menus, which run at it (the select cursor's steps, the message
-    /// window's button).
+    /// `ccSystem::SetFrameRate(rate)`: the endings' 2 around the staff
+    /// roll, which it runs at, and its save menus (the select cursor's
+    /// steps, the message window's button).
     pub fn set_frame_rate(&mut self, rate: u32) {
         self.frame_rate = rate.max(1);
     }
@@ -309,9 +313,9 @@ impl Desktop {
         self.staff_roll.is_some()
     }
 
-    /// The staff roll's frame: after the first `Breath(2)`, `Main` once a
-    /// frame, drawn on its layer; past the last page, `ccBgmStop` and the
-    /// task ends.
+    /// The staff roll's frame: after its start-up ([`StaffRollTask::wait`]),
+    /// `Main` once a frame, drawn on its layer; past the last page,
+    /// `ccBgmStop` and the task ends.
     fn staff_roll_frame(&mut self, ctx: &mut Ctx, names: &kanji::Names) {
         let Some(t) = &mut self.staff_roll else { return };
         if t.wait > 0 {
