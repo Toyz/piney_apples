@@ -287,6 +287,10 @@ impl FieldFx for AreaFx {
                 .filter(|l| l.alpha > 0 && !l.text.is_empty())
                 .map(|l| l.text.clone())
                 .collect(),
+            new_fly_fonts: (self.fx.dam.nodes.iter())
+                .filter_map(|n| n.ch.map(|c| (c, &n.uproll)))
+                .flat_map(|(c, u)| u.lines.iter().filter(|l| l.alpha_cnt == 23).map(move |l| (c, l.text.clone())))
+                .collect(),
             boss_draws: (self.fx.boss_draws().iter())
                 .map(|d| match d {
                     DrawRec::Clump { obj, .. } | DrawRec::Anm { obj, .. } => self.fx.assets.name(*obj).to_string(),

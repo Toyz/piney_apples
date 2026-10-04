@@ -416,7 +416,6 @@ player until one of these turns out wrong.
 - [[50]] the load-confirmation jingle's m_tempPN never initialised — game UB; port starts at 0
 - [[60]] no check compares the music with the game's playing — only the tables and call order
 - [[89]] --voice not in any playthrough test — test gap
-- [[112]] sound bank 5 read from the session's WORLD_MAN, which for the arena is area 27's — not compared
 - [[150]] the travellers' hum not listened to against the game — follows the code
 - [[184]] the canals' and the church's volumes not compared with the game playing — docs/engine/sound.md Unknown
 - [[185]] Dun Loireag's sequence 2 not listened to — follows the code
@@ -969,6 +968,7 @@ player until one of these turns out wrong.
 - [[110]] the members' chat lines and window; ChatMessageEnteredTown and EnteredField — answered by [[123]]
 - [[111]] RoomSelect's 71 and 77 branches (OBJ_user_point) — answered by crates/piney-world/src/dungeon_area.rs room_select (user_point)
 - [[112]] FIREFLY2 (the arena's fireflies) — answered by [[117]] / docs/engine/evarea.md (checked against the game's FIREFLY2s, tools/test_evarea_rs.py)
+- [[112]] sound bank 5 read from the session's WORLD_MAN, which for the arena is area 27's — answered by [[370]] (`GetEventAreaInfo(game.field)`'s model, main 0x00169160; skeith_plays_its_own_music)
 - [[113]] the cross's trail, the six effects, the reversed layer and the quake — answered by [[115]], [[117]]
 - [[113]] ccBossCam and the dead camera — answered by [[115]] (tools/test_bosscam_rs.py)
 - [[115]] DrawCross's trail, the six effects and the reversed layer — answered by [[117]]

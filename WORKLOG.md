@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-369 entries: audio 31, battle 73, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 89, save 13, script 46, test 136, tooling 27, ui 78, video 13, volumes 68, world 98.
+370 entries: audio 32, battle 74, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 89, save 13, script 46, test 136, tooling 27, ui 78, video 13, volumes 68, world 98.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -381,3 +381,4 @@ The [reference](docs/README.md) says what is true now.
 | 367 | [The HUD scale shrinks the towns' map too](worklog/0367-the-hud-scale-shrinks-the-towns-map-too.md) | 2026-10-03 | ui |
 | 368 | [A member spoken to and left no longer freezes: a menu's greeting runs inside its affect](worklog/0368-a-member-spoken-to-and-left-no-longer-freezes-a-menu-s.md) | 2026-10-03 | battle, ui |
 | 369 | [Gate addresses and desktop items show in fields and dungeons](worklog/0369-gate-addresses-and-desktop-items-show-in-fields-and-dungeons.md) | 2026-10-03 | script, ui |
+| 370 | [Skeith's fight plays his own theme; a boss's blow shows its damage once](worklog/0370-skeith-s-fight-plays-his-own-theme-a-boss-s-blow-shows-its.md) | 2026-10-04 | audio, battle |

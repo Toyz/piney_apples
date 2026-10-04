@@ -1711,19 +1711,28 @@ impl Mode for AreaMode {
                 Request::Game(GameRequest::SoundFadeOut) => out.push(Event::SoundFadeOut),
                 Request::Game(GameRequest::AllSoundOff) => out.push(Event::AllSoundOff),
                 // ccSndSQLoad: the area's bank as ccSetupGameCtrl picks it.
+                // The story area's model is GetEventAreaInfo(game.field)'s
+                // (main 0x00169160), not WORLD_MAN's: Skeith's arena (field
+                // 1) keeps area 27's WORLD_MAN. Piros is character 8 in a
+                // party slot (checkPartyMenberNum(8)).
                 Request::SqLoad => {
                     let wm = self.world.world_man();
                     let save = &self.world.state().save;
+                    let tables = piney_data::area::AreaTables::of(self.world.volume());
+                    let field_model = (scene.field != 0)
+                        .then(|| tables.event_area_info(scene.field, piney_data::area::flag71(save)))
+                        .flatten()
+                        .map_or(0, |info| info.model);
                     let music = piney_audio::AreaMusic {
                         area: scene.area,
                         scene_replaced: scene.changed(),
                         town: scene.town.max(0) as u8,
                         crisis: save.u8(offset::CRISIS) != 0,
                         field: scene.field.max(0) as u16,
-                        field_model: wm.field_model,
+                        field_model,
                         field_type: wm.field_type as u8,
                         bg: wm.weather as u8,
-                        piros: false,
+                        piros: self.world.party().contains(&crate::piros::PIROS),
                         dungeon_type: wm.dungeon_type[scene.dungeon.clamp(0, 2) as usize],
                         special_room: self.world.special_room(),
                         area_prev: scene.area_prev,

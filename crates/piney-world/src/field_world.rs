@@ -3805,6 +3805,9 @@ pub struct FxCensus {
     /// `ccDamUprStr`'s lines still showing (the characters' numbers and
     /// words), in `flyFont`'s codes.
     pub fly_fonts: Vec<Vec<u8>>,
+    /// The lines `AddStr` put up this frame (alphaCnt 23: one `CtrlAll`
+    /// since), with the scene index of the character they are over.
+    pub new_fly_fonts: Vec<(u32, Vec<u8>)>,
     /// The boss effects' draws of the frame, by the object each drew.
     pub boss_draws: Vec<String>,
 }

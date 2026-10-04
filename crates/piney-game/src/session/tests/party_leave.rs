@@ -1,7 +1,7 @@
 //! Members who leave by an event's `pc_act 5` outside a town: event 18's
 //! end in area 19's dungeon (issue #16).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use piney_event::host::PcCommand;
 use piney_event::state::ScriptSave as _;
@@ -131,4 +131,44 @@ fn event_18_leaves_kite_alone() {
     assert_eq!(party(&s), ([0, -1, -1], vec![0]), "in the field");
     back_to_town(&mut s);
     assert_eq!(party(&s), ([0, -1, -1], vec![0]), "in Mac Anu again");
+}
+
+/// Piros along in a field (worklog 370): `ccSndSQLoad(3)` asks
+/// `checkPartyMenberNum(8)` over `ccPartyManager`'s ids, which the scene
+/// change keeps (the members' destructors clear the slots' characters, not
+/// the ids), and plays `piroshi`, the twelfth field table, whatever the
+/// field. Area 19's field (model 0) with Kite and Piros.
+#[test]
+fn piros_along_plays_his_field_music() {
+    use crate::piros::PIROS;
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let Some(mut s) = story_session_on("infection", 18, |start| {
+        let save = &mut start.state.save;
+        for at in [offset::PARTY_MEMBER_FLAG, offset::PARTY_MEMBER_CALL] {
+            save.set_i32(at, save.i32(at) | 1 << PIROS);
+        }
+        let mut scene = piney_world::area::Scene::log_in(save);
+        scene.change_scene(1, 0, 19, -1, -1, -1, save);
+        let wm = crate::area::story_world_man(&mut Iso::open(&iso).unwrap(), 19, false).ok();
+        let spcs = Some(crate::start::party_of(&[PIROS]));
+        start.at = Resume::World(Box::new(InWorld { scene, world_man: wm, spcs }));
+    }) else {
+        return;
+    };
+    let mut pad = Pad::default();
+    let mut loads = Vec::new();
+    for f in 0..120u64 {
+        pad.read(&story_player(&s, f));
+        s.step(&pad);
+        loads.extend(s.take_events().into_iter().filter_map(|e| match e {
+            Event::SqLoad(c) => Some(c),
+            _ => None,
+        }));
+    }
+    assert!(
+        matches!(loads[..], [piney_audio::SqContext::Field { piros: true, .. }]),
+        "the field's bank with Piros along: {loads:?}"
+    );
+    let tables = piney_data::sound::tables_of(piney_data::volume::Volume::Inf);
+    assert!(loads[0].pick(tables).row.is_some(), "piroshi names no bank");
 }

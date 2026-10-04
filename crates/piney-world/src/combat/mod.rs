@@ -1868,8 +1868,10 @@ impl Combat {
         if let Some(d) = dist {
             self.battle.dist = d;
         }
+        // consequence shows what it does not consume, as for every other
+        // source of events: shown here too, a trap's number or mark came
+        // up twice.
         for e in trap_events {
-            self.shows.push(Show::Rule(e));
             self.consequence(e, x.hits, bounds, x.puppet_show);
         }
         self.drain_chats(t, x.save, &party, &ents);
@@ -1885,8 +1887,9 @@ impl Combat {
                 player: Some(kite_i),
                 frame: &pframe,
             };
+            // The events of the boss's hits (ccBossSkillDamage's EntryAffect
+            // on a member): consequence shows them, once.
             for e in self.boss_frame(&env, world, &chk, x.hits, x.camera, &x.pad) {
-                self.shows.push(Show::Rule(e));
                 self.consequence(e, x.hits, bounds, x.puppet_show);
             }
             self.drain_chats(t, x.save, &party, &ents);

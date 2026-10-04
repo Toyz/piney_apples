@@ -129,6 +129,93 @@ fn skeith_fights_in_its_arena() {
     assert!(level * 10 >= heights.len() * 8, "eye heights {heights:?}");
 }
 
+/// The arena through area 27's last door (#43): `ccSetupGameCtrl` asks
+/// `GetEventAreaInfo(game.field)` for the model, field 1's being 1, so it
+/// loads field 1's event bank (Skeith's theme), not area 27's field bank
+/// (Chosen Hopeless Nothingness's Wasteland night), though `WORLD_MAN`
+/// is still area 27's.
+#[test]
+fn skeith_plays_its_own_music() {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    if !iso.exists() {
+        return;
+    }
+    let mut d = Iso::open(&iso).unwrap();
+    let archive = Arc::new(Archive::new(d.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let mut state = crate::world::new_game_state(&mut d).unwrap();
+    let mut scene = piney_world::area::Scene::log_in(&mut state.save);
+    let wm = crate::area::story_world_man(&mut d, 27, false).unwrap();
+    // Area 27's dungeon, then its last door's ChangeArea(1, 1).
+    scene.change_scene(2, 1, 27, 0, 4, 3, &mut state.save);
+    scene.change_scene(1, 1, 1, -1, -1, -1, &mut state.save);
+    assert_eq!(wm.field_model, 0, "area 27's own model");
+    let field = piney_audio::SqContext::Field { field_type: wm.field_type as u8, bg: wm.weather as u8, piros: false };
+    let mut s = Session::in_world(iso, archive, None, state, None, scene, Some(wm)).unwrap();
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let mut loads = Vec::new();
+    for _ in 0..120 {
+        pad.read(&still);
+        s.step(&pad);
+        loads.extend(s.take_events().into_iter().filter_map(|e| match e {
+            Event::SqLoad(c) => Some(c),
+            _ => None,
+        }));
+    }
+    let bank = piney_audio::SqContext::Event { field: 1, area_prev: 2 };
+    assert_eq!(loads, [bank], "the arena's bank");
+    let tables = piney_data::sound::tables_of(piney_data::volume::Volume::Inf);
+    let (ours, theirs) = (bank.pick(tables), field.pick(tables));
+    assert!(ours.row.is_some(), "field 1 names no bank");
+    assert_ne!(ours.row.map(|r| r.0), theirs.row.map(|r| r.0), "the same bank as area 27's field");
+}
+
+/// `Int2StrFF(v, 5)`: digit d as 0x21 + d, no leading zeros.
+fn ff_number(v: i32) -> Vec<u8> {
+    v.to_string().bytes().map(|c| c - b'0' + 0x21).collect()
+}
+
+/// A blow of Skeith's shows its number once (#44): each frame a member
+/// loses HP, one new line over that member with the HP lost. The boss's
+/// hits (`ccBossSkillDamage`'s `EntryAffect`) were shown twice, the
+/// second line just under the first. Event 30's streams run to frame
+/// 3000 or so; four blows land by 4000.
+#[test]
+fn skeith_hits_show_their_damage_once() {
+    let Some(mut s) = event_30_arena() else { return };
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let (mut hits, mut wrong) = (0, Vec::new());
+    let mut hp: Vec<(usize, i16)> = Vec::new();
+    for i in 0..4000u32 {
+        pad.read(&still);
+        s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &mut s.stage else { break };
+        let census = a.world().fx().census();
+        let c = a.world_mut().combat_mut();
+        let members: Vec<usize> = c.party.members.iter().flatten().copied().collect();
+        for &m in &members {
+            let now = c.scene.chars[m].hp;
+            let lost = hp.iter().find(|p| p.0 == m).map_or(0, |p| i32::from(p.1) - i32::from(now));
+            let new: Vec<&Vec<u8>> = census.new_fly_fonts.iter().filter(|f| f.0 as usize == m).map(|f| &f.1).collect();
+            if lost > 0 {
+                hits += 1;
+                if new != [&ff_number(lost)] {
+                    wrong.push((i, m, lost, new.len()));
+                }
+            }
+            // Kept alive, to be hit again.
+            c.scene.chars[m].max_hp = 9999;
+            c.scene.chars[m].hp = 9999;
+        }
+        hp = members.iter().map(|&m| (m, c.scene.chars[m].hp)).collect();
+    }
+    println!("{hits} hits on the party, {} shown otherwise", wrong.len());
+    assert!(hits > 0, "Skeith never hit the party");
+    assert!(wrong.is_empty(), "(frame, member, HP lost, new lines): {wrong:?}");
+}
+
 /// Every 30th frame of the fight to `PINEY_SHOTS` (default
 /// /mnt/data/claude/scratch/skeith).
 #[test]

@@ -6420,7 +6420,16 @@ mod tests {
             s.take_events();
             let Stage::Area(a) = &s.stage else { panic!("left the area") };
             let c = a.world().combat();
-            low = low.min(c.scene.chars[c.kite.unwrap()].hp);
+            let k = c.kite.unwrap();
+            // The trap's number over Kite, once (#44: it came up twice).
+            let lost = i32::from(low.min(hp)) - i32::from(c.scene.chars[k].hp);
+            if lost > 0 && low == hp {
+                let new = a.world().fx().census().new_fly_fonts;
+                let over: Vec<_> = new.iter().filter(|f| f.0 as usize == k).map(|f| f.1.clone()).collect();
+                let digits: Vec<u8> = lost.to_string().bytes().map(|c| c - b'0' + 0x21).collect();
+                assert_eq!(over, [digits], "the trap's number over Kite");
+            }
+            low = low.min(c.scene.chars[k].hp);
             // 88: a menu changing to the next.
             let m = a.ui().menu_type();
             if m != -1 && m != 88 && menus.last() != Some(&m) {

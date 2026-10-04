@@ -3,7 +3,7 @@ title: Bosses - ccBoss and Skeith
 status: partial
 volumes: INF
 covers: INF gcmn.prg:0x0045b2a0 ccBossEntryStart, 0x0047b340 ccThBoss01, 0x0045bcf0 ccBoss::ccBoss, 0x0047b410 ccBoss01::ccBoss01, 0x0045c270 ccBoss::Main, 0x0047bd50 ccBoss01::Main, 0x0045c600 ccBoss::Move, 0x0045c730 ccBoss::Affect, 0x0047bdf0 ccBoss01::Affect, 0x0045f090 bossAffectFunc, 0x0045d310 ccBoss::ChangeAction, 0x0045d210 ccBoss::ChangeNextPattern, 0x0045cad0 ccBoss::ExecPatternIndex, 0x0047c500 ccBoss01::ExecPatternIndex, 0x0047c1e0 ccBoss01::Think, 0x0047bf80 ccBoss01::Action, 0x0047ca50 OnThinkNeutral, 0x0047cba0 OnThinkDamage, 0x0047cc20 OnThinkEpitaphNeutral, 0x0047cdc0 OnThinkEpitaphWave, 0x0047d000 OnThinkChase, 0x0047d2f0 OnThinkEscape, 0x0047dac0 OnThinkReturn, 0x0047dbd0 OnThinkWander, 0x0047ddf0 OnThinkDash, 0x0047e030 OnCrossAtk, 0x0047e1a0 OnWaveAtk, 0x0047e410 OnDataDrainAtk, 0x0047e6a0 OnMagicAtk, 0x0047c390 ccBoss01::DrawCross, 0x0045e070 ccBoss::SelectTarget, 0x0045ec60 ccBoss::CalcTargetInfo, 0x0045df40 ccBoss::EraseCmndTarget, 0x0045dfc0 ccBoss::EntryCmndTarget, 0x0045ee90 ccBoss::BeginDeadEffect, 0x0045f0e0 _ccBossSkillDamage (char), 0x0045f470 _ccBossSkillDamage (pos), 0x00461750 ccBossEffManager::Draw, 0x00461a60 ccBossEffManager::IsEnabledEffect, 0x00478820 ccBossEffWaveShockCreate, 0x0046b3f0 ccBossEffWaveShock::Draw, 0x00478b10 ccBossEffMagicSquareCreate, 0x004793d0 ccBossEffLightCreate, 0x004797e0 ccBossEffForceGeneratorCreate, 0x0046dd90 ccBossEffBrightMagicSquare::ccBossEffBrightMagicSquare, 0x0046e320 ccBossEffBrightMagicSquare::Draw, 0x00479900 ccBossEffAutoSamonRingCreate, 0x0046ed70 ccBossEffAutoSamonRing::Draw, 0x00462660 ccEffSamonRing::Draw, 0x00479240 ccBossEffIceBreakCreate, 0x0046cc10 ccBossEffIceBreak::Draw, 0x004795d0 ccBossEffDeadCreate, 0x0046a440 ccBossEffDead::Draw, 0x00466a30 ccBossEffLight::ccBossEffLight, 0x00466df0 ccBossEffLight::Draw, 0x0046c950 ccBossEffIceBreak::ccBossEffIceBreak, 0x00462430 ccEffSamonRing::ccEffSamonRing, 0x00461bd0 ccEffSamonRing::SetModel, 0x00462750 ccEffSamonRing::BurstScale, 0x00462780 ccEffSamonRing::BurstTransparency, 0x00462790 ccEffSamonRing::SetPosRot, 0x00579ad0 ccLattice::ccLattice, 0x00579b70 ccLattice::Init, 0x00579c50 ccLattice::ClearCnt, 0x00579cb0 ccLattice::MakePacket, 0x0057a0e0 ccLattice::SendPacket, 0x0057a300 ccLattice::SetPos, 0x0057a3a0 ccLattice::NextVertex, 0x0057a470 ccLattice::Disp, 0x006519b0 latticeAttributeColorTable, 0x005eb430 boss01NormalActTbl, 0x005eb490 boss01SuperActTbl, 0x005eb530 boss01EpitaphActTbl, 0x005eb5b0 Boss01AnmTbl, 0x00696ce0 BossSkillTbl; INF SLUS_202.67:0x00519920 ccCheckTarget, 0x00519630 ccEntryCmnd, 0x0056cb50 ccChar::ClearCondition, 0x0059d080 checkPartyAnnihilation, 0x00106850 ccBufferReverce::ccBufferReverce, 0x00106890 ccBufferReverce::MakePacket, 0x00160240 ccScFade::EntryFlash; INF gcmn.prg:0x004618b0 ccBossEffManager::OnCinemaMode, 0x00461940 ccBossEffManager::OffCinemaMode, 0x0046a7e0 ccBossEffCinemaFade::ccBossEffCinemaFade, 0x0046a8c0 SetupSkillName, 0x0046a9b0 CinemaOn, 0x0046aa70 CinemaOff, 0x0046aa80 Init, 0x0046ac20 Clear, 0x0046ad10 ccBossEffCinemaFade::Draw, 0x005eb040 _g_cinemaSkillName, 0x006aa950 Draw's mode table
-worklog: 109, 112, 117
+worklog: 109, 112, 117, 370
 ---
 
 # Bosses - ccBoss and Skeith
@@ -635,7 +635,10 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
    same frame.
 6. Outputs:
    - `Out::Skill` runs the skill through `Combat::item_skill`;
-   - hit marks and damage numbers go to the effects as rule events;
+   - hit marks and damage numbers go to the effects as rule events,
+     once each: those of the boss's blows on the party
+     (`ccBossSkillDamage`'s `EntryAffect`) as well (until worklog 370
+     they were shown twice, the copy a line under the first);
    - sounds, `scFadeDef` flashes and `SwitchLayer` go to the area mode;
    - the menu locks go to `ccMenu`'s forbid and cursor;
    - the member drain opens menu 74 ([`StreamMenu`](field-ui.md#a-member-drained-streammenu-menu-74));

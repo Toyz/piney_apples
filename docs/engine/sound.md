@@ -3,7 +3,7 @@ title: Sound - effects, music and the IOP sound driver
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x00179c10 ccSeOn, 0x00179cb0 ccSeOnNote, 0x00179d90 ccSeOn3D, 0x0017a140 ccSeOn3DLoop, 0x0017a620 ccSeOffLoop, 0x001794b0 ccSetMainVol, 0x001794f0 ccSetBgmVol, 0x00179540 ccSetSeVol, 0x00179630 ccSndChangeOption, 0x00181010 ccSoundMain, 0x0017bac0 waterTest, 0x0017c3c0 bgmChurch, 0x0017c6d0 bgmBreed, 0x0017ad70 ccPortVolSet, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x00181250 ccSound::ccFade, 0x001834e0 ccSndChangeData, 0x0017b020 ccSndBgmCtrl, 0x001821d0 ccSndSQLoad, 0x00183380 ccSound::bgmChange, 0x0017de80 ccSndEvRequest, 0x00168960 ccSetupGameCtrl, 0x00167580 ccGame::CheckSceneReplace, 0x00307bc0 sqDataField, 0x00307bf0 playTypeTbl, 0x00309f60 sqVolTblField, 0x00307c20 sqDataDungeon, 0x00307d28 dungeonPlayType, 0x0030a100 sqVolTblDungeon, 0x00307f00 sqDataEvent, 0x00308a90 eventPlayType, 0x0030a3d0 sqVolTblEvent, 0x00307d40 sqDataTown, 0x00309f90 sqVolTblTown, 0x00182050 ccSndCommSeLoad, 0x00181ee0 spuInit, 0x001816f0 ccSound::sdCommand, 0x00182dc0 ccSoundRpc, 0x0017e6e0 wavPlay, 0x00308db0 seData, 0x00181440 ccSound::ccSceneFade, 0x001811f0 ccSound::gameInterrupt, 0x0017ae10 ccAllSoundOff, 0x00183080 initBeforeLoad, 0x0017e810 ccEvVoiceRequest, 0x0017eeb0 ccVoiceRequest, 0x0017e290 ccWordsPlay, 0x0017e350 skillVoicePlay, 0x0017eca0 evVoicePlay, 0x0017ee40 ccEvVoiceStop, 0x001800e0 ccVoicePgFood, 0x00179f50 ccSeOn3DNote, 0x0017a370 calcVel, 0x0017a4c0 calcPan, 0x0017a6b0 ccSeOnPCStep, 0x0017a7f0 seHitAttr, 0x0017aa20 ccSeSetParamSPC, 0x0017aaf0 ccSeSetParamPC, 0x0017abd0 ccSeSetParamEnemy, 0x0017ac70 ccSeSetParamInu, 0x001830c0 initAfterLoad, 0x00183fb0 ccSound::strSeEnd, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x003789dc looptest; INF gcmn.prg:0x00572860 _ccSkillRequest (its ccWordsPlay), 0x005a17e0 ccSpcShoutOperationName, 0x00493370 ccBoss04::OnThinkPrediction, 0x00639560 spc0SeData, 0x00639d40 spcSeTbl, 0x0063a850 enemySeTbl, 0x0063a8a0 inuSeData; INF SLUS_202.67:0x0017d190 ccSndStreamCtrl, 0x0017caa0 ccSndStreamSE, 0x0017cb20 ccSndStreamBGM, 0x001799b0 ccSqPlayVol, 0x00183f40 ccSound::strSeInit, 0x00183fb0 ccSound::strSeEnd, 0x00180b30 ccSndMoviePlayer, 0x0030b950 strSndTbl; INF desktop.prg:0x004072c0 Audio_control::ChangeWeve, 0x0042b6f0 Wave; INF MODULES/SNDBASE.IRX:0x0a58 ccSoundFunc, 0x031c ccSoundFunc2, 0x07e4 bgmChange, 0x3564 setModuleContext, 0x3860 ATick, 0x27d4 ccSetSq, 0x257c ccSetHdSynth; INF MODULES/MODMIDI.IRX; INF MODULES/MODHSYN.IRX; INF MODULES/SEWORDS.IRX:0x0e24 BgmSetVolumeDirect
-worklog: 42, 327, 332
+worklog: 42, 327, 332, 370
 ---
 
 # Sound - effects, music and the IOP sound driver
@@ -474,7 +474,12 @@ by `game.area`. "The scene changed" is `ccGame::CheckSceneReplace()`
 - Town (0): `ccSndSQLoad(2)` when the scene changed.
 - Field (1): when the scene changed, `ccSndSQLoad(5)` if `game.field` is
   not 0 and `WORLD_MAN::GetEventAreaInfo(game.field)->model` is 1 (areas
-  1-13, 15, 16, 43, 66, 67, 91), else `ccSndSQLoad(3)`.
+  1-13, 15, 16, 43, 66, 67, 91), else `ccSndSQLoad(3)` (main
+  0x00169160-0x001691a8). The model is looked up by `game.field`, not
+  taken from `WORLD_MAN`'s own story area: Skeith's arena (field 1)
+  keeps area 27's `WORLD_MAN` (model 0) and still plays event bank row 1,
+  its own theme. A field number with no row reads through NULL; every
+  story field has one.
 - Dungeon (2): `ccSndSQLoad(4)` when the scene changed; otherwise
   `ccSndSQLoad(5)` when `WORLD_MAN.specialRoom` (+0x160) is 0 or more.
 
