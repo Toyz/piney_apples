@@ -210,7 +210,7 @@ mod tests {
         r.console("god");
         assert_eq!(on_disk(), 2, "the command");
         let line = || "live | bytes 128 128 128 128 buttons 0000 |".to_string();
-        while r.steps.len() % FLUSH_EVERY != 0 {
+        while !r.steps.len().is_multiple_of(FLUSH_EVERY) {
             r.pad(&Raw::default(), line);
         }
         assert_eq!(on_disk(), FLUSH_EVERY, "a second of frames");
