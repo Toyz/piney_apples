@@ -10,6 +10,9 @@ use std::path::{Path, PathBuf};
 
 use piney_input::{Buttons, Raw};
 
+/// Steps between flushes of the file being written: a second of frames.
+const FLUSH_EVERY: usize = 60;
+
 /// One step of a run: a frame's pad, or a console command between frames.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Step {
@@ -114,6 +117,7 @@ impl Record {
             std::fs::write(&to, bytes).map_err(err)?;
         }
         std::fs::create_dir_all(&card).map_err(err)?;
+        w.flush().map_err(err)?;
         self.file = Some((path.to_path_buf(), w));
         Ok(frames)
     }
@@ -126,19 +130,26 @@ impl Record {
         })
     }
 
-    /// A frame's pad: kept, and written as `line` gives it when writing.
+    /// A frame's pad: kept, and written as `line` gives it when writing;
+    /// the file flushed once a second, so it is whole while the game runs
+    /// (and after a crash) up to the last second.
     pub fn pad(&mut self, raw: &Raw, line: impl FnOnce() -> String) {
         self.steps.push(Ok(Kept { buttons: raw.buttons.bits(), sticks: [raw.lx, raw.ly, raw.rx, raw.ry] }));
+        let second = self.steps.len().is_multiple_of(FLUSH_EVERY);
         if let Some((_, w)) = &mut self.file {
             let _ = writeln!(w, "{}", line());
+            if second {
+                let _ = w.flush();
+            }
         }
     }
 
-    /// A console command run between frames.
+    /// A console command run between frames, flushed at once.
     pub fn console(&mut self, line: &str) {
         self.steps.push(Err(line.to_string()));
         if let Some((_, w)) = &mut self.file {
             let _ = writeln!(w, "console {line}");
+            let _ = w.flush();
         }
     }
 }
@@ -179,6 +190,31 @@ mod tests {
         let steps: Vec<Step> = read(log.to_str().unwrap()).unwrap().into();
         assert_eq!(steps, [Step::Pad(a), Step::Console("god".into()), Step::Pad(Raw::default())]);
         assert_eq!(std::fs::read(dir.join("run.log.card/SAVE/slot")).unwrap(), b"abc");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// While the game still runs the file holds the run: the kept steps as
+    /// soon as `pad_log` starts, a console command at once, the pads up to
+    /// the last second. It had stayed empty until the game closed.
+    #[test]
+    fn the_log_is_on_disk_while_it_is_written() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join(format!("../../target/padlog-live-test-{}", std::process::id()));
+        let mut r = Record::new(None);
+        let a = Raw { buttons: Buttons::CROSS, ..Raw::default() };
+        r.pad(&a, String::new);
+        let log = dir.join("run.log");
+        r.start(&log, "gamepads").unwrap();
+        let on_disk = || read(log.to_str().unwrap()).unwrap().len();
+        assert_eq!(on_disk(), 1, "the kept frame");
+        r.console("god");
+        assert_eq!(on_disk(), 2, "the command");
+        let line = || "live | bytes 128 128 128 128 buttons 0000 |".to_string();
+        while r.steps.len() % FLUSH_EVERY != 0 {
+            r.pad(&Raw::default(), line);
+        }
+        assert_eq!(on_disk(), FLUSH_EVERY, "a second of frames");
+        drop(r);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
