@@ -74,6 +74,9 @@ pub struct Actor {
     /// A party character's weapon trails and points
     /// (`ccSpcChar::ArmsEffect`), from its first `ArmsEffect`.
     pub weapon: Option<Box<crate::arms::Arms>>,
+    /// A party character's right hand (`objHandR`'s `lwMatrix`) as its
+    /// last draw left it ([`Actor::keep_hand`]).
+    pub hand_r: Option<M4>,
 }
 
 impl Actor {
@@ -103,7 +106,25 @@ impl Actor {
             arms: None,
             how: None,
             weapon: None,
+            hand_r: None,
         })
+    }
+
+    /// The right hand's world matrix as the actor stands posed now, in
+    /// the EE's rows (x, y, z axes, the place); None for a body without
+    /// one.
+    pub fn hand_now(&self) -> Option<M4> {
+        let body = &self.ch.body;
+        let node = body.node(crate::arms::R_HAND)?;
+        let m = *body.worlds(&self.ch.play, self.ch.root()).get(&node)?;
+        let row = |v: glam::Vec4| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits(), v.w.to_bits()];
+        Some([row(m.x_axis), row(m.y_axis), row(m.z_axis), row(m.w_axis)])
+    }
+
+    /// The pose this frame draws, kept as the hand the next frame's tasks
+    /// read (`ccObj::_SetLWMatrix` in `ccChar::Draw`).
+    pub fn keep_hand(&mut self) {
+        self.hand_r = self.hand_now();
     }
 
     /// `ccAnm::SetAnm` of the named clip on `slot`: frame 0, the same

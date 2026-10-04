@@ -194,6 +194,9 @@ pub struct Stage<'a> {
     /// ([`super::chat::line_of`]) and their affects' other work on it
     /// (`RuleParts`), in order, run by the frame when the pass is done.
     pub chats: Vec<Event>,
+    /// The characters whose AI was in manual mode as the tasks began
+    /// (`CheckControlMode`).
+    pub manual: Vec<usize>,
     /// The members' item uses (`ccUseItemRequest` from their AI), carried
     /// out by the runtime after the frame ([`super::MemberItem`]).
     pub item_uses: &'a mut Vec<super::MemberItem>,
@@ -440,6 +443,15 @@ impl World for Stage<'_> {
         let crate::combat::cast::Look::Gimmick(row) = self.cast.get(who)?.look else { return None };
         let g = self.cast.looks.gimmick(row)?;
         crate::foe::eff_pat_num(&g.model.body.file, name).ok()
+    }
+    /// The hand the last draw left ([`super::cast::Actor::keep_hand`]), or
+    /// before any, the pose the actor stands in.
+    fn hand_r(&mut self, who: usize) -> Option<M4> {
+        let a = self.cast.get(who)?;
+        a.hand_r.or_else(|| a.hand_now())
+    }
+    fn control_mode(&mut self, who: usize) -> bool {
+        self.manual.contains(&who)
     }
 }
 

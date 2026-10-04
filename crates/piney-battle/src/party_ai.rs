@@ -323,6 +323,12 @@ pub struct Crew {
 }
 
 impl Crew {
+    /// The characters whose AI is in manual mode (`manualSW`), as
+    /// `ccSpcChar::CheckControlMode` reads it.
+    pub fn manual_chars(&self) -> Vec<usize> {
+        self.ais.iter().filter(|(_, a)| a.manual_sw).map(|(&c, _)| c).collect()
+    }
+
     fn unused_at(&self, i: usize) -> Option<usize> {
         self.unused.get(i).copied().flatten()
     }

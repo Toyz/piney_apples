@@ -21,7 +21,7 @@ use piney_battle::entry::{
 };
 use piney_battle::event::{Event, Who};
 use piney_battle::exp::Party;
-use piney_battle::geom::{self, F, V4};
+use piney_battle::geom::{self, F, M4, V4};
 use piney_battle::gimetc::Etc;
 use piney_battle::gimmick::{self, Class, Food, Idol};
 use piney_battle::param::{Base, Elm};
@@ -187,6 +187,10 @@ struct ScriptWorld {
     /// `game.inBattleDist` as the enemies last set it (a gold goblin
     /// shaking off a hold), `IBD_UNSET` while none has.
     ibd: Option<u32>,
+    /// Kite's right hand (`objHandR`'s `lwMatrix`) and his AI's
+    /// `manualSW`, as a radiator reads them.
+    hand: Option<M4>,
+    manual: bool,
 }
 
 /// What the harness leaves in `game.inBattleDist` before an operation.
@@ -279,6 +283,17 @@ impl World for ScriptWorld {
         }
         self.notes.remove(&who).unwrap_or_default()
     }
+    fn hand_r(&mut self, who: usize) -> Option<M4> {
+        self.hand.filter(|_| who == 0)
+    }
+    fn control_mode(&mut self, who: usize) -> bool {
+        who == 0 && self.manual
+    }
+}
+
+/// Kite's hand as the harness sends it: `MANUAL m[16]`.
+fn read_hand(t: &mut Toks) -> (bool, M4) {
+    (t.int() != 0, std::array::from_fn(|_| v4(t)))
 }
 
 fn skill_code(r: Option<SkillRef>) -> i32 {
@@ -481,7 +496,7 @@ fn read_obj_common(t: &mut Toks) -> EntryObj {
 /// actCnt param[4] light(matrix[16] matCalc rgb intensity far[3]) then
 /// each part's `col0 col1` and four points' `color pos[4]`.
 fn read_rad(t: &mut Toks, user: usize) -> Radiate {
-    let mut r = Radiate::new(gimmick_rad_info(), Some(user));
+    let mut r = Radiate::new(piney_battle::prim::BOX_RAD_INFO, Some(user));
     let f = t.int();
     r.rad_flag = f & 1 != 0;
     r.lgt_flag = f & 2 != 0;
@@ -521,7 +536,12 @@ fn read_rad(t: &mut Toks, user: usize) -> Radiate {
         far_end: t.u32(),
         far_end2: t.u32(),
     };
-    r.parts = (0..16)
+    // The info the game's constructor gave: a radiator's 32 rays, else a
+    // box's or idol's 16.
+    if r.pnum == piney_battle::prim::GIM_RAD_INFO.pnum {
+        r.info = piney_battle::prim::GIM_RAD_INFO;
+    }
+    r.parts = (0..r.pnum)
         .map(|_| {
             let col0 = t.u32();
             let col1 = t.u32();
@@ -530,10 +550,6 @@ fn read_rad(t: &mut Toks, user: usize) -> Radiate {
         })
         .collect();
     r
-}
-
-fn gimmick_rad_info() -> piney_battle::prim::RadInfo {
-    piney_battle::prim::BOX_RAD_INFO
 }
 
 fn rad_vec(r: &Radiate) -> Vec<i64> {
@@ -638,6 +654,9 @@ fn read_etc(t: &mut Toks) -> Etc {
         l.matrix = geom::unit_matrix();
         l.matrix[3] = [t.u32(), t.u32(), t.u32(), geom::ONE];
     }
+    if t.int() != 0 {
+        e.gim_rad = Some(Box::new(read_rad(t, 0)));
+    }
     e
 }
 
@@ -656,6 +675,13 @@ fn etc_vec(e: &Etc) -> Vec<i64> {
     for l in &e.lights {
         v.extend([l.rgb, l.intensity, l.far_start, l.far_end, l.far_end2].map(i64::from));
         v.extend(l.matrix[3][..3].iter().map(|&x| i64::from(x)));
+    }
+    match &e.gim_rad {
+        Some(r) => {
+            v.push(1);
+            v.extend(rad_vec(r));
+        }
+        None => v.push(0),
     }
     v
 }
@@ -962,6 +988,10 @@ fn read_scene(t_: &Tables, st: &SpawnTables, t: &mut Toks) -> Setup {
         *l = (0..t.int()).map(|_| t.int() as usize).collect();
     }
     let pat_num = t.int() as u16;
+    if t.int() != 0 {
+        let (manual, m) = read_hand(t);
+        (world.manual, world.hand) = (manual, Some(m));
+    }
     Setup { game, world, seam, ctrl, reg, cc, rnds, save, scene, foes, pat_num, motion: false }
 }
 
@@ -1523,7 +1553,8 @@ fn spawn_request(t_: &Tables, st: &SpawnTables, t: &mut Toks) -> String {
                 rng.seed
             );
         }
-        "gframe" => return gframe_request(t_, st, &mut s, t),
+        "gframe" => return gframe_request(t_, st, &mut s, t, false),
+        "gframeh" => return gframe_request(t_, st, &mut s, t, true),
         "leave" => {
             let keep = t.int() != 0;
             let saved = run(t_, st, &mut s, &mut out, |c, cx, _| c.leave(cx, keep));
@@ -1820,20 +1851,25 @@ fn read_gims(t: &mut Toks) -> DungeonGims {
 /// `gframe ENV RAND N (kx ky)...`: `ccThEntryCtrl`'s frames with the
 /// objects' own mains through [`EnemySeam`] (the boxes' and idols'
 /// natively, the others the scripts'), Kite following the path; the scene
-/// after each frame.
-fn gframe_request(t_: &Tables, st: &SpawnTables, s: &mut Setup, t: &mut Toks) -> String {
+/// after each frame. `gframeh` (`hands`): each step also Kite's hand
+/// ([`read_hand`]).
+fn gframe_request(t_: &Tables, st: &SpawnTables, s: &mut Setup, t: &mut Toks, hands: bool) -> String {
     let data = motion_data(t_);
     let env = read_env(t);
     let mut rand = Rand(t.int() as u64);
     let n = t.int();
-    let path: Vec<[u32; 2]> = (0..n).map(|_| [t.u32(), t.u32()]).collect();
+    type Step = ([u32; 2], Option<(bool, M4)>);
+    let path: Vec<Step> = (0..n).map(|_| ([t.u32(), t.u32()], hands.then(|| read_hand(t)))).collect();
     let party = Party::default();
     let check = |_: usize| 0;
     let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: None, volume: crate::probe_volume() };
     let reg = s.reg.clone();
     let mut out = Vec::new();
     let mut frames = Vec::new();
-    for p in path {
+    for (p, hand) in path {
+        if let Some((manual, m)) = hand {
+            (s.world.manual, s.world.hand) = (manual, Some(m));
+        }
         s.world.k = p;
         s.scene.chars[0].pos[0] = p[0];
         s.scene.chars[0].pos[1] = p[1];

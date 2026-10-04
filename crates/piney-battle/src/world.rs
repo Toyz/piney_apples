@@ -6,7 +6,7 @@
 //! calls it, so a world with state sees the game's sequence. Characters are
 //! scene indices ([`crate::scene::Scene`]); floats are bit patterns.
 
-use crate::geom::{F, V4};
+use crate::geom::{F, M4, V4};
 
 /// `ccCharHit` (0x50 bytes, main `libhit.cpp`): a character's body in the
 /// collision. The motion code owns it (an enemy's at `ccEntryObj` +0x160, a
@@ -145,5 +145,16 @@ pub trait World {
     /// `who`'s own file (a symbol's fires); None when unknown.
     fn eff_pat_num(&mut self, _who: usize, _name: &str) -> Option<u16> {
         None
+    }
+    /// The `lwMatrix` of party character `who`'s right hand
+    /// (`ccSpcChar::objHandR`, +0x130) as its last draw left it; None
+    /// without one.
+    fn hand_r(&mut self, _who: usize) -> Option<M4> {
+        None
+    }
+    /// `ccSpcChar::CheckControlMode()` (gcmn 0x0059f550) of `who`: its AI
+    /// (+0x128) in manual mode, the events' control.
+    fn control_mode(&mut self, _who: usize) -> bool {
+        false
     }
 }

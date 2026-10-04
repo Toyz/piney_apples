@@ -2,8 +2,8 @@
 title: Event scripts
 status: partial
 volumes: all
-covers: MUT SLUS_205.62:0x001bdf00 ccEvent::Execute, OUT SLUS_205.63:0x001b4250, QUA SLUS_205.64:0x001bba60; INF SLUS_202.67:0x001a8d20 ccEvent::Execute, 0x001a7400 ccEvent::CheckOpen, 0x001a6ec0 ccEvent::SetCurrentOpen, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x00317e30 eventTbl, evMsgTbl, evMsgTblp
-worklog: 18, 24, 40, 176, 178, 179, 239, 325, 376
+covers: MUT SLUS_205.62:0x001bdf00 ccEvent::Execute, OUT SLUS_205.63:0x001b4250, QUA SLUS_205.64:0x001bba60; INF SLUS_202.67:0x001a8d20 ccEvent::Execute, 0x001a7400 ccEvent::CheckOpen, 0x001a6ec0 ccEvent::SetCurrentOpen, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x001ac7c8 ccEvent::Execute case 45 (radiator), 0x00317e30 eventTbl, evMsgTbl, evMsgTblp
+worklog: 18, 24, 40, 176, 178, 179, 239, 325, 376, 377
 ---
 
 # Event scripts
@@ -162,7 +162,7 @@ operand struct. `[flag]` runs at `lv` >= 1, `[split]` differs between 1 and 2,
   42  0x001ac544   6  camz_speed             ccEvCamzType         vstype cstype                            speed curve types of the two points [play]
   43  0x001ac578  16  camz_point             ccEvCamzInpSet       num vx vy vz cx cy cz                    interpolation point num (num clamped to 16 in the script itself) [play]
   44  0x001ac6b0  10  camz_path              ccEvCamzInpChg       num vprate cprate alpha                  run the camera through num points (num clamped to 16 in place) [play]
-  45  0x001ac7c8  18  radiator               ccEvRadiator         rtype type code x y z roty rotz          gimmick entry (ccEntryParam type 1, id 19, param[0] rtype) at a character's position plus the offset, rotated in degrees [play]
+  45  0x001ac7c8  18  radiator               ccEvRadiator         rtype type code x y z roty rotz          entryObject(ep, 1) of gimmick row 19 at (10x, 10y, 10z) turned (0, DEG2RAD roty, DEG2RAD rotz), param[2] rtype, param[3] the character type code names; rtype 0: rays at its right hand until its AI leaves manual mode [play]
   46  0x001ac9bc  12  boss_smoke             ccEvBossSmoke        floor block x y z                        gimmick entry type 1, id 19 in a dungeon room [play]
   47  0x001acad4   2  delete_gimmick19       -                    -                                        delete every id-19 gimmick (deleteGimmick) [play]
   48  0x001ac028  14  camera                 ccEvCamera           type code height rotx roty dist          look at the character with angles and distance, at once [play]

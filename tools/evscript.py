@@ -175,8 +175,9 @@ OPS = {
     44: ("camz_path", "ccEvCamzInpChg", "num vprate cprate alpha", "play",
          "run the camera through num points (num clamped to 16 in place)"),
     45: ("radiator", "ccEvRadiator", "rtype type code x y z roty rotz", "play",
-         "gimmick entry (ccEntryParam type 1, id 19, param[0] rtype) at a character's position "
-         "plus the offset, rotated in degrees"),
+         "entryObject(ep, 1) of gimmick row 19 at (10x, 10y, 10z) turned (0, DEG2RAD roty, DEG2RAD "
+         "rotz), param[2] rtype, param[3] the character type code names; rtype 0: rays at its right "
+         "hand until its AI leaves manual mode"),
     46: ("boss_smoke", "ccEvBossSmoke", "floor block x y z", "play",
          "gimmick entry type 1, id 19 in a dungeon room"),
     47: ("delete_gimmick19", "", "", "play", "delete every id-19 gimmick (deleteGimmick)"),

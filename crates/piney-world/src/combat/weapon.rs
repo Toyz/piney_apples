@@ -37,6 +37,9 @@ pub struct Trail {
 pub struct Weapons {
     pub ctrl: HashMap<usize, WeaponCtrl>,
     pub last: HashMap<usize, M4>,
+    /// The flashes' omni lights in the group, by (enemy, weapon), as their
+    /// last `setLight` left them.
+    pub lights: std::collections::BTreeMap<(usize, usize), piney_battle::prim::OmniLight>,
     /// For tests: the trails' pairs and the flashes' frames drawn so far.
     pub pairs: u64,
     pub flashes: u64,
@@ -108,6 +111,7 @@ impl Combat {
                 Show::Entry(entry::Out::Destroyed { who, .. }) => {
                     self.weapons.ctrl.remove(&who);
                     self.weapons.last.remove(&who);
+                    self.weapons.lights.retain(|&(w, _), _| w != who);
                 }
                 Show::Enemy(who, Call::WeaponNote { note, at }) => {
                     if let Some(c) = self.weapons.ctrl.get_mut(&who) {
@@ -132,11 +136,18 @@ impl Combat {
                                 self.weapons.pairs += (t.polys.len() + t.lines.len()) as u64;
                                 self.trails.push(t);
                             }
-                            WeaponOut::Rad(RadOut::Draw(rays)) => {
+                            WeaponOut::Rad { out: RadOut::Draw(rays), .. } => {
                                 self.weapons.flashes += 1;
                                 self.rays.push(rays);
                             }
-                            WeaponOut::Rad(_) => {}
+                            // ccPrimRadiate::setLight's AddGrp, delLight's
+                            // DelGrp of the flash's light.
+                            WeaponOut::Rad { weapon, out: RadOut::LightOn(l) } => {
+                                self.weapons.lights.insert((who, weapon), l);
+                            }
+                            WeaponOut::Rad { weapon, out: RadOut::LightOff } => {
+                                self.weapons.lights.remove(&(who, weapon));
+                            }
                         }
                     }
                 }

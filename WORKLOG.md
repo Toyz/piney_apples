@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-376 entries: audio 33, battle 77, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 90, save 13, script 47, test 139, tooling 27, ui 79, video 13, volumes 68, world 99.
+377 entries: audio 33, battle 78, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 91, save 13, script 48, test 140, tooling 27, ui 79, video 13, volumes 68, world 99.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -388,3 +388,4 @@ The [reference](docs/README.md) says what is true now.
 | 374 | [GOB3-2 to GOB3-4 are won after a trip to the magic shop; GOB3-5's goblins evade blows and shake off spells](worklog/0374-gob3-2-to-gob3-4-are-won-after-a-trip-to-the-magic-shop.md) | 2026-10-04 | test, battle |
 | 375 | [Infection's whole story ends again: the pilot backs out of a passer-by's talk](worklog/0375-infection-s-whole-story-ends-again-the-pilot-backs-out-of-a.md) | 2026-10-04 | test, world |
 | 376 | [Skeith's entrance plays before the loading display: the set-up waits on its phase-2 pass before the load](worklog/0376-skeith-s-entrance-plays-before-the-loading-display-the-set.md) | 2026-10-04 | render, script, test |
+| 377 | [The bracelet shines: event 30's radiator, ccGimRadiator's rays at Kite's hand, and the rays' lights in the group](worklog/0377-the-bracelet-shines-event-30-s-radiator-ccgimradiator-s.md) | 2026-10-04 | render, script, battle, test |

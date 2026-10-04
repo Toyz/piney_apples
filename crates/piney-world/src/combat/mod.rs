@@ -397,6 +397,10 @@ pub struct Combat {
     /// The spring's two omni lights in the group (`ccGimEtc` +0x260), by
     /// scene index, as its last frame left them.
     pub spring_lights: std::collections::BTreeMap<usize, [piney_battle::prim::OmniLight; 2]>,
+    /// The rays' omni lights in the group (`ccPrimRadiate` +0x58: the
+    /// boxes', the idols', the radiator's), by scene index, as their last
+    /// `setLight` left them.
+    pub rad_lights: std::collections::BTreeMap<usize, piney_battle::prim::OmniLight>,
     /// The symbols' fires drawn by the last frame (`ccSymFire::main`'s
     /// `ccEff::Draw`): place, pattern, scale, colour.
     pub symbol_fires: Vec<(V4, u16, [F; 2], u32)>,
@@ -645,6 +649,7 @@ impl Combat {
             npcs: Vec::new(),
             symbol_lights: Default::default(),
             spring_lights: Default::default(),
+            rad_lights: Default::default(),
             symbol_fires: Vec::new(),
             ride: ride::Riding::default(),
             kite_menu: Vec::new(),
@@ -1067,6 +1072,7 @@ impl Combat {
             spcs: None,
             tricks: chat::condition_skills(&self.data.t, &self.foes, self.scene.chars.len()),
             chats: Vec::new(),
+            manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
         };
         let mut cx = entry::Cx {
@@ -1188,6 +1194,12 @@ impl Combat {
         self.with_entry_cx(x, |ctrl, cx| ctrl.entry_object(cx, &mut Objects, ep))
     }
 
+    /// `entryObject(ep, n)` outside the entry control's frame (an event's
+    /// `radiator`): `n` objects of `ep`, the first's scene index.
+    pub fn entry_object_n(&mut self, x: &mut Tasks, ep: &mut EntryParam, n: i32) -> Option<usize> {
+        self.with_entry_cx(x, |ctrl, cx| ctrl.entry_object_n(cx, &mut Objects, ep, n))
+    }
+
     /// `EntryObject(ep)` of gimmick row `id` at `pos` facing `dirc` in the
     /// area, floor and room the entry control is in (`entRoot` -1), outside
     /// its frame (tests and tools): its scene index.
@@ -1247,6 +1259,7 @@ impl Combat {
             spcs: None,
             tricks: chat::condition_skills(&self.data.t, &self.foes, self.scene.chars.len()),
             chats: Vec::new(),
+            manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
         };
         let mut cx = entry::Cx {
@@ -1434,6 +1447,7 @@ impl Combat {
             spcs: x.spcs.as_deref_mut(),
             tricks: chat::condition_skills(&self.data.t, &self.foes, self.scene.chars.len()),
             chats: Vec::new(),
+            manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
         };
         // SetPathFindingMap: the room's window of the 2D map into buf.
@@ -1758,6 +1772,7 @@ impl Combat {
                     stage.cast.actors.remove(&who);
                     self.symbol_lights.remove(&who);
                     self.spring_lights.remove(&who);
+                    self.rad_lights.remove(&who);
                     stage.shows.push(Show::Entry(o));
                 }
                 // ccGimBox::main's ccAnm::Draw, ccGimIdol::main's
@@ -1798,6 +1813,13 @@ impl Combat {
                 }
                 entry::Out::Radiate { out: piney_battle::prim::RadOut::Draw(ref rays), .. } => {
                     self.rays.push(rays.clone());
+                }
+                // ccPrimRadiate::setLight's AddGrp, delLight's DelGrp.
+                entry::Out::Radiate { who, out: piney_battle::prim::RadOut::LightOn(l) } => {
+                    self.rad_lights.insert(who, l);
+                }
+                entry::Out::Radiate { who, out: piney_battle::prim::RadOut::LightOff } => {
+                    self.rad_lights.remove(&who);
                 }
                 // ccSpcMessageOpenTrapBox: ccAISysMsgSend(name, -1, Kite's
                 // AI, 0xffff, 0, 30).
@@ -2021,6 +2043,13 @@ impl Combat {
         self.store_records(x.save);
         // ccThParticle (98).
         self.fx_call(x, bounds, |fx, w| fx.particle(w), fx);
+        // ccThFieldDisp (96) draws the party: the hands the next frame's
+        // tasks read.
+        for &(_, c) in &self.members {
+            if let Some(a) = self.cast.get_mut(c) {
+                a.keep_hand();
+            }
+        }
     }
 
     /// Run `i`'s spell system through the effects and its damage calls on
@@ -2462,6 +2491,7 @@ impl Combat {
             spcs: None,
             tricks: chat::condition_skills(&self.data.t, &self.foes, self.scene.chars.len()),
             chats: Vec::new(),
+            manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
         };
         let mut out = Vec::new();
@@ -2538,6 +2568,7 @@ impl Combat {
             spcs: None,
             tricks: chat::condition_skills(&self.data.t, &self.foes, self.scene.chars.len()),
             chats: Vec::new(),
+            manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
         };
         let mut ctx = party_ai::Ctx {

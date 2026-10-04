@@ -155,8 +155,8 @@ pub enum WeaponOut {
     /// None for a packet the weapon has not. `sendPacket` sends nothing
     /// under 2 pairs. `weapon` is the weapon's place in the controller.
     Trail { weapon: usize, polys: Option<Vec<Pair>>, lines: Option<Vec<Pair>> },
-    /// The flash ([`rad_ctrl`], `create`, `disp`).
-    Rad(RadOut),
+    /// Weapon `weapon`'s flash ([`rad_ctrl`], `create`, `disp`).
+    Rad { weapon: usize, out: RadOut },
 }
 
 /// What the controller reads of its enemy: `dispSW` (+0xe0 bit 4),
@@ -588,7 +588,7 @@ impl Weapon {
     /// `ctrlRadiate()` (gcmn 0x0043e3f0): a skill's flash kept at the
     /// node's edges; while it shines its frame (`ccEnemyWeaponRad::ctrl`),
     /// `create` and `disp`.
-    fn ctrl_radiate(&mut self, w: &mut dyn WeaponWorld, out: &mut Vec<WeaponOut>) {
+    fn ctrl_radiate(&mut self, weapon: usize, w: &mut dyn WeaponWorld, out: &mut Vec<WeaponOut>) {
         if self.skill {
             let m = self.node(w);
             let pos: [V4; 4] = std::array::from_fn(|i| apply_matrix(&m, self.info.pts[i]));
@@ -603,7 +603,7 @@ impl Weapon {
         if !self.rad.parts.is_empty() {
             self.rad.disp(w, &mut o);
         }
-        out.extend(o.into_iter().map(WeaponOut::Rad));
+        out.extend(o.into_iter().map(|out| WeaponOut::Rad { weapon, out }));
     }
 }
 
@@ -634,7 +634,7 @@ impl WeaponCtrl {
                 }
                 wp.disp_cell(i, w, out);
             }
-            wp.ctrl_radiate(w, out);
+            wp.ctrl_radiate(i, w, out);
         }
     }
 

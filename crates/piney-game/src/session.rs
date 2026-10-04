@@ -6827,6 +6827,9 @@ mod tests {
     /// Skeith in its arena.
     mod skeith;
 
+    /// Issue #40: the bracelet shines in Chosen Hopeless Nothingness.
+    mod bracelet;
+
     /// Fidchell in its arena: its spells' pictures, voice and names.
     mod fidchell;
 

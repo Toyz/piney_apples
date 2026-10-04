@@ -2,7 +2,8 @@
 //! spread round a point, built each frame and drawn as triangle strips on
 //! layer 6, with a `ccOmniLight` in the scene's light group while it shines.
 //! A treasure box's and an idol's opening (`ccGimBoxRad`, [`box_ctrl`]) use
-//! one, and so do the enemies' weapon flashes ([`crate::weapon::rad_ctrl`]).
+//! one, the event's radiator (`ccGimRadiator`, [`radiator_ctrl`]) and the
+//! enemies' weapon flashes ([`crate::weapon::rad_ctrl`]) too.
 //! Only the plate (type bit 4) is here. The functions are in
 //! docs/engine/battle.md ("The weapon trails and flashes"); the world the rays
 //! are built and drawn in is a [`RadWorld`].
@@ -81,6 +82,10 @@ pub struct RadInfo {
 /// `boxRadInfo` (gcmn 0x005d5990): a plate of 16 rays, all else 0.
 pub const BOX_RAD_INFO: RadInfo =
     RadInfo { ty: 4, pnum: 16, center: 0, length: 0, width: 0, fzoom: 0, col0: 0, col1: 0 };
+
+/// `gimRadInfo` (gcmn 0x005eaf40): the radiator's plate of 32 rays.
+pub const GIM_RAD_INFO: RadInfo =
+    RadInfo { ty: 4, pnum: 32, center: 0, length: 0, width: 0, fzoom: 0, col0: 0, col1: 0 };
 
 /// One point of a ray (`ccPrimPart` +0x10 + 0x30 i): its colour (+4, RGBA
 /// with the alpha in the top byte) and position (+0x10).
@@ -266,6 +271,26 @@ impl Radiate {
         l.rgb = col0 & 0x00ff_ffff;
     }
 
+    /// `ccPrimRadiate::setLight(pos)` (gcmn 0x00439290): `pos` into Kite's
+    /// frame in place, the light there (`TransMatrix` of the unit,
+    /// `matCalcSW`) and into `cc3d`'s group, `lgtFlag` up.
+    pub fn set_light(&mut self, w: &mut dyn RadWorld, out: &mut Vec<RadOut>) {
+        self.pos = w.fw2lw(self.pos);
+        self.light.matrix = trans_matrix(&unit_matrix(), self.pos);
+        self.light.mat_calc = true;
+        out.push(RadOut::LightOn(self.light));
+        self.lgt_flag = true;
+    }
+
+    /// `ccPrimRadiate::delLight()` (gcmn 0x00439330): with `lgtFlag`, the
+    /// light out of the group and the flag down.
+    pub fn del_light(&mut self, out: &mut Vec<RadOut>) {
+        if self.lgt_flag {
+            out.push(RadOut::LightOff);
+            self.lgt_flag = false;
+        }
+    }
+
     /// `ccPrimRadiate::create()` (gcmn 0x004393a0) of a plate: `rot`, for
     /// one facing the camera (type bit 1) with y `piLimit(-cam.x)`, z
     /// `piLimit(pi/2 + cam.z)` and w 0 (`rot` itself kept); `m = RotZ(z)
@@ -387,10 +412,7 @@ pub fn box_ctrl(r: &mut Radiate, cx: &mut Cx, out: &mut Vec<RadOut>) {
         1 => shine(r, cx, out),
         2 => {
             r.rad_flag = false;
-            if r.lgt_flag {
-                out.push(RadOut::LightOff);
-                r.lgt_flag = false;
-            }
+            r.del_light(out);
         }
         _ => {}
     }
@@ -406,12 +428,7 @@ pub fn box_ctrl(r: &mut Radiate, cx: &mut Cx, out: &mut Vec<RadOut>) {
         }
         r.alpha = mul(K_0_5, sinf(r.param[0]));
         r.light.intensity = mul(K_3, sinf(r.param[0]));
-        let q = cx.world.w2p(r.pos);
-        r.pos = cx.world.p2w(q);
-        r.light.matrix = trans_matrix(&unit_matrix(), r.pos);
-        r.light.mat_calc = true;
-        out.push(RadOut::LightOn(r.light));
-        r.lgt_flag = true;
+        r.set_light(cx, out);
         r.bank = mul(geom::HALF_PI, sinf(r.param[1]));
         r.pos[2] = add(sub(r.param[2], K_10), mul(K_60, cosf(r.param[1])));
         r.length = add(K_30, mul(K_60, sinf(r.param[0])));
@@ -430,17 +447,71 @@ pub fn box_ctrl(r: &mut Radiate, cx: &mut Cx, out: &mut Vec<RadOut>) {
     }
 }
 
-/// `ccPrimRadiate::main()` (gcmn 0x0043a1c0) of a box's or idol's rays:
-/// with `radFlag`, [`box_ctrl`], `create`, `disp`.
-pub fn box_main(r: &mut Radiate, cx: &mut Cx, out: &mut Vec<RadOut>) {
+/// `ccGimRadiator::ctrl()` (gcmn 0x00456220), the event's radiator (a
+/// bracelet's shine): act 0 starts its two phases and keeps its height;
+/// act 1 each frame turns it 0.18 about x, pulses its alpha and light with
+/// `sin param[0]`, lights its place, draws its rays 5 + 10 sin long from
+/// 4 out, 5 wide, banked 0.5, cyan fading outward; act 2 puts it out.
+pub fn radiator_ctrl(r: &mut Radiate, cx: &mut Cx, out: &mut Vec<RadOut>) {
+    const ROT_STEP: F = 0x3e38_51ec;
+    const K_0_4: F = 0x3ecc_cccd;
+    const K_0_5: F = 0x3f00_0000;
+    const K_4: F = 0x4080_0000;
+    const K_5: F = 0x40a0_0000;
+    const K_10: F = 0x4120_0000;
+    const STEP0: F = 0x3d80_adfd;
+    const STEP1: F = 0x3d00_adfd;
+    const HSV: u32 = 0x4080_ffff;
+    match r.act_num {
+        0 | 1 => {
+            if r.act_num == 0 {
+                r.act_num = 1;
+                r.act_cnt = 0;
+                r.param[0] = 0;
+                r.param[1] = 0;
+                r.param[2] = r.pos[2];
+            }
+            r.rot[0] = pi_limit(add(r.rot[0], ROT_STEP));
+            r.alpha = sinf(r.param[0]);
+            r.light.intensity = sinf(r.param[0]);
+            r.set_light(cx, out);
+            r.bank = K_0_5;
+            r.length = add(K_5, mul(K_10, sinf(r.param[0])));
+            r.width = K_5;
+            r.center = K_4;
+            r.fzoom = 0;
+            r.dp_length = mul(K_0_4, sinf(r.param[0]));
+            r.dp_bank = mul(K_0_4, sinf(r.param[0]));
+            r.param[0] = pi_limit(add(r.param[0], STEP0));
+            r.param[1] = pi_limit(add(r.param[1], STEP1));
+            let c0 = fractional_hsv(HSV, K_0_5, ONE);
+            let c1 = fractional_hsv(HSV, 0, 0);
+            r.set_color(c0, c1);
+        }
+        2 => {
+            r.rad_flag = false;
+            r.del_light(out);
+        }
+        _ => {}
+    }
+}
+
+/// `ccPrimRadiate::main()` (gcmn 0x0043a1c0): with `radFlag`, the class's
+/// `ctrl` (vtable +8), `create`, `disp`.
+pub fn main(r: &mut Radiate, cx: &mut Cx, out: &mut Vec<RadOut>, ctrl: fn(&mut Radiate, &mut Cx, &mut Vec<RadOut>)) {
     if !r.rad_flag {
         return;
     }
-    box_ctrl(r, cx, out);
+    ctrl(r, cx, out);
     r.create(cx);
     if !r.parts.is_empty() {
         r.disp(cx, out);
     }
+}
+
+/// [`main`] of a box's or idol's rays ([`box_ctrl`]).
+pub fn box_main(r: &mut Radiate, cx: &mut Cx, out: &mut Vec<RadOut>) {
+    main(r, cx, out, box_ctrl);
 }
 
 /// libm `modff(x)` on bits: (fraction, integral part), both with `x`'s

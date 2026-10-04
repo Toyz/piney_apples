@@ -452,12 +452,16 @@ impl Host for AreaHost<'_> {
     }
 
     /// `open_door` / `close_door` in a dungeon (`DUNGEON::OpenDoor`,
-    /// `CloseDoor2`); the others are not reached outside the towns yet.
+    /// `CloseDoor2`) and `radiator` (event 30's bracelet); the others are
+    /// not reached outside the towns yet.
     fn gimmick(&mut self, g: GimmickCommand) {
         self.st.log(format!("gimmick {g:?}"));
         match g {
             GimmickCommand::OpenDoor => self.world.open_door(),
             GimmickCommand::CloseDoor => self.world.close_door(),
+            GimmickCommand::Radiator { rtype, ty, code, x, y, z, roty, rotz } => {
+                self.world.radiator(rtype, ty, code, x, y, z, roty, rotz)
+            }
             _ => {}
         }
     }

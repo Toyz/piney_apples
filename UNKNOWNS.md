@@ -89,7 +89,6 @@ gap, they share one line. The Docs section repeats the doc bullets.
 - docs/engine/effects.md `ccEntryChangeCLUT` swaps every texture on the palette where the game swaps per material — enemies whose palette-swapped texture shares a palette
 - [[157]] [[161]] `EntryObject`'s palettes for the lakes' statues and flowers when `GetBG` is not 0 are not ported (docs/engine/dungeon.md) — lake dungeons by evening and night
 - [[158]] `DUNGEON.fog` is not zeroed at the game over's TV, and the squeeze moves the whole finished frame, not only what sysLayer's view draws — the game over, in a dungeon most
-- [[170]] the enemies' weapon flashes (and the boxes') put a light in the scene's light group in the game; the port does not — characters not lit by the flashes
 - [[266]] Innis's pictures are not drawn: missiles, SamonRings, particle generators, blur, shield, mirrors' shards; the MagicSquare for n 1 and 2 (docs/engine/boss-innis.md) — Mutation's first boss
 - [[274]] Magus's pictures are named, not drawn: the leaves' markers, charges and bursts, the laser's shocks and thunder, the needles, the smoke; the body's dropped leaves are not hidden (docs/engine/boss-magus.md) — Mutation's Magus
 - [[280]] Innis's ice missile and Fidchell's IceBreak are not ported, so nothing throws their rocks — Mutation's and Outbreak's bosses (Fidchell's rules ported in [[294]]; its IceBreak's rocks are still not thrown)
@@ -1018,6 +1017,7 @@ player until one of these turns out wrong.
 - [[168]] the motion of L, W, D, E, T, A, 4 and S — answered by [[169]], [[171]]
 - [[169]] ccEnemyL (dragons and snakoids) stands still — answered by [[171]]
 - [[169]] the turtles' foot dust and the Cerberus's breath not drawn — answered by [[172]] (GAPS.md: drawn)
+- [[170]] the enemies' weapon flashes (and the boxes') put a light in the scene's light group in the game; the port does not — answered by [[377]] (`Combat::rad_lights`, `Weapons::lights` into `cast_lights`; docs/engine/battle.md "The weapon trails and flashes")
 - [[171]] the breaths not drawn — answered by [[172]]
 - [[176]] whether the SE port's volume is ever below full when sound 8 0 256 runs — answered by [[344]] (port 0 takes seVol whatever p1 says; six uses across the volumes, all after streams but M110's)
 - [[180]] inviteSpc's build at the Chaos Gate — answered for the towns by docs/engine/field-walk.md (party_add), [[250]]

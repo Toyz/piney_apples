@@ -414,6 +414,18 @@ impl EvParty<'_> {
         }
     }
 
+    /// The character `radiator` (case 45, main 0x001ac7c8) puts its rays
+    /// on: [`EvParty::find_char`], else `ccCheckTargetTypeId(1 << type,
+    /// code)`.
+    pub fn radiator_user(&self, ty: i16, code: i16) -> Option<usize> {
+        let bit = 1u32 << (ty as u32 & 31);
+        if bit & 0x7c != 0 {
+            self.find_char(ty, code)
+        } else {
+            check_target_type_id(self.scene, bit as i32, i32::from(code))
+        }
+    }
+
     /// `pc_put pc x y z` (case 70, main 0x001aeb84): [`Roster::named`]'s
     /// character's position becomes `(10 x, 10 y, 10 z, 1)`; nothing else
     /// (not its heading, not the ground).

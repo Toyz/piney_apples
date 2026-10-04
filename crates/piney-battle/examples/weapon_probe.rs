@@ -133,13 +133,13 @@ fn out_vec(o: &WeaponOut) -> String {
         WeaponOut::Trail { weapon, polys, lines } => {
             format!("[\"trail\",{},{},{}]", weapon, pairs(polys), pairs(lines))
         }
-        WeaponOut::Rad(RadOut::LightOn(l)) => {
+        WeaponOut::Rad { out: RadOut::LightOn(l), .. } => {
             let mut v: Vec<i64> = l.matrix.iter().flatten().map(|&x| i64::from(x)).collect();
             v.extend([i64::from(l.mat_calc), i64::from(l.rgb), i64::from(l.intensity)]);
             format!("[\"light_on\",{}]", list(v))
         }
-        WeaponOut::Rad(RadOut::LightOff) => "[\"light_off\"]".into(),
-        WeaponOut::Rad(RadOut::Draw(_)) => "[\"rays\"]".into(),
+        WeaponOut::Rad { out: RadOut::LightOff, .. } => "[\"light_off\"]".into(),
+        WeaponOut::Rad { out: RadOut::Draw(_), .. } => "[\"rays\"]".into(),
     }
 }
 

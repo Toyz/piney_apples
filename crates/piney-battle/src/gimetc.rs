@@ -1,18 +1,17 @@
-//! The spring and the boss room's warning (`ccGimEtc`, gcmn gmetc.cpp,
-//! 0x00456450-0x00458218): `gimmickTbl` rows 19 (`WARNING`), 20 (the lakes'
-//! Spring of Myst, `FOUNTAIN`, `XGWATER0.CCS`) and 21 (`ENTRANCE`). The
-//! constructor (0x00456540), `initFountain` (0x00456ba0), `main` (0x00456760)
-//! and the spring's states in `ctrlFountain` (0x00456fb0) are in
-//! docs/engine/battle.md ("The spring and the boss room's warning"). Affect 11
-//! is `FountainMenu3`'s `EntryAffect(fountain, plw, 11)`.
+//! The spring, the boss room's warning and the radiator (`ccGimEtc`, gcmn
+//! gmetc.cpp, 0x00456220-0x00458218): `gimmickTbl` rows 19 (`WARNING`; with
+//! `param[2]` 0 the event's `radiator`, rays at a character's right hand), 20
+//! (the lakes' Spring of Myst, `FOUNTAIN`) and 21 (`ENTRANCE`). The
+//! functions are in docs/engine/battle.md ("The spring and the boss room's
+//! warning"). Affect 11 is `FountainMenu3`'s `EntryAffect(fountain, plw, 11)`.
 
 use crate::chara::Char;
 use crate::enemy_ai::{EntryParam, rand_f};
 use crate::entry::{Cx, EntryObj, Out, SAVE_FOUNTAIN, delete_cmnd, gimmick_char, rand_s};
 use crate::geom::{self, F, HALF_PI, ONE, PI, TWO_PI, V4, add, deg2rad, div, le, lt, mul, sub};
 use crate::gimmick::Class;
-use crate::prim::OmniLight;
-use crate::world::AnmSlot;
+use crate::prim::{self, GIM_RAD_INFO, OmniLight, Radiate};
+use crate::world::{AnmSlot, World};
 use piney_data::libm;
 use piney_data::save::SaveData;
 
@@ -56,6 +55,8 @@ pub struct Etc {
     /// +0x25c `lgtFlag`: the lights in the group; +0x260 `lgt[2]`.
     pub lgt_flag: bool,
     pub lights: [OmniLight; 2],
+    /// +0x268 `gimRad`: the radiator's rays (row 19, `param[2]` 0).
+    pub gim_rad: Option<Box<Radiate>>,
 }
 
 impl Default for Etc {
@@ -80,8 +81,20 @@ impl Default for Etc {
             spring_zoom: 0,
             lgt_flag: false,
             lights: [OmniLight::default(); 2],
+            gim_rad: None,
         }
     }
+}
+
+/// `param[3]` as the event's `radiator` sets it, the rays' user (a
+/// `ccSpcChar *`): here its scene index plus 1, 0 for none (null).
+pub fn rad_user_param(user: Option<usize>) -> i32 {
+    user.map_or(0, |u| u as i32 + 1)
+}
+
+/// The user [`rad_user_param`] names.
+fn rad_user(param: i32) -> Option<usize> {
+    usize::try_from(param).ok()?.checked_sub(1)
 }
 
 /// `new ccGimEtc(ent)` (gcmn 0x00456540), see the module's header.
@@ -95,8 +108,18 @@ pub fn etc_new(cx: &mut Cx, ent: &EntryParam, who: usize) -> (Char, EntryObj) {
     o.act_cnt = 0;
     let mut etc = Etc::default();
     match o.gim_id {
-        // deleteCmnd(1): not listed yet, so only cmndFlag.
-        19 | 21 => o.cmnd_flag = true,
+        // deleteCmnd(1): not listed yet, so only cmndFlag. Row 19 with
+        // param[2] 0: new ccGimRadiator(gimRadInfo, param[3]), then
+        // setGimRadPos(param[3]).
+        19 => {
+            o.cmnd_flag = true;
+            if ent.param[2] == 0 {
+                let mut rad = Radiate::new(GIM_RAD_INFO, rad_user(ent.param[3]));
+                set_gim_rad_pos(cx.world, &mut rad, &mut ch.pos, &mut o.dirc);
+                etc.gim_rad = Some(Box::new(rad));
+            }
+        }
+        21 => o.cmnd_flag = true,
         20 => init_fountain(cx, who, &mut etc, ch.pos),
         _ => {}
     }
@@ -150,15 +173,56 @@ pub fn main(cx: &mut Cx, who: usize, o: &mut EntryObj) -> bool {
     let q = cx.world.w2p(cx.scene.chars[who].pos);
     cx.scene.chars[who].pos_p = q;
     cx.scene.chars[who].pos = cx.world.p2w(q);
-    // Row 19 with param[2] 0 would run ctrlGimRadiator over rays whose
-    // user is param[3] as a pointer; SetItemBox leaves param[2] -1, so it
-    // never happens.
     let r = match o.gim_id {
+        19 if o.ent.param[2] == 0 => ctrl_gim_radiator(cx, who, o, &mut etc),
         20 => ctrl_fountain(cx, who, o, &mut etc),
         _ => false,
     };
     o.class = Class::Etc(etc);
     r
+}
+
+/// `ccGimEtc::setGimRadPos(user)` (gcmn 0x00456950): the rays and the
+/// object at the user's right hand (`objHandR`'s `lwMatrix` translation),
+/// both turned as the hand is (`ccSetMat2Rot` of its rotation; the rays'
+/// x, y and z, the object's `dirc` whole).
+fn set_gim_rad_pos(w: &mut dyn World, rad: &mut Radiate, pos: &mut V4, dirc: &mut V4) {
+    let Some(mut m) = rad.user.and_then(|u| w.hand_r(u)) else { return };
+    rad.pos = m[3];
+    *pos = m[3];
+    m[3] = [0, 0, 0, m[3][3]];
+    let rot = crate::breath::mat2rot(&m);
+    rad.rot[..3].copy_from_slice(&rot[..3]);
+    *dirc = rot;
+}
+
+/// `ccGimEtc::ctrlGimRadiator()` (gcmn 0x00456a30): the first frame the
+/// rays start (`radFlag`); each frame they follow the user's hand, and go
+/// with the object once the user's AI leaves manual mode (the event let
+/// go); else `ccPrimRadiate::main` ([`prim::radiator_ctrl`]).
+fn ctrl_gim_radiator(cx: &mut Cx, who: usize, o: &mut EntryObj, etc: &mut Etc) -> bool {
+    let Some(rad) = etc.gim_rad.as_deref_mut() else { return false };
+    if o.act_num == 0 {
+        rad.rad_flag = true;
+        o.act_num += 1;
+    }
+    let mut out = Vec::new();
+    let gone = match rad.user {
+        Some(u) => {
+            set_gim_rad_pos(cx.world, rad, &mut cx.scene.chars[who].pos, &mut o.dirc);
+            !cx.world.control_mode(u)
+        }
+        None => false,
+    };
+    if gone {
+        // ~ccPrimRadiate: delLight.
+        rad.del_light(&mut out);
+        etc.gim_rad = None;
+    } else {
+        prim::main(rad, cx, &mut out, prim::radiator_ctrl);
+    }
+    cx.out.extend(out.into_iter().map(|r| Out::Radiate { who, out: r }));
+    gone
 }
 
 /// Whether the object took affect 11 this frame (its `affectFlag` taken

@@ -172,6 +172,10 @@ BOXRAD_VT, BOX_RAD_INFO = inf_va(0x003760F0), inf_va(0x005D5990)
 DRAWENV_ACTIVE = inf_va(0x003788C4)         # ccDrawEnv::active
 DRAWENV = 0x013C8000                # a ccDrawEnv for the boxes' draws
 RAD_AT, PARTS_AT, LIGHT_AT = 0x3000, 0x3100, 0x3E00   # a pre-placed box's rays
+GIMRAD_VT, GIM_RAD_INFO = inf_va(0x00376410), inf_va(0x005EAF40)
+RRAD_AT, RPARTS_AT, RLIGHT_AT = 0x5000, 0x5100, 0x6C00   # a pre-placed radiator's 32 rays
+OMNI_VT = inf_va(0x00375A50)
+HAND, KITE_AI = 0x013C9000, 0x013C9100    # Kite's objHandR (a ccObj) and AI (manualSW)
 GIM_ANM = 0x7400                    # its animation player
 
 
@@ -526,7 +530,8 @@ class Harness:
                 if H.kinds[i] != 3:
                     continue
                 vt = mm_load(va + 0x1CC)
-                if (vt == BOX_VT and mm_load(va + 0x1E0) == rad) or (vt == IDOL_VT and mm_load(va + 0x1E8) == rad):
+                if (vt == BOX_VT and mm_load(va + 0x1E0) == rad) or (vt == IDOL_VT and mm_load(va + 0x1E8) == rad) \
+                        or (vt == ETC_VT and mm_load(va + 0x268) == rad):
                     return i
             return -1
 
@@ -842,6 +847,8 @@ class Harness:
             return self.m.load(va + 0x1E0, 4)
         if vt == IDOL_VT:
             return self.m.load(va + 0x1E8, 4)
+        if vt == ETC_VT:
+            return self.m.load(va + 0x268, 4)
         return 0
 
     def read_rad(self, r):
@@ -857,7 +864,7 @@ class Harness:
         v += self.get(lg + 0x40, "<16I") + [m.load(lg + 0x8D, 1), m.load(lg + 0xB0, 4), m.load(lg + 0xC0, 4)]
         v += self.get(lg + 0xC4, "<3I")
         parts = m.load(r + 0x3C, 4)
-        for k in range(16):
+        for k in range(s16(m.load(r + 4, 2))):
             a = parts + 0xD0 * k
             v += [m.load(a + 8, 4), m.load(a + 0xC, 4)]
             for q in range(4):
@@ -865,17 +872,24 @@ class Harness:
                 v += [m.load(b + 4, 4)] + self.get(b + 0x10, "<4I")
         return v
 
-    def put_rad(self, va, w, user):
+    def put_rad(self, va, w, user, radiator=False):
+        """A radiate's words (read_rad's) into memory: a box's or idol's
+        (16 rays, boxRadInfo), or with radiator a ccGimRadiator's (32 rays,
+        gimRadInfo, its light's vtable for the destructor)."""
         m = self.m
-        r, parts, lg = va + RAD_AT, va + PARTS_AT, va + LIGHT_AT
+        at_, vt, info = (RRAD_AT, RPARTS_AT, RLIGHT_AT), GIMRAD_VT, GIM_RAD_INFO
+        if not radiator:
+            at_, vt, info = (RAD_AT, PARTS_AT, LIGHT_AT), BOXRAD_VT, BOX_RAD_INFO
+        r, parts, lg = (va + x for x in at_)
+        n = w[2]
         m.mem[r:r + 0xA0] = bytes(0xA0)
-        m.mem[parts:parts + 0xD00] = bytes(0xD00)
+        m.mem[parts:parts + 0xD0 * n] = bytes(0xD0 * n)
         m.mem[lg:lg + 0xD0] = bytes(0xD0)
         m.store(r, 1, w[0])
         self.put(r + 2, "<hh", w[1], w[2])
         self.put(r + 8, "<11I", *w[3:14])
         m.store(r + 0x34, 4, user)
-        m.store(r + 0x38, 4, BOX_RAD_INFO)
+        m.store(r + 0x38, 4, info)
         m.store(r + 0x3C, 4, parts)
         m.store(r + 0x44, 4, w[15] & 0xFFFFFFFF)
         m.store(r + 0x58, 4, lg)
@@ -883,14 +897,16 @@ class Harness:
         self.put(r + 0x70, "<4I", *w[20:24])
         self.put(r + 0x80, "<4h", *w[24:28])
         self.put(r + 0x88, "<4I", *w[28:32])
-        m.store(r + 0x98, 4, BOXRAD_VT)
+        m.store(r + 0x98, 4, vt)
+        if radiator:
+            m.store(lg + 0xA4, 4, OMNI_VT)
         self.put(lg + 0x40, "<16I", *w[32:48])
         m.store(lg + 0x8D, 1, w[48])
         m.store(lg + 0xB0, 4, w[49])
         m.store(lg + 0xC0, 4, w[50])
         self.put(lg + 0xC4, "<3I", *w[51:54])
         at = 54
-        for k in range(16):
+        for k in range(n):
             a = parts + 0xD0 * k
             m.store(a + 8, 4, w[at])
             m.store(a + 0xC, 4, w[at + 1])
@@ -939,7 +955,8 @@ class Harness:
                 v += [m.load(lg + 0xB0, 4)] + self.get(lg + 0xC0, "<4I") + self.get(lg + 0x70, "<3I")
             else:
                 v += [0] * 8
-        return v
+        rad = m.load(va + 0x268, 4)
+        return v + ([1] + self.read_rad(rad) if rad else [0])
 
     def put_etc(self, va, w, gid):
         m = self.m
@@ -967,7 +984,9 @@ class Harness:
                 m.store(lg + 0xA4, 4, inf_va(0x00375A50))
             m.store(va + 0x260 + 4 * k, 4, lg if gid == 20 else 0)
             at += 8
-        m.store(va + 0x268, 4, 0)
+        rad = w[at:]
+        user = self.ptr(rad[15]) if len(rad) > 15 else 0
+        m.store(va + 0x268, 4, self.put_rad(va, rad[1:], user, radiator=True) if rad and rad[0] else 0)
 
     def put_class(self, va, cls, chunk_name):
         """A box's or idol's class words into memory (and its vtable and
@@ -1064,6 +1083,8 @@ class Harness:
         v += self.get(va + 0xF0, "<4h") + self.read_ent(va + 0x100) + self.read_hit(va)
         dest = m.load(va + 0x1C8, 4)
         v += [m.load(va + 0x1B0, 4), DEST_BACK().get(dest, dest)] + self.get(va + 0x1D0, "<4i")
+        if m.load(va + 0x1CC, 4) == ETC_VT and radiator_words(v):
+            v[35] = self.index_of(v[35] & 0xFFFFFFFF) + 1 if v[35] else 0
         return v
 
     def put_parts(self, va, parts, eff_base):
@@ -1428,7 +1449,11 @@ class Harness:
             if o["kind"] == 1:
                 self.put_enemy(va, o["enemy"], o["extra"])
             elif o["kind"] in (2, 3, 4):
-                self.put_common(va, o["obj"])
+                w = list(o["obj"])
+                # a radiator's param[3]: its user (index + 1) as the pointer
+                if o["kind"] == 3 and o.get("cls", [0])[0] == 5 and radiator_words(w):
+                    w[35] = self.ptr(w[35] - 1) if w[35] > 0 else 0
+                self.put_common(va, w)
                 m.store(va + 0x1CC, 4, {2: inf_va(0x003763F0), 3: VT_GIM, 4: VT_NPC}[o["kind"]])
                 if o["kind"] == 3:
                     gid = o["obj"][48]
@@ -1456,9 +1481,25 @@ class Harness:
             for x, y in zip(lst, lst[1:] + [None]):
                 m.store(self.addrs[x] + 0xBC, 4, self.ptr(y) if y is not None else 0)
         m.store(a["plw"] + 0x20, 4, self.ptr(0 if game[9] == 0 else -1))
+        self.put_hand(sc.get("hand"))
         m.store(DRAWENV_ACTIVE, 4, DRAWENV)
         m.mem[DRAWENV:DRAWENV + 0x100] = bytes(0x100)
         self.g.m.store(self.g.sym("cmndTarget"), 4, 0)
+
+    def put_hand(self, hand):
+        """Kite's right hand and AI as a radiator reads them (ccSpcChar
+        +0x130 objHandR, its lwMatrix; +0x128 ai, byte 0 bit 0 manualSW):
+        hand is [manual] + the matrix's 16 words, or None for none."""
+        m, k = self.m, self.addrs[0]
+        if not hand:
+            m.store(k + 0x128, 4, 0)
+            m.store(k + 0x130, 4, 0)
+            return
+        m.mem[HAND:HAND + 0xB0] = bytes(0xB0)
+        self.put(HAND, "<16I", *hand[1:17])
+        m.store(KITE_AI, 4, hand[0] & 1)
+        m.store(k + 0x128, 4, KITE_AI)
+        m.store(k + 0x130, 4, HAND)
 
     def ser_scene(self, sc):
         v = []
@@ -1495,6 +1536,8 @@ class Harness:
         cm = sc["cmnd"]
         parts.append(" ".join(str(x) for x in [len(cm[0])] + cm[0] + [len(cm[1])] + cm[1] + [len(cm[2])] + cm[2]))
         parts.append(str(PATNUM))
+        hand = sc.get("hand")
+        parts.append(" ".join(str(x) for x in [1] + hand) if hand else "0")
         return " ".join(parts)
 
     def walk(self, head, n=64):
@@ -2800,6 +2843,50 @@ def scene_from_memory(h, sc):
     return out
 
 
+def radiator_words(o):
+    """Whether common words o (read_common's) are a radiator's: row 19
+    with param[2] 0."""
+    return o[48] == 19 and o[34] == 0
+
+
+def rnd_hand(rnd, k, z):
+    """A right hand near Kite at (k, z): [manual] + an lwMatrix (a turn of
+    random Euler angles, its rows as words, the place last)."""
+    a, b, c = (rnd.uniform(-math.pi, math.pi) for _ in range(3))
+    ca, sa, cb, sb, cc, sc_ = math.cos(a), math.sin(a), math.cos(b), math.sin(b), math.cos(c), math.sin(c)
+    rows = [[cb * cc, cb * sc_, -sb], [sa * sb * cc - ca * sc_, sa * sb * sc_ + ca * cc, sa * cb],
+            [ca * sb * cc + sa * sc_, ca * sb * sc_ - sa * cc, ca * cb]]
+    words = [w for r in rows for w in [fb(x) for x in r] + [0]]
+    words += [eemu.f_add(k[0], rf(rnd, -60, 60)), eemu.f_add(k[1], rf(rnd, -60, 60)),
+              eemu.f_add(z, rf(rnd, 40, 140)), F_ONE]
+    return [1] + words
+
+
+def check_radiator_entry(checks, rnd):
+    """The event's radiator (ccEvent::Execute case 45): entryObject(ep, 1)
+    of row 19 with param[2] 0 and param[3] Kite, whose right hand stands
+    somewhere near him: ccGimEtc's constructor, the ccGimRadiator and
+    setGimRadPos."""
+    h = harness(checks)
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=rnd.randrange(0, 2), nn=0, area=rnd.choice((0, 1, 2)))
+    sc["hand"] = rnd_hand(rnd, sc["k"], sc["objs"][0]["char"][3])
+    sc["hand"][0] = rnd.choice((0, 1))
+    ent = h.rnd_ent(rnd, sc, 1, 19)
+    ent[16] = 0
+    ent[20] = 0
+    h.put_scene(sc)
+    ent[21] = h.addrs[0]
+    h.put_ent(EP, ent)
+    ret = h.call("entryObject__11ccEntryCtrlFP12ccEntryParami", (CTRL, EP, 1))
+    out = h.read_scene()
+    out["ret"] = h.index_of(ret) if ret else -1
+    out["ep"] = h.read_ent(EP)
+    out["ep"][21] = 1
+    h.restore()
+    ent[21] = 1
+    return request(h, sc, "entryn", ent_str(ent) + " 1"), out, "entryn"
+
+
 def check_gim_frame(checks, rnd):
     """Boxes and idols made by their own constructors (entryObject), some
     of them opened (affect 11), disarmed (12) or hit (1) by Kite, then
@@ -2877,7 +2964,10 @@ def check_etc_frame(checks, rnd):
     put into a random state of ctrlFountain (actNum 0-11 and a count, the
     spirit on and the lights set as state 2 leaves them, the bounce and a
     spring running), some given affect 11 (FountainMenu3's EntryAffect)
-    or another, and ccThEntryCtrl's frames with ccGimEtc::main."""
+    or another, and ccThEntryCtrl's frames with ccGimEtc::main. Some
+    scenes hold the event's radiator (row 19, param[2] 0, param[3] Kite):
+    its rays follow his right hand, moved each frame, until his AI leaves
+    manual mode (ctrlGimRadiator, ccGimRadiator::ctrl)."""
     h = harness(checks)
     sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=2)
     sc["rng"][1] = rnd.randrange(0, 300)
@@ -2889,18 +2979,24 @@ def check_etc_frame(checks, rnd):
     # spring's SetFountain adds it.
     code = (sc["game"][8] | (sc["game"][6] << 29)) & 0xFFFFFFFF
     sc["save"][6:106] = [x if (x & 0xFFFFFFFF) != code else 0 for x in sc["save"][6:106]]
+    radiator = rnd.random() < 0.4
+    kz = sc["objs"][0]["char"][3]
+    if radiator:
+        sc["hand"] = rnd_hand(rnd, sc["k"], kz)
     h.put_scene(sc)
     c = sc["ctrl"]
     k = sc["k"]
-    for _ in range(rnd.randrange(1, 3)):
-        gid = rnd.choice(ETC_IDS)
+    for j in range(rnd.randrange(1, 3)):
+        gid = 19 if radiator and j == 0 else rnd.choice(ETC_IDS)
         pos = [eemu.f_add(k[0], rf(rnd, -3000, 3000)), eemu.f_add(k[1], rf(rnd, -3000, 3000)), rf(rnd, -100, 500),
                F_ONE]
         ent = h.rnd_ent(rnd, sc, 1, gid, pos=pos)
         ent[10:14] = c
         ent[16] = rnd.choice((0, 0, -1, 1))
-        # param[2] 0 would give row 19 rays whose user is param[3].
-        ent[20] = rnd.choice((-1, -1, 3))
+        # param[2] 0: row 19's rays, their user param[3] (Kite).
+        ent[20] = 0 if radiator and j == 0 else rnd.choice((-1, -1, 3))
+        if ent[20] == 0:
+            ent[21] = h.addrs[0]
         h.put_ent(EP, ent)
         h.call("entryObject__11ccEntryCtrlFP12ccEntryParam", (CTRL, EP))
     sc2 = scene_from_memory(h, sc)
@@ -2940,10 +3036,17 @@ def check_etc_frame(checks, rnd):
     sc2["fwd"] = [int(rnd.random() < 0.08) for _ in range(600)]
     sc2["gmain"] = []
     h.put_scene(sc2)
+    # The hand each frame, and the frame the event lets Kite go.
+    off_at = rnd.randrange(0, n + 20)
+    hands = [rnd_hand(rnd, p, kz) for p in path] if radiator else []
+    for f, hd in enumerate(hands):
+        hd[0] = int(f < off_at)
     frames = []
     for f in range(n):
         h.k = list(path[f])
         h.put(h.addrs[0] + 0x40, "<II", *path[f])
+        if radiator:
+            h.put_hand(hands[f])
         h.wcalls, h.scalls, h.outs = [], [], []
         h.breaths = 0
         try:
@@ -2952,8 +3055,12 @@ def check_etc_frame(checks, rnd):
             pass
         frames.append(h.read_scene(full=True))
     h.restore()
-    req = request(h, sc2, "gframe", "1 0 0 0 -1 0 2 1 " + str(n) + " "
-                  + " ".join(f"{p[0]} {p[1]}" for p in path))
+    if radiator:
+        req = request(h, sc2, "gframeh", "1 0 0 0 -1 0 2 1 " + str(n) + " "
+                      + " ".join(" ".join(map(str, p + hd)) for p, hd in zip(path, hands)))
+    else:
+        req = request(h, sc2, "gframe", "1 0 0 0 -1 0 2 1 " + str(n) + " "
+                      + " ".join(f"{p[0]} {p[1]}" for p in path))
     return req, {"frames": frames}, "gim_frame"
 
 
@@ -3256,6 +3363,7 @@ SPAWN = {
     "item_box": check_item_box,
     "idol": check_idol,
     "etc_frame": check_etc_frame,
+    "radiator_entry": check_radiator_entry,
     "field_gims": check_field_gims,
 }
 
@@ -3300,6 +3408,7 @@ class SpawnAgainstGame(rs.Against):
         self.check("item_box", 20021)
         self.check("idol", 20022)
         self.check("etc_frame", 20023)
+        self.check("radiator_entry", 20025)
 
 
 if __name__ == "__main__":

@@ -2200,6 +2200,39 @@ impl FieldWorld {
         }
     }
 
+    /// `radiator rtype type code x y z roty rotz` (case 45, main
+    /// 0x001ac7c8): the character `type code` names (`1 << type`: 4
+    /// `GetSpc`, 0x18 `GetNpc`, 0x60 `GetEnemy`, else
+    /// `ccCheckTargetTypeId`), then `entryObject(ep, 1)` of gimmick row 19
+    /// at (10 x, 10 y, 10 z) turned (0, `DEG2RAD(roty)`, `DEG2RAD(rotz)`),
+    /// `entRoot` 0, `param[2]` `rtype`, `param[3]` the character: with
+    /// `rtype` 0 the rays at its right hand ([`piney_battle::gimetc`]).
+    #[allow(clippy::too_many_arguments)]
+    pub fn radiator(&mut self, rtype: i16, ty: i16, code: i16, x: i16, y: i16, z: i16, roty: i16, rotz: i16) {
+        use piney_battle::geom::deg2rad;
+        let user = self.ev_party(|p| p.radiator_user(ty, code));
+        let s = self.scene;
+        let mut ep = piney_battle::entry::entry_param_clear();
+        let k = |v: i16| ee::mul(0x4120_0000, ee::from_int(i32::from(v)));
+        (ep.pos[0], ep.pos[1], ep.pos[2]) = (k(x), k(y), k(z));
+        (ep.dirc[0], ep.dirc[1], ep.dirc[2]) = (0, deg2rad(roty), deg2rad(rotz));
+        (ep.ty, ep.id, ep.area) = (1, 19, s.area);
+        if let Some(n) = match s.area {
+            0 => Some(s.town),
+            1 => Some(s.field),
+            2 => Some(s.dungeon),
+            _ => None,
+        } {
+            ep.area_num = n;
+        }
+        (ep.floor, ep.block, ep.ent_root) = (s.floor, s.block, 0);
+        ep.param[2] = i32::from(rtype);
+        ep.param[3] = piney_battle::gimetc::rad_user_param(user);
+        let info = self.task_info();
+        let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, CamPad::default(), &info);
+        self.combat.entry_object_n(&mut x, &mut ep, 1);
+    }
+
     /// `close_door` (case 159, main 0x001b21cc): `DUNGEON::CloseDoor2`, the
     /// doors' closing counted down by `MoveDoor`; nothing in a field.
     pub fn close_door(&mut self) {
@@ -2842,34 +2875,19 @@ impl FieldWorld {
         let extra = self.fx.lights();
         let symbols = &self.combat.symbol_lights;
         let springs = &self.combat.spring_lights;
-        if extra.is_empty() && symbols.is_empty() && springs.is_empty() {
+        let rays = &self.combat.rad_lights;
+        let flashes = &self.combat.weapons.lights;
+        if extra.is_empty() && symbols.is_empty() && springs.is_empty() && rays.is_empty() && flashes.is_empty() {
             return std::borrow::Cow::Borrowed(self.place.lights());
         }
         let mut l = self.place.lights().clone();
         for &(p, intensity) in symbols.values().rev() {
             l.lights.insert(0, symbol_light(p, intensity));
         }
-        // The spring's: `ccLight(4, 1)`, blue or red (`ccSetColor`'s low
-        // byte red), their fall-off as its frame left it.
-        for ls in springs.values().rev() {
-            for o in ls.iter().rev() {
-                let p = o.matrix[3];
-                let rgb = |k: u32| ((o.rgb >> (8 * k)) & 0xff) as f32 / 255.0;
-                l.lights.insert(
-                    0,
-                    crate::town::Light {
-                        kind: 4,
-                        pos: glam::Vec3::new(ee::f(p[0]), ee::f(p[1]), ee::f(p[2])),
-                        dir: glam::Vec3::ZERO,
-                        colour: glam::Vec3::new(rgb(0), rgb(1), rgb(2)),
-                        intensity: ee::f(o.intensity),
-                        far_start: ee::f(o.far_start),
-                        far_end: ee::f(o.far_end),
-                        radius: [0.0; 2],
-                        priority: 1,
-                    },
-                );
-            }
+        // The spring's, the rays' and the flashes': `ccLight(4, 1)`, their colour
+        // (`ccSetColor`'s low byte red) and fall-off as their frame left it.
+        for o in springs.values().flatten().chain(rays.values()).chain(flashes.values()).rev() {
+            l.lights.insert(0, omni_light(o));
         }
         l.lights.extend(extra);
         std::borrow::Cow::Owned(l)
@@ -3619,6 +3637,25 @@ fn symbol_light(p: V4, intensity: F) -> crate::town::Light {
         intensity: ee::f(intensity),
         far_start: 0.0,
         far_end: 1000.0,
+        radius: [0.0; 2],
+        priority: 1,
+    }
+}
+
+/// A spring's or the rays' `ccOmniLight` (`ccLight(4, 1)`) as its frame
+/// left it: at its matrix's place, `ccSetColor`'s RGB (red the low byte,
+/// each over 255), its intensity and fall-off.
+fn omni_light(o: &piney_battle::prim::OmniLight) -> crate::town::Light {
+    let p = o.matrix[3];
+    let rgb = |k: u32| ((o.rgb >> (8 * k)) & 0xff) as f32 / 255.0;
+    crate::town::Light {
+        kind: 4,
+        pos: glam::Vec3::new(ee::f(p[0]), ee::f(p[1]), ee::f(p[2])),
+        dir: glam::Vec3::ZERO,
+        colour: glam::Vec3::new(rgb(0), rgb(1), rgb(2)),
+        intensity: ee::f(o.intensity),
+        far_start: ee::f(o.far_start),
+        far_end: ee::f(o.far_end),
         radius: [0.0; 2],
         priority: 1,
     }

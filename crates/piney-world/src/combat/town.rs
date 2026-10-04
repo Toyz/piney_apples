@@ -216,6 +216,7 @@ impl Combat {
             spcs: Some(&mut *x.spcs),
             tricks: Vec::new(),
             chats: Vec::new(),
+            manual: self.crew.manual_chars(),
             item_uses: &mut self.member_items,
         };
         // ccThPlayer (49) before the members: ccPlayer::Main's
