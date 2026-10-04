@@ -581,7 +581,7 @@ impl World {
         let hits = &mut self.town.base.hits;
         let bounds = combat::Combat::bounds(0, hits);
         let c = &mut self.party.combat;
-        c.entry_affect(w, c.kite, cmnd, hits, bounds);
+        c.affect_now(w, c.kite, cmnd, [0; 3], hits, bounds, &mut self.save.save, &[]);
     }
 
     /// What the field's menus show `ccThGameCtrl` (`ccMenu`), before the

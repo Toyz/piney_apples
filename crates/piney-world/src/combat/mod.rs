@@ -2620,6 +2620,30 @@ impl Combat {
         self.entry_affect_with(on, by, kind, [0; 3], hits, bounds);
     }
 
+    /// `EntryAffect` from outside the frame (the menus, the scripts), with
+    /// the lines it raised run on the members at once: the game's runs
+    /// `Influence`, and so `ccAI::Greeting`, inside the call. Left queued
+    /// while a menu slept the tasks, a member's greeting (14) landed after
+    /// the menu's talk-off (0), and its `talkFlag` stayed set: the member
+    /// stood, silent, deaf to orders, for good.
+    #[allow(clippy::too_many_arguments)]
+    pub fn affect_now(
+        &mut self,
+        on: usize,
+        by: Option<usize>,
+        kind: i16,
+        p: [i16; 3],
+        hits: &mut Hits,
+        bounds: MapBounds,
+        save: &mut piney_data::save::SaveData,
+        ents: &[usize],
+    ) {
+        self.entry_affect_with(on, by, kind, p, hits, bounds);
+        let d = self.data.clone();
+        let party = self.party;
+        self.drain_chats(&d.t, save, &party, ents);
+    }
+
     /// `EntryAffect(on, by, kind, p0, p1, p2)`, with what it leads to.
     pub fn entry_affect_with(
         &mut self,

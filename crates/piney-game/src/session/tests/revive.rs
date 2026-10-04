@@ -224,3 +224,83 @@ fn the_fallen_keep_no_condition_marker() {
     assert!(by.is_some_and(|b| b != mia && b != elk), "Kite felled by {by:?}");
     no_marker(&mut s, kite, worn, "a Mimic's blow");
 }
+
+/// The left stick that walks Kite toward heading `h` (radians,
+/// `atan2(dx, -dy)`) under a camera at rotation `cam_z`.
+fn stick_toward(cam_z: f32, h: f32) -> Raw {
+    use std::f32::consts::PI;
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let want = (cam_z - PI - h).rem_euclid(2.0 * PI);
+    let mut best = (f32::MAX, still);
+    for k in 0..64 {
+        let a = k as f32 * PI / 32.0;
+        let raw = Raw { lx: (128.0 + 127.0 * a.cos()) as u8, ly: (128.0 + 127.0 * a.sin()) as u8, ..still };
+        let mut p = Pad::default();
+        p.read(&raw);
+        let d = (p.dirc_l.rem_euclid(2.0 * PI) - want).abs();
+        let d = d.min(2.0 * PI - d);
+        if d < best.0 {
+            best = (d, raw);
+        }
+    }
+    best.1
+}
+
+/// Issue #36 (and #26's Elk, the report's Gardenia): a member spoken to and
+/// left at once froze for good: standing, saying nothing, taking no
+/// orders. Opening its menu sends `EntryAffect` 14 (`ccAI::Greeting`:
+/// `talkFlag`) and cancelling sends 0 (`talkFlag` off). The greeting sat in
+/// the frame's chat queue while the menu slept the tasks, and ran after the
+/// talk-off. It now runs inside the affect, as the game's does.
+#[test]
+fn a_member_spoken_to_and_left_follows_again() {
+    let Some(mut s) = field_with_mia_and_elk() else { return };
+    let mia = area(&mut s).world().combat().who(MIA).unwrap();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let mut pad = Pad::default();
+    let pos = |s: &mut Session, c: usize| area(s).world().combat().scene.chars[c].pos.map(f32::from_bits);
+    let talk_flag = |s: &mut Session| area(s).world().combat().crew.ais.get(&mia).map(|a| a.talk_flag);
+    let mut opened = false;
+    for f in 0..4000u64 {
+        let a = area(&mut s);
+        if a.ui().menu_type() == 21 {
+            opened = true;
+            break;
+        }
+        let w = a.world();
+        let raw = if w.command_target() == Some(mia) {
+            Raw { buttons: if f % 30 == 0 { Buttons::CROSS } else { Buttons::NONE }, ..still }
+        } else {
+            let c = w.combat();
+            let (p, q) = (c.scene.chars[c.kite.unwrap()].pos, c.scene.chars[mia].pos);
+            let (dx, dy) = (f32::from_bits(q[0]) - f32::from_bits(p[0]), f32::from_bits(q[1]) - f32::from_bits(p[1]));
+            stick_toward(f32::from_bits(w.camera().rot()[2]), dx.atan2(-dy))
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    assert!(opened, "Mia's menu (21) never opened");
+    assert_eq!(talk_flag(&mut s), Some(true), "spoken to, she listens");
+    // Cancel: the menu shuts.
+    for f in 0..120 {
+        pad.read(&Raw { buttons: if f % 60 == 0 { Buttons::CIRCLE } else { Buttons::NONE }, ..still });
+        s.step(&pad);
+        s.take_events();
+    }
+    assert_eq!(area(&mut s).ui().menu_type(), -1, "the menu shut");
+    assert_eq!(talk_flag(&mut s), Some(false), "the talk is over for her");
+    // Kite walks away; she follows.
+    let kite = area(&mut s).world().combat().kite.unwrap();
+    let start = pos(&mut s, mia);
+    for _ in 0..240 {
+        let w = area(&mut s).world();
+        let raw = stick_toward(f32::from_bits(w.camera().rot()[2]), 0.0);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    let (k, m) = (pos(&mut s, kite), pos(&mut s, mia));
+    let moved = (m[0] - start[0]).hypot(m[1] - start[1]);
+    assert!(moved > 300.0, "Mia stood: moved {moved:.0}, Kite {:.0} away", (k[0] - m[0]).hypot(k[1] - m[1]));
+}

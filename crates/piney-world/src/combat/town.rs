@@ -150,9 +150,9 @@ impl Combat {
         let area = 0;
         let party: Party = self.party;
         self.load_records(x.save);
-        // The lines the menus raised after last frame's tasks (a member
-        // spoken to: ccAI::Greeting, then its talkFlag cleared), before
-        // this frame's.
+        // The lines raised since last frame's tasks, before this frame's
+        // (a menu's or a script's affect runs its own at once:
+        // `Combat::affect_now`).
         self.drain_chats(t, x.save, &party, &[]);
         if let Some(piney_battle::frame::SpcOut::Shout { operation }) =
             self.spc.frame(t, x.save, &party, area, 0, x.puppet_show)

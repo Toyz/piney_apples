@@ -1662,7 +1662,8 @@ impl FieldWorld {
             Place::Story(m) => m.hits_mut(),
         };
         let b = Combat::bounds(area, hits);
-        self.combat.entry_affect_with(on, by, kind, p, hits, b);
+        let ents = self.combat.ctrl.list(piney_battle::entry::Kind::Enemy);
+        self.combat.affect_now(on, by, kind, p, hits, b, &mut self.save.save, &ents);
     }
 
     /// Data Drain's rules on the scene ([`Combat::data_drain`]): Kite drains
