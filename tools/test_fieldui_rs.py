@@ -51,6 +51,10 @@ import test_save_init_rs  # noqa: E402
 
 Stop, f_add, f_mul, f_to_py = eemu.Stop, eemu.f_add, eemu.f_mul, eemu.f_to_py
 
+# Exdefense's bits and the ccCharParamElement shorts they guard: pDef,
+# mDef, then soil, water, fire, wind, thunder, dark.
+EXDEF = ((0x1, 1), (0x2, 5), (0x4, 8), (0x8, 9), (0x10, 10), (0x20, 11), (0x40, 12), (0x80, 13))
+
 ELF = volume.ELF
 ISO = volume.ISO
 TARGET = os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "target"))
@@ -153,7 +157,8 @@ class Char:
     """A ccChar the HUD reads: party member, target or enemy."""
 
     def __init__(self, handle, types, cid, hp, sp, mhp, msp, name, cond=(), tag=None, width=0.0, view=True,
-                 pos=(0.0, 0.0, 0.0), chat=(0, 0, 0, 0, 0, 0), item=None, trap=None, size=None, busy=None):
+                 pos=(0.0, 0.0, 0.0), chat=(0, 0, 0, 0, 0, 0), item=None, trap=None, size=None, busy=None,
+                 exdef=None):
         self.handle, self.types, self.id = handle, types, cid
         self.hp, self.sp, self.mhp, self.msp = hp, sp, mhp, msp
         self.name, self.cond, self.tag = name, list(cond) + [0] * (16 - len(cond)), tag
@@ -166,6 +171,9 @@ class Char:
         # A member's skillID (+0x7c) and actNum (+0xee), which
         # CheckChangeEquip reads.
         self.busy = busy
+        # A foe's (Exdefense, lowered): its table row's immunities (+0x64)
+        # and the bits of those defences its `real` has below the row's.
+        self.exdef = exdef
 
     def pos_line(self):
         return f"pos {self.handle} {self.width!r} {int(self.view)} " + " ".join(repr(float(v)) for v in self.pos)
@@ -318,6 +326,9 @@ class Scenario:
                 out.append(f"item {c.handle} {c.item}")
                 if c.trap is not None:
                     out.append(f"trap {c.handle} {c.trap[0]} {c.trap[1]}")
+        for c in ([self.target] if self.target else []) + [e.c for e in self.sorted]:
+            if c.exdef is not None:
+                out.append(f"exdef {c.handle} {c.exdef[0]} {c.exdef[1]}")
         if self.area_item:
             out.append("areaitem %d %d %d %d %d %d" % self.area_item)
         for k, (code, mode) in sorted(self.area_codes.items()):
@@ -484,6 +495,7 @@ class Game:
         self.drain_rec = {}
         # The party (ccPartyManager: memberChar[3], memberID[3], num).
         self.chars = {}
+        self.rows = {}
         n = 0
         for slot in range(3):
             m.store(PARTY + 0x0C + 4 * slot, 4, 0xFFFFFFFF)
@@ -585,6 +597,20 @@ class Game:
         if c.busy:
             m.store(a + 0x7C, 2, c.busy[0] & 0xFFFF)
             m.store(a + 0xEE, 2, c.busy[1] & 0xFFFF)
+        if c.exdef is not None:
+            # ccGetEnemyParam / ccGetBossParam(id): the row's elm (+0x28)
+            # all 100 and its Exdefense; ccEnemyParam.real (personality +0)
+            # 50 where a defence is lowered.
+            ex, lowered = c.exdef
+            row = self.alloc(0x100)
+            m.store(row + 0x64, 2, ex & 0xFFFF)
+            for i in range(14):
+                m.store(row + 0x28 + 2 * i, 2, 100)
+                m.store(pers + 2 * i, 2, 100)
+            for bit, i in EXDEF:
+                if lowered & bit:
+                    m.store(pers + 2 * i, 2, 50)
+            self.rows[c.id] = row
         # personality->ai (+296): manualSW set.
         ai = self.alloc(0x260)
         m.store(a + 296, 4, ai)
@@ -858,8 +884,8 @@ class Game:
         for n, name in UNPORTED:
             hook(name + "__10ccMenuCtrlFv", unported(n))
         hook("CheckCharAttribute__6ccCharFi", lambda mm, *a: 0xFFFFFFFF)
-        hook("ccGetEnemyParam__Fi", lambda mm, *a: self.alloc(0x100))
-        hook("ccGetBossParam__Fi", lambda mm, *a: self.alloc(0x100))
+        hook("ccGetEnemyParam__Fi", lambda mm, cid, *a: self.rows.get(cid) or self.alloc(0x100))
+        hook("ccGetBossParam__Fi", lambda mm, cid, *a: self.rows.get(cid) or self.alloc(0x100))
 
         def check_target(mm, c, *a):
             return 1 if c in self.chars else 0
@@ -1490,6 +1516,21 @@ class FieldUiAgainstGame(unittest.TestCase):
             sc.target = Char(0x200, types, 5, hp, sp, mhp, msp, name, tag=tag)
             sc.game = (1, 0, 0, 0)
             self.compare(sc, f"target {name}")
+
+    def test_target_tolerance(self):
+        # A foe's immunity right of its HP (nameKanji's sixth line, pulsing
+        # with the cursor), struck through once its lowest Exdefense bit's
+        # defence is lowered: fire held and broken, magic held with fire
+        # broken, a boss's physical broken; none in a town.
+        for types, ex, lowered, game in ((0x20, 0x10, 0, (1, 0, 0, 0)), (0x20, 0x10, 0x10, (1, 0, 0, 0)),
+                                         (0x40, 0x12, 0x10, (1, 0, 0, 0)), (0x80, 0x1, 0x1, (1, 0, 0, 0)),
+                                         (0x20, 0x80, 0x80, (1, 0, 0, 0)), (0x20, 0x10, 0x10, (0, 0, 0, 0))):
+            sc = Scenario(70)
+            self.party(sc, 2)
+            sc.target = Char(0x200, types, 172, 1210, 0, 1210, 0, b"Hell Hound", tag=(250, 200),
+                             exdef=(ex, lowered))
+            sc.game = game
+            self.compare(sc, f"tolerance {types:#x} {ex:#x} {lowered:#x} area {game[0]}")
 
     def test_attack_cursor(self):
         # plAttack on an enemy target: the attack cursor (0x2912 cell),

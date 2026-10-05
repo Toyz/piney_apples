@@ -147,6 +147,8 @@ fn char_info(w: &FieldWorld, who: usize, names: &dyn Fn(i32) -> Vec<u8>) -> Opti
         // +0x1d4 actNum: the spring's state (FountainMenu3).
         act_num: c.ctrl.entry_obj(who).map_or(0, |o| o.act_num),
         attribute: if ch.is_foe() { piney_battle::chara::check_char_attribute(ch, 0) } else { -1 },
+        exdefense: ch.foe_state().map_or(0, |f| f.row.exdefense),
+        exdefense_lowered: ch.foe_state().map_or(0, |f| piney_battle::damage::exdefense_lowered(f) as i16),
         tag: g.tag,
         bar_res: g.bar_res,
         bar: g.bar,

@@ -9,7 +9,7 @@
 use piney_data::field::ee;
 use piney_data::volume::Volume;
 
-use crate::chara::{AffectFunc, Char, Env, cdiv, check_char_attribute};
+use crate::chara::{AffectFunc, Char, Env, Foe, cdiv, check_char_attribute};
 use crate::event::{Event, Events, Who};
 use crate::param::{SkillParam, cond, elm, ty};
 use crate::rand::Rng;
@@ -108,6 +108,12 @@ pub fn exdefense_held(t: &Tables, scene: &Scene, tp: usize, sid: i32) -> i32 {
         r |= held(&EXDEF[2..], stype);
     }
     r
+}
+
+/// The Exdefense bits of foe `f` whose defence is now below its row's:
+/// the immunities a lowering broke (the target window strikes them out).
+pub fn exdefense_lowered(f: &Foe) -> i32 {
+    EXDEF.iter().filter(|&&(_, i)| f.real[i] < f.row.elm[i]).fold(0, |a, &(bit, _)| a | bit)
 }
 
 /// The Exdefense bits by defence: (bit, stat index).

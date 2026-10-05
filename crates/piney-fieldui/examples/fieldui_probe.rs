@@ -127,6 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut gim_acts: Vec<(usize, u32, i32)> = Vec::new();
     let mut gones: Vec<(usize, u32)> = Vec::new();
     let mut traps_of: Vec<(u32, i32, i16)> = Vec::new();
+    let mut exdefs_of: Vec<(u32, i16, i16)> = Vec::new();
     let mut area_code_set: [i16; 3] = [-1; 3];
     world.area_codes = [(-1, -1); 16];
     // The harness's rand() returns 0.
@@ -252,6 +253,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "bgnum" => world.game.bgnum = n(1) as i32,
             // trap HANDLE PARAM2 SKILL: a box's +0x150 and +0x7c.
             "trap" => traps_of.push((n(1) as u32, n(2) as i32, n(3) as i16)),
+            // exdef HANDLE EXDEFENSE LOWERED: a foe's row Exdefense and the
+            // bits of the defences now below the row's.
+            "exdef" => exdefs_of.push((n(1) as u32, n(2) as i16, n(3) as i16)),
             "areaitem" => {
                 // areaitem FIELD_ATTR EVENT_AREA AREA_LEVEL ITEM_OFS FLOOR FIELD
                 world.field_attr = n(1) as i32;
@@ -450,6 +454,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if c.handle == h {
                             c.trap = trap;
                             c.skill = skill;
+                        }
+                    };
+                    world.target.iter_mut().for_each(set);
+                    world.sorted.iter_mut().for_each(set);
+                    extra.iter_mut().for_each(set);
+                }
+                for &(h, ex, lowered) in &exdefs_of {
+                    let set = |c: &mut CharInfo| {
+                        if c.handle == h {
+                            c.exdefense = ex;
+                            c.exdefense_lowered = lowered;
                         }
                     };
                     world.target.iter_mut().for_each(set);

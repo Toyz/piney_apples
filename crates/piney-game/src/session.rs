@@ -6853,6 +6853,9 @@ mod tests {
     /// Issue #51: out of a dungeon by the Sprite Ocarina or the stairs.
     mod ocarina;
 
+    /// Issue #49: a foe's immunity in its target window.
+    mod tolerance;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

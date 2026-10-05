@@ -166,6 +166,38 @@ off-screen arrows; the protect marks; the battle banner; the new-mail notice
 (towns); `ccMsg->Disp`; then every sprite's `SendPacket` in a fixed order
 (each prepends to the layer, so the last sent is drawn first).
 
+### The target's immunity
+
+Outside a town, a targeted enemy (type 0x60) or boss (0x80) whose table
+row has an `Exdefense` (+0x64) shows it right of its HP. `nameKanji`'s
+sixth piece (0x0051e960 - 0x0051ec3c) is the row's lowest bit as a
+`kyviaStatusStr` piece:
+
+| bit | piece | defence (`personality.real` against the row) | bar |
+| --- | --- | --- | --- |
+| 0x1 | Physical Tol. | pDef | 88 |
+| 0x2 | Magic Tol. | mDef | 68 |
+| 0x4 | Earth Tol. | soil | 72 |
+| 0x8 | Water Tol. | water | 72 |
+| 0x10 | Fire Tol. | fire | 60 |
+| 0x20 | Wood Tol. | wind | 64 |
+| 0x40 | Thunder Tol. | thunder | 86 |
+| 0x80 | Darkness Tol. | dark | 94 |
+
+After `ConditionIconDisp` (0x005202e4 - 0x0052063c) the target window draws
+that piece (`nameKanji` cell 5) at (145, 122) in colour 23. Its alpha is
+the cursor's pulse (`cursolAlpha` c: `c << 5` under 4, `(31 - c) << 4`
+from 24, else 128), capped at `targetAlpha`. When that one defence is
+below the row's (the immunity broken, as in battle.md's Exdefense), a bar
+is drawn over it: `itemIcon` cell (0, 0x1800), 72 x 16 drawn the width in
+the table x 16, colour 7, at `targetAlpha`. Only the lowest bit is named
+and checked; Hell Hound (row 172, 0x10) shows "Fire Tol.". Mutation's,
+Outbreak's and Quarantine's `Disp` (0x0053b100, 0x00536480, 0x00428d90)
+are the same code. The port is `disp::tolerance`, fed
+by `CharInfo::exdefense` and `exdefense_lowered`;
+`tools/test_fieldui_rs.py`'s `test_target_tolerance` runs it against the
+game's code.
+
 ### The bracelet's gauge
 
 While `drainAlpha` is up (`drainStatus`, which the Skills menu raises on

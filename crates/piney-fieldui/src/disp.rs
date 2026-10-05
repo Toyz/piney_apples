@@ -613,9 +613,9 @@ pub fn member_name(x: &Ctx, pc: i32) -> Vec<u8> {
 }
 
 /// nameKanji's text: the target's name, its action, the party's names,
-/// then the town's face name or the target's weakness, then "You have new
-/// mail." (0x0051e78c - 0x0051eca0), extracted into nameKanji and
-/// nameKanjiPr every frame.
+/// then the town's face name or a foe's immunity ("Fire Tol."), then "You
+/// have new mail." (0x0051e78c - 0x0051eca0), extracted into nameKanji
+/// and nameKanjiPr every frame.
 fn name_texts(m: &mut MenuCtrl, x: &mut Ctx, target: Option<&CharInfo>) {
     let mut buf = Vec::new();
     match target {
@@ -648,8 +648,8 @@ fn name_texts(m: &mut MenuCtrl, x: &mut Ctx, target: Option<&CharInfo>) {
         let n = member_name(x, i32::from(m.face_num));
         str_cat(&mut buf, &n, 16);
     } else {
-        // The weakness line of Kyvia's forms: none in the port's world.
-        str_cat(&mut buf, b"", 16);
+        let piece = target.and_then(CharInfo::tolerance).and_then(|(k, _)| x.texts.kyvia_status.get(k));
+        str_cat(&mut buf, piece.map_or(&b""[..], |p| p), 16);
     }
     buf.extend_from_slice(&x.texts.new_mail);
     let differs = buf != m.name_text;
@@ -895,6 +895,36 @@ fn target_window(m: &mut MenuCtrl, x: &mut Ctx, t: &CharInfo) {
     }
     m.win.set_colour(7);
     crate::panel::condition_icons(m, t, 39.0, 63.0, ta);
+    if x.world.game.area != 0 && t.is(0xe0) && t.exdefense != 0 {
+        tolerance(m, t, ta);
+    }
+}
+
+/// A foe's immunity right of its HP (0x005202e4 - 0x0052063c): nameKanji's
+/// sixth line in colour 23, pulsing with the cursor, and struck through
+/// (a bar the text's width) once the defence is lowered.
+fn tolerance(m: &mut MenuCtrl, t: &CharInfo, ta: i32) {
+    let c = m.cursol_alpha;
+    let pulse = match c {
+        ..4 => c << 5,
+        24.. => (31 - c) << 4,
+        _ => 128,
+    };
+    m.name.set_colour(23);
+    m.name.set_alpha(pulse.min(ta));
+    m.name.dx = 145.0;
+    m.name.dy = 122.0;
+    m.name.make_packet(5);
+    let Some((k, true)) = t.tolerance() else { return };
+    // The pieces' widths: "Physical Tol." 88 ... "Darkness Tol." 94.
+    const WIDTH: [f32; 8] = [88.0, 68.0, 72.0, 72.0, 60.0, 64.0, 86.0, 94.0];
+    let s = &mut m.item_icon;
+    s.set_grid(72, 16, WIDTH[k], 16.0, 0, 0x1800, 1);
+    s.set_colour(7);
+    s.set_alpha(ta);
+    s.dx = 145.0;
+    s.dy = 122.0;
+    s.make_packet(0);
 }
 
 /// The digits of a gauge's maximum: 4 from 1000, 3 from 100, else 2.

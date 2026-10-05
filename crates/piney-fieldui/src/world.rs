@@ -92,6 +92,12 @@ pub struct CharInfo {
     pub act_num: i32,
     /// `ccChar::CheckCharAttribute(0)`: an enemy's element, -1 none.
     pub attribute: i32,
+    /// An enemy's or boss's table row `Exdefense` (+0x64): its immunities,
+    /// bit 0x1 pDef, 0x2 mDef, 0x4-0x80 the elements; 0 for the rest.
+    pub exdefense: i16,
+    /// The same bits for the defences now below the row's (`personality`'s
+    /// `real` under the table's): those immunities are broken.
+    pub exdefense_lowered: i16,
     /// The target cursor's point: `ccCalcTagPosChar(c, p, (0, 0, 0.45
     /// height), 0)`, `None` when it fails.
     pub tag: Option<(i32, i32)>,
@@ -125,6 +131,18 @@ impl CharInfo {
     /// `base->type & mask`.
     pub fn is(&self, mask: u32) -> bool {
         self.types & mask != 0
+    }
+
+    /// The immunity the target window names (`Disp` 0x0051e960 -
+    /// 0x0051ec3c): an enemy's or boss's lowest `Exdefense` bit as its
+    /// `kyviaStatusStr` piece (0 "Physical Tol." to 7 "Darkness Tol."),
+    /// and whether that defence is lowered (the immunity broken).
+    pub fn tolerance(&self) -> Option<(usize, bool)> {
+        if !self.is(0xe0) {
+            return None;
+        }
+        let k = (0..8).find(|&k| self.exdefense & (1 << k) != 0)?;
+        Some((k, self.exdefense_lowered & (1 << k) != 0))
     }
 
     /// `ccSpcChar::CheckChangeEquip()` (gcmn 0x0059f3c0): why the member
