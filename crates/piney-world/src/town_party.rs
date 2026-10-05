@@ -320,6 +320,10 @@ impl TownParty {
             let mut b = (*a.ch.body).clone();
             if b.equip_weapon(archive, &w, job) {
                 a.ch.body = Rc::new(b);
+                // EquipWeapon's dummies of the new file; the trails kept.
+                if let Some(arms) = a.weapon.as_mut() {
+                    arms.equip(&a.ch.body, job);
+                }
             }
         }
     }
@@ -338,6 +342,15 @@ impl TownParty {
     pub fn drop_member(&mut self, id: i32, hits: &mut Hits) {
         if let Some(w) = self.member(id) {
             self.combat.drop_member(w, hits);
+        }
+    }
+
+    /// The members' weapon trails as their frames' `ArmsEffect` sent them.
+    pub fn send_trails(&self, layers: &mut piney_desktop::layers::Layers, ws: &[V4; 4]) {
+        for (_, w) in self.members() {
+            if let Some(arms) = self.combat.cast.get(w).and_then(|a| a.weapon.as_ref()) {
+                arms.send(layers, ws);
+            }
         }
     }
 

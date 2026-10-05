@@ -149,6 +149,7 @@ impl Combat {
         let Some(kite_i) = self.kite else { return };
         let area = 0;
         let party: Party = self.party;
+        let first_show = self.shows.len();
         self.load_records(x.save);
         // The lines raised since last frame's tasks, before this frame's
         // (a menu's or a script's affect runs its own at once:
@@ -312,6 +313,9 @@ impl Combat {
                 }
             }
         }
+        // The members' weapon trails as their frames drew them (Kite's
+        // are the town's own player's).
+        self.arms_shown(first_show);
         // The party's records back into the save (the buffs' timers).
         self.store_records(x.save);
     }

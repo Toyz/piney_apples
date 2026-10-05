@@ -201,6 +201,8 @@ pub struct World {
     town: Town,
     gate: Gate,
     kite: Kite,
+    /// His `EquipWeapon` dummies and trails (`ccSpcChar::ArmsEffect`).
+    kite_arms: arms::Arms,
     player: Player,
     camera: Camera,
     phase: Phase,
@@ -350,10 +352,12 @@ impl World {
         let gate = Gate::new(&archive, &town.base.file)?;
         let party = town_party::TownParty::new(iso, town_no as usize, &town.base.file)?;
         // ccPlayer::ccPlayer's EquipWeapon: the blades the save has him hold.
-        let kite = match crate::body::weapon_of(&party.combat.data.t, &save.save, 0) {
-            Some((w, _)) => Kite::read_armed(&archive, &w)?,
-            None => Kite::read(&archive)?,
+        let (kite, job) = match crate::body::weapon_of(&party.combat.data.t, &save.save, 0) {
+            Some((w, job)) => (Kite::read_armed(&archive, &w)?, job),
+            None => (Kite::read(&archive)?, 0),
         };
+        let mut kite_arms = arms::Arms::default();
+        kite_arms.equip(&kite.body, job);
         // Kite's charTbl row as the save holds it (spcParam[0]).
         let spc = offset::SPC_PARAM;
         let velocity = save_f(&save, spc + 0xd4);
@@ -372,6 +376,7 @@ impl World {
             town,
             gate,
             kite,
+            kite_arms,
             player,
             camera,
             phase: Phase::FadeOut(0),
@@ -1104,8 +1109,10 @@ impl World {
         }
         if id != 0 {
             self.party.change_weapon(&self.archive, &self.save.save, id);
-        } else if let Some((w, _)) = crate::body::weapon_of(&self.party.combat.data.t, &self.save.save, 0) {
+        } else if let Some((w, job)) = crate::body::weapon_of(&self.party.combat.data.t, &self.save.save, 0) {
             self.kite.arm(&self.archive, &w);
+            // EquipWeapon's dummies of the new file; the trails kept.
+            self.kite_arms.equip(&self.kite.body, job);
         }
     }
 
@@ -1385,6 +1392,29 @@ impl World {
         self.talks.push(req);
     }
 
+    /// Kite's weapon as his frame asked (`ccPlayer::Main`'s `ArmsEffect`
+    /// or `ClearArmsEffect`): the trails laid from his hands as he stands
+    /// posed now, in the aura's colour (`ccEquipmentParam` +8). He never
+    /// swings in a town, so `trajectorySW` is off. Asleep, no frame runs
+    /// and nothing is sent.
+    fn kite_arms_frame(&mut self, awake: bool) {
+        self.kite_arms.strips.clear();
+        let p = &self.player;
+        match p.arms.filter(|_| awake) {
+            Some(arms::ArmsCall::Effect) => {
+                let (pos, dirc) = (p.body.pos, p.body.dirc);
+                let worlds = self.kite.worlds(p.acts.act, p.acts.posed, pos, dirc);
+                let (r, l) = arms::Arms::hands(&self.kite.body, &worlds, chara::root(pos, dirc));
+                let me = piney_battle::param::SpcParam::from_save(&self.save.save, 0);
+                let t = &self.party.combat.data.t;
+                let aura = t.equip(i32::from(me.job), i32::from(me.equipment[4])).map_or(-1, |e| e.aura_sw);
+                self.kite_arms.effect(r, l, aura, false, p.body.skill_id);
+            }
+            Some(arms::ArmsCall::Clear) => self.kite_arms.clear(),
+            None => {}
+        }
+    }
+
     /// The tasks' frame: game control, camera, player, entries, town.
     fn frame(&mut self, pad: &Pad, ctx: &mut Ctx, town: bool) {
         // Asleep (ccSleepAllThread), nothing steps and everyone is drawn
@@ -1436,6 +1466,7 @@ impl World {
                 self.with_party(|spcs, chars, _| spcs.leave(0, how, chars));
             }
         }
+        self.kite_arms_frame(awake);
         let to_screen = draw::screen(&self.camera.world_screen);
         // The draw environment's lights: the town's, then the gate's as its
         // last step left them.
@@ -1459,11 +1490,16 @@ impl World {
                 )
             });
         }
+        self.kite_arms.send(&mut ctx.layers, &self.camera.world_screen);
         // ccThFellow (50): the party members an event placed.
         if awake {
             self.party_frame();
         }
         self.party.draw(&mut ctx.layers, to_screen, &lights);
+        // Their trails go out from their Main (ccLattice::Disp): none asleep.
+        if awake {
+            self.party.send_trails(&mut ctx.layers, &self.camera.world_screen);
+        }
         // ccThEntryCtrl (64): its enemies, magic circles, gimmicks (the
         // Chaos Gate), then its NPC list - the merchants, then the rest;
         // all see the active camera (activeCamPtr).

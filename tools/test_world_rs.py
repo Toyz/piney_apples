@@ -18,10 +18,11 @@ as a ccModelHit, as ROOTTOWN01's static model does.
     ccPlayer::Main (gcmn 0x00598310) - ControlMove, HitCheck, the move,
     CollisionTest, MapLoopAdjustPos, CameraPosCalc / CameraPosSet with the
     camera's own collision and cameraSet's view matrix, AnimCtrl and
-    ccChar::Draw's transparency - frame by frame from Kite's arrival at
-    (0, 5600, 600) over scripted and random pad runs, every scheme, the eye
-    view, camera resets and walks into walls, and runs that press the
-    camera into floors (zoomed out and pitched down at the foot of the
+    ccChar::Draw's transparency, then which of ArmsEffect and
+    ClearArmsEffect it calls (issue #47) - frame by frame from Kite's
+    arrival at (0, 5600, 600) over scripted and random pad runs, every
+    scheme, the eye view, camera resets and walks into walls, and runs that
+    press the camera into floors (zoomed out and pitched down at the foot of the
     stairs, turned to face him on slopes). Compared each frame: Kite's
     position, heading, move, speeds, flags, act, act counters, animation
     time and frameSpd, cloak and transparency, ground attribute; the
@@ -38,7 +39,8 @@ as a ccModelHit, as ROOTTOWN01's static model does.
     commands included, beside gate.rs (PropsAgainstGame.test_gate).
 
 What runs in Python in place of the game: the AI, conditions and level-up
-(nothing for a player alone), the effects, the weapon glow, the anm's
+(nothing for a player alone), the effects, the weapon glow's lattice
+(tools/test_boss_effect_rs.py checks it), the anm's
 matrices and draw, and ccAnm::_AnimateForward, which is tools/anim.py's
 playback (itself checked against the game by tools/test_anim.py) over
 Kite's animations; rand() is newlib's LCG seeded as the probe seeds it.
@@ -192,8 +194,7 @@ class Field:
         nop = lambda mm, *a: 0                     # noqa: E731
         for name in ("CalcReal__6ccCharFi", "ResultOfConditions__8ccPlayerFv", "levelCheck__4ccAIFv",
                      "ReadSysMsg2__4ccAIFv", "Enter__9WORLD_MANFPf", "SetTargetDist__8ccPlayerFv",
-                     "NoteProcess__5ccAnmFv", "ccEntryCmnd__FP6ccChar", "ClearArmsEffect__9ccSpcCharFv",
-                     "ArmsEffect__9ccSpcCharFv", "ccSkillRequest__FP6ccCharP6ccChari",
+                     "NoteProcess__5ccAnmFv", "ccEntryCmnd__FP6ccChar", "ccSkillRequest__FP6ccCharP6ccChari",
                      "SetMatrix_PosRotZYX__7ccCoordFPfPf", "SetActiveLayer__9WORLD_MANFi",
                      "SetFogBlend__9ccDrawEnvFfUi", "ResetFogBlend__9ccDrawEnvFv", "ccSpcConditionEffectSW__Fv",
                      "GetAmbient__9ccDrawEnvFPf", "SetAmbient__9ccDrawEnvFPf", "SleepDistantLight__9WORLD_MANFv",
@@ -205,6 +206,17 @@ class Field:
         m.hooks[sym("effTransfer__FP6ccChar")] = lambda mm, *a: self.events.append("transfer") or 0
         m.hooks[sym("effWarpTransfer__FP6ccChar")] = lambda mm, *a: self.events.append("warp") or 0
         m.hooks[sym("Draw__5ccAnmFv")] = lambda mm, *a: self.events.append("draw") or 0
+        # The weapon's trails: which of the two Main's draw calls (#47).
+        main = self.prog.symbol_named("Main__8ccPlayerFv")
+
+        def arms(event):
+            def hook(mm, *a):
+                if main.value <= mm.r[31] & 0xFFFFFFFF < main.value + main.size:
+                    self.events.append(event)
+                return 0
+            return hook
+        m.hooks[sym("ArmsEffect__9ccSpcCharFv")] = arms("effect")
+        m.hooks[sym("ClearArmsEffect__9ccSpcCharFv")] = arms("clear")
         m.hooks[sym("rand")] = lambda mm, *a: self.rand.next()
         # The anm: SetAnm by name, _AnimateForward by tools/anim.py.
         self.names = {}
@@ -394,6 +406,7 @@ class Field:
             "cloak": m.load(p + 0x110, 4), "transparency": m.load(p + 0x88, 4),
             "frame_spd": m.load(ANM + 0x9C, 2), "time": self.time, "attribute": m.load(p + 0x80, 4),
             "stop_cnt": h(p + 0xFC), "drawn": int("draw" in self.events), "target_count": h(p + 0x2E4),
+            "arms": next((e for e in self.events if e in ("effect", "clear")), "none"),
             "angle": self.rvec(p + 0x270),
             "cam_pos": self.rvec(t), "cam_view": self.rvec(t + 16), "cam_rot": self.rvec(t + 32),
             "cam_rot2": self.rvec(t + 48), "cam_rot3": self.rvec(t + 64), "cam_dist": m.load(t + 0x54, 4),
@@ -618,11 +631,12 @@ class WorldAgainstGame(unittest.TestCase):
             lines.append("pad " + hexs(d, p, pl, dl, pr, dr, *pw))
         got = ask(lines)[1:]
         f.start(pos, dircz, scheme, mode, seed)
-        stats = {"moved": 0, "acts": set(), "eye": 0, "resets": 0, "pulled": 0}
+        stats = {"moved": 0, "acts": set(), "eye": 0, "resets": 0, "pulled": 0, "arms": set()}
         for i, ((d, p, pl, dl, pr, dr, pw), g) in enumerate(zip(pads, got)):
             f.pad(d, p, pl, dl, pr, dr, pw)
             want = f.frame()
             stats["acts"].add(want["act"])
+            stats["arms"].add(want["arms"])
             stats["moved"] += want["move_flag"]
             stats["eye"] += want["cam_type"] == 1
             stats["resets"] += want["resetting"]
@@ -640,6 +654,8 @@ class WorldAgainstGame(unittest.TestCase):
         start = (0, 0x45AF0000, 0x44160000)
         rng = random.Random(11)
         s = self.run_frames(f, "town01", start, 0, 0, 3, 1, script_pads("walk", 320, rng), "walk")
+        # Arriving clears the trails; standing and walking lay them.
+        self.assertEqual(s["arms"], {"clear", "effect"})
         self.assertIn(5, s["acts"])
         self.assertIn(6, s["acts"])
         self.assertGreater(s["moved"], 100)

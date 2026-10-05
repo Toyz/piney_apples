@@ -213,3 +213,182 @@ fn party_trail_shots() {
         n += 1;
     });
 }
+
+/// Issue #47: a new game in Mac Anu (`field` None) or story area 14's
+/// field, `prepare` changing its save first and `placed` the session once
+/// the area is in; standing 60 frames, then walking 90 (up and right);
+/// `each` sees every walking frame. None without the disc.
+fn rare_walk(
+    field: Option<i32>,
+    prepare: impl FnOnce(&mut piney_data::save::SaveData, &piney_battle::tables::Tables),
+    placed: impl FnOnce(&mut Session),
+    mut each: impl FnMut(&Session, &Frame),
+) -> Option<()> {
+    use piney_input::Raw;
+    let (iso, archive) = crate::session::area15::disc()?;
+    let mut d = Iso::open(&iso).unwrap();
+    let mut state = crate::world::new_game_state(&mut d).unwrap();
+    let data = piney_world::combat::BattleData::read(&mut d).unwrap();
+    prepare(&mut state.save, &data.t);
+    let mut scene = piney_world::area::Scene::log_in(&mut state.save);
+    let mut wm = None;
+    if let Some(n) = field {
+        wm = Some(crate::area::story_world_man(&mut d, n, false).unwrap());
+        scene.change_scene(1, scene.town, n, -1, -1, -1, &mut state.save);
+    }
+    let mut s = Session::in_world(iso, archive, None, state, None, scene, wm).unwrap();
+    let in_place = |s: &Session| match &s.stage {
+        Stage::World(w) => matches!(w.world().phase(), piney_world::Phase::Play(f) if f >= 2),
+        Stage::Area(a) => matches!(a.world().phase(), piney_world::Phase::Play(f) if f >= 2),
+        _ => false,
+    };
+    let mut pad = Pad::default();
+    let mut step = |s: &mut Session, lx: u8, ly: u8| {
+        pad.read(&Raw { analog: true, lx, ly, rx: 128, ry: 128, ..Raw::default() });
+        let frame = s.step(&pad);
+        s.take_events();
+        frame
+    };
+    let mut n = 0;
+    while !in_place(&s) {
+        step(&mut s, 128, 128);
+        n += 1;
+        assert!(n < 600, "not placed: {}", Mode::title(&s));
+    }
+    placed(&mut s);
+    for f in 0..150u32 {
+        let frame = if f < 60 { step(&mut s, 128, 128) } else { step(&mut s, 200, 40) };
+        if f >= 60 {
+            each(&s, &frame);
+        }
+    }
+    Some(())
+}
+
+/// [`rare_walk`] with Kite holding Crimson Raid.
+fn rare_blades_walk(field: Option<i32>, each: impl FnMut(&Session, &Frame)) -> Option<()> {
+    let prepare = |save: &mut piney_data::save::SaveData, _: &piney_battle::tables::Tables| {
+        let mut kite = piney_battle::param::SpcParam::from_save(save, 0);
+        kite.equipment[4] = CRIMSON_RAID;
+        kite.store(save, 0);
+    };
+    rare_walk(field, prepare, |_| {}, each)
+}
+
+/// Crimson Raid's row in Kite's weapon table: its aura is 4.
+const CRIMSON_RAID: i16 = 71;
+
+/// The triangles of `frame` in a weapon trail's red (`ccLattice::
+/// SendPacket`: untextured gouraud, depth GREATER with no write, colour
+/// type 4).
+fn red_trail_triangles(frame: &Frame) -> usize {
+    frame
+        .cmds
+        .iter()
+        .filter_map(|c| match c {
+            piney_draw::Cmd::Prim(p)
+                if p.gouraud
+                    && p.state.texture.is_none()
+                    && p.state.depth.test == piney_draw::ZTest::Greater
+                    && p.verts.iter().all(|v| v.rgba.0[..3] == [0xf0, 0, 0]) =>
+            {
+                Some(p.verts.len() / 3)
+            }
+            _ => None,
+        })
+        .sum()
+}
+
+/// Issue #47: a rare weapon's aura trails from it in a Root Town as in a
+/// field. `ccPlayer::Main` runs `ArmsEffect` after `ccChar::Draw` in both
+/// (gcmn 0x00598a00): with an aura a row is laid every frame, in its
+/// colour, and the ribbon is sent once 16 rows have been made. The arrival
+/// (act 13, cleared) runs 12 frames into the walk, so the ribbon shows
+/// from its 28th frame: 63 of the 90.
+#[test]
+fn a_rare_weapons_aura_trails_in_town_and_field() {
+    for (name, field) in [("field", Some(14)), ("town", None)] {
+        let mut frames = 0;
+        let mut most = 0;
+        let ran = rare_blades_walk(field, |_, frame| {
+            let n = red_trail_triangles(frame);
+            frames += usize::from(n > 0);
+            most = most.max(n);
+        });
+        if ran.is_none() {
+            return;
+        }
+        println!("{name}: red trail on {frames} of 90 walking frames, at most {most} triangles");
+        assert_eq!(frames, 63, "{name}: Crimson Raid's aura drawn on {frames} frames");
+    }
+}
+
+/// Issue #47 for a member: Orca, invited in Mac Anu holding his job's
+/// first red-aura weapon, follows Kite out of the gate; his frames'
+/// `ArmsEffect` (`ccFellow::Main`, gcmn 0x0041bafc) lay its red trail
+/// there as in a field. Kite's Amateur Blades have no aura.
+#[test]
+fn a_members_rare_weapon_trails_in_town() {
+    let mut frames = 0;
+    let mut weapon = None;
+    let prepare = |save: &mut piney_data::save::SaveData, t: &piney_battle::tables::Tables| {
+        let mut orca = piney_battle::param::SpcParam::from_save(save, 2);
+        let row = t.weapons[orca.job as usize].iter().position(|e| e.aura_sw == 4).expect("a red aura");
+        orca.equipment[4] = row as i16;
+        orca.store(save, 2);
+        weapon = Some((orca.job, row));
+    };
+    let invite = |s: &mut Session| {
+        println!("{}", s.console("invite_party 2"));
+        // His arrival at the gate (act 13) and the walk to Kite.
+        for _ in 0..120 {
+            s.step(&Pad::default());
+            s.take_events();
+        }
+    };
+    let ran = rare_walk(None, prepare, invite, |s, frame| {
+        let Stage::World(w) = &s.stage else { return };
+        let orca = w.world().town_party().actor(2).and_then(|a| a.weapon.as_ref());
+        let sent = orca.is_some_and(|w| !w.strips.is_empty());
+        if sent && red_trail_triangles(frame) > 0 {
+            frames += 1;
+        }
+    });
+    if ran.is_none() {
+        return;
+    }
+    println!("Orca's weapon {weapon:?}: red trail on {frames} of 90 walking frames");
+    assert!(frames > 30, "Orca's red aura drawn on {frames} frames");
+}
+
+/// Pictures of Kite walking with Crimson Raid in the field and in Mac
+/// Anu, its red aura trailing from both blades (`aura-field-N.png`,
+/// `aura-town-N.png`). `PINEY_SHOTS=DIR cargo test --release -p
+/// piney-game rare_weapon_aura_shots -- --ignored --nocapture` (default
+/// `/mnt/data/claude/scratch/aura/shots`).
+#[test]
+#[ignore]
+fn rare_weapon_aura_shots() {
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/aura/shots".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let Some((_, data)) = crate::session::area15::disc() else { return };
+    let mut gs: Option<piney_gs::Gs> = None;
+    for (name, field) in [("field", Some(14)), ("town", None)] {
+        let mut k = 0;
+        rare_blades_walk(field, |s, frame| {
+            k += 1;
+            if ![20, 45, 80].contains(&k) {
+                return;
+            }
+            let gs = gs.get_or_insert_with(|| {
+                piney_gs::Gs::headless(piney_gs::Assets::new(Mode::archive(s).unwrap_or(data.clone()))).unwrap()
+            });
+            gs.set_overlay(Mode::archive(s));
+            gs.render(frame);
+            let (w, h) = gs.target_size();
+            let path = format!("{dir}/aura-{name}-{k}.png");
+            std::fs::write(&path, piney_gs::png::encode(w, h, &gs.read_back())).unwrap();
+            println!("{path}: {} red trail triangles", red_trail_triangles(frame));
+        });
+    }
+}

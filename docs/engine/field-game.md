@@ -197,8 +197,18 @@ CameraPosSet: type 1 -> cameraSetEyeLevel(posEye, angle), lostHeadFlag, dirc.z =
 AnimCtrl
 anm->SetMatrix_PosRotZYX(pos, dirc)  T(pos) Rx Ry Rz
 transparency = setTransparency = lostHeadFlag ? 0 : cloak
-ccChar::Draw (dispSW); stopCnt, cycle
+ccChar::Draw (dispSW), then ArmsEffect or ClearArmsEffect; stopCnt, cycle
 ```
+
+**The weapon's trails.** After `ccChar::Draw`, while `dispSW` is on, Main
+calls `ccSpcChar::ArmsEffect` (at 0x00598a00) when he was drawn, alive (or a
+ghost at `dead` 4) and in none of acts 12-14 and 24; otherwise
+`ClearArmsEffect`. This is the same code in a town as in a field, so a
+weapon with an aura (`ccEquipmentParam` +8, a rare weapon) trails its
+colour in Mac Anu too: one row a frame from the hands, the ribbon sent once
+16 rows are made ([battle.md, the party's weapon
+trails](battle.md#the-partys-weapon-trails)). He never swings in a town,
+so `trajectorySW` stays off and the colour is always the aura's.
 
 **`ControlMove`** (0x00598af0), `ctrlType` 0:
 
@@ -1412,6 +1422,13 @@ The constructors draw `rand()` in order: `ccSpcChar::ccSpcChar` (0x0059d230)
 `count = rand() >> 3` and the message counters from one more. The port
 draws the same for the members and Kite, in the fields and the town (the
 town's Kite takes his cycle and his AI's count from his stand-in's draws).
+
+Each member's `ccFellow::Main` ends as in a field: `ArmsEffect` while it
+is drawn and alive and not in acts 12-14, else `ClearArmsEffect`, so a
+member's rare weapon trails its aura in the town too. The port runs those
+calls (`Combat::arms_shown`) at the end of `Combat::town_frame` and the
+town sends the strips (`TownParty::send_trails`). The town's Kite keeps
+his own (`World::kite_arms_frame` over `Player::arms`).
 
 `piney-game`'s `piros_walks_mac_anu_on_his_own` and
 `piros_follows_kite_in_mac_anu` take Piros back to Mac Anu (event 22's

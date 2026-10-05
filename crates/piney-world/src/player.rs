@@ -10,6 +10,7 @@
 use piney_data::anim::Animation;
 
 use crate::ai::{self, Ai, SpcRef};
+use crate::arms::ArmsCall;
 use crate::camera::{CamPad, Camera, kind};
 use crate::ee::{self, F, ONE, V4, add, div, mul};
 use crate::hit::{self, Hits};
@@ -230,6 +231,9 @@ pub struct Player {
     pub shadow_t: F,
     /// Whether he was drawn this frame (`ccChar::Draw`'s return).
     pub drawn: bool,
+    /// What this frame asked of his weapon's trails (none with `dispSW`
+    /// off).
+    pub arms: Option<ArmsCall>,
     /// +0xfc `stopCnt`, +0x11c `cycle`, +0x2e8 `stressMeter`.
     pub stop_cnt: i16,
     pub cycle: i32,
@@ -345,6 +349,7 @@ impl Player {
             set_transparency: ONE,
             shadow_t: ONE,
             drawn: false,
+            arms: None,
             stop_cnt: 0,
             cycle: 0,
             stress: 0,
@@ -589,6 +594,16 @@ impl Player {
             self.shadow_t = if hide { self.set_transparency } else { self.transparency };
             self.drawn = !(ee::lt(self.transparency, MIN_DRAWN) && !hide);
         }
+        // Then ArmsEffect or ClearArmsEffect (gcmn 0x00598990-0x00598a28):
+        // not in acts 12-14 (leaving, arriving, out of sight) or 24 (the
+        // gate hack).
+        let alive = self.dead == 0 || (self.acts.ghost && self.dead == 4);
+        let call = match self.acts.act {
+            12..=14 | 24 => ArmsCall::Clear,
+            _ if self.drawn && alive => ArmsCall::Effect,
+            _ => ArmsCall::Clear,
+        };
+        self.arms = self.disp.then_some(call);
         // stopCnt, cycle.
         self.stop_cnt = if b.move_flag { 0 } else { self.stop_cnt.saturating_add(1) };
         self.cycle = self.cycle.wrapping_add(1);

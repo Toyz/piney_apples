@@ -21,6 +21,17 @@ pub const DUMMIES: [&str; 4] = ["DMY_xdummy_w01", "DMY_xdummy_w02", "DMY_xdummy_
 pub const R_HAND: &str = "OBJ_t0 r hand";
 pub const L_HAND: &str = "OBJ_t0 l hand";
 
+/// What a party character's frame asks of its weapon after `ccChar::Draw`
+/// (`ccPlayer::Main`'s call at 0x00598a00, `ccFellow::Main`'s at
+/// 0x0041bafc), only while `dispSW` is on: `ArmsEffect` when drawn, alive
+/// (or a ghost at `dead` 4) and in none of the acts the class skips; else
+/// `ClearArmsEffect`. In a town as in a field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArmsCall {
+    Effect,
+    Clear,
+}
+
 /// A `ccSpcChar`'s weapon state.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Arms {
@@ -150,6 +161,16 @@ impl Arms {
             let strip = lat.disp();
             if !strip.0.is_empty() {
                 self.strips.push(strip);
+            }
+        }
+    }
+
+    /// This frame's strips on the effect layer at their keys, as
+    /// `ccLattice::SendPacket` sorts them, through the view `ws`.
+    pub fn send(&self, layers: &mut piney_desktop::layers::Layers, ws: &[V4; 4]) {
+        for (strip, key) in &self.strips {
+            if let Some(cmd) = crate::field_world::trail_packet(strip, ws) {
+                layers.sorted(crate::draw::EFF_LAYER, f32::from_bits(*key), cmd);
             }
         }
     }

@@ -2762,12 +2762,8 @@ impl FieldWorld {
         self.draw_trails(ctx);
         self.draw_boss(ctx, to_screen);
         // The party's weapon trails (ccSpcChar::ArmsEffect's Disp).
-        for a in self.combat.cast.actors.values() {
-            for (strip, key) in a.weapon.iter().flat_map(|w| &w.strips) {
-                if let Some(cmd) = trail_packet(strip, &self.camera.world_screen) {
-                    ctx.layers.sorted(draw::EFF_LAYER, f32::from_bits(*key), cmd);
-                }
-            }
+        for w in self.combat.cast.actors.values().filter_map(|a| a.weapon.as_ref()) {
+            w.send(&mut ctx.layers, &self.camera.world_screen);
         }
         let lit = self.cast_lights();
         let lights = &*lit;
@@ -3726,7 +3722,7 @@ fn reverse_packet() -> piney_draw::Cmd {
 /// A vertex with ADC set draws no triangle: each strip's first pair, and
 /// (`MakePacket`) one behind the eye or more than 640 x 576 pixels off the
 /// display's corner; so the strip goes as the triangles it draws.
-fn trail_packet(strip: &[crate::lattice::StripVertex], ws: &[V4; 4]) -> Option<piney_draw::Cmd> {
+pub(crate) fn trail_packet(strip: &[crate::lattice::StripVertex], ws: &[V4; 4]) -> Option<piney_draw::Cmd> {
     use piney_desktop::view::{XYOFFSET_X, XYOFFSET_Y};
     use piney_draw::{
         AlphaFail, AlphaTest, Blend, Cmd, Compare, Depth, DrawState, Prim, PrimKind, Rgba, Scissor, Vertex, ZTest,

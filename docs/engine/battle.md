@@ -3400,6 +3400,13 @@ stands. `field_world` sends the strips on the effect layer as the cross's
 starts the particles. The host answers `weaponEffPos` from the actor's
 `Arms` and `armsEffectSW` from the character.
 
+The calls are the same in a Root Town ([field-game.md,
+Kite](field-game.md#kite)). There the town's `Player::main` says which
+call his frame makes (`Player::arms`, an `ArmsCall`), and the town lays
+his trails from his own `Kite` model (`World::kite_arms_frame`). The
+members' calls run in `Combat::town_frame`. Before #47 neither ran, so a
+rare weapon showed no aura in a town.
+
 **Checked.**
 
 - `test_boss_effect_rs.py`'s `test_weapon_trails` drives the game's
@@ -3413,6 +3420,15 @@ starts the particles. The host answers `weaponEffPos` from the actor's
 - `orcas_swings_leave_trails`: Orca's heavy blade (job 1) sends a white
   trail on 30 frames as he fights event 3's goblin. `party_trail_shots`
   shows the ribbon following his blade.
+- `a_rare_weapons_aura_trails_in_town_and_field` and
+  `a_members_rare_weapon_trails_in_town` (piney-game, weapon.rs): Kite
+  with Crimson Raid (aura 4) walking in story area 14's field and in Mac
+  Anu, and Orca with Jinsaran (aura 4) following him in Mac Anu. Each
+  draws the red ribbon on most walking frames. `rare_weapon_aura_shots`
+  takes the pictures.
+- `tools/test_world_rs.py`'s frames compare which of `ArmsEffect` and
+  `ClearArmsEffect` the game's `ccPlayer::Main` calls in Mac Anu, frame
+  by frame, against `Player::arms`.
 - `flame_dance_lights_his_blades`: Kite's Flame Dance (art 9) on the
   goblin. `armsEffectSW` goes on, particle row 42's generators start on
   both blades, and both trails turn red (type 4). `flame_dance_shots`
