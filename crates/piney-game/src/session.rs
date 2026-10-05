@@ -6806,6 +6806,9 @@ mod tests {
     /// A spell or art holds its targets where they stand.
     mod spell_hold;
 
+    /// Issue #48: the tornados' hits, the system's and the element's.
+    mod wood_tornado;
+
     // Playthroughs: the story's scripts (run by piney-event's VM, as every
     // event is) played from a start point with a scripted pad, checked.
 

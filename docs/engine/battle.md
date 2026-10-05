@@ -3609,12 +3609,19 @@ What the runtime still lacks:
   its first call (`Effects::spell_request`), syncs it from the run
   (`Spell::sync`, the count before Main's increment) and steps
   `Effects::spell_system`; the run takes back `endFlag`, `holdFlag`,
-  `level` and the casters released, and the damage calls
-  (`SkillDamage`, `SkillDamageAt`, `SkillDamage2`) go to
+  `level` and the casters released. The damage calls (`SkillDamage`,
+  `SkillDamageAt`, `SkillDamage2`) go through `Host::raise` the moment
+  the effects make them (`FxWorld::skill_damage`): to
   `damage::skill_damage`, `skill_damage_at` and `skill_damage2` with the
-  run's `acFlag` and the position through `ccTransPosW2P`. The game makes
-  those calls inside the system, between the effects' own draws from
-  `rand()`; the port makes them after it returns, in the same order.
+  run's `acFlag` (none once the run is gone: the element's
+  `ccSkillDamage(ccChar *, ccChar *, ccSkill *)`, gcmn 0x00573d40, checks
+  `SkillEntryTop`) and the position through `ccTransPosW2P`, between the
+  effects' own draws from `rand()` as in the game. A system's calls come
+  in `ccThSkill`; the level 3 and 4 elements' (the tornados'
+  `ccTornadeElement`, fall's, upheaval's, summons') in `ccThEffect`, a
+  task earlier, their affects in the same frame's list ahead of
+  `ccThSkill`'s. Until issue #48 only a system's calls reached the
+  battle: a level 3 or 4 spell held its targets and hit no one.
   `effSkillStart`, the exec rings, the shock wave, heals and cures are not
   in piney-effect yet.
 - **Data Drain.** The movie, the enemy's transformation
@@ -3638,6 +3645,10 @@ to 1, Orca targets its goblin and the attack button sends Kite's normal
 attack at it, and it goes down. `a_spell_lands_through_the_effects` has
 Kite cast Tornado (197) on the next portal's goblin: its system sets level
 1, releases Kite, and its blows from frame 35 take the goblin's HP.
+`wood_tornado`'s tests have a Mimic and Kite cast the wood tornados on
+each other: levels 1 and 2 hit on the system's counts 35 to 75, levels 3
+and 4 on the element's counts (`START_2`), and every level 3 and 4
+element spell's calls reach their target.
 `event_4_plays_in_the_dungeon` walks on into the dungeon and plays event 4
 through: each block in its room (`SetEventData`, [dungeon](dungeon.md)),
 the trap room's portal with its goblin, which Kite and Orca hit until it

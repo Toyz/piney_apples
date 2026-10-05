@@ -130,7 +130,8 @@ pub struct Tasks<'a> {
 /// above this crate) read of the battle at their places in the frame.
 pub struct FxWorld<'a> {
     pub t: &'a Tables,
-    pub scene: &'a Scene,
+    /// Mutable for the effects' damage calls ([`FxWorld::skill_damage`]).
+    pub scene: &'a mut Scene,
     pub foes: &'a [Option<Enemy>],
     pub ctrl: &'a EntryCtrl,
     pub cast: &'a Cast,
@@ -151,6 +152,64 @@ pub struct FxWorld<'a> {
     pub field: i32,
     /// The frame's presentation the effects have not seen yet, in order.
     pub shows: &'a [Show],
+    /// In `ccThEffect` and `ccThSkill`'s systems: what the effects' damage
+    /// calls act on (None in the passes that make none).
+    pub damage: Option<FxDamage<'a>>,
+}
+
+/// What the effects' damage calls act on where the game makes them, in
+/// `ccThEffect` (a spell's element) or a run's system in `ccThSkill`: the
+/// runs (their `acFlag`), the frame's env and its affects.
+pub struct FxDamage<'a> {
+    pub skills: &'a RefCell<Skills>,
+    pub env: &'a Env,
+    pub ev: &'a mut Events,
+}
+
+impl FxWorld<'_> {
+    /// One of the effects' damage calls, made at once as the game makes it
+    /// (it draws `rand()` between the effects' own draws). The calls with an
+    /// `acFlag` take their run's, and do nothing once the run is gone
+    /// (`ccSkillDamage(ccChar *, ccChar *, ccSkill *)`, gcmn 0x00573d40,
+    /// checks `SkillEntryTop` first).
+    pub fn skill_damage(&mut self, call: SpellDamage) {
+        let Some(d) = self.damage.as_mut() else { return };
+        let t = self.t;
+        let player = self.kite.map(|k| self.scene.chars[k].pos);
+        let bounds = self.bounds;
+        let w2p = |p: V4| player.map_or(p, |pl| kite::w2p_pos(&bounds, pl, p).0);
+        let ac_of = |key: u32| d.skills.borrow().runs.iter().find(|r| r.key == key).map(|r| r.ac_flag);
+        let (spell, sid) = match call {
+            SpellDamage::Target { spell, sid, .. } | SpellDamage::Area { spell, sid, .. } => (Some(spell), sid),
+            SpellDamage::At { sid, .. } => (None, sid),
+        };
+        let Some(sk) = t.skill(sid) else { return };
+        let mut ac = match spell.map(ac_of) {
+            Some(None) => return,
+            Some(Some(ac)) => ac,
+            None => 0,
+        };
+        let (scene, rand) = (&mut *self.scene, &mut *self.rand);
+        match call {
+            SpellDamage::Target { attacker: Some(a), target: Some(tg), .. } => {
+                piney_battle::damage::skill_damage(t, scene, a, tg, sk, &mut ac, sid, rand, d.env, d.ev);
+            }
+            SpellDamage::At { attacker: Some(a), pos, ttype, .. } => {
+                piney_battle::damage::skill_damage_at(t, scene, a, w2p(pos), ttype, sk, sid, rand, d.env, d.ev);
+            }
+            SpellDamage::Area { attacker: Some(a), target, pos, ttype, .. } => {
+                let tg = target.unwrap_or(a);
+                let pos = w2p(pos);
+                piney_battle::damage::skill_damage2(t, scene, a, tg, pos, ttype, sk, &mut ac, sid, rand, d.env, d.ev);
+            }
+            _ => {}
+        }
+        if let Some(key) = spell
+            && let Some(r) = d.skills.borrow_mut().runs.iter_mut().find(|r| r.key == key)
+        {
+            r.ac_flag = ac;
+        }
+    }
 }
 
 /// The field's effect tasks, run where the game runs them: `ccThEffect`
@@ -203,19 +262,21 @@ pub struct SpellRun {
     pub target: Option<usize>,
 }
 
-/// A damage call a spell's system made, in the game's words.
+/// A damage call of a spell's system or element, in the game's words;
+/// `spell` names the run whose `acFlag` it takes.
 #[derive(Clone, Copy, Debug)]
 pub enum SpellDamage {
     /// `ccSkillDamage(attacker, target, sk, &acFlag, sid)`.
-    Target { attacker: Option<usize>, target: Option<usize>, sid: i32 },
+    Target { spell: u32, attacker: Option<usize>, target: Option<usize>, sid: i32 },
     /// `ccSkillDamage(attacker, pos, tType, sk, sid)`, `pos` in the world.
     At { attacker: Option<usize>, pos: V4, ttype: i32, sid: i32 },
     /// `ccSkillDamage2(attacker, target, pos, tType, sk, &acFlag, sid)`.
-    Area { attacker: Option<usize>, target: Option<usize>, pos: V4, ttype: i32, sid: i32 },
+    Area { spell: u32, attacker: Option<usize>, target: Option<usize>, pos: V4, ttype: i32, sid: i32 },
 }
 
-/// What a spell's system left: its `endFlag`, `holdFlag` and `level`, the
-/// casters it let act again, and its damage calls in order.
+/// What a spell's system left: its `endFlag`, `holdFlag` and `level`, and
+/// the casters it let act again (its damage calls are made at once,
+/// [`FxWorld::skill_damage`]).
 #[derive(Clone, Debug, Default)]
 pub struct SpellOut {
     pub ran: bool,
@@ -223,7 +284,6 @@ pub struct SpellOut {
     pub hold: bool,
     pub level: i32,
     pub released: Vec<usize>,
-    pub damage: Vec<SpellDamage>,
 }
 
 /// What a dungeon hands the entry control's set-up: the objects kept from
@@ -1901,7 +1961,7 @@ impl Combat {
         // boss's exit, as its task is); ccThBoss01 (66): the boss, then the
         // effects its Main made.
         if self.boss.is_some() {
-            self.fx_call(x, bounds, |fx, w| fx.boss_effects(w), fx);
+            self.fx_call(x, bounds, |fx, w| fx.boss_effects(w), fx, None);
             let world = enemy_ai::World {
                 puppet_show: x.puppet_show,
                 ride: self.ride.flag,
@@ -1915,7 +1975,7 @@ impl Combat {
                 self.consequence(e, x.hits, bounds, x.puppet_show);
             }
             self.drain_chats(t, x.save, &party, &ents);
-            self.fx_call(x, bounds, |fx, w| fx.boss_shows(w), fx);
+            self.fx_call(x, bounds, |fx, w| fx.boss_shows(w), fx, None);
         }
         // ccChar::Draw of each enemy dispEnemy placed: its fog blend and
         // transparency (the affect flash moves on as it draws).
@@ -1960,13 +2020,13 @@ impl Combat {
         self.arms_shown(first_show);
         // What the characters' frames asked of their condition effects.
         self.disp_conditions_shown(first_show);
-        // ccThEffect (80).
-        self.fx_call(x, bounds, |fx, w| fx.effect(w), fx);
+        // ccThEffect (80): a spell's element makes its damage calls here.
+        let mut ev = Events::new();
+        self.fx_call(x, bounds, |fx, w| fx.effect(w), fx, Some((&env, &mut ev)));
         // ccThSkill (82).
         let player = self.scene.chars[kite_i].pos;
         let w2p = move |p: V4| kite::w2p_pos(&bounds, player, p).0;
         let base = flow::Frame { env: &env, w2p: &w2p, anim_done: false, notes: &[], annihilated };
-        let mut ev = Events::new();
         // Skills::frame's walk, with an attack spell's element system run
         // where ccSkill::Main runs it (the effects').
         let mut i = 0;
@@ -2021,7 +2081,7 @@ impl Combat {
                 });
             }
             if out.spell.is_some() && st == 0 {
-                st = self.spell_system(x, bounds, &env, i, &w2p, &mut ev, fx);
+                st = self.spell_system(x, bounds, &env, i, &mut ev, fx);
             }
             if st != 0 {
                 self.skills.borrow_mut().runs.remove(i);
@@ -2042,7 +2102,7 @@ impl Combat {
         // The party's records back into the save (experience, levels).
         self.store_records(x.save);
         // ccThParticle (98).
-        self.fx_call(x, bounds, |fx, w| fx.particle(w), fx);
+        self.fx_call(x, bounds, |fx, w| fx.particle(w), fx, None);
         // ccThFieldDisp (96) draws the party: the hands the next frame's
         // tasks read.
         for &(_, c) in &self.members {
@@ -2052,17 +2112,15 @@ impl Combat {
         }
     }
 
-    /// Run `i`'s spell system through the effects and its damage calls on
-    /// the battle (`piney_battle::damage`, with the run's `acFlag`); the
+    /// Run `i`'s spell system through the effects, its damage calls made
+    /// on the battle as it makes them ([`FxWorld::skill_damage`]); the
     /// run's status after it.
-    #[allow(clippy::too_many_arguments)]
     fn spell_system(
         &mut self,
         x: &mut Tasks,
         bounds: MapBounds,
         env: &Env,
         i: usize,
-        w2p: &dyn Fn(V4) -> V4,
         ev: &mut Events,
         fx: &mut dyn FxTasks,
     ) -> i8 {
@@ -2084,67 +2142,9 @@ impl Combat {
             }
         };
         let mut out = SpellOut::default();
-        self.fx_call(x, bounds, |f, w| out = f.spell(w, &run), fx);
+        self.fx_call(x, bounds, |f, w| out = f.spell(w, &run), fx, Some((env, ev)));
         if !out.ran {
             return self.skills.borrow().runs[i].status;
-        }
-        let d = self.data.clone();
-        let t = &d.t;
-        let mut ac = self.skills.borrow().runs[i].ac_flag;
-        for dm in out.damage {
-            match dm {
-                SpellDamage::Target { attacker: Some(a), target: Some(tg), sid } => {
-                    if let Some(sk) = t.skill(sid) {
-                        piney_battle::damage::skill_damage(
-                            t,
-                            &mut self.scene,
-                            a,
-                            tg,
-                            sk,
-                            &mut ac,
-                            sid,
-                            &mut self.rand,
-                            env,
-                            ev,
-                        );
-                    }
-                }
-                SpellDamage::At { attacker: Some(a), pos, ttype, sid } => {
-                    if let Some(sk) = t.skill(sid) {
-                        piney_battle::damage::skill_damage_at(
-                            t,
-                            &mut self.scene,
-                            a,
-                            w2p(pos),
-                            ttype,
-                            sk,
-                            sid,
-                            &mut self.rand,
-                            env,
-                            ev,
-                        );
-                    }
-                }
-                SpellDamage::Area { attacker: Some(a), target, pos, ttype, sid } => {
-                    if let (Some(sk), Some(tg)) = (t.skill(sid), target.or(Some(a))) {
-                        piney_battle::damage::skill_damage2(
-                            t,
-                            &mut self.scene,
-                            a,
-                            tg,
-                            w2p(pos),
-                            ttype,
-                            sk,
-                            &mut ac,
-                            sid,
-                            &mut self.rand,
-                            env,
-                            ev,
-                        );
-                    }
-                }
-                _ => {}
-            }
         }
         for c in out.released {
             if let Some(ch) = self.scene.chars.get_mut(c) {
@@ -2154,7 +2154,6 @@ impl Combat {
         }
         let mut sk = self.skills.borrow_mut();
         let r = &mut sk.runs[i];
-        r.ac_flag = ac;
         r.status = out.status;
         r.hold = out.hold;
         r.level = out.level;
@@ -2169,6 +2168,7 @@ impl Combat {
         bounds: MapBounds,
         run: impl FnOnce(&mut dyn FxTasks, &mut FxWorld),
         fx: &mut dyn FxTasks,
+        damage: Option<(&Env, &mut Events)>,
     ) {
         let from = self.fx_seen.min(self.shows.len());
         self.dust_pass(from);
@@ -2181,7 +2181,7 @@ impl Combat {
         let d = self.data.clone();
         let mut w = FxWorld {
             t: &d.t,
-            scene: &self.scene,
+            scene: &mut self.scene,
             foes: &self.foes,
             ctrl: &self.ctrl,
             cast: &self.cast,
@@ -2196,6 +2196,7 @@ impl Combat {
             area: (x.scene.area, x.scene.dungeon, x.wm.field_type as i32),
             field: x.scene.field,
             shows: &self.shows[from..],
+            damage: damage.map(|(env, ev)| FxDamage { skills: &self.skills, env, ev }),
         };
         run(fx, &mut w);
         self.fx_seen = self.shows.len();

@@ -2052,7 +2052,9 @@ tasks' order:
    are [the sound page's](sound.md) rules), `Sound3dNote`, `CameraShake`,
    `Noise`, `Flash`, and the spells' `SkillDamage`, `SkillDamageAt`,
    `SkillDamage2` and `SkillRelease` (also handed to `Host::raise` the
-   moment the game makes each call).
+   moment the game makes each call; piney-game's host makes the damage
+   calls on the battle there, in `ccThEffect` for the level 3 and 4
+   elements and in `ccThSkill` for the systems).
 
 `Host` is what the effects read of the world: `rand()` (the game's one
 newlib LCG: the world's walking PCs and the effects draw from the same

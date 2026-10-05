@@ -167,8 +167,9 @@ impl FxTasks for AreaFx {
     }
 
     /// The spell made at its first system call (`Effects::spell_request`),
-    /// synced from the run, its system stepped; the damage calls and
-    /// releases it raised go back to the battle, the rest to the events.
+    /// synced from the run, its system stepped (its damage calls made
+    /// through [`BattleHost`]); the releases go back to the battle, the
+    /// rest to the events.
     fn spell(&mut self, w: &mut FxWorld, run: &SpellRun) -> SpellOut {
         let (creator, target) = (run.creator.map(cref), run.target.map(cref));
         let mut host = BattleHost::of(w);
@@ -180,24 +181,8 @@ impl FxTasks for AreaFx {
         }
         let ran = self.fx.spell_system(&mut host, run.key);
         let mut out = SpellOut { ran, ..SpellOut::default() };
-        let who = |c: Option<CharRef>| c.map(|c| c as usize);
         for e in self.fx.take_events() {
             match e {
-                piney_effect::Event::SkillDamage { attacker, target, sid, .. } => {
-                    out.damage.push(SpellDamage::Target { attacker: who(attacker), target: who(target), sid });
-                }
-                piney_effect::Event::SkillDamageAt { attacker, pos, ttype, sid } => {
-                    out.damage.push(SpellDamage::At { attacker: who(attacker), pos, ttype, sid });
-                }
-                piney_effect::Event::SkillDamage2 { attacker, target, pos, ttype, sid, .. } => {
-                    out.damage.push(SpellDamage::Area {
-                        attacker: who(attacker),
-                        target: who(target),
-                        pos,
-                        ttype,
-                        sid,
-                    });
-                }
                 piney_effect::Event::SkillRelease { ch } => out.released.push(ch as usize),
                 e => self.events.push(e),
             }
@@ -245,8 +230,9 @@ impl FxTasks for AreaFx {
     /// Fidchell's spells drawn as its rules' pass left them.
     fn boss_shows(&mut self, w: &mut FxWorld) {
         self.start(w);
-        let scene = w.scene;
-        let spells = boss_spells(scene);
+        // Owned: the host borrows the scene mutably.
+        let owned = boss_spells(w.scene);
+        let spells: Vec<_> = owned.iter().map(|(k, fx)| (*k, fx)).collect();
         let mut host = BattleHost::of(w);
         self.fx.boss_sync(&mut host, &spells);
         self.events.extend(self.fx.take_events());
@@ -451,13 +437,13 @@ fn circle_frame(view: &FxView, mc: &MagicCircle, spark: &Eff) -> CircleFrame {
 
 /// Fidchell's spells in a boss's effect slots (a boss still in its task):
 /// the slot and the rules' state.
-fn boss_spells(scene: &Scene) -> Vec<(i32, &piney_battle::boss::fidchell::eff::Fx)> {
+fn boss_spells(scene: &Scene) -> Vec<(i32, piney_battle::boss::fidchell::eff::Fx)> {
     let mut out = Vec::new();
     for ch in &scene.chars {
         let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.exit == 0) else { continue };
         for (k, e) in b.effects.slots.iter().enumerate() {
             if let Some(fx) = e.as_ref().and_then(|e| e.fidchell.as_deref()) {
-                out.push((k as i32, fx));
+                out.push((k as i32, fx.clone()));
             }
         }
     }
@@ -926,6 +912,26 @@ impl Host for BattleHost<'_, '_> {
     fn ground_attribute(&mut self, pos: V4) -> u32 {
         self.w.hits.land(pos, 0x2000_0000);
         self.w.hits.attribute()
+    }
+    /// A spell's damage call, made on the battle at once: a system's in
+    /// `ccThSkill`, an element's (a level 3 or 4 tornado's, fall's,
+    /// upheaval's, summons') in `ccThEffect`.
+    fn raise(&mut self, e: &piney_effect::Event) {
+        use piney_effect::Event as E;
+        let who = |c: Option<CharRef>| c.map(|c| c as usize);
+        let call = match *e {
+            E::SkillDamage { spell, attacker, target, sid } => {
+                SpellDamage::Target { spell, attacker: who(attacker), target: who(target), sid }
+            }
+            E::SkillDamageAt { attacker, pos, ttype, sid } => {
+                SpellDamage::At { attacker: who(attacker), pos, ttype, sid }
+            }
+            E::SkillDamage2 { spell, attacker, target, pos, ttype, sid } => {
+                SpellDamage::Area { spell, attacker: who(attacker), target: who(target), pos, ttype, sid }
+            }
+            _ => return,
+        };
+        self.w.skill_damage(call);
     }
 }
 
