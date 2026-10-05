@@ -90,6 +90,8 @@ M32 = 0xFFFFFFFF
 # Scratch memory past the program's end (0x00730600).
 CCSDATA, SYS, SCRATCH, GAME, SAVE, WM = 0x00800000, 0x00D00000, 0x00D10000, 0x00D20000, 0x00D30000, 0x00D40000
 MISC, DRAWENV, MENU, ENT, PLAYER, ARGS = 0x00D41000, 0x00D41100, 0x00D41400, 0x00D41600, 0x00D42000, 0x00D43000
+# A few words of code that enter a function part way (Game.go_back).
+STUB = 0x00D43800
 # The heap starts past test_world_rs's fixed areas (0x01000000-0x010fffff),
 # which the frames below share the machine with.
 DG, GIMPOS, HEAP0, HEAP_END = 0x00E00000, 0x00EE0000, 0x01100000, 0x01F00000
@@ -742,6 +744,47 @@ class Game:
         ret = ret - (1 << 32) if ret & 0x80000000 else ret
         return ret, self.rvec(WM + 0x20)
 
+    def go_field(self, dungeon):
+        """WORLD_MAN::GoField (main 0x0019e410) from game.dungeon `dungeon`:
+        its ChangeScene calls and entryFlag[1 + dungeon] (+0x58) after it,
+        set to 1 before."""
+        m = self.m
+        m.store(GAME + 0x28, 4, dungeon)
+        m.store(WM + 0x58 + 4 * dungeon, 4, 1)
+        self.changes = []
+        self.call("GoField__9WORLD_MANFv", WM)
+        return self.changes, m.load(WM + 0x58 + 4 * dungeon, 4)
+
+    def go_back(self, last):
+        """WORLD_MAN::GO(2)'s last branch (main 0x001a0cac-0x001a0d60): game
+        back in dungeon 0 from dungeon 1 at block lastRoom (+0x100) of a
+        field type 4 area, WORLD_MAN.dungeon[0] the one made. A stub sets
+        $s1 (WORLD_MAN) and jumps in; WORLD_MAN.position and dungeonback
+        (+0x164) after it."""
+        m = self.m
+        for off, v in ((0x28, 0), (0x40, 1), (0x30, last)):
+            m.store(GAME + off, 4, v)
+        m.store(WM + 0x100, 4, last)
+        m.store(WM + 0x164, 4, 0)
+        for k in range(4):
+            m.store(WM + 0x20 + 4 * k, 4, 0xDEADBEEF)
+        go = 0x001A0CAC
+        # lui $s1, hi; ori $s1, $s1, lo; j go; nop
+        for k, w in enumerate((0x3C110000 | (WM >> 16), 0x36310000 | (WM & 0xFFFF),
+                               0x08000000 | ((go >> 2) & 0x3FFFFFF), 0)):
+            m.store(STUB + 4 * k, 4, w)
+        # At the branch's end the hook returns to eemu's sentinel (0xfffffff0),
+        # which ends the call.
+        stop = 0x001A0D60
+        m.hooks[stop] = lambda mm, *a: mm.r.__setitem__(31, 0xFFFFFFF0) or 0
+        self.heap = self.base
+        self.fogs = []
+        try:
+            self.call(STUB)
+        finally:
+            del m.hooks[stop]
+        return self.rvec(WM + 0x20), m.load(WM + 0x164, 4)
+
 
 def cases():
     """(seeds, field type, weather, levelMax, roomMax, hack, field, dungeon,
@@ -958,7 +1001,7 @@ class DungeonAgainstGame(unittest.TestCase):
 
     def test_lake_dressing(self):
         """Field type 4's lake dungeons (type 8, sd4), which test_dungeons
-        leaves out: Generate's rooms and fieldrand, then every room's hit
+        leaves out: Generate's rooms, startpos and fieldrand, then every room's hit
         list and dressing - SetObject's statues and flowers (ccClumps at the
         OBJ_0ps0*-3* dummies of ANM_sd4l1n31-l4n31, their hits) and the water
         of ANM_sd4m0n80. No room of the file has an OBJ_0ps4* dummy (the
@@ -973,9 +1016,12 @@ class DungeonAgainstGame(unittest.TestCase):
             g.make(info, seeds, 4, 0, 3, 7, 0, 0, server)
             for f, (mine, game) in enumerate(zip(info["floors"], g.floors())):
                 self.assertEqual((mine["up"], mine["down"]), (game["up"], game["down"]), f"{what} floor {f}")
+                # The up stairs' room centre, the down stairs' OBJ_0ppp.
+                self.assertEqual(mine["start"], game["start"], f"{what} floor {f} startpos")
                 for i, (a, b) in enumerate(zip(mine["rooms"], game["rooms"])):
                     if a[4]:
                         self.assertEqual(a[:4], b, f"{what} floor {f} room {i}")
+            self.assertEqual(info["position"], g.rvec(WM + 0x20), what + ": GetStartPosition")
             self.same_hits(info["hits"], g.hit_list(), what + ": SetRoom(0, 0)")
             self.same_dress(info["dress"], g.dress(), what + ": SetRoom(0, 0)")
             for f, fl in enumerate(info["floors"]):
@@ -987,6 +1033,58 @@ class DungeonAgainstGame(unittest.TestCase):
                     self.same_hits(mine["hits"], g.hit_list(), f"{what} room {f}/{i}")
                     self.same_dress(mine["dress"], g.dress(), f"{what} room {f}/{i}")
                     self.count("lake SetRoom")
+
+    def test_lake_stairs(self):
+        """A field type 4 area's way between its two dungeons (issue #51):
+        WORLD_MAN::Enter on the lake's stairs down (ChangeScene into
+        dungeon 1, lastRoom, entryFlag[1] cleared); GO(2)'s last branch
+        back up (the party at the lake's startpos[1][0], the room built);
+        dungeon 1's floor-0 stairs up and GoField (ChangeScene back to
+        lastRoom, entryFlag[2] cleared); GoField in the lake does nothing."""
+        g, p = self.game, self.probe
+        rng = random.Random(51)
+        for seeds, server in (((2898712818, 1158677336, 1446943725), 0), ((1249418419, 1660063002, 287017642), 1)):
+            what = f"lake seeds {seeds} server {server}"
+            info = p.ask(f"new {seeds[0]} {seeds[1]} {seeds[2]} 4 0 3 7 2 0 0 {server}")
+            self.assertEqual(info["dtype"], 8, what)
+            g.make(info, seeds, 4, 0, 3, 7, 0, 0, server)
+            self.assertEqual(g.go_field(0), ([], 1), what + ": GoField in the lake")
+            down = info["floors"][0]["down"]
+            x, y = rng.choice([(cx, cy) for cx, cy, here, d, nxt in self.cells(g, 0) if here == down and nxt == 15])
+            px, py = fb(x * 750 + rng.uniform(1, 749)), fb(y * 750 + rng.uniform(1, 749))
+            p.ask(f"room 0 {down}")
+            g.set_room(0, down)
+            g.m.store(WM + 0x58, 4, 1)
+            mine = p.ask(f"enter {px:x} {py:x} 0 0 0 {down}")["exit"]
+            game = g.enter(px, py, 0, 0, 0, down)
+            self.assertEqual(game, [("scene", 2, -2, -2, 1, 0, 0)], what + ": the stairs down")
+            self.assertEqual(mine, ["scene", 2, -2, -2, 1, 0, 0], what + ": the stairs down")
+            self.assertEqual((g.m.load(WM + 0x100, 4), g.m.load(WM + 0x58, 4)), (down, 0), what + ": lastRoom")
+            mine = p.ask(f"back {down}")
+            pos, back = g.go_back(down)
+            self.assertEqual((mine["position"], back), (pos, 1), what + ": GO(2) back up")
+            self.assertEqual(pos, g.floors()[0]["start"][1], what + ": at startpos[1][0]")
+            self.same_hits(mine["hits"], g.hit_list(), what + ": the room built back up")
+            self.count("lake ways back up")
+            # The second dungeon (dungeonType[1] = 2), its floor-0 stairs up.
+            info = p.ask(f"new {seeds[0]} {seeds[1]} {seeds[2]} 4 0 3 7 2 0 1 {server}")
+            self.assertEqual(info["dtype"], 2, what)
+            g.make(info, seeds, 4, 0, 3, 7, 0, 1, server)
+            g.m.store(WM + 0x100, 4, down)
+            up = info["floors"][0]["up"]
+            x, y = rng.choice([(cx, cy) for cx, cy, here, d, nxt in self.cells(g, 0) if here == up and nxt == 15])
+            px, py = fb(x * 750 + rng.uniform(1, 749)), fb(y * 750 + rng.uniform(1, 749))
+            p.ask(f"room 0 {up}")
+            g.set_room(0, up)
+            g.m.store(WM + 0x5C, 4, 1)
+            mine = p.ask(f"enter {px:x} {py:x} 0 0 0 {up}")["exit"]
+            game = g.enter(px, py, 0, 0, 0, up)
+            self.assertEqual(game, [("scene", 2, -2, -2, 0, 0, down)], what + ": the stairs up")
+            self.assertEqual(mine, ["scene", 2, -2, -2, 0, 0, down], what + ": the stairs up")
+            self.assertEqual(g.m.load(WM + 0x5C, 4), 0, what + ": entryFlag[2]")
+            # FieldWorld::go_field's ChangeScene for field type 4's dungeon 1.
+            self.assertEqual(g.go_field(1), ([("scene", 2, -2, -2, 0, 0, down)], 0), what + ": GoField below")
+            self.count("lake stairs and GoField")
 
     def test_lake_night(self):
         """The lakes by night (field type 4, bgnum 2: GetTime 2; type 8, sd4)
@@ -1011,6 +1109,8 @@ class DungeonAgainstGame(unittest.TestCase):
             dtype = info["dtype"]
             self.assertEqual(dtype, 9 if field == 14 else 8, what)
             g.make(info, seeds, 4, weather, 3, 7, field, 0, server, hack=hack)
+            for f, (mine, game) in enumerate(zip(info["floors"], g.floors())):
+                self.assertEqual(mine["start"], game["start"], f"{what} floor {f} startpos")
             # DrawBG's scroll (v$8917) as the lake's first DrawBG finds it.
             g.m.store(g.sym("v$8917"), 4, 0)
             g.m.store(g.sym("init$8918"), 1, 1)

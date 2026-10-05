@@ -6850,6 +6850,9 @@ mod tests {
     /// A Data Bug in a field: its two models, its HP held at half.
     mod data_bug;
 
+    /// Issue #51: out of a dungeon by the Sprite Ocarina or the stairs.
+    mod ocarina;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

@@ -3,7 +3,7 @@
 //! sets its rooms up, queries their collision, walks its doors and stairs,
 //! and prints one JSON line a request, as the game's code does in eemu.
 //! Requests: `new`, `room`, `roomc`, `select`, `land`, `height`, `goto`,
-//! `enter`, `drawn`, `movedoor`, `opendoor`, `closedoor`, `closedoor2`,
+//! `enter`, `back`, `drawn`, `movedoor`, `opendoor`, `closedoor`, `closedoor2`,
 //! `info`, `draweff`, `drawbg`, `rng`, `ban`, `bans`, `fog`, `eventdata`,
 //! `slots`, `start`, `pad`; the fields are the harness's.
 
@@ -255,6 +255,12 @@ fn main() {
                 let a = d.as_mut().unwrap();
                 a.set_room(n(1) as usize, n(2) as usize);
                 println!("{{\"doors\": {}, \"hits\": {}, \"dress\": {}}}", a.doors.len(), hit_list(a), dress(a));
+            }
+            "back" => {
+                // GO(2)'s way back up to a field type 4 area's lake.
+                let a = d.as_mut().unwrap();
+                a.come_back(n(1) as i32);
+                println!("{{\"position\": {}, \"hits\": {}}}", list(&a.position), hit_list(a));
             }
             "draweff" => {
                 let a = d.as_mut().unwrap();
@@ -577,7 +583,7 @@ fn main() {
                         "\"act\": {}, \"act_old\": {}, \"act_cnt\": {}, \"anm_flag\": {}, \"react_cnt\": {}, ",
                         "\"transfer_lag\": {}, \"walk_run_cnt\": {}, \"cloak\": {}, \"transparency\": {}, ",
                         "\"frame_spd\": {}, \"time\": {}, \"attribute\": {}, \"stop_cnt\": {}, \"drawn\": {}, ",
-                        "\"target_count\": {}, \"angle\": {}, ",
+                        "\"arms\": {:?}, \"target_count\": {}, \"angle\": {}, ",
                         "\"cam_pos\": {}, \"cam_view\": {}, \"cam_rot\": {}, \"cam_rot2\": {}, \"cam_rot3\": {}, ",
                         "\"cam_dist\": {}, \"cam_deg\": [{}, {}], \"cam_type\": {}, \"cam_reset_flag\": {}, ",
                         "\"cam_reset_dirc\": {}, \"resetting\": {}, \"mem_dirc_z\": {}, \"mode\": {}, ",
@@ -606,6 +612,11 @@ fn main() {
                     p.hit_attribute,
                     p.stop_cnt,
                     u8::from(p.drawn),
+                    match p.arms {
+                        Some(piney_world::arms::ArmsCall::Effect) => "effect",
+                        Some(piney_world::arms::ArmsCall::Clear) => "clear",
+                        None => "none",
+                    },
                     b.target_count,
                     list(&p.angle),
                     list(&t.pos),

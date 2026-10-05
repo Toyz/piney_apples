@@ -285,7 +285,6 @@ player until one of these turns out wrong.
 - [[166]] riding into a dungeon's way in (pgDIN) not played through — test gap
 - [[177]] area 16's EVENTAREA07 not compared with a game picture — not compared
 - [[179]] whether any Infection field is hacked outside the crisis (EVENTAREA_INFO.flag 3) — not surveyed
-- [[191]] the walk between a lake's two dungeons not compared with the game's run — docs/engine/dungeon.md Unknown
 - [[250]] whether inviteSpc in a field or dungeon is ever reached — docs/engine/field-game.md Unknown
 - [[272]] EVENTAREAB8 held by unit tests, not compared with the game's Draw — docs/engine/evarea.md Unknown
 - [[277]] whether a walking PC can run off in a case the tests do not cover — only a member's run caught
@@ -1027,6 +1026,7 @@ player until one of these turns out wrong.
 - [[188]] the sound's voices across volumes (EvVoice groups per volume) — answered by [[226]], [[227]]
 - [[191]] `come_back` builds the lake room's doors open where the game asks `ccCheckActiveObject` — answered by [[343]] (the game's lists are empty then: a new scene deletes every entry, so `SetDoor` builds them open too, and `MoveDoor` shuts them for what the set-up makes)
 - [[191]] what reads WORLD_MAN+0x58[n] — answered by [[343]] (`WORLD_MAN::EntryGimmick`'s `entryFlag[1 + n]`; the port cleared it nowhere and kept a lake's entries across its dungeons; a_lake_keeps_both_its_dungeons)
+- [[191]] the walk between a lake's two dungeons not compared with the game's run — answered by [[379]] (tools/test_dungeon_rt.py's test_lake_stairs runs the game's `Enter` on both stairs, `GoField` in both dungeons and `GO(2)`'s way back up against the port; it found the lake's `startpos[1]` left at 0, issue #51)
 - [[195]] the party's weapon trails (ccSpcChar::ArmsEffect) and StartArmsEffect's particles — answered by [[197]]
 - [[196]] the pad's vibration in town — answered by [[232]]
 - [[199]] Mutation's save (extension, accessors, Init, NewGame, InitSpcParam) — answered by [[200]], [[226]] (tools/test_save_init_rs.py on MUT)
@@ -1210,7 +1210,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/dungeon.md: a story dungeon's fieldrand after Generate — research (duplicates [[157]])
 - docs/engine/dungeon.md: what ccObj::Duplicate(0x2008)/(0x2000) copy of the water's object — research (duplicates [[157]])
 - docs/engine/dungeon.md: whether a room's dummies can make more than 32 room lights — research (none checked comes near)
-- docs/engine/dungeon.md: the warps (warpPoint); a lake's way between its dungeons not run against the game — research (duplicates [[191]])
+- docs/engine/dungeon.md: the warps (warpPoint) — research; a lake's way between its dungeons not run against the game — answered by [[379]] (test_lake_stairs)
 - docs/engine/dungeon.md: a keyed rotation's last bits (double precision interpolation) — research (rounding)
 - docs/engine/dungeon.md: why DecodeSetup reads a bad pointer decoding sd9 after sd4 — research (duplicates [[161]])
 - docs/engine/dungeon.md: what the save bit at +0x5ec8 bit 62 means — answered (stale; [[220]] (eventFlag[314] done); ishack stays research ([[25]]))

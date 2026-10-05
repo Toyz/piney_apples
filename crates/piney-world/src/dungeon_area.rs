@@ -800,7 +800,7 @@ impl DungeonArea {
     /// from the stairs rooms' `OBJ_0ppp` dummies.
     fn random_floors(&self, d: &dungeon::Dungeon) -> Vec<FloorLayout> {
         let mut out = Vec::new();
-        for fl in &d.floors {
+        for (level, fl) in d.floors.iter().enumerate() {
             let mut layout = FloorLayout {
                 map: fl.map.clone(),
                 rooms: vec![Slot::default(); 15],
@@ -821,7 +821,7 @@ impl DungeonArea {
                     special: false,
                 };
                 layout.order.push(r.index);
-                self.start_of(&mut layout, &slot, r.exits.0);
+                self.start_of(&mut layout, &slot, r.exits.0, (level, r.index));
                 if let Some(s) = layout.rooms.get_mut(r.index) {
                     *s = slot;
                 }
@@ -907,7 +907,7 @@ impl DungeonArea {
                         rolls: None,
                         special: event_room.is_some(),
                     };
-                    self.start_of(&mut layout, &slot, rd.exits.0);
+                    self.start_of(&mut layout, &slot, rd.exits.0, (level, i));
                     layout.rooms[i] = slot;
                     if !layout.order.contains(&i) {
                         layout.order.push(i);
@@ -919,19 +919,21 @@ impl DungeonArea {
         out
     }
 
-    /// `MakeRoom`'s startpos for a room with stairs: the `OBJ_0ppp`
-    /// dummy's world position under the room's matrix, the heading the
-    /// other way from the room's turn. The lake types take the room's
-    /// centre instead (not checked against the game).
-    fn start_of(&self, layout: &mut FloorLayout, slot: &Slot, exits: u8) {
+    /// `MakeRoom`'s startpos for a room with stairs, room `at` (floor,
+    /// room): the `OBJ_0ppp` dummy's world position under the room's
+    /// matrix, the heading the other way from the room's turn. A lake's up
+    /// stairs take the room's centre at height 0, heading 1.0, turned only
+    /// in field type 4's first dungeon at floor 0, room 0 (0x005badf4);
+    /// its down stairs are the dummy's, as in every type (0x005bafac).
+    fn start_of(&self, layout: &mut FloorLayout, slot: &Slot, exits: u8, at: (usize, usize)) {
         for (bit, k) in [(UP, 0), (DOWN, 1)] {
             if exits & bit == 0 {
                 continue;
             }
-            if dungeon::is_lake(self.dtype) {
-                if k == 0 {
-                    layout.start[0] = [slot.pos[0], slot.pos[1], 0, ONE];
-                }
+            if k == 0 && dungeon::is_lake(self.dtype) {
+                let first = self.field_type == 4 && self.dungeon == 0 && at == (0, 0);
+                let w = if first { facing(slot.rotate, ONE) } else { ONE };
+                layout.start[0] = [slot.pos[0], slot.pos[1], 0, w];
                 continue;
             }
             let root = Self::room_root(slot);
@@ -2225,6 +2227,9 @@ mod tests {
         first.come_back(last_room);
         assert_eq!((first.level, first.room_at), (0, Some((0, down))));
         assert_eq!(first.start().0[..3], first.floors[0].start[1][..3]);
+        // The lake's stairs down are its room's OBJ_0ppp, in the room
+        // (issue #51: they were left at 0, 0, 0).
+        assert_eq!(first.here(first.start().0), Some(down), "back up outside the room");
     }
 
     /// Theta's dungeons (server 1) of field types 2-4, 7 and 9 take clutType

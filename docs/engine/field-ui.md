@@ -375,7 +375,9 @@ unless a key item, `ccUseItemRequest`, the menu shuts) - the Sprite
 Ocarina (13/1) only in a dungeon (`[3]`), not on floors of type 8 and 9,
 not in battle (`[5]`), not while operation 14 is held (`[4]`), after "Return
 to the field." and OK / Cancel; 1 TARGET. Triangle on equipment: its status
-(64).
+(64). The ocarina ends in menu 86's `WORLD_MAN::GoField`: to the field, or
+below a lake (field type 4's dungeon 1) back up to the lake's room left,
+at its stairs down ([dungeon.md](dungeon.md), "The start").
 
 ### TARGET (`TargetMenu`, menu 65)
 

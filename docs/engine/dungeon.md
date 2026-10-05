@@ -3,7 +3,7 @@ title: Dungeon generation
 status: partial
 volumes: all
 covers: INF gcmn.prg:0x00597d84 ccPlayer::ccPlayer (the lake's arrival), 0x005c1440 DUNGEON::SetClutList, 0x005c17b0 DUNGEON::ChangeClut; INF SLUS_202.67:0x0013aad0 ccModel::ChangeClut, 0x00152d00 ccAnm::ChangeClut; INF gcmn.prg:0x005c12a0 DUNGEON::Generate, 0x005c0110 MakeFloor, 0x005b6840 FOOT::FOOT, 0x005b7330 FOOT::Move, 0x005b78c0 FOOT::CheckDirection, 0x005ba1d0 DUNGEON::MakeRoom, 0x005bb340 SetAllGim, 0x005be020 MakeRealMap, 0x005bcbb0 DUNGEON::MakeRoom(ROOMDATA *), 0x005b7c00 DUNGEON::DUNGEON, 0x005c1ca0 SetRoom, 0x005c3a50 ClearRoom, 0x005c1980 DeleteRoom, 0x005c7c30 SetDoor, 0x005cd3d0 MoveDoor, 0x005c9e10 GotoNextRoom, 0x005ce930 DUNGEON::Draw, 0x005cf030 DUNGEON::GetHeight, 0x005cf040 GetStartPosition, 0x005c4560 SetLight, 0x0042e010 ccCheckActiveObject, 0x00571da0 initHitCheck, 0x005c8820 DUNGEON::OpenDoor, 0x005c8f50 CloseDoor, 0x005c8800 CloseDoor2, 0x005cf080 GetRoom2DPos, 0x005b6720 GetEditDungeonPtr; INF SLUS_202.67:0x001382f0 ccCoord::SetMatrix_PosRotZYX, 0x00110a30 sceVu0RotMatrixZ, 0x00139330 ccDirectLight::CheckRange, 0x001392d0 ccDirectLight::Init, 0x001389b0 ccCreateLight, 0x00105820 ccDrawEnv::SetFog, 0x0019f4b0 WORLD_MAN::SetDungeonTexClut, 0x0019cf50 SetDungeonTypeFromField, 0x0019c460 fieldrand, 0x0019f8e0 WORLD_MAN::GO, 0x0019dda0 WORLD_MAN::Enter, 0x001a1190 WORLD_MAN::SetCharPosition, 0x001a10c0 WORLD_MAN::GetHeight, 0x001a4070 WORLD_MAN::SetPrevRoom, 0x00151f30 ccAnm::HitEnable, 0x001520f0 ccAnm::SetHitMatrix, 0x00153760 ccModelHit::HitEnable, 0x001107b0 sceVu0InversMatrix, 0x0014cb80 ccStream::Decode_ExtObj, 0x001b3620 ccEvent::SetEventPoint, 0x001b3590 ccEvent::SetEventPos, 0x001a22b0 WORLD_MAN::Get2DMapPtr, 0x001b218c open_door, 0x001b21cc close_door, 0x0019dca0 WORLD_MAN::RoomSelect, 0x001b0948 room, 0x001b097c room_point; INF gcmn.prg:0x005c95c0 DUNGEON::RoomSelect, 0x005b61e0 DUNGEON::GetBanRoom; INF SLUS_202.67:0x0013cff0 ccClump::HitEnable, 0x0013d240 ccClump::SetHitMatrix, 0x001d9dd0 ccGetDist, 0x00178400 ccSaveData::CheckAreaBan; INF gcmn.prg:0x005c3f30 DUNGEON::SetWater, 0x005c70c0 SetObject, 0x005c6e80 EntryObject, 0x005c3ad0 SetAnmObject, 0x005ce1c0 DrawWater, 0x005cdee0 DrawEff, 0x005ce3d0 DUNGEON::DrawBG, 0x00503cf0 SNOW::SNOW(ccStream *, float *), 0x00503e80 SNOW::Move, 0x005042f0 SNOW::Draw, 0x00502e20 calcPos3; INF SLUS_202.67:0x00151ce0 ccAnm::GetSubstAdrs, 0x00101ad0 ccMatchIndex, 0x00101e20 ccSubstSearchResult::SetTbl, 0x00138b60 ccSetColor, 0x00139060 ccLightGrp::AddGrp, 0x0013ba20 ccEff::Init, 0x0014bce0 ccStream::Decode_Model, 0x0013b5c0 ccObj::Init
-worklog: 19, 25, 30, 34, 114, 147, 156, 161, 181, 220, 343, 362
+worklog: 19, 25, 30, 34, 114, 147, 156, 161, 181, 220, 343, 362, 379
 ---
 
 # Dungeon generation
@@ -240,6 +240,10 @@ with the party at its stairs down. The port keeps them the same way
 (`piney_world::dungeon_area::Dungeons`, the slots and `lastRoom`, carried
 in `Kept`; `DungeonArea::come_back`). Until worklog 191 it kept one
 dungeon, so the lake itself was taken for the second.
+`tools/test_dungeon_rt.py`'s `test_lake_stairs` runs the game's `Enter` on
+both stairs, `GoField` in both dungeons (the lake's does nothing) and
+`GO(2)`'s branch (main 0x001a0cac) against the port: the changes of scene,
+`lastRoom`, the cleared `entryFlag`s, the position and the room built.
 The lake stands in for the missing field. Entered from a town, Kite
 arrives there as on a field: `ccPlayer::ccPlayer` (gcmn 0x00597d84) takes
 the field's rule when `GetFieldType()` is 4 and `game.dungeon` is 0, so
@@ -254,8 +258,14 @@ anm (`SetAnm`, one `_AnimateForward`, `SetMatrix_PosRotZYX((x, y, 0), (0, 0,
 rotate))`) and, for a room with the up stairs, copies the world position
 (`_SetLWMatrix`) of its `OBJ_0ppp` dummy into `startpos[0][f]`, for the down
 stairs into `startpos[1][f]`, with w the heading the other way from the
-room's turn (0 to pi, pi to 0, pi/2 to -pi/2, -pi/2 to pi/2); the lake types
-take the room's centre. `WORLD_MAN::SetCharPosition`'s area-2 case (main
+room's turn (0 to pi, pi to 0, pi/2 to -pi/2, -pi/2 to pi/2). The lake types
+(8, 9) differ only at the up stairs (0x005badf4): `startpos[0][f]` is the
+room's centre at z 0 with w 1.0, turned as above only when `GetFieldType()`
+is 4, the dungeon's number (+0x0) 0, the floor 0 and the room 0. Their down
+stairs take the dummy like every type (0x005bafac): `GO(2)`'s way back up to
+a lake stands the party there. Until worklog 379 the port left a lake's
+`startpos[1]` at (0, 0, 0), so the way back put the party in the void
+(issue #51). `WORLD_MAN::SetCharPosition`'s area-2 case (main
 0x001a1c2c) puts the leader at `position`'s x, y, z facing its w, and the
 second, third and fourth at (300, -150, 0), (-300, -150, 0) and (0, -300,
 0) turned by that heading (`sceVu0RotMatrix`) and added.
@@ -1185,11 +1195,7 @@ room gets none.
 - Whether a room's dummies can make more than 32 room lights (the case of
   several runs past `roomlight[32]` into `door[]`); none of the rooms
   checked comes near.
-- The warps (`warpPoint`, filled by `WORLD_MAN::EntryGimmick`). A lake's
-  way between its two dungeons is ported from the code (`Enter`, `GO(2)`,
-  `GoField`) and run in `a_lake_keeps_both_its_dungeons` and
-  `a_type_4_area_goes_down_into_its_second_dungeon_and_back`, not against
-  the game's own run.
+- The warps (`warpPoint`, filled by `WORLD_MAN::EntryGimmick`).
 - A keyed rotation's last bits (the doors that swing): the port's
   interpolation (`piney_data::anim`) is in double precision.
 

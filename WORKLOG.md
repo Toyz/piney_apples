@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-378 entries: audio 33, battle 78, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 92, save 13, script 48, test 141, tooling 27, ui 79, video 13, volumes 68, world 100.
+379 entries: audio 33, battle 78, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 92, save 13, script 48, test 142, tooling 27, ui 79, video 13, volumes 68, world 101.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -390,3 +390,4 @@ The [reference](docs/README.md) says what is true now.
 | 376 | [Skeith's entrance plays before the loading display: the set-up waits on its phase-2 pass before the load](worklog/0376-skeith-s-entrance-plays-before-the-loading-display-the-set.md) | 2026-10-04 | render, script, test |
 | 377 | [The bracelet shines: event 30's radiator, ccGimRadiator's rays at Kite's hand, and the rays' lights in the group](worklog/0377-the-bracelet-shines-event-30-s-radiator-ccgimradiator-s.md) | 2026-10-04 | render, script, battle, test |
 | 378 | [A rare weapon's aura trails in the Root Towns: ccPlayer::Main's and ccFellow::Main's ArmsEffect run there too](worklog/0378-a-rare-weapon-s-aura-trails-in-the-root-towns-ccplayer-main.md) | 2026-10-04 | render, world, test |
+| 379 | [Back up to a lake: its stairs down stand at the room's OBJ_0ppp, so the Sprite Ocarina and the stairs below it no longer leave the party in the void](worklog/0379-back-up-to-a-lake-its-stairs-down-stand-at-the-room-s-obj.md) | 2026-10-05 | world, test |

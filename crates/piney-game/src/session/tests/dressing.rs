@@ -24,7 +24,7 @@ pub(super) fn random_areas(server: i32, types: &[u8]) -> Vec<[i32; 3]> {
 }
 
 /// [`random_areas`] of field type 4 (no field: the lakes, types 8 and 9).
-fn lake_areas(server: i32, types: &[u8]) -> Vec<[i32; 3]> {
+pub(super) fn lake_areas(server: i32, types: &[u8]) -> Vec<[i32; 3]> {
     areas_where(server, types, true)
 }
 
