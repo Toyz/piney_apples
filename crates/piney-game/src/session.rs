@@ -6856,6 +6856,9 @@ mod tests {
     /// Issue #49: a foe's immunity in its target window.
     mod tolerance;
 
+    /// Issue #50: Ryu Book III's "Online" for the people in town.
+    mod ryu_book_online;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

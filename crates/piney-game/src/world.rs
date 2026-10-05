@@ -1046,6 +1046,9 @@ pub(crate) fn ui_world(world: &World, vm: Option<&Vm>, area_level: i32) -> piney
                 .map(|e| (e.id, e.boot_param))
                 .collect()
         },
+        // g_entCtrl's NPC list (each entParam.id, its npcTbl row): who is
+        // in town today, Ryu Book III's "Online".
+        npcs: world.all_npcs().map(|n| n.code()).collect(),
         ..Default::default()
     }
 }

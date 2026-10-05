@@ -317,7 +317,7 @@ fn a_speed_charm_on_kite_ends() {
 }
 
 /// The menus and the save of the town or the area `s` is in.
-fn menus(s: &Session) -> Option<&piney_fieldui::FieldUi> {
+pub(super) fn menus(s: &Session) -> Option<&piney_fieldui::FieldUi> {
     match &s.stage {
         Stage::Area(a) => Some(a.ui()),
         Stage::World(w) => Some(w.ui()),
@@ -474,7 +474,7 @@ fn a_book_read_in_town_raises_the_stat() {
 /// cover played and the pages opened. In a town the cover's frame must
 /// move on every game frame it plays (#21: it stood still every other
 /// one, the town's frame between).
-fn read_a_ryu_book(s: &mut Session, book: usize, ready: impl Fn(&Session) -> bool) -> (bool, bool) {
+pub(super) fn read_a_ryu_book(s: &mut Session, book: usize, ready: impl Fn(&Session) -> bool) -> (bool, bool) {
     let mut pad = Pad::default();
     let (mut given, mut cover, mut pages) = (false, false, false);
     let (mut last, mut still) = (None, 0);

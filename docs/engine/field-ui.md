@@ -1481,6 +1481,19 @@ last. The port draws the book once on every frame instead (not the game's;
 | VII | `Disp07` | springs +0x7470, the mushrooms' grandfather +0x7472, symbols +0x7444 | rows |
 | VIII | `Disp08` | a menu: the nine Grunties met (+0x7474), the sixteen foods given (+0x7446) | menu, list |
 
+Book III's characters come from `SetCharInfo` (0x0040bcd0) when the book
+opens: the members 1-17, the people 30-65 and the other players 66-79
+(the walking PCs' rows, "Stare" is 67). A member's `isOnline` is
+`ccSPC::CheckSpc(id)`, its place in `ccSpcManager`'s registry (-1 when not
+loaded). A person's or player's is 1 when an entry on `g_entCtrl`'s NPC
+list (count +0x34, head +0x38, next +0x1c4) has its row as `entParam.id`
+(+0x124): the merchants, dogs, Grunties and walking PCs the town placed
+today, hidden ones too. `Disp03`'s sub-window draws `bookOnLine` in colour
+2 at the name's right when `isOnline` is above 0 (`blez`; the registry's
+slot 0 is always Kite, who is not on the list). The town's `ui_world`
+hands the book that list as `World::npcs` (every `all_npcs` code);
+`test_book_3_online` runs it against the game's code.
+
 Rows: down and up pushed (`PadControl01`, `02`, `06`, `07`). The lists
 (`PadControl03`-`05`, `08`'s food) put the cursor only on rows known (met,
 slain, given); off the list IV and V move with the held buttons and

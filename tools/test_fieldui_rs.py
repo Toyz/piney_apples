@@ -65,6 +65,7 @@ CCSYS, SAVEDATA, GAME_P, WORLDMAN, EVENTMNG = inf_va(0x003788E0), inf_va(0x00378
 MENU_P, CCMSG, CCCHAT, FONTTEX, MENUWIN = inf_va(0x00378C88), inf_va(0x00378A8C), inf_va(0x00378A90), inf_va(0x00378960), inf_va(0x00378A9C)
 FONT, FONTDEF = inf_va(0x00378954), inf_va(0x00378958)
 BOOK_P = inf_va(0x00378B00)                          # book: the open Ryu Book (BOOK)
+ENTCTRL = inf_va(0x00378BA8)                         # g_entCtrl: the entry control (its NPC list)
 CMNDTARGET, CMNDTARGETPREV, CMNDTARGETFIX, CMNDSORTROOT = inf_va(0x00378C64), inf_va(0x00378C68), inf_va(0x00378C6C), inf_va(0x00378C60)
 CMNDROOTS = (inf_va(0x00378C48), inf_va(0x00378C50), inf_va(0x00378C58))            # cmndPcRoot, cmndEneRoot, cmndObjRoot
 PARTY, PLW_PW, GAMEOVER, PGRIDE = inf_va(0x00730310), inf_va(0x00730300), inf_va(0x00378C74), inf_va(0x00378CDC)
@@ -233,6 +234,7 @@ class Scenario:
         self.extra = []           # probe lines a scenario of another test file adds
         self.area_words = None    # the area's keywords, SimGenerateCode'd into WORLD_MAN
         self.rng = 0              # rand()'s value (the menu's too)
+        self.online = []          # g_entCtrl's NPC list: each entry's entParam.id (an npcTbl row)
         self.modes = {}           # frame -> ccMenu.mode set before it (ccThGameCtrl's)
         self.game_cnt = None      # ccGame.gameCnt[3] (+0x64)
         self.gim_acts = {}        # frame -> (handle, actNum): a gimmick's +0x1d4 (the spring's state)
@@ -339,6 +341,8 @@ class Scenario:
             out.append("areawords %d %d %d" % self.area_words)
         if self.rng:
             out.append(f"rng {self.rng}")
+        for nid in self.online:
+            out.append(f"online {nid}")
         for f, v in sorted(self.modes.items()):
             out.append(f"mode {f} {v}")
         for f, v in sorted(self.attacks.items()):
@@ -512,6 +516,17 @@ class Game:
         m.store(m.load(PLW_PW, 4) + 8, 2, sc.dead)
         if sc.target:
             m.store(CMNDTARGET, 4, self.make_char(sc.target))
+        # g_entCtrl's NPC list (count +0x34, head +0x38, next +0x1c4), each
+        # entry's entParam.id (+0x124): who Ryu Book III calls online.
+        ctrl, head = self.alloc(0x40), 0
+        for nid in reversed(sc.online):
+            e = self.alloc(0x1D0)
+            m.store(e + 0x124, 4, nid)
+            m.store(e + 0x1C4, 4, head)
+            head = e
+        m.store(ctrl + 0x34, 4, len(sc.online))
+        m.store(ctrl + 0x38, 4, head)
+        m.store(ENTCTRL, 4, ctrl)
         # cmndSortRoot's chain (+0xc0 cmndSort), with cmndDist (+0xc4) and
         # the protect count (personality +98).
         self.enemies = {}
@@ -1671,6 +1686,22 @@ class FieldUiAgainstGame(unittest.TestCase):
         # Their names as NewGame leaves them in spcParam (charTbl's).
         sc.spc[2] = (b"Orca", 12, 345, 1500, 150, 80, 1)
         sc.spc[3] = (b"Marlo", 10, 100, 0, 100, 40, 2)
+
+    def test_book_3_online(self):
+        # Book III's sub-windows of people in town today (g_entCtrl's NPC
+        # list): Stare (67, a walking PC) and person 35 "Online", Alicia
+        # (66) not; 70 on the list but never met. Only these three known.
+        sc = Scenario(260)
+        self.party(sc, 1)
+        sc.saves += [(0x686A + nid - 13, 1, 0xFF) for nid in range(30, 80)]
+        sc.saves += [(0x686A + 35 - 13, 1, 1), (0x686A + 66 - 13, 1, 0), (0x686A + 67 - 13, 1, 2)]
+        sc.online = [35, 67, 70]
+        self.given(sc, 2)
+        self.book(sc, 2)
+        sc.pads = {40: (DOWN, 0), 50: (DOWN, 0), 60: (0, DOWN), 70: (0, DOWN), 90: (OK, 0), 120: (CANCEL, 0),
+                   130: (0, UP), 140: (OK, 0), 170: (CANCEL, 0), 180: (0, UP), 190: (OK, 0), 220: (CANCEL, 0)}
+        sc.frames = 230
+        self.compare(sc, "book 3 online")
 
     def given(self, sc, page):
         """Every reward of book `page` given already (`hyProccess`)."""

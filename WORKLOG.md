@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-380 entries: audio 33, battle 79, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 92, save 13, script 48, test 143, tooling 27, ui 80, video 13, volumes 68, world 101.
+381 entries: audio 33, battle 79, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 92, save 13, script 48, test 144, tooling 27, ui 81, video 13, volumes 68, world 102.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -392,3 +392,4 @@ The [reference](docs/README.md) says what is true now.
 | 378 | [A rare weapon's aura trails in the Root Towns: ccPlayer::Main's and ccFellow::Main's ArmsEffect run there too](worklog/0378-a-rare-weapon-s-aura-trails-in-the-root-towns-ccplayer-main.md) | 2026-10-04 | render, world, test |
 | 379 | [Back up to a lake: its stairs down stand at the room's OBJ_0ppp, so the Sprite Ocarina and the stairs below it no longer leave the party in the void](worklog/0379-back-up-to-a-lake-its-stairs-down-stand-at-the-room-s-obj.md) | 2026-10-05 | world, test |
 | 380 | [A foe's immunity in its target window: Disp names the row's lowest Exdefense bit beside the HP, struck through once the defence is lowered](worklog/0380-a-foe-s-immunity-in-its-target-window-disp-names-the-row-s.md) | 2026-10-05 | ui, battle, test |
+| 381 | [Ryu Book III's Online: the town hands the book its entry control's NPC list, so a person or walking PC in town today is online](worklog/0381-ryu-book-iii-s-online-the-town-hands-the-book-its-entry.md) | 2026-10-05 | ui, world, test |

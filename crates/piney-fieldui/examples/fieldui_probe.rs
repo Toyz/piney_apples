@@ -256,6 +256,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // exdef HANDLE EXDEFENSE LOWERED: a foe's row Exdefense and the
             // bits of the defences now below the row's.
             "exdef" => exdefs_of.push((n(1) as u32, n(2) as i16, n(3) as i16)),
+            // online ID: an npcTbl row on g_entCtrl's NPC list.
+            "online" => world.npcs.push(n(1) as i32),
             "areaitem" => {
                 // areaitem FIELD_ATTR EVENT_AREA AREA_LEVEL ITEM_OFS FLOOR FIELD
                 world.field_attr = n(1) as i32;
