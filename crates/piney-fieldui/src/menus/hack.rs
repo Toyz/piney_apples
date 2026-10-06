@@ -497,7 +497,7 @@ fn noise(m: &mut MenuCtrl, x: &mut Ctx, n: i32) {
 }
 
 fn noise_rand(m: &mut MenuCtrl, x: &mut Ctx) {
-    let r = (m.rng)();
+    let r = m.rng.rand();
     // rand() % 4 as C has it (rand() is never negative).
     noise(m, x, r % 4 + 3);
 }

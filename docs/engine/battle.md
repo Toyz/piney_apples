@@ -41,7 +41,14 @@ return (state >> 32) & 0x7fffffff
 ```
 
 One generator serves the whole game, so every draw anywhere (the Data Drain
-movie's noise, the party AI, the menus) moves the battle rolls.
+movie's noise, the party AI, the menus) moves the battle rolls. It starts at
+1 at power-on and is never reseeded in play: `srand` has one caller, the
+staff roll (`ccThStaffRollCtrl`, desktop.prg 0x0041270c). Neither an area
+nor a room sets it. In a room Kite stands in alone, his idle count draws
+`rand() % 60` once he has stood 451 frames (`AnimCtrl`, 0x00599e14); the
+party's AI, their lines and the effects draw too. The menus' draws (a
+breakable's or a box's drop) are the same generator's ([field
+UI](field-ui.md#the-menus-rand)).
 
 The enemies draw from a second generator, `ccRand()` (main 0x001d9a10), which
 returns `genrand()` (main 0x001d9620) as a signed `int`, so half its values

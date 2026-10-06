@@ -1253,7 +1253,9 @@ impl AreaMode {
             self.map_showing = !self.item_show_map();
         }
         let w = self.hud_world();
-        self.ui.step_into(pad, &w, self.world.state_mut(), self.count, ctx);
+        // The menus draw from the game's one rand(), as the world left it.
+        let (ui, count) = (&mut self.ui, self.count);
+        self.world.with_live_state(|s| ui.step_into(pad, &w, s, count, ctx));
         // The menu task stops in ccUseItemRequest: the use's rules, and
         // its steps back to the task, which goes on this frame.
         loop {
@@ -1271,7 +1273,8 @@ impl AreaMode {
             }
             let Some((target, code, arg)) = asked else { break };
             let steps = self.use_item(target, code, arg);
-            self.ui.answer_item(steps, pad, self.world.state_mut(), self.count, Some(ctx));
+            let (ui, count) = (&mut self.ui, self.count);
+            self.world.with_live_state(|s| ui.answer_item(steps, pad, s, count, Some(ctx)));
         }
         if self.world.targeting().in_menu && self.ui.menu_type() == -1 {
             self.world.close_menu();
@@ -1534,7 +1537,12 @@ impl Mode for AreaMode {
             self.ui.ctrl.pl_attack = 1;
         }
         // ccThMenu (34), before the world's other tasks: what it asks for
-        // is acted on, and heard, this frame (worklog 336).
+        // is acted on, and heard, this frame (worklog 336). Each room's
+        // ccSetupGameCtrl makes the task, and its menu, anew.
+        if self.world.phase() == Phase::Play(1) {
+            let ui = &mut self.ui;
+            self.world.with_live_state(|s| ui.menu_task_started(s));
+        }
         if let Phase::Play(f) = self.world.phase()
             && f >= 1
             && self.setup != Setup::Left

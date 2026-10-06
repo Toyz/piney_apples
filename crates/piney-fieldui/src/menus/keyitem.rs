@@ -193,7 +193,7 @@ pub fn important_item_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             if m.menu_status != 0 {
                 return Flow::Done;
             }
-            let mut slot = (m.rng)().rem_euclid(3) as usize;
+            let mut slot = m.rng.rand().rem_euclid(3) as usize;
             let mut found = -1;
             for _ in 0..3 {
                 if let Some(n) = x.world.pg_adult[slot].filter(|&n| n >= 0) {

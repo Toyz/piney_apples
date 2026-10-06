@@ -1194,7 +1194,8 @@ impl StoryPilot {
         }
         // Golden goblins (see [`shakes_off_holds`]): one casting its heal
         // first (see [`casting_gold`]), else the one run after while it
-        // stands, else the weakest that stands. On the run one outpaces
+        // stands, else the nearest that stands (the weakest may stand far
+        // off, and flee before Kite gets there). On the run one outpaces
         // Kite (see [`haste_for_gold`]); it stops once he is past
         // `atkRangeB`, and from a stand it gathers speed slowly
         // (`goldAccel` is `crisisRate` squared): rushed from there.
@@ -1205,7 +1206,7 @@ impl StoryPilot {
         let casting = live.iter().copied().filter(|&e| casting_gold(c, e)).min_by(|&x, &y| dist(x).total_cmp(&dist(y)));
         let foe = casting
             .or_else(|| self.quarry.filter(|q| live.contains(q) && standing(q)))
-            .or_else(|| live.iter().copied().filter(standing).min_by(weakest))
+            .or_else(|| live.iter().copied().filter(standing).min_by(|&x, &y| dist(x).total_cmp(&dist(y))))
             .or_else(|| live.iter().copied().min_by(weakest))?;
         self.quarry = shakes_off_holds(c, foe).then_some(foe);
         if self.quarry.is_some() && !standing(&foe) {

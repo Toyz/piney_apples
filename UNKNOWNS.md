@@ -455,14 +455,11 @@ player until one of these turns out wrong.
 - [[66]] a menu a button opens stops the camera and player one frame later than the game (world tasks before the menu task) — task order; same kind as [[76]], [[101]]
 - [[68]] the gate-target fix has no eemu check of its own — test gap
 - [[69]] menu 79 bumps its wait twice a frame, so Kite is mid warp-out at the change — as the game (checked)
-- [[70]] PcMenu draws from its own copy of rand(), not the world's shared generator — random stream only
 - [[70]] no runtime shot of a shop — covered by checks
 - [[71]] the equipment, party-add and Controller tasks finish one frame later than the shortest the game can take — disc timing
 - [[71]] past the equipment tables the port reads zeros where the game reads what follows — game UB
-- [[71]] two copies of rand(): the menus keep their own; FieldUi::set_rand is not wired — random stream only
 - [[71]] the OPTION helper's CD load real frame count — not measured
 - [[73]] PresentMenu's states 20-22 and BreedingMenu's 23 with index 0 never set; a trader of neither kind reads a stale register — as the game
-- [[73]] set_rand is not wired — random stream only
 - [[75]] no shot shows the world moving under a tutorial menu — follows the code
 - [[76]] camera 3 appears one frame later than the game (menus run after the world's tasks) — task order
 - [[77]] what sets WORLD_MAN.specialRoom (+0x160) beyond the known rooms — docs/engine/map.md Unknown
@@ -842,11 +839,13 @@ player until one of these turns out wrong.
 - [[69]] when the field set-up enables the event task — answered by [[329]] (ccEnableThEvent 0, 2, 4 at 0x00168c98, 0x00168f94, 0x001694d4; the game+4 exit now followed) / docs/engine/event-vm.md
 - [[70]] the pages still to come: Trade (48/49), 21, 23, 27 and 56, 50 — answered by [[73]]
 - [[70]] SetMerchantCamera's changeCamera(3)/(1) not carried out — answered by [[76]] (the merchant's camera; tools/test_merchcam_rs.py)
+- [[70]] PcMenu draws from its own copy of rand(), not the world's shared generator — answered by [[383]] (the menus' MenuRand is SaveState::rand, the area's or town's live generator; issue #52)
 - [[71]] the runtime's new-game save (skill list zeros, stats 0) — answered by [[76]] (ccSaveData::Init, NewGame, InitSpcParam; tools/test_save_init_rs.py)
 - [[71]] what bootParam means beyond Add's greeting — answered by docs/engine/battle.md "The party's bootParam from area to area" ([[74]], [[80]])
 - [[71]] what SetActuater(1, 160, 200) means — answered by [[232]] (small motor, power 160, 200 ms, the queue)
 - [[71]] where drainDemo, voice and strWinMode are read — answered by [[105]] (drainDemo), [[89]] (voice), [[85]] (strWinMode, the subtitles)
 - [[71]] still unported 62, 66/67, 71-73 — answered by [[96]], [[102]], [[148]]
+- [[71]] two copies of rand(): the menus keep their own; FieldUi::set_rand is not wired — answered by [[383]] (one generator; a_breakables_drop_draws_on_the_areas_rand)
 - [[72]] the party left behind in the field — answered by [[74]]
 - [[72]] event 3 does not start (VM asleep in scene) — answered by [[74]]
 - [[72]] the field's entry control is empty — answered by [[78]], [[80]], [[164]]
@@ -858,6 +857,7 @@ player until one of these turns out wrong.
 - [[73]] CalcReal and ChangeEquip dropped — answered by [[76]] (per-frame CalcReal), [[187]] (equipment changed in a field stays)
 - [[73]] set_spc_base_msg not called — answered by crates/piney-fieldui/src/newgame.rs (called by InitSpcParam's port)
 - [[73]] nothing gets Kite to menus 21, 23, 27, 50, 56 in Mac Anu — answered by [[108]], [[110]] (members in town), [[90]]
+- [[73]] set_rand is not wired — answered by [[383]] (FieldUi draws from the save's rand; the hosts lend it with_live_state)
 - [[74]] menus 80 and 83, player_skill, hold, the magic portals (entry_mc), members' field AI — answered by [[78]], [[80]] / docs/engine/battle.md "player_skill", "hold"
 - [[74]] pc_command, the walks and the puts — answered by [[178]] (remote walks), [[134]]
 - [[74]] the event positions in a field or dungeon — answered by [[87]], [[134]] (evPos outside the towns); plain-field marker_pos is [[275]]'s

@@ -2,10 +2,11 @@
 //! 44, a stray dog: `npcTbl` rows 141-144), `OtonainuMenu` (0x0054ac40, 45,
 //! a grown Grunty: rows 145-153) and `InuMenu` (0x0054b1d0, 46, a young one:
 //! rows 154-157) with `InuMenuDisp` (0x0054bb10). The game draws
-//! NorainuMenu's `talkNum` from `ccRand`; the menu here has only `rand()`
-//! ([`talk::TalkState::rand`]). The Grunty's affect functions change its
-//! msgNum at once, so the menus make the same change to the world's copy
-//! ([`after_affect`]). The steps are in docs/engine/field-ui.md.
+//! NorainuMenu's `talkNum` from `ccRand`, the town's generator, which the
+//! menu does not hold ([`talk::TalkState::cc_rand`]). The Grunty's affect
+//! functions change its msgNum at once, so the menus make the same change
+//! to the world's copy ([`after_affect`]). The steps are in
+//! docs/engine/field-ui.md.
 
 use piney_desktop::eef::from_int;
 
@@ -100,7 +101,7 @@ pub fn norainu_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                 }
                 m.lists[i].select = 0;
             }
-            let mut r = (m.talk.rand() & 3) as i16;
+            let mut r = (m.talk.cc_rand() & 3) as i16;
             if r >= 3 {
                 r = 0;
             }

@@ -399,7 +399,7 @@ fn gate_help(m: &mut MenuCtrl, x: &mut Ctx) {
 /// A word of a part at random (`rand() % n`); none held: kept as it was.
 fn random_word(m: &mut MenuCtrl, x: &Ctx, part: i32) -> i32 {
     let list = part_words(x, part);
-    let r = (m.rng)();
+    let r = m.rng.rand();
     if list.is_empty() {
         return m.temp[part as usize];
     }
@@ -1254,7 +1254,7 @@ pub fn new_menu_disp(m: &mut MenuCtrl, x: &mut Ctx) {
             wa.make_packet(0);
             let fs = [ws[0].fields[f], ws[1].fields[f], ws[2].fields[f]].map(|v| if unset(f, v) { UNSET } else { v });
             let c = gt_new_colour(pri, fs, s, t.gt_new_colours);
-            let r = (m.rng)();
+            let r = m.rng.rand();
             let wa = &mut m.win_a;
             wa.set_colour(c);
             wa.set_alpha(s4);

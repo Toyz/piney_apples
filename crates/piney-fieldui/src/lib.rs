@@ -395,9 +395,23 @@ impl FieldUi {
         render::draw(&self.draws, &self.textures, &self.fonts, &save.names(), &faces, ctx, self.hud_scale);
     }
 
+    /// `ccThMenu`'s first run after `ccSetupGameCtrl` (each town, field
+    /// and dungeon room): `new ccMenuCtrl` (gcmn 0x0051c140) makes its
+    /// `ccNoiz` (main 0x001bb080), whose bands draw their rows from the
+    /// game's `rand()` (`save.rand`, moved on).
+    pub fn menu_task_started(&mut self, save: &mut SaveState) {
+        let rng = &mut self.ctrl.rng;
+        rng.load(save.rand);
+        self.ctrl.noiz = piney_desktop::noiz::Noiz::new(&mut || rng.rand());
+        if let Some(r) = self.ctrl.rng.state() {
+            save.rand = r;
+        }
+    }
+
     fn run(&mut self, pad: &Pad, world: &World, save: &mut SaveState, count: u32) {
         // ccThSaveSys (priority 20) before ccThMenu (34).
         menus::record::save_sys_task(&mut self.ctrl.talk.record, &save.save);
+        self.ctrl.rng.load(save.rand);
         let mut x = ctrl::Ctx {
             pad,
             world: world.clone(),
@@ -416,6 +430,9 @@ impl FieldUi {
             let draws = b.frame(&mut self.ctrl, &mut x);
             self.draws.extend(draws);
             self.ctrl.book = Some(b);
+        }
+        if let Some(r) = self.ctrl.rng.state() {
+            x.save.rand = r;
         }
         // Stopped inside ccUseItemRequest: the rest of the frame runs on
         // the answer, with the world as the frame left it.
@@ -563,6 +580,7 @@ impl FieldUi {
     ) {
         let Some((world, target, target_prev)) = self.held.take() else { return };
         self.ctrl.answer_item(steps);
+        self.ctrl.rng.load(save.rand);
         let mut x = ctrl::Ctx {
             pad,
             world,
@@ -576,6 +594,9 @@ impl FieldUi {
             target_prev,
         };
         self.draws = self.ctrl.item_frame(&mut x);
+        if let Some(r) = self.ctrl.rng.state() {
+            save.rand = r;
+        }
         if let Some(ctx) = ctx {
             let faces = self.ctrl.face_tex;
             render::draw(&self.draws, &self.textures, &self.fonts, &save.names(), &faces, ctx, self.hud_scale);
@@ -755,10 +776,10 @@ impl FieldUi {
         self.ctrl.talk.record.save_sys.file_num = file;
     }
 
-    /// Where `rand()` comes from (the PCs' lines): the game's one generator,
-    /// shared with the other tasks. Unset, the menu keeps its own.
-    pub fn set_rand(&mut self, f: Box<dyn FnMut() -> i32 + Send>) {
-        self.ctrl.talk.set_rand(f);
+    /// A harness's numbers for NorainuMenu's `ccRand()`
+    /// ([`talk::TalkState::cc_rand`]).
+    pub fn set_cc_rand(&mut self, f: Box<dyn FnMut() -> i32 + Send>) {
+        self.ctrl.talk.set_cc_rand(f);
     }
 
     /// The area the party stands in as `WORLD_MAN` holds it: its three
@@ -822,5 +843,37 @@ impl FieldUi {
         if slot < 4 {
             self.ctrl.face_tex[slot] = if code == 0 && !plcol { 18 } else { code };
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use piney_battle::rand::{Rand, Rng as _};
+
+    use crate::ctrl::MenuRand;
+    use crate::menus::option::tests::field_ui;
+
+    /// `ccMenuCtrl`'s `ccNoiz` (issue #52): its bands draw from the save's
+    /// `rand()`, which moves on by every draw they made; a harness's
+    /// fixed numbers leave it alone.
+    #[test]
+    fn the_menu_task_draws_its_noise_from_the_saves_rand() {
+        let Some((mut ui, _, mut save)) = field_ui() else { return };
+        let mut n = 0;
+        let _ = piney_desktop::noiz::Noiz::new(&mut || {
+            n += 1;
+            0
+        });
+        assert!(n > 0, "the bands draw");
+        save.rand = 0x1234_5678;
+        ui.menu_task_started(&mut save);
+        let mut want = Rand(0x1234_5678);
+        (0..n).for_each(|_| {
+            want.rand();
+        });
+        assert_eq!(save.rand, want.0, "{n} draws");
+        ui.ctrl.rng = MenuRand::Fixed(Box::new(|| 0));
+        ui.menu_task_started(&mut save);
+        assert_eq!(save.rand, want.0, "a fixed source leaves the save's");
     }
 }

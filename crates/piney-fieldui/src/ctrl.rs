@@ -1,6 +1,7 @@
 //! `ccMenuCtrl` (0x240 bytes) and its task `ccThMenu` (gcmn 0x005280d0):
 //! the state, opening and closing menus, and the list cursor.
 
+use piney_battle::rand::{Rand, Rng as _};
 use piney_desktop::SaveState;
 use piney_desktop::kanji::Fonts;
 use piney_desktop::message::{MsgDraw, MsgWindow};
@@ -30,12 +31,44 @@ pub const SE_BUZZ: i32 = 20;
 /// The tutorial menus open without sound 16 (`OpenMenu` 0x00525c54).
 pub const SILENT_OPEN: [i16; 6] = [75, 78, 80, 83, 84, 85];
 
-/// newlib's `rand()` (main 0x00133a38): a 64-bit LCG from 1, bits 32-62.
-pub fn newlib_rand() -> impl FnMut() -> i32 {
-    let mut next: u64 = 1;
-    move || {
-        next = next.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        ((next >> 32) & 0x7fff_ffff) as i32
+/// The menu's `rand()` (newlib's, main 0x00133a38).
+pub enum MenuRand {
+    /// The game's one generator: [`crate::FieldUi`] loads it from
+    /// `SaveState::rand` before the task's frame and stores it back after,
+    /// so the menus draw on from where the field's other tasks left it.
+    Game(Rand),
+    /// A harness's numbers in its place; `SaveState::rand` is left alone.
+    Fixed(Box<dyn FnMut() -> i32>),
+}
+
+impl Default for MenuRand {
+    fn default() -> Self {
+        MenuRand::Game(Rand::default())
+    }
+}
+
+impl MenuRand {
+    /// `rand()`.
+    pub fn rand(&mut self) -> i32 {
+        match self {
+            MenuRand::Game(r) => r.rand(),
+            MenuRand::Fixed(f) => f(),
+        }
+    }
+
+    /// The game's generator at `state` (a fixed source keeps its numbers).
+    pub fn load(&mut self, state: u64) {
+        if let MenuRand::Game(r) = self {
+            r.0 = state;
+        }
+    }
+
+    /// The game's generator as the menus left it; `None` when fixed.
+    pub fn state(&self) -> Option<u64> {
+        match self {
+            MenuRand::Game(r) => Some(r.0),
+            MenuRand::Fixed(_) => None,
+        }
     }
 }
 
@@ -305,8 +338,8 @@ pub struct MenuCtrl {
     pub gt_word: i32,
     /// What `WORLD_MAN::SimGenerateCode` last made of the gate's words.
     pub generated: crate::words::Generated,
-    /// `rand()`: newlib's, unless the runtime gives its own.
-    pub rng: Box<dyn FnMut() -> i32>,
+    /// `rand()`: the game's one generator, or a harness's numbers.
+    pub rng: MenuRand,
     /// +0x238 `itemNum`: the item (or drain skill) a sub-menu is about.
     pub item_num: i32,
     /// +0x23c `trapNum`: the item a full bag is offered (ReplaceItemMenu);
@@ -419,8 +452,8 @@ impl MenuCtrl {
             f.wv = 0;
             f.wi = 1;
         }
-        let mut rng: Box<dyn FnMut() -> i32> = Box::new(newlib_rand());
-        let noiz = Noiz::new(&mut *rng);
+        let mut rng = MenuRand::default();
+        let noiz = Noiz::new(&mut || rng.rand());
         MenuCtrl {
             boot: Boot::WaitParty,
             panel_bure: [0; 3],

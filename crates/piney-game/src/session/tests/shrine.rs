@@ -1165,6 +1165,20 @@ struct ObjRun {
     count: (i16, i16),
     /// The item GetItemMenu (29) gave.
     item: Option<i32>,
+    /// The area's `rand()` state on the frame the object's menu opened.
+    rand_at_open: Option<u64>,
+}
+
+/// The menu's `rand()` in [`open_an_object`].
+#[derive(Clone, Copy, Debug)]
+enum ObjRand {
+    /// Fixed at 0: the item comes.
+    Zero,
+    /// The game's: the area's generator set to this as the menu opens.
+    SetAtOpen(u64),
+    /// The game's as play leaves it, Kite standing this many frames by
+    /// the breakable before he pushes X.
+    Waited(u32),
 }
 
 /// Another object on a breakable's place: its base type, `skillID`
@@ -1181,9 +1195,9 @@ struct AsObject {
 /// its objects' pass): Kite goes up to the nearest and pushes X, which
 /// opens ItemObjMenu (34: its base type 0x10000, `openReqNum` 0x1022; or,
 /// the breakable made into `as_obj`, that type's menu) with the menu's
-/// `rand()` 0 (the item comes); then until the menus are closed. `each`
+/// `rand()` as `rand` has it; then until the menus are closed. `each`
 /// sees every frame drawn.
-fn open_an_object(as_obj: Option<AsObject>, mut each: impl FnMut(&Session, &Frame)) -> Option<ObjRun> {
+fn open_an_object(as_obj: Option<AsObject>, rand: ObjRand, mut each: impl FnMut(&Session, &Frame)) -> Option<ObjRun> {
     let mut s = in_area_26((0, 0))?;
     walk_to(&mut s, (0, 6), 3000, |_, _, _| {});
     // Kite comes into the story start with no HP (a ghost: dead 4), who
@@ -1207,11 +1221,14 @@ fn open_an_object(as_obj: Option<AsObject>, mut each: impl FnMut(&Session, &Fram
     let mut opened = false;
     // Frames under the object's menu: its window is left up a while.
     let mut under = 0u32;
+    // Frames Kite has stood by the breakable.
+    let mut by = 0u32;
     for f in 0..6000u64 {
         let raw = {
             let Stage::Area(a) = &mut s.stage else { break };
-            // The menu's draw: the item path.
-            a.ui_mut().ctrl.rng = Box::new(|| 0);
+            if let ObjRand::Zero = rand {
+                a.ui_mut().ctrl.rng = piney_fieldui::ctrl::MenuRand::Fixed(Box::new(|| 0));
+            }
             // The nearest breakable of the room.
             let near = {
                 let c = a.world().combat();
@@ -1244,6 +1261,12 @@ fn open_an_object(as_obj: Option<AsObject>, mut each: impl FnMut(&Session, &Fram
                 "menu_ban false" => Some(false),
                 _ => None,
             });
+            if (34..=39).contains(&a.ui().menu_type()) && run.rand_at_open.is_none() {
+                run.rand_at_open = Some(a.world().state_out().rand);
+                if let ObjRand::SetAtOpen(r) = rand {
+                    a.world_mut().set_rand(r);
+                }
+            }
             let w = a.world();
             let c = w.combat();
             let ui = a.ui();
@@ -1273,7 +1296,15 @@ fn open_an_object(as_obj: Option<AsObject>, mut each: impl FnMut(&Session, &Fram
                             let cam_z = f32::from_bits(w.camera().rot()[2]);
                             stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])))
                         }
-                        Some(_) if f.is_multiple_of(8) => Raw { buttons: Buttons::CROSS, ..still },
+                        Some(_) => {
+                            by += 1;
+                            let wait = if let ObjRand::Waited(n) = rand { n } else { 0 };
+                            if by > wait && f.is_multiple_of(8) {
+                                Raw { buttons: Buttons::CROSS, ..still }
+                            } else {
+                                still
+                            }
+                        }
                         _ => still,
                     }
                 }
@@ -1295,7 +1326,7 @@ fn open_an_object(as_obj: Option<AsObject>, mut each: impl FnMut(&Session, &Fram
 /// item comes through GetItemMenu (29) before the menus close.
 #[test]
 fn a_breakable_opens_item_obj_menu() {
-    let Some(run) = open_an_object(None, |_, _| {}) else { return };
+    let Some(run) = open_an_object(None, ObjRand::Zero, |_, _| {}) else { return };
     eprintln!("menus {:?} count {:?} item {:?}", run.menus, run.count, run.item);
     assert!(run.menus.contains(&34), "ItemObjMenu opened: {:?}", run.menus);
     assert!(run.broke, "Kite broke it (act 25)");
@@ -1318,7 +1349,7 @@ fn the_object_menus_open_by_type() {
         (AsObject { ty: 0x8_0000, skill: 0, item: -1 }, 37),
         (AsObject { ty: 0x20_0000, skill: 0, item: -1 }, 39),
     ] {
-        let Some(run) = open_an_object(Some(o), |_, _| {}) else { return };
+        let Some(run) = open_an_object(Some(o), ObjRand::Zero, |_, _| {}) else { return };
         eprintln!("{o:?}: menus {:?} count {:?} item {:?}", run.menus, run.count, run.item);
         assert!(run.menus.contains(&menu), "menu {menu} opened: {:?}", run.menus);
         assert_eq!(run.menus.last(), Some(&-1), "the menus closed: {:?}", run.menus);
@@ -1510,7 +1541,7 @@ fn object_menu_shots() {
         ("time_idol", Some(AsObject { ty: 0x20_0000, skill: 0, item: -1 })),
     ] {
         let (mut open, mut since, mut taken) = (-1, 0u32, Vec::new());
-        let run = open_an_object(o, |s, frame| {
+        let run = open_an_object(o, ObjRand::Zero, |s, frame| {
             let Stage::Area(a) = &s.stage else { return };
             let t = a.ui().menu_type();
             if t != open {
@@ -1740,4 +1771,49 @@ fn a_lake_symbol_glows_and_puffs() {
     let (act, _, lit) = seen.expect("never in the symbol's room with it running");
     assert_eq!(act, 0);
     assert!(lit, "its light is not in the group");
+}
+
+/// newlib's first `rand()` from state `s`.
+fn first_rand(s: u64) -> i32 {
+    use piney_battle::rand::Rng as _;
+    piney_battle::rand::Rand(s).rand()
+}
+
+/// Issue #52: ItemObjMenu's `rand() % 3` (gcmn 0x00547144) is the game's
+/// one `rand()`, the area's. Its generator set to `s` as the menu opens,
+/// nothing else draws before the menu's draw: the item comes exactly when
+/// the first draw from `s` is 0 mod 3. With the menu's own stream, as
+/// before, every `s` gave the same.
+#[test]
+fn a_breakables_drop_draws_on_the_areas_rand() {
+    for seed in [110u64, 1, 113, 2, 120] {
+        let Some(run) = open_an_object(None, ObjRand::SetAtOpen(seed), |_, _| {}) else { return };
+        eprintln!("rand {seed}: menus {:?} item {:?}", run.menus, run.item);
+        assert!(run.menus.contains(&34), "ItemObjMenu opened: {:?}", run.menus);
+        assert_eq!(run.count.1, run.count.0 + 1, "breakCount up by one");
+        let comes = first_rand(seed) % 3 == 0;
+        assert_eq!(run.menus.contains(&29), comes, "rand {seed}: the item comes: {:?}", run.menus);
+        assert_eq!(run.item.is_some_and(|i| i >= 0), comes, "rand {seed}: {:?}", run.item);
+    }
+}
+
+/// Issue #52 as played: Kite stands by the breakable before he breaks
+/// it. Standing still, his idle count (`ccPlayer::AnimCtrl`, gcmn
+/// 0x00599e14) draws `rand() % 60` once past 450 frames, so the
+/// area's generator, and the drop with it, moves on with the time
+/// waited, as in the game. The menu's own stream gave one drop for all.
+#[test]
+fn a_breakables_drop_moves_on_with_the_time_waited() {
+    let mut runs = Vec::new();
+    for wait in [0u32, 451, 600] {
+        let Some(run) = open_an_object(None, ObjRand::Waited(wait), |_, _| {}) else { return };
+        eprintln!("wait {wait}: rand {:?} menus {:?} item {:?}", run.rand_at_open, run.menus, run.item);
+        assert!(run.menus.contains(&34), "ItemObjMenu opened: {:?}", run.menus);
+        let r = run.rand_at_open.expect("the menu opened");
+        let comes = first_rand(r) % 3 == 0;
+        assert_eq!(run.menus.contains(&29), comes, "wait {wait}: the item comes: {:?}", run.menus);
+        runs.push((r, run.menus.contains(&29), run.item));
+    }
+    assert_ne!(runs[0].0, runs[2].0, "the area's rand() moved on with the wait: {runs:?}");
+    assert!(runs.iter().any(|r| r.1 != runs[0].1 || r.2 != runs[0].2), "one drop for every wait: {runs:?}");
 }

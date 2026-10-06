@@ -586,7 +586,7 @@ pub fn reset_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -607,7 +607,7 @@ mod tests {
 
     /// The field UI over Infection's disc, Kite alone; `None` when the disc
     /// image is not extracted (PINEY_ISO points elsewhere).
-    fn field_ui() -> Option<(FieldUi, World, piney_desktop::SaveState)> {
+    pub(crate) fn field_ui() -> Option<(FieldUi, World, piney_desktop::SaveState)> {
         let path = std::env::var_os("PINEY_ISO").map(std::path::PathBuf::from).unwrap_or_else(|| {
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso")
         });

@@ -40,6 +40,30 @@ or closing). A handler that closes a menu (`CloseMenu`, or its inlined
 copies) calls `Disp` and `ccBreathThread(1)` itself; the rest of it runs at
 the start of the next frame, before anything else in the task.
 
+### The menus' `rand()`
+
+The menus have no generator of their own. Every draw is the game's one
+`rand()` (newlib, main 0x00133a38; [battle](battle.md#rng)), which the
+party AI, Kite's idle count, the effects and the streams move on too, and
+nothing in play reseeds (`srand`'s one caller is the staff roll). So:
+
+- **The task's start.** Each `ccSetupGameCtrl` (each town, field and
+  dungeon room) starts a new `ccThMenu`. Its `new ccMenuCtrl` makes the
+  `ccNoiz` (main 0x001bb080). Each of its eight bands draws one `rand()`
+  per row (`ccRasterNoize::SetNoize`, main 0x00106320).
+- **The menus.** `ItemObjMenu` (0x00547144), `AreaItem` (0x00544df4),
+  `ItemBoxMenu` (0x005465e8), `PcMenu` (0x005420bc, 0x0054218c),
+  `ImportantItemMenu` (0x00530270), `DataDrainMenu`, `Disp`'s noise and
+  the gate's menus each draw where they run.
+
+So what a breakable or a box gives depends on everything drawn before it
+since power-on: how long Kite stood, the party's lines, the rooms entered.
+The port's `MenuRand::Game` is that generator: `FieldUi` loads it from
+`SaveState::rand` before the task's frame and stores it back after.
+The world modes hand over their live state (`with_live_state`), and on
+each scene's first task frame `FieldUi::menu_task_started` draws the
+noise's bands (issue #52, worklog 383). `MenuRand::Fixed` is a harness's.
+
 ### `ccMenuCtrl` (0x240 bytes), the fields the menus use
 
 | offset | member | use |
@@ -984,6 +1008,13 @@ The breakables (34, 35) are broken by Kite first: 4 frames after the fix
 `ccPlayer::BreakSomething(0)` (act 25, held), 12 frames on
 `AttackCancel`, then the open and the drop; 34 sleeps the others 17
 frames later (only on the item's path), 35 27.
+
+ItemObjMenu's two draws come 17 frames apart: `rand() % 3` on the frame
+the target opens, then AreaItem's `rand() % 5`, added to the list's index
+(the area's offset + floor + 1). Both are [the menus'
+`rand()`](#the-menus-rand), the field's one generator, never reseeded
+for a room or an area. `tools/test_fieldui_rs.py` traces each draw in its
+frame (`randlog`) for 32, 33, 34 and 35 against the game's code.
 
 ```text
 ItemObjMenu (0x00546fd0)  itemNum = +0x14c; breakCount (+0x7442) up;
@@ -2392,7 +2423,8 @@ with the dog's voice group (`inu0VoiceTbl`-`inu3VoiceTbl`, groups -13 to
 `tools/test_fieldui_talk_rs.py`'s `DogPages` compare it with the game:
 the greeting and cancel, Talk with each `talkNum`, the target lost under
 the list and no target. The game draws `talkNum` from `ccRand` (the
-town's Mersenne Twister); the port's menu has `rand()` only, so the
+town's Mersenne Twister), which the port's menu does not hold: it draws
+newlib's sequence from 1 in its place (`TalkState::cc_rand`), and the
 harness gives both the same values.
 
 ### The Grunties (`OtonainuMenu`, 45; `InuMenu`, 46)
@@ -2552,8 +2584,11 @@ seam below), and the unported menus. The event engine's field host
   where `ccSaveSys` was left (the game has one `saveSys`, so the title's
   load and the desktop's Data screen leave its port and file). The
   `ccThSaveSys` task runs inside `FieldUi::step` before the menu's frame.
-- `FieldUi::set_rand(f)`: `rand()` (PcMenu's lines), the game's one
-  generator; unset, the menu keeps its own newlib copy.
+- `FieldUi::step(.., save, ..)`: the menus' `rand()` is `save.rand`, the
+  game's one generator, loaded before the frame and stored after
+  ([the menus' `rand()`](#the-menus-rand)); `FieldUi::menu_task_started`
+  for each scene's new task. `FieldUi::set_cc_rand(f)` gives NorainuMenu's
+  `ccRand` a harness's numbers.
 - `menus::talk::set_spc_base_msg(save, image)`: where `ccSetupNewGame`
   calls `ccSaveData::SetSpcBaseMsg`, the members' lines in their records.
 - `World::grunty`: the Grunty (`ccPGuso`) that is `cmndTargetPrev` on Give
@@ -2884,9 +2919,6 @@ game's pictures.
 - `SetMerchantCamera` and `changeCamera` are requests
   (`TalkReq::MerchantCamera`, `TalkReq::Camera`); the camera they set is the
   world's to build (the formula above).
-- The talk menus' `rand()` is the game's shared generator; the port's own
-  copy follows a different sequence unless the runtime hands its generator
-  in.
 - `ccMcard`'s calls complete at once in the port (see
   [the desktop](desktop.md)): the "Saving" frames the game shows while the
   card works do not happen.

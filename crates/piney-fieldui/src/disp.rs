@@ -317,11 +317,11 @@ pub fn noiz(m: &mut MenuCtrl, x: &mut Ctx, n: Noise) {
     });
     match n {
         Noise::Set(a, b, c) => {
-            if m.noiz.set_noiz(a, b, c, &mut *m.rng) {
+            if m.noiz.set_noiz(a, b, c, &mut || m.rng.rand()) {
                 x.se(piney_desktop::noiz::NOIZ_SE);
             }
         }
-        Noise::Rn(v) => m.noiz.set_rn(v, &mut *m.rng),
+        Noise::Rn(v) => m.noiz.set_rn(v, &mut || m.rng.rand()),
         Noise::Bs(v) => m.noiz.set_bs(v),
         Noise::Br(v) => m.noiz.set_br(v),
     }
@@ -349,22 +349,22 @@ fn inter_noiz(m: &mut MenuCtrl, x: &mut Ctx) {
     if x.texts.volume == Volume::Inf {
         if level == 3 && g.area == 0 && g.town == 4 {
             if count & 0xf == 0 {
-                let a = (m.rng)() % 10 + 4;
-                let c = (m.rng)() % 10 + 4;
+                let a = m.rng.rand() % 10 + 4;
+                let c = m.rng.rand() % 10 + 4;
                 noiz(m, x, Noise::Set(a, 255, c));
             }
             return;
         }
     } else {
         let random = |m: &mut MenuCtrl| {
-            let a = (m.rng)() % 10 + 10;
-            let b = (m.rng)() % 10 + 15;
-            let c = (m.rng)() % 10 + 4;
+            let a = m.rng.rand() % 10 + 10;
+            let b = m.rng.rand() % 10 + 15;
+            let c = m.rng.rand() % 10 + 4;
             Noise::Set(a, b, c)
         };
         match level {
             3 => {
-                if count & 0x3f == 0 && (count & 0x7f == 0 || (m.rng)() & 1 != 0) {
+                if count & 0x3f == 0 && (count & 0x7f == 0 || m.rng.rand() & 1 != 0) {
                     let n = random(m);
                     noiz(m, x, n);
                 }
@@ -378,7 +378,8 @@ fn inter_noiz(m: &mut MenuCtrl, x: &mut Ctx) {
             }
             5 => {
                 if count & 0x1f == 0 {
-                    let n = if count & 0x5f == 0 || (m.rng)() & 3 == 0 { random(m) } else { Noise::Set(255, 255, 255) };
+                    let n =
+                        if count & 0x5f == 0 || m.rng.rand() & 3 == 0 { random(m) } else { Noise::Set(255, 255, 255) };
                     noiz(m, x, n);
                     x.req.push(Request::CameraShake { power: 2, cycle: 1, time: 30, dirc: 2 });
                 }
@@ -392,8 +393,8 @@ fn inter_noiz(m: &mut MenuCtrl, x: &mut Ctx) {
     }
     let free = m.menu_status == 0 && m.check_menu_type() == -1 && m.forbid == 0 && x.world.event_status == 0;
     if x.world.pg_ride || free {
-        if x.count & 0x3f == 0 && (m.rng)() & 3 == 0 {
-            let n = (m.rng)() % 9 + 4;
+        if x.count & 0x3f == 0 && m.rng.rand() & 3 == 0 {
+            let n = m.rng.rand() % 9 + 4;
             noiz(m, x, Noise::Set(n, n, n));
         }
     } else if m.menu != 66 && m.menu != 62 {

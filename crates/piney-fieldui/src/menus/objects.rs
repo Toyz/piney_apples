@@ -140,7 +140,7 @@ pub fn item_obj_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     if m.proccess < 4 {
         if break_open(m, x, false) {
             count_up(x, BREAK_COUNT);
-            if (m.rng)() % 3 == 0 {
+            if m.rng.rand() % 3 == 0 {
                 m.wait_count = 0;
                 m.proccess += 1;
             } else {

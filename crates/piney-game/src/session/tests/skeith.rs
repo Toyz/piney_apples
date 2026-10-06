@@ -796,7 +796,7 @@ fn drain_with_side(side: Side, mut each: impl FnMut(&mut Session, i16, i16, &FxC
             let menu = a.ui().ctrl.menu;
             if menu == 66 && !in_drain {
                 in_drain = true;
-                a.ui_mut().ctrl.rng = Box::new(|| 0);
+                a.ui_mut().ctrl.rng = piney_fieldui::ctrl::MenuRand::Fixed(Box::new(|| 0));
             }
             if in_drain && menu != 66 {
                 break;

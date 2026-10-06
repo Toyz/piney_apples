@@ -234,6 +234,7 @@ class Scenario:
         self.extra = []           # probe lines a scenario of another test file adds
         self.area_words = None    # the area's keywords, SimGenerateCode'd into WORLD_MAN
         self.rng = 0              # rand()'s value (the menu's too)
+        self.randlog = False      # each rand() an event in its frame
         self.online = []          # g_entCtrl's NPC list: each entry's entParam.id (an npcTbl row)
         self.modes = {}           # frame -> ccMenu.mode set before it (ccThGameCtrl's)
         self.game_cnt = None      # ccGame.gameCnt[3] (+0x64)
@@ -341,6 +342,8 @@ class Scenario:
             out.append("areawords %d %d %d" % self.area_words)
         if self.rng:
             out.append(f"rng {self.rng}")
+        if self.randlog:
+            out.append("randlog")
         for nid in self.online:
             out.append(f"online {nid}")
         for f, v in sorted(self.modes.items()):
@@ -729,7 +732,11 @@ class Game:
             return 0
         hook("SendPacket__8ccScFadeFv", fade_send)
         hook("GetFrameRate__8ccSystemFv", lambda mm, *a: 2)
-        hook("rand", lambda mm, *a: self.sc.rng)
+        def rand(mm, *a):
+            if self.sc.randlog:
+                self.ev("rand")
+            return self.sc.rng
+        hook("rand", rand)
         hook("Breath__6ccTscbFi", lambda mm, tscb, n, *a: self.breath(n))
         hook("ccBreathThread__Fi", lambda mm, n, *a: self.breath(n))
         hook("ccSeOn__Fi", lambda mm, n, *a: self.ev("se", n) or 0)
@@ -2399,6 +2406,7 @@ class FieldUiAgainstGame(unittest.TestCase):
             self.box(sc, -1, menu=0x1020)
             sc.target.trap = (trap, 0)
             sc.area_item = (2, 0, 3, 1, 0, 0)
+            sc.randlog = True
             for f in range(20, 140, 9):
                 sc.pads[f] = (OK, 0)
             self.compare(sc, f"item box draw {trap}")
@@ -2411,6 +2419,7 @@ class FieldUiAgainstGame(unittest.TestCase):
             self.box(sc, item, menu=0x1021)
             sc.target.trap = (0, skill)
             sc.area_item = (2, 0, 3, 1, 0, 0)
+            sc.randlog = True
             for f in range(20, 180, 9):
                 sc.pads[f] = (OK, 0)
             self.compare(sc, f"trap box {skill}")
@@ -2448,6 +2457,9 @@ class FieldUiAgainstGame(unittest.TestCase):
             sc = Scenario(160)
             self.obj(sc, 0x10000, b"Wooden Box", 34, item=item, trap=(-1, 0))
             sc.rng = rng
+            # Each rand() in its frame: the menu draws from the game's one
+            # generator, so its draws are the field's too (#52).
+            sc.randlog = True
             sc.watch.append((0x7442, 2))
             for f in range(60, 160, 9):
                 sc.pads[f] = (OK, 0)
@@ -2459,6 +2471,7 @@ class FieldUiAgainstGame(unittest.TestCase):
         for skill in (1, 156, 162, -1, 7):
             sc = Scenario(200)
             self.obj(sc, 0x20000, b"Barrel", 35, item=-1, trap=(0, skill))
+            sc.randlog = True
             sc.watch.append((0x7442, 2))
             for f in range(20, 200, 9):
                 sc.pads[f] = (OK, 0)

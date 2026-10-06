@@ -568,7 +568,9 @@ impl WorldMode {
                 }
             }
         }
-        self.ui.step_into(pad, &w, self.world.state_mut(), self.count, ctx);
+        // The menus draw from the game's one rand(), as the world left it.
+        let (ui, count) = (&mut self.ui, self.count);
+        self.world.with_live_state(|s| ui.step_into(pad, &w, s, count, ctx));
         // The menu task stops in ccUseItemRequest (a book, a key item):
         // the use's rules on the town's party, and its steps back to the
         // task, which goes on this frame.
@@ -587,7 +589,8 @@ impl WorldMode {
             }
             let Some((target, code, arg)) = asked else { break };
             let steps = self.world.use_item(unhandle(target), code, arg);
-            self.ui.answer_item(steps, pad, self.world.state_mut(), self.count, Some(ctx));
+            let (ui, count) = (&mut self.ui, self.count);
+            self.world.with_live_state(|s| ui.answer_item(steps, pad, s, count, Some(ctx)));
         }
         // ccThGameCtrl's states 1-5 end when CheckMenuType() is -1.
         if self.world.targeting().in_menu && self.ui.menu_type() == -1 {
@@ -1094,6 +1097,10 @@ impl Mode for WorldMode {
         // for another area (the gate's SetGenerateCode, ChangeArea) sleeps
         // in ChangeRequest: it does not run through the leave's fade, where
         // the gate counted the area once a frame (#22).
+        if self.world.phase() == Phase::Play(1) {
+            let ui = &mut self.ui;
+            self.world.with_live_state(|s| ui.menu_task_started(s));
+        }
         if let Phase::Play(f) = self.world.phase()
             && f >= 1
             && self.setup != Setup::Left

@@ -503,7 +503,7 @@ pub fn area_item(m: &mut MenuCtrl, x: &Ctx, n: i32, kind: i32) -> i32 {
         (w.area_word.0 - 1) * 25 + 10 + w.area_word.1
     };
     k += w.game.floor + 1;
-    k += (m.rng)() % 5;
+    k += m.rng.rand() % 5;
     if k >= 130 {
         k = 129;
     }
@@ -635,7 +635,7 @@ pub fn item_box_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         }
         2 => {
             let n = m.item_num;
-            let kind = if m.trap_num >= 0 || (m.rng)() & 7 == 0 { 1 } else { 0 };
+            let kind = if m.trap_num >= 0 || m.rng.rand() & 7 == 0 { 1 } else { 0 };
             m.item_num = area_item(m, x, n, kind);
             count_box(x, ITEM_BOX_COUNT);
             x.req.push(Request::SpcMessageOpenTreasureBox);

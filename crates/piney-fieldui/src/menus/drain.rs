@@ -128,7 +128,7 @@ fn half_erosion(x: &Ctx) -> i32 {
 /// Step 1's roll (also run at the end of step 0).
 fn roll(m: &mut MenuCtrl, x: &mut Ctx) {
     let half = half_erosion(x);
-    let r = (m.rng)() % 100;
+    let r = m.rng.rand() % 100;
     if half < r {
         m.proccess += 1;
     } else {
@@ -153,7 +153,7 @@ pub fn data_drain_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             let wc = m.wait_count;
             if wc < 46 {
                 if wc % 8 == 0 {
-                    let r = (m.rng)() % 4 + 3;
+                    let r = m.rng.rand() % 4 + 3;
                     noise(m, x, Noise::Rn(r));
                     noise(m, x, Noise::Bs(r));
                 } else {
@@ -192,7 +192,7 @@ pub fn data_drain_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                     x.req.push(Request::DrainLevelDown);
                 }
             } else if wc == 10 || wc == 18 || wc == 45 {
-                let r = (m.rng)() % 5 + 5;
+                let r = m.rng.rand() % 5 + 5;
                 noise(m, x, Noise::Set(r, r, r));
             }
             Flow::Done
@@ -215,7 +215,7 @@ pub fn data_drain_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
 /// Step 0's fade: noise, the count, `Disp; Breath`.
 fn fade_body(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     if m.wait_count % 6 == 0 {
-        let r = (m.rng)() % 3 + 3;
+        let r = m.rng.rand() % 3 + 3;
         noise(m, x, Noise::Rn(r));
         noise(m, x, Noise::Bs(r));
     }

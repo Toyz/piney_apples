@@ -521,15 +521,17 @@ fn search_bt_meets_its_npc_at_six_gates() {
 }
 
 /// GOB3-1 (250) in field 78: block 5's three golden goblins (row 135,
-/// volume 3) run from Kite and heal each other (La Repth, 150), and a blow
-/// makes one flinch and run. The pilot (`Want::Clear`) plays them as a
-/// player would: a Speed Charm, plain blows, the goblin casting its heal
-/// first, else one that stands, rushed. All three fall by frame 13,600 and
-/// block 8's `no_active` ends the event.
+/// volume 3) run from Kite and heal each other (La Repth, 150). The pilot
+/// (`Want::Clear`) plays them as a player would: a Speed Charm, plain
+/// blows, the goblin casting its heal first, else the nearest that stands,
+/// rushed. The fight rides on the game's `rand()`: all three fell by frame
+/// 13,600 before the menus drew from it, by 17,000 after (worklog 383).
+/// Block 8's `no_active` ends the event.
 #[test]
 fn gob3_1_golden_goblin_is_run_down() {
     let Some(iso) = outbreak() else { return };
-    let seen = play("outbreak", &iso, out_case(250), 18_000, true).unwrap();
+    let seen = play("outbreak", &iso, out_case(250), 24_000, true).unwrap();
+    eprintln!("ended at {:?}", seen.ended);
     assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
     assert!(seen.flags & (1 << 8) != 0);
 }

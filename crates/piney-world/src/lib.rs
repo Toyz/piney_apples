@@ -969,6 +969,16 @@ impl World {
         &mut self.save
     }
 
+    /// The save with `rand` the game's generator as the town's tasks left
+    /// it, for a task beside them that draws from it too (the menus); what
+    /// `f` drew stays drawn.
+    pub fn with_live_state<R>(&mut self, f: impl FnOnce(&mut SaveState) -> R) -> R {
+        self.save.rand = self.rand.0;
+        let r = f(&mut self.save);
+        self.rand.0 = self.save.rand;
+        r
+    }
+
     /// `ccSleepAllThread` / `ccWakeupAllThread` as the field's menus call
     /// them: asleep, no task steps (the command target, camera, player,
     /// party, entries and gate stand still) and the frame draws everyone

@@ -15,7 +15,7 @@ use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_desktop::SaveState;
 use piney_desktop::message::MsgDraw;
-use piney_fieldui::ctrl::Draw;
+use piney_fieldui::ctrl::{Draw, MenuRand};
 use piney_fieldui::spr::Packet;
 use piney_fieldui::{CharInfo, FieldUi, Request, World};
 use piney_input::{Buttons, Pad};
@@ -130,8 +130,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut exdefs_of: Vec<(u32, i16, i16)> = Vec::new();
     let mut area_code_set: [i16; 3] = [-1; 3];
     world.area_codes = [(-1, -1); 16];
-    // The harness's rand() returns 0.
-    ui.ctrl.rng = Box::new(|| 0);
+    // The harness's rand() returns 0; `randlog` traces each draw.
+    let draws = std::rc::Rc::new(std::cell::Cell::new(0u32));
+    let counted = |mut f: Box<dyn FnMut() -> i32>| -> Box<dyn FnMut() -> i32> {
+        let draws = draws.clone();
+        Box::new(move || {
+            draws.set(draws.get() + 1);
+            f()
+        })
+    };
+    let mut randlog = false;
+    ui.ctrl.rng = MenuRand::Fixed(counted(Box::new(|| 0)));
     let mut chains: [Vec<u32>; 3] = Default::default();
     let mut places: Vec<(u32, f32, bool, [f32; 3])> = Vec::new();
     let mut tk = false;
@@ -298,10 +307,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 use piney_fieldui::talk::{Speaker, TalkTarget};
                 ui.talk_to(Some(TalkTarget { handle: h, who: Speaker::Npc(row) }));
             }
+            // rand V..: the game's rand() and ccRand() both give these in
+            // turn (the harness hooks ccRand to rand), then 0.
             "rand" => {
                 let mut v: Vec<i32> = w[1..].iter().map(|x| x.parse().unwrap_or(0)).collect();
                 v.reverse();
-                ui.set_rand(Box::new(move || v.pop().unwrap_or(0)));
+                let v = Arc::new(std::sync::Mutex::new(v));
+                let pop = |v: Arc<std::sync::Mutex<Vec<i32>>>| move || v.lock().map_or(0, |mut v| v.pop().unwrap_or(0));
+                ui.ctrl.rng = MenuRand::Fixed(counted(Box::new(pop(v.clone()))));
+                ui.set_cc_rand(Box::new(pop(v)));
             }
             "tk" => tk = true,
             "card" => {
@@ -347,8 +361,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // rng V: the menu's own rand() (ccMenuCtrl's, the Grunty Flute's) always V.
             "rng" => {
                 let v = n(1) as i32;
-                ui.ctrl.rng = Box::new(move || v);
+                ui.ctrl.rng = MenuRand::Fixed(counted(Box::new(move || v)));
             }
+            // randlog: each menu rand() a ["rand"] event in its frame.
+            "randlog" => randlog = true,
             "wiped" => world.party_annihilated = n(1) != 0,
             // movie K: Data Drain's stream ends K frames after it starts.
             "movie" => movie_len = n(1) as usize,
@@ -588,6 +604,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ui.ctrl.pl_attack = v;
                     }
                     let mut ev = Vec::new();
+                    draws.set(0);
                     if let Some((emode, name, l)) = msgs.get(&fr) {
                         ui.ctrl.msg.change(
                             *emode,
@@ -1006,6 +1023,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         st.push(world.grunty.map_or(0, |g| g.growth).to_string());
                         let g = world.grunty.unwrap_or_default();
                         st.extend([g.msg.to_string(), g.food_mode.to_string(), g.chat_flag.to_string()]);
+                    }
+                    if randlog {
+                        ev.extend((0..draws.replace(0)).map(|_| "[\"rand\"]".to_string()));
                     }
                     let ms: Vec<String> = ms.iter().map(|v| v.to_string()).collect();
                     println!(

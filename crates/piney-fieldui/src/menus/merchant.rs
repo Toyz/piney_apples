@@ -193,7 +193,7 @@ pub fn pc_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                         m.talk.talk_trade_flag = 0;
                         x.texts.talk.word(base.msg)
                     } else if (30..66).contains(&id) {
-                        m.talk.talk_num = (m.talk.rand() % 3) as i16;
+                        m.talk.talk_num = (m.rng.rand() % 3) as i16;
                         m.talk.talk_loop_cnt = 0;
                         m.lists[i].y = 2;
                         x.texts.talk.word(base.msg)
@@ -245,7 +245,7 @@ pub fn pc_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
 /// (`tpcTradeListSW[id - 66]`); -1 when none is.
 fn trading_line(m: &mut MenuCtrl, x: &mut Ctx, base: &Base, first: bool) {
     let id = i32::from(base.id);
-    let mut s = if first { m.talk.rand() % 3 } else { i32::from(m.talk.talk_num).clamp(0, 2) };
+    let mut s = if first { m.rng.rand() % 3 } else { i32::from(m.talk.talk_num).clamp(0, 2) };
     m.talk.talk_num = -1;
     for _ in 0..3 {
         let at = (TPC_TRADE_LIST_SW as i32 + (id - 66) * 3 + s) as usize;

@@ -235,9 +235,10 @@ pub struct TalkState {
     pub chain: Option<Chain>,
     /// `saveSys` and the memory cards (the Recorder's Save).
     pub record: menus::record::State,
-    /// `rand()` (newlib, main 0x00133a38): the runtime's source, else this
-    /// menu's own copy of the generator.
-    rand: Option<Box<dyn FnMut() -> i32 + Send>>,
+    /// `ccRand()` (NorainuMenu's `talkNum`): the town's Mersenne Twister is
+    /// not the menu's, so a harness's numbers, else newlib's sequence from 1
+    /// in its place. The menus' `rand()` is [`crate::ctrl::MenuRand`].
+    cc_rand: Option<Box<dyn FnMut() -> i32 + Send>>,
     seed: u64,
 }
 
@@ -252,26 +253,25 @@ impl Default for TalkState {
             target: None,
             chain: None,
             record: Default::default(),
-            rand: None,
+            cc_rand: None,
             seed: 1,
         }
     }
 }
 
 impl TalkState {
-    /// `rand()`.
-    pub fn rand(&mut self) -> i32 {
-        if let Some(f) = self.rand.as_mut() {
+    /// `ccRand()`, as [`TalkState::cc_rand`] holds it.
+    pub fn cc_rand(&mut self) -> i32 {
+        if let Some(f) = self.cc_rand.as_mut() {
             return f();
         }
         self.seed = self.seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
         ((self.seed >> 32) & 0x7fff_ffff) as i32
     }
 
-    /// Where `rand()` comes from: the game's one generator is shared by
-    /// every task, so the runtime hands its own in.
-    pub fn set_rand(&mut self, f: Box<dyn FnMut() -> i32 + Send>) {
-        self.rand = Some(f);
+    /// A harness's numbers for `ccRand()`.
+    pub fn set_cc_rand(&mut self, f: Box<dyn FnMut() -> i32 + Send>) {
+        self.cc_rand = Some(f);
     }
 }
 
@@ -558,13 +558,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn newlib_rand() {
-        // seed 1: the first values of newlib's rand().
+    fn cc_rand_stand_in() {
+        // seed 1: the first values of newlib's sequence.
         let mut s = TalkState::default();
-        let a = s.rand();
-        let b = s.rand();
+        let a = s.cc_rand();
+        let b = s.cc_rand();
         assert!(a >= 0 && b >= 0 && a != b);
-        s.set_rand(Box::new(|| 7));
-        assert_eq!(s.rand(), 7);
+        s.set_cc_rand(Box::new(|| 7));
+        assert_eq!(s.cc_rand(), 7);
     }
 }
