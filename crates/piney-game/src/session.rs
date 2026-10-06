@@ -403,6 +403,12 @@ impl Session {
     /// the next set up.
     fn change_scene(&mut self) -> Result<(), String> {
         let stage = std::mem::replace(&mut self.stage, Stage::Gone);
+        // gcmn stays resident through mode 6: its menu lists go on.
+        let globals = match &stage {
+            Stage::World(w) => Some(w.ui().globals()),
+            Stage::Area(a) => Some(a.ui().globals()),
+            _ => None,
+        };
         let (mut state, vm) = match stage {
             Stage::World(mut w) => {
                 // ccSetupGameCtrl's ccStoreSpcCondition, for the next
@@ -470,6 +476,13 @@ impl Session {
             None => {}
         }
         self.stage = self.world_stage(state, vm, true)?;
+        if let Some(g) = globals {
+            match &mut self.stage {
+                Stage::World(w) => w.ui_mut().set_globals(g),
+                Stage::Area(a) => a.ui_mut().set_globals(g),
+                _ => {}
+            }
+        }
         Ok(())
     }
 

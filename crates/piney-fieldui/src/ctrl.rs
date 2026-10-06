@@ -244,6 +244,16 @@ impl Ctx<'_> {
     }
 }
 
+/// gcmn.prg's data the menus write: `menuList[89]` (0x0072efe0, each
+/// list's cursor, page and scroll) and `BookOfs` (0x005d3530). Not
+/// `ccMenuCtrl`'s: loaded with the overlay at the log-in (`ccSetupNewGame`),
+/// it lasts through every scene of The World, as no new menu does.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MenuGlobals {
+    pub lists: Vec<MenuList>,
+    pub book_ofs: Vec<i32>,
+}
+
 /// `ccMenuCtrl`.
 pub struct MenuCtrl {
     pub boot: Boot,
@@ -430,8 +440,15 @@ pub struct MenuCtrl {
 }
 
 impl MenuCtrl {
-    /// `ccMenuCtrl::ccMenuCtrl` (0x0051c140) and `InitMenuList`.
+    /// `ccMenuCtrl::ccMenuCtrl` (0x0051c140) and `InitMenuList`, its noise
+    /// drawn from a generator of its own.
     pub fn new(texts: &Texts) -> MenuCtrl {
+        MenuCtrl::with_rand(texts, MenuRand::default())
+    }
+
+    /// The constructor with `rng` as its `rand()`: the noise's bands draw
+    /// from it first ([`crate::FieldUi::menu_task_started`]).
+    pub fn with_rand(texts: &Texts, mut rng: MenuRand) -> MenuCtrl {
         let spr = |o, n| Spr::new(o, n);
         let mut con_icon = spr(Obj::ConIcon, 84);
         let mut item_icon = spr(Obj::ItemIcon, 40);
@@ -452,7 +469,6 @@ impl MenuCtrl {
             f.wv = 0;
             f.wi = 1;
         }
-        let mut rng = MenuRand::default();
         let noiz = Noiz::new(&mut || rng.rand());
         MenuCtrl {
             boot: Boot::WaitParty,
@@ -564,6 +580,31 @@ impl MenuCtrl {
     pub fn note(&mut self, s: impl FnOnce() -> String) {
         #[cfg(feature = "trace")]
         self.trace.push(s());
+    }
+
+    /// A scene's new `ccMenuCtrl` takes over what the game keeps outside
+    /// the object from the last one: gcmn's [`MenuGlobals`], `WORLD_MAN`'s
+    /// area, `ccSaveSys` and the cards, `ccRand`. Every member is the new
+    /// one's.
+    pub fn keep(&mut self, old: MenuCtrl) {
+        self.set_globals(MenuGlobals { lists: old.lists, book_ofs: old.book_ofs });
+        self.generated = old.generated;
+        self.talk.keep(old.talk);
+    }
+
+    /// gcmn's menu data as this menu left it.
+    pub fn globals(&self) -> MenuGlobals {
+        MenuGlobals { lists: self.lists.clone(), book_ofs: self.book_ofs.clone() }
+    }
+
+    /// The menu on gcmn's data `g`: `InitMenuList` (0x0051ced0) sets each
+    /// list's `disp`, `x` and `y` from `menuElementData` again and leaves
+    /// the rest (the cursor, page and scroll) as the last menu left them.
+    pub fn set_globals(&mut self, g: MenuGlobals) {
+        for (l, old) in self.lists.iter_mut().zip(g.lists) {
+            *l = MenuList { disp: l.disp, x: l.x, y: l.y, ..old };
+        }
+        self.book_ofs = g.book_ofs;
     }
 
     /// Both select cursors back (`InitCursol(1)` on each window).

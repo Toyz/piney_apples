@@ -332,8 +332,7 @@ impl AreaMode {
         self.drain_movie.is_some()
     }
 
-    /// The field UI, for tests.
-    #[allow(dead_code)]
+    /// The field UI.
     pub fn ui(&self) -> &FieldUi {
         &self.ui
     }
@@ -1536,15 +1535,17 @@ impl Mode for AreaMode {
         if self.world.take_pl_attack() {
             self.ui.ctrl.pl_attack = 1;
         }
-        // ccThMenu (34), before the world's other tasks: what it asks for
-        // is acted on, and heard, this frame (worklog 336). Each room's
-        // ccSetupGameCtrl makes the task, and its menu, anew.
-        if self.world.phase() == Phase::Play(1) {
-            let ui = &mut self.ui;
-            self.world.with_live_state(|s| ui.menu_task_started(s));
+        // Each room's ccSetupGameCtrl makes the menu task, and its menu,
+        // anew once the passes are made, before the step's GO and
+        // rebootSpcManager draw (worklog 384).
+        if self.world.tasks_start() {
+            let (ui, party) = (&mut self.ui, self.world.party());
+            self.world.with_live_state(|s| ui.menu_task_started(s, party));
         }
-        if let Phase::Play(f) = self.world.phase()
-            && f >= 1
+        // ccThMenu (34), before the world's other tasks: what it asks for
+        // is acted on, and heard, this frame (worklog 336). Its party check
+        // is F0's, with the tasks' set-up; its first Disp F1's (worklog 384).
+        if let Phase::Play(_) = self.world.phase()
             && self.setup != Setup::Left
         {
             self.menu_task(pad, &mut ctx);

@@ -1817,3 +1817,66 @@ fn a_breakables_drop_moves_on_with_the_time_waited() {
     assert_ne!(runs[0].0, runs[2].0, "the area's rand() moved on with the wait: {runs:?}");
     assert!(runs.iter().any(|r| r.1 != runs[0].1 || r.2 != runs[0].2), "one drop for every wait: {runs:?}");
 }
+
+/// Each room's `ccSetupGameCtrl` deletes the menu task (`ccMenu` NULL
+/// through the event passes) and makes a new `ccMenuCtrl` after them, its
+/// noise drawn before `rebootSpcManager` draws: what a pass wrote is gone.
+/// `menuList` is gcmn's, so each list's cursor stays. The party check is
+/// F0's, the first `Disp` F1's. The port drew the bands two frames into
+/// play on a menu the passes could write to, began each room's lists
+/// afresh and ran the menu a frame behind the world.
+#[test]
+fn a_rooms_menu_is_made_anew_after_its_passes() {
+    let Some(mut s) = in_area_26((0, 0)) else { return };
+    let mut rooms: Vec<(i32, i32)> = Vec::new();
+    // The live rand() at the end of the last frame, and each room's start.
+    let mut last = None;
+    let (mut starts, mut first_disp) = (Vec::new(), Vec::new());
+    let (mut pad, mut walker) = (Pad::default(), Walker::default());
+    for f in 0..6000 {
+        let Some(raw) = walker.step(&s, (0, 6), f) else { break };
+        walker.put(&mut s);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &mut s.stage else { continue };
+        // What a script's menu_ban or noise in a pass would write.
+        if let crate::world::Setup::Pass(_) = a.setup() {
+            let c = &mut a.ui_mut().ctrl;
+            (c.forbid, c.inter_noiz, c.panel_alpha, c.mail_cnt) = (1, 3, 128, 7);
+        }
+        // PERSONAL's cursor (menuList[2]) moved in each room's play.
+        let moved = rooms.len() as i16;
+        if a.world().phase() == piney_world::Phase::Play(30) {
+            a.ui_mut().ctrl.lists[2].select = moved;
+        }
+        let w = a.world();
+        let room = (w.scene().floor, w.scene().block);
+        if rooms.last() != Some(&room) {
+            rooms.push(room);
+        }
+        let c = &a.ui().ctrl;
+        if w.phase() == piney_world::Phase::Play(0)
+            && let Some(r) = last
+        {
+            let mut g = piney_battle::rand::Rand(r);
+            let noiz = piney_desktop::noiz::Noiz::new(&mut || piney_battle::rand::Rng::rand(&mut g));
+            let fields = (c.forbid, c.inter_noiz, c.panel_alpha, c.mail_cnt);
+            starts.push((room, c.noiz == noiz, fields, c.lists[2].select, moved - 1));
+        }
+        // F0 (frame B of the set-up) is the task's party check, F1 its
+        // first Disp: the panels 24 up from -48 as the world's tasks run.
+        if w.phase() == piney_world::Phase::Play(2) {
+            first_disp.push(c.panel_alpha);
+        }
+        last = Some(w.state_out().rand);
+    }
+    eprintln!("rooms {rooms:?} starts {starts:?} first Disp {first_disp:?}");
+    assert!(starts.len() >= 2, "a room changed: {rooms:?}");
+    assert!(first_disp.iter().all(|&a| a == -24), "the panels after F1: {first_disp:?}");
+    for (room, from_passes, fields, select, moved) in starts {
+        assert!(from_passes, "room {room:?}: the noise is drawn from where the passes left rand()");
+        assert_eq!(fields, (0, 0, -48, 240), "room {room:?}: the constructor's members");
+        assert_eq!(select, moved, "room {room:?}: the list's cursor as the last room left it");
+    }
+}

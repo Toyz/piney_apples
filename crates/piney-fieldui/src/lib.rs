@@ -35,7 +35,7 @@ use piney_desktop::setup::SetupScreen;
 use piney_draw::Frame;
 use piney_input::Pad;
 
-pub use ctrl::MenuCtrl;
+pub use ctrl::{MenuCtrl, MenuGlobals};
 pub use world::{CharInfo, Game, World};
 
 use crate::render::Textures;
@@ -395,17 +395,39 @@ impl FieldUi {
         render::draw(&self.draws, &self.textures, &self.fonts, &save.names(), &faces, ctx, self.hud_scale);
     }
 
-    /// `ccThMenu`'s first run after `ccSetupGameCtrl` (each town, field
-    /// and dungeon room): `new ccMenuCtrl` (gcmn 0x0051c140) makes its
-    /// `ccNoiz` (main 0x001bb080), whose bands draw their rows from the
-    /// game's `rand()` (`save.rand`, moved on).
-    pub fn menu_task_started(&mut self, save: &mut SaveState) {
-        let rng = &mut self.ctrl.rng;
+    /// `ccThMenu`'s first run in each scene's `ccSetupGameCtrl`, after the
+    /// event passes (`ccMenu` is NULL through them) and before
+    /// `WORLD_MAN::GO`: a whole new `ccMenuCtrl` (gcmn 0x0051c140). Its
+    /// `ccNoiz` (main 0x001bb080) draws its bands from the game's `rand()`
+    /// (`save.rand`, moved on); its faces are the party's member ids
+    /// (`ccCheckMenuFaceNameParty`). [`MenuCtrl::keep`] says what stays.
+    pub fn menu_task_started(&mut self, save: &mut SaveState, party: [i32; 3]) {
+        let mut rng = std::mem::take(&mut self.ctrl.rng);
         rng.load(save.rand);
-        self.ctrl.noiz = piney_desktop::noiz::Noiz::new(&mut || rng.rand());
+        let old = std::mem::replace(&mut self.ctrl, MenuCtrl::with_rand(&self.texts, rng));
+        self.ctrl.keep(old);
+        // The old task's frame went with it; the new one has drawn nothing.
+        self.draws.clear();
+        self.held = None;
         if let Some(r) = self.ctrl.rng.state() {
             save.rand = r;
         }
+        let plcol = save.save.u8(piney_data::save::offset::PLCOL) != 0;
+        for (slot, id) in party.into_iter().enumerate().filter(|&(_, id)| id >= 0) {
+            self.set_menu_face(slot, id, plcol);
+        }
+    }
+
+    /// gcmn's menu data as this scene leaves it, for the next
+    /// ([`MenuGlobals`]).
+    pub fn globals(&self) -> MenuGlobals {
+        self.ctrl.globals()
+    }
+
+    /// The last scene's gcmn data: a change of scene in The World keeps the
+    /// overlay, and with it every list's cursor.
+    pub fn set_globals(&mut self, g: MenuGlobals) {
+        self.ctrl.set_globals(g);
     }
 
     fn run(&mut self, pad: &Pad, world: &World, save: &mut SaveState, count: u32) {
@@ -866,14 +888,49 @@ mod tests {
         });
         assert!(n > 0, "the bands draw");
         save.rand = 0x1234_5678;
-        ui.menu_task_started(&mut save);
+        ui.menu_task_started(&mut save, [-1; 3]);
         let mut want = Rand(0x1234_5678);
         (0..n).for_each(|_| {
             want.rand();
         });
         assert_eq!(save.rand, want.0, "{n} draws");
         ui.ctrl.rng = MenuRand::Fixed(Box::new(|| 0));
-        ui.menu_task_started(&mut save);
+        ui.menu_task_started(&mut save, [-1; 3]);
         assert_eq!(save.rand, want.0, "a fixed source leaves the save's");
+    }
+
+    /// A room's `ccSetupGameCtrl` deletes the menu task and starts a new
+    /// one, so every `ccMenuCtrl` member is the constructor's again: the
+    /// events' bans and noise, the panels' fade, the protect marks, the
+    /// mail clock. gcmn's lists and `BookOfs`, `WORLD_MAN`'s area and
+    /// `ccSaveSys` are not members and stay; the faces are the party's.
+    #[test]
+    fn a_new_scene_makes_the_whole_menu_anew() {
+        let Some((mut ui, _, mut save)) = field_ui() else { return };
+        let fresh = |ui: &crate::FieldUi| crate::MenuCtrl::new(ui.texts());
+        let c = &mut ui.ctrl;
+        (c.forbid, c.target_forbid, c.inter_noiz, c.panel_alpha, c.mail_cnt) = (1, 1, 3, 128, 7);
+        (c.panel_status, c.map_status, c.pl_attack, c.cursol_off) = (2, 2, 1, 1);
+        c.protect[4] = 1;
+        c.protect_cnt[4] = 30;
+        (c.lists[0].select, c.lists[0].disp) = (3, 99);
+        c.face_tex = [5, 6, 7, 8];
+        c.book_ofs[1] = 19;
+        c.talk.record.save_sys.port = 1;
+        c.generated.ids = [9, 9, 9];
+        let kept = (c.book_ofs.clone(), c.generated.clone());
+        save.save.set_u8(piney_data::save::offset::PLCOL, 0);
+        ui.menu_task_started(&mut save, [0, 2, -1]);
+        let (c, f) = (&ui.ctrl, fresh(&ui));
+        assert_eq!(
+            (c.forbid, c.target_forbid, c.inter_noiz, c.panel_alpha, c.mail_cnt),
+            (f.forbid, f.target_forbid, f.inter_noiz, -48, 240)
+        );
+        assert_eq!((c.panel_status, c.map_status, c.pl_attack, c.cursol_off), (1, 1, 0, 0));
+        assert_eq!((c.protect, c.protect_cnt), (f.protect, f.protect_cnt));
+        assert_eq!((c.lists[0].select, c.lists[0].disp), (3, f.lists[0].disp), "gcmn's list, InitMenuList's disp");
+        assert_eq!(c.face_tex, [18, 2, -1, -1], "Kite without the bracelet, member 2, none");
+        assert_eq!((c.book_ofs.clone(), c.generated.clone()), kept);
+        assert_eq!(c.talk.record.save_sys.port, 1);
     }
 }

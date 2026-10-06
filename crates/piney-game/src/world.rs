@@ -302,8 +302,7 @@ impl WorldMode {
         self.ui.set_menu_face(slot, id, plcol);
     }
 
-    /// The field UI, for tests.
-    #[allow(dead_code)]
+    /// The field UI.
     pub fn ui(&self) -> &FieldUi {
         &self.ui
     }
@@ -1092,17 +1091,19 @@ impl Mode for WorldMode {
         for t in self.world.take_talk() {
             self.talk(t);
         }
+        // Each scene's ccSetupGameCtrl makes the menu task, and its menu,
+        // anew once the passes are made, before the entries (worklog 384).
+        if self.world.tasks_start() {
+            let (ui, party) = (&mut self.ui, self.world.party());
+            self.world.with_live_state(|s| ui.menu_task_started(s, party));
+        }
         // ccThMenu (34), before the town's other tasks: what it asks for is
         // acted on, and heard, this frame (worklog 336). A menu that asked
         // for another area (the gate's SetGenerateCode, ChangeArea) sleeps
         // in ChangeRequest: it does not run through the leave's fade, where
-        // the gate counted the area once a frame (#22).
-        if self.world.phase() == Phase::Play(1) {
-            let ui = &mut self.ui;
-            self.world.with_live_state(|s| ui.menu_task_started(s));
-        }
-        if let Phase::Play(f) = self.world.phase()
-            && f >= 1
+        // the gate counted the area once a frame (#22). Its party check is
+        // F0's, its first Disp F1's (worklog 384).
+        if let Phase::Play(_) = self.world.phase()
             && self.setup != Setup::Left
             && self.leaving.is_none()
         {

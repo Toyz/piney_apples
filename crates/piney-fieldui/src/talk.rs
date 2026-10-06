@@ -273,6 +273,14 @@ impl TalkState {
     pub fn set_cc_rand(&mut self, f: Box<dyn FnMut() -> i32 + Send>) {
         self.cc_rand = Some(f);
     }
+
+    /// What outlives a `ccMenuCtrl` ([`crate::MenuCtrl::keep`]): `saveSys`
+    /// with the cards, and `ccRand`. The members start afresh.
+    pub fn keep(&mut self, old: TalkState) {
+        self.record = old.record;
+        self.cc_rand = old.cc_rand;
+        self.seed = old.seed;
+    }
 }
 
 /// A `ccEvMsgData` in a table, as `ccMsg` holds it for chaining.

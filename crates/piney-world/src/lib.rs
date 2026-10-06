@@ -1162,6 +1162,13 @@ impl World {
         ctx.finish()
     }
 
+    /// Whether this frame's step ends the hold: the passes made,
+    /// `ccSetupGameCtrl` starts the town's tasks. `ccThMenu`'s first run,
+    /// its new `ccMenuCtrl`, comes before the entries are placed.
+    pub fn tasks_start(&self) -> bool {
+        matches!(self.phase, Phase::Hold(k) if k + 1 >= HOLD_FRAMES) && !self.loading
+    }
+
     /// [`World::step`] into a frame the caller owns, so that it can draw on
     /// other layers of it (the field's HUD) before finishing it; the fades
     /// are on [`draw::FADE_LAYER`].
@@ -1176,10 +1183,11 @@ impl World {
             }
             Phase::Hold(k) => {
                 piney_desktop::fade::draw_on(ctx, draw::FADE_LAYER, 0, 0x8000_0000, FADE_FRAMES, FADE_FRAMES);
-                if k + 1 < HOLD_FRAMES {
-                    self.phase = Phase::Hold(k + 1);
-                } else if self.loading {
+                if !self.tasks_start() {
                     // ccEnableThEvent's waits: still the last held frame.
+                    if k + 1 < HOLD_FRAMES {
+                        self.phase = Phase::Hold(k + 1);
+                    }
                 } else {
                     self.requests.push(Request::SqLoad(2));
                     self.requests.push(Request::EnableReset(true));

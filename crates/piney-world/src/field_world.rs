@@ -1338,34 +1338,29 @@ impl FieldWorld {
             }
             Phase::Hold(k) => {
                 piney_desktop::fade::draw_on(ctx, draw::FADE_LAYER, 0, 0x8000_0000, FADE_FRAMES, FADE_FRAMES);
-                if k + 1 < HOLD_FRAMES {
-                    self.phase = Phase::Hold(k + 1);
-                } else if self.loading {
-                    // The event passes are still running.
-                } else if self.setup_mode && self.gate_stream != GateStream::Done {
-                    // ccSndSQLoad, then (setupMode) stream 107 through
-                    // ccRequestLoadStreamGateHack while the files load; the
-                    // set-up goes on when it has ended.
-                    if self.gate_stream == GateStream::Idle {
-                        self.requests.push(Request::SqLoad);
-                        self.gate_stream = GateStream::Asked;
-                    }
-                } else if self.gate_stream == GateStream::Done {
-                    // The rest of the set-up; setupMode 0 at its end.
+                if self.tasks_start() {
+                    // After a gate hack's stream (setupMode 0 at the
+                    // set-up's end) its ccSndSQLoad came before it.
+                    let streamed = self.gate_stream == GateStream::Done;
                     self.setup_mode = false;
-                    self.reboot();
-                    self.requests.push(Request::Game(crate::Request::EnableReset(true)));
-                    self.requests.push(Request::GameStart);
-                    self.phase = Phase::Play(0);
-                } else {
                     // GO, ccGetStartPositions, rebootSpcManager.
                     self.reboot();
                     // ccSndSQLoad for the area, enableReset, then (with the
                     // tasks and the area set up) ccSnd.gameStart.
-                    self.requests.push(Request::SqLoad);
+                    if !streamed {
+                        self.requests.push(Request::SqLoad);
+                    }
                     self.requests.push(Request::Game(crate::Request::EnableReset(true)));
                     self.requests.push(Request::GameStart);
                     self.phase = Phase::Play(0);
+                } else if k + 1 < HOLD_FRAMES {
+                    self.phase = Phase::Hold(k + 1);
+                } else if !self.loading && self.gate_stream == GateStream::Idle {
+                    // ccSndSQLoad, then (setupMode) stream 107 through
+                    // ccRequestLoadStreamGateHack while the files load; the
+                    // set-up goes on when it has ended.
+                    self.requests.push(Request::SqLoad);
+                    self.gate_stream = GateStream::Asked;
                 }
             }
             Phase::Play(f) => {
@@ -1382,6 +1377,16 @@ impl FieldWorld {
                 self.phase = Phase::Play(f.saturating_add(1));
             }
         }
+    }
+
+    /// Whether this frame's step ends the hold: the passes made (and a gate
+    /// hack's stream played), `ccSetupGameCtrl` starts the field's tasks.
+    /// `ccThMenu`'s first run, its new `ccMenuCtrl`, comes before the
+    /// step's `WORLD_MAN::GO` and `rebootSpcManager`.
+    pub fn tasks_start(&self) -> bool {
+        matches!(self.phase, Phase::Hold(k) if k + 1 >= HOLD_FRAMES)
+            && !self.loading
+            && (!self.setup_mode || self.gate_stream == GateStream::Done)
     }
 
     /// `ccThGameCtrl` (33), the frame's first world task, run by itself so

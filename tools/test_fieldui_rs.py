@@ -244,6 +244,8 @@ class Scenario:
         self.attacks = {}         # frame -> ccMenuCtrl.plAttack (+0xf4) set before it
         self.book = None          # (page, frame): a Ryu Book read from that frame (ccThBook)
         self.directs = {}         # frame -> pad direct (held) bits
+        self.restarts = set()     # frames whose ccThMenu is the set-up's new one (ccSetupGameCtrl)
+        self.ctor_fields = False  # every member the constructor sets, in the state
 
     def spc_saves(self):
         """spcParam[id]'s level, exp, money, HP, SP and class as save writes."""
@@ -362,6 +364,10 @@ class Scenario:
             out.append(f"gone {f} {h}")
         if self.bgnum:
             out.append(f"bgnum {self.bgnum}")
+        for f in sorted(self.restarts):
+            out.append(f"restart {f}")
+        if self.ctor_fields:
+            out.append("ctorfields")
         out.extend(self.extra)
         out.append(f"run {self.frames}")
         return out
@@ -1048,8 +1054,10 @@ class Game:
         hook("ccSndGateHack__Fi", lambda mm, n, *a: self.ev("gate_hack_snd", n) or 0)
         hook("ccSetGtHack__Fv", lambda mm, *a: self.ev("set_gt_hack") or 0)
         hook("SetView__6ccViewFRC5ccCamPA4_f", nop)
+        # ~ccMenuCtrl's ccDamUprStr::ResetAll walks the damage numbers' list,
+        # which nothing here makes.
         for name in ("__dt__8ccSpriteFv", "__dt__5ccAnmFv", "__dt__7ccLayerFv", "__dl__FPv", "__dla__FPv",
-                     "SetFogSw__5ccAnmFi"):
+                     "SetFogSw__5ccAnmFi", "ResetAll__11ccDamUprStrFv"):
             hook(name, nop)
 
         def rot_z(mm, *a):
@@ -1154,12 +1162,32 @@ class Game:
               m.load(EV + 0x77A, 2, True), m.load(EV + 0x77C, 2, True), m.load(EV + 0x77E, 2, True),
               m.load(GAME + 0x78, 4, True), w(volume.menu_at(0x23C)), m.load(SAVE + 0x7440, 2, True)]
         st += [m.mem[SAVE + off:SAVE + off + n].hex() for off, n in self.sc.watch]
+        if self.sc.ctor_fields:
+            st += self.ctor_members(c)
         msg = m.load(CCMSG, 4)
         ms = None
         if msg:
             h = lambda o: m.load(msg + o, 2, True)  # noqa: E731
             ms = [h(0x1C), h(0x1E), h(0x20), h(0x22), h(0x24), h(0x28), h(0x32), h(0x34), h(0x38), h(0x3A)]
         return st, ms
+
+    def ctor_members(self, c):
+        """The members ccMenuCtrl's constructor (gcmn 0x0051c140) sets that
+        the frame's state leaves out: panelBure and panelFlash, drainStatus,
+        mode, exceptionDisp, teachCnt, cursolInit and Off, fade, bgCol,
+        faceNum, drainAlpha, cursolTarget, plAttack to interNoiz (+0xf4 to
+        +0x104), the protect marks, subTarget and dummyTarget; a pointer as
+        0 or 1."""
+        m = self.m
+        g = lambda o: m.load(c + o, 2, True)  # noqa: E731
+        p = lambda o: int(m.load(c + o, 4) != 0)  # noqa: E731
+        out = [m.load(c + o, 1) for o in range(6)]
+        out += [g(o) for o in (0x12, 0x16, 0x1E, 0x22, 0x24, 0x26, 0x28, 0x2A, 0x2C)]
+        out += [m.load(c + 0x50, 4, True), p(0x54)]
+        out += [g(o) for o in range(0xF4, 0x106, 2)]
+        out += [g(0x12C + 2 * i) for i in range(12)] + [g(0x144 + 2 * i) for i in range(12)]
+        out += [p(0x15C + 4 * i) for i in range(12)] + [p(0x1F4 + 4 * i) for i in range(16)]
+        return out + [p(0x234)]
 
     def run_threads(self):
         for t, fn in self.threads:
@@ -1200,6 +1228,11 @@ class Game:
 
     def start_frame(self):
         m, sc, f = self.m, self.sc, self.frame
+        if f in sc.restarts and not getattr(self, "restarting", False):
+            # ccSetupGameCtrl: the menu task deleted with the others, a new
+            # one started (its constructor's frame is this one).
+            raise Stop("restart")
+        self.restarting = False
         mv = getattr(self, "movie", None)
         if mv and f == mv[1] + sc.movie:
             m.store(mv[0] + 0x14, 4, 0xFFFFFFFF)
@@ -1326,16 +1359,36 @@ class Game:
         if t and self.m.load(t + 0x18, 4) == 1:
             self.call(sym("Disp__10ccMenuCtrlFv"), [self.menu()])
 
+    def msg_lines(self):
+        """ccMsg's four kanji rows, by address."""
+        msg = self.m.load(CCMSG, 4)
+        return {self.m.load(msg + 4 + 4 * i, 4): i for i in range(4)}
+
     def run(self):
-        tscb = self.alloc(0x60)
-        try:
-            self.m.call(sym("ccThMenu__FPv"), [tscb], limit=2_000_000_000)
-        except Stop as e:
-            if str(e) == "book":
-                self.run_book()
-            elif str(e) != "done":
-                raise
-        names = self.names()
+        self.old_names, self.old_lines = {}, {}
+        while True:
+            tscb = self.alloc(0x60)
+            try:
+                self.m.call(sym("ccThMenu__FPv"), [tscb], limit=2_000_000_000)
+            except Stop as e:
+                if str(e) == "restart":
+                    # The old menu's sprites keep their names; the task's two
+                    # delete calls, on ccMenu (+0x44, +0x3c).
+                    self.old_names.update(self.names())
+                    self.old_lines.update(self.msg_lines())
+                    c = self.menu()
+                    self.call(sym("ccThMenuDeleteInstant__FPv"), [c])
+                    self.call(sym("ccThMenuDelete__FPv"), [c])
+                    self.restarting = True
+                    self.start_frame()
+                    continue
+                if str(e) == "book":
+                    self.run_book()
+                elif str(e) != "done":
+                    raise
+            break
+        names = {**self.old_names, **self.names()}
+        lines = {**self.old_lines, **self.msg_lines()}
         frames = {}
         for f, e in self.log:
             o = frames.setdefault(f, {"pk": [], "kanji": [], "mc": [], "mt": [], "ev": [], "st": None, "msg": None})
@@ -1350,11 +1403,7 @@ class Game:
             elif k == "kanji":
                 o["kanji"].append([names.get(e[1], hex(e[1])), e[2].hex() or "="])
             elif k == "mt":
-                line = None
-                msg = self.m.load(CCMSG, 4)
-                for i in range(4):
-                    if self.m.load(msg + 4 + 4 * i, 4) == e[1]:
-                        line = i
+                line = lines.get(e[1])
                 o["mt"].append([line, e[2].hex() or "=", e[3], e[4], e[5], e[6]])
             elif k == "end":
                 o["st"], o["msg"] = e[1], e[2]
@@ -1465,6 +1514,30 @@ class FieldUiAgainstGame(unittest.TestCase):
             sc.bans[185] = True
             sc.bans[200] = False
             self.compare(sc, f"interNoiz {level} town {town} rng {rng}")
+
+    def test_a_new_scenes_menu(self):
+        """Each scene's ccSetupGameCtrl deletes the menu task with every
+        other and starts a new one after its event passes: ccThMenuDelete's
+        ~ccMenuCtrl, then a whole new ccMenuCtrl. The port's
+        FieldUi::menu_task_started over a menu the frames before had moved
+        on (a list's cursor, the ban's forbid and the hidden panels, the
+        noise, the mail clock), every constructor member compared each
+        frame, then the panels' fade in and the menu opened again."""
+        for area in (0, 2):
+            sc = Scenario(150)
+            self.party(sc, 2)
+            sc.game = (area, 0, 0, 0)
+            sc.server = (0, 0, 3)
+            sc.ctor_fields = True
+            sc.opens[10] = area
+            sc.pads[24] = (0, DOWN)
+            sc.pads[30] = (CANCEL, 0)
+            sc.bans[44] = True
+            sc.noises[46] = 1
+            sc.restarts.add(70)
+            sc.opens[100] = area
+            sc.pads[120] = (CANCEL, 0)
+            self.compare(sc, f"a new scene's menu, area {area}")
 
     def test_panels_ban(self):
         sc = Scenario(80)

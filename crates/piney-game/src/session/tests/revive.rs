@@ -202,13 +202,25 @@ fn the_fallen_keep_no_condition_marker() {
         assert_ne!(char(&mut s, who).cond[cond::DEAD], 0, "{who} not felled by the poison");
         no_marker(&mut s, who, worn, "poison");
     }
+    // Whose blow fells her follows the game's one rand(): the first of a
+    // few states of it where it is Kite's.
     let Some(mut s) = field_with_mia_and_elk() else { return };
     let (mia, kite) = {
         let c = area(&mut s).world().combat();
         (c.who(MIA).unwrap(), c.kite.unwrap())
     };
-    let by = felled_beside_a_mimic(&mut s, mia);
-    assert_eq!(by, Some(kite), "Mia felled by Kite's blow");
+    let mut bys = Vec::new();
+    let mut s = (0..12u64)
+        .find_map(|seed| {
+            let mut s = field_with_mia_and_elk()?;
+            if seed > 0 {
+                area(&mut s).world_mut().set_rand(seed);
+            }
+            let by = felled_beside_a_mimic(&mut s, mia);
+            bys.push(by);
+            (by == Some(kite)).then_some(s)
+        })
+        .unwrap_or_else(|| panic!("Mia felled by Kite's blow: {bys:?}"));
     no_marker(&mut s, mia, 0, "Kite's blow");
     // The report's picture: Kite confused, felled by a Mimic's blow in
     // its frame (Mia and Elk down already).

@@ -100,6 +100,38 @@ fn char_from(w: &[&str], with_tag: bool) -> CharInfo {
     c
 }
 
+/// The members `ccMenuCtrl`'s constructor sets that the frame's state
+/// leaves out, in the harness's order; a pointer as 0 or 1.
+fn ctor_members(c: &piney_fieldui::MenuCtrl) -> Vec<i32> {
+    let mut v: Vec<i32> = c.panel_bure.iter().chain(&c.panel_flash).map(|&b| i32::from(b)).collect();
+    v.extend(
+        [
+            c.drain_status,
+            c.mode,
+            c.exception_disp,
+            c.teach_cnt,
+            c.cursol_init,
+            c.cursol_off,
+            c.fade,
+            c.bg_col,
+            c.face_num,
+        ]
+        .map(i32::from),
+    );
+    v.extend([c.drain_alpha, i32::from(c.cursol_target != 0)]);
+    let t = &c.talk;
+    v.extend(
+        [c.pl_attack, t.talk_num, c.first_time, t.talk_trade_flag, t.talk_loop_cnt, c.forbid]
+            .into_iter()
+            .chain([c.forbid_chat_except, c.target_forbid, c.inter_noiz])
+            .map(i32::from),
+    );
+    v.extend(c.protect.iter().chain(&c.protect_cnt).map(|&p| i32::from(p)));
+    v.extend(c.protect_char.iter().chain(&c.sub_target).map(|&h| i32::from(h != 0)));
+    v.push(i32::from(c.dummy_target.is_some()));
+    v
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path)?;
@@ -140,6 +172,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
     };
     let mut randlog = false;
+    let mut restarts: Vec<usize> = Vec::new();
+    let mut ctor_fields = false;
     ui.ctrl.rng = MenuRand::Fixed(counted(Box::new(|| 0)));
     let mut chains: [Vec<u32>; 3] = Default::default();
     let mut places: Vec<(u32, f32, bool, [f32; 3])> = Vec::new();
@@ -365,6 +399,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             // randlog: each menu rand() a ["rand"] event in its frame.
             "randlog" => randlog = true,
+            // restart F: the set-up's new ccThMenu at frame F.
+            "restart" => restarts.push(n(1) as usize),
+            // ctorfields: every member the constructor sets, each frame.
+            "ctorfields" => ctor_fields = true,
             "wiped" => world.party_annihilated = n(1) != 0,
             // movie K: Data Drain's stream ends K frames after it starts.
             "movie" => movie_len = n(1) as usize,
@@ -456,6 +494,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             "run" => {
                 let frames = n(1) as usize;
+                // The constructor's areaLevel 0 in a town (game+0x14 0),
+                // which the town's WorldMode starts each scene with.
+                if world.game.area == 0 {
+                    world.game.area_level = 0;
+                }
                 for &(h, code) in &items_of {
                     let set = |c: &mut CharInfo| {
                         if c.handle == h {
@@ -632,10 +675,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     let count = fr as u32;
-                    let _frame = ui.step(&pad, &world, &mut save, count);
-                    // ccUseItemRequest is hooked there: it returns at once.
-                    if ui.item_asked() {
-                        ui.answer_item(Vec::new(), &pad, &mut save, count, None);
+                    if restarts.contains(&fr) {
+                        // A scene's set-up: the new ccThMenu's frame is its
+                        // constructor's (areaLevel as at the run's start).
+                        ui.menu_task_started(&mut save, world.party_id);
+                        if world.game.area == 0 {
+                            world.game.area_level = 0;
+                        }
+                    } else {
+                        let _frame = ui.step(&pad, &world, &mut save, count);
+                        // ccUseItemRequest is hooked there: it returns at once.
+                        if ui.item_asked() {
+                            ui.answer_item(Vec::new(), &pad, &mut save, count, None);
+                        }
                     }
                     let c = &ui.ctrl;
                     let item_num = c.item_num;
@@ -1023,6 +1075,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         st.push(world.grunty.map_or(0, |g| g.growth).to_string());
                         let g = world.grunty.unwrap_or_default();
                         st.extend([g.msg.to_string(), g.food_mode.to_string(), g.chat_flag.to_string()]);
+                    }
+                    if ctor_fields {
+                        st.extend(ctor_members(&ui.ctrl).iter().map(|v| v.to_string()));
                     }
                     if randlog {
                         ev.extend((0..draws.replace(0)).map(|_| "[\"rand\"]".to_string()));

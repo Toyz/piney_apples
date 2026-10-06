@@ -1177,8 +1177,10 @@ What a breakable gives is not drawn here. `fieldrand` is the dungeon's own
 generator; ItemObjMenu draws the drop from the game's one `rand()` when
 Kite breaks it ([field UI](field-ui.md#the-menus-rand)). That generator is
 not reseeded for a room. Each room's `ccSetupGameCtrl` draws the new menu
-task's noise from it, Kite's idle count every 451 frames, the party's AI
-and lines more. `a_breakables_drop_draws_on_the_areas_rand` and
+task's noise from it (after the passes, before `rebootSpcManager`: [a new
+scene's menu](field-ui.md#a-new-scenes-menu)), Kite's idle count every
+451 frames, the party's AI and lines more.
+`a_breakables_drop_draws_on_the_areas_rand` and
 `a_breakables_drop_moves_on_with_the_time_waited` check the port (issue
 #52).
 
