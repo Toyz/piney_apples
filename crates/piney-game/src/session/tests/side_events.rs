@@ -549,6 +549,18 @@ fn gob3_4_golden_goblins_fall_after_a_shop() {
     assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
 }
 
+/// GOB3-2 (251) in field 79: row 136's goblins heal, and the last one
+/// outruns an unhasted Kite. With the draws in today's order (worklogs
+/// 382-384) the first trip's charms ran out with two standing, and the
+/// run stayed open at 150,000 frames. Out of charms, the pilot weighs
+/// again at their full HP and goes back to Fort Ouph's shop: it ends.
+#[test]
+fn gob3_2_golden_goblins_fall_after_a_second_shop() {
+    let Some(iso) = outbreak() else { return };
+    let seen = play("outbreak", &iso, out_case(251), 60_000, true).unwrap();
+    assert!(seen.ended.is_some(), "open after {} frames: {:?}", seen.frames, seen.places.last());
+}
+
 /// SANJYURO-4 (260): block 23 at point 7 waits on `no_active`, which a
 /// switched-on Gott statue holds too (`no_active_object`, #18), and then
 /// takes the key item the statue gives (283). The pilot opens a wanted

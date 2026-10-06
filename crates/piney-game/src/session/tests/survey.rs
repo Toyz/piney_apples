@@ -1112,11 +1112,29 @@ impl StoryPilot {
     /// goes back to town to buy them (100 GP at any magic shop), as a
     /// player who has met them would; the event's repeatable `entry 5`
     /// block puts them back on his return. GOB3-4's (row 149, pDef 1950:
-    /// 70-105 a blow) take some 50 blows: five charms; Kite has two.
+    /// 70-105 a blow) take some 50 blows: five charms; Kite has two. A
+    /// fight that outlasts them (the goblins heal, and one outruns him)
+    /// weighs again, at their full HP.
     fn provision(&mut self, a: &crate::area::AreaMode) {
         let w = a.world();
         let sc = w.scene();
-        if self.leaving || self.action.is_some() || sc.area != kind::FIELD || self.stocked.contains(&sc.field) {
+        if self.leaving || self.action.is_some() || sc.area != kind::FIELD {
+            return;
+        }
+        let charms_left = |w: &piney_world::field_world::FieldWorld| -> i32 {
+            (0..piney_fieldui::items::ITEMS)
+                .map(|n| piney_fieldui::items::save_item(w.state(), 0, n))
+                .filter(|it| (it.cat, it.id) == SPEED_CHARM)
+                .map(|it| i32::from(it.num))
+                .sum()
+        };
+        let again = self.stocked.contains(&sc.field);
+        let hasted = w
+            .combat()
+            .members
+            .first()
+            .is_some_and(|&(_, k)| w.combat().scene.chars[k].cond[piney_battle::param::cond::SPEED] != 0);
+        if again && (charms_left(w) > 0 || hasted) {
             return;
         }
         let Some(vm) = a.vm() else { return };
@@ -1137,16 +1155,17 @@ impl StoryPilot {
         if gold.is_empty() {
             return;
         }
-        let blows: i32 = gold.iter().map(|&e| i32::from(c.scene.chars[e].hp) / kite_hit(c, e, 1, 100).max(1) + 1).sum();
+        let hp = |e: usize| if again { c.scene.chars[e].max_hp } else { c.scene.chars[e].hp };
+        let blows: i32 = gold.iter().map(|&e| i32::from(hp(e)) / kite_hit(c, e, 1, 100).max(1) + 1).sum();
         let charms = (blows + BLOWS_A_CHARM - 1) / BLOWS_A_CHARM + 1;
-        self.stocked.push(sc.field);
+        if !again {
+            self.stocked.push(sc.field);
+        }
         self.buys = vec![Buy { item: SPEED_CHARM, carry: charms }];
-        let carried: i32 = (0..piney_fieldui::items::ITEMS)
-            .map(|n| piney_fieldui::items::save_item(w.state(), 0, n))
-            .filter(|it| (it.cat, it.id) == SPEED_CHARM)
-            .map(|it| i32::from(it.num))
-            .sum();
-        self.leaving = carried < charms;
+        self.leaving = charms_left(w) < charms;
+        if std::env::var_os("PINEY_DEBUG_PILOT").is_some() {
+            eprintln!("PROVISION field {} again {again} charms {charms} leaving {}", sc.field, self.leaving);
+        }
     }
 
     /// Kite put where the walk found him stuck.

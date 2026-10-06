@@ -69,28 +69,28 @@ change), `PINEY_DEBUG_PILOT`), as Infection's `side_event_survey`:
 - driven by `StoryPilot` following that event alone (`Follow::side`:
   `story_wants` reads it in place of the main story).
 
-## Where it stands (2026-10-04)
+## Where it stands (2026-10-06)
 
-Survey (`PINEY_SURVEY_GOD=1 PINEY_SURVEY_FRAMES=150000`, worklog 374, the
-whole table run again; 260 and 261 since, worklog 375): 25 of the 26
-finish; no panic, no host call left at its default, no fault. The golden
+Survey (`PINEY_SURVEY_GOD=1 PINEY_SURVEY_FRAMES=150000`, the whole table
+run again at worklog 385, after the spells' and the menus' draws moved to
+the game's points, worklogs 382-384): 25 of the 26 finish; no panic, no host call left at its default, no fault. The golden
 goblins of 250-253 fall with no HP aid (worklogs 373, 374).
 
 | event | state | what stops it |
 | --- | --- | --- |
-| 250 | done (13,551) | |
-| 251-253 | done (16,911; 20,199; 31,095) | a trip to Fort Ouph's magic shop for Speed Charms first (worklog 374) |
+| 250 | done (16,959) | |
+| 251-253 | done (48,471; 24,735; 28,983) | a trip to Fort Ouph's magic shop for Speed Charms first (worklog 374); 251 a second one when they run out (worklog 385) |
 | 254 | open | GOB3-5's golden goblins (row 156) evade blows, bar spells while their mDef holds, and shake off a spell's hold; their heals outpace what lands (worklog 374) |
-| 255 | done (3,986) | |
-| 256 | done (66,778) | room 0-2's Gaia Turtle (row 114, Exdefense 1) takes no blows (see below) |
-| 257 | done (29,386) | the key-item trade over points 1-4 |
+| 255 | done (4,154) | |
+| 256 | done (64,978) | room 0-2's Gaia Turtle (row 114, Exdefense 1) takes no blows (see below) |
+| 257 | done (32,266) | the key-item trade over points 1-4 |
 | 259 | done (1,908) | |
-| 260, 261 | done (16,908; 31,570) | the Gott statue at point 7 and point 2 opened first: `no_active` waits on it (#18; worklog 375) |
-| 262 | done (41,540) | room 2-6's Deadly Presents (row 243, Exdefense 1) take no blows |
-| 263 | done (9,372) | Black Death (row 176, Exdefense 2) takes no spells |
+| 260, 261 | done (19,116; 41,050) | the Gott statue at point 7 and point 2 opened first: `no_active` waits on it (#18; worklog 375) |
+| 262 | done (44,588) | room 2-6's Deadly Presents (row 243, Exdefense 1) take no blows |
+| 263 | done (8,988) | Black Death (row 176, Exdefense 2) takes no spells |
 | 264, 266 | done (376; 62) | |
-| 265 | done (84,966) | the lone Kite at 90: at 75 the Data Bug (row 261, level 68) fells him with two blows of 703 in a frame (1,395 HP), at 47,391 once the pilot changed |
-| 267-274 | done (3,495-3,567) | each NPC met at the six towns' gates in turn |
+| 265 | done (64,958) | the lone Kite at 90: at 75 the Data Bug (row 261, level 68) fells him with two blows of 703 in a frame (1,395 HP), at 47,391 once the pilot changed |
+| 267-274 | done (3,375-3,447) | each NPC met at the six towns' gates in turn |
 | 275 | done (1,335) | ends at the second meeting (see below) |
 | 361 | done (12) | block 0 closes it once 264 is done |
 
