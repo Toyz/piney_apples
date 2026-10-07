@@ -232,6 +232,9 @@ pub const WEBNEWS_SLOTS: usize = 128;
 pub const BBS_THREADS: usize = 128;
 pub const BBS_MESSAGES: usize = 48;
 pub const EVENT_FLAGS: usize = 512;
+/// `eventFlag[n]`'s bit 62, the event done, and 63, closed.
+pub const EVENT_DONE: u64 = 1 << 62;
+pub const EVENT_CLOSED: u64 = 1 << 63;
 pub const EVENT_ENTRIES: usize = 160;
 pub const EVENT_STATUS_SLOTS: usize = 80;
 /// `dtWallpaperList[3]` and `dtBgmList[3]` hold unlock bits.
@@ -351,7 +354,8 @@ impl SaveData {
         self.cstr(offset::PL_NAME, 24)
     }
 
-    /// `eventFlag[n]`: bits 0-61 the blocks run, 62 done, 63 closed.
+    /// `eventFlag[n]`: bits 0-61 the blocks run, 62 done ([`EVENT_DONE`]),
+    /// 63 closed ([`EVENT_CLOSED`]).
     pub fn event_flag(&self, n: usize) -> u64 {
         self.u64(offset::EVENT_FLAG + 8 * n)
     }

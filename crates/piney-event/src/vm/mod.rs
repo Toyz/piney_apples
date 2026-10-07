@@ -489,18 +489,6 @@ impl Vm {
         host.save().update_flags(first, |f| f | DONE);
     }
 
-    /// `ccStartEventConvert` (`INF 0x001b55f0`): a save carried from the
-    /// previous volume marks event 100, 200 or 300 done (0 on volume 1).
-    pub fn start_event_convert<H: Host + ?Sized>(&mut self, host: &mut H) {
-        let n = match self.volume() {
-            2 => 100,
-            3 => 200,
-            4 => 300,
-            _ => 0,
-        };
-        host.save().update_flags(n, |f| f | DONE);
-    }
-
     /// `ccEventFlagSet(n)` (`INF 0x001b6160`): unless the event is done or
     /// closed, run every block at level 1, whatever its conditions. The
     /// precondition settings are applied (they only change the event

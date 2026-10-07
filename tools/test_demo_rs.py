@@ -148,6 +148,22 @@ class Stop(Exception):
     pass
 
 
+def card_dir_of(vol):
+    """Volume `vol`'s (1-4) save directory as this disc names it
+    (`mcDirName[vol - 1]`, without its leading `/`)."""
+    p = volume.program(ELF)
+    ptr = struct.unpack("<I", p.read(p.symbol_named("mcDirName").value + 4 * (vol - 1), 4))[0]
+    b = p.read(ptr, 64)
+    return b[:b.index(0)].decode().lstrip("/")
+
+
+def prev_volume():
+    """The volume CONVERT reads: volumeNum - 1, 1 when that is not 1-3."""
+    p = volume.program(ELF)
+    n = struct.unpack("<i", p.read(p.symbol_named("volumeNum").value, 4))[0] - 1
+    return n if 1 <= n <= 3 else 1
+
+
 @unittest.skipUnless(os.path.exists(ELF) and os.path.exists(ISO) and shutil.which("cargo"),
                      "needs the extracted disc and cargo")
 class DemoAgainstGame(unittest.TestCase):
@@ -937,9 +953,12 @@ class DemoAgainstGame(unittest.TestCase):
             f.write(bytes(index))
         return root, bytes(index), slots
 
-    def load_machine(self, root, index, slots, port, file):
-        """ccSaveSys and DataLoad_Control built as the title builds them,
-        ccMcard answered from the card, the draws recorded."""
+    def load_machine(self, root, port, file, prev=False):
+        """ccSaveSys and DataLoad_Control built as the title builds them
+        (with `prev`, CONVERT's NextDataLoad_Control), ccMcard answered from
+        the card's files by the volume each call names, as FilesCard reads
+        them; the title's save the disc's fresh slot (from Mutation on with
+        its extension); the draws recorded."""
         from eemu import Machine, _cstr
         sym = lambda n: self.p.symbol_named(n).value  # noqa: E731
         m = Machine(self.p)
@@ -949,7 +968,7 @@ class DemoAgainstGame(unittest.TestCase):
         m.store(GAME, 4, 0)
         # The port's fresh save, made by the game's own boot (ok cross,
         # cancel circle): what the title holds when it loads.
-        m.mem[SAVE:SAVE + 0x8530] = test_save_init_rs.fresh_save(ELF)
+        test_save_init_rs.place_save(m, SAVE, test_save_init_rs.fresh_slot(ELF))
         heap = [0x01a00000]
 
         def alloc(mm, a0, *a):
@@ -992,23 +1011,34 @@ class DemoAgainstGame(unittest.TestCase):
                                 mm.load(a0 + 92, 4, True), mm.load(a0 + 116, 4)])
             return 0
 
+        def file_of(vol, name=None):
+            d = card_dir_of(vol)
+            return os.path.join(root, d, name or d)
+
         def check_port(mm, a0, a1, *a):
             if a1 != 0 or root is None:
                 return 0
-            return 0xffffffff if index is not None else 4
+            return 0xffffffff if os.path.isdir(os.path.join(root, volume.card_dir())) else 4
 
         def read_sys(mm, a0, a1, a2, a3):
-            if a1 != 0 or index is None:
+            path = file_of(mm.r[9] & 0xffffffff) if a1 == 0 and root is not None else None
+            if path is None or not os.path.isfile(path):
                 return 5
-            mm.mem[a3:a3 + 336] = index
+            with open(path, "rb") as f:
+                b = f.read()[:336]
+            mm.mem[a3:a3 + len(b)] = b
             return 0
 
         def data_read(mm, a0, a1, a2, a3):
-            buf = mm.r[8] & 0xffffffff
-            data = slots.get(a3) if a1 == 0 else None
-            if data is None:
+            buf, size, vol = mm.r[8] & 0xffffffff, mm.r[9] & 0xffffffff, mm.r[10] & 0xffffffff
+            path = file_of(vol, "dhdata%02d" % (a3 + 1)) if a1 == 0 and root is not None else None
+            b = b""
+            if path and os.path.isfile(path):
+                with open(path, "rb") as f:
+                    b = f.read()
+            if len(b) < size:
                 return 5
-            mm.mem[buf:buf + 0x8530] = data
+            mm.mem[buf:buf + size] = b[:size]
             return 0
 
         nop = lambda mm, *a: 0  # noqa: E731
@@ -1031,7 +1061,7 @@ class DemoAgainstGame(unittest.TestCase):
         m.store(SSYS + 0x2a0, 4, port)
         m.store(SSYS + 0x2a4, 4, file)
         m.mem[DATALOAD:DATALOAD + 0x90] = bytes(0x90)
-        m.call(sym("__ct__16DataLoad_ControlFv"), [DATALOAD])
+        m.call(sym("__ct__20NextDataLoad_ControlFv" if prev else "__ct__16DataLoad_ControlFv"), [DATALOAD])
         m.call(sym("StartReq__9ccSaveSysFi"), [SSYS, 1])
         # As the boot check leaves it.
         m.store(SSYS + 0x2a8, 4, 1)
@@ -1069,8 +1099,8 @@ class DemoAgainstGame(unittest.TestCase):
         tmp = tempfile.mkdtemp(prefix="piney-load-")
         try:
             for n, (kind, port, file, pads) in enumerate(scripts):
-                root, index, slots = self.load_card(os.path.join(tmp, f"card{n}"), random.Random(n), kind)
-                m = self.load_machine(root, index, slots, port, file)
+                root, _, _ = self.load_card(os.path.join(tmp, f"card{n}"), random.Random(n), kind)
+                m = self.load_machine(root, port, file)
                 out = []
                 prev = 0
                 sym = lambda nm: self.p.symbol_named(nm).value  # noqa: E731
@@ -1092,7 +1122,7 @@ class DemoAgainstGame(unittest.TestCase):
                                 m.load(SSYS + 0x2a0, 4, True), m.load(SSYS + 0x2a4, 4, True), self.events])
                     if r == 1:
                         break
-                want.append({"frames": out, "save": bytes(m.mem[SAVE:SAVE + 0x8530]).hex()})
+                want.append({"frames": out, "save": bytes(m.mem[SAVE:SAVE + volume.SLOT_SIZE]).hex()})
                 cases.append((kind, port, file, len(out)))
                 prev = 0
                 frames = []
@@ -1110,6 +1140,121 @@ class DemoAgainstGame(unittest.TestCase):
                 self.assertEqual(a, b, f"{c} frame {i}")
             self.assertEqual(len(w["frames"]), len(g["frames"]), f"{c}")
             self.assertEqual(w["save"], g["save"], f"{c}: the save")
+
+    def next_card(self, root, rng, kind, first_cleared):
+        """A card for CONVERT under `root`: the previous volume's directory
+        (its index, slots used, empty, cleared or not, with good and bad
+        sums, missing and short) for kind "saves", with this volume's own
+        (an empty index) too for "both"; "empty" a card with neither, "none"
+        no card. `first_cleared` makes slot 1 a good save that cleared the
+        previous volume."""
+        if kind == "none":
+            return None
+        os.makedirs(root, exist_ok=True)
+        if kind == "empty":
+            return root
+        prev = prev_volume()
+        size = 0x8530 if prev == 1 else 0x8530 + 0x854
+        d = os.path.join(root, card_dir_of(prev))
+        os.makedirs(d)
+        index = bytearray(336)
+        for i in range(12):
+            status = 1 if first_cleared and i == 0 else rng.choice([0, 1, 1, 1])
+            rec = bytearray(28)
+            if status:
+                data = bytearray(rng.randrange(256) for _ in range(size))
+                name = bytes(rng.choice(b"ABCDEFGHIJKLMNOPQRSTUVWXYZ") for _ in range(rng.randrange(1, 12)))
+                rec[0] = 1
+                rec[1] = rng.randrange(100)
+                rec[2] = prev if first_cleared and i == 0 else rng.choice([0, prev - 1, prev, prev, min(prev + 1, 4)])
+                rec[3] = rng.choice([0, 0, 1]) if rec[2] == 0 else 0
+                rec[4:4 + len(name)] = name
+                good = sum(data) & 0xffff
+                fate = "ok" if first_cleared and i == 0 else rng.choice(["ok", "ok", "ok", "sum", "missing", "short"])
+                struct.pack_into("<H", rec, 0x16, good if fate != "sum" else (good + 1) & 0xffff)
+                struct.pack_into("<i", rec, 0x18, rng.randrange(0x0cdfe5c5))
+                if fate != "missing":
+                    with open(os.path.join(d, "dhdata%02d" % (i + 1)), "wb") as f:
+                        f.write(bytes(data) if fate != "short" else bytes(data[:0x8000]))
+            index[28 * i:28 * i + 28] = rec
+        with open(os.path.join(d, card_dir_of(prev)), "wb") as f:
+            f.write(bytes(index))
+        if kind == "both":
+            own = os.path.join(root, volume.card_dir())
+            os.makedirs(own)
+            with open(os.path.join(own, volume.card_dir()), "wb") as f:
+                f.write(bytes(336))
+        return root
+
+    @unittest.skipIf(volume.NAME == "infection", "CONVERT is the later volumes' (PINEY_VOLUME)")
+    def test_data_load_prev(self):
+        """Issue #55: CONVERT's list and load (NextDataLoad_Control::
+        Main_Control, Data_Control with m_PrevFlg, ccSaveSys's
+        LoadInfoPrevReq and LoadDataPrevReq) frame by frame against the
+        port's, on cards with the volume before's saves, with and without
+        this volume's own directory: the state, the texts drawn ("Vol.N
+        CLEAR", "No Data Flag"), the sounds, and the whole slot after."""
+        rng = random.Random(55)
+        go = [(0, 0)] * 3
+        take = go + [(OK, OK)] + [(0, 0)] * 3 + [(OK, OK), (0, 0), (UP, UP), (0, 0), (OK, OK)] + [(0, 0)] * 3 \
+            + [(OK, OK)] + [(0, 0)] * 3
+        scripts = [("saves", 0, 0, True, take), ("both", 0, 0, True, take), ("empty", 0, 0, False, take),
+                   ("none", 1, 0, False, take),
+                   ("saves", 0, 4, False, go + [(OK, OK)] + [(0, 0)] * 3 + [(DOWN, DOWN), (0, 0), (OK, OK)]
+                    + [(0, 0)] * 3 + [(CANCEL, CANCEL)] + [(0, 0)] * 3 + [(CANCEL, CANCEL)] + [(0, 0)] * 2)]
+        for _ in range(10):
+            pads = [(0, 0)] * 2
+            for _ in range(rng.randrange(60, 160)):
+                b = rng.choice([0, 0, 0, OK, OK, CANCEL, UP, DOWN, "hold"])
+                if b == "hold":
+                    held = rng.choice([UP, DOWN])
+                    pads += [(0, held)] * rng.randrange(5, 45) + [(0, 0)]
+                    continue
+                pads.append((b, b))
+            scripts.append((rng.choice(["saves", "saves", "both", "empty"]), rng.choice([0, 0, 1]), rng.randrange(12),
+                            rng.random() < 0.5, pads))
+        sym = lambda nm: self.p.symbol_named(nm).value  # noqa: E731
+        want, lines, cases = [], [], []
+        tmp = tempfile.mkdtemp(prefix="piney-convert-", dir=os.environ.get("TMPDIR"))
+        try:
+            for n, (kind, port, file, first, pads) in enumerate(scripts):
+                root = self.next_card(os.path.join(tmp, f"card{n}"), random.Random(n), kind, first)
+                m = self.load_machine(root, port, file, prev=True)
+                out, prev_pad = [], 0
+                for f, (push, repeat) in enumerate(pads):
+                    m.store(SYS + 0x2d0, 4, push)
+                    m.store(SYS + 0x2d4, 4, prev_pad & ~repeat)
+                    m.store(SYS + 0x2d8, 4, repeat)
+                    m.store(SYS + 856, 4, 100 + f)
+                    prev_pad = repeat
+                    self.events = []
+                    m.call(sym("MainProccess__9ccSaveSysFv"), [SSYS])
+                    r = m.call(sym("Main_Control__20NextDataLoad_ControlFv"), [DATALOAD])
+                    out.append([r - (1 << 32) if r & 0x80000000 else r, m.load(DATALOAD + 0x14, 4, True),
+                                m.load(DATALOAD + 0x28, 2, True), m.load(DATALOAD + 0x2a, 2, True),
+                                m.load(DATALOAD + 8, 1), m.load(DATALOAD + 0x1c, 4, True),
+                                m.load(DATALOAD + 0xc, 4, True), m.load(DATALOAD, 4, True),
+                                m.load(SSYS + 0x2a8, 4, True), m.load(SSYS + 0x2ac, 4, True),
+                                m.load(SSYS + 0x2a0, 4, True), m.load(SSYS + 0x2a4, 4, True), self.events])
+                    if r == 1:
+                        break
+                slot = bytes(m.mem[SAVE:SAVE + volume.SLOT_SIZE])
+                want.append({"frames": out, "save": slot.hex()})
+                cases.append((kind, port, file, len(out)))
+                frames, prev_pad = [], 0
+                for f, (push, repeat) in enumerate(pads[:len(out)]):
+                    frames.append(f"frame {push} {prev_pad & ~repeat} {repeat} {100 + f}")
+                    prev_pad = repeat
+                lines += [f"loadnext {root or os.path.join(tmp, 'nocard')} {port} {file}"] + frames + ["end"]
+            got = ask(lines)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        self.assertGreater(sum(1 for w in want if w["frames"][-1][0] == 1), 0, "no script converted a save")
+        for c, w, g in zip(cases, want, got):
+            for i, (a, b) in enumerate(zip(w["frames"], g["frames"])):
+                self.assertEqual(a, b, f"{c} frame {i}")
+            self.assertEqual(len(w["frames"]), len(g["frames"]), f"{c}")
+            self.assertEqual(w["save"], g["save"], f"{c}: the slot")
 
     def test_load_game(self):
         from eemu import Machine

@@ -224,7 +224,7 @@ fn ending_saves_the_clear_data() {
     assert!(!p.desktop().slept(), "the desktop was not woken");
 
     let mut c = FilesCard::slot1(piney_data::volume::Volume::Inf, &card);
-    let index = c.read_index(0).expect("no index on the card");
+    let index = c.read_index(0, 1).expect("no index on the card");
     let rec = SaveDataInfo::from_bytes(&index[..INFO_SIZE]);
     assert_eq!((rec.status, rec.clear_flag, rec.level), (1, 1, level), "{rec:?}");
     for i in 1..12 {
@@ -236,6 +236,39 @@ fn ending_saves_the_clear_data() {
     let saved = piney_data::save::SaveData::from_bytes(&slot).unwrap();
     assert_eq!(saved.clear_flag(), 1);
     assert_eq!(saved.cstr(offset::PL_NAME, 24), p.desktop().state().save.cstr(offset::PL_NAME, 24));
+    let _ = std::fs::remove_dir_all(&card);
+}
+
+/// Issue #55, from end to end: Infection's clear data as its ending saves
+/// it, then Mutation's title on the same card. CONVERT lists the save as
+/// "Vol.1 CLEAR" and carries it: the desktop starts on the player's name,
+/// level and play time, event 100 done; its setup runs with the scripts,
+/// and the desktop plays on the carried name.
+#[test]
+fn the_ending_s_save_converts_into_mutation() {
+    let card = empty_card();
+    let Some(s) = ending(card.clone()) else { return };
+    let mut p = Player::new(s);
+    p.play_to_save_menu();
+    p.save_to_first_file();
+    let ended = p.desktop().state().save.clone();
+    let Some((mut s, mut pad)) = super::convert::convert_list(&card, piney_data::volume::Volume::Mut, true) else {
+        return;
+    };
+    let rec = title(&s).unwrap().demo.save_sys().record_prev(0);
+    assert_eq!((rec.status, rec.clear_flag, rec.level), (1, 1, ended.level()));
+    let save = super::convert::convert_chosen(&mut s, &mut pad);
+    assert_eq!(save.cstr(offset::PL_NAME, 24), ended.cstr(offset::PL_NAME, 24));
+    assert_eq!((save.clear_flag(), save.level()), (1, ended.level()));
+    assert!((rec.playtime..rec.playtime + 120).contains(&save.play_time()), "the saved play time");
+    assert_ne!(save.event_flag(100) & piney_data::save::EVENT_DONE, 0, "ccStartEventConvert");
+    // Mutation's setup (no name entry: newGameFlag is not 0) to its
+    // desktop, which keeps the carried name.
+    settle(&mut s, &mut pad);
+    run(&mut s, &mut pad, 0..300, &[]);
+    assert!(matches!(s.stage, Stage::Desktop(_)), "{}", Mode::title(&s));
+    let now = s.save_mut().expect("the desktop's save");
+    assert_eq!(now.cstr(offset::PL_NAME, 24), ended.cstr(offset::PL_NAME, 24));
     let _ = std::fs::remove_dir_all(&card);
 }
 

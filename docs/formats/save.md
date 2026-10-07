@@ -471,14 +471,19 @@ Parody.
    QUA `0x00170f70`): `MainProccess` reads the index of volume
    `volumeNum - 1` (1 when that is ≤ 0 or ≥ 4) into `infoPrev` (+0x150) and
    checks it. MUT reads `BASLUS-20267DOTHACK`, OUT `20562`, QUA `20563`: each
-   volume reads only the one before.
+   volume reads only the one before, from the same card.
+   - It sets `operate` 2, so the card needs no directory of the volume
+     being played. Only a missing previous directory stops it: "There is no
+     .hack//INFECTION saved data." (0x103b; 0x103c, 0x103d for the later).
+   - `InitInfo` clears the records of `info` and `infoPrev` alike.
 3. **`LoadDataPrevReq`** (MUT `0x00171c00`, OUT `0x00171190`, QUA
    `0x00171020`) reads that volume's slot file and checks its sum.
    - MUT reads Infection's 0x8530 bytes into `ccSaveData` at the same
      offsets, skipping only padding (+0x221e, +0x7486, +0x852c). The
-     extension keeps its zeros.
+     extension keeps what the title's `NewGame(1)` left.
    - OUT and QUA read 0x8d84 bytes: `ccSaveData`, then the extension, again
      at the same offsets. No conversion is needed.
+   - "Load complete." is 0x2017, Quarantine's 0x1017.
 4. **`ccThDemo`** (demo), when the opening returns 4, calls
    `ccStartEventConvert` and `ConvGame` (INF `0x00400b20`/`0x00400b2c`, MUT
    `0x00413b38`/`b44`, OUT `0x0040f560`/`56c`, QUA `0x00301e60`/`e6c`).
@@ -495,6 +500,16 @@ Parody.
 
 Infection has the same path: with `volumeNum - 1 = 0` replaced by 1, it
 reads its own directory and marks event 0 done.
+
+The port (issue #55) keeps one card for all four parts: the four save
+folders (`BASLUS-20267DOTHACK` to `BASLUS-20564DOTHACK`) in
+`memcard/slot1` beside the build, in the port's folder (`%APPDATA%\piney` on Windows, `~/.local/share/piney` on Linux,
+`~/Library/Application Support/piney` on macOS; `piney_desktop::card::
+FilesCard`). CONVERT reads the earlier part's folder there, as the console
+reads the same memory card. `piney_demo::newgame::conv_game` and
+`start_event_convert` are ConvGame and ccStartEventConvert;
+`tools/test_save_init_rs.py`'s `ConvGameLaterVolumes` runs the game's two
+on random records of each later disc against them.
 
 ## Unknown
 

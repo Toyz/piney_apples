@@ -104,10 +104,6 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 - [[87]] the event cameras in event 4's rooms (the user saw the camera in the walls) were not re-shot since each block plays in its own room — event 4's dungeon scenes
 
-### save
-
-- [[43]] [[201]] [[226]] CONVERT, a previous volume's save into a new part: `Data_Control`'s `m_PrevFlg` load screen reads the card, but `Request::ConvGame` only reaches "title asks" in crates/piney-game/src/session.rs, so nothing is imported (docs/engine/title.md) — starting Mutation, Outbreak or Quarantine from the previous part's clear data
-
 ### build
 
 - [[259]] a later volume's image played without Infection's disc falls back to `work/`, and `crate::die` ends the process — a player who owns only a later disc
@@ -486,7 +482,7 @@ player until one of these turns out wrong.
 - [[196]] the present's remark not run in a town with three members — test gap
 - [[226]] whether the PS2 shows the recall's fades black too — every checked step matches the game
 - [[237]] the port's quit prompt uses the desktop's window where the field's own confirmations use the field menu's — a port window, looks the same
-- [[247]] nothing tells the player that a finished part's save loads in the next; New Game from a previous volume's save not checked from a build — port launcher; the import itself is [[43]]'s
+- [[247]] nothing tells the player that a finished part's save loads in the next; New Game from a previous volume's save not checked from a build — port launcher; the import itself answered by [[387]]
 - [[251]] whether the unused selector had music of its own — no code survives
 - [[253]] whether the unused selector drew a copyright of its own — no code survives
 
@@ -750,6 +746,7 @@ player until one of these turns out wrong.
 - [[42]] voice lines, cutscene PCM, the 3D sound effect API — answered by [[46]], [[95]] (voices), [[52]] (stream PCM), [[81]] (ccSeOn3D)
 - [[42]] sdCommand's reverb switches (cases 4 and 5): who asks for them — answered by [[327]] (ccSndChangeData around its load; the port's `Command::Reverb`)
 - [[43]] the title's load screen and Option menu stand-ins — answered by [[50]], [[51]]
+- [[43]] [[201]] [[226]] CONVERT, a previous volume's save into a new part — answered by [[387]] (issue #55: `LoadInfoPrevReq`, `LoadDataPrevReq`, proccess 4/7/9, the `m_PrevFlg` branches, `ccStartEventConvert` and `ConvGame` ported; test_data_load_prev on the three later discs, ConvGameLaterVolumes, the_ending_s_save_converts_into_mutation) / docs/engine/title.md "CONVERT"
 - [[43]] PSS movie playback and the stream — answered by [[49]], [[52]]
 - [[43]] the title music context — answered by [[46]], [[51]]
 - [[43]] SetNextData / PlayNextData — answered by [[201]] / crates/piney-demo/src/opening.rs set_next_data
@@ -1428,7 +1425,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/title.md: the opening's cancel flash is not modelled — answered by [[342]] (`Demo::stream_tick`; the_opening_stream_flashes)
 - docs/engine/title.md: m_tempPN's first value — research (duplicates [[50]])
 - docs/engine/title.md: how many frames DataRead and the index read take on a real card — research (card timing)
-- docs/engine/title.md: volumes 2-4: Data_Control's m_PrevFlg branches and ccSaveData::ConvGame — play (duplicates [[43]], [[201]])
+- docs/engine/title.md: volumes 2-4: Data_Control's m_PrevFlg branches and ccSaveData::ConvGame — answered by [[387]] (docs/engine/title.md "CONVERT (volumes 2-4)")
 - docs/engine/title.md: what sf 7 of ChangeRequest means — research (not traced)
 - docs/engine/title.md: what the logo PSS files show and how long each is — research (not written up; [[245]]: the same bytes on all four discs)
 - docs/engine/title.md: how many frames ccSetupDesktop takes to reach ccAllSoundOff — research (duplicates [[51]])

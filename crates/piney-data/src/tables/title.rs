@@ -32,6 +32,8 @@ pub struct Title {
     pub clear: &'static str,
     /// `STR_PARODY`
     pub parody: &'static str,
+    /// `STR_NOFLG_DETA`
+    pub noflg_deta: &'static str,
     /// demo.prg's highlight escape
     pub highlight: &'static str,
     /// demo.prg's volume label
@@ -57,6 +59,7 @@ impl crate::store::Load for Title {
             data: crate::store::Load::load(r),
             clear: crate::store::Load::load(r),
             parody: crate::store::Load::load(r),
+            noflg_deta: crate::store::Load::load(r),
             highlight: crate::store::Load::load(r),
             vol: crate::store::Load::load(r),
             save_sys_msg: crate::store::Load::load(r),
@@ -101,6 +104,9 @@ impl Title {
     }
     pub fn parody(&self) -> &'static str {
         self.parody
+    }
+    pub fn noflg_deta(&self) -> &'static str {
+        self.noflg_deta
     }
     pub fn highlight(&self) -> &'static str {
         self.highlight
@@ -152,6 +158,9 @@ pub static CLEAR: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|
 
 /// `STR_PARODY`
 pub static PARODY: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().parody);
+
+/// `STR_NOFLG_DETA`
+pub static NOFLG_DETA: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().noflg_deta);
 
 /// demo.prg's highlight escape
 pub static HIGHLIGHT: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().highlight);

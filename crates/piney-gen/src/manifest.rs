@@ -696,6 +696,7 @@ fn title() -> Group {
             e("data", 0x0037_840C, ptr(cstr()), DEMO, "`STR_DATA`"),
             e("clear", 0x0037_8410, ptr(cstr()), DEMO, "`STR_CLEAR`"),
             e("parody", 0x0037_8414, ptr(cstr()), DEMO, "`STR_PARODY`"),
+            e("noflg_deta", 0x0037_8418, ptr(cstr()), DEMO, "`STR_NOFLG_DETA`"),
             e("highlight", 0x0040_EBA8, cstr(), DEMO, "demo.prg's highlight escape"),
             e("vol", 0x0040_EBD8, cstr(), DEMO, "demo.prg's volume label"),
             derived(

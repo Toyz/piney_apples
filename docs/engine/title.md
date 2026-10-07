@@ -2,7 +2,7 @@
 title: The title screen
 status: partial
 volumes: INF
-covers: INF SLUS_202.67:0x00168160 ccSetupDemo, 0x00174d70 ccSaveData::NewGame, 0x00175500 SetDefaultWord, 0x00176610 InitTradeItem, 0x00167700 ccResetPlayTime, 0x00345f10 spcDefTradeList, 0x00346790 npcDefTradeList, 0x00347f90 tpcTradeList, 0x0015fb80 ccScFade::SendPacket, 0x00160240 EntryFlash, 0x00160360 EntryFlash3, 0x00160400 EntryFade, 0x00171a60 ccSaveSys::BootCheckReq, 0x00171a80 BootCheckProccess, 0x00173f90 NextProccess, 0x00166c50 ccMcard::CheckPort, 0x0016a8e0 ccDtMenu::CheckMenuType, 0x0016a7a0 ccDtMenu::OpenMenu, 0x0016a150 ccDtMenu::Disp, 0x0016aeb0 ccDtMenu::SystemMenu, 0x0016ac00 ccThDtMenu, 0x00105900 ccDrawEnv::SetLightMatrix, 0x00139830 ccOmniLight::CheckRange, 0x00110d50 sceVu0NormalLightMatrix, 0x0013e350 ccSetMatrixPacket, 0x00379b10 sysLayer, 0x00307040 saveSysMsg, 0x001821d0 ccSndSQLoad, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x001794b0 ccSetMainVol, 0x00181440 ccSound::ccSceneFade, 0x00182fc0 sqStatusGet, 0x00307e30 sqDataTitle, 0x0030a290 sqVolTblTitle, 0x00175110 ccSaveData::LoadGame, 0x00171990 LoadSelectReq, 0x001719b0 LoadDataReq, 0x00171c20 MainProccess, 0x00171620 ccSaveSys::ccSaveSys, 0x00171810 StartReq; INF demo.prg:0x00403af0 NextDataLoad_Control::NextDataLoad_Control, 0x00406f40 ccOpening_Control::PlayNextData, 0x00409470 ccOpening_Control::SetNextData, 0x00400900 ccThDemo, 0x0040dc80 charTbl, 0x004043b0 ccOpening_Control::Main, 0x00404540 LogoMain, 0x00404710 MOVEcount, 0x004047e0 AllAnimate, 0x00405420 AllTransparency, 0x004059d0 AllDraw, 0x00405d20 ChangeMainAct, 0x00405e80 SetVolCcs, 0x00405f50 Init, 0x004066b0 PlayOpeningStream, 0x00406950 PlayBootMemCard, 0x00406b50 PlayNeutral, 0x00406bf0 PlayNewGame, 0x00406c20 PlayParodyGame, 0x00406c60 PlayDataLoad, 0x00406de0 PlayOption, 0x004070c0 MoveCurNut, 0x004072a0 SwitchCur, 0x00407640 EndDataLoad, 0x00407670 SetStream, 0x004076f0 SetBootMemCard, 0x00407950 SetNeutral, 0x00408240 SetNewGame, 0x004082c0 SetDataLoad, 0x00408ba0 SetOption, 0x00409d40 SetParodyGame, 0x00403c00 BootMem_Control::Main_Control, 0x00403d40 BootCheck, 0x00400bc0 Data_Control::Main, 0x00403710 CurRepeat, 0x00401e80 InfoMessage, 0x004020f0 YesNoDialogue, 0x00401c40 TimeAlphaCurDraw, 0x004037f0 DataLoad_Control::Main_Control, 0x00400e20 Slot_Select, 0x00401170 SlotStateData, 0x00401390 Data_Select, 0x00401750 LoadData, 0x00401990 DispButton, 0x00402360 WriteDataList, 0x00402570 SetLoadPar, 0x00402e40 Data_Control::Init, 0x00409df0 ccDecodeMpeg, 0x0040dc40 DemoFileList; MUT DATA/DEMO.PRG:0x00419630 the max cursor setter
+covers: INF SLUS_202.67:0x00168160 ccSetupDemo, 0x00174d70 ccSaveData::NewGame, 0x00175500 SetDefaultWord, 0x00176610 InitTradeItem, 0x00167700 ccResetPlayTime, 0x00345f10 spcDefTradeList, 0x00346790 npcDefTradeList, 0x00347f90 tpcTradeList, 0x0015fb80 ccScFade::SendPacket, 0x00160240 EntryFlash, 0x00160360 EntryFlash3, 0x00160400 EntryFade, 0x00171a60 ccSaveSys::BootCheckReq, 0x00171a80 BootCheckProccess, 0x00173f90 NextProccess, 0x00166c50 ccMcard::CheckPort, 0x0016a8e0 ccDtMenu::CheckMenuType, 0x0016a7a0 ccDtMenu::OpenMenu, 0x0016a150 ccDtMenu::Disp, 0x0016aeb0 ccDtMenu::SystemMenu, 0x0016ac00 ccThDtMenu, 0x00105900 ccDrawEnv::SetLightMatrix, 0x00139830 ccOmniLight::CheckRange, 0x00110d50 sceVu0NormalLightMatrix, 0x0013e350 ccSetMatrixPacket, 0x00379b10 sysLayer, 0x00307040 saveSysMsg, 0x001821d0 ccSndSQLoad, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x001794b0 ccSetMainVol, 0x00181440 ccSound::ccSceneFade, 0x00182fc0 sqStatusGet, 0x00307e30 sqDataTitle, 0x0030a290 sqVolTblTitle, 0x00175110 ccSaveData::LoadGame, 0x00171990 LoadSelectReq, 0x001719b0 LoadDataReq, 0x00171c20 MainProccess, 0x00171620 ccSaveSys::ccSaveSys, 0x00171810 StartReq; INF demo.prg:0x00403af0 NextDataLoad_Control::NextDataLoad_Control, 0x00406f40 ccOpening_Control::PlayNextData, 0x00409470 ccOpening_Control::SetNextData, 0x00400900 ccThDemo, 0x0040dc80 charTbl, 0x004043b0 ccOpening_Control::Main, 0x00404540 LogoMain, 0x00404710 MOVEcount, 0x004047e0 AllAnimate, 0x00405420 AllTransparency, 0x004059d0 AllDraw, 0x00405d20 ChangeMainAct, 0x00405e80 SetVolCcs, 0x00405f50 Init, 0x004066b0 PlayOpeningStream, 0x00406950 PlayBootMemCard, 0x00406b50 PlayNeutral, 0x00406bf0 PlayNewGame, 0x00406c20 PlayParodyGame, 0x00406c60 PlayDataLoad, 0x00406de0 PlayOption, 0x004070c0 MoveCurNut, 0x004072a0 SwitchCur, 0x00407640 EndDataLoad, 0x00407670 SetStream, 0x004076f0 SetBootMemCard, 0x00407950 SetNeutral, 0x00408240 SetNewGame, 0x004082c0 SetDataLoad, 0x00408ba0 SetOption, 0x00409d40 SetParodyGame, 0x00403c00 BootMem_Control::Main_Control, 0x00403d40 BootCheck, 0x00400bc0 Data_Control::Main, 0x00403710 CurRepeat, 0x00401e80 InfoMessage, 0x004020f0 YesNoDialogue, 0x00401c40 TimeAlphaCurDraw, 0x004037f0 DataLoad_Control::Main_Control, 0x00400e20 Slot_Select, 0x00401170 SlotStateData, 0x00401390 Data_Select, 0x00401750 LoadData, 0x00401990 DispButton, 0x00402360 WriteDataList, 0x00402570 SetLoadPar, 0x00402e40 Data_Control::Init, 0x004039f0 NextDataLoad_Control::Main_Control, 0x00409df0 ccDecodeMpeg, 0x0040dc40 DemoFileList; MUT DATA/DEMO.PRG:0x00419630 the max cursor setter; MUT SLUS_205.62:0x00171b50 LoadInfoPrevReq, 0x00171c00 LoadDataPrevReq, 0x00171880 InitInfo; QUA DATA/DEMO.PRG:0x00301f10 Data_Control::Main
 worklog: 43, 45, 342
 ---
 
@@ -414,8 +414,8 @@ share:
 | s | what the step does |
 | --- | --- |
 | 0 | back to the card slots: SlotProc 0, dialog 0, CurNo = port, Max 1, `SlotSelectReq` |
-| 2 (read the index again) | SlotProc 1, dialog 0, `LoadInfoReq(SlotNO)` (SlotStateData also sets CurNo 0) |
-| & 0x3000 (acknowledge) | mask 2; an ok (or cancel, but only ok in Data_Select) push: `NextProccess(0)` |
+| 2 (read the index again) | SlotProc 1, dialog 0, `LoadInfoReq(SlotNO)` (`LoadInfoPrevReq` with `m_PrevFlg`; SlotStateData also sets CurNo 0) |
+| & 0x3000 (acknowledge) | mask 2; an ok (or cancel, but only ok in Data_Select, and only ok on Quarantine) push: `NextProccess(0)` |
 | & 0x8000 (yes / no) | mask 2; cancel: dialog 0, `NextProccess(0)`; else ok: `NextProccess(dialog)`; `YesNoDialogue(dialog, 0)` |
 | any | `InfoMessage(s, 0)` |
 
@@ -464,9 +464,47 @@ MainProccess's other steps are the desktop's (`docs/engine/desktop.md`):
   gives 0x103b "There is no .hack//INFECTION saved data";
 - an unformatted card gives 0x103a;
 - a card taken out gives 0x2005 or 0x2006.
-Proccess 4, 7 and 9 load the previous volume's data (`m_PrevFlg`,
-`NextDataLoad_Control`, the `Prev` requests), which Infection never asks
-for.
+Proccess 4, 7 and 9 are CONVERT's (below), which Infection never asks for.
+
+### CONVERT (volumes 2-4)
+
+The fourth item opens `NextDataLoad_Control` (+0x240): a `Data_Control`
+whose `Main_Control` (INF 0x004039f0) is `DataLoad_Control`'s, with
+`m_PrevFlg` 1 set after its `Init`. Its branches (the same code on every
+disc, Quarantine's recompiled):
+
+- **The index.** `Slot_Select`'s ok and the steps' re-reads call
+  `LoadInfoPrevReq(SlotNO)` (MUT 0x00171b50): `InitInfo`, proccess 4,
+  result 4, `operate` 2, port. `operate` 2 lets the card lack this disc's
+  own directory (CheckPort's 4 or 3 go on). Proccess 4 (MUT 0x00172514)
+  reads `mcDirName[volumeNum - 2]`'s index (`volumeNum - 1`, 1 when that
+  is not 1-3) with `ReadSys(port, 0, buf, 336, vol)` into `infoPrev`
+  (+0x150) when `CheckRightInfo` passes, result 1. Unreadable, it is
+  "There is no .hack//INFECTION saved data." (0x103b), the message of the
+  volume read. `InitInfo` clears `infoPrev`'s records too.
+- **The list.** `Data_Select`'s record is `infoPrev[DataNO]`. Ok takes it
+  only when its `clearFlag` is at least `volumeNum - 1`, used or not:
+  SlotProc 3, `LoadDataPrevReq(DataNO)` (MUT 0x00171c00: proccess 7,
+  result 4, `operate` 2). Any other ok does nothing.
+- **The panel.** `SetLoadPar` with `m_PrevFlg` draws only a save that has
+  cleared the previous volume: "DataNN  Vol.N CLEAR" in
+  `ccSpriteColorTable[6]`, then its level, name and time. Any other used
+  record shows "No Data Flag" (`STR_NOFLG_DETA`), an empty one "Unused",
+  both in `[7]`.
+- **The load.** Proccess 7 asks "Load this data?" (0x8012, message 18);
+  yes is proccess 9 (MUT 0x00173580). It reads the previous volume's slot
+  at its size (Infection's 0x8530, Mutation's and Outbreak's 0x8d84)
+  from its directory, checks the sum against `infoPrev`, and copies it in
+  as proccess 8 does. Infection's leaves the extension as `NewGame(1)`
+  made it. "Load complete." (0x2017) acknowledged ends the screen;
+  `PlayNextData` leaves with `m_StartMode` 4.
+
+Quarantine's `Data_Control` (QUA DEMO.PRG 0x00301f10 on) moved the cancel
+sound. Its `Main` plays se 7 for no cancel; the step that acts on one
+plays it (a question's NO, the list back to the card slots, `BootCheck`'s
+question), unless mask bit 4 is set. Its `SlotStateData` and `LoadData`
+take only ok as the acknowledgement. Its `MainProccess` leaves "Load
+complete." as 0x1017 (QUA 0x0017297c, 0x001737cc), not 0x2017.
 
 What it draws, on its own layer 129 (`ccLayer::Init(129, NULL)`, framed
 `SetFrame(0, 0, 512, 384, 256, 192, 1, 6/7)`). `m_hi` is 17; every
@@ -1043,7 +1081,9 @@ parody flag, and from random bytes), `ccThDemo` itself with
 (`DataLoad_Control::Main_Control` with every step, `ccSaveSys` built,
 started and stepped by its own code over a card kept as files, frame by
 frame: the state, every text and cursor drawn, the sounds, and the whole
-save at the end), `ccSaveData::LoadGame` on random saves, and the icons'
+slot at the end; on each disc with `PINEY_VOLUME`), CONVERT
+(`test_data_load_prev`, the same on Mutation's, Outbreak's and
+Quarantine's code over cards of the volume before's saves), `ccSaveData::LoadGame` on random saves, and the icons'
 light: the port's title run from boot to the menu and, for every lit object
 drawn at two frames, its `lwMatrix` through the game's light setup,
 `SetLightMatrix` and `ccSetMatrixPacket` (eemu with VU0 macro mode), then
@@ -1077,9 +1117,6 @@ while playing (ports 1-3: 64, 0, 0) and `ccSetMainVol(0)` then 256 (master
 - How many frames `DataRead` and the index read take on a real card; the
   port's card answers at once, so "Loading...." (0x10013 / 0x10014) is
   never seen.
-- Volumes 2-4: the `NextDataLoad_Control`'s `m_PrevFlg` branches of
-  `Data_Control` (reading the previous volume's card) and
-  `ccSaveData::ConvGame`.
 - What `sf` 7 of `ChangeRequest` means.
 - What the logo PSS files show and how long each is.
 - How many frames `ccSetupDesktop` takes to reach `ccAllSoundOff`, so

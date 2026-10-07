@@ -11,7 +11,7 @@ use piney_data::save::SaveData;
 use piney_desktop::card::{MemoryCard, PortState};
 use piney_desktop::savesys::SaveSys;
 
-use crate::dataload::{BOOT_LAYER, DataControl, Draw, Keys, mask};
+use crate::dataload::{BOOT_LAYER, CancelSound, DataControl, Draw, Keys, mask};
 use crate::opening::Env;
 
 /// `ccSaveSys.result` values the boot check sees.
@@ -120,6 +120,7 @@ impl BootMem {
     /// `Main_Control` (0x00403c00).
     pub fn main_control(&mut self, env: &mut Env) -> i32 {
         self.shown = None;
+        self.data.cancel_sound = CancelSound::of(env.sys.volume);
         match self.state {
             0 => {
                 boot_check_req(env.sys);
@@ -154,6 +155,7 @@ impl BootMem {
             self.data.mask &= !(mask::QUIET_MOVE | mask::NO_DECIDE);
             let push = keys.pad.push.bits();
             if push & keys.cancel != 0 {
+                self.data.step_cancel_sound(env.req);
                 self.data.dialog = 0;
                 env.sys.next_proccess(0);
             } else if push & keys.ok != 0 {

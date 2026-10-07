@@ -1046,8 +1046,8 @@ impl Mode for Session {
                         // Option's system menu, as on the desktop.
                         Request::Menu(r) => self.events.extend(desktop::event(r)),
                         // `LoadGame` ends with `SetSoundEnv`: the loaded
-                        // save's volumes.
-                        Request::LoadGame => {
+                        // save's volumes. CONVERT's `ConvGame` calls it.
+                        Request::LoadGame | Request::ConvGame => {
                             // The options kept across the parts win over
                             // the loaded save's.
                             if let Some(s) = self.settings.filter(|_| self.settings_path.is_some()) {
@@ -6866,6 +6866,9 @@ mod tests {
 
     /// The ending's save menus after the staff roll.
     mod ending_save;
+
+    /// Issue #55: CONVERT, the previous part's clear data into the next.
+    mod convert;
 
     /// The riding Grunty: the flute, the ride, the dismount.
     mod ride;

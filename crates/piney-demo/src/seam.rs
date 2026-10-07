@@ -47,7 +47,8 @@ impl MemoryCard for MemCard {
         }
     }
 
-    fn read_index(&mut self, port: i32) -> Option<Vec<u8>> {
+    /// One directory: `vol` is not told apart.
+    fn read_index(&mut self, port: i32, _vol: i32) -> Option<Vec<u8>> {
         (port == 0 && self.dir).then(|| self.index.to_vec())
     }
 

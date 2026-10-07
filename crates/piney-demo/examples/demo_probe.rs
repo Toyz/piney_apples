@@ -54,6 +54,9 @@ impl SystemMenu for Menu {
     fn frame(&mut self, _x: &mut MenuFrame) {}
 }
 
+/// The probe's disc's volume, once read.
+static DISC: std::sync::OnceLock<piney_data::volume::Volume> = std::sync::OnceLock::new();
+
 const OK: u32 = 0x40;
 const CANCEL: u32 = 0x20;
 
@@ -130,7 +133,8 @@ impl World {
             req: Vec::new(),
             fade: ScFade::default(),
             menu: Menu { ty: menu_type, ..Menu::default() },
-            sys: SaveSys::new(piney_data::volume::Volume::Inf),
+            // The disc's own ccSaveSys (its volumeNum).
+            sys: SaveSys::new(DISC.get().copied().unwrap_or(piney_data::volume::Volume::Inf)),
             parody: false,
         }
     }
@@ -204,6 +208,8 @@ fn request_event(r: &Request) -> Option<String> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path)?;
+    let disc = iso.volume()?;
+    let _ = DISC.set(disc);
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN")?)?);
     let file = Rc::new(SceneFile::read(&archive, piney_demo::names::TITLE_FILE)?);
     // Each volume's title (Infection's archive has all four), and the
@@ -213,13 +219,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         files.push(Rc::new(SceneFile::read(&archive, piney_demo::names::title_file(v))?));
     }
     let mut vol: i16 = 1;
-    let init_text = piney_desktop::InitText::of(piney_data::volume::Volume::Inf);
     let tables = NewGameTables::of(piney_data::volume::Volume::Inf);
     let font = piney_data::ccs::Ccs::parse(archive.inflate_named(piney_desktop::assets::FONT_FILE)?)?;
     let (_, cluts) = piney_data::texture::read(&font)?;
     let clut = font.find_object("CLT_xasc00").and_then(|o| cluts.get(&o)).ok_or("CLT_xasc00")?;
-    let fonts = Fonts::of(piney_data::volume::Volume::Inf, clut.colours.iter().map(|c| piney_draw::Rgba(*c)).collect());
-    let assets = DialogAssets::read(piney_data::volume::Volume::Inf, fonts, &file)?;
+    // The load screens' texts and fonts: the disc's own.
+    let fonts = Fonts::of(disc, clut.colours.iter().map(|c| piney_draw::Rgba(*c)).collect());
+    let assets = DialogAssets::read(disc, fonts, &files[(disc.number() - 1) as usize])?;
     let stdin = std::io::stdin();
     let mut lines = stdin.lock().lines();
     while let Some(line) = lines.next() {
@@ -573,9 +579,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "[[{}],[{}],\"{}\",\"{}\",\"{}\"]",
                     msg(0x28),
                     msg(0x29),
-                    hex(title::YES),
-                    hex(title::NO),
-                    hex(title::HIGHLIGHT)
+                    hex(*title::YES),
+                    hex(*title::NO),
+                    hex(*title::HIGHLIGHT)
                 );
             }
             "draw" => {
@@ -676,53 +682,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 println!("[{}]", out.join(","));
             }
-            "load" => {
+            cmd @ ("load" | "loadnext") => {
+                // The disc's own LOAD, or its CONVERT (NextDataLoad_Control
+                // over the card's saves of the volume before); the save
+                // after it as the disc's slot file.
                 let v: Vec<&str> = it.collect();
-                let mut card = FilesCard::slot1(piney_data::volume::Volume::Inf, v[0]);
-                let mut sys = SaveSys::new(piney_data::volume::Volume::Inf);
+                let mut card = FilesCard::slot1(disc, v[0]);
+                let mut sys = SaveSys::new(disc);
                 (sys.port, sys.file_num) = (v[1].parse()?, v[2].parse()?);
-                let mut dl = DataLoad::new();
-                dl.init(&mut sys);
-                sys.start_req(OPERATE_TITLE);
-                // As the boot check leaves it.
-                (sys.result, sys.proccess) = (1, 1);
-                let mut task = SaveSysTask::default();
-                // The title's save before the load: the port's fresh one.
-                let mut save = piney_desktop::SaveState::fresh_with(&init_text).save;
-                let mut out = Vec::new();
-                for l in lines.by_ref() {
-                    let l = l?;
-                    if l.trim() == "end" {
-                        break;
-                    }
-                    let p = nums(&mut l.split_whitespace().skip(1).collect::<Vec<_>>().join(" ").split_whitespace());
-                    task.frame(&mut sys, &mut card, &mut save);
-                    let (ok, cancel) = (u32::from(save.assign_pad_ok()), u32::from(save.assign_pad_cancel()));
-                    let pd = pad(p[0] as u32, p[1] as u32, p[2] as u32);
-                    let mut ctx = Ctx::new(View::default());
-                    let mut req = Vec::new();
-                    dataload::trace::start();
-                    let mut d = Draw { ctx: &mut ctx, assets: Some(&assets), count: p[3] as u32, frame_rate: 1 };
-                    let r = dl.main_control(&mut d, Keys { pad: &pd, ok, cancel }, &mut sys, &mut req);
-                    let ev = dataload::trace::stop();
-                    let c = &dl.data;
-                    out.push(format!(
-                        "[{r},{},{},{},{},{},{},{},{},{},{},{},[{}]]",
-                        c.slot_proc,
-                        c.cur_no,
-                        c.dialog,
-                        c.load_flg as i32,
-                        c.sw,
-                        c.mask,
-                        c.temp_pn,
-                        sys.result as i32,
-                        sys.proccess,
-                        sys.port,
-                        sys.file_num,
-                        ev.join(",")
-                    ));
+                let mut dl = if cmd == "load" { DataLoad::new() } else { DataLoad::new_next() };
+                if cmd == "load" {
+                    dl.init(&mut sys);
+                } else {
+                    dl.init_next(&mut sys);
                 }
-                let hex: String = save.bytes().iter().map(|b| format!("{b:02x}")).collect();
+                // The title's save before the load: the port's fresh one.
+                let mut save = piney_desktop::SaveState::fresh_with(&piney_desktop::InitText::of(disc)).save;
+                let out = load_frames(&mut lines, &mut dl, &mut card, &mut sys, &mut save, &assets)?;
+                let hex: String = save.slot_bytes(disc).iter().map(|b| format!("{b:02x}")).collect();
                 println!("{{\"frames\":[{}],\"save\":\"{hex}\"}}", out.join(","));
             }
             "loadgame" => {
@@ -744,6 +721,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     Ok(())
+}
+
+/// The load screen's frames up to an `end` line, one `frame PUSH UNPUSH
+/// REPEAT COUNT` line each: `ccSaveSys`'s task (started by the title,
+/// as the boot check leaves it), then `Main_Control`; each frame's state,
+/// texts, packets and sounds as JSON.
+fn load_frames(
+    lines: &mut impl Iterator<Item = std::io::Result<String>>,
+    dl: &mut DataLoad,
+    card: &mut FilesCard,
+    sys: &mut SaveSys,
+    save: &mut piney_data::save::SaveData,
+    assets: &DialogAssets,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    sys.start_req(OPERATE_TITLE);
+    (sys.result, sys.proccess) = (1, 1);
+    let mut task = SaveSysTask::default();
+    let mut out = Vec::new();
+    for l in lines.by_ref() {
+        let l = l?;
+        if l.trim() == "end" {
+            break;
+        }
+        let p = nums(&mut l.split_whitespace().skip(1).collect::<Vec<_>>().join(" ").split_whitespace());
+        task.frame(sys, card, save);
+        let (ok, cancel) = (u32::from(save.assign_pad_ok()), u32::from(save.assign_pad_cancel()));
+        let pd = pad(p[0] as u32, p[1] as u32, p[2] as u32);
+        let mut ctx = Ctx::new(View::default());
+        let mut req = Vec::new();
+        dataload::trace::start();
+        let mut d = Draw { ctx: &mut ctx, assets: Some(assets), count: p[3] as u32, frame_rate: 1 };
+        let r = dl.main_control(&mut d, Keys { pad: &pd, ok, cancel }, sys, &mut req);
+        let ev = dataload::trace::stop();
+        let c = &dl.data;
+        out.push(format!(
+            "[{r},{},{},{},{},{},{},{},{},{},{},{},[{}]]",
+            c.slot_proc,
+            c.cur_no,
+            c.dialog,
+            c.load_flg as i32,
+            c.sw,
+            c.mask,
+            c.temp_pn,
+            sys.result as i32,
+            sys.proccess,
+            sys.port,
+            sys.file_num,
+            ev.join(",")
+        ));
+    }
+    Ok(out)
 }
 
 /// The `lit` request: see the module docs.

@@ -83,10 +83,11 @@ pub trait MemoryCard {
     /// `ccMcard::CheckPort(port, 0)`.
     fn check_port(&mut self, port: i32) -> PortState;
 
-    /// `ccMcard::ReadSys(port, 0, buf, 336, volumeNum)` (0x00166a10): the
-    /// index file `<dir>/<dir>`, at most 336 bytes of it; `None` when it
-    /// cannot be opened or read (ReadSys returns 5).
-    fn read_index(&mut self, port: i32) -> Option<Vec<u8>>;
+    /// `ccMcard::ReadSys(port, 0, buf, 336, vol)` (0x00166a10): volume
+    /// `vol`'s (1-4) index file `<dir>/<dir>`, at most 336 bytes of it: the
+    /// disc's own (`volumeNum`), or the previous volume's for CONVERT;
+    /// `None` when it cannot be opened or read (ReadSys returns 5).
+    fn read_index(&mut self, port: i32, vol: i32) -> Option<Vec<u8>>;
 
     /// `ccMcard::SaveSys(port, 0, info, 336)` (0x001664b0): write the index
     /// file; false when that fails (SaveSys returns 6).
@@ -126,7 +127,7 @@ impl MemoryCard for NoCard {
         PortState::NoCard
     }
 
-    fn read_index(&mut self, _port: i32) -> Option<Vec<u8>> {
+    fn read_index(&mut self, _port: i32, _vol: i32) -> Option<Vec<u8>> {
         None
     }
 
@@ -186,7 +187,13 @@ impl FilesCard {
 
     /// The index file of `port`'s card.
     pub fn index_path(&self, port: i32) -> Option<PathBuf> {
-        Some(self.save_dir(port)?.join(own_dir_name(self.volume)))
+        self.index_path_of(port, self.volume.number())
+    }
+
+    /// Volume `vol`'s (1-4) index file on `port`'s card.
+    pub fn index_path_of(&self, port: i32, vol: i32) -> Option<PathBuf> {
+        let dir = dir_name(self.volume, vol);
+        Some(self.card(port)?.join(dir).join(dir))
     }
 
     /// Slot file `slot` (0-11) of `port`'s card in volume `vol`'s
@@ -205,8 +212,8 @@ impl MemoryCard for FilesCard {
         }
     }
 
-    fn read_index(&mut self, port: i32) -> Option<Vec<u8>> {
-        let mut b = fs::read(self.index_path(port)?).ok()?;
+    fn read_index(&mut self, port: i32, vol: i32) -> Option<Vec<u8>> {
+        let mut b = fs::read(self.index_path_of(port, vol)?).ok()?;
         b.truncate(INDEX_SIZE);
         Some(b)
     }
@@ -490,11 +497,11 @@ mod tests {
         assert_eq!(c.check_port(1), PortState::NoCard);
         fs::create_dir_all(&root).unwrap();
         assert_eq!(c.check_port(0), PortState::NoDirectory);
-        assert!(c.read_index(0).is_none());
+        assert!(c.read_index(0, 1).is_none());
         assert!(!c.write_index(0, &[0; INDEX_SIZE]));
         assert!(c.make_dir(0));
         assert_eq!(c.check_port(0), PortState::Ready);
-        assert_eq!(c.read_index(0), Some(vec![0; INDEX_SIZE]));
+        assert_eq!(c.read_index(0, 1), Some(vec![0; INDEX_SIZE]));
         let size = slot_size(Volume::Inf);
         assert!(c.write_slot(0, 11, &vec![7; size]));
         assert_eq!(fs::read(root.join("BASLUS-20267DOTHACK").join("dhdata12")).unwrap(), vec![7; size]);
@@ -555,7 +562,7 @@ mod tests {
         let dir = own_dir_name(Volume::Inf);
         assert_eq!(import(&lone, &card, None).unwrap(), vec![(dir.to_string(), 1)]);
         let mut c = FilesCard::slot1(Volume::Inf, &card);
-        let index: [u8; INDEX_SIZE] = c.read_index(0).unwrap().try_into().unwrap();
+        let index: [u8; INDEX_SIZE] = c.read_index(0, 1).unwrap().try_into().unwrap();
         assert!(crate::savesys::check_right_info(&index));
         let r = SaveDataInfo::from_bytes(&index[11 * INFO_SIZE..]);
         assert_eq!((r.status, r.name(), r.sum), (1, &b"Kite"[..], save.sum()));

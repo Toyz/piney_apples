@@ -1184,7 +1184,7 @@ mod sim_card {
             }
         }
 
-        fn read_index(&mut self, port: i32) -> Option<Vec<u8>> {
+        fn read_index(&mut self, port: i32, _vol: i32) -> Option<Vec<u8>> {
             let p = self.port(port);
             p.files.get(&index_path(self.1)).map(|b| b[..b.len().min(INDEX_SIZE)].to_vec())
         }

@@ -8,6 +8,7 @@
 //! `Data_Control::Init` (0x00402e40) on layer 129 (docs/engine/title.md).
 
 use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::volume::Volume;
 use piney_desktop::anm::Ctx;
 use piney_desktop::eef::{add, div, from_int, lt, mul, sub, to_int};
 use piney_desktop::kanji::{Kanji, Names, dec2sjis};
@@ -59,6 +60,33 @@ pub const COLOUR_TEXT: usize = 7;
 /// `@1613`'s filler between the slot number and "PARODY": two SJIS
 /// full-width spaces.
 pub const WIDE_SPACES: [u8; 4] = [0x81, 0x40, 0x81, 0x40];
+
+/// Where a cancel's sound (se 7) plays. Infection to Outbreak: in `Main`,
+/// for every cancel push. Quarantine's recompiled `Data_Control` (QUA
+/// 0x00301f10 on): only where a step acts on cancel (a question's NO, the
+/// list back to the card slots, the boot question), unless the mask
+/// quiets it; there OK alone acknowledges a message.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CancelSound {
+    #[default]
+    Main,
+    Steps,
+}
+
+impl CancelSound {
+    /// The disc's own.
+    pub fn of(volume: Volume) -> Self {
+        if volume == Volume::Qua { CancelSound::Steps } else { CancelSound::Main }
+    }
+
+    /// The buttons that acknowledge a message where `Main` sounds cancel.
+    fn acks(self, k: &Keys) -> u32 {
+        match self {
+            CancelSound::Main => k.ok | k.cancel,
+            CancelSound::Steps => k.ok,
+        }
+    }
+}
 
 /// A trace event, built only when the `trace` feature records it.
 fn event(f: impl FnOnce() -> String) {
@@ -139,8 +167,8 @@ pub struct DataControl {
     pub cur_xy: (i32, i32),
     /// +0x80 `m_SelInitFlg`: the next `Slot_Select` asks `SlotSelectReq`.
     pub sel_init: bool,
-    /// +0x84 `m_infoState`: which record of `saveSys->info` the panel
-    /// shows.
+    /// +0x84 `m_infoState`: which record of `saveSys->info` (of
+    /// `infoPrev` with `m_PrevFlg`) the panel shows.
     pub info_state: usize,
     /// The layer (`m_KanjiLayer`'s priority).
     pub layer: i16,
@@ -148,6 +176,8 @@ pub struct DataControl {
     pub par_colour: [u8; 4],
     /// `m_Cur` (a `ccMask`), made on the first draw.
     pub cur: Option<Sprite>,
+    /// Where cancel sounds (the disc's code; not a member).
+    pub cancel_sound: CancelSound,
 }
 
 impl DataControl {
@@ -184,6 +214,7 @@ impl DataControl {
             layer,
             par_colour: SPRITE_COLOR_TABLE[COLOUR_TEXT],
             cur: None,
+            cancel_sound: CancelSound::Main,
         }
     }
 
@@ -257,7 +288,9 @@ impl DataControl {
                 sound(se::DECIDE, req);
             } else if self.cur_repeat(pad, cancel, ok, cancel) {
                 self.sw = -1;
-                sound(se::DATA_CANCEL, req);
+                if self.cancel_sound == CancelSound::Main {
+                    sound(se::DATA_CANCEL, req);
+                }
             }
         }
         self.mask = 0;
@@ -477,19 +510,44 @@ impl DataControl {
         sys.slot_select_req();
     }
 
-    /// Read the slot's index again (`LoadInfoReq`; `LoadInfoPrevReq` for
-    /// the previous volume, never in Infection).
+    /// Read the slot's index again.
     fn reload(&mut self, sys: &mut SaveSys) {
         self.slot_proc = 1;
         self.dialog = 0;
-        sys.load_info_req(self.slot_no);
+        self.load_info(sys);
+    }
+
+    /// Read the chosen card's index: this volume's (`LoadInfoReq`), or with
+    /// `m_PrevFlg` the previous volume's (`LoadInfoPrevReq`, CONVERT).
+    fn load_info(&self, sys: &mut SaveSys) {
+        if self.prev_flg != 0 {
+            sys.load_info_prev_req(self.slot_no);
+        } else {
+            sys.load_info_req(self.slot_no);
+        }
+    }
+
+    /// The index record the panel shows: `info[n]`, or `infoPrev[n]` with
+    /// `m_PrevFlg`.
+    fn record(&self, sys: &SaveSys, n: usize) -> SaveDataInfo {
+        if self.prev_flg != 0 { sys.record_prev(n) } else { sys.record(n) }
+    }
+
+    /// Quarantine's cancel sound, played by the step that acts on cancel
+    /// unless the mask quiets ok and cancel.
+    pub fn step_cancel_sound(&self, req: &mut Vec<Request>) {
+        if self.cancel_sound == CancelSound::Steps && self.mask & mask::QUIET_DECIDE == 0 {
+            event(|| format!("[\"se\",{}]", se::DATA_CANCEL));
+            req.push(Request::Se(se::DATA_CANCEL));
+        }
     }
 
     /// The question branch every step shares: cancel is no, ok answers
     /// `m_dialog`, then `YesNoDialogue(m_dialog, 0)`.
-    fn question(&mut self, d: &mut Draw, k: Keys, sys: &mut SaveSys) {
+    fn question(&mut self, d: &mut Draw, k: Keys, sys: &mut SaveSys, req: &mut Vec<Request>) {
         self.mask |= mask::DIALOG;
         if k.push() & k.cancel != 0 {
+            self.step_cancel_sound(req);
             self.dialog = 0;
             sys.next_proccess(0);
         } else if k.push() & k.ok != 0 {
@@ -553,6 +611,7 @@ impl DataLoad {
     /// `ccSaveSys` last used, and `SlotSelectReq`.
     pub fn init(&mut self, sys: &mut SaveSys) {
         let d = &mut self.data;
+        d.cancel_sound = CancelSound::of(sys.volume);
         d.cur_xy = (0, 0);
         d.prev_flg = 0;
         d.load_flg = false;
@@ -585,7 +644,7 @@ impl DataLoad {
             }
             2 => {
                 self.write_data_list(d, sys);
-                self.data_select(d, k, sys);
+                self.data_select(d, k, sys, req);
             }
             3 => {
                 self.write_data_list(d, sys);
@@ -633,7 +692,7 @@ impl DataLoad {
             d.cur_no = 0;
             d.max = 11;
             d.min = 0;
-            sys.load_info_req(d.slot_no);
+            d.load_info(sys);
         }
         d.info_message(dr, s, false);
     }
@@ -662,20 +721,20 @@ impl DataLoad {
                 req.push(Request::Se(SE_DONE));
                 d.temp_pn = 0;
             }
-            if k.push() & (k.ok | k.cancel) != 0 {
+            if k.push() & d.cancel_sound.acks(&k) != 0 {
                 sys.next_proccess(0);
                 d.temp_pn = 1;
             }
         }
         if s & code::QUESTION != 0 {
-            d.question(dr, k, sys);
+            d.question(dr, k, sys, req);
         }
         d.info_message(dr, s, false);
     }
 
     /// `Data_Select` (0x00401390): the twelve saves; ok on a used one asks
     /// to load it (`LoadDataReq`), cancel goes back to the card slots.
-    fn data_select(&mut self, dr: &mut Draw, k: Keys, sys: &mut SaveSys) {
+    fn data_select(&mut self, dr: &mut Draw, k: Keys, sys: &mut SaveSys, req: &mut Vec<Request>) {
         let d = &mut self.data;
         let s = sys.result;
         if s == 0 {
@@ -694,13 +753,14 @@ impl DataLoad {
             }
         }
         if s & code::QUESTION != 0 {
-            d.question(dr, k, sys);
+            d.question(dr, k, sys, req);
         }
         d.info_message(dr, s, false);
         if s == code::DONE || s == piney_desktop::savesys::LOAD_SELECT {
             d.data_no = i32::from(d.cur_no);
             d.info_state = d.data_no.clamp(0, 11) as usize;
             if k.push() & k.cancel != 0 {
+                d.step_cancel_sound(req);
                 d.dialog = 0;
                 d.cur_no = sys.port as i16;
                 d.slot_proc = 0;
@@ -709,11 +769,20 @@ impl DataLoad {
                 d.min = 0;
             } else if k.push() & k.ok != 0 {
                 d.mask |= mask::FREEZE;
-                if d.prev_flg == 0 && sys.record(d.info_state).status != 0 {
+                // CONVERT takes only a save that has cleared the previous
+                // volume (clearFlag at least volumeNum - 1), used or not.
+                let r = d.record(sys, d.info_state);
+                let take =
+                    if d.prev_flg == 0 { r.status != 0 } else { i32::from(r.clear_flag) >= sys.volume.number() - 1 };
+                if take {
                     d.data_no = i32::from(d.cur_no);
                     d.slot_proc = 3;
                     d.dialog = 0;
-                    sys.load_data_req(d.data_no);
+                    if d.prev_flg == 0 {
+                        sys.load_data_req(d.data_no);
+                    } else {
+                        sys.load_data_prev_req(d.data_no);
+                    }
                 }
             }
             if s != code::DONE && d.slot_proc != 0 {
@@ -745,7 +814,7 @@ impl DataLoad {
                 req.push(Request::Se(SE_DONE));
                 d.temp_pn = 0;
             }
-            if k.push() & (k.ok | k.cancel) != 0 {
+            if k.push() & d.cancel_sound.acks(&k) != 0 {
                 if s & code::MESSAGE == 23 {
                     d.load_flg = true;
                 }
@@ -755,7 +824,7 @@ impl DataLoad {
             d.mask |= mask::DIALOG;
         }
         if s & code::QUESTION != 0 {
-            d.question(dr, k, sys);
+            d.question(dr, k, sys, req);
             let (st, no) = (d.info_state, d.data_no);
             Self::set_load_par(d, dr, sys, st, no);
         }
@@ -793,9 +862,13 @@ impl DataLoad {
 
     /// `SetLoadPar(info, no)` (0x00402570): the save's panel - "DataNN"
     /// (with "Vol.N CLEAR" in yellow for a cleared save, the parody mark in
-    /// red), "Lv.", the name, the play time; "no data" for an empty slot.
+    /// red), "Lv.", the name, the play time; "Unused" for an empty slot.
+    /// CONVERT's (`m_PrevFlg`) shows only a save that cleared the previous
+    /// volume; another used one is "No Data Flag".
     fn set_load_par(d: &mut DataControl, dr: &mut Draw, sys: &SaveSys, state: usize, no: i32) {
-        let bytes = &sys.info[INFO_SIZE * state..];
+        let prev = d.prev_flg != 0;
+        let table = if prev { &sys.info_prev } else { &sys.info };
+        let bytes = &table[INFO_SIZE * state..];
         let r = SaveDataInfo::from_bytes(bytes);
         let name = &bytes[4..];
         let name = &name[..name.iter().position(|&c| c == 0).unwrap_or(name.len())];
@@ -809,17 +882,27 @@ impl DataLoad {
             return;
         };
         let num = dec2sjis(no + 1, 2, 2);
-        let (line, colour) = if i32::from(r.clear_flag) >= sys.volume.number() {
+        let clear = || {
             let l =
                 [a.data.as_slice(), &num, b"  ", &a.vol, &dec2sjis(i32::from(r.clear_flag), 1, 0), &a.clear].concat();
             (l, SPRITE_COLOR_TABLE[COLOUR_CLEAR])
-        } else if r.parody_flag != 0 {
-            ([a.data.as_slice(), &num, &WIDE_SPACES, &a.parody].concat(), SPRITE_COLOR_TABLE[COLOUR_PARODY])
-        } else {
-            ([a.data.as_slice(), &num].concat(), SPRITE_COLOR_TABLE[COLOUR_TEXT])
         };
-        d.par_colour = colour;
-        if r.status != 0 {
+        let vol = sys.volume.number();
+        // The first line and its colour; None (the colour left as it was)
+        // for CONVERT's save that has not cleared the previous volume.
+        let head = match (prev, i32::from(r.clear_flag)) {
+            (false, c) if c >= vol => Some(clear()),
+            (false, _) if r.parody_flag != 0 => {
+                Some(([a.data.as_slice(), &num, &WIDE_SPACES, &a.parody].concat(), SPRITE_COLOR_TABLE[COLOUR_PARODY]))
+            }
+            (false, _) => Some(([a.data.as_slice(), &num].concat(), SPRITE_COLOR_TABLE[COLOUR_TEXT])),
+            (true, c) if c >= vol - 1 => Some(clear()),
+            (true, _) => None,
+        };
+        if let Some((_, colour)) = head {
+            d.par_colour = colour;
+        }
+        if let (Some((line, colour)), true) = (head, r.status != 0) {
             let lv = [a.lv.as_slice(), &dec2sjis(i32::from(r.level), 2, 2)].concat();
             let time = [
                 a.alltime.as_slice(),
@@ -838,7 +921,8 @@ impl DataLoad {
         } else {
             let white = SPRITE_COLOR_TABLE[COLOUR_TEXT];
             d.par_colour = white;
-            d.disp(dr, "par[0]", d.par_x, d.par_y + d.hi, white, &a.nodeta);
+            let text = if prev && r.status != 0 { &a.noflg_deta } else { &a.nodeta };
+            d.disp(dr, "par[0]", d.par_x, d.par_y + d.hi, white, text);
         }
     }
 }

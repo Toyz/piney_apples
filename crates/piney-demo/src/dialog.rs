@@ -32,6 +32,9 @@ pub struct DialogAssets {
     pub lv: Vec<u8>,
     pub alltime: Vec<u8>,
     pub nodeta: Vec<u8>,
+    /// `STR_NOFLG_DETA` "No Data Flag": CONVERT's save that has not
+    /// cleared the previous volume.
+    pub noflg_deta: Vec<u8>,
     pub memorycard: Vec<u8>,
     pub slot1: Vec<u8>,
     pub slot2: Vec<u8>,
@@ -73,6 +76,7 @@ impl DialogAssets {
             lv: encode(*title::LV),
             alltime: encode(*title::ALLTIME),
             nodeta: encode(*title::NODETA),
+            noflg_deta: encode(*title::NOFLG_DETA),
             memorycard: encode(*title::MEMORYCARD),
             slot1: encode(*title::SLOT1),
             slot2: encode(*title::SLOT2),

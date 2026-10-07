@@ -101,7 +101,9 @@ pub enum Request {
     /// has already applied it to [`Demo::save`] ([`newgame::load_game`]).
     LoadGame,
     /// `ccStartEventConvert()`, `saveData->ConvGame()`: a previous
-    /// volume's save carried over (volumes 2-4; never in Infection).
+    /// volume's save carried over (volumes 2-4; never in Infection). The
+    /// title has already applied both to [`Demo::save`]
+    /// ([`newgame::conv_game`]).
     ConvGame,
     /// `ccGame::ChangeRequest(num, sf)`: leave the title.
     ChangeMode { num: i32, sf: i32 },
@@ -409,6 +411,14 @@ impl Demo {
             && self.requests[asked..].iter().any(|r| matches!(r, Request::LoadGame))
         {
             load_game(&mut self.state.save, t, newgame::SAVE_VA);
+        }
+        // Main returned 4 (CONVERT): ccStartEventConvert(), then
+        // saveData->ConvGame() on the previous volume's save just read.
+        if let Some(t) = &self.tables
+            && self.requests[asked..].iter().any(|r| matches!(r, Request::ConvGame))
+        {
+            newgame::start_event_convert(&mut self.state.save, t.volume);
+            newgame::conv_game(&mut self.state.save, t, newgame::SAVE_VA);
         }
         // ccThDtMenu, after ccThDemo.
         let names = self.state.names();

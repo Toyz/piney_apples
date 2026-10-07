@@ -8,7 +8,7 @@
 //! [`new_game`] takes). See docs/engine/title.md ("ccSaveData::NewGame").
 
 use piney_data::save::{SaveData, by_id};
-use piney_data::tables::newgame::{ItemList, NewGame};
+use piney_data::tables::newgame::{ItemList, NewGame, SpcParamData};
 use piney_data::volume::Volume;
 
 /// Entries of each trade list.
@@ -189,15 +189,7 @@ pub fn new_game(save: &mut SaveData, sw: i32, tables: &NewGameTables, save_va: u
     let b = save.record_mut();
     for (i, c) in tables.t.chars.iter().enumerate() {
         let p = by_id::spc_param(i);
-        let r = &mut b[p..p + offset::SPC_PARAM_SIZE];
-        c.base.write(r);
-        r[spc_param::MAX_HP..spc_param::MAX_HP + 2].copy_from_slice(&c.max_hp.to_le_bytes());
-        r[spc_param::MAX_SP..spc_param::MAX_SP + 2].copy_from_slice(&c.max_sp.to_le_bytes());
-        c.elm.write(&mut r[spc_param::ELM..]);
-        c.equipment.write(&mut r[spc_param::EQUIPMENT..]);
-        r[spc_param::VELOCITY..spc_param::VELOCITY + 4].copy_from_slice(&c.velocity.to_le_bytes());
-        r[spc_param::JOB..spc_param::JOB + 2].copy_from_slice(&c.job.to_le_bytes());
-        r[spc_param::FRIENDSHIP..spc_param::FRIENDSHIP + 2].copy_from_slice(&c.friendship.to_le_bytes());
+        write_spc_param(&mut b[p..p + offset::SPC_PARAM_SIZE], c);
         // The name pointers: character 0's at the save's plName, the rest in
         // spcNameList; each model name in ccsNameList.
         let name_va = if i == 0 { save_va } else { tables.t.spc_name_list + (SPC_NAME_SIZE * (i - 1)) as u32 };
@@ -222,31 +214,7 @@ pub fn new_game(save: &mut SaveData, sw: i32, tables: &NewGameTables, save_va: u
         let v = u32::from_le_bytes(b[at..at + 4].try_into().unwrap()) | bits;
         b[at..at + 4].copy_from_slice(&v.to_le_bytes());
     }
-    // InitTradeItem: each ccTradeList's item, list by list (the later
-    // volumes' last ones in the extension); a list's unused slots are empty
-    // items (id -1, category -1, none).
-    let empty = ItemList { id: -1, category: -1, num: 0 };
-    let lists = [
-        (tables.t.spc_trade, by_id::spc_trade_list as fn(usize) -> usize),
-        (tables.t.npc_trade, by_id::npc_trade_list),
-    ];
-    for (src, at) in lists {
-        for (list, trades) in src.iter().enumerate() {
-            let dst = at(list);
-            for k in 0..TRADE_ITEMS {
-                let item = trades.get(k).map_or(empty, |e| e.lst);
-                item.write(&mut b[dst + offset::ITEM_LIST * k..]);
-            }
-        }
-    }
-    // tpcTradeListSW[j][k] = tpcTradeList[j][0][0].category >= 0 for every k
-    // (the loop never indexes by k).
-    for (j, lists) in tables.t.tpc_trade.iter().enumerate() {
-        let on = lists[0][0].category >= 0;
-        for k in 0..3 {
-            b[offset::TPC_TRADE_LIST_SW + 3 * j + k] = u8::from(on);
-        }
-    }
+    init_trade_item(b, tables);
     if sw == 0 {
         for e in new_game_extras(tables.volume) {
             match e {
@@ -262,6 +230,88 @@ pub fn new_game(save: &mut SaveData, sw: i32, tables: &NewGameTables, save_va: u
     }
     names
 }
+
+/// A `charTbl` row into its character's `ccSpcParam`: what `NewGame` and
+/// `ConvGame` copy (`base`, `maxHP`, `maxSP`, `elm` in place, then the
+/// equipment, `velocity`, `job` and `friendship`).
+fn write_spc_param(r: &mut [u8], c: &SpcParamData) {
+    c.base.write(r);
+    r[spc_param::MAX_HP..spc_param::MAX_HP + 2].copy_from_slice(&c.max_hp.to_le_bytes());
+    r[spc_param::MAX_SP..spc_param::MAX_SP + 2].copy_from_slice(&c.max_sp.to_le_bytes());
+    c.elm.write(&mut r[spc_param::ELM..]);
+    c.equipment.write(&mut r[spc_param::EQUIPMENT..]);
+    r[spc_param::VELOCITY..spc_param::VELOCITY + 4].copy_from_slice(&c.velocity.to_le_bytes());
+    r[spc_param::JOB..spc_param::JOB + 2].copy_from_slice(&c.job.to_le_bytes());
+    r[spc_param::FRIENDSHIP..spc_param::FRIENDSHIP + 2].copy_from_slice(&c.friendship.to_le_bytes());
+}
+
+/// `ccSaveData::InitTradeItem` (MUT 0x00177be0) on the save's record.
+fn init_trade_item(b: &mut [u8], tables: &NewGameTables) {
+    // Each ccTradeList's item, list by list (the later volumes' last ones
+    // in the extension); a list's unused slots are empty items (id -1,
+    // category -1, none).
+    let lists = [
+        (tables.t.spc_trade, by_id::spc_trade_list as fn(usize) -> usize),
+        (tables.t.npc_trade, by_id::npc_trade_list),
+    ];
+    for (src, at) in lists {
+        for (list, trades) in src.iter().enumerate() {
+            let dst = at(list);
+            for k in 0..TRADE_ITEMS {
+                let item = trades.get(k).map_or(EMPTY_ITEM, |e| e.lst);
+                item.write(&mut b[dst + offset::ITEM_LIST * k..]);
+            }
+        }
+    }
+    // tpcTradeListSW[j][k] = tpcTradeList[j][0][0].category >= 0 for every k
+    // (the loop never indexes by k).
+    for (j, lists) in tables.t.tpc_trade.iter().enumerate() {
+        let on = lists[0][0].category >= 0;
+        for k in 0..3 {
+            b[offset::TPC_TRADE_LIST_SW + 3 * j + k] = u8::from(on);
+        }
+    }
+}
+
+/// `ccSaveData::ConvGame()` (MUT 0x001767e0, OUT 0x00176020, QUA
+/// 0x00175f80): CONVERT's save, just read from the previous volume, made
+/// this volume's. Every character but Kite not in `partyMemberFlag` is
+/// reset to its `charTbl` row, with 40 empty items and 20 empty skills;
+/// then `LoadGame`, `InitTradeItem` and `newGameFlag` 2 (`InitSpcParam`
+/// re-equips those characters).
+pub fn conv_game(save: &mut SaveData, tables: &NewGameTables, save_va: u32) -> NameLists {
+    let members = save.i32(piney_data::save::offset::PARTY_MEMBER_FLAG);
+    let b = save.record_mut();
+    for (i, c) in tables.t.chars.iter().enumerate().skip(1).filter(|&(i, _)| members & (1 << i) == 0) {
+        let p = by_id::spc_param(i);
+        write_spc_param(&mut b[p..p + offset::SPC_PARAM_SIZE], c);
+        let items = by_id::item_list(i);
+        for k in 0..CHAR_ITEMS {
+            EMPTY_ITEM.write(&mut b[items + offset::ITEM_LIST * k..]);
+        }
+        let skills = by_id::skill_list(i);
+        b[skills..skills + 2 * CHAR_SKILLS].fill(0xff);
+    }
+    let names = load_game(save, tables, save_va);
+    init_trade_item(save.record_mut(), tables);
+    save.set_u8(piney_data::save::offset::NEW_GAME_FLAG, 2);
+    names
+}
+
+/// `ccStartEventConvert` (INF 0x001b55f0, MUT 0x001cac50): before
+/// `ConvGame`, the carried save marks event 100, 200 or 300 done
+/// (`100 * (volumeNum - 1)`); each later volume's first story event opens
+/// on it.
+pub fn start_event_convert(save: &mut SaveData, volume: Volume) {
+    let n = 100 * (volume.number() - 1).clamp(0, 3) as usize;
+    save.set_event_flag(n, save.event_flag(n) | piney_data::save::EVENT_DONE);
+}
+
+/// A character's item and skill lists' lengths (`GetItemList`,
+/// `GetSkillList`), and an empty item (id -1, category -1, none).
+const CHAR_ITEMS: usize = 40;
+const CHAR_SKILLS: usize = 20;
+const EMPTY_ITEM: ItemList = ItemList { id: -1, category: -1, num: 0 };
 
 /// `ccSaveData::LoadGame()` (`INF SLUS_202.67:0x00175110`; MUT's for 21
 /// characters through `GetSpcParam`) on a save just read from a card: each

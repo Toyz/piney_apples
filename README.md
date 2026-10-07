@@ -249,10 +249,21 @@ FILE` plays the run back exactly, console commands included.
 
 ### Saves and settings
 
-Saves go to one memory card in the build's folder (`memcard/slot1`), shared
-by all four parts. The options (volumes, voice language, screen position,
-vibration, the message window) are kept in `settings.toml` in the same
-folder. Whatever any part's Option menu sets, every part starts with.
+Saves go to one memory card in the port's folder, shared by all four
+parts: `memcard/slot1` beside `game` (`%APPDATA%\piney\memcard\slot1` on
+Windows, `~/.local/share/piney/memcard/slot1` on Linux). Each part keeps
+its own save folder there (`BASLUS-20267DOTHACK` is Infection's,
+`BASLUS-20562DOTHACK` Mutation's, `BASLUS-20563DOTHACK` Outbreak's,
+`BASLUS-20564DOTHACK` Quarantine's). The options (volumes, voice language,
+screen position, vibration, the message window) are kept in
+`settings.toml` in the port's folder. Whatever any part's Option menu
+sets, every part starts with.
+
+A part's clear data carries into the next as on the PS2: save after the
+ending's staff roll, then choose CONVERT on the next part's title and the
+cleared save. Leave the earlier part's folder where it is; the next part
+reads it there, and needs no save of its own first. Copying slot files
+into another part's folder does not convert them.
 
 Saves from PCSX2 can be brought over. Point the port at PCSX2's memory
 card file (`Mcd001.ps2` in PCSX2's `memcards` folder), at a folder memory

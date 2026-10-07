@@ -11,8 +11,8 @@ pub use piney_data::save::SaveData;
 use piney_data::save::by_id;
 use piney_data::save::offset as off;
 
-pub const DONE: u64 = 1 << 62;
-pub const CLOSED: u64 = 1 << 63;
+pub const DONE: u64 = piney_data::save::EVENT_DONE;
+pub const CLOSED: u64 = piney_data::save::EVENT_CLOSED;
 
 /// `ccItemList`: one slot of a character's item list.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

@@ -29,6 +29,9 @@ pub const OPERATE_TITLE: i32 = 1;
 /// data?", "Load complete.", the slot unreadable, its sum wrong.
 pub const LOAD_SELECT: u32 = 16;
 pub const LOAD_QUESTION: u32 = 0x8011;
+/// CONVERT's "Load this data?" (message 18; NextProccess's yes is
+/// proccess 9, the previous volume's slot).
+pub const LOAD_PREV_QUESTION: u32 = 0x8012;
 pub const LOAD_DONE: u32 = 0x2017;
 pub const LOAD_READ_ERROR: u32 = 0x2018;
 pub const LOAD_BAD_SUM: u32 = 0x203f;
@@ -142,9 +145,10 @@ pub fn check_right_info(index: &[u8; INDEX_SIZE]) -> bool {
 #[derive(Clone, Debug)]
 pub struct SaveSys {
     /// +0x000 `info[12]`: the index as `ReadSys` and `SaveSys` move it.
-    /// (`infoPrev[12]`, +0x150, the previous volume's, is the title
-    /// screen's and not kept.)
     pub info: [u8; INDEX_SIZE],
+    /// +0x150 `infoPrev[12]`: the previous volume's index, which CONVERT
+    /// (`LoadInfoPrevReq`) reads and lists.
+    pub info_prev: [u8; INDEX_SIZE],
     /// +0x2a0: the card port, 0 or 1.
     pub port: i32,
     /// +0x2a4: the slot file, 0-11.
@@ -169,6 +173,7 @@ impl SaveSys {
     pub fn new(volume: Volume) -> Self {
         SaveSys {
             info: [0; INDEX_SIZE],
+            info_prev: [0; INDEX_SIZE],
             port: 0,
             file_num: 0,
             result: code::WORKING,
@@ -184,9 +189,17 @@ impl SaveSys {
         SaveDataInfo::from_bytes(&self.info[INFO_SIZE * i..INFO_SIZE * (i + 1)])
     }
 
-    /// `InitInfo` (0x00171670): every record's fields cleared but its name.
+    /// Slot `i` of the previous volume's index.
+    pub fn record_prev(&self, i: usize) -> SaveDataInfo {
+        SaveDataInfo::from_bytes(&self.info_prev[INFO_SIZE * i..INFO_SIZE * (i + 1)])
+    }
+
+    /// `InitInfo` (0x00171670): every record's fields cleared but its name,
+    /// in `info` and `infoPrev` alike.
     pub fn init_info(&mut self) {
-        for r in self.info.as_chunks_mut::<INFO_SIZE>().0 {
+        for r in
+            self.info.as_chunks_mut::<INFO_SIZE>().0.iter_mut().chain(self.info_prev.as_chunks_mut::<INFO_SIZE>().0)
+        {
             r[..4].fill(0);
             r[0x16..].fill(0);
         }
@@ -223,6 +236,26 @@ impl SaveSys {
         }
     }
 
+    /// `LoadInfoPrevReq(pn)` (MUT 0x00171b50): CONVERT reads port `pn`'s
+    /// index of the previous volume (proccess 4). `operate` 2 lets the
+    /// card lack this disc's own directory.
+    pub fn load_info_prev_req(&mut self, pn: i32) {
+        self.init_info();
+        self.proccess = 4;
+        self.result = code::WORKING;
+        self.operate = 2;
+        self.port = pn;
+    }
+
+    /// `LoadDataPrevReq(fn)` (MUT 0x00171c00): CONVERT asks to load the
+    /// previous volume's slot `fn` (proccess 7).
+    pub fn load_data_prev_req(&mut self, file: i32) {
+        self.proccess = 7;
+        self.result = code::WORKING;
+        self.file_num = file;
+        self.operate = 2;
+    }
+
     /// `SaveSelectReq` (0x00171a20).
     pub fn save_select_req(&mut self) {
         self.proccess = 10;
@@ -241,10 +274,11 @@ impl SaveSys {
         (pn & code::MESSAGE) as usize
     }
 
-    /// The "no save directory" message by `operate` and volume: 0x103b
-    /// (asked by the title screen) or 0x1032 (by the desktop) for Infection.
-    fn no_directory(&self) -> u32 {
-        if self.operate == 1 || self.operate == 2 { no_dir_load(self.volume) } else { no_dir_save(self.volume) }
+    /// The "no save directory" message by `operate` and the volume read:
+    /// 0x103b (asked by the title screen) or 0x1032 (by the desktop) for
+    /// Infection.
+    fn no_directory(&self, volume: Volume) -> u32 {
+        if self.operate == 1 || self.operate == 2 { no_dir_load(volume) } else { no_dir_save(volume) }
     }
 
     /// `MainProccess` (0x00171c20): one frame of the task.
@@ -254,23 +288,39 @@ impl SaveSys {
         }
     }
 
-    /// `MainProccess` as the title screen's load drives it (`StartReq(1)`):
-    /// as [`SaveSys::main_proccess`], and proccess 6 (after
-    /// `LoadDataReq`: ask "Load this data?") and 8 (the answer yes: read
-    /// the slot into `save`). 4, 7 and 9 load the previous volume's data,
-    /// which Infection (volume 1) never asks for.
+    /// `MainProccess` as the title screen's loads drive it (`StartReq(1)`):
+    /// as [`SaveSys::main_proccess`], and the loads' steps. 6 asks "Load
+    /// this data?" and 8 reads the slot into `save`; CONVERT's (volumes
+    /// 2-4) read the previous volume's index (4), ask (7) and read its
+    /// slot (9).
     pub fn main_proccess_load(&mut self, card: &mut dyn MemoryCard, save: &mut SaveData) {
         if !self.gate(card) {
             return;
         }
         match self.proccess {
-            6 => {
-                self.proccess = 1;
-                self.result = LOAD_QUESTION;
+            4 => {
+                if let Some(index) = self.read_index(card, prev_volume(self.volume)) {
+                    self.info_prev = index;
+                }
             }
-            8 => self.read_data(card, save),
+            6 => self.ask(LOAD_QUESTION),
+            7 => self.ask(LOAD_PREV_QUESTION),
+            8 => {
+                let sum = self.record(self.file_index()).sum;
+                self.read_data(card, save, self.volume, sum);
+            }
+            9 => {
+                let sum = self.record_prev(self.file_index()).sum;
+                self.read_data(card, save, prev_volume(self.volume), sum);
+            }
             _ => self.dispatch(card, save),
         }
+    }
+
+    /// proccess 6 and 7: the load's question up, the task idle.
+    fn ask(&mut self, question: u32) {
+        self.proccess = 1;
+        self.result = question;
     }
 
     /// MainProccess up to its dispatch on `proccess`: the early outs, the
@@ -331,7 +381,11 @@ impl SaveSys {
     /// MainProccess's steps (jump table 0x0034cf50, by `proccess - 3`).
     fn dispatch(&mut self, card: &mut dyn MemoryCard, save: &SaveData) {
         match self.proccess {
-            3 => self.read_info(card),
+            3 => {
+                if let Some(index) = self.read_index(card, self.volume) {
+                    self.info = index;
+                }
+            }
             11 => self.check_slot(save),
             12 | 13 => self.write(card, save),
             14 => {
@@ -351,24 +405,26 @@ impl SaveSys {
                     self.result = 0x1026;
                 }
             }
-            // 4-9 are the title screen's loads (main_proccess_load); 5 and
-            // 10 wait for the screen.
+            // 4 and 6-9 are the title screen's loads (main_proccess_load);
+            // 5 and 10 wait for the screen.
             _ => {}
         }
     }
 
-    /// proccess 8 (0x0017240c): `DataRead` of the slot; a failed read is
-    /// 0x2018, a byte sum that is not the index record's 0x203f; else the
-    /// buffer is copied into `saveData` member by member, all but three
-    /// padding runs ([`LOAD_KEPT`]; from Mutation on the extension too,
-    /// [`EXT_KEPT`]), and the result is 0x2017 "Load complete.". Not the
-    /// game's: a save the port wrote before it ran `ccSaveData::Init` whole is
-    /// repaired as it is copied in ([`SaveData::repair_port_save`]).
-    fn read_data(&mut self, card: &mut dyn MemoryCard, save: &mut SaveData) {
+    /// proccess 8 (0x0017240c) and 9 (MUT 0x00173580): `DataRead` of the
+    /// slot in `volume`'s directory, at that volume's size; a failed read
+    /// is 0x2018, a byte sum that is not `want` (its index record's) 0x203f;
+    /// else the buffer is copied into `saveData` member by member, all but
+    /// three padding runs ([`LOAD_KEPT`]; an 0x8d84 slot's extension too,
+    /// [`EXT_KEPT`]), and the result is "Load complete." ([`load_done`]). Infection's
+    /// slot (Mutation's CONVERT) leaves the extension as it was. Not the
+    /// game's: a save the port wrote before it ran `ccSaveData::Init` whole
+    /// is repaired as it is copied in ([`SaveData::repair_port_save`]).
+    fn read_data(&mut self, card: &mut dyn MemoryCard, save: &mut SaveData, volume: Volume, want: u16) {
         self.proccess = 1;
         let file = self.file_index();
-        let size = slot_size(self.volume);
-        let data = match card.read_slot(self.port, file, self.volume.number(), size) {
+        let size = slot_size(volume);
+        let data = match card.read_slot(self.port, file, volume.number(), size) {
             Some(d) if d.len() >= size => d,
             _ => {
                 self.result = LOAD_READ_ERROR;
@@ -379,7 +435,6 @@ impl SaveSys {
         // 0x8d84 (as on a PCSX2 card), its record's sum over the whole file,
         // is taken too; its first 0x8530 bytes are the same ccSaveData.
         let sum_of = |n: usize| data[..n].iter().fold(0u16, |s, &b| s.wrapping_add(u16::from(b)));
-        let want = self.record(file).sum;
         let full = piney_data::save::FULL;
         if sum_of(size) != want && !(size < full && data.len() >= full && sum_of(full) == want) {
             self.result = LOAD_BAD_SUM;
@@ -394,7 +449,7 @@ impl SaveSys {
         }
         dst[at..size].copy_from_slice(&data[at..size]);
         save.repair_port_save();
-        self.result = LOAD_DONE;
+        self.result = load_done(self.volume);
     }
 
     /// `LoadSelectReq` (0x00171990): the save list (result 16 "Select data
@@ -419,22 +474,22 @@ impl SaveSys {
         self.result & code::ERROR != 0 || matches!(self.result & code::MESSAGE, 0 | 1)
     }
 
-    /// proccess 3 (0x00171fc4): `ReadSys` into a buffer of 0xff, then
-    /// `CheckRightInfo`; a good index is copied in, a bad one leaves the
-    /// index `LoadInfoReq` cleared. Either way the result is 1.
-    fn read_info(&mut self, card: &mut dyn MemoryCard) {
+    /// proccess 3 (0x00171fc4) and 4 (MUT 0x00172514): `ReadSys` of
+    /// `volume`'s index into a buffer of 0xff, then `CheckRightInfo`. A good
+    /// index is returned for `info` (or `infoPrev`); a bad one leaves the
+    /// table as it was. Either way the result is 1; an unreadable index is
+    /// "There is no ... saved data" naming `volume`.
+    fn read_index(&mut self, card: &mut dyn MemoryCard, volume: Volume) -> Option<[u8; INDEX_SIZE]> {
         self.proccess = 1;
-        let Some(read) = card.read_index(self.port) else {
-            self.result = self.no_directory();
-            return;
+        let Some(read) = card.read_index(self.port, volume.number()) else {
+            self.result = self.no_directory(volume);
+            return None;
         };
         let mut tmp = [0xffu8; INDEX_SIZE];
         let n = read.len().min(INDEX_SIZE);
         tmp[..n].copy_from_slice(&read[..n]);
-        if check_right_info(&tmp) {
-            self.info = tmp;
-        }
         self.result = code::DONE;
+        check_right_info(&tmp).then_some(tmp)
     }
 
     /// proccess 11 (0x00173c08): an empty slot asks "Create new data?"; a
@@ -550,6 +605,22 @@ impl SaveSys {
     }
 }
 
+/// "Load complete." as the loads leave it: [`LOAD_DONE`], an error to
+/// acknowledge, but Quarantine's (QUA 0x0017297c, 0x001737cc) a plain
+/// message to acknowledge, 0x1017.
+pub fn load_done(volume: Volume) -> u32 {
+    match volume {
+        Volume::Qua => code::ACK | 23,
+        _ => LOAD_DONE,
+    }
+}
+
+/// The volume CONVERT reads: `volumeNum - 1`, Infection when that is not
+/// 1-3 (`LoadInfoPrevReq` and the slot read clamp it alike).
+pub fn prev_volume(volume: Volume) -> Volume {
+    Volume::from_number(volume.number() - 1).filter(|&v| v != Volume::Qua).unwrap_or(Volume::Inf)
+}
+
 /// "There is no saved data for .hack//INFECTION ..." (the save side) by
 /// volume: 0x1032, 0x1034, 0x1036, 0x1038.
 fn no_dir_save(volume: Volume) -> u32 {
@@ -584,6 +655,7 @@ fn clear_data_warning(volume: Volume) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::card::FilesCard;
 
     /// An Infection slot loads at either size: the game's 0x8530, its
     /// record summed over that, and the later volumes' 0x8d84 (a PCSX2
@@ -592,7 +664,6 @@ mod tests {
     /// first slot loads too.
     #[test]
     fn an_infection_slot_loads_at_either_size() {
-        use crate::card::FilesCard;
         use piney_data::save::{FULL, SIZE};
         let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../target/test-tmp")
@@ -612,7 +683,8 @@ mod tests {
             rec.sum = sum(&slot[..summed]);
             sys.info[..INFO_SIZE].copy_from_slice(&rec.to_bytes());
             let mut save = SaveData::new();
-            sys.read_data(&mut card, &mut save);
+            let sum = sys.record(0).sum;
+            sys.read_data(&mut card, &mut save, Volume::Inf, sum);
             assert_eq!(sys.result, want, "{len:#x} summed over {summed:#x}");
             if want == LOAD_DONE {
                 assert_eq!(&save.bytes()[4..8], b"Kite");
@@ -623,11 +695,121 @@ mod tests {
         if real.join("BASLUS-20267DOTHACK").is_dir() {
             let mut card = FilesCard::slot1(Volume::Inf, &real);
             let mut sys = SaveSys::new(Volume::Inf);
-            sys.info.copy_from_slice(&card.read_index(0).unwrap()[..INDEX_SIZE]);
+            sys.info.copy_from_slice(&card.read_index(0, 1).unwrap()[..INDEX_SIZE]);
             let mut save = SaveData::new();
-            sys.read_data(&mut card, &mut save);
+            let sum = sys.record(0).sum;
+            sys.read_data(&mut card, &mut save, Volume::Inf, sum);
             assert_eq!(sys.result, LOAD_DONE, "PCSX2's slot 1");
         }
+    }
+
+    /// A card under `target/test-tmp` of its own.
+    fn test_card(name: &str) -> std::path::PathBuf {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/test-tmp")
+            .join(format!("piney-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    /// `save` written to slot `file` of `volume`'s directory as that
+    /// volume's save writes it (proccess 12: the record, then the slot).
+    fn save_to(root: &std::path::Path, volume: Volume, file: i32, save: &SaveData) {
+        let mut card = FilesCard::slot1(volume, root);
+        if card.check_port(0) != PortState::Ready {
+            assert!(card.make_dir(0));
+        }
+        let mut sys = SaveSys::new(volume);
+        sys.info.copy_from_slice(&card.read_index(0, volume.number()).unwrap());
+        (sys.file_num, sys.proccess, sys.result) = (file, 12, code::WORKING);
+        sys.main_proccess(&mut card, save);
+        assert_eq!(sys.result, 0x101c, "{volume} saved");
+    }
+
+    /// The title's task one frame at a time until it leaves `proccess`.
+    fn run(sys: &mut SaveSys, card: &mut FilesCard, save: &mut SaveData) {
+        sys.main_proccess_load(card, save);
+        assert_eq!(sys.proccess, 1);
+    }
+
+    /// Issue #55. Mutation's CONVERT on a card with Infection's saves and
+    /// no Mutation directory: `LoadInfoPrevReq` reads Infection's index
+    /// (`operate` 2 lets the own directory be missing, where the title's
+    /// LOAD says "There is no .hack//MUTATION saved data."), then the
+    /// cleared slot is asked about and read: Infection's 0x8530 bytes, the
+    /// extension as it was. Without Infection's directory the message
+    /// names Infection.
+    #[test]
+    fn mutation_s_convert_reads_infection_s_saves() {
+        use piney_data::save::{EXT, FULL, SIZE};
+        let root = test_card("convert");
+        let mut card = FilesCard::slot1(Volume::Mut, &root);
+        let mut sys = SaveSys::new(Volume::Mut);
+        let mut save = SaveData::new();
+        sys.start_req(OPERATE_TITLE);
+        sys.load_info_prev_req(0);
+        run(&mut sys, &mut card, &mut save);
+        assert_eq!(sys.result, 0x103b, "There is no .hack//INFECTION saved data.");
+
+        let mut inf = SaveData::new();
+        inf.bytes_mut()[..5].copy_from_slice(b"Kite\0");
+        inf.set_u8(offset::CLEAR_FLAG, 1);
+        save_to(&root, Volume::Inf, 2, &inf);
+        sys.load_info_prev_req(0);
+        run(&mut sys, &mut card, &mut save);
+        assert_eq!(sys.result, code::DONE);
+        let r = sys.record_prev(2);
+        assert_eq!((r.status, r.clear_flag, r.name()), (1, 1, &b"Kite"[..]));
+        assert!(sys.info.iter().all(|&b| b == 0), "this volume's index untouched");
+
+        save.record_mut()[EXT..FULL].fill(0x5a);
+        sys.load_data_prev_req(2);
+        run(&mut sys, &mut card, &mut save);
+        assert_eq!(sys.result, LOAD_PREV_QUESTION);
+        sys.next_proccess(1);
+        assert_eq!((sys.result, sys.proccess), (code::WORKING, 9));
+        run(&mut sys, &mut card, &mut save);
+        assert_eq!(sys.result, LOAD_DONE);
+        // The port's repair of a save with empty lists, as any load.
+        let mut want = inf.clone();
+        want.repair_port_save();
+        assert_eq!(&save.bytes()[..SIZE - 4], &want.bytes()[..SIZE - 4]);
+        assert!(save.record()[EXT..FULL].iter().all(|&b| b == 0x5a), "the extension kept");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Outbreak's and Quarantine's CONVERT read the volume before's whole
+    /// 0x8d84-byte slot, its extension too; Quarantine's reads Outbreak's.
+    #[test]
+    fn later_converts_read_the_whole_slot() {
+        use piney_data::save::{EXT, FULL};
+        for (volume, prev) in [(Volume::Out, Volume::Mut), (Volume::Qua, Volume::Out)] {
+            assert_eq!(prev_volume(volume), prev);
+            let root = test_card(&format!("convert-{volume}"));
+            let mut before = SaveData::new();
+            before.bytes_mut()[..4].copy_from_slice(b"Kite");
+            before.set_u8(offset::CLEAR_FLAG, prev.number() as u8);
+            before.record_mut()[EXT + 0x10..EXT + 0x20].fill(7);
+            save_to(&root, prev, 0, &before);
+            let mut card = FilesCard::slot1(volume, &root);
+            let mut sys = SaveSys::new(volume);
+            let mut save = SaveData::new();
+            sys.start_req(OPERATE_TITLE);
+            sys.load_info_prev_req(0);
+            run(&mut sys, &mut card, &mut save);
+            assert_eq!(sys.record_prev(0).clear_flag, prev.number() as i8);
+            sys.load_data_prev_req(0);
+            run(&mut sys, &mut card, &mut save);
+            sys.next_proccess(1);
+            run(&mut sys, &mut card, &mut save);
+            assert_eq!(sys.result, load_done(volume), "{volume}");
+            assert_eq!(&save.record()[EXT + 0x10..EXT + 0x20], &[7; 16]);
+            assert_eq!(save.record()[FULL - 1], before.record()[FULL - 1]);
+            let _ = std::fs::remove_dir_all(&root);
+        }
+        assert_eq!(prev_volume(Volume::Inf), Volume::Inf, "volumeNum - 1 of 0 reads 1");
+        assert_eq!(prev_volume(Volume::Mut), Volume::Inf);
     }
 
     #[test]

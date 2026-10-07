@@ -27,6 +27,9 @@ own Init on their discs, every byte of ccSaveData and of the 0x854-byte
 extension their accessors write (the extension's pointer, the $gp global
 after saveData, set to a buffer of the same pattern as the record).
 
+ConvGameLaterVolumes runs the later volumes' CONVERT carry
+(ccStartEventConvert, ConvGame) on random records against the port's.
+
 boot_save and fresh_save are the starting save of the harnesses that
 compare the port's desktop, title, board, field UI and events with the
 game's.
@@ -403,6 +406,57 @@ class NewGameLaterVolumes(unittest.TestCase):
                 # The name pointers: the game's buffers are its own; the
                 # port's are the carried addresses of the same ones.
                 self.assertEqual(bytes(want), bytes(port), f"{vol} parody {parody}: {first_difference(want, port)}")
+
+
+@unittest.skipUnless(shutil.which("cargo"), "needs cargo")
+class ConvGameLaterVolumes(unittest.TestCase):
+    """CONVERT's carry on the later volumes (issue #55): ccStartEventConvert
+    (MUT 0x001cac50) then ConvGame (MUT 0x001767e0, OUT 0x00176020, QUA
+    0x00175f80) with DEMO.PRG in, on random records and extensions with
+    random party members, against the port's piney_demo::newgame, every byte
+    of ccSaveData and the extension."""
+
+    @classmethod
+    def setUpClass(cls):
+        from test_anim import machine_class
+        build()
+        cls.Machine = machine_class()
+
+    def game(self, elf, gp_ext, record):
+        from image import Program
+        p = Program(elf, "demo")
+        m = self.Machine(p)
+        m.store(gp_ext, 4, EXT)
+        m.store(p.symbol_named("saveData").value, 4, SAVE)
+        for name in ("SetDisplayOffset__8ccSystemFii", "SetSoundEnv__10ccSaveDataFv", "setCameraCtrlType__Fi"):
+            m.hooks[p.symbol_named(name).value] = lambda mm, *a: 0
+        m.mem[SAVE:SAVE + SIZE] = record[:SIZE]
+        m.mem[EXT:EXT + EXT_SIZE] = record[SIZE:]
+        m.call(p.symbol_named("ccStartEventConvert__Fv").value, [])
+        m.call(p.symbol_named("ConvGame__10ccSaveDataFv").value, [SAVE])
+        return bytes(m.mem[SAVE:SAVE + SIZE]) + bytes(m.mem[EXT:EXT + EXT_SIZE])
+
+    def test_conv_game(self):
+        for vol, (elf, iso, gp_ext) in LATER.items():
+            elf, iso = os.path.join(ROOT, "work", elf), os.path.join(ROOT, "work", iso)
+            if not (os.path.exists(elf) and os.path.exists(iso)):
+                continue
+            rng = random.Random(55)
+            records = []
+            for k in range(6):
+                b = bytearray(rng.randrange(256) for _ in range(SIZE + EXT_SIZE))
+                # partyMemberFlag: none, all, or some of the characters.
+                members = (0, 0xFFFFFFFF, rng.getrandbits(32))[k % 3]
+                struct.pack_into("<I", b, 0x2220, members)
+                records.append(bytes(b))
+            p = subprocess.run([NEWGAME_EXAMPLE, iso], input="".join(f"convgame {r.hex()}\n" for r in records),
+                               capture_output=True, text=True, check=True, cwd=ROOT)
+            got = p.stdout.split()
+            self.assertEqual(len(got), len(records))
+            for i, (r, g) in enumerate(zip(records, got)):
+                want = self.game(elf, gp_ext, r)
+                port = bytes.fromhex(g)
+                self.assertEqual(want, port, f"{vol} record {i}: {first_difference(want, port)}")
 
 
 @unittest.skipUnless(os.path.exists(ELF) and os.path.exists(ISO) and shutil.which("cargo"),
