@@ -73,11 +73,20 @@ pub struct SaveState {
     /// (`ccThStaffRollCtrl`, desktop.prg 0x0041270c). Each mode draws from
     /// it and hands it on.
     pub rand: u64,
+    /// `lastRnd` (main 0x00378aec), `ccRandS`'s state: 0 at power-on and
+    /// never reset. Each scene's `ccInitRand` moves it on by the frames
+    /// since power-on, and a field's foods, fountains and gold goblins draw
+    /// from it.
+    pub rand_s: u16,
+    /// `ccRand`'s state (`mt`, main 0x003ff400; `mti`, 0x00377fd0) as the
+    /// last scene left it: each set-up's `ccInitRand` makes it anew, and
+    /// the desktop's staff roll draws on from it.
+    pub cc: crate::staffroll::CcRand,
 }
 
 impl SaveState {
     pub fn new(save: SaveData) -> Self {
-        SaveState { save, operate: 0, operate_set: -1, rand: 1 }
+        SaveState { save, operate: 0, operate_set: -1, rand: 1, rand_s: 0, cc: Default::default() }
     }
 
     /// The save the port starts from when it does not boot through the

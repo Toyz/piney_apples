@@ -2498,9 +2498,13 @@ with the dog's voice group (`inu0VoiceTbl`-`inu3VoiceTbl`, groups -13 to
 `tools/test_fieldui_talk_rs.py`'s `DogPages` compare it with the game:
 the greeting and cancel, Talk with each `talkNum`, the target lost under
 the list and no target. The game draws `talkNum` from `ccRand` (the
-town's Mersenne Twister), which the port's menu does not hold: it draws
-newlib's sequence from 1 in its place (`TalkState::cc_rand`), and the
-harness gives both the same values.
+town's Mersenne Twister, which the walking PCs draw too). The town lends it
+to the menus as `SaveState::cc` (`World::with_live_state`), and `FieldUi`
+loads it before the frame and stores it after (`TalkState::cc_rand`); the
+harness gives a fixed source the same values as `rand()`. Before worklog
+386 the menu drew newlib's sequence from 1, made anew with each visit.
+piney-game's `a_dogs_talk_line_draws_the_towns_ccrand` checks the line
+against the town's next word.
 
 ### The Grunties (`OtonainuMenu`, 45; `InuMenu`, 46)
 
@@ -2662,8 +2666,8 @@ seam below), and the unported menus. The event engine's field host
 - `FieldUi::step(.., save, ..)`: the menus' `rand()` is `save.rand`, the
   game's one generator, loaded before the frame and stored after
   ([the menus' `rand()`](#the-menus-rand)); `FieldUi::menu_task_started`
-  for each scene's new task. `FieldUi::set_cc_rand(f)` gives NorainuMenu's
-  `ccRand` a harness's numbers.
+  for each scene's new task. NorainuMenu's `ccRand` is `save.cc` the same
+  way; `FieldUi::set_cc_rand(f)` gives it a harness's numbers.
 - `menus::talk::set_spc_base_msg(save, image)`: where `ccSetupNewGame`
   calls `ccSaveData::SetSpcBaseMsg`, the members' lines in their records.
 - `World::grunty`: the Grunty (`ccPGuso`) that is `cmndTargetPrev` on Give

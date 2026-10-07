@@ -65,6 +65,8 @@ Checks (SPAWN maps a name to fn(checks, rnd) -> (request, game, label)):
   save           ccSaveData::CheckEventEntry, CheckFountain,
                  ClearEventEntry, deleteEventEntry (0x00430200);
                  ccCheckDustColor (0x0043a250); ccRandS (main 0x001d9c10)
+  init_rand      ccInitRand (main 0x001d9900): ccRand reseeded and both
+                 generators drawn ccSys+0x358 times
   frame_enemies  ccThEntryCtrl's frames (100-200) in a field or a dungeon
                  with the enemies' own ccEnemy::main (0x00432cd0) and the
                  races' vtable functions, EntryAffect and the affect
@@ -2300,6 +2302,21 @@ def check_save(checks, rnd):
     return req, out, "evsave"
 
 
+def check_init_rand(checks, rnd):
+    """ccInitRand (main 0x001d9900), each scene's set-up: ccSys+0x358 frames
+    since power-on, with lastRnd and ccRand as a scene before left them."""
+    h = harness(checks)
+    m = h.m
+    s = rnd.getrandbits(16)
+    n = rnd.choice((0, 1, 623, 624, 625, rnd.randrange(0, 3000), rnd.randrange(3000, 20000)))
+    m.store(h.addr["lastRnd"], 2, s)
+    m.mem[MT:MT + 8 * 624] = struct.pack("<624Q", *[rnd.getrandbits(32) for _ in range(624)])
+    m.store(MTI, 4, rnd.randrange(0, 626))
+    m.store(TB.SYS + 0x358, 4, n)
+    h.call("ccInitRand__Fv")
+    return f"initrand {s} {n}", {"cc": h.ea.cc_state(), "s": m.load(h.addr["lastRnd"], 2)}, "initrand"
+
+
 # the enemies' own frame -------------------------------------------------------------------
 
 AREA14 = (130, 151, 219, 185, 189, 268, 67)       # the first field and dungeon's rows
@@ -3358,6 +3375,7 @@ SPAWN = {
     "restore": check_restore,
     "register": check_register,
     "save": check_save,
+    "init_rand": check_init_rand,
     "frame_enemies": check_frame_enemies,
     "gim_frame": check_gim_frame,
     "item_box": check_item_box,
@@ -3399,6 +3417,7 @@ class SpawnAgainstGame(rs.Against):
     def test_tables(self):
         self.check("register", 20016)
         self.check("save", 20017)
+        self.check("init_rand", 20026)
 
     def test_enemies(self):
         self.check("frame_enemies", 20019)

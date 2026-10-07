@@ -240,6 +240,14 @@ impl std::fmt::Debug for CcRand {
     }
 }
 
+impl Default for CcRand {
+    /// As a fresh boot leaves it (`mti` 625): the first draw seeds with
+    /// 4352.
+    fn default() -> Self {
+        CcRand { mt: Box::new([0; 624]), mti: 625 }
+    }
+}
+
 impl CcRand {
     /// `sgenrand(seed)`.
     pub fn seeded(seed: u32) -> CcRand {

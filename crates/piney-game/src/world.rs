@@ -398,10 +398,10 @@ impl WorldMode {
         (self.world.state_out(), self.vm)
     }
 
-    /// `ccSys+0x358` at the set-up's `ccInitRand`: the draws before the
-    /// walking PCs are picked ([`piney_world::World::set_rand_count`]).
-    pub fn set_rand_count(&mut self, count: u32) {
-        self.world.set_rand_count(count);
+    /// The set-up's `ccInitRand` with `ccSys+0x358` at `count`
+    /// ([`piney_world::World::init_rand`]).
+    pub fn init_rand(&mut self, count: u32) {
+        self.world.init_rand(count);
     }
 
     /// The memory card the Recorder saves to (the directory standing for

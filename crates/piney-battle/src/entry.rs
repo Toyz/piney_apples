@@ -712,14 +712,7 @@ pub struct Cx<'a> {
     pub out: &'a mut Vec<Out>,
 }
 
-/// `ccRandS()` (main 0x001d9c10): `lastRnd = rotl2(((lastRnd ^ 0x1100) -
-/// 25939) & 0xffff)`, returned as a `short`.
-pub fn rand_s(s: &mut u16) -> i16 {
-    let v = u32::from((*s ^ 0x1100).wrapping_sub(25939));
-    let r = ((v << 2) | (v >> 14)) as u16;
-    *s = r;
-    r as i16
-}
+pub use crate::rand::rand_s;
 
 /// `ccRegisterEnemyTbl[abs(ccRand() % ccRegisterEnemyNum)]`: a registered
 /// row at random. With no row registered the game divides by zero (its

@@ -81,11 +81,13 @@ fn a_foes_spell_holds_kite() {
         assert_eq!(hold, 1, "frame {n}: Kite's hold");
         assert_eq!(moved, 0.0, "frame {n}: Kite moved under the spell");
     }
-    let mut ran = 0.0;
+    // He runs again; how far before the field's walls stop him is the
+    // fight's (the Mimic's ccRand moves it).
+    let mut ran: f32 = 0.0;
     for _ in 0..60 {
         let before = area(&mut s).world().combat().scene.chars[k].pos;
         step_right(&mut s);
-        ran = dist(before, area(&mut s).world().combat().scene.chars[k].pos);
+        ran = ran.max(dist(before, area(&mut s).world().combat().scene.chars[k].pos));
     }
     assert!(ran > 10.0, "Kite stayed held: {ran}");
 }

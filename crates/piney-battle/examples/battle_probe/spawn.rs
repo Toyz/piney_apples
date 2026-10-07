@@ -81,6 +81,11 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables) -> Option<Str
             let v: Vec<i16> = (0..n).map(|_| entry::rand_s(&mut s)).collect();
             format!("{{\"v\":{},\"s\":{}}}", list(v), s)
         }
+        "initrand" => {
+            let mut s = t.int() as u16;
+            let g = piney_battle::rand::init_rand(t.u32(), &mut s);
+            format!("{{\"cc\":{},\"s\":{}}}", cc_json(&g), s)
+        }
         "dust" => {
             let mut w = ScriptWorld::default();
             w.attr.push(t.u32());

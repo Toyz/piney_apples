@@ -434,6 +434,7 @@ impl FieldUi {
         // ccThSaveSys (priority 20) before ccThMenu (34).
         menus::record::save_sys_task(&mut self.ctrl.talk.record, &save.save);
         self.ctrl.rng.load(save.rand);
+        self.ctrl.talk.load_cc(&save.cc);
         let mut x = ctrl::Ctx {
             pad,
             world: world.clone(),
@@ -456,6 +457,7 @@ impl FieldUi {
         if let Some(r) = self.ctrl.rng.state() {
             x.save.rand = r;
         }
+        self.ctrl.talk.store_cc(&mut x.save.cc);
         // Stopped inside ccUseItemRequest: the rest of the frame runs on
         // the answer, with the world as the frame left it.
         self.held = self.ctrl.item_asked().then_some((x.world, x.target, x.target_prev));
@@ -603,6 +605,7 @@ impl FieldUi {
         let Some((world, target, target_prev)) = self.held.take() else { return };
         self.ctrl.answer_item(steps);
         self.ctrl.rng.load(save.rand);
+        self.ctrl.talk.load_cc(&save.cc);
         let mut x = ctrl::Ctx {
             pad,
             world,
@@ -619,6 +622,7 @@ impl FieldUi {
         if let Some(r) = self.ctrl.rng.state() {
             save.rand = r;
         }
+        self.ctrl.talk.store_cc(&mut save.cc);
         if let Some(ctx) = ctx {
             let faces = self.ctrl.face_tex;
             render::draw(&self.draws, &self.textures, &self.fonts, &save.names(), &faces, ctx, self.hud_scale);

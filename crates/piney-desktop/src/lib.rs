@@ -223,9 +223,12 @@ pub struct Desktop {
     view: View,
     phase: Phase,
     requests: Vec<Request>,
-    /// `ccSys.count`: frames since the desktop started (the game's counts
-    /// from boot; only the cursor blink reads it).
+    /// `ccSys.count` (+0x358): frames since power-on as the host hands
+    /// them ([`Desktop::set_count`]), else since the desktop started. The
+    /// cursor blink and the staff roll's `srand` read it.
     count: u32,
+    /// The host set `count` for this frame: the step does not add one.
+    count_set: bool,
     /// The staff roll, while the event instruction `staff_roll` runs it.
     staff_roll: Option<StaffRollTask>,
     /// `ccSleepAllThread()`: every task but the menu's asleep, so nothing
@@ -268,6 +271,7 @@ impl Desktop {
             phase: Phase::Setup,
             requests,
             count: 0,
+            count_set: false,
             staff_roll: None,
             slept: false,
             frame_rate: FRAME_RATE,
@@ -277,13 +281,14 @@ impl Desktop {
     /// The event instruction `staff_roll`: `ccThStaffRoll` started
     /// ([`staffroll`]): the controller over the volume's staff roll,
     /// `srand` of the frame count, the save's two names for `#0` and `#1`,
-    /// and `ccBgmPlay(1)`. `ccRand` starts where a fresh boot leaves it.
+    /// and `ccBgmPlay(1)`. `ccRand` draws on from where the last scene
+    /// left it ([`SaveState::cc`]).
     pub fn start_staff_roll(&mut self) -> piney_data::Result<()> {
         let tables = piney_data::tables::staffroll::of(self.assets.volume);
         let b = self.save.save.bytes();
         let name = |at: usize| -> Vec<u8> { b[at..at + 24].iter().take_while(|&&c| c != 0).copied().collect() };
         let names = (name(piney_data::save::offset::PL_NAME), name(piney_data::save::offset::PL_REAL_NAME));
-        let ctrl = staffroll::StaffRoll::new(tables, self.count, staffroll::CcRand::seeded(0x1100), names);
+        let ctrl = staffroll::StaffRoll::new(tables, self.count, self.save.cc.clone(), names);
         self.staff_roll = Some(StaffRollTask { ctrl, wait: 3, picture: None });
         self.requests.push(Request::BgmStream(1));
         Ok(())
@@ -304,8 +309,20 @@ impl Desktop {
     /// `ccSystem::SetFrameRate(rate)`: the endings' 2 around the staff
     /// roll, which it runs at, and its save menus (the select cursor's
     /// steps, the message window's button).
+    /// `ccSys.count` for this frame: the frames since power-on, which
+    /// `ccSystem::Ctrl` counts for every mode.
+    pub fn set_count(&mut self, frames: u32) {
+        self.count = frames;
+        self.count_set = true;
+    }
+
     pub fn set_frame_rate(&mut self, rate: u32) {
         self.frame_rate = rate.max(1);
+    }
+
+    /// `ccThStaffRoll`'s controller, while it runs.
+    pub fn staff_roll(&self) -> Option<&staffroll::StaffRoll> {
+        self.staff_roll.as_ref().map(|t| &t.ctrl)
     }
 
     /// Whether `ccThStaffRoll` still runs.
@@ -413,7 +430,9 @@ impl Desktop {
     /// unless the menu has it asleep, its picture frozen while the menu
     /// holds the flip, then the menu layer (242) on top.
     pub fn step(&mut self, pad: &Pad) -> Frame {
-        self.count = self.count.wrapping_add(1);
+        if !std::mem::take(&mut self.count_set) {
+            self.count = self.count.wrapping_add(1);
+        }
         // ccThSaveSys as the save menu's StartReq made it (priority 20,
         // before the menu task): its first frame only breathes.
         match self.menu.save_task {

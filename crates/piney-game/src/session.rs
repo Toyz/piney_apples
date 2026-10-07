@@ -18,6 +18,7 @@ use piney_desktop::{InitText, SaveState};
 use piney_draw::Frame;
 use piney_event::vm::Vm;
 use piney_input::Pad;
+use piney_world::Arrival;
 
 use crate::area::AreaMode;
 use crate::desktop::{self, DesktopMode};
@@ -347,7 +348,7 @@ impl Session {
             // ccClearGtHack in the town's set-up: the flag goes.
             self.gt_hack = false;
             let mut w = WorldMode::enter(&self.iso, self.archive.clone(), state, vm)?;
-            w.set_rand_count(self.sys_frames);
+            w.init_rand(Arrival { frames: self.sys_frames, faded }.rand_count());
             // ccSpcManager and ccPartyManager as the last area left them.
             if let Some(spcs) = self.spcs.clone() {
                 w.set_spcs(spcs);
@@ -361,7 +362,8 @@ impl Session {
         let wm = self.world_man.ok_or_else(|| format!("field {}: no area words", self.scene.field))?;
         let kept = self.dungeon.take();
         let spcs = self.spcs.clone().unwrap_or_default();
-        let mut a = AreaMode::enter(&self.iso, self.archive.clone(), state, vm, self.scene, wm, kept, faded, spcs)?;
+        let at = Arrival { frames: self.sys_frames, faded };
+        let mut a = AreaMode::enter(&self.iso, self.archive.clone(), state, vm, self.scene, wm, kept, at, spcs)?;
         a.set_gate_hack(self.gt_hack, self.setup_mode);
         self.setup_mode = false;
         Ok(Stage::Area(Box::new(a)))
@@ -930,7 +932,7 @@ impl Session {
                 self.restock(&mut state);
                 match WorldMode::enter(&self.iso, self.archive.clone(), state.clone(), vm) {
                     Ok(mut w) => {
-                        w.set_rand_count(self.sys_frames);
+                        w.init_rand(Arrival { frames: self.sys_frames, faded: false }.rand_count());
                         w.set_card(self.card.as_deref(), self.card_position);
                         Stage::World(Box::new(w))
                     }
@@ -967,6 +969,7 @@ impl Mode for Session {
         match &mut self.stage {
             Stage::Area(a) => a.ui_mut().hud_scale = self.hud_scale,
             Stage::World(w) => w.ui_mut().hud_scale = self.hud_scale,
+            Stage::Desktop(d) => d.set_sys_frames(self.sys_frames),
             _ => {}
         }
         // `ccLoadResourceFL` comes after the set-up's passes at phases 0
@@ -5949,9 +5952,18 @@ mod tests {
         let mut scene = piney_world::area::Scene::log_in(&mut state.save);
         scene.change_scene(2, scene.town, 33, 0, 0, 0, &mut state.save);
         assert_eq!(scene.area_prev, 0, "from the town");
-        let mut a =
-            AreaMode::enter(&iso, archive, state, None, scene, wm, None, false, piney_world::party::Spcs::default())
-                .unwrap();
+        let mut a = AreaMode::enter(
+            &iso,
+            archive,
+            state,
+            None,
+            scene,
+            wm,
+            None,
+            Arrival::default(),
+            piney_world::party::Spcs::default(),
+        )
+        .unwrap();
         let mut pad = Pad::default();
         let kite_act = |a: &AreaMode| {
             let c = a.world().combat();
@@ -6014,7 +6026,7 @@ mod tests {
                 scene,
                 wm,
                 kept,
-                false,
+                Arrival::default(),
                 piney_world::party::Spcs::default(),
             )
             .unwrap();
@@ -6821,6 +6833,9 @@ mod tests {
 
     /// Issue #48: the tornados' hits, the system's and the element's.
     mod wood_tornado;
+
+    /// A dungeon portal's group: ccInitRand's draws.
+    mod portal_draws;
 
     // Playthroughs: the story's scripts (run by piney-event's VM, as every
     // event is) played from a start point with a scripted pad, checked.

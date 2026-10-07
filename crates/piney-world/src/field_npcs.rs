@@ -26,6 +26,7 @@ use crate::mt::Mt;
 use crate::npc::NpcRow;
 use crate::rtownpc::{self, RtownPc, TownPcs};
 use crate::town::TownLights;
+use piney_battle::rand::Genrand;
 
 /// The class an event NPC runs.
 pub enum Class {
@@ -79,9 +80,27 @@ pub struct FieldNpcs {
     /// first PC.
     town: Option<Rc<RefCell<TownPcs>>>,
     pub list: Vec<FieldNpc>,
+    /// The field's `ccRand` while it is lent ([`FieldNpcs::with_cc`]).
+    cc: Mt,
 }
 
 impl FieldNpcs {
+    /// `f` with the field's one `ccRand` (the battle's, `cc`) lent to the
+    /// walking PCs, which draw their lines from it; what they drew stays
+    /// drawn.
+    pub fn with_cc<R>(&mut self, cc: &mut Genrand, f: impl FnOnce(&mut FieldNpcs) -> R) -> R {
+        self.cc = Mt::of(cc);
+        if let Some(t) = &self.town {
+            t.borrow_mut().mt = self.cc.clone();
+        }
+        let r = f(self);
+        match &self.town {
+            Some(t) => t.borrow().mt.store(cc),
+            None => self.cc.store(cc),
+        }
+        r
+    }
+
     /// The classes for the stand-ins `placed`, each at `pos(who)` facing
     /// `dirc(who)` as `ccEntryEventMng` left the stand-in: area `area` of
     /// town `town`, bodies from `archive`, the `volume`'s `npcTbl`, in the
@@ -137,7 +156,7 @@ impl FieldNpcs {
             let t = match &self.town {
                 Some(t) => t.clone(),
                 None => {
-                    let t = Rc::new(RefCell::new(TownPcs::outside(volume, area, town, Mt::default())?));
+                    let t = Rc::new(RefCell::new(TownPcs::outside(volume, area, town, self.cc.clone())?));
                     self.town = Some(t.clone());
                     t
                 }
@@ -187,5 +206,35 @@ impl FieldNpcs {
 
     pub fn by_code_mut(&mut self, code: i32) -> Option<&mut FieldNpc> {
         self.list.iter_mut().find(|n| n.npc().code() == code)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use piney_battle::rand::Rng;
+
+    /// The walking PCs draw from the field's `ccRand`, not a copy of
+    /// their own from 4352: what they drew is gone from the battle's.
+    #[test]
+    fn the_walking_pcs_draw_the_fields_ccrand() {
+        let mut npcs = FieldNpcs::default();
+        let mut cc = Genrand::seeded(4352);
+        for _ in 0..5 {
+            cc.rand();
+        }
+        let mut want = cc.clone();
+        let t = TownPcs::outside(Volume::Inf, 1, 0, Mt::default()).unwrap();
+        npcs.town = Some(Rc::new(RefCell::new(t)));
+        let got = npcs.with_cc(&mut cc, |n| {
+            let mut t = n.town.as_ref().unwrap().borrow_mut();
+            [t.mt.rand(), t.mt.rand()]
+        });
+        assert_eq!(got, [want.rand(), want.rand()]);
+        assert_eq!(cc, want);
+        // None made yet: the first one starts from the lent state.
+        let mut npcs = FieldNpcs::default();
+        npcs.with_cc(&mut cc, |n| assert_eq!(Mt::of(&want), n.cc));
+        assert_eq!(cc, want);
     }
 }

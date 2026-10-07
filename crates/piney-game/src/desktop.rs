@@ -533,6 +533,9 @@ pub struct DesktopMode {
     /// returns after that wait (it tests `game +0x04`), with no more passes,
     /// no `SetFrameRate(1)` and no desktop.
     abandoned: bool,
+    /// `ccSys.count` for this frame, as the session counts it from
+    /// power-on ([`DesktopMode::set_sys_frames`]).
+    sys_frames: Option<u32>,
 }
 
 impl DesktopMode {
@@ -593,6 +596,7 @@ impl DesktopMode {
             card_position: None,
             movie: None,
             abandoned: false,
+            sys_frames: None,
         };
         mode.stage = if scripts {
             let mut disc = Iso::open(&mode.iso).map_err(|e| format!("{}: {e}", mode.iso.display()))?;
@@ -618,6 +622,12 @@ impl DesktopMode {
             desktop.set_card_position(port, file);
         }
         Ok(desktop)
+    }
+
+    /// `ccSys.count` for the next frame: the frames since power-on, which the
+    /// cursor blink and the staff roll's `srand` read.
+    pub fn set_sys_frames(&mut self, n: u32) {
+        self.sys_frames = Some(n);
     }
 
     /// Where the Data screen's card cursor starts: the title's `ccSaveSys`
@@ -799,6 +809,9 @@ impl Mode for DesktopMode {
         self.st.pad = *pad;
         let frame = match &mut self.stage {
             Stage::Play(desktop) => 'play: {
+                if let Some(n) = self.sys_frames {
+                    desktop.set_count(n);
+                }
                 // The Audio screen's movie: the desktop and the event task
                 // sleep until it ends.
                 if let Some((m, slot)) = &mut self.movie {

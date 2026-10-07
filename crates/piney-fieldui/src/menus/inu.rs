@@ -3,7 +3,7 @@
 //! a grown Grunty: rows 145-153) and `InuMenu` (0x0054b1d0, 46, a young one:
 //! rows 154-157) with `InuMenuDisp` (0x0054bb10). The game draws
 //! NorainuMenu's `talkNum` from `ccRand`, the town's generator, which the
-//! menu does not hold ([`talk::TalkState::cc_rand`]). The Grunty's affect
+//! town lends the menus ([`talk::TalkState::cc_rand`]). The Grunty's affect
 //! functions change its msgNum at once, so the menus make the same change
 //! to the world's copy ([`after_affect`]). The steps are in
 //! docs/engine/field-ui.md.

@@ -413,6 +413,63 @@ fn the_dogs_walk_their_routes_and_sit_to_talk() {
     assert_eq!(dogs(&s)[2].3, 4, "the dog did not walk on");
 }
 
+/// NorainuMenu's Talk (menu 47) picks its line by `ccRand() & 3` (3 as 0):
+/// the town's one `ccRand`, as the walking PCs draw it, which the set-up's
+/// `ccInitRand` seeded from the frames since power-on. The menu had a
+/// newlib copy of its own from 1, made anew with each visit.
+#[test]
+fn a_dogs_talk_line_draws_the_towns_ccrand() {
+    use piney_event::host::PcCommand;
+    let Some((iso, archive)) = disc() else { return };
+    let mut d = Iso::open(&iso).unwrap();
+    let mut state = crate::world::new_game_state(&mut d).unwrap();
+    state.save.set_u8(offset::LAST_TOWN, 1);
+    let scene = piney_world::area::Scene::log_in(&mut state.save);
+    let mut s = Session::in_world(iso, archive, None, state, None, scene, None).unwrap();
+    let mut pad = Pad::default();
+    let mut step = |s: &mut Session, b: Buttons| {
+        pad.read(&still(b));
+        s.step(&pad);
+        s.take_events();
+    };
+    while town_of(&s) != Some(1) {
+        step(&mut s, Buttons::NONE);
+    }
+    let town_cc = |s: &Session| match &s.stage {
+        Stage::World(w) => w.world().cc().expect("the town's ccRand"),
+        _ => panic!("left the town"),
+    };
+    // Kite south of dog 143 until NorainuMenu (44) opens: its first step
+    // draws the line over a mark.
+    for f in 0..600u64 {
+        let Stage::World(w) = &mut s.stage else { panic!("left the town") };
+        w.ui_mut().ctrl.talk.talk_num = -7;
+        let target = w.world().command_target();
+        let b = if target == Some((Kind::Npc, 143)) && f.is_multiple_of(4) { Buttons::CROSS } else { Buttons::NONE };
+        if target != Some((Kind::Npc, 143)) {
+            let p = w.world().dogs()[2].ch.pos.map(f32::from_bits);
+            let (x, y, z) = ((p[0] / 10.0) as i16, (p[1] / 10.0) as i16 - 12, (p[2] / 10.0) as i16);
+            let world = w.world_mut();
+            assert!(world.pc_command(PcCommand::Put { pc: 0, x, y, z }));
+            assert!(world.pc_command(PcCommand::Turn { pc: 0, dirc: -32768, chg: 0 }));
+        }
+        let mut cc = town_cc(&s);
+        step(&mut s, b);
+        let Stage::World(w) = &s.stage else { panic!("left the town") };
+        let talk_num = w.ui().ctrl.talk.talk_num;
+        if talk_num != -7 {
+            assert_eq!(w.ui().menu_type(), 44);
+            let r = match cc.rand() & 3 {
+                3 => 0,
+                r => r,
+            };
+            assert_eq!(talk_num, ((r + 1) * 2 - 1) as i16, "the town's ccRand's next word");
+            return;
+        }
+    }
+    panic!("NorainuMenu did not open");
+}
+
 /// The young Grunty's state: (code, pos, act, growthNum, dmylevel).
 fn grunties(s: &Session) -> Vec<(i32, [f32; 4], i32, i8, i16)> {
     let Stage::World(w) = &s.stage else { panic!("left the town") };

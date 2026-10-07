@@ -11,6 +11,8 @@ use piney_data::tables::types::EvMsgData;
 use piney_data::tables::{battle, fieldui, sjis};
 use piney_data::volume::Volume;
 
+use piney_desktop::staffroll::CcRand;
+
 use crate::ctrl::{Cont, Ctx, MenuCtrl};
 use crate::{Request, menus};
 
@@ -235,11 +237,19 @@ pub struct TalkState {
     pub chain: Option<Chain>,
     /// `saveSys` and the memory cards (the Recorder's Save).
     pub record: menus::record::State,
-    /// `ccRand()` (NorainuMenu's `talkNum`): the town's Mersenne Twister is
-    /// not the menu's, so a harness's numbers, else newlib's sequence from 1
-    /// in its place. The menus' `rand()` is [`crate::ctrl::MenuRand`].
-    cc_rand: Option<Box<dyn FnMut() -> i32 + Send>>,
-    seed: u64,
+    /// `ccRand()` (NorainuMenu's `talkNum`). The menus' `rand()` is
+    /// [`crate::ctrl::MenuRand`].
+    cc: MenuCc,
+}
+
+/// `ccRand()` as the menus draw it.
+pub enum MenuCc {
+    /// The game's Mersenne Twister: [`crate::FieldUi`] loads it from
+    /// `SaveState::cc` (the town's or the area's, lent by the host) before
+    /// the task's frame and stores it back after.
+    Game(CcRand),
+    /// A harness's numbers in its place; `SaveState::cc` is left alone.
+    Fixed(Box<dyn FnMut() -> i32 + Send>),
 }
 
 impl Default for TalkState {
@@ -253,33 +263,44 @@ impl Default for TalkState {
             target: None,
             chain: None,
             record: Default::default(),
-            cc_rand: None,
-            seed: 1,
+            cc: MenuCc::Game(CcRand::default()),
         }
     }
 }
 
 impl TalkState {
-    /// `ccRand()`, as [`TalkState::cc_rand`] holds it.
+    /// `ccRand()`.
     pub fn cc_rand(&mut self) -> i32 {
-        if let Some(f) = self.cc_rand.as_mut() {
-            return f();
+        match &mut self.cc {
+            MenuCc::Game(c) => c.rand(),
+            MenuCc::Fixed(f) => f(),
         }
-        self.seed = self.seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        ((self.seed >> 32) & 0x7fff_ffff) as i32
     }
 
     /// A harness's numbers for `ccRand()`.
     pub fn set_cc_rand(&mut self, f: Box<dyn FnMut() -> i32 + Send>) {
-        self.cc_rand = Some(f);
+        self.cc = MenuCc::Fixed(f);
+    }
+
+    /// The game's `ccRand` at `state` (a fixed source keeps its numbers).
+    pub fn load_cc(&mut self, state: &CcRand) {
+        if let MenuCc::Game(c) = &mut self.cc {
+            c.clone_from(state);
+        }
+    }
+
+    /// The game's `ccRand` as the menus left it, into `state`.
+    pub fn store_cc(&self, state: &mut CcRand) {
+        if let MenuCc::Game(c) = &self.cc {
+            state.clone_from(c);
+        }
     }
 
     /// What outlives a `ccMenuCtrl` ([`crate::MenuCtrl::keep`]): `saveSys`
     /// with the cards, and `ccRand`. The members start afresh.
     pub fn keep(&mut self, old: TalkState) {
         self.record = old.record;
-        self.cc_rand = old.cc_rand;
-        self.seed = old.seed;
+        self.cc = old.cc;
     }
 }
 
@@ -566,13 +587,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn cc_rand_stand_in() {
-        // seed 1: the first values of newlib's sequence.
+    fn cc_rand_is_the_saves() {
+        // The menus draw on from the state the host lent, and hand it back.
+        let mut lent = CcRand::seeded(4352);
+        let mut want = lent.clone();
         let mut s = TalkState::default();
-        let a = s.cc_rand();
-        let b = s.cc_rand();
-        assert!(a >= 0 && b >= 0 && a != b);
+        s.load_cc(&lent);
+        assert_eq!([s.cc_rand(), s.cc_rand()], [want.rand(), want.rand()]);
+        s.store_cc(&mut lent);
+        assert_eq!(lent, want);
         s.set_cc_rand(Box::new(|| 7));
+        s.load_cc(&CcRand::default());
         assert_eq!(s.cc_rand(), 7);
+        s.store_cc(&mut lent);
+        assert_eq!(lent, want);
     }
 }

@@ -466,12 +466,10 @@ player until one of these turns out wrong.
 - [[77]] RT01ICONPOS and the pulse angles are the game's globals; the port starts a new area's pulse at 0 — docs/engine/map.md Unknown
 - [[77]] the map for special dungeon types 8 and 9 and story rooms of type 15 and up not checked; labels compared as strings only — test gap
 - [[94]] the staff roll's pixels and the ending song's start and stop not compared — not compared
-- [[94]] the generators' state at the ending (random characters) — differs from a console's run
 - [[94]] ccBufferSampling (+0x138c) and the second mask (+0x1358) created and never used — as the game
 - [[96]] after success proccess stays 2 until the area changes; how many frames the game shows — not measured
 - [[100]] the minimap's markers not checked frame by frame — tools/test_map_rs.py covers the rule
 - [[104]] the field noise's pixels not compared — no capture
-- [[142]] the dogs' menu draws talkNum from rand(), not the town's ccRand — random stream only
 - [[144]] the menu's turn uses f32 sine and cosine, not the VU's cossin — a sixteenth of a pixel at most
 - [[144]] a rotated cell's off-screen test reads a leftover width and height — the port takes 0 (docs/engine/map.md Unknown)
 - [[148]] the object menus not compared with the game's pictures — checks are frame by frame in eemu
@@ -927,6 +925,7 @@ player until one of these turns out wrong.
 - [[93]] Dun Loireag not ported — answered by [[97]]
 - [[93]] piros_colour and the town's characters' affectColor — answered by [[99]]
 - [[93]] the later events' fields and dungeons, fights and bosses not played — answered by [[109]]-[[117]], [[129]], [[159]] (the ending played to a saved card)
+- [[94]] the generators' state at the ending (random characters) — answered by [[386]] (the roll's `srand` takes the session's frames since power-on, its `ccRand` the last scene's through SaveState::cc; the_staff_roll_draws_from_the_frames_and_the_last_scenes_ccrand)
 - [[95]] the fights' calls (Event::SkillWords) not wired — answered by [[101]]
 - [[95]] Kite calling the party's strategy (Show::Shout) — answered by [[120]]
 - [[95]] vBank+0x08 left as evVoicePlay last wrote it — answered by [[335]] (SEWORDS' wordPlay never reads it) / docs/formats/voice.md
@@ -1004,6 +1003,7 @@ player until one of these turns out wrong.
 - [[136]] piney-gs clipping at a fixed 1000, not divZ — answered by [[153]]
 - [[137]] the direct light controller (0x0605) — answered by [[151]]
 - [[138]] ChangeClut, the door palette swap for clutType 3 and 4 — answered by [[147]]
+- [[142]] the dogs' menu draws talkNum from rand(), not the town's ccRand — answered by [[386]] (the town lends its ccRand as SaveState::cc; a_dogs_talk_line_draws_the_towns_ccrand)
 - [[148]] whether "Chronicling" can be had in Infection; timeSym and gameCnt — answered by [[154]]
 - [[148]] ccGimSymbol not ported (symbols as stand-ins) — answered by [[149]]
 - [[149]] row 18's objMain (the lakes' symbol) — answered by [[155]]
@@ -1199,7 +1199,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/desktop.md: how long ccLoadFLAddOne takes to load a news page — research (disc timing)
 - docs/engine/desktop.md: DispInfo's branch before play not run against the game — research (no Infection script announces before play)
 - docs/engine/desktop.md: whether xwindow and xwin_f00 are resident during name entry; layer 131 in the two frames after Main returns 1 — research (not traced)
-- docs/engine/desktop.md: the cursor blink's phase from ccSys.count — research (run history)
+- docs/engine/desktop.md: the cursor blink's phase from ccSys.count — answered by [[386]] (the session hands the desktop its frames since power-on, `Desktop::set_count`)
 
 ### docs/engine/dungeon.md
 

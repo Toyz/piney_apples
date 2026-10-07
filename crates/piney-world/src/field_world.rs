@@ -270,6 +270,8 @@ pub struct FieldWorld {
     /// `ccMenu.interNoiz = 2` asked by the Administrator since the last
     /// take ([`FieldWorld::take_noise`]).
     noise: bool,
+    /// `ccSys+0x358` at the set-up's `ccInitRand` ([`crate::Arrival`]).
+    rand_count: u32,
 }
 
 /// `ccSetupGameCtrl`'s stream 107 with `setupMode` set
@@ -297,10 +299,11 @@ pub struct GateHackStream {
 
 impl FieldWorld {
     /// `ccSetupGameCtrl` for `scene` (area 1: a field of `world_man`'s
-    /// words), reading the field and Kite from the disc. `faded`: the scene
-    /// that asked for it has already faded out (its own tasks ran under the
-    /// fade), so the set-up starts with the frames held black. `spcs`: the
-    /// party the scene before left.
+    /// words), reading the field and Kite from the disc. `at.faded`: the
+    /// scene that asked for it has already faded out (its own tasks ran
+    /// under the fade), so the set-up starts with the frames held black;
+    /// `at.frames` gives `ccInitRand` its count. `spcs`: the party the
+    /// scene before left.
     #[allow(clippy::too_many_arguments)]
     pub fn enter(
         iso: &mut Iso,
@@ -309,7 +312,7 @@ impl FieldWorld {
         scene: Scene,
         world_man: WorldMan,
         kept: Option<Kept>,
-        faded: bool,
+        at: crate::Arrival,
         spcs: crate::party::Spcs,
     ) -> piney_data::Result<FieldWorld> {
         let volume = iso.volume()?;
@@ -329,9 +332,11 @@ impl FieldWorld {
             Some(Kept::Event(e)) => (Some(Kept::Event(e)), None),
             k => (None, k),
         };
-        // ccRand: the battle's generator, which a story map's constructor
-        // may draw from first (EVENTAREAB8's rocks).
-        let mut cc = piney_battle::enemy_ai::Genrand::default();
+        // ccInitRand, after the set-up's fade and hold: ccRand anew from
+        // the frames since power-on, and ccRandS moved on as far. A story
+        // map's constructor (EVENTAREAB8's rocks) draws from it first.
+        let rand_count = at.rand_count();
+        let mut cc = piney_battle::rand::init_rand(rand_count, &mut save.rand_s);
         let mut story = if scene.area == kind::FIELD {
             let at = crate::story_map::At {
                 volume,
@@ -405,6 +410,7 @@ impl FieldWorld {
         };
         let mut combat = Combat::new(data.clone(), save.rand);
         combat.cc = cc;
+        combat.rnds = save.rand_s;
         // The looks the entry control's enemies and portals may take: the
         // rows ccRegisterDifficultyEnemy registers (with their drained
         // forms) and the magic portal.
@@ -434,7 +440,7 @@ impl FieldWorld {
         }
         place.hits().center = [pos[0], pos[1]];
         let mut requests = Vec::new();
-        let phase = if faded {
+        let phase = if at.faded {
             Phase::Hold(0)
         } else {
             if scene.changed() {
@@ -489,6 +495,7 @@ impl FieldWorld {
             npcs: Default::default(),
             npc_shows: Vec::new(),
             noise: false,
+            rand_count,
         })
     }
 
@@ -1040,10 +1047,17 @@ impl FieldWorld {
         &self.save
     }
 
+    /// `ccSys+0x358` as the set-up's `ccInitRand` read it.
+    pub fn rand_count(&self) -> u32 {
+        self.rand_count
+    }
+
     /// The state the next mode takes: the save, with `rand()` as the area
     /// left it.
     pub fn state_out(&self) -> SaveState {
-        SaveState { rand: self.combat.rand.0, ..self.save.clone() }
+        let mut out = SaveState { rand: self.combat.rand.0, rand_s: self.combat.rnds, ..self.save.clone() };
+        crate::mt::put(&self.combat.cc, &mut out.cc);
+        out
     }
 
     /// The game's `rand()` handed back by what played in this mode (a
@@ -1056,13 +1070,15 @@ impl FieldWorld {
         &mut self.save
     }
 
-    /// The save with `rand` the game's generator as the area's tasks left
-    /// it, for a task beside them that draws from it too (the menus); what
-    /// `f` drew stays drawn.
+    /// The save with `rand` and `cc` the game's generators as the area's
+    /// tasks left them, for a task beside them that draws from them too
+    /// (the menus); what `f` drew stays drawn.
     pub fn with_live_state<R>(&mut self, f: impl FnOnce(&mut SaveState) -> R) -> R {
         self.save.rand = self.combat.rand.0;
+        crate::mt::put(&self.combat.cc, &mut self.save.cc);
         let r = f(&mut self.save);
         self.combat.rand.0 = self.save.rand;
+        crate::mt::take(&mut self.combat.cc, &self.save.cc);
         r
     }
 
@@ -2606,7 +2622,9 @@ impl FieldWorld {
             (chars[who].pos, dirc)
         };
         let hits = self.place.hits();
-        for m in self.npcs.build(&self.archive, self.volume, &placed, area, town, hits, player, at) {
+        let (archive, volume, cc) = (&self.archive, self.volume, &mut self.combat.cc);
+        let missing = self.npcs.with_cc(cc, |n| n.build(archive, volume, &placed, area, town, hits, player, at));
+        for m in missing {
             tracing::warn!("the event's NPCs: {m}");
         }
     }
@@ -2641,7 +2659,7 @@ impl FieldWorld {
             hits,
             rand: &mut rand,
         };
-        let out = self.npcs.step(&mut cx);
+        let out = self.npcs.with_cc(&mut self.combat.cc, |n| n.step(&mut cx));
         self.combat.rand.0 = rand.0;
         for n in &self.npcs.list {
             let c = &mut self.combat;

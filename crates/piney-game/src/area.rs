@@ -221,8 +221,8 @@ impl AreaMode {
         self.member_items = items;
     }
 
-    /// `ccSetupGameCtrl` in `scene` on `state`; `faded` when the scene that
-    /// asked has drawn its fade out already.
+    /// `ccSetupGameCtrl` in `scene` on `state`; `at` the frames since
+    /// power-on, and whether the scene that asked drew the fade out.
     #[allow(clippy::too_many_arguments)]
     pub fn enter(
         iso: &Path,
@@ -232,7 +232,7 @@ impl AreaMode {
         scene: Scene,
         world_man: WorldMan,
         kept: Option<Kept>,
-        faded: bool,
+        at: piney_world::Arrival,
         spcs: Spcs,
     ) -> Result<AreaMode, String> {
         let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
@@ -255,7 +255,7 @@ impl AreaMode {
         let mut st = FieldState::new(&state.save, stories);
         st.game = area_host::game_of(&scene);
         st.announcements = crate::desktop::announcements(iso);
-        let mut world = FieldWorld::enter(&mut disc, archive.clone(), state, scene, world_man, kept, faded, spcs)
+        let mut world = FieldWorld::enter(&mut disc, archive.clone(), state, scene, world_man, kept, at, spcs)
             .map_err(|e| format!("area {} field {} dungeon {}: {e}", scene.area, scene.field, scene.dungeon))?;
         // WORLD::Init's or the DUNGEON constructor's map, and the modes
         // ccThGameCtrl's set-up reads.

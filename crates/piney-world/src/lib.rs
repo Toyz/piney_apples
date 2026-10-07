@@ -94,6 +94,23 @@ pub const FRAME_RATE: u32 = 2;
 pub const FADE_FRAMES: u32 = 10;
 pub const HOLD_FRAMES: u32 = 2;
 
+/// How a scene's set-up (`ccSetupGameCtrl`) begins: `ccSys+0x358` (frames
+/// since power-on) as the scene is made, and whether the scene before drew
+/// the fade out.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Arrival {
+    pub frames: u32,
+    pub faded: bool,
+}
+
+impl Arrival {
+    /// `ccSys+0x358` at the set-up's `ccInitRand`, after its fade out
+    /// (unless the scene before drew it) and its hold.
+    pub fn rand_count(self) -> u32 {
+        self.frames.wrapping_add(HOLD_FRAMES + if self.faded { 0 } else { FADE_FRAMES })
+    }
+}
+
 /// `ChangeScene`'s town number of Mac Anu, and its start position
 /// (`WORLD_MAN::SetCharPosition` 0x001a1190, town 0).
 pub const MAC_ANU: i32 = 0;
@@ -222,7 +239,7 @@ pub struct World {
     grunty_events: Vec<(i32, grunty::GruntyEvent)>,
     npcs: Vec<Box<dyn entry::Npc>>,
     /// `ccSys+0x358` when `ccInitRand` seeds the town's `ccRand`
-    /// ([`World::set_rand_count`]), and the walking PCs `ccEntryRandomNpc`
+    /// ([`World::init_rand`]), and the walking PCs `ccEntryRandomNpc`
     /// placed (with the state they share: `ccRand`, the navigation map,
     /// the chat groups).
     rand_count: u32,
@@ -618,18 +635,30 @@ impl World {
         self.npcs.push(npc);
     }
 
-    /// The frame count `ccInitRand` reads (`ccSys+0x358`, frames since
-    /// boot), which picks the town's walking PCs; 0 unless set before the
-    /// town's tasks start.
-    pub fn set_rand_count(&mut self, count: u32) {
+    /// The set-up's `ccInitRand` with `ccSys+0x358` at `count`
+    /// ([`Arrival::rand_count`]): the count picks the walking PCs, and
+    /// `ccRandS` moves on by it. 0 unless set before the tasks start.
+    pub fn init_rand(&mut self, count: u32) {
         self.rand_count = count;
+        piney_battle::rand::init_rand(count, &mut self.save.rand_s);
+    }
+
+    /// `ccSys+0x358` as the set-up's `ccInitRand` read it.
+    pub fn rand_count(&self) -> u32 {
+        self.rand_count
+    }
+
+    /// The town's `ccRand` as its tasks leave it, once the walking PCs
+    /// are placed.
+    pub fn cc(&self) -> Option<mt::Mt> {
+        self.town_pcs.as_ref().map(|t| t.borrow().mt.clone())
     }
 
     /// `ccEntryEventMng` (main 0x001b62e0) for a Root Town, when the town's tasks
     /// start: the events' town NPCs (`ccSetRtownPC`), `ccSetMerchant(0)`'s
     /// merchants (the Chaos Gate is already up), then `ccEntryRandomNpc`
     /// (0x001b6cf0): the walking PCs `ccRegisterRandomNpc(n)` drew
-    /// ([`World::set_rand_count`]), 15 for Kite alone, 14 with Orca. Each goes
+    /// ([`World::init_rand`]), 15 for Kite alone, 14 with Orca. Each goes
     /// onto the entry list and its body onto the character list in that order.
     /// The first frame of play does it if it has not been called.
     pub fn place_entries(&mut self) -> piney_data::Result<()> {
@@ -951,10 +980,15 @@ impl World {
         &self.save
     }
 
-    /// The state the next mode takes: the save, with `rand()` as the town
-    /// left it.
+    /// The state the next mode takes: the save, with `rand()` and `ccRand`
+    /// as the town left them.
     pub fn state_out(&self) -> SaveState {
-        SaveState { rand: self.rand.0, ..self.save.clone() }
+        let mut out = SaveState { rand: self.rand.0, ..self.save.clone() };
+        match &self.town_pcs {
+            Some(t) => t.borrow().mt.put(&mut out.cc),
+            None => mt::Mt::init(self.rand_count).put(&mut out.cc),
+        }
+        out
     }
 
     /// The game's `rand()` handed back by what played in this mode (a
@@ -969,13 +1003,20 @@ impl World {
         &mut self.save
     }
 
-    /// The save with `rand` the game's generator as the town's tasks left
-    /// it, for a task beside them that draws from it too (the menus); what
-    /// `f` drew stays drawn.
+    /// The save with `rand` and `cc` the game's generators as the town's
+    /// tasks left them, for a task beside them that draws from them too
+    /// (the menus, NorainuMenu's `ccRand`); what `f` drew stays drawn.
     pub fn with_live_state<R>(&mut self, f: impl FnOnce(&mut SaveState) -> R) -> R {
         self.save.rand = self.rand.0;
+        let town = self.town_pcs.clone();
+        if let Some(t) = &town {
+            t.borrow().mt.put(&mut self.save.cc);
+        }
         let r = f(&mut self.save);
         self.rand.0 = self.save.rand;
+        if let Some(t) = &town {
+            t.borrow_mut().mt.take(&self.save.cc);
+        }
         r
     }
 

@@ -7,6 +7,9 @@
 //! so [`Mt::init`] takes that count. One generator serves the walking PCs,
 //! the enemy picks and a few effects (docs/engine/battle.md).
 
+use piney_battle::rand::Genrand;
+use piney_desktop::staffroll::CcRand;
+
 /// `mag01`: 0 and the twist matrix `0x9908b0df`.
 const MAG01: [u32; 2] = [0, 0x9908_b0df];
 const N: usize = 624;
@@ -92,6 +95,42 @@ impl Mt {
     pub fn rand(&mut self) -> i32 {
         self.genrand() as i32
     }
+
+    /// The same generator as the battle's side holds it.
+    pub fn of(g: &Genrand) -> Mt {
+        Mt { mt: g.mt, mti: g.mti as usize }
+    }
+
+    /// Back into the battle's side's form.
+    pub fn store(&self, g: &mut Genrand) {
+        g.mt = self.mt;
+        g.mti = self.mti as i32;
+    }
+
+    /// Into the save's form `c` (`SaveState::cc`), in place.
+    pub fn put(&self, c: &mut CcRand) {
+        *c.mt = self.mt;
+        c.mti = self.mti;
+    }
+
+    /// Back from the save's form `c`.
+    pub fn take(&mut self, c: &CcRand) {
+        self.mt = *c.mt;
+        self.mti = c.mti;
+    }
+}
+
+/// The battle's `ccRand` into the save's form `c`, in place (a host lends
+/// it to the menus through `SaveState::cc`).
+pub fn put(g: &Genrand, c: &mut CcRand) {
+    *c.mt = g.mt;
+    c.mti = g.mti as usize;
+}
+
+/// The battle's `ccRand` back from the save's form `c`.
+pub fn take(g: &mut Genrand, c: &CcRand) {
+    g.mt = *c.mt;
+    g.mti = c.mti as i32;
 }
 
 #[cfg(test)]

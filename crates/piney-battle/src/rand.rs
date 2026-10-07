@@ -131,6 +131,30 @@ impl Rng for Genrand {
     }
 }
 
+/// `ccRandS()` (main 0x001d9c10): `lastRnd = rotl2(((lastRnd ^ 0x1100) -
+/// 25939) & 0xffff)`, returned as a `short`. `lastRnd` (main 0x00378aec)
+/// is 0 at power-on and never reset.
+pub fn rand_s(s: &mut u16) -> i16 {
+    let v = u32::from((*s ^ 0x1100).wrapping_sub(25939));
+    let r = ((v << 2) | (v >> 14)) as u16;
+    *s = r;
+    r as i16
+}
+
+/// `ccInitRand` (main 0x001d9900), in every scene's set-up
+/// (`ccSetupGameCtrl`, 0x00168c78): `ccRand` seeded with 4352, then
+/// `ccRand` and `ccRandS` drawn in turn `count` times, `count` the frames
+/// since power-on (`ccSys+0x358`). So each arrival has its own `ccRand`;
+/// `lastRnd` is moved on, not reset.
+pub fn init_rand(count: u32, last_rnd: &mut u16) -> Genrand {
+    let mut g = Genrand::seeded(4352);
+    for _ in 0..count {
+        g.next_u32();
+        rand_s(last_rnd);
+    }
+    g
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,6 +185,19 @@ mod tests {
         let y: Vec<u32> = (0..700).map(|_| b.next_u32()).collect();
         assert_eq!(x, y);
         assert_eq!(a.mti, 700 - 624);
+    }
+
+    #[test]
+    fn init_rand_draws_the_frames_since_power_on() {
+        // ccInitRand with ccSys+0x358 at 1000, then ccRand (eemu): and
+        // lastRnd moved on 1000 ccRandS draws from where it stood.
+        let mut s = 0;
+        let mut g = init_rand(1000, &mut s);
+        let v: Vec<u32> = (0..3).map(|_| g.next_u32()).collect();
+        assert_eq!(v, [0x3bc0_7e1f, 0xa399_9e24, 0x2620_455c]);
+        let mut t = 0;
+        (0..1000).for_each(|_| _ = rand_s(&mut t));
+        assert_eq!(s, t);
     }
 
     #[test]

@@ -243,6 +243,31 @@ fn ending_saves_the_clear_data() {
 /// 16-bit stereo at 48 kHz.
 const ROLL_MUSIC_SECONDS: f64 = 46_073_124.0 / 4.0 / 48_000.0;
 
+/// The staff roll's two generators as the game starts them: `srand` of
+/// `ccSys.count` (+0x358, the frames since power-on, as for every mode),
+/// and `ccRand` where the last scene left it, not a fresh boot's.
+#[test]
+fn the_staff_roll_draws_from_the_frames_and_the_last_scenes_ccrand() {
+    use piney_desktop::staffroll::CcRand;
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    if !iso.exists() {
+        return;
+    }
+    let mut disc = Iso::open(&iso).unwrap();
+    let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let mut start = crate::start::build(&iso, 31).unwrap();
+    // As a field's set-up would leave it, some draws on.
+    let mut left = CcRand::seeded(4352);
+    (0..1000).for_each(|_| _ = left.rand());
+    start.state.cc = left.clone();
+    let s = Session::resume(iso, archive, Some(empty_card()), start.state, start.vm, start.at).unwrap();
+    let mut p = Player::new(s);
+    p.play_to_staff_roll();
+    let roll = p.desktop().staff_roll().unwrap();
+    assert_eq!(roll.rand.0, u64::from(p.s.sys_frames), "srand(ccSys.count)");
+    assert_eq!(roll.cc_rand, left, "ccRand as the last scene left it");
+}
+
 /// Issue #46. Event 31's `frame_rate 2` just before `staff_roll` holds for
 /// the whole roll. After the frame it starts in, `ccThStaffRoll` runs two
 /// frames of `Breath` and its 7,230 `Main`s (the game's own, in

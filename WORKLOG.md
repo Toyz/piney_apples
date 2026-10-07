@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-385 entries: audio 33, battle 80, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 93, save 13, script 48, test 148, tooling 27, ui 83, video 13, volumes 68, world 104.
+386 entries: audio 33, battle 81, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 93, save 13, script 48, test 149, tooling 27, ui 84, video 13, volumes 68, world 105.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -397,3 +397,4 @@ The [reference](docs/README.md) says what is true now.
 | 383 | [A breakable's drop draws on the game's one rand(): the menus take the area's generator, not a copy of their own from 1](worklog/0383-a-breakable-s-drop-draws-on-the-game-s-one-rand-the-menus.md) | 2026-10-06 | ui, world, test |
 | 384 | [A room's menu is made anew after its passes, and keeps gcmn's lists: the noise draws before the party's boot, and PERSONAL's cursor stays from room to room](worklog/0384-a-room-s-menu-is-made-anew-after-its-passes-and-keeps-gcmn.md) | 2026-10-06 | ui, world, test |
 | 385 | [The whole stories after the draws moved: Infection, Mutation and Outbreak end, and GOB3-2's pilot goes back for Speed Charms when they run out](worklog/0385-the-whole-stories-after-the-draws-moved-infection-mutation.md) | 2026-10-06 | test |
+| 386 | [A portal's group is drawn from ccRand, which every scene's set-up seeds from the frames since power-on: the giant's portals no longer always give a Mystery Rock and a Mu Guardian](worklog/0386-a-portal-s-group-is-drawn-from-ccrand-which-every-scene-s.md) | 2026-10-07 | battle, world, ui, test |
