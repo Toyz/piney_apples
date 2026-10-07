@@ -433,6 +433,7 @@ player until one of these turns out wrong.
 - [[249]] whether the four discs' LOGO_B.PSS and LOGO_C.PSS are the same file — the build's dedup would say
 - [[267]] no harness compares these tasks with the game's code frame by frame — test gap
 - [[269]] whether OBJ_xpart00-05's models carry a Bbox (the game would drop parts the port keeps) — not checked
+- [[388]] the console's own Movie 13 and Movie 16 played from the desktop's Audio screen not seen — needs a PS2 or PCSX2 capture
 
 ### ui
 
@@ -1091,6 +1092,7 @@ player until one of these turns out wrong.
 - [[267]] str7100, str8800 and str0300 changed on Mutation — answered by [[271]] (they are Infection's code)
 - [[270]] the whole run after 108 not seen — answered by [[276]] (101 to 116 under the autopilot)
 - [[280]] Mutation's convergence aim, effSkillChargeObj's new argument, the drill's endFlag — answered by [[281]] (tools/test_effect_spell_rs.py on MUT, 0 mismatches)
+- [[388]] the draw turns the stream camera with glam's sine, not libvu0's — answered by [[389]] (`piney_desktop::camera`: SetMatrix_PosRotXYZ(Debug), SetView and ccSetViewScreenClipMatrix in VU0's and the EE's arithmetic; world_screen bit for bit on all 1837 fixture frames and on 301 cameras of tools/test_stream_rs.py cameras) / docs/engine/desktop.md "The 3D draw"
 
 ## Dead
 

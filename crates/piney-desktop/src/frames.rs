@@ -77,8 +77,9 @@ pub fn fobj_objects(file: &SceneFile, anim: usize) -> Vec<u32> {
     out
 }
 
-/// The F_Camera records: (frame, camera object, fields present, 8 floats).
-pub fn camera_records(file: &SceneFile, anim: usize) -> Vec<(u32, u32, [f32; 8])> {
+/// The F_Camera records: (frame, camera object, flag, the eight values as
+/// float bits). A set flag bit 1-8 leaves its value out (0 here).
+pub fn camera_records(file: &SceneFile, anim: usize) -> Vec<(u32, u32, u32, [u32; 8])> {
     let d = &file.ccs.data;
     let mut out = Vec::new();
     for (frame, kind, q, n) in walk(file, anim) {
@@ -87,15 +88,15 @@ pub fn camera_records(file: &SceneFile, anim: usize) -> Vec<(u32, u32, [f32; 8])
         }
         let obj = u32_at(d, q);
         let flag = u32_at(d, q + 4);
-        let mut vals = [0f32; 8];
+        let mut vals = [0u32; 8];
         let mut at = q + 8;
         for (bit, v) in vals.iter_mut().enumerate() {
             if flag & (2 << bit) == 0 && at + 4 <= q + 4 * n {
-                *v = f32_at(d, at);
+                *v = u32_at(d, at);
                 at += 4;
             }
         }
-        out.push((frame, obj, vals));
+        out.push((frame, obj, flag, vals));
     }
     out
 }

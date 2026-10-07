@@ -5,10 +5,10 @@
 //! The frame buffer is 512 x 448 (`ccSystem::SetScreenMode(512, 448, 0)`),
 //! drawn around (2048, 2048): XYOFFSET_1 is (0x7000, 0x7200) in 12.4.
 
-use glam::{Mat4, Vec3, Vec4};
+use glam::{Mat4, Vec4};
 use piney_draw::Scissor;
 
-use crate::camera::{Camera, Projection, default_projection, world_screen};
+use crate::camera::{Camera, M4, Projection, default_projection, to_mat4, world_screen};
 
 /// `ccSys.screenW`, `screenH`.
 pub const SCREEN_W: u32 = 512;
@@ -173,30 +173,46 @@ impl Frame {
 }
 
 /// The 3D half of a view: the camera `SetView` last gave the layer's view,
-/// and its projection.
+/// its projection, and the `world_screen` `SetView` made of them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct View {
-    pub projection: Projection,
-    pub camera: Camera,
+    projection: Projection,
+    camera: Camera,
+    world_screen: M4,
 }
 
 impl Default for View {
     fn default() -> Self {
-        View {
-            projection: default_projection(),
-            camera: Camera { pos: Vec3::ZERO, rot: Vec3::ZERO, fov: crate::camera::DEFAULT_FOV },
-        }
+        View::new(default_projection(), Camera::default())
     }
 }
 
 impl View {
+    /// A view of `projection` that `SetView` gave `camera`.
+    pub fn new(projection: Projection, camera: Camera) -> Self {
+        View { projection, camera, world_screen: world_screen(&camera, &projection) }
+    }
+
     /// `ccView::SetView(view, cam, 0)`.
     pub fn set_camera(&mut self, cam: &Camera) {
-        self.camera = *cam;
+        *self = View::new(self.projection, *cam);
+    }
+
+    pub fn camera(&self) -> &Camera {
+        &self.camera
+    }
+
+    pub fn projection(&self) -> &Projection {
+        &self.projection
+    }
+
+    /// `ccView.world_screen` (+0xd0) as `SetView` leaves it.
+    pub fn world_screen_bits(&self) -> &M4 {
+        &self.world_screen
     }
 
     pub fn world_screen(&self) -> Mat4 {
-        world_screen(&self.camera, &self.projection)
+        to_mat4(&self.world_screen)
     }
 
     /// `world_screen * local_world` with the XYOFFSET taken off: a model

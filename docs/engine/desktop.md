@@ -2,8 +2,8 @@
 title: The ALTIMIT desktop
 status: partial
 volumes: INF
-covers: INF SLUS_202.67:0x00168320 ccSetupDesktop, 0x00169a20 ccSetFileListDesktop, 0x001524d0 ccAnm::Draw, 0x0013f220 ccObj::Draw, 0x0013eab0 ccModel::Draw, 0x001052c0 ccView::SetView, 0x00104ae0 ccView::SetFrame, 0x00104e40 ccView::SetAspect, 0x001386b0 ccCam::SetMatrix_PosRotXYZ, 0x0014e950 ccStream::DecodeF_Obj, 0x0014ece0 ccStream::DecodeF_Camera, 0x0015aed0 ccSprite::MakePacketStr, 0x0015abb0 ccSprite::SendPacket, 0x0015c0c0 ccSprite::SetTag, 0x00108570 ccLayer::AddAll, 0x0015fb80 ccScFade::SendPacket, 0x001b32f0 ccEvent::CheckOperate, 0x00178af0 ccSaveData::NewMail, 0x00178b80 ReadNewMail, 0x00178ac0 CheckMail; INF desktop.prg:0x00400910 ccThDesktop, 0x004015c0 Desktop_control::SetStream, 0x004014d0 SetWall, 0x00400d10 PlayOpening, 0x00400e40 SelectMode, 0x00401020 ChooseMode, 0x00402690 DrawLogo, 0x00402300 DrawBack, 0x004020c0 NewIconDraw, 0x00408350 MailList_control::MainMailer, 0x00409800 AddMailList, 0x0040ca10 MoveLine, 0x0040a3f0 WriteTitle, 0x0040a150 WriteMail, 0x0040b1a0 ResWindow_Control, 0x0040bbf0 PreviewRes, 0x0040d1d0 Web_control::MainWebNews, 0x0040d5c0 AddHtmlList, 0x0040dc10 MoveCur, 0x0040ded0 WebMove, 0x0040e0f0 WriteList, 0x0040e5d0 SetLength, 0x0040e7e0 SetWebLength, 0x0040ec10 DeleteWeb, 0x00403c40 Acces_control::MainAcces_control, 0x004044f0 AddWallList, 0x00404710 WallList, 0x00404c70 ChangeWall, 0x00404f20 SetLength, 0x004050c0 WriteList, 0x004053d0 ListMove, 0x00405700 Audio_control::MainAudio_control, 0x00406450 AddWaveList, 0x004065b0 AddStrList, 0x00406770 SelectMode, 0x00406f90 StartStream, 0x00407100 SimplePlayStream, 0x004072c0 ChangeWeve, 0x00407730 SetLength, 0x00407860 WriteStrList, 0x00407db0 WriteList, 0x00408050 ListMove, 0x0015f8e0 dec2sjis, 0x00171c20 ccSaveSys::MainProccess, 0x00173f90 NextProccess, 0x001716e0 CheckRightInfo, 0x00174300 GetMessage, 0x003753e0 __sinit_sdmng.cpp, 0x001bba30 ccFacePanel::Draw, 0x0016ac00 ccThDtMenu, 0x0016a7a0 ccDtMenu::OpenMenu, 0x0016aeb0 SystemMenu, 0x0016e930 ResetMenu, 0x0016ee20 FadeMenu, 0x001a4730 ccMessage::Disp, 0x001a5960 Check, 0x001a54a0 Change, 0x001a6000 ChangeInfo, 0x001b27b0 ccEvent::DispInfo, 0x0016a8e0 ccDtMenu::CheckMenuType, 0x001b7910 ccMenuWindow::DispSelectCursol, 0x001baa10 DispPageCursol, 0x00414310 NameEntry_Control::Main, 0x004195b0 Init, 0x00415830 AllTlans, 0x00418960 JudgmentProcess, 0x00419390 CutInBlock, 0x0041a4e0 CurRepeat, 0x0040ede0 SaveData_control::MainSaveData_control, 0x0040eef0 SetData, 0x004106e0 SlotSelect, 0x00410a00 SlotStateData, 0x00410c50 Slot_control, 0x00411720 SaveData, 0x0040fa50 ReCheckData, 0x00411ae0 ListMove, 0x00410f80 SetSavePar, 0x00411d80 InfoWindow, 0x00410430 DispButton, 0x0040fc30 DiaWindow, 0x00412040 ResWindow, 0x004101b0 TimeAlphaCurDraw, 0x0040fb00 DrawBack, 0x0041bac0 desktopFileList, 0x0042b1b0 WallTbl, 0x0041c120 HtmlTbl, INF desktop.prg:0x004125c0 ccThStaffRoll, 0x004126d0 ccThStaffRollCtrl::ccThStaffRollCtrl, 0x00412a80 Main, 0x00412b70 ChangePage, 0x00412d10 BuildPage, 0x00412e50 _Random, 0x00413210 _Fix, 0x00413410 _End, 0x00413690 _BGOnly, 0x00413990 ccThStaffRollLine::Draw, 0x00413b10 Init, 0x00413bb0 SetLink, 0x00413d50 StopChar, 0x00413e50 Build, 0x00414020 DrawFix, 0x00414100 Except, 0x00414210 DrawBackShadow, 0x00412410 ccTransCode2Name, 0x0042c500 g_srDataGrp; INF SLUS_202.67:0x00105080 ccView::SetLayerCenter, 0x00104aa0 ccView::ApplyLayerScreenMatrix
-worklog: 37, 41, 45, 371, 386, 388
+covers: INF SLUS_202.67:0x00168320 ccSetupDesktop, 0x00169a20 ccSetFileListDesktop, 0x001524d0 ccAnm::Draw, 0x0013f220 ccObj::Draw, 0x0013eab0 ccModel::Draw, 0x001052c0 ccView::SetView, 0x00104ae0 ccView::SetFrame, 0x00104e40 ccView::SetAspect, 0x001386b0 ccCam::SetMatrix_PosRotXYZ, 0x00101f60 ccSetViewScreenClipMatrix, 0x001107b0 sceVu0InversMatrix, 0x00127d10 tanf, 0x0014e950 ccStream::DecodeF_Obj, 0x0014ece0 ccStream::DecodeF_Camera, 0x0015aed0 ccSprite::MakePacketStr, 0x0015abb0 ccSprite::SendPacket, 0x0015c0c0 ccSprite::SetTag, 0x00108570 ccLayer::AddAll, 0x0015fb80 ccScFade::SendPacket, 0x001b32f0 ccEvent::CheckOperate, 0x00178af0 ccSaveData::NewMail, 0x00178b80 ReadNewMail, 0x00178ac0 CheckMail; INF desktop.prg:0x00400910 ccThDesktop, 0x004015c0 Desktop_control::SetStream, 0x004014d0 SetWall, 0x00400d10 PlayOpening, 0x00400e40 SelectMode, 0x00401020 ChooseMode, 0x00402690 DrawLogo, 0x00402300 DrawBack, 0x004020c0 NewIconDraw, 0x00408350 MailList_control::MainMailer, 0x00409800 AddMailList, 0x0040ca10 MoveLine, 0x0040a3f0 WriteTitle, 0x0040a150 WriteMail, 0x0040b1a0 ResWindow_Control, 0x0040bbf0 PreviewRes, 0x0040d1d0 Web_control::MainWebNews, 0x0040d5c0 AddHtmlList, 0x0040dc10 MoveCur, 0x0040ded0 WebMove, 0x0040e0f0 WriteList, 0x0040e5d0 SetLength, 0x0040e7e0 SetWebLength, 0x0040ec10 DeleteWeb, 0x00403c40 Acces_control::MainAcces_control, 0x004044f0 AddWallList, 0x00404710 WallList, 0x00404c70 ChangeWall, 0x00404f20 SetLength, 0x004050c0 WriteList, 0x004053d0 ListMove, 0x00405700 Audio_control::MainAudio_control, 0x00406450 AddWaveList, 0x004065b0 AddStrList, 0x00406770 SelectMode, 0x00406f90 StartStream, 0x00407100 SimplePlayStream, 0x004072c0 ChangeWeve, 0x00407730 SetLength, 0x00407860 WriteStrList, 0x00407db0 WriteList, 0x00408050 ListMove, 0x0015f8e0 dec2sjis, 0x00171c20 ccSaveSys::MainProccess, 0x00173f90 NextProccess, 0x001716e0 CheckRightInfo, 0x00174300 GetMessage, 0x003753e0 __sinit_sdmng.cpp, 0x001bba30 ccFacePanel::Draw, 0x0016ac00 ccThDtMenu, 0x0016a7a0 ccDtMenu::OpenMenu, 0x0016aeb0 SystemMenu, 0x0016e930 ResetMenu, 0x0016ee20 FadeMenu, 0x001a4730 ccMessage::Disp, 0x001a5960 Check, 0x001a54a0 Change, 0x001a6000 ChangeInfo, 0x001b27b0 ccEvent::DispInfo, 0x0016a8e0 ccDtMenu::CheckMenuType, 0x001b7910 ccMenuWindow::DispSelectCursol, 0x001baa10 DispPageCursol, 0x00414310 NameEntry_Control::Main, 0x004195b0 Init, 0x00415830 AllTlans, 0x00418960 JudgmentProcess, 0x00419390 CutInBlock, 0x0041a4e0 CurRepeat, 0x0040ede0 SaveData_control::MainSaveData_control, 0x0040eef0 SetData, 0x004106e0 SlotSelect, 0x00410a00 SlotStateData, 0x00410c50 Slot_control, 0x00411720 SaveData, 0x0040fa50 ReCheckData, 0x00411ae0 ListMove, 0x00410f80 SetSavePar, 0x00411d80 InfoWindow, 0x00410430 DispButton, 0x0040fc30 DiaWindow, 0x00412040 ResWindow, 0x004101b0 TimeAlphaCurDraw, 0x0040fb00 DrawBack, 0x0041bac0 desktopFileList, 0x0042b1b0 WallTbl, 0x0041c120 HtmlTbl, INF desktop.prg:0x004125c0 ccThStaffRoll, 0x004126d0 ccThStaffRollCtrl::ccThStaffRollCtrl, 0x00412a80 Main, 0x00412b70 ChangePage, 0x00412d10 BuildPage, 0x00412e50 _Random, 0x00413210 _Fix, 0x00413410 _End, 0x00413690 _BGOnly, 0x00413990 ccThStaffRollLine::Draw, 0x00413b10 Init, 0x00413bb0 SetLink, 0x00413d50 StopChar, 0x00413e50 Build, 0x00414020 DrawFix, 0x00414100 Except, 0x00414210 DrawBackShadow, 0x00412410 ccTransCode2Name, 0x0042c500 g_srDataGrp; INF SLUS_202.67:0x00105080 ccView::SetLayerCenter, 0x00104aa0 ccView::ApplyLayerScreenMatrix
+worklog: 37, 41, 45, 371, 386, 388, 389
 ---
 
 # The ALTIMIT desktop
@@ -200,10 +200,17 @@ sets it; the desktop's camera animation `ANM_xddcamer` is only a camera.
 is `u32 object, u32 flags`, then one f32 per clear flag bit 1-8: position
 xyz, rotation xyz in degrees, one unused value, the full horizontal field of
 view (`ccCam.viewRange`, 45 after `ccCam::Init`). It applies when a step
-crosses its frame; cameras are not interpolated. The view matrix is the
-inverse of `T(pos) Rz Ry Rx Rx(pi)`: view space is +x right, +y down, +z
-forward. `ANM_xddcamer` holds pos (0, 0, 292609.3125), no rotation, fov
-9.999999, so view = (x, -y, 292609.3 - z).
+crosses its frame; cameras are not interpolated. A record without a fov
+(flag 0x100) leaves the camera's own; one without a position or turn would
+take `DecodeF_Camera`'s stack leftovers, but all 44089 F_Camera records in
+Infection's streams and `DATA.BIN` (1089 files) hold all eight values. `DecodeF_Camera` turns the degrees to
+radians as `(pi deg) / 180` and calls `ccCam::SetMatrix_PosRotXYZ`
+(0x001386b0): the unit matrix turned a half turn about x, then about x, y
+and z (`sceVu0RotMatrixX/Y/Z`, whose sine is libvu0's `sqrt(1 - cos^2)`),
+moved to the position, then `sceVu0InversMatrix` (0x001107b0). The view
+matrix is thus the inverse of `T(pos) Rz Ry Rx Rx(pi)`: view space is +x
+right, +y down, +z forward. `ANM_xddcamer` holds pos (0, 0, 292609.3125),
+no rotation, fov 9.999999, so view = (x, -y, 292609.3 - z).
 
 **Projection** (`ccView::SetView` 0x001052c0, Sony's view-screen matrix):
 
@@ -213,6 +220,17 @@ Y = scrz * ay * aspect * v.y / v.z + scy   aspect = 1.3333334 * H / W = 7/6
 Z = az / v.z + cz    az = far near (zmax - zmin) / (far - near)
                      cz = (zmin far - zmax near) / (far - near)
 ```
+
+`SetView` computes it all on the EE and VU0: `tan` is newlib's `tanf` of
+`(0.0174533 fov) / 2`; `ccSetViewScreenClipMatrix` (0x00101f60) builds the
+scale-and-centre matrix (`az`, `cz` with a `mula.s` / `madd.s` whose product
+is rounded first) and `sceVu0MulMatrix`es it with the distance matrix;
+`world_screen` is that times the camera's matrix. `piney_desktop::camera`
+does the same arithmetic. `tools/test_stream_rs.py cameras` runs
+`SetMatrix_PosRotXYZ` and `SetView` in eemu for `ANM_xddcamer` and 300
+seeded cameras (near-zero turns, records without a fov; the default,
+letterbox and mail frames); `crates/piney-desktop/tests/camera.rs` matches
+both matrices bit for bit.
 
 W, H = 512, 448. The desktop's layer 126 keeps `ccLayer::Init`'s view:
 `SetFrame(0, 0, 512, 384, 256, 192, 1, 1)`, so `scx` = `scy` = 2048,

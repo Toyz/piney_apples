@@ -74,6 +74,7 @@ at a file already in memory, and the threads, CD and GS calls hooked:
     python3 tools/test_stream_rs.py effects str0300   (str0120)  write .../tests/str0300_fixture.txt
     python3 tools/test_stream_rs.py subtitles  write crates/piney-stream/tests/subtitle_fixture.txt
                                     subtitles --full NUM   print one stream's draws in full
+    python3 tools/test_stream_rs.py cameras    write crates/piney-desktop/tests/camera_fixture.txt
     python3 tools/test_stream_rs.py music      write crates/piney-audio/tests/stream_fixture.txt
     python3 tools/test_stream_rs.py gatehack   write crates/piney-stream/tests/gate_hack_fixture.txt
     python3 tools/test_stream_rs.py            print this
@@ -1591,6 +1592,58 @@ def music():
     print(f"{MUSIC_FIXTURE}: {count} scenarios")
 
 
+CAMERA_FIXTURE = os.path.join(ROOT, "crates", "piney-desktop", "tests", "camera_fixture.txt")
+
+
+def cameras():
+    """ccCam::SetMatrix_PosRotXYZ (DecodeF_Camera's) and ccView::SetView
+    natively, after SetFrame, for the desktop's camera (ANM_xddcamer) and
+    seeded cameras: near-zero turns (libvu0's sine), whole turns, records
+    without a fov (the camera keeps its own), the default, letterbox and
+    mail frames. Degrees become radians as DecodeF_Camera's mul.s, div.s."""
+    import random
+    import eemu
+    g = Game()
+    m = g.m
+    layer, cam, vec = g.malloc(m, 0x40), g.malloc(m, 0x60), g.malloc(m, 0x20)
+    g.call("Init__7ccLayerFsP6ccView", (layer, 0, 0))
+    view = m.load(layer + 0x2c, 4)
+    g.call("Init__5ccCamFP10ccCamChunk", (cam, 0))
+    fb = lambda v: struct.unpack("<I", struct.pack("<f", v))[0]  # noqa: E731
+    frames = [(0, 0, 512, 384, 256, 192, 1, 1), (0, 48, 512, 288, 256, 192, 0.75, 0.75),
+              (90, 270, 224, 80, 112, 40, 1, 6 / 7)]
+    rng = random.Random(389)
+    cases = [(0, (0, 0, 292609.3125), (0, 0, 0), 9.999999, frames[0])]
+    for k in range(300):
+        tiny = k % 3 == 0
+        deg = tuple(rng.choice([0.0, rng.uniform(-0.05, 0.05)]) if tiny else rng.uniform(-360, 360) for _ in range(3))
+        pos = tuple(rng.uniform(-1e5, 1e5) for _ in range(3))
+        flag = 0x100 if k % 7 == 0 else 0
+        fov = rng.choice([45.0, 9.999999, 30.0, 60.0, rng.uniform(5, 90)])
+        cases.append((flag, pos, deg, fov, frames[k % len(frames)]))
+    lines = ["# tools/test_stream_rs.py cameras: SetMatrix_PosRotXYZ and SetView run in eemu, float bits.",
+             "# camera FLAG pos[3] degrees[3] fov frame[8] (SetFrame's x y w h cx cy ax ay)",
+             "#   ccCam.matrix[16] ccView.world_screen[16]; FLAG 0x100: no fov, the camera keeps its own"]
+    for flag, pos, deg, fov, frame in cases:
+        for i, v in enumerate(frame):
+            m.f[12 + i] = fb(v)
+        g.call("SetFrame__6ccViewFffffffff", (view,))
+        pos_b, deg_b = [fb(v) for v in pos], [fb(v) for v in deg]
+        rad = [eemu.f_div(eemu.f_mul(0x40490FDB, d), 0x43340000) for d in deg_b]
+        for i, v in enumerate(pos_b + [0x3F800000] + rad + [0]):
+            m.store(vec + 4 * i, 4, v)
+        if not flag & 0x100:
+            m.store(cam + 12, 4, fb(fov))
+        g.call("SetMatrix_PosRotXYZ__5ccCamFPfPf", (cam, vec, vec + 16))
+        g.call("SetView__6ccViewFRC5ccCamPA4_f", (view, cam, 0))
+        words = [flag] + pos_b + deg_b + [fb(fov)] + [fb(v) for v in frame]
+        words += [m.load(cam + 16 + 4 * i, 4) for i in range(16)] + [m.load(view + 0xd0 + 4 * i, 4) for i in range(16)]
+        lines.append("camera " + " ".join(f"{w:08x}" for w in words))
+    with open(CAMERA_FIXTURE, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"{CAMERA_FIXTURE}: {len(cases)} cameras")
+
+
 def fixture():
     g = Game()
     lines = ["# tools/test_stream_rs.py fixture: the game's stream code run in eemu.",
@@ -1621,6 +1674,8 @@ if __name__ == "__main__":
         fixture()
     elif len(sys.argv) > 1 and sys.argv[1] == "effects":
         effects(sys.argv[2] if len(sys.argv) > 2 else "str0001")
+    elif len(sys.argv) > 1 and sys.argv[1] == "cameras":
+        cameras()
     elif len(sys.argv) > 1 and sys.argv[1] == "music":
         music()
     elif len(sys.argv) > 1 and sys.argv[1] == "gatehack":

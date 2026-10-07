@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-388 entries: audio 33, battle 81, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 94, save 14, script 48, test 151, tooling 27, ui 85, video 14, volumes 68, world 105.
+389 entries: audio 33, battle 81, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 14, script 48, test 152, tooling 27, ui 85, video 15, volumes 68, world 105.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -400,3 +400,4 @@ The [reference](docs/README.md) says what is true now.
 | 386 | [A portal's group is drawn from ccRand, which every scene's set-up seeds from the frames since power-on: the giant's portals no longer always give a Mystery Rock and a Mu Guardian](worklog/0386-a-portal-s-group-is-drawn-from-ccrand-which-every-scene-s.md) | 2026-10-07 | battle, world, ui, test |
 | 387 | [CONVERT carries a part's clear data into the next: the later titles read the previous part's saves on the same card, and ConvGame makes them theirs](worklog/0387-convert-carries-a-part-s-clear-data-into-the-next-the-later.md) | 2026-10-07 | save, ui, test |
 | 388 | [The Audio screen's movies play as the desktop holds them: Movie 13's gate-in swirl draws, and Skeith's drain shows Kite and its backdrop](worklog/0388-the-audio-screen-s-movies-play-as-the-desktop-holds-them.md) | 2026-10-07 | video, render, test |
+| 389 | [Stream and desktop cameras are placed and projected in VU0's arithmetic: every view matrix is the game's bit for bit](worklog/0389-stream-and-desktop-cameras-are-placed-and-projected-in-vu0.md) | 2026-10-07 | render, video, test |

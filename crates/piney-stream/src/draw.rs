@@ -93,9 +93,7 @@ pub fn to_screen(scene: &Scene) -> Mat4 {
 
 /// The scene's view: its frame's projection, its camera.
 pub fn scene_view(scene: &Scene) -> View {
-    let mut view = View { projection: frame_projection(&scene.frame), ..View::default() };
-    view.set_camera(&scene.camera);
-    view
+    View::new(frame_projection(&scene.frame), scene.view_camera())
 }
 
 /// `CheckRange` of one light at world position `at`: (direction the light
@@ -302,7 +300,7 @@ fn draw_model(
     }
     if !sorted.is_empty() {
         let key = match info.centre {
-            None => exact_key(&scene.world_view_bits(), lw),
+            None => exact_key(&view.camera().matrix, lw),
             Some(_) => sort_key(&to_screen, info.centre),
         };
         ctx.layers.sorted(layer, key, make(sorted));
@@ -315,7 +313,7 @@ fn draw_model(
 /// `world_screen * lw` ([`piney_desktop::anm::sort_key`]), in VU0's
 /// arithmetic. The view screen's w row is (0, 0, 1, 0), so the key needs only
 /// `world_view`'s third row and `lw`, taken as the game has them
-/// (`Scene::world_view_bits`): for planes square to the view the key is the
+/// (`Scene::view_camera`): for planes square to the view the key is the
 /// camera's small tilt, which a float camera gets as rounding noise instead.
 fn exact_key(wv: &[[u32; 4]; 4], lw: &[[u32; 4]; 4]) -> f32 {
     use piney_data::anim::ee;

@@ -9,9 +9,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use glam::Vec3;
 use piney_data::anim::{const_radians, ee, rot_bits_of};
-use piney_desktop::camera::{Camera, DEFAULT_FOV};
+use piney_desktop::camera::Camera;
 use piney_desktop::view::Frame;
 
 use crate::file::{self, StreamFile};
@@ -270,11 +269,9 @@ pub struct Scene {
     pub default_layer: i16,
     /// `ccStream.cptr`'s object: the first Camera chunk.
     pub camera_obj: Option<u32>,
+    /// The camera as `DecodeF_Camera` left it (`camPos`, `camRot`, the
+    /// fov); the draw's is [`Scene::view_camera`].
     pub camera: Camera,
-    /// The camera's position and rotation (radians) as float bits, as
-    /// `DecodeF_Camera` left them: [`Scene::world_view_bits`] is built from
-    /// them.
-    pub camera_bits: ([u32; 3], [u32; 3]),
     /// `ccStream.ambient` (0..1).
     pub ambient: [f32; 3],
     /// The draw environment's light group, in its order.
@@ -548,8 +545,7 @@ impl Scene {
             draw_list,
             default_layer,
             camera_obj: cams.first().copied(),
-            camera: Camera { pos: Vec3::ZERO, rot: Vec3::ZERO, fov: DEFAULT_FOV },
-            camera_bits: ([0; 3], [0; 3]),
+            camera: Camera::default(),
             ambient: [0.0; 3],
             lights,
             uv: HashMap::new(),
@@ -774,43 +770,14 @@ impl Scene {
                 q += 4;
             }
         }
-        let rot = const_radians([v[3], v[4], v[5]]);
-        self.camera_bits = ([v[0], v[1], v[2]], rot);
-        let c = &mut self.camera;
-        c.pos = Vec3::new(ee_f(v[0]), ee_f(v[1]), ee_f(v[2]));
-        c.rot = Vec3::new(ee_f(rot[0]), ee_f(rot[1]), ee_f(rot[2]));
-        if flag & 0x100 == 0 {
-            c.fov = ee_f(v[7]);
-        }
+        self.camera = self.camera.decode(flag, &v);
     }
 
-    /// `ccCam::SetMatrix_PosRotXYZDebug` (0x001385a0) as `PlaySceneMain`
-    /// calls it, in VU0's arithmetic: the unit matrix turned a half turn
-    /// about x, times the stream's matrix (+0xc0, which `Init` leaves the
-    /// unit matrix), turned about x, y, then z, moved to the position, then
-    /// `sceVu0InversMatrix`. World to view, as the game has it.
-    pub fn world_view_bits(&self) -> [[u32; 4]; 4] {
-        use piney_data::anim::{rot_x_bits_of, rot_y_bits_of, rot_z_bits_of, vu_mul};
-        const ONE: u32 = 0x3f80_0000;
-        const PI: u32 = 0x4049_0fdb;
-        let unit = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
-        let (pos, rot) = self.camera_bits;
-        let m = vu_mul(&rot_x_bits_of(unit, PI), &unit);
-        let m = rot_z_bits_of(rot_y_bits_of(rot_x_bits_of(m, rot[0]), rot[1]), rot[2]);
-        // sceVu0TransMatrix: the position added to the last row.
-        let r = m[3];
-        let m = [m[0], m[1], m[2], [ee::add(r[0], pos[0]), ee::add(r[1], pos[1]), ee::add(r[2], pos[2]), r[3]]];
-        // sceVu0InversMatrix (0x001107b0): the transposed rotation and the
-        // position taken back through it.
-        let t = m[3];
-        let rows: [[u32; 4]; 3] = std::array::from_fn(|i| [m[0][i], m[1][i], m[2][i], 0]);
-        let mut out = [rows[0], rows[1], rows[2], [0, 0, 0, t[3]]];
-        for k in 0..3 {
-            let acc = ee::mul(rows[0][k], t[0]);
-            let acc = ee::add(acc, ee::mul(rows[1][k], t[1]));
-            out[3][k] = ee::sub(0, ee::add(acc, ee::mul(rows[2][k], t[2])));
-        }
-        out
+    /// The camera `PlaySceneMain` draws through each frame:
+    /// `SetMatrix_PosRotXYZDebug(camPos, camRot, matrix)` with the stream's
+    /// matrix (+0xc0), which `Init` leaves the unit matrix.
+    pub fn view_camera(&self) -> Camera {
+        self.camera.debug(&piney_desktop::camera::UNIT)
     }
 
     fn light(&mut self, obj: u32) -> Option<&mut Light> {
@@ -1041,6 +1008,7 @@ pub fn to_mat4(m: &[[u32; 4]; 4]) -> glam::Mat4 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use glam::Vec3;
 
     #[test]
     fn pos_rot_scale_is_t_r_s() {

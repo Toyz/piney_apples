@@ -155,7 +155,7 @@ fn scenes_play_as_the_game_plays_them() {
     for f in fx.iter().filter(|f| f[0] == "scene") {
         groups.push(f[1].parse().unwrap());
     }
-    let (mut frames, mut worst_cam, mut worst_exact, mut worst_light) = (0, 0f64, 0f64, 0f64);
+    let (mut frames, mut worst_light) = (0, 0f64);
     for &num in &groups {
         let lines: Vec<&Vec<String>> =
             fx.iter().filter(|f| f[0] != "table" && f[0] != "skip" && f[1] == num.to_string()).collect();
@@ -239,30 +239,13 @@ fn scenes_play_as_the_game_plays_them() {
                     assert!(effs.is_empty(), "stream {num} step {k}: {} effects the game does not draw", effs.len())
                 }
             }
-            // The camera.
+            // The camera: SetMatrix_PosRotXYZDebug and SetView in VU0's
+            // arithmetic, bit for bit (the fixture's %.9g reads back exact).
             let c = by_step[&("camera", k)];
-            let mut view = View::default();
-            view.set_camera(&sc.camera);
-            let ws = view.world_screen().to_cols_array();
-            // The game's own arithmetic for the camera (libvu0's sine).
-            let wv = glam::Mat4::from_cols_array_2d(&sc.world_view_bits().map(|c| c.map(f32::from_bits)));
-            let exact = (piney_desktop::camera::view_screen(sc.camera.fov, &view.projection) * wv).to_cols_array();
-            let game: Vec<f64> = c[4..20].iter().map(|x| x.parse().unwrap()).collect();
-            for (j, (x, e)) in ws.iter().zip(exact).enumerate() {
-                let want = game[j];
-                // Relative to the column's size: glam's inverse leaves a
-                // few 1e-4 where VU0 has an exact 0 beside entries of 1e3.
-                // glam's sine is not libvu0's sqrt(1 - cos^2), which is
-                // off by ~5e-5 near 0: stream 18's steps 33-34 (z turn
-                // 0.0007) reach 3.3e-4 that way, the game's way 1e-5.
-                let scale = game[j / 4 * 4..j / 4 * 4 + 4].iter().fold(1f64, |a, v| a.max(v.abs()));
-                let err = (f64::from(*x) - want).abs() / scale;
-                let err_exact = (f64::from(e) - want).abs() / scale;
-                worst_cam = worst_cam.max(err);
-                worst_exact = worst_exact.max(err_exact);
-                assert!(err < 4e-4, "stream {num} step {k} world_screen[{j}] {x} vs {want}");
-                assert!(err_exact < 1e-5, "stream {num} step {k} world_view_bits: world_screen[{j}] {e} vs {want}");
-            }
+            let view = View::new(piney_desktop::camera::default_projection(), sc.view_camera());
+            let got: Vec<u32> = view.world_screen_bits().concat();
+            let want: Vec<u32> = c[4..20].iter().map(|x| x.parse::<f32>().unwrap().to_bits()).collect();
+            assert_eq!(got, want, "stream {num} step {k} world_screen");
             // The light at the first object drawn.
             if let Some(l) = by_step.get(&("light", k)) {
                 let v: Vec<f64> = l[5..].iter().map(|x| x.parse().unwrap()).collect();
@@ -294,9 +277,7 @@ fn scenes_play_as_the_game_plays_them() {
         }
         assert!(!by_step.contains_key(&("frame", k + 1)), "stream {num}: the port ended at step {k}");
     }
-    eprintln!(
-        "{frames} frames; worst world_screen error {worst_cam:.2e} ({worst_exact:.2e} the game's way), light {worst_light:.2e}"
-    );
+    eprintln!("{frames} frames; world_screen bit for bit, worst light error {worst_light:.2e}");
     assert_eq!(groups, vec![0, 106, 2, 15, 6, 18]);
 }
 

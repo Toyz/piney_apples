@@ -316,9 +316,10 @@ impl Anm {
                 self.fobj.insert(obj, rec);
             }
         }
-        for (frame, _, v) in crate::frames::camera_records(file, self.anim) {
-            if frame >= from && frame <= to {
-                self.camera = Some(Camera::from_record(&v));
+        // DecodeF_Camera: flag bit 0 carries nothing.
+        for (frame, _, flag, v) in crate::frames::camera_records(file, self.anim) {
+            if frame >= from && frame <= to && flag & 1 == 0 {
+                self.camera = Some(self.camera.unwrap_or_default().decode(flag, &v));
             }
         }
     }

@@ -189,15 +189,14 @@ impl piney_effect::Host for FxHost<'_> {
 /// eye; the view's default w range and draw environment.
 fn fx_camera(scene: &Scene) -> piney_effect::draw::Camera {
     let view = draw::scene_view(scene);
-    let bits = |m: glam::Mat4| m.to_cols_array_2d().map(|c| c.map(f32::to_bits));
-    let eye = view.camera.pos;
-    let eye = [eye.x.to_bits(), eye.y.to_bits(), eye.z.to_bits(), ONE_BITS];
+    let [x, y, z] = view.camera().pos;
+    let eye = [x, y, z, ONE_BITS];
     piney_effect::draw::Camera {
         eye,
         cam_pos: eye,
         cam_view: eye,
-        world_view: bits(view.camera.world_view()),
-        world_screen: bits(view.world_screen()),
+        world_view: view.camera().matrix,
+        world_screen: *view.world_screen_bits(),
         env: Default::default(),
     }
 }
