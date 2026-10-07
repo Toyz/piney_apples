@@ -424,7 +424,6 @@ player until one of these turns out wrong.
 - [[49]] how many frames the console takes before the first picture — not measured
 - [[52]] the frames the disc read and decoding take — not modelled ([[175]] reads ahead on a thread)
 - [[52]] the intro's end flash drawn after stream 0, not over it — docs/engine/title.md Unknown (placed 20 frames in by inference)
-- [[52]] the Audio screen's movies have no test of their own — [[56]] covers their music only
 - [[85]] the exact frame ccEventStream's loop sees the stream end — docs/engine/stream.md Unknown
 - [[105]] streams 37, 44, 67, 69 and 100 (a character's drain by id) not played — docs/engine/field-ui.md "Not yet known or not ported"
 - [[133]] how many frames the game loads between str0580 and str0581 — not known (docs/engine/stream.md Unknown)
@@ -766,6 +765,7 @@ player until one of these turns out wrong.
 - [[52]] the streams' effect objects and effect tasks (StreamDemoFuncTbl) — answered by [[54]], [[57]], [[121]], [[122]], [[124]], [[125]], [[126]], [[133]], [[156]], [[160]]
 - [[52]] the subtitles under a stream — answered by [[85]]
 - [[52]] the sequenced music around a stream (ccSndStreamCtrl) — answered by [[85]]; per volume in BUGS.md (stream_ctrl takes the volume)
+- [[52]] the Audio screen's movies have no test of their own — answered by [[388]] (issues #53, #54: audio_movie_draws_the_gate_in, audio_movie_draws_the_drain_s_resident_models, every_hash_object_resolves_where_its_stream_plays; stream 18 over the desktop's files in tools/test_stream_rs.py fixture) / docs/engine/desktop.md "Audio"
 - [[56]] what ccSnd +98 does — answered by [[327]] (+0x62: the Audio screen's movie holds the stream sound calls) / docs/engine/sound.md
 - [[56]] the port-0 branch of the volume — answered by [[327]] (no SQTBL plays on port 0; `port_vol_set` gives port 0 `se_vol`)
 - [[57]] stream 2's fog — answered by [[127]], [[145]]

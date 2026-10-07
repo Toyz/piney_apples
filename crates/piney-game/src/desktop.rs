@@ -27,7 +27,7 @@ use piney_toppage::TopPage;
 
 use crate::mode::{Event, Mode};
 use crate::story::Announcements;
-use crate::stream::StreamPlayer;
+use crate::stream::{FileList, StreamPlayer};
 
 /// `game.status` on the desktop.
 const STATUS_DESKTOP: i32 = 2;
@@ -443,9 +443,9 @@ impl Host for Bridge<'_> {
         let save = self.state_ref().clone();
         let game = piney_audio::stream::StreamGame { status: self.st.status, field: 0 };
         let data = self.st.archive.clone();
-        let started = usize::try_from(num)
-            .map_err(|_| format!("stream {num}"))
-            .and_then(|n| StreamPlayer::event(&iso, data.as_deref(), n, &save, game, &mut self.st.events));
+        let started = usize::try_from(num).map_err(|_| format!("stream {num}")).and_then(|n| {
+            StreamPlayer::event(&iso, data.as_deref(), n, &save, game, FileList::Desktop, &mut self.st.events)
+        });
         match started {
             Ok(p) => self.st.stream = Some(p),
             Err(e) => tracing::warn!("events: {e}; counted as played"),
@@ -862,7 +862,7 @@ impl Mode for DesktopMode {
                         let save = desktop.state().clone();
                         let started = usize::try_from(stream)
                             .map_err(|_| format!("stream {stream}"))
-                            .and_then(|n| StreamPlayer::start(&self.iso, n, &save, false, &mut out));
+                            .and_then(|n| StreamPlayer::movie(&self.iso, &self.archive, n, &save, &mut out));
                         match started {
                             Ok(p) => {
                                 let slot = movie_sq_slot(bgm);
@@ -1066,27 +1066,24 @@ mod tests {
         assert_eq!(n, 159);
     }
 
-    /// The Audio screen's Movie 01 plays as a stream with the desktop held:
-    /// `ccSndMoviePlayer` stops the music's sequence as it starts and plays
-    /// it again once the movie is skipped, and the desktop takes over again.
-    #[test]
-    fn audio_movie_plays_as_a_stream() {
+    /// The desktop with the movies `unlocked` (`dtStrList`'s first word)
+    /// and the game cleared, stepped to OK on the Audio screen's first
+    /// movie listed, until it plays; with the events so far. None without
+    /// the disc.
+    fn desktop_at_movie(unlocked: i32) -> Option<(DesktopMode, Pad, Vec<Event>)> {
         let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
         if !iso.exists() {
             eprintln!("infection.iso not present; skipped");
-            return;
+            return None;
         }
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        // Movies 1 and 2 unlocked (`dtStrList`), and the game cleared so the
-        // first may be watched.
         let mut state = SaveState::fresh();
-        let at = offset::DT_STR_LIST;
-        state.save.set_i32(at, state.save.i32(at) | 0b11);
+        state.save.set_i32(offset::DT_STR_LIST, unlocked);
         state.save.set_u8(offset::CLEAR_FLAG, 1);
         let mut mode = DesktopMode::new(iso, archive, state, false, None, false).unwrap();
         let mut pad = Pad::default();
-        // Down to AUDIO, OK; down to Movie, OK; OK on Movie 01.
+        // Down to AUDIO, OK; down to Movie, OK; OK on the first movie.
         let presses = [
             (500, Buttons::DOWN),
             (510, Buttons::DOWN),
@@ -1106,6 +1103,27 @@ mod tests {
             f += 1;
             assert!(f < 900, "no movie: {}", mode.title());
         }
+        Some((mode, pad, events))
+    }
+
+    /// The movie's next frame, its events dropped, and its effects' draws
+    /// on that step (the effects' and the particles').
+    fn movie_step(mode: &mut DesktopMode, pad: &mut Pad) -> (Frame, usize) {
+        pad.read(&Raw::default());
+        let frame = mode.step(pad);
+        mode.take_events();
+        let fx = mode.movie.as_mut().and_then(|(p, _)| p.stream_mut().effects());
+        let drawn = fx.map_or(0, |fx| fx.draws().0.len() + fx.draws().1.len());
+        (frame, drawn)
+    }
+
+    /// The Audio screen's Movie 01 plays as a stream with the desktop held:
+    /// `ccSndMoviePlayer` stops the music's sequence as it starts and plays
+    /// it again once the movie is skipped, and the desktop takes over again.
+    #[test]
+    fn audio_movie_plays_as_a_stream() {
+        // Movies 1 and 2 unlocked: OK plays the first.
+        let Some((mut mode, mut pad, events)) = desktop_at_movie(0b11) else { return };
         assert!(events.contains(&Event::SqStop(0)), "{events:?}");
         assert_eq!(mode.frame_rate(), 2);
         let drawn = (0..60)
@@ -1133,6 +1151,73 @@ mod tests {
         assert!(events.contains(&Event::SqPlay(0)), "{events:?}");
         assert_eq!(mode.frame_rate(), piney_desktop::FRAME_RATE);
         assert!(mode.title().starts_with("desktop - "), "{}", mode.title());
+    }
+
+    /// Issue #53: Movie 13 (stream 16, `str0610`) opens on Kite gating in.
+    /// Its task's cue 500 on step 2 is `effTransferStr`, which the stream's
+    /// own effect system draws: `RequestStrPlay` starts `ccThEffectStr` for
+    /// every stream, and the desktop's file list holds gcmn's
+    /// `PARTICLE.CCS`. The rings come first, the swirl's particles after.
+    #[test]
+    fn audio_movie_draws_the_gate_in() {
+        let Some((mut mode, mut pad, _)) = desktop_at_movie(1 << 12) else { return };
+        assert!(mode.title().contains("stream 16 "), "{}", mode.title());
+        let drawn: Vec<usize> = (0..60).map(|_| movie_step(&mut mode, &mut pad).1).collect();
+        assert!(drawn[..2].iter().all(|&n| n == 0), "{drawn:?}");
+        assert!(drawn[2..].iter().all(|&n| n > 0), "the transfer is not drawn: {drawn:?}");
+    }
+
+    /// Issue #54: Movie 16 (stream 18, `str9102`: Kite drains Skeith) names
+    /// Kite, the backdrop and the bracelet's rings as `#` objects of
+    /// `STR8000E.CCS` and `STR8001E.CCS`, which `ccSetFileListDesktop`
+    /// keeps in memory as a field does. Its own files hold Skeith alone.
+    #[test]
+    fn audio_movie_draws_the_drain_s_resident_models() {
+        let Some((mut mode, mut pad, _)) = desktop_at_movie(1 << 15) else { return };
+        assert!(mode.title().contains("stream 18 "), "{}", mode.title());
+        let mut files: std::collections::BTreeMap<String, usize> = Default::default();
+        while mode.streaming() {
+            let (frame, _) = movie_step(&mut mode, &mut pad);
+            // The step it ends on is the desktop's again.
+            if !mode.streaming() {
+                break;
+            }
+            for c in &frame.cmds {
+                if let piney_draw::Cmd::Model(m) = c {
+                    *files.entry(m.file.clone()).or_default() += 1;
+                }
+            }
+        }
+        let resident = ["str8000e", "str8001e"];
+        assert!(resident.iter().all(|f| files.contains_key(*f)), "{files:?}");
+        assert!(files.keys().all(|f| f == "str9102e" || resident.contains(&f.as_str())), "{files:?}");
+    }
+
+    /// Shots of the two movies at the reporters' moments, to
+    /// `$PINEY_SHOTS` (/mnt/data/claude/scratch/i5354): Movie 13's steps
+    /// 20 and 60 (#53), Movie 16's every 100th step (#54).
+    #[test]
+    #[ignore]
+    fn audio_movie_shots() {
+        let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/i5354".into());
+        std::fs::create_dir_all(&dir).unwrap();
+        for (bit, name, steps) in [(12, "movie13", vec![20, 60]), (15, "movie16", (1..=10).map(|k| 100 * k).collect())]
+        {
+            let Some((mut mode, mut pad, _)) = desktop_at_movie(1 << bit) else { return };
+            let data = mode.archive.clone();
+            let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(data)).unwrap();
+            for step in 1..=*steps.last().unwrap() {
+                let (frame, _) = movie_step(&mut mode, &mut pad);
+                gs.set_overlay(crate::mode::Mode::archive(&mode));
+                gs.render(&frame);
+                if steps.contains(&step) {
+                    let (w, h) = gs.target_size();
+                    let path = format!("{dir}/{name}-{step:04}.png");
+                    std::fs::write(&path, piney_gs::png::encode(w, h, &gs.read_back())).unwrap();
+                    println!("{path}");
+                }
+            }
+        }
     }
 
     /// The ML events are in Infection's script set and open in its play:

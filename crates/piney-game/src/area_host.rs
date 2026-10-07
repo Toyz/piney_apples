@@ -20,7 +20,7 @@ use piney_world::field_world::FieldWorld;
 
 use crate::field_host::{CcGame, FieldState, STATUS_WORLD, SceneChange};
 use crate::mode::Event;
-use crate::stream::StreamPlayer;
+use crate::stream::{FileList, StreamPlayer};
 
 /// A cutscene the scripts' `stream` plays in the area (`ccEventStream(num,
 /// 1)`: `ccRequestLoadStream` plays it inside the call, the set-up or the
@@ -395,9 +395,9 @@ impl Host for AreaHost<'_> {
         // as the town has them.
         let game = piney_audio::stream::StreamGame { status: STATUS_WORLD, field: self.world.scene().field };
         let data = self.stream.data.clone();
-        let started = usize::try_from(num)
-            .map_err(|_| format!("stream {num}"))
-            .and_then(|n| StreamPlayer::event(&iso, data.as_deref(), n, &save, game, &mut self.st.events));
+        let started = usize::try_from(num).map_err(|_| format!("stream {num}")).and_then(|n| {
+            StreamPlayer::event(&iso, data.as_deref(), n, &save, game, FileList::Field, &mut self.st.events)
+        });
         match started {
             Ok(p) => self.stream.player = Some(p),
             Err(e) => tracing::warn!("events: {e}; counted as played"),

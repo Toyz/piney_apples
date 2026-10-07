@@ -17,6 +17,7 @@ use piney_desktop::save::SaveState;
 use piney_draw::Frame;
 use piney_input::{Buttons, Pad};
 use piney_stream::event::EventStream;
+use piney_stream::file::StreamFile;
 use piney_stream::subtitle::Subtitles;
 use piney_stream::{Options, Request, SkillNames, Stream};
 
@@ -63,6 +64,36 @@ fn stream_effects(disc: &mut Iso, data: &Archive) -> Option<piney_effect::Stream
     made.map_err(|e| tracing::warn!("the stream's effects: {e}")).ok()
 }
 
+/// The file list of the place a stream plays in, for the streams' common
+/// files it keeps in memory: a scene's `#` objects resolve against them as against its own
+/// preloads (`CompleteIndexChunkAdrs`). `strcmnFileList` is `STR8000E.CCS`,
+/// `datadrainFileList` `STR8001E.CCS`, `happyakuyujunFileList`
+/// `STR8800E.CCS` (`DATA.BIN`'s `str8000e`, `str8001e`, `str8800e`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FileList {
+    /// `ccSetFileListTown`: strcmn and happyakuyujun.
+    Town,
+    /// `ccSetFileListField` and `ccSetFileListDungeon`: strcmn and datadrain.
+    Field,
+    /// `ccSetFileListDesktop`: strcmn, datadrain and happyakuyujun.
+    Desktop,
+}
+
+impl FileList {
+    /// The files, oldest first, as the list loads them.
+    fn resident(self) -> &'static [&'static str] {
+        match self {
+            FileList::Town => &["str8000e", "str8800e"],
+            FileList::Field => &["str8000e", "str8001e"],
+            FileList::Desktop => &["str8000e", "str8001e", "str8800e"],
+        }
+    }
+
+    fn files(self, data: &Archive) -> piney_data::Result<Vec<StreamFile>> {
+        self.resident().iter().map(|stem| StreamFile::read(data, stem)).collect()
+    }
+}
+
 impl StreamPlayer {
     /// The game's `rand()` as the stream has left it, for the mode it
     /// played in to go on from.
@@ -73,8 +104,8 @@ impl StreamPlayer {
     /// Stream `num` from the disc at `iso`, set up from `save` (the voice
     /// language and the cancel button). `title_after_desktop`: the title's
     /// stream once the desktop has run (`DESKTOP_FLG`), which cancel always
-    /// skips. No subtitles, no music: the title's stream and the Audio
-    /// screen's movies.
+    /// skips. No subtitles, no music: the title's stream (0 or 1, which
+    /// name nothing outside their own files and start no effect).
     pub fn start(
         iso: &Path,
         num: usize,
@@ -91,28 +122,21 @@ impl StreamPlayer {
         Ok(StreamPlayer { stream: EventStream::with_subtitles(stream, None), num, music: None })
     }
 
-    /// Data Drain's movie (`ccThExecuteStream` from `DataDrainMenu`'s step
-    /// 0): stream `num` as [`StreamPlayer::start`] plays one, over the
-    /// files a field or dungeon holds (`strcmnFileList`'s and
-    /// `datadrainFileList`'s `STR8000E.CCS` and `STR8001E.CCS`, `DATA.BIN`'s
-    /// `str8000e` and `str8001e`), which its models are.
-    pub fn drain(
+    /// `ccThExecuteStream(num)` over `list`'s files with the stream demo's
+    /// effects (`RequestStrPlay` starts `ccThEffectStr` for every stream):
+    /// no subtitles, no music.
+    fn over(
         iso: &Path,
         data: &Archive,
         num: usize,
         state: &SaveState,
+        list: FileList,
+        opts: Options,
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
-        let save = &state.save;
         let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let err = |e: piney_data::Error| format!("stream {num}: {e}");
-
-        let resident = ["str8000e", "str8001e"]
-            .iter()
-            .map(|stem| piney_stream::file::StreamFile::read(data, stem))
-            .collect::<piney_data::Result<Vec<_>>>()
-            .map_err(err)?;
-        let opts = Options { skill_names: skill_names(data), ..options(save, false) };
+        let resident = list.files(data).map_err(err)?;
         let mut stream = Stream::with_resident(&mut disc, num, opts, rand_of(state), resident).map_err(err)?;
         if let Some(fx) = stream_effects(&mut disc, data) {
             stream.set_effects(fx);
@@ -122,18 +146,50 @@ impl StreamPlayer {
         Ok(StreamPlayer { stream: EventStream::with_subtitles(stream, None), num, music: None })
     }
 
+    /// A menu's movie (`ccThExecuteStream`): Data Drain's from
+    /// `DataDrainMenu`'s step 0 and `StreamMenu`'s in a field or dungeon,
+    /// a Ryu Book's cover in a town. The drain streams' models are
+    /// `str8000e`'s and `str8001e`'s, the book's `str8800e`'s.
+    pub fn drain(
+        iso: &Path,
+        data: &Archive,
+        num: usize,
+        state: &SaveState,
+        list: FileList,
+        events: &mut Vec<Event>,
+    ) -> Result<StreamPlayer, String> {
+        let opts = Options { skill_names: skill_names(data), ..options(&state.save, false) };
+        StreamPlayer::over(iso, data, num, state, list, opts, events)
+    }
+
+    /// The Audio screen's movie (`SimplePlayStream`, desktop.prg
+    /// 0x00407100): `ccThExecuteStream(num)` over the desktop's files, with
+    /// its effects; no subtitles, no music. `game.status` is the desktop's
+    /// 2, so `Func_str9000` (stream 20) makes no banner.
+    pub fn movie(
+        iso: &Path,
+        data: &Archive,
+        num: usize,
+        state: &SaveState,
+        events: &mut Vec<Event>,
+    ) -> Result<StreamPlayer, String> {
+        StreamPlayer::over(iso, data, num, state, FileList::Desktop, options(&state.save, false), events)
+    }
+
     /// `ccEventStream(num, 1)`, the event instruction `stream`: stream `num`
     /// with its subtitles (`evStrMsgTbl[num]`, shown as the save's Movie
     /// Text option says; drawn with `data`, `DATA.BIN`'s fonts and window,
     /// or not drawn without it) and the music around it on the loaded bank,
     /// `game` being what `ccSndStreamCtrl` reads (`game.status`, and the
-    /// story area in `game.field`).
+    /// story area in `game.field`), over `list`'s files.
+    #[allow(clippy::too_many_arguments)]
     pub fn event(
         iso: &Path,
         data: Option<&Archive>,
         num: usize,
         state: &SaveState,
         game: StreamGame,
+        list: FileList,
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
         let save = &state.save;
@@ -142,7 +198,10 @@ impl StreamPlayer {
 
         let opts = Options { skill_names: data.and_then(skill_names), ..options(save, false) };
         let mut stream = match data {
-            Some(data) => EventStream::new(&mut disc, data, num, save, opts, rand_of(state)),
+            Some(data) => list.files(data).and_then(|resident| {
+                let s = Stream::with_resident(&mut disc, num, opts, rand_of(state), resident)?;
+                EventStream::over(&mut disc, data, s, save)
+            }),
             None => Stream::with_rand(&mut disc, num, opts, rand_of(state))
                 .and_then(|s| Ok(EventStream::with_subtitles(s, Subtitles::read(disc.volume()?, num, save)?))),
         }
@@ -288,5 +347,71 @@ impl StreamPlayer {
     /// Which stream, and its frame (`ccGetStreamFrame`).
     pub fn status(&self) -> String {
         format!("stream {} frame {}", self.num, self.stream.stream().frame())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use piney_data::volume::Volume;
+    use piney_stream::Options;
+
+    use super::*;
+
+    /// The `#` objects of stream `num`'s files that neither another of its
+    /// files nor `list`'s define, by name.
+    fn unresolved(disc: &mut Iso, data: &Archive, num: usize, list: FileList) -> Vec<String> {
+        let s = Stream::with_options(disc, num, Options::default()).unwrap();
+        let mut own: Vec<StreamFile> = Vec::new();
+        for e in &s.def().entries {
+            if !own.iter().any(|f| f.stem == e.name) {
+                own.push(StreamFile::read(&s.archive(), &e.name).unwrap());
+            }
+        }
+        let resident = list.files(data).unwrap();
+        let defines = |g: &StreamFile, name: &str| g.sf.ccs.find_object(name).is_some_and(|o| !g.external(o));
+        let mut out = Vec::new();
+        for f in &own {
+            for obj in (1..f.sf.ccs.objects.len() as u32).filter(|&o| f.external(o)) {
+                let name = f.name(obj).unwrap_or_default();
+                let mut others = own.iter().filter(|g| g.stem != f.stem).chain(&resident);
+                if !others.any(|g| defines(g, name)) {
+                    out.push(format!("{}:{name}", f.stem));
+                }
+            }
+        }
+        out
+    }
+
+    /// Every `#` object of the streams a place plays is defined there: the
+    /// Audio screen's movies over the desktop's list (#54: Movie 16, Kite's
+    /// drain of Skeith, drew Skeith alone), the drains and `StreamMenu`'s
+    /// over a field's, a Ryu Book's cover (`str8801`-`str8808`, its
+    /// backdrop `str8800e`'s) over a town's.
+    #[test]
+    fn every_hash_object_resolves_where_its_stream_plays() {
+        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+        if !iso.exists() {
+            eprintln!("infection.iso not present; skipped");
+            return;
+        }
+        let mut disc = Iso::open(&iso).unwrap();
+        let data = Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap();
+        let movies = piney_desktop::content::streams(Volume::Inf).into_iter().enumerate();
+        let on_disc = movies.filter(|(i, _)| piney_desktop::content::stream_volume(*i) == 1);
+        let cases: Vec<(FileList, usize)> = on_disc
+            .map(|(_, m)| (FileList::Desktop, m.str_num as usize))
+            .chain([18, 20, 109, 110, 111].map(|n| (FileList::Field, n)))
+            .chain((112..120).map(|n| (FileList::Town, n)))
+            .collect();
+        assert_eq!(cases.len(), 18 + 5 + 8);
+        for &(list, num) in &cases {
+            let missing = unresolved(&mut disc, &data, num, list);
+            assert!(missing.is_empty(), "stream {num} over {list:?}: {missing:?}");
+        }
+        // Without the lists: the drain of Skeith and the book's covers.
+        assert!(!unresolved(&mut disc, &data, 18, FileList::Town).is_empty());
+        assert!(!unresolved(&mut disc, &data, 112, FileList::Field).is_empty());
     }
 }

@@ -1185,9 +1185,14 @@ impl AreaMode {
         self.str_party = None;
         let save = self.world.state_out();
         let started = match (usize::try_from(num), self.stream.data.as_deref()) {
-            (Ok(n), Some(data)) => {
-                crate::stream::StreamPlayer::drain(&self.stream.iso, data, n, &save, &mut self.events)
-            }
+            (Ok(n), Some(data)) => crate::stream::StreamPlayer::drain(
+                &self.stream.iso,
+                data,
+                n,
+                &save,
+                crate::stream::FileList::Field,
+                &mut self.events,
+            ),
             _ => Err(format!("stream {num}: no DATA.BIN")),
         };
         match started {

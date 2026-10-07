@@ -616,7 +616,9 @@ impl WorldMode {
                 let started = match (self.st.stream.iso.clone(), self.st.stream.data.clone()) {
                     (Some(iso), Some(data)) => usize::try_from(112 + page)
                         .map_err(|_| format!("stream {}", 112 + page))
-                        .and_then(|n| crate::stream::StreamPlayer::drain(&iso, &data, n, &save, &mut self.events)),
+                        .and_then(|n| {
+                            crate::stream::StreamPlayer::drain(&iso, &data, n, &save, crate::stream::FileList::Town, &mut self.events)
+                        }),
                     _ => Err("no disc for the book's stream".into()),
                 };
                 match started {

@@ -51,6 +51,13 @@ impl EventStream {
         rand: Rand,
     ) -> Result<EventStream> {
         let stream = Stream::with_rand(iso, num, opts, rand)?;
+        EventStream::over(iso, data, stream, save)
+    }
+
+    /// [`EventStream::new`] on a stream the caller made (one over the
+    /// place's resident files, [`Stream::with_resident`]).
+    pub fn over(iso: &mut Iso, data: &Archive, stream: Stream, save: &SaveData) -> Result<EventStream> {
+        let num = stream.def().num;
         let volume = iso.volume()?;
         let subtitles = match Subtitles::read(volume, num, save)? {
             Some(s) => Some(s.with_look(Look::read(volume, data)?)),

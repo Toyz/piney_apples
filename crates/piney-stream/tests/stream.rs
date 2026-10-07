@@ -1,6 +1,7 @@
 //! The port against the game's own stream code: `stream_fixture.txt`, written
 //! by `python3 tools/test_stream_rs.py fixture` from the game's functions run
-//! in `tools/eemu.py` on streams 0, 106, 2, 15's first scene and 6. Bit for
+//! in `tools/eemu.py` on streams 0, 106, 2, 15's first scene, 6 and 18 (over
+//! the desktop's resident `str8000e`, `str8001e` and `str8800e`). Bit for
 //! bit: the tables and file lists, the skip rule, the draw list, and per frame
 //! the frame number, the end, the notes and every object drawn. To a
 //! tolerance: the view's `world_screen` (glam's against VU0's) and the lights.
@@ -114,14 +115,25 @@ fn skips_match_wait_end() {
     assert!(n > 100);
 }
 
-/// Stream `num`'s files loaded as the stream does, scene `stem` built.
-fn scene(iso: &mut Iso, volume: piney_data::volume::Volume, num: usize, stem: &str) -> (Loaded, Scene) {
+/// Stream `num`'s files loaded as the stream does, over `resident`
+/// (`DATA.BIN`'s, loaded first), scene `stem` built.
+fn scene(
+    iso: &mut Iso,
+    volume: piney_data::volume::Volume,
+    num: usize,
+    stem: &str,
+    resident: &[String],
+) -> (Loaded, Scene) {
     let d = table::Def::read(volume, num, false).unwrap();
     let files = d.files(0);
     let members: Vec<load::Member> =
         files.preload.iter().chain(&files.scenes).map(|e| load::read(iso, &d, e).unwrap()).collect();
     let archive = load::archive(&members.iter().collect::<Vec<_>>()).unwrap();
     let mut loaded = Loaded::default();
+    if !resident.is_empty() {
+        let data = piney_data::archive::Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap();
+        loaded.files.extend(resident.iter().map(|stem| StreamFile::read(&data, stem).unwrap()));
+    }
     for m in &members {
         loaded.files.push(StreamFile::read(&archive, &m.stem()).unwrap());
     }
@@ -143,12 +155,13 @@ fn scenes_play_as_the_game_plays_them() {
     for f in fx.iter().filter(|f| f[0] == "scene") {
         groups.push(f[1].parse().unwrap());
     }
-    let (mut frames, mut worst_cam, mut worst_light) = (0, 0f64, 0f64);
+    let (mut frames, mut worst_cam, mut worst_exact, mut worst_light) = (0, 0f64, 0f64, 0f64);
     for &num in &groups {
         let lines: Vec<&Vec<String>> =
             fx.iter().filter(|f| f[0] != "table" && f[0] != "skip" && f[1] == num.to_string()).collect();
         let head = lines.iter().find(|f| f[0] == "scene").unwrap();
-        let (loaded, mut sc) = scene(&mut iso, volume, num, &head[2]);
+        let resident = lines.iter().find(|f| f[0] == "resident").map_or(&[][..], |f| &f[2..]);
+        let (loaded, mut sc) = scene(&mut iso, volume, num, &head[2], resident);
         let file = &loaded.files[sc.file];
         let name = |obj: u32| file.index_name(obj).unwrap_or_else(|| "?".to_string());
         // A name as the fixture's lines write it, one word.
@@ -231,15 +244,24 @@ fn scenes_play_as_the_game_plays_them() {
             let mut view = View::default();
             view.set_camera(&sc.camera);
             let ws = view.world_screen().to_cols_array();
+            // The game's own arithmetic for the camera (libvu0's sine).
+            let wv = glam::Mat4::from_cols_array_2d(&sc.world_view_bits().map(|c| c.map(f32::from_bits)));
+            let exact = (piney_desktop::camera::view_screen(sc.camera.fov, &view.projection) * wv).to_cols_array();
             let game: Vec<f64> = c[4..20].iter().map(|x| x.parse().unwrap()).collect();
-            for (j, x) in ws.iter().enumerate() {
+            for (j, (x, e)) in ws.iter().zip(exact).enumerate() {
                 let want = game[j];
                 // Relative to the column's size: glam's inverse leaves a
                 // few 1e-4 where VU0 has an exact 0 beside entries of 1e3.
+                // glam's sine is not libvu0's sqrt(1 - cos^2), which is
+                // off by ~5e-5 near 0: stream 18's steps 33-34 (z turn
+                // 0.0007) reach 3.3e-4 that way, the game's way 1e-5.
                 let scale = game[j / 4 * 4..j / 4 * 4 + 4].iter().fold(1f64, |a, v| a.max(v.abs()));
                 let err = (f64::from(*x) - want).abs() / scale;
+                let err_exact = (f64::from(e) - want).abs() / scale;
                 worst_cam = worst_cam.max(err);
-                assert!(err < 1e-4, "stream {num} step {k} world_screen[{j}] {x} vs {want}");
+                worst_exact = worst_exact.max(err_exact);
+                assert!(err < 4e-4, "stream {num} step {k} world_screen[{j}] {x} vs {want}");
+                assert!(err_exact < 1e-5, "stream {num} step {k} world_view_bits: world_screen[{j}] {e} vs {want}");
             }
             // The light at the first object drawn.
             if let Some(l) = by_step.get(&("light", k)) {
@@ -272,8 +294,10 @@ fn scenes_play_as_the_game_plays_them() {
         }
         assert!(!by_step.contains_key(&("frame", k + 1)), "stream {num}: the port ended at step {k}");
     }
-    eprintln!("{frames} frames; worst world_screen error {worst_cam:.2e}, light {worst_light:.2e}");
-    assert_eq!(groups, vec![0, 106, 2, 15, 6]);
+    eprintln!(
+        "{frames} frames; worst world_screen error {worst_cam:.2e} ({worst_exact:.2e} the game's way), light {worst_light:.2e}"
+    );
+    assert_eq!(groups, vec![0, 106, 2, 15, 6, 18]);
 }
 
 /// Stream 2's ribbons are morphed (`ccMorpher`, `F_Morpher`): at frame 822

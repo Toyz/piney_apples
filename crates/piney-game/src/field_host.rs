@@ -24,7 +24,7 @@ use piney_input::Pad;
 use piney_world::World;
 
 use crate::mode::Event;
-use crate::stream::StreamPlayer;
+use crate::stream::{FileList, StreamPlayer};
 
 /// `ccGame.status` in The World.
 pub const STATUS_WORLD: i32 = 5;
@@ -650,9 +650,9 @@ impl Host for FieldHost<'_> {
         let save = self.world.state_out();
         let game = piney_audio::stream::StreamGame { status: self.st.game.status, field: self.st.game.field };
         let data = self.st.stream.data.clone();
-        let started = usize::try_from(num)
-            .map_err(|_| format!("stream {num}"))
-            .and_then(|n| StreamPlayer::event(&iso, data.as_deref(), n, &save, game, &mut self.st.events));
+        let started = usize::try_from(num).map_err(|_| format!("stream {num}")).and_then(|n| {
+            StreamPlayer::event(&iso, data.as_deref(), n, &save, game, FileList::Town, &mut self.st.events)
+        });
         match started {
             Ok(p) => self.st.stream.player = Some(p),
             Err(e) => tracing::warn!("events: {e}; counted as played"),

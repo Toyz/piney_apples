@@ -4,7 +4,9 @@
 //! `--soft` (the CPU GS instead of `piney-gs`), `--info` (the files, scenes,
 //! requests and shadow passes), `--event` (as the event instruction plays it,
 //! with subtitles), `--banner` (stream 20's skill name banner), `--fx` (the
-//! stream demo's effects) and `--no-shadows`.
+//! stream demo's effects), `--resident STEMS` (`DATA.BIN` files a place
+//! holds, comma-separated, oldest first: `str8000e,str8001e` a field's) and
+//! `--no-shadows`.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -16,6 +18,7 @@ use piney_desktop::soft::{self, Canvas};
 use piney_draw::Frame;
 use piney_input::Pad;
 use piney_stream::event::EventStream;
+use piney_stream::file::StreamFile;
 use piney_stream::{Options, Request, SkillNames, Stream};
 
 /// Frames drawn before the one shot: stream 2's feedback keeps 0x60 / 0x80
@@ -63,6 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut out = "stream.png".to_string();
     let (mut soft_only, mut info, mut event, mut banner, mut fx) = (false, false, false, false, false);
     let mut no_shadows = false;
+    let mut resident: Vec<String> = Vec::new();
     let mut opts = Options::default();
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
@@ -78,6 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "--banner" => banner = true,
             "--fx" => fx = true,
             "--no-shadows" => no_shadows = true,
+            "--resident" => resident = args.next().ok_or("--resident STEMS")?.split(',').map(String::from).collect(),
             _ => return Err(format!("unknown argument {a}").into()),
         }
     }
@@ -92,15 +97,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         data = Some(d);
     }
+    if !resident.is_empty() && data.is_none() {
+        data = Some(Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN")?)?));
+    }
+    let files = match &data {
+        Some(d) => resident.iter().map(|stem| StreamFile::read(d, stem)).collect::<Result<Vec<_>, _>>()?,
+        None => Vec::new(),
+    };
+    let stream = Stream::with_resident(&mut iso, num, opts, Default::default(), files)?;
     let mut es = if event {
-        let d = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN")?)?);
+        let d = match &data {
+            Some(d) => d.clone(),
+            None => Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN")?)?),
+        };
         let mut save = SaveData::boot(&InitText::from_disc(&mut iso)?);
         save.bytes_mut()[offset::PL_NAME..offset::PL_NAME + 4].copy_from_slice(b"Kite");
-        let es = EventStream::new(&mut iso, &d, num, &save, opts, Default::default())?;
+        let es = EventStream::over(&mut iso, &d, stream, &save)?;
         data = Some(d);
         es
     } else {
-        EventStream::with_subtitles(Stream::with_options(&mut iso, num, opts)?, None)
+        EventStream::with_subtitles(stream, None)
     };
     if fx {
         let d = match &data {

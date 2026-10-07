@@ -14,8 +14,10 @@ at a file already in memory, and the threads, CD and GS calls hooked:
   - WaitEnd (0x00197f40): whether a push skips, over the file flags, the
     game mode, DESKTOP_FLG and the pushes;
   - the scenes of streams 0 (title1_st1), 106 (str6100), 2 (str0001,
-    with str0001e loaded first) and 15 (str0580, after str0580e; its
-    texture uploads and their DMA stubbed): ccStream::DecodeSetup and InitScene run
+    with str0001e loaded first), 15 (str0580, after str0580e; its
+    texture uploads and their DMA stubbed) and 18 (str9102, after the
+    desktop's resident str8000e, str8001e and str8800e from DATA.BIN, and
+    str9102e): ccStream::DecodeSetup and InitScene run
     natively on the files; the draw list (every ccObj in the order
     ccStreamDrawLayerList::Draw walks, its layer and parent); then the
     frames as PlaySceneMain steps them - DecodeFrameSection, then
@@ -26,7 +28,7 @@ at a file already in memory, and the threads, CD and GS calls hooked:
     frame number, the state, the notes and the view's world_screen each
     frame. Stream 2 runs its first 60 frames (the file is 38 MB), stream
     15 its first 420 (the file in the heap), stream 6 (str0130, after
-    str0130e) its first 60.
+    str0130e) its first 60, stream 18 the whole of it.
 
   - effects: stream 2's effect task, Func_str0001 (0x001885d0), run
     natively over the whole stream as the game's task runs it: one pass of
@@ -108,8 +110,15 @@ GAME, SAVE = 0x00F90000, 0x00FA0000
 # its ground is hidden (docs/engine/stream.md, "Stream 15's opening").
 # Stream 6's first 60 frames: its models' three lights depend on the
 # group's priority order (distant lights last).
+# Stream 18 (str9102, the Audio screen's Movie 16) over the desktop's
+# resident STR8000E, STR8001E and STR8800E (ccSetFileListDesktop), loaded
+# first as ccStreams: its `#` objects (Kite, the backdrop, the bracelet's
+# rings) are theirs.
 SCENES = [(0, ["title1_st1"], None), (106, ["str6100"], None), (2, ["str0001e", "str0001"], 200),
-          (15, ["str0580e", "str0580"], 420), (6, ["str0130e", "str0130"], 60)]
+          (15, ["str0580e", "str0580"], 420), (6, ["str0130e", "str0130"], 60),
+          (18, ["str8000e", "str8001e", "str8800e", "str9102e", "str9102"], None)]
+# The SCENES files that are DATA.BIN's, not the stream's.
+RESIDENT = ("str8000e", "str8001e", "str8800e")
 
 
 def fnv(data, h=0xCBF29CE484222325):
@@ -395,7 +404,8 @@ _ARCHIVES = {}
 
 
 def member(name):
-    """A STREAM archive member, inflated (the archives read once)."""
+    """A STREAM archive member, inflated (the archives read once); else
+    DATA.BIN's (the streams' common files, `str8000e` and the others)."""
     import gzarc
     import iso as isomod
     for arc in ("STREAM/STRCMN.BIN", "STREAM/STR1.BIN"):
@@ -408,6 +418,12 @@ def member(name):
         mb = byname.get(name + ".tmp")
         if mb:
             return gzarc.inflate(data, mb)
+    if "DATA.BIN" not in _ARCHIVES:
+        data = gzarc.open_bytes(volume.DATA)
+        _ARCHIVES["DATA.BIN"] = (data, {mb.name.lower(): mb for mb in gzarc.members(data)})
+    data, byname = _ARCHIVES["DATA.BIN"]
+    if name + ".cmp" in byname:
+        return gzarc.inflate(data, byname[name + ".cmp"])
     raise KeyError(name)
 
 
@@ -474,6 +490,9 @@ def run_scene(g, num, stems, frames):
             o = m.load(o, 4)
         node = m.load(node, 4)
     out.append(f"scene {num} {stem} frames {m.load(ccs + 0x168, 4)} objects {len(walk)}")
+    resident = [s for s in stems if s in RESIDENT]
+    if resident:
+        out.append(f"resident {num} {' '.join(resident)}")
     for pri, n, p in walk:
         out.append(f"draw {num} {stem} {pri} {word(n)} {word(p)}")
     drawn = []
@@ -1577,7 +1596,8 @@ def fixture():
     lines = ["# tools/test_stream_rs.py fixture: the game's stream code run in eemu.",
              "# table NUM ENGLISH HEADER ofs size type flag gzip scenes NAME:type:flag:gzip:ofs:size... preload NAME...",
              "# skip MODE DESKTOP_FLG FLAG PUSH CANCEL canselFlag",
-             "# scene NUM STEM frames FRAMEEND objects N; draw NUM STEM LAYER OBJ PARENT (Draw's walk order;",
+             "# scene NUM STEM frames FRAMEEND objects N; resident NUM STEM... (DATA.BIN files loaded first);",
+             "# draw NUM STEM LAYER OBJ PARENT (Draw's walk order;",
              "#   names with '%' and ' ' escaped as %25 and %20)",
              "# frame NUM STEM STEP frameNow state&0x14 DRAWN FNV1A-64(name, tp bits, lwMatrix bits) notes FRAME:EVENT:PARAM",
              "# camera NUM STEM STEP world_screen[16]; light NUM STEM STEP OBJ lightNormal[16] lightColor[16]",

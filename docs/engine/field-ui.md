@@ -1557,7 +1557,8 @@ are the game's.
 ## The Ryu Books (`BOOK`, gcmn book.cpp)
 
 A Ryu Book (key item 273 + n, read in a town) runs `ccThBook`
-(0x0041a990): a fade, the cover stream 112 + n, then `BOOK` (0x4d24
+(0x0041a990): a fade, the cover stream 112 + n (over the town's
+`STR8800E`, [the streams' common files](stream.md#the-streams-common-files)), then `BOOK` (0x4d24
 bytes) one frame at a time: `Draw` (the page's `DispNN`), `CheckItemGet`
 (the page's rewards, `GetBookItem` and its windows, breathing inside),
 `PadControl` (the page's keys, then cancel closes the book unless a
