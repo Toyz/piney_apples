@@ -164,6 +164,8 @@ compared. (GAPS.md "After Infection" tracks the phases.)
 - [[276]] Mutation's staff roll and what the desktop does after it (the save for Outbreak's carry-over) — not followed
 
 - [[390]] tools/test_fieldui_rs.py on Outbreak and Quarantine: every Ryu Book case matches, but 7 (OUT) and 8 (QUA) of the other menus' cases differ: three of noise, whose Disp block the harness does not find there (`DISP_NOIZ`, `GT_HACK` left empty: test_inter_noiz, test_a_new_scenes_menu, test_gate_hack), and test_gate_refusal, test_chat_member_refusals, test_low_hp (conIcon), test_spring_throw, QUA's test_skill_refusals — not read
+- [[392]] tools/test_fieldui_talk_rs.py on Outbreak and Quarantine: every Gift and member case matches; test_admin and test_breeder_about differ in the message window's mode (1 against 4) on a chained record (`Check(1)`) — not read
+- [[392]] tools/test_fieldui_shop_rs.py's Recorder pages on Mutation (test_new_directory, test_save_new, test_save_overwrite): from Mutation on `RecordMenu` drops the 10-frame hold after a save's result (MUT gcmn 0x00577a8c, 0x00577af0, 0x00577b54) unless `game+0x7c` or `ccSys+0x26c` is set; the port keeps Infection's hold, and what `ccSys+0x26c` is is not known. Outbreak's test_other_talk and Quarantine's Buy pages, merchant lists and test_other_talk differ — not read
 
 ### volumes
 

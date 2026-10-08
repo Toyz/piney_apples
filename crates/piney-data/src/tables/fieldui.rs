@@ -3,7 +3,7 @@
 
 //! The field's menus (`ccMenuCtrl`, gcmn with main's texts): lists, help, the windows' words, the item lists.
 
-pub use super::types::{EvMsgData, FoodParam};
+pub use super::types::{EvMsgData, FoodParam, ItemList};
 use crate::volume::Volume;
 
 /// A field menu list's data: how it shows, its width in cells and its items.
@@ -326,6 +326,12 @@ pub struct FieldUi {
     pub spc_trade_rate: &'static [[i16; 14]],
     /// `npcTradeRateTbl`
     pub npc_trade_rate: &'static [[i16; 14]],
+    /// Members 1-20's wanted gifts, 16 each: one worth 50000 unless the member has it (MUT main 0x0035f850).
+    pub gift_wants: &'static [[ItemList; 16]],
+    /// The worth bands of the thanks: equipment's (over the member's best of its kind), then the rest's.
+    pub gift_bands: &'static [[i32; 4]],
+    /// Members 1-20's rates for a gift, as `spcTradeRateTbl`'s (MUT main 0x0035f620; Trade keeps that one).
+    pub gift_rates: &'static [[i16; 14]],
     /// `@3218`: `AddFriendship`'s cap by volume.
     pub friendship_cap: &'static [i32],
     /// `spcMsgPresent10`: each member's first thanks record for a gift.
@@ -496,6 +502,9 @@ impl crate::store::Load for FieldUi {
             food: crate::store::Load::load(r),
             spc_trade_rate: crate::store::Load::load(r),
             npc_trade_rate: crate::store::Load::load(r),
+            gift_wants: crate::store::Load::load(r),
+            gift_bands: crate::store::Load::load(r),
+            gift_rates: crate::store::Load::load(r),
             friendship_cap: crate::store::Load::load(r),
             spc_msg_present10: crate::store::Load::load(r),
             spc_msg_present10_va: crate::store::Load::load(r),
@@ -895,6 +904,15 @@ impl FieldUi {
     }
     pub fn npc_trade_rate(&self) -> &'static [[i16; 14]] {
         self.npc_trade_rate
+    }
+    pub fn gift_wants(&self) -> &'static [[ItemList; 16]] {
+        self.gift_wants
+    }
+    pub fn gift_bands(&self) -> &'static [[i32; 4]] {
+        self.gift_bands
+    }
+    pub fn gift_rates(&self) -> &'static [[i16; 14]] {
+        self.gift_rates
     }
     pub fn friendship_cap(&self) -> &'static [i32] {
         self.friendship_cap

@@ -1454,6 +1454,29 @@ fn fieldui() -> Group {
                 "`spcTradeRateTbl`: how much members 1-17 (1-20 from Mutation on) value a kind of item, in tenths.",
             ),
             e("npc_trade_rate", 0x0034_59D0, array_by(fixed(I16, 14), later(48, 54)), GCMN, "`npcTradeRateTbl`"),
+            // From Mutation on, Gift weighs the gift against what the member
+            // has before the thanks (MUT gcmn 0x00573660); none on Infection.
+            derived(
+                "gift_wants",
+                custom(Rc::new(|c| wants().read(c, gift_tables(c)?[0])), wants()),
+                GCMN,
+                "Members 1-20's wanted gifts, 16 each: one worth 50000 unless the member has it (MUT main 0x0035f850).",
+            )
+            .absent(Vol::Inf, Value::List(Vec::new())),
+            derived(
+                "gift_bands",
+                custom(Rc::new(|c| bands().read(c, gift_tables(c)?[1])), bands()),
+                GCMN,
+                "The worth bands of the thanks: equipment's (over the member's best of its kind), then the rest's.",
+            )
+            .absent(Vol::Inf, Value::List(Vec::new())),
+            derived(
+                "gift_rates",
+                custom(Rc::new(|c| rates().read(c, gift_tables(c)?[2])), rates()),
+                GCMN,
+                "Members 1-20's rates for a gift, as `spcTradeRateTbl`'s (MUT main 0x0035f620; Trade keeps that one).",
+            )
+            .absent(Vol::Inf, Value::List(Vec::new())),
             e("friendship_cap", 0x0030_7180, array(I32, 5), GCMN, "`@3218`: `AddFriendship`'s cap by volume."),
             // Where the talk pages start from (`talk`): read as the
             // records they point at, each with its address.
@@ -2322,6 +2345,49 @@ fn lui_addiu(code: &[u32], i: usize, rt: Option<u32>) -> Option<u32> {
     let r = (w >> 16) & 31;
     let pair = w >> 26 == 0x0f && x >> 26 == 0x09 && (x >> 21) & 31 == r && (x >> 16) & 31 == r;
     (pair && rt.is_none_or(|t| t == r)).then(|| ((w & 0xffff) << 16).wrapping_add(sext16(x) as u32))
+}
+
+/// `gift_wants`' and `gift_bands`' layouts.
+fn wants() -> Layout {
+    array(fixed(item_list(), 16), 20)
+}
+fn bands() -> Layout {
+    array(fixed(I32, 4), 2)
+}
+fn rates() -> Layout {
+    array(fixed(I16, 14), 20)
+}
+
+/// The later volumes' gift tables (wants, bands, rates), found in the code
+/// that weighs a gift (MUT gcmn 0x00573710): `lui/addiu $fp` loads the
+/// bands, and later `addiu $fp, $fp, 16` takes the second row
+/// (0x00573aac). Just after the load a member's `sll 6` row is added to
+/// the wants (0x00573728); just before it the rates are added to
+/// `ccGetItemTradeRate`'s `$a0` (0x005736d0). One place does this.
+fn gift_tables(c: &Ctx) -> Result<[u32; 3], String> {
+    const SECOND_ROW: u32 = 0x27de_0010;
+    let (lo, hi) = c.p.code_range(true);
+    let code = (lo..hi).step_by(4).map(|a| c.p.u32(a)).collect::<Result<Vec<u32>, String>>()?;
+    let sll6 = |w: u32| w != 0 && w >> 26 == 0 && w & 63 == 0 && (w >> 6) & 31 == 6;
+    let to_a0 = |w: u32| w >> 26 == 0 && w & 63 == 0x21 && (w >> 11) & 31 == 4;
+    let found: Vec<[u32; 3]> = (0..code.len())
+        .filter_map(|i| {
+            let bands = lui_addiu(&code, i, Some(30))?;
+            code.get(i + 2..(i + 400).min(code.len()))?.contains(&SECOND_ROW).then_some(())?;
+            let wants = (i + 2..(i + 40).min(code.len()))
+                .filter(|&k| sll6(code[k]))
+                .find_map(|k| (k + 1..k + 4).find_map(|j| lui_addiu(&code, j, None)))?;
+            let rates = (i.saturating_sub(24)..i)
+                .rev()
+                .filter(|&k| code.get(k + 2).is_some_and(|&w| to_a0(w)))
+                .find_map(|k| lui_addiu(&code, k, None))?;
+            Some([wants, bands, rates])
+        })
+        .collect();
+    match found[..] {
+        [one] => Ok(one),
+        _ => Err(format!("{} places weigh a gift, want one", found.len())),
+    }
 }
 
 /// `eventObjTbl_0710` (MUT main 0x00366e30): the table `Func_str0710`

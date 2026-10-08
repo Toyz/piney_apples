@@ -122,7 +122,7 @@ class TradeGame(shop.TalkGame):
         if st is None:
             return st, ms
         c = self.menu()
-        drain = [self.m.load(c + 0x1AC + 4 * k, 4, True) for k in range(4)]
+        drain = [self.m.load(c + base.volume.menu_at(0x1AC) + 4 * k, 4, True) for k in range(4)]
         n = len(self.sc.watches)
         return st[:len(st) - n] + drain + st[len(st) - n:], ms
 

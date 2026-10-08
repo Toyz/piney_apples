@@ -6899,6 +6899,9 @@ mod tests {
     /// Issue #57: Mutation's Chosen Hopeless Nothingness has no portals.
     mod hopeless_nothingness;
 
+    /// Issue #58: a member's thanks for a gift on every volume.
+    mod gift_thanks;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

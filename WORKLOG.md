@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-391 entries: audio 33, battle 82, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 14, script 48, test 154, tooling 27, ui 86, video 16, volumes 70, world 106.
+392 entries: audio 33, battle 82, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 15, script 48, test 155, tooling 27, ui 87, video 16, volumes 71, world 106.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -403,3 +403,4 @@ The [reference](docs/README.md) says what is true now.
 | 389 | [Stream and desktop cameras are placed and projected in VU0's arithmetic: every view matrix is the game's bit for bit](worklog/0389-stream-and-desktop-cameras-are-placed-and-projected-in-vu0.md) | 2026-10-07 | render, video, test |
 | 390 | [The Ryu Books open their own covers on every volume: each ccThBook's stream base, the covers' palettes, the later volumes' 140 streams and their books' pages](worklog/0390-the-ryu-books-open-their-own-covers-on-every-volume-each.md) | 2026-10-08 | video, ui, volumes, test |
 | 391 | [Mutation's Chosen Hopeless Nothingness has no portals: EntryGimmick's volumeNum 2, field 27 test is asked of the disc's volume](worklog/0391-mutation-s-chosen-hopeless-nothingness-has-no-portals.md) | 2026-10-08 | world, battle, volumes, test |
+| 392 | [A member's thanks for a gift are the volume's: Mutation's Gift weighs the gift against what the member has, and its thanks come from the volume's own tables](worklog/0392-a-member-s-thanks-for-a-gift-are-the-volume-s-mutation-s.md) | 2026-10-08 | ui, volumes, save, test |

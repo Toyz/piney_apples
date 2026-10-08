@@ -380,9 +380,9 @@ pub fn base_of(m: &MenuCtrl, x: &Ctx, handle: u32) -> Option<Base> {
             Base::npc(x.texts.volume, row)
         }
         Speaker::Spc(id) => {
-            // spcParam[id].base: the save's record; its name is charTbl's
-            // (the save keeps a pointer).
-            let at = SPC_PARAM + SPC_PARAM_SIZE * id.clamp(0, 17) as usize;
+            // spcParam[id].base: the save's record (18-20 in the
+            // extension); its name is charTbl's (the save keeps a pointer).
+            let at = piney_data::save::by_id::spc_param(id.max(0) as usize);
             let s = &x.save.save;
             Some(Base {
                 name: crate::disp::member_name(x, id),

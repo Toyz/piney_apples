@@ -472,7 +472,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             "breed" => breed = true,
             "spcmsg" => {
-                piney_fieldui::menus::talk::set_spc_base_msg(&mut save, piney_data::volume::Volume::Inf);
+                piney_fieldui::menus::talk::set_spc_base_msg(&mut save, volume);
             }
             "busy" => {
                 // busy HANDLE SKILLID ACT: a member's +0x7c and +0xee
@@ -1063,7 +1063,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         st.extend(ui.ctrl.talk.drain_item.iter().take(4).map(|v| v.to_string()));
                     }
                     for &(off, len) in &watches {
-                        st.push(jstr(&save.save.bytes()[off..off + len]));
+                        st.push(jstr(&save.save.record()[off..off + len]));
                     }
                     if breed {
                         let c = &ui.ctrl;

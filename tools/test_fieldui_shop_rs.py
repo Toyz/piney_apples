@@ -270,9 +270,9 @@ class TalkGame(base.Game):
         menu = g(6)
         lst = inf_va(0x0072EFE0) + 32 * max(0, min(menu, 88))
         L = lambda o: m.load(lst + o, 2, True)  # noqa: E731
-        st = st + [g(0xF6), g(0xFA), g(0xFC), self.handle(m.load(c + 0x234, 4)), L(0x10), L(0xC), L(0xE), L(0x14),
+        st = st + [g(0xF6), g(0xFA), g(0xFC), self.handle(m.load(c + volume.menu_at(0x234), 4)), L(0x10), L(0xC), L(0xE), L(0x14),
                    L(0x16), L(0x1C), L(0x1E), L(0x18), L(0x1A), L(0x12)]
-        st += [m.load(c + 0x18C + 4 * k, 4, True) for k in range(8)]
+        st += [m.load(c + volume.menu_at(0x18C) + 4 * k, 4, True) for k in range(8)]
         st += [m.mem[base.SAVE + off:base.SAVE + off + n].hex() for off, n in self.sc.watches]
         return st, ms
 

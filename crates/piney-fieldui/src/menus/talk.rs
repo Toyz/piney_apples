@@ -8,6 +8,9 @@
 //! (Talk, SpcMenu, Gift).
 
 use piney_battle::item as bitem;
+use piney_data::save::by_id;
+use piney_data::tables::fieldui;
+use piney_data::volume::Volume;
 use piney_desktop::eef::from_int;
 
 use crate::Request;
@@ -24,8 +27,11 @@ pub const STR_GREEN: &[u8] = b" #G";
 pub const STR_END: &[u8] = b"#W.";
 pub const STR_COMMA_SPACE: &[u8] = b"#W, ";
 pub const STR_COMMA: &[u8] = b"#W,";
-/// `saveData.talkNum[18]` (+0x220c).
-pub const SAVE_TALK_NUM: usize = 0x220c;
+/// `saveData.talkNum[id]` (+0x220c), a signed byte: from Mutation on
+/// read through the getter (MUT main 0x0017abf0), 18-20 in the extension.
+pub fn talk_num(x: &Ctx, id: i32) -> i8 {
+    usize::try_from(id).map_or(0, |id| x.save.save.u8(by_id::talk_num(id)) as i8)
+}
 
 /// The texts: `tpcTalkStr`'s two pieces, `tradeMenuHelp[6]`'s three lines,
 /// the colour literals, and `ccCheckVoiceGrp`'s groups by id - 141.
@@ -115,7 +121,7 @@ pub fn talk_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             let tt = &x.texts.talk;
             let tn = i32::from(m.talk.talk_num);
             if base.types & 4 != 0 {
-                let n = i32::from(x.save.save.u8(SAVE_TALK_NUM + id.clamp(0, 17) as usize) as i8);
+                let n = i32::from(talk_num(x, id));
                 let tbl = tt.word(base.msg.wrapping_add((4 * n) as u32));
                 let rec = tbl.wrapping_add((12 * tn) as u32);
                 talk::open_record(m, x, rec, &base.name, -31, 2 * id + 1);
@@ -125,7 +131,7 @@ pub fn talk_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                 } else {
                     let mut a0 = 1;
                     if m.talk.talk_loop_cnt < 3 {
-                        let n = i32::from(x.save.save.u8(SAVE_TALK_NUM) as i8);
+                        let n = i32::from(talk_num(x, 0));
                         a0 = (n + 1) * 3 + tn;
                         m.talk.talk_loop_cnt += 1;
                         m.talk.talk_num += 1;
@@ -242,13 +248,13 @@ fn affect_target(x: &mut Ctx, n: i16) {
 
 /// `ccSaveData::SetSpcBaseMsg()` (main 0x00176200), which `ccSetupNewGame`
 /// calls as the field starts: `spcParam[k].base.msg = spcMsgTbl[k]` for
-/// members 1-17 (a save keeps whatever pointer was there; `charTbl`'s are
-/// DEMO.PRG's). The runtime calls it where the game does; `SpcMenu`,
-/// `TalkMenu` and `PresentMenu` read the save's.
-pub fn set_spc_base_msg(save: &mut piney_desktop::SaveState, volume: piney_data::volume::Volume) {
-    let tbl = piney_data::tables::fieldui::of(volume).spc_msg_tbl();
-    for (k, &v) in tbl.iter().enumerate().take(18).skip(1) {
-        save.save.set_i32(talk::SPC_PARAM + talk::SPC_PARAM_SIZE * k + 0x20, v as i32);
+/// members 1-17, and from Mutation on 1-20 (MUT 0x001777d0, 18-20 in the
+/// extension); `spcMsgTbl` has a row more than that. A save keeps whatever
+/// pointer was there (`charTbl`'s, DEMO.PRG's). `SpcMenu`, `TalkMenu` and
+/// `PresentMenu` read the save's.
+pub fn set_spc_base_msg(save: &mut piney_desktop::SaveState, volume: Volume) {
+    for (k, &v) in fieldui::of(volume).spc_msg_tbl().iter().enumerate().skip(1) {
+        save.save.set_i32(by_id::spc_param(k) + 0x20, v as i32);
     }
 }
 
@@ -303,7 +309,7 @@ pub fn spc_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                 let id = i32::from(base.id);
                 if base.msg != 0 {
                     affect_target(x, 14);
-                    let n = i32::from(x.save.save.u8(SAVE_TALK_NUM + id.clamp(0, 17) as usize) as i8);
+                    let n = i32::from(talk_num(x, id));
                     let rec = x.texts.talk.word(base.msg.wrapping_add((4 * n) as u32));
                     talk::open_record(m, x, rec, &base.name, -31, 2 * id);
                 }
@@ -346,14 +352,34 @@ pub fn spc_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     }
 }
 
-/// `spcMsgPresent10[18]`, `spcMsgPresent11[18]` (gcmn 0x00638800,
-/// 0x00638890): each member's five thanks by the gift's worth (the second
-/// once its story's `talkNum` is not 0).
-pub const SPC_MSG_PRESENT10: u32 = 0x0063_8800;
-pub const SPC_MSG_PRESENT11: u32 = 0x0063_8890;
-/// `saveData.spcPresent[17]` (+0x73fc): the worth of the gifts member 1-17
-/// was given.
-pub const SPC_PRESENT: usize = 0x73fc;
+/// Infection's worth bands for the thanks (`PresentMenu` 0x00554a68: 100,
+/// 5000, 10000, 20000); the later volumes' are `fieldui::gift_bands`.
+const INF_BANDS: [i32; 4] = [100, 5000, 10_000, 20_000];
+/// The friendship each band of thanks adds.
+const BAND_FRIENDSHIP: [i32; 5] = [1, 10, 20, 50, 100];
+/// What a wanted gift is worth from Mutation on.
+const WANTED: i32 = 50_000;
+
+/// How `PresentMenu` weighs and gives a gift. Infection gives it at the
+/// question (proccess 4) and weighs its worth alone (6). From Mutation on
+/// the member weighs it against what it has (6), and takes it after the
+/// thanks (8): MUT gcmn 0x00573660, 0x00573cfc; Outbreak and Quarantine
+/// the same, with their own bands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GiftOrder {
+    GiveThenThank,
+    ThankThenGive,
+}
+
+impl GiftOrder {
+    fn of(volume: Volume) -> GiftOrder {
+        match volume {
+            Volume::Inf => GiftOrder::GiveThenThank,
+            _ => GiftOrder::ThankThenGive,
+        }
+    }
+}
+
 /// `ccSpcParam` fields: `base.gold` (+0x14), `equipment` (+0xc8: head,
 /// body, arm, leg, weapon, shield), `job` (+0xd8), `friendship` (+0xda).
 pub const SPC_GOLD: usize = 0x14;
@@ -377,11 +403,15 @@ pub enum PresentTail {
     Given,
     /// proccess 10's wake: back to the member's list.
     Back,
+    /// From Mutation on, proccess 8's `AddSpcItem` breath: the rest of the
+    /// gift, then the line saying what the member did with it.
+    Gave { gift: SpcGift, cat: i32, id: i32, n: i32 },
 }
 
-/// A party member's `spcParam` record.
+/// A party member's `spcParam` record (`GetSpcParam`, MUT main
+/// 0x0017aec0: 18-20 in the extension).
 fn spc_at(sid: i32) -> usize {
-    talk::SPC_PARAM + talk::SPC_PARAM_SIZE * sid.clamp(0, 17) as usize
+    by_id::spc_param(sid.max(0) as usize)
 }
 
 /// `presentMenuHelp[k]`'s three lines: the count's help, the question
@@ -410,11 +440,17 @@ fn price_of(x: &Ctx, cat: i32, id: i32) -> i32 {
     }
 }
 
-/// `ccGetItemTradeRate(spcTradeRateTbl[sid - 1], cat, id)` (main
-/// 0x00178fb0): items 10-14, armour by its weight class (1-3), the six
-/// weapons; 10 otherwise.
-fn trade_rate(x: &Ctx, sid: i32, cat: i32, id: i32) -> i32 {
-    let rates = piney_data::tables::fieldui::of(x.texts.volume).spc_trade_rate();
+/// `ccGetItemTradeRate(rates[sid - 1], cat, id)` (main 0x00178fb0) with
+/// the rates Gift weighs by: `spcTradeRateTbl` on Infection, and from
+/// Mutation on a table of its own (`gift_rates`, MUT main 0x0035f620).
+/// Items 10-14, armour by its weight class (1-3), the six weapons; 10
+/// otherwise.
+fn gift_rate(x: &Ctx, sid: i32, cat: i32, id: i32) -> i32 {
+    let f = fieldui::of(x.texts.volume);
+    let rates = match GiftOrder::of(x.texts.volume) {
+        GiftOrder::GiveThenThank => f.spc_trade_rate(),
+        GiftOrder::ThankThenGive => f.gift_rates(),
+    };
     let row = usize::try_from(sid - 1).ok().and_then(|i| rates.get(i));
     let at = |k: i32| row.and_then(|r| r.get(k as usize)).map_or(10, |&v| i32::from(v));
     match cat {
@@ -455,7 +491,7 @@ fn add_friendship(x: &mut Ctx, sid: i32, n: i32) {
 /// member's record and skills in the save.
 fn change_equipment(x: &mut Ctx, sid: i32, cat: i32, id: i32) {
     let at = spc_at(sid);
-    let list = crate::items::SKILL_LIST + 40 * sid.clamp(0, 17) as usize;
+    let list = by_id::skill_list(sid.max(0) as usize);
     let s = &mut x.save.save;
     let mut eq: [i16; 6] = std::array::from_fn(|k| s.i16(at + SPC_EQUIPMENT + 2 * k));
     let mut sk: [i16; 20] = std::array::from_fn(|k| s.i16(list + 2 * k));
@@ -508,7 +544,7 @@ fn add_spc_item_sub(x: &mut Ctx, sid: i32, cat: i32, id: i32, num: i32) {
         let mut s3 = if sid == 1 && cat == 14 && id == 10 { GOLD_MAX } else { s1 };
         let mut s5 = -1i32;
         for k in 0..crate::items::ITEMS {
-            let it = items::save_item(x.save, sid.clamp(0, 17) as usize, k);
+            let it = items::save_item(x.save, sid.max(0) as usize, k);
             if it.cat == 10 && (0..6).contains(&it.id) {
                 continue;
             }
@@ -527,7 +563,7 @@ fn add_spc_item_sub(x: &mut Ctx, sid: i32, cat: i32, id: i32, num: i32) {
             num = 0;
             c
         } else {
-            let it = items::save_item(x.save, sid.clamp(0, 17) as usize, s5 as usize);
+            let it = items::save_item(x.save, sid.max(0) as usize, s5 as usize);
             bitem::del_item(&mut x.save.save, sid, i32::from(it.cat), i32::from(it.id), i32::from(it.num));
             i32::from(it.num)
         };
@@ -822,15 +858,14 @@ pub fn present_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                 }
                 let it = bag_item(m, x, m.lists[i].index);
                 let (cat, id, n) = (i32::from(it.cat), i32::from(it.id), i32::from(m.wait_count));
-                let sid = i32::from(talk::prev_base(m, x).unwrap_or_default().id);
-                let member = x.target_prev.as_ref().map_or(0, |t| t.handle);
-                let at = SPC_PRESENT - 4 + 4 * sid.clamp(0, 17) as usize;
-                let mut v = x.save.save.i32(at).wrapping_add(price_of(x, cat, id).wrapping_mul(n));
-                x.save.save.set_i32(at, v);
-                if GOLD_MAX < v {
-                    v = GOLD_MAX;
-                    x.save.save.set_i32(at, v);
+                if GiftOrder::of(x.texts.volume) == GiftOrder::ThankThenGive {
+                    // The count kept for proccess 8 (temp[0]), the gift named.
+                    m.talk.temp[0] = n;
+                    m.item_num = (cat << 16) | (id & 0xffff);
+                    return asked(m, x);
                 }
+                let (member, sid) = recipient(m, x);
+                add_spc_present(x, sid, price_of(x, cat, id).wrapping_mul(n));
                 return match add_spc_item(m, x, member, sid, cat, id, n, true) {
                     Added::Done(r) => given(m, x, r, cat, id, n),
                     Added::Breathed(gift) => {
@@ -859,24 +894,17 @@ pub fn present_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             let (cat, id) = (m.item_num >> 16, m.item_num & 0xffff);
             let base = talk::prev_base(m, x).unwrap_or_default();
             let sid = i32::from(base.id);
-            let mut worth = price_of(x, cat, id);
-            if sid == 1 && cat == 14 && id == 10 {
-                worth = 50_000;
-            } else {
-                worth = worth.wrapping_mul(trade_rate(x, sid, cat, id)) / 10;
-            }
-            let story = x.save.save.u8(SAVE_TALK_NUM + sid.clamp(0, 17) as usize) as i8;
-            let tbl = if story == 0 { SPC_MSG_PRESENT10 } else { SPC_MSG_PRESENT11 };
-            let (add, k) = match worth {
-                i32::MIN..100 => (1, 0),
-                100..5000 => (10, 1),
-                5000..10_000 => (20, 2),
-                10_000..20_000 => (50, 3),
-                _ => (100, 4),
+            let (worth, bands) = match GiftOrder::of(x.texts.volume) {
+                GiftOrder::GiveThenThank => (inf_worth(x, sid, cat, id), INF_BANDS),
+                GiftOrder::ThankThenGive => weighed_worth(x, sid, cat, id),
             };
+            // The first band the worth is under, else the last record.
+            let k = bands.iter().position(|&b| worth < b).unwrap_or(bands.len());
+            let f = fieldui::of(x.texts.volume);
+            let tbl = if talk_num(x, sid) == 0 { f.spc_msg_present10_va() } else { f.spc_msg_present11_va() };
             let rec = x.texts.talk.word(tbl.wrapping_add((4 * sid) as u32)).wrapping_add(12 * k as u32);
-            add_friendship(x, sid, add);
-            talk::open_record(m, x, rec, &base.name, -32, 5 * sid + k);
+            add_friendship(x, sid, BAND_FRIENDSHIP[k]);
+            talk::open_record(m, x, rec, &base.name, -32, 5 * sid + k as i32);
             m.proccess += 1;
         }
         7 => {
@@ -893,19 +921,26 @@ pub fn present_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         8 => {
             let w = m.wait_count;
             m.wait_count += 1;
-            if w >= 9 {
-                let mut s = talk::prev_base(m, x).unwrap_or_default().name;
-                let k = (3 + m.trap_num).clamp(0, 5) as u32;
-                s.extend_from_slice(&present_help(x, k)[0]);
-                s.extend_from_slice(&x.texts.gi_green);
-                s.extend(x.texts.items.item_name(m.item_num >> 16, m.item_num & 0xffff));
-                s.extend_from_slice(&x.texts.talk.talk.end);
-                open_info(m, x, &s);
-                if m.trap_num == 2 {
-                    x.se(92);
-                }
-                m.proccess += 1;
+            if w < 9 {
+                return Flow::Done;
             }
+            if GiftOrder::of(x.texts.volume) == GiftOrder::ThankThenGive {
+                // The gift given now, as Infection's proccess 4 gave it.
+                let it = bag_item(m, x, m.lists[i].index);
+                let (cat, id, n) = (i32::from(it.cat), i32::from(it.id), m.talk.temp[0]);
+                let (member, sid) = recipient(m, x);
+                add_spc_present(x, sid, price_of(x, cat, id).wrapping_mul(n));
+                return match add_spc_item(m, x, member, sid, cat, id, n, true) {
+                    Added::Done(r) => {
+                        gave(m, x, r, cat, id, n);
+                        Flow::Done
+                    }
+                    Added::Breathed(gift) => {
+                        talk::breathed(talk::Tail::Talk(Tail::Present(PresentTail::Gave { gift, cat, id, n })))
+                    }
+                };
+            }
+            what_was_done(m, x);
         }
         9 => {
             if check(m, x) != 0 {
@@ -950,11 +985,17 @@ pub fn present_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
 }
 
 /// proccess 4 after `AddSpcItem`: its answer in `trapNum`, the item in
-/// `itemNum`, the bag's N gone, the dim out; in town the tasks woken.
+/// `itemNum`, the bag's N gone, then [`asked`].
 fn given(m: &mut MenuCtrl, x: &mut Ctx, ret: i32, cat: i32, id: i32, n: i32) -> Flow {
     m.trap_num = ret;
     m.item_num = (cat << 16) | (id & 0xffff);
     bitem::del_item(&mut x.save.save, 0, cat, id, n);
+    asked(m, x)
+}
+
+/// The end of proccess 4's OK: the dim out; in town the tasks woken, then
+/// proccess 6.
+fn asked(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     m.bg_status = 3;
     if x.world.game.area == 0 {
         x.req.push(Request::WakeAll);
@@ -963,6 +1004,105 @@ fn given(m: &mut MenuCtrl, x: &mut Ctx, ret: i32, cat: i32, id: i32, n: i32) -> 
     }
     m.proccess += 2;
     Flow::Done
+}
+
+/// The member given to (`cmndTargetPrev`) and its id.
+fn recipient(m: &MenuCtrl, x: &Ctx) -> (u32, i32) {
+    let sid = i32::from(talk::prev_base(m, x).unwrap_or_default().id);
+    (x.target_prev.as_ref().map_or(0, |t| t.handle), sid)
+}
+
+/// `spcPresent[sid] += v`, at most 9999999 (Infection's proccess 4; from
+/// Mutation on the adder MUT main 0x0017ae30, 18-20 in the extension).
+fn add_spc_present(x: &mut Ctx, sid: i32, v: i32) {
+    let at = by_id::spc_present(sid.max(0) as usize);
+    let s = &mut x.save.save;
+    s.set_i32(at, s.i32(at).wrapping_add(v));
+    if GOLD_MAX < s.i32(at) {
+        s.set_i32(at, GOLD_MAX);
+    }
+}
+
+/// Infection's worth of a gift (proccess 6, 0x00554920): its price at the
+/// member's rate in tenths; Mia's Aromatic Grass (14/10) 50000.
+fn inf_worth(x: &Ctx, sid: i32, cat: i32, id: i32) -> i32 {
+    if sid == 1 && cat == 14 && id == 10 {
+        return WANTED;
+    }
+    price_of(x, cat, id).wrapping_mul(gift_rate(x, sid, cat, id)) / 10
+}
+
+/// The piece member `sid` wears in equipment category `cat`'s slot (a
+/// weapon's for 0-5, head to leg for 6-9).
+fn worn(x: &Ctx, sid: i32, cat: i32) -> i32 {
+    let slot = if (6..10).contains(&cat) { (cat - 6) as usize } else { 4 };
+    i32::from(x.save.save.i16(spc_at(sid) + SPC_EQUIPMENT + 2 * slot))
+}
+
+/// Mutation's worth of a gift (proccess 6, MUT gcmn 0x00573660) and the
+/// bands it falls in. A wanted gift (`gift_wants`) is worth 50000 unless
+/// it is equipment the member carries or wears. Other equipment is worth
+/// its value less that of the member's best of its kind (a weapon: the
+/// member's job's), carried or worn; it uses the first bands.
+fn weighed_worth(x: &Ctx, sid: i32, cat: i32, id: i32) -> (i32, [i32; 4]) {
+    let f = fieldui::of(x.texts.volume);
+    let mut worth = price_of(x, cat, id).wrapping_mul(gift_rate(x, sid, cat, id)) / 10;
+    let bag = || (0..items::ITEMS).map(|k| items::save_item(x.save, sid.max(0) as usize, k));
+    let wanted = usize::try_from(sid - 1).ok().and_then(|r| f.gift_wants().get(r));
+    let mut kind = Some(cat).filter(|c| (0..10).contains(c));
+    if wanted.is_some_and(|w| w.iter().any(|e| i32::from(e.category) == cat && i32::from(e.id) == id)) {
+        let had = kind.is_some()
+            && (bag().any(|e| i32::from(e.cat) == cat && i32::from(e.id) == id) || worn(x, sid, cat) == id);
+        if !had {
+            kind = None;
+            worth = WANTED;
+        }
+    }
+    let band = |k: usize| f.gift_bands().get(k).copied().unwrap_or_default();
+    let Some(mut kind) = kind else { return (worth, band(1)) };
+    let job = i32::from(x.save.save.i16(spc_at(sid) + SPC_JOB));
+    if kind < 6 && (0..6).contains(&job) {
+        kind = job;
+    }
+    // The member's dearest of the kind: carried first, then worn.
+    let mut best = (0, id);
+    for e in bag().filter(|e| i32::from(e.cat) == kind && e.id >= 0) {
+        let p = price_of(x, kind, i32::from(e.id));
+        if best.0 < p {
+            best = (p, i32::from(e.id));
+        }
+    }
+    let on = worn(x, sid, kind);
+    let p = price_of(x, kind, on);
+    if best.0 < p {
+        best = (p, on);
+    }
+    worth = worth.wrapping_sub(best.0.wrapping_mul(gift_rate(x, sid, kind, best.1)) / 10);
+    (worth, band(0))
+}
+
+/// Mutation's proccess 8 after `AddSpcItem`: its answer in `trapNum`, the
+/// bag's N gone, then [`what_was_done`].
+fn gave(m: &mut MenuCtrl, x: &mut Ctx, ret: i32, cat: i32, id: i32, n: i32) {
+    m.trap_num = ret;
+    bitem::del_item(&mut x.save.save, 0, cat, id, n);
+    what_was_done(m, x);
+}
+
+/// proccess 8's line: "<name> received / equipped / used #G<item>#W."
+/// (`presentMenuHelp[3 + trapNum]`), sound 92 for a book read.
+fn what_was_done(m: &mut MenuCtrl, x: &mut Ctx) {
+    let mut s = talk::prev_base(m, x).unwrap_or_default().name;
+    let k = (3 + m.trap_num).clamp(0, 5) as u32;
+    s.extend_from_slice(&present_help(x, k)[0]);
+    s.extend_from_slice(&x.texts.gi_green);
+    s.extend(x.texts.items.item_name(m.item_num >> 16, m.item_num & 0xffff));
+    s.extend_from_slice(&x.texts.talk.talk.end);
+    open_info(m, x, &s);
+    if m.trap_num == 2 {
+        x.se(92);
+    }
+    m.proccess += 1;
 }
 
 /// proccess 10's end: back to the member's list.
@@ -1004,6 +1144,11 @@ fn present_tail(m: &mut MenuCtrl, t: PresentTail, x: &mut Ctx) -> Option<Cont> {
             m.still = 0;
             x.req.push(Request::Still(false));
             present_back(m);
+            None
+        }
+        PresentTail::Gave { gift, cat, id, n } => {
+            let r = add_spc_item_after(x, gift);
+            gave(m, x, r, cat, id, n);
             None
         }
     }

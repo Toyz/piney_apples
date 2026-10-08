@@ -55,26 +55,35 @@ SPC_PRESENT = (0x73FC, 68)             # spcPresent[17]
 IMP_ITEMS = (0xCFC, 64)                # impItemList (the Grunty foods, 26-41)
 GROWTH = (0x2194, 120)                 # growth[5]
 TRADE_COUNT = shop.PC_TRADE_COUNT
-CHAR_TBL = inf_va(0x0040DC80)
-
-
-def char_names():
-    """charTbl's names (DEMO.PRG), as the port reads them."""
-    from image import Program
-    d = Program(base.ELF, "demo")
-    out = []
-    for i in range(18):
-        p = d.u32(CHAR_TBL + 92 * i)
-        out.append(d.cstr(p)[:20] if p else b"")
-    return out
-
-
-NAMES = char_names()
+# charTbl's names (DEMO.PRG), as the port reads them: 21 from Mutation on.
+NAMES = [n[:20] for n in base.char_tbl_names()]
 
 
 def spc_row(i, off, n):
     """spcParam[i] + off, n bytes, as a watch."""
-    return (SPC + SPC_SIZE * i + off, n)
+    return (base.spc_param(i) + off, n)
+
+
+# From Mutation on, characters 18-20's records are the save's extension's
+# (docs/formats/save.md, "The extension").
+def talk_at(i):
+    """talkNum[i]."""
+    return TALK_NUM + i if i < 18 else base.EXT + 0x498 + i - 18
+
+
+def items_at(i):
+    """itemList[i]."""
+    return 0x30 + 160 * i if i < 18 else base.EXT + 160 * (i - 18)
+
+
+def skills_at(i):
+    """skillList[i]."""
+    return 0x1EC4 + 40 * i if i < 18 else base.EXT + 0x420 + 40 * (i - 18)
+
+
+def present_watch(i):
+    """spcPresent: the 17 of ccSaveData, or the extension's for 18-20."""
+    return SPC_PRESENT if i < 18 else (base.EXT + 0x4A8, 12)
 
 
 class Spc(base.Char):
@@ -180,7 +189,7 @@ class TalkGame(shop.TalkGame):
         m = self.m
         if isinstance(c, Spc):
             a = base.Game.make_char(self, c)
-            sb = base.SAVE + SPC + SPC_SIZE * c.id
+            sb = base.SAVE + base.spc_param(c.id)
             old = m.load(a, 4)
             for o in (0x18, 0x1C):
                 m.store(sb + o, 4, m.load(old + o, 4))
@@ -272,8 +281,8 @@ class Case(shop.TalkCase):
     def spc(self, sc, cid, story=0, handle=0x300):
         """Party member `cid` spoken to (its spcParam base type 6, id)."""
         sc.spc_msg = True
-        sc.saves += [(SPC + SPC_SIZE * cid + 8, 4, 6), (SPC + SPC_SIZE * cid + 0xC, 2, cid),
-                     (TALK_NUM + cid, 1, story)]
+        at = base.spc_param(cid)
+        sc.saves += [(at + 8, 4, 6), (at + 0xC, 2, cid), (talk_at(cid), 1, story)]
         return Spc(handle, cid)
 
 
@@ -435,13 +444,13 @@ class GiftPages(Case):
             sc.game = (area, 0, 0, 0)
         self.items(sc, bag)
         spc = self.spc(sc, cid, story)
-        at = SPC + SPC_SIZE * cid
+        at = base.spc_param(cid)
         sc.saves += [(at + 0xD8, 2, job), (at + 0x14, 4, gold), (at + 0xDA, 2, friend), (at + 0x0E, 2, 3 + cid)]
         sc.saves += [(at + 0xC8 + 2 * k, 2, v & 0xFFFF) for k, v in enumerate(eq)]
-        sc.saves += [(0x1EC4 + 40 * cid + 2 * k, 2, (skills[k] if k < len(skills) else -1) & 0xFFFF) for k in range(20)]
+        sc.saves += [(skills_at(cid) + 2 * k, 2, (skills[k] if k < len(skills) else -1) & 0xFFFF) for k in range(20)]
         self.bag(sc, cid, member)
-        sc.watches = [shop.ITEMS, (0x30 + 160 * cid, 160), spc_row(cid, 0x14, 4), spc_row(cid, 0xC8, 12),
-                      spc_row(cid, 0xDA, 2), SPC_PRESENT, (0x1EC4 + 40 * cid, 40)]
+        sc.watches = [shop.ITEMS, (items_at(cid), 160), spc_row(cid, 0x14, 4), spc_row(cid, 0xC8, 12),
+                      spc_row(cid, 0xDA, 2), present_watch(cid), (skills_at(cid), 40)]
         sc.watches.append(spc_row(cid, 0x48, 64))
         sc.talk(spc, 10, 21, mode)
         sc.pads.update({25: (0, DOWN), 33: (0, DOWN), 45: (OK, 0)})
@@ -449,7 +458,7 @@ class GiftPages(Case):
 
     def bag(self, sc, cid, entries):
         """Member `cid`'s bag (itemList[cid]) holding (category, id, count)s."""
-        at = 0x30 + 160 * cid
+        at = items_at(cid)
         for k in range(40):
             cat, iid, num = entries[k] if k < len(entries) else (-1, -1, 0)
             sc.saves += [(at + 4 * k, 2, iid & 0xFFFF), (at + 4 * k + 2, 1, cat & 0xFF), (at + 4 * k + 3, 1, num)]
@@ -491,6 +500,15 @@ class GiftPages(Case):
             self.give(sc, 60, page, row, ups)
             self.compare(sc, f"gift page {page} row {row} story {story}")
 
+    def test_gift_every_member(self):
+        # Each member's thanks, members 1-17: their own records of the
+        # volume's spcMsgPresent10 (issue #58: Mutation's read Infection's
+        # address and showed errorData).
+        for cid in range(1, 18):
+            sc = self.gift(cid, 200)
+            self.give(sc, 60, 0, 0)
+            self.compare(sc, f"gift member {cid}")
+
     def test_gift_mia(self):
         # Mia's Aromatic Grass (14/10) is worth 50000; with a full bag she
         # keeps it over anything.
@@ -500,6 +518,27 @@ class GiftPages(Case):
         sc = self.gift(1, 200, bag=[(14, 10, 3), (14, 0, 1)], member=[(14, 10, 1)] * 38 + [(13, 2, 1), (11, 0, 1)])
         self.give(sc, 60, 3, 1)
         self.compare(sc, "gift mia hers")
+
+    @unittest.skipIf(base.volume.NAME == "infection", "Mutation on: Gift weighs against what the member has")
+    def test_gift_wanted(self):
+        # Mia wants weapon 1/66 and Aromatic Grass (14/10): each is worth
+        # 50000, the top thanks. Equipment she carries or wears is weighed
+        # as any other: its worth less her best of the kind.
+        for what, member, eq, page in (("wanted", [], (0, 0, 0, 0, 0, 0), 4), ("carried", [(1, 66, 1)], (0, 0, 0, 0, 0, 0), 4),
+                                       ("worn", [], (0, 0, 0, 0, 66, 0), 4), ("grass", [], (0, 0, 0, 0, 0, 0), 3)):
+            sc = self.gift(1, 220, bag=[(1, 66, 1), (14, 10, 2)], job=1, eq=eq, member=member)
+            self.give(sc, 60, page, 0)
+            self.compare(sc, f"gift wanted {what}")
+
+    @unittest.skipIf(base.volume.NAME == "infection", "Mutation on: members 18-20 in the save's extension")
+    def test_gift_later_members(self):
+        # Tsukasa, Subaru and Sora: records, bags, skills and spcPresent in
+        # the extension. Their wants are all item 0/0, a weapon.
+        for cid in (18, 19, 20):
+            sc = self.gift(cid, 220, bag=[(0, 0, 1), (10, 0, 5)], job=0)
+            sc.named = True
+            self.give(sc, 60, 4, 0)
+            self.compare(sc, f"gift member {cid}")
 
     def test_gift_book(self):
         # A book is read at once, once a copy (sound 92, "used").

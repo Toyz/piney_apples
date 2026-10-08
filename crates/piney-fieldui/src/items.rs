@@ -151,11 +151,12 @@ impl Item {
     }
 }
 
-/// `saveData.itemList[pc][k]`.
+/// `saveData.itemList[pc][k]` (`GetItemList`, MUT main 0x0017a9d0:
+/// characters 18-20 in the extension).
 pub fn save_item(save: &SaveState, pc: usize, k: usize) -> Item {
-    let at = ITEM_LIST + pc * 0xa0 + 4 * k;
-    let b = save.save.bytes();
-    Item { id: i16::from_le_bytes([b[at], b[at + 1]]), cat: b[at + 2] as i8, num: b[at + 3] as i8 }
+    let at = piney_data::save::by_id::item_list(pc) + 4 * k;
+    let s = &save.save;
+    Item { id: s.i16(at), cat: s.u8(at + 2) as i8, num: s.u8(at + 3) as i8 }
 }
 
 /// `saveData.plItemList[k]` (the item box, 99 entries).
@@ -183,7 +184,7 @@ pub fn del_item(save: &mut SaveState, pc: usize, cat: i32, id: i32, n: i32) {
     for k in 0..ITEMS {
         let it = save_item(save, pc, k);
         if i32::from(it.id) == id && i32::from(it.cat) == cat {
-            let at = ITEM_LIST + pc * 0xa0 + 4 * k;
+            let at = piney_data::save::by_id::item_list(pc) + 4 * k;
             if n < i32::from(it.num) {
                 save.save.set_u8(at + 3, (i32::from(it.num) - n) as u8);
             } else {

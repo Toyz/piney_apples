@@ -25,6 +25,9 @@ pub enum Kind {
 }
 
 const RECORD: u32 = 12;
+/// `charTbl`'s rows: Infection's 18, the later volumes' 21.
+const INF_CHARACTERS: u32 = 18;
+const LATER_CHARACTERS: u32 = 21;
 
 /// {address: (kind, count)}.
 type Objects = Rc<BTreeMap<u32, (Kind, u32)>>;
@@ -168,6 +171,9 @@ fn closure(v: Vol) -> Objects {
         }
         let sec = if inf >= 0x0040_0000 { 1 } else { 0 };
         let va = carried(v, sec, inf).or_else(|| if sec == 0 { carried(v, 1, inf) } else { None });
+        // A table by character (`spcMsgTbl`, the gift thanks) has a row for
+        // each of the later volumes' 21 (characters 18-20 in the extension).
+        let n = if kind == Kind::Ptr && n == INF_CHARACTERS { LATER_CHARACTERS } else { n };
         if let Some(va) = va {
             known.insert(va, (kind, n));
         }
