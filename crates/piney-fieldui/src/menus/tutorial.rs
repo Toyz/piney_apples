@@ -117,7 +117,7 @@ pub fn party_menu_t(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
 /// the call ("Calling party member."), the member added
 /// ([`Request::AddMember`]), line 19, then the panels back in and out.
 pub fn party_in_menu_t(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
-    let i = m.menu.clamp(0, 88) as usize;
+    let i = m.list_at(m.menu);
     match m.proccess {
         0 => {
             let l = &mut m.lists[i];
@@ -343,7 +343,7 @@ pub fn personal_menu_ts(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
 /// `SkillMenuT` (gcmn 0x005697b0, menu 81): Kite's skills with line 35;
 /// only the third page's first skill goes on (to 82).
 pub fn skill_menu_t(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
-    let i = m.menu.clamp(0, 88) as usize;
+    let i = m.list_at(m.menu);
     match m.proccess {
         0 => {
             x.req.push(Request::TargetFix(true));
@@ -392,7 +392,7 @@ pub fn skill_menu_t(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
 /// `TargetMenuT` (gcmn 0x00569a00, menu 82): the party as targets with
 /// line 36; OK uses skill 150 on the one chosen.
 pub fn target_menu_t(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
-    let i = m.menu.clamp(0, 88) as usize;
+    let i = m.list_at(m.menu);
     let mut buf = Vec::new();
     let mut cands = Vec::new();
     for c in x.world.party.iter().flatten() {
@@ -449,7 +449,7 @@ pub fn target_menu_t(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
 /// button opens CHAT with line 46; only the first page's second row (the
 /// heal) goes on: the member's order, and the menu shuts.
 pub fn chat_menu_t(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
-    let i = m.menu.clamp(0, 88) as usize;
+    let i = m.list_at(m.menu);
     match m.proccess {
         0 => {
             open(m, x, 3, 45);

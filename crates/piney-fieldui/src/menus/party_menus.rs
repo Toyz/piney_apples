@@ -68,7 +68,7 @@ impl PartyTexts {
 }
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 fn back(m: &mut MenuCtrl) {

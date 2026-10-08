@@ -980,6 +980,12 @@ fn char_info(world: &World, kind: Kind, code: i32) -> Option<piney_fieldui::Char
     Some(info)
 }
 
+/// The town's `game.server`: ChangeScene's server by town (0x00306dc0):
+/// Mac Anu's is 0, Dun Loireag's 1.
+fn town_server(s: &piney_data::save::SaveData) -> i32 {
+    piney_world::area::SERVER_OF_TOWN.get(usize::from(s.u8(offset::LAST_TOWN))).copied().unwrap_or(0)
+}
+
 /// The field UI's view of the town (`ccGame`, `ccPartyManager`,
 /// `cmndTarget`, `cmndSortRoot`, and the event manager's `status` and
 /// `areaCode[16]`): status 5, area 0, the party's slots from `spcParam`
@@ -1021,9 +1027,7 @@ pub(crate) fn ui_world(world: &World, vm: Option<&Vm>, area_level: i32) -> piney
             status: 5,
             area: 0,
             town: i32::from(s.u8(offset::LAST_TOWN) as i8),
-            // ChangeScene's server by town (0x00306dc0): Mac Anu's is 0,
-            // Dun Loireag's 1.
-            server: piney_world::area::SERVER_OF_TOWN.get(usize::from(s.u8(offset::LAST_TOWN))).copied().unwrap_or(0),
+            server: town_server(s),
             area_level,
             ..Default::default()
         },
@@ -1110,7 +1114,8 @@ impl Mode for WorldMode {
         // anew once the passes are made, before the entries (worklog 384).
         if self.world.tasks_start() {
             let (ui, party) = (&mut self.ui, self.world.party());
-            self.world.with_live_state(|s| ui.menu_task_started(s, party));
+            let server = town_server(&self.world.state().save);
+            self.world.with_live_state(|s| ui.menu_task_started(s, party, Some(server)));
         }
         // ccThMenu (34), before the town's other tasks: what it asks for is
         // acted on, and heard, this frame (worklog 336). A menu that asked

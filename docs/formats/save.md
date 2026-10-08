@@ -2,7 +2,7 @@
 title: The memory card save
 status: solid
 volumes: all
-covers: INF SLUS_202.67:0x00306be0 mcDirName, 0x00306d40 mcFname, 0x00306c00 iconBinTbl, 0x001661d0 ccMcard::DataWrite, 0x001664b0 ccMcard::SaveSys, 0x00171c20 ccSaveSys::MainProccess, 0x001716e0 ccSaveSys::CheckRightInfo, 0x00174320 ccSaveData::ccSaveData, 0x001743d0 ccSaveData::Init, 0x0033eb90 timeIdolRankDefStr, 0x00180ed0 ccSound::ccSound, 0x00167940 ccThMother; INF DATA/ICON.BIN; MUT SLUS_205.62:0x00171b50 LoadInfoPrevReq, 0x00171c00 LoadDataPrevReq, 0x001767e0 ConvGame, 0x001cac50 ccStartEventConvert, 0x0017af20 the save extension, 0x00175740 ccSaveData::Init, 0x00176270 ccSaveData::NewGame, 0x00177be0 ccSaveData::InitTradeItem, 0x0017a010 the trade count setter, 0x0017a9d0 GetItemList, 0x0017aa20 GetSpcTradeList, 0x0017aba0 GetSkillList, 0x0017ac30 the talkNum setter, 0x0017aca0 the partyTime setter, 0x0017adf0 the spcPresent setter, 0x0017aec0 GetSpcParam, 0x0017b050 the extension tail clear; INF SLUS_202.67:0x00178030 ccSaveData::CheckEventEntry, 0x001780d0 ClearEventEntry; INF gcmn.prg:0x00430200 ccEntryCtrl::deleteEventEntry, 0x0040ffb0 BOOK::GetBookItem, 0x0040ddd0 BOOK::GetBook01Item, 0x005a1930 ccSpcSetOperation, 0x0053af2c ccMenuCtrl::PartyInMenu's call check
+covers: INF SLUS_202.67:0x00306be0 mcDirName, 0x00306d40 mcFname, 0x00306c00 iconBinTbl, 0x001661d0 ccMcard::DataWrite, 0x001664b0 ccMcard::SaveSys, 0x00171c20 ccSaveSys::MainProccess, 0x001716e0 ccSaveSys::CheckRightInfo, 0x00174320 ccSaveData::ccSaveData, 0x001743d0 ccSaveData::Init, 0x0033eb90 timeIdolRankDefStr, 0x00180ed0 ccSound::ccSound, 0x00167940 ccThMother; INF DATA/ICON.BIN; MUT SLUS_205.62:0x00171b50 LoadInfoPrevReq, 0x00171c00 LoadDataPrevReq, 0x001767e0 ConvGame, 0x001cac50 ccStartEventConvert, 0x0017af20 the save extension, 0x00175740 ccSaveData::Init, 0x00176270 ccSaveData::NewGame, 0x00177be0 ccSaveData::InitTradeItem, 0x0017a010 the trade count setter, 0x0017a9d0 GetItemList, 0x0017aa20 GetSpcTradeList, 0x0017aba0 GetSkillList, 0x0017ac30 the talkNum setter, 0x0017aca0 the partyTime setter, 0x0017adf0 the spcPresent setter, 0x0017aec0 GetSpcParam, 0x0017b050 the extension tail clear; INF SLUS_202.67:0x00178030 ccSaveData::CheckEventEntry, 0x001780d0 ClearEventEntry; INF gcmn.prg:0x00430200 ccEntryCtrl::deleteEventEntry, 0x0040ffb0 BOOK::GetBookItem, 0x0040ddd0 BOOK::GetBook01Item, 0x005a1930 ccSpcSetOperation, 0x0053af2c ccMenuCtrl::PartyInMenu's call check; MUT SLUS_205.62:0x0017a860 the Flag Race's ranking; MUT gcmn.prg:0x0058ca90 the Rankings page
 worklog: 16, 24, 246, 338
 ---
 
@@ -206,8 +206,11 @@ sizes in hex:
   +0x8431     0x1  char cameraMode
   +0x8432    0xfa  char reserved[250]         INF
                                            MUT on (*read*, from the copy loops):
-  +0x8432    0x30    48 bytes, copied as shorts; NewGame zeroes +0x8432/+0x8434
-  +0x8462     0xc    12 bytes, copied byte by byte
+  +0x8432    0x30    short raceRecord[4][3][2]: the Flag Race's ranks by
+                     server 1-4, the player's (time in frames, Grunty's
+                     npcTbl row), time 0 for the town's own racer
+  +0x8462     0xc    char racePrize[4][3]: the Flag Race's prizes given,
+                     by server 1-4 and rank 1-3
   +0x846e    0xbe    reserved
 ```
 
@@ -359,11 +362,21 @@ Found here:
   Each gives its reward only when `hyProccess[book][part]` is below that
   level, and stores the level once `BookAddItem` has added the item.
 
+- **The Flag Race's records** (+0x8432, Mutation on). Three ranks a
+  town (12 bytes a server, 1-4), each the player's time in frames and
+  Grunty's `npcTbl` row; a rank with time 0 is held by the town's own
+  racer, the next of the race's table (MUT gcmn 0x006d8610 by `server -
+  1`, 8 bytes each: name, time, row) in order. The Rankings page (MUT gcmn
+  0x0058ca90) reads them; MUT main 0x0017a860 (`this, server, time, row`)
+  ranks a time: at the first rank whose time it beats it moves the lower ones down
+  and returns that rank (1-3); else 4 when within 30 frames of the third,
+  else 0.
+
+  The prizes given for each rank are counted at +0x8462 + 3 (server - 1)
+  + rank - 1 (Flag Race, MUT gcmn 0x0058b964, reaches them as `+0x845e +
+  3 server + rank`); from the third the rank's other prize is given.
+
 Written but never read, on every volume that has them:
-- **The blocks at +0x8432 and +0x8462** (Mutation on). Their only users
-  are `Init`, which zeroes them, and `ccSaveSys::MainProccess`, which
-  copies them in and out of a slot; no other instruction of any
-  executable or overlay forms those offsets.
 - **The extension's 256 bytes at +0x754.** Of the code that loads the
   extension's pointer, only the clear and `MainProccess`'s copy touch
   them.

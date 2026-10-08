@@ -50,7 +50,7 @@ pub enum GateAfter {
 }
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 fn bit(x: &Ctx, base: usize, k: i32) -> bool {

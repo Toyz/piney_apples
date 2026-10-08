@@ -1142,13 +1142,17 @@ fn fieldui() -> Group {
             e(
                 "elements",
                 0x0065_1000,
-                array(field_menu_element(), 89),
+                array_by(field_menu_element(), later(89, 93)),
                 GCMN,
-                "`menuElementData`: the 89 lists `InitMenuList` fills `menuList` from.",
+                "`menuElementData`: the lists `InitMenuList` fills `menuList` from (89; 93 from Mutation on, its loop's bound).",
             ),
             e("personal_help", 0x0033_E810, array(text_lines(3), 10), GCMN, "`personalMenuHelp`"),
             e("option_help", 0x0033_E840, array(text_lines(3), 8), GCMN, "`optionMenuHelp`"),
             e("help", 0x0033_ED50, array(opt(cstr()), 4), GCMN, "`helpStr`: \": Talk\", \": Attack\", ..."),
+            // From Mutation on, the Flag Race's texts follow `helpStr`.
+            derived("race_str", race_str(), GCMN, "The Flag Race's texts (MUT main 0x00353d40).")
+                .after("help", 16)
+                .absent(Vol::Inf, Value::List(vec![Value::List(Vec::new()); 12])),
             e("dead_info", 0x0037_7E6C, ptr(cstr()), GCMN, "`deadInfo`"),
             e("new_mail", 0x0037_7E8C, ptr(cstr()), GCMN, "`newMailStr`"),
             e("kyvia_status", 0x0037_7E90, text_lines(8), GCMN, "`kyviaStatusStr`: eight pieces."),
@@ -1430,7 +1434,34 @@ fn fieldui() -> Group {
             e("equip_shop", 0x0064_8430, array(ptr(array(I32, 24)), 5), GCMN, "`EquipShopItemList`"),
             e("magic_shop", 0x0064_8650, array(ptr(array(I32, 24)), 5), GCMN, "`MagicShopItemList`"),
             e("pl_item_pages", 0x0065_16B0, array(I32, 5), GCMN, "`SetPlItemList`'s page table."),
-            e("breeder_str", 0x0037_7E24, text_lines(3), GCMN, "`breederMenuStr`: the breeder's rows."),
+            e(
+                "breeder_str",
+                0x0037_7E24,
+                custom(
+                    Rc::new(|c| {
+                        text_lines(if c.volume == Vol::Inf { 3 } else { 5 }).read(c, find(c, 0x0037_7E24, GCMN))
+                    }),
+                    text_lines(5),
+                ),
+                GCMN,
+                "`breederMenuStr`: the breeder's rows (from Mutation on also Flag Race and Rankings).",
+            ),
+            // From Mutation on, the Flag Race's tables (MUT gcmn 0x005ff9f0,
+            // 0x005ffa20: by `game.server - 1`); none on Infection.
+            derived(
+                "race_ranks",
+                custom(Rc::new(|c| race_ranks().read(c, race_tables(c)?[0])), race_ranks()),
+                GCMN,
+                "The Flag Race's rankings before the player's, three a town (MUT gcmn 0x006d8610).",
+            )
+            .absent(Vol::Inf, Value::List(Vec::new())),
+            derived(
+                "race_grunties",
+                custom(Rc::new(|c| race_grunties().read(c, race_tables(c)?[1])), race_grunties()),
+                GCMN,
+                "The three Grunties a town's Flag Race offers, with their stars (MUT gcmn 0x006d8670).",
+            )
+            .absent(Vol::Inf, Value::List(Vec::new())),
             e("breeding_str", 0x0037_7E28, ptr(cstr()), GCMN, "`breedingMenuStr`: the status rows."),
             e(
                 "breeding_help",
@@ -2345,6 +2376,63 @@ fn lui_addiu(code: &[u32], i: usize, rt: Option<u32>) -> Option<u32> {
     let r = (w >> 16) & 31;
     let pair = w >> 26 == 0x0f && x >> 26 == 0x09 && (x >> 21) & 31 == r && (x >> 16) & 31 == r;
     (pair && rt.is_none_or(|t| t == r)).then(|| ((w & 0xffff) << 16).wrapping_add(sext16(x) as u32))
+}
+
+/// The Flag Race's texts after `helpStr`, as its menus split them.
+fn race_str() -> Layout {
+    let names = [
+        ("cost", 2),
+        ("retry", 2),
+        ("no_money", 3),
+        ("select", 1),
+        ("start", 1),
+        ("paused", 1),
+        ("quit", 1),
+        ("record", 3),
+        ("rankings", 1),
+        ("colon", 1),
+        ("specs", 1),
+        ("stars", 1),
+    ];
+    let fields = names.iter().enumerate().map(|(k, &(n, l))| (n, 4 * k as u32, text_lines(l))).collect();
+    strukt("RaceStr", 48, fields, "The Flag Race's texts: each its pieces (`ccKanjiStrSeparate`).")
+}
+
+/// `race_ranks`' and `race_grunties`' layouts: four towns of three.
+fn race_ranks() -> Layout {
+    let rank = strukt(
+        "RaceRank",
+        8,
+        vec![("name", 0, ptr(cstr())), ("time", 4, I16), ("row", 6, I16)],
+        "A ranking: the racer, the time in frames, the Grunty's `npcTbl` row.",
+    );
+    array(fixed(rank, 3), 4)
+}
+fn race_grunties() -> Layout {
+    let pg = strukt(
+        "RaceGrunty",
+        8,
+        vec![("row", 0, I16), ("speed", 2, I16), ("accel", 4, I16), ("turn", 6, I16)],
+        "A Grunty to race: its `npcTbl` row and its stars.",
+    );
+    array(fixed(pg, 3), 4)
+}
+
+/// The Flag Race's two getters by town (MUT gcmn 0x005ff9f0, 0x005ffa20):
+/// `addiu $v1, $a0, -1; sll; addu; sll 3`, then the table's `lui/addiu`.
+/// Two places do this, the rankings first.
+fn race_tables(c: &Ctx) -> Result<[u32; 2], String> {
+    const HEAD: [u32; 4] = [0x2483_ffff, 0x0003_1040, 0x0043_1021, 0x0002_18c0];
+    let (lo, hi) = c.p.code_range(true);
+    let code = (lo..hi).step_by(4).map(|a| c.p.u32(a)).collect::<Result<Vec<u32>, String>>()?;
+    let found: Vec<u32> = (0..code.len())
+        .filter(|&i| code[i..].starts_with(&HEAD))
+        .filter_map(|i| lui_addiu(&code, i + 4, None))
+        .collect();
+    match found[..] {
+        [ranks, grunties] => Ok([ranks, grunties]),
+        _ => Err(format!("{} Flag Race getters, want two", found.len())),
+    }
 }
 
 /// `gift_wants`' and `gift_bands`' layouts.

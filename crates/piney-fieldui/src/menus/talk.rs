@@ -90,7 +90,7 @@ pub fn tail(m: &mut MenuCtrl, t: Tail, x: &mut Ctx) -> Option<Cont> {
 }
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// Back to the list the page came from (`menuNext = prev`, the window

@@ -6905,6 +6905,9 @@ mod tests {
     /// Issue #60: Mutation's Shop Keeper at marker 6 in Dun Loireag.
     mod shop_keeper;
 
+    /// Issue #56: Mutation's breeders offer the Flag Race.
+    mod flag_race;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

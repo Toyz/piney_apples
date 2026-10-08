@@ -1545,7 +1545,7 @@ impl Mode for AreaMode {
         // rebootSpcManager draw (worklog 384).
         if self.world.tasks_start() {
             let (ui, party) = (&mut self.ui, self.world.party());
-            self.world.with_live_state(|s| ui.menu_task_started(s, party));
+            self.world.with_live_state(|s| ui.menu_task_started(s, party, None));
         }
         // ccThMenu (34), before the world's other tasks: what it asks for
         // is acted on, and heard, this frame (worklog 336). Its party check

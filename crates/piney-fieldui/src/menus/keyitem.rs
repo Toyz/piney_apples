@@ -24,7 +24,7 @@ pub const GRUNTY_FLUTE: i16 = 49;
 pub const RYU_BOOKS: std::ops::Range<i16> = 273..281;
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// `SetImportantItemList(page, list, 0)` (0x005274f0): the key items held

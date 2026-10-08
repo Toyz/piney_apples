@@ -14,8 +14,6 @@ use crate::tables::{MenuList, Texts};
 use crate::window::Cursor;
 use crate::world::World;
 
-/// `CheckMenuType` while a menu opens or closes (`menu != menuNext`).
-pub const MENU_CHANGING: i32 = 88;
 /// Menus by number (the jump table at gcmn 0x006e0300, by menu + 1).
 pub const MENU_PERSONAL_TOWN: i16 = 0;
 pub const MENU_PERSONAL_FIELD: i16 = 1;
@@ -326,6 +324,10 @@ pub struct MenuCtrl {
     pub noiz: Noiz,
     /// +0x12a `mailCnt`: frames to the new-mail sound (240 at the start).
     pub mail_cnt: i16,
+    /// From Mutation on, +0x12c (the marks below move on by 2): the town's
+    /// pens holding a grown Grunty, counted by the constructor (MUT gcmn
+    /// 0x0053a394) in a town only. The breeders offer the Flag Race at 3.
+    pub pg_adult_num: i16,
     /// +0x12c `protect[12]`, +0x144 `protectCnt[12]`, +0x15c
     /// `protectChar[12]`.
     pub protect: [i16; 12],
@@ -512,6 +514,7 @@ impl MenuCtrl {
             inter_noiz: 0,
             noiz,
             mail_cnt: 240,
+            pg_adult_num: 0,
             protect: [0; 12],
             protect_cnt: [0; 12],
             protect_char: [0; 12],
@@ -627,18 +630,47 @@ impl MenuCtrl {
         self.chat_mem[3]
     }
 
-    /// `CheckMenuType` (0x00526150).
+    /// `CheckMenuType` (0x00526150): the menu open, or [`Self::changing`]
+    /// while one opens or closes (`menu != menuNext`).
     pub fn check_menu_type(&self) -> i32 {
-        if self.menu == self.menu_next { i32::from(self.menu) } else { MENU_CHANGING }
+        if self.menu == self.menu_next { i32::from(self.menu) } else { self.changing() }
+    }
+
+    /// What `CheckMenuType` answers while a menu changes: the last list's
+    /// number (88; 92 from Mutation on, MUT gcmn 0x00544590).
+    pub fn changing(&self) -> i32 {
+        self.lists.len() as i32 - 1
+    }
+
+    /// `menuList[n]`'s index, kept within the volume's lists.
+    pub fn list_at(&self, n: i16) -> usize {
+        n.clamp(0, self.lists.len() as i16 - 1) as usize
+    }
+
+    /// The constructor's count from Mutation on (MUT gcmn 0x0053a394): in
+    /// a town (`server` is `game.server` there, None elsewhere), the pens
+    /// `ccPgAdultCheck(server, k)` finds a grown Grunty in.
+    pub fn count_pg_adults(
+        &mut self,
+        volume: piney_data::volume::Volume,
+        save: &piney_data::save::SaveData,
+        server: Option<i32>,
+    ) {
+        self.pg_adult_num = match server {
+            Some(s) if volume != piney_data::volume::Volume::Inf => {
+                (0..3).filter(|&k| piney_battle::ride::adult_check(save, s, k) >= 0).count() as i16
+            }
+            _ => 0,
+        };
     }
 
     /// The list of the menu open.
     pub fn list(&self) -> &MenuList {
-        &self.lists[self.menu.clamp(0, 88) as usize]
+        &self.lists[self.list_at(self.menu)]
     }
 
     pub fn list_mut(&mut self) -> &mut MenuList {
-        let m = self.menu.clamp(0, 88) as usize;
+        let m = self.list_at(self.menu);
         &mut self.lists[m]
     }
 
@@ -720,7 +752,7 @@ impl MenuCtrl {
                 self.open_menu(n, x);
             }
         }
-        if self.check_menu_type() == MENU_CHANGING {
+        if self.check_menu_type() == self.changing() {
             if self.menu_status == 0 {
                 self.menu = self.menu_next;
                 if self.menu != -1 {
@@ -819,7 +851,8 @@ impl MenuCtrl {
         self.open_req = -1;
         self.menu_next = t;
         self.menu = t;
-        self.lists[t.clamp(0, 88) as usize].prev = -1;
+        let n = self.list_at(t);
+        self.lists[n].prev = -1;
         self.menu_status = 1;
         self.panel_status = 3;
         self.proccess = 0;
@@ -842,7 +875,8 @@ impl MenuCtrl {
         self.open_req = -1;
         self.menu_next = t;
         self.menu = t;
-        self.lists[t.clamp(0, 88) as usize].prev = -1;
+        let n = self.list_at(t);
+        self.lists[n].prev = -1;
         self.panel_status = 3;
         self.proccess = 0;
         self.wait_count = 0;
@@ -885,7 +919,8 @@ impl MenuCtrl {
         if x.save.check_operate(op) {
             if self.menu_next != -1 {
                 let m = self.menu;
-                self.lists[self.menu_next.clamp(0, 88) as usize].prev = m;
+                let n = self.list_at(self.menu_next);
+                self.lists[n].prev = m;
                 self.proccess = 0;
                 self.wait_count = 0;
             }
@@ -908,7 +943,8 @@ impl MenuCtrl {
     pub fn change_menu_to(&mut self, m: i16) {
         self.menu_next = m;
         let cur = self.menu;
-        self.lists[m.clamp(0, 88) as usize].prev = cur;
+        let n = self.list_at(m);
+        self.lists[n].prev = cur;
         self.proccess = 0;
         self.wait_count = 0;
         self.menu_status = 3;
@@ -936,7 +972,7 @@ impl MenuCtrl {
     pub fn select(&mut self, pn: i32, lim: i32, af: bool, x: &mut Ctx) -> i32 {
         let repeat = x.pad.repeat.bits();
         let mut r = 0;
-        let m = self.menu.clamp(0, 88) as usize;
+        let m = self.list_at(self.menu);
         let old_sel = self.lists[m].select;
         let old_page = self.lists[m].page;
         if self.lists[m].y > 0 {
@@ -1026,7 +1062,7 @@ impl MenuCtrl {
     /// scrolls (`dy` the first row shown of `my`, `y` shown at once).
     pub fn select_scr(&mut self, pn: i32, lim: i32, ofs: i32, x: &mut Ctx) -> i32 {
         let repeat = x.pad.repeat.bits();
-        let m = self.menu.clamp(0, 88) as usize;
+        let m = self.list_at(self.menu);
         let mut r = 0;
         let old_sel = self.lists[m].select;
         let old_page = self.lists[m].page;

@@ -17,7 +17,7 @@ use crate::spr::{font_type, make_num, set_clm};
 use crate::window::set_type;
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// `SetItemList(0, page, list, 1)`.

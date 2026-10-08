@@ -1213,8 +1213,8 @@ class Game:
         the frame's state leaves out: panelBure and panelFlash, drainStatus,
         mode, exceptionDisp, teachCnt, cursolInit and Off, fade, bgCol,
         faceNum, drainAlpha, cursolTarget, plAttack to interNoiz (+0xf4 to
-        +0x104), the protect marks, subTarget and dummyTarget; a pointer as
-        0 or 1."""
+        +0x104), the protect marks, subTarget and dummyTarget, and from
+        Mutation on the grown Grunties counted; a pointer as 0 or 1."""
         m = self.m
         g = lambda o: m.load(c + o, 2, True)  # noqa: E731
         p = lambda o: int(m.load(c + o, 4) != 0)  # noqa: E731
@@ -1222,9 +1222,11 @@ class Game:
         out += [g(o) for o in (0x12, 0x16, 0x1E, 0x22, 0x24, 0x26, 0x28, 0x2A, 0x2C)]
         out += [m.load(c + 0x50, 4, True), p(0x54)]
         out += [g(o) for o in range(0xF4, 0x106, 2)]
-        out += [g(0x12C + 2 * i) for i in range(12)] + [g(0x144 + 2 * i) for i in range(12)]
-        out += [p(0x15C + 4 * i) for i in range(12)] + [p(0x1F4 + 4 * i) for i in range(16)]
-        return out + [p(0x234)]
+        at = volume.menu_at
+        out += [g(at(0x12C + 2 * i)) for i in range(12)] + [g(at(0x144 + 2 * i)) for i in range(12)]
+        out += [p(at(0x15C + 4 * i)) for i in range(12)] + [p(at(0x1F4 + 4 * i)) for i in range(16)]
+        # From Mutation on, +0x12c: the town's pens with a grown Grunty.
+        return out + [p(at(0x234)), 0 if volume.NAME == "infection" else g(0x12C)]
 
     def run_threads(self):
         for t, fn in self.threads:

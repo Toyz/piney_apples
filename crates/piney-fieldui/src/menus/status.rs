@@ -26,7 +26,7 @@ pub const SPC_EQUIPMENT: usize = 0xc8;
 pub const SPC_JOB: usize = 0xd8;
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// The `page`-th filled party slot and its character; none (the loop's

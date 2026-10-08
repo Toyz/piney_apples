@@ -20,7 +20,7 @@ pub const ITEM_BOX_COUNT: usize = 0x7440;
 pub const SE_GET: i32 = 74;
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// `ccSaveData::GetItemNum(pc, cat, id)` (main 0x00177990).
@@ -285,7 +285,7 @@ fn item_at(m: &MenuCtrl, x: &Ctx) -> Item {
 /// 29 came from it, else shut.
 fn replace_leave(m: &mut MenuCtrl, x: &mut Ctx, swap: bool) -> Flow {
     let i = idx(m);
-    let prev = m.lists[m.lists[i].prev.clamp(0, 88) as usize].prev;
+    let prev = m.lists[m.list_at(m.lists[i].prev)].prev;
     if prev == 67 {
         m.change_menu_to(67);
         if swap {

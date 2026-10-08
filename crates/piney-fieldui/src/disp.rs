@@ -147,12 +147,12 @@ fn fade(status: &mut i16, alpha: &mut i32, step_in: i32, top: i32) {
 
 /// `ccMenuCtrl::Disp`.
 pub fn disp(m: &mut MenuCtrl, x: &mut Ctx) {
-    let menu_idx = m.menu.clamp(0, 88) as usize;
+    let menu_idx = m.list_at(m.menu);
     let game = x.world.game;
     // The battle band's clock.
     let mut blink = 0;
     let t = m.check_menu_type();
-    if game.in_battle == 1 && game.in_battle_cnt == 0 && m.menu_status == 0 && (t == -1 || t == 88) {
+    if game.in_battle == 1 && game.in_battle_cnt == 0 && m.menu_status == 0 && (t == -1 || t == m.changing()) {
         m.battle_cnt += 1;
         if m.battle_cnt >= 49 {
             m.battle_cnt = 0;

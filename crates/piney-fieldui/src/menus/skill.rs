@@ -20,7 +20,7 @@ const DRAIN_BLOCKED_HELP: i16 = 2;
 
 /// The menu's list: `menuList[menu]`.
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// `SetSkillList(0, page, list, 1)`: the list's count into `my`.

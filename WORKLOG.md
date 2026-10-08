@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-393 entries: audio 33, battle 82, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 15, script 48, test 156, tooling 27, ui 87, video 16, volumes 72, world 107.
+394 entries: audio 33, battle 82, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 16, script 48, test 157, tooling 27, ui 88, video 16, volumes 73, world 107.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -405,3 +405,4 @@ The [reference](docs/README.md) says what is true now.
 | 391 | [Mutation's Chosen Hopeless Nothingness has no portals: EntryGimmick's volumeNum 2, field 27 test is asked of the disc's volume](worklog/0391-mutation-s-chosen-hopeless-nothingness-has-no-portals.md) | 2026-10-08 | world, battle, volumes, test |
 | 392 | [A member's thanks for a gift are the volume's: Mutation's Gift weighs the gift against what the member has, and its thanks come from the volume's own tables](worklog/0392-a-member-s-thanks-for-a-gift-are-the-volume-s-mutation-s.md) | 2026-10-08 | ui, volumes, save, test |
 | 393 | [Mutation's Shop Keeper stands at his marker: an event's entry 4 is the Administrator's ccMerchan, and every town NPC entry is made by its row's class](worklog/0393-mutation-s-shop-keeper-stands-at-his-marker-an-event-s.md) | 2026-10-08 | world, volumes, test |
+| 394 | [Mutation's breeders offer the Flag Race: three grown Grunties in the town's pens and the race's mail read, then Talk, Flag Race and Rankings](worklog/0394-mutation-s-breeders-offer-the-flag-race-three-grown.md) | 2026-10-08 | ui, volumes, save, test |

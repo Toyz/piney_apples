@@ -14,7 +14,7 @@ use crate::menus::system::{extract_menu, push_msg_requests, str_cat};
 use crate::spr::{Obj, set_clm};
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// Whether the Sprite Ocarina's order shows: in a dungeon, not floors 8 or

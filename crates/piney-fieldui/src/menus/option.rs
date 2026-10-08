@@ -179,7 +179,7 @@ fn key(x: &mut Ctx) -> Option<Key> {
 }
 
 fn list_index(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// Back to OPTION: `menuNext = prev`, the window out, `proccess` and

@@ -118,7 +118,7 @@ pub fn tail(m: &mut MenuCtrl, t: Tail, x: &mut Ctx) -> Option<Cont> {
 }
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// Where a trader's offers are.
@@ -480,7 +480,7 @@ fn leave(m: &mut MenuCtrl, x: &mut Ctx, sub: bool) -> Flow {
 fn back(m: &mut MenuCtrl, sub: bool) {
     let i = idx(m);
     if sub {
-        let p = m.lists[i].prev.clamp(0, 88) as usize;
+        let p = m.list_at(m.lists[i].prev);
         m.lists[i].prev = m.lists[p].prev;
     }
     let prev = m.lists[i].prev;

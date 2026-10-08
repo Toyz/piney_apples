@@ -354,7 +354,7 @@ pub fn calc_real(t: &piney_battle::Tables, save: &mut crate::SaveState, c: &mut 
 }
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// `ccSaveData::GetEquipmentNum(id, category)`.

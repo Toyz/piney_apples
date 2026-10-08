@@ -29,7 +29,7 @@ struct Use {
 
 fn what(m: &MenuCtrl, x: &Ctx) -> Use {
     let prev = m.list().prev;
-    let pl = &m.lists[prev.clamp(0, 88) as usize];
+    let pl = &m.lists[m.list_at(prev)];
     let mut u = Use { skill: -1, param: None, item: None, target_type: 0 };
     match prev {
         5 => {
@@ -143,7 +143,7 @@ fn sub_targets(m: &mut MenuCtrl, u: &Use, x: &Ctx) {
 }
 
 pub fn target_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
-    let i = m.menu.clamp(0, 88) as usize;
+    let i = m.list_at(m.menu);
     let prev = m.lists[i].prev;
     match m.proccess {
         2 => {

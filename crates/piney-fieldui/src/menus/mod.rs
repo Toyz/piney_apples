@@ -57,8 +57,11 @@ pub fn check_operate(x: &mut Ctx, n: i32, flag: i32) -> bool {
 /// The handler of the menu open.
 pub fn handler(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     let t = m.check_menu_type();
+    if t == m.changing() {
+        return Flow::Done;
+    }
     match t {
-        -1 | 88 => Flow::Done,
+        -1 => Flow::Done,
         0..=2 | 12 => system::system_menu(m, x),
         3 => chat::chat_menu(m, x),
         71 => chat_member::chat_menu1(m, x),
@@ -103,6 +106,7 @@ pub fn handler(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         24 => merchant::merchant_menu(m, x, true),
         25 | 26 => merchant::merchant_menu(m, x, false),
         27 => breeder::breeder_menu(m, x),
+        89 => breeder::rankings_menu(m, x),
         44 => inu::norainu_menu(m, x),
         45 => inu::otonainu_menu(m, x),
         46 => inu::inu_menu(m, x),
@@ -179,6 +183,7 @@ pub fn exception_disp(m: &mut MenuCtrl, x: &mut Ctx) {
         55 => shop::item_draw_menu_disp(m, x),
         46 => inu::inu_menu_disp(m, x),
         56 => breeder::breeding_menu_disp(m, x),
+        89 => breeder::rankings_menu_disp(m, x),
         13 => option::controller_menu_disp(m, x),
         14 | 18 | 19 | 20 => option::on_off_menu_disp(m, x),
         15 => option::screen_menu_disp(m, x),

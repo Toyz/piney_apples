@@ -17,7 +17,8 @@ use crate::menus::personal;
 use crate::menus::system::{extract_menu, push_msg_requests, str_cat};
 use crate::spr::{Spr, font_type, make_num, set_clm};
 use crate::talk::{self, Base, TalkReq, Then};
-use crate::window::{disp_square, disp_square_sb};
+use crate::window::{disp_line_h, disp_square, disp_square_sb, set_type};
+use piney_data::volume::Volume;
 
 /// gcmn's literal "STATUS" (`@15433`).
 pub const STR_STATUS: &[u8] = b"STATUS";
@@ -31,10 +32,27 @@ pub const PG_GIFT: i32 = 49;
 /// level, size, smell, crooked, cruel, iq, pure ...
 pub const SAVE_GROWTH: usize = 0x2194;
 
+/// From Mutation on, `mailList[324]`: the mail that tells of the Flag Race
+/// (`grunty_mail` delivers it). Read (4 and up), the breeders offer it.
+pub const RACE_MAIL: usize = 324;
+/// gcmn's literal ":" (`@14442`), between a time's numbers.
+pub const COLON: &[u8] = b":";
+/// `saveData +0x8432` from Mutation on: each town's three ranks (servers
+/// 1-4, 12 bytes a town), the player's time in frames and Grunty's row,
+/// time 0 where a racer of `race_ranks` stands.
+pub const RACE_RECORDS: usize = 0x8432;
+/// The Flag Race's list (88) and Rankings (89).
+pub const MENU_FLAG_RACE: i16 = 88;
+pub const MENU_RANKINGS: i16 = 89;
+
 /// The pages' texts, read from the executable once.
 #[derive(Clone, Debug, Default)]
 pub struct Texts {
     pub breeder_rows: [Vec<u8>; 3],
+    /// From Mutation on, `breederMenuStr`'s "Flag Race" and "Rankings".
+    pub race_rows: [Vec<u8>; 2],
+    /// The Flag Race's texts (none on Infection).
+    pub race: Option<RaceTexts>,
     pub status_rows: Vec<u8>,
     /// `breedingMenuHelp[0]`'s line: "There is no food." (InuMenu's).
     pub no_food: Vec<u8>,
@@ -52,6 +70,8 @@ impl Texts {
         let help = f.breeding_help();
         Texts {
             breeder_rows: [piece(rows, 0), piece(rows, 1), piece(rows, 2)],
+            race_rows: [piece(rows, 3), piece(rows, 4)],
+            race: (volume != piney_data::volume::Volume::Inf).then(|| RaceTexts::of(f)),
             status_rows: piney_data::tables::sjis::encode(f.breeding_str()),
             no_food: piece(help[0], 0),
             help: [piece(help[1], 0), piece(help[1], 1), piece(help[1], 2)],
@@ -59,6 +79,38 @@ impl Texts {
             status: STR_STATUS.to_vec(),
         }
     }
+}
+
+/// The Flag Race's texts and tables (main 0x00353d40 on, gcmn 0x006d8610).
+#[derive(Clone, Debug, Default)]
+pub struct RaceTexts {
+    /// The Rankings page's header: "Rankings", "1st Place" ... in columns
+    /// of 16.
+    pub rankings: Vec<u8>,
+    /// Each town's three racers before the player's (servers 1-4): name,
+    /// time in frames, Grunty's `npcTbl` row.
+    pub ranks: Vec<[(Vec<u8>, i16, i16); 3]>,
+}
+
+impl RaceTexts {
+    fn of(f: &piney_data::tables::fieldui::FieldUi) -> RaceTexts {
+        use crate::tables::piece;
+        RaceTexts {
+            rankings: piece(f.race_str().rankings, 0),
+            ranks: f
+                .race_ranks()
+                .iter()
+                .map(|t| t.map(|r| (piney_data::tables::sjis::encode(r.name), r.time, r.row)))
+                .collect(),
+        }
+    }
+}
+
+/// A race time in frames as the Rankings page shows it: minutes, seconds
+/// and hundredths (frames x 100 / 30).
+fn race_time(t: i32) -> [i32; 3] {
+    let (min, rem) = (t / 1800, t % 1800);
+    [min, rem / 30, rem % 30 * 100 / 30]
 }
 
 /// A Grunty (`ccPGuso`, gcmn pgbreed.cpp) as `BreedingMenu` reads it
@@ -125,7 +177,7 @@ pub fn tail(m: &mut MenuCtrl, t: Tail, x: &mut Ctx) -> Option<Cont> {
 }
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 fn cursors(m: &mut MenuCtrl) {
@@ -180,8 +232,15 @@ pub fn breeder_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             let name = m.lists.get(first.max(0) as usize).map(|l| l.name.clone()).unwrap_or_default();
             let mut buf = Vec::new();
             str_cat(&mut buf, &name, 16);
-            for r in x.texts.talk.breeder.breeder_rows.clone() {
-                str_cat(&mut buf, &r, 16);
+            let t = &x.texts.talk.breeder;
+            let race = race_offered(m, x);
+            let rows = if race { &t.race_rows[..] } else { &t.breeder_rows[..] };
+            for r in rows {
+                str_cat(&mut buf, r, 16);
+            }
+            // From Mutation on the list's rows are set: Talk and two or three.
+            if x.texts.volume != Volume::Inf {
+                m.lists[i].y = 1 + rows.len() as i16;
             }
             extract_menu(m, buf);
             if m.first_time != 0 {
@@ -251,16 +310,140 @@ fn breeder_keys(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         return talk::close(m, x, Then::MsgClose);
     }
     if key == x.save.ok() {
-        if m.lists[i].select != 0 {
-            m.menu_status = 3;
-            m.proccess += 1;
-            return Flow::Done;
+        match (m.lists[i].select, race_offered(m, x)) {
+            (0, _) => {}
+            (_, false) => {
+                m.menu_status = 3;
+                m.proccess += 1;
+                return Flow::Done;
+            }
+            (sel, true) => {
+                // Flag Race (88) or Rankings (89), back here after.
+                let next = if sel == 1 { MENU_FLAG_RACE } else { MENU_RANKINGS };
+                m.menu_next = next;
+                let n = m.list_at(next);
+                m.lists[n].prev = m.menu;
+                m.proccess = 0;
+                m.wait_count = 0;
+                m.menu_status = 3;
+                m.first_time = 0;
+                cursors(m);
+                m.msg.close();
+                return Flow::Done;
+            }
         }
         let flow = m.change_menu(x);
         m.msg.close();
         return flow;
     }
     Flow::Done
+}
+
+/// From Mutation on (MUT gcmn 0x005625fc): a grown Grunty in each of the
+/// town's three pens when the menu was made, and the race's mail read.
+fn race_offered(m: &MenuCtrl, x: &Ctx) -> bool {
+    x.texts.volume != Volume::Inf && m.pg_adult_num >= 3 && x.save.save.mail(RACE_MAIL) as i8 >= 3
+}
+
+/// `Rankings` (MUT gcmn 0x0058c930, menu 89): the town's three best times
+/// on the page ([`rankings_menu_disp`]) until OK or cancel, then the list
+/// it came from.
+pub fn rankings_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
+    match m.proccess {
+        0 => {
+            m.exception_disp = 1;
+            x.change_target(None);
+            m.proccess += 1;
+        }
+        1 if pushed_key(x) != 0 => {
+            let prev = x.target_prev.clone();
+            x.change_target(prev.as_ref());
+            x.se(SE_BACK);
+            let i = idx(m);
+            m.menu_next = m.lists[i].prev;
+            m.menu_status = 3;
+            m.proccess = 0;
+            m.wait_count = 0;
+            cursors(m);
+        }
+        _ => {}
+    }
+    Flow::Done
+}
+
+/// The Rankings page (MUT gcmn 0x0058ca90): a window of 24 by 12 with
+/// the header's four columns, then each rank's racer and Grunty (the
+/// save's time where the player holds the rank, else the town's next
+/// racer of `race_ranks`) and its time as minutes:seconds:hundredths in
+/// the global `font`, which `Disp` makes the menu's own.
+pub fn rankings_menu_disp(m: &mut MenuCtrl, x: &mut Ctx) {
+    let Some(race) = x.texts.talk.breeder.race.clone() else { return };
+    let a = m.alpha;
+    m.win.set_colour(7);
+    m.kanji.set_colour(7);
+    font_type(&mut m.font, 1);
+    m.font.set_colour(7);
+    m.font.set_alpha(a);
+    set_type(&mut m.win, 1);
+    (m.win.dx, m.win.dy) = (67.0, 96.0);
+    disp_square(&mut m.win, 24, 12, None);
+    (m.win.dx, m.win.dy) = (67.0, 128.0);
+    disp_line_h(&mut m.win, 24);
+    m.setting_text[0] = race.rankings.clone();
+    let h = &mut m.setting[0];
+    h.set_colour(7);
+    h.set_alpha(a);
+    set_clm(h, 16, 0, 0, 1);
+    for (k, y) in [112.0, 160.0, 224.0, 288.0].into_iter().enumerate() {
+        (h.dx, h.dy) = (95.0, y);
+        h.make_packet(k as i32);
+    }
+    let server = x.world.game.server;
+    let racers = usize::try_from(server - 1).ok().and_then(|s| race.ranks.get(s));
+    let mut racer = racers.into_iter().flatten();
+    let mut y = 176;
+    for r in 0..3 {
+        let at = RACE_RECORDS + 12 * (server - 1) as usize + 4 * r;
+        let own = (x.save.save.i16(at), x.save.save.i16(at + 2));
+        let (name, row, time) = match own {
+            (0, _) => match racer.next() {
+                Some((name, time, row)) => (name.clone(), *row, *time),
+                None => (Vec::new(), 0, 0),
+            },
+            (time, row) => (x.save.save.name().to_vec(), row, time),
+        };
+        let mut buf = Vec::new();
+        str_cat(&mut buf, &name, 16);
+        let npc = usize::try_from(row).ok().and_then(|n| x.texts.npc_names.get(n)).cloned().unwrap_or_default();
+        str_cat(&mut buf, &npc, 16);
+        m.setting_text[r + 1] = buf;
+        let k = &mut m.setting[r + 1];
+        k.set_colour(7);
+        k.set_alpha(a);
+        set_clm(k, 16, 0, 0, 1);
+        let time = race_time(i32::from(time));
+        rank_row(k, &mut m.font, y, time);
+        y += 64;
+    }
+}
+
+/// A rank's two rows of name and Grunty (`set` at x 123) and its time in
+/// the font: two digits each, ":" between (x 291 on).
+fn rank_row(set: &mut Spr, font: &mut Spr, y: i32, time: [i32; 3]) {
+    for (k, dy) in [0, 16].into_iter().enumerate() {
+        (set.dx, set.dy) = (123.0, from_int(y + dy));
+        set.make_packet(k as i32);
+    }
+    let y = from_int(y);
+    for (k, v) in time.into_iter().enumerate() {
+        let x = 291.0 + 32.0 * k as f32;
+        (font.dx, font.dy) = (x, y);
+        make_num(font, 2, v + 100);
+        if k < 2 {
+            (font.dx, font.dy) = (x + 24.0, y);
+            font.make_str(COLON);
+        }
+    }
 }
 
 /// `cmndTargetPrev` as the Grunty: the world's when it is this character

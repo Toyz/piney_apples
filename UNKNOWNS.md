@@ -115,7 +115,8 @@ Missing pieces that only the later volumes need.
 - [[24]] [[325]] what fills Outbreak's and Quarantine's BSS message groups; what `eventAreaNumber` 126 loads (Quarantine's ending, event 314; the port gives it no words) (docs/engine/events.md) — Quarantine's ending
 - [[65]] [[116]] `npc_act -3` (row 139's drain, with `effVirusCrystal`) and `-5` are not ported; only Mutation's event 114 uses them (docs/engine/events.md, effects.md, field-game.md) — Mutation's event 114
 - [[275]] `marker_pos` on a plain field (`WORLD_MAN` +0x438's stream) is not ported, and no event map but `EVENTAREA01` answers `StoryMap::file` — Mutation's field events
-- [[225]] Mutation's flag race (menus 88-91, the `PG_FLAG` gimmick, the racers) is not ported — Mutation's Grunty race
+- [[225]] [[394]] Mutation's Flag Race (menu 88, MUT gcmn 0x0058a4f0 and its page 0x0058c310; the race's task 0x005ff680 and object 0x005fd120 with its flags, timer and result) is not ported; the breeder's list and Rankings (89) are ([[394]]) — Mutation's Grunty race
+- [[394]] menus 90 and 91 (MUT gcmn 0x0058d470, 0x0058d9f0 with its page 0x0058edc0: list 90 is Talk and Item List, "Items were registered to the ...") are not ported, nor is who opens them traced — the later volumes' NPCs
 - [[272]] Kyvia's later fights (levels 2-5, the EX mode); fields 10-12 not played through (docs/engine/evarea.md, boss-kyvia.md, GAPS.md) — Mutation onward
 - docs/engine/battle.md `ccBoss04`'s Affect and AI are not ported — a later volume's boss (ported in [[294]])
 - [[72]] [[84]] the other `EVENTAREA` classes (04-06; areas 66, 67, 91) get generated fields (docs/engine/evarea.md, field-walk.md) — the later volumes' story maps; no Infection script reaches them

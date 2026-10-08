@@ -696,6 +696,39 @@ class BreederPages(Case):
         sc.firsts.add(10)
         self.compare(sc, "breeder no target")
 
+    @staticmethod
+    def race_save(sc, server, pens=3, mail=4, records=()):
+        """The town's pens holding grown Grunties (growth[server].type[k]),
+        mail 324's state, and the player's ranks (rank, frames, row)."""
+        for k in range(pens):
+            sc.saves.append((GROWTH[0] + 24 * server + 0xE + 2 * k, 2, 1))
+        sc.saves.append((0x2264 + 324, 1, mail))
+        for rank, time, row in records:
+            at = 0x8432 + 12 * (server - 1) + 4 * rank
+            sc.saves += [(at, 2, time), (at + 2, 2, row)]
+
+    @unittest.skipIf(base.volume.NAME == "infection", "Mutation on: the Flag Race")
+    def test_breeder_race(self):
+        # Talk, Flag Race and Rankings once the town's three pens hold grown
+        # Grunties and mail 324 is read (4 and up); else the About rows.
+        for pens, mail in ((3, 4), (3, 6), (3, 2), (2, 4), (3, 0)):
+            sc = self.breeder(80, server=1)
+            self.race_save(sc, 1, pens, mail)
+            sc.pads.update({30: (0, DOWN), 38: (0, DOWN), 46: (0, DOWN), 60: (0, UP), 70: (CANCEL, 0)})
+            self.compare(sc, f"breeder race pens {pens} mail {mail}")
+
+    @unittest.skipIf(base.volume.NAME == "infection", "Mutation on: the Flag Race")
+    def test_rankings(self):
+        # Rankings (89): the town's three, the save's times where the player
+        # holds a rank; cancel or OK back to the breeder's list.
+        cases = ((1, (), CANCEL), (2, ((0, 1234, 148),), OK), (3, ((1, 601, 150), (2, 3599, 145)), CANCEL),
+                 (4, ((0, 30, 152), (1, 1800, 153), (2, 32767, 145)), OK))
+        for server, records, key in cases:
+            sc = self.breeder(200, server=server)
+            self.race_save(sc, server, records=records)
+            sc.pads.update({25: (0, DOWN), 33: (0, DOWN), 45: (OK, 0), 120: (key, 0), 170: (CANCEL, 0)})
+            self.compare(sc, f"rankings server {server}")
+
     def test_random_breeder(self):
         for seed in range(1, 7):
             rnd = random.Random(seed)

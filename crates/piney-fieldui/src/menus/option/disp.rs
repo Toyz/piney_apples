@@ -13,7 +13,7 @@ use crate::spr::{Spr, font_type, make_signed_num, set_clm};
 use crate::window::{disp_square, set_type};
 
 fn list_index(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// `ccMenuWindow::DispSlideBar(w, n, max)` (main 0x001b97f0): at (dx, dy)

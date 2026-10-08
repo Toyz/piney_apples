@@ -399,11 +399,14 @@ impl FieldUi {
     /// `ccNoiz` (main 0x001bb080) draws its bands from the game's `rand()`
     /// (`save.rand`, moved on); its faces are the party's member ids
     /// (`ccCheckMenuFaceNameParty`). [`MenuCtrl::keep`] says what stays.
-    pub fn menu_task_started(&mut self, save: &mut SaveState, party: [i32; 3]) {
+    /// From Mutation on it counts the town's grown Grunties (`town_server`
+    /// is `game.server` in a town, None elsewhere).
+    pub fn menu_task_started(&mut self, save: &mut SaveState, party: [i32; 3], town_server: Option<i32>) {
         let mut rng = std::mem::take(&mut self.ctrl.rng);
         rng.load(save.rand);
         let old = std::mem::replace(&mut self.ctrl, MenuCtrl::with_rand(&self.texts, rng));
         self.ctrl.keep(old);
+        self.ctrl.count_pg_adults(self.texts.volume, &save.save, town_server);
         // The old task's frame went with it; the new one has drawn nothing.
         self.draws.clear();
         self.held = None;
@@ -890,14 +893,14 @@ mod tests {
         });
         assert!(n > 0, "the bands draw");
         save.rand = 0x1234_5678;
-        ui.menu_task_started(&mut save, [-1; 3]);
+        ui.menu_task_started(&mut save, [-1; 3], None);
         let mut want = Rand(0x1234_5678);
         (0..n).for_each(|_| {
             want.rand();
         });
         assert_eq!(save.rand, want.0, "{n} draws");
         ui.ctrl.rng = MenuRand::Fixed(Box::new(|| 0));
-        ui.menu_task_started(&mut save, [-1; 3]);
+        ui.menu_task_started(&mut save, [-1; 3], None);
         assert_eq!(save.rand, want.0, "a fixed source leaves the save's");
     }
 
@@ -922,7 +925,7 @@ mod tests {
         c.generated.ids = [9, 9, 9];
         let kept = (c.book_ofs.clone(), c.generated.clone());
         save.save.set_u8(piney_data::save::offset::PLCOL, 0);
-        ui.menu_task_started(&mut save, [0, 2, -1]);
+        ui.menu_task_started(&mut save, [0, 2, -1], None);
         let (c, f) = (&ui.ctrl, fresh(&ui));
         assert_eq!(
             (c.forbid, c.target_forbid, c.inter_noiz, c.panel_alpha, c.mail_cnt),

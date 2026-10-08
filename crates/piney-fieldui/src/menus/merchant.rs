@@ -35,7 +35,7 @@ pub enum Tail {
 }
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// Where `ccSaveData`'s trade counts keep trader (`type`, `id`)'s: on

@@ -119,7 +119,7 @@ pub fn tail(m: &mut MenuCtrl, t: Tail, x: &mut Ctx) -> Option<Cont> {
 }
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// The player's gold (`plw.pw->base->gold`).
@@ -130,7 +130,7 @@ pub fn gold(x: &Ctx) -> i32 {
 /// The stock of the shop the list came from: its `index` (the merchant's
 /// type) and `game.server`.
 pub fn stock(m: &MenuCtrl, x: &Ctx) -> Vec<i32> {
-    let prev = m.lists[idx(m)].prev.clamp(0, 88) as usize;
+    let prev = m.list_at(m.lists[idx(m)].prev);
     let t = m.lists[prev].index;
     let s = &x.texts.talk.shop;
     let lists = if t & 0x100 != 0 {
@@ -465,7 +465,7 @@ fn counts(m: &mut MenuCtrl, x: &Ctx) {
 pub fn buy_menu_disp(m: &mut MenuCtrl, x: &mut Ctx) {
     let i = idx(m);
     let l = m.lists[i].clone();
-    let prev = l.prev.clamp(0, 88) as usize;
+    let prev = m.list_at(l.prev);
     let shop_type = m.lists[prev].index;
     let a = m.alpha;
     font_type(&mut m.font, 1);

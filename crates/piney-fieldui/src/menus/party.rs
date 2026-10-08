@@ -63,7 +63,7 @@ pub fn can_join(x: &Ctx, k: i32) -> bool {
 
 /// `PartyInMenuDisp` (menus 68 and 77).
 pub fn party_in_menu_disp(m: &mut MenuCtrl, x: &mut Ctx) {
-    let i = m.menu.clamp(0, 88) as usize;
+    let i = m.list_at(m.menu);
     let (dy, y) = (i32::from(m.lists[i].dy), i32::from(m.lists[i].y));
     let mut buf = Vec::new();
     let mut row = 0;

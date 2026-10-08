@@ -74,7 +74,7 @@ pub enum Tail {
 }
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// The keys as the three menus read them: cancel first (sound 19), then

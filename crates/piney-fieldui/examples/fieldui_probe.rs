@@ -129,6 +129,7 @@ fn ctor_members(c: &piney_fieldui::MenuCtrl) -> Vec<i32> {
     v.extend(c.protect.iter().chain(&c.protect_cnt).map(|&p| i32::from(p)));
     v.extend(c.protect_char.iter().chain(&c.sub_target).map(|&h| i32::from(h != 0)));
     v.push(i32::from(c.dummy_target.is_some()));
+    v.push(i32::from(c.pg_adult_num));
     v
 }
 
@@ -499,6 +500,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if world.game.area == 0 {
                     world.game.area_level = 0;
                 }
+                // The constructor's count of the town's grown Grunties.
+                let town = (world.game.area == 0).then_some(world.game.server);
+                ui.ctrl.count_pg_adults(ui.texts().volume, &save.save, town);
                 for &(h, code) in &items_of {
                     let set = |c: &mut CharInfo| {
                         if c.handle == h {
@@ -678,7 +682,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if restarts.contains(&fr) {
                         // A scene's set-up: the new ccThMenu's frame is its
                         // constructor's (areaLevel as at the run's start).
-                        ui.menu_task_started(&mut save, world.party_id);
+                        let town = (world.game.area == 0).then_some(world.game.server);
+                        ui.menu_task_started(&mut save, world.party_id, town);
                         if world.game.area == 0 {
                             world.game.area_level = 0;
                         }
@@ -691,7 +696,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     let c = &ui.ctrl;
                     let item_num = c.item_num;
-                    let l = &c.lists[c.menu.clamp(0, 88) as usize];
+                    let l = &c.lists[c.list_at(c.menu)];
                     let st = [
                         i32::from(c.menu),
                         i32::from(c.menu_next),
@@ -1039,7 +1044,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     if tk {
                         let c = &ui.ctrl;
                         let t = &c.talk;
-                        let l = &c.lists[c.menu.clamp(0, 88) as usize];
+                        let l = &c.lists[c.list_at(c.menu)];
                         let mut v = vec![
                             i32::from(t.talk_num),
                             i32::from(t.talk_trade_flag),

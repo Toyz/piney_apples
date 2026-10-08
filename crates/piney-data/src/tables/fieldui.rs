@@ -42,6 +42,42 @@ impl crate::store::Load for FieldMenuElement {
     }
 }
 
+/// The Flag Race's texts: each its pieces (`ccKanjiStrSeparate`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RaceStr {
+    pub cost: &'static [&'static str],
+    pub retry: &'static [&'static str],
+    pub no_money: &'static [&'static str],
+    pub select: &'static [&'static str],
+    pub start: &'static [&'static str],
+    pub paused: &'static [&'static str],
+    pub quit: &'static [&'static str],
+    pub record: &'static [&'static str],
+    pub rankings: &'static [&'static str],
+    pub colon: &'static [&'static str],
+    pub specs: &'static [&'static str],
+    pub stars: &'static [&'static str],
+}
+
+impl crate::store::Load for RaceStr {
+    fn load(r: &mut crate::store::Reader) -> Self {
+        RaceStr {
+            cost: crate::store::Load::load(r),
+            retry: crate::store::Load::load(r),
+            no_money: crate::store::Load::load(r),
+            select: crate::store::Load::load(r),
+            start: crate::store::Load::load(r),
+            paused: crate::store::Load::load(r),
+            quit: crate::store::Load::load(r),
+            record: crate::store::Load::load(r),
+            rankings: crate::store::Load::load(r),
+            colon: crate::store::Load::load(r),
+            specs: crate::store::Load::load(r),
+            stars: crate::store::Load::load(r),
+        }
+    }
+}
+
 /// A face: its scene file and texture.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MenuFace {
@@ -73,10 +109,48 @@ impl crate::store::Load for GateRefusal {
     }
 }
 
+/// A ranking: the racer, the time in frames, the Grunty's `npcTbl` row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RaceRank {
+    pub name: &'static str,
+    pub time: i16,
+    pub row: i16,
+}
+
+impl crate::store::Load for RaceRank {
+    fn load(r: &mut crate::store::Reader) -> Self {
+        RaceRank {
+            name: crate::store::Load::load(r),
+            time: crate::store::Load::load(r),
+            row: crate::store::Load::load(r),
+        }
+    }
+}
+
+/// A Grunty to race: its `npcTbl` row and its stars.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RaceGrunty {
+    pub row: i16,
+    pub speed: i16,
+    pub accel: i16,
+    pub turn: i16,
+}
+
+impl crate::store::Load for RaceGrunty {
+    fn load(r: &mut crate::store::Reader) -> Self {
+        RaceGrunty {
+            row: crate::store::Load::load(r),
+            speed: crate::store::Load::load(r),
+            accel: crate::store::Load::load(r),
+            turn: crate::store::Load::load(r),
+        }
+    }
+}
+
 /// The `fieldui` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct FieldUi {
-    /// `menuElementData`: the 89 lists `InitMenuList` fills `menuList` from.
+    /// `menuElementData`: the lists `InitMenuList` fills `menuList` from (89; 93 from Mutation on, its loop's bound).
     pub elements: &'static [FieldMenuElement],
     /// `personalMenuHelp`
     pub personal_help: &'static [&'static [&'static str]],
@@ -84,6 +158,8 @@ pub struct FieldUi {
     pub option_help: &'static [&'static [&'static str]],
     /// `helpStr`: ": Talk", ": Attack", ...
     pub help: &'static [Option<&'static str>],
+    /// The Flag Race's texts (MUT main 0x00353d40).
+    pub race_str: RaceStr,
     /// `deadInfo`
     pub dead_info: &'static str,
     /// `newMailStr`
@@ -314,8 +390,12 @@ pub struct FieldUi {
     pub magic_shop: &'static [&'static [i32]],
     /// `SetPlItemList`'s page table.
     pub pl_item_pages: &'static [i32],
-    /// `breederMenuStr`: the breeder's rows.
+    /// `breederMenuStr`: the breeder's rows (from Mutation on also Flag Race and Rankings).
     pub breeder_str: &'static [&'static str],
+    /// The Flag Race's rankings before the player's, three a town (MUT gcmn 0x006d8610).
+    pub race_ranks: &'static [[RaceRank; 3]],
+    /// The three Grunties a town's Flag Race offers, with their stars (MUT gcmn 0x006d8670).
+    pub race_grunties: &'static [[RaceGrunty; 3]],
     /// `breedingMenuStr`: the status rows.
     pub breeding_str: &'static str,
     /// `breedingMenuHelp`: "There is no food.", then the help.
@@ -381,6 +461,7 @@ impl crate::store::Load for FieldUi {
             personal_help: crate::store::Load::load(r),
             option_help: crate::store::Load::load(r),
             help: crate::store::Load::load(r),
+            race_str: crate::store::Load::load(r),
             dead_info: crate::store::Load::load(r),
             new_mail: crate::store::Load::load(r),
             kyvia_status: crate::store::Load::load(r),
@@ -497,6 +578,8 @@ impl crate::store::Load for FieldUi {
             magic_shop: crate::store::Load::load(r),
             pl_item_pages: crate::store::Load::load(r),
             breeder_str: crate::store::Load::load(r),
+            race_ranks: crate::store::Load::load(r),
+            race_grunties: crate::store::Load::load(r),
             breeding_str: crate::store::Load::load(r),
             breeding_help: crate::store::Load::load(r),
             food: crate::store::Load::load(r),
@@ -541,6 +624,9 @@ impl FieldUi {
     }
     pub fn help(&self) -> &'static [Option<&'static str>] {
         self.help
+    }
+    pub fn race_str(&self) -> RaceStr {
+        self.race_str
     }
     pub fn dead_info(&self) -> &'static str {
         self.dead_info
@@ -890,6 +976,12 @@ impl FieldUi {
     pub fn breeder_str(&self) -> &'static [&'static str] {
         self.breeder_str
     }
+    pub fn race_ranks(&self) -> &'static [[RaceRank; 3]] {
+        self.race_ranks
+    }
+    pub fn race_grunties(&self) -> &'static [[RaceGrunty; 3]] {
+        self.race_grunties
+    }
     pub fn breeding_str(&self) -> &'static str {
         self.breeding_str
     }
@@ -975,9 +1067,6 @@ impl FieldUi {
         self.drain_evolution
     }
 }
-
-/// `menuElementData`: the 89 lists `InitMenuList` fills `menuList` from.
-pub static ELEMENTS: std::sync::LazyLock<&'static [FieldMenuElement]> = std::sync::LazyLock::new(|| shared().elements);
 
 /// `personalMenuHelp`
 pub static PERSONAL_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
@@ -1236,10 +1325,6 @@ pub static DRAW_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
 
 /// `SetPlItemList`'s page table.
 pub static PL_ITEM_PAGES: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().pl_item_pages);
-
-/// `breederMenuStr`: the breeder's rows.
-pub static BREEDER_STR: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().breeder_str);
 
 /// `breedingMenuStr`: the status rows.
 pub static BREEDING_STR: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().breeding_str);

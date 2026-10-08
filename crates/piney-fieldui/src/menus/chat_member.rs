@@ -15,7 +15,7 @@ use crate::menus::system::{extract_menu, push_msg_requests, str_cat};
 use crate::world::CharInfo;
 
 fn idx(m: &MenuCtrl) -> usize {
-    m.menu.clamp(0, 88) as usize
+    m.list_at(m.menu)
 }
 
 /// The `chatMember`th filled slot of 1 and 2 and its index (0 or 1); not
