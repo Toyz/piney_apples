@@ -762,6 +762,14 @@ impl crate::World {
         true
     }
 
+    /// `ccSnd +0x13a`, which `ccPgBgmInit` sets and the race's end
+    /// clears: the walking PCs it hides read it.
+    fn set_race_hold(&self, on: bool) {
+        if let Some(t) = &self.town_pcs {
+            t.borrow_mut().race_hold = on;
+        }
+    }
+
     /// The race, while its task lives (`0x0038bd44`).
     pub fn race(&self) -> Option<&Race> {
         self.race.as_deref()
@@ -825,6 +833,7 @@ impl crate::World {
                 Pc::Start => {
                     // ccPgBgmInit; the fade out.
                     r.events.push(RaceEvent::PgBgmInit);
+                    self.set_race_hold(true);
                     r.fade = host.entry_fade(30, BLACK);
                     r.pc = Pc::SetupOut;
                     return;
@@ -1034,6 +1043,7 @@ impl crate::World {
                     r.events.push(RaceEvent::Panel(1));
                     r.events.push(RaceEvent::Map(1));
                     r.events.push(RaceEvent::PgBgmEnd);
+                    self.set_race_hold(false);
                     for f in &mut self.flags {
                         f.entry.fade_flag = 2;
                         f.entry.fade_cnt = 15;

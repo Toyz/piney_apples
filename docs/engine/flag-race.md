@@ -185,5 +185,5 @@ and 7.
 - The race's task is made in the frame the menu asks. The port runs its
   first breath that frame; the game's task priority (63) is not modelled.
 - `+0xa6` (the restart, 0x005ff520) is never set by any code found.
-- Menus 90 and 91 (0x0058d470, 0x0058d9f0) are not ported; who opens them
-  is not traced.
+- Menus 90 and 91 (0x0058d470, 0x0058d9f0) are not ported. The Event NPC
+  opens 90 ([field-game.md](field-game.md#the-merchants)).

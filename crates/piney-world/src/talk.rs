@@ -508,7 +508,8 @@ pub fn battle_now(leader: &Leader, kite: &LeaderState, party: &Party, cands: &[C
 
 /// What the action button opens on a target of these base flags
 /// (`ccMenu.type`, ccThGameCtrl 0x00518388-0x00518a0c), or None (an enemy:
-/// a skill request instead, or nothing).
+/// a skill request instead, or nothing). From Mutation on the Event NPC's
+/// flag 0x10000000 opens 90 (MUT gcmn 0x00536aa0); no Infection row has it.
 pub fn menu_for(flags: u32) -> Option<u16> {
     const TABLE: [(u32, u16); 19] = [
         (0x6, 21),
@@ -531,7 +532,7 @@ pub fn menu_for(flags: u32) -> Option<u16> {
         (0x80_0000, 4139),
         (0x0400_0000, 44),
     ];
-    const TAIL: [(u32, u16); 2] = [(0x0200_0000, 45), (0x0100_0000, 46)];
+    const TAIL: [(u32, u16); 3] = [(0x0200_0000, 45), (0x0100_0000, 46), (0x1000_0000, 90)];
     TABLE.iter().chain(TAIL.iter()).find(|(m, _)| flags & m != 0).map(|&(_, t)| t)
 }
 

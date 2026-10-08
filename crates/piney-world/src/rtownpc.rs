@@ -31,8 +31,12 @@ use piney_event::host::NpcCommand;
 /// `ccLandHitCheck`'s mask for entries: floors with bit 1 (every floor of
 /// Mac Anu has it).
 pub const ENTRY_LAND_MASK: u32 = 0x2000_0002;
-/// The kind of a walking PC's body (`bodyHit.type`).
-pub const KIND_PC: u32 = 2;
+/// The kind of a walking PC's body (`bodyHit.type`): 2 on Infection, 8
+/// from Mutation on (MUT gcmn 0x00522150), so Kite's `HitCheck` no longer
+/// counts them as kind 2.
+pub fn pc_kind(volume: Volume) -> u32 {
+    if volume == Volume::Inf { 2 } else { 8 }
+}
 /// Ids of the PCs' bodies in the character list: this plus the order they
 /// were placed in.
 pub const BODY_ID: u32 = 0x100;
@@ -61,11 +65,21 @@ const GATE_LANDMARK: i8 = 44;
 /// `rtownnpc.cpp`'s tables, the volume's (`tables::world`).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Tables {
-    /// `rtpcCcsName[49]`: the files by `ccsType`.
+    /// `rtpcCcsName`: the files by `ccsType` (49; 50 from Mutation on).
     pub ccs_names: Vec<String>,
-    /// `rtpcWeaponName[98]` (rows 30-127), `tvpcWeaponName[9]` (159-167).
+    /// `rtpcWeaponName[98]` (rows 30-127), `tvpcWeaponName` (159 on) and,
+    /// from Mutation on, the sign PCs' (180 on).
     pub weapon_names: Vec<String>,
     pub tvpc_weapon_names: Vec<String>,
+    pub sign_weapon_names: Vec<String>,
+    /// From Mutation on, the SEARCH PCs' `markPos` by row - 159 and stage,
+    /// and the dummies they stand at from stage 5 (MUT gcmn 0x0061c890,
+    /// 0x0061c8c0).
+    pub search_marks: Vec<Option<Vec<[i8; 4]>>>,
+    pub search_dummies: Vec<String>,
+    /// From Mutation on, the rows `ccRegisterRandomNpc` draws past the
+    /// fifty walking PCs (MUT main 0x0032ef10).
+    pub walk_extra_rows: Vec<i16>,
     /// `rtpcAnmTbl[49]`: by `ccsType`, standing, walking, running (and for
     /// `ctw2` four more).
     pub anm_tbls: Vec<Vec<String>>,
@@ -80,6 +94,8 @@ pub struct Tables {
     pub mark_pos: [[[i8; 4]; 5]; 16],
     /// `merchanNum[5 towns][5]`: each merchant's landmark.
     pub merchan_num: [[i8; 5]; 5],
+    /// Mutation's class and on (MUT gcmn 0x00522040), not Infection's.
+    pub later: bool,
 }
 
 impl Tables {
@@ -92,23 +108,31 @@ impl Tables {
             ccs_names: names(w.rtpc_ccs_names()),
             weapon_names: names(w.rtpc_weapon_names()),
             tvpc_weapon_names: names(w.tvpc_weapon_names()),
+            sign_weapon_names: names(w.sign_weapon_names()),
+            search_marks: w.search_marks().iter().map(|r| r.map(<[[i8; 4]]>::to_vec)).collect(),
+            search_dummies: names(w.search_dummies()),
+            walk_extra_rows: w.walk_extra_rows().iter().map(|&r| r as i16).collect(),
             anm_tbls: w.rtpc_anms().iter().map(|r| names(r)).collect(),
             chat: std::array::from_fn(|k| text(w.rtpc_chat(), k)),
             chat_shop: std::array::from_fn(|s| std::array::from_fn(|k| text(rows(w.rtpc_chat_shop(), s), k))),
             chat_mes: std::array::from_fn(|s| std::array::from_fn(|k| text(rows(w.rtpc_chat_mes(), s), k))),
             mark_pos: std::array::from_fn(|m| w.mark_pos().get(m).copied().unwrap_or_default()),
             merchan_num: w.merchan_num(),
+            later: volume != Volume::Inf,
         }
     }
 
     /// The weapons `ccRtownPC::ccRtownPC` hangs on a PC of `npcTbl` row
     /// `id` drawn from file type `ccs_type`: (hand node, weapon file, model).
+    /// From Mutation on rows 180 on read the sign PCs' table, and type 35
+    /// holds its weapon in the left hand (MUT gcmn 0x005227e0, 0x0052285c).
     pub fn weapons(&self, ccs_type: i32, id: i32) -> Vec<(&'static str, String, String)> {
         const L: &str = "OBJ_t0 l hand";
         const R: &str = "OBJ_t0 r hand";
-        let rt = usize::try_from(id - 30).ok().and_then(|k| self.weapon_names.get(k)).cloned().unwrap_or_default();
-        let tv =
-            usize::try_from(id - 159).ok().and_then(|k| self.tvpc_weapon_names.get(k)).cloned().unwrap_or_default();
+        let later = self.later;
+        let at = |t: &[String], k: i32| usize::try_from(k).ok().and_then(|k| t.get(k)).cloned().unwrap_or_default();
+        let rt = at(&self.weapon_names, id - 30);
+        let tv = if id < 180 { at(&self.tvpc_weapon_names, id - 159) } else { at(&self.sign_weapon_names, id - 180) };
         let one = |hand: &'static str, w: &String| vec![(hand, w.clone(), format!("MDL_{w}"))];
         let two = |w: &String| vec![(L, w.clone(), format!("MDL_{w}l")), (R, w.clone(), format!("MDL_{w}r"))];
         match ccs_type {
@@ -122,29 +146,76 @@ impl Tables {
                 }
             }
             39 | 40 => two(&tv),
+            35 if later => one(L, &tv),
             k if k < 41 => one(R, &tv),
-            48 => one(R, &rt),
+            // 49 (`ctwmk`) is one of Mutation's.
+            48 | 49 => one(R, &rt),
             _ => Vec::new(),
         }
     }
 }
 
-/// `ccRegisterRandomNpc(reserved)` (main 0x001b7660) in a town: the rows of
-/// the walking PCs, by slot (-1 unused).
-pub fn register_random_npc(mt: &mut Mt, reserved: i32) -> [i16; 16] {
+/// What `ccRegisterRandomNpc` draws from in a town: Infection's fifty
+/// walking PCs, or from Mutation on (MUT main 0x001ccdf0) those and the
+/// rows past them, each open once its event is done, and fewer PCs on
+/// the later servers.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Pool {
+    /// The rows past the fifty, each with whether it may be drawn.
+    pub extra: Vec<(i16, bool)>,
+    /// How many fewer PCs the town's server has (`game.server`).
+    pub fewer: i32,
+}
+
+/// From Mutation on, each extra row's event (`eventFlag[n]` done, the
+/// `ld` at saveData +0x5e58, +0x6028, +0x5ed0): 300 for Mimiru, Bear and
+/// A-20, 358 for Crim, 315 for Sieg and Kaz.
+pub const EXTRA_EVENTS: [usize; 6] = [300, 300, 300, 358, 315, 315];
+/// From Mutation on, how many fewer PCs each server has (MUT main
+/// 0x001cce4c).
+const FEWER: [i32; 5] = [0, 2, 6, 2, 10];
+
+impl Pool {
+    /// The volume's pool on server `server` with the save's events.
+    pub fn of(tables: &Tables, server: i32, save: &piney_data::save::SaveData) -> Pool {
+        Pool::with(tables, server, |n| save.event_flag(n) & piney_data::save::EVENT_DONE != 0)
+    }
+
+    /// The pool with `done` telling which events are done.
+    pub fn with(tables: &Tables, server: i32, done: impl Fn(usize) -> bool) -> Pool {
+        if !tables.later {
+            return Pool::default();
+        }
+        let extra = tables.walk_extra_rows.iter().zip(EXTRA_EVENTS).map(|(&r, n)| (r, done(n))).collect();
+        let fewer = usize::try_from(server).ok().and_then(|k| FEWER.get(k)).copied().unwrap_or(0);
+        Pool { extra, fewer }
+    }
+}
+
+/// `ccRegisterRandomNpc(reserved)` (main 0x001b7660; MUT 0x001ccdf0) in a
+/// town: the rows of the walking PCs, by slot (-1 unused). The first
+/// three slots draw among the fifty, the rest among the whole pool; a
+/// draw taken moves on to the next free row.
+pub fn register_random_npc(mt: &mut Mt, reserved: i32, pool: &Pool) -> [i16; 16] {
+    const FIFTY: usize = 50;
     let mut rows = [-1i16; 16];
-    let n = 16 - reserved;
+    let n = 16 - reserved - pool.fewer;
     if n <= 0 {
         return rows;
     }
-    let mut used = [false; 50];
-    for slot in rows.iter_mut().take(n as usize) {
-        let mut r = (mt.rand() % 50).unsigned_abs() as usize;
+    let total = FIFTY + pool.extra.len();
+    let mut used = vec![false; total];
+    for (u, &(_, open)) in used[FIFTY..].iter_mut().zip(&pool.extra) {
+        *u = !open;
+    }
+    for (k, slot) in rows.iter_mut().take(n as usize).enumerate() {
+        let m = if k < 3 { FIFTY } else { total } as i32;
+        let mut r = (mt.rand() % m).unsigned_abs() as usize;
         while used[r] {
-            r = if r + 1 < 50 { r + 1 } else { 0 };
+            r = if r + 1 < total { r + 1 } else { 0 };
         }
         used[r] = true;
-        *slot = r as i16 + 30;
+        *slot = if r < FIFTY { r as i16 + 30 } else { pool.extra[r - FIFTY].0 };
     }
     rows
 }
@@ -235,6 +306,10 @@ pub enum PcEvent {
     /// stands on ground `attribute`, and `ccEffPawSmoke(pc, +0x2c0)` at its
     /// feet (none when the model has no foot nodes), heading `dirc_z`.
     Step { param: u32, ccs_type: i32, pos: V4, attribute: u32, feet: Option<[V4; 2]>, dirc_z: F, speed: F },
+    /// From Mutation on, a SEARCH PC's going (`npc_act 5`): `effOpenBox`
+    /// at its place, and at stage 5 `effVirusCrystal` there and
+    /// `ccSeOn3DNote(167, pos, 40)` (MUT gcmn 0x00524568).
+    Vanish { pos: V4, crystal: bool },
 }
 
 /// The town's walking PCs' shared state: the globals of `rtownnpc.cpp` and
@@ -263,6 +338,12 @@ pub struct TownPcs {
     /// PCs placed so far: each body's id in the character list is
     /// [`BODY_ID`] plus its number.
     pub placed: u32,
+    /// From Mutation on, `ccSnd +0x13a`: the Flag Race is on (the world's,
+    /// each frame).
+    pub race_hold: bool,
+    /// `saveData.eventStatus[80]` (+0x64f8) as the frame starts: a SEARCH
+    /// PC's vanishing reads its row's.
+    pub event_status: [u8; 80],
 }
 
 impl TownPcs {
@@ -291,6 +372,8 @@ impl TownPcs {
             chat_mes: 0,
             talk_flag: false,
             placed: 0,
+            race_hold: false,
+            event_status: [0; 80],
         })
     }
 
@@ -311,6 +394,8 @@ impl TownPcs {
             chat_mes: 0,
             talk_flag: false,
             placed: 0,
+            race_hold: false,
+            event_status: [0; 80],
         })
     }
 
@@ -397,6 +482,14 @@ pub struct RtownPc {
     /// +0x2d0 `thinkType` (1 in a chat group), +0x2d1 `changeRouteFlag`.
     pub think_type: u8,
     pub change_route_flag: u8,
+    /// From Mutation on: +0x2d6, a SEARCH PC (its `searchMode`, MUT gcmn
+    /// 0x005243f0, in place of `normalMode`); +0x2be, its stage; +0x2bc,
+    /// the angle of its glimmer; +0x2d7, one of the PCs the Flag Race
+    /// hides (a slot of 4 or more, even).
+    pub search: bool,
+    pub stage: i16,
+    pub glimmer: i16,
+    pub race_hide: bool,
     /// The weapons on its hands: (hand, model).
     pub weapons: Vec<(String, String)>,
     /// `changeTEX`: the texture `MAT_tex` takes (`ccClump::ChangeTex`; the
@@ -404,6 +497,49 @@ pub struct RtownPc {
     pub tex_swap: Option<String>,
     /// What this frame asked for.
     pub events: Vec<PcEvent>,
+}
+
+/// Where a PC comes from: a slot of the town's draw (its start and route
+/// from `markPosTbl`), an event (at the origin, for `ccEntryEventMng` to
+/// set at its marker), or from Mutation on a SEARCH event (`entry 3 row
+/// marker -1`), at its stage's place.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Origin {
+    Slot(i32),
+    Event,
+    Search(Search),
+}
+
+/// A SEARCH PC as its set-up (MUT gcmn 0x00521e50) makes it: its stage
+/// (`eventStatus[row - 117]`), its `markPos`, and where it starts.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Search {
+    pub stage: i16,
+    pub mark_pos: [i8; 4],
+    pub pos: V4,
+    pub dirc: V4,
+}
+
+impl Search {
+    /// The set-up for row `row` at stage `stage`: below stage 5 at its
+    /// landmark (`markPos[0]`), from 5 at the dummy it names, facing the
+    /// dummy's way for the first three; None for a row with no marks.
+    pub fn set_up(town: &TownPcs, file: &SceneFile, row: i32, stage: i16) -> Option<Search> {
+        let marks = town.tables.search_marks.get(usize::try_from(row - 159).ok()?)?.as_ref()?;
+        let mark_pos = *marks.get(usize::try_from(stage).ok()?)?;
+        let (mut pos, mut dirc) = (ee::VF0, ee::VF0);
+        if stage < 5 {
+            town.landmark(mark_pos[0], &mut pos);
+        } else {
+            let name = town.tables.search_dummies.get(usize::try_from(mark_pos[0]).ok()?)?;
+            let (p, r) = crate::event::dummy_in(file, name)?;
+            pos = p;
+            if mark_pos[0] < 3 {
+                dirc = r;
+            }
+        }
+        Some(Search { stage, mark_pos, pos, dirc })
+    }
 }
 
 /// A PC's model as `ccRtownPC::ccRtownPC` builds it: the file's `CMP_trall`,
@@ -469,7 +605,26 @@ impl RtownPc {
         player: V4,
         hits: &mut Hits,
     ) -> RtownPc {
+        let origin = if marker >= 0 { Origin::Slot(marker) } else { Origin::Event };
+        RtownPc::place_as(town, row, model, origin, player, hits)
+    }
+
+    /// [`RtownPc::place`] from any [`Origin`]: a SEARCH PC is made at its
+    /// stage's place and set to walk its route (`markPos`) or stand (stage
+    /// 5 on), off the character list, glimmering (MUT gcmn 0x00523058).
+    pub fn place_as(
+        town: &Rc<RefCell<TownPcs>>,
+        row: &NpcRow,
+        model: &PcModel,
+        origin: Origin,
+        player: V4,
+        hits: &mut Hits,
+    ) -> RtownPc {
         let mut t = town.borrow_mut();
+        let marker = match origin {
+            Origin::Slot(m) => m,
+            Origin::Event | Origin::Search(_) => -1,
+        };
         // ccEntryParamClear: pos and dirc (0, 0, 0, 1).
         let mut pos = ee::VF0;
         let mark_pos = usize::try_from(marker)
@@ -480,6 +635,10 @@ impl RtownPc {
             .unwrap_or([0; 4]);
         if marker >= 0 {
             t.landmark(mark_pos[0], &mut pos);
+        }
+        let mut dirc = ee::VF0;
+        if let Origin::Search(s) = origin {
+            (pos, dirc) = (s.pos, s.dirc);
         }
         // entryObject, one object, entParam+0x44 -1: on the ground.
         pos[2] = hits.land(pos, ENTRY_LAND_MASK);
@@ -494,13 +653,13 @@ impl RtownPc {
                 Char::new(model.body.clone(), &name, pos, ee::VF0, height, width)
             })
             .expect("a walking PC's file has animations");
-        ch.dirc = [0, 0, 0, ONE];
+        ch.dirc = dirc;
         ch.hit = hit::Body {
             pos,
             radius: 0x420c_0000, // 35
             height: 0x42f0_0000, // 120
             mask2: WALL_MASK,
-            kind: KIND_PC,
+            kind: pc_kind(hits.volume),
             id: BODY_ID + t.placed,
             ..hit::Body::default()
         };
@@ -552,10 +711,24 @@ impl RtownPc {
             anm_tbl,
             think_type: 0,
             change_route_flag: 0,
+            search: false,
+            stage: 0,
+            glimmer: 0,
+            race_hide: false,
             weapons: model.weapons.clone(),
             tex_swap: model.tex_swap.clone(),
             events: Vec::new(),
         };
+        // From Mutation on a SEARCH TV PC (types 32-40) glimmers at 0.3
+        // and walks at 3.5 (MUT gcmn 0x00522dbc).
+        if let Origin::Search(s) = origin {
+            pc.search = true;
+            pc.stage = s.stage;
+            if (32..41).contains(&pc.ccs_type) {
+                pc.transrate = 0x3e99_999a;
+                pc.walk_spd = EV_WALK_SPD;
+            }
+        }
         if marker >= 0 {
             pc.target_num = mark_pos[1];
             pc.target_num_old = pc.target_num;
@@ -582,6 +755,25 @@ impl RtownPc {
             }
             pc.think_mode = 0;
             pc.char.dirc[2] = get_dirc(pc.char.pos, pc.next_pos);
+            // From Mutation on the slots of 4 and up, even, leave the town
+            // while the Flag Race runs (MUT gcmn 0x00523010).
+            pc.race_hide = t.tables.later && marker >= 3 && marker % 2 == 0;
+        } else if let Origin::Search(s) = origin {
+            // Below stage 5 it walks its route from its landmark (act 6),
+            // from 5 it stands (act 8); off the character list either way.
+            pc.think_mode = 0;
+            pc.think_type = 0;
+            pc.ev_act_num = -1;
+            if s.stage < 5 {
+                pc.mark_pos = s.mark_pos;
+                pc.target_num = s.mark_pos[1];
+                pc.target_num_old = pc.target_num;
+                pc.target_num_start = s.mark_pos[0];
+                pc.act_num = 6;
+            } else {
+                pc.act_num = 8;
+            }
+            hits.set_hit_sw(&mut pc.char.hit, false);
         } else {
             pc.think_mode = 1;
             pc.ev_act_num = 2;
@@ -679,14 +871,44 @@ impl RtownPc {
         }
     }
 
-    /// `ccRtownPC::main` (gcmn 0x00507c20).
+    /// `ccRtownPC::main` (gcmn 0x00507c20; MUT 0x00523760): from Mutation
+    /// on a SEARCH PC runs its `searchMode`, meets no one, makes no steps'
+    /// sounds, and while it goes keeps the fade `routine` runs.
     pub fn main(&mut self, ctx: &mut NpcCtx) {
         self.char.pos_p = w2p(self.char.pos, ctx.player);
-        let hidden = if self.think_mode == 0 { self.normal_mode(ctx) } else { self.event_mode(ctx) };
+        let hidden = match (self.think_mode, self.search) {
+            (0, false) => self.normal_mode(ctx),
+            (0, true) => self.search_mode(ctx),
+            _ => self.event_mode(ctx),
+        };
         if hidden {
             self.char.drawn = false;
             return;
         }
+        if !self.search {
+            self.collide(ctx);
+        }
+        if check_camera_deg(self.char.pos, 12288, ctx.cam, ctx.player) {
+            // _AnimateForward, then NoteProcess through rtpcCheckNote.
+            let (_, notes) = self.char.play.forward_notes(&self.char.body.file);
+            for (event, param) in notes {
+                if matches!(event, 1 | 2) && !self.search {
+                    self.step_note(param);
+                }
+            }
+            if !(self.search && self.ev_act_num == 5) {
+                self.char.transparency = self.transrate;
+                self.char.set_transparency = self.transrate;
+            }
+            self.char.fade(ctx.hits.volume, &ctx.view);
+        } else {
+            self.char.drawn = false;
+        }
+    }
+
+    /// `main`'s `CollisionDetection` (its walls only near Kite), and in its
+    /// own mode the push.
+    fn collide(&mut self, ctx: &mut NpcCtx) {
         self.char.hit.mask2 = if lt(self.pl_dist, NEAR_KITE) { WALL_MASK } else { 1 };
         self.char.hit.pos = self.char.pos;
         if ctx.hits.collision_detection(&mut self.char.hit) != 0 {
@@ -703,35 +925,26 @@ impl RtownPc {
             self.body_hit_flag = 0;
             self.body_hit_cnt = 0;
         }
-        if check_camera_deg(self.char.pos, 12288, ctx.cam, ctx.player) {
-            // _AnimateForward, then NoteProcess through rtpcCheckNote.
-            let (_, notes) = self.char.play.forward_notes(&self.char.body.file);
-            for (event, param) in notes {
-                if matches!(event, 1 | 2) {
-                    let c = &self.char;
-                    let worlds = c.body.worlds(&c.play, c.root());
-                    let foot = |name: &str| {
-                        let t = worlds.get(&c.body.file.ccs.find_object(name)?)?.w_axis;
-                        Some([t.x.to_bits(), t.y.to_bits(), t.z.to_bits(), ONE])
-                    };
-                    let feet = foot("OBJ_t0 l foot").zip(foot("OBJ_t0 r foot")).map(|(l, r)| [l, r]);
-                    self.events.push(PcEvent::Step {
-                        param,
-                        ccs_type: self.ccs_type,
-                        pos: c.pos,
-                        attribute: c.hit_attribute,
-                        feet,
-                        dirc_z: c.dirc[2],
-                        speed: self.walk_spd,
-                    });
-                }
-            }
-            self.char.transparency = self.transrate;
-            self.char.set_transparency = self.transrate;
-            self.char.fade(ctx.hits.volume, &ctx.view);
-        } else {
-            self.char.drawn = false;
-        }
+    }
+
+    /// `rtpcCheckNote` on a step note: its sound and dust.
+    fn step_note(&mut self, param: u32) {
+        let c = &self.char;
+        let worlds = c.body.worlds(&c.play, c.root());
+        let foot = |name: &str| {
+            let t = worlds.get(&c.body.file.ccs.find_object(name)?)?.w_axis;
+            Some([t.x.to_bits(), t.y.to_bits(), t.z.to_bits(), ONE])
+        };
+        let feet = foot("OBJ_t0 l foot").zip(foot("OBJ_t0 r foot")).map(|(l, r)| [l, r]);
+        self.events.push(PcEvent::Step {
+            param,
+            ccs_type: self.ccs_type,
+            pos: c.pos,
+            attribute: c.hit_attribute,
+            feet,
+            dirc_z: c.dirc[2],
+            speed: self.walk_spd,
+        });
     }
 
     /// |posP|: the distance to Kite in the plane and the PC's own height.
@@ -799,73 +1012,36 @@ impl RtownPc {
                 set_dirc(&mut self.char.dirc[2], self.pl_dirc, 64);
                 false
             }
-            3 => match self.act_process {
-                0 => {
-                    self.set_anm(2);
-                    self.act_process += 1;
-                    self.route_move(ctx);
-                    false
-                }
-                1 => {
-                    let d = self.pos_p_len();
-                    self.dist = d;
-                    if ee::le(d, SHOW) {
-                        self.route_move(ctx);
-                        false
-                    } else {
-                        self.act_num = 0;
-                        self.act_process = 0;
-                        ctx.hits.hit_disable(&mut self.char.hit);
-                        town.borrow_mut().shown -= 1;
-                        self.delete_cmnd_list();
-                        true
-                    }
-                }
-                _ => {
-                    self.route_move(ctx);
-                    false
-                }
-            },
-            4 => {
+            3 => {
                 match self.act_process {
                     0 => {
-                        if self.what_shop() {
-                            self.set_anm(0);
-                            self.act_process += 1;
-                            self.act_cnt = 0;
-                        } else {
-                            self.act_process = 1;
-                            self.act_num = 3;
-                            self.act_cnt = 0;
-                            self.change_route(true, ctx.hits);
-                        }
+                        self.set_anm(2);
+                        self.act_process += 1;
                     }
                     1 => {
-                        set_dirc(&mut self.char.dirc[2], self.merchan_deg, 64);
-                        let c = self.act_cnt;
-                        self.act_cnt += 1;
-                        if c >= 61 {
-                            self.act_cnt = 0;
-                            self.change_route(true, ctx.hits);
-                            self.act_process += 1;
-                        }
-                    }
-                    2 => {
-                        let c = self.act_cnt;
-                        self.act_cnt += 1;
-                        if c >= 31 {
+                        let d = self.pos_p_len();
+                        self.dist = d;
+                        if !ee::le(d, SHOW) {
+                            self.act_num = 0;
                             self.act_process = 0;
-                            self.act_num = 3;
-                            let mut t = town.borrow_mut();
-                            let r = (t.mt.rand() & 3) as usize;
-                            let text = t.tables.chat_shop.get(self.shop_num as usize).map_or("", |s| s[r]);
-                            self.events.push(PcEvent::Chat(text));
+                            ctx.hits.hit_disable(&mut self.char.hit);
+                            town.borrow_mut().shown -= 1;
+                            self.delete_cmnd_list();
+                            return true;
                         }
                     }
                     _ => {}
                 }
+                self.route_move(ctx);
+                // From Mutation on, after its move, one the Flag Race hides
+                // leaves while it runs (MUT gcmn 0x00523cac).
+                if self.race_hide && town.borrow().race_hold {
+                    self.act_num = 9;
+                    self.act_process = 0;
+                }
                 false
             }
+            4 => self.shop_visit(ctx),
             5 => {
                 if town.borrow().talk_flag {
                     return false;
@@ -937,61 +1113,268 @@ impl RtownPc {
                     _ => false,
                 }
             }
-            7 => {
-                match self.act_process {
-                    0 => {
-                        self.set_anm(0);
-                        self.act_process += 1;
-                    }
-                    1 => {
-                        ctx.hits.hit_disable(&mut self.char.hit);
-                        town.borrow_mut().shown -= 1;
-                        self.delete_cmnd_list();
-                        self.events.push(PcEvent::Transfer);
-                        self.act_process += 1;
-                    }
-                    2 => {
-                        let t = sub(self.transrate, FADE_STEP);
-                        self.transrate = t;
-                        if lt(t, 0) {
-                            self.transrate = 0;
-                            self.act_process += 1;
-                            self.act_cnt = 0;
-                            self.change_route(true, ctx.hits);
-                        }
-                    }
-                    3 => {
-                        let c = self.act_cnt;
-                        self.act_cnt += 1;
-                        if c >= 91 {
-                            self.act_process += 1;
-                            self.events.push(PcEvent::Transfer);
-                        }
-                        let to = get_dirc0(self.char.pos, self.next_pos);
-                        set_dirc(&mut self.char.dirc[2], to, 64);
-                    }
-                    4 => {
-                        let t = add(self.transrate, FADE_STEP);
-                        self.transrate = t;
-                        if !ee::le(t, ONE) {
-                            self.transrate = ONE;
-                            self.act_process += 1;
-                            self.act_cnt = 0;
-                        }
-                    }
-                    5 => {
+            7 => self.gate_visit(ctx, true),
+            // From Mutation on (MUT gcmn 0x00524320): out of the town while
+            // the Flag Race runs, back to walking after it.
+            9 => match self.act_process {
+                0 => {
+                    ctx.hits.hit_disable(&mut self.char.hit);
+                    town.borrow_mut().shown -= 1;
+                    self.delete_cmnd_list();
+                    self.act_process += 1;
+                    false
+                }
+                1 => {
+                    if !town.borrow().race_hold {
                         self.act_num = 3;
                         self.act_process = 0;
                         self.entry_cmnd();
                         ctx.hits.hit_enable(&mut self.char.hit);
                         town.borrow_mut().shown += 1;
                     }
-                    _ => {}
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    /// From Mutation on, `searchMode` (MUT gcmn 0x005243f0): a SEARCH PC's
+    /// acts. It glimmers (0.3 sin of a turning angle, at least 0.1) unless
+    /// spoken to; an event's `npc_act` 2 turns it to Kite, 5 makes it go
+    /// (`effOpenBox`, the crystal at its last stage), 6 hides it. Its walk
+    /// is `normalMode`'s, slower, off the character list. True when hidden.
+    fn search_mode(&mut self, ctx: &mut NpcCtx) -> bool {
+        const GLIMMER: F = 0x3e99_999a; // 0.3
+        const FAINTEST: F = 0x3dcc_cccd; // 0.1
+        const BRIGHTEST: F = 0x3f4c_cccd; // 0.8
+        let town = self.town.clone();
+        if self.ev_act_num != 5 && self.act_num != 2 {
+            let t = mul(GLIMMER, sinf(deg2rad(self.glimmer)));
+            self.transrate = if lt(t, FAINTEST) { FAINTEST } else { t };
+            self.glimmer = self.glimmer.wrapping_add(256) & 0x7fff;
+        }
+        match self.ev_act_num {
+            6 => {
+                self.transrate = 0;
+                return true;
+            }
+            5 => match self.ev_act_process {
+                0 => {
+                    self.transrate = 0;
+                    ctx.hits.hit_disable(&mut self.char.hit);
+                    town.borrow_mut().shown -= 1;
+                    self.delete_cmnd_list();
+                    self.ev_act_process += 1;
+                    self.act_cnt = 0;
+                    self.act_num = -1;
+                    self.fade_flag = 2;
+                    self.fade_cnt = 30;
+                    let status = usize::try_from(self.row.id - 117)
+                        .ok()
+                        .and_then(|k| town.borrow().event_status.get(k).copied());
+                    self.events.push(PcEvent::Vanish { pos: self.char.pos, crystal: status == Some(5) });
+                }
+                1 | 2 => {
+                    let c = self.act_cnt;
+                    self.act_cnt += 1;
+                    if c >= if self.ev_act_process == 1 { 6 } else { 26 } {
+                        self.ev_act_process += 1;
+                    }
+                }
+                3 => return true,
+                _ => {}
+            },
+            2 => {
+                self.act_num = 2;
+                self.act_process = 0;
+                self.ev_act_num = -1;
+            }
+            _ => {}
+        }
+        match self.act_num {
+            0 => {
+                let t = town.borrow();
+                if t.shown < MAX_SHOWN {
+                    let d = self.pos_p_len();
+                    self.dist = d;
+                    if lt(d, SHOW) {
+                        self.act_num = 1;
+                        t.landmark(self.mark_pos[0], &mut self.char.pos);
+                        drop(t);
+                        self.change_route(false, ctx.hits);
+                    }
+                }
+                true
+            }
+            1 => {
+                if town.borrow().shown < MAX_SHOWN {
+                    let d = self.pos_p_len();
+                    if lt(d, SHOW) && !ee::le(d, SHOW_NEAR) {
+                        if lt(self.dist, d) {
+                            self.dist = d;
+                            return true;
+                        }
+                        self.act_num = 3;
+                        self.act_process = 0;
+                        town.borrow_mut().shown += 1;
+                        self.entry_cmnd();
+                        self.transrate = GLIMMER;
+                        return false;
+                    }
+                }
+                self.act_num = 0;
+                true
+            }
+            2 => {
+                if self.act_process == 0 {
+                    self.set_anm(0);
+                    self.act_process += 1;
+                }
+                let t = add(self.transrate, FADE_STEP);
+                self.transrate = if ee::le(t, BRIGHTEST) { t } else { BRIGHTEST };
+                set_dirc(&mut self.char.dirc[2], self.pl_dirc, 64);
+                false
+            }
+            3 => {
+                if self.act_process == 0 {
+                    self.set_anm(1);
+                    self.act_process += 1;
+                }
+                self.route_move(ctx);
+                false
+            }
+            4 => self.shop_visit(ctx),
+            6 => {
+                let mut goal = [0; 4];
+                town.borrow().landmark(self.target_num, &mut goal);
+                self.route_search(goal, ctx.hits);
+                self.navi.landmark += 1;
+                self.destination();
+                self.act_num = 3;
+                self.entry_cmnd();
+                ctx.hits.hit_disable(&mut self.char.hit);
+                town.borrow_mut().shown += 1;
+                false
+            }
+            7 => self.gate_visit(ctx, false),
+            8 => {
+                if self.act_process == 0 {
+                    self.entry_cmnd();
+                    ctx.hits.hit_disable(&mut self.char.hit);
+                    town.borrow_mut().shown += 1;
+                    self.set_anm(0);
+                    self.act_process += 1;
                 }
                 false
             }
             _ => false,
         }
+    }
+
+    /// `normalMode`'s and `searchMode`'s act 4: at a shop's landmark, a
+    /// look at the shop for 61 frames, then on with a line.
+    fn shop_visit(&mut self, ctx: &mut NpcCtx) -> bool {
+        let town = self.town.clone();
+        match self.act_process {
+            0 => {
+                if self.what_shop() {
+                    self.set_anm(0);
+                    self.act_process += 1;
+                    self.act_cnt = 0;
+                } else {
+                    self.act_process = 1;
+                    self.act_num = 3;
+                    self.act_cnt = 0;
+                    self.change_route(true, ctx.hits);
+                }
+            }
+            1 => {
+                set_dirc(&mut self.char.dirc[2], self.merchan_deg, 64);
+                let c = self.act_cnt;
+                self.act_cnt += 1;
+                if c >= 61 {
+                    self.act_cnt = 0;
+                    self.change_route(true, ctx.hits);
+                    self.act_process += 1;
+                }
+            }
+            2 => {
+                let c = self.act_cnt;
+                self.act_cnt += 1;
+                if c >= 31 {
+                    self.act_process = 0;
+                    self.act_num = 3;
+                    let mut t = town.borrow_mut();
+                    let r = (t.mt.rand() & 3) as usize;
+                    let text = t.tables.chat_shop.get(self.shop_num as usize).map_or("", |s| s[r]);
+                    self.events.push(PcEvent::Chat(text));
+                }
+            }
+            _ => {}
+        }
+        false
+    }
+
+    /// Act 7: at Mac Anu's gate, out through it, a breath, and back in;
+    /// in `normalMode` back onto the character list (`hit`), a SEARCH PC
+    /// not.
+    fn gate_visit(&mut self, ctx: &mut NpcCtx, hit: bool) -> bool {
+        let town = self.town.clone();
+        match self.act_process {
+            0 => {
+                self.set_anm(0);
+                self.act_process += 1;
+            }
+            1 => {
+                ctx.hits.hit_disable(&mut self.char.hit);
+                town.borrow_mut().shown -= 1;
+                self.delete_cmnd_list();
+                self.events.push(PcEvent::Transfer);
+                self.act_process += 1;
+            }
+            2 => {
+                let t = sub(self.transrate, FADE_STEP);
+                self.transrate = t;
+                if lt(t, 0) {
+                    self.transrate = 0;
+                    self.act_process += 1;
+                    self.act_cnt = 0;
+                    self.change_route(true, ctx.hits);
+                }
+            }
+            3 => {
+                let c = self.act_cnt;
+                self.act_cnt += 1;
+                if c >= 91 {
+                    self.act_process += 1;
+                    self.events.push(PcEvent::Transfer);
+                }
+                let to = get_dirc0(self.char.pos, self.next_pos);
+                set_dirc(&mut self.char.dirc[2], to, 64);
+            }
+            4 => {
+                let t = add(self.transrate, FADE_STEP);
+                self.transrate = t;
+                if !ee::le(t, ONE) {
+                    self.transrate = ONE;
+                    self.act_process += 1;
+                    self.act_cnt = 0;
+                }
+            }
+            5 => {
+                self.act_num = 3;
+                self.act_process = 0;
+                self.entry_cmnd();
+                if hit {
+                    ctx.hits.hit_enable(&mut self.char.hit);
+                }
+                town.borrow_mut().shown += 1;
+            }
+            _ => {}
+        }
+        false
     }
 
     fn route_search(&mut self, goal: V4, hits: &mut Hits) {
@@ -1032,7 +1415,9 @@ impl RtownPc {
                 }
                 step(self, a);
                 if self.chat_cnt == 0 {
-                    if lt(self.pl_dist, CHAT_NEAR) {
+                    // From Mutation on a SEARCH PC greets no one (MUT gcmn
+                    // 0x005234fc).
+                    if lt(self.pl_dist, CHAT_NEAR) && !self.search {
                         let mut t = self.town.borrow_mut();
                         let r = (t.mt.rand() & 3) as usize;
                         if !t.chat_hold {
@@ -1180,6 +1565,11 @@ impl RtownPc {
                     self.transrate = 0;
                     self.set_anm(0);
                     self.ev_act_process += 1;
+                    // From Mutation on it comes in through the gate's
+                    // effect (MUT gcmn 0x0052515c).
+                    if town.borrow().tables.later {
+                        self.events.push(PcEvent::Transfer);
+                    }
                 }
                 1 => {
                     let t = add(self.transrate, FADE_STEP);
@@ -1396,8 +1786,8 @@ impl Npc for RtownPc {
 
 /// Mac Anu's walking PCs as `ccSetupGameCtrl` and `ccThEntryCtrl`'s set-up
 /// make them: `ccRand` seeded with `count` (`ccSys+0x358`), `reserved`
-/// rows kept back (`eventMng+0x1c`), each chosen row's model loaded and the
-/// PC placed, Kite at `player`.
+/// rows kept back (`eventMng+0x1c`), drawn from `pool`, each chosen row's
+/// model loaded and the PC placed, Kite at `player`.
 #[allow(clippy::too_many_arguments)]
 pub fn enter(
     archive: &Arc<Archive>,
@@ -1406,11 +1796,12 @@ pub fn enter(
     town_no: i32,
     count: u32,
     reserved: i32,
+    pool: &Pool,
     player: V4,
     hits: &mut Hits,
 ) -> Result<(Rc<RefCell<TownPcs>>, Vec<RtownPc>)> {
     let mut mt = Mt::init(count);
-    let rows = register_random_npc(&mut mt, reserved);
+    let rows = register_random_npc(&mut mt, reserved, pool);
     let town = Rc::new(RefCell::new(TownPcs::new(volume, town_no, town_file, mt)?));
     let mut pcs = Vec::new();
     let mut files = Files::new();
@@ -1444,7 +1835,7 @@ mod tests {
     #[test]
     fn fifteen_distinct_rows() {
         let mut mt = Mt::init(1234);
-        let rows = register_random_npc(&mut mt, 1);
+        let rows = register_random_npc(&mut mt, 1, &Pool::default());
         let chosen: Vec<i16> = rows.iter().copied().filter(|&r| r >= 0).collect();
         assert_eq!(chosen.len(), 15);
         assert!(chosen.iter().all(|&r| (30..80).contains(&r)));
@@ -1453,6 +1844,42 @@ mod tests {
         s.dedup();
         assert_eq!(s.len(), 15);
         assert_eq!(rows[15], -1);
+    }
+
+    /// From Mutation on: fewer PCs by server, and the six rows past the
+    /// fifty only once their events are done.
+    #[test]
+    fn mutations_pool() {
+        let t = Tables::of(Volume::Mut);
+        assert_eq!(t.walk_extra_rows, [180, 181, 183, 182, 120, 121]);
+        let none = Pool::with(&t, 4, |_| false);
+        assert_eq!(none.fewer, 10);
+        let mut mt = Mt::init(99);
+        let rows = register_random_npc(&mut mt, 1, &none);
+        let chosen: Vec<i16> = rows.iter().copied().filter(|&r| r >= 0).collect();
+        assert_eq!(chosen.len(), 5);
+        assert!(chosen.iter().all(|&r| (30..80).contains(&r)));
+        let all = Pool::with(&t, 0, |_| true);
+        let mut seen = std::collections::BTreeSet::new();
+        for count in 0..200 {
+            let mut mt = Mt::init(count);
+            seen.extend(register_random_npc(&mut mt, 1, &all).into_iter().filter(|&r| r >= 80));
+        }
+        assert_eq!(seen.into_iter().collect::<Vec<_>>(), [120, 121, 180, 181, 182, 183]);
+        assert_eq!(Pool::with(&Tables::of(Volume::Inf), 4, |_| true), Pool::default());
+    }
+
+    /// From Mutation on, the SEARCH PCs' marks: BT (165) walks from
+    /// landmark 9 at stage 0, and row 162 stands at `DMY_marker29` from
+    /// stage 5.
+    #[test]
+    fn search_marks() {
+        let t = Tables::of(Volume::Mut);
+        assert_eq!(t.search_marks.len(), 12);
+        assert_eq!(t.search_marks[165 - 159].as_ref().map(|m| m[0]), Some([9, 8, 9, 8]));
+        assert_eq!(t.search_marks[162 - 159].as_ref().map(|m| m[5]), Some([4, -1, -1, -1]));
+        assert_eq!(t.search_dummies[4], "DMY_marker29");
+        assert!(Tables::of(Volume::Inf).search_marks.is_empty());
     }
 
     const ISO: &str = "../../work/infection/infection.iso";
@@ -1497,14 +1924,15 @@ mod tests {
     fn mac_anu_walking_pcs() {
         let Some(mut m) = mac_anu() else { return };
         // ccSys+0x358 0, Kite alone: the rows the game picks (eemu).
-        let (town, mut pcs) = enter(&m.archive, Volume::Inf, &m.town, 0, 0, 1, crate::START_POS, &mut m.hits).unwrap();
+        let (town, mut pcs) =
+            enter(&m.archive, Volume::Inf, &m.town, 0, 0, 1, &Pool::default(), crate::START_POS, &mut m.hits).unwrap();
         let rows: Vec<i16> = pcs.iter().map(|p| p.row.id).collect();
         assert_eq!(rows, [37, 39, 49, 57, 44, 45, 47, 38, 79, 56, 62, 58, 61, 50, 63]);
         // Markers 0-2: Mac Anu's chat group round landmark 38; the rest walk.
         let acts: Vec<i16> = pcs.iter().map(|p| p.act_num).collect();
         assert_eq!(acts[..4], [5, 5, 5, 6]);
         assert!(acts[3..].iter().all(|&a| a == 6));
-        assert!(pcs.iter().all(|p| p.char.hit.sw && p.char.hit.kind == KIND_PC && !p.listed));
+        assert!(pcs.iter().all(|p| p.char.hit.sw && p.char.hit.kind == pc_kind(Volume::Inf) && !p.listed));
         assert_eq!(m.hits.chars.len(), 15);
         // Weapons on their hands: row 57 (Koji, ctwm3, a staff) in the right.
         let koji = &pcs[3];

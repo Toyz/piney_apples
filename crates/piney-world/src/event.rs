@@ -38,7 +38,13 @@ pub fn marker_dummy_in(
         return None;
     }
     let name = piney_data::tables::world::of(volume).markers().get(n as usize)?.to_string();
-    let obj = file.ccs.find_object(&name)?;
+    dummy_in(file, &name)
+}
+
+/// The dummy `name` of `file` as `Decode_DummyPos` leaves its chunk: its
+/// position (w 1) and its whole rotation (+0x20, radians, w 0).
+pub fn dummy_in(file: &piney_desktop::assets::SceneFile, name: &str) -> Option<(V4, V4)> {
+    let obj = file.ccs.find_object(name)?;
     let d = file.scene.dummies.get(&obj)?;
     let pos = [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE];
     let [x, y, z] = d.rot.map_or([0; 3], |r| piney_data::anim::const_radians([r.x, r.y, r.z].map(f32::to_bits)));
@@ -81,12 +87,22 @@ impl World {
     /// `markerEvTbl[n]` in the town: the dummy's position (w 1) and its
     /// rotation's z, bits.
     pub fn marker_bits(&self, n: i16) -> Option<(V4, F)> {
-        marker_in(&self.town.base.file, self.volume, n)
+        self.marker_dummy(n).map(|(pos, rot)| (pos, rot[2]))
     }
 
-    /// [`marker_dummy_in`] of the town's file.
+    /// [`marker_dummy_in`] of the town's file, with the rotation the game
+    /// wrote into the dummy this visit if it did.
     pub fn marker_dummy(&self, n: i16) -> Option<(V4, V4)> {
-        marker_dummy_in(&self.town.base.file, self.volume, n)
+        let (pos, rot) = marker_dummy_in(&self.town.base.file, self.volume, n)?;
+        let name = piney_data::tables::world::of(self.volume).markers().get(n as usize).copied();
+        let written = self.town.base.written.iter().find(|(d, _)| Some(d.as_str()) == name).map(|&(_, r)| r);
+        Some((pos, written.unwrap_or(rot)))
+    }
+
+    /// [`event_marker_in`] in the town, as [`World::marker_dummy`] reads
+    /// the marker.
+    pub fn event_marker(&self, marker: i16) -> Option<(V4, V4)> {
+        if marker < 0 { Some((ee::VF0, ee::VF0)) } else { self.marker_dummy(marker) }
     }
 
     /// [`World::marker_bits`] as the interpreter's `Host::marker`.
@@ -307,7 +323,7 @@ impl World {
     pub fn entry(&mut self, ty: i16, code: i16, marker: i16, param: i16) -> bool {
         match crate::event_kind(ty) {
             Some(Kind::Spc) => {}
-            Some(Kind::Npc) => return self.entry_npc(ty, code, marker),
+            Some(Kind::Npc) => return self.entry_npc(ty, code, marker, param),
             _ => return false,
         }
         // Registered for the town's set-up, which builds a member and puts

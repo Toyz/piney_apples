@@ -33,12 +33,24 @@ pub const VIEW_DEG: i16 = 12288;
 /// lists) beyond 10000.
 pub const DISP_DIST: F = 0x45da_c000;
 pub const FREEZE_DIST: F = 0x461c_4000;
-/// The merchant's `bodyHit`: radius 35, height 120, type 2; both masks all
-/// ones (every character type; no hit polygon has every bit).
+/// The merchant's `bodyHit`: radius 35, height 120; both masks all ones
+/// (every character type; no hit polygon has every bit).
 pub const BODY_RADIUS: F = 0x420c_0000;
 pub const BODY_HEIGHT: F = 0x42f0_0000;
-pub const BODY_TYPE: u32 = 2;
 pub const BODY_MASK: u32 = 0xffff_ffff;
+
+/// The merchant's body's type: 2 on Infection, 16 from Mutation on (MUT
+/// gcmn 0x00520d50).
+pub fn body_kind(volume: Volume) -> u32 {
+    if volume == Volume::Inf { 2 } else { 16 }
+}
+
+/// From Mutation on, the "Event NPC" (`ITEMCOMPLETE`), row 175 + town,
+/// which `ccSetMerchant(0)` makes while `saveData.eventStatus[52]`
+/// (+0x652c) is set: event 317 ("ITEM COMPLETE") sets it once mail 328 is
+/// read. Its action button opens menu 90.
+pub const EVENT_NPC: std::ops::RangeInclusive<i32> = 175..=179;
+pub const EVENT_NPC_STATUS: usize = 52;
 /// The merchants' bodies' keys in [`Hits::chars`]: this plus the row (the
 /// walking PCs' are [`crate::rtownpc::BODY_ID`] on, Kite's
 /// [`hit::PLAYER_ID`]).
@@ -66,15 +78,30 @@ pub const SYSOPE: [i32; 2] = [29, 158];
 pub const TOWN_ROWS: [std::ops::RangeInclusive<usize>; 5] = [0..=4, 5..=10, 11..=16, 17..=22, 23..=28];
 
 /// `setMerchant`'s jump table (0x006ac890): the `DMY_merchantN` of each id
-/// below 29.
+/// below 29; from Mutation on (MUT gcmn 0x005207b4) the Event NPC's marker
+/// dummies.
 pub fn dummy_of(id: i32) -> Option<String> {
     const N: [u8; 6] = [1, 4, 3, 2, 5, 6];
     let k = match id {
         0..=4 => id as usize,
         5..=28 => ((id - 5) % 6) as usize,
+        175 | 176 | 178 => return Some("DMY_marker_ev04".into()),
+        177 => return Some("DMY_marker_ev01".into()),
+        179 => return Some("DMY_marker_ev02".into()),
         _ => return None,
     };
     Some(format!("DMY_merchant{}", N[k]))
+}
+
+/// What `setMerchant` writes into the Event NPC's dummy before it reads
+/// it (the town's dummy itself, for the rest of the visit): 177's turned
+/// to `DEG2RAD(24576)`, 179's x and y 0 and z `DEG2RAD(-24576)`.
+pub fn dummy_turn(id: i32, rot: V4) -> Option<V4> {
+    match id {
+        177 => Some([rot[0], rot[1], ee::deg2rad(24576), rot[3]]),
+        179 => Some([0, 0, ee::deg2rad(-24576), rot[3]]),
+        _ => None,
+    }
 }
 
 /// `ccMerchan::ccMerchan`'s `anmTbl` for id `id` in town `town`: the
@@ -86,6 +113,8 @@ pub fn anm_tbl(id: i32, town: i32) -> Option<[&'static str; 3]> {
         (158, _) => Some(ANM_TBL[1]),
         (_, 0..=3) => Some(ANM_TBL[town as usize]),
         (23..=28, _) => Some(ANM_TBL[1 + ((id - 23) / 2) as usize]),
+        // From Mutation on, Lia Fail's Event NPC.
+        (179, _) => Some(ANM_TBL[1]),
         _ => None,
     }
 }
@@ -348,32 +377,39 @@ pub struct Merchant {
     /// `sysopeAct` is done with it (act 5's end: `main` returns 1 and the
     /// entry control deletes it).
     pub gone: bool,
+    /// For the Event NPC: `saveData.eventStatus[52]` as the frame starts
+    /// (the world's); once clear it goes.
+    pub status_on: bool,
 }
 
 impl Merchant {
     /// `setMerchant(row.id)` in town `town`, through `entryObject`,
     /// `ccMerchan::ccMerchan` and `initObject`: at its dummy in the town's
-    /// file `town_file`, set on the ground of `hits` twice, with `body` (the
-    /// row's file's `CMP_trall`) playing anmTbl[0], Kite at `player`.
+    /// file `town_file` (as `written` has left the dummies' rotations, and
+    /// with the Event NPC's own turn written there), set on the ground of
+    /// `hits` twice, with `body` (the row's file's `CMP_trall`) playing
+    /// anmTbl[0], Kite at `player`.
     pub fn new(
         row: &NpcRow,
         body: Rc<Body>,
         town_file: &SceneFile,
+        written: &mut Vec<(String, V4)>,
         hits: &mut Hits,
         town: i32,
         player: V4,
     ) -> Result<Merchant> {
         let id = i32::from(row.id);
-        let dummy_name = dummy_of(id).ok_or_else(|| Error::NotFound(format!("merchant {id}: no dummy")))?;
-        let dummy = town_file
-            .ccs
-            .find_object(&dummy_name)
-            .and_then(|d| town_file.scene.dummies.get(&d))
-            .ok_or_else(|| Error::NotFound(dummy_name.clone()))?;
-        let rot = dummy.rot.ok_or_else(|| Error::NotFound(format!("{dummy_name}: no rotation")))?;
-        let pos = [dummy.pos.x.to_bits(), dummy.pos.y.to_bits(), dummy.pos.z.to_bits(), ONE];
-        let r = piney_data::anim::const_radians([rot.x.to_bits(), rot.y.to_bits(), rot.z.to_bits()]);
-        Merchant::at(row, body, pos, [r[0], r[1], r[2], 0], hits, town, player)
+        let name = dummy_of(id).ok_or_else(|| Error::NotFound(format!("merchant {id}: no dummy")))?;
+        let (pos, mut rot) = crate::event::dummy_in(town_file, &name).ok_or_else(|| Error::NotFound(name.clone()))?;
+        if let Some(&(_, r)) = written.iter().find(|(n, _)| *n == name) {
+            rot = r;
+        }
+        if let Some(r) = dummy_turn(id, rot) {
+            rot = r;
+            written.retain(|(n, _)| *n != name);
+            written.push((name, r));
+        }
+        Merchant::at(row, body, pos, rot, hits, town, player)
     }
 
     /// `ccMerchan::ccMerchan` over an entry at `pos` facing `dirc` (what
@@ -401,7 +437,7 @@ impl Merchant {
             height: BODY_HEIGHT,
             mask: BODY_MASK,
             mask2: BODY_MASK,
-            kind: BODY_TYPE,
+            kind: body_kind(hits.volume),
             id: BODY_ID + id as u32,
             ..hit::Body::default()
         };
@@ -431,6 +467,7 @@ impl Merchant {
             act_cnt: 0,
             sysop_events: Vec::new(),
             gone: false,
+            status_on: true,
         })
     }
 
@@ -592,6 +629,63 @@ impl Merchant {
         }
     }
 
+    /// From Mutation on, the Event NPC's act (MUT gcmn 0x00521a00): the
+    /// breeders' acts 0-2 (idle, facing Kite, facing its way again), and
+    /// once `eventStatus[52]` is clear act 3, going: idle, `effTransfer`
+    /// and off the command lists, fading out by 0.02. True when gone.
+    pub fn event_npc_act(&mut self) -> bool {
+        // 0.02.
+        const STEP: F = 0x3ca3_d70a;
+        if !self.status_on && self.act_num != 3 {
+            self.act_num = 3;
+            self.act_process = 0;
+        }
+        if self.act_num != 3 {
+            self.breeder_act();
+            return false;
+        }
+        match self.act_process {
+            0 => {
+                self.act_process = 1;
+                self.transrate = ONE;
+                if self.anm_old != 0 {
+                    self.set_anm(0);
+                }
+                self.anm_old = 0;
+            }
+            1 => {
+                self.sysop_events.push(SysopEvent::Transfer);
+                self.act_process += 1;
+                self.entry.delete_cmnd(true);
+            }
+            2 => {
+                let t = ee::sub(self.transrate, STEP);
+                self.transrate = t;
+                if ee::lt(t, 0) {
+                    self.transrate = 0;
+                    self.act_process += 1;
+                    self.act_cnt = 0;
+                    return true;
+                }
+            }
+            _ => {}
+        }
+        false
+    }
+
+    /// From Mutation on, the Event NPC's `affectFunc` (MUT gcmn
+    /// 0x00521990): 15 (Talk) faces Kite from the talk's start, 14 (its
+    /// list opening) only turns it, 0 (closing) faces its way again.
+    pub fn event_npc_influence(&mut self, cmd: i16) {
+        self.affect_type = cmd;
+        match cmd {
+            15 => (self.act_num, self.act_process) = (1, 0),
+            14 => (self.act_num, self.act_process) = (1, 1),
+            0 => (self.act_num, self.act_process) = (2, 0),
+            _ => {}
+        }
+    }
+
     /// `breederInfluence` (0x005065d0) of the menu's command: 14 (the shop
     /// opens) or 15, act 1 (face Kite); 0 (it closes), act 2 (face the booth
     /// again); others nothing.
@@ -615,17 +709,25 @@ impl Merchant {
         let dist = ee::dsqrt_on(hits.volume, d2);
         let in_view = check_camera_deg(self.ch.pos, player, cam, VIEW_DEG);
         // Infection's acts and collides for every one; from Mutation on
-        // (MUT gcmn 0x00521134) only the Administrator, the quiz man and the
-        // Grunt Shops do (and rows 175-179, which the port does not make).
-        let acts = SYSOPE.contains(&self.id) || hits.volume == Volume::Inf || INFLUENCED.contains(&self.id);
-        if SYSOPE.contains(&self.id) {
-            if self.sysope_act() {
-                // main returns 1 at once: the object is deleted.
-                self.gone = true;
-                return MerchantFrame::default();
+        // (MUT gcmn 0x00521134) only the Administrator, the quiz man, the
+        // Grunt Shops and the Event NPC do.
+        let event_npc = hits.volume != Volume::Inf && EVENT_NPC.contains(&self.id);
+        let acts =
+            SYSOPE.contains(&self.id) || hits.volume == Volume::Inf || INFLUENCED.contains(&self.id) || event_npc;
+        let gone = if SYSOPE.contains(&self.id) {
+            self.sysope_act()
+        } else if event_npc {
+            self.event_npc_act()
+        } else {
+            if acts {
+                self.breeder_act();
             }
-        } else if acts {
-            self.breeder_act();
+            false
+        };
+        if gone {
+            // main returns 1 at once: the object is deleted.
+            self.gone = true;
+            return MerchantFrame::default();
         }
         if acts {
             self.ch.hit.pos = self.ch.pos;
@@ -688,6 +790,11 @@ impl Npc for Merchant {
     fn step(&mut self, ctx: &mut NpcCtx) {
         self.entry.routine(ctx.hits.volume, &mut self.ch, ctx.player);
         self.main(ctx.player, ctx.cam, &ctx.view, ctx.hits);
+        // main returned 1: the entry control deletes it at once, and
+        // `~ccCharHit` takes its body off the character list.
+        if self.gone {
+            ctx.hits.hit_disable(&mut self.ch.hit);
+        }
     }
 
     fn listed(&self) -> bool {
@@ -701,6 +808,8 @@ impl Npc for Merchant {
     fn influence(&mut self, cmd: i16) {
         if self.is_breeder() {
             self.breeder_influence(cmd);
+        } else if EVENT_NPC.contains(&self.id) {
+            self.event_npc_influence(cmd);
         } else {
             self.affect_type = cmd;
             self.entry.affect = true;
@@ -748,21 +857,28 @@ impl Npc for Merchant {
     }
 }
 
-/// `ccSetMerchant(0)` (0x005057f0) in area 0 (a Root Town): town `town`'s
-/// merchants from the `volume`'s `npcTbl`, each its row's file's clump, at the
-/// dummies of `town_file`, on the ground of `hits`, Kite at `player`.
+/// `ccSetMerchant(0)` (0x005057f0; MUT 0x00520910) in area 0 (a Root
+/// Town): town `town`'s merchants from the `volume`'s `npcTbl`, each its
+/// row's file's clump, at the dummies of `town_file`, on the ground of
+/// `hits`, Kite at `player`; from Mutation on, with `event_npc`
+/// (`eventStatus[52]`), the Event NPC after them. `written` gathers the
+/// dummies whose rotation `setMerchant` wrote.
+#[allow(clippy::too_many_arguments)]
 pub fn set_merchants(
     archive: &Arc<Archive>,
     volume: Volume,
     town_file: &SceneFile,
+    written: &mut Vec<(String, V4)>,
     hits: &mut Hits,
     town: i32,
     player: V4,
+    event_npc: bool,
 ) -> Result<Vec<Merchant>> {
     let rows = TOWN_ROWS.get(town as usize).ok_or_else(|| Error::NotFound(format!("town {town}")))?.clone();
+    let event_row = (volume != Volume::Inf && event_npc).then(|| *EVENT_NPC.start() as usize + town as usize);
     let mut bodies: Vec<(String, Rc<Body>)> = Vec::new();
     let mut out = Vec::new();
-    for r in rows {
+    for r in rows.chain(event_row) {
         let row = NpcRow::of(volume, r)?;
         let stem = row.stem();
         let body = match bodies.iter().find(|(s, _)| *s == stem) {
@@ -773,7 +889,7 @@ pub fn set_merchants(
                 b
             }
         };
-        out.push(Merchant::new(&row, body, town_file, hits, town, player)?);
+        out.push(Merchant::new(&row, body, town_file, written, hits, town, player)?);
     }
     Ok(out)
 }
@@ -781,22 +897,19 @@ pub fn set_merchants(
 /// An event's merchant in town `town` (`entry 4 29`, or `entry 3` of a
 /// merchant's row): `ccSetMerchant(code)` or `ccSetRtownPC(code, -1)` makes
 /// it at the origin (`setMerchant` gives rows 29 and 158 no dummy), then
-/// `ccEntryEventMng` writes [`crate::event::event_marker_in`]'s position
-/// and rotation into its `pos` and `dirc` alone.
-#[allow(clippy::too_many_arguments)]
+/// `ccEntryEventMng` writes its marker's position and rotation `at`
+/// ([`crate::World::event_marker`]) into its `pos` and `dirc` alone.
 pub fn event_merchant(
     archive: &Arc<Archive>,
-    volume: Volume,
     row: &NpcRow,
-    town_file: &SceneFile,
     hits: &mut Hits,
     town: i32,
     player: V4,
-    marker: i16,
+    at: Option<(V4, V4)>,
 ) -> Result<Merchant> {
     let body = Rc::new(Body::read(archive, &row.stem(), TRALL)?);
     let mut m = Merchant::at(row, body, ee::VF0, ee::VF0, hits, town, player)?;
-    if let Some((pos, dirc)) = crate::event::event_marker_in(town_file, volume, marker) {
+    if let Some((pos, dirc)) = at {
         (m.ch.pos, m.ch.dirc) = (pos, dirc);
     }
     Ok(m)
@@ -867,7 +980,17 @@ mod tests {
         let archive = crate::town::tests::archive()?;
         let town = crate::town::Town::open(&archive, piney_data::volume::Volume::Inf, 0, false).unwrap();
         let mut hits = town.base.hits.clone();
-        let m = set_merchants(&archive, Volume::Inf, &town.base.file, &mut hits, 0, crate::START_POS).unwrap();
+        let m = set_merchants(
+            &archive,
+            Volume::Inf,
+            &town.base.file,
+            &mut Vec::new(),
+            &mut hits,
+            0,
+            crate::START_POS,
+            false,
+        )
+        .unwrap();
         Some((m, hits))
     }
 

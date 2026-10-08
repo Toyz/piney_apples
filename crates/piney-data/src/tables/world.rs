@@ -41,12 +41,20 @@ pub struct World {
     pub navi_lines: &'static [&'static [Option<&'static [u8]>]],
     /// `naviPointNameTable`: the dummies of the points the party walks to.
     pub navi_points: &'static [Option<&'static str>],
-    /// `rtpcCcsName`: the files by `ccsType`.
+    /// `rtpcCcsName`: the files by `ccsType`, up to its null (49; 50 from Mutation on).
     pub rtpc_ccs_names: &'static [Option<&'static str>],
     /// `rtpcWeaponName`: the weapons of `npcTbl` rows 30-127.
     pub rtpc_weapon_names: &'static [Option<&'static str>],
-    /// `tvpcWeaponName`: the weapons of `npcTbl` rows 159-167.
+    /// `tvpcWeaponName`: the weapons of `npcTbl` rows 159 on, the table `ccRtownPC::ccRtownPC` reads for them.
     pub tvpc_weapon_names: &'static [Option<&'static str>],
+    /// From Mutation on, the sign PCs' weapons: `npcTbl` rows 180 on (MUT gcmn 0x0061c280).
+    pub sign_weapon_names: &'static [Option<&'static str>],
+    /// From Mutation on, the SEARCH PCs' `markPos` by row - 159 and stage (`eventStatus[row - 117]`): a start landmark, the first target, then, from stage 5, the dummy (MUT gcmn 0x0061c890).
+    pub search_marks: &'static [Option<&'static [[i8; 4]]>],
+    /// From Mutation on, the dummies a SEARCH PC stands at from stage 5, by its `markPos[0]` (MUT gcmn 0x0061c8c0).
+    pub search_dummies: &'static [Option<&'static str>],
+    /// From Mutation on, the rows `ccRegisterRandomNpc` draws past the fifty walking PCs, from index 50 (MUT main 0x0032ef10).
+    pub walk_extra_rows: &'static [i32],
     /// `rtpcAnmTbl`: by `ccsType`, the clips standing, walking and running (`ctw2`, row 15, four more).
     pub rtpc_anms: &'static [&'static [Option<&'static str>]],
     /// `rtpcChatTbl`: what a PC says passing Kite.
@@ -104,6 +112,10 @@ impl crate::store::Load for World {
             rtpc_ccs_names: crate::store::Load::load(r),
             rtpc_weapon_names: crate::store::Load::load(r),
             tvpc_weapon_names: crate::store::Load::load(r),
+            sign_weapon_names: crate::store::Load::load(r),
+            search_marks: crate::store::Load::load(r),
+            search_dummies: crate::store::Load::load(r),
+            walk_extra_rows: crate::store::Load::load(r),
             rtpc_anms: crate::store::Load::load(r),
             rtpc_chat: crate::store::Load::load(r),
             rtpc_chat_shop: crate::store::Load::load(r),
@@ -159,6 +171,18 @@ impl World {
     }
     pub fn tvpc_weapon_names(&self) -> &'static [Option<&'static str>] {
         self.tvpc_weapon_names
+    }
+    pub fn sign_weapon_names(&self) -> &'static [Option<&'static str>] {
+        self.sign_weapon_names
+    }
+    pub fn search_marks(&self) -> &'static [Option<&'static [[i8; 4]]>] {
+        self.search_marks
+    }
+    pub fn search_dummies(&self) -> &'static [Option<&'static str>] {
+        self.search_dummies
+    }
+    pub fn walk_extra_rows(&self) -> &'static [i32] {
+        self.walk_extra_rows
     }
     pub fn rtpc_anms(&self) -> &'static [&'static [Option<&'static str>]] {
         self.rtpc_anms

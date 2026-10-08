@@ -506,18 +506,146 @@ fn a_followed_side_event_wants_its_foes_down_and_its_marker() {
     assert!(!wants(257, false).contains(&Want::Marker(0)));
 }
 
-/// SEARCH BT (268) from Carmina Gadelica: its NPC stands at marker 0, the
-/// Chaos Gate's dummy (`DMY_gate`), where the gate is the command target
-/// first. The pilot lets the stick go and pushes it again, which steps the
-/// target on (`ccSelectTarget` mode 2), and speaks to the NPC in each of
-/// the six towns in turn (blocks 2-12), to the event's end.
+/// SEARCH BT (268) from Carmina Gadelica: its NPC is a SEARCH PC (worklog
+/// 397), walking from its stage's landmark, or from stage 5 standing at its
+/// dummy. The pilot catches it and speaks to it in each of the six towns
+/// in turn (blocks 2-12), to the event's end, by frame 12,543 (it had
+/// stood at marker 0, the gate, and the run ended within 6,000).
 #[test]
-fn search_bt_meets_its_npc_at_six_gates() {
+fn search_bt_meets_its_npc_in_six_towns() {
     let Some(iso) = outbreak() else { return };
-    let seen = play("outbreak", &iso, out_case(268), 6000, false).unwrap();
+    let seen = play("outbreak", &iso, out_case(268), 16000, false).unwrap();
     let run: Vec<usize> = (0..13).filter(|b| seen.flags & (1 << b) != 0).collect();
     assert_eq!(run, [0, 2, 4, 6, 8, 10, 12]);
     assert!(seen.ended.is_some(), "open after {} frames", seen.frames);
+}
+
+/// SEARCH BT (268) in Carmina Gadelica: block 1's `entry 3 165 0 -1` is
+/// a SEARCH PC (MUT gcmn 0x00521e50 on every later volume). At stage 0
+/// (`eventStatus[48]`) BT starts at landmark `markPos[0]` and walks toward
+/// `markPos[1]`, glimmering at 3.5 a frame, off the character list; the
+/// port had stood it at marker 0, the gate.
+#[test]
+fn search_bt_walks_from_its_stages_landmark() {
+    let Some(iso) = outbreak() else { return };
+    let case = out_case(268);
+    let mut placed = None;
+    let Some(mut s) = story_session_on("outbreak", case.story, |start| placed = place(&iso, start, 268, case.done))
+    else {
+        return;
+    };
+    assert!(placed.is_some(), "SEARCH BT not placed");
+    let bt = |s: &Session| -> Option<piney_world::rtownpc::RtownPc> {
+        let Stage::World(w) = &s.stage else { return None };
+        w.world().pcs().iter().find(|p| p.row.id == 165).cloned()
+    };
+    let pad = Pad::default();
+    let mut first = None;
+    for _ in 0..1500 {
+        s.step(&pad);
+        s.take_events();
+        if let Some(p) = bt(&s) {
+            first.get_or_insert(p);
+            break;
+        }
+    }
+    let p = first.expect("BT never made");
+    let t = piney_world::rtownpc::Tables::of(piney_data::volume::Volume::Out);
+    let marks = t.search_marks[165 - 159].as_ref().unwrap()[0];
+    assert!(p.search && p.stage == 0, "not a SEARCH PC: {} {}", p.search, p.stage);
+    assert_eq!((p.mark_pos, p.target_num), (marks, marks[1]));
+    assert_eq!(p.walk_spd, 0x4060_0000, "3.5 a frame");
+    let Stage::World(w) = &s.stage else { unreachable!() };
+    let mut start = [0; 4];
+    let town = w.world().town().base.no;
+    assert_eq!(town, 2, "Carmina Gadelica");
+    let _ = piney_world::rtownpc::Search::set_up(&p.town.borrow(), &w.world().town().base.file, 165, 0)
+        .map(|set| start = set.pos);
+    assert_eq!((p.char.pos[0], p.char.pos[1]), (start[0], start[1]), "not at its landmark");
+    // Its walk (act 6 routes it, then 3): it glimmers below 0.3, moves,
+    // and is off the character list (`initObject` had put it on).
+    for _ in 0..120 {
+        s.step(&pad);
+        s.take_events();
+    }
+    let q = bt(&s).expect("BT gone");
+    assert_eq!(q.act_num, 3);
+    assert!(!q.char.hit.sw, "on the character list");
+    assert!(piney_world::ee::le(q.transrate, 0x3e99_999a), "transrate {:#x}", q.transrate);
+    assert_ne!(q.char.pos, p.char.pos, "not walking");
+}
+
+/// SEARCH BT glimmering on its walk in Carmina Gadelica, Kite walked up
+/// to it, to `$PINEY_SHOTS` (/mnt/data/claude/scratch/i63) as
+/// `out-search-bt.png`.
+#[test]
+#[ignore]
+fn search_bt_shot() {
+    let Some(iso) = outbreak() else { return };
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/i63".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let case = out_case(268);
+    let Some(mut s) = story_session_on("outbreak", case.story, |start| {
+        place(&iso, start, 268, case.done);
+    }) else {
+        return;
+    };
+    let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap();
+    let mut pad = Pad::default();
+    // The story pilot, following the event, walks Kite up to BT.
+    let _follow = Follow::side(268);
+    let mut pilot = StoryPilot::default();
+    for f in 0..6000 {
+        let near = match &s.stage {
+            Stage::World(w) => {
+                let world = w.world();
+                let kite = world.player().body.pos.map(f32::from_bits);
+                let bt = world.pcs().iter().find(|p| p.row.id == 165).map(|p| p.char.pos.map(f32::from_bits));
+                bt.is_some_and(|q| (q[0] - kite[0]).hypot(q[1] - kite[1]) < 450.0)
+            }
+            _ => false,
+        };
+        if near {
+            break;
+        }
+        let raw = pilot.next(&s, f);
+        pilot.after(&mut s);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    pad.read(&still);
+    // At its glimmer's brightest (0.3).
+    let mut frame = None;
+    for _ in 0..200 {
+        frame = Some(s.step(&pad));
+        s.take_events();
+        let Stage::World(w) = &s.stage else { break };
+        let bright = w.world().pcs().iter().find(|p| p.row.id == 165).is_some_and(|p| {
+            let t = f32::from_bits(p.char.transparency);
+            p.char.drawn && t > 0.29
+        });
+        if bright {
+            break;
+        }
+    }
+    if let Stage::World(w) = &s.stage {
+        let world = w.world();
+        let bt = world.pcs().iter().find(|p| p.row.id == 165);
+        eprintln!(
+            "town {} kite {:?} bt {:?}",
+            world.town().base.no,
+            world.player().body.pos.map(f32::from_bits),
+            bt.map(|p| (p.char.pos.map(f32::from_bits), f32::from_bits(p.char.transparency), p.char.drawn, p.act_num))
+        );
+    }
+    gs.set_overlay(Mode::archive(&s));
+    gs.render(&frame.unwrap());
+    let (w, h) = gs.target_size();
+    let path = format!("{dir}/out-search-bt.png");
+    std::fs::write(&path, piney_gs::png::encode(w, h, &gs.read_back())).unwrap();
+    println!("{path}");
 }
 
 /// GOB3-1 (250) in field 78: block 5's three golden goblins (row 135,

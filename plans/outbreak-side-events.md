@@ -36,7 +36,7 @@ its last main opener.
 | 264 | SIGN-6 | 201 | 202 | board 59; field 121's dungeon, point 1: a stream |
 | 265 | SIGN-7 | always | 202 | field 99's dungeon: NPC 167 at point 1; point 2: a fight and streams |
 | 266 | RYOKO-2 | 262 | 205 | mail 322; Ryoko (14); field 123's dungeon, point 1: a stream |
-| 267-275 | SEARCH MIMIRU ... TUKASA | 201, each the one before | 204 | an NPC at a town's gate, met in six towns in turn |
+| 267-275 | SEARCH MIMIRU ... TUKASA | 201, each the one before | 204 | a SEARCH PC walking from its stage's landmark (from stage 5 at a dummy), met in six towns in turn |
 | 361 | Vol3-SIGN06 | 201 | 202 | bars area 121 while Sora is in the party; ends once 264 is done |
 
 The SEARCH chain opens on 201, but its NPCs go on to Fort Ouph, which 203
@@ -135,7 +135,7 @@ the room's doors shut, still went at them with the attack button.
   `has_item`): RACHEL-2 had waited at point 1 for a block wanting item 73.
 - A town NPC beside the Chaos Gate with the gate the command target: the
   stick let go and pushed again steps the target on (`ccSelectTarget`
-  mode 2). The SEARCH NPCs stand at marker 0, the gate's dummy.
+  mode 2). The SEARCH NPCs stood at marker 0, the gate's dummy, until worklog 397 ported their own set-up: they walk from their stage's landmark.
 - Survey aids (with god): a lone Kite in a field or dungeon at level 90
   (the story's aid for 206 is 75).
 - Golden goblins of `goldVolume` 2 up (worklog 373): a blow makes one

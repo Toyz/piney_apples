@@ -66,6 +66,8 @@ EXAMPLE = os.path.join(os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "ta
                        "world_probe")
 
 ONE = 0x3F800000
+# Mutation's classes and on, not Infection's.
+LATER = VOLUME != "infection"
 # gp globals and fixed objects (INF SLUS_202.67 + gcmn.prg; va() carries them
 # to PINEY_VOLUME's).
 CCSYS, SAVEDATA, GAME_P, WORLDMAN, EVENTMNG, MENU_P = (inf_va(0x003788E0), inf_va(0x003789D8), inf_va(0x003789CC), inf_va(0x00378A7C),
@@ -93,8 +95,9 @@ def build():
 
 
 def ask(lines):
-    p = subprocess.run([EXAMPLE, ISO], input="\n".join(lines) + "\n", capture_output=True, text=True, check=True,
-                       cwd=ROOT)
+    p = subprocess.run([EXAMPLE, ISO], input="\n".join(lines) + "\n", capture_output=True, text=True, cwd=ROOT)
+    if p.returncode != 0:
+        raise RuntimeError("world_probe: %s" % p.stderr[-2000:])
     return [json.loads(line) for line in p.stdout.splitlines()]
 
 
@@ -200,7 +203,9 @@ class Field:
                      "GetAmbient__9ccDrawEnvFPf", "SetAmbient__9ccDrawEnvFPf", "SleepDistantLight__9WORLD_MANFv",
                      "AwakeDistantLight__9WORLD_MANFv", "effLevelUp__FP6ccChar", "effOpenBox__FPf",
                      "ccAISysMsgSend__FisUsUsUsUs", "SysMsgEntry__4ccAIFv"):
-            m.hooks[sym(name)] = nop
+            # Outbreak and Quarantine name no AwakeDistantLight: left to run (a flag in WORLD_MAN).
+            if self.prog.symbol_named(name) is not None:
+                m.hooks[sym(name)] = nop
         m.hooks[sym("CheckLevelUp__6ccCharFv")] = nop
         m.hooks[sym("checkPartyAnnihilation__Fv")] = nop
         m.hooks[sym("effTransfer__FP6ccChar")] = lambda mm, *a: self.events.append("transfer") or 0
@@ -1014,7 +1019,23 @@ class WeaponAgainstGame(unittest.TestCase):
 
 # --- Mac Anu's props: ROOTTOWN01::Draw and the Chaos Gate -------------------
 
-RT_VTABLE = inf_va(0x00375F90)                     # vtable for ROOTTOWN01
+def rt_vtable():
+    """ROOTTOWN01's vtable and where its constructor stores it: Infection's +0x1ac (va() carries
+    the name to Mutation); Outbreak's and Quarantine's constructor, recompiled, names neither and
+    stores it at +0x1b0, after ROOTTOWN's (the second lui/addiu pair it stores there)."""
+    try:
+        return 0x1AC, inf_va(0x00375F90)
+    except KeyError:
+        from image import Program
+        prog = Program(ELF, "gcmn")
+        f = prog.symbol_named("__ct__10ROOTTOWN01Fv").value
+        w = [prog.u32(f + 4 * k) for k in range(24)]
+        stores = []
+        for k in range(len(w) - 2):
+            hi, lo, st = w[k], w[k + 1], w[k + 2]
+            if hi >> 26 == 0x0F and lo >> 26 == 0x09 and st >> 26 == 0x2B and (st >> 21) & 31 == 4:
+                stores.append((st & 0xFFFF, ((hi & 0xFFFF) << 16) + (lo & 0xFFFF) - (0x10000 if lo & 0x8000 else 0)))
+        return stores[1]
 LAYER_ACTIVE, CAMID = inf_va(0x003788D8), inf_va(0x0037897C)
 PI_BITS, K180 = 0x40490FDB, 0x43340000
 
@@ -1172,7 +1193,8 @@ class TownDraw(Pieces):
             or 0)
         m.store(SAVE + 0x6772, 1, int(crisis))
         rt = self.rt = self.malloc(m, 0x200)
-        m.store(rt + 0x1AC, 4, RT_VTABLE)
+        vt_at, vt = rt_vtable()
+        m.store(rt + vt_at, 4, vt)
         m.store(rt + 0x1A4, 4, self.malloc(m, 0x40))              # the town's stream
         self.crisis_clumps = [self.malloc(m, 0xA0) for _ in range(3)]
         self.bg_layers = [self.malloc(m, 0x40) for _ in range(3)]
@@ -1643,6 +1665,8 @@ CMND_GLOBALS = range(inf_va(0x00378C48), inf_va(0x00378C6C), 4)
 CHAR_HIT_GLOBALS = (inf_va(0x00378908), inf_va(0x0037890C), inf_va(0x00378910))
 MERCH_SPOTS = [(2400.0, -2450.0, 0.0), (2400.0, 2450.0, 0.0), (-2400.0, 2450.0, 0.0), (-2400.0, -2450.0, 0.0),
                (-850.0, 3600.0, 300.0)]
+# Kite's start by town for test_event_npc (any place: he walks about the Event NPC).
+MERCH_START = {0: (0.0, 5600.0, 600.0), 2: (0.0, 0.0, 0.0)}
 
 
 class MerchantRun(Pieces):
@@ -1662,11 +1686,12 @@ class MerchantRun(Pieces):
 
     ACTIVE_CAM = inf_va(0x0037896C)
 
-    def __init__(self, player, town=0, entries=()):
+    def __init__(self, player, town=0, entries=(), status=0):
         """Kite at `player` in town `town`; with event `entries` (type,
         code, marker), the game's own ccEntryEventMng (main 0x001b62e0)
         makes them first, then ccSetMerchant(0) (its gate, dogs, Grunties
-        and walking PCs left out)."""
+        and walking PCs left out). `status` is eventStatus[52] (from
+        Mutation on, the Event NPC)."""
         super().__init__(("town%02d" % (town + 1), "ctr1", "ctr2", "ctr3", "ctr4"))
         m, sym = self.m, self.sym
         nop = lambda mm, *a: 0                     # noqa: E731
@@ -1674,7 +1699,9 @@ class MerchantRun(Pieces):
                      "ResetFogBlend__9ccDrawEnvFv", "ccSpcConditionEffectSW__Fv", "GetAmbient__9ccDrawEnvFPf",
                      "SetAmbient__9ccDrawEnvFPf", "SleepDistantLight__9WORLD_MANFv",
                      "AwakeDistantLight__9WORLD_MANFv"):
-            m.hooks[sym(name)] = nop
+            # Outbreak and Quarantine name no AwakeDistantLight: left to run.
+            if self.prog.symbol_named(name) is not None:
+                m.hooks[sym(name)] = nop
         for off, v in ((0x420, -24000.0), (0x424, -24000.0), (0x428, 24000.0), (0x42C, 24000.0)):
             m.store(WM + off, 4, fb(v))
         m.store(PLW_PW, 4, PLAYER)
@@ -1701,6 +1728,7 @@ class MerchantRun(Pieces):
         m.store(PLAYER + 0x1B4, 4, fb(45.0))
         m.store(PLAYER + 0x1B8, 4, fb(95.0))
         self.kite_hit = False
+        m.store(SAVE + 0x64F8 + 52, 1, status)
         if entries:
             # eventMng: entry[16] (+0x80) and entryMc[16] (+0x100), type -1 free.
             m.store(EVENTMNG, 4, EV)
@@ -1750,9 +1778,13 @@ class MerchantRun(Pieces):
                  "default_dirc": self.rvec(o + 0x1E0), "anim": self.anm[m.load(o + 0xD4, 4)][0],
                  "hit_sw": m.load(o + 0x160, 4)} for o in self.objs]
 
-    def frame(self, player, cam, view, deg1, eye, kite_hit, ops):
-        """One frame (bits), as world_probe's `merch` reports it."""
+    def frame(self, player, cam, view, deg1, eye, kite_hit, ops, status=None):
+        """One frame (bits), as world_probe's `merch` reports it; a merchant
+        whose main returns 1 is deleted (`status` sets eventStatus[52]
+        first)."""
         m = self.m
+        if status is not None:
+            m.store(SAVE + 0x64F8 + 52, 1, status)
         self.vec(PLAYER + 0x40, list(player) + [ONE])
         self.vec(PLAYER + 0x1C0, list(player) + [ONE])
         if kite_hit != self.kite_hit:
@@ -1776,11 +1808,15 @@ class MerchantRun(Pieces):
             elif op[0] == "fade":
                 m.store(o + 0xF0, 2, op[2])
                 m.store(o + 0xF2, 2, op[3])
-        out, layers = [], []
+        out, layers, gone = [], [], []
         for o in self.objs:
             self.events = []
             self.call("routine__10ccEntryObjFv", o)
-            self.call(m.load(m.load(o + 0x1CC, 4) + 8, 4), o)
+            if self.call(m.load(m.load(o + 0x1CC, 4) + 8, 4), o) & 0xFF:
+                # ccEntryCtrl deletes it: ~ccCharHit takes its body off the list.
+                self.call("HitDisable__9ccCharHitFv", o + 0x160)
+                gone.append(o)
+                continue
             ev, anm = self.events, m.load(o + 0xD4, 4)
             stepped = ("fwd", anm) in ev
             layers.append([e[1] for e in ev if e[0] == "layer"] if stepped else None)
@@ -1797,6 +1833,7 @@ class MerchantRun(Pieces):
                 "hit": [h(o + 0x200), h(o + 0x202)], "offset": self.rvec(o + 0x190),
                 "root": self.rvec(anm + 64, 16) if stepped else None,
             })
+        self.objs = [o for o in self.objs if o not in gone]
         # ccCheckCameraDeg of each, as main asked it (nothing moved since).
         for o, st in zip(self.objs, out):
             st["in_view"] = int(self.call("ccCheckCameraDeg__FPfs", o + 0x40, 12288) & 0xFF != 0)
@@ -1970,6 +2007,60 @@ class MerchantsAgainstGame(unittest.TestCase):
         self.assertGreater(drawn, 0)
 
 
+    @unittest.skipUnless(LATER, "Mutation on: the Event NPC")
+    def test_event_npc(self):
+        """From Mutation on, with eventStatus[52] set (event 317 ITEM COMPLETE), ccSetMerchant(0)
+        makes the Event NPC (row 175 + town) after the town's merchants: at DMY_marker_ev04, or
+        ev01 turned to 135 degrees (Carmina Gadelica, town 2), with its act and affect. Then
+        frames of routine and ccMerchan::main: spoken to (affect 14, 15, 0), and once the status
+        is clear it goes (effTransfer, the fade) and is deleted, beside step_all."""
+        for town in (0, 2):
+            start = MERCH_START[town]
+            g = MerchantRun([fb(v) for v in start], town=town, status=1)
+            first = g.start()
+            self.assertEqual(first[-1]["id"], 175 + town)
+            here = [struct.unpack("<f", struct.pack("<I", v))[0] for v in first[-1]["pos"][:3]]
+            k = len(first) - 1
+            rng = random.Random(70 + town)
+            ops = {60: [("inf", k, 14)], 90: [("inf", k, 15)], 250: [("inf", k, 0)], 300: [("inf", k, 15)],
+                   340: [("inf", k, 0)]}
+            lines, frames = [], []
+            for i in range(560):
+                pl = (here[0] + rng.uniform(-500, 500), here[1] + rng.uniform(-500, 500), here[2])
+                cam = (pl[0] + rng.uniform(-600, 600), pl[1] - rng.uniform(300, 900), pl[2] + 300.0)
+                view = here if rng.random() < 0.6 else (pl[0], pl[1], pl[2] + 120.0)
+                status = 0 if i == 400 else None
+                f = (pl, cam, tuple(view), rng.randrange(-7936, 7937), False, i >= 30, ops.get(i, []), status)
+                frames.append(f)
+                if status is not None:
+                    lines.append("merchstatus %x" % status)
+                args = [fb(v) for v in pl + cam + tuple(view)] + [f[3] & 0xFFFFFFFF, 0, int(f[5])]
+                line = "merch " + hexs(*args)
+                for op in f[6]:
+                    line += " %s %s" % (op[0], hexs(*op[1:]))
+                lines.append(line)
+            got = self.ask(["merchstatus 1", "merchstart " + hexs(*[fb(v) for v in start], town)] + lines)
+            got = [x for x in got if x != {}]
+            # Carmina Gadelica's merchants 15 and 16 land higher in the port than in this harness,
+            # which registers the town's Hit chunk as ROOTTOWN01 does (worklog 397, not read):
+            # there the Event NPC is compared alone.
+            pick = (lambda xs: xs) if town == 0 else (lambda xs: xs[k:] if len(xs) > k else [])
+            self.assertEqual(pick(first), pick(got[0]), town)
+            seen = collections.Counter()
+            for i, (f, port) in enumerate(zip(frames, got[1:])):
+                pl, cam, view, deg1, eye, kite_hit, ops, status = f
+                want, _ = g.frame([fb(v) for v in pl], [fb(v) for v in cam], [fb(v) for v in view], deg1 & 0xFFFF,
+                                  eye, kite_hit, ops, status)
+                if len(want) > k:
+                    seen["act %d" % want[k]["act"][0]] += 1
+                    seen["drawn"] += want[k]["drawn"]
+                else:
+                    seen["gone"] += 1
+                self.assertEqual(pick(want), pick(port), "town %d frame %d %s" % (town, i, f))
+            for key in ("act 0", "act 1", "act 2", "act 3", "drawn", "gone"):
+                self.assertGreater(seen[key], 0, (town, key, seen))
+
+
 # --- Mac Anu's walking PCs (TownPcsAgainstGame) ---------------------------------------------------
 # rtownnpc.cpp (gcmn 0x00506640-0x0050933c) and ccnavi.cpp (0x005130b0-0x00514888) run by the game
 # in eemu beside world_probe's pcsel / pcroute / pcstart / pcpad (rtownpc.rs, navi.rs, mt.rs, and
@@ -1982,6 +2073,32 @@ class MerchantsAgainstGame(unittest.TestCase):
 ENTCTRL_P, NPC_TBL, MTI = inf_va(0x00378BA8), inf_va(0x00619460), inf_va(0x00377FD0)
 RTPC_CHATNUM, RTPC_CHATMESRAND, RTPC_TALKFLAG, RTPC_CHATCNT, RTPC_CHATMES = (inf_va(0x00378C08), inf_va(0x00378C0C), inf_va(0x00378C10),
                                                                               inf_va(0x006FAA60), inf_va(0x005EE110))
+# From Mutation on the class is 4 bytes longer before walkSpd (MUT gcmn 0x00522040): dist, markPos,
+# targetNum, anmTbl, thinkType and changeRouteFlag sit 4 further on, and +0x2bc..+0x2be, +0x2d6 and
+# +0x2d7 are new (the SEARCH PCs' glimmer, stage and flag; the Flag Race's hiding).
+L4 = 4 if LATER else 0
+CCSND = inf_va(0x00378A08)
+# eventFlag[n] (+0x54f8, 8 bytes each), done at bit 62: the events that open ccRegisterRandomNpc's
+# rows past the fifty (300, 358, 315), as world_probe's DONE bits.
+DONE_EVENTS = (300, 358, 315)
+
+
+def search_setup(prog):
+    """From Mutation on, the SEARCH PCs' set-up (MUT gcmn 0x00521e50, unnamed): ccEntryEventMng's
+    call just before its ccSetRtownPC."""
+    f = prog.symbol_named("ccEntryEventMng__Fv").value
+    rtpc = prog.symbol_named("ccSetRtownPC__Fii").value
+    jals = []
+    for k in range(4096):
+        w = prog.u32(f + 4 * k)
+        if w >> 26 == 3:
+            t = (w & 0x03FFFFFF) << 2
+            if t == rtpc:
+                return jals[-1]
+            jals.append(t)
+        if w == 0x03E00008:
+            break
+    raise KeyError("ccEntryEventMng calls no ccSetRtownPC")
 
 
 class TownPcsRun(Field):
@@ -1993,35 +2110,46 @@ class TownPcsRun(Field):
     list's membership; the chat bubbles and effTransfer are recorded; notes are not processed.
     ccRand is the game's own Mersenne Twister."""
 
-    def __init__(self):
+    def __init__(self, town="town01"):
         import anim
         import ccs
         import gzarc
-        super().__init__("town01")
+        super().__init__(town)
         m, sym = self.m, self.sym
         self.stems = {}
-        for row in range(30, 80):
+        rows = list(range(30, 80)) + ([120, 121] + list(range(159, 168)) + list(range(180, 184)) if LATER else [])
+        for row in rows:
             f = bytes(self.prog.cstr(self.prog.u32(NPC_TBL + 0x70 * row + 0x6C))).decode()
             self.stems[row] = f.split(".")[0].lower()
-        self.pc_anims = {}
+        # Each file's clips by name: the later volumes' files share clip names of other lengths.
+        self.pc_anims, self.anm_stem = {}, {}
         for stem in sorted(set(self.stems.values())):
             c = ccs.Ccs(gzarc.inflate(self.archive, self.members[stem + ".cmp"]))
             for _, a in anim.animations(c):
-                self.pc_anims.setdefault(c.objects[a.object][0], a)
-        self.dummies = {}
+                self.pc_anims.setdefault(stem, {}).setdefault(c.objects[a.object][0], a)
+        self.dummies, self.dummy_rots = {}, {}
         c = self.town
         for off, t, _n, _end in c.chunks():
             if t is None or t & 0xFFFF not in (0x1300, 0x1400):
                 continue
             obj = struct.unpack_from("<I", c.data, off + 8)[0]
-            self.dummies.setdefault(c.objects[obj][0], list(struct.unpack_from("<3I", c.data, off + 12)))
+            name = c.objects[obj][0]
+            self.dummies.setdefault(name, list(struct.unpack_from("<3I", c.data, off + 12)))
+            if t & 0xFFFF == 0x1400:
+                self.dummy_rots.setdefault(name, list(struct.unpack_from("<3I", c.data, off + 24)))
         self.chunk_at, self.anm, self.listed = {}, {}, {}
         self.obj_hand, self.model_name, self.weapons, self.tex = {}, {}, {}, {}
         nop = lambda mm, *a: 0                     # noqa: E731
-        for name in ("ApplyClump__5ccAnmFP7ccClumpP8ccStream", "Init__7ccClumpFP12ccClumpChunk", "__ct__7ccCoordFv",
+        for name in ("Init__7ccClumpFP12ccClumpChunk", "__ct__7ccCoordFv",
                      "Duplicate__7ccClumpFUi", "ccRegisterNpc__Fi", "ccSeSetParamPC__FUiP6ccChari",
                      "ccEffPawSmoke__FP6ccCharf"):
             m.hooks[sym(name)] = nop
+
+        def apply_clump(mm, anm, clump, stream, *a):
+            from eemu import _cstr
+            self.anm_stem[anm] = _cstr(mm, stream + 8).decode()
+            return 0
+        m.hooks[sym("ApplyClump__5ccAnmFP7ccClumpP8ccStream")] = apply_clump
         m.hooks[sym("GetChunkAdrsF__8ccStreamFPCci")] = self.pc_chunk
         m.hooks[sym("SetAnm__5ccAnmFP10ccAnmChunkUi")] = self.pc_set_anm
         m.hooks[sym("_AnimateForward__5ccAnmFUi")] = self.pc_forward
@@ -2063,15 +2191,24 @@ class TownPcsRun(Field):
             self.events.append("transfer" if ch == PLAYER else ("transfer", ch))
             return 0
         m.hooks[sym("effTransfer__FP6ccChar")] = transfer
+        # A SEARCH PC's going: effOpenBox at its place, and at its last stage effVirusCrystal and
+        # ccSeOn3DNote(167, pos, 40) - recorded against the PC whose pos (+0x40) they were given.
+        m.hooks[sym("effOpenBox__FPf")] = lambda mm, pos, *a: self.events.append(("openbox", pos - 0x40)) or 0
+        m.hooks[sym("effVirusCrystal__FPf")] = lambda mm, pos, *a: self.events.append(("crystal", pos - 0x40)) or 0
+        m.hooks[sym("ccSeOn3DNote__FiPfc")] = (
+            lambda mm, n, pos, note, *a: self.events.append(("se3d", pos - 0x40, n, note & 0xFF)) or 0)
 
     def pc_chunk(self, mm, stream, name, *a):
-        from eemu import _cstr
+        from eemu import _cstr, f_div, f_mul
         s = _cstr(mm, name).decode()
         addr = self.chunk_at.get(s)
         if addr is None:
             addr = self.malloc(mm, 0x40)
             if s in self.dummies:
                 self.vec(addr + 16, self.dummies[s] + [ONE])
+            if s in self.dummy_rots:
+                # Decode_DummyPosRot's rotation: pi * deg / 180.
+                self.vec(addr + 32, [f_div(f_mul(PI_BITS, r), K180) for r in self.dummy_rots[s]])
             self.chunk_at[s] = addr
         self.names[addr] = s
         return addr
@@ -2090,15 +2227,24 @@ class TownPcsRun(Field):
             self.time = f.time
         else:
             st = self.anm[anm]
-            f = self.pc_anims[st[0]].forward(st[1], spd & 0xFFFF)
+            f = self.pc_anims[self.anm_stem[anm]][st[0]].forward(st[1], spd & 0xFFFF)
             st[1] = f.time
         return int(f.ended)
 
-    def select(self, count, reserved, peek=True):
+    def set_pool(self, server, done):
+        """game.server (+0x1c) and the events DONE's bits name done, which ccRegisterRandomNpc reads
+        from Mutation on."""
+        m = self.m
+        m.store(GAME + 0x1C, 4, server)
+        for k, n in enumerate(DONE_EVENTS):
+            m.store(SAVE + 0x54F8 + 8 * n + 7, 1, 0x40 if done >> k & 1 else 0)
+
+    def select(self, count, reserved, peek=True, server=0, done=0):
         """ccInitRand with ccSys+0x358 at count, then ccRegisterRandomNpc(reserved): the slots and
         (peek) the next ccRand."""
         m = self.m
         m.mem[EV:EV + 0x1000] = bytes(0x1000)
+        self.set_pool(server, done)
         m.store(SYS + 0x358, 4, count)
         self.call("ccInitRand__Fv")
         self.call("ccRegisterRandomNpc__Fi", reserved)
@@ -2131,7 +2277,7 @@ class TownPcsRun(Field):
                 "step": step, "landmark": h(nv + 0x1E), "name": h(nv + 0x18), "dist": m.load(nv + 0x20, 4),
                 "dirc": m.load(nv + 0x24, 4), "dest": self.rvec(ARGS + 32), "near": near}
 
-    def start_pcs(self, pos, dircz, scheme, mode, seed, count, reserved, manual=0):
+    def start_pcs(self, pos, dircz, scheme, mode, seed, count, reserved, manual=0, server=0, done=0):
         """Kite arriving at pos as Field.start makes him, then the town's set-up: ccInitRand,
         ccRegisterRandomNpc, ccSetNaviMap, and ccThEntryCtrl's ccEntryRandomNpc."""
         m = self.m
@@ -2146,7 +2292,11 @@ class TownPcsRun(Field):
         if manual:
             m.store(AI, 1, 1)                     # manualSW
         self.listed, self.anm, self.weapons, self.tex = {}, {}, {}, {}
-        self.select(count, reserved, False)
+        # ccSnd: its +0x13a, the Flag Race on (from Mutation on).
+        self.snd = self.malloc(m, 0x200)
+        m.store(CCSND, 4, self.snd)
+        m.mem[SAVE + 0x64F8:SAVE + 0x64F8 + 80] = bytes(80)
+        self.select(count, reserved, False, server, done)
         self.navi_map()
         ec = self.malloc(m, 0x40)
         m.store(ENTCTRL_P, 4, ec)
@@ -2192,23 +2342,37 @@ class TownPcsRun(Field):
             anm = m.load(o + 0xD4, 4)
             step = h(o + 0x20C)
             flags = m.load(o + 0xE0, 1)
-            events = [[e[0], e[2]] if e[0] == "chat" else [e[0]] for e in self.events
-                      if isinstance(e, tuple) and e[0] in ("chat", "transfer") and e[1] == o]
+            mine = [e for e in self.events if isinstance(e, tuple) and e[1] == o]
+            events = []
+            for e in mine:
+                if e[0] == "chat":
+                    events.append([e[0], e[2]])
+                elif e[0] == "transfer":
+                    events.append([e[0]])
+                elif e[0] == "openbox":
+                    crystal = ("crystal", o) in mine
+                    assert not crystal or ("se3d", o, 167, 40) in mine, mine
+                    events.append(["vanish", int(crystal)])
             pcs.append({
                 "row": h(m.load(o, 4) + 0xC), "pos": self.rvec(o + 0x40), "posp": self.rvec(o + 0x50),
                 "dirc": self.rvec(o + 0x60), "act": h(o + 0x2A4), "proc": h(o + 0x2A6),
                 "cnt": m.load(o + 0x2AC, 4, True), "poscnt": h(o + 0x2B4), "hitflag": h(o + 0x2B0),
-                "hitcnt": h(o + 0x2B2), "chatcnt": h(o + 0x2B8), "target": [b(o + 0x2C8), b(o + 0x2C9), b(o + 0x2CA)],
+                "hitcnt": h(o + 0x2B2), "chatcnt": h(o + 0x2B8),
+                "target": [b(o + 0x2C8 + L4), b(o + 0x2C9 + L4), b(o + 0x2CA + L4)],
                 "step": step, "lm": h(o + 0x20E),
                 "route": [m.load(o + 0x21E + k, 1) for k in range(max(0, min(step, 47)) + 1)],
                 "next": self.rvec(o + 0x260), "old": self.rvec(o + 0x270), "trans": m.load(o + 0x294, 4),
                 "tp": m.load(o + 0x88, 4), "stp": m.load(o + 0x8C, 4), "attr": m.load(o + 0x80, 4),
-                "pldist": m.load(o + 0xE4, 4), "pldirc": m.load(o + 0xE8, 4), "dist": m.load(o + 0x2BC, 4),
+                "pldist": m.load(o + 0xE4, 4), "pldirc": m.load(o + 0xE8, 4), "dist": m.load(o + 0x2BC + L4, 4),
                 "disp": flags >> 4 & 1, "freeze": flags >> 2 & 1, "listed": self.listed.get(o, 0),
                 "drawn": int(("pcdraw", anm) in self.events), "anim": self.anm[anm][0], "time": self.anm[anm][1],
                 "hitsw": m.load(o + 0x160, 4), "hitpos": self.rvec(o + 0x180), "offset": self.rvec(o + 0x190),
                 "mask2": m.load(o + 0x168, 4), "shop": h(o + 0x2BA), "mdeg": m.load(o + 0x298, 4),
-                "crflag": m.load(o + 0x2D1, 1), "events": events})
+                "crflag": m.load(o + 0x2D1 + L4, 1), "events": events})
+            if LATER:
+                pcs[-1].update({"search": m.load(o + 0x2D6, 1), "stage": h(o + 0x2BE), "glimmer": h(o + 0x2BC),
+                                "racehide": m.load(o + 0x2D7, 1), "evact": [h(o + 0x2A8), h(o + 0x2AA)],
+                                "kind": m.load(o + 0x16C, 4)})
         return town, pcs
 
     def hit_check(self, manual, pos, mv, width, speed, run, bodies):
@@ -2262,6 +2426,15 @@ class TownPcsRun(Field):
         elif a[0] == "add":
             self.stream_for(a[1])
             self.pcs.append(self.call("ccSetRtownPC__Fii", a[1], a[2] & 0xFFFFFFFF))
+        elif a[0] == "search":
+            # The SEARCH set-up with the row's stage in eventStatus[row - 117].
+            self.stream_for(a[1])
+            m.store(SAVE + 0x6483 + a[1], 1, a[2])
+            self.pcs.append(self.call(search_setup(self.prog), a[1]))
+        elif a[0] == "race":
+            m.store(self.snd + 0x13A, 1, a[1])
+        elif a[0] == "status":
+            m.store(SAVE + 0x64F8 + a[1], 1, a[2])
         elif a[0] == "ev":
             o, kind, x, y, z = self.pcs[a[1]], a[2], a[3], a[4], a[5]
             ten = fb(10.0)
@@ -2286,6 +2459,23 @@ class TownPcsRun(Field):
             elif y != 0:
                 m.store(o + 0xF4, 2, x)
                 m.store(o + 0xF6, 2, 64 if y == 1 else y)
+
+    def search_at(self, town, row, stage):
+        """From Mutation on, the SEARCH set-up alone in town `town` (this machine's file): the PC it
+        makes, as world_probe's `pcsearchat` lists it."""
+        m = self.m
+        m.mem[GAME:GAME + 0x88] = bytes(0x88)
+        m.store(GAME + 0x20, 4, town)
+        for a in (inf_va(0x00378908), inf_va(0x0037890C), inf_va(0x00378910)):
+            m.store(a, 4, 0)
+        ec = self.malloc(m, 0x40)
+        m.store(ENTCTRL_P, 4, ec)
+        m.store(ec + 4, 4, town)
+        self.listed, self.anm, self.events = {}, {}, []
+        self.stream_for(row)
+        m.store(SAVE + 0x6483 + row, 1, stage)
+        self.pcs = [self.call(search_setup(self.prog), row)]
+        return self.pc_states()[1][0]
 
     def kite_state(self):
         st = self.state()
@@ -2320,9 +2510,15 @@ class TownPcsAgainstGame(unittest.TestCase):
         rng = random.Random(51)
         cases = [(c, r) for c in (0, 1, 2, 623, 624, 625, 1247, 5000) for r in (0, 1, 2, 3, 15, 16)]
         cases += [(rng.randrange(0, 200000), rng.choice([0, 1, 1, 2, 2, 5])) for _ in range(120)]
-        got = ask(["pcsel %x %x" % c for c in cases])
+        if LATER:
+            # From Mutation on: fewer PCs by server, and the rows past the fifty as their events are done.
+            cases = [(c, r, rng.randrange(5), rng.randrange(8)) for c, r in cases]
+            cases += [(rng.randrange(0, 200000), rng.choice([0, 1, 2]), sv, d) for sv in range(5) for d in range(8)]
+            got = ask(["pcsel %x %x %x %x" % c for c in cases])
+        else:
+            got = ask(["pcsel %x %x" % c for c in cases])
         for c, port in zip(cases, got):
-            rows, nxt = g.select(*c)
+            rows, nxt = g.select(*c) if not LATER else g.select(c[0], c[1], True, c[2], c[3])
             self.assertEqual({"rows": [r & 0xFFFFFFFF if r < 0x8000 else (r - 0x10000) & 0xFFFFFFFF for r in rows],
                               "next": nxt}, port, c)
 
@@ -2359,13 +2555,15 @@ class TownPcsAgainstGame(unittest.TestCase):
         self.assertGreater(len(lengths), 6)
         self.assertLess(lengths["none"], 40)
 
-    def run_pcs(self, g, label, start, dircz, count, reserved, frames, plan, seed=1):
+    def run_pcs(self, g, label, start, dircz, count, reserved, frames, plan, seed=1, server=0, done=0):
         """Frames of Kite and the town's PCs, the game's first (the plan steers Kite by the game's
         own positions and may talk to a PC, add one, or give an event instruction before a frame),
         then the port on the same pads and actions: every frame Kite as world_probe's pcpad prints
         him (his body, what his HitCheck touched), every PC and the PCs' shared state."""
-        want0 = g.start_pcs(start, dircz, 0, 3, seed, count, reserved)
+        want0 = g.start_pcs(start, dircz, 0, 3, seed, count, reserved, 0, server, done)
         lines = ["pcstart %x %x %x %x %x %x %x %x %x" % ((count, reserved) + tuple(start) + (dircz, 0, 3, seed))]
+        if LATER:
+            lines[0] += " 0 %x %x" % (server, done)
         kinds, wants = ["start"], []
         stats = collections.Counter()
         for i in range(frames):
@@ -2381,10 +2579,16 @@ class TownPcsAgainstGame(unittest.TestCase):
                     lines.append("pcadd %x %x" % (a[1], a[2] & 0xFFFFFFFF))
                 elif a[0] == "pos":
                     lines.append("pcpos " + hexs(*a[1:]))
+                elif a[0] == "search":
+                    lines.append("pcsearch %x %x" % (a[1], a[2]))
+                elif a[0] == "race":
+                    lines.append("pcrace %x" % a[1])
+                elif a[0] == "status":
+                    lines.append("pcstatus %x %x" % (a[1], a[2]))
                 else:
                     lines.append("pcev " + hexs(*a[1:]))
                 kinds.append(a[0])
-                wants.append(g.pc_states() if a[0] == "add" else None)
+                wants.append(g.pc_states() if a[0] in ("add", "search") else None)
                 stats[a[0]] += 1
             g.pad(0, 0, powl, dircl, 0, 0, [0] * 12)
             lines.append("pcpad " + hexs(0, 0, powl, dircl, 0, 0, *([0] * 12)))
@@ -2392,7 +2596,8 @@ class TownPcsAgainstGame(unittest.TestCase):
             k = g.kite_state()
             kinds.append("pad")
             wants.append((k, town, pcs))
-            stats["kite touched a pc"] += k["kitechar"] & 2 != 0
+            # The PCs' bodies are kind 2 on Infection, 8 from Mutation on.
+            stats["kite touched a pc"] += k["kitechar"] & (8 if LATER else 2) != 0
             for pc in pcs:
                 stats["act %d" % pc["act"]] += 1
                 stats["drawn"] += pc["drawn"]
@@ -2403,16 +2608,20 @@ class TownPcsAgainstGame(unittest.TestCase):
                 stats["at a shop"] += pc["act"] == 4 and pc["shop"] >= 0
                 stats["pushed by kite"] += pc["hitflag"] != 0 and f32(pc["pldist"]) < 160
                 stats["held back by the ten"] += pc["act"] == 0 and town["shown"] >= 10
+                stats["searching"] += pc.get("search", 0) != 0
+                stats["gone for the race"] += pc["act"] == 9
+                stats["vanished"] += sum(e[0] == "vanish" for e in pc["events"])
+                stats["crystal"] += sum(e == ["vanish", 1] for e in pc["events"])
         got = ask(lines)
         self.assertEqual({"town": want0[0], "pcs": want0[1]}, got[0], label + " start")
         frame = 0
         for kind, want, port in zip(kinds[1:], wants, got[1:]):
-            if kind in ("infl", "pos"):
+            if kind in ("infl", "pos", "race", "status"):
                 continue
             if kind == "ev":
                 self.assertEqual(port, {"ok": 1}, label)
                 continue
-            if kind == "add":
+            if kind in ("add", "search"):
                 self.assertEqual({"town": want[0], "pcs": want[1]}, port, "%s add before frame %d" % (label, frame))
                 continue
             k, town, pcs = want
@@ -2426,10 +2635,27 @@ class TownPcsAgainstGame(unittest.TestCase):
             for j, (w, pp) in enumerate(zip(pcs, port["pcs"])):
                 if w != pp:
                     diff = [key for key in w if w[key] != pp.get(key)]
-                    self.fail("%s frame %d pc %d (row %d) %s\n game %s\n port %s" % (
-                        label, frame, j, w["row"], diff, {x: w[x] for x in diff}, {x: pp.get(x) for x in diff}))
+                    ctx = {x: w[x] for x in ("act", "proc", "anim", "time", "cnt", "trans")}
+                    pctx = {x: pp.get(x) for x in ("act", "proc", "anim", "time", "cnt", "trans")}
+                    self.fail("%s frame %d pc %d (row %d) %s\n game %s\n port %s\n game %s\n port %s" % (
+                        label, frame, j, w["row"], diff, {x: w[x] for x in diff}, {x: pp.get(x) for x in diff},
+                        ctx, pctx))
             frame += 1
         return stats
+
+    @unittest.skipUnless(LATER, "Mutation on: the SEARCH PCs")
+    def test_search_dummies(self):
+        """The SEARCH set-up from stage 5 in Dun Loireag and Fort Ouph, where the dummies
+        DMY_marker_ev20-22 are (Dun Loireag has no 22, A-20's): each row's dummy, its rotation
+        copied for the first three, the PC the constructor makes there (act 8, off the character
+        list), beside pcsearchat."""
+        for town in (1, 3):
+            g = TownPcsRun("town%02d" % (town + 1))
+            rows = [r for r in range(159, 168) if town == 3 or r != 167]
+            want = [g.search_at(town, r, 5) for r in rows]
+            got = ask(["pcsearchat %x %x %x" % (town, r, 5) for r in rows])
+            for r, w, p in zip(rows, want, got):
+                self.assertEqual(w, p["pcs"][0], (town, r))
 
     def test_hit_check(self):
         """ccSpcChar::HitCheck with walking PCs (kind 2) and other bodies around Kite in the
@@ -2556,10 +2782,51 @@ class TownPcsAgainstGame(unittest.TestCase):
             dircl, pw = steer(kite["pos"], [fb(aim[0]), fb(aim[1])], f32(kite["cam_rot"][2]), 255)
             return pw, dircl, acts
         seen.update(self.run_pcs(g, "block", (0, 0x45AF0000, 0x44160000), 0, 31337, 1, 700, block))
+        if LATER:
+            seen.update(self.later_pcs(g))
         print("TownPcsAgainstGame", dict(seen))
+        later = ("searching", "gone for the race", "vanished", "crystal", "search", "act 8", "act 9") if LATER else ()
         for k in ("act 0", "act 1", "act 2", "act 3", "act 4", "act 5", "drawn", "pushed", "chat", "transfer",
-                  "kite touched a pc", "pushed by kite", "turned back", "at a shop", "infl", "add", "ev"):
+                  "kite touched a pc", "pushed by kite", "turned back", "at a shop", "infl", "add", "ev") + later:
             self.assertGreater(seen[k], 0, k)
+
+    def later_pcs(self, g):
+        """From Mutation on: SEARCH PCs at each stage (walking their route from their landmark,
+        standing at their dummy from stage 5), spoken to (npc_act 2), going (5, the crystal at the
+        last stage) and hidden (6); the Flag Race on and off (the slots of 4 and up, even, leave
+        and come back); a later server's fewer PCs with every extra row open."""
+        seen = collections.Counter()
+        added = {}
+
+        def search(i, kite, pcs):
+            acts = []
+            # Mac Anu has the stage-5 dummies DMY_marker23 and 29 (164's, 162's); the others' are
+            # test_search_dummies'.
+            for f, row, stage in ((60, 165, 0), (61, 160, 3), (62, 161, 4), (63, 164, 5), (64, 162, 5)):
+                if i == f:
+                    added[row] = len(pcs) + len(acts)
+                    acts.append(("search", row, stage))
+            if i == 200:
+                acts += [("ev", added[164], 0, 2, 0, 0), ("ev", added[165], 0, 2, 0, 0)]
+            if i == 300:
+                acts += [("status", 164 - 117, 5), ("ev", added[164], 0, 5, 0, 0), ("ev", added[165], 0, 5, 0, 0)]
+            if i == 360:
+                acts.append(("ev", added[161], 0, 6, 0, 0))
+            return 0, 0, acts
+        seen.update(self.run_pcs(g, "search", (0, 0x45AF0000, 0x44160000), 0, 4242, 1, 500, search))
+
+        def race(i, kite, pcs):
+            if i == 150:
+                return 0, 0, [("race", 1)]
+            if i == 420:
+                return 0, 0, [("race", 0)]
+            return 0, 0
+        seen.update(self.run_pcs(g, "race", (0, 0x45AF0000, 0x44160000), 0, 2024, 1, 700, race))
+        seen.update(self.run_pcs(g, "server 4", (0, 0x45AF0000, 0x44160000), 0, 77, 0, 300, lambda i, k, p: (0, 0),
+                                 server=4, done=7))
+        seen.update(self.run_pcs(g, "extra rows", (0, 0x45AF0000, 0x44160000), 0, 5150, 0, 300,
+                                 lambda i, k, p: (0, 0), done=7))
+        return seen
 
 if __name__ == "__main__":
     unittest.main()

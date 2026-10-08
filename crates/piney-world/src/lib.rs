@@ -187,6 +187,9 @@ struct EventEntry {
     class: npc::EventClass,
     code: i16,
     marker: i16,
+    /// From Mutation on, `entry 3 code marker -1`: a SEARCH PC, made by
+    /// its own set-up (MUT gcmn 0x00521e50) and not set at the marker.
+    search: bool,
 }
 
 /// newlib's `rand()` (`INF SLUS_202.67:0x00133a38`): a 64-bit LCG, the top
@@ -404,7 +407,10 @@ impl World {
         let height = save_f(&save, spc + 0x18);
         let width = save_f(&save, spc + 0x1c);
         let start = start_position(town_no);
-        let player = Player::new(start.0, start.1, velocity, width, height);
+        let mut player = Player::new(start.0, start.1, velocity, width, height);
+        // The disc's: its square root (`sqrt.s` from Outbreak on) and the
+        // AI's modes.
+        player.volume = volume;
         let scheme = Scheme::new(i32::from(save.save.u8(offset::CAM_TYPE) as i8));
         let mode = save.save.u8(offset::CAMERA_MODE) as i8;
         let mut camera = Camera::new(start.0, start.1, mode, scheme);
@@ -699,8 +705,10 @@ impl World {
         self.place_spc_entries();
         let reserved = 1 + self.party.members().count() as i32 + self.regist_npc_num;
         let mut mt = mt::Mt::init(self.rand_count);
-        let rows = rtownpc::register_random_npc(&mut mt, reserved);
         let no = self.town.base.no;
+        let server = area::SERVER_OF_TOWN.get(no as usize).copied().unwrap_or(0);
+        let pool = rtownpc::Pool::of(&rtownpc::Tables::of(self.volume), server, &self.save.save);
+        let rows = rtownpc::register_random_npc(&mut mt, reserved, &pool);
         let town = Rc::new(std::cell::RefCell::new(rtownpc::TownPcs::new(self.volume, no, &self.town.base.file, mt)?));
         self.town_pcs = Some(town);
         let mut files = rtownpc::Files::new();
@@ -708,13 +716,17 @@ impl World {
             self.place_event_npc(&mut files, e)?;
         }
         let player = self.player.body.pos;
+        let event_npc = self.save.save.u8(offset::EVENT_STATUS + merchant::EVENT_NPC_STATUS) != 0;
+        let base = &mut self.town.base;
         let merchants = merchant::set_merchants(
             &self.archive,
             self.volume,
-            &self.town.base.file,
-            &mut self.town.base.hits,
+            &base.file,
+            &mut base.written,
+            &mut base.hits,
             no,
             player,
+            event_npc,
         )?;
         self.merchants.extend(merchants);
         // ccSetChaosGate (already up), then ccEntryEventMng's by town: 1
@@ -741,18 +753,34 @@ impl World {
         let row = npc::NpcRow::of(self.volume, e.code as usize)?;
         let (no, player) = (self.town.base.no, self.player.body.pos);
         match e.class {
+            npc::EventClass::Pc if e.search => {
+                // The SEARCH set-up: the row's stage is its event's status
+                // (`saveData+0x6483+row`); a row with no marks makes nothing.
+                let town = self.town_pcs.clone().expect("the entry control's set-up ran");
+                let stage =
+                    usize::try_from(e.code - 117).ok().map(|k| self.save.save.u8(offset::EVENT_STATUS + k) as i8);
+                let file = &self.town.base.file;
+                let set_up =
+                    stage.and_then(|st| rtownpc::Search::set_up(&town.borrow(), file, i32::from(e.code), st.into()));
+                let Some(s) = set_up else { return Ok(()) };
+                let model = rtownpc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
+                let origin = rtownpc::Origin::Search(s);
+                let pc = rtownpc::RtownPc::place_as(&town, &row, &model, origin, player, &mut self.town.base.hits);
+                self.pcs.push(pc);
+            }
             npc::EventClass::Pc => {
                 let town = self.town_pcs.clone().expect("the entry control's set-up ran");
                 let model = rtownpc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
+                let at = self.event_marker(e.marker);
                 let mut pc = rtownpc::RtownPc::place(&town, &row, &model, -1, player, &mut self.town.base.hits);
-                if let Some(at) = event::event_marker_in(&self.town.base.file, self.volume, e.marker) {
+                if let Some(at) = at {
                     (pc.char.pos, pc.char.dirc) = at;
                 }
                 self.pcs.push(pc);
             }
             npc::EventClass::Merchant => {
-                let (file, hits) = (&self.town.base.file, &mut self.town.base.hits);
-                let m = merchant::event_merchant(&self.archive, self.volume, &row, file, hits, no, player, e.marker)?;
+                let at = self.event_marker(e.marker);
+                let m = merchant::event_merchant(&self.archive, &row, &mut self.town.base.hits, no, player, at)?;
                 self.merchants.push(m);
             }
         }
@@ -762,13 +790,14 @@ impl World {
     /// An event's town NPC entry: queued for [`World::place_entries`], or
     /// placed at once (at the list's end) once it has run. False when the
     /// entry control makes nothing of it ([`npc::NpcRow::event_class`]).
-    pub(crate) fn entry_npc(&mut self, ty: i16, code: i16, marker: i16) -> bool {
+    pub(crate) fn entry_npc(&mut self, ty: i16, code: i16, marker: i16, param: i16) -> bool {
         if !self.placed {
             self.regist_npc_num += 1;
         }
         let row = usize::try_from(code).ok().and_then(|r| npc::NpcRow::of(self.volume, r).ok());
         let Some(class) = row.and_then(|row| row.event_class(ty)) else { return false };
-        let e = EventEntry { class, code, marker };
+        let search = self.volume != piney_data::volume::Volume::Inf && ty == 3 && param == -1;
+        let e = EventEntry { class, code, marker, search };
         if !self.placed {
             self.event_npcs.push(e);
             return true;
@@ -1684,8 +1713,13 @@ impl World {
             rand: &mut self.rand,
         };
         if awake {
+            let status_on = self.save.save.u8(offset::EVENT_STATUS + merchant::EVENT_NPC_STATUS) != 0;
+            for m in &mut self.merchants {
+                m.status_on = status_on;
+            }
             merchant::step_all(&mut self.merchants, &mut cx);
-            // The Administrator's starts, and his deletion at act 5's end.
+            // The Administrator's starts, and his (or the Event NPC's)
+            // deletion at the act's end.
             for m in &mut self.merchants {
                 let id = m.id;
                 self.merchant_events.extend(m.sysop_events.drain(..).map(|e| (id, e)));
@@ -1740,6 +1774,10 @@ impl World {
                 pg_events.push((pg.code, std::mem::take(&mut pg.events)));
             }
             self.grunties[i].draw(&mut ctx.layers, to_screen, &lights);
+        }
+        if let Some(t) = &self.town_pcs {
+            let at = offset::EVENT_STATUS;
+            t.borrow_mut().event_status.copy_from_slice(&self.save.save.bytes()[at..at + 80]);
         }
         for pc in &mut self.pcs {
             if awake {

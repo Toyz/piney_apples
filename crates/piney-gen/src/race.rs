@@ -61,7 +61,7 @@ thread_local! {
 }
 
 /// The overlay's code as (first address, words).
-fn code(c: &Ctx) -> Result<(u32, Vec<u32>), String> {
+pub(crate) fn code(c: &Ctx) -> Result<(u32, Vec<u32>), String> {
     let (lo, hi) = c.p.code_range(true);
     Ok((lo, (lo..hi).step_by(4).map(|a| c.p.u32(a)).collect::<Result<Vec<u32>, String>>()?))
 }
@@ -71,7 +71,7 @@ fn sext16(w: u32) -> u32 {
 }
 
 /// The address a `lui rt`, `addiu rt, rt` pair at `code[i..]` builds.
-fn pair(code: &[u32], i: usize) -> Option<u32> {
+pub(crate) fn pair(code: &[u32], i: usize) -> Option<u32> {
     let (w, x) = (*code.get(i)?, *code.get(i + 1)?);
     let r = (w >> 16) & 31;
     let ok = w >> 26 == 0x0f && x >> 26 == 0x09 && (x >> 21) & 31 == r && (x >> 16) & 31 == r;
@@ -80,12 +80,12 @@ fn pair(code: &[u32], i: usize) -> Option<u32> {
 
 /// The start of the function holding `code[i]`: the `addiu $sp, $sp, -N`
 /// at or before it.
-fn start_of(lo: u32, code: &[u32], i: usize) -> Option<u32> {
+pub(crate) fn start_of(lo: u32, code: &[u32], i: usize) -> Option<u32> {
     (0..=i).rev().find(|&k| code[k] >> 16 == 0x27bd && code[k] & 0x8000 != 0).map(|k| lo + 4 * k as u32)
 }
 
 /// The words of the function at `f`, up to its `jr $ra` and the delay slot.
-fn body(lo: u32, code: &[u32], f: u32) -> &[u32] {
+pub(crate) fn body(lo: u32, code: &[u32], f: u32) -> &[u32] {
     let s = ((f - lo) / 4) as usize;
     let n = code[s..].iter().position(|&w| w == 0x03e0_0008).map_or(0, |k| k + 2);
     &code[s..(s + n).min(code.len())]
@@ -110,7 +110,7 @@ fn unnamed_calls(c: &Ctx, f: &[u32]) -> Vec<u32> {
 
 /// The function's data addresses (strings and code aside), each once, in
 /// the order the code first builds them.
-fn tables(c: &Ctx, lo: u32, f: &[u32]) -> Vec<u32> {
+pub(crate) fn tables(c: &Ctx, lo: u32, f: &[u32]) -> Vec<u32> {
     let (_, end) = c.p.code_range(true);
     let mut out = Vec::new();
     for i in 0..f.len() {
@@ -135,7 +135,7 @@ fn data(c: &Ctx, a: u32) -> bool {
 }
 
 /// The named function `name`'s words.
-fn named<'a>(c: &Ctx, lo: u32, code: &'a [u32], name: &str) -> Result<&'a [u32], String> {
+pub(crate) fn named<'a>(c: &Ctx, lo: u32, code: &'a [u32], name: &str) -> Result<&'a [u32], String> {
     let f = c.p.symbol_named(name).ok_or_else(|| format!("no {name}"))?.value;
     Ok(body(lo, code, f))
 }
@@ -143,7 +143,7 @@ fn named<'a>(c: &Ctx, lo: u32, code: &'a [u32], name: &str) -> Result<&'a [u32],
 /// The handler of menu `n`: `ccThMenu`'s jump table (after its `sltiu`
 /// against the count) holds menu `n`'s case at `n + 1`; the case's first
 /// call.
-fn menu_handler(c: &Ctx, lo: u32, code: &[u32], n: u32) -> Result<u32, String> {
+pub(crate) fn menu_handler(c: &Ctx, lo: u32, code: &[u32], n: u32) -> Result<u32, String> {
     let t = named(c, lo, code, "ccThMenu__FPv")?;
     let at = t.iter().position(|&w| w >> 16 == 0x2c41).ok_or("ccThMenu has no sltiu")?;
     let table = (at..t.len()).find_map(|i| pair(t, i)).ok_or("ccThMenu builds no table")?;

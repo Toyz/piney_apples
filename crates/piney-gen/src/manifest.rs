@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use crate::dtype;
 use crate::layout::{Count, CustomFn, Layout, Num, Read, StructDef, Until, Value};
-use crate::locate::find;
+use crate::locate::{extract, find};
 use crate::sinit;
 use crate::talk;
 use crate::volume::{Ctx, Vol};
@@ -3047,15 +3047,52 @@ fn navi_lines(c: &Ctx) -> Read {
 }
 
 /// `rtpcAnmTbl[ccsType]`: each walking PC file's clips, standing, walking
-/// and running (`ctw2AnmTbl`, row 15, four more).
+/// and running (`ctw2AnmTbl`, row 15, four more), a row for each of
+/// `rtpcCcsName`'s files.
 fn rtpc_anms(c: &Ctx) -> Read {
     let t = find(c, 0x005E_DEB0, GCMN);
+    let names = names_until_null().read(c, find(c, 0x005E_D900, GCMN))?;
     let mut out = Vec::new();
-    for k in 0..49 {
+    for k in 0..names.list().len() as u32 {
         let tbl = c.p.u32(t + 4 * k)?;
         out.push(array(opt(cstr()), if k == 15 { 7 } else { 3 }).read(c, tbl)?);
     }
     Ok(Value::List(out))
+}
+
+/// Names up to the table's null.
+fn names_until_null() -> Layout {
+    array_until(opt(cstr()), Rc::new(|r| *r == Value::None))
+}
+
+/// The sign PCs' weapons: one for each `npcTbl` row from 180.
+fn sign_weapon_names(c: &Ctx) -> Read {
+    let a = crate::rtownpc::addrs(c)?.sign.ok_or("no sign PCs' weapons")?;
+    let g = groups();
+    let battle = g.iter().find(|x| x.name == "battle").ok_or("no battle group")?;
+    let k = battle.entries.iter().position(|e| e.name == "npcs").ok_or("no npcs")?;
+    let rows = extract(battle, c.volume)[k].list().len();
+    array(opt(cstr()), rows.saturating_sub(180)).read(c, a)
+}
+
+/// The SEARCH PCs' marks: a row's stages run to the next row's (the rows
+/// lie in order), and the table to the dummies'.
+fn search_marks(c: &Ctx) -> Read {
+    let at = crate::rtownpc::addrs(c)?;
+    let (Some(t), Some(end)) = (at.marks, at.dummies) else { return Err("no SEARCH marks".into()) };
+    let ptrs = (0..(end - t) / 4).map(|k| c.p.u32(t + 4 * k)).collect::<Result<Vec<u32>, String>>()?;
+    let mut live: Vec<u32> = ptrs.iter().copied().filter(|&p| p != 0).collect();
+    live.sort_unstable();
+    let stages = live.windows(2).map(|w| (w[1] - w[0]) / 4).min().ok_or("too few SEARCH rows")? as usize;
+    let row = array(fixed(I8, 4), stages);
+    let out = ptrs.iter().map(|&p| if p == 0 { Ok(Value::None) } else { row.read(c, p) });
+    Ok(Value::List(out.collect::<Result<Vec<_>, String>>()?))
+}
+
+/// `ccRegisterRandomNpc`'s rows from index 50 to the count it draws from.
+fn walk_extra_rows(c: &Ctx) -> Read {
+    let (a, n) = crate::rtownpc::addrs(c)?.extra.ok_or("no rows past the fifty")?;
+    array(I32, n as usize).read(c, a)
 }
 
 /// A `FIELDMAPICON *[11]`: by field type, its objects' icons (as many as
@@ -3130,7 +3167,13 @@ fn world() -> Group {
                 "`naviPointNameTable`: the dummies of the points the party walks to.",
             ),
             // The walking PCs (rtownnpc.cpp).
-            e("rtpc_ccs_names", 0x005E_D900, array(opt(cstr()), 49), GCMN, "`rtpcCcsName`: the files by `ccsType`."),
+            e(
+                "rtpc_ccs_names",
+                0x005E_D900,
+                array_until(opt(cstr()), Rc::new(|r| *r == Value::None)),
+                GCMN,
+                "`rtpcCcsName`: the files by `ccsType`, up to its null (49; 50 from Mutation on).",
+            ),
             e(
                 "rtpc_weapon_names",
                 0x005E_D9D0,
@@ -3138,13 +3181,46 @@ fn world() -> Group {
                 GCMN,
                 "`rtpcWeaponName`: the weapons of `npcTbl` rows 30-127.",
             ),
-            e(
+            derived(
                 "tvpc_weapon_names",
-                0x005E_DB60,
-                array(opt(cstr()), 9),
+                custom(Rc::new(|c| names_until_null().read(c, crate::rtownpc::addrs(c)?.tvpc)), names_until_null()),
                 GCMN,
-                "`tvpcWeaponName`: the weapons of `npcTbl` rows 159-167.",
+                "`tvpcWeaponName`: the weapons of `npcTbl` rows 159 on, the table `ccRtownPC::ccRtownPC` reads for them.",
             ),
+            derived(
+                "sign_weapon_names",
+                custom(Rc::new(sign_weapon_names), array(opt(cstr()), 0)),
+                GCMN,
+                "From Mutation on, the sign PCs' weapons: `npcTbl` rows 180 on (MUT gcmn 0x0061c280).",
+            )
+            .absent(Vol::Inf, Value::List(Vec::new())),
+            derived(
+                "search_marks",
+                custom(Rc::new(search_marks), array(opt(array(fixed(I8, 4), 0)), 0)),
+                GCMN,
+                "From Mutation on, the SEARCH PCs' `markPos` by row - 159 and stage (`eventStatus[row - 117]`): a start landmark, the first target, then, from stage 5, the dummy (MUT gcmn 0x0061c890).",
+            )
+            .absent(Vol::Inf, Value::List(Vec::new())),
+            derived(
+                "search_dummies",
+                custom(
+                    Rc::new(|c| {
+                        let a = crate::rtownpc::addrs(c)?.dummies.ok_or("no SEARCH dummies")?;
+                        names_until_null().read(c, a)
+                    }),
+                    names_until_null(),
+                ),
+                GCMN,
+                "From Mutation on, the dummies a SEARCH PC stands at from stage 5, by its `markPos[0]` (MUT gcmn 0x0061c8c0).",
+            )
+            .absent(Vol::Inf, Value::List(Vec::new())),
+            derived(
+                "walk_extra_rows",
+                custom(Rc::new(walk_extra_rows), array(I32, 0)),
+                MAIN,
+                "From Mutation on, the rows `ccRegisterRandomNpc` draws past the fifty walking PCs, from index 50 (MUT main 0x0032ef10).",
+            )
+            .absent(Vol::Inf, Value::List(Vec::new())),
             derived(
                 "rtpc_anms",
                 custom(Rc::new(rtpc_anms), array(array(opt(cstr()), 0), 0)),

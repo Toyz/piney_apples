@@ -116,7 +116,7 @@ Missing pieces that only the later volumes need.
 - [[65]] [[116]] `npc_act -3` (row 139's drain, with `effVirusCrystal`) and `-5` are not ported; only Mutation's event 114 uses them (docs/engine/events.md, effects.md, field-game.md) — Mutation's event 114
 - [[275]] `marker_pos` on a plain field (`WORLD_MAN` +0x438's stream) is not ported, and no event map but `EVENTAREA01` answers `StoryMap::file` — Mutation's field events
 - [[395]] from Mutation on a field ride's charge (MUT gcmn 0x0052f790, the knockback 0x0052f250, `+0x158`..`+0x160`), its Grunty chat (0x00530e50, 0x00530dd0) and the `+0x1e0` range are not ported (docs/engine/grunty-ride.md) — a later volume's field ride with the flute
-- [[394]] menus 90 and 91 (MUT gcmn 0x0058d470, 0x0058d9f0 with its page 0x0058edc0: list 90 is Talk and Item List, "Items were registered to the ...") are not ported, nor is who opens them traced — the later volumes' NPCs
+- [[394]] [[397]] menus 90 and 91 (MUT gcmn 0x0058d470, 0x0058d9f0 with its page 0x0058edc0 and helpers 0x0058f5d0-0x0058f930, MUT main 0x0017b0b0, 0x0017b140: list 90 is Talk and Item List, 91 the item registry that gives desktop items, "Items were registered to the ...") are not ported. Who opens them is traced by [[397]]: the Event NPC (flags 0x10000000) opens 90 (MUT gcmn 0x00536aa0); the port shuts it at once — the later volumes' Event NPC
 - [[272]] Kyvia's later fights (levels 2-5, the EX mode); fields 10-12 not played through (docs/engine/evarea.md, boss-kyvia.md, GAPS.md) — Mutation onward
 - docs/engine/battle.md `ccBoss04`'s Affect and AI are not ported — a later volume's boss (ported in [[294]])
 - [[72]] [[84]] the other `EVENTAREA` classes (04-06; areas 66, 67, 91) get generated fields (docs/engine/evarea.md, field-walk.md) — the later volumes' story maps; no Infection script reaches them
@@ -125,8 +125,8 @@ Missing pieces that only the later volumes need.
 - [[220]] on Outbreak and Quarantine `GetEventAreaInfo(0)` returns NULL where the port finds row 0 — Outbreak's and Quarantine's areas
 - [[77]] [[260]] `DrawMap` of towns 2-4 draws four sprites in the later volumes; [[260]] and docs/engine/map.md say the port draws three, but crates/piney-world/src/map/town.rs now carries a fourth (MARKS) sprite on the towns' own layers: to confirm — the later towns' maps
 - [[260]] which events place characters in Fort Ouph and Lia Fail — Outbreak's and Quarantine's stories
-- [[393]] Mutation's `ccRtownPC` (MUT gcmn 0x00522040, `main`, `normalMode`) is Infection's in the port: the walking PCs' body kind 8 (Infection 2), 50 `rtpcCcsName` names, rows 159 and up's own texture tables, and the SEARCH PCs' set-up for `entry 3 CODE MARKER -1` (0x00521e50: a landmark or dummy by `saveData+0x6483+row`; the port stands them at their marker) — every later volume's town; the SEARCH chain plays on Outbreak
-- [[393]] `ccSetMerchant(0)` from Mutation on also makes row 175 + town ("Event NPC", flags 0x10000000) when `saveData+0x652c` is set, with its own act (MUT gcmn 0x00521a00) and affect (0x00521990); the port makes none, and what sets the byte is not traced — the later volumes' towns
+- [[393]] Mutation's `ccRtownPC` (MUT gcmn 0x00522040): body kind 8, 50 `rtpcCcsName` names, the later rows' weapon tables, the SEARCH PCs' set-up (0x00521e50) — answered by [[397]] (rtownpc.rs `Pool`, `Search`, `search_mode`; tools/test_world_rs.py `TownPcsAgainstGame` on all four volumes)
+- [[393]] `ccSetMerchant(0)` from Mutation on also makes row 175 + town ("Event NPC") when `saveData+0x652c` is set, its act (0x00521a00) and affect (0x00521990), and what sets the byte — answered by [[397]]: `eventStatus[52]`, which event 317 (ITEM COMPLETE) sets when mail 328 is read (merchant.rs `EVENT_NPC`, `event_npc_act`; `MerchantsAgainstGame.test_event_npc`)
 
 ## Volumes
 
@@ -140,6 +140,8 @@ compared. (GAPS.md "After Infection" tracks the phases.)
 - [[278]] how the enemy tables changed row by row on OUT — only offsets compared
 
 ### world
+- [[397]] tools/test_world_rs.py on Mutation: `PropsAgainstGame.test_town_draw` stops on a syscall in Mutation's `ROOTTOWN01::Draw`, and `WorldAgainstGame.test_frames_random` differs in Kite's camera at frame 88 of "town01 random 0" — from before [[397]], not read
+- [[397]] in Carmina Gadelica merchants 15 and 16 land higher in the port than in the merchant harness (z 2.0 and 1.4e-4 against 0); whether ROOTTOWN03 registers its Hit chunk otherwise than ROOTTOWN01 is not read
 
 - [[206]] where Mutation's and Outbreak's idolItemList44 is — neither candidate reads like Infection's
 - [[260]] Fort Ouph and Lia Fail not compared with the game in eemu — not compared
@@ -605,7 +607,7 @@ player until one of these turns out wrong.
 - [[262]] the history's blobs not scanned; the history will not be published as it is — plans/release.md
 - [[271]] why piney-gen syms did not carry Func_str7100, Func_str8800, Func_str0300 to Mutation — a guess: jump-table relocations
 - [[276]] how the autopilot run compares with a player's play in time — fights are long
-- [[395]] tools/test_grunty_rs.py fails on Outbreak and Quarantine before a Grunty is made: test_world_rs's town set-up looks for `__vt__10ROOTTOWN01`, which those executables do not name — the harness's town for the later volumes
+- [[395]] tools/test_grunty_rs.py fails on Outbreak and Quarantine before a Grunty is made (`__vt__10ROOTTOWN01` not named there) — answered by [[397]]: the harnesses find ROOTTOWN01's vtable through its constructor (+0x1b0 there), leave the unnamed `AwakeDistantLight` to run, and find the Grunty's `dogAction` as the function before `dogAction2`; the grunty harness matches on all four volumes
 
 ## Answered
 

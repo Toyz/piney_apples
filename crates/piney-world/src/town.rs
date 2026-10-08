@@ -411,6 +411,9 @@ pub struct Base {
     pub clear: Option<[u8; 3]>,
     /// What the draws started for the host ([`Base::take_events`]).
     pub(crate) events: Vec<TownEvent>,
+    /// Dummies whose rotation the game wrote this visit (from Mutation on,
+    /// `setMerchant`'s Event NPC's), by name: the markers read them so.
+    pub written: Vec<(String, V4)>,
 }
 
 /// A Root Town class: what `ROOTTOWN01` .. `05` hold besides the [`Base`],
@@ -681,6 +684,7 @@ impl Base {
             hits,
             clear: spec.clear,
             events: Vec::new(),
+            written: Vec::new(),
         })
     }
 

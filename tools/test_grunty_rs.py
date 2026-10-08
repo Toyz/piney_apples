@@ -222,7 +222,9 @@ class GruntyGame:
                      "AwakeDistantLight__9WORLD_MANFv", "ccEntryCmnd__FP6ccChar", "SetActiveLayer__9WORLD_MANFi",
                      "Init__7ccClumpFP12ccClumpChunk", "__ct__7ccCoordFv", "SetFogSw__5ccAnmFi",
                      "SetFogSw__7ccClumpFi", "ApplyClump__5ccAnmFP7ccClumpP8ccStream"):
-            m.hooks[sym(name)] = nop
+            # Outbreak and Quarantine name no AwakeDistantLight: left to run.
+            if self.prog.symbol_named(name) is not None:
+                m.hooks[sym(name)] = nop
         m.hooks[sym("rand")] = lambda mm, *a: self.rand.next()
         self.names, self.chunks, self.anm, self.streams = {}, {}, {}, {}
         self.events, self.notes_seen, self.drawn = [], [], []
@@ -448,9 +450,11 @@ class GruntyGame:
         self.affects = {m.load(g + 0x94, 4): 0}
         # dogAction, dogAction2, dogActionAdult. From Mutation on a dog's
         # dogAction carries the name too: the Grunty's is the function
-        # before dogAction2.
+        # before dogAction2 (its `addiu $sp, $sp, -N`; Outbreak's is unnamed).
         two = sym("dogAction2__FP6ccChar")
-        one = self.prog.symbol_at(two - 4, 0x1000)[0].value
+        one = two - 4
+        while not (self.prog.u32(one) >> 16 == 0x27BD and self.prog.u32(one) & 0x8000):
+            one -= 4
         self.fns = {one: 0, two: 1, sym("dogActionAdult__FP6ccChar"): 2}
         self.route = m.load(g + 0x2C8, 4)
         return self.state()

@@ -2,7 +2,7 @@
 title: Entering The World - Kite in Mac Anu
 status: partial
 volumes: INF, MUT
-covers: INF SLUS_202.67:0x001687a0 ccSetupNewGame, 0x00175d30 ccSaveData::InitSpcParam, 0x00177010 ccSaveData::ChangeEquipment, 0x00176200 ccSaveData::SetSpcBaseMsg, 0x00168960 ccSetupGameCtrl, 0x001674a0 ccGame::ChangeArea, 0x00167380 ccGame::ChangeScene, 0x0019f8e0 WORLD_MAN::GO, 0x001a1190 WORLD_MAN::SetCharPosition, 0x001a4430 ccThFieldDisp, 0x00160610 ccThCamera, 0x00160a00 cameraInit, 0x00160cc0 cameraMain, 0x001611a0 setCameraCtrlType, 0x00161870 cameraPosCalc, 0x00162020 cameraSetEyeLevel, 0x00162fb0 checkCameraDistModValue, 0x00161260 cameraSet, 0x00162cd0 cameraShake, 0x001629b0 cameraShockAbsorber, 0x00162f10 checkCameraShakeRange, 0x00383e30 sfList, 0x0034b390 shakePowerTbl, 0x0034b3a0 shakeCycleTbl, 0x00161610 cameraGetRot, 0x001387a0 ccCam::SetMatrix_PosTarget, 0x00110ca0 sceVu0CameraMatrix, 0x001052c0 ccView::SetView, 0x0014ce50 ccStream::Decode_Hit, 0x00149990 ccSetHitData, 0x00153930 _ccHitCheckLM, 0x00153f60 collisionLM, 0x00153ce0 setNearest, 0x001545e0 collisionQM, 0x001552e0 ccHitResultGrouping, 0x00155600 ccModelHitCheckQ, 0x00155930 ccModelHitCheckQZ, 0x00153e80 checkHitResultAttlibute, 0x00153470 ccCharHit::CollisionDetection, 0x001da8b0 ccGetCameraTransparency, 0x001dab50 RAD2DEG, 0x001dabb0 DEG2RAD, 0x00127c28 sinf, 0x001278e0 cosf, 0x00124330 __ieee754_atan2f, 0x00127600 atanf, 0x001246e8 __ieee754_rem_pio2f, 0x00127d10 tanf, 0x00126728 __kernel_tanf, 0x00127e18 fmodf, 0x00124518 __ieee754_fmodf, 0x00162430 avoidObstacle, 0x001a10c0 WORLD_MAN::GetHeight, 0x00151cb0 ccAnm::SetLightEnv, 0x001a20b0 WORLD_MAN::SetActiveLayer, 0x0019d410 WORLD_MAN::RequestCCS, 0x0013d300 ccClump::GetObjAdrsF, 0x0013b8f0 ccObj::SetModel, 0x0013f220 ccObj::Draw, 0x00138380 ccCoord::_SetLWMatrix, 0x00133a38 rand, 0x001b62e0 ccEntryEventMng, 0x00150670 ccAnm::SetAnmCtrlWork, 0x001397e0 ccOmniLight::Init, 0x00139060 ccLightGrp::AddGrp, 0x001b2bb0 ccEvent::GetSpc, 0x001b2cc0 ccEvent::GetNpc, 0x001b2d50 ccEvent::GetEnemy, 0x001ae7d8 ccEvPcPos, 0x001aed5c ccEvPcRot, 0x001d9ce0 ccGetDirc, 0x00317da0 markerEvTbl, 0x001743d0 ccSaveData::Init, 0x001da710 ccCheckCameraDeg, 0x001da0b0 ccSetDirc, 0x001d9eb0 ccGetDircChg, 0x001d9900 ccInitRand, 0x001b7660 ccRegisterRandomNpc, 0x001b6cf0 ccEntryRandomNpc; INF gcmn.prg:0x0059ff50 ccGetStartPositions, 0x00597850 ccPlayerStart, 0x00597910 ccPlayer::ccPlayer, 0x00598310 ccPlayer::Main, 0x00598af0 ControlMove, 0x005992b0 PadLeverPower, 0x005993c0 AnimCtrl, 0x0059ba20 CameraPosCalc, 0x0059bac0 CameraPosSet, 0x0059b340 CollisionTest, 0x0059ee20 ccSpcChar::HitCheck, 0x0059b900 ccTransPosW2M, 0x0059b8d0 ccSetGroundHeight, 0x005b61d0 ROOTTOWN::GetHeight, 0x00571e00 ccLandHitCheck, 0x006f0560 playerAnimTbl, 0x00421470 ROOTTOWN01::ROOTTOWN01, 0x00423b10 ROOTTOWN01::Draw, 0x00422ba0 DrawFloor, 0x004224c0 DrawObj, 0x00422900 DrawObj2, 0x00422250 DrawBG, 0x0056b1c0 ccChar::Draw, 0x0059d650 ccSpcChar::EquipWeapon, 0x005a1530 ccMakeModelName, 0x00458df0 ccSetChaosGate, 0x00458ec0 ccEntryGimGate, 0x00458f60 ccChgate::ccChgate, 0x00459280 ccChgate::main, 0x004593e0 ccChgate::gateAnm, 0x00459570 chaosGateInfluence, 0x00570d30 ccGetGimmickParam, 0x0061e0f0 gimmickTbl, 0x0059b5a0 ccPlayer::W2PPos, 0x0042fa60 ccEntryObj::routine, 0x00431970 ccThEntryCtrl, 0x00505e20 ccMerchan::main, 0x00517800 ccThGameCtrl, 0x0059cd70 ccPlayerMenuCheck, 0x0059f550 ccSpcChar::CheckControlMode, 0x00518af0 ccSortCmnd, 0x00518cc0 ccSelectTarget, 0x00519240 ccCheckTargetRange, 0x00519630 ccEntryCmnd, 0x005198c0 ccChangeCmndTarget, 0x00519920 ccCheckTarget, 0x00581500 ccAI::SetDircZ, 0x00619460 npcTbl, 0x005057f0 ccSetMerchant, 0x00505590 setMerchant, 0x00505a50 ccEntryRtownMerchant, 0x00505aa0 ccMerchan::ccMerchan, 0x00505fc0 breederAct, 0x005065d0 breederInfluence, 0x00430c90 ccEntryCtrl::entryObject, 0x004317b0 ccEntryCtrl::entryNpc, 0x00430ec0 ccEntryCtrl::initObject, 0x00519700 ccDeleteCmnd, 0x005711f0 ccGetJobWeaponCategory, 0x00647cc0 playerDefaultItemList, 0x00647d20 playerDefaultImportantItemList, 0x00647d80 spcDefaultItemList, 0x005269d0 SetMerchantCamera, 0x005ed880 breederCamPos, 0x005ed8c0 breederCamView, 0x005ed870 merchanAnmPtr, 0x005d4050 fellowAnimTbl, 0x00506640 ccSetRtownPC, 0x005067f0 ccRtownPC::ccRtownPC, 0x00507c20 ccRtownPC::main, 0x00507de0 ccRtownPC::normalMode, 0x005077f0 ccRtownPC::move, 0x005076c0 ccRtownPC::changeTEX, 0x005091c0 rTownNPCInfluence, 0x005130b0 ccSetNaviMap, 0x00513720 ccNavi::RouteSearchByMap, 0x005ee120 markPosTbl, 0x005ed900 rtpcCcsName, 0x005edeb0 rtpcAnmTbl, 0x0051a500 ccCalcTagPosChar, 0x0051a640 ccCalcTagPos, 0x0056b020 ccChar::EntryAffect; INF demo.prg charTbl, 0x001b4ff0 ccThCameraExecute, 0x001b3680 ccEvent::CamCtrl, 0x001b4780 CamzCtrl, 0x001b48e0 CamzMovMain, 0x001b4b20 CamzInpCtrl, 0x001b4c80 CamzInpMain, 0x001617f0 changeCamera, 0x001614d0 cameraSetPos, 0x00161510 cameraSetView, 0x00161550 cameraSetRot, 0x00110b80 sceVu0RotMatrixY, 0x002fb6f0 cameraList, 0x00383dc0 ecam, 0x00383d50 bcam, 0x00161610 cameraGetRot, 0x00161820 cameraSetManual, 0x001631d0 cameraSoftReset, 0x00163230 cameraSoftResetParam, 0x001b2460 ccEvent::MenuBan, 0x001b25c0 MenuClr, 0x001b6d70 ccRegisterEventMng, 0x00159ed0 ccStartThread, 0x00159d40 GoThread, 0x0015a5c0 ccThControl, 0x001d9eb0 ccGetDircChg; INF gcmn.prg:0x004381d0 eneSplineB, 0x004382a0 eneSplineH, 0x0057c5f0 ccAI::ccAI, 0x0057ca00 ccAI::Brains, 0x00580ef0 ManualControl, 0x00583270 ManualMode, 0x005832e0 SetRemoteCmd, 0x00589740 ChangeMode, 0x0059eba0 ccSpcChar::ManualModeAI, 0x0059e950 SetBootStatus, 0x0059ea60 TransferIn, 0x0059ea80 TransferOut, 0x0059f5f0 ccSPC::Initialise, 0x0059f740 EntrySpc, 0x005a00d0 Reboot, 0x0059fe80 SetParty, 0x0059ce00 ccParty::InitParty, 0x0059ce80 AddMember, 0x0059cf60 DelMember, 0x005a08e0 inviteSpc, 0x005a0f50 disbandSpc, 0x00730340 ccSpcManager, 0x00730310 ccPartyManager, 0x0041ae80 ccFellow::Initialize, 0x0041b5f0 ccFellow::Main, 0x0041bc50 ccFellow::Move, 0x0041c670 ccFellow::Action, 0x0059b710 ccPlayer::P2WPos, 0x0057f660 ccAI::ActInTown, 0x00586420 ccAI::ChatMessageSender, 0x0058f810 ccAI::ChatMessageEnteredTown, 0x0041ed60 ccThFellow02, 0x0041ee90 ccThFellow02Delete, 0x0041ad60 ccFellow::~ccFellow, 0x0059d230 ccSpcChar::ccSpcChar, 0x00653c80 naviPointNameTable; MUT SLUS_205.62:0x001cb990 ccEntryEventMng, 0x001cc480 ccRegisterEventMng; MUT gcmn.prg:0x00520910 ccSetMerchant, 0x005205c0 setMerchant, 0x00520c90 ccMerchan::ccMerchan, 0x005210b0 ccMerchan::main, 0x00521cf0 ccSetRtownPC, 0x00521e50 the SEARCH PCs' set-up
+covers: INF SLUS_202.67:0x001687a0 ccSetupNewGame, 0x00175d30 ccSaveData::InitSpcParam, 0x00177010 ccSaveData::ChangeEquipment, 0x00176200 ccSaveData::SetSpcBaseMsg, 0x00168960 ccSetupGameCtrl, 0x001674a0 ccGame::ChangeArea, 0x00167380 ccGame::ChangeScene, 0x0019f8e0 WORLD_MAN::GO, 0x001a1190 WORLD_MAN::SetCharPosition, 0x001a4430 ccThFieldDisp, 0x00160610 ccThCamera, 0x00160a00 cameraInit, 0x00160cc0 cameraMain, 0x001611a0 setCameraCtrlType, 0x00161870 cameraPosCalc, 0x00162020 cameraSetEyeLevel, 0x00162fb0 checkCameraDistModValue, 0x00161260 cameraSet, 0x00162cd0 cameraShake, 0x001629b0 cameraShockAbsorber, 0x00162f10 checkCameraShakeRange, 0x00383e30 sfList, 0x0034b390 shakePowerTbl, 0x0034b3a0 shakeCycleTbl, 0x00161610 cameraGetRot, 0x001387a0 ccCam::SetMatrix_PosTarget, 0x00110ca0 sceVu0CameraMatrix, 0x001052c0 ccView::SetView, 0x0014ce50 ccStream::Decode_Hit, 0x00149990 ccSetHitData, 0x00153930 _ccHitCheckLM, 0x00153f60 collisionLM, 0x00153ce0 setNearest, 0x001545e0 collisionQM, 0x001552e0 ccHitResultGrouping, 0x00155600 ccModelHitCheckQ, 0x00155930 ccModelHitCheckQZ, 0x00153e80 checkHitResultAttlibute, 0x00153470 ccCharHit::CollisionDetection, 0x001da8b0 ccGetCameraTransparency, 0x001dab50 RAD2DEG, 0x001dabb0 DEG2RAD, 0x00127c28 sinf, 0x001278e0 cosf, 0x00124330 __ieee754_atan2f, 0x00127600 atanf, 0x001246e8 __ieee754_rem_pio2f, 0x00127d10 tanf, 0x00126728 __kernel_tanf, 0x00127e18 fmodf, 0x00124518 __ieee754_fmodf, 0x00162430 avoidObstacle, 0x001a10c0 WORLD_MAN::GetHeight, 0x00151cb0 ccAnm::SetLightEnv, 0x001a20b0 WORLD_MAN::SetActiveLayer, 0x0019d410 WORLD_MAN::RequestCCS, 0x0013d300 ccClump::GetObjAdrsF, 0x0013b8f0 ccObj::SetModel, 0x0013f220 ccObj::Draw, 0x00138380 ccCoord::_SetLWMatrix, 0x00133a38 rand, 0x001b62e0 ccEntryEventMng, 0x00150670 ccAnm::SetAnmCtrlWork, 0x001397e0 ccOmniLight::Init, 0x00139060 ccLightGrp::AddGrp, 0x001b2bb0 ccEvent::GetSpc, 0x001b2cc0 ccEvent::GetNpc, 0x001b2d50 ccEvent::GetEnemy, 0x001ae7d8 ccEvPcPos, 0x001aed5c ccEvPcRot, 0x001d9ce0 ccGetDirc, 0x00317da0 markerEvTbl, 0x001743d0 ccSaveData::Init, 0x001da710 ccCheckCameraDeg, 0x001da0b0 ccSetDirc, 0x001d9eb0 ccGetDircChg, 0x001d9900 ccInitRand, 0x001b7660 ccRegisterRandomNpc, 0x001b6cf0 ccEntryRandomNpc; INF gcmn.prg:0x0059ff50 ccGetStartPositions, 0x00597850 ccPlayerStart, 0x00597910 ccPlayer::ccPlayer, 0x00598310 ccPlayer::Main, 0x00598af0 ControlMove, 0x005992b0 PadLeverPower, 0x005993c0 AnimCtrl, 0x0059ba20 CameraPosCalc, 0x0059bac0 CameraPosSet, 0x0059b340 CollisionTest, 0x0059ee20 ccSpcChar::HitCheck, 0x0059b900 ccTransPosW2M, 0x0059b8d0 ccSetGroundHeight, 0x005b61d0 ROOTTOWN::GetHeight, 0x00571e00 ccLandHitCheck, 0x006f0560 playerAnimTbl, 0x00421470 ROOTTOWN01::ROOTTOWN01, 0x00423b10 ROOTTOWN01::Draw, 0x00422ba0 DrawFloor, 0x004224c0 DrawObj, 0x00422900 DrawObj2, 0x00422250 DrawBG, 0x0056b1c0 ccChar::Draw, 0x0059d650 ccSpcChar::EquipWeapon, 0x005a1530 ccMakeModelName, 0x00458df0 ccSetChaosGate, 0x00458ec0 ccEntryGimGate, 0x00458f60 ccChgate::ccChgate, 0x00459280 ccChgate::main, 0x004593e0 ccChgate::gateAnm, 0x00459570 chaosGateInfluence, 0x00570d30 ccGetGimmickParam, 0x0061e0f0 gimmickTbl, 0x0059b5a0 ccPlayer::W2PPos, 0x0042fa60 ccEntryObj::routine, 0x00431970 ccThEntryCtrl, 0x00505e20 ccMerchan::main, 0x00517800 ccThGameCtrl, 0x0059cd70 ccPlayerMenuCheck, 0x0059f550 ccSpcChar::CheckControlMode, 0x00518af0 ccSortCmnd, 0x00518cc0 ccSelectTarget, 0x00519240 ccCheckTargetRange, 0x00519630 ccEntryCmnd, 0x005198c0 ccChangeCmndTarget, 0x00519920 ccCheckTarget, 0x00581500 ccAI::SetDircZ, 0x00619460 npcTbl, 0x005057f0 ccSetMerchant, 0x00505590 setMerchant, 0x00505a50 ccEntryRtownMerchant, 0x00505aa0 ccMerchan::ccMerchan, 0x00505fc0 breederAct, 0x005065d0 breederInfluence, 0x00430c90 ccEntryCtrl::entryObject, 0x004317b0 ccEntryCtrl::entryNpc, 0x00430ec0 ccEntryCtrl::initObject, 0x00519700 ccDeleteCmnd, 0x005711f0 ccGetJobWeaponCategory, 0x00647cc0 playerDefaultItemList, 0x00647d20 playerDefaultImportantItemList, 0x00647d80 spcDefaultItemList, 0x005269d0 SetMerchantCamera, 0x005ed880 breederCamPos, 0x005ed8c0 breederCamView, 0x005ed870 merchanAnmPtr, 0x005d4050 fellowAnimTbl, 0x00506640 ccSetRtownPC, 0x005067f0 ccRtownPC::ccRtownPC, 0x00507c20 ccRtownPC::main, 0x00507de0 ccRtownPC::normalMode, 0x005077f0 ccRtownPC::move, 0x005076c0 ccRtownPC::changeTEX, 0x005091c0 rTownNPCInfluence, 0x005130b0 ccSetNaviMap, 0x00513720 ccNavi::RouteSearchByMap, 0x005ee120 markPosTbl, 0x005ed900 rtpcCcsName, 0x005edeb0 rtpcAnmTbl, 0x0051a500 ccCalcTagPosChar, 0x0051a640 ccCalcTagPos, 0x0056b020 ccChar::EntryAffect; INF demo.prg charTbl, 0x001b4ff0 ccThCameraExecute, 0x001b3680 ccEvent::CamCtrl, 0x001b4780 CamzCtrl, 0x001b48e0 CamzMovMain, 0x001b4b20 CamzInpCtrl, 0x001b4c80 CamzInpMain, 0x001617f0 changeCamera, 0x001614d0 cameraSetPos, 0x00161510 cameraSetView, 0x00161550 cameraSetRot, 0x00110b80 sceVu0RotMatrixY, 0x002fb6f0 cameraList, 0x00383dc0 ecam, 0x00383d50 bcam, 0x00161610 cameraGetRot, 0x00161820 cameraSetManual, 0x001631d0 cameraSoftReset, 0x00163230 cameraSoftResetParam, 0x001b2460 ccEvent::MenuBan, 0x001b25c0 MenuClr, 0x001b6d70 ccRegisterEventMng, 0x00159ed0 ccStartThread, 0x00159d40 GoThread, 0x0015a5c0 ccThControl, 0x001d9eb0 ccGetDircChg; INF gcmn.prg:0x004381d0 eneSplineB, 0x004382a0 eneSplineH, 0x0057c5f0 ccAI::ccAI, 0x0057ca00 ccAI::Brains, 0x00580ef0 ManualControl, 0x00583270 ManualMode, 0x005832e0 SetRemoteCmd, 0x00589740 ChangeMode, 0x0059eba0 ccSpcChar::ManualModeAI, 0x0059e950 SetBootStatus, 0x0059ea60 TransferIn, 0x0059ea80 TransferOut, 0x0059f5f0 ccSPC::Initialise, 0x0059f740 EntrySpc, 0x005a00d0 Reboot, 0x0059fe80 SetParty, 0x0059ce00 ccParty::InitParty, 0x0059ce80 AddMember, 0x0059cf60 DelMember, 0x005a08e0 inviteSpc, 0x005a0f50 disbandSpc, 0x00730340 ccSpcManager, 0x00730310 ccPartyManager, 0x0041ae80 ccFellow::Initialize, 0x0041b5f0 ccFellow::Main, 0x0041bc50 ccFellow::Move, 0x0041c670 ccFellow::Action, 0x0059b710 ccPlayer::P2WPos, 0x0057f660 ccAI::ActInTown, 0x00586420 ccAI::ChatMessageSender, 0x0058f810 ccAI::ChatMessageEnteredTown, 0x0041ed60 ccThFellow02, 0x0041ee90 ccThFellow02Delete, 0x0041ad60 ccFellow::~ccFellow, 0x0059d230 ccSpcChar::ccSpcChar, 0x00653c80 naviPointNameTable; MUT SLUS_205.62:0x001cb990 ccEntryEventMng, 0x001cc480 ccRegisterEventMng; MUT gcmn.prg:0x00520910 ccSetMerchant, 0x005205c0 setMerchant, 0x00520c90 ccMerchan::ccMerchan, 0x005210b0 ccMerchan::main, 0x00521cf0 ccSetRtownPC, 0x00521e50 the SEARCH PCs' set-up, 0x00522040 ccRtownPC::ccRtownPC, 0x00523760 ccRtownPC::main, 0x00523990 normalMode, 0x005243f0 searchMode, 0x00523320 move, 0x00524d50 eventMode, 0x00521a00 the Event NPC's act, 0x00521990 its affect; MUT SLUS_205.62:0x001ccdf0 ccRegisterRandomNpc
 worklog: 59, 328, 333, 356, 386, 393
 ---
 
@@ -907,6 +907,26 @@ Quarantine) only the Grunt Shops (`breederAct`), 29 and 158 (`sysopeAct`)
 and rows 175-179 (their own act, 0x00521a00) act and collide; the other
 shops do neither, so their `bodyHitFlag` stays 0 and they never play
 their talk clip. `MerchantsAgainstGame` runs both rules (`PINEY_VOLUME`).
+A merchant's body is kind 16 from Mutation on (2 on Infection). When
+`main` returns 1 (the Administrator's act 5, the Event NPC's going) the
+entry control deletes it, and `~ccCharHit` takes its body off the
+character list.
+
+From Mutation on `ccSetMerchant(0)` (MUT gcmn 0x00520910) then makes the
+"Event NPC", row 175 + town (flags 0x10000000, `CTR1`-`CTR4`), while
+`saveData.eventStatus[52]` (+0x652c) is set. Event 317 ("ITEM COMPLETE",
+open once 315 is done: a Quarantine event, on every disc) sets it when
+mail 328 is read, in the desktop. `setMerchant` (0x005207b4) puts 175, 176
+and 178 at `DMY_marker_ev04`, 177 at `DMY_marker_ev01` with that dummy's
+rotation z written to `DEG2RAD(24576)`, 179 at `DMY_marker_ev02` with x
+and y 0 and z `DEG2RAD(-24576)`; the writes stay in the town's dummies for
+the visit, so its markers 1 and 2 read them. Its `anmTbl` is
+`merchanAnmPtr[town]` (179's the second). Its act (0x00521a00) is the
+breeders' three, until the status is clear: then act 3 idles, calls
+`effTransfer` and `deleteCmnd(1)`, fades out by 0.02 and returns 1. Its
+affect (0x00521990): 15 faces Kite from the talk clip's start (act 1), 14
+only turns it (act 1, process 1), 0 faces its way again (act 2). Its
+action button opens menu 90.
 
 ### The walking PCs
 
@@ -951,6 +971,48 @@ The other "players" wandering Mac Anu are `ccRtownPC`s (gcmn rtownnpc.cpp,
   starts walking (acts 1 and 6 to 3), in a chat group and at the gate's
   far side, and off it (`ccDeleteCmnd`) as it hides; `routine` never puts
   it back (its `cmndFlag` stays set).
+
+#### From Mutation on
+
+Mutation's class (MUT gcmn 0x00522040, 0x2f4 bytes; Outbreak's and
+Quarantine's, recompiled, do the same) differs as follows.
+
+- Who (`ccRegisterRandomNpc`, MUT main 0x001ccdf0): server 1 and 3 have 2
+  fewer PCs, 2 has 6 fewer and 4 has 10 fewer. The first three slots draw
+  `|ccRand() % 50|` as before; the rest draw from 56: rows 30-79, then
+  `walk_extra_rows` (0x0032ef10: 180, 181, 183, 182, 120, 121). The extra
+  rows are taken while their event is not done: 300 for the first three,
+  358 for Crim, 315 for Sieg and Kaz (`eventFlag` bit 62). A taken draw
+  moves on to the next free one of the 56.
+- Model: 50 files (`ctwmk`, Kaz, is the 50th). Rows 159-179 take their
+  weapon from 0x0061c250, 180 on from 0x0061c280. Type 35 holds its weapon
+  in the left hand; type 49 holds one in the right, as 48. The body is
+  kind 8, so Kite's `HitCheck` (the same code) no longer sets its bit 0
+  for a PC.
+- Fields from +0x2bc: the glimmer's angle (+0x2bc) and stage (+0x2be), then
+  Infection's `dist` .. `changeRouteFlag` 4 bytes on, then +0x2d6 (a SEARCH
+  PC) and +0x2d7 (a slot of 4 or more, even: the Flag Race hides it).
+- The Flag Race: a walker (act 3) with +0x2d7 goes to act 9 after its
+  move while `ccSnd +0x13a` is set. Act 9 takes it off the character and
+  command lists and holds it hidden until the race ends, then walks again.
+- The event mode's fade-in (`npc_act 3`) starts with `effTransfer`.
+- A SEARCH PC (`entry 3 row marker -1`, rows 159-167; the set-up MUT gcmn
+  0x00521e50): its stage is `eventStatus[row - 117]`, its `markPos` is
+  `search_marks[row - 159][stage]` (0x0061c890). Below stage 5 it starts
+  at landmark `markPos[0]`, routes to `markPos[1]` (act 6) and walks.
+  From 5 it stands (act 8) at the dummy `search_dummies[markPos[0]]`
+  (0x0061c8c0), facing the dummy's way for the first three. The marker is
+  not used.
+  - It runs `searchMode` (0x005243f0) in place of `normalMode`. Its
+    walks are `normalMode`'s, but slower (3.5) and with `anmTbl[1]`.
+  - It stays off the character list, collides with nothing, greets no
+    one and makes no step sounds.
+  - It glimmers: `transrate` is 0.3 sin of an angle turning 256 a frame,
+    at least 0.1.
+  - `npc_act 2` turns it to Kite and brightens it to 0.8 (act 2). `npc_act
+    5` takes it off the lists: `effOpenBox` at its place, and at stage 5
+    `effVirusCrystal` and `ccSeOn3DNote(167, pos, 40)`. It then fades over
+    30 frames through `routine` and hides after 33. `npc_act 6` hides it.
 
 The routes (gcmn `ccnavi.cpp`, tables in `navitbl.cpp`): a town is a
 graph of numbered landmarks (`naviMapTown1`-`5`, gcmn 0x006144a0...,
@@ -1015,7 +1077,7 @@ main 0x001b6d70, MUT 0x001cc480) counts every type 3/4 entry into
 `registNpcNum`, made or not, before `ccRegisterRandomNpc`. From Mutation
 on, a type 3 with `param` -1 goes instead to a set-up of its own (MUT gcmn
 0x00521e50, the SEARCH events' named PCs, rows 159-167) and is not moved
-to a marker; that set-up is not ported (Unknown, below).
+to a marker ([From Mutation on](#from-mutation-on)).
 
 Events 2-4 use `entry` (event 2: Orca, type 2 code 2, marker 3, param 5),
 `add_target`, `pc_act`, `pc_mode`, `pc_turn`, `pc_face`, `pc_put`,
@@ -1908,16 +1970,6 @@ runs event 2's character flow through the World API.
 - The event's NPCs outside the towns: the class steps after the battle's
   tasks rather than in the entry control's NPC turn, and its starts reach
   the effects a frame late.
-- Mutation's `ccRtownPC` (MUT gcmn 0x00522040, 740 bytes more than
-  Infection's) is not ported: the walking PCs' body kind is 8 (Infection
-  2), `rtpcCcsName` has 50 names, rows 159 and up take textures from their
-  own tables, and the SEARCH PCs' set-up (0x00521e50: a landmark or a
-  dummy from tables 0x0061c890 and 0x0061c8c0 by `saveData+0x6483+row`,
-  then `param` 1 and the state) is not ported; the port puts those at
-  their marker through `ccSetRtownPC`. `main` and `normalMode` differ too.
-- `ccSetMerchant(0)` from Mutation on also makes row 175 + town (an
-  "Event NPC", flags 0x10000000) when `saveData+0x652c` is set; the port
-  makes no such row, nor its act (0x00521a00) and affect (0x00521990).
 - `inviteSpc` of an unregistered character in a field or dungeon (the
   town's is ported), and `StartPos` for members already in the party when
   an area starts.

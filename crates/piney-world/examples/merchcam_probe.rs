@@ -71,8 +71,17 @@ fn main() {
                 let mut town = piney_world::town::Town::open(&archive, volume, 0, false).unwrap();
                 let player = [0, 0x45af_0000, 0x4416_0000, ee::ONE];
                 let t = &mut town.base;
-                let list_ =
-                    piney_world::merchant::set_merchants(&archive, volume, &t.file, &mut t.hits, 0, player).unwrap();
+                let list_ = piney_world::merchant::set_merchants(
+                    &archive,
+                    volume,
+                    &t.file,
+                    &mut Vec::new(),
+                    &mut t.hits,
+                    0,
+                    player,
+                    false,
+                )
+                .unwrap();
                 let out: Vec<String> = list_
                     .iter()
                     .map(|m| {

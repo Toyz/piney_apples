@@ -67,8 +67,10 @@ pub enum Start {
     /// `effGrowPG(ch)`: a young Grunty becoming a grown one, at its place
     /// and half its height.
     Grow(V4, F),
-    /// `effOpenBox(pos)`: a Flag Race flag taken.
+    /// `effOpenBox(pos)`: a Flag Race flag taken, a SEARCH PC gone.
     OpenBox(V4),
+    /// `effVirusCrystal(pos)`: a SEARCH PC gone at its last stage.
+    VirusCrystal(V4),
 }
 
 /// What the town's effects read of the town.
@@ -166,6 +168,9 @@ impl TownFx {
                     self.fx.grow_pg(&mut h, pos, height);
                 }
                 Start::OpenBox(pos) => self.fx.open_box(&mut h, pos),
+                Start::VirusCrystal(pos) => {
+                    self.fx.virus_crystal(&mut h, pos);
+                }
             }
         }
         self.fx.step(&mut h);

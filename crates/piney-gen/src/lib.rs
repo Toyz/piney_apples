@@ -13,6 +13,7 @@ pub mod placement;
 pub mod program;
 pub mod race;
 pub mod render;
+pub mod rtownpc;
 pub mod sinit;
 pub mod source;
 pub mod syms;

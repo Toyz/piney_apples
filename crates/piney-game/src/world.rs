@@ -1266,6 +1266,16 @@ impl Mode for WorldMode {
                     piney_world::rtownpc::PcEvent::Transfer => {
                         pc_starts.push(crate::town_fx::Start::Transfer(2 << 24 | (code as u32 & 0xff_ffff)));
                     }
+                    piney_world::rtownpc::PcEvent::Vanish { pos, crystal } => {
+                        pc_starts.push(crate::town_fx::Start::OpenBox(pos));
+                        if crystal {
+                            pc_starts.push(crate::town_fx::Start::VirusCrystal(pos));
+                            let cam = self.world.camera().active();
+                            let ear =
+                                Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
+                            self.events.push(Event::Se3d { n: 167, pos, note: Some(40), ear });
+                        }
+                    }
                     piney_world::rtownpc::PcEvent::Step { param, ccs_type, pos, attribute, feet, dirc_z, speed } => {
                         if let Some(se) = piney_audio::se3d::pc_note(param, ccs_type, attribute) {
                             let cam = self.world.camera().active();
