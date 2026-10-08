@@ -250,6 +250,12 @@ def remarks():
     return {callee(c, n): (name, item) for name, c, n, item in REMARKS}
 
 
+def last_menu_list():
+    """`menuList`'s last row: 88 on Infection, 92 from Mutation on (its
+    `InitMenuList` loop, 93 rows)."""
+    return 88 if NAME == "infection" else 92
+
+
 def menu_at(inf_off):
     """ccMenuCtrl's field at Infection's offset `inf_off`, in this volume.
     From Mutation on a short at +0x12c moves protect and protectCnt 2 on,

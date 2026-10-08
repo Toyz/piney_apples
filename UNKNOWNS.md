@@ -116,7 +116,7 @@ Missing pieces that only the later volumes need.
 - [[65]] [[116]] `npc_act -3` (row 139's drain, with `effVirusCrystal`) and `-5` are not ported; only Mutation's event 114 uses them (docs/engine/events.md, effects.md, field-game.md) — Mutation's event 114
 - [[275]] `marker_pos` on a plain field (`WORLD_MAN` +0x438's stream) is not ported, and no event map but `EVENTAREA01` answers `StoryMap::file` — Mutation's field events
 - [[395]] from Mutation on a field ride's charge (MUT gcmn 0x0052f790, the knockback 0x0052f250, `+0x158`..`+0x160`), its Grunty chat (0x00530e50, 0x00530dd0) and the `+0x1e0` range are not ported (docs/engine/grunty-ride.md) — a later volume's field ride with the flute
-- [[394]] [[397]] menus 90 and 91 (MUT gcmn 0x0058d470, 0x0058d9f0 with its page 0x0058edc0 and helpers 0x0058f5d0-0x0058f930, MUT main 0x0017b0b0, 0x0017b140: list 90 is Talk and Item List, 91 the item registry that gives desktop items, "Items were registered to the ...") are not ported. Who opens them is traced by [[397]]: the Event NPC (flags 0x10000000) opens 90 (MUT gcmn 0x00536aa0); the port shuts it at once — the later volumes' Event NPC
+- [[394]] [[397]] menus 90 and 91 (MUT gcmn 0x0058d470, 0x0058d9f0 with its page 0x0058edc0 and helpers 0x0058f5d0-0x0058f930, MUT main 0x0017b0b0, 0x0017b140: list 90 is Talk and Item List, 91 the item registry that gives desktop items, "Items were registered to the ...") are not ported. Who opens them is traced by [[397]]: the Event NPC (flags 0x10000000) opens 90 (MUT gcmn 0x00536aa0); the port shuts it at once — the later volumes' Event NPC — answered by [[399]] (menus/registry.rs: the list, Item List, its page and the registry; `EventNpcPages` in tools/test_fieldui_talk_rs.py on Mutation, Outbreak and Quarantine; the `item_list` session tests)
 - [[272]] Kyvia's later fights (levels 2-5, the EX mode); fields 10-12 not played through (docs/engine/evarea.md, boss-kyvia.md, GAPS.md) — Mutation onward
 - docs/engine/battle.md `ccBoss04`'s Affect and AI are not ported — a later volume's boss (ported in [[294]])
 - [[72]] [[84]] the other `EVENTAREA` classes (04-06; areas 66, 67, 91) get generated fields (docs/engine/evarea.md, field-walk.md) — the later volumes' story maps; no Infection script reaches them
@@ -692,7 +692,7 @@ player until one of these turns out wrong.
 - [[23]] whether the text code changed in volumes 2-4 — answered by [[25]] (OUT's ccKanjiStrlen counts every %x pair)
 - [[24]] what the Mutation-on blocks at +0x8432 and +0x8462 hold — answered by [[246]] (zeroed by Init, copied, never read)
 - [[24]] the extension's 3 bytes at +0x748 — answered by [[200]] / docs/formats/save.md (pcTradeCount of characters 18-20)
-- [[24]] the extension's 256 bytes at +0x754 — answered by [[246]] (cleared and copied, nothing else)
+- [[24]] the extension's 256 bytes at +0x754 — answered by [[246]], [[399]] (the Event NPC's item registry: Item List, menu 91, reads and writes it; docs/formats/save.md)
 - [[24]] the save bit at +0x5ec8 bit 62 — answered by [[220]] (eventFlag[314] bit 62, event 314 done; the random-path dungeon flag)
 - [[24]] what the ending routine does while the KFED buffers are loaded — answered by [[239]] (gcmn 0x004f0a30 starts STFROLL_VOL4 and waits)
 - [[24]] what OUT's rewritten cases 6, 8, 9, 60, 71, 72 and 150 do — answered by [[325]] (INF's behaviour; inline writes moved into small functions) / docs/engine/events.md

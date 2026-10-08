@@ -25,6 +25,7 @@ pub mod nameentry;
 pub mod newgame;
 pub mod party_chat;
 pub mod race;
+pub mod registry;
 pub mod sjis;
 pub mod staffroll;
 pub mod stream;

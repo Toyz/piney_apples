@@ -268,7 +268,7 @@ class TalkGame(base.Game):
         m, c = self.m, self.menu()
         g = lambda o: m.load(c + o, 2, True)  # noqa: E731
         menu = g(6)
-        lst = inf_va(0x0072EFE0) + 32 * max(0, min(menu, 88))
+        lst = inf_va(0x0072EFE0) + 32 * max(0, min(menu, volume.last_menu_list()))
         L = lambda o: m.load(lst + o, 2, True)  # noqa: E731
         st = st + [g(0xF6), g(0xFA), g(0xFC), self.handle(m.load(c + volume.menu_at(0x234), 4)), L(0x10), L(0xC), L(0xE), L(0x14),
                    L(0x16), L(0x1C), L(0x1E), L(0x18), L(0x1A), L(0x12)]

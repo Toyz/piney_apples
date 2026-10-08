@@ -6911,6 +6911,12 @@ mod tests {
     /// Issue #62: every town's Grunty ranch plays the breeder's tune.
     mod ranch_music;
 
+    /// Kite walked through a town round its walls and people.
+    mod town_walk;
+
+    /// From Mutation on, the Event NPC's Item List (menus 90 and 91).
+    mod item_list;
+
     /// Issue #63: every walking PC's Talk, every box a line of its own.
     mod pc_talk;
 

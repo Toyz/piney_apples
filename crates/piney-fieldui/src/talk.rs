@@ -521,6 +521,7 @@ pub enum Tail {
     Record(menus::record::Tail),
     Breeder(menus::breeder::Tail),
     Inu(menus::inu::Tail),
+    Registry(menus::registry::Tail),
 }
 
 /// What a page does after its close's tail.
@@ -571,6 +572,7 @@ pub fn tail(m: &mut MenuCtrl, t: Tail, x: &mut Ctx) -> Option<Cont> {
         Tail::Record(t) => menus::record::tail(m, t, x),
         Tail::Breeder(t) => menus::breeder::tail(m, t, x),
         Tail::Inu(t) => menus::inu::tail(m, t, x),
+        Tail::Registry(t) => menus::registry::tail(m, t, x),
     }
 }
 

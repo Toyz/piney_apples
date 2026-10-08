@@ -17,7 +17,7 @@ use crate::Request;
 use crate::ctrl::{Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_MOVE, SE_OK};
 use crate::items::{self, Item};
 use crate::menus::system::{extract_menu, item_rows, push_msg_requests};
-use crate::menus::{equip, merchant};
+use crate::menus::{breeder, equip, merchant};
 use crate::spr::{make_num, set_clm};
 use crate::talk::{self, TalkReq, Then};
 use crate::window::disp_square_w2;
@@ -142,10 +142,21 @@ pub fn talk_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                     let rec = tt.word(base.msg.wrapping_add((4 * a0) as u32));
                     talk::open_record(m, x, rec, &base.name, -1, -1);
                 }
-            } else if base.types & 0x0800_1f00 != 0 {
-                let server = x.world.game.server;
-                let tbl = tt.word(base.msg.wrapping_add((4 * server) as u32));
-                let rec = tbl.wrapping_add((12 * tn) as u32);
+            } else if base.types & talkers(x.texts.volume) != 0 {
+                // From Mutation on (MUT gcmn 0x0056d244) a breeder whose
+                // town has three grown Grunties and mail 324 at 3 or more
+                // talks of the race.
+                let race = x.texts.volume != Volume::Inf
+                    && base.types & 0x0800_0000 != 0
+                    && m.pg_adult_num >= 3
+                    && x.save.save.mail(breeder::RACE_MAIL) as i8 >= 3;
+                let rec = if race {
+                    piney_data::tables::race::of(x.texts.volume).talk_va()
+                } else {
+                    let server = x.world.game.server;
+                    let tbl = tt.word(base.msg.wrapping_add((4 * server) as u32));
+                    tbl.wrapping_add((12 * tn) as u32)
+                };
                 talk::open_record(m, x, rec, &base.name, -1, -1);
             } else {
                 let rec = base.msg.wrapping_add((12 * tn) as u32);
@@ -166,6 +177,12 @@ pub fn talk_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         }
         _ => Flow::Done,
     }
+}
+
+/// The kinds `TalkMenu` reads a table of lines by server for: from
+/// Mutation on the Event NPC's 0x10000000 too (MUT gcmn 0x0056d230).
+fn talkers(v: Volume) -> u32 {
+    if v == Volume::Inf { 0x0800_1f00 } else { 0x1800_1f00 }
 }
 
 /// A trading PC's offer (0x0054df48 - 0x0054e3c0): the next of its three

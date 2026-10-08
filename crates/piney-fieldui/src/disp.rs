@@ -620,6 +620,17 @@ pub fn member_name(x: &Ctx, pc: i32) -> Vec<u8> {
     x.texts.char_names.get(pc.max(0) as usize).cloned().unwrap_or_default()
 }
 
+/// The kinds `Disp` names "Talk" for and draws in the talkers' colour:
+/// from Mutation on the Event NPC's 0x10000000 too (MUT gcmn 0x0053c92c).
+fn talkers(v: piney_data::volume::Volume) -> u32 {
+    if v == piney_data::volume::Volume::Inf { 0x0f00_1f1f } else { 0x1f00_1f1f }
+}
+
+/// The kinds `Disp` draws a target cursor for (MUT gcmn 0x0053ce74).
+fn targets(v: piney_data::volume::Volume) -> u32 {
+    if v == piney_data::volume::Volume::Inf { 0x0fbf_dfff } else { 0x1fbf_dfff }
+}
+
 /// nameKanji's text: the target's name, its action, the party's names,
 /// then the town's face name or a foe's immunity ("Fire Tol."), then "You
 /// have new mail." (0x0051e78c - 0x0051eca0), extracted into nameKanji
@@ -632,7 +643,7 @@ fn name_texts(m: &mut MenuCtrl, x: &mut Ctx, target: Option<&CharInfo>) {
     }
     match target {
         Some(t) => {
-            let h = if t.is(0x0f00_1f1f) {
+            let h = if t.is(talkers(x.texts.volume)) {
                 0
             } else if t.is(0xe0) {
                 1
@@ -690,11 +701,11 @@ fn target_cursor(m: &mut MenuCtrl, x: &mut Ctx, target: Option<&CharInfo>) {
         m.sub_target = [0; 16];
         return;
     }
-    if t.is(0x0fbf_dfff) && m.cursol_off == 0 {
+    if t.is(targets(x.texts.volume)) && m.cursol_off == 0 {
         let enemy = t.is(0xe0);
         if enemy {
             m.target.set_colour(2);
-        } else if t.is(0x0f00_1f1f) {
+        } else if t.is(talkers(x.texts.volume)) {
             m.target.set_colour(17);
         } else {
             m.target.set_colour(6);

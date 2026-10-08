@@ -1192,7 +1192,7 @@ class Game:
         g = lambda o: m.load(c + o, 2, True)  # noqa: E731
         w = lambda o: m.load(c + o, 4, True)  # noqa: E731
         menu = g(6)
-        lst = inf_va(0x0072EFE0) + 32 * max(0, min(menu, 88))
+        lst = inf_va(0x0072EFE0) + 32 * max(0, min(menu, volume.last_menu_list()))
         st = [g(6), g(8), g(0xA), g(0x1A), w(0x34), w(0x38), g(0xC), w(0x40), g(0xE), w(0x44), g(0x10), w(0x48),
               w(0x3C), w(0x4C), g(0x20), g(0x18), g(0x14), g(0x1C), g(0x12A), m.load(lst + 0xA, 2, True),
               w(0xEC), m.load(CMNDTARGETFIX, 4, True), w(volume.menu_at(0x238)), m.mem[SAVE + 0x30:SAVE + 0xD0].hex(),

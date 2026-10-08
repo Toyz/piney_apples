@@ -148,9 +148,11 @@ fn roots(v: Vol) -> Vec<u32> {
     }
     out.extend(get("fieldui", "spc_msg_tbl").list().iter().map(|w| w.int() as u32).filter(|&w| w != 0));
     // From Mutation on, the Flag Race's greeting and its results' table.
-    for k in ["greet_va", "results_va"] {
+    for k in ["greet_va", "results_va", "talk_va"] {
         out.push(get("race", k).int() as u32);
     }
+    // And the Event NPC's word once Item List is complete.
+    out.push(get("registry", "done_va").int() as u32);
     for k in [
         "spc_msg_present10_va",
         "spc_msg_present11_va",

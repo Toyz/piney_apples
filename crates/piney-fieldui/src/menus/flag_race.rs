@@ -146,7 +146,7 @@ fn wake(m: &mut MenuCtrl, x: &mut Ctx, t: Tail) -> Flow {
 
 /// A wallpaper given: its window (`bookWallPaperAdd` and the number in
 /// three digits, then `bookItemAddMsg`), sound 74 and its desktop bit.
-fn wallpaper(m: &mut MenuCtrl, x: &mut Ctx, wp: i16) {
+pub(crate) fn wallpaper(m: &mut MenuCtrl, x: &mut Ctx, wp: i16) {
     let book = world::of(x.texts.volume).book();
     let mut s = encode(book.get(1).copied().unwrap_or(""));
     s.extend(dec2sjis(i32::from(wp), 3, 0));

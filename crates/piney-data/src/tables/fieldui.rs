@@ -78,6 +78,26 @@ impl crate::store::Load for RaceStr {
     }
 }
 
+/// Item List's messages: each its pieces (`ccKanjiStrSeparate`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemListStr {
+    pub none: &'static [&'static str],
+    pub bag: &'static [&'static str],
+    pub haven: &'static [&'static str],
+    pub count: &'static [&'static str],
+}
+
+impl crate::store::Load for ItemListStr {
+    fn load(r: &mut crate::store::Reader) -> Self {
+        ItemListStr {
+            none: crate::store::Load::load(r),
+            bag: crate::store::Load::load(r),
+            haven: crate::store::Load::load(r),
+            count: crate::store::Load::load(r),
+        }
+    }
+}
+
 /// A face: its scene file and texture.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MenuFace {
@@ -160,6 +180,10 @@ pub struct FieldUi {
     pub help: &'static [Option<&'static str>],
     /// The Flag Race's texts (MUT main 0x00353d40).
     pub race_str: RaceStr,
+    /// Item List's messages (MUT main 0x00353d70).
+    pub item_list_str: ItemListStr,
+    /// Item List's page titles by group, a piece a page (MUT main 0x00353d80).
+    pub item_list_tags: &'static [&'static [&'static str]],
     /// `deadInfo`
     pub dead_info: &'static str,
     /// `newMailStr`
@@ -168,6 +192,8 @@ pub struct FieldUi {
     pub kyvia_status: &'static [&'static str],
     /// The Flag Race's pause: Continue, Quit, in columns of 16.
     pub race_pause: &'static str,
+    /// Item List's groups, in columns of 16.
+    pub item_list_rows: &'static str,
     /// `cheatHpStr`: the digits for 5-digit HP.
     pub cheat_hp: &'static str,
     /// `panelFlashTbl`: the panel flash's grey steps.
@@ -464,10 +490,13 @@ impl crate::store::Load for FieldUi {
             option_help: crate::store::Load::load(r),
             help: crate::store::Load::load(r),
             race_str: crate::store::Load::load(r),
+            item_list_str: crate::store::Load::load(r),
+            item_list_tags: crate::store::Load::load(r),
             dead_info: crate::store::Load::load(r),
             new_mail: crate::store::Load::load(r),
             kyvia_status: crate::store::Load::load(r),
             race_pause: crate::store::Load::load(r),
+            item_list_rows: crate::store::Load::load(r),
             cheat_hp: crate::store::Load::load(r),
             panel_flash: crate::store::Load::load(r),
             faces: crate::store::Load::load(r),
@@ -631,6 +660,12 @@ impl FieldUi {
     pub fn race_str(&self) -> RaceStr {
         self.race_str
     }
+    pub fn item_list_str(&self) -> ItemListStr {
+        self.item_list_str
+    }
+    pub fn item_list_tags(&self) -> &'static [&'static [&'static str]] {
+        self.item_list_tags
+    }
     pub fn dead_info(&self) -> &'static str {
         self.dead_info
     }
@@ -642,6 +677,9 @@ impl FieldUi {
     }
     pub fn race_pause(&self) -> &'static str {
         self.race_pause
+    }
+    pub fn item_list_rows(&self) -> &'static str {
+        self.item_list_rows
     }
     pub fn cheat_hp(&self) -> &'static str {
         self.cheat_hp

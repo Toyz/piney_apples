@@ -45,8 +45,26 @@ pub mod ext {
     pub const NPC_TRADE_COUNT: usize = EXT + 0x74b;
     /// The NPC codes whose trade counts are here, in order.
     pub const NPC_TRADE_CODES: [i32; 6] = [181, 180, 182, 183, 121, 120];
-    /// 16 x 4 words the constructor's helper (MUT 0x0017b050) clears.
-    pub const TAIL: usize = EXT + 0x754;
+    /// The item registry: 16 rows of 128 bits, an item category's ids
+    /// each (see [`super::registry_row`]), cleared by MUT 0x0017b050 and
+    /// written by the Event NPC's Item List (menu 91).
+    pub const ITEM_REGISTRY: usize = EXT + 0x754;
+}
+
+/// The item registry's row of category `cat` (MUT main 0x0017af60): the
+/// weapons and armour 0-9 as they are, 11 (scrolls) 10, 14 (treasure) 12,
+/// and Item List's own -2 (the items), -3 (Grunty food) and -4 (the virus
+/// cores) 13-15. No row for any other.
+pub fn registry_row(cat: i32) -> Option<usize> {
+    match cat {
+        0..=9 => Some(cat as usize),
+        11 => Some(10),
+        14 => Some(12),
+        -2 => Some(13),
+        -3 => Some(14),
+        -4 => Some(15),
+        _ => None,
+    }
 }
 
 /// Where a character's records are: ids 0-17 in `ccSaveData`, 18-20 in the
@@ -333,6 +351,29 @@ impl SaveData {
 
     pub fn set_i32(&mut self, at: usize, v: i32) {
         self.0[at..at + 4].copy_from_slice(&v.to_le_bytes());
+    }
+
+    /// The registry's word and bit of item `id` of category `cat`, as the
+    /// game's `id / 32` and `1 << id % 32` (C's, toward zero).
+    fn registry_bit(cat: i32, id: i32) -> Option<(usize, u32)> {
+        let row = registry_row(cat)?;
+        let at = (ext::ITEM_REGISTRY + 16 * row).checked_add_signed(4 * (id / 32) as isize)?;
+        Some((at, 1u32 << ((id % 32) & 31)))
+    }
+
+    /// Whether item `id` of category `cat` is in the registry (MUT main
+    /// 0x0017b140); false for a category with no row.
+    pub fn registered(&self, cat: i32, id: i32) -> bool {
+        Self::registry_bit(cat, id).is_some_and(|(at, bit)| self.i32(at) as u32 & bit != 0)
+    }
+
+    /// Item `id` of category `cat` put in the registry (MUT main
+    /// 0x0017b0b0).
+    pub fn register(&mut self, cat: i32, id: i32) {
+        if let Some((at, bit)) = Self::registry_bit(cat, id) {
+            let v = self.i32(at) as u32 | bit;
+            self.set_i32(at, v as i32);
+        }
     }
 
     pub fn u64(&self, at: usize) -> u64 {

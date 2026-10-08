@@ -54,6 +54,9 @@ pub struct RaceAddrs {
     pub prizes: u32,
     pub prizes_gone: u32,
     pub wallpapers: u32,
+    /// The breeder's Talk once the race is offered (`TalkMenu`, menu 47,
+    /// MUT 0x0056d2a8): its record (0x00660b40).
+    pub talk: u32,
 }
 
 thread_local! {
@@ -127,7 +130,7 @@ pub(crate) fn tables(c: &Ctx, lo: u32, f: &[u32]) -> Vec<u32> {
 
 /// Whether `a` is the overlay's or main's initialised data (not code, not
 /// .bss).
-fn data(c: &Ctx, a: u32) -> bool {
+pub(crate) fn data(c: &Ctx, a: u32) -> bool {
     let ov = c.p.overlay.as_ref();
     let in_ov = ov.is_some_and(|o| a >= o.text + o.text_size && a < o.text + o.text_size + o.data_size);
     let (mlo, mhi) = c.p.code_range(false);
@@ -204,6 +207,11 @@ fn find(c: &Ctx) -> Result<RaceAddrs, String> {
     // Flag Race's menu: its data tables (main's texts and gcmn's records).
     let menu = body(lo, &code, menu_handler(c, lo, &code, 88)?);
     let mn: Vec<u32> = tables(c, lo, menu).into_iter().filter(|&a| data(c, a)).collect();
+    // TalkMenu's breeder race talk: the record it builds just after
+    // reading mail 324's state (`lb`, `saveData+0x23a8`).
+    let talk = body(lo, &code, menu_handler(c, lo, &code, 47)?);
+    let mail = talk.iter().position(|&w| w >> 26 == 0x20 && w & 0xffff == 0x23a8).ok_or("menu 47 reads no mail")?;
+    let talk_rec = (mail..(mail + 24).min(talk.len())).find_map(|i| pair(talk, i)).ok_or("menu 47 builds no record")?;
     Ok(RaceAddrs {
         flag_markers: pick(&et, 0, "flags")?,
         flag_cluts,
@@ -217,6 +225,7 @@ fn find(c: &Ctx) -> Result<RaceAddrs, String> {
         prizes: pick(&mn, 3, "menu 88")?,
         prizes_gone: pick(&mn, 4, "menu 88")?,
         wallpapers: pick(&mn, 5, "menu 88")?,
+        talk: talk_rec,
         kite_pos: pick(&st, 0, "set-up")?,
         kite_rot: pick(&st, 1, "set-up")?,
         ride_kind: pick(&st, 2, "set-up")?,

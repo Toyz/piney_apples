@@ -376,10 +376,13 @@ Found here:
   + rank - 1 (Flag Race, MUT gcmn 0x0058b964, reaches them as `+0x845e +
   3 server + rank`); from the third the rank's other prize is given.
 
-Written but never read, on every volume that has them:
-- **The extension's 256 bytes at +0x754.** Of the code that loads the
-  extension's pointer, only the clear and `MainProccess`'s copy touch
-  them.
+The extension's 256 bytes at +0x754 are the **item registry** of the
+Event NPC's Item List (menu 91, [field UI](../engine/field-ui.md#the-event-npc-menu-90-and-item-list-91)):
+16 rows of four words, a bit an item id (`id / 32`, `id % 32`), the row by
+category (MUT main 0x0017af60): 0-9 as they are, 11 row 10, 14 row 12, and
+the list's own -2 (the items), -3 (Grunty food), -4 (virus cores) rows
+13-15; row 11 is unused. 0x0017b0b0 sets a bit, 0x0017b140 tests one, and
+the clear (0x0017b050) and `MainProccess`'s copy are the other touches.
 
 ## The extension (Mutation on)
 
@@ -404,7 +407,7 @@ same in MUT, OUT and QUA:
   +0x4b4    0x294  ccSpcParam spcParam[3]
   +0x748      0x3  char pcTradeCount of characters 18-20
   +0x74b      0x6  char pcTradeCount of NPCs 181, 180, 182, 183, 121, 120
-  +0x754    0x100  ?, 16 x 4 words (cleared by MUT 0x0017b050), copied as 32 x 8 bytes
+  +0x754    0x100  the item registry, 16 x 4 words (cleared by MUT 0x0017b050), copied as 32 x 8 bytes
 ```
 
 The slot file is `ccSaveData` followed by the extension.

@@ -12,6 +12,7 @@ pub mod manifest;
 pub mod placement;
 pub mod program;
 pub mod race;
+pub mod registry;
 pub mod render;
 pub mod rtownpc;
 pub mod sinit;

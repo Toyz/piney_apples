@@ -47,7 +47,7 @@ R1, L1 = shop.R1, shop.L1
 Npc = shop.Npc
 
 # The pages this harness ports; the others stay closed at once.
-MINE = (21, 23, 27, 44, 45, 46, 50, 56, 88)
+MINE = (21, 23, 27, 44, 45, 46, 50, 56, 88, 90, 91)
 SPC = 0x7488
 SPC_SIZE = 0xDC
 TALK_NUM = 0x220C
@@ -776,6 +776,20 @@ class BreederPages(Case):
             self.compare(sc, f"breeder race pens {pens} mail {mail}")
 
     @unittest.skipIf(base.volume.NAME == "infection", "Mutation on: the Flag Race")
+    def test_breeder_race_talk(self):
+        # Talk: once the town's three pens hold grown Grunties and mail 324
+        # is at 3 or more, the race's line (TalkMenu, MUT gcmn 0x0056d2a8);
+        # else the line by server.
+        for pens, mail in ((3, 3), (3, 4), (3, 2), (2, 4)):
+            sc = self.breeder(160, server=2)
+            self.race_save(sc, 2, pens, mail)
+            sc.pads[30] = (OK, 0)
+            for f in range(50, 130, 8):
+                sc.pads[f] = (OK, 0)
+            sc.pads[145] = (CANCEL, 0)
+            self.compare(sc, f"breeder race talk pens {pens} mail {mail}")
+
+    @unittest.skipIf(base.volume.NAME == "infection", "Mutation on: the Flag Race")
     def test_rankings(self):
         # Rankings (89): the town's three, the save's times where the player
         # holds a rank; cancel or OK back to the breeder's list.
@@ -1132,6 +1146,140 @@ class BreedingPages(Case):
                 elif r < 0.27:
                     sc.pads[f] = (CANCEL, 0)
             self.compare(sc, f"random feed {seed}")
+
+
+# From Mutation on: the item registry (the extension's +0x754, 16 rows of
+# four words), the desktop lists and ITEM COMPLETE's status.
+REGISTRY = (base.EXT + 0x754, 256)
+DESKTOP_LISTS = (0x2238, 36)
+EVENT_NPC_STATUS = (0x64F8 + 52, 1)
+# Each category's registry row and its listed ids (Item List's).
+SHELVES = {0: (0, 60), 1: (1, 60), 2: (2, 80), 3: (3, 62), 4: (4, 60), 5: (5, 60), 6: (6, 60), 7: (7, 60),
+           8: (8, 60), 9: (9, 60), 11: (10, 72), 14: (12, 10), -2: (13, 27), -3: (14, 16), -4: (15, 12)}
+
+
+@unittest.skipUnless(os.path.exists(base.ELF) and os.path.exists(base.ISO) and shutil.which("cargo"),
+                     "needs the extracted disc and cargo")
+@unittest.skipIf(base.volume.NAME == "infection", "Mutation on: the Event NPC")
+class EventNpcPages(Case):
+    """The Event NPC (npcTbl 175 + town, flags 0x10000000): its list (90)
+    and Item List (91), which registers what Kite holds, wears and keeps
+    at Elf's Haven, and gives the desktop items once all is in."""
+
+    def event_npc(self, frames, town=1, bag=(), haven=(), keys=(), worn=None, full=False, missing=()):
+        """Spoken to in town `town`; the bag's and Elf's Haven's
+        (category, id, count)s; key items held (index, count); Kite's
+        weapon and four armours; the registry full but `missing` (category,
+        id)s, or empty."""
+        sc = Scenario(frames)
+        self.kite(sc)
+        sc.talk(Npc(0x200, 175 + town, server=town), 10, 90)
+        sc.server = (town, town, 0)
+        self.items(sc, bag)
+        self.items(sc, haven, pl=True)
+        for k, n in keys:
+            sc.saves.append((0xCFC + k, 1, n))
+        sp = base.spc_param(0)
+        for k, v in enumerate(worn or (0xFFFF,) * 5):
+            sc.saves.append((sp + (0xD0 if k == 0 else 0xC6 + 2 * k), 2, v & 0xFFFF))
+        words = [0] * 64
+        if full:
+            for cat, (row, ids) in SHELVES.items():
+                for i in range(ids):
+                    if (cat, i) not in missing:
+                        words[4 * row + i // 32] |= 1 << (i % 32)
+        for k, w in enumerate(words):
+            sc.saves.append((REGISTRY[0] + 4 * k, 4, w))
+        sc.saves.append((EVENT_NPC_STATUS[0], 1, 1))
+        sc.watches = [REGISTRY, DESKTOP_LISTS, EVENT_NPC_STATUS]
+        return sc
+
+    def test_event_npc_list(self):
+        # The greeting by town, the two rows, cancel; and Talk.
+        for town in (1, 2, 3):
+            sc = self.event_npc(80, town)
+            sc.pads.update({30: (0, DOWN), 38: (0, UP), 46: (0, DOWN), 60: (CANCEL, 0)})
+            self.compare(sc, f"event npc town {town}")
+        sc = self.event_npc(200, 1)
+        sc.pads[30] = (OK, 0)
+        for f in range(50, 180, 10):
+            sc.pads[f] = (OK, 0)
+        self.compare(sc, "event npc talk")
+
+    def item_list(self, sc, at=30):
+        """Item List chosen from the NPC's list at `at`."""
+        sc.pads.update({at - 8: (0, DOWN), at: (OK, 0)})
+
+    def test_item_list_registers(self):
+        # Items in the bag, at Elf's Haven, worn and key items: the two
+        # windows of what came in, then the groups with the count; each
+        # group's pages, scrolled; back to the groups, back to the list.
+        sc = self.event_npc(700, bag=((0, 3, 1), (10, 5, 2), (13, 1, 1), (11, 8, 1), (0, 70, 1), (10, 22, 1)),
+                            haven=((6, 4, 1), (14, 2, 1), (14, 15, 1)), keys=((27, 1), (3, 2)),
+                            worn=(12, 40, 41, 42, 43))
+        self.item_list(sc)
+        for f in (60, 90, 120, 150):
+            sc.pads[f] = (OK, 0)
+        sc.pads.update({200: (0, DOWN), 210: (0, DOWN), 220: (0, UP), 230: (OK, 0), 260: (0, DOWN),
+                        268: (0, DOWN), 276: (0, RIGHT), 290: (0, RIGHT), 304: (0, LEFT), 320: (0, UP),
+                        330: (CANCEL, 0), 360: (0, DOWN), 370: (0, DOWN), 380: (OK, 0)})
+        for k in range(12):
+            sc.pads[410 + 6 * k] = (0, DOWN)
+        sc.pads.update({490: (0, RIGHT), 500: (0, RIGHT), 510: (0, RIGHT), 530: (CANCEL, 0), 560: (CANCEL, 0),
+                        600: (CANCEL, 0)})
+        self.compare(sc, "item list registers")
+
+    def test_item_list_nothing_new(self):
+        # Nothing new and one item missing: "There are no items you can
+        # register", then the groups; the Key Items group's two pages.
+        sc = self.event_npc(300, full=True, missing=((5, 10),))
+        self.item_list(sc)
+        for f in (60, 75):
+            sc.pads[f] = (OK, 0)
+        sc.pads.update({120: (0, UP), 130: (OK, 0), 170: (0, RIGHT), 185: (0, LEFT), 200: (CANCEL, 0),
+                        230: (CANCEL, 0), 270: (CANCEL, 0)})
+        self.compare(sc, "item list nothing new")
+
+    def test_item_list_completes(self):
+        # The last items come in from the bag and Elf's Haven: the NPC's
+        # word, wallpaper 56, BGM 51 and movies 90-96, ITEM COMPLETE's
+        # status cleared, the menu shut.
+        sc = self.event_npc(1100, bag=((1, 7, 1),), haven=((10, 9, 1),), full=True,
+                            missing=((1, 7), (-2, 9)))
+        self.item_list(sc)
+        for f in range(55, 1000, 12):
+            sc.pads[f] = (OK, 0)
+        self.compare(sc, "item list completes")
+
+    def test_random_item_list(self):
+        # Random holdings, a random registry and random keys through the
+        # lists and pages.
+        for seed in range(1, 7):
+            rnd = random.Random(seed)
+            cats = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14)
+            pick = lambda n: tuple((rnd.choice(cats), rnd.randrange(0, 90), 1) for _ in range(n))  # noqa: E731
+            keys = tuple((k, rnd.randrange(1, 3)) for k in rnd.sample(range(0, 42), rnd.randrange(0, 8)))
+            missing = tuple((c, rnd.randrange(0, 12)) for c in rnd.sample(sorted(SHELVES), 4))
+            sc = self.event_npc(600, town=rnd.randrange(1, 5), bag=pick(rnd.randrange(0, 12)),
+                                haven=pick(rnd.randrange(0, 12)), keys=keys, full=rnd.random() < 0.5,
+                                missing=missing, worn=tuple(rnd.randrange(0, 70) for _ in range(5)))
+            self.item_list(sc)
+            for f in range(40, 600):
+                r = rnd.random()
+                if r < 0.15:
+                    sc.pads[f] = (0, rnd.choice((UP, DOWN, LEFT, RIGHT)))
+                elif r < 0.22:
+                    sc.pads[f] = (OK, 0)
+                elif r < 0.25:
+                    sc.pads[f] = (CANCEL, 0)
+            self.compare(sc, f"random item list {seed}")
+
+    def test_item_list_complete_already(self):
+        # Every item in and none new: straight to the groups.
+        sc = self.event_npc(160, full=True)
+        self.item_list(sc)
+        sc.pads.update({90: (OK, 0), 130: (CANCEL, 0), 145: (CANCEL, 0)})
+        self.compare(sc, "item list complete already")
 
 
 if __name__ == "__main__":

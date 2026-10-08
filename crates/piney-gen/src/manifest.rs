@@ -1153,12 +1153,28 @@ fn fieldui() -> Group {
             derived("race_str", race_str(), GCMN, "The Flag Race's texts (MUT main 0x00353d40).")
                 .after("help", 16)
                 .absent(Vol::Inf, Value::List(vec![Value::List(Vec::new()); 12])),
+            // Then Item List's (menu 91): its messages and its pages' titles.
+            derived("item_list_str", item_list_str(), GCMN, "Item List's messages (MUT main 0x00353d70).")
+                .after("help", 64)
+                .absent(Vol::Inf, Value::List(vec![Value::List(Vec::new()); 4])),
+            derived(
+                "item_list_tags",
+                array(text_lines(6), 4),
+                GCMN,
+                "Item List's page titles by group, a piece a page (MUT main 0x00353d80).",
+            )
+            .after("help", 80)
+            .absent(Vol::Inf, Value::List(Vec::new())),
             e("dead_info", 0x0037_7E6C, ptr(cstr()), GCMN, "`deadInfo`"),
             e("new_mail", 0x0037_7E8C, ptr(cstr()), GCMN, "`newMailStr`"),
             e("kyvia_status", 0x0037_7E90, text_lines(8), GCMN, "`kyviaStatusStr`: eight pieces."),
             // From Mutation on the Flag Race's pause follows it.
             derived("race_pause", ptr(cstr()), GCMN, "The Flag Race's pause: Continue, Quit, in columns of 16.")
                 .after("kyvia_status", 4)
+                .absent(Vol::Inf, Value::Bytes(Vec::new())),
+            // Then Item List's groups (Weapons, Armors, Items, Key Items).
+            derived("item_list_rows", ptr(cstr()), GCMN, "Item List's groups, in columns of 16.")
+                .after("kyvia_status", 8)
                 .absent(Vol::Inf, Value::Bytes(Vec::new())),
             e("cheat_hp", 0x0037_7E88, ptr(cstr()), GCMN, "`cheatHpStr`: the digits for 5-digit HP."),
             e("panel_flash", 0x006E_01D0, array(U32, 5), GCMN, "`panelFlashTbl`: the panel flash's grey steps."),
@@ -2450,6 +2466,7 @@ fn race() -> Group {
         ),
         ("greet_va", at(|a| a.greet, addr()), "Flag Race's greeting record (0x00660b90)."),
         ("results_va", at(|a| a.results, addr()), "Its results' records, nine (0x00660cc0)."),
+        ("talk_va", at(|a| a.talk, addr()), "The breeder's Talk once the race is offered (0x00660b40)."),
     ];
     group(
         "race",
@@ -2482,6 +2499,48 @@ fn race_str() -> Layout {
     ];
     let fields = names.iter().enumerate().map(|(k, &(n, l))| (n, 4 * k as u32, text_lines(l))).collect();
     strukt("RaceStr", 48, fields, "The Flag Race's texts: each its pieces (`ccKanjiStrSeparate`).")
+}
+
+/// Item List's messages after the Flag Race's, as its menu splits them:
+/// nothing to register, registered from the bag, from Elf's Haven, the
+/// count.
+fn item_list_str() -> Layout {
+    let fields = vec![
+        ("none", 0, text_lines(2)),
+        ("bag", 4, text_lines(3)),
+        ("haven", 8, text_lines(3)),
+        ("count", 12, text_lines(3)),
+    ];
+    strukt("ItemListStr", 16, fields, "Item List's messages: each its pieces (`ccKanjiStrSeparate`).")
+}
+
+/// The Event NPC's Item List (Mutation on, gcmn; found through menu 91's
+/// code, `crate::registry`): the completion's record and the groups'
+/// pages. Empty on Infection.
+fn registry() -> Group {
+    use crate::registry::{RegistryAddrs, addrs};
+    fn at(f: fn(&RegistryAddrs) -> u32, l: Layout) -> Layout {
+        let read = l.clone();
+        custom(Rc::new(move |c| read.read(c, f(&addrs(c)?))), l)
+    }
+    let pages = strukt("ItemListPages", 4, vec![("n", 0, I16)], "A group's page count (`lh` of a word).");
+    let entries = vec![
+        ("done_va", at(|a| a.done, addr()), "The Event NPC's record once every item is in (MUT 0x00669d90)."),
+        ("pages", at(|a| a.pages, array(pages, 4)), "Each group's page count (0x006822e0)."),
+        ("cats", at(|a| a.cats, array(fixed(I32, 6), 4)), "Each group's pages' categories, -1 past them (0x006822f0)."),
+    ];
+    group(
+        "registry",
+        "Registry",
+        "The Event NPC's Item List (menu 91; Mutation on; found through its code).",
+        entries
+            .into_iter()
+            .map(|(n, l, d)| {
+                derived(n, l, GCMN, d)
+                    .absent(Vol::Inf, if n.ends_with("_va") { Value::Int(0) } else { Value::List(Vec::new()) })
+            })
+            .collect(),
+    )
 }
 
 /// `race_ranks`' and `race_grunties`' layouts: four towns of three.
@@ -4363,6 +4422,7 @@ pub fn groups() -> Rc<Vec<Group>> {
         voice(),
         book(),
         race(),
+        registry(),
     ]);
     GROUPS.with(|x| *x.borrow_mut() = Some(g.clone()));
     g

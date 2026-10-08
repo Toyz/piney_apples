@@ -219,7 +219,7 @@ impl SaveData {
                     self.set_u8(LATER_BYTES + 3 * r + k, 0);
                 }
             }
-            self.fill(ext::TAIL, 0x100, 0);
+            self.fill(ext::ITEM_REGISTRY, 0x100, 0);
         }
     }
 

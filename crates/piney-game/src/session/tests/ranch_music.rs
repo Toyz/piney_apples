@@ -60,51 +60,19 @@ impl Ear {
 
     /// Kite walks round the walls to within 990 of the town's
     /// `DMY_merchant6` (the tune comes in within 1000), then 60 frames more
-    /// for its fades. The way is planned again each second, round the people
-    /// standing about; where he has stopped short of the next turn, as a
-    /// player would, he goes round it.
+    /// for its fades ([`super::town_walk::TownWalker`]).
     fn walk_to_ranch(&mut self) {
         let town = &self.world().town().base;
         let d = town.file.ccs.find_object("DMY_merchant6").and_then(|o| town.file.scene.dummies.get(&o));
         let to = d.map(|d| [d.pos.x, d.pos.y]).expect("no DMY_merchant6");
-        let mut path: Vec<[f32; 2]> = Vec::new();
-        let (mut mark, mut avoid) = (None::<[f32; 2]>, Vec::<([f32; 2], u32)>::new());
+        let mut walk = super::town_walk::TownWalker::new(to, 990.0);
         for f in 0..4000u32 {
-            let world = self.world();
-            let p = world.player().body.pos.map(f32::from_bits);
-            if (to[0] - p[0]).hypot(to[1] - p[1]) < 990.0 {
+            let Some(raw) = walk.stick(self.world(), f) else {
                 for _ in 0..60 {
                     self.step(&still());
                 }
                 return;
-            }
-            if f % 60 == 0 {
-                if mark.is_some_and(|m| (m[0] - p[0]).hypot(m[1] - p[1]) < 60.0)
-                    && let Some(&q) = path.first()
-                {
-                    avoid.push((q, f));
-                }
-                mark = Some([p[0], p[1]]);
-                // A walker moves on: a place he stopped at is open again later.
-                avoid.retain(|&(_, at)| f - at < 600);
-                let mid = [(p[0] + to[0]) / 2.0, (p[1] + to[1]) / 2.0];
-                let span = (to[0] - p[0]).abs().max((to[1] - p[1]).abs());
-                let n = ((span + 4000.0) / 100.0) as i32 | 1;
-                // The walking PCs and the merchants stand in the way too.
-                let people = world.pcs().iter().filter(|c| c.disp_sw).map(|c| c.char.pos);
-                let people = people.chain(world.merchants().iter().map(|m| m.ch.pos));
-                let mut closed: Vec<[f32; 2]> = avoid.iter().map(|&(q, _)| q).collect();
-                closed.extend(people.map(|q| [f32::from_bits(q[0]), f32::from_bits(q[1])]));
-                let look = super::survey::Look { n, step: 100.0, wide: 75.0, heights: &[30.0, 95.0], avoid: &closed };
-                let near = |q: [f32; 2], _| (q[0] - to[0]).hypot(q[1] - to[1]) < 980.0;
-                path = super::survey::path_wide(&world.town().base.hits, [p[0], p[1], p[2]], mid, &look, near);
-            }
-            while path.len() > 1 && (path[0][0] - p[0]).hypot(path[0][1] - p[1]) < 100.0 {
-                path.remove(0);
-            }
-            let q = path.first().copied().unwrap_or(to);
-            let cam_z = f32::from_bits(world.camera().rot()[2]);
-            let raw = super::stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1])));
+            };
             self.step(&raw);
         }
         panic!("Kite did not reach the ranch: {:?}", self.world().player().body.pos.map(f32::from_bits));

@@ -75,6 +75,8 @@ pub struct Race {
     pub greet_va: u32,
     /// Its results' records, nine (0x00660cc0).
     pub results_va: u32,
+    /// The breeder's Talk once the race is offered (0x00660b40).
+    pub talk_va: u32,
 }
 
 impl crate::store::Load for Race {
@@ -107,6 +109,7 @@ impl crate::store::Load for Race {
             wallpapers: crate::store::Load::load(r),
             greet_va: crate::store::Load::load(r),
             results_va: crate::store::Load::load(r),
+            talk_va: crate::store::Load::load(r),
         }
     }
 }
@@ -192,6 +195,9 @@ impl Race {
     }
     pub fn results_va(&self) -> u32 {
         self.results_va
+    }
+    pub fn talk_va(&self) -> u32 {
+        self.talk_va
     }
 }
 

@@ -28,6 +28,7 @@ pub mod party;
 pub mod party_menus;
 pub mod personal;
 pub mod record;
+pub mod registry;
 pub mod shop;
 pub mod skill;
 pub mod status;
@@ -109,6 +110,8 @@ pub fn handler(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         27 => breeder::breeder_menu(m, x),
         88 => flag_race::flag_race_menu(m, x),
         89 => breeder::rankings_menu(m, x),
+        90 => registry::event_npc_menu(m, x),
+        91 => registry::item_list_menu(m, x),
         44 => inu::norainu_menu(m, x),
         45 => inu::otonainu_menu(m, x),
         46 => inu::inu_menu(m, x),
@@ -187,6 +190,7 @@ pub fn exception_disp(m: &mut MenuCtrl, x: &mut Ctx) {
         56 => breeder::breeding_menu_disp(m, x),
         88 => flag_race::flag_race_menu_disp(m, x),
         89 => breeder::rankings_menu_disp(m, x),
+        91 => registry::item_list_menu_disp(m, x),
         13 => option::controller_menu_disp(m, x),
         14 | 18 | 19 | 20 => option::on_off_menu_disp(m, x),
         15 => option::screen_menu_disp(m, x),

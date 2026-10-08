@@ -10,7 +10,10 @@ worklog: 395
 
 From Mutation on, a town whose three pens hold grown Grunties races them.
 Its breeder lists Talk, Flag Race and Rankings once the race's mail is
-read (worklog 394, [field-ui.md](field-ui.md)). Flag Race (menu 88) takes
+read (worklog 394, [field-ui.md](field-ui.md)); its Talk (`TalkMenu`,
+MUT gcmn 0x0056d2a8) then says the race's line (`race::talk_va`, MUT
+0x00660b40) once the menu counted three grown Grunties and mail 324 is
+at 3 or more (worklog 399). Flag Race (menu 88) takes
 100 GP, lets the player pick one of three Grunties and starts the race.
 Kite rides it ([grunty-ride.md](grunty-ride.md)) through the town and
 picks up three flags against the clock. The time is ranked against the
