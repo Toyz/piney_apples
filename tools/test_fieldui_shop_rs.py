@@ -390,6 +390,19 @@ class MerchantLists(TalkCase):
             sc.pads.update({30: (0, DOWN), 40: (0, UP), 55: (CANCEL, 0)})
             self.compare(sc, f"pc {row}")
 
+    @unittest.skipIf(volume.NAME == "infection", "Mutation on: Sieg, Kaz and the sign PCs talk")
+    def test_later_pcs(self):
+        # From Mutation on PcMenu gives Sieg and Kaz (120, 121) and the sign
+        # PCs (180-183) a random line and Talk, as the walking PCs.
+        for row in (120, 121, 180, 181, 182, 183):
+            sc = TalkScenario(70)
+            self.kite(sc)
+            sc.rands = [row]
+            sc.watches = [PC_TRADE_COUNT]
+            sc.talk(Npc(0x200, row), 10, 22)
+            sc.pads.update({30: (0, DOWN), 40: (0, UP), 55: (CANCEL, 0)})
+            self.compare(sc, f"pc {row}")
+
     def test_pc_pages(self):
         # Talk and Trade from a PC; a battle starting under the list.
         for row, sel in ((30, 0), (30, 1), (66, 1)):
@@ -473,6 +486,28 @@ class TalkPages(TalkCase):
                 f += 80
             sc.pads[f] = (CANCEL, 0)
             self.compare(sc, f"pc {row} talk")
+
+    def test_pc_talk_later_story(self):
+        # talkNum[0] 3 to 6 (lines 12-23 of the table), where Mutation's
+        # lines grew to two boxes (#63: Oborozukiyo, 61; Nijukata, 51), and
+        # the PCs past the walking ones that talk from Mutation on.
+        rows = [(61, 3), (61, 4), (51, 5), (51, 6), (30, 4), (45, 6)]
+        if volume.NAME != "infection":
+            rows += [(120, 5), (181, 6)]
+        for row, story in rows:
+            sc = TalkScenario(420)
+            self.kite(sc)
+            sc.saves.append((0x220C, 1, story))
+            sc.rands = [story]
+            sc.talk(Npc(0x200, row), 10, 22)
+            f = 30
+            for _ in range(5):
+                sc.pads[f] = (OK, 0)
+                for k in range(1, 7):
+                    sc.pads[f + 12 * k] = (OK, 0)
+                f += 80
+            sc.pads[f] = (CANCEL, 0)
+            self.compare(sc, f"pc {row} talk at story {story}")
 
     def test_trading_pc_talk(self):
         # The trading PCs' offers: one, two and three things offered, the

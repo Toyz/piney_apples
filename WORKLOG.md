@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-395 entries: audio 34, battle 82, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 16, script 48, test 158, tooling 27, ui 89, video 16, volumes 74, world 108.
+396 entries: audio 34, battle 82, build 17, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 16, script 48, test 159, tooling 27, ui 90, video 16, volumes 75, world 108.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -407,3 +407,4 @@ The [reference](docs/README.md) says what is true now.
 | 393 | [Mutation's Shop Keeper stands at his marker: an event's entry 4 is the Administrator's ccMerchan, and every town NPC entry is made by its row's class](worklog/0393-mutation-s-shop-keeper-stands-at-his-marker-an-event-s.md) | 2026-10-08 | world, volumes, test |
 | 394 | [Mutation's breeders offer the Flag Race: three grown Grunties in the town's pens and the race's mail read, then Talk, Flag Race and Rankings](worklog/0394-mutation-s-breeders-offer-the-flag-race-three-grown.md) | 2026-10-08 | ui, volumes, save, test |
 | 395 | [Mutation's Flag Race runs: the breeder takes 100 GP, the chosen Grunty walks off, Kite rides it through Dun Loireag for three flags against the clock, and the time is ranked and its prize given](worklog/0395-mutation-s-flag-race-runs-the-breeder-takes-100-gp-the.md) | 2026-10-08 | ui, world, audio, volumes, test |
+| 396 | [A walking PC's second box is its own line: the later volumes' talk records are measured by their own shape, and PcMenu gives Sieg, Kaz and the sign PCs Talk](worklog/0396-a-walking-pc-s-second-box-is-its-own-line-the-later-volumes.md) | 2026-10-08 | ui, volumes, build, test |

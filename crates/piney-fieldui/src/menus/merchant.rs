@@ -182,6 +182,14 @@ fn pushed_key(x: &mut Ctx) -> u32 {
     }
 }
 
+/// Whether `PcMenu` gives row `id` Talk and a line at random: the walking
+/// PCs 30-65, and from Mutation on (MUT gcmn 0x00560bf4) Sieg and Kaz (120,
+/// 121) and the four sign PCs (180-183) too. Anyone else past the trading
+/// PCs is greeted with its table read as a record and has no Talk.
+fn talks(volume: Volume, id: i32) -> bool {
+    (30..66).contains(&id) || (volume != Volume::Inf && matches!(id, 120 | 121 | 180..=183))
+}
+
 /// `PcMenu`.
 pub fn pc_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     let i = idx(m);
@@ -202,7 +210,7 @@ pub fn pc_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                         first = true;
                         m.talk.talk_trade_flag = 0;
                         x.texts.talk.word(base.msg)
-                    } else if (30..66).contains(&id) {
+                    } else if talks(x.texts.volume, id) {
                         m.talk.talk_num = (m.rng.rand() % 3) as i16;
                         m.talk.talk_loop_cnt = 0;
                         m.lists[i].y = 2;

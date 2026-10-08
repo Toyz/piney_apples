@@ -6908,6 +6908,9 @@ mod tests {
     /// Issue #56: Mutation's breeders offer the Flag Race.
     mod flag_race;
 
+    /// Issue #63: every walking PC's Talk, every box a line of its own.
+    mod pc_talk;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

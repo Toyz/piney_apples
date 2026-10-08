@@ -4,7 +4,8 @@
 //! `errorData` and `kiteSelfTalk`: every record array and pointer table
 //! reachable from them, with its address, since the port looks records up by
 //! the addresses the save stores. Infection's DWARF declares each; a later
-//! volume's are carried, or told by shape (`emode`, a name and a text).
+//! volume's are told by shape (`emode`, a name and a text), as long as
+//! Infection's at least where the carry puts that very object.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
@@ -169,58 +170,103 @@ fn closure(v: Vol) -> Objects {
     if let Some(x) = CLOSURE.with(|m| m.borrow().get(&v).cloned()) {
         return x;
     }
-    let c = ctx(v, Some("gcmn"));
-    let mut known: BTreeMap<u32, (Kind, u32)> = BTreeMap::new();
-    for (&inf, &(kind, n)) in inf_objects().iter() {
-        if v == Vol::Inf {
-            known.insert(inf, (kind, n));
-            continue;
-        }
-        let sec = if inf >= 0x0040_0000 { 1 } else { 0 };
-        let va = carried(v, sec, inf).or_else(|| if sec == 0 { carried(v, 1, inf) } else { None });
-        // A table by character (`spcMsgTbl`, the gift thanks) has a row for
-        // each of the later volumes' 21 (characters 18-20 in the extension).
-        let n = if kind == Kind::Ptr && n == INF_CHARACTERS { LATER_CHARACTERS } else { n };
-        if let Some(va) = va {
-            known.insert(va, (kind, n));
-        }
-    }
+    let out = Rc::new(if v == Vol::Inf { inf_closure() } else { later_closure(v) });
+    CLOSURE.with(|m| m.borrow_mut().insert(v, out.clone()));
+    out
+}
+
+/// The size of one of an object's elements.
+fn stride(kind: Kind) -> u32 {
+    if kind == Kind::Rec { RECORD } else { 4 }
+}
+
+/// Infection's closure: each address reached is in the object its DWARF
+/// declares there.
+fn inf_closure() -> BTreeMap<u32, (Kind, u32)> {
+    let c = ctx(Vol::Inf, Some("gcmn"));
+    let mut known: BTreeMap<u32, (Kind, u32)> = (*inf_objects()).clone();
     let containing = |known: &BTreeMap<u32, (Kind, u32)>, a: u32| -> Option<u32> {
         let (&s, &(kind, n)) = known.range(..=a).next_back()?;
-        (a < s + n * if kind == Kind::Rec { RECORD } else { 4 }).then_some(s)
+        (a < s + n * stride(kind)).then_some(s)
     };
     let mut out: BTreeMap<u32, (Kind, u32)> = BTreeMap::new();
-    let mut todo = roots(v);
+    let mut todo = roots(Vol::Inf);
     while let Some(a) = todo.pop() {
         if a == 0 {
             continue;
         }
         let s = match containing(&known, a) {
             Some(s) => s,
-            None => {
-                if !mapped(&c, a) {
-                    continue;
-                }
+            None if mapped(&c, a) => {
                 known.insert(a, shape(&c, a));
                 a
             }
+            None => continue,
         };
         if out.contains_key(&s) {
             continue;
         }
-        let (kind, n) = known[&s];
-        out.insert(s, (kind, n));
-        if kind == Kind::Ptr {
-            for k in 0..n {
-                let Ok(w) = c.p.u32(s + 4 * k) else { break };
-                if w != 0 {
-                    todo.push(w);
-                }
+        out.insert(s, known[&s]);
+        follow(&c, s, known[&s], &mut todo);
+    }
+    out
+}
+
+/// A pointer table's words, to be reached in turn.
+fn follow(c: &Ctx, s: u32, (kind, n): (Kind, u32), todo: &mut Vec<u32>) {
+    if kind == Kind::Ptr {
+        todo.extend((0..n).map_while(|k| c.p.u32(s + 4 * k).ok()).filter(|&w| w != 0));
+    }
+}
+
+/// A later volume's closure. The carry places Infection's objects only
+/// roughly here (many of Mutation's walking PCs' lines are two records
+/// where Infection's were one, and some carried records fall between
+/// them), so each address reached is an object of its own shape, at least
+/// Infection's count where the carry puts that very object there; objects
+/// that overlap are then one.
+fn later_closure(v: Vol) -> BTreeMap<u32, (Kind, u32)> {
+    let c = ctx(v, Some("gcmn"));
+    let mut inf: HashMap<u32, (Kind, u32)> = HashMap::new();
+    for (&at, &(kind, n)) in inf_objects().iter() {
+        let sec = if at >= 0x0040_0000 { 1 } else { 0 };
+        let Some(va) = carried(v, sec, at).or_else(|| if sec == 0 { carried(v, 1, at) } else { None }) else {
+            continue;
+        };
+        // A table by character (`spcMsgTbl`, the gift thanks) has a row for
+        // each of the later volumes' 21 (characters 18-20 in the extension).
+        let n = if kind == Kind::Ptr && n == INF_CHARACTERS { LATER_CHARACTERS } else { n };
+        inf.insert(va, (kind, n));
+    }
+    let mut found: BTreeMap<u32, (Kind, u32)> = BTreeMap::new();
+    let mut todo = roots(v);
+    while let Some(a) = todo.pop() {
+        if a == 0 || found.contains_key(&a) || !mapped(&c, a) {
+            continue;
+        }
+        // Where the carry puts an object at this very address its kind
+        // stands (a record of empty text is not one by its words).
+        let object = match (inf.get(&a), shape(&c, a)) {
+            (Some(&(k, m)), (kind, n)) if k == kind => (kind, n.max(m)),
+            (Some(&object), _) => object,
+            (None, object) => object,
+        };
+        found.insert(a, object);
+        follow(&c, a, object, &mut todo);
+    }
+    // One object for those that overlap, in step with each other.
+    let mut out: BTreeMap<u32, (Kind, u32)> = BTreeMap::new();
+    for (a, (kind, n)) in found {
+        let before = out.range(..=a).next_back().map(|(&s, &o)| (s, o));
+        match before {
+            Some((s, (k, m))) if k == kind && a < s + m * stride(k) && (a - s) % stride(k) == 0 => {
+                out.insert(s, (k, m.max((a - s) / stride(k) + n)));
+            }
+            _ => {
+                out.insert(a, (kind, n));
             }
         }
     }
-    let out = Rc::new(out);
-    CLOSURE.with(|m| m.borrow_mut().insert(v, out.clone()));
     out
 }
 
