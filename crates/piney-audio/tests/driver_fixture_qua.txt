@@ -1,0 +1,712 @@
+# tools/sound_ee.py fixture: the game's EE sound code run in tools/eemu.py; what it sends.
+# SCENARIO ARGS | OUTPUT; OUTPUT; ...
+se 0 | msg c000; msg 903e7f
+se 1 | msg c000; msg 903f7f
+se 2 | msg c000; msg 90407f
+se 3 | msg c000; msg 90417f
+se 4 | msg c000; msg 904270
+se 5 | msg c000; msg 90437f
+se 6 | msg c000; msg 904460
+se 7 | msg c000; msg 90457f
+se 8 | msg c000; msg 90467f
+se 9 | msg c000; msg 90477f
+se 10 | msg c000; msg 90487f
+se 11 | msg c000; msg 90497f
+se 12 | msg c000; msg 904a7f
+se 13 | msg c000; msg 904b7f
+se 14 | msg c000; msg 904c7f
+se 15 | msg c000; msg 904d7f
+se 16 | msg c001; msg 903c60
+se 17 | msg c001; msg 903d50
+se 18 | msg c001; msg 903e50
+se 19 | msg c001; msg 903f50
+se 20 | msg c001; msg 904050
+se 21 | msg c205; msg 924040
+se 22 | msg c206; msg 923c50
+se 23 | msg c207; msg 923c50
+se 24 | msg c208; msg 923c50
+se 25 | msg c209; msg 923c50
+se 26 | msg c20a; msg 923c50
+se 27 | msg c20b; msg 923c30
+se 28 | msg c20c; msg 923c40
+se 29 | msg c00d; msg 903c7f
+se 30 | msg c00e; msg 903c7f
+se 31 | msg c00f; msg 903c7f
+se 32 | msg c010; msg 903c7f
+se 33 | msg c011; msg 903c60
+se 34 | msg c012; msg 903c60
+se 35 | msg c013; msg 903c60
+se 36 | msg c014; msg 903c60
+se 37 | msg c015; msg 903c7f
+se 38 | msg c018; msg 903c7f
+se 39 | msg c01a; msg 903c60
+se 40 | msg c01b; msg 903c7f
+se 41 | msg c01c; msg 903c50
+se 42 | msg cf1d; msg 9f3c50
+se 43 | msg c01e; msg 903c60
+se 44 | msg cf1f; msg 9f3c40
+se 45 | msg c020; msg 903c7f
+se 46 | msg c021; msg 903c7f
+se 47 | msg c022; msg 903c7f
+se 48 | msg c023; msg 903c7f
+se 49 | msg c224; msg 923c50
+se 50 | msg c225; msg 923c50
+se 51 | msg c026; msg 903c7f
+se 52 | msg c028; msg 903c7f
+se 53 | msg c029; msg 903c7f
+se 54 | msg c02a; msg 903c7f
+se 55 | msg c02b; msg 903c40
+se 56 | msg c02c; msg 903c60
+se 57 | msg c02d; msg 903c60
+se 58 | msg c02e; msg 903c7f
+se 59 | msg c02f; msg 903c7f
+se 60 | msg c030; msg 903c60
+se 61 | msg c031; msg 903c60
+se 62 | msg c032; msg 903c60
+se 63 | msg c033; msg 903c7f
+se 64 | msg c034; msg 903c7f
+se 65 | msg c035; msg 903c7f
+se 66 | msg c036; msg 903c7f
+se 67 | msg c037; msg 903c7f
+se 68 | msg c038; msg 903c60
+se 69 | msg c039; msg 903c7f
+se 70 | msg c03a; msg 903c7f
+se 71 | msg c03b; msg 903c60
+se 72 | msg c03b; msg 903d60
+se 73 | msg c03b; msg 903e7f
+se 74 | msg c03b; msg 903f7f
+se 75 | msg c03b; msg 90407f
+se 76 | msg c03b; msg 904150
+se 77 | msg c03b; msg 90427f
+se 78 | msg c03b; msg 90437f
+se 79 | msg c03b; msg 90447f
+se 80 | msg c03b; msg 90457f
+se 81 | msg c03b; msg 904650
+se 82 | msg c03b; msg 904750
+se 83 | msg c03b; msg 90487f
+se 84 | msg c03b; msg 90497f
+se 85 | msg c03b; msg 904a7f
+se 86 | msg c03b; msg 904b7f
+se 87 | msg c03b; msg 904c7f
+se 88 | msg c03b; msg 904d7f
+se 89 | msg c03b; msg 904e7f
+se 90 | msg c03b; msg 904f7f
+se 91 | msg c03b; msg 90507f
+se 92 | msg c03b; msg 90517f
+se 93 | msg c03b; msg 90527f
+se 94 | msg c03b; msg 905340
+se 95 | msg c03b; msg 905460
+se 96 | msg c03b; msg 905550
+se 97 | msg c03b; msg 90567f
+se 98 | msg c03b; msg 90577f
+se 99 | msg c03b; msg 905860
+se 100 | msg c03b; msg 90597f
+se 101 | msg c03b; msg 905a7f
+se 102 | msg c03b; msg 905b7f
+se 103 | msg c03b; msg 905c7f
+se 104 | msg c03c; msg 903c7f
+se 105 | msg c03d; msg 903c60
+se 106 | msg c03d; msg 903d60
+se 107 | msg c03d; msg 903e60
+se 108 | msg c03e; msg 903c60
+se 109 | msg c03e; msg 903d60
+se 110 | msg c03e; msg 903e60
+se 111 | msg c03f; msg 903c7f
+se 112 | msg c03f; msg 903d60
+se 113 | msg c03f; msg 903e60
+se 114 | msg c040; msg 903c7f
+se 115 | msg c040; msg 903d60
+se 116 | msg c040; msg 903e60
+se 117 | msg c041; msg 903c7f
+se 118 | msg c041; msg 903d60
+se 119 | msg c041; msg 903e60
+se 120 | msg c042; msg 903c7f
+se 121 | msg c042; msg 903d60
+se 122 | msg c042; msg 903e60
+se 123 | msg c043; msg 903c7f
+se 124 | msg c043; msg 903d60
+se 125 | msg c043; msg 903e60
+se 126 | msg c044; msg 903c7f
+se 127 | msg c044; msg 903d60
+se 128 | msg c044; msg 903e60
+se 129 | msg c045; msg 903c7f
+se 130 | msg c045; msg 903d60
+se 131 | msg c045; msg 903e60
+se 132 | msg c046; msg 903c7f
+se 133 | msg c046; msg 903d60
+se 134 | msg c046; msg 903e60
+se 135 | msg c047; msg 903c60
+se 136 | msg c047; msg 903d60
+se 137 | msg c047; msg 903e60
+se 138 | msg c048; msg 903c60
+se 139 | msg c048; msg 903d60
+se 140 | msg c048; msg 903e60
+se 141 | msg c049; msg 903c60
+se 142 | msg c049; msg 903d60
+se 143 | msg c049; msg 903e60
+se 144 | msg c04a; msg 903c7f
+se 145 | msg c04a; msg 903d60
+se 146 | msg c04a; msg 903e60
+se 147 | msg c04b; msg 903c60
+se 148 | msg c04b; msg 903d60
+se 149 | msg c04b; msg 903e60
+se 150 | msg c04c; msg 903c60
+se 151 | msg c04c; msg 903d60
+se 152 | msg c04c; msg 903e60
+se 153 | msg c04d; msg 903c60
+se 154 | msg c04d; msg 903d60
+se 155 | msg c04d; msg 903e60
+se 156 | msg c04e; msg 903c60
+se 157 | msg c04e; msg 903d60
+se 158 | msg c04e; msg 903e60
+se 159 | msg c050; msg 903c7f
+se 160 | msg c051; msg 903c2f
+se 161 | msg c052; msg 903c2f
+se 162 | msg c053; msg 903c7f
+se 163 | msg c054; msg 903c40
+se 164 | msg c055; msg 903c50
+se 165 | msg c056; msg 903c40
+se 166 | msg c057; msg 903c40
+se 167 | msg c058; msg 903c70
+se 168 | msg c059; msg 903c70
+se 169 | msg c05a; msg 903c60
+se 170 | msg c05b; msg 903c60
+se 171 | msg c05c; msg 903c60
+se 172 | msg c05d; msg 903c60
+se 173 | msg c05e; msg 903c60
+se 174 | msg c05f; msg 903c60
+se 175 | msg c060; msg 903c60
+se 176 | msg c061; msg 903c60
+se 177 | msg c062; msg 903c60
+se 178 | msg c063; msg 903c60
+se 179 | msg c064; msg 903c60
+se 180 | msg c065; msg 903c60
+se 181 | msg c066; msg 903c60
+se 182 | msg c067; msg 903c60
+se 183 | msg c068; msg 903c60
+se 184 | msg c069; msg 903c60
+se 185 | msg c06a; msg 903c60
+se 186 | msg c06b; msg 903c60
+se 187 | msg c06c; msg 903c7f
+se 188 | msg c06d; msg 903c50
+se 189 | msg c06e; msg 903c50
+se 190 | msg c06f; msg 903c50
+se 191 | msg c070; msg 903c7f
+se 192 | msg c071; msg 903c7f
+se 193 | msg c072; msg 903c60
+se 194 | msg c073; msg 903c30
+se 195 | msg c074; msg 903c7f
+se 196 | msg c075; msg 903c60
+se 197 | msg c076; msg 903c60
+se 198 | msg c077; msg 903c60
+se 199 | msg c077; msg 903d60
+se 200 | msg c077; msg 903e60
+se 201 | msg c077; msg 903f7f
+se 202 | msg c077; msg 904050
+se 203 | msg c077; msg 90417f
+se 204 | msg c077; msg 904260
+se 205 | msg c077; msg 90437f
+se 206 | msg c077; msg 90447f
+se 207 | msg c077; msg 904570
+se 208 | msg c077; msg 904660
+se 209 | msg c077; msg 904760
+se 210 | msg c077; msg 904860
+se 211 | msg c077; msg 904960
+se 212 | msg c077; msg 904a60
+se 213 | msg c077; msg 904b60
+se 214 | msg c077; msg 904c60
+se 215 | msg c078; msg 903c60
+se 216 | msg c078; msg 903d50
+se 217 | msg c078; msg 903e60
+se 218 | msg c078; msg 903f60
+se 219 | msg c079; msg 903c60
+se 220 | msg c079; msg 903d60
+se 221 | msg c079; msg 903e60
+se 222 | msg c079; msg 903f60
+se 223 | msg c07a; msg 903c7f
+se 224 | msg c07a; msg 903d7f
+se 225 | msg c07a; msg 903e7f
+se 226 | msg c07a; msg 903f7f
+se 227 | msg c07a; msg 90407f
+se 228 | msg c07a; msg 90417f
+se 229 | msg c07a; msg 90427f
+se 230 | msg cf7a; msg 9f437f
+se 231 | msg c07a; msg 90447f
+se 232 | msg c07a; msg 90457f
+se 233 | 
+se 234 | 
+se 235 | msg c07b; msg 903c7f
+se 236 | msg c07c; msg 903c60
+note 0 0 | msg c000; msg 90007f
+note 0 36 | msg c000; msg 90247f
+note 0 60 | msg c000; msg 903c7f
+note 0 64 | msg c000; msg 90407f
+note 0 127 | msg c000; msg 907f7f
+note 0 -5 | msg c000; msg 90007f
+note 4 0 | msg c000; msg 900070
+note 4 36 | msg c000; msg 902470
+note 4 60 | msg c000; msg 903c70
+note 4 64 | msg c000; msg 904070
+note 4 127 | msg c000; msg 907f70
+note 4 -5 | msg c000; msg 900070
+note 21 0 | msg c205; msg 920040
+note 21 36 | msg c205; msg 922440
+note 21 60 | msg c205; msg 923c40
+note 21 64 | msg c205; msg 924040
+note 21 127 | msg c205; msg 927f40
+note 21 -5 | msg c205; msg 920040
+note 42 0 | msg cf1d; msg 9f0050
+note 42 36 | msg cf1d; msg 9f2450
+note 42 60 | msg cf1d; msg 9f3c50
+note 42 64 | msg cf1d; msg 9f4050
+note 42 127 | msg cf1d; msg 9f7f50
+note 42 -5 | msg cf1d; msg 9f0050
+note 100 0 | msg c03b; msg 90007f
+note 100 36 | msg c03b; msg 90247f
+note 100 60 | msg c03b; msg 903c7f
+note 100 64 | msg c03b; msg 90407f
+note 100 127 | msg c03b; msg 907f7f
+note 100 -5 | msg c03b; msg 90007f
+desktop 0 | load 7766016; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2480; seq 1 6624; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 1 | load 19904512; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2704; seq 1 11632; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 2 | load 2693120; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1440; vol 0 256; vol 1 160; vol 2 0; vol 3 0; vol 1 160; play 0
+desktop 3 | load 15675392; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 4 | load 21450752; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2400; seq 1 6944; seq 2 11120; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 5 | load 18982912; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2512; seq 1 9072; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 6 | load 14053376; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1984; seq 1 8480; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 7 | load 27648000; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1344; seq 1 2144; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 2 256; play 1
+desktop 8 | load 25354240; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2240; seq 1 3952; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 9 | load 22517760; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2224; seq 1 6800; seq 2 10976; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 10 | load 28338176; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1296; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+desktop 11 | load 39307264; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2288; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 12 | load 29386752; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1232; seq 2 2032; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
+desktop 13 | load 8955904; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2592; seq 1 6208; seq 2 17264; vol 0 256; vol 1 192; vol 2 256; vol 3 256; vol 1 192; play 0
+desktop 14 | load 27777024; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 15 | load 10055680; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2016; seq 1 13504; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 16 | load 20506624; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2304; seq 1 7904; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 17 | load 17305600; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2496; seq 1 5904; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 18 | load 3131392; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 1 160; play 0
+desktop 19 | load 22003712; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1680; seq 1 1680; seq 2 5856; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 20 | load 3743744; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2224; seq 1 16320; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 21 | load 27035648; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2816; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 22 | load 30855168; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1488; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 23 | load 31299584; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1600; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+desktop 24 | load 39753728; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1280; vol 0 256; vol 1 160; vol 2 0; vol 3 0; vol 1 160; play 0
+desktop 25 | load 29890560; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1216; seq 2 2352; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
+desktop 26 | load 4186112; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2640; seq 1 14016; seq 2 16400; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0
+desktop 27 | load 3131392; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 2 256; play 1
+desktop 28 | load 28813312; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1584; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 29 | load 35375104; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1312; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 30 | load 5400576; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2208; seq 1 6192; seq 2 8576; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0
+desktop 31 | load 12384256; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1120; seq 1 7184; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 32 | load 14776320; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2160; seq 1 6256; seq 2 9504; vol 0 256; vol 1 224; vol 2 256; vol 3 256; vol 1 224; play 0
+desktop 33 | load 31903744; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1584; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+desktop 34 | load 4786176; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2304; seq 1 4432; seq 2 6816; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0
+desktop 35 | load 32438272; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2096; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 36 | load 40130560; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1840; vol 0 256; vol 1 192; vol 2 0; vol 3 0; vol 1 192; play 0
+desktop 37 | load 30349312; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1248; seq 2 2640; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
+desktop 38 | load 17838080; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 256; vol 3 256; vol 1 224; play 0
+desktop 39 | load 18378752; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 40 | load 16246784; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1952; seq 1 5632; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+desktop 41 | load 11198464; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2256; seq 1 9888; seq 2 14128; vol 0 256; vol 1 224; vol 2 256; vol 3 256; vol 1 224; play 0
+desktop 42 | load 6021120; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2272; seq 1 3888; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 43 | load 34805760; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1520; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 44 | load 33030144; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1744; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 45 | load 33617920; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1536; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 46 | load 34199552; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+desktop 47 | load 34199552; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 2 256; play 1
+desktop 48 | load 40728576; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1616; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 49 | load 41183232; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1408; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+desktop 50 | load 1869824; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1648; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+volume 50 256 256 256 | 
+volume 50 128 64 200 | vol 1 200; vol 2 0; vol 3 0; vol 0 64; master 981 8191; master a81 8191
+volume 46 0 256 0 | vol 1 0; vol 2 0; vol 3 0; master 981 0; master a81 0
+volume 27 256 96 32 | vol 1 20; vol 2 32; vol 3 32; vol 0 96
+volume 7 200 0 256 | vol 0 0; master 981 12799; master a81 12799
+volume 19 64 128 8 | vol 1 7; vol 2 8; vol 3 0; vol 0 128; master 981 4095; master a81 4095
+jukebox 50 11 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 39307264; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2288; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+jukebox 11 50 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 1869824; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1648; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+jukebox 46 47 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 34199552; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 2 256; play 1
+jukebox 47 46 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; stop 1; load 34199552; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+jukebox 27 18 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; stop 1; load 3131392; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 1 160; play 0
+jukebox 7 12 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; stop 1; load 29386752; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1232; seq 2 2032; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
+jukebox 19 3 | vol 1 179; vol 1 134; vol 1 89; vol 1 44; vol 1 0; vol 1 0; stop 0; load 15675392; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+jukebox 12 25 | vol 1 204; vol 1 153; vol 1 102; vol 1 51; vol 1 0; vol 1 0; stop 0; load 29890560; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1216; seq 2 2352; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
+jukebox 0 0 | vol 1 179; vol 1 134; vol 1 89; vol 1 44; vol 1 0; vol 1 0; stop 0; load 7766016; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 2480; seq 1 6624; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+jukebox 47 7 | vol 2 230; vol 2 179; vol 2 128; vol 2 76; vol 2 25; vol 2 0; stop 1; load 27648000; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1344; seq 1 2144; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 2 256; play 1
+seq load 7 | area 7; playtype 0; load 1284096; seq 0 1376; vol 0 256; vol 1 256; vol 2 0; vol 3 0
+seq load 0 | area 0; playtype 0; load 2359296; seq 0 832; vol 0 256; vol 1 256; vol 2 0; vol 3 0
+seq load 1 | area 1; playtype 0; load 1869824; seq 0 1648; vol 0 256; vol 1 256; vol 2 0; vol 3 0
+seq load 7+stop 0+main 256+play 0+frames 2 | area 7; playtype 0; load 1284096; seq 0 1376; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq load 7+stop 0+main 128+play 0+frames 2+play 0 | area 7; playtype 0; load 1284096; seq 0 1376; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0; master 981 8191; master a81 8191
+seq load 7+play 0+fade 0 0 8 3+frames 12 | area 7; playtype 0; load 1284096; seq 0 1376; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0; vol 1 224; vol 1 192; vol 1 160; vol 1 128; vol 1 96; vol 1 64; vol 1 32; vol 1 0; vol 1 0; stop 0
+seq load 7+play 0+fade 0 128 4 1+frames 8+stop 0+stop 0 | area 7; playtype 0; load 1284096; seq 0 1376; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0; vol 1 224; vol 1 192; vol 1 160; vol 1 128; vol 1 128; stop 0
+seq load 7+play 0+start 1+fade 0 0 8 3+frames 12 | area 7; playtype 0; load 1284096; seq 0 1376; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0; vol 1 192; vol 1 128; vol 1 64; vol 1 0; vol 1 0; stop 0
+seq load 7+play 0+fade 0 0 8 3+frames 3+off+frames 2 | area 7; playtype 0; load 1284096; seq 0 1376; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0; vol 1 224; vol 1 192; vol 1 160
+seq load 7+play 0+frames 1+load 7+play 0 | area 7; playtype 0; load 1284096; seq 0 1376; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0; area 7; playtype 0; load 1284096; seq 0 1376; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq load 1+play 0+play 1+fade 1 0 6 3+frames 8 | area 1; playtype 0; load 1869824; seq 0 1648; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq main 64+load 7+play 0+frames 1 | master 981 4095; master a81 4095; area 7; playtype 0; load 1284096; seq 0 1376; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 0+set fieldtype 0+set bg 0+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 18378752; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 0+set bg 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 18378752; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 0+set bg 2+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 18378752; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 0+set bg 3+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 18378752; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 1+set bg 0+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 18378752; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 1+set bg 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 18378752; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 1+set bg 2+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 18378752; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 1+set bg 3+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 18378752; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 2+set bg 0+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 17305600; seq 0 2496; seq 1 5904; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 2+set bg 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 17305600; seq 0 2496; seq 1 5904; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 2+set bg 2+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 17838080; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 2+set bg 3+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 17305600; seq 0 2496; seq 1 5904; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 3+set bg 0+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 17305600; seq 0 2496; seq 1 5904; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 3+set bg 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 17305600; seq 0 2496; seq 1 5904; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 3+set bg 2+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 17838080; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 3+set bg 3+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 17305600; seq 0 2496; seq 1 5904; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 4+set bg 0+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 21450752; seq 0 2400; seq 1 6944; seq 2 11120; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0; vol 3 0; play 2
+seq set area 1+set areaPrev 0+set fieldtype 4+set bg 1+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 21450752; seq 0 2400; seq 1 6944; seq 2 11120; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0; vol 3 0; play 2
+seq set area 1+set areaPrev 0+set fieldtype 4+set bg 2+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 22003712; seq 0 1680; seq 1 1680; seq 2 5856; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 3 0; play 2
+seq set area 1+set areaPrev 0+set fieldtype 4+set bg 3+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 21450752; seq 0 2400; seq 1 6944; seq 2 11120; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0; vol 3 0; play 2
+seq set area 1+set areaPrev 0+set fieldtype 5+set bg 0+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 15675392; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 5+set bg 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 15675392; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 5+set bg 2+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 16246784; seq 0 1952; seq 1 5632; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 5+set bg 3+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 15675392; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 5+set bg 4+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 16728064; seq 0 1488; seq 1 11680; seq 2 17344; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 5+set bg 5+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 16728064; seq 0 1488; seq 1 11680; seq 2 17344; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 6+set bg 0+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 15675392; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 6+set bg 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 15675392; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 6+set bg 2+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 16246784; seq 0 1952; seq 1 5632; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 6+set bg 3+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 15675392; seq 0 2192; seq 1 7168; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 6+set bg 4+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 16728064; seq 0 1488; seq 1 11680; seq 2 17344; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 6+set bg 5+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 16728064; seq 0 1488; seq 1 11680; seq 2 17344; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 7+set bg 0+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 14053376; seq 0 1984; seq 1 8480; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 7+set bg 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 14053376; seq 0 1984; seq 1 8480; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 7+set bg 2+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 14446592; seq 0 1728; seq 1 1728; seq 2 4976; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 7+set bg 3+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 14053376; seq 0 1984; seq 1 8480; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 7+set bg 4+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 14776320; seq 0 2160; seq 1 6256; seq 2 9504; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 7+set bg 5+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 14776320; seq 0 2160; seq 1 6256; seq 2 9504; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 7+set bg 6+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 15306752; seq 0 1504; seq 1 1504; seq 2 4752; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 7+set bg 7+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 15306752; seq 0 1504; seq 1 1504; seq 2 4752; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 8+set bg 0+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 12384256; seq 0 1120; seq 1 7184; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 8+set bg 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 12384256; seq 0 1120; seq 1 7184; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 8+set bg 2+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 12875776; seq 0 1184; seq 1 1184; seq 2 2016; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 8+set bg 3+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 12384256; seq 0 1120; seq 1 7184; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 8+set bg 4+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 13162496; seq 0 1440; seq 1 7504; seq 2 8336; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 8+set bg 5+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 13162496; seq 0 1440; seq 1 7504; seq 2 8336; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 8+set bg 6+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 13731840; seq 0 960; seq 1 960; seq 2 1792; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 8+set bg 7+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 13731840; seq 0 960; seq 1 960; seq 2 1792; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 9+set bg 0+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 10055680; seq 0 2016; seq 1 13504; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 9+set bg 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 10055680; seq 0 2016; seq 1 13504; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 9+set bg 2+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 10668032; seq 0 1776; seq 1 1776; seq 2 6016; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 9+set bg 3+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 10055680; seq 0 2016; seq 1 13504; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 9+set bg 4+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 11198464; seq 0 2256; seq 1 9888; seq 2 14128; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 9+set bg 5+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 11198464; seq 0 2256; seq 1 9888; seq 2 14128; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 9+set bg 6+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 11816960; seq 0 1520; seq 1 1520; seq 2 5760; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 9+set bg 7+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 11816960; seq 0 1520; seq 1 1520; seq 2 5760; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 10+set bg 0+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 7766016; seq 0 2480; seq 1 6624; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 10+set bg 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 7766016; seq 0 2480; seq 1 6624; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 10+set bg 2+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 8355840; seq 0 2832; seq 1 6448; seq 2 17504; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 10+set bg 3+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 7766016; seq 0 2480; seq 1 6624; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 10+set bg 4+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 8955904; seq 0 2592; seq 1 6208; seq 2 17264; vol 0 256; vol 1 192; vol 2 0; vol 3 256; vol 1 192; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 10+set bg 5+load 3+start 1+bgm+frames 1 | area 3; playtype 1; load 8955904; seq 0 2592; seq 1 6208; seq 2 17264; vol 0 256; vol 1 192; vol 2 0; vol 3 256; vol 1 192; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 10+set bg 6+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 9541632; seq 0 1744; seq 1 2192; seq 2 13248; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 10+set bg 7+load 3+start 1+bgm+frames 1 | area 3; playtype 2; load 9541632; seq 0 1744; seq 1 2192; seq 2 13248; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 3 256; play 2
+seq set area 1+set areaPrev 0+set fieldtype 0+set bg 1+set piros 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 18982912; seq 0 2512; seq 1 9072; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 5+set bg 1+set piros 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 18982912; seq 0 2512; seq 1 9072; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 0+set fieldtype 10+set bg 1+set piros 1+load 3+start 1+bgm+frames 1 | area 3; playtype 0; load 18982912; seq 0 2512; seq 1 9072; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 2+set areaPrev 1+set dungeon 1+set dtype1 0+load 4+start 1+bgm+frames 1 | area 4; playtype 0; load 19904512; seq 0 2704; seq 1 11632; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 1+set dungeon 1+set dtype1 1+load 4+start 1+bgm+frames 1 | area 4; playtype 0; load 25354240; seq 0 2240; seq 1 3952; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 1+set dungeon 1+set dtype1 2+load 4+start 1+bgm+frames 1 | area 4; playtype 0; load 20506624; seq 0 2304; seq 1 7904; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 1+set dungeon 1+set dtype1 3+load 4+start 1+bgm+frames 1 | area 4; playtype 2; load 20969472; seq 0 1520; seq 1 1520; seq 2 6416; vol 0 256; vol 1 0; vol 2 256; vol 3 256; vol 3 256; play 2
+seq set area 2+set areaPrev 1+set dungeon 1+set dtype1 4+load 4+start 1+bgm+frames 1 | area 4; playtype 1; load 23640064; seq 0 2880; seq 1 10304; seq 2 23664; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 2+set areaPrev 1+set dungeon 1+set dtype1 5+load 4+start 1+bgm+frames 1 | area 4; playtype 1; load 25905152; seq 0 2464; seq 1 4176; seq 2 5968; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 2+set areaPrev 1+set dungeon 1+set dtype1 6+load 4+start 1+bgm+frames 1 | area 4; playtype 1; load 24238080; seq 0 2800; seq 1 8736; seq 2 12160; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 2+set areaPrev 1+set dungeon 1+set dtype1 7+load 4+start 1+bgm+frames 1 | area 4; playtype 2; load 24803328; seq 0 1856; seq 1 1856; seq 2 6752; vol 0 256; vol 1 0; vol 2 256; vol 3 256; vol 3 256; play 2
+seq set area 2+set areaPrev 1+set dungeon 1+set dtype1 8+load 4+start 1+bgm+frames 1 | area 4; playtype 1; load 21450752; seq 0 2400; seq 1 6944; seq 2 11120; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 2+set areaPrev 1+set dungeon 1+set dtype1 9+load 4+start 1+bgm+frames 1 | area 4; playtype 1; load 21450752; seq 0 2400; seq 1 6944; seq 2 11120; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 2+set areaPrev 1+set dungeon 1+set dtype1 10+load 4+start 1+bgm+frames 1 | area 4; playtype 1; load 26497024; seq 0 1664; seq 1 1664; seq 2 3264; vol 0 256; vol 1 0; vol 2 256; vol 3 256; vol 1 0; play 0; vol 3 256; play 2
+seq set area 2+set areaPrev 2+set dungeon 1+set dungeonPrev 1+set dtype1 3+load 4+start 1+bgm+frames 1 | area 4; playtype 2; load 20969472; seq 0 1520; seq 1 1520; seq 2 6416; vol 0 256; vol 1 0; vol 2 256; vol 3 256
+seq set area 1+set areaPrev 1+set field 0+load 5+start 1+bgm+frames 1 | area 5; playtype -1; vol 0 256
+seq set area 2+set areaPrev 2+set field 0+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 1+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 28338176; seq 0 1296; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 2+set areaPrev 2+set field 1+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 28338176; seq 0 1296; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 1+set field 2+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 30855168; seq 0 1488; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 2+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 30855168; seq 0 1488; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 3+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 31299584; seq 0 1600; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 2+set areaPrev 2+set field 3+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 31299584; seq 0 1600; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 1+set field 4+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 31903744; seq 0 1584; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 2+set areaPrev 2+set field 4+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 31903744; seq 0 1584; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 1+set field 5+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 32438272; seq 0 2096; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 5+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 32438272; seq 0 2096; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 6+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 33030144; seq 0 1744; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 6+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 33030144; seq 0 1744; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 7+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 33617920; seq 0 1536; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 7+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 33617920; seq 0 1536; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 8+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 34199552; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 8+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 34199552; seq 0 2704; seq 1 8400; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 9+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 28813312; seq 0 1584; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 9+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 28813312; seq 0 1584; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 10+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 28813312; seq 0 1584; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 10+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 28813312; seq 0 1584; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 11+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 28813312; seq 0 1584; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 11+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 28813312; seq 0 1584; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 12+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 34805760; seq 0 1520; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 12+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 34805760; seq 0 1520; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 13+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 27035648; seq 0 2816; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 13+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 27035648; seq 0 2816; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 14+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 14+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 15+load 5+start 1+bgm+frames 1 | area 5; playtype 3; load 27648000; seq 0 1344; seq 1 2144; vol 0 256; vol 1 256; vol 2 256; vol 3 0
+seq set area 2+set areaPrev 2+set field 15+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 27648000; seq 0 1344; seq 1 2144; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 16+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 29386752; seq 0 1232; seq 2 2032; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 2+set areaPrev 2+set field 16+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 29386752; seq 0 1232; seq 2 2032; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 1+set field 17+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 17+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 18+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 14053376; seq 0 1984; seq 1 8480; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+seq set area 2+set areaPrev 2+set field 18+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 14053376; seq 0 1984; seq 1 8480; vol 0 256; vol 1 224; vol 2 256; vol 3 0; vol 1 224; play 0
+seq set area 1+set areaPrev 1+set field 19+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 19+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 20+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 20+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 21+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 21+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 22+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 22+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 23+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 23+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 24+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 24+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 25+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 25+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 26+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 26+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 27+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 27+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 28+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 28+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 29+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 29+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 30+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 30+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 31+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 31+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 32+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 32+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 33+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 33+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 34+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 34+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 35+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 35+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 36+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 36+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 37+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 37+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 38+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 38+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 39+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 39+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 40+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 40+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 41+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 41+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 42+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 42+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 43+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 43+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 44+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 44+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 45+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 45+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 46+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 46+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 47+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 47+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 48+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 48+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 49+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 49+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 50+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 50+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 51+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 51+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 52+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 52+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 53+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 53+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 54+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 54+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 55+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 55+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 56+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 56+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 57+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 57+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 58+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 58+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 59+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 59+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 60+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 60+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 61+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 61+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 62+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 62+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 63+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 63+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 64+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 64+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 65+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 65+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 66+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 29890560; seq 0 1216; seq 2 2352; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 2+set areaPrev 2+set field 66+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 29890560; seq 0 1216; seq 2 2352; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 1+set field 67+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 19339264; seq 0 1440; seq 2 3040; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 2+set areaPrev 2+set field 67+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 19339264; seq 0 1440; seq 2 3040; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 1+set field 68+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 68+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 69+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 69+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 70+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 70+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 71+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 71+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 72+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 72+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 73+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 73+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 74+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 74+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 75+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 75+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 76+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 76+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 77+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 77+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 78+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 78+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 79+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 79+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 80+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 80+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 81+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 81+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 82+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 82+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 83+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 83+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 84+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 84+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 85+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 85+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 86+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 86+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 87+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 87+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 88+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 88+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 89+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 89+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 90+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 90+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 91+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 30349312; seq 0 1248; seq 2 2640; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 2+set areaPrev 2+set field 91+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 30349312; seq 0 1248; seq 2 2640; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set area 1+set areaPrev 1+set field 92+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 92+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 93+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 93+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 94+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 94+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 95+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 95+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 96+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 96+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 97+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 97+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 98+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 98+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 99+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 99+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 100+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 100+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 101+load 5+start 1+bgm+frames 1 | area 5; playtype 0; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 2+set areaPrev 2+set field 101+load 5+start 1+bgm+frames 1 | area 5; playtype 1; load 27777024; seq 0 736; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 1+set areaPrev 1+set field 102+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 102+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 103+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 103+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 104+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 104+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 105+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 105+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 106+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 106+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 107+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 107+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 108+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 108+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 109+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 109+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 110+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 110+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 111+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 111+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 112+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 112+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 113+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 113+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 114+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 114+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 115+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 115+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 116+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 116+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 117+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 117+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 118+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 118+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 119+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 119+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 120+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 120+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 121+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 121+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 1+set areaPrev 1+set field 122+load 5+start 1+bgm+frames 1 | area 5; playtype 0; vol 0 256
+seq set area 2+set areaPrev 2+set field 122+load 5+start 1+bgm+frames 1 | area 5; playtype 1; vol 0 256
+seq set area 0+set areaPrev 1+set town 0+set crisis 0+load 2+start 1+bgm+frames 1 | area 2; playtype 0; load 2693120; seq 0 1440; vol 0 256; vol 1 160; vol 2 0; vol 3 0; vol 1 160; play 0
+seq set area 0+set areaPrev 1+set town 0+set crisis 1+load 2+start 1+bgm+frames 1 | area 2; playtype 0; load 6621184; seq 0 1648; seq 2 21792; vol 0 256; vol 1 160; vol 2 0; vol 3 256; vol 3 256; play 2; vol 1 160; play 0
+seq set area 0+set areaPrev 1+set town 1+set crisis 0+load 2+start 1+bgm+frames 1 | area 2; playtype 0; load 3131392; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 3 256; play 2; vol 1 160; play 0
+seq set area 0+set areaPrev 1+set town 1+set crisis 1+load 2+start 1+bgm+frames 1 | area 2; playtype 0; load 7108608; seq 0 3664; seq 1 33024; seq 2 35408; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 3 256; play 2; vol 1 160; play 0
+seq set area 0+set areaPrev 1+set town 2+set crisis 0+load 2+start 1+bgm+frames 1 | area 2; playtype 0; load 3743744; seq 0 2224; seq 1 16320; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+seq set area 0+set areaPrev 1+set town 2+set crisis 1+load 2+start 1+bgm+frames 1 | area 2; playtype 0; load 4186112; seq 0 2640; seq 1 14016; seq 2 16400; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 3 256; play 2; vol 1 256; play 0
+seq set area 0+set areaPrev 1+set town 3+set crisis 0+load 2+start 1+bgm+frames 1 | area 2; playtype 0; load 5400576; seq 0 2208; seq 1 6192; seq 2 8576; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 3 256; play 2; vol 1 256; play 0
+seq set area 0+set areaPrev 1+set town 3+set crisis 1+load 2+start 1+bgm+frames 1 | area 2; playtype 0; load 4786176; seq 0 2304; seq 1 4432; seq 2 6816; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 3 256; play 2; vol 1 256; play 0
+seq set area 0+set areaPrev 1+set town 4+set crisis 0+load 2+start 1+bgm+frames 1 | area 2; playtype 0; load 6021120; seq 0 2272; seq 1 3888; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+seq set area 0+set areaPrev 1+set town 4+set crisis 1+load 2+start 1+bgm+frames 1 | area 2; playtype 0; load 6021120; seq 0 2272; seq 1 3888; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0
+seq set area 1+set fieldtype 10+set bg 0+hold+load 3+start 1+bgm+frames 1+bgm+frames 1 | area 3; playtype 0; load 7766016; seq 0 2480; seq 1 6624; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0
+seq hold+set area 2+set areaPrev 2+load 4+start 1+bgm+bgm+frames 1 | area 4; playtype 0; load 19904512; seq 0 2704; seq 1 11632; vol 0 256; vol 1 256; vol 2 256; vol 3 0
+seq set area 0+load 2+start 1+bgm+frames 1+hold+desktop 50+frames 1+bgm+frames 1 | area 2; playtype 0; load 2693120; seq 0 1440; vol 0 256; vol 1 160; vol 2 0; vol 3 0; vol 1 160; play 0; load 1869824; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1648; vol 0 256; vol 1 256; vol 2 0; vol 3 0; vol 1 256; play 0
+seq set area 0+load 2+start 1+bgm+frames 1+hold+desktop 27+frames 1+bgm+frames 1 | area 2; playtype 0; load 2693120; seq 0 1440; vol 0 256; vol 1 160; vol 2 0; vol 3 0; vol 1 160; play 0; load 3131392; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 2 256; play 1
+seq set area 1+set fieldtype 2+set bg 2+load 3+start 1+bgm+frames 1+desktop 12+frames 1+bgm+frames 1 | area 3; playtype 1; load 17838080; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2; load 29386752; reverb 0 100; reverb 1 100; reverb 0 105; reverb 1 105; seq 0 1232; seq 2 2032; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0
+seq set area 1+set fieldtype 0+set bg 0+load 3+start 1+bgm+frames 1+frames 2+battle 1+frames 34+battle 0+frames 34 | area 3; playtype 0; load 18378752; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0; change; vol 2 8; vol 1 209; vol 2 25; vol 1 194; vol 2 42; vol 1 179; vol 2 59; vol 1 164; vol 2 76; vol 1 149; vol 2 93; vol 1 134; vol 2 110; vol 1 119; vol 2 127; vol 1 104; vol 2 145; vol 1 89; vol 2 162; vol 1 74; vol 2 179; vol 1 59; vol 2 196; vol 1 44; vol 2 213; vol 1 29; vol 2 230; vol 1 14; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256; change; vol 2 247; vol 1 14; vol 2 230; vol 1 29; vol 2 213; vol 1 44; vol 2 196; vol 1 59; vol 2 179; vol 1 74; vol 2 162; vol 1 89; vol 2 145; vol 1 104; vol 2 128; vol 1 119; vol 2 110; vol 1 134; vol 2 93; vol 1 149; vol 2 76; vol 1 164; vol 2 59; vol 1 179; vol 2 42; vol 1 194; vol 2 25; vol 1 209; vol 2 8; vol 1 223; vol 1 224; vol 2 0; stop 1
+seq set area 1+set fieldtype 2+set bg 2+load 3+start 1+bgm+frames 1+frames 2+battle 1+frames 34+battle 0+frames 34 | area 3; playtype 1; load 17838080; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2; change; vol 2 8; vol 1 209; vol 2 25; vol 1 194; vol 2 42; vol 1 179; vol 2 59; vol 1 164; vol 2 76; vol 1 149; vol 2 93; vol 1 134; vol 2 110; vol 1 119; vol 2 127; vol 1 104; vol 2 145; vol 1 89; vol 2 162; vol 1 74; vol 2 179; vol 1 59; vol 2 196; vol 1 44; vol 2 213; vol 1 29; vol 2 230; vol 1 14; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256; change; vol 2 247; vol 1 14; vol 2 230; vol 1 29; vol 2 213; vol 1 44; vol 2 196; vol 1 59; vol 2 179; vol 1 74; vol 2 162; vol 1 89; vol 2 145; vol 1 104; vol 2 128; vol 1 119; vol 2 110; vol 1 134; vol 2 93; vol 1 149; vol 2 76; vol 1 164; vol 2 59; vol 1 179; vol 2 42; vol 1 194; vol 2 25; vol 1 209; vol 2 8; vol 1 223; vol 1 224; vol 2 0; stop 1
+seq set area 1+set fieldtype 4+set bg 2+load 3+start 1+bgm+frames 1+frames 2+battle 1+frames 34+battle 0+frames 34 | area 3; playtype 2; load 22003712; seq 0 1680; seq 1 1680; seq 2 5856; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 3 0; play 2; change; vol 2 8; vol 2 25; vol 2 42; vol 2 59; vol 2 76; vol 2 93; vol 2 110; vol 2 127; vol 2 145; vol 2 162; vol 2 179; vol 2 196; vol 2 213; vol 2 230; vol 2 247; vol 2 256; change; vol 2 247; vol 2 230; vol 2 213; vol 2 196; vol 2 179; vol 2 162; vol 2 145; vol 2 128; vol 2 110; vol 2 93; vol 2 76; vol 2 59; vol 2 42; vol 2 25; vol 2 8; vol 2 0; stop 1
+seq set area 1+set fieldtype 10+set bg 5+load 3+start 1+bgm+frames 1+frames 2+battle 1+frames 34+battle 0+frames 34 | area 3; playtype 1; load 8955904; seq 0 2592; seq 1 6208; seq 2 17264; vol 0 256; vol 1 192; vol 2 0; vol 3 256; vol 1 192; play 0; vol 3 256; play 2; change; vol 2 8; vol 1 179; vol 2 25; vol 1 166; vol 2 42; vol 1 153; vol 2 59; vol 1 140; vol 2 76; vol 1 128; vol 2 93; vol 1 115; vol 2 110; vol 1 102; vol 2 127; vol 1 89; vol 2 145; vol 1 76; vol 2 162; vol 1 64; vol 2 179; vol 1 51; vol 2 196; vol 1 38; vol 2 213; vol 1 25; vol 2 230; vol 1 12; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256; change; vol 2 247; vol 1 12; vol 2 230; vol 1 25; vol 2 213; vol 1 38; vol 2 196; vol 1 51; vol 2 179; vol 1 63; vol 2 162; vol 1 76; vol 2 145; vol 1 89; vol 2 128; vol 1 102; vol 2 110; vol 1 115; vol 2 93; vol 1 127; vol 2 76; vol 1 140; vol 2 59; vol 1 153; vol 2 42; vol 1 166; vol 2 25; vol 1 179; vol 2 8; vol 1 191; vol 1 192; vol 2 0; stop 1
+seq set area 2+set areaPrev 1+set dtype0 0+load 4+start 1+bgm+frames 1+frames 2+battle 1+frames 34+battle 0+frames 34 | area 4; playtype 0; load 19904512; seq 0 2704; seq 1 11632; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0; change; vol 2 256; vol 1 238; vol 2 256; vol 1 221; vol 2 256; vol 1 204; vol 2 256; vol 1 187; vol 2 256; vol 1 170; vol 2 256; vol 1 153; vol 2 256; vol 1 136; vol 2 256; vol 1 119; vol 2 256; vol 1 102; vol 2 256; vol 1 85; vol 2 256; vol 1 68; vol 2 256; vol 1 51; vol 2 256; vol 1 34; vol 2 256; vol 1 17; vol 2 256; vol 1 0; vol 1 0; stop 0; vol 2 256; change; vol 2 247; vol 1 17; vol 2 230; vol 1 34; vol 2 213; vol 1 51; vol 2 196; vol 1 68; vol 2 179; vol 1 85; vol 2 162; vol 1 102; vol 2 145; vol 1 119; vol 2 128; vol 1 136; vol 2 110; vol 1 153; vol 2 93; vol 1 170; vol 2 76; vol 1 187; vol 2 59; vol 1 204; vol 2 42; vol 1 221; vol 2 25; vol 1 238; vol 2 8; vol 1 255; vol 1 256; vol 2 0; stop 1
+seq set area 2+set areaPrev 1+set dtype0 3+load 4+start 1+bgm+frames 1+frames 2+battle 1+frames 34+battle 0+frames 34 | area 4; playtype 2; load 20969472; seq 0 1520; seq 1 1520; seq 2 6416; vol 0 256; vol 1 0; vol 2 256; vol 3 256; vol 3 256; play 2; change; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; vol 2 256; change; vol 2 247; vol 2 230; vol 2 213; vol 2 196; vol 2 179; vol 2 162; vol 2 145; vol 2 128; vol 2 110; vol 2 93; vol 2 76; vol 2 59; vol 2 42; vol 2 25; vol 2 8; vol 2 0; stop 1
+seq set area 2+set areaPrev 1+set dtype0 4+load 4+start 1+bgm+frames 1+frames 2+battle 1+frames 34+battle 0+frames 34 | area 4; playtype 1; load 23640064; seq 0 2880; seq 1 10304; seq 2 23664; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 1 256; play 0; vol 3 256; play 2; change; vol 2 256; vol 1 238; vol 2 256; vol 1 221; vol 2 256; vol 1 204; vol 2 256; vol 1 187; vol 2 256; vol 1 170; vol 2 256; vol 1 153; vol 2 256; vol 1 136; vol 2 256; vol 1 119; vol 2 256; vol 1 102; vol 2 256; vol 1 85; vol 2 256; vol 1 68; vol 2 256; vol 1 51; vol 2 256; vol 1 34; vol 2 256; vol 1 17; vol 2 256; vol 1 0; vol 1 0; stop 0; vol 2 256; change; vol 2 247; vol 1 17; vol 2 230; vol 1 34; vol 2 213; vol 1 51; vol 2 196; vol 1 68; vol 2 179; vol 1 85; vol 2 162; vol 1 102; vol 2 145; vol 1 119; vol 2 128; vol 1 136; vol 2 110; vol 1 153; vol 2 93; vol 1 170; vol 2 76; vol 1 187; vol 2 59; vol 1 204; vol 2 42; vol 1 221; vol 2 25; vol 1 238; vol 2 8; vol 1 255; vol 1 256; vol 2 0; stop 1
+seq set area 1+set fieldtype 2+set bg 2+load 3+start 1+bgm+frames 1+ride 1+frames 2+battle 1+frames 34+battle 0+frames 34 | area 3; playtype 1; load 17838080; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2
+seq set area 1+set fieldtype 0+set bg 0+load 3+start 1+bgm+frames 1+frames 3+ride 1+pginit+frames 12+pgend 0+ride 0+frames 14 | area 3; playtype 0; load 18378752; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0; vol 2 0; vol 1 168; vol 2 0; vol 1 112; vol 2 0; vol 1 56; vol 2 0; vol 1 0; vol 1 0; stop 0; vol 2 0; vol 1 0; play 0; vol 1 44; vol 1 89; vol 1 134; vol 1 179; vol 1 223; vol 1 224
+seq set area 1+set fieldtype 0+set bg 0+load 3+start 1+bgm+frames 1+frames 3+ride 1+pginit+frames 12+pgend 1+ride 0+frames 14 | area 3; playtype 0; load 18378752; seq 0 2272; seq 1 5104; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 1 224; play 0; vol 2 0; vol 1 168; vol 2 0; vol 1 112; vol 2 0; vol 1 56; vol 2 0; vol 1 0; vol 1 0; stop 0; vol 2 0
+seq set area 1+set fieldtype 2+set bg 2+load 3+start 1+bgm+frames 1+frames 3+ride 1+pginit+frames 12+pgend 0+ride 0+frames 14 | area 3; playtype 1; load 17838080; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2; vol 2 0; vol 1 168; vol 2 0; vol 1 112; vol 2 0; vol 1 56; vol 2 0; vol 1 0; vol 1 0; stop 0; vol 2 0; vol 1 0; play 0; vol 1 44; vol 1 89; vol 1 134; vol 1 179; vol 1 223; vol 1 224
+seq set area 1+set fieldtype 2+set bg 2+load 3+start 1+bgm+frames 1+frames 3+ride 1+pginit+frames 12+pgend 1+ride 0+frames 14 | area 3; playtype 1; load 17838080; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2; vol 2 0; vol 1 168; vol 2 0; vol 1 112; vol 2 0; vol 1 56; vol 2 0; vol 1 0; vol 1 0; stop 0; vol 2 0
+seq set area 1+set fieldtype 4+set bg 2+load 3+start 1+bgm+frames 1+frames 3+ride 1+pginit+frames 12+pgend 0+ride 0+frames 14 | area 3; playtype 2; load 22003712; seq 0 1680; seq 1 1680; seq 2 5856; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 3 0; play 2; vol 2 0; vol 1 168; vol 2 0; vol 1 112; vol 2 0; vol 1 56; vol 2 0; vol 1 0; vol 1 0; vol 2 0
+seq set area 1+set fieldtype 4+set bg 2+load 3+start 1+bgm+frames 1+frames 3+ride 1+pginit+frames 12+pgend 1+ride 0+frames 14 | area 3; playtype 2; load 22003712; seq 0 1680; seq 1 1680; seq 2 5856; vol 0 256; vol 1 224; vol 2 0; vol 3 0; vol 3 0; play 2; vol 2 0; vol 1 168; vol 2 0; vol 1 112; vol 2 0; vol 1 56; vol 2 0; vol 1 0; vol 1 0; vol 2 0
+seq set area 1+set fieldtype 10+set bg 5+load 3+start 1+bgm+frames 1+frames 3+ride 1+pginit+frames 12+pgend 0+ride 0+frames 14 | area 3; playtype 1; load 8955904; seq 0 2592; seq 1 6208; seq 2 17264; vol 0 256; vol 1 192; vol 2 0; vol 3 256; vol 1 192; play 0; vol 3 256; play 2; vol 2 0; vol 1 144; vol 2 0; vol 1 96; vol 2 0; vol 1 48; vol 2 0; vol 1 0; vol 1 0; stop 0; vol 2 0; vol 1 0; play 0; vol 1 38; vol 1 76; vol 1 115; vol 1 153; vol 1 191; vol 1 192
+seq set area 1+set fieldtype 10+set bg 5+load 3+start 1+bgm+frames 1+frames 3+ride 1+pginit+frames 12+pgend 1+ride 0+frames 14 | area 3; playtype 1; load 8955904; seq 0 2592; seq 1 6208; seq 2 17264; vol 0 256; vol 1 192; vol 2 0; vol 3 256; vol 1 192; play 0; vol 3 256; play 2; vol 2 0; vol 1 144; vol 2 0; vol 1 96; vol 2 0; vol 1 48; vol 2 0; vol 1 0; vol 1 0; stop 0; vol 2 0
+seq set area 1+set fieldtype 2+set bg 2+load 3+start 1+bgm+frames 1+battle 1+frames 34+battle 0+ride 1+pginit+frames 5+pgend 0+ride 0+frames 34 | area 3; playtype 1; load 17838080; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2; change; vol 2 8; vol 1 209; vol 2 25; vol 1 194; vol 2 42; vol 1 179; vol 2 59; vol 1 164; vol 2 76; vol 1 149; vol 2 93; vol 1 134; vol 2 110; vol 1 119; vol 2 127; vol 1 104; vol 2 145; vol 1 89; vol 2 162; vol 1 74; vol 2 179; vol 1 59; vol 2 196; vol 1 44; vol 2 213; vol 1 29; vol 2 230; vol 1 14; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256; vol 2 224; vol 1 0; vol 2 160; vol 1 0; vol 2 96; vol 1 0; play 0; vol 1 44; vol 2 32; vol 1 89; vol 2 0; stop 1; vol 1 134; vol 1 179; vol 1 223; vol 1 224
+seq set area 1+set field 66+set areaPrev 1+load 5+start 1+bgm+frames 1+frames 2+battle 1+frames 34+battle 0+frames 34 | area 5; playtype 1; load 29890560; seq 0 1216; seq 2 2352; vol 0 256; vol 1 256; vol 2 0; vol 3 256; vol 1 256; play 0; vol 3 256; play 2
+seq set town 1+set area 0+set areaPrev 1+load 2+start 1+bgm+frames 1+breeder -2200 -5800+kite -2200 -5600+scene+frames 32+kite 3000 3000+scene+frames 32+kite -2200 -5600+scene+frames 32+kite -2200 -6900+scene+frames 2 | area 2; playtype 0; load 3131392; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 3 256; play 2; vol 1 160; play 0; vol 2 0; play 1; vol 2 8; vol 1 149; vol 2 25; vol 1 138; vol 2 42; vol 1 128; vol 2 59; vol 1 117; vol 2 76; vol 1 106; vol 2 93; vol 1 96; vol 2 110; vol 1 85; vol 2 127; vol 1 74; vol 2 145; vol 1 64; vol 2 162; vol 1 53; vol 2 179; vol 1 42; vol 2 196; vol 1 32; vol 2 213; vol 1 21; vol 2 230; vol 1 10; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256; vol 1 0; play 0; vol 2 247; vol 1 10; vol 2 230; vol 1 21; vol 2 213; vol 1 31; vol 2 196; vol 1 42; vol 2 179; vol 1 53; vol 2 162; vol 1 63; vol 2 145; vol 1 74; vol 2 128; vol 1 85; vol 2 110; vol 1 95; vol 2 93; vol 1 106; vol 2 76; vol 1 117; vol 2 59; vol 1 127; vol 2 42; vol 1 138; vol 2 25; vol 1 149; vol 2 8; vol 1 159; vol 1 160; vol 2 0; stop 1; vol 2 0; play 1; vol 2 8; vol 1 149; vol 2 25; vol 1 138; vol 2 42; vol 1 128; vol 2 59; vol 1 117; vol 2 76; vol 1 106; vol 2 93; vol 1 96; vol 2 110; vol 1 85; vol 2 127; vol 1 74; vol 2 145; vol 1 64; vol 2 162; vol 1 53; vol 2 179; vol 1 42; vol 2 196; vol 1 32; vol 2 213; vol 1 21; vol 2 230; vol 1 10; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256
+seq set town 1+set area 0+set areaPrev 1+load 2+start 1+bgm+frames 1+breeder -2200 -5800+kite -2200 -5600+scene+frames 32+set town 2+set area 0+set areaPrev 1+load 2+start 1+bgm+frames 1+breeder -3830 -3450+kite -3830 -3250+scene+frames 32 | area 2; playtype 0; load 3131392; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 3 256; play 2; vol 1 160; play 0; vol 2 0; play 1; vol 2 8; vol 1 149; vol 2 25; vol 1 138; vol 2 42; vol 1 128; vol 2 59; vol 1 117; vol 2 76; vol 1 106; vol 2 93; vol 1 96; vol 2 110; vol 1 85; vol 2 127; vol 1 74; vol 2 145; vol 1 64; vol 2 162; vol 1 53; vol 2 179; vol 1 42; vol 2 196; vol 1 32; vol 2 213; vol 1 21; vol 2 230; vol 1 10; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256; area 2; playtype 0; load 3743744; seq 0 2224; seq 1 16320; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0; vol 2 0; play 1; vol 2 8; vol 1 238; vol 2 25; vol 1 221; vol 2 42; vol 1 204; vol 2 59; vol 1 187; vol 2 76; vol 1 170; vol 2 93; vol 1 153; vol 2 110; vol 1 136; vol 2 127; vol 1 119; vol 2 145; vol 1 102; vol 2 162; vol 1 85; vol 2 179; vol 1 68; vol 2 196; vol 1 51; vol 2 213; vol 1 34; vol 2 230; vol 1 17; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256
+seq set town 1+set area 0+set areaPrev 1+load 2+start 1+bgm+frames 1+breeder -2200 -5800+kite -2200 -5600+scene+frames 32+set town 0+set area 0+set areaPrev 1+load 2+start 1+bgm+frames 1+scene+frames 2+set town 3+set area 0+set areaPrev 1+load 2+start 1+bgm+frames 1+breeder 0 0+kite 0 500+scene+frames 32 | area 2; playtype 0; load 3131392; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 3 256; play 2; vol 1 160; play 0; vol 2 0; play 1; vol 2 8; vol 1 149; vol 2 25; vol 1 138; vol 2 42; vol 1 128; vol 2 59; vol 1 117; vol 2 76; vol 1 106; vol 2 93; vol 1 96; vol 2 110; vol 1 85; vol 2 127; vol 1 74; vol 2 145; vol 1 64; vol 2 162; vol 1 53; vol 2 179; vol 1 42; vol 2 196; vol 1 32; vol 2 213; vol 1 21; vol 2 230; vol 1 10; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256; area 2; playtype 0; load 2693120; seq 0 1440; vol 0 256; vol 1 160; vol 2 0; vol 3 0; vol 1 160; play 0; area 2; playtype 0; load 5400576; seq 0 2208; seq 1 6192; seq 2 8576; vol 0 256; vol 1 256; vol 2 256; vol 3 256; vol 3 256; play 2; vol 1 256; play 0; vol 2 0; play 1; vol 2 8; vol 1 238; vol 2 25; vol 1 221; vol 2 42; vol 1 204; vol 2 59; vol 1 187; vol 2 76; vol 1 170; vol 2 93; vol 1 153; vol 2 110; vol 1 136; vol 2 127; vol 1 119; vol 2 145; vol 1 102; vol 2 162; vol 1 85; vol 2 179; vol 1 68; vol 2 196; vol 1 51; vol 2 213; vol 1 34; vol 2 230; vol 1 17; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256
+seq set town 1+set area 0+set areaPrev 1+load 2+start 1+bgm+frames 1+breeder -2200 -5800+kite -2200 -5600+scene+frames 32+set area 1+set fieldtype 2+set bg 2+load 3+start 1+bgm+scene+frames 2+set town 2+set area 0+set areaPrev 1+load 2+start 1+bgm+frames 1+breeder -3830 -3450+kite -3830 -3250+scene+frames 32 | area 2; playtype 0; load 3131392; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 3 256; play 2; vol 1 160; play 0; vol 2 0; play 1; vol 2 8; vol 1 149; vol 2 25; vol 1 138; vol 2 42; vol 1 128; vol 2 59; vol 1 117; vol 2 76; vol 1 106; vol 2 93; vol 1 96; vol 2 110; vol 1 85; vol 2 127; vol 1 74; vol 2 145; vol 1 64; vol 2 162; vol 1 53; vol 2 179; vol 1 42; vol 2 196; vol 1 32; vol 2 213; vol 1 21; vol 2 230; vol 1 10; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256; area 3; playtype 1; load 17838080; seq 0 2864; seq 1 5376; seq 2 12944; vol 0 256; vol 1 224; vol 2 0; vol 3 256; vol 1 224; play 0; vol 3 256; play 2; area 2; playtype 0; load 3743744; seq 0 2224; seq 1 16320; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 256; play 0; vol 2 0; play 1; vol 2 8; vol 1 238; vol 2 25; vol 1 221; vol 2 42; vol 1 204; vol 2 59; vol 1 187; vol 2 76; vol 1 170; vol 2 93; vol 1 153; vol 2 110; vol 1 136; vol 2 127; vol 1 119; vol 2 145; vol 1 102; vol 2 162; vol 1 85; vol 2 179; vol 1 68; vol 2 196; vol 1 51; vol 2 213; vol 1 34; vol 2 230; vol 1 17; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256
+seq set area 1+set areaPrev 1+set field 15+load 5+start 1+bgm+frames 1+camera 0 0+scene+frames 2+camera 0 3000+scene+frames 2+block 1+scene+frames 32+block 0+scene+frames 32 | area 5; playtype 3; load 27648000; seq 0 1344; seq 1 2144; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 0; play 0; playtype 0; vol 1 219; vol 2 256; change; vol 1 204; vol 1 189; vol 1 175; vol 1 160; vol 1 146; vol 1 131; vol 1 116; vol 1 102; vol 1 87; vol 1 73; vol 1 58; vol 1 43; vol 1 29; vol 1 14; vol 1 0; vol 1 0; stop 0; change; vol 1 219; vol 2 247; vol 2 230; vol 2 213; vol 2 196; vol 2 179; vol 2 162; vol 2 145; vol 2 128; vol 2 110; vol 2 93; vol 2 76; vol 2 59; vol 2 42; vol 2 25; vol 2 8; vol 2 0; stop 1
+seq set town 1+set area 0+set areaPrev 1+load 2+start 1+bgm+frames 1+breeder -2200 -5800+kite -2200 -5600+scene+frames 32+set area 1+set areaPrev 1+set field 15+load 5+start 1+bgm+frames 1+camera 0 0+scene+frames 2+camera 0 3000+scene+frames 2+block 1+scene+frames 32+block 0+scene+frames 32 | area 2; playtype 0; load 3131392; seq 0 3440; seq 1 32800; seq 2 35184; vol 0 256; vol 1 160; vol 2 256; vol 3 256; vol 3 256; play 2; vol 1 160; play 0; vol 2 0; play 1; vol 2 8; vol 1 149; vol 2 25; vol 1 138; vol 2 42; vol 1 128; vol 2 59; vol 1 117; vol 2 76; vol 1 106; vol 2 93; vol 1 96; vol 2 110; vol 1 85; vol 2 127; vol 1 74; vol 2 145; vol 1 64; vol 2 162; vol 1 53; vol 2 179; vol 1 42; vol 2 196; vol 1 32; vol 2 213; vol 1 21; vol 2 230; vol 1 10; vol 2 247; vol 1 0; vol 1 0; stop 0; vol 2 256; area 5; playtype 3; load 27648000; seq 0 1344; seq 1 2144; vol 0 256; vol 1 256; vol 2 256; vol 3 0; vol 1 0; play 0; playtype 0; vol 1 219; vol 2 256; change; vol 1 204; vol 1 189; vol 1 175; vol 1 160; vol 1 146; vol 1 131; vol 1 116; vol 1 102; vol 1 87; vol 1 73; vol 1 58; vol 1 43; vol 1 29; vol 1 14; vol 1 0; vol 1 0; stop 0; change; vol 1 219; vol 2 247; vol 2 230; vol 2 213; vol 2 196; vol 2 179; vol 2 162; vol 2 145; vol 2 128; vol 2 110; vol 2 93; vol 2 76; vol 2 59; vol 2 42; vol 2 25; vol 2 8; vol 2 0; stop 1

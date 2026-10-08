@@ -6,6 +6,7 @@
 
 use piney_data::sound::{SeTbl, SqLoad, SqTbl, Tables, WaveData};
 use piney_data::tables::voice::{VoiceData, VoiceTable};
+use piney_data::volume::Volume;
 
 use crate::se3d::{self, Listener, V4};
 
@@ -126,11 +127,13 @@ pub struct Driver {
     /// constructor and `ccSndBgmCtrl` in Mac Anu.
     pub water_loop: bool,
     /// `ccSnd +0x108`: `bgmChurch` has started its music, or `bgmBreed`'s
-    /// breeder tune is on; cleared by every `ccSndSQLoad`.
+    /// breeder tune is on; cleared with the rest of `free[4]` by the loads
+    /// of [`Pick::clears_scene`].
     pub scene_bgm: bool,
     /// `ccSnd +0x10c`: the block `bgmChurch` last saw.
     pub church_block: i32,
-    /// `ccSnd +0x114`, +0x120: the breeder's position, read once.
+    /// `ccSnd +0x114`, +0x120: the breeder's position, read once after
+    /// each load that clears `free[4]`.
     pub breeder: Option<se3d::V4>,
     /// `game.status` is 5 (The World): from the area's arrival
     /// ([`Driver::game_area`] set) to the next mode change.
@@ -246,10 +249,11 @@ pub enum SqContext {
     Desktop,
     /// 7: the title (`sqDataTitle`, `ccSetupDemo`); sequence 0 is its music.
     Title,
-    /// 2: a Root Town (`sqDataTown`, `sqVolTblTown`), row
-    /// `WORLD_MAN::GetTownType()`, plus 5 while `saveData.crisis`
-    /// (+0x6772) is set (`ccSndSQLoad` 0x00182380, 0x001829d4).
-    Town { row: u8 },
+    /// 2: a Root Town (`sqDataTown`, `sqVolTblTown`): `town` is
+    /// `WORLD_MAN::GetTownType()`, `crisis` that `saveData.crisis`
+    /// (+0x6772) is set (`ccSndSQLoad` 0x00182380, 0x001829d4); the row is
+    /// [`town_row`]'s.
+    Town { town: u8, crisis: bool },
     /// 3: a field (0x00182260, 0x00182968): `sqDataField[field_type]`,
     /// `sqVolTblField[field_type]` and `playTypeTbl[field_type]`, row `bg`;
     /// `WORLD_MAN::GetFieldType()` (`fieldtype`, +0x10) and `GetBG()`
@@ -283,19 +287,21 @@ impl SqContext {
         }
     }
 
-    /// What `ccSndSQLoad`'s two switches pick: the loading row and its
-    /// port volumes (`None` past the end of a table - no input the game
-    /// makes gets there), and the `ccSnd` fields they set.
-    pub fn pick(self, tables: &Tables) -> Pick {
-        let mut p = Pick { row: None, play_type: 0, battle_bank: false, scene_mode: 0 };
+    /// What `ccSndSQLoad`'s two switches pick on `volume`'s disc: the
+    /// loading row and its port volumes (`None` past the end of a table -
+    /// no input the game makes gets there), and the `ccSnd` fields they set.
+    pub fn pick(self, tables: &Tables, volume: Volume) -> Pick {
+        let mut p = Pick { row: None, play_type: 0, battle_bank: false, scene_mode: 0, clears_scene: false };
         let (c, index) = match self {
             SqContext::Title => (&tables.title, 0),
             SqContext::Toppage => (&tables.toppage, 0),
             SqContext::Desktop => (&tables.desktop, 0),
-            SqContext::Town { row } => {
-                // GetTownType() is 0 in Mac Anu: +0x105 = 1; 3 in the others.
-                p.scene_mode = if row % 5 == 0 { 1 } else { 3 };
-                (&tables.town, usize::from(row))
+            SqContext::Town { town, crisis } => {
+                // GetTownType() is 0 in Mac Anu: +0x105 = 1; 3 in the
+                // others, which also clear `free[4]`.
+                p.scene_mode = if town == 0 { 1 } else { 3 };
+                p.clears_scene = town > 0;
+                (&tables.town, town_row(volume, town, crisis))
             }
             SqContext::Field { field_type, bg, piros } => {
                 p.battle_bank = true;
@@ -324,6 +330,7 @@ impl SqContext {
                 }
                 if field == 15 {
                     p.scene_mode = 2;
+                    p.clears_scene = true;
                 }
                 if field == 48 {
                     p.play_type = 0;
@@ -352,6 +359,22 @@ pub struct Pick {
     /// `ccSnd +0x105`: 1 Mac Anu, 3 another town, 2 story area 15's event
     /// bank (`ccAllSoundOff` then does nothing), else 0.
     pub scene_mode: i8,
+    /// `free[4]` (+0x108-+0x114) zeroed, in the same two cases as
+    /// `scene_mode` 3 and 2 (INF 0x00182448, 0x00182528): the scene sounds
+    /// start afresh. No other load touches them.
+    pub clears_scene: bool,
+}
+
+/// `sqDataTown`'s row for town type `town`: in the crisis the town's
+/// crisis bank, 5 rows on (INF main 0x001823c8); from Mutation on 6 rows
+/// on (MUT main 0x00185c08), row 5 being an empty one.
+pub fn town_row(volume: Volume, town: u8, crisis: bool) -> usize {
+    let on = match (crisis, volume) {
+        (false, _) => 0,
+        (true, Volume::Inf) => 5,
+        (true, _) => 6,
+    };
+    usize::from(town) + on
 }
 
 /// What `ccSetupGameCtrl` (0x00168960) reads to pick an area's bank, as it
@@ -396,7 +419,7 @@ pub struct AreaMusic {
 pub fn setup_context(a: &AreaMusic) -> Option<SqContext> {
     let event = SqContext::Event { field: a.field, area_prev: a.area_prev };
     match a.area {
-        0 if a.scene_replaced => Some(SqContext::Town { row: a.town + if a.crisis { 5 } else { 0 } }),
+        0 if a.scene_replaced => Some(SqContext::Town { town: a.town, crisis: a.crisis }),
         1 if a.scene_replaced => Some(if a.field != 0 && a.field_model == 1 {
             event
         } else {
@@ -436,13 +459,13 @@ pub struct BgmPlan {
     pub started: bool,
 }
 
-/// [`BgmPlan`] as a pure function. `context` is the last loaded
-/// [`SqContext::number`] (`ccSnd +0xf0`), `play_type` [`Pick::play_type`],
-/// `hold` `ccSnd +0x138`. The cases by context (town 0x0017b064, field and
-/// event bank 0x0017b444, dungeon only when the scene changed, desktop
-/// 0x0017b7d4, the rest sequence 0 or nothing) are in docs/engine/sound.md
-/// ("ccSndBgmCtrl").
-pub fn bgm_plan(context: i32, play_type: i8, hold: bool, w: &BgmWorld) -> BgmPlan {
+/// [`BgmPlan`] as a pure function of `volume`'s code. `context` is the last
+/// loaded [`SqContext::number`] (`ccSnd +0xf0`), `play_type`
+/// [`Pick::play_type`], `hold` `ccSnd +0x138`. The cases by context (town
+/// 0x0017b064, field and event bank 0x0017b444, dungeon only when the scene
+/// changed, desktop 0x0017b7d4, the rest sequence 0 or nothing) are in
+/// docs/engine/sound.md ("ccSndBgmCtrl").
+pub fn bgm_plan(volume: Volume, context: i32, play_type: i8, hold: bool, w: &BgmWorld) -> BgmPlan {
     let started = |play| BgmPlan { play, held: false, started: true };
     let held = BgmPlan { play: &[], held: true, started: true };
     let by_type = |t: i8| match t {
@@ -453,7 +476,7 @@ pub fn bgm_plan(context: i32, play_type: i8, hold: bool, w: &BgmWorld) -> BgmPla
     };
     match context {
         1 if hold => held,
-        1 => started(if matches!(w.dt_bgm, 27 | 7) { &[1] } else { &[0] }),
+        1 => started(if desktop_second(volume, w.dt_bgm) { &[1] } else { &[0] }),
         2 => started(match w.town {
             0 | 2 if w.crisis => &[2, 0],
             1 | 3 => &[2, 0],
@@ -464,6 +487,16 @@ pub fn bgm_plan(context: i32, play_type: i8, hold: bool, w: &BgmWorld) -> BgmPla
         3..=5 => started(by_type(play_type)),
         6 | 7 => started(&[]),
         _ => started(&[0]),
+    }
+}
+
+/// Whether `ccSndBgmCtrl`'s desktop case starts sequence 1 for `dtBgm`
+/// `no`: rows 27 and 7, and from Outbreak on 47 too (OUT main 0x0017dca8).
+pub fn desktop_second(volume: Volume, no: i32) -> bool {
+    match no {
+        27 | 7 => true,
+        47 => matches!(volume, Volume::Out | Volume::Qua),
+        _ => false,
     }
 }
 
@@ -536,13 +569,17 @@ impl Driver {
 
     /// `ccSeOn(n)` (0x00179c10): program change then note on, on the row's
     /// channel of port 0.
-    pub fn se_on(se: &SeTbl) -> Vec<u8> {
-        Driver::se_note(se, se.note)
+    pub fn se_on(&self, se: &SeTbl) -> Vec<u8> {
+        self.se_note(se, se.note)
     }
 
     /// `ccSeOnNote(n, note)` (0x00179cb0): the same with the note replaced,
-    /// clamped to 0..127.
-    pub fn se_note(se: &SeTbl, note: i8) -> Vec<u8> {
+    /// clamped to 0..127. From Mutation on (MUT main 0x0017c310,
+    /// 0x0017c3f4) a row whose program is below 0 sends nothing.
+    pub fn se_note(&self, se: &SeTbl, note: i8) -> Vec<u8> {
+        if self.volume != Volume::Inf && se.prog < 0 {
+            return Vec::new();
+        }
         let note = note.clamp(0, 127) as u8;
         let ch = se.ch as u8;
         vec![0xc0 | ch, (se.prog as u8) & 0x7f, 0x90 | ch, note & 0x7f, (se.velocity as u8) & 0x7f]
@@ -905,8 +942,8 @@ impl Driver {
     /// `ccSndChangeData(&Wave[dtBgm], -1)`, load only; `gameStart` set;
     /// then `ccSndBgmCtrl`'s desktop case: nothing while `sound 10` holds
     /// it (the endings'), else sequence 1 for rows 27 and 7 and sequence
-    /// 0 for every other - row 47 included, which the jukebox plays as
-    /// sequence 1.
+    /// 0 for every other - row 47 included on Infection and Mutation,
+    /// which the jukebox plays as sequence 1 ([`desktop_second`]).
     pub fn desktop(&mut self, tables: &Tables, w: WaveData, out: &mut Vec<Command>) {
         self.change_data_fresh(tables, &w, out);
         self.game_start = true;
@@ -922,7 +959,7 @@ impl Driver {
     /// of -1 loads nothing, waits 60 frames and leaves the music held. The steps
     /// are in docs/engine/sound.md ("A mode's bank").
     pub fn sq_load(&mut self, tables: &Tables, ctx: SqContext, out: &mut Vec<Command>) {
-        let pick = ctx.pick(tables);
+        let pick = ctx.pick(tables, self.volume);
         self.pending = None;
         self.fade[0].sw = 0;
         self.fade[1].sw = 0;
@@ -930,13 +967,22 @@ impl Driver {
         self.sound_off = true;
         self.bgm_started = false;
         self.tobj_loop = false;
-        self.scene_bgm = false;
         self.task(false, out);
         let n = ctx.number();
         out.push(Command::Area(n));
         self.battle_bank = pick.battle_bank;
         self.play_type = pick.play_type;
         self.scene_mode = pick.scene_mode;
+        if pick.clears_scene {
+            self.scene_bgm = false;
+            self.church_block = 0;
+            self.breeder = None;
+        }
+        // From Mutation on every town's load ends the Flag Race's hold (MUT
+        // main 0x00185cb0); Infection never sets it.
+        if matches!(ctx, SqContext::Town { .. }) {
+            self.race_music = false;
+        }
         out.push(Command::PlayType(i32::from(pick.play_type)));
         let Some((row, vol)) = pick.row.filter(|(r, _)| r.is_used()) else {
             self.sq_num = 0;
@@ -975,7 +1021,7 @@ impl Driver {
     /// `ccSndBgmCtrl()` (0x0017b020), once a mode's fade in has ended: the
     /// [`bgm_plan`] for the last load under `world`, carried out.
     pub fn bgm_ctrl(&mut self, world: &BgmWorld, out: &mut Vec<Command>) -> BgmPlan {
-        let plan = bgm_plan(self.context, self.play_type, self.hold, world);
+        let plan = bgm_plan(self.volume, self.context, self.play_type, self.hold, world);
         // In Mac Anu (town type 0): `+0x105` = 1 and the canals' loop to be
         // started again (`+0x132` = 0).
         if self.context == 2 && world.town == 0 {
@@ -1430,22 +1476,22 @@ mod tests {
             Some(SqContext::Event { field: 14, area_prev: 2 })
         );
         let town = AreaMusic { area: 0, town: 0, crisis: true, ..field };
-        assert_eq!(setup_context(&town), Some(SqContext::Town { row: 5 }));
+        assert_eq!(setup_context(&town), Some(SqContext::Town { town: 0, crisis: true }));
     }
 
     #[test]
     fn bgm_plans() {
         let w = BgmWorld { scene_replaced: true, ..Default::default() };
-        assert_eq!(bgm_plan(3, 1, false, &w).play, &[0, 2]);
-        assert_eq!(bgm_plan(5, 2, false, &w).play, &[2]);
-        assert_eq!(bgm_plan(3, 3, false, &w), BgmPlan { play: &[], held: false, started: true });
-        assert_eq!(bgm_plan(3, 0, true, &w), BgmPlan { play: &[], held: true, started: true });
+        assert_eq!(bgm_plan(Volume::Inf, 3, 1, false, &w).play, &[0, 2]);
+        assert_eq!(bgm_plan(Volume::Inf, 5, 2, false, &w).play, &[2]);
+        assert_eq!(bgm_plan(Volume::Inf, 3, 3, false, &w), BgmPlan { play: &[], held: false, started: true });
+        assert_eq!(bgm_plan(Volume::Inf, 3, 0, true, &w), BgmPlan { play: &[], held: true, started: true });
         let same = BgmWorld { scene_replaced: false, ..w };
-        assert_eq!(bgm_plan(4, 0, true, &same), BgmPlan { play: &[], held: false, started: false });
+        assert_eq!(bgm_plan(Volume::Inf, 4, 0, true, &same), BgmPlan { play: &[], held: false, started: false });
         // Mac Anu in the crisis: the crisis layer, then the town's music.
-        assert_eq!(bgm_plan(2, 0, false, &BgmWorld { crisis: true, ..w }).play, &[2, 0]);
-        assert_eq!(bgm_plan(1, 0, false, &BgmWorld { dt_bgm: 27, ..w }).play, &[1]);
-        assert_eq!(bgm_plan(7, 0, false, &w).play, &[] as &[usize]);
+        assert_eq!(bgm_plan(Volume::Inf, 2, 0, false, &BgmWorld { crisis: true, ..w }).play, &[2, 0]);
+        assert_eq!(bgm_plan(Volume::Inf, 1, 0, false, &BgmWorld { dt_bgm: 27, ..w }).play, &[1]);
+        assert_eq!(bgm_plan(Volume::Inf, 7, 0, false, &w).play, &[] as &[usize]);
     }
 
     /// `ccSetOutputMode`: Mono (0) goes out at the next frame's

@@ -89,7 +89,7 @@ impl World {
     fn context(&self, n: i32) -> SqContext {
         match n {
             1 => SqContext::Desktop,
-            2 => SqContext::Town { row: self.town as u8 },
+            2 => SqContext::Town { town: self.town as u8, crisis: false },
             3 => SqContext::Field { field_type: self.field_type as u8, bg: self.bg as u8, piros: false },
             4 => SqContext::Dungeon { dungeon_type: self.dtype[self.dungeon as usize] as u8 },
             5 => SqContext::Event { field: self.field as u16, area_prev: self.area_prev },

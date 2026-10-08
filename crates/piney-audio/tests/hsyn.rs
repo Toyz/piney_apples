@@ -42,7 +42,7 @@ fn se_synth(se: &Arc<Bank>) -> (Synth, Recorder) {
 }
 
 fn se_bytes(n: usize) -> Vec<u8> {
-    piney_audio::driver::Driver::se_on(&INF.se[n])
+    piney_audio::driver::Driver::new().se_on(&INF.se[n])
 }
 
 #[test]

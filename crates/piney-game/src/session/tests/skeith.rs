@@ -164,8 +164,9 @@ fn skeith_plays_its_own_music() {
     }
     let bank = piney_audio::SqContext::Event { field: 1, area_prev: 2 };
     assert_eq!(loads, [bank], "the arena's bank");
-    let tables = piney_data::sound::tables_of(piney_data::volume::Volume::Inf);
-    let (ours, theirs) = (bank.pick(tables), field.pick(tables));
+    let inf = piney_data::volume::Volume::Inf;
+    let tables = piney_data::sound::tables_of(inf);
+    let (ours, theirs) = (bank.pick(tables, inf), field.pick(tables, inf));
     assert!(ours.row.is_some(), "field 1 names no bank");
     assert_ne!(ours.row.map(|r| r.0), theirs.row.map(|r| r.0), "the same bank as area 27's field");
 }

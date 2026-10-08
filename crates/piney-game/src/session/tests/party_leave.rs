@@ -169,6 +169,6 @@ fn piros_along_plays_his_field_music() {
         matches!(loads[..], [piney_audio::SqContext::Field { piros: true, .. }]),
         "the field's bank with Piros along: {loads:?}"
     );
-    let tables = piney_data::sound::tables_of(piney_data::volume::Volume::Inf);
-    assert!(loads[0].pick(tables).row.is_some(), "piroshi names no bank");
+    let inf = piney_data::volume::Volume::Inf;
+    assert!(loads[0].pick(piney_data::sound::tables_of(inf), inf).row.is_some(), "piroshi names no bank");
 }

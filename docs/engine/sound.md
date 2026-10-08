@@ -1,9 +1,9 @@
 ---
 title: Sound - effects, music and the IOP sound driver
 status: partial
-volumes: INF
-covers: INF SLUS_202.67:0x00179c10 ccSeOn, 0x00179cb0 ccSeOnNote, 0x00179d90 ccSeOn3D, 0x0017a140 ccSeOn3DLoop, 0x0017a620 ccSeOffLoop, 0x001794b0 ccSetMainVol, 0x001794f0 ccSetBgmVol, 0x00179540 ccSetSeVol, 0x00179630 ccSndChangeOption, 0x00181010 ccSoundMain, 0x0017bac0 waterTest, 0x0017c3c0 bgmChurch, 0x0017c6d0 bgmBreed, 0x0017ad70 ccPortVolSet, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x00181250 ccSound::ccFade, 0x001834e0 ccSndChangeData, 0x0017b020 ccSndBgmCtrl, 0x001821d0 ccSndSQLoad, 0x00183380 ccSound::bgmChange, 0x0017de80 ccSndEvRequest, 0x00168960 ccSetupGameCtrl, 0x00167580 ccGame::CheckSceneReplace, 0x00307bc0 sqDataField, 0x00307bf0 playTypeTbl, 0x00309f60 sqVolTblField, 0x00307c20 sqDataDungeon, 0x00307d28 dungeonPlayType, 0x0030a100 sqVolTblDungeon, 0x00307f00 sqDataEvent, 0x00308a90 eventPlayType, 0x0030a3d0 sqVolTblEvent, 0x00307d40 sqDataTown, 0x00309f90 sqVolTblTown, 0x00182050 ccSndCommSeLoad, 0x00181ee0 spuInit, 0x001816f0 ccSound::sdCommand, 0x00182dc0 ccSoundRpc, 0x0017e6e0 wavPlay, 0x00308db0 seData, 0x00181440 ccSound::ccSceneFade, 0x001811f0 ccSound::gameInterrupt, 0x0017ae10 ccAllSoundOff, 0x00183080 initBeforeLoad, 0x0017e810 ccEvVoiceRequest, 0x0017eeb0 ccVoiceRequest, 0x0017e290 ccWordsPlay, 0x0017e350 skillVoicePlay, 0x0017eca0 evVoicePlay, 0x0017ee40 ccEvVoiceStop, 0x001800e0 ccVoicePgFood, 0x00179f50 ccSeOn3DNote, 0x0017a370 calcVel, 0x0017a4c0 calcPan, 0x0017a6b0 ccSeOnPCStep, 0x0017a7f0 seHitAttr, 0x0017aa20 ccSeSetParamSPC, 0x0017aaf0 ccSeSetParamPC, 0x0017abd0 ccSeSetParamEnemy, 0x0017ac70 ccSeSetParamInu, 0x001830c0 initAfterLoad, 0x00183fb0 ccSound::strSeEnd, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x003789dc looptest; INF gcmn.prg:0x00572860 _ccSkillRequest (its ccWordsPlay), 0x005a17e0 ccSpcShoutOperationName, 0x00493370 ccBoss04::OnThinkPrediction, 0x00639560 spc0SeData, 0x00639d40 spcSeTbl, 0x0063a850 enemySeTbl, 0x0063a8a0 inuSeData; INF SLUS_202.67:0x0017d190 ccSndStreamCtrl, 0x0017caa0 ccSndStreamSE, 0x0017cb20 ccSndStreamBGM, 0x001799b0 ccSqPlayVol, 0x00183f40 ccSound::strSeInit, 0x00183fb0 ccSound::strSeEnd, 0x00180b30 ccSndMoviePlayer, 0x0030b950 strSndTbl; INF desktop.prg:0x004072c0 Audio_control::ChangeWeve, 0x0042b6f0 Wave; INF MODULES/SNDBASE.IRX:0x0a58 ccSoundFunc, 0x031c ccSoundFunc2, 0x07e4 bgmChange, 0x3564 setModuleContext, 0x3860 ATick, 0x27d4 ccSetSq, 0x257c ccSetHdSynth; INF MODULES/MODMIDI.IRX; INF MODULES/MODHSYN.IRX; INF MODULES/SEWORDS.IRX:0x0e24 BgmSetVolumeDirect
-worklog: 42, 327, 332, 370, 371
+volumes: INF, MUT, OUT, QUA
+covers: INF SLUS_202.67:0x00179c10 ccSeOn, 0x00179cb0 ccSeOnNote, 0x00179d90 ccSeOn3D, 0x0017a140 ccSeOn3DLoop, 0x0017a620 ccSeOffLoop, 0x001794b0 ccSetMainVol, 0x001794f0 ccSetBgmVol, 0x00179540 ccSetSeVol, 0x00179630 ccSndChangeOption, 0x00181010 ccSoundMain, 0x0017bac0 waterTest, 0x0017c3c0 bgmChurch, 0x0017c6d0 bgmBreed, 0x0017ad70 ccPortVolSet, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x00181250 ccSound::ccFade, 0x001834e0 ccSndChangeData, 0x0017b020 ccSndBgmCtrl, 0x001821d0 ccSndSQLoad, 0x00183380 ccSound::bgmChange, 0x0017de80 ccSndEvRequest, 0x00168960 ccSetupGameCtrl, 0x00167580 ccGame::CheckSceneReplace, 0x00307bc0 sqDataField, 0x00307bf0 playTypeTbl, 0x00309f60 sqVolTblField, 0x00307c20 sqDataDungeon, 0x00307d28 dungeonPlayType, 0x0030a100 sqVolTblDungeon, 0x00307f00 sqDataEvent, 0x00308a90 eventPlayType, 0x0030a3d0 sqVolTblEvent, 0x00307d40 sqDataTown, 0x00309f90 sqVolTblTown, 0x00182050 ccSndCommSeLoad, 0x00181ee0 spuInit, 0x001816f0 ccSound::sdCommand, 0x00182dc0 ccSoundRpc, 0x0017e6e0 wavPlay, 0x00308db0 seData, 0x00181440 ccSound::ccSceneFade, 0x001811f0 ccSound::gameInterrupt, 0x0017ae10 ccAllSoundOff, 0x00183080 initBeforeLoad, 0x0017e810 ccEvVoiceRequest, 0x0017eeb0 ccVoiceRequest, 0x0017e290 ccWordsPlay, 0x0017e350 skillVoicePlay, 0x0017eca0 evVoicePlay, 0x0017ee40 ccEvVoiceStop, 0x001800e0 ccVoicePgFood, 0x00179f50 ccSeOn3DNote, 0x0017a370 calcVel, 0x0017a4c0 calcPan, 0x0017a6b0 ccSeOnPCStep, 0x0017a7f0 seHitAttr, 0x0017aa20 ccSeSetParamSPC, 0x0017aaf0 ccSeSetParamPC, 0x0017abd0 ccSeSetParamEnemy, 0x0017ac70 ccSeSetParamInu, 0x001830c0 initAfterLoad, 0x00183fb0 ccSound::strSeEnd, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x003789dc looptest; INF gcmn.prg:0x00572860 _ccSkillRequest (its ccWordsPlay), 0x005a17e0 ccSpcShoutOperationName, 0x00493370 ccBoss04::OnThinkPrediction, 0x00639560 spc0SeData, 0x00639d40 spcSeTbl, 0x0063a850 enemySeTbl, 0x0063a8a0 inuSeData; INF SLUS_202.67:0x0017d190 ccSndStreamCtrl, 0x0017caa0 ccSndStreamSE, 0x0017cb20 ccSndStreamBGM, 0x001799b0 ccSqPlayVol, 0x00183f40 ccSound::strSeInit, 0x00183fb0 ccSound::strSeEnd, 0x00180b30 ccSndMoviePlayer, 0x0030b950 strSndTbl; INF desktop.prg:0x004072c0 Audio_control::ChangeWeve, 0x0042b6f0 Wave; INF MODULES/SNDBASE.IRX:0x0a58 ccSoundFunc, 0x031c ccSoundFunc2, 0x07e4 bgmChange, 0x3564 setModuleContext, 0x3860 ATick, 0x27d4 ccSetSq, 0x257c ccSetHdSynth; INF MODULES/MODMIDI.IRX; INF MODULES/MODHSYN.IRX; INF MODULES/SEWORDS.IRX:0x0e24 BgmSetVolumeDirect; MUT SLUS_205.62:0x0017eda0 bgmBreed, 0x00185a10 ccSndSQLoad, 0x0017d6e0 ccSndBgmCtrl, 0x0017c2f0 ccSeOn; OUT SLUS_205.63:0x0017ebd0 bgmBreed, 0x0017bde0 the scenes' crossfade
+worklog: 42, 327, 332, 370, 371, 398
 ---
 
 # Sound - effects, music and the IOP sound driver
@@ -65,8 +65,12 @@ How each part is checked:
   can pick, each followed by `ccSndBgmCtrl`; the hold of `sound 10` on a
   field and a dungeon; battles starting and ending (`bgmChange`) on
   fields and dungeons of every play type, on a Grunty and in an event
-  bank - 346 scenarios in the same fixture, with the sound task's frames
-  running: 0 mismatches. SNDBASE's side of `bgmChange` is read from its
+  bank, and the scene sounds (`bgmBreed` near and far, across the loads
+  that clear its place and those that do not; `bgmChurch` in and out of
+  the church) - 376 scenarios in the same fixture, with the sound task's
+  frames running: 0 mismatches. The fixture is made again on each later
+  volume's executable (`driver_fixture_mut.txt`, `_out`, `_qua`) and the
+  driver plays each on its own disc's tables. SNDBASE's side of `bgmChange` is read from its
   code, and `crates/piney-audio/tests/render.rs` plays story area 14's
   field music and a battle through it.
 - The sequencer and the synthesizer: models (`tools/midi.py`,
@@ -136,9 +140,10 @@ SETBL
 
 `ccSeOn(n)` sends two messages to port 0: `Cc progNo` (program change on
 channel `ch`), then `9c note velocity` (note on). `ccSeOnNote(n, note)`
-sends the same with `note` clamped to 0..127. Nothing else chooses the
-voice, the pitch or the volume: the synthesizer does (below), from the SE
-bank's program.
+sends the same with `note` clamped to 0..127. From Mutation on both send
+nothing for a row whose program is below 0 (MUT 0x0017c310, 0x0017c3f4):
+rows 233 and 234 there. Nothing else chooses the voice, the pitch or the
+volume: the synthesizer does (below), from the SE bank's program.
 
 ### Positioned sound effects
 
@@ -418,7 +423,7 @@ SNDBASE, and what `ccSndBgmCtrl` and `bgmChange` go by), +0x5f, set where
 
 | n | rows (24 bytes) | volumes (36 bytes) | row | play type | +0x5f |
 | ---: | --- | --- | --- | --- | ---: |
-| 2 | `sqDataTown` 0x00307d40 | `sqVolTblTown` 0x00309f90 | `GetTownType()`, + 5 while `saveData.crisis` | 0 | 0 |
+| 2 | `sqDataTown` 0x00307d40 | `sqVolTblTown` 0x00309f90 | `GetTownType()`, + 5 while `saveData.crisis` (+ 6 from Mutation on) | 0 | 0 |
 | 3 | `sqDataField[ft]` 0x00307bc0 | `sqVolTblField[ft]` 0x00309f60 | `GetBG()` | `playTypeTbl[ft][bg]` 0x00307bf0 | 1 |
 | 3, Piros in the party | `sqDataField[11]` (`piroshi`) | `sqVolTblField[11]` | 0 | `playTypeTbl[11][0]` | 1 |
 | 4 | `sqDataDungeon` 0x00307c20 | `sqVolTblDungeon` 0x0030a100 | `GetDungeonType()` | `dungeonPlayType` 0x00307d28 | 1 |
@@ -438,7 +443,13 @@ plays no part.
 
 **The town** (case 2): ten rows, five towns and their crisis versions;
 +0x105 becomes 1 in Mac Anu (town 0), 3 in the others, which also clear
-+0x108..+0x114.
++0x108..+0x114. From Mutation on (MUT 0x00185c08) the crisis rows are 6
+on: row 5 is empty (-1), rows 6-9 are Infection's 5-8, and Lia Fail's
+crisis row is an eleventh past the symbol's ten (Infection's row 9 again).
+Outbreak's and Quarantine's new games start in the crisis
+([ccStartEvent](event-vm.md#boot-modes-and-the-task)), so their towns load
+these rows. Every town's load also clears +0x13a, the Flag Race's hold
+(MUT 0x00185cb0).
 
 **The event bank** (case 5): the play type is `eventPlayType[game.field]`,
 except that 4 means play type 0 with +0x5f set (areas 1-12 and 18). Area
@@ -517,7 +528,8 @@ run.
 - 4, the dungeon (0x0017b430): nothing at all, +0x137 included, unless the
   scene changed; then as the field.
 - 1, the desktop (0x0017b7d4): the hold as the field's, then sequence 1
-  for `dtBgm` 27 and 7, else 0.
+  for `dtBgm` 27 and 7, else 0. From Outbreak on 47 too (OUT 0x0017dca8),
+  the row the jukebox already played as sequence 1.
 - 0, and anything unsigned past 7: sequence 0. 6 and 7: nothing.
 
 +0x138 is set by the event instruction `sound 10`
@@ -630,20 +642,30 @@ fed each frame by the town and area modes):
     y 3500 (x and z zeroed): `max(3500 - d, 0) / 35 * 2.56`, under
     `bgmVol`, sent when it changes. 2.56 in the EE's floats makes the full
     volume 255.
-- **3, a town other than Mac Anu: `bgmBreed`** (0x0017c6d0), Dun Loireag's
-  Grunty breeder.
+- **3, a town other than Mac Anu: `bgmBreed`** (0x0017c6d0), the town's
+  Grunty breeder (its `DMY_merchant6`, where `setMerchant` stands each
+  town's breeder).
   - Once (+0x114), the town scene's `DMY_merchant6` position goes to
     +0x120.
   - Kite coming within 1000 of it on the ground: sequence 0 fades out and
     stops, sequence 1 starts silent and fades in to its table volume
     (+0x108 = 1).
   - Going beyond 1200: the reverse (+0x108 = 0).
+  - From Mutation on (MUT 0x0017eda0) it does nothing while +0x13a (the
+    Flag Race) is set. Outbreak's and Quarantine's call a crossfade
+    function for the fades (OUT 0x0017bde0: one sequence out, the other
+    in from silence) where Mutation's are written out; the same steps.
 
-`ccSndSQLoad` clears +0x108. +0x108-+0x114 are `int free[4]` (DWARF):
-scratch for the stage's routine (`stageParam` +0x105). `free[2]` (+0x110)
-is only ever cleared: over all 459 references to `ccSnd` in main and the
-four overlays, only `bgmChurch` (+0x108, +0x10c), `bgmBreed` (+0x108,
-+0x114) and `ccSndSQLoad`'s clear loop (0x00182448) touch the array.
++0x108-+0x114 are `int free[4]` (DWARF): scratch for the stage's routine
+(`stageParam` +0x105). `free[2]` (+0x110) is only ever cleared: over all
+459 references to `ccSnd` in main and the four overlays, only `bgmChurch`
+(+0x108, +0x10c), `bgmBreed` (+0x108, +0x114) and `ccSndSQLoad`'s two
+clear loops touch the array. They clear all four for a town other than
+Mac Anu (0x00182448) and for area 15's event bank (0x00182528); no other
+load does. So `bgmBreed` reads `DMY_merchant6` once after each such load:
+each town's own breeder. The port (`Pick::clears_scene`) once read it once
+a session, so from the second town on the tune listened at the first
+town's breeder (issue #62, worklog 398).
 
 `ccSndChangeOption` leaves these scenes' ports alone. In The World
 (`game.status` 5), a changed `bgmVol` sets:

@@ -6908,6 +6908,9 @@ mod tests {
     /// Issue #56: Mutation's breeders offer the Flag Race.
     mod flag_race;
 
+    /// Issue #62: every town's Grunty ranch plays the breeder's tune.
+    mod ranch_music;
+
     /// Issue #63: every walking PC's Talk, every box a line of its own.
     mod pc_talk;
 

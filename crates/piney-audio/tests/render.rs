@@ -249,7 +249,7 @@ fn mac_anu_music() {
     // Mac Anu's row (town 0, no crisis); the fade in's end: ccSndBgmCtrl's
     // town case, sequence 0 as ccSqPlay(0).
     audio.all_sound_off();
-    audio.sq_load(SqContext::Town { row: 0 });
+    audio.sq_load(SqContext::Town { town: 0, crisis: false });
     let quiet = run(&audio, 0.2);
     assert_eq!(stats(&quiet).peak, 0, "the bank loads silent");
     audio.sq_play(0);
@@ -259,7 +259,7 @@ fn mac_anu_music() {
     // The crisis town's row has a bank of its own.
     let crisis = Audio::headless(&iso).unwrap();
     crisis.all_sound_off();
-    crisis.sq_load(SqContext::Town { row: 5 });
+    crisis.sq_load(SqContext::Town { town: 0, crisis: true });
     assert!(crisis.with_engine(|e| e.driver.sq_num) >= 1);
 }
 
@@ -344,7 +344,7 @@ fn town_to_town_music() {
     };
     let audio = Audio::headless(&iso).unwrap();
     audio.all_sound_off();
-    audio.sq_load(SqContext::Town { row: 0 });
+    audio.sq_load(SqContext::Town { town: 0, crisis: false });
     run(&audio, 0.2);
     audio.game_start();
     audio.bgm_ctrl(BgmWorld { town: 0, ..Default::default() });
@@ -353,7 +353,7 @@ fn town_to_town_music() {
     run(&audio, 10.0 / 60.0);
     audio.all_sound_off();
     run(&audio, 4.0 / 60.0);
-    audio.sq_load(SqContext::Town { row: 1 });
+    audio.sq_load(SqContext::Town { town: 1, crisis: false });
     audio.game_start();
     run(&audio, 11.0 / 60.0);
     let plan = audio.bgm_ctrl(BgmWorld { town: 1, ..Default::default() });
@@ -377,7 +377,7 @@ fn every_town_has_music() {
     for town in 0..5 {
         let audio = Audio::headless(&iso).unwrap();
         audio.all_sound_off();
-        audio.sq_load(SqContext::Town { row: town });
+        audio.sq_load(SqContext::Town { town, crisis: false });
         run(&audio, 0.2);
         assert!(audio.with_engine(|e| e.driver.sq_num) >= 1, "town {town}: no bank");
         audio.game_start();
@@ -406,7 +406,7 @@ fn every_volume_sounds() {
         sane(&format!("{disc} se"), &se);
         let audio = Audio::headless(&iso).unwrap();
         audio.all_sound_off();
-        audio.sq_load(SqContext::Town { row: 0 });
+        audio.sq_load(SqContext::Town { town: 0, crisis: false });
         run(&audio, 0.2);
         audio.game_start();
         audio.bgm_ctrl(BgmWorld { town: 0, ..Default::default() });

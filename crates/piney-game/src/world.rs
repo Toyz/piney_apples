@@ -1449,11 +1449,9 @@ impl Mode for WorldMode {
             .filter_map(|r| match r {
                 Request::SoundFadeOut => Some(Event::SoundFadeOut),
                 Request::AllSoundOff => Some(Event::AllSoundOff),
-                // `ccSndSQLoad(2)`: `sqDataTown[townType]`, five rows on
-                // during the crisis.
-                Request::SqLoad(_) => {
-                    Some(Event::SqLoad(piney_audio::SqContext::Town { row: town + if crisis { 5 } else { 0 } }))
-                }
+                // `ccSndSQLoad(2)`: `sqDataTown[townType]`, or its crisis
+                // row (`piney_audio::driver::town_row`).
+                Request::SqLoad(_) => Some(Event::SqLoad(piney_audio::SqContext::Town { town, crisis })),
                 // `ccSndBgmCtrl`'s town case (0x0017b064, `bgm_plan`): Mac
                 // Anu in the crisis and Dun Loireag with a third sequence
                 // start sequence 2, then every town sequence 0; Mac Anu's

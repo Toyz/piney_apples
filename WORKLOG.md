@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-397 entries: audio 34, battle 82, build 18, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 16, script 48, test 160, tooling 27, ui 90, video 16, volumes 76, world 109.
+398 entries: audio 35, battle 82, build 18, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 16, script 48, test 161, tooling 27, ui 90, video 16, volumes 77, world 109.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -409,3 +409,4 @@ The [reference](docs/README.md) says what is true now.
 | 395 | [Mutation's Flag Race runs: the breeder takes 100 GP, the chosen Grunty walks off, Kite rides it through Dun Loireag for three flags against the clock, and the time is ranked and its prize given](worklog/0395-mutation-s-flag-race-runs-the-breeder-takes-100-gp-the.md) | 2026-10-08 | ui, world, audio, volumes, test |
 | 396 | [A walking PC's second box is its own line: the later volumes' talk records are measured by their own shape, and PcMenu gives Sieg, Kaz and the sign PCs Talk](worklog/0396-a-walking-pc-s-second-box-is-its-own-line-the-later-volumes.md) | 2026-10-08 | ui, volumes, build, test |
 | 397 | [Mutation's walking PCs: the later class, its SEARCH PCs and the Flag Race's hiding, and the Event NPC](worklog/0397-mutation-s-walking-pcs-the-later-class-its-search-pcs-and.md) | 2026-10-08 | world, volumes, build, test |
+| 398 | [Every town's ranch plays the breeder's tune: bgmBreed reads each town's breeder after the load that clears its place, and the later volumes' crisis rows are six on](worklog/0398-every-town-s-ranch-plays-the-breeder-s-tune-bgmbreed-reads.md) | 2026-10-08 | audio, volumes, test |

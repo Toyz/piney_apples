@@ -425,16 +425,18 @@ impl Audio {
     /// `ccSeOn(n)`: sound effect `n` of `seData`.
     pub fn se_on(&self, n: usize) {
         if let Some(se) = self.tables.se.get(n) {
-            let m = Driver::se_on(se);
-            self.engine().port0.extend(m);
+            let mut e = self.engine();
+            let m = e.driver.se_on(se);
+            e.port0.extend(m);
         }
     }
 
     /// `ccSeOnNote(n, note)`: sound effect `n` at another note.
     pub fn se_on_note(&self, n: usize, note: i8) {
         if let Some(se) = self.tables.se.get(n) {
-            let m = Driver::se_note(se, note);
-            self.engine().port0.extend(m);
+            let mut e = self.engine();
+            let m = e.driver.se_note(se, note);
+            e.port0.extend(m);
         }
     }
 

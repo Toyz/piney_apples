@@ -1404,9 +1404,9 @@ fn entrance_path(hits: &piney_world::hit::Hits, from: [f32; 3], mid: [f32; 2]) -
 /// A way for Kite at `from` over an `n` by `n` grid of `step` round `mid`
 /// to the first floor `goal` takes (its place, whether it is a door):
 /// breadth first, a step open where no wall crosses it at knee and waist
-/// height his width either side and the floor moves less than 120. The
-/// turns only, the end last; empty with no way.
-fn path_to(
+/// height [`WIDE`] either side and the floor moves less than 120. The turns
+/// only, the end last; empty with no way.
+pub(super) fn path_to(
     hits: &piney_world::hit::Hits,
     from: [f32; 3],
     mid: [f32; 2],
@@ -1414,8 +1414,33 @@ fn path_to(
     step: f32,
     goal: impl Fn([f32; 2], bool) -> bool,
 ) -> Vec<[f32; 2]> {
-    // Half his width, and some.
-    const WIDE: f32 = 100.0;
+    path_wide(hits, from, mid, &Look { n, step, wide: WIDE, heights: &[30.0, 95.0], avoid: &[] }, goal)
+}
+
+/// Half Kite's width, and some.
+const WIDE: f32 = 100.0;
+
+/// How [`path_wide`] looks: an `n` by `n` grid of `step`, `wide` clear
+/// either side, walls looked for at `heights`, and the places Kite found
+/// he could not pass (`avoid`, closing the cells within two steps of each).
+pub(super) struct Look<'a> {
+    pub n: i32,
+    pub step: f32,
+    pub wide: f32,
+    pub heights: &'a [f32],
+    pub avoid: &'a [[f32; 2]],
+}
+
+/// [`path_to`] as `look` has it: a town's lanes between hedges want less
+/// width, and a kerb he stopped at a way round.
+pub(super) fn path_wide(
+    hits: &piney_world::hit::Hits,
+    from: [f32; 3],
+    mid: [f32; 2],
+    look: &Look,
+    goal: impl Fn([f32; 2], bool) -> bool,
+) -> Vec<[f32; 2]> {
+    let Look { n, step, wide, heights, avoid } = *look;
     let mut hits = hits.clone();
     let v = |x: f32, y: f32, z: f32| [x.to_bits(), y.to_bits(), z.to_bits(), 1f32.to_bits()];
     let at = |i: i32, j: i32| [mid[0] + (i - n / 2) as f32 * step, mid[1] + (j - n / 2) as f32 * step];
@@ -1434,15 +1459,18 @@ fn path_to(
             }
             fl.sort_by(|a, b| b.0.total_cmp(&a.0));
             fl.dedup_by(|a, b| (a.0 - b.0).abs() < 1.0);
+            if avoid.iter().any(|q| (q[0] - x).hypot(q[1] - y) < 2.0 * step) {
+                fl.clear();
+            }
             floors[key((i, j))] = fl;
         }
     }
     let mut clear = |a: [f32; 3], b: [f32; 3]| {
         let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
         let n = dx.hypot(dy).max(1.0);
-        let (sx, sy) = (-dy / n * WIDE, dx / n * WIDE);
+        let (sx, sy) = (-dy / n * wide, dx / n * wide);
         (a[2] - b[2]).abs() < 120.0
-            && [30.0, 95.0].into_iter().all(|h| {
+            && heights.iter().all(|&h| {
                 [-1.0f32, 0.0, 1.0].into_iter().all(|k| {
                     let (ox, oy) = (sx * k, sy * k);
                     // Both ways: a wall stops a line only from its front.
