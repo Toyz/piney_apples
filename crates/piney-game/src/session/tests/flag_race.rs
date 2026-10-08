@@ -49,27 +49,13 @@ fn dun_loireag(pens: usize, mail: u8) -> Option<Session> {
     Some(Session::in_world(iso, archive, None, state, None, scene, None).unwrap())
 }
 
-/// Kite walks to the town's breeder and speaks to him; the frames until
-/// his list is up and held 40 more. The last frame, or None if no list.
+/// Kite walks round the town's walls to the breeder and speaks to him;
+/// the frames until his list is up and held 40 more. The last frame, or
+/// None if no list.
 fn speak_to_breeder(s: &mut Session) -> Option<piney_draw::Frame> {
     let mut pad = Pad::default();
-    let mut put = false;
-    for f in 0..3000u32 {
-        // Once placed, Kite is set down before the breeder, inside his
-        // ranch's fence.
-        if !put && let Stage::World(w) = &mut s.stage {
-            let world = w.world_mut();
-            let placed = matches!(world.phase(), piney_world::Phase::Play(n) if n >= 30);
-            let front = world.merchants().iter().find(|m| m.flags & BREEDER != 0).map(|m| {
-                let (q, h) = (m.ch.pos.map(f32::from_bits), f32::from_bits(m.ch.dirc[2]));
-                [q[0] + 250.0 * h.sin(), q[1] - 250.0 * h.cos(), q[2]]
-            });
-            if let (true, Some(p)) = (placed, front) {
-                // `pc_put`'s units are tenths of the world's.
-                let (x, y, z) = ((p[0] / 10.0) as i16, (p[1] / 10.0) as i16, (p[2] / 10.0) as i16);
-                put = world.pc_command(piney_event::host::PcCommand::Put { pc: 0, x, y, z });
-            }
-        }
+    let mut walk = None;
+    for f in 0..4000u32 {
         let (raw, open) = {
             let Stage::World(w) = &s.stage else { panic!("left the town") };
             let world = w.world();
@@ -85,8 +71,11 @@ fn speak_to_breeder(s: &mut Session) -> Option<piney_draw::Frame> {
                 }
                 Some(m) => {
                     let q = m.ch.pos.map(f32::from_bits);
-                    let (dx, dy) = (q[0] - kite[0], q[1] - kite[1]);
-                    super::stick_toward(f32::from_bits(world.camera().active().rot[2]), dx.atan2(-dy))
+                    let w = walk.get_or_insert_with(|| super::town_walk::TownWalker::new([q[0], q[1]], 300.0));
+                    w.stick(world, f).unwrap_or_else(|| {
+                        let (dx, dy) = (q[0] - kite[0], q[1] - kite[1]);
+                        super::stick_toward(f32::from_bits(world.camera().active().rot[2]), dx.atan2(-dy))
+                    })
                 }
                 None => panic!("no breeder in Dun Loireag"),
             };
@@ -339,17 +328,17 @@ fn s_race_time(s: &Session) -> i16 {
     w.world().race().map_or(-1, |r| r.time)
 }
 
-/// Kite rides toward each flag still out (the nearest first); one he has
-/// not reached in 150 frames (the town's walls stand between), he is set
-/// down 120 short of. The frames until the three are taken, or None after
-/// `max`.
+/// Kite rides to each flag still out, the nearest first, as a player
+/// would: the way round the town's walls (the Grunty's width either side)
+/// planned each second, the stick toward its next turn. The frames until
+/// the three are taken, or None after `max`.
 fn ride_to_flags(s: &mut Session, max: u32) -> Option<u32> {
     let mut pad = Pad::default();
-    let mut aim: Option<(usize, u32)> = None;
+    let mut ride: Option<(usize, super::town_walk::TownWalker)> = None;
     for f in 0..max {
         let raw = {
-            let Stage::World(w) = &mut s.stage else { panic!("left the town") };
-            let world = w.world_mut();
+            let Stage::World(w) = &s.stage else { panic!("left the town") };
+            let world = w.world();
             if world.race().is_some_and(|r| r.taken == 3) {
                 return Some(f);
             }
@@ -358,28 +347,20 @@ fn ride_to_flags(s: &mut Session, max: u32) -> Option<u32> {
                 .flags()
                 .iter()
                 .filter(|fl| fl.state == piney_world::race::FlagState::Out)
-                .map(|fl| (fl.n, fl.pos))
+                .map(|fl| (fl.n, fl.pos.map(f32::from_bits)))
                 .min_by(|a, b| {
-                    let d = |p: &[u32; 4]| (f32::from_bits(p[0]) - kite[0]).hypot(f32::from_bits(p[1]) - kite[1]);
-                    d(&a.1).total_cmp(&d(&b.1))
+                    (a.1[0] - kite[0]).hypot(a.1[1] - kite[1]).total_cmp(&(b.1[0] - kite[0]).hypot(b.1[1] - kite[1]))
                 });
             match near {
-                Some((n, at)) => {
-                    let since = match aim {
-                        Some((k, t)) if k == n => t,
-                        _ => {
-                            aim = Some((n, f));
-                            f
-                        }
-                    };
-                    let q = at.map(f32::from_bits);
-                    if f - since >= 150 {
-                        let put = [q[0] + 120.0, q[1], q[2], 1.0].map(f32::to_bits);
-                        world.ride_put(put);
-                        aim = Some((n, f));
+                Some((n, q)) => {
+                    if ride.as_ref().is_none_or(|(k, _)| *k != n) {
+                        ride = Some((n, super::town_walk::TownWalker::new([q[0], q[1]], 150.0).riding(RIDE_WIDE)));
                     }
-                    let (dx, dy) = (q[0] - kite[0], q[1] - kite[1]);
-                    super::stick_toward(f32::from_bits(world.camera().active().rot[2]), dx.atan2(-dy))
+                    let (_, walk) = ride.as_mut().unwrap();
+                    walk.stick(world, f).unwrap_or_else(|| {
+                        let cam = f32::from_bits(world.camera().active().rot[2]);
+                        super::stick_toward(cam, (q[0] - kite[0]).atan2(-(q[1] - kite[1])))
+                    })
                 }
                 None => still(Buttons::NONE),
             }
@@ -391,10 +372,14 @@ fn ride_to_flags(s: &mut Session, max: u32) -> Option<u32> {
     None
 }
 
-/// The race won: the save's ranks for Dun Loireag set slow, Kite rides to
-/// the three flags; the time is the first rank in the save, the Rankings
-/// page blinks it, the town's first win gives its wallpaper, then the
-/// prize, and the race ends.
+/// The way's clearance either side for the ridden Grunty.
+const RIDE_WIDE: f32 = 85.0;
+
+/// The race won: the save's ranks for Dun Loireag are the player's own
+/// earlier 5:00s (the ride takes about half a minute, slower than the
+/// town's racers' 0:20), Kite rides to the three flags; the time is the
+/// first rank in the save, the Rankings page blinks it, the town's first
+/// win gives its wallpaper, then the prize, and the race ends.
 #[test]
 fn mutations_flag_race_won() {
     let Some(mut s) = dun_loireag(3, 4) else { return };
@@ -447,9 +432,44 @@ fn mutations_flag_race_won() {
     assert_eq!(save.u8(piney_world::race::RACE_PRIZES), 1, "the first rank's prize given once");
 }
 
+/// A new save's race: Kite's time against Dun Loireag's racers (Balmung
+/// 600, Gardenia 626, Cima 646): the rank the game's ranking gives (main
+/// 0x0017a860: the first it beats, else 4 within 30 of the third, else 0),
+/// and the save's records written only for a rank.
+#[test]
+fn mutations_flag_race_against_the_towns_racers() {
+    let Some(mut s) = dun_loireag(3, 4) else { return };
+    if let Stage::World(w) = &mut s.stage {
+        w.world_mut().state_mut().save.set_i32(GOLD, 1000);
+    }
+    speak_to_breeder(&mut s).expect("the breeder's list did not open");
+    start_race(&mut s);
+    let took = ride_to_flags(&mut s, 9000).expect("the flags were not all taken");
+    assert!(until(&mut s, 900, Buttons::NONE, 0, |s| status(s).0 == (FLAG_RACE, 31)), "no time word: {:?}", status(&s));
+    let Stage::World(w) = &s.stage else { unreachable!() };
+    let r = w.world().race().expect("the race");
+    let racers: Vec<i16> = piney_data::tables::fieldui::of(piney_data::volume::Volume::Mut).race_ranks()[0]
+        .iter()
+        .map(|k| k.time)
+        .collect();
+    let want = match racers.iter().position(|&t| r.time < t) {
+        Some(k) => k as i8 + 1,
+        None if r.time - 30 < racers[2] => 4,
+        None => 0,
+    };
+    println!("the ride took {took} frames; the time {} against {racers:?}: rank {}", r.time, r.rank);
+    assert_eq!(r.rank, want, "the rank of {} against {racers:?}", r.time);
+    let save = &w.world().state().save;
+    let records: Vec<i16> = (0..3).map(|k| save.i16(piney_world::race::RACE_RECORDS + 4 * k)).collect();
+    match want {
+        1..=3 => assert_eq!(records[want as usize - 1], r.time, "the time in the save: {records:?}"),
+        _ => assert_eq!(records, [0; 3], "no rank, nothing written"),
+    }
+}
+
 /// The race's screens to `$PINEY_SHOTS` (/mnt/data/claude/scratch/i56):
 /// the Grunties' page, the countdown, the ride with a flag taken, the
-/// result's cup and the Rankings page with the new rank.
+/// result's clip (a cup for a rank) and the Rankings page.
 #[test]
 #[ignore]
 fn flag_race_shots() {
@@ -500,11 +520,14 @@ fn flag_race_shots() {
     ride_to_flags(&mut s, 9000).expect("the flags");
     assert!(until(&mut s, 400, Buttons::NONE, 0, |s| {
         let Stage::World(w) = &s.stage else { return false };
-        w.world().race().is_some_and(|r| r.sub == 2 && r.cnt == 60)
+        w.world().race().is_some_and(|r| matches!(r.sub, 2..=4) && r.cnt == 60)
     }));
     let f = step(&mut s, Buttons::NONE);
-    shot(&f, "mut-race-cup.png");
-    assert!(until(&mut s, 900, Buttons::CROSS, 15, |s| status(s).0 == (FLAG_RACE, 32)));
-    let f = press(&mut s, Buttons::NONE, 9);
+    shot(&f, "mut-race-result.png");
+    // The race over, Rankings from the breeder's list.
+    assert!(until(&mut s, 4000, Buttons::CROSS, 15, |s| status(s).1.is_none() && status(s).0.0 != FLAG_RACE));
+    press(&mut s, Buttons::NONE, 30);
+    speak_to_breeder(&mut s).expect("the breeder's list did not open");
+    let f = to_rankings(&mut s);
     shot(&f, "mut-race-rankings.png");
 }

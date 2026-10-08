@@ -4,10 +4,14 @@
 
 use piney_input::Raw;
 
-/// A walk to within `near` of `to`.
+/// A walk (or a ride) to within `near` of `to`, `wide` clear either side.
 pub(super) struct TownWalker {
     to: [f32; 2],
     near: f32,
+    wide: f32,
+    /// The people about planned round (a walker); a rider goes round one
+    /// only once he has stopped at it.
+    people: bool,
     path: Vec<[f32; 2]>,
     mark: Option<[f32; 2]>,
     /// Places he stopped short of, and the frame: open again 600 on.
@@ -15,8 +19,14 @@ pub(super) struct TownWalker {
 }
 
 impl TownWalker {
+    /// Kite on foot.
     pub(super) fn new(to: [f32; 2], near: f32) -> Self {
-        TownWalker { to, near, path: Vec::new(), mark: None, avoid: Vec::new() }
+        TownWalker { to, near, wide: 75.0, people: true, path: Vec::new(), mark: None, avoid: Vec::new() }
+    }
+
+    /// On a Grunty: `wide` clear either side, the people not planned round.
+    pub(super) fn riding(self, wide: f32) -> Self {
+        TownWalker { wide, people: false, ..self }
     }
 
     /// The stick for frame `f`, or None once he is within reach.
@@ -39,14 +49,14 @@ impl TownWalker {
             let n = ((span + 4000.0) / 100.0) as i32 | 1;
             // The walking PCs and the merchants (but whom he walks to).
             let people = world.pcs().iter().filter(|c| c.disp_sw).map(|c| c.char.pos);
-            let people = people.chain(world.merchants().iter().map(|m| m.ch.pos));
+            let people = people.chain(world.merchants().iter().map(|m| m.ch.pos)).filter(|_| self.people);
             let mut closed: Vec<[f32; 2]> = self.avoid.iter().map(|&(q, _)| q).collect();
             closed.extend(
                 people
                     .map(|q| [f32::from_bits(q[0]), f32::from_bits(q[1])])
                     .filter(|q| (q[0] - to[0]).hypot(q[1] - to[1]) > 50.0),
             );
-            let look = super::survey::Look { n, step: 100.0, wide: 75.0, heights: &[30.0, 95.0], avoid: &closed };
+            let look = super::survey::Look { n, step: 100.0, wide: self.wide, heights: &[30.0, 95.0], avoid: &closed };
             let near = self.near - 10.0;
             let goal = |q: [f32; 2], _| (q[0] - to[0]).hypot(q[1] - to[1]) < near;
             self.path = super::survey::path_wide(&world.town().base.hits, [p[0], p[1], p[2]], mid, &look, goal);

@@ -180,13 +180,17 @@ and 7.
   another kind's race against `adultMain`.
 - `tools/test_ride_rs.py`: `ccPuccigusoStart` and `Exit`'s town path.
 - piney-game `flag_race`: `mutations_flag_race_runs_and_quits`,
-  `mutations_flag_race_won`; `flag_race_shots` (ignored) takes the
-  Grunties' page, the countdown, the ride, the cup and the rankings.
+  `mutations_flag_race_won`, `mutations_flag_race_against_the_towns_racers`
+  (a new save's time ranked against Dun Loireag's racers);
+  `flag_race_shots` (ignored) takes the Grunties' page, the countdown, the
+  ride, the result's clip and the rankings. Kite walks to the breeder and
+  rides to each flag (the nearest first) as a player would: the way round
+  the town's walls planned each second (`town_walk::TownWalker`, the
+  Grunty's width either side), the stick toward its next turn. No test
+  sets the ride or Kite down.
 
 ## Unknown
 
 - The race's task is made in the frame the menu asks. The port runs its
   first breath that frame; the game's task priority (63) is not modelled.
 - `+0xa6` (the restart, 0x005ff520) is never set by any code found.
-- Menus 90 and 91 (0x0058d470, 0x0058d9f0) are not ported. The Event NPC
-  opens 90 ([field-game.md](field-game.md#the-merchants)).

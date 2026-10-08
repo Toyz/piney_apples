@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-400 entries: audio 35, battle 82, build 19, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 16, script 48, test 163, tooling 27, ui 92, video 16, volumes 78, world 109.
+401 entries: audio 35, battle 82, build 19, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 16, script 48, test 164, tooling 27, ui 92, video 16, volumes 78, world 110.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -412,3 +412,4 @@ The [reference](docs/README.md) says what is true now.
 | 398 | [Every town's ranch plays the breeder's tune: bgmBreed reads each town's breeder after the load that clears its place, and the later volumes' crisis rows are six on](worklog/0398-every-town-s-ranch-plays-the-breeder-s-tune-bgmbreed-reads.md) | 2026-10-08 | audio, volumes, test |
 | 399 | [The Event NPC's Item List: menus 90 and 91 register what Kite holds, wears and keeps at Elf's Haven, and once all is in give the desktop items and send the NPC away](worklog/0399-the-event-npc-s-item-list-menus-90-and-91-register-what.md) | 2026-10-08 | ui, volumes, build, test |
 | 400 | [A new save's Rankings shows the town's racers: the port's empty ranks already take race_ranks in turn, as the game's page and ranking do; the old shot showed the test's own seeded records](worklog/0400-a-new-save-s-rankings-shows-the-town-s-racers-the-port-s.md) | 2026-10-08 | ui, test |
+| 401 | [The Flag Race test rides as a player would: the test-only ride_put is gone, and Kite walks to the breeder and rides round Dun Loireag's walls to each flag by a planned way](worklog/0401-the-flag-race-test-rides-as-a-player-would-the-test-only.md) | 2026-10-08 | test, world |

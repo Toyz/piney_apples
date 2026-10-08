@@ -398,16 +398,6 @@ impl crate::World {
         }
     }
 
-    /// Not the game's: the ride (and Kite on it) set down at `pos`, as an
-    /// event's `pc_put` sets Kite down; for the tests, which cannot steer
-    /// round the town's walls.
-    pub fn ride_put(&mut self, pos: V4) {
-        if let Some(o) = self.ride.as_mut().and_then(|r| r.obj.as_mut()) {
-            o.ride.pos = pos;
-            self.player.body.pos = pos;
-        }
-    }
-
     /// 0x005310b0(pos, rot): the ride set down there, when there is one.
     pub(crate) fn ride_place(&mut self, pos: V4, rot: V4) {
         if let Some(o) = self.ride.as_mut().and_then(|r| r.obj.as_mut()) {
