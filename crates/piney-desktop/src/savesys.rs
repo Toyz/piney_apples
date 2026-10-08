@@ -615,6 +615,16 @@ pub fn load_done(volume: Volume) -> u32 {
     }
 }
 
+/// The input hold after a save's result sound, in `SaveMenu` and the
+/// Recorder's `RecordMenu`: 10 frames, but from Mutation on 0 unless
+/// `game.pauseFlag` is set or a controller is in port 1 (MUT main 0x0016fb1c,
+/// gcmn 0x00577a8c). `pauseFlag` is 0 while either menu runs: a game over
+/// sets it and closes the menus, the event VM sleeps every task under it,
+/// and `MainProccess` clears it in the call that sets it.
+pub fn saved_hold(volume: Volume, pad: &piney_input::Pad) -> i16 {
+    if volume == Volume::Inf || !pad.unplugged { 10 } else { 0 }
+}
+
 /// The volume CONVERT reads: `volumeNum - 1`, Infection when that is not
 /// 1-3 (`LoadInfoPrevReq` and the slot read clamp it alike).
 pub fn prev_volume(volume: Volume) -> Volume {

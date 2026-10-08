@@ -930,7 +930,11 @@ menu window. `StartReq` is given 12, the `$a1` that `ccThDtMenu`'s
 keeps its own state in list 9: +0x0a the selection, +0x0c the file, +0x10
 the card slot (both start from `ccSaveSys`'s `fileNum` and `port`), and
 +0x18 the last result seen. dtMenu's `waitCount` (+0x0c) holds input for 10
-frames after each change.
+frames after each change. From Mutation on the hold after "Data saved.",
+"Save data created." and "Formatted" (sound 74) is 0 unless `game.pauseFlag`
+or `ccSys.pad[0].status` is set (MUT main 0x0016fb1c, OUT 0x0016f084, QUA
+0x0016ef14): with no controller in port 1 the next press is taken at once.
+The Recorder does the same ([field UI](field-ui.md)).
 
 | proccess | waits for | then |
 | --- | --- | --- |

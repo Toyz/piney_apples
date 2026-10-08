@@ -880,6 +880,17 @@ class RecordPages(TalkCase):
         sc.pads.update({335: (CANCEL, 0), 348: (CANCEL, 0)})
         self.compare(sc, "save overwrite")
 
+    def test_save_unplugged(self):
+        # No controller in port 1: from Mutation on the hold after "Data
+        # saved." is dropped (RecordMenu, MUT gcmn 0x00577a8c).
+        sc = self.recorder(300)
+        sc.unplugged = True
+        sc.card(0).prepared(0, [(0, record(name=b"Old", playtime=hms(1, 2, 3)))])
+        sc.pads.update({60: (OK, 0), 90: (0, DOWN), 96: (0, DOWN), 102: (0, DOWN), 110: (OK, 0)})
+        self.yes_ok(sc, 125, 250, 3)
+        sc.pads.update({260: (CANCEL, 0), 275: (CANCEL, 0)})
+        self.compare(sc, "save unplugged")
+
     def test_no_card(self):
         # No card; slot 2 not a PS2 card; OK through the errors; cancel.
         sc = self.recorder(220)

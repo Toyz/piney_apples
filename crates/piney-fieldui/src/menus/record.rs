@@ -276,7 +276,7 @@ fn common(m: &mut MenuCtrl, x: &mut Ctx) {
     if matches!(n, 28 | 38 | 34) {
         if new {
             x.se(74);
-            m.wait_count = 10;
+            m.wait_count = piney_desktop::savesys::saved_hold(m.talk.record.save_sys.volume, x.pad);
         }
     } else if matches!(n, 0 | 29 | 24 | 39 | 35) && new {
         m.wait_count = 10;

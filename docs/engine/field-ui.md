@@ -2301,6 +2301,17 @@ every frame   waitCount down. For proccess 1-99: result 0 outside 1:
               DispMsg of three while the window is up
 ```
 
+From Mutation on the wait after sound 74 is kept only while `game.pauseFlag`
+(+0x7c) or `ccSys.pad[0].status` (+0x26c) is set, and is 0 otherwise (MUT
+gcmn 0x00577a8c, 0x00577af0, 0x00577b54; OUT 0x0057376c, QUA 0x004660ac).
+`status` is `scePadGetState` for port 1 (main 0x00102d80), 0 only with no
+controller there. `pauseFlag` stops `ccThMother` pausing the game when the
+controller is pulled. It is set on a game over, which closes the menus,
+while the event VM sleeps every task, and within one `MainProccess` call
+around a card access (MUT main 0x00171f7c-0x0017528c), so it is 0 here.
+With a controller in, the wait is Infection's. The desktop's `SaveMenu`
+does the same ([the save menus](desktop.md#the-save-menus-after-the-staff-roll)).
+
 `RecordMenuDisp`: `recordMenuStr` (main .sdata 0x00377e48: "slot 1",
 "slot 2", "Unused", "Data", "MEMORY CARD", 16 glyphs each) into menuKanji;
 the slots (a frame at (39, 96), "MEMORY CARD" and the slot's name on each

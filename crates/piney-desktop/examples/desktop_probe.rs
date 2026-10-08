@@ -905,6 +905,8 @@ mod data_probe {
         let mut sys = SaveSys::new(assets.volume);
         let mut save = super::fresh(assets);
         let (mut n, mut open, mut rate) = (0usize, 0usize, 1u32);
+        // No controller in port 1 (`ccPad.status` 0).
+        let mut unplugged = false;
         let mut script: HashMap<usize, (u32, u32)> = HashMap::new();
         for l in lines.by_ref() {
             let l = l?;
@@ -914,6 +916,7 @@ mod data_probe {
                 Some("frames") => n = nums(&mut w)[0] as usize,
                 Some("open") => open = nums(&mut w)[0] as usize,
                 Some("rate") => rate = nums(&mut w)[0] as u32,
+                Some("unplugged") => unplugged = true,
                 Some("pad") => {
                     let v = nums(&mut w);
                     script.insert(v[0] as usize, (v[1] as u32, v[2] as u32));
@@ -959,7 +962,7 @@ mod data_probe {
                 _ => {}
             }
             let (push, repeat) = script.get(&f).copied().unwrap_or((0, 0));
-            let pad = Pad { push: Buttons(push), repeat: Buttons(repeat), ..Pad::default() };
+            let pad = Pad { push: Buttons(push), repeat: Buttons(repeat), unplugged, ..Pad::default() };
             let mut req = Vec::new();
             let mut x = MenuCtx {
                 save: &mut save,

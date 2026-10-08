@@ -328,7 +328,7 @@ impl DtMenu {
         }
         if SAVED_MESSAGES.contains(&n) && r as i32 != i32::from(self.lists[m].last) {
             x.req.push(Request::Se(SE_SAVED));
-            self.wait_count = WAIT;
+            self.wait_count = crate::savesys::saved_hold(self.volume, x.pad);
         }
         if r & (code::ACK | code::ERROR) != 0 {
             if self.menu_status != 0 && self.menu_status != 3 {

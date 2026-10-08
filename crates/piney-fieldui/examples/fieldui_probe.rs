@@ -179,6 +179,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut chains: [Vec<u32>; 3] = Default::default();
     let mut places: Vec<(u32, f32, bool, [f32; 3])> = Vec::new();
     let mut tk = false;
+    // No controller in port 1 (`ccPad.status` 0).
+    let mut unplugged = false;
     let sim = sim_card::SimCard::new(volume);
     let mut cards_used = false;
     ui.set_card(Box::new(sim.clone()));
@@ -358,6 +360,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ui.set_cc_rand(Box::new(pop(v)));
             }
             "tk" => tk = true,
+            "unplugged" => unplugged = true,
             "card" => {
                 cards_used = true;
                 let mut p = sim.port(n(1) as i32);
@@ -605,7 +608,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     let (push, rep) = pads.get(&fr).copied().unwrap_or((0, 0));
                     let direct = Buttons(directs.get(&fr).copied().unwrap_or(0));
-                    let pad = Pad { direct, push: Buttons(push), repeat: Buttons(rep), ..Pad::default() };
+                    let pad = Pad { direct, push: Buttons(push), repeat: Buttons(rep), unplugged, ..Pad::default() };
                     if book.is_some_and(|(_, f)| f == fr) {
                         ui.start_book(book.map_or(0, |b| b.0));
                         // The game's own draws, flicker and all.

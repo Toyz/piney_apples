@@ -178,6 +178,16 @@ The callers are `ccPlayer::DamageActuate` (Kite hit: the small motor and
 `DamActuTbl` by the damage, 100 ms) and the Vibration menus switching it on
 (the small motor and 160, 200 ms). The port is `crates/piney-input`.
 
+`Read` first stores `scePadGetState` in `ccPad.status` (+0x04, so
+`ccSys+0x26c` for port 1): 0 with no controller, 2 or 6 once one is found.
+`ccThMother` (0x00167d28 to its loop) pauses the game while it reads 0 in a
+playing mode (`eventMng+0x0c` at least 4) and `game.pauseFlag` (+0x7c) is
+0: the layers and font stop flipping, the tasks sleep, the screen fades and
+"P A U S E" is drawn. With a controller back, "START button: Retun to game"
+(Mutation on: "Return") waits for START. Every volume has it. The port's
+keyboard is always a controller, so this pause is not ported; from Mutation
+on the save menus read `status` too ([desktop](desktop.md)).
+
 ## The screen
 
 `ccSystem::Init` (0x0010a900) asks `SetScreenMode(512, 448, 0)`, applied by

@@ -149,6 +149,10 @@ pub struct Pad {
     /// for a pad that does not report it. The field camera turns and zooms
     /// by L1, R1 and R2's pressure, and at a fixed rate when it reads 0.
     pub pow: [u8; 12],
+    /// `ccPad.status` is 0 (`scePadGetState`'s `scePadStateDiscon`, main
+    /// 0x00102d80): no controller in the port. The port's keyboard is
+    /// always one, so only a harness sets this.
+    pub unplugged: bool,
 }
 
 /// `dircTbl` (0x003484a0): the D-pad's direction by bits 12-15 (up, right,

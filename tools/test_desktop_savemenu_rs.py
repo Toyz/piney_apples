@@ -86,7 +86,7 @@ def nested_call(m, addr, args, limit=50_000_000):
 class SaveEmu(M.Emu):
     """ccThDtMenu with ccSaveSys and a card."""
 
-    def __init__(self, card, patches, sys_port=0, sys_file=0, rate=1):
+    def __init__(self, card, patches, sys_port=0, sys_file=0, rate=1, unplugged=False):
         super().__init__(status=2, save=M.FRESH, load_frames=1)
         m = self.m
         h = m.hooks
@@ -102,7 +102,7 @@ class SaveEmu(M.Emu):
         # A controller in the first port: ccSys.pad[0].status is its set-up
         # state, not 0 (from Mutation on SaveMenu holds its input after a
         # save only while the game is paused or a pad is there).
-        m.store(M.SYS + 0x26c, 4, 1)
+        m.store(M.SYS + 0x26c, 4, 0 if unplugged else 1)
         m.store(sym("saveSys"), 4, SAVESYS)
         m.store(sym("ccMc"), 4, MCOBJ)
         for n, f in card.hooks().items():
@@ -206,6 +206,7 @@ class Scenario:
         self.setup = []
         self.script = {}
         self.sys_port, self.sys_file = 0, 0
+        self.unplugged = False    # no controller in port 1 (ccSys.pad[0].status 0)
         # The name pointer and level ccSaveSys writes into the record, as
         # tools/test_desktop_data_rs.py sets them; the clear flag the
         # volume's number (the ending's clear_count).
@@ -248,6 +249,8 @@ class Scenario:
     def probe_lines(self):
         out = ["savemenu", f"frames {self.frames}", f"open {self.open_at}", f"rate {self.rate}",
                f"sys {self.sys_port} {self.sys_file}"]
+        if self.unplugged:
+            out.append("unplugged")
         for s in self.setup:
             if s[0] == "file":
                 out.append(f"file {s[1]} {s[2]} {s[3].hex()}")
@@ -269,7 +272,7 @@ class Scenario:
             else:
                 card.ports[s[1]]["dir"] = 1
                 card.ports[s[1]]["files"][f"{DIR}/{s[2]}"] = bytearray(s[3])
-        e = SaveEmu(card, self.patches, self.sys_port, self.sys_file, self.rate)
+        e = SaveEmu(card, self.patches, self.sys_port, self.sys_file, self.rate, self.unplugged)
 
         def on_frame(emu):
             if emu.frame == self.open_at:
@@ -341,6 +344,11 @@ def scenarios():
     create = (f"o {WAIT} o {WAIT} o {WAIT} {YES} {WAIT} o {WAIT} . d o {WAIT} {YES} {WAIT} o {WAIT} "
               f"o {WAIT} x {WAIT} x {WAIT} x")
     out.append(Scenario("create and save").card(0).keys(create))
+    # No controller in port 1: from Mutation on the hold after "Save data
+    # created." and "Data saved." is dropped (MUT main 0x0016fb1c).
+    s = Scenario("create and save, unplugged").card(0)
+    s.unplugged = True
+    out.append(s.keys(create.replace(WAIT, ". .") + f" {WAIT} x {WAIT} x {WAIT} x", gap=3))
     # As the game runs it after the staff roll: frame rate 2.
     out.append(Scenario("create and save, rate 2", rate=2).card(0).keys(create))
     # Cancel at the question; the Cancel row.

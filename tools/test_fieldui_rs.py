@@ -277,6 +277,7 @@ class Scenario:
         self.directs = {}         # frame -> pad direct (held) bits
         self.restarts = set()     # frames whose ccThMenu is the set-up's new one (ccSetupGameCtrl)
         self.ctor_fields = False  # every member the constructor sets, in the state
+        self.unplugged = False    # no controller in port 1 (ccSys.pad[0].status 0)
 
     def spc_saves(self):
         """spcParam[id]'s level, exp, money, HP, SP and class as save writes."""
@@ -399,6 +400,8 @@ class Scenario:
             out.append(f"restart {f}")
         if self.ctor_fields:
             out.append("ctorfields")
+        if self.unplugged:
+            out.append("unplugged")
         out.extend(self.extra)
         out.append(f"run {self.frames}")
         return out
@@ -476,6 +479,9 @@ class Game:
         m.store(CCSYS, 4, SYS)
         m.store(SYS + 0x25C, 4, SCRATCH)
         m.store(SYS + 0x358, 4, 0)
+        # ccSys.pad[0].status: scePadGetState's stable (6) for the port's
+        # controller, which is always there; 0 for none.
+        m.store(PAD + 4, 4, 0 if sc.unplugged else 6)
         m.store(SAVEDATA, 4, SAVE)
         # The port's fresh save, made by the game's own boot (the player
         # named Kite, Init's buttons, lists and options), then the
