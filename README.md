@@ -394,3 +394,46 @@ The license covers this repository's own code and writing only. The games
 themselves, their data, text, art, sound and code, belong to their owners
 and are not covered by it. .hack is a trademark of its owners; this project
 is not affiliated with or endorsed by CyberConnect2 or Bandai Namco.
+
+### Use of AI
+
+This project is built with AI coding agents: Claude (Anthropic), through
+Claude Code. The split is:
+
+**The maintainer (Toyz)**
+- defined the system: a port, not an emulator; one core for all four
+  volumes; the crates and how they fit; data made from your own discs,
+  never shipped;
+- defined the rules the work is held to: every behaviour bit-exact to the
+  game and checked against its own code; idiomatic Rust; typed tables, no
+  byte blobs; no shortcuts or cheats in the tests; unknowns closed, not
+  listed;
+- set the requirements: what each piece must do, and when it is done;
+- understands every piece of the agents' work and can audit any of it: the
+  reverse engineering, the code, the tests and the harnesses;
+- decides what is worked on and in what order, and what ships;
+- plays the port, with a pad, and finds and reports what is wrong;
+- triages the players' bug reports on GitHub and hands them on;
+- reviews the work and sends it back when it falls short of those rules;
+- wrote [cairns](https://github.com/Toyz/cairns), the worklog tool below.
+
+**The agents**
+- do the reverse engineering: they read the game's code with the tools
+  under `tools/` (which they also wrote) and work out what it does;
+- write the port's code, its tests and the harnesses that run the game's
+  own code beside it;
+- write the reference docs and every worklog entry;
+- reproduce reported bugs, fix them, and draft the replies on the issues.
+
+Nothing here is taken on the model's word. Each ported piece is checked
+against the game's own code: the original routines run in an EE interpreter
+(`piney-eemu`, `tools/eemu.py`) beside the port, and their results are
+compared frame by frame or bit for bit. Those comparisons are part of the
+test suite. Where something cannot be checked that way, the docs and the
+worklog say so.
+
+Keeping that record is what [cairns](https://github.com/Toyz/cairns) is for.
+Every unit of work is a numbered worklog entry: what was found, how, what was
+checked against the game, and what is still unknown. The [worklog](WORKLOG.md)
+is the full history of how the port was worked out, AI included. If you want
+to know how something here came to be, or how far to trust it, start there.
