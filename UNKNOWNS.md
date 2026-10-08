@@ -141,7 +141,7 @@ compared. (GAPS.md "After Infection" tracks the phases.)
 
 ### world
 - [[397]] tools/test_world_rs.py on Mutation: `PropsAgainstGame.test_town_draw` stops on a syscall in Mutation's `ROOTTOWN01::Draw`, and `WorldAgainstGame.test_frames_random` differs in Kite's camera at frame 88 of "town01 random 0" — answered by [[404]]: the harness laid ROOTTOWN01 out at Infection's offsets (from Mutation on every member from +0x70 is 4 further, the vtable at +0x1b0) and the probe opened Mac Anu as Infection's; the camera's push out of a town's walls asks `ccModelHitCheckQZ` with mask 4 from Mutation on (1 on Infection), which the port now does. The whole harness passes on all four volumes
-- [[397]] in Carmina Gadelica merchants 15 and 16 land higher in the port than in the merchant harness (z 2.0 and 1.4e-4 against 0); whether ROOTTOWN03 registers its Hit chunk otherwise than ROOTTOWN01 is not read
+- [[397]] in Carmina Gadelica merchants 15 and 16 land higher in the port than in the merchant harness (z 2.0 and 1.4e-4 against 0); whether ROOTTOWN03 registers its Hit chunk otherwise than ROOTTOWN01 is not read — answered by [[405]]: the harness never registered the town's mesh (`Pieces` stubs `ccModelHit::HitEnable`), so every merchant kept its dummy's z; the port was right. `test_every_town` checks every merchant in every town on all four volumes
 
 - [[206]] where Mutation's and Outbreak's idolItemList44 is — neither candidate reads like Infection's
 - [[260]] Fort Ouph and Lia Fail not compared with the game in eemu — not compared

@@ -1758,7 +1758,12 @@ class MerchantRun(Pieces):
         m.store(WM + 0x430, 4, rt)
         m.store(rt + rt_off(0x1A4), 4, self.malloc(m, 0x100))
         self.town = self.ccs["town%02d" % (town + 1)]
+        # The mesh's ccModelHit::HitEnable for real (Pieces stubs it for the
+        # static pieces): without it no ccLandHitCheck found a floor, and a
+        # merchant kept its dummy's z.
+        hit_enable = m.hooks.pop(sym("HitEnable__10ccModelHitFi"))
         Field.decode_hit(self)
+        m.hooks[sym("HitEnable__10ccModelHitFi")] = hit_enable
         for a in list(CMND_GLOBALS) + list(CHAR_HIT_GLOBALS):
             m.store(a, 4, 0)
         g = self.malloc(m, 0x40)
@@ -2053,6 +2058,32 @@ class MerchantsAgainstGame(unittest.TestCase):
         self.assertGreater(drawn, 0)
 
 
+    def test_every_town(self):
+        """ccSetMerchant(0) in each Root Town beside set_merchants, every merchant (ids, names,
+        positions set on the town's floor twice, headings), then 300 frames of routine and
+        ccMerchan::main beside step_all with Kite walking about the town's middle."""
+        for town in range(4):
+            start = MERCH_START.get(town, (0.0, 0.0, 0.0))
+            g = MerchantRun([fb(v) for v in start], town=town)
+            first = g.start()
+            self.assertGreaterEqual(len(first), 5, town)
+            rng = random.Random(80 + town)
+            lines, frames = [], []
+            for i in range(300):
+                pl = (start[0] + rng.uniform(-3000, 3000), start[1] + rng.uniform(-3000, 3000), start[2])
+                cam = (pl[0] + rng.uniform(-600, 600), pl[1] - rng.uniform(300, 900), pl[2] + 300.0)
+                view = (pl[0], pl[1], pl[2] + 120.0)
+                f = (pl, cam, view, rng.randrange(-7936, 7937), False, i >= 30, [])
+                frames.append(f)
+                lines.append("merch " + hexs(*([fb(v) for v in pl + cam + view] + [f[3] & 0xFFFFFFFF, 0, int(f[5])])))
+            got = self.ask(["merchstart " + hexs(*[fb(v) for v in start], town)] + lines)
+            self.assertEqual(first, got[0], town)
+            for i, (f, port) in enumerate(zip(frames, got[1:])):
+                pl, cam, view, deg1, eye, kite_hit, ops = f
+                want, _ = g.frame([fb(v) for v in pl], [fb(v) for v in cam], [fb(v) for v in view], deg1 & 0xFFFF,
+                                  eye, kite_hit, ops)
+                self.assertEqual(want, port, "town %d frame %d" % (town, i))
+
     @unittest.skipUnless(LATER, "Mutation on: the Event NPC")
     def test_event_npc(self):
         """From Mutation on, with eventStatus[52] set (event 317 ITEM COMPLETE), ccSetMerchant(0)
@@ -2087,11 +2118,7 @@ class MerchantsAgainstGame(unittest.TestCase):
                 lines.append(line)
             got = self.ask(["merchstatus 1", "merchstart " + hexs(*[fb(v) for v in start], town)] + lines)
             got = [x for x in got if x != {}]
-            # Carmina Gadelica's merchants 15 and 16 land higher in the port than in this harness,
-            # which registers the town's Hit chunk as ROOTTOWN01 does (worklog 397, not read):
-            # there the Event NPC is compared alone.
-            pick = (lambda xs: xs) if town == 0 else (lambda xs: xs[k:] if len(xs) > k else [])
-            self.assertEqual(pick(first), pick(got[0]), town)
+            self.assertEqual(first, got[0], town)
             seen = collections.Counter()
             for i, (f, port) in enumerate(zip(frames, got[1:])):
                 pl, cam, view, deg1, eye, kite_hit, ops, status = f
@@ -2102,7 +2129,7 @@ class MerchantsAgainstGame(unittest.TestCase):
                     seen["drawn"] += want[k]["drawn"]
                 else:
                     seen["gone"] += 1
-                self.assertEqual(pick(want), pick(port), "town %d frame %d %s" % (town, i, f))
+                self.assertEqual(want, port, "town %d frame %d %s" % (town, i, f))
             for key in ("act 0", "act 1", "act 2", "act 3", "drawn", "gone"):
                 self.assertGreater(seen[key], 0, (town, key, seen))
 
