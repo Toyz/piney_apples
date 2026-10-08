@@ -152,6 +152,8 @@ pub enum Tail {
     /// BreedingMenu after the key item's window: the tasks woken, the
     /// dim out, the fade.
     Woken,
+    /// The Flag Race's (menu 88) after its wakes.
+    Race(crate::menus::flag_race::Tail),
 }
 
 /// The pages' tails.
@@ -171,6 +173,10 @@ pub fn tail(m: &mut MenuCtrl, t: Tail, x: &mut Ctx) -> Option<Cont> {
             x.req.push(Request::Still(false));
             m.bg_status = 3;
             m.proccess = 20;
+            None
+        }
+        Tail::Race(t) => {
+            crate::menus::flag_race::tail(m, t, x);
             None
         }
     }
@@ -423,6 +429,25 @@ pub fn rankings_menu_disp(m: &mut MenuCtrl, x: &mut Ctx) {
         set_clm(k, 16, 0, 0, 1);
         let time = race_time(i32::from(time));
         rank_row(k, &mut m.font, y, time);
+        // Menu 88's result (`exceptionDisp` 2): the race's new rank drawn
+        // again in colour 6, its alpha rising to the menu's and falling
+        // over 24 frames (MUT gcmn 0x0058d120).
+        let blink = m.exception_disp == 2 && x.world.race.is_some_and(|rc| i32::from(rc.rank) - 1 == r as i32);
+        if blink {
+            let mut b = (x.count % 24) as i32;
+            if b >= 13 {
+                b = 24 - b;
+            }
+            let ba = a * b / 12;
+            let k = &mut m.setting[r + 1];
+            k.set_colour(6);
+            k.set_alpha(ba);
+            m.font.set_colour(6);
+            m.font.set_alpha(ba);
+            rank_row(k, &mut m.font, y, time);
+            m.font.set_colour(7);
+            m.font.set_alpha(a);
+        }
         y += 64;
     }
 }

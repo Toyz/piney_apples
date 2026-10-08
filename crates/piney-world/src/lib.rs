@@ -53,6 +53,7 @@ pub mod npc;
 pub mod party;
 pub mod player;
 pub mod pose;
+pub mod race;
 pub mod rtownpc;
 pub mod story_map;
 pub mod talk;
@@ -63,6 +64,7 @@ pub mod town03;
 pub mod town04;
 pub mod town05;
 pub mod town_party;
+pub mod town_ride;
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -309,6 +311,16 @@ pub struct World {
     /// The `ccEff`s the town's last draw asked for (Dun Loireag's lens
     /// flare and clouds), for the host's effects.
     town_sprites: Vec<town::TownSprite>,
+    // --- the Flag Race (race.rs, town_ride.rs), from Mutation on ---
+    /// Its three flags (`0x00774a90`), its task (`0x0038bd44`) and the
+    /// riding Grunty's (`pcgs`); what they asked of the game.
+    flags: Vec<race::Flag>,
+    race: Option<Box<race::Race>>,
+    ride: Option<town_ride::TownRide>,
+    race_events: Vec<race::RaceEvent>,
+    /// `ccSpcSleep(1)` to `ccSPC::Wakeup(1)`: Kite's task asleep while he
+    /// rides.
+    kite_asleep: bool,
 }
 
 /// `charTbl` (INF DEMO.PRG 0x0040dc80: 18 rows, 21 from Mutation on), the
@@ -445,6 +457,11 @@ impl World {
             evcam: evcam::EventCam::new(),
             start,
             town_sprites: Vec::new(),
+            flags: Vec::new(),
+            race: None,
+            ride: None,
+            race_events: Vec::new(),
+            kite_asleep: false,
         })
     }
 
@@ -760,12 +777,13 @@ impl World {
         self.place_event_npc(&mut files, e).is_ok()
     }
 
-    /// `ccSetChibiGuso` (gcmn 0x0050f0b0) in towns 1-3: the rows its
-    /// growth record gives, each through `setDog` and `ccPGuso::ccPGuso`
-    /// onto the list (the record of a grown one with a kind free starts
-    /// over in the save).
+    /// `ccSetChibiGuso` (gcmn 0x0050f0b0) in towns 1-3 (1-4 from Mutation
+    /// on, MUT main 0x001cc370): the rows its growth record gives, each
+    /// through `setDog` and `ccPGuso::ccPGuso` onto the list (the record of
+    /// a grown one with a kind free starts over in the save).
     fn place_grunties(&mut self, no: i32) -> piney_data::Result<()> {
-        if !(1..=3).contains(&no) {
+        let last = if self.volume == piney_data::volume::Volume::Inf { 3 } else { 4 };
+        if !(1..=last).contains(&no) {
             return Ok(());
         }
         // The grown ones are made before the record starts over, the young
@@ -792,6 +810,16 @@ impl World {
             self.grunties.extend(g);
         }
         self.grunty_tables = Some(tables);
+        // From Mutation on, a grown Grunty in each pen: the race's flags
+        // (MUT gcmn 0x0052bf1c).
+        let g = grunty::Growth::read(&self.save.save, no);
+        if self.volume != piney_data::volume::Volume::Inf && g.level == 4 && g.ty.iter().all(|&t| t != 0) {
+            for n in 0..3 {
+                if let Some(f) = race::Flag::new(&self.archive, self.volume, &self.town.base.file, no, n)? {
+                    self.flags.push(f);
+                }
+            }
+        }
         Ok(())
     }
 
@@ -1237,6 +1265,11 @@ impl World {
     /// other layers of it (the field's HUD) before finishing it; the fades
     /// are on [`draw::FADE_LAYER`].
     pub fn step_into(&mut self, pad: &Pad, ctx: &mut Ctx) {
+        self.step_into_with(pad, ctx, &mut race::NoFades);
+    }
+
+    /// [`World::step_into`] with the menu's fader the Flag Race fades on.
+    pub fn step_into_with(&mut self, pad: &Pad, ctx: &mut Ctx, host: &mut dyn race::RaceHost) {
         match self.phase {
             Phase::FadeOut(k) => {
                 piney_desktop::fade::draw_on(ctx, draw::FADE_LAYER, 0, 0x8000_0000, k, FADE_FRAMES);
@@ -1269,7 +1302,7 @@ impl World {
                     tracing::warn!("the town's entries: {e}");
                 }
                 if f >= 1 {
-                    self.frame(pad, ctx, f >= 2);
+                    self.frame(pad, ctx, f >= 2, host);
                 }
                 if f < FADE_FRAMES {
                     piney_desktop::fade::draw_on(ctx, draw::FADE_LAYER, 0x8000_0000, 0, f, FADE_FRAMES);
@@ -1498,7 +1531,7 @@ impl World {
     }
 
     /// The tasks' frame: game control, camera, player, entries, town.
-    fn frame(&mut self, pad: &Pad, ctx: &mut Ctx, town: bool) {
+    fn frame(&mut self, pad: &Pad, ctx: &mut Ctx, town: bool, host: &mut dyn race::RaceHost) {
         // Asleep (ccSleepAllThread), nothing steps and everyone is drawn
         // where the last frame left them.
         let awake = !self.asleep;
@@ -1510,16 +1543,32 @@ impl World {
             let cpad = CamPad::from_pad(pad);
             self.event_camera_task(&cpad);
             let mut mode = self.save.save.u8(offset::CAMERA_MODE) as i8;
-            let anims = self.kite.anims();
-            tasks(
-                &mut self.camera,
-                &mut self.player,
-                &mut self.town.base.hits,
-                &anims,
-                &mut self.rand,
-                &cpad,
-                &mut mode,
-            );
+            if self.kite_asleep {
+                // Riding: Kite's task asleep, the ride's at his priority.
+                self.camera.main(&cpad, self.player.body.dirc[2], true, false, &mut mode);
+                self.player.events.clear();
+                let race = self.race.as_ref().map(|r| r.ride);
+                let end = self.race.as_ref().is_some_and(|r| r.end);
+                self.ride_slot(&cpad, race, end);
+            } else {
+                let anims = self.kite.anims();
+                tasks(
+                    &mut self.camera,
+                    &mut self.player,
+                    &mut self.town.base.hits,
+                    &anims,
+                    &mut self.rand,
+                    &cpad,
+                    &mut mode,
+                );
+                // A ride whose Kite has woken (none in a town without the
+                // race).
+                if self.ride.is_some() {
+                    let race = self.race.as_ref().map(|r| r.ride);
+                    let end = self.race.as_ref().is_some_and(|r| r.end);
+                    self.ride_slot(&cpad, race, end);
+                }
+            }
             self.save.save.set_u8(offset::CAMERA_MODE, mode as u8);
             for e in &self.player.events {
                 match e {
@@ -1548,14 +1597,16 @@ impl World {
                 self.with_party(|spcs, chars, _| spcs.leave(0, how, chars));
             }
         }
-        self.kite_arms_frame(awake);
+        // Riding, Kite's task (and its ArmsEffect) sleeps.
+        self.kite_arms_frame(awake && !self.kite_asleep);
         let to_screen = draw::screen(&self.camera.world_screen);
         // The draw environment's lights: the town's, then the gate's as its
         // last step left them.
         let lights = self.gate.lights(&self.town.base.lights);
         // WORLD_MAN::GO's shadow packets (a town's too).
         ctx.layers.shadows = draw::go_shadows(&self.town.base.lights, &self.camera.world_screen);
-        if self.player.drawn {
+        self.draw_ride(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.base.lights));
+        if self.player.drawn && !self.kite_asleep {
             let p = &self.player;
             draw::char_shadow(&mut ctx.layers, p.shadow_t, p.height, |layers| {
                 self.kite.draw(
@@ -1572,7 +1623,9 @@ impl World {
                 )
             });
         }
-        self.kite_arms.send(&mut ctx.layers, &self.camera.world_screen);
+        if !self.kite_asleep {
+            self.kite_arms.send(&mut ctx.layers, &self.camera.world_screen);
+        }
         // ccThFellow (50): the party members an event placed.
         if awake {
             self.party_frame();
@@ -1581,6 +1634,13 @@ impl World {
         // Their trails go out from their Main (ccLattice::Disp): none asleep.
         if awake {
             self.party.send_trails(&mut ctx.layers, &self.camera.world_screen);
+        }
+        // The Flag Race's task (63): its HUD and clips as it left them.
+        if awake {
+            self.race_slot(host);
+        }
+        if let Some(r) = &self.race {
+            r.draw(ctx, &self.camera.world_screen);
         }
         // ccThEntryCtrl (64): its enemies, magic circles, gimmicks (the
         // Chaos Gate), then its NPC list - the merchants, then the rest;
@@ -1593,6 +1653,24 @@ impl World {
             }
         }
         self.gate.draw(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.base.lights));
+        // The race's flags, the entry control's other gimmicks.
+        if awake {
+            let (player, cam, volume) = (self.player.body.pos, self.camera.active().clone(), self.volume);
+            for i in 0..self.flags.len() {
+                let f = &mut self.flags[i];
+                if f.step(volume, player, &cam).taken {
+                    let (n, pos) = (f.n, f.pos);
+                    self.race_events.push(race::RaceEvent::Se3d(240, pos));
+                    if let Some(r) = self.race.as_deref_mut() {
+                        r.flag_taken(n);
+                    }
+                    self.race_events.push(race::RaceEvent::OpenBox(pos));
+                }
+            }
+        }
+        for f in &self.flags {
+            f.draw(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.base.lights));
+        }
         let view =
             char::View { player: self.player.body.pos, cam: t.pos, deg1: t.deg[1], eye: t.kind == camera::kind::EYE };
         let lights = self.gate.lights(&self.town.base.lights);
@@ -1646,6 +1724,11 @@ impl World {
                     rand: &mut *cx.rand,
                     mt,
                     save: &mut self.save.save,
+                    race: self.race.as_deref_mut().map(|r| grunty::RaceLink {
+                        kind: r.kind,
+                        server: r.server,
+                        step: &mut r.intro,
+                    }),
                 };
                 let g = &mut self.grunties[i];
                 g.step(&mut gx);
@@ -1653,7 +1736,7 @@ impl World {
                 pg_events.push((code, std::mem::take(&mut g.events)));
                 let notes = std::mem::take(&mut g.notes);
                 let pg = &mut self.grunties[last];
-                grunty::inu_check_note(&notes, pg, cx.rand);
+                grunty::inu_check_note(&notes, pg, i == last, cx.rand);
                 pg_events.push((pg.code, std::mem::take(&mut pg.events)));
             }
             self.grunties[i].draw(&mut ctx.layers, to_screen, &lights);

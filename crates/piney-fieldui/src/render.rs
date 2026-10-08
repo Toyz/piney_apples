@@ -259,13 +259,14 @@ pub fn draw(
                 k.dy = *dy;
                 ctx.disp_count(fonts, &mut k, MENU_LAYER, &view, text, names, *count);
             }
-            Draw::Kanji { text, packets, .. } => {
+            Draw::Kanji { text, packets, kt, .. } => {
                 if packets.is_empty() {
                     continue;
                 }
                 let mut k = Kanji::init(3, 24);
                 let strn = expand(text, names);
-                k.clm = extract(fonts, &strn, Kt::SmallProportional, k.th, &mut k.tex);
+                let kt = if *kt == 3 { Kt::LargeFixed } else { Kt::SmallProportional };
+                k.clm = extract(fonts, &strn, kt, k.th, &mut k.tex);
                 let id = ctx.uploads.len() as u32;
                 ctx.uploads.push(k.upload(id, fonts));
                 let mut s = Sprite::mask(MENU_LAYER, TexRef::Upload(id), k.th as i32, 4096);

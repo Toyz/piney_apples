@@ -3,7 +3,7 @@ title: Dun Loireag - ROOTTOWN02, its clouds, lens flare and water
 status: partial
 volumes: INF
 covers: INF gcmn.prg:0x004240c0 ROOTTOWN02::ROOTTOWN02, 0x004266a0 ROOTTOWN02::Draw, 0x00425130 ROOTTOWN02::DrawBG, 0x00425500 DrawObj, 0x004255e0 DrawObj2, 0x004256c0 DrawFloor, 0x00375ff0 ROOTTOWN02 vtable, 0x005d4bb0 RT_MODELTABLE02, 0x005d4d40 RT_OBJTABLE02, 0x005d4e20 town02Light, 0x00504400 CLOUD::SetPos, 0x00504860 CLOUD::Init, 0x00504a10 CLOUD::Move, 0x00504ce0 CLOUD::Draw, 0x00503090 LENSFLARE::LENSFLARE, 0x00503360 LENSFLARE::Draw, 0x005ed7e0 @973, 0x005025d0 waterUVModifi2, 0x00509f30 ccSetDog, 0x0050f0b0 ccSetChibiGuso, 0x00509390 ccDog::ccDog, 0x00509680 ccDog::main, 0x00509a80 ccDog::move, 0x0050a1f0 dogAction, 0x0050a260 inuCheckNote, 0x0050a2e0 ccDog::effect, 0x005ee220 markPosTbl, 0x005ee180 inuAnmTbl, 0x0054a680 ccMenuCtrl::NorainuMenu, 0x0050ef10 setDog, 0x0050ac00 ccPGuso::ccPGuso, 0x0050b3c0 ccPGuso::main, 0x0050bba0 ccPGuso::adultMain, 0x0050bca0 ccPGuso::move, 0x0050c0f0 ccPGuso::paramCalc, 0x0050c8f0 ccPGuso::evoAct, 0x0050c960 evoActChibi2, 0x0050cbb0 evoActPon1, 0x0050d5a0 evoActPon2, 0x0050dd30 evoActAdult, 0x0050e820 runAway, 0x0050e990 pgDead, 0x0050eac0 adultSetup, 0x0050eda0 changeAnmPG, 0x0050f390 dogAction, 0x0050f720 dogAction2, 0x0050f9d0 dogActionAdult, 0x0050fec0 inuCheckNote (the Grunties'), 0x0050ff30 burpEff, 0x005100e0 evoEff, 0x005102a0 ccPGuso::effect, 0x00510490 moveCam, 0x005ee300 pgAnmPtr, 0x005ee310 pgAnmPtrAdult, 0x005ee340 ccsTblPG, 0x005ee3c0 markPosTbl (pgbreed), 0x005ee3e0 adultGusoParam, 0x005ee440 pgSizeParam, 0x005ee450 foodTbl, 0x005ee510 needFoodTbl1, 0x005ee530 needFoodTbl2, 0x005ee550 camPosDef, 0x005ee590 camViewDef, 0x005ee5d0 inuPos, 0x005ee610 playerPos, 0x005ee650 pgChatTbl; INF SLUS_202.67:0x001d0f00 effEvolvePG, 0x001d0fd0 effGrowPG, 0x00108e30 ccLayer::MakePacketDrawBuffTrans, 0x0013f3b0 ccObj::CheckBoundingBox, 0x00129d08 fptoui, 0x0019c460 fieldrand, 0x0019ccb0 WORLD_MAN::Init, 0x001a1190 WORLD_MAN::SetCharPosition, 0x001b62e0 ccEntryEventMng, 0x00160cb0 checkCameraType, 0x00161700 cameraGetRot2, 0x001615d0 cameraGetView
-worklog: 96, 142, 162
+worklog: 96, 142, 162, 395
 ---
 
 # Dun Loireag - ROOTTOWN02, its clouds, lens flare and water
@@ -350,8 +350,11 @@ over, the young one after.
 `ccGimmick`) loads the entry's stream (`cdogboda`; `cdogbodb`, the next
 body, as `anmB` too; a grown kind's `ccsTblPG[kind]`, `cdogbod0` and
 `cdogbod2`-`9`, as `anmC` when it grows), sets `inuCheckNote` as the
-note callback, the body (radius 65, height 60, kind 2, on the character
-list) and copies the record. The young one walks its route (act 3) at
+note callback, the body (radius 65, height 60, kind 2, 16 from Mutation
+on, on the character list; its `mask2` stays `ccCharHit`'s -1, which no
+wall's attribute holds whole, so walls never push it) and copies the
+record. From Mutation on the race moves a grown one
+([flag-race.md](flag-race.md)). The young one walks its route (act 3) at
 `pgScale` 1, 1.5, 1 or 1.2 by level; a grown one stands (act 9).
 `pgPtr` is the last Grunty made: `inuCheckNote` acts on it, whichever
 Grunty's anm passed the note.

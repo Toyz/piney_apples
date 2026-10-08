@@ -45,7 +45,11 @@ fn send(m: &mut MenuCtrl, obj: Obj) {
         (s.take(), text)
     };
     if matches!(obj, Obj::MenuKanji | Obj::MenuKanjiPr | Obj::NameKanji | Obj::NameKanjiPr | Obj::Setting(_)) {
-        m.draws.push(Draw::Kanji { obj, text, packets });
+        let kt = match obj {
+            Obj::Setting(k) => m.setting_kt.get(k as usize).copied().unwrap_or(0),
+            _ => 0,
+        };
+        m.draws.push(Draw::Kanji { obj, text, packets, kt });
     } else {
         m.draws.push(Draw::Send(packets));
     }
@@ -147,6 +151,9 @@ fn fade(status: &mut i16, alpha: &mut i32, step_in: i32, top: i32) {
 
 /// `ccMenuCtrl::Disp`.
 pub fn disp(m: &mut MenuCtrl, x: &mut Ctx) {
+    // Each Extract leaves its kanji's kt at 0 again (the Flag Race's page
+    // sets 3 for its stars).
+    m.setting_kt = [0; 8];
     let menu_idx = m.list_at(m.menu);
     let game = x.world.game;
     // The battle band's clock.

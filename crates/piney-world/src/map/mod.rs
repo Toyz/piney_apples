@@ -185,10 +185,18 @@ impl MapState {
 /// `ROOTTOWN01::DrawMap` for a frame of the town's `ccThFieldDisp`: drawn
 /// with the player at `pos` heading `dirc` while `awake`, else the last
 /// frame again.
-pub fn town_frame(map: &mut town::TownMap, st: &mut MapState, pos: V4, dirc: V4, awake: bool, ctx: &mut Ctx) {
+#[allow(clippy::too_many_arguments)]
+pub fn town_frame(
+    map: &mut town::TownMap,
+    st: &mut MapState,
+    pos: V4,
+    dirc: V4,
+    race: Option<[Option<town::Racer>; 3]>,
+    awake: bool,
+    ctx: &mut Ctx,
+) {
     if awake {
-        // The flag race is not played, so no racer shows.
-        st.last = map.draw(&town::Input { mode: st.modes.town, alpha: st.alpha, pos, dirc, race: None });
+        st.last = map.draw(&town::Input { mode: st.modes.town, alpha: st.alpha, pos, dirc, race });
     }
     let place = |spr: u8| map.place(spr).cloned();
     let mark = ctx.layers.mark();
@@ -417,7 +425,7 @@ mod tests {
             st.set_alpha(1.0);
             st.hud_scale = k;
             let mut ctx = Ctx::new(piney_desktop::view::View::default());
-            town_frame(&mut map, &mut st, crate::START_POS, [0; 4], true, &mut ctx);
+            town_frame(&mut map, &mut st, crate::START_POS, [0; 4], None, true, &mut ctx);
             ctx.layers.flatten()
         };
         let (full, half) = (draw(1.0), draw(0.5));

@@ -178,6 +178,10 @@ fn bgm_church(d: &mut Driver, s: &SceneInput, out: &mut Vec<Command>) {
 /// of it fades sequence 0 out (and stops it) and brings sequence 1 in from
 /// silence over 30 frames; going beyond 1200 does the reverse.
 fn bgm_breed(d: &mut Driver, s: &SceneInput, out: &mut Vec<Command>) {
+    // From Mutation on the Flag Race holds it off (`ccSnd +0x13a`).
+    if d.race_music {
+        return;
+    }
     if d.breeder.is_none() {
         d.breeder = s.breeder;
     }

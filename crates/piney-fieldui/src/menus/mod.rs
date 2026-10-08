@@ -12,6 +12,7 @@ pub mod chat;
 pub mod chat_member;
 pub mod drain;
 pub mod equip;
+pub mod flag_race;
 pub mod fountain;
 pub mod gate;
 pub mod getitem;
@@ -106,6 +107,7 @@ pub fn handler(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         24 => merchant::merchant_menu(m, x, true),
         25 | 26 => merchant::merchant_menu(m, x, false),
         27 => breeder::breeder_menu(m, x),
+        88 => flag_race::flag_race_menu(m, x),
         89 => breeder::rankings_menu(m, x),
         44 => inu::norainu_menu(m, x),
         45 => inu::otonainu_menu(m, x),
@@ -183,6 +185,7 @@ pub fn exception_disp(m: &mut MenuCtrl, x: &mut Ctx) {
         55 => shop::item_draw_menu_disp(m, x),
         46 => inu::inu_menu_disp(m, x),
         56 => breeder::breeding_menu_disp(m, x),
+        88 => flag_race::flag_race_menu_disp(m, x),
         89 => breeder::rankings_menu_disp(m, x),
         13 => option::controller_menu_disp(m, x),
         14 | 18 | 19 | 20 => option::on_off_menu_disp(m, x),

@@ -242,6 +242,8 @@ pub struct World {
     /// A Grunty in a breeder's pen (`ccPGuso`): what Give Food reads of
     /// `cmndTargetPrev` when it is this character.
     pub grunty: Option<crate::menus::breeder::Grunty>,
+    /// From Mutation on, the Flag Race while its task lives.
+    pub race: Option<crate::menus::flag_race::RaceView>,
 }
 
 impl World {

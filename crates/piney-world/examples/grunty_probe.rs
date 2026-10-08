@@ -2,9 +2,10 @@
 //! Loireag's Grunties (`piney_world::grunty`: `ccSetChibiGuso`, `ccPGuso`),
 //! one JSON line a request. Requests: `set` (the growth record and what
 //! `ccSetChibiGuso` places), `new` (a row built by `setDog` and the
-//! constructor), `poke growth|foodmode` (the menus' writes) and `frame` (Kite,
-//! the camera and a menu's affect, then the frame's state, events, notes and
-//! draws). Numbers hex, floats their bits.
+//! constructor), `poke growth|foodmode` (the menus' writes), `poke race KIND
+//! SERVER STEP|norace` (the Flag Race, from Mutation on) and `frame` (Kite,
+//! the camera and a menu's affect, then the frame's state, events, notes,
+//! draws and the race's step). Numbers hex, floats their bits.
 
 use std::io::BufRead;
 use std::rc::Rc;
@@ -75,7 +76,11 @@ fn state(g: &Grunty, save: &piney_data::save::SaveData) -> String {
         g.pos_cnt,
         list(g.next_pos),
         list(g.old_pos),
-        g.mark,
+        // From Mutation on a grown one's +0x2c4 names its dummy.
+        match (g.later, g.home_dummy) {
+            (true, Some(d)) => format!("\"{d}\""),
+            _ => g.mark.to_string(),
+        },
         list(g.scale),
         g.growth_num,
         g.msg_num,
@@ -147,6 +152,7 @@ fn main() {
     let mut g: Option<Grunty> = None;
     let mut rand = piney_world::Rand(1);
     let mut mt = Mt::init(0);
+    let mut race: Option<(i32, i32, i16)> = None;
     let stdin = std::io::stdin();
     for line in stdin.lock().lines() {
         let line = line.unwrap();
@@ -197,6 +203,11 @@ fn main() {
                         _ => {}
                     }
                 }
+                match w[1] {
+                    "race" => race = Some((n(2) as i32, n(3) as i32, n(4) as i16)),
+                    "norace" => race = None,
+                    _ => {}
+                }
             }
             Some("frame") => {
                 let (Some(x), Some(tw)) = (g.as_mut(), town.as_mut()) else {
@@ -226,19 +237,25 @@ fn main() {
                     rand: &mut rand,
                     mt: &mut mt,
                     save: &mut save,
+                    race: race.as_mut().map(|(kind, server, step)| grunty::RaceLink {
+                        kind: *kind,
+                        server: *server,
+                        step,
+                    }),
                 };
                 x.step(&mut ctx);
                 let notes = std::mem::take(&mut x.notes);
-                grunty::inu_check_note(&notes, x, &mut rand);
+                grunty::inu_check_note(&notes, x, true, &mut rand);
                 let ev: Vec<String> = before.into_iter().chain(x.events.iter().map(event)).collect();
                 let drawn: Vec<String> =
                     x.drawn.iter().map(|(k, a, s)| format!("[{k},{a},{}]", i32::from(*s))).collect();
                 println!(
-                    "{{\"s\":{},\"ev\":[{}],\"notes\":{},\"drawn\":[{}]}}",
+                    "{{\"s\":{},\"ev\":[{}],\"notes\":{},\"drawn\":[{}],\"race\":{}}}",
                     state(x, &save),
                     ev.join(","),
-                    list(notes.iter().map(|(e, p)| format!("[{e},{p}]"))),
+                    list(notes.iter().map(|n| format!("[{},{}]", n.event, n.param))),
                     drawn.join(","),
+                    race.map_or("null".into(), |r| r.2.to_string()),
                 );
             }
             _ => println!("null"),

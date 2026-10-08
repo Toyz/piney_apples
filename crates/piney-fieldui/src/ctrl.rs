@@ -76,7 +76,7 @@ pub enum Draw {
     /// `SendPacket` of a sprite's queue.
     Send(Vec<Packet>),
     /// A `ccKanji`'s queue, with the text last `Extract`ed into it.
-    Kanji { obj: Obj, text: Vec<u8>, packets: Vec<Packet> },
+    Kanji { obj: Obj, text: Vec<u8>, packets: Vec<Packet>, kt: i32 },
     /// `ccMsg->Disp()`: the message window's cells and texts.
     Msg(Vec<MsgDraw>),
     /// `ccKanji::Disp(str, count, 1, 1)` on a menu kanji: text drawn at
@@ -418,6 +418,9 @@ pub struct MenuCtrl {
     pub name_text: Vec<u8>,
     pub name_pr_text: Vec<u8>,
     pub setting_text: Vec<Vec<u8>>,
+    /// The setting kanji's `kt` (+0xd4) as each last `Extract`ed: 3 the
+    /// large fixed font (the Flag Race's stars), else 0.
+    pub setting_kt: [i32; 8],
     /// The face texture each `menuFace` holds (`menuFaceCcsList` row, -1
     /// none).
     pub face_tex: [i32; 4],
@@ -565,6 +568,7 @@ impl MenuCtrl {
             name_text: Vec::new(),
             name_pr_text: Vec::new(),
             setting_text: vec![Vec::new(); 8],
+            setting_kt: [0; 8],
             face_tex: [-1; 4],
             cursor: Cursor::default(),
             cursor_pr: Cursor::default(),

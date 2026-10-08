@@ -337,6 +337,11 @@ impl WorldMode {
         // The operation the field recorded last frame (CheckOperate), which
         // the task sees and then clears for this one.
         vm.set_operate_set(self.world.state().operate_set);
+        // From Mutation on the event task idles while the Flag Race runs
+        // (MUT main 0x001cb154).
+        if self.setup == Setup::Play && self.world.racing() {
+            return;
+        }
         {
             let mut h = FieldHost { world: &mut self.world, ui: &mut self.ui, st: &mut self.st };
             vm.frame(&mut h);
@@ -607,6 +612,45 @@ impl WorldMode {
         }
     }
 
+    /// The Flag Race's asks of the frame (piney_world::race::RaceEvent):
+    /// its sounds and music, the menu's panels, map and ban, its effects
+    /// (the flags' sparks, the ride's dust) into `starts`.
+    fn race_events(&mut self, starts: &mut Vec<crate::town_fx::Start>) {
+        use piney_world::race::RaceEvent as R;
+        let cam = self.world.camera().active();
+        let ear = Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
+        for e in self.world.take_race_events() {
+            match e {
+                R::Se(n) => self.events.push(Event::Se(n)),
+                R::Se3d(n, pos) => {
+                    if let Ok(n) = usize::try_from(n) {
+                        self.events.push(Event::Se3d { n, pos, note: None, ear });
+                    }
+                }
+                R::OpenBox(pos) => starts.push(crate::town_fx::Start::OpenBox(pos)),
+                R::Bgm(n) => {
+                    if let Ok(n) = usize::try_from(n) {
+                        self.events.push(Event::BgmStream(n));
+                    }
+                }
+                R::BgmStop => self.events.push(Event::BgmStreamStop),
+                R::PgBgmInit => self.events.push(Event::PgBgm(piney_audio::PgBgm::InitTown)),
+                R::PgBgmEnd => self.events.push(Event::PgBgm(piney_audio::PgBgm::RaceEnd)),
+                R::RideSound { param, attribute, pos } => {
+                    if let Some(se) = piney_audio::se3d::inu_note(self.world.volume(), param, attribute) {
+                        self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
+                    }
+                }
+                R::RideSmoke { pos, v, s, life, t } => {
+                    starts.push(crate::town_fx::Start::Puff { pos, v, scale: s, life, kind: t })
+                }
+                R::Panel(n) => self.ui.ctrl.panel_status = n,
+                R::Map(n) => self.ui.ctrl.map_status = n,
+                R::Forbid(n) => self.ui.ctrl.forbid = n,
+            }
+        }
+    }
+
     fn menu_request(&mut self, r: piney_fieldui::Request) {
         use piney_fieldui::Request as R;
         use piney_fieldui::talk::TalkReq;
@@ -675,6 +719,23 @@ impl WorldMode {
                 self.world.party_add(i32::from(id));
             }
             R::AreaLevel(v) => self.area_level = v,
+            // The Flag Race: started (its task runs from this frame's slot),
+            // quit from its pause, done with (its end begins).
+            R::RaceStart(kind) => {
+                if !self.world.race_start(kind) {
+                    tracing::warn!("the flag race did not start");
+                }
+            }
+            R::RaceQuit => {
+                if let Some(r) = self.world.race_mut() {
+                    r.quit();
+                }
+            }
+            R::RaceDone => {
+                if let Some(r) = self.world.race_mut() {
+                    r.done = true;
+                }
+            }
             // CheckAreaCode's record: the words entered at the gate, which
             // the event task's next pass reads (areaCodeSet, cleared at its
             // top).
@@ -1070,7 +1131,39 @@ pub(crate) fn ui_world(world: &World, vm: Option<&Vm>, area_level: i32) -> piney
         // g_entCtrl's NPC list (each entParam.id, its npcTbl row): who is
         // in town today, Ryu Book III's "Online".
         npcs: world.all_npcs().map(|n| n.code()).collect(),
+        race: world.race().map(|r| piney_fieldui::menus::flag_race::RaceView {
+            state: r.state,
+            rank: r.rank,
+            running: r.running,
+            time: r.time,
+        }),
         ..Default::default()
+    }
+}
+
+/// `ccMenu.menuFade` as the Flag Race fades on it.
+struct MenuFader<'a>(&'a mut piney_demo::fade::ScFade);
+
+impl piney_world::race::RaceHost for MenuFader<'_> {
+    fn entry_fade(&mut self, n: i16, col1: u32) -> i32 {
+        self.0.entry_fade(n, 0, col1)
+    }
+    fn continue_fade(&mut self, i: i32, n: i16, col1: u32) {
+        if let Some(e) = usize::try_from(i).ok().and_then(|i| self.0.elm.get_mut(i)) {
+            e.status = piney_demo::fade::DRAW;
+            e.tcnt = n;
+            e.cnt = 0;
+            e.col0 = e.col1;
+            e.col1 = col1;
+        }
+    }
+    fn check_fade(&mut self, i: i32) -> bool {
+        usize::try_from(i).is_ok_and(|i| self.0.check(i))
+    }
+    fn delete_fade(&mut self, i: i32) {
+        if let Some(e) = usize::try_from(i).ok().and_then(|i| self.0.elm.get_mut(i)) {
+            e.status = 0;
+        }
     }
 }
 
@@ -1142,7 +1235,10 @@ impl Mode for WorldMode {
         // black.
         let mut hidden = Ctx::new(View::default());
         let wctx = if self.hack_screen { &mut hidden } else { &mut ctx };
-        self.world.step_into(pad, wctx);
+        {
+            let mut fader = MenuFader(&mut self.ui.ctrl.menu_fade);
+            self.world.step_into_with(pad, wctx, &mut fader);
+        }
         let sprites = self.world.take_town_sprites();
         if let Some(fx) = &mut self.town_fx {
             fx.draw(&sprites, self.world.camera(), wctx);
@@ -1151,6 +1247,7 @@ impl Mode for WorldMode {
             self.calc_real_party();
         }
         let mut pc_starts = Vec::new();
+        self.race_events(&mut pc_starts);
         // ccThMenu breathes until party slot 0 is filled: from the tasks'
         // first frame on.
         if let Phase::Play(f) = self.world.phase()
@@ -1240,7 +1337,8 @@ impl Mode for WorldMode {
                 let p = self.world.player();
                 let (pos, dirc) = (p.body.pos, p.body.dirc);
                 self.map_st.hud_scale = self.ui.hud_scale;
-                piney_world::map::town_frame(map, &mut self.map_st, pos, dirc, !self.world.asleep(), &mut ctx);
+                let racers = self.world.map_racers();
+                piney_world::map::town_frame(map, &mut self.map_st, pos, dirc, racers, !self.world.asleep(), &mut ctx);
             }
         }
         // ccThEffect (80) and ccThParticle (98): Kite's, the members' and

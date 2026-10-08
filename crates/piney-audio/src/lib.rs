@@ -323,6 +323,13 @@ pub enum PgBgm {
     Init,
     End(i32),
     Riding(bool),
+    /// From Mutation on, `ccPgBgmInit()` in a town (the Flag Race): the
+    /// sequences out over 8 frames and the breeder's tune held off
+    /// (`ccSnd +0x13a`).
+    InitTown,
+    /// The race's end: `ccSnd +0x13a` 0, then sequence 1 started silent
+    /// and brought in to 256 over 30 frames (main 0x0017c1e0(1, 256, 30)).
+    RaceEnd,
 }
 
 /// The sound system as the runtime uses it.
@@ -650,6 +657,8 @@ impl Audio {
                 self.run(|d, _, out| d.pg_bgm_end(n, out));
             }
             PgBgm::Riding(on) => self.engine().driver.riding = on,
+            PgBgm::InitTown => self.engine().driver.pg_bgm_init_town(),
+            PgBgm::RaceEnd => self.run(|d, _, out| d.race_end(out)),
         }
     }
 

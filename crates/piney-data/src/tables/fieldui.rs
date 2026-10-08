@@ -166,6 +166,8 @@ pub struct FieldUi {
     pub new_mail: &'static str,
     /// `kyviaStatusStr`: eight pieces.
     pub kyvia_status: &'static [&'static str],
+    /// The Flag Race's pause: Continue, Quit, in columns of 16.
+    pub race_pause: &'static str,
     /// `cheatHpStr`: the digits for 5-digit HP.
     pub cheat_hp: &'static str,
     /// `panelFlashTbl`: the panel flash's grey steps.
@@ -465,6 +467,7 @@ impl crate::store::Load for FieldUi {
             dead_info: crate::store::Load::load(r),
             new_mail: crate::store::Load::load(r),
             kyvia_status: crate::store::Load::load(r),
+            race_pause: crate::store::Load::load(r),
             cheat_hp: crate::store::Load::load(r),
             panel_flash: crate::store::Load::load(r),
             faces: crate::store::Load::load(r),
@@ -636,6 +639,9 @@ impl FieldUi {
     }
     pub fn kyvia_status(&self) -> &'static [&'static str] {
         self.kyvia_status
+    }
+    pub fn race_pause(&self) -> &'static str {
+        self.race_pause
     }
     pub fn cheat_hp(&self) -> &'static str {
         self.cheat_hp

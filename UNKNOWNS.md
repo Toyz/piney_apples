@@ -115,7 +115,7 @@ Missing pieces that only the later volumes need.
 - [[24]] [[325]] what fills Outbreak's and Quarantine's BSS message groups; what `eventAreaNumber` 126 loads (Quarantine's ending, event 314; the port gives it no words) (docs/engine/events.md) — Quarantine's ending
 - [[65]] [[116]] `npc_act -3` (row 139's drain, with `effVirusCrystal`) and `-5` are not ported; only Mutation's event 114 uses them (docs/engine/events.md, effects.md, field-game.md) — Mutation's event 114
 - [[275]] `marker_pos` on a plain field (`WORLD_MAN` +0x438's stream) is not ported, and no event map but `EVENTAREA01` answers `StoryMap::file` — Mutation's field events
-- [[225]] [[394]] Mutation's Flag Race (menu 88, MUT gcmn 0x0058a4f0 and its page 0x0058c310; the race's task 0x005ff680 and object 0x005fd120 with its flags, timer and result) is not ported; the breeder's list and Rankings (89) are ([[394]]) — Mutation's Grunty race
+- [[395]] from Mutation on a field ride's charge (MUT gcmn 0x0052f790, the knockback 0x0052f250, `+0x158`..`+0x160`), its Grunty chat (0x00530e50, 0x00530dd0) and the `+0x1e0` range are not ported (docs/engine/grunty-ride.md) — a later volume's field ride with the flute
 - [[394]] menus 90 and 91 (MUT gcmn 0x0058d470, 0x0058d9f0 with its page 0x0058edc0: list 90 is Talk and Item List, "Items were registered to the ...") are not ported, nor is who opens them traced — the later volumes' NPCs
 - [[272]] Kyvia's later fights (levels 2-5, the EX mode); fields 10-12 not played through (docs/engine/evarea.md, boss-kyvia.md, GAPS.md) — Mutation onward
 - docs/engine/battle.md `ccBoss04`'s Affect and AI are not ported — a later volume's boss (ported in [[294]])
@@ -291,6 +291,8 @@ player until one of these turns out wrong.
 - [[250]] whether inviteSpc in a field or dungeon is ever reached — docs/engine/field-game.md Unknown
 - [[272]] EVENTAREAB8 held by unit tests, not compared with the game's Draw — docs/engine/evarea.md Unknown
 - [[277]] whether a walking PC can run off in a case the tests do not cover — only a member's run caught
+- [[395]] the Flag Race's task runs its first breath in the frame the menu asks; the game's priority (63) against the other tasks is not modelled (docs/engine/flag-race.md Unknown)
+- [[395]] the race's restart flag `+0xa6` (MUT gcmn 0x005ff520 reads it) — no code found sets it (docs/engine/flag-race.md Unknown)
 
 ### render
 
@@ -603,6 +605,7 @@ player until one of these turns out wrong.
 - [[262]] the history's blobs not scanned; the history will not be published as it is — plans/release.md
 - [[271]] why piney-gen syms did not carry Func_str7100, Func_str8800, Func_str0300 to Mutation — a guess: jump-table relocations
 - [[276]] how the autopilot run compares with a player's play in time — fights are long
+- [[395]] tools/test_grunty_rs.py fails on Outbreak and Quarantine before a Grunty is made: test_world_rs's town set-up looks for `__vt__10ROOTTOWN01`, which those executables do not name — the harness's town for the later volumes
 
 ## Answered
 
@@ -1050,7 +1053,8 @@ player until one of these turns out wrong.
 - [[207]] the rebuild restoring the systems one at a time — answered by [[216]] (Infection whole again on generated tables)
 - [[208]] the rest of the rebuild (desktop tables, top page, field UI, world, battle, effects, streams) — answered by [[209]], [[210]], [[215]], [[216]], [[217]]
 - [[208]] msg in a character's row kept as an address until its reader is rebuilt — answered by [[214]] (the talk pages on generated talk records)
-- [[209]] Mutation's ccThEvent second flag at main 0x0038bd44 — identified by [[225]] as the flag race's state; its host answer comes with the race ([[225]])
+- [[209]] Mutation's ccThEvent second flag at main 0x0038bd44 — answered by [[225]], [[395]] (the flag race; the event task waits while it runs in the town: piney-game world.rs, `World::racing`)
+- [[225]] [[394]] Mutation's Flag Race (menu 88, its page, the race's task and object, its flags, timer and result) — answered by [[395]] (docs/engine/flag-race.md; tools/test_race_rs.py, test_fieldui_talk_rs.py, test_grunty_rs.py; `mutations_flag_race_won`)
 - [[209]] the card uses Infection's directory and slot size on every disc — answered by [[226]] (directory and size from the executable)
 - [[209]] streams fail on the later discs; Mutation's opening movies skipped — answered by [[215]], BUGS.md (later_volumes_play_their_voice_track)
 - [[209]] the record menu reads saveSysMsg through piney_data::sinit; announcements read getItemMenuStr from the image — answered by [[210]], [[216]]

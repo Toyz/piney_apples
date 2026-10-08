@@ -210,16 +210,31 @@ impl EntryObj {
     /// command lists (`ccEntryCmnd` within 10000, `deleteCmnd` beyond), the
     /// fade.
     pub fn routine(&mut self, volume: piney_data::volume::Volume, ch: &mut Char, player: V4) {
+        let pos = ch.pos;
+        self.routine_parts(volume, pos, &mut ch.dirc, &mut ch.set_transparency, &mut ch.transparency, player);
+    }
+
+    /// [`EntryObj::routine`] on a `ccChar`'s parts: its place, heading and
+    /// transparencies (a gimmick of no [`Char`]: the race's flags).
+    pub fn routine_parts(
+        &mut self,
+        volume: piney_data::volume::Volume,
+        pos: V4,
+        dirc: &mut V4,
+        set_transparency: &mut F,
+        transparency: &mut F,
+        player: V4,
+    ) {
         if self.grot_spd != 0 {
             let r = ee::deg2rad(self.grot_deg);
-            let z = set_dirc(ch.dirc[2], r, i32::from(self.grot_spd));
-            ch.dirc[2] = z;
+            let z = set_dirc(dirc[2], r, i32::from(self.grot_spd));
+            dirc[2] = z;
             // fabs((double) (z - r)) < (double) 0.003f
             if f64::from(ee::f(ee::sub(z, r))).abs() < f64::from_bits(0x3f68_9374_c000_0000) {
                 self.grot_spd = 0;
             }
         }
-        let mut p = w2p(ch.pos, player);
+        let mut p = w2p(pos, player);
         p[0] = ee::mul(p[0], 0xbf80_0000);
         p[1] = ee::mul(p[1], 0xbf80_0000);
         p[2] = 0;
@@ -238,22 +253,22 @@ impl EntryObj {
         }
         match self.fade_flag {
             1 => {
-                let mut t = ee::add(ch.set_transparency, ee::div(ONE, ee::from_int(i32::from(self.fade_cnt))));
+                let mut t = ee::add(*set_transparency, ee::div(ONE, ee::from_int(i32::from(self.fade_cnt))));
                 if !ee::le(t, ONE) {
                     t = ONE;
                     self.fade_flag = 0;
                 }
-                ch.transparency = t;
-                ch.set_transparency = t;
+                *transparency = t;
+                *set_transparency = t;
             }
             2 => {
-                let mut t = ee::sub(ch.set_transparency, ee::div(ONE, ee::from_int(i32::from(self.fade_cnt))));
+                let mut t = ee::sub(*set_transparency, ee::div(ONE, ee::from_int(i32::from(self.fade_cnt))));
                 if ee::lt(t, 0) {
                     t = 0;
                     self.fade_flag = 0;
                 }
-                ch.transparency = t;
-                ch.set_transparency = t;
+                *transparency = t;
+                *set_transparency = t;
             }
             _ => {}
         }

@@ -11,6 +11,7 @@ pub mod locate;
 pub mod manifest;
 pub mod placement;
 pub mod program;
+pub mod race;
 pub mod render;
 pub mod sinit;
 pub mod source;

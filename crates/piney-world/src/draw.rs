@@ -217,10 +217,15 @@ pub fn char_shadow<R>(
     height: crate::ee::F,
     f: impl FnOnce(&mut Layers) -> R,
 ) -> R {
+    let (alpha, length) = char_shadow_env(t, height);
+    shadow_env(layers, alpha, length, f)
+}
+
+/// [`char_shadow`]'s draw environment: the shadow's alpha and length.
+pub fn char_shadow_env(t: crate::ee::F, height: crate::ee::F) -> (u8, crate::ee::F) {
     use crate::ee;
     let alpha = ((ee::to_int(ee::mul(0x4380_0000, t)).wrapping_add(1)) >> 1) as u8;
-    let length = ee::add(height, ee::mul(0x4000_0000, height));
-    shadow_env(layers, alpha, length, f)
+    (alpha, ee::add(height, ee::mul(0x4000_0000, height)))
 }
 
 /// The same with the alpha and length decided ([`crate::foe::CharDraw`]).

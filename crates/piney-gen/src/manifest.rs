@@ -1156,6 +1156,10 @@ fn fieldui() -> Group {
             e("dead_info", 0x0037_7E6C, ptr(cstr()), GCMN, "`deadInfo`"),
             e("new_mail", 0x0037_7E8C, ptr(cstr()), GCMN, "`newMailStr`"),
             e("kyvia_status", 0x0037_7E90, text_lines(8), GCMN, "`kyviaStatusStr`: eight pieces."),
+            // From Mutation on the Flag Race's pause follows it.
+            derived("race_pause", ptr(cstr()), GCMN, "The Flag Race's pause: Continue, Quit, in columns of 16.")
+                .after("kyvia_status", 4)
+                .absent(Vol::Inf, Value::Bytes(Vec::new())),
             e("cheat_hp", 0x0037_7E88, ptr(cstr()), GCMN, "`cheatHpStr`: the digits for 5-digit HP."),
             e("panel_flash", 0x006E_01D0, array(U32, 5), GCMN, "`panelFlashTbl`: the panel flash's grey steps."),
             e(
@@ -2376,6 +2380,88 @@ fn lui_addiu(code: &[u32], i: usize, rt: Option<u32>) -> Option<u32> {
     let r = (w >> 16) & 31;
     let pair = w >> 26 == 0x0f && x >> 26 == 0x09 && (x >> 21) & 31 == r && (x >> 16) & 31 == r;
     (pair && rt.is_none_or(|t| t == r)).then(|| ((w & 0xffff) << 16).wrapping_add(sext16(x) as u32))
+}
+
+/// The Flag Race (Mutation on, gcmn; found through its code,
+/// `crate::race`): the race object's places, cameras, handling and clips,
+/// the flags' markers, the intro's walk, and its menu's records, prizes and
+/// wallpapers. Empty on Infection.
+fn race() -> Group {
+    use crate::race::{RaceAddrs, addrs};
+    fn at(f: fn(&RaceAddrs) -> u32, l: Layout) -> Layout {
+        let read = l.clone();
+        custom(Rc::new(move |c| read.read(c, f(&addrs(c)?))), l)
+    }
+    fn none() -> Value {
+        Value::List(Vec::new())
+    }
+    let v4 = || fixed(float(), 4);
+    let rows = |n| array(v4(), n);
+    let prize = || strukt("RacePrize", 4, vec![("id", 0, I16), ("cat", 2, I8)], "A prize: the item's category and id.");
+    let entries = vec![
+        ("kite_pos", at(|a| a.kite_pos, rows(5)), "Kite's start by server (MUT 0x006d80e0)."),
+        ("kite_rot", at(|a| a.kite_rot, array(I16, 5)), "His heading there, 16-bit angles (0x006d8130)."),
+        (
+            "ride_kind",
+            at(|a| a.ride_kind, array(fixed(float(), 4), 9)),
+            "The ride's top speed, acceleration and easings by kind 1-8 (0x006d8330).",
+        ),
+        ("ride_server", at(|a| a.ride_server, array(fixed(float(), 4), 5)), "Kind 0's by server (0x006d83c0)."),
+        ("intro_pos_kind", at(|a| a.intro_pos_kind, rows(9)), "The intro's camera by kind (0x006d84a0)."),
+        ("intro_view_kind", at(|a| a.intro_view_kind, rows(9)), "Where it looks (0x006d8410)."),
+        ("intro_pos_server", at(|a| a.intro_pos_server, rows(5)), "Kind 0's by server (0x006d8580)."),
+        ("intro_view_server", at(|a| a.intro_view_server, rows(5)), "Where it looks (0x006d8530)."),
+        ("count_height", at(|a| a.count_height, array(float(), 5)), "The countdown's height by server (0x006d8280)."),
+        ("end_pos", at(|a| a.end_pos, rows(5)), "Kite's place after the race by server (0x006d82c0)."),
+        ("ride_end_pos", at(|a| a.ride_end_pos, rows(5)), "The Grunty at the finish by server (0x006d8140)."),
+        ("ride_end_rot", at(|a| a.ride_end_rot, rows(5)), "Its heading there (0x006d8190)."),
+        ("finish_cam_pos", at(|a| a.finish_cam_pos, rows(5)), "The finish's camera by server (0x006d81e0)."),
+        ("finish_cam_view", at(|a| a.finish_cam_view, rows(5)), "Where it looks (0x006d8230)."),
+        ("cup_height", at(|a| a.cup_height, array(float(), 5)), "The result's height by server (0x006d82a0)."),
+        ("cup_anms", at(|a| a.cup_anms, array(ptr(cstr()), 4)), "The cup's clip by rank (0x006d8310)."),
+        ("place_anms", at(|a| a.place_anms, array(ptr(cstr()), 4)), "The place's clip by rank (0x006d8320)."),
+        ("timer_cells", at(|a| a.timer_cells, array(fixed(I32, 2), 8)), "The timer's eight cells (0x006d85d0)."),
+        (
+            "flag_markers",
+            at(|a| a.flag_markers, array(opt(fixed(ptr(cstr()), 3)), 6)),
+            "The flags' marker dummies by town (0x006d80b0).",
+        ),
+        (
+            "flag_cluts",
+            at(|a| a.flag_cluts, array(opt(cstr()), 3)),
+            "Each flag's palette, none for the first (0x006d80c8).",
+        ),
+        ("walk_kind", at(|a| a.walk_kind, rows(9)), "Where the chosen Grunty walks by kind (0x0061ce80)."),
+        ("walk_server", at(|a| a.walk_server, rows(5)), "Kind 0's by server (0x0061ce30)."),
+        (
+            "prizes",
+            at(|a| a.prizes, array(fixed(prize(), 5), 4)),
+            "The prizes by server 1-4 and result 0-4 (0x00682230).",
+        ),
+        (
+            "prizes_gone",
+            at(|a| a.prizes_gone, array(fixed(prize(), 5), 4)),
+            "What is given once a rank's three are gone (0x00682280).",
+        ),
+        (
+            "wallpapers",
+            at(|a| a.wallpapers, array(I16, 5)),
+            "The wallpapers: the Grand Slam's, then each server's first place (0x006822d0).",
+        ),
+        ("greet_va", at(|a| a.greet, addr()), "Flag Race's greeting record (0x00660b90)."),
+        ("results_va", at(|a| a.results, addr()), "Its results' records, nine (0x00660cc0)."),
+    ];
+    group(
+        "race",
+        "Race",
+        "The Flag Race's tables (Mutation on; found through its code).",
+        entries
+            .into_iter()
+            .map(|(n, l, d)| {
+                derived(n, l, GCMN, d).absent(Vol::Inf, if n.ends_with("_va") { Value::Int(0) } else { none() })
+            })
+            .collect(),
+    )
 }
 
 /// The Flag Race's texts after `helpStr`, as its menus split them.
@@ -4200,6 +4286,7 @@ pub fn groups() -> Rc<Vec<Group>> {
         talk(),
         voice(),
         book(),
+        race(),
     ]);
     GROUPS.with(|x| *x.borrow_mut() = Some(g.clone()));
     g

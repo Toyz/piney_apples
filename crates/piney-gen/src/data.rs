@@ -27,6 +27,7 @@ pub const IN_BUILD: &[&str] = &[
     "nameentry",
     "newgame",
     "party_chat",
+    "race",
     "staffroll",
     "stream",
     "talk",

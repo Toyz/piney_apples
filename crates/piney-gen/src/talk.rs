@@ -106,11 +106,14 @@ fn is_record(c: &Ctx, va: u32) -> bool {
     emode < 0x10000 && (name == 0 || text(c, name).is_some()) && (t == 0 || text(c, t).is_some_and(|x| !x.is_empty()))
 }
 
-/// (kind, count) of an object nothing declares, by its words.
+/// (kind, count) of an object nothing declares, by its words: records
+/// while they have an `emode`, and the one a record of `emode` 1 chains to
+/// (`Check(1)` goes on to the next) whatever its own.
 fn shape(c: &Ctx, va: u32) -> (Kind, u32) {
     if is_record(c, va) {
+        let emode = |k: u32| c.p.u32(va + RECORD * k).unwrap_or(0);
         let mut n = 1;
-        while n < 64 && is_record(c, va + RECORD * n) && c.p.u32(va + RECORD * n).unwrap_or(0) != 0 {
+        while n < 64 && is_record(c, va + RECORD * n) && (emode(n) != 0 || emode(n - 1) & 0xff == 1) {
             n += 1;
         }
         return (Kind::Rec, n);
@@ -143,6 +146,10 @@ fn roots(v: Vol) -> Vec<u32> {
         }
     }
     out.extend(get("fieldui", "spc_msg_tbl").list().iter().map(|w| w.int() as u32).filter(|&w| w != 0));
+    // From Mutation on, the Flag Race's greeting and its results' table.
+    for k in ["greet_va", "results_va"] {
+        out.push(get("race", k).int() as u32);
+    }
     for k in [
         "spc_msg_present10_va",
         "spc_msg_present11_va",

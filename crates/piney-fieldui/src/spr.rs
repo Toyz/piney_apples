@@ -407,6 +407,19 @@ pub fn set_clm(s: &mut Spr, c: i32, u: i32, v: i32, wi: i32) {
     s.wi = wi;
 }
 
+/// `ccKanji::SetClm(c, u, v, wi)` for a kt 2 / 3 kanji (12 x 20 glyph
+/// cells, the large font).
+pub fn set_clm_large(s: &mut Spr, c: i32, u: i32, v: i32, wi: i32) {
+    let (w, h) = (12, 20);
+    s.sx = (c * w) as f32;
+    s.su = c * w;
+    s.sy = h as f32;
+    s.sv = h;
+    s.wu = (u * w) << 4;
+    s.wv = (v * h) << 4;
+    s.wi = wi;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

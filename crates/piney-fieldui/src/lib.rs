@@ -130,6 +130,15 @@ pub enum Request {
     ChangeArea { area: i32, n: i32 },
     /// `ccGame.areaLevel = v`: the battle level the keyword screen showed.
     AreaLevel(i32),
+    // --- The Flag Race (menu 88, [`menus::flag_race`]), from Mutation on ---
+    /// 0x005ff820(kind): the race's task started with the Grunty of that
+    /// kind.
+    RaceStart(i32),
+    /// The race quit from its pause: the timer stopped (+0xa4 0), the
+    /// state over (+0xa3 1).
+    RaceQuit,
+    /// The menu done with the race (+0xa5 1): its end begins.
+    RaceDone,
     // --- The gate hack (menu 62, [`menus::hack`]) ---
     /// `ccSndGateHack(n)` (main 0x00180780): 0 the field's music fades out
     /// over 20 frames (`ccSnd.gateHack` 1, then `ccSound::ccSceneFade`), 1

@@ -107,6 +107,38 @@ RIDE = [("pos", 0x40, "v"), ("pos_p", 0x50, "v"), ("rot", 0x60, "v"), ("hit_attr
         ("cycle", 0x104, "w"), ("pos_view", 0x110, "v"), ("pos_eye", 0x130, "v"), ("angle", 0x140, "v"),
         ("move_pos", 0x150, "v"), ("move_ease", 0x160, "v"), ("hit_sw", 0x170, "w"), ("hit_radius", 0x184, "w"),
         ("hit_height", 0x188, "w"), ("hit_pos", 0x190, "v"), ("hit_offset", 0x1A0, "v")]
+# From Mutation on the object is 0x250 bytes: past the flags the members
+# move 0x50 on, the eyes and the moves 0x60, the body 0x80 (MUT gcmn
+# 0x0052dd10, the constructor; 0x00530360 CameraPosSet).
+LATER = volume.NAME != "infection"
+if LATER:
+    _move = {"act": 0x132, "act_old": 0x134, "anm_end": 0x136, "idle": 0x138, "speed": 0x13C, "speed_rate": 0x140,
+             "now_speed": 0x144, "set_t": 0x148, "kind": 0x150, "cycle": 0x154, "pos_view": 0x170,
+             "pos_eye": 0x190, "angle": 0x1A0, "move_pos": 0x1B0, "move_ease": 0x1C0, "hit_sw": 0x1F0,
+             "hit_radius": 0x204, "hit_height": 0x208, "hit_pos": 0x210, "hit_offset": 0x220}
+    RIDE = [(n, _move.get(n, off), k) for n, off, k in RIDE]
+# The body's kind words, the Grunty's file, clump and anm, the object's size.
+HIT = 0x1F0 if LATER else 0x170
+PG_FILE, PG_ANM = (0x240, 0x248) if LATER else (0x1C0, 0x1C8)
+SIZE = 0x260 if LATER else 0x200
+RACE = BASE + 0x8000        # the Flag Race's object (Mutation on)
+
+
+def race_ptr(g):
+    """The Flag Race's object pointer (MUT 0x0038bd44): the $gp word
+    ControlMove loads that has no name (the race's handling)."""
+    import mips  # noqa: F401
+    m, sym = g.m, g.sym
+    lo, hi = volume.span("ControlMove__11ccPuccigusoFv")
+    gp = volume.program(ELF).gp
+    named = {sym(n) for n in ("game", "ccSys", "activeCamPtr", "camID")}
+    for a in range(lo, hi, 4):
+        w = m.load(a, 4)
+        if w >> 16 == 0x8F82:
+            t = (gp + (w & 0xFFFF) - (0x10000 if w & 0x8000 else 0)) & 0xFFFFFFFF
+            if t not in named and volume.program(ELF).name_at(t) is None:
+                return t
+    raise AssertionError("ControlMove loads no race pointer")
 
 
 def fb(x):
@@ -149,6 +181,7 @@ class RideGame:
         self.glob = {n: sym(n) for n in ("pgR", "pgDIN", "pgRideFlag", "pcgs", "camTypeLock", "dneFlag",
                                          "hitResultNum", "camID", "activeCamPtr", "worldman", "ccMenu")}
         self.hit_near = sym("hitResultNearest")
+        self.race_ptr = race_ptr(g) if LATER else None
         m.store(self.glob["activeCamPtr"], 4, CAM)
         m.store(self.glob["worldman"], 4, WM)
         m.store(sym("active__9ccDrawEnv"), 4, DRAWENV)
@@ -178,7 +211,7 @@ class RideGame:
         m = self.m
         if anm == m.load(OBJ + 0xD4, 4):
             return 0
-        if anm == m.load(OBJ + 0x1C8, 4):
+        if anm == m.load(OBJ + PG_ANM, 4):
             return 1
         return -1
 
@@ -345,7 +378,7 @@ class RideGame:
     def put(self, c):
         """The ride, the globals, the camera and the script."""
         m, g = self.m, self.g
-        m.mem[OBJ:OBJ + 0x200] = bytes(0x200)
+        m.mem[OBJ:OBJ + SIZE] = bytes(SIZE)
         r = c["ride"]
         for name, off, k in RIDE:
             v = r[name]
@@ -359,11 +392,11 @@ class RideGame:
                 m.store(OBJ + off, 4, v)
         m.store(OBJ, 4, PCGS_TBL)
         m.store(OBJ + 0x90, 4, 1)
-        m.store(OBJ + 0x174, 4, 0xFFFFFFFF)
-        m.store(OBJ + 0x178, 4, 0x40000001)
-        m.store(OBJ + 0x17C, 4, 0x01000000)
+        m.store(OBJ + HIT + 4, 4, 0xFFFFFFFF)
+        m.store(OBJ + HIT + 8, 4, 0x40000001)
+        m.store(OBJ + HIT + 0xC, 4, 0x01000000)
         m.store(OBJ + 0xD4, 4, ANM_K)
-        m.store(OBJ + 0x1C8, 4, ANM_P)
+        m.store(OBJ + PG_ANM, 4, ANM_P)
         for a, fs in ((ANM_K, r["fs"][0]), (ANM_P, r["fs"][1])):
             m.mem[a:a + 0x110] = bytes(0x110)
             m.store(a + 0x9C, 2, fs)
@@ -388,6 +421,12 @@ class RideGame:
         for i, v in enumerate(inp["bounds"]):
             m.store(WM + 0x420 + 4 * i, 4, v)
         m.store(0x01021000 + 0x14, 4, inp["area"])
+        if LATER:
+            # The race's handling, read by ControlMove in a town.
+            m.mem[RACE:RACE + 0xB0] = bytes(0xB0)
+            for k, v in enumerate(inp.get("race") or []):
+                m.store(RACE + 0x64 + 4 * k, 4, v)
+            m.store(self.race_ptr, 4, RACE if inp.get("race") else 0)
         m.store(self.glob["pgR"], 4, c["g"][0])
         m.store(self.glob["pgDIN"], 4, c["g"][1])
         cam = c["cam"]
@@ -455,7 +494,7 @@ class RideGame:
     def ctor(self, kind, rand, pos, rot, c):
         m = self.m
         self.put(c)
-        m.mem[OBJ:OBJ + 0x200] = bytes(0x200)
+        m.mem[OBJ:OBJ + SIZE] = bytes(SIZE)
         self.put_vec(KITE + 0x40, pos)
         self.put_vec(KITE + 0x60, rot)
         self.g.set_rand(rand)
@@ -467,7 +506,7 @@ class RideGame:
         m.call(self.sym("__ct__11ccPuccigusoFi"), (OBJ, kind))
         m.store(ANM_K + 0x9C, 2, 256)
         m.store(ANM_P + 0x9C, 2, 256)
-        k, p = m.load(OBJ + 0xD4, 4), m.load(OBJ + 0x1C8, 4)
+        k, p = m.load(OBJ + 0xD4, 4), m.load(OBJ + PG_ANM, 4)
         names = [cstr(m, tbl + 21 * i) for i in range(7)]
         # the anms' frame speed as the probe starts them; their note function
         out = {"ride": self.read()[:-2] + [256, 256], "rand": self.g.rand_now(),
@@ -517,6 +556,10 @@ def rnd_case(rnd, frames=1):
     pow_l = rnd.choice([0, 0, rnd.randrange(256), rnd.randrange(64, 128), rnd.randrange(200, 256), 255, 241])
     inp = {"pow_l": pow_l, "dirc_l": rf(rnd, -math.pi, math.pi), "pause": int(rnd.random() < 0.1),
            "dne": int(rnd.random() < 0.1), "bounds": [0, 0, BOUND, BOUND], "area": rnd.choice([1, 1, 1, 0, 2])}
+    if LATER and inp["area"] == 0:
+        # The Flag Race's handling (its tables' range: top 50-70, acceleration
+        # 0.2-1, easings 0.03-0.125).
+        inp["race"] = [rf(rnd, 50, 70), rf(rnd, 0.2, 1), rf(rnd, 0.03, 0.125), rf(rnd, 0.03, 0.125)]
     cam = {"type": rnd.choice([3, 3, 3, 1, 1, 2, 0]), "id": rnd.choice([1, 1, 0, 2]),
            "rot": [0, 0, rf(rnd, -math.pi, math.pi), ONE], "reset": int(rnd.random() < 0.25)}
     cam["reset_dirc"] = rnd.choice([rf(rnd, -math.pi, math.pi),
@@ -577,8 +620,9 @@ def ser_cam(c):
 
 def ser_case(c):
     i = c["input"]
+    race = [1] + i["race"] if i.get("race") else [0]
     return (ser_ride(c["ride"]) + [i["pow_l"], i["dirc_l"], i["pause"], i["dne"]] + i["bounds"] + [i["area"]]
-            + c["g"] + [c["rand"]] + ser_cam(c["cam"]) + ser_script(c["script"]))
+            + race + c["g"] + [c["rand"]] + ser_cam(c["cam"]) + ser_script(c["script"]))
 
 
 class Probe:
@@ -725,9 +769,21 @@ class RideAgainstGame(unittest.TestCase):
         for _ in range(40):
             self.exit_case(rnd)
 
+    def spc_sleep_wake(self):
+        """ccSpcSleep and ccSpcWakeup: from Mutation on each takes the town
+        flag (MUT gcmn 0x005cbb40, carried as ccSpcWakeup__Fv, and the
+        wake 0x30 on)."""
+        sym = self.game.sym
+        if not LATER:
+            return sym("ccSpcSleep__Fv"), sym("ccSpcWakeup__Fv")
+        sleep = sym("ccSpcWakeup__Fv")
+        return sleep, sleep + 0x30
+
     def exit_case(self, rnd):
         game = self.game
         m, sym = game.m, game.sym
+        body = OBJ + (0x1F0 if LATER else 0x170)
+        sleep, wake = self.spc_sleep_wake()
         c = rnd_case(rnd)
         game.put(c)
         kind = c["ride"]["kind"]
@@ -758,7 +814,7 @@ class RideAgainstGame(unittest.TestCase):
         rec = log.append
         hooks = {
             "ccDeleteCmnd__FP6ccChar": lambda mm, a, *_: rec(["ccDeleteCmnd", a]) or 0,
-            "HitDisable__9ccCharHitFv": lambda mm, h, *_: rec(["HitDisable", h - 0x1A0 if h != OBJ + 0x170
+            "HitDisable__9ccCharHitFv": lambda mm, h, *_: rec(["HitDisable", h - 0x1A0 if h != body
                                                                 else "pcgs"]) or 0,
             "HitEnable__9ccCharHitFv": lambda mm, h, *_: rec(["HitEnable", h - 0x1A0]) or 0,
             "EntryFade__8ccScFadeFiiiffff": lambda mm, f, a, b, cc, *_: rec(
@@ -768,15 +824,17 @@ class RideAgainstGame(unittest.TestCase):
             "DeleteFade__8ccScFadeFi": lambda mm, f, i, *_: rec(["DeleteFade", s32(i)]) or 0,
             "Main__11ccPuccigusoFv": lambda mm, *_: rec(["Main"]) or 0,
             "ccBreathThread__Fi": lambda mm, *_: rec(["Breath"]) or 0,
-            "ccSpcWakeup__Fv": lambda mm, *_: rec(["ccSpcWakeup"]) or 0,
             "ccPgBgmEnd__Fi": lambda mm, n, *_: rec(["ccPgBgmEnd", s32(n)]) or 0,
             "__dt__11ccPuccigusoFv": lambda mm, a, b, *_: rec(["~ccPucciguso"]) or 0,
             "ccFileListDeleteOne__FP10ccFileList": lambda mm, fl, *_: rec(
                 ["ccFileListDeleteOne", m.load(fl, 4), cstr(mm, m.load(fl + 4, 4))]) or 0,
         }
-        saved = {sym(n): m.hooks.get(sym(n)) for n in hooks}
-        for n, f in hooks.items():
-            m.hooks[sym(n)] = f
+        hooks = {sym(n): f for n, f in hooks.items()}
+        hooks[wake] = (lambda mm, t, *_: rec(["ccSpcWakeup", s32(t)]) or 0) if LATER else (
+            lambda mm, *_: rec(["ccSpcWakeup"]) or 0)
+        saved = {a: m.hooks.get(a) for a in hooks}
+        for a, f in hooks.items():
+            m.hooks[a] = f
         menu = m.load(sym("ccMenu"), 4)
         m.store(menu + 0xFE, 2, 1)
         m.store(menu + 0xC, 2, 3)
@@ -797,15 +855,26 @@ class RideAgainstGame(unittest.TestCase):
                     m.hooks[a] = f
         file = cstr(m, m.load(sym("puccigusoCharTbl") + 4 * kind, 4))
         tail = [["~ccPucciguso"], ["ccFileListDeleteOne", 11, file]]
-        if din or area != 1:
+        if din or (area != 1 and not (LATER and area == 0)):
             want = [["ccPgBgmEnd", 1]] + tail
+        elif area == 0:
+            # From Mutation on, in a town (the Flag Race): no fade nor
+            # music, Kite's slot alone, the menu's panels and ban kept.
+            want = [["ccDeleteCmnd", OBJ], ["HitDisable", "pcgs"]]
+            used, party, dead, cid, ch = members[0]
+            if used and party == 1 and not dead:
+                want.append(["HitEnable", ch])
+            want += [["ccSpcWakeup", 1]] + tail
+            self.assertEqual(m.load(menu + 0xC, 2), 3)
+            self.assertEqual(m.load(menu + 0xFE, 2), 1)
         else:
             want = [["ccDeleteCmnd", OBJ], ["HitDisable", "pcgs"],
                     ["EntryFade", 10, 0, 0x80000000, 0, 0, fb(512.0), fb(384.0)]]
             for used, party, dead, cid, ch in members:
                 if used and party == 1 and not dead:
                     want.append(["HitEnable", ch])
-            want += [["ccSpcWakeup"], ["ContinueFade", 7, 15, 0], ["DeleteFade", 7], ["ccPgBgmEnd", 0]] + tail
+            woke = ["ccSpcWakeup", 0] if LATER else ["ccSpcWakeup"]
+            want += [woke, ["ContinueFade", 7, 15, 0], ["DeleteFade", 7], ["ccPgBgmEnd", 0]] + tail
             for i, (used, party, dead, cid, ch) in enumerate(members):
                 if not (used and party == 1 and cid != 0):
                     continue
@@ -823,6 +892,7 @@ class RideAgainstGame(unittest.TestCase):
         rnd = random.Random(10)
         game = self.game
         m, sym = game.m, game.sym
+        sleep, _ = self.spc_sleep_wake()
         for _ in range(30):
             mgr = sym("ccSpcManager")
             members = []
@@ -843,7 +913,6 @@ class RideAgainstGame(unittest.TestCase):
                 "EntryFade__8ccScFadeFiiiffff": lambda mm, f, a, b, cc, *_: rec(
                     ["EntryFade", s32(a), s32(b), cc, mm.f[12], mm.f[13], mm.f[14], mm.f[15]]) or 5,
                 "CheckFade__8ccScFadeFi": lambda mm, *_: 0,
-                "ccSpcSleep__Fv": lambda mm, *_: rec(["ccSpcSleep"]) or 0,
                 "HitDisable__9ccCharHitFv": lambda mm, h, *_: rec(["HitDisable", h - 0x1A0]) or 0,
                 "ClearConditionEffect__6ccCharFv": lambda mm, a, *_: rec(["ClearConditionEffect", a]) or 0,
                 "ccLoadFLAddOne__FP10ccFileList": lambda mm, fl, *_: rec(
@@ -856,9 +925,12 @@ class RideAgainstGame(unittest.TestCase):
                 or 0,
                 "ccBreathThread__Fi": lambda mm, *_: rec(["Breath"]) or 0,
             }
-            saved = {sym(n): m.hooks.get(sym(n)) for n in hooks}
-            for n, f in hooks.items():
-                m.hooks[sym(n)] = f
+            hooks = {sym(n): f for n, f in hooks.items()}
+            hooks[sleep] = (lambda mm, t, *_: rec(["ccSpcSleep", s32(t)]) or 0) if LATER else (
+                lambda mm, *_: rec(["ccSpcSleep"]) or 0)
+            saved = {a: m.hooks.get(a) for a in hooks}
+            for a, f in hooks.items():
+                m.hooks[a] = f
             menu = m.load(sym("ccMenu"), 4)
             m.store(menu + 0xFE, 2, 0)
             m.store(menu + 0xC, 2, 1)
@@ -870,6 +942,7 @@ class RideAgainstGame(unittest.TestCase):
             for n in ("pgRideFlag", "pgDIN"):
                 m.store(game.glob[n], 4, 7)
             m.store(tcb + 0x14, 4, 0)
+            m.store(tcb + 0x18, 4, 0xFFFF)
             try:
                 m.call(sym("ccPuccigusoStart__Fi"), (kind,))
             finally:
@@ -878,19 +951,32 @@ class RideAgainstGame(unittest.TestCase):
                         m.hooks.pop(a, None)
                     else:
                         m.hooks[a] = f
-            if area != 1 or pg_r:
+            town = LATER and area == 0
+            if (area != 1 and not town) or pg_r:
                 self.assertEqual(log, [])
                 self.assertEqual(m.load(game.glob["pgRideFlag"], 4), 7)
                 continue
             file = cstr(m, m.load(sym("puccigusoCharTbl") + 4 * kind, 4))
-            want = [["ccPgBgmInit"], ["EntryFade", 10, 0, 0x80000000, 0, 0, fb(512.0), fb(384.0)], ["ccSpcSleep"]]
-            for used, party, ch in members:
+            thread = [["ccLoadFLAddOne", 11, file], ["ccStartThread", sym("ccThPucciguso__FP6ccTscb"), 49, 0x800]]
+            if town:
+                # From Mutation on, in a town: no music nor fade, Kite's slot
+                # alone asleep (ccSpcSleep(1)), the task told it is a town's.
+                want = [["ccSpcSleep", 1]]
+                used, party, ch = members[0]
                 if used and party == 1:
                     want += [["HitDisable", ch], ["ClearConditionEffect", ch]]
-            want += [["ccLoadFLAddOne", 11, file], ["ccStartThread", sym("ccThPucciguso__FP6ccTscb"), 49, 0x800],
-                     ["ContinueFade", 5, 15, 0], ["DeleteFade", 5], ["ccBgmPlay", 0, 0]]
+                want += thread
+            else:
+                want = [["ccPgBgmInit"], ["EntryFade", 10, 0, 0x80000000, 0, 0, fb(512.0), fb(384.0)],
+                        ["ccSpcSleep", 0] if LATER else ["ccSpcSleep"]]
+                for used, party, ch in members:
+                    if used and party == 1:
+                        want += [["HitDisable", ch], ["ClearConditionEffect", ch]]
+                want += thread + [["ContinueFade", 5, 15, 0], ["DeleteFade", 5], ["ccBgmPlay", 0, 0]]
             self.assertEqual(log, want)
             self.assertEqual(m.load(tcb + 0x14, 4), kind)
+            if LATER:
+                self.assertEqual(m.load(tcb + 0x18, 4), int(town))
             self.assertEqual([m.load(game.glob[n], 4) for n in ("pgRideFlag", "pgR", "pgDIN")], [1, 1, 0])
             self.assertEqual([m.load(menu + 0xFE, 2), m.load(menu + 0xC, 2)], [1, 3])
 

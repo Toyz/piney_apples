@@ -202,6 +202,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut trade = false;
     let mut drops: Vec<usize> = Vec::new();
     let mut growths: HashMap<usize, i8> = HashMap::new();
+    // race F STATE RANK RUNNING TIME / norace F: the Flag Race's object as
+    // menu 88 reads it from frame F; with any, its state, timer and done
+    // flag go in each frame's state.
+    let mut races: HashMap<usize, Option<piney_fieldui::menus::flag_race::RaceView>> = HashMap::new();
+    let mut race_done = false;
     let mut pg_msgs: HashMap<usize, i8> = HashMap::new();
     let mut breed = false;
     let stdin = io::stdin();
@@ -472,6 +477,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 pg_msgs.insert(n(1) as usize, n(2) as i8);
             }
             "breed" => breed = true,
+            "race" => {
+                let v = piney_fieldui::menus::flag_race::RaceView {
+                    state: n(2) as i8,
+                    rank: n(3) as i8,
+                    running: n(4) != 0,
+                    time: n(5) as i16,
+                };
+                races.insert(n(1) as usize, Some(v));
+            }
+            "norace" => {
+                races.insert(n(1) as usize, None);
+            }
             "spcmsg" => {
                 piney_fieldui::menus::talk::set_spc_base_msg(&mut save, volume);
             }
@@ -623,6 +640,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         }
                     }
+                    if let Some(v) = races.get(&fr) {
+                        world.race = *v;
+                        race_done &= v.is_some();
+                    }
                     if let Some(g) = world.grunty.as_mut() {
                         if let Some(&v) = growths.get(&fr) {
                             g.growth = v;
@@ -740,7 +761,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     for d in ui.draws() {
                         match d {
                             Draw::Send(ps) => pk.extend(ps.iter().map(packet)),
-                            Draw::Kanji { obj, text, packets } => {
+                            Draw::Kanji { obj, text, packets, .. } => {
                                 if !packets.is_empty() {
                                     kanji.push(format!("[\"{}\",{}]", obj.name(), jstr(text)));
                                 }
@@ -826,6 +847,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
                             Request::AreaLevel(v) => world.game.area_level = *v,
+                            Request::RaceQuit => {
+                                if let Some(r) = world.race.as_mut() {
+                                    r.running = false;
+                                    r.state = 1;
+                                }
+                            }
+                            Request::RaceDone => race_done = true,
                             Request::AddMember(id) => {
                                 // inviteSpc: the member from the scenario's
                                 // characters, into the first free slot.
@@ -998,6 +1026,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             Request::BookStream(None) => String::new(),
                             Request::StrParty(flags) => format!("[\"str_party\",{flags}]"),
+                            Request::RaceStart(kind) => format!("[\"race_start\",{kind}]"),
+                            Request::RaceQuit | Request::RaceDone => String::new(),
                             Request::DrainEnemy(h) => format!("[\"drain_enemy\",{h}]"),
                             Request::DataDrain { .. } if std::mem::take(&mut drain_target_cleared) => {
                                 "[\"target\",0]".into()
@@ -1080,6 +1110,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         st.push(world.grunty.map_or(0, |g| g.growth).to_string());
                         let g = world.grunty.unwrap_or_default();
                         st.extend([g.msg.to_string(), g.food_mode.to_string(), g.chat_flag.to_string()]);
+                    }
+                    if !races.is_empty() {
+                        let v = match world.race {
+                            Some(r) => [i32::from(r.state), i32::from(r.running), i32::from(race_done)],
+                            None => [-9; 3],
+                        };
+                        st.extend(v.iter().map(|v| v.to_string()));
                     }
                     if ctor_fields {
                         st.extend(ctor_members(&ui.ctrl).iter().map(|v| v.to_string()));

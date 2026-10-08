@@ -64,6 +64,7 @@ const K3: F = 0x4040_0000;
 const K10: F = 0x4120_0000;
 const K100: F = 0x42c8_0000;
 const K140: F = 0x430c_0000;
+const K125: F = 0x42fa_0000;
 const K150: F = 0x4316_0000;
 const K190: F = 0x433e_0000;
 const K240: F = 0x4370_0000;
@@ -71,6 +72,9 @@ const K250: F = 0x437a_0000;
 const K255: F = 0x437f_0000;
 const K256: F = 0x4380_0000;
 const HALF: F = 0x3f00_0000;
+/// 0.7 and 19: a town's body for the ride (from Mutation on).
+const K07: F = 0x3f33_3333;
+const K19: F = 0x4198_0000;
 /// 1.3, the walk's most; 6.2 its speed at 1.0.
 const WALK_MAX: F = 0x3fa6_6666;
 const WALK_SPEED: F = 0x40c6_6666;
@@ -230,6 +234,8 @@ pub struct Ride {
     pub hit: CharHit,
     /// Both players' `frameSpd` (+0x9c) as [`anim_ctrl`] last set them.
     pub frame_spd: [u16; 2],
+    /// The volume's code is Mutation's or later (a town's rules in area 0).
+    pub later: bool,
 }
 
 /// `pgR` (0x00378c28) and `pgDIN` (0x00378c2c): riding, and a dungeon's
@@ -255,6 +261,20 @@ pub struct Input {
     /// distances (4000 over 400) in area 0, else the field's (7000 over
     /// 600).
     pub area: i32,
+    /// From Mutation on, in a town: the Flag Race's handling of the
+    /// Grunty ridden (the race's +0x64-+0x70).
+    pub race: Option<RaceRide>,
+}
+
+/// The Flag Race's handling of the Grunty ridden (MUT gcmn race object
+/// +0x64-+0x70, from the race's tables by the Grunty's kind): the top
+/// speed, the acceleration, and the move's easing leaning and not.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RaceRide {
+    pub max: F,
+    pub accel: F,
+    pub ease_on: F,
+    pub ease_off: F,
 }
 
 /// What the ride hands the rest of the game, in the game's order.
@@ -375,11 +395,13 @@ impl Ride {
                 mask2: WALL,
                 kind: BODY_KIND,
                 radius: K100,
-                height: K100,
+                // From Mutation on 25 over the radius (MUT gcmn 0x0052e030).
+                height: if t.volume == Volume::Inf { K100 } else { K125 },
                 pos: plw_pos,
                 ..CharHit::default()
             },
             frame_spd: [256, 256],
+            later: t.volume != Volume::Inf,
         };
         w.hit_switch(&mut r.hit, true);
         w.anim_set(RideAnm::Kite, t.anim(r.act));
@@ -395,6 +417,9 @@ impl Ride {
 /// draws (Kite's clump, then the Grunty's, [`draw_pg`]). The order is in
 /// docs/engine/grunty-ride.md ("A frame: Main").
 pub fn main(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, g: &mut Globals, t: &RideTables, rng: &mut dyn Rng) {
+    if t.volume != Volume::Inf {
+        return main_later(r, w, input, g, t, rng);
+    }
     r.flags = (r.flags & !flag::PAUSE) | u8::from(input.pause);
     r.move_pos = VF0;
     control_move(t.volume, r, w, input, rng);
@@ -448,7 +473,87 @@ pub fn main(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, g: &mut Globals,
     w.out(Out::Player { pos: r.pos, rot: r.rot, pause: r.flags & flag::PAUSE != 0 });
     camera_pos_calc(r);
     camera_pos_set(r, w);
-    anim_ctrl(r, w, t, rng);
+    anim_ctrl(r, w, t, input, rng);
+    let tr = if r.flags & flag::LOST_HEAD != 0 { 0 } else { r.set_transparency };
+    r.transparency = tr;
+    r.char_set_transparency = tr;
+    r.transparency = w.draw(r.pos, r.char_set_transparency);
+    draw_pg(r, w, input);
+    r.cycle = r.cycle.wrapping_add(1);
+}
+
+/// Mutation's `ccPucciguso::Main()` (MUT gcmn 0x0052e3a0), also
+/// Outbreak's and Quarantine's. Infection's but for the body and the
+/// walls:
+/// - in a town the body is 0.7 of the Grunty's width (`pcgsTbl` +0x1c)
+///   round and 19 more high, set before each push; in a field its
+///   radius is 100 plus `nowSpeed` as before;
+/// - a wall between the ride and where the pushes left it stops the
+///   move, and so does one between it and where the move takes it.
+fn main_later(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, g: &mut Globals, t: &RideTables, rng: &mut dyn Rng) {
+    let town = input.area == 0;
+    r.flags = (r.flags & !flag::PAUSE) | u8::from(input.pause);
+    r.move_pos = VF0;
+    control_move(t.volume, r, w, input, rng);
+    let body = |r: &mut Ride| {
+        if town {
+            r.hit.radius = mul(K07, SIZE);
+            r.hit.height = add(K19, r.hit.radius);
+        } else {
+            r.hit.radius = add(K100, r.now_speed);
+        }
+    };
+    let raised = |mut v: V4, h: F| {
+        v[2] = add(v[2], h);
+        v
+    };
+    let mut hp = moved(r.move_pos, r.pos);
+    hp[2] = w.land(hp, LAND);
+    r.hit.pos = hp;
+    body(r);
+    if w.collide(&mut r.hit) != 0 {
+        hp = moved(geom::vadd(r.move_pos, r.hit.offset), r.pos);
+        hp[2] = w.land(hp, LAND);
+        r.hit.pos = hp;
+        if town {
+            body(r);
+        }
+        if w.collide(&mut r.hit) != 0 {
+            let mut h2 = geom::vadd(hp, r.hit.offset);
+            h2[2] = w.land(h2, LAND);
+            h2[3] = ONE;
+            hp = geom::vscale(geom::vadd(hp, h2), HALF);
+            hp[3] = ONE;
+            hp[2] = w.land(hp, LAND);
+        }
+        let h = r.hit.height;
+        r.move_pos = if geom::eq(MINUS_ONE, w.line(raised(r.pos, h), raised(hp, h), WALL)) {
+            geom::vsub(hp, r.pos)
+        } else {
+            VF0
+        };
+        let mut to = geom::vadd(r.pos, r.move_pos);
+        to[3] = ONE;
+        if !geom::eq(MINUS_ONE, w.line(raised(r.pos, h), raised(to, h), WALL)) {
+            r.move_pos = VF0;
+        }
+    } else {
+        let h = r.hit.height;
+        if !geom::eq(MINUS_ONE, w.line(raised(r.pos, h), raised(hp, h), WALL)) {
+            r.move_pos = VF0;
+        }
+    }
+    r.pos[0] = add(r.pos[0], r.move_pos[0]);
+    r.pos[1] = add(r.pos[1], r.move_pos[1]);
+    collision_test(r, w, input, g);
+    r.hit_attribute = w.hit_attribute();
+    map_loop_adjust_pos(r, w, input, g);
+    w.out(Out::Matrix { anm: RideAnm::Kite, pos: r.pos, rot: r.rot });
+    w.out(Out::Matrix { anm: RideAnm::Pg, pos: r.pos, rot: r.rot });
+    w.out(Out::Player { pos: r.pos, rot: r.rot, pause: r.flags & flag::PAUSE != 0 });
+    camera_pos_calc(r);
+    camera_pos_set(r, w);
+    anim_ctrl(r, w, t, input, rng);
     let tr = if r.flags & flag::LOST_HEAD != 0 { 0 } else { r.set_transparency };
     r.transparency = tr;
     r.char_set_transparency = tr;
@@ -483,6 +588,9 @@ pub fn pad_lever_power(power: F) -> F {
 /// most 1.3 of it) and runs past 240 at `60 * lean / 255`, and turns to the
 /// heading unless in the eye view (docs/engine/grunty-ride.md, "The stick").
 pub fn control_move(volume: Volume, r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mut dyn Rng) -> i32 {
+    if volume != Volume::Inf {
+        return control_move_later(volume, r, w, input, rng);
+    }
     let mut s0 = (i32::from(geom::rad2deg(add(PI, r.rot[2]))) - 32768) as i16;
     let mut power = pad_lever_power(from_int(i32::from(input.pad.pow_l)));
     if r.flags & flag::PAUSE != 0 {
@@ -556,12 +664,105 @@ pub fn control_move(volume: Volume, r: &mut Ride, w: &mut dyn RideWorld, input: 
     1
 }
 
+/// Mutation's `ccPucciguso::ControlMove()` (MUT gcmn 0x0052e970), the
+/// speed kept frame to frame (`nowSpeed`). Leaning in a town, the race's
+/// acceleration times the walk's or run's speed is added up to its top,
+/// the move easing by `ease_on`; in a field the speed is Infection's. Not
+/// leaning, the move eases back by `ease_off` (a field's 1/8). The heading
+/// follows the stick but in the eye view. The field's charge (flag bit 6)
+/// is not ported.
+fn control_move_later(volume: Volume, r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mut dyn Rng) -> i32 {
+    let town = input.area == 0;
+    let race = input.race.unwrap_or_default();
+    let mut s0 = (i32::from(geom::rad2deg(add(PI, r.rot[2]))) - 32768) as i16;
+    let mut power = pad_lever_power(from_int(i32::from(input.pad.pow_l)));
+    if r.flags & flag::PAUSE != 0 {
+        power = 0;
+    }
+    if geom::eq(power, 0) {
+        r.flags &= !flag::MOVE;
+        let ease = if town { race.ease_off } else { EASE_OFF };
+        r.move_pos[0] = 0;
+        r.move_pos[1] = 0;
+        r.move_ease[0] = add(r.move_ease[0], mul(ease, sub(r.move_pos[0], r.move_ease[0])));
+        r.move_ease[1] = add(r.move_ease[1], mul(ease, sub(r.move_pos[1], r.move_ease[1])));
+        r.move_pos[0] = r.move_ease[0];
+        r.move_pos[1] = r.move_ease[1];
+        // The speed the eased move still makes along the heading.
+        let along = |c: F, m: F| if geom::eq(0, c) { 0 } else { div(m, c) & 0x7fff_ffff };
+        let a = along(sinf(r.rot[2]), r.move_ease[0]);
+        let b = along(cosf(r.rot[2]), mul(MINUS_ONE, r.move_ease[1]));
+        let v = mul(HALF, add(a, b));
+        if lt(v, r.now_speed) {
+            r.now_speed = v;
+        }
+        r.move_ease[2] = 0;
+        if r.cycle & 3 == 0 && !le(geom::length_on(volume, r.move_ease), K10) {
+            let y = f64::from(f32::from_bits(r.move_ease[1]));
+            let x = f64::from(f32::from_bits(r.move_ease[0]));
+            let a = (y.atan2(x) as f32).to_bits();
+            let d = (i32::from(geom::rad2deg(a)) + 16384) as i16;
+            paw_smoke(r, w, geom::deg2rad(d), 15, rng);
+        }
+    } else {
+        r.speed_rate = div(power, K255);
+        r.flags |= flag::MOVE;
+        if !le(power, K240) {
+            r.flags |= flag::RUN;
+        } else {
+            r.flags &= !flag::RUN;
+        }
+        let mut dirc = input.pad.dirc_l;
+        if let Some(reset) = w.camera_reset() {
+            let a = i32::from(geom::rad2deg(reset));
+            let b = i32::from(geom::rad2deg(dirc));
+            if ((a - b).abs() as i16) < 2048 {
+                dirc = PI;
+            } else {
+                w.clear_camera_reset();
+            }
+        }
+        let s = geom::rad2deg(add(PI, dirc));
+        let rot = w.camera_rot();
+        let c = i32::from(geom::rad2deg(add(PI, rot[2]))) - 32768;
+        let c = fptosi(from_int(c)) as i16;
+        s0 = (i32::from(c) - i32::from(s)) as i16;
+        let heading = geom::deg2rad(s0);
+        let run = r.flags & flag::RUN != 0;
+        if !run {
+            r.speed_rate = div(power, K140);
+            if !le(r.speed_rate, WALK_MAX) {
+                r.speed_rate = WALK_MAX;
+            }
+        }
+        let v = match (town, run) {
+            (true, false) => add(r.now_speed, mul(mul(WALK_SPEED, r.speed_rate), race.accel)),
+            (true, true) => add(r.now_speed, mul(race.accel, mul(race.max, r.speed_rate))),
+            (false, false) => mul(WALK_SPEED, r.speed_rate),
+            (false, true) => mul(r.speed, r.speed_rate),
+        };
+        let v = if town && !le(v, race.max) { race.max } else { v };
+        r.now_speed = v;
+        let ease = if town { race.ease_on } else { EASE_ON };
+        r.move_pos[0] = mul(v, sinf(heading));
+        r.move_pos[1] = mul(neg(v), cosf(heading));
+        r.move_ease[0] = add(r.move_ease[0], mul(ease, sub(r.move_pos[0], r.move_ease[0])));
+        r.move_ease[1] = add(r.move_ease[1], mul(ease, sub(r.move_pos[1], r.move_ease[1])));
+        r.move_pos[0] = r.move_ease[0];
+        r.move_pos[1] = r.move_ease[1];
+    }
+    if w.camera_type() != 1 {
+        r.rot[2] = geom::deg2rad(s0);
+    }
+    1
+}
+
 /// `ccPucciguso::AnimCtrl()` (gcmn 0x00511f80): the acts and both players'
 /// clips: the idle fidgets after 451 frames standing, walking (6) and running
 /// (5) by `RUN`, back to 2 on stopping; the frame speed `2 * 256 * speedRate`
 /// walking, `256 * speedRate` running, else 256; the Grunty's notes go to
 /// [`check_note`] (docs/engine/grunty-ride.md, "The acts").
-pub fn anim_ctrl(r: &mut Ride, w: &mut dyn RideWorld, t: &RideTables, rng: &mut dyn Rng) {
+pub fn anim_ctrl(r: &mut Ride, w: &mut dyn RideWorld, t: &RideTables, input: &Input, rng: &mut dyn Rng) {
     if r.act < 4 {
         r.idle = r.idle.wrapping_add(1);
         if r.idle >= 451 {
@@ -582,11 +783,14 @@ pub fn anim_ctrl(r: &mut Ride, w: &mut dyn RideWorld, t: &RideTables, rng: &mut 
             _ => {}
         }
     }
+    // From Mutation on the ride runs from the start in a town, and keeps
+    // running there (MUT gcmn 0x0052fe24, 0x0052ff18).
+    let town = r.later && input.area == 0;
     let stop = r.flags & flag::STOP != 0;
     let moving = r.flags & flag::MOVE != 0;
     if stop && moving {
         r.flags &= !flag::STOP;
-        r.act = act::WALK;
+        r.act = if town { act::RUN } else { act::WALK };
     } else if !stop && !moving {
         r.flags |= flag::STOP;
         if r.act == act::WALK || r.act == act::RUN {
@@ -597,7 +801,7 @@ pub fn anim_ctrl(r: &mut Ride, w: &mut dyn RideWorld, t: &RideTables, rng: &mut 
         let run = r.flags & flag::RUN != 0;
         if run && r.act == act::WALK {
             r.act = act::RUN;
-        } else if !run && r.act == act::RUN {
+        } else if !run && r.act == act::RUN && !town {
             r.act = act::WALK;
         }
     }
@@ -607,6 +811,8 @@ pub fn anim_ctrl(r: &mut Ride, w: &mut dyn RideWorld, t: &RideTables, rng: &mut 
     }
     let spd = match r.act {
         act::WALK => geom::fptoui(mul(K2, mul(K256, r.speed_rate))) as u16,
+        // A town's run plays twice as fast from Mutation on.
+        act::RUN if town => geom::fptoui(mul(mul(K256, r.speed_rate), K2)) as u16,
         act::RUN => geom::fptoui(mul(K256, r.speed_rate)) as u16,
         _ => 256,
     };
@@ -690,7 +896,9 @@ pub fn collision_test(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, g: &mu
     let z = w.land(r.pos, LAND);
     r.pos[2] = z;
     r.pos_p[2] = z;
-    if !input.dne
+    // From Mutation on not in a town (MUT gcmn 0x00530190).
+    if !(r.later && input.area == 0)
+        && !input.dne
         && let Some(attr) = w.hit_result()
         && attr & 0x80000 != 0
     {

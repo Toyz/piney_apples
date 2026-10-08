@@ -276,6 +276,8 @@ pub fn frame(
         dne: false,
         bounds: stage.bounds,
         area,
+        // The Flag Race rides in towns only.
+        race: None,
     };
     let RideObj { ride: rd, tables, kite: kc, pg, notes } = o;
     let mut w = RideStage { stage, kite: kc, pg, notes, player: None };

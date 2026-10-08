@@ -47,7 +47,7 @@ R1, L1 = shop.R1, shop.L1
 Npc = shop.Npc
 
 # The pages this harness ports; the others stay closed at once.
-MINE = (21, 23, 27, 44, 45, 46, 50, 56)
+MINE = (21, 23, 27, 44, 45, 46, 50, 56, 88)
 SPC = 0x7488
 SPC_SIZE = 0xDC
 TALK_NUM = 0x220C
@@ -130,9 +130,45 @@ def after_affect(pg, m, kind):
         m.store(pg + 0x2AF, 1, 7)
 
 
+def race_globals(m):
+    """From Mutation on, the Flag Race's object pointer (MUT 0x0038bd44)
+    and its task's start (0x005ff820, which menu 88 calls), found from the
+    task's name: the task stores the new object to $gp + n after naming
+    itself PG_RACE; the start is the function that loads the task's
+    address."""
+    lo_, hi_ = 0x00400000, 0x00800000
+    mem = bytes(m.mem[lo_:hi_])
+    name = mem.find(b"PG_RACE\0") + lo_
+    words = struct.unpack_from("<%dI" % ((hi_ - lo_) // 4), mem)
+
+    def pair(va):
+        """The first `lui r, hi(va); addiu r, r, lo(va)`."""
+        hi = ((va + 0x8000) >> 16) & 0xFFFF
+        for k in range(len(words) - 1):
+            w, w2 = words[k], words[k + 1]
+            r = (w >> 16) & 31
+            if w >> 26 == 0x0F and w & 0xFFFF == hi and w2 >> 26 == 0x09 and (w2 >> 21) & 31 == r \
+                    and w2 & 0xFFFF == va & 0xFFFF:
+                return k
+        raise AssertionError(hex(va))
+
+    def start_of(k):
+        while not (words[k] >> 16 == 0x27BD and words[k] & 0x8000):
+            k -= 1
+        return lo_ + 4 * k
+
+    k = pair(name)
+    store = next(w for w in words[k:k + 32] if w >> 26 == 0x2B and (w >> 21) & 31 == 28)
+    imm = store & 0xFFFF
+    ptr = (m.p.gp + (imm - 0x10000 if imm & 0x8000 else imm)) & 0xFFFFFFFF
+    task = start_of(k)
+    return ptr, start_of(pair(task))
+
+
 class Scenario(shop.TalkScenario):
     def __init__(self, frames):
         super().__init__(frames)
+        self.races = {}           # frame -> (state, rank, running, time), None gone
         self.spc_msg = False      # SetSpcBaseMsg on the save (both sides)
         self.drops = []           # frames before which cmndTarget is lost
         self.grunty = None        # the Grunty, cmndTargetPrev
@@ -145,6 +181,8 @@ class Scenario(shop.TalkScenario):
         if isinstance(self.target, Spc):
             out.append(f"talkspc {self.target.handle} {self.target.id}")
         out.append("breed")
+        for f, v in sorted(self.races.items()):
+            out.append(f"norace {f}" if v is None else "race %d %d %d %d %d" % ((f,) + tuple(v)))
         if self.spc_msg:
             out.append("spcmsg")
         for f in self.drops:
@@ -176,6 +214,10 @@ class TalkGame(shop.TalkGame):
     def setup(self):
         super().setup()
         m, sc = self.m, self.sc
+        self.race = None
+        if sc.races:
+            self.race_ptr, start = race_globals(m)
+            m.hooks[start] = lambda mm, kind, *a: self.ev("race_start", base.sx32(kind)) or 0
         if sc.spc_msg:
             self.call(sym("SetSpcBaseMsg__10ccSaveDataFv"), [base.SAVE])
         self.pg = None
@@ -254,6 +296,19 @@ class TalkGame(shop.TalkGame):
             # from registers it never set).
             m.store(base.CMNDTARGETPREV, 4, m.load(base.CMNDTARGET, 4))
             m.store(base.CMNDTARGET, 4, 0)
+        if f in sc.races:
+            v = sc.races[f]
+            if v is None:
+                m.store(self.race_ptr, 4, 0)
+            else:
+                if self.race is None:
+                    self.race = self.alloc(0xB0)
+                state, rank, running, time = v
+                m.store(self.race + 0xA3, 1, state & 0xFF)
+                m.store(self.race + 0xA2, 1, rank & 0xFF)
+                m.store(self.race + 0xA4, 1, running)
+                m.store(self.race + 0x90, 2, time & 0xFFFF)
+                m.store(self.race_ptr, 4, self.race)
         if self.pg:
             if f in sc.growth:
                 m.store(self.pg + 0x2AE, 1, sc.growth[f] & 0xFF)
@@ -272,6 +327,9 @@ class TalkGame(shop.TalkGame):
             st += [m.load(e, 2, True), m.load(e + 2, 2, True), m.load(e + 4, 2, True)]
         st.append(m.load(self.pg + 0x2AE, 1, True) if self.pg else 0)
         st += [m.load(self.pg + o, 1, True) if self.pg else 0 for o in (0x2AF, 0x307, 0x306)]
+        if self.sc.races:
+            r = m.load(self.race_ptr, 4)
+            st += [m.load(r + 0xA3, 1, True), m.load(r + 0xA4, 1), m.load(r + 0xA5, 1)] if r else [-9, -9, -9]
         return st, ms
 
 
@@ -728,6 +786,86 @@ class BreederPages(Case):
             self.race_save(sc, server, records=records)
             sc.pads.update({25: (0, DOWN), 33: (0, DOWN), 45: (OK, 0), 120: (key, 0), 170: (CANCEL, 0)})
             self.compare(sc, f"rankings server {server}")
+
+    def flag_race(self, frames, server=1, gold=1000, records=(), prizes=(), walls=0):
+        """The breeder's list, Flag Race (menu 88) chosen at 40; Kite's
+        gold, the town's ranks, the prizes given (server, rank, n) and the
+        wallpapers held; the save's runs the race writes watched."""
+        sc = self.breeder(frames, server=server)
+        self.race_save(sc, server, records=records)
+        sc.saves.append((shop.GOLD[0], 4, gold))
+        for srv, rank, n in prizes:
+            sc.saves.append((0x8462 + 3 * (srv - 1) + rank - 1, 1, n))
+        sc.saves.append((0x2238, 4, walls))
+        sc.watches = [shop.GOLD, (0x8432, 48), (0x8462, 12), (0x2238, 12)]
+        sc.pads.update({25: (0, DOWN), 40: (OK, 0)})
+        return sc
+
+    @unittest.skipIf(base.volume.NAME == "infection", "Mutation on: the Flag Race")
+    def test_flag_race_declined(self):
+        # The greeting, "It costs 100GP": No, or Yes without the money;
+        # the breeder's word, back to the list, cancel.
+        for gold, sel in ((1000, 1), (50, 0), (1000, -1)):
+            sc = self.flag_race(260, gold=gold)
+            for f in range(55, 120, 10):
+                sc.pads[f] = (OK, 0)
+            if sel == 1:
+                sc.pads[130] = (0, DOWN)
+            sc.pads[140] = (CANCEL, 0) if sel == -1 else (OK, 0)
+            for f in range(160, 230, 10):
+                sc.pads[f] = (OK, 0)
+            sc.pads[245] = (CANCEL, 0)
+            sc.races[1] = None
+            self.compare(sc, f"flag race declined gold {gold} sel {sel}")
+
+    def to_race(self, sc, row=0):
+        """Through the greeting (two records), Yes to the cost, Grunty `row`
+        and Yes to the start: the race asked for at 201; its object there
+        from the start, idle."""
+        sc.pads.update({55: (OK, 0), 65: (OK, 0), 90: (OK, 0), 120: (OK, 0), 140: (OK, 0)})
+        for k in range(row):
+            sc.pads[160 + 6 * k] = (0, DOWN)
+        sc.pads.update({180: (OK, 0), 200: (OK, 0)})
+        sc.races[1] = (0, 0, 0, 0)
+
+    @unittest.skipIf(base.volume.NAME == "infection", "Mutation on: the Flag Race")
+    def test_flag_race_paused(self):
+        # The race runs: paused and continued; paused, Quit, No (the pause
+        # again on Quit), Quit, Yes: the timer stopped, the state over; the
+        # result (none), the breeder's word, the prize through GetItemMenu.
+        for row in (0, 1, 2):
+            sc = self.flag_race(600)
+            self.to_race(sc, row)
+            sc.races[205] = (0, 0, 1, 150)
+            sc.pads.update({215: (CANCEL, 0), 230: (OK, 0), 250: (CANCEL, 0), 262: (0, DOWN), 272: (OK, 0),
+                            290: (OK, 0), 305: (OK, 0), 320: (0, UP), 330: (OK, 0)})
+            sc.races[360] = (2, 0, 0, 999)
+            for f in range(380, 580, 12):
+                sc.pads[f] = (OK, 0)
+            self.compare(sc, f"flag race paused row {row}")
+
+    @unittest.skipIf(base.volume.NAME == "infection", "Mutation on: the Flag Race")
+    def test_flag_race_results(self):
+        # The result: the time, the Rankings page with the new rank
+        # blinking (1-3), the breeder's word; a town's first win's
+        # wallpaper (and with three other towns' first wins the Grand
+        # Slam's); a rank's prizes given out; near the third; none.
+        cases = (
+            (1, 1, (), ((0, 1234, 146),)),
+            (1, 1, ((2, 1, 1), (3, 1, 2), (4, 1, 1)), ((0, 1234, 146),)),
+            (2, 2, ((2, 2, 3),), ((1, 2000, 148),)),
+            (1, 3, ((1, 3, 1),), ((2, 3599, 145),)),
+            (3, 4, (), ()),
+            (4, 0, (), ()),
+            (1, 1, ((1, 1, 3),), ((0, 600, 146),)),
+        )
+        for server, rank, prizes, records in cases:
+            sc = self.flag_race(900, server=server, prizes=prizes, records=records)
+            self.to_race(sc, rank % 3)
+            sc.races[220] = (2, rank, 0, 1234 + 100 * rank)
+            for f in range(240, 880, 12):
+                sc.pads[f] = (OK, 0)
+            self.compare(sc, f"flag race server {server} rank {rank} prizes {prizes}")
 
     def test_random_breeder(self):
         for seed in range(1, 7):

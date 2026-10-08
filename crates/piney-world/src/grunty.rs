@@ -22,7 +22,7 @@ use crate::body::{Body, TRALL};
 use crate::char::{Char, View, p2w, w2p};
 use crate::ee::{self, F, ONE, V4, add, cosf, from_int, le, lt, mul, sinf, sub};
 use crate::entry::Npc;
-use crate::hit::{self, UNIT, WALL_MASK};
+use crate::hit::{self, UNIT};
 use crate::merchant::EntryObj;
 use crate::mt::Mt;
 use crate::npc::NpcRow;
@@ -170,10 +170,11 @@ pub const VOICE_GROW: [i32; 9] = [23, 20, 23, 21, 25, 23, 21, 21, 26];
 pub const VOICE_TURN: [i32; 9] = [20, 17, 19, 17, 18, 19, 17, 17, 22];
 pub const VOICE_RUN: [i32; 9] = [26, 23, 25, 23, 27, 25, 23, 23, 28];
 
-/// bodyHit: radius 65, height 60, kind 2.
+/// bodyHit: radius 65, height 60, kind 2 (16 from Mutation on); its
+/// mask2 is left at ccCharHit's -1, which no polygon's attribute holds
+/// all of (`mask_type` 1), so no wall ever pushes a Grunty.
 const RADIUS: F = 0x4282_0000;
 const HEIGHT: F = 0x4270_0000;
-const KIND: u32 = 2;
 /// The body ids of the port's character list: [`BODY_ID`] plus the
 /// Grunty's number.
 pub const BODY_ID: u32 = 0x280;
@@ -453,13 +454,22 @@ pub struct Grunty {
     /// +0x308 transrate[2], +0x310 selFood.
     pub transrate: [F; 2],
     pub sel_food: i32,
+    /// Where `setDog` put it (a grown one's dummy, +0x2c4's): from
+    /// Mutation on the race puts it back there, and the menu's end turns
+    /// it back to the dummy's heading.
+    pub home: (V4, V4),
+    /// A grown one's dummy (`DMY_cdog0` .. 2): from Mutation on +0x2c4
+    /// points at its name.
+    pub home_dummy: Option<&'static str>,
+    /// Mutation's or a later volume's.
+    pub later: bool,
     /// Its number on the port's character list.
     pub num: u32,
     /// What this frame asked for.
     pub events: Vec<GruntyEvent>,
-    /// The notes `NoteProcess` handed on this frame (event, param), in
-    /// order, for the caller to give `inuCheckNote` with `pgPtr`.
-    pub notes: Vec<(u32, u32)>,
+    /// The notes `NoteProcess` handed on this frame, in order, for the
+    /// caller to give `inuCheckNote` with `pgPtr`.
+    pub notes: Vec<NoteAt>,
     /// Each anm's note list as its last `_AnimateForward` left it
     /// (`SetAnm` and `NoteProcess` leave it alone).
     pending_a: Vec<(u32, u32)>,
@@ -511,7 +521,7 @@ impl Tables {
 }
 
 /// The position of dummy `name` in `file` (w 1), and its rotation.
-fn dummy(file: &SceneFile, name: &str) -> Option<(V4, V4)> {
+pub(crate) fn dummy(file: &SceneFile, name: &str) -> Option<(V4, V4)> {
     let d = file.ccs.find_object(name).and_then(|o| file.scene.dummies.get(&o))?;
     // Decode_DummyPosRot: the rotation's degrees as pi * deg / 180.
     let rad = |x: f32| ee::div(ee::mul(ee::PI, x.to_bits()), 0x4334_0000);
@@ -570,9 +580,9 @@ pub fn set_dog(
     // setDog: the young one at its route's first dummy, no turn; a grown
     // one at DMY_cdog0 (145), cdog1 (even rows) or cdog2, with the dummy's
     // rotation.
-    let (pos, rot) = if id >= ROW_YOUNG {
+    let (pos, rot, spot) = if id >= ROW_YOUNG {
         match dummy(town_file, route(town)[0]) {
-            Some((p, _)) => (p, [0, 0, 0, ONE]),
+            Some((p, _)) => (p, [0, 0, 0, ONE], None),
             None => return Ok(None),
         }
     } else {
@@ -584,13 +594,17 @@ pub fn set_dog(
             2
         };
         match dummy(town_file, ADULT_SPOTS[k]) {
-            Some(d) => d,
+            Some((p, r)) => (p, r, Some(ADULT_SPOTS[k])),
             None => return Ok(None),
         }
     };
     let Some(row) = tables.row(id).cloned() else { return Ok(None) };
     let body = bodies.stem(archive, &row.stem())?;
-    Ok(Grunty::new(archive, tables, bodies, town_file, hits, save, town, &row, body, pos, rot, num))
+    let mut g = Grunty::new(archive, tables, bodies, town_file, hits, save, town, &row, body, pos, rot, num);
+    if let Some(g) = g.as_mut() {
+        g.home_dummy = spot;
+    }
+    Ok(g)
 }
 
 impl Grunty {
@@ -630,8 +644,8 @@ impl Grunty {
             pos,
             radius: RADIUS,
             height: HEIGHT,
-            mask2: WALL_MASK,
-            kind: KIND,
+            mask2: u32::MAX,
+            kind: if hits.volume == piney_data::volume::Volume::Inf { 2 } else { 16 },
             id: BODY_ID + num,
             ..hit::Body::default()
         };
@@ -697,6 +711,9 @@ impl Grunty {
             food_mode: 0,
             transrate: [0; 2],
             sel_food: 0,
+            home: (pos, rot),
+            home_dummy: None,
+            later: hits.volume != piney_data::volume::Volume::Inf,
             num,
             events: Vec::new(),
             notes: Vec::new(),
@@ -814,7 +831,8 @@ impl Grunty {
             1 => &self.pending_b,
             _ => &self.pending_c,
         };
-        self.notes.extend(n.iter().copied());
+        let (pos, attribute) = (self.ch.pos, self.ch.hit_attribute);
+        self.notes.extend(n.iter().map(|&(event, param)| NoteAt { event, param, pos, attribute }));
     }
 
     /// `ccPGuso::main` (gcmn 0x0050b3c0) after `ccEntryObj::routine`.
@@ -869,6 +887,11 @@ impl Grunty {
                 return;
             }
             _ => {}
+        }
+        // From Mutation on every act but the walk (3) and the grown one's
+        // (7) puts it on the ground (MUT gcmn 0x00527f78).
+        if self.later && !matches!(self.act, 3 | 7) {
+            self.land(ctx);
         }
         self.ch.hit.pos = self.ch.pos;
         if ctx.hits.collision_detection(&mut self.ch.hit) != 0 {
@@ -1233,13 +1256,22 @@ impl Grunty {
     /// `dogAction2` (gcmn 0x0050f720), a grown one's: 15 a line from its
     /// row's four (`ccRand() & 3`), 14 line 7; the rest nothing.
     pub fn dog_action2(&mut self, cmd: i16, mt: &mut Mt) {
+        let later = self.later;
         self.affect_type = cmd;
         match cmd {
             15 => {
                 let k = self.inu_id - ROW_ADULT;
                 self.msg_num = if (0..9).contains(&k) { ADULT_LINES[k as usize][(mt.rand() & 3) as usize] } else { 7 };
             }
-            14 => self.msg_num = 7,
+            14 => {
+                self.msg_num = 7;
+                // From Mutation on it turns to Kite, and back when the
+                // menu shuts (MUT gcmn 0x0052c65c).
+                if later {
+                    self.act_process = 1;
+                }
+            }
+            0 if later => self.act_process = 2,
             _ => {}
         }
     }
@@ -1848,13 +1880,40 @@ impl Grunty {
     /// `ccPGuso::adultMain` (gcmn 0x0050bba0), act 9: a grown one at its
     /// pen: pushed out of others, its notes, its anm stepped, drawn.
     fn adult_main(&mut self, ctx: &mut GruntyCtx) {
+        let later = ctx.hits.volume != piney_data::volume::Volume::Inf;
+        if later {
+            match ctx.race.as_mut() {
+                Some(race) if race.kind == self.inu_id - ROW_ADULT => {
+                    if !self.race_step(race, ctx.hits) {
+                        return;
+                    }
+                }
+                Some(_) => {}
+                // MUT gcmn 0x00528750: the menu's turns (dogAction2).
+                None => match self.act_process {
+                    1 => crate::rtownpc::set_dirc(&mut self.ch.dirc[2], self.entry.pl_dirc, 64),
+                    2 => {
+                        let from = ee::rad2deg(self.ch.dirc[2]);
+                        let chg = crate::rtownpc::get_dirc_chg(from, ee::rad2deg(self.home.1[2]), 128);
+                        self.ch.dirc[2] = ee::deg2rad((i32::from(from) + chg) as i16);
+                        if chg == 0 {
+                            self.act_process = 0;
+                        }
+                    }
+                    _ => {}
+                },
+            }
+        }
         self.ch.hit.pos = self.ch.pos;
         if ctx.hits.collision_detection(&mut self.ch.hit) != 0 {
-            let off = self.ch.hit.offset;
-            self.ch.pos = ee::vadd(self.ch.pos, off);
-            self.ch.pos_p = ee::vadd(self.ch.pos_p, off);
-            self.ch.hit.pos = self.ch.pos;
-            ctx.hits.sync(&self.ch.hit);
+            // From Mutation on the push is not taken.
+            if !later {
+                let off = self.ch.hit.offset;
+                self.ch.pos = ee::vadd(self.ch.pos, off);
+                self.ch.pos_p = ee::vadd(self.ch.pos_p, off);
+                self.ch.hit.pos = self.ch.pos;
+                ctx.hits.sync(&self.ch.hit);
+            }
             self.body_hit_flag = 1;
             self.body_hit_cnt = self.body_hit_cnt.wrapping_add(1);
         } else {
@@ -1866,6 +1925,80 @@ impl Grunty {
         if self.ch.fade(ctx.hits.volume, &ctx.view) && self.has_a {
             self.drawn.push((0, self.ch.transparency, false));
         }
+    }
+
+    /// MUT gcmn 0x005283bc: the grown one raced, by the race's step: 1
+    /// the camera looks at it, 2 it leaves the collision and the lists, 3
+    /// after 6 frames clip 1, 4 after 91 clip 2 and its goal (by kind, or
+    /// the town's for kind 0), 5 it walks there 12 a frame turning 256 at
+    /// most, the camera on it, 6 it is gone (false: nothing more this
+    /// frame), 7 back at its dummy, listed, clip 0.
+    fn race_step(&mut self, race: &mut RaceLink, hits: &mut hit::Hits) -> bool {
+        let t = piney_data::tables::race::of(hits.volume);
+        let above = |p: V4| {
+            let mut v = p;
+            v[2] = ee::add(v[2], 0x42c8_0000);
+            v
+        };
+        let clip = |g: &mut Grunty, k: usize| {
+            if let Some(n) = g.anm_tbl.name(k) {
+                g.ch.set_anim(&n);
+            }
+        };
+        match *race.step {
+            1 => self.events.push(GruntyEvent::CamView(above(self.ch.pos))),
+            2 => {
+                hits.hit_disable(&mut self.ch.hit);
+                self.entry.listed = false;
+                *race.step += 1;
+                self.act_cnt = 0;
+                self.local_id = race.kind;
+            }
+            3 => {
+                let old = self.act_cnt;
+                self.act_cnt += 1;
+                if old >= 6 {
+                    clip(self, 1);
+                    *race.step += 1;
+                    self.act_cnt = 0;
+                }
+            }
+            4 => {
+                let old = self.act_cnt;
+                self.act_cnt += 1;
+                if old >= 91 {
+                    clip(self, 2);
+                    *race.step += 1;
+                    self.act_cnt = 0;
+                    self.next_pos = if self.local_id != 0 {
+                        t.walk_kind()[self.local_id as usize]
+                    } else {
+                        t.walk_server()[race.server.max(0) as usize]
+                    }
+                    .map(f32::to_bits);
+                }
+            }
+            5 => {
+                self.spdeg = 0;
+                let dirc = crate::rtownpc::get_dirc(self.ch.pos, self.next_pos);
+                let from = ee::rad2deg(self.ch.dirc[2]);
+                let to = ee::rad2deg(dirc);
+                let chg = crate::rtownpc::get_dirc_chg(from, to, 256);
+                self.ch.dirc[2] = ee::deg2rad((i32::from(from) + chg) as i16);
+                self.ch.pos[0] = ee::add(self.ch.pos[0], ee::mul(0x4140_0000, ee::sinf(dirc)));
+                self.ch.pos[1] = ee::sub(self.ch.pos[1], ee::mul(0x4140_0000, ee::cosf(dirc)));
+                self.events.push(GruntyEvent::CamView(above(self.ch.pos)));
+            }
+            6 => return false,
+            7 => {
+                hits.hit_enable(&mut self.ch.hit);
+                self.entry.listed = true;
+                (self.ch.pos, self.ch.dirc) = self.home;
+                clip(self, 0);
+            }
+            _ => {}
+        }
+        true
     }
 
     /// The root matrix an anm draws at: `SetMatrix_PosRotZYXScale` (the
@@ -1956,19 +2089,35 @@ impl Grunty {
     }
 }
 
+/// A note an anm handed on (event, param), with where the Grunty stood
+/// and its ground then.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NoteAt {
+    pub event: u32,
+    pub param: u32,
+    pub pos: V4,
+    pub attribute: u32,
+}
+
 /// `inuCheckNote` (gcmn 0x0050fec0) for each note a Grunty's anms handed
 /// on, on `pg` (`pgPtr`, the last Grunty made): a note of event 1 or 2
 /// with param 0 or 1 is a step (`ccPGuso::effect`), a larger param a cry
-/// (`ccSeSetParamInu`).
-pub fn inu_check_note(notes: &[(u32, u32)], pg: &mut Grunty, rand: &mut crate::Rand) {
-    for &(event, param) in notes {
-        if !matches!(event, 1 | 2) {
+/// (`ccSeSetParamInu`). The game reads `pgPtr` as the note is handed on:
+/// with `own` (the notes are `pg`'s own) its place and ground then, which
+/// from Mutation on the ground set later in the frame may change.
+pub fn inu_check_note(notes: &[NoteAt], pg: &mut Grunty, own: bool, rand: &mut crate::Rand) {
+    for n in notes {
+        if !matches!(n.event, 1 | 2) {
             continue;
         }
-        if param < 2 {
+        let now = (pg.ch.pos, pg.ch.hit_attribute);
+        let (pos, attribute) = if own { (n.pos, n.attribute) } else { now };
+        if n.param < 2 {
+            (pg.ch.pos, pg.ch.hit_attribute) = (pos, attribute);
             pg.step_effect(rand);
+            (pg.ch.pos, pg.ch.hit_attribute) = now;
         } else {
-            pg.events.push(GruntyEvent::Note { param, pos: pg.ch.pos, attribute: pg.ch.hit_attribute });
+            pg.events.push(GruntyEvent::Note { param: n.param, pos, attribute });
         }
     }
 }
@@ -2044,4 +2193,15 @@ pub struct GruntyCtx<'a> {
     pub rand: &'a mut crate::Rand,
     pub mt: &'a mut Mt,
     pub save: &'a mut SaveData,
+    /// From Mutation on, while the Flag Race runs in the town (0x005ff790).
+    pub race: Option<RaceLink<'a>>,
+}
+
+/// What a grown Grunty reads and writes of the Flag Race: the kind raced
+/// (+0x74), `game.server` (+0x7c) and the intro's step (+0x98), which the
+/// one raced moves on.
+pub struct RaceLink<'a> {
+    pub kind: i32,
+    pub server: i32,
+    pub step: &'a mut i16,
 }

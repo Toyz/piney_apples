@@ -28,6 +28,11 @@ pub const fn k(x: f32) -> F {
     x.to_bits()
 }
 
+/// A vector's x, y, z as floats, for drawing.
+pub fn f3(v: V4) -> [f32; 3] {
+    [f(v[0]), f(v[1]), f(v[2])]
+}
+
 /// Bits to an `f32`, for reporting and drawing.
 pub fn f(x: F) -> f32 {
     f32::from_bits(x)

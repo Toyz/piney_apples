@@ -2506,9 +2506,12 @@ rank r      saveData +0x8432 + 12 (server - 1) + 4 r: (time, row); time 0:
             ":", time % 1800 / 30, ":", (time % 30) * 100 / 30, two digits
             each at x 291, 315, 323, 347, 355; y = 176 + 64 r
 exceptionDisp 2 (the race's result) blinks the new rank r (race +0xa2 -
-            1): colour 6, alpha menu alpha x t / 6, t = ccSys.count % 24
-            folded at 12, the five pieces drawn again
+            1): colour 6, alpha menu alpha x t / 12, t = ccSys.count % 24,
+            24 - t from 13 (MUT 0x0058d120), the five pieces drawn again
 ```
+
+Flag Race (88, 0x0058a4f0) and its page (0x0058c310), the Grunties
+offered with their stars, are in [flag-race.md](flag-race.md).
 
 Give Food (56, 0x0054bdd0, drawn by `BreedingMenuDisp`, 0x0054cd70) is
 not on the breeder's list: a Grunty's own menus (`OtonainuMenu`,

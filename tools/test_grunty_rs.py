@@ -51,6 +51,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import volume  # noqa: E402  # PINEY_VOLUME's disc
 from volume import va as inf_va  # noqa: E402  # Infection's addresses on PINEY_VOLUME's disc
 
 import test_world_rs as tw  # noqa: E402
@@ -66,6 +67,12 @@ NOTE_LIST = 0x0104E000      # the notes for inuCheckNote, 0-terminated
 NOTES = 0x0104E100          # their ccAnmNote records
 FILL = 0x0104EF00           # the hook NoteProcess's stand-in calls first
 INU_CHECK_NOTE = inf_va(0x0050FEC0)
+if volume.NAME != "infection":
+    # From Mutation on the dogs have an inuCheckNote of their own (on
+    # inuPtr); the Grunties' (on pgPtr) is the function after
+    # dogActionAdult (MUT gcmn 0x0052cb80).
+    _adult = volume.program(volume.ELF).symbol_named("dogActionAdult__FP6ccChar")
+    INU_CHECK_NOTE = (_adult.value + _adult.size + 15) & ~15
 FILES = ["cdogboda", "cdogbodb", "cdogbod0"] + ["cdogbod%d" % k for k in range(2, 10)]
 
 
@@ -439,7 +446,12 @@ class GruntyGame:
         g = self.g = self.malloc(m, 0x340)
         self.call("__ct__7ccPGusoFP7ccEntry", g, entry)
         self.affects = {m.load(g + 0x94, 4): 0}
-        self.fns = {inf_va(0x0050F390): 0, inf_va(0x0050F720): 1, inf_va(0x0050F9D0): 2}
+        # dogAction, dogAction2, dogActionAdult. From Mutation on a dog's
+        # dogAction carries the name too: the Grunty's is the function
+        # before dogAction2.
+        two = sym("dogAction2__FP6ccChar")
+        one = self.prog.symbol_at(two - 4, 0x1000)[0].value
+        self.fns = {one: 0, two: 1, sym("dogActionAdult__FP6ccChar"): 2}
         self.route = m.load(g + 0x2C8, 4)
         return self.state()
 
@@ -454,8 +466,42 @@ class GruntyGame:
         return {m.load(g + 0xD4, 4): 0, m.load(g + 0x1E4, 4): 1, m.load(g + 0x1F0, 4): 2}
 
     def poke(self, field, value):
+        if field == "race":
+            self.set_race(value)
+            return
         off = {"growth": 0x2AE, "foodmode": 0x307}[field]
         self.m.store(self.g + off, 1, value)
+
+    def race_global(self):
+        """From Mutation on adultMain asks 0x005ff790 (MUT) whether the
+        race runs, then reads the race at the gp word its first `lw a1`
+        loads: the kind raced +0x74, game.server +0x7c, the step +0x98."""
+        a = self.sym("adultMain__7ccPGusoFv")
+        for k in range(0, 0x40, 4):
+            w = self.m.load(a + k, 4)
+            if w >> 26 == 0x23 and (w >> 21) & 31 == 28 and (w >> 16) & 31 == 5:
+                return (self.prog.gp + (w & 0xFFFF) - ((w & 0x8000) << 1)) & 0xFFFFFFFF
+        raise AssertionError("adultMain reads no race")
+
+    def set_race(self, value):
+        """(kind, server, step) puts a race up (game.area is a town's 0),
+        None takes it down."""
+        m, at = self.m, self.race_global()
+        if value is None:
+            m.store(at, 4, 0)
+            return
+        r = m.load(at, 4) or self.malloc(m, 0x100)
+        kind, server, step = value
+        m.store(r + 0x74, 4, kind)
+        m.store(r + 0x7C, 4, server)
+        m.store(r + 0x98, 2, step)
+        m.store(at, 4, r)
+
+    def race_step(self):
+        if volume.NAME == "infection":
+            return None
+        r = self.m.load(self.race_global(), 4)
+        return self.m.load(r + 0x98, 2, True) if r else None
 
     def frame(self, player, pdirc, cam, deg1, eye, affect=None):
         m, g = self.m, self.g
@@ -482,7 +528,7 @@ class GruntyGame:
         self.call("routine__10ccEntryObjFv", g)
         self.call(m.load(m.load(g + 0x1CC, 4) + 8, 4), g)
         return {"s": self.state(), "ev": list(self.events), "notes": list(self.notes_seen),
-                "drawn": list(self.drawn)}
+                "drawn": list(self.drawn), "race": self.race_step()}
 
     def anm_state(self, off):
         a = self.m.load(self.g + off, 4)
@@ -500,6 +546,9 @@ class GruntyGame:
         town = m.load(GAME + 0x20, 4)
         grow = [h(0x2D0 + 2 * k) for k in range(10)] + [w(0x2E4)]
         mark = (u(0x2C4) - self.route) // 4
+        # From Mutation on a grown one's +0x2c4 points at its dummy's name.
+        if volume.NAME != "infection" and self.route == 0 and u(0x2C4):
+            mark = self.cstr(m.load(u(0x2C4), 4))
         return {
             "id": w(0x270), "local": w(0x274),
             "act": [w(0x278), w(0x27C), w(0x284), w(0x288), w(0x28C)],
@@ -592,6 +641,17 @@ def scenarios():
         Scenario("grown 147", 147, [4, 30, 0, 0, 0, 0, 0, 1, 1, 1, 9], frames=150,
                  affects={20: (14, 0, 0), 40: (15, 0, 0)}),
     ]
+    if volume.NAME != "infection":
+        # The Flag Race (from Mutation on): the one raced looked at, gone
+        # from the lists, its clips, walking off to its goal (kind 0's by
+        # the server), gone, back home; another kind's race leaves it be.
+        for row, kind in ((145, 0), (146, 1), (147, 2)):
+            race = lambda st: [("race", (kind, 1, st))]          # noqa: E731
+            out.append(Scenario("raced %d" % row, row, [4, 30, 0, 0, 0, 0, 0, 1, 1, 1, 9], frames=300,
+                                pokes={20: race(0), 30: race(1), 40: race(2), 230: race(6), 250: race(7),
+                                       270: [("race", None)]}))
+        out.append(Scenario("not raced", 145, [4, 30, 0, 0, 0, 0, 0, 1, 1, 1, 9], frames=120,
+                            pokes={20: [("race", (2, 1, 1))], 40: [("race", (2, 1, 2))], 100: [("race", None)]}))
     return out
 
 
@@ -648,7 +708,12 @@ class GruntyAgainstGame(unittest.TestCase):
         lines = ["set %x %s %x" % (s.town, hexs(*s.rec), s.flute), "new %x %x %x" % (s.row, s.town, s.seed)]
         for i, (pl, pd, cam, deg1, eye, aff) in enumerate(frames):
             for f, v in s.pokes.get(i, []):
-                lines.append("poke %s %x" % (f, v))
+                if f != "race":
+                    lines.append("poke %s %x" % (f, v))
+                elif v is None:
+                    lines.append("poke norace")
+                else:
+                    lines.append("poke race " + hexs(*v))
             args = list(pl) + [pd] + list(cam) + [deg1, int(eye)]
             if aff is not None:
                 args += list(aff)

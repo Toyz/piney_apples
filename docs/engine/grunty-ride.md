@@ -1,9 +1,9 @@
 ---
 title: The riding Grunty - ccPucciguso, the Grunty Flute and pgRideFlag
 status: partial
-volumes: INF
-covers: INF gcmn.prg:0x00510650 ccPgAdultCheck, 0x005109c0 ccPuccigusoStart, 0x00510880 ccThPucciguso, 0x00510990 ccThPuccigusoDelete, 0x00510bd0 ccPuccigusoExit, 0x00510f30 ccPucciguso::ccPucciguso, 0x00511410 ccPucciguso::~ccPucciguso, 0x005114e0 ccPucciguso::Main, 0x005119c0 ControlMove, 0x00511ed0 PadLeverPower, 0x00511f80 AnimCtrl, 0x00512360 CollisionTest, 0x005123f0 MapLoopAdjustPos, 0x005124b0 CameraPosCalc, 0x00512540 CameraPosSet, 0x00512670 PawSmoke, 0x00512c80 DrawPG, 0x00512fb0 ccPuccigusoCheckNote, 0x005ee810 pcgsTbl, 0x005ee840 puccigusoCharTbl, 0x005ee870 puccigusoAnimTblPG, 0x006aea50 puccigusoAnimTbl, 0x005ee908 puccigusoAngleTbl, 0x005a0760 ccSpcSleep, 0x005a0850 ccSpcWakeup, 0x005a02e0 ccSPC::Wakeup, 0x005a08b0 ccSpcGetCharPtr, 0x00530264 ImportantItemMenu's proccess 20, 0x0057bc84 ccUseItemRequest's ride wait; INF SLUS_202.67:0x001801d0 ccPgBgmInit, 0x00180360 ccPgBgmEnd, 0x0017e680 ccBgmPlay, 0x001604d0 ccScFade::CheckFade, 0x00160510 ccScFade::DeleteFade, 0x0015c210 ccSprite::Trans, 0x00378cdc pgRideFlag, 0x00378c28 pgR, 0x00378c2c pgDIN, 0x00378c24 pcgs, 0x00378978 camTypeLock
-worklog: 166
+volumes: INF, MUT, OUT, QUA
+covers: INF gcmn.prg:0x00510650 ccPgAdultCheck, 0x005109c0 ccPuccigusoStart, 0x00510880 ccThPucciguso, 0x00510990 ccThPuccigusoDelete, 0x00510bd0 ccPuccigusoExit, 0x00510f30 ccPucciguso::ccPucciguso, 0x00511410 ccPucciguso::~ccPucciguso, 0x005114e0 ccPucciguso::Main, 0x005119c0 ControlMove, 0x00511ed0 PadLeverPower, 0x00511f80 AnimCtrl, 0x00512360 CollisionTest, 0x005123f0 MapLoopAdjustPos, 0x005124b0 CameraPosCalc, 0x00512540 CameraPosSet, 0x00512670 PawSmoke, 0x00512c80 DrawPG, 0x00512fb0 ccPuccigusoCheckNote, 0x005ee810 pcgsTbl, 0x005ee840 puccigusoCharTbl, 0x005ee870 puccigusoAnimTblPG, 0x006aea50 puccigusoAnimTbl, 0x005ee908 puccigusoAngleTbl, 0x005a0760 ccSpcSleep, 0x005a0850 ccSpcWakeup, 0x005a02e0 ccSPC::Wakeup, 0x005a08b0 ccSpcGetCharPtr, 0x00530264 ImportantItemMenu's proccess 20, 0x0057bc84 ccUseItemRequest's ride wait; INF SLUS_202.67:0x001801d0 ccPgBgmInit, 0x00180360 ccPgBgmEnd, 0x0017e680 ccBgmPlay, 0x001604d0 ccScFade::CheckFade, 0x00160510 ccScFade::DeleteFade, 0x0015c210 ccSprite::Trans, 0x00378cdc pgRideFlag, 0x00378c28 pgR, 0x00378c2c pgDIN, 0x00378c24 pcgs, 0x00378978 camTypeLock; MUT gcmn.prg:0x0052d540 ccThPucciguso, 0x0052d6f0 ccPuccigusoStart, 0x0052d960 ccPuccigusoExit, 0x0052dd10 ccPucciguso::ccPucciguso, 0x0052e3a0 Main, 0x0052e970 ControlMove, 0x0052fd10 AnimCtrl, 0x00530160 CollisionTest, 0x005cbb40 ccSpcSleep, 0x005cbb70 ccSpcWakeup, 0x00531090 the ride is up, 0x005310b0 the ride put down
+worklog: 166, 395
 ---
 
 # The riding Grunty - ccPucciguso, the Grunty Flute and pgRideFlag
@@ -306,6 +306,33 @@ music) 0. `bgmChange` does nothing while `pgRideFlag` is 1
 - `ccThPlayer` clears `pgRideFlag` and `pgR` as Kite's task starts (a new
   scene).
 
+## From Mutation on: the town and the race
+
+Mutation's ride (MUT gcmn 0x0052d540 on) is Infection's with a town path
+for the Flag Race ([flag-race.md](flag-race.md)):
+
+- `ccPuccigusoStart` (0x0052d6f0) also starts in a town (`game.area` 0).
+  There it plays no music and no fades, and sleeps Kite alone
+  (`ccSpcSleep(town)`, which the symbols call `ccSpcWakeup`, 0x005cbb40).
+  It slots 1 member, not 5. The task gets the kind (+0x14) and the town
+  flag (+0x18).
+- `ccThPucciguso` (0x0052d540) in a town sets the ride's pause flag at
+  the start. It ends when the race's `+0xa7` is set, not on cancel.
+- `ccPuccigusoExit` (0x0052d960) in a town has no fades and wakes Kite
+  alone (0x005cbb70). The panel, the forbid and the music stay the race's.
+- The object (0x0052dd10) is 125 high. Its handling (top speed,
+  acceleration, the turn's ease on and off) comes from the race
+  (`+0x64..+0x70`) when one runs. `Main` and `ControlMove` read the pad
+  through the race's pause. In a town, `CollisionTest` skips the field's
+  loop and `AnimCtrl` reads the race's input.
+- 0x00531090 asks whether the ride is up; 0x005310b0 puts it at a place
+  and heading (the race's finish).
+
+The port: `piney_battle::ride`'s `Ride::later`, `main_later`,
+`control_move_later` and `RaceRide`, and `piney_world::town_ride`
+(`ride_start_town`, `ride_slot`, `ride_exit_town`, `ride_place`, the
+town's `RideWorld`).
+
 ## The port
 
 `piney_battle::ride` is the object and its functions: `Ride::new`,
@@ -389,3 +416,9 @@ the dismount and the party after it (`scratch/ride/shots`).
 - `pgDIN`'s way (a dungeon's entrance ridden into) and the flute outside
   a field are not played through in a session; the entrance is
   `WORLD_MAN::Enter` as Kite's.
+- From Mutation on, a field ride's charge (the bit 6 test at MUT gcmn
+  0x0052f790, the knockback 0x0052f250, `+0x158`..`+0x160`), its Grunty
+  chat (0x00530e50, 0x00530dd0) and the `+0x1e0` range are not ported.
+  They act only in a field, which no later volume's session rides yet.
+  Porting them needs those functions read and a Mutation field ride in
+  the ride harness.

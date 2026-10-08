@@ -193,6 +193,13 @@ impl View {
         View { projection, camera, world_screen: world_screen(&camera, &projection) }
     }
 
+    /// Not the game's: a view drawing through another camera's
+    /// world-screen matrix (the field's, which keeps its own), for a
+    /// `ccAnm` on a layer of the field's view.
+    pub fn of_world_screen(world_screen: M4) -> Self {
+        View { projection: default_projection(), camera: Camera::default(), world_screen }
+    }
+
     /// `ccView::SetView(view, cam, 0)`.
     pub fn set_camera(&mut self, cam: &Camera) {
         *self = View::new(self.projection, *cam);

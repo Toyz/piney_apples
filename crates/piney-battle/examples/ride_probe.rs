@@ -181,7 +181,7 @@ impl RideWorld for Script {
 /// flags act actOld anmEnd idle speed speedRate nowSpeed ownSet kind cycle
 /// posView[4] posEye[4] angle[4] movePos[4] moveEase[4] hitSW hitRadius
 /// hitHeight hitPos[4] hitOffset[4] frameSpd[2].
-fn read_ride(t: &mut Toks) -> Ride {
+fn read_ride(t: &mut Toks, later: bool) -> Ride {
     let pos = t.v4();
     let pos_p = t.v4();
     let rot = t.v4();
@@ -244,6 +244,7 @@ fn read_ride(t: &mut Toks) -> Ride {
             ..CharHit::default()
         },
         frame_spd,
+        later,
     }
 }
 
@@ -277,6 +278,14 @@ fn read_input(t: &mut Toks) -> Input {
             MapBounds { min: [b[0], b[1]], max: [b[2], b[3]] }
         },
         area: t.i32(),
+        // From Mutation on: 1 and the race's top speed, acceleration and
+        // easings, or 0.
+        race: (t.int() != 0).then(|| ride::RaceRide {
+            max: t.u32(),
+            accel: t.u32(),
+            ease_on: t.u32(),
+            ease_off: t.u32(),
+        }),
     }
 }
 
@@ -372,7 +381,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             "main" | "fn" => {
                 let (frames, name) = if cmd == "main" { (t.int(), String::new()) } else { (1, t.word().to_string()) };
-                let mut r = read_ride(&mut t);
+                let mut r = read_ride(&mut t, tables.volume != piney_data::volume::Volume::Inf);
                 let input = read_input(&mut t);
                 let mut g = Globals { pg_r: t.i32(), pg_din: t.i32() };
                 let mut rand = Rand(t.int() as u64);
@@ -386,7 +395,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         "control_move" => {
                             ride::control_move(tables.volume, &mut r, &mut s, &input, &mut rand);
                         }
-                        "anim_ctrl" => ride::anim_ctrl(&mut r, &mut s, &tables, &mut rand),
+                        "anim_ctrl" => ride::anim_ctrl(&mut r, &mut s, &tables, &input, &mut rand),
                         "draw_pg" => ride::draw_pg(&mut r, &mut s, &input),
                         "note" => {
                             let n = Note { event: t.u32(), param: t.u32() };

@@ -105,6 +105,9 @@ pub struct Driver {
     pub in_battle: bool,
     /// `pgRideFlag` (0x00378cdc) is 1: riding a Grunty, no battle music.
     pub riding: bool,
+    /// From Mutation on, `ccSnd +0x13a`: the Flag Race holds the
+    /// breeder's tune off (`bgmBreed` does nothing).
+    pub race_music: bool,
     /// `ccSnd +0x63 gateHack`: the gate hack's music ([`GateHack`]).
     pub gate_hack: GateHack,
     /// `ccSound.loopID[8]` (+0x65): the looping sound effects' slots, -1
@@ -518,6 +521,7 @@ impl Driver {
             bgm_stop: false,
             in_battle: false,
             riding: false,
+            race_music: false,
             gate_hack: GateHack::Off,
             loop_id: [-1; 8],
             tobj_loop: false,
@@ -1077,6 +1081,24 @@ impl Driver {
         self.voice_stop();
         self.sq_fade(0, 0, 8, 3);
         self.sq_fade(1, 0, 8, 3);
+    }
+
+    /// From Mutation on, `ccPgBgmInit()` in a town (MUT main 0x001835b8):
+    /// sequence 0's fade and, with two or more loaded, sequence 1's to
+    /// nothing over 8 frames, stopping them; then `ccSnd +0x13a` 1.
+    pub fn pg_bgm_init_town(&mut self) {
+        self.sq_fade(0, 0, 8, 3);
+        self.sq_fade(1, 0, 8, 3);
+        self.race_music = true;
+    }
+
+    /// The Flag Race's end (MUT gcmn 0x005fe104): `ccSnd +0x13a` 0, then
+    /// main 0x0017c1e0(1, 256, 30): `ccSqPlayVol(1, 0)` and sequence 1
+    /// faded in to its table volume over 30 frames.
+    pub fn race_end(&mut self, out: &mut Vec<Command>) {
+        self.race_music = false;
+        crate::stream::sq_play_vol(self, 1, 0, out);
+        self.sq_fade(1, 256, 30, 1);
     }
 
     /// `ccPgBgmEnd(n)` (0x00180360), the sequences' part (the `BGM.BIN`

@@ -67,6 +67,8 @@ pub enum Start {
     /// `effGrowPG(ch)`: a young Grunty becoming a grown one, at its place
     /// and half its height.
     Grow(V4, F),
+    /// `effOpenBox(pos)`: a Flag Race flag taken.
+    OpenBox(V4),
 }
 
 /// What the town's effects read of the town.
@@ -163,6 +165,7 @@ impl TownFx {
                 Start::Grow(pos, height) => {
                     self.fx.grow_pg(&mut h, pos, height);
                 }
+                Start::OpenBox(pos) => self.fx.open_box(&mut h, pos),
             }
         }
         self.fx.step(&mut h);
