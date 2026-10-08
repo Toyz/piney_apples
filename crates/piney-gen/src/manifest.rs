@@ -2190,10 +2190,18 @@ fn stream_data() -> Layout {
     ty("STREAMDATA", vec![])
 }
 
-/// `streamTbl[134]` (or `streamTblE`): each stream's list, its header and
+/// The streams each volume numbers: 134 on Infection, 140 from Mutation on
+/// (six inserted before `str6100`, which moves from 106 to 112, and the
+/// shared `STRSUB` ones from 126 to 138). `streamTbl`, `streamTblE` and
+/// `strSndTbl` have as many rows; the code indexes them unchecked.
+fn streams() -> Rc<dyn Fn(&Ctx) -> usize> {
+    later(134, 140)
+}
+
+/// `streamTbl[]` (or `streamTblE`): each stream's list, its header and
 /// files up to the record with no name.
 fn stream_lists() -> Layout {
-    array(opt(array_until(stream_data(), Rc::new(|r| r.list()[0] == Value::None))), 134)
+    array_by(opt(array_until(stream_data(), Rc::new(|r| r.list()[0] == Value::None))), streams())
 }
 
 /// A gate-hack table: per row its setup file and its scene.
@@ -2201,16 +2209,18 @@ fn gate_rows(n: usize) -> Layout {
     array(fixed(stream_data(), 2), n)
 }
 
-/// `evStrMsgTbl[134]` (`evStrMsgTblp`): each stream's subtitle records,
-/// read on past its own as a note past the table does (the next stream's,
-/// as the game's pointer walks), while they read as records with text, 64
-/// at most.
+/// `evStrMsgTbl` (`evStrMsgTblp`): each stream's subtitle records, read
+/// on past its own as a note past the table does (the next stream's, as
+/// the game's pointer walks), while they read as records with text, 64 at
+/// most. One row a stream: Mutation's tables keep Infection's 136 slots,
+/// so its streams 136-139 read `evStrMsgTblp`'s first rows, as its
+/// `ccEventStream` does.
 fn subtitles(inf: u32) -> CustomFn {
     Rc::new(move |c| {
         let t = find(c, inf, None);
         let ev = ev_msg();
         let mut out = Vec::new();
-        for k in 0..134 {
+        for k in 0..streams()(c) as u32 {
             let base = c.p.u32(t + 4 * k)?;
             if base == 0 {
                 out.push(Value::None);
@@ -2473,7 +2483,7 @@ fn stream() -> Group {
                 .absent(Vol::Out, Value::List(Vec::new()))
                 .absent(Vol::Qua, Value::List(Vec::new())),
             e("lists_e", 0x0031_02F0, stream_lists(), MAIN, "`streamTblE`: the same with English voices (`saveData.voice`)."),
-            e("bgm", 0x0030_B950, array(ty("ccSndStrTbl", vec![("strse", omit()), ("strbgm", opt(array_through(ty("CCSND_STR_BGM", vec![]), Rc::new(|r| r.list()[0].int() < 0 && r.list()[5].int() == 5))))]), 134), MAIN, "`strSndTbl`: per stream its BGM table (`strbgm`), up to and with its end record (`bgm1` below 0, `param` 5)."),
+            e("bgm", 0x0030_B950, array_by(ty("ccSndStrTbl", vec![("strse", omit()), ("strbgm", opt(array_through(ty("CCSND_STR_BGM", vec![]), Rc::new(|r| r.list()[0].int() < 0 && r.list()[5].int() == 5))))]), streams()), MAIN, "`strSndTbl`: per stream its BGM table (`strbgm`), up to and with its end record (`bgm1` below 0, `param` 5)."),
             // The Japanese-voice gate-hack tables: none on Outbreak and
             // Quarantine, whose gate hack reads the E ones.
             e("gate_pre", 0x0030_E1A0, array(stream_data(), 1), MAIN, "`str7000TblPre`: the Chaos Gate movie's setup file.")
@@ -3795,6 +3805,20 @@ fn book_msg() -> Layout {
     )
 }
 
+/// `ccThBook` (INF gcmn 0x0041a990): `streamNum = tsm->arg + N`, its
+/// `lw $v0, 0x14(rs)` then `addiu rt, $v0, N`. Mutation and later add 118
+/// (MUT gcmn 0x0042e510, OUT 0x00429f40, QUA 0x0031c850): their stream
+/// tables put six streams before the covers.
+fn cover_stream(c: &Ctx) -> Read {
+    let w = body(c, find(c, 0x0041_A990, None))?;
+    let arg = |x: u32| x >> 26 == 0x23 && (x >> 16) & 31 == 2 && x & 0xffff == 0x14;
+    let add = |x: u32| x >> 26 == 0x09 && (x >> 21) & 31 == 2;
+    w.windows(2)
+        .find(|p| arg(p[0]) && add(p[1]))
+        .map(|p| Value::Int(sext16(p[1])))
+        .ok_or_else(|| "ccThBook adds nothing to its argument".into())
+}
+
 fn book() -> Group {
     let mut v = vec![
         e("ofs", 0x005D_3530, array(I32, 24), GCMN, "`BookOfs`: each book's window (y, width, height in cells)."),
@@ -3806,7 +3830,13 @@ fn book() -> Group {
             "`bookItemList`: the rewards in the order given (`saveData.hyItem`): 1 a BGM, 2 a wallpaper, 4 a movie.",
         ),
         e("server", 0x005D_2970, array(opt(cstr()), 5), GCMN, "`bookServer`: the servers' names."),
-        e("count_stop", 0x005D_2988, array(opt(cstr()), 3), GCMN, "`countStopMsg`: by `volumeNum` - 1."),
+        e(
+            "count_stop",
+            0x005D_2988,
+            array_by(opt(cstr()), Rc::new(|c| if matches!(c.volume, Vol::Out | Vol::Qua) { 4 } else { 3 })),
+            GCMN,
+            "`countStopMsg`: by `volumeNum` - 1; three, four from Outbreak on (\"in Vol. 4.\").",
+        ),
         e(
             "stream_cluts",
             0x005D_4030,
@@ -3814,10 +3844,27 @@ fn book() -> Group {
             GCMN,
             "The palette `ccThBook` puts on the cover's `MAT_clut` for each book past the first.",
         ),
+        derived(
+            "cover_stream",
+            custom(Rc::new(cover_stream), I32),
+            GCMN,
+            "`ccThBook`'s stream for the first book's cover (the book's is this + the book): 112 on Infection, 118 from Mutation on.",
+        ),
     ];
     for &(name, inf, doc) in BOOK_TEXTS {
         v.push(e(name, inf, ptr(cstr()), GCMN, doc));
     }
+    // Mutation on: the `char *` after `bookNothing` (MUT 0x0038b058),
+    // which book IV's sub-window shows for bosses 203-206's first skill.
+    v.push(
+        derived(
+            "unknown",
+            custom(Rc::new(|c| ptr(cstr()).read(c, find(c, 0x0037_80B4, None) + 4)), ptr(cstr())),
+            GCMN,
+            "Book IV's skill for enemies 203-206, from Mutation on (none on Infection).",
+        )
+        .absent(Vol::Inf, Value::Bytes(Vec::new())),
+    );
     for &(name, inf, doc) in BOOK_MSGS {
         v.push(e(name, inf, book_msg(), GCMN, doc));
     }
@@ -3825,8 +3872,11 @@ fn book() -> Group {
         let end: Until = Rc::new(|r| r.list()[0].int() == -1);
         v.push(e(name, inf, array_until(ty("BOOKITEM", vec![]), end), GCMN, doc));
     }
+    // Three volumes' caps, four from Outbreak on (its tables add a row
+    // for Quarantine).
     for &(name, inf, doc, n) in BOOK_LIMITS {
-        v.push(e(name, inf, array(I32, n), GCMN, doc));
+        let rows = Rc::new(move |c: &Ctx| if matches!(c.volume, Vol::Out | Vol::Qua) { n / 3 * 4 } else { n });
+        v.push(e(name, inf, array_by(I32, rows), GCMN, doc));
     }
     group("book", "Book", "The Ryu Books (`BOOK`, gcmn book.cpp): the windows, the rewards and their texts.", v)
 }

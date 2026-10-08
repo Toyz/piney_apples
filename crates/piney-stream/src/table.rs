@@ -1,8 +1,8 @@
 //! `streamTbl` / `streamTblE` (INF main 0x0030ef90 and 0x003102f0): what a
-//! stream number plays (`docs/engine/stream.md`, "The tables"). Each of the
-//! 134 entries points at a `STREAMDATA` list (20-byte records ended by one
-//! with no name): the header (archive, offset, music bits), then the files in
-//! order. `ccStreamInit` (0x00198ee0) picks `streamTblE` and the `E` archives
+//! stream number plays (`docs/engine/stream.md`, "The tables"). Each entry
+//! (134 on Infection, 140 from Mutation on: [`count`]) points at a
+//! `STREAMDATA` list (20-byte records ended by one with no name): the
+//! header (archive, offset, music bits), then the files in order. `ccStreamInit` (0x00198ee0) picks `streamTblE` and the `E` archives
 //! when `saveData.voice` (+0x842c) is set; Outbreak and Quarantine have
 //! `streamTblE` alone and take it whatever the voice. The tables are the
 //! volume's generated ones (`tables::stream`).
@@ -12,8 +12,12 @@ use piney_data::tables::types::Streamdata;
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 
-/// Entries in each table.
-pub const COUNT: usize = 134;
+/// Entries in each of the volume's tables: 134 on Infection, 140 from
+/// Mutation on, whose six new streams before `str6100` move the later ones
+/// up by six (the gate's 107 to 113, the Ryu Books' covers 112 to 118).
+pub fn count(volume: Volume) -> usize {
+    stream::of(volume).lists_e().len()
+}
 /// `sizeof(STREAMDATA)`.
 pub const RECORD: u32 = 0x14;
 
@@ -163,7 +167,7 @@ pub struct Files {
 
 impl Def {
     pub fn read(volume: Volume, num: usize, english: bool) -> Result<Def> {
-        if num >= COUNT {
+        if num >= count(volume) {
             return Err(Error::NotFound(format!("stream {num}")));
         }
         let t = stream::of(volume);

@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let mut iso = Iso::open(&iso_path)?;
     let pad = Pad::default();
-    for num in 0..table::COUNT {
+    for num in 0..table::count(iso.volume()?) {
         let mut s = match Stream::with_options(&mut iso, num, opts) {
             Ok(s) => s,
             Err(e) => {

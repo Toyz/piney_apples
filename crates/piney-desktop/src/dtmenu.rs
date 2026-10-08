@@ -570,7 +570,7 @@ impl DtMenu {
             quit_ok: false,
             texts,
             cursor: SelectCursor::new(),
-            msg: MsgWindow::default(),
+            msg: MsgWindow::of(volume),
             msg_cursol: 0,
             frame_rate: 1,
             save_texts: save::SaveTexts::of(volume),

@@ -252,12 +252,27 @@ const INF_MOVIES: Movies =
 const LATER_MOVIES: Movies =
     Movies { small: 115, middle: 116, large: 117, by_id: [18, 37, 44, 67, 69, 96, 100, 106], other: 117 };
 
+impl Movies {
+    fn of(volume: piney_data::volume::Volume) -> &'static Movies {
+        if volume == piney_data::volume::Volume::Inf { &INF_MOVIES } else { &LATER_MOVIES }
+    }
+}
+
+/// Every stream `DataDrainMenu` can play on `volume`, once each.
+pub fn movies(volume: piney_data::volume::Volume) -> Vec<i32> {
+    let m = Movies::of(volume);
+    let mut all: Vec<i32> = [m.small, m.middle, m.large, m.other].into_iter().chain(m.by_id).collect();
+    all.sort_unstable();
+    all.dedup();
+    all
+}
+
 /// Step 0's movie (0x00532ce4 - 0x00532e8c): an enemy's by its size, only
 /// with `drainDemo` on; any other target's by its `base->id` whatever
 /// `drainDemo` says (0 is Skeith's 18); the small enemy's when `cmndTarget`
 /// is gone ([`Movies`]).
 fn movie(x: &Ctx) -> Option<i32> {
-    let m = if x.texts.volume == piney_data::volume::Volume::Inf { &INF_MOVIES } else { &LATER_MOVIES };
+    let m = Movies::of(x.texts.volume);
     let Some(t) = x.target.as_ref() else { return Some(m.small) };
     if t.is(0x60) {
         if x.save.save.u8(DRAIN_DEMO) == 0 {

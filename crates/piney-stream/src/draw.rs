@@ -284,7 +284,7 @@ fn draw_model(
             mmats,
             state: state.clone(),
             tex: TexParams { func: TexFunc::Modulate, use_alpha: true, filter: Filter::Linear },
-            clut_swaps: Vec::new(),
+            clut_swaps: file.clut_swaps.clone(),
             tex_swaps: Vec::new(),
             fog: None,
             depth_fog,

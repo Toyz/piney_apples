@@ -41,7 +41,7 @@ visible first. Mark them [x] with a note when done.
 - [x] F_Obj: three enemies' damage, down and magic clips (worklog 0137)
 - [x] Stale lines: the party's field AI, the members' town lines, Skeith's death effects (ported: `BeginDeadEffect`, `ccBossEffDead`)
 
-- [ ] The Ryu Books: `ccThBook`'s cover stream and books 1-3's pages and rewards are in; books 4-8 (`type` 3-7), the cover's palette from the second book on, and a test reading a book through are not (worklog 317)
+- [x] The Ryu Books: `ccThBook`'s cover stream (each volume's), its palette from the second book on, all eight books' pages and rewards on every volume, and tests reading the books through (worklogs 317, 347, 390)
 
 ## After Infection
 

@@ -6893,6 +6893,9 @@ mod tests {
     /// Issue #50: Ryu Book III's "Online" for the people in town.
     mod ryu_book_online;
 
+    /// Issue #61: each Ryu Book's cover on every volume.
+    mod ryu_book_covers;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

@@ -12,6 +12,7 @@ use std::path::PathBuf;
 
 use glam::Vec3;
 use piney_data::iso::Iso;
+use piney_data::volume::Volume;
 use piney_desktop::view::View;
 use piney_stream::file::StreamFile;
 use piney_stream::scene::{Loaded, Scene};
@@ -36,21 +37,17 @@ fn fnv(h: u64, bytes: &[u8]) -> u64 {
     bytes.iter().fold(h, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3))
 }
 
-#[test]
-fn tables_and_file_lists_match_the_game() {
-    let Some(p) = iso_path() else {
-        eprintln!("infection.iso not present; skipped");
-        return;
-    };
-    let mut iso = Iso::open(p).unwrap();
-    let volume = iso.volume().unwrap();
+/// The `table` rows of a fixture against the port's tables of `volume`:
+/// each stream's header, scenes and files read whole first, as
+/// `ccStreamInit` and `RequestStrPlay` make them. The rows checked.
+fn check_tables(volume: Volume, rows: &[Vec<String>]) -> usize {
     let mut n = 0;
-    for f in fixture().iter().filter(|f| f[0] == "table") {
+    for f in rows.iter().filter(|f| f[0] == "table") {
         let num: usize = f[1].parse().unwrap();
         let d = table::Def::read(volume, num, f[2] == "1").unwrap();
         let h = &d.header;
         let got = [h.name.clone(), h.ofs.to_string(), h.size.to_string(), h.kind.to_string(), h.flag.to_string()];
-        assert_eq!(&got[..], &f[3..8], "stream {num} header");
+        assert_eq!(&got[..], &f[3..8], "{volume:?} stream {num} header");
         let files = d.files(0);
         let at = f.iter().position(|x| x == "scenes").unwrap();
         let pre = f.iter().position(|x| x == "preload").unwrap();
@@ -60,13 +57,50 @@ fn tables_and_file_lists_match_the_game() {
             .map(|e| format!("{}:{}:{}:{}:{}:{}", e.name, e.kind, e.flag, e.gzip, e.ofs, e.size))
             .collect();
         let want: Vec<String> = f[at + 1..pre].iter().filter(|x| *x != "-").cloned().collect();
-        assert_eq!(scenes, want, "stream {num} {} scenes", f[2]);
+        assert_eq!(scenes, want, "{volume:?} stream {num} {} scenes", f[2]);
         let preload: Vec<String> = files.preload.iter().map(|e| e.name.clone()).collect();
         let want: Vec<String> = f[pre + 1..].iter().filter(|x| *x != "-").cloned().collect();
-        assert_eq!(preload, want, "stream {num} {} preloads", f[2]);
+        assert_eq!(preload, want, "{volume:?} stream {num} {} preloads", f[2]);
         n += 1;
     }
-    assert_eq!(n, 2 * table::COUNT);
+    n
+}
+
+#[test]
+fn tables_and_file_lists_match_the_game() {
+    let Some(p) = iso_path() else {
+        eprintln!("infection.iso not present; skipped");
+        return;
+    };
+    let volume = Iso::open(p).unwrap().volume().unwrap();
+    assert_eq!(check_tables(volume, &fixture()), 2 * table::count(volume));
+}
+
+/// The later volumes' 140 streams (`stream_tables_mut.txt`, `_out`,
+/// `_qua`: `PINEY_VOLUME=... python3 tools/test_stream_rs.py tables`):
+/// six new ones before `str6100`, so the covers are 118-125 and the
+/// shared `STRSUB` ones run to 138, which events 359 and 360 play.
+#[test]
+fn later_volumes_tables_match_the_game() {
+    let fixtures = [
+        (Volume::Mut, "mutation", include_str!("stream_tables_mut.txt")),
+        (Volume::Out, "outbreak", include_str!("stream_tables_out.txt")),
+        (Volume::Qua, "quarantine", include_str!("stream_tables_qua.txt")),
+    ];
+    for (volume, name, text) in fixtures {
+        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{name}/{name}.iso"));
+        if !iso.exists() {
+            eprintln!("{name}.iso not present; skipped");
+            continue;
+        }
+        let rows: Vec<Vec<String>> = text
+            .lines()
+            .filter(|l| !l.starts_with('#') && !l.is_empty())
+            .map(|l| l.split_whitespace().map(str::to_string).collect())
+            .collect();
+        assert_eq!(table::count(volume), 140);
+        assert_eq!(check_tables(volume, &rows), 2 * 140, "{volume:?}");
+    }
 }
 
 /// `RequestStrPlayGH` (`gate_hack_fixture.txt`, `python3

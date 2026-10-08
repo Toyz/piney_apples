@@ -176,6 +176,9 @@ pub struct StreamFile {
     pub setup: Setup,
     /// The frame section after the Frame chunk, Tops included.
     pub records: Vec<Record>,
+    /// Palettes changed on its materials ([`StreamFile::change_clut`]):
+    /// (the palette the material's texture names, the one drawn instead).
+    pub clut_swaps: Vec<(u32, u32)>,
 }
 
 impl StreamFile {
@@ -184,7 +187,26 @@ impl StreamFile {
     pub fn read(archive: &Archive, stem: &str) -> Result<Self> {
         let sf = Rc::new(SceneFile::read(archive, stem)?);
         let (setup, records) = parse(&sf.ccs)?;
-        Ok(StreamFile { stem: stem.to_string(), sf, setup, records })
+        Ok(StreamFile { stem: stem.to_string(), sf, setup, records, clut_swaps: Vec::new() })
+    }
+
+    /// `GetSubstAdrsF(material)->tex.clutChunk = GetChunkAdrsF(clut)`
+    /// (`ccThBook`'s cover palette): the material's texture drawn on
+    /// palette `clut` of this file from now on. False when either name
+    /// is not defined here.
+    pub fn change_clut(&mut self, material: &str, clut: &str) -> bool {
+        let ccs = &self.sf.ccs;
+        let defined = |name: &str| ccs.find_object(name).filter(|&o| !self.external(o));
+        let swap = (|| {
+            let to = defined(clut)?;
+            let texture = self.sf.scene.materials.get(&defined(material)?)?.texture;
+            let (textures, _) = piney_data::texture::read(ccs).ok()?;
+            Some((textures.iter().find(|t| t.object == texture)?.clut, to))
+        })();
+        let Some((from, to)) = swap else { return false };
+        self.clut_swaps.retain(|s| s.0 != from);
+        self.clut_swaps.push((from, to));
+        true
     }
 
     pub fn data(&self) -> &[u8] {

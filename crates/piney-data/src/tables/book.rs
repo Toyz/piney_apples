@@ -28,10 +28,12 @@ pub struct Book {
     pub item_list: &'static [Bookitemdata],
     /// `bookServer`: the servers' names.
     pub server: &'static [Option<&'static str>],
-    /// `countStopMsg`: by `volumeNum` - 1.
+    /// `countStopMsg`: by `volumeNum` - 1; three, four from Outbreak on ("in Vol. 4.").
     pub count_stop: &'static [Option<&'static str>],
     /// The palette `ccThBook` puts on the cover's `MAT_clut` for each book past the first.
     pub stream_cluts: &'static [&'static str],
+    /// `ccThBook`'s stream for the first book's cover (the book's is this + the book): 112 on Infection, 118 from Mutation on.
+    pub cover_stream: i32,
     /// `bookTitle1`
     pub title1: &'static str,
     /// `bookAreaMsg`
@@ -182,6 +184,8 @@ pub struct Book {
     pub hidden_name: &'static str,
     /// `bookMovieNotice`
     pub movie_notice: &'static str,
+    /// Book IV's skill for enemies 203-206, from Mutation on (none on Infection).
+    pub unknown: &'static str,
     /// `BookCounterStopHelpMsg`
     pub counter_stop_help: BookMsg,
     /// `BookHelp10`
@@ -344,6 +348,7 @@ impl crate::store::Load for Book {
             server: crate::store::Load::load(r),
             count_stop: crate::store::Load::load(r),
             stream_cluts: crate::store::Load::load(r),
+            cover_stream: crate::store::Load::load(r),
             title1: crate::store::Load::load(r),
             area_msg: crate::store::Load::load(r),
             time_msg: crate::store::Load::load(r),
@@ -419,6 +424,7 @@ impl crate::store::Load for Book {
             cnt2: crate::store::Load::load(r),
             hidden_name: crate::store::Load::load(r),
             movie_notice: crate::store::Load::load(r),
+            unknown: crate::store::Load::load(r),
             counter_stop_help: crate::store::Load::load(r),
             help10: crate::store::Load::load(r),
             help11: crate::store::Load::load(r),
@@ -514,6 +520,9 @@ impl Book {
     }
     pub fn stream_cluts(&self) -> &'static [&'static str] {
         self.stream_cluts
+    }
+    pub fn cover_stream(&self) -> i32 {
+        self.cover_stream
     }
     pub fn title1(&self) -> &'static str {
         self.title1
@@ -739,6 +748,9 @@ impl Book {
     }
     pub fn movie_notice(&self) -> &'static str {
         self.movie_notice
+    }
+    pub fn unknown(&self) -> &'static str {
+        self.unknown
     }
     pub fn counter_stop_help(&self) -> BookMsg {
         self.counter_stop_help
@@ -975,10 +987,6 @@ pub static OFS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|
 
 /// `bookServer`: the servers' names.
 pub static SERVER: std::sync::LazyLock<&'static [Option<&'static str>]> = std::sync::LazyLock::new(|| shared().server);
-
-/// `countStopMsg`: by `volumeNum` - 1.
-pub static COUNT_STOP: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().count_stop);
 
 /// The palette `ccThBook` puts on the cover's `MAT_clut` for each book past the first.
 pub static STREAM_CLUTS: std::sync::LazyLock<&'static [&'static str]> =
@@ -1406,30 +1414,6 @@ pub static ITEMS_81: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyL
 
 /// `Book82Item`
 pub static ITEMS_82: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_82);
-
-/// `book01CountLimit`
-pub static LIMITS_1: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().limits_1);
-
-/// `book02CountLimit`
-pub static LIMITS_2: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().limits_2);
-
-/// `book03CountLimit`
-pub static LIMITS_3: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().limits_3);
-
-/// `book04CountLimit`
-pub static LIMITS_4: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().limits_4);
-
-/// `book05CountLimit`
-pub static LIMITS_5: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().limits_5);
-
-/// `book06CountLimit`
-pub static LIMITS_6: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().limits_6);
-
-/// `book07CountLimit`
-pub static LIMITS_7: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().limits_7);
-
-/// `book08CountLimit`
-pub static LIMITS_8: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().limits_8);
 
 /// The volume's Book (read once a run; kept here per volume).
 pub fn of(v: Volume) -> &'static Book {

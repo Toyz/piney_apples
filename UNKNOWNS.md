@@ -98,7 +98,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 ### ui
 
-- [[317]] [[318]] [[347]] the Ryu Book cover's palette from the second book on is not swapped, and the message window's `mode` differs for a frame just after a book closes (Books IV-VIII's pages: [[347]]) — reading the Ryu Books
+- [[317]] [[318]] [[347]] the message window's `mode` differs for a frame just after a book closes (Books IV-VIII's pages: [[347]]) — reading the Ryu Books
 
 ### script
 
@@ -162,6 +162,8 @@ compared. (GAPS.md "After Infection" tracks the phases.)
 
 - [[94]] the later volumes' staff rolls (stfroll2-4) not tried — GAPS.md lists Quarantine's staff roll as its own
 - [[276]] Mutation's staff roll and what the desktop does after it (the save for Outbreak's carry-over) — not followed
+
+- [[390]] tools/test_fieldui_rs.py on Outbreak and Quarantine: every Ryu Book case matches, but 7 (OUT) and 8 (QUA) of the other menus' cases differ: three of noise, whose Disp block the harness does not find there (`DISP_NOIZ`, `GT_HACK` left empty: test_inter_noiz, test_a_new_scenes_menu, test_gate_hack), and test_gate_refusal, test_chat_member_refusals, test_low_hp (conIcon), test_spring_throw, QUA's test_skill_refusals — not read
 
 ### volumes
 
@@ -1092,6 +1094,8 @@ player until one of these turns out wrong.
 - [[267]] str7100, str8800 and str0300 changed on Mutation — answered by [[271]] (they are Infection's code)
 - [[270]] the whole run after 108 not seen — answered by [[276]] (101 to 116 under the autopilot)
 - [[280]] Mutation's convergence aim, effSkillChargeObj's new argument, the drill's endFlag — answered by [[281]] (tools/test_effect_spell_rs.py on MUT, 0 mismatches)
+- [[317]] the Ryu Book cover's palette from the second book on — answered by [[390]] (`ccThBook` puts `stream_cluts[n]` on `str8800e`'s `MAT_clut`, kept while the town's files are; `a_ryu_books_cover_takes_the_books_palette`) / docs/engine/stream.md "The streams' common files"
+- [[347]] the Ryu Books' pages on the later volumes — answered by [[390]] (Mutation's book.cpp ported, Outbreak's and Quarantine's changes; every test_book_* on all four volumes) / docs/engine/field-ui.md "The later volumes' books"
 - [[388]] the draw turns the stream camera with glam's sine, not libvu0's — answered by [[389]] (`piney_desktop::camera`: SetMatrix_PosRotXYZ(Debug), SetView and ccSetViewScreenClipMatrix in VU0's and the EE's arithmetic; world_screen bit for bit on all 1837 fixture frames and on 301 cameras of tools/test_stream_rs.py cameras) / docs/engine/desktop.md "The 3D draw"
 
 ## Dead

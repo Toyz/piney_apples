@@ -52,7 +52,15 @@ ccRequestLoadStream(num)            0x00198da0
 
 `streamTbl` (0x0030ef90) and `streamTblE` (0x003102f0) are 134
 `STREAMDATA *` each; each list is 20-byte records ended by one without a
-name. Record 0 is the header, the rest the files:
+name. From Mutation on they are 140: six new streams (`str9802` to
+`str9934`) take 106-111, so every later one moves up six. `str6100` goes
+to 112, the gate's `str7000` to 113, the drains to 114-117, the Ryu Books'
+covers to 118-125, and the shared `STRSUB` ones to 126-138 (`strdummy`
+139). `strSndTbl` has as many rows. Mutation's `evStrMsgTbl` keeps
+Infection's 136 slots, so its 136-139 read `evStrMsgTblp`'s first rows (all
+null); Outbreak's and Quarantine's have 140, with lines for 134-138.
+Events 359 and 360 play 134-138. Record 0 is the header, the rest the
+files:
 
 ```
 STREAMDATA  0x14 bytes
@@ -114,12 +122,24 @@ movies 108-111 (the same two), the Ryu Books' covers 112-119
 of `str8800e`). The gate hack's (107) names the same models, but the
 rows it reads whole (`str7000e` and the others) define them. So stream 18
 needs a field or the desktop, and a book's cover a town or the desktop.
+The later volumes' lists are the same, and so are their needs: covers
+118-125 over a town, drains 115-117 and the bosses' over a field.
+
+A cover's number is `ccThBook`'s own: `tsm->arg + 112` on Infection,
+`+ 118` from Mutation on (MUT gcmn 0x0042e510, OUT 0x00429f40, QUA
+0x0031c850). The port reads it from the code (`book::cover_stream`).
+From the second book on, once the stream is set up, `ccThBook` puts
+`str8800e`'s `CLT_x800bac1c<n>` (`stream_cluts[n]`) on its `MAT_clut`
+(`mat->tex.clutChunk`), the book's cover model. The town's `str8800e`
+stays loaded, so the palette stays: Book I read after Book III draws in
+Book III's colours until the town's files go. The port keeps it per
+town visit (`WorldMode::cover_palette`, `StreamFile::change_clut`).
 
 The port: `piney_game::stream::FileList` (`Town`, `Field`, `Desktop`)
 gives `Stream::with_resident` the list's `DATA.BIN` files for the
 scripts' streams, the menus' movies and the Audio screen's;
 `every_hash_object_resolves_where_its_stream_plays` checks every stream
-each place plays.
+each place plays, on all four volumes.
 
 ## A scene
 

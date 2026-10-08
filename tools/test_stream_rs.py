@@ -8,7 +8,8 @@ at a file already in memory, and the threads, CD and GS calls hooked:
 
   - the table lookup and file list: ccStreamInit (0x00198ee0) and
     ccStreamLoadPlay::RequestStrPlay (0x00198fc0) with searchPreLoad
-    native, for all 134 streams in both languages: the STREAMDATA list,
+    native, for all 134 streams (140 from Mutation on: `tables` writes a
+    later volume's) in both languages: the STREAMDATA list,
     the ccsTbl the decoder plays and the files read whole first
     (ccLoadStreamOnMem's arguments, in order);
   - WaitEnd (0x00197f40): whether a push skips, over the file flags, the
@@ -70,6 +71,8 @@ at a file already in memory, and the threads, CD and GS calls hooked:
     and strSeInit between tools/sound_ee.py's steps; what reaches the IOP.
 
     python3 tools/test_stream_rs.py fixture    write crates/piney-stream/tests/stream_fixture.txt
+    PINEY_VOLUME=mutation python3 tools/test_stream_rs.py tables
+                                               write .../tests/stream_tables_mut.txt (_out, _qua)
     python3 tools/test_stream_rs.py effects    write crates/piney-stream/tests/str0001_fixture.txt
     python3 tools/test_stream_rs.py effects str0300   (str0120)  write .../tests/str0300_fixture.txt
     python3 tools/test_stream_rs.py subtitles  write crates/piney-stream/tests/subtitle_fixture.txt
@@ -120,6 +123,13 @@ SCENES = [(0, ["title1_st1"], None), (106, ["str6100"], None), (2, ["str0001e", 
           (18, ["str8000e", "str8001e", "str8800e", "str9102e", "str9102"], None)]
 # The SCENES files that are DATA.BIN's, not the stream's.
 RESIDENT = ("str8000e", "str8001e", "str8800e")
+# The streams the volume's tables number: 134 on Infection, 140 from
+# Mutation on (six new before str6100; docs/engine/stream.md).
+STREAMS = 134 if volume.NAME == "infection" else 140
+# Another volume's table lookup alone (`tables`): stream_tables_mut.txt,
+# _out, _qua; Infection's is in stream_fixture.txt.
+TABLES_FIXTURE = os.path.join(ROOT, "crates", "piney-stream", "tests",
+                              f"stream_tables_{volume.CARRY_FILES.get(volume.NAME, 'inf').rstrip('_')}.txt")
 
 
 def fnv(data, h=0xCBF29CE484222325):
@@ -279,7 +289,7 @@ def tables(g):
     mark = g.heap
     for english in (0, 1):
         m.store(SAVE + 0x842c, 1, english)
-        for num in range(134):
+        for num in range(STREAMS):
             del loads[:]
             g.heap = mark
             slp = g.call("ccStreamInit__Fi", (num,))
@@ -1524,15 +1534,18 @@ def music_scenarios(p):
              church[:4], town[:4], ["load 7"]]
     for bank in banks:
         for playing in (True, False):
-            for n in range(134):
+            for n in range(STREAMS):
                 pre = bank + (start if playing else ["start 1", "frames 1"])
                 out.append(pre + [f"strinit {n}", ctrl(n, 0), "frames 32", ctrl(n, 1), "frames 32"])
-    for n in (3, 8, 12, 25, 56, 107, 112):
+    # The Chaos Gate's own stream and the first Ryu Book's cover: 107 and
+    # 112 on Infection, 113 and 118 from Mutation on.
+    gate, cover = (107, 112) if volume.NAME == "infection" else (113, 118)
+    for n in (3, 8, 12, 25, 56, gate, cover):
         out.append(church + ["status 7", ctrl(n, 0), ctrl(n, 1), "frames 31"])
         out.append(church + ["movie 1", "strinit 8", ctrl(n, 0), "strnote 4", "strnote 4", ctrl(n, 1), "frames 31"])
     for field in (16, 15):
         out.append(["set area 1", "set areaPrev 1", f"set field {field}", "load 5", "start 1", "frames 1",
-                    ctrl(107, 0), ctrl(107, 1), "frames 1"])
+                    ctrl(gate, 0), ctrl(gate, 1), "frames 1"])
     # Records of every command, the cursor on them one at a time.
     for rec in ((0, -1, -1, 0, 0), (1, -1, -1, 0, 0), (1, -1, 50, 64, 0), (0, -1, -1, 200, 1), (0, 1, -1, 0xffff, 1),
                 (1, 0, -1, 128, 1), (0, -1, 1, 0, 2), (1, -1, 20, 128, 2), (2, -1, 8, 256, 2), (0, -1, 12, 64, 3),
@@ -1669,9 +1682,24 @@ def fixture():
     print(f"{FIXTURE}: {len(lines)} lines")
 
 
+def tables_fixture():
+    """`tables` on a later volume (PINEY_VOLUME): ccStreamInit and
+    RequestStrPlay for each of its streams, both voices."""
+    if volume.NAME == "infection":
+        raise SystemExit("Infection's tables are in stream_fixture.txt (`fixture`)")
+    lines = ["# tools/test_stream_rs.py tables: the game's ccStreamInit and RequestStrPlay run in eemu.",
+             "# table NUM ENGLISH HEADER ofs size type flag gzip scenes NAME:type:flag:gzip:ofs:size... preload NAME..."]
+    lines += tables(Game())
+    with open(TABLES_FIXTURE, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"{TABLES_FIXTURE}: {len(lines)} lines")
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "fixture":
         fixture()
+    elif len(sys.argv) > 1 and sys.argv[1] == "tables":
+        tables_fixture()
     elif len(sys.argv) > 1 and sys.argv[1] == "effects":
         effects(sys.argv[2] if len(sys.argv) > 2 else "str0001")
     elif len(sys.argv) > 1 and sys.argv[1] == "cameras":

@@ -987,9 +987,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // Menu 74's stream and ccThStrParty: the boss's, not
                             // traced by the menus' harness.
                             Request::StreamMenu(num) => format!("[\"stream_menu\",{num}]"),
-                            Request::BookStream(Some(page)) => {
+                            Request::BookStream(Some(cover)) => {
                                 movie_end = Some(fr + movie_len);
-                                format!("[\"drain_movie\",{}]", 112 + page)
+                                format!("[\"drain_movie\",{}]", cover.stream)
                             }
                             Request::BookStream(None) => String::new(),
                             Request::StrParty(flags) => format!("[\"str_party\",{flags}]"),

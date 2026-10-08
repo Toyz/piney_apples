@@ -172,3 +172,26 @@ fn the_subtitles_are_the_games() {
     });
     assert!(checked > 5000, "{checked} steps of draws checked");
 }
+
+/// From Mutation on the scripts play streams 134-138 (events 359 and 360):
+/// `ccEventStream` reads `evStrMsgTbl[num]` unchecked. Quarantine's table
+/// has rows for them; Mutation's keeps Infection's 136 slots, so its 136-139
+/// read `evStrMsgTblp`'s first rows, none. Infection numbers 134 streams.
+#[test]
+fn the_later_volumes_subtitles_past_stream_133() {
+    use piney_data::volume::Volume;
+    use piney_stream::subtitle::read_table;
+    let work = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work");
+    if !["mutation/mutation.iso", "quarantine/quarantine.iso"].iter().all(|d| work.join(d).exists()) {
+        eprintln!("the later discs are not present; skipped");
+        return;
+    }
+    for v in [Volume::Mut, Volume::Out, Volume::Qua] {
+        for num in 134..140 {
+            assert!(read_table(v, num, false).is_ok(), "{v:?} stream {num}");
+        }
+    }
+    assert!((134..139).all(|n| read_table(Volume::Qua, n, false).unwrap().is_some()));
+    assert!((136..140).all(|n| read_table(Volume::Mut, n, false).unwrap().is_none()));
+    assert!(read_table(Volume::Inf, 134, false).is_err());
+}

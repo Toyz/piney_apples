@@ -132,6 +132,9 @@ pub struct MsgWindow {
     /// `ccMenuWindow` +0x1ac / +0x1ae: the page cursor's alpha and step.
     page_a: i16,
     page_da: i16,
+    /// Mutation's `Disp` and later ones (MUT 0x001b98a0): a speech line
+    /// of an `emode` with 0x1000 starts 4 in from the window, not 28.
+    pub narrow: bool,
 }
 
 impl Default for MsgWindow {
@@ -159,7 +162,15 @@ impl Default for MsgWindow {
             ln: 0,
             page_a: 0,
             page_da: 0,
+            narrow: false,
         }
+    }
+}
+
+impl MsgWindow {
+    /// The constructor's window on `volume`'s `Disp` ([`MsgWindow::narrow`]).
+    pub fn of(volume: piney_data::volume::Volume) -> Self {
+        MsgWindow { narrow: volume != piney_data::volume::Volume::Inf, ..MsgWindow::default() }
     }
 }
 
@@ -648,11 +659,12 @@ impl MsgWindow {
                         SPRITE_COLOR_TABLE[7]
                     };
                     rgba[3] = self.kanji_alpha as u8;
+                    let margin = if self.narrow && self.emode & 0x1000 != 0 { 4.0 } else { 28.0 };
                     out.push(MsgDraw::Text {
                         line: i,
                         text,
                         count: i32::from(self.str_clm[i]),
-                        dx: 28.0 + x,
+                        dx: margin + x,
                         dy,
                         rgba,
                         centred: false,

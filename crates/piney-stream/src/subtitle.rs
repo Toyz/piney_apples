@@ -41,13 +41,13 @@ pub struct StrMsg {
 }
 
 /// The records of `evStrMsgTbl[num]` (`evStrMsgTblp` with `parody`; INF
-/// main 0x003112f0, 0x00311510, 134 pointers each), None when the stream
+/// main 0x003112f0, 0x00311510, a pointer a stream), None when the stream
 /// has no table. A note past its table reads the records after it (the
 /// next stream's, as the game's pointer walks; the highest line any
 /// Infection note asks for is 27): the generated table holds them on, as
 /// far as they read as records with text.
 pub fn read_table(volume: Volume, num: usize, parody: bool) -> Result<Option<Vec<StrMsg>>> {
-    if num >= crate::table::COUNT {
+    if num >= crate::table::count(volume) {
         return Err(Error::NotFound(format!("stream {num}")));
     }
     let t = stream::of(volume);

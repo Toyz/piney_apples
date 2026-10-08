@@ -565,7 +565,7 @@ impl MenuCtrl {
             face_tex: [-1; 4],
             cursor: Cursor::default(),
             cursor_pr: Cursor::default(),
-            msg: MsgWindow::default(),
+            msg: MsgWindow::of(texts.volume),
             cont: None,
             draws: Vec::new(),
             chat: crate::chat_msg::ChatMsg::new(),

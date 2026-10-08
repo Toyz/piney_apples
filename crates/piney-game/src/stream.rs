@@ -15,6 +15,7 @@ use piney_data::iso::Iso;
 use piney_data::save::SaveData;
 use piney_desktop::save::SaveState;
 use piney_draw::Frame;
+use piney_fieldui::book::CoverPalette;
 use piney_input::{Buttons, Pad};
 use piney_stream::event::EventStream;
 use piney_stream::file::StreamFile;
@@ -101,6 +102,12 @@ impl StreamPlayer {
         self.stream.stream().rand().next
     }
 
+    /// The stream's number in the volume's table.
+    #[cfg(test)]
+    pub fn num(&self) -> usize {
+        self.num
+    }
+
     /// Stream `num` from the disc at `iso`, set up from `save` (the voice
     /// language and the cancel button). `title_after_desktop`: the title's
     /// stream once the desktop has run (`DESKTOP_FLG`), which cancel always
@@ -122,21 +129,20 @@ impl StreamPlayer {
         Ok(StreamPlayer { stream: EventStream::with_subtitles(stream, None), num, music: None })
     }
 
-    /// `ccThExecuteStream(num)` over `list`'s files with the stream demo's
-    /// effects (`RequestStrPlay` starts `ccThEffectStr` for every stream):
-    /// no subtitles, no music.
+    /// `ccThExecuteStream(num)` over the place's `resident` files with the
+    /// stream demo's effects (`RequestStrPlay` starts `ccThEffectStr` for
+    /// every stream): no subtitles, no music.
     fn over(
         iso: &Path,
         data: &Archive,
         num: usize,
         state: &SaveState,
-        list: FileList,
+        resident: Vec<StreamFile>,
         opts: Options,
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
         let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let err = |e: piney_data::Error| format!("stream {num}: {e}");
-        let resident = list.files(data).map_err(err)?;
         let mut stream = Stream::with_resident(&mut disc, num, opts, rand_of(state), resident).map_err(err)?;
         if let Some(fx) = stream_effects(&mut disc, data) {
             stream.set_effects(fx);
@@ -159,7 +165,31 @@ impl StreamPlayer {
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
         let opts = Options { skill_names: skill_names(data), ..options(&state.save, false) };
-        StreamPlayer::over(iso, data, num, state, list, opts, events)
+        let resident = list.files(data).map_err(|e| format!("stream {num}: {e}"))?;
+        StreamPlayer::over(iso, data, num, state, resident, opts, events)
+    }
+
+    /// A Ryu Book's cover (`ccThBook`) over the town's files, the
+    /// backdrop's material on `palette`: the last one a book set while
+    /// the town's files have been loaded (the first book sets none).
+    pub fn cover(
+        iso: &Path,
+        data: &Archive,
+        num: usize,
+        state: &SaveState,
+        palette: Option<CoverPalette>,
+        events: &mut Vec<Event>,
+    ) -> Result<StreamPlayer, String> {
+        let mut resident = FileList::Town.files(data).map_err(|e| format!("stream {num}: {e}"))?;
+        if let Some(p) = palette {
+            let changed =
+                resident.iter_mut().find(|f| f.stem == p.file).is_some_and(|f| f.change_clut(p.material, p.clut));
+            if !changed {
+                tracing::warn!("the cover's palette: no {}::{} or {}", p.file, p.material, p.clut);
+            }
+        }
+        let opts = Options { skill_names: skill_names(data), ..options(&state.save, false) };
+        StreamPlayer::over(iso, data, num, state, resident, opts, events)
     }
 
     /// The Audio screen's movie (`SimplePlayStream`, desktop.prg
@@ -173,7 +203,8 @@ impl StreamPlayer {
         state: &SaveState,
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
-        StreamPlayer::over(iso, data, num, state, FileList::Desktop, options(&state.save, false), events)
+        let resident = FileList::Desktop.files(data).map_err(|e| format!("stream {num}: {e}"))?;
+        StreamPlayer::over(iso, data, num, state, resident, options(&state.save, false), events)
     }
 
     /// `ccEventStream(num, 1)`, the event instruction `stream`: stream `num`
@@ -351,7 +382,7 @@ impl StreamPlayer {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::path::PathBuf;
 
     use piney_data::volume::Volume;
@@ -384,34 +415,69 @@ mod tests {
         out
     }
 
-    /// Every `#` object of the streams a place plays is defined there: the
-    /// Audio screen's movies over the desktop's list (#54: Movie 16, Kite's
-    /// drain of Skeith, drew Skeith alone), the drains and `StreamMenu`'s
-    /// over a field's, a Ryu Book's cover (`str8801`-`str8808`, its
-    /// backdrop `str8800e`'s) over a town's.
+    /// The volume's disc image in `work/`, when there.
+    pub(crate) fn work_iso(v: Volume) -> Option<PathBuf> {
+        let name = v.title().trim_start_matches(".hack//").to_lowercase();
+        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{name}/{name}.iso"));
+        iso.exists().then_some(iso).or_else(|| {
+            eprintln!("{name}.iso not present; skipped");
+            None
+        })
+    }
+
+    /// Every `#` object of the streams a place plays is defined there, on
+    /// each volume: the Audio screen's movies on the disc over the
+    /// desktop's list (#54), the drains (and Infection's `StreamMenu`)
+    /// over a field's, the Ryu Books' covers (`str8801`-`str8808`, the
+    /// backdrop `str8800e`'s) over a town's, numbered from the volume's
+    /// `cover_stream` (#61: 112 on Infection, 118 later).
     #[test]
     fn every_hash_object_resolves_where_its_stream_plays() {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
-        if !iso.exists() {
-            eprintln!("infection.iso not present; skipped");
-            return;
+        for v in Volume::ALL {
+            let Some(iso) = work_iso(v) else { continue };
+            let mut disc = Iso::open(&iso).unwrap();
+            let data = Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap();
+            let mut on_disc = |n: usize| {
+                let def = piney_stream::table::Def::read(v, n, false).unwrap();
+                def.archive().is_some_and(|a| disc.find(a).is_ok())
+            };
+            let movies = piney_desktop::content::streams(v).into_iter().map(|m| m.str_num as usize);
+            let drains = piney_fieldui::menus::drain::movies(v).into_iter().map(|n| n as usize);
+            let menu = (v == Volume::Inf).then_some(20);
+            let first = piney_data::tables::book::of(v).cover_stream as usize;
+            let cases: Vec<(FileList, usize)> = movies
+                .map(|n| (FileList::Desktop, n))
+                .chain(drains.chain(menu).map(|n| (FileList::Field, n)))
+                .filter(|&(_, n)| on_disc(n))
+                .chain((first..first + 8).map(|n| (FileList::Town, n)))
+                .collect();
+            for &(list, num) in &cases {
+                let def = piney_stream::table::Def::read(v, num, false).unwrap();
+                if list == FileList::Town {
+                    let book = num - first + 1;
+                    assert_eq!(def.header.name.trim_end_matches('E'), format!("str880{book}"), "{v:?} book {book}");
+                }
+                let missing = unresolved(&mut disc, &data, num, list);
+                assert!(missing.is_empty(), "{v:?} stream {num} over {list:?}: {missing:?}");
+            }
+            let count = |l: FileList| cases.iter().filter(|c| c.0 == l).count();
+            eprintln!(
+                "{v:?}: {} desktop, {} field, {} town",
+                count(FileList::Desktop),
+                count(FileList::Field),
+                count(FileList::Town)
+            );
+            // Without the lists: the book's first cover over a field's.
+            assert!(!unresolved(&mut disc, &data, first, FileList::Field).is_empty());
+            // The scripts' last streams (events 359 and 360 play 134-138),
+            // past Infection's 134.
+            for n in 134..piney_stream::table::count(v) {
+                assert!(Stream::with_options(&mut disc, n, Options::default()).is_ok(), "{v:?} stream {n}");
+            }
+            if v == Volume::Inf {
+                assert_eq!(cases.len(), 18 + 5 + 8);
+                assert!(!unresolved(&mut disc, &data, 18, FileList::Town).is_empty());
+            }
         }
-        let mut disc = Iso::open(&iso).unwrap();
-        let data = Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap();
-        let movies = piney_desktop::content::streams(Volume::Inf).into_iter().enumerate();
-        let on_disc = movies.filter(|(i, _)| piney_desktop::content::stream_volume(*i) == 1);
-        let cases: Vec<(FileList, usize)> = on_disc
-            .map(|(_, m)| (FileList::Desktop, m.str_num as usize))
-            .chain([18, 20, 109, 110, 111].map(|n| (FileList::Field, n)))
-            .chain((112..120).map(|n| (FileList::Town, n)))
-            .collect();
-        assert_eq!(cases.len(), 18 + 5 + 8);
-        for &(list, num) in &cases {
-            let missing = unresolved(&mut disc, &data, num, list);
-            assert!(missing.is_empty(), "stream {num} over {list:?}: {missing:?}");
-        }
-        // Without the lists: the drain of Skeith and the book's covers.
-        assert!(!unresolved(&mut disc, &data, 18, FileList::Town).is_empty());
-        assert!(!unresolved(&mut disc, &data, 112, FileList::Field).is_empty());
     }
 }

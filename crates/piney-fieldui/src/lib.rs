@@ -157,12 +157,10 @@ pub enum Request {
     /// playing stream `num`, answered with [`FieldUi::stream_menu_done`]
     /// when it has ended.
     StreamMenu(i32),
-    /// A Ryu Book's stream (`ccThBook`: `ccThExecuteStream` with 112 + the
-    /// book; from the second book on, the cover's `MAT_clut` the book's
-    /// palette, `bookItem`'s `stream_cluts`), answered with
+    /// A Ryu Book's cover ([`book::Cover`]), answered with
     /// [`FieldUi::book_stream_done`]; `None` once the book has taken it
     /// down (`ccDeleteThread`).
-    BookStream(Option<i32>),
+    BookStream(Option<book::Cover>),
     /// `StreamMenu`'s `ccThStrParty`: the members `streamFlag`'s bits 0-2
     /// name drawn into its stream.
     StrParty(i16),

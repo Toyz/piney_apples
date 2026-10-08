@@ -81,8 +81,13 @@ R1_, L1_ = 0x8, 0x4
 # The handlers of the menus the port does not have (it closes them at once).
 UNPORTED = ()
 # GtHackMenu's and DataDrainMenu's code (gcmn 0x005661e0..0x00566ca8,
-# 0x00532ae0..0x00535204): the calls they make themselves.
-GT_HACK = volume.span("GtHackMenu__10ccMenuCtrlFv")
+# 0x00532ae0..0x00535204): the calls they make themselves. Outbreak's and
+# Quarantine's GtHackMenu carries no name (none of their scenarios here
+# reach it): an empty span.
+try:
+    GT_HACK = volume.span("GtHackMenu__10ccMenuCtrlFv")
+except KeyError:
+    GT_HACK = (0, 0)
 DRAIN = volume.span("DataDrainMenu__10ccMenuCtrlFv")
 
 
@@ -98,7 +103,12 @@ def disp_noiz():
     return (start, end + 8)
 
 
-DISP_NOIZ = disp_noiz()
+# Outbreak's and Quarantine's Disp calls no named ccNoiz::Draw (none of
+# their scenarios here make noise): an empty span.
+try:
+    DISP_NOIZ = disp_noiz()
+except (StopIteration, KeyError):
+    DISP_NOIZ = (0, 0)
 # The Ryu Books' code (BOOK, ccThBook): its EntryFlash calls on menuFade.
 BOOK_CODE = (volume.span("CheckBookLimit__4BOOKFii")[0], volume.span("ccThBook__FPv")[1])
 OWN_CALLS = (GT_HACK, DRAIN, DISP_NOIZ, BOOK_CODE)
@@ -153,6 +163,26 @@ def hx(b):
 def sx32(v):
     """A register's word as a signed int."""
     return v - (1 << 32) if v & 0x80000000 else v
+
+# From Mutation on, characters 18-20 and six NPCs keep their records in
+# the save's extension, right after ccSaveData in the harness's save
+# (docs/formats/save.md, "The extension").
+EXT = 0x8530
+
+
+def char_tbl_names():
+    """charTbl's names (demo.prg; `ccSpcParamData` rows of 0x5c): 18
+    characters, 21 from Mutation on."""
+    p = volume.program(ELF, "demo")
+    at = 0x0040DC80 if volume.NAME == "infection" else volume.carried(0x0040DC80, "demo")
+    n = 18 if volume.NAME == "infection" else 21
+    return [p.cstr(p.u32(at + 0x5C * i)) for i in range(n)]
+
+
+def spc_param(i):
+    """spcParam[i]: ccSaveData's for 0-17, the extension's for 18-20."""
+    return 0x7488 + 0xDC * i if i < 18 else EXT + 0x4B4 + 0xDC * (i - 18)
+
 
 class Char:
     """A ccChar the HUD reads: party member, target or enemy."""
@@ -229,6 +259,7 @@ class Scenario:
         self.chains = ([], [], [])  # Char lists: pc, enemy, object chains
         self.joiners = {}         # member id -> Char inviteSpc makes (AddMember)
         self.spc = {}             # member id -> spcParam (name, level, exp, money, hp, sp, class)
+        self.named = False        # every member's spcParam name as NewGame copies it (charTbl's)
         self.area_item = None     # (field attr, event area, area level, item ofs, floor, field)
         self.watch = []           # (offset, length): save bytes compared after every frame
         self.extra = []           # probe lines a scenario of another test file adds
@@ -251,7 +282,7 @@ class Scenario:
         """spcParam[id]'s level, exp, money, HP, SP and class as save writes."""
         out = []
         for i, (name, level, exp, money, hp, sp, cls) in sorted(self.spc.items()):
-            at = 0x7488 + 0xDC * i
+            at = spc_param(i)
             out += [(at + 0x0E, 2, level), (at + 0x10, 2, exp), (at + 0x14, 4, money), (at + 0x24, 2, hp),
                     (at + 0x26, 2, sp), (at + 0xD8, 2, cls)]
         return out
@@ -449,11 +480,17 @@ class Game:
         # The port's fresh save, made by the game's own boot (the player
         # named Kite, Init's buttons, lists and options), then the
         # scenario's.
-        m.mem[SAVE:SAVE + 0x8530] = test_save_init_rs.fresh_save(ELF)
+        # From Mutation on with its extension after it, the $gp pointer
+        # set (characters 18-20, the six NPCs' trades).
+        test_save_init_rs.place_save(m, SAVE, test_save_init_rs.fresh_slot(ELF), ELF)
         for off, size, v in sc.saves + sc.spc_saves():
             m.store(SAVE + off, size, v)
+        if sc.named:
+            for i, name in enumerate(char_tbl_names()):
+                if i:
+                    m.store(SAVE + spc_param(i), 4, self.put(name))
         for i, spc in sc.spc.items():
-            m.store(SAVE + 0x7488 + 0xDC * i, 4, self.put(spc[0]))
+            m.store(SAVE + spc_param(i), 4, self.put(spc[0]))
         self.threads = []
         # ccInitRegisterEnemy's range, which Mutation's ccAnalyzeEnemyList
         # reads (the keyword screen's level).
@@ -1797,6 +1834,142 @@ class FieldUiAgainstGame(unittest.TestCase):
         sc.pads[260] = (CANCEL, 0)
         sc.frames = 261
         self.compare(sc, "book 3")
+
+    @unittest.skipIf(volume.NAME == "infection", "Mutation on: members 18-20 and the six NPCs")
+    def test_book_3_later(self):
+        # Book III from Mutation on (SetCharInfo's 76 rows): Subaru (19)
+        # in the party with trades and two trade items, NPCs 181 (met) and
+        # 120 (4 trades) with an item, all in the extension; the list
+        # walked down to its end, each opened and closed; book V's
+        # gold given to Subaru.
+        sc = Scenario(480)
+        self.party(sc, 1)
+        self.book3(sc)
+        sc.saves += [(0x2220, 4, (1 << 2) | (1 << 3) | (1 << 19)), (EXT + 0x748 + 1, 1, 3),
+                     (EXT + 0x74B, 1, 0), (EXT + 0x74B + 5, 1, 4)]
+        trade19, npc181 = EXT + 0x1E0 + 64 * 1, EXT + 0x2A0
+        for at in (trade19, npc181):
+            sc.saves += [(at + 4 * k, 4, 0xFFFFFFFF) for k in range(16)]
+        sc.saves += [(trade19 + 0, 2, 3), (trade19 + 2, 1, 10), (trade19 + 3, 1, 1),
+                     (trade19 + 4, 2, 7), (trade19 + 6, 1, 11), (trade19 + 7, 1, 2),
+                     (npc181 + 0, 2, 5), (npc181 + 2, 1, 10), (npc181 + 3, 1, 1)]
+        sc.spc[19] = (b"Subaru", 20, 900, 0, 300, 120, 3)
+        self.given(sc, 2)
+        self.book(sc, 2)
+        sc.pads = {40: (DOWN, 0), 50: (DOWN, 0)}
+        sc.pads.update({f: (0, DOWN) for f in range(60, 260, 10)})
+        sc.pads.update({270: (OK, 0), 300: (CANCEL, 0), 310: (0, UP), 320: (0, UP), 330: (OK, 0),
+                        360: (CANCEL, 0)})
+        sc.pads.update({f: (0, UP) for f in range(370, 460, 10)})
+        sc.pads.update({470: (CANCEL, 0)})
+        sc.frames = 471
+        self.compare(sc, "book 3 later")
+
+    def test_book_limits(self):
+        # Every row's counter past its cap on the volume (CheckBookLimit's
+        # tables by volumeNum): the counters in colour 18 and the help
+        # the counter's stop, rows walked, in books I, II, V, VI, VII and
+        # VIII's food page, the rewards all given.
+        for page, saves, pads, frames in (
+                (0, [(0x6862, 2, 30000), (0x8400, 4, 60 * 3600 * 999)], {40: (DOWN, 0), 60: (UP, 0)}, 80),
+                (1, [(0x6864, 2, 30000), (0x6866, 2, 30000), (0x6868, 2, 30000)],
+                 {40: (DOWN, 0), 50: (DOWN, 0), 60: (UP, 0)}, 80),
+                (4, [(0x73F8 + 4 * 2, 4, 99999999)], {}, 60),
+                (5, [(0x7440, 2, 30000), (0x7442, 2, 30000), (0x746E, 2, 30000)],
+                 {40: (DOWN, 0), 50: (DOWN, 0), 60: (UP, 0)}, 80),
+                (6, [(0x7470, 2, 30000), (0x7472, 2, 30000), (0x7444, 2, 30000)],
+                 {40: (DOWN, 0), 50: (DOWN, 0), 60: (UP, 0)}, 80),
+                (7, [(0x7446 + 2 * k, 2, 9000) for k in range(16)],
+                 {30: (DOWN, 0), 40: (OK, 0), 70: (0, DOWN), 80: (0, DOWN)}, 100)):
+            with self.subTest(book=page + 1):
+                sc = Scenario(frames)
+                self.party(sc, 1)
+                self.book3(sc)
+                sc.saves += saves
+                self.given(sc, page)
+                self.book(sc, page)
+                sc.pads = dict(pads)
+                sc.frames = frames
+                self.compare(sc, f"book {page + 1} limits")
+
+    def test_book_all(self):
+        # Books III and IV complete: every character met and traded with
+        # (members, people, players and, from Mutation on, the extension's
+        # three members and six NPCs), every enemy slain; Quarantine marks
+        # them as its counters' stop. The rows walked, the list entered.
+        trades = [(0x686A + k, 1, 5) for k in range(77)] + [(0x2220, 4, 0x1FFFFE)]
+        if volume.NAME != "infection":
+            trades += [(EXT + 0x748 + k, 1, 5) for k in range(9)]
+        for page, saves in ((2, trades), (3, [(0x68B7 + k, 1, 2) for k in range(303)])):
+            with self.subTest(book=page + 1):
+                sc = Scenario(120)
+                self.party(sc, 1)
+                sc.named = True
+                sc.saves += saves
+                self.given(sc, page)
+                self.book(sc, page)
+                sc.pads = {40: (DOWN, 0), 50: (DOWN, 0), 70: (0, DOWN), 90: (0, UP), 110: (UP, 0)}
+                if page == 3:
+                    sc.directs.update({40: DOWN, 41: DOWN})
+                sc.frames = 120
+                self.compare(sc, f"book {page + 1} all")
+
+    @unittest.skipIf(volume.NAME == "infection", "Mutation on: bosses 203-206")
+    def test_book_4_later(self):
+        # Book IV from Mutation on: boss 204 slain (base.id 203-206 show
+        # "Unknown" for their first skill) and enemy 0; onto the list, to
+        # 204, its sub-window opened and closed, back up and off, closed.
+        sc = Scenario(200)
+        self.party(sc, 1)
+        sc.saves += [(0x68B7 + 0, 1, 3), (0x68B7 + 204, 1, 1)]
+        for k, v in enumerate((2, 4, 6, 8)):
+            sc.saves += [(0x69F0 + 8 * 204 + 2 * k, 2, v)]
+        self.given(sc, 3)
+        self.book(sc, 3)
+        sc.directs.update({60: DOWN, 61: DOWN})
+        sc.pads = {80: (0, DOWN), 100: (OK, 0), 130: (CANCEL, 0), 150: (0, UP), 170: (0, UP), 199: (CANCEL, 0)}
+        sc.frames = 200
+        self.compare(sc, "book 4 later")
+
+    @unittest.skipIf(volume.NAME == "infection", "Mutation on: book VIII's changes")
+    def test_book_8_later(self):
+        # Book VIII from Mutation on: all nine Grunties met (row 0's
+        # reward closes the help window first, the names in colour 18),
+        # the Grunties' page and back, the food page and back from its
+        # total (to the menu's food row), closed.
+        sc = Scenario(400)
+        self.party(sc, 1)
+        for k in range(9):
+            sc.saves += [(0x7474 + 2 * k, 2, k + 1)]
+        sc.saves += [(0x7446 + 2 * 3, 2, 4)]
+        self.book(sc, 7)
+        sc.pads = {f: (OK, 0) for f in range(40, 230, 15)}
+        sc.pads.update({250: (OK, 0), 290: (CANCEL, 0), 310: (DOWN, 0), 320: (OK, 0), 360: (CANCEL, 0),
+                        380: (UP, 0), 399: (CANCEL, 0)})
+        sc.frames = 400
+        self.compare(sc, "book 8 later")
+
+    @unittest.skipIf(volume.NAME == "infection", "Mutation on: members 18-20")
+    def test_book_5_later(self):
+        # Book V from Mutation on: twenty members, Subaru (19) and Sora
+        # (20) met with gold given, their time and friendliness in the
+        # extension; the list walked to its end and back.
+        sc = Scenario(420)
+        self.party(sc, 1)
+        self.book3(sc)
+        sc.saves += [(0x2220, 4, (1 << 2) | (1 << 3) | (1 << 19) | (1 << 20)),
+                     (EXT + 0x4A8 + 4, 4, 2500), (EXT + 0x4A8 + 8, 4, 40), (EXT + 0x49C + 4, 4, 60 * 7000),
+                     (spc_param(19) + 0xDA, 2, 55)]
+        sc.spc[19] = (b"Subaru", 20, 900, 0, 300, 120, 3)
+        sc.spc[20] = (b"Sora", 21, 950, 0, 310, 110, 4)
+        self.given(sc, 4)
+        self.book(sc, 4)
+        sc.directs.update({60: DOWN, 61: DOWN, 62: DOWN})
+        sc.pads = {f: (0, DOWN) for f in range(80, 300, 10)}
+        sc.pads.update({f: (0, UP) for f in range(300, 400, 10)})
+        sc.pads.update({410: (CANCEL, 0)})
+        sc.frames = 411
+        self.compare(sc, "book 5 later")
 
     def test_book_3_list(self):
         # Book III's list: the cursor onto it (to the first one known),

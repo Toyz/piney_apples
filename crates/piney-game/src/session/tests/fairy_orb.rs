@@ -469,15 +469,36 @@ fn a_book_read_in_town_raises_the_stat() {
 }
 
 /// A Ryu Book (key item 273 + `book`) read from PERSONAL's Key Items once
-/// `ready`: `ccThBook` fades to black, plays the cover stream (112 +
-/// `book`), and opens the book's pages once the stream ends. Whether the
-/// cover played and the pages opened. In a town the cover's frame must
-/// move on every game frame it plays (#21: it stood still every other
-/// one, the town's frame between).
+/// `ready`: `ccThBook` fades to black, plays the cover stream (the
+/// volume's first cover + `book`), and opens the book's pages once the
+/// stream ends. Whether the cover played and the pages opened.
 pub(super) fn read_a_ryu_book(s: &mut Session, book: usize, ready: impl Fn(&Session) -> bool) -> (bool, bool) {
+    let r = read_ryu_book(s, book, ready, |_, _| {});
+    (r.cover, r.pages)
+}
+
+/// What reading a Ryu Book showed ([`read_ryu_book`]).
+pub(super) struct BookRead {
+    pub cover: bool,
+    pub pages: bool,
+    /// The streams the town played for the cover.
+    pub streams: Vec<usize>,
+}
+
+/// [`read_a_ryu_book`], with the streams the town played for the cover,
+/// each frame handed to `on_frame`. In a town the cover's frame must move
+/// on every game frame it plays (#21: it stood still every other one, the
+/// town's frame between).
+pub(super) fn read_ryu_book(
+    s: &mut Session,
+    book: usize,
+    ready: impl Fn(&Session) -> bool,
+    mut on_frame: impl FnMut(&Session, &Frame),
+) -> BookRead {
     let mut pad = Pad::default();
     let (mut given, mut cover, mut pages) = (false, false, false);
     let (mut last, mut still) = (None, 0);
+    let mut played = Vec::new();
     for f in 0..6000u32 {
         let now = ready(s);
         if now && !given {
@@ -495,6 +516,9 @@ pub(super) fn read_a_ryu_book(s: &mut Session, book: usize, ready: impl Fn(&Sess
             _ => false,
         };
         if let Stage::World(w) = &s.stage {
+            if let Some(n) = w.stream_num().filter(|n| played.last() != Some(n)) {
+                played.push(n);
+            }
             let now = w.stream_frame();
             if now.is_some() && now == last && now != Some(0) {
                 still += 1;
@@ -526,11 +550,12 @@ pub(super) fn read_a_ryu_book(s: &mut Session, book: usize, ready: impl Fn(&Sess
             }
         };
         pad.read(&raw(b, 128));
-        s.step(&pad);
+        let frame = s.step(&pad);
         s.take_events();
+        on_frame(s, &frame);
     }
     assert_eq!(still, 0, "the cover stood still for {still} frames");
-    (cover, pages)
+    BookRead { cover, pages, streams: played }
 }
 
 /// Ryu Book I read in Mac Anu: its cover stream plays over the town and

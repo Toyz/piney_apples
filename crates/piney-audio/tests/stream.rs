@@ -214,5 +214,7 @@ fn check(path: &std::path::Path, fixture: &str) {
         assert_eq!(words(&snd, &out), want, "{volume:?}: {head}");
         n += 1;
     }
-    assert_eq!(n, 1399);
+    // Each stream before and after over five banks, playing or not; 59
+    // others.
+    assert_eq!(n, 59 + 10 * table::count(volume));
 }

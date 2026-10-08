@@ -15,6 +15,7 @@ use std::collections::VecDeque;
 use piney_data::save::SaveData;
 use piney_data::tables::book::Book as Tables;
 use piney_data::tables::sjis::encode;
+use piney_data::volume::Volume;
 use piney_desktop::eef::from_int;
 use piney_desktop::kanji::{Kt, str_width};
 
@@ -66,8 +67,7 @@ const COL_OVER: usize = 18;
 pub const MSG_ROWS: usize = 140;
 /// `buttonLayer`: `ccLayer::Init(243)` with the menu's view.
 pub const BUTTON_LAYER: i16 = 243;
-/// `hiddenName`'s rows: book III's 67 characters, book IV's 303 enemies.
-const CHARS: usize = 67;
+/// Book IV's enemies (`enemyData[303]`).
 pub(super) const ENEMIES: usize = 303;
 
 /// `CHARINFO` (0x78): a character of book III's list.
@@ -127,6 +127,11 @@ enum Step {
     /// `Check(0)` until it answers (`Draw; breath` meanwhile), `Close`,
     /// `msgDispFlag` cleared.
     Wait,
+    /// `ccMsg->Close()`: from Mutation on, book VIII's first row closes
+    /// the help window before its own (MUT gcmn 0x004234d4).
+    Close,
+    /// [`Book::reward08`] set or cleared.
+    Reward08(bool),
     /// `BookAddItem`'s reward taken: its desktop bit, `hyItem` + 1.
     Add,
     /// `hyProccess[type][sel] = num`.
@@ -171,6 +176,9 @@ pub struct Book {
     pub sel_max: i32,
     pub cancel_flag: i32,
     pub exit: i32,
+    /// +0x5158 from Mutation on: book VIII's first reward is up (its
+    /// windows), which Outbreak's Grunty page keeps its help off for.
+    pub reward08: bool,
     steps: VecDeque<Step>,
     /// Not the game's: false (the port's way) draws the book once on every
     /// frame of a reward. The game draws it twice on the frame a reward
@@ -187,12 +195,48 @@ pub struct Env {
     pub world: &'static piney_data::tables::world::World,
     /// `volumeNum`: 1 Infection ... 4 Quarantine.
     pub volume_num: i32,
+    /// Mutation's book.cpp, which the later volumes keep: three more
+    /// members and six more NPCs on book III, list buttons further right.
+    pub later: bool,
 }
+
+/// Book III's other people (`npcTbl` 30-65) and players (66-79).
+const PEOPLE: std::ops::Range<i32> = 30..66;
+const PLAYERS: std::ops::Range<i32> = 66..80;
+/// From Mutation on, book III's last six: NPCs whose trades the save's
+/// extension keeps (`GetNpcTradeList`'s 48-53).
+const LATER_NPCS: [i32; 6] = piney_data::save::ext::NPC_TRADE_CODES;
 
 impl Env {
     pub fn of(x: &Ctx) -> Env {
         let v = x.texts.volume;
-        Env { t: piney_data::tables::book::of(v), world: piney_data::tables::world::of(v), volume_num: v as i32 + 1 }
+        Env {
+            t: piney_data::tables::book::of(v),
+            world: piney_data::tables::world::of(v),
+            volume_num: v.number(),
+            later: v != Volume::Inf,
+        }
+    }
+
+    /// The party members, `charTbl` 1 on: 17, 20 from Mutation on.
+    pub fn members(&self) -> usize {
+        if self.later { 20 } else { 17 }
+    }
+
+    /// Book III's characters (`SetCharInfo`'s): 67, 76 from Mutation on.
+    pub fn chars(&self) -> usize {
+        self.members() + PEOPLE.len() + PLAYERS.len() + if self.later { LATER_NPCS.len() } else { 0 }
+    }
+
+    /// Outbreak's book.cpp, which Quarantine keeps: book VIII's Grunties
+    /// all met stop their page's help.
+    pub fn outbreak(&self) -> bool {
+        self.volume_num >= 3
+    }
+
+    /// Where a list page puts its button: x 61, 71 from Mutation on.
+    pub fn list_button_x(&self) -> f32 {
+        if self.later { 71.0 } else { 61.0 }
     }
 }
 
@@ -226,6 +270,7 @@ impl Book {
             sel_max: 0,
             cancel_flag: 0,
             exit: 0,
+            reward08: false,
             steps: VecDeque::new(),
             as_the_game: false,
         };
@@ -248,9 +293,9 @@ impl Book {
             (sel_max, Scroll { page_index_num, all_index_num, ..Scroll::default() })
         };
         let list = match ty {
-            2 => Some(page(2, 7, CHARS as i32)),
+            2 => Some(page(2, 7, env.chars() as i32)),
             3 => Some(page(1, 9, ENEMIES as i32)),
-            4 => Some(page(1, 9, 17)),
+            4 => Some(page(1, 9, env.members() as i32)),
             _ => None,
         };
         if let Some((sel_max, scroll)) = list {
@@ -261,14 +306,13 @@ impl Book {
     }
 
     /// `CheckBookLimit(idx, val)` (0x0040c570): `val` past this book's cap
-    /// for counter `idx` on the volume comes back as the cap, with
-    /// `countOver` set.
+    /// for counter `idx` on the volume sets `countOver` and comes back as
+    /// the cap; on Quarantine (Outbreak's code, its tables' fourth row)
+    /// it stays `val`.
     pub fn check_book_limit(&mut self, env: &Env, idx: i32, val: i32) -> i32 {
         self.count_over = 0;
         let vol = if env.volume_num == 0 { 1 } else { env.volume_num } - 1;
-        if vol == 4 {
-            return val;
-        }
+        let capped = !env.outbreak() || vol < 3;
         let t = env.t;
         let (table, per): (&[i32], i32) = match self.ty {
             0 => (t.limits_1, 2),
@@ -284,7 +328,7 @@ impl Book {
         match usize::try_from(idx + per * vol).ok().and_then(|k| table.get(k)) {
             Some(&cap) if cap < val => {
                 self.count_over = 1;
-                cap
+                if capped { cap } else { val }
             }
             _ => val,
         }
@@ -391,8 +435,8 @@ impl Book {
 
     /// `BOOK::PadControl` (0x0040d870): the page's own, then the cancel
     /// button closes the book.
-    fn pad_control(&mut self, m: &mut MenuCtrl, x: &mut Ctx) {
-        pages::pad_control(self, m, x);
+    fn pad_control(&mut self, m: &mut MenuCtrl, x: &mut Ctx, env: &Env) {
+        pages::pad_control(self, m, x, env);
         if self.is_sub_win_open == 0
             && self.cancel_flag == 0
             && self.wait == 0
@@ -427,7 +471,7 @@ impl Book {
             self.draw(m, x, env, draws);
         }
         if self.cancel_flag == 0 {
-            self.pad_control(m, x);
+            self.pad_control(m, x, env);
         } else {
             self.cancel_flag = i32::from(x.pad.push.bits() & x.save.cancel() != 0);
         }
@@ -484,6 +528,8 @@ impl Book {
                     m.msg.close();
                     self.msg_disp_flag = 0;
                 }
+                Step::Close => m.msg.close(),
+                Step::Reward08(on) => self.reward08 = on,
                 Step::Add => add_item_apply(&mut x.save.save, env),
                 Step::Progress { sel, num } => {
                     let a = save::HY_PROCCESS + (self.ty * 4 + sel) as usize;
@@ -573,10 +619,13 @@ pub fn itoa_ns(n: i32) -> Vec<u8> {
     out
 }
 
-/// `SetCharInfo(charData)` (gcmn 0x0040bcd0): the members 1-17, the
-/// people 30-65 and the other players 66-79, with their trades.
+/// `SetCharInfo(charData)` (gcmn 0x0040bcd0; MUT 0x0041f320): the
+/// members, the people 30-65 and the other players 66-79, with their
+/// trades; from Mutation on members 18-20 and six NPCs from the save's
+/// extension too ([`Env::chars`]).
 fn set_char_info(x: &Ctx, env: &Env) -> Vec<CharInfo> {
     use crate::menus::merchant::check_trade_count;
+    use piney_data::save::by_id;
     let save = &x.save.save;
     let hidden = encode(env.t.hidden_name);
     let clamp = |v: i32| if v >= 10000 { 9999 } else { v };
@@ -593,18 +642,18 @@ fn set_char_info(x: &Ctx, env: &Env) -> Vec<CharInfo> {
         }
         it
     };
-    let mut out = Vec::with_capacity(CHARS);
-    for i in 1..18usize {
+    let mut out = Vec::with_capacity(env.chars());
+    for i in 1..=env.members() {
         let id = i as i32;
         let mut c = CharInfo {
             name: x.texts.char_names.get(i).cloned().unwrap_or_default(),
             trade_num: check_trade_count(x, 4, id),
             is_online: x.world.spc.iter().position(|&(v, _)| v == id).map_or(-1, |k| k as i32),
             is_friend: save.i32(save::PARTY_MEMBERS) & (1 << i),
-            item: items(0xe3c + (i - 1) * 64),
-            friendship: i32::from(save.i16(0x7488 + 0xdc * i + 0xda)),
-            party_time: save.i32(0x73b4 + 4 * i) / 60,
-            present: save.i32(0x73f8 + 4 * i),
+            item: items(by_id::spc_trade_list(i - 1)),
+            friendship: i32::from(save.i16(by_id::spc_param(i) + 0xda)),
+            party_time: save.i32(by_id::party_time(i)) / 60,
+            present: save.i32(by_id::spc_present(i)),
         };
         if c.trade_num == -1 {
             c.trade_num = 0;
@@ -635,13 +684,13 @@ fn set_char_info(x: &Ctx, env: &Env) -> Vec<CharInfo> {
         c.trade_num = clamp(c.trade_num);
         c
     };
-    for k in 0..36usize {
-        let mut c = person(30 + k as i32);
-        c.item = items(0x127c + 64 * k);
+    for id in PEOPLE {
+        let mut c = person(id);
+        c.item = items(by_id::npc_trade_list((id - PEOPLE.start) as usize));
         out.push(c);
     }
-    for k in 0..14usize {
-        let mut c = person(66 + k as i32);
+    for (k, id) in PLAYERS.enumerate() {
+        let mut c = person(id);
         c.item = [(-1, -1, -1); 16];
         let mut n = 0;
         for j in 0..3 {
@@ -651,6 +700,13 @@ fn set_char_info(x: &Ctx, env: &Env) -> Vec<CharInfo> {
             }
         }
         out.push(c);
+    }
+    if env.later {
+        for (k, id) in LATER_NPCS.into_iter().enumerate() {
+            let mut c = person(id);
+            c.item = items(by_id::npc_trade_list(48 + k));
+            out.push(c);
+        }
     }
     out
 }
@@ -673,6 +729,37 @@ enum Stage {
     Run,
     /// `exit`: the use takes it down.
     Done,
+}
+
+/// What `ccThBook` plays for a book's cover: `ccThExecuteStream` of the
+/// volume's first cover (`book::cover_stream`: 112 on Infection, 118
+/// later) + the book; from the second book on, once the stream is set
+/// up, the backdrop's palette changed ([`CoverPalette`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Cover {
+    pub stream: i32,
+    pub palette: Option<CoverPalette>,
+}
+
+/// `GetCCSAdrs(file)`'s `GetSubstAdrsF(material)->tex.clutChunk =
+/// GetChunkAdrsF(clut)`: the town's resident `str8800e`, whose `MAT_clut`
+/// keeps the palette until the town's files go.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CoverPalette {
+    pub file: &'static str,
+    pub material: &'static str,
+    pub clut: &'static str,
+}
+
+impl Cover {
+    /// Book `page`'s cover on the volume's tables (`stream_cluts[page]`).
+    pub fn of(t: &Tables, page: i32) -> Cover {
+        let clut = usize::try_from(page).ok().filter(|&p| p > 0).and_then(|p| t.stream_cluts.get(p).copied());
+        Cover {
+            stream: t.cover_stream + page,
+            palette: clut.map(|clut| CoverPalette { file: "str8800e", material: "MAT_clut", clut }),
+        }
+    }
 }
 
 /// `ccThBook`'s task block: `param` +0x14 the book (the item less 273),
@@ -716,7 +803,7 @@ impl Task {
             Stage::Black(n) if n > 0 => self.stage = Stage::Black(n - 1),
             Stage::Black(_) => {
                 delete_fade(m, self.fade);
-                x.req.push(Request::BookStream(Some(self.page)));
+                x.req.push(Request::BookStream(Some(Cover::of(env.t, self.page))));
                 self.stage = Stage::StreamStart(1);
             }
             Stage::StreamStart(n) if n > 0 => self.stage = Stage::StreamStart(n - 1),

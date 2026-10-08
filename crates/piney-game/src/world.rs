@@ -148,6 +148,9 @@ pub struct WorldMode {
     area_level: i32,
     /// A Ryu Book's cover stream plays (`ccThBook`'s `ccThExecuteStream`).
     book_stream: bool,
+    /// The palette a Ryu Book last put on the resident `str8800e`'s
+    /// backdrop, kept while the town's files are (Book I sets none).
+    cover_palette: Option<piney_fieldui::book::CoverPalette>,
     /// The words entered at the Chaos Gate (`ccEvent.areaCodeSet`), for the
     /// events.
     area_code_set: Option<[i16; 3]>,
@@ -212,6 +215,7 @@ impl WorldMode {
             hack_screen: false,
             area_level: 0,
             book_stream: false,
+            cover_palette: None,
             area_code_set: None,
             leaving: None,
             map,
@@ -235,6 +239,12 @@ impl WorldMode {
     #[cfg(test)]
     pub fn streaming(&self) -> bool {
         self.st.stream.player.is_some()
+    }
+
+    /// The playing stream's number.
+    #[cfg(test)]
+    pub fn stream_num(&self) -> Option<usize> {
+        self.st.stream.player.as_ref().map(|p| p.num())
     }
 
     /// The playing stream's frame (`ccGetStreamFrame`), once it has
@@ -609,15 +619,18 @@ impl WorldMode {
             R::DrainMovie(_) => self.ui.drain_movie_done(),
             // No boss in a town: menu 74 is never opened there.
             R::StreamMenu(_) => self.ui.stream_menu_done(),
-            // ccThBook's cover, stream 112 + the book, over the town; a
-            // stream that cannot start counts as played.
-            R::BookStream(Some(page)) => {
+            // ccThBook's cover over the town, on the palette the town's
+            // str8800e last took; a stream that cannot start counts as
+            // played.
+            R::BookStream(Some(cover)) => {
                 let save = self.world.state_out();
+                self.cover_palette = cover.palette.or(self.cover_palette);
+                let num = cover.stream;
                 let started = match (self.st.stream.iso.clone(), self.st.stream.data.clone()) {
-                    (Some(iso), Some(data)) => usize::try_from(112 + page)
-                        .map_err(|_| format!("stream {}", 112 + page))
+                    (Some(iso), Some(data)) => usize::try_from(num)
+                        .map_err(|_| format!("stream {num}"))
                         .and_then(|n| {
-                            crate::stream::StreamPlayer::drain(&iso, &data, n, &save, crate::stream::FileList::Town, &mut self.events)
+                            crate::stream::StreamPlayer::cover(&iso, &data, n, &save, self.cover_palette, &mut self.events)
                         }),
                     _ => Err("no disc for the book's stream".into()),
                 };

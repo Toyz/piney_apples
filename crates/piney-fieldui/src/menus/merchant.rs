@@ -7,6 +7,9 @@
 //! merchants' handlers differ only in Vender's `list.index`. The steps are
 //! in docs/engine/field-ui.md (the lists).
 
+use piney_data::save::by_id;
+use piney_data::volume::Volume;
+
 use crate::Request;
 use crate::ctrl::{Cont, Ctx, Flow, MenuCtrl, SE_BACK, SE_OK};
 use crate::menus::system::{extract_menu, item_rows};
@@ -35,33 +38,40 @@ fn idx(m: &MenuCtrl) -> usize {
     m.menu.clamp(0, 88) as usize
 }
 
-/// `ccSaveData::CheckTradeCount(type, id)` (main 0x00178680): a party
-/// member's (`type & 4`) or a PC's (30-79) trade count, -1 for anyone
-/// else (a PC's starts at -1: never spoken to).
-pub fn check_trade_count(x: &Ctx, types: u32, id: i32) -> i32 {
-    let s = &x.save.save;
-    let at = |k: i32| i32::from(s.u8((PC_TRADE_COUNT as i32 + k) as usize) as i8);
-    if types & 4 != 0 {
-        at(id - 1)
-    } else if types & 0x18 != 0 && (30..80).contains(&id) {
-        at(id - 13)
-    } else {
-        -1
+/// Where `ccSaveData`'s trade counts keep trader (`type`, `id`)'s: on
+/// Infection a party member's (`type & 4`, +0x6869 + id) or a PC's (30-79,
+/// +0x685d + id); from Mutation on also members 18-20 and six NPCs in the
+/// extension ([`by_id::trade_count`], MUT 0x00179ec0 and 0x0017a150).
+fn count_at(x: &Ctx, types: u32, id: i32) -> Option<usize> {
+    if x.texts.volume != Volume::Inf {
+        return by_id::trade_count(types as i32, id);
     }
-}
-
-/// `ccSaveData::AddTradeCount(type, id)` (main 0x00178700): one more,
-/// capped at 99 (a signed byte; anyone but a member or a PC 30-79 counts
-/// on entry 0).
-pub fn add_trade_count(x: &mut Ctx, types: u32, id: i32) {
     let k = if types & 4 != 0 {
         id - 1
     } else if types & 0x18 != 0 && (30..80).contains(&id) {
         id - 13
     } else {
-        0
+        return None;
     };
-    let at = (PC_TRADE_COUNT as i32 + k) as usize;
+    usize::try_from(PC_TRADE_COUNT as i32 + k).ok()
+}
+
+/// `ccSaveData::CheckTradeCount(type, id)` (main 0x00178680): the trader's
+/// count ([`count_at`]), -1 for anyone else (a PC's starts at -1: never
+/// spoken to).
+pub fn check_trade_count(x: &Ctx, types: u32, id: i32) -> i32 {
+    count_at(x, types, id).map_or(-1, |at| i32::from(x.save.save.u8(at) as i8))
+}
+
+/// `ccSaveData::AddTradeCount(type, id)` (main 0x00178700): one more,
+/// capped at 99 (a signed byte). Anyone else counts on Infection's entry
+/// 0 and nowhere from Mutation on.
+pub fn add_trade_count(x: &mut Ctx, types: u32, id: i32) {
+    let at = match count_at(x, types, id) {
+        Some(at) => at,
+        None if x.texts.volume == Volume::Inf => PC_TRADE_COUNT,
+        None => return,
+    };
     let s = &mut x.save.save;
     let v = (s.u8(at) as i8).wrapping_add(1);
     s.set_u8(at, v as u8);
