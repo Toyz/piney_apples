@@ -2514,8 +2514,14 @@ pub struct WorldMan {
     pub event_area_flag: i32,
 }
 
-/// `volumeNum` (main 0x0034bbf8): 1 in Infection.
-pub const VOLUME: i32 = 1;
+/// Whether `WORLD_MAN::EntryGimmick` places a dungeon's portals
+/// (`SetMagicCircle`): not when `volumeNum` is 2 and `game.field` is 27
+/// (INF main 0x001a1f20, MUT 0x001b7058, the same test on every volume).
+/// Mutation's return to Chosen Hopeless Nothingness (event 101, "There
+/// are no enemies...") is that dungeon with none.
+pub fn dungeon_places_portals(volume: Volume, field: i32) -> bool {
+    !(volume == Volume::Mut && field == 27)
+}
 
 /// `WORLD_MAN::EntryGimmick()` (main 0x001a1f20), from `ccThEntryCtrl`'s
 /// set-up in a field or dungeon: a field's gimmicks once (`SetFood`,
@@ -2536,7 +2542,7 @@ pub fn entry_gimmick(wm: &mut WorldMan, ctrl: &mut EntryCtrl, cx: &mut Cx, s: &m
             let k = 1 + cx.game.dungeon as usize;
             if wm.entry_flag[k] == 0 {
                 s.set_item_box(ctrl, cx);
-                if !(VOLUME == 2 && cx.game.field == 27) {
+                if dungeon_places_portals(cx.st.volume, cx.game.field) {
                     s.dungeon_set_magic_circle(ctrl, cx);
                 }
                 s.set_idol(ctrl, cx);

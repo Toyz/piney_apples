@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-390 entries: audio 33, battle 81, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 14, script 48, test 153, tooling 27, ui 86, video 16, volumes 69, world 105.
+391 entries: audio 33, battle 82, build 16, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 14, script 48, test 154, tooling 27, ui 86, video 16, volumes 70, world 106.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -402,3 +402,4 @@ The [reference](docs/README.md) says what is true now.
 | 388 | [The Audio screen's movies play as the desktop holds them: Movie 13's gate-in swirl draws, and Skeith's drain shows Kite and its backdrop](worklog/0388-the-audio-screen-s-movies-play-as-the-desktop-holds-them.md) | 2026-10-07 | video, render, test |
 | 389 | [Stream and desktop cameras are placed and projected in VU0's arithmetic: every view matrix is the game's bit for bit](worklog/0389-stream-and-desktop-cameras-are-placed-and-projected-in-vu0.md) | 2026-10-07 | render, video, test |
 | 390 | [The Ryu Books open their own covers on every volume: each ccThBook's stream base, the covers' palettes, the later volumes' 140 streams and their books' pages](worklog/0390-the-ryu-books-open-their-own-covers-on-every-volume-each.md) | 2026-10-08 | video, ui, volumes, test |
+| 391 | [Mutation's Chosen Hopeless Nothingness has no portals: EntryGimmick's volumeNum 2, field 27 test is asked of the disc's volume](worklog/0391-mutation-s-chosen-hopeless-nothingness-has-no-portals.md) | 2026-10-08 | world, battle, volumes, test |

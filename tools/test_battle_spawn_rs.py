@@ -1174,12 +1174,12 @@ class Harness:
         return v
 
     # the scene -----------------------------------------------------------------------
-    def rnd_scene(self, rnd, ne=None, nc=None, ng=None, nn=None, area=None):
+    def rnd_scene(self, rnd, ne=None, nc=None, ng=None, nn=None, area=None, field=None):
         """A random scene: returns a dict the game and the probe are set up
         from."""
         sc = {}
         area = area if area is not None else rnd.choice((1, 1, 2, 2, 0))
-        field = rnd.choice((14, 14, 0, rnd.randrange(1, 60)))
+        field = field if field is not None else rnd.choice((14, 14, 0, rnd.randrange(1, 60)))
         game = [area, rnd.randrange(0, 5), field, rnd.randrange(0, 3), rnd.randrange(-1, 4), rnd.randrange(-1, 6),
                 rnd.randrange(0, 5), rnd.choice((4, rnd.randrange(0, 11))), rnd.randrange(0, 1 << 24), 0,
                 rnd.choice((1, 2, 3, 4, 5, 7))]
@@ -2110,7 +2110,8 @@ def check_event_mc(checks, rnd):
 
 def check_entry_gimmick(checks, rnd):
     h = harness(checks)
-    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=rnd.choice((1, 2)))
+    # Field 27 half the time: Mutation's dungeon there gets no portals.
+    sc = h.rnd_scene(rnd, ne=0, nc=0, ng=0, nn=0, area=rnd.choice((1, 2)), field=rnd.choice((27, None)))
     flag = rnd.choice((1, 2, 0))
     ef = [rnd.choice((0, 0, 1)) for _ in range(4)]
     eaf = rnd.choice((0, 0, 1))

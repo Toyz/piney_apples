@@ -6896,6 +6896,9 @@ mod tests {
     /// Issue #61: each Ryu Book's cover on every volume.
     mod ryu_book_covers;
 
+    /// Issue #57: Mutation's Chosen Hopeless Nothingness has no portals.
+    mod hopeless_nothingness;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

@@ -1163,7 +1163,9 @@ impl Combat {
             let mut rng = d.rng;
             if let Some(mut g) = d.gims {
                 piney_battle::gimmick::set_item_box(&mut self.ctrl, &mut cx, &mut seam, &mut g, &mut |n| rng.below(n));
-                entry::dungeon_set_magic_circle(&mut self.ctrl, &mut cx, &mut seam, &mut g);
+                if entry::dungeon_places_portals(cx.st.volume, game.field) {
+                    entry::dungeon_set_magic_circle(&mut self.ctrl, &mut cx, &mut seam, &mut g);
+                }
                 piney_battle::gimmick::set_idol(&mut self.ctrl, &mut cx, &mut seam, &mut g);
             }
             // DUNGEON::EntryBreakObject, every time: the room's breakables,
