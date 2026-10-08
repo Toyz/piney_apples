@@ -411,6 +411,13 @@ impl Session {
             Stage::Area(a) => Some(a.ui().globals()),
             _ => None,
         };
+        // The Root Town's file and what the game wrote into its dummies: a
+        // scene whose list holds the same file again keeps them
+        // (`ccFileExistCheck`, INF main 0x001640f0).
+        let kept_town = match &stage {
+            Stage::World(w) => Some((w.world().town().base.file.stem.clone(), w.world().town().base.written.clone())),
+            _ => None,
+        };
         let (mut state, vm) = match stage {
             Stage::World(mut w) => {
                 // ccSetupGameCtrl's ccStoreSpcCondition, for the next
@@ -478,6 +485,11 @@ impl Session {
             None => {}
         }
         self.stage = self.world_stage(state, vm, true)?;
+        if let (Some((stem, written)), Stage::World(w)) = (kept_town, &mut self.stage)
+            && w.world().town().base.file.stem == stem
+        {
+            w.world_mut().town_mut().base.written = written;
+        }
         if let Some(g) = globals {
             match &mut self.stage {
                 Stage::World(w) => w.ui_mut().set_globals(g),
@@ -6916,6 +6928,7 @@ mod tests {
 
     /// From Mutation on, the Event NPC's Item List (menus 90 and 91).
     mod item_list;
+    mod kept_dummies;
 
     /// Issue #63: every walking PC's Talk, every box a line of its own.
     mod pc_talk;

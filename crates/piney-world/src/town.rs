@@ -411,8 +411,10 @@ pub struct Base {
     pub clear: Option<[u8; 3]>,
     /// What the draws started for the host ([`Base::take_events`]).
     pub(crate) events: Vec<TownEvent>,
-    /// Dummies whose rotation the game wrote this visit (from Mutation on,
-    /// `setMerchant`'s Event NPC's), by name: the markers read them so.
+    /// Dummies whose rotation the game wrote (from Mutation on,
+    /// `setMerchant`'s Event NPC's), by name: the markers read them so for
+    /// as long as the town's file stays loaded, across a scene change to
+    /// the same town too (the session carries them).
     pub written: Vec<(String, V4)>,
 }
 

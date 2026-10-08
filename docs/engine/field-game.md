@@ -921,8 +921,13 @@ open once 315 is done: a Quarantine event, on every disc) sets it when
 mail 328 is read, in the desktop. `setMerchant` (0x005207b4) puts 175, 176
 and 178 at `DMY_marker_ev04`, 177 at `DMY_marker_ev01` with that dummy's
 rotation z written to `DEG2RAD(24576)`, 179 at `DMY_marker_ev02` with x
-and y 0 and z `DEG2RAD(-24576)`; the writes stay in the town's dummies for
-the visit, so its markers 1 and 2 read them. Its `anmTbl` is
+and y 0 and z `DEG2RAD(-24576)`. The writes go into the town file's
+decoded dummies, so its markers 1 and 2 read them for as long as the file
+stays loaded. `ccFileExistCheck` (INF main 0x001640f0) destroys a file's
+`ccStream` only when the next scene's list lacks it, and `ccFileListLoad`
+reuses a kept one (0x00164bd4-0x00164c50). So a scene change to the same
+town keeps the turned dummy, even with the Event NPC gone, and leaving for
+a field, another town or the desktop reads the file afresh. Its `anmTbl` is
 `merchanAnmPtr[town]` (179's the second). Its act (0x00521a00) is the
 breeders' three, until the status is clear: then act 3 idles, calls
 `effTransfer` and `deleteCmnd(1)`, fades out by 0.02 and returns 1. Its

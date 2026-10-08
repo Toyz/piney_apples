@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-405 entries: audio 35, battle 82, build 20, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 16, script 48, test 168, tooling 27, ui 93, video 16, volumes 81, world 113.
+406 entries: audio 35, battle 82, build 20, content 3, decomp 28, disc 5, engine 20, format 17, iop 3, render 95, save 16, script 48, test 169, tooling 27, ui 93, video 16, volumes 81, world 114.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -417,3 +417,4 @@ The [reference](docs/README.md) says what is true now.
 | 403 | [The Grunty's search in a field: Mutation's ride carries it but never starts it, Outbreak and Quarantine start it with Triangle, and the Grunty sniffs out foods, the dungeon or portals, says so and leads Kite there](worklog/0403-the-grunty-s-search-in-a-field-mutation-s-ride-carries-it.md) | 2026-10-08 | world, volumes, build, test |
 | 404 | [Mutation's town camera is pushed out of walls by another mask: from Mutation on cameraPosCalc asks ccModelHitCheckQZ for bit 2, and the world harness lays ROOTTOWN01 out as each disc does](worklog/0404-mutation-s-town-camera-is-pushed-out-of-walls-by-another.md) | 2026-10-08 | world, volumes, test |
 | 405 | [Every Root Town's merchants stand on its floor as in the game: the merchant harness had never registered the town's mesh, and now checks every merchant in every town](worklog/0405-every-root-town-s-merchants-stand-on-its-floor-as-in-the.md) | 2026-10-08 | world, test |
+| 406 | [The Event NPC's turned dummy lasts while the town's file does: a scene change to the same town keeps it, leaving reads the file afresh](worklog/0406-the-event-npc-s-turned-dummy-lasts-while-the-town-s-file.md) | 2026-10-08 | world, engine, test |
