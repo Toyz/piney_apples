@@ -2052,6 +2052,24 @@ impl FieldWorld {
         Some((self.listed(who), at))
     }
 
+    /// The riding Grunty's balloon place (from Mutation on): on the command
+    /// list from its constructor to the dismount, its tag at 0.9 of
+    /// `pcgsTbl`'s height over it (`ccCalcTagPosChar`). None while no ride.
+    pub fn ride_chat_point(&self) -> Option<(bool, Option<(i32, i32)>)> {
+        let o = self.combat.ride.obj.as_deref()?;
+        let hits = match &self.place {
+            Place::Field(f) => &f.hits,
+            Place::Dungeon(d) => &d.hits,
+            Place::Story(m) => m.hits(),
+        };
+        let bounds = Combat::bounds(self.scene.area, hits);
+        let pos = piney_battle::kite::fw2lw(&bounds, self.player.body.pos, o.ride.pos);
+        let off = [0, 0, ee::mul(0x3f66_6666, piney_battle::ride::SIZE), 0];
+        let at =
+            crate::char::calc_tag_pos(&self.camera.world_screen, pos, off, 0).filter(|t| t.2 != 0).map(|t| (t.0, t.1));
+        Some((o.listed, at))
+    }
+
     /// `hold type code` (Some) / `hold_end` (None): the event's
     /// `ccThEvHold` task started (unless one runs) or deleted.
     pub fn set_event_hold(&mut self, target: Option<(i16, i16)>) {
@@ -3589,6 +3607,10 @@ fn tasks<'a>(
     pad: CamPad,
     i: &TaskInfo,
 ) -> combat::Tasks<'a> {
+    let dungeon = match place {
+        Place::Field(f) => f.dungeon_pos().unwrap_or([0; 4]),
+        _ => [0; 4],
+    };
     let (hits, map2d, map2d_info) = match place {
         Place::Field(f) => (&mut f.hits, Vec::new(), [0; 3]),
         Place::Story(m) => (m.hits_mut(), Vec::new(), [0; 3]),
@@ -3612,6 +3634,7 @@ fn tasks<'a>(
         cmnd_target: i.cmnd_target,
         count: i.count,
         event_area,
+        dungeon,
         map2d,
         map2d_info,
         path_map: false,

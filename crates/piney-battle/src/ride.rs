@@ -46,7 +46,29 @@ pub mod flag {
     pub const RUN: u8 = 1 << 4;
     /// The eye view from the field camera: nothing drawn of Kite.
     pub const LOST_HEAD: u8 = 1 << 5;
+    /// From Mutation on, in a field: the search runs ([`Seek`]).
+    pub const SEEK: u8 = 1 << 6;
+    /// A line waits in [`Ride::chat`] for its balloon.
+    pub const CHAT: u8 = 1 << 7;
 }
+
+/// `ccSys->pad[0]`'s push bits the search reads: Triangle calls it (from
+/// Outbreak on, starts it), L1 or R1 in the eye view takes over.
+pub const TRIANGLE: u32 = 0x10;
+pub const SHOULDERS: u32 = 0x0c;
+/// The balloon's line (+0xe1 to the acts, 0x51 bytes) and its cut: the
+/// copy stops once 79 characters are in.
+pub const CHAT_LEN: usize = 0x51;
+const CHAT_MAX: usize = 79;
+/// `0x0052f9d0`'s event areas with no dungeon (MUT main 0x001b1600; Outbreak's
+/// and Quarantine's alike): `WORLD::SetSpecialObj` skips the same.
+const NO_DUNGEON: [i32; 20] = [113, 112, 111, 110, 109, 82, 81, 80, 79, 78, 57, 56, 55, 54, 53, 42, 41, 40, 39, 28];
+/// The search's types (`ride_seek_types` by kind).
+const SEEK_FOOD: i32 = 0;
+const SEEK_DUNGEON: i32 = 1;
+const SEEK_PORTAL: i32 = 2;
+/// A Grunty food's base type flag (`gimmickTbl` rows 22-37).
+const FOOD_TYPE: i32 = 0x0080_0000;
 
 /// The Grunty's legs whose places the dust starts from, by the bits of
 /// [`paw_smoke`]'s mask, and the puff's life.
@@ -62,6 +84,7 @@ pub const BODY_KIND: u32 = 0x0100_0000;
 const K2: F = 0x4000_0000;
 const K3: F = 0x4040_0000;
 const K10: F = 0x4120_0000;
+const K5: F = 0x40a0_0000;
 const K100: F = 0x42c8_0000;
 const K140: F = 0x430c_0000;
 const K125: F = 0x42fa_0000;
@@ -112,6 +135,83 @@ pub struct RideTables {
     pub angles: [i16; SLOTS],
     /// The volume: its `sqrtf` ([`geom::sqrt_on`]).
     pub volume: Volume,
+    /// From Mutation on, the field search's tables; none on Infection.
+    pub seek: Option<SeekTables>,
+}
+
+/// The search's tables (`tables::combat`'s `ride_seek_*`, MUT gcmn
+/// 0x0061d180, 0x0061d1a8, 0x00684b50-0x00684be0).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SeekTables {
+    /// The type by kind: 0 Grunty foods, 1 the dungeon, 2 magic portals.
+    pub types: Vec<i32>,
+    /// How near counts as there, by type.
+    pub ranges: Vec<F>,
+    /// The Grunty's lines by kind: found, none, cancelled, near.
+    pub lines: [Vec<&'static str>; 4],
+}
+
+impl SeekTables {
+    /// The kind's search type and its range (the constructor's
+    /// `ranges[types[kind]]`).
+    pub fn kind(&self, kind: i32) -> (i32, F) {
+        let ty = usize::try_from(kind).ok().and_then(|k| self.types.get(k)).copied().unwrap_or(0);
+        (ty, usize::try_from(ty).ok().and_then(|t| self.ranges.get(t)).copied().unwrap_or(0))
+    }
+
+    /// The kind's line.
+    pub fn line(&self, say: Say, kind: i32) -> &'static str {
+        usize::try_from(kind).ok().and_then(|k| self.lines[say as usize].get(k)).copied().unwrap_or("")
+    }
+}
+
+/// What the Grunty says of its search.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Say {
+    Found,
+    None,
+    Cancel,
+    Near,
+}
+
+/// From Mutation on, a field ride's search (MUT gcmn +0x158-+0x160,
+/// +0x1d0, +0x1e0, +0x24c): the Grunty sniffs out the nearest thing of its
+/// kind's type, says so and leads Kite there (docs/engine/grunty-ride.md,
+/// "The search").
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Seek {
+    /// +0x158: 0 the stick drives; else the Grunty leads ([`seek_move`]),
+    /// 1 the stick may take over, more a count down to 1.
+    pub lead: i32,
+    /// +0x15c: frames left standing before it sniffs again.
+    pub idle: i32,
+    /// +0x160: frames it stands before it sets off.
+    pub hold: i32,
+    /// +0x1d0: where it leads, +0x1e0: how near counts as there.
+    pub target: V4,
+    pub range: F,
+    /// +0x24c: the thing's base name for a line's `#a`; none for the
+    /// dungeon (the lines then put Kite's).
+    pub name: Option<&'static str>,
+}
+
+/// `g_entCtrl`'s list the search walks: gimmicks (+0x28) or magic circles
+/// (+0x1c).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SeekList {
+    Gimmicks,
+    Circles,
+}
+
+/// What the search reads of an entry: its place, its base's type flags and
+/// name, `objFlag` and `destFlag` (+0xe0 bits 0 and 5).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SeekEntry {
+    pub pos: V4,
+    pub ty: i32,
+    pub name: Option<&'static str>,
+    pub active: bool,
+    pub going: bool,
 }
 
 impl RideTables {
@@ -121,12 +221,19 @@ impl RideTables {
         let owned = |v: &[&str]| v.iter().map(|s| s.to_string()).collect();
         let mut angles = [0; SLOTS];
         angles.copy_from_slice(&t.ride_angles()[..SLOTS]);
+        let seek = (volume != Volume::Inf).then(|| SeekTables {
+            types: t.ride_seek_types().to_vec(),
+            ranges: t.ride_seek_ranges().iter().map(|v| v.to_bits()).collect(),
+            lines: [t.ride_seek_found(), t.ride_seek_none(), t.ride_seek_cancel(), t.ride_seek_near()]
+                .map(<[_]>::to_vec),
+        });
         RideTables {
             anims: owned(t.ride_anims()),
             anims_pg: owned(t.ride_anims_pg()),
             files: owned(t.ride_files()),
             angles,
             volume,
+            seek,
         }
     }
 
@@ -236,6 +343,10 @@ pub struct Ride {
     pub frame_spd: [u16; 2],
     /// The volume's code is Mutation's or later (a town's rules in area 0).
     pub later: bool,
+    /// From Mutation on, the field search, and +0xe1 the balloon's line
+    /// ([`flag::CHAT`] while it waits).
+    pub seek: Seek,
+    pub chat: [u8; CHAT_LEN],
 }
 
 /// `pgR` (0x00378c28) and `pgDIN` (0x00378c2c): riding, and a dungeon's
@@ -264,6 +375,10 @@ pub struct Input {
     /// From Mutation on, in a town: the Flag Race's handling of the
     /// Grunty ridden (the race's +0x64-+0x70).
     pub race: Option<RaceRide>,
+    /// `ccSys->pad[0]`'s push (+0x2d0) and right stick's lean (`powR`,
+    /// +0x2b1): the search's buttons.
+    pub push: u32,
+    pub pow_r: u8,
 }
 
 /// The Flag Race's handling of the Grunty ridden (MUT gcmn race object
@@ -300,6 +415,12 @@ pub enum Out {
     /// it) and `height` (+0xa0, the shadow's), `shaded` (ground attribute
     /// 0x40000: the ambient halved and the distant light off).
     DrawPg { transparency: F, shadow: F, alpha: u8, height: F, shaded: bool },
+    /// From Mutation on, `ccEntryCmnd(this)`: the ride on the command
+    /// list, which a balloon over it needs (`ccCheckTarget`).
+    EntryCmnd,
+    /// `ccChatMsg::OpenChat(ccChat, this, +0xe1)`: the Grunty's line over
+    /// it, to its NUL (MUT gcmn 0x00530dd0).
+    Chat([u8; CHAT_LEN]),
 }
 
 /// What the ride asks of the world. Each method is the game function it
@@ -357,6 +478,22 @@ pub trait RideWorld {
     /// with `setTransparency` `set_transparency`: the `transparency` it
     /// leaves.
     fn draw(&mut self, pos: V4, set_transparency: F) -> F;
+    /// From Mutation on, what the field search reads (a town never
+    /// searches): a list's entries from its head (`next` +0x1c4),
+    /// `WORLD_MAN.eventAreaNumber` (+0x120) and `dungeonPos[0]` (+0x460),
+    /// `ccTransPosW2P(pos)`, and Kite's name (`getPartyMenberChar(0)`'s).
+    fn seek_list(&mut self, _list: SeekList) -> Vec<SeekEntry> {
+        Vec::new()
+    }
+    fn dungeon(&mut self) -> (i32, V4) {
+        (0, VF0)
+    }
+    fn w2p(&mut self, pos: V4) -> V4 {
+        pos
+    }
+    fn kite_name(&mut self) -> Vec<u8> {
+        Vec::new()
+    }
     /// Every [`Out`], in order.
     fn out(&mut self, o: Out);
 }
@@ -402,10 +539,22 @@ impl Ride {
             },
             frame_spd: [256, 256],
             later: t.volume != Volume::Inf,
+            // From Mutation on (MUT gcmn 0x0052de50): nothing found, 10
+            // frames' hold, the kind's range.
+            seek: Seek {
+                hold: 10,
+                target: VF0,
+                range: t.seek.as_ref().map_or(0, |s| s.kind(kind).1),
+                ..Seek::default()
+            },
+            chat: [0; CHAT_LEN],
         };
         w.hit_switch(&mut r.hit, true);
         w.anim_set(RideAnm::Kite, t.anim(r.act));
         w.anim_set(RideAnm::Pg, &t.anim_pg(r.act, kind));
+        if r.later {
+            w.out(Out::EntryCmnd);
+        }
         r
     }
 }
@@ -422,7 +571,7 @@ pub fn main(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, g: &mut Globals,
     }
     r.flags = (r.flags & !flag::PAUSE) | u8::from(input.pause);
     r.move_pos = VF0;
-    control_move(t.volume, r, w, input, rng);
+    control_move(t, r, w, input, rng);
     let mut hp = moved(r.move_pos, r.pos);
     hp[2] = w.land(hp, LAND);
     r.hit.pos = hp;
@@ -489,12 +638,18 @@ pub fn main(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, g: &mut Globals,
 ///   round and 19 more high, set before each push; in a field its
 ///   radius is 100 plus `nowSpeed` as before;
 /// - a wall between the ride and where the pushes left it stops the
-///   move, and so does one between it and where the move takes it.
+///   move, and so does one between it and where the move takes it;
+/// - while the Grunty leads ([`Seek::lead`]) [`seek_move`] moves it in
+///   place of the stick, and a line waiting opens its balloon at the end.
 fn main_later(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, g: &mut Globals, t: &RideTables, rng: &mut dyn Rng) {
     let town = input.area == 0;
     r.flags = (r.flags & !flag::PAUSE) | u8::from(input.pause);
     r.move_pos = VF0;
-    control_move(t.volume, r, w, input, rng);
+    if r.seek.lead != 0 {
+        seek_move(t, r, w, input, rng);
+    } else {
+        control_move(t, r, w, input, rng);
+    }
     let body = |r: &mut Ride| {
         if town {
             r.hit.radius = mul(K07, SIZE);
@@ -559,6 +714,7 @@ fn main_later(r: &mut Ride, w: &mut dyn RideWorld, input: &Input, g: &mut Global
     r.char_set_transparency = tr;
     r.transparency = w.draw(r.pos, r.char_set_transparency);
     draw_pg(r, w, input);
+    open_chat(r, w, input);
     r.cycle = r.cycle.wrapping_add(1);
 }
 
@@ -587,9 +743,10 @@ pub fn pad_lever_power(power: F) -> F {
 /// leaning, with dust every fourth frame). It walks at `6.2 * lean / 140` (at
 /// most 1.3 of it) and runs past 240 at `60 * lean / 255`, and turns to the
 /// heading unless in the eye view (docs/engine/grunty-ride.md, "The stick").
-pub fn control_move(volume: Volume, r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mut dyn Rng) -> i32 {
+pub fn control_move(t: &RideTables, r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mut dyn Rng) -> i32 {
+    let volume = t.volume;
     if volume != Volume::Inf {
-        return control_move_later(volume, r, w, input, rng);
+        return control_move_later(t, r, w, input, rng);
     }
     let mut s0 = (i32::from(geom::rad2deg(add(PI, r.rot[2]))) - 32768) as i16;
     let mut power = pad_lever_power(from_int(i32::from(input.pad.pow_l)));
@@ -669,9 +826,23 @@ pub fn control_move(volume: Volume, r: &mut Ride, w: &mut dyn RideWorld, input: 
 /// acceleration times the walk's or run's speed is added up to its top,
 /// the move easing by `ease_on`; in a field the speed is Infection's. Not
 /// leaning, the move eases back by `ease_off` (a field's 1/8). The heading
-/// follows the stick but in the eye view. The field's charge (flag bit 6)
-/// is not ported.
-fn control_move_later(volume: Volume, r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mut dyn Rng) -> i32 {
+/// follows the stick but in the eye view. In a field the search
+/// ([`flag::SEEK`]) sniffs again after 40 frames standing, and Triangle
+/// calls it off; from Outbreak on Triangle also starts it.
+fn control_move_later(t: &RideTables, r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mut dyn Rng) -> i32 {
+    let volume = t.volume;
+    let field = input.area == 1;
+    let triangle = input.push & TRIANGLE != 0;
+    if matches!(volume, Volume::Out | Volume::Qua) && field && r.flags & flag::SEEK == 0 && triangle {
+        // OUT gcmn 0x00529834: the start (Mutation has none).
+        if seek(t, r, w, input) != 0 {
+            r.flags |= flag::SEEK;
+            r.seek = Seek { lead: 40, idle: 0, hold: 20, ..r.seek };
+            say(t, r, w, Say::Found, r.seek.name);
+            return 0;
+        }
+        say(t, r, w, Say::None, None);
+    }
     let town = input.area == 0;
     let race = input.race.unwrap_or_default();
     let mut s0 = (i32::from(geom::rad2deg(add(PI, r.rot[2]))) - 32768) as i16;
@@ -680,6 +851,9 @@ fn control_move_later(volume: Volume, r: &mut Ride, w: &mut dyn RideWorld, input
         power = 0;
     }
     if geom::eq(power, 0) {
+        if r.flags & flag::SEEK != 0 {
+            r.seek.idle -= 1;
+        }
         r.flags &= !flag::MOVE;
         let ease = if town { race.ease_off } else { EASE_OFF };
         r.move_pos[0] = 0;
@@ -750,11 +924,191 @@ fn control_move_later(volume: Volume, r: &mut Ride, w: &mut dyn RideWorld, input
         r.move_ease[1] = add(r.move_ease[1], mul(ease, sub(r.move_pos[1], r.move_ease[1])));
         r.move_pos[0] = r.move_ease[0];
         r.move_pos[1] = r.move_ease[1];
+        if r.flags & flag::SEEK != 0 {
+            r.seek.idle = 40;
+        }
     }
     if w.camera_type() != 1 {
         r.rot[2] = geom::deg2rad(s0);
     }
+    // MUT gcmn 0x0052f0a0: standing long enough, it sniffs again; Triangle
+    // calls the search off.
+    if field && r.flags & flag::SEEK != 0 && r.seek.idle <= 0 {
+        if seek(t, r, w, input) != 0 {
+            r.seek = Seek { lead: 1, idle: 0, hold: 20, ..r.seek };
+            say(t, r, w, Say::Found, r.seek.name);
+            return 0;
+        }
+        r.flags &= !flag::SEEK;
+        say(t, r, w, Say::None, None);
+    }
+    if field && r.flags & flag::SEEK != 0 && triangle {
+        r.flags &= !flag::SEEK;
+        r.seek.lead = 0;
+        r.seek.idle = 0;
+        say(t, r, w, Say::Cancel, None);
+        return 0;
+    }
     1
+}
+
+/// MUT gcmn 0x0052f250: the Grunty leads (`Main` calls it for
+/// `ControlMove` while [`Seek::lead`] is set). At 1 Triangle calls it off
+/// and the stick (in the eye view also L1, R1 or the right stick) takes
+/// over for 60 frames' wait; more counts down to 1. It stands
+/// [`Seek::hold`] frames, then runs at 1.3 of its speed toward
+/// [`Seek::target`], and once within [`Seek::range`] says it is there.
+pub fn seek_move(t: &RideTables, r: &mut Ride, w: &mut dyn RideWorld, input: &Input, rng: &mut dyn Rng) -> i32 {
+    if r.seek.lead == 1 {
+        if input.push & TRIANGLE != 0 {
+            r.flags &= !flag::SEEK;
+            r.seek = Seek { lead: 0, idle: 0, hold: 20, ..r.seek };
+            say(t, r, w, Say::Cancel, None);
+            return 0;
+        }
+        let mut power = pad_lever_power(from_int(i32::from(input.pad.pow_l)));
+        if w.camera_type() == 1 && (input.push & SHOULDERS != 0 || input.pow_r >= 64) {
+            power = add(power, ONE);
+        }
+        if !geom::eq(power, 0) {
+            r.seek.idle = 60;
+            r.seek.lead = 0;
+            return 0;
+        }
+    } else {
+        r.seek.lead -= 1;
+        if r.seek.lead <= 0 {
+            r.seek.lead = 1;
+        }
+    }
+    if r.seek.hold > 0 {
+        r.seek.hold = (r.seek.hold - 1).max(0);
+        r.flags &= !(flag::MOVE | flag::RUN);
+        r.speed_rate = ONE;
+        r.move_pos[0] = 0;
+        r.move_pos[1] = 0;
+        r.move_ease[0] = add(r.move_ease[0], mul(EASE_OFF, sub(r.move_pos[0], r.move_ease[0])));
+        r.move_ease[1] = add(r.move_ease[1], mul(EASE_OFF, sub(r.move_pos[1], r.move_ease[1])));
+        r.move_pos[0] = r.move_ease[0];
+        r.move_pos[1] = r.move_ease[1];
+        r.move_ease[2] = 0;
+        if r.cycle & 3 == 0 && !le(geom::length_on(t.volume, r.move_ease), K10) {
+            let y = f64::from(f32::from_bits(r.move_ease[1]));
+            let x = f64::from(f32::from_bits(r.move_ease[0]));
+            let a = (y.atan2(x) as f32).to_bits();
+            let d = (i32::from(geom::rad2deg(a)) + 16384) as i16;
+            paw_smoke(r, w, geom::deg2rad(d), 15, rng);
+        }
+        return 1;
+    }
+    r.flags |= flag::MOVE | flag::RUN;
+    r.speed_rate = WALK_MAX;
+    if lt(r.now_speed, K5) {
+        r.now_speed = mul(r.speed, r.speed_rate);
+    }
+    let v = mul(r.speed, r.speed_rate);
+    let mut p = geom::vsub(w.w2p(r.seek.target), r.pos_p);
+    let a = piney_data::libm::atan2f(p[1], p[0]);
+    let heading = geom::deg2rad((geom::rad2deg(a) as u16 as i32 + 16384) as i16);
+    r.rot[2] = heading;
+    p[2] = 0;
+    if le(geom::length_on(t.volume, p), r.seek.range) {
+        r.flags &= !flag::SEEK;
+        r.seek.lead = 0;
+        say(t, r, w, Say::Near, r.seek.name);
+        return 0;
+    }
+    r.move_pos[0] = mul(v, sinf(heading));
+    r.move_pos[1] = mul(neg(v), cosf(heading));
+    r.move_ease[0] = add(r.move_ease[0], mul(EASE_ON, sub(r.move_pos[0], r.move_ease[0])));
+    r.move_ease[1] = add(r.move_ease[1], mul(EASE_ON, sub(r.move_pos[1], r.move_ease[1])));
+    r.move_pos[0] = r.move_ease[0];
+    r.move_pos[1] = r.move_ease[1];
+    1
+}
+
+/// MUT gcmn 0x0052f790: the search by the kind's type (0x0052f800 foods,
+/// 0x0052f9d0 the dungeon, 0x0052faa0 portals). It sets the target and the
+/// name and answers -1 within 100 of the range, 1 farther, 0 for none.
+pub fn seek(t: &RideTables, r: &mut Ride, w: &mut dyn RideWorld, input: &Input) -> i32 {
+    let Some(st) = t.seek.as_ref() else { return 0 };
+    let near = add(K100, r.seek.range);
+    match st.kind(r.kind).0 {
+        SEEK_DUNGEON => {
+            let (area, pos) = w.dungeon();
+            if NO_DUNGEON.contains(&area) {
+                return 0;
+            }
+            r.seek.target = pos;
+            r.seek.name = None;
+            let d = geom::length_on(t.volume, w.w2p(pos));
+            if lt(d, near) { -1 } else { 1 }
+        }
+        ty @ (SEEK_FOOD | SEEK_PORTAL) => {
+            let list = if ty == SEEK_FOOD { SeekList::Gimmicks } else { SeekList::Circles };
+            let mut best: Option<(SeekEntry, F)> = None;
+            for e in w.seek_list(list) {
+                let food = ty != SEEK_FOOD || e.ty & FOOD_TYPE != 0;
+                if !food || (input.area == 2 && !e.active) || e.going {
+                    continue;
+                }
+                let mut p = w.w2p(e.pos);
+                p[2] = 0;
+                p[3] = ONE;
+                let d = geom::length_on(t.volume, p);
+                // The first, or one no farther (scratch +4 starts at -1).
+                if best.is_none_or(|(_, b)| !lt(b, d) || lt(b, 0)) {
+                    best = Some((e, d));
+                }
+            }
+            let Some((e, d)) = best else { return 0 };
+            r.seek.target = e.pos;
+            r.seek.name = e.name;
+            if lt(d, near) { -1 } else { 1 }
+        }
+        _ => 0,
+    }
+}
+
+/// MUT gcmn 0x00530e50: the kind's line into the balloon's buffer, `#a`
+/// the name (Kite's for none), cut once 79 characters are in, and the
+/// line set waiting ([`flag::CHAT`]). No table holds a `#` before anything
+/// but `a`, on which the game's copy would not move on.
+fn say(t: &RideTables, r: &mut Ride, w: &mut dyn RideWorld, what: Say, name: Option<&'static str>) {
+    let line = t.seek.as_ref().map_or("", |s| s.line(what, r.kind)).as_bytes();
+    let mut out = [0u8; CHAT_LEN];
+    let (mut n, mut i) = (0, 0);
+    let mut put = |b: u8, n: &mut usize| {
+        if let Some(c) = out.get_mut(*n) {
+            *c = b;
+        }
+        *n += 1;
+    };
+    while let Some(&c) = line.get(i) {
+        if c == b'#' && line.get(i + 1) == Some(&b'a') {
+            let who = name.map_or_else(|| w.kite_name(), |s| s.as_bytes().to_vec());
+            who.iter().take_while(|&&b| b != 0).for_each(|&b| put(b, &mut n));
+            i += 2;
+        } else {
+            put(c, &mut n);
+            i += 1;
+        }
+        if n >= CHAT_MAX {
+            break;
+        }
+    }
+    put(0, &mut n);
+    r.chat = out;
+    r.flags |= flag::CHAT;
+}
+
+/// MUT gcmn 0x00530dd0, at the end of `Main`: outside a town a waiting line
+/// opens its balloon over the ride.
+fn open_chat(r: &mut Ride, w: &mut dyn RideWorld, input: &Input) {
+    if input.area != 0 && r.flags & flag::CHAT != 0 {
+        w.out(Out::Chat(r.chat));
+        r.flags &= !flag::CHAT;
+    }
 }
 
 /// `ccPucciguso::AnimCtrl()` (gcmn 0x00511f80): the acts and both players'
@@ -1031,5 +1385,32 @@ mod tests {
         assert_eq!(adult_check(&s, 1, 0), 0);
         assert_eq!(adult_check(&s, 0, 0), -1);
         assert_eq!(adult_check(&s, 1, 3), -1);
+    }
+
+    /// Each later volume's search lines: a `#` only ever starts `#a` (the
+    /// game's copy would not move past another), and a line with the
+    /// longest gimmick name fits the balloon's 79-character cut.
+    #[test]
+    fn the_search_lines_put_only_names() {
+        for v in [Volume::Mut, Volume::Out, Volume::Qua] {
+            let t = RideTables::of(v);
+            let s = t.seek.expect("the search's tables");
+            assert_eq!((s.types.len(), s.ranges.len()), (KINDS, 3));
+            let longest = piney_data::tables::battle::of(v)
+                .gimmicks()
+                .iter()
+                .filter_map(|g| g.param.base.name)
+                .map(str::len)
+                .max()
+                .unwrap_or(0);
+            for line in s.lines.iter().flatten() {
+                let b = line.as_bytes();
+                for (i, _) in b.iter().enumerate().filter(|&(_, &c)| c == b'#') {
+                    assert_eq!(b.get(i + 1), Some(&b'a'), "{v:?}: {line}");
+                }
+                assert!(b.len() + longest < CHAT_MAX, "{v:?}: {line}");
+            }
+        }
+        assert!(RideTables::of(Volume::Inf).seek.is_none());
     }
 }

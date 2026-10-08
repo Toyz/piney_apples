@@ -11,10 +11,11 @@ use std::rc::Rc;
 
 use glam::Mat4;
 use piney_battle::chara::spc_flag;
+use piney_battle::entry::{self, EntryCtrl, Obj};
 use piney_battle::kite::{KiteWorld, Pad};
 use piney_battle::party_ai::Crew;
 use piney_battle::rand::Rand;
-use piney_battle::ride::{self, Globals, Input, Out, Ride, RideAnm, RideTables, RideWorld};
+use piney_battle::ride::{self, Globals, Input, Out, Ride, RideAnm, RideTables, RideWorld, SeekEntry, SeekList};
 use piney_battle::scene::Scene;
 use piney_battle::world::{CharHit, Note, World};
 use piney_desktop::layers::Layers;
@@ -67,6 +68,51 @@ pub struct RideObj {
     pub pg: Char,
     /// The notes the Grunty's last step passed.
     pub notes: Vec<Note>,
+    /// From Mutation on, on the command list (`ccEntryCmnd` in the
+    /// constructor to `ccDeleteCmnd` at the dismount): a balloon over the
+    /// ride shows while it is.
+    pub listed: bool,
+}
+
+/// What the field search reads (from Mutation on, MUT gcmn 0x0052f790):
+/// `g_entCtrl`'s gimmicks and magic circles in list order,
+/// `WORLD_MAN.eventAreaNumber`, `dungeonPos[0]` and Kite's name.
+#[derive(Clone, Debug, Default)]
+pub struct SeekView {
+    pub gimmicks: Vec<SeekEntry>,
+    pub circles: Vec<SeekEntry>,
+    pub event_area: i32,
+    pub dungeon: V4,
+    pub kite_name: Vec<u8>,
+}
+
+impl SeekView {
+    /// The lists as the entry control holds them: each entry's place, its
+    /// base's type flags and name, `objFlag` and `destFlag`.
+    pub fn of(ctrl: &EntryCtrl, scene: &Scene, event_area: i32, dungeon: V4, kite_name: Vec<u8>) -> SeekView {
+        let list = |k: entry::Kind| {
+            ctrl.list(k)
+                .into_iter()
+                .filter_map(|i| {
+                    let c = scene.chars.get(i)?;
+                    let o = match ctrl.objs.get(i)? {
+                        Obj::Gimmick(e) => &**e,
+                        Obj::Circle(m) => &m.obj,
+                        _ => return None,
+                    };
+                    let b = c.base();
+                    Some(SeekEntry { pos: c.pos, ty: b.ty, name: b.label, active: o.obj_flag, going: o.dest_flag })
+                })
+                .collect()
+        };
+        SeekView {
+            gimmicks: list(entry::Kind::Gimmick),
+            circles: list(entry::Kind::Circle),
+            event_area,
+            dungeon,
+            kite_name,
+        }
+    }
 }
 
 impl RideObj {
@@ -90,11 +136,21 @@ impl RideObj {
         let mut pg =
             Char::new(pg_body, &tables.anim_pg(ride::act::IDLE, kind), plw_pos, plw_rot, ride::SIZE, ride::SIZE)?;
         let mut notes = Vec::new();
-        let r = {
-            let mut w = RideStage { stage, kite: &mut kite, pg: &mut pg, notes: &mut notes, player: None };
-            Ride::new(kind, plw_pos, plw_rot, &tables, &mut w, rand)
+        let (r, listed) = {
+            let seek = SeekView::default();
+            let mut w = RideStage {
+                stage,
+                kite: &mut kite,
+                pg: &mut pg,
+                notes: &mut notes,
+                player: None,
+                seek: &seek,
+                listed: false,
+            };
+            let r = Ride::new(kind, plw_pos, plw_rot, &tables, &mut w, rand);
+            (r, w.listed)
         };
-        Some(RideObj { ride: r, tables, kite, pg, notes })
+        Some(RideObj { ride: r, tables, kite, pg, notes, listed })
     }
 }
 
@@ -117,6 +173,10 @@ pub struct RideStage<'s, 'a, 'b> {
     pub notes: &'b mut Vec<Note>,
     /// `plw`'s place, heading and pause as `Main` wrote them.
     pub player: Option<(V4, V4, bool)>,
+    /// What the search reads, and whether the ride went on the command
+    /// list (`ccEntryCmnd`).
+    pub seek: &'b SeekView,
+    pub listed: bool,
 }
 
 impl RideStage<'_, '_, '_> {
@@ -216,8 +276,24 @@ impl RideWorld for RideStage<'_, '_, '_> {
         k.drawn = drawn;
         t
     }
+    fn seek_list(&mut self, list: SeekList) -> Vec<SeekEntry> {
+        match list {
+            SeekList::Gimmicks => self.seek.gimmicks.clone(),
+            SeekList::Circles => self.seek.circles.clone(),
+        }
+    }
+    fn dungeon(&mut self) -> (i32, V4) {
+        (self.seek.event_area, self.seek.dungeon)
+    }
+    fn w2p(&mut self, pos: V4) -> V4 {
+        World::w2p(self.stage, pos)
+    }
+    fn kite_name(&mut self) -> Vec<u8> {
+        self.seek.kite_name.clone()
+    }
     fn out(&mut self, o: Out) {
         match o {
+            Out::EntryCmnd => self.listed = true,
             Out::AddCenter { x, y } => self.stage.hits.add_center(x, y),
             Out::Enter { .. } => self.stage.enter = true,
             Out::Matrix { anm, pos, rot } => {
@@ -238,6 +314,15 @@ impl RideWorld for RideStage<'_, '_, '_> {
     }
 }
 
+/// The pad as the ride reads it: the left stick, and the push bits and
+/// right stick the search reads.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RidePad {
+    pub pad: Pad,
+    pub push: u32,
+    pub pow_r: u8,
+}
+
 /// `ccThPucciguso`'s slot (after `ccThPlayer`): `ccPucciguso::Main` while
 /// [`Riding::main_on`], with Kite's pause in and his place, heading and
 /// pause out (`plw`). Nothing is drawn of the ride on a frame it does not
@@ -250,8 +335,9 @@ pub fn frame(
     crew: &mut Crew,
     kite: usize,
     rand: &mut Rand,
-    pad: Pad,
+    pad: RidePad,
     area: i32,
+    seek: &SeekView,
 ) {
     let Riding { obj, g, main_on, pending, .. } = r;
     // ccThPucciguso's first frame: new ccPucciguso(kind) where plw stands,
@@ -271,17 +357,20 @@ pub fn frame(
         return;
     }
     let input = Input {
-        pad,
+        pad: pad.pad,
         pause: scene.chars[kite].spc_char.flags & spc_flag::PAUSE != 0,
         dne: false,
         bounds: stage.bounds,
         area,
         // The Flag Race rides in towns only.
         race: None,
+        push: pad.push,
+        pow_r: pad.pow_r,
     };
-    let RideObj { ride: rd, tables, kite: kc, pg, notes } = o;
-    let mut w = RideStage { stage, kite: kc, pg, notes, player: None };
+    let RideObj { ride: rd, tables, kite: kc, pg, notes, listed } = o;
+    let mut w = RideStage { stage, kite: kc, pg, notes, player: None, seek, listed: *listed };
     ride::main(rd, &mut w, &input, g, tables, rand);
+    *listed = w.listed;
     if let Some((pos, rot, pause)) = w.player {
         let ch = &mut scene.chars[kite];
         ch.pos = pos;

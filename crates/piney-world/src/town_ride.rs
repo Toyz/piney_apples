@@ -220,8 +220,9 @@ impl RideWorld for TownStage<'_> {
             }
             Out::Sound { param, attribute } => self.sounds.push((param, attribute)),
             Out::Smoke { pos, v, s, life, t } => self.events.push(RaceEvent::RideSmoke { pos, v, s, life, t }),
-            // No streaming nor dungeon in a town.
-            Out::AddCenter { .. } | Out::Enter { .. } => {}
+            // No streaming nor dungeon in a town; the command list and
+            // the balloon are a field's (a town never searches).
+            Out::AddCenter { .. } | Out::Enter { .. } | Out::EntryCmnd | Out::Chat(_) => {}
         }
     }
 }
@@ -329,6 +330,8 @@ impl crate::World {
             bounds: crate::combat::Combat::bounds(0, &self.town.base.hits),
             area: 0,
             race,
+            push: pad.push,
+            pow_r: pad.pow_r,
         };
         let mut events = Vec::new();
         let TownRideObj { ride: rd, kite, pg, notes } = o;

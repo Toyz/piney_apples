@@ -14,6 +14,7 @@ pub mod program;
 pub mod race;
 pub mod registry;
 pub mod render;
+pub mod ride_seek;
 pub mod rtownpc;
 pub mod sinit;
 pub mod source;

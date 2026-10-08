@@ -110,6 +110,10 @@ pub struct Tasks<'a> {
     pub count: u32,
     /// `WORLD_MAN::CheckEventArea()`.
     pub event_area: bool,
+    /// `WORLD_MAN.dungeonPos[0]` (+0x460, `WORLD::SetDungeonEnter`): the
+    /// field's entrance, z 0; zero elsewhere. Its w is never written; the
+    /// port's is 1 (only x and y are read).
+    pub dungeon: V4,
     /// The dungeon's floor map and the room's window.
     pub map2d: Vec<u8>,
     pub map2d_info: [i32; 3],
@@ -1563,8 +1567,27 @@ impl Combat {
             kite::main(&mut cx, kite_i);
         }
         // ccThPucciguso (49, started after ccThPlayer): the riding Grunty.
-        let pad = kite::Pad { pow_l: x.pad.pow_l, dirc_l: x.pad.dirc_l };
-        ride::frame(&mut self.ride, &mut stage, &mut self.scene, &mut self.crew, kite_i, &mut self.rand, pad, area);
+        let pad = ride::RidePad {
+            pad: kite::Pad { pow_l: x.pad.pow_l, dirc_l: x.pad.dirc_l },
+            push: x.pad.push,
+            pow_r: x.pad.pow_r,
+        };
+        let seek = if self.ride.main_on && self.data.volume != piney_data::volume::Volume::Inf {
+            ride::SeekView::of(&self.ctrl, &self.scene, x.wm.event, x.dungeon, x.save.name().to_vec())
+        } else {
+            ride::SeekView::default()
+        };
+        ride::frame(
+            &mut self.ride,
+            &mut stage,
+            &mut self.scene,
+            &mut self.crew,
+            kite_i,
+            &mut self.rand,
+            pad,
+            area,
+            &seek,
+        );
         self.enter |= stage.enter;
         // The lines Kite's frame raised on the party (an affect on a
         // member), and its affects' work on a member's body, as it ends.

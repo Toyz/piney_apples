@@ -2,7 +2,8 @@
 //! Grunty, `ccPucciguso`) on the states and scripts it is sent and prints one
 //! JSON line per request (`ride_probe ISO < requests`). The commands:
 //! `tables`, `new` (the constructor), `main FRAMES ...`, `fn NAME ...`
-//! (`control_move`, `anim_ctrl`, `draw_pg`, `note`, `smoke`), `lever`
+//! (`control_move`, `anim_ctrl`, `draw_pg`, `note`, `smoke`, and from
+//! Mutation on `seek_move` and `seek`), `lever`
 //! (`PadLeverPower`), `place` (`ccPuccigusoExit`'s place) and `adult`
 //! (`ccPgAdultCheck`). `RIDE` is read by [`read_ride`], `SCRIPT` by
 //! [`read_script`]; the other fields are the harness's.
@@ -13,7 +14,7 @@ use std::io::{BufRead, Write};
 use piney_battle::geom::V4;
 use piney_battle::kite::{MapBounds, Pad};
 use piney_battle::rand::Rand;
-use piney_battle::ride::{self, Globals, Input, Out, Ride, RideAnm, RideTables, RideWorld};
+use piney_battle::ride::{self, Globals, Input, Out, Ride, RideAnm, RideTables, RideWorld, Seek, SeekEntry, SeekList};
 use piney_battle::world::{CharHit, Note};
 use piney_data::iso::Iso;
 
@@ -50,6 +51,19 @@ fn list<T: std::fmt::Display>(v: impl IntoIterator<Item = T>) -> String {
     format!("[{}]", v.join(","))
 }
 
+fn hex(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+/// A name the harness sends as hex (`-` for none), kept for the run.
+fn name(t: &mut Toks) -> Option<&'static str> {
+    let w = t.word();
+    (w != "-").then(|| {
+        let b: Vec<u8> = (0..w.len() / 2).map(|i| u8::from_str_radix(&w[2 * i..2 * i + 2], 16).unwrap()).collect();
+        &*Box::leak(String::from_utf8(b).expect("ASCII").into_boxed_str())
+    })
+}
+
 fn anm(a: RideAnm) -> u32 {
     match a {
         RideAnm::Kite => 0,
@@ -79,6 +93,15 @@ struct Script {
     last_result: Option<u32>,
     calls: Vec<String>,
     plw: Option<(V4, V4, bool)>,
+    /// From Mutation on, what the search reads: the gimmicks and circles,
+    /// `eventAreaNumber`, `dungeonPos[0]`, the player's place (for
+    /// `ccTransPosW2P`), the map's bounds.
+    gims: Vec<SeekEntry>,
+    circles: Vec<SeekEntry>,
+    event_area: i32,
+    dungeon: V4,
+    player: V4,
+    bounds: MapBounds,
 }
 
 impl RideWorld for Script {
@@ -156,6 +179,21 @@ impl RideWorld for Script {
         self.calls.push(format!("[\"Draw\",{set_transparency}]"));
         self.draw.pop_front().unwrap_or(0x3f80_0000)
     }
+    fn seek_list(&mut self, list: SeekList) -> Vec<SeekEntry> {
+        match list {
+            SeekList::Gimmicks => self.gims.clone(),
+            SeekList::Circles => self.circles.clone(),
+        }
+    }
+    fn dungeon(&mut self) -> (i32, V4) {
+        (self.event_area, self.dungeon)
+    }
+    fn w2p(&mut self, pos: V4) -> V4 {
+        piney_battle::kite::w2p_pos(&self.bounds, self.player, pos).0
+    }
+    fn kite_name(&mut self) -> Vec<u8> {
+        b"Kite".to_vec()
+    }
     fn out(&mut self, o: Out) {
         let s = match o {
             Out::AddCenter { x, y } => format!("[\"AddCenter\",{x},{y}]"),
@@ -163,7 +201,12 @@ impl RideWorld for Script {
             Out::Matrix { anm: a, pos, rot } => format!("[\"SetMatrix\",{},{},{}]", anm(a), list(pos), list(rot)),
             Out::Player { pos, rot, pause } => {
                 self.plw = Some((pos, rot, pause));
+                self.player = pos;
                 return;
+            }
+            Out::EntryCmnd => "[\"ccEntryCmnd\"]".into(),
+            Out::Chat(text) => {
+                format!("[\"OpenChat\",\"{}\"]", hex(&text[..text.iter().position(|&b| b == 0).unwrap_or(text.len())]))
             }
             Out::Sound { param, attribute } => format!("[\"ccSeSetParamInu\",{param},{attribute}]"),
             Out::Smoke { pos, v, s, life, t } => {
@@ -210,6 +253,19 @@ fn read_ride(t: &mut Toks, later: bool) -> Ride {
     let hpos = t.v4();
     let offset = t.v4();
     let frame_spd = [t.int() as u16, t.int() as u16];
+    // From Mutation on: lead idle hold target[4] range name chat.
+    let (seek, chat) = if later {
+        let (lead, idle, hold) = (t.i32(), t.i32(), t.i32());
+        let (target, range) = (t.v4(), t.u32());
+        let seek = Seek { lead, idle, hold, target, range, name: name(t) };
+        let mut chat = [0u8; ride::CHAT_LEN];
+        if let Some(n) = name(t) {
+            chat[..n.len()].copy_from_slice(n.as_bytes());
+        }
+        (seek, chat)
+    } else {
+        (Seek::default(), [0; ride::CHAT_LEN])
+    };
     Ride {
         pos,
         pos_p,
@@ -245,6 +301,8 @@ fn read_ride(t: &mut Toks, later: bool) -> Ride {
         },
         frame_spd,
         later,
+        seek,
+        chat,
     }
 }
 
@@ -253,7 +311,8 @@ fn ride_json(r: &Ride) -> String {
     v.extend(r.pos);
     v.extend(r.pos_p);
     v.extend(r.rot);
-    v.extend([r.hit_attribute, r.transparency, r.char_set_transparency, u32::from(r.flags & 0x3f)]);
+    let flags = if r.later { r.flags } else { r.flags & 0x3f };
+    v.extend([r.hit_attribute, r.transparency, r.char_set_transparency, u32::from(flags)]);
     v.extend([r.act, r.act_old, r.anm_end, r.idle].map(|x| x as i32 as u32));
     v.extend([r.speed, r.speed_rate, r.now_speed, r.set_transparency, r.kind as u32, r.cycle as u32]);
     v.extend(r.pos_view);
@@ -265,10 +324,25 @@ fn ride_json(r: &Ride) -> String {
     v.extend(r.hit.pos);
     v.extend(r.hit.offset);
     v.extend([u32::from(r.frame_spd[0]), u32::from(r.frame_spd[1])]);
+    if r.later {
+        v.extend([r.seek.lead, r.seek.idle, r.seek.hold].map(|x| x as u32));
+        v.extend(r.seek.target);
+        v.push(r.seek.range);
+    }
     list(v)
 }
 
-fn read_input(t: &mut Toks) -> Input {
+/// From Mutation on, the balloon's line (hex, to its NUL) and the name.
+fn seek_json(r: &Ride) -> String {
+    if !r.later {
+        return "null".into();
+    }
+    let end = r.chat.iter().position(|&b| b == 0).unwrap_or(r.chat.len());
+    let name = r.seek.name.map_or("null".into(), |n| format!("\"{}\"", hex(n.as_bytes())));
+    format!("{{\"chat\":\"{}\",\"name\":{name}}}", hex(&r.chat[..end]))
+}
+
+fn read_input(t: &mut Toks, later: bool) -> Input {
     Input {
         pad: Pad { pow_l: t.int() as u8, dirc_l: t.u32() },
         pause: t.int() != 0,
@@ -286,7 +360,25 @@ fn read_input(t: &mut Toks) -> Input {
             ease_on: t.u32(),
             ease_off: t.u32(),
         }),
+        push: if later { t.u32() } else { 0 },
+        pow_r: if later { t.int() as u8 } else { 0 },
     }
+}
+
+/// `SEEK`: event area, dungeon[4], player[4], then each list as a count
+/// and its entries (pos[4] type active going name).
+fn read_seek(t: &mut Toks, s: &mut Script) {
+    s.event_area = t.i32();
+    s.dungeon = t.v4();
+    s.player = t.v4();
+    let entries = |t: &mut Toks| {
+        let n = t.int();
+        (0..n)
+            .map(|_| SeekEntry { pos: t.v4(), ty: t.i32(), active: t.int() != 0, going: t.int() != 0, name: name(t) })
+            .collect::<Vec<_>>()
+    };
+    s.gims = entries(t);
+    s.circles = entries(t);
 }
 
 fn read_camera(t: &mut Toks, s: &mut Script) {
@@ -331,13 +423,15 @@ fn read_script(t: &mut Toks, s: &mut Script) {
     s.draw = (0..n).map(|_| t.u32()).collect();
 }
 
-fn frame_json(r: &Ride, g: &Globals, rand: &Rand, s: &mut Script) -> String {
+fn frame_json(r: &Ride, g: &Globals, rand: &Rand, s: &mut Script, ret: Option<i32>) -> String {
     let plw =
         s.plw.take().map_or("null".into(), |(p, r, pause)| format!("[{},{},{}]", list(p), list(r), u8::from(pause)));
     let calls = std::mem::take(&mut s.calls);
+    let ret = ret.map_or("null".into(), |v| v.to_string());
     format!(
-        "{{\"ride\":{},\"g\":[{},{}],\"rand\":{},\"plw\":{plw},\"reset\":{},\"calls\":[{}]}}",
+        "{{\"ride\":{},\"seek\":{},\"ret\":{ret},\"g\":[{},{}],\"rand\":{},\"plw\":{plw},\"reset\":{},\"calls\":[{}]}}",
         ride_json(r),
+        seek_json(r),
         g.pg_r,
         g.pg_din,
         rand.0,
@@ -358,11 +452,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let Some(cmd) = t.0.next() else { continue };
         let answer = match cmd {
             "tables" => format!(
-                "{{\"anims\":{:?},\"anims_pg\":{:?},\"files\":{:?},\"angles\":{}}}",
+                "{{\"anims\":{:?},\"anims_pg\":{:?},\"files\":{:?},\"angles\":{},\"seek_types\":{}}}",
                 tables.anims,
                 (0..ride::ACTS as i16).map(|a| tables.anim_pg(a, 0)).collect::<Vec<_>>(),
                 tables.files,
-                list(tables.angles)
+                list(tables.angles),
+                tables.seek.as_ref().map_or("null".into(), |s| list(s.types.iter()))
             ),
             "new" => {
                 let kind = t.i32();
@@ -376,25 +471,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 format!(
                     "{{\"file\":\"{}\",\"pg\":{names:?},{}",
                     tables.file(kind),
-                    &frame_json(&r, &Globals::default(), &rand, &mut s)[1..]
+                    &frame_json(&r, &Globals::default(), &rand, &mut s, None)[1..]
                 )
             }
             "main" | "fn" => {
                 let (frames, name) = if cmd == "main" { (t.int(), String::new()) } else { (1, t.word().to_string()) };
-                let mut r = read_ride(&mut t, tables.volume != piney_data::volume::Volume::Inf);
-                let input = read_input(&mut t);
+                let later = tables.volume != piney_data::volume::Volume::Inf;
+                let mut r = read_ride(&mut t, later);
+                let input = read_input(&mut t, later);
                 let mut g = Globals { pg_r: t.i32(), pg_din: t.i32() };
                 let mut rand = Rand(t.int() as u64);
-                let mut s = Script::default();
+                let mut s = Script { bounds: input.bounds, ..Script::default() };
                 read_camera(&mut t, &mut s);
                 read_script(&mut t, &mut s);
+                if later {
+                    read_seek(&mut t, &mut s);
+                }
                 let mut each = Vec::new();
                 for _ in 0..frames {
+                    let mut ret = None;
                     match name.as_str() {
                         "" => ride::main(&mut r, &mut s, &input, &mut g, &tables, &mut rand),
                         "control_move" => {
-                            ride::control_move(tables.volume, &mut r, &mut s, &input, &mut rand);
+                            // Its answer is compared from Mutation on (the search's 0).
+                            let v = ride::control_move(&tables, &mut r, &mut s, &input, &mut rand);
+                            ret = later.then_some(v);
                         }
+                        "seek_move" => ret = Some(ride::seek_move(&tables, &mut r, &mut s, &input, &mut rand)),
+                        "seek" => ret = Some(ride::seek(&tables, &mut r, &mut s, &input)),
                         "anim_ctrl" => ride::anim_ctrl(&mut r, &mut s, &tables, &input, &mut rand),
                         "draw_pg" => ride::draw_pg(&mut r, &mut s, &input),
                         "note" => {
@@ -407,7 +511,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         other => panic!("unknown function {other}"),
                     }
-                    each.push(frame_json(&r, &g, &rand, &mut s));
+                    each.push(frame_json(&r, &g, &rand, &mut s, ret));
                 }
                 format!("{{\"frames\":[{}]}}", each.join(","))
             }

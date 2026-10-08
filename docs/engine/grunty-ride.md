@@ -2,8 +2,8 @@
 title: The riding Grunty - ccPucciguso, the Grunty Flute and pgRideFlag
 status: partial
 volumes: INF, MUT, OUT, QUA
-covers: INF gcmn.prg:0x00510650 ccPgAdultCheck, 0x005109c0 ccPuccigusoStart, 0x00510880 ccThPucciguso, 0x00510990 ccThPuccigusoDelete, 0x00510bd0 ccPuccigusoExit, 0x00510f30 ccPucciguso::ccPucciguso, 0x00511410 ccPucciguso::~ccPucciguso, 0x005114e0 ccPucciguso::Main, 0x005119c0 ControlMove, 0x00511ed0 PadLeverPower, 0x00511f80 AnimCtrl, 0x00512360 CollisionTest, 0x005123f0 MapLoopAdjustPos, 0x005124b0 CameraPosCalc, 0x00512540 CameraPosSet, 0x00512670 PawSmoke, 0x00512c80 DrawPG, 0x00512fb0 ccPuccigusoCheckNote, 0x005ee810 pcgsTbl, 0x005ee840 puccigusoCharTbl, 0x005ee870 puccigusoAnimTblPG, 0x006aea50 puccigusoAnimTbl, 0x005ee908 puccigusoAngleTbl, 0x005a0760 ccSpcSleep, 0x005a0850 ccSpcWakeup, 0x005a02e0 ccSPC::Wakeup, 0x005a08b0 ccSpcGetCharPtr, 0x00530264 ImportantItemMenu's proccess 20, 0x0057bc84 ccUseItemRequest's ride wait; INF SLUS_202.67:0x001801d0 ccPgBgmInit, 0x00180360 ccPgBgmEnd, 0x0017e680 ccBgmPlay, 0x001604d0 ccScFade::CheckFade, 0x00160510 ccScFade::DeleteFade, 0x0015c210 ccSprite::Trans, 0x00378cdc pgRideFlag, 0x00378c28 pgR, 0x00378c2c pgDIN, 0x00378c24 pcgs, 0x00378978 camTypeLock; MUT gcmn.prg:0x0052d540 ccThPucciguso, 0x0052d6f0 ccPuccigusoStart, 0x0052d960 ccPuccigusoExit, 0x0052dd10 ccPucciguso::ccPucciguso, 0x0052e3a0 Main, 0x0052e970 ControlMove, 0x0052fd10 AnimCtrl, 0x00530160 CollisionTest, 0x005cbb40 ccSpcSleep, 0x005cbb70 ccSpcWakeup, 0x00531090 the ride is up, 0x005310b0 the ride put down
-worklog: 166, 395
+covers: INF gcmn.prg:0x00510650 ccPgAdultCheck, 0x005109c0 ccPuccigusoStart, 0x00510880 ccThPucciguso, 0x00510990 ccThPuccigusoDelete, 0x00510bd0 ccPuccigusoExit, 0x00510f30 ccPucciguso::ccPucciguso, 0x00511410 ccPucciguso::~ccPucciguso, 0x005114e0 ccPucciguso::Main, 0x005119c0 ControlMove, 0x00511ed0 PadLeverPower, 0x00511f80 AnimCtrl, 0x00512360 CollisionTest, 0x005123f0 MapLoopAdjustPos, 0x005124b0 CameraPosCalc, 0x00512540 CameraPosSet, 0x00512670 PawSmoke, 0x00512c80 DrawPG, 0x00512fb0 ccPuccigusoCheckNote, 0x005ee810 pcgsTbl, 0x005ee840 puccigusoCharTbl, 0x005ee870 puccigusoAnimTblPG, 0x006aea50 puccigusoAnimTbl, 0x005ee908 puccigusoAngleTbl, 0x005a0760 ccSpcSleep, 0x005a0850 ccSpcWakeup, 0x005a02e0 ccSPC::Wakeup, 0x005a08b0 ccSpcGetCharPtr, 0x00530264 ImportantItemMenu's proccess 20, 0x0057bc84 ccUseItemRequest's ride wait; INF SLUS_202.67:0x001801d0 ccPgBgmInit, 0x00180360 ccPgBgmEnd, 0x0017e680 ccBgmPlay, 0x001604d0 ccScFade::CheckFade, 0x00160510 ccScFade::DeleteFade, 0x0015c210 ccSprite::Trans, 0x00378cdc pgRideFlag, 0x00378c28 pgR, 0x00378c2c pgDIN, 0x00378c24 pcgs, 0x00378978 camTypeLock; MUT gcmn.prg:0x0052d540 ccThPucciguso, 0x0052d6f0 ccPuccigusoStart, 0x0052d960 ccPuccigusoExit, 0x0052dd10 ccPucciguso::ccPucciguso, 0x0052e3a0 Main, 0x0052e970 ControlMove, 0x0052fd10 AnimCtrl, 0x00530160 CollisionTest, 0x005cbb40 ccSpcSleep, 0x005cbb70 ccSpcWakeup, 0x00531090 the ride is up, 0x005310b0 the ride put down, 0x0052f250 the search's run, 0x0052f790 the search, 0x0052f800 its foods, 0x0052f9d0 its dungeon, 0x0052faa0 its portals, 0x00530e50 the Grunty's line, 0x00530dd0 its balloon, 0x0061d180 the search by kind, 0x0061d1a8 its ranges, 0x00684b50 the Grunty's lines; MUT SLUS_205.62:0x001b1600 the fields with a dungeon; OUT gcmn.prg:0x00529834 Triangle's search
+worklog: 166, 395, 403
 ---
 
 # The riding Grunty - ccPucciguso, the Grunty Flute and pgRideFlag
@@ -333,6 +333,76 @@ The port: `piney_battle::ride`'s `Ride::later`, `main_later`,
 (`ride_start_town`, `ride_slot`, `ride_exit_town`, `ride_place`, the
 town's `RideWorld`).
 
+### The search in a field
+
+From Mutation on the object (0x250 bytes) has a search: the Grunty sniffs
+out the nearest thing of its kind's type, says so in a balloon and leads
+Kite there. Its members are +0x158 `lead`, +0x15c `idle`, +0x160 `hold`,
++0x1d0 the target, +0x1e0 the range and +0x24c the target's name; flag
+bit 6 is the search on, bit 7 a line waiting in +0xe1 (0x51 bytes).
+
+- **The constructor** (MUT 0x0052de50) sets `lead` and `idle` 0, `hold`
+  10, the target (0, 0, 0, 1), and the range `ranges[types[kind]]`. It
+  ends with `ccEntryCmnd(this)`: the ride is on the others' command list
+  until the dismount's `ccDeleteCmnd`. No target is ever chosen from it
+  (`ccSelectTarget` runs only with no menu open, and the flute's
+  `WaitRide`, or the race's menu, stays open), but the balloon over it
+  needs it (`ccCheckTarget`).
+- **The types** (0x0061d180, by kind 0-8: 0, 1, 2, 1, 2, 1, 2, 1, 2) and
+  **ranges** (0x0061d1a8: 1000, 2400, 1000):
+  - 0, kind 0: the nearest of `g_entCtrl`'s gimmicks (+0x28) whose base
+    type has 0x800000, the Grunty foods (`gimmickTbl` rows 22-37);
+  - 1: the field's dungeon, `WORLD_MAN.dungeonPos[0]` (+0x460, the
+    entrance's x and y, z 0, from `WORLD::SetDungeonEnter`), unless
+    `eventAreaNumber` (+0x120) is one of 28, 39-42, 53-57, 78-82, 109-113
+    (main 0x001b1600; `SetSpecialObj` skips the same);
+  - 2: the nearest magic circle (+0x1c).
+
+  Each list is walked from its head (`next` +0x1c4), skipping an entry
+  going (`destFlag`) and, in a dungeon, one off (`objFlag`). The distance
+  is that of `ccTransPosW2P(pos)` with z 0 (the volume's `sqrtf`), the
+  first or any no farther kept. The search (0x0052f790) answers -1 within
+  100 past the range, 1 farther, 0 for none, and sets the target and
+  +0x24c the base's name (none for the dungeon).
+- **`ControlMove`** in a field, past Infection's: leaning sets `idle` 40,
+  standing counts it down. With the search on and `idle` 0 or less it
+  sniffs again: found, `lead` 1, `hold` 20 and the found line, and
+  `ControlMove` answers 0; else the search goes off with the none line.
+  Triangle (push 0x10) with the search on calls it off: `lead` and `idle`
+  0, the cancel line.
+- **The run** (0x0052f250), which `Main` calls for `ControlMove` while
+  `lead` is set:
+  - At `lead` 1 Triangle calls it off (`hold` 20, the cancel line). A lean
+    (in the eye view also L1, R1 or `powR` 64 on) gives the stick back:
+    `idle` 60, `lead` 0. Above 1, `lead` counts down to 1.
+  - While `hold` lasts it stands (the move eased off by 1/8, its dust).
+  - Then it runs at 1.3 of its speed (`nowSpeed` at least that once under
+    5) toward `ccTransPosW2P(target) - posP`. It turns to that heading,
+    and eases its move 0.08 of the way.
+  - Within the range (`<=`) the search goes off: `lead` 0, the near line.
+- **The lines** (0x00530e50, four tables by kind from 0x00684b50: found,
+  none, cancel, near) are copied into +0xe1, `#a` put as the name (Kite's,
+  `getPartyMenberChar(0)`'s, for none), and the copy stops once 79
+  characters are in. Flag bit 7 is set; at the end of `Main`, outside a
+  town, 0x00530dd0 opens the balloon (`ccChatMsg::OpenChat(ccChat, this,
+  +0xe1)`) and clears it. Kind 0 says "Mon ami! I smell #a this way!",
+  kind 1 "I think the dungeon is this way clang!".
+- **Who starts it.** On Mutation nothing does: no code sets bit 6, so the
+  search, the run and the lines never run. Outbreak and Quarantine
+  reworded every line and added the start at the top of `ControlMove`
+  (OUT 0x00529834, QUA 0x0041c144). In a field with the search off,
+  Triangle sniffs: found, the search on, `lead` 40, `hold` 20 and the
+  found line (`ControlMove` answers 0); else the none line. Their run,
+  search and lines are Mutation's (`sqrt.s` for `sqrtf`).
+
+The port: `seek` and `seek_move` in `piney_battle::ride`, with
+`Ride::seek`, `Ride::chat`, `SeekTables` (`tables::combat`'s
+`ride_seek_*`, which piney-gen finds through the constructor and
+`ControlMove`), `Out::EntryCmnd` and `Out::Chat`. The field's
+`RideWorld` reads the entry control's lists, the event area and
+`dungeonPos` (`piney_world::combat::ride::SeekView`). piney-game opens the
+balloon over the ride (handle `3 << 24`, `FieldWorld::ride_chat_point`).
+
 ## The port
 
 `piney_battle::ride` is the object and its functions: `Ride::new`,
@@ -398,6 +468,26 @@ flags cleared, the menu shut and unbanned, Kite walking again.
 `ride_shots` (ignored) takes the fade, the ride standing and running,
 the dismount and the party after it (`scratch/ride/shots`).
 
+From Mutation on the harness's states also cover the search: flag bits 6
+and 7, `lead`, `idle`, `hold`, the target, the range, the name and the
+line. The world has `g_entCtrl`'s gimmicks and circles (near and far,
+foods or not, on, going), the event area, `dungeonPos`, the player's
+place, Triangle, L1, R1 and `powR`. The run and the search run alone too
+(`test_seek_move`, `test_seek`), and `ControlMove` and `Main` in a field
+(`test_seek_in_a_field`). The lines and their balloons (`OpenChat`) are
+compared, and so are the answers. Mutation, Outbreak and Quarantine
+match, and Infection's cases are unchanged.
+
+`mutations_grunty_never_searches_a_field` (Mutation, a new game in a field
+of Dun Loireag's server): riding, Triangle every 20 frames and standing
+for 200 frames start nothing, and the ride is on the command list.
+`outbreaks_grunty_leads_kite_to_the_dungeon` (Outbreak): Triangle, and
+the Grunty of the dungeon's kind says "I think the dungeon is this way,
+clang!" over itself. Its target is the entrance. It stands 20 frames,
+runs from the gate (10200, 600) toward the entrance (10200, 4800), and at
+frame 54 stops 2392 from it, saying "We seem to be close to the dungeon,
+clang!".
+
 ## Unknown
 
 - The ride's task runs its first `Main` a frame after the game's, and the
@@ -416,9 +506,4 @@ the dismount and the party after it (`scratch/ride/shots`).
 - `pgDIN`'s way (a dungeon's entrance ridden into) and the flute outside
   a field are not played through in a session; the entrance is
   `WORLD_MAN::Enter` as Kite's.
-- From Mutation on, a field ride's charge (the bit 6 test at MUT gcmn
-  0x0052f790, the knockback 0x0052f250, `+0x158`..`+0x160`), its Grunty
-  chat (0x00530e50, 0x00530dd0) and the `+0x1e0` range are not ported.
-  They act only in a field, which no later volume's session rides yet.
-  Porting them needs those functions read and a Mutation field ride in
-  the ride harness.
+

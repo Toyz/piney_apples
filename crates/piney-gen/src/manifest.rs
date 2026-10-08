@@ -1851,6 +1851,14 @@ fn named_block(name: &str, row: &str, doc: &str) -> Layout {
     strukt(name, 0, vec![("name", 0, cstr()), ("va", 4, U32), ("rows", 8, array(ty(row, vec![]), 0))], doc)
 }
 
+/// A table of the ride's search in a field (Mutation on, found through its
+/// code: `crate::ride_seek`); empty on Infection.
+fn seek(name: &'static str, f: fn(&crate::ride_seek::SeekAddrs) -> u32, l: Layout, doc: &'static str) -> Entry {
+    let read = l.clone();
+    let layout = custom(Rc::new(move |c| read.read(c, f(&crate::ride_seek::addrs(c)?))), l);
+    derived(name, layout, GCMN, doc).absent(Vol::Inf, Value::List(Vec::new()))
+}
+
 fn combat() -> Group {
     group(
         "combat",
@@ -1906,6 +1914,27 @@ fn combat() -> Group {
                 "`puccigusoCharTbl`: the Grunty's model file by kind.",
             ),
             e("ride_angles", 0x005E_E908, array(I16, 5), GCMN, "`puccigusoAngleTbl`."),
+            seek(
+                "ride_seek_types",
+                |a| a.types,
+                array(I32, 9),
+                "The ride's search by kind: 0 foods, 1 the dungeon, 2 portals (MUT 0x0061d180).",
+            ),
+            seek(
+                "ride_seek_ranges",
+                |a| a.ranges,
+                array(float(), 3),
+                "How near the search counts as there, by type (0x0061d1a8).",
+            ),
+            seek(
+                "ride_seek_found",
+                |a| a.found,
+                array(ptr(cstr()), 9),
+                "The Grunty's line by kind when it finds one (0x00684b50).",
+            ),
+            seek("ride_seek_none", |a| a.none, array(ptr(cstr()), 9), "When it finds none (0x00684b80)."),
+            seek("ride_seek_cancel", |a| a.cancel, array(ptr(cstr()), 9), "When Triangle calls it off (0x00684bb0)."),
+            seek("ride_seek_near", |a| a.near, array(ptr(cstr()), 9), "When it is there (0x00684be0)."),
             e(
                 "skeith_acts",
                 0x005E_B598,

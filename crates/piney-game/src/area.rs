@@ -163,6 +163,10 @@ fn char_info(w: &FieldWorld, who: usize, names: &dyn Fn(i32) -> Vec<u8>) -> Opti
     })
 }
 
+/// The riding Grunty's balloon handle (`pcgs`): from Mutation on it speaks
+/// of its search over itself.
+const RIDE_HANDLE: u32 = 3 << 24;
+
 /// The scene index a HUD handle names.
 fn handle_index(w: &FieldWorld, h: u32) -> Option<usize> {
     match h >> 24 {
@@ -782,7 +786,11 @@ impl AreaMode {
                 .collect::<std::collections::BTreeSet<u32>>()
                 .into_iter()
                 .filter_map(|h| {
-                    let (listed, at) = self.world.chat_point(handle_index(&self.world, h)?)?;
+                    let (listed, at) = if h == RIDE_HANDLE {
+                        self.world.ride_chat_point()?
+                    } else {
+                        self.world.chat_point(handle_index(&self.world, h)?)?
+                    };
                     Some(piney_fieldui::chat_msg::ChatAt { who: h, listed, at })
                 })
                 .collect(),
@@ -974,16 +982,21 @@ impl AreaMode {
         self.events.extend(out);
     }
 
-    /// The party's chat balloons this frame: each member's
-    /// `ChatMessageSender` `ccChatMsg::OpenChat` over it (handle `1 << 24 |
-    /// id`), in the order the members' frames opened them.
+    /// The chat balloons this frame, in the order the tasks opened them:
+    /// each member's `ChatMessageSender` `ccChatMsg::OpenChat` over it
+    /// (handle `1 << 24 | id`), and from Mutation on the riding Grunty's
+    /// line of its search over itself ([`RIDE_HANDLE`]).
     fn party_chats(&mut self, shows: &[piney_world::combat::Show]) {
         use piney_world::combat::Show;
         let names = self.world.state().names();
         for s in shows {
-            if let Show::Chat(w, text) = s {
-                let Some(id) = self.world.combat().scene.chars.get(*w).map(|c| c.id()) else { continue };
-                self.ui.open_chat((1 << 24) | u32::from(id as u16), text, &names);
+            match s {
+                Show::Chat(w, text) => {
+                    let Some(id) = self.world.combat().scene.chars.get(*w).map(|c| c.id()) else { continue };
+                    self.ui.open_chat((1 << 24) | u32::from(id as u16), text, &names);
+                }
+                Show::Ride(piney_battle::ride::Out::Chat(text)) => self.ui.open_chat(RIDE_HANDLE, text, &names),
+                _ => {}
             }
         }
     }

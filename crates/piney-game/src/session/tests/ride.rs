@@ -19,8 +19,8 @@ fn give_flute(save: &mut piney_data::save::SaveData, server: i32) {
 
 /// The first word triple in the tables' order that makes a random area on
 /// `server` whose field is not a lake's (or the special types).
-fn field_words(server: i32) -> Option<[i32; 3]> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+fn field_words(disc: &str, server: i32) -> Option<[i32; 3]> {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
     let mut disc = Iso::open(&iso).ok()?;
     let t = crate::area::area_tables(&mut disc).unwrap();
     let words = |slot: usize| t.words.iter().filter(|w| w.slot == slot).map(|w| w.id).collect::<Vec<_>>();
@@ -43,29 +43,69 @@ fn field_words(server: i32) -> Option<[i32; 3]> {
 /// Event 25's start logged in, the area of a random field made and the
 /// party put in it as the gate leaves it, with the flute and a Grunty.
 pub(super) fn in_field() -> Option<(Session, i32)> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    in_field_on("infection", 25)
+}
+
+/// A new game on disc `disc_name` logged in at Dun Loireag's gate and put
+/// alone in a random field of its server, with the flute (no other key
+/// item) and a Grunty grown in pen 1.
+fn new_game_in_field(disc_name: &str) -> Option<(Session, i32)> {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc_name}/{disc_name}.iso"));
     if !iso.exists() {
-        eprintln!("infection.iso not present; skipped");
+        eprintln!("{disc_name}.iso not present; skipped");
+        return None;
+    }
+    let mut d = Iso::open(&iso).unwrap();
+    let tables = crate::area::area_tables(&mut d).unwrap();
+    let archive = Arc::new(Archive::new(d.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let mut state = crate::world::new_game_state(&mut d).unwrap();
+    let save = &mut state.save;
+    save.set_u8(offset::LAST_TOWN, 1);
+    let mut scene = Scene::log_in(save);
+    for k in 0..0x140 {
+        save.set_u8(0x0cfc + k, 0);
+    }
+    give_flute(save, scene.server);
+    let words = field_words(disc_name, scene.server).expect("a field's words");
+    let (wm, _) = WorldMan::set_generate_code(tables, words, scene.server, save).expect("the words");
+    scene.change_scene(1, 1, 0, -1, -1, -1, save);
+    scene.change_area(kind::FIELD, 0, save);
+    let server = scene.server;
+    let mut s = Session::bare(iso, archive, false, None, false);
+    s.resume_in(
+        state,
+        None,
+        crate::session::Resume::World(Box::new(crate::session::InWorld { scene, world_man: Some(wm), spcs: None })),
+    )
+    .unwrap();
+    Some((s, server))
+}
+
+/// [`in_field`] on disc `disc` from story event `event`'s start.
+pub(super) fn in_field_on(disc_name: &str, event: i32) -> Option<(Session, i32)> {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc_name}/{disc_name}.iso"));
+    if !iso.exists() {
+        eprintln!("{disc_name}.iso not present; skipped");
         return None;
     }
     let mut disc = Iso::open(&iso).unwrap();
     let tables = crate::area::area_tables(&mut disc).unwrap();
     let mut server = 0;
-    let s = story_session_with(25, |start| {
+    let s = story_session_on(disc_name, event, |start| {
         let save = &mut start.state.save;
         // Dun Loireag's gate (game.server 1, where the Grunties grow).
         save.set_u8(offset::LAST_TOWN, 1);
         let mut scene = Scene::log_in(save);
         server = scene.server;
         give_flute(save, scene.server);
-        let words = field_words(scene.server).expect("a field's words");
+        let words = field_words(disc_name, scene.server).expect("a field's words");
         let (wm, _) = WorldMan::set_generate_code(tables, words, scene.server, save).expect("the words");
         scene.change_scene(1, 1, 0, -1, -1, -1, save);
         scene.change_area(kind::FIELD, 0, save);
         start.at = crate::session::Resume::World(Box::new(crate::session::InWorld {
             scene,
             world_man: Some(wm),
-            spcs: Some(crate::start::party(25)),
+            spcs: Some(crate::start::party(event)),
         }));
     })?;
     Some((s, server))
@@ -152,6 +192,9 @@ fn blow_flute(s: &mut Session, pad: &mut Pad, events: &mut Vec<Event>) -> u32 {
         events.extend(s.take_events());
         if look(s).riding {
             return f;
+        }
+        if std::env::var("RIDE_DEBUG").is_ok() && !ready && f.is_multiple_of(300) {
+            eprintln!("{f} {} {:?}", Mode::title(s), s.loading);
         }
         if std::env::var("RIDE_DEBUG").is_ok() && f.is_multiple_of(8) && ready {
             let a = area(s);
@@ -321,4 +364,97 @@ fn ride_shots() {
     shot(&s, &f, "5-dismounting");
     let f = frames(&mut s, &mut pad, 40, Buttons::NONE, 128);
     shot(&s, &f, "6-dismounted");
+}
+
+/// The ride's search state and the balloons up: whether `SEEK` is set,
+/// the lead, the Grunty's target, and the ride's balloon's text.
+fn seek_look(s: &Session) -> (bool, i32, [f32; 3], Option<Vec<u8>>) {
+    let a = area(s);
+    let o = a.world().combat().ride.obj.as_ref().expect("riding");
+    let t = o.ride.seek.target.map(f32::from_bits);
+    let balloon = a.ui().ctrl.chat.slots.iter().find(|b| b.cf > 0 && b.who == 3 << 24).map(|b| b.text.clone());
+    (o.ride.flags & piney_battle::ride::flag::SEEK != 0, o.ride.seek.lead, [t[0], t[1], t[2]], balloon)
+}
+
+/// Riding from the flute's call to the Grunty standing with Kite on it.
+fn ride_up(s: &mut Session, pad: &mut Pad, events: &mut Vec<Event>) {
+    blow_flute(s, pad, events);
+    for _ in 0..40 {
+        pad.read(&raw(Buttons::NONE, 128));
+        s.step(pad);
+        events.extend(s.take_events());
+    }
+    assert!(look(s).obj && look(s).main_on, "{:?}", look(s));
+}
+
+/// Mutation's field ride has the search's code (MUT gcmn 0x0052f790), but
+/// nothing starts it: Triangle and standing do nothing, and no line is
+/// said. The ride is on the command list (its constructor's `ccEntryCmnd`).
+#[test]
+fn mutations_grunty_never_searches_a_field() {
+    let Some((mut s, server)) = new_game_in_field("mutation") else { return };
+    let mut pad = Pad::default();
+    let mut events = Vec::new();
+    ride_up(&mut s, &mut pad, &mut events);
+    assert_eq!(area(&s).world().combat().ride.obj.as_ref().unwrap().ride.kind, 2 * server + 1 - 2);
+    assert!(area(&s).world().combat().ride.obj.as_ref().unwrap().listed);
+    for f in 0..200 {
+        let b = if f % 20 == 0 { Buttons::TRIANGLE } else { Buttons::NONE };
+        pad.read(&raw(b, 128));
+        s.step(&pad);
+        events.extend(s.take_events());
+        let (seek, lead, _, balloon) = seek_look(&s);
+        assert!(!seek && lead == 0 && balloon.is_none(), "frame {f}: {seek} {lead} {balloon:?}");
+    }
+}
+
+/// From Outbreak on Triangle starts the search (OUT gcmn 0x00529834): a
+/// Grunty of the dungeon's kind says so over itself, stands 20 frames,
+/// then runs Kite to the field's dungeon until within 2400 of it, and
+/// says it is there.
+#[test]
+fn outbreaks_grunty_leads_kite_to_the_dungeon() {
+    let Some((mut s, server)) = new_game_in_field("outbreak") else { return };
+    let mut pad = Pad::default();
+    let mut events = Vec::new();
+    ride_up(&mut s, &mut pad, &mut events);
+    let kind = area(&s).world().combat().ride.obj.as_ref().unwrap().ride.kind;
+    assert_eq!(kind, 2 * server + 1 - 2);
+    let t = piney_data::tables::combat::of(piney_data::volume::Volume::Out);
+    assert_eq!(t.ride_seek_types()[kind as usize], 1, "a dungeon Grunty");
+    let dungeon = match area(&s).world().place() {
+        Place::Field(f) => f.dungeon_pos().expect("the entrance").map(f32::from_bits),
+        _ => panic!("not a field"),
+    };
+    let start = look(&s).ride_pos;
+    pad.read(&raw(Buttons::TRIANGLE, 128));
+    s.step(&pad);
+    let (seek, lead, target, balloon) = seek_look(&s);
+    assert!(seek && lead == 40, "{seek} {lead}");
+    assert!(dist(target, [dungeon[0], dungeon[1], 0.0]) < 0.01, "{target:?} {dungeon:?}");
+    assert_eq!(balloon.as_deref(), Some(t.ride_seek_found()[kind as usize].as_bytes()));
+    let mut near = None;
+    for f in 0..3000 {
+        pad.read(&raw(Buttons::NONE, 128));
+        s.step(&pad);
+        let (seek, _, _, balloon) = seek_look(&s);
+        if f < 20 {
+            assert!(dist(look(&s).ride_pos, start) < 1.0, "it stands first: frame {f}");
+        }
+        if !seek {
+            near = Some((f, balloon));
+            break;
+        }
+    }
+    let (f, balloon) = near.expect("the Grunty never got there");
+    assert_eq!(balloon.as_deref(), Some(t.ride_seek_near()[kind as usize].as_bytes()), "frame {f}");
+    let at = look(&s).ride_pos;
+    if std::env::var("RIDE_DEBUG").is_ok() {
+        eprintln!(
+            "start {start:?} dungeon {dungeon:?} at {at:?} frame {f} d {}",
+            dist(at, [dungeon[0], dungeon[1], 0.0])
+        );
+    }
+    assert!(dist(at, [dungeon[0], dungeon[1], 0.0]) <= 2400.0 + 1.0, "{at:?} {dungeon:?} at frame {f}");
+    assert!(dist(at, start) > 100.0, "it led Kite: {start:?} {at:?}");
 }

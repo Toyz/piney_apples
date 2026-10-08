@@ -41,6 +41,11 @@ Checks:
                 puccigusoAngleTbl as the probe read them
   ctor          ccPucciguso::ccPucciguso(kind) (0x00510f30) for every kind
   main          ccPucciguso::Main (0x005114e0) for 1-80 frames
+  seek          from Mutation on, a field's search: the run (MUT 0x0052f250)
+                and the search (0x0052f790) alone, ControlMove's and Main's
+                parts of it, over g_entCtrl's gimmicks and circles,
+                WORLD_MAN's event area and dungeonPos, the pad's push and
+                powR; the balloon's line (+0xe1) and name (+0x24c) compared
   control_move  ControlMove (0x005119c0), anim_ctrl AnimCtrl (0x00511f80),
                 draw_pg DrawPG (0x00512c80), note ccPuccigusoCheckNote
                 (0x00512fb0), smoke PawSmoke (0x00512670), once each
@@ -93,6 +98,10 @@ COORD = BASE + 0x4000       # the legs' coordinates
 DRAWENV = BASE + 0x5000     # ccDrawEnv::active
 NOTES, NOTE_LIST = BASE + 0x6000, BASE + 0x6400
 REG = BASE + 0x7000         # the registry's characters (Exit, Start)
+ENTS = BASE + 0x9000        # the search's entries, their bases and names
+SPAD = BASE + 0xC000        # ccSys spadWork (the search's scratch)
+CHAT = BASE + 0xD000        # ccChat, and the party's first member for #a
+KITE_CHAR = BASE + 0xD100
 HEAP = BASE + 0x10000       # operator new
 PCGS_TBL = inf_va(0x005EE810)
 CHECK_NOTE = inf_va(0x00512FB0)
@@ -119,6 +128,11 @@ if LATER:
     RIDE = [(n, _move.get(n, off), k) for n, off, k in RIDE]
 # The body's kind words, the Grunty's file, clump and anm, the object's size.
 HIT = 0x1F0 if LATER else 0x170
+# From Mutation on: the search's lead, idle, hold, target and range, the
+# balloon's line (+0xe1) and the name (+0x24c).
+SEEK = [("seek_lead", 0x158, "w"), ("seek_idle", 0x15C, "w"), ("seek_hold", 0x160, "w"),
+        ("seek_target", 0x1D0, "v"), ("seek_range", 0x1E0, "w")]
+CHAT_TEXT, SEEK_NAME = 0xE1, 0x24C
 PG_FILE, PG_ANM = (0x240, 0x248) if LATER else (0x1C0, 0x1C8)
 SIZE = 0x260 if LATER else 0x200
 RACE = BASE + 0x8000        # the Flag Race's object (Mutation on)
@@ -141,6 +155,26 @@ def race_ptr(g):
     raise AssertionError("ControlMove loads no race pointer")
 
 
+def seek_fns():
+    """The run and the search (MUT gcmn 0x0052f250, 0x0052f790): the two
+    functions after ControlMove, none of them named."""
+    lo, hi = volume.span("ControlMove__11ccPuccigusoFv")
+    prog = volume.program(ELF)
+    out, a = [], hi
+    while len(out) < 2:
+        w = prog.u32(a)
+        if w >> 16 == 0x27BD and w & 0x8000:
+            out.append(a)
+            while prog.u32(a) != 0x03E00008:
+                a += 4
+        a += 4
+    return out
+
+
+def hexs(b):
+    return bytes(b).hex()
+
+
 def fb(x):
     return struct.unpack("<I", struct.pack("<f", x))[0]
 
@@ -148,6 +182,10 @@ def fb(x):
 def s32(v):
     v &= 0xFFFFFFFF
     return v - (1 << 32) if v >> 31 else v
+
+
+def cstr_bytes(m, a):
+    return bytes(m.mem[a:a + 0x60]).split(b"\0")[0]
 
 
 def cstr(m, a):
@@ -180,6 +218,9 @@ class RideGame:
         self.plw = sym("plw")
         self.glob = {n: sym(n) for n in ("pgR", "pgDIN", "pgRideFlag", "pcgs", "camTypeLock", "dneFlag",
                                          "hitResultNum", "camID", "activeCamPtr", "worldman", "ccMenu")}
+        if LATER:
+            self.glob.update({n: sym(n) for n in ("g_entCtrl", "ccChat")})
+            self.seek_move_fn, self.seek_fn = seek_fns()
         self.hit_near = sym("hitResultNearest")
         self.race_ptr = race_ptr(g) if LATER else None
         m.store(self.glob["activeCamPtr"], 4, CAM)
@@ -330,6 +371,10 @@ class RideGame:
             rec(["GetCCSAdrs", s])
             return self.streams.setdefault(s, BASE + 0x8000 + 0x10 * len(self.streams))
 
+        def open_chat(mm, chat, ch, text, *_):
+            rec(["OpenChat", hexs(bytes(mm.mem[text:text + 0x60]).split(b"\0")[0])])
+            return 0
+
         nop = lambda mm, *_: 0              # noqa: E731
         hooks = {
             "ccLandHitCheck__FPfUi": land,
@@ -368,6 +413,12 @@ class RideGame:
             "__ct__5ccAnmFv": lambda mm, a, *_: a,
             "ApplyClump__5ccAnmFP7ccClumpP8ccStream": nop,
         }
+        if LATER:
+            hooks.update({
+                "OpenChat__9ccChatMsgFP6ccCharPc": open_chat,
+                "ccEntryCmnd__FP6ccChar": lambda mm, *_: rec(["ccEntryCmnd"]) or 0,
+                "getPartyMenberChar__Fi": lambda mm, *_: KITE_CHAR,
+            })
         # Outbreak's carry leaves the light's wake-up unnamed: DrawPG's call.
         where = {"AwakeDistantLight__9WORLD_MANFv": lambda: volume.found(
             "AwakeDistantLight__9WORLD_MANFv", "DrawPG__11ccPuccigusoFv", 0)}
@@ -427,6 +478,8 @@ class RideGame:
             for k, v in enumerate(inp.get("race") or []):
                 m.store(RACE + 0x64 + 4 * k, 4, v)
             m.store(self.race_ptr, 4, RACE if inp.get("race") else 0)
+        if LATER:
+            self.put_seek(c)
         m.store(self.glob["pgR"], 4, c["g"][0])
         m.store(self.glob["pgDIN"], 4, c["g"][1])
         cam = c["cam"]
@@ -445,6 +498,70 @@ class RideGame:
         self.calls.clear()
         self.shaded = 0
 
+    def put_seek(self, c):
+        """The search's members, the pad's push and powR, the scratch, the
+        entry control's gimmicks and circles (each a base with its name
+        and type, its place, +0xe0 flags, `next`), WORLD_MAN's event area
+        and dungeonPos, the player's place, ccChat and Kite's name."""
+        m, r, inp, sw = self.m, c["ride"], c["input"], c["seek"]
+        for name, off, k in SEEK:
+            if k == "v":
+                self.put_vec(OBJ + off, r[name])
+            else:
+                m.store(OBJ + off, 4, r[name] & 0xFFFFFFFF)
+        m.mem[ENTS:ENTS + 0x3000] = bytes(0x3000)
+        texts = [ENTS + 0x2000]
+
+        def text(h):
+            if h is None:
+                return 0
+            a = texts[0]
+            b = bytes.fromhex(h)
+            m.mem[a:a + len(b) + 1] = b + b"\0"
+            texts[0] = (a + len(b) + 16) & ~15
+            return a
+        m.store(OBJ + SEEK_NAME, 4, text(r["seek_name"]))
+        b = bytes.fromhex(r["chat"]) if r["chat"] else b""
+        m.mem[OBJ + CHAT_TEXT:OBJ + CHAT_TEXT + 0x51] = bytes(0x51)
+        m.mem[OBJ + CHAT_TEXT:OBJ + CHAT_TEXT + len(b)] = b
+        sys_ = 0x01022000
+        m.store(sys_ + 0x2D0, 4, inp["push"])
+        m.store(sys_ + 0x2B1, 1, inp["pow_r"])
+        m.store(sys_ + 0x25C, 4, SPAD)
+        ctrl, at = ENTS, ENTS + 0x40
+        m.store(self.glob["g_entCtrl"], 4, ctrl)
+        for count_off, head_off, entries in ((0x28, 0x2C, sw["gims"]), (0x1C, 0x20, sw["circles"])):
+            m.store(ctrl + count_off, 4, len(entries))
+            prev = None
+            for e in entries:
+                obj, base = at, at + 0x200
+                at += 0x240
+                m.store(obj, 4, base)
+                m.store(base, 4, text(e["name"]))
+                m.store(base + 8, 4, e["ty"] & 0xFFFFFFFF)
+                self.put_vec(obj + 0x40, e["pos"])
+                m.store(obj + 0xE0, 1, e["active"] | e["going"] << 5)
+                if prev is None:
+                    m.store(ctrl + head_off, 4, obj)
+                else:
+                    m.store(prev + 0x1C4, 4, obj)
+                prev = obj
+        m.store(WM + 0x120, 4, sw["event_area"] & 0xFFFFFFFF)
+        self.put_vec(WM + 0x460, sw["dungeon"])
+        self.put_vec(KITE + 0x40, sw["player"])
+        m.store(self.glob["ccChat"], 4, CHAT)
+        m.store(KITE_CHAR, 4, KITE_CHAR + 0x40)
+        m.store(KITE_CHAR + 0x40, 4, text(b"Kite".hex()))
+
+    def read_seek(self):
+        """The balloon's line to its NUL and the name, hex."""
+        m = self.m
+        if not LATER:
+            return None
+        name = m.load(OBJ + SEEK_NAME, 4)
+        chat = bytes(m.mem[OBJ + CHAT_TEXT:OBJ + CHAT_TEXT + 0x51]).split(b"\0")[0]
+        return {"chat": chat.hex(), "name": cstr_bytes(m, name).hex() if name else None}
+
     def read(self):
         m = self.m
         out = []
@@ -452,19 +569,23 @@ class RideGame:
             if k == "v":
                 out += self.vec(OBJ + off)
             elif k == "b":
-                out.append(m.load(OBJ + off, 1) & 0x3F)
+                out.append(m.load(OBJ + off, 1) & (0xFF if LATER else 0x3F))
             elif k == "h":
                 out.append(m.load(OBJ + off, 2, signed=True) & 0xFFFFFFFF)
             else:
                 out.append(m.load(OBJ + off, 4))
         out += [m.load(ANM_K + 0x9C, 2), m.load(ANM_P + 0x9C, 2)]
+        if LATER:
+            for _, off, k in SEEK:
+                out += self.vec(OBJ + off) if k == "v" else [m.load(OBJ + off, 4)]
         return out
 
-    def frame(self):
+    def frame(self, ret=None):
         m = self.m
         calls = list(self.calls)
         self.calls.clear()
-        return {"ride": self.read(), "g": [s32(m.load(self.glob["pgR"], 4)), s32(m.load(self.glob["pgDIN"], 4))],
+        return {"ride": self.read(), "seek": self.read_seek(), "ret": ret,
+                "g": [s32(m.load(self.glob["pgR"], 4)), s32(m.load(self.glob["pgDIN"], 4))],
                 "rand": self.g.rand_now(),
                 "plw": [self.vec(KITE + 0x40), self.vec(KITE + 0x60), m.load(self.plw, 1) & 1],
                 "reset": 1 if m.load(CAM + 0x60, 4) else 0, "calls": calls}
@@ -474,10 +595,18 @@ class RideGame:
         out = []
         m = self.m
         for _ in range(frames):
+            ret = None
             if fn == "main":
                 m.call(self.sym("Main__11ccPuccigusoFv"), (OBJ,))
             elif fn == "control_move":
                 m.call(self.sym("ControlMove__11ccPuccigusoFv"), (OBJ,))
+                ret = s32(m.r[2]) if LATER else None
+            elif fn == "seek_move":
+                m.call(self.seek_move_fn, (OBJ,))
+                ret = s32(m.r[2])
+            elif fn == "seek":
+                m.call(self.seek_fn, (OBJ, args[0]))
+                ret = s32(m.r[2])
             elif fn == "anim_ctrl":
                 m.call(self.sym("AnimCtrl__11ccPuccigusoFv"), (OBJ,))
             elif fn == "draw_pg":
@@ -488,7 +617,7 @@ class RideGame:
             elif fn == "smoke":
                 m.f[12] = args[0]
                 m.call(self.sym("PawSmoke__11ccPuccigusoFfi"), (OBJ, args[1]))
-            out.append(self.frame())
+            out.append(self.frame(ret))
         return out
 
     def ctor(self, kind, rand, pos, rot, c):
@@ -509,7 +638,10 @@ class RideGame:
         k, p = m.load(OBJ + 0xD4, 4), m.load(OBJ + PG_ANM, 4)
         names = [cstr(m, tbl + 21 * i) for i in range(7)]
         # the anms' frame speed as the probe starts them; their note function
-        out = {"ride": self.read()[:-2] + [256, 256], "rand": self.g.rand_now(),
+        ride = self.read()
+        k = len(ride) - 8 if LATER else len(ride)
+        ride[k - 2:k] = [256, 256]
+        out = {"ride": ride, "seek": self.read_seek(), "rand": self.g.rand_now(),
                "calls": [c for c in self.calls if c[0] != "GetCCSAdrs"],
                "files": [c[1] for c in self.calls if c[0] == "GetCCSAdrs"], "pg": names,
                "note_fn": m.load(p + 0xA4, 4), "anms": [k != 0, p != 0]}
@@ -582,8 +714,50 @@ def rnd_case(rnd, frames=1):
         "leg": [rvec(rnd, 0, 48000) for _ in range(12 * n)],
         "draw": [rnd.choice([ONE, rf(rnd, 0, 1), 0]) for _ in range(n)],
     }
-    return {"ride": ride, "input": inp, "g": [rnd.choice([0, 1]), 0], "rand": rnd.getrandbits(40), "cam": cam,
-            "script": script}
+    c = {"ride": ride, "input": inp, "g": [rnd.choice([0, 1]), 0], "rand": rnd.getrandbits(40), "cam": cam,
+         "script": script}
+    if LATER:
+        rnd_seek(rnd, c)
+    return c
+
+
+SEEK_NAMES = [None, b"Golden Egg".hex(), b"Piney Apple".hex(), b"Magic Portal".hex(), b"Treasure".hex()]
+
+
+def rnd_seek(rnd, c):
+    """From Mutation on: the search's state (flags 6 and 7 too), the
+    buttons, and its world: entries about the player, some within the range
+    and some far, some foods, some on, some going, the event area (with
+    and without a dungeon) and dungeonPos."""
+    r, inp = c["ride"], c["input"]
+    r["flags"] = rnd.getrandbits(8)
+    player = [rf(rnd, 500, 47500), rf(rnd, 500, 47500), rf(rnd, -200, 200), ONE]
+    near = lambda: [fb(struct.unpack("<f", struct.pack("<I", player[k]))[0] + rnd.uniform(-1500, 1500))  # noqa: E731
+                    for k in range(2)] + [rf(rnd, -200, 200), rnd.choice([ONE, 0])]
+    far = lambda: rvec(rnd, 0, 48000, rnd.choice([ONE, 0]))  # noqa: E731
+    r.update({
+        "seek_lead": rnd.choice([0, 0, 0, 1, 1, 1, 2, 40, rnd.randrange(-2, 41)]),
+        "seek_idle": rnd.choice([0, 0, 1, -1, 40, 60, rnd.randrange(-3, 61)]),
+        "seek_hold": rnd.choice([0, 0, 0, 1, 2, 10, 20, rnd.randrange(-1, 21)]),
+        "seek_target": rnd.choice([near, far])(),
+        "seek_range": rnd.choice([fb(1000.0), fb(2400.0), fb(1000.0), rf(rnd, 0, 3000)]),
+        "seek_name": rnd.choice(SEEK_NAMES),
+        "chat": rnd.choice(["", "", b"Old line".hex()]),
+    })
+    inp["push"] = rnd.choice([0, 0, 0, 0x10, 0x10, 0x0C, 0x04, 0x08, rnd.getrandbits(16)])
+    inp["pow_r"] = rnd.choice([0, 0, 63, 64, 255, rnd.randrange(256)])
+
+    def entry():
+        return {"pos": rnd.choice([near, near, far])(), "ty": rnd.choice([0x800000, 0x800000, 0x4000, 0x810000, 0]),
+                "name": rnd.choice(SEEK_NAMES[1:]), "active": int(rnd.random() < 0.8),
+                "going": int(rnd.random() < 0.15)}
+    c["seek"] = {
+        "gims": [entry() for _ in range(rnd.choice([0, 1, 3, 6]))],
+        "circles": [entry() for _ in range(rnd.choice([0, 1, 2, 4]))],
+        "event_area": rnd.choice([0, 0, 0, 1, 28, 57, 110, 200, 39]),
+        "dungeon": rnd.choice([near, far])()[:2] + [0, ONE],
+        "player": player,
+    }
 
 
 # the probe side --------------------------------------------------------------------
@@ -594,6 +768,18 @@ def ser_ride(r):
         v = r[name]
         out += v if k == "v" else [v]
     out += r["fs"]
+    if LATER:
+        out += [r["seek_lead"], r["seek_idle"], r["seek_hold"]] + r["seek_target"] + [r["seek_range"]]
+        out += [r["seek_name"] or "-", r["chat"] or "-"]
+    return out
+
+
+def ser_seek(sw):
+    out = [sw["event_area"]] + sw["dungeon"] + sw["player"]
+    for es in (sw["gims"], sw["circles"]):
+        out.append(len(es))
+        for e in es:
+            out += e["pos"] + [e["ty"], e["active"], e["going"], e["name"] or "-"]
     return out
 
 
@@ -621,8 +807,10 @@ def ser_cam(c):
 def ser_case(c):
     i = c["input"]
     race = [1] + i["race"] if i.get("race") else [0]
+    later = [i["push"], i["pow_r"]] if LATER else []
     return (ser_ride(c["ride"]) + [i["pow_l"], i["dirc_l"], i["pause"], i["dne"]] + i["bounds"] + [i["area"]]
-            + race + c["g"] + [c["rand"]] + ser_cam(c["cam"]) + ser_script(c["script"]))
+            + race + later + c["g"] + [c["rand"]] + ser_cam(c["cam"]) + ser_script(c["script"])
+            + (ser_seek(c["seek"]) if LATER else []))
 
 
 class Probe:
@@ -645,8 +833,8 @@ def plw_of(frame):
 
 def normal(frames):
     """The probe's frames in the game's shapes."""
-    return [{"ride": f["ride"], "g": f["g"], "rand": f["rand"], "plw": f["plw"], "reset": f["reset"],
-             "calls": f["calls"]} for f in frames]
+    return [{"ride": f["ride"], "seek": f["seek"], "ret": f["ret"], "g": f["g"], "rand": f["rand"], "plw": f["plw"],
+             "reset": f["reset"], "calls": f["calls"]} for f in frames]
 
 
 @unittest.skipUnless(os.path.exists(ELF) and os.path.exists(ISO) and shutil.which("cargo"),
@@ -668,11 +856,17 @@ class RideAgainstGame(unittest.TestCase):
     def compare(self, want, got, what):
         self.assertEqual(len(want), len(got), what)
         for k, (w, g) in enumerate(zip(want, got)):
-            for key in ("calls", "ride", "g", "rand", "plw", "reset"):
+            for key in ("calls", "ride", "seek", "ret", "g", "rand", "plw", "reset"):
                 self.assertEqual(w[key], g[key], f"{what} frame {k}: {key}")
 
-    def run_fn(self, fn, rnd, frames=1, args=()):
+    def run_fn(self, fn, rnd, frames=1, args=(), lead=None, types=None, field=False):
         c = rnd_case(rnd, frames)
+        if field:
+            c["input"]["area"] = 1
+        if lead is not None:
+            c["ride"]["seek_lead"] = rnd.choice([1, 1, 2, 40]) if lead else c["ride"]["seek_lead"]
+        if types is not None:
+            args = (types[c["ride"]["kind"]],)
         want = self.game.run(c, fn, frames, args)
         if fn == "main":
             got = self.probe.ask(["main", frames] + ser_case(c))["frames"]
@@ -730,6 +924,28 @@ class RideAgainstGame(unittest.TestCase):
         rnd = random.Random(5)
         for _ in range(self.CASES * 4):
             self.run_fn("draw_pg", rnd)
+
+    @unittest.skipUnless(LATER, "the search is Mutation's and later")
+    def test_seek_move(self):
+        rnd = random.Random(11)
+        for _ in range(self.CASES * 4):
+            c_lead = rnd.random() < 0.8
+            self.run_fn("seek_move", rnd, 1, lead=c_lead)
+
+    @unittest.skipUnless(LATER, "the search is Mutation's and later")
+    def test_seek(self):
+        types = self.probe.ask(["tables"])["seek_types"]
+        rnd = random.Random(12)
+        for _ in range(self.CASES * 4):
+            self.run_fn("seek", rnd, 1, types=types)
+
+    @unittest.skipUnless(LATER, "the search is Mutation's and later")
+    def test_seek_in_a_field(self):
+        """ControlMove and Main in a field with the search on and off."""
+        rnd = random.Random(13)
+        for _ in range(self.CASES * 2):
+            self.run_fn("control_move", rnd, 1, field=True)
+            self.run_fn("main", rnd, rnd.choice([1, 2, 30, 80]), field=True)
 
     def test_note(self):
         rnd = random.Random(6)

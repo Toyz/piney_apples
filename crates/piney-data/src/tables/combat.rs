@@ -109,6 +109,18 @@ pub struct Combat {
     pub ride_files: &'static [&'static str],
     /// `puccigusoAngleTbl`.
     pub ride_angles: &'static [i16],
+    /// The ride's search by kind: 0 foods, 1 the dungeon, 2 portals (MUT 0x0061d180).
+    pub ride_seek_types: &'static [i32],
+    /// How near the search counts as there, by type (0x0061d1a8).
+    pub ride_seek_ranges: &'static [f32],
+    /// The Grunty's line by kind when it finds one (0x00684b50).
+    pub ride_seek_found: &'static [&'static str],
+    /// When it finds none (0x00684b80).
+    pub ride_seek_none: &'static [&'static str],
+    /// When Triangle calls it off (0x00684bb0).
+    pub ride_seek_cancel: &'static [&'static str],
+    /// When it is there (0x00684be0).
+    pub ride_seek_near: &'static [&'static str],
     /// Skeith's act tables (normal, super, Epitaph): each to its -1 and the word past it.
     pub skeith_acts: &'static [&'static [i32]],
     /// `Boss01AnmTbl`: Skeith's clip by act, none for some.
@@ -236,6 +248,12 @@ impl crate::store::Load for Combat {
             ride_anims_pg: crate::store::Load::load(r),
             ride_files: crate::store::Load::load(r),
             ride_angles: crate::store::Load::load(r),
+            ride_seek_types: crate::store::Load::load(r),
+            ride_seek_ranges: crate::store::Load::load(r),
+            ride_seek_found: crate::store::Load::load(r),
+            ride_seek_none: crate::store::Load::load(r),
+            ride_seek_cancel: crate::store::Load::load(r),
+            ride_seek_near: crate::store::Load::load(r),
             skeith_acts: crate::store::Load::load(r),
             skeith_anims: crate::store::Load::load(r),
             skeith_rand_skills: crate::store::Load::load(r),
@@ -331,6 +349,24 @@ impl Combat {
     }
     pub fn ride_angles(&self) -> &'static [i16] {
         self.ride_angles
+    }
+    pub fn ride_seek_types(&self) -> &'static [i32] {
+        self.ride_seek_types
+    }
+    pub fn ride_seek_ranges(&self) -> &'static [f32] {
+        self.ride_seek_ranges
+    }
+    pub fn ride_seek_found(&self) -> &'static [&'static str] {
+        self.ride_seek_found
+    }
+    pub fn ride_seek_none(&self) -> &'static [&'static str] {
+        self.ride_seek_none
+    }
+    pub fn ride_seek_cancel(&self) -> &'static [&'static str] {
+        self.ride_seek_cancel
+    }
+    pub fn ride_seek_near(&self) -> &'static [&'static str] {
+        self.ride_seek_near
     }
     pub fn skeith_acts(&self) -> &'static [&'static [i32]] {
         self.skeith_acts

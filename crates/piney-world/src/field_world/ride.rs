@@ -117,8 +117,9 @@ impl FieldWorld {
     }
 
     /// `ccPuccigusoExit`'s first slice in a field (gcmn 0x00510c18): the
-    /// camera's type locked, `ccDeleteCmnd(pcgs)` (on no list) and the
-    /// ride's body out of the collision. `Main` goes on through the fade.
+    /// camera's type locked, `ccDeleteCmnd(pcgs)` (on Infection on no list;
+    /// from Mutation on its constructor's `ccEntryCmnd`) and the ride's body
+    /// out of the collision. `Main` goes on through the fade.
     pub fn ride_exit_begin(&mut self) {
         // From Mutation on ccThPucciguso lets the words be heard again.
         self.voices_off = false;
@@ -129,6 +130,7 @@ impl FieldWorld {
             Place::Story(m) => m.hits_mut(),
         };
         if let Some(o) = self.combat.ride.obj.as_deref_mut() {
+            o.listed = false;
             let mut b = spc::to_body(BODY_WHO, None, &o.ride.hit, false);
             hits.hit_disable(&mut b);
             o.ride.hit.sw = b.sw;
