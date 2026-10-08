@@ -100,7 +100,7 @@ pub trait CameraHits {
     /// `ccHitCheckLM(sp, ep, 4)`: the nearest hit on the segment from `sp`
     /// to `ep` as (contact point, distance), or None (-1.0).
     fn line(&mut self, sp: V4, ep: V4) -> Option<(V4, F)>;
-    /// `ccModelHitCheckQZ(off, pos, 25.0, 1, 0)` in a town: the push out
+    /// `ccModelHitCheckQZ(off, pos, 25.0, mask, 0)` in a town: the push out
     /// of the walls near `pos` (w 1), or None.
     fn sphere(&mut self, pos: V4) -> Option<V4>;
     /// `ccTransPosW2M` then `ccSetGroundHeight` (gcmn 0x0059b900,

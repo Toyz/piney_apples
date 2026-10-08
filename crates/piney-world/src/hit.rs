@@ -994,9 +994,13 @@ impl crate::camera::CameraHits for Hits {
         Hits::line(self, sp, ep, CAMERA_MASK, 0)
     }
 
+    /// The mask is 1 on Infection and 4 from Mutation on (`cameraPosCalc`'s
+    /// `li $a2`: INF main 0x00161f8c, MUT 0x0016209c, OUT 0x001610b0, QUA
+    /// 0x00160f40).
     fn sphere(&mut self, pos: V4) -> Option<V4> {
         let mut off = [0; 4];
-        Hits::sphere(self, &mut off, pos, 0x41c8_0000, 1, 0, true).map(|_| off)
+        let mask = if self.volume == Volume::Inf { 1 } else { 4 };
+        Hits::sphere(self, &mut off, pos, 0x41c8_0000, mask, 0, true).map(|_| off)
     }
 
     /// `ccTransPosW2M` then `ccSetGroundHeight`.

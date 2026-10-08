@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-403 entries: audio 35, battle 82, build 20, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 16, script 48, test 166, tooling 27, ui 93, video 16, volumes 80, world 111.
+404 entries: audio 35, battle 82, build 20, content 3, decomp 28, disc 5, engine 19, format 17, iop 3, render 95, save 16, script 48, test 167, tooling 27, ui 93, video 16, volumes 81, world 112.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -415,3 +415,4 @@ The [reference](docs/README.md) says what is true now.
 | 401 | [The Flag Race test rides as a player would: the test-only ride_put is gone, and Kite walks to the breeder and rides round Dun Loireag's walls to each flag by a planned way](worklog/0401-the-flag-race-test-rides-as-a-player-would-the-test-only.md) | 2026-10-08 | test, world |
 | 402 | [The save menus' hold after a save is the pad's: from Mutation on it is dropped with no controller in port 1, and the field harnesses now have one as the port does](worklog/0402-the-save-menus-hold-after-a-save-is-the-pad-s-from-mutation.md) | 2026-10-08 | ui, volumes, test |
 | 403 | [The Grunty's search in a field: Mutation's ride carries it but never starts it, Outbreak and Quarantine start it with Triangle, and the Grunty sniffs out foods, the dungeon or portals, says so and leads Kite there](worklog/0403-the-grunty-s-search-in-a-field-mutation-s-ride-carries-it.md) | 2026-10-08 | world, volumes, build, test |
+| 404 | [Mutation's town camera is pushed out of walls by another mask: from Mutation on cameraPosCalc asks ccModelHitCheckQZ for bit 2, and the world harness lays ROOTTOWN01 out as each disc does](worklog/0404-mutation-s-town-camera-is-pushed-out-of-walls-by-another.md) | 2026-10-08 | world, volumes, test |

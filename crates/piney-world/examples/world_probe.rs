@@ -135,12 +135,20 @@ fn main() {
                 let mode = n(7) as i8;
                 run = Some(Run {
                     hits: Hits::new(volume, models.clone()),
-                    player: Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
-                    camera: Camera::new(pos, dirc, mode, scheme),
+                    player: Player { volume, ..Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000) },
+                    camera: Camera { volume, ..Camera::new(pos, dirc, mode, scheme) },
                     rand: Rand(u64::from(n(8))),
                     mode,
                 });
                 println!("{{}}");
+            }
+            Some("sphere") => {
+                // ccModelHitCheckQZ(off, pos, r, mask, maskType): the push
+                // and the result count.
+                let r = run.as_mut().unwrap();
+                let mut off = [0, 0, 0, ee::ONE];
+                r.hits.sphere(&mut off, [n(1), n(2), n(3), ee::ONE], n(4), n(5), n(6) as i32, true);
+                println!("[{}, {}]", list(&off), r.hits.num);
             }
             Some("land") => {
                 let r = run.as_mut().unwrap();
@@ -246,7 +254,7 @@ fn main() {
                     .collect();
                 println!("{{\"hands\": [{}], \"worlds\": [{}]}}", hands.join(", "), mats.join(", "));
             }
-            Some(cmd) if props_command(cmd, &w, &archive, &mut props) => {}
+            Some(cmd) if props_command(cmd, &w, &archive, volume, &mut props) => {}
             Some(cmd) if merchant_command(cmd, &w, &archive, &iso_path, &mut merchants) => {}
             Some(cmd) if pcs_command(cmd, &w, &archive, &mut iso, &mut pcs) => {}
             // --- talking: ccSortCmnd, ccCheckTargetRange, ccSelectTarget ---
@@ -372,17 +380,24 @@ struct Props {
     gate: Option<piney_world::gate::Gate>,
 }
 
-fn props_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, props: &mut Props) -> bool {
+fn props_command(
+    cmd: &str,
+    w: &[&str],
+    archive: &Arc<Archive>,
+    volume: piney_data::volume::Volume,
+    props: &mut Props,
+) -> bool {
+    use piney_data::volume::Volume;
     use piney_world::town::{RootTown, Town};
     use piney_world::town01::{MacAnu, Piece};
     let n = |i: usize| hex(w[i]);
-    fn town<'a>(props: &'a mut Props, archive: &Arc<Archive>, k: u32) -> &'a mut Town {
-        props.towns[k as usize]
-            .get_or_insert_with(|| Town::open(archive, piney_data::volume::Volume::Inf, 0, k == 1).unwrap())
+    // Mac Anu as the disc has it (its town01, its tables).
+    fn town<'a>(props: &'a mut Props, archive: &Arc<Archive>, volume: Volume, k: u32) -> &'a mut Town {
+        props.towns[k as usize].get_or_insert_with(|| Town::open(archive, volume, 0, k == 1).unwrap())
     }
     match cmd {
         "town" => {
-            let (t, m) = town(props, archive, n(1)).parts_mut::<MacAnu>().unwrap();
+            let (t, m) = town(props, archive, volume, n(1)).parts_mut::<MacAnu>().unwrap();
             let pieces = m.select(t, &piney_world::town::TownView::at([n(2), n(3), n(4), ee::ONE]));
             let out: Vec<String> = pieces
                 .iter()
@@ -407,7 +422,7 @@ fn props_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, props: &mut Prop
             );
         }
         "townobj" => {
-            let t = &town(props, archive, n(1)).base;
+            let t = &town(props, archive, volume, n(1)).base;
             let rows: Vec<String> =
                 (0..11).filter_map(|r| t.object(r).map(|(_, m)| format!("[{r}, {}]", mat(&m)))).collect();
             println!("[{}]", rows.join(", "));
@@ -418,20 +433,14 @@ fn props_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, props: &mut Prop
         }
         "gate" => {
             if props.gate.is_none() {
-                let file = town(props, archive, 0).base.file.clone();
+                let file = town(props, archive, volume, 0).base.file.clone();
                 props.gate = Some(piney_world::gate::Gate::new(archive, &file).unwrap());
             }
             let g = props.gate.as_mut().unwrap();
             if w.len() > 9 {
                 g.influence(n(9) as i16);
             }
-            let f = g.step(
-                piney_data::volume::Volume::Inf,
-                [n(1), n(2), n(3), ee::ONE],
-                [n(4), n(5), n(6), ee::ONE],
-                n(7) as i16,
-                n(8) != 0,
-            );
+            let f = g.step(volume, [n(1), n(2), n(3), ee::ONE], [n(4), n(5), n(6), ee::ONE], n(7) as i16, n(8) != 0);
             let (bt, rt) = g.times();
             println!(
                 concat!(

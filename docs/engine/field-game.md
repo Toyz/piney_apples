@@ -355,7 +355,9 @@ field camera, camera id 1. Type 3 follows him, type 1 is the eye view.
   (`game.area` 1) kept over the ground by `avoidObstacle`; then pulled in
   front of the first polygon with bit 2 on the line from his head
   (`ccHitCheckLM(t, P, 4)`: 10 short of it, at least 0.1) and, in a town
-  (`game.area` 0), pushed out of walls within 25 (`ccModelHitCheckQZ`).
+  (`game.area` 0), pushed out of walls within 25 (`ccModelHitCheckQZ`,
+  polygons with bit 0; from Mutation on bit 2, MUT main 0x0016209c, so the
+  later towns' camera is pushed off floors and stairs too).
   Every polygon of Mac Anu's hit mesh has bit 2, floors (the stairs, the
   bridges) as well as walls, so the line check is the town's floor
   handling: the camera stops just short of a floor between it and his head.

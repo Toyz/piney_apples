@@ -288,6 +288,14 @@ class Field:
         self.call("ccLandHitCheck__FPfUi", ARGS, 0x20000001)
         return self.m.f[0], self.m.load(self.sym("hitResultNum"), 4)
 
+    def sphere(self, pos, r, mask, mask_type):
+        """ccModelHitCheckQZ(off, pos, r, mask, maskType): the push out of the
+        walls (w 1) and the result count."""
+        self.vec(ARGS, list(pos) + [ONE])
+        self.vec(ARGS + 0x10, [0, 0, 0, 0])
+        self.call("ccModelHitCheckQZ__FPfPffUii", ARGS + 0x10, ARGS, mask, mask_type, fargs=[r])
+        return self.rvec(ARGS + 0x10), self.m.load(self.sym("hitResultNum"), 4)
+
     # --- Kite and the camera as the field's set-up leaves them --------------
     def start(self, pos, dircz, scheme, mode, seed):
         m = self.m
@@ -628,6 +636,29 @@ class WorldAgainstGame(unittest.TestCase):
                     if bad < 5:
                         print(town, "land", [hex(v) for v in p], want, g)
             self.assertEqual(bad, 0, town)
+
+    def test_sphere(self):
+        """ccModelHitCheckQZ(off, pos, 25, mask, 0) beside hit.rs's sphere at
+        points about Mac Anu's walls, its masks 1 (Infection's camera) and 4
+        (the later volumes', cameraPosCalc): the push and the count."""
+        rng = random.Random(41)
+        f = Field()
+        spots = [(0.0, 5600.0, 600.0), (-150.0, 4700.0, 600.0), (300.0, 1870.0, 300.0), (-1300.0, 1650.0, 0.0),
+                 (2450.0, -2250.0, 0.0), (-700.0, -5900.0, 300.0), (450.0, 0.0, 600.0), (0.0, 3700.0, 300.0),
+                 (541.656, 636.808, 1008.343)]
+        cases = []
+        for _ in range(600):
+            x, y, z = rng.choice(spots)
+            pos = (fb(x + rng.uniform(-500, 500)), fb(y + rng.uniform(-500, 500)), fb(z + rng.uniform(-100, 600)))
+            cases.append((pos, rng.choice([1, 4, 1, 4, 5, 2])))
+        got = ask(["start 0 0 45af0000 44160000 0 0 3 1"] +
+                  ["sphere %x %x %x %x %x 0" % (p + (fb(25.0), mask)) for p, mask in cases])[1:]
+        hits = 0
+        for (p, mask), g in zip(cases, got):
+            off, num = f.sphere(p, fb(25.0), mask, 0)
+            hits += num > 0
+            self.assertEqual([off, num], g, (p, mask))
+        self.assertGreater(hits, 30)
 
     def run_frames(self, f, town, pos, dircz, scheme, mode, seed, pads, label):
         lines = ["start %x %x %x %x %x %x %x %x" % ((1 if town == "town01d" else 0,) + tuple(pos) +
@@ -1019,12 +1050,24 @@ class WeaponAgainstGame(unittest.TestCase):
 
 # --- Mac Anu's props: ROOTTOWN01::Draw and the Chaos Gate -------------------
 
+# From Mutation on ROOTTOWN01 keeps every member from +0x70 on 4 bytes
+# further (MUT gcmn 0x004378c0 Draw, 0x00436000 DrawBG, 0x00436270
+# DrawObj, 0x00436ab0 DrawMap read them so; its +0x10-+0x18 are where they
+# were), its vtable at +0x1b0.
+RT_SHIFT = 0 if VOLUME == "infection" else 4
+
+
+def rt_off(off):
+    """A ROOTTOWN01 member's offset on the disc."""
+    return off + RT_SHIFT if off >= 0x70 else off
+
+
 def rt_vtable():
     """ROOTTOWN01's vtable and where its constructor stores it: Infection's +0x1ac (va() carries
     the name to Mutation); Outbreak's and Quarantine's constructor, recompiled, names neither and
     stores it at +0x1b0, after ROOTTOWN's (the second lui/addiu pair it stores there)."""
     try:
-        return 0x1AC, inf_va(0x00375F90)
+        return rt_off(0x1AC), inf_va(0x00375F90)
     except KeyError:
         from image import Program
         prog = Program(ELF, "gcmn")
@@ -1195,38 +1238,38 @@ class TownDraw(Pieces):
         rt = self.rt = self.malloc(m, 0x200)
         vt_at, vt = rt_vtable()
         m.store(rt + vt_at, 4, vt)
-        m.store(rt + 0x1A4, 4, self.malloc(m, 0x40))              # the town's stream
+        m.store(rt + rt_off(0x1A4), 4, self.malloc(m, 0x40))              # the town's stream
         self.crisis_clumps = [self.malloc(m, 0xA0) for _ in range(3)]
         self.bg_layers = [self.malloc(m, 0x40) for _ in range(3)]
         for k in range(3):
-            m.store(rt + 0x70 + 4 * k, 4, self.crisis_clumps[k])
+            m.store(rt + rt_off(0x70) + 4 * k, 4, self.crisis_clumps[k])
             m.store(WM + 1180 + 4 * k, 4, self.bg_layers[k])
         stream = self.malloc(m, 0x100)
         self.model_row, self.obj_row = {}, {}
         for i in range(32):
             sm = self.malloc(m, 0x40)
             self.call("__ct__11STATICMODELFP8ccStreamP17STATIC_MODEL_INFO", sm, stream, inf_va(0x005D46B0) + 0x14 * i)
-            m.store(rt + 0xA0 + 4 * i, 4, sm)
+            m.store(rt + rt_off(0xA0) + 4 * i, 4, sm)
             self.model_row[m.load(sm + 4, 4)] = i
         self.objs = []
         for i in range(11):
             so = self.malloc(m, 0x40)
             self.call("__ct__12STATICOBJECTFP8ccStreamP15STATIC_OBJ_INFO", so, stream, inf_va(0x005D4930) + 0x18 * i)
-            m.store(rt + 0x168 + 4 * i, 4, so)
+            m.store(rt + rt_off(0x168) + 4 * i, 4, so)
             self.obj_row[m.load(so + 8, 4)] = i
             self.objs.append(so)
-        m.store(rt + 0x1A8, 4, self.malloc(m, 0xA0))              # the sky clump
+        m.store(rt + rt_off(0x1A8), 4, self.malloc(m, 0xA0))              # the sky clump
         self.water = []
         for k in range(3):
             anm = self.malloc(m, 0x110)
             self.set_anm(m, anm, self.chunk(m, stream, self.cstr_at("ANM_sr1wat1_a")))
             self.forward(m, anm, 256)
-            m.store(rt + 0x1BC + 4 * k, 4, anm)
+            m.store(rt + rt_off(0x1BC) + 4 * k, 4, anm)
             self.water.append(anm)
-        m.store(rt + 0x1F0, 4, self.malloc(m, 0x100))             # the water's ccObj
-        m.store(rt + 0x1E8, 4, self.malloc(m, 0x40))
+        m.store(rt + rt_off(0x1F0), 4, self.malloc(m, 0x100))             # the water's ccObj
+        m.store(rt + rt_off(0x1E8), 4, self.malloc(m, 0x40))
         for off in (0x8C, 0x90, 0x94, 0x98):
-            m.store(rt + off, 4, self.malloc(m, 0x40))
+            m.store(rt + rt_off(off), 4, self.malloc(m, 0x40))
         self.events = []
 
     def cstr_at(self, s):
@@ -1245,7 +1288,8 @@ class TownDraw(Pieces):
         m = self.m
         self.eye = list(eye) + [ONE]
         self.events = []
-        self.call("Draw__10ROOTTOWN01Fv", self.rt)
+        # Its vtable's +8 (Outbreak and Quarantine name no ROOTTOWN01::Draw).
+        self.call(m.load(rt_vtable()[1] + 8, 4), self.rt)
         pieces, uv = [], None
         for e in self.events:
             if e[0] == "anm" and e[1] in self.obj_row:
@@ -1274,7 +1318,7 @@ class TownDraw(Pieces):
                     assert k == 2 and e[2] == 0 and e[4] == 1 and e[3] == uv, e
             elif e[0] == "layer":
                 assert e[1] == 1, e                     # objLayer, every time
-        clip = [m.load(self.rt + 0x1B0 + 4 * i, 4) for i in range(3)]
+        clip = [m.load(self.rt + rt_off(0x1B0) + 4 * i, 4) for i in range(3)]
         bg = 0
         if self.mats:
             offs = [m.load(self.mats["MAT_sr1dat1_2"] + 20, 2), m.load(self.mats["MAT_sr1dat1_3"] + 20, 2),
@@ -1322,7 +1366,9 @@ class GateRun(Pieces):
                      "ResetFogBlend__9ccDrawEnvFv", "ccSpcConditionEffectSW__Fv", "GetAmbient__9ccDrawEnvFPf",
                      "SetAmbient__9ccDrawEnvFPf", "SleepDistantLight__9WORLD_MANFv",
                      "AwakeDistantLight__9WORLD_MANFv", "ccEntryCmnd__FP6ccChar", "deleteCmnd__10ccEntryObjFi"):
-            m.hooks[sym(name)] = nop
+            # Outbreak and Quarantine name no AwakeDistantLight: left to run.
+            if self.prog.symbol_named(name) is not None:
+                m.hooks[sym(name)] = nop
         m.hooks[sym("ccSeOn3D__FiPf")] = lambda mm, n, *a: self.events.append(("se", n)) or 0
         for off, v in ((0x420, -24000.0), (0x424, -24000.0), (0x428, 24000.0), (0x42C, 24000.0)):
             m.store(WM + off, 4, fb(v))
@@ -1710,7 +1756,7 @@ class MerchantRun(Pieces):
         m.store(GAME + 0x20, 4, town)
         rt = self.malloc(m, 0x200)
         m.store(WM + 0x430, 4, rt)
-        m.store(rt + 0x1A4, 4, self.malloc(m, 0x100))
+        m.store(rt + rt_off(0x1A4), 4, self.malloc(m, 0x100))
         self.town = self.ccs["town%02d" % (town + 1)]
         Field.decode_hit(self)
         for a in list(CMND_GLOBALS) + list(CHAR_HIT_GLOBALS):
@@ -2254,7 +2300,7 @@ class TownPcsRun(Field):
     def navi_map(self):
         """The player task's ccSetNaviMap over town01's dummies."""
         m = self.m
-        m.store(RT + 0x1A4, 4, self.malloc(m, 0x40))
+        m.store(RT + rt_off(0x1A4), 4, self.malloc(m, 0x40))
         self.call("ccSetNaviMap__Fv")
 
     def route(self, s, g):
