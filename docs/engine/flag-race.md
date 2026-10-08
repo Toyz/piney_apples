@@ -2,8 +2,8 @@
 title: The Flag Race - menu 88, the race's task and its flags
 status: partial
 volumes: MUT, OUT, QUA
-covers: MUT gcmn.prg:0x0058a4f0 Flag Race (menu 88), 0x0058c310 its page, 0x0058c930 Rankings (menu 89), 0x0058ca90 its page, 0x005ff820 the race's start, 0x005ff680 its task (PG_RACE), 0x005ff790 the race runs in a town, 0x005fd120 the race's constructor, 0x005fd6b0 its destructor, 0x005fd820 the set-up, 0x005fdaf0 the intro, 0x005fded0 the race's loop, 0x005fdd10 the countdown, 0x005fe290 the finish, 0x005fe830 the rank, 0x005feab0 the quit and time over, 0x005fee10 the HUD, 0x005ff3d0 a time's split, 0x005ff880 the camera-relative place, 0x005ff520 the restart, 0x005fca40 a flag's entry, 0x005fcba0 the flag's constructor, 0x005fcb40 its entry function, 0x005fce60 the flag's main, 0x00774a90 the flags, 0x005283a0 ccPGuso::adultMain's race steps, 0x00531090 the ride is up, 0x005310b0 the ride put down, 0x006d80b0 the flags' markers, 0x006d80e0 Kite's start, 0x006d8130 his heading, 0x006d8330 the ride by kind, 0x006d83c0 by server, 0x006d84a0 0x006d8410 the intro's camera by kind, 0x006d8580 0x006d8530 by server, 0x006d8280 the countdown's height, 0x006d82c0 Kite's place after, 0x006d8140 0x006d8190 the Grunty's at the finish, 0x006d81e0 0x006d8230 the finish's camera, 0x006d82a0 the cups' height, 0x006d8310 0x006d8320 the rank's clips, 0x006d85d0 the timer's cells, 0x0061ce80 0x0061ce30 where the chosen one walks, 0x00682230 the prizes, 0x00682280 the other prizes, 0x006822d0 the wallpapers, 0x00660b90 the greeting, 0x00660cc0 the results; MUT SLUS_205.62:0x0017a860 the race's time entered, 0x001cb154 ccThEvent's wait, 0x0038bd40 the race's task, 0x0038bd44 the race
-worklog: 395
+covers: MUT gcmn.prg:0x0058a4f0 Flag Race (menu 88), 0x0058c310 its page, 0x0058c930 Rankings (menu 89), 0x0058ca90 its page, 0x005ff820 the race's start, 0x005ff680 its task (PG_RACE), 0x005ff790 the race runs in a town, 0x005fd120 the race's constructor, 0x005fd6b0 its destructor, 0x005fd820 the set-up, 0x005fdaf0 the intro, 0x005fded0 the race's loop, 0x005fdd10 the countdown, 0x005fe290 the finish, 0x005fe830 the rank, 0x005feab0 the quit and time over, 0x005fee10 the HUD, 0x005ff3d0 a time's split, 0x005ff880 the camera-relative place, 0x005ff520 the restart, 0x005fca40 a flag's entry, 0x005fcba0 the flag's constructor, 0x005fcb40 its entry function, 0x005fce60 the flag's main, 0x00774a90 the flags, 0x005283a0 ccPGuso::adultMain's race steps, 0x00531090 the ride is up, 0x005310b0 the ride put down, 0x006d80b0 the flags' markers, 0x006d80e0 Kite's start, 0x006d8130 his heading, 0x006d8330 the ride by kind, 0x006d83c0 by server, 0x006d84a0 0x006d8410 the intro's camera by kind, 0x006d8580 0x006d8530 by server, 0x006d8280 the countdown's height, 0x006d82c0 Kite's place after, 0x006d8140 0x006d8190 the Grunty's at the finish, 0x006d81e0 0x006d8230 the finish's camera, 0x006d82a0 the cups' height, 0x006d8310 0x006d8320 the rank's clips, 0x006d85d0 the timer's cells, 0x0061ce80 0x0061ce30 where the chosen one walks, 0x00682230 the prizes, 0x00682280 the other prizes, 0x006822d0 the wallpapers, 0x00660b90 the greeting, 0x00660cc0 the results, 0x0058bb40 the menu done with the race, 0x005fe058 the loop's end test, 0x005fe0d0 the result music stopped, 0x005fe104 the hold cleared; MUT SLUS_205.62:0x0017a860 the race's time entered, 0x00181f80 ccEvVoiceStop, 0x001816f0 ccBgmPlay, 0x00181720 ccBgmStop, 0x0031e840 bgmWavTbl, 0x0031cce0 bgmParam, 0x001cb154 ccThEvent's wait, 0x0038bd40 the race's task, 0x0038bd44 the race
+worklog: 395, 407
 ---
 
 # The Flag Race - menu 88, the race's task and its flags
@@ -106,10 +106,33 @@ The loop:
   The third ends the race (state 1). Time stops at 18000 (10 minutes).
   The timer is 8 cells of `TEX_xp_tim_1` at 0x006d85d0. Each flag taken
   shows its icon and split.
-- **The end**: a 30-frame fade out and `BgmStop`. `+0xa7` and `+0x98 = 7`
+- **The end**: once menu 88's step 44 sets `+0xa5` (0x0058bb40), the
+  loop's tail (0x005fe058) fades out over 30 frames, then `BgmStop`
+  (0x005fe0d0). `+0xa7` and `+0x98 = 7`
   send the ride home and the Grunty back to its pen. Kite is put at
   0x006d82c0 facing the merchant's dummy. The panel and map come back,
   the race's music flag (`ccSnd +0x13a`) is cleared and sq 1 fades in.
+
+## The music
+
+The race's music is `VOICE/BGM.BIN`, streamed on SEWORDS's channel 0
+(`ccBgmPlay`, `bgmWavTbl` and `bgmParam`; mode 2 loops):
+
+```
+3  the intro          4.5 s, once
+0  the race          88.2 s, looped
+4  a rank's cups      5.8 s, once; stopped after 191 frames
+5  a rank 1-3        36.6 s, looped, 12 frames after 4's stop
+6  rank 4 or none     6.3 s, once
+```
+
+`ccPgBgmInit` sets `ccSnd +0x13a` as the race starts. While it is set,
+`ccEvVoiceStop` (main 0x00181f80) does nothing. So the message boxes'
+OK (`ccMessage::Check`, 0x001bad90) cannot stop channel 0, and track 5
+plays on through every box: the time, the Rankings page, the breeder's
+word, the wallpaper, and the prize's Get Item. It stops at the race's
+end, 30 frames after step 44. The hold is cleared at 0x005fe104. Track 6
+ends by itself while the time's box opens.
 
 `main 0x0017a860` enters a time into the town's three records (`saveData
 +0x8432`, 12 bytes a server). It returns the rank it took, 4 within 30
@@ -179,7 +202,13 @@ and 7.
 - `tools/test_grunty_rs.py` (Mutation): the raced Grunty's steps 1-7 and
   another kind's race against `adultMain`.
 - `tools/test_ride_rs.py`: `ccPuccigusoStart` and `Exit`'s town path.
-- piney-game `flag_race`: `mutations_flag_race_runs_and_quits`,
+- `crates/piney-audio/tests/voice.rs`
+  `the_race_holds_channel_0_as_the_game_does`: `ccEvVoiceStop`,
+  `ccPgBgmInit` and `ccAllSoundOff` under the hold on the four discs
+  (`tools/sound_ee.py hold-fixture`).
+- piney-game `flag_race`: `mutations_race_music_lasts_the_results`
+  (ranks 1, 3, 4 and none, every frame heard through `crate::handle`),
+  `mutations_flag_race_runs_and_quits`,
   `mutations_flag_race_won`, `mutations_flag_race_against_the_towns_racers`
   (a new save's time ranked against Dun Loireag's racers);
   `flag_race_shots` (ignored) takes the Grunties' page, the countdown, the

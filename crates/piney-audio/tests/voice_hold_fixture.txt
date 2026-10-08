@@ -1,0 +1,51 @@
+# tools/sound_ee.py hold-fixture: ccEvVoiceStop, ccPgBgmInit and ccAllSoundOff with ccSnd +0x13a, then evVoicePlay, in tools/eemu.py; what reaches sewordCmd.
+# VOLUME STEP+STEP... | OUTPUT; ...
+inf stop+play | seword 120
+inf hold 1+stop+play | seword 120
+inf stop+hold 1+play | seword 120
+inf hold 1+stop+hold 0+play | seword 120
+inf hold 1+stop+hold 0+stop+play | seword 120; seword 120
+inf hold 1+stop+stop+play | seword 120; seword 120
+inf hold 1+off+play | seword 120
+inf off+play | seword 120
+inf area 1+pginit+play | seword 120
+inf area 1+hold 1+pginit+play | seword 120
+mut stop+play | seword 120
+mut hold 1+stop+play | 
+mut stop+hold 1+play | seword 120
+mut hold 1+stop+hold 0+play | 
+mut hold 1+stop+hold 0+stop+play | seword 120
+mut hold 1+stop+stop+play | 
+mut hold 1+off+play | 
+mut off+play | seword 120
+mut area 1+pginit+play | seword 120
+mut area 1+hold 1+pginit+play | 
+mut area 0+pginit+stop+play | 
+mut area 0+pginit+hold 0+stop+play | seword 120
+mut area 0+pginit+off+play | 
+out stop+play | seword 120
+out hold 1+stop+play | 
+out stop+hold 1+play | seword 120
+out hold 1+stop+hold 0+play | 
+out hold 1+stop+hold 0+stop+play | seword 120
+out hold 1+stop+stop+play | 
+out hold 1+off+play | 
+out off+play | seword 120
+out area 1+pginit+play | seword 120
+out area 1+hold 1+pginit+play | 
+out area 0+pginit+stop+play | 
+out area 0+pginit+hold 0+stop+play | seword 120
+out area 0+pginit+off+play | 
+qua stop+play | seword 120
+qua hold 1+stop+play | 
+qua stop+hold 1+play | seword 120
+qua hold 1+stop+hold 0+play | 
+qua hold 1+stop+hold 0+stop+play | seword 120
+qua hold 1+stop+stop+play | 
+qua hold 1+off+play | 
+qua off+play | seword 120
+qua area 1+pginit+play | seword 120
+qua area 1+hold 1+pginit+play | 
+qua area 0+pginit+stop+play | 
+qua area 0+pginit+hold 0+stop+play | seword 120
+qua area 0+pginit+off+play | 

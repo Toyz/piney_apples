@@ -24,6 +24,25 @@ fn still(buttons: Buttons) -> Raw {
     Raw { buttons, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() }
 }
 
+/// A session stepped a frame at a time: its events dropped, or heard
+/// ([`Ear`]).
+trait Frames {
+    fn session(&self) -> &Session;
+    fn frame(&mut self, pad: &Pad) -> piney_draw::Frame;
+}
+
+impl Frames for Session {
+    fn session(&self) -> &Session {
+        self
+    }
+
+    fn frame(&mut self, pad: &Pad) -> piney_draw::Frame {
+        let f = self.step(pad);
+        self.take_events();
+        f
+    }
+}
+
 /// A new Mutation game logged in to Dun Loireag, its three pens holding
 /// `pens` grown Grunties and mail 324 in state `mail`. None without the disc.
 fn dun_loireag(pens: usize, mail: u8) -> Option<Session> {
@@ -52,12 +71,12 @@ fn dun_loireag(pens: usize, mail: u8) -> Option<Session> {
 /// Kite walks round the town's walls to the breeder and speaks to him;
 /// the frames until his list is up and held 40 more. The last frame, or
 /// None if no list.
-fn speak_to_breeder(s: &mut Session) -> Option<piney_draw::Frame> {
+fn speak_to_breeder(s: &mut impl Frames) -> Option<piney_draw::Frame> {
     let mut pad = Pad::default();
     let mut walk = None;
     for f in 0..4000u32 {
         let (raw, open) = {
-            let Stage::World(w) = &s.stage else { panic!("left the town") };
+            let Stage::World(w) = &s.session().stage else { panic!("left the town") };
             let world = w.world();
             let ui = &w.ui().ctrl;
             let open = ui.menu == BREEDER_MENU && ui.menu_status == 2;
@@ -85,15 +104,14 @@ fn speak_to_breeder(s: &mut Session) -> Option<piney_draw::Frame> {
             let mut frame = None;
             for _ in 0..40 {
                 pad.read(&still(Buttons::NONE));
-                frame = Some(s.step(&pad));
-                s.take_events();
+                frame = Some(s.frame(&pad));
             }
             return frame;
         }
         pad.read(&raw);
-        s.step(&pad);
-        s.take_events();
+        s.frame(&pad);
     }
+    let s = s.session();
     if let Stage::World(w) = &s.stage {
         let world = w.world();
         eprintln!(
@@ -179,15 +197,13 @@ fn mutations_rankings_show_the_towns_racers() {
 }
 
 /// `b` for a frame, then `n` frames of nothing; the last frame.
-fn press(s: &mut Session, b: Buttons, n: u32) -> piney_draw::Frame {
+fn press(s: &mut impl Frames, b: Buttons, n: u32) -> piney_draw::Frame {
     let mut pad = Pad::default();
     pad.read(&still(b));
-    let mut frame = s.step(&pad);
-    s.take_events();
+    let mut frame = s.frame(&pad);
     pad.read(&still(Buttons::NONE));
     for _ in 0..n {
-        frame = s.step(&pad);
-        s.take_events();
+        frame = s.frame(&pad);
     }
     frame
 }
@@ -238,38 +254,37 @@ fn status(s: &Session) -> ((i16, i16), Option<(i8, bool)>) {
 
 /// Frames of `raw` (`b` pressed every `every` frames) until `done`; false
 /// when `max` frames pass first.
-fn until(s: &mut Session, max: u32, b: Buttons, every: u32, done: impl Fn(&Session) -> bool) -> bool {
+fn until(s: &mut impl Frames, max: u32, b: Buttons, every: u32, done: impl Fn(&Session) -> bool) -> bool {
     let mut pad = Pad::default();
     for f in 0..max {
-        if done(s) {
+        if done(s.session()) {
             return true;
         }
         let press = every != 0 && f % every == every - 1;
         pad.read(&still(if press { b } else { Buttons::NONE }));
-        s.step(&pad);
-        s.take_events();
+        s.frame(&pad);
     }
-    done(s)
+    done(s.session())
 }
 
 /// From the breeder's list to the race: Flag Race, through the greeting,
 /// "It costs 100GP" (Yes), the first Grunty and "Start the race" (Yes);
 /// then the frames until the countdown ends and the timer runs.
-fn start_race(s: &mut Session) {
+fn start_race(s: &mut impl Frames) {
     press(s, Buttons::DOWN, 8);
     press(s, Buttons::CROSS, 10);
-    assert_eq!(status(s).0.0, FLAG_RACE, "Flag Race is not up");
-    assert!(until(s, 600, Buttons::CROSS, 20, |s| status(s).0 == (FLAG_RACE, 3)), "no cost question: {:?}", status(s));
+    assert_eq!(status(s.session()).0.0, FLAG_RACE, "Flag Race is not up");
+    let ok = until(s, 600, Buttons::CROSS, 20, |s| status(s).0 == (FLAG_RACE, 3));
+    assert!(ok, "no cost question: {:?}", status(s.session()));
     press(s, Buttons::CROSS, 20);
-    assert!(until(s, 120, Buttons::NONE, 0, |s| status(s).0 == (FLAG_RACE, 11)), "no Grunties: {:?}", status(s));
+    let ok = until(s, 120, Buttons::NONE, 0, |s| status(s).0 == (FLAG_RACE, 11));
+    assert!(ok, "no Grunties: {:?}", status(s.session()));
     press(s, Buttons::CROSS, 20);
-    assert!(until(s, 120, Buttons::NONE, 0, |s| status(s).0 == (FLAG_RACE, 13)), "no start question: {:?}", status(s));
+    let ok = until(s, 120, Buttons::NONE, 0, |s| status(s).0 == (FLAG_RACE, 13));
+    assert!(ok, "no start question: {:?}", status(s.session()));
     press(s, Buttons::CROSS, 2);
-    assert!(
-        until(s, 2000, Buttons::NONE, 0, |s| status(s).1.is_some_and(|r| r.1)),
-        "the race never ran: {:?}",
-        status(s)
-    );
+    let ok = until(s, 2000, Buttons::NONE, 0, |s| status(s).1.is_some_and(|r| r.1));
+    assert!(ok, "the race never ran: {:?}", status(s.session()));
 }
 
 /// The race from the breeder's list, then quit from its pause: 100 GP
@@ -332,12 +347,12 @@ fn s_race_time(s: &Session) -> i16 {
 /// would: the way round the town's walls (the Grunty's width either side)
 /// planned each second, the stick toward its next turn. The frames until
 /// the three are taken, or None after `max`.
-fn ride_to_flags(s: &mut Session, max: u32) -> Option<u32> {
+fn ride_to_flags(s: &mut impl Frames, max: u32) -> Option<u32> {
     let mut pad = Pad::default();
     let mut ride: Option<(usize, super::town_walk::TownWalker)> = None;
     for f in 0..max {
         let raw = {
-            let Stage::World(w) = &s.stage else { panic!("left the town") };
+            let Stage::World(w) = &s.session().stage else { panic!("left the town") };
             let world = w.world();
             if world.race().is_some_and(|r| r.taken == 3) {
                 return Some(f);
@@ -366,8 +381,7 @@ fn ride_to_flags(s: &mut Session, max: u32) -> Option<u32> {
             }
         };
         pad.read(&raw);
-        s.step(&pad);
-        s.take_events();
+        s.frame(&pad);
     }
     None
 }
@@ -530,4 +544,138 @@ fn flag_race_shots() {
     speak_to_breeder(&mut s).expect("the breeder's list did not open");
     let f = to_rankings(&mut s);
     shot(&f, "mut-race-rankings.png");
+}
+
+/// What a frame asked of SEWORDS's channel 0, and what it held after.
+#[derive(Clone, Copy, Debug)]
+struct Heard {
+    /// The menu task's (menu, proccess).
+    menu: (i16, i16),
+    /// The race's rank and `+0xa5` (the menu is done with it) while it
+    /// lives.
+    race: Option<(i8, bool)>,
+    /// `ccBgmPlay(n)`, `ccBgmStop()`, `ccEvVoiceStop()` this frame.
+    play: Option<usize>,
+    stop: bool,
+    voice_stop: bool,
+    /// A `BGM.BIN` track streams after the frame.
+    streaming: bool,
+    /// Stereo samples rendered to the frame's end.
+    at: u64,
+}
+
+/// A session whose every frame's events go to a headless engine as `main`
+/// routes them, from its start, each frame's [`Heard`] kept.
+struct Ear {
+    s: Session,
+    audio: piney_audio::Audio,
+    log: Vec<Heard>,
+    at: u64,
+}
+
+impl Frames for Ear {
+    fn session(&self) -> &Session {
+        &self.s
+    }
+
+    fn frame(&mut self, pad: &Pad) -> piney_draw::Frame {
+        use crate::mode::Event;
+        let f = self.s.step(pad);
+        let events = self.s.take_events();
+        let play = events.iter().find_map(|e| if let Event::BgmStream(n) = e { Some(*n) } else { None });
+        let stop = events.iter().any(|e| matches!(e, Event::BgmStreamStop));
+        let voice_stop = events.iter().any(|e| matches!(e, Event::VoiceStop));
+        crate::handle(events, Some(&self.audio));
+        self.audio.frame();
+        // A vertical blank's 800 stereo samples (48 kHz), interleaved.
+        let n = 1600 * Mode::frame_rate(&self.s) as usize;
+        self.audio.render(&mut vec![0i16; n]);
+        self.at += n as u64 / 2;
+        let menu = status(&self.s).0;
+        let race = match &self.s.stage {
+            Stage::World(w) => w.world().race().map(|r| (r.rank, r.done)),
+            _ => None,
+        };
+        self.log.push(Heard { menu, race, play, stop, voice_stop, streaming: self.audio.bgm_streaming(), at: self.at });
+        f
+    }
+}
+
+/// Issue #64: the race's result music lasts the results. Ranks 1-3 play
+/// `BGM.BIN` track 5 (looped) after the cup's 4; rank 4 and none, track 6
+/// once. Each box's OK calls `ccEvVoiceStop`, which from Mutation on does
+/// nothing while the race holds the music (`ccSnd +0x13a`, MUT main
+/// 0x00181f84). The music stops at the race's end (gcmn 0x005fe0d0), 30
+/// frames after the prize's step sets `+0xa5`. The records are set once
+/// the flags are taken, for each rank. Before the fix a box's OK cut it.
+#[test]
+fn mutations_race_music_lasts_the_results() {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    let bgm = piney_data::sound::tables_of(piney_data::volume::Volume::Mut).bgm;
+    for want in [1i8, 3, 4, 0] {
+        let Some(s) = dun_loireag(3, 4) else { return };
+        let audio = piney_audio::Audio::headless(&iso).unwrap();
+        let mut e = Ear { s, audio, log: Vec::new(), at: 0 };
+        if let Stage::World(w) = &mut e.s.stage {
+            w.world_mut().state_mut().save.set_i32(GOLD, 1000);
+        }
+        speak_to_breeder(&mut e).expect("the breeder's list did not open");
+        start_race(&mut e);
+        ride_to_flags(&mut e, 9000).expect("the flags were not all taken");
+        // Dun Loireag's three records against the time, before the finish
+        // enters it (main 0x0017a860): ahead of the third for 3, within
+        // 30 of it for 4, far ahead of it for none.
+        if let Stage::World(w) = &mut e.s.stage {
+            let t = w.world().race().expect("the race").time;
+            let records = match want {
+                1 => [t + 300, t + 400, t + 500],
+                3 => [t - 200, t - 100, t + 100],
+                4 => [t - 300, t - 200, t - 10],
+                _ => [t - 300, t - 200, t - 100],
+            };
+            let save = &mut w.world_mut().state_mut().save;
+            for (k, r) in records.into_iter().enumerate() {
+                save.set_i16(piney_world::race::RACE_RECORDS + 4 * k, r);
+                save.set_i16(piney_world::race::RACE_RECORDS + 4 * k + 2, 146);
+            }
+        }
+        let from = e.log.len();
+        let over = |s: &Session| status(s).1.is_none() && status(s).0.0 != FLAG_RACE;
+        // OK every 5 frames: each box passed as soon as it takes it.
+        assert!(until(&mut e, 4000, Buttons::CROSS, 5, over), "rank {want}: the race did not end");
+        let log = &e.log[from..];
+        let rank = log.iter().find(|h| h.menu == (FLAG_RACE, 31)).and_then(|h| h.race).map(|r| r.0);
+        assert_eq!(rank, Some(want), "the rank at the time word");
+        let track = if (1..=3).contains(&want) { 5 } else { 6 };
+        let k0 =
+            log.iter().position(|h| h.play == Some(track)).unwrap_or_else(|| panic!("rank {want}: no track {track}"));
+        let k1 = k0 + log[k0..].iter().position(|h| !h.streaming).expect("the music never stopped");
+        let boxes: std::collections::BTreeSet<i16> =
+            log[k0..k1].iter().filter(|h| h.menu.0 == FLAG_RACE).map(|h| h.menu.1).collect();
+        let voice_stops = log[k0..k1].iter().filter(|h| h.voice_stop).count();
+        let heard = log[k1].at - log[k0 - 1].at;
+        eprintln!(
+            "rank {want}: track {track} for {} frames ({heard} samples) over boxes {boxes:?}, {voice_stops} voice stops; \
+             at its end: {:?}",
+            k1 - k0,
+            log[k1]
+        );
+        if track == 5 {
+            // Every box of the results heard, then the race's own stop
+            // once the menu is done with it.
+            for p in [31, 32, 41] {
+                assert!(boxes.contains(&p), "rank {want}: the music stopped before box {p}: {boxes:?}");
+            }
+            if want == 1 {
+                assert!(boxes.contains(&51), "rank 1: the music stopped before the wallpaper: {boxes:?}");
+            }
+            assert!(voice_stops > 0, "rank {want}: no box was passed while the music played");
+            let done = log[k1 - 1].race.is_some_and(|r| r.1);
+            assert!(log[k1].stop && done, "rank {want}: not the race's end: {:?}", log[k1]);
+        } else {
+            // Track 6 plays out (or the race's end stops it).
+            let len = bgm[6].size as u64 / 4;
+            assert!(heard >= len || log[k1].stop, "rank {want}: track 6 cut after {heard} of {len} samples");
+        }
+    }
 }

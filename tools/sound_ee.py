@@ -81,6 +81,15 @@ A scenario is a list of steps joined by '+', each `voice E M` (a request),
 `stop`, `pginit` (ccPgBgmInit), `lang L` (set saveData.voice), `parody P` or `play` (one run of
 evVoicePlay, which the sound task makes once a frame); the LANG and PARODY
 the scenario starts with come first.
+
+    tools/sound_ee.py hold-fixture ELF...  the race's hold on channel 0
+                                        (crates/piney-audio/tests/voice_hold_fixture.txt)
+
+From Mutation on ccEvVoiceStop and ccPgBgmInit's inline stop do nothing
+while ccSnd +0x13a (the Flag Race's hold) is set. Steps as above, with
+`hold H` (+0x13a), `area A` (game.area, which ccPgBgmInit reads from
+Mutation on: 0 the town's path, which sets the hold) and `off`
+(ccAllSoundOff); each line starts with the executable's volume.
 """
 
 import argparse
@@ -580,6 +589,12 @@ class VoiceEe(Ee):
                 self.call("ccWordsPlay__FiP6ccChar", sid & 0xFFFFFFFF, CHAR)
             elif word == "skill":
                 self.call("skillVoicePlay__Fv")
+            elif word == "hold":
+                self.m.store(SND + 0x13A, 1, int(args[0]))
+            elif word == "area":
+                self.m.store(GAME + 0x14, 4, int(args[0]))
+            elif word == "off":
+                self.call("ccAllSoundOff__Fv")
             else:
                 raise ValueError(step)
 
@@ -706,6 +721,29 @@ def voice_fixture(elf):
     return 0
 
 
+HOLD_SCENARIOS = (
+    "stop+play", "hold 1+stop+play", "stop+hold 1+play", "hold 1+stop+hold 0+play",
+    "hold 1+stop+hold 0+stop+play", "hold 1+stop+stop+play", "hold 1+off+play", "off+play",
+    "area 1+pginit+play", "area 1+hold 1+pginit+play",
+)
+# ccPgBgmInit's town path (the race), which only the later volumes have.
+HOLD_TOWN = ("area 0+pginit+stop+play", "area 0+pginit+hold 0+stop+play", "area 0+pginit+off+play")
+
+
+def hold_fixture(elfs):
+    print("# tools/sound_ee.py hold-fixture: ccEvVoiceStop, ccPgBgmInit and ccAllSoundOff with "
+          "ccSnd +0x13a, then evVoicePlay, in tools/eemu.py; what reaches sewordCmd.")
+    print("# VOLUME STEP+STEP... | OUTPUT; ...")
+    for elf in elfs:
+        name = {"SLUS_202.67": "inf", "SLUS_205.62": "mut", "SLUS_205.63": "out",
+                "SLUS_205.64": "qua"}[os.path.basename(elf)]
+        ee = VoiceEe(elf)
+        for steps in HOLD_SCENARIOS + (HOLD_TOWN if name != "inf" else ()):
+            ee.run(1, 0, steps.split("+"))
+            print(f"{name} {steps} | " + "; ".join(ee.log))
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -714,7 +752,11 @@ def main():
     p.add_argument("elf")
     p = sub.add_parser("voice-fixture")
     p.add_argument("elf")
+    p = sub.add_parser("hold-fixture")
+    p.add_argument("elf", nargs="+")
     args = parser.parse_args()
+    if args.cmd == "hold-fixture":
+        return hold_fixture(args.elf)
     if args.cmd == "voice-fixture":
         return voice_fixture(args.elf)
     return fixture(args.elf)

@@ -5,6 +5,8 @@
 //! (`python3 tools/iopemu.py voice-fixture ELF ISO`: SEWORDS.IRX itself
 //! streaming lines, the samples heard), and a headless render of event 1's
 //! message 1. The disc parts are skipped without the image (PINEY_ISO).
+//! `voice_hold_fixture.txt` (`python3 tools/sound_ee.py hold-fixture ELF...`,
+//! the four executables): the voice stops under the Flag Race's hold.
 
 use std::path::PathBuf;
 
@@ -41,6 +43,50 @@ fn words(cmds: &[Command]) -> Vec<String> {
             other => format!("{other:?}"),
         })
         .collect()
+}
+
+/// `ccEvVoiceStop`, `ccPgBgmInit` and `ccAllSoundOff` with `ccSnd +0x13a`
+/// set and clear, then `evVoicePlay`, on each disc: from Mutation on the
+/// race's hold keeps channel 0 (its result music) from the stops; the town
+/// path of `ccPgBgmInit` (the race's start) sets it. Infection's ignore it.
+#[test]
+fn the_race_holds_channel_0_as_the_game_does() {
+    use piney_data::volume::Volume;
+    let mut n = 0;
+    for line in include_str!("voice_hold_fixture.txt").lines().filter(|l| !l.starts_with('#')) {
+        let (head, want) = line.split_once(" |").unwrap();
+        let want: Vec<&str> = want.trim().split("; ").filter(|s| !s.is_empty()).collect();
+        let (vol, steps) = head.split_once(' ').unwrap();
+        let volume = match vol {
+            "inf" => Volume::Inf,
+            "mut" => Volume::Mut,
+            "out" => Volume::Out,
+            _ => Volume::Qua,
+        };
+        let mut d = Driver::new();
+        d.volume = volume;
+        let mut area = 0;
+        let mut out = Vec::new();
+        for step in steps.split('+') {
+            let w: Vec<&str> = step.split_whitespace().collect();
+            match w[..] {
+                ["hold", h] => d.race_music = h == "1",
+                ["area", a] => area = a.parse().unwrap(),
+                ["stop"] => d.voice_stop(),
+                ["off"] => d.all_sound_off(),
+                // The race's start in a town; the Grunty Flute's in a field.
+                ["pginit"] if area == 0 => d.pg_bgm_init_town(),
+                ["pginit"] => d.pg_bgm_init(),
+                ["play"] => d.frame(piney_data::sound::tables_of(volume), &mut out),
+                _ => panic!("step {step}"),
+            }
+        }
+        // What reaches SEWORDS (the frame's other commands go to SNDBASE).
+        out.retain(|c| matches!(c, Command::Voice(_) | Command::VoiceStop));
+        assert_eq!(words(&out), want, "{head}");
+        n += 1;
+    }
+    assert_eq!(n, 10 + 3 * 13);
 }
 
 #[test]

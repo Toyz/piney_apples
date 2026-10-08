@@ -107,7 +107,8 @@ pub struct Driver {
     /// `pgRideFlag` (0x00378cdc) is 1: riding a Grunty, no battle music.
     pub riding: bool,
     /// From Mutation on, `ccSnd +0x13a`: the Flag Race holds the
-    /// breeder's tune off (`bgmBreed` does nothing).
+    /// breeder's tune off (`bgmBreed` does nothing) and channel 0 from the
+    /// voice stops ([`Driver::voice_stop`]).
     pub race_music: bool,
     /// `ccSnd +0x63 gateHack`: the gate hack's music ([`GateHack`]).
     pub gate_hack: GateHack,
@@ -1120,7 +1121,7 @@ impl Driver {
 
     /// `ccPgBgmInit()` (0x001801d0), as the Grunty Flute's call starts: the
     /// voice slots flagged and the first free one set to stop channel 0
-    /// (as `ccEvVoiceStop`), then sequence 0's fade and, with two or more
+    /// (as `ccEvVoiceStop`, held off alike), then sequence 0's fade and, with two or more
     /// loaded, sequence 1's from the port's volume to nothing over 8 frames,
     /// stopping them (`ccSqFade(n, 0, 8, 3)`, written inline).
     pub fn pg_bgm_init(&mut self) {
@@ -1362,9 +1363,19 @@ impl Driver {
         self.voice = voice;
     }
 
-    /// `ccEvVoiceStop()` (0x0017ee40): a slot that stops channel 0.
+    /// `ccEvVoiceStop()` (0x0017ee40): a slot that stops channel 0. From
+    /// Mutation on (MUT 0x00181f80) nothing while the Flag Race holds the
+    /// music (`ccSnd +0x13a`), so a box's OK leaves its `BGM.BIN` track on;
+    /// `ccPgBgmInit`'s inline stop (MUT 0x00183424) tests it alike.
     pub fn voice_stop(&mut self) {
-        self.claim(VoiceSlot::Stop);
+        if !self.race_holds_channel() {
+            self.claim(VoiceSlot::Stop);
+        }
+    }
+
+    /// `ccSnd +0x13a` as the voice stops read it; Infection's never do.
+    fn race_holds_channel(&self) -> bool {
+        self.race_music && self.volume != Volume::Inf
     }
 
     /// `ccMesVoicePlay` / `ccEvVoiceStop`: flag the slots and take the first
