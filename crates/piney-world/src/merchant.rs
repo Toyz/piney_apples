@@ -59,7 +59,8 @@ pub const TALK_FRAMES: u32 = 120;
 /// The ids `ccMerchan::ccMerchan` gives `breederInfluence` (and a live
 /// `bodyHit`): the Grunt Shops, the administrator (29), the quiz man (158).
 pub const INFLUENCED: [i32; 6] = [158, 29, 28, 22, 16, 10];
-/// The ids `ccMerchan::main` runs `sysopeAct` for (the Administrator).
+/// The ids `ccMerchan::main` runs `sysopeAct` for (the Administrator), and
+/// the only ones `ccSetMerchant(code)` makes for an event's `entry 4`.
 pub const SYSOPE: [i32; 2] = [29, 158];
 /// `ccSetMerchant(0)`'s rows by town.
 pub const TOWN_ROWS: [std::ops::RangeInclusive<usize>; 5] = [0..=4, 5..=10, 11..=16, 17..=22, 23..=28];
@@ -598,22 +599,28 @@ impl Merchant {
         let d2 = ee::add(ee::add(ee::mul(p[0], p[0]), ee::mul(p[1], p[1])), ee::mul(p[2], p[2]));
         let dist = ee::dsqrt_on(hits.volume, d2);
         let in_view = check_camera_deg(self.ch.pos, player, cam, VIEW_DEG);
+        // Infection's acts and collides for every one; from Mutation on
+        // (MUT gcmn 0x00521134) only the Administrator, the quiz man and the
+        // Grunt Shops do (and rows 175-179, which the port does not make).
+        let acts = SYSOPE.contains(&self.id) || hits.volume == Volume::Inf || INFLUENCED.contains(&self.id);
         if SYSOPE.contains(&self.id) {
             if self.sysope_act() {
                 // main returns 1 at once: the object is deleted.
                 self.gone = true;
                 return MerchantFrame::default();
             }
-        } else {
+        } else if acts {
             self.breeder_act();
         }
-        self.ch.hit.pos = self.ch.pos;
-        if hits.collision_detection(&mut self.ch.hit) != 0 {
-            self.body_hit_flag = 1;
-            self.body_hit_cnt = self.body_hit_cnt.wrapping_add(1);
-        } else {
-            self.body_hit_flag = 0;
-            self.body_hit_cnt = 0;
+        if acts {
+            self.ch.hit.pos = self.ch.pos;
+            if hits.collision_detection(&mut self.ch.hit) != 0 {
+                self.body_hit_flag = 1;
+                self.body_hit_cnt = self.body_hit_cnt.wrapping_add(1);
+            } else {
+                self.body_hit_flag = 0;
+                self.body_hit_cnt = 0;
+            }
         }
         let near = ee::lt(dist, NEAR);
         let mut f = MerchantFrame { near, in_view, ..MerchantFrame::default() };
@@ -754,6 +761,30 @@ pub fn set_merchants(
         out.push(Merchant::new(&row, body, town_file, hits, town, player)?);
     }
     Ok(out)
+}
+
+/// An event's merchant in town `town` (`entry 4 29`, or `entry 3` of a
+/// merchant's row): `ccSetMerchant(code)` or `ccSetRtownPC(code, -1)` makes
+/// it at the origin (`setMerchant` gives rows 29 and 158 no dummy), then
+/// `ccEntryEventMng` writes [`crate::event::event_marker_in`]'s position
+/// and rotation into its `pos` and `dirc` alone.
+#[allow(clippy::too_many_arguments)]
+pub fn event_merchant(
+    archive: &Arc<Archive>,
+    volume: Volume,
+    row: &NpcRow,
+    town_file: &SceneFile,
+    hits: &mut Hits,
+    town: i32,
+    player: V4,
+    marker: i16,
+) -> Result<Merchant> {
+    let body = Rc::new(Body::read(archive, &row.stem(), TRALL)?);
+    let mut m = Merchant::at(row, body, ee::VF0, ee::VF0, hits, town, player)?;
+    if let Some((pos, dirc)) = crate::event::event_marker_in(town_file, volume, marker) {
+        (m.ch.pos, m.ch.dirc) = (pos, dirc);
+    }
+    Ok(m)
 }
 
 /// One frame of `ccThEntryCtrl` for the merchants on its NPC list, in

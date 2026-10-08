@@ -61,7 +61,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_save_init_rs  # noqa: E402
-from volume import DATA, ELF, ISO, ROOT, va as inf_va  # noqa: E402  # PINEY_VOLUME's disc; addresses are Infection's
+from volume import DATA, ELF, ISO, ROOT, NAME as VOLUME, va as inf_va  # noqa: E402  # PINEY_VOLUME's disc; addresses are Infection's
 EXAMPLE = os.path.join(os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "target")), "release", "examples",
                        "world_probe")
 
@@ -1662,8 +1662,12 @@ class MerchantRun(Pieces):
 
     ACTIVE_CAM = inf_va(0x0037896C)
 
-    def __init__(self, player):
-        super().__init__(("town01", "ctr1"))
+    def __init__(self, player, town=0, entries=()):
+        """Kite at `player` in town `town`; with event `entries` (type,
+        code, marker), the game's own ccEntryEventMng (main 0x001b62e0)
+        makes them first, then ccSetMerchant(0) (its gate, dogs, Grunties
+        and walking PCs left out)."""
+        super().__init__(("town%02d" % (town + 1), "ctr1", "ctr2", "ctr3", "ctr4"))
         m, sym = self.m, self.sym
         nop = lambda mm, *a: 0                     # noqa: E731
         for name in ("ApplyClump__5ccAnmFP7ccClumpP8ccStream", "SetFogBlend__9ccDrawEnvFfUi",
@@ -1675,16 +1679,18 @@ class MerchantRun(Pieces):
             m.store(WM + off, 4, fb(v))
         m.store(PLW_PW, 4, PLAYER)
         m.store(self.ACTIVE_CAM, 4, TCAM)
-        m.mem[GAME:GAME + 0x88] = bytes(0x88)       # area 0 (a town), town 0, server 0
+        m.mem[GAME:GAME + 0x88] = bytes(0x88)       # area 0 (a town), server 0
+        m.store(GAME + 0x20, 4, town)
         rt = self.malloc(m, 0x200)
         m.store(WM + 0x430, 4, rt)
         m.store(rt + 0x1A4, 4, self.malloc(m, 0x100))
-        self.town = self.ccs["town01"]
+        self.town = self.ccs["town%02d" % (town + 1)]
         Field.decode_hit(self)
         for a in list(CMND_GLOBALS) + list(CHAR_HIT_GLOBALS):
             m.store(a, 4, 0)
         g = self.malloc(m, 0x40)
         m.store(G_ENTCTRL, 4, g)
+        m.store(g + 4, 4, town)                     # the entry control's area, areaNum, floor, block
         # Kite and his bodyHit (ccPlayer::ccPlayer: HitDisable until the
         # arrival's end enables it, after the merchants').
         m.mem[PLAYER:PLAYER + 0x300] = bytes(0x300)
@@ -1695,7 +1701,20 @@ class MerchantRun(Pieces):
         m.store(PLAYER + 0x1B4, 4, fb(45.0))
         m.store(PLAYER + 0x1B8, 4, fb(95.0))
         self.kite_hit = False
-        self.call("ccSetMerchant__Fi", 0)
+        if entries:
+            # eventMng: entry[16] (+0x80) and entryMc[16] (+0x100), type -1 free.
+            m.store(EVENTMNG, 4, EV)
+            m.mem[EV:EV + 0x7C0] = bytes(0x7C0)
+            for k in range(32):
+                m.store(EV + 0x80 + 8 * k, 2, 0xFFFF)
+            for k, e in enumerate(entries):
+                for i, v in enumerate(tuple(e) + (0,)):
+                    m.store(EV + 0x80 + 8 * k + 2 * i, 2, v & 0xFFFF)
+            for name in ("ccSetChaosGate__Fv", "ccSetDog__Fv", "ccSetChibiGuso__Fv", "ccEntryRandomNpc__Fv"):
+                m.hooks[sym(name)] = nop
+            self.call("ccEntryEventMng__Fv")
+        else:
+            self.call("ccSetMerchant__Fi", 0)
         self.objs, o = [], m.load(g + 0x38, 4)
         for _ in range(m.load(g + 0x34, 4)):
             self.objs.append(o)
@@ -1905,9 +1924,50 @@ class MerchantsAgainstGame(unittest.TestCase):
                 seen["affect"] += w["affect"]
                 seen[w["anim"]] += 1
             self.assertEqual(want, port, "frame %d %s" % (i, f))
+        # From Mutation on Mac Anu's shops neither act nor collide (main
+        # runs breederAct and CollisionDetection for the breeders alone).
+        acting = ("touching", "ANM_ctr1act2") if VOLUME == "infection" else ()
         for k in ("stepped", "drawn", "hidden", "in view, far", "faded", "listed", "off the list", "frozen",
-                  "disp off", "touching", "act 1", "act 2", "turning", "fading", "affect", "ANM_ctr1act2"):
+                  "disp off", "act 1", "act 2", "turning", "fading", "affect") + acting:
             self.assertGreater(seen[k], 0, (k, seen))
+
+
+    def test_event_merchant(self):
+        """Event 101's `entry 4 29` at marker 6 in Dun Loireag (issue #60):
+        the game's own ccEntryEventMng (ccSetMerchant(29), the marker's
+        dummy into pos and dirc, then ccSetMerchant(0)) beside the port's
+        event_merchant and set_merchants, as merchstart lists them; then
+        600 frames of routine and ccMerchan::main (sysopeAct for 29) beside
+        step_all, Kite walking about the gate and the menu's talk to him."""
+        start = (0.0, 1600.0, 0.0)
+        g = MerchantRun([fb(v) for v in start], town=1, entries=[(4, 29, 6)])
+        first = g.start()
+        self.assertEqual([o["id"] for o in first], [29, 5, 6, 7, 8, 9, 10])
+        here = [struct.unpack("<f", struct.pack("<I", v))[0] for v in first[0]["pos"][:3]]
+        rng = random.Random(60)
+        ops = {100: [("breed", 0, 14)], 300: [("breed", 0, 0)], 400: [("grot", 0, 8192, 64)]}
+        lines, frames = [], []
+        for i in range(600):
+            pl = (here[0] + rng.uniform(-900, 900), here[1] + rng.uniform(-900, 900), here[2])
+            cam = (pl[0] + rng.uniform(-600, 600), pl[1] - rng.uniform(300, 900), pl[2] + 300.0)
+            view = here if rng.random() < 0.5 else (pl[0], pl[1], pl[2] + 120.0)
+            f = (pl, cam, tuple(view), rng.randrange(-7936, 7937), False, i >= 30, ops.get(i, []))
+            frames.append(f)
+            args = [fb(v) for v in pl + cam + tuple(view)] + [f[3] & 0xFFFFFFFF, 0, int(f[5])]
+            line = "merch " + hexs(*args)
+            for op in f[6]:
+                line += " %s %s" % (op[0], hexs(*op[1:]))
+            lines.append(line)
+        got = self.ask(["merchstart " + hexs(*[fb(v) for v in start], 1, 4, 29, 6)] + lines)
+        self.assertEqual(first, got[0])
+        drawn = 0
+        for i, (f, port) in enumerate(zip(frames, got[1:])):
+            pl, cam, view, deg1, eye, kite_hit, ops = f
+            want, _ = g.frame([fb(v) for v in pl], [fb(v) for v in cam], [fb(v) for v in view], deg1 & 0xFFFF,
+                              eye, kite_hit, ops)
+            drawn += want[0]["drawn"]
+            self.assertEqual(want, port, "frame %d %s" % (i, f))
+        self.assertGreater(drawn, 0)
 
 
 # --- Mac Anu's walking PCs (TownPcsAgainstGame) ---------------------------------------------------

@@ -6902,6 +6902,9 @@ mod tests {
     /// Issue #58: a member's thanks for a gift on every volume.
     mod gift_thanks;
 
+    /// Issue #60: Mutation's Shop Keeper at marker 6 in Dun Loireag.
+    mod shop_keeper;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

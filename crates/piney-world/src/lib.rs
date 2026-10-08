@@ -178,6 +178,15 @@ pub enum Phase {
     Play(u32),
 }
 
+/// An event's town NPC (`entry 3|4 code marker`) waiting for the entry
+/// control's set-up: the class its row makes, the row, the marker.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct EventEntry {
+    class: npc::EventClass,
+    code: i16,
+    marker: i16,
+}
+
 /// newlib's `rand()` (`INF SLUS_202.67:0x00133a38`): a 64-bit LCG, the top
 /// half's low 31 bits. Its state is shared with every other caller in the
 /// game, so the sequence here is only the same kind of sequence.
@@ -244,9 +253,11 @@ pub struct World {
     /// the chat groups).
     rand_count: u32,
     town_pcs: Option<Rc<std::cell::RefCell<rtownpc::TownPcs>>>,
-    /// Town NPC entries (`entry 3 code marker`) waiting for the entry
-    /// control's set-up, and whether it has run.
-    event_npcs: Vec<(i16, i16)>,
+    /// Town NPC entries (`entry 3|4 code marker`) waiting for the entry
+    /// control's set-up, and whether it has run; `registNpcNum`'s count of
+    /// them (`ccRegisterEventMng`: every one, made or not).
+    event_npcs: Vec<EventEntry>,
+    regist_npc_num: i32,
     placed: bool,
     pcs: Vec<rtownpc::RtownPc>,
     pc_events: Vec<(i32, rtownpc::PcEvent)>,
@@ -409,6 +420,7 @@ impl World {
             rand_count: 0,
             town_pcs: None,
             event_npcs: Vec::new(),
+            regist_npc_num: 0,
             placed: false,
             pcs: Vec::new(),
             merchant_events: Vec::new(),
@@ -668,18 +680,18 @@ impl World {
         self.reboot();
         self.placed = true;
         self.place_spc_entries();
-        let reserved = 1 + self.party.members().count() as i32 + self.event_npcs.len() as i32;
+        let reserved = 1 + self.party.members().count() as i32 + self.regist_npc_num;
         let mut mt = mt::Mt::init(self.rand_count);
         let rows = rtownpc::register_random_npc(&mut mt, reserved);
         let no = self.town.base.no;
         let town = Rc::new(std::cell::RefCell::new(rtownpc::TownPcs::new(self.volume, no, &self.town.base.file, mt)?));
         self.town_pcs = Some(town);
         let mut files = rtownpc::Files::new();
-        for (code, marker) in std::mem::take(&mut self.event_npcs) {
-            self.place_event_pc(&mut files, code, marker)?;
+        for e in std::mem::take(&mut self.event_npcs) {
+            self.place_event_npc(&mut files, e)?;
         }
         let player = self.player.body.pos;
-        self.merchants = merchant::set_merchants(
+        let merchants = merchant::set_merchants(
             &self.archive,
             self.volume,
             &self.town.base.file,
@@ -687,6 +699,7 @@ impl World {
             no,
             player,
         )?;
+        self.merchants.extend(merchants);
         // ccSetChaosGate (already up), then ccEntryEventMng's by town: 1
         // ccSetDog and ccSetChibiGuso, 2 and 3 ccSetChibiGuso, then the
         // walking PCs.
@@ -704,37 +717,47 @@ impl World {
         Ok(())
     }
 
-    /// An event's town PC entry (`ccEntryEventMng`'s type 3): `npcTbl` row
-    /// `code` through `ccSetRtownPC`, then set at `marker` (its position,
-    /// and its rotation as the heading).
-    fn place_event_pc(&mut self, files: &mut rtownpc::Files, code: i16, marker: i16) -> piney_data::Result<()> {
-        let town = self.town_pcs.clone().expect("the entry control's set-up ran");
-        let row = npc::NpcRow::of(self.volume, code as usize)?;
-        let model = rtownpc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
-        let mut pc = rtownpc::RtownPc::place(&town, &row, &model, -1, self.player.body.pos, &mut self.town.base.hits);
-        if let Some((pos, rot)) = self.marker_bits(marker) {
-            pc.char.pos = pos;
-            pc.char.dirc = [0, 0, rot, 0];
+    /// An event's town NPC (`ccEntryEventMng`'s types 3 and 4): `npcTbl` row
+    /// `code` made as its class and set at the marker. A merchant goes onto
+    /// the NPC list before `ccSetMerchant(0)`'s.
+    fn place_event_npc(&mut self, files: &mut rtownpc::Files, e: EventEntry) -> piney_data::Result<()> {
+        let row = npc::NpcRow::of(self.volume, e.code as usize)?;
+        let (no, player) = (self.town.base.no, self.player.body.pos);
+        match e.class {
+            npc::EventClass::Pc => {
+                let town = self.town_pcs.clone().expect("the entry control's set-up ran");
+                let model = rtownpc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
+                let mut pc = rtownpc::RtownPc::place(&town, &row, &model, -1, player, &mut self.town.base.hits);
+                if let Some(at) = event::event_marker_in(&self.town.base.file, self.volume, e.marker) {
+                    (pc.char.pos, pc.char.dirc) = at;
+                }
+                self.pcs.push(pc);
+            }
+            npc::EventClass::Merchant => {
+                let (file, hits) = (&self.town.base.file, &mut self.town.base.hits);
+                let m = merchant::event_merchant(&self.archive, self.volume, &row, file, hits, no, player, e.marker)?;
+                self.merchants.push(m);
+            }
         }
-        self.pcs.push(pc);
         Ok(())
     }
 
     /// An event's town NPC entry: queued for [`World::place_entries`], or
-    /// placed at once (at the list's end) once it has run. Only PC rows
-    /// (base flags 0x08) are ported; administrators (type 4,
-    /// `ccSetMerchant(code)`) are not.
+    /// placed at once (at the list's end) once it has run. False when the
+    /// entry control makes nothing of it ([`npc::NpcRow::event_class`]).
     pub(crate) fn entry_npc(&mut self, ty: i16, code: i16, marker: i16) -> bool {
-        let Ok(row) = npc::NpcRow::of(self.volume, code.max(0) as usize) else { return false };
-        if ty != 3 || row.flags & npc::TYPE_PC == 0 || code < 0 {
-            return false;
-        }
         if !self.placed {
-            self.event_npcs.push((code, marker));
+            self.regist_npc_num += 1;
+        }
+        let row = usize::try_from(code).ok().and_then(|r| npc::NpcRow::of(self.volume, r).ok());
+        let Some(class) = row.and_then(|row| row.event_class(ty)) else { return false };
+        let e = EventEntry { class, code, marker };
+        if !self.placed {
+            self.event_npcs.push(e);
             return true;
         }
         let mut files = rtownpc::Files::new();
-        self.place_event_pc(&mut files, code, marker).is_ok()
+        self.place_event_npc(&mut files, e).is_ok()
     }
 
     /// `ccSetChibiGuso` (gcmn 0x0050f0b0) in towns 1-3: the rows its

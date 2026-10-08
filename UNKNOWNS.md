@@ -124,6 +124,8 @@ Missing pieces that only the later volumes need.
 - [[220]] on Outbreak and Quarantine `GetEventAreaInfo(0)` returns NULL where the port finds row 0 — Outbreak's and Quarantine's areas
 - [[77]] [[260]] `DrawMap` of towns 2-4 draws four sprites in the later volumes; [[260]] and docs/engine/map.md say the port draws three, but crates/piney-world/src/map/town.rs now carries a fourth (MARKS) sprite on the towns' own layers: to confirm — the later towns' maps
 - [[260]] which events place characters in Fort Ouph and Lia Fail — Outbreak's and Quarantine's stories
+- [[393]] Mutation's `ccRtownPC` (MUT gcmn 0x00522040, `main`, `normalMode`) is Infection's in the port: the walking PCs' body kind 8 (Infection 2), 50 `rtpcCcsName` names, rows 159 and up's own texture tables, and the SEARCH PCs' set-up for `entry 3 CODE MARKER -1` (0x00521e50: a landmark or dummy by `saveData+0x6483+row`; the port stands them at their marker) — every later volume's town; the SEARCH chain plays on Outbreak
+- [[393]] `ccSetMerchant(0)` from Mutation on also makes row 175 + town ("Event NPC", flags 0x10000000) when `saveData+0x652c` is set, with its own act (MUT gcmn 0x00521a00) and affect (0x00521990); the port makes none, and what sets the byte is not traced — the later volumes' towns
 
 ## Volumes
 
@@ -247,7 +249,7 @@ player until one of these turns out wrong.
 - [[33]] where the game would loop forever, the port gives up with NoSite; no case reached — not revisited
 - [[59]] rand not seeded from the game's shared state, so idle fidgets differ in time — inherent to a run's history
 - [[65]] whether a party member or the gate has a body on the character list — not revisited
-- [[65]] ccSetRtownPC's second argument on the event path — the port uses -1 ([[132]] asks again)
+- [[65]] ccSetRtownPC's second argument on the event path — answered by [[393]]: -1, the loop's `li $a1, -1` (INF main 0x001b6318, MUT 0x001cb9dc)
 - [[65]] ccSys +0x358, the frame count that picks the PCs — an input depending on run time
 - [[65]] an event NPC placed after set-up goes to the list's end — order not checked
 - [[72]] SimGenerateCode and GO move the global generator; the port leaves those draws aside — docs/engine/field-walk.md Unknown
@@ -262,7 +264,7 @@ player until one of these turns out wrong.
 - [[112]] fieldrand's seed on arrival not carried across scenes (the arena's firefly bobbing) — phase only
 - [[114]] area 67's type-34 row behind a door with no branch would crash the game; whether the story reaches it — not known
 - [[115]] fieldrand's seed on arrival not carried from the dungeon — same as [[112]]
-- [[132]] ccEntryEventMng's second argument to ccSetRtownPC (the port uses -1) — docs/engine/field-game.md Unknown
+- [[132]] ccEntryEventMng's second argument to ccSetRtownPC (the port uses -1) — answered by [[393]]: -1
 - [[132]] the event NPC classes step outside the entry control's NPC turn, so their effects start a frame late — docs/engine/field-game.md Unknown
 - [[134]] whether Kite should walk around the fenced statue in a statue room's open doorway (area 18's dungeon) — not compared
 - [[140]] DungeonEntries.rng is a copy, so the dungeon's fieldrand does not advance with the breakables' draws — later draws can differ from the game's
@@ -1282,7 +1284,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/field-game.md: the walking PCs' presentation not compared; ccSys+0x358 an input; rtownnpc.cpp's globals start at zero per visit; a walker's first nextPos — research (duplicates [[65]], [[139]])
 - docs/engine/field-game.md: event mode -3 (effVirusCrystal) not ported — play (Mutation's event 114; duplicates [[65]], [[116]])
 - docs/engine/field-game.md: whether the Chaos Gate has a body on the character list — research (duplicates [[65]])
-- docs/engine/field-game.md: the event NPCs outside the towns: ccSetRtownPC's second argument; their steps and effects a frame late — research (duplicates [[132]])
+- docs/engine/field-game.md: the event NPCs outside the towns: their steps and effects a frame late — research (duplicates [[132]]; the second argument answered by [[393]])
 - docs/engine/field-game.md: inviteSpc of an unregistered character in a field or dungeon; StartPos for members already in the party at an area's start — research (duplicates [[250]])
 - docs/engine/field-game.md: ccThSpc and ccThAISystem run before a leaver's task ends — research (duplicates [[110]])
 - docs/engine/field-game.md: the event camera's work-area reads, stack garbage, currentOpen, base-id lookups, FIFO order within a priority — research (game UB and inference)

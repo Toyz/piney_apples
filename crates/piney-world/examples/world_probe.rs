@@ -462,9 +462,11 @@ fn props_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, props: &mut Prop
 
 // --- Mac Anu's merchants: ccSetMerchant(0), routine and ccMerchan::main ------
 //
-// `merchstart PX PY PZ`: `ccSetMerchant(0)` with Kite at P. `merch ...`: one
-// frame of `ccThEntryCtrl` for the merchants, after the OPs on merchant K
-// (`inf`, `breed`, `grot`, `fade`); each merchant's state. `merchreset`.
+// `merchstart PX PY PZ [TOWN [TYPE CODE MARKER]...]`: `ccEntryEventMng` in
+// town TOWN (0 unless given) with Kite at P: the event entries' merchants
+// (`event_merchant`), then `ccSetMerchant(0)`. `merch ...`: one frame of
+// `ccThEntryCtrl` for the merchants, after the OPs on merchant K (`inf`,
+// `breed`, `grot`, `fade`); each merchant's state. `merchreset`.
 
 #[derive(Default)]
 struct Merchants {
@@ -485,9 +487,19 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
     match cmd {
         "merchstart" => {
             let volume = Iso::open(iso_path).unwrap().volume().unwrap();
-            let mut town = piney_world::town::Town::open(archive, volume, 0, false).unwrap();
+            let no = if w.len() > 4 { n(4) as i32 } else { 0 };
+            let mut town = piney_world::town::Town::open(archive, volume, no, false).unwrap();
             let t = &mut town.base;
-            ms.list = merchant::set_merchants(archive, volume, &t.file, &mut t.hits, 0, v3(1)).unwrap();
+            ms.list.clear();
+            for e in w.get(5..).unwrap_or_default().chunks(3) {
+                let [ty, code, marker] = [0, 1, 2].map(|k| hex(e[k]) as i16);
+                let row = piney_world::npc::NpcRow::of(volume, code as usize).unwrap();
+                if row.event_class(ty) == Some(piney_world::npc::EventClass::Merchant) {
+                    let m = merchant::event_merchant(archive, volume, &row, &t.file, &mut t.hits, no, v3(1), marker);
+                    ms.list.push(m.unwrap());
+                }
+            }
+            ms.list.extend(merchant::set_merchants(archive, volume, &t.file, &mut t.hits, no, v3(1)).unwrap());
             ms.town = Some(town);
             let out: Vec<String> = ms
                 .list

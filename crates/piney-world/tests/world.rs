@@ -234,28 +234,32 @@ fn talking_to_the_recorder() {
     assert_ne!(world.player().body.pos, at);
 }
 
-/// The entry control's set-up: an event's town PC entry first (at its
-/// marker), the five merchants, then the walking PCs `ccRegisterRandomNpc`
-/// chose with Kite and that PC counted (14), bodies on the character list
-/// in that order and Kite's after them once he has arrived.
+/// The entry control's set-up: an event's town PC and the Administrator
+/// first (each at its marker), the five merchants, then the walking PCs
+/// `ccRegisterRandomNpc` chose with Kite and the three entries counted (12):
+/// `entry 4 40` makes nothing but counts all the same. Bodies go on the
+/// character list in that order, Kite's after them once he has arrived.
 #[test]
 fn the_entry_controls_set_up() {
     let Some((mut iso, archive)) = disc() else { return };
     let save = new_game(&mut iso);
     let mut world = World::enter(&mut iso, archive, save).unwrap();
     assert!(world.entry(3, 40, 3, 0));
-    assert!(!world.entry(4, 29, 3, 0), "administrators are not ported");
+    assert!(world.entry(4, 29, 5, 0));
+    assert!(!world.entry(4, 40, 5, 0), "ccSetMerchant makes only 29 and 158");
     assert!(world.merchants().is_empty() && world.pcs().is_empty());
     let mut pad = Pad::default();
     for _ in 0..(FADE_FRAMES + HOLD_FRAMES + 1) {
         step(&mut world, &mut pad, Raw::default());
     }
-    let (at, rot) = world.marker_bits(3).unwrap();
-    assert_eq!(world.merchants().len(), 5);
-    assert_eq!(world.pcs().len(), 15);
-    assert_eq!((world.pcs()[0].row.row, world.pcs()[0].char.pos, world.pcs()[0].char.dirc[2]), (40, at, rot));
+    let (at, rot) = world.marker_dummy(3).unwrap();
+    let ids: Vec<i32> = world.merchants().iter().map(|m| m.id).collect();
+    assert_eq!(ids, [29, 0, 1, 2, 3, 4]);
+    assert_eq!((world.merchants()[0].ch.pos, world.merchants()[0].ch.dirc), world.marker_dummy(5).unwrap());
+    assert_eq!(world.pcs().len(), 13);
+    assert_eq!((world.pcs()[0].row.row, world.pcs()[0].char.pos, world.pcs()[0].char.dirc), (40, at, rot));
     let kinds: Vec<u32> = world.town().base.hits.chars.iter().map(|b| b.kind).collect();
-    assert_eq!(kinds, [2; 20]);
+    assert_eq!(kinds, [2; 19]);
     for _ in 0..100 {
         step(&mut world, &mut pad, Raw::default());
     }

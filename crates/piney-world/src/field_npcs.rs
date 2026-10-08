@@ -1,19 +1,19 @@
 //! An event's NPCs outside the towns: the town PCs (`entry 3`, `npcTbl` rows
 //! 83-90: Meg and the other named players) and the Administrator (`entry 4
-//! 29`) that story events stand in fields and dungeons, made as in a town and
-//! put at the marker's `evPos`; they only walk where the event sends them.
-//! The port keeps each as two halves: the entry control's stand-in
-//! ([`crate::combat::EventNpc`]) for what the battle's side reads, and the
-//! class itself ([`RtownPc`], [`Merchant`]), which moves, animates, collides
-//! and draws; after each frame the stand-in is put where the class stands.
+//! 29`; `entry 3 29` too: the row's class) that story events stand in fields
+//! and dungeons, made as in a town and put at the marker's `evPos`; they only
+//! walk where the event sends them. The port keeps each as two halves: the
+//! entry control's stand-in ([`crate::combat::EventNpc`]) for the battle's
+//! side, and the class itself ([`RtownPc`], [`Merchant`]), which moves,
+//! animates, collides and draws; each frame the stand-in follows the class.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use piney_data::Result;
 use piney_data::archive::Archive;
 use piney_data::volume::Volume;
+use piney_data::{Error, Result};
 use piney_desktop::layers::Layers;
 
 use crate::body::{Body, TRALL};
@@ -23,7 +23,7 @@ use crate::entry::{Npc, NpcCtx};
 use crate::hit::Hits;
 use crate::merchant::{Merchant, SysopEvent};
 use crate::mt::Mt;
-use crate::npc::NpcRow;
+use crate::npc::{EventClass, NpcRow};
 use crate::rtownpc::{self, RtownPc, TownPcs};
 use crate::town::TownLights;
 use piney_battle::rand::Genrand;
@@ -152,7 +152,9 @@ impl FieldNpcs {
         player: V4,
     ) -> Result<Class> {
         let row = NpcRow::of(volume, n.code.max(0) as usize)?;
-        if n.ty == 3 {
+        let class =
+            row.event_class(n.ty).ok_or_else(|| Error::NotFound(format!("entry {} {}: no class", n.ty, n.code)))?;
+        if class == EventClass::Pc {
             let t = match &self.town {
                 Some(t) => t.clone(),
                 None => {

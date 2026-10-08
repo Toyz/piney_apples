@@ -24,6 +24,16 @@ pub fn marker_in(
     volume: piney_data::volume::Volume,
     n: i16,
 ) -> Option<(V4, F)> {
+    marker_dummy_in(file, volume, n).map(|(pos, rot)| (pos, rot[2]))
+}
+
+/// [`marker_in`] with the dummy's whole rotation (+0x20, radians, w 0), as
+/// `ccEntryEventMng` copies it into an event NPC's `dirc`.
+pub fn marker_dummy_in(
+    file: &piney_desktop::assets::SceneFile,
+    volume: piney_data::volume::Volume,
+    n: i16,
+) -> Option<(V4, V4)> {
     if !(0..MARKERS).contains(&n) {
         return None;
     }
@@ -31,8 +41,19 @@ pub fn marker_in(
     let obj = file.ccs.find_object(&name)?;
     let d = file.scene.dummies.get(&obj)?;
     let pos = [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE];
-    let rot = d.rot.map_or(0, |r| piney_data::anim::const_radians([0, 0, r.z.to_bits()])[2]);
-    Some((pos, rot))
+    let [x, y, z] = d.rot.map_or([0; 3], |r| piney_data::anim::const_radians([r.x, r.y, r.z].map(f32::to_bits)));
+    Some((pos, [x, y, z, 0]))
+}
+
+/// Where `ccEntryEventMng` puts an event's town NPC (main 0x001cbf10 on
+/// Mutation): `pos` (+0x40) and `dirc` (+0x60) from [`marker_dummy_in`], or
+/// both `vf0` for a marker below 0; None for a marker with no dummy.
+pub fn event_marker_in(
+    file: &piney_desktop::assets::SceneFile,
+    volume: piney_data::volume::Volume,
+    marker: i16,
+) -> Option<(V4, V4)> {
+    if marker < 0 { Some((ee::VF0, ee::VF0)) } else { marker_dummy_in(file, volume, marker) }
 }
 
 /// `ccAI::SetDircZ(d)` as a heading: `DEG2RAD(d)`.
@@ -61,6 +82,11 @@ impl World {
     /// rotation's z, bits.
     pub fn marker_bits(&self, n: i16) -> Option<(V4, F)> {
         marker_in(&self.town.base.file, self.volume, n)
+    }
+
+    /// [`marker_dummy_in`] of the town's file.
+    pub fn marker_dummy(&self, n: i16) -> Option<(V4, V4)> {
+        marker_dummy_in(&self.town.base.file, self.volume, n)
     }
 
     /// [`World::marker_bits`] as the interpreter's `Host::marker`.
@@ -273,11 +299,11 @@ impl World {
     /// `ccEntryEventMng`'s step for one of `eventMng.entry[]` (the event's
     /// `entry type code marker param`): a party member (types 0-2) at the
     /// marker, facing its heading, on the command list when `param` is 5 -
-    /// Kite himself for code 0; a town PC (type 3, `npcTbl` row `code`)
-    /// through `ccSetRtownPC` and set at the marker, with the entry
-    /// control's set-up ([`World::place_entries`]) or at once after it.
-    /// True when placed or queued; administrators (type 4) and objects and
-    /// enemies (5-7) are not ported.
+    /// Kite himself for code 0; a town NPC (types 3 and 4, `npcTbl` row
+    /// `code`: a PC or the Administrator) made and set at the marker, with
+    /// the entry control's set-up ([`World::place_entries`]) or at once after
+    /// it. True when placed or queued; objects and enemies (5-7) are not
+    /// ported.
     pub fn entry(&mut self, ty: i16, code: i16, marker: i16, param: i16) -> bool {
         match crate::event_kind(ty) {
             Some(Kind::Spc) => {}

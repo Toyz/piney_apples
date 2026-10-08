@@ -76,6 +76,31 @@ impl NpcRow {
     pub fn stem(&self) -> String {
         self.file.split('.').next().unwrap_or("").to_ascii_lowercase()
     }
+
+    /// The class the entry control makes of this row for an event's `entry
+    /// ty` (3 or 4), or None when it makes nothing: `ccEntryEventMng` hands
+    /// type 3 to `ccSetRtownPC(code, -1)` and type 4 to `ccSetMerchant(code)`,
+    /// which makes only rows 29 and 158; both go through `entryObject`, which
+    /// calls the row's `entry.func` (so `entry 3 29` is the Administrator).
+    pub fn event_class(&self, ty: i16) -> Option<EventClass> {
+        match (ty, self.row as i32) {
+            (3, _) => {}
+            (4, id) if crate::merchant::SYSOPE.contains(&id) => {}
+            _ => return None,
+        }
+        match self.func? {
+            EntryFunc::RtownPC => Some(EventClass::Pc),
+            EntryFunc::RtownMerchant => Some(EventClass::Merchant),
+            _ => None,
+        }
+    }
+}
+
+/// An event NPC's class: `ccRtownPC` or `ccMerchan`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EventClass {
+    Pc,
+    Merchant,
 }
 
 #[cfg(test)]
