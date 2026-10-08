@@ -159,6 +159,36 @@ fn mutations_rankings_open_and_close() {
     assert_eq!(menu(&s).0, i32::from(BREEDER_MENU), "not back on the breeder's list");
 }
 
+/// A new save holds no rank of the player's (`Init` zeroes the records at
+/// +0x8432), so Rankings shows Dun Loireag's three racers (`race_ranks`,
+/// MUT gcmn 0x006d8610) in order; with the player's time first, the racers
+/// fill the ranks below it from the first (the page, MUT gcmn 0x0058ca90,
+/// and the ranking, main 0x0017a860, take an empty rank's racer in turn).
+#[test]
+fn mutations_rankings_show_the_towns_racers() {
+    for own in [None, Some((400, 146))] {
+        let Some(mut s) = dun_loireag(3, 4) else { return };
+        if let (Stage::World(w), Some((time, row))) = (&mut s.stage, own) {
+            let save = &mut w.world_mut().state_mut().save;
+            save.set_i16(piney_world::race::RACE_RECORDS, time);
+            save.set_i16(piney_world::race::RACE_RECORDS + 2, row);
+        }
+        speak_to_breeder(&mut s).expect("the breeder's list did not open");
+        to_rankings(&mut s);
+        let Stage::World(w) = &s.stage else { unreachable!() };
+        let kite = String::from_utf8_lossy(w.world().state().save.name()).into_owned();
+        let names: Vec<String> = w.ui().ctrl.setting_text[1..4]
+            .iter()
+            .map(|t| String::from_utf8_lossy(&t[..t.len().min(16)]).trim_end().to_string())
+            .collect();
+        let want = match own {
+            None => ["Balmung", "Gardenia", "Cima"].map(String::from),
+            Some(_) => [kite, "Balmung".into(), "Gardenia".into()],
+        };
+        assert_eq!(names, want, "the ranks with {own:?} of the player's");
+    }
+}
+
 /// `b` for a frame, then `n` frames of nothing; the last frame.
 fn press(s: &mut Session, b: Buttons, n: u32) -> piney_draw::Frame {
     let mut pad = Pad::default();
@@ -425,14 +455,10 @@ fn mutations_flag_race_won() {
 fn flag_race_shots() {
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/i56".into());
     std::fs::create_dir_all(&dir).unwrap();
+    // A new save's ranks: the town's racers (no record of the player's).
     let Some(mut s) = dun_loireag(3, 4) else { return };
     if let Stage::World(w) = &mut s.stage {
-        let save = &mut w.world_mut().state_mut().save;
-        save.set_i32(GOLD, 1000);
-        for k in 0..3 {
-            save.set_i16(piney_world::race::RACE_RECORDS + 4 * k, 9000);
-            save.set_i16(piney_world::race::RACE_RECORDS + 4 * k + 2, 146);
-        }
+        w.world_mut().state_mut().save.set_i32(GOLD, 1000);
     }
     speak_to_breeder(&mut s).expect("the breeder's list did not open");
     let mut g = piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap();

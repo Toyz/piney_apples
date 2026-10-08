@@ -2517,7 +2517,9 @@ settingKanji[0]  the header ("Rankings", "1st Place" ... in columns of
             224 / 288)
 rank r      saveData +0x8432 + 12 (server - 1) + 4 r: (time, row); time 0:
             the town's next racer of race_ranks (gcmn 0x006d8610 + 24
-            (server - 1), 8 bytes each: name, time, row)
+            (server - 1), 8 bytes each: name, time, row); a new save's
+            records are zero (`Init`), so it shows the town's three racers
+            (Dun Loireag: Balmung 0:20, Gardenia, Cima)
             settingKanji[r + 1]: the name (plName for the player's) and
             npcTbl[row]'s, 16 glyphs each, at (123, y) and (123, y + 16)
             font (the menu's, which Disp makes the global one): time / 1800,
