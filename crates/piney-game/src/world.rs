@@ -558,9 +558,15 @@ impl WorldMode {
     /// same frame.
     fn menu_task(&mut self, pad: &Pad, ctx: &mut Ctx) {
         let mut w = ui_world(&self.world, self.vm.as_ref(), self.area_level);
+        // The balloons up, and the party's: CHAT's town orders open Kite's
+        // line and shut the menu with `Disp` in the same pass (issue #68).
+        let party: Vec<u32> = w.party.iter().flatten().map(|c| c.handle).collect();
         w.chat_at = self
             .ui
             .chat_speakers()
+            .into_iter()
+            .chain(party)
+            .collect::<std::collections::BTreeSet<u32>>()
             .into_iter()
             .filter_map(|h| {
                 let (kind, code) = unhandle(h)?;

@@ -450,9 +450,16 @@ Who opens balloons:
 
 **In the port** it is `piney_fieldui::chat_msg::ChatMsg` in
 `MenuCtrl.chat`. The runtime answers each speaker's command lists and point
-every frame (`World::chat_at`, from `FieldUi::chat_speakers`):
+every frame (`World::chat_at`, from `FieldUi::chat_speakers` and the
+party's handles):
 - in a field or dungeon, `FieldWorld::chat_point`;
 - in a town, `World::chat_point`.
+
+The party's are answered whether or not a balloon is up over them: CHAT's
+orders open Kite's line and shut the menu with `Disp(1)` in the same pass
+(MUT gcmn 0x00547ad8, then 0x00547b10), so a list made from the balloons
+already up missed it and `Disp` closed it at once. The town's list lacked
+the party until issue #68 (worklog 417).
 
 The town reads its walking players' lines (`take_pc_events`, the texts in
 GCMN.PRG) and its members' (`take_party_chats`), and the area mode Kite's
@@ -558,8 +565,9 @@ three: Skill Usage (`btInChatAct[0..8]`: seven orders, eight in a dungeon
 where the Sprite Ocarina's can be used), Strategy (`btInChatAct[8..12]`,
 the current one in colour 6, kept in `saveData.tactics` +0x6773), Members.
 OK on an order: `ccSpcChar::RequestChatCmd(member, cmd)` to each member and
-the player's line ("Everyone, " + the order) in the chat balloon
-(`ccChatMsg::OpenChat`); on a member: its own orders (71). The order rows
+the player's line in the chat balloon (`ccChatMsg::OpenChat`): in a
+field "Everyone, " + the order, in a town `chatMenuStr` piece 16 + row
+("Everyone gather!", "Let's scatter!"). No voice is played with it; on a member: its own orders (71). The order rows
 are drawn with `ccKanji::Disp` directly (their `settingKanjiSend` cleared).
 With `firstTime` set, opening keeps each member's six chat settings
 (`personality +200`) at `chatMember + 12 k` and writes -1 at
@@ -635,8 +643,8 @@ are `Request::ChatOrder`, which the runtime hands to the member's AI
 `actNum` for `check_change_equip`. The help after the menu's shut runs
 next frame with the rest of the close (`After::ChatHelp` by the menu still
 open). The runtime answers the balloons' positions for the party as well
-as the balloons up (`hud_world`), so the order's line opened by the menu
-in that frame is not dropped.
+as the balloons up (`hud_world` in a field, `menu_task` in a town), so
+the order's line opened by the menu in that frame is not dropped.
 
 ## The Chaos Gate (`GateMenu`, menu 28)
 

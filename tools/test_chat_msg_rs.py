@@ -216,6 +216,30 @@ class ChatMsgAgainstGame(unittest.TestCase):
         self.assertGreater(stacked, 0)
         self.assertGreater(faded, 0)
 
+    def test_party_call(self):
+        """Issue #68: CHAT's order opens the player's line and shuts the
+        menu with Disp(1) in the same pass, a member's answer coming later;
+        the line is up from that pass for its 120 frames."""
+        for player in (1, 2):
+            g, p = Game(), Probe()
+            where = {w: (True, True, 200 + 40 * w, 220) for w in range(1, 4)}
+            args = " ".join("%x 1 1 %x %x" % (w, s[2], s[3]) for w, s in where.items())
+            up = 0
+            for f in range(140):
+                if f == 0:
+                    g.open(player, b"Everyone gather!")
+                    p.ask("open %x %s" % (player, b"Everyone gather!".hex()))
+                if f == 3:
+                    g.open(3, b"I got it Kite!")
+                    p.ask("open 3 %s" % b"I got it Kite!".hex())
+                still = f == 0
+                want = g.disp(still, player, where)
+                got = p.ask("disp %x %x %s" % (int(still), player, args))
+                self.assertEqual(want, got, "player %d frame %d" % (player, f))
+                up += want["slots"][0][0] > 0
+            p.close()
+            self.assertEqual(up, 120, "player %d" % player)
+
 
 if __name__ == "__main__":
     unittest.main()

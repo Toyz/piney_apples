@@ -6942,6 +6942,9 @@ mod tests {
     /// Issue #69: a boss's magic and protect show their pictures.
     mod boss_fx;
 
+    /// Issue #68: Kite's line over him at the town's party call.
+    mod party_call;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {
