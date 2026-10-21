@@ -3924,6 +3924,9 @@ pub struct FxCensus {
     /// The live generators following a boss effect (an anchor: a photon,
     /// a missile), not being ended.
     pub anchored_generators: usize,
+    /// The live `ccEffect` slots' ids with the character each follows
+    /// (`target`), by scene index.
+    pub effect_targets: Vec<(i16, Option<u32>)>,
 }
 
 impl FieldFx for combat::NoFx {

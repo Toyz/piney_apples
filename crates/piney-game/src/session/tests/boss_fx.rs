@@ -1,7 +1,7 @@
 //! Issue #69: what a boss's fight shows. The protect's break and its
-//! return on Skeith and Innis (the return raised by the boss's own
-//! `CalcReal`), and Innis's magic: its missiles, its rings and its
-//! particles.
+//! return on Skeith, Innis and Gorre's brothers (the return raised by the
+//! boss's own `CalcReal`), and Innis's magic: its missiles, its rings and
+//! its particles.
 
 use std::collections::BTreeMap;
 
@@ -70,16 +70,16 @@ fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&mut Combat, usize, 
     seen
 }
 
-/// Kite's blow on the boss as `CalcBattleDamage` makes it (a sure hit,
-/// live), the gauge one short of full and the save's `plcol` set: its
+/// Kite's skill `sid` on the boss as `CalcBattleDamage` makes it (a sure
+/// hit, live), the gauge one short of full and the save's `plcol` set: its
 /// events shown as the frame shows a rule's. True when the protect broke.
-fn break_protect(c: &mut Combat, me: usize) -> bool {
+fn break_protect(c: &mut Combat, me: usize, sid: i32) -> bool {
     let Some(k) = c.kite else { return false };
     if let Some(f) = c.scene.chars[me].foe_state_mut() {
         f.pp = f.row.max_pp - 1;
     }
     let d = c.data.clone();
-    let Some(sk) = d.t.skill(1).cloned() else { return false };
+    let Some(sk) = d.t.skill(sid).cloned() else { return false };
     let env = piney_battle::chara::Env::default();
     let mut rng = piney_battle::rand::Rand::new(1);
     let mut ev = Vec::new();
@@ -115,7 +115,7 @@ fn protect_twice(s: &mut Session, frames: u32) -> ([u32; 2], [u32; 2]) {
             && now.act == 0
             && free
             && c.scene.listed(me)
-            && break_protect(c, me)
+            && break_protect(c, me, 1)
         {
             breaks += 1;
         }
@@ -158,6 +158,97 @@ fn skeith_protect_breaks_and_returns_with_pictures() {
     println!("Skeith: break shown {broke:?} frames, return {back:?}");
     assert!(broke.iter().all(|&n| n > 30), "a break with no picture: {broke:?}");
     assert!(back.iter().all(|&n| n > 30), "a return with no picture: {back:?}");
+}
+
+/// Outbreak's event 218 brought to Gorre's arena: field 5 of town 3 as
+/// area 71's dungeon leaves the game (block 9's `area 5` and scene),
+/// blocks 0-9 played and `eventStatus[0]` 2.
+fn event_218_arena() -> Option<Session> {
+    let iso = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/outbreak/outbreak.iso");
+    if !iso.exists() {
+        eprintln!("outbreak.iso not present; skipped");
+        return None;
+    }
+    let mut d = Iso::open(&iso).unwrap();
+    let archive = Arc::new(Archive::new(d.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let start = crate::start::build(&iso, 218).unwrap();
+    let mut state = start.state;
+    let f = state.save.event_flag(218);
+    state.save.set_event_flag(218, f | ((1 << 10) - 1));
+    state.save.set_u8(offset::EVENT_STATUS, 2);
+    let mut scene = piney_world::area::Scene::log_in(&mut state.save);
+    let wm = crate::area::story_world_man(&mut d, 71, false).unwrap();
+    let wm = crate::area::ev_area_number(&iso, 5, &wm, &state.save).unwrap();
+    scene.change_scene(1, 3, 5, -1, -1, -1, &mut state.save);
+    Some(Session::in_world(iso, archive, None, state, Some(start.vm), scene, Some(wm)).unwrap())
+}
+
+/// Gorre's protect is its brothers': a brother broken by Kite's blow
+/// breaks the other with it (`SendMessage`, `effProtect(other, 0, 2)`),
+/// so both show the break's picture; when the count runs out
+/// (`CalcRealEx`) the return's picture shows on both brothers, never on
+/// Gorre, whose body is not drawn.
+#[test]
+fn gorres_brothers_show_the_protect_break_and_return() {
+    let Some(mut s) = event_218_arena() else { return };
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let (mut came, mut broke) = (None, false);
+    let (mut breaks, mut returns): (BTreeMap<u32, u32>, BTreeMap<u32, u32>) = Default::default();
+    let mut brothers = Vec::new();
+    let mut gorre = None;
+    for n in 0..9000u32 {
+        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
+        s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &mut s.stage else { continue };
+        let census = a.world().fx().census();
+        let c = a.world_mut().combat_mut();
+        for &(_, k) in &c.members {
+            c.scene.chars[k].max_hp = 9999;
+            c.scene.chars[k].hp = 9999;
+        }
+        let Some(me) = c.boss_char() else { continue };
+        let i = n - *came.get_or_insert(n);
+        if i > 1200 {
+            break;
+        }
+        gorre = Some(me as u32);
+        brothers = c.boss.as_ref().map_or(Vec::new(), |r| r.parts.clone());
+
+        for &(id, t) in &census.effect_targets {
+            let Some(t) = t else { continue };
+            if BREAK.contains(&id) {
+                *breaks.entry(t).or_default() += 1;
+            }
+            if RETURN.contains(&id) {
+                *returns.entry(t).or_default() += 1;
+            }
+        }
+        // Kite's blow on the first brother once it is on the lists, then
+        // its hit as an affect (the brother's `Affect`, `SendMessage`).
+        if !broke
+            && i > 200
+            && let Some(&b0) = brothers.first()
+            && c.scene.listed(b0)
+            && (break_protect(c, b0, 1) || break_protect(c, b0, 193))
+        {
+            if let Some(b) = c.scene.chars[b0].foe_state_mut().and_then(|f| f.boss.as_mut()) {
+                b.queued.push((1, [10, 0, 0], c.kite));
+            }
+            broke = true;
+        }
+    }
+    println!("Gorre {gorre:?}, brothers {brothers:?}: breaks on {breaks:?}, returns on {returns:?}");
+    assert!(broke, "no brother was broken");
+    for b in &brothers {
+        let b = *b as u32;
+        assert!(breaks.get(&b).is_some_and(|&n| n > 30), "brother {b}: no break shown ({breaks:?})");
+        assert!(returns.get(&b).is_some_and(|&n| n > 30), "brother {b}: no return shown ({returns:?})");
+    }
+    let g = gorre.unwrap();
+    assert!(!breaks.contains_key(&g) && !returns.contains_key(&g), "a protect picture on Gorre itself");
 }
 
 /// Innis's class.

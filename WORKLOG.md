@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-411 entries: audio 36, battle 84, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 98, save 16, script 48, test 174, tooling 28, ui 93, video 16, volumes 81, world 117.
+412 entries: audio 36, battle 85, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 98, save 16, script 48, test 175, tooling 28, ui 93, video 16, volumes 82, world 117.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -423,3 +423,4 @@ The [reference](docs/README.md) says what is true now.
 | 409 | [Nothing piles up while Kite idles in a town: every town on every volume draws the same frame after 12,000 frames as after 3000, and Carmina Gadelica after 120,000](worklog/0409-nothing-piles-up-while-kite-idles-in-a-town-every-town-on.md) | 2026-10-14 | render, world, test |
 | 410 | [A boss's protect shows its return: its own CalcReal named it by 'me', which the field could not place, on every boss (#69)](worklog/0410-a-boss-s-protect-shows-its-return-its-own-calcreal-named-it.md) | 2026-10-21 | battle, world, test |
 | 411 | [Innis's magic shows its missiles: the crystals, bolts and fireballs fly with their trails and burst, its images' rings and shards and its particles are drawn (#69)](worklog/0411-innis-s-magic-shows-its-missiles-the-crystals-bolts-and.md) | 2026-10-21 | render, battle, test, tooling |
+| 412 | [Gorre's brothers show its protect's break and return: the other brother breaks with its picture, and CalcRealEx shows the return on both brothers, not on Gorre (#69)](worklog/0412-gorre-s-brothers-show-its-protect-s-break-and-return-the.md) | 2026-10-21 | battle, volumes, test |

@@ -2,7 +2,7 @@
 title: Bosses - Gorre
 status: partial
 volumes: OUT, INF
-covers: OUT gcmn.prg:0x004a9130-0x004b0b50 (boss05.cpp), 0x004a9130 ccBoss05::ccBoss05, 0x004a9650 CalcRealEx, 0x004a99a0 ExecPatternIndex, 0x004aa100 IsValidArea, 0x004aa210 Main, 0x004aa5f0 Move, 0x004aa6b0 ChangeAction, 0x004aa760 Think, 0x004aa8e0 OnThinkNeutral, 0x004aaa40 OnThinkDrain, 0x004aaaf0 OnThinkDead, 0x004aaf40 OnThinkEscape, 0x004ab210 OnThinkDmg, 0x004ab2e0 OnThinkKerse, 0x004aba30 OnThinkWander, 0x004abb90 OnThinkMagic, 0x004ac060 OnThinkDataDrainAtk, 0x004ac320 OnThinkDashCenter, 0x004ac5d0 OnThinkTornade, 0x004ac850 OnThinkSkill, 0x004acdf0 OnThinkTalk, 0x004ad0c0 OnThinkWave, 0x004ad320 OnThinkChase, 0x004ad5e0 OnThinkEpitaph, 0x004ad740 OnThinkEpitaphWave, 0x004ad980 Slave, 0x004ada60 EntrySlave, 0x004adbb0 SendMessage, 0x004ae990 ccBoss05Brother::Init, 0x004aed70 Move, 0x004aefb0 Main, 0x004af020 Think, 0x004af0e0 OnThinkNeutral, 0x004af1f0 OnThinkEpitaph, 0x004af300 OnThinkEpitaphWave, 0x004af8d0 OnThinkTornade, 0x004afe10 OnThinkWave, 0x004b0490 OnThinkDead, 0x004b05b0 Order, 0x004b07c0 Affect, 0x004b0b00 OnExit, 0x006dfd90 Think's jump table (@1462), 0x006dfdf0 OnThinkKerse's (@1644), 0x006dfe10 SendMessage's (@2268), 0x00618040 boss05NormalActTbl, 0x006180e0 boss05SuperActTbl, 0x006181b0 boss05EpitaphActTbl, 0x00618218 @1261, 0x00618230 @1672, 0x00618240 @1777, 0x00618250 @2074, 0x00384e80 ccBoss05's vtable, 0x00384de0 ccBoss05Brother's, 0x004700a0 ccBoss::OffBossCamera, 0x0046f9e0 ccBoss::InitBossCamera, 0x00472090 ccBossCam::ccBossCam; INF gcmn.prg:0x00497010-0x0049e590 (boss05.cpp), 0x005ebf10 Boss05AnmTbl, 0x005ebf80 boss05SlaveAnmTbl1, 0x005ebff0 boss05SlaveAnmTbl2, 0x005ec060 boss05NormalActTbl, 0x005ec100 boss05SuperActTbl, 0x005ec1c0 boss05EpitaphActTbl, 0x005ec228 @1261, 0x005ec240 @1672, 0x005ec250 @1777, 0x005ec260 @2074
+covers: OUT gcmn.prg:0x004a9130-0x004b0b50 (boss05.cpp), 0x004a9130 ccBoss05::ccBoss05, 0x004a9650 CalcRealEx, 0x004a99a0 ExecPatternIndex, 0x004aa100 IsValidArea, 0x004aa210 Main, 0x004aa5f0 Move, 0x004aa6b0 ChangeAction, 0x004aa760 Think, 0x004aa8e0 OnThinkNeutral, 0x004aaa40 OnThinkDrain, 0x004aaaf0 OnThinkDead, 0x004aaf40 OnThinkEscape, 0x004ab210 OnThinkDmg, 0x004ab2e0 OnThinkKerse, 0x004aba30 OnThinkWander, 0x004abb90 OnThinkMagic, 0x004ac060 OnThinkDataDrainAtk, 0x004ac320 OnThinkDashCenter, 0x004ac5d0 OnThinkTornade, 0x004ac850 OnThinkSkill, 0x004acdf0 OnThinkTalk, 0x004ad0c0 OnThinkWave, 0x004ad320 OnThinkChase, 0x004ad5e0 OnThinkEpitaph, 0x004ad740 OnThinkEpitaphWave, 0x004ad980 Slave, 0x004ada60 EntrySlave, 0x004adbb0 SendMessage, 0x004add68 SendMessage's effProtect, 0x004a980c CalcRealEx's effProtect, 0x004ae990 ccBoss05Brother::Init, 0x004aed70 Move, 0x004aefb0 Main, 0x004af020 Think, 0x004af0e0 OnThinkNeutral, 0x004af1f0 OnThinkEpitaph, 0x004af300 OnThinkEpitaphWave, 0x004af8d0 OnThinkTornade, 0x004afe10 OnThinkWave, 0x004b0490 OnThinkDead, 0x004b05b0 Order, 0x004b07c0 Affect, 0x004b0b00 OnExit, 0x006dfd90 Think's jump table (@1462), 0x006dfdf0 OnThinkKerse's (@1644), 0x006dfe10 SendMessage's (@2268), 0x00618040 boss05NormalActTbl, 0x006180e0 boss05SuperActTbl, 0x006181b0 boss05EpitaphActTbl, 0x00618218 @1261, 0x00618230 @1672, 0x00618240 @1777, 0x00618250 @2074, 0x00384e80 ccBoss05's vtable, 0x00384de0 ccBoss05Brother's, 0x004700a0 ccBoss::OffBossCamera, 0x0046f9e0 ccBoss::InitBossCamera, 0x00472090 ccBossCam::ccBossCam; INF gcmn.prg:0x00497010-0x0049e590 (boss05.cpp), 0x005ebf10 Boss05AnmTbl, 0x005ebf80 boss05SlaveAnmTbl1, 0x005ebff0 boss05SlaveAnmTbl2, 0x005ec060 boss05NormalActTbl, 0x005ec100 boss05SuperActTbl, 0x005ec1c0 boss05EpitaphActTbl, 0x005ec228 @1261, 0x005ec240 @1672, 0x005ec250 @1777, 0x005ec260 @2074
 worklog: 296, 297, 303
 ---
 
@@ -199,8 +199,9 @@ leaves them set: the next Tornade's first report ends it at once):
 
 Msg 0, by type: 1 and 3 (a hit) take the three's one HP - under `cheatHP`
 a tenth, never under half, and the broken protect shared (the struck
-brother's count is Gorre's, a fresh break of 300 breaks the other's, its
-gauge Gorre's and the other's); at 0 the boss camera off
+brother's count is Gorre's, a fresh break of 300 breaks the other's with
+its picture, `effProtect(other, 0, 2)` at 0x004add68, its gauge Gorre's
+and the other's); at 0 the boss camera off
 (`OffBossCamera`), the party's conditions cleared and the party held, the
 brothers untargetable, the music out and Gorre's Dead; else, if Gorre's
 own last affect type is 1 (never: nothing reaches Gorre), a hit act. A
@@ -208,6 +209,16 @@ hit with the gauge at half its maximum turns to the Super table. 7 and 9
 heal the three. 13 is the Drain (`ChangeAction(11, 2)`, `cheatHP` off).
 21 gives both brothers row 4's stats and Gorre's own `param`, the three
 at 6000 HP, their gauges -1.
+
+`CalcRealEx` (0x004a9650) is `ccChar::CalcReal` with Gorre's own row
+(`ccGetBossParam`), but when the broken protect's count runs out the
+return is shown on both brothers, each `effProtect(brother, 1, kind)` and
+`SetProtect(1, brother)` (0x004a980c, 0x004a9844), not on Gorre. The
+brothers' own `CalcReal` runs out a frame before Gorre's (the count is
+handed to them after Gorre's step), so each brother shows its own return
+and then Gorre's. In the port `gorre::calc_real_ex` moves the return onto
+the brothers; until worklog 412 the other brother's break and the
+brothers' returns from Gorre were not shown.
 
 ## Tables
 
@@ -228,6 +239,9 @@ the gauges through each character's own `param`, the lists, `MaxRenge`,
 the effects alive, the party, the calls, the menu, both generators. 0
 mismatches over `bulk 100` from 9900, 20000 and 40000 (every act but 1,
 2, 8, 11 (within a frame) and 15; 1 and 2 are unreachable, see above).
+`gorres_brothers_show_the_protect_break_and_return` (piney-game's
+`boss_fx`, Outbreak's event 218 in the arena) breaks one brother and
+checks both show the break and the returns, none on Gorre.
 `outbreak_story_survey` finishes event 218 (`PINEY_SURVEY_GOD=1`,
 150,000 frames): the shared gauge broken, a brother drained, the three
 down.

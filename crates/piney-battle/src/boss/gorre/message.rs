@@ -10,6 +10,7 @@ use super::{
     on_brother, target_ok,
 };
 use crate::boss::{Boss, Cx, Out, Tbl};
+use crate::event::{Event, Who};
 use crate::item;
 
 /// `@2074`: the spells a brother casts on Gorre's target 120 frames into
@@ -151,11 +152,15 @@ fn share_hp(x: &Gorre, me: usize, cx: &mut Cx, hp: i16) {
 }
 
 /// A hit under `cheatHP`: the struck brother's broken-protect count is
-/// Gorre's; at a fresh break (300) the other's protect breaks with it; its
-/// gauge is Gorre's and the other's.
+/// Gorre's; at a fresh break (300) the other's protect breaks with it, its
+/// picture too (`effProtect(other, 0, 2)`, OUT gcmn 0x004add68); its gauge
+/// is Gorre's and the other's.
 fn share_protect(x: &Gorre, me: usize, from: usize, cx: &mut Cx) {
     let (bm, other) = (x.brothers[from].me, x.brothers[1 - from].me);
     let Some((pp, count)) = cx.scene.chars[bm].foe_state().map(|f| (f.pp, f.pp_count)) else { return };
+    if count == 300 {
+        cx.ev.push(Event::Protect { on: Who::Char(other), broken: 0, kind: 2 });
+    }
     let chars = &mut cx.scene.chars;
     if count >= 0
         && let Some(f) = chars[me].foe_state_mut()

@@ -18,6 +18,7 @@ use self::brother::Brother;
 use super::kyvia::Part;
 use super::{Boss, Class, Cx, EffKind, Out, PI, TWO_PI, Tbl, VF0};
 use crate::enemy_ai::get_dirc;
+use crate::event::{Event, Who};
 use crate::geom::{self, V4};
 use crate::item;
 
@@ -392,7 +393,7 @@ pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
 /// protect's count on), `Move`, the count handed to both brothers.
 fn frame(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     let me = cx.me;
-    b.calc_real(cx);
+    calc_real_ex(b, x, cx);
     calc_target_info(b, cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;
@@ -440,6 +441,29 @@ fn frame(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     for p in &x.brothers {
         if let Some(f) = cx.scene.chars[p.me].foe_state_mut() {
             f.pp_count = count;
+        }
+    }
+}
+
+/// `ccBoss05::CalcRealEx(0)` (OUT gcmn 0x004a9650): `CalcReal`'s, but
+/// the protect's return is shown on both brothers, each with its
+/// `SetProtect` (`effProtect(brother, 1, kind)`, 0x004a980c, 0x004a9844),
+/// not on Gorre, whose body is not drawn.
+fn calc_real_ex(b: &mut Boss, x: &Gorre, cx: &mut Cx) {
+    let me = cx.me;
+    let from = cx.ev.len();
+    b.calc_real(cx);
+    let raised: Vec<Event> = cx.ev.drain(from..).collect();
+    for e in raised {
+        match e {
+            Event::Protect { on: Who::Char(c), broken, kind } if c == me => {
+                for p in &x.brothers {
+                    cx.ev.push(Event::Protect { on: Who::Char(p.me), broken, kind });
+                    cx.ev.push(Event::SetProtect { state: 1, on: Who::Char(p.me) });
+                }
+            }
+            Event::SetProtect { on: Who::Char(c), .. } if c == me => {}
+            e => cx.ev.push(e),
         }
     }
 }

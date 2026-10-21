@@ -250,6 +250,7 @@ impl FieldFx for AreaFx {
     fn census(&self) -> piney_world::field_world::FxCensus {
         piney_world::field_world::FxCensus {
             effects: self.fx.ctrl.effects.iter().filter(|e| e.status != 0).map(|e| e.id).collect(),
+            effect_targets: (self.fx.ctrl.effects.iter()).filter(|e| e.status != 0).map(|e| (e.id, e.target)).collect(),
             particles: self.fx.particles.live().count(),
             weapon_generators: (self.fx.particles.gens.iter())
                 .filter(|g| matches!(g.sync_sw, Some(piney_effect::IntRef::CharAt(_, piney_effect::ARMS_SW))))
