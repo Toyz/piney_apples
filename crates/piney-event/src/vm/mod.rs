@@ -239,6 +239,18 @@ impl EventMng {
         self.status = 0;
     }
 
+    /// `ccRegisterEventMng`'s count (MUT main 0x001cc480, after the town's
+    /// pass at phase 0): `registNpcNum` (`regist_npc16`'s 16, else 0) and
+    /// one for each town NPC entry (`1 << type & 0x18`: types 3 and 4),
+    /// kept. The game then adds `ccSpcManager.registryNum` (0x001cc6f4)
+    /// and hands the sum to `ccRegisterRandomNpc`; the port adds it at the
+    /// draw (`World::place_entries`), once the entries' members are in.
+    pub fn register_npcs(&mut self) -> i32 {
+        let npcs = self.entries.iter().filter(|e| matches!(e[0], 3 | 4)).count();
+        self.regist_npc_num += npcs as i32;
+        self.regist_npc_num
+    }
+
     /// `ccEvent::AddOperate(num, except, sf)`.
     pub fn add_operate(&mut self, num: i32, except: i32, sf: bool) {
         let (lo, hi) = if sf { (19, 29) } else { (0, 18) };

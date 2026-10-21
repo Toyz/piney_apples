@@ -236,7 +236,8 @@ fn talking_to_the_recorder() {
 
 /// The entry control's set-up: an event's town PC and the Administrator
 /// first (each at its marker), the five merchants, then the walking PCs
-/// `ccRegisterRandomNpc` chose with Kite and the three entries counted (12):
+/// `ccRegisterRandomNpc` chose with Kite and the three entries counted (12,
+/// `ccRegisterEventMng`'s count handed in as the town's set-up does):
 /// `entry 4 40` makes nothing but counts all the same. Bodies go on the
 /// character list in that order, Kite's after them once he has arrived.
 #[test]
@@ -247,6 +248,7 @@ fn the_entry_controls_set_up() {
     assert!(world.entry(3, 40, 3, 0));
     assert!(world.entry(4, 29, 5, 0));
     assert!(!world.entry(4, 40, 5, 0), "ccSetMerchant makes only 29 and 158");
+    world.set_regist_npc_num(3);
     assert!(world.merchants().is_empty() && world.pcs().is_empty());
     let mut pad = Pad::default();
     for _ in 0..(FADE_FRAMES + HOLD_FRAMES + 1) {

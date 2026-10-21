@@ -839,7 +839,7 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
     use piney_world::navi::{Navi, NaviMap};
     use piney_world::rtownpc;
     let n = |i: usize| hex(w[i]);
-    let ours = ["pcsel", "pcroute", "pcstart", "pcpad", "pchit", "pcinfl", "pcadd", "pcev", "pcpos"];
+    let ours = ["pcsel", "pcreserve", "pcroute", "pcstart", "pcpad", "pchit", "pcinfl", "pcadd", "pcev", "pcpos"];
     if !ours.contains(&cmd) && !matches!(cmd, "pcsearch" | "pcrace" | "pcstatus" | "pcsearchat") {
         return false;
     }
@@ -857,6 +857,16 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             let rows = rtownpc::register_random_npc(&mut mt, n(2) as i32, &pool);
             let next = mt.rand();
             println!("{{\"rows\": {}, \"next\": {}}}", list(&rows.map(|r| i32::from(r) as u32)), next as u32);
+        }
+        // `pcreserve REGIST REGISTRY T0..T15`: what `ccRegisterEventMng`
+        // hands `ccRegisterRandomNpc`, the entries' types (-1 free).
+        "pcreserve" => {
+            let mut mng = piney_event::vm::EventMng { regist_npc_num: n(1) as i32, ..Default::default() };
+            for (e, k) in mng.entries.iter_mut().zip(3..) {
+                e[0] = n(k) as i16;
+            }
+            let reserved = mng.register_npcs() + n(2) as i32;
+            println!("{{\"reserved\": {}}}", reserved as u32);
         }
         "pcroute" => {
             let map = NaviMap::read(volume, 0, town01).unwrap();

@@ -387,6 +387,9 @@ impl WorldMode {
                     return;
                 }
                 if p == 0 {
+                    // ccSetFileListTown's ccRegisterEventMng(0), between the
+                    // passes: the count the walking PCs' draw reserves.
+                    self.world.set_regist_npc_num(vm.mng.register_npcs());
                     vm.enable(2);
                     self.setup = Setup::Pass(2);
                     self.pass_frames = 0;

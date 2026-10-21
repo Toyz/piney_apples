@@ -259,8 +259,8 @@ pub struct World {
     rand_count: u32,
     town_pcs: Option<Rc<std::cell::RefCell<rtownpc::TownPcs>>>,
     /// Town NPC entries (`entry 3|4 code marker`) waiting for the entry
-    /// control's set-up, and whether it has run; `registNpcNum`'s count of
-    /// them (`ccRegisterEventMng`: every one, made or not).
+    /// control's set-up, and whether it has run; `registNpcNum` as
+    /// `ccRegisterEventMng` left it ([`World::set_regist_npc_num`]).
     event_npcs: Vec<EventEntry>,
     regist_npc_num: i32,
     placed: bool,
@@ -703,7 +703,7 @@ impl World {
         self.reboot();
         self.placed = true;
         self.place_spc_entries();
-        let reserved = 1 + self.party.members().count() as i32 + self.regist_npc_num;
+        let reserved = self.spcs.registry_num + self.regist_npc_num;
         let mut mt = mt::Mt::init(self.rand_count);
         let no = self.town.base.no;
         let server = area::SERVER_OF_TOWN.get(no as usize).copied().unwrap_or(0);
@@ -787,13 +787,18 @@ impl World {
         Ok(())
     }
 
+    /// `eventMng.registNpcNum` after `ccRegisterEventMng` (MUT main
+    /// 0x001cc480): `regist_npc16`'s 16 and the town NPC entries of the
+    /// pass at phase 0. [`World::place_entries`] reserves it and the
+    /// registry's characters before drawing the walking PCs.
+    pub fn set_regist_npc_num(&mut self, n: i32) {
+        self.regist_npc_num = n;
+    }
+
     /// An event's town NPC entry: queued for [`World::place_entries`], or
     /// placed at once (at the list's end) once it has run. False when the
     /// entry control makes nothing of it ([`npc::NpcRow::event_class`]).
     pub(crate) fn entry_npc(&mut self, ty: i16, code: i16, marker: i16, param: i16) -> bool {
-        if !self.placed {
-            self.regist_npc_num += 1;
-        }
         let row = usize::try_from(code).ok().and_then(|r| npc::NpcRow::of(self.volume, r).ok());
         let Some(class) = row.and_then(|row| row.event_class(ty)) else { return false };
         let search = self.volume != piney_data::volume::Volume::Inf && ty == 3 && param == -1;

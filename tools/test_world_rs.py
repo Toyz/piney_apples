@@ -2576,12 +2576,45 @@ class TownPcsAgainstGame(unittest.TestCase):
     def setUpClass(cls):
         build()
 
+    def test_reserved(self):
+        """ccRegisterEventMng(0) (the town's, between the passes) beside EventMng::register_npcs and
+        the registry's count: what it hands ccRegisterRandomNpc and leaves in registNpcNum, for
+        registNpcNum 0 and 16 (regist_npc16, issue #70), entries of every type, registry counts."""
+        g = TownPcsRun()
+        m, sym = g.m, g.sym
+        seen = []
+        for name in ("ccInitRegisterAll__Fv", "ccRegisterDifficultyEnemy__Fv", "ccRegisterRegularGimmick__Fv",
+                     "ccRegisterRegularNpc__Fv", "ccRegisterEnemyOne__Fi", "ccSetFileListBoss__Fi",
+                     "ccRegisterNpc__Fi", "ccRegisterGimmick__Fi", "EntrySpc__5ccSPCFi"):
+            m.hooks[sym(name)] = lambda mm, *a: 0
+        m.hooks[sym("ccRegisterRandomNpc__Fi")] = lambda mm, n, *a: seen.append(n & 0xFFFFFFFF) or 0
+        registry = sym("ccSpcManager") + 0xDC
+        rng = random.Random(70)
+        cases = [(16, 2, [4] + [-1] * 15), (16, 2, [2, 3, 3, 3, 3, 3, 3] + [-1] * 9), (0, 1, [-1] * 16)]
+        cases += [(rng.choice([0, 16]), rng.randrange(1, 4), [rng.choice([-1, -1, 0, 1, 2, 3, 4, 5, 7])
+                                                              for _ in range(16)]) for _ in range(60)]
+        got = ask(["pcreserve %x %x %s" % (r, n, hexs(*types)) for r, n, types in cases])
+        for (regist, num, types), port in zip(cases, got):
+            m.mem[EV:EV + 0x200] = bytes(0x200)
+            m.store(EV + 0x1C, 4, regist)
+            for k, t in enumerate(types):
+                m.store(EV + 0x80 + 8 * k, 2, t & 0xFFFF)
+            m.store(GAME + 0x24, 4, 0)
+            m.store(registry, 4, num)
+            seen.clear()
+            g.call("ccRegisterEventMng__Fi", 0)
+            self.assertEqual(len(seen), 1, (regist, num, types))
+            self.assertEqual({"reserved": seen[0]}, port, (regist, num, types))
+            # The game keeps the whole count, the registry's added (MUT 0x001cc6f4).
+            self.assertEqual(m.load(EV + 0x1C, 4), seen[0])
+
     def test_select(self):
         """ccInitRand then ccRegisterRandomNpc beside rtownpc::register_random_npc: the rows, slot by
-        slot, and the Mersenne Twister's next draw, for frame counts and reserved rows."""
+        slot, and the Mersenne Twister's next draw, for frame counts and reserved rows (17 and 19:
+        regist_npc16's 16 with the Administrator, and with Kite and a member, issue #70)."""
         g = TownPcsRun()
         rng = random.Random(51)
-        cases = [(c, r) for c in (0, 1, 2, 623, 624, 625, 1247, 5000) for r in (0, 1, 2, 3, 15, 16)]
+        cases = [(c, r) for c in (0, 1, 2, 623, 624, 625, 1247, 5000) for r in (0, 1, 2, 3, 15, 16, 17, 19)]
         cases += [(rng.randrange(0, 200000), rng.choice([0, 1, 1, 2, 2, 5])) for _ in range(120)]
         if LATER:
             # From Mutation on: fewer PCs by server, and the rows past the fifty as their events are done.

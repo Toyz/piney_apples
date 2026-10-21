@@ -6945,6 +6945,9 @@ mod tests {
     /// Issue #68: Kite's line over him at the town's party call.
     mod party_call;
 
+    /// Issue #70: Mutation's shutdown empties Carmina Gadelica.
+    mod shutdown;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

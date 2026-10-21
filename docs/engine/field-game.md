@@ -944,8 +944,9 @@ The other "players" wandering Mac Anu are `ccRtownPC`s (gcmn rtownnpc.cpp,
   game's MT19937 with 4352 and draws it `ccSys+0x358` times (frames since
   boot). `ccRegisterRandomNpc(n)` (main 0x001b7660) then takes `16 - n`
   distinct `npcTbl` rows `30 + |ccRand() % 50|` (the next free row on a
-  repeat), `n` the event's NPCs plus the registered party: 15 PCs for
-  Kite alone, 14 with event 2's Orca.
+  repeat), `n` what `ccRegisterEventMng` counted: `registNpcNum`, the
+  event's town NPCs and `registryNum` (15 PCs for Kite alone, 14 with
+  event 2's Orca, none after `regist_npc16`).
 - Where: `ccEntryRandomNpc` (main 0x001b6cf0), after the merchants and the
   gate, gives slot `k` to `ccSetRtownPC(row, k)` (gcmn 0x00506640):
   `markPosTbl[k][town]` (0x005ee120) names four landmarks - the start, the
@@ -1021,6 +1022,29 @@ Quarantine's, recompiled, do the same) differs as follows.
     `effVirusCrystal` and `ccSeOn3DNote(167, pos, 40)`. It then fades over
     30 frames through `routine` and hides after 33. `npc_act 6` hides it.
 
+#### Mutation's shutdown
+
+After Innis, Lios forces a system shutdown (event 107, message 9), and
+Kite asks "Where's everyone else?". Only Carmina Gadelica empties:
+
+- Event 107's block 23 (in town 2, phase 0, status 3 or more) enters the
+  Administrator (`entry 4 29`) and runs `regist_npc16`. Its tour (block
+  24) shows the empty town. Block 26 closes the gate and the town's
+  other ways out (`add_operate` 7 and 6: "currently unavailable due to
+  maintenance"); logging out (operate 8) ends the event.
+- Event 108's block 6 (town 2, phase 0, status 1: from mail 38 until
+  block 23 sets 2 after the fight in field 9) enters Mistral (`entry 2
+  16`) and six PCs, rows 122-127 at markers 7-12 ("everyone here is all
+  weird"), then `regist_npc16`.
+- So `ccRegisterRandomNpc` gets at least 16 + 1 + the registry and draws
+  no walker there. No other event uses the op: Mac Anu and Dun Loireag
+  walk as usual through both events, as the issue's shot shows.
+
+The port: `EventMng::register_npcs` keeps the count between the passes
+(`WorldMode`'s set-up), `World::set_regist_npc_num` takes it, and
+`World::place_entries` adds `Spcs::registry_num`. Before issue #70 the
+op set the event manager's count and nothing read it.
+
 The routes (gcmn `ccnavi.cpp`, tables in `navitbl.cpp`): a town is a
 graph of numbered landmarks (`naviMapTown1`-`5`, gcmn 0x006144a0...,
 `ccLandmark` 0x30 bytes), each at a dummy of the town's file
@@ -1081,7 +1105,11 @@ Administrator's `ccMerchan` too. When one is made (non-null), its `pos`
 0, else in a town the marker dummy's position and whole rotation (w 0), in
 a field or dungeon the event position below. `ccRegisterEventMng` (INF
 main 0x001b6d70, MUT 0x001cc480) counts every type 3/4 entry into
-`registNpcNum`, made or not, before `ccRegisterRandomNpc`. From Mutation
+`registNpcNum`, made or not, before `ccRegisterRandomNpc`. It runs between
+the passes (`ccSetFileListTown`, after phase 0), on what `registNpcNum`
+holds then: 0 from `ccStartThEvent`, or 16 after `regist_npc16` (op 143),
+which leaves no walking PC. Every volume's events 107 and 108 use it, in
+the town they name ([Mutation's shutdown](#mutations-shutdown)). From Mutation
 on, a type 3 with `param` -1 goes instead to a set-up of its own (MUT gcmn
 0x00521e50, the SEARCH events' named PCs, rows 159-167) and is not moved
 to a marker ([From Mutation on](#from-mutation-on)).
