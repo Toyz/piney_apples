@@ -6831,6 +6831,9 @@ mod tests {
     /// Issues #16 and #67: members who leave by an event's `pc_act 5`.
     mod party_leave;
 
+    /// Issue #66: a PC's fight in an event's show, its hit marks on it.
+    mod show_fight;
+
     /// Issues #14 and #15: a member felled and revived, the markers.
     mod revive;
 

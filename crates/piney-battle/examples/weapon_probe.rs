@@ -4,7 +4,8 @@
 //! over `ccEnemyWpInfo` rows), `chunk` (a chunk's place and turn), `mat` (the
 //! node's matrix), `note` and `ctrl` (with `AT = DISP ACT CNT ATK ATTR` and
 //! the camera's rotation). Each line answers `{"w": [weapon...], "out":
-//! [...]}`. ccTransPosFW2LW is (x + 0.5, y - 0.25, z, w), as the harness hooks it.
+//! [...]}`; `cont` (makePacket's test on a pair) answers `{"cont": bool}`.
+//! ccTransPosFW2LW is (x + 0.5, y - 0.25, z, w), as the harness hooks it.
 
 use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
@@ -192,6 +193,15 @@ fn main() {
             Some("ctrl") => {
                 world.cam = std::array::from_fn(|i| hexw(t[6 + i]));
                 ctrl.ctrl(&at(&t[1..6]), &mut world, &mut out);
+            }
+            // `cont CONT X0 Y0 Z0 X1 Y1 Z1` (hex words): makePacket's test.
+            Some("cont") => {
+                let w = |k: usize| hexw(t[k]) as i32;
+                let pair = [[w(2), w(3), w(4), 0], [w(5), w(6), w(7), 0]];
+                let on = piney_battle::prim::pair_continues(pair, t[1] == "1");
+                writeln!(stdout, "{{\"cont\":{on}}}").unwrap();
+                stdout.flush().unwrap();
+                continue;
             }
             _ => continue,
         }

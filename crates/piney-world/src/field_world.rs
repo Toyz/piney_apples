@@ -3027,11 +3027,13 @@ impl FieldWorld {
         }
     }
 
-    /// `ccPrimRadiate::disp` of the boxes' and idols' rays: each ray's four
-    /// points through `sceVu0RotTransPers(world_screen)`, a gouraud strip
-    /// (`cczGsPrimPoly`, PRIM 0x4c) with its points' colours, blended
-    /// `(Cs - Cd) As + Cd` (ALPHA 0x44), depth-tested GREATER with no
-    /// depth write (TEST 0x73001, ZMSK), on `refLayer` (priority 30).
+    /// `ccPrimRadiate::disp` of the boxes', idols' and enemy weapons' rays:
+    /// each ray's four points through `sceVu0RotTransPers(world_screen)`, a
+    /// gouraud strip (`cczGsPrimPoly`, PRIM 0x4c) blended `(Cs - Cd) As +
+    /// Cd` (ALPHA 0x44), depth-tested GREATER with no depth write (TEST
+    /// 0x73001, ZMSK), on `refLayer` (priority 30). Its two `makePacket`
+    /// calls start the strip with the inner pair; the outer pair kicks the
+    /// ray's two triangles only where `pair_continues` holds.
     fn draw_rays(&self, ctx: &mut Ctx) {
         use piney_desktop::view::{XYOFFSET_X, XYOFFSET_Y};
         use piney_draw::{
@@ -3052,18 +3054,20 @@ impl FieldWorld {
         let mut group = Vec::new();
         for rays in &self.combat.rays {
             for r in rays {
+                let p = r.map(|v| ee::rot_trans_pers(&ws, v.pos));
+                if !piney_battle::prim::pair_continues([p[2], p[3]], true) {
+                    continue;
+                }
                 let verts = r
                     .iter()
-                    .map(|v| {
-                        let p = ee::rot_trans_pers(&ws, v.pos);
-                        Vertex {
-                            x: p[0].wrapping_sub(XYOFFSET_X) as f32 / 16.0,
-                            y: p[1].wrapping_sub(XYOFFSET_Y) as f32 / 16.0,
-                            z: p[2] as u32,
-                            u: 0.0,
-                            v: 0.0,
-                            rgba: Rgba(v.color.to_le_bytes()),
-                        }
+                    .zip(p)
+                    .map(|(v, p)| Vertex {
+                        x: p[0].wrapping_sub(XYOFFSET_X) as f32 / 16.0,
+                        y: p[1].wrapping_sub(XYOFFSET_Y) as f32 / 16.0,
+                        z: p[2] as u32,
+                        u: 0.0,
+                        v: 0.0,
+                        rgba: Rgba(v.color.to_le_bytes()),
                     })
                     .collect();
                 group.push(Cmd::Prim(Prim { kind: PrimKind::Strip, gouraud: true, state: state.clone(), verts }));
@@ -3099,11 +3103,7 @@ impl FieldWorld {
         // A pair's two vertices and whether they draw (no ADC).
         let pair = |q: &piney_battle::weapon::Pair| {
             let p = q.pos.map(|v| ee::rot_trans_pers(&ws, v));
-            // addiu -0x8000, newlib abs, slti: the EE's wrapping words (a
-            // point far off saturates cvt.w.s).
-            let far = |x: i32, lim: i32| x.wrapping_sub(0x8000).wrapping_abs() > lim;
-            let off = |k: usize, lim: i32| far(p[0][k], lim) && far(p[1][k], lim);
-            let draws = q.cont && p[0][2] >= 0 && p[1][2] >= 0 && !off(0, 5632) && !off(1, 4608);
+            let draws = piney_battle::prim::pair_continues(p, q.cont);
             let v = |k: usize| Vertex {
                 x: p[k][0].wrapping_sub(XYOFFSET_X) as f32 / 16.0,
                 y: p[k][1].wrapping_sub(XYOFFSET_Y) as f32 / 16.0,

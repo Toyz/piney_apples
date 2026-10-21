@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-415 entries: audio 36, battle 86, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 99, save 16, script 49, test 177, tooling 28, ui 94, video 16, volumes 82, world 118.
+416 entries: audio 36, battle 87, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 100, save 16, script 50, test 177, tooling 28, ui 94, video 16, volumes 82, world 118.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -427,3 +427,4 @@ The [reference](docs/README.md) says what is true now.
 | 413 | [Innis's HP on the target window is the game's: from 10000 maxHP the game spells the last four digits through cheatHpStr, so 29884/30000 reads ':%%4/0000' (#69)](worklog/0413-innis-s-hp-on-the-target-window-is-the-game-s-from-10000.md) | 2026-10-21 | ui, test |
 | 414 | [Each of Innis's magics names its own missiles, unforced: Absolute Zero throws ice, Thunder Trance lightning, Demon Fire fire (#69)](worklog/0414-each-of-innis-s-magics-names-its-own-missiles-unforced.md) | 2026-10-21 | battle, test |
 | 415 | [Moonstone leaves event 162 in the swirls: the effects' camera cone is the active camera's, ecam under an event's camera, not tcam (#67)](worklog/0415-moonstone-leaves-event-162-in-the-swirls-the-effects-camera.md) | 2026-10-21 | world, render, script |
+| 416 | [Event 155's weapon flashes behind the camera stay off Kite: a ray's outer pair kicks only where makePacket would, in front of the eye and on the screen (#66)](worklog/0416-event-155-s-weapon-flashes-behind-the-camera-stay-off-kite.md) | 2026-10-21 | battle, render, script |

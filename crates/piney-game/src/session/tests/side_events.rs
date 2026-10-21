@@ -1,11 +1,13 @@
-//! Surveys of the side events where they play: Infection's (S1, 50-62) and
-//! Outbreak's (S3, 250-275, and the S4 table's 361, which opens on 201).
+//! Surveys of the side events where they play: Infection's (S1, 50-62),
+//! two of Mutation's (155, 162) and Outbreak's (S3, 250-275, and the S4
+//! table's 361, which opens on 201).
 //! Each from its main event's start, the side events it needs brought
 //! forward, its blocks before the first one set in a field or dungeon (else
 //! a town) marked run, put there with the members it asks for, then driven
 //! by the story autopilot following it alone. Diagnostics (`--ignored
 //! --nocapture`, best with `PINEY_SURVEY_GOD`): `side_event_survey`,
-//! `outbreak_side_event_survey`; the story survey's other variables too.
+//! `mutation_side_event_survey`, `outbreak_side_event_survey`; the story
+//! survey's other variables too.
 
 use std::path::Path;
 
@@ -17,8 +19,8 @@ use super::*;
 
 /// A side event: its number, the story start it plays from (the one after
 /// the last main event it opens on), and the side events it needs done.
-struct Case {
-    event: i32,
+pub(super) struct Case {
+    pub(super) event: i32,
     story: i32,
     done: &'static [i32],
 }
@@ -67,6 +69,12 @@ const OUT_CASES: &[Case] = &[
     Case { event: 275, story: 204, done: &[267, 268, 269, 270, 271, 272, 273, 274] },
     Case { event: 361, story: 202, done: &[264] },
 ];
+
+/// Mutation's that issues #66 and #67 met: Nuke Usagimaru's show (155)
+/// and Moonstone's quest (162), which `eventStatus[3]` 3 opens: 155, 157
+/// and 159 each add one.
+pub(super) const MUT_CASES: &[Case] =
+    &[Case { event: 155, story: 104, done: &[] }, Case { event: 162, story: 104, done: &[155, 157, 159] }];
 
 /// Key items (category 15) an earlier volume's side event gives, which a
 /// carried save holds: (the event that checks, the item). Mutation's
@@ -196,7 +204,7 @@ fn place(iso: &Path, start: &mut crate::start::Start, n: i32, done: &[i32]) -> O
 /// What a survey run saw: the block it was placed from, the event's flags,
 /// the entries, its windows, the places, whether the event point's room was
 /// reached, what the pilot still wanted, what played, and when it ended.
-struct Seen {
+pub(super) struct Seen {
     b0: usize,
     at: Spot,
     flags: u64,
@@ -233,6 +241,18 @@ fn lone_level(s: &mut Session) {
 /// One side event played for `frames` frames, with the survey's aids when
 /// `god` (the party kept up, the infection at 0, the levels for a boss).
 fn play(disc: &str, iso: &Path, case: &Case, frames: u64, god: bool) -> Option<Seen> {
+    play_with(disc, iso, case, frames, god, &mut |_, _, _| {})
+}
+
+/// [`play`], `each` shown every frame after its step.
+pub(super) fn play_with(
+    disc: &str,
+    iso: &Path,
+    case: &Case,
+    frames: u64,
+    god: bool,
+    each: &mut dyn FnMut(&mut Session, &Frame, u64),
+) -> Option<Seen> {
     let n = case.event;
     let mut placed = None;
     let mut s = story_session_on(disc, case.story, |start| placed = place(iso, start, n, case.done))?;
@@ -284,8 +304,9 @@ fn play(disc: &str, iso: &Path, case: &Case, frames: u64, god: bool) -> Option<S
         let raw = pilot.next(&s, f);
         pilot.after(&mut s);
         pad.read(&raw);
-        s.step(&pad);
+        let frame = s.step(&pad);
         s.take_events();
+        each(&mut s, &frame, f);
         if hits {
             log_hits(&s, f, &mut foes);
         }
@@ -467,6 +488,13 @@ fn side_event_survey() {
 #[ignore]
 fn outbreak_side_event_survey() {
     side_survey("outbreak", OUT_CASES, 30_000);
+}
+
+/// Mutation's, as [`side_event_survey`].
+#[test]
+#[ignore]
+fn mutation_side_event_survey() {
+    side_survey("mutation", MUT_CASES, 30_000);
 }
 
 /// Outbreak's disc, when present.

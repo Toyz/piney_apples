@@ -27,6 +27,11 @@ each step every weapon (flags, element, shares, the list, each cell and
 its points, the flash with its parts and light) and what the step put
 out (the makePacket calls in order, the lights, the rays) are compared.
 
+MakePacketAgainstGame runs the game's own ccPrimPacket::makePacket on
+pairs of screen words (behind the eye, far off, at the bounds) and compares
+the ADC it writes with the port's pair_continues (issue #66: a flash behind
+the eye kicked its rays mirrored onto the screen).
+
 Skipped when the disc is not extracted or cargo is missing.
 """
 
@@ -521,6 +526,59 @@ class EnemyWeaponAgainstGame(unittest.TestCase):
         print("makePacket calls %(mp)d, flash frames %(rays)d, flashes out %(light_off)d, notes %(notes)d" % seen)
         # The trails were drawn and the flashes shone and went out.
         self.assertTrue(all(v > 0 for v in seen.values()), seen)
+
+
+
+@unittest.skipUnless(os.path.exists(ELF) and shutil.which("cargo"), "needs the extracted disc and cargo")
+class MakePacketAgainstGame(unittest.TestCase):
+    """ccPrimPacket::makePacket (gcmn 0x00438580) run natively: a packet
+    at WORK (index 0, stride 0, no pairs yet), the pair's two screen points
+    and colours, `cont` 0 or 1; the ADC word it writes at +0x7c and +0x9c
+    (0x8000 set, 0 kicks) against the probe's `cont`."""
+
+    @classmethod
+    def setUpClass(cls):
+        subprocess.run([shutil.which("cargo"), "build", "--release", "-q", "-p", "piney-battle", "--example",
+                        "weapon_probe"], cwd=ROOT, check=True)
+        cls.game = Game()
+        cls.game.m.hooks.pop(cls.game.sym("makePacket__12ccPrimPacketF5cczQW5cczQW5cczQW5cczQWi"), None)
+        cls.probe = Probe()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.probe.close()
+
+    def adc(self, a, b, cont):
+        g, m = self.game, self.game.m
+        pk, pts, buf = CTRL, CTRL + 0x40, WORK
+        g.put(pk, "<5I", 0, 0, 0, 0, buf)
+        g.put(pts, "<4I", *[v & 0xFFFFFFFF for v in a] + [0])
+        g.put(pts + 0x10, "<4I", *[v & 0xFFFFFFFF for v in b] + [0])
+        g.put(pts + 0x20, "<4I", 0x80FFFFFF, 0, 0, 0)
+        g.put(pts + 0x30, "<4I", 0x80FFFFFF, 0, 0, 0)
+        m.call(g.sym("makePacket__12ccPrimPacketF5cczQW5cczQW5cczQW5cczQWi"),
+               (pk, pts, pts + 0x20, pts + 0x10, pts + 0x30, cont))
+        words = (m.load(buf + 0x7C, 4), m.load(buf + 0x9C, 4))
+        self.assertEqual(words[0], words[1])
+        self.assertIn(words[0], (0, 0x8000))
+        return words[0] == 0
+
+    def test_pairs(self):
+        rng = random.Random(66)
+        edge = [0x8000 - 5633, 0x8000 - 5632, 0x8000 + 5632, 0x8000 + 5633, 0x8000 - 4609, 0x8000 - 4608,
+                0x8000 + 4608, 0x8000 + 4609, -0x80000000, 0x7FFFFFFF, 0, 0x8000]
+        cases = 0
+        for _ in range(4000):
+            def pt():
+                xy = [rng.choice(edge) if rng.random() < 0.3 else rng.randint(0x8000 - 9000, 0x8000 + 9000)
+                      for _ in range(2)]
+                return xy + [rng.choice([-1, 0, 1, -21314540, 149358496, rng.randint(-2**31, 2**31 - 1)])]
+            a, b, cont = pt(), pt(), rng.randint(0, 1)
+            want = self.adc(a, b, cont)
+            got = self.probe.ask("cont %d %s" % (cont, " ".join("%x" % (v & 0xFFFFFFFF) for v in a + b)))["cont"]
+            self.assertEqual(want, got, "pair %r %r cont %d" % (a, b, cont))
+            cases += 1
+        print("makePacket pairs %d" % cases)
 
 
 if __name__ == "__main__":

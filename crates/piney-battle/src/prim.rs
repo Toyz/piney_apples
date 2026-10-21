@@ -87,6 +87,18 @@ pub const BOX_RAD_INFO: RadInfo =
 pub const GIM_RAD_INFO: RadInfo =
     RadInfo { ty: 4, pnum: 32, center: 0, length: 0, width: 0, fzoom: 0, col0: 0, col1: 0 };
 
+/// `ccPrimPacket::makePacket(a, ca, b, cb, cont)` (gcmn 0x00438580): does
+/// the pair of screen points (`sceVu0RotTransPers`'s words) kick the strip
+/// on? Not when `cont` is false (a run's start), either point is behind the
+/// eye (z < 0), or both are more than 5632 across from the centre (0x8000)
+/// or both 4608 down: then both carry ADC and no triangle is drawn.
+pub fn pair_continues(pair: [[i32; 4]; 2], cont: bool) -> bool {
+    // addiu -0x8000, newlib abs, slti 5633: the EE's wrapping words.
+    let far = |x: i32, lim: i32| x.wrapping_sub(0x8000).wrapping_abs() > lim;
+    let off = |k: usize, lim: i32| pair.iter().all(|p| far(p[k], lim));
+    cont && pair.iter().all(|p| p[2] >= 0) && !off(0, 5632) && !off(1, 4608)
+}
+
 /// One point of a ray (`ccPrimPart` +0x10 + 0x30 i): its colour (+4, RGBA
 /// with the alpha in the top byte) and position (+0x10).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

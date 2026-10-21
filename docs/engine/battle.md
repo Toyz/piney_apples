@@ -3316,6 +3316,12 @@ edge's run, when either point is behind the eye, when both points are more
 than 5632 (352 pixels) across from the screen's centre (0x8000), or when
 both are more than 4608 (288 pixels) down from it. The depth sort takes
 the points' mean z. `sendPacket` (0x00438820) sends nothing under 2 pairs.
+`ccPrimRadiate::disp` (0x00439df0) hands each ray's inner pair with `cont`
+0 and its outer pair with 1, so a ray's two triangles are drawn only when
+its outer points are in front of the eye and on the screen. A flash
+behind the camera draws nothing; the port drew every ray, and a weapon's
+flash behind an event's camera came out mirrored on Kite (issue #66).
+Port: `piney_battle::prim::pair_continues`, for the trails and the rays.
 It sends a GIF tag of `cczEffGSprim` (TEST 0x73001, ZBUF no write, ALPHA
 0x44) and `cczGsPrimPoly` (PRIM 0x4c, a gouraud blended strip) or
 `cczGsPrimLine` (PRIM 0x49, lines), each vertex RGBAQ and XYZ2.
@@ -3379,6 +3385,7 @@ flash and the `makePacket` calls against `weapon_probe`.
 | check | what runs natively | cases | mismatches |
 | --- | --- | ---: | ---: |
 | weapons | `ccEnemyWeaponCtrl` constructor, `note`, `ctrl` with everything under them (`setCell`, `interpolateCell`, `eneSplineH`, `ctrlCell`, `dispCell`, `makePacketCell`, `ctrlRadiate`, `ccEnemyWeaponRad::ctrl`, `ccPrimRadiate::init`, `create`, `createPlate`, `ccFractionalHsv`); `ccTransPosFW2LW` a shift, `RotTransPers` a copy, `makePacket`, `disp` and the light group recorded | 98 tables x 360 frames (1,188,443 `makePacket` calls, 20,882 flash frames, 6,036 notes) | 0 |
+| makePacket's ADC | `ccPrimPacket::makePacket` on a pair of screen words, `cont` 0 or 1: the ADC it writes against `pair_continues` (`MakePacketAgainstGame`) | 4,000 pairs (behind the eye, the bounds 5632/5633 and 4608/4609, the word's ends) | 0 |
 
 ### The party's weapon trails
 
