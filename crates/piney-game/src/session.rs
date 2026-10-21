@@ -6828,7 +6828,7 @@ mod tests {
     /// Back in a town from a field: faces, kit and trade lists.
     mod town_return;
 
-    /// Issue #16: members who leave by an event's `pc_act 5`.
+    /// Issues #16 and #67: members who leave by an event's `pc_act 5`.
     mod party_leave;
 
     /// Issues #14 and #15: a member felled and revived, the markers.

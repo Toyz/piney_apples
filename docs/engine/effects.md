@@ -188,6 +188,11 @@ and the point it looks at, each through `ccTransPosW2P` (the player's
 `W2PPos`); the headings from the eye to each by `atan2f`, `RAD2DEG`;
 `deg + (to pos - to view)` as a 16-bit angle, true when strictly between 0
 and 2 deg. 12288 is 67.5 degrees either side.
+`activeCamPtr` is `cameraList[camID]` (`changeCamera`, main 0x00161808):
+under an event's camera (`camz_set`, `camera`, `cam_follow_char`: `ecam`,
+id 3) the cone is that camera's, not the field camera's behind Kite. An
+event's fight seen with its back to the camera draws nothing of it, and a
+member's leave in front of it shows its rings (issues #66, #67).
 
 `ccTransPosFW2LW(out, in)` (gcmn 0x0059b9c0) is `P2WPos(W2PPos(in))` about
 `plw`: `W2PPos` takes x and y less the player's, wrapped into the map's span
@@ -2060,7 +2065,9 @@ tasks' order:
 newlib LCG: the world's walking PCs and the effects draw from the same
 sequence) and `genrand()` (the Mersenne Twister behind `ccRand`), the
 player's position and the map's bounds (the wrap), the camera
-(`Camera::from_field(world.camera())`: `tcam`'s eye and view point,
+(`Camera::from_field(world.camera())`: the eye and view point of
+`cameraList[camID]`, the camera `cameraGetPos(camID)` and `activeCamPtr`
+name - `tcam` in play, `ecam` while an event's camera holds the view -
 `world_view`, `world_screen`; `Camera::env` the draw environment's fog), and
 characters by a `CharRef` the runtime chooses: their position, heading,
 height and width, `check_target` (`ccCheckTarget`), `char_dead`

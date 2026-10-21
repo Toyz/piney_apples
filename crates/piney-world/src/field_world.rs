@@ -3921,6 +3921,9 @@ pub struct FxCensus {
     pub new_fly_fonts: Vec<(u32, Vec<u8>)>,
     /// The boss effects' draws of the frame, by the object each drew.
     pub boss_draws: Vec<String>,
+    /// The effects' and particles' draws of the last step, by the object
+    /// each drew (`eff N` for a sprite of chunk N).
+    pub effect_draws: Vec<String>,
     /// The live generators following a boss effect (an anchor: a photon,
     /// a missile), not being ended.
     pub anchored_generators: usize,

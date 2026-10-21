@@ -1,6 +1,6 @@
 //! Members who leave by an event's `pc_act 5` outside a town: event 18's
-//! end in area 19's dungeon (issue #16).
-
+//! end in area 19's dungeon (issue #16), Mutation's event 162's in area
+//! 65's with its swirls (issue #67).
 use std::path::{Path, PathBuf};
 
 use piney_event::host::PcCommand;
@@ -171,4 +171,104 @@ fn piros_along_plays_his_field_music() {
     );
     let inf = piney_data::volume::Volume::Inf;
     assert!(loads[0].pick(piney_data::sound::tables_of(inf), inf).row.is_some(), "piroshi names no bank");
+}
+
+/// Moonstone's `charTbl` row.
+const MOONSTONE: i32 = 7;
+
+/// Mutation's event 162 (GETUCHOUSEKI) in area 65's dungeon, its first room
+/// (event point 1), blocks 0-6 run and Moonstone in the party. The
+/// dungeon's portals are counted closed (`mcNum` 0, as clearing them all
+/// leaves it), so block 7 takes the room again and block 8 plays the end.
+fn event_162_at_its_end() -> Option<Session> {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    story_session_on("mutation", 104, |start| {
+        for d in [155, 157, 159] {
+            start.bring_forward(d);
+        }
+        let save = &mut start.state.save;
+        save.update_flags(162, |f| f | 0b0110_0011);
+        let mut scene = piney_world::area::Scene::log_in(save);
+        scene.change_scene(2, 2, 65, 0, 0, 0, save);
+        let wm = crate::area::story_world_man(&mut Iso::open(&iso).unwrap(), 65, false).ok();
+        let spcs = Some(crate::start::party_of(&[MOONSTONE]));
+        start.at = Resume::World(Box::new(InWorld { scene, world_man: wm, spcs }));
+    })
+}
+
+/// One frame of Moonstone's leave: his act, his effects (`effTransfer`'s
+/// 4, `effTransferRing`'s 3) and how many rings (`CMP_x032`) were drawn.
+struct Leave {
+    act: i16,
+    effects: Vec<i16>,
+    rings: usize,
+}
+
+/// Event 162 from [`event_162_at_its_end`] to its end, each frame of
+/// Moonstone's handed to `each` with the session's frame.
+fn moonstone_leaves(mut each: impl FnMut(&Session, &Frame, u64)) -> Option<(Vec<Leave>, Session)> {
+    let mut s = event_162_at_its_end()?;
+    let (mut pad, mut seen) = (Pad::default(), Vec::new());
+    for f in 0..1500u64 {
+        pad.read(&story_player(&s, f));
+        let frame = s.step(&pad);
+        s.take_events();
+        if in_town(&s).is_some() {
+            return Some((seen, s));
+        }
+        let Stage::Area(a) = &mut s.stage else { continue };
+        if matches!(a.world().phase(), piney_world::Phase::Play(_)) {
+            a.world_mut().combat_mut().ctrl.lists[1].num = 0;
+        }
+        let c = a.world().combat();
+        let Some(m) = c.who(MOONSTONE) else { continue };
+        let census = a.world().fx().census();
+        let rings = census.effect_draws.iter().filter(|d| *d == "CMP_x032").count();
+        let effects = census.effect_targets.iter().filter(|(_, t)| *t == Some(m as u32)).map(|(id, _)| *id).collect();
+        seen.push(Leave { act: c.scene.chars[m].spc_char.act_num, effects, rings });
+        each(&s, &frame, f);
+    }
+    panic!("event 162 never ended: {}", Mode::title(&s));
+}
+
+/// Issue #67: event 162's end, block 8's `pc_act 7 5` under the event's
+/// camera (`camz_set`). Moonstone leaves by act 12, whose `effTransfer`
+/// raises three rings over him; the effects' camera cone
+/// (`ccCheckCameraDeg`) is the active camera's (`ecam`), not the field
+/// camera behind Kite, so the rings are drawn and he goes in the swirls.
+#[test]
+fn moonstone_leaves_in_the_swirls() {
+    let Some((seen, s)) = moonstone_leaves(|_, _, _| {}) else { return };
+    let leaving: Vec<&Leave> = seen.iter().filter(|l| l.act == 12).collect();
+    assert!(!leaving.is_empty(), "Moonstone never left by act 12");
+    let raised = leaving.iter().filter(|l| l.effects.contains(&4)).count();
+    assert!(raised > 0, "no effTransfer on Moonstone");
+    let drawn = leaving.iter().filter(|l| l.rings == 3).count();
+    assert!(drawn >= 20, "the three rings drawn together on {drawn} frames");
+    assert_eq!(party(&s).0, [0, -1, -1], "Kite alone back in town");
+}
+
+/// Shots of [`moonstone_leaves_in_the_swirls`] every 4 frames of the leave
+/// to `PINEY_SHOTS` (default /mnt/data/claude/scratch/i67).
+#[test]
+#[ignore]
+fn moonstone_leave_shots() {
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/i67".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut gs: Option<piney_gs::Gs> = None;
+    let mut first = None;
+    moonstone_leaves(|s, frame, f| {
+        let Stage::Area(a) = &s.stage else { return };
+        let c = a.world().combat();
+        let leaving = c.who(MOONSTONE).is_some_and(|m| c.scene.chars[m].spc_char.act_num == 12);
+        let n = f - *first.get_or_insert(if leaving { f } else { return });
+        if n > 60 || !n.is_multiple_of(4) {
+            return;
+        }
+        let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
+        g.set_overlay(Mode::archive(s));
+        g.render(frame);
+        let (w, h) = g.target_size();
+        std::fs::write(format!("{dir}/leave-{n:02}.png"), piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+    });
 }

@@ -242,6 +242,16 @@ impl FxTasks for AreaFx {
     }
 }
 
+impl AreaFx {
+    /// The object a draw drew (`eff N` for a sprite of chunk N).
+    fn draw_name(&self, d: &DrawRec) -> String {
+        match d {
+            DrawRec::Clump { obj, .. } | DrawRec::Anm { obj, .. } => self.fx.assets.name(*obj).to_string(),
+            DrawRec::Eff { eff, .. } => format!("eff {}", eff.chunk),
+        }
+    }
+}
+
 impl FieldFx for AreaFx {
     fn tasks(&mut self) -> &mut dyn FxTasks {
         self
@@ -285,12 +295,8 @@ impl FieldFx for AreaFx {
                 .filter(|g| g.kill_flag < 2)
                 .filter(|g| matches!(g.sync_pos, Some(piney_effect::VecRef::Anchor(_))))
                 .count(),
-            boss_draws: (self.fx.boss_draws().iter())
-                .map(|d| match d {
-                    DrawRec::Clump { obj, .. } | DrawRec::Anm { obj, .. } => self.fx.assets.name(*obj).to_string(),
-                    DrawRec::Eff { eff, .. } => format!("eff {}", eff.chunk),
-                })
-                .collect(),
+            boss_draws: self.fx.boss_draws().iter().map(|d| self.draw_name(d)).collect(),
+            effect_draws: (self.fx.draws().iter()).chain(self.fx.particle_draws()).map(|d| self.draw_name(d)).collect(),
         }
     }
 
