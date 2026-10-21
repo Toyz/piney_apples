@@ -324,6 +324,110 @@ fn innis_magic_shows_its_missiles() {
     }
 }
 
+/// One of Innis's magics as the player meets it, unforced: its frame, the
+/// cinema's name row and the element of the missiles flying then.
+struct Cast {
+    frame: u32,
+    row: i32,
+    element: piney_battle::boss::innis::Element,
+}
+
+/// Innis's fight with the gauge at half from frame 300, Innis choosing
+/// its magic itself (`ccRand() % 3`), until each element has come or
+/// `frames` run out (70 frames past the last): each magic's first frame in
+/// flight. `each` sees every frame with the casts so far.
+fn innis_unforced(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32, &[Cast])) -> Vec<Cast> {
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let (mut came, mut casts, mut flying) = (None, Vec::<Cast>::new(), false);
+    for n in 0..frames + 3000 {
+        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
+        let frame = s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &mut s.stage else { continue };
+        let c = a.world_mut().combat_mut();
+        for &(_, k) in &c.members {
+            c.scene.chars[k].max_hp = 9999;
+            c.scene.chars[k].hp = 9999;
+        }
+        let Some(me) = c.boss_char() else { continue };
+        let i = n - *came.get_or_insert(n);
+        let all = [0, 1, 2].iter().all(|&r| casts.iter().any(|x| x.row == r));
+        if i >= frames || all && casts.last().is_some_and(|c| i > c.frame + 70) {
+            break;
+        }
+        if i == 300
+            && let Some(f) = c.scene.chars[me].foe_state_mut()
+        {
+            f.pp = f.row.max_pp / 2;
+        }
+        let b = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref());
+        let element = b.and_then(|b| {
+            b.effects.slots.iter().flatten().find_map(|e| match e.kind {
+                piney_battle::boss::EffKind::Missile { element, .. } => Some(element),
+                _ => None,
+            })
+        });
+        match (element, c.boss.as_ref().and_then(|r| r.cinema.name.as_ref())) {
+            (Some(element), Some(name)) if !flying => {
+                casts.push(Cast { frame: i, row: name.row, element });
+                flying = true;
+            }
+            (None, _) => flying = false,
+            _ => {}
+        }
+        each(s, &frame, i, &casts);
+    }
+    casts
+}
+
+/// Unforced, each of Innis's magics names its own element: `MagicSquare`
+/// (MUT gcmn 0x0049a000) draws `n = |ccRand() % 3|`, turns cinema 5 + n on
+/// (`TEX_ini_skl` row n: Absolute Zero, the lightning's, Demon Fire) and at
+/// count 10 calls `IceAttack`, `ThunderAttack` or `BlazeAttack` by the same
+/// n. Each magic's name row is its missiles' element.
+#[test]
+fn innis_magic_names_its_own_missiles() {
+    use piney_battle::boss::innis::Element;
+    let Some(mut s) = event_107_arena() else { return };
+    let casts = innis_unforced(&mut s, 30000, |_, _, _, _| {});
+    let seen: Vec<(u32, i32, Element)> = casts.iter().map(|c| (c.frame, c.row, c.element)).collect();
+    println!("casts {seen:?}");
+    for c in &casts {
+        let want = match c.element {
+            Element::Ice => 0,
+            Element::Lightning => 1,
+            Element::Blaze => 2,
+        };
+        assert_eq!(c.row, want, "frame {}: the name's row against {:?}", c.frame, c.element);
+    }
+    for r in 0..3 {
+        assert!(casts.iter().any(|c| c.row == r), "row {r} never cast: {seen:?}");
+    }
+}
+
+/// Shots of [`innis_magic_names_its_own_missiles`]'s fight to
+/// `PINEY_SHOTS` (default /mnt/data/claude/scratch/i69/unforced): 30 and 60
+/// frames into each magic's flight.
+#[test]
+#[ignore]
+fn innis_unforced_shots() {
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/i69/unforced".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let Some(mut s) = event_107_arena() else { return };
+    let mut gs: Option<piney_gs::Gs> = None;
+    innis_unforced(&mut s, 30000, |s, frame, i, casts| {
+        let Some(c) = casts.last().filter(|c| [c.frame + 30, c.frame + 60].contains(&i)) else { return };
+        let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
+        g.set_overlay(Mode::archive(s));
+        g.render(frame);
+        let (w, h) = g.target_size();
+        let path = format!("{dir}/innis-{i:05}-row{}-{:?}.png", c.row, c.element);
+        std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+    });
+}
+
 /// Innis's images burst into rings (`CMP_x037`, models 191 and 193 of
 /// xeffect) and their mirrors into shards (`CMP_ex21ef*` of x21), and its
 /// fall raises a ring (192), as the rules make them.
