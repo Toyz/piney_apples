@@ -37,8 +37,7 @@ fn from_card(file: &str) -> Option<Session> {
     let bytes = std::fs::read(file).ok()?;
     let mut disc = Iso::open(&iso).ok()?;
     let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-    let mut state = crate::world::new_game_state(&mut disc).unwrap();
-    let mut vm = crate::desktop::boot(&mut disc, &mut state).unwrap();
+    let (mut state, mut vm) = crate::world::new_game(&mut disc).unwrap();
     vm.trace = Some(Vec::new());
     state.save = piney_data::save::SaveData::from_bytes(&bytes).unwrap();
     let scene = piney_world::area::Scene::log_in(&mut state.save);

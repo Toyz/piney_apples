@@ -549,12 +549,11 @@ impl DesktopMode {
         card: Option<PathBuf>,
         name_entry: bool,
     ) -> Result<Self, String> {
-        let vm = if scripts {
-            let mut disc = Iso::open(&iso).map_err(|e| format!("{}: {e}", iso.display()))?;
-            Some(boot(&mut disc, &mut state)?)
-        } else {
-            None
-        };
+        // The boot's ccStartEvent writes the save whether or not the task
+        // is kept.
+        let mut disc = Iso::open(&iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let vm = boot(&mut disc, &mut state)?;
+        let vm = scripts.then_some(vm);
         DesktopMode::enter(iso, archive, state, vm, card, name_entry)
     }
 

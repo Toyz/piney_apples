@@ -1008,7 +1008,16 @@ fn make_mode(name: &str, assets: &mut Assets, o: &Options) -> Result<Box<dyn Mod
         // [,SEED]]` with another field's type, weather row, hack flag and seed.
         "world" | "field" | "dungeon" => {
             let mut disc = Iso::open(&o.iso).map_err(|e| format!("{}: {e}", o.iso.display()))?;
-            let mut state = world::new_game_state(&mut disc)?;
+            // The event task as a new game brings it here (the boot, the
+            // desktop's event 1 with the first mails read, the board), so
+            // that event 2 opens; `--no-events` leaves it out. The fields
+            // start without it.
+            let (mut state, vm) = if kind == "world" && o.scripts {
+                let (state, vm) = world::new_game_events(&mut disc)?;
+                (state, Some(vm))
+            } else {
+                (world::new_game_state(&mut disc)?, None)
+            };
             if kind == "world" && !arg.is_empty() {
                 let t: i32 = arg.parse().map_err(|_| format!("world:{arg}: want a town number"))?;
                 if !piney_world::town_ported(t) {
@@ -1018,12 +1027,6 @@ fn make_mode(name: &str, assets: &mut Assets, o: &Options) -> Result<Box<dyn Mod
                 }
                 state.save.set_u8(piney_data::save::offset::LAST_TOWN, t as u8);
             }
-            // The event task as a new game brings it here (the boot, the
-            // desktop's event 1 with the first mails read, the board), so
-            // that event 2 opens; `--no-events` leaves it out. The fields
-            // start without it.
-            let vm =
-                if kind == "world" && o.scripts { Some(world::new_game_events(&mut disc, &mut state)?) } else { None };
             let mut scene = piney_world::area::Scene::log_in(&mut state.save);
             let mut world_man = None;
             if kind != "world" {

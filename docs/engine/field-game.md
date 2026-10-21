@@ -89,6 +89,15 @@ in eemu): `lastTown` 0, `crisis` (+0x6772) 0, `plcol` (+0x6771) 0,
 `cameraMode` (+0x8431) 3, `camType` (+0x8429) 0 (scheme A-1), and Kite's
 `spcParam[0]` from `charTbl` (demo.prg 0x0040dc80): `ccsname` "ctu1body",
 type 7, height 160, width 45, velocity 27.5, job 0. Town 0 is Mac Anu.
+On a later volume the boot's `ccStartEvent(volumeNum, 0)` runs before the
+title's `NewGame` ([the task's
+boot](event-vm.md#boot-modes-and-the-task)): Infection's events 0-49
+brought forward set `plcol` 1 (event 11's `data_drain` at main 0x001c5bf0,
+on Mutation the only store to it besides `Init`'s 0 and the save's copies)
+and, from Outbreak, `crisis` 1. So a New Game on Mutation, Outbreak or
+Quarantine draws Kite in the bracelet's colours from the start.
+`piney-game`'s `world::new_game` builds that save (Init, the boot, the
+title) for the modes and tests that start in a town.
 
 **`ccSetupGameCtrl`** (main 0x00168960), in order, for area 0:
 

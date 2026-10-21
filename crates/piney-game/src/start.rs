@@ -288,8 +288,7 @@ pub fn build(iso: &Path, n: i32) -> Result<Start, String> {
         story.iter().filter(|&&e| place(e).is_some()).collect::<Vec<_>>()
     ))?;
     let areas = crate::story::from_tables(piney_data::area::AreaTables::of(volume));
-    let mut state = crate::world::new_game_state(&mut disc)?;
-    let mut vm = crate::desktop::boot(&mut disc, &mut state)?;
+    let (mut state, mut vm) = crate::world::new_game(&mut disc)?;
     for &e in story.iter().take_while(|&&e| e < n) {
         vm.flag_set(e, &mut Replay { save: &mut state.save, areas: &areas });
         // The first Log in, which the story's second event opens after.

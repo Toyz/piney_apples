@@ -95,19 +95,26 @@ pub fn init_spc_param(save: &mut SaveData, t: &Tables, raw: &EquipRaw, order: &C
     }
 }
 
-/// A new game's save as the title hands it on: the boot's
-/// ([`SaveState::fresh_with`], `ccSaveData::Init`'s text from the disc),
-/// `NewGame(1)` as `ccSetupDemo` runs it, `parodyFlag` set when the title's
-/// Parody was chosen (`PlayParodyGame`), `NewGame(0)` as New Game runs it;
-/// the player named Kite when the name is empty. What `--mode world`
-/// starts from, before [`crate::FieldUi::setup_new_game`].
+/// A new game's save from `ccSaveData::Init` alone ([`SaveState::fresh_with`],
+/// its text from the disc) and the title's [`new_game_on`]. The boot's
+/// `ccStartEvent` is not in it: piney-game's `world::new_game` makes the
+/// save a player's New Game has, the boot's events brought forward.
 pub fn new_game_save(disc: &mut piney_data::iso::Iso, parody: bool) -> Result<SaveState, String> {
-    use piney_demo::newgame::{NewGameTables, SAVE_VA, new_game};
-    let read = |disc: &mut piney_data::iso::Iso| -> piney_data::Result<(piney_desktop::InitText, NewGameTables)> {
-        Ok((piney_desktop::InitText::from_disc(disc)?, NewGameTables::of(disc.volume()?)))
-    };
-    let (text, tables) = read(disc).map_err(|e| format!("the new game's tables: {e}"))?;
+    let text = piney_desktop::InitText::from_disc(disc).map_err(|e| format!("ccSaveData::Init: {e}"))?;
     let mut state = SaveState::fresh_with(&text);
+    new_game_on(&mut state, disc, parody)?;
+    Ok(state)
+}
+
+/// What the title does to the boot's save: `NewGame(1)` as `ccSetupDemo`
+/// runs it, `parodyFlag` set when Parody was chosen (`PlayParodyGame`),
+/// `NewGame(0)` as New Game runs it; the player named Kite when the name
+/// is empty. What `--mode world` starts from, before
+/// [`crate::FieldUi::setup_new_game`].
+pub fn new_game_on(state: &mut SaveState, disc: &mut piney_data::iso::Iso, parody: bool) -> Result<(), String> {
+    use piney_demo::newgame::{NewGameTables, SAVE_VA, new_game};
+    let volume = disc.volume().map_err(|e| format!("the new game's tables: {e}"))?;
+    let tables = NewGameTables::of(volume);
     new_game(&mut state.save, 1, &tables, SAVE_VA);
     if parody {
         state.save.set_u8(offset::PARODY_FLAG, 1);
@@ -118,7 +125,7 @@ pub fn new_game_save(disc: &mut piney_data::iso::Iso, parody: bool) -> Result<Sa
             state.save.set_u8(offset::PL_NAME + i, b);
         }
     }
-    Ok(state)
+    Ok(())
 }
 
 /// `ccSetupNewGame`'s save as The World starts (Log in): `InitSpcParam`,

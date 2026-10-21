@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-418 entries: audio 36, battle 87, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 100, save 16, script 52, test 177, tooling 28, ui 94, video 16, volumes 82, world 120.
+419 entries: audio 36, battle 87, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 100, save 16, script 53, test 178, tooling 28, ui 94, video 16, volumes 82, world 121.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -430,3 +430,4 @@ The [reference](docs/README.md) says what is true now.
 | 416 | [Event 155's weapon flashes behind the camera stay off Kite: a ray's outer pair kicks only where makePacket would, in front of the eye and on the screen (#66)](worklog/0416-event-155-s-weapon-flashes-behind-the-camera-stay-off-kite.md) | 2026-10-21 | battle, render, script |
 | 417 | [Kite's party call in a town shows his line: the town answers the balloons' places for the party, so the order's own Disp keeps it (#68)](worklog/0417-kite-s-party-call-in-a-town-shows-his-line-the-town-answers.md) | 2026-10-21 | world, script |
 | 418 | [Lios's shutdown empties Carmina Gadelica alone: regist_npc16's 16 reaches the walking PCs' draw through ccRegisterEventMng's count, so the town after Innis has no walkers while Mac Anu keeps its own (#70)](worklog/0418-lios-s-shutdown-empties-carmina-gadelica-alone-regist-npc16.md) | 2026-10-21 | world, script |
+| 419 | [Kite wears the bracelet's colours in a later volume's new game: the town starts built from a new game's save now run the boot's ccStartEvent before the title's NewGame, as a player's New Game does](worklog/0419-kite-wears-the-bracelet-s-colours-in-a-later-volume-s-new.md) | 2026-10-21 | world, script, test |

@@ -620,7 +620,9 @@ lessons, menus 78 and 79, messages 30-56, ending with the party's leave
 211 frames after the last OK), and `area 14` and `scene 1 0 14` at 2295.
 
 **From a new game's save** (`piney-game --mode world`) the task is built
-as a new game brings it to Log in: the boot's `ccStartEvent(1, 0)`; the
+as a new game brings it to Log in: the boot's `ccStartEvent(volumeNum, 0)`
+on `ccSaveData::Init`'s save, before the title's `NewGame` (it writes the
+save with or without the task kept, `--no-events`); the
 desktop's passes and play (event 1's opening) until mails 4 and 5 are read
 and event 1 closes itself; the board's `ccStartThEvent` (event 1 done) and
 passes; Log in's `ChangeRequest`. Every window and wait answers at once

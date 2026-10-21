@@ -825,7 +825,10 @@ impl Session {
         if let Some(s) = self.settings_path.as_deref().and_then(|p| crate::settings::Settings::load(p, &state.save)) {
             s.apply(&mut state.save);
         }
-        let vm = if self.scripts { Some(desktop::boot(&mut disc, &mut state)?) } else { None };
+        // ccThMother's ccStartEvent writes the save with or without the
+        // event task kept (`--no-events`).
+        let vm = desktop::boot(&mut disc, &mut state)?;
+        let vm = self.scripts.then_some(vm);
         // The card the desktop's Data screen saves to, for the boot's check
         // and the title's Load.
         let card: Box<dyn MemoryCard> = match &self.card {
@@ -3059,8 +3062,7 @@ mod tests {
         }
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        let mut state = crate::world::new_game_state(&mut disc).unwrap();
-        let vm = crate::world::new_game_events(&mut disc, &mut state).unwrap();
+        let (mut state, vm) = crate::world::new_game_events(&mut disc).unwrap();
         let scene = piney_world::area::Scene::log_in(&mut state.save);
         let mut s = Session::in_world(iso, archive, None, state, Some(vm), scene, None).unwrap();
         let mut pad = Pad::default();
@@ -3254,8 +3256,7 @@ mod tests {
         }
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        let mut state = crate::world::new_game_state(&mut disc).unwrap();
-        let vm = crate::world::new_game_events(&mut disc, &mut state).unwrap();
+        let (mut state, vm) = crate::world::new_game_events(&mut disc).unwrap();
         let scene = piney_world::area::Scene::log_in(&mut state.save);
         let mut s = Session::in_world(iso, archive, None, state, Some(vm), scene, None).unwrap();
         let mut f = 0;
@@ -5072,8 +5073,7 @@ mod tests {
             .collect();
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        let mut state = crate::world::new_game_state(&mut disc).unwrap();
-        let vm = crate::world::new_game_events(&mut disc, &mut state).unwrap();
+        let (mut state, vm) = crate::world::new_game_events(&mut disc).unwrap();
         let scene = piney_world::area::Scene::log_in(&mut state.save);
         let mut s = Session::in_world(iso, archive.clone(), None, state, Some(vm), scene, None).unwrap();
         let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap();
@@ -5766,8 +5766,7 @@ mod tests {
             .collect();
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        let mut state = crate::world::new_game_state(&mut disc).unwrap();
-        let vm = crate::world::new_game_events(&mut disc, &mut state).unwrap();
+        let (mut state, vm) = crate::world::new_game_events(&mut disc).unwrap();
         let scene = piney_world::area::Scene::log_in(&mut state.save);
         let mut s = Session::in_world(iso, archive.clone(), None, state, Some(vm), scene, None).unwrap();
         let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap();
@@ -5855,8 +5854,7 @@ mod tests {
         let more = std::env::var("PINEY_MORE").ok().and_then(|v| v.parse().ok()).unwrap_or(60);
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        let mut state = crate::world::new_game_state(&mut disc).unwrap();
-        let vm = crate::world::new_game_events(&mut disc, &mut state).unwrap();
+        let (mut state, vm) = crate::world::new_game_events(&mut disc).unwrap();
         let scene = piney_world::area::Scene::log_in(&mut state.save);
         let mut s = Session::in_world(iso, archive, None, state, Some(vm), scene, None).unwrap();
         let mut f = 0;
@@ -6947,6 +6945,9 @@ mod tests {
 
     /// Issue #70: Mutation's shutdown empties Carmina Gadelica.
     mod shutdown;
+
+    /// Kite's colours in a new game's town on every volume.
+    mod kite_colours;
 
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.

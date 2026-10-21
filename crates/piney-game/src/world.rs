@@ -59,23 +59,36 @@ impl Setup {
 /// Frames a set-up pass may take before the runtime gives up waiting.
 const PASS_FRAMES: u32 = 10_000;
 
-/// A new game's save as the title hands it on (the boot's
-/// `ccSaveData::Init`, `NewGame(1)`, `NewGame(0)`: [`new_game_save`]), as
-/// `--mode world` enters with it; Log in adds `ccSetupNewGame`'s part
+/// A player's New Game as the boot and the title make it: `ccSaveData::Init`,
+/// `ccThMother`'s `ccStartEvent(volumeNum, 0)` ([`crate::desktop::boot`]:
+/// on a later volume the earlier volumes' events brought forward, event
+/// 11's bracelet among them), then the title's `NewGame(1)` and
+/// `NewGame(0)` ([`new_game_on`]) and the port's Helba mail. The save and
+/// the boot's event task; Log in adds `ccSetupNewGame`'s part
 /// ([`crate::session::Session::in_world`]).
 ///
-/// [`new_game_save`]: piney_fieldui::newgame::new_game_save
-pub fn new_game_state(disc: &mut Iso) -> Result<SaveState, String> {
-    piney_fieldui::newgame::new_game_save(disc, false)
+/// [`new_game_on`]: piney_fieldui::newgame::new_game_on
+pub fn new_game(disc: &mut Iso) -> Result<(SaveState, Vm), String> {
+    let text = piney_desktop::InitText::from_disc(disc).map_err(|e| format!("ccSaveData::Init: {e}"))?;
+    let mut state = SaveState::fresh_with(&text);
+    let vm = crate::desktop::boot(disc, &mut state)?;
+    piney_fieldui::newgame::new_game_on(&mut state, disc, false)?;
+    piney_desktop::extras::new_game(&mut state.save, disc.volume().map_err(|e| e.to_string())?);
+    Ok((state, vm))
 }
 
-/// The event task and the save as a new game brings them to Log in (for
-/// `--mode world`): the boot's `ccStartEvent(1, 0)`; the desktop's passes and
-/// play until mails 4 and 5 are read and event 1's block 2 has closed it; the
-/// board's `ccStartThEvent` and passes, and Log in. Every window and wait
-/// answers at once (`LogHost`).
-pub fn new_game_events(disc: &mut Iso, state: &mut SaveState) -> Result<Vm, String> {
-    let mut vm = crate::desktop::boot(disc, state)?;
+/// [`new_game`]'s save, as `--mode world` enters with it.
+pub fn new_game_state(disc: &mut Iso) -> Result<SaveState, String> {
+    new_game(disc).map(|(state, _)| state)
+}
+
+/// [`new_game`]'s save and event task as a new game brings them to Log in
+/// (for `--mode world`): the desktop's passes and play until mails 4 and 5
+/// are read and event 1's block 2 has closed it; the board's
+/// `ccStartThEvent` and passes, and Log in. Every window and wait answers
+/// at once (`LogHost`).
+pub fn new_game_events(disc: &mut Iso) -> Result<(SaveState, Vm), String> {
+    let (mut state, mut vm) = new_game(disc)?;
     let mut h = LogHost::new(state.save.clone());
     let settle = |vm: &mut Vm, h: &mut LogHost| -> Result<(), String> {
         vm.start_thread(h);
@@ -120,7 +133,7 @@ pub fn new_game_events(disc: &mut Iso, state: &mut SaveState) -> Result<Vm, Stri
     state.save = h.save;
     state.operate = vm.operate();
     state.operate_set = -1;
-    Ok(vm)
+    Ok((state, vm))
 }
 
 pub struct WorldMode {
@@ -1600,8 +1613,7 @@ mod tests {
         }
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        let mut state = new_game_state(&mut disc).unwrap();
-        let vm = new_game_events(&mut disc, &mut state).unwrap();
+        let (state, vm) = new_game_events(&mut disc).unwrap();
         let mut mode = WorldMode::enter(&iso, archive, state, Some(vm)).unwrap();
         let mut pad = Pad::default();
         let (mut f, mut events, mut presses) = (0u64, Vec::new(), Vec::new());
@@ -1767,8 +1779,7 @@ mod tests {
             return;
         }
         let mut disc = Iso::open(&iso).unwrap();
-        let mut state = new_game_state(&mut disc).unwrap();
-        let vm = new_game_events(&mut disc, &mut state).unwrap();
+        let (state, vm) = new_game_events(&mut disc).unwrap();
         let s = &state.save;
         assert_ne!(s.flags(0) & piney_event::state::DONE, 0, "event 0 done at boot");
         assert_ne!(s.flags(1) & piney_event::state::DONE, 0, "event 1 done");
