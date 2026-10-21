@@ -331,7 +331,9 @@ done, Magus drained at frame 165,723 and dead by 172,000.
 
 - The pictures: the leaves' markers, charges and bursts, the laser's
   shocks and thunder, the needles, the dead leaves' smoke are named, not
-  drawn; the body's dropped leaves are not hidden.
+  drawn; the body's dropped leaves are not hidden. A dead leaf's ring
+  (`SetModel(195)`: xeffect's `CMP_x037` on `CLT_x037c5`) is drawn since
+  worklog 411.
 - The shocks' beams are taken to meet the ground; the game's line test
   (`ccHitCheckLM` on the land) is not ported.
 - `EntryFlash2` and `EntryFlash3` on `scFadeDef` are drawn as one flash;

@@ -717,5 +717,6 @@ those lives against them.
   their particle generators draw from the battle's `rand`, as the game's
   do, but no test runs the rules and the effects together against the
   game.
-- `ccBossEffMagicSquareCreate` for n other than 0 is not Skeith's and not
-  ported.
+- `ccEffSamonRing::SetModel` (MUT 0x00477c20) is ported whole
+  (`piney_effect::boss::ring_model`, [Innis](boss-innis.md)); the
+  manager's draw compares the clump's palette swap since worklog 411.

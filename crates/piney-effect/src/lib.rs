@@ -29,6 +29,7 @@ pub mod gimmick;
 pub mod heal;
 pub mod hit;
 pub mod host;
+pub mod innis;
 pub mod levelup;
 pub mod nodes;
 pub mod particle;
@@ -531,6 +532,34 @@ impl Effects {
             draws: &mut self.boss_draws,
         };
         self.boss.sync_spells(&mut cx, spells);
+    }
+
+    /// Innis's missiles as the fight's rules left them, drawn after the
+    /// boss's task: their draws join the boss effects' pass's
+    /// ([`boss::BossEffects::sync_missiles`]).
+    pub fn innis_sync(
+        &mut self,
+        host: &mut dyn Host,
+        flights: &[(i32, piney_battle::boss::innis::Element, i32, &piney_battle::boss::innis::Missile)],
+    ) {
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.boss_draws,
+        };
+        self.boss.sync_missiles(&mut self.ctrl, &mut cx, &self.assets.boss, flights);
+    }
+
+    /// A particle generator Innis or one of its images starts
+    /// ([`innis::start`]).
+    pub fn innis_particles(&mut self, host: &mut dyn Host, which: piney_battle::boss::innis::Gen, pos: V4) {
+        let (_, mut cx) = self.split(host);
+        let assets = cx.assets;
+        innis::start(&mut cx, &assets.boss, which, pos);
     }
 
     /// What one of Fidchell's rules asks beside its spells' pictures
@@ -1057,6 +1086,38 @@ pub(crate) mod testing {
 mod tests {
     use super::*;
     use crate::files::Kind;
+
+    /// `AnmObj::change_clut` swaps each substitute object's palette by name:
+    /// in particle's `ANM_x305`, `OBJ_x048`-`OBJ_x051` (the explosion's
+    /// substitutes, `draw_subst`) are drawn with `CLT_x048`-`CLT_x051`
+    /// only, the palettes `ChangeClut` replaces on their models, and each
+    /// palette the elements' suffixes and Innis's ice (`c1`) name is in
+    /// the file.
+    #[test]
+    fn the_explosions_substitutes_own_their_palettes() {
+        let Some(fx) = testing::effects() else { return };
+        let k = fx.assets.files.iter().position(|f| f.stem == "particle").unwrap();
+        let f = &fx.assets.files[k];
+        let (textures, _) = piney_data::texture::read(&f.ccs).unwrap();
+        let clut_of: std::collections::HashMap<u32, u32> = textures.iter().map(|t| (t.object, t.clut)).collect();
+        let name = |o: u32| f.ccs.object_name(o).unwrap_or("").to_string();
+        for (obj, clt) in fx.spells.data.draw.subst.iter().zip(&fx.spells.data.draw.clut) {
+            let o = f.ccs.find_object(obj).unwrap_or_else(|| panic!("no {obj}"));
+            let target = f.scene.ext.get(&o).copied().unwrap_or(o);
+            let mdl = (f.scene.model_of.get(&target).or(f.obj_model.get(&target)).copied())
+                .unwrap_or_else(|| panic!("{obj} ({}) has no model", name(target)));
+            let used: std::collections::BTreeSet<String> = (f.models[&mdl].mmats.iter())
+                .filter_map(|m| m.material)
+                .filter_map(|m| f.scene.materials.get(&m))
+                .filter_map(|m| clut_of.get(&m.texture))
+                .map(|&c| name(c))
+                .collect();
+            assert_eq!(used.into_iter().collect::<Vec<_>>(), std::slice::from_ref(clt), "{obj}");
+            for sfx in fx.spells.data.draw.suffix.iter().map(String::as_str).chain(["c1"]) {
+                assert!(f.ccs.find_object(&format!("{clt}{sfx}")).is_some(), "no {clt}{sfx}");
+            }
+        }
+    }
 
     /// The effect files and tables as `ccEffectCtrl` finds them: twelve
     /// files, 173 rows, the arrival's ring the one object a town resolves.

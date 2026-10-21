@@ -427,7 +427,14 @@ impl EffectCtrl {
         let clump_matrix = matrix(e);
         match &mut e.obj {
             Obj::Anm { obj, play, matrix } if disp => {
-                cx.draws.push(DrawRec::Anm { obj: *obj, play: play.clone(), matrix: *matrix, alpha, layer });
+                cx.draws.push(DrawRec::Anm {
+                    obj: *obj,
+                    play: play.clone(),
+                    matrix: *matrix,
+                    alpha,
+                    layer,
+                    clut: Vec::new(),
+                });
             }
             Obj::Eff(eff) => {
                 if disp {
@@ -515,7 +522,14 @@ impl EffectCtrl {
         let clump_matrix = matrix(space::fw2lw(pos, player, bounds), e);
         match &mut e.obj {
             Obj::Anm { obj, play, matrix } if disp => {
-                cx.draws.push(DrawRec::Anm { obj: *obj, play: play.clone(), matrix: *matrix, alpha, layer });
+                cx.draws.push(DrawRec::Anm {
+                    obj: *obj,
+                    play: play.clone(),
+                    matrix: *matrix,
+                    alpha,
+                    layer,
+                    clut: Vec::new(),
+                });
             }
             Obj::Eff(eff) => {
                 if disp {

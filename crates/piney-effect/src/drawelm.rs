@@ -65,6 +65,9 @@ impl DrawTables {
 pub struct AnmObj {
     pub obj: ObjRef,
     pub play: Play,
+    /// Its objects' CLUT swaps (from, to), as [`AnmObj::change_clut`]
+    /// made them.
+    pub clut: Vec<(u32, u32)>,
 }
 
 impl AnmObj {
@@ -72,7 +75,21 @@ impl AnmObj {
     pub fn new(cx: &Cx, file: &str, name: &str) -> Option<AnmObj> {
         let obj = cx.assets.find(file, name)?;
         let play = Play::new(&cx.assets.files[obj.file], name)?;
-        Some(AnmObj { obj, play })
+        Some(AnmObj { obj, play, clut: Vec::new() })
+    }
+
+    /// For each (object, CLUT) pair: `GetSubstAdrsF(object)`,
+    /// `Duplicate`, `ChangeClut(GetChunkAdrsF(CLUT), 0)`. The object's
+    /// own palette is the one named as the CLUT is less its suffix
+    /// (`CLT_x048` for `CLT_x048c1`, the object `OBJ_x048`'s).
+    pub fn change_clut(&mut self, cx: &Cx, subst: &[(String, String)]) {
+        let ccs = &cx.assets.files[self.obj.file].ccs;
+        for (object, to) in subst {
+            let from = format!("CLT_{}", object.trim_start_matches("OBJ_"));
+            if let (Some(f), Some(t)) = (ccs.find_object(&from), ccs.find_object(to)) {
+                self.clut.push((f, t));
+            }
+        }
     }
 
     /// `_AnimateForward(frameSpd)` when it plays: true at its end.
@@ -88,7 +105,15 @@ impl AnmObj {
     }
 
     pub(crate) fn draw(&self, cx: &mut Cx, matrix: vu::M4, alpha: F) {
-        cx.draws.push(DrawRec::Anm { obj: self.obj, play: self.play.clone(), matrix, alpha, layer: EFFECT_LAYER });
+        let clut = self.clut.clone();
+        cx.draws.push(DrawRec::Anm {
+            obj: self.obj,
+            play: self.play.clone(),
+            matrix,
+            alpha,
+            layer: EFFECT_LAYER,
+            clut,
+        });
     }
 }
 
@@ -306,11 +331,15 @@ impl DrawElm {
             // The suffix is a register the callers never leave unset.
             _ => None,
         };
-        let subst =
+        let subst: Vec<(String, String)> =
             (0..4).map(|k| (t.subst[k].clone(), format!("{}{}", t.clut[k], suffix.map_or("", |s| s)))).collect();
         let mut base = Base { attr: atr, ..Base::default() };
         base.anim.scale = [0x4000_0000, 0x4000_0000, 0x4000_0000, ONE];
-        DrawElm { base, kind: DrawKind::Explode { anm: AnmObj::new(cx, "particle", "ANM_x305"), subst } }
+        let anm = AnmObj::new(cx, "particle", "ANM_x305").map(|mut a| {
+            a.change_clut(cx, &subst);
+            a
+        });
+        DrawElm { base, kind: DrawKind::Explode { anm, subst } }
     }
 
     /// `new ccFireBallElement` (gcmn 0x004fbfd0).

@@ -144,10 +144,24 @@ class BossFx(EffectMachine):
         m.hooks[sym("Duplicate__7ccClumpFUi")] = lambda mm, *a: 0
 
         def change_clut(mm, clump, a, b, *r):
-            self.clut[clump] = (self.names.get(a, "?"), self.names.get(b, "?"))
+            # ChangeClut(new, old); with no old (Fidchell's bolt: its own
+            # palette again) nothing the draws compare.
+            if b:
+                self.clut[clump] = (self.names.get(a, "?"), self.names.get(b, "?"))
             return 0
 
         m.hooks[sym("ChangeClut__7ccClumpFP11ccClutChunkP11ccClutChunk")] = change_clut
+
+        # Innis's ice burst: its explosion's substitutes stand in as bare
+        # objects with no model, so no palette is changed here (their
+        # names are piney-effect's lib test's).
+        def subst(mm, anm, name, *a):
+            return self.malloc(mm, 0xA0)
+
+        m.hooks[sym("GetSubstAdrsF__5ccAnmFPCcb")] = subst
+        m.hooks[sym("Duplicate__5ccObjFUi")] = lambda mm, *a: 0
+        self.missile_vts = {sym("__vt__19ccBossEffIceMissile"), sym("__vt__25ccBossEffLightningMissile"),
+                            sym("__vt__21ccBossEffBlazeMissile")}
 
         def coord(mm, a, *r):
             # ccCoord::ccCoord (main 0x00138000): both matrices the unit,
@@ -182,6 +196,12 @@ class BossFx(EffectMachine):
             if ref is None and tfx.EFFWORK <= sync < tfx.EFFWORK + 0xC0 * 500:
                 k, off = divmod(sync - tfx.EFFWORK, 0xC0)
                 ref = ["effpos", k] if off == 0 else ["?", sync]
+            # one of Innis's missiles (its pos at +0x10): its slot, or the
+            # next free one while its Create makes it
+            obj = sync - 0x10
+            if ref is None and m.load(obj + 12, 4) in self.missile_vts:
+                held = [k for k in range(1024) if self.slot_ptr(k) == obj]
+                ref = ["missile", held[0] if held else next(k for k in range(1024) if not self.slot_ptr(k))]
             # made in the Create before the manager holds it: the next free slot
             if ref is None:
                 ref = ["anchor", -1, sync]
@@ -199,7 +219,10 @@ class BossFx(EffectMachine):
         return 0
 
     def clump_draw(self, m, clump, *a):
-        self.draws.append(["clump", self.clump[clump], self.rvec(clump + 0x40, 16), self.clump_alpha, self.layer()])
+        # its ChangeClut(to, from) as (from, to), or none
+        clut = list(reversed(self.clut[clump])) if clump in self.clut else None
+        self.draws.append(["clump", self.clump[clump], self.rvec(clump + 0x40, 16), self.clump_alpha, self.layer(),
+                           clut])
         return 0
 
     def slot_ptr(self, k):
@@ -312,6 +335,36 @@ def fidchell_cases(rnd):
         p = pos(rnd.uniform(-20, 60))
         out.append(("square %d" % n, "square %s %x" % (hexs(*p), n), "ccBossEffMagicSquareCreate__FPfi", [p], [n],
                     [], field))
+    return out
+
+
+def innis_cases(rnd):
+    """Innis's missiles as IceAttack, ThunderAttack and BlazeAttack make
+    them (Innis's place, two spline points, the target 10 up), each
+    element as the first (NO 1) and a later one (0), with no callback and
+    no camera; and the rings EnemyBurst and AllAttack make (models 191-193,
+    their burst's scale step 0.5 and fade 0.04 or 0.02)."""
+    out = []
+    for el in range(3):
+        for no in (1, 0):
+            boss = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), fb(1500.0), ONE]
+            t = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), fb(10.0), ONE]
+            v2 = [fb(f32(boss[0]) + rnd.uniform(-1700, 1700)), fb(f32(boss[1]) + rnd.uniform(-1700, 1700)),
+                  fb(rnd.uniform(500, 900)), ONE]
+            v3 = [fb(f32(t[0]) + rnd.uniform(-600, 600)), fb(f32(t[1]) + rnd.uniform(-600, 600)),
+                  fb(rnd.uniform(800, 1200)), ONE]
+            ctrl = boss + v2 + v3 + t
+            sym = ["ccBossEffIceMissileCreate", "ccBossEffLightningMissileCreate", "ccBossEffBlazeMissileCreate"][el]
+            out.append(("missile %d %d" % (el, no), "missile %x %x %s" % (el, no, hexs(*ctrl)),
+                        sym + "__FPA4_fiPFPfi_iP9ccBossCam", ctrl, [no, 0, 0], None))
+    for model, tpoint in ((191, 0.04), (192, 0.02), (193, 0.04)):
+        p = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), fb(rnd.uniform(0, 300)), ONE]
+        r = [fb(rnd.uniform(-1, 1)), fb(rnd.uniform(-1, 1)), fb(rnd.uniform(-3, 3)), 0]
+        sc = [fb(1.5)] * 3 + [ONE]
+        sp = [fb(0.5)] * 4
+        out.append(("ring %d" % model, "sring %s %s %s %x %s %x" % (hexs(*p), hexs(*r), hexs(*sc), model, hexs(*sp),
+                                                                     fb(tpoint)),
+                    "ccBossEffSamonRingCreate__FPfPfPfi", None, [p, r, sc, model], (sp, tpoint)))
     return out
 
 
@@ -443,6 +496,61 @@ class BossEffectsAgainstGame(unittest.TestCase):
                 cam = ((rnd.uniform(-2000, 2000), rnd.uniform(-2000, 2000), 600.0),
                        (rnd.uniform(-500, 500), rnd.uniform(-500, 500), 100.0))
                 frames = self.run_case(2000 + 16 * rep_ + i, case, cam)
+                counts[case[0]] = counts.get(case[0], 0) + len(frames)
+        print("\nframes " + " ".join("%s %d" % kv for kv in sorted(counts.items())), file=sys.stderr)
+
+    def run_innis_case(self, seed, case, camera):
+        """One of innis_cases: the Create (a missile's control points one
+        block, its +0x40, which the constructor leaves unset, taken as the
+        port's (0, 0, 0, 1); a ring's burst set after it), then the
+        manager's passes until every slot is free."""
+        name, line, sym, ctrl, args, burst = case
+        em = BossFx(seed=seed)
+        eye, view = camera
+        em.vec(tfx.EYE, [fb(v) for v in eye] + [ONE])
+        em.vec(tfx.EYE + 0x10, [fb(v) for v in view] + [ONE])
+        if ctrl is not None:
+            block = em.malloc(em.m, 64)
+            em.vec(block, ctrl)
+            k = em.create(sym, ints=[block] + args)
+            em.vec(em.slot_ptr(k) + 0x40, [0, 0, 0, ONE])
+        else:
+            p, r, sc, model = args
+            ptrs = vec_args(em, p, r, sc)
+            k = em.create(sym, ints=ptrs + [model])
+            sp, tpoint = burst
+            ring = em.slot_ptr(k)
+            (spp,) = vec_args(em, sp)
+            em.call("BurstScale__14ccEffSamonRingFPf", ring, spp)
+            em.call("BurstTransparency__14ccEffSamonRingFf", ring, fargs=[fb(tpoint)])
+            em.m.store(ring + 0x60, 1, 1)
+        made = {"id": k, "events": em.events, "gens": em.gens, "ccrand": em.ccrand}
+        frames = []
+        while not em.free() and len(frames) < 400:
+            frames.append(em.manager_pass())
+        lines = ["reset %x" % seed, "camera " + hexs(*map(fb, eye + view)), line] + ["frame"] * len(frames)
+        got = [g for g in ask(lines) if g]
+        self.assertEqual(got[0], made, "%s: the Create" % name)
+        for f, (want, port) in enumerate(zip(frames, got[1:])):
+            for key in want:
+                self.assertEqual(want[key], port.get(key), "%s frame %d: %s" % (name, f, key))
+        self.assertEqual(len(got[1:]), len(frames))
+        return frames
+
+    @unittest.skipUnless(volume.NAME == "mutation", "Innis's effects are Mutation's")
+    def test_innis_effects(self):
+        """Innis's missiles and rings: their pictures (the crystal, bolt and
+        fireball in flight; the first's burst), trails (MissileSmoke
+        generators following the missile) and landings (the trails killed,
+        the BurstSmoke generators, the ice's rocks, the lightning's
+        WaveShock, the sounds), and the rings' clump, palette and fade."""
+        rnd = random.Random(31)
+        counts = {}
+        for rep in range(2):
+            for i, case in enumerate(innis_cases(rnd)):
+                cam = ((rnd.uniform(-2000, 2000), rnd.uniform(-2000, 2000), 600.0),
+                       (rnd.uniform(-500, 500), rnd.uniform(-500, 500), 100.0))
+                frames = self.run_innis_case(3000 + 32 * rep + i, case, cam)
                 counts[case[0]] = counts.get(case[0], 0) + len(frames)
         print("\nframes " + " ".join("%s %d" % kv for kv in sorted(counts.items())), file=sys.stderr)
 

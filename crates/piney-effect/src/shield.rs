@@ -142,7 +142,14 @@ impl ResistantShield {
         if let Some((obj, play)) = &mut self.anm {
             done = play.forward(&cx.assets.files[obj.file]);
             let matrix = vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale);
-            cx.draws.push(DrawRec::Anm { obj: *obj, play: play.clone(), matrix, alpha: ONE, layer: EFFECT_LAYER });
+            cx.draws.push(DrawRec::Anm {
+                obj: *obj,
+                play: play.clone(),
+                matrix,
+                alpha: ONE,
+                layer: EFFECT_LAYER,
+                clut: Vec::new(),
+            });
         }
         if done {
             self.base.del_flag = 1;

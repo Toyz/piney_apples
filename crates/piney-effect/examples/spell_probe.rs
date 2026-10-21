@@ -272,7 +272,7 @@ fn draw(fx: &Effects, d: &DrawRec) -> String {
             }
             s + "]"
         }
-        DrawRec::Anm { obj, play, matrix, alpha, layer } => format!(
+        DrawRec::Anm { obj, play, matrix, alpha, layer, .. } => format!(
             "[\"anm\", \"{}\", {}, {}, {}, {}]",
             fx.assets.name(*obj),
             play.time,

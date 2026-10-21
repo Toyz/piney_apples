@@ -40,8 +40,9 @@ pub enum DrawRec {
     /// duplicate's CLUT swap (from, to).
     Clump { obj: ObjRef, matrix: M4, alpha: F, layer: i16, clut: Option<(u32, u32)> },
     /// `ccAnm::Draw`: its transparency `alpha`, posed where `play` is, at
-    /// `matrix`.
-    Anm { obj: ObjRef, play: Play, matrix: M4, alpha: F, layer: i16 },
+    /// `matrix`; its objects' CLUT swaps (`GetSubstAdrsF`, `Duplicate`,
+    /// `ChangeClut`), each (from, to).
+    Anm { obj: ObjRef, play: Play, matrix: M4, alpha: F, layer: i16, clut: Vec<(u32, u32)> },
     /// `ccEff::Draw(pat)` of `eff` as it stood.
     Eff { eff: Box<Eff>, pat: u16, layer: i16 },
 }
@@ -75,7 +76,7 @@ impl DrawRec {
                     wdraw::model(layers, *layer, to_screen, d);
                 }
             }
-            DrawRec::Anm { obj, play, matrix, alpha, layer } => {
+            DrawRec::Anm { obj, play, matrix, alpha, layer, clut } => {
                 // As `anim_draw_on`, with each object's own transparency.
                 let file = &assets.files[obj.file];
                 let rows = play.uv_rows(file);
@@ -95,7 +96,7 @@ impl DrawRec {
                         lights: None,
                         nodes: &[],
                         morph: m,
-                        clut_swaps: Vec::new(),
+                        clut_swaps: clut.clone(),
                     };
                     wdraw::model(layers, *layer, to_screen, d);
                 }

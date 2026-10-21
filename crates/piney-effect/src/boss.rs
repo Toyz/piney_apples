@@ -47,6 +47,29 @@ pub mod va {
     /// `BossDeadGenerator`, `BossDeadForceField`.
     pub const DEAD: u32 = 0x005e_eed0;
     pub const DEAD_FF: u32 = 0x005e_ef80;
+    /// Innis's: `InisFieldGenerator`, `TornadoGenerator`,
+    /// `BurstGenerator`, `MissileSmokeGenerator`, `BurstSmokeGenerator`
+    /// and their force fields.
+    pub const INIS_FIELD: u32 = 0x005e_eab0;
+    pub const INIS_FIELD_FF: u32 = 0x005e_ebd0;
+    pub const TORNADO: u32 = 0x005e_ec50;
+    pub const TORNADO_FF: u32 = 0x005e_ec90;
+    pub const BURST: u32 = 0x005e_ecf0;
+    pub const BURST_FF: u32 = 0x005e_ee10;
+    pub const MISSILE_SMOKE: u32 = 0x005e_f060;
+    pub const MISSILE_SMOKE_FF: u32 = 0x005e_f6f0;
+    pub const BURST_SMOKE: u32 = 0x005e_f9f0;
+    pub const BURST_SMOKE_FF: u32 = 0x005e_fd00;
+}
+
+/// A generator row of one of [`va`]'s tables: its address.
+pub fn gen_row(table: u32, row: u32) -> u32 {
+    table + 0x38 * row
+}
+
+/// A force field row of one of [`va`]'s tables: its address.
+pub fn ff_row(table: u32, row: u32) -> u32 {
+    table + 0x20 * row
 }
 
 /// The rows of [`va`], and the volume (its square root and its float to
@@ -74,6 +97,11 @@ impl Tables {
         gens(va::ENERGY_OUT, std::slice::from_ref(&t.boss_energy_out()), t.boss_energy_out_va());
         gens(va::ICE_SMOKE, std::slice::from_ref(&t.boss_ice_smoke()), t.boss_ice_smoke_va());
         gens(va::DEAD, t.boss_dead(), t.boss_dead_va());
+        gens(va::INIS_FIELD, t.boss_inis_field(), t.boss_inis_field_va());
+        gens(va::TORNADO, t.boss_tornado(), t.boss_tornado_va());
+        gens(va::BURST, t.boss_burst(), t.boss_burst_va());
+        gens(va::MISSILE_SMOKE, t.boss_missile_smoke(), t.boss_missile_smoke_va());
+        gens(va::BURST_SMOKE, t.boss_burst_smoke(), t.boss_burst_smoke_va());
         let mut ffs = |key: u32, rows: &[piney_data::tables::types::ParticleForceFieldParam], at: u32| {
             for k in 0..rows.len() {
                 out.ffs.insert(key + 0x20 * k as u32, FfParam::row(rows, at, k));
@@ -84,12 +112,17 @@ impl Tables {
         ffs(va::ENERGY_OUT_FF, t.boss_energy_out_ff(), t.boss_energy_out_ff_va());
         ffs(va::ICE_SMOKE_FF, t.boss_ice_smoke_ff(), t.boss_ice_smoke_ff_va());
         ffs(va::DEAD_FF, t.boss_dead_ff(), t.boss_dead_ff_va());
+        ffs(va::INIS_FIELD_FF, t.boss_inis_field_ff(), t.boss_inis_field_ff_va());
+        ffs(va::TORNADO_FF, t.boss_tornado_ff(), t.boss_tornado_ff_va());
+        ffs(va::BURST_FF, t.boss_burst_ff(), t.boss_burst_ff_va());
+        ffs(va::MISSILE_SMOKE_FF, t.boss_missile_smoke_ff(), t.boss_missile_smoke_ff_va());
+        ffs(va::BURST_SMOKE_FF, t.boss_burst_smoke_ff(), t.boss_burst_smoke_ff_va());
         out
     }
 
     /// `new ccParticleGenerator(param, f1, f2, f3, f4)` of the rows at
     /// these addresses (0: none).
-    fn generator(&self, cx: &mut Cx, param: u32, ff: [u32; 4]) -> Option<Generator> {
+    pub(crate) fn generator(&self, cx: &mut Cx, param: u32, ff: [u32; 4]) -> Option<Generator> {
         let p = *self.gens.get(&param)?;
         let ff = ff.map(|a| self.ffs.get(&a).copied());
         Some(Generator::new(Some(p), ff, &cx.assets.particle.force_fields, &mut cx.particles.generator_serial))
@@ -122,6 +155,8 @@ pub enum BossEff {
     Dead(Dead),
     /// One of Fidchell's spells ([`crate::fidchell`]).
     Spell(Box<crate::fidchell::Spell>),
+    /// One of Innis's missiles ([`crate::innis`]).
+    Missile(Box<crate::innis::Missile>),
 }
 
 /// `ccBossEffWaveShock` (0x40 bytes).
@@ -215,8 +250,9 @@ pub struct SamonRing {
     /// +0x78 the clump and its CLUT swap (from, to).
     pub clump: Option<ObjRef>,
     pub clut: Option<(u32, u32)>,
-    /// `ccBossEffAutoSamonRing` +0x1c: the step its Draw sets.
-    pub ds: F,
+    /// `ccBossEffAutoSamonRing` +0x1c: the step its Draw sets (None for a
+    /// plain ring, its burst set once by its maker).
+    pub ds: Option<F>,
 }
 
 /// `ccBossEffIceBreak` (0x40 bytes).
@@ -245,14 +281,49 @@ pub struct Dead {
     pub count: i32,
 }
 
-/// `ccEffSamonRing::SetModel(n)` (0x00461bd0) for the rings Skeith makes:
-/// the clump, the CLUT it becomes and the CLUT it replaces, and the file
-/// (particle below 161, xeffect for some of the numbered sets).
-fn samon_model(n: i32) -> Option<(&'static str, &'static str, &'static str)> {
-    match n {
-        35 => Some(("CMP_x033", "CLT_x033", "CLT_x033")),
-        _ => None,
+/// `ccEffSamonRing::SetModel(n)` (INF gcmn 0x00461bd0, MUT 0x00477c20,
+/// alike on every volume): the ring's file, clump, and the CLUT swap its
+/// `Duplicate` and `ChangeClut` make (the set's own palette to the one
+/// `n` picks). Each set is a short number and seven long ones: the first
+/// long one is the set's own palette, the next six its `c1`-`c6`. The
+/// long numbers 161-167 and 175-203 read xeffect; the rest particle.
+pub struct RingModel {
+    pub file: &'static str,
+    pub clump: String,
+    /// (the CLUT replaced, the CLUT drawn).
+    pub clut: Option<(String, String)>,
+}
+
+/// The sets: (short number, first long number, model, palette).
+const RING_SETS: [(i32, i32, &str, &str); 5] = [
+    (32, 161, "x030", "x030"),
+    (33, 168, "x031", "x031"),
+    (35, 175, "x033", "x033"),
+    (42, 190, "x037", "x037"),
+    (43, 197, "x038", "x003"),
+];
+
+pub fn ring_model(n: i32) -> Option<RingModel> {
+    if n == 34 {
+        return Some(RingModel { file: "particle", clump: "CMP_x032".into(), clut: None });
     }
+    let &(_, first, cmp, clt) = RING_SETS.iter().find(|s| s.0 == n || (s.1..s.1 + 7).contains(&n))?;
+    let k = if n < first { 0 } else { n - first };
+    let to = if k == 0 { format!("CLT_{clt}") } else { format!("CLT_{clt}c{k}") };
+    let file = if (161..168).contains(&n) || (175..182).contains(&n) || (190..204).contains(&n) {
+        "xeffect"
+    } else {
+        "particle"
+    };
+    Some(RingModel { file, clump: format!("CMP_{cmp}"), clut: Some((format!("CLT_{clt}"), to)) })
+}
+
+/// A ring's clump and CLUT swap by [`ring_model`], found in its file.
+fn ring_objects(cx: &Cx, n: i32) -> (Option<ObjRef>, Option<(u32, u32)>) {
+    let Some(m) = ring_model(n) else { return (None, None) };
+    let find = |name: &str| cx.assets.find(m.file, name);
+    let clut = m.clut.as_ref().and_then(|(from, to)| find(from).zip(find(to))).map(|(f, t)| (f.object, t.object));
+    (find(&m.clump), clut)
 }
 
 /// A `ccBossEff*Create` call, with its arguments.
@@ -310,6 +381,32 @@ pub enum Make {
         pos: V4,
         n: i32,
     },
+    /// `ccBossEffSamonRingCreate(pos, rot, scale, model)` (MUT gcmn
+    /// 0x0048d670), then the caller's `BurstScale(spoint)`,
+    /// `BurstTransparency(tpoint)` and `EnyFlg` 1: Innis's rings.
+    SamonRing {
+        pos: V4,
+        rot: V4,
+        scale: V4,
+        model: i32,
+        spoint: V4,
+        tpoint: F,
+    },
+    /// `ccBossEff{Ice,Lightning,Blaze}MissileCreate` (MUT gcmn 0x0048d750,
+    /// 0x0048d830, 0x0048d910): one of Innis's missiles, drawn for the
+    /// rules' slot ([`crate::innis`]).
+    Missile {
+        rules_slot: i32,
+        element: piney_battle::boss::innis::Element,
+        no: i32,
+    },
+    /// The same with no callback and no camera, run by this manager (the
+    /// probe's): `Create(ctrl, no, 0, 0)`.
+    MissileAlone {
+        element: piney_battle::boss::innis::Element,
+        no: i32,
+        ctrl: [V4; 4],
+    },
 }
 
 impl BossEffects {
@@ -323,6 +420,38 @@ impl BossEffects {
             }
             Make::AutoSamonRing { pos, rot, param, n } => self.auto_samon_ring(cx, pos, rot, param, n),
             Make::IceBreak { pos, scale } => self.ice_break(cx, t, pos, scale),
+            Make::SamonRing { pos, rot, scale, model, spoint, tpoint } => {
+                let (clump, clut) = ring_objects(cx, model);
+                let r = SamonRing {
+                    pos,
+                    rot,
+                    scale,
+                    burst: spoint,
+                    bursting: true,
+                    transparency: ONE,
+                    step: tpoint,
+                    clump,
+                    clut,
+                    ds: None,
+                };
+                self.put(true, BossEff::Ring(r))
+            }
+            Make::Missile { rules_slot, element, no } => {
+                // A slot of the rules' freed and made again: the new one.
+                for s in self.slots.iter_mut() {
+                    if matches!(s, Some(Slot { eff: BossEff::Missile(m), .. }) if m.rules_slot == rules_slot) {
+                        *s = None;
+                    }
+                }
+                let Some(k) = self.free() else { return -1 };
+                let m = crate::innis::Missile::new(cx, t, k, rules_slot, element, no);
+                self.put(true, BossEff::Missile(Box::new(m)))
+            }
+            Make::MissileAlone { element, no, ctrl } => {
+                let Some(k) = self.free() else { return -1 };
+                let m = crate::innis::Missile::alone(cx, t, k, element, no, ctrl);
+                self.put(true, BossEff::Missile(Box::new(m)))
+            }
             Make::Dead { pos } => self.dead(pos),
             Make::MeteoSworm { .. } | Make::ThunderStorm { .. } | Make::RockTower { .. } => {
                 let s = crate::fidchell::Spell::create(cx, t, make);
@@ -422,18 +551,45 @@ impl BossEffects {
         }
     }
 
+    /// Innis's missiles as the fight's rules left them (their slot there,
+    /// element, number and flight): each one's picture of its last `Draw`
+    /// ([`crate::innis::Missile::draw`]); those the rules let go, gone.
+    pub fn sync_missiles(
+        &mut self,
+        ctrl: &mut EffectCtrl,
+        cx: &mut Cx,
+        t: &Tables,
+        flights: &[(i32, piney_battle::boss::innis::Element, i32, &piney_battle::boss::innis::Missile)],
+    ) {
+        for s in self.slots.iter_mut() {
+            if let Some(Slot { eff: BossEff::Missile(m), .. }) = s
+                && !flights.iter().any(|f| f.0 == m.rules_slot)
+            {
+                for a in m.anchors() {
+                    ctrl.anchors.remove(&a);
+                }
+                *s = None;
+            }
+        }
+        for &(id, _, _, f) in flights {
+            let at = self.slots.iter_mut().flatten().find_map(|s| match &mut s.eff {
+                BossEff::Missile(m) if m.rules_slot == id => Some(m),
+                _ => None,
+            });
+            if let Some(m) = at {
+                m.draw(ctrl, cx, t, f);
+            }
+        }
+    }
+
     /// `ccBossEffWaveShockCreate(pos, dirc, scale)` (0x00478820).
     pub fn wave_shock(&mut self, cx: &mut Cx, t: &Tables, pos: V4, _dirc: V4, scale: F) -> i32 {
-        for se in [36, 68, 56] {
-            cx.raise(Event::Sound3dNote { se, pos, note: 60 });
-        }
-        let w = WaveShock { pos, rot: VF0, scale, anm: drawelm::AnmObj::new(cx, "xeffect", "ANM_ex31lhit") };
-        if let Some(mut g) = t.generator(cx, va::ERUPTION, [va::ERUPTION_FF, va::ERUPTION_FF + 0x20, 0, 0]) {
-            g.pos = pos;
-            g.offset = VF0;
-            g.p_tex_mod = 158;
-            cx.particles.start(g);
-        }
+        let w = WaveShock::begin(cx, t, pos, scale);
+        self.put_wave_shock(w)
+    }
+
+    /// The WaveShock's two slots: the Eruption (disabled) and the wave.
+    pub(crate) fn put_wave_shock(&mut self, w: WaveShock) -> i32 {
         self.put(false, BossEff::Eruption);
         self.put(true, BossEff::WaveShock(w))
     }
@@ -583,13 +739,7 @@ impl BossEffects {
     /// ring bursting from scale `param.x` (all three) by `param.y` a Draw.
     pub fn auto_samon_ring(&mut self, cx: &mut Cx, pos: V4, rot: V4, param: V4, n: i32) -> i32 {
         let s = param[0];
-        let (clump, clut) = match samon_model(n) {
-            Some((cmp, to, from)) => {
-                let find = |name: &str| cx.assets.find("particle", name);
-                (find(cmp), find(from).zip(find(to)).map(|(f, t)| (f.object, t.object)))
-            }
-            None => (None, None),
-        };
+        let (clump, clut) = ring_objects(cx, n);
         let r = SamonRing {
             pos,
             rot,
@@ -600,7 +750,7 @@ impl BossEffects {
             step: 0x3d4c_cccd,
             clump,
             clut,
-            ds: param[1],
+            ds: Some(param[1]),
         };
         self.put(true, BossEff::Ring(r))
     }
@@ -645,6 +795,7 @@ impl BossEffects {
                 continue;
             }
             let mut square = None;
+            let mut wave = None;
             let on = match &mut s.eff {
                 BossEff::Eruption => false,
                 BossEff::WaveShock(w) => w.draw(cx),
@@ -656,6 +807,14 @@ impl BossEffects {
                 // The fight's spells are drawn as its rules leave them
                 // ([`BossEffects::sync_spells`]).
                 BossEff::Spell(x) if x.rules_slot.is_some() => continue,
+                // Innis's missiles are drawn as its rules leave them
+                // ([`BossEffects::sync_missiles`]), but those run here.
+                BossEff::Missile(m) if m.runs_alone() => {
+                    let (on, w) = m.run(ctrl, cx, t);
+                    wave = w;
+                    on
+                }
+                BossEff::Missile(_) => continue,
                 BossEff::Spell(x) => {
                     let (on, sq) = x.run(ctrl, cx, t);
                     square = sq;
@@ -669,6 +828,10 @@ impl BossEffects {
             // reaches when its slot comes later.
             if let Some(p) = square {
                 self.magic_square(cx, t, p, 1);
+            }
+            // A lightning's landing: its WaveShock, made in its Draw.
+            if let Some(w) = wave {
+                self.put_wave_shock(w);
             }
         }
     }
@@ -913,12 +1076,32 @@ impl Bright {
     }
 }
 
+impl WaveShock {
+    /// The Create's sounds (36, 68, 56 at note 60), the Eruption's
+    /// generator at `pos` (`pTexMod` 158) and the wave's `ANM_ex31lhit`.
+    pub(crate) fn begin(cx: &mut Cx, t: &Tables, pos: V4, scale: F) -> WaveShock {
+        for se in [36, 68, 56] {
+            cx.raise(Event::Sound3dNote { se, pos, note: 60 });
+        }
+        let w = WaveShock { pos, rot: VF0, scale, anm: drawelm::AnmObj::new(cx, "xeffect", "ANM_ex31lhit") };
+        if let Some(mut g) = t.generator(cx, va::ERUPTION, [va::ERUPTION_FF, va::ERUPTION_FF + 0x20, 0, 0]) {
+            g.pos = pos;
+            g.offset = VF0;
+            g.p_tex_mod = 158;
+            cx.particles.start(g);
+        }
+        w
+    }
+}
+
 impl SamonRing {
     /// `ccBossEffAutoSamonRing::Draw` (0x0046ed70): the burst's step set,
     /// then `ccEffSamonRing::Draw` (0x00462660); false once the ring's
     /// transparency has fallen below 0.
     fn draw(&mut self, cx: &mut Cx) -> bool {
-        self.burst = [self.ds, self.ds, self.ds, ONE];
+        if let Some(ds) = self.ds {
+            self.burst = [ds, ds, ds, ONE];
+        }
         let mut alpha = ONE;
         if self.bursting {
             for k in 0..3 {
@@ -1048,5 +1231,29 @@ impl Dead {
             _ => {}
         }
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `ccEffSamonRing::SetModel`'s sets: Skeith's 35, Innis's images'
+    /// 191 and 193 and its fall's 192, Magus's leaf's 195; the file each
+    /// long number reads; the clump with no palette (34); none past them.
+    #[test]
+    fn the_rings_models() {
+        let m = |n: i32| ring_model(n).map(|m| (m.file, m.clump, m.clut));
+        let c = |a: &str, b: &str| Some((a.to_string(), b.to_string()));
+        assert_eq!(m(35), Some(("particle", "CMP_x033".into(), c("CLT_x033", "CLT_x033"))));
+        assert_eq!(m(191), Some(("xeffect", "CMP_x037".into(), c("CLT_x037", "CLT_x037c1"))));
+        assert_eq!(m(192), Some(("xeffect", "CMP_x037".into(), c("CLT_x037", "CLT_x037c2"))));
+        assert_eq!(m(195), Some(("xeffect", "CMP_x037".into(), c("CLT_x037", "CLT_x037c5"))));
+        assert_eq!(m(190), Some(("xeffect", "CMP_x037".into(), c("CLT_x037", "CLT_x037"))));
+        assert_eq!(m(34), Some(("particle", "CMP_x032".into(), None)));
+        assert_eq!(m(170), Some(("particle", "CMP_x031".into(), c("CLT_x031", "CLT_x031c2"))));
+        assert_eq!(m(200), Some(("xeffect", "CMP_x038".into(), c("CLT_x003", "CLT_x003c3"))));
+        assert_eq!(m(162), Some(("xeffect", "CMP_x030".into(), c("CLT_x030", "CLT_x030c1"))));
+        assert!(ring_model(36).is_none() && ring_model(182).is_none() && ring_model(204).is_none());
     }
 }

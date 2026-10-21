@@ -401,7 +401,14 @@ fn main_in(p: &mut Particle, gene: Option<&Generator>, view: &mut View, layer: O
                 p.end_flag = play.forward(&view.assets.files[obj.file]);
             }
             if let Some(alpha) = shown(p, at, view) {
-                view.draws.push(DrawRec::Anm { obj: *obj, play: play.clone(), matrix: *matrix, alpha, layer });
+                view.draws.push(DrawRec::Anm {
+                    obj: *obj,
+                    play: play.clone(),
+                    matrix: *matrix,
+                    alpha,
+                    layer,
+                    clut: Vec::new(),
+                });
             }
         }
         Obj::None => {}

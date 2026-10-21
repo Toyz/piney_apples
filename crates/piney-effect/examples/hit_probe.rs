@@ -375,7 +375,7 @@ fn draw(fx: &Effects, d: &DrawRec) -> String {
         DrawRec::Clump { obj, matrix, alpha, layer, .. } => {
             format!("[\"clump\", \"{}\", {}, {}, {}]", fx.assets.name(*obj), list(&matrix.concat()), alpha, layer)
         }
-        DrawRec::Anm { obj, play, matrix, alpha, layer } => format!(
+        DrawRec::Anm { obj, play, matrix, alpha, layer, .. } => format!(
             "[\"anm\", \"{}\", {}, {}, {}, {}]",
             fx.assets.name(*obj),
             play.time,

@@ -102,7 +102,8 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 - [x] Mutation's bosses: Innis (`ccBoss02`, worklog 266), Kyvia 01
   (`ccThKyvia01`, the `kyvia*` classes, worklog 272), Magus (`ccBoss03`,
   `ccBoss03Leaf`, worklog 274); events 107, 108 and 115 finish under the
-  autopilot (worklog 276). Innis's and Magus's pictures still open
+  autopilot (worklog 276). Innis's pictures drawn (worklog 411);
+  Magus's, Kyvia's particles and missiles still open
 - [ ] Outbreak's bosses: [x] Fidchell (`ccBoss04`, worklogs 294-295),
   [x] Gorre and its brothers (`ccBoss05`, worklog 303; the shield's shape
   and FinalPhotonFlash's picture open), [x] Kyvia 02 (above); each event

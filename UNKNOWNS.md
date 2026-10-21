@@ -85,13 +85,13 @@ gap, they share one line. The Docs section repeats the doc bullets.
 - [[38]] [[39]] [[72]] the field water's run-time textures and scroll, and the clouds' blending, are approximations (docs/engine/field.md, field-walk.md) — every field with water or clouds
 - [[97]] water 0's frame-buffer copy is the whole frame, not the game's 128 x 128 point-sampled one (docs/engine/field-game.md, town02.md) — the towns' water
 - [[79]] [[231]] `SetFogSw` / `SetShadowSw` on the spell pieces (and on other objects that turn fog off; only the gate was fixed) and the drill's `ccDrawEnv` settings are not modelled (docs/engine/effects.md) — spells and objects fogged or shadowed where the game turns it off
-- [[79]] the explosions' palette swaps are kept on the element but not drawn (docs/engine/effects.md) — spell explosions' colours
+- [[79]] the explosions' palette swaps are kept on the element but not drawn (docs/engine/effects.md) — spell explosions' colours — answered by [[411]]: `ccAnm` draws carry their objects' palette swaps (`AnmObj::change_clut`); the explosion's `OBJ_x048`-`051` own `CLT_x048`-`051` (`the_explosions_substitutes_own_their_palettes`)
 - docs/engine/effects.md `ccEntryChangeCLUT` swaps every texture on the palette where the game swaps per material — enemies whose palette-swapped texture shares a palette
 - [[157]] [[161]] `EntryObject`'s palettes for the lakes' statues and flowers when `GetBG` is not 0 are not ported (docs/engine/dungeon.md) — lake dungeons by evening and night
 - [[158]] `DUNGEON.fog` is not zeroed at the game over's TV, and the squeeze moves the whole finished frame, not only what sysLayer's view draws — the game over, in a dungeon most
-- [[266]] Innis's pictures are not drawn: missiles, SamonRings, particle generators, blur, shield, mirrors' shards; the MagicSquare for n 1 and 2 (docs/engine/boss-innis.md) — Mutation's first boss
+- [[266]] Innis's pictures are not drawn: missiles, SamonRings, particle generators, blur, shield, mirrors' shards; the MagicSquare for n 1 and 2 (docs/engine/boss-innis.md) — Mutation's first boss — answered by [[411]] (issue #69): the missiles, rings, generators, shield and shards are drawn (`piney_effect::innis`, `test_innis_effects` in tools/test_boss_effect_rs.py, `session::tests::boss_fx`); the squares were [[295]]'s. The blur stays with [[117]]
 - [[274]] Magus's pictures are named, not drawn: the leaves' markers, charges and bursts, the laser's shocks and thunder, the needles, the smoke; the body's dropped leaves are not hidden (docs/engine/boss-magus.md) — Mutation's Magus
-- [[280]] Innis's ice missile and Fidchell's IceBreak are not ported, so nothing throws their rocks — Mutation's and Outbreak's bosses (Fidchell's rules ported in [[294]]; its IceBreak's rocks are still not thrown)
+- [[280]] Innis's ice missile and Fidchell's IceBreak are not ported, so nothing throws their rocks — Mutation's and Outbreak's bosses (Fidchell's rules ported in [[294]]; its IceBreak's rocks are still not thrown) — Innis's answered by [[411]]: the first ice missile's landing throws its two sprays (`effIceRock`); Fidchell's IceBreak still open
 
 ### audio
 

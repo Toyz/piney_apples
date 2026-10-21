@@ -2984,6 +2984,28 @@ impl FieldWorld {
         if let Some(cmd) = trail_packet(&run.trail.0, &self.camera.world_screen) {
             ctx.layers.sorted(draw::EFF_LAYER, f32::from_bits(run.trail.1), cmd);
         }
+        // Innis's mirrors' shards: each clump's models at its place and
+        // turn (`SetMatrix_PosRotZYX`), on objLayer.
+        if let Some((file, clumps)) = run.look.shards.as_ref() {
+            let rows = std::collections::HashMap::new();
+            for &(k, pos, rot) in &run.shards {
+                let world = crate::body::root(pos, rot);
+                for &model in clumps.get(k).into_iter().flatten() {
+                    let d = draw::Draw {
+                        file,
+                        model,
+                        world,
+                        alpha: 1.0,
+                        rows: &rows,
+                        lights: None,
+                        nodes: &[],
+                        morph: Vec::new(),
+                        clut_swaps: Vec::new(),
+                    };
+                    draw::model(&mut ctx.layers, draw::OBJ_LAYER, to_screen, d);
+                }
+            }
+        }
         if let Some((time, pos, dirc)) = run.wave
             && let Some(mut p) = crate::pose::Play::new(&run.look.eff, combat::boss::ANM_WAVE)
         {
@@ -3899,6 +3921,9 @@ pub struct FxCensus {
     pub new_fly_fonts: Vec<(u32, Vec<u8>)>,
     /// The boss effects' draws of the frame, by the object each drew.
     pub boss_draws: Vec<String>,
+    /// The live generators following a boss effect (an anchor: a photon,
+    /// a missile), not being ended.
+    pub anchored_generators: usize,
 }
 
 impl FieldFx for combat::NoFx {

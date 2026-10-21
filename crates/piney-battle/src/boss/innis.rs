@@ -251,6 +251,24 @@ pub struct Missile {
     pub rot: V4,
     /// `m_cbFunc` is `MagicDamage` and `bossCam` is set: the first missile.
     pub hits: bool,
+    /// What the last `Draw` drew, for its picture (piney-effect's innis).
+    pub shown: Shown,
+}
+
+/// A missile's picture on one `Draw` (piney-effect's `innis`). `rot` is
+/// the turn it was drawn at, before a landing clears it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Shown {
+    /// Nothing drawn: a later missile's landing, or the lightning's.
+    #[default]
+    Nothing,
+    /// In flight at `pos`.
+    Flight { rot: V4 },
+    /// In flight, and landed on this `Draw`: its trails end, and the first
+    /// missile's burst begins (its smoke, rocks and dust).
+    Landed { rot: V4 },
+    /// The first ice or fire missile's burst after its landing.
+    Burst,
 }
 
 // --- small rules ------------------------------------------------------------------------
@@ -552,17 +570,21 @@ impl Missile {
         self.pos[3] = ONE;
     }
 
+    /// A missile with no callback and no camera: `Create(ctrl, NO, 0, 0)`.
+    pub fn alone(ctrl: &[V4; 4]) -> Missile {
+        Missile::new(ctrl, false)
+    }
+
     /// The missile's `Draw` as far as the rules go (Ice 0x00478d50,
-    /// Lightning 0x00479930, Blaze 0x0047a220): its sounds, its landing,
-    /// the camera's shake and the call of `MagicDamage`. False once it
-    /// clears `m_bEnabled`.
-    #[allow(clippy::too_many_arguments)]
-    fn draw(&mut self, el: Element, no: i32, ctrl: &[V4; 4], b: &mut Boss, x: &mut Innis, cx: &mut Cx) -> bool {
-        let se = |cx: &mut Cx, se: i32, pos: V4, note: u8| cx.out(Out::Se3dNote { se, pos, note });
+    /// Lightning 0x00479930, Blaze 0x0047a220): its flight and landing,
+    /// and what it asks of the rest in order (`calls`). `w2p` is
+    /// `ccTransPosW2P`.
+    pub fn step(&mut self, el: Element, no: i32, ctrl: &[V4; 4], w2p: impl Fn(V4) -> V4, calls: &mut Vec<Call>) {
+        let mut se = |se: i32, pos: V4, note: u8| calls.push(Call::Se3dNote { se, pos, note });
         if self.t == 0 {
-            se(cx, 57, self.pos, 60);
+            se(57, self.pos, 60);
             if el == Element::Ice && no == 1 {
-                se(cx, 61, self.pos, 65);
+                se(61, self.pos, 65);
             }
         }
         let fade = match el {
@@ -574,14 +596,19 @@ impl Missile {
             Element::Blaze => 0x3f4c_cccd,
             _ => ONE,
         };
+        self.shown = Shown::Nothing;
         if self.eny_flg == 0 {
             self.spline(ctrl);
-            let d = get_dirc(super::w2p(cx, self.pos), super::w2p(cx, ctrl[3]));
+            let d = get_dirc(w2p(self.pos), w2p(ctrl[3]));
             match el {
                 Element::Ice => self.rot[2] = d,
                 _ => self.rot[0] = d,
             }
+            self.shown = Shown::Flight { rot: self.rot };
         } else if el != Element::Lightning {
+            if no == 1 {
+                self.shown = Shown::Burst;
+            }
             for k in 0..3 {
                 self.scale[k] = ee::add(self.scale[k], grow);
                 if !ee::le(self.scale[k], 0x42c8_0000) {
@@ -594,6 +621,7 @@ impl Missile {
             }
         }
         if dp(self.t) > 0.984 && self.eny_flg == 0 {
+            self.shown = Shown::Landed { rot: self.rot };
             self.rot = VF0;
             self.eny_flg = 1;
             if no == 1 {
@@ -601,16 +629,15 @@ impl Missile {
                 match el {
                     Element::Ice => {
                         for (s, n) in [(35, 60), (66, 60), (66, 50), (35, 52)] {
-                            se(cx, s, p, n);
+                            se(s, p, n);
                         }
                     }
                     Element::Lightning => {
-                        let id = b.effects.create(EffKind::WaveShock);
-                        cx.out(Out::Effect { id, kind: EffKind::WaveShock, pos: p, dirc: VF0 });
-                        se(cx, 35, p, 53);
-                        se(cx, 68, p, 60);
+                        calls.push(Call::WaveShock { pos: p });
+                        calls.push(Call::Se3dNote { se: 35, pos: p, note: 53 });
+                        calls.push(Call::Se3dNote { se: 68, pos: p, note: 60 });
                     }
-                    Element::Blaze => se(cx, 35, p, 60),
+                    Element::Blaze => se(35, p, 60),
                 }
             }
         }
@@ -619,10 +646,9 @@ impl Missile {
                 self.eny_int += 1;
             }
             if self.hits {
-                cx.quake_vec([0x4120_0000; 3]);
+                calls.push(Call::Quake);
             }
         }
-        let mut alive = true;
         let due = match el {
             Element::Ice => ee::lt(self.transparency, 0),
             _ => self.eny_int >= 21,
@@ -633,9 +659,7 @@ impl Missile {
                 Element::Lightning => 6,
                 Element::Blaze => 7,
             };
-            if !self.hits || magic_damage(b, x, mode, cx) {
-                alive = false;
-            }
+            calls.push(Call::Due { mode });
         }
         self.t = match el {
             Element::Ice => {
@@ -645,8 +669,47 @@ impl Missile {
             Element::Lightning => ee::add(self.t, 0x3c75_c28f),
             Element::Blaze => ee::add(self.t, 0x3c54_fdf4),
         };
+    }
+
+    /// The `Draw` in Innis's manager pass: [`Missile::step`] with its calls
+    /// made (the WaveShock in the boss's effects, the quake, the first's
+    /// `MagicDamage`). False once it clears `m_bEnabled`.
+    fn draw(&mut self, el: Element, no: i32, ctrl: &[V4; 4], b: &mut Boss, x: &mut Innis, cx: &mut Cx) -> bool {
+        let mut calls = Vec::new();
+        self.step(el, no, ctrl, |v| super::w2p(cx, v), &mut calls);
+        let mut alive = true;
+        for c in calls {
+            match c {
+                Call::Se3dNote { se, pos, note } => cx.out(Out::Se3dNote { se, pos, note }),
+                Call::WaveShock { pos } => {
+                    let id = b.effects.create(EffKind::WaveShock);
+                    cx.out(Out::Effect { id, kind: EffKind::WaveShock, pos, dirc: VF0 });
+                }
+                Call::Quake => cx.quake_vec([0x4120_0000; 3]),
+                Call::Due { mode } => {
+                    if !self.hits || magic_damage(b, x, mode, cx) {
+                        alive = false;
+                    }
+                }
+            }
+        }
         alive
     }
+}
+
+/// What a missile's `Draw` asks of the rest, in order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Call {
+    /// `ccSeOn3DNote(se, pos, note)`.
+    Se3dNote { se: i32, pos: V4, note: u8 },
+    /// The first lightning's landing: `ccBossEffWaveShockCreate(pos, vf0,
+    /// 1.0)`.
+    WaveShock { pos: V4 },
+    /// `bossCam->QuakeCam(10, 10, 10)`: a missile with the boss camera.
+    Quake,
+    /// Its callback due: `MagicDamage(pos, mode)` (5 the ice, 6 the
+    /// lightning, 7 the fire); with none it ends.
+    Due { mode: i32 },
 }
 
 /// `ccBoss02::MagicDamage(pos, mode)` (0x0049a7d0), the first missile's

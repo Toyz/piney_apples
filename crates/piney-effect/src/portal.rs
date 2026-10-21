@@ -385,6 +385,7 @@ impl MagicCircle {
             matrix: self.matrix,
             alpha: t,
             layer: EFFECT_LAYER,
+            clut: Vec::new(),
         });
         for p in &mut self.parts {
             if p.status == 0 {
@@ -428,7 +429,7 @@ impl MagicCircle {
     pub fn render(&self, frame: &CircleFrame, assets: &Assets, layers: &mut Layers, camera: &Camera) {
         let to_screen = wdraw::screen(&camera.world_screen);
         for d in &frame.draws {
-            let DrawRec::Anm { obj, play, matrix, alpha, layer } = d else {
+            let DrawRec::Anm { obj, play, matrix, alpha, layer, .. } = d else {
                 d.render(assets, layers, camera);
                 continue;
             };

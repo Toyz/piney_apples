@@ -1,12 +1,10 @@
 //! Answers `tools/test_boss_effect_rs.py`: makes the boss's effects
-//! (`piney_effect::boss`) on the requests it is sent, runs the manager's pass
-//! frame by frame, and prints each answer as one JSON line, so the test can
-//! run the same through the game's own `ccBossEff*Create` and `Draw` in eemu
-//! (`boss_probe ISO < requests`). Numbers are hex; floats travel as their bit
-//! patterns. The requests (`reset`, `player`, `camera`, `field`, the Creates
-//! `wave`, `square`, `force`, `ring`, `ice`, `dead`, Fidchell's `meteo`,
-//! `storm`, `tower`, `frame`, and the lattice's `lattice`, `lnext`, `lpos`,
-//! `ldisp`, `lclear`, `lcnt`, `ltype`) are the test's. `genrand` is the
+//! (`piney_effect::boss`) on the test's requests, runs the manager's pass
+//! frame by frame and prints each answer as one JSON line (numbers hex,
+//! floats as bits), for the test to run the same through the game's own
+//! `ccBossEff*Create` and `Draw` in eemu (`boss_probe ISO < requests`). The
+//! requests are the `match` below: the Creates (Skeith's, Fidchell's,
+//! Innis's `missile` and `sring`), `frame`, the lattice's. `genrand` is the
 //! test's stand-in sequence ([`next_genrand`]).
 
 use std::cell::Cell;
@@ -109,6 +107,8 @@ fn lattice_state(l: &Lattice) -> String {
 
 fn vref(r: Option<VecRef>) -> String {
     match r {
+        // Innis's missiles' anchors: the high bit, the slot, which.
+        Some(VecRef::Anchor(k)) if k & 0x8000_0000 != 0 => format!("[\"missile\", {}]", (k & 0x7fff_ffff) >> 1),
         Some(VecRef::Anchor(k)) => format!("[\"anchor\", {}, {}]", k >> 8, k & 0xff),
         Some(VecRef::EffectPos(k)) => format!("[\"effpos\", {k}]"),
         None => "null".into(),
@@ -133,10 +133,21 @@ fn generator(g: &Generator) -> String {
 
 fn draw(fx: &Effects, d: &DrawRec) -> String {
     match d {
-        DrawRec::Clump { obj, matrix, alpha, layer, .. } => {
-            format!("[\"clump\", \"{}\", {}, {}, {}]", fx.assets.name(*obj), list(&matrix.concat()), alpha, layer)
+        DrawRec::Clump { obj, matrix, alpha, layer, clut } => {
+            let f = obj.file;
+            let clut = clut.map_or("null".to_string(), |(a, b)| {
+                let n = |o: u32| fx.assets.files[f].ccs.object_name(o).unwrap_or("?").to_string();
+                format!("[\"{}\", \"{}\"]", n(a), n(b))
+            });
+            format!(
+                "[\"clump\", \"{}\", {}, {}, {}, {clut}]",
+                fx.assets.name(*obj),
+                list(&matrix.concat()),
+                alpha,
+                layer
+            )
         }
-        DrawRec::Anm { obj, play, matrix, alpha, layer } => format!(
+        DrawRec::Anm { obj, play, matrix, alpha, layer, .. } => format!(
             "[\"anm\", \"{}\", {}, {}, {}, {}]",
             fx.assets.name(*obj),
             play.time,
@@ -360,6 +371,22 @@ fn main() {
             "meteo" => Make::MeteoSworm { sp: v4(1), ep: v4(5), n: n(9) as i32, radius: n(10), v: n(11) },
             "storm" => Make::ThunderStorm { pos: v4(1), radius: n(5), n: n(6) as i32 },
             "tower" => Make::RockTower { pos: v4(1), n: n(5) as i32 },
+            // Innis's: a missile alone (its element 0-2, NO, the four
+            // control points) and a ring (pos, rot, scale, model, its
+            // burst's scale step and fade).
+            "missile" => {
+                use piney_battle::boss::innis::Element;
+                let element = [Element::Ice, Element::Lightning, Element::Blaze][n(1) as usize];
+                Make::MissileAlone { element, no: n(2) as i32, ctrl: [v4(3), v4(7), v4(11), v4(15)] }
+            }
+            "sring" => Make::SamonRing {
+                pos: v4(1),
+                rot: v4(5),
+                scale: v4(9),
+                model: n(13) as i32,
+                spoint: v4(14),
+                tpoint: n(18),
+            },
             other => panic!("unknown request {other}"),
         };
         let id = fx.boss_create(&mut host, make);

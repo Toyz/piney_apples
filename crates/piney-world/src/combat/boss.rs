@@ -103,6 +103,9 @@ pub struct BossRun {
     /// The wave's `DrawParts` this frame: its animation's pose time, at the
     /// boss's place and heading.
     pub wave: Option<(u32, V4, V4)>,
+    /// Innis's mirrors' shards `Mbreak` drew this frame (`DrawPartsClump`
+    /// on objLayer): [`BossLook::shards`]' clump, place and turn.
+    pub shards: Vec<(usize, V4, V4)>,
     /// `bossCam` and `bossCamSW` (+0x14c, +0x150): the camera, and whether
     /// `Main` still runs it.
     pub cam: Option<BossCam>,
@@ -168,6 +171,10 @@ pub struct BossLook {
     /// Innis's images (`CMP_ex21mon1`-`3` of x21), by `MonsterID`;
     /// Kyvia's core and gomora ([`KYVIA_PARTS`] of x01).
     pub images: Vec<Rc<Body>>,
+    /// Innis's mirrors' shards (`BreakMirror::SetStream(x21, ID)`:
+    /// `CMP_ex21ef{ID}1`-`5`), the file and each clump's models, by
+    /// `ID * 5 + k`.
+    pub shards: Option<(Rc<piney_desktop::assets::SceneFile>, Vec<Vec<u32>>)>,
 }
 
 impl BossLook {
@@ -229,9 +236,15 @@ impl BossLook {
                 skill_names.insert(row.sid, CinemaName { tex: w.tex.clone(), tex_h: w.tex_h, row: row.row });
             }
         }
+        let mut shards = None;
         let images = match code {
             INNIS => {
                 let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, INNIS_FILE)?);
+                let clumps = (0..3)
+                    .flat_map(|id| (1..=5).map(move |k| format!("CMP_ex21ef{id}{k}")))
+                    .map(|c| crate::town::clump_models(&file, &c))
+                    .collect();
+                shards = Some((file.clone(), clumps));
                 IMAGES.iter().filter_map(|c| Body::of(file.clone(), c).ok().map(Rc::new)).collect()
             }
             KYVIA | KYVIA_SECOND => {
@@ -248,7 +261,7 @@ impl BossLook {
             }
             _ => Vec::new(),
         };
-        Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, skill_names, images })
+        Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, skill_names, images, shards })
     }
 }
 
@@ -380,6 +393,7 @@ impl Combat {
             look: look.clone(),
             afterimages: Vec::new(),
             wave: None,
+            shards: Vec::new(),
             cam_sw: cam.is_some(),
             cam,
             reverse: false,
@@ -627,6 +641,14 @@ impl Combat {
             // each image steps its fade as it draws, the new one too.
             r.wave = None;
             r.reverse = out.contains(&Out::Reverse);
+            r.shards = match &b.class {
+                Class::Innis(x) => (x.slaves.iter())
+                    .filter_map(|s| s.mirror.models.map(|id| (id, &s.mirror.drawn)))
+                    .filter(|(id, _)| (0..3).contains(id))
+                    .flat_map(|(id, drawn)| drawn.iter().map(move |&(k, p, r)| (id as usize * 5 + k, p, r)))
+                    .collect(),
+                _ => Vec::new(),
+            };
             for o in &out {
                 match o {
                     Out::AfterImage => r.afterimages.push(AfterImage {

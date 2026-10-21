@@ -235,6 +235,9 @@ impl FxTasks for AreaFx {
         let spells: Vec<_> = owned.iter().map(|(k, fx)| (*k, fx)).collect();
         let mut host = BattleHost::of(w);
         self.fx.boss_sync(&mut host, &spells);
+        let owned = innis_flights(host.w.scene);
+        let flights: Vec<_> = owned.iter().map(|(k, el, no, f)| (*k, *el, *no, f)).collect();
+        self.fx.innis_sync(&mut host, &flights);
         self.events.extend(self.fx.take_events());
     }
 }
@@ -277,6 +280,10 @@ impl FieldFx for AreaFx {
                 .filter_map(|n| n.ch.map(|c| (c, &n.uproll)))
                 .flat_map(|(c, u)| u.lines.iter().filter(|l| l.alpha_cnt == 23).map(move |l| (c, l.text.clone())))
                 .collect(),
+            anchored_generators: (self.fx.particles.gens.iter())
+                .filter(|g| g.kill_flag < 2)
+                .filter(|g| matches!(g.sync_pos, Some(piney_effect::VecRef::Anchor(_))))
+                .count(),
             boss_draws: (self.fx.boss_draws().iter())
                 .map(|d| match d {
                     DrawRec::Clump { obj, .. } | DrawRec::Anm { obj, .. } => self.fx.assets.name(*obj).to_string(),
@@ -416,6 +423,7 @@ fn circle_frame(view: &FxView, mc: &MagicCircle, spark: &Eff) -> CircleFrame {
             matrix,
             alpha: a.alpha,
             layer: piney_effect::effect::EFFECT_LAYER,
+            clut: Vec::new(),
         });
         for p in c.parts.iter().filter(|p| p.status != 0) {
             let mut e = spark.clone();
@@ -444,6 +452,25 @@ fn boss_spells(scene: &Scene) -> Vec<(i32, piney_battle::boss::fidchell::eff::Fx
         for (k, e) in b.effects.slots.iter().enumerate() {
             if let Some(fx) = e.as_ref().and_then(|e| e.fidchell.as_deref()) {
                 out.push((k as i32, fx.clone()));
+            }
+        }
+    }
+    out
+}
+
+/// Innis's missiles in the fight's boss effects: their slot, element,
+/// number and flight as the last `Draw` left it.
+type Flight = (i32, piney_battle::boss::innis::Element, i32, piney_battle::boss::innis::Missile);
+
+fn innis_flights(scene: &Scene) -> Vec<Flight> {
+    let mut out = Vec::new();
+    for ch in &scene.chars {
+        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.exit == 0) else { continue };
+        for (k, e) in b.effects.slots.iter().enumerate() {
+            let Some(e) = e.as_ref() else { continue };
+            if let (piney_battle::boss::EffKind::Missile { element, no, .. }, Some(m)) = (e.kind, e.missile.as_deref())
+            {
+                out.push((k as i32, element, no, m.clone()));
             }
         }
     }
@@ -629,10 +656,18 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
             fx.enemy_dust(h, *pos, 30, 0x4080_0000, life, tex);
         }
         // The boss's ccBossEff*Create (those the effects have).
-        Show::Boss(_, piney_battle::boss::Out::Effect { kind, pos, dirc, .. }) => {
-            if let Some(m) = boss_make(*kind, *pos, *dirc) {
+        Show::Boss(_, piney_battle::boss::Out::Effect { id, kind, pos, dirc }) => {
+            if let Some(m) = boss_make(*id, *kind, *pos, *dirc) {
                 fx.boss_create(h, m);
             }
+        }
+        // Innis's and its images' particle generators.
+        Show::Boss(_, piney_battle::boss::Out::Particles { which, pos }) => {
+            fx.innis_particles(h, *which, *pos);
+        }
+        // A boss's Affect on a spell's hit: effResistantShield(this, 1, -1).
+        Show::Boss(me, piney_battle::boss::Out::Shield) => {
+            fx.resistant_shield(h, cref(*me), 1, -1);
         }
         // What Fidchell's rules ask beside: the back dash's and a tower's
         // dust, a meteor's landing, a tower's and a strike's rocks.
@@ -662,13 +697,13 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
 }
 
 /// A `ccBossEff*Create` as the bosses call it (`docs/engine/boss.md`,
-/// "Effects"): the rules name the effect, where and which way. Innis's
-/// rings and missiles, Kyvia's meteors and thunderbolts and Magus's
-/// needles have no picture yet (boss-innis.md, boss-kyvia.md,
-/// boss-magus.md); Fidchell's
-/// meteors, thunders and rock towers are drawn from its rules' state
-/// ([`boss_spells`]).
-fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
+/// "Effects"): the rules name the effect, where and which way, in their
+/// slot `id`. Kyvia's meteors and thunderbolts, Magus's needles and Gorre's
+/// flash have no picture yet (boss-kyvia.md, boss-magus.md,
+/// boss-gorre.md); Fidchell's meteors, thunders and rock towers and
+/// Innis's missiles are drawn from their rules' state ([`boss_spells`],
+/// [`innis_flights`]).
+fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
     use piney_battle::boss::EffKind;
     use piney_effect::boss::Make;
     const TEN: u32 = 0x4120_0000;
@@ -683,9 +718,11 @@ fn boss_make(kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<pin
         EffKind::Dead => Make::Dead { pos },
         // Magus's leaf's ring (model 195, DeadEffect's parameter).
         EffKind::LeafRing => Make::AutoSamonRing { pos, rot: dirc, param: [0x3f00_0000, ONE, 0, 0x4220_0000], n: 195 },
-        EffKind::SamonRing { .. }
-        | EffKind::Missile { .. }
-        | EffKind::Meteorite { .. }
+        EffKind::SamonRing { model, scale, spoint, tpoint } => {
+            Make::SamonRing { pos, rot: dirc, scale, model, spoint, tpoint }
+        }
+        EffKind::Missile { element, no, .. } => Make::Missile { rules_slot: id, element, no },
+        EffKind::Meteorite { .. }
         | EffKind::Needle { .. }
         | EffKind::MeteoSworm { .. }
         | EffKind::ThunderStorm { .. }

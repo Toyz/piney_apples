@@ -2,7 +2,7 @@
 title: Bosses - Innis
 status: partial
 volumes: MUT
-covers: MUT gcmn.prg:0x00470c40 ccBossEntryStart, 0x006192c0 bossFunc, 0x004941f0 ccThBoss02, 0x004942c0 ccBoss02::ccBoss02, 0x00495d50 ccBoss02::Main, 0x00494cd0 ccBoss02::Move, 0x004964b0 ccBoss02::Think, 0x00494e10 ccBoss02::Action, 0x00495448 act 5, 0x004960f0 ccBoss02::Affect, 0x00496a50 ccBoss02::ActionDecision, 0x00496f50 ccBoss02::ActionEnd, 0x00496900 ccBoss02::ResetData, 0x00496fc0 ccBoss02::SwitchActionPattern, 0x006e0c20 its jump table, 0x00497b80 Pattern01, 0x00497c40 Pattern02, 0x00497df0 Pattern03, 0x00497eb0 Pattern05, 0x004980b0 Pattern06, 0x004981d0 Pattern07, 0x00498500 Pattern08, 0x004987d0 Pattern10, 0x00498eb0 Pattern11, 0x00499110 SkillAttack, 0x004996c0 GetRndSkill_INIS, 0x00499770 Checkstate, 0x004997d0 CheckRange, 0x00499950 RndTarget, 0x00499a90 ParticularCount, 0x00499b40 SetCameraEyes, 0x00499c10 CharALLHold, 0x00499d10 DmgCheckCount, 0x0049a000 MagicSquare, 0x0049a7d0 MagicDamage, 0x0049a900 EnemyAttack, 0x0049aa10 AllAttack, 0x0049afa0 IceAttack, 0x0049b560 ThunderAttack, 0x0049bb30 BlazeAttack, 0x0049c1e0 EntrySlave, 0x0049c310 ccBoss02Slave::ccBoss02Slave, 0x0049c520 SetMonster, 0x0049c810 SetStartPosition, 0x0049cce0 ccBoss02Slave::Think, 0x0049d1b0 EnemyBurst, 0x0049d6b0 SetTan, 0x0049d820 SetLotate, 0x00533d90 BreakMirror::MainMirror, 0x00533fd0 BreakMirror::BreakMirror, 0x005340e0 BreakMirror::SetData, 0x00534430 BreakMirror::Mbreak, 0x00534a50 BreakMirror::CheckAnmEnd, 0x004780f0 ccBossEffManager::Draw, 0x00478d50 ccBossEffIceMissile::Draw, 0x00479420 ccBossEffIceMissile::Spline, 0x00479930 ccBossEffLightningMissile::Draw, 0x0047a220 ccBossEffBlazeMissile::Draw, 0x00475ae0 ccBossCam::SetMode, 0x00475c90 ccBossCam::SetFreeCamPosView, 0x004766d0 ccBossCam::CheckMoveCamera, 0x0061d350 InisFieldGenerator, 0x0061d4f0 TornadoGenerator, 0x0061d590 BurstGenerator, 0x00619bd0 Pattern, 0x00619e30 EPITAPH_Pattern, 0x00619b90 boss02AnmTbl, 0x00619f08 Skill_VARIOUS_INIS, 0x00619f20 Skill_DOWNER_INIS, 0x00619f40 Mon1, 0x00619f80 Mon2, 0x00619fc0 Mon3, 0x0061a000 @2702, 0x00619320 _g_cinemaSkillName, 0x00641aa0 bossTbl
+covers: MUT gcmn.prg:0x00470c40 ccBossEntryStart, 0x006192c0 bossFunc, 0x004941f0 ccThBoss02, 0x004942c0 ccBoss02::ccBoss02, 0x00495d50 ccBoss02::Main, 0x00494cd0 ccBoss02::Move, 0x004964b0 ccBoss02::Think, 0x00494e10 ccBoss02::Action, 0x00495448 act 5, 0x004960f0 ccBoss02::Affect, 0x00496a50 ccBoss02::ActionDecision, 0x00496f50 ccBoss02::ActionEnd, 0x00496900 ccBoss02::ResetData, 0x00496fc0 ccBoss02::SwitchActionPattern, 0x006e0c20 its jump table, 0x00497b80 Pattern01, 0x00497c40 Pattern02, 0x00497df0 Pattern03, 0x00497eb0 Pattern05, 0x004980b0 Pattern06, 0x004981d0 Pattern07, 0x00498500 Pattern08, 0x004987d0 Pattern10, 0x00498eb0 Pattern11, 0x00499110 SkillAttack, 0x004996c0 GetRndSkill_INIS, 0x00499770 Checkstate, 0x004997d0 CheckRange, 0x00499950 RndTarget, 0x00499a90 ParticularCount, 0x00499b40 SetCameraEyes, 0x00499c10 CharALLHold, 0x00499d10 DmgCheckCount, 0x0049a000 MagicSquare, 0x0049a7d0 MagicDamage, 0x0049a900 EnemyAttack, 0x0049aa10 AllAttack, 0x0049afa0 IceAttack, 0x0049b560 ThunderAttack, 0x0049bb30 BlazeAttack, 0x0049c1e0 EntrySlave, 0x0049c310 ccBoss02Slave::ccBoss02Slave, 0x0049c520 SetMonster, 0x0049c810 SetStartPosition, 0x0049cce0 ccBoss02Slave::Think, 0x0049d1b0 EnemyBurst, 0x0049d6b0 SetTan, 0x0049d820 SetLotate, 0x00533d90 BreakMirror::MainMirror, 0x00533fd0 BreakMirror::BreakMirror, 0x005340e0 BreakMirror::SetData, 0x00534430 BreakMirror::Mbreak, 0x00534a50 BreakMirror::CheckAnmEnd, 0x004780f0 ccBossEffManager::Draw, 0x00478d50 ccBossEffIceMissile::Draw, 0x00479420 ccBossEffIceMissile::Spline, 0x00479930 ccBossEffLightningMissile::Draw, 0x0047a220 ccBossEffBlazeMissile::Draw, 0x00475ae0 ccBossCam::SetMode, 0x00475c90 ccBossCam::SetFreeCamPosView, 0x004766d0 ccBossCam::CheckMoveCamera, 0x0061d350 InisFieldGenerator, 0x0061d4f0 TornadoGenerator, 0x0061d590 BurstGenerator, 0x0061d900 MissileSmokeGenerator, 0x0061e290 BurstSmokeGenerator, 0x00478910 ccBossEffIceMissile::ccBossEffIceMissile, 0x004795b0 ccBossEffLightningMissile::ccBossEffLightningMissile, 0x00479ed0 ccBossEffBlazeMissile::ccBossEffBlazeMissile, 0x0048d670 ccBossEffSamonRingCreate, 0x00478480 ccEffSamonRing::ccEffSamonRing, 0x004786b0 ccEffSamonRing::Draw, 0x00477c20 ccEffSamonRing::SetModel, 0x00473430 ccBoss::DrawPartsClump, 0x00619bd0 Pattern, 0x00619e30 EPITAPH_Pattern, 0x00619b90 boss02AnmTbl, 0x00619f08 Skill_VARIOUS_INIS, 0x00619f20 Skill_DOWNER_INIS, 0x00619f40 Mon1, 0x00619f80 Mon2, 0x00619fc0 Mon3, 0x0061a000 @2702, 0x00619320 _g_cinemaSkillName, 0x00641aa0 bossTbl
 worklog: 266
 ---
 
@@ -286,6 +286,47 @@ and maxHP to maxHP / 10 (3000), `PP` -1, `PPcount` 0. 13 is act 11. A hit
 row) names Innis's: rows 5-8 are x21's `TEX_ini_skl` rows 0-3, row 70 its
 row 4. Mutation's `CinemaOn` accepts n < 79 (Infection's 61).
 
+## The pictures
+
+Each missile's constructor and `Draw` (Ice 0x00478910 / 0x00478d50,
+Lightning 0x004795b0 / 0x00479930, Blaze 0x00479ed0 / 0x0047a220):
+
+| missile | in flight (`SetMatrix_PosRotXYZScale`, scale 3) | trails (`MissileSmokeGenerator` row, force field) | the first's burst |
+| --- | --- | --- | --- |
+| ice | particle's `CMP_x202a`, turned about z | 0 (0) | xeffect's `ANM_ex31lhit` at scale 5 and `ANM_x305` at 2.5 (`PosRotZYXScale`, no turn), `x305`'s `OBJ_x048`-`051` on their `c1` palettes |
+| lightning | `CMP_x500` at transparency 0.5, turned about x | 1 (12), 2 (1) | none (its WaveShock is the rules') |
+| fire | `ANM_x300` at 0.5, turned about x | 3 (2), 4 (3) | `ANM_x305` in place of the fireball, scale 4, set again at each end |
+
+The trails follow the missile's place and turn (`syncPos`, `syncRot`,
+distSW off) and are killed at the landing. The first missile's landing
+then starts `BurstSmokeGenerator` rows (distSW off; force fields in
+brackets):
+
+- ice: 0 (0) at the place, 0 (0) 50 up, 5 (4, 0, 9) 200 up; two
+  `effIceRock`s turned by -pi/2 (50, 1.0, 20 and 100, 0.5, 20);
+  `ccEnemyEffDust(pos, 10, 5.0)`;
+- lightning: 1 (1), 6 (5), 13 (9) at the place;
+- fire: 2 (10) at the place, 2 (2) and 3 (16, 2) 70 up, 4 (3, 2) at z 0,
+  7 (6, 7, 8) at z 90; `ccEnemyEffDust(pos, 10, 5.0)`.
+
+The rings (`ccBossEffSamonRingCreate`, MUT 0x0048d670; `ccEffSamonRing`
+0x00478480, `Draw` 0x004786b0) take their model from `SetModel`
+(0x00477c20, alike on every volume): sets of a short number and seven long
+ones (32/161 `CMP_x030`, 33/168 `x031`, 35/175 `x033`, 42/190 `x037`,
+43/197 `x038` on `CLT_x003`; 34 `CMP_x032` with no palette), the long
+ones after the first on the set's `c1`-`c6` palettes, 161-167 and 175-203
+from xeffect, the rest from particle. The images' rings are 191 and 193,
+the fall's 192: `CMP_x037` turned to `c1`, `c3`, `c2`.
+
+The generators Innis starts: `InisFieldGenerator` rows 2, 3, 0, 1 at
+(0, 0, 200) (force fields 0 and 1, or 0 and 2) at its first pattern, row 4
+(3, 1; distSW off) over the skill's target; `TornadoGenerator` (0-2,
+distSW off) at the escape (`Pattern10`); `BurstGenerator` row 2 (1,
+distSW off) at the fall, rows 3 (4, 3) and 4 (5) at an image's burst. An
+image's mirror (`BreakMirror::Mbreak`) draws each shard with
+`DrawPartsClump` on objLayer, `SetMatrix_PosRotZYX` at its place and
+turn.
+
 ## In the port
 
 `piney_battle::boss::innis` holds the rules. `Boss.class` is
@@ -294,10 +335,22 @@ The tables come from the build (`tables::combat`: `innis_pattern`,
 `innis_epitaph`, `innis_anims`, `innis_various_skills`,
 `innis_downer_skills`, `innis_monster_anims`, `innis_ring_models`,
 `cinema_skill_names`) through `BossData`. The missiles' flights are rules
-(they call `MagicDamage`), run in the manager's pass. The camera's modes,
+(they call `MagicDamage`), run in the manager's pass: `Missile::step` is
+the `Draw` with what it asks in order (`innis::Call`) and what it drew
+(`Missile::shown`). The camera's modes,
 eye and pitch are `Out::CamMode`, `FreeCam` and `CamPitch`, which
 `piney_world::bosscam::BossCam` applies. The blur's colour, the
 particles and the shield are `Out::Blur`, `Particles` and `Shield`.
+
+`piney_effect::innis` draws the missiles: each made at its `Out::Effect`
+and drawn after the boss's task from the flight its rules' `Draw` left
+(`BossEffects::sync_missiles`), its trails on anchors, its landing's calls
+made there (the rocks' and the dust's `rand()` come after the boss's task,
+not in the manager's pass before it; nothing between draws from `rand()`
+while the missiles fly). `innis::start` starts the generators;
+`ring_model` is `SetModel`; `Out::Shield` is `effResistantShield(this, 1,
+-1)`. The mirrors' shards are drawn by the field (`BossRun::shards`,
+x21's `CMP_ex21ef*`). Until worklog 411 none of these was drawn.
 
 In the field, `FieldWorld::start_boss(code)` reads the event's entry code.
 It loads x21's `CMP_trall` and clips, the images' `CMP_ex21mon1`-`3` and
@@ -314,11 +367,18 @@ animations, the images and their mirrors, the effects, the camera's mode,
 eye and pitch, the blur, the party's hold, the calls, the menu's words
 and both random generators. Its docstring lists what is not the game's.
 
+`tools/test_boss_effect_rs.py`'s `test_innis_effects`
+(`PINEY_VOLUME=mutation`) runs each missile's real `Create` (each element
+first and not, no callback, no camera) and the rings' (191-193, their
+burst set) with the manager's pass in eemu against boss_probe's `missile`
+and `sring`: the draws (clump, palette swap, matrix, transparency), the
+sounds, the generators started and killed, the rocks' effects and both
+random generators, every frame. `session::tests::boss_fx` checks the fight
+draws them.
+
 ## Not described yet
 
-- The pictures: the missiles, the SamonRings, the particle generators
-  (`InisField`, `Tornado`, `Burst`), the blur, the shield and the mirrors'
-  shards are not drawn. The MagicSquare draws only for n 0 (Skeith's).
+- The blur (`ccBossBlur`): not drawn for any boss (boss.md).
 - The Epitaph's body (`ANM_ex2x*` clips play on x21's `CMP_trall`; which
   clump the game draws them on is not checked).
 - Mutation's `CamMain` lift (+0xdc) is always 0 in these rules and not

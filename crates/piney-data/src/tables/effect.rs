@@ -311,6 +311,46 @@ pub struct Effect {
     pub boss_dead_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_dead_ff_va: u32,
+    /// `InisFieldGenerator`: Innis's field and its skill's glow.
+    pub boss_inis_field: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_inis_field_va: u32,
+    /// `InisFieldForceField`.
+    pub boss_inis_field_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_inis_field_ff_va: u32,
+    /// `TornadoGenerator`: Innis's escape.
+    pub boss_tornado: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_tornado_va: u32,
+    /// `TornadoForceField`.
+    pub boss_tornado_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_tornado_ff_va: u32,
+    /// `BurstGenerator`: Innis's fall and its images' bursts.
+    pub boss_burst: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_burst_va: u32,
+    /// `BurstForceField`.
+    pub boss_burst_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_burst_ff_va: u32,
+    /// `MissileSmokeGenerator`: the missiles' trails.
+    pub boss_missile_smoke: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_missile_smoke_va: u32,
+    /// `MissileSmokeForceField`.
+    pub boss_missile_smoke_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_missile_smoke_ff_va: u32,
+    /// `BurstSmokeGenerator`: the missiles' landings.
+    pub boss_burst_smoke: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_burst_smoke_va: u32,
+    /// `BurstSmokeForceField`.
+    pub boss_burst_smoke_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_burst_smoke_ff_va: u32,
 }
 
 impl crate::store::Load for Effect {
@@ -450,6 +490,26 @@ impl crate::store::Load for Effect {
             boss_dead_va: crate::store::Load::load(r),
             boss_dead_ff: crate::store::Load::load(r),
             boss_dead_ff_va: crate::store::Load::load(r),
+            boss_inis_field: crate::store::Load::load(r),
+            boss_inis_field_va: crate::store::Load::load(r),
+            boss_inis_field_ff: crate::store::Load::load(r),
+            boss_inis_field_ff_va: crate::store::Load::load(r),
+            boss_tornado: crate::store::Load::load(r),
+            boss_tornado_va: crate::store::Load::load(r),
+            boss_tornado_ff: crate::store::Load::load(r),
+            boss_tornado_ff_va: crate::store::Load::load(r),
+            boss_burst: crate::store::Load::load(r),
+            boss_burst_va: crate::store::Load::load(r),
+            boss_burst_ff: crate::store::Load::load(r),
+            boss_burst_ff_va: crate::store::Load::load(r),
+            boss_missile_smoke: crate::store::Load::load(r),
+            boss_missile_smoke_va: crate::store::Load::load(r),
+            boss_missile_smoke_ff: crate::store::Load::load(r),
+            boss_missile_smoke_ff_va: crate::store::Load::load(r),
+            boss_burst_smoke: crate::store::Load::load(r),
+            boss_burst_smoke_va: crate::store::Load::load(r),
+            boss_burst_smoke_ff: crate::store::Load::load(r),
+            boss_burst_smoke_ff_va: crate::store::Load::load(r),
         }
     }
 }
@@ -857,6 +917,66 @@ impl Effect {
     pub fn boss_dead_ff_va(&self) -> u32 {
         self.boss_dead_ff_va
     }
+    pub fn boss_inis_field(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_inis_field
+    }
+    pub fn boss_inis_field_va(&self) -> u32 {
+        self.boss_inis_field_va
+    }
+    pub fn boss_inis_field_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_inis_field_ff
+    }
+    pub fn boss_inis_field_ff_va(&self) -> u32 {
+        self.boss_inis_field_ff_va
+    }
+    pub fn boss_tornado(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_tornado
+    }
+    pub fn boss_tornado_va(&self) -> u32 {
+        self.boss_tornado_va
+    }
+    pub fn boss_tornado_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_tornado_ff
+    }
+    pub fn boss_tornado_ff_va(&self) -> u32 {
+        self.boss_tornado_ff_va
+    }
+    pub fn boss_burst(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_burst
+    }
+    pub fn boss_burst_va(&self) -> u32 {
+        self.boss_burst_va
+    }
+    pub fn boss_burst_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_burst_ff
+    }
+    pub fn boss_burst_ff_va(&self) -> u32 {
+        self.boss_burst_ff_va
+    }
+    pub fn boss_missile_smoke(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_missile_smoke
+    }
+    pub fn boss_missile_smoke_va(&self) -> u32 {
+        self.boss_missile_smoke_va
+    }
+    pub fn boss_missile_smoke_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_missile_smoke_ff
+    }
+    pub fn boss_missile_smoke_ff_va(&self) -> u32 {
+        self.boss_missile_smoke_ff_va
+    }
+    pub fn boss_burst_smoke(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_burst_smoke
+    }
+    pub fn boss_burst_smoke_va(&self) -> u32 {
+        self.boss_burst_smoke_va
+    }
+    pub fn boss_burst_smoke_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_burst_smoke_ff
+    }
+    pub fn boss_burst_smoke_ff_va(&self) -> u32 {
+        self.boss_burst_smoke_ff_va
+    }
 }
 
 /// `effectCCSTbl`: the effect files, up to the row with no name.
@@ -1228,6 +1348,46 @@ pub static BOSS_DEAD: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
 /// `BossDeadForceField`.
 pub static BOSS_DEAD_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
     std::sync::LazyLock::new(|| shared().boss_dead_ff);
+
+/// `InisFieldGenerator`: Innis's field and its skill's glow.
+pub static BOSS_INIS_FIELD: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_inis_field);
+
+/// `InisFieldForceField`.
+pub static BOSS_INIS_FIELD_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_inis_field_ff);
+
+/// `TornadoGenerator`: Innis's escape.
+pub static BOSS_TORNADO: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_tornado);
+
+/// `TornadoForceField`.
+pub static BOSS_TORNADO_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_tornado_ff);
+
+/// `BurstGenerator`: Innis's fall and its images' bursts.
+pub static BOSS_BURST: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_burst);
+
+/// `BurstForceField`.
+pub static BOSS_BURST_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_burst_ff);
+
+/// `MissileSmokeGenerator`: the missiles' trails.
+pub static BOSS_MISSILE_SMOKE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_missile_smoke);
+
+/// `MissileSmokeForceField`.
+pub static BOSS_MISSILE_SMOKE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_missile_smoke_ff);
+
+/// `BurstSmokeGenerator`: the missiles' landings.
+pub static BOSS_BURST_SMOKE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_burst_smoke);
+
+/// `BurstSmokeForceField`.
+pub static BOSS_BURST_SMOKE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_burst_smoke_ff);
 
 /// The volume's Effect (read once a run; kept here per volume).
 pub fn of(v: Volume) -> &'static Effect {

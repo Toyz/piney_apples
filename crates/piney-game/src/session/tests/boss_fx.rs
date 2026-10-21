@@ -17,13 +17,18 @@ use super::*;
 const BREAK: std::ops::RangeInclusive<i16> = 19..=21;
 const RETURN: std::ops::RangeInclusive<i16> = 22..=24;
 
-/// What one frame of the fight left: the boss's act and gauge count and
-/// the live effects.
+/// What one frame of the fight left: the boss's act and gauge count, the
+/// live effects, the boss effects' draws and the generators following
+/// them.
 #[derive(Default)]
 struct Seen {
     act: i16,
     pp_count: i16,
     effects: Vec<i16>,
+    draws: Vec<String>,
+    anchored: usize,
+    /// Innis's mirrors' shards drawn.
+    shards: usize,
 }
 
 /// The fight in its arena for `frames` frames from the boss's coming, the
@@ -55,6 +60,9 @@ fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&mut Combat, usize, 
             act: f.and_then(|f| f.boss.as_ref()).map_or(-1, |b| b.act_num),
             pp_count: f.map_or(0, |f| f.pp_count),
             effects: census.effects,
+            draws: census.boss_draws,
+            anchored: census.anchored_generators,
+            shards: c.boss.as_ref().map_or(0, |r| r.shards.len()),
         };
         each(c, me, i, &now);
         seen.push(now);
@@ -160,10 +168,92 @@ fn innis(c: &Combat, me: usize) -> Option<&piney_battle::boss::innis::Innis> {
     }
 }
 
+/// `MagicSquare`'s word (`SwitchActionPattern` 19).
+const MAGIC_WORD: i32 = 19;
+
+/// Innis's fight with the gauge at half from frame 300 (the second mode's
+/// run, with its magic), each magic's element forced in turn (ice,
+/// lightning, fire) once its square is drawn (`EnyInt` set at count 2; the
+/// missiles come at count 10 after the eye's move): each frame's draws
+/// with the element of the magic then flying.
+fn innis_magic(s: &mut Session, frames: u32) -> Vec<(Option<i32>, Seen)> {
+    let (mut casts, mut flying) = (0, None);
+    let mut elements = Vec::new();
+    let seen = fight(s, frames, |c, me, i, now| {
+        if i == 300
+            && let Some(f) = c.scene.chars[me].foe_state_mut()
+        {
+            f.pp = f.row.max_pp / 2;
+        }
+        if let Some(Class::Innis(x)) =
+            c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
+            && x.move_flg == MAGIC_WORD
+            && x.eny_flg == 0
+            && x.cou == 3
+        {
+            x.eny_int = casts % 3;
+            flying = Some(x.eny_int);
+            casts += 1;
+        }
+        elements.push(if now.act == 4 { flying } else { None });
+    });
+    elements.into_iter().zip(seen).collect()
+}
+
+/// Innis's three magics show their missiles: the ice's crystals
+/// (`CMP_x202a`) and, once the first lands, its hit and its explosion
+/// (`ANM_ex31lhit`, `ANM_x305`); the lightning's bolts (`CMP_x500`) and the
+/// WaveShock at the first's landing; the fire's fireballs (`ANM_x300`) and
+/// the first's explosion. Each flies with its trails (the generators
+/// following it). Before, nothing of the missiles was drawn.
+#[test]
+fn innis_magic_shows_its_missiles() {
+    let Some(mut s) = event_107_arena() else { return };
+    let seen = innis_magic(&mut s, 7000);
+    let mut drawn: BTreeMap<(i32, String), u32> = BTreeMap::new();
+    let mut trails: BTreeMap<i32, u32> = BTreeMap::new();
+    for (el, now) in &seen {
+        let Some(el) = *el else { continue };
+        for d in &now.draws {
+            *drawn.entry((el, d.clone())).or_default() += 1;
+        }
+        *trails.entry(el).or_default() += u32::from(now.anchored > 0);
+    }
+    println!("drawn {drawn:?}, trails {trails:?}");
+    let shows = |el: i32, name: &str| drawn.get(&(el, name.to_string())).copied().unwrap_or(0);
+    for (el, names) in [
+        (0, ["CMP_x202a", "ANM_ex31lhit", "ANM_x305"]),
+        (1, ["CMP_x500", "ANM_ex31lhit", "CMP_x500"]),
+        (2, ["ANM_x300", "ANM_x305", "ANM_x300"]),
+    ] {
+        for n in names {
+            assert!(shows(el, n) > 10, "magic {el}: {n} drawn {} frames ({drawn:?})", shows(el, n));
+        }
+        assert!(trails.get(&el).is_some_and(|&n| n > 30), "magic {el}: no trails ({trails:?})");
+    }
+}
+
+/// Innis's images burst into rings (`CMP_x037`, models 191 and 193 of
+/// xeffect) and their mirrors into shards (`CMP_ex21ef*` of x21), and its
+/// fall raises a ring (192), as the rules make them.
+#[test]
+fn innis_images_burst_into_rings_and_shards() {
+    let Some(mut s) = event_107_arena() else { return };
+    let seen = innis_magic(&mut s, 3000);
+    let rings = seen.iter().filter(|(_, n)| n.draws.iter().any(|d| d == "CMP_x037")).count();
+    let images = seen.iter().filter(|(_, n)| n.act == 5 && n.draws.iter().any(|d| d == "CMP_x037")).count();
+    let shards = seen.iter().filter(|(_, n)| n.act == 5 && n.shards > 0).count();
+    println!("rings {rings} frames, {images} of the images', shards {shards} frames");
+    assert!(images > 10, "the images' rings drawn {images} frames");
+    assert!(rings > images, "the fall's ring never drawn");
+    assert!(shards > 10, "the mirrors' shards drawn {shards} frames");
+}
+
 /// Frames of Innis's fight to `PINEY_SHOTS` (default
 /// /mnt/data/claude/scratch/i69/shots): every 10th of its magic (act 4)
 /// and its images (act 5), every 4th while a protect picture is live,
-/// with the gauge at half from frame 300 (the magic's run).
+/// with the gauge at half from frame 300 (the magic's run) and the
+/// magics' elements in turn.
 #[test]
 #[ignore]
 fn innis_shots() {
@@ -173,7 +263,7 @@ fn innis_shots() {
     let mut pad = Pad::default();
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let mut gs: Option<piney_gs::Gs> = None;
-    let mut came = None;
+    let (mut came, mut casts) = (None, 0);
     let mut drawn: BTreeMap<String, u32> = BTreeMap::new();
     for n in 0..9000u32 {
         let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
@@ -192,6 +282,16 @@ fn innis_shots() {
             && let Some(f) = c.scene.chars[me].foe_state_mut()
         {
             f.pp = f.row.max_pp / 2;
+        }
+        // Each magic's element in turn, as innis_magic forces them.
+        if let Some(Class::Innis(x)) =
+            c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
+            && x.move_flg == MAGIC_WORD
+            && x.eny_flg == 0
+            && x.cou == 3
+        {
+            x.eny_int = casts % 3;
+            casts += 1;
         }
         for d in &census.boss_draws {
             *drawn.entry(d.clone()).or_default() += 1;
