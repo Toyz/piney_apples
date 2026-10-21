@@ -828,10 +828,10 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
 
 /// A `ccBossEff*Create` as the bosses call it (`docs/engine/boss.md`,
 /// "Effects"): the rules name the effect, where and which way, in their
-/// slot `id`. Gorre's flash has no picture yet (boss-gorre.md);
-/// Fidchell's meteors, thunders and rock towers, Innis's missiles, Kyvia's
-/// meteors and bolts and Magus's needles are drawn from their rules' state
-/// ([`boss_spells`], [`innis_flights`], [`kyvia_shows`], [`magus_shows`]).
+/// slot `id`. Fidchell's meteors, thunders and rock towers, Innis's
+/// missiles, Kyvia's meteors and bolts and Magus's needles are drawn from
+/// their rules' state ([`boss_spells`], [`innis_flights`], [`kyvia_shows`],
+/// [`magus_shows`]); the rest, Gorre's flash among them, run their own.
 fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
     use piney_battle::boss::EffKind;
     use piney_effect::boss::Make;
@@ -854,11 +854,8 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
         EffKind::Meteorite { count } => Make::Meteorite { rules_slot: id, n: count },
         EffKind::Thunderbolt { .. } => Make::Bolt { rules_slot: id },
         EffKind::Needle { .. } => Make::Needles { rules_slot: id },
-        EffKind::MeteoSworm { .. }
-        | EffKind::ThunderStorm { .. }
-        | EffKind::RockTower { .. }
-        // Gorre's finishing flash (boss-gorre.md): no picture yet.
-        | EffKind::FinalPhotonFlash => {
+        EffKind::FinalPhotonFlash => Make::FinalPhotonFlash { pos },
+        EffKind::MeteoSworm { .. } | EffKind::ThunderStorm { .. } | EffKind::RockTower { .. } => {
             return None;
         }
     })

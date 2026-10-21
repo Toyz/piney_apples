@@ -106,8 +106,8 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   Kyvia's particles, meteors and bolts (worklog 420), Magus's leaves,
   shocks, needles and countdowns (worklog 421)
 - [ ] Outbreak's bosses: [x] Fidchell (`ccBoss04`, worklogs 294-295),
-  [x] Gorre and its brothers (`ccBoss05`, worklog 303; the shield's shape
-  and FinalPhotonFlash's picture open), [x] Kyvia 02 (above); each event
+  [x] Gorre and its brothers (`ccBoss05`, worklog 303; FinalPhotonFlash's
+  picture worklog 422; the shield's shape open), [x] Kyvia 02 (above); each event
   finishes under the autopilot
 - [x] The Data Bugs (enemy type 0x40): drawn with their base form's clips
   and held at half their HP (`virusFlag`, worklog 299)

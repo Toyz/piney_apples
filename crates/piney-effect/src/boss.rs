@@ -219,6 +219,8 @@ pub enum BossEff {
     Bolt(Box<crate::kyvia::Bolt>),
     /// Magus's needles ([`crate::magus`]).
     Needles(Box<crate::magus::Needles>),
+    /// Gorre's Kerse's flash ([`crate::gorre`]).
+    PhotonFlash(Box<crate::gorre::PhotonFlash>),
 }
 
 /// `ccBossEffWaveShock` (0x40 bytes).
@@ -502,6 +504,10 @@ pub enum Make {
     Needles {
         rules_slot: i32,
     },
+    /// `ccBossEffFinalPhotonFlashCreate(pos)` (OUT gcmn 0x0048a6e0).
+    FinalPhotonFlash {
+        pos: V4,
+    },
     NeedlesAlone {
         pos: V4,
         scale: F,
@@ -586,6 +592,10 @@ impl BossEffects {
                 self.put(true, BossEff::Needles(Box::new(n)))
             }
             Make::Dead { pos } => self.dead(pos),
+            Make::FinalPhotonFlash { pos } => {
+                let f = crate::gorre::PhotonFlash::new(cx, pos);
+                self.put(true, BossEff::PhotonFlash(Box::new(f)))
+            }
             Make::MeteoSworm { .. } | Make::ThunderStorm { .. } | Make::RockTower { .. } => {
                 let s = crate::fidchell::Spell::create(cx, t, make);
                 s.map_or(-1, |s| self.put(true, BossEff::Spell(Box::new(s))))
@@ -1011,6 +1021,7 @@ impl BossEffects {
             }
             let mut square = None;
             let mut wave = None;
+            let mut ring = None;
             let on = match &mut s.eff {
                 BossEff::Eruption => false,
                 BossEff::WaveShock(w) => w.draw(cx),
@@ -1038,6 +1049,11 @@ impl BossEffects {
                 // Magus's needles likewise ([`BossEffects::sync_magus`]).
                 BossEff::Needles(n) if n.runs_alone() => n.run(cx),
                 BossEff::Needles(_) => continue,
+                BossEff::PhotonFlash(f) => {
+                    let d = f.draw(cx, t);
+                    ring = d.ring;
+                    d.on
+                }
                 BossEff::Spell(x) => {
                     let (on, sq) = x.run(ctrl, cx, t);
                     square = sq;
@@ -1056,12 +1072,16 @@ impl BossEffects {
             if let Some(w) = wave {
                 self.put_wave_shock(w);
             }
+            // The flash's burst: its ring, made in its Draw.
+            if let Some(p) = ring {
+                self.auto_samon_ring(cx, p, VF0, [0, 0x3f2a_aaab, 0x4120_0000, 0], 176);
+            }
         }
     }
 }
 
 /// `new ccEff`, `Init(GetChunkAdrsF("particle", name), 1)`: fog on.
-fn particle_eff(cx: &Cx, name: &str) -> Option<Box<Eff>> {
+pub(crate) fn particle_eff(cx: &Cx, name: &str) -> Option<Box<Eff>> {
     let o = cx.assets.find("particle", name)?;
     let (j, c) = cx.assets.eff_chunk(o)?;
     Some(Box::new(Eff::init(o.file, j, c, true, &cx.assets.alpha_blend)))

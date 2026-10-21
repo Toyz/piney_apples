@@ -832,6 +832,23 @@ class BossEffectsAgainstGame(unittest.TestCase):
                 counts[case[0]] = counts.get(case[0], 0) + len(frames)
         print("\nframes " + " ".join("%s %d" % kv for kv in sorted(counts.items())), file=sys.stderr)
 
+    def test_gorre_flash(self):
+        """Gorre's Kerse's FinalPhotonFlash: the sprite shrinking onto the
+        target (its scale, colour, palette and depth test), its sounds, the
+        burst's ring, generators and dust, and its life."""
+        rnd = random.Random(53)
+        frames = 0
+        for i in range(4):
+            p = [fb(rnd.uniform(-3000, 3000)), fb(rnd.uniform(-3000, 3000)), fb(rnd.uniform(-50, 300)), ONE]
+            case = ("photon", "photon %s" % hexs(*p), "ccBossEffFinalPhotonFlashCreate__FPf", [p], [], [])
+            cam = ((rnd.uniform(-2000, 2000), rnd.uniform(-2000, 2000), 600.0),
+                   (rnd.uniform(-500, 500), rnd.uniform(-500, 500), 100.0))
+            got = self.run_case(4100 + i, case, cam)
+            # 72 Draws, then the pass that frees the slot.
+            self.assertEqual(len(got), 73, "the flash's life")
+            frames += len(got)
+        print("\nframes photon %d" % frames, file=sys.stderr)
+
     def test_skeiths_trail(self):
         """The cross's trail: the game's ccLattice(2, 7) (gcmn lattice.cpp)
         driven as ccBoss01::DrawCross drives it - runs of frames in the

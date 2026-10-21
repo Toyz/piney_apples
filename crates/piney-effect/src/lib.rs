@@ -26,6 +26,7 @@ pub mod fidchell;
 pub mod files;
 pub mod flyfont;
 pub mod gimmick;
+pub mod gorre;
 pub mod heal;
 pub mod hit;
 pub mod host;

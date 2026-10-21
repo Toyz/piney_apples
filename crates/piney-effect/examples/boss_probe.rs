@@ -432,6 +432,7 @@ fn main() {
             "ring" => Make::AutoSamonRing { pos: v4(1), rot: v4(5), param: v4(9), n: n(13) as i32 },
             "ice" => Make::IceBreak { pos: v4(1), scale: n(5) },
             "dead" => Make::Dead { pos: v4(1) },
+            "photon" => Make::FinalPhotonFlash { pos: v4(1) },
             "meteo" => Make::MeteoSworm { sp: v4(1), ep: v4(5), n: n(9) as i32, radius: n(10), v: n(11) },
             "storm" => Make::ThunderStorm { pos: v4(1), radius: n(5), n: n(6) as i32 },
             "tower" => Make::RockTower { pos: v4(1), n: n(5) as i32 },

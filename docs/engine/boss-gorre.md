@@ -2,8 +2,8 @@
 title: Bosses - Gorre
 status: partial
 volumes: OUT, INF
-covers: OUT gcmn.prg:0x004a9130-0x004b0b50 (boss05.cpp), 0x004a9130 ccBoss05::ccBoss05, 0x004a9650 CalcRealEx, 0x004a99a0 ExecPatternIndex, 0x004aa100 IsValidArea, 0x004aa210 Main, 0x004aa5f0 Move, 0x004aa6b0 ChangeAction, 0x004aa760 Think, 0x004aa8e0 OnThinkNeutral, 0x004aaa40 OnThinkDrain, 0x004aaaf0 OnThinkDead, 0x004aaf40 OnThinkEscape, 0x004ab210 OnThinkDmg, 0x004ab2e0 OnThinkKerse, 0x004aba30 OnThinkWander, 0x004abb90 OnThinkMagic, 0x004ac060 OnThinkDataDrainAtk, 0x004ac320 OnThinkDashCenter, 0x004ac5d0 OnThinkTornade, 0x004ac850 OnThinkSkill, 0x004acdf0 OnThinkTalk, 0x004ad0c0 OnThinkWave, 0x004ad320 OnThinkChase, 0x004ad5e0 OnThinkEpitaph, 0x004ad740 OnThinkEpitaphWave, 0x004ad980 Slave, 0x004ada60 EntrySlave, 0x004adbb0 SendMessage, 0x004add68 SendMessage's effProtect, 0x004a980c CalcRealEx's effProtect, 0x004ae990 ccBoss05Brother::Init, 0x004aed70 Move, 0x004aefb0 Main, 0x004af020 Think, 0x004af0e0 OnThinkNeutral, 0x004af1f0 OnThinkEpitaph, 0x004af300 OnThinkEpitaphWave, 0x004af8d0 OnThinkTornade, 0x004afe10 OnThinkWave, 0x004b0490 OnThinkDead, 0x004b05b0 Order, 0x004b07c0 Affect, 0x004b0b00 OnExit, 0x006dfd90 Think's jump table (@1462), 0x006dfdf0 OnThinkKerse's (@1644), 0x006dfe10 SendMessage's (@2268), 0x00618040 boss05NormalActTbl, 0x006180e0 boss05SuperActTbl, 0x006181b0 boss05EpitaphActTbl, 0x00618218 @1261, 0x00618230 @1672, 0x00618240 @1777, 0x00618250 @2074, 0x00384e80 ccBoss05's vtable, 0x00384de0 ccBoss05Brother's, 0x004700a0 ccBoss::OffBossCamera, 0x0046f9e0 ccBoss::InitBossCamera, 0x00472090 ccBossCam::ccBossCam; INF gcmn.prg:0x00497010-0x0049e590 (boss05.cpp), 0x005ebf10 Boss05AnmTbl, 0x005ebf80 boss05SlaveAnmTbl1, 0x005ebff0 boss05SlaveAnmTbl2, 0x005ec060 boss05NormalActTbl, 0x005ec100 boss05SuperActTbl, 0x005ec1c0 boss05EpitaphActTbl, 0x005ec228 @1261, 0x005ec240 @1672, 0x005ec250 @1777, 0x005ec260 @2074
-worklog: 296, 297, 303
+covers: OUT gcmn.prg:0x004a9130-0x004b0b50 (boss05.cpp), 0x004a9130 ccBoss05::ccBoss05, 0x004a9650 CalcRealEx, 0x004a99a0 ExecPatternIndex, 0x004aa100 IsValidArea, 0x004aa210 Main, 0x004aa5f0 Move, 0x004aa6b0 ChangeAction, 0x004aa760 Think, 0x004aa8e0 OnThinkNeutral, 0x004aaa40 OnThinkDrain, 0x004aaaf0 OnThinkDead, 0x004aaf40 OnThinkEscape, 0x004ab210 OnThinkDmg, 0x004ab2e0 OnThinkKerse, 0x004aba30 OnThinkWander, 0x004abb90 OnThinkMagic, 0x004ac060 OnThinkDataDrainAtk, 0x004ac320 OnThinkDashCenter, 0x004ac5d0 OnThinkTornade, 0x004ac850 OnThinkSkill, 0x004acdf0 OnThinkTalk, 0x004ad0c0 OnThinkWave, 0x004ad320 OnThinkChase, 0x004ad5e0 OnThinkEpitaph, 0x004ad740 OnThinkEpitaphWave, 0x004ad980 Slave, 0x004ada60 EntrySlave, 0x004adbb0 SendMessage, 0x004add68 SendMessage's effProtect, 0x004a980c CalcRealEx's effProtect, 0x004ae990 ccBoss05Brother::Init, 0x004aed70 Move, 0x004aefb0 Main, 0x004af020 Think, 0x004af0e0 OnThinkNeutral, 0x004af1f0 OnThinkEpitaph, 0x004af300 OnThinkEpitaphWave, 0x004af8d0 OnThinkTornade, 0x004afe10 OnThinkWave, 0x004b0490 OnThinkDead, 0x004b05b0 Order, 0x004b07c0 Affect, 0x004b0b00 OnExit, 0x006dfd90 Think's jump table (@1462), 0x006dfdf0 OnThinkKerse's (@1644), 0x006dfe10 SendMessage's (@2268), 0x00618040 boss05NormalActTbl, 0x006180e0 boss05SuperActTbl, 0x006181b0 boss05EpitaphActTbl, 0x00618218 @1261, 0x00618230 @1672, 0x00618240 @1777, 0x00618250 @2074, 0x00384e80 ccBoss05's vtable, 0x00384de0 ccBoss05Brother's, 0x004700a0 ccBoss::OffBossCamera, 0x0046f9e0 ccBoss::InitBossCamera, 0x00472090 ccBossCam::ccBossCam; INF gcmn.prg:0x00497010-0x0049e590 (boss05.cpp), 0x005ebf10 Boss05AnmTbl, 0x005ebf80 boss05SlaveAnmTbl1, 0x005ebff0 boss05SlaveAnmTbl2, 0x005ec060 boss05NormalActTbl, 0x005ec100 boss05SuperActTbl, 0x005ec1c0 boss05EpitaphActTbl, 0x005ec228 @1261, 0x005ec240 @1672, 0x005ec250 @1777, 0x005ec260 @2074; OUT gcmn.prg:0x0048a6e0 ccBossEffFinalPhotonFlashCreate, 0x00480b70 ccBossEffFinalPhotonFlash::Draw, 0x00480d00 ccBossEffFinalPhotonFlash::Explode
+worklog: 296, 297, 303, 422
 ---
 
 # Bosses - Gorre
@@ -220,6 +220,30 @@ and then Gorre's. In the port `gorre::calc_real_ex` moves the return onto
 the brothers; until worklog 412 the other brother's break and the
 brothers' returns from Gorre were not shown.
 
+## The flash
+
+The Kerse's `ccBossEffFinalPhotonFlashCreate(target)` (OUT 0x0048a6e0, a
+0x50-byte effect in the manager's first free slot) holds particle's
+`EFF_x000` (`ccEff::Init(chunk, 1)`) with `CLT_x000c5` as its palette, the
+place, and a scale of 1000. Its `Draw` (0x00480b70):
+
+- Shrinking: SE 159 (note 70) the first time; the sprite at the place,
+  both scales the scale, no depth test (`SetRenderState(0, 0)`), colour
+  0x80e0ffff, on the manager's layer; the scale less 100. Below 0 it
+  makes `ccBossEffAutoSamonRingCreate(place, (0, 0, 0, 1), (0, 2/3, 10),
+  176)` (xeffect's `CMP_x033` on `CLT_x033c1`; the param's fourth word is
+  stack left unset, and the ring reads three) and bursts.
+- `Explode` (0x00480d00): SEs 35 and 40 (note 55) once; five
+  `BurstSmokeGenerator`s at the place: row 2 (ff 2) 100 up, rows 2 and 3
+  (ff 2) 170 up, row 4 (ff 3, 2) at z 0, row 7 (ff 6, 7, 8) at z 90;
+  `ccEnemyEffDust(place, 10, 5)`.
+- Burst: 60 more `Draw`s, then the slot frees. Eleven shrinking `Draw`s
+  (1000 down to 0) and sixty-one after: the 72 the rules count.
+
+In the port: `piney_effect::gorre::PhotonFlash`, made by `Make::FinalPhotonFlash`
+from piney-game's `boss_make`; it runs alone in the effects' manager, the
+ring made after its `Draw` in the same pass.
+
 ## Tables
 
 `tables::combat`: `gorre_normal`, `gorre_super`, `gorre_epitaph` (each
@@ -245,6 +269,13 @@ checks both show the break and the returns, none on Gorre.
 `outbreak_story_survey` finishes event 218 (`PINEY_SURVEY_GOD=1`,
 150,000 frames): the shared gauge broken, a brother drained, the three
 down.
+`tools/test_boss_effect_rs.py test_gorre_flash` (every volume: each
+gcmn has the effect) runs the game's `ccBossEffFinalPhotonFlashCreate` and the manager's
+passes natively against boss_probe's `photon`: four places, 73 passes
+each (the sprite, the sounds, the ring, the generators, the dust's
+`ccRand` draws). `gorres_kerse_shows_its_flash` (`boss_fx`) runs the
+arena's fight: three Kerses in 12,000 frames, each drawing the flash and
+its ring; `gorre_kerse_shots` (ignored) writes their shots.
 
 ## Unknown
 
@@ -254,4 +285,3 @@ down.
   port writes the same values to all three but keeps three: a later change
   to one gauge (none happens in the fight once it is -1) would not reach
   the others.
-- `ccBossEffFinalPhotonFlashCreate`'s picture (its life, 72, is measured).

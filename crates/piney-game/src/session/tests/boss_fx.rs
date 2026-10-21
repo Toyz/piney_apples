@@ -508,3 +508,56 @@ fn innis_shots() {
     }
     println!("drawn {drawn:?}");
 }
+
+/// Gorre's Kerse ends in its `FinalPhotonFlash` at the target: the sprite
+/// (particle's `EFF_x000`, chunk 0) shrinking onto it, then the burst's
+/// ring (`CMP_x033`). Before, `boss_make` made no picture for it.
+#[test]
+fn gorres_kerse_shows_its_flash() {
+    let Some(mut s) = event_218_arena() else { return };
+    let seen = fight(&mut s, 12000, |_, _, _, _| {});
+    let kerse = |n: &&Seen| n.act == piney_battle::boss::gorre::act::KERSE;
+    let acts: std::collections::BTreeSet<i16> = seen.iter().map(|n| n.act).collect();
+    let flash = seen.iter().filter(kerse).filter(|n| n.draws.iter().any(|d| d == "eff 0")).count();
+    let ring = seen.iter().filter(kerse).filter(|n| n.draws.iter().any(|d| d == "CMP_x033")).count();
+    println!("acts {acts:?}: the flash {flash} frames, its ring {ring}");
+    assert!(acts.contains(&piney_battle::boss::gorre::act::KERSE), "no Kerse: {acts:?}");
+    assert!(flash >= 11, "the flash not drawn ({flash} frames)");
+    assert!(ring > 10, "the burst's ring not drawn ({ring} frames)");
+}
+
+/// Shots of Gorre's Kerse to `PINEY_SHOTS` (default
+/// /mnt/data/claude/scratch/a422): every 2nd frame its flash or ring is
+/// drawn.
+#[test]
+#[ignore]
+fn gorre_kerse_shots() {
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/a422".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let Some(mut s) = event_218_arena() else { return };
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let mut gs: Option<piney_gs::Gs> = None;
+    for n in 0..15000u32 {
+        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
+        let frame = s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &mut s.stage else { continue };
+        let draws = a.world().fx().census().boss_draws;
+        let c = a.world_mut().combat_mut();
+        for &(_, k) in &c.members {
+            c.scene.chars[k].max_hp = 9999;
+            c.scene.chars[k].hp = 9999;
+        }
+        let shown = draws.iter().any(|d| d == "eff 0" || d == "CMP_x033");
+        if !(shown && n.is_multiple_of(2)) {
+            continue;
+        }
+        let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
+        g.set_overlay(Mode::archive(&s));
+        g.render(&frame);
+        let (w, h) = g.target_size();
+        std::fs::write(format!("{dir}/gorre-{n:05}.png"), piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+    }
+}
