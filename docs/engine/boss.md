@@ -633,7 +633,15 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
 5. Affects from Kite's and the members' frames, whose contexts carry no
    `BossEnv`, are queued on the boss and applied first in its task, the
    same frame.
-6. Outputs:
+6. The boss's own `CalcReal(0)` (`Boss::calc_real`, every class's `Main`
+   and every part's) names what it raises by the boss's index: the
+   protect's return (`effProtect(this, 1, kind)`, kind 2 when the row's
+   id is not 0) and its `SetProtect`, and the condition effect. Until
+   worklog 410 these named "me", which the field could not place: no
+   boss's protect showed its return. The ticks it enters on itself
+   (`EntryAffect(this, this, 9 | 3 | 10 | 4)`) are queued as in 5, and so
+   run at the start of the next task, not inside `CalcReal`.
+7. Outputs:
    - `Out::Skill` runs the skill through `Combat::item_skill`;
    - hit marks and damage numbers go to the effects as rule events,
      once each: those of the boss's blows on the party
@@ -651,9 +659,9 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
    - the cinema ([above](#the-cinema-ccbosseffcinemafade)) is drawn;
      `ccBossBlur` is not (below), and no script of this volume holds the
      boss (`hold 7`).
-7. The boss camera (`piney_world::bosscam::BossCam`) is made with the
+8. The boss camera (`piney_world::bosscam::BossCam`) is made with the
    boss and runs after its `Main`.
-8. The area host answers `present/absent 7` from the task's exit.
+9. The area host answers `present/absent 7` from the task's exit.
 
 `tools/test_bosscam_rs.py` builds the game's `ccBossCam` in eemu over the
 field's camera and player tasks. Each frame it runs `CamMain` with the

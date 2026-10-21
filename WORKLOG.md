@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-409 entries: audio 36, battle 82, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 97, save 16, script 48, test 172, tooling 27, ui 93, video 16, volumes 81, world 116.
+410 entries: audio 36, battle 83, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 97, save 16, script 48, test 173, tooling 27, ui 93, video 16, volumes 81, world 117.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -421,3 +421,4 @@ The [reference](docs/README.md) says what is true now.
 | 407 | [The Flag Race's result music lasts the results: from Mutation on ccEvVoiceStop does nothing while the race holds the music, so a box's OK no longer cuts it](worklog/0407-the-flag-race-s-result-music-lasts-the-results-from.md) | 2026-10-08 | audio, world, test |
 | 408 | [Issue #65's panic is a lost GPU device: the GS stops drawing until the window makes another, and a frame's vertices go in buffers within the device's size limit](worklog/0408-issue-65-s-panic-is-a-lost-gpu-device-the-gs-stops-drawing.md) | 2026-10-14 | render, engine, test |
 | 409 | [Nothing piles up while Kite idles in a town: every town on every volume draws the same frame after 12,000 frames as after 3000, and Carmina Gadelica after 120,000](worklog/0409-nothing-piles-up-while-kite-idles-in-a-town-every-town-on.md) | 2026-10-14 | render, world, test |
+| 410 | [A boss's protect shows its return: its own CalcReal named it by 'me', which the field could not place, on every boss (#69)](worklog/0410-a-boss-s-protect-shows-its-return-its-own-calcreal-named-it.md) | 2026-10-21 | battle, world, test |

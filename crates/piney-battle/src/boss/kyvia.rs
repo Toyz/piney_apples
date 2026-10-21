@@ -422,7 +422,7 @@ pub(crate) fn plain_boss() -> Boss {
 /// `lockPlayer` (and the menu's forbid), then `stop`'s count.
 pub(crate) fn head(b: &mut Boss, cx: &mut Cx) {
     let me = cx.me;
-    crate::chara::calc_real(cx.t, &mut cx.scene.chars[me], 0, cx.env, &mut cx.ev);
+    b.calc_real(cx);
     b.calc_target_info(cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;
@@ -604,7 +604,7 @@ pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
 
 fn frame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let me = cx.me;
-    crate::chara::calc_real(cx.t, &mut cx.scene.chars[me], 0, cx.env, &mut cx.ev);
+    b.calc_real(cx);
     b.calc_target_info(cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;

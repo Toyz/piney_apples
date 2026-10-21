@@ -286,7 +286,7 @@ fn skeith_act_shots() {
 /// field 1 (town 1, area 27's `WORLD_MAN`): blocks 0-19 played and
 /// `eventStatus[0]` 4, as the board, the mail, Dun Loireag and the
 /// dungeon leave them.
-fn event_30_arena() -> Option<Session> {
+pub(super) fn event_30_arena() -> Option<Session> {
     event_30_arena_from(1)
 }
 
@@ -1031,7 +1031,7 @@ fn drain_side_effect_shots() {
 /// Mutation's event 107 brought to Innis's arena: field 2 of town 2
 /// (`EVENTAREAB0`) as area 46's last door leaves the game, blocks 0-16
 /// played and `eventStatus[0]` 1 (block 4's `status_set 0 1`).
-fn event_107_arena() -> Option<Session> {
+pub(super) fn event_107_arena() -> Option<Session> {
     let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
     if !iso.exists() {
         return None;

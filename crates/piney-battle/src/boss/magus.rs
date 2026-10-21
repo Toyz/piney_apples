@@ -388,7 +388,7 @@ pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
 /// `PreDrawAnm`, then `Slave()`: each leaf not exited drawn and run.
 fn frame(b: &mut Boss, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
     let me = cx.me;
-    crate::chara::calc_real(cx.t, &mut cx.scene.chars[me], 0, cx.env, &mut cx.ev);
+    b.calc_real(cx);
     b.calc_target_info(cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;

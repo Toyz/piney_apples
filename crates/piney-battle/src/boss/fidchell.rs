@@ -394,7 +394,7 @@ fn frame(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
         return;
     }
     let me = cx.me;
-    crate::chara::calc_real(cx.t, &mut cx.scene.chars[me], 0, cx.env, &mut cx.ev);
+    b.calc_real(cx);
     calc_target_info(b, cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;

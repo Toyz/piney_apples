@@ -392,7 +392,7 @@ pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
 /// protect's count on), `Move`, the count handed to both brothers.
 fn frame(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     let me = cx.me;
-    crate::chara::calc_real(cx.t, &mut cx.scene.chars[me], 0, cx.env, &mut cx.ev);
+    b.calc_real(cx);
     calc_target_info(b, cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;

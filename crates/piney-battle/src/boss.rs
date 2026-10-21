@@ -20,7 +20,7 @@ use crate::affect::{self, AffectCtx};
 use crate::chara::{self, Env};
 use crate::damage::{self, Roll};
 use crate::enemy_ai::{World, get_dirc, get_dist, rand_f, search_near_person};
-use crate::event::Events;
+use crate::event::{Event, Events, Who};
 use crate::exp::Party;
 use crate::geom::{self, V4};
 use crate::item::{self, ItemSkill};
@@ -980,6 +980,24 @@ impl Boss {
         }
     }
 
+    /// `ccChar::CalcReal(0)` (gcmn 0x0056ba30) on the boss: what it raises
+    /// on itself (the protect's return and its picture, the condition
+    /// effect) named by its index. The ticks it enters on itself
+    /// (`EntryAffect(this, this, 9 | 3 | 10 | 4)`) are queued for its
+    /// `Affect`, which runs them at the start of its next task.
+    pub(crate) fn calc_real(&mut self, cx: &mut Cx) {
+        let me = cx.me;
+        let mut ev = Events::new();
+        chara::calc_real(cx.t, &mut cx.scene.chars[me], 0, cx.env, &mut ev);
+        for mut e in ev {
+            e.map_who(|w| if w == Who::Me { Who::Char(me) } else { w });
+            match e {
+                Event::Affect { on: Who::Char(c), kind, p, .. } if c == me => self.queued.push((kind, p, Some(me))),
+                e => cx.ev.push(e),
+            }
+        }
+    }
+
     /// `ccBoss::Main` (0x0045c270), the class's `Think` and `Action` in
     /// `class`.
     pub(crate) fn base_main(&mut self, cx: &mut Cx, class: &mut dyn FnMut(&mut Boss, &mut Cx)) {
@@ -987,7 +1005,7 @@ impl Boss {
             return;
         }
         let me = cx.me;
-        chara::calc_real(cx.t, &mut cx.scene.chars[me], 0, cx.env, &mut cx.ev);
+        self.calc_real(cx);
         self.calc_target_info(cx);
         self.center_pos_p = w2p(cx, self.center_pos);
         let pp = cx.scene.chars[me].pos_p;

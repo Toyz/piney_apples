@@ -153,7 +153,7 @@ pub(super) fn main(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx:
         if ls.0[k].b.exit != 0 {
             return;
         }
-        crate::chara::calc_real(cx.t, &mut cx.scene.chars[me], 0, cx.env, &mut cx.ev);
+        ls.0[k].b.calc_real(cx);
         ls.0[k].b.calc_target_info(cx);
         let b = &mut ls.0[k].b;
         if b.stop != 0 {

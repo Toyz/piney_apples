@@ -10,7 +10,7 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::{Anm, Boss, Class, Cx, EffKind, Out, VF0};
-use crate::chara::{self, AffectFunc};
+use crate::chara::AffectFunc;
 use crate::enemy_ai::{get_dirc, get_dist, rand_f};
 use crate::geom::{self, M4, V4};
 use crate::item;
@@ -429,7 +429,7 @@ pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
 
 fn frame(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
     let me = cx.me;
-    chara::calc_real(cx.t, &mut cx.scene.chars[me], 0, cx.env, &mut cx.ev);
+    b.calc_real(cx);
     b.calc_target_info(cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;

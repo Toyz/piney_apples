@@ -6936,6 +6936,9 @@ mod tests {
     /// Issue #63: every walking PC's Talk, every box a line of its own.
     mod pc_talk;
 
+    /// Issue #69: a boss's magic and protect show their pictures.
+    mod boss_fx;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {
