@@ -301,9 +301,11 @@ impl EffectCtrl {
             Kind::Anm => {
                 let file = &cx.assets.files[o.file];
                 match file.anim(cx.assets.name(o)) {
-                    Some(anim) => {
-                        Obj::Anm { obj: o, play: Play { anim, time: 0, posed: 0, frame_spd: 256 }, matrix: vu::UNIT }
-                    }
+                    Some(anim) => Obj::Anm {
+                        obj: o,
+                        play: Play { anim, time: 0, posed: 0, frame_spd: 256, hidden: Vec::new() },
+                        matrix: vu::UNIT,
+                    },
                     None => Obj::None,
                 }
             }

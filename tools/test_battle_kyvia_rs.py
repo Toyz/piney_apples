@@ -304,7 +304,7 @@ class Game:
             # What the constructor (not run) leaves that the makers read on:
             # distSW 1, syncPosType 0, pStop 0, no syncPos, pos and offset
             # the vf0 (as piney-effect's Generator::new).
-            self.gens[a] = (param, [ff, mm.r[7], mm.r[8], mm.r[9]])
+            self.gens[a] = (param, [ff] + [mm.r[k] & 0xFFFFFFFF for k in (7, 8, 9)])
             mm.store(a + 4, 1, 1)
             mm.store(a + 5, 1, 0)
             mm.store(a + 0x18, 4, 0)

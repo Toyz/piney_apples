@@ -9,8 +9,8 @@
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::magus::leaf::Leaf;
-use piney_battle::boss::magus::{self, Magus, Pic};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, Out};
+use piney_battle::boss::magus::{self, Gen, Held, Magus, Pic, Place};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, GenOp, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -108,6 +108,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let miss = t.int();
     let push = (t.int() as usize, t.int() as usize);
     let leaf_pos: [V4; 12] = std::array::from_fn(|_| [t.u32(), t.u32(), t.u32(), 0x3f80_0000]);
+    let shock_pos: [V4; 12] = std::array::from_fn(|_| [t.u32(), t.u32(), t.u32(), 0x3f80_0000]);
     let ns = t.int() as usize;
     let script: Vec<(usize, i32, usize, i16)> =
         (0..ns).map(|_| (t.int() as usize, t.i32(), t.int() as usize, t.i16())).collect();
@@ -155,6 +156,11 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let mut boss = magus::new(&mut cx, kpos, kdirc, center);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
+    HELD.with(|h| h.borrow_mut().clear());
+    if let Class::Magus(x) = &mut boss.class {
+        x.shock_pos = shock_pos;
+        LEAVES.with(|l| *l.borrow_mut() = x.leaves.clone());
+    }
     let outs: Vec<String> = out.iter().filter_map(mout).collect();
     lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu));
     for f in 0..frames {
@@ -169,12 +175,15 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         };
         if let Class::Magus(x) = &mut boss.class {
             x.leaf_pos = leaf_pos;
-            x.shock_hit = hits(miss, f);
+            x.shock_pos = shock_pos;
+            let hit = hits(miss, f);
+            x.shock_at = std::array::from_fn(|k| hit[k].then_some(shock_pos[k]));
         }
         let leaves = match &boss.class {
             Class::Magus(x) => x.leaves.clone(),
             _ => Vec::new(),
         };
+        LEAVES.with(|l| *l.borrow_mut() = leaves.clone());
         scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(boss));
         let mut out = Vec::new();
         for &(_, kind, who, p0) in script.iter().filter(|s| s.0 == f) {
@@ -275,13 +284,12 @@ fn v3(v: &V4) -> String {
 fn mout(o: &Out) -> Option<String> {
     Some(match o {
         Out::Magus(p) => match p {
-            Pic::Thunder { .. } => "[\"particles\",\"thunder\"]".into(),
-            Pic::LeafDead { .. } => "[\"particles\",\"leafdead\"]".into(),
-            Pic::Charge { on: true, .. } => "[\"particles\",\"charge\"]".into(),
-            Pic::Charge { on: false, .. } => "[\"kill\"]".into(),
+            Pic::Particles { which, at, held } => gen_json(*which, at, *held),
+            Pic::Gen { held, op } => return gen_op_json(*held, *op),
+            Pic::Count { n, .. } => format!("[\"count\",{n}]"),
             Pic::Dust { .. } => "[\"dust\"]".into(),
-            Pic::ShockBurst { .. } => "[\"shock_burst\"]".into(),
-            Pic::LeafAfterImage { .. } => "[\"afterimage_leaf\"]".into(),
+            Pic::ShockBurst { turn, .. } => format!("[\"shock_burst\",{turn}]"),
+            Pic::LeafAfterImage { frame, .. } => format!("[\"afterimage_leaf\",{frame}]"),
             Pic::Shocks { .. } => return None,
         },
         Out::CameraChange(n) => format!("[\"cam\",{n}]"),
@@ -354,7 +362,7 @@ fn leaf_json(b: &Boss, x: &Leaf, scene: &Scene, who: usize) -> String {
     };
     format!(
         "[{},{},{},{},{},{},{},{},{},{},{},{},\"{}\",{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\
-         {},{},{},{},{},{},{},{},{}]",
+         {},{},{},{},{},{},{},{},{},{},{},{}]",
         b.exit,
         b.draw_sw,
         b.act_num,
@@ -397,7 +405,77 @@ fn leaf_json(b: &Boss, x: &Leaf, scene: &Scene, who: usize) -> String {
         d(&x.exp.eff),
         d(&x.exp.exp),
         u8::from(x.charge),
+        v3(&x.marker_pos),
+        paused(Held::Marker(who, 0)),
+        paused(Held::Marker(who, 1)),
     )
+}
+
+thread_local! {
+    /// The leaves' characters by slave, and the generators the leaves
+    /// keep with their `pauseFlag` (kills print only for those kept).
+    static LEAVES: std::cell::RefCell<Vec<usize>> = const { std::cell::RefCell::new(Vec::new()) };
+    static HELD: std::cell::RefCell<std::collections::HashMap<Held, bool>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+fn leaf_no(c: usize) -> i64 {
+    LEAVES.with(|l| l.borrow().iter().position(|&x| x == c).map_or(-1, |k| k as i64))
+}
+
+fn held_json(h: Held) -> String {
+    match h {
+        Held::Marker(c, j) => format!("[\"marker\",{},{j}]", leaf_no(c)),
+        Held::Charge(c) => format!("[\"charge\",{}]", leaf_no(c)),
+    }
+}
+
+/// A kept generator's `pauseFlag` as the fight's calls left it.
+fn paused(h: Held) -> u8 {
+    HELD.with(|s| u8::from(s.borrow().get(&h).copied().unwrap_or(false)))
+}
+
+/// A start as the harness reads it: the table and row, the force fields'
+/// rows, distSW, gSync (1 where the maker sets it), pTexMod, where it stands
+/// and who keeps it.
+fn gen_json(which: Gen, at: &Place, held: Option<Held>) -> String {
+    let r = which.rows();
+    let ff: Vec<String> = r.ff.iter().map(|f| f.to_string()).collect();
+    let place = match *at {
+        Place::At(p) => format!("[\"at\",{}]", v3(&p)),
+        Place::Marker(c) => format!("[\"marker\",{}]", leaf_no(c)),
+    };
+    let held = held.map_or("null".into(), |h| {
+        HELD.with(|s| s.borrow_mut().insert(h, false));
+        held_json(h)
+    });
+    let g_sync = r.g_sync.map_or(0, i32::from);
+    format!(
+        "[\"particles\",\"{}\",{},[{}],{},{g_sync},{},{place},{held}]",
+        r.table,
+        r.row,
+        ff.join(","),
+        u8::from(r.dist_sw),
+        r.tex
+    )
+}
+
+fn gen_op_json(held: Held, op: GenOp) -> Option<String> {
+    match op {
+        GenOp::Kill => HELD.with(|s| s.borrow().contains_key(&held)).then(|| format!("[\"kill\",{}]", held_json(held))),
+        GenOp::Pause(on) => {
+            HELD.with(|s| {
+                if let Some(p) = s.borrow_mut().get_mut(&held) {
+                    *p = on;
+                }
+            });
+            None
+        }
+        GenOp::Forget => {
+            HELD.with(|s| s.borrow_mut().remove(&held));
+            None
+        }
+    }
 }
 
 fn frame_json(

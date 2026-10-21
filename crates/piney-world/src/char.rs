@@ -247,7 +247,7 @@ impl Char {
     pub fn set_anim(&mut self, name: &str) -> bool {
         match self.body.anim(name) {
             Some(anim) => {
-                self.play = Play { anim, time: 0, posed: 0, frame_spd: self.play.frame_spd };
+                self.play = Play { anim, time: 0, posed: 0, frame_spd: self.play.frame_spd, hidden: Vec::new() };
                 true
             }
             None => false,

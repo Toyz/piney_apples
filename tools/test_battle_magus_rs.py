@@ -229,7 +229,7 @@ class Game:
                      "Init__7ccLayerFsP6ccView", "SetFrame__6ccViewFffffffff", "__dt__7ccLayerFv",
                      "ccSqFade__FiUsiUc", "SetHitSW__9ccCharHitFi", "SetActiveLayer__9WORLD_MANFi",
                      "Draw__5ccEffFPfUs", "Draw__5ccObjFf", "SetFogBlend__9ccDrawEnvFfUi",
-                     "ResetFogBlend__9ccDrawEnvFv", "SetType__6ccFontFi", "MakeSignedNum__6ccFontFil",
+                     "ResetFogBlend__9ccDrawEnvFv", "SetType__6ccFontFi",
                      "ccParticleExplode__FPfPffi", "DrawPartsClump__6ccBossFP7ccClump"):
             hook(name, nop)
         def collide(mm, hit, *_):
@@ -240,7 +240,6 @@ class Game:
             return 0
         hook("CollisionDetection__9ccCharHitFv", collide)
         hook("__ct__16ccDrawPacketCtrlFv", this)
-        hook("ccCalcTagPos__FRA4_fRA4_iPf", lambda mm, *a: 0)
 
         def stage_init(mm, a, *_):
             mm.store(a + 0x29340, 4, STAGE + 0x100)
@@ -281,7 +280,7 @@ class Game:
         hook("ccSeOffLoop__Fii", lambda mm, se, *_: out.append(["seoff", s32(se)]) or 0)
         hook("EntryAfterImage__6ccBossFP17ENTRYAFTERIMAGE_T", lambda mm, *a: out.append(["afterimage"]) or 0)
         hook("EntryAfterImageAnm__6ccBossFP5ccAnmPfPfP17ENTRYAFTERIMAGE_T",
-             lambda mm, *a: out.append(["afterimage_leaf"]) or 0)
+             lambda mm, a0, a1, *a: out.append(["afterimage_leaf", s32(mm.load(a1 + 0x98, 4))]) or 0)
         hook("OnCinemaMode__16ccBossEffManagerFi", lambda mm, a, n, *_: out.append(["cinema", s32(n)]) or 0)
         hook("OffCinemaMode__16ccBossEffManagerFv", lambda mm, *a: out.append(["cinema", -99]) or 0)
         hook("ccEntryFlyFontNew__FiiPfP6ccCharff",
@@ -289,7 +288,7 @@ class Game:
         hook("ccHitMarkDisp__FP6ccCharP6ccChar", lambda mm, *a: out.append(["hitmark"]) or 0)
         hook("ccClearSpcCondition__Fv", lambda mm, *a: out.append(["clear_spc"]) or 0)
         hook("ccEnemyEffDust__FPfif", lambda mm, *a: out.append(["dust"]) or 0)
-        hook("effSmokeRock__FPfPffiii", lambda mm, *a: out.append(["shock_burst"]) or 0)
+        hook("effSmokeRock__FPfPffiii", lambda mm, p, r, *a: out.append(["shock_burst", mm.load(r + 8, 4)]) or 0)
         hook("checkCameraShakeRange__FPf", lambda mm, *a: 1)
         hook("cameraShake__Fiiii", lambda mm, *a: out.append(["shake"]) or 0)
 
@@ -318,23 +317,62 @@ class Game:
             return 0
         hook("ccHitCheckLM__FPfPfUi", hit_lm)
 
-        gens = {sym("g_thunderGenerator"): "thunder", sym("g_leafDeadGen"): "leafdead",
-                sym("g_energyChargeGenerator") + 0x38: "charge", sym("g_leafMarkerGen"): "marker"}
+        tables = {sym("g_thunderGenerator"): ("g_thunder", sym("g_thunderForceField")),
+                  sym("g_leafDeadGen"): ("g_leafDead", sym("g_leafDeadFF")),
+                  sym("g_energyChargeGenerator"): ("g_energyCharge", sym("g_energyChargeForceField")),
+                  sym("g_leafMarkerGen"): ("g_leafMarker", sym("g_leafMarkerFF"))}
 
-        def gen_ct(mm, a, param, *_):
-            self.gens[a] = gens.get(param, "?")
+        def gen_ct(mm, a, param, ff, *_):
+            # What the constructor (not run) leaves that the makers read on:
+            # distSW 1, gSync and syncPosType 0, pTexMod -1, no syncPos.
+            self.gens[a] = (param, [ff] + [mm.r[k] & 0xFFFFFFFF for k in (7, 8, 9)])
+            mm.store(a + 4, 1, 1)
+            mm.store(a + 5, 1, 0)
+            mm.store(a + 0x18, 4, 0)
+            mm.store(a + 0x2C, 2, 0xFFFF)
             return a
         hook("__ct__19ccParticleGeneratorFP24ccParticleGeneratorParamP25ccParticleForceFieldParamP25"
              "ccParticleForceFieldParamP25ccParticleForceFieldParamP25ccParticleForceFieldParam", gen_ct)
 
+        def held(mm, g):
+            """The leaf member that keeps generator g: its marker's two,
+            its charge."""
+            for k in range(12):
+                lf = leaf_of(mm, k)
+                for j in range(2):
+                    if mm.load(lf + 0x294A0 + 4 * j, 4) == g:
+                        return ["marker", k, j]
+                if mm.load(lf + 0x29650, 4) == g:
+                    return ["charge", k]
+            return None
+
         def gen_start(mm, a, *_):
-            name = self.gens.get(a, "?")
-            if name != "marker":
-                out.append(["particles", name])
+            param, ffs = self.gens.get(a, (0, [0, 0, 0, 0]))
+            base = max((b_ for b_ in tables if b_ <= param and (param - b_) % 0x38 == 0), default=None)
+            if base is None:
+                out.append(["particles", "?"])
+                return 0
+            name, ffb = tables[base]
+            sync = mm.load(a + 0x18, 4)
+            place = ["at"] + [mm.load(a + 0x60 + 4 * k, 4) for k in range(3)]
+            if sync:
+                ks = [k for k in range(12) if leaf_of(mm, k) + 0x29420 == sync]
+                place = ["marker", ks[0]] if ks else ["?", sync]
+            flags = mm.load(a + 4, 1)
+            out.append(["particles", name, (param - base) // 0x38, [(f - ffb) // 0x20 for f in ffs if f],
+                        flags & 1, (flags >> 1) & 1, s16(mm.load(a + 0x2C, 2)), place, held(mm, a)])
             return 0
         hook("startParticleGenerator__FP19ccParticleGenerator", gen_start)
         hook("ccCheckParticleGenerator__FP19ccParticleGenerator", lambda mm, *a: 1)
-        hook("ParticleKill__19ccParticleGeneratorFv", lambda mm, *a: out.append(["kill"]) or 0)
+
+        def gen_kill(mm, g, *_):
+            h = held(mm, g)
+            out.append(["kill", h] if h else ["kill"])
+            return 0
+        hook("ParticleKill__19ccParticleGeneratorFv", gen_kill)
+        # The countdown's number over a leaf (its place always on screen).
+        hook("ccCalcTagPos__FRA4_fRA4_iPf", lambda mm, *a: 1)
+        hook("MakeSignedNum__6ccFontFil", lambda mm, f, clm, n, *_: out.append(["count", s32(n)]) or 0)
 
         def effect(kind):
             def create(mm, *a):
@@ -441,8 +479,13 @@ def rnd_case(c, rnd):
     center = [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), 0, F_ONE]
     leaves = [[fbits(rnd.uniform(-700, 700)), fbits(rnd.uniform(-1200, 200)), fbits(rnd.uniform(0, 500))]
               for _ in range(12)]
+    # The shocks' objects' places, from their own draws (the cases' other
+    # draws as before).
+    srnd = random.Random(leaves[0][0])
+    shocks = [[fbits(srnd.uniform(-700, 700)), fbits(srnd.uniform(-1200, 200)), fbits(srnd.uniform(500, 1500))]
+              for _ in range(12)]
     return {"party": party, "frames": frames, "script": script, "menus": menus, "center": center,
-            "leaves": leaves, "miss": rnd.choice((0, 0, 3, 5, 7)), "push": push,
+            "leaves": leaves, "shocks": shocks, "miss": rnd.choice((0, 0, 3, 5, 7)), "push": push,
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
 
@@ -484,13 +527,15 @@ def run_game(game, case):
     m.store(game.sym("_g_bossEffManager"), 4, MGR)
     m.store(game.sym("scFadeDef"), 4, STAGE + 0x200)
     m.store(game.sym("worldman"), 4, WM)
+    # The font the countdown's number is written to: a stand-in.
+    m.store(game.sym("font"), 4, game.alloc(0x200))
     m.store(WM + 1092, 4, WM + 0x800)
     m.store(WM + 0x800 + 420, 4, WM + 0x1000)
     game.subst = {
         "EXT_ex31leaf*": [game.obj("OBJ_ex31leaf" if k == 0 else f"OBJ_ex31leaf{k:02}", case["leaves"][k])
                           for k in range(12)],
         "OBJ_ex31ligh": [game.obj(f"OBJ_ex31ligh{k:02}") for k in range(12)],
-        "OBJ_ex31les*": [game.obj(f"OBJ_ex31les{5 * k:02}") for k in range(12)],
+        "OBJ_ex31les*": [game.obj(f"OBJ_ex31les{5 * k:02}", case["shocks"][k]) for k in range(12)],
     }
     party = case["party"]
     c.scene.put(party, list(range(len(party))), [])
@@ -579,6 +624,9 @@ def fields(m, base, spec):
             out.append(int(s32(m.load(a, 4)) != -1))
         elif kind == "p":
             out.append(int(m.load(a, 4) != 0))
+        elif kind == "q":
+            g = m.load(a, 4)
+            out.append(int(g != 0 and m.load(g + 5, 1) & 1))
         else:
             out += f32s(m, a, 3)
     return out
@@ -610,7 +658,7 @@ LEAF = ([(0x2B8, "i"), (0x296B0, "i"), (0x296B4, "i"), (0x296B8, "i"), (0x296BC,
          (0x29800, "f"), (0x29804, "f"), (0x29370 + 0x138, "i"), (0x29370 + 0x13C, "i"),
          (0x29370 + 0x120, "f")]
         + [(0x295E0 + 0x30 + 4 * k, "f") for k in range(6)] + [(0x295E0 + 0x48 + 4 * k, "f") for k in range(6)]
-        + [(0x29650, "p")])
+        + [(0x29650, "p"), (0x29420, "v"), (0x294A0, "q"), (0x294A4, "q")])
 
 
 def leaf_state(game, a):
@@ -704,6 +752,8 @@ def request(game, case, pre):
              + [case["rand"], case["seed"], case["mti"], case["count"], case["frames"], case["miss"]]
              + case["push"])
     for p in case["leaves"]:
+        parts += p
+    for p in case["shocks"]:
         parts += p
     parts.append(len(case["script"]))
     for s in case["script"]:

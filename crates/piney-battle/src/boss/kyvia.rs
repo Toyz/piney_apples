@@ -313,16 +313,7 @@ pub enum Held {
     GomoraAura(usize),
 }
 
-/// What the fight does to a generator it keeps.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum GenOp {
-    /// `ParticleKill()`: the pointer kept.
-    Kill,
-    /// +5 bit 0, `pauseFlag`: the generator held still while set.
-    Pause(bool),
-    /// The pointer cleared: the generator runs out on its own.
-    Forget,
-}
+pub use super::GenOp;
 
 /// `new ccParticleGenerator` and `startParticleGenerator`: one of the
 /// fight's generators, where it stands, and the member that keeps it.

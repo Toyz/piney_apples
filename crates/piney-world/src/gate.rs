@@ -77,8 +77,12 @@ impl Anm {
     fn new(file: &SceneFile, clump: &str, anim: &str) -> Result<Anm> {
         let c = file.ccs.find_object(clump).ok_or_else(|| Error::NotFound(clump.into()))?;
         let nodes = file.scene.clumps.iter().find(|(o, _)| *o == c).map(|(_, n)| n.clone()).unwrap_or_default();
-        let mut a =
-            Anm { play: Play { anim: 0, time: 0, posed: 0, frame_spd: 256 }, nodes, lights: Vec::new(), light: BLACK };
+        let mut a = Anm {
+            play: Play { anim: 0, time: 0, posed: 0, frame_spd: 256, hidden: Vec::new() },
+            nodes,
+            lights: Vec::new(),
+            light: BLACK,
+        };
         a.set(file, anim)?;
         Ok(a)
     }

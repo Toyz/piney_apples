@@ -2,8 +2,8 @@
 title: Bosses - Magus
 status: partial
 volumes: MUT
-covers: MUT gcmn.prg:0x006192c0 bossFunc (code 2), 0x0049da60 ccThBoss03, 0x0049db40 ccBoss03::ccBoss03, 0x0049f580 ccBoss03::Main, 0x0049f400 Move (Mutation's), 0x0049e9c0 CheckEpitaph, 0x0049e7f0 the dropped leaves' hiding, 0x0049e9e0 CalcCamera, 0x0049f080 SetupLaserShock, 0x0049f6a0 Affect, 0x0049fa50 Think, 0x0049fc20 Slave, 0x0049fd30 ExecPatternIndex, 0x004a0110 ChangeAction, 0x004a02c0 SetupLeafObjPtr, 0x004a05b0 _GetLeafIndex, 0x004a08c0 PreDrawAnm, 0x004a0c20 OnExitLeaf, 0x004a0d50 OnThinkNeutral, 0x004a1310 OnThinkEpitaph, 0x004a1470 OnThinkDataDrain, 0x004a1530 OnThinkChase, 0x004a17d0 OnThinkEpitaphWave, 0x004a1a50 OnThinkDataDrainAtk, 0x004a1c20 act 9 (Mutation's), 0x004a1f80 OnThinkNeedle, 0x004a2200 OnThinkDie, 0x004a2300 OnThinkReturn, 0x004a2420 OnThinkStop, 0x004a2540 OnThinkWander, 0x004a27a0 OnThinkDash, 0x004a2990 OnThinkEscape, 0x004a2c40 OnThinkWave, 0x004a2ec0 act 8 (Mutation's), 0x004a3100 OnThinkLeafDrop, 0x004a36b0 OnThinkLeafCountDown, 0x004a37c0 OnThinkLeafGrow, 0x004a39a0 OnThinkDestroyLeaf, 0x004a3ae0 OnThinkLaser, 0x004a3fd0 OnThinkRise, 0x004a4460 OnThinkFall, 0x004a46a0 ccBoss03Leaf::ccBoss03Leaf, 0x004a4e00 Move, 0x004a4f30 Main, 0x004a5080 PreDrawAnm, 0x004a52b0 Affect, 0x004a54b0 Think, 0x004a5680 DeadEffect, 0x004a57a0 OnThinkDie, 0x004a5920 Init, 0x004a5ab0 OnThinkDrop, 0x004a5db0 OnThinkFire, 0x004a5ec0 OnThinkCountDown, 0x004a6560 OnThinkDestroy, 0x004a65a0 OnExit, 0x004a6620 PrepareExplode, 0x004a6780 Order, 0x004a6e00 ChangeAction, 0x004a6e80 CheckBlink, 0x004a6ee0 SetBlinkTime, 0x004a7090 ccBoss03LeafExplode::Init, 0x004a7100 ccBoss03LeafExplode::Draw, 0x004a7570 ccBoss03LaserShock::Init, 0x004a7630 ccBoss03LaserShock::Draw, 0x00481180 ccBossEffNeedle::ccBossEffNeedle, 0x004814d0 ccBossEffNeedle::Draw, 0x0048e430 ccBossEffNeedleCreate, 0x0048d5d0 ccBossEffThunderCreate, 0x0061a010 boss03EpitaphActTbl, 0x0061a080 Boss03AnmTbl, 0x0061a130 Boss03SlaveAnmTbl, 0x0061a108 @1538, 0x0061a118 @2301
-worklog: 274
+covers: MUT gcmn.prg:0x006192c0 bossFunc (code 2), 0x0049da60 ccThBoss03, 0x0049db40 ccBoss03::ccBoss03, 0x0049f580 ccBoss03::Main, 0x0049f400 Move (Mutation's), 0x0049e9c0 CheckEpitaph, 0x0049e7f0 the dropped leaves' hiding, 0x0049e9e0 CalcCamera, 0x0049f080 SetupLaserShock, 0x0049f6a0 Affect, 0x0049fa50 Think, 0x0049fc20 Slave, 0x0049fd30 ExecPatternIndex, 0x004a0110 ChangeAction, 0x004a02c0 SetupLeafObjPtr, 0x004a05b0 _GetLeafIndex, 0x004a08c0 PreDrawAnm, 0x004a0c20 OnExitLeaf, 0x004a0d50 OnThinkNeutral, 0x004a1310 OnThinkEpitaph, 0x004a1470 OnThinkDataDrain, 0x004a1530 OnThinkChase, 0x004a17d0 OnThinkEpitaphWave, 0x004a1a50 OnThinkDataDrainAtk, 0x004a1c20 act 9 (Mutation's), 0x004a1f80 OnThinkNeedle, 0x004a2200 OnThinkDie, 0x004a2300 OnThinkReturn, 0x004a2420 OnThinkStop, 0x004a2540 OnThinkWander, 0x004a27a0 OnThinkDash, 0x004a2990 OnThinkEscape, 0x004a2c40 OnThinkWave, 0x004a2ec0 act 8 (Mutation's), 0x004a3100 OnThinkLeafDrop, 0x004a36b0 OnThinkLeafCountDown, 0x004a37c0 OnThinkLeafGrow, 0x004a39a0 OnThinkDestroyLeaf, 0x004a3ae0 OnThinkLaser, 0x004a3fd0 OnThinkRise, 0x004a4460 OnThinkFall, 0x004a46a0 ccBoss03Leaf::ccBoss03Leaf, 0x004a4e00 Move, 0x004a4f30 Main, 0x004a5080 PreDrawAnm, 0x004a52b0 Affect, 0x004a54b0 Think, 0x004a5680 DeadEffect, 0x004a57a0 OnThinkDie, 0x004a5920 Init, 0x004a5ab0 OnThinkDrop, 0x004a5db0 OnThinkFire, 0x004a5ec0 OnThinkCountDown, 0x004a6560 OnThinkDestroy, 0x004a65a0 OnExit, 0x004a6620 PrepareExplode, 0x004a6780 Order, 0x004a6e00 ChangeAction, 0x004a6e80 CheckBlink, 0x004a6ee0 SetBlinkTime, 0x004a7090 ccBoss03LeafExplode::Init, 0x004a7100 ccBoss03LeafExplode::Draw, 0x004a7570 ccBoss03LaserShock::Init, 0x004a7630 ccBoss03LaserShock::Draw, 0x00481180 ccBossEffNeedle::ccBossEffNeedle, 0x004814d0 ccBossEffNeedle::Draw, 0x0048e430 ccBossEffNeedleCreate, 0x0048d5d0 ccBossEffThunderCreate, 0x0061a010 boss03EpitaphActTbl, 0x0061a080 Boss03AnmTbl, 0x0061a130 Boss03SlaveAnmTbl, 0x0061a108 @1538, 0x0061a118 @2301, 0x0049e7c0 act 8's after-image callback, 0x004a7980 ccLeafMark::ccLeafMark, 0x004a7b10 ccLeafMark::Draw, 0x004a7b20 ccLeafMark::InitAtOnce, 0x004710b0 ccBossAfterImageEx::Init, 0x00471320 ccBossAfterImageEx::Draw, 0x00470e00 ccBossAfterImageManager::EntryAfterImageAnm, 0x00473680 ccBoss::DrawAfterImages, 0x0061d250 g_thunderGenerator, 0x0061d290 g_thunderForceField, 0x0061ec00 g_energyChargeGenerator, 0x0061ed20 g_energyChargeForceField, 0x006201b0 g_leafMarkerGen, 0x006201f0 g_leafMarkerFF, 0x00620250 g_leafDeadGen, 0x00620290 g_leafDeadFF, 0x00538720 ccCalcTagPos, main.prg:0x00153950 ccHitCheckLM
+worklog: 274, 421
 ---
 
 # Bosses - Magus
@@ -269,16 +269,87 @@ the stage back at 90, camera 1 and the next pattern 15 later.
 (0), not the swinging `actDirc.x` it sets. `OnThinkDie` (0x004a2200):
 `BeginDeadEffect(2500, 2500)`, and once the dead effect ends, exit.
 
+## The pictures
+
+The leaves' particle generators (the rows of Magus's tables, the force
+fields in brackets; "follows" is `syncPos` with `syncPosType` 0):
+
+| maker | table row (ff) | where | kept |
+| --- | --- | --- | --- |
+| `Order(24)`, the first fall (`ccLeafMark::InitAtOnce`) | leafMarker 0 (0, 1), texture 102 | follows the marker (+0x29420) | +0x294a0 |
+| the same | leafMarker 0 (1, 2), `gSync`, texture 102 | follows the marker | +0x294a4 |
+| `Order(29)`, the grow | energyCharge 1 (0, 3), distSW off | at the leaf's place on the body | +0x29650 |
+| `DeadEffect` | leafDead 0 (0), texture 108 | at the leaf | - |
+| `OnThinkLaser` after `SetupLaserShock`, each shock | thunder 0 (0, 1) (`ccBossEffThunderCreate`) | at the shock's object | - |
+
+`InitAtOnce` pauses both markers (+5 bit 0) as it makes them; the
+landing (`OnThinkDrop`) frees them; `PrepareExplode`, `Order(27)` and the
+death pause them again. The marker's place is the leaf's at its fall and
+through its countdown. `Order(27)` and `Order(30)` kill the charge, and
+`Order(29)` the one before. `ccLeafMark::Draw` is empty.
+
+A bursting leaf (act 21) draws `ccBoss03LeafExplode` in its `PreDrawAnm`:
+xeffect's `EFF_ex31exp2` 100 over the place at its scale and
+transparency, and `OBJ_ex31exp1` there scaled by the second status. The
+laser's shocks (`PreDrawAnm`'s step 2, from the clip's frame 100) each
+`SetDirc(dirc)`, then `Draw`: the beam runs from the shock's object (its
+`_SetLWMatrix` place) 2000 down, turned by its leaf's local matrix and
+Magus's heading (`sceVu0RotMatrix`), and `ccHitCheckLM(a, end,
+0x20000000)` (mask type 0) writes the contact into the end. On a contact
+`EFF_ex31les2` is drawn there, scale 6, at the shock's fade. Both are on
+the layer the effect manager's pass left, `charLayer` (priority 10).
+Every sixth contact of shocks 0, 3, 6 and 9 bursts: `ccParticleExplode`
+(speed z 10, then 15, scale 5, kind 1) and `effSmokeRock(at, (-pi/2, 0,
+ccRandF(pi)), 45, 2, 2, -1)`. The needles (`ccBossEffNeedle::Draw`) draw
+xeffect's `OBJ_ex71body2` per needle on the effect layer: unit scale
+(0.5, 0.5, scale / 200, at least 0), stood up by -pi/2 about x, turned
+by its three angles, at the place.
+
+`PreDrawAnm` then hides the dropped leaves on the body, unless in the
+Epitaph (`CheckEpitaph`) or the grow (act 26): each dropped (`m_bDrop`)
+leaf's `EXT_ex31leaf*` object (`SetupLeafObjPtr`'s, by `_GetLeafIndex`
+of its object's name) and its `OBJ_ex31ligh*` (paired in the search's
+order) get transparency 0 until the clip's next step. Act 8 hands the
+same hiding (0x0049e7c0 to 0x0049e7f0) to its after-images as their
+callback while it runs.
+
+A leaf's blink (`OnThinkCountDown`) enters an after-image of its own anm
+at `frameNow` (`ccBossAfterImageEx::Init`; at frame 0 it steps once):
+colour 0x005050ff at `colorAlpha` 100, transparency 0.5 by -1/60 a draw,
+scale from 1 to (1, 4, 2) over 30 draws (`Draw` grows each axis by its
+step, held at the end's size), on the effect layer. Each countdown frame
+then writes the seconds left, `(m_expCntr + 29) / 30`, with the global
+font: `ccCalcTagPos` of the leaf's place 100 up, `SetType(1)`,
+`ccSpriteColorTable[7]`, shadowed (+4 bit 0x10),
+`MakeSignedNum(2, seconds)`.
+
+In the port the rules emit `Out::Magus(Pic)`: `Particles`, `Gen` (kill,
+pause), `Shocks`, `ShockBurst`, `LeafAfterImage`, `Count`.
+`piney_effect::magus` makes the generators (`start`, `gen_op`), the
+needles (`Needles`, drawn from the rules' `Needle` each frame), a leaf's
+burst (`leaf_explode`), a shock (`laser_shock`) and its burst
+(`shock_burst`); piney-game's `fx.rs` starts them from the shows and syncs
+the needles, bursts and markers after the boss's task (`magus_shows`).
+`piney_world::combat::boss` finds the shocks (`magus_shocks`: the laser
+clip `ANM_ex31atc2` one step on, or from frame 0 when another clip plays,
+as `SetupLaserShock` follows its `SetAnm` and step), hides the dropped
+leaves (`Play::hidden`, `dropped_objects`) and keeps the after-images; the
+field's `leaf_counts` sends the countdown's font.
+
 ## In the port
 
 `piney_battle::boss::magus` (the body) and `magus::leaf`; the tables
 (`magus_epitaph`, `magus_anims`, `magus_leaf_anims`, `magus_skills`,
 `magus_drop_skills`) are the build's combat group. Each leaf is a
 character with a `Boss` of `Class::MagusLeaf`, taken out for the body's
-frame. The body's leaf places (`OBJ_ex31leafNN`'s world matrix) and the
-shocks' ground hits are the runtime's (`Magus::leaf_pos`, `shock_hit`):
-`piney_world::combat::boss` poses x31's body and reads the leaves; every
-beam is taken to meet the ground. Camera 3 moves are `Out::CameraChange`,
+frame. The body's leaf places (`OBJ_ex31leafNN`'s world matrix), the
+shocks' objects and where their beams meet the land are the runtime's
+(`Magus::leaf_pos`, `shock_pos`, `shock_at`): `piney_world::combat::boss`
+poses x31's body before the frame ("The pictures"), at the place the
+last frame left. That is `PreDrawAnm`'s own: the laser keeps Magus's
+place through `Move`, and `CalcCamera`, which puts it over Kite at the
+clip's frame 135, runs after `PreDrawAnm` (`ccBoss03::Main` is
+`ccBoss::Main` then `CalcCamera`). Camera 3 moves are `Out::CameraChange`,
 `CameraPos`, `CameraView`; the shake `Out::CameraShake` (the runtime
 checks its range and draws its `rand()`).
 
@@ -309,13 +380,39 @@ menu; `rand()` and `ccRand`'s index. 120 cases (308,056 frames) agree
 20, 22, 25, 26, 27 and 28 and the leaves' 0, 14, 19, 21 and 22 are
 reached. `test_effect_lives` runs the WaveShock's, the dead effect's and a
 leaf's ring's `Create` and `Draw` natively: 45, 120 and 20 draws, the
-port's lives.
+port's lives. Since worklog 421 the calls compared include each
+generator's start (table, row, force fields, distSW, `gSync`, texture,
+place, the member that keeps it) and what the leaves do to those they
+keep (kill, pause), a shock's burst with its turn, a blink's after-image
+with its `frameNow`, and the countdown's number; the markers' pause flags
+and place are compared with each leaf's members.
+
+`tools/test_boss_effect_rs.py test_magus_effects` runs the pictures'
+code natively against piney-effect's boss_probe frame by frame: the
+needles from `ccBossEffNeedleCreate` (74 frames), a leaf's burst from
+`ccBoss03LeafExplode::Init` (124), and shocks 0, 3 and 4 from
+`ccBoss03LaserShock::Init` with a ground contact or none (`ccHitCheckLM`
+answered), 540 frames each; compared: each draw (object, matrix,
+transparency, layer, the sprite's scale and place), the particles of the
+bursts and `effSmokeRock`'s rocks.
 
 Not reached: act 30 (and a leaf's 23) needs the laser reserved while
 leaves are down and the drop over, which the neutral's order never gives
 (the drop is chosen first while `m_bDropping` holds, and only the grow
-clears it); act 31 needs `m_dmgCount` 0; acts 21, 23 and 29 come from no
-pattern of Magus's table.
+clears it); acts 21, 23 and 29 come from no pattern of Magus's table. Act
+31 is never reached in the game: it needs `m_dmgCount` (+0x52700) 0, and
+nothing lowers it. The constructor writes 100 (0x0049e388) and the
+needle's own branch rand & 31 + 50 (0x004a0ef0); no other code of
+boss03.cpp or the base touches it. `ccBossEffNeedleCreate` has no other
+caller (0x004a2160), so the needles are never seen in play.
+
+`magus_shows_its_leaves_needles_and_laser` (piney-game's session tests)
+runs event 115's fight 9000 frames, reserving the laser and running the
+damage count out (the needles, unreachable in play) now and then: the
+markers follow the leaves, the dropped leaves are hidden on the body
+(never shown while dropped outside the grow), the needles and the bursts
+are drawn, and in the laser the shocks meet the arena's ground with the
+thunder's particles. `magus_shots` (ignored) writes its shots.
 
 `boss::magus::tests` (piney-battle) hold the constructor, a leaf's fall
 and landing, a leaf killed, a burst's rise and fall, the drain to death
@@ -329,12 +426,5 @@ done, Magus drained at frame 165,723 and dead by 172,000.
 
 ## Unknown
 
-- The pictures: the leaves' markers, charges and bursts, the laser's
-  shocks and thunder, the needles, the dead leaves' smoke are named, not
-  drawn; the body's dropped leaves are not hidden. A dead leaf's ring
-  (`SetModel(195)`: xeffect's `CMP_x037` on `CLT_x037c5`) is drawn since
-  worklog 411.
-- The shocks' beams are taken to meet the ground; the game's line test
-  (`ccHitCheckLM` on the land) is not ported.
 - `EntryFlash2` and `EntryFlash3` on `scFadeDef` are drawn as one flash;
   the grow's looping SE plays once.

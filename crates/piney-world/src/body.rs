@@ -290,7 +290,7 @@ impl Body {
         };
         let hung: Vec<Option<usize>> = (0..instances.len()).map(hung).collect();
         for (inst, &k) in instances.iter().zip(&hung) {
-            if k.is_some() && arms <= 0.0 {
+            if (k.is_some() && arms <= 0.0) || play.hidden.contains(&inst.entry) {
                 continue;
             }
             let (file, model, info) = match k {
@@ -325,7 +325,8 @@ impl Body {
         }
         // The shadow models: the instances', and each attached model's own
         // object's, at the node it rides.
-        draw::cast_shadows(layers, &self.file, instances.iter().map(|i| (i.object, i.world)));
+        let shown = instances.iter().filter(|i| !play.hidden.contains(&i.entry));
+        draw::cast_shadows(layers, &self.file, shown.map(|i| (i.object, i.world)));
         for (inst, k) in instances.iter().zip(hung) {
             let Some(a) = k.map(|k| &self.attached[k]).filter(|_| arms > 0.0) else { continue };
             let Some(&owner) = a.file.scene.model_owner.get(&a.model) else { continue };

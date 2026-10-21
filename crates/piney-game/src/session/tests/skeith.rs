@@ -1315,7 +1315,7 @@ fn event_108_ends_with_kyvia() {
 /// 21 (whose settings, from blocks 12 and 14, are that field and phase 4)
 /// takes the party to field 3 (`EVENTAREAB0`), where block 22 makes Magus
 /// (`entry 7 2`, `battle_ready`).
-fn event_115_session() -> Option<Session> {
+pub(super) fn event_115_session() -> Option<Session> {
     let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
     if !iso.exists() {
         return None;

@@ -116,22 +116,81 @@ pub struct Shock {
 /// What Magus shows that the rules do not keep, for the runtime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Pic {
-    /// `ccBossEffThunderCreate` at laser shock `shock`'s object
-    /// (`OBJ_ex31lesNN` of the body, NN five times the shock).
-    Thunder { shock: usize },
+    /// A particle generator started: which, where, and who keeps it.
+    Particles { which: Gen, at: Place, held: Option<Held> },
+    /// What the fight does to a generator it keeps.
+    Gen { held: Held, op: super::GenOp },
     /// Shocks 0 to `upto` drawn this frame (`ccBoss03LaserShock::Draw`).
     Shocks { upto: usize },
     /// A shock's burst where its beam met the ground: two
-    /// `ccParticleExplode` and `effSmokeRock`.
-    ShockBurst { shock: usize },
-    /// `EntryAfterImageAnm` of leaf `leaf` (its blink).
-    LeafAfterImage { leaf: usize },
+    /// `ccParticleExplode` and `effSmokeRock`, turned by `turn`
+    /// (`ccRandF(pi)`) about z.
+    ShockBurst { shock: usize, turn: F },
+    /// `EntryAfterImageAnm` of leaf `leaf` (its slave number; its blink)
+    /// at its anm's `frameNow`.
+    LeafAfterImage { leaf: usize, frame: i32 },
     /// `ccEnemyEffDust(pos, 30, 4.0)`: a leaf lands.
     Dust { pos: V4 },
-    /// `g_leafDeadGen` at a leaf that dies.
-    LeafDead { pos: V4 },
-    /// A leaf's `g_energyChargeGenerator` started or killed.
-    Charge { leaf: usize, on: bool },
+    /// `OnThinkCountDown`'s number over leaf `leaf` (its character): the
+    /// seconds left, `(m_expCntr + 29) / 30`.
+    Count { leaf: usize, n: i32 },
+}
+
+/// Magus's particle generators, by where the game makes them: a leaf's
+/// marker (`ccLeafMark::InitAtOnce`, `g_leafMarkerGen` row 0, ff 0 and 1,
+/// texture 102; the second ff 1 and 2 with `gSync`), the grow's charge (`Order(29)`,
+/// `g_energyChargeGenerator` row 1, ff 0 and 3, distSW off), a dying
+/// leaf's smoke (`DeadEffect`, `g_leafDeadGen`, ff 0, texture 108) and a
+/// shock's thunder (`ccBossEffThunderCreate`, `g_thunderGenerator`, ff 0
+/// and 1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Gen {
+    Marker(u8),
+    Charge,
+    LeafDead,
+    Thunder,
+}
+
+/// A generator's rows as its maker makes it: the table, its row, the
+/// force field table's rows, `distSW`, `gSync` and `pTexMod` (-1 the
+/// row's own).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GenRow {
+    pub table: &'static str,
+    pub row: u8,
+    pub ff: &'static [u8],
+    pub dist_sw: bool,
+    pub g_sync: Option<bool>,
+    pub tex: i16,
+}
+
+impl Gen {
+    pub fn rows(self) -> GenRow {
+        let g = |table, row, ff| GenRow { table, row, ff, dist_sw: true, g_sync: None, tex: -1 };
+        match self {
+            Gen::Marker(0) => GenRow { tex: 102, ..g("g_leafMarker", 0, &[0, 1]) },
+            Gen::Marker(_) => GenRow { g_sync: Some(true), tex: 102, ..g("g_leafMarker", 0, &[1, 2]) },
+            Gen::Charge => GenRow { dist_sw: false, ..g("g_energyCharge", 1, &[0, 3]) },
+            Gen::LeafDead => GenRow { tex: 108, ..g("g_leafDead", 0, &[0]) },
+            Gen::Thunder => g("g_thunder", 0, &[0, 1]),
+        }
+    }
+}
+
+/// Where a generator stands: its `pos`, or following a leaf's marker
+/// (`ccLeafMark` +0xb0, the leaf +0x29420), by the leaf's character.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Place {
+    At(V4),
+    Marker(usize),
+}
+
+/// A member a leaf keeps a generator's pointer in, by its character: its
+/// marker's two (+0x294a0, +0x294a4) and its charge (+0x29650).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Held {
+    Marker(usize, u8),
+    Charge(usize),
 }
 
 /// `ccBoss03`'s own members (+0x29350 on, Mutation's offsets: four more
@@ -188,9 +247,13 @@ pub struct Magus {
     /// Where each leaf hangs on the body (`OBJ_ex31leafNN`'s world place as
     /// last posed), which `Init` reads; the runtime sets it each frame.
     pub leaf_pos: [V4; LEAVES],
-    /// Whether each shock's beam meets the ground (`ccHitCheckLM` not -1);
-    /// the runtime sets it.
-    pub shock_hit: [bool; LEAVES],
+    /// The shocks' objects' places (`OBJ_ex31les00`-`55`), the runtime's
+    /// as `leaf_pos`: where the thunder starts.
+    pub shock_pos: [V4; LEAVES],
+    /// Where each shock's beam meets the ground (`ccHitCheckLM`'s contact,
+    /// None for -1), the runtime's as `leaf_pos`; until it says, each meets
+    /// it under its place.
+    pub shock_at: [Option<V4>; LEAVES],
 }
 
 /// The leaves out of their characters for the body's frame.
@@ -326,7 +389,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
         stage_id: -1,
         animate_chase: Fade { transparency: ONE, ..Fade::default() },
         shocks: [Shock { transparency: ONE, ..Shock::default() }; 12],
-        shock_hit: [true; LEAVES],
+        shock_at: [Some(VF0); LEAVES],
         ..Magus::default()
     };
     x.atk_wait = (cx.cc.rand() & 31).abs();
@@ -477,27 +540,37 @@ fn pre_draw_anm(b: &mut Boss, x: &mut Magus, cx: &mut Cx) {
     }
 }
 
-/// `ccBoss03LaserShock::Draw` (0x004a7630) as far as the rules go: while
-/// its beam meets the ground, a fade, and every sixth frame for shocks 0,
-/// 3, 6, 9 a burst with one `ccRandF(pi)`.
+/// `ccBoss03LaserShock::Draw` (0x004a7630) as far as the rules go
+/// ([`Shock::draw`]), its burst shown.
 fn shock_draw(x: &mut Magus, k: usize, cx: &mut Cx) {
-    let mut done = 0;
-    if x.shock_hit[k] {
-        let s = &mut x.shocks[k];
-        s.transparency = ee::sub(s.transparency, 0x3c23_d70a);
-        if ee::lt(s.transparency, 0) {
-            done = 1;
-            s.transparency = 0;
-        }
-        let c = s.act_count;
-        s.act_count = c + 1;
-        if c == 5 && s.index % 3 == 0 {
-            let _ = rand_f(cx.cc, PI);
-            cx.out(Out::Magus(Pic::ShockBurst { shock: k }));
-            x.shocks[k].act_count = 0;
-        }
+    if let Some(turn) = x.shocks[k].draw(x.shock_at[k].is_some(), cx.cc) {
+        cx.out(Out::Magus(Pic::ShockBurst { shock: k, turn }));
     }
-    x.shocks[k].draw = done;
+}
+
+impl Shock {
+    /// One `Draw` (0x004a7630) whose beam met the ground (`hit`) or not:
+    /// met, its fade 0.01, and every sixth for shocks 0, 3, 6, 9 a burst
+    /// turned by a `ccRandF(pi)`, returned. `draw` is 1 once faded out.
+    pub fn draw(&mut self, hit: bool, cc: &mut dyn crate::rand::Rng) -> Option<F> {
+        let mut done = 0;
+        let mut burst = None;
+        if hit {
+            self.transparency = ee::sub(self.transparency, 0x3c23_d70a);
+            if ee::lt(self.transparency, 0) {
+                done = 1;
+                self.transparency = 0;
+            }
+            let c = self.act_count;
+            self.act_count = c + 1;
+            if c == 5 && self.index % 3 == 0 {
+                burst = Some(rand_f(cc, PI));
+                self.act_count = 0;
+            }
+        }
+        self.draw = done;
+        burst
+    }
 }
 
 /// `ccBossEffManager::Draw`'s pass over Magus's effects: a needle steps
@@ -523,11 +596,29 @@ fn manager_pass(b: &mut Boss, cx: &mut Cx) {
     }
 }
 
+/// `ccBoss03LaserShock::Draw`'s beam (0x004a7630): from the shock's
+/// object at `a`, 2000 down turned by its leaf's local matrix `leaf`
+/// (`sceVu0RotMatrix` by Magus's turn `dirc`); the end the line test
+/// (`ccHitCheckLM(a, end, 0x20000000)`) runs to.
+pub fn shock_beam(a: V4, leaf: &geom::M4, dirc: V4) -> V4 {
+    let mut down = a;
+    down[2] = ee::sub(down[2], 0x44fa_0000);
+    let d = geom::vsub(down, a);
+    let m = geom::rot_matrix(leaf, dirc);
+    geom::vadd(geom::apply_matrix(&m, d), a)
+}
+
 /// `ccBossEffNeedle` (MUT gcmn 0x00481180, `Draw` 0x004814d0): its
 /// needles grow in, hold, and fade; three `ccRandF(pi)` a needle when made.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Needle {
     pub pos: V4,
+    /// Each needle's turn (x, y, z; `ccRandF(pi)` each).
+    pub rots: Vec<V4>,
+    /// The transparency and scale the last `Draw` drew them at (before
+    /// its step), and the `Draw`s so far.
+    pub shown: (F, F),
+    pub draws: u32,
     pub scale: F,
     pub scale_spd: F,
     pub alpha: F,
@@ -542,14 +633,22 @@ impl Needle {
     /// `ccBossEffNeedleCreate(pos, scale, speed, alpha, n, t0, t1, t2)`:
     /// `n` needles turned at random.
     #[allow(clippy::too_many_arguments)]
-    fn new(cx: &mut Cx, pos: V4, scale: F, speed: F, alpha: F, n: i32, t0: i32, t1: i32) -> Needle {
-        for _ in 0..n {
-            for _ in 0..3 {
-                let _ = rand_f(cx.cc, PI);
-            }
-        }
+    pub fn new(
+        cc: &mut dyn crate::rand::Rng,
+        pos: V4,
+        scale: F,
+        speed: F,
+        alpha: F,
+        n: i32,
+        t0: i32,
+        t1: i32,
+    ) -> Needle {
+        let rots = (0..n).map(|_| [rand_f(cc, PI), rand_f(cc, PI), rand_f(cc, PI), ONE]).collect();
         Needle {
             pos,
+            rots,
+            shown: (alpha, scale),
+            draws: 0,
             scale,
             scale_spd: speed,
             alpha,
@@ -562,7 +661,9 @@ impl Needle {
     }
 
     /// One `Draw`: the sound it plays, if any.
-    fn draw(&mut self) -> Option<i32> {
+    pub fn draw(&mut self) -> Option<i32> {
+        self.shown = (self.alpha, self.scale);
+        self.draws += 1;
         let mut se = None;
         let mut hold = ee::to_int(self.hold) as i16;
         let mut a = self.alpha;
@@ -577,8 +678,10 @@ impl Needle {
                 }
             }
             1 => {
+                // `hold-- > 0` holds on: the old value compared.
+                let old = hold;
                 hold -= 1;
-                if hold <= 0 {
+                if old <= 0 {
                     self.state += 1;
                 }
             }
@@ -1178,7 +1281,7 @@ fn on_needle(b: &mut Boss, x: &mut Magus, cx: &mut Cx) {
             let c = b.act_count;
             b.act_count += 1;
             if c >= 21 {
-                let n = Needle::new(cx, at, 0, 0x4248_0000, 0x3e99_999a, 128, 3, 15);
+                let n = Needle::new(cx.cc, at, 0, 0x4248_0000, 0x3e99_999a, 128, 3, 15);
                 let id = b.effects.create(EffKind::Needle { n: 128 });
                 if let Ok(k) = usize::try_from(id)
                     && let Some(Some(e)) = b.effects.slots.get_mut(k)
@@ -1700,7 +1803,8 @@ fn on_laser(b: &mut Boss, x: &mut Magus, cx: &mut Cx) {
                 }
                 setup_laser_shock(x);
                 for k in 0..LEAVES {
-                    cx.out(Out::Magus(Pic::Thunder { shock: k }));
+                    let at = Place::At(x.shock_pos[k]);
+                    cx.out(Out::Magus(Pic::Particles { which: Gen::Thunder, at, held: None }));
                 }
                 cx.out(Out::Se { se: 68 });
             } else if b.act_count == 40 {

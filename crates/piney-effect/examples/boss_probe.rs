@@ -193,6 +193,74 @@ fn news(fx: &mut Effects) -> (String, String) {
     (events.join(", "), gens.join(", "))
 }
 
+/// The answer to a frame: the boss effects' draws, the events, the
+/// generators started and every one's kill flag, the lights, the slots'
+/// enabled bits, the effect slots, `rand()` and `genrand()`; `extra` more
+/// keys.
+fn frame_json(fx: &mut Effects, host: &Probe, started: &mut Vec<u32>, extra: &str) -> String {
+    let draws: Vec<String> = fx.boss_draws().iter().map(|d| draw(fx, d)).collect();
+    started.extend(fx.particles.started.iter().map(|g| g.sn));
+    let (events, gens) = news(fx);
+    let kills: Vec<u32> = started.iter().map(|&sn| fx.particles.get(sn).map_or(0, |g| g.kill_flag as u32)).collect();
+    let mut lights = Vec::new();
+    let mut enabled = Vec::new();
+    for (k, s) in fx.boss.slots.iter().enumerate() {
+        let Some(s) = s else { continue };
+        enabled.push(format!("[{k}, {}]", u8::from(s.enabled)));
+        // sceVu0TransMatrix of the unit matrix: 0 + x.
+        let at = |p: V4| list(&[ee::add(0, p[0]), ee::add(0, p[1]), ee::add(0, p[2])]);
+        if let BossEff::Light(l) = &s.eff {
+            lights.push(format!("[{}, {}, {}]", u8::from(l.in_group), at(l.light_pos), list(&l.colour)));
+        }
+        // A meteor swarm's light: in the group, its intensity,
+        // fall-off's start and end.
+        if let BossEff::Spell(x) = &s.eff
+            && let Some((p, c, far)) = x.light()
+        {
+            lights.push(format!("[\"meteo\", 1, {}, {}, {ONE}, 0, {far}]", at(p), list(&c)));
+        }
+    }
+    let slots: Vec<String> = fx
+        .ctrl
+        .effects
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.status != 0)
+        .map(|(i, e)| {
+            format!(
+                "[{i}, {}, {}, {}, {}, {}, {}, {}, {}]",
+                e.id,
+                e.life_time,
+                list(&e.pos),
+                list(&e.scale),
+                list(&e.speed),
+                e.velocity,
+                list(&e.rot_speed.map(u32::from)),
+                e.sn
+            )
+        })
+        .collect();
+    format!(
+        "{{\"draws\": [{}], \"events\": [{events}], \"gens\": [{gens}], \"kills\": {}, \"lights\": [{}], \"enabled\": [{}], \"slots\": [{}], \"rand\": {}, \"ccrand\": {}{extra}}}",
+        draws.join(", "),
+        list(&kills),
+        lights.join(", "),
+        enabled.join(", "),
+        slots.join(", "),
+        host.rand.0,
+        host.genrand.get()
+    )
+}
+
+/// `ccRand` for the probe's shocks: the host's `genrand`.
+struct CcRand<'a>(&'a mut Probe);
+
+impl piney_battle::rand::Rng for CcRand<'_> {
+    fn rand(&mut self) -> i32 {
+        self.0.genrand() as i32
+    }
+}
+
 fn main() {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path).unwrap();
@@ -302,59 +370,51 @@ fn main() {
             }
             "frame" => {
                 fx.boss_step(&mut host);
-                let draws: Vec<String> = fx.boss_draws().iter().map(|d| draw(&fx, d)).collect();
-                started.extend(fx.particles.started.iter().map(|g| g.sn));
-                let (events, gens) = news(&mut fx);
-                let kills: Vec<u32> =
-                    started.iter().map(|&sn| fx.particles.get(sn).map_or(0, |g| g.kill_flag as u32)).collect();
-                let mut lights = Vec::new();
-                let mut enabled = Vec::new();
-                for (k, s) in fx.boss.slots.iter().enumerate() {
-                    let Some(s) = s else { continue };
-                    enabled.push(format!("[{k}, {}]", u8::from(s.enabled)));
-                    // sceVu0TransMatrix of the unit matrix: 0 + x.
-                    let at = |p: V4| list(&[ee::add(0, p[0]), ee::add(0, p[1]), ee::add(0, p[2])]);
-                    if let BossEff::Light(l) = &s.eff {
-                        lights.push(format!("[{}, {}, {}]", u8::from(l.in_group), at(l.light_pos), list(&l.colour)));
-                    }
-                    // A meteor swarm's light: in the group, its intensity,
-                    // fall-off's start and end.
-                    if let BossEff::Spell(x) = &s.eff
-                        && let Some((p, c, far)) = x.light()
-                    {
-                        lights.push(format!("[\"meteo\", 1, {}, {}, {ONE}, 0, {far}]", at(p), list(&c)));
+                println!("{}", frame_json(&mut fx, &host, &mut started, ""));
+                continue;
+            }
+            // Magus's: a leaf's burst made at its place and turn, then its
+            // Draws until it ends; a laser shock on stand-in objects (its
+            // own's place, its leaf's local matrix, Magus's turn, its
+            // index, whether its beam meets the ground and where), 90 Draws.
+            "leafexp" => {
+                let mut ex = piney_battle::boss::magus::leaf::Explode { pos: v4(1), dirc: v4(5), ..Default::default() };
+                ex.init();
+                println!("{{\"made\": 1}}");
+                for _ in 0..400 {
+                    let done = ex.draw();
+                    fx.boss_step(&mut host);
+                    fx.magus_sync(&mut host, &[], &[ex], &[]);
+                    let draws: Vec<String> = fx.boss_draws().iter().map(|d| draw(&fx, d)).collect();
+                    println!("{{\"draws\": [{}], \"done\": {}}}", draws.join(", "), u8::from(done));
+                    if done {
+                        break;
                     }
                 }
-                let slots: Vec<String> = fx
-                    .ctrl
-                    .effects
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, e)| e.status != 0)
-                    .map(|(i, e)| {
-                        format!(
-                            "[{i}, {}, {}, {}, {}, {}, {}, {}, {}]",
-                            e.id,
-                            e.life_time,
-                            list(&e.pos),
-                            list(&e.scale),
-                            list(&e.speed),
-                            e.velocity,
-                            list(&e.rot_speed.map(u32::from)),
-                            e.sn
-                        )
-                    })
-                    .collect();
-                println!(
-                    "{{\"draws\": [{}], \"events\": [{events}], \"gens\": [{gens}], \"kills\": {}, \"lights\": [{}], \"enabled\": [{}], \"slots\": [{}], \"rand\": {}, \"ccrand\": {}}}",
-                    draws.join(", "),
-                    list(&kills),
-                    lights.join(", "),
-                    enabled.join(", "),
-                    slots.join(", "),
-                    host.rand.0,
-                    host.genrand.get()
-                );
+                continue;
+            }
+            "lshock" => {
+                use piney_battle::boss::magus::{Shock, shock_beam};
+                let a = v4(1);
+                let local: [[u32; 4]; 4] = [v4(5), v4(9), v4(13), v4(17)];
+                let dirc = v4(21);
+                let mut sh = Shock { index: n(25) as i32, transparency: ONE, ..Shock::default() };
+                let hit = n(26) != 0;
+                let at = [n(27), n(28), n(29), ONE];
+                println!("{{\"made\": 1}}");
+                for _ in 0..90 {
+                    fx.boss_step(&mut host);
+                    let end = shock_beam(a, &local, dirc);
+                    let burst = sh.draw(hit, &mut CcRand(&mut host));
+                    if hit {
+                        fx.magus_shocks(&mut host, &[(at, sh.transparency)]);
+                    }
+                    if let Some(turn) = burst {
+                        fx.magus_shock_burst(&mut host, at, turn);
+                    }
+                    let extra = format!(", \"hits\": [{}], \"done\": {}", list(&end[..3]), ee::from_int(sh.draw));
+                    println!("{}", frame_json(&mut fx, &host, &mut started, &extra));
+                }
                 continue;
             }
             "wave" => Make::WaveShock { pos: v4(1), dirc: v4(5), scale: n(9) },
@@ -383,6 +443,15 @@ fn main() {
                 let element = [Element::Ice, Element::Lightning, Element::Blaze][n(1) as usize];
                 Make::MissileAlone { element, no: n(2) as i32, ctrl: [v4(3), v4(7), v4(11), v4(15)] }
             }
+            "needles" => Make::NeedlesAlone {
+                pos: v4(1),
+                scale: n(5),
+                speed: n(6),
+                alpha: n(7),
+                n: n(8) as i32,
+                t0: n(9) as i32,
+                t1: n(10) as i32,
+            },
             "sring" => Make::SamonRing {
                 pos: v4(1),
                 rot: v4(5),

@@ -185,6 +185,36 @@ class BossFx(EffectMachine):
         m.hooks[sym("__ct__7ccCoordFv")] = coord
         m.hooks[sym("__ct__5ccAnmFv")] = coord
 
+        # Magus's needles and burst draw lone objects (ccObj::Draw at their
+        # matrix and transparency); the needles' fog blend is no draw.
+        def obj_init(mm, obj, chunk, *a):
+            coord(mm, obj)
+            self.clump[obj] = self.names.get(chunk, "?")
+            return 0
+
+        def obj_draw(mm, obj, *a):
+            self.draws.append(["clump", self.clump.get(obj, "?"), self.rvec(obj + 0x40, 16), mm.load(obj + 0x88, 4),
+                               self.layer(), None])
+            return 0
+
+        m.hooks[sym("Init__5ccObjFP10ccObjChunkPP7ccCoordUi")] = obj_init
+        m.hooks[sym("Draw__5ccObjFf")] = obj_draw
+        m.hooks[sym("SetFogBlend__9ccDrawEnvFfUi")] = lambda mm, *a: 0
+        m.hooks[sym("ResetFogBlend__9ccDrawEnvFv")] = lambda mm, *a: 0
+        self.hits = []          # ccHitCheckLM's ends, and the case's answer
+        self.hit_at = None
+
+        def hit_lm(mm, sp, ep, mask, *a):
+            self.hits.append(self.rvec(ep, 3))
+            if self.hit_at is None:
+                mm.f[0] = 0xBF800000
+            else:
+                self.vec(ep, self.hit_at)
+                mm.f[0] = fb(0.5)
+            return 0
+
+        m.hooks[sym("ccHitCheckLM__FPfPfUi")] = hit_lm
+
     def start_generator(self, m, g, *a):
         self.started.append(g)
         sync = m.load(g + 0x18, 4)
@@ -427,6 +457,36 @@ def bolt_line(pos, time, dat, off):
     da, ra, ds, rs_, rp, sw, rng, num = dat
     return "bolt %s %x %x %x %x %x %x %x 1 %x %s %s" % (hexs(*pos), time, rng, num, da, ra, ds, rs_, sw, hexs(*rp),
                                                        hexs(*(off or [0, 0, 0, 0])))
+
+
+def magus_cases(rnd):
+    """Magus's needles as OnThinkNeedle makes them (465 ahead and 200 up,
+    scale 0, speed 50, transparency 0.3, 128, 3 and 15), a leaf's burst
+    (its place and turn), and a laser shock: its object, its leaf's local
+    matrix and Magus's turn, its beam meeting the ground at a point or
+    missing."""
+    out = []
+    pos = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), fb(200.0), ONE]
+    out.append(("needles", "needles %s 0 %x %x 80 3 f" % (hexs(*pos), fb(50.0), fb(0.3)),
+                "ccBossEffNeedleCreate__FPffffisss", ("needles", pos)))
+    for _ in range(2):
+        p = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), 0, ONE]
+        d = [0, 0, fb(rnd.uniform(-3, 3)), 0]
+        out.append(("leafexp", "leafexp %s %s" % (hexs(*p), hexs(*d)), None, ("leafexp", p, d)))
+    for index in (0, 3, 4):
+        for hit in (True, True, False):
+            a = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), fb(rnd.uniform(500, 1500)), ONE]
+            import math
+            t = rnd.uniform(-3, 3)
+            c, sn = math.cos(t), math.sin(t)
+            local = [fb(c), fb(sn), 0, 0, fb(-sn), fb(c), 0, 0, 0, 0, ONE, 0,
+                     fb(rnd.uniform(-100, 100)), fb(rnd.uniform(-100, 100)), fb(rnd.uniform(-100, 100)), ONE]
+            d = [fb(rnd.uniform(-0.3, 0.3)), 0, fb(rnd.uniform(-3, 3)), 0]
+            at = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), fb(rnd.uniform(0, 50))] if hit else None
+            line = "lshock %s %s %s %x %x %s" % (hexs(*a), hexs(*local), hexs(*d), index, int(hit),
+                                                 hexs(*(at or [0, 0, 0])))
+            out.append(("lshock %d" % index, line, None, ("lshock", a, local, d, index, at)))
+    return out
 
 
 def f32(b):
@@ -673,6 +733,102 @@ class BossEffectsAgainstGame(unittest.TestCase):
                 cam = ((rnd.uniform(-2000, 2000), rnd.uniform(-2000, 2000), 600.0),
                        (rnd.uniform(-500, 500), rnd.uniform(-500, 500), 100.0))
                 frames = self.run_kyvia_case(3500 + 32 * rep + i, case, cam)
+                counts[case[0]] = counts.get(case[0], 0) + len(frames)
+        print("\nframes " + " ".join("%s %d" % kv for kv in sorted(counts.items())), file=sys.stderr)
+
+    def run_magus_case(self, seed, case, camera):
+        """One of magus_cases: the needles' Create and the manager's passes;
+        a leaf's burst made, Init and placed, then Draw until it ends; a
+        laser shock made and Init on its stand-in objects, then Draw for 90
+        frames. Compared each frame as the other cases are, with a burst's
+        and a shock's Draw returns and the ends the shock's line test was
+        asked for."""
+        name, line, sym, spec = case
+        em = BossFx(seed=seed)
+        eye, view = camera
+        em.vec(tfx.EYE, [fb(v) for v in eye] + [ONE])
+        em.vec(tfx.EYE + 0x10, [fb(v) for v in view] + [ONE])
+        m = em.m
+        frames = []
+        # The boss's task draws a burst or a shock on the layer the effect
+        # manager's pass left active, charLayer (5).
+        if spec[0] != "needles":
+            em.call("SetActiveLayer__9WORLD_MANFi", tfx.WM, 5)
+        if spec[0] == "needles":
+            (pp,) = vec_args(em, spec[1])
+            k = em.create(sym, ints=[pp, 128, 3, 15, 0], floats=[0.0, 50.0, 0.3])
+            made = {"id": k, "events": em.events, "gens": em.gens, "ccrand": em.ccrand}
+            while not em.free() and len(frames) < 400:
+                frames.append(em.manager_pass())
+        elif spec[0] == "leafexp":
+            obj = em.malloc(m, 0x70)
+            em.call("__ct__19ccBoss03LeafExplodeFv", obj)
+            em.call("Init__19ccBoss03LeafExplodeFv", obj)
+            pp, dp = vec_args(em, spec[1], spec[2])
+            em.call("SetMatrix_PosRotZYX__19ccBoss03LeafExplodeFPfPf", obj, pp, dp)
+            made = {"made": 1}
+            while len(frames) < 400:
+                em.events, em.gens, em.draws = [], [], []
+                done = em.call("Draw__19ccBoss03LeafExplodeFv", obj) & 0xFF
+                frames.append({"draws": em.draws, "done": done})
+                if done:
+                    break
+        else:
+            _, a, local, d, index, at = spec
+
+            def stand_in(local16):
+                o = em.malloc(m, 0xB0)
+                for i in range(16):
+                    m.store(o + 0x40 + 4 * i, 4, local16[i])
+                m.store(o + 0x80, 4, 0)
+                return o
+            ident = [ONE, 0, 0, 0, 0, ONE, 0, 0, 0, 0, ONE, 0] + a[:3] + [ONE]
+            oa, ob = stand_in(ident), stand_in(local)
+            sh = em.malloc(m, 0x40)
+            em.call("__ct__18ccBoss03LaserShockFv", sh)
+            em.call("Init__18ccBoss03LaserShockFP5ccObjP5ccObji", sh, oa, ob, index)
+            (dp,) = vec_args(em, d)
+            em.call("SetDirc__18ccBoss03LaserShockFPf", sh, dp)
+            em.hit_at = None if at is None else at + [ONE]
+            made = {"made": 1}
+            for _ in range(90):
+                em.hits = []
+                st = em.manager_pass()
+                em.call("SetActiveLayer__9WORLD_MANFi", tfx.WM, 5)
+                em.events, em.gens, em.draws = [], [], []
+                em.call("Draw__18ccBoss03LaserShockFv", sh)
+                st["kills"] = [3 if g in em.deleted else 2 if g in em.killed else 0 for g in em.started]
+                st.update({"draws": em.draws, "events": em.events, "gens": em.gens, "hits": em.hits,
+                           "done": m.f[0], "rand": em.rand.s, "ccrand": em.ccrand})
+                st["slots"] = [[s_["i"], s_["id"], s_["life"], s_["pos"], s_["scale"], s_["speed"], s_["velocity"],
+                                s_["rotSpeed"], s_["sn"]] for s_ in em.live()]
+                frames.append(st)
+        lines = ["reset %x" % seed, "camera " + hexs(*map(fb, eye + view)), line]
+        if spec[0] == "needles":
+            lines += ["frame"] * len(frames)
+        got = [g for g in ask(lines) if g]
+        self.assertEqual(got[0], made, "%s: the make" % name)
+        port = got[1:]
+        for f, (want, p) in enumerate(zip(frames, port)):
+            for key in want:
+                self.assertEqual(want[key], p.get(key), "%s frame %d: %s" % (name, f, key))
+        self.assertEqual(len(port), len(frames), name)
+        return frames
+
+    @unittest.skipUnless(volume.NAME == "mutation", "Magus's effects are Mutation's")
+    def test_magus_effects(self):
+        """Magus's needles (their objects' matrices and transparency, the
+        sound, their life), a leaf's burst (its flash and object at their
+        scale and transparency) and a laser shock (the beam's end it tests,
+        its flash where the beam meets the ground, its bursts' explosions,
+        rocks and turn)."""
+        rnd = random.Random(41)
+        counts = {}
+        for rep in range(2):
+            for i, case in enumerate(magus_cases(rnd)):
+                cam = ((rnd.uniform(-2000, 2000), rnd.uniform(-2000, 2000), 600.0),
+                       (rnd.uniform(-500, 500), rnd.uniform(-500, 500), 100.0))
+                frames = self.run_magus_case(3700 + 32 * rep + i, case, cam)
                 counts[case[0]] = counts.get(case[0], 0) + len(frames)
         print("\nframes " + " ".join("%s %d" % kv for kv in sorted(counts.items())), file=sys.stderr)
 

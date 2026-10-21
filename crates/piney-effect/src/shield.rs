@@ -108,7 +108,7 @@ pub fn eff_resistant_shield_scale(cx: &mut Cx, ch: CharRef, magic: i32, scale: V
     let name = if magic <= 0 { ANM_PHYSICAL } else { ANM_MAGIC };
     let anm = cx.assets.find("particle", name).and_then(|o| {
         let anim = cx.assets.files[o.file].anim(name)?;
-        Some((o, Play { anim, time: 0, posed: 0, frame_spd: 256 }))
+        Some((o, Play { anim, time: 0, posed: 0, frame_spd: 256, hidden: Vec::new() }))
     });
     let mut base = Base::default();
     let w = cx.host.char_width(ch);

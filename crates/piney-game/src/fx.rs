@@ -242,6 +242,9 @@ impl FxTasks for AreaFx {
         let meteors: Vec<_> = k.meteors.iter().map(|(s, f)| (*s, f)).collect();
         let bolts: Vec<_> = k.bolts.iter().map(|(s, b)| (*s, b)).collect();
         self.fx.kyvia_sync(&mut host, &meteors, &bolts, &k.members);
+        let m = magus_shows(host.w.scene);
+        let needles: Vec<_> = m.needles.iter().map(|(s, n)| (*s, n)).collect();
+        self.fx.magus_sync(&mut host, &needles, &m.bursts, &m.markers);
         self.events.extend(self.fx.take_events());
     }
 }
@@ -527,6 +530,50 @@ fn kyvia_shows(scene: &Scene) -> KyviaShows {
     out
 }
 
+/// What Magus's fight left this frame for its pictures: its needles by
+/// their slot, the bursts of the leaves bursting (act 21, their
+/// `PreDrawAnm`), and each leaf's marker's place.
+#[derive(Default)]
+struct MagusShows {
+    needles: Vec<(i32, piney_battle::boss::magus::Needle)>,
+    bursts: Vec<piney_battle::boss::magus::leaf::Explode>,
+    markers: Vec<(usize, V4)>,
+}
+
+fn magus_shows(scene: &Scene) -> MagusShows {
+    use piney_battle::boss::Class;
+    let mut out = MagusShows::default();
+    for (c, ch) in scene.chars.iter().enumerate() {
+        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.exit == 0) else { continue };
+        match &b.class {
+            Class::MagusLeaf(l) => {
+                out.markers.push((c, l.marker_pos));
+                if b.act_num == piney_battle::boss::magus::leaf::act::FIRE {
+                    out.bursts.push(l.exp);
+                }
+            }
+            Class::Magus(_) => {
+                for (k, e) in b.effects.slots.iter().enumerate() {
+                    if let Some(n) = e.as_ref().and_then(|e| e.needle.as_deref()) {
+                        out.needles.push((k as i32, n.clone()));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Magus's laser's shock `k` as its `PreDrawAnm` drew it: where its beam
+/// met the ground, at its transparency; None when it missed.
+fn magus_shock(scene: &Scene, me: usize, k: usize) -> Option<(V4, piney_effect::ee::F)> {
+    match &scene.chars[me].foe_state()?.boss.as_ref()?.class {
+        piney_battle::boss::Class::Magus(x) => Some((*x.shock_at.get(k)?.as_ref()?, x.shocks.get(k)?.transparency)),
+        _ => None,
+    }
+}
+
 /// A scene index as the effects name a character.
 fn cref(i: usize) -> CharRef {
     i as CharRef
@@ -700,6 +747,27 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         Show::DrainLevelDown(k) => {
             fx.fly_font_level_down(Some(cref(*k)), 23);
         }
+        // Magus's leaves' generators and what they do to those they keep;
+        // the laser's shocks and their bursts where the beams met the
+        // ground.
+        Show::Boss(
+            _,
+            piney_battle::boss::Out::Magus(piney_battle::boss::magus::Pic::Particles { which, at, held }),
+        ) => {
+            fx.magus_particles(h, *which, *at, *held);
+        }
+        Show::Boss(_, piney_battle::boss::Out::Magus(piney_battle::boss::magus::Pic::Gen { held, op })) => {
+            fx.magus_gen_op(h, *held, *op);
+        }
+        Show::Boss(me, piney_battle::boss::Out::Magus(piney_battle::boss::magus::Pic::Shocks { upto })) => {
+            let shocks: Vec<_> = (0..=*upto).filter_map(|k| magus_shock(h.w.scene, *me, k)).collect();
+            fx.magus_shocks(h, &shocks);
+        }
+        Show::Boss(me, piney_battle::boss::Out::Magus(piney_battle::boss::magus::Pic::ShockBurst { shock, turn })) => {
+            if let Some((at, _)) = magus_shock(h.w.scene, *me, *shock) {
+                fx.magus_shock_burst(h, at, *turn);
+            }
+        }
         // A leaf of Magus's lands: ccEnemyEffDust(pos, 30, 4.0).
         Show::Boss(_, piney_battle::boss::Out::Magus(piney_battle::boss::magus::Pic::Dust { pos })) => {
             let (life, tex) = (piney_effect::dust::DUST_LIFE, piney_effect::dust::DUST_TEX);
@@ -760,10 +828,10 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
 
 /// A `ccBossEff*Create` as the bosses call it (`docs/engine/boss.md`,
 /// "Effects"): the rules name the effect, where and which way, in their
-/// slot `id`. Magus's needles and Gorre's flash have no picture yet
-/// (boss-magus.md, boss-gorre.md); Fidchell's meteors, thunders and rock
-/// towers, Innis's missiles and Kyvia's meteors and bolts are drawn from
-/// their rules' state ([`boss_spells`], [`innis_flights`], [`kyvia_shows`]).
+/// slot `id`. Gorre's flash has no picture yet (boss-gorre.md);
+/// Fidchell's meteors, thunders and rock towers, Innis's missiles, Kyvia's
+/// meteors and bolts and Magus's needles are drawn from their rules' state
+/// ([`boss_spells`], [`innis_flights`], [`kyvia_shows`], [`magus_shows`]).
 fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
     use piney_battle::boss::EffKind;
     use piney_effect::boss::Make;
@@ -785,8 +853,8 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
         EffKind::Missile { element, no, .. } => Make::Missile { rules_slot: id, element, no },
         EffKind::Meteorite { count } => Make::Meteorite { rules_slot: id, n: count },
         EffKind::Thunderbolt { .. } => Make::Bolt { rules_slot: id },
-        EffKind::Needle { .. }
-        | EffKind::MeteoSworm { .. }
+        EffKind::Needle { .. } => Make::Needles { rules_slot: id },
+        EffKind::MeteoSworm { .. }
         | EffKind::ThunderStorm { .. }
         | EffKind::RockTower { .. }
         // Gorre's finishing flash (boss-gorre.md): no picture yet.

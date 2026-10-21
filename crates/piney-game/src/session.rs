@@ -6952,6 +6952,9 @@ mod tests {
     /// Kyvia's meteors, beams, auras and thunderbolts drawn.
     mod kyvia_fx;
 
+    /// Magus's markers, bursts, needles and laser drawn.
+    mod magus_fx;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

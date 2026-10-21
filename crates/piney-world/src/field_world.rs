@@ -2947,12 +2947,15 @@ impl FieldWorld {
     fn draw_boss(&self, ctx: &mut Ctx, to_screen: glam::Mat4) {
         let Some(run) = self.combat.boss.as_ref().filter(|r| !r.exit) else { return };
         let lights = self.place.lights();
-        let body = &run.look.body;
-        let white = piney_draw::Fog { f: 0, colour: [0xff; 3] };
         for a in &run.afterimages {
+            let Some(body) = (if a.leaf { run.look.images.first() } else { Some(&run.look.body) }) else { continue };
             let Some(mut p) = body.play(&a.clip) else { continue };
             (p.time, p.posed) = (a.time, a.time);
-            let root = crate::body::root(a.pos, a.dirc);
+            if !a.leaf {
+                p.hidden = combat::boss::dropped_objects(body, &p, &run.dropped);
+            }
+            // SetMatrix_PosRotZYXScale.
+            let root = crate::body::root(a.pos, a.dirc) * glam::Mat4::from_scale(glam::Vec3::from(a.scale));
             body.draw_fog(
                 &mut ctx.layers,
                 draw::EFF_LAYER,
@@ -2963,7 +2966,7 @@ impl FieldWorld {
                 lights,
                 false,
                 &[],
-                draw::Fogging::Const(white),
+                draw::Fogging::Const(a.fog),
             );
         }
         if run.reverse {

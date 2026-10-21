@@ -391,6 +391,38 @@ pub struct Effect {
     pub boss_gomora_aura_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_gomora_aura_ff_va: u32,
+    /// `g_thunderGenerator`: Magus's laser's thunder.
+    pub boss_thunder: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_thunder_va: u32,
+    /// `g_thunderForceField`.
+    pub boss_thunder_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_thunder_ff_va: u32,
+    /// `g_energyChargeGenerator`: the charge of Magus's leaves as they grow.
+    pub boss_energy_charge: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_energy_charge_va: u32,
+    /// `g_energyChargeForceField`.
+    pub boss_energy_charge_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_energy_charge_ff_va: u32,
+    /// `g_leafMarkerGen`: a leaf's marker.
+    pub boss_leaf_marker: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_leaf_marker_va: u32,
+    /// `g_leafMarkerFF`.
+    pub boss_leaf_marker_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_leaf_marker_ff_va: u32,
+    /// `g_leafDeadGen`: a dying leaf's smoke.
+    pub boss_leaf_dead: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_leaf_dead_va: u32,
+    /// `g_leafDeadFF`.
+    pub boss_leaf_dead_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_leaf_dead_ff_va: u32,
 }
 
 impl crate::store::Load for Effect {
@@ -570,6 +602,22 @@ impl crate::store::Load for Effect {
             boss_gomora_aura_va: crate::store::Load::load(r),
             boss_gomora_aura_ff: crate::store::Load::load(r),
             boss_gomora_aura_ff_va: crate::store::Load::load(r),
+            boss_thunder: crate::store::Load::load(r),
+            boss_thunder_va: crate::store::Load::load(r),
+            boss_thunder_ff: crate::store::Load::load(r),
+            boss_thunder_ff_va: crate::store::Load::load(r),
+            boss_energy_charge: crate::store::Load::load(r),
+            boss_energy_charge_va: crate::store::Load::load(r),
+            boss_energy_charge_ff: crate::store::Load::load(r),
+            boss_energy_charge_ff_va: crate::store::Load::load(r),
+            boss_leaf_marker: crate::store::Load::load(r),
+            boss_leaf_marker_va: crate::store::Load::load(r),
+            boss_leaf_marker_ff: crate::store::Load::load(r),
+            boss_leaf_marker_ff_va: crate::store::Load::load(r),
+            boss_leaf_dead: crate::store::Load::load(r),
+            boss_leaf_dead_va: crate::store::Load::load(r),
+            boss_leaf_dead_ff: crate::store::Load::load(r),
+            boss_leaf_dead_ff_va: crate::store::Load::load(r),
         }
     }
 }
@@ -1097,6 +1145,54 @@ impl Effect {
     pub fn boss_gomora_aura_ff_va(&self) -> u32 {
         self.boss_gomora_aura_ff_va
     }
+    pub fn boss_thunder(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_thunder
+    }
+    pub fn boss_thunder_va(&self) -> u32 {
+        self.boss_thunder_va
+    }
+    pub fn boss_thunder_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_thunder_ff
+    }
+    pub fn boss_thunder_ff_va(&self) -> u32 {
+        self.boss_thunder_ff_va
+    }
+    pub fn boss_energy_charge(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_energy_charge
+    }
+    pub fn boss_energy_charge_va(&self) -> u32 {
+        self.boss_energy_charge_va
+    }
+    pub fn boss_energy_charge_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_energy_charge_ff
+    }
+    pub fn boss_energy_charge_ff_va(&self) -> u32 {
+        self.boss_energy_charge_ff_va
+    }
+    pub fn boss_leaf_marker(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_leaf_marker
+    }
+    pub fn boss_leaf_marker_va(&self) -> u32 {
+        self.boss_leaf_marker_va
+    }
+    pub fn boss_leaf_marker_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_leaf_marker_ff
+    }
+    pub fn boss_leaf_marker_ff_va(&self) -> u32 {
+        self.boss_leaf_marker_ff_va
+    }
+    pub fn boss_leaf_dead(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_leaf_dead
+    }
+    pub fn boss_leaf_dead_va(&self) -> u32 {
+        self.boss_leaf_dead_va
+    }
+    pub fn boss_leaf_dead_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_leaf_dead_ff
+    }
+    pub fn boss_leaf_dead_ff_va(&self) -> u32 {
+        self.boss_leaf_dead_ff_va
+    }
 }
 
 /// `effectCCSTbl`: the effect files, up to the row with no name.
@@ -1544,6 +1640,38 @@ pub static BOSS_GOMORA_AURA: std::sync::LazyLock<&'static [ParticleGeneratorPara
 /// `GomoraAuraGeneratorForceField`.
 pub static BOSS_GOMORA_AURA_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
     std::sync::LazyLock::new(|| shared().boss_gomora_aura_ff);
+
+/// `g_thunderGenerator`: Magus's laser's thunder.
+pub static BOSS_THUNDER: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_thunder);
+
+/// `g_thunderForceField`.
+pub static BOSS_THUNDER_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_thunder_ff);
+
+/// `g_energyChargeGenerator`: the charge of Magus's leaves as they grow.
+pub static BOSS_ENERGY_CHARGE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_energy_charge);
+
+/// `g_energyChargeForceField`.
+pub static BOSS_ENERGY_CHARGE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_energy_charge_ff);
+
+/// `g_leafMarkerGen`: a leaf's marker.
+pub static BOSS_LEAF_MARKER: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_leaf_marker);
+
+/// `g_leafMarkerFF`.
+pub static BOSS_LEAF_MARKER_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_leaf_marker_ff);
+
+/// `g_leafDeadGen`: a dying leaf's smoke.
+pub static BOSS_LEAF_DEAD: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_leaf_dead);
+
+/// `g_leafDeadFF`.
+pub static BOSS_LEAF_DEAD_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_leaf_dead_ff);
 
 /// The volume's Effect (read once a run; kept here per volume).
 pub fn of(v: Volume) -> &'static Effect {

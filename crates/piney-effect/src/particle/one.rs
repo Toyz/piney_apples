@@ -212,9 +212,11 @@ pub fn setup(
         2 => {
             p.obj = match obj {
                 Some(o) => match assets.files[o.file].anim(assets.name(o)) {
-                    Some(anim) => {
-                        Obj::Anm { obj: o, play: Play { anim, time: 0, posed: 0, frame_spd: 256 }, matrix: [[0; 4]; 4] }
-                    }
+                    Some(anim) => Obj::Anm {
+                        obj: o,
+                        play: Play { anim, time: 0, posed: 0, frame_spd: 256, hidden: Vec::new() },
+                        matrix: [[0; 4]; 4],
+                    },
                     None => Obj::None,
                 },
                 None => Obj::None,

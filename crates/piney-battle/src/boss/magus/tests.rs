@@ -264,6 +264,9 @@ fn past_half_the_gauge_the_laser_comes() {
     assert_eq!(f.boss().act_num, act::NEUTRAL);
     assert_eq!(f.magus().cam_id, 1);
     assert!(outs.contains(&Out::Cinema(Some(9))));
-    assert_eq!(outs.iter().filter(|o| matches!(o, Out::Magus(Pic::Thunder { .. }))).count(), 12);
+    assert_eq!(
+        outs.iter().filter(|o| matches!(o, Out::Magus(Pic::Particles { which: super::Gen::Thunder, .. }))).count(),
+        12
+    );
     assert_eq!(f.boss().lock_player, 0);
 }

@@ -72,6 +72,16 @@ pub mod va {
     pub const GOMORA_FF: u32 = 0x005f_07b0;
     pub const GOMORA_AURA: u32 = 0x005f_0910;
     pub const GOMORA_AURA_FF: u32 = 0x005f_0ad0;
+    /// Magus's: `g_thunderGenerator`, `g_energyChargeGenerator`,
+    /// `g_leafMarkerGen`, `g_leafDeadGen` and their force fields.
+    pub const THUNDER: u32 = 0x005e_e9b0;
+    pub const THUNDER_FF: u32 = 0x005e_e9f0;
+    pub const CHARGE: u32 = 0x005f_0360;
+    pub const CHARGE_FF: u32 = 0x005f_0480;
+    pub const LEAF_MARKER: u32 = 0x005f_1880;
+    pub const LEAF_MARKER_FF: u32 = 0x005f_18c0;
+    pub const LEAF_DEAD: u32 = 0x005f_1920;
+    pub const LEAF_DEAD_FF: u32 = 0x005f_1960;
 }
 
 /// A generator row of one of [`va`]'s tables: its address.
@@ -119,6 +129,10 @@ impl Tables {
         gens(va::CORE, t.boss_core(), t.boss_core_va());
         gens(va::GOMORA, t.boss_gomora(), t.boss_gomora_va());
         gens(va::GOMORA_AURA, t.boss_gomora_aura(), t.boss_gomora_aura_va());
+        gens(va::THUNDER, t.boss_thunder(), t.boss_thunder_va());
+        gens(va::CHARGE, t.boss_energy_charge(), t.boss_energy_charge_va());
+        gens(va::LEAF_MARKER, t.boss_leaf_marker(), t.boss_leaf_marker_va());
+        gens(va::LEAF_DEAD, t.boss_leaf_dead(), t.boss_leaf_dead_va());
         let mut ffs = |key: u32, rows: &[piney_data::tables::types::ParticleForceFieldParam], at: u32| {
             for k in 0..rows.len() {
                 out.ffs.insert(key + 0x20 * k as u32, FfParam::row(rows, at, k));
@@ -139,6 +153,10 @@ impl Tables {
         ffs(va::CORE_FF, t.boss_core_ff(), t.boss_core_ff_va());
         ffs(va::GOMORA_FF, t.boss_gomora_ff(), t.boss_gomora_ff_va());
         ffs(va::GOMORA_AURA_FF, t.boss_gomora_aura_ff(), t.boss_gomora_aura_ff_va());
+        ffs(va::THUNDER_FF, t.boss_thunder_ff(), t.boss_thunder_ff_va());
+        ffs(va::CHARGE_FF, t.boss_energy_charge_ff(), t.boss_energy_charge_ff_va());
+        ffs(va::LEAF_MARKER_FF, t.boss_leaf_marker_ff(), t.boss_leaf_marker_ff_va());
+        ffs(va::LEAF_DEAD_FF, t.boss_leaf_dead_ff(), t.boss_leaf_dead_ff_va());
         out
     }
 
@@ -170,6 +188,8 @@ pub struct BossEffects {
     pub slots: Vec<Option<Slot>>,
     /// The generators Kyvia's fight keeps, by the member that holds each.
     pub kyvia_kept: crate::kyvia::Kept,
+    /// Those Magus's leaves keep.
+    pub magus_kept: crate::magus::Kept,
 }
 
 /// One slot: `m_bEnabled` and the effect.
@@ -197,6 +217,8 @@ pub enum BossEff {
     /// Kyvia's meteors and thunderbolts ([`crate::kyvia`]).
     Meteorite(Box<crate::kyvia::Meteorite>),
     Bolt(Box<crate::kyvia::Bolt>),
+    /// Magus's needles ([`crate::magus`]).
+    Needles(Box<crate::magus::Needles>),
 }
 
 /// `ccBossEffWaveShock` (0x40 bytes).
@@ -474,6 +496,21 @@ pub enum Make {
         dat: piney_battle::boss::kyvia::thunder::BoltData,
         offset: V4,
     },
+    /// `ccBossEffNeedleCreate(pos, scale, speed, alpha, n, t0, t1, t2)`
+    /// (MUT gcmn 0x0048e430): Magus's needles, drawn for the rules' slot;
+    /// or run here (the probe's).
+    Needles {
+        rules_slot: i32,
+    },
+    NeedlesAlone {
+        pos: V4,
+        scale: F,
+        speed: F,
+        alpha: F,
+        n: i32,
+        t0: i32,
+        t1: i32,
+    },
 }
 
 impl BossEffects {
@@ -539,6 +576,15 @@ impl BossEffects {
                 let b = crate::kyvia::Bolt::alone(cx, pos, (time, range, num), &dat, offset);
                 self.put(true, BossEff::Bolt(Box::new(b)))
             }
+            Make::Needles { rules_slot } => {
+                self.drop_rules_slot(rules_slot);
+                let n = crate::magus::Needles::new(cx, rules_slot);
+                self.put(true, BossEff::Needles(Box::new(n)))
+            }
+            Make::NeedlesAlone { pos, scale, speed, alpha, n, t0, t1 } => {
+                let n = crate::magus::Needles::alone(cx, pos, scale, speed, alpha, n, t0, t1);
+                self.put(true, BossEff::Needles(Box::new(n)))
+            }
             Make::Dead { pos } => self.dead(pos),
             Make::MeteoSworm { .. } | Make::ThunderStorm { .. } | Make::RockTower { .. } => {
                 let s = crate::fidchell::Spell::create(cx, t, make);
@@ -553,6 +599,7 @@ impl BossEffects {
             let held = match s {
                 Some(Slot { eff: BossEff::Meteorite(m), .. }) => m.rules_slot,
                 Some(Slot { eff: BossEff::Bolt(b), .. }) => b.rules_slot,
+                Some(Slot { eff: BossEff::Needles(n), .. }) => n.rules_slot,
                 _ => continue,
             };
             if held == rules_slot {
@@ -725,6 +772,27 @@ impl BossEffects {
                     }
                 }
                 _ => {}
+            }
+        }
+    }
+
+    /// Magus's needles as the fight's rules left them (their slot there
+    /// and life): each one's picture of its last `Draw`; those the rules
+    /// let go, gone.
+    pub fn sync_magus(&mut self, cx: &mut Cx, needles: &[(i32, &piney_battle::boss::magus::Needle)]) {
+        for s in self.slots.iter_mut() {
+            if let Some(Slot { eff: BossEff::Needles(n), .. }) = s
+                && !n.runs_alone()
+                && !needles.iter().any(|f| f.0 == n.rules_slot)
+            {
+                *s = None;
+            }
+        }
+        for s in self.slots.iter_mut().flatten() {
+            if let BossEff::Needles(n) = &mut s.eff
+                && let Some(&(_, f)) = needles.iter().find(|f| f.0 == n.rules_slot)
+            {
+                n.draw(cx, f);
             }
         }
     }
@@ -967,6 +1035,9 @@ impl BossEffects {
                 BossEff::Meteorite(m) if m.runs_alone() => m.run(ctrl, cx, t),
                 BossEff::Bolt(b) if b.runs_alone() => b.run(cx, t),
                 BossEff::Meteorite(_) | BossEff::Bolt(_) => continue,
+                // Magus's needles likewise ([`BossEffects::sync_magus`]).
+                BossEff::Needles(n) if n.runs_alone() => n.run(cx),
+                BossEff::Needles(_) => continue,
                 BossEff::Spell(x) => {
                     let (on, sq) = x.run(ctrl, cx, t);
                     square = sq;

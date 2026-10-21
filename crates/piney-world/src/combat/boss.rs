@@ -134,11 +134,17 @@ pub struct BossRun {
     /// and whether the boss asked it on (`EVENTAREAB8::Move`).
     pub disc: boss::DiscView,
     pub disc_next: bool,
+    /// Magus's dropped leaves its after-images hide this frame (act 8's
+    /// callback).
+    pub dropped: Vec<usize>,
 }
 
-/// One `ccBossAfterImageEx`: the boss's pose when it was entered, fading
-/// (Skeith's `m_eai`: colour -1 at `colorAlpha` 100, `transparency` 1.0 by
-/// `transSpd` -0.05 a draw, `maxFrame` 20), drawn on effLayer.
+/// One `ccBossAfterImageEx` (`Draw` MUT gcmn 0x00471320): a pose when
+/// it was entered, fading by `fade` a draw and drawn on effLayer in its
+/// blend at the new transparency, its scale grown first by `grow`'s step
+/// to its end. The boss's (`m_eai`: colour -1 at `colorAlpha` 100,
+/// `transparency` 1.0 by `transSpd` -0.05, white), or a blinking leaf's of
+/// Magus's, its own model ([`AfterImage::leaf`]).
 #[derive(Clone, Debug, PartialEq)]
 pub struct AfterImage {
     pub clip: String,
@@ -146,10 +152,65 @@ pub struct AfterImage {
     pub pos: V4,
     pub dirc: V4,
     pub transparency: f32,
+    pub fade: f32,
+    pub leaf: bool,
+    pub fog: piney_draw::Fog,
+    pub scale: [f32; 3],
+    pub grow: Option<([f32; 3], [f32; 3])>,
 }
 
 /// `m_eai.transSpd`.
 pub const AFTERIMAGE_FADE: f32 = 0.05;
+
+impl AfterImage {
+    /// `EntryAfterImage(&m_eai)`: the boss's pose, white.
+    pub fn boss(clip: String, time: u32, pos: V4, dirc: V4) -> AfterImage {
+        AfterImage {
+            clip,
+            time,
+            pos,
+            dirc,
+            transparency: 1.0,
+            fade: AFTERIMAGE_FADE,
+            leaf: false,
+            fog: piney_draw::Fog { f: 0, colour: [0xff; 3] },
+            scale: [1.0; 3],
+            grow: None,
+        }
+    }
+
+    /// A leaf's blink (`ccBoss03Leaf` +0x29660, set in its constructor
+    /// 0x004a4c64): colour 0x005050ff at `colorAlpha` 100, transparency 0.5
+    /// by -1/60, its scale from 1 to (1, 4, 2) over 30 draws.
+    pub fn leaf(clip: String, time: u32, pos: V4, dirc: V4) -> AfterImage {
+        let (from, to) = ([1.0f32; 3], [1.0, 4.0, 2.0]);
+        let step = std::array::from_fn(|k| (to[k] - from[k]) * (1.0 / 30.0));
+        AfterImage {
+            transparency: 0.5,
+            fade: f32::from_bits(0x3c88_8889),
+            leaf: true,
+            // SetFogBlend(100, 0x005050ff): the colour alone.
+            fog: piney_draw::Fog { f: 0, colour: [0xff, 0x50, 0x50] },
+            scale: from,
+            grow: Some((step, to)),
+            ..AfterImage::boss(clip, time, pos, dirc)
+        }
+    }
+
+    /// The fade and the growth of one `Draw`; false once faded out.
+    fn step(&mut self) -> bool {
+        self.transparency -= self.fade;
+        if let Some((step, to)) = self.grow {
+            for k in 0..3 {
+                self.scale[k] += step[k];
+                if self.scale[k].abs() > to[k].abs() {
+                    self.scale[k] = to[k];
+                }
+            }
+        }
+        self.transparency > 0.0
+    }
+}
 
 /// What the boss's look needs from the disc: the body, every clip of
 /// its files, the effects' file (the wave), the cinema's skill names and
@@ -407,6 +468,7 @@ impl Combat {
             parts,
             disc,
             disc_next: false,
+            dropped: Vec::new(),
         });
     }
 
@@ -459,8 +521,17 @@ impl Combat {
         let mut out = b.take_pending();
         // Magus's leaves hang where its body was last posed: `Init` reads
         // `OBJ_ex31leafNN`'s world matrix.
+        let laser = b.act_num == boss::magus::act::LASER;
+        let (anm, dirc) = (b.anm.clone(), b.dirc);
         if let (Class::Magus(x), Some(a)) = (&mut b.class, self.cast.actors.get(&me)) {
             x.leaf_pos = leaf_points(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc, x.leaf_pos);
+            // The laser's shocks as SetupLaserShock and PreDrawAnm find
+            // them (`magus_shocks`).
+            if laser {
+                let shocks = magus_shocks(&a.ch.body, anm, &clip, (a.ch.pos, a.ch.dirc), dirc, hits);
+                x.shock_pos = shocks.map(|s| s.0);
+                x.shock_at = shocks.map(|s| s.1);
+            }
         }
         // ccBoss::Move: SetHitSW(bodyHitSW), then the body at the new place
         // pushed out of the others (CollisionDetection).
@@ -535,6 +606,10 @@ impl Combat {
         };
         let clip = b.anm.clip.clone().unwrap_or_default();
         let time = b.anm.posed;
+        let leaves = match &b.class {
+            Class::Magus(x) => x.leaves.clone(),
+            _ => Vec::new(),
+        };
         let kite_pos = kite.map(|k| self.scene.chars[k].pos);
         if let Some(r) = self.boss.as_mut() {
             // Think and Action's QuakeCam, SetMode, SetFreeCamPosView and
@@ -651,21 +726,25 @@ impl Combat {
             };
             for o in &out {
                 match o {
-                    Out::AfterImage => r.afterimages.push(AfterImage {
-                        clip: clip.clone(),
-                        time,
-                        pos: at.pos,
-                        dirc,
-                        transparency: 1.0,
-                    }),
+                    Out::AfterImage => r.afterimages.push(AfterImage::boss(clip.clone(), time, at.pos, dirc)),
+                    // A leaf's blink: its anm at `frameNow` (`_AnimateFrame`;
+                    // at frame 0 `Init` steps it once instead).
+                    Out::Magus(boss::magus::Pic::LeafAfterImage { leaf, frame }) => {
+                        let Some(&c) = leaves.get(*leaf) else { continue };
+                        let Some(lb) = self.scene.chars[c].foe_state().and_then(|f| f.boss.as_ref()) else { continue };
+                        let mut a = lb.anm.clone();
+                        (a.time, a.posed) = (*frame as u32 * 256, *frame as u32 * 256);
+                        if *frame == 0 {
+                            a.forward();
+                        }
+                        let p = self.scene.chars[c].pos;
+                        r.afterimages.push(AfterImage::leaf(a.clip.unwrap_or_default(), a.posed, p, lb.dirc));
+                    }
                     Out::DrawWave => r.wave = Some((wave_time, at.pos, dirc)),
                     _ => {}
                 }
             }
-            for a in &mut r.afterimages {
-                a.transparency -= AFTERIMAGE_FADE;
-            }
-            r.afterimages.retain(|a| a.transparency > 0.0);
+            r.afterimages.retain_mut(AfterImage::step);
         }
         // The actor: ccAnm::Draw of the boss's clip at its frame, placed by
         // SetMatrix_PosRotZYX(pos, dirc), at setTransparency, while drawn.
@@ -677,11 +756,19 @@ impl Combat {
             _ => (self.scene.chars[me].pos, b.dirc, b.draw_sw != 0),
         };
         self.fidchell_body(&b, me);
+        let dropped = self.magus_dropped(&b);
         if let Some(a) = self.cast.actors.get_mut(&me) {
             pose(a, &b.anm, pos, dirc);
             a.drawn = shown && !exited;
             a.alpha = b.set_transparency;
             a.trans_dist = false;
+            // PreDrawAnm's hiding, but in the grow (act 26).
+            let grow = b.act_num == boss::magus::act::LEAF_GROW;
+            a.ch.play.hidden = if grow { Vec::new() } else { dropped_objects(&a.ch.body, &a.ch.play, &dropped) };
+        }
+        // Act 8's after-image callback (0x0049e7c0) hides them likewise.
+        if let Some(r) = self.boss.as_mut() {
+            r.dropped = if b.act_num == boss::magus::act::TO_CENTRE { dropped } else { Vec::new() };
         }
         self.image_actors(&b, exited);
         if let Some(f) = self.scene.chars[me].foe_state_mut() {
@@ -824,6 +911,20 @@ impl Combat {
         }
     }
 
+    /// The leaves Magus's body hides (`ccBoss03::PreDrawAnm` 0x004a0a90
+    /// and 0x0049e7f0): those dropped (`m_bDrop`), unless in the Epitaph.
+    fn magus_dropped(&self, b: &Boss) -> Vec<usize> {
+        let Class::Magus(x) = &b.class else { return Vec::new() };
+        if x.epitaph != 0 {
+            return Vec::new();
+        }
+        let dropped = |c: usize| match self.scene.chars[c].foe_state().and_then(|f| f.boss.as_deref()) {
+            Some(Boss { class: Class::MagusLeaf(l), .. }) => l.drop != 0,
+            _ => false,
+        };
+        x.leaves.iter().enumerate().filter(|&(_, &c)| dropped(c)).map(|(k, _)| k).collect()
+    }
+
     /// The boss's scene index while it is in the field.
     pub fn boss_char(&self) -> Option<usize> {
         self.boss.as_ref().filter(|r| !r.exit).map(|r| r.me)
@@ -908,11 +1009,83 @@ fn shake_range(camera: &Camera, world: &World, pos: V4) -> bool {
 fn leaf_points(body: &crate::body::Body, play: &crate::pose::Play, pos: V4, dirc: V4, last: [V4; 12]) -> [V4; 12] {
     let worlds = body.worlds(play, crate::body::root(pos, dirc));
     std::array::from_fn(|k| {
-        let name = if k == 0 { "OBJ_ex31leaf".to_string() } else { format!("OBJ_ex31leaf{k:02}") };
-        let Some(m) = body.node(&name).and_then(|n| worlds.get(&n)) else { return last[k] };
+        let Some(m) = body.node(&leaf_name("OBJ_ex31leaf", k)).and_then(|n| worlds.get(&n)) else { return last[k] };
         let p = *m * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
         [p.x.to_bits(), p.y.to_bits(), p.z.to_bits(), p.w.to_bits()]
     })
+}
+
+/// Magus's laser's clip, whose objects are the shocks.
+const MAGUS_LASER: &str = "ANM_ex31atc2";
+
+/// A matrix in the EE's rows (x, y, z axes, the place).
+fn rows(m: glam::Mat4) -> piney_battle::geom::M4 {
+    let row = |v: glam::Vec4| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits(), v.w.to_bits()];
+    [row(m.x_axis), row(m.y_axis), row(m.z_axis), row(m.w_axis)]
+}
+
+/// The entry `name` of the body's animation `play` (an ExtObj copy is its
+/// own; the last of that name) under `root`: its place and its own matrix.
+fn anm_object(body: &Body, play: &crate::pose::Play, root: glam::Mat4, name: &str) -> Option<(V4, glam::Mat4)> {
+    let file = &body.file;
+    let poses = file.anims[play.anim].entry_poses_at(play.posed);
+    let found = play.instances(file, root).into_iter().zip(poses).rev();
+    let (i, p) = found.into_iter().find(|(i, _)| file.ccs.object_name(i.entry) == Some(name))?;
+    Some((rows(i.world)[3], p.map_or(glam::Mat4::IDENTITY, |p| p.matrix())))
+}
+
+/// Magus's twelve shocks (`OBJ_ex31les00`-`55` of [`MAGUS_LASER`]) as the
+/// laser finds them: the clip one step on from the boss's anm (from frame
+/// 0 when another clip plays, as `SetupLaserShock` follows `SetAnm` and a
+/// step), the body at its last place `at`. Each shock's place, and where
+/// its beam (`magus::shock_beam`, turned by its leaf of the other parity
+/// and Magus's heading `dirc`) meets the land (`ccHitCheckLM`, 0x20000000).
+fn magus_shocks(
+    body: &Body,
+    mut anm: boss::Anm,
+    clips: &dyn Fn(&str) -> Option<(u32, bool)>,
+    at: (V4, V4),
+    dirc: V4,
+    hits: &mut crate::hit::Hits,
+) -> [(V4, Option<V4>); 12] {
+    if anm.clip.as_deref() != Some(MAGUS_LASER) {
+        anm.set(MAGUS_LASER, clips);
+    }
+    anm.forward();
+    let play = body.play(MAGUS_LASER).map(|mut p| {
+        (p.time, p.posed) = (anm.time, anm.posed);
+        p
+    });
+    let root = crate::body::root(at.0, at.1);
+    std::array::from_fn(|k| {
+        let found = play.as_ref().and_then(|p| {
+            let (a, _) = anm_object(body, p, root, &format!("OBJ_ex31les{:02}", 5 * k))?;
+            let (_, leaf) = anm_object(body, p, root, &leaf_name("OBJ_ex31leaf", k ^ 1))?;
+            Some((a, leaf))
+        });
+        let Some((a, leaf)) = found else { return (ee::VF0, None) };
+        let end = boss::magus::shock_beam(a, &rows(leaf), dirc);
+        (a, hits.line(a, end, 0x2000_0000, 0).map(|(cp, _)| cp))
+    })
+}
+
+/// The entries of `play` the dropped leaves `leaves` hide: each one's
+/// `EXT_ex31leaf*` (the ExtObj `OBJ_ex31leafNN`) and its light
+/// (`OBJ_ex31lighNN`, paired with the leaves in the search's order).
+pub fn dropped_objects(body: &Body, play: &crate::pose::Play, leaves: &[usize]) -> Vec<u32> {
+    if leaves.is_empty() {
+        return Vec::new();
+    }
+    let names: Vec<String> =
+        leaves.iter().flat_map(|&k| [leaf_name("OBJ_ex31leaf", k), leaf_name("OBJ_ex31ligh", k)]).collect();
+    let file = &body.file;
+    let entries = file.anims[play.anim].objects.iter().map(|&(e, _)| e);
+    entries.filter(|&e| file.ccs.object_name(e).is_some_and(|n| names.iter().any(|m| m == n))).collect()
+}
+
+/// Leaf `k`'s object of a kind: `OBJ_ex31leaf`, `OBJ_ex31leaf01`-`11`.
+fn leaf_name(stem: &str, k: usize) -> String {
+    if k == 0 { stem.to_string() } else { format!("{stem}{k:02}") }
 }
 
 /// What a boss asks of its camera beside the frame's moves: a mode with a

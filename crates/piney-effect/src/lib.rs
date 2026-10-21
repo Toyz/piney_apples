@@ -32,6 +32,7 @@ pub mod host;
 pub mod innis;
 pub mod kyvia;
 pub mod levelup;
+pub mod magus;
 pub mod nodes;
 pub mod particle;
 pub mod pfx;
@@ -627,6 +628,97 @@ impl Effects {
             draws: &mut self.draws,
         };
         kyvia::gen_op(&mut cx, &mut self.boss.kyvia_kept, held, op);
+    }
+
+    /// Magus's pictures this frame, after the boss's task: its needles
+    /// ([`boss::BossEffects::sync_magus`]), each burst of a leaf
+    /// ([`magus::leaf_explode`]), and the leaves' markers' places
+    /// published.
+    pub fn magus_sync(
+        &mut self,
+        host: &mut dyn Host,
+        needles: &[(i32, &piney_battle::boss::magus::Needle)],
+        bursts: &[piney_battle::boss::magus::leaf::Explode],
+        markers: &[(usize, V4)],
+    ) {
+        for &(c, p) in markers {
+            self.ctrl.anchors.insert(magus::marker_anchor(c), p);
+        }
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.boss_draws,
+        };
+        self.boss.sync_magus(&mut cx, needles);
+        for b in bursts {
+            magus::leaf_explode(&mut cx, b);
+        }
+    }
+
+    /// The laser's shocks drawn this frame, each where its beam met the
+    /// ground at its transparency ([`magus::laser_shock`]).
+    pub fn magus_shocks(&mut self, host: &mut dyn Host, shocks: &[(V4, F)]) {
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.boss_draws,
+        };
+        for &(at, t) in shocks {
+            magus::laser_shock(&mut cx, at, t);
+        }
+    }
+
+    /// A generator of Magus's leaves started ([`magus::start`]).
+    pub fn magus_particles(
+        &mut self,
+        host: &mut dyn Host,
+        which: piney_battle::boss::magus::Gen,
+        at: piney_battle::boss::magus::Place,
+        held: Option<piney_battle::boss::magus::Held>,
+    ) {
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.draws,
+        };
+        magus::start(&mut cx, &self.assets.boss, &mut self.boss.magus_kept, which, at, held);
+    }
+
+    /// What a leaf does to a generator it keeps ([`magus::gen_op`]).
+    pub fn magus_gen_op(
+        &mut self,
+        host: &mut dyn Host,
+        held: piney_battle::boss::magus::Held,
+        op: piney_battle::boss::GenOp,
+    ) {
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.draws,
+        };
+        magus::gen_op(&mut cx, &mut self.boss.magus_kept, held, op);
+    }
+
+    /// A shock's burst ([`magus::shock_burst`]).
+    pub fn magus_shock_burst(&mut self, host: &mut dyn Host, at: V4, turn: F) {
+        let (ctrl, mut cx) = self.split(host);
+        magus::shock_burst(ctrl, &mut cx, at, turn);
     }
 
     /// What one of Fidchell's rules asks beside its spells' pictures

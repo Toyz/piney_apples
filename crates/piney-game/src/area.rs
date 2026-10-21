@@ -1050,6 +1050,31 @@ impl AreaMode {
     /// What the boss asked of the screen, the map and the menus this
     /// frame: `scFadeDef->EntryFlash`, `EVENTAREAB0::SwitchLayer`, the
     /// menus' lock and the cursor.
+    /// Magus's leaves' countdowns (`ccBoss03Leaf::OnThinkCountDown`, MUT
+    /// gcmn 0x004a6384): where `ccCalcTagPos` puts the leaf 100 up, the
+    /// global font, type 1, `ccSpriteColorTable[7]`, shadowed (+4 bit
+    /// 0x10), `MakeSignedNum(2, seconds)`.
+    fn leaf_counts(&mut self, shows: &[piney_world::combat::Show], ctx: &mut Ctx) {
+        use piney_battle::boss::{Out, magus::Pic};
+        use piney_fieldui::spr::{Obj, Spr, font_type, make_signed_num};
+        let mut font = Spr::new(Obj::SysFont, 256);
+        for s in shows {
+            let piney_world::combat::Show::Boss(_, Out::Magus(Pic::Count { leaf, n })) = s else { continue };
+            let Some(pos) = self.world.combat().scene.chars.get(*leaf).map(|c| c.pos) else { continue };
+            let up = [0, 0, 0x42c8_0000, 0];
+            let ws = &self.world.camera().world_screen;
+            let Some((x, y, _)) = piney_world::char::calc_tag_pos(ws, pos, up, 0) else { continue };
+            font_type(&mut font, 1);
+            font.set_colour(7);
+            (font.dx, font.dy, font.shadow) = (x as f32, y as f32, true);
+            make_signed_num(&mut font, 2, i64::from(*n));
+        }
+        let packets = font.take();
+        if !packets.is_empty() && !self.world_hidden {
+            self.ui.send_font(packets, self.world.state(), ctx);
+        }
+    }
+
     fn boss_calls(&mut self, shows: &[piney_world::combat::Show]) {
         use piney_battle::boss::Out;
         use piney_world::combat::Show;
@@ -1690,6 +1715,8 @@ impl Mode for AreaMode {
             // scFadeDef: the screen's own flashes (piros_colour's).
             self.st.fade_def.send(&mut ctx, piney_desktop::layers::FONT_LAYER);
         }
+        // The global font, sent at the flip after the field's tasks.
+        self.leaf_counts(&shows, &mut ctx);
         // ccThGameOver, after the field's tasks (the same priority, started
         // later): its noise over the field, which it squeezes away.
         let over = self.game_over.as_mut().map(|t| {

@@ -31,12 +31,16 @@ pub struct Play {
     /// The time the controllers were last evaluated at.
     pub posed: Ticks,
     pub frame_spd: u32,
+    /// Entries ([`Instance::entry`]) their owner hid after the step
+    /// (transparency 0 on the `ccObj`, until the next step's
+    /// `SetAnmCtrlWork`): not drawn.
+    pub hidden: Vec<u32>,
 }
 
 impl Play {
     /// `ccAnm::SetAnm` of the named animation: frame 0.
     pub fn new(file: &SceneFile, name: &str) -> Option<Self> {
-        Some(Play { anim: file.anim(name)?, time: 0, posed: 0, frame_spd: 256 })
+        Some(Play { anim: file.anim(name)?, time: 0, posed: 0, frame_spd: 256, hidden: Vec::new() })
     }
 
     /// `_AnimateForward(frameSpd)`: true when a play-once animation ends.

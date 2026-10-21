@@ -36,11 +36,21 @@ pub struct ObjDraw {
 /// is `matrix`, after `SetTransparency(alpha)`.
 pub fn clump(assets: &Assets, obj: ObjRef, matrix: &M4, alpha: F) -> Vec<ObjDraw> {
     let file = &assets.files[obj.file];
-    let Ok(nodes) = assets.clump_nodes(obj) else { return Vec::new() };
     let tp = ee::mul(ONE, alpha);
     if ee::le(tp, MIN_TRANSPARENCY) {
         return Vec::new();
     }
+    // A lone object (`ccObj::Draw(1.0)` of an `OBJ_` chunk): its model at
+    // the matrix.
+    let Ok(nodes) = assets.clump_nodes(obj) else {
+        return file
+            .obj_model
+            .get(&obj.object)
+            .filter(|&&m| has_mesh(file, m))
+            .map(|&model| ObjDraw { obj: obj.object, model, world: *matrix, alpha: tp })
+            .into_iter()
+            .collect();
+    };
     let depth = |mut n: u32| {
         let mut d = 1;
         while let Some(&p) = file.scene.parent.get(&n) {

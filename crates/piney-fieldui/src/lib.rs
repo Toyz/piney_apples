@@ -402,6 +402,14 @@ impl FieldUi {
         render::draw(&self.draws, &self.textures, &self.fonts, &save.names(), &faces, ctx, self.hud_scale);
     }
 
+    /// The global `font`'s packets a field task made this frame (`fontLayer`,
+    /// sent at the flip): drawn into the frame the field is building.
+    pub fn send_font(&self, packets: Vec<spr::Packet>, save: &SaveState, ctx: &mut piney_desktop::anm::Ctx) {
+        let faces = self.ctrl.face_tex;
+        let draws = [ctrl::Draw::Send(packets)];
+        render::draw(&draws, &self.textures, &self.fonts, &save.names(), &faces, ctx, self.hud_scale);
+    }
+
     /// `ccThMenu`'s first run in each scene's `ccSetupGameCtrl`, after the
     /// event passes (`ccMenu` is NULL through them) and before
     /// `WORLD_MAN::GO`: a whole new `ccMenuCtrl` (gcmn 0x0051c140). Its

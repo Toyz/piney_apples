@@ -213,7 +213,7 @@ impl Anm {
     }
 
     /// `_AnimateForward(frameSpd)` when a clip is set (+0xac), else 0.
-    fn forward(&mut self) -> bool {
+    pub fn forward(&mut self) -> bool {
         if self.clip.is_none() {
             return false;
         }
@@ -462,6 +462,18 @@ impl Eff {
             self.enabled = false;
         }
     }
+}
+
+/// What a boss's fight does to a particle generator it keeps (the
+/// member that holds its pointer).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GenOp {
+    /// `ParticleKill()`: the pointer kept.
+    Kill,
+    /// +5 bit 0, `pauseFlag`: the generator held still while set.
+    Pause(bool),
+    /// The pointer cleared: the generator runs out on its own.
+    Forget,
 }
 
 /// What the rules ask of the rest of the game, in order.

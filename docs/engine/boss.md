@@ -651,7 +651,9 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
    - the menu locks go to `ccMenu`'s forbid and cursor;
    - the member drain opens menu 74 ([`StreamMenu`](field-ui.md#a-member-drained-streammenu-menu-74));
    - the body hit goes on the collision list;
-   - the stage fader, the after-images and the wave are drawn;
+   - the stage fader, the after-images (each with its own fade, blend
+     and growth: `ccBossAfterImageEx::Draw`, MUT gcmn 0x00471320) and the
+     wave are drawn;
    - the quake and the dead camera go to the boss camera, and the dead
      effect's `ccSqFade` to the music;
    - the effects are made and drawn ("The effects' pictures"), the

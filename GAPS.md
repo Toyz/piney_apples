@@ -103,7 +103,8 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   (`ccThKyvia01`, the `kyvia*` classes, worklog 272), Magus (`ccBoss03`,
   `ccBoss03Leaf`, worklog 274); events 107, 108 and 115 finish under the
   autopilot (worklog 276). Innis's pictures drawn (worklog 411),
-  Kyvia's particles, meteors and bolts (worklog 420); Magus's still open
+  Kyvia's particles, meteors and bolts (worklog 420), Magus's leaves,
+  shocks, needles and countdowns (worklog 421)
 - [ ] Outbreak's bosses: [x] Fidchell (`ccBoss04`, worklogs 294-295),
   [x] Gorre and its brothers (`ccBoss05`, worklog 303; the shield's shape
   and FinalPhotonFlash's picture open), [x] Kyvia 02 (above); each event

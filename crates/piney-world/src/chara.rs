@@ -126,7 +126,13 @@ impl Kite {
     /// under the anm's `root(pos, dirc)`, as `ccCoord::_SetLWMatrix`
     /// composes them for `ccObj::Draw`.
     pub fn worlds(&self, act: i16, posed: u32, pos: V4, dirc: V4) -> HashMap<u32, Mat4> {
-        let play = Play { anim: self.act_anims[act.clamp(0, 25) as usize], time: posed, posed, frame_spd: 256 };
+        let play = Play {
+            anim: self.act_anims[act.clamp(0, 25) as usize],
+            time: posed,
+            posed,
+            frame_spd: 256,
+            hidden: Vec::new(),
+        };
         play.worlds(&self.file, root(pos, dirc), &self.nodes)
     }
 
@@ -166,7 +172,13 @@ impl Kite {
         shaded: bool,
         bracelet: bool,
     ) {
-        let play = Play { anim: self.act_anims[act.clamp(0, 25) as usize], time: posed, posed, frame_spd: 256 };
+        let play = Play {
+            anim: self.act_anims[act.clamp(0, 25) as usize],
+            time: posed,
+            posed,
+            frame_spd: 256,
+            hidden: Vec::new(),
+        };
         let swaps = match (bracelet, self.clut) {
             (false, Some(s)) => vec![s],
             _ => Vec::new(),

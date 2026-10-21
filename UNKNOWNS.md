@@ -75,7 +75,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 - [[268]] Innis's drains at its breaks gave item drops and no Epitaph in the survey, where `innis_drained_through_the_menus` reaches the Epitaph — Mutation's first boss fight may skip its Epitaph phase; possibly the queued-affect bug [[274]] fixed (a lost 21), not rechecked
 - [[272]] Kyvia's gomoras do not push each other; the pad's sway and the arm's picture are missing (docs/engine/boss-kyvia.md) — Mutation's Kyvia 01 fight, look and movement; the particles answered by [[420]] (the fight's generators, the meteors and the second fight's bolts drawn)
-- [[274]] Magus's shock beams are taken to meet the ground (no `ccHitCheckLM` on the land); `EntryFlash2`/`3` are one flash; the grow's looping SE plays once (docs/engine/boss-magus.md) — Mutation's Magus fight: hits, flashes, sound
+- [[274]] Magus's `EntryFlash2`/`3` are one flash; the grow's looping SE plays once (docs/engine/boss-magus.md) — Mutation's Magus fight: flashes, sound; the shock beams' line test answered by [[421]] (`ccHitCheckLM` on the land)
 
 ### world
 
@@ -90,7 +90,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 - [[157]] [[161]] `EntryObject`'s palettes for the lakes' statues and flowers when `GetBG` is not 0 are not ported (docs/engine/dungeon.md) — lake dungeons by evening and night
 - [[158]] `DUNGEON.fog` is not zeroed at the game over's TV, and the squeeze moves the whole finished frame, not only what sysLayer's view draws — the game over, in a dungeon most
 - [[266]] Innis's pictures are not drawn: missiles, SamonRings, particle generators, blur, shield, mirrors' shards; the MagicSquare for n 1 and 2 (docs/engine/boss-innis.md) — Mutation's first boss — answered by [[411]] (issue #69): the missiles, rings, generators, shield and shards are drawn (`piney_effect::innis`, `test_innis_effects` in tools/test_boss_effect_rs.py, `session::tests::boss_fx`); the squares were [[295]]'s. The blur stays with [[117]]
-- [[274]] Magus's pictures are named, not drawn: the leaves' markers, charges and bursts, the laser's shocks and thunder, the needles, the smoke; the body's dropped leaves are not hidden (docs/engine/boss-magus.md) — Mutation's Magus
+- [[274]] Magus's pictures are named, not drawn: the leaves' markers, charges and bursts, the laser's shocks and thunder, the needles, the smoke; the body's dropped leaves are not hidden (docs/engine/boss-magus.md) — Mutation's Magus — answered by [[421]] (drawn, the dropped leaves hidden, the blinks' after-images and the countdowns too)
 - [[280]] Innis's ice missile and Fidchell's IceBreak are not ported, so nothing throws their rocks — Mutation's and Outbreak's bosses (Fidchell's rules ported in [[294]]; its IceBreak's rocks are still not thrown) — Innis's answered by [[411]]: the first ice missile's landing throws its two sprays (`effIceRock`); Fidchell's IceBreak still open
 
 ### audio
@@ -234,7 +234,7 @@ player until one of these turns out wrong.
 - [[272]] why the Hackberry King in area 47's dungeon recovers under the pilot's fight, and whether the game's would — not checked
 - [[273]] the lowest level at which the pilot beats Kyvia 01; a player's level and gear there — not measured
 - [[273]] whether the Hackberry King's HP should come back as fast as it does — not checked against the game
-- [[274]] Magus's acts 30 and 31 and a leaf's 23 never reached — whether any path reaches them
+- [[274]] Magus's act 30 and a leaf's 23 never reached — whether any path reaches them; act 31 answered by [[421]] (no path: `m_dmgCount` is never lowered)
 - [[274]] whether Skeith's and Innis's drains through the menus lost their 21 before [[274]]'s fix — not checked
 - [[275]] what the community note's enemyList00 refers to — the code gives story areas column 6
 - [[276]] whether a run without the level aid beats Kyvia 01 — not tried
@@ -1200,8 +1200,8 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 
 ### docs/engine/boss-magus.md
 
-- docs/engine/boss-magus.md: the leaves', laser's, needles' and smoke's pictures named, not drawn; dropped leaves not hidden — play (duplicates [[274]])
-- docs/engine/boss-magus.md: the shocks' beams taken to meet the ground (ccHitCheckLM not ported) — play (duplicates [[274]])
+- docs/engine/boss-magus.md: the leaves', laser's, needles' and smoke's pictures named, not drawn; dropped leaves not hidden — play (duplicates [[274]]) — answered by [[421]]
+- docs/engine/boss-magus.md: the shocks' beams taken to meet the ground (ccHitCheckLM not ported) — play (duplicates [[274]]) — answered by [[421]]
 - docs/engine/boss-magus.md: EntryFlash2 and EntryFlash3 drawn as one flash; the grow's looping SE plays once — play (duplicates [[274]])
 
 ### docs/engine/desktop.md

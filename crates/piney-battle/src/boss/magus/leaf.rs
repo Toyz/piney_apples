@@ -7,7 +7,8 @@
 use piney_data::field::ee;
 use piney_data::libm;
 
-use super::{LEAF_ROW, LeafPart, Leaves, Magus, Pic};
+use super::{Gen, Held, LEAF_ROW, LeafPart, Leaves, Magus, Pic, Place};
+use crate::boss::GenOp;
 use crate::boss::kyvia::{as_me, new_char, plain_boss, set_base_param};
 use crate::boss::{Anm, Boss, Class, Cx, EffKind, Out};
 use crate::geom::{self, V4};
@@ -65,7 +66,7 @@ pub struct Explode {
 
 impl Explode {
     /// `Init` (0x004a7090).
-    fn init(&mut self) {
+    pub fn init(&mut self) {
         self.eff = DrawStatus {
             alpha: 0x3f4c_cccd,
             base_alpha: 0x3f4c_cccd,
@@ -78,7 +79,7 @@ impl Explode {
     }
 
     /// `Draw` (0x004a7100): true once the flash has faded out.
-    fn draw(&mut self) -> bool {
+    pub fn draw(&mut self) -> bool {
         self.eff.step();
         self.exp.step();
         geom::eq(self.exp.alpha, 0)
@@ -97,6 +98,9 @@ pub struct Leaf {
     pub marker_init: bool,
     pub marker_forbid: i32,
     pub marker_alpha: F,
+    /// `ccLeafMark` +0xb0: the marker's place, which its smokes follow
+    /// (the leaf's at its fall and each frame of the countdown).
+    pub marker_pos: V4,
     pub exp: Explode,
     /// `m_charge`: the grow's particles run.
     pub charge: bool,
@@ -320,15 +324,35 @@ fn prepare_explode(p: &mut LeafPart, cx: &mut Cx) {
     crate::fellow::delete_cmnd(cx.scene, p.me);
     p.x.shock_scale = ONE;
     p.x.exp.init();
-    marker_off(&mut p.x);
+    marker_off(&mut p.x, p.me, cx);
     crate::affect::clear_conditions(&mut cx.scene.chars[p.me]);
 }
 
-/// The marker's smoke stopped (`m_forbid` 1) once made.
-fn marker_off(x: &mut Leaf) {
+/// The marker's smoke stopped (`m_forbid` 1, its generators paused) once
+/// made.
+fn marker_off(x: &mut Leaf, me: usize, cx: &mut Cx) {
     if x.marker_init {
         x.marker_forbid = 1;
+        marker_pause(me, true, cx);
     }
+}
+
+/// Both of a leaf's marker generators' `pauseFlag` (+5 bit 0) set or
+/// cleared.
+fn marker_pause(me: usize, on: bool, cx: &mut Cx) {
+    for j in 0..2 {
+        cx.out(Out::Magus(Pic::Gen { held: Held::Marker(me, j), op: GenOp::Pause(on) }));
+    }
+}
+
+/// The grow's charge killed (`ccCheckParticleGenerator`, `ParticleKill`).
+fn charge_kill(me: usize, cx: &mut Cx) {
+    cx.out(Out::Magus(Pic::Gen { held: Held::Charge(me), op: GenOp::Kill }));
+}
+
+/// A leaf's generator started.
+fn particles(cx: &mut Cx, which: Gen, at: Place, held: Option<Held>) {
+    cx.out(Out::Magus(Pic::Particles { which, at, held }));
 }
 
 /// `Order(n)` (0x004a6780): 24 fall, 25 the countdown again, 26 burst, 27
@@ -345,7 +369,17 @@ pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut Boss, mx: &mut M
                 init(p, mb, mx, cx);
                 let pos = cx.pos();
                 cx.out(Out::Se3dNote { se: 169, pos, note: 50 });
+                // ccLeafMark::InitAtOnce (0x004a7b20): its two smokes the
+                // first time, both paused; then its place the leaf's.
+                if !p.x.marker_init {
+                    let me = p.me;
+                    for j in 0..2 {
+                        particles(cx, Gen::Marker(j), Place::Marker(me), Some(Held::Marker(me, j)));
+                    }
+                    marker_pause(me, true, cx);
+                }
                 p.x.marker_init = true;
+                p.x.marker_pos = pos;
                 p.b.transparency = ONE;
                 p.b.set_transparency = ONE;
             }
@@ -363,10 +397,10 @@ pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut Boss, mx: &mut M
             }
             27 => {
                 if p.x.charge {
-                    cx.out(Out::Magus(Pic::Charge { leaf: k, on: false }));
+                    charge_kill(p.me, cx);
                     p.x.charge = false;
                 }
-                marker_off(&mut p.x);
+                marker_off(&mut p.x, p.me, cx);
                 on_exit(ls, k, mb, mx, cx);
             }
             28 => {
@@ -377,13 +411,15 @@ pub(super) fn order(ls: &mut Leaves, k: usize, n: i32, mb: &mut Boss, mx: &mut M
             }
             29 => {
                 if p.x.charge {
-                    cx.out(Out::Magus(Pic::Charge { leaf: k, on: false }));
+                    charge_kill(p.me, cx);
                 }
                 p.x.charge = true;
-                cx.out(Out::Magus(Pic::Charge { leaf: k, on: true }));
+                // At the leaf's place on the body (its `EXT_ex31leafNN`).
+                let at = Place::At(mx.leaf_pos[k]);
+                particles(cx, Gen::Charge, at, Some(Held::Charge(p.me)));
             }
             30 if p.x.charge => {
-                cx.out(Out::Magus(Pic::Charge { leaf: k, on: false }));
+                charge_kill(p.me, cx);
                 p.x.charge = false;
             }
             _ => {}
@@ -426,6 +462,7 @@ fn on_drop(p: &mut LeafPart, cx: &mut Cx) {
     cx.out(Out::Se3dNote { se: 56, pos, note: 72 });
     if p.x.marker_init {
         p.x.marker_forbid = 0;
+        marker_pause(me, false, cx);
     }
     crate::fellow::entry_cmnd(cx.scene, me);
 }
@@ -456,7 +493,13 @@ fn on_count_down(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &
         return;
     }
     count_down(ls, k, mb, mx, cx);
+    // The seconds over the leaf (`ccCalcTagPos` 100 up,
+    // `ccFont::MakeSignedNum(2, n)`), the marker at the leaf.
+    let me = ls.0[k].me;
     let x = &mut ls.0[k].x;
+    let n = ee::to_int(ee::div(ee::from_int(x.exp_cntr + 29), 0x41f0_0000));
+    cx.out(Out::Magus(Pic::Count { leaf: me, n }));
+    x.marker_pos = cx.scene.chars[me].pos;
     x.marker_alpha = ee::div(x.exp_alpha, 0x42c8_0000);
 }
 
@@ -474,7 +517,7 @@ fn count_down(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut
     if check_blink(x) {
         let t = ((u64::from((x.exp_cntr as u32).wrapping_mul(30)) * 0x91a2_b3c5) >> 32) as u32 >> 8;
         set_blink_time(x, t as i32);
-        cx.out(Out::Magus(Pic::LeafAfterImage { leaf: k }));
+        cx.out(Out::Magus(Pic::LeafAfterImage { leaf: k, frame: p.b.anm.frame() }));
     }
     if x.blink_base_time != 0 {
         let base = ee::from_int(x.blink_base_time);
@@ -532,7 +575,7 @@ fn on_die(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx)
             p.x.exit_alpha = ONE;
             p.b.act_proccess += 1;
             crate::fellow::delete_cmnd(cx.scene, me);
-            marker_off(&mut p.x);
+            marker_off(&mut p.x, me, cx);
             crate::affect::clear_conditions(&mut cx.scene.chars[me]);
             let dirc = p.b.dirc;
             dead_effect(mb, dirc, cx);
@@ -559,7 +602,7 @@ fn on_die(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx)
 fn dead_effect(mb: &mut Boss, dirc: V4, cx: &mut Cx) {
     let pos = cx.pos();
     cx.out(Out::Se3dNote { se: 104, pos, note: 36 });
-    cx.out(Out::Magus(Pic::LeafDead { pos }));
+    particles(cx, Gen::LeafDead, Place::At(pos), None);
     let mut at = pos;
     at[2] = ee::add(at[2], 0x4248_0000);
     mb.effect_at(cx, EffKind::LeafRing, at, dirc);
