@@ -351,6 +351,46 @@ pub struct Effect {
     pub boss_burst_smoke_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_burst_smoke_ff_va: u32,
+    /// `KyviaGenerator`: Kyvia's beams, light and smoke (28 rows on Mutation, 30 from Outbreak: to `KyviaDmgGenerator`).
+    pub boss_kyvia: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_kyvia_va: u32,
+    /// `KyviaGeneratorForceField`.
+    pub boss_kyvia_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_kyvia_ff_va: u32,
+    /// `KyviaDmgGenerator`: the body's hurt smoke.
+    pub boss_kyvia_dmg: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_kyvia_dmg_va: u32,
+    /// `KyviaDmgGeneratorForceField`.
+    pub boss_kyvia_dmg_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_kyvia_dmg_ff_va: u32,
+    /// `CoreGenerator`: Kyvia's core, its auras and its death.
+    pub boss_core: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_core_va: u32,
+    /// `CoreGeneratorForceField`.
+    pub boss_core_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_core_ff_va: u32,
+    /// `GomoraGenerator`: a gomora's coming, attacks and death.
+    pub boss_gomora: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_gomora_va: u32,
+    /// `GomoraGeneratorForceField`.
+    pub boss_gomora_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_gomora_ff_va: u32,
+    /// `GomoraAuraGenerator`: a gomora's aura by level, then its attack's by attribute.
+    pub boss_gomora_aura: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_gomora_aura_va: u32,
+    /// `GomoraAuraGeneratorForceField`.
+    pub boss_gomora_aura_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_gomora_aura_ff_va: u32,
 }
 
 impl crate::store::Load for Effect {
@@ -510,6 +550,26 @@ impl crate::store::Load for Effect {
             boss_burst_smoke_va: crate::store::Load::load(r),
             boss_burst_smoke_ff: crate::store::Load::load(r),
             boss_burst_smoke_ff_va: crate::store::Load::load(r),
+            boss_kyvia: crate::store::Load::load(r),
+            boss_kyvia_va: crate::store::Load::load(r),
+            boss_kyvia_ff: crate::store::Load::load(r),
+            boss_kyvia_ff_va: crate::store::Load::load(r),
+            boss_kyvia_dmg: crate::store::Load::load(r),
+            boss_kyvia_dmg_va: crate::store::Load::load(r),
+            boss_kyvia_dmg_ff: crate::store::Load::load(r),
+            boss_kyvia_dmg_ff_va: crate::store::Load::load(r),
+            boss_core: crate::store::Load::load(r),
+            boss_core_va: crate::store::Load::load(r),
+            boss_core_ff: crate::store::Load::load(r),
+            boss_core_ff_va: crate::store::Load::load(r),
+            boss_gomora: crate::store::Load::load(r),
+            boss_gomora_va: crate::store::Load::load(r),
+            boss_gomora_ff: crate::store::Load::load(r),
+            boss_gomora_ff_va: crate::store::Load::load(r),
+            boss_gomora_aura: crate::store::Load::load(r),
+            boss_gomora_aura_va: crate::store::Load::load(r),
+            boss_gomora_aura_ff: crate::store::Load::load(r),
+            boss_gomora_aura_ff_va: crate::store::Load::load(r),
         }
     }
 }
@@ -977,6 +1037,66 @@ impl Effect {
     pub fn boss_burst_smoke_ff_va(&self) -> u32 {
         self.boss_burst_smoke_ff_va
     }
+    pub fn boss_kyvia(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_kyvia
+    }
+    pub fn boss_kyvia_va(&self) -> u32 {
+        self.boss_kyvia_va
+    }
+    pub fn boss_kyvia_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_kyvia_ff
+    }
+    pub fn boss_kyvia_ff_va(&self) -> u32 {
+        self.boss_kyvia_ff_va
+    }
+    pub fn boss_kyvia_dmg(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_kyvia_dmg
+    }
+    pub fn boss_kyvia_dmg_va(&self) -> u32 {
+        self.boss_kyvia_dmg_va
+    }
+    pub fn boss_kyvia_dmg_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_kyvia_dmg_ff
+    }
+    pub fn boss_kyvia_dmg_ff_va(&self) -> u32 {
+        self.boss_kyvia_dmg_ff_va
+    }
+    pub fn boss_core(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_core
+    }
+    pub fn boss_core_va(&self) -> u32 {
+        self.boss_core_va
+    }
+    pub fn boss_core_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_core_ff
+    }
+    pub fn boss_core_ff_va(&self) -> u32 {
+        self.boss_core_ff_va
+    }
+    pub fn boss_gomora(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_gomora
+    }
+    pub fn boss_gomora_va(&self) -> u32 {
+        self.boss_gomora_va
+    }
+    pub fn boss_gomora_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_gomora_ff
+    }
+    pub fn boss_gomora_ff_va(&self) -> u32 {
+        self.boss_gomora_ff_va
+    }
+    pub fn boss_gomora_aura(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_gomora_aura
+    }
+    pub fn boss_gomora_aura_va(&self) -> u32 {
+        self.boss_gomora_aura_va
+    }
+    pub fn boss_gomora_aura_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_gomora_aura_ff
+    }
+    pub fn boss_gomora_aura_ff_va(&self) -> u32 {
+        self.boss_gomora_aura_ff_va
+    }
 }
 
 /// `effectCCSTbl`: the effect files, up to the row with no name.
@@ -1388,6 +1508,42 @@ pub static BOSS_BURST_SMOKE: std::sync::LazyLock<&'static [ParticleGeneratorPara
 /// `BurstSmokeForceField`.
 pub static BOSS_BURST_SMOKE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
     std::sync::LazyLock::new(|| shared().boss_burst_smoke_ff);
+
+/// `KyviaGeneratorForceField`.
+pub static BOSS_KYVIA_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_kyvia_ff);
+
+/// `KyviaDmgGenerator`: the body's hurt smoke.
+pub static BOSS_KYVIA_DMG: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_kyvia_dmg);
+
+/// `KyviaDmgGeneratorForceField`.
+pub static BOSS_KYVIA_DMG_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_kyvia_dmg_ff);
+
+/// `CoreGenerator`: Kyvia's core, its auras and its death.
+pub static BOSS_CORE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_core);
+
+/// `CoreGeneratorForceField`.
+pub static BOSS_CORE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_core_ff);
+
+/// `GomoraGenerator`: a gomora's coming, attacks and death.
+pub static BOSS_GOMORA: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_gomora);
+
+/// `GomoraGeneratorForceField`.
+pub static BOSS_GOMORA_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_gomora_ff);
+
+/// `GomoraAuraGenerator`: a gomora's aura by level, then its attack's by attribute.
+pub static BOSS_GOMORA_AURA: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_gomora_aura);
+
+/// `GomoraAuraGeneratorForceField`.
+pub static BOSS_GOMORA_AURA_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_gomora_aura_ff);
 
 /// The volume's Effect (read once a run; kept here per volume).
 pub fn of(v: Volume) -> &'static Effect {

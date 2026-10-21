@@ -589,11 +589,17 @@ pub enum Out {
     },
     /// `effResistantShield(this, 1, -1)`: a spell struck the boss.
     Shield,
-    /// A particle generator of Kyvia's fight started, by table and row, at
-    /// `pos` (or following `who`'s place).
+    /// A particle generator of Kyvia's fight started: which, where, and
+    /// the member that keeps it.
     KyviaParticles {
         which: kyvia::Gen,
-        pos: V4,
+        at: kyvia::Place,
+        held: Option<kyvia::Held>,
+    },
+    /// What the fight does to a generator it keeps.
+    KyviaGen {
+        held: kyvia::Held,
+        op: kyvia::GenOp,
     },
     /// `bossCam->SetRotXLimit(v)` (MUT gcmn 0x00475a40).
     CamRotXLimit(F),

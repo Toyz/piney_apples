@@ -1211,8 +1211,10 @@ fn innis_drained_through_the_menus() {
 }
 
 /// Mutation's event 108 brought to Kyvia's disc: field 9 of town 2
-/// (`EVENTAREAB8`) as area 47's dungeon leaves the game, blocks 0-20 played
-/// and `eventStatus[0]` 1 (block 17's `set status`).
+/// (`EVENTAREAB8`, `eventAreaNumber` 9) as area 47's dungeon leads there
+/// (with area 47's own number the field was a generated one and the disc
+/// was never read), blocks 0-20 played and `eventStatus[0]` 1 (block 17's
+/// `set status`).
 fn event_108_disc() -> Option<Session> {
     let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
     if !iso.exists() {
@@ -1227,6 +1229,7 @@ fn event_108_disc() -> Option<Session> {
     state.save.set_u8(offset::EVENT_STATUS, 1);
     let mut scene = piney_world::area::Scene::log_in(&mut state.save);
     let wm = crate::area::story_world_man(&mut d, 47, false).unwrap();
+    let wm = crate::area::ev_area_number(&iso, 9, &wm, &state.save).unwrap();
     scene.change_scene(1, 2, 9, -1, -1, -1, &mut state.save);
     Some(Session::in_world(iso, archive, None, state, Some(start.vm), scene, Some(wm)).unwrap())
 }

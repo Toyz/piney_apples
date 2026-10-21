@@ -94,6 +94,37 @@ class Game:
             a += 1
         return out.decode("latin-1")
 
+    def member(self, mm, ptr, kind):
+        """Who keeps generator `ptr` ("held"), or whose vector `ptr` is
+        ("sync"), as battle_probe names them; None for no one."""
+        parts = [(BOSS, "body")]
+        core = core_of(mm)
+        if core:
+            parts.append((core, "core"))
+            parts += [(gomora_of(mm, k), ["gomora", k]) for k in range(5)]
+        if kind == "held":
+            for off, name in held_slots().items():
+                if mm.load(BOSS + off, 4) == ptr:
+                    return name
+            for a, role in parts[1:]:
+                if role == "core":
+                    for k in range(2):
+                        if mm.load(a + 0x29360 + 4 * k, 4) == ptr:
+                            return [role, "aura", k]
+                elif mm.load(a + 0x293E0, 4) == ptr:
+                    return [role, "aura"]
+            return None
+        for a, role in parts:
+            if ptr == a + 0x40:
+                return [role, "pos"]
+        for off, name in sync_slots().items():
+            if ptr == BOSS + off:
+                return name
+        for a, role in parts[2:]:
+            if ptr == a + 0x293F0:
+                return [role, "aura"]
+        return ["?", ptr]
+
     def hooks(self):
         m = self.m
         h = m.hooks
@@ -159,7 +190,7 @@ class Game:
                      "CamMain__9ccBossCamFv", "SetMatrix_PosRotXYZScale__7ccCoordFPfPfPf",
                      "SetMatrix_PosRotZYXScale__7ccCoordFPfPfPf", "SetMatrix_PosRotXYZ__7ccCoordFPfPf",
                      "Draw__7ccClumpFv", "SetTransparency__7ccClumpFf", "__dt__7ccClumpFv",
-                     "ParticleKill__19ccParticleGeneratorFv", "ParticleDelete__19ccParticleGeneratorFv",
+                     "ParticleDelete__19ccParticleGeneratorFv",
                      "Init__7ccLayerFsP6ccView", "SetFrame__6ccViewFffffffff", "__dt__7ccLayerFv",
                      "changeCamera__Fi", "SetHitSW__9ccCharHitFi", "DrawPartsClump__6ccBossFP7ccClump"):
             hook(name, nop)
@@ -266,27 +297,57 @@ class Game:
 
         tables = {sym(n): n[:-len("Generator")] for n in TABLES}
         aura_ff = sym("GomoraAuraGeneratorForceField")
+        ff_tables = {n[:-len("Generator")]: sym(n.replace("Generator", "ForceField") if n.endswith("SmokeGenerator")
+                                                else n + "ForceField") for n in TABLES}
 
         def gen_ct(mm, a, param, ff, *_):
-            self.gens[a] = (param, ff)
+            # What the constructor (not run) leaves that the makers read on:
+            # distSW 1, syncPosType 0, pStop 0, no syncPos, pos and offset
+            # the vf0 (as piney-effect's Generator::new).
+            self.gens[a] = (param, [ff, mm.r[7], mm.r[8], mm.r[9]])
+            mm.store(a + 4, 1, 1)
+            mm.store(a + 5, 1, 0)
+            mm.store(a + 0x18, 4, 0)
+            for v in (0x60, 0x80):
+                for k in range(4):
+                    mm.store(a + v + 4 * k, 4, F_ONE if k == 3 else 0)
             return a
         hook("__ct__19ccParticleGeneratorFP24ccParticleGeneratorParamP25ccParticleForceFieldParamP25"
              "ccParticleForceFieldParamP25ccParticleForceFieldParamP25ccParticleForceFieldParam", gen_ct)
 
         def gen_start(mm, a, *_):
-            param, ff = self.gens.get(a, (0, 0))
+            param, ffs = self.gens.get(a, (0, [0, 0, 0, 0]))
             # The table nearest below the row (they lie back to back).
             near = [b_ for b_ in tables if b_ <= param and (param - b_) % 0x38 == 0]
-            if near:
-                base = max(near)
-                name, row = tables[base], (param - base) // 0x38
-                if name == "GomoraAura":
-                    lv = (ff - aura_ff) // 0x20 if row < 4 else 0
-                    out.append(["particles", name, row, lv])
-                else:
-                    out.append(["particles", name, row])
+            if not near:
+                return 0
+            base = max(near)
+            name, row = tables[base], (param - base) // 0x38
+            if name == "GomoraAura":
+                lv = (ffs[0] - aura_ff) // 0x20 if row < 4 else 0
+                head = ["particles", name, row, lv]
+            else:
+                head = ["particles", name, row]
+            # The missiles' and bolts' own are piney-effect's (their
+            # pictures' harness); the rest in full.
+            if name in ("MissileSmoke", "BurstSmoke") and row != 17:
+                out.append(head)
+                return 0
+            ff = [(f - ff_tables[name]) // 0x20 for f in ffs if f]
+            sync = mm.load(a + 0x18, 4)
+            if sync:
+                place = ["follow", self.member(mm, sync, "sync"), *f32s(mm, a + 0x80, 3)]
+            else:
+                place = ["at", *f32s(mm, a + 0x60, 3)]
+            out.append(head + [ff, mm.load(a + 4, 1) & 1, place, self.member(mm, a, "held")])
             return 0
         hook("startParticleGenerator__FP19ccParticleGenerator", gen_start)
+
+        def gen_kill(mm, a, *_):
+            if a:
+                out.append(["kill", self.member(mm, a, "held")])
+            return 0
+        hook("ParticleKill__19ccParticleGeneratorFv", gen_kill)
 
     def effects_pass(self):
         """ccBossEffManager::Draw's loop: a disabled effect freed, an
@@ -363,6 +424,30 @@ def rnd_case(c, rnd):
             "delay": rnd.randrange(1, 40), "ride2": rnd.randrange(0, 150),
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
+
+
+def held_slots():
+    """The body's members that keep a generator, by fight: the light, the
+    beams' heads and tails, DmgGp and DeadGp."""
+    d = 0 if FIGHT == 1 else 0x10
+    out = {0x29500 + d: "light"}
+    for k in range(3):
+        out[0x29504 + d + 4 * k] = ["head", k]
+        out[0x29510 + d + 4 * k] = ["tail", k]
+    smoke = 0x29550 if FIGHT == 1 else 0x295F0
+    for k in range(5):
+        out[smoke + 4 * k] = ["smoke", k]
+    return out
+
+
+def sync_slots():
+    """The body's vectors a generator follows: DedDmgVec, LBpos, LBposSub."""
+    d = 0 if FIGHT == 1 else 0x10
+    out = {(0x29540 if FIGHT == 1 else 0x295E0): "dead"}
+    for k in range(3):
+        out[0x294A0 + d + 16 * k] = ["head", k]
+        out[0x294D0 + d + 16 * k] = ["tail", k]
+    return out
 
 
 def core_of(m):
@@ -497,6 +582,9 @@ def fields(m, base, spec):
             out.append(m.load(a, 4))
         elif kind == "p":
             out.append(int(m.load(a, 4) != 0))
+        elif kind == "q":
+            g = m.load(a, 4)
+            out.append(int(g != 0 and m.load(g + 5, 1) & 1))
         else:
             out += f32s(m, a, 3)
     return out
@@ -517,7 +605,8 @@ KYVIA = ([(0x29670, "u"), (0x29688, "h"), (0x29370, "h"), (0x2968A, "u"), (0x293
           (0x29360, "v"), (0x29400, "v"), (0x295D0, "v"), (0x29580, "f"), (0x29600, "v"), (0x2951C, "f"),
           (0x29520, "f"), (0x29524, "f")] + vs(0x294A0, 3) + vs(0x294D0, 3) + vs(0x29470, 3) + vs(0x29410, 6)
          + [(0x293A0, "v"), (0x293B0, "v"), (0x293C0, "v"), (0x293D0, "v"), (0x29540, "v"), (0x295E0, "v"),
-            (0x29570, "v")] + [(0x29550 + 4 * k, "p") for k in range(4)] + [(0x29560, "p")])
+            (0x29570, "v")] + [(0x29550 + 4 * k, "p") for k in range(4)] + [(0x29560, "p")]
+         + [(0x29500, "p")] + [(0x29504 + 4 * k, "p") for k in range(3)] + [(0x29510 + 4 * k, "p") for k in range(3)])
 # ccBossKyvia02's (Outbreak's layout: Infection's DWARF with a byte at
 # +0x29350 before the rest, the cinema's, and the rest 0x10 on): the same
 # members, then ThunderType, ThunderTime, T_NUM, T_Range, StageID.
@@ -527,6 +616,7 @@ KYVIA2 = ([(0x29710, "u"), (0x29728, "h"), (0x29380, "h"), (0x2972A, "u"), (0x29
            (0x29530, "f"), (0x29534, "f")] + vs(0x294B0, 3) + vs(0x294E0, 3) + vs(0x29480, 3) + vs(0x29420, 6)
           + [(0x293B0, "v"), (0x293C0, "v"), (0x293D0, "v"), (0x293E0, "v"), (0x295E0, "v"), (0x29680, "v"),
              (0x29610, "v")] + [(0x295F0 + 4 * k, "p") for k in range(4)] + [(0x29600, "p")]
+          + [(0x29510, "p")] + [(0x29514 + 4 * k, "p") for k in range(3)] + [(0x29520 + 4 * k, "p") for k in range(3)]
           + [(0x29538, "i"), (0x2953C, "i"), (0x295C0, "h"), (0x295C4, "i"), (0x29734, "i")])
 FIGHTS = {
     1: {"ct": "__ct__13ccBossKyvia01Fi", "main": "Main__13ccBossKyvia01Fv", "level": 1, "size": 0x296A0,
@@ -546,7 +636,7 @@ CORE = ([(0x2935C, "i"), (0x293A0, "i"), (0x293A8, "i"), (0x293AC, "i"), (0x293B
          (0x29424, "f"), (0x29428, "f"), (0x29430, "i"), (0x2942C, "f")] + vs(0x29440, 4)
         + [(0x29480, "v"), (0x29540, "u"), (0x29544, "f"), (0x29550, "v"), (0x29570, "h"), (0x29574, "i"),
            (0x29578, "i"), (0x2957C, "i"), (0x29580, "i"), (0x29584, "i"), (0x2958C, "i"), (0x29594, "u"),
-           (0x29360, "p"), (0x29364, "p")])
+           (0x29360, "p"), (0x29364, "p"), (0x29360, "q"), (0x29364, "q")])
 # kyviaGomora's: LifeFlg, Enyint, Enyfloat, AtkFlg, TmpAtkFlg, MyAttribute,
 # AuraLv, AuraPos, ripusNUM, AFcou, AtkWait, AtkTime, AtkTmpFLg, AtkTarPos,
 # DpCou, StopMoveCount, time, timeCount, timeMode, timeFlg, FadeFlg,
@@ -558,7 +648,7 @@ GOMORA = ([(0x29368, "u"), (0x2936C, "i"), (0x29370, "f"), (0x293D0, "i"), (0x29
            (0x29444, "i"), (0x29448, "i"), (0x29450, "u"), (0x29452, "h"), (0x2945E, "h")]
           + vs(0x29460, 4) + vs(0x294A0, 8) + vs(0x29520, 4)
           + [(0x29580, "v"), (0x295D0, "i"), (0x295D4, "u"), (0x295D8, "f"), (0x295E0, "u"), (0x295E4, "i"),
-             (0x295E8, "i")])
+             (0x295E8, "i"), (0x293E0, "p")])
 # The boss camera's: ResetFlg, lock, CamView, CamPos, the pitch (+0xe0).
 CAM_F = [(0x4, "i"), (0x0, "u"), (0x10, "v"), (0x20, "v"), (0xE0, "f")]
 

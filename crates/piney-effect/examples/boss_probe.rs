@@ -109,6 +109,10 @@ fn vref(r: Option<VecRef>) -> String {
     match r {
         // Innis's missiles' anchors: the high bit, the slot, which.
         Some(VecRef::Anchor(k)) if k & 0x8000_0000 != 0 => format!("[\"missile\", {}]", (k & 0x7fff_ffff) >> 1),
+        // Kyvia's meteors': the slot and the meteor.
+        Some(VecRef::Anchor(k)) if k & 0xf000_0000 == 0x2000_0000 => {
+            format!("[\"meteor\", {}, {}]", (k & 0x0fff_ffff) >> 4, k & 15)
+        }
         Some(VecRef::Anchor(k)) => format!("[\"anchor\", {}, {}]", k >> 8, k & 0xff),
         Some(VecRef::EffectPos(k)) => format!("[\"effpos\", {k}]"),
         None => "null".into(),
@@ -386,6 +390,27 @@ fn main() {
                 model: n(13) as i32,
                 spoint: v4(14),
                 tpoint: n(18),
+            },
+            // Kyvia's: the meteors alone (pos, range, n) and a bolt alone
+            // (pos, time, range, num, its ThunderData's angles, scales,
+            // mode, effect switch and point spread, then the offset).
+            "meteorite" => Make::MeteoriteAlone { pos: v4(1), range: n(5), n: n(6) as i32 },
+            "bolt" => Make::BoltAlone {
+                pos: v4(1),
+                time: n(5) as i32,
+                range: n(6) as i32,
+                num: n(7) as i16,
+                dat: piney_battle::boss::kyvia::thunder::BoltData {
+                    default_angle: n(8),
+                    rand_angle: n(9),
+                    default_scale: n(10) as i32,
+                    rand_scale: n(11) as i32,
+                    mode: n(12) as i32,
+                    eff_sw: n(13) as u8,
+                    rnd_point: v4(14),
+                    off_set: [0; 4],
+                },
+                offset: v4(18),
             },
             other => panic!("unknown request {other}"),
         };

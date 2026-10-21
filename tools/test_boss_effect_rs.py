@@ -108,7 +108,10 @@ class BossFx(EffectMachine):
         self.ccrand = 0
         self.word = 0x12345678
         self.clump_alpha = ONE
-        self.started, self.killed, self.grp = [], set(), set()
+        self.started, self.killed, self.deleted, self.grp = [], set(), set(), set()
+        # Kyvia's meteors' Create: the first trail's meteor place (the
+        # array's start) while it makes them.
+        self.meteor_base = None
         self.clut = {}
 
         def note(mm, n, pos, v, *a):
@@ -138,6 +141,7 @@ class BossFx(EffectMachine):
         m.hooks[sym("genrand__Fv")] = genrand
         m.hooks[sym("ccSeOn__Fi")] = lambda mm, n, *a: self.events.append(["se", n]) or 0
         m.hooks[sym("ParticleKill__19ccParticleGeneratorFv")] = kill
+        m.hooks[sym("ParticleDelete__19ccParticleGeneratorFv")] = lambda mm, g, *a: self.deleted.add(g) or 0
         m.hooks[sym("ccCheckParticleGenerator__FP19ccParticleGenerator")] = lambda mm, g, *a: int(g in self.started)
         m.hooks[sym("AddGrp__10ccLightGrpFP7ccLight")] = lambda mm, grp, l, *a: self.grp.add(l) or 0
         m.hooks[sym("DelGrp__10ccLightGrpFP7ccLight")] = lambda mm, grp, l, *a: self.grp.discard(l) or 0
@@ -160,6 +164,7 @@ class BossFx(EffectMachine):
 
         m.hooks[sym("GetSubstAdrsF__5ccAnmFPCcb")] = subst
         m.hooks[sym("Duplicate__5ccObjFUi")] = lambda mm, *a: 0
+        self.meteor_vt = sym("__vt__25ccBossEffMeteoriteMissile")
         self.missile_vts = {sym("__vt__19ccBossEffIceMissile"), sym("__vt__25ccBossEffLightningMissile"),
                             sym("__vt__21ccBossEffBlazeMissile")}
 
@@ -202,6 +207,20 @@ class BossFx(EffectMachine):
             if ref is None and m.load(obj + 12, 4) in self.missile_vts:
                 held = [k for k in range(1024) if self.slot_ptr(k) == obj]
                 ref = ["missile", held[0] if held else next(k for k in range(1024) if not self.slot_ptr(k))]
+            # one of Kyvia's meteors' places (its `now` array at +0x60), by
+            # its slot, or while its Create makes it the next free one
+            if ref is None:
+                for k in range(1024):
+                    e = self.slot_ptr(k)
+                    if e and m.load(e + 12, 4) == self.meteor_vt:
+                        now, n = m.load(e + 0x60, 4), m.load(e + 0x84, 4)
+                        if now <= sync < now + 16 * n:
+                            ref = ["meteor", k, (sync - now) // 16]
+                if ref is None and self.meteor_base is not None:
+                    if self.meteor_base == -1:
+                        self.meteor_base = sync
+                    free = next(k for k in range(1024) if not self.slot_ptr(k))
+                    ref = ["meteor", free, (sync - self.meteor_base) // 16]
             # made in the Create before the manager holds it: the next free slot
             if ref is None:
                 ref = ["anchor", -1, sync]
@@ -267,7 +286,8 @@ class BossFx(EffectMachine):
             slots.append([s["i"], s["id"], s["life"], s["pos"], s["scale"], s["speed"], s["velocity"],
                           s["rotSpeed"], s["sn"]])
         return {"draws": self.draws, "events": self.events, "gens": self.gens,
-                "kills": [2 if g in self.killed else 0 for g in self.started], "lights": lights,
+                "kills": [3 if g in self.deleted else 2 if g in self.killed else 0 for g in self.started],
+                "lights": lights,
                 "enabled": enabled, "slots": slots, "rand": self.rand.s, "ccrand": self.ccrand}
 
     def free(self):
@@ -366,6 +386,47 @@ def innis_cases(rnd):
                                                                      fb(tpoint)),
                     "ccBossEffSamonRingCreate__FPfPfPfi", None, [p, r, sc, model], (sp, tpoint)))
     return out
+
+
+def kyvia_cases(rnd):
+    """Kyvia's meteors as MegidFlame makes them (the disc's place, range
+    500, seven) with no callback and no camera; and on Outbreak its bolts as
+    ThunderboltAtk makes them: each kind's on the disc (raised 500 by the
+    offset the caller writes) and a member's (no smoke, no offset)."""
+    out = []
+    for _ in range(2):
+        pos = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), fb(rnd.uniform(0, 200)), ONE]
+        line = "meteorite %s %x 7" % (hexs(*pos), fb(500.0))
+        out.append(("meteorite", line, "ccBossEffMeteoriteMissileCreate__FPA4_ffiiPFPf_iP9ccBossCam",
+                    ("meteor", pos, 500.0, 7)))
+    if volume.NAME != "outbreak":
+        return out
+    half = fb(0.5)
+    member = (fb(0.5), fb(0.9), 2, 3, [fb(10.0)] * 3 + [half], 0, 50, 3)
+    kinds = [(fb(1.0), 1, 4, [fb(50.0)] * 3 + [half], 3, 100, 90),
+             (fb(3.14159274101), 2, 5, [fb(20.0), fb(30.0), fb(50.0), ONE], 4, 550, 90),
+             (fb(3.14159274101), 3, 10, [fb(50.0)] * 3 + [ONE], 15, 450, 120)]
+    for ra, ds, rs_, rp, num, rng, time in kinds:
+        pos = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), fb(rnd.uniform(0, 200)), ONE]
+        off = [0, 0, fb(500.0), ONE]
+        dat = (0, ra, ds, rs_, rp, 1, rng, num)
+        out.append(("bolt %d" % num, bolt_line(pos, time, dat, off), "ccBossEffThunderboltCreate__FPfiisP11ThunderData",
+                    ("bolt", pos, time, dat, off)))
+        mpos = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), 0, ONE]
+        da, ra2, ds2, rs2, rp2, sw, rng2, num2 = member
+        mdat = (da, ra2, ds2, rs2, rp2, sw, rng2, num2)
+        out.append(("bolt member", bolt_line(mpos, time, mdat, None), "ccBossEffThunderboltCreate__FPfiisP11ThunderData",
+                    ("bolt", mpos, time, mdat, None)))
+    return out
+
+
+def bolt_line(pos, time, dat, off):
+    """The probe's `bolt`: pos, time, range, num, the ThunderData (angle,
+    its spread, scale, its spread, mode 1, the effect switch, the points'
+    spread), the offset (zeros for none)."""
+    da, ra, ds, rs_, rp, sw, rng, num = dat
+    return "bolt %s %x %x %x %x %x %x %x 1 %x %s %s" % (hexs(*pos), time, rng, num, da, ra, ds, rs_, sw, hexs(*rp),
+                                                       hexs(*(off or [0, 0, 0, 0])))
 
 
 def f32(b):
@@ -551,6 +612,67 @@ class BossEffectsAgainstGame(unittest.TestCase):
                 cam = ((rnd.uniform(-2000, 2000), rnd.uniform(-2000, 2000), 600.0),
                        (rnd.uniform(-500, 500), rnd.uniform(-500, 500), 100.0))
                 frames = self.run_innis_case(3000 + 32 * rep + i, case, cam)
+                counts[case[0]] = counts.get(case[0], 0) + len(frames)
+        print("\nframes " + " ".join("%s %d" % kv for kv in sorted(counts.items())), file=sys.stderr)
+
+    def run_kyvia_case(self, seed, case, camera):
+        """One of kyvia_cases: the Create (a bolt's ThunderData a block of
+        its own, the offset written after as ThunderboltAtk does), then the
+        manager's passes until every slot is free."""
+        name, line, sym, spec = case
+        em = BossFx(seed=seed)
+        eye, view = camera
+        em.vec(tfx.EYE, [fb(v) for v in eye] + [ONE])
+        em.vec(tfx.EYE + 0x10, [fb(v) for v in view] + [ONE])
+        # The meteors face camera 2 (the boss's): the same camera here.
+        cams = em.sym("cameraList")
+        em.m.store(cams + 8, 4, em.m.load(cams, 4))
+        if spec[0] == "meteor":
+            _, pos, rng, n = spec
+            (pp,) = vec_args(em, pos)
+            em.meteor_base = -1
+            k = em.create(sym, ints=[pp, n, 0, 0, 0], floats=[rng])
+            em.meteor_base = None
+        else:
+            _, pos, time, dat, off = spec
+            da, ra, ds, rs_, rp, sw, rng, num = dat
+            (pp,) = vec_args(em, pos)
+            d = em.malloc(em.m, 0x40)
+            em.m.mem[d:d + 0x40] = bytes(0x40)
+            for o, v in ((0, da), (4, ra), (8, ds), (12, rs_), (16, 1)):
+                em.m.store(d + o, 4, v)
+            em.m.store(d + 0x14, 1, sw)
+            em.vec(d + 0x20, rp)
+            k = em.create(sym, ints=[pp, time, rng, num, d])
+            if off is not None:
+                em.vec(em.slot_ptr(k) + 0x90, off)
+        made = {"id": k, "events": em.events, "gens": em.gens, "ccrand": em.ccrand}
+        frames = []
+        while not em.free() and len(frames) < 400:
+            frames.append(em.manager_pass())
+        lines = ["reset %x" % seed, "camera " + hexs(*map(fb, eye + view)), line] + ["frame"] * len(frames)
+        got = [g for g in ask(lines) if g]
+        self.assertEqual(got[0], made, "%s: the Create" % name)
+        for f, (want, port) in enumerate(zip(frames, got[1:])):
+            for key in want:
+                self.assertEqual(want[key], port.get(key), "%s frame %d: %s" % (name, f, key))
+        self.assertEqual(len(got[1:]), len(frames))
+        return frames
+
+    @unittest.skipUnless(volume.NAME in ("mutation", "outbreak"), "Kyvia's effects are Mutation's and Outbreak's")
+    def test_kyvia_effects(self):
+        """Kyvia's meteors: their fireballs (never stepped), trails following
+        each, the landings (trails deleted, sounds, the first's smoke and
+        rocks) and their lives; Outbreak's bolts: the segments on their
+        palette, a disc bolt's smoke (its row as Draw writes it) and burst,
+        their ccRand draws and lives."""
+        rnd = random.Random(37)
+        counts = {}
+        for rep in range(2):
+            for i, case in enumerate(kyvia_cases(rnd)):
+                cam = ((rnd.uniform(-2000, 2000), rnd.uniform(-2000, 2000), 600.0),
+                       (rnd.uniform(-500, 500), rnd.uniform(-500, 500), 100.0))
+                frames = self.run_kyvia_case(3500 + 32 * rep + i, case, cam)
                 counts[case[0]] = counts.get(case[0], 0) + len(frames)
         print("\nframes " + " ".join("%s %d" % kv for kv in sorted(counts.items())), file=sys.stderr)
 

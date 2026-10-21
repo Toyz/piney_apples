@@ -238,6 +238,10 @@ impl FxTasks for AreaFx {
         let owned = innis_flights(host.w.scene);
         let flights: Vec<_> = owned.iter().map(|(k, el, no, f)| (*k, *el, *no, f)).collect();
         self.fx.innis_sync(&mut host, &flights);
+        let k = kyvia_shows(host.w.scene);
+        let meteors: Vec<_> = k.meteors.iter().map(|(s, f)| (*s, f)).collect();
+        let bolts: Vec<_> = k.bolts.iter().map(|(s, b)| (*s, b)).collect();
+        self.fx.kyvia_sync(&mut host, &meteors, &bolts, &k.members);
         self.events.extend(self.fx.take_events());
     }
 }
@@ -484,6 +488,45 @@ fn innis_flights(scene: &Scene) -> Vec<Flight> {
     out
 }
 
+/// What Kyvia's fight left this frame for its pictures: its meteors and
+/// bolts by their slot, and the places its generators follow.
+#[derive(Default)]
+struct KyviaShows {
+    meteors: Vec<(i32, piney_battle::boss::kyvia::Meteorite)>,
+    bolts: Vec<(i32, piney_battle::boss::kyvia::thunder::Bolt)>,
+    members: Vec<(piney_battle::boss::kyvia::Follow, V4)>,
+}
+
+fn kyvia_shows(scene: &Scene) -> KyviaShows {
+    use piney_battle::boss::Class;
+    use piney_battle::boss::kyvia::Follow;
+    let mut out = KyviaShows::default();
+    for (c, ch) in scene.chars.iter().enumerate() {
+        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.exit == 0) else { continue };
+        match &b.class {
+            Class::Kyvia(x) => {
+                out.members.push((Follow::DeadSmoke, x.ded_dmg_vec));
+                for k in 0..3u8 {
+                    out.members.push((Follow::BeamHead(k), x.l_bpos[usize::from(k)]));
+                    out.members.push((Follow::BeamTail(k), x.l_bpos_sub[usize::from(k)]));
+                }
+            }
+            Class::Gomora(g) => out.members.push((Follow::Aura(c), g.aura_pos)),
+            _ => {}
+        }
+        for (k, e) in b.effects.slots.iter().enumerate() {
+            let Some(e) = e.as_ref() else { continue };
+            if let Some(m) = e.meteorite.as_deref() {
+                out.meteors.push((k as i32, m.clone()));
+            }
+            if let Some(bolt) = e.bolt.as_deref() {
+                out.bolts.push((k as i32, bolt.clone()));
+            }
+        }
+    }
+    out
+}
+
 /// A scene index as the effects name a character.
 fn cref(i: usize) -> CharRef {
     i as CharRef
@@ -672,6 +715,18 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         Show::Boss(_, piney_battle::boss::Out::Particles { which, pos }) => {
             fx.innis_particles(h, *which, *pos);
         }
+        // Kyvia's fight's generators (the meteors' and bolts' own come with
+        // their pictures, [`kyvia_shows`]), and what it does to those it
+        // keeps.
+        Show::Boss(_, piney_battle::boss::Out::KyviaParticles { which, at, held }) => {
+            use piney_battle::boss::kyvia::Gen;
+            if !matches!(which, Gen::Trail(_) | Gen::Burst(_)) {
+                fx.kyvia_particles(h, *which, *at, *held);
+            }
+        }
+        Show::Boss(_, piney_battle::boss::Out::KyviaGen { held, op }) => {
+            fx.kyvia_gen_op(h, *held, *op);
+        }
         // A boss's Affect on a spell's hit: effResistantShield(this, 1, -1).
         Show::Boss(me, piney_battle::boss::Out::Shield) => {
             fx.resistant_shield(h, cref(*me), 1, -1);
@@ -705,11 +760,10 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
 
 /// A `ccBossEff*Create` as the bosses call it (`docs/engine/boss.md`,
 /// "Effects"): the rules name the effect, where and which way, in their
-/// slot `id`. Kyvia's meteors and thunderbolts, Magus's needles and Gorre's
-/// flash have no picture yet (boss-kyvia.md, boss-magus.md,
-/// boss-gorre.md); Fidchell's meteors, thunders and rock towers and
-/// Innis's missiles are drawn from their rules' state ([`boss_spells`],
-/// [`innis_flights`]).
+/// slot `id`. Magus's needles and Gorre's flash have no picture yet
+/// (boss-magus.md, boss-gorre.md); Fidchell's meteors, thunders and rock
+/// towers, Innis's missiles and Kyvia's meteors and bolts are drawn from
+/// their rules' state ([`boss_spells`], [`innis_flights`], [`kyvia_shows`]).
 fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
     use piney_battle::boss::EffKind;
     use piney_effect::boss::Make;
@@ -729,12 +783,12 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
             Make::SamonRing { pos, rot: dirc, scale, model, spoint, tpoint }
         }
         EffKind::Missile { element, no, .. } => Make::Missile { rules_slot: id, element, no },
-        EffKind::Meteorite { .. }
-        | EffKind::Needle { .. }
+        EffKind::Meteorite { count } => Make::Meteorite { rules_slot: id, n: count },
+        EffKind::Thunderbolt { .. } => Make::Bolt { rules_slot: id },
+        EffKind::Needle { .. }
         | EffKind::MeteoSworm { .. }
         | EffKind::ThunderStorm { .. }
         | EffKind::RockTower { .. }
-        | EffKind::Thunderbolt { .. }
         // Gorre's finishing flash (boss-gorre.md): no picture yet.
         | EffKind::FinalPhotonFlash => {
             return None;

@@ -10,6 +10,7 @@ use super::{Kyvia, Tree, as_me, core_fade_check, core_state, core_state_is, dp, 
 use crate::boss::{Boss, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, M4, V4};
+use crate::rand::Rng;
 
 type F = u32;
 
@@ -128,7 +129,7 @@ pub struct Bolt {
 impl Bolt {
     /// The constructor (OUT gcmn 0x00477410) with `dat` (the
     /// constructor's defaults are for none, which Kyvia never passes).
-    pub fn new(cx: &mut Cx, vec: V4, time: i32, ran: i32, num: i16, dat: &BoltData) -> Bolt {
+    pub fn new(cc: &mut dyn Rng, vec: V4, time: i32, ran: i32, num: i16, dat: &BoltData) -> Bolt {
         let n = usize::try_from(num).unwrap_or(0);
         let mut b = Bolt {
             center: vec,
@@ -145,14 +146,14 @@ impl Bolt {
             ..Bolt::default()
         };
         // SetBreakPoint (0x00477820): 10 to 17 segments a stroke.
-        b.break_point = (0..n).map(|_| ((cx.cc.rand() % 8).abs() + 10) as i16).collect();
+        b.break_point = (0..n).map(|_| ((cc.rand() % 8).abs() + 10) as i16).collect();
         // UnitPoint (0x004776e0): each stroke's top within the range.
         let r = ee::from_int(ran / 10);
         b.spot = (0..n)
             .map(|_| {
-                let m = geom::rot_matrix_z(&geom::unit_matrix(), rand_f(cx.cc, PI));
+                let m = geom::rot_matrix_z(&geom::unit_matrix(), rand_f(cc, PI));
                 let mut s = VF0;
-                s[1] = ee::sub(ee::from_int(ran), rand_f(cx.cc, r));
+                s[1] = ee::sub(ee::from_int(ran), rand_f(cc, r));
                 geom::vadd(geom::apply_matrix(&m, s), vec)
             })
             .collect();
@@ -161,30 +162,44 @@ impl Bolt {
 
     /// A segment's turn: `ccRandF(pi)` about z, `DefaultAngle +
     /// |ccRandF(RandAngle)|` about x.
-    fn turn(&self, cx: &mut Cx) -> (F, F) {
-        let z = rand_f(cx.cc, PI);
-        let x = fp(dp(self.default_angle) + dp(fabs(rand_f(cx.cc, self.rand_angle))));
+    fn turn(&self, cc: &mut dyn Rng) -> (F, F) {
+        let z = rand_f(cc, PI);
+        let x = fp(dp(self.default_angle) + dp(fabs(rand_f(cc, self.rand_angle))));
         (z, x)
     }
 
-    /// One `Draw` (OUT gcmn 0x004778b0): false once `m_bEnabled` clears.
+    /// One `Draw` in the fight: its strokes, the smoke on its first and
+    /// the burst at its end (their pictures piney-effect's).
     pub fn draw(&mut self, cx: &mut Cx) -> bool {
+        let smoke = self.flg != 0;
+        let alive = self.stroke(cx.cc);
+        if smoke {
+            super::particles(cx, super::Gen::Trail(8), super::Place::At(self.center), None);
+        }
+        if !alive && self.flg2 != 0 {
+            super::particles(cx, super::Gen::Burst(10), super::Place::At(self.center), None);
+        }
+        alive
+    }
+
+    /// One `Draw`'s strokes (OUT gcmn 0x004778b0): on the first, the place
+    /// moved by the offset; false once `m_bEnabled` clears.
+    pub fn stroke(&mut self, cc: &mut dyn Rng) -> bool {
         if self.flg != 0 {
             // MissileSmokeGenerator row 8 at the bolt, moved by the offset.
             self.center = geom::vadd(self.center, self.off_set);
-            cx.out(Out::KyviaParticles { which: super::Gen::MissileSmoke(8), pos: self.center });
             self.flg = 0;
         }
         const LENGTH: F = 0x4348_0000;
         let thin = ee::mul(0x3a91_a2b4, LENGTH);
         self.segments.clear();
         for i in 0..self.spot.len() {
-            let r = cx.cc.rand();
+            let r = cc.rand();
             let w = self.default_scale + r.checked_rem(self.rand_scale).unwrap_or(0).abs();
             let w = ee::from_int(w);
             // Two draws the stroke never uses.
-            rand_f(cx.cc, PI);
-            rand_f(cx.cc, PI);
+            rand_f(cc, PI);
+            rand_f(cc, PI);
             let seg = |from: V4, (z, x): (F, F)| -> (M4, V4) {
                 let mut m = geom::unit_matrix();
                 m[0][0] = w;
@@ -195,15 +210,15 @@ impl Bolt {
                 let to = geom::vadd(geom::apply_matrix(&turn, [0, LENGTH, 0, ONE]), from);
                 (geom::trans_matrix(&m, from), to)
             };
-            let first = self.turn(cx);
+            let first = self.turn(cc);
             let mut at = self.spot[i];
             for (a, &r) in at.iter_mut().zip(&self.rnd_point).take(3) {
-                *a = ee::add(*a, rand_f(cx.cc, r));
+                *a = ee::add(*a, rand_f(cc, r));
             }
             let (m, mut to) = seg(at, first);
             self.segments.push(m);
             for _ in 0..self.break_point[i] {
-                let t = self.turn(cx);
+                let t = self.turn(cc);
                 let (m, next) = seg(to, t);
                 self.segments.push(m);
                 to = next;
@@ -213,9 +228,6 @@ impl Bolt {
         self.hoge += 1;
         if old == self.time {
             self.end_flg = 1;
-            if self.flg2 != 0 {
-                cx.out(Out::KyviaParticles { which: super::Gen::BurstSmoke(10), pos: self.center });
-            }
             return false;
         }
         true
@@ -226,7 +238,7 @@ impl Bolt {
 /// manager, then `ccGetBossEffAdrs(id)`'s offset set when given.
 fn bolt(b: &mut Boss, cx: &mut Cx, pos: V4, th: (i32, i32, i16), dat: &BoltData, off: Option<V4>) {
     let (time, range, num) = th;
-    let mut e = Bolt::new(cx, pos, time, range, num, dat);
+    let mut e = Bolt::new(cx.cc, pos, time, range, num, dat);
     if let Some(o) = off {
         e.off_set = o;
     }
@@ -383,7 +395,8 @@ pub(super) fn thunderbolt_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mu
                 bolt(b, cx, p, (th.time, 50, 3), &th.sdat, None);
                 if th.kind == Kind::Strike {
                     // MissileSmokeGenerator row 17, set to live ThunderTime.
-                    cx.out(Out::KyviaParticles { which: super::Gen::MissileSmoke(17), pos: p });
+                    let smoke = super::Gen::ThunderSmoke(th.time as i16);
+                    super::particles(cx, smoke, super::Place::At(p), None);
                 }
             }
             if th.kind == Kind::Wide {

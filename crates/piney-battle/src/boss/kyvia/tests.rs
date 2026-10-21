@@ -282,7 +282,7 @@ fn a_thunderbolt_lives_its_time_and_one_more_draw() {
     let Some(mut f) = bout(Volume::Out, Fight::Second) else { return };
     let dat = thunder::BoltData { rand_scale: 4, default_scale: 1, rand_angle: ONE, eff_sw: 1, ..Default::default() };
     let draws = f.with_cx(|cx| {
-        let mut bolt = thunder::Bolt::new(cx, VF0, 90, 100, 3, &dat);
+        let mut bolt = thunder::Bolt::new(cx.cc, VF0, 90, 100, 3, &dat);
         assert!(bolt.break_point.iter().all(|&n| (10..=17).contains(&n)), "{:?}", bolt.break_point);
         let mut n = 1;
         while bolt.draw(cx) {

@@ -60,6 +60,18 @@ pub mod va {
     pub const MISSILE_SMOKE_FF: u32 = 0x005e_f6f0;
     pub const BURST_SMOKE: u32 = 0x005e_f9f0;
     pub const BURST_SMOKE_FF: u32 = 0x005e_fd00;
+    /// Kyvia's: `KyviaGenerator`, `KyviaDmgGenerator`, `CoreGenerator`,
+    /// `GomoraGenerator`, `GomoraAuraGenerator` and their force fields.
+    pub const KYVIA: u32 = 0x005f_0db0;
+    pub const KYVIA_FF: u32 = 0x005f_14e0;
+    pub const KYVIA_DMG: u32 = 0x005f_13d0;
+    pub const KYVIA_DMG_FF: u32 = 0x005f_1440;
+    pub const CORE: u32 = 0x005f_0b30;
+    pub const CORE_FF: u32 = 0x005f_0d30;
+    pub const GOMORA: u32 = 0x005f_0620;
+    pub const GOMORA_FF: u32 = 0x005f_07b0;
+    pub const GOMORA_AURA: u32 = 0x005f_0910;
+    pub const GOMORA_AURA_FF: u32 = 0x005f_0ad0;
 }
 
 /// A generator row of one of [`va`]'s tables: its address.
@@ -102,6 +114,11 @@ impl Tables {
         gens(va::BURST, t.boss_burst(), t.boss_burst_va());
         gens(va::MISSILE_SMOKE, t.boss_missile_smoke(), t.boss_missile_smoke_va());
         gens(va::BURST_SMOKE, t.boss_burst_smoke(), t.boss_burst_smoke_va());
+        gens(va::KYVIA, t.boss_kyvia(), t.boss_kyvia_va());
+        gens(va::KYVIA_DMG, t.boss_kyvia_dmg(), t.boss_kyvia_dmg_va());
+        gens(va::CORE, t.boss_core(), t.boss_core_va());
+        gens(va::GOMORA, t.boss_gomora(), t.boss_gomora_va());
+        gens(va::GOMORA_AURA, t.boss_gomora_aura(), t.boss_gomora_aura_va());
         let mut ffs = |key: u32, rows: &[piney_data::tables::types::ParticleForceFieldParam], at: u32| {
             for k in 0..rows.len() {
                 out.ffs.insert(key + 0x20 * k as u32, FfParam::row(rows, at, k));
@@ -117,13 +134,31 @@ impl Tables {
         ffs(va::BURST_FF, t.boss_burst_ff(), t.boss_burst_ff_va());
         ffs(va::MISSILE_SMOKE_FF, t.boss_missile_smoke_ff(), t.boss_missile_smoke_ff_va());
         ffs(va::BURST_SMOKE_FF, t.boss_burst_smoke_ff(), t.boss_burst_smoke_ff_va());
+        ffs(va::KYVIA_FF, t.boss_kyvia_ff(), t.boss_kyvia_ff_va());
+        ffs(va::KYVIA_DMG_FF, t.boss_kyvia_dmg_ff(), t.boss_kyvia_dmg_ff_va());
+        ffs(va::CORE_FF, t.boss_core_ff(), t.boss_core_ff_va());
+        ffs(va::GOMORA_FF, t.boss_gomora_ff(), t.boss_gomora_ff_va());
+        ffs(va::GOMORA_AURA_FF, t.boss_gomora_aura_ff(), t.boss_gomora_aura_ff_va());
         out
     }
 
     /// `new ccParticleGenerator(param, f1, f2, f3, f4)` of the rows at
     /// these addresses (0: none).
     pub(crate) fn generator(&self, cx: &mut Cx, param: u32, ff: [u32; 4]) -> Option<Generator> {
-        let p = *self.gens.get(&param)?;
+        self.generator_edited(cx, param, ff, |_| {})
+    }
+
+    /// [`Tables::generator`] of the row as `edit` leaves it: the game
+    /// writes a few rows just before it makes them (Kyvia's thunder).
+    pub(crate) fn generator_edited(
+        &self,
+        cx: &mut Cx,
+        param: u32,
+        ff: [u32; 4],
+        edit: impl FnOnce(&mut GenParam),
+    ) -> Option<Generator> {
+        let mut p = *self.gens.get(&param)?;
+        edit(&mut p);
         let ff = ff.map(|a| self.ffs.get(&a).copied());
         Some(Generator::new(Some(p), ff, &cx.assets.particle.force_fields, &mut cx.particles.generator_serial))
     }
@@ -133,6 +168,8 @@ impl Tables {
 #[derive(Clone, Debug, Default)]
 pub struct BossEffects {
     pub slots: Vec<Option<Slot>>,
+    /// The generators Kyvia's fight keeps, by the member that holds each.
+    pub kyvia_kept: crate::kyvia::Kept,
 }
 
 /// One slot: `m_bEnabled` and the effect.
@@ -157,6 +194,9 @@ pub enum BossEff {
     Spell(Box<crate::fidchell::Spell>),
     /// One of Innis's missiles ([`crate::innis`]).
     Missile(Box<crate::innis::Missile>),
+    /// Kyvia's meteors and thunderbolts ([`crate::kyvia`]).
+    Meteorite(Box<crate::kyvia::Meteorite>),
+    Bolt(Box<crate::kyvia::Bolt>),
 }
 
 /// `ccBossEffWaveShock` (0x40 bytes).
@@ -407,6 +447,33 @@ pub enum Make {
         no: i32,
         ctrl: [V4; 4],
     },
+    /// `ccBossEffMeteoriteMissileCreate(pos, range, n, 0, cb, cam)` (MUT
+    /// gcmn 0x0048d9f0): Kyvia's `n` meteors, drawn for the rules' slot
+    /// ([`crate::kyvia`]); with no callback and no camera, run by this
+    /// manager (the probe's).
+    Meteorite {
+        rules_slot: i32,
+        n: i32,
+    },
+    MeteoriteAlone {
+        pos: V4,
+        range: F,
+        n: i32,
+    },
+    /// `ccBossEffThunderboltCreate(pos, time, range, num, dat)` (OUT gcmn
+    /// 0x00489540): one of Kyvia's bolts, drawn for the rules' slot; or run
+    /// here with the caller's offset (the probe's).
+    Bolt {
+        rules_slot: i32,
+    },
+    BoltAlone {
+        pos: V4,
+        time: i32,
+        range: i32,
+        num: i16,
+        dat: piney_battle::boss::kyvia::thunder::BoltData,
+        offset: V4,
+    },
 }
 
 impl BossEffects {
@@ -452,10 +519,44 @@ impl BossEffects {
                 let m = crate::innis::Missile::alone(cx, t, k, element, no, ctrl);
                 self.put(true, BossEff::Missile(Box::new(m)))
             }
+            Make::Meteorite { rules_slot, n } => {
+                self.drop_rules_slot(rules_slot);
+                let Some(k) = self.free() else { return -1 };
+                let m = crate::kyvia::Meteorite::new(cx, t, k, rules_slot, n.max(0) as usize);
+                self.put(true, BossEff::Meteorite(Box::new(m)))
+            }
+            Make::MeteoriteAlone { pos, range, n } => {
+                let Some(k) = self.free() else { return -1 };
+                let m = crate::kyvia::Meteorite::alone(cx, t, k, pos, range, n.max(0) as usize);
+                self.put(true, BossEff::Meteorite(Box::new(m)))
+            }
+            Make::Bolt { rules_slot } => {
+                self.drop_rules_slot(rules_slot);
+                let b = crate::kyvia::Bolt::new(cx, rules_slot);
+                self.put(true, BossEff::Bolt(Box::new(b)))
+            }
+            Make::BoltAlone { pos, time, range, num, dat, offset } => {
+                let b = crate::kyvia::Bolt::alone(cx, pos, (time, range, num), &dat, offset);
+                self.put(true, BossEff::Bolt(Box::new(b)))
+            }
             Make::Dead { pos } => self.dead(pos),
             Make::MeteoSworm { .. } | Make::ThunderStorm { .. } | Make::RockTower { .. } => {
                 let s = crate::fidchell::Spell::create(cx, t, make);
                 s.map_or(-1, |s| self.put(true, BossEff::Spell(Box::new(s))))
+            }
+        }
+    }
+
+    /// A slot of the rules' freed and made again: the old picture goes.
+    fn drop_rules_slot(&mut self, rules_slot: i32) {
+        for s in self.slots.iter_mut() {
+            let held = match s {
+                Some(Slot { eff: BossEff::Meteorite(m), .. }) => m.rules_slot,
+                Some(Slot { eff: BossEff::Bolt(b), .. }) => b.rules_slot,
+                _ => continue,
+            };
+            if held == rules_slot {
+                *s = None;
             }
         }
     }
@@ -578,6 +679,52 @@ impl BossEffects {
             });
             if let Some(m) = at {
                 m.draw(ctrl, cx, t, f);
+            }
+        }
+    }
+
+    /// Kyvia's meteors and bolts as the fight's rules left them (their
+    /// slot there and state): each one's picture of its last `Draw`
+    /// ([`crate::kyvia`]); those the rules let go, gone.
+    pub fn sync_kyvia(
+        &mut self,
+        ctrl: &mut EffectCtrl,
+        cx: &mut Cx,
+        t: &Tables,
+        meteors: &[(i32, &piney_battle::boss::kyvia::Meteorite)],
+        bolts: &[(i32, &piney_battle::boss::kyvia::thunder::Bolt)],
+    ) {
+        for s in self.slots.iter_mut() {
+            match s {
+                Some(Slot { eff: BossEff::Meteorite(m), .. })
+                    if !m.runs_alone() && !meteors.iter().any(|f| f.0 == m.rules_slot) =>
+                {
+                    for a in m.anchors() {
+                        ctrl.anchors.remove(&a);
+                    }
+                    *s = None;
+                }
+                Some(Slot { eff: BossEff::Bolt(b), .. })
+                    if !b.runs_alone() && !bolts.iter().any(|f| f.0 == b.rules_slot) =>
+                {
+                    *s = None;
+                }
+                _ => {}
+            }
+        }
+        for s in self.slots.iter_mut().flatten() {
+            match &mut s.eff {
+                BossEff::Meteorite(m) => {
+                    if let Some(&(_, f)) = meteors.iter().find(|f| f.0 == m.rules_slot) {
+                        m.draw(ctrl, cx, t, f, false);
+                    }
+                }
+                BossEff::Bolt(b) => {
+                    if let Some(&(_, f)) = bolts.iter().find(|f| f.0 == b.rules_slot) {
+                        b.draw(cx, t, f);
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -815,6 +962,11 @@ impl BossEffects {
                     on
                 }
                 BossEff::Missile(_) => continue,
+                // Kyvia's meteors and bolts likewise
+                // ([`BossEffects::sync_kyvia`]).
+                BossEff::Meteorite(m) if m.runs_alone() => m.run(ctrl, cx, t),
+                BossEff::Bolt(b) if b.runs_alone() => b.run(cx, t),
+                BossEff::Meteorite(_) | BossEff::Bolt(_) => continue,
                 BossEff::Spell(x) => {
                     let (on, sq) = x.run(ctrl, cx, t);
                     square = sq;

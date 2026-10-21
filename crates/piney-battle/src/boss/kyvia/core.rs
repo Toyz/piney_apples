@@ -8,7 +8,9 @@
 use piney_data::field::ee;
 
 use super::gomora::{self, Gomora};
-use super::{Gen, Part, as_me, dp, fabs, fp, new_char, plain_boss, rand_abs, set_base_param, wrap};
+use super::{
+    Follow, Gen, GenOp, Held, Part, Place, as_me, dp, fabs, fp, new_char, plain_boss, rand_abs, set_base_param, wrap,
+};
 use crate::boss::{Anm, Boss, Class, Cx, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
@@ -355,11 +357,19 @@ fn start_init(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
     let pos = geom::vadd(v, c.x.disc_pos);
     cx.scene.chars[c.me].pos = pos;
     c.b.draw_sw = 1;
-    cx.out(Out::KyviaParticles { which: Gen::Core(0), pos });
+    super::particles(cx, Gen::CoreRise, Place::Follows(Follow::Char(c.me), VF0), None);
     c.x.dead_flg = 0;
     c.x.time_mode = 1;
     set_sp_point(c, cx);
     c.x.cone_voice_cou = 0;
+}
+
+/// An aura's `pauseFlag` (its generator's +5 bit 0) set or cleared, when
+/// the core holds it.
+fn aura_stop(c: &Part<Core>, cx: &mut Cx, k: u8, on: bool) {
+    if [c.x.aura, c.x.aura2][usize::from(k)] {
+        super::gen_op(cx, Held::CoreAura(c.me, k), GenOp::Pause(on));
+    }
 }
 
 /// `ActionStart` (MUT gcmn 0x004f9f40): on the command lists, its two auras
@@ -368,17 +378,19 @@ fn action_start(c: &mut Part<Core>, cx: &mut Cx) {
     let me = c.me;
     crate::fellow::entry_cmnd(cx.scene, me);
     if !c.x.aura {
-        let mut pos = cx.scene.chars[me].pos;
-        pos[2] = ee::add(pos[2], 0x437a_0000);
+        let up = Place::Follows(Follow::Char(me), [0, 0, 0x437a_0000, ONE]);
         c.x.aura = true;
-        cx.out(Out::KyviaParticles { which: Gen::Core(7), pos });
+        super::particles(cx, Gen::CoreAura(0), up, Some(Held::CoreAura(me, 0)));
         c.x.aura2 = true;
-        cx.out(Out::KyviaParticles { which: Gen::Core(8), pos });
+        super::particles(cx, Gen::CoreAura(1), up, Some(Held::CoreAura(me, 1)));
     }
+    // The other attribute's aura paused.
     if c.x.attr == 0 {
         c.x.aura2_stop = c.x.aura2 || c.x.aura2_stop;
+        aura_stop(c, cx, 1, true);
     } else {
         c.x.aura_stop = c.x.aura || c.x.aura_stop;
+        aura_stop(c, cx, 0, true);
     }
     let max = ee::from_int(i32::from(cx.scene.chars[me].max_hp));
     let part = |k: F| ee::to_int(ee::mul(k, max));
@@ -528,8 +540,10 @@ fn think_escape(c: &mut Part<Core>, cx: &mut Cx) {
             c.x.escape_cou = 0;
             if c.x.attr == 0 {
                 c.x.aura_stop = c.x.aura || c.x.aura_stop;
+                aura_stop(c, cx, 0, true);
             } else {
                 c.x.aura2_stop = c.x.aura2 || c.x.aura2_stop;
+                aura_stop(c, cx, 1, true);
             }
         }
         1 => {
@@ -725,6 +739,13 @@ fn dead(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
     match c.b.act_proccess {
         0 => {
             crate::fellow::delete_cmnd(cx.scene, me);
+            // Both auras killed and let go.
+            for (k, on) in [(0, c.x.aura), (1, c.x.aura2)] {
+                if on {
+                    super::gen_op(cx, Held::CoreAura(me, k), GenOp::Kill);
+                    super::gen_op(cx, Held::CoreAura(me, k), GenOp::Forget);
+                }
+            }
             c.x.aura = false;
             c.x.aura2 = false;
             c.x.aura_stop = false;
@@ -743,7 +764,7 @@ fn dead(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
         2 => {
             c.x.off_set = [0, 0, 0x4348_0000, ONE];
             c.x.dead_pos = geom::vadd(c.x.dead_pos, c.x.off_set);
-            cx.out(Out::KyviaParticles { which: Gen::Core(1), pos: c.x.dead_pos });
+            super::particles(cx, Gen::CoreDeath(0), Place::At(c.x.dead_pos), None);
             c.b.act_proccess += 1;
             c.x.off_set[2] = 0;
             dead_fade(c, gs, cx);
@@ -773,7 +794,7 @@ fn dead_fade(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
     let n = c.b.act_count;
     c.b.act_count += 1;
     if n == 30 {
-        cx.out(Out::KyviaParticles { which: Gen::Core(2), pos: c.x.dead_pos });
+        super::particles(cx, Gen::CoreDeath(1), Place::At(c.x.dead_pos), None);
     }
     if ee::le(c.x.alpha, 0) {
         c.x.alpha = 0;
@@ -843,8 +864,10 @@ pub(crate) fn set_core_state(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &m
                 c.x.core_state = 7;
                 if c.x.attr == 0 {
                     c.x.aura_stop = false;
+                    aura_stop(c, cx, 0, false);
                 } else {
                     c.x.aura2_stop = false;
+                    aura_stop(c, cx, 1, false);
                 }
             }
             c.x.fade_flg = 0;

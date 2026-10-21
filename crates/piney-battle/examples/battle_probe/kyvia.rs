@@ -10,7 +10,7 @@
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::kyvia::core::Core;
 use piney_battle::boss::kyvia::gomora::Gomora;
-use piney_battle::boss::kyvia::{Fight, Gen, Kyvia};
+use piney_battle::boss::kyvia::{Fight, Follow, Gen, GenOp, Held, Kyvia, Place};
 use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, DiscView, EffKind, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
@@ -243,6 +243,8 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
     let mut boss = piney_battle::boss::kyvia::new(&mut cx, fight);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
+    HELD.with(|s| s.borrow_mut().clear());
+    ROLES.with(|r| *r.borrow_mut() = roles(&boss, &scene));
     for o in &out {
         cam.take(o);
     }
@@ -351,6 +353,16 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
     format!("[{}]", lines.join(","))
 }
 
+/// The core's and the gomoras' characters, from the body.
+fn roles(b: &Boss, scene: &Scene) -> (Option<usize>, Vec<usize>) {
+    let Class::Kyvia(x) = &b.class else { return (None, Vec::new()) };
+    let gs = match scene.chars[x.core].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class) {
+        Some(Class::KyviaCore(c)) => c.gomoras.clone(),
+        _ => Vec::new(),
+    };
+    (Some(x.core), gs)
+}
+
 /// The core's and the gomoras' characters.
 fn parts(scene: &Scene, me: usize) -> (Option<usize>, Vec<usize>) {
     let Some(b) = scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()) else { return (None, Vec::new()) };
@@ -374,22 +386,88 @@ fn v3(v: &V4) -> String {
     format!("{},{},{}", v[0], v[1], v[2])
 }
 
-fn gen_json(g: Gen) -> String {
-    let (name, row) = match g {
-        Gen::Kyvia(r) => ("Kyvia", r),
-        Gen::KyviaDmg(r) => ("KyviaDmg", r),
-        Gen::Core(r) => ("Core", r),
-        Gen::Gomora(r) => ("Gomora", r),
-        Gen::GomoraAura(r, l) => return format!("[\"particles\",\"GomoraAura\",{r},{l}]"),
-        Gen::MissileSmoke(r) => ("MissileSmoke", r),
-        Gen::BurstSmoke(r) => ("BurstSmoke", r),
+thread_local! {
+    /// The core's and the gomoras' characters, and the generators the
+    /// fight holds (as the game's pointers: kills print only for these).
+    static ROLES: std::cell::RefCell<(Option<usize>, Vec<usize>)> = const { std::cell::RefCell::new((None, Vec::new())) };
+    static HELD: std::cell::RefCell<std::collections::HashSet<Held>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
+/// Who a character is in the fight: the core or gomora `k`.
+fn role(c: usize) -> String {
+    ROLES.with(|r| {
+        let r = r.borrow();
+        match r.1.iter().position(|&g| g == c) {
+            Some(k) => format!("[\"gomora\",{k}]"),
+            None if r.0 == Some(c) => "\"core\"".into(),
+            None => "\"body\"".into(),
+        }
+    })
+}
+
+fn held_json(h: Held) -> String {
+    match h {
+        Held::Light => "\"light\"".into(),
+        Held::BeamHead(k) => format!("[\"head\",{k}]"),
+        Held::BeamTail(k) => format!("[\"tail\",{k}]"),
+        Held::Smoke(k) => format!("[\"smoke\",{k}]"),
+        Held::CoreAura(c, k) => format!("[{},\"aura\",{k}]", role(c)),
+        Held::GomoraAura(c) => format!("[{},\"aura\"]", role(c)),
+    }
+}
+
+/// A start as the harness reads it: the table and row (a gomora aura's
+/// level), then, but for the missiles' own, the force fields' rows,
+/// `distSW`, where it stands and who holds it.
+fn gen_json(which: Gen, at: &Place, held: Option<Held>) -> String {
+    let r = which.rows();
+    let head = match which {
+        Gen::GomoraAura(attr, lv) => format!("\"particles\",\"GomoraAura\",{attr},{lv}"),
+        Gen::GomoraAttack(attr) => format!("\"particles\",\"GomoraAura\",{},0", 4 + attr),
+        _ => format!("\"particles\",\"{}\",{}", r.table.name(), r.row),
     };
-    format!("[\"particles\",\"{name}\",{row}]")
+    if matches!(which, Gen::Trail(_) | Gen::Burst(_)) {
+        return format!("[{head}]");
+    }
+    let ff: Vec<String> = r.ff.iter().map(|f| f.to_string()).collect();
+    let place = match *at {
+        Place::At(p) => format!("[\"at\",{}]", v3(&p)),
+        Place::Follows(f, off) => {
+            let f = match f {
+                Follow::Char(c) => format!("[{},\"pos\"]", role(c)),
+                Follow::DeadSmoke => "\"dead\"".into(),
+                Follow::BeamHead(k) => format!("[\"head\",{k}]"),
+                Follow::BeamTail(k) => format!("[\"tail\",{k}]"),
+                Follow::Aura(c) => format!("[{},\"aura\"]", role(c)),
+            };
+            format!("[\"follow\",{f},{}]", v3(&off))
+        }
+    };
+    let held = held.map_or("null".into(), |h| {
+        HELD.with(|s| s.borrow_mut().insert(h));
+        held_json(h)
+    });
+    format!("[{head},[{}],{},{place},{held}]", ff.join(","), u8::from(r.dist_sw))
+}
+
+/// A kept generator killed (printed when the fight holds one there), or
+/// let go.
+fn gen_op_json(held: Held, op: GenOp) -> Option<String> {
+    match op {
+        GenOp::Kill => HELD.with(|s| s.borrow().contains(&held)).then(|| format!("[\"kill\",{}]", held_json(held))),
+        GenOp::Forget => {
+            HELD.with(|s| s.borrow_mut().remove(&held));
+            None
+        }
+        GenOp::Pause(_) => None,
+    }
 }
 
 fn kout(o: &Out) -> Option<String> {
     Some(match o {
-        Out::KyviaParticles { which, .. } => gen_json(*which),
+        Out::KyviaParticles { which, at, held } => gen_json(*which, at, *held),
+        Out::KyviaGen { held, op } => return gen_op_json(*held, *op),
         Out::SkillFrom { skill, .. } => format!("[\"skill\",{}]", skill.sid),
         Out::SkillStart { sid, .. } => format!("[\"skill_start\",{sid}]"),
         Out::DiscNextStage => "[\"disc_next\"]".into(),
@@ -473,11 +551,19 @@ fn core_json(c: &Core) -> String {
         c.fade_flg.to_string(),
         u8::from(c.aura).to_string(),
         u8::from(c.aura2).to_string(),
+        // The auras' pauseFlag, as the game's generators carry it.
+        u8::from(c.aura && c.aura_stop).to_string(),
+        u8::from(c.aura2 && c.aura2_stop).to_string(),
     ];
     v.join(",")
 }
 
-fn gomora_json(g: &Gomora) -> String {
+/// Whether the fight holds a generator there (the game's pointer set).
+fn holds(h: Held) -> String {
+    u8::from(HELD.with(|s| s.borrow().contains(&h))).to_string()
+}
+
+fn gomora_json(g: &Gomora, me: usize) -> String {
     let mut v: Vec<String> = vec![
         g.life_flg.to_string(),
         g.eny_int.to_string(),
@@ -515,6 +601,7 @@ fn gomora_json(g: &Gomora) -> String {
         g.state.to_string(),
         g.tmp_state.to_string(),
     ]);
+    v.push(holds(Held::GomoraAura(me)));
     v.join(",")
 }
 
@@ -556,6 +643,9 @@ fn kyvia_json(x: &Kyvia) -> String {
     ]);
     v.extend(x.dmg_gp.iter().map(|&g| u8::from(g).to_string()));
     v.push(u8::from(x.dead_gp).to_string());
+    v.push(holds(Held::Light));
+    v.extend((0..3).map(|k| holds(Held::BeamHead(k))));
+    v.extend((0..3).map(|k| holds(Held::BeamTail(k))));
     if let Some(t) = &x.thunder {
         v.extend([t.kind as i32, t.time, i32::from(t.num), t.range, t.stage_id].map(|n| n.to_string()));
     }
@@ -599,7 +689,7 @@ fn frame_json(
                 .map(|&g| {
                     let gb = scene.chars[g].foe_state().and_then(|f| f.boss.as_ref()).unwrap();
                     let Class::Gomora(gx) = &gb.class else { return "[]".into() };
-                    format!("[{},{}]", boss_json(gb, scene, g), gomora_json(gx))
+                    format!("[{},{}]", boss_json(gb, scene, g), gomora_json(gx, g))
                 })
                 .collect();
             (format!("[{},{}]", boss_json(cb, scene, core), core_json(c)), gs)

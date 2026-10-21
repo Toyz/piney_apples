@@ -61,13 +61,10 @@ const PASS_FRAMES: u32 = 10_000;
 
 /// A player's New Game as the boot and the title make it: `ccSaveData::Init`,
 /// `ccThMother`'s `ccStartEvent(volumeNum, 0)` ([`crate::desktop::boot`]:
-/// on a later volume the earlier volumes' events brought forward, event
-/// 11's bracelet among them), then the title's `NewGame(1)` and
-/// `NewGame(0)` ([`new_game_on`]) and the port's Helba mail. The save and
-/// the boot's event task; Log in adds `ccSetupNewGame`'s part
-/// ([`crate::session::Session::in_world`]).
-///
-/// [`new_game_on`]: piney_fieldui::newgame::new_game_on
+/// a later volume's earlier events brought forward, event 11's bracelet
+/// among them), the title's `NewGame(1)` and `NewGame(0)`
+/// (`piney_fieldui::newgame::new_game_on`) and the port's Helba mail. The
+/// save and the boot's event task; Log in adds `ccSetupNewGame`'s part.
 pub fn new_game(disc: &mut Iso) -> Result<(SaveState, Vm), String> {
     let text = piney_desktop::InitText::from_disc(disc).map_err(|e| format!("ccSaveData::Init: {e}"))?;
     let mut state = SaveState::fresh_with(&text);

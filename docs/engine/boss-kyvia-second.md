@@ -3,7 +3,7 @@ title: Bosses - Kyvia's second fight
 status: partial
 volumes: OUT
 covers: OUT gcmn.prg:0x00616d60 bossFunc (code 13), 0x004d5870 ccThKyvia02, 0x004d5940 ccBossKyvia02::ccBossKyvia02, 0x004d60f0 Action, 0x004d6b90 DeadKyviaVoice, 0x004d6eb0 DeadKyviaCam, 0x004d7300 Main, 0x004d76a0 Think, 0x004d7790 SwitchActionPattern, 0x004d7b00 SwitchDeadCheck, 0x004d7ca0 CheckDiscMove, 0x004d8410 CheckDmgSmokeEff, 0x004d86e0 KyviaMagicDamage, 0x004d8780 SetBPos, 0x004d8c70 HandAtk, 0x004d94a0 LightAtk, 0x004dc000 MegidFlame, 0x004dc6b0 ThunderboltAtk, 0x004dd3f0 ThunderDmg, 0x004ddd40 ThunderSound, 0x004ddf00 Slave, 0x004ddfd0 EntrySlave, 0x004d0780 ccBossKyvia01::Main, 0x00419c80 EVENTAREAB8::Move, 0x00419d10 EVENTAREAB8::IsMove, 0x00477410 ccBossEffThunderbolt::ccBossEffThunderbolt, 0x004776e0 UnitPoint, 0x00477820 SetBreakPoint, 0x004778b0 Draw, 0x00489540 ccBossEffThunderboltCreate, 0x004f5150 kyviaCore::SetCoreBaseParam, 0x004fa3e0 StepAllGomoraList, 0x004fafa0 kyviaGomora::GomoraInit, 0x004fd810 ListStepUp, 0x00619050 AllGomoraList_2, 0x00618c70 Kyvia02AnmTbl, 0x0061d0d0 KyviaGenerator
-worklog: 304
+worklog: 304, 420
 ---
 
 # Bosses - Kyvia's second fight
@@ -102,6 +102,22 @@ the turn and three `ccRandF(RndPoint)` for its start. The disc's bolts
 are raised 500 (the offset the caller writes after `Create`) with a smoke
 on their first draw; the effect ends after `Time + 1` draws.
 
+Its picture (`Draw` 0x004778b0):
+
+- The constructor makes particle's `CMP_x012`, duplicated. A bolt of mode
+  1 (all of Kyvia's) turns it to `CLT_x012c1`; any other mode keeps its
+  own palette.
+- Each segment draws the clump with its matrix: the stroke's width and
+  turn and 200 long, its place the last segment's end.
+- A bolt with its effect switch smokes on its first `Draw`: it writes
+  `MissileSmokeGenerator` row 8 first, `gLife` its `Time` and `gRadius`
+  its range plus 100 (at least 350). It then starts the row (ff 9) at its
+  place, distSW off.
+- At its end such a bolt starts `BurstSmokeGenerator` row 10 (ff 15) there.
+- `ThunderboltAtk` writes row 17 (`gLife` the thunder's time, `gRadius`
+  50, `pGenRate` 20) before each member's smoke (ff 9, distSW off, kind 0
+  only).
+
 ## The core at level 2
 
 `SetCoreBaseParam(2, attr)` takes rows 34 and 35; each call while the
@@ -119,8 +135,12 @@ fight)`), `kyvia::thunder` (the attack and `Bolt`, whose `Draw` the
 manager's pass runs for its `ccRand` draws), `KyviaData::gomora_lists_of`
 (`kyvia_gomora_lists_2`, `kyvia02_anims` in the combat group) and
 `Core::row_hp`. `piney_world::combat::boss` starts code 13 with `x02`'s
-`CMP_trallex02`, `CMP_trall2` and `CMP_ex01gom2`. The bolts have no
-picture yet (`Bolt::segments` holds each frame's).
+`CMP_trallex02`, `CMP_trall2` and `CMP_ex01gom2`. A bolt's strokes are
+`Bolt::stroke`, a step that only draws `ccRand`, and `Bolt::segments`
+holds each frame's. piney-effect's `kyvia::Bolt` draws them after the
+boss's task with the smoke and the burst (worklog 420). The rows the game
+writes are written on the copy the generator is made from: rows 8 and 17
+serve nothing else.
 
 ## Checks
 
@@ -136,7 +156,13 @@ second fight's members and thunder compared each frame. 130 cases
 thunders, the core's two deaths. `PINEY_KYVIA_FIGHT=1` runs Outbreak's
 copy of the first fight: it agrees with the port as Mutation's does.
 `piney-battle`'s `boss::kyvia::tests` hold the second fight's make-up, its
-first stage's thunder and a bolt's life. `outbreak_story_survey` plays
+first stage's thunder and a bolt's life. `test_kyvia_effects` in tools/test_boss_effect_rs.py
+runs each kind's disc bolt and a member's against boss_probe's `bolt`
+frame by frame. The draws are compared (matrix, palette), with the smoke
+and its row, the burst, the `ccRand` draws and the lives.
+`session::tests::kyvia_fx::kyvia_s_second_fight_shows_its_thunderbolts`
+plays the fight on field 10's disc and finds `CMP_x012` drawn.
+`outbreak_story_survey` plays
 event 211 through (`PINEY_SURVEY_GOD`): the first stage's core down near
 frame 16,500, the second's near 22,000, the event done.
 
@@ -145,7 +171,6 @@ frame 16,500, the second's near 22,000, the event done.
 - Kind 2's camera: `cameraGetPos`, `cameraGetRot` and `cameraGetView` of
   `camID` are taken as the boss camera's; the harness answers all three
   from the case.
-- The bolts' picture and the particles are named, not drawn.
 - Whether a retried fight meets the rows as the disc has them: the game
   keeps the core's added `maxHP` in `bossTbl`, the port only for the
   fight (`Core::row_hp`).

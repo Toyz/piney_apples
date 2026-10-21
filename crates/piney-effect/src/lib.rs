@@ -30,6 +30,7 @@ pub mod heal;
 pub mod hit;
 pub mod host;
 pub mod innis;
+pub mod kyvia;
 pub mod levelup;
 pub mod nodes;
 pub mod particle;
@@ -560,6 +561,72 @@ impl Effects {
         let (_, mut cx) = self.split(host);
         let assets = cx.assets;
         innis::start(&mut cx, &assets.boss, which, pos);
+    }
+
+    /// Kyvia's meteors and bolts as the fight's rules left them, drawn
+    /// after the boss's task ([`boss::BossEffects::sync_kyvia`]), and the
+    /// places the fight's generators follow, published.
+    pub fn kyvia_sync(
+        &mut self,
+        host: &mut dyn Host,
+        meteors: &[(i32, &piney_battle::boss::kyvia::Meteorite)],
+        bolts: &[(i32, &piney_battle::boss::kyvia::thunder::Bolt)],
+        members: &[(piney_battle::boss::kyvia::Follow, V4)],
+    ) {
+        for &(f, p) in members {
+            if let Some(a) = kyvia::anchor(f) {
+                self.ctrl.anchors.insert(a, p);
+            }
+        }
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.boss_draws,
+        };
+        self.boss.sync_kyvia(&mut self.ctrl, &mut cx, &self.assets.boss, meteors, bolts);
+    }
+
+    /// A particle generator of Kyvia's fight started ([`kyvia::start`]).
+    pub fn kyvia_particles(
+        &mut self,
+        host: &mut dyn Host,
+        which: piney_battle::boss::kyvia::Gen,
+        at: piney_battle::boss::kyvia::Place,
+        held: Option<piney_battle::boss::kyvia::Held>,
+    ) {
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.draws,
+        };
+        kyvia::start(&mut cx, &self.assets.boss, &mut self.boss.kyvia_kept, which, at, held);
+    }
+
+    /// What Kyvia's fight does to a generator it keeps ([`kyvia::gen_op`]).
+    pub fn kyvia_gen_op(
+        &mut self,
+        host: &mut dyn Host,
+        held: piney_battle::boss::kyvia::Held,
+        op: piney_battle::boss::kyvia::GenOp,
+    ) {
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.draws,
+        };
+        kyvia::gen_op(&mut cx, &mut self.boss.kyvia_kept, held, op);
     }
 
     /// What one of Fidchell's rules asks beside its spells' pictures

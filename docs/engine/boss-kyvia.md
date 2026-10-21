@@ -3,7 +3,7 @@ title: Bosses - Kyvia's first fight
 status: partial
 volumes: MUT
 covers: MUT gcmn.prg:0x006192c0 bossFunc (code 12), 0x004d29a0 ccThKyvia01, 0x004d2a80 ccBossKyvia01::ccBossKyvia01, 0x004d4410 ccBossKyvia01::Main, 0x004d47c0 Think, 0x004d48a0 SwitchActionPattern, 0x004d4a80 SwitchDeadCheck, 0x004d4c10 CheckDiscMove, 0x004d5140 CheckDmgSmokeEff, 0x004d3330 Action, 0x004d3cf0 DeadKyviaVoice, 0x004d3fc0 DeadKyviaCam, 0x004d53b0 KyviaMagicDamage, 0x004d5450 SetBPos, 0x004d5930 HandAtk, 0x004d60a0 LightAtk, 0x004d8bb0 MegidFlame, 0x004d91e0 Slave, 0x004d92b0 EntrySlave, 0x004f7e80 kyviaCore::InitData, 0x004f80f0 ResetData, 0x004f82c0 CoreInit, 0x004f8770 SetCoreBaseParam, 0x004f8a30 kyviaCore::kyviaCore, 0x004f8cd0 Action, 0x004f9630 Main, 0x004f99c0 Affect, 0x004f9dc0 StartInit, 0x004f9f40 ActionStart, 0x004fa960 CoreVoice, 0x004faac0 Think, 0x004fae40 ThinkESCAPE, 0x004fb110 ChangeAttribute, 0x004fb1f0 CharHoldON, 0x004fb360 FadeCore, 0x004fb550 FadeCheck, 0x004fb5e0 GetGomoraState, 0x004fb860 JudgmentDmgAnm, 0x004fb8e0 CheckCountAtkTime, 0x004fbba0 CheckCountGomora, 0x004fc300 SetCoreState, 0x004fc4c0 GetActNum, 0x004fc5e0 SwitchActionPattern, 0x004fc8b0 MoveSpline, 0x004fca70 SetSpPoint, 0x004fd630 Slave, 0x004fd700 EntrySlave, 0x004fd980 KillGomora, 0x004fdc90 EntryGomora, 0x004fdda0 StartGomora, 0x004fde50 CheckGomoraSkillAct, 0x004fdf10 kyviaGomora::InitData, 0x004fe260 ResetData, 0x004fe460 GomoraInit, 0x004fe6c0 GetAttribute, 0x004fe740 StartInit, 0x004ff3d0 SetGomoraState, 0x004ff480 Affect, 0x004ff800 Action, 0x005004d0 Main, 0x00500850 Move, 0x005009a0 DepartureMove, 0x00500be0 NextGList, 0x00500c50 ListStepUp, 0x00500d50 Think, 0x00501370 TimeAuraCount, 0x005017c0 CheckCountAtkTime, 0x00501de0 RndTarget, 0x00501f20 GetRndSkill, 0x00501fe0 MoveGomora, 0x00502220 FadeGomora, 0x00502530 MoveSpline, 0x00502670 SetSpPoint, 0x00503640 SetAtkPoint, 0x0047aa90 ccBossEffMeteoriteMissile::ccBossEffMeteoriteMissile, 0x0047b330 Draw, 0x0047b910 Spline, 0x0048d9f0 ccBossEffMeteoriteMissileCreate, 0x00475ae0 ccBossCam::SetMode, 0x00475a40 SetRotXLimit, 0x00476380 SetTransfer, 0x0061b190 Kyvia01AnmTbl, 0x0061b360 kyviaCoreAnmTbl, 0x0061b620 kyviaGomoraAnmTbl, 0x0061b510 AllGomoraList_1[0], 0x0061f650 KyviaGenerator, 0x0061fce0 KyviaDmgGenerator, 0x0061f3d0 CoreGenerator, 0x0061eec0 GomoraGenerator, 0x0061f1b0 GomoraAuraGenerator, 0x0061d900 MissileSmokeGenerator, 0x0061e290 BurstSmokeGenerator
-worklog: 272
+worklog: 272, 420
 ---
 
 # Bosses - Kyvia's first fight
@@ -188,6 +188,63 @@ left, +0x134) and then ease `MoveTransfer.y` a quarter of the way a frame,
 snapping within 8 and clearing `ResetFlg`. `SetRotXLimit(v)` sets +0x114
 `v` and +0x118 `1 - v`.
 
+## The pictures
+
+The fight's particle generators, where each is made (Mutation's code;
+Outbreak's is the same, with the second fight's layout 0x10 further on).
+The rows are of the fight's tables, the force fields in brackets.
+"Follows" is `syncPos` with `syncPosType` 0. "Kept" is the member that
+holds the pointer:
+
+| maker | table row (ff) | where | kept |
+| --- | --- | --- | --- |
+| `LightAtk` step 2 | Kyvia 0 (0) | at `LOffset` | +0x29500 |
+| `LightAtk` step 4, count 30 | Kyvia 7 (10, 11) | at `LOffset` | - |
+| the same, each beam | Kyvia 5 (1) / 5 (8) | follows `LBpos[k]` / `LBposSub[k]` | +0x29504 / +0x29510 + 4k |
+| `LightAtk` step 5's end, each beam | Kyvia 3 (12, 4) | at `LBpos[k]` (a member standing) | +0x29500 |
+| `CheckDmgSmokeEff` | KyviaDmg 0 (0, 1) | at the smoke's place | `DmgGp[HpProccess]` |
+| act 14 step 0 | KyviaDmg 1 (2, 3) | follows `DedDmgVec` | `DeadGp` |
+| the core's `StartInit` | Core 0 (0) | follows the core | - |
+| the core's `ActionStart` | Core 7 / 8 (3) | follows the core, offset (0, 0, 250) | +0x29360 / +0x29364 |
+| the core's act 14 | Core 1, 2 (1) | at `DeadPos` | - |
+| a gomora's `StartInit` | Gomora 5 (6, 5), 6 (7, 5) | 200 over the core | - |
+| a gomora's dash | Gomora 0 (10, 9) | 60 over `AtkVec[3]` | - |
+| a gomora's act 14 | Gomora 1 (0, 2, 4), 2 (3, 4) | 250 over it | - |
+| `TimeAuraCount` | GomoraAura attribute (level) | follows `AuraPos` | +0x293e0 |
+| `CheckCountAtkTime` | GomoraAura 4 + attribute (0) | at `AuraPos` | +0x293e0 |
+
+What the fight does to those it keeps:
+
+- `LightAtk` kills each beam's head and tail before its burst.
+- Act 14 kills the four smokes at its count 60 and `DeadGp` at step 2.
+- The core's death kills both auras and clears them.
+- A gomora's death kills its aura.
+- A grown aura (levels 1 and 2) and an attack's aura kill the one before.
+  The attack clears the pointer once its skill is asked for.
+- The core's other attribute's aura is paused (+5 bit 0, `pauseFlag`) by
+  `ActionStart`. The escape pauses the core's own; `SetCoreState(7)`
+  frees it.
+
+**The meteors.** `ccBossEffMeteoriteMissile` (0x0047aa90, `Draw`
+0x0047b330; Outbreak's 0x00476510 and 0x00476c90 are the same code):
+
+- The constructor makes one particle `ANM_x300` per meteor.
+- It starts two trails per meteor, `MissileSmokeGenerator` rows 6 (5)
+  and 7 (6). Each follows its meteor's place (`now[k]`, the array at
+  +0x60), syncPosType and distSW off.
+- In flight each `Draw` draws the fireball at `SetMatrix_PosRotXYZScale(now,
+  0, 3)`, transparency 0.5, and never steps it.
+- At a meteor's landing its trails are deleted (`ParticleDelete`, +0x94
+  then +0x10c), then SE 35 note 60 plays at the shower's place.
+- The first's landing also starts `BurstSmokeGenerator` rows 8 (11, 12,
+  13) and 9 (11, 12, 14) at the place and 11 (17, 12, 16) 120 up, all
+  distSW off.
+- It then throws `effSmokeRock(now, rot, 75, 0, 20, -1)`. `rot` is camera
+  2's (`cameraGetRot(r, 2)`) turned by -pi, x and y 0.
+
+**The bolts** (the second fight's,
+[boss-kyvia-second.md](boss-kyvia-second.md)).
+
 ## The port
 
 `piney_battle::boss::kyvia` (the body), `kyvia::core`, `kyvia::gomora`.
@@ -200,6 +257,22 @@ The core and each gomora are a character and `Boss` of their own
 (`DiscView`: `IsMove`, `discPrevPos`, `DMY_marker01`), draws the core and
 gomoras (`CMP_trall2`, `CMP_ex01gom2` of x01), runs the queued affects of
 all three, and `BossCam` has modes 3 and 4.
+
+The pictures (worklog 420):
+
+- The rules name each start as `Out::KyviaParticles`: a `kyvia::Gen` by
+  maker (its rows), where it stands (`Place`, `Follow`) and the member that
+  keeps it (`Held`). `Out::KyviaGen` kills, pauses or lets go of a kept
+  one.
+- piney-effect's `kyvia::start` and `gen_op` make them. The followed
+  places are anchors that piney-game publishes each frame from the
+  fight's state (`kyvia_shows`).
+- The meteors' flights are `Meteorite::make` and `fly`, a pure step with
+  its calls. piney-effect's `kyvia::Meteorite` draws them after the
+  boss's task, with their trails and landings, as Innis's missiles are
+  drawn.
+- The tables are the effect group's `boss_kyvia*`, `boss_core*` and
+  `boss_gomora*`.
 
 ## Checks
 
@@ -230,15 +303,28 @@ only set the flag.
 fight (its `Main` and the disc's `Move` and `IsMove` by address): the
 same code, as the port has it.
 
+The harness also compares each generator the fight starts (its force
+fields, distSW, where it stands or what it follows and its offset, the
+member that keeps it), each `ParticleKill` of a kept one, the kept
+pointers and the core's auras' `pauseFlag`.
+
+`tools/test_boss_effect_rs.py`'s `test_kyvia_effects` runs the meteors'
+`Create` (no callback, no camera) and the manager's pass against
+boss_probe's `meteorite` on both discs: the fireballs' draws, the trails
+and what they follow, the deletes, the bursts, the rocks' effect slots,
+the sounds and `genrand`.
+
 `piney-battle`'s `boss::kyvia::tests` and `piney-game`'s
 `event_108_ends_with_kyvia` (the event from block 21 to block 23 on the
-disc) hold the rest.
+disc) hold the rest. `session::tests::kyvia_fx` plays the fight with the
+core's time cut short: the meteors drawn, the beams' generators following
+their ends and the auras following the core.
 
 ## Unknown
 
 - The gomoras' pushes on each other (their `CollisionDetection`) are not
   ported, nor the pad's sway (+0x139) or the arm's picture (`DrawParts` of
-  `anmw`); the particles are named, not drawn.
+  `anmw`).
 - The EX mode (`KyviaExFlg`) and levels 3-5 are Kyvia's later fights; the
   shared code for them is ported as far as levels 1 and 2 read it, and
   the gomora lists for those two. Level 2 is [the second

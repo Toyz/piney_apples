@@ -160,21 +160,179 @@ impl KyviaData {
     }
 }
 
-/// The particle generators of the fight, by table and row (0x38 bytes a
-/// row): `KyviaGenerator` (MUT gcmn 0x0061f650), `KyviaDmgGenerator`
-/// (0x0061fce0), `CoreGenerator`, `GomoraGenerator` (0x0061eec0),
-/// `GomoraAuraGenerator` (0x0061f1b0), `MissileSmokeGenerator`,
-/// `BurstSmokeGenerator`.
+/// The fight's particle tables (gcmn, rows 0x38 bytes), each with its
+/// force fields: `KyviaGenerator` (MUT 0x0061f650), `KyviaDmgGenerator`
+/// (0x0061fce0), `CoreGenerator` (0x0061f3d0), `GomoraGenerator`
+/// (0x0061eec0), `GomoraAuraGenerator` (0x0061f1b0), and the missiles'
+/// `MissileSmokeGenerator` and `BurstSmokeGenerator`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Table {
+    Kyvia,
+    KyviaDmg,
+    Core,
+    Gomora,
+    GomoraAura,
+    MissileSmoke,
+    BurstSmoke,
+}
+
+impl Table {
+    /// Its name in the game's symbols, less `Generator`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Table::Kyvia => "Kyvia",
+            Table::KyviaDmg => "KyviaDmg",
+            Table::Core => "Core",
+            Table::Gomora => "Gomora",
+            Table::GomoraAura => "GomoraAura",
+            Table::MissileSmoke => "MissileSmoke",
+            Table::BurstSmoke => "BurstSmoke",
+        }
+    }
+}
+
+/// One `new ccParticleGenerator(row, ff...)`: the table, its row, the
+/// rows of its force field table in order, and `distSW` (+4 bit 0) as the
+/// maker leaves it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GenRow {
+    pub table: Table,
+    pub row: u8,
+    pub ff: &'static [u8],
+    pub dist_sw: bool,
+}
+
+/// The fight's particle generators, by where the game makes them (MUT
+/// gcmn; Outbreak's code is the same).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Gen {
-    Kyvia(u8),
-    KyviaDmg(u8),
-    Core(u8),
-    Gomora(u8),
-    /// By row, and the force field (the aura's level) for rows 0-3.
+    /// `LightAtk`: the light gathering (Kyvia row 0, ff 0), the flash as
+    /// the beams leave (row 7, ff 10 11), a beam's head and tail (row 5, ff
+    /// 1 / 8) and its burst at a member (row 3, ff 12 4).
+    Light,
+    BeamsOut,
+    BeamHead,
+    BeamTail,
+    BeamBurst,
+    /// `CheckDmgSmokeEff`'s smoke (KyviaDmg row 0, ff 0 1) and the death's
+    /// (row 1, ff 2 3; the second fight's with `distSW` off).
+    Smoke,
+    DeadSmoke(Fight),
+    /// The core's rise (Core row 0, ff 0), its auras (rows 7 and 8, ff 3)
+    /// and its death's (rows 1 and 2, ff 1).
+    CoreRise,
+    CoreAura(u8),
+    CoreDeath(u8),
+    /// A gomora out of the core (Gomora rows 5 and 6, ff 6 5 / 7 5), its
+    /// dash's blow (row 0, ff 10 9) and its death's (row 1, ff 0 2 4; row
+    /// 2, ff 3 4).
+    GomoraOut(u8),
+    GomoraBlow,
+    GomoraDeath(u8),
+    /// A gomora's aura by attribute and level (GomoraAura row attribute, ff
+    /// level), and its attack's (row 4 + attribute, ff 0).
     GomoraAura(u8, u8),
-    MissileSmoke(u8),
-    BurstSmoke(u8),
+    GomoraAttack(u8),
+    /// The second fight's thunder: the smoke under a member's bolt
+    /// (MissileSmoke row 17, ff 9), its life the thunder's time.
+    ThunderSmoke(i16),
+    /// The meteors' and the bolts' own (`MissileSmoke`, `BurstSmoke` rows),
+    /// which piney-effect makes with their pictures.
+    Trail(u8),
+    Burst(u8),
+}
+
+impl Gen {
+    /// Its table, row and force fields.
+    pub fn rows(self) -> GenRow {
+        let g = |table, row, ff| GenRow { table, row, ff, dist_sw: true };
+        match self {
+            Gen::Light => g(Table::Kyvia, 0, &[0]),
+            Gen::BeamsOut => g(Table::Kyvia, 7, &[10, 11]),
+            Gen::BeamHead => g(Table::Kyvia, 5, &[1]),
+            Gen::BeamTail => g(Table::Kyvia, 5, &[8]),
+            Gen::BeamBurst => g(Table::Kyvia, 3, &[12, 4]),
+            Gen::Smoke => g(Table::KyviaDmg, 0, &[0, 1]),
+            Gen::DeadSmoke(f) => GenRow { dist_sw: f == Fight::First, ..g(Table::KyviaDmg, 1, &[2, 3]) },
+            Gen::CoreRise => g(Table::Core, 0, &[0]),
+            Gen::CoreAura(k) => g(Table::Core, 7 + k, &[3]),
+            Gen::CoreDeath(k) => g(Table::Core, 1 + k, &[1]),
+            Gen::GomoraOut(0) => g(Table::Gomora, 5, &[6, 5]),
+            Gen::GomoraOut(_) => g(Table::Gomora, 6, &[7, 5]),
+            Gen::GomoraBlow => g(Table::Gomora, 0, &[10, 9]),
+            Gen::GomoraDeath(0) => g(Table::Gomora, 1, &[0, 2, 4]),
+            Gen::GomoraDeath(_) => g(Table::Gomora, 2, &[3, 4]),
+            Gen::GomoraAura(attr, 0) => g(Table::GomoraAura, attr, &[0]),
+            Gen::GomoraAura(attr, 1) => g(Table::GomoraAura, attr, &[1]),
+            Gen::GomoraAura(attr, _) => g(Table::GomoraAura, attr, &[2]),
+            Gen::GomoraAttack(attr) => g(Table::GomoraAura, 4 + attr, &[0]),
+            Gen::ThunderSmoke(_) => GenRow { dist_sw: false, ..g(Table::MissileSmoke, 17, &[9]) },
+            Gen::Trail(r) => GenRow { dist_sw: false, ..g(Table::MissileSmoke, r, &[]) },
+            Gen::Burst(r) => GenRow { dist_sw: false, ..g(Table::BurstSmoke, r, &[]) },
+        }
+    }
+}
+
+/// What a generator follows (`syncPos`, `syncPosType` 0), each frame: a
+/// character's place, or a member of the fight that moves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Follow {
+    /// The character's `pos` (the core's and its auras').
+    Char(usize),
+    /// The body's `DedDmgVec` (+0x29540), the death's smoke.
+    DeadSmoke,
+    /// `LBpos[k]` (+0x294a0), `LBposSub[k]` (+0x294d0): a beam's ends.
+    BeamHead(u8),
+    BeamTail(u8),
+    /// A gomora's `AuraPos` (+0x293f0), by its character.
+    Aura(usize),
+}
+
+/// Where a generator stands: its `pos` (+0x60), or following a place with
+/// its `offset` (+0x80).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Place {
+    At(V4),
+    Follows(Follow, V4),
+}
+
+/// A member the game keeps a generator's pointer in, to kill or stop it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Held {
+    /// The body's +0x29500 (the light, then the last beam's burst).
+    Light,
+    /// +0x29504 and +0x29510: beam `k`'s head and tail.
+    BeamHead(u8),
+    BeamTail(u8),
+    /// `DmgGp[k]` (+0x29550); 4 is `DeadGp` (+0x29560), which a fifth
+    /// smoke reaches.
+    Smoke(u8),
+    /// The core's two auras (+0x29360, +0x29364), by its character.
+    CoreAura(usize, u8),
+    /// A gomora's aura (+0x293e0), by its character.
+    GomoraAura(usize),
+}
+
+/// What the fight does to a generator it keeps.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GenOp {
+    /// `ParticleKill()`: the pointer kept.
+    Kill,
+    /// +5 bit 0, `pauseFlag`: the generator held still while set.
+    Pause(bool),
+    /// The pointer cleared: the generator runs out on its own.
+    Forget,
+}
+
+/// `new ccParticleGenerator` and `startParticleGenerator`: one of the
+/// fight's generators, where it stands, and the member that keeps it.
+pub(crate) fn particles(cx: &mut Cx, which: Gen, at: Place, held: Option<Held>) {
+    cx.out(Out::KyviaParticles { which, at, held });
+}
+
+/// What the fight does to a generator it keeps.
+pub(crate) fn gen_op(cx: &mut Cx, held: Held, op: GenOp) {
+    cx.out(Out::KyviaGen { held, op });
 }
 
 /// `bossBlur` (the effect manager's +4) as the fight sets it.
@@ -886,7 +1044,7 @@ fn check_dmg_smoke_eff(x: &mut Kyvia, t: &Tree, cx: &mut Cx) -> i32 {
         pos = geom::vadd(pos, [0, 0xc396_0000, 0, ONE]);
     }
     x.set_smoke(k);
-    cx.out(Out::KyviaParticles { which: Gen::KyviaDmg(0), pos });
+    particles(cx, Gen::Smoke, Place::At(pos), Some(Held::Smoke(k as u8)));
     x.hp_proccess += 1;
     x.hp_proccess
 }
@@ -1072,7 +1230,7 @@ fn dead(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) {
             x.ded_dmg_vec[1] = ee::sub(x.ded_dmg_vec[1], back);
             x.ded_dmg_vec[0] = x0;
             x.dead_gp = true;
-            cx.out(Out::KyviaParticles { which: Gen::KyviaDmg(1), pos: x.ded_dmg_vec });
+            particles(cx, Gen::DeadSmoke(x.fight), Place::Follows(Follow::DeadSmoke, VF0), Some(Held::Smoke(4)));
             b.act_count = 0;
             let pos = cx.scene.chars[me].pos;
             cx.out(Out::Se3dNote { se: 192, pos, note: 48 });
@@ -1084,6 +1242,11 @@ fn dead(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) {
         }
         1 => {
             // `actCount++ == 60`: the smokes killed (their pointers kept).
+            if b.act_count == 60 {
+                for k in (0..4u8).filter(|&k| x.dmg_gp[usize::from(k)]) {
+                    gen_op(cx, Held::Smoke(k), GenOp::Kill);
+                }
+            }
             b.act_count += 1;
             let second = x.fight == Fight::Second;
             if second && b.act_count < 11 {
@@ -1114,6 +1277,10 @@ fn dead(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) {
             }
         }
         2 => {
+            if x.dead_gp {
+                gen_op(cx, Held::Smoke(4), GenOp::Kill);
+                gen_op(cx, Held::Smoke(4), GenOp::Forget);
+            }
             x.dead_gp = false;
             b.act_proccess += 1;
         }
@@ -1552,7 +1719,7 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         }
         2 => {
             b.act_proccess += 1;
-            cx.out(Out::KyviaParticles { which: Gen::Kyvia(0), pos: x.l_offset });
+            particles(cx, Gen::Light, Place::At(x.l_offset), Some(Held::Light));
             let mut n = 0;
             for m in cx.party.members.into_iter().flatten() {
                 if cx.valid(Some(m)) && cx.scene.chars[m].hp > 0 {
@@ -1607,15 +1774,16 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             b.act_count += 1;
             if c == 30 {
                 b.act_proccess += 1;
-                cx.out(Out::KyviaParticles { which: Gen::Kyvia(7), pos: x.l_offset });
+                particles(cx, Gen::BeamsOut, Place::At(x.l_offset), None);
                 let pos = cx.scene.chars[me].pos;
                 cx.out(Out::Se3dNote { se: 192, pos, note: 60 });
                 cx.out(Out::Se3dNote { se: 61, pos, note: 48 });
                 for k in 0..3 {
                     x.l_bpos[k] = x.l_offset;
                     x.l_bpos_sub[k] = x.l_offset;
-                    cx.out(Out::KyviaParticles { which: Gen::Kyvia(5), pos: x.l_bpos[k] });
-                    cx.out(Out::KyviaParticles { which: Gen::Kyvia(5), pos: x.l_bpos_sub[k] });
+                    let n = k as u8;
+                    particles(cx, Gen::BeamHead, Place::Follows(Follow::BeamHead(n), VF0), Some(Held::BeamHead(n)));
+                    particles(cx, Gen::BeamTail, Place::Follows(Follow::BeamTail(n), VF0), Some(Held::BeamTail(n)));
                     b.act_count = 0;
                 }
             }
@@ -1659,12 +1827,15 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                     x.quake_vector = [0x4248_0000, 0x4248_0000, 0x42c8_0000, x.quake_vector[3]];
                 }
                 for k in 0..3 {
+                    // The beam's ends killed, their pointers kept.
+                    gen_op(cx, Held::BeamHead(k as u8), GenOp::Kill);
+                    gen_op(cx, Held::BeamTail(k as u8), GenOp::Kill);
                     let m = cx.party.members[k];
                     if let Some(m) = m
                         && cx.valid(Some(m))
                         && cx.scene.chars[m].hp > 0
                     {
-                        cx.out(Out::KyviaParticles { which: Gen::Kyvia(3), pos: x.l_bpos[k] });
+                        particles(cx, Gen::BeamBurst, Place::At(x.l_bpos[k]), Some(Held::Light));
                     }
                 }
                 b.act_proccess += 1;
@@ -1725,14 +1896,30 @@ pub struct Meteorite {
     pub quake: V4,
 }
 
+/// What a meteor shower's `Draw` asks beside its flights, in order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MeteorCall {
+    /// Meteor `k` landed: SE 35 note 60 at the shower's place, and for the
+    /// first its burst (`BurstSmokeGenerator` rows 8, 9 and 11, and the
+    /// rocks).
+    Landed(usize),
+    /// `bossCam->QuakeCam(quake)` while a landed meteor's count is under
+    /// 60.
+    Quake,
+    /// The first meteor's count at 20 or 60: the callback
+    /// (`KyviaMagicDamage`).
+    Due,
+}
+
 impl Meteorite {
-    /// The constructor for `n` meteors round `pos` within `range`.
-    fn new(cx: &mut Cx, pos: V4, range: F, n: usize) -> Meteorite {
+    /// The constructor's flights for `n` meteors round `pos` within
+    /// `range`; `cc` is `ccRandF`'s source.
+    pub fn make(cc: &mut dyn crate::rand::Rng, pos: V4, range: F, n: usize) -> Meteorite {
         let mut m = Meteorite { pos, ..Meteorite::default() };
         for _ in 0..n {
-            let turn = rand_f(cx.cc, 0x4048_f5c3);
+            let turn = rand_f(cc, 0x4048_f5c3);
             let rm = geom::rot_matrix_z(&geom::unit_matrix(), turn);
-            let r = rand_f(cx.cc, ee::mul(range, HALF));
+            let r = rand_f(cc, ee::mul(range, HALF));
             let mut v = VF0;
             v[1] = fabs(ee::add(ee::mul(range, ee::sub(ONE, HALF)), r));
             m.end.push(geom::apply_matrix(&rm, v));
@@ -1748,7 +1935,7 @@ impl Meteorite {
             m.start.push(p1);
         }
         for _ in 0..n {
-            let r = rand_abs(cx, 0x3cf5_c28f);
+            let r = fabs(rand_f(cc, 0x3cf5_c28f));
             m.step.push(fp(dp(0x3cf5_c28f) + dp(r)));
             m.time.push(0);
         }
@@ -1756,10 +1943,16 @@ impl Meteorite {
         m.landed = vec![0; n];
         m.count = vec![0; n];
         m.quake = [0x41f0_0000, 0x4220_0000, 0x4248_0000, 0];
-        // Each meteor's two trails, following it.
+        m
+    }
+
+    /// The constructor in the fight: the flights and each meteor's two
+    /// trails (their pictures piney-effect's).
+    fn new(cx: &mut Cx, pos: V4, range: F, n: usize) -> Meteorite {
+        let m = Meteorite::make(cx.cc, pos, range, n);
         for k in 0..n {
-            cx.out(Out::KyviaParticles { which: Gen::MissileSmoke(6), pos: m.now[k] });
-            cx.out(Out::KyviaParticles { which: Gen::MissileSmoke(7), pos: m.now[k] });
+            particles(cx, Gen::Trail(6), Place::At(m.now[k]), None);
+            particles(cx, Gen::Trail(7), Place::At(m.now[k]), None);
         }
         m
     }
@@ -1780,9 +1973,9 @@ impl Meteorite {
         v
     }
 
-    /// One `Draw`: false once every meteor has lain 90 frames. The first's
-    /// landing calls `fight`'s `KyviaMagicDamage`.
-    fn draw(&mut self, fight: Fight, t: &mut Tree, cx: &mut Cx) -> bool {
+    /// One `Draw`'s flights, meteor by meteor, what it asks in `calls`:
+    /// false once every meteor has lain 90 frames.
+    pub fn fly(&mut self, calls: &mut Vec<MeteorCall>) -> bool {
         for k in 0..self.end.len() {
             if self.landed[k] == 0 {
                 let p = Self::spline(self.time[k], [self.start[k], self.pos2[k], self.pos3[k], self.end[k]]);
@@ -1790,33 +1983,54 @@ impl Meteorite {
             }
             if dp(self.time[k]) > 0.984 && self.landed[k] == 0 {
                 self.landed[k] = 1;
-                cx.out(Out::Se3dNote { se: 35, pos: self.pos, note: 60 });
-                if k == 0 {
-                    cx.out(Out::KyviaParticles { which: Gen::BurstSmoke(8), pos: self.pos });
-                    cx.out(Out::KyviaParticles { which: Gen::BurstSmoke(9), pos: self.pos });
-                    let mut up = VF0;
-                    up[2] = 0x42f0_0000;
-                    cx.out(Out::KyviaParticles { which: Gen::BurstSmoke(11), pos: geom::vadd(up, self.pos) });
-                    let mut rot = cx.cam.rot;
-                    rot[2] = wrap(ee::sub(rot[2], PI));
-                    rot[0] = 0;
-                    rot[1] = 0;
-                    cx.out(Out::SmokeRock { pos: self.now[k], rot });
-                }
+                calls.push(MeteorCall::Landed(k));
             }
             if self.landed[k] != 0 {
                 self.count[k] += 1;
                 if self.count[k] < 60 {
-                    let q = self.quake;
-                    cx.quake_vec([q[0], q[1], q[2]]);
+                    calls.push(MeteorCall::Quake);
                 }
             }
             if k == 0 && matches!(self.count[0], 20 | 60) {
-                magic_damage(fight, t, cx);
+                calls.push(MeteorCall::Due);
             }
             self.time[k] = ee::add(self.time[k], self.step[k]);
         }
         !self.landed.iter().zip(&self.count).all(|(&l, &c)| l == 1 && c >= 90)
+    }
+
+    /// One `Draw` in the fight: the flights, then their calls in order.
+    /// The first's landing calls `fight`'s `KyviaMagicDamage`.
+    fn draw(&mut self, fight: Fight, t: &mut Tree, cx: &mut Cx) -> bool {
+        let mut calls = Vec::new();
+        let alive = self.fly(&mut calls);
+        for c in calls {
+            match c {
+                MeteorCall::Landed(k) => {
+                    cx.out(Out::Se3dNote { se: 35, pos: self.pos, note: 60 });
+                    if k == 0 {
+                        particles(cx, Gen::Burst(8), Place::At(self.pos), None);
+                        particles(cx, Gen::Burst(9), Place::At(self.pos), None);
+                        let mut up = VF0;
+                        up[2] = 0x42f0_0000;
+                        particles(cx, Gen::Burst(11), Place::At(geom::vadd(up, self.pos)), None);
+                        let mut rot = cx.cam.rot;
+                        rot[2] = wrap(ee::sub(rot[2], PI));
+                        rot[0] = 0;
+                        rot[1] = 0;
+                        cx.out(Out::SmokeRock { pos: self.now[k], rot });
+                    }
+                }
+                MeteorCall::Quake => {
+                    let q = self.quake;
+                    cx.quake_vec([q[0], q[1], q[2]]);
+                }
+                MeteorCall::Due => {
+                    magic_damage(fight, t, cx);
+                }
+            }
+        }
+        alive
     }
 }
 

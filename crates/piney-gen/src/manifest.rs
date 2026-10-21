@@ -252,6 +252,12 @@ fn custom(f: CustomFn, layout: Layout) -> Layout {
 }
 
 /// A count by volume: Infection's, then the later volumes'.
+/// `KyviaGenerator`'s rows: the table runs to `KyviaDmgGenerator` (28 on
+/// Mutation, 30 from Outbreak).
+fn kyvia_rows() -> Rc<dyn Fn(&Ctx) -> usize> {
+    Rc::new(|c| ((find(c, 0x005F_13D0, GCMN) - find(c, 0x005F_0DB0, GCMN)) / 0x38) as usize)
+}
+
 fn later(inf: usize, later: usize) -> Rc<dyn Fn(&Ctx) -> usize> {
     Rc::new(move |c| if c.volume == Vol::Inf { inf } else { later })
 }
@@ -3106,6 +3112,26 @@ fn effect() -> Group {
             derived("boss_burst_smoke_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_burst_smoke", 0),
             e("boss_burst_smoke_ff", 0x005E_FD00, array(ff_param(), 19), GCMN, "`BurstSmokeForceField`."),
             derived("boss_burst_smoke_ff_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_burst_smoke_ff", 0),
+            e("boss_kyvia", 0x005F_0DB0, array_by(gen_param(), kyvia_rows()), GCMN, "`KyviaGenerator`: Kyvia's beams, light and smoke (28 rows on Mutation, 30 from Outbreak: to `KyviaDmgGenerator`)."),
+            derived("boss_kyvia_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_kyvia", 0),
+            e("boss_kyvia_ff", 0x005F_14E0, array(ff_param(), 29), GCMN, "`KyviaGeneratorForceField`."),
+            derived("boss_kyvia_ff_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_kyvia_ff", 0),
+            e("boss_kyvia_dmg", 0x005F_13D0, array(gen_param(), 2), GCMN, "`KyviaDmgGenerator`: the body's hurt smoke."),
+            derived("boss_kyvia_dmg_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_kyvia_dmg", 0),
+            e("boss_kyvia_dmg_ff", 0x005F_1440, array(ff_param(), 5), GCMN, "`KyviaDmgGeneratorForceField`."),
+            derived("boss_kyvia_dmg_ff_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_kyvia_dmg_ff", 0),
+            e("boss_core", 0x005F_0B30, array(gen_param(), 9), GCMN, "`CoreGenerator`: Kyvia's core, its auras and its death."),
+            derived("boss_core_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_core", 0),
+            e("boss_core_ff", 0x005F_0D30, array(ff_param(), 4), GCMN, "`CoreGeneratorForceField`."),
+            derived("boss_core_ff_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_core_ff", 0),
+            e("boss_gomora", 0x005F_0620, array(gen_param(), 7), GCMN, "`GomoraGenerator`: a gomora's coming, attacks and death."),
+            derived("boss_gomora_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_gomora", 0),
+            e("boss_gomora_ff", 0x005F_07B0, array(ff_param(), 11), GCMN, "`GomoraGeneratorForceField`."),
+            derived("boss_gomora_ff_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_gomora_ff", 0),
+            e("boss_gomora_aura", 0x005F_0910, array(gen_param(), 8), GCMN, "`GomoraAuraGenerator`: a gomora's aura by level, then its attack's by attribute."),
+            derived("boss_gomora_aura_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_gomora_aura", 0),
+            e("boss_gomora_aura_ff", 0x005F_0AD0, array(ff_param(), 3), GCMN, "`GomoraAuraGeneratorForceField`."),
+            derived("boss_gomora_aura_ff_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_gomora_aura_ff", 0),
         ],
     )
 }

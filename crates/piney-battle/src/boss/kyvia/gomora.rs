@@ -7,7 +7,10 @@
 
 use piney_data::field::ee;
 
-use super::{Gen, KyviaData, Part, as_me, catmull, dp, fp, plain_boss, rand_abs, set_base_param, wrap};
+use super::{
+    Follow, Gen, GenOp, Held, KyviaData, Part, Place, as_me, catmull, dp, fp, plain_boss, rand_abs, set_base_param,
+    wrap,
+};
 use crate::boss::{Anm, Boss, Class, Cx, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
@@ -399,6 +402,7 @@ fn start_init(g: &mut Part<Gomora>, cx: &mut Cx) -> bool {
     let lv = g.x.kyvia_lv;
     if attr == 4 {
         reset_data(&mut g.x);
+        super::gen_op(cx, Held::GomoraAura(me), GenOp::Forget);
         g.b.exit = 1;
         return false;
     }
@@ -445,8 +449,8 @@ fn start_init(g: &mut Part<Gomora>, cx: &mut Cx) -> bool {
     g.x.departure[2] = rand_abs(cx, 0x4248_0000);
     g.x.departure[0] = ee::from_int(sign * 200);
     g.x.dp_vec[3] = geom::vadd(geom::apply_matrix(&m, g.x.departure), core);
-    cx.out(Out::KyviaParticles { which: Gen::Gomora(5), pos: at });
-    cx.out(Out::KyviaParticles { which: Gen::Gomora(6), pos: at });
+    super::particles(cx, Gen::GomoraOut(0), Place::At(at), None);
+    super::particles(cx, Gen::GomoraOut(1), Place::At(at), None);
     g.x.time_mode = 1;
     true
 }
@@ -637,20 +641,25 @@ fn rnd_target(g: &mut Part<Gomora>, cx: &mut Cx) -> Option<usize> {
 fn time_aura_count(g: &mut Part<Gomora>, cx: &mut Cx) {
     let (time, wait) = (f64::from(g.x.atk_time), f64::from(g.x.atk_wait));
     let row = g.x.my_attribute as u8;
-    let pos = g.x.aura_pos;
-    if 0.3 * time > wait && g.x.aura_lv == 2 {
-        cx.out(Out::KyviaParticles { which: Gen::GomoraAura(row, 2), pos });
-        g.x.my_aura = true;
-        g.x.aura_lv += 1;
-    } else if 0.5 * time > wait && g.x.aura_lv == 1 {
-        cx.out(Out::KyviaParticles { which: Gen::GomoraAura(row, 1), pos });
-        g.x.my_aura = true;
-        g.x.aura_lv += 1;
-    } else if 0.8 * time > wait && g.x.aura_lv == 0 {
-        cx.out(Out::KyviaParticles { which: Gen::GomoraAura(row, 0), pos });
-        g.x.my_aura = true;
-        g.x.aura_lv += 1;
+    let lv = g.x.aura_lv;
+    let due = match lv {
+        2 => 0.3 * time > wait,
+        1 => 0.5 * time > wait,
+        0 => 0.8 * time > wait,
+        _ => false,
+    };
+    if !due {
+        return;
     }
+    // A grown aura kills the one before; the first kills none.
+    let me = g.me;
+    if lv > 0 {
+        super::gen_op(cx, Held::GomoraAura(me), GenOp::Kill);
+    }
+    let at = Place::Follows(Follow::Aura(me), VF0);
+    super::particles(cx, Gen::GomoraAura(row, lv as u8), at, Some(Held::GomoraAura(me)));
+    g.x.my_aura = true;
+    g.x.aura_lv += 1;
 }
 
 /// `CheckCountAtkTime` (MUT gcmn 0x005017c0): at the end of its attack time
@@ -690,7 +699,8 @@ fn check_count_atk_time(g: &mut Part<Gomora>, acts: &[i16], cx: &mut Cx) {
         g.x.atk_wait = g.x.atk_time;
         g.x.aura_lv = 0;
     }
-    cx.out(Out::KyviaParticles { which: Gen::GomoraAura(4 + attr as u8, 0), pos });
+    super::gen_op(cx, Held::GomoraAura(me), GenOp::Kill);
+    super::particles(cx, Gen::GomoraAttack(attr as u8), Place::At(pos), Some(Held::GomoraAura(me)));
     match attr {
         0 => {
             cx.out(Out::SkillStart { who: me, sid: 295 });
@@ -724,6 +734,8 @@ fn check_count_atk_time(g: &mut Part<Gomora>, acts: &[i16], cx: &mut Cx) {
             g.x.aura_lv = 0;
         }
     }
+    // The attack's aura let go to run out.
+    super::gen_op(cx, Held::GomoraAura(me), GenOp::Forget);
     g.x.my_aura = false;
 }
 
@@ -842,7 +854,7 @@ fn dash_flight(g: &mut Part<Gomora>, cx: &mut Cx) {
                 g.x.atk_vec[5] = pos;
                 let at = geom::vadd([0, 0, 0x4270_0000, ONE], g.x.atk_vec[3]);
                 g.x.atk_tmp_flg = 0;
-                cx.out(Out::KyviaParticles { which: Gen::Gomora(0), pos: at });
+                super::particles(cx, Gen::GomoraBlow, Place::At(at), None);
                 let t = cx.scene.chars[me].target_char;
                 if cx.valid(t) {
                     let i = match g.x.kyvia_lv {
@@ -895,11 +907,12 @@ fn dead(g: &mut Part<Gomora>, cx: &mut Cx) {
         0 => {
             crate::fellow::delete_cmnd(cx.scene, me);
             hit(g, cx, false);
+            super::gen_op(cx, Held::GomoraAura(me), GenOp::Kill);
             g.x.my_aura = false;
             g.x.life_flg = 0;
             g.x.st_flg = 0;
             g.b.act_proccess += 1;
-            cx.out(Out::KyviaParticles { which: Gen::Gomora(1), pos: at });
+            super::particles(cx, Gen::GomoraDeath(0), Place::At(at), None);
             g.x.state = 3;
             if g.x.dead_voice_flg != 0 {
                 let pos = cx.scene.chars[me].pos;
@@ -910,11 +923,12 @@ fn dead(g: &mut Part<Gomora>, cx: &mut Cx) {
             if ee::le(g.x.alpha, 0) {
                 g.x.alpha = ONE;
                 g.b.act_proccess += 1;
-                cx.out(Out::KyviaParticles { which: Gen::Gomora(2), pos: at });
+                super::particles(cx, Gen::GomoraDeath(1), Place::At(at), None);
             }
         }
         2 => {
             reset_data(&mut g.x);
+            super::gen_op(cx, Held::GomoraAura(me), GenOp::Forget);
             g.b.exit = 1;
             cx.scene.chars[me].pos = VF0;
             g.x.state = 3;
