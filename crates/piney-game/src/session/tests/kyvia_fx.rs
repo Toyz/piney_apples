@@ -50,8 +50,8 @@ fn event_211_disc() -> Option<Session> {
 /// draws, the generators following the fight's moving places (the beams'
 /// ends, a gomora's aura, the meteors) and those following the core.
 #[derive(Default)]
-struct Seen {
-    act: i16,
+pub(super) struct Seen {
+    pub(super) act: i16,
     draws: Vec<String>,
     anchored: usize,
     on_core: usize,
@@ -70,7 +70,7 @@ fn core_of(c: &Combat, me: usize) -> Option<usize> {
 /// time run short (`NowDmgtime` to `Dmgtime`), so the body strikes in
 /// turn: the arm, the beams, the meteors (and in the second fight the
 /// thunder). `each` sees every frame.
-fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32, &Seen)) -> Vec<Seen> {
+pub(super) fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32, &Seen)) -> Vec<Seen> {
     let mut pad = Pad::default();
     let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let (mut came, mut seen) = (None, Vec::new());

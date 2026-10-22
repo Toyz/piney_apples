@@ -113,8 +113,8 @@ pub struct At<'a> {
     pub save: &'a SaveData,
 }
 
-/// `GO(1)`'s map for `at.field` (its `EVENTAREA_INFO.model` `model`), or
-/// None for a generated field. Area 15's map comes back as `WORLD_MAN::Quit`
+/// `GO(1)`'s map for `at.field` (`eventAreaNumber`, whose
+/// `EVENTAREA_INFO.model` is `model`), or None for a generated field. Area 15's map comes back as `WORLD_MAN::Quit`
 /// kept it (`kept`, from a field); area 16's starts by `game.areaPrev`.
 /// `cc` is the game's `ccRand`, which `EVENTAREAB8`'s rocks draw from.
 pub fn build(
@@ -127,8 +127,8 @@ pub fn build(
 ) -> Result<Option<Box<dyn StoryMap>>> {
     let (field, area_prev) = (at.field, at.area_prev);
     let map: Box<dyn StoryMap> = match field {
-        f if crate::evarea_b0::is_arena(f) => Box::new(Arena::new(archive, at.volume, f, def_se)?),
         _ if model == 0 => return Ok(None),
+        f if crate::evarea_b0::is_arena(f) => Box::new(Arena::new(archive, at.volume, f, def_se)?),
         crate::evarea::AREA => {
             let kept = match kept {
                 Some(Kept::Event(e)) if area_prev == crate::area::kind::FIELD => Some(e),

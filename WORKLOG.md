@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-422 entries: audio 36, battle 90, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 103, save 16, script 53, test 181, tooling 30, ui 94, video 16, volumes 82, world 121.
+423 entries: audio 36, battle 91, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 103, save 16, script 53, test 182, tooling 30, ui 94, video 16, volumes 82, world 122.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -434,3 +434,4 @@ The [reference](docs/README.md) says what is true now.
 | 420 | [Kyvia's fights show their pictures: the beams, smokes, auras and their generators as the fight keeps them, the meteors falling with their trails and bursts, and Outbreak's thunderbolts](worklog/0420-kyvia-s-fights-show-their-pictures-the-beams-smokes-auras.md) | 2026-10-21 | battle, render, test, tooling |
 | 421 | [Magus's fight shows its pictures: the leaves' markers, charges, bursts, blinks and countdowns, the laser's thunder and shocks where its beams meet the ground, and the dropped leaves hidden on the body](worklog/0421-magus-s-fight-shows-its-pictures-the-leaves-markers-charges.md) | 2026-10-21 | battle, render, test, tooling |
 | 422 | [Gorre's Kerse ends in its flash: the FinalPhotonFlash shrinking onto the target, then its burst, ring, smoke and dust, checked against the game's code on every volume](worklog/0422-gorre-s-kerse-ends-in-its-flash-the-finalphotonflash.md) | 2026-10-21 | battle, render, test |
+| 423 | [Cubia's first fight is on its disc again: GO(1) takes eventAreaNumber from game.field, so area 47's last door makes EVENTAREAB8, and the hacked field's data bugs no longer fly over the fight (#72)](worklog/0423-cubia-s-first-fight-is-on-its-disc-again-go-1-takes.md) | 2026-10-22 | world, battle, test |

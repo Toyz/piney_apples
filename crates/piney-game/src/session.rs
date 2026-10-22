@@ -6955,6 +6955,9 @@ mod tests {
     /// Magus's markers, bursts, needles and laser drawn.
     mod magus_fx;
 
+    /// Issues #71 and #72: event 108 from area 47's dungeon to Kyvia's disc.
+    mod kyvia_stage;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

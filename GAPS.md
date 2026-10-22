@@ -98,7 +98,8 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   Area 16's `EVENTAREA07` (worklog 177), area 43's `EVENTAREA03` (worklog
   263), area 13's `EVENTAREA01` (worklog 264) and Kyvia's disc
   `EVENTAREAB8` (fields 9-12, worklog 272) are ported, all behind
-  `StoryMap`
+  `StoryMap`; `GO(1)` takes the map from the field's own number, a
+  dungeon's way out too (worklog 423)
 - [x] Mutation's bosses: Innis (`ccBoss02`, worklog 266), Kyvia 01
   (`ccThKyvia01`, the `kyvia*` classes, worklog 272), Magus (`ccBoss03`,
   `ccBoss03Leaf`, worklog 274); events 107, 108 and 115 finish under the

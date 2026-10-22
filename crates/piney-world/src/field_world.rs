@@ -325,8 +325,19 @@ impl FieldWorld {
             save.save.set_u8(offset::NEW_GAME_FLAG, 1);
         }
         let mut dungeons = crate::dungeon_area::Dungeons::default();
-        // GO(1): the field's story map where it has one (its
-        // EVENTAREA_INFO.model set, or an arena), else a generated field.
+        // GO(1) (MUT main 0x001b546c): eventAreaNumber = game.field and its
+        // row, whose model picks the story map. A dungeon's way out
+        // (ChangeArea(1, 9) from area 47) keeps the area's WORLD_MAN, so
+        // the field's own number and row come in here.
+        let world_man = match scene.area {
+            kind::FIELD => world_man.with_event_number(
+                piney_data::area::AreaTables::of(volume),
+                scene.field,
+                piney_data::area::flag71(&save.save),
+                save.save.u8(offset::CRISIS) != 0,
+            ),
+            _ => world_man,
+        };
         let def_se = crate::field_area::DEF_SE.get(world_man.field_type as usize).copied().unwrap_or(0xc000);
         let (kept_map, kept) = match kept {
             Some(Kept::Event(e)) => (Some(Kept::Event(e)), None),

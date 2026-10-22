@@ -681,6 +681,18 @@ mod tests {
         assert!(std::ptr::eq(o.event_area_info(47, false).unwrap(), &o.substitutes[1]));
     }
 
+    /// The numbered story maps `GO(1)` makes by `eventAreaNumber` (the
+    /// arenas 1-8, Kyvia's disc 9-12, area 13) each have a row of model 1
+    /// on every volume, so `GO(1)` reaches its switch for them.
+    #[test]
+    fn numbered_story_maps_have_model_1() {
+        for v in Volume::ALL {
+            let t = AreaTables::of(v);
+            let models: Vec<i32> = (1..=13).map(|n| t.event_area_info(n, false).map_or(-1, |e| e.model)).collect();
+            assert_eq!(models, [1; 13], "{v:?}");
+        }
+    }
+
     #[test]
     fn clamp() {
         assert_eq!(clamp_weather(0, 3), 3);
