@@ -269,10 +269,17 @@ impl BossLook {
         }
         let eff = Rc::new(piney_desktop::assets::SceneFile::read(archive, EFF_FILE)?);
         let eff_morphers = piney_data::anim::morphers(&eff.ccs).unwrap_or_default();
+        // SetupSkillName (MUT gcmn 0x00480540, OUT 0x0047bed0): in fields
+        // 9-12 the file is "x01" to "x04" whatever the row says (Kyvia's
+        // rows name none).
+        let row_file = |f: Option<&str>| match field {
+            9..=12 => Some(format!("x0{}", field - 8)),
+            _ => f.map(str::to_string),
+        };
         let mut names = HashMap::new();
         let mut textures: HashMap<&str, Option<piney_desktop::message::WindowTexture>> = HashMap::new();
         for (n, row) in piney_data::tables::combat::of(volume).cinema_skill_names().iter().enumerate() {
-            let (Some(f), Some(tex)) = (row.file, row.tex) else { continue };
+            let (Some(f), Some(tex)) = (row_file(row.file), row.tex) else { continue };
             if f != file {
                 continue;
             }
@@ -283,13 +290,10 @@ impl BossLook {
                 names.insert(n as i32, CinemaName { tex: w.tex.clone(), tex_h: w.tex_h, row: row.row });
             }
         }
-        // SetupSkillName (OUT 0x0047bed0): in fields 9-12 the file is
-        // "x01" to "x04" whatever the row says.
         let mut skill_names = HashMap::new();
         let mut skill_tex: HashMap<(String, &str), Option<piney_desktop::message::WindowTexture>> = HashMap::new();
         for row in piney_data::tables::combat::of(volume).cinema_skill_rows().iter().filter(|r| r.field == field) {
-            let (Some(f), Some(tex)) = (row.file, row.tex) else { continue };
-            let f = if (9..=12).contains(&field) { format!("x0{}", field - 8) } else { f.to_string() };
+            let (Some(f), Some(tex)) = (row_file(row.file), row.tex) else { continue };
             let w = skill_tex
                 .entry((f.clone(), tex))
                 .or_insert_with(|| piney_desktop::message::WindowTexture::read_named(archive, &f, tex, None));
@@ -1110,8 +1114,8 @@ pub fn above(pos: V4, dz: f32) -> V4 {
 mod tests {
     use super::*;
 
-    fn outbreak() -> Option<std::sync::Arc<piney_data::archive::Archive>> {
-        let p = std::path::Path::new("../../work/outbreak/outbreak.iso");
+    fn disc(name: &str) -> Option<std::sync::Arc<piney_data::archive::Archive>> {
+        let p = std::path::PathBuf::from(format!("../../work/{name}/{name}.iso"));
         if !p.exists() {
             eprintln!("skipped: no {}", p.display());
             return None;
@@ -1123,6 +1127,27 @@ mod tests {
     /// Fidchell in field 4: its seven skills' cinema names (OUT gcmn
     /// 0x00472550's field 4 rows: `@2048` and `@2081`), rows 8-14 of x41's
     /// `TEX_fid_skl`; none in field 3, which has no rows.
+    fn outbreak() -> Option<std::sync::Arc<piney_data::archive::Archive>> {
+        disc("outbreak")
+    }
+
+    /// Kyvia's attacks name themselves (#72): `_g_cinemaSkillName`'s rows
+    /// 32-34 (Mutation) and 36-38, 46 (Outbreak) name no file, and
+    /// `SetupSkillName` reads `TEX_kbi_skl` from the field's x01 or x02.
+    #[test]
+    fn kyvias_attacks_have_their_names_on_the_disc() {
+        for (name, v, code, field, want) in [
+            ("mutation", piney_data::volume::Volume::Mut, KYVIA, 9, &[(32, 0), (33, 1), (34, 2)][..]),
+            ("outbreak", piney_data::volume::Volume::Out, KYVIA_SECOND, 10, &[(36, 1), (37, 0), (38, 2), (46, 8)][..]),
+        ] {
+            let Some(a) = disc(name) else { continue };
+            let look = BossLook::load(&a, code, v, field).unwrap();
+            for &(n, row) in want {
+                assert_eq!(look.names.get(&n).map(|c| c.row), Some(row), "{name}: cinema {n}");
+            }
+        }
+    }
+
     #[test]
     fn fidchells_skills_have_their_names_in_field_4() {
         let Some(a) = outbreak() else { return };

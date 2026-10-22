@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-424 entries: audio 37, battle 91, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 103, save 16, script 53, test 183, tooling 30, ui 94, video 16, volumes 82, world 123.
+425 entries: audio 37, battle 92, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 104, save 16, script 53, test 184, tooling 30, ui 94, video 16, volumes 82, world 123.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -436,3 +436,4 @@ The [reference](docs/README.md) says what is true now.
 | 422 | [Gorre's Kerse ends in its flash: the FinalPhotonFlash shrinking onto the target, then its burst, ring, smoke and dust, checked against the game's code on every volume](worklog/0422-gorre-s-kerse-ends-in-its-flash-the-finalphotonflash.md) | 2026-10-21 | battle, render, test |
 | 423 | [Cubia's first fight is on its disc again: GO(1) takes eventAreaNumber from game.field, so area 47's last door makes EVENTAREAB8, and the hacked field's data bugs no longer fly over the fight (#72)](worklog/0423-cubia-s-first-fight-is-on-its-disc-again-go-1-takes.md) | 2026-10-22 | world, battle, test |
 | 424 | [The dungeon's music stops before Cubia's cutscene: the session's scene change sends ccSetupGameCtrl's ccSoundFadeOut, and the next set-up its ccAllSoundOff (or ccEvVoiceStop), before the event's phase-2 streams (#71)](worklog/0424-the-dungeon-s-music-stops-before-cubia-s-cutscene-the.md) | 2026-10-22 | audio, world, test |
+| 425 | [Cubia's attacks show their names: SetupSkillName reads x01 to x04 in fields 9 to 12 whatever the row says, so Legion's Reach, Ark Bullet and Megiddo Flame come from the field's file (#72)](worklog/0425-cubia-s-attacks-show-their-names-setupskillname-reads-x01.md) | 2026-10-22 | battle, render, test |
