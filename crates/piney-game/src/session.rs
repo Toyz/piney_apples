@@ -773,9 +773,22 @@ impl Session {
             }
             return;
         }
+        // A gate's words always take a town's party out to a new area.
+        let replaced = go.is_none_or(|go| self.scene.replaced_by(go));
         self.pending = Some(p);
+        self.leave(replaced);
+    }
+
+    /// `ChangeRequest`'s `gameInterrupt`, then `ccSetupGameCtrl`'s fade out
+    /// (the session draws it over the old scene), which a new scene starts
+    /// with `ccSoundFadeOut` (MUT main 0x00168bb4); its `ccAllSoundOff`
+    /// comes with the next scene's set-up.
+    fn leave(&mut self, replaced: bool) {
         self.leaving = Some(0);
         self.events.push(Event::GameInterrupt);
+        if replaced {
+            self.events.push(Event::SoundFadeOut);
+        }
     }
 
     /// What The World's modes ask of the session: a change of scene (its
@@ -791,8 +804,7 @@ impl Session {
                 Event::ChangeScene(scene) => {
                     if self.leaving.is_none() {
                         self.scene = scene;
-                        self.leaving = Some(0);
-                        self.events.push(Event::GameInterrupt);
+                        self.leave(scene.changed());
                     }
                 }
                 Event::Go(go) => self.go(Pending::Go(go)),

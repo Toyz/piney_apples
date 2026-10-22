@@ -1468,6 +1468,7 @@ impl Mode for WorldMode {
             .filter_map(|r| match r {
                 Request::SoundFadeOut => Some(Event::SoundFadeOut),
                 Request::AllSoundOff => Some(Event::AllSoundOff),
+                Request::EvVoiceStop => Some(Event::VoiceStop),
                 // `ccSndSQLoad(2)`: `sqDataTown[townType]`, or its crisis
                 // row (`piney_audio::driver::town_row`).
                 Request::SqLoad(_) => Some(Event::SqLoad(piney_audio::SqContext::Town { town, crisis })),

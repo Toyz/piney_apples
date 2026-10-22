@@ -135,12 +135,31 @@ impl Scene {
 
     /// `ccGame::ChangeArea(a, n)`.
     pub fn change_area(&mut self, a: i32, n: i32, save: &mut SaveData) {
+        let [a, t, fd, d, f, b] = Self::area_scene(a, n);
+        self.change_scene(a, t, fd, d, f, b, save);
+    }
+
+    /// The `ChangeScene` arguments `ChangeArea(a, n)` passes.
+    fn area_scene(a: i32, n: i32) -> [i32; 6] {
         match a {
-            kind::TOWN => self.change_scene(0, n, -1, -1, -1, -1, save),
-            kind::FIELD => self.change_scene(1, -2, n, -1, -1, -1, save),
-            kind::DUNGEON => self.change_scene(2, -2, -2, n, 0, 0, save),
-            _ => self.change_scene(0, 0, -1, -1, -1, -1, save),
+            kind::TOWN => [0, n, -1, -1, -1, -1],
+            kind::FIELD => [1, -2, n, -1, -1, -1],
+            kind::DUNGEON => [2, -2, -2, n, 0, 0],
+            _ => [0, 0, -1, -1, -1, -1],
         }
+    }
+
+    /// Whether `go` replaces the scene: [`Scene::changed`] once it is
+    /// made, which `ccSetupGameCtrl` reads before its fade out (its
+    /// `ccSoundFadeOut`).
+    pub fn replaced_by(&self, go: piney_data::area::Go) -> bool {
+        let [a, t, fd, d, ..] = match go {
+            piney_data::area::Go::ChangeArea(a, n) => Self::area_scene(a, n),
+            piney_data::area::Go::ChangeScene(s) => s,
+        };
+        let now = [self.area, self.town, self.field, self.dungeon];
+        let next = [a, t, fd, d].into_iter().zip(now).map(|(v, old)| if v >= -1 { v } else { old });
+        next.ne(now)
     }
 
     /// A `ChangeArea` or `ChangeScene` asked by someone who does not hold

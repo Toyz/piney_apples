@@ -1771,6 +1771,7 @@ impl Mode for AreaMode {
                 Request::Story(StoryRequest::ChangeArea(..)) => {}
                 Request::Game(GameRequest::SoundFadeOut) => out.push(Event::SoundFadeOut),
                 Request::Game(GameRequest::AllSoundOff) => out.push(Event::AllSoundOff),
+                Request::Game(GameRequest::EvVoiceStop) => out.push(Event::VoiceStop),
                 // ccSndSQLoad: the area's bank as ccSetupGameCtrl picks it.
                 // The story area's model is GetEventAreaInfo(game.field)'s
                 // (main 0x00169160), not WORLD_MAN's: Skeith's arena (field

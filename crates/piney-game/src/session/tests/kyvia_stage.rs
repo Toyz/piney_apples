@@ -1,4 +1,4 @@
-//! Issue #72: Mutation's event 108 from area 47's dungeon to
+//! Issues #71 and #72: Mutation's event 108 from area 47's dungeon to
 //! Kyvia's (Cubia's) first fight. The dungeon's last door is
 //! `ChangeArea(1, 9)` with area 47's `WORLD_MAN` still in place.
 
@@ -36,6 +36,11 @@ impl Ear {
         self.audio.frame();
         self.audio.render(&mut vec![0i16; 1600 * rate as usize]);
         said
+    }
+
+    /// The sequencers playing.
+    fn sequences(&self) -> [bool; 3] {
+        self.audio.with_engine(|e| e.seq.each_ref().map(|q| q.playing()))
     }
 }
 
@@ -121,6 +126,35 @@ fn area_47s_door_leads_to_kyvias_disc() {
         assert!(w.place().story::<piney_world::evarea_b8::DiscArea>().is_some(), "{disc}: not on the disc");
         assert!(made, "{disc}: event {n} made no Kyvia: {}", Mode::title(&e.s));
     }
+}
+
+/// Issue #71: leaving area 47's dungeon for field 9, `ccSetupGameCtrl`
+/// fades the music out (`ccSoundFadeOut`, the scene changes) and after
+/// its fade `ccAllSoundOff` stops it, before event 108's phase-2 stream
+/// (`str0932`) plays. Before the fix the session's fade sent neither, and
+/// the dungeon's music played on under the stream.
+#[test]
+fn area_47s_music_stops_before_event_108s_stream() {
+    let Some(mut e) = in_area_47_dungeon() else { return };
+    for _ in 0..200 {
+        e.step(&still());
+    }
+    assert!(e.sequences()[0], "the dungeon's music is not on");
+    e.s.go(Pending::Go(piney_data::area::Go::ChangeArea(1, 9)));
+    let (mut said, mut streamed, mut heard) = (Vec::new(), 0u32, 0u32);
+    for _ in 0..600 {
+        let now = e.step(&still());
+        if streaming(&e.s).is_some() {
+            streamed += 1;
+            heard += u32::from(e.sequences().iter().any(|&q| q));
+        } else {
+            said.extend(now.into_iter().filter(|e| matches!(e.as_str(), "SoundFadeOut" | "AllSoundOff")));
+        }
+    }
+    println!("before the stream {said:?}; the stream {streamed} frames, music in {heard}");
+    assert_eq!(said, ["SoundFadeOut", "AllSoundOff"]);
+    assert!(streamed > 300, "the stream played {streamed} frames");
+    assert_eq!(heard, 0, "the dungeon's music under the stream");
 }
 
 /// Shots of the fight's start from area 47's door to `$PINEY_SHOTS`

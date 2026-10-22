@@ -152,6 +152,10 @@ pub enum Request {
     SoundFadeOut,
     /// `ccAllSoundOff()`, after the fade out.
     AllSoundOff,
+    /// `ccEvVoiceStop()`: `ccSetupGameCtrl`'s in place of `ccAllSoundOff`
+    /// when the scene stays (MUT main 0x00168d1c): a room or floor of the
+    /// same dungeon.
+    EvVoiceStop,
     /// `ccSndSQLoad(n)`: the town's sequence bank (2).
     SqLoad(i32),
     /// `ccSndBgmCtrl()`: the area's music, once the fade in ends.
@@ -487,10 +491,11 @@ impl World {
     /// Entered from a field or dungeon whose own tasks ran under
     /// `ccSetupGameCtrl`'s fade out (the session drew it over them): the
     /// set-up goes on from the frames held black, as it would after the
-    /// fade.
+    /// fade. Its `ccSoundFadeOut` went with the session's fade.
     pub fn skip_fade_out(&mut self) {
         if let Phase::FadeOut(_) = self.phase {
             self.phase = Phase::Hold(0);
+            self.requests.retain(|r| *r != Request::SoundFadeOut);
             self.requests.push(Request::AllSoundOff);
         }
     }
