@@ -185,7 +185,7 @@ class Game:
             return int(ended)
         hook("_AnimateForward__5ccAnmFUi", forward)
         for name in ("SetMatrix_PosRotZYX__7ccCoordFPfPf", "Draw__5ccAnmFv", "Draw__6ccBossFv",
-                     "DrawAfterImages__6ccBossFv", "DrawParts__6ccBossFP5ccAnmi", "DrawStageEffect__6ccBossFv",
+                     "DrawAfterImages__6ccBossFv", "DrawStageEffect__6ccBossFv",
                      "InitAfterImage__6ccBossFP5ccAnmi", "__dl__FPv", "DrawBossEffect__6ccBossFv",
                      "CamMain__9ccBossCamFv", "SetMatrix_PosRotXYZScale__7ccCoordFPfPfPf",
                      "SetMatrix_PosRotZYXScale__7ccCoordFPfPfPf", "SetMatrix_PosRotXYZ__7ccCoordFPfPf",
@@ -219,8 +219,19 @@ class Game:
         hook("ccSeOn__Fi", lambda mm, se, *_: out.append(["se", s32(se)]) or 0)
         hook("ccSeOn3DNote__FiPfc", lambda mm, se, p, n, *_: out.append(["se3dnote", s32(se), n & 0xFF]) or 0)
         hook("EntryAfterImage__6ccBossFP17ENTRYAFTERIMAGE_T", lambda mm, *a: out.append(["afterimage"]) or 0)
-        hook("EntryAfterImageAnm__6ccBossFP5ccAnmPfPfP17ENTRYAFTERIMAGE_T",
-             lambda mm, *a: out.append(["afterimage"]) or 0)
+        hook("DrawParts__6ccBossFP5ccAnmi",
+             lambda mm, this, anm, flag, *_: out.append(["draw_parts", self.anms.get(anm, [None, 0])[1] >> 8,
+                                                         s32(flag)]) or 0)
+
+        def afterimage_anm(mm, this, anm, pos, dirc, *_):
+            eai = mm.r[8] & 0xFFFFFFFF  # t0
+            # The arm's frame (ccBossAfterImageEx::Init reads +0x98), its
+            # place and turn, and the ENTRYAFTERIMAGE_T's words.
+            words = [mm.load(eai + o, 4) for o in (0, 4, 8, 12, 16, 20, 32, 36, 40, 44, 48, 52, 56, 60, 64)]
+            vec = [mm.load(p + 4 * k, 4) for p in (pos, dirc) for k in range(3)]
+            out.append(["afterimage_anm", s32(mm.load(anm + 0x98, 4))] + vec + words)
+            return 0
+        hook("EntryAfterImageAnm__6ccBossFP5ccAnmPfPfP17ENTRYAFTERIMAGE_T", afterimage_anm)
         hook("OnCinemaMode__16ccBossEffManagerFi", lambda mm, a, n, *_: out.append(["cinema", s32(n)]) or 0)
         hook("OffCinemaMode__16ccBossEffManagerFv", lambda mm, *a: out.append(["cinema", -99]) or 0)
         hook("ccEntryFlyFontNew__FiiPfP6ccCharff",

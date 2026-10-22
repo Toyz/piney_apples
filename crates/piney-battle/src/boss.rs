@@ -178,6 +178,24 @@ impl Tbl {
     }
 }
 
+/// `ENTRYAFTERIMAGE_T` (0x50 bytes): an after-image's colour blend
+/// (`SetFogBlend(colorAlpha, color)`, none for colour -1; `colorAlpha`
+/// moves by `colorSpd` a draw, held to 0-100), its transparency (dead once
+/// `transSpd` takes it to 0 or 1), `maxFrame` (counted down, never read)
+/// and its scale from `ss` to `es` over `scaleTime` draws (1 for none).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AfterImageParams {
+    pub color: u32,
+    pub color_alpha: F,
+    pub color_spd: F,
+    pub max_frame: F,
+    pub transparency: F,
+    pub trans_spd: F,
+    pub ss: V4,
+    pub es: V4,
+    pub scale_time: F,
+}
+
 /// A `ccAnm` as the rules read it: the clip, `frameNow * 256 + frameCnt`,
 /// `frameSpd` (+0x9c), the clip's length and whether it loops.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -656,11 +674,21 @@ pub enum Out {
     /// `bossCam` +0x01 `InitLock` set: the next turn goes straight to the
     /// boss.
     CamInitLock,
-    /// Kyvia's arm (`anmw`, `ANM_ex0batc0`) drawn this frame at `pos`
-    /// turned by `dirc` (`DrawParts`).
+    /// Kyvia's arm (`anmw`, `ANM_ex0batc0`) drawn this frame at its pose
+    /// time `time`, at `pos` turned by `dirc` (`DrawParts(anmw, 0)`).
     DrawArm {
+        time: u32,
         pos: V4,
         dirc: V4,
+    },
+    /// `EntryAfterImageAnm(anm, pos, dirc, params)`: an after-image of a
+    /// `ccAnm` of the boss's own (Kyvia's arm) at its frame `frame`
+    /// (`ccBossAfterImageEx::Init`: at frame 0 one step on).
+    AfterImageAnm {
+        frame: i32,
+        pos: V4,
+        dirc: V4,
+        params: AfterImageParams,
     },
     /// `changeCamera(n)` (main): the active camera (1 the field's, 3 the
     /// event's).

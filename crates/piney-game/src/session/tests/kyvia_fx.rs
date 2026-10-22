@@ -158,6 +158,33 @@ fn kyvia_s_second_fight_shows_its_thunderbolts() {
     assert!(on_core > 100, "no aura followed the core ({on_core} frames)");
 }
 
+/// Kyvia's arm in Legion's Reach (act 3, #72): `HandAtk` draws `anmw`
+/// (`ANM_ex0batc0`, the arm's `MDL_ex0bbod1`) with `DrawParts` each frame
+/// of its sweep, and every `AFtiming`-th frame enters an after-image of
+/// it, so the arm shows more than once. Before, neither was drawn.
+#[test]
+fn kyvias_arm_sweeps_with_its_after_images() {
+    for (disc, s) in [("x01", event_108_disc()), ("x02", event_211_disc())] {
+        let Some(mut s) = s else { continue };
+        let ccs = piney_data::ccs::Ccs::parse(s.archive.inflate_named(disc).unwrap()).unwrap();
+        let arm = ccs.find_object("MDL_ex0bbod1").unwrap();
+        let (mut shown, mut doubled) = (0u32, 0u32);
+        fight(&mut s, 6000, |_, frame, _, now| {
+            if now.act != 3 {
+                return;
+            }
+            let n = (frame.cmds.iter())
+                .filter(|c| matches!(c, piney_draw::Cmd::Model(m) if m.file == disc && m.model == arm))
+                .count();
+            shown += u32::from(n > 0);
+            doubled += u32::from(n > 1);
+        });
+        println!("{disc}: the arm in {shown} frames, with after-images in {doubled}");
+        assert!(shown > 30, "{disc}: the arm drawn in {shown} frames of act 3");
+        assert!(doubled > 10, "{disc}: its after-images in {doubled} frames");
+    }
+}
+
 /// Shots of both fights to `PINEY_SHOTS` (default
 /// /mnt/data/claude/scratch/a420): every 6th frame a meteor or a bolt is
 /// drawn, or the beams' generators run, through each fight's first 4000.

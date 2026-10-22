@@ -103,6 +103,9 @@ pub struct BossRun {
     /// The wave's `DrawParts` this frame: its animation's pose time, at the
     /// boss's place and heading.
     pub wave: Option<(u32, V4, V4)>,
+    /// Kyvia's arm's `DrawParts` this frame: its clip, pose time, place
+    /// and turn.
+    pub arm: Option<(String, u32, V4, V4)>,
     /// Innis's mirrors' shards `Mbreak` drew this frame (`DrawPartsClump`
     /// on objLayer): [`BossLook::shards`]' clump, place and turn.
     pub shards: Vec<(usize, V4, V4)>,
@@ -139,12 +142,12 @@ pub struct BossRun {
     pub dropped: Vec<usize>,
 }
 
-/// One `ccBossAfterImageEx` (`Draw` MUT gcmn 0x00471320): a pose when
-/// it was entered, fading by `fade` a draw and drawn on effLayer in its
-/// blend at the new transparency, its scale grown first by `grow`'s step
-/// to its end. The boss's (`m_eai`: colour -1 at `colorAlpha` 100,
-/// `transparency` 1.0 by `transSpd` -0.05, white), or a blinking leaf's of
-/// Magus's, its own model ([`AfterImage::leaf`]).
+/// One `ccBossAfterImageEx` (`Init` MUT gcmn 0x004710b0, `Draw`
+/// 0x00471320): a pose when it was entered, its blend's rate moved by its
+/// speed and its transparency by its fade each draw, then drawn on
+/// effLayer at the new values, its scale grown first by `grow`'s step to
+/// its end. The boss's (`m_eai`), a blinking leaf's of Magus's (its own
+/// model) or one of a `ccAnm` of the boss's file (Kyvia's arm).
 #[derive(Clone, Debug, PartialEq)]
 pub struct AfterImage {
     pub clip: String,
@@ -153,10 +156,23 @@ pub struct AfterImage {
     pub dirc: V4,
     pub transparency: f32,
     pub fade: f32,
-    pub leaf: bool,
-    pub fog: piney_draw::Fog,
+    pub image: Image,
+    /// `SetFogBlend(colorAlpha, color)`; rate 0 for none.
+    pub blend: crate::foe::FogBlend,
+    pub blend_spd: ee::F,
     pub scale: [f32; 3],
     pub grow: Option<([f32; 3], [f32; 3])>,
+}
+
+/// What an after-image poses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Image {
+    /// The boss's body.
+    Boss,
+    /// Magus's leaf (`BossLook::images[0]`).
+    Leaf,
+    /// The objects a clip of the boss's file animates (`ccAnm::Draw`).
+    Anm,
 }
 
 /// `m_eai.transSpd`.
@@ -172,8 +188,9 @@ impl AfterImage {
             dirc,
             transparency: 1.0,
             fade: AFTERIMAGE_FADE,
-            leaf: false,
-            fog: piney_draw::Fog { f: 0, colour: [0xff; 3] },
+            image: Image::Boss,
+            blend: crate::foe::FogBlend { rate: 0x42c8_0000, colour: 0x00ff_ffff },
+            blend_spd: 0,
             scale: [1.0; 3],
             grow: None,
         }
@@ -188,17 +205,46 @@ impl AfterImage {
         AfterImage {
             transparency: 0.5,
             fade: f32::from_bits(0x3c88_8889),
-            leaf: true,
-            // SetFogBlend(100, 0x005050ff): the colour alone.
-            fog: piney_draw::Fog { f: 0, colour: [0xff, 0x50, 0x50] },
+            image: Image::Leaf,
+            blend: crate::foe::FogBlend { rate: 0x42c8_0000, colour: 0x0050_50ff },
             scale: from,
             grow: Some((step, to)),
             ..AfterImage::boss(clip, time, pos, dirc)
         }
     }
 
-    /// The fade and the growth of one `Draw`; false once faded out.
+    /// `EntryAfterImageAnm(anm, pos, dirc, p)` of a clip of the boss's
+    /// file at `time`, as `Init` takes `p` (colour -1: no blend; a scale
+    /// only with `scaleTime` over 0).
+    pub fn anm(clip: String, time: u32, pos: V4, dirc: V4, p: &boss::AfterImageParams) -> AfterImage {
+        let (ss, es) = (p.ss.map(f32::from_bits), p.es.map(f32::from_bits));
+        let scale_time = f32::from_bits(p.scale_time);
+        let (scale, grow) = if scale_time > 0.0 {
+            let step = std::array::from_fn(|k| (es[k] - ss[k]) * (1.0 / scale_time));
+            ([ss[0], ss[1], ss[2]], Some((step, [es[0], es[1], es[2]])))
+        } else {
+            ([1.0; 3], None)
+        };
+        let rate = if p.color == u32::MAX { 0 } else { p.color_alpha };
+        AfterImage {
+            transparency: f32::from_bits(p.transparency),
+            fade: -f32::from_bits(p.trans_spd),
+            image: Image::Anm,
+            blend: crate::foe::FogBlend { rate, colour: p.color },
+            blend_spd: p.color_spd,
+            scale,
+            grow,
+            ..AfterImage::boss(clip, time, pos, dirc)
+        }
+    }
+
+    /// The blend, the fade and the growth of one `Draw`; false once faded
+    /// out.
     fn step(&mut self) -> bool {
+        if !ee::eq(self.blend_spd, 0) {
+            let r = f32::from_bits(ee::add(self.blend.rate, self.blend_spd)).clamp(0.0, 100.0);
+            self.blend.rate = r.to_bits();
+        }
         self.transparency -= self.fade;
         if let Some((step, to)) = self.grow {
             for k in 0..3 {
@@ -221,6 +267,9 @@ pub struct BossLook {
     pub clips: Rc<Clips>,
     pub eff: Rc<piney_desktop::assets::SceneFile>,
     pub eff_morphers: HashMap<u32, u32>,
+    /// The body's file's morphers, for its clips drawn as a `ccAnm`
+    /// (Kyvia's arm, `ANM_ex0batc0`).
+    pub body_morphers: HashMap<u32, u32>,
     /// `_g_cinemaSkillName[n]` of this boss's file (`OnCinemaMode(n)`'s
     /// name), by `n`: on Infection Skeith's 2 (x11's `TEX_ske_skl`, row
     /// 0); on Mutation Innis's 5-8 and 70 (`TEX_ini_skl`, rows 0-4).
@@ -257,6 +306,7 @@ impl BossLook {
             _ => (FILE, CLUMP),
         };
         let body = Rc::new(Body::read(archive, file, clump)?);
+        let body_morphers = piney_data::anim::morphers(&body.file.ccs).unwrap_or_default();
         let mut clips = Clips::new();
         for stem in [file, EFF_FILE] {
             let ccs = piney_data::ccs::Ccs::parse(archive.inflate_named(stem)?)?;
@@ -326,7 +376,18 @@ impl BossLook {
             }
             _ => Vec::new(),
         };
-        Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, skill_names, images, shards })
+        Ok(BossLook {
+            code,
+            body,
+            clips: Rc::new(clips),
+            eff,
+            eff_morphers,
+            body_morphers,
+            names,
+            skill_names,
+            images,
+            shards,
+        })
     }
 }
 
@@ -458,6 +519,7 @@ impl Combat {
             look: look.clone(),
             afterimages: Vec::new(),
             wave: None,
+            arm: None,
             shards: Vec::new(),
             cam_sw: cam.is_some(),
             cam,
@@ -614,6 +676,10 @@ impl Combat {
             Class::Magus(x) => x.leaves.clone(),
             _ => Vec::new(),
         };
+        let arm = match &b.class {
+            Class::Kyvia(x) => Some(x.anm_w.clone()),
+            _ => None,
+        };
         let kite_pos = kite.map(|k| self.scene.chars[k].pos);
         if let Some(r) = self.boss.as_mut() {
             // Think and Action's QuakeCam, SetMode, SetFreeCamPosView and
@@ -719,6 +785,7 @@ impl Combat {
             // EntryAfterImage in the frame's Think, then DrawAfterImages:
             // each image steps its fade as it draws, the new one too.
             r.wave = None;
+            r.arm = None;
             r.reverse = out.contains(&Out::Reverse);
             r.shards = match &b.class {
                 Class::Innis(x) => (x.slaves.iter())
@@ -745,6 +812,20 @@ impl Combat {
                         r.afterimages.push(AfterImage::leaf(a.clip.unwrap_or_default(), a.posed, p, lb.dirc));
                     }
                     Out::DrawWave => r.wave = Some((wave_time, at.pos, dirc)),
+                    Out::DrawArm { time, pos, dirc } => {
+                        r.arm = arm.as_ref().and_then(|a| a.clip.clone()).map(|c| (c, *time, *pos, *dirc));
+                    }
+                    // Init's pose: `_AnimateFrame(frame)`, or at frame 0
+                    // one step on.
+                    Out::AfterImageAnm { frame, pos, dirc, params } => {
+                        let Some(mut a) = arm.clone() else { continue };
+                        (a.time, a.posed) = (*frame as u32 * 256, *frame as u32 * 256);
+                        if *frame == 0 {
+                            a.forward();
+                        }
+                        let clip = a.clip.unwrap_or_default();
+                        r.afterimages.push(AfterImage::anm(clip, a.posed, *pos, *dirc, params));
+                    }
                     _ => {}
                 }
             }

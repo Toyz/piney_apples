@@ -74,7 +74,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 ### battle
 
 - [[268]] Innis's drains at its breaks gave item drops and no Epitaph in the survey, where `innis_drained_through_the_menus` reaches the Epitaph — Mutation's first boss fight may skip its Epitaph phase; possibly the queued-affect bug [[274]] fixed (a lost 21), not rechecked
-- [[272]] Kyvia's gomoras do not push each other; the pad's sway and the arm's picture are missing (docs/engine/boss-kyvia.md) — Mutation's Kyvia 01 fight, look and movement; the particles answered by [[420]] (the fight's generators, the meteors and the second fight's bolts drawn)
+- [[272]] Kyvia's gomoras do not push each other; the pad's sway is missing (docs/engine/boss-kyvia.md) — Mutation's Kyvia 01 fight, look and movement; the particles answered by [[420]] (the fight's generators, the meteors and the second fight's bolts drawn), the arm's picture by [[426]] (`DrawParts` of `anmw` and its after-images)
 - [[274]] Magus's `EntryFlash2`/`3` are one flash; the grow's looping SE plays once (docs/engine/boss-magus.md) — Mutation's Magus fight: flashes, sound; the shock beams' line test answered by [[421]] (`ccHitCheckLM` on the land)
 
 ### world
@@ -1194,7 +1194,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 
 ### docs/engine/boss-kyvia.md
 
-- docs/engine/boss-kyvia.md: the gomoras' pushes, the pad's sway, the arm's picture — play (duplicates [[272]]); the particles answered by [[420]]
+- docs/engine/boss-kyvia.md: the gomoras' pushes, the pad's sway — play (duplicates [[272]]); the particles answered by [[420]], the arm's picture by [[426]]
 - docs/engine/boss-kyvia.md: the EX mode and levels 2-5 (Kyvia's later fights) — play (duplicates [[272]])
 - docs/engine/boss-kyvia.md: which of x01's gomora clumps each attribute draws — research (duplicates [[272]])
 

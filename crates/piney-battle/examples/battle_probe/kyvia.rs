@@ -477,9 +477,29 @@ fn kout(o: &Out) -> Option<String> {
         // The meteors run natively in the harness: their making is seen in
         // the effects' slots.
         Out::Effect { kind: EffKind::Meteorite { .. } | EffKind::Thunderbolt { .. }, .. } => return None,
-        Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) | Out::CamSway(_) | Out::DrawArm { .. } => {
-            return None;
-        }
+        Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) | Out::CamSway(_) => return None,
+        // DrawParts(anmw, 0) at the arm's frame (its place is tesPOS).
+        Out::DrawArm { time, .. } => format!("[\"draw_parts\",{},0]", time >> 8),
+        Out::AfterImageAnm { frame, pos, dirc, params: e } => format!(
+            "[\"afterimage_anm\",{frame},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]",
+            v3(pos),
+            v3(dirc),
+            e.color,
+            e.color_alpha,
+            e.color_spd,
+            e.max_frame,
+            e.transparency,
+            e.trans_spd,
+            e.ss[0],
+            e.ss[1],
+            e.ss[2],
+            e.ss[3],
+            e.es[0],
+            e.es[1],
+            e.es[2],
+            e.es[3],
+            e.scale_time
+        ),
         Out::PartHit { .. } => return None,
         _ => return out_json(o),
     })

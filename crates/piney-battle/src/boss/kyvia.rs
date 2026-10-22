@@ -15,7 +15,7 @@ use piney_data::field::ee;
 
 use self::core::Core;
 use self::gomora::Gomora;
-use super::{Anm, Boss, Class, Cx, EffKind, Out, VF0};
+use super::{AfterImageParams, Anm, Boss, Class, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
 use crate::param::cond;
@@ -1397,6 +1397,22 @@ fn core_damage_all(t: &mut Tree, cx: &mut Cx, i: usize) {
     }
 }
 
+/// The arm's after-images (+0x29620 of the first fight's body, +0x296c0
+/// of the second's, the constructors at MUT gcmn 0x004d2f70 and OUT
+/// 0x004d5d68): colour 0x00525221 at 30, transparency 0.5 by -0.02, no
+/// scale.
+pub const ARM_AFTERIMAGE: AfterImageParams = AfterImageParams {
+    color: 0x0052_5221,
+    color_alpha: 0x41f0_0000,
+    color_spd: 0,
+    max_frame: 0x42a0_0000,
+    transparency: 0x3f00_0000,
+    trans_spd: 0xbca3_d70a,
+    ss: VF0,
+    es: VF0,
+    scale_time: 0,
+};
+
 /// `HandAtk` (MUT gcmn 0x004d5930, OUT 0x004d8c70): the arm's sweep, boss
 /// skill 33 (36) on every member at its frame 48. The second fight's first
 /// stage looks from further and shakes harder.
@@ -1452,7 +1468,8 @@ fn hand_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         }
         5 => {
             if x.af_cou == x.af_timing {
-                cx.out(Out::AfterImage);
+                let (frame, pos, dirc) = (x.anm_w.frame(), x.tes_pos, x.tes_dirc);
+                cx.out(Out::AfterImageAnm { frame, pos, dirc, params: ARM_AFTERIMAGE });
             }
             let q = if x.fight == Fight::Second && x.disc_lv != x.disc_max_lv {
                 [0x41f0_0000, 0x4220_0000, 0x4270_0000]
@@ -1467,7 +1484,7 @@ fn hand_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 cx.out(Out::Se3dNote { se: 206, pos: x.snd_pos_l, note: 68 });
             }
             let ended = x.anm_w.forward();
-            cx.out(Out::DrawArm { pos: x.tes_pos, dirc: x.tes_dirc });
+            cx.out(Out::DrawArm { time: x.anm_w.posed, pos: x.tes_pos, dirc: x.tes_dirc });
             if x.anm_w.frame() == 48 {
                 core_damage_all(t, cx, x.fight.skills()[0]);
                 cx.out(Out::Se3dNote { se: 56, pos: x.disc_pos, note: 72 });

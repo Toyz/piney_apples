@@ -2961,21 +2961,58 @@ impl FieldWorld {
     }
 
     /// The boss's own pictures besides its body: `DrawAfterImages` (each
-    /// image a white silhouette of the pose it was entered with, fading, on
-    /// effLayer) and the wave's `DrawParts` (`ANM_xx11wave`'s objects at
-    /// the boss, on objLayer).
+    /// image the pose it was entered with in its blend, fading, on
+    /// effLayer), Kyvia's arm and the wave's `DrawParts` (`ANM_xx11wave`'s
+    /// objects at the boss, on objLayer).
     fn draw_boss(&self, ctx: &mut Ctx, to_screen: glam::Mat4) {
         let Some(run) = self.combat.boss.as_ref().filter(|r| !r.exit) else { return };
         let lights = self.place.lights();
+        // A ccAnm of the boss's file (Kyvia's arm): every object its clip
+        // poses, lit, in the blend or else the draw environment's fog.
+        let anm_draw = |ctx: &mut Ctx, layer, clip: &str, time, root, alpha, fog: Option<piney_draw::Fog>| {
+            let file = &run.look.body.file;
+            let Some(mut p) = crate::pose::Play::new(file, clip) else { return };
+            (p.time, p.posed) = (time, time);
+            let lit = |world: glam::Mat4| crate::chara::light_matrix(lights, world, false);
+            let fog = match (fog, lights.fog) {
+                (Some(f), _) => draw::Fogging::Const(f),
+                (None, Some(d)) => draw::Fogging::Depth(d),
+                (None, None) => draw::Fogging::None,
+            };
+            let fm = (&**file, &run.look.body_morphers);
+            crate::town::anim_draw_fog(
+                &mut ctx.layers,
+                layer,
+                to_screen,
+                fm,
+                &p,
+                root,
+                &[],
+                alpha,
+                None,
+                Some(&lit),
+                fog,
+            );
+        };
         for a in &run.afterimages {
-            let Some(body) = (if a.leaf { run.look.images.first() } else { Some(&run.look.body) }) else { continue };
-            let Some(mut p) = body.play(&a.clip) else { continue };
-            (p.time, p.posed) = (a.time, a.time);
-            if !a.leaf {
-                p.hidden = combat::boss::dropped_objects(body, &p, &run.dropped);
-            }
             // SetMatrix_PosRotZYXScale.
             let root = crate::body::root(a.pos, a.dirc) * glam::Mat4::from_scale(glam::Vec3::from(a.scale));
+            let fog = a.blend.fog();
+            let body = match a.image {
+                combat::boss::Image::Anm => {
+                    anm_draw(ctx, draw::EFF_LAYER, &a.clip, a.time, root, a.transparency, fog);
+                    continue;
+                }
+                combat::boss::Image::Leaf => run.look.images.first(),
+                combat::boss::Image::Boss => Some(&run.look.body),
+            };
+            let Some(body) = body else { continue };
+            let Some(mut p) = body.play(&a.clip) else { continue };
+            (p.time, p.posed) = (a.time, a.time);
+            if a.image == combat::boss::Image::Boss {
+                p.hidden = combat::boss::dropped_objects(body, &p, &run.dropped);
+            }
+            let fog = fog.map_or(draw::Fogging::None, draw::Fogging::Const);
             body.draw_fog(
                 &mut ctx.layers,
                 draw::EFF_LAYER,
@@ -2986,8 +3023,12 @@ impl FieldWorld {
                 lights,
                 false,
                 &[],
-                draw::Fogging::Const(a.fog),
+                fog,
             );
+        }
+        // Kyvia's arm: DrawParts(anmw, 0) on objLayer, no blend.
+        if let Some((clip, time, pos, dirc)) = &run.arm {
+            anm_draw(ctx, draw::OBJ_LAYER, clip, *time, crate::body::root(*pos, *dirc), 1.0, None);
         }
         if run.reverse {
             ctx.layers.prepend(REVERSE_LAYER, vec![reverse_packet()]);
