@@ -482,6 +482,9 @@ fn main() {
                 },
                 offset: v4(18),
             },
+            // Kyvia's third fight's ball alone (pos, ran): no blur, no
+            // callback.
+            "ball" => Make::BallAlone { pos: v4(1), ran: n(5) },
             other => panic!("unknown request {other}"),
         };
         let id = fx.boss_create(&mut host, make);

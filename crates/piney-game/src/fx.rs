@@ -241,7 +241,8 @@ impl FxTasks for AreaFx {
         let k = kyvia_shows(host.w.scene);
         let meteors: Vec<_> = k.meteors.iter().map(|(s, f)| (*s, f)).collect();
         let bolts: Vec<_> = k.bolts.iter().map(|(s, b)| (*s, b)).collect();
-        self.fx.kyvia_sync(&mut host, &meteors, &bolts, &k.members);
+        let balls: Vec<_> = k.balls.iter().map(|(s, b)| (*s, b)).collect();
+        self.fx.kyvia_sync(&mut host, &meteors, &bolts, &balls, &k.members);
         let m = magus_shows(host.w.scene);
         let needles: Vec<_> = m.needles.iter().map(|(s, n)| (*s, n)).collect();
         self.fx.magus_sync(&mut host, &needles, &m.bursts, &m.markers);
@@ -505,6 +506,7 @@ fn innis_flights(scene: &Scene) -> Vec<Flight> {
 struct KyviaShows {
     meteors: Vec<(i32, piney_battle::boss::kyvia::Meteorite)>,
     bolts: Vec<(i32, piney_battle::boss::kyvia::thunder::Bolt)>,
+    balls: Vec<(i32, piney_battle::boss::kyvia::magic_ball::MagicalBall)>,
     members: Vec<(piney_battle::boss::kyvia::Follow, V4)>,
 }
 
@@ -532,6 +534,9 @@ fn kyvia_shows(scene: &Scene) -> KyviaShows {
             }
             if let Some(bolt) = e.bolt.as_deref() {
                 out.bolts.push((k as i32, bolt.clone()));
+            }
+            if let Some(ball) = e.ball.as_deref() {
+                out.balls.push((k as i32, ball.clone()));
             }
         }
     }
@@ -866,6 +871,7 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
         EffKind::Missile { element, no, .. } => Make::Missile { rules_slot: id, element, no },
         EffKind::Meteorite { count } => Make::Meteorite { rules_slot: id, n: count },
         EffKind::Thunderbolt { .. } => Make::Bolt { rules_slot: id },
+        EffKind::MagicalBall => Make::Ball { rules_slot: id },
         EffKind::Needle { .. } => Make::Needles { rules_slot: id },
         EffKind::FinalPhotonFlash => Make::FinalPhotonFlash { pos },
         EffKind::MeteoSworm { .. } | EffKind::ThunderStorm { .. } | EffKind::RockTower { .. } => {

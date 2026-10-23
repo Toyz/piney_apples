@@ -103,6 +103,7 @@ impl Bout {
         let me = self.me;
         let mut b = self.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
         let out = self.with_cx(|cx| {
+            b.effects_pass(cx);
             b.main(cx);
             std::mem::take(&mut cx.out)
         });

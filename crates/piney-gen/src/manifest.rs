@@ -1823,6 +1823,71 @@ fn kyvia_gomora_lists_2(c: &Ctx) -> Read {
     Ok(Value::List(out))
 }
 
+/// The gomora lists of a level's table at `at`: up to `steps` pointers,
+/// each (to a null) a step's lists, each list's five attributes.
+fn gomora_steps(c: &Ctx, at: u32, steps: u32) -> Read {
+    let mut out = Vec::new();
+    for k in 0..steps {
+        let lists = c.p.u32(at + 4 * k)?;
+        if lists == 0 {
+            break;
+        }
+        let mut step = Vec::new();
+        for j in 0..16 {
+            let l = c.p.u32(lists + 4 * j)?;
+            if l == 0 {
+                break;
+            }
+            let row = (0..5)
+                .map(|i| c.p.read(l + 2 * i, 2).map(|b| Value::Int(i128::from(i16::from_le_bytes([b[0], b[1]])))))
+                .collect::<Result<Vec<_>, _>>()?;
+            step.push(Value::List(row));
+        }
+        out.push(Value::List(step));
+    }
+    Ok(Value::List(out))
+}
+
+/// The tables `kyviaGomora::ListStepUp` (INF gcmn 0x004e5d20) takes by
+/// level, in its order: `AllGomoraList_1` ($gp), `_2`, a third level's
+/// from Mutation on (Infection has no case 3), `_4`.
+fn gomora_list_tables(c: &Ctx) -> Result<Vec<u32>, String> {
+    let f = find(c, 0x004E_5D20, GCMN);
+    let gp = c.p.gp.ok_or("no gp")?;
+    let mut out = Vec::new();
+    for k in 0..64 {
+        let w = c.p.u32(f + 4 * k)?;
+        if w == 0x03e0_0008 {
+            break;
+        }
+        let (op, rs) = (w >> 26, (w >> 21) & 31);
+        if op == 0x09 && rs == 28 {
+            out.push(gp.wrapping_add(sext16(w) as u32));
+        } else if op == 0x0f {
+            let lo = c.p.u32(f + 4 * (k + 1))?;
+            if lo >> 26 == 0x09 {
+                out.push((w << 16).wrapping_add(sext16(lo) as u32));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// The third level's gomora lists (`ListStepUp`'s case 3, Mutation on:
+/// Quarantine's gcmn 0x005103e0), its steps up to `AllGomoraList_4`;
+/// none in Infection.
+fn kyvia_gomora_lists_3(c: &Ctx) -> Read {
+    match gomora_list_tables(c)?.as_slice() {
+        [_, _, three, four] => gomora_steps(c, *three, (four - three) / 4),
+        _ => Ok(Value::List(Vec::new())),
+    }
+}
+
+/// `AllGomoraList_4` (INF gcmn 0x005ecee0, `short **[5]`): level 4's.
+fn kyvia_gomora_lists_4(c: &Ctx) -> Read {
+    gomora_steps(c, find(c, 0x005E_CEE0, GCMN), 5)
+}
+
 /// Every GCMN.PRG global of Infection's named `*{suffix}` (the enemies'
 /// weapon and dust blocks), by name: each where the volume keeps it, and
 /// its rows.
@@ -2008,6 +2073,34 @@ fn combat() -> Group {
                 "`Kyvia02AnmTbl`: Kyvia's clip by act in its second fight.",
             ),
             e(
+                "kyvia03_anims",
+                0x005E_CBF0,
+                array(opt(cstr()), 22),
+                GCMN,
+                "`Kyvia03AnmTbl`: Kyvia's clip by act in its third fight.",
+            ),
+            e(
+                "kyvia04_anims",
+                0x005E_CC60,
+                array(opt(cstr()), 24),
+                GCMN,
+                "`Kyvia04AnmTbl`: Kyvia's clip by act in its fourth fight.",
+            ),
+            e(
+                "kyvia04_anims_ex",
+                0x005E_CCC0,
+                array(opt(cstr()), 24),
+                GCMN,
+                "`Kyvia04AnmTbl_EX`: those of its EX mode.",
+            ),
+            e(
+                "kyvia_skills_various",
+                0x005E_CC48,
+                array(I16, 7),
+                GCMN,
+                "`Skill_KYVIA_VARIOUS`: the spells Kyvia's fourth fight picks from.",
+            ),
+            e(
                 "kyvia_core_anims",
                 0x005E_CD20,
                 array(opt(cstr()), 18),
@@ -2041,6 +2134,19 @@ fn combat() -> Group {
                 custom(Rc::new(kyvia_gomora_lists_2), array(array(array(I16, 5), 0), 0)),
                 GCMN,
                 "`AllGomoraList_2`: Kyvia 02's gomora lists by the core's deaths, as `kyvia_gomora_lists`.",
+            ),
+            derived(
+                "kyvia_gomora_lists_3",
+                custom(Rc::new(kyvia_gomora_lists_3), array(array(array(I16, 5), 0), 0)),
+                GCMN,
+                "`ListStepUp`'s third level's lists by the core's deaths (Mutation on; none in Infection).",
+            ),
+            e(
+                "kyvia_gomora_lists_4",
+                0x005E_CEE0,
+                custom(Rc::new(kyvia_gomora_lists_4), array(array(array(I16, 5), 0), 0)),
+                GCMN,
+                "`AllGomoraList_4`: Kyvia 04's gomora lists by the core's deaths.",
             ),
             e(
                 "magus_epitaph",

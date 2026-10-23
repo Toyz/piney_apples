@@ -321,6 +321,8 @@ pub struct Eff {
     pub fidchell: Option<Box<fidchell::eff::Fx>>,
     /// A thunderbolt of Kyvia's ([`kyvia::thunder::Bolt`]).
     pub bolt: Option<Box<kyvia::thunder::Bolt>>,
+    /// Kyvia's magical ball ([`kyvia::magic_ball::MagicalBall`]).
+    pub ball: Option<Box<kyvia::magic_ball::MagicalBall>>,
 }
 
 /// The effects the bosses make (`ccBossEff*Create`).
@@ -370,6 +372,9 @@ pub enum EffKind {
     /// `ccBossEffThunderboltCreate(pos, time, range, num, dat)` (OUT gcmn
     /// 0x00489540): `num` bolts of Kyvia's ([`kyvia::thunder::Bolt`]).
     Thunderbolt { num: i32 },
+    /// `ccBossEffMagicalBallCreate(ran, pos, blur, cb)` (QUA gcmn
+    /// 0x0037ca70): Kyvia's third fight's ball.
+    MagicalBall,
 }
 
 impl Effects {
@@ -392,6 +397,7 @@ impl Effects {
             needle: None,
             fidchell: None,
             bolt: None,
+            ball: None,
         };
         match self.slots.iter().position(Option::is_none) {
             Some(k) => {
@@ -476,7 +482,8 @@ impl Eff {
             | EffKind::MeteoSworm { .. }
             | EffKind::ThunderStorm { .. }
             | EffKind::RockTower { .. }
-            | EffKind::Thunderbolt { .. } => return,
+            | EffKind::Thunderbolt { .. }
+            | EffKind::MagicalBall => return,
         };
         if self.count >= life {
             self.enabled = false;
@@ -1045,6 +1052,16 @@ impl Boss {
 
     /// The boss task's frame: the effect manager's pass (its task runs
     /// first in the frame), then the class's `Main`.
+    /// `ccBossEffManager::Draw`'s pass over the effects whose `Draw` the
+    /// class's rules keep (Kyvia's meteors, bolts and ball), before the
+    /// blur's `Main` and the boss's task. The other classes' effects run
+    /// in their `main`.
+    pub fn effects_pass(&mut self, cx: &mut Cx) {
+        if let Class::Kyvia(_) = self.class {
+            kyvia::effects_pass(self, cx);
+        }
+    }
+
     pub fn main(&mut self, cx: &mut Cx) {
         match self.class {
             Class::Innis(_) => innis::main(self, cx),

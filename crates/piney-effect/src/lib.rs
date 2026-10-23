@@ -573,6 +573,7 @@ impl Effects {
         host: &mut dyn Host,
         meteors: &[(i32, &piney_battle::boss::kyvia::Meteorite)],
         bolts: &[(i32, &piney_battle::boss::kyvia::thunder::Bolt)],
+        balls: &[(i32, &piney_battle::boss::kyvia::magic_ball::MagicalBall)],
         members: &[(piney_battle::boss::kyvia::Follow, V4)],
     ) {
         for &(f, p) in members {
@@ -589,7 +590,7 @@ impl Effects {
             events: &mut self.events,
             draws: &mut self.boss_draws,
         };
-        self.boss.sync_kyvia(&mut self.ctrl, &mut cx, &self.assets.boss, meteors, bolts);
+        self.boss.sync_kyvia(&mut self.ctrl, &mut cx, &self.assets.boss, meteors, bolts, balls);
     }
 
     /// A particle generator of Kyvia's fight started ([`kyvia::start`]).

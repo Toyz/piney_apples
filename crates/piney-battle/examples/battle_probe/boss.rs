@@ -367,6 +367,7 @@ pub(crate) fn eff_num(k: EffKind) -> i32 {
         EffKind::RockTower { .. } => 15,
         EffKind::FinalPhotonFlash => 16,
         EffKind::Thunderbolt { .. } => 17,
+        EffKind::MagicalBall => 18,
     }
 }
 

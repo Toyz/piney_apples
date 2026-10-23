@@ -338,7 +338,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
     }
     blur.apply(&out);
     let outs: Vec<String> = out.iter().filter_map(kout).collect();
-    lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()));
+    lines.push(with_ball(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()), &boss));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
         let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false };
@@ -385,10 +385,9 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         let pending = boss.take_pending();
         outs.extend(pending.iter().filter_map(kout));
         out.extend(pending);
-        // The affects' writes, then the manager's pass, then the boss's.
+        // The affects' writes, then the manager's pass (the effects, then
+        // the blur's Main), then the boss's.
         blur.apply(&out);
-        blur.frame();
-        let pre = out.len();
         let mut cx = Cx {
             t: tables,
             data,
@@ -411,12 +410,26 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
             out: Vec::new(),
             ev: Events::new(),
         };
+        boss.effects_pass(&mut cx);
+        let fx_out = std::mem::take(&mut cx.out);
+        blur.apply(&fx_out);
+        blur.frame();
+        // The effects' camera modes before the boss reads ResetFlg.
+        for o in fx_out.iter().filter(|o| matches!(o, Out::CamMode { .. } | Out::CamModeRange { .. })) {
+            cam.take(o);
+        }
+        cx.cam = view(f, cam.reset);
         boss.main(&mut cx);
         let main_out = std::mem::take(&mut cx.out);
         drop(cx);
-        outs.extend(main_out.iter().filter_map(kout));
+        outs.extend(fx_out.iter().chain(&main_out).filter_map(kout));
+        let fx_at = out.len()..out.len() + fx_out.len();
+        out.extend(fx_out);
+        let pre = out.len();
         out.extend(main_out);
-        for o in &out {
+        let early =
+            |k: usize, o: &Out| fx_at.contains(&k) && matches!(o, Out::CamMode { .. } | Out::CamModeRange { .. });
+        for (_, o) in out.iter().enumerate().filter(|&(k, o)| !early(k, o)) {
             cam.take(o);
             match o {
                 Out::DiscNextStage => ride = ride2,
@@ -441,7 +454,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
             }
         }
         blur.apply(&out[pre..]);
-        lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()));
+        lines.push(with_ball(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()), &boss));
     }
     format!("[{}]", lines.join(","))
 }
@@ -513,7 +526,7 @@ fn gen_json(which: Gen, at: &Place, held: Option<Held>) -> String {
         Gen::GomoraAttack(attr) => format!("\"particles\",\"GomoraAura\",{},0", 4 + attr),
         _ => format!("\"particles\",\"{}\",{}", r.table.name(), r.row),
     };
-    if matches!(which, Gen::Trail(_) | Gen::Burst(_)) {
+    if matches!(which, Gen::Trail(_) | Gen::Burst(_) | Gen::Ball(_)) {
         return format!("[{head}]");
     }
     let ff: Vec<String> = r.ff.iter().map(|f| f.to_string()).collect();
@@ -526,6 +539,8 @@ fn gen_json(which: Gen, at: &Place, held: Option<Held>) -> String {
                 Follow::BeamHead(k) => format!("[\"head\",{k}]"),
                 Follow::BeamTail(k) => format!("[\"tail\",{k}]"),
                 Follow::Aura(c) => format!("[{},\"aura\"]", role(c)),
+                Follow::Plasma(k) => format!("[\"plasma\",{k}]"),
+                Follow::Plasma2(k) => format!("[\"plasma2\",{k}]"),
             };
             format!("[\"follow\",{f},{}]", v3(&off))
         }
@@ -562,7 +577,11 @@ fn kout(o: &Out) -> Option<String> {
         Out::MusicFade { t } => format!("[\"music_fade\",{t}]"),
         // The meteors run natively in the harness: their making is seen in
         // the effects' slots.
-        Out::Effect { kind: EffKind::Meteorite { .. } | EffKind::Thunderbolt { .. }, .. } => return None,
+        Out::Effect {
+            kind: EffKind::Meteorite { .. } | EffKind::Thunderbolt { .. } | EffKind::MagicalBall, ..
+        } => {
+            return None;
+        }
         Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) | Out::CamSway(_) => return None,
         // DrawParts(anmw, 0) at the arm's frame (its place is tesPOS).
         Out::DrawArm { time, .. } => format!("[\"draw_parts\",{},0]", time >> 8),
@@ -769,7 +788,47 @@ fn kyvia_json(x: &Kyvia) -> String {
     if let Some(t) = &x.thunder {
         v.extend([t.kind as i32, t.time, i32::from(t.num), t.range, t.stage_id].map(|n| n.to_string()));
     }
+    if x.fight == Fight::Third {
+        v.push(x.pat_count.to_string());
+    }
     v.join(",")
+}
+
+/// The frame's line with the ball's members before `rand`.
+fn with_ball(line: String, b: &Boss) -> String {
+    line.replacen("\"rand\":", &format!("\"ball\":{},\"rand\":", ball_json(b)), 1)
+}
+
+/// The magical ball's members as the harness reads them (null without
+/// one): `EffMode`, `Delay`, `ScalePoint`, `MaxScale`, `Count`, `CFLG`,
+/// `ABGR`, `DePoint`, `BlurDelay`, `EffAnm`'s transparency, `Rot`, then
+/// each plasma's `time`, `Mode`, `SetT`, `TempT`, three `SBpoint`s,
+/// `PlaPos` and `PlaPos2`.
+fn ball_json(b: &Boss) -> String {
+    let Some(ball) = b.effects.slots.iter().flatten().find_map(|e| e.ball.as_ref()) else { return "null".into() };
+    let mut v: Vec<String> = [
+        ball.eff_mode,
+        ball.delay,
+        ball.scale_point as i32,
+        ball.max_scale as i32,
+        ball.count,
+        ball.cflg,
+        ball.abgr as i32,
+        ball.de_point,
+        ball.blur_delay,
+        ball.anm_transparency as i32,
+    ]
+    .iter()
+    .map(|n| (*n as u32).to_string())
+    .collect();
+    v.push(v3(&ball.rot));
+    for k in 0..ball.time.len() {
+        v.extend([ball.time[k], ball.mode[k] as u32, ball.set_t[k], ball.temp_t[k]].map(|n| n.to_string()));
+        v.extend(ball.sb.iter().map(|s| v3(&s[k])));
+        v.push(v3(&ball.pla_pos[k]));
+        v.push(v3(&ball.pla_pos2[k]));
+    }
+    format!("[{}]", v.join(","))
 }
 
 #[allow(clippy::too_many_arguments)]

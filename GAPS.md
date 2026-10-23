@@ -90,8 +90,9 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 - [ ] A new menu after `AreaInfoMenu` (messages, number input)
 - [ ] Kyvia's fights: [x] the first (`ccBossKyvia01`, `kyviaCore`,
   `kyviaGomora`, worklog 272), [x] the second (Outbreak's `ccBossKyvia02`,
-  level 2, worklog 304; its bolts not yet drawn), [ ] the later ones
-  (levels 3-5, the EX mode, the `ex2`-`ex4` models)
+  level 2, worklog 304; its bolts drawn, worklog 420), [x] the third
+  (Quarantine's `ccBossKyvia03`, level 3 and the magical ball, worklog
+  433), [ ] the fourth (`ccBossKyvia04`: level 4, the EX mode, the gates)
 - [x] The Root Towns 02-05 (`ROOTTOWN03`-`05`, their `DrawMap`; worklogs
   218, 260) - the party of 21 (`SPC_01`-`SPC_20`) still to check
 - [ ] The other `EVENTAREA` classes (04-06; areas 66, 67, 91).

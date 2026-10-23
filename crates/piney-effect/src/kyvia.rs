@@ -4,8 +4,11 @@
 //! (`ccBossEffMeteoriteMissile` 0x0047aa90, `Draw` 0x0047b330) and the
 //! second fight's bolts (`ccBossEffThunderbolt`, OUT 0x00477410, `Draw`
 //! 0x004778b0), drawn from the flights their rules left, with their trails,
-//! smoke and rocks. docs/engine/boss-kyvia.md, boss-kyvia-second.md.
+//! smoke and rocks; the third's magical ball (`ccBossEffMagicalBall`, QUA
+//! 0x0036b4e0). docs/engine/boss-kyvia.md, boss-kyvia-second.md,
+//! boss-kyvia-third.md.
 
+use piney_battle::boss::kyvia::magic_ball::{BallHost, BallOut, MagicalBall};
 use piney_battle::boss::kyvia::thunder::{Bolt as Strokes, BoltData};
 use piney_battle::boss::kyvia::{Follow, Gen, GenOp, Held, Meteorite as Flights, Place, Table};
 use piney_battle::rand::Rng;
@@ -39,6 +42,8 @@ pub fn anchor(f: Follow) -> Option<u32> {
         Follow::BeamHead(k) => Some(MEMBER | 0x1_0000 | u32::from(k)),
         Follow::BeamTail(k) => Some(MEMBER | 0x2_0000 | u32::from(k)),
         Follow::Aura(c) => Some(MEMBER | 0x3_0000 | c as u32),
+        Follow::Plasma(k) => Some(MEMBER | 0x4_0000 | u32::from(k)),
+        Follow::Plasma2(k) => Some(MEMBER | 0x5_0000 | u32::from(k)),
     }
 }
 
@@ -77,6 +82,10 @@ pub fn start(cx: &mut Cx, t: &Tables, kept: &mut Kept, which: Gen, at: Place, he
         Gen::ThunderSmoke(time) => Some(time),
         _ => None,
     };
+    let ball_life = match which {
+        Gen::Ball(b) => b.life(),
+        _ => None,
+    };
     let Some(mut g) = make(cx, t, which, |p| {
         // ThunderboltAtk's row 17: its life the thunder's time, radius 50,
         // rate 20 (OUT gcmn 0x004dcf18).
@@ -84,6 +93,10 @@ pub fn start(cx: &mut Cx, t: &Tables, kept: &mut Kept, which: Gen, at: Place, he
             p.g_life = time;
             p.g_radius = 0x4248_0000;
             p.p_gen_rate = 0x41a0_0000;
+        }
+        // The ball's rows 12 and 10, their lives written first.
+        if let Some(l) = ball_life {
+            p.g_life = l;
         }
     }) else {
         return;
@@ -361,6 +374,107 @@ impl Bolt {
                 g.dist_sw = false;
                 cx.particles.start(g);
             }
+        }
+    }
+}
+
+/// `ccBossEffMagicalBall` in a manager slot: its `EffAnm` (xeffect's
+/// `ANM_ex31exp3`, stepped once by `InitData` and never again), drawn each
+/// `Draw` at the ball's place, at the scale and transparency the ball
+/// left it ([`MagicalBall::anm_scale`], [`MagicalBall::anm_transparency`]).
+/// Its generators are the fight's (`Out::KyviaParticles`); a ball the
+/// manager runs alone (the probe's, with no callback and no blur) makes
+/// its own.
+#[derive(Clone, Debug)]
+pub struct Ball {
+    pub rules_slot: i32,
+    anm: Option<AnmObj>,
+    /// `(EffMode, Delay, ScalePoint)` when last drawn (each `Draw` moves
+    /// one of them).
+    drawn: Option<(i32, i32, u32)>,
+    own: Option<Box<MagicalBall>>,
+}
+
+impl Ball {
+    pub fn new(cx: &Cx, rules_slot: i32) -> Ball {
+        let mut anm = AnmObj::new(cx, "xeffect", "ANM_ex31exp3");
+        if let Some(a) = anm.as_mut() {
+            a.forward(cx);
+        }
+        Ball { rules_slot, anm, drawn: None, own: None }
+    }
+
+    /// `Create(ran, pos, 0, 0)`: a ball the manager runs itself.
+    pub fn alone(cx: &mut Cx, ran: F, pos: V4) -> Ball {
+        let b = MagicalBall::new(&mut Gen32(&mut *cx.host), ran, pos);
+        let mut me = Ball::new(cx, -1);
+        me.own = Some(Box::new(b));
+        me
+    }
+
+    pub fn runs_alone(&self) -> bool {
+        self.own.is_some()
+    }
+
+    /// The manager's `Draw` of a ball it runs itself.
+    pub fn run(&mut self, ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables) -> bool {
+        let Some(mut b) = self.own.take() else { return false };
+        let mut kept = Kept::new();
+        let alive = b.draw(&mut AloneBall { cx: &mut *cx, t, kept: &mut kept });
+        publish(ctrl, &b);
+        self.draw(cx, &b);
+        self.own = Some(b);
+        alive
+    }
+
+    /// The `EffAnm` of the `Draw` that left `b` (once a `Draw`).
+    pub fn draw(&mut self, cx: &mut Cx, b: &MagicalBall) {
+        let now = (b.eff_mode, b.delay, b.scale_point);
+        if self.drawn == Some(now) {
+            return;
+        }
+        self.drawn = Some(now);
+        if let Some(a) = &self.anm {
+            a.draw(cx, vu::pos_rot_xyz_scale(b.pos, VF0, b.anm_scale), b.anm_transparency);
+        }
+    }
+}
+
+/// The places the ball's plasmas' generators follow (`PlaPos[k]`,
+/// `PlaPos2[k]`).
+pub fn publish(ctrl: &mut EffectCtrl, b: &MagicalBall) {
+    for k in 0..b.pla_pos.len() {
+        let k8 = k as u8;
+        if let (Some(a), Some(a2)) = (anchor(Follow::Plasma(k8)), anchor(Follow::Plasma2(k8))) {
+            ctrl.anchors.insert(a, b.pla_pos[k]);
+            ctrl.anchors.insert(a2, b.pla_pos2[k]);
+        }
+    }
+}
+
+/// A ball the manager runs alone: no blur, no callback; its sounds, flash
+/// and generators its own.
+struct AloneBall<'a, 'b> {
+    cx: &'a mut Cx<'b>,
+    t: &'a Tables,
+    kept: &'a mut Kept,
+}
+
+impl BallHost for AloneBall<'_, '_> {
+    fn has_blur(&self) -> bool {
+        false
+    }
+
+    fn callback(&mut self, _pos: V4, _flg: i32) {}
+
+    fn out(&mut self, o: BallOut) {
+        match o {
+            BallOut::SeNote(se, note) => self.cx.raise(crate::Event::SoundNote { se, note: i32::from(note) }),
+            BallOut::Blur(_) => {}
+            BallOut::Flash(time, color) => {
+                self.cx.raise(crate::Event::Flash { time, color, rect: [0, 0, 0x4400_0000, 0x43c0_0000] });
+            }
+            BallOut::Gen(which, at) => start(self.cx, self.t, self.kept, Gen::Ball(which), at, None),
         }
     }
 }

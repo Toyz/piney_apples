@@ -16,6 +16,7 @@ code=13`). It is [the first fight](boss-kyvia.md)'s code with its own
 numbers, a second stage of the disc and a fourth attack, the
 thunderbolts.
 Names and layouts are Infection's DWARF; the rules are Outbreak's code.
+Quarantine's [third fight](boss-kyvia-third.md) is this one's code again.
 
 ## Where it comes from
 

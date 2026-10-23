@@ -57,6 +57,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import volume  # noqa: E402
+import eemu  # noqa: E402
 from volume import va as inf_va  # noqa: E402  # Infection's addresses on PINEY_VOLUME's disc
 
 import test_effect_rs as tfx  # noqa: E402
@@ -165,6 +166,7 @@ class BossFx(EffectMachine):
         m.hooks[sym("GetSubstAdrsF__5ccAnmFPCcb")] = subst
         m.hooks[sym("Duplicate__5ccObjFUi")] = lambda mm, *a: 0
         self.meteor_vt = sym("__vt__25ccBossEffMeteoriteMissile")
+        self.ball_vt = sym("__vt__20ccBossEffMagicalBall")
         self.missile_vts = {sym("__vt__19ccBossEffIceMissile"), sym("__vt__25ccBossEffLightningMissile"),
                             sym("__vt__21ccBossEffBlazeMissile")}
 
@@ -251,6 +253,17 @@ class BossFx(EffectMachine):
                         self.meteor_base = sync
                     free = next(k for k in range(1024) if not self.slot_ptr(k))
                     ref = ["meteor", free, (sync - self.meteor_base) // 16]
+            # one of the magical ball's plasmas' places (PlaPos at +0xbc,
+            # PlaPos2 at +0xc0): the anchor piney-effect names it by
+            # (kyvia::anchor's Plasma and Plasma2)
+            if ref is None:
+                for k in range(1024):
+                    e = self.slot_ptr(k)
+                    if e and m.load(e + 12, 4) == self.ball_vt:
+                        for which, off in ((0x400400, 0xBC), (0x400500, 0xC0)):
+                            arr = m.load(e + off, 4)
+                            if arr <= sync < arr + 16 * m.load(e + 0x18, 4):
+                                ref = ["anchor", which, (sync - arr) // 16]
             # made in the Create before the manager holds it: the next free slot
             if ref is None:
                 ref = ["anchor", -1, sync]
@@ -296,6 +309,10 @@ class BossFx(EffectMachine):
                 self.call(m.load(vt + 12, 4), e, 1)
                 m.store(MGR + 52 + 4 * k, 4, 0)
             else:
+                # The top quadword of the Draw's callee's frame as the game
+                # leaves it (the ball's DrawPlasma reads it): the task's s7,
+                # 0, which ccScFade::SendPacket saved there the frame before.
+                m.mem[eemu.STACK_TOP - 80:eemu.STACK_TOP - 64] = bytes(16)
                 self.call(m.load(vt + 8, 4), e)
         lights, enabled = [], []
         for k in range(1024):
@@ -429,6 +446,14 @@ def kyvia_cases(rnd):
         line = "meteorite %s %x 7" % (hexs(*pos), fb(500.0))
         out.append(("meteorite", line, "ccBossEffMeteoriteMissileCreate__FPA4_ffiiPFPf_iP9ccBossCam",
                     ("meteor", pos, 500.0, 7)))
+    if volume.NAME == "quarantine":
+        # The third fight's magical ball as MagicBallAtk makes it (40 over
+        # the disc), with no blur and no callback.
+        for _ in range(2):
+            pos = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), fb(rnd.uniform(0, 200)), ONE]
+            line = "ball %s %x" % (hexs(*pos), fb(40.0))
+            out.append(("ball", line, "ccBossEffMagicalBallCreate__FfPfP10ccBossBlurPFPfi_i", ("ball", pos, 40.0)))
+        return out
     if volume.NAME != "outbreak":
         return out
     half = fb(0.5)
@@ -687,7 +712,11 @@ class BossEffectsAgainstGame(unittest.TestCase):
         # The meteors face camera 2 (the boss's): the same camera here.
         cams = em.sym("cameraList")
         em.m.store(cams + 8, 4, em.m.load(cams, 4))
-        if spec[0] == "meteor":
+        if spec[0] == "ball":
+            _, pos, ran = spec
+            (pp,) = vec_args(em, pos)
+            k = em.create(sym, ints=[pp, 0, 0], floats=[ran])
+        elif spec[0] == "meteor":
             _, pos, rng, n = spec
             (pp,) = vec_args(em, pos)
             em.meteor_base = -1
@@ -719,7 +748,7 @@ class BossEffectsAgainstGame(unittest.TestCase):
         self.assertEqual(len(got[1:]), len(frames))
         return frames
 
-    @unittest.skipUnless(volume.NAME in ("mutation", "outbreak"), "Kyvia's effects are Mutation's and Outbreak's")
+    @unittest.skipUnless(volume.NAME in ("mutation", "outbreak", "quarantine"), "Kyvia's effects are Mutation's on")
     def test_kyvia_effects(self):
         """Kyvia's meteors: their fireballs (never stepped), trails following
         each, the landings (trails deleted, sounds, the first's smoke and

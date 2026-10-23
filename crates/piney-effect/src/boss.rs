@@ -217,6 +217,7 @@ pub enum BossEff {
     /// Kyvia's meteors and thunderbolts ([`crate::kyvia`]).
     Meteorite(Box<crate::kyvia::Meteorite>),
     Bolt(Box<crate::kyvia::Bolt>),
+    Ball(Box<crate::kyvia::Ball>),
     /// Magus's needles ([`crate::magus`]).
     Needles(Box<crate::magus::Needles>),
     /// Gorre's Kerse's flash ([`crate::gorre`]).
@@ -498,6 +499,16 @@ pub enum Make {
         dat: piney_battle::boss::kyvia::thunder::BoltData,
         offset: V4,
     },
+    /// `ccBossEffMagicalBallCreate(ran, pos, blur, cb)` (QUA gcmn
+    /// 0x0037ca70): Kyvia's third fight's ball, drawn for the rules' slot;
+    /// or run here with no blur and no callback (the probe's).
+    Ball {
+        rules_slot: i32,
+    },
+    BallAlone {
+        ran: F,
+        pos: V4,
+    },
     /// `ccBossEffNeedleCreate(pos, scale, speed, alpha, n, t0, t1, t2)`
     /// (MUT gcmn 0x0048e430): Magus's needles, drawn for the rules' slot;
     /// or run here (the probe's).
@@ -582,6 +593,15 @@ impl BossEffects {
                 let b = crate::kyvia::Bolt::alone(cx, pos, (time, range, num), &dat, offset);
                 self.put(true, BossEff::Bolt(Box::new(b)))
             }
+            Make::Ball { rules_slot } => {
+                self.drop_rules_slot(rules_slot);
+                let b = crate::kyvia::Ball::new(cx, rules_slot);
+                self.put(true, BossEff::Ball(Box::new(b)))
+            }
+            Make::BallAlone { ran, pos } => {
+                let b = crate::kyvia::Ball::alone(cx, ran, pos);
+                self.put(true, BossEff::Ball(Box::new(b)))
+            }
             Make::Needles { rules_slot } => {
                 self.drop_rules_slot(rules_slot);
                 let n = crate::magus::Needles::new(cx, rules_slot);
@@ -609,6 +629,7 @@ impl BossEffects {
             let held = match s {
                 Some(Slot { eff: BossEff::Meteorite(m), .. }) => m.rules_slot,
                 Some(Slot { eff: BossEff::Bolt(b), .. }) => b.rules_slot,
+                Some(Slot { eff: BossEff::Ball(b), .. }) => b.rules_slot,
                 Some(Slot { eff: BossEff::Needles(n), .. }) => n.rules_slot,
                 _ => continue,
             };
@@ -750,6 +771,7 @@ impl BossEffects {
         t: &Tables,
         meteors: &[(i32, &piney_battle::boss::kyvia::Meteorite)],
         bolts: &[(i32, &piney_battle::boss::kyvia::thunder::Bolt)],
+        balls: &[(i32, &piney_battle::boss::kyvia::magic_ball::MagicalBall)],
     ) {
         for s in self.slots.iter_mut() {
             match s {
@@ -766,6 +788,11 @@ impl BossEffects {
                 {
                     *s = None;
                 }
+                Some(Slot { eff: BossEff::Ball(b), .. })
+                    if !b.runs_alone() && !balls.iter().any(|f| f.0 == b.rules_slot) =>
+                {
+                    *s = None;
+                }
                 _ => {}
             }
         }
@@ -779,6 +806,12 @@ impl BossEffects {
                 BossEff::Bolt(b) => {
                     if let Some(&(_, f)) = bolts.iter().find(|f| f.0 == b.rules_slot) {
                         b.draw(cx, t, f);
+                    }
+                }
+                BossEff::Ball(b) => {
+                    if let Some(&(_, f)) = balls.iter().find(|f| f.0 == b.rules_slot) {
+                        crate::kyvia::publish(ctrl, f);
+                        b.draw(cx, f);
                     }
                 }
                 _ => {}
@@ -1045,7 +1078,8 @@ impl BossEffects {
                 // ([`BossEffects::sync_kyvia`]).
                 BossEff::Meteorite(m) if m.runs_alone() => m.run(ctrl, cx, t),
                 BossEff::Bolt(b) if b.runs_alone() => b.run(cx, t),
-                BossEff::Meteorite(_) | BossEff::Bolt(_) => continue,
+                BossEff::Ball(b) if b.runs_alone() => b.run(ctrl, cx, t),
+                BossEff::Meteorite(_) | BossEff::Bolt(_) | BossEff::Ball(_) => continue,
                 // Magus's needles likewise ([`BossEffects::sync_magus`]).
                 BossEff::Needles(n) if n.runs_alone() => n.run(cx),
                 BossEff::Needles(_) => continue,

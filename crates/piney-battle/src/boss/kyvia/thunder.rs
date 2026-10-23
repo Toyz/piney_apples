@@ -1,12 +1,13 @@
 //! Kyvia's thunderbolts, act 6 of its second fight (`ccBossKyvia02::
 //! ThunderboltAtk`, OUT gcmn 0x004dc6b0; `ThunderDmg` 0x004dd3f0,
-//! `ThunderSound` 0x004ddd40), and the bolt they make
-//! (`ccBossEffThunderbolt`, OUT 0x00477410, `Draw` 0x004778b0, made by
-//! `ccBossEffThunderboltCreate` 0x00489540). docs/engine/boss-kyvia-second.md.
+//! `ThunderSound` 0x004ddd40) and its third (QUA 0x003d7fa0, 0x003d8d40,
+//! 0x003d9760), and the bolt they make (`ccBossEffThunderbolt`, OUT
+//! 0x00477410, `Draw` 0x004778b0, made by `ccBossEffThunderboltCreate`
+//! 0x00489540). docs/engine/boss-kyvia-second.md, boss-kyvia-third.md.
 
 use piney_data::field::ee;
 
-use super::{Kyvia, Tree, as_me, core_fade_check, core_state, core_state_is, dp, fabs, fp};
+use super::{Fight, Kyvia, Tree, as_me, core_fade_check, core_state, core_state_is, dp, fabs, fp};
 use crate::boss::{Boss, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, M4, V4};
@@ -62,8 +63,9 @@ pub struct Thunder {
 }
 
 impl Thunder {
-    /// What `ThunderboltAtk`'s first step sets for its kind.
-    fn arm(&mut self) {
+    /// What `ThunderboltAtk`'s first step sets for its kind (the third
+    /// fight's numbers its own).
+    fn arm(&mut self, fight: Fight) {
         self.sdat = BoltData {
             default_angle: 0x3f00_0000,
             rand_angle: 0x3f66_6666,
@@ -75,10 +77,15 @@ impl Thunder {
             ..self.sdat
         };
         let fifty = 0x4248_0000;
-        let (time, rnd_point, rand_angle, scale, num, range) = match self.kind {
-            Kind::Strike => (90, [fifty, fifty, fifty, 0x3f00_0000], ONE, (1, 4), 3, 100),
-            Kind::Wide => (90, [0x41a0_0000, 0x41f0_0000, fifty, ONE], PI, (2, 5), 4, 550),
-            Kind::Storm => (120, [fifty, fifty, fifty, ONE], PI, (3, 10), 15, 450),
+        let hundred = 0x42c8_0000;
+        // (time, RndPoint, RandAngle, scale, effect, T_NUM, T_Range)
+        let (time, rnd_point, rand_angle, scale, eff_sw, num, range) = match (fight, self.kind) {
+            (Fight::Third, Kind::Strike) => (90, [0, 0, fifty, 0x3f4c_cccd], PI, (1, 4), 0, 4, 500),
+            (Fight::Third, Kind::Wide) => (90, [hundred, hundred, fifty, 0x3e4c_cccd], PI, (2, 5), 1, 10, 400),
+            (Fight::Third, Kind::Storm) => (120, [fifty, fifty, fifty, ONE], PI, (3, 10), 1, 15, 350),
+            (_, Kind::Strike) => (90, [fifty, fifty, fifty, 0x3f00_0000], ONE, (1, 4), 1, 3, 100),
+            (_, Kind::Wide) => (90, [0x41a0_0000, 0x41f0_0000, fifty, ONE], PI, (2, 5), 1, 4, 550),
+            (_, Kind::Storm) => (120, [fifty, fifty, fifty, ONE], PI, (3, 10), 1, 15, 450),
         };
         self.time = time;
         self.dat = BoltData {
@@ -87,7 +94,7 @@ impl Thunder {
             default_scale: scale.0,
             rand_scale: scale.1,
             mode: 1,
-            eff_sw: 1,
+            eff_sw,
             rnd_point,
             ..self.dat
         };
@@ -253,8 +260,9 @@ fn bolt(b: &mut Boss, cx: &mut Cx, pos: V4, th: (i32, i32, i16), dat: &BoltData,
 // --- the attack --------------------------------------------------------------------------
 
 /// `ThunderSound` (OUT gcmn 0x004ddd40): the build-up's flashes by the
-/// raised `actCount`; true (and the count back to 0) at 80.
-fn thunder_sound(b: &mut Boss, cx: &mut Cx) -> bool {
+/// raised `actCount`; true (and the count back to 0) at 80. The third
+/// fight's thunders again (SE 41) at 50.
+fn thunder_sound(b: &mut Boss, fight: Fight, cx: &mut Cx) -> bool {
     b.act_count += 1;
     let flash = |t, colour| Out::Flash { t, colour };
     match b.act_count {
@@ -264,7 +272,12 @@ fn thunder_sound(b: &mut Boss, cx: &mut Cx) -> bool {
         }
         25 => cx.out(flash(2, 0x60ff_ffff)),
         30 => cx.out(flash(10, 0x30ff_ffff)),
-        50 => cx.out(flash(6, 0x50ff_ffff)),
+        50 => {
+            cx.out(flash(6, 0x50ff_ffff));
+            if fight == Fight::Third {
+                cx.out(Out::Se { se: 41 });
+            }
+        }
         80 => {
             cx.out(flash(5, 0x60ff_ffff));
             b.act_count = 0;
@@ -275,37 +288,66 @@ fn thunder_sound(b: &mut Boss, cx: &mut Cx) -> bool {
     false
 }
 
-/// A strike of `ThunderDmg`: `actCount`, the flash's time and colour and
-/// the boss skill the core deals round the body.
-type Strike = (i16, i32, u32, usize);
+/// A strike of `ThunderDmg`: `actCount`, the flash's time and colour, the
+/// boss skill the core deals round the body, and whether the thunder
+/// (SE 41) follows (the third fight's).
+type Strike = (i16, i32, u32, usize, bool);
 
 /// The strikes of a kind, the last's skill (at `ThunderTime`), and whether
 /// a strike's sound (68) plays twice.
-fn strikes(kind: Kind) -> ([Strike; 5], usize, bool) {
+fn strikes(fight: Fight, kind: Kind) -> ([Strike; 5], usize, bool) {
     const W5: u32 = 0x50ff_ffff;
     const W6: u32 = 0x60ff_ffff;
     const W3: u32 = 0x30ff_ffff;
+    let third = fight == Fight::Third;
+    // The third fight's skills are 47 and 48 for 45 and 46.
+    let (a, b) = if third { (47, 48) } else { (45, 46) };
     match kind {
-        Kind::Strike => {
-            ([(10, 10, W5, 45), (25, 10, W6, 45), (30, 15, W3, 45), (50, 10, W5, 45), (78, 5, W6, 45)], 45, true)
-        }
-        Kind::Wide => {
-            ([(5, 10, W5, 45), (20, 10, W6, 45), (40, 15, W3, 45), (55, 10, W5, 45), (80, 5, W6, 46)], 46, true)
-        }
-        Kind::Storm => {
-            ([(25, 10, W5, 45), (50, 10, W6, 45), (75, 15, W3, 46), (80, 10, W5, 46), (90, 5, W6, 46)], 46, false)
-        }
+        Kind::Strike => (
+            [
+                (10, 10, W5, a, false),
+                (25, 10, W6, a, third),
+                (30, 15, W3, a, false),
+                (50, 10, W5, a, third),
+                (78, 5, W6, a, false),
+            ],
+            a,
+            true,
+        ),
+        Kind::Wide => (
+            [
+                (5, 10, W5, a, false),
+                (20, 10, W6, a, third),
+                (40, 15, W3, a, false),
+                (55, 10, W5, a, third),
+                (80, 5, W6, b, false),
+            ],
+            b,
+            true,
+        ),
+        Kind::Storm => (
+            [
+                (25, 10, W5, a, third),
+                (50, 10, W6, a, false),
+                (75, 15, W3, b, false),
+                (80, 10, W5, b, third),
+                (90, 5, W6, b, false),
+            ],
+            b,
+            third,
+        ),
     }
 }
 
-/// `ThunderDmg` (OUT gcmn 0x004dd3f0): the strikes by kind and count; the
-/// last, at `ThunderTime`, is 10 frames of 0x08ffffff with the other sound.
+/// `ThunderDmg` (OUT gcmn 0x004dd3f0, QUA 0x003d8d40): the strikes by kind
+/// and count; the last, at `ThunderTime`, is 10 frames of 0x08ffffff with
+/// the other sound (the third fight's with the thunder and the disc's).
 fn thunder_dmg(b: &Boss, x: &Kyvia, t: &mut Tree, cx: &mut Cx) {
     let Some(th) = x.thunder else { return };
-    let (list, last, twice) = strikes(th.kind);
+    let (list, last, twice) = strikes(x.fight, th.kind);
     let pos = cx.scene.chars[cx.me].pos;
     let c = b.act_count;
-    for &(_, ft, colour, skill) in list.iter().filter(|s| s.0 == c) {
+    for &(_, ft, colour, skill, thunder) in list.iter().filter(|s| s.0 == c) {
         cx.out(Out::Flash { t: ft, colour });
         core_damage_at(t, cx, pos, skill);
         cx.out(Out::Se { se: 68 });
@@ -313,12 +355,19 @@ fn thunder_dmg(b: &Boss, x: &Kyvia, t: &mut Tree, cx: &mut Cx) {
             cx.out(Out::Se { se: 68 });
         }
         cx.out(Out::SeNote { se: 39, note: 65 });
+        if thunder {
+            cx.out(Out::Se { se: 41 });
+        }
     }
     if i32::from(c) == th.time {
         cx.out(Out::Flash { t: 10, colour: 0x08ff_ffff });
         core_damage_at(t, cx, pos, last);
         cx.out(Out::Se { se: 68 });
         cx.out(Out::SeNote { se: 35, note: 45 });
+        if x.fight == Fight::Third {
+            cx.out(Out::Se { se: 41 });
+            cx.out(Out::SeNote { se: 56, note: 60 });
+        }
     }
 }
 
@@ -334,12 +383,24 @@ fn core_at_rest(t: &Tree) -> bool {
     t.core.as_ref().is_some_and(|c| super::core::get_act_num(c, &t.gomoras))
 }
 
-/// `ThunderboltAtk` (OUT gcmn 0x004dc6b0).
+/// `ThunderboltAtk` (OUT gcmn 0x004dc6b0, QUA 0x003d7fa0).
 pub(super) fn thunderbolt_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let mut th = x.thunder.unwrap_or_default();
     let me = cx.me;
+    let third = x.fight == Fight::Third;
     let off = [0, 0, 0x43fa_0000, ONE];
     match b.act_proccess {
+        // The third fight sets its quake and bolts each frame it waits.
+        0 if third => {
+            if core_at_rest(t) {
+                b.lock_player(cx, false);
+                core_state(t, cx, 8);
+                th.stage_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 32277]);
+                b.act_proccess += 1;
+            }
+            x.quake_vector = [0x41f0_0000, 0x41f0_0000, 0x41a0_0000, x.quake_vector[3]];
+            th.arm(x.fight);
+        }
         0 => {
             if !core_at_rest(t) {
                 return;
@@ -350,7 +411,7 @@ pub(super) fn thunderbolt_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mu
             b.act_count = 0;
             b.lock_player(cx, false);
             x.quake_vector = [0x41f0_0000, 0x41f0_0000, 0x41a0_0000, x.quake_vector[3]];
-            th.arm();
+            th.arm(x.fight);
         }
         1 => {
             if !core_state_is(t, 6) {
@@ -359,36 +420,53 @@ pub(super) fn thunderbolt_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mu
             if th.kind == Kind::Storm {
                 b.act_proccess = 50;
                 cx.out(Out::CamMode { mode: 5 });
-                let rx = geom::rot_matrix_x(&geom::unit_matrix(), 0x3f33_3333);
+                // 3800 off turned 0.7 over the body (the third's 3500
+                // turned 0.6 over the disc).
+                let (tilt, far, view) = if third {
+                    (0x3f19_999a, 0x455a_c000, x.disc_pos)
+                } else {
+                    (0x3f33_3333, 0x456d_8000, cx.scene.chars[me].pos)
+                };
+                let rx = geom::rot_matrix_x(&geom::unit_matrix(), tilt);
                 let m = geom::rot_matrix_z(&rx, cx.cam.rot[2]);
-                let eye = geom::vadd(geom::apply_matrix(&m, [0, 0x456d_8000, 0, ONE]), x.disc_pos);
-                cx.out(Out::FreeCam { pos: eye, view: cx.scene.chars[me].pos });
+                let eye = geom::vadd(geom::apply_matrix(&m, [0, far, 0, ONE]), x.disc_pos);
+                cx.out(Out::FreeCam { pos: eye, view });
                 b.act_count = 0;
             } else {
                 b.act_proccess = 2;
-                let range = if x.disc_lv != x.disc_max_lv { 0x457a_0000 } else { 0x453b_8000 };
+                let range = match (third, x.disc_lv) {
+                    (false, _) if x.disc_lv != x.disc_max_lv => 0x457a_0000,
+                    (false, _) => 0x453b_8000,
+                    (true, 1) => 0x45bb_8000,
+                    (true, 2) => 0x451c_4000,
+                    (true, _) => 0x458c_a000,
+                };
                 cx.out(Out::CamModeRange { mode: 3, range });
             }
         }
         50 => {
+            let (back, down, lift) =
+                if third { (0xc100_0000, 0xc080_0000, 0x40a0_0000) } else { (0xc020_0000, 0xc190_0000, 0x4120_0000) };
             let m = geom::rot_matrix_z(&geom::unit_matrix(), cx.cam.rot[2]);
-            let pos = geom::vadd(cx.cam.pos, geom::apply_matrix(&m, [0, 0xc020_0000, 0xc190_0000, ONE]));
+            let pos = geom::vadd(cx.cam.pos, geom::apply_matrix(&m, [0, back, down, ONE]));
             let mut view = cx.cam.view;
-            view[2] = ee::add(view[2], 0x4120_0000);
+            view[2] = ee::add(view[2], lift);
             cx.out(Out::FreeCam { pos, view });
-            if thunder_sound(b, cx) {
+            if thunder_sound(b, x.fight, cx) {
                 b.act_proccess = 3;
                 b.act_count = 0;
                 bolt(b, cx, x.disc_pos, (th.time, th.range, th.num), &th.dat, Some(off));
-                cx.out(Out::Se3d { se: 41, pos: x.disc_pos });
+                if !third {
+                    cx.out(Out::Se3d { se: 41, pos: x.disc_pos });
+                }
             }
         }
         2 => {
-            if !(thunder_sound(b, cx) && cx.cam.reset == 0) {
+            if !(thunder_sound(b, x.fight, cx) && cx.cam.reset == 0) {
                 x.thunder = Some(th);
                 return;
             }
-            cx.out(Out::Se3d { se: 41, pos: x.disc_pos });
+            cx.out(if third { Out::Se { se: 41 } } else { Out::Se3d { se: 41, pos: x.disc_pos } });
             for m in cx.party.members {
                 let Some(m) = m.filter(|&m| cx.valid(Some(m)) && cx.scene.chars[m].hp > 0) else { continue };
                 let p = cx.scene.chars[m].pos;
@@ -414,6 +492,9 @@ pub(super) fn thunderbolt_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mu
             };
             if let Some(v) = shake {
                 x.quake_vector[..3].copy_from_slice(&v);
+            }
+            if third && c == 30 {
+                x.quake_vector[..3].copy_from_slice(&[0x4120_0000, 0x4120_0000, 0x41a0_0000]);
             }
             if i32::from(c) == th.time / 2 {
                 x.quake_vector[..3].copy_from_slice(&[0x41f0_0000, 0x41f0_0000, 0x4220_0000]);

@@ -1991,7 +1991,6 @@ impl Combat {
         // effects its Main made.
         if self.boss.is_some() {
             self.fx_call(x, bounds, |fx, w| fx.boss_effects(w), fx, None);
-            self.blur_pass();
             let world = enemy_ai::World {
                 puppet_show: x.puppet_show,
                 ride: self.ride.flag,

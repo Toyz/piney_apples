@@ -37,13 +37,17 @@ pub const MUT_STORY: [i32; 16] = [101, 102, 103, 104, 105, 106, 107, 108, 109, 1
 pub const OUT_STORY: [i32; 19] =
     [201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219];
 
-/// The volume's story in its order (none yet for Quarantine).
+/// Quarantine's: M401 (the new game's) to its ending (314), each opening
+/// on the one before (`event_done`).
+pub const QUA_STORY: [i32; 14] = [301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313, 314];
+
+/// The volume's story in its order.
 pub fn story(volume: Volume) -> &'static [i32] {
     match volume {
         Volume::Inf => &STORY,
         Volume::Mut => &MUT_STORY,
         Volume::Out => &OUT_STORY,
-        Volume::Qua => &[],
+        Volume::Qua => &QUA_STORY,
     }
 }
 
@@ -95,6 +99,9 @@ pub fn place(n: i32) -> Option<Place> {
         201..=209 | 212 | 216 | 218 | 219 => Place::Desktop,
         214 | 215 | 217 => Place::Board,
         210 | 211 | 213 => Place::Town,
+        // Quarantine's Kyvia fights, from their towns (their first
+        // blocks' `in_town`).
+        308 | 312 => Place::Town,
         _ => return None,
     })
 }
@@ -105,6 +112,8 @@ pub fn log_in_town(n: i32) -> Option<u8> {
     match n {
         115 => Some(2),
         210 | 211 | 213 => Some(3),
+        308 => Some(4),
+        312 => Some(0),
         _ => None,
     }
 }

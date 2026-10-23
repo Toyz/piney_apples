@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-432 entries: audio 38, battle 99, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 109, save 16, script 53, test 191, tooling 37, ui 94, video 16, volumes 82, world 124.
+433 entries: audio 38, battle 100, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 110, save 16, script 53, test 192, tooling 38, ui 94, video 16, volumes 82, world 125.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -444,3 +444,4 @@ The [reference](docs/README.md) says what is true now.
 | 430 | [Kyvia's gomoras bend through all three of their shapes: no gomora picks one of CMP_ex01gom2-4, MPH_ex01gom1 bends MDL_ex01gom1 through them by each gomora's own clip, and the port's bodies now draw their clips' morphs, checked against the game's ccAnm and GomoraInit on both discs](worklog/0430-kyvia-s-gomoras-bend-through-all-three-of-their-shapes-no.md) | 2026-10-22 | battle, render, test, tooling |
 | 431 | [Gorre's brothers share its param as the game does: one block that Gorre owns and the brothers read and write through it after the drain's 21, so a buff on one brother is on all three and runs out three times as fast, checked frame by frame against the game's code](worklog/0431-gorre-s-brothers-share-its-param-as-the-game-does-one-block.md) | 2026-10-22 | battle, test, tooling |
 | 432 | [Every boss fight draws its blur: ccBossBlur's m_exit is written 0 by every boss's constructor but Gorre's, whose word is the heap's residue of the play since power-on, and the blur is ported and checked against the game's Main in every boss harness](worklog/0432-every-boss-fight-draws-its-blur-ccbossblur-s-m-exit-is.md) | 2026-10-22 | battle, render, test, tooling |
+| 433 | [Cubia's third fight: Quarantine's ccBossKyvia03 and its magical ball](worklog/0433-cubia-s-third-fight-quarantine-s-ccbosskyvia03-and-its.md) | 2026-10-22 | battle, render, world, test, tooling |

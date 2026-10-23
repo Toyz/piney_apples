@@ -16,6 +16,20 @@ use super::*;
 /// (`EVENTAREAB8`), as area 47's dungeon leads there: blocks below `block`
 /// played and `eventStatus[0]` 1 (block `block` makes Kyvia).
 fn on_the_disc(disc: &str, n: i32, block: u32, field: i32) -> Option<Session> {
+    on_the_disc_in(disc, n, block, (2, 47), field, 1)
+}
+
+/// [`on_the_disc`] from story area `area`'s dungeon of town `town`, with
+/// `eventStatus[0]` `status` (Quarantine's events clear it in their first
+/// block and set it after their fight).
+pub(super) fn on_the_disc_in(
+    disc: &str,
+    n: i32,
+    block: u32,
+    (town, area): (i32, i32),
+    field: i32,
+    status: u8,
+) -> Option<Session> {
     let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
     if !iso.exists() {
         eprintln!("{disc}.iso not present; skipped");
@@ -27,11 +41,11 @@ fn on_the_disc(disc: &str, n: i32, block: u32, field: i32) -> Option<Session> {
     let mut state = start.state;
     let f = state.save.event_flag(n as usize);
     state.save.set_event_flag(n as usize, f | ((1 << block) - 1));
-    state.save.set_u8(offset::EVENT_STATUS, 1);
+    state.save.set_u8(offset::EVENT_STATUS, status);
     let mut scene = piney_world::area::Scene::log_in(&mut state.save);
-    let wm = crate::area::story_world_man(&mut d, 47, false).unwrap();
+    let wm = crate::area::story_world_man(&mut d, area, false).unwrap();
     let wm = crate::area::ev_area_number(&iso, field, &wm, &state.save).unwrap();
-    scene.change_scene(1, 2, field, -1, -1, -1, &mut state.save);
+    scene.change_scene(1, town, field, -1, -1, -1, &mut state.save);
     Some(Session::in_world(iso, archive, None, state, Some(start.vm), scene, Some(wm)).unwrap())
 }
 
@@ -43,6 +57,13 @@ pub(super) fn event_108_disc() -> Option<Session> {
 /// Outbreak's event 211 on field 10's disc (block 11 makes Kyvia 02).
 pub(super) fn event_211_disc() -> Option<Session> {
     on_the_disc("outbreak", 211, 11, 10)
+}
+
+/// Quarantine's event 308 on field 11's disc in town 4, from area 102's
+/// dungeon (block 6 makes Kyvia 03; block 8 sets `eventStatus[0]` once
+/// it is gone).
+pub(super) fn event_308_disc() -> Option<Session> {
+    on_the_disc_in("quarantine", 308, 6, (4, 102), 11, 0)
 }
 
 /// What one frame of the fight showed: the body's act, the boss effects'

@@ -793,7 +793,10 @@ In the port, `piney_battle::boss::blur` is `ccBossBlur`: `Blur::new`,
 manager's task runs: past the boss's exit, until the scene ends. The
 field draws the reflex on layer 200 with
 `piney_desktop::noiz::Sampling::reflex`. The session carries the statics
-from area to area.
+from area to area. The effects whose rules the port keeps for Kyvia
+(meteors, bolts, the magical ball) run in `Boss::effects_pass`, before
+`main` as the manager's `Draw` runs before the boss's task: what they
+write to the blur is in that frame's `Main` (worklog 433).
 
 Checks: every boss harness builds the manager with the game's own
 constructor over a random `m_exit` and random statics, runs `Main`

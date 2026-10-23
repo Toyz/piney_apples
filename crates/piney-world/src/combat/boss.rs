@@ -37,8 +37,10 @@ pub const MAGUS: i32 = 2;
 pub const FIDCHELL: i32 = 3;
 pub const GORRE: i32 = 4;
 pub const KYVIA: i32 = 12;
-/// Kyvia's second fight (`ccBossKyvia02`, Outbreak's field 10).
+/// Kyvia's second fight (`ccBossKyvia02`, Outbreak's field 10) and its
+/// third (`ccBossKyvia03`, Quarantine's field 11).
 pub const KYVIA_SECOND: i32 = 13;
+pub const KYVIA_THIRD: i32 = 14;
 
 /// The word the heap leaves at the manager's `m_exit` (+0x2c), which only
 /// Gorre's constructor does not write over: it is whatever the last owner
@@ -60,6 +62,7 @@ pub const IMAGES: [&str; 3] = ["CMP_ex21mon1", "CMP_ex21mon2", "CMP_ex21mon3"];
 /// clips (`ANM_ex0cnut0`, `ANM_ex0gnut0`) draw and morph.
 pub const KYVIA_CLUMP: &str = "CMP_trallex01";
 pub const KYVIA_SECOND_CLUMP: &str = "CMP_trallex02";
+pub const KYVIA_THIRD_CLUMP: &str = "CMP_trallex03";
 pub const KYVIA_PARTS: [&str; 2] = ["CMP_trall2", "CMP_trall3"];
 /// Magus's file (`x31`): its body (`CMP_trall`) and its leaves' model.
 pub const MAGUS_FILE: &str = "x31";
@@ -310,6 +313,7 @@ impl BossLook {
             GORRE => (boss::gorre::FILE, GORRE_CLUMP),
             KYVIA => (boss::kyvia::Fight::First.file(), KYVIA_CLUMP),
             KYVIA_SECOND => (boss::kyvia::Fight::Second.file(), KYVIA_SECOND_CLUMP),
+            KYVIA_THIRD => (boss::kyvia::Fight::Third.file(), KYVIA_THIRD_CLUMP),
             _ => (FILE, CLUMP),
         };
         let body = Rc::new(Body::read(archive, file, clump)?);
@@ -368,7 +372,7 @@ impl BossLook {
                 shards = Some((file.clone(), clumps));
                 IMAGES.iter().filter_map(|c| Body::of(file.clone(), c).ok().map(Rc::new)).collect()
             }
-            KYVIA | KYVIA_SECOND => {
+            KYVIA | KYVIA_SECOND | KYVIA_THIRD => {
                 let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, file)?);
                 KYVIA_PARTS.iter().filter_map(|c| Body::of(file.clone(), c).ok().map(Rc::new)).collect()
             }
@@ -401,7 +405,9 @@ impl Combat {
         camera: &mut Camera,
     ) {
         let code = look.code;
-        if self.boss.is_some() || !matches!(code, SKEITH | INNIS | MAGUS | FIDCHELL | GORRE | KYVIA | KYVIA_SECOND) {
+        if self.boss.is_some()
+            || !matches!(code, SKEITH | INNIS | MAGUS | FIDCHELL | GORRE | KYVIA | KYVIA_SECOND | KYVIA_THIRD)
+        {
             return;
         }
         let d = self.data.clone();
@@ -452,6 +458,7 @@ impl Combat {
             GORRE => boss::gorre::new(&mut cx, kite_pos, kite_dirc, center),
             KYVIA => boss::kyvia::new(&mut cx, boss::kyvia::Fight::First),
             KYVIA_SECOND => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Second),
+            KYVIA_THIRD => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Third),
             _ => Boss::new(&mut cx, kite_pos, kite_dirc, center),
         };
         let out = std::mem::take(&mut cx.out);
@@ -488,11 +495,11 @@ impl Combat {
             f.boss = Some(Box::new(b));
         }
         let ty = self.scene.chars[me].ty() as u32;
-        let radius = if matches!(code, KYVIA | KYVIA_SECOND) { boss::kyvia::BODY_RADIUS } else { w };
+        let radius = if matches!(code, KYVIA | KYVIA_SECOND | KYVIA_THIRD) { boss::kyvia::BODY_RADIUS } else { w };
         let hit = CharHit { pos, radius, height: h, kind: ty, ..CharHit::default() };
         let transfer = match code {
             INNIS => INNIS_CAM_TRANSFER,
-            KYVIA | KYVIA_SECOND => KYVIA_CAM_TRANSFER,
+            KYVIA | KYVIA_SECOND | KYVIA_THIRD => KYVIA_CAM_TRANSFER,
             FIDCHELL => FIDCHELL_CAM_TRANSFER,
             GORRE => GORRE_CAM_TRANSFER,
             _ => CAM_TRANSFER,
@@ -576,6 +583,8 @@ impl Combat {
         let mut ev = Events::new();
         let Some(run) = self.boss.as_mut() else { return ev };
         if run.exit {
+            // The manager's task outlives the boss's: the blur goes on.
+            self.blur_pass();
             return ev;
         }
         // ccThBossEffect's pass, before the boss's task: the cinema's Draw.
@@ -663,6 +672,39 @@ impl Combat {
             out: Vec::new(),
             ev: Events::new(),
         };
+        // ccThBossEffect's pass: the effects the rules keep, then the
+        // blur's Main (with what they and the affects wrote), then the
+        // boss's task, whose writes the next frame's Main sees.
+        b.effects_pass(&mut cx);
+        let fx_out = std::mem::take(&mut cx.out);
+        if let Some(r) = self.boss.as_mut() {
+            let parts = r.parts.clone();
+            let mut pending = Vec::new();
+            for &p in &parts {
+                if let Some(pb) = cx.scene.chars[p].foe_state_mut().and_then(|f| f.boss.as_mut()) {
+                    pending.extend(pb.take_blur());
+                }
+            }
+            let fx_sets = fx_out.iter().filter_map(|o| if let Out::Blur(s) = o { Some(*s) } else { None });
+            for s in b.take_blur().into_iter().chain(pending).chain(fx_sets) {
+                r.blur.set(s);
+            }
+            r.reflex = r.blur.main(&mut self.blur_statics);
+            // A mode the effects set (the ball's end) is the camera's
+            // before the boss reads its ResetFlg.
+            if let Some(c) = r.cam.as_mut() {
+                for o in &fx_out {
+                    match o {
+                        Out::CamMode { mode } => c.set_mode(*mode, camera),
+                        Out::CamModeRange { .. } => cam_out(c, o, camera),
+                        _ => {}
+                    }
+                }
+                cx.cam.reset = c.reset;
+            }
+        }
+        let early = |o: &Out| matches!(o, Out::Blur(_) | Out::CamMode { .. } | Out::CamModeRange { .. });
+        out.extend(fx_out.into_iter().filter(|o| !early(o)));
         b.main(&mut cx);
         out.extend(std::mem::take(&mut cx.out));
         ev.extend(std::mem::take(&mut cx.ev));
