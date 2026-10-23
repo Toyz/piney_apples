@@ -2175,7 +2175,7 @@ pub(super) fn affect(b: &mut Boss, cx: &mut Cx) {
                 cx.scene.chars[me].hp = h;
             }
             if crate::skill::check_type_of(cx.t, i32::from(p1)) == 1 {
-                cx.out(Out::Shield);
+                cx.out(Out::Shield { magic: 1, stretched: false });
             }
         }
         _ => {}

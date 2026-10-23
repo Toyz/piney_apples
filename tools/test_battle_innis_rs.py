@@ -246,7 +246,7 @@ class Game:
              lambda mm, k, n, *_: out.append(["flyfont", s32(k), s32(n)]) or 0)
         hook("ccHitMarkDisp__FP6ccCharP6ccChar", lambda mm, *a: out.append(["hitmark"]) or 0)
         hook("ccClearSpcCondition__Fv", lambda mm, *a: out.append(["clear_spc"]) or 0)
-        hook("effResistantShield__FP6ccCharii", lambda mm, *a: out.append(["shield"]) or 0)
+        hook("effResistantShield__FP6ccCharii", lambda mm, ch, magic, *a: out.append(["shield", s32(magic)]) or 0)
         hook("cameraSetPos__FPfi", nop)
         hook("cameraSetView__FPfi", nop)
 

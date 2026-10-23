@@ -208,6 +208,8 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
                 8 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 7, [p0, 0, 0], &mut rand, &mut ev),
                 9 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 21, [0; 3], &mut rand, &mut ev),
                 10 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 1, [p0, 0, 0], &mut rand, &mut ev),
+                // A spell's hit (skill 2).
+                11 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 1, [p0, 2, 0], &mut rand, &mut ev),
                 7 => {
                     if let Some(m) = members.get(who).copied().flatten() {
                         scene.chars[m].cond[0] = p0;

@@ -1176,6 +1176,13 @@ impl Effects {
         shield::eff_resistant_shield(&mut cx, ch, magic, n)
     }
 
+    /// Gorre's brothers' shield ([`shield::eff_brother_shield`]): the
+    /// resistant shield stretched up and lifted 200. The element's slot.
+    pub fn brother_shield(&mut self, host: &mut dyn Host, ch: CharRef, magic: i32) -> Option<usize> {
+        let (_, mut cx) = self.split(host);
+        shield::eff_brother_shield(&mut cx, ch, magic)
+    }
+
     /// `ccEntryFlyFontNew(kind, value, pos, ch, sx, sy)` (gcmn 0x0051afc0;
     /// `Event::FlyFont { on: ch, kind, value }`): a number (-1: MISS)
     /// stacked over `ch`.

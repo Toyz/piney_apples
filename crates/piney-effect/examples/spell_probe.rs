@@ -1228,6 +1228,7 @@ fn main() {
                     "abilityup" => fx.ability_up(&mut host, n(1), i(2)),
                     "abilitydown" => fx.ability_down(&mut host, n(1), i(2)),
                     "shield" => fx.resistant_shield(&mut host, n(1), i(2), i(3)),
+                    "brothershield" => fx.brother_shield(&mut host, n(1), i(2)),
                     "icerock" => {
                         let (ctrl, mut cx) = fx.split(&mut host);
                         piney_effect::debris::eff_ice_rock(ctrl, &mut cx, v3(1), v3(4), n(7), n(8), i(9))

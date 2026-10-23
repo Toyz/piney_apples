@@ -3,7 +3,7 @@ title: Bosses - Gorre
 status: partial
 volumes: OUT, INF
 covers: OUT gcmn.prg:0x004a9130-0x004b0b50 (boss05.cpp), 0x004a9130 ccBoss05::ccBoss05, 0x004a9650 CalcRealEx, 0x004a99a0 ExecPatternIndex, 0x004aa100 IsValidArea, 0x004aa210 Main, 0x004aa5f0 Move, 0x004aa6b0 ChangeAction, 0x004aa760 Think, 0x004aa8e0 OnThinkNeutral, 0x004aaa40 OnThinkDrain, 0x004aaaf0 OnThinkDead, 0x004aaf40 OnThinkEscape, 0x004ab210 OnThinkDmg, 0x004ab2e0 OnThinkKerse, 0x004aba30 OnThinkWander, 0x004abb90 OnThinkMagic, 0x004ac060 OnThinkDataDrainAtk, 0x004ac320 OnThinkDashCenter, 0x004ac5d0 OnThinkTornade, 0x004ac850 OnThinkSkill, 0x004acdf0 OnThinkTalk, 0x004ad0c0 OnThinkWave, 0x004ad320 OnThinkChase, 0x004ad5e0 OnThinkEpitaph, 0x004ad740 OnThinkEpitaphWave, 0x004ad980 Slave, 0x004ada60 EntrySlave, 0x004adbb0 SendMessage, 0x004add68 SendMessage's effProtect, 0x004a980c CalcRealEx's effProtect, 0x004ae990 ccBoss05Brother::Init, 0x004aed70 Move, 0x004aefb0 Main, 0x004af020 Think, 0x004af0e0 OnThinkNeutral, 0x004af1f0 OnThinkEpitaph, 0x004af300 OnThinkEpitaphWave, 0x004af8d0 OnThinkTornade, 0x004afe10 OnThinkWave, 0x004b0490 OnThinkDead, 0x004b05b0 Order, 0x004b07c0 Affect, 0x004b0b00 OnExit, 0x006dfd90 Think's jump table (@1462), 0x006dfdf0 OnThinkKerse's (@1644), 0x006dfe10 SendMessage's (@2268), 0x00618040 boss05NormalActTbl, 0x006180e0 boss05SuperActTbl, 0x006181b0 boss05EpitaphActTbl, 0x00618218 @1261, 0x00618230 @1672, 0x00618240 @1777, 0x00618250 @2074, 0x00384e80 ccBoss05's vtable, 0x00384de0 ccBoss05Brother's, 0x004700a0 ccBoss::OffBossCamera, 0x0046f9e0 ccBoss::InitBossCamera, 0x00472090 ccBossCam::ccBossCam; INF gcmn.prg:0x00497010-0x0049e590 (boss05.cpp), 0x005ebf10 Boss05AnmTbl, 0x005ebf80 boss05SlaveAnmTbl1, 0x005ebff0 boss05SlaveAnmTbl2, 0x005ec060 boss05NormalActTbl, 0x005ec100 boss05SuperActTbl, 0x005ec1c0 boss05EpitaphActTbl, 0x005ec228 @1261, 0x005ec240 @1672, 0x005ec250 @1777, 0x005ec260 @2074; OUT gcmn.prg:0x0048a6e0 ccBossEffFinalPhotonFlashCreate, 0x00480b70 ccBossEffFinalPhotonFlash::Draw, 0x00480d00 ccBossEffFinalPhotonFlash::Explode
-worklog: 296, 297, 303, 422
+worklog: 296, 297, 303, 422, 429
 ---
 
 # Bosses - Gorre
@@ -177,8 +177,12 @@ the base's speed on top.
   effect is out of the manager, msg 4 and `OnExit` (out, off the lists, no
   body).
 - `Affect`: msg 0 (a drain only before its own Epitaph), then 5/6 `stop`,
-  and a hit's shield (row 40 against `ccSkillCheckType` 0, row 41 against
-  1), number and mark.
+  and a hit's shield (row 40 against `ccSkillCheckType` 0 with magic 0,
+  row 41 against 1 with magic 1), number and mark. The shield's element
+  is then reshaped (0x004b090c, 0x004b09d4): `m_scale` x halved and z 1.3
+  times, `m_offset` z 200 more (effects.md, "The resistant shield").
+  The port's `Out::Shield { magic, stretched: true }`, drawn by
+  piney-effect's `eff_brother_shield` (worklog 429).
 
 ## SendMessage
 
@@ -277,10 +281,18 @@ each (the sprite, the sounds, the ring, the generators, the dust's
 arena's fight: three Kerses in 12,000 frames, each drawing the flash and
 its ring; `gorre_kerse_shots` (ignored) writes their shots.
 
+The shields (worklog 429): the rules harness's hits on the brothers
+include spells (skill 2), and each `effResistantShield` is compared with
+its magic. Both kinds are reached (116 physical, 44 magic in `bulk 12`).
+`tools/test_effect_skill_rs.py`'s `brothershield` runs the game's brother
+`Affect` with the element manager against spell_probe, frame by frame
+(Outbreak and Quarantine: every element member, every draw).
+`gorres_brothers_show_their_stretched_shields` (`boss_fx`) hits each
+brother with the kind it resists: both rows show their shields, every
+frame reshaped. `gorre_shield_shots` (ignored) writes shots.
+
 ## Unknown
 
-- `effResistantShield`'s own picture: the brother's shield is shown
-  (`Out::Shield`), its vector tweak (x halved, z times 1.3 plus 200) not.
 - After msg 0's 21 the brothers share Gorre's `param` in the game; the
   port writes the same values to all three but keeps three: a later change
   to one gauge (none happens in the fight once it is -1) would not reach

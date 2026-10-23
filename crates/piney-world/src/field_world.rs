@@ -3994,6 +3994,9 @@ pub struct FxCensus {
     /// The live `ccEffect` slots' ids with the character each follows
     /// (`target`), by scene index.
     pub effect_targets: Vec<(i16, Option<u32>)>,
+    /// The resistant shields' elements: the character each is on, its
+    /// scale and its offset from it.
+    pub shields: Vec<(u32, V4, V4)>,
 }
 
 impl FieldFx for combat::NoFx {

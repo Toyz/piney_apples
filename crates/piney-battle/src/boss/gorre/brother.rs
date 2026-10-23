@@ -578,13 +578,16 @@ fn local_affect(b: &mut Boss, cx: &mut Cx) {
         6 => b.stop = 0,
         5 => b.stop = 1,
         1 | 3 => {
-            let shield = match cx.scene.chars[me].id() {
-                40 => crate::skill::check_type_of(cx.t, i32::from(p1)) == 0,
-                41 => crate::skill::check_type_of(cx.t, i32::from(p1)) == 1,
-                _ => false,
+            // Row 40 resists the physical (its shield `ANM_x070`), 41 the
+            // spells (`ANM_x069`); the element is then reshaped.
+            let check = || crate::skill::check_type_of(cx.t, i32::from(p1));
+            let magic = match cx.scene.chars[me].id() {
+                40 if check() == 0 => Some(0),
+                41 if check() == 1 => Some(1),
+                _ => None,
             };
-            if shield {
-                cx.out(Out::Shield);
+            if let Some(magic) = magic {
+                cx.out(Out::Shield { magic, stretched: true });
             }
             if !cx.annihilated() && !cx.game_over {
                 cx.out(Out::FlyFont { kind: 2, n: i32::from(p0) });

@@ -277,7 +277,7 @@ pub(crate) fn out_json(o: &Out) -> Option<String> {
         Out::FlyFont { kind, n } => format!("[\"flyfont\",{kind},{n}]"),
         Out::ClearSpcCondition => "[\"clear_spc\"]".into(),
         Out::AfterImage => "[\"afterimage\"]".into(),
-        Out::Shield => "[\"shield\"]".into(),
+        Out::Shield { magic, .. } => format!("[\"shield\",{magic}]"),
         Out::Particles { which, .. } => match which {
             Gen::InisField(r) => format!("[\"particles\",\"InisField\",{r}]"),
             Gen::Tornado => "[\"particles\",\"Tornado\",0]".into(),

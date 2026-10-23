@@ -1,7 +1,7 @@
 //! Issue #69: what a boss's fight shows. The protect's break and its
 //! return on Skeith, Innis and Gorre's brothers (the return raised by the
-//! boss's own `CalcReal`), and Innis's magic: its missiles, its rings and
-//! its particles.
+//! boss's own `CalcReal`), Innis's magic: its missiles, its rings and its
+//! particles, and Gorre's brothers' shields.
 
 use std::collections::BTreeMap;
 
@@ -524,6 +524,106 @@ fn gorres_kerse_shows_its_flash() {
     assert!(acts.contains(&piney_battle::boss::gorre::act::KERSE), "no Kerse: {acts:?}");
     assert!(flash >= 11, "the flash not drawn ({flash} frames)");
     assert!(ring > 10, "the burst's ring not drawn ({ring} frames)");
+}
+
+/// Kite's hits on Gorre's brothers, every 40 frames once they are on the
+/// lists: row 40 struck by the normal attack (skill 1, physical), row 41
+/// by skill 2 (a spell), the kinds each resists. `each` sees the frame and
+/// the shields' elements on the brothers (`FxCensus::shields`).
+fn shield_fight(
+    s: &mut Session,
+    frames: u32,
+    mut each: impl FnMut(&Session, &Frame, u32, &[(u32, piney_effect::V4, piney_effect::V4)]),
+) {
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let mut came = None;
+    for n in 0..frames + 3000 {
+        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
+        let frame = s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &mut s.stage else { continue };
+        let shields = a.world().fx().census().shields;
+        let c = a.world_mut().combat_mut();
+        for &(_, k) in &c.members {
+            c.scene.chars[k].max_hp = 9999;
+            c.scene.chars[k].hp = 9999;
+        }
+        let Some(_) = c.boss_char() else { continue };
+        let i = n - *came.get_or_insert(n);
+        if i >= frames {
+            break;
+        }
+        let brothers = c.boss.as_ref().map_or(Vec::new(), |r| r.parts.clone());
+        let hit: Vec<usize> = brothers.iter().copied().filter(|&b| i.is_multiple_of(40) && c.scene.listed(b)).collect();
+        for b in hit {
+            let sid = if c.scene.chars[b].id() == 40 { 1 } else { 2 };
+            let kite = c.kite;
+            if let Some(pb) = c.scene.chars[b].foe_state_mut().and_then(|f| f.boss.as_mut()) {
+                pb.queued.push((1, [10, sid, 0], kite));
+            }
+        }
+        let on: Vec<_> = shields.into_iter().filter(|(t, ..)| brothers.contains(&(*t as usize))).collect();
+        each(s, &frame, i, &on);
+    }
+}
+
+/// Gorre's brothers' shields as `ccBoss05Brother::Affect` reshapes them:
+/// `effResistantShield`'s scale with x halved and z 1.3 times, its offset
+/// 200 higher. Row 40's against the physical, 41's against spells, both
+/// shown. Before, every brother's shield was the plain one, of a spell.
+#[test]
+fn gorres_brothers_show_their_stretched_shields() {
+    let Some(mut s) = event_218_arena() else { return };
+    let (mut shown, mut shaped) = (BTreeMap::new(), 0u32);
+    let mut bad = Vec::new();
+    shield_fight(&mut s, 3000, |s, _, _, on| {
+        let Stage::Area(a) = &s.stage else { return };
+        let c = a.world().combat();
+        for &(t, scale, offset) in on {
+            let base = c.scene.chars[t as usize].base();
+            *shown.entry(c.scene.chars[t as usize].id()).or_insert(0u32) += 1;
+            // effResistantShield's for a boss: (w, w, h / 2) 0.01, offset
+            // (0, -w / 2, h / 2).
+            let (w, h) = (f32::from_bits(base.width), f32::from_bits(base.height));
+            let half_h = f32::from_bits(piney_effect::ee::mul(0x3f00_0000, base.height));
+            let want_off = f32::from_bits(piney_effect::ee::add(half_h.to_bits(), 0x4348_0000));
+            let ok = f32::from_bits(scale[0]) * 2.0 == f32::from_bits(scale[1])
+                && (f32::from_bits(scale[2]) - h * 0.005 * 1.3).abs() < 1e-3
+                && f32::from_bits(offset[2]) == want_off
+                && (f32::from_bits(offset[1]) + w * 0.5).abs() < 1e-3;
+            if ok {
+                shaped += 1;
+            } else {
+                bad.push((t, scale.map(f32::from_bits), offset.map(f32::from_bits)));
+            }
+        }
+    });
+    println!("shields by brother row {shown:?}, {shaped} frames reshaped, {} not", bad.len());
+    assert!(shown.contains_key(&40) && shown.contains_key(&41), "a brother showed no shield: {shown:?}");
+    assert!(bad.is_empty(), "shields not reshaped: {:?}", &bad[..bad.len().min(3)]);
+}
+
+/// Shots of the brothers' shields to `PINEY_SHOTS` (default
+/// /mnt/data/claude/scratch/a429): every 4th frame one is up.
+#[test]
+#[ignore]
+fn gorre_shield_shots() {
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/a429".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let Some(mut s) = event_218_arena() else { return };
+    let mut gs: Option<piney_gs::Gs> = None;
+    shield_fight(&mut s, 2000, |s, frame, i, on| {
+        if on.is_empty() || !i.is_multiple_of(4) {
+            return;
+        }
+        let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
+        g.set_overlay(Mode::archive(s));
+        g.render(frame);
+        let (w, h) = g.target_size();
+        std::fs::write(format!("{dir}/gorre-shield-{i:05}.png"), piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+    });
 }
 
 /// Shots of Gorre's Kerse to `PINEY_SHOTS` (default

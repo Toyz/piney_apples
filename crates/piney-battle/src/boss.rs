@@ -618,8 +618,13 @@ pub enum Out {
         which: innis::Gen,
         pos: V4,
     },
-    /// `effResistantShield(this, 1, -1)`: a spell struck the boss.
-    Shield,
+    /// `effResistantShield(this, magic, -1)`: a blow of the kind the boss
+    /// resists (Innis's spells, 1; Gorre's brothers' by row). `stretched`:
+    /// a brother's, its element reshaped ([`gorre::brother`]).
+    Shield {
+        magic: i32,
+        stretched: bool,
+    },
     /// A particle generator of Kyvia's fight started: which, where, and
     /// the member that keeps it.
     KyviaParticles {

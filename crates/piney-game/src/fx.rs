@@ -268,6 +268,14 @@ impl FieldFx for AreaFx {
         piney_world::field_world::FxCensus {
             effects: self.fx.ctrl.effects.iter().filter(|e| e.status != 0).map(|e| e.id).collect(),
             effect_targets: (self.fx.ctrl.effects.iter()).filter(|e| e.status != 0).map(|e| (e.id, e.target)).collect(),
+            shields: (self.fx.spells.elements.slots.iter().flatten())
+                .filter_map(|e| match e {
+                    piney_effect::element::Element::Shield(s) => {
+                        Some((s.target, s.base.anim.scale, s.base.anim.offset))
+                    }
+                    _ => None,
+                })
+                .collect(),
             particles: self.fx.particles.live().count(),
             weapon_generators: (self.fx.particles.gens.iter())
                 .filter(|g| matches!(g.sync_sw, Some(piney_effect::IntRef::CharAt(_, piney_effect::ARMS_SW))))
@@ -795,9 +803,14 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         Show::Boss(_, piney_battle::boss::Out::KyviaGen { held, op }) => {
             fx.kyvia_gen_op(h, *held, *op);
         }
-        // A boss's Affect on a spell's hit: effResistantShield(this, 1, -1).
-        Show::Boss(me, piney_battle::boss::Out::Shield) => {
-            fx.resistant_shield(h, cref(*me), 1, -1);
+        // A boss's Affect on a blow it resists: effResistantShield(this,
+        // magic, -1), a Gorre brother's reshaped.
+        Show::Boss(me, piney_battle::boss::Out::Shield { magic, stretched }) => {
+            if *stretched {
+                fx.brother_shield(h, cref(*me), *magic);
+            } else {
+                fx.resistant_shield(h, cref(*me), *magic, -1);
+            }
         }
         // What Fidchell's rules ask beside: the back dash's and a tower's
         // dust, a meteor's landing, a tower's and a strike's rocks.

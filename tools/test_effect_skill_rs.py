@@ -20,7 +20,11 @@ the resistant shield.
     set or random frame;
   - effResistantShield (gcmn 0x00501ab0, 0x00501cb0) and
     ccResistantShieldElement::Main (gcmn 0x00501970) on the element
-    manager;
+    manager; from Outbreak on, Gorre's brothers' (`brothershield`, worklog
+    429): ccBoss05Brother::Affect (OUT gcmn 0x004b07c0) run on a
+    character of row 40 or 41 hit by a skill of the kind it resists
+    (SendMessage to Gorre hooked out, checkPartyAnnihilation answering 1
+    so the number and mark are left out), its shield then reshaped;
   - the dungeon objects': effVirusCrystal (0x001cf420) and its controller
     -4; effCrushBarrel, effCrushEgg, effCrushPot, effCrushCorpse
     (0x001d0300-0x001d0660) with the fragments (x 0, and x not 0 for the
@@ -107,7 +111,8 @@ EFFSW = 0x1E0
 # Answers not compared: effHeal's (and so effHealSkill's) is always 0 in
 # the game (the port answers its controller), effOpenBox's, the crushes'
 # and effStatueOfGod's always 1.
-VOID = {"heal", "healskill", "openbox", "crushbarrel", "crushegg", "crushpot", "crushcorpse", "statue"}
+VOID = {"heal", "healskill", "openbox", "crushbarrel", "crushegg", "crushpot", "crushcorpse", "statue",
+        "brothershield"}
 
 
 class SkillFxMachine(spell.SpellMachine):
@@ -150,11 +155,40 @@ class SkillFxMachine(spell.SpellMachine):
         else:
             super().set_field(slot, key, *v)
 
+    def skill_of_type(self, kind):
+        """The first skill whose ccSkillCheckType is `kind`."""
+        sid = next(s for s in range(1, 304) if self.call("ccSkillCheckType__Fi", s) == kind)
+        return sid
+
+    def brother_shield(self, c, magic):
+        """ccBoss05Brother::Affect on character `c` as row 40 (magic 0) or
+        41 (magic 1), hit (type 1) by a skill of that kind."""
+        m, sym = self.m, self.sym
+        ch = self.chars[c]
+        m.store(m.load(ch, 4) + 0xC, 2, 40 if magic == 0 else 41)
+        m.store(ch + 0x9C, 2, 1)
+        m.store(ch + 0xA0, 2, self.skill_of_type(magic))
+        saved = {}
+        for name, fn in (("SendMessage__8ccBoss05FP15ccBoss05Brotheri", lambda mm, *a: 0),
+                         ("checkPartyAnnihilation__Fv", lambda mm, *a: 1)):
+            saved[sym(name)] = m.hooks.get(sym(name))
+            m.hooks[sym(name)] = fn
+        self.call("Affect__15ccBoss05BrotherFv", ch)
+        for a, fn in saved.items():
+            if fn is None:
+                m.hooks.pop(a, None)
+            else:
+                m.hooks[a] = fn
+
     def start(self, name, args):
         """A starter with the probe's arguments (characters by id, vectors
         as bits): its answer, events, generators and the generators' states."""
         self.events, self.gens = [], []
         ch = lambda c: self.chars[c]           # noqa: E731
+        if name == "brothershield":
+            self.brother_shield(*args)
+            return {"ret": None, "events": self.events, "gens": self.gens, "rand": self.rand.s,
+                    "genrand": self.genrand.count}
 
         def vec(x, y, z, buf=None):
             buf = buf or self.vecbuf
@@ -373,6 +407,8 @@ def random_spec(run, rng, group):
         return "statue", random_pos(run, rng) + [c], None
     if group == "shield":
         c = rng.choice([k for k in chs if run.chars[k]["ctype"] & 0xE0] or chs)
+        if BROTHERS and rng.random() < 0.25:
+            return "brothershield", [c, rng.choice((0, 1))], None
         return "shield", [c, rng.choice([-1, 0, 1, 2, 5]) & 0xFFFFFFFF,
                           rng.choice([-1, -1, 0, 1, 2, 3, 4]) & 0xFFFFFFFF], None
     if group == "ids":
@@ -453,6 +489,8 @@ def no_code(run, rng, eid=None):
 
 CRUSHES = ("crushbarrel", "crushegg", "crushpot", "crushcorpse")
 
+# Gorre's brothers' Affect (Outbreak on).
+BROTHERS = base.volume.NAME in ("outbreak", "quarantine")
 # The shield sweep's characters: a PC, two enemies, a boss, an enemy and
 # boss at once.
 SHIELD_TYPES = [0x7, 0x20, 0x40, 0x80, 0xA0]
@@ -491,7 +529,11 @@ def sweep_specs(group):
     if group == "shield":
         specs = [("shield", [c, m & 0xFFFFFFFF, n & 0xFFFFFFFF], None)
                  for c in range(1, 5) for m in (-1, 0, 1, 2) for n in (-1, 0, 1, 3, 4)]
-        return [specs[k:k + 20] for k in range(0, len(specs), 20)]
+        chunks = [specs[k:k + 20] for k in range(0, len(specs), 20)]
+        if BROTHERS:
+            # Gorre's brothers': each kind on each character (worklog 429).
+            chunks.append([("brothershield", [c, m], None) for c in range(1, 5) for m in (0, 1)])
+        return chunks
     if group == "ids":
         # An IceBreak's twelve throws; each element's meteor 0, falling and
         # not; 113 at lives around its 5 and 15; each of -11..-8.

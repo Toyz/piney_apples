@@ -78,7 +78,7 @@ MENU = 0x01020000               # test_battle's ccMenu
 BOSS_SIZE = 0x29410
 
 # The brothers' scripted affects: the kind's EntryAffect type and p1.
-BROTHER_AFFECTS = {5: (1, 1), 10: (1, 0), 6: (13, 0), 8: (7, 0), 9: (21, 0)}
+BROTHER_AFFECTS = {5: (1, 1), 10: (1, 0), 11: (1, 2), 6: (13, 0), 8: (7, 0), 9: (21, 0)}
 
 # The stand-in effects' kinds (battle_probe's eff_num).
 WAVE, DEAD, FINAL = 0, 5, 16
@@ -273,8 +273,9 @@ class Game:
         hook("ccEntryFlyFontNew__FiiPfP6ccCharff",
              lambda mm, k, n, *_: out.append(["flyfont", s32(k), s32(n)]) or 0)
         hook("ccHitMarkDisp__FP6ccCharP6ccChar", lambda mm, *a: out.append(["hitmark"]) or 0)
-        # A brother's shield against the kind it resists: noted, no effect.
-        hook("effResistantShield__FP6ccCharii", lambda mm, *a: out.append(["shield"]) or 0)
+        # A brother's shield against the kind it resists: noted with its
+        # kind, no element (its shape: test_effect_skill_rs's brothershield).
+        hook("effResistantShield__FP6ccCharii", lambda mm, ch, magic, *a: out.append(["shield", s32(magic)]) or 0)
         hook("ccClearSpcCondition__Fv", lambda mm, *a: out.append(["clear_spc"]) or 0)
         hook("checkCameraShakeRange__FPf", lambda mm, *a: int(self.shake_now))
         hook("SetMode__9ccBossCamFifPfP6ccChar", lambda mm, a, mode, *_: out.append(["cammode", s32(mode)]) or 0)
@@ -403,7 +404,8 @@ def rnd_case(c, rnd):
     script = []
     rough = rnd.random() < 0.5
     # Gorre's own (0-4) and the brothers' (5 a hit with the normal attack's
-    # skill, 10 with none, 6 a drain, 8 a heal, 9 the drain's 21 - after
+    # skill, 10 with none, 11 with skill 2, a spell, 6 a drain, 8 a heal,
+    # 9 the drain's 21 - after
     # which Gorre's gauge is theirs too, so no more pokes at it).
     # A quiet case (no hits on the brothers, the gauge untouched) runs the
     # Normal table through to its Talk.
@@ -411,11 +413,11 @@ def rnd_case(c, rnd):
     reset = rnd.randrange(frames // 2, frames) if rnd.random() < 0.3 and not quiet else frames
     hard = rnd.random() < 0.3
     for f in sorted(rnd.sample(range(frames), min(frames // (10 if rough else 30), 300))):
-        kinds = (0, 8) if quiet else (0, 0, 1, 4, 5, 5, 10, 8) if f < reset else (0, 5, 5, 10, 8)
+        kinds = (0, 8) if quiet else (0, 0, 1, 4, 5, 5, 10, 11, 8) if f < reset else (0, 5, 5, 10, 11, 8)
         kind = 6 if rnd.random() < 0.02 and not quiet else rnd.choice(kinds)
         p0 = {0: rnd.randrange(-1, 900), 1: rnd.randrange(0, max_pp + 1),
               4: rnd.choice((0, 0, rnd.randrange(0, 300))), 5: rnd.randrange(0, 4000 if hard else 900),
-              10: rnd.randrange(0, 900), 6: 0, 8: rnd.randrange(0, 500)}[kind]
+              10: rnd.randrange(0, 900), 11: rnd.randrange(0, 900), 6: 0, 8: rnd.randrange(0, 500)}[kind]
         script.append((f, kind, rnd.randrange(2), p0))
     if reset < frames:
         script.append((reset, 9, rnd.randrange(2), 0))
@@ -781,6 +783,7 @@ def bulk(n, seed0=9900):
     rs.build()
     game = Game()
     acts = set()
+    shields = {}
     total = bad = 0
     for k in range(n):
         rnd = random.Random(seed0 + k)
@@ -791,9 +794,14 @@ def bulk(n, seed0=9900):
             print(str(e) if bad == 1 else str(e).splitlines()[0], flush=True)
             continue
         acts |= {fr["act"][0] for fr in frames}
+        for fr in frames:
+            for o in fr["out"]:
+                if o and o[0] == "shield":
+                    shields[o[1]] = shields.get(o[1], 0) + 1
         total += len(frames) - 1
         print(f"case {seed0 + k} ok ({len(frames) - 1} frames)", flush=True)
-    print(f"{n} cases, {bad} mismatched, {total} frames matched; acts reached:", sorted(acts))
+    print(f"{n} cases, {bad} mismatched, {total} frames matched; acts reached:", sorted(acts),
+          "shields by kind:", shields)
 
 
 if __name__ == "__main__":

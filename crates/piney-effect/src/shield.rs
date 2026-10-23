@@ -25,6 +25,9 @@ pub const ANM_PHYSICAL: &str = "ANM_x070";
 const HALF: F = 0x3f00_0000;
 /// 0.01.
 const HUNDREDTH: F = 0x3c23_d70a;
+/// A brother's shield: its z scale 1.3 times, its offset 200 up.
+const STRETCH: F = 0x3fa6_6666;
+const LIFT: F = 0x4348_0000;
 
 /// `ccResistantShieldElement` (0x1a0 bytes).
 #[derive(Clone, Debug, PartialEq)]
@@ -123,6 +126,21 @@ pub fn eff_resistant_shield_scale(cx: &mut Cx, ch: CharRef, magic: i32, scale: V
     let slot = cx.spells.elements.add(Element::Shield(Box::new(e)))?;
     let pos = cx.host.char_pos(ch);
     cx.raise(Event::Sound3d { se: SE_SHIELD, pos });
+    Some(slot)
+}
+
+/// `ccBoss05Brother::Affect`'s shield (OUT gcmn 0x004b08ec, 0x004b09b8):
+/// `effResistantShield(this, magic, -1)`, then the element's scale with x
+/// halved and z 1.3 times, and its offset 200 higher: a narrow, tall
+/// shield over the brother's middle.
+pub fn eff_brother_shield(cx: &mut Cx, ch: CharRef, magic: i32) -> Option<usize> {
+    let slot = eff_resistant_shield(cx, ch, magic, -1)?;
+    if let Some(b) = cx.spells.elements.base_mut(slot) {
+        let a = &mut b.anim;
+        a.scale[0] = ee::mul(a.scale[0], HALF);
+        a.scale[2] = ee::mul(a.scale[2], STRETCH);
+        a.offset[2] = ee::add(a.offset[2], LIFT);
+    }
     Some(slot)
 }
 
