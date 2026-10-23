@@ -69,7 +69,8 @@ fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame)) -
 /// the reflexes the constructors and acts give. Skeith's and Fidchell's
 /// `ccBoss03BlurParamCB` swings the scale about 1 and the turn about 0 in
 /// 0x48808080; Innis's is turned 0.02 at 1.01; Magus's 1.01; Kyvia's
-/// 1.0 at its colours; Gorre's, whose `m_exit` is the heap's, none.
+/// 1.0 at its colours; Gorre's, whose `m_exit` is the heap's word, none
+/// with the port's (docs/engine/heap.md).
 #[test]
 fn every_fight_shows_its_blur() {
     let fights: [Arena; 7] = [
@@ -100,7 +101,7 @@ fn every_fight_shows_its_blur() {
         assert!(seen.len() > 1000, "{name}: the fight not reached");
         assert_eq!(missed, 0, "{name}: a reflex not drawn");
         match name {
-            "gorre" => assert!(shown.is_empty(), "{name}: the heap's m_exit is taken as not 0"),
+            "gorre" => assert!(shown.is_empty(), "{name}: HEAP_EXIT is not 0"),
             "skeith" | "fidchell" => {
                 assert!(shown.len() + 2 >= seen.len(), "{name}: {} of {}", shown.len(), seen.len());
                 assert_eq!(abgr, BTreeSet::from([0x4880_8080]));
@@ -119,6 +120,46 @@ fn every_fight_shows_its_blur() {
             }
         }
     }
+}
+
+/// Gorre's fight on the other word: the histories whose manager lands on
+/// one of the cutscene mesh's 0 words (docs/engine/heap.md) leave
+/// `m_exit` 0, and nothing in the fight writes the blur. Disabled, its
+/// scale eases from 1.01 to 1.0 by a thirtieth of the gap a frame and
+/// stays; its turn starts at 0, so it never arrives and never exits.
+#[test]
+fn gorre_on_a_zero_word_shows_the_managers_own_blur() {
+    let Some(mut s) = super::boss_fx::event_218_arena() else { return };
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let (mut came, mut shown) = (None, Vec::new());
+    for n in 0..20000u32 {
+        let talking = match &s.stage {
+            Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
+            _ => false,
+        };
+        pad.read(&if talking && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
+        s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &mut s.stage else { continue };
+        let c = a.world_mut().combat_mut();
+        let Some(run) = c.boss.as_ref() else {
+            c.heap_exit = 0;
+            continue;
+        };
+        if n - *came.get_or_insert(n) >= 120 {
+            break;
+        }
+        shown.push(run.reflex);
+    }
+    assert_eq!(shown.len(), 120, "the fight not reached");
+    // From the boss's second frame: Main runs before the boss's.
+    let shown: Vec<Reflex> = shown.into_iter().skip(1).map(|r| r.expect("a reflex every frame")).collect();
+    assert!(shown.iter().all(|r| r.abgr == 0x4080_8080 && r.turn == 0));
+    let scales: Vec<f32> = shown.iter().map(|r| f32::from_bits(r.scale)).collect();
+    assert!(scales[0] > 1.0 && scales[0] < 1.01, "{}", scales[0]);
+    assert!(scales.windows(2).all(|w| w[1] <= w[0]), "the scale only falls");
+    assert!(scales[40..].iter().all(|&x| x == 1.0), "held at 1.0");
 }
 
 /// Shots to `PINEY_SHOTS` (default /mnt/data/claude/scratch/a432): each

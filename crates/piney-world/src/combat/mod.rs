@@ -444,6 +444,9 @@ pub struct Combat {
     pub entrance: Entrance,
     /// The boss's tasks (`ccBossEntryStart`), once an event made it.
     pub boss: Option<boss::BossRun>,
+    /// The word the heap leaves at the effect manager's `m_exit`, which
+    /// only Gorre's constructor does not write (`boss::HEAP_EXIT`).
+    pub heap_exit: u32,
     /// The blur callbacks' function statics, which last until power-off
     /// (the session carries them from area to area).
     pub blur_statics: piney_battle::boss::blur::Statics,
@@ -712,6 +715,7 @@ impl Combat {
             eye_view: false,
             entrance: Entrance::default(),
             boss: None,
+            heap_exit: boss::HEAP_EXIT,
             blur_statics: Default::default(),
             restore: [None; 18],
             npcs: Vec::new(),

@@ -549,7 +549,7 @@ impl PyMachine {
     #[new]
     #[pyo3(signature = (program, *, vu = false, vi = false, ee_div = false))]
     fn new(py: Python<'_>, program: &Bound<'_, PyAny>, vu: bool, vi: bool, ee_div: bool) -> PyResult<PyMachine> {
-        PyMachine::create(py, program, Features { vu: vu || vi, vi, ee_div })
+        PyMachine::create(py, program, Features { vu: vu || vi, vi, ee_div, full: false })
     }
 
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
@@ -1080,7 +1080,7 @@ impl VuMachine {
     #[new]
     #[pyo3(signature = (program, *, ee_div = false))]
     fn new(py: Python<'_>, program: &Bound<'_, PyAny>, ee_div: bool) -> PyResult<PyClassInitializer<Self>> {
-        let m = PyMachine::create(py, program, Features { vu: true, vi: false, ee_div })?;
+        let m = PyMachine::create(py, program, Features { vu: true, vi: false, ee_div, full: false })?;
         Ok(PyClassInitializer::from(m).add_subclass(VuMachine))
     }
 }
@@ -1094,7 +1094,7 @@ impl Vu0Machine {
     #[new]
     #[pyo3(signature = (program, *, ee_div = false))]
     fn new(py: Python<'_>, program: &Bound<'_, PyAny>, ee_div: bool) -> PyResult<PyClassInitializer<Self>> {
-        let m = PyMachine::create(py, program, Features { vu: true, vi: true, ee_div })?;
+        let m = PyMachine::create(py, program, Features { vu: true, vi: true, ee_div, full: false })?;
         Ok(PyClassInitializer::from(m).add_subclass(VuMachine).add_subclass(Vu0Machine))
     }
 }

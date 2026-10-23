@@ -43,12 +43,13 @@ pub const KYVIA_SECOND: i32 = 13;
 pub const KYVIA_THIRD: i32 = 14;
 pub const KYVIA_FOURTH: i32 = 15;
 
-/// The word the heap leaves at the manager's `m_exit` (+0x2c), which only
-/// Gorre's constructor does not write over: it is whatever the last owner
-/// of those bytes wrote, which the play since power-on decides
-/// (docs/engine/boss.md "The blur"). The port takes one that is not 0, so
-/// Gorre's fight shows no blur.
-pub const HEAP_EXIT: u32 = 1;
+/// Gorre's `m_exit` (the manager's +0x2c, which its constructor leaves):
+/// the word of stream 64's decoded mesh where the manager lands in the
+/// hole the cutscene leaves: 0x1882c in, for the save loaded after 900
+/// frames at the title (docs/engine/heap.md "Gorre's m_exit"). Where it
+/// lands moves with the play since power-on; the port has no game heap
+/// and keeps this history's word. Not 0: no blur.
+pub const HEAP_EXIT: u32 = 0x0100_003f;
 
 /// Skeith's file and model (`x11`, `CMP_trall`), and the effects' file.
 pub const FILE: &str = "x11";
@@ -545,7 +546,7 @@ impl Combat {
             cam,
             reverse: false,
             blur: {
-                let mut blur = boss::blur::Blur::new(HEAP_EXIT);
+                let mut blur = boss::blur::Blur::new(self.heap_exit);
                 for o in &ctor_out {
                     if let Out::Blur(s) = o {
                         blur.set(*s);

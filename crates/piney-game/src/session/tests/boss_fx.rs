@@ -719,3 +719,23 @@ fn gorre_kerse_shots() {
         std::fs::write(format!("{dir}/gorre-{n:05}.png"), piney_gs::png::encode(w, h, &g.read_back())).unwrap();
     }
 }
+
+/// `ccSaveData` as [`event_218_arena`] starts it, written to `PINEY_SAVE_OUT`
+/// for piney-eemu's `ee_run` (the whole program run to Gorre's fight).
+#[test]
+#[ignore]
+fn event_218_save_bytes() {
+    let Ok(out) = std::env::var("PINEY_SAVE_OUT") else { return };
+    let iso = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/outbreak/outbreak.iso");
+    if !iso.exists() {
+        return;
+    }
+    let blocks: u32 = std::env::var("PINEY_SAVE_BLOCKS").ok().and_then(|v| v.parse().ok()).unwrap_or(10);
+    let extra: u64 = std::env::var("PINEY_SAVE_DONE").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+    let start = crate::start::build(&iso, 218).unwrap();
+    let mut state = start.state;
+    let f = state.save.event_flag(218);
+    state.save.set_event_flag(218, f | ((1 << blocks) - 1) | extra);
+    state.save.set_u8(offset::EVENT_STATUS, 2);
+    std::fs::write(out, state.save.bytes()).unwrap();
+}

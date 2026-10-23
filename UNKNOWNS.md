@@ -347,7 +347,7 @@ player until one of these turns out wrong.
 - [[104]] a noise band's copy past the draw buffer reads 0 — as in the stream
 - [[105]] the drained enemy's look in the movie not compared — lights worked out at its matrix
 - [[114]] how ccLight combines an event room's LGT_ record with SetRoom's place; the block's clump nodes drawn at its matrix — docs/engine/dungeon.md Unknown
-- [[117]] ccBossBlur — not ported: whether Skeith's fight blurs depends on the heap (docs/engine/boss.md "Not described yet") — answered by [[432]]: every boss's constructor but Gorre's (and Quarantine's `ccBoss08`'s first form) writes `m_exit` 0, so the blur draws in every fight; ported (`piney_battle::boss::blur`). Gorre's `m_exit` is the heap's residue, which the play since power-on decides (docs/engine/boss.md "The blur")
+- [[117]] ccBossBlur — not ported: whether Skeith's fight blurs depends on the heap (docs/engine/boss.md "Not described yet") — answered by [[432]]: every boss's constructor but Gorre's (and Quarantine's `ccBoss08`'s first form) writes `m_exit` 0, so the blur draws in every fight; ported (`piney_battle::boss::blur`). Gorre's `m_exit` is answered by [[436]]: the word of stream 64's mesh where the manager lands in the hole the cutscene leaves; the title wait, the weapons and the party move it, and both outcomes come from ordinary play (docs/engine/heap.md)
 - [[117]] the trail's projection, the reversed sprite and the light on the characters' shading checked by eye only — no capture
 - [[119]] the feet's pose for the dust: port's stance at the start against the game's last draw — not measured
 - [[121]] the port's draw clips by the scissor, not the letterbox's clip box (bboxClipMin/Max) — not revisited

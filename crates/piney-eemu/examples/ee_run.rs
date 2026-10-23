@@ -1,0 +1,605 @@
+//! Runs a volume's executable from `_start` under `piney_eemu::sys`, the
+//! IOP's services stood in for on the program's library functions:
+//!
+//!   cargo run --release -p piney-eemu --example ee_run -- ISO ELF SYMS VBLANKS
+//!
+//! Prints the threads and the heap's state as it goes.
+
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
+use std::rc::Rc;
+
+use piney_eemu::heap::Heap;
+use piney_eemu::sys::{Hooked, State, Sys};
+
+/// A heap block `_ccMalloc` handed out.
+#[derive(Clone, Debug)]
+struct Block {
+    ptr: u32,
+    size: u32,
+    req: u32,
+    flags: u32,
+    ra: u32,
+    at: u64,
+    freed: Option<u64>,
+}
+
+/// State the hooks share.
+type Shared<T> = Rc<RefCell<T>>;
+
+/// `EE_HEAP_MODEL`'s state: off, waiting for the first handout (the heap
+/// is set up by then), or running with the handouts matched so far.
+enum Model {
+    Off,
+    Waiting,
+    On(Heap, usize),
+}
+
+/// `name -> va` from a `.syms` file (main's and the overlays').
+fn symbols(path: &str) -> HashMap<String, (String, u32)> {
+    let text = std::fs::read_to_string(path).expect("the symbols");
+    let mut out = HashMap::new();
+    for line in text.lines().filter(|l| !l.starts_with('#')) {
+        let f: Vec<&str> = line.split('\t').collect();
+        if f.len() >= 5
+            && let Ok(va) = u32::from_str_radix(f[1], 16)
+        {
+            out.entry(f[4].to_string()).or_insert((f[0].to_string(), va));
+        }
+    }
+    out
+}
+
+fn load_elf(sys: &mut Sys, data: &[u8]) -> u32 {
+    let u32_at = |o: usize| u32::from_le_bytes(data[o..o + 4].try_into().unwrap());
+    let u16_at = |o: usize| u16::from_le_bytes(data[o..o + 2].try_into().unwrap());
+    let (phoff, n) = (u32_at(0x1c) as usize, u16_at(0x2c) as usize);
+    for i in 0..n {
+        let p = phoff + 32 * i;
+        let (ty, off, va, fsz, msz) = (
+            u32_at(p),
+            u32_at(p + 4) as usize,
+            u32_at(p + 8) as usize,
+            u32_at(p + 16) as usize,
+            u32_at(p + 20) as usize,
+        );
+        if ty != 1 || fsz == 0 {
+            continue;
+        }
+        sys.ram[va..va + fsz].copy_from_slice(&data[off..off + fsz]);
+        sys.ram[va + fsz..va + msz.max(fsz)].fill(0);
+    }
+    u32_at(0x18)
+}
+
+/// The disc: ISO 9660 lookups and sector reads, and the stream's place.
+struct Disc {
+    file: File,
+    iso: piney_data::iso::Iso,
+    stream: u32,
+}
+
+impl Disc {
+    fn read(&mut self, lsn: u32, sectors: u32) -> Vec<u8> {
+        let mut buf = vec![0; sectors as usize * 2048];
+        self.file.seek(SeekFrom::Start(u64::from(lsn) * 2048)).unwrap();
+        let _ = self.file.read(&mut buf).unwrap();
+        buf
+    }
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let (iso_path, elf, syms, vblanks) = (&args[1], &args[2], &args[3], args[4].parse::<u64>().unwrap());
+    let syms = symbols(syms);
+    let sym = |n: &str| syms.get(n).map(|s| s.1);
+    let mut sys = Sys::new();
+    sys.log = std::env::var_os("EE_LOG").is_some();
+    let entry = load_elf(&mut sys, &std::fs::read(elf).unwrap());
+    let disc = Rc::new(RefCell::new(Disc {
+        file: File::open(iso_path).unwrap(),
+        iso: piney_data::iso::Iso::open(iso_path).unwrap(),
+        stream: 0,
+    }));
+
+    let ret = |sys: &mut Sys, names: &[&str], v: u32| {
+        for n in names {
+            if let Some(a) = sym(n) {
+                sys.stub(a, v);
+            }
+        }
+    };
+    // The IOP: modules load, RPC servers answer at once.
+    ret(
+        &mut sys,
+        &["sceSifInitRpc", "sceSifExitRpc", "sceSifInitCmd", "sceSifExitCmd", "sceSifResetIop", "sceSifSyncIop"],
+        1,
+    );
+    ret(&mut sys, &["sceSifRebootIop", "sceSifInitIopHeap", "sceSifLoadFileReset", "sceFsReset"], 1);
+    ret(
+        &mut sys,
+        &["sceSifLoadModule", "sceSifLoadStartModule", "sceSifLoadModuleBuffer", "sceSifLoadStartModuleBuffer"],
+        1,
+    );
+    ret(&mut sys, &["sceSifCheckStatRpc", "sceSifWriteBackDCache"], 0);
+    // The sound driver's data loads (commands 0x9210, 0x9310 on `gCd`):
+    // done at once, `sbuff[0]` reporting the load's size as the IOP does.
+    if let (Some(a), Some(gcd), Some(sbuff), Some(load)) =
+        (sym("sceSifCallRpc"), sym("gCd"), sym("sbuff"), sym("dataLoad"))
+    {
+        sys.hook(a, move |sys, a| {
+            if a[0] == gcd && a[1] & 0x9000 == 0x9000 {
+                let n = sys.r32(load + 0xc);
+                sys.w32(sbuff, n);
+            }
+            Hooked::Ret(0)
+        });
+    }
+    ret(&mut sys, &["sceSifAllocIopHeap", "sceSifAllocSysMemory"], 0x0010_0000);
+    ret(&mut sys, &["sceSifIsAliveIop"], 1);
+    if let Some(a) = sym("sceSifBindRpc") {
+        sys.hook(a, |sys, a| {
+            sys.w32(a[0] + 36, 0x0001_0000);
+            Hooked::Ret(0)
+        });
+    }
+    // The GS and DMA: nothing waits.
+    ret(&mut sys, &["sceDmaReset"], 0);
+    ret(&mut sys, &["sceGsSyncPath", "sceGsExecLoadImage", "sceGsResetGraph", "sceGsResetPath", "sceDmaWatch"], 0);
+    if let Some(a) = sym("sceGsSyncV") {
+        sys.hook(a, |sys, _| {
+            if let Err(e) = sys.spin_vsync() {
+                eprintln!("vblank: {e}");
+            }
+            Hooked::Ret(0)
+        });
+    }
+    if let Some(a) = sym("sceDmaGetChan") {
+        sys.hook(a, |_, a| Hooked::Ret(0x1000_8000 + 0x1000 * a[0].min(9)));
+    }
+    // The disc.
+    ret(
+        &mut sys,
+        &["sceCdInit", "sceCdMmode", "sceCdStInit", "sceCdStStop", "sceCdStPause", "sceCdStResume", "sceCdInitEeCB"],
+        1,
+    );
+    ret(&mut sys, &["sceCdSync", "sceCdSyncS", "sceCdGetError", "sceCdStatus", "sceCdStStat"], 0);
+    ret(&mut sys, &["sceCdDiskReady", "sceCdNcmdDiskReady"], 2);
+    {
+        let d = disc.clone();
+        if let Some(a) = sym("sceCdSearchFile") {
+            sys.hook(a, move |sys, a| {
+                let name = sys.cstr(a[1]).replace('\\', "/");
+                let name = name.trim_start_matches('/').trim_end_matches(";1").to_string();
+                if sys.log {
+                    eprintln!("search {name}");
+                }
+                match d.borrow_mut().iso.find(&name) {
+                    Ok(e) => {
+                        sys.w32(a[0], e.lba);
+                        sys.w32(a[0] + 4, e.size);
+                        Hooked::Ret(1)
+                    }
+                    Err(_) => {
+                        eprintln!("sceCdSearchFile: no {name}");
+                        Hooked::Ret(0)
+                    }
+                }
+            });
+        }
+        let d = disc.clone();
+        if let Some(a) = sym("sceCdRead") {
+            sys.hook(a, move |sys, a| {
+                let buf = d.borrow_mut().read(a[0], a[1]);
+                sys.write(a[2], &buf);
+                Hooked::Ret(1)
+            });
+        }
+        let d = disc.clone();
+        for n in ["sceCdStStart", "sceCdStSeek", "sceCdStSeekF"] {
+            let d = d.clone();
+            if let Some(a) = sym(n) {
+                sys.hook(a, move |_, a| {
+                    d.borrow_mut().stream = a[0];
+                    Hooked::Ret(1)
+                });
+            }
+        }
+        let d = disc.clone();
+        if let Some(a) = sym("sceCdStRead") {
+            sys.hook(a, move |sys, a| {
+                let mut d = d.borrow_mut();
+                let lsn = d.stream;
+                let buf = d.read(lsn, a[0]);
+                d.stream += a[0];
+                drop(d);
+                sys.write(a[1], &buf);
+                if a[3] != 0 {
+                    sys.w32(a[3], 0);
+                }
+                Hooked::Ret(a[0])
+            });
+        }
+    }
+    // The IOP's file system on the disc: sceOpen("cdrom0:\\PATH;1").
+    {
+        let files: Shared<HashMap<u32, (u32, u32, u32)>> = Rc::new(RefCell::new(HashMap::new()));
+        ret(&mut sys, &["sceFsInit", "sceFsReset"], 0);
+        let (d, f) = (disc.clone(), files.clone());
+        if let Some(a) = sym("sceOpen") {
+            sys.hook(a, move |sys, a| {
+                let name = sys.cstr(a[0]);
+                let path = name.split(':').nth(1).unwrap_or(&name).replace('\\', "/");
+                let path = path.trim_start_matches('/').trim_end_matches(";1").to_string();
+                if sys.log {
+                    eprintln!("sceOpen {name}");
+                }
+                match d.borrow_mut().iso.find(&path) {
+                    Ok(e) => {
+                        let fd = 3 + f.borrow().len() as u32 + 16 * (sys.vblanks as u32 & 0xff);
+                        f.borrow_mut().insert(fd, (e.lba, e.size, 0));
+                        Hooked::Ret(fd)
+                    }
+                    Err(_) => Hooked::Ret(u32::MAX),
+                }
+            });
+        }
+        let (d, f) = (disc.clone(), files.clone());
+        if let Some(a) = sym("sceRead") {
+            sys.hook(a, move |sys, a| {
+                let Some(&(lba, size, pos)) = f.borrow().get(&a[0]) else { return Hooked::Ret(u32::MAX) };
+                let n = a[2].min(size.saturating_sub(pos));
+                let first = lba + pos / 2048;
+                let sectors = (pos % 2048 + n).div_ceil(2048);
+                let buf = d.borrow_mut().read(first, sectors);
+                let o = (pos % 2048) as usize;
+                sys.write(a[1], &buf[o..o + n as usize]);
+                f.borrow_mut().insert(a[0], (lba, size, pos + n));
+                Hooked::Ret(n)
+            });
+        }
+        let f2 = files.clone();
+        if let Some(a) = sym("sceLseek") {
+            sys.hook(a, move |_, a| {
+                let Some(&(lba, size, pos)) = f2.borrow().get(&a[0]) else { return Hooked::Ret(u32::MAX) };
+                let p = match a[2] {
+                    0 => a[1],
+                    1 => pos.wrapping_add(a[1]),
+                    _ => size.wrapping_add(a[1]),
+                };
+                f2.borrow_mut().insert(a[0], (lba, size, p));
+                Hooked::Ret(p)
+            });
+        }
+        let f3 = files.clone();
+        if let Some(a) = sym("sceClose") {
+            sys.hook(a, move |_, a| {
+                f3.borrow_mut().remove(&a[0]);
+                Hooked::Ret(0)
+            });
+        }
+    }
+    // The pads: connected, nothing pressed.
+    ret(
+        &mut sys,
+        &[
+            "scePadInit",
+            "scePadInit2",
+            "scePadPortOpen",
+            "scePadSetMainMode",
+            "scePadSetActAlign",
+            "scePadSetActDirect",
+        ],
+        1,
+    );
+    ret(&mut sys, &["scePadGetReqState", "scePadEnterPressMode", "scePadExitPressMode", "scePadSetButtonInfo"], 0);
+    ret(&mut sys, &["scePadGetState"], 6);
+    if let Some(a) = sym("scePadInfoMode") {
+        sys.hook(a, |_, a| Hooked::Ret(if a[2] == 1 || a[2] == 2 { 7 } else { 1 }));
+    }
+    if let Some(a) = sym("scePadRead") {
+        sys.hook(a, |sys, a| {
+            let mut d = [0u8; 32];
+            d[1] = 0x73;
+            d[2] = 0xff;
+            d[3] = 0xff;
+            d[4..8].fill(0x80);
+            sys.write(a[2], &d);
+            Hooked::Ret(32)
+        });
+    }
+    // The memory cards: a formatted PS2 card in slot 1, the same card.
+    ret(&mut sys, &["sceMcInit", "sceMcOpen", "sceMcGetDir", "sceMcChdir"], 0);
+    if let Some(a) = sym("sceMcGetInfo") {
+        sys.hook(a, |sys, a| {
+            let t0 = sys.cpu.r[8] as u32;
+            for (at, v) in [(a[2], 2u32), (a[3], 8000), (t0, 1)] {
+                if at != 0 {
+                    sys.w32(at, v);
+                }
+            }
+            Hooked::Ret(0)
+        });
+    }
+    if let Some(a) = sym("sceMcSync") {
+        sys.hook(a, |sys, a| {
+            if a[1] != 0 {
+                sys.w32(a[1], 0);
+            }
+            if a[2] != 0 {
+                sys.w32(a[2], 0);
+            }
+            Hooked::Ret(1)
+        });
+    }
+
+    // VU0's bounding-box microprogram: every box in view, unclipped.
+    ret(&mut sys, &["_ccCheckBoundingBoxEx__FPA4_fP6ccViewPA4_fi"], 1);
+    // Overlays' functions, guarded by their first word in the PRG.
+    let prg_word = |d: &Rc<RefCell<Disc>>, file: &str, addr: u32| -> u32 {
+        let data = d.borrow_mut().iso.read_path(file).expect("the overlay");
+        let load = u32::from_le_bytes(data[8..12].try_into().unwrap());
+        let o = (addr - load) as usize;
+        u32::from_le_bytes(data[o..o + 4].try_into().unwrap())
+    };
+    // The movies (the logos): over at once.
+    if let Some(a) = sym("ccDecodeMpeg__FPcUi") {
+        let w = prg_word(&disc, "DATA/DEMO.PRG", a);
+        sys.hook_overlay(a, w, |_, _| Hooked::Ret(0));
+    }
+
+    // The heap: every block _ccMalloc hands out (its header's place and
+    // size, the caller, when) and when _ccFree takes it back.
+    let heap: Rc<RefCell<Vec<Block>>> = Rc::new(RefCell::new(Vec::new()));
+    // The live blocks by payload address: their index in `heap`.
+    let live: Rc<RefCell<HashMap<u32, usize>>> = Rc::new(RefCell::new(HashMap::new()));
+    // A call's (n, flags, ra, align) by thread until it returns.
+    let pending: Shared<HashMap<u32, (u32, u32, u32, u32)>> = Rc::new(RefCell::new(HashMap::new()));
+    // EE_TRACE=path: every handout and free, one line each, in order.
+    let trace: Rc<RefCell<Option<std::io::BufWriter<File>>>> = Rc::new(RefCell::new(
+        std::env::var("EE_TRACE").ok().map(|p| std::io::BufWriter::new(File::create(p).unwrap())),
+    ));
+    // EE_HEAP_MODEL: piney_eemu::heap::Heap beside the game, every handout
+    // compared; the first it would place elsewhere is reported and it stops.
+    let model: Rc<RefCell<Model>> =
+        Rc::new(RefCell::new(if std::env::var_os("EE_HEAP_MODEL").is_some() { Model::Waiting } else { Model::Off }));
+    let (heap_top, heap_end) = (sym("heapTop__6ccHeap").unwrap(), sym("heapEnd__6ccHeap").unwrap());
+    if std::env::var_os("EE_HEAP").is_some() {
+        let p = pending.clone();
+        sys.watch(sym("_ccMalloc__FUiUiUii").unwrap(), move |sys, a| {
+            p.borrow_mut().insert(sys.current_id(), (a[1], a[3], sys.cpu.r[31] as u32, a[0]));
+        });
+        let (p, h, l, t, m) = (pending.clone(), heap.clone(), live.clone(), trace.clone(), model.clone());
+        sys.watch(0x0010_098c, move |sys, _| {
+            let v = sys.cpu.r[2] as u32;
+            let (req, flags, ra, align) = p.borrow_mut().remove(&sys.current_id()).unwrap_or((0, 0, 0, 0));
+            let mut m = m.borrow_mut();
+            if let Model::Waiting = *m {
+                *m = Model::On(Heap::new(sys.r32(heap_top), sys.r32(heap_end)), 0);
+            }
+            if let Model::On(heap, n) = &mut *m {
+                let want = heap.malloc(align, req, flags).unwrap_or(0);
+                if want == v {
+                    *n += 1;
+                } else {
+                    eprintln!(
+                        "HEAP MODEL: handout {n} ({req:#x} from {ra:#x}) at {v:#x}, the model's at {want:#x}; it stops"
+                    );
+                    *m = Model::Off;
+                }
+            }
+            if v != 0 {
+                let size = sys.r32(v - 16 + 8);
+                let mut h = h.borrow_mut();
+                l.borrow_mut().insert(v, h.len());
+                h.push(Block { ptr: v - 16, size, req, flags, ra, at: sys.vblanks, freed: None });
+            }
+            if let Some(w) = t.borrow_mut().as_mut() {
+                use std::io::Write;
+                let size = if v != 0 { sys.r32(v - 16 + 8) } else { 0 };
+                let id = sys.current_id();
+                writeln!(w, "{} A {:x} {:x} {:x} {} {:x} {} {:x}", sys.vblanks, v, size, req, flags, ra, id, align)
+                    .unwrap();
+            }
+        });
+        let (h, l, t) = (heap.clone(), live.clone(), trace.clone());
+        let dump_freed: Option<(u32, String)> = std::env::var("EE_DUMP_FREED").ok().and_then(|v| {
+            let (size, path) = v.split_once(':')?;
+            Some((u32::from_str_radix(size.trim_start_matches("0x"), 16).ok()?, path.to_string()))
+        });
+        // ccMemReduce(p, n) shrinks a block in place, the rest a hole.
+        let (t2, m) = (t.clone(), model.clone());
+        sys.watch(sym("ccMemReduce__FPvUi").unwrap(), move |sys, a| {
+            if let Model::On(heap, _) = &mut *m.borrow_mut() {
+                heap.reduce(a[0], a[1]);
+            }
+            if let Some(w) = t2.borrow_mut().as_mut() {
+                use std::io::Write;
+                writeln!(w, "{} R {:x} {:x}", sys.vblanks, a[0], a[1]).unwrap();
+            }
+        });
+        let m = model.clone();
+        sys.watch(sym("_ccFree__FPv").unwrap(), move |sys, a| {
+            if let Model::On(heap, _) = &mut *m.borrow_mut() {
+                heap.free(a[0]);
+            }
+            if let Some(w) = t.borrow_mut().as_mut() {
+                use std::io::Write;
+                writeln!(w, "{} F {:x} {:x}", sys.vblanks, a[0], sys.cpu.r[31] as u32).unwrap();
+            }
+            if let Some(k) = l.borrow_mut().remove(&a[0]) {
+                let mut h = h.borrow_mut();
+                h[k].freed = Some(sys.vblanks);
+                // A block of the size asked for, as it is the moment it is freed.
+                if let Some((size, path)) = dump_freed.as_ref()
+                    && h[k].req == *size
+                {
+                    let b = &h[k];
+                    let bytes: Vec<u8> = (0..b.size).map(|i| sys.r8(b.ptr + i)).collect();
+                    std::fs::write(path, &bytes).unwrap();
+                    eprintln!("dumped the freed {:#x}-byte block at {:#x} to {path}", b.size, b.ptr);
+                }
+            }
+        });
+    }
+    // Gorre's fight: the boss effect manager's `operator new(0x1038)` in
+    // ccThBossEffect (OUT gcmn 0x00472ea4) returns to 0x00472eac.
+    {
+        let h = heap.clone();
+        sys.watch(0x0047_2eac, move |sys, _| {
+            let m = sys.cpu.r[2] as u32;
+            let exit = sys.r32(m + 0x2c);
+            eprintln!("MANAGER at {m:#x} (vblank {}): m_exit word {exit:#010x}", sys.vblanks);
+            let h = h.borrow();
+            let target = m + 0x2c;
+            for b in h.iter().rev().filter(|b| b.ptr <= target && target < b.ptr + b.size).take(6) {
+                eprintln!(
+                    "  block {:#x}+{:#x} (asked {:#x}, flags {}) from {:#x} at vblank {}, freed {:?}",
+                    b.ptr, b.size, b.req, b.flags, b.ra, b.at, b.freed
+                );
+            }
+            // The last freed block under m_exit: its bytes as they lie, and
+            // the blocks handed out inside it since it was freed.
+            if let Some(b) = h.iter().rev().find(|b| b.ptr <= target && target < b.ptr + b.size && b.freed.is_some()) {
+                if let Ok(path) = std::env::var("EE_DUMP") {
+                    let bytes: Vec<u8> = (0..b.size).map(|i| sys.r8(b.ptr + i)).collect();
+                    std::fs::write(&path, &bytes).unwrap();
+                    eprintln!("  dumped {:#x} bytes at {:#x} to {path}", b.size, b.ptr);
+                }
+                let freed = b.freed.unwrap();
+                for x in h.iter().filter(|x| x.at >= freed && x.ptr >= b.ptr && x.ptr < b.ptr + b.size) {
+                    eprintln!(
+                        "    then {:#x}+{:#x} (asked {:#x}) from {:#x} at vblank {}, freed {:?}",
+                        x.ptr, x.size, x.req, x.ra, x.at, x.freed
+                    );
+                }
+            }
+        });
+    }
+    let save = std::env::var("EE_SAVE").ok().map(|p| std::fs::read(p).unwrap());
+    let go_at: u64 = std::env::var("EE_GO").ok().and_then(|v| v.parse().ok()).unwrap_or(240);
+    let scene: Vec<i32> = std::env::var("EE_SCENE")
+        .ok()
+        .map(|v| v.split(',').map(|x| x.parse().unwrap()).collect())
+        .unwrap_or_else(|| vec![1, 3, 5, -1, -1, -1]);
+
+    // Later scene changes: EE_THEN="vblank:a,t,f,d,fl,b;vblank:..."
+    let then: Vec<(u64, Vec<i32>)> = std::env::var("EE_THEN")
+        .ok()
+        .map(|v| {
+            v.split(';')
+                .map(|e| {
+                    let (at, sc) = e.split_once(':').unwrap();
+                    (at.parse().unwrap(), sc.split(',').map(|x| x.parse().unwrap()).collect())
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    sys.boot(entry);
+    let step = 60.min(vblanks);
+    let mut done = 0;
+    let gp = 0x0038_ddf0;
+    while done < vblanks {
+        if let Some(bytes) = save.as_ref()
+            && done == go_at
+        {
+            let sd = sys.r32(sym("saveData").unwrap());
+            sys.write(sd, bytes);
+            let game = sys.r32(sym("game").unwrap());
+            eprintln!("injecting the save at {sd:#x}; game {game:#x}; scene {scene:?}");
+            sys.call(sym("ChangeRequest__6ccGameFii").unwrap(), &[game, 5, 8], gp).unwrap();
+            let sc: Vec<u32> = std::iter::once(game).chain(scene.iter().map(|&v| v as u32)).collect();
+            sys.call(sym("ChangeScene__6ccGameFiiiiii").unwrap(), &sc, gp).unwrap();
+        }
+        for (at, sc) in &then {
+            if *at == done {
+                let game = sys.r32(sym("game").unwrap());
+                if sc.len() == 1 {
+                    // A member invited as PartyInMenu does: the task
+                    // ccThPartyAdd (priority 34, a 4096-byte stack), its
+                    // param[0] 1 and param[1] the member, which runs
+                    // ccParty::AddMember.
+                    eprintln!("member {} joins at vblank {}", sc[0], sys.vblanks);
+                    let start = sym("ccStartThread__FPFPv_vii").unwrap();
+                    let task = sym("ccThPartyAdd__FP6ccTscb").unwrap();
+                    let t = sys.call(start, &[task, 34, 4096], gp).unwrap();
+                    sys.w32(t + 0x14, 1);
+                    sys.w32(t + 0x18, sc[0] as u32);
+                    continue;
+                }
+                if sc.len() == 3 {
+                    // The Chaos Gate's warp: SetGenerateCode on three words.
+                    let wm = sys.r32(sym("worldman").unwrap());
+                    eprintln!("warp {sc:?} at vblank {}", sys.vblanks);
+                    let args = [wm, sc[0] as u32, sc[1] as u32, sc[2] as u32];
+                    sys.call(sym("SetGenerateCode__9WORLD_MANFiii").unwrap(), &args, gp).unwrap();
+                    continue;
+                }
+                eprintln!("scene {sc:?} at vblank {}", sys.vblanks);
+                let sc: Vec<u32> = std::iter::once(game).chain(sc.iter().map(|&v| v as u32)).collect();
+                sys.call(sym("ChangeScene__6ccGameFiiiiii").unwrap(), &sc, gp).unwrap();
+            }
+        }
+        if let Err(e) = sys.run_vblanks(step) {
+            eprintln!("stopped: {e} at pc {:#x} ra {:#x}", sys.run.pc, sys.cpu.r[31] as u32);
+            eprintln!("intc {:?} enabled {:#x}", sys.handlers, sys.enabled_intc);
+            eprintln!("dmac {:?} enabled {:#x}", sys.dmac, sys.enabled_dmac);
+            let io = sys.io.borrow();
+            let mut regs: Vec<_> = io.regs.iter().filter(|(a, _)| (0x1000_8000..0x1000_f000).contains(*a)).collect();
+            regs.sort();
+            eprintln!("dma regs {regs:x?}");
+            break;
+        }
+        done += step;
+        let live: Vec<String> = sys
+            .threads
+            .iter()
+            .filter(|t| t.state != State::Dormant)
+            .map(|t| format!("{}:{:x}@{}{:?}", t.id, t.func, t.prio, t.state))
+            .collect();
+        eprintln!("vblank {} threads {}", sys.vblanks, live.join(" "));
+        for k in 0..sys.threads.len() {
+            if sys.threads[k].func == 0x0014_7f40
+                && sys.threads[k].state != State::Dormant
+                && let Some(st) = sys.thread_reg(k, 21)
+            {
+                let h = |o: u32| sys.r32(st + o) & 0xffff;
+                eprintln!(
+                    "  stream {st:#x}: 380 {:#x} 382 {:#x} frame {} sub {} speed {} end {}",
+                    h(380),
+                    sys.r32(st + 380) >> 16,
+                    sys.r32(st + 356),
+                    h(368) as i16,
+                    sys.r32(st + 368) >> 16,
+                    sys.r32(st + 360)
+                );
+            }
+        }
+        if sys.log {
+            for k in 0..sys.threads.len() {
+                if let Some((pc, ra)) = sys.thread_pc(k) {
+                    let sp = sys.thread_sp(k).unwrap_or(0);
+                    let up: Vec<String> = (0..24)
+                        .map(|i| sys.r32(sp + 4 * i))
+                        .filter(|&v| (0x100000..0x700000).contains(&v))
+                        .map(|v| format!("{v:x}"))
+                        .collect();
+                    eprintln!("  thread {} pc {pc:#x} ra {ra:#x} stack {}", sys.threads[k].id, up.join(" "));
+                }
+            }
+        }
+    }
+    let mut syscalls: Vec<_> = sys.unknown_syscalls.iter().collect();
+    syscalls.sort();
+    if let Some(w) = trace.borrow_mut().as_mut() {
+        use std::io::Write;
+        w.flush().unwrap();
+    }
+    if let Model::On(_, n) = &*model.borrow() {
+        eprintln!("HEAP MODEL: all {n} handouts where the game put them");
+    }
+    eprintln!("unknown syscalls {syscalls:x?}; {} instructions", sys.executed);
+}

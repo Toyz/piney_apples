@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-435 entries: audio 38, battle 102, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 111, save 16, script 53, test 194, tooling 39, ui 94, video 16, volumes 82, world 127.
+436 entries: audio 38, battle 103, build 20, content 3, decomp 28, disc 5, engine 22, format 17, iop 3, render 111, save 16, script 53, test 195, tooling 40, ui 94, video 16, volumes 82, world 127.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -447,3 +447,4 @@ The [reference](docs/README.md) says what is true now.
 | 433 | [Cubia's third fight: Quarantine's ccBossKyvia03 and its magical ball](worklog/0433-cubia-s-third-fight-quarantine-s-ccbosskyvia03-and-its.md) | 2026-10-22 | battle, render, world, test, tooling |
 | 434 | [Cubia's fourth fight: Quarantine's ccBossKyvia04, its places, EX turn, hell's express and rebirth](worklog/0434-cubia-s-fourth-fight-quarantine-s-ccbosskyvia04-its-places.md) | 2026-10-22 | battle, render, world, test, tooling |
 | 435 | [Kyvia's thunder reads the boss camera: no reachable code changes camID from 2 in its fights](worklog/0435-kyvia-s-thunder-reads-the-boss-camera-no-reachable-code.md) | 2026-10-22 | battle, world, test |
+| 436 | [Gorre's m_exit is stream 64's mesh word where the manager lands in the cutscene's hole: the title wait, the weapons and the party move it, and both outcomes come from ordinary play](worklog/0436-gorre-s-m-exit-is-stream-64-s-mesh-word-where-the-manager.md) | 2026-10-23 | engine, tooling, battle, test |

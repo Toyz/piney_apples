@@ -9,7 +9,10 @@
 
 pub mod cpu;
 pub mod fpu;
+mod full;
+pub mod heap;
 pub mod hle;
 pub mod machine;
 #[cfg(feature = "python")]
 mod python;
+pub mod sys;

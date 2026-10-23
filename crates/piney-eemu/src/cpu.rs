@@ -34,6 +34,9 @@ pub struct Features {
     /// test_toppage_rs's `ee_machine`: `div` / `divu` by zero leave LO and
     /// HI as the EE does instead of unchanged.
     pub ee_div: bool,
+    /// A whole program's run ([`crate::sys`]): every MMI instruction and the
+    /// SA register ([`crate::full`]).
+    pub full: bool,
 }
 
 /// Instruction classes handed back to the caller instead of executed: a
@@ -277,6 +280,8 @@ pub struct Cpu {
     pub features: Features,
     /// When set, every write to RAM (address, length) is appended here.
     pub writes: Option<hle::Writes>,
+    /// The funnel shift's SA register, in bytes ([`crate::full`]).
+    pub sa: u32,
 }
 
 #[inline]
@@ -284,11 +289,42 @@ fn fits(addr: u32, n: u32) -> bool {
     u64::from(addr) + u64::from(n) <= RAM as u64
 }
 
+/// What answers an access outside RAM when a whole system runs
+/// ([`crate::sys`]): the scratchpad, RAM's uncached mirrors and the
+/// hardware's registers. None set (every harness), such an access faults.
+pub trait Bus {
+    fn read(&mut self, ram: &[u8], addr: u32, n: u32) -> Option<u128>;
+    fn write(&mut self, ram: &mut [u8], addr: u32, n: u32, v: u128) -> bool;
+}
+
+thread_local! {
+    static BUS: std::cell::RefCell<Option<Box<dyn Bus>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Puts `bus` behind every access outside RAM on this thread.
+pub fn set_bus(bus: Option<Box<dyn Bus>>) {
+    BUS.with(|b| *b.borrow_mut() = bus);
+}
+
+#[cold]
+fn bus_read(ram: &[u8], addr: u32, n: u32) -> Result<u128, Fault> {
+    BUS.with(|b| b.borrow_mut().as_mut().and_then(|b| b.read(ram, addr, n))).ok_or(Fault::Read { addr, n })
+}
+
+#[cold]
+fn bus_write(ram: &mut [u8], addr: u32, n: u32, v: u128) -> Result<(), Fault> {
+    if BUS.with(|b| b.borrow_mut().as_mut().is_some_and(|b| b.write(ram, addr, n, v))) {
+        Ok(())
+    } else {
+        Err(Fault::Write { addr, n })
+    }
+}
+
 /// `load(addr, n)` for n <= 16, little-endian.
 #[inline]
 pub fn load(ram: &[u8], addr: u32, n: u32) -> Result<u128, Fault> {
     if !fits(addr, n) {
-        return Err(Fault::Read { addr, n });
+        return bus_read(ram, addr, n);
     }
     let a = addr as usize;
     Ok(match n {
@@ -304,7 +340,7 @@ pub fn load(ram: &[u8], addr: u32, n: u32) -> Result<u128, Fault> {
 #[inline]
 fn load32(ram: &[u8], addr: u32) -> Result<u32, Fault> {
     if !fits(addr, 4) {
-        return Err(Fault::Read { addr, n: 4 });
+        return bus_read(ram, addr, 4).map(|v| v as u32);
     }
     let a = addr as usize;
     Ok(u32::from_le_bytes(ram[a..a + 4].try_into().unwrap()))
@@ -371,6 +407,7 @@ impl Cpu {
             vi: [0; 16],
             features,
             writes: None,
+            sa: 0,
         }
     }
 
@@ -461,7 +498,7 @@ impl Cpu {
     #[inline]
     pub fn store(&mut self, ram: &mut [u8], addr: u32, n: u32, v: u128) -> Result<(), Fault> {
         if !fits(addr, n) {
-            return Err(Fault::Write { addr, n });
+            return bus_write(ram, addr, n, v);
         }
         let a = addr as usize;
         ram[a..a + n as usize].copy_from_slice(&v.to_le_bytes()[..n as usize]);
@@ -530,6 +567,23 @@ impl Cpu {
                 return Ok(Flow::Next);
             }
         }
+        if self.features.full {
+            if op == 0x1c {
+                return self.mmi_full(pc, w);
+            }
+            if let Some(f) = self.sa_ops(w) {
+                return Ok(f);
+            }
+            if matches!(op, 0x22 | 0x26 | 0x2a | 0x2e | 0x2c | 0x2d) {
+                return self.unaligned(m, w);
+            }
+            if op == 0x12 && (w >> 21) & 31 == 8 {
+                // bc2f / bc2t / bc2fl / bc2tl: VU0 is never running.
+                let rt = (w >> 16) & 31;
+                let simm = i64::from(w as u16 as i16);
+                return Ok(Self::branch(pc, simm, rt & 1 == 0, rt & 2 != 0));
+            }
+        }
         if self.features.vu {
             match op {
                 0x12 => {
@@ -567,6 +621,59 @@ impl Cpu {
             }
         }
         self.exec_ee(m.ram, pc, w)
+    }
+
+    /// lwl, lwr, swl, swr, sdl, sdr: a word or doubleword's part at an
+    /// unaligned address, little-endian.
+    fn unaligned(&mut self, m: &mut Mem, w: u32) -> Result<Flow, Fault> {
+        let (op, rt, ea) = (w >> 26, ((w >> 16) & 31) as usize, self.ea(w));
+        match op {
+            0x22 | 0x26 => {
+                let k = ea & 3;
+                let word = load32(m.ram, ea & !3)?;
+                let old = self.u32r(rt);
+                let v = if op == 0x22 {
+                    let sh = 8 * (3 - k);
+                    (word << sh) | (old & ((1u32 << sh) - 1))
+                } else {
+                    let sh = 8 * k;
+                    (word >> sh) | (old & if sh == 0 { 0 } else { u32::MAX << (32 - sh) })
+                };
+                if op == 0x26 && k != 0 {
+                    // lwr keeps the upper half as it was when not the whole word.
+                    self.set(rt, (self.m64(rt) & !0xffff_ffff) | u64::from(v));
+                } else {
+                    self.set32(rt, v);
+                }
+            }
+            0x2a | 0x2e => {
+                let k = ea & 3;
+                let word = load32(m.ram, ea & !3)?;
+                let r = self.u32r(rt);
+                let v = if op == 0x2a {
+                    let sh = 8 * (3 - k);
+                    (r >> sh) | (word & if sh == 0 { 0 } else { u32::MAX << (32 - sh) })
+                } else {
+                    let sh = 8 * k;
+                    (r << sh) | (word & ((1u32 << sh) - 1))
+                };
+                self.store(m.ram, ea & !3, 4, u128::from(v))?;
+            }
+            _ => {
+                let k = ea & 7;
+                let dw = load(m.ram, ea & !7, 8)? as u64;
+                let r = self.m64(rt);
+                let v = if op == 0x2c {
+                    let sh = 8 * (7 - k);
+                    (r >> sh) | (dw & if sh == 0 { 0 } else { u64::MAX << (64 - sh) })
+                } else {
+                    let sh = 8 * k;
+                    (r << sh) | (dw & ((1u64 << sh) - 1))
+                };
+                self.store(m.ram, ea & !7, 8, u128::from(v))?;
+            }
+        }
+        Ok(Flow::Next)
     }
 
     /// The VuMachine's effective address, `sx(rs, 32) + sx(imm, 16)`.

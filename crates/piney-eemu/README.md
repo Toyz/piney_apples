@@ -15,6 +15,34 @@ game's own code in, ported to Rust instruction for instruction, and the
   `rsqrt.s`. `src/hle.rs`: eemu's HLE string and memory functions.
 - `src/machine.rs`: a machine over memory it owns, for Rust callers.
 - `src/python.rs` (feature `python`): the `eemu_rs` module.
+- `src/sys.rs`: a whole program run from `_start` under a stand-in EE
+  kernel (threads, semaphores, interrupts, alarms, DMA chains), with
+  `src/full.rs`'s rest of the instruction set (`Features::full`, off for
+  the harnesses). `examples/ee_run.rs` boots a volume on it (below).
+- `src/heap.rs`: Outbreak's `ccHeap` as a model that places every block
+  where the game does (docs/engine/heap.md).
+
+## The whole program
+
+```
+cargo run --release -p piney-eemu --example ee_run -- ISO ELF SYMS VBLANKS
+```
+
+runs the executable frame by frame. The IOP's side is answered on the
+game's own library calls: the disc read from the ISO, `sceFs` files, the
+sound loads, the pads (connected, nothing pressed), a formatted memory
+card; the logo movies end at once. The environment steers it:
+
+| variable | |
+| --- | --- |
+| `EE_SAVE`, `EE_GO`, `EE_SCENE` | at frame `EE_GO` (a multiple of 60), the save's bytes into `saveData` and the game sent to the scene (`ChangeRequest(5, 8)`, `ChangeScene`) |
+| `EE_THEN` | `frame:values;...`: one value invites that member (`ccThPartyAdd`), three warp to the area words, six change the scene |
+| `EE_HEAP` | the heap's handouts and frees; at Gorre's manager, its `m_exit` and what came into its hole |
+| `EE_HEAP_MODEL` | with `EE_HEAP`: `heap::Heap` checked against every handout |
+| `EE_TRACE`, `EE_DUMP`, `EE_DUMP_FREED` | every handout, free and cut to a file; the hole's bytes; a freed block's bytes |
+
+It stands in for the title's Load and the desktop: the save arrives
+without them.
 
 ## Building the module
 
