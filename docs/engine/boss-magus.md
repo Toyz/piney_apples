@@ -473,5 +473,5 @@ done, Magus drained at frame 165,723 and dead by 172,000.
 
 ## Unknown
 
-- Nothing of the fight's rules, pictures, flashes or sounds. The blur
-  (`ccBossBlur`) is drawn for no boss ([Skeith's page](boss.md)).
+- Nothing of the fight's rules, pictures, flashes or sounds. The blur is
+  drawn (worklog 432, [Skeith's page](boss.md#the-blur)).

@@ -378,7 +378,6 @@ draws them.
 
 ## Not described yet
 
-- The blur (`ccBossBlur`): not drawn for any boss (boss.md).
 - The Epitaph's body (`ANM_ex2x*` clips play on x21's `CMP_trall`; which
   clump the game draws them on is not checked).
 - Mutation's `CamMain` lift (+0xdc) is always 0 in these rules and not

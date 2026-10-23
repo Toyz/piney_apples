@@ -191,13 +191,6 @@ fn word(tbl: &[i32], i: i32) -> i32 {
     usize::try_from(i).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0)
 }
 
-/// `ccGetDist(a, b)` as the volume's main has it ([`super::sqrt_of`]).
-fn dist(cx: &Cx, a: V4, b: V4) -> F {
-    let x = ee::sub(b[0], a[0]);
-    let y = ee::sub(b[1], a[1]);
-    super::sqrt_of(cx, ee::add(ee::mul(x, x), ee::mul(y, y)))
-}
-
 fn target_ok(cx: &Cx, t: Option<usize>) -> bool {
     cx.valid(t) && t.is_some_and(|t| !cx.dead(t))
 }
@@ -281,7 +274,7 @@ fn calc_target_info(b: &mut Boss, cx: &mut Cx) {
     b.target_pos = cx.scene.chars[t].pos;
     let pp = cx.scene.chars[me].pos_p;
     b.target_dirc = get_dirc(pp, b.target_pos_p);
-    b.target_dist = dist(cx, pp, b.target_pos_p);
+    b.target_dist = super::dist(cx, pp, b.target_pos_p);
 }
 
 /// The camera shot several acts share (the Tornade, the Skill, the Magic,
@@ -397,7 +390,7 @@ fn frame(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     calc_target_info(b, cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = dist(cx, pp, b.center_pos_p);
+    b.center_dist = super::dist(cx, pp, b.center_pos_p);
     b.center_dirc = get_dirc(pp, b.center_pos_p);
     if b.stop != 0 {
         b.stop_count += 1;
@@ -784,7 +777,7 @@ fn on_dash_center(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
             let p = super::w2p(cx, b.dash_pos);
             let pp = cx.scene.chars[me].pos_p;
             b.move_dirc = get_dirc(pp, p);
-            if ee::lt(dist(cx, pp, p), 0x4348_0000) {
+            if ee::lt(super::dist(cx, pp, p), 0x4348_0000) {
                 b.act_proccess += 1;
             }
             b.dirc[2] = b.move_dirc;

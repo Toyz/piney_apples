@@ -36,12 +36,12 @@ fn on_the_disc(disc: &str, n: i32, block: u32, field: i32) -> Option<Session> {
 }
 
 /// Mutation's event 108 on field 9's disc (block 21 makes Kyvia 01).
-fn event_108_disc() -> Option<Session> {
+pub(super) fn event_108_disc() -> Option<Session> {
     on_the_disc("mutation", 108, 21, 9)
 }
 
 /// Outbreak's event 211 on field 10's disc (block 11 makes Kyvia 02).
-fn event_211_disc() -> Option<Session> {
+pub(super) fn event_211_disc() -> Option<Session> {
     on_the_disc("outbreak", 211, 11, 10)
 }
 

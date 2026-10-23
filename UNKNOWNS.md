@@ -347,12 +347,12 @@ player until one of these turns out wrong.
 - [[104]] a noise band's copy past the draw buffer reads 0 — as in the stream
 - [[105]] the drained enemy's look in the movie not compared — lights worked out at its matrix
 - [[114]] how ccLight combines an event room's LGT_ record with SetRoom's place; the block's clump nodes drawn at its matrix — docs/engine/dungeon.md Unknown
-- [[117]] ccBossBlur — not ported: whether Skeith's fight blurs depends on the heap (docs/engine/boss.md "Not described yet")
+- [[117]] ccBossBlur — not ported: whether Skeith's fight blurs depends on the heap (docs/engine/boss.md "Not described yet") — answered by [[432]]: every boss's constructor but Gorre's (and Quarantine's `ccBoss08`'s first form) writes `m_exit` 0, so the blur draws in every fight; ported (`piney_battle::boss::blur`). Gorre's `m_exit` is the heap's residue, which the play since power-on decides (docs/engine/boss.md "The blur")
 - [[117]] the trail's projection, the reversed sprite and the light on the characters' shading checked by eye only — no capture
 - [[119]] the feet's pose for the dust: port's stance at the start against the game's last draw — not measured
 - [[121]] the port's draw clips by the scissor, not the letterbox's clip box (bboxClipMin/Max) — not revisited
 - [[127]] what SetFog(0, 0, ...)'s divisions by zero leave in fogA/fogB (stream 4) — taken as no fog; [[267]] meets the same in Func_str0932
-- [[128]] hold 7 and ccBossBlur — see [[117]]
+- [[128]] hold 7 and ccBossBlur — see [[117]]; the blur answered by [[432]]
 - [[130]] the field's smoke puffs start a frame late — docs/engine/field.md Unknown
 - [[130]] the balloon's cloth scroll and Ω's runners not seen in a shot — story server is Δ
 - [[130]] the lens flare left above the picture by the follow camera; the eye view fails its camera test — as the game's code; no shot

@@ -14,9 +14,10 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use self::leaf::Leaf;
+use super::blur::Set;
 use super::kyvia::fabs;
 use super::{Anm, Boss, Class, Cx, EffKind, Fade, LoopOp, Out, VF0};
-use crate::enemy_ai::{get_dirc, get_dist, rand_f};
+use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 use crate::item;
 use crate::param::{SkillParam, cond};
@@ -240,8 +241,6 @@ pub struct Magus {
     pub prev_dirc: V4,
     /// `actPos` (+0x1b0, a `ccBoss` member only Magus uses).
     pub act_pos: V4,
-    /// `bossBlur`'s colour (+0x1c).
-    pub blur: u32,
     /// `slaveCtrl[0]`: the leaves' characters, by slave.
     pub leaves: Vec<usize>,
     /// Where each leaf hangs on the body (`OBJ_ex31leafNN`'s world place as
@@ -403,9 +402,11 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.center_pos = [center[0], center[1], center[2], ONE];
     b.center_pos_p = super::w2p(cx, b.center_pos);
     b.use_stage_eff = true;
-    // The blur (the manager's +4): on, never ending, 1.01.
-    x.blur = BLUR;
-    cx.out(Out::Blur { colour: x.blur });
+    // The blur (the manager's +4): on, its colour, scale 1.01 (MUT gcmn
+    // 0x0049e614).
+    for s in [Set::Enable, Set::Abgr(BLUR), Set::Scale(0x3f81_47ae)] {
+        cx.out(Out::Blur(s));
+    }
     x.blur_rad = 0;
     x.blur_scale = 0x3f80_a3d7;
     // SetPatternTbl(boss03EpitaphActTbl): its index 0.
@@ -455,7 +456,7 @@ fn frame(b: &mut Boss, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
     b.calc_target_info(cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = get_dist(pp, b.center_pos_p);
+    b.center_dist = super::dist(cx, pp, b.center_pos_p);
     b.center_dirc = get_dirc(pp, b.center_pos_p);
     if b.stop != 0 {
         b.stop_count += 1;
@@ -1444,7 +1445,7 @@ fn on_dash(b: &mut Boss, x: &mut Magus, cx: &mut Cx) {
             let p = super::w2p(cx, b.dash_pos);
             let pp = cx.scene.chars[me].pos_p;
             b.move_dirc = get_dirc(pp, p);
-            if ee::lt(get_dist(pp, p), 0x42c8_0000) {
+            if ee::lt(super::dist(cx, pp, p), 0x42c8_0000) {
                 b.act_proccess += 1;
             }
             b.dirc[2] = b.move_dirc;
@@ -1566,7 +1567,7 @@ fn on_to_centre(b: &mut Boss, x: &mut Magus, cx: &mut Cx) {
                 cx.out(Out::AfterImage);
             }
             let from = super::w2p(cx, x.act_pos);
-            if !ee::le(get_dist(from, cx.scene.chars[me].pos_p), 0x44bb_8000) {
+            if !ee::le(super::dist(cx, from, cx.scene.chars[me].pos_p), 0x44bb_8000) {
                 b.act_proccess += 1;
             }
         }
@@ -1870,8 +1871,7 @@ fn on_rise(b: &mut Boss, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
             b.act_count += 1;
             if c == 0 {
                 x.explode_leaf_num = 0;
-                x.blur = BLUR_RISE;
-                cx.out(Out::Blur { colour: x.blur });
+                cx.out(Out::Blur(Set::Abgr(BLUR_RISE)));
                 cx.out(Out::CameraChange(3));
                 x.cam_id = 3;
                 b.move_vector = VF0;

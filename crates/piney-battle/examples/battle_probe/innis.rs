@@ -148,6 +148,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let script: Vec<(usize, i32, i16)> = (0..ns).map(|_| (t.int() as usize, t.i32(), t.i16())).collect();
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
+    let mut blur = crate::boss::ProbeBlur::read(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
@@ -157,7 +158,6 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let mut forbid = 0i16;
     let mut menu = [0i32; 6];
     let mut cam = FakeCam::default();
-    let mut blur = 0u32;
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
     let view = |r: u32, moving: bool| CamView {
@@ -200,12 +200,8 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let mut boss = piney_battle::boss::innis::new(&mut cx, kpos, kdirc, center);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
-    for o in &out {
-        if let Out::Blur { colour } = o {
-            blur = *colour;
-        }
-    }
-    lines.push(frame_json(&boss, &scene, me, &out, &rand, &cc, &menu, &cam, blur));
+    blur.apply(&out);
+    lines.push(frame_json(&boss, &scene, me, &out, &rand, &cc, &menu, &cam, &blur.json()));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
         let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false };
@@ -231,6 +227,10 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         }
         boss = *scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
         let mut out = boss.take_pending();
+        // The affects' writes, then the manager's pass, then the boss's.
+        blur.apply(&out);
+        blur.frame();
+        let pre = out.len();
         let mut cx = Cx {
             t: tables,
             data,
@@ -276,11 +276,11 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
                     menu[4] = *mask;
                     menu[5] = *stream;
                 }
-                Out::Blur { colour } => blur = *colour,
                 _ => {}
             }
         }
-        lines.push(frame_json(&boss, &scene, me, &out, &rand, &cc, &menu, &cam, blur));
+        blur.apply(&out[pre..]);
+        lines.push(frame_json(&boss, &scene, me, &out, &rand, &cc, &menu, &cam, &blur.json()));
     }
     format!("[{}]", lines.join(","))
 }
@@ -299,7 +299,7 @@ fn frame_json(
     cc: &Genrand,
     menu: &[i32; 6],
     cam: &FakeCam,
-    blur: u32,
+    blur: &str,
 ) -> String {
     let Class::Innis(x) = &b.class else { return "{}".into() };
     let ch = &scene.chars[me];

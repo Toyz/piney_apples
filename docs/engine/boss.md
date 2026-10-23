@@ -2,7 +2,7 @@
 title: Bosses - ccBoss and Skeith
 status: partial
 volumes: INF
-covers: INF gcmn.prg:0x0045b2a0 ccBossEntryStart, 0x0047b340 ccThBoss01, 0x0045bcf0 ccBoss::ccBoss, 0x0047b410 ccBoss01::ccBoss01, 0x0045c270 ccBoss::Main, 0x0047bd50 ccBoss01::Main, 0x0045c600 ccBoss::Move, 0x0045c730 ccBoss::Affect, 0x0047bdf0 ccBoss01::Affect, 0x0045f090 bossAffectFunc, 0x0045d310 ccBoss::ChangeAction, 0x0045d210 ccBoss::ChangeNextPattern, 0x0045cad0 ccBoss::ExecPatternIndex, 0x0047c500 ccBoss01::ExecPatternIndex, 0x0047c1e0 ccBoss01::Think, 0x0047bf80 ccBoss01::Action, 0x0047ca50 OnThinkNeutral, 0x0047cba0 OnThinkDamage, 0x0047cc20 OnThinkEpitaphNeutral, 0x0047cdc0 OnThinkEpitaphWave, 0x0047d000 OnThinkChase, 0x0047d2f0 OnThinkEscape, 0x0047dac0 OnThinkReturn, 0x0047dbd0 OnThinkWander, 0x0047ddf0 OnThinkDash, 0x0047e030 OnCrossAtk, 0x0047e1a0 OnWaveAtk, 0x0047e410 OnDataDrainAtk, 0x0047e6a0 OnMagicAtk, 0x0047c390 ccBoss01::DrawCross, 0x0045e070 ccBoss::SelectTarget, 0x0045ec60 ccBoss::CalcTargetInfo, 0x0045df40 ccBoss::EraseCmndTarget, 0x0045dfc0 ccBoss::EntryCmndTarget, 0x0045ee90 ccBoss::BeginDeadEffect, 0x0045f0e0 _ccBossSkillDamage (char), 0x0045f470 _ccBossSkillDamage (pos), 0x00461750 ccBossEffManager::Draw, 0x00461a60 ccBossEffManager::IsEnabledEffect, 0x00478820 ccBossEffWaveShockCreate, 0x0046b3f0 ccBossEffWaveShock::Draw, 0x00478b10 ccBossEffMagicSquareCreate, 0x004793d0 ccBossEffLightCreate, 0x004797e0 ccBossEffForceGeneratorCreate, 0x0046dd90 ccBossEffBrightMagicSquare::ccBossEffBrightMagicSquare, 0x0046e320 ccBossEffBrightMagicSquare::Draw, 0x00479900 ccBossEffAutoSamonRingCreate, 0x0046ed70 ccBossEffAutoSamonRing::Draw, 0x00462660 ccEffSamonRing::Draw, 0x00479240 ccBossEffIceBreakCreate, 0x0046cc10 ccBossEffIceBreak::Draw, 0x004795d0 ccBossEffDeadCreate, 0x0046a440 ccBossEffDead::Draw, 0x00466a30 ccBossEffLight::ccBossEffLight, 0x00466df0 ccBossEffLight::Draw, 0x0046c950 ccBossEffIceBreak::ccBossEffIceBreak, 0x00462430 ccEffSamonRing::ccEffSamonRing, 0x00461bd0 ccEffSamonRing::SetModel, 0x00462750 ccEffSamonRing::BurstScale, 0x00462780 ccEffSamonRing::BurstTransparency, 0x00462790 ccEffSamonRing::SetPosRot, 0x00579ad0 ccLattice::ccLattice, 0x00579b70 ccLattice::Init, 0x00579c50 ccLattice::ClearCnt, 0x00579cb0 ccLattice::MakePacket, 0x0057a0e0 ccLattice::SendPacket, 0x0057a300 ccLattice::SetPos, 0x0057a3a0 ccLattice::NextVertex, 0x0057a470 ccLattice::Disp, 0x006519b0 latticeAttributeColorTable, 0x005eb430 boss01NormalActTbl, 0x005eb490 boss01SuperActTbl, 0x005eb530 boss01EpitaphActTbl, 0x005eb5b0 Boss01AnmTbl, 0x00696ce0 BossSkillTbl; INF SLUS_202.67:0x00519920 ccCheckTarget, 0x00519630 ccEntryCmnd, 0x0056cb50 ccChar::ClearCondition, 0x0059d080 checkPartyAnnihilation, 0x00106850 ccBufferReverce::ccBufferReverce, 0x00106890 ccBufferReverce::MakePacket, 0x00160240 ccScFade::EntryFlash; INF gcmn.prg:0x004618b0 ccBossEffManager::OnCinemaMode, 0x00461940 ccBossEffManager::OffCinemaMode, 0x0046a7e0 ccBossEffCinemaFade::ccBossEffCinemaFade, 0x0046a8c0 SetupSkillName, 0x0046a9b0 CinemaOn, 0x0046aa70 CinemaOff, 0x0046aa80 Init, 0x0046ac20 Clear, 0x0046ad10 ccBossEffCinemaFade::Draw, 0x005eb040 _g_cinemaSkillName, 0x006aa950 Draw's mode table
+covers: INF gcmn.prg:0x0045b2a0 ccBossEntryStart, 0x0047b340 ccThBoss01, 0x0045bcf0 ccBoss::ccBoss, 0x0047b410 ccBoss01::ccBoss01, 0x0045c270 ccBoss::Main, 0x0047bd50 ccBoss01::Main, 0x0045c600 ccBoss::Move, 0x0045c730 ccBoss::Affect, 0x0047bdf0 ccBoss01::Affect, 0x0045f090 bossAffectFunc, 0x0045d310 ccBoss::ChangeAction, 0x0045d210 ccBoss::ChangeNextPattern, 0x0045cad0 ccBoss::ExecPatternIndex, 0x0047c500 ccBoss01::ExecPatternIndex, 0x0047c1e0 ccBoss01::Think, 0x0047bf80 ccBoss01::Action, 0x0047ca50 OnThinkNeutral, 0x0047cba0 OnThinkDamage, 0x0047cc20 OnThinkEpitaphNeutral, 0x0047cdc0 OnThinkEpitaphWave, 0x0047d000 OnThinkChase, 0x0047d2f0 OnThinkEscape, 0x0047dac0 OnThinkReturn, 0x0047dbd0 OnThinkWander, 0x0047ddf0 OnThinkDash, 0x0047e030 OnCrossAtk, 0x0047e1a0 OnWaveAtk, 0x0047e410 OnDataDrainAtk, 0x0047e6a0 OnMagicAtk, 0x0047c390 ccBoss01::DrawCross, 0x0045e070 ccBoss::SelectTarget, 0x0045ec60 ccBoss::CalcTargetInfo, 0x0045df40 ccBoss::EraseCmndTarget, 0x0045dfc0 ccBoss::EntryCmndTarget, 0x0045ee90 ccBoss::BeginDeadEffect, 0x0045f0e0 _ccBossSkillDamage (char), 0x0045f470 _ccBossSkillDamage (pos), 0x00461750 ccBossEffManager::Draw, 0x00461a60 ccBossEffManager::IsEnabledEffect, 0x00478820 ccBossEffWaveShockCreate, 0x0046b3f0 ccBossEffWaveShock::Draw, 0x00478b10 ccBossEffMagicSquareCreate, 0x004793d0 ccBossEffLightCreate, 0x004797e0 ccBossEffForceGeneratorCreate, 0x0046dd90 ccBossEffBrightMagicSquare::ccBossEffBrightMagicSquare, 0x0046e320 ccBossEffBrightMagicSquare::Draw, 0x00479900 ccBossEffAutoSamonRingCreate, 0x0046ed70 ccBossEffAutoSamonRing::Draw, 0x00462660 ccEffSamonRing::Draw, 0x00479240 ccBossEffIceBreakCreate, 0x0046cc10 ccBossEffIceBreak::Draw, 0x004795d0 ccBossEffDeadCreate, 0x0046a440 ccBossEffDead::Draw, 0x00466a30 ccBossEffLight::ccBossEffLight, 0x00466df0 ccBossEffLight::Draw, 0x0046c950 ccBossEffIceBreak::ccBossEffIceBreak, 0x00462430 ccEffSamonRing::ccEffSamonRing, 0x00461bd0 ccEffSamonRing::SetModel, 0x00462750 ccEffSamonRing::BurstScale, 0x00462780 ccEffSamonRing::BurstTransparency, 0x00462790 ccEffSamonRing::SetPosRot, 0x00579ad0 ccLattice::ccLattice, 0x00579b70 ccLattice::Init, 0x00579c50 ccLattice::ClearCnt, 0x00579cb0 ccLattice::MakePacket, 0x0057a0e0 ccLattice::SendPacket, 0x0057a300 ccLattice::SetPos, 0x0057a3a0 ccLattice::NextVertex, 0x0057a470 ccLattice::Disp, 0x006519b0 latticeAttributeColorTable, 0x005eb430 boss01NormalActTbl, 0x005eb490 boss01SuperActTbl, 0x005eb530 boss01EpitaphActTbl, 0x005eb5b0 Boss01AnmTbl, 0x00696ce0 BossSkillTbl; INF SLUS_202.67:0x00519920 ccCheckTarget, 0x00519630 ccEntryCmnd, 0x0056cb50 ccChar::ClearCondition, 0x0059d080 checkPartyAnnihilation, 0x00106850 ccBufferReverce::ccBufferReverce, 0x00106890 ccBufferReverce::MakePacket, 0x00160240 ccScFade::EntryFlash; INF gcmn.prg:0x004618b0 ccBossEffManager::OnCinemaMode, 0x00461940 ccBossEffManager::OffCinemaMode, 0x0046a7e0 ccBossEffCinemaFade::ccBossEffCinemaFade, 0x0046a8c0 SetupSkillName, 0x0046a9b0 CinemaOn, 0x0046aa70 CinemaOff, 0x0046aa80 Init, 0x0046ac20 Clear, 0x0046ad10 ccBossEffCinemaFade::Draw, 0x005eb040 _g_cinemaSkillName, 0x006aa950 Draw's mode table; INF gcmn.prg:0x00461200 ccBossBlur::Main, 0x004614b0 ccBossEffManager::ccBossEffManager, 0x004610e0 ccBoss03BlurParamCB, 0x00461410 ccThBossEffect; INF SLUS_202.67:0x001006c0 _ccMalloc, 0x00100500 ccHeapFree::SearchFree, 0x001005a0 ccHeapFree::AddTbl, 0x00100960 _ccFree, 0x00100370 ccHeap::InitFirst, 0x00100008 _start; OUT gcmn.prg:0x00472b90 ccBoss03BlurParamCB, 0x004a3afc ccBoss04::ccBoss04
 worklog: 109, 112, 117, 370
 ---
 
@@ -663,8 +663,8 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
      effect's `ccSqFade` to the music;
    - the effects are made and drawn ("The effects' pictures"), the
      cross's trail and the reversed layer drawn;
-   - the cinema ([above](#the-cinema-ccbosseffcinemafade)) is drawn;
-     `ccBossBlur` is not (below), and no script of this volume holds the
+   - the cinema ([above](#the-cinema-ccbosseffcinemafade)) and the blur
+     ([above](#the-blur)) are drawn; no script of this volume holds the
      boss (`hold 7`).
 8. The boss camera (`piney_world::bosscam::BossCam`) is made with the
    boss and runs after its `Main`.
@@ -699,23 +699,113 @@ and both random generators. Its effects are stand-ins with the port's
 lives. `test_effect_lives` runs each real `Create` and `Draw` and checks
 those lives against them.
 
+## The blur
+
+`ccBossBlur` is part of the effect manager (its +4 to +0x34), so every
+boss fight has one. Each frame, after the manager's effects,
+`ccBossBlur::Main` (gcmn 0x00461200) runs and draws a
+`ccBufferSampling` feedback of the last frame on the manager's own layer
+(`ccLayer::Init(200, sysLayer's view)`).
+
+The members, from the blur (the manager's own offsets 4 more):
+
+```text
++0x00 +0x04  the layer          +0x08  the ccBufferSampling
++0x0c scale   +0x10 its start   +0x14 turn   +0x18 its start
++0x1c colour (SetReflex)        +0x20 a copy nothing reads
++0x24 enabled                   +0x28 m_exit   +0x2c the callback
+```
+
+The manager's constructor (0x004614b0) sets scale 1.01, turn 0, colour
+0x40808080, disabled and no callback. It never writes `m_exit`.
+
+`Main`:
+
+- With `m_exit` not 0, nothing more.
+- Enabled with a callback: the callback sets the scale, turn and colour.
+- Disabled: the scale eases to 1.0 by a thirtieth of its start's gap a
+  frame, held at 1.0 when it passes. The turn eases to 0 the same way.
+  When both have arrived, `m_exit` 1. From a turn of 0 the turn never
+  arrives, so it never exits.
+- Then `SetReflex(scale, turn, colour)` and `MakePacket(layer)`.
+
+The bosses only write it, through `ccBoss` +0x148 (no boss code reads it
+but `ccBossKyvia01`'s unreachable second stage and Quarantine's
+`ccBoss06`):
+
+| boss | constructor | later |
+| --- | --- | --- |
+| Skeith (`ccBoss01`) | enabled, `m_exit` 0, `ccBoss03BlurParamCB` (0x0047bc40) | |
+| Innis (`ccBoss02`) | enabled, `m_exit` 0, `DefaultARGB`, scale 1.01, turn 0.02 | colour `ExARGB` or `DefaultARGB` by act |
+| Magus (`ccBoss03`) | enabled, `m_exit` 0, 0x48808080, scale 1.01 | the rise's 0x60808080, a leaf's fire back to 0x48808080 |
+| Fidchell (`ccBoss04`) | as Skeith's (OUT 0x004a3afc) | |
+| Gorre (`ccBoss05`) | nothing | nothing |
+| Kyvia 1-4 | enabled, `m_exit` 0, scale 1.0, `DefaultARGB` | scale and colour by act |
+| `ccBoss06`, `07`, `08_b`, `08_c` | enabled, `m_exit` 0 (and callbacks) | |
+
+So the blur is drawn every frame of every fight, except Gorre's and
+`ccBoss08`'s first form, whose `m_exit` stays as the heap left it.
+
+`ccBoss03BlurParamCB` (INF 0x004610e0, OUT 0x00472b90): `blurRad` plus
+pi/30, less 2 pi past pi. Scale `1 + 0.01 sin`, turn `pi sin / 1800`,
+colour 0x48808080. `blurRad` is a function static, never reset by a
+fight. Infection's and Mutation's set it 0 at their first call (`init`);
+Outbreak's and Quarantine's start from the .bss's 0. It runs on from one
+fight to the next until power-off.
+
+**`m_exit` under Gorre.** The manager is `operator new(0x1038)`:
+`_ccMalloc(0, 0x1038, 0, 0)` (main 0x001006c0) rounds it to 0x1050.
+
+- That is past 4096, so `SearchFree` (0x00100500) walks the large free
+  list. `AddTbl` (0x001005a0) keeps that list in address order, so the
+  first block that fits is the lowest-addressed free hole of 0x1050 or
+  more.
+- The block's header goes at the hole's start, and nothing is cleared.
+  So `m_exit` is the word 0x3c into that hole: whatever its last owner
+  wrote there.
+- The heap is one region set up once, by `ccHeap::InitFirst` (0x00100370)
+  from `main`. `_start` (0x00100008) clears only the .bss (to `end`,
+  0x00730600). Nothing else resets `heapTop`, `heapNow` or the free
+  lists: allocations come and go from power-on.
+- Before the manager, `ccBossEntryStart` (0x0045b2a0) starts its task and
+  the boss's (`ccStartThread`, stacks of 2048 and 4096 from the same
+  heap).
+
+Which hole is lowest, and what last lay 0x3c into it, follows from every
+allocation and free since power-on. Those depend on the player's own
+play:
+
+- which members the party has: each member's files are decoded into the
+  heap on entering an area, and their sizes differ (Outbreak's
+  `cbu1body` 284,672 bytes compressed, `cha2body` 307,200);
+- which areas were visited, and in what order;
+- the enemies met, the menus opened.
+
+No code in the repo can give that, so no one value exists. The port
+takes a word that is not 0 (`piney_world::combat::boss::HEAP_EXIT`):
+Gorre's fight shows no blur, one of the game's two outcomes. Quarantine's
+`ccBoss08` is the same until its second form's constructor writes 0.
+
+In the port, `piney_battle::boss::blur` is `ccBossBlur`: `Blur::new`,
+`set` (the bosses' writes, `Out::Blur`), `main`, and the callback's
+`Statics`. `piney_world::combat::boss` keeps the fight's blur
+(`BossRun::blur`) and runs `main` at the manager's pass, as long as the
+manager's task runs: past the boss's exit, until the scene ends. The
+field draws the reflex on layer 200 with
+`piney_desktop::noiz::Sampling::reflex`. The session carries the statics
+from area to area.
+
+Checks: every boss harness builds the manager with the game's own
+constructor over a random `m_exit` and random statics, runs `Main`
+natively each frame and compares the blur, `blurRad` and the frame's
+`SetReflex` with the port's (Skeith, Innis, Magus, Fidchell, Gorre and
+both Kyvia fights, 60 cases each or more). `test_blur_main` runs `Main`
+on 200 blurs in any state on all four volumes.
+`session::tests::blur::every_fight_shows_its_blur` plays each fight and
+finds the strip drawn every frame its reflex is (worklog 432).
+
 ## Not described yet
 
-- **`ccBossBlur`** (the manager's +4, `Main` gcmn 0x00461200) is a
-  `ccBufferSampling` on the manager's layer (200, sysLayer's view).
-  - The constructor sets scale 1.01, end scale 1.01, turn 0, colour
-    0x40808080, no function and not enabled.
-  - It never sets `m_exit` (+0x28 of the blur), and `operator new`
-    (`_ccMalloc`) does not clear memory.
-  - Each frame that `m_exit` is 0, `Main` eases the scale to its end
-    (1/30 of the gap a frame, held at 1.0 from above) and the turn to
-    its end. It then draws the feedback at alpha 0x40.
-  - It sets `m_exit` only once both have arrived, and with the end scale
-    above 1 the scale stops at 1.0 without arriving, so a zero `m_exit`
-    would blur every frame of the fight. Only Kyvia's
-    `MagicalBall` (later volumes) gives it a function.
-  - Whether Skeith's fight blurs depends on what the heap left there, so
-    it is not ported.
 - **`hold 7`**, the event instruction that holds the boss while
   `eventMng.bossTscb`+0x14 is not 0: no script of this volume uses it.
 - What the heap leaves in the cinema's `tempDat` before its first slide.

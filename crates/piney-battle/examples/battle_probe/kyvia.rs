@@ -248,6 +248,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         (0..ns).map(|_| (t.int() as usize, t.i32(), t.int() as usize, t.i16(), t.i16())).collect();
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
+    let mut blur = crate::boss::ProbeBlur::read(t);
     let case = Case { frames, rot, moving, prev, marker, cam_pos, cam_view, delay };
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
@@ -335,9 +336,9 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
     for o in &out {
         cam.take(o);
     }
-    let mut blur = blur_of(&boss);
+    blur.apply(&out);
     let outs: Vec<String> = out.iter().filter_map(kout).collect();
-    lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, blur));
+    lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
         let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false };
@@ -384,6 +385,10 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         let pending = boss.take_pending();
         outs.extend(pending.iter().filter_map(kout));
         out.extend(pending);
+        // The affects' writes, then the manager's pass, then the boss's.
+        blur.apply(&out);
+        blur.frame();
+        let pre = out.len();
         let mut cx = Cx {
             t: tables,
             data,
@@ -435,8 +440,8 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
                 _ => {}
             }
         }
-        blur = blur_of(&boss);
-        lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, blur));
+        blur.apply(&out[pre..]);
+        lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()));
     }
     format!("[{}]", lines.join(","))
 }
@@ -461,13 +466,6 @@ fn parts(scene: &Scene, me: usize) -> (Option<usize>, Vec<usize>) {
         _ => Vec::new(),
     };
     (Some(core), gs)
-}
-
-fn blur_of(b: &Boss) -> [u32; 4] {
-    match &b.class {
-        Class::Kyvia(x) => [u32::from(x.blur.enabled), u32::from(x.blur.exit), x.blur.scale, x.blur.abgr],
-        _ => [0; 4],
-    }
 }
 
 fn v3(v: &V4) -> String {
@@ -784,7 +782,7 @@ fn frame_json(
     cc: &Genrand,
     menu: &[i32; 6],
     cam: &FakeCam,
-    blur: [u32; 4],
+    blur: &str,
 ) -> String {
     let Class::Kyvia(x) = &b.class else { return "{}".into() };
     let ch = &scene.chars[me];
@@ -820,7 +818,7 @@ fn frame_json(
     };
     format!(
         "{{\"act\":[{},{},{}],\"pos\":[{}],\"flags\":[{},{},{},{},{},{},{},{}],\"anm\":[\"{}\",{},\"{}\",{}],\
-         \"kyvia\":[{}],\"core\":{},\"gomoras\":[{}],\"cam\":[{},{},{},{},{},{},{}],\"blur\":[{},{},{},{}],\
+         \"kyvia\":[{}],\"core\":{},\"gomoras\":[{}],\"cam\":[{},{},{},{},{},{},{}],\"blur\":{},\
          \"eff\":[{}],\"party\":[{}],\"out\":[{}],\"menu\":[{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
         b.act_num,
         b.act_proccess,
@@ -848,10 +846,7 @@ fn frame_json(
         cam.xrot,
         cam.ex_lock,
         cam.sway,
-        blur[0],
-        blur[1],
-        blur[2],
-        blur[3],
+        blur,
         effs.join(","),
         party.join(","),
         outs.join(","),

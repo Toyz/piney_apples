@@ -21,7 +21,7 @@ use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
 
-use crate::boss::{eff_num, out_json};
+use crate::boss::{eff_num, out_json, with_blur};
 use crate::{Toks, read_char};
 
 type Clips = std::collections::HashMap<String, (u32, bool)>;
@@ -113,6 +113,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         (0..ns).map(|_| (t.int() as usize, t.i32(), t.int() as usize, t.i16())).collect();
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
+    let mut blur = crate::boss::ProbeBlur::read(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
@@ -168,7 +169,8 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let mut cam_sw = true;
     let mut max_range = 0u32;
     let outs: Vec<String> = out.iter().filter_map(|o| mout(o, &cam2, &mut cam_sw, &mut max_range)).collect();
-    lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range));
+    blur.apply(&out);
+    lines.push(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
         let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false };
@@ -202,6 +204,10 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         boss = *scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
         let mut all = out;
         all.extend(boss.take_pending());
+        // The affects' writes, then the manager's pass, then the boss's.
+        blur.apply(&all);
+        blur.frame();
+        let pre = all.len();
         let pushing = (push.0..push.1).contains(&f);
         let mut pushed = move |_: V4| pushing.then_some([0u32; 4]);
         let mut cx = Cx {
@@ -229,6 +235,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         boss.main(&mut cx);
         all.extend(std::mem::take(&mut cx.out));
         drop(cx);
+        blur.apply(&all[pre..]);
         for o in &all {
             match o {
                 Out::MenuForbid { on, chat_except } => {
@@ -252,7 +259,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             }
         }
         let outs: Vec<String> = all.iter().filter_map(|o| mout(o, &cam2, &mut cam_sw, &mut max_range)).collect();
-        lines.push(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range));
+        lines.push(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
     }
     format!("[{}]", lines.join(","))
 }

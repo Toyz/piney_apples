@@ -55,7 +55,7 @@ impl Host for Cx<'_> {
         crate::boss::p2w(self, v)
     }
     fn dist(&self, a: V4, b: V4) -> F {
-        super::dist(self, a, b)
+        super::super::dist(self, a, b)
     }
     fn out(&mut self, o: Out) {
         Cx::out(self, o);

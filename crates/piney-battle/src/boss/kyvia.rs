@@ -15,6 +15,7 @@ use piney_data::field::ee;
 
 use self::core::Core;
 use self::gomora::Gomora;
+use super::blur::Set;
 use super::{AfterImageParams, Anm, Boss, Class, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
@@ -337,16 +338,6 @@ pub(crate) fn gen_op(cx: &mut Cx, held: Held, op: GenOp) {
     cx.out(Out::KyviaGen { held, op });
 }
 
-/// `bossBlur` (the effect manager's +4) as the fight sets it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Blur {
-    /// +0x24 `m_enabled`, +0x28 `m_exit`, +0x0c `m_scale`, +0x1c `m_abgr`.
-    pub enabled: bool,
-    pub exit: bool,
-    pub scale: F,
-    pub abgr: u32,
-}
-
 /// `ccBossKyvia01`'s own members (+0x29350 on), and `ccBossKyvia02`'s.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Kyvia {
@@ -404,7 +395,6 @@ pub struct Kyvia {
     pub disc_ex_flg: u8,
     /// +0x295f8: the cinema is on (turned off with the player unlocked).
     pub cinema: u8,
-    pub blur: Blur,
     /// `bossCam` +0xe0, the pitch, as the body last set it.
     pub cam_pitch: F,
     /// The second fight's thunder ([`thunder::Thunder`]).
@@ -595,7 +585,7 @@ pub(crate) fn head(b: &mut Boss, cx: &mut Cx) {
     b.calc_target_info(cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = crate::enemy_ai::get_dist(pp, b.center_pos_p);
+    b.center_dist = super::dist(cx, pp, b.center_pos_p);
     b.center_dirc = get_dirc(pp, b.center_pos_p);
     if b.lock_player != 0 {
         for m in cx.party.members.into_iter().flatten() {
@@ -736,7 +726,9 @@ pub fn new(cx: &mut Cx, fight: Fight) -> Boss {
         Fight::First => 0x6080_8080,
         Fight::Second => 0x7080_8080,
     };
-    x.blur = Blur { enabled: true, exit: false, scale: ONE, abgr: x.default_argb };
+    for s in [Set::Enable, Set::Scale(ONE), Set::Abgr(x.default_argb)] {
+        cx.out(Out::Blur(s));
+    }
     // The core at the fight's level.
     let lv = fight.level();
     let core_me = new_char(cx, 32 + 2 * (lv as usize - 1));
@@ -777,7 +769,7 @@ fn frame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     b.calc_target_info(cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = crate::enemy_ai::get_dist(pp, b.center_pos_p);
+    b.center_dist = super::dist(cx, pp, b.center_pos_p);
     b.center_dirc = get_dirc(pp, b.center_pos_p);
     if b.stop != 0 {
         b.stop_count += 1;
@@ -921,7 +913,9 @@ fn check_disc_move(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     if x.st_flg == 1 {
         if !cx.disc.moving {
             if x.wait_disc_count == 0 {
-                x.blur = Blur { enabled: true, exit: false, scale: 0x3f86_6666, abgr: x.ex_argb };
+                for s in [Set::Enable, Set::Scale(0x3f86_6666), Set::Abgr(x.ex_argb)] {
+                    cx.out(Out::Blur(s));
+                }
                 x.quake_vector = [0x41a0_0000, 0x41a0_0000, 0x41a0_0000, x.quake_vector[3]];
                 cx.out(Out::Se3dNote { se: 56, pos: at, note: 60 });
                 cx.out(Out::CamMode { mode: 6 });
@@ -932,19 +926,19 @@ fn check_disc_move(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             if x.wait_disc_count < 21 {
                 let q = x.quake_vector;
                 cx.quake_vec([q[0], q[1], q[2]]);
-                x.blur.scale = 0x3f83_d70a;
+                cx.out(Out::Blur(Set::Scale(0x3f83_d70a)));
             }
             if x.wait_disc_count == 21 {
-                x.blur.abgr = x.default_argb;
+                cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             }
             if x.wait_disc_count == 35 {
-                x.blur.scale = 0x3f81_47ae;
+                cx.out(Out::Blur(Set::Scale(0x3f81_47ae)));
             }
             if x.wait_disc_count == 50 {
                 x.st_flg = 0;
                 x.wait_disc_count = 0;
                 entry_slave(x, t, cx, 1);
-                x.blur.scale = ONE;
+                cx.out(Out::Blur(Set::Scale(ONE)));
                 if x.fight == Fight::Second {
                     // The core's MaxHP again, a smoke for each seventh.
                     let core = t.core.as_ref().map_or(me, |c| c.me);
@@ -1000,18 +994,18 @@ fn next_stage(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) {
     match x.wait_disc_count {
         1 => {
             x.quake_vector = [0x41a0_0000, 0x41a0_0000, 0x41a0_0000, x.quake_vector[3]];
-            x.blur.abgr = x.ex_argb;
+            cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
             b.lock_player(cx, false);
         }
         20 => ride_camera(x, cx),
-        40 => x.blur.abgr = 0x5080_8080,
+        40 => cx.out(Out::Blur(Set::Abgr(0x5080_8080))),
         60 => {
             b.unlock_player();
             x.st_flg = 1;
             x.disc_lv += 1;
             x.wait_disc_count = 0;
             cx.out(Out::DiscNextStage);
-            x.blur.abgr = x.default_argb;
+            cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             cx.out(Out::Se3dNote { se: 56, pos: x.disc_pos, note: 60 });
             x.atk_pat_mode = 1;
         }
@@ -1112,7 +1106,7 @@ fn action(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                         b.act_proccess = 1;
                         x.dmg_anm_flg = 1;
                         x.quake_vector = [0x4120_0000, 0x4120_0000, 0x4120_0000, x.quake_vector[3]];
-                        x.blur.abgr = x.ex_argb;
+                        cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
                         let (back, up, eye) = match x.fight {
                             Fight::First => (0x43af_0000, 0x4422_8000, 0xc448_0000),
                             Fight::Second => (0x4422_8000, 0x4489_8000, 0xc461_0000),
@@ -1130,7 +1124,7 @@ fn action(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 2 => {
                     if b.anm_status != 0 {
                         b.act_proccess = 50;
-                        x.blur.abgr = x.default_argb;
+                        cx.out(Out::Blur(Set::Abgr(x.default_argb)));
                         cx.out(Out::CamMode { mode: 6 });
                         set_pitch(x, cx, x.cam_rot_x);
                     }
@@ -1248,7 +1242,7 @@ fn dead(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) {
             cx.out(Out::MusicFade { t: 30 });
             if x.fight == Fight::Second {
                 x.quake_vector = [0x41f0_0000, 0x41f0_0000, 0x41a0_0000, x.quake_vector[3]];
-                x.blur.scale = 0x3f83_d70a;
+                cx.out(Out::Blur(Set::Scale(0x3f83_d70a)));
             }
         }
         1 => {
@@ -1342,12 +1336,12 @@ fn dead_cam(b: &Boss, x: &mut Kyvia, cx: &mut Cx) {
     let second = x.fight == Fight::Second;
     if b.act_count == 70 {
         if second {
-            x.blur.abgr = 0x5080_8080;
-            x.blur.scale = 0x3f82_8f5c;
+            cx.out(Out::Blur(Set::Abgr(0x5080_8080)));
+            cx.out(Out::Blur(Set::Scale(0x3f82_8f5c)));
             let z = rand_abs(cx, ONE);
             damage_camera(x, cx, [0x43af_0000, 0x447a_0000, 0xc461_0000], Some(z));
         } else {
-            x.blur.abgr = x.ex_argb;
+            cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
             let z = fabs(rand_f(cx.cc, ONE)) ^ 0x8000_0000;
             damage_camera(x, cx, [0x43af_0000, 0x4409_8000, 0xc448_0000], Some(z));
         }
@@ -1443,9 +1437,8 @@ fn hand_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             if core_ready(t) {
                 core_state(t, cx, 8);
                 b.act_proccess += 1;
-                x.blur.enabled = true;
-                x.blur.exit = false;
-                x.blur.abgr = x.default_argb;
+                cx.out(Out::Blur(Set::Enable));
+                cx.out(Out::Blur(Set::Abgr(x.default_argb)));
                 b.lock_player(cx, false);
             }
         }
@@ -1524,7 +1517,7 @@ fn hand_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         6 => {
             if cx.cam.reset == 0 {
                 b.act_proccess += 1;
-                x.blur.abgr = x.default_argb;
+                cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             }
         }
         7 if b.anm_status != 0 && core_fade_check(t) => {
@@ -1560,9 +1553,8 @@ fn megid_flame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             if core_state_is(t, 6) {
                 b.act_proccess += 1;
                 cx.out(Out::CamModeRange { mode: 3, range: 0x451c_4000 });
-                x.blur.enabled = true;
-                x.blur.exit = false;
-                x.blur.abgr = x.ex_argb;
+                cx.out(Out::Blur(Set::Enable));
+                cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
             }
         }
         2 => {
@@ -1640,7 +1632,7 @@ fn megid_flame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         8 => {
             if cx.cam.reset == 0 {
                 b.act_proccess += 1;
-                x.blur.abgr = x.default_argb;
+                cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             }
         }
         9 if core_fade_check(t) => {
@@ -1733,9 +1725,8 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 cx.out(Out::FreeCam { pos: x.atk_vec, view: x.l_offset });
                 b.lock_player(cx, false);
             }
-            x.blur.enabled = true;
-            x.blur.exit = false;
-            x.blur.abgr = x.ex_argb;
+            cx.out(Out::Blur(Set::Enable));
+            cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
         }
         1 => {
             if core_state_is(t, 6) {
@@ -1890,7 +1881,7 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         }
         8 => {
             cx.out(Out::CamMode { mode: 6 });
-            x.blur.abgr = x.default_argb;
+            cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             core_state(t, cx, 7);
             b.act_proccess += 1;
         }

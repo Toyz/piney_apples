@@ -27,6 +27,7 @@ eemu.Machine = test_anim.machine_class()
 
 import test_battle_enemy_ai_rs as eai  # noqa: E402
 import test_battle_rs as rs  # noqa: E402
+import test_battle_boss_rs as bb  # noqa: E402
 from test_battle_boss_rs import forward_clip, rnd_member, s16, s32  # noqa: E402
 from test_battle_rs import F_ONE, NEW, SCN, fbits, ser_char  # noqa: E402
 
@@ -73,6 +74,7 @@ class Game:
         self.ride = 0           # frames the disc rides on after Move
         self.frame = {"rot": 0, "pos": [0, 0, 0, F_ONE], "view": [0, 0, 0, F_ONE]}
         self.hooks()
+        bb.install_blur(self)
 
     def sym(self, name):
         s = self.g.prog.symbol_named(name)
@@ -378,6 +380,7 @@ class Game:
                 continue
             draw = m.load(m.load(e + 12, 4) + 8, 4)
             m.call(draw, (e,))
+        bb.blur_main(self, MGR)
 
     def effects(self):
         m = self.m
@@ -435,11 +438,14 @@ def rnd_case(c, rnd):
         rot[f] = fbits(r)
     cam_pos = [fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(100, 400)), F_ONE]
     cam_view = [fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(-2000, 2000)), fbits(rnd.uniform(0, 200)), F_ONE]
-    return {"party": party, "frames": frames, "script": script, "menus": menus, "marker": marker,
+    case = {"party": party, "frames": frames, "script": script, "menus": menus, "marker": marker,
             "rot": rot, "moving": moving, "prev": prev, "cam_pos": cam_pos, "cam_view": cam_view,
             "delay": rnd.randrange(1, 40), "ride2": rnd.randrange(0, 150),
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
+    # Drawn last, so the cases of a seed are the ones before the blur.
+    case.update(bb.blur_case(rnd))
+    return case
 
 
 def held_slots():
@@ -496,7 +502,7 @@ def run_game(game, case):
     game.ride, game.ride2, game.stage_on = 0, case["ride2"], False
     f_ = FIGHTS[FIGHT]
     m.mem[BOSS:BOSS + f_["size"]] = bytes(f_["size"])
-    m.mem[MGR:MGR + 0x1038] = bytes(0x1038)
+    bb.make_manager(game, MGR, case)
     m.mem[CAM:CAM + 0x150] = bytes(0x150)
     m.mem[WM:WM + 0x5000] = bytes(0x5000)
     m.store(game.sym("_g_bossEffManager"), 4, MGR)
@@ -718,7 +724,6 @@ def game_state(game, n):
         va = SCN + 0x1000 * k
         party.append([s16(m.load(va + 0x70, 2)), s16(m.load(va + 10, 2)), s16(m.load(va + 8, 2))])
     core = core_of(m)
-    blur = MGR + 4
     return {
         "act": [ld(0x1A2, 2, True), ld(0x1A4, 2, True), ld(0x1A6, 2, True)],
         "pos": f32s(m, a + 0x40, 3),
@@ -730,12 +735,12 @@ def game_state(game, n):
         "gomoras": [boss_part(game, gomora_of(m, k)) + fields(m, gomora_of(m, k), GOMORA)
                     + [stream(game, gomora_of(m, k))] for k in range(5)],
         "cam": fields(m, CAM, CAM_F),
-        "blur": [m.load(blur + 0x24, 4), m.load(blur + 0x28, 4), m.load(blur + 0x0C, 4), m.load(blur + 0x1C, 4)],
         "eff": game.effects(),
         "party": party,
         "out": list(game.out),
         "menu": [s16(m.load(MENU + 0xFE, 2)), s16(m.load(MENU + 0x100, 2)), s16(m.load(MENU + 0x26, 2)),
                  s16(m.load(MENU + 0x14, 2)), s16(m.load(MENU + 0xF0, 2)), s16(m.load(MENU + 0xF2, 2))],
+        "blur": bb.blur_state(game, MGR),
         "rand": game.g.rand_now(),
         "cc": s32(m.load(eai.MTI, 4)),
     }
@@ -783,6 +788,7 @@ def request(game, case, pre):
     parts.append(len(case["menus"]))
     for mm in case["menus"]:
         parts += list(mm)
+    parts += bb.blur_tokens(case)
     return " ".join(str(x) for x in parts)
 
 

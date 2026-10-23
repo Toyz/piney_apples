@@ -7,6 +7,7 @@
 //! to P0). One JSON line: the state after the constructor, then each frame.
 
 use piney_battle::affect::{self, AffectCtx};
+use piney_battle::boss::blur::{Blur, BlurFunc, Reflex, Statics};
 use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Cx, EffKind, Out, Tbl};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
@@ -66,6 +67,7 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) ->
             let (data, clips) = d.as_ref().unwrap();
             run(tables, data, clips, t)
         }),
+        "bossblur" => blur_main(t),
         _ => return None,
     })
 }
@@ -98,6 +100,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let script: Vec<(usize, i32, i16)> = (0..ns).map(|_| (t.int() as usize, t.i32(), t.i16())).collect();
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
+    let mut blur = ProbeBlur::read(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
@@ -143,8 +146,11 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let mut boss = Boss::new(&mut cx, kpos, kdirc, center);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
-    lines
-        .push(frame_json(&boss, &scene, me, &out, &rand, &cc).replace("\"rand\":", "\"menu\":[0,0,0,0,0,0],\"rand\":"));
+    blur.apply(&out);
+    lines.push(
+        frame_json(&boss, &scene, me, &out, &rand, &cc)
+            .replace("\"rand\":", &format!("\"menu\":[0,0,0,0,0,0],\"blur\":{},\"rand\":", blur.json())),
+    );
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
         let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false };
@@ -172,6 +178,10 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         }
         boss = *scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
         let mut out = boss.take_pending();
+        // The affects' writes, then the manager's pass, then the boss's.
+        blur.apply(&out);
+        blur.frame();
+        let pre = out.len();
         let mut cx = Cx {
             t: tables,
             data,
@@ -197,6 +207,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         boss.main(&mut cx);
         out.extend(std::mem::take(&mut cx.out));
         drop(cx);
+        blur.apply(&out[pre..]);
         for o in &out {
             match o {
                 Out::MenuForbid { on, chat_except } => {
@@ -221,10 +232,109 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         }
         lines.push(frame_json(&boss, &scene, me, &out, &rand, &cc).replace(
             "\"rand\":",
-            &format!("\"menu\":[{},{},{},{},{},{}],\"rand\":", menu[0], menu[1], menu[2], menu[3], menu[4], menu[5]),
+            &format!(
+                "\"menu\":[{},{},{},{},{},{}],\"blur\":{},\"rand\":",
+                menu[0],
+                menu[1],
+                menu[2],
+                menu[3],
+                menu[4],
+                menu[5],
+                blur.json()
+            ),
         ));
     }
     format!("[{}]", lines.join(","))
+}
+
+/// The effect manager's blur as a harness keeps it: made with the heap's
+/// word at `m_exit` and the callbacks' statics the case gives, `Main` run
+/// before each boss frame and the boss's writes applied after.
+pub(crate) struct ProbeBlur {
+    pub(crate) blur: Blur,
+    pub(crate) statics: Statics,
+    pub(crate) reflex: Option<Reflex>,
+}
+
+impl ProbeBlur {
+    /// The case's three words: `m_exit`'s, then whether
+    /// `ccBoss03BlurParamCB` has run (its `init`) and its `blurRad`.
+    pub(crate) fn read(t: &mut Toks) -> ProbeBlur {
+        let exit = t.u32();
+        ProbeBlur::read_statics(Blur::new(exit), t)
+    }
+
+    /// `blur` with the statics' two words.
+    pub(crate) fn read_statics(blur: Blur, t: &mut Toks) -> ProbeBlur {
+        let init = t.int() != 0;
+        let rad = t.u32();
+        let statics = Statics { boss03_rad: init.then_some(rad) };
+        ProbeBlur { blur, statics, reflex: None }
+    }
+
+    /// `ccBossBlur::Main`, the manager's pass.
+    pub(crate) fn frame(&mut self) {
+        self.reflex = self.blur.main(&mut self.statics);
+    }
+
+    /// The boss's writes this frame, in order.
+    pub(crate) fn apply(&mut self, out: &[Out]) {
+        for o in out {
+            if let Out::Blur(s) = o {
+                self.blur.set(*s);
+            }
+        }
+    }
+
+    /// The blur's members, the statics and the frame's reflex, as the
+    /// harness reads them.
+    pub(crate) fn json(&self) -> String {
+        let b = &self.blur;
+        let func = match b.func {
+            None => "0",
+            Some(BlurFunc::Boss03) => "\"boss03\"",
+        };
+        let reflex = self.reflex.map_or("null".into(), |r| format!("[{},{},{}]", r.scale, r.turn, r.abgr));
+        format!(
+            "[{},{},{},{},{},{},{},{},{},{},{}]",
+            b.scale,
+            b.scale0,
+            b.turn,
+            b.turn0,
+            b.abgr,
+            b.abgr0,
+            u8::from(b.enabled),
+            b.exit,
+            func,
+            self.statics.boss03_rad.unwrap_or(0),
+            reflex
+        )
+    }
+}
+
+/// `bossblur`: a blur in any state (scale, its start, turn, its start,
+/// colour, its copy, enabled, `m_exit`, callback 0 or 1, then the statics
+/// and the frames), `Main` run frame by frame; each frame's state.
+fn blur_main(t: &mut Toks) -> String {
+    let mut b = Blur::new(0);
+    (b.scale, b.scale0, b.turn, b.turn0, b.abgr, b.abgr0) = (t.u32(), t.u32(), t.u32(), t.u32(), t.u32(), t.u32());
+    b.enabled = t.int() != 0;
+    b.exit = t.u32();
+    b.func = (t.int() != 0).then_some(BlurFunc::Boss03);
+    let mut p = ProbeBlur::read_statics(b, t);
+    let frames = t.int();
+    let lines: Vec<String> = (0..frames)
+        .map(|_| {
+            p.frame();
+            p.json()
+        })
+        .collect();
+    format!("[{}]", lines.join(","))
+}
+
+/// A frame's line with the blur's state put in before `"rand"`.
+pub(crate) fn with_blur(line: String, blur: &ProbeBlur) -> String {
+    line.replacen("\"rand\":", &format!("\"blur\":{},\"rand\":", blur.json()), 1)
 }
 
 fn tbl_num(t: Tbl) -> i32 {

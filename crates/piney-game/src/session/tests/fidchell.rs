@@ -13,7 +13,7 @@ use super::*;
 /// Event 207 brought to Fidchell's arena: blocks 0-8 played and
 /// `eventStatus[0]` 1, the session in field 4 of town 3 with area 73's
 /// `WORLD_MAN`.
-fn event_207_arena() -> Option<Session> {
+pub(super) fn event_207_arena() -> Option<Session> {
     let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/outbreak/outbreak.iso");
     if !iso.exists() {
         eprintln!("outbreak.iso not present; skipped");

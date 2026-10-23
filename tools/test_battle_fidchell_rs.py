@@ -61,6 +61,7 @@ eemu.Machine = test_anim.machine_class()
 
 import test_battle_enemy_ai_rs as eai  # noqa: E402
 import test_battle_rs as rs  # noqa: E402
+import test_battle_boss_rs as bb  # noqa: E402
 from test_battle_boss_rs import forward_clip, rnd_member, s16, s32  # noqa: E402
 from test_battle_rs import F_ONE, NEW, SCN, fbits, ser_char  # noqa: E402
 
@@ -110,6 +111,7 @@ class Game:
         self.rot_now, self.shake_now = 0, True
         self.center, self.push, self.frame_no = [0, 0, 0, F_ONE], [0, 0], 0
         self.hooks()
+        bb.install_blur(self)
 
     def sym(self, name):
         return self.g.sym(name)
@@ -352,10 +354,13 @@ class Game:
         hook("effSkillStart__FP6ccChariii", skill_start)
 
         def skill(mm, cp, tp, sid, flag, *_):
+            # _ccSkillRequest's caster side cast through it (stype 2):
+            # skillID, skillStatus 9 and targetChar (gcmn 0x00572b78).
             out.append(["skill", s32(sid), int(flag != 0)])
             if flag:
                 mm.store(cp + 0x7C, 2, sid & 0xFFFF)
                 mm.store(cp + 0x7E, 2, 9)
+                mm.store(cp + 0x78, 4, tp)
             return 0
         hook("ccItemSkillRequest__FP6ccCharP6ccCharii", skill)
         hook("ccItemSkillCompel__FP6ccCharP6ccCharii", skill)
@@ -384,6 +389,7 @@ class Game:
             self.starts[e] += 1
             if self.starts[e] >= SKILL_START_LIFE:
                 m.store(e + 0x60, 1, m.load(e + 0x60, 1) | 8)
+        bb.blur_main(self, MGR)
 
     def effects(self):
         m = self.m
@@ -451,10 +457,13 @@ def rnd_case(c, rnd):
     center = [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), 0, F_ONE]
     cam2 = ([fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(-900, 900)), fbits(rnd.uniform(100, 600)), F_ONE],
             [fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(-300, 300)), fbits(rnd.uniform(0, 300)), F_ONE])
-    return {"party": party, "frames": frames, "script": script, "menus": menus, "center": center, "rots": rots,
+    case = {"party": party, "frames": frames, "script": script, "menus": menus, "center": center, "rots": rots,
             "cam2": cam2, "shake": rnd.choice((0, 0, 2, 3, 7)), "push": push,
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
+    # Drawn last, so the cases of a seed are the ones before the blur.
+    case.update(bb.blur_case(rnd))
+    return case
 
 
 def listed(game, ch):
@@ -500,7 +509,7 @@ def run_game(game, case):
     game.rot_now = rot_at(case, 0)
     game.cams = {2: [list(case["cam2"][0]), list(case["cam2"][1])]}
     m.mem[BOSS:BOSS + BOSS_SIZE] = bytes(BOSS_SIZE)
-    m.mem[MGR:MGR + 0x1038] = bytes(0x1038)
+    bb.make_manager(game, MGR, case)
     m.store(game.sym("_g_bossEffManager"), 4, MGR)
     m.store(game.sym("scFadeDef"), 4, STAGE + 0x200)
     m.store(game.sym("worldman"), 4, WM)
@@ -594,7 +603,9 @@ def game_state(game, n):
     return {
         "act": [ld(0x1A2, 2, True), ld(0x1A4, 2, True), ld(0x1A6, 2, True)],
         "move": [ld(0x188), ld(0x18C)] + f32s(m, a + 0x190, 3),
-        "tgt": [(tgt - SCN) // 0x1000 if tgt else -1, ld(0x180), ld(0x184)] + f32s(m, a + 0x160, 3),
+        # Fidchell's own skill aims it at itself: the scene's last.
+        "tgt": [n if tgt == BOSS else (tgt - SCN) // 0x1000 if tgt else -1, ld(0x180), ld(0x184)]
+        + f32s(m, a + 0x160, 3),
         "pos": f32s(m, a + 0x40, 3),
         "posp": f32s(m, a + 0x50, 3),
         "dirc": f32s(m, a + 0x60, 3),
@@ -613,6 +624,7 @@ def game_state(game, n):
         "out": list(game.out),
         "menu": [s16(m.load(MENU + 0xFE, 2)), s16(m.load(MENU + 0x100, 2)), s16(m.load(MENU + 0x26, 2)),
                  s16(m.load(MENU + 0x14, 2)), s16(m.load(MENU + 0xF0, 2)), s16(m.load(MENU + 0xF2, 2))],
+        "blur": bb.blur_state(game, MGR),
         "rand": game.g.rand_now(),
         "cc": s32(m.load(eai.MTI, 4)),
     }
@@ -661,6 +673,7 @@ def request(game, case, pre):
     parts.append(len(case["menus"]))
     for mm in case["menus"]:
         parts += list(mm)
+    parts += bb.blur_tokens(case)
     return " ".join(str(x) for x in parts)
 
 

@@ -2965,6 +2965,13 @@ impl FieldWorld {
     /// effLayer), Kyvia's arm and the wave's `DrawParts` (`ANM_xx11wave`'s
     /// objects at the boss, on objLayer).
     fn draw_boss(&self, ctx: &mut Ctx, to_screen: glam::Mat4) {
+        // The manager's blur: `SetReflex` and `MakePacket` on its layer, the
+        // last frame's picture over the view (the task outlives the boss).
+        if let Some(r) = self.combat.boss.as_ref().and_then(|r| r.reflex) {
+            let s = piney_desktop::noiz::Sampling::reflex(r.scale, r.turn, r.abgr);
+            let view = piney_desktop::noiz::EffView::sys();
+            ctx.layers.prepend(piney_battle::boss::blur::LAYER, vec![piney_draw::Cmd::Prim(s.prim_in(&view))]);
+        }
         let Some(run) = self.combat.boss.as_ref().filter(|r| !r.exit) else { return };
         let lights = self.place.lights();
         // A ccAnm of the boss's file (Kyvia's arm): every object its clip

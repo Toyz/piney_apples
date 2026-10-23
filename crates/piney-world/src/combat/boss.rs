@@ -40,6 +40,13 @@ pub const KYVIA: i32 = 12;
 /// Kyvia's second fight (`ccBossKyvia02`, Outbreak's field 10).
 pub const KYVIA_SECOND: i32 = 13;
 
+/// The word the heap leaves at the manager's `m_exit` (+0x2c), which only
+/// Gorre's constructor does not write over: it is whatever the last owner
+/// of those bytes wrote, which the play since power-on decides
+/// (docs/engine/boss.md "The blur"). The port takes one that is not 0, so
+/// Gorre's fight shows no blur.
+pub const HEAP_EXIT: u32 = 1;
+
 /// Skeith's file and model (`x11`, `CMP_trall`), and the effects' file.
 pub const FILE: &str = "x11";
 pub const CLUMP: &str = "CMP_trall";
@@ -115,6 +122,10 @@ pub struct BossRun {
     /// `ccBufferReverce::MakePacket` this frame (Skeith's magic's last
     /// part): the frame inverted on the boss's own layer.
     pub reverse: bool,
+    /// The effect manager's blur, and the reflex its `Main` drew this frame
+    /// (on the manager's layer, the manager's task outlasting the boss's).
+    pub blur: boss::blur::Blur,
+    pub reflex: Option<boss::blur::Reflex>,
     /// Skeith's cross's trail (`ccLattice(2, 7)`, +0x2935c) and what its
     /// `Disp` sent this frame, with its sort key.
     pub lattice: Lattice,
@@ -510,6 +521,16 @@ impl Combat {
             cam_sw: cam.is_some(),
             cam,
             reverse: false,
+            blur: {
+                let mut blur = boss::blur::Blur::new(HEAP_EXIT);
+                for o in &ctor_out {
+                    if let Out::Blur(s) = o {
+                        blur.set(*s);
+                    }
+                }
+                blur
+            },
+            reflex: None,
             lattice: Lattice::new(2, 7),
             trail: (Vec::new(), 0),
             cinema: Cinema::new(),
@@ -522,6 +543,21 @@ impl Combat {
             disc_next: false,
             dropped: Vec::new(),
         });
+    }
+
+    /// The end of `ccBossEffManager::Draw` (INF gcmn 0x00461750): the
+    /// blur's `Main`, after the writes the boss's and its parts' affects
+    /// asked since their frame. The manager's task outlives the boss's.
+    pub(super) fn blur_pass(&mut self) {
+        let Some(run) = self.boss.as_mut() else { return };
+        for c in std::iter::once(run.me).chain(run.parts.iter().copied()) {
+            if let Some(b) = self.scene.chars[c].foe_state_mut().and_then(|f| f.boss.as_mut()) {
+                for s in b.take_blur() {
+                    run.blur.set(s);
+                }
+            }
+        }
+        run.reflex = run.blur.main(&mut self.blur_statics);
     }
 
     /// `ccThBossEffect` and the boss task's frame: the queued affects,
@@ -681,6 +717,7 @@ impl Combat {
             let text_was = std::mem::take(&mut r.text_shown);
             for o in &out {
                 match o {
+                    Out::Blur(s) => r.blur.set(*s),
                     // OnCinemaMode's other checks (the party wiped out, a
                     // forced game over) end the fight first here.
                     Out::Cinema(Some(n)) => {

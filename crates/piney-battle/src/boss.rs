@@ -7,6 +7,7 @@
 //! sounds, the camera and the pictures are [`Out`]s. docs/engine/boss.md
 //! and boss-innis.md, boss-magus.md, boss-kyvia.md, boss-fidchell.md.
 
+pub mod blur;
 pub mod fidchell;
 pub mod gorre;
 pub mod innis;
@@ -19,7 +20,7 @@ use piney_data::libm;
 use crate::affect::{self, AffectCtx};
 use crate::chara::{self, Env};
 use crate::damage::{self, Roll};
-use crate::enemy_ai::{World, get_dirc, get_dist, rand_f, search_near_person};
+use crate::enemy_ai::{World, get_dirc, rand_f, search_near_person};
 use crate::event::{Event, Events, Who};
 use crate::exp::Party;
 use crate::geom::{self, V4};
@@ -606,12 +607,8 @@ pub enum Out {
         add: bool,
         v: F,
     },
-    /// `bossBlur`'s colour (+0x1c): Innis's constructor turns the blur on
-    /// (+0x24 1, `m_exit` 0, scale 1.01, turn 0.02); its acts switch the
-    /// colour between `DefaultARGB` and `ExARGB`.
-    Blur {
-        colour: u32,
-    },
+    /// A write to the effect manager's blur through `ccBoss` +0x148.
+    Blur(blur::Set),
     /// A particle generator started (`startParticleGenerator`), by its
     /// rows, at `pos`.
     Particles {
@@ -987,6 +984,12 @@ fn sqrt_of(cx: &Cx, v: F) -> F {
     geom::sqrt_on(cx.actx.volume, v)
 }
 
+/// `ccGetDist(a, b)` as the volume's main has it: its square root is
+/// [`sqrt_of`]'s.
+fn dist(cx: &Cx, a: V4, b: V4) -> F {
+    crate::enemy_ai::get_dist_on(cx.actx.volume, a, b)
+}
+
 impl Boss {
     /// The constructors (`ccBoss::ccBoss` 0x0045bcf0, `ccBoss01::ccBoss01`
     /// 0x0047b410) as far as the rules go: Skeith stands 500 behind Kite
@@ -1032,6 +1035,9 @@ impl Boss {
         b.pat_mode = 0;
         b.center_pos = [center[0], center[1], center[2], ONE];
         b.center_pos_p = w2p(cx, b.center_pos);
+        // The blur on under `ccBoss03BlurParamCB` (INF gcmn 0x0047bc40).
+        cx.out(Out::Blur(blur::Set::Enable));
+        cx.out(Out::Blur(blur::Set::Func(blur::BlurFunc::Boss03)));
         b
     }
 
@@ -1105,7 +1111,7 @@ impl Boss {
         self.calc_target_info(cx);
         self.center_pos_p = w2p(cx, self.center_pos);
         let pp = cx.scene.chars[me].pos_p;
-        self.center_dist = get_dist(pp, self.center_pos_p);
+        self.center_dist = dist(cx, pp, self.center_pos_p);
         self.center_dirc = get_dirc(pp, self.center_pos_p);
         if self.stop != 0 {
             self.stop_count += 1;
@@ -1432,7 +1438,7 @@ impl Boss {
                     if cx.dead(c) {
                         continue;
                     }
-                    let d = get_dist(pp, cx.scene.chars[c].pos_p);
+                    let d = dist(cx, pp, cx.scene.chars[c].pos_p);
                     if ee::lt(best, d) {
                         best = d;
                         pick = Some(c);
@@ -1494,7 +1500,7 @@ impl Boss {
         let pick = v1.or(a0)?;
         if !geom::eq(0, radius) {
             let p = w2p(cx, cx.scene.chars[me].pos);
-            if !ee::le(get_dist(p, cx.scene.chars[pick].pos_p), radius) {
+            if !ee::le(dist(cx, p, cx.scene.chars[pick].pos_p), radius) {
                 return None;
             }
         }
@@ -1509,7 +1515,7 @@ impl Boss {
         self.target_pos = cx.scene.chars[t].pos;
         let pp = cx.scene.chars[me].pos_p;
         self.target_dirc = get_dirc(pp, self.target_pos_p);
-        self.target_dist = get_dist(pp, self.target_pos_p);
+        self.target_dist = dist(cx, pp, self.target_pos_p);
     }
 
     /// `ccBoss::EraseCmndTarget` (0x0045df40): the boss "dead" to the
@@ -1590,8 +1596,8 @@ impl Boss {
     }
 
     /// `IsValidArea(p)` (0x0047ca00): within 1500 of the centre.
-    fn valid_area(&self, p: V4) -> bool {
-        ee::lt(get_dist(p, self.center_pos_p), 0x44bb_8000)
+    fn valid_area(&self, cx: &Cx, p: V4) -> bool {
+        ee::lt(dist(cx, p, self.center_pos_p), 0x44bb_8000)
     }
 
     /// Skeith's odd wrap: above pi a turn off, below pi a turn on.
@@ -1950,7 +1956,7 @@ impl Boss {
         }
         self.move_dirc = Self::wrap(self.move_dirc);
         self.move_spd = 0x420c_0000;
-        if !self.valid_area(cx.scene.chars[cx.me].pos_p) {
+        if !self.valid_area(cx, cx.scene.chars[cx.me].pos_p) {
             self.change_next_pattern(cx);
             self.entry_cmnd_target(cx);
             Self::cursor_off(cx, false);
@@ -1988,7 +1994,7 @@ impl Boss {
         self.move_spd = 0x4234_0000;
         let c = self.act_count;
         self.act_count += 1;
-        if c >= 61 || !self.valid_area(cx.scene.chars[me].pos_p) {
+        if c >= 61 || !self.valid_area(cx, cx.scene.chars[me].pos_p) {
             self.change_next_pattern(cx);
             return;
         }
@@ -2041,7 +2047,7 @@ impl Boss {
                 let p = w2p(cx, self.dash_pos);
                 let pp = cx.scene.chars[me].pos_p;
                 self.move_dirc = get_dirc(pp, p);
-                if ee::lt(get_dist(pp, p), 0x4348_0000) {
+                if ee::lt(dist(cx, pp, p), 0x4348_0000) {
                     self.act_proccess += 1;
                 }
                 self.dirc[2] = self.move_dirc;
@@ -2490,6 +2496,20 @@ impl Boss {
     /// What affects asked for since the last frame.
     pub fn take_pending(&mut self) -> Vec<Out> {
         std::mem::take(&mut self.pending)
+    }
+
+    /// The blur's writes its affects asked since its last frame, out of
+    /// [`Boss::pending`] (the manager's pass applies them before `Main`).
+    pub fn take_blur(&mut self) -> Vec<blur::Set> {
+        let mut sets = Vec::new();
+        self.pending.retain(|o| match o {
+            Out::Blur(s) => {
+                sets.push(*s);
+                false
+            }
+            _ => true,
+        });
+        sets
     }
 }
 

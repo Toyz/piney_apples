@@ -15,6 +15,7 @@ use piney_data::libm;
 use piney_data::volume::Volume;
 
 use self::eff::{Fx, MeteoSworm, RockTower, ThunderStorm};
+use super::blur::{BlurFunc, Set};
 use super::{Anm, Boss, Class, Cx, EffKind, Out, Tbl, VF0};
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, V4};
@@ -37,8 +38,6 @@ pub const ROW: usize = 3;
 pub const FILE: &str = "x41";
 /// The drain's HP (`Affect`'s 21).
 pub const EPITAPH_HP: i16 = 5000;
-/// `bossBlur`'s colour under `ccBoss03BlurParamCB` (OUT gcmn 0x00472b90).
-pub const BLUR: u32 = 0x4880_8080;
 /// `InitBossCamera(250, 1500)`'s `MaxRenge`, set after it (Outbreak's 600).
 pub const CAM_MAX_RANGE: F = 0x4416_0000;
 
@@ -235,13 +234,6 @@ fn word(tbl: &[i32], i: i32) -> i32 {
     usize::try_from(i).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0)
 }
 
-/// `ccGetDist(a, b)` as the volume's main has it ([`super::sqrt_of`]).
-fn dist(cx: &Cx, a: V4, b: V4) -> F {
-    let x = ee::sub(b[0], a[0]);
-    let y = ee::sub(b[1], a[1]);
-    super::sqrt_of(cx, ee::add(ee::add(ee::mul(x, x), ee::mul(y, y)), ee::mul(0, 0)))
-}
-
 fn target_ok(cx: &Cx, t: Option<usize>) -> bool {
     cx.valid(t) && t.is_some_and(|t| !cx.dead(t))
 }
@@ -286,7 +278,7 @@ fn calc_target_info(b: &mut Boss, cx: &mut Cx) {
     b.target_pos = cx.scene.chars[t].pos;
     let pp = cx.scene.chars[me].pos_p;
     b.target_dirc = get_dirc(pp, b.target_pos_p);
-    b.target_dist = dist(cx, pp, b.target_pos_p);
+    b.target_dist = super::dist(cx, pp, b.target_pos_p);
 }
 
 fn select(b: &mut Boss, cx: &mut Cx, ty: i32) -> Option<usize> {
@@ -352,7 +344,8 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.center_pos_p = super::w2p(cx, b.center_pos);
     b.use_stage_eff = true;
     cx.out(Out::CamMaxRange(CAM_MAX_RANGE));
-    cx.out(Out::Blur { colour: BLUR });
+    cx.out(Out::Blur(Set::Enable));
+    cx.out(Out::Blur(Set::Func(BlurFunc::Boss03)));
     let mut x = Box::new(x);
     // SetPatternTbl(boss04NormalActTbl), m_patMode 0, the first pattern.
     b.pat_tbl = Tbl::Normal;
@@ -398,7 +391,7 @@ fn frame(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
     calc_target_info(b, cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = dist(cx, pp, b.center_pos_p);
+    b.center_dist = super::dist(cx, pp, b.center_pos_p);
     b.center_dirc = get_dirc(pp, b.center_pos_p);
     if b.stop != 0 {
         b.stop_count += 1;
@@ -1525,7 +1518,7 @@ fn on_dash_center(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
             let p = super::w2p(cx, b.dash_pos);
             let pp = cx.scene.chars[me].pos_p;
             b.move_dirc = get_dirc(pp, p);
-            if ee::lt(dist(cx, pp, p), 0x4348_0000) {
+            if ee::lt(super::dist(cx, pp, p), 0x4348_0000) {
                 b.act_proccess += 1;
             }
             b.dirc[2] = b.move_dirc;

@@ -38,6 +38,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import volume  # noqa: E402
 from volume import va as inf_va  # noqa: E402  # Infection's addresses on PINEY_VOLUME's disc
 
 import eemu  # noqa: E402
@@ -56,6 +57,91 @@ STAGE = 0x01390000              # the stage fader
 PLW, PARTY = inf_va(0x007302E0), inf_va(0x00730310)
 MENU = 0x01020000               # test_battle's ccMenu
 BOSS_SIZE = 0x296B0
+
+
+# The effect manager's blur (ccBossBlur at the manager's +4; docs/engine/
+# boss.md "The blur"): the manager made by its own constructor, its m_exit
+# (+0x2c) seeded with the case's word (what the heap leaves there), the
+# callbacks' statics set, ccBossBlur::Main run at the end of the manager's
+# pass with SetReflex recorded. Each boss harness uses these.
+BLUR_STUBS = ("__ct__16ccDrawPacketCtrlFv", "Init__7ccLayerFsP6ccView", "__ct__16ccBufferSamplingFv",
+              "__ct__19ccBossEffCinemaFadeFP13CinemaDataSet")
+
+
+def blur_case(rnd):
+    """The heap's word at m_exit, and ccBoss03BlurParamCB's statics."""
+    rad = fbits(rnd.uniform(-3.14, 3.14))
+    return {"blur": [rnd.choice((0, 0, rnd.getrandbits(32))), rnd.randrange(2), rad]}
+
+
+def blur_tokens(case):
+    return list(case["blur"])
+
+
+def install_blur(game):
+    """SetReflex recorded into game.blur_reflex, MakePacket left out."""
+    m, sym = game.m, game.sym
+
+    def reflex(mm, this, colour, *_):
+        game.blur_reflex = [mm.f[12], mm.f[13], colour & 0xFFFFFFFF]
+        return 0
+    m.hooks[sym("SetReflex__16ccBufferSamplingFffUi")] = reflex
+    m.hooks[sym("MakePacket__16ccBufferSamplingFP7ccLayer")] = lambda mm, *a: 0
+    game.blur_reflex = None
+
+
+def blur_statics(game):
+    """ccBoss03BlurParamCB's blurRad and (Infection and Mutation) its init
+    flag; Outbreak's and Quarantine's start at the .bss's 0."""
+    s = game.g.prog.symbol_named
+    rad = s("blurRad$1067")
+    init = s("init$1068")
+    return rad.value, init.value if init is not None else None
+
+
+def make_manager(game, mgr, case):
+    """ccBossEffManager::ccBossEffManager at mgr over the case's heap word."""
+    m, sym = game.m, game.sym
+    game.blur_reflex = None
+    exit_word, init, rad = case["blur"]
+    m.mem[mgr:mgr + 0x1038] = bytes(0x1038)
+    m.store(mgr + 0x2C, 4, exit_word)
+    saved = {sym(n): m.hooks.get(sym(n)) for n in BLUR_STUBS}
+    for n in BLUR_STUBS:
+        m.hooks[sym(n)] = lambda mm, a, *_: a
+    m.call(sym("__ct__16ccBossEffManagerFv"), (mgr,))
+    for a, h in saved.items():
+        if h is None:
+            m.hooks.pop(a, None)
+        else:
+            m.hooks[a] = h
+    rad_at, init_at = blur_statics(game)
+    if init_at is not None:
+        m.store(init_at, 1, init)
+        m.store(rad_at, 4, rad)
+    else:
+        m.store(rad_at, 4, rad if init else 0)
+
+
+def blur_main(game, mgr):
+    """The end of the manager's pass: ccBossBlur::Main."""
+    game.blur_reflex = None
+    game.m.call(game.sym("Main__10ccBossBlurFv"), (mgr + 4,))
+
+
+def blur_state(game, mgr):
+    """The blur's members as battle_probe's ProbeBlur gives them: scale and
+    its start, turn and its start, colour and its copy, enabled, m_exit,
+    the callback, blurRad, and the frame's SetReflex."""
+    m = game.m
+    b = mgr + 4
+    func = m.load(b + 0x2C, 4)
+    cb = game.sym("ccBoss03BlurParamCB__FPfPfPUi")
+    name = 0 if func == 0 else "boss03" if func == cb else hex(func)
+    rad_at, init_at = blur_statics(game)
+    inited = init_at is None or m.load(init_at, 1) != 0
+    return ([m.load(b + o, 4) for o in (0x0C, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24, 0x28)] + [name]
+            + [m.load(rad_at, 4) if inited else 0, game.blur_reflex])
 
 
 def eff_life(kind, args):
@@ -118,6 +204,7 @@ class Game:
         self.effs = {}          # a stand-in effect -> [kind, count, life]
         self.out = []
         self.hooks()
+        install_blur(self)
 
     def alloc(self, n, name=None):
         a = self.fake_at
@@ -249,7 +336,11 @@ class Game:
         hook("EntryAfterImage__6ccBossFP17ENTRYAFTERIMAGE_T", lambda mm, *a: out.append(["afterimage"]) or 0)
         hook("OnCinemaMode__16ccBossEffManagerFi", lambda mm, a, n, *_: out.append(["cinema", s32(n)]) or 0)
         hook("OffCinemaMode__16ccBossEffManagerFv", lambda mm, *a: out.append(["cinema", -99]) or 0)
-        hook("SwitchLayer__11EVENTAREAB0Fv", lambda mm, *a: out.append(["switch_layer"]) or 0)
+        # Unnamed in Outbreak's build (0x00417db0, as test_battle_gorre_rs.py
+        # finds it): OnMagicAtk's only unnamed callee.
+        named = volume.program(volume.ELF).symbol_named("SwitchLayer__11EVENTAREAB0Fv")
+        at = named.value if named else volume.callee("OnMagicAtk__8ccBoss01Fv", 0)
+        h[at] = lambda mm, *a: out.append(["switch_layer"]) or 0
         hook("ccEntryFlyFontNew__FiiPfP6ccCharff",
              lambda mm, k, n, *_: out.append(["flyfont", s32(k), s32(n)]) or 0)
         hook("ccHitMarkDisp__FP6ccCharP6ccChar", lambda mm, *a: out.append(["hitmark"]) or 0)
@@ -304,6 +395,7 @@ class Game:
             st[1] += 1
             if st[1] >= st[2]:
                 m.store(e, 1, 0)
+        blur_main(self, MGR)
 
     def effects(self):
         m = self.m
@@ -357,8 +449,11 @@ def rnd_case(c, rnd):
         menus.sort()
     center = [fbits(rnd.uniform(-200, 200)), fbits(rnd.uniform(-200, 200)), 0, F_ONE]
     seed = rnd.randrange(1, 1 << 32)
-    return {"party": party, "frames": frames, "script": script, "menus": menus, "center": center,
+    case = {"party": party, "frames": frames, "script": script, "menus": menus, "center": center,
             "rand": rnd.randrange(0, 1 << 63), "seed": seed, "mti": rnd.randrange(1, 624), "count": rnd.randrange(0, 1000)}
+    # Drawn last, so the cases of a seed are the ones before the blur.
+    case.update(blur_case(rnd))
+    return case
 
 
 def run_game(game, case):
@@ -370,7 +465,7 @@ def run_game(game, case):
     game.out.clear()
     game.stage_on = False
     m.mem[BOSS:BOSS + BOSS_SIZE] = bytes(BOSS_SIZE)
-    m.mem[MGR:MGR + 0x1038] = bytes(0x1038)
+    make_manager(game, MGR, case)
     m.store(game.sym("_g_bossEffManager"), 4, MGR)
     m.store(game.sym("scFadeDef"), 4, STAGE + 0x200)
     party = case["party"]
@@ -464,6 +559,7 @@ def game_state(game, n):
         "out": list(game.out),
         "menu": [s16(m.load(MENU + 0xFE, 2)), s16(m.load(MENU + 0x100, 2)), s16(m.load(MENU + 0x26, 2)),
                  s16(m.load(MENU + 0x14, 2)), s16(m.load(MENU + 0xF0, 2)), s16(m.load(MENU + 0xF2, 2))],
+        "blur": blur_state(game, MGR),
         "rand": game.g.rand_now(),
         "cc": s32(m.load(eai.MTI, 4)),
     }
@@ -491,6 +587,7 @@ def request(game, case, pre):
     parts.append(len(case["menus"]))
     for mm in case["menus"]:
         parts += list(mm)
+    parts += blur_tokens(case)
     return " ".join(str(x) for x in parts)
 
 
@@ -593,6 +690,38 @@ class Against(unittest.TestCase):
             args = list(ints[:2]) if kind == 2 else []
             with self.subTest(name):
                 self.assertEqual(native_life(self.game, kind), eff_life(kind, args))
+
+    def test_blur_main(self):
+        """ccBossBlur::Main (INF gcmn 0x00461200) on blurs in any state,
+        the callback's statics too, against battle_probe's `bossblur`:
+        every branch of the ease (from above and below 1, the turn from
+        either side of 0 or 0), the exit, the callback."""
+        game, m = self.game, self.game.m
+        rnd = random.Random(4321)
+        exits = 0
+        for k in range(200):
+            scale0 = fbits(rnd.choice((rnd.uniform(0.9, 1.1), 1.0)))
+            turn0 = fbits(rnd.choice((rnd.uniform(-0.3, 0.3), 0.0)))
+            state = [fbits(rnd.uniform(0.9, 1.1)) if rnd.random() < 0.3 else scale0, scale0,
+                     fbits(rnd.uniform(-0.3, 0.3)) if rnd.random() < 0.3 else turn0, turn0,
+                     rnd.getrandbits(32), rnd.getrandbits(32), rnd.randrange(2),
+                     rnd.choice((0, 0, 0, rnd.getrandbits(32))), rnd.randrange(2)]
+            case = {"blur": [state[7], rnd.randrange(2), fbits(rnd.uniform(-3.14, 3.14))]}
+            make_manager(game, MGR, case)
+            b = MGR + 4
+            for o, v in zip((0x0C, 0x10, 0x14, 0x18, 0x1C, 0x20, 0x24, 0x28), state):
+                m.store(b + o, 4, v)
+            m.store(b + 0x2C, 4, game.sym("ccBoss03BlurParamCB__FPfPfPUi") if state[8] else 0)
+            frames = rnd.randrange(1, 80)
+            g = []
+            for _ in range(frames):
+                blur_main(game, MGR)
+                g.append(blur_state(game, MGR))
+            req = ["bossblur"] + state + case["blur"][1:] + [frames]
+            p = rs.ask([" ".join(str(x) for x in req)])[0]
+            self.assertEqual(rs.norm(g), p, f"blur case {k}")
+            exits += any(f[7] == 1 for f in g) and state[7] == 0
+        self.assertGreater(exits, 5)
 
     def test_cases(self):
         for seed in range(6):

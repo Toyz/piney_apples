@@ -256,7 +256,7 @@ fn on_wave(gb: &mut Boss, gx: &mut Gorre, k: usize, kind: Wave, cx: &mut Cx) {
     let (pp, mpp) = (cx.scene.chars[me].pos_p, cx.scene.chars[master].pos_p);
     let to_master = get_dirc(pp, mpp);
     let from_master = get_dirc(mpp, pp);
-    let dist = super::dist(cx, pp, mpp);
+    let dist = super::super::dist(cx, pp, mpp);
     let p = &mut gx.brothers[k];
     let (b, x) = (&mut p.b, &mut p.x);
     match b.act_proccess {

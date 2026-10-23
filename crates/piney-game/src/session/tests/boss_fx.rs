@@ -164,7 +164,7 @@ fn skeith_protect_breaks_and_returns_with_pictures() {
 /// Outbreak's event 218 brought to Gorre's arena: field 5 of town 3 as
 /// area 71's dungeon leaves the game (block 9's `area 5` and scene),
 /// blocks 0-9 played and `eventStatus[0]` 2.
-fn event_218_arena() -> Option<Session> {
+pub(super) fn event_218_arena() -> Option<Session> {
     let iso = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/outbreak/outbreak.iso");
     if !iso.exists() {
         eprintln!("outbreak.iso not present; skipped");

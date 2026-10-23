@@ -98,6 +98,9 @@ pub struct Session {
     /// `ccSpcManager` and `ccPartyManager`, carried from one area to the
     /// next (the town's own until it leaves).
     spcs: Option<piney_world::party::Spcs>,
+    /// The boss blur callbacks' function statics: power-on to power-off,
+    /// from one area to the next.
+    blur_statics: piney_battle::boss::blur::Statics,
     /// `gtHackFlag` and `ccGame.setupMode`, from the gate hack's OK to the
     /// next scene's set-up (`ccClearGtHack` in each set-up decides whether
     /// the flag stays).
@@ -216,6 +219,7 @@ impl Session {
             pending: None,
             refused: None,
             spcs: None,
+            blur_statics: Default::default(),
             gt_hack: false,
             setup_mode: false,
             shown: None,
@@ -364,6 +368,7 @@ impl Session {
         let spcs = self.spcs.clone().unwrap_or_default();
         let at = Arrival { frames: self.sys_frames, faded };
         let mut a = AreaMode::enter(&self.iso, self.archive.clone(), state, vm, self.scene, wm, kept, at, spcs)?;
+        a.world_mut().combat_mut().blur_statics = self.blur_statics;
         a.set_gate_hack(self.gt_hack, self.setup_mode);
         self.setup_mode = false;
         Ok(Stage::Area(Box::new(a)))
@@ -430,6 +435,7 @@ impl Session {
             Stage::Area(mut a) => {
                 self.gt_hack = a.world().gt_hack();
                 a.world_mut().delete_fellows();
+                self.blur_statics = a.world().combat().blur_statics;
                 let (state, vm, _, wm, dungeon, spcs) = a.leave();
                 self.world_man = Some(wm);
                 self.dungeon = dungeon;
@@ -904,7 +910,10 @@ impl Session {
                     Stage::Desktop(d) => Some(d.leave().0.rand),
                     Stage::TopPage(t) => Some(t.leave().0.rand),
                     Stage::World(w) => Some(w.leave().0.rand),
-                    Stage::Area(a) => Some(a.leave().0.rand),
+                    Stage::Area(a) => {
+                        self.blur_statics = a.world().combat().blur_statics;
+                        Some(a.leave().0.rand)
+                    }
                     Stage::Gone => None,
                 };
                 let mut stage = self.boot_title(false)?;
@@ -926,6 +935,7 @@ impl Session {
                 Stage::TopPage(Box::new(TopPageMode::enter(self.iso.clone(), self.archive.clone(), state, vm)?))
             }
             (request::TOPPAGE, Stage::Area(a)) => {
+                self.blur_statics = a.world().combat().blur_statics;
                 let (state, vm, ..) = a.leave();
                 self.dungeon = None;
                 Stage::TopPage(Box::new(TopPageMode::enter(self.iso.clone(), self.archive.clone(), state, vm)?))
@@ -994,7 +1004,10 @@ impl Mode for Session {
     fn step(&mut self, pad: &Pad) -> Frame {
         self.sys_frames = self.sys_frames.wrapping_add(1);
         match &mut self.stage {
-            Stage::Area(a) => a.ui_mut().hud_scale = self.hud_scale,
+            Stage::Area(a) => {
+                a.ui_mut().hud_scale = self.hud_scale;
+                self.blur_statics = a.world().combat().blur_statics;
+            }
             Stage::World(w) => w.ui_mut().hud_scale = self.hud_scale,
             Stage::Desktop(d) => d.set_sys_frames(self.sys_frames),
             _ => {}
@@ -6970,6 +6983,9 @@ mod tests {
 
     /// Issues #71 and #72: event 108 from area 47's dungeon to Kyvia's disc.
     mod kyvia_stage;
+
+    /// The boss effect manager's blur in each fight.
+    mod blur;
 
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.

@@ -9,9 +9,10 @@
 use piney_data::field::ee;
 use piney_data::libm;
 
+use super::blur::Set;
 use super::{Anm, Boss, Class, Cx, EffKind, Out, VF0};
 use crate::chara::AffectFunc;
-use crate::enemy_ai::{get_dirc, get_dist, rand_f};
+use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
 use crate::item;
 use crate::param::cond;
@@ -175,8 +176,6 @@ pub struct Innis {
     pub target_pos_of: Option<usize>,
     /// `DeadEff`: the dead effect's slot.
     pub dead_eff: Option<i32>,
-    /// `bossBlur`'s colour (+0x1c).
-    pub blur: u32,
     /// `ccMenu.forbid` as act 5 set it this frame (its direct write,
     /// which `Main`'s check after reads).
     pub forbid_now: Option<i16>,
@@ -382,9 +381,11 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     x.hipos = pos[2];
     b.anm.set("ANM_ex21nut0", cx.clips);
     b.change_action(cx, act::NEUTRAL, 0, true);
-    // The blur (the manager's +4): on, never ending, DefaultARGB.
-    x.blur = x.default_argb;
-    cx.out(Out::Blur { colour: x.blur });
+    // The blur (the manager's +4): on, DefaultARGB, scale 1.01, turned
+    // 0.02 (MUT gcmn 0x004949a4).
+    for s in [Set::Enable, Set::Abgr(x.default_argb), Set::Scale(0x3f81_47ae), Set::Turn(0x3ca3_d70a)] {
+        cx.out(Out::Blur(s));
+    }
     x.anm_w.set(super::ANM_WAVE, cx.clips);
     for k in 0..3 {
         x.slaves.push(Slave::new(cx, k));
@@ -451,7 +452,7 @@ fn frame(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
     b.calc_target_info(cx);
     b.center_pos_p = super::w2p(cx, b.center_pos);
     let pp = cx.scene.chars[me].pos_p;
-    b.center_dist = get_dist(pp, b.center_pos_p);
+    b.center_dist = super::dist(cx, pp, b.center_pos_p);
     b.center_dirc = get_dirc(pp, b.center_pos_p);
     if b.stop != 0 {
         b.stop_count += 1;
@@ -1124,15 +1125,13 @@ fn switch_action_pattern(b: &mut Boss, x: &mut Innis, pattern: i32, cx: &mut Cx)
         27 => {
             x.escape = 1;
             entry_flg(x);
-            x.blur = x.ex_argb;
-            cx.out(Out::Blur { colour: x.blur });
+            cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
             b.lock_player(cx, false);
             reset_data(b, x, cx);
         }
         28 => {
             entry_flg(x);
-            x.blur = x.default_argb;
-            cx.out(Out::Blur { colour: x.blur });
+            cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             reset_data(b, x, cx);
             b.unlock_player();
         }
@@ -1491,8 +1490,7 @@ fn skill_attack(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
     x.cou += 1;
     if c == 90 {
         cx.out(Out::Cinema(None));
-        x.blur = x.default_argb;
-        cx.out(Out::Blur { colour: x.blur });
+        cx.out(Out::Blur(Set::Abgr(x.default_argb)));
         cx.out(Out::CamMode { mode: 6 });
         cx.out(Out::CamPitch { add: false, v: 0 });
         b.unlock_player();
@@ -1582,9 +1580,8 @@ fn magic_square(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
             cx.out(Out::CamMode { mode: 5 });
             x.cou = 1;
             x.eny_flg = 0;
-            x.blur = x.ex_argb;
-            cx.out(Out::Blur { colour: x.blur });
-            x.cam_dist = get_dist(x.cam_pos, pos);
+            cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
+            x.cam_dist = super::dist(cx, x.cam_pos, pos);
             return;
         }
         1 if x.eny_flg == 0 => {
@@ -1598,8 +1595,7 @@ fn magic_square(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
             x.cou += 1;
         }
         2 if x.eny_flg == 0 => {
-            x.blur = x.default_argb;
-            cx.out(Out::Blur { colour: x.blur });
+            cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             b.erase_cmnd_target(cx);
             cx.out(Out::CursorOff(true));
             x.eny_int = rand_mod(cx, 3).abs();
@@ -1681,7 +1677,7 @@ fn all_attack(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
             let r = ee::from_int(ee::to_int(range));
             let pos = cx.pos();
             for m in cx.party.members.into_iter().flatten() {
-                if cx.valid(Some(m)) && !ee::lt(r, get_dist(pos, cx.scene.chars[m].pos)) {
+                if cx.valid(Some(m)) && !ee::lt(r, super::dist(cx, pos, cx.scene.chars[m].pos)) {
                     cx.affect(m, 5, -1);
                 }
             }
@@ -1890,8 +1886,7 @@ fn action(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
             0 => {
                 b.anm.speed = 3840;
                 b.act_proccess += 1;
-                x.blur = x.ex_argb;
-                cx.out(Out::Blur { colour: x.blur });
+                cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
             }
             1 => {
                 let c = b.act_count;
@@ -1906,8 +1901,7 @@ fn action(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
                         cx.out(Out::Se3dNote { se: 195, pos, note });
                     }
                 } else {
-                    x.blur = x.default_argb;
-                    cx.out(Out::Blur { colour: x.blur });
+                    cx.out(Out::Blur(Set::Abgr(x.default_argb)));
                     b.anm.speed = 256;
                     b.act_proccess += 1;
                     b.change_action(cx, act::NEUTRAL, 0, true);
@@ -2238,7 +2232,7 @@ impl Slave {
                 }
                 let pos = cx.scene.chars[me].pos;
                 sb.target_dirc = get_dirc(pos, self.target_pos);
-                sb.target_dist = get_dist(pos, self.target_pos);
+                sb.target_dist = super::dist(cx, pos, self.target_pos);
                 self.dist = sb.target_dist;
                 self.dirc = sb.target_dirc;
                 if self.start_count == 1 {

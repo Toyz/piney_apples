@@ -63,6 +63,7 @@ eemu.Machine = test_anim.machine_class()
 
 import test_battle_enemy_ai_rs as eai  # noqa: E402
 import test_battle_rs as rs  # noqa: E402
+import test_battle_boss_rs as bb  # noqa: E402
 from test_battle_boss_rs import forward_clip, rnd_member, s16, s32  # noqa: E402
 from test_battle_rs import F_ONE, NEW, SCN, fbits, ser_char  # noqa: E402
 
@@ -104,6 +105,7 @@ class Game:
         self.gens = {}          # a particle generator -> its name
         self.out = []
         self.hooks()
+        bb.install_blur(self)
 
     def sym(self, name):
         return self.g.sym(name)
@@ -401,6 +403,7 @@ class Game:
             if flag:
                 mm.store(cp + 0x7C, 2, sid & 0xFFFF)
                 mm.store(cp + 0x7E, 2, 9)
+                mm.store(cp + 0x78, 4, tp)  # _ccSkillRequest's targetChar (gcmn 0x00572b80)
             return 0
         hook("ccItemSkillRequest__FP6ccCharP6ccCharii", skill)
         hook("ccItemSkillCompel__FP6ccCharP6ccCharii", skill)
@@ -424,6 +427,7 @@ class Game:
                 continue
             draw = m.load(m.load(e + 12, 4) + 8, 4)
             m.call(draw, (e,))
+        bb.blur_main(self, MGR)
 
     def effects(self):
         m = self.m
@@ -495,10 +499,13 @@ def rnd_case(c, rnd):
     srnd = random.Random(leaves[0][0])
     shocks = [[fbits(srnd.uniform(-700, 700)), fbits(srnd.uniform(-1200, 200)), fbits(srnd.uniform(500, 1500))]
               for _ in range(12)]
-    return {"party": party, "frames": frames, "script": script, "menus": menus, "center": center,
+    case = {"party": party, "frames": frames, "script": script, "menus": menus, "center": center,
             "leaves": leaves, "shocks": shocks, "miss": rnd.choice((0, 0, 3, 5, 7)), "push": push,
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
+    # Drawn last, so the cases of a seed are the ones before the blur.
+    case.update(bb.blur_case(rnd))
+    return case
 
 
 def leaf_of(m, k):
@@ -534,7 +541,7 @@ def run_game(game, case):
     game.frame_no = 0
     game.hit_calls = 0
     m.mem[BOSS:BOSS + BOSS_SIZE] = bytes(BOSS_SIZE)
-    m.mem[MGR:MGR + 0x1038] = bytes(0x1038)
+    bb.make_manager(game, MGR, case)
     m.store(game.sym("_g_bossEffManager"), 4, MGR)
     m.store(game.sym("scFadeDef"), 4, STAGE + 0x200)
     m.store(game.sym("worldman"), 4, WM)
@@ -653,7 +660,7 @@ def fields(m, base, spec):
 # m_explodeLeafNum, m_laserCount, m_leafGrowSE (a voice), +0x52720-c,
 # m_blurRad, m_blurScale, m_bNoLeaf, m_camCount, m_vecPrevLaser,
 # m_vecPrevDirc; ccBoss's actPos and actDirc, m_animateChase's fade,
-# stopTime, stopCounter, patIndex, patNum; the blur's colour.
+# stopTime, stopCounter, patIndex, patNum.
 MAGUS = ([(0x526C0, "i"), (0x526D0, "i"), (0x526D4, "i"), (0x526D8, "f"), (0x526DC, "i"), (0x526E0, "i"),
           (0x526E4, "i"), (0x526E8, "i"), (0x526EC, "i"), (0x526F0, "i"), (0x526F4, "i"), (0x526F8, "i"),
           (0x526FC, "i"), (0x52700, "i"), (0x52704, "i"), (0x5270C, "i"), (0x52710, "i"), (0x52714, "i"),
@@ -718,7 +725,7 @@ def game_state(game, n):
         "tr": [ld(0x88), ld(0x8C)],
         "anm": [clip[0] or "", clip[1] >> 8, m.load(anm + 0x9C, 2), wclip[0] or "", wclip[1] >> 8,
                 m.load(wave + 0x9C, 2) if wave else 256],
-        "magus": fields(m, a, MAGUS) + [m.load(MGR + 4 + 28, 4)],
+        "magus": fields(m, a, MAGUS),
         "shocks": shocks,
         "leaves": [leaf_state(game, leaf_of(m, k)) for k in range(12)],
         "eff": game.effects(),
@@ -726,6 +733,7 @@ def game_state(game, n):
         "out": list(game.out),
         "menu": [s16(m.load(MENU + 0xFE, 2)), s16(m.load(MENU + 0x100, 2)), s16(m.load(MENU + 0x26, 2)),
                  s16(m.load(MENU + 0x14, 2)), s16(m.load(MENU + 0xF0, 2)), s16(m.load(MENU + 0xF2, 2))],
+        "blur": bb.blur_state(game, MGR),
         "rand": game.g.rand_now(),
         "cc": s32(m.load(eai.MTI, 4)),
     }
@@ -775,6 +783,7 @@ def request(game, case, pre):
     parts.append(len(case["menus"]))
     for mm in case["menus"]:
         parts += list(mm)
+    parts += bb.blur_tokens(case)
     return " ".join(str(x) for x in parts)
 
 

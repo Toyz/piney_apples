@@ -444,6 +444,9 @@ pub struct Combat {
     pub entrance: Entrance,
     /// The boss's tasks (`ccBossEntryStart`), once an event made it.
     pub boss: Option<boss::BossRun>,
+    /// The blur callbacks' function statics, which last until power-off
+    /// (the session carries them from area to area).
+    pub blur_statics: piney_battle::boss::blur::Statics,
     /// What `ccRestoreSpcCondition` puts back into the characters built
     /// next, by `charTbl` row: the party's `storeCondition` when the scene
     /// restores it ([`crate::party::restores_condition`]), else none.
@@ -709,6 +712,7 @@ impl Combat {
             eye_view: false,
             entrance: Entrance::default(),
             boss: None,
+            blur_statics: Default::default(),
             restore: [None; 18],
             npcs: Vec::new(),
             symbol_lights: Default::default(),
@@ -1987,6 +1991,7 @@ impl Combat {
         // effects its Main made.
         if self.boss.is_some() {
             self.fx_call(x, bounds, |fx, w| fx.boss_effects(w), fx, None);
+            self.blur_pass();
             let world = enemy_ai::World {
                 puppet_show: x.puppet_show,
                 ride: self.ride.flag,

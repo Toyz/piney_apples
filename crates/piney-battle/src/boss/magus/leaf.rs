@@ -9,6 +9,7 @@ use piney_data::libm;
 
 use super::{Gen, Held, LEAF_ROW, LeafPart, Leaves, Magus, Pic, Place};
 use crate::boss::GenOp;
+use crate::boss::blur::Set;
 use crate::boss::kyvia::{as_me, new_char, plain_boss, set_base_param};
 use crate::boss::{Anm, Boss, Class, Cx, EffKind, Out};
 use crate::geom::{self, V4};
@@ -480,8 +481,7 @@ fn on_fire(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx: &mut Cx
     mx.explosion = 0;
     let mme = ls.0[k].x.master;
     as_me(cx, mme, |cx| super::begin_fall(mb, mx, cx));
-    mx.blur = super::BLUR;
-    cx.out(Out::Blur { colour: mx.blur });
+    cx.out(Out::Blur(Set::Abgr(super::BLUR)));
 }
 
 /// `OnThinkCountDown` (0x004a5ec0): the blink quickening to the burst.
