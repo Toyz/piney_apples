@@ -341,6 +341,9 @@ pub struct Audio {
     output: Option<output::Output>,
     /// Why there is no output, when there is none.
     pub silent_reason: Option<String>,
+    /// The loop id a boss keeps from `ccSeOn3DLoop` (Magus's grow,
+    /// `ccBoss03` +0x5271c), -1 for none ([`Audio::kept_loop_on`]).
+    kept_loop: std::sync::atomic::AtomicI32,
 }
 
 impl Audio {
@@ -352,7 +355,15 @@ impl Audio {
         engine.driver.set_voice(piney_data::tables::voice::of(snd.volume()));
         engine.driver.volume = snd.volume();
         let engine = Arc::new(Mutex::new(engine));
-        Ok(Audio { engine, snd, tables, iso: None, output: None, silent_reason: None })
+        Ok(Audio {
+            engine,
+            snd,
+            tables,
+            iso: None,
+            output: None,
+            silent_reason: None,
+            kept_loop: std::sync::atomic::AtomicI32::new(-1),
+        })
     }
 
     /// Headless: reads `DATA/SNDDATA.BIN` from the disc image and renders
@@ -476,6 +487,25 @@ impl Audio {
             let mut e = self.engine();
             let m = e.driver.se_off_loop(se, id);
             e.port0.extend(m);
+        }
+    }
+
+    /// A boss's `id = ccSeOn3DLoop(n, pos)` (Magus's grow, SE 230), the id
+    /// kept as `ccBoss03` keeps it.
+    pub fn kept_loop_on(&self, n: usize, cam: Option<&Listener>, pos: &se3d::V4) {
+        let id = self.se_on_3d_loop(n, cam, pos);
+        self.kept_loop.store(id, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// `if (id != -1) ccSeOffLoop(n, id)` on the kept id, and with `forget`
+    /// the id -1 after (the grow's end; the drain's 13 keeps it).
+    pub fn kept_loop_off(&self, n: usize, forget: bool) {
+        let id = self.kept_loop.load(std::sync::atomic::Ordering::Relaxed);
+        if id != -1 {
+            self.se_off_loop(n, id);
+        }
+        if forget {
+            self.kept_loop.store(-1, std::sync::atomic::Ordering::Relaxed);
         }
     }
 

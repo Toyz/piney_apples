@@ -39,6 +39,9 @@ What is not the game's here:
   CollisionDetection finds nothing. A skill's request sets the caster's
   skillID and status 9 when cast through it (flag set), as the port's
   request does.
+- Some cases force a while of m_bDropping 0 with the laser reserved, a
+  state the game never reaches (docs/engine/boss-magus.md), so that act
+  30 and the leaves' Order(28) and act 23 run.
 
     PINEY_VOLUME=mutation python3 tools/test_battle_magus_rs.py             the tests
     PINEY_VOLUME=mutation python3 tools/test_battle_magus_rs.py bulk N [S]  N cases from seed S
@@ -205,9 +208,11 @@ class Game:
             self.anms[a] = [name, 0]
             m.store(a + 0xAC, 4, 1)
             m.store(a + 0x98, 4, 0)
-            # anmChunk (+0xa8): its frame count at +0x10.
+            # A stand-in chunk with its frameMax (+0x10) at anmChunk
+            # (+0x94, which a leaf's Order(28) reads) and +0xa8.
             ch = self.alloc(32, name)
             m.store(ch + 0x10, 4, self.clips.get(name, [0, 0])[0])
+            m.store(a + 0x94, 4, ch)
             m.store(a + 0xA8, 4, ch)
 
         hook("SetAnm__5ccAnmFP10ccAnmChunkUi", lambda mm, a, ch, *_: set_anm(a, self.names.get(ch)) or 0)
@@ -464,6 +469,12 @@ def rnd_case(c, rnd):
             while g < frames:
                 script.append((g, 0, 0, rnd.randrange(300, 900)))
                 g += rnd.randrange(2, 30)
+    # Outside the game's reach (worklog 428): a while with m_bDropping 0
+    # and the laser reserved each frame, so that a neutral with leaves down
+    # takes act 30 and its leaves their act 23.
+    if rnd.random() < 0.35:
+        a = rnd.randrange(0, frames)
+        script += [(g, 7, 0, 0) for g in range(a, min(frames, a + rnd.randrange(200, 1500)))]
     script.sort(key=lambda s: s[0])
     # A while when Magus is pushed out of something each frame (act 8).
     push = [0, 0]
@@ -592,6 +603,9 @@ def run_game(game, case):
             elif kind == 6:
                 m.store(BOSS + 0x7C, 2, 0)
                 m.store(BOSS + 0x7E, 2, 0)
+            elif kind == 7:
+                m.store(BOSS + 0x526F4, 4, 0)
+                m.store(BOSS + 0x526F8, 4, 1)
         game.effects_pass()
         m.call(game.sym("Main__8ccBoss03Fv"), (BOSS,))
         frames.append(game_state(game, len(party)))

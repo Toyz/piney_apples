@@ -15,7 +15,7 @@ use piney_data::libm;
 
 use self::leaf::Leaf;
 use super::kyvia::fabs;
-use super::{Anm, Boss, Class, Cx, EffKind, Fade, Out, VF0};
+use super::{Anm, Boss, Class, Cx, EffKind, Fade, LoopOp, Out, VF0};
 use crate::enemy_ai::{get_dirc, get_dist, rand_f};
 use crate::geom::{self, V4};
 use crate::item;
@@ -1707,7 +1707,7 @@ fn on_leaf_grow(b: &mut Boss, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
         }
         x.grow_se = true;
         let pos = cx.pos();
-        cx.out(Out::SeLoop { se: 230, pos: Some(pos) });
+        cx.out(Out::SeLoop { se: 230, op: LoopOp::On(pos) });
     }
     let c = b.act_count;
     b.act_count += 1;
@@ -1724,7 +1724,7 @@ fn on_leaf_grow(b: &mut Boss, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
     }
     x.dropping = 0;
     if x.grow_se {
-        cx.out(Out::SeLoop { se: 230, pos: None });
+        cx.out(Out::SeLoop { se: 230, op: LoopOp::Off { forget: true } });
     }
     x.grow_se = false;
     b.anm.speed = 256;
@@ -1904,7 +1904,7 @@ fn on_rise(b: &mut Boss, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
         _ => {
             b.act_count += 1;
             if b.act_proccess == 2 && b.act_count >= 5 {
-                cx.out(Out::FlashFade { t: [60, 60, 0], colour: 0x80e0_ffff });
+                cx.out(Out::FlashFade { t_in: 60, t_out: 60, hold: None, colour: 0x80e0_ffff });
                 // The count's loop never steps its leaf: leaf 0, twelve
                 // times over.
                 if let Some(p) = ls.0.first() {
@@ -2067,7 +2067,7 @@ fn calc_camera(b: &mut Boss, x: &mut Magus, cx: &mut Cx) {
                 let view = [pos[0], pos[1], 0x4120_0000, pos[3]];
                 cx.out(Out::CameraView { cam: 3, view });
                 x.cam_count = 0;
-                cx.out(Out::FlashFade { t: [80, 80, 20], colour: 0x80e0_ffff });
+                cx.out(Out::FlashFade { t_in: 80, t_out: 80, hold: Some(20), colour: 0x80e0_ffff });
                 x.laser_flash = 0;
             }
             let _ = cx.cc.rand();
@@ -2124,8 +2124,9 @@ fn affect_of(b: &mut Boss, x: &mut Magus, cx: &mut Cx) {
         13 => {
             change_action(b, x, cx, act::DATA_DRAIN, 2, true);
             cx.scene.chars[me].affect.ty = 0;
+            // The id is kept: a later grow's end ends it again.
             if x.grow_se {
-                cx.out(Out::SeLoop { se: 230, pos: None });
+                cx.out(Out::SeLoop { se: 230, op: LoopOp::Off { forget: false } });
             }
         }
         21 => {

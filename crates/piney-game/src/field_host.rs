@@ -85,6 +85,33 @@ impl ScFade {
         i
     }
 
+    /// `EntryFlash2(t0, t1, col, ...)` (0x001602d0; MUT 0x001603d0): status
+    /// 5, in from `col` with alpha 0 over `t0`, then out over `t1`.
+    pub fn flash2(&mut self, t0: i16, t1: i16, col: u32) -> i32 {
+        self.chained(5, t0, t1, None, col)
+    }
+
+    /// `EntryFlash3(t0, t1, t2, col, ...)` (0x00160360; MUT 0x00160460):
+    /// status 9, in over `t0`, held for `t2`, out over `t1`.
+    pub fn flash3(&mut self, t0: i16, t1: i16, t2: i16, col: u32) -> i32 {
+        self.chained(9, t0, t1, Some(t2), col)
+    }
+
+    /// The flashes' element: from `col` with alpha 0 to `col` over `t0`,
+    /// the chained counts kept for [`ScFade::count`] (`EntryFlash2` leaves
+    /// the hold's as it was).
+    fn chained(&mut self, status: i16, t0: i16, back: i16, hold: Option<i16>, col: u32) -> i32 {
+        let i = self.entry(t0, col & 0x00ff_ffff, col);
+        if let Some(e) = usize::try_from(i).ok().and_then(|i| self.elems.get_mut(i)) {
+            e.status = status;
+            e.tcnt_back = back;
+            if let Some(h) = hold {
+                e.tcnt_hold = h;
+            }
+        }
+        i
+    }
+
     /// The event's `fade` (case 145) and `fade_more` (146) on element
     /// `*num` (`eventMng.fadeNum`). From Mutation on (`reset`), `fade`
     /// empties the fader first (`ccScFade::Init`), and `fade_more` with no
@@ -861,8 +888,9 @@ mod tests {
         f
     }
 
-    /// `EntryFade`, `ContinueFade` and `SendPacket`'s counting against the
-    /// game's (tools/test_field_host.py): every fader after every call.
+    /// `EntryFade`, `ContinueFade`, `EntryFlash`, `EntryFlash2`,
+    /// `EntryFlash3` and `SendPacket`'s counting against the game's
+    /// (tools/test_field_host.py): every fader after every call.
     #[test]
     fn the_fader_counts_as_the_game_does() {
         let Some(text) = fixture() else { return };
@@ -886,6 +914,18 @@ mod tests {
                     let v: Vec<i64> = w.map(|t| t.parse().unwrap()).collect();
                     fade.continue_fade(v[0] as i32, v[1] as i16, v[2] as u32);
                     0
+                }
+                "flash" => {
+                    let v: Vec<i64> = w.map(|t| t.parse().unwrap()).collect();
+                    i64::from(fade.flash(v[0] as i16, v[1] as u32))
+                }
+                "flash2" => {
+                    let v: Vec<i64> = w.map(|t| t.parse().unwrap()).collect();
+                    i64::from(fade.flash2(v[0] as i16, v[1] as i16, v[2] as u32))
+                }
+                "flash3" => {
+                    let v: Vec<i64> = w.map(|t| t.parse().unwrap()).collect();
+                    i64::from(fade.flash3(v[0] as i16, v[1] as i16, v[2] as i16, v[3] as u32))
                 }
                 _ => {
                     fade.count();

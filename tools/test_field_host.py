@@ -3,11 +3,13 @@
 game's own code run in tools/eemu.py:
 
 - ccScFade (fade.cpp), the fader the event scripts' `fade` and `fade_more`
-  drive: EntryFade (main 0x00160400), ContinueFade (0x00160490) and
-  SendPacket (0x0015fb80) with its packet work refused (GetWork answers 0),
-  so that only its counting runs, over random sequences of the three on
-  faders with random elements (every status bit, both chained counts,
-  colours); after each call, the whole fader.
+  drive and the bosses' flashes: EntryFade (main 0x00160400), ContinueFade
+  (0x00160490), EntryFlash (0x00160240), EntryFlash2 (0x001602d0, Magus's
+  rise), EntryFlash3 (0x00160360, Magus's laser) and SendPacket
+  (0x0015fb80) with its packet work refused (GetWork answers 0), so that
+  only its counting runs, over random sequences of them on faders with
+  random elements (every status bit, both chained counts, colours); after
+  each call, the whole fader.
 - ccGame::ChangeScene (0x00167380), the `scene` instruction, on random
   ccGame states and arguments (its ChangeRequest hooked): every field of
   ccGame and saveData.lastTown after it.
@@ -98,6 +100,13 @@ class Game:
             _, i, n, c1 = op
             m.call(self.sym("ContinueFade__8ccScFadeFiii"), [FADE, i, n & M32, c1])
             return 0
+        if kind.startswith("flash"):
+            # The rectangle (f12-f15) is the whole screen, as the callers'.
+            for i, f in enumerate([0, 0, 0x44000000, 0x43C00000]):
+                m.f[12 + i] = f
+            name = {"flash": "EntryFlash__8ccScFadeFiiffff", "flash2": "EntryFlash2__8ccScFadeFiiiffff",
+                    "flash3": "EntryFlash3__8ccScFadeFiiiiffff"}[kind]
+            return s32(m.call(self.sym(name), [FADE] + [v & M32 for v in op[1:]]))
         m.call(self.sym("SendPacket__8ccScFadeFv"), [FADE])
         return 0
 
@@ -138,6 +147,28 @@ def fade_cases(rng, n):
             else:
                 ops.append(("send",))
         out.append((st, ops))
+    # The flashes, on their own rng so the cases above stay as they were.
+    frng = random.Random(0x0E3)
+    for _ in range(n):
+        st = random_fade(frng) if frng.random() < 0.5 else [0] + [0] * 28
+        ops = []
+        for _ in range(frng.randrange(5, 40)):
+            r = frng.random()
+            t = [frng.randrange(-1, 40) for _ in range(3)]
+            c = frng.getrandbits(32)
+            if r < 0.08:
+                ops.append(("flash", t[0], c))
+            elif r < 0.16:
+                ops.append(("flash2", t[0], t[1], c))
+            elif r < 0.24:
+                ops.append(("flash3", t[0], t[1], t[2], c))
+            else:
+                ops.append(("send",))
+        out.append((st, ops))
+    # Magus's: the rise's EntryFlash2(60, 60) and the laser's EntryFlash3(80,
+    # 80, 20), each run out.
+    for op in (("flash2", 60, 60, 0x80E0FFFF), ("flash3", 80, 80, 20, 0x80E0FFFF)):
+        out.append(([0] + [0] * 28, [op] + [("send",)] * 190))
     # The events' own: fade 10 128, ten frames, fade_more 15 0, twenty.
     ops = [("entry", 10, 0, 128 << 24)] + [("send",)] * 11 + [("continue", 0, 15, 0)] + [("send",)] * 20
     out.append(([0] + [0] * 28, ops))
@@ -168,6 +199,7 @@ def write_fixture(path):
         "# tools/test_field_host.py: ccScFade and ccGame::ChangeScene run in eemu (numbers only)",
         "# fade START...(29)        a fader: off, then 4 x (status cnt tcnt back hold col0 col1)",
         "# op entry N C0 C1 -> R STATE... / op continue I N C1 -> 0 STATE... / op send -> 0 STATE...",
+        "# op flash T C / flash2 T0 T1 C / flash3 T0 T1 T2 C -> R STATE...",
         "# scene WORDS...(34) LASTTOWN ARGS...(6) -> WORDS...(34) LASTTOWN",
     ]
     for st, ops in fade_cases(rng, 40):

@@ -422,6 +422,12 @@ impl AreaMode {
         &mut self.world
     }
 
+    /// `scFadeDef`, the fader the bosses' flashes and the events use.
+    #[cfg(test)]
+    pub(crate) fn fade_def(&self) -> &crate::field_host::ScFade {
+        &self.st.fade_def
+    }
+
     /// Party slot `slot`'s menu face for member `id` (the console's
     /// `invite_party`, as the Party menu sets it).
     pub fn set_menu_face(&mut self, slot: usize, id: i32) {
@@ -876,14 +882,20 @@ impl AreaMode {
                     out.push(Event::VoiceStop);
                     (None, [0; 4])
                 }
-                // Magus's ccSeOnNote, and its grow's ccSeOn3DLoop (played
-                // once here; its ccSeOffLoop has nothing to stop).
+                // Magus's ccSeOnNote, and its grow's ccSeOn3DLoop and
+                // ccSeOffLoop on the id it keeps.
                 Show::Boss(_, piney_battle::boss::Out::SeNote { se, note }) => {
                     out.push(Event::SeNote { n: (*se).max(0) as usize, note: *note as i8 });
                     (None, [0; 4])
                 }
-                Show::Boss(_, piney_battle::boss::Out::SeLoop { se, pos: Some(p) }) => {
-                    (usize::try_from(*se).ok().map(|code| se3d::NoteSe { code, note: None }), *p)
+                Show::Boss(_, piney_battle::boss::Out::SeLoop { se, op }) => {
+                    if let Ok(n) = usize::try_from(*se) {
+                        out.push(match *op {
+                            piney_battle::boss::LoopOp::On(pos) => Event::SeLoopOn { n, pos, ear },
+                            piney_battle::boss::LoopOp::Off { forget } => Event::SeLoopOff { n, forget },
+                        });
+                    }
+                    (None, [0; 4])
                 }
                 // The riding Grunty's notes: ccSeSetParamInu(param, pcgs).
                 Show::Ride(piney_battle::ride::Out::Sound { param, attribute }) => {
@@ -1083,9 +1095,12 @@ impl AreaMode {
                 Show::Boss(_, Out::Flash { t, colour }) => {
                     self.st.fade_def.flash(*t as i16, *colour);
                 }
-                // EntryFlash2 / EntryFlash3: one flash over the whole time.
-                Show::Boss(_, Out::FlashFade { t, colour }) => {
-                    self.st.fade_def.flash((t[0] + t[1] + t[2]) as i16, *colour);
+                // Magus's EntryFlash2 (the rise) and EntryFlash3 (the laser).
+                Show::Boss(_, Out::FlashFade { t_in, t_out, hold: None, colour }) => {
+                    self.st.fade_def.flash2(*t_in as i16, *t_out as i16, *colour);
+                }
+                Show::Boss(_, Out::FlashFade { t_in, t_out, hold: Some(h), colour }) => {
+                    self.st.fade_def.flash3(*t_in as i16, *t_out as i16, *h as i16, *colour);
                 }
                 Show::Boss(_, Out::SwitchLayer) => self.world.arena_switch_layer(),
                 // LockPlayer's and UnlockPlayer's ccMenu->forbid (+0xfe) and

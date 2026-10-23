@@ -2,8 +2,8 @@
 title: Bosses - Magus
 status: partial
 volumes: MUT
-covers: MUT gcmn.prg:0x006192c0 bossFunc (code 2), 0x0049da60 ccThBoss03, 0x0049db40 ccBoss03::ccBoss03, 0x0049f580 ccBoss03::Main, 0x0049f400 Move (Mutation's), 0x0049e9c0 CheckEpitaph, 0x0049e7f0 the dropped leaves' hiding, 0x0049e9e0 CalcCamera, 0x0049f080 SetupLaserShock, 0x0049f6a0 Affect, 0x0049fa50 Think, 0x0049fc20 Slave, 0x0049fd30 ExecPatternIndex, 0x004a0110 ChangeAction, 0x004a02c0 SetupLeafObjPtr, 0x004a05b0 _GetLeafIndex, 0x004a08c0 PreDrawAnm, 0x004a0c20 OnExitLeaf, 0x004a0d50 OnThinkNeutral, 0x004a1310 OnThinkEpitaph, 0x004a1470 OnThinkDataDrain, 0x004a1530 OnThinkChase, 0x004a17d0 OnThinkEpitaphWave, 0x004a1a50 OnThinkDataDrainAtk, 0x004a1c20 act 9 (Mutation's), 0x004a1f80 OnThinkNeedle, 0x004a2200 OnThinkDie, 0x004a2300 OnThinkReturn, 0x004a2420 OnThinkStop, 0x004a2540 OnThinkWander, 0x004a27a0 OnThinkDash, 0x004a2990 OnThinkEscape, 0x004a2c40 OnThinkWave, 0x004a2ec0 act 8 (Mutation's), 0x004a3100 OnThinkLeafDrop, 0x004a36b0 OnThinkLeafCountDown, 0x004a37c0 OnThinkLeafGrow, 0x004a39a0 OnThinkDestroyLeaf, 0x004a3ae0 OnThinkLaser, 0x004a3fd0 OnThinkRise, 0x004a4460 OnThinkFall, 0x004a46a0 ccBoss03Leaf::ccBoss03Leaf, 0x004a4e00 Move, 0x004a4f30 Main, 0x004a5080 PreDrawAnm, 0x004a52b0 Affect, 0x004a54b0 Think, 0x004a5680 DeadEffect, 0x004a57a0 OnThinkDie, 0x004a5920 Init, 0x004a5ab0 OnThinkDrop, 0x004a5db0 OnThinkFire, 0x004a5ec0 OnThinkCountDown, 0x004a6560 OnThinkDestroy, 0x004a65a0 OnExit, 0x004a6620 PrepareExplode, 0x004a6780 Order, 0x004a6e00 ChangeAction, 0x004a6e80 CheckBlink, 0x004a6ee0 SetBlinkTime, 0x004a7090 ccBoss03LeafExplode::Init, 0x004a7100 ccBoss03LeafExplode::Draw, 0x004a7570 ccBoss03LaserShock::Init, 0x004a7630 ccBoss03LaserShock::Draw, 0x00481180 ccBossEffNeedle::ccBossEffNeedle, 0x004814d0 ccBossEffNeedle::Draw, 0x0048e430 ccBossEffNeedleCreate, 0x0048d5d0 ccBossEffThunderCreate, 0x0061a010 boss03EpitaphActTbl, 0x0061a080 Boss03AnmTbl, 0x0061a130 Boss03SlaveAnmTbl, 0x0061a108 @1538, 0x0061a118 @2301, 0x0049e7c0 act 8's after-image callback, 0x004a7980 ccLeafMark::ccLeafMark, 0x004a7b10 ccLeafMark::Draw, 0x004a7b20 ccLeafMark::InitAtOnce, 0x004710b0 ccBossAfterImageEx::Init, 0x00471320 ccBossAfterImageEx::Draw, 0x00470e00 ccBossAfterImageManager::EntryAfterImageAnm, 0x00473680 ccBoss::DrawAfterImages, 0x0061d250 g_thunderGenerator, 0x0061d290 g_thunderForceField, 0x0061ec00 g_energyChargeGenerator, 0x0061ed20 g_energyChargeForceField, 0x006201b0 g_leafMarkerGen, 0x006201f0 g_leafMarkerFF, 0x00620250 g_leafDeadGen, 0x00620290 g_leafDeadFF, 0x00538720 ccCalcTagPos, main.prg:0x00153950 ccHitCheckLM
-worklog: 274, 421
+covers: MUT gcmn.prg:0x006192c0 bossFunc (code 2), 0x0049da60 ccThBoss03, 0x0049db40 ccBoss03::ccBoss03, 0x0049f580 ccBoss03::Main, 0x0049f400 Move (Mutation's), 0x0049e9c0 CheckEpitaph, 0x0049e7f0 the dropped leaves' hiding, 0x0049e9e0 CalcCamera, 0x0049f080 SetupLaserShock, 0x0049f6a0 Affect, 0x0049fa50 Think, 0x0049fc20 Slave, 0x0049fd30 ExecPatternIndex, 0x004a0110 ChangeAction, 0x004a02c0 SetupLeafObjPtr, 0x004a05b0 _GetLeafIndex, 0x004a08c0 PreDrawAnm, 0x004a0c20 OnExitLeaf, 0x004a0d50 OnThinkNeutral, 0x004a1310 OnThinkEpitaph, 0x004a1470 OnThinkDataDrain, 0x004a1530 OnThinkChase, 0x004a17d0 OnThinkEpitaphWave, 0x004a1a50 OnThinkDataDrainAtk, 0x004a1c20 act 9 (Mutation's), 0x004a1f80 OnThinkNeedle, 0x004a2200 OnThinkDie, 0x004a2300 OnThinkReturn, 0x004a2420 OnThinkStop, 0x004a2540 OnThinkWander, 0x004a27a0 OnThinkDash, 0x004a2990 OnThinkEscape, 0x004a2c40 OnThinkWave, 0x004a2ec0 act 8 (Mutation's), 0x004a3100 OnThinkLeafDrop, 0x004a36b0 OnThinkLeafCountDown, 0x004a37c0 OnThinkLeafGrow, 0x004a39a0 OnThinkDestroyLeaf, 0x004a3ae0 OnThinkLaser, 0x004a3fd0 OnThinkRise, 0x004a4460 OnThinkFall, 0x004a46a0 ccBoss03Leaf::ccBoss03Leaf, 0x004a4e00 Move, 0x004a4f30 Main, 0x004a5080 PreDrawAnm, 0x004a52b0 Affect, 0x004a54b0 Think, 0x004a5680 DeadEffect, 0x004a57a0 OnThinkDie, 0x004a5920 Init, 0x004a5ab0 OnThinkDrop, 0x004a5db0 OnThinkFire, 0x004a5ec0 OnThinkCountDown, 0x004a6560 OnThinkDestroy, 0x004a65a0 OnExit, 0x004a6620 PrepareExplode, 0x004a6780 Order, 0x004a6e00 ChangeAction, 0x004a6e80 CheckBlink, 0x004a6ee0 SetBlinkTime, 0x004a7090 ccBoss03LeafExplode::Init, 0x004a7100 ccBoss03LeafExplode::Draw, 0x004a7570 ccBoss03LaserShock::Init, 0x004a7630 ccBoss03LaserShock::Draw, 0x00481180 ccBossEffNeedle::ccBossEffNeedle, 0x004814d0 ccBossEffNeedle::Draw, 0x0048e430 ccBossEffNeedleCreate, 0x0048d5d0 ccBossEffThunderCreate, 0x0061a010 boss03EpitaphActTbl, 0x0061a080 Boss03AnmTbl, 0x0061a130 Boss03SlaveAnmTbl, 0x0061a108 @1538, 0x0061a118 @2301, 0x0049e7c0 act 8's after-image callback, 0x004a7980 ccLeafMark::ccLeafMark, 0x004a7b10 ccLeafMark::Draw, 0x004a7b20 ccLeafMark::InitAtOnce, 0x004710b0 ccBossAfterImageEx::Init, 0x00471320 ccBossAfterImageEx::Draw, 0x00470e00 ccBossAfterImageManager::EntryAfterImageAnm, 0x00473680 ccBoss::DrawAfterImages, 0x0061d250 g_thunderGenerator, 0x0061d290 g_thunderForceField, 0x0061ec00 g_energyChargeGenerator, 0x0061ed20 g_energyChargeForceField, 0x006201b0 g_leafMarkerGen, 0x006201f0 g_leafMarkerFF, 0x00620250 g_leafDeadGen, 0x00620290 g_leafDeadFF, 0x00538720 ccCalcTagPos, main.prg:0x00153950 ccHitCheckLM, 0x001603d0 ccScFade::EntryFlash2, 0x00160460 EntryFlash3, 0x0017c850 ccSeOn3DLoop, 0x0017cd40 ccSeOffLoop
+worklog: 274, 421, 428
 ---
 
 # Bosses - Magus
@@ -353,6 +353,19 @@ clip's frame 135, runs after `PreDrawAnm` (`ccBoss03::Main` is
 `CameraPos`, `CameraView`; the shake `Out::CameraShake` (the runtime
 checks its range and draws its `rand()`).
 
+The flashes and the grow's loop (worklog 428):
+
+- `Out::FlashFade { t_in, t_out, hold, colour }` is `EntryFlash2` (no
+  hold) or `EntryFlash3`. piney-game's `ScFade::flash2` and `flash3` give
+  the element status 5 or 9 and its chained counts, which `count` runs
+  as the game's `SendPacket` does: in from the colour at alpha 0, held,
+  then out. Before, both were one fade out over the whole time.
+- `Out::SeLoop { se, op: LoopOp }`: `On(pos)` is `ccSeOn3DLoop` with its
+  id kept (`Audio::kept_loop_on`, for `ccBoss03` +0x5271c); `Off {
+  forget }` is `ccSeOffLoop` on that id unless it is -1. The grow's end
+  forgets the id; the drain's 13 keeps it. Before, SE 230 played once
+  and took no loop slot.
+
 A boss's affects from the menus and the other characters' frames wait in
 `Boss::queued` for its own frame. The game's `Affect` runs at once and
 leaves a drain's 13 as type 0 unless held (`lockPlayer`, forbid 2); the
@@ -396,15 +409,49 @@ answered), 540 frames each; compared: each draw (object, matrix,
 transparency, layer, the sprite's scale and place), the particles of the
 bursts and `effSmokeRock`'s rocks.
 
-Not reached: act 30 (and a leaf's 23) needs the laser reserved while
-leaves are down and the drop over, which the neutral's order never gives
-(the drop is chosen first while `m_bDropping` holds, and only the grow
-clears it); acts 21, 23 and 29 come from no pattern of Magus's table. Act
-31 is never reached in the game: it needs `m_dmgCount` (+0x52700) 0, and
+Act 30 and a leaf's act 23 are never reached in the game (worklog 428):
+
+- Act 30 is set only by `OnThinkNeutral` (0x004a1130). It needs
+  `m_bDropping` (+0x526f4) 0 (read at 0x004a0fa4), the laser reserved,
+  and a leaf with `m_bDrop` (+0x297e4) set (0x004a1010).
+- A leaf's act 23 is set only by `Order(28)` (0x004a6c38). `Order` is
+  called only through the leaves' vtable (+0x84), at eight sites with
+  constants (27 twice, 24, 25, 29, 30, 28, 26), and 28 only from act
+  30's `OnThinkDestroyLeaf` (0x004a3a48).
+- `m_bDropping`'s writers are the constructor (0, 0x0049e29c),
+  `OnThinkLeafDrop` on every frame of act 20 before anything else (1,
+  0x004a3148), and the grow's end (0, 0x004a3904).
+- `m_bDrop`'s writers are a leaf's constructor (0, 0x004a4c60), `Init`
+  (1, 0x004a5a84; from `Order(24)` and `Order(28)` only), the grow's end
+  (0 for all twelve, 0x004a38d8, just before its `m_bDropping` 0), and
+  the fall's end (0 for all, 0x004a460c).
+- `Order(24)` comes only from `OnThinkLeafDrop` (0x004a3414), after its
+  `m_bDropping` 1.
+
+So a leaf is down only while `m_bDropping` is 1, and the neutral takes
+the drop (act 20) before it looks at the laser. All twelve down with the
+gauge past a quarter reserves the laser, but Magus circles in act 20 until
+the leaves burst or die; their regrow's grow clears both, and the laser
+then finds none down. No other code of gcmn writes either field (a scan
+of every access to +0x526f4 and +0x297e4). Acts 21, 23 and 29 come from
+no pattern of Magus's table. Act 31 is never reached in the game: it needs `m_dmgCount` (+0x52700) 0, and
 nothing lowers it. The constructor writes 100 (0x0049e388) and the
 needle's own branch rand & 31 + 50 (0x004a0ef0); no other code of
 boss03.cpp or the base touches it. `ccBossEffNeedleCreate` has no other
 caller (0x004a2160), so the needles are never seen in play.
+
+Since worklog 428 a case may force a while of frames with `m_bDropping`
+0 and the laser reserved (outside the game's reach). This reaches act 30
+and the leaves' Order 28 and act 23, which agree with the game's code. A
+leaf's stand-in clip has its chunk at `anmChunk` (+0x94), whose
+`frameMax` `Order(28)` divides by.
+`tools/test_field_host.py` runs the fader's `EntryFlash`, `EntryFlash2`
+and `EntryFlash3` (Mutation's are the same code) with `SendPacket`'s
+counting against piney-game's `ScFade`, Magus's two flashes among them.
+`magus_flashes_and_its_grows_loop` sends every frame's events through
+`crate::handle` to a headless `Audio`: the rise's flash goes 5 then 3,
+the laser's 9, 5, 3, and SE 230 holds a loop slot through the grows and
+none after.
 
 `magus_shows_its_leaves_needles_and_laser` (piney-game's session tests)
 runs event 115's fight 9000 frames, reserving the laser and running the
@@ -426,5 +473,5 @@ done, Magus drained at frame 165,723 and dead by 172,000.
 
 ## Unknown
 
-- `EntryFlash2` and `EntryFlash3` on `scFadeDef` are drawn as one flash;
-  the grow's looping SE plays once.
+- Nothing of the fight's rules, pictures, flashes or sounds. The blur
+  (`ccBossBlur`) is drawn for no boss ([Skeith's page](boss.md)).

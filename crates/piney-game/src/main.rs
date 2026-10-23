@@ -731,6 +731,8 @@ fn handle(events: Vec<Event>, audio: Option<&Audio>) {
             (Event::SeNote { n, note }, Some(a)) => a.se_on_note(*n, *note),
             (Event::Se3d { n, pos, note, ear }, Some(a)) => a.se_on_3d(*n, ear.as_ref(), pos, *note),
             (Event::TobjSeLoopStart, Some(a)) => a.tobj_se_loop_start(),
+            (Event::SeLoopOn { n, pos, ear }, Some(a)) => a.kept_loop_on(*n, ear.as_ref(), pos),
+            (Event::SeLoopOff { n, forget }, Some(a)) => a.kept_loop_off(*n, *forget),
             (Event::SoundGameOver, Some(a)) => a.game_over(),
             (Event::TobjSeLoop { pos, rate, ear }, Some(a)) => a.tobj_se_loop(ear, pos, *rate),
             (Event::DesktopBgm(n), Some(a)) => a.desktop_bgm(*n),

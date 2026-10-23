@@ -705,10 +705,12 @@ pub enum Out {
         pos: V4,
         s: [i32; 4],
     },
-    /// `scFadeDef->EntryFlash2(t0, t1, colour)` (`t[2]` 0) or
-    /// `EntryFlash3(t0, t1, t2, colour)`.
+    /// `scFadeDef->EntryFlash2(t_in, t_out, colour)` (no hold) or
+    /// `EntryFlash3(t_in, t_out, hold, colour)`: in, held, out.
     FlashFade {
-        t: [i32; 3],
+        t_in: i32,
+        t_out: i32,
+        hold: Option<i32>,
         colour: u32,
     },
     /// `ccSeOnNote(se, note)`.
@@ -716,10 +718,11 @@ pub enum Out {
         se: i32,
         note: u8,
     },
-    /// `ccSeOn3DLoop(se, pos)` (with `pos`) or `ccSeOffLoop(se, voice)`.
+    /// `ccSeOn3DLoop(se, pos)` or `ccSeOffLoop(se, id)` on the id the
+    /// boss keeps ([`LoopOp`]).
     SeLoop {
         se: i32,
-        pos: Option<V4>,
+        op: LoopOp,
     },
     /// What Magus shows beside ([`magus::Pic`]).
     Magus(magus::Pic),
@@ -846,6 +849,15 @@ pub struct Cx<'a> {
     pub me: usize,
     pub out: Vec<Out>,
     pub ev: Events,
+}
+
+/// A boss's looping sound effect ([`Out::SeLoop`]): started at a place,
+/// its id kept; or ended, if the kept id is not -1, and with `forget` the
+/// id set -1 after.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoopOp {
+    On(V4),
+    Off { forget: bool },
 }
 
 /// The collision list (`ccCharHitTop`, main 0x0037890c) as a boss's own

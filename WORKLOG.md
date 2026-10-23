@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-427 entries: audio 37, battle 94, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 105, save 16, script 53, test 186, tooling 32, ui 94, video 16, volumes 82, world 124.
+428 entries: audio 38, battle 95, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 106, save 16, script 53, test 187, tooling 33, ui 94, video 16, volumes 82, world 124.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -439,3 +439,4 @@ The [reference](docs/README.md) says what is true now.
 | 425 | [Cubia's attacks show their names: SetupSkillName reads x01 to x04 in fields 9 to 12 whatever the row says, so Legion's Reach, Ark Bullet and Megiddo Flame come from the field's file (#72)](worklog/0425-cubia-s-attacks-show-their-names-setupskillname-reads-x01.md) | 2026-10-22 | battle, render, test |
 | 426 | [Cubia's arm sweeps in Legion's Reach: HandAtk's DrawParts of anmw and its EntryAfterImageAnm drawn as the game's ccBossAfterImageEx, checked against the game's calls on both fights (#72)](worklog/0426-cubia-s-arm-sweeps-in-legion-s-reach-handatk-s-drawparts-of.md) | 2026-10-22 | battle, render, test, tooling |
 | 427 | [Kyvia's gomoras push each other apart and the stick turns its camera: kyviaGomora::Move's CollisionDetection in the hits' list, ZrotControlFlg and ExLock in Pad_Control, checked against the game's code on both fights](worklog/0427-kyvia-s-gomoras-push-each-other-apart-and-the-stick-turns.md) | 2026-10-22 | battle, world, test, tooling |
+| 428 | [Magus's flashes fade in, hold and out and its grow's sound loops until it ends: EntryFlash2 and EntryFlash3 on the fader, ccSeOn3DLoop's id kept for ccSeOffLoop, and acts 30 and 23 shown unreachable from every writer of m_bDropping and m_bDrop](worklog/0428-magus-s-flashes-fade-in-hold-and-out-and-its-grow-s-sound.md) | 2026-10-22 | battle, audio, render, test, tooling |

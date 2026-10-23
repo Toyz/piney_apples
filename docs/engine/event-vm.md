@@ -646,10 +646,11 @@ compares the port with it, reading the scripts from the disc:
 | every block played at level 2 with `Execute` | 2616 blocks, 169,146 frames | frames per block, the save, the registers |
 | a new game to the desktop and into play | 152 frames | the phase each frame, every hooked call and its frame, the save three times |
 
-`tools/test_field_host.py` runs `ccScFade`'s `EntryFade`, `ContinueFade`
-and `SendPacket` (its packet work refused, so only the counting runs: 592
-calls from 41 random faders, every status bit and both chained counts,
-and the events' own fade) and `ccGame::ChangeScene` (122 random
+`tools/test_field_host.py` runs `ccScFade`'s `EntryFade`, `ContinueFade`,
+`EntryFlash`, `EntryFlash2`, `EntryFlash3` and `SendPacket` (its packet
+work refused, so only the counting runs: 1,863 calls from 83 faders,
+every status bit and both chained counts, the events' own fade and
+Magus's two flashes, worklog 428) and `ccGame::ChangeScene` (122 random
 `ccGame` states, towns within the server table) in eemu and writes
 `crates/piney-game/tests/field_host_fixture.txt`; `field_host.rs`'s tests
 replay it: the whole fader after each call, every word of `ccGame` and

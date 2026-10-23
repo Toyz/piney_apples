@@ -75,7 +75,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 - [[268]] Innis's drains at its breaks gave item drops and no Epitaph in the survey, where `innis_drained_through_the_menus` reaches the Epitaph — Mutation's first boss fight may skip its Epitaph phase; possibly the queued-affect bug [[274]] fixed (a lost 21), not rechecked
 - [[272]] Kyvia's gomoras do not push each other; the pad's sway is missing (docs/engine/boss-kyvia.md) — Mutation's Kyvia 01 fight, look and movement; the particles answered by [[420]] (the fight's generators, the meteors and the second fight's bolts drawn), the arm's picture by [[426]] (`DrawParts` of `anmw` and its after-images) — answered by [[427]] (the gomoras' `CollisionDetection` in the hits' list; the "sway" is `ZrotControlFlg`, the stick's turn of the camera, with `ExLock`)
-- [[274]] Magus's `EntryFlash2`/`3` are one flash; the grow's looping SE plays once (docs/engine/boss-magus.md) — Mutation's Magus fight: flashes, sound; the shock beams' line test answered by [[421]] (`ccHitCheckLM` on the land)
+- [[274]] Magus's `EntryFlash2`/`3` are one flash; the grow's looping SE plays once (docs/engine/boss-magus.md) — Mutation's Magus fight: flashes, sound; the shock beams' line test answered by [[421]] (`ccHitCheckLM` on the land) — answered by [[428]] (the fader's status 5 and 9 chains; `ccSeOn3DLoop`'s id kept and ended)
 
 ### world
 
@@ -234,7 +234,7 @@ player until one of these turns out wrong.
 - [[272]] why the Hackberry King in area 47's dungeon recovers under the pilot's fight, and whether the game's would — not checked
 - [[273]] the lowest level at which the pilot beats Kyvia 01; a player's level and gear there — not measured
 - [[273]] whether the Hackberry King's HP should come back as fast as it does — not checked against the game
-- [[274]] Magus's act 30 and a leaf's 23 never reached — whether any path reaches them; act 31 answered by [[421]] (no path: `m_dmgCount` is never lowered)
+- [[274]] Magus's act 30 and a leaf's 23 never reached — whether any path reaches them; act 31 answered by [[421]] (no path: `m_dmgCount` is never lowered) — answered by [[428]] (no path: a leaf is down only while `m_bDropping` is 1, every writer of both fields; forced in the harness, the port agrees)
 - [[274]] whether Skeith's and Innis's drains through the menus lost their 21 before [[274]]'s fix — not checked
 - [[275]] what the community note's enemyList00 refers to — the code gives story areas column 6
 - [[276]] whether a run without the level aid beats Kyvia 01 — not tried
@@ -1202,7 +1202,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 
 - docs/engine/boss-magus.md: the leaves', laser's, needles' and smoke's pictures named, not drawn; dropped leaves not hidden — play (duplicates [[274]]) — answered by [[421]]
 - docs/engine/boss-magus.md: the shocks' beams taken to meet the ground (ccHitCheckLM not ported) — play (duplicates [[274]]) — answered by [[421]]
-- docs/engine/boss-magus.md: EntryFlash2 and EntryFlash3 drawn as one flash; the grow's looping SE plays once — play (duplicates [[274]])
+- docs/engine/boss-magus.md: EntryFlash2 and EntryFlash3 drawn as one flash; the grow's looping SE plays once — play (duplicates [[274]]) — answered by [[428]]
 
 ### docs/engine/desktop.md
 

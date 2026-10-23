@@ -204,7 +204,8 @@ without checking `id`. No caller passes an id outside 0-7. There are three
 every `ccSndSQLoad` (`initAfterLoad`, 0x001830c0, on each of its three
 ends). One effect loops, SE 230 (`ccBoss03::OnThinkLeafGrow`, which keeps
 the id and ends it unless it is -1); `ccSound::strSeEnd` (0x00183fb0) ends
-the loops listed in `loopNum` (+0xf4).
+the loops listed in `loopNum` (+0xf4). The port keeps Magus's id in
+`Audio` (`kept_loop_on`, `kept_loop_off`; worklog 428).
 
 A field's TOBJ (field.md) hums with `seData[44]` (program 31, channel 15,
 note 60, velocity 64, decay 128) through two functions of its own.

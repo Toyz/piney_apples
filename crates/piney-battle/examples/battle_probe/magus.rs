@@ -10,7 +10,7 @@
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::magus::leaf::Leaf;
 use piney_battle::boss::magus::{self, Gen, Held, Magus, Pic, Place};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, GenOp, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, GenOp, LoopOp, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -217,6 +217,16 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
                     scene.chars[me].skill_id = 0;
                     scene.chars[me].skill_status = 0;
                 }
+                // Forced, outside the game's reach: m_bDropping 0, the
+                // laser reserved (act 30's way).
+                7 => {
+                    if let Some(Class::Magus(x)) =
+                        scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
+                    {
+                        x.dropping = 0;
+                        x.reserve_laser = 1;
+                    }
+                }
                 _ => {}
             }
         }
@@ -303,11 +313,13 @@ fn mout(o: &Out) -> Option<String> {
         Out::DeadCamera { eye, view, .. } => {
             format!("[\"cam\",3],[\"campos\",3,{}],[\"camview\",3,{}]", v3(eye), v3(view))
         }
-        Out::FlashFade { t, colour } if t[2] == 0 => format!("[\"flash2\",{},{},{colour}]", t[0], t[1]),
-        Out::FlashFade { t, colour } => format!("[\"flash3\",{},{},{},{colour}]", t[0], t[1], t[2]),
+        Out::FlashFade { t_in, t_out, hold: None, colour } => format!("[\"flash2\",{t_in},{t_out},{colour}]"),
+        Out::FlashFade { t_in, t_out, hold: Some(h), colour } => {
+            format!("[\"flash3\",{t_in},{t_out},{h},{colour}]")
+        }
         Out::SeNote { se, note } => format!("[\"senote\",{se},{note}]"),
-        Out::SeLoop { se, pos: Some(_) } => format!("[\"seloop\",{se}]"),
-        Out::SeLoop { se, pos: None } => format!("[\"seoff\",{se}]"),
+        Out::SeLoop { se, op: LoopOp::On(_) } => format!("[\"seloop\",{se}]"),
+        Out::SeLoop { se, op: LoopOp::Off { .. } } => format!("[\"seoff\",{se}]"),
         // The needles run natively in the harness: seen in the slots.
         Out::Effect { kind: EffKind::Needle { .. }, .. } => return None,
         _ => return out_json(o),

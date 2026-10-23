@@ -81,6 +81,18 @@ pub enum Event {
         note: Option<i8>,
         ear: Option<piney_audio::se3d::Listener>,
     },
+    /// A boss's `ccSeOn3DLoop(n, pos)`, its id kept (Magus's grow).
+    SeLoopOn {
+        n: usize,
+        pos: [u32; 4],
+        ear: Option<piney_audio::se3d::Listener>,
+    },
+    /// `ccSeOffLoop(n, id)` on the kept id unless it is -1; `forget` sets
+    /// it -1 after.
+    SeLoopOff {
+        n: usize,
+        forget: bool,
+    },
     /// `ccSndGameOver()`: the game over's fade of the music.
     SoundGameOver,
     /// `tobjSeLoopStart`: a field's TOBJ hum started, silent.
