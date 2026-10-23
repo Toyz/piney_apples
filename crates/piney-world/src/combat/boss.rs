@@ -41,6 +41,7 @@ pub const KYVIA: i32 = 12;
 /// third (`ccBossKyvia03`, Quarantine's field 11).
 pub const KYVIA_SECOND: i32 = 13;
 pub const KYVIA_THIRD: i32 = 14;
+pub const KYVIA_FOURTH: i32 = 15;
 
 /// The word the heap leaves at the manager's `m_exit` (+0x2c), which only
 /// Gorre's constructor does not write over: it is whatever the last owner
@@ -63,6 +64,7 @@ pub const IMAGES: [&str; 3] = ["CMP_ex21mon1", "CMP_ex21mon2", "CMP_ex21mon3"];
 pub const KYVIA_CLUMP: &str = "CMP_trallex01";
 pub const KYVIA_SECOND_CLUMP: &str = "CMP_trallex02";
 pub const KYVIA_THIRD_CLUMP: &str = "CMP_trallex03";
+pub const KYVIA_FOURTH_CLUMP: &str = "CMP_trallex04";
 pub const KYVIA_PARTS: [&str; 2] = ["CMP_trall2", "CMP_trall3"];
 /// Magus's file (`x31`): its body (`CMP_trall`) and its leaves' model.
 pub const MAGUS_FILE: &str = "x31";
@@ -84,8 +86,9 @@ pub const PRED_TEXT_LAYER: i16 = 254;
 /// eye 1000 behind Kite and 200 up at its nearest; Innis's (200, 900).
 pub const CAM_TRANSFER: V4 = [0, 0x447a_0000, 0x4348_0000, ONE];
 pub const INNIS_CAM_TRANSFER: V4 = [0, 0x4461_0000, 0x4348_0000, ONE];
-/// Kyvia's `InitBossCamera(450, 1050)`.
+/// Kyvia's `InitBossCamera(450, 1050)` (its fourth fight's 250, 700).
 pub const KYVIA_CAM_TRANSFER: V4 = [0, 0x4483_4000, 0x43e1_0000, ONE];
+pub const KYVIA_FOURTH_CAM_TRANSFER: V4 = [0, 0x442f_0000, 0x437a_0000, ONE];
 /// Fidchell's `InitBossCamera(250, 1500)`.
 pub const FIDCHELL_CAM_TRANSFER: V4 = [0, 0x44bb_8000, 0x437a_0000, ONE];
 /// Gorre's `InitBossCamera(200, 1500)`.
@@ -149,6 +152,9 @@ pub struct BossRun {
     /// `WORLD_MAN.eventmap` as an `EVENTAREAB8` this frame (Kyvia's disc),
     /// and whether the boss asked it on (`EVENTAREAB8::Move`).
     pub disc: boss::DiscView,
+    /// `EVENTAREAB8`'s `body[n]` hits the fight turned off or on this
+    /// frame (field 12's), for the area.
+    pub body_hits: Vec<(usize, bool)>,
     pub disc_next: bool,
     /// Magus's dropped leaves its after-images hide this frame (act 8's
     /// callback).
@@ -314,6 +320,7 @@ impl BossLook {
             KYVIA => (boss::kyvia::Fight::First.file(), KYVIA_CLUMP),
             KYVIA_SECOND => (boss::kyvia::Fight::Second.file(), KYVIA_SECOND_CLUMP),
             KYVIA_THIRD => (boss::kyvia::Fight::Third.file(), KYVIA_THIRD_CLUMP),
+            KYVIA_FOURTH => (boss::kyvia::Fight::Fourth.file(), KYVIA_FOURTH_CLUMP),
             _ => (FILE, CLUMP),
         };
         let body = Rc::new(Body::read(archive, file, clump)?);
@@ -372,7 +379,7 @@ impl BossLook {
                 shards = Some((file.clone(), clumps));
                 IMAGES.iter().filter_map(|c| Body::of(file.clone(), c).ok().map(Rc::new)).collect()
             }
-            KYVIA | KYVIA_SECOND | KYVIA_THIRD => {
+            KYVIA | KYVIA_SECOND | KYVIA_THIRD | KYVIA_FOURTH => {
                 let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, file)?);
                 KYVIA_PARTS.iter().filter_map(|c| Body::of(file.clone(), c).ok().map(Rc::new)).collect()
             }
@@ -406,7 +413,10 @@ impl Combat {
     ) {
         let code = look.code;
         if self.boss.is_some()
-            || !matches!(code, SKEITH | INNIS | MAGUS | FIDCHELL | GORRE | KYVIA | KYVIA_SECOND | KYVIA_THIRD)
+            || !matches!(
+                code,
+                SKEITH | INNIS | MAGUS | FIDCHELL | GORRE | KYVIA | KYVIA_SECOND | KYVIA_THIRD | KYVIA_FOURTH
+            )
         {
             return;
         }
@@ -459,6 +469,7 @@ impl Combat {
             KYVIA => boss::kyvia::new(&mut cx, boss::kyvia::Fight::First),
             KYVIA_SECOND => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Second),
             KYVIA_THIRD => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Third),
+            KYVIA_FOURTH => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Fourth),
             _ => Boss::new(&mut cx, kite_pos, kite_dirc, center),
         };
         let out = std::mem::take(&mut cx.out);
@@ -495,11 +506,16 @@ impl Combat {
             f.boss = Some(Box::new(b));
         }
         let ty = self.scene.chars[me].ty() as u32;
-        let radius = if matches!(code, KYVIA | KYVIA_SECOND | KYVIA_THIRD) { boss::kyvia::BODY_RADIUS } else { w };
+        let radius = if matches!(code, KYVIA | KYVIA_SECOND | KYVIA_THIRD | KYVIA_FOURTH) {
+            boss::kyvia::BODY_RADIUS
+        } else {
+            w
+        };
         let hit = CharHit { pos, radius, height: h, kind: ty, ..CharHit::default() };
         let transfer = match code {
             INNIS => INNIS_CAM_TRANSFER,
             KYVIA | KYVIA_SECOND | KYVIA_THIRD => KYVIA_CAM_TRANSFER,
+            KYVIA_FOURTH => KYVIA_FOURTH_CAM_TRANSFER,
             FIDCHELL => FIDCHELL_CAM_TRANSFER,
             GORRE => GORRE_CAM_TRANSFER,
             _ => CAM_TRANSFER,
@@ -548,6 +564,7 @@ impl Combat {
             parts,
             disc,
             disc_next: false,
+            body_hits: Vec::new(),
             dropped: Vec::new(),
         });
     }
@@ -606,7 +623,11 @@ impl Combat {
         // Kyvia's core and gomoras: their affects of the frame so far, and
         // what they asked (their hits' marks and numbers).
         let parts = run.parts.clone();
-        let disc = run.disc;
+        // The blur as the manager's pass finds it (the fourth fight's
+        // effects and its great meteor read its colour).
+        let mut disc = run.disc;
+        disc.blur_abgr = run.blur.abgr;
+        disc.blur_scale = run.blur.scale;
         let mut part_out = Vec::new();
         for &p in &parts {
             boss::apply_queued(&mut self.scene, &actx, p, &mut self.rand, &mut ev);
@@ -690,6 +711,8 @@ impl Combat {
                 r.blur.set(s);
             }
             r.reflex = r.blur.main(&mut self.blur_statics);
+            cx.disc.blur_abgr = r.blur.abgr;
+            cx.disc.blur_scale = r.blur.scale;
             // A mode the effects set (the ball's end) is the camera's
             // before the boss reads its ResetFlg.
             if let Some(c) = r.cam.as_mut() {
@@ -819,6 +842,13 @@ impl Combat {
                         }
                     }
                     Out::DiscNextStage => r.disc_next = true,
+                    // Kyvia's fourth fight: CamPos written, field 12's walls.
+                    Out::CamEye(pos) => {
+                        if let Some(c) = r.cam.as_mut() {
+                            c.pos = *pos;
+                        }
+                    }
+                    Out::FieldBodyHit { n, on } => r.body_hits.push((*n, *on)),
                     // Magus's cameras: changeCamera, cameraSetPos/View.
                     Out::CameraChange(n) => camera.change_camera(*n as i16),
                     Out::CameraPos { cam, pos } => camera.cam_mut(*cam as i16).pos = *pos,
@@ -1159,6 +1189,7 @@ fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> CamView {
         moving: bcam.is_some_and(BossCam::check_move_camera),
         reset: bcam.map_or(0, |b| b.reset),
         shake,
+        eye: bcam.map_or(c.pos, |b| b.pos),
     }
 }
 

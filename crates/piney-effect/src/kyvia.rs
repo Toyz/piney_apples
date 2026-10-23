@@ -1,13 +1,12 @@
-//! Kyvia's pictures (MUT gcmn kyvia01.cpp, kyviacore.cpp, kyviagomora.cpp,
-//! bosseff.cpp; OUT kyvia02.cpp). The fight's particle generators as its
-//! rules start, kill and pause them ([`start`], [`gen_op`]); the meteors
-//! (`ccBossEffMeteoriteMissile` 0x0047aa90, `Draw` 0x0047b330) and the
-//! second fight's bolts (`ccBossEffThunderbolt`, OUT 0x00477410, `Draw`
-//! 0x004778b0), drawn from the flights their rules left, with their trails,
-//! smoke and rocks; the third's magical ball (`ccBossEffMagicalBall`, QUA
-//! 0x0036b4e0). docs/engine/boss-kyvia.md, boss-kyvia-second.md,
-//! boss-kyvia-third.md.
+//! Kyvia's pictures. The fight's particle generators as its rules start,
+//! kill and pause them ([`start`], [`gen_op`]); the meteors
+//! (`ccBossEffMeteoriteMissile`, MUT 0x0047aa90) and the second fight's
+//! bolts (`ccBossEffThunderbolt`, OUT 0x00477410) drawn from the flights
+//! their rules left, with trails, smoke and rocks; the third's magical ball
+//! (`ccBossEffMagicalBall`, QUA 0x0036b4e0) and the fourth's hell's express
+//! (`HellSpecialExpress`, QUA 0x0036cdc0). docs/engine/boss-kyvia*.md.
 
+use piney_battle::boss::kyvia::hell::{Hell as HellRules, HellHost, HellOut};
 use piney_battle::boss::kyvia::magic_ball::{BallHost, BallOut, MagicalBall};
 use piney_battle::boss::kyvia::thunder::{Bolt as Strokes, BoltData};
 use piney_battle::boss::kyvia::{Follow, Gen, GenOp, Held, Meteorite as Flights, Place, Table};
@@ -44,6 +43,7 @@ pub fn anchor(f: Follow) -> Option<u32> {
         Follow::Aura(c) => Some(MEMBER | 0x3_0000 | c as u32),
         Follow::Plasma(k) => Some(MEMBER | 0x4_0000 | u32::from(k)),
         Follow::Plasma2(k) => Some(MEMBER | 0x5_0000 | u32::from(k)),
+        Follow::Soul(k) => Some(MEMBER | 0x6_0000 | u32::from(k)),
     }
 }
 
@@ -65,7 +65,8 @@ fn tables_of(t: Table) -> (u32, u32) {
 /// `distSW`.
 fn make(cx: &mut Cx, t: &Tables, which: Gen, edit: impl FnOnce(&mut GenParam)) -> Option<crate::particle::Generator> {
     let r = which.rows();
-    let (gens, ffs) = tables_of(r.table);
+    let (gens, _) = tables_of(r.table);
+    let (_, ffs) = tables_of(r.ff_table);
     let ff = std::array::from_fn(|k| r.ff.get(k).map_or(0, |&f| ff_row(ffs, u32::from(f))));
     let mut g = t.generator_edited(cx, gen_row(gens, u32::from(r.row)), ff, edit)?;
     g.dist_sw = r.dist_sw;
@@ -103,6 +104,10 @@ pub fn start(cx: &mut Cx, t: &Tables, kept: &mut Kept, which: Gen, at: Place, he
     };
     match at {
         Place::At(p) => g.pos = p,
+        Place::Line(p, p2) => {
+            g.pos = p;
+            g.pos2 = p2;
+        }
         Place::Follows(f, off) => {
             g.sync_pos_type = false;
             g.sync_pos = Some(anchor(f).map_or_else(
@@ -475,6 +480,139 @@ impl BallHost for AloneBall<'_, '_> {
                 self.cx.raise(crate::Event::Flash { time, color, rect: [0, 0, 0x4400_0000, 0x43c0_0000] });
             }
             BallOut::Gen(which, at) => start(self.cx, self.t, self.kept, Gen::Ball(which), at, None),
+        }
+    }
+}
+
+/// `HellSpecialExpress` in a manager slot: its burst, `BungAnm`
+/// (xeffect's `ANM_ex31lhit` with `CLT_exx004c1` for `CLT_exx004`), drawn
+/// twice each `Draw` that steps it, at `BungPos`, `BungRot` and
+/// `BungScale`. Its generators are the fight's (`Out::KyviaParticles`); one
+/// the manager runs alone (the probe's: no callback, its own blur) makes
+/// its own.
+#[derive(Clone, Debug)]
+pub struct Hell {
+    pub rules_slot: i32,
+    anm: Option<AnmObj>,
+    own: Option<Box<HellRules>>,
+    /// Its own blur (`abgr`, scale) and the generators its souls keep when
+    /// it runs alone.
+    blur: (u32, F),
+    kept: Kept,
+}
+
+impl Hell {
+    pub fn new(cx: &Cx, rules_slot: i32) -> Hell {
+        let mut anm = AnmObj::new(cx, "xeffect", "ANM_ex31lhit");
+        if let Some(a) = anm.as_mut() {
+            let ccs = &cx.assets.files[a.obj.file].ccs;
+            if let (Some(f), Some(t)) = (ccs.find_object("CLT_exx004"), ccs.find_object("CLT_exx004c1")) {
+                a.clut.push((f, t));
+            }
+        }
+        Hell { rules_slot, anm, own: None, blur: (0x6580_8080, 0x3f81_47ae), kept: Kept::new() }
+    }
+
+    /// `HellSpecialExpressCreate(pos, data)` with no callback and a blur of
+    /// its own: the manager runs it itself.
+    pub fn alone(cx: &mut Cx, t: &Tables, pos: V4, rot: V4, kyvia_lv: i32) -> Hell {
+        let mut me = Hell::new(cx, -1);
+        let clip = me.anm.as_ref().map(|a| {
+            let an = &cx.assets.files[a.obj.file].anims[a.play.anim];
+            (an.frames, an.looping)
+        });
+        let clips = |name: &str| (name == "ANM_ex31lhit").then_some(clip).flatten();
+        let h = HellRules::new(&mut Gen32(&mut *cx.host), pos, rot, None, kyvia_lv, &clips);
+        HellRules::start_gens(&mut AloneHell { cx: &mut *cx, t, kept: &mut me.kept, blur: &mut me.blur });
+        me.own = Some(Box::new(h));
+        me
+    }
+
+    pub fn runs_alone(&self) -> bool {
+        self.own.is_some()
+    }
+
+    /// The burst's CLUT swaps (from, to) by name, as `Init`'s
+    /// `ChangeClut` made them.
+    pub fn clut_names(&self, assets: &crate::files::Assets) -> Vec<(String, String)> {
+        let Some(a) = self.anm.as_ref() else { return Vec::new() };
+        let ccs = &assets.files[a.obj.file].ccs;
+        let n = |o: u32| ccs.object_name(o).unwrap_or("?").to_string();
+        a.clut.iter().map(|&(f, t)| (n(f), n(t))).collect()
+    }
+
+    /// The manager's `Draw` of one it runs itself.
+    pub fn run(&mut self, ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables) -> bool {
+        let Some(mut h) = self.own.take() else { return false };
+        let alive = h.draw(&mut AloneHell { cx: &mut *cx, t, kept: &mut self.kept, blur: &mut self.blur });
+        hell_publish(ctrl, &h);
+        self.draw(cx, &h);
+        self.own = Some(h);
+        alive
+    }
+
+    /// The burst of the `Draw` that left `h`, when it stepped it.
+    pub fn draw(&mut self, cx: &mut Cx, h: &HellRules) {
+        if !h.bung_drawn {
+            return;
+        }
+        if let Some(a) = self.anm.as_mut() {
+            a.play.time = h.bung_anm.time;
+            a.play.posed = h.bung_anm.posed;
+            let m = vu::pos_rot_xyz_scale(h.bung_pos, h.bung_rot, h.bung_scale);
+            a.draw(cx, m, ONE);
+            a.draw(cx, m, ONE);
+        }
+    }
+}
+
+/// The places hell's express's souls' generators follow (`Pos[k]`).
+pub fn hell_publish(ctrl: &mut EffectCtrl, h: &HellRules) {
+    for (k, &p) in h.pos.iter().enumerate() {
+        if let Some(a) = anchor(Follow::Soul(k as u8)) {
+            ctrl.anchors.insert(a, p);
+        }
+    }
+}
+
+/// Hell's express the manager runs alone: no callback; its blur its own;
+/// its sounds, quakes (their `ccRandF`) and generators.
+struct AloneHell<'a, 'b> {
+    cx: &'a mut Cx<'b>,
+    t: &'a Tables,
+    kept: &'a mut Kept,
+    blur: &'a mut (u32, F),
+}
+
+impl HellHost for AloneHell<'_, '_> {
+    fn blur(&self) -> (u32, F) {
+        *self.blur
+    }
+
+    fn rand(&mut self) -> i32 {
+        self.cx.host.genrand() as i32
+    }
+
+    fn callback(&mut self, _target: Option<usize>) {}
+
+    fn out(&mut self, o: HellOut) {
+        use piney_battle::boss::blur::Set;
+        match o {
+            HellOut::SeNote(se, note) => self.cx.raise(crate::Event::SoundNote { se, note: i32::from(note) }),
+            HellOut::Blur(Set::Abgr(v)) => self.blur.0 = v,
+            HellOut::Blur(Set::Scale(v)) => self.blur.1 = v,
+            HellOut::Quake(q) => {
+                let mut g = Gen32(&mut *self.cx.host);
+                for v in q {
+                    piney_battle::enemy_ai::rand_f(&mut g, v);
+                }
+            }
+            HellOut::Gen(which, at, held) => start(self.cx, self.t, self.kept, Gen::Hell(which), at, held),
+            HellOut::Kill(h) => {
+                gen_op(self.cx, self.kept, h, GenOp::Kill);
+                gen_op(self.cx, self.kept, h, GenOp::Forget);
+            }
+            _ => {}
         }
     }
 }

@@ -80,9 +80,11 @@ impl Thunder {
         let hundred = 0x42c8_0000;
         // (time, RndPoint, RandAngle, scale, effect, T_NUM, T_Range)
         let (time, rnd_point, rand_angle, scale, eff_sw, num, range) = match (fight, self.kind) {
-            (Fight::Third, Kind::Strike) => (90, [0, 0, fifty, 0x3f4c_cccd], PI, (1, 4), 0, 4, 500),
-            (Fight::Third, Kind::Wide) => (90, [hundred, hundred, fifty, 0x3e4c_cccd], PI, (2, 5), 1, 10, 400),
-            (Fight::Third, Kind::Storm) => (120, [fifty, fifty, fifty, ONE], PI, (3, 10), 1, 15, 350),
+            (Fight::Third | Fight::Fourth, Kind::Strike) => (90, [0, 0, fifty, 0x3f4c_cccd], PI, (1, 4), 0, 4, 500),
+            (Fight::Third | Fight::Fourth, Kind::Wide) => {
+                (90, [hundred, hundred, fifty, 0x3e4c_cccd], PI, (2, 5), 1, 10, 400)
+            }
+            (Fight::Third | Fight::Fourth, Kind::Storm) => (120, [fifty, fifty, fifty, ONE], PI, (3, 10), 1, 15, 350),
             (_, Kind::Strike) => (90, [fifty, fifty, fifty, 0x3f00_0000], ONE, (1, 4), 1, 3, 100),
             (_, Kind::Wide) => (90, [0x41a0_0000, 0x41f0_0000, fifty, ONE], PI, (2, 5), 1, 4, 550),
             (_, Kind::Storm) => (120, [fifty, fifty, fifty, ONE], PI, (3, 10), 1, 15, 450),
@@ -274,7 +276,7 @@ fn thunder_sound(b: &mut Boss, fight: Fight, cx: &mut Cx) -> bool {
         30 => cx.out(flash(10, 0x30ff_ffff)),
         50 => {
             cx.out(flash(6, 0x50ff_ffff));
-            if fight == Fight::Third {
+            if matches!(fight, Fight::Third | Fight::Fourth) {
                 cx.out(Out::Se { se: 41 });
             }
         }
@@ -299,9 +301,15 @@ fn strikes(fight: Fight, kind: Kind) -> ([Strike; 5], usize, bool) {
     const W5: u32 = 0x50ff_ffff;
     const W6: u32 = 0x60ff_ffff;
     const W3: u32 = 0x30ff_ffff;
-    let third = fight == Fight::Third;
-    // The third fight's skills are 47 and 48 for 45 and 46.
-    let (a, b) = if third { (47, 48) } else { (45, 46) };
+    let fourth = fight == Fight::Fourth;
+    let third = fight == Fight::Third || fourth;
+    // The third fight's skills are 47 and 48 for 45 and 46 (the fourth's
+    // 77 and 78).
+    let (a, b) = match fight {
+        Fight::Third => (47, 48),
+        Fight::Fourth => (77, 78),
+        _ => (45, 46),
+    };
     match kind {
         Kind::Strike => (
             [
@@ -314,13 +322,15 @@ fn strikes(fight: Fight, kind: Kind) -> ([Strike; 5], usize, bool) {
             a,
             true,
         ),
+        // The fourth fight's thunder follows the last strike, not the
+        // fourth.
         Kind::Wide => (
             [
                 (5, 10, W5, a, false),
                 (20, 10, W6, a, third),
                 (40, 15, W3, a, false),
-                (55, 10, W5, a, third),
-                (80, 5, W6, b, false),
+                (55, 10, W5, a, third && !fourth),
+                (80, 5, W6, b, fourth),
             ],
             b,
             true,
@@ -364,7 +374,7 @@ fn thunder_dmg(b: &Boss, x: &Kyvia, t: &mut Tree, cx: &mut Cx) {
         core_damage_at(t, cx, pos, last);
         cx.out(Out::Se { se: 68 });
         cx.out(Out::SeNote { se: 35, note: 45 });
-        if x.fight == Fight::Third {
+        if matches!(x.fight, Fight::Third | Fight::Fourth) {
             cx.out(Out::Se { se: 41 });
             cx.out(Out::SeNote { se: 56, note: 60 });
         }
@@ -387,9 +397,19 @@ fn core_at_rest(t: &Tree) -> bool {
 pub(super) fn thunderbolt_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let mut th = x.thunder.unwrap_or_default();
     let me = cx.me;
-    let third = x.fight == Fight::Third;
+    let fourth = x.fight == Fight::Fourth;
+    let third = x.fight == Fight::Third || fourth;
+    let ex = super::fourth::ex(x);
     let off = [0, 0, 0x43fa_0000, ONE];
     match b.act_proccess {
+        // The EX turn's begins at once.
+        0 if ex => {
+            th.stage_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 32277]);
+            b.act_proccess += 1;
+            b.lock_player(cx, false);
+            x.quake_vector = [0x41f0_0000, 0x41f0_0000, 0x41a0_0000, x.quake_vector[3]];
+            th.arm(x.fight);
+        }
         // The third fight sets its quake and bolts each frame it waits.
         0 if third => {
             if core_at_rest(t) {
@@ -414,7 +434,7 @@ pub(super) fn thunderbolt_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mu
             th.arm(x.fight);
         }
         1 => {
-            if !core_state_is(t, 6) {
+            if !ex && !core_state_is(t, 6) {
                 return;
             }
             if th.kind == Kind::Storm {
@@ -434,14 +454,23 @@ pub(super) fn thunderbolt_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mu
                 b.act_count = 0;
             } else {
                 b.act_proccess = 2;
-                let range = match (third, x.disc_lv) {
-                    (false, _) if x.disc_lv != x.disc_max_lv => 0x457a_0000,
-                    (false, _) => 0x453b_8000,
-                    (true, 1) => 0x45bb_8000,
-                    (true, 2) => 0x451c_4000,
-                    (true, _) => 0x458c_a000,
+                // The fourth's by Kite: 2000 past it (1800 at the third
+                // place, none at the last; the EX turn's none at the third).
+                let near = |far: F| ee::add(far, super::super::dist(cx, cx.scene.chars[me].pos, x.disc_pos));
+                let range = match (x.fight, x.disc_lv) {
+                    (Fight::Fourth, 3) if ex => None,
+                    (Fight::Fourth, 4) if !ex => None,
+                    (Fight::Fourth, 3) => Some(near(0x44e1_0000)),
+                    (Fight::Fourth, _) => Some(near(0x44fa_0000)),
+                    (Fight::Third, 1) => Some(0x45bb_8000),
+                    (Fight::Third, 2) => Some(0x451c_4000),
+                    (Fight::Third, _) => Some(0x458c_a000),
+                    _ if x.disc_lv != x.disc_max_lv => Some(0x457a_0000),
+                    _ => Some(0x453b_8000),
                 };
-                cx.out(Out::CamModeRange { mode: 3, range });
+                if let Some(range) = range {
+                    cx.out(Out::CamModeRange { mode: 3, range });
+                }
             }
         }
         50 => {
@@ -523,13 +552,20 @@ pub(super) fn thunderbolt_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mu
             }
         }
         7 => {
-            core_state(t, cx, 7);
+            if !ex {
+                core_state(t, cx, 7);
+            }
             cx.out(Out::CamMode { mode: if th.kind == Kind::Storm { 6 } else { 4 } });
             b.act_proccess += 1;
             let id = std::mem::replace(&mut th.stage_id, -1);
             b.end_stage_effect(cx, id, 0x6400_0000, 35);
         }
         8 if cx.cam.reset == 0 => b.act_proccess += 1,
+        9 if ex => {
+            super::core_end_fade_ex(t, cx);
+            b.change_action(cx, super::act::NEUTRAL, 1, true);
+            b.unlock_player();
+        }
         9 if core_fade_check(t) => {
             b.unlock_player();
             b.change_action(cx, super::act::NEUTRAL, 1, true);

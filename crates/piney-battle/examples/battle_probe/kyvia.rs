@@ -11,7 +11,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::kyvia::core::Core;
 use piney_battle::boss::kyvia::gomora::Gomora;
 use piney_battle::boss::kyvia::{Fight, Follow, Gen, GenOp, Held, Kyvia, Place};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, DiscView, EffKind, Out, PartHits};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, DiscView, EffKind, FadeView, Out, PartHits};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::{Event, Events, Who};
@@ -132,6 +132,7 @@ impl FakeCam {
                 self.view = *view;
                 self.pos = *pos;
             }
+            Out::CamEye(pos) => self.pos = *pos,
             Out::CamPitch { add, v } => self.xrot = if *add { ee::add(self.xrot, *v) } else { *v },
             Out::CamSway(on) => self.sway = u8::from(*on),
             _ => {}
@@ -152,6 +153,58 @@ impl FakeCam {
         } else {
             self.left = 0;
         }
+    }
+}
+
+/// `scFadeDef`'s four elements as the harness steps them (main fade.cpp:
+/// `EntryFlash`, `EntryFlash2`, `EntryFlash3` the first free one, each
+/// frame `SendPacket`'s count).
+#[derive(Default)]
+struct FakeFade {
+    elm: [[i16; 5]; 4],
+}
+
+impl FakeFade {
+    fn entry(&mut self, e: [i16; 5]) {
+        if let Some(s) = self.elm.iter_mut().find(|s| s[0] == 0) {
+            *s = e;
+        }
+    }
+
+    fn take(&mut self, o: &Out) {
+        match *o {
+            Out::Flash { t, .. } => self.entry([3, 0, t as i16, 0, 0]),
+            Out::FlashFade { t_in, t_out, hold: None, .. } => self.entry([5, 0, t_in as i16, t_out as i16, 0]),
+            Out::FlashFade { t_in, t_out, hold: Some(h), .. } => {
+                self.entry([9, 0, t_in as i16, t_out as i16, h as i16]);
+            }
+            _ => {}
+        }
+    }
+
+    fn step(&mut self) {
+        for e in self.elm.iter_mut().filter(|e| e[0] & 1 != 0) {
+            e[1] += 1;
+            if e[1] > e[2] {
+                if e[0] & 2 != 0 {
+                    e[0] = 0;
+                } else if e[0] & 4 != 0 {
+                    e[0] = (e[0] & !4) | 2;
+                    e[1] = 0;
+                    e[2] = e[3];
+                } else if e[0] & 8 != 0 {
+                    e[0] = (e[0] & !8) | 4;
+                    e[1] = 0;
+                    e[2] = e[4];
+                } else {
+                    e[1] = e[2];
+                }
+            }
+        }
+    }
+
+    fn view(&self) -> [FadeView; 4] {
+        self.elm.map(|e| FadeView { status: e[0], cnt: e[1], tcnt: e[2] })
     }
 }
 
@@ -248,7 +301,15 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         (0..ns).map(|_| (t.int() as usize, t.i32(), t.int() as usize, t.i16(), t.i16())).collect();
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
+    // The fourth fight's: Kite set down at a place on a frame.
+    let walks: Vec<(usize, V4)> = if fight == Fight::Fourth {
+        let n = t.int() as usize;
+        (0..n).map(|_| (t.int() as usize, [t.u32(), t.u32(), t.u32(), 0x3f80_0000])).collect()
+    } else {
+        Vec::new()
+    };
     let mut blur = crate::boss::ProbeBlur::read(t);
+    let mut fade = FakeFade::default();
     let case = Case { frames, rot, moving, prev, marker, cam_pos, cam_view, delay };
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
@@ -257,24 +318,28 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
     let party = Party { members, ids, num: members.iter().flatten().count() as i32 };
     let clip = |name: &str| clips.get(name).copied();
     let mut forbid = 0i16;
-    let mut menu = [0i32; 6];
+    let mut menu = [0i32; 7];
     let mut cam = FakeCam::default();
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
-    let view = |f: usize, reset: i32| CamView {
+    let view = |f: usize, reset: i32, eye: V4| CamView {
         rot: [0, 0, case.rot[f.min(case.frames.saturating_sub(1))], 0],
         pos: case.cam_pos,
         view: case.cam_view,
         moving: false,
         reset,
         shake: false,
+        eye,
     };
     // The frames the disc rides on after the body's `Move`.
     let mut ride = 0;
-    let disc = |f: usize, ride: i32| DiscView {
+    let disc = |f: usize, ride: i32, blur: &crate::boss::ProbeBlur, fade: &FakeFade| DiscView {
         moving: case.moving.get(f).copied().unwrap_or(false) || ride > 0,
         prev_pos: case.prev.get(f).copied().unwrap_or(case.marker),
         marker: case.marker,
+        blur_abgr: blur.blur.abgr,
+        blur_scale: blur.blur.scale,
+        fades: fade.view(),
     };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
@@ -299,9 +364,9 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         part_hits: &mut Shared(&list),
         game_over: false,
         boss_cam: true,
-        cam: view(0, 0),
+        cam: view(0, 0, [0; 4]),
         land: &mut land,
-        disc: disc(0, 0),
+        disc: disc(0, 0, &blur, &fade),
         me,
         out: Vec::new(),
         ev: Events::new(),
@@ -318,7 +383,9 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         pos: scene.chars[me].pos,
         ..CharHit::default()
     };
-    list.borrow_mut().chars.push((me, body));
+    if boss.body_hit_sw != 0 {
+        list.borrow_mut().chars.push((me, body));
+    }
     // ccBoss::Move's CollisionDetection of the body; after a push its hit
     // stands where the body was put (the push's height dropped).
     let mut body_push = |pos: V4| {
@@ -332,9 +399,11 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         Some(off)
     };
     HELD.with(|s| s.borrow_mut().clear());
+    PAUSED.with(|s| s.borrow_mut().clear());
     ROLES.with(|r| *r.borrow_mut() = roles(&boss, &scene));
     for o in &out {
         cam.take(o);
+        fade.take(o);
     }
     blur.apply(&out);
     let outs: Vec<String> = out.iter().filter_map(kout).collect();
@@ -351,6 +420,11 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         };
         cam.step(case.delay);
         ride = (ride - 1).max(0);
+        for &(_, p) in walks.iter().filter(|w| w.0 == f) {
+            if let Some(k) = members[0] {
+                scene.chars[k].pos = p;
+            }
+        }
         scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(boss));
         let (core, gomoras) = parts(&scene, me);
         let mut outs = Vec::new();
@@ -403,9 +477,9 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
             part_hits: &mut Shared(&list),
             game_over: false,
             boss_cam: true,
-            cam: view(f, cam.reset),
+            cam: view(f, cam.reset, cam.pos),
             land: &mut land,
-            disc: disc(f, ride),
+            disc: disc(f, ride, &blur, &fade),
             me,
             out: Vec::new(),
             ev: Events::new(),
@@ -418,7 +492,13 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         for o in fx_out.iter().filter(|o| matches!(o, Out::CamMode { .. } | Out::CamModeRange { .. })) {
             cam.take(o);
         }
-        cx.cam = view(f, cam.reset);
+        for o in &fx_out {
+            fade.take(o);
+        }
+        cx.cam = view(f, cam.reset, cam.pos);
+        cx.disc.blur_abgr = blur.blur.abgr;
+        cx.disc.blur_scale = blur.blur.scale;
+        cx.disc.fades = fade.view();
         boss.main(&mut cx);
         let main_out = std::mem::take(&mut cx.out);
         drop(cx);
@@ -429,9 +509,13 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         out.extend(main_out);
         let early =
             |k: usize, o: &Out| fx_at.contains(&k) && matches!(o, Out::CamMode { .. } | Out::CamModeRange { .. });
+        for o in &out[pre..] {
+            fade.take(o);
+        }
         for (_, o) in out.iter().enumerate().filter(|&(k, o)| !early(k, o)) {
             cam.take(o);
             match o {
+                Out::DummyTarget(t) => menu[6] = t.map_or(0, |_| 1),
                 Out::DiscNextStage => ride = ride2,
                 Out::MenuForbid { on, chat_except } => {
                     forbid = i16::from(*on);
@@ -454,6 +538,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
             }
         }
         blur.apply(&out[pre..]);
+        fade.step();
         lines.push(with_ball(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()), &boss));
     }
     format!("[{}]", lines.join(","))
@@ -491,6 +576,8 @@ thread_local! {
     static ROLES: std::cell::RefCell<(Option<usize>, Vec<usize>)> = const { std::cell::RefCell::new((None, Vec::new())) };
     static HELD: std::cell::RefCell<std::collections::HashSet<Held>> =
         std::cell::RefCell::new(std::collections::HashSet::new());
+    static PAUSED: std::cell::RefCell<std::collections::HashSet<Held>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
 }
 
 /// Who a character is in the fight: the core or gomora `k`.
@@ -513,6 +600,12 @@ fn held_json(h: Held) -> String {
         Held::Smoke(k) => format!("[\"smoke\",{k}]"),
         Held::CoreAura(c, k) => format!("[{},\"aura\",{k}]", role(c)),
         Held::GomoraAura(c) => format!("[{},\"aura\"]", role(c)),
+        Held::Wall(k) => format!("[\"wall\",{k}]"),
+        Held::Wall2(k) => format!("[\"wall2\",{k}]"),
+        Held::CoreApp(k) => format!("[\"coreapp\",{k}]"),
+        Held::CoreApp2(k) => format!("[\"coreapp2\",{k}]"),
+        Held::Soul(k, j) => format!("[\"soul\",{k},{j}]"),
+        Held::LastSoul => "\"lastsoul\"".into(),
     }
 }
 
@@ -526,7 +619,9 @@ fn gen_json(which: Gen, at: &Place, held: Option<Held>) -> String {
         Gen::GomoraAttack(attr) => format!("\"particles\",\"GomoraAura\",{},0", 4 + attr),
         _ => format!("\"particles\",\"{}\",{}", r.table.name(), r.row),
     };
-    if matches!(which, Gen::Trail(_) | Gen::Burst(_) | Gen::Ball(_)) {
+    if matches!(which, Gen::Trail(_) | Gen::Burst(_) | Gen::Ball(_) | Gen::Hell(_))
+        || matches!(which, Gen::Fourth(piney_battle::boss::kyvia::fourth::Make::Skill))
+    {
         return format!("[{head}]");
     }
     let ff: Vec<String> = r.ff.iter().map(|f| f.to_string()).collect();
@@ -541,9 +636,11 @@ fn gen_json(which: Gen, at: &Place, held: Option<Held>) -> String {
                 Follow::Aura(c) => format!("[{},\"aura\"]", role(c)),
                 Follow::Plasma(k) => format!("[\"plasma\",{k}]"),
                 Follow::Plasma2(k) => format!("[\"plasma2\",{k}]"),
+                Follow::Soul(k) => format!("[\"soul\",{k}]"),
             };
             format!("[\"follow\",{f},{}]", v3(&off))
         }
+        Place::Line(p, p2) => format!("[\"line\",{},{}]", v3(&p), v3(&p2)),
     };
     let held = held.map_or("null".into(), |h| {
         HELD.with(|s| s.borrow_mut().insert(h));
@@ -561,8 +658,24 @@ fn gen_op_json(held: Held, op: GenOp) -> Option<String> {
             HELD.with(|s| s.borrow_mut().remove(&held));
             None
         }
-        GenOp::Pause(_) => None,
+        GenOp::Pause(on) => {
+            PAUSED.with(|s| {
+                let mut s = s.borrow_mut();
+                if on {
+                    s.insert(held);
+                } else {
+                    s.remove(&held);
+                }
+            });
+            None
+        }
     }
+}
+
+/// Whether a held generator is paused (`pauseFlag`, +5 bit 0).
+fn paused(h: Held) -> String {
+    let on = HELD.with(|s| s.borrow().contains(&h)) && PAUSED.with(|s| s.borrow().contains(&h));
+    u8::from(on).to_string()
 }
 
 fn kout(o: &Out) -> Option<String> {
@@ -578,10 +691,12 @@ fn kout(o: &Out) -> Option<String> {
         // The meteors run natively in the harness: their making is seen in
         // the effects' slots.
         Out::Effect {
-            kind: EffKind::Meteorite { .. } | EffKind::Thunderbolt { .. } | EffKind::MagicalBall, ..
+            kind: EffKind::Meteorite { .. } | EffKind::Thunderbolt { .. } | EffKind::MagicalBall | EffKind::HellExpress,
+            ..
         } => {
             return None;
         }
+        Out::FieldBodyHit { n, on } => format!("[\"gate\",{n},{}]", u8::from(*on)),
         Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) | Out::CamSway(_) => return None,
         // DrawParts(anmw, 0) at the arm's frame (its place is tesPOS).
         Out::DrawArm { time, .. } => format!("[\"draw_parts\",{},0]", time >> 8),
@@ -678,8 +793,9 @@ fn core_json(c: &Core) -> String {
         // The auras' pauseFlag, as the game's generators carry it.
         u8::from(c.aura && c.aura_stop).to_string(),
         u8::from(c.aura2 && c.aura2_stop).to_string(),
-        // CoreInit's stream (+0xcc).
-        format!("\"{}\"", piney_battle::boss::kyvia::stream(c.kyvia_lv).unwrap_or("")),
+        // CoreInit's stream (+0xcc): its level's (level 5 is the EX turn's
+        // row, set after).
+        format!("\"{}\"", piney_battle::boss::kyvia::stream(c.kyvia_lv.min(4)).unwrap_or("")),
     ];
     v.join(",")
 }
@@ -791,12 +907,49 @@ fn kyvia_json(x: &Kyvia) -> String {
     if x.fight == Fight::Third {
         v.push(x.pat_count.to_string());
     }
+    if let Some(f) = &x.fourth {
+        v.extend([f.fight_flg, f.rising].map(|n| n.to_string()));
+        v.push(f.core_lv_count.to_string());
+        v.extend(f.core_appear_pos.iter().map(v3));
+        v.push(v3(&f.dead_set_pos));
+        v.extend([f.rebirth_flg, f.rebirth_cnt, f.wall_gp_flg].map(|n| n.to_string()));
+        for k in 0..4u8 {
+            for h in [Held::Wall(k), Held::Wall2(k), Held::CoreApp(k), Held::CoreApp2(k)] {
+                v.push(holds(h));
+                v.push(paused(h));
+            }
+        }
+        v.push(f.fade_num.to_string());
+    }
     v.join(",")
 }
 
-/// The frame's line with the ball's members before `rand`.
+/// The frame's line with the ball's and hell's express's members before
+/// `rand`.
 fn with_ball(line: String, b: &Boss) -> String {
-    line.replacen("\"rand\":", &format!("\"ball\":{},\"rand\":", ball_json(b)), 1)
+    line.replacen("\"rand\":", &format!("\"ball\":{},\"hell\":{},\"rand\":", ball_json(b), hell_json(b)), 1)
+}
+
+/// Hell's express's members as the harness reads them (null without one):
+/// `HellAct`, `HellCou`, `EndCount`, `SoulNum`, `BungStartFlg`, `KyviaLV`,
+/// the target, `BungAnm`'s frame, the spline, the eye, and each soul's
+/// `Pos`, `time` and `ActProccess`.
+fn hell_json(b: &Boss) -> String {
+    let Some(h) = b.effects.slots.iter().flatten().find_map(|e| e.hell.as_ref()) else { return "null".into() };
+    let mut v: Vec<String> = [h.hell_act, h.hell_cou, h.end_count, h.soul_num, i32::from(h.bung_start), h.kyvia_lv]
+        .iter()
+        .map(|n| n.to_string())
+        .collect();
+    v.push(h.target.map_or(-1, |t| t as i64).to_string());
+    v.push(h.bung_anm.frame().to_string());
+    v.extend(h.spoint.iter().map(v3));
+    v.push(v3(&h.target_cam_pos));
+    for k in 0..3 {
+        v.push(v3(&h.pos[k]));
+        v.push(h.time[k].to_string());
+        v.push(h.act_proccess[k].to_string());
+    }
+    format!("[{}]", v.join(","))
 }
 
 /// The magical ball's members as the harness reads them (null without
@@ -839,7 +992,7 @@ fn frame_json(
     outs: &[String],
     rand: &Rand,
     cc: &Genrand,
-    menu: &[i32; 6],
+    menu: &[i32; 7],
     cam: &FakeCam,
     blur: &str,
 ) -> String {
@@ -878,7 +1031,7 @@ fn frame_json(
     format!(
         "{{\"act\":[{},{},{}],\"pos\":[{}],\"flags\":[{},{},{},{},{},{},{},{}],\"anm\":[\"{}\",{},\"{}\",{}],\
          \"kyvia\":[{}],\"core\":{},\"gomoras\":[{}],\"cam\":[{},{},{},{},{},{},{}],\"blur\":{},\
-         \"eff\":[{}],\"party\":[{}],\"out\":[{}],\"menu\":[{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
+         \"eff\":[{}],\"party\":[{}],\"out\":[{}],\"menu\":[{},{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
         b.act_num,
         b.act_proccess,
         b.act_count,
@@ -915,6 +1068,7 @@ fn frame_json(
         menu[3],
         menu[4],
         menu[5],
+        menu[6],
         rand.0,
         cc.mti,
     )

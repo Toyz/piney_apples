@@ -182,6 +182,15 @@ impl Tables {
     }
 }
 
+/// Kyvia's effects as the fight's rules hold them, each by its slot there.
+#[derive(Clone, Copy)]
+pub struct KyviaRules<'a> {
+    pub meteors: &'a [(i32, &'a piney_battle::boss::kyvia::Meteorite)],
+    pub bolts: &'a [(i32, &'a piney_battle::boss::kyvia::thunder::Bolt)],
+    pub balls: &'a [(i32, &'a piney_battle::boss::kyvia::magic_ball::MagicalBall)],
+    pub hells: &'a [(i32, &'a piney_battle::boss::kyvia::hell::Hell)],
+}
+
 /// The boss effect manager's effects (`_g_bossEffManager`).
 #[derive(Clone, Debug, Default)]
 pub struct BossEffects {
@@ -218,6 +227,7 @@ pub enum BossEff {
     Meteorite(Box<crate::kyvia::Meteorite>),
     Bolt(Box<crate::kyvia::Bolt>),
     Ball(Box<crate::kyvia::Ball>),
+    Hell(Box<crate::kyvia::Hell>),
     /// Magus's needles ([`crate::magus`]).
     Needles(Box<crate::magus::Needles>),
     /// Gorre's Kerse's flash ([`crate::gorre`]).
@@ -509,6 +519,17 @@ pub enum Make {
         ran: F,
         pos: V4,
     },
+    /// `HellSpecialExpressCreate(pos, data)` (QUA gcmn 0x0037bf40): Kyvia's
+    /// fourth fight's hell's express, drawn for the rules' slot; or run here
+    /// with no callback (the probe's), the camera's turn `rot`.
+    Hell {
+        rules_slot: i32,
+    },
+    HellAlone {
+        pos: V4,
+        rot: V4,
+        kyvia_lv: i32,
+    },
     /// `ccBossEffNeedleCreate(pos, scale, speed, alpha, n, t0, t1, t2)`
     /// (MUT gcmn 0x0048e430): Magus's needles, drawn for the rules' slot;
     /// or run here (the probe's).
@@ -602,6 +623,15 @@ impl BossEffects {
                 let b = crate::kyvia::Ball::alone(cx, ran, pos);
                 self.put(true, BossEff::Ball(Box::new(b)))
             }
+            Make::Hell { rules_slot } => {
+                self.drop_rules_slot(rules_slot);
+                let h = crate::kyvia::Hell::new(cx, rules_slot);
+                self.put(true, BossEff::Hell(Box::new(h)))
+            }
+            Make::HellAlone { pos, rot, kyvia_lv } => {
+                let h = crate::kyvia::Hell::alone(cx, t, pos, rot, kyvia_lv);
+                self.put(true, BossEff::Hell(Box::new(h)))
+            }
             Make::Needles { rules_slot } => {
                 self.drop_rules_slot(rules_slot);
                 let n = crate::magus::Needles::new(cx, rules_slot);
@@ -630,6 +660,7 @@ impl BossEffects {
                 Some(Slot { eff: BossEff::Meteorite(m), .. }) => m.rules_slot,
                 Some(Slot { eff: BossEff::Bolt(b), .. }) => b.rules_slot,
                 Some(Slot { eff: BossEff::Ball(b), .. }) => b.rules_slot,
+                Some(Slot { eff: BossEff::Hell(h), .. }) => h.rules_slot,
                 Some(Slot { eff: BossEff::Needles(n), .. }) => n.rules_slot,
                 _ => continue,
             };
@@ -764,15 +795,8 @@ impl BossEffects {
     /// Kyvia's meteors and bolts as the fight's rules left them (their
     /// slot there and state): each one's picture of its last `Draw`
     /// ([`crate::kyvia`]); those the rules let go, gone.
-    pub fn sync_kyvia(
-        &mut self,
-        ctrl: &mut EffectCtrl,
-        cx: &mut Cx,
-        t: &Tables,
-        meteors: &[(i32, &piney_battle::boss::kyvia::Meteorite)],
-        bolts: &[(i32, &piney_battle::boss::kyvia::thunder::Bolt)],
-        balls: &[(i32, &piney_battle::boss::kyvia::magic_ball::MagicalBall)],
-    ) {
+    pub fn sync_kyvia(&mut self, ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, rules: &KyviaRules) {
+        let KyviaRules { meteors, bolts, balls, hells } = *rules;
         for s in self.slots.iter_mut() {
             match s {
                 Some(Slot { eff: BossEff::Meteorite(m), .. })
@@ -790,6 +814,11 @@ impl BossEffects {
                 }
                 Some(Slot { eff: BossEff::Ball(b), .. })
                     if !b.runs_alone() && !balls.iter().any(|f| f.0 == b.rules_slot) =>
+                {
+                    *s = None;
+                }
+                Some(Slot { eff: BossEff::Hell(h), .. })
+                    if !h.runs_alone() && !hells.iter().any(|f| f.0 == h.rules_slot) =>
                 {
                     *s = None;
                 }
@@ -812,6 +841,12 @@ impl BossEffects {
                     if let Some(&(_, f)) = balls.iter().find(|f| f.0 == b.rules_slot) {
                         crate::kyvia::publish(ctrl, f);
                         b.draw(cx, f);
+                    }
+                }
+                BossEff::Hell(h) => {
+                    if let Some(&(_, f)) = hells.iter().find(|f| f.0 == h.rules_slot) {
+                        crate::kyvia::hell_publish(ctrl, f);
+                        h.draw(cx, f);
                     }
                 }
                 _ => {}
@@ -1079,7 +1114,8 @@ impl BossEffects {
                 BossEff::Meteorite(m) if m.runs_alone() => m.run(ctrl, cx, t),
                 BossEff::Bolt(b) if b.runs_alone() => b.run(cx, t),
                 BossEff::Ball(b) if b.runs_alone() => b.run(ctrl, cx, t),
-                BossEff::Meteorite(_) | BossEff::Bolt(_) | BossEff::Ball(_) => continue,
+                BossEff::Hell(h) if h.runs_alone() => h.run(ctrl, cx, t),
+                BossEff::Meteorite(_) | BossEff::Bolt(_) | BossEff::Ball(_) | BossEff::Hell(_) => continue,
                 // Magus's needles likewise ([`BossEffects::sync_magus`]).
                 BossEff::Needles(n) if n.runs_alone() => n.run(cx),
                 BossEff::Needles(_) => continue,

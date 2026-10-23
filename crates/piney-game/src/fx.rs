@@ -242,7 +242,9 @@ impl FxTasks for AreaFx {
         let meteors: Vec<_> = k.meteors.iter().map(|(s, f)| (*s, f)).collect();
         let bolts: Vec<_> = k.bolts.iter().map(|(s, b)| (*s, b)).collect();
         let balls: Vec<_> = k.balls.iter().map(|(s, b)| (*s, b)).collect();
-        self.fx.kyvia_sync(&mut host, &meteors, &bolts, &balls, &k.members);
+        let hells: Vec<_> = k.hells.iter().map(|(s, h)| (*s, h)).collect();
+        let rules = piney_effect::boss::KyviaRules { meteors: &meteors, bolts: &bolts, balls: &balls, hells: &hells };
+        self.fx.kyvia_sync(&mut host, &rules, &k.members);
         let m = magus_shows(host.w.scene);
         let needles: Vec<_> = m.needles.iter().map(|(s, n)| (*s, n)).collect();
         self.fx.magus_sync(&mut host, &needles, &m.bursts, &m.markers);
@@ -507,6 +509,7 @@ struct KyviaShows {
     meteors: Vec<(i32, piney_battle::boss::kyvia::Meteorite)>,
     bolts: Vec<(i32, piney_battle::boss::kyvia::thunder::Bolt)>,
     balls: Vec<(i32, piney_battle::boss::kyvia::magic_ball::MagicalBall)>,
+    hells: Vec<(i32, piney_battle::boss::kyvia::hell::Hell)>,
     members: Vec<(piney_battle::boss::kyvia::Follow, V4)>,
 }
 
@@ -537,6 +540,9 @@ fn kyvia_shows(scene: &Scene) -> KyviaShows {
             }
             if let Some(ball) = e.ball.as_deref() {
                 out.balls.push((k as i32, ball.clone()));
+            }
+            if let Some(h) = e.hell.as_deref() {
+                out.hells.push((k as i32, h.clone()));
             }
         }
     }
@@ -872,6 +878,7 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
         EffKind::Meteorite { count } => Make::Meteorite { rules_slot: id, n: count },
         EffKind::Thunderbolt { .. } => Make::Bolt { rules_slot: id },
         EffKind::MagicalBall => Make::Ball { rules_slot: id },
+        EffKind::HellExpress => Make::Hell { rules_slot: id },
         EffKind::Needle { .. } => Make::Needles { rules_slot: id },
         EffKind::FinalPhotonFlash => Make::FinalPhotonFlash { pos },
         EffKind::MeteoSworm { .. } | EffKind::ThunderStorm { .. } | EffKind::RockTower { .. } => {

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """crates/piney-battle's Kyvia (src/boss/kyvia.rs, kyvia/core.rs, gomora.rs,
-thunder.rs, magic_ball.rs) against the game's kyvia01.cpp, kyvia02.cpp or
-kyvia03.cpp with kyviacore.cpp and kyviagomora.cpp run natively
-(tools/eemu_rs.so), frame by frame with battle_probe's `kyvia`: Mutation's
-first fight (PINEY_VOLUME=mutation), Outbreak's second
+thunder.rs, magic_ball.rs, fourth.rs, hell.rs) against the game's
+kyvia01.cpp to kyvia04.cpp with kyviacore.cpp and kyviagomora.cpp run
+natively (tools/eemu_rs.so), frame by frame with battle_probe's `kyvia`:
+Mutation's first fight (PINEY_VOLUME=mutation), Outbreak's second
 (PINEY_VOLUME=outbreak; PINEY_KYVIA_FIGHT=1 runs Outbreak's copy of the
-first) or Quarantine's third (PINEY_VOLUME=quarantine). What is compared
-and what is stood in for: docs/engine/boss-kyvia.md "Checks".
+first) or Quarantine's third (PINEY_VOLUME=quarantine; PINEY_KYVIA_FIGHT=4
+its fourth). What is compared and what is stood in for:
+docs/engine/boss-kyvia.md "Checks".
 
     PINEY_VOLUME=mutation python3 tools/test_battle_kyvia_rs.py             the tests
     PINEY_VOLUME=outbreak python3 tools/test_battle_kyvia_rs.py bulk N [S]  N cases from seed S
@@ -45,6 +46,10 @@ CORE_SIZE = 0x295A0
 GOMORA_SIZE = 0x295F0
 AREA = WM + 0x2000              # the EVENTAREAB8
 AREA_CCS = WM + 0x4000
+# The boss task's own stack (its thread's): what its frames leave there is
+# what the next frame's calls read (the fourth fight reads two unwritten
+# words of it); everything else the harness calls runs on eemu's.
+BOSS_STACK = eemu.STACK_TOP - 0x80000
 
 # The particle tables by symbol, rows 0x38 bytes.
 # Outbreak's names the sidecar lacks: the two Mains (vtable +0x1c), the
@@ -57,7 +62,9 @@ UNNAMED = {"outbreak": {"Main__13ccBossKyvia01Fv": 0x004D0780, "Main__13ccBossKy
                         "IsMove__11EVENTAREAB8Fv": 0x00419D10, "Move__11EVENTAREAB8Fv": 0x00419C80,
                         "KyviaGenerator": 0x0061D0D0},
            "quarantine": {"Main__13ccBossKyvia03Fv": 0x003D24D0, "IsMove__11EVENTAREAB8Fv": 0x0030C610,
-                          "Move__11EVENTAREAB8Fv": 0x0030C580, "KyviaGenerator": 0x00514450}}
+                          "Move__11EVENTAREAB8Fv": 0x0030C580, "KyviaGenerator": 0x00514450,
+                          "__ct__13ccBossKyvia04Fi": 0x003D9C40, "Main__13ccBossKyvia04Fv": 0x003DB950,
+                          "HitOff__11EVENTAREAB8Fi": 0x0030C620, "HitOn__11EVENTAREAB8Fi": 0x0030C690}}
 FIGHT = int(os.environ.get("PINEY_KYVIA_FIGHT")
             or {"outbreak": 2, "quarantine": 3}.get(volume.NAME, 1))
 
@@ -115,6 +122,11 @@ class Game:
             for off, name in held_slots().items():
                 if mm.load(BOSS + off, 4) == ptr:
                     return name
+            if FIGHT == 4:
+                for k in range(4):
+                    for j, name in enumerate(("wall", "wall2", "coreapp", "coreapp2")):
+                        if mm.load(BOSS + 0x297C0 + 0x10 * j + 4 * k, 4) == ptr:
+                            return [name, k]
             for a, role in parts[1:]:
                 if role == "core":
                     for k in range(2):
@@ -282,9 +294,37 @@ class Game:
         hook("ccSeOnNote__Fic", lambda mm, se, n, *_: out.append(["senote", s32(se), n & 0xFF]) or 0)
 
         def flash(mm, f, t, c, *_):
+            # Into the first free element as the game's (status 3), which
+            # the fourth fight's EntryFlash3 and CheckFade see.
             out.append(["flash", s32(t), c & 0xFFFFFFFF])
-            return 0
+            for k in range(4):
+                e = f + 4 + 36 * k
+                if s16(mm.load(e, 2)) == 0:
+                    mm.store(e, 2, 3)
+                    mm.store(e + 2, 2, 0)
+                    mm.store(e + 4, 2, t & 0xFFFF)
+                    return k
+            return 0xFFFFFFFF
         hook("EntryFlash__8ccScFadeFiiffff", flash)
+        if FIGHT == 4:
+            # The EX ball's eye (MagicBallAtk's sixth step) is a stack vector
+            # whose x the code never writes: the word ccGetDirc's atan2f left
+            # there, its scratch pointer (a ccSys work address, a float under
+            # 2^-120) that only shows when ccRandF drew 0 exactly. The port
+            # reads it as 0; the harness puts 0 there (docs, "The eyes").
+            unit_at = sym("sceVu0UnitMatrix")
+
+            def unit(mm, a, *_):
+                for i in range(4):
+                    for j in range(4):
+                        mm.store(a + 16 * i + 4 * j, 4, F_ONE if i == j else 0)
+                if 0x003E3C60 <= mm.r[31] & 0xFFFFFFFF < 0x003E4370:
+                    mm.store(a + 64, 4, 0)
+                return 0
+            h[unit_at] = unit
+            # EVENTAREAB8's body[n] hit off and on (field 12's walls).
+            hook("HitOff__11EVENTAREAB8Fi", lambda mm, a, n, *_: out.append(["gate", s32(n), 0]) or 0)
+            hook("HitOn__11EVENTAREAB8Fi", lambda mm, a, n, *_: out.append(["gate", s32(n), 1]) or 0)
         self.stage_on = False
 
         def begin_stage(mm, a, rgba, t0, t1, *_):
@@ -336,6 +376,7 @@ class Game:
             mm.store(a + 4, 1, 1)
             mm.store(a + 5, 1, 0)
             mm.store(a + 0x18, 4, 0)
+            mm.mem[a + 0x70:a + 0x80] = bytes(16)
             for v in (0x60, 0x80):
                 for k in range(4):
                     mm.store(a + v + 4 * k, 4, F_ONE if k == 3 else 0)
@@ -361,10 +402,17 @@ class Game:
             if name in ("MissileSmoke", "BurstSmoke") and row != 17:
                 out.append(head)
                 return 0
-            ff = [(f - ff_tables[name]) // 0x20 for f in ffs if f]
+            # A force field of another table's (one of the fourth fight's)
+            # by its row there.
+            def ff_row(f):
+                base = ff_tables[name] if f >= ff_tables[name] else max(t for t in ff_tables.values() if t <= f)
+                return (f - base) // 0x20
+            ff = [ff_row(f) for f in ffs if f]
             sync = mm.load(a + 0x18, 4)
             if sync:
                 place = ["follow", self.member(mm, sync, "sync"), *f32s(mm, a + 0x80, 3)]
+            elif any(f32s(mm, a + 0x70, 3)):
+                place = ["line", *f32s(mm, a + 0x60, 3), *f32s(mm, a + 0x70, 3)]
             else:
                 place = ["at", *f32s(mm, a + 0x60, 3)]
             out.append(head + [ff, mm.load(a + 4, 1) & 1, place, self.member(mm, a, "held")])
@@ -405,7 +453,7 @@ class Game:
             e = m.load(MGR + 52 + 4 * k, 4)
             if e:
                 vt = m.load(e + 12, 4)
-                kind = {self.meteor_vt: 10, self.bolt_vt: 17, self.ball_vt: 18}.get(vt, -1)
+                kind = {self.meteor_vt: 10, self.bolt_vt: 17, self.ball_vt: 18, self.hell_vt: 19}.get(vt, -1)
                 out.append([k, kind, m.load(e, 1)])
         return out
 
@@ -415,7 +463,7 @@ def rnd_case(c, rnd):
     party = [rnd_member(c, rnd, k) for k in range(n)]
     # The later fights' core dies a time a stage before the body.
     second = FIGHT >= 2
-    frames = rnd.randrange(300, 6000 if second else 2500)
+    frames = rnd.randrange(300, {1: 2500, 4: 14000}.get(FIGHT, 6000))
     marker = [fbits(rnd.uniform(-500, 500)), fbits(rnd.uniform(2000, 4000)), fbits(rnd.uniform(0, 400)), F_ONE]
     # The disc rides in for a while, then stops.
     ride = rnd.randrange(0, 200)
@@ -430,7 +478,7 @@ def rnd_case(c, rnd):
     script = []
     rough = rnd.random() < 0.5
     hits = rnd.sample(range(frames), min(frames // (6 if rough else 20), 1000 if second else 400))
-    strong = 1200 if second else 600
+    strong = {1: 600, 4: 3000}.get(FIGHT, 1200)
     for f in sorted(hits):
         kind = rnd.choice((0, 0, 0, 1, 1, 2))
         who = rnd.randrange(0, 5)
@@ -459,9 +507,52 @@ def rnd_case(c, rnd):
             "delay": rnd.randrange(1, 40), "ride2": rnd.randrange(0, 150),
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
+    if FIGHT == 4:
+        # Kite set down at the places in turn, near each (250 starts its
+        # core) or off it, now and then.
+        walks = []
+        f, k = rnd.randrange(1, 60), 0
+        while f < frames:
+            x, y, z = PLACES[k % 4]
+            r = rnd.uniform(0, 200 if rnd.random() < 0.8 else 600)
+            a = rnd.uniform(-3.14, 3.14)
+            import math
+            walks.append((f, [fbits(x + r * math.cos(a)), fbits(y + r * math.sin(a)), fbits(z)]))
+            k += 1 if rnd.random() < 0.7 else 0
+            f += rnd.randrange(40, 700)
+        case["walks"] = walks
     # Drawn last, so the cases of a seed are the ones before the blur.
     case.update(bb.blur_case(rnd))
     return case
+
+
+# The fourth fight's places (`CoreAppearPos`, the constructor's).
+PLACES = [(-576.0, -9903.0, 910.0), (-2975.0, -7733.0, 910.0), (-733.0, -4163.0, 900.0), (145.0, -2176.0, 900.0)]
+
+
+def fade_step(m, f):
+    """scFadeDef's SendPacket's count each frame (main fade.cpp; the font
+    layer sends it after the tasks): each drawing element on, the next
+    ramp or the end past its count."""
+    for k in range(4):
+        e = f + 4 + 36 * k
+        st = s16(m.load(e, 2))
+        if not st & 1:
+            continue
+        cnt = s16(m.load(e + 2, 2)) + 1
+        tcnt = s16(m.load(e + 4, 2))
+        if cnt > tcnt:
+            if st & 2:
+                st = 0
+            elif st & 4:
+                st, cnt, tcnt = (st & ~4) | 2, 0, s16(m.load(e + 6, 2))
+            elif st & 8:
+                st, cnt, tcnt = (st & ~8) | 4, 0, s16(m.load(e + 8, 2))
+            else:
+                cnt = tcnt
+        m.store(e, 2, st & 0xFFFF)
+        m.store(e + 2, 2, cnt & 0xFFFF)
+        m.store(e + 4, 2, tcnt & 0xFFFF)
 
 
 def held_slots():
@@ -472,7 +563,7 @@ def held_slots():
     for k in range(3):
         out[0x29504 + d + 4 * k] = ["head", k]
         out[0x29510 + d + 4 * k] = ["tail", k]
-    smoke = 0x29550 if FIGHT == 1 else 0x295F0
+    smoke = {1: 0x29550, 4: 0x29600}.get(FIGHT, 0x295F0)
     for k in range(5):
         out[smoke + 4 * k] = ["smoke", k]
     return out
@@ -516,6 +607,7 @@ def run_game(game, case):
     game.meteor_vt = game.sym("__vt__25ccBossEffMeteoriteMissile")
     game.bolt_vt = game.sym("__vt__20ccBossEffThunderbolt")
     game.ball_vt = game.sym("__vt__20ccBossEffMagicalBall")
+    game.hell_vt = game.sym("__vt__18HellSpecialExpress") if FIGHT == 4 else -1
     game.ride, game.ride2, game.stage_on = 0, case["ride2"], False
     f_ = FIGHTS[FIGHT]
     m.mem[BOSS:BOSS + f_["size"]] = bytes(f_["size"])
@@ -562,7 +654,9 @@ def run_game(game, case):
         game.moving = case["moving"][f]
     disc(0)
     game.out.clear()
-    m.call(game.sym(f_["ct"]), (BOSS, f_["level"]))
+    m.mem[STAGE + 0x200:STAGE + 0x300] = bytes(0x100)
+    m.mem[BOSS_STACK - 0x10000:BOSS_STACK] = bytes([int(os.environ.get("PINEY_STACK_POISON", "0"), 16)]) * 0x10000
+    m.call(game.sym(f_["ct"]), (BOSS, f_["level"]), sp=BOSS_STACK)
     frames = [game_state(game, len(party))]
     menus = case["menus"]
     ea = game.sym("EntryAffect__6ccCharFP6ccCharssss")
@@ -592,10 +686,16 @@ def run_game(game, case):
             ty = 7 if kind == 2 else 1
             m.call(ea, (on, kite, ty, p0 & 0xFFFF, p1 & 0xFFFF, 0))
         disc(f)
+        for wf, p in case.get("walks", []):
+            if wf == f:
+                for k in range(3):
+                    m.store(kite + 0x40 + 4 * k, 4, p[k])
+                m.store(kite + 0x4C, 4, F_ONE)
         if game.ride > 0:
             game.ride -= 1
         game.effects_pass()
-        m.call(game.sym(f_["main"]), (BOSS,))
+        m.call(game.sym(f_["main"]), (BOSS,), sp=BOSS_STACK)
+        fade_step(m, STAGE + 0x200)
         frames.append(game_state(game, len(party)))
     return frames
 
@@ -663,6 +763,24 @@ KYVIA2 = ([(0x29710, "u"), (0x29728, "h"), (0x29380, "h"), (0x2972A, "u"), (0x29
 # moving MaxHP, SwitchHp, HpProccess and DmgAnmFlg 4 on), then the member
 # DWARF leaves out at +0x293f4, the last stage's count.
 KYVIA3 = [(o + 4 if 0x295C8 <= o <= 0x295D4 else o, k) for o, k in KYVIA2] + [(0x293F4, "i")]
+# ccBossKyvia04's (Quarantine's: Infection's DWARF as it is but +0x29614
+# and +0x29618, the rebirth's flag and count, and the cinema's two bytes at
+# +0x29350, the second the core's rise): the second's members, then
+# FightFlg, the rise, CoreLvCount, CoreAppearPos, DeadSetPos, RebirthFlg,
+# RebirthCnt, WallGpFlg, each place's four generators held and paused
+# (WallGp, WallGp2, CoreAppGp, CoreAppGp2), FadeNum.
+KYVIA4 = ([(0x29860, "u"), (0x29878, "h"), (0x29380, "h"), (0x2987A, "u"), (0x293F0, "i"), (0x295D8, "i"),
+           (0x295D4, "i"), (0x29864, "i"), (0x29350, "u"), (0x296C0, "i"), (0x295CC, "i"), (0x295D0, "i"),
+           (0x29370, "v"), (0x29410, "v"), (0x296A0, "v"), (0x29650, "f"), (0x296D0, "v"), (0x2952C, "f"),
+           (0x29530, "f"), (0x29534, "f")] + vs(0x294B0, 3) + vs(0x294E0, 3) + vs(0x29480, 3) + vs(0x29420, 6)
+          + [(0x293B0, "v"), (0x293C0, "v"), (0x293D0, "v"), (0x293E0, "v"), (0x295E0, "v"), (0x296B0, "v"),
+             (0x29640, "v")] + [(0x29600 + 4 * k, "p") for k in range(4)] + [(0x29610, "p")]
+          + [(0x29510, "p")] + [(0x29514 + 4 * k, "p") for k in range(3)] + [(0x29520 + 4 * k, "p") for k in range(3)]
+          + [(0x29538, "i"), (0x2953C, "i"), (0x295C0, "h"), (0x295C4, "i"), (0x29880, "i")]
+          + [(0x2987B, "u"), (0x29351, "u"), (0x29730, "i")] + vs(0x296F0, 4) + [(0x295F0, "v")]
+          + [(0x29614, "i"), (0x29618, "i"), (0x29800, "i")]
+          + [(0x297C0 + 0x10 * j + 4 * k, kind) for k in range(4) for j in range(4) for kind in ("p", "q")]
+          + [(0x29884, "i")])
 FIGHTS = {
     1: {"ct": "__ct__13ccBossKyvia01Fi", "main": "Main__13ccBossKyvia01Fv", "level": 1, "size": 0x296A0,
         "row": 12, "fields": KYVIA, "anmw": 0x29358},
@@ -670,7 +788,11 @@ FIGHTS = {
         "row": 13, "fields": KYVIA2, "anmw": 0x2935C},
     3: {"ct": "__ct__13ccBossKyvia03Fi", "main": "Main__13ccBossKyvia03Fv", "level": 3, "size": 0x29740,
         "row": 13, "fields": KYVIA3, "anmw": 0x2935C},
+    4: {"ct": "__ct__13ccBossKyvia04Fi", "main": "Main__13ccBossKyvia04Fv", "level": 4, "size": 0x29890,
+        "row": 15, "fields": KYVIA4, "anmw": 0x2935C},
 }
+# Where ThunderType falls in each fight's fields (a vector is three).
+THUNDER_AT = {f: sum(3 if k == "v" else 1 for _, k in KYVIA2[:-5]) for f in (2, 3, 4)}
 # kyviaCore's: Myattribute, NO, endFlg, CoreState, tempState, DeadFlg,
 # DeadCount, kAtkFlg, kDmgFlg, KyviaLV, ConeVoiceCou, NowGomoraNum,
 # GomoraCount, GsCount, Gomorahold, GomoraMeter, GomoraLock, time,
@@ -762,9 +884,11 @@ def game_state(game, n):
         "party": party,
         "out": list(game.out),
         "menu": [s16(m.load(MENU + 0xFE, 2)), s16(m.load(MENU + 0x100, 2)), s16(m.load(MENU + 0x26, 2)),
-                 s16(m.load(MENU + 0x14, 2)), s16(m.load(MENU + 0xF0, 2)), s16(m.load(MENU + 0xF2, 2))],
+                 s16(m.load(MENU + 0x14, 2)), s16(m.load(MENU + 0xF0, 2)), s16(m.load(MENU + 0xF2, 2)),
+                 int(m.load(MENU + 0x238, 4) != 0)],
         "blur": bb.blur_state(game, MGR),
         "ball": ball_state(game),
+        "hell": hell_state(game) if FIGHT == 4 else None,
         "rand": game.g.rand_now(),
         "cc": s32(m.load(eai.MTI, 4)),
     }
@@ -788,6 +912,27 @@ def ball_state(game):
                     m.load(ld(0x9C) + 4 * j, 4)]
             for o in (0x70, 0x74, 0x78, 0xBC, 0xC0):
                 out += f32s(m, ld(o) + 16 * j, 3)
+        return out
+    return None
+
+
+def hell_state(game):
+    """Hell's express's members (HellSpecialExpress, Infection's DWARF) as
+    battle_probe's hell_json has them; None without one."""
+    m = game.m
+    for k in range(1024):
+        e = m.load(MGR + 52 + 4 * k, 4)
+        if not e or m.load(e + 12, 4) != game.hell_vt:
+            continue
+        ld = lambda o: m.load(e + o, 4, True)  # noqa: E731
+        tgt = m.load(e + 0x1C, 4)
+        anm = m.load(e + 0x170, 4)
+        out = [ld(0x164), ld(0x168), ld(0x15C), ld(0x160), m.load(e + 0x174, 1), ld(0x20),
+               (tgt - SCN) // 0x1000 if tgt else -1, game.anms.get(anm, [None, 0])[1] >> 8]
+        for o in (0x70, 0x80, 0x90, 0xA0, 0xC0):
+            out += f32s(m, e + o, 3)
+        for j in range(3):
+            out += f32s(m, e + 0xD0 + 16 * j, 3) + [m.load(e + 0x134 + 4 * j, 4), ld(0x148 + 4 * j)]
         return out
     return None
 
@@ -834,8 +979,23 @@ def request(game, case, pre):
     parts.append(len(case["menus"]))
     for mm in case["menus"]:
         parts += list(mm)
+    if FIGHT == 4:
+        parts.append(len(case["walks"]))
+        for wf, p in case["walks"]:
+            parts += [wf] + p
     parts += bb.blur_tokens(case)
     return " ".join(str(x) for x in parts)
+
+
+def first_diff(a, b):
+    """Where two values first differ: a list's index with a few around."""
+    if isinstance(a, list) and isinstance(b, list):
+        for i, (x, y) in enumerate(zip(a, b)):
+            if x != y:
+                return f" at [{i}] game {x}\n       port {y}\n around game {a[max(0, i - 3):i + 4]}\n" \
+                       f"        port {b[max(0, i - 3):i + 4]}"
+        return f" lengths {len(a)} {len(b)}: game tail {a[len(b):][:4]} port tail {b[len(a):][:4]}"
+    return f" game {a} port {b}"
 
 
 def compare(game, case, label):
@@ -846,8 +1006,8 @@ def compare(game, case, label):
         a = rs.norm(a)
         for k in a:
             if a[k] != b_.get(k):
-                raise AssertionError(f"{label} frame {f - 1}: {k}\n game {a[k]}\n port {b_.get(k)}\n"
-                                     f" game {a}\n port {b_}")
+                raise AssertionError(f"{label} frame {f - 1}: {k}\n{first_diff(a[k], b_.get(k))}\n"
+                                     f" game {a[k]}\n port {b_.get(k)}\n game {a}\n port {b_}")
     if len(g_frames) != len(p_frames):
         raise AssertionError(f"{label}: {len(g_frames)} game frames, {len(p_frames)} port frames")
     return g_frames
@@ -856,7 +1016,7 @@ def compare(game, case, label):
 class Against(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        if volume.NAME not in ("mutation", "outbreak", "quarantine"):
+        if volume.NAME not in ("mutation", "outbreak", "quarantine") or (FIGHT == 4 and volume.NAME != "quarantine"):
             raise unittest.SkipTest("Kyvia is Mutation's and Outbreak's: PINEY_VOLUME=mutation or outbreak")
         if not (os.path.exists(rs.ELF) and os.path.exists(rs.ISO)):
             raise unittest.SkipTest("the disc is not extracted")
@@ -901,7 +1061,7 @@ def bulk(n, seed0=9300):
         core_acts |= {fr["core"][2] for fr in frames}
         gomora_acts |= {g[2] for fr in frames for g in fr["gomoras"]}
         # The second fight's ThunderType while its act 6 runs.
-        thunders |= {fr["kyvia"][-6 if FIGHT == 3 else -5] for fr in frames if FIGHT >= 2 and fr["act"][0] == 6}
+        thunders |= {fr["kyvia"][THUNDER_AT[FIGHT]] for fr in frames if FIGHT >= 2 and fr["act"][0] == 6}
         # Gomoras pushed (their bodyHit's offset, the three before the
         # stream).
         pushes += sum(1 for fr in frames for g in fr["gomoras"] if any(g[-4:-1]))

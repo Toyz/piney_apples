@@ -2,8 +2,9 @@
 //! core, the fight's target. It rises on the disc, circles it on splines,
 //! sends out its five gomoras ([`super::gomora`]) and counts the damage and
 //! the time it takes; enough of either calls the body's attack
-//! (`kAtkFlg`). The EX mode (`KyviaExFlg`, Kyvia's last fights) is left
-//! out. docs/engine/boss-kyvia.md.
+//! (`kAtkFlg`). In the fourth fight's EX turn (`KyviaExFlg`) it stands
+//! beside the body at level 5, its gomoras out at `GomoraKpos`.
+//! docs/engine/boss-kyvia.md, boss-kyvia-fourth.md.
 
 use piney_data::field::ee;
 
@@ -105,6 +106,10 @@ pub struct Core {
     pub row_hp: i16,
     /// `anmw`: the wave (`ANM_xx11wave`) of act 13.
     pub anm_w: Anm,
+    /// `GomoraKpos`: where the EX turn's gomoras rise.
+    pub gomora_kpos: V4,
+    /// `bossTbl` row 15's `maxHP` as the fourth fight's rebirth wrote it.
+    pub row15_hp: Option<i16>,
 }
 
 impl Core {
@@ -182,6 +187,10 @@ fn set_core_base_param(cx: &mut Cx, x: &mut Core, me: usize, lv: i16, attr: i32)
         3 => (36, 1500),
         4 => (38, 1000),
         5 if attr == -1 => (15, 0),
+        5 => {
+            x.kyvia_lv = lv;
+            return;
+        }
         _ => {
             x.kyvia_lv = lv;
             return;
@@ -197,7 +206,52 @@ fn set_core_base_param(cx: &mut Cx, x: &mut Core, me: usize, lv: i16, attr: i32)
         ch.max_hp = ch.max_hp.wrapping_add(x.row_hp);
         ch.hp = ch.max_hp;
     }
+    if lv == 5
+        && let Some(hp) = x.row15_hp
+    {
+        let ch = &mut cx.scene.chars[me];
+        ch.max_hp = hp;
+        ch.hp = hp;
+        if let Some(f) = ch.foe_state_mut() {
+            f.row.max_hp = hp;
+        }
+    }
     x.kyvia_lv = lv;
+}
+
+/// `SetCoreBaseParam(5, -1)` from the body (`KyviaExOn`): row 15, its
+/// `maxHP` as the rebirth left it.
+pub(crate) fn set_ex_param(c: &mut Part<Core>, cx: &mut Cx, row15: Option<i16>) {
+    c.x.row15_hp = row15;
+    let me = c.me;
+    set_core_base_param(cx, &mut c.x, me, 5, -1);
+}
+
+/// `KyviaExModeOn` (QUA gcmn 0x003e9b30): the EX turn, its state 10, not
+/// drawn, at (0, -700, 900) (the marker's chunk fetched and not read),
+/// unturned, at rest; its gomoras' place (190, -2154, 950) and theirs.
+pub(crate) fn kyvia_ex_mode_on(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
+    c.x.ex = 1;
+    c.x.core_state = 10;
+    c.x.alpha = ONE;
+    c.b.draw_sw = 0;
+    cx.scene.chars[c.me].pos = [0, 0xc42f_0000, 0x4461_0000, 0x4000_0000];
+    c.b.dirc = VF0;
+    c.b.change_action(cx, act::NEUTRAL, 1, true);
+    c.x.gomora_kpos = [0x433e_0000, 0xc506_a000, 0x446d_8000, ONE];
+    for g in gs.iter_mut() {
+        gomora::kyvia_ex_mode_on(&mut g.x, c.x.gomora_kpos);
+    }
+}
+
+/// `EndFadeEX` (QUA gcmn 0x003ea8b0): back at once from an attack in the
+/// EX turn: its time on, the state it left, seen, on the lists.
+pub(crate) fn end_fade_ex(c: &mut Part<Core>, cx: &mut Cx) {
+    c.x.time_flg = ONE;
+    c.x.core_state = c.x.temp_state;
+    c.x.alpha = ONE;
+    c.x.fade_flg = 1;
+    c.b.entry_cmnd_target(cx);
 }
 
 /// `ResetData` (MUT gcmn 0x004f80f0): the core as its death leaves it for
@@ -306,6 +360,19 @@ fn think(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) {
         judgment_dmg_anm(c, cx);
         check_count_gomora(c, gs, cx);
         check_count_atk_time(c, gs, cx);
+    } else {
+        if c.x.st_flg == 1 {
+            c.x.dead_flg = 0;
+            c.x.time_mode = 0;
+            c.x.cone_voice_cou = 0;
+            c.x.dmg_time = 600;
+            c.x.st_flg = 0;
+            c.x.alpha = ONE;
+            action_start_k(c, cx);
+        }
+        judgment_dmg_anm(c, cx);
+        check_count_gomora(c, gs, cx);
+        check_count_atk_time(c, gs, cx);
     }
     match c.b.act_num {
         1..=5 | 11..=14 | 20 | 21 => {}
@@ -407,6 +474,37 @@ fn action_start(c: &mut Part<Core>, cx: &mut Cx) {
     };
 }
 
+/// `ActionStart_K` (QUA gcmn 0x003e97b0): the EX turn's start, on the
+/// command lists; at level 5 its damage count from full and its limit by
+/// its deaths (30% of its HP after three, 900 after four).
+fn action_start_k(c: &mut Part<Core>, cx: &mut Cx) {
+    let me = c.me;
+    crate::fellow::entry_cmnd(cx.scene, me);
+    let max_hp = i32::from(cx.scene.chars[me].max_hp);
+    let max = ee::from_int(max_hp);
+    let part = |k: F| ee::to_int(ee::mul(k, max));
+    match (c.x.kyvia_lv, c.x.dead_count) {
+        (5, 3) => {
+            c.x.dmg_count = max_hp;
+            c.x.dmg_wait = part(0x3e99_999a);
+        }
+        (5, 4) => {
+            c.x.dmg_count = max_hp;
+            c.x.dmg_wait = 900;
+        }
+        (5, _) => c.x.dmg_count = max_hp,
+        (1, _) => c.x.dmg_wait = 800,
+        (2, 0) => c.x.dmg_wait = part(0x3e80_0000),
+        (2, _) => c.x.dmg_wait = part(0x3e4c_cccd),
+        (3, 0) | (4, 0) => c.x.dmg_wait = part(0x3e99_999a),
+        (3, 1) => c.x.dmg_wait = part(0x3e4c_cccd),
+        (3, _) => c.x.dmg_wait = part(0x3e38_51ec),
+        (4, 1) => c.x.dmg_wait = part(0x3e80_0000),
+        (4, _) => c.x.dmg_wait = part(0x3e61_47ae),
+        _ => {}
+    }
+}
+
 /// `JudgmentDmgAnm` (MUT gcmn 0x004fb860): hurt (act 2), one time in five
 /// the body flinches too (`kDmgFlg` 4).
 fn judgment_dmg_anm(c: &mut Part<Core>, cx: &mut Cx) {
@@ -482,7 +580,8 @@ fn check_count_gomora(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx) 
     if c.x.gomora_hold == 2 && c.x.gomora_meter != 0 && get_gomora_state(gs, 1) {
         c.x.gomora_meter = 0;
         c.x.gomora_count = 0;
-        c.x.now_dmg_time += 1800;
+        // `CheckCountGomoraEX` (QUA gcmn 0x003eb490): 1200.
+        c.x.now_dmg_time += if c.x.ex != 0 { 1200 } else { 1800 };
         for g in gs.iter_mut() {
             gomora::next_g_list(g, cx);
         }
@@ -996,8 +1095,9 @@ fn entry_slave(c: &mut Part<Core>, gs: &mut [Part<Gomora>], cx: &mut Cx, on: i32
         if g.b.exit == 0 {
             continue;
         }
-        // SetMasterPos: the core's place (EX's GomoraKpos is not ported).
-        let pos = geom::vadd(core_pos, g.x.off_set);
+        // SetMasterPos: the core's place (the EX turn's `GomoraKpos`).
+        let at = if c.x.ex != 0 { c.x.gomora_kpos } else { core_pos };
+        let pos = geom::vadd(at, g.x.off_set);
         cx.scene.chars[g.me].pos = pos;
         g.b.exit = 0;
         g.x.order_num = on;

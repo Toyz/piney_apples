@@ -6990,6 +6990,9 @@ mod tests {
     /// Kyvia's third fight, event 308 played to its end.
     mod kyvia_third;
 
+    /// Kyvia's fourth fight, event 312 played to its end.
+    mod kyvia_fourth;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

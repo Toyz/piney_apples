@@ -55,7 +55,12 @@ fn bout(volume: Volume, which: Fight) -> Option<Bout> {
     ch.affect.func = AffectFunc::Boss;
     let me = scene.add(ch, 3);
     let party = Party { members: [Some(kite), Some(member), None], ids: [0, 1, -1], num: 2 };
-    let disc = DiscView { moving: true, prev_pos: [0, 0, 0, ONE], marker: [0, 0x453b_8000, 0x4348_0000, ONE] };
+    let disc = DiscView {
+        moving: true,
+        prev_pos: [0, 0, 0, ONE],
+        marker: [0, 0x453b_8000, 0x4348_0000, ONE],
+        ..DiscView::default()
+    };
     let mut f = Bout { volume, t, data, scene, party, me, rand: Rand(7), cc: Genrand::seeded(4357), count: 0, disc };
     let b = f.with_cx(|cx| new(cx, which));
     f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));

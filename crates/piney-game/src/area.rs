@@ -82,6 +82,9 @@ pub struct AreaMode {
     /// characters), and `m_stageEffId`.
     stage_fade: piney_demo::fade::ScFade,
     stage_fade_id: i32,
+    /// `ccMenu` +0x238 `dummyTarget` a boss set (Kyvia's fourth fight's
+    /// death): the character whose HP the gauge shows, read each frame.
+    dummy_target: Option<usize>,
     str_party: Option<piney_world::foe::StrParty>,
     /// The game over past `ccThGameCtrl`'s signal (`ccThGameOver`).
     game_over: Option<crate::gameover::GameOverTask>,
@@ -306,6 +309,7 @@ impl AreaMode {
             str_party: None,
             stage_fade: piney_demo::fade::ScFade::default(),
             stage_fade_id: -1,
+            dummy_target: None,
             game_over: None,
             ride: ride::RideSeq::default(),
             map_showing: false,
@@ -1115,6 +1119,12 @@ impl AreaMode {
                     }
                 }
                 Show::Boss(_, Out::CursorOff(on)) => self.ui.ctrl.cursol_off = i16::from(*on),
+                Show::Boss(_, Out::DummyTarget(t)) => {
+                    self.dummy_target = *t;
+                    if t.is_none() {
+                        self.ui.ctrl.dummy_target = None;
+                    }
+                }
                 // BeginStageEffect(rgba, t0, t1, t2): EntryFlash3(t0, t1, t2,
                 // rgba) on the stage fader.
                 Show::Boss(_, Out::StageBegin { rgba, t }) => {
@@ -1310,6 +1320,11 @@ impl AreaMode {
             self.map_showing = !self.item_show_map();
         }
         let w = self.hud_world();
+        if let Some(i) = self.dummy_target {
+            let save = self.world.state();
+            let names = |id: i32| if id == 0 { save.save.name().to_vec() } else { self.world.char_name(id) };
+            self.ui.ctrl.dummy_target = char_info(&self.world, i, &names);
+        }
         // The menus draw from the game's one rand(), as the world left it.
         let (ui, count) = (&mut self.ui, self.count);
         self.world.with_live_state(|s| ui.step_into(pad, &w, s, count, ctx));
@@ -1553,6 +1568,10 @@ impl Mode for AreaMode {
             pl_attack: self.ui.ctrl.pl_attack != 0,
         });
         self.world.set_menu_type(self.ui.menu_type());
+        // scFadeDef as the boss's task finds it.
+        let fades =
+            self.st.fade_def.elems.map(|e| piney_battle::boss::FadeView { status: e.status, cnt: e.cnt, tcnt: e.tcnt });
+        self.world.set_fades(fades);
         // ccThPucciguso's slot (its Main runs with the field's tasks); the
         // menu task, first in the game's frame, sees pgRideFlag before it.
         self.ride.seen = self.world.pg_ride();

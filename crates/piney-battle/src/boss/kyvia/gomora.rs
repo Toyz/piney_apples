@@ -2,8 +2,9 @@
 //! core's five gomoras. Each leaves the core on a spline, circles the disc
 //! and, as its attack time runs out, acts by its attribute from the core's
 //! lists: 0 heals the core (skill 295), 1 and 2 cast one of Kyvia's skills,
-//! 3 dashes at a member (boss skill 35). The EX mode is left out.
-//! docs/engine/boss-kyvia.md.
+//! 3 dashes at a member (boss skill 35). In the EX turn of the fourth
+//! fight (`KyviaExFlg`) each rises beside the body instead.
+//! docs/engine/boss-kyvia.md, boss-kyvia-fourth.md.
 
 use piney_data::field::ee;
 
@@ -88,6 +89,21 @@ pub struct Gomora {
     /// `bodyHit` (+0x240): kind and mask 128 (bosses), no ground.
     pub hit: CharHit,
     pub anm_w: Anm,
+    /// `KyviaExFlg`: the EX turn's, and the place `CorePos` points at then
+    /// (the core's `GomoraKpos`, not the core).
+    pub ex: i32,
+    pub kpos: Option<V4>,
+}
+
+/// `KyviaExModeOn_G` (QUA gcmn 0x003ed830): the EX turn; a dasher's attack
+/// time 90.
+pub(crate) fn kyvia_ex_mode_on(x: &mut Gomora, kpos: V4) {
+    x.ex = 1;
+    x.kpos = Some(kpos);
+    if x.my_attribute == 3 {
+        x.atk_wait = 90;
+        x.atk_time = 90;
+    }
 }
 
 /// `kyviaGomora::kyviaGomora` (MUT gcmn 0x004ff220, `InitData` 0x004fdf10),
@@ -446,9 +462,23 @@ fn start_init(g: &mut Part<Gomora>, cx: &mut Cx) -> bool {
     let t = rnd_target(g, cx);
     cx.scene.chars[me].target_char = t;
     g.b.change_action(cx, act::NEUTRAL, 1, true);
-    let core = cx.scene.chars[g.x.master].pos;
+    let core = g.x.kpos.unwrap_or(cx.scene.chars[g.x.master].pos);
     cx.scene.chars[me].pos = core;
     let at = geom::vadd(core, [0, 0, 0x4348_0000, ONE]);
+    if g.x.ex != 0 {
+        // The EX turn's: beside `GomoraKpos`, 50 to 150 off turned up to
+        // 1.5 and up to 50 up or down; no departure.
+        let turn = rand_f(cx.cc, 0x3fc0_0000);
+        let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
+        let off = [0, fp(50.0 + dp(rand_abs(cx, 0x42c8_0000))), 0, ONE];
+        let mut pos = geom::vadd(core, geom::apply_matrix(&m, off));
+        pos[2] = ee::add(pos[2], rand_f(cx.cc, 0x4248_0000));
+        cx.scene.chars[me].pos = pos;
+        g.x.disc_pos = pos;
+        g.x.time_mode = 1;
+        let _ = at;
+        return true;
+    }
     let sign: i32 = if (cx.cc.rand() % 2).abs() != 0 { -1 } else { 1 };
     let turn = rand_f(cx.cc, 0x3fc0_0000);
     let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
@@ -474,6 +504,10 @@ fn start_init(g: &mut Part<Gomora>, cx: &mut Cx) -> bool {
 /// `DepartureMove` (MUT gcmn 0x005009a0): along the departure spline, 30
 /// steps a frame; true at its end.
 fn departure_move(g: &mut Part<Gomora>, cx: &mut Cx) -> bool {
+    // The EX turn's is done once the gomora has faded in.
+    if g.x.ex != 0 {
+        return !ee::lt(g.x.alpha, ONE);
+    }
     if !ee::le(g.x.time, ONE) {
         g.x.time = 0;
         g.x.time_mode += 1;

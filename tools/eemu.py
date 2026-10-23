@@ -238,10 +238,10 @@ class Machine:
         self.set(i, sx(v, 32) & M64)
 
     # execution --------------------------------------------------------------
-    def call(self, addr, args=(), limit=5_000_000):
+    def call(self, addr, args=(), limit=5_000_000, sp=None):
         self.r = [0] * 32
         self.r[28] = self.p.gp
-        self.r[29] = STACK_TOP
+        self.r[29] = STACK_TOP if sp is None else sp
         self.r[31] = RETURN_SENTINEL
         # the EE ABI passes eight integer arguments in registers: a0-a3, t0-t3
         for i, a in enumerate(args[:8]):

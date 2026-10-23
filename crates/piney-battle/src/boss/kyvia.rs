@@ -1,14 +1,15 @@
-//! Kyvia's first fight (`ccBossKyvia01`, kyvia01.cpp; MUT gcmn 0x004d2960-
-//! 0x004d93e8), code 12 of `bossFunc`, which Mutation's event 108 enters
-//! on the disc of field 9 (`EVENTAREAB8`), its second ([`Fight`], code 13,
-//! Outbreak's field 10) and its third (code 14, Quarantine's field 11).
-//! The body stands off the disc and strikes; its core (`kyviaCore`,
-//! [`core`]) is the target, with five gomoras (`kyviaGomora`, [`gomora`])
-//! about it, each a `ccBoss` of its own character taken out of it for the
+//! Kyvia's fights ([`Fight`]): `bossFunc` codes 12 (`ccBossKyvia01`, MUT
+//! gcmn 0x004d2960-0x004d93e8, event 108 on field 9's disc), 13
+//! (Outbreak's field 10), 14 (Quarantine's field 11) and 15 (field 12,
+//! [`fourth`]). The body stands off the disc and strikes; its core
+//! (`kyviaCore`, [`core`]) is the target, with five gomoras
+//! (`kyviaGomora`, [`gomora`]) about it, each a `ccBoss` taken out of the
 //! body's frame (a [`Tree`]). docs/engine/boss-kyvia.md and its fights'.
 
 pub mod core;
+pub mod fourth;
 pub mod gomora;
+pub mod hell;
 pub mod magic_ball;
 pub mod thunder;
 
@@ -29,10 +30,11 @@ const PI: F = 0x4049_0fdb;
 const TWO_PI: F = 0x40c9_0fdb;
 const NEG_PI: F = 0xc049_0fdb;
 
-/// `bossFunc`'s codes: Kyvia's first fight, its second and its third.
+/// `bossFunc`'s codes: Kyvia's first fight, its second, third and fourth.
 pub const CODE: i32 = 12;
 pub const CODE_SECOND: i32 = 13;
 pub const CODE_THIRD: i32 = 14;
+pub const CODE_FOURTH: i32 = 15;
 /// The body's `bodyHit` radius, 400 in both constructors (MUT gcmn
 /// 0x004d2d10, OUT 0x004d5b60); its height and kind are its row's.
 pub const BODY_RADIUS: F = 0x43c8_0000;
@@ -48,18 +50,19 @@ pub fn stream(lv: i16) -> Option<&'static str> {
 }
 
 /// Which of Kyvia's fights the body is: its first (`ccBossKyvia01`,
-/// Mutation's field 9), its second (`ccBossKyvia02`, kyvia02.cpp,
-/// Outbreak's field 10: two stages of the disc, the core at level 2 and
-/// the thunderbolts, [`thunder`]) or its third (`ccBossKyvia03`,
-/// kyvia03.cpp, Quarantine's field 11: three stages, level 3 and the
-/// magical ball, [`magic_ball`]). Each later one is the one before's code
-/// with its own numbers wherever they differ.
+/// Mutation's field 9), its second (`ccBossKyvia02`, Outbreak's field 10:
+/// two stages, level 2, [`thunder`]), its third (`ccBossKyvia03`,
+/// Quarantine's field 11: three stages, level 3, [`magic_ball`]) or its
+/// fourth (`ccBossKyvia04`, field 12: four places, the EX turn and the
+/// rebirth, [`fourth`]). Each later one is the one before's code with its
+/// own numbers wherever they differ.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Fight {
     #[default]
     First,
     Second,
     Third,
+    Fourth,
 }
 
 impl Fight {
@@ -69,6 +72,7 @@ impl Fight {
             CODE => Some(Fight::First),
             CODE_SECOND => Some(Fight::Second),
             CODE_THIRD => Some(Fight::Third),
+            CODE_FOURTH => Some(Fight::Fourth),
             _ => None,
         }
     }
@@ -79,6 +83,7 @@ impl Fight {
         match self {
             Fight::First => 12,
             Fight::Second | Fight::Third => 13,
+            Fight::Fourth => 15,
         }
     }
 
@@ -88,6 +93,7 @@ impl Fight {
             Fight::First => 1,
             Fight::Second => 2,
             Fight::Third => 3,
+            Fight::Fourth => 4,
         }
     }
 
@@ -109,6 +115,7 @@ impl Fight {
             Fight::First => [33, 32, 34],
             Fight::Second => [36, 37, 38],
             Fight::Third => [76, 37, 38],
+            Fight::Fourth => [44, 52, 38],
         }
     }
 
@@ -134,6 +141,12 @@ pub mod act {
     /// as 11-13 are.
     pub const MAGIC_BALL: i16 = 20;
     pub const DEAD: i16 = 14;
+    /// The fourth fight's ([`super::fourth`]): hell's express, the great
+    /// meteor, the skills and the rebirth.
+    pub const HELL: i16 = 21;
+    pub const BIG_MEGID: i16 = 22;
+    pub const SKILL: i16 = 23;
+    pub const REBIRTH: i16 = 24;
 }
 
 /// Kyvia's tables (`tables::combat`).
@@ -144,6 +157,9 @@ pub struct KyviaData {
     pub anims: Vec<Option<String>>,
     pub anims_second: Vec<Option<String>>,
     pub anims_third: Vec<Option<String>>,
+    /// `Kyvia04AnmTbl` and the EX turn's `Kyvia04AnmTbl_EX`.
+    pub anims_fourth: Vec<Option<String>>,
+    pub anims_fourth_ex: Vec<Option<String>>,
     pub core_anims: Vec<Option<String>>,
     pub gomora_anims: Vec<Option<String>>,
     /// `AllGomoraList_1[0]`: each list the gomoras' attributes by slave.
@@ -152,9 +168,12 @@ pub struct KyviaData {
     /// 3's (`ListStepUp`'s third table, Mutation on).
     pub gomora_lists_second: Vec<Vec<[i16; 5]>>,
     pub gomora_lists_third: Vec<Vec<[i16; 5]>>,
-    /// `Skill_VARIOUS`, `Skill_DOWNER`.
+    pub gomora_lists_fourth: Vec<Vec<[i16; 5]>>,
+    /// `Skill_VARIOUS`, `Skill_DOWNER`, and the fourth fight's
+    /// `Skill_KYVIA_VARIOUS` (`Skill_Atk`'s).
     pub various: Vec<i16>,
     pub downer: Vec<i16>,
+    pub kyvia_various: Vec<i16>,
 }
 
 impl KyviaData {
@@ -167,6 +186,8 @@ impl KyviaData {
             anims: s(t.kyvia01_anims()),
             anims_second: s(t.kyvia02_anims()),
             anims_third: s(t.kyvia03_anims()),
+            anims_fourth: s(t.kyvia04_anims()),
+            anims_fourth_ex: s(t.kyvia04_anims_ex()),
             core_anims: s(t.kyvia_core_anims()),
             gomora_anims: s(t.kyvia_gomora_anims()),
             gomora_lists: t.kyvia_gomora_lists().iter().map(|l| row(l)).collect(),
@@ -180,8 +201,14 @@ impl KyviaData {
                 .iter()
                 .map(|step| step.iter().map(|l| row(l)).collect())
                 .collect(),
+            gomora_lists_fourth: t
+                .kyvia_gomora_lists_4()
+                .iter()
+                .map(|step| step.iter().map(|l| row(l)).collect())
+                .collect(),
             various: t.kyvia_various_skills().to_vec(),
             downer: t.kyvia_downer_skills().to_vec(),
+            kyvia_various: t.kyvia_skills_various().to_vec(),
         }
     }
 
@@ -192,6 +219,7 @@ impl KyviaData {
             (1, 0) => Some(&self.gomora_lists),
             (2, _) => self.gomora_lists_second.get(step).map(Vec::as_slice),
             (3, _) => self.gomora_lists_third.get(step).map(Vec::as_slice),
+            (4, _) => self.gomora_lists_fourth.get(step).map(Vec::as_slice),
             _ => None,
         }
     }
@@ -229,13 +257,15 @@ impl Table {
 }
 
 /// One `new ccParticleGenerator(row, ff...)`: the table, its row, the
-/// rows of its force field table in order, and `distSW` (+4 bit 0) as the
+/// rows of its force field table (`ff_table`'s, the table's own but for
+/// one of the fourth fight's) in order, and `distSW` (+4 bit 0) as the
 /// maker leaves it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GenRow {
     pub table: Table,
     pub row: u8,
     pub ff: &'static [u8],
+    pub ff_table: Table,
     pub dist_sw: bool,
 }
 
@@ -279,12 +309,16 @@ pub enum Gen {
     Burst(u8),
     /// The third fight's magical ball's ([`magic_ball::BallGen`]).
     Ball(magic_ball::BallGen),
+    /// The fourth fight's own ([`fourth::Make`]) and its hell's express's
+    /// ([`hell::HellGen`]).
+    Fourth(fourth::Make),
+    Hell(hell::HellGen),
 }
 
 impl Gen {
     /// Its table, row and force fields.
     pub fn rows(self) -> GenRow {
-        let g = |table, row, ff| GenRow { table, row, ff, dist_sw: true };
+        let g = |table, row, ff| GenRow { table, row, ff, ff_table: table, dist_sw: true };
         match self {
             Gen::Light => g(Table::Kyvia, 0, &[0]),
             Gen::BeamsOut => g(Table::Kyvia, 7, &[10, 11]),
@@ -312,6 +346,11 @@ impl Gen {
                 let (row, ff) = which.rows();
                 GenRow { dist_sw: false, ..g(Table::MissileSmoke, row, ff) }
             }
+            Gen::Fourth(m) => m.rows(),
+            Gen::Hell(h) => {
+                let (row, ff) = h.rows();
+                GenRow { dist_sw: false, ..g(Table::MissileSmoke, row, ff) }
+            }
         }
     }
 }
@@ -333,6 +372,8 @@ pub enum Follow {
     /// ball).
     Plasma(u8),
     Plasma2(u8),
+    /// Hell's express's `Pos[k]` (a soul's place; the boss's one).
+    Soul(u8),
 }
 
 /// Where a generator stands: its `pos` (+0x60), or following a place with
@@ -341,6 +382,8 @@ pub enum Follow {
 pub enum Place {
     At(V4),
     Follows(Follow, V4),
+    /// From `pos` to `pos2` (+0x70): the fourth fight's walls.
+    Line(V4, V4),
 }
 
 /// A member the game keeps a generator's pointer in, to kill or stop it.
@@ -358,6 +401,16 @@ pub enum Held {
     CoreAura(usize, u8),
     /// A gomora's aura (+0x293e0), by its character.
     GomoraAura(usize),
+    /// The fourth fight's walls and the light at each place
+    /// (`WallGp[k]`, `WallGp2[k]`, `CoreAppGp[k]`, `CoreAppGp2[k]`).
+    Wall(u8),
+    Wall2(u8),
+    CoreApp(u8),
+    CoreApp2(u8),
+    /// Hell's express's souls' (`Sgp[k]`, `Kgp[k]`, `Pgp[k]`) and the
+    /// last's (`Ogp`).
+    Soul(u8, u8),
+    LastSoul,
 }
 
 pub use super::GenOp;
@@ -437,6 +490,10 @@ pub struct Kyvia {
     pub cam_pitch: F,
     /// The second fight's thunder ([`thunder::Thunder`]).
     pub thunder: Option<thunder::Thunder>,
+    /// The fourth fight's own members ([`fourth::Fourth`]).
+    pub fourth: Option<Box<fourth::Fourth>>,
+    /// `bossTbl` row 15's `maxHP` as the fourth fight's rebirth wrote it.
+    pub row15_hp: Option<i16>,
 }
 
 /// One of the fight's parts as the body's frame holds it: its `ccBoss`, its
@@ -739,24 +796,33 @@ pub fn new(cx: &mut Cx, fight: Fight) -> Boss {
         Fight::First => (&cx.data.kyvia.anims, "ANM_ex01nut0"),
         Fight::Second => (&cx.data.kyvia.anims_second, "ANM_ex02nut0"),
         Fight::Third => (&cx.data.kyvia.anims_third, "ANM_ex03nut0"),
+        Fight::Fourth => (&cx.data.kyvia.anims_fourth, "ANM_ex04nut0"),
     };
     b.anm_tbl = anims.clone();
-    // OffExit, OnDraw, OnBodyHit, OnCheatHP.
+    // OffExit, OnDraw, OnBodyHit (not the fourth's), OnCheatHP.
     b.exit = 0;
     b.draw_sw = 1;
-    b.body_hit_sw = 1;
+    b.body_hit_sw = i8::from(fight != Fight::Fourth);
     b.cheat_hp = 1;
     b.dirc = VF0;
     b.anm.set(clip, cx.clips);
     b.change_action(cx, act::NEUTRAL, 0, true);
     x.dummy_pos = cx.disc.marker;
-    cx.scene.chars[me].pos = x.dummy_pos;
-    // InitBossCamera(450, 1050); the pitch (0.26, the third's 0.25), its
-    // limit 0.6, the sway.
-    x.cam_rot_x = if fight == Fight::Third { 0x3e80_0000 } else { 0x3e85_1eb8 };
+    // The fourth fight's body stands at the field's origin.
+    cx.scene.chars[me].pos = if fight == Fight::Fourth { VF0 } else { x.dummy_pos };
+    // InitBossCamera(450, 1050) (the fourth's 250, 700); the pitch (0.26,
+    // the third's 0.25, the fourth's 0.13), its limit 0.6 (none in the
+    // fourth), the sway.
+    x.cam_rot_x = match fight {
+        Fight::Third => 0x3e80_0000,
+        Fight::Fourth => 0x3e05_1eb8,
+        _ => 0x3e85_1eb8,
+    };
     x.cam_pitch = x.cam_rot_x;
     cx.out(Out::CamPitch { add: false, v: x.cam_pitch });
-    cx.out(Out::CamRotXLimit(0x3f19_999a));
+    if fight != Fight::Fourth {
+        cx.out(Out::CamRotXLimit(0x3f19_999a));
+    }
     cx.out(Out::CamSway(true));
     x.anm_w.set("ANM_ex0batc0", cx.clips);
     // InitStageEffect: the stage fader.
@@ -764,7 +830,7 @@ pub fn new(cx: &mut Cx, fight: Fight) -> Boss {
     x.default_argb = 0x3080_8080;
     x.ex_argb = match fight {
         Fight::First => 0x6080_8080,
-        Fight::Second | Fight::Third => 0x7080_8080,
+        _ => 0x7080_8080,
     };
     for s in [Set::Enable, Set::Scale(ONE), Set::Abgr(x.default_argb)] {
         cx.out(Out::Blur(s));
@@ -780,10 +846,11 @@ pub fn new(cx: &mut Cx, fight: Fight) -> Boss {
     x.max_hp = i32::from(cx.scene.chars[core_me].max_hp);
     x.switch_hp = match fight {
         Fight::First => x.max_hp / 4,
-        Fight::Second | Fight::Third => x.max_hp / 5,
+        _ => x.max_hp / 5,
     };
     x.hp_proccess = 0;
     x.thunder = fight.later().then(thunder::Thunder::default);
+    x.fourth = (fight == Fight::Fourth).then(|| Box::new(fourth::Fourth::new()));
     x.quake_vector = [0x4120_0000, 0x4120_0000, 0x4120_0000, 0];
     b.class = Class::Kyvia(Box::new(x));
     b
@@ -832,7 +899,11 @@ fn frame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     }
     think(b, x, t, cx);
     action(b, x, t, cx);
-    b.move_(cx);
+    if x.fight == Fight::Fourth {
+        fourth::move_body(b, cx);
+    } else {
+        b.move_(cx);
+    }
     if b.lock_player != 0 {
         for m in cx.party.members.into_iter().flatten() {
             if cx.valid(Some(m)) {
@@ -860,10 +931,19 @@ fn frame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     if let Some(c) = t.core.as_mut() {
         self::core::main(c, &mut t.gomoras, cx);
     }
+    // The fourth fight's `Main` clears the body's hold after.
+    if x.fight == Fight::Fourth {
+        cx.scene.chars[me].cond[cond::HOLD] = 0;
+    }
 }
 
 /// `ccBossKyvia01::Think` (MUT gcmn 0x004d47c0).
 fn think(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+    if x.fight == Fight::Fourth {
+        fourth::think_head(b, x, t, cx);
+        fourth::think_turn(b, x, t, cx);
+        return;
+    }
     x.af_cou += 1;
     if x.af_timing < x.af_cou {
         x.af_cou = 0;
@@ -963,7 +1043,7 @@ fn third_pattern(x: &mut Kyvia, cx: &Cx, mode: i32) -> Option<(i32, i16, i32, Op
 
 /// `SwitchDeadCheck` (MUT gcmn 0x004d4a80): the core's flags read into the
 /// body's acts, and the body's death once the core is gone.
-fn switch_dead_check(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
+pub(super) fn switch_dead_check(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let flg = t.core.as_ref().map_or(0, |c| c.x.k_atk_flg);
     match flg {
         2 => {
@@ -990,7 +1070,8 @@ fn switch_dead_check(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             }
         }
     }
-    if x.live_flg == 0 && !cx.annihilated() && !cx.game_over {
+    // The fourth fight's death is its `DeadCheck`'s.
+    if x.fight != Fight::Fourth && x.live_flg == 0 && !cx.annihilated() && !cx.game_over {
         cx.out(Out::ClearSpcCondition);
         b.change_action(cx, act::DEAD, 2, true);
     }
@@ -1072,7 +1153,7 @@ fn ride_camera(x: &mut Kyvia, cx: &mut Cx) {
     let m = geom::rot_matrix_z(&geom::unit_matrix(), d);
     let mut eye = geom::vadd(geom::apply_matrix(&m, [0, 0x44bb_8000, 0x43fa_0000, ONE]), x.disc_pos);
     let view = match x.fight {
-        Fight::First | Fight::Third => geom::vadd([0, 0, 0x4316_0000, ONE], x.disc_pos),
+        Fight::First | Fight::Third | Fight::Fourth => geom::vadd([0, 0, 0x4316_0000, ONE], x.disc_pos),
         Fight::Second => {
             eye[3] = ONE;
             x.disc_pos
@@ -1120,9 +1201,14 @@ fn next_stage(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) {
 /// the core's HP lost (`SwitchHp`) puts a smoke on the body, 500 up and up
 /// to 300 off (the second fight's 1000 up and 300 back, and only on the
 /// last stage); -1 when none is due, else the next part.
-fn check_dmg_smoke_eff(x: &mut Kyvia, t: &Tree, cx: &mut Cx) -> i32 {
+pub(super) fn check_dmg_smoke_eff(x: &mut Kyvia, t: &Tree, cx: &mut Cx) -> i32 {
     let second = x.fight.later();
     if second && x.disc_lv != x.disc_max_lv {
+        return -1;
+    }
+    // The fourth fight's smokes come after the rebirth.
+    let fourth = x.fight == Fight::Fourth;
+    if fourth && x.fourth.as_ref().is_none_or(|f| f.rebirth_flg == 0) {
         return -1;
     }
     let core_hp = t.core.as_ref().map_or(0, |c| i32::from(cx.scene.chars[c.me].hp));
@@ -1139,13 +1225,20 @@ fn check_dmg_smoke_eff(x: &mut Kyvia, t: &Tree, cx: &mut Cx) -> i32 {
     let turn = rand_abs(cx, PI);
     let m = geom::rot_matrix_z(&geom::unit_matrix(), turn);
     v = geom::apply_matrix(&m, v);
-    v[2] = ee::add(v[2], if second { 0x447a_0000 } else { 0x43fa_0000 });
+    let up = match x.fight {
+        Fight::First => 0x43fa_0000,
+        Fight::Fourth => 0x4496_0000,
+        _ => 0x447a_0000,
+    };
+    v[2] = ee::add(v[2], up);
     let mut pos = geom::vadd(v, cx.scene.chars[cx.me].pos);
     if second {
-        pos = geom::vadd(pos, [0, 0xc396_0000, 0, ONE]);
+        let back = if fourth { 0xc489_8000 } else { 0xc396_0000 };
+        pos = geom::vadd(pos, [0, back, 0, ONE]);
     }
     x.set_smoke(k);
-    particles(cx, Gen::Smoke, Place::At(pos), Some(Held::Smoke(k as u8)));
+    let which = if fourth { Gen::Fourth(fourth::Make::Smoke) } else { Gen::Smoke };
+    particles(cx, which, Place::At(pos), Some(Held::Smoke(k as u8)));
     x.hp_proccess += 1;
     x.hp_proccess
 }
@@ -1206,6 +1299,7 @@ fn action(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                         let (back, up, eye) = match x.fight {
                             Fight::First => (0x43af_0000, 0x4422_8000, 0xc448_0000),
                             Fight::Second | Fight::Third => (0x4422_8000, 0x4489_8000, 0xc461_0000),
+                            Fight::Fourth => (0x4483_4000, 0x44c8_0000, 0xc461_0000),
                         };
                         damage_camera(x, cx, [back, up, eye], None);
                         set_pitch(x, cx, 0);
@@ -1259,7 +1353,9 @@ fn action(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 ch.affect.color = 0;
                 ch.affect.color_rate = 0;
                 b.change_action(cx, act::NEUTRAL, 0, true);
-                if let Some(c) = t.core.as_mut()
+                // The EX turn's pattern reads the core's hit itself.
+                if !fourth::ex(x)
+                    && let Some(c) = t.core.as_mut()
                     && c.x.k_dmg_flg == 4
                 {
                     c.x.k_dmg_flg = 0;
@@ -1278,14 +1374,20 @@ fn action(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         }
         act::THUNDER if x.fight.later() => thunder::thunderbolt_atk(b, x, t, cx),
         act::MAGIC_BALL if x.fight == Fight::Third => magic_ball::magic_ball_atk(b, x, t, cx),
+        act::MAGIC_BALL if x.fight == Fight::Fourth => fourth::magic_ball_atk(b, x, t, cx),
         21 if x.fight == Fight::Third => {}
+        act::HELL if x.fight == Fight::Fourth => fourth::hell_e_atk(b, x, t, cx),
+        act::BIG_MEGID if x.fight == Fight::Fourth => fourth::big_megid(b, x, t, cx),
+        act::SKILL if x.fight == Fight::Fourth => fourth::skill_atk(b, x, t, cx),
+        act::REBIRTH if x.fight == Fight::Fourth => fourth::rebirth(b, x, t, cx),
+        act::DEAD if x.fight == Fight::Fourth => fourth::dead(b, x, t, cx),
         act::DEAD => dead(b, x, cx),
         _ => b.change_action(cx, act::NEUTRAL, 0, true),
     }
 }
 
 /// The pitch (`bossCam` +0xe0) set.
-fn set_pitch(x: &mut Kyvia, cx: &mut Cx, v: F) {
+pub(super) fn set_pitch(x: &mut Kyvia, cx: &mut Cx, v: F) {
     x.cam_pitch = v;
     cx.out(Out::CamPitch { add: false, v });
 }
@@ -1327,7 +1429,7 @@ fn dead(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) {
             let (up, back, x0) = match x.fight {
                 Fight::First => (0x443b_8000, 0x4391_0000, 0x4120_0000),
                 Fight::Second => (0x4496_0000, 0x441d_8000, 0xc248_0000),
-                Fight::Third => (0x449c_4000, 0x4434_0000, 0),
+                Fight::Third | Fight::Fourth => (0x449c_4000, 0x4434_0000, 0),
             };
             x.ded_dmg_vec = cx.scene.chars[me].pos;
             x.ded_dmg_vec[2] = ee::add(x.ded_dmg_vec[2], up);
@@ -1364,7 +1466,7 @@ fn dead(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) {
                 match x.fight {
                     Fight::First => x.ded_dmg_vec[2] = ee::sub(x.ded_dmg_vec[2], 0x3e19_999a),
                     Fight::Second => {}
-                    Fight::Third => x.ded_dmg_vec[2] = ee::sub(x.ded_dmg_vec[2], 0x3f0c_cccd),
+                    Fight::Third | Fight::Fourth => x.ded_dmg_vec[2] = ee::sub(x.ded_dmg_vec[2], 0x3f0c_cccd),
                 }
             }
             if ee::lt(ONE, ee::mul(0x42c8_0000, x.cam_pitch)) {
@@ -1377,7 +1479,7 @@ fn dead(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) {
             let rise = match x.fight {
                 Fight::First => 0x4000_0000,
                 Fight::Second => 0x4080_0000,
-                Fight::Third => 0x4040_0000,
+                Fight::Third | Fight::Fourth => 0x4040_0000,
             };
             x.ded_dmg_vec[1] = ee::add(x.ded_dmg_vec[1], rise);
             let q = x.quake_vector;
@@ -1406,7 +1508,7 @@ fn dead(b: &mut Boss, x: &mut Kyvia, cx: &mut Cx) {
 
 /// `DeadKyviaVoice` (MUT gcmn 0x004d3cf0): the body's cries by `actCount`,
 /// at the body (the third fight's not placed, QUA 0x003d1df0).
-fn dead_voice(b: &Boss, fight: Fight, cx: &mut Cx) {
+pub(super) fn dead_voice(b: &Boss, fight: Fight, cx: &mut Cx) {
     const CRIES: [(i16, i32, u8); 19] = [
         (30, 192, 60),
         (50, 192, 48),
@@ -1428,7 +1530,38 @@ fn dead_voice(b: &Boss, fight: Fight, cx: &mut Cx) {
         (320, 191, 69),
         (330, 192, 72),
     ];
+    // The fourth fight's (QUA gcmn 0x003dadb0), not placed either.
+    const CRIES_FOURTH: [(i16, i32, u8); 20] = [
+        (30, 192, 60),
+        (50, 192, 48),
+        (70, 191, 72),
+        (90, 191, 69),
+        (100, 192, 69),
+        (100, 226, 63),
+        (120, 191, 69),
+        (120, 246, 49),
+        (140, 246, 45),
+        (140, 226, 63),
+        (190, 246, 53),
+        (190, 226, 63),
+        (210, 246, 55),
+        (210, 226, 63),
+        (250, 246, 49),
+        (250, 226, 63),
+        (290, 246, 55),
+        (290, 226, 63),
+        (320, 246, 49),
+        (320, 226, 63),
+    ];
     let pos = cx.scene.chars[cx.me].pos;
+    if fight == Fight::Fourth {
+        for (at, se, note) in CRIES_FOURTH {
+            if b.act_count == at {
+                cx.out(Out::SeNote { se, note });
+            }
+        }
+        return;
+    }
     for (at, se, note) in CRIES {
         if b.act_count == at {
             cx.out(if fight == Fight::Third { Out::SeNote { se, note } } else { Out::Se3dNote { se, pos, note } });
@@ -1439,17 +1572,24 @@ fn dead_voice(b: &Boss, fight: Fight, cx: &mut Cx) {
 /// `DeadKyviaCam` (MUT gcmn 0x004d3fc0, OUT 0x004d6eb0, QUA 0x003d2080):
 /// the death's cameras at 70 (the third fight's 60) and 150, then the eye
 /// rising 4 a frame.
-fn dead_cam(b: &Boss, x: &mut Kyvia, cx: &mut Cx) {
+pub(super) fn dead_cam(b: &Boss, x: &mut Kyvia, cx: &mut Cx) {
     let me = cx.me;
     let second = x.fight.later();
-    // The third fight's first camera at 60, 650 back.
-    let (first_at, back) = if x.fight == Fight::Third { (60, 0x4422_8000) } else { (70, 0x43af_0000) };
+    // The third fight's first camera at 60, 650 back (the fourth's 1050
+    // back, 1600 up, its eye 1200 off).
+    let fourth = x.fight == Fight::Fourth;
+    let (first_at, back) = match x.fight {
+        Fight::Third => (60, 0x4422_8000),
+        Fight::Fourth => (60, 0x4483_4000),
+        _ => (70, 0x43af_0000),
+    };
     if b.act_count == first_at {
         if second {
             cx.out(Out::Blur(Set::Abgr(0x5080_8080)));
             cx.out(Out::Blur(Set::Scale(0x3f82_8f5c)));
             let z = rand_abs(cx, ONE);
-            damage_camera(x, cx, [back, 0x447a_0000, 0xc461_0000], Some(z));
+            let (up, eye) = if fourth { (0x44c8_0000, 0xc496_0000) } else { (0x447a_0000, 0xc461_0000) };
+            damage_camera(x, cx, [back, up, eye], Some(z));
         } else {
             cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
             let z = fabs(rand_f(cx.cc, ONE)) ^ 0x8000_0000;
@@ -1464,7 +1604,8 @@ fn dead_cam(b: &Boss, x: &mut Kyvia, cx: &mut Cx) {
         x.l_offset = cx.scene.chars[me].pos;
         x.atk_vec = VF0;
         x.atk_mat = geom::unit_matrix();
-        x.l_offset[1] = ee::sub(x.l_offset[1], 0x42c8_0000);
+        let (back2, up) = if fourth { (0x43fa_0000, 0x4448_0000) } else { (0x42c8_0000, up) };
+        x.l_offset[1] = ee::sub(x.l_offset[1], back2);
         x.l_offset[2] = ee::add(x.l_offset[2], up);
         x.atk_vec[1] = ee::sub(x.atk_vec[1], back);
         x.atk_vec[2] = ee::add(x.atk_vec[2], rise);
@@ -1480,7 +1621,7 @@ fn dead_cam(b: &Boss, x: &mut Kyvia, cx: &mut Cx) {
         cx.out(Out::FreeCam { pos: x.atk_vec, view: x.l_offset });
     }
     if b.act_count >= 161 {
-        x.atk_vec[2] = ee::add(x.atk_vec[2], 0x4080_0000);
+        x.atk_vec[2] = ee::add(x.atk_vec[2], if fourth { 0x4100_0000 } else { 0x4080_0000 });
         cx.out(Out::FreeCam { pos: x.atk_vec, view: x.l_offset });
     }
 }
@@ -1542,7 +1683,16 @@ pub const ARM_AFTERIMAGE: AfterImageParams = AfterImageParams {
 /// The later fights' early stages look from further and shake harder.
 fn hand_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let me = cx.me;
+    let ex = fourth::ex(x);
     match b.act_proccess {
+        // The EX turn's attacks begin at once, the core beside the body.
+        0 if ex => {
+            b.act_proccess += 1;
+            cx.out(Out::Blur(Set::Enable));
+            cx.out(Out::Blur(Set::Abgr(x.default_argb)));
+            b.lock_player(cx, false);
+        }
+        1 if ex => b.act_proccess += 1,
         0 => {
             if core_ready(t) {
                 core_state(t, cx, 8);
@@ -1566,6 +1716,12 @@ fn hand_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 (Fight::Third, 1) => 0x45bb_8000,
                 (Fight::Third, 2) => 0x453b_8000,
                 (Fight::Third, _) => 0x458c_a000,
+                // The fourth's 1800 past Kite (none at the last place).
+                (Fight::Fourth, 4) => {
+                    b.act_proccess += 1;
+                    return;
+                }
+                (Fight::Fourth, _) => ee::add(0x44e1_0000, super::dist(cx, cx.scene.chars[me].pos, x.disc_pos)),
             };
             cx.out(Out::CamModeRange { mode: 3, range });
             b.act_proccess += 1;
@@ -1579,7 +1735,11 @@ fn hand_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             let m = geom::unit_matrix();
             x.tes_pos = cx.cam.pos;
             x.tes_dirc = cx.cam.rot;
-            let v = geom::apply_matrix(&geom::rot_matrix_z(&m, x.tes_dirc[2]), [0xc2dc_0000, 0xc509_8000, 0, ONE]);
+            let arm = match x.fight {
+                Fight::Fourth => [0, 0xc535_4000, 0xc396_0000, ONE],
+                _ => [0xc2dc_0000, 0xc509_8000, 0, ONE],
+            };
+            let v = geom::apply_matrix(&geom::rot_matrix_z(&m, x.tes_dirc[2]), arm);
             let rm = geom::rot_matrix_z(&m, x.tes_dirc[2]);
             x.tes_dirc[0] = 0;
             x.tes_dirc[1] = 0;
@@ -1591,7 +1751,11 @@ fn hand_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             x.snd_pos_l = geom::vadd(geom::apply_matrix(&rm, x.snd_pos_l), x.tes_pos);
             x.snd_pos_r = geom::vadd(geom::apply_matrix(&rm, x.snd_pos_r), x.tes_pos);
             let pos = cx.scene.chars[me].pos;
-            cx.out(Out::Se3dNote { se: 40, pos, note: 60 });
+            cx.out(if x.fight == Fight::Fourth {
+                Out::SeNote { se: 40, note: 60 }
+            } else {
+                Out::Se3dNote { se: 40, pos, note: 60 }
+            });
         }
         5 => {
             if x.af_cou == x.af_timing {
@@ -1634,11 +1798,30 @@ fn hand_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             }
         }
-        7 if b.anm_status != 0 && core_fade_check(t) => {
+        // The fourth fight's end waits for the core's fade only (the EX
+        // turn's ends it).
+        7 if ex => {
+            core_end_fade_ex(t, cx);
+            b.change_action(cx, act::NEUTRAL, 1, true);
+            b.unlock_player();
+        }
+        7 if x.fight == Fight::Fourth && core_fade_check(t) => {
+            b.change_action(cx, act::NEUTRAL, 1, true);
+            b.unlock_player();
+        }
+        7 if x.fight != Fight::Fourth && b.anm_status != 0 && core_fade_check(t) => {
             b.change_action(cx, act::NEUTRAL, 1, true);
             b.unlock_player();
         }
         _ => {}
+    }
+}
+
+/// The core's `EndFadeEX()`: back from its fade at once in the EX turn.
+pub(super) fn core_end_fade_ex(t: &mut Tree, cx: &mut Cx) {
+    if let Some(c) = t.core.as_mut() {
+        let cm = c.me;
+        as_me(cx, cm, |cx| self::core::end_fade_ex(c, cx));
     }
 }
 
@@ -1655,7 +1838,12 @@ fn magic_damage(fight: Fight, t: &mut Tree, cx: &mut Cx) -> i32 {
 /// ahead), stream 48 (73) shown first.
 fn megid_flame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let me = cx.me;
+    let ex = fourth::ex(x);
     match b.act_proccess {
+        0 if ex => {
+            b.act_proccess += 1;
+            b.lock_player(cx, false);
+        }
         // The third fight holds the player from the first frame on.
         0 if x.fight == Fight::Third => {
             b.lock_player(cx, false);
@@ -1672,7 +1860,7 @@ fn megid_flame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             }
         }
         1 => {
-            if core_state_is(t, 6) {
+            if ex || core_state_is(t, 6) {
                 b.act_proccess += 1;
                 cx.out(Out::CamModeRange { mode: 3, range: 0x451c_4000 });
                 cx.out(Out::Blur(Set::Enable));
@@ -1694,6 +1882,7 @@ fn megid_flame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 Fight::First => (48, 0x43af_0000, 0x4422_8000, 0xc522_8000),
                 Fight::Second => (73, 0x4409_8000, 0x4489_8000, 0xc52f_0000),
                 Fight::Third => (108, 0x4409_8000, 0x4489_8000, 0xc52f_0000),
+                Fight::Fourth => (110, 0x4409_8000, 0x4489_8000, 0xc52f_0000),
             };
             cx.out(Out::StreamMenu { stream, mask: 0 });
             cx.out(Out::CamMode { mode: 5 });
@@ -1750,7 +1939,9 @@ fn megid_flame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             }
         }
         7 => {
-            core_state(t, cx, 7);
+            if !ex {
+                core_state(t, cx, 7);
+            }
             cx.out(Out::CamMode { mode: 4 });
             b.act_proccess += 1;
         }
@@ -1759,6 +1950,11 @@ fn megid_flame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 b.act_proccess += 1;
                 cx.out(Out::Blur(Set::Abgr(x.default_argb)));
             }
+        }
+        9 if ex => {
+            core_end_fade_ex(t, cx);
+            b.change_action(cx, act::NEUTRAL, 1, true);
+            b.unlock_player();
         }
         9 if core_fade_check(t) => {
             b.change_action(cx, act::NEUTRAL, 1, true);
@@ -1822,7 +2018,40 @@ fn set_b_pos(x: &mut Kyvia, cx: &mut Cx) {
 /// landing as boss skill 32 (37) on every member.
 fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     let me = cx.me;
+    let ex = fourth::ex(x);
+    let fourth = x.fight == Fight::Fourth;
+    // The fourth fight's generators here keep `distSW` off.
+    let pick = |g: Gen, f: fourth::Make| if fourth { Gen::Fourth(f) } else { g };
     match b.act_proccess {
+        // The EX turn's: before the body at once, the party gathered.
+        0 if ex => {
+            x.l_offset = VF0;
+            x.move_transfer = VF0;
+            x.l_offset = cx.scene.chars[me].pos;
+            x.l_offset[1] = ee::sub(x.l_offset[1], 0x4448_0000);
+            x.l_offset[2] = ee::add(x.l_offset[2], 0x44ce_4000);
+            b.act_proccess += 1;
+            cx.out(Out::CamMode { mode: 5 });
+            x.atk_vec = VF0;
+            x.atk_mat = geom::unit_matrix();
+            x.atk_vec[1] = 0xc409_8000;
+            x.z = rand_f(cx.cc, 0x3e4c_cccd);
+            x.atk_mat = geom::rot_matrix_z(&x.atk_mat, x.z);
+            x.atk_vec = geom::apply_matrix(&x.atk_mat, x.atk_vec);
+            x.atk_vec = geom::vadd(x.l_offset, x.atk_vec);
+            cx.out(Out::FreeCam { pos: x.atk_vec, view: x.l_offset });
+            cx.out(Out::Blur(Set::Enable));
+            cx.out(Out::Blur(Set::Abgr(x.ex_argb)));
+            let mut at = [0x4188_0000, 0xc4c7_c000, 0x447a_0000, ONE];
+            fourth::together_char_pos(cx, &mut at, 2);
+            b.lock_player(cx, false);
+        }
+        1 if ex => {
+            b.act_proccess += 1;
+            x.atk_vec = VF0;
+            x.atk_vec[1] = 0xc3af_0000;
+            x.quake_vector = [0x4120_0000, 0x4120_0000, 0x41f0_0000, x.quake_vector[3]];
+        }
         0 => {
             if !core_state_is(t, 0) {
                 return;
@@ -1833,6 +2062,7 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 Fight::First => (0x43af_0000, 0x4422_8000),
                 Fight::Second => (0x4409_8000, 0x4496_0000),
                 Fight::Third => (0x4409_8000, 0x44a2_8000),
+                Fight::Fourth => (0x4409_8000, 0x44a8_c000),
             };
             x.l_offset = cx.scene.chars[me].pos;
             x.l_offset[1] = ee::sub(x.l_offset[1], back);
@@ -1864,7 +2094,7 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         }
         2 => {
             b.act_proccess += 1;
-            particles(cx, Gen::Light, Place::At(x.l_offset), Some(Held::Light));
+            particles(cx, pick(Gen::Light, fourth::Make::Light), Place::At(x.l_offset), Some(Held::Light));
             let mut n = 0;
             for m in cx.party.members.into_iter().flatten() {
                 if cx.valid(Some(m)) && cx.scene.chars[m].hp > 0 {
@@ -1903,10 +2133,18 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 b.act_proccess += 1;
                 let tilt = if x.fight.later() { 0x3eb3_3333 } else { 0x3e19_999a };
                 x.atk_mat = geom::rot_matrix_x(&x.atk_mat, tilt);
+                if fourth {
+                    let at = [0x4188_0000, 0xc4c7_c000, 0x447a_0000, ONE];
+                    particles(cx, Gen::Fourth(fourth::Make::Glow), Place::At(at), None);
+                }
             }
         }
         4 => {
-            let far = if x.fight == Fight::Second { 2300.0 } else { 2500.0 };
+            let far = match x.fight {
+                Fight::Second => 2300.0,
+                Fight::Fourth => 2000.0,
+                _ => 2500.0,
+            };
             let left = fp(far - dp(fabs(x.move_transfer[1])));
             if !ee::le(left, 0x4100_0000) {
                 x.move_transfer[1] = ee::add(x.move_transfer[1], ee::mul(0xbf80_0000, ee::div(left, 0x4080_0000)));
@@ -1920,7 +2158,12 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 x.l_offset[2] = ee::sub(x.l_offset[2], 0x4100_0000);
                 x.atk_vec[2] = ee::add(x.atk_vec[2], 0x4140_0000);
             }
-            cx.out(Out::FreeCam { pos: eye, view: x.l_offset });
+            // The fourth's looks 450 under the beams' start.
+            let mut view = x.l_offset;
+            if fourth {
+                view[2] = ee::sub(view[2], 0x43e1_0000);
+            }
+            cx.out(Out::FreeCam { pos: eye, view });
             // The third fight counts after the check (and raises the beams'
             // start 180): its beams leave a frame later in the count.
             let c = b.act_count;
@@ -1932,7 +2175,7 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                     x.l_offset = geom::vadd(x.l_offset, [0, 0, 0x4334_0000, ONE]);
                 }
                 b.act_proccess += 1;
-                particles(cx, Gen::BeamsOut, Place::At(x.l_offset), None);
+                particles(cx, pick(Gen::BeamsOut, fourth::Make::BeamsOut), Place::At(x.l_offset), None);
                 let pos = cx.scene.chars[me].pos;
                 cx.out(Out::Se3dNote { se: 192, pos, note: 60 });
                 cx.out(Out::Se3dNote { se: 61, pos, note: 48 });
@@ -1940,8 +2183,10 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                     x.l_bpos[k] = x.l_offset;
                     x.l_bpos_sub[k] = x.l_offset;
                     let n = k as u8;
-                    particles(cx, Gen::BeamHead, Place::Follows(Follow::BeamHead(n), VF0), Some(Held::BeamHead(n)));
-                    particles(cx, Gen::BeamTail, Place::Follows(Follow::BeamTail(n), VF0), Some(Held::BeamTail(n)));
+                    let (head, tail) =
+                        (pick(Gen::BeamHead, fourth::Make::BeamHead), pick(Gen::BeamTail, fourth::Make::BeamTail));
+                    particles(cx, head, Place::Follows(Follow::BeamHead(n), VF0), Some(Held::BeamHead(n)));
+                    particles(cx, tail, Place::Follows(Follow::BeamTail(n), VF0), Some(Held::BeamTail(n)));
                     b.act_count = 0;
                 }
             }
@@ -1996,7 +2241,8 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                         && cx.valid(Some(m))
                         && cx.scene.chars[m].hp > 0
                     {
-                        particles(cx, Gen::BeamBurst, Place::At(x.l_bpos[k]), Some(Held::Light));
+                        let burst = pick(Gen::BeamBurst, fourth::Make::BeamBurst);
+                        particles(cx, burst, Place::At(x.l_bpos[k]), Some(Held::Light));
                     }
                 }
                 b.act_proccess += 1;
@@ -2011,8 +2257,10 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             let pos = cx.scene.chars[me].pos;
             cx.out(Out::Se3dNote { se: 35, pos, note: 60 });
             cx.out(Out::Se3dNote { se: 56, pos, note: 60 });
-            if x.fight == Fight::Third {
-                x.quake_vector = [0x41a0_0000, 0x41f0_0000, 0x4234_0000, x.quake_vector[3]];
+            match x.fight {
+                Fight::Third => x.quake_vector = [0x41a0_0000, 0x41f0_0000, 0x4234_0000, x.quake_vector[3]],
+                Fight::Fourth => x.quake_vector = [0x4120_0000, 0x4120_0000, 0x42c8_0000, x.quake_vector[3]],
+                _ => {}
             }
         }
         7 => {
@@ -2027,8 +2275,15 @@ fn light_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         8 => {
             cx.out(Out::CamMode { mode: 6 });
             cx.out(Out::Blur(Set::Abgr(x.default_argb)));
-            core_state(t, cx, 7);
+            if !ex {
+                core_state(t, cx, 7);
+            }
             b.act_proccess += 1;
+        }
+        9 if ex => {
+            core_end_fade_ex(t, cx);
+            b.change_action(cx, act::NEUTRAL, 1, true);
+            b.unlock_player();
         }
         9 if core_fade_check(t) => {
             b.change_action(cx, act::NEUTRAL, 1, true);
@@ -2224,6 +2479,13 @@ fn manager_pass(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             let alive = ball.draw(&mut magic_ball::FightBall { b, x, t, cx });
             if let Some(e) = b.effects.slots[k].as_mut() {
                 e.ball = Some(ball);
+            }
+            alive
+        } else if let Some(mut hell) = e.hell.take() {
+            let (abgr, scale) = (cx.disc.blur_abgr, cx.disc.blur_scale);
+            let alive = hell.draw(&mut hell::FightHell { b, cx, slot: k, abgr, scale });
+            if let Some(e) = b.effects.slots[k].as_mut() {
+                e.hell = Some(hell);
             }
             alive
         } else {

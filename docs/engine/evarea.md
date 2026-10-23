@@ -745,12 +745,18 @@ While the trans mode is on, `ccPlayer::ccPlayer` (MUT gcmn 0x005c2d8c) and
 `ccFellow::Initialize` (0x0042ebdc) set `diskOffset` to the character's
 place less the centre, and the party rides with the disc.
 
+Field 12's three bodies (`CMP_hit01`-`03`, +0x1d8 on) are the fourth
+fight's gates: Quarantine's 0x0030c620(n) and 0x0030c690(n), on field 12
+with n 0-2, take `body[n]`'s hit out of the list (`HitDisable`) and put it
+back at the list's tail (`HitEnable`) for `SwitchGateON` and
+`SwitchGateOFF` ([the fourth fight](boss-kyvia-fourth.md#the-places)).
+
 **The port.** `piney_world::evarea_b8::DiscArea`, a `StoryMap`; its tests
 (`the_disc_of_field_9`, `the_disc_rides_to_its_end`,
 `the_later_discs_stop_at_their_stages`) hold the pieces, the light, the
 hits, the rocks' cells and the ride. `FieldWorld` hands Kyvia the disc
 (`IsMove`, `discPrevPos`, `DMY_marker01`) each frame and carries out
-`Move`.
+`Move` and the gates (`DiscArea::body_hit`).
 
 ## Unknown
 
@@ -762,8 +768,8 @@ hits, the rocks' cells and the ride. `FieldWorld` hands Kyvia the disc
   with the map through its doors, but a new map (after the town) starts
   it at 0, where the game carries it on.
 - `EVENTAREAB8` is not compared with the game's `Draw` frame by frame:
-  its pieces and the ride are held by unit tests only, and fields 10-12
-  have not been played through their events.
+  its pieces and the ride are held by unit tests only. Fields 10-12 are
+  played through their events (worklogs 304, 433, 434).
 - The other `EVENTAREA` classes (04-06) are not ported (areas 66, 67,
   91), nor `EVENTAREAB0`'s `NextStage`: their story areas still get a
   generated field.

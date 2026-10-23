@@ -450,3 +450,9 @@ fn kyvia_shots() {
         });
     }
 }
+
+/// Quarantine's event 312 on field 12's disc in town 0, from area 108's
+/// dungeon (block 10 makes Kyvia 04).
+pub(super) fn event_312_disc() -> Option<Session> {
+    on_the_disc_in("quarantine", 312, 10, (0, 108), 12, 0)
+}

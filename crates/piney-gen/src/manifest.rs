@@ -2082,16 +2082,16 @@ fn combat() -> Group {
             e(
                 "kyvia04_anims",
                 0x005E_CC60,
-                array(opt(cstr()), 24),
+                array_by(opt(cstr()), later(24, 25)),
                 GCMN,
-                "`Kyvia04AnmTbl`: Kyvia's clip by act in its fourth fight.",
+                "`Kyvia04AnmTbl`: Kyvia's clip by act in its fourth fight (25 from Mutation: the rebirth's act 24).",
             ),
             e(
                 "kyvia04_anims_ex",
                 0x005E_CCC0,
-                array(opt(cstr()), 24),
+                array_by(opt(cstr()), later(24, 25)),
                 GCMN,
-                "`Kyvia04AnmTbl_EX`: those of its EX mode.",
+                "`Kyvia04AnmTbl_EX`: those of its EX mode (25 from Mutation: act 24's `ANM_ex04dmg0`).",
             ),
             e(
                 "kyvia_skills_various",

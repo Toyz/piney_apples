@@ -446,7 +446,7 @@ their ends and the auras following the core.
 
 ## Unknown
 
-- The EX mode (`KyviaExFlg`) and levels 3-5 are Kyvia's later fights; the
-  shared code for them is ported as far as levels 1 and 2 read it, and
-  the gomora lists for those two. Level 2 is [the second
-  fight](boss-kyvia-second.md)'s.
+Nothing. Levels 2-5 and the EX mode (`KyviaExFlg`) are Kyvia's later
+fights, ported with them: level 2 [the second
+fight](boss-kyvia-second.md)'s, level 3 [the third](boss-kyvia-third.md)'s,
+levels 1-5 and the EX mode [the fourth](boss-kyvia-fourth.md)'s.

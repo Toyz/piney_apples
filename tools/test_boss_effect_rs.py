@@ -136,6 +136,23 @@ class BossFx(EffectMachine):
             self.killed.add(g)
             return 0
 
+        # Hell's express's burst: SetAnm by name, and its palette swap
+        # ChangeClut(new, old) kept as (old, new) for the Create's answer.
+        self.anm_clut = {}
+
+        def set_anm_named(mm, anm, stream, name, *a):
+            from eemu import _cstr
+            self.anm[anm] = [_cstr(mm, name).decode(), 0]
+            mm.store(anm + 172, 4, 1)
+            mm.store(anm + 156, 2, 256)
+            return 0
+
+        def anm_clut(mm, anm, new, old, *a):
+            self.anm_clut[anm] = [self.names.get(old, "?"), self.names.get(new, "?")]
+            return 0
+
+        m.hooks[sym("SetAnm__5ccAnmFP8ccStreamPcUi")] = set_anm_named
+        m.hooks[sym("ChangeClut__5ccAnmFP11ccClutChunkP11ccClutChunk")] = anm_clut
         m.hooks[sym("ccSeOn3DNote__FiPfc")] = note
         m.hooks[sym("ccSeOnNote__Fic")] = senote
         m.hooks[sym("EntryFlash__8ccScFadeFiiffff")] = flash
@@ -167,6 +184,8 @@ class BossFx(EffectMachine):
         m.hooks[sym("Duplicate__5ccObjFUi")] = lambda mm, *a: 0
         self.meteor_vt = sym("__vt__25ccBossEffMeteoriteMissile")
         self.ball_vt = sym("__vt__20ccBossEffMagicalBall")
+        self.hell_vt = sym("__vt__18HellSpecialExpress") if volume.NAME == "quarantine" else -1
+        self.hell_obj = None
         self.missile_vts = {sym("__vt__19ccBossEffIceMissile"), sym("__vt__25ccBossEffLightningMissile"),
                             sym("__vt__21ccBossEffBlazeMissile")}
 
@@ -264,6 +283,14 @@ class BossFx(EffectMachine):
                             arr = m.load(e + off, 4)
                             if arr <= sync < arr + 16 * m.load(e + 0x18, 4):
                                 ref = ["anchor", which, (sync - arr) // 16]
+            # one of hell's express's souls' places (Pos at +0xd0, five),
+            # held or in its Create (`hell_obj`, the object it makes)
+            if ref is None:
+                hells = [self.slot_ptr(k) for k in range(1024)]
+                hells = [e for e in hells if e and m.load(e + 12, 4) == self.hell_vt] + [self.hell_obj]
+                for e in hells:
+                    if e is not None and e + 0xD0 <= sync < e + 0x120:
+                        ref = ["anchor", 0x400600, (sync - e - 0xD0) // 16]
             # made in the Create before the manager holds it: the next free slot
             if ref is None:
                 ref = ["anchor", -1, sync]
@@ -453,6 +480,12 @@ def kyvia_cases(rnd):
             pos = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), fb(rnd.uniform(0, 200)), ONE]
             line = "ball %s %x" % (hexs(*pos), fb(40.0))
             out.append(("ball", line, "ccBossEffMagicalBallCreate__FfPfP10ccBossBlurPFPfi_i", ("ball", pos, 40.0)))
+        # The fourth fight's hell's express as HellE_Atk makes it at each
+        # place (KyviaLV 0-3), with no callback; the line is made in the
+        # run, with the camera's turn.
+        for lv in range(4):
+            pos = [fb(rnd.uniform(-800, 800)), fb(rnd.uniform(-800, 800)), fb(rnd.uniform(0, 200)), ONE]
+            out.append(("hell %d" % lv, None, "HellSpecialExpressCreate__FPfP9HeDataSet", ("hell", pos, lv)))
         return out
     if volume.NAME != "outbreak":
         return out
@@ -716,6 +749,22 @@ class BossEffectsAgainstGame(unittest.TestCase):
             _, pos, ran = spec
             (pp,) = vec_args(em, pos)
             k = em.create(sym, ints=[pp, 0, 0], floats=[ran])
+        elif spec[0] == "hell":
+            # HeDataSet {blur, cam, cb, target, KyviaLV}: a ccBossBlur and a
+            # ccBossCam of zeros (Init writes the blur's colour and scale and
+            # sets the camera's mode), no callback, no target. The probe is
+            # given cameraGetRot(camID) as Init reads it.
+            _, pos, lv = spec
+            m = em.m
+            blur, cam, ds, rot = em.malloc(m, 0x40), em.malloc(m, 0x200), em.malloc(m, 0x20), em.malloc(m, 0x10)
+            for o, v in ((0, blur), (4, cam), (16, lv)):
+                m.store(ds + o, 4, v)
+            em.call("cameraGetRot__FPfi", rot, m.load(em.sym("camID"), 2, True))
+            line = "hell %s %s %x" % (hexs(*pos), hexs(*em.rvec(rot)), lv)
+            (pp,) = vec_args(em, pos)
+            em.hell_obj = em.heap
+            k = em.create(sym, ints=[pp, ds])
+            em.hell_obj = None
         elif spec[0] == "meteor":
             _, pos, rng, n = spec
             (pp,) = vec_args(em, pos)
@@ -736,9 +785,12 @@ class BossEffectsAgainstGame(unittest.TestCase):
             if off is not None:
                 em.vec(em.slot_ptr(k) + 0x90, off)
         made = {"id": k, "events": em.events, "gens": em.gens, "ccrand": em.ccrand}
+        if spec[0] == "hell":
+            made["clut"] = list(em.anm_clut.values())
         frames = []
-        while not em.free() and len(frames) < 400:
+        while not em.free() and len(frames) < 1000:
             frames.append(em.manager_pass())
+        self.assertLess(len(frames), 1000, "%s: never ended" % name)
         lines = ["reset %x" % seed, "camera " + hexs(*map(fb, eye + view)), line] + ["frame"] * len(frames)
         got = [g for g in ask(lines) if g]
         self.assertEqual(got[0], made, "%s: the Create" % name)
@@ -754,7 +806,10 @@ class BossEffectsAgainstGame(unittest.TestCase):
         each, the landings (trails deleted, sounds, the first's smoke and
         rocks) and their lives; Outbreak's bolts: the segments on their
         palette, a disc bolt's smoke (its row as Draw writes it) and burst,
-        their ccRand draws and lives."""
+        their ccRand draws and lives; Quarantine's magical ball, and hell's
+        express at each place: its souls' generators following them, the
+        sounds, the quakes' ccRandF, the burst's palette and draws, the
+        kills and its end."""
         rnd = random.Random(37)
         counts = {}
         for rep in range(2):

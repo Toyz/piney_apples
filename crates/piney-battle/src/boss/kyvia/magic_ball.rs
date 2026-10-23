@@ -400,6 +400,10 @@ impl BallHost for FightBall<'_, '_> {
 /// (`actProccess`), the core's state 7 and the camera back (mode 4); 3
 /// the quake 30 each way.
 pub(crate) fn ball_damage(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx, pos: V4, flg: i32) {
+    if x.fight == super::Fight::Fourth {
+        super::fourth::ball_damage(b, t, cx, pos, flg);
+        return;
+    }
     match flg {
         0 | 1 => {
             let Some(c) = t.core.as_mut() else { return };
@@ -419,7 +423,7 @@ pub(crate) fn ball_damage(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx
 
 /// `ccBossEffMagicalBallCreate(40, DiscPos, blur, KyviaMagicalBallDamage)`
 /// into the manager.
-fn create(b: &mut Boss, x: &Kyvia, cx: &mut Cx) {
+pub(super) fn create(b: &mut Boss, x: &Kyvia, cx: &mut Cx) {
     let ball = MagicalBall::new(cx.cc, 0x4220_0000, x.disc_pos);
     let kind = EffKind::MagicalBall;
     let id = b.effects.create(kind);

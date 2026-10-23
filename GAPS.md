@@ -88,11 +88,12 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   HUD and result, the town ride (worklog 0395, docs/engine/flag-race.md)
 - [ ] `town06` and Quarantine's staff roll and hacking logos
 - [ ] A new menu after `AreaInfoMenu` (messages, number input)
-- [ ] Kyvia's fights: [x] the first (`ccBossKyvia01`, `kyviaCore`,
+- [x] Kyvia's fights: [x] the first (`ccBossKyvia01`, `kyviaCore`,
   `kyviaGomora`, worklog 272), [x] the second (Outbreak's `ccBossKyvia02`,
   level 2, worklog 304; its bolts drawn, worklog 420), [x] the third
   (Quarantine's `ccBossKyvia03`, level 3 and the magical ball, worklog
-  433), [ ] the fourth (`ccBossKyvia04`: level 4, the EX mode, the gates)
+  433), [x] the fourth (Quarantine's `ccBossKyvia04`: the four places and
+  their gates, the EX mode, hell's express, the rebirth, worklog 434)
 - [x] The Root Towns 02-05 (`ROOTTOWN03`-`05`, their `DrawMap`; worklogs
   218, 260) - the party of 21 (`SPC_01`-`SPC_20`) still to check
 - [ ] The other `EVENTAREA` classes (04-06; areas 66, 67, 91).

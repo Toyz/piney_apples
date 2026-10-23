@@ -147,9 +147,9 @@ pub struct Combat {
     pub kyvia02_anims: &'static [Option<&'static str>],
     /// `Kyvia03AnmTbl`: Kyvia's clip by act in its third fight.
     pub kyvia03_anims: &'static [Option<&'static str>],
-    /// `Kyvia04AnmTbl`: Kyvia's clip by act in its fourth fight.
+    /// `Kyvia04AnmTbl`: Kyvia's clip by act in its fourth fight (25 from Mutation: the rebirth's act 24).
     pub kyvia04_anims: &'static [Option<&'static str>],
-    /// `Kyvia04AnmTbl_EX`: those of its EX mode.
+    /// `Kyvia04AnmTbl_EX`: those of its EX mode (25 from Mutation: act 24's `ANM_ex04dmg0`).
     pub kyvia04_anims_ex: &'static [Option<&'static str>],
     /// `Skill_KYVIA_VARIOUS`: the spells Kyvia's fourth fight picks from.
     pub kyvia_skills_various: &'static [i16],
@@ -656,14 +656,6 @@ pub static KYVIA02_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
 /// `Kyvia03AnmTbl`: Kyvia's clip by act in its third fight.
 pub static KYVIA03_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
     std::sync::LazyLock::new(|| shared().kyvia03_anims);
-
-/// `Kyvia04AnmTbl`: Kyvia's clip by act in its fourth fight.
-pub static KYVIA04_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().kyvia04_anims);
-
-/// `Kyvia04AnmTbl_EX`: those of its EX mode.
-pub static KYVIA04_ANIMS_EX: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().kyvia04_anims_ex);
 
 /// `Skill_KYVIA_VARIOUS`: the spells Kyvia's fourth fight picks from.
 pub static KYVIA_SKILLS_VARIOUS: std::sync::LazyLock<&'static [i16]> =

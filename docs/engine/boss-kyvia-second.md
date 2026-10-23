@@ -168,11 +168,14 @@ plays the fight on field 10's disc and finds `CMP_x012` drawn.
 event 211 through (`PINEY_SURVEY_GOD`): the first stage's core down near
 frame 16,500, the second's near 22,000, the event done.
 
+The core's added `maxHP` stays in `bossTbl` only while GCMN.PRG does: a
+game over is the soft reset, and play goes on only by loading GCMN.PRG
+from the disc again, so a retried fight meets the disc's rows, as the
+port's `Core::row_hp`, kept on the fight, has them
+([the fourth fight](boss-kyvia-fourth.md#bosses-rows-across-fights)).
+
 ## Unknown
 
 - Kind 2's camera: `cameraGetPos`, `cameraGetRot` and `cameraGetView` of
   `camID` are taken as the boss camera's; the harness answers all three
   from the case.
-- Whether a retried fight meets the rows as the disc has them: the game
-  keeps the core's added `maxHP` in `bossTbl`, the port only for the
-  fight (`Core::row_hp`).

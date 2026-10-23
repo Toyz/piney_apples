@@ -181,9 +181,11 @@ pub struct DiscArea {
     rock_models: Vec<Vec<u32>>,
     /// The 25 `CLOUD`s (+0xc00) of type 1: made, never moved or drawn.
     pub clouds: Vec<Cloud>,
-    /// Field 12: `bodyanm` (+0x1f0) and `body[0..2]`.
+    /// Field 12: `bodyanm` (+0x1f0) and `body[0..2]`, and each body's hit
+    /// models (in the list while its `ccClump::HitEnable` holds).
     pub body_anm: Option<Play>,
     pub bodies: Vec<(u32, Vec<u32>, V4)>,
+    body_models: Vec<Vec<HitModel>>,
     /// `fieldrand` (the map's own; `GO(1)` sets no seed for a story map).
     pub rng: Rng,
     hit_models: Vec<HitModel>,
@@ -362,6 +364,7 @@ impl DiscArea {
             clouds: Vec::new(),
             body_anm: None,
             bodies: Vec::new(),
+            body_models: Vec::new(),
             rng: Rng::new(0),
             hit_models,
             hits,
@@ -392,13 +395,16 @@ impl DiscArea {
                 let (clump, models) =
                     clump_models(&bf, name).ok_or_else(|| Error::NotFound(format!("{BODY_FILE}: {name}")))?;
                 let pos = [at[0], at[1], at[2], ONE];
+                let mut own = Vec::new();
                 for h in bhits.iter().filter(|h| models.contains(&h.parent)) {
                     let mut h = h.clone();
                     h.rm = crate::hit::UNIT;
                     h.rm[3] = pos;
                     h.im = crate::dungeon_area::invers(&h.rm);
-                    a.hits.models.push(h);
+                    a.hits.models.push(h.clone());
+                    own.push(h);
                 }
+                a.body_models.push(own);
                 a.bodies.push((clump, models, pos));
             }
             let play = Play::new(&bf, BODY_ANIM).ok_or_else(|| Error::NotFound(BODY_ANIM.into()))?;
@@ -487,6 +493,23 @@ impl DiscArea {
     }
 
     /// `EVENTAREAB8::IsMove` (MUT 0x0041e7d0): `move`.
+    /// `body[n]`'s `ccClump::HitEnable` (its models onto the list's tail,
+    /// those not on it) or `HitDisable` (off it): Kyvia's fourth fight's
+    /// gates (QUA gcmn 0x0030c620, 0x0030c690).
+    pub fn body_hit(&mut self, n: usize, on: bool) {
+        let Some(own) = self.body_models.get(n) else { return };
+        for h in own {
+            let at = self.hits.models.iter().position(|m| m == h);
+            match (on, at) {
+                (true, None) => self.hits.models.push(h.clone()),
+                (false, Some(k)) => {
+                    self.hits.models.remove(k);
+                }
+                _ => {}
+            }
+        }
+    }
+
     pub fn is_move(&self) -> bool {
         self.moving
     }

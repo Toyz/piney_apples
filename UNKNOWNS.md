@@ -117,7 +117,7 @@ Missing pieces that only the later volumes need.
 - [[275]] `marker_pos` on a plain field (`WORLD_MAN` +0x438's stream) is not ported, and no event map but `EVENTAREA01` answers `StoryMap::file` — Mutation's field events
 - [[395]] from Mutation on a field ride's charge (MUT gcmn 0x0052f790, the knockback 0x0052f250, `+0x158`..`+0x160`), its Grunty chat (0x00530e50, 0x00530dd0) and the `+0x1e0` range — answered by [[403]]: they are the Grunty's search (foods, the dungeon or portals by kind; a balloon line; the Grunty leads Kite until within the range). Mutation never starts it (no code sets flag bit 6); Outbreak and Quarantine start it with Triangle. Ported (`ride::seek`, `seek_move`), tools/test_ride_rs.py's search cases on three volumes, `outbreaks_grunty_leads_kite_to_the_dungeon` / docs/engine/grunty-ride.md "The search in a field"
 - [[394]] [[397]] menus 90 and 91 (MUT gcmn 0x0058d470, 0x0058d9f0 with its page 0x0058edc0 and helpers 0x0058f5d0-0x0058f930, MUT main 0x0017b0b0, 0x0017b140: list 90 is Talk and Item List, 91 the item registry that gives desktop items, "Items were registered to the ...") are not ported. Who opens them is traced by [[397]]: the Event NPC (flags 0x10000000) opens 90 (MUT gcmn 0x00536aa0); the port shuts it at once — the later volumes' Event NPC — answered by [[399]] (menus/registry.rs: the list, Item List, its page and the registry; `EventNpcPages` in tools/test_fieldui_talk_rs.py on Mutation, Outbreak and Quarantine; the `item_list` session tests)
-- [[272]] Kyvia's later fights (levels 2-5, the EX mode); fields 10-12 not played through (docs/engine/evarea.md, boss-kyvia.md, GAPS.md) — Mutation onward
+- [[272]] Kyvia's later fights (levels 2-5, the EX mode); fields 10-12 not played through (docs/engine/evarea.md, boss-kyvia.md, GAPS.md) — Mutation onward — answered by [[304]] (level 2, field 10), [[433]] (level 3, field 11, event 308 played) and [[434]] (levels 4 and 5, the EX mode, the gates and the rebirth; field 12, event 312 played)
 - docs/engine/battle.md `ccBoss04`'s Affect and AI are not ported — a later volume's boss (ported in [[294]])
 - [[72]] [[84]] the other `EVENTAREA` classes (04-06; areas 66, 67, 91) get generated fields (docs/engine/evarea.md, field-walk.md) — the later volumes' story maps; no Infection script reaches them
 - [[112]] `EVENTAREAB0`'s `NextStage` (field 8, `se4_8`) is not ported (docs/engine/evarea.md) — a later volume's last arena
@@ -1195,7 +1195,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 ### docs/engine/boss-kyvia.md
 
 - docs/engine/boss-kyvia.md: the gomoras' pushes, the pad's sway — play (duplicates [[272]]); the particles answered by [[420]], the arm's picture by [[426]] — answered by [[427]]
-- docs/engine/boss-kyvia.md: the EX mode and levels 2-5 (Kyvia's later fights) — play (duplicates [[272]])
+- docs/engine/boss-kyvia.md: the EX mode and levels 2-5 (Kyvia's later fights) — play (duplicates [[272]]) — answered by [[304]], [[433]], [[434]]
 - docs/engine/boss-kyvia.md: which of x01's gomora clumps each attribute draws — research (duplicates [[272]])
 
 ### docs/engine/boss-magus.md
@@ -1261,7 +1261,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/evarea.md: the fog by depth not compared with the game's pictures; PRIM.FGE from SetFogSw — research (duplicates [[145]])
 - docs/engine/evarea.md: EA_moveTex02's scroll starts at 0 on a new map after the town — research (phase only; duplicates [[84]])
 - docs/engine/evarea.md: EVENTAREAB8 not compared with the game's Draw frame by frame — research (duplicates [[272]])
-- docs/engine/evarea.md: fields 10-12 not played through their events (Kyvia's later fights) — play (volumes)
+- docs/engine/evarea.md: fields 10-12 not played through their events (Kyvia's later fights) — play (volumes) — answered by [[304]] (field 10), [[433]] (field 11) and [[434]] (field 12, its gates' bodies)
 - docs/engine/evarea.md: the other EVENTAREA classes (04-06; areas 66, 67, 91) and EVENTAREAB0's NextStage — play (duplicates [[72]], [[112]])
 - docs/engine/evarea.md: the fields' type-1 fireflies — answered (stale; [[130]], crates/piney-world/src/firefly.rs (tools/test_field_ambient_rs.py))
 - docs/engine/evarea.md: event 11's instructions in the map — answered ([[90]], [[91]])

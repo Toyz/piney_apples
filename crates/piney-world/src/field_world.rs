@@ -41,7 +41,12 @@ mod ride;
 /// `WORLD_MAN.eventmap` as Kyvia's rules read an `EVENTAREAB8`: `IsMove()`,
 /// `discPrevPos` and `DMY_marker01`'s place.
 fn disc_view(a: &crate::evarea_b8::DiscArea) -> piney_battle::boss::DiscView {
-    piney_battle::boss::DiscView { moving: a.is_move(), prev_pos: a.disc_prev, marker: a.disc_pos }
+    piney_battle::boss::DiscView {
+        moving: a.is_move(),
+        prev_pos: a.disc_prev,
+        marker: a.disc_pos,
+        ..piney_battle::boss::DiscView::default()
+    }
 }
 
 /// What a frame asks of the rest of the game.
@@ -209,6 +214,8 @@ pub struct FieldWorld {
     game_over_signal: bool,
     /// `ccMenuCtrl::CheckMenuType()` as the field's menus showed it.
     menu_type: i32,
+    /// `scFadeDef`'s elements as the frame starts ([`FieldWorld::set_fades`]).
+    fades: [piney_battle::boss::FadeView; 4],
     /// `ccSys.count`.
     count: u32,
     /// `ccThGameCtrl` already run this frame ([`FieldWorld::step_game_ctrl`]).
@@ -492,6 +499,7 @@ impl FieldWorld {
             compulsion_game_over: false,
             game_over_signal: false,
             menu_type: -1,
+            fades: Default::default(),
             count: 0,
             ctrl_done: false,
             fx: Box::new(combat::NoFx),
@@ -913,6 +921,11 @@ impl FieldWorld {
     }
 
     /// `ccMenuCtrl::CheckMenuType()` for the battle's rules and targeting.
+    /// `scFadeDef`'s four elements as the game's fader holds them.
+    pub fn set_fades(&mut self, f: [piney_battle::boss::FadeView; 4]) {
+        self.fades = f;
+    }
+
     pub fn set_menu_type(&mut self, t: i32) {
         self.menu_type = t;
     }
@@ -2555,6 +2568,10 @@ impl FieldWorld {
         if let (Some(r), Some(a)) = (self.combat.boss.as_mut(), self.place.story::<crate::evarea_b8::DiscArea>()) {
             r.disc = disc_view(a);
         }
+        // scFadeDef as the frame starts (Kyvia's fourth fight's CheckFade).
+        if let Some(r) = self.combat.boss.as_mut() {
+            r.disc.fades = self.fades;
+        }
         let mut x = tasks(&mut self.place, &mut self.camera, &mut self.save.save, *cpad, &info);
         x.path_map = std::mem::take(&mut self.path_map);
         // resignParty and disbandSpc of a member leaving (remote command 5)
@@ -2572,6 +2589,15 @@ impl FieldWorld {
             && let Some(a) = self.place.story_mut::<crate::evarea_b8::DiscArea>()
         {
             a.next_stage();
+        }
+        // Field 12's body[n] hits from Kyvia's fourth fight's gates.
+        if let Some(r) = self.combat.boss.as_mut() {
+            let hits = std::mem::take(&mut r.body_hits);
+            if let Some(a) = self.place.story_mut::<crate::evarea_b8::DiscArea>() {
+                for (n, on) in hits {
+                    a.body_hit(n, on);
+                }
+            }
         }
     }
 

@@ -323,6 +323,8 @@ pub struct Eff {
     pub bolt: Option<Box<kyvia::thunder::Bolt>>,
     /// Kyvia's magical ball ([`kyvia::magic_ball::MagicalBall`]).
     pub ball: Option<Box<kyvia::magic_ball::MagicalBall>>,
+    /// Kyvia's hell's express ([`kyvia::hell::Hell`]).
+    pub hell: Option<Box<kyvia::hell::Hell>>,
 }
 
 /// The effects the bosses make (`ccBossEff*Create`).
@@ -375,6 +377,9 @@ pub enum EffKind {
     /// `ccBossEffMagicalBallCreate(ran, pos, blur, cb)` (QUA gcmn
     /// 0x0037ca70): Kyvia's third fight's ball.
     MagicalBall,
+    /// `HellSpecialExpressCreate(pos, dataSet)` (QUA gcmn 0x0037bf40):
+    /// Kyvia's fourth fight's hell's express.
+    HellExpress,
 }
 
 impl Effects {
@@ -398,6 +403,7 @@ impl Effects {
             fidchell: None,
             bolt: None,
             ball: None,
+            hell: None,
         };
         match self.slots.iter().position(Option::is_none) {
             Some(k) => {
@@ -483,7 +489,8 @@ impl Eff {
             | EffKind::ThunderStorm { .. }
             | EffKind::RockTower { .. }
             | EffKind::Thunderbolt { .. }
-            | EffKind::MagicalBall => return,
+            | EffKind::MagicalBall
+            | EffKind::HellExpress => return,
         };
         if self.count >= life {
             self.enabled = false;
@@ -746,6 +753,18 @@ pub enum Out {
     /// takes the boss camera's eye, view and turn, `changeCamera(1)`, the
     /// boss camera off.
     BossCamOff,
+    /// `bossCam->CamPos` (+0x20) written straight (Kyvia's fourth fight's
+    /// scene).
+    CamEye(V4),
+    /// `EVENTAREAB8`'s `body[n]` hit off (`HitDisable`) or on, on field 12
+    /// (QUA gcmn 0x0030c620, 0x0030c690).
+    FieldBodyHit {
+        n: usize,
+        on: bool,
+    },
+    /// `ccMenu` +0x238 `dummyTarget` (Quarantine's): the target whose HP
+    /// the gauge shows.
+    DummyTarget(Option<usize>),
 }
 
 /// `ccBoss`, with `ccBoss01`'s members (Skeith's); another class's own
@@ -913,6 +932,9 @@ pub struct CamView {
     pub moving: bool,
     pub reset: i32,
     pub shake: bool,
+    /// The boss camera's own eye (`CamPos`, +0x20), which Kyvia's fourth
+    /// fight reads and moves.
+    pub eye: V4,
 }
 
 /// `WORLD_MAN.eventmap` as an `EVENTAREAB8` for Kyvia's rules: `IsMove()`,
@@ -922,6 +944,20 @@ pub struct DiscView {
     pub moving: bool,
     pub prev_pos: V4,
     pub marker: V4,
+    /// The effect manager's blur colour (`ccBossBlur` +0x1c) as the boss's
+    /// task starts, and `scFadeDef`'s four elements (`CheckFade`, the free
+    /// one `EntryFlash3` takes): the fourth fight reads both.
+    pub blur_abgr: u32,
+    pub blur_scale: F,
+    pub fades: [FadeView; 4],
+}
+
+/// A `ccScFadeElement`'s `status`, `cnt` and `tcnt` (main fade.cpp).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FadeView {
+    pub status: i16,
+    pub cnt: i16,
+    pub tcnt: i16,
 }
 
 impl Cx<'_> {

@@ -485,11 +485,26 @@ fn main() {
             // Kyvia's third fight's ball alone (pos, ran): no blur, no
             // callback.
             "ball" => Make::BallAlone { pos: v4(1), ran: n(5) },
+            // Kyvia's fourth fight's hell's express alone (pos, the
+            // camera's turn, KyviaLV): no callback, its own blur.
+            "hell" => Make::HellAlone { pos: v4(1), rot: v4(5), kyvia_lv: n(9) as i32 },
             other => panic!("unknown request {other}"),
         };
         let id = fx.boss_create(&mut host, make);
         started.extend(fx.particles.started.iter().map(|g| g.sn));
         let (events, gens) = news(&mut fx);
-        println!("{{\"id\": {id}, \"events\": [{events}], \"gens\": [{gens}], \"ccrand\": {}}}", host.genrand.get());
+        // The hell's burst's palette swap, as its Create made it.
+        let clut = match usize::try_from(id).ok().and_then(|k| fx.boss.slots.get(k)).and_then(|s| s.as_ref()) {
+            Some(piney_effect::boss::Slot { eff: piney_effect::boss::BossEff::Hell(h), .. }) => {
+                let c: Vec<String> =
+                    h.clut_names(&fx.assets).iter().map(|(a, b)| format!("[\"{a}\", \"{b}\"]")).collect();
+                format!(", \"clut\": [{}]", c.join(", "))
+            }
+            _ => String::new(),
+        };
+        println!(
+            "{{\"id\": {id}, \"events\": [{events}], \"gens\": [{gens}], \"ccrand\": {}{clut}}}",
+            host.genrand.get()
+        );
     }
 }

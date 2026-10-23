@@ -167,6 +167,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         moving,
         reset: 0,
         shake: false,
+        eye: [0; 4],
     };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;

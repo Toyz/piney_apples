@@ -705,14 +705,16 @@ impl PyMachine {
 
     // execution ---------------------------------------------------------------------
 
-    /// `call(addr, args=(), limit=5_000_000)`: run from `addr` with up to
-    /// eight arguments until it returns; `$v0`'s low word.
-    #[pyo3(signature = (addr, args = None, limit = 5_000_000))]
+    /// `call(addr, args=(), limit=5_000_000, sp=None)`: run from `addr`
+    /// with up to eight arguments until it returns (from `sp`, else the
+    /// stack's top); `$v0`'s low word.
+    #[pyo3(signature = (addr, args = None, limit = 5_000_000, sp = None))]
     fn call(
         slf: &Bound<'_, Self>,
         addr: &Bound<'_, PyAny>,
         args: Option<&Bound<'_, PyAny>>,
         limit: i64,
+        sp: Option<u32>,
     ) -> PyResult<u32> {
         let py = slf.py();
         let addr = low64(addr)?;
@@ -728,6 +730,9 @@ impl PyMachine {
         {
             let mut m = slf.borrow_mut();
             m.cpu.begin(gp, &words);
+            if let Some(sp) = sp {
+                m.cpu.r[29] = u128::from(sp);
+            }
             m.depth += 1;
             m.traps = opts.traps;
         }
@@ -1270,7 +1275,7 @@ fn run_ctors<'py>(py: Python<'py>, program: &Bound<'py, PyAny>) -> PyResult<Boun
     let (start, end): (i64, i64) = (ov.getattr("ctor_start")?.extract()?, ov.getattr("ctor_end")?.extract()?);
     for va in (start..end).step_by(4) {
         let f = m.borrow().load(py, &va.into_bound_py_any(py)?, 4, false)?;
-        PyMachine::call(&m, &f, None, 5_000_000)?;
+        PyMachine::call(&m, &f, None, 5_000_000, None)?;
     }
     Ok(m)
 }

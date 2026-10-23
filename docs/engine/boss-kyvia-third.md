@@ -183,5 +183,7 @@ and the event goes on to its end.
 
 ## Unknown
 
-- Whether a retried fight meets the rows as the disc has them (as the
-  second fight's).
+Nothing. A retried fight meets the rows as the disc has them, and so does
+the fourth fight's third place: a game over reloads GCMN.PRG, and so does
+the log in after event 311's desktop blocks ([the fourth
+fight](boss-kyvia-fourth.md#bosses-rows-across-fights)).
