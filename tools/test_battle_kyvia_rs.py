@@ -700,6 +700,12 @@ def boss_part(game, a):
                clip[0] or "", clip[1] >> 8])
 
 
+def stream(game, a):
+    """The part's stream (+0xcc), the name CoreInit or GomoraInit asked
+    GetCCSAdrs for: the file its clips and models come from."""
+    return game.names.get(game.m.load(a + 0xCC, 4), "")
+
+
 def game_state(game, n):
     m = game.m
     a = BOSS
@@ -720,8 +726,9 @@ def game_state(game, n):
                   ld(0x1D5, 1, True), ld(0x1D7, 1, True), s32(ld(0x29334)), s32(ld(0x29338))],
         "anm": [clip[0] or "", clip[1] >> 8, wclip[0] or "", wclip[1] >> 8],
         "kyvia": fields(m, a, f_["fields"]),
-        "core": boss_part(game, core) + fields(m, core, CORE),
-        "gomoras": [boss_part(game, gomora_of(m, k)) + fields(m, gomora_of(m, k), GOMORA) for k in range(5)],
+        "core": boss_part(game, core) + fields(m, core, CORE) + [stream(game, core)],
+        "gomoras": [boss_part(game, gomora_of(m, k)) + fields(m, gomora_of(m, k), GOMORA)
+                    + [stream(game, gomora_of(m, k))] for k in range(5)],
         "cam": fields(m, CAM, CAM_F),
         "blur": [m.load(blur + 0x24, 4), m.load(blur + 0x28, 4), m.load(blur + 0x0C, 4), m.load(blur + 0x1C, 4)],
         "eff": game.effects(),
@@ -804,6 +811,21 @@ class Against(unittest.TestCase):
         rs.build()
         cls.game = Game()
 
+    def test_parts_shapes(self):
+        """The core's and gomoras' clips in their stream (kyvia::stream):
+        the game's ccAnm stepping them (_AnimateForward, DecodeF_Morpher
+        into the anm's own ccMorpher) against anim.py, whose weights the
+        port's Play::morph draws with (worklog 430)."""
+        import collections
+        g = test_anim.GameAnim()
+        counts = collections.Counter()
+        c = test_anim.member(f"x0{FIGHTS[FIGHT]['level']}.cmp")
+        for anm in ("ANM_ex0gnut0", "ANM_ex0gatc0", "ANM_ex0gdmg0", "ANM_ex0gmag0", "ANM_ex0cnut0", "ANM_ex0cdmg0"):
+            scene, off, a = test_anim.find(c, anm)
+            for speed, steps in ((256, 100), (384, 60)):
+                self.assertEqual(test_anim.check_playback(g, c, scene, off, a, speed, steps, counts), [], anm)
+        self.assertGreater(counts["morph states"], 500)
+
     def test_cases(self):
         for seed in range(6):
             rnd = random.Random(7300 + seed)
@@ -818,6 +840,7 @@ def bulk(n, seed0=9300):
     gomora_acts = set()
     thunders = set()
     pushes = 0
+    streams = set()
     total = 0
     for k in range(n):
         rnd = random.Random(seed0 + k)
@@ -827,12 +850,15 @@ def bulk(n, seed0=9300):
         gomora_acts |= {g[2] for fr in frames for g in fr["gomoras"]}
         # The second fight's ThunderType while its act 6 runs.
         thunders |= {fr["kyvia"][-5] for fr in frames if FIGHT == 2 and fr["act"][0] == 6}
-        # Gomoras pushed (their bodyHit's offset, the last three).
-        pushes += sum(1 for fr in frames for g in fr["gomoras"] if any(g[-3:]))
+        # Gomoras pushed (their bodyHit's offset, the three before the
+        # stream).
+        pushes += sum(1 for fr in frames for g in fr["gomoras"] if any(g[-4:-1]))
+        streams |= {g[-1] for fr in frames for g in fr["gomoras"]} | {fr["core"][-1] for fr in frames}
         total += len(frames) - 1
         print(f"case {seed0 + k} ok ({len(frames) - 1} frames)", flush=True)
     print(f"{n} cases, {total} frames; acts reached:", sorted(acts), "core's:", sorted(core_acts),
-          "gomoras':", sorted(gomora_acts), "thunders:", sorted(thunders), "gomoras pushed:", pushes)
+          "gomoras':", sorted(gomora_acts), "thunders:", sorted(thunders), "gomoras pushed:", pushes,
+          "streams:", sorted(streams))
 
 
 if __name__ == "__main__":

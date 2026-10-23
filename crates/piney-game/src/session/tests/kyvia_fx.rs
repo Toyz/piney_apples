@@ -1,7 +1,7 @@
 //! Kyvia's fights: the meteors (`ANM_x300`) with their trails, the beams'
 //! particles following their ends, the core's auras following it, the
 //! second fight's thunderbolts (`CMP_x012`), the arm, the gomoras' pushes
-//! on each other and the stick's turn of the camera.
+//! on each other and their shapes, and the stick's turn of the camera.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -200,6 +200,59 @@ fn kyvias_arm_sweeps_with_its_after_images() {
     }
 }
 
+/// Each gomora's draws of `MDL_ex01gom1` this frame: the morph targets it
+/// was bent toward, by name.
+fn gomora_morphs(frame: &Frame, disc: &str, ccs: &piney_data::ccs::Ccs, base: u32) -> Vec<Vec<(String, f32)>> {
+    (frame.cmds.iter())
+        .filter_map(|c| match c {
+            piney_draw::Cmd::Model(m) if m.file == disc && m.model == base => {
+                Some((m.morph.iter()).map(|&(t, w)| (ccs.object_name(t).unwrap_or("?").to_string(), w)).collect())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The gomoras' shapes (worklog 430): every gomora draws its clip's
+/// objects (`CMP_trall3`'s), and `MPH_ex01gom1` bends `MDL_ex01gom1`
+/// through `MDL_ex01gom2`, `3` and `4` in turn as `ANM_ex0gnut0` plays,
+/// toward the `atc` shapes in its attacks; each by its own clip, so
+/// gomoras out together differ. Before, every gomora drew the bare base.
+#[test]
+fn kyvias_gomoras_bend_through_their_shapes() {
+    for (disc, s) in [("x01", event_108_disc()), ("x02", event_211_disc())] {
+        let Some(mut s) = s else { continue };
+        let ccs = piney_data::ccs::Ccs::parse(s.archive.inflate_named(disc).unwrap()).unwrap();
+        let base = ccs.find_object("MDL_ex01gom1").unwrap();
+        let (mut targets, mut drawn, mut apart) = (BTreeMap::<String, u32>::new(), 0u32, 0u32);
+        fight_leaning(
+            &mut s,
+            6000,
+            |_| 128,
+            false,
+            |_, frame, _, _| {
+                let ms = gomora_morphs(frame, disc, &ccs, base);
+                drawn += u32::from(!ms.is_empty());
+                apart += u32::from(ms.iter().any(|m| m != &ms[0]));
+                for m in &ms {
+                    assert!(m.iter().all(|(_, w)| (0.0..=1.0).contains(w)), "{disc}: {m:?}");
+                    for (t, w) in m {
+                        if *w > 0.0 {
+                            *targets.entry(t.clone()).or_default() += 1;
+                        }
+                    }
+                }
+            },
+        );
+        println!("{disc}: gomoras drawn in {drawn} frames, bent apart in {apart}: {targets:?}");
+        for t in ["MDL_ex01gom2", "MDL_ex01gom3", "MDL_ex01gom4"] {
+            assert!(targets.get(t).copied().unwrap_or(0) > 100, "{disc}: {t} in {targets:?}");
+        }
+        assert!(targets.keys().any(|t| t.starts_with("MDL_ex01atc")), "{disc}: no attack's shape");
+        assert!(apart > 100, "{disc}: gomoras bent alike but in {apart} frames");
+    }
+}
+
 /// The gomoras' `bodyHit`s.
 fn gomora_hits(s: &Session) -> Vec<piney_battle::world::CharHit> {
     let Stage::Area(a) = &s.stage else { return Vec::new() };
@@ -310,6 +363,45 @@ fn kyvia_push_and_turn_shots() {
             std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
         },
     );
+}
+
+/// Shots to `PINEY_SHOTS` (default /mnt/data/claude/scratch/a430) of both
+/// fights, every 50th frame the gomoras are drawn, named by the shapes
+/// the first drawn is bent toward.
+#[test]
+#[ignore]
+fn kyvia_gomora_shape_shots() {
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/a430".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    for (disc, s) in [("x01", event_108_disc()), ("x02", event_211_disc())] {
+        let Some(mut s) = s else { continue };
+        let ccs = piney_data::ccs::Ccs::parse(s.archive.inflate_named(disc).unwrap()).unwrap();
+        let base = ccs.find_object("MDL_ex01gom1").unwrap();
+        let mut gs: Option<piney_gs::Gs> = None;
+        fight_leaning(
+            &mut s,
+            3000,
+            |_| 128,
+            false,
+            |s, frame, i, now| {
+                let ms = gomora_morphs(frame, disc, &ccs, base);
+                if ms.is_empty() || !i.is_multiple_of(50) {
+                    return;
+                }
+                let shape: Vec<String> = ms[0]
+                    .iter()
+                    .map(|(t, w)| format!("{}{:.0}", t.trim_start_matches("MDL_ex01"), w * 100.0))
+                    .collect();
+                let g =
+                    gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
+                g.set_overlay(Mode::archive(s));
+                g.render(frame);
+                let (w, h) = g.target_size();
+                let path = format!("{dir}/gomora-{disc}-{i:05}-act{}-{}.png", now.act, shape.join("-"));
+                std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+            },
+        );
+    }
 }
 
 /// Shots of both fights to `PINEY_SHOTS` (default

@@ -405,7 +405,7 @@ player until one of these turns out wrong.
 - [[244]] the port's ST ignores the 1 + S * 2^-23 factor — 3e-5 of a repeat, below a texel
 - [[264]] whether EVENTAREA01's DrawObj/DrawObj2 layer differs from objLayer — the active layer Draw set
 - [[266]] which clump the game draws the Epitaph's ANM_ex2x* clips on — not checked
-- [[272]] which of CMP_ex01gom2-4 each gomora draws — docs/engine/boss-kyvia.md Unknown
+- [[272]] which of CMP_ex01gom2-4 each gomora draws — docs/engine/boss-kyvia.md Unknown — answered by [[430]]: none is picked; every gomora draws its clip's objects (`CMP_trall3`'s) and `MPH_ex01gom1` bends `MDL_ex01gom1` through all three in turn (`kyvia::stream`, `Body::morph_of`)
 - [[279]] whether effAbilityDown's icon rows include a staff — rows not rendered one by one
 - [[279]] whether a killed foe's condition effect fades or ends at once (DispConditionEffect against the game's delete order) — not traced
 - [[280]] what ccEffect::Main ids 0, 113 and -11..-8 were for — nothing makes them

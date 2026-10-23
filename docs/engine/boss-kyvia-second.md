@@ -135,7 +135,8 @@ fight)`), `kyvia::thunder` (the attack and `Bolt`, whose `Draw` the
 manager's pass runs for its `ccRand` draws), `KyviaData::gomora_lists_of`
 (`kyvia_gomora_lists_2`, `kyvia02_anims` in the combat group) and
 `Core::row_hp`. `piney_world::combat::boss` starts code 13 with `x02`'s
-`CMP_trallex02`, `CMP_trall2` and `CMP_ex01gom2`. A bolt's strokes are
+`CMP_trallex02`, `CMP_trall2` and `CMP_trall3`, the gomoras bent by
+their clips (worklog 430). A bolt's strokes are
 `Bolt::stroke`, a step that only draws `ccRand`, and `Bolt::segments`
 holds each frame's. piney-effect's `kyvia::Bolt` draws them after the
 boss's task with the smoke and the burst (worklog 420). The rows the game

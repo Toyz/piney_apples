@@ -2,7 +2,7 @@
 title: Bosses - Kyvia's first fight
 status: partial
 volumes: MUT
-covers: MUT gcmn.prg:0x006192c0 bossFunc (code 12), 0x00480540 SetupSkillName, 0x00473350 ccBoss::DrawParts, 0x004710b0 ccBossAfterImageEx::Init, 0x00471320 ccBossAfterImageEx::Draw, 0x004d29a0 ccThKyvia01, 0x004d2a80 ccBossKyvia01::ccBossKyvia01, 0x004d4410 ccBossKyvia01::Main, 0x004d47c0 Think, 0x004d48a0 SwitchActionPattern, 0x004d4a80 SwitchDeadCheck, 0x004d4c10 CheckDiscMove, 0x004d5140 CheckDmgSmokeEff, 0x004d3330 Action, 0x004d3cf0 DeadKyviaVoice, 0x004d3fc0 DeadKyviaCam, 0x004d53b0 KyviaMagicDamage, 0x004d5450 SetBPos, 0x004d5930 HandAtk, 0x004d60a0 LightAtk, 0x004d8bb0 MegidFlame, 0x004d91e0 Slave, 0x004d92b0 EntrySlave, 0x004f7e80 kyviaCore::InitData, 0x004f80f0 ResetData, 0x004f82c0 CoreInit, 0x004f8770 SetCoreBaseParam, 0x004f8a30 kyviaCore::kyviaCore, 0x004f8cd0 Action, 0x004f9630 Main, 0x004f99c0 Affect, 0x004f9dc0 StartInit, 0x004f9f40 ActionStart, 0x004fa960 CoreVoice, 0x004faac0 Think, 0x004fae40 ThinkESCAPE, 0x004fb110 ChangeAttribute, 0x004fb1f0 CharHoldON, 0x004fb360 FadeCore, 0x004fb550 FadeCheck, 0x004fb5e0 GetGomoraState, 0x004fb860 JudgmentDmgAnm, 0x004fb8e0 CheckCountAtkTime, 0x004fbba0 CheckCountGomora, 0x004fc300 SetCoreState, 0x004fc4c0 GetActNum, 0x004fc5e0 SwitchActionPattern, 0x004fc8b0 MoveSpline, 0x004fca70 SetSpPoint, 0x004fd630 Slave, 0x004fd700 EntrySlave, 0x004fd980 KillGomora, 0x004fdc90 EntryGomora, 0x004fdda0 StartGomora, 0x004fde50 CheckGomoraSkillAct, 0x004fdf10 kyviaGomora::InitData, 0x004fe260 ResetData, 0x004fe460 GomoraInit, 0x004fe6c0 GetAttribute, 0x004fe740 StartInit, 0x004ff3d0 SetGomoraState, 0x004ff480 Affect, 0x004ff800 Action, 0x005004d0 Main, 0x00500850 Move, 0x005009a0 DepartureMove, 0x00500be0 NextGList, 0x00500c50 ListStepUp, 0x00500d50 Think, 0x00501370 TimeAuraCount, 0x005017c0 CheckCountAtkTime, 0x00501de0 RndTarget, 0x00501f20 GetRndSkill, 0x00501fe0 MoveGomora, 0x00502220 FadeGomora, 0x00502530 MoveSpline, 0x00502670 SetSpPoint, 0x00503640 SetAtkPoint, 0x0047aa90 ccBossEffMeteoriteMissile::ccBossEffMeteoriteMissile, 0x0047b330 Draw, 0x0047b910 Spline, 0x0048d9f0 ccBossEffMeteoriteMissileCreate, 0x00475ae0 ccBossCam::SetMode, 0x00475a40 SetRotXLimit, 0x00476380 SetTransfer, 0x00475cf0 Pad_Control, 0x004755a0 CamMain, 0x00500850 kyviaGomora::Move, main 0x001534f0 ccCharHit::CollisionDetection, 0x0061b190 Kyvia01AnmTbl, 0x0061b360 kyviaCoreAnmTbl, 0x0061b620 kyviaGomoraAnmTbl, 0x0061b510 AllGomoraList_1[0], 0x0061f650 KyviaGenerator, 0x0061fce0 KyviaDmgGenerator, 0x0061f3d0 CoreGenerator, 0x0061eec0 GomoraGenerator, 0x0061f1b0 GomoraAuraGenerator, 0x0061d900 MissileSmokeGenerator, 0x0061e290 BurstSmokeGenerator
+covers: MUT gcmn.prg:0x006192c0 bossFunc (code 12), 0x00480540 SetupSkillName, 0x00473350 ccBoss::DrawParts, 0x004710b0 ccBossAfterImageEx::Init, 0x00471320 ccBossAfterImageEx::Draw, 0x004d29a0 ccThKyvia01, 0x004d2a80 ccBossKyvia01::ccBossKyvia01, 0x004d4410 ccBossKyvia01::Main, 0x004d47c0 Think, 0x004d48a0 SwitchActionPattern, 0x004d4a80 SwitchDeadCheck, 0x004d4c10 CheckDiscMove, 0x004d5140 CheckDmgSmokeEff, 0x004d3330 Action, 0x004d3cf0 DeadKyviaVoice, 0x004d3fc0 DeadKyviaCam, 0x004d53b0 KyviaMagicDamage, 0x004d5450 SetBPos, 0x004d5930 HandAtk, 0x004d60a0 LightAtk, 0x004d8bb0 MegidFlame, 0x004d91e0 Slave, 0x004d92b0 EntrySlave, 0x004f7e80 kyviaCore::InitData, 0x004f80f0 ResetData, 0x004f82c0 CoreInit, 0x004f8770 SetCoreBaseParam, 0x004f8a30 kyviaCore::kyviaCore, 0x004f8cd0 Action, 0x004f9630 Main, 0x004f99c0 Affect, 0x004f9dc0 StartInit, 0x004f9f40 ActionStart, 0x004fa960 CoreVoice, 0x004faac0 Think, 0x004fae40 ThinkESCAPE, 0x004fb110 ChangeAttribute, 0x004fb1f0 CharHoldON, 0x004fb360 FadeCore, 0x004fb550 FadeCheck, 0x004fb5e0 GetGomoraState, 0x004fb860 JudgmentDmgAnm, 0x004fb8e0 CheckCountAtkTime, 0x004fbba0 CheckCountGomora, 0x004fc300 SetCoreState, 0x004fc4c0 GetActNum, 0x004fc5e0 SwitchActionPattern, 0x004fc8b0 MoveSpline, 0x004fca70 SetSpPoint, 0x004fd630 Slave, 0x004fd700 EntrySlave, 0x004fd980 KillGomora, 0x004fdc90 EntryGomora, 0x004fdda0 StartGomora, 0x004fde50 CheckGomoraSkillAct, 0x004fdf10 kyviaGomora::InitData, 0x004fe260 ResetData, 0x004fe460 GomoraInit, 0x004fe6c0 GetAttribute, 0x004fe740 StartInit, 0x004ff3d0 SetGomoraState, 0x004ff480 Affect, 0x004ff800 Action, 0x005004d0 Main, 0x00500850 Move, 0x005009a0 DepartureMove, 0x00500be0 NextGList, 0x00500c50 ListStepUp, 0x00500d50 Think, 0x00501370 TimeAuraCount, 0x005017c0 CheckCountAtkTime, 0x00501de0 RndTarget, 0x00501f20 GetRndSkill, 0x00501fe0 MoveGomora, 0x00502220 FadeGomora, 0x00502530 MoveSpline, 0x00502670 SetSpPoint, 0x00503640 SetAtkPoint, 0x0047aa90 ccBossEffMeteoriteMissile::ccBossEffMeteoriteMissile, 0x0047b330 Draw, 0x0047b910 Spline, 0x0048d9f0 ccBossEffMeteoriteMissileCreate, 0x00475ae0 ccBossCam::SetMode, 0x00475a40 SetRotXLimit, 0x00476380 SetTransfer, 0x00475cf0 Pad_Control, 0x004755a0 CamMain, 0x00500850 kyviaGomora::Move, main 0x001534f0 ccCharHit::CollisionDetection, 0x0061b190 Kyvia01AnmTbl, 0x0061b360 kyviaCoreAnmTbl, 0x0061b620 kyviaGomoraAnmTbl, 0x0061b510 AllGomoraList_1[0], 0x0061f650 KyviaGenerator, 0x0061fce0 KyviaDmgGenerator, 0x0061f3d0 CoreGenerator, 0x0061eec0 GomoraGenerator, 0x0061f1b0 GomoraAuraGenerator, 0x0061d900 MissileSmokeGenerator, 0x0061e290 BurstSmokeGenerator, 0x00472e50 ccBoss::Draw; MUT SLUS_205.62:0x00150fd0 ccAnm::SetAnm, 0x0014e760 ccStream::DecodeF_Morpher
 worklog: 272, 420, 425, 426, 427
 ---
 
@@ -314,8 +314,8 @@ The core and each gomora are a character and `Boss` of their own
 `kyvia_gomora_lists`) are the build's combat group.
 `piney_world::combat::boss` starts it for code 12 with the disc
 (`DiscView`: `IsMove`, `discPrevPos`, `DMY_marker01`), draws the core and
-gomoras (`CMP_trall2`, `CMP_ex01gom2` of x01), runs the queued affects of
-all three, and `BossCam` has modes 3 and 4.
+gomoras (`CMP_trall2`, `CMP_trall3` of the fight's file), runs the queued
+affects of all three, and `BossCam` has modes 3 and 4.
 
 The pictures (worklog 420):
 
@@ -332,6 +332,33 @@ The pictures (worklog 420):
   drawn.
 - The tables are the effect group's `boss_kyvia*`, `boss_core*` and
   `boss_gomora*`.
+
+The gomoras' shapes (worklog 430). No gomora picks one of
+`CMP_ex01gom2`-`4`:
+
+- `CoreInit(lv)` (MUT gcmn 0x004f82c0) and `GomoraInit(lv)` (0x004fe460)
+  take their stream (+0xcc) by the core's level, `GetCCSAdrs("x01")` to
+  `"x04"`, the attribute aside. So every gomora of a fight has the same
+  stream and clips.
+- `ccBoss::Draw` (0x00472e50) draws the anm (+0xd4) with `ccAnm::Draw`.
+  The anm draws its clip's objects: `ANM_ex0gnut0`, `atc0`, `dmg0` and
+  `mag0` move `OBJ_trall3`, `OBJ_ex01gom1` and `OBJ_ex31gomc`, the nodes
+  of `CMP_trall3`.
+- `ccAnm::SetAnm` (main 0x00150fd0) makes each anm its own `ccMorpher`,
+  and `DecodeF_Morpher` sets it from the clip's `F_Morpher` records.
+  `MPH_ex01gom1` bends `MDL_ex01gom1`: in `ANM_ex0gnut0` toward `gom2`
+  (frames 1-10), on to `gom3` (to 20) and `gom4` (to 30), then back to
+  the base (40). The attacks, damage and magic clips bend it toward
+  `MDL_ex01atc1`, `atc02` and `atc03`.
+- Each gomora bends by its own clip and frame, so gomoras out together
+  differ. The core (`MPH_ex0c_out`) and the body (`MPH_ex0bbod1`, `2`)
+  bend the same way.
+
+In the port, `kyvia::stream(lv)` is the stream and `Fight::file` its
+fight's. `piney_world::body::Body` keeps its file's morphers and draws
+each model with its clip's weights (`Body::morph_of`), as `foe::Model`
+did; before, a body was drawn unbent, and the gomoras as the bare
+`MDL_ex01gom1` of `CMP_ex01gom2`.
 
 The pushes and the camera (worklog 427):
 
@@ -369,6 +396,12 @@ nothing clears them); the meteors run natively with their drawing,
 particles and `effSmokeRock` stubbed; the camera's `CamMain` never runs
 and a mode 3 or 4 is cleared after the case's delay; W2P/P2W are
 identity.
+
+Each part's stream (+0xcc, the name `CoreInit` and `GomoraInit` asked
+`GetCCSAdrs` for) is compared every frame against `kyvia::stream` (worklog
+430), and `test_parts_shapes` steps the parts' clips of the fight's file
+in the game's `ccAnm` (the morpher's targets and weights each step)
+against `tools/anim.py`, whose weights the port draws with.
 
 The calls include the arm's: each `DrawParts` with the anm's frame and
 flag, and each `EntryAfterImageAnm` with the arm's frame, place, turn and
@@ -417,4 +450,3 @@ their ends and the auras following the core.
   shared code for them is ported as far as levels 1 and 2 read it, and
   the gomora lists for those two. Level 2 is [the second
   fight](boss-kyvia-second.md)'s.
-- Which of x01's gomora clumps (`CMP_ex01gom2`-`4`) each attribute draws.

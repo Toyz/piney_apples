@@ -661,6 +661,8 @@ fn core_json(c: &Core) -> String {
         // The auras' pauseFlag, as the game's generators carry it.
         u8::from(c.aura && c.aura_stop).to_string(),
         u8::from(c.aura2 && c.aura2_stop).to_string(),
+        // CoreInit's stream (+0xcc).
+        format!("\"{}\"", piney_battle::boss::kyvia::stream(c.kyvia_lv).unwrap_or("")),
     ];
     v.join(",")
 }
@@ -720,6 +722,8 @@ fn gomora_json(g: &Gomora, me: usize) -> String {
         v3(&h.pos),
         v3(&h.offset),
     ]);
+    // GomoraInit's stream (+0xcc): what it draws from.
+    v.push(format!("\"{}\"", piney_battle::boss::kyvia::stream(g.kyvia_lv).unwrap_or("")));
     v.join(",")
 }
 

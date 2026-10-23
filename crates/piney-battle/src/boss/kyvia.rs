@@ -34,6 +34,16 @@ pub const CODE_SECOND: i32 = 13;
 /// 0x004d2d10, OUT 0x004d5b60); its height and kind are its row's.
 pub const BODY_RADIUS: F = 0x43c8_0000;
 
+/// The stream the core and each gomora draw from at level `lv`:
+/// `CoreInit(lv)` (MUT gcmn 0x004f82c0) and `GomoraInit(lv)` (0x004fe460)
+/// both take `GetCCSAdrs("x01")` to `"x04"` by level (none past them). The
+/// gomoras' clip, `ANM_ex0gnut0`, draws `CMP_trall3`'s objects, and its
+/// morpher `MPH_ex01gom1` bends `MDL_ex01gom1` through `MDL_ex01gom2`-`4`
+/// in turn: no gomora picks one of them.
+pub fn stream(lv: i16) -> Option<&'static str> {
+    ["x01", "x02", "x03", "x04"].get(usize::try_from(lv).ok()?.checked_sub(1)?).copied()
+}
+
 /// Which of Kyvia's fights the body is: its first (`ccBossKyvia01`,
 /// Mutation's field 9) or its second (`ccBossKyvia02`, kyvia02.cpp,
 /// Outbreak's field 10: two stages of the disc, the core at level 2 and
@@ -80,12 +90,10 @@ impl Fight {
         }
     }
 
-    /// The fight's file: the body, the core and the gomoras.
+    /// The fight's file: the body's, and the core's and the gomoras'
+    /// stream at its level ([`stream`]).
     pub fn file(self) -> &'static str {
-        match self {
-            Fight::First => "x01",
-            Fight::Second => "x02",
-        }
+        stream(self.level()).unwrap_or("x01")
     }
 
     /// The boss skills of the arm, the beams and the meteors

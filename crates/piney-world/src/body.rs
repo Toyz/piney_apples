@@ -65,6 +65,10 @@ pub struct Body {
     /// `ccAnm::SetBlendType(t)` (main 0x00152be0): every model drawn with
     /// `alphaBlendTbl[t]` instead of its own blend (the spring's water, 4).
     pub blend: Option<u8>,
+    /// The file's morphers (`MPH_` to the `MDL_` it bends). `ccAnm::SetAnm`
+    /// makes each anm its own `ccMorpher`, which its clip's `F_Morpher`
+    /// records set and `ccModel::Draw` applies (Kyvia's gomoras' and core's).
+    pub morphers: HashMap<u32, u32>,
 }
 
 impl Body {
@@ -97,7 +101,18 @@ impl Body {
             .find(|(o, _)| *o == c)
             .map(|(_, n)| n.iter().map(|&o| resolve(o)).collect())
             .unwrap_or_default();
-        Ok(Body { file, nodes, attached: Vec::new(), tex_swaps: Vec::new(), blend: None })
+        let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
+        Ok(Body { file, nodes, attached: Vec::new(), tex_swaps: Vec::new(), blend: None, morphers })
+    }
+
+    /// The targets and weights `model` is bent by in `morph` (its
+    /// morpher's, [`Play::morph`]).
+    pub fn morph_of(&self, morph: &[(u32, Vec<(u32, f32)>)], model: u32) -> Vec<(u32, f32)> {
+        morph
+            .iter()
+            .filter(|(mph, _)| self.morphers.get(mph) == Some(&model))
+            .flat_map(|(_, t)| t.iter().copied())
+            .collect()
     }
 
     /// `ccClump::GetObjAdrsF(name)` (0x0013d300): the first of the clump's
@@ -289,6 +304,7 @@ impl Body {
             self.attached.iter().position(|a| a.node == obj).filter(|_| last && self.nodes.contains(&obj))
         };
         let hung: Vec<Option<usize>> = (0..instances.len()).map(hung).collect();
+        let morph = play.morph(&self.file);
         for (inst, &k) in instances.iter().zip(&hung) {
             if (k.is_some() && arms <= 0.0) || play.hidden.contains(&inst.entry) {
                 continue;
@@ -314,7 +330,8 @@ impl Body {
                 rows: &rows,
                 lights: lit.then(|| light_matrix(lights, world, shaded)),
                 nodes: if info.mtype & 6 != 0 { &node_mats } else { &[] },
-                morph: Vec::new(),
+                // An attached model is another file's, which no anm morphs.
+                morph: if k.is_some() { Vec::new() } else { self.morph_of(&morph, model) },
                 // ChangeClut swaps the body's palette; models from another
                 // file use their own.
                 clut_swaps: if k.is_some() { Vec::new() } else { clut_swaps.to_vec() },

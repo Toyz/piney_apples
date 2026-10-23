@@ -2979,7 +2979,7 @@ impl FieldWorld {
                 (None, Some(d)) => draw::Fogging::Depth(d),
                 (None, None) => draw::Fogging::None,
             };
-            let fm = (&**file, &run.look.body_morphers);
+            let fm = (&**file, &run.look.body.morphers);
             crate::town::anim_draw_fog(
                 &mut ctx.layers,
                 layer,

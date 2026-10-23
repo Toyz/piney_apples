@@ -48,13 +48,12 @@ pub const EFF_FILE: &str = "xeffect";
 pub const INNIS_FILE: &str = "x21";
 /// Innis's images (`Mon1`-`Mon3`' models).
 pub const IMAGES: [&str; 3] = ["CMP_ex21mon1", "CMP_ex21mon2", "CMP_ex21mon3"];
-/// Kyvia's file (`x01`, `x02` for its second fight), its body, and its
-/// core's and gomoras' models (the same names in both files).
-pub const KYVIA_FILE: &str = "x01";
+/// Kyvia's body in its fight's file (`Fight::file`), and its core's and
+/// gomoras' clumps there (the same names in each), whose objects their
+/// clips (`ANM_ex0cnut0`, `ANM_ex0gnut0`) draw and morph.
 pub const KYVIA_CLUMP: &str = "CMP_trallex01";
-pub const KYVIA_SECOND_FILE: &str = "x02";
 pub const KYVIA_SECOND_CLUMP: &str = "CMP_trallex02";
-pub const KYVIA_PARTS: [&str; 2] = ["CMP_trall2", "CMP_ex01gom2"];
+pub const KYVIA_PARTS: [&str; 2] = ["CMP_trall2", "CMP_trall3"];
 /// Magus's file (`x31`): its body (`CMP_trall`) and its leaves' model.
 pub const MAGUS_FILE: &str = "x31";
 pub const MAGUS_LEAF: &str = "CMP_ex31leaf";
@@ -267,9 +266,6 @@ pub struct BossLook {
     pub clips: Rc<Clips>,
     pub eff: Rc<piney_desktop::assets::SceneFile>,
     pub eff_morphers: HashMap<u32, u32>,
-    /// The body's file's morphers, for its clips drawn as a `ccAnm`
-    /// (Kyvia's arm, `ANM_ex0batc0`).
-    pub body_morphers: HashMap<u32, u32>,
     /// `_g_cinemaSkillName[n]` of this boss's file (`OnCinemaMode(n)`'s
     /// name), by `n`: on Infection Skeith's 2 (x11's `TEX_ske_skl`, row
     /// 0); on Mutation Innis's 5-8 and 70 (`TEX_ini_skl`, rows 0-4).
@@ -279,7 +275,7 @@ pub struct BossLook {
     /// (field 4: Fidchell's seven, x41's `TEX_fid_skl`).
     pub skill_names: HashMap<i32, CinemaName>,
     /// Innis's images (`CMP_ex21mon1`-`3` of x21), by `MonsterID`;
-    /// Kyvia's core and gomora ([`KYVIA_PARTS`] of x01).
+    /// Kyvia's core and gomora ([`KYVIA_PARTS`] of the fight's file).
     pub images: Vec<Rc<Body>>,
     /// Innis's mirrors' shards (`BreakMirror::SetStream(x21, ID)`:
     /// `CMP_ex21ef{ID}1`-`5`), the file and each clump's models, by
@@ -301,12 +297,11 @@ impl BossLook {
             MAGUS => (MAGUS_FILE, CLUMP),
             FIDCHELL => (boss::fidchell::FILE, FIDCHELL_CLUMP),
             GORRE => (boss::gorre::FILE, GORRE_CLUMP),
-            KYVIA => (KYVIA_FILE, KYVIA_CLUMP),
-            KYVIA_SECOND => (KYVIA_SECOND_FILE, KYVIA_SECOND_CLUMP),
+            KYVIA => (boss::kyvia::Fight::First.file(), KYVIA_CLUMP),
+            KYVIA_SECOND => (boss::kyvia::Fight::Second.file(), KYVIA_SECOND_CLUMP),
             _ => (FILE, CLUMP),
         };
         let body = Rc::new(Body::read(archive, file, clump)?);
-        let body_morphers = piney_data::anim::morphers(&body.file.ccs).unwrap_or_default();
         let mut clips = Clips::new();
         for stem in [file, EFF_FILE] {
             let ccs = piney_data::ccs::Ccs::parse(archive.inflate_named(stem)?)?;
@@ -376,18 +371,7 @@ impl BossLook {
             }
             _ => Vec::new(),
         };
-        Ok(BossLook {
-            code,
-            body,
-            clips: Rc::new(clips),
-            eff,
-            eff_morphers,
-            body_morphers,
-            names,
-            skill_names,
-            images,
-            shards,
-        })
+        Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, skill_names, images, shards })
     }
 }
 

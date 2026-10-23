@@ -138,8 +138,6 @@ pub struct ClutSwap {
 #[derive(Clone)]
 pub struct Model {
     pub body: Body,
-    /// Morpher object -> the model it deforms.
-    pub morphers: HashMap<u32, u32>,
     pub swaps: Vec<ClutSwap>,
     /// The objects' shadow switch (`ccAnm::SetShadowSw`; on unless set
     /// off).
@@ -149,8 +147,7 @@ pub struct Model {
 impl Model {
     /// `ccClump::Init` of `clump` in `file`.
     pub fn new(file: Rc<SceneFile>, clump: &str) -> Result<Model> {
-        let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
-        Ok(Model { body: Body::of(file, clump)?, morphers, swaps: Vec::new(), shadow: true })
+        Ok(Model { body: Body::of(file, clump)?, swaps: Vec::new(), shadow: true })
     }
 
     pub fn file(&self) -> &Rc<SceneFile> {
@@ -294,11 +291,7 @@ impl Model {
             let Some((model, info)) = file.drawn_model(inst.object) else { continue };
             let world = inst.world;
             let lit = info.mtype & 1 != 0;
-            let m: Vec<(u32, f32)> = morph
-                .iter()
-                .filter(|(mph, _)| self.morphers.get(mph) == Some(&model))
-                .flat_map(|(_, t)| t.iter().copied())
-                .collect();
+            let m = self.body.morph_of(&morph, model);
             let d = Draw {
                 file,
                 model,
