@@ -477,8 +477,8 @@ pub(super) fn thunderbolt_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mu
             let (back, down, lift) =
                 if third { (0xc100_0000, 0xc080_0000, 0x40a0_0000) } else { (0xc020_0000, 0xc190_0000, 0x4120_0000) };
             let m = geom::rot_matrix_z(&geom::unit_matrix(), cx.cam.rot[2]);
-            let pos = geom::vadd(cx.cam.pos, geom::apply_matrix(&m, [0, back, down, ONE]));
-            let mut view = cx.cam.view;
+            let pos = geom::vadd(cx.cam.active_pos, geom::apply_matrix(&m, [0, back, down, ONE]));
+            let mut view = cx.cam.active_view;
             view[2] = ee::add(view[2], lift);
             cx.out(Out::FreeCam { pos, view });
             if thunder_sound(b, x.fight, cx) {

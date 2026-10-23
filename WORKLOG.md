@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-434 entries: audio 38, battle 101, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 111, save 16, script 53, test 193, tooling 39, ui 94, video 16, volumes 82, world 126.
+435 entries: audio 38, battle 102, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 111, save 16, script 53, test 194, tooling 39, ui 94, video 16, volumes 82, world 127.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -446,3 +446,4 @@ The [reference](docs/README.md) says what is true now.
 | 432 | [Every boss fight draws its blur: ccBossBlur's m_exit is written 0 by every boss's constructor but Gorre's, whose word is the heap's residue of the play since power-on, and the blur is ported and checked against the game's Main in every boss harness](worklog/0432-every-boss-fight-draws-its-blur-ccbossblur-s-m-exit-is.md) | 2026-10-22 | battle, render, test, tooling |
 | 433 | [Cubia's third fight: Quarantine's ccBossKyvia03 and its magical ball](worklog/0433-cubia-s-third-fight-quarantine-s-ccbosskyvia03-and-its.md) | 2026-10-22 | battle, render, world, test, tooling |
 | 434 | [Cubia's fourth fight: Quarantine's ccBossKyvia04, its places, EX turn, hell's express and rebirth](worklog/0434-cubia-s-fourth-fight-quarantine-s-ccbosskyvia04-its-places.md) | 2026-10-22 | battle, render, world, test, tooling |
+| 435 | [Kyvia's thunder reads the boss camera: no reachable code changes camID from 2 in its fights](worklog/0435-kyvia-s-thunder-reads-the-boss-camera-no-reachable-code.md) | 2026-10-22 | battle, world, test |

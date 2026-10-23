@@ -1733,7 +1733,7 @@ fn hand_atk(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         }
         4 => {
             let m = geom::unit_matrix();
-            x.tes_pos = cx.cam.pos;
+            x.tes_pos = cx.cam.active_pos;
             x.tes_dirc = cx.cam.rot;
             let arm = match x.fight {
                 Fight::Fourth => [0, 0xc535_4000, 0xc396_0000, ONE],

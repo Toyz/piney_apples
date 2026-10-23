@@ -25,6 +25,8 @@ struct Played {
     frames: u32,
     boss_gone_at: Option<u32>,
     ended_at: Option<u32>,
+    /// Frames of the fight with `camID` off the boss camera's 2.
+    off_cam: u32,
     /// Frames of the fight with a sequence (the music) playing, every
     /// frame's events routed to a headless engine as `main` routes them.
     music: u32,
@@ -78,6 +80,7 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
         }
         let Stage::Area(a) = &mut s.stage else { continue };
         let census = a.world().fx().census();
+        let cam_id = a.world().camera().cam_id;
         let c = a.world_mut().combat_mut();
         let Some(run) = c.boss.as_ref() else { continue };
         if run.exit {
@@ -85,6 +88,7 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
             continue;
         }
         let me = run.me;
+        p.off_cam += u32::from(cam_id != piney_world::camera::id::BATTLE);
         // The core's time cut short (its attack turn sooner), and while it
         // can be hit a blow of an eighth of its MaxHP from Kite each 300
         // frames (`EntryAffect` 1, as the console's `kill`), for the
@@ -158,6 +162,7 @@ fn kyvia_s_third_fight_to_its_end() {
     assert!(p.plasma > 50, "the plasmas not followed ({} frames)", p.plasma);
     assert!(p.music > 5000, "no music in the fight ({} frames)", p.music);
     assert!(p.boss_gone_at.is_some(), "the body never died");
+    assert_eq!(p.off_cam, 0, "camID left the boss camera");
     assert!(p.ended_at.is_some(), "event 308 never ended");
 }
 

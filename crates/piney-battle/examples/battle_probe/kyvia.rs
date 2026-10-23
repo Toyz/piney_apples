@@ -330,6 +330,8 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         reset,
         shake: false,
         eye,
+        active_pos: case.cam_pos,
+        active_view: case.cam_view,
     };
     // The frames the disc rides on after the body's `Move`.
     let mut ride = 0;

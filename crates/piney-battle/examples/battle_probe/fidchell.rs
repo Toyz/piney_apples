@@ -133,6 +133,8 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         reset: 0,
         shake: !first && shake(shake_mod, f),
         eye: [0; 4],
+        active_pos: [0; 4],
+        active_view: [0; 4],
     };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;

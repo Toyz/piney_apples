@@ -26,6 +26,8 @@ struct Played {
     frames: u32,
     boss_gone_at: Option<u32>,
     on_at: Option<u32>,
+    /// Frames of the fight with `camID` off the boss camera's 2.
+    off_cam: u32,
     /// Frames of the fight with a sequence (the music) playing.
     music: u32,
 }
@@ -64,6 +66,7 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
         }
         let Stage::Area(a) = &mut s.stage else { continue };
         let census = a.world().fx().census();
+        let cam_id = a.world().camera().cam_id;
         let c = a.world_mut().combat_mut();
         let Some(run) = c.boss.as_ref() else { continue };
         if run.exit {
@@ -71,6 +74,7 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
             continue;
         }
         let me = run.me;
+        p.off_cam += u32::from(cam_id != piney_world::camera::id::BATTLE);
         let kite = c.kite;
         // While the body waits for Kite (`StFlg` 1), Kite stands at the
         // next place (`CoreAppearPos[CoreLvCount]`), as a player walks
@@ -151,6 +155,7 @@ fn kyvia_s_fourth_fight_to_its_end() {
     assert!(p.drawn.get("ANM_ex31lhit").is_some_and(|&n| n > 30), "Hell's express not drawn: {:?}", p.drawn);
     assert!(p.music > 5000, "no music in the fight ({} frames)", p.music);
     assert!(p.boss_gone_at.is_some(), "the body never died");
+    assert_eq!(p.off_cam, 0, "camID left the boss camera");
     assert!(p.on_at.is_some(), "event 312 never went on past its fight");
 }
 

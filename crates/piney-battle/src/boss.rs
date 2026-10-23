@@ -922,8 +922,9 @@ impl PartHits for NoHits {
 /// The cameras as a boss's rules read them: `cameraGetRot(camID)` (the
 /// active camera's turn), `cameraGetPos(2)`, `cameraGetView(2)` (the boss
 /// camera's eye and view), `bossCam->CheckMoveCamera()`, the boss
-/// camera's `ResetFlg` (+0x04: 0 once a mode 3 or 4 move is done), and
-/// `checkCameraShakeRange` of the boss's place as the frame starts.
+/// camera's `ResetFlg` (+0x04: 0 once a mode 3 or 4 move is done),
+/// `checkCameraShakeRange` of the boss's place as the frame starts, and
+/// `cameraGetPos(camID)`, `cameraGetView(camID)` (Kyvia's).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CamView {
     pub rot: V4,
@@ -935,6 +936,11 @@ pub struct CamView {
     /// The boss camera's own eye (`CamPos`, +0x20), which Kyvia's fourth
     /// fight reads and moves.
     pub eye: V4,
+    /// The active camera's eye and view: in Kyvia's fights always the boss
+    /// camera's, as nothing reachable there changes `camID` from 2
+    /// (docs/engine/boss-kyvia-second.md "Which camera").
+    pub active_pos: V4,
+    pub active_view: V4,
 }
 
 /// `WORLD_MAN.eventmap` as an `EVENTAREAB8` for Kyvia's rules: `IsMove()`,

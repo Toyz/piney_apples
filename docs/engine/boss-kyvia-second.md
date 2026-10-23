@@ -2,7 +2,7 @@
 title: Bosses - Kyvia's second fight
 status: partial
 volumes: OUT
-covers: OUT gcmn.prg:0x00616d60 bossFunc (code 13), 0x004d5870 ccThKyvia02, 0x004d5940 ccBossKyvia02::ccBossKyvia02, 0x004d60f0 Action, 0x004d6b90 DeadKyviaVoice, 0x004d6eb0 DeadKyviaCam, 0x004d7300 Main, 0x004d76a0 Think, 0x004d7790 SwitchActionPattern, 0x004d7b00 SwitchDeadCheck, 0x004d7ca0 CheckDiscMove, 0x004d8410 CheckDmgSmokeEff, 0x004d86e0 KyviaMagicDamage, 0x004d8780 SetBPos, 0x004d8c70 HandAtk, 0x004d94a0 LightAtk, 0x004dc000 MegidFlame, 0x004dc6b0 ThunderboltAtk, 0x004dd3f0 ThunderDmg, 0x004ddd40 ThunderSound, 0x004ddf00 Slave, 0x004ddfd0 EntrySlave, 0x004d0780 ccBossKyvia01::Main, 0x00419c80 EVENTAREAB8::Move, 0x00419d10 EVENTAREAB8::IsMove, 0x00477410 ccBossEffThunderbolt::ccBossEffThunderbolt, 0x004776e0 UnitPoint, 0x00477820 SetBreakPoint, 0x004778b0 Draw, 0x00489540 ccBossEffThunderboltCreate, 0x004f5150 kyviaCore::SetCoreBaseParam, 0x004fa3e0 StepAllGomoraList, 0x004fafa0 kyviaGomora::GomoraInit, 0x004fd810 ListStepUp, 0x00619050 AllGomoraList_2, 0x00618c70 Kyvia02AnmTbl, 0x0061d0d0 KyviaGenerator
+covers: OUT gcmn.prg:0x00616d60 bossFunc (code 13), 0x004d5870 ccThKyvia02, 0x004d5940 ccBossKyvia02::ccBossKyvia02, 0x004d60f0 Action, 0x004d6b90 DeadKyviaVoice, 0x004d6eb0 DeadKyviaCam, 0x004d7300 Main, 0x004d76a0 Think, 0x004d7790 SwitchActionPattern, 0x004d7b00 SwitchDeadCheck, 0x004d7ca0 CheckDiscMove, 0x004d8410 CheckDmgSmokeEff, 0x004d86e0 KyviaMagicDamage, 0x004d8780 SetBPos, 0x004d8c70 HandAtk, 0x004d94a0 LightAtk, 0x004dc000 MegidFlame, 0x004dc6b0 ThunderboltAtk, 0x004dd3f0 ThunderDmg, 0x004ddd40 ThunderSound, 0x004ddf00 Slave, 0x004ddfd0 EntrySlave, 0x004d0780 ccBossKyvia01::Main, 0x00419c80 EVENTAREAB8::Move, 0x00419d10 EVENTAREAB8::IsMove, 0x00477410 ccBossEffThunderbolt::ccBossEffThunderbolt, 0x004776e0 UnitPoint, 0x00477820 SetBreakPoint, 0x004778b0 Draw, 0x00489540 ccBossEffThunderboltCreate, 0x004f5150 kyviaCore::SetCoreBaseParam, 0x004fa3e0 StepAllGomoraList, 0x004fafa0 kyviaGomora::GomoraInit, 0x004fd810 ListStepUp, 0x00619050 AllGomoraList_2, 0x00618c70 Kyvia02AnmTbl, 0x0061d0d0 KyviaGenerator; QUA gcmn.prg:0x003622f0 ccBoss::InitBossCamera, 0x003649a0 ccBossCam::ccBossCam, 0x00363810 CamMain; MUT gcmn.prg:0x004e0790 ThunderboltAtk's cameraGetPos(camID), 0x005615fc VenderMenu's SetMerchantCamera, 0x00544e00 SetMerchantCamera, 0x005603f0 SpcMenu; INF SLUS_202.67:0x001617f0 changeCamera, 0x00161610 cameraGetRot
 worklog: 304, 420
 ---
 
@@ -174,8 +174,44 @@ from the disc again, so a retried fight meets the disc's rows, as the
 port's `Core::row_hp`, kept on the fight, has them
 ([the fourth fight](boss-kyvia-fourth.md#bosses-rows-across-fights)).
 
+## Which camera
+
+`HandAtk` and `ThunderboltAtk` read `cameraGetPos`, `cameraGetView` and
+`cameraGetRot` of `camID` (MUT gcmn 0x004e0790 and on), not of camera 2.
+Every Kyvia constructor's `ccBoss::InitBossCamera` (QUA gcmn 0x003622f0)
+makes the `ccBossCam` and calls `changeCamera(2)`. Nothing reachable in
+the fight changes it again. Every caller of `changeCamera` in the main
+program and gcmn on Mutation, Outbreak and Quarantine:
+
+- the camera task's start (`ccThCamera`), before the scene plays;
+- the event's `camera_end` (49), `camera_end_reset` (50) and its camera
+  task (`ccThCameraExecute`, camera 3). Each block of events 108, 211,
+  308 and 312 with a camera instruction is held to another place (its
+  `in_town`, `in_dungeon` or `in_point`) or to a `status[0]` that only the
+  block after `if absent` sets (108: 23; 211: 13; 308: 8; 312: 12), so
+  none plays while Kyvia is in the field;
+- `EVENTAREA03::Draw` (area 43), the other bosses, and `ccBoss`'s
+  `OffBossCamera` and `BeginDeadEffect` and `ccBossCam`'s destructor,
+  which come after the fight;
+- the merchants' menus (Vender, Recorder, Fairyshop, Breeder) and
+  `SetMerchantCamera`, `SetFountainCamera` and `FountainMenu3`, the dogs
+  (`dogAction`, `dogActionAdult`) and `GateHackingOut`. Outbreak's and
+  Quarantine's symbol files name the merchants' menus `StrwinMenu`,
+  `SpcMenu`, `PcMenu` and `NpcMenu` and `FountainMenu3` `ItemIdolMenu`,
+  one function off: each is Mutation's merchant menu's body
+  (`SetMerchantCamera`, then `changeCamera(1)` on each way out). Each opens only on a target with those flags
+  ([the menu buttons](field-game.md#the-menu-buttons)); on the disc the
+  targets are the party and Kyvia's parts, and a party member's menu
+  (`SpcMenu`, 21) changes no camera.
+
+So `camID` is 2 from the constructor to the death in every reachable case,
+and the thunder reads the boss camera: the eye and view `ccBossCam`'s
+`CamMain` and `SetMode` write (`cameraSetPos`, `cameraSetView` of camera
+2), and the turn `cameraGetRot` works out from them. The port's
+`CamView::active_pos` and `active_view` are `cameraGetPos(camID)` and
+`cameraGetView(camID)`, which Kyvia's hand and thunder read, and the
+session tests of all four fights check `camID` is 2 on every frame.
+
 ## Unknown
 
-- Kind 2's camera: `cameraGetPos`, `cameraGetRot` and `cameraGetView` of
-  `camID` are taken as the boss camera's; the harness answers all three
-  from the case.
+Nothing.

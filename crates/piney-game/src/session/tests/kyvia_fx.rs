@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use piney_battle::boss::Class;
 use piney_input::{Buttons, Raw};
+use piney_world::camera::id::BATTLE;
 use piney_world::combat::Combat;
 
 use super::*;
@@ -75,6 +76,8 @@ pub(super) struct Seen {
     draws: Vec<String>,
     anchored: usize,
     on_core: usize,
+    /// `camID` (the boss camera's 2 throughout every Kyvia fight).
+    pub(super) cam_id: i16,
 }
 
 /// The core's character.
@@ -119,6 +122,7 @@ fn fight_leaning(
         s.take_events();
         let Stage::Area(a) = &mut s.stage else { continue };
         let census = a.world().fx().census();
+        let cam_id = a.world().camera().cam_id;
         let c = a.world_mut().combat_mut();
         for &(_, k) in &c.members {
             c.scene.chars[k].max_hp = 9999;
@@ -142,6 +146,7 @@ fn fight_leaning(
             draws: census.boss_draws,
             anchored: census.anchored_generators,
             on_core: census.char_generators.iter().filter(|&&g| g as usize == core).count(),
+            cam_id,
         };
         each(s, &frame, i, &now);
         seen.push(now);
@@ -178,6 +183,7 @@ fn kyvia_shows_its_meteors_beams_and_auras() {
     assert!(drawn.get("ANM_x300").is_some_and(|&n| n > 10), "the meteors not drawn: {drawn:?}");
     assert!(anchored > 100, "no generator followed the fight's places ({anchored} frames)");
     assert!(on_core > 100, "no aura followed the core ({on_core} frames)");
+    assert!(seen.iter().all(|n| n.cam_id == BATTLE), "camID left the boss camera");
 }
 
 /// Outbreak's second fight: its thunder's bolts are drawn (`CMP_x012`),
@@ -192,6 +198,7 @@ fn kyvia_s_second_fight_shows_its_thunderbolts() {
     assert!(acts.contains(&6), "no thunder: {acts:?}");
     assert!(drawn.get("CMP_x012").is_some_and(|&n| n > 30), "the bolts not drawn: {drawn:?}");
     assert!(on_core > 100, "no aura followed the core ({on_core} frames)");
+    assert!(seen.iter().all(|n| n.cam_id == BATTLE), "camID left the boss camera");
 }
 
 /// Kyvia's arm in Legion's Reach (act 3, #72): `HandAtk` draws `anmw`
