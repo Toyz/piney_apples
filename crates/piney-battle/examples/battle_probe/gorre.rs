@@ -11,7 +11,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::gorre;
 use piney_battle::boss::gorre::brother::Brother;
 use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, Out};
-use piney_battle::chara::{AffectFunc, Char, Env};
+use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
 use piney_battle::exp::Party;
@@ -23,7 +23,7 @@ use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
 
 use crate::boss::{eff_num, out_json};
-use crate::{Toks, read_char};
+use crate::{Toks, list, read_char};
 
 type Clips = std::collections::HashMap<String, (u32, bool)>;
 type V4 = [u32; 4];
@@ -199,10 +199,10 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             let br = brothers[who.min(1)];
             match kind {
                 0 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 1, [p0, 0, 0], &mut rand, &mut ev),
-                1 => scene.chars[me].foe_state_mut().unwrap().pp = p0,
+                1 => scene.param_mut(me).unwrap().pp = p0,
                 2 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 13, [0; 3], &mut rand, &mut ev),
                 3 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 21, [0; 3], &mut rand, &mut ev),
-                4 => scene.chars[me].foe_state_mut().unwrap().pp_count = p0,
+                4 => scene.param_mut(me).unwrap().pp_count = p0,
                 5 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 1, [p0, 1, 0], &mut rand, &mut ev),
                 6 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 13, [0; 3], &mut rand, &mut ev),
                 8 => affect::entry_affect(tables, &mut scene, &actx, br, kite, 7, [p0, 0, 0], &mut rand, &mut ev),
@@ -213,6 +213,15 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
                 7 => {
                     if let Some(m) = members.get(who).copied().flatten() {
                         scene.chars[m].cond[0] = p0;
+                    }
+                }
+                // A buff or debuff on a brother, through its `param` as a
+                // skill's ModifyCondition writes it: field, value, time.
+                12 => {
+                    let (k, v, t) = buff(p0);
+                    if let Some(p) = scene.param_mut(br) {
+                        p.temp[k] = v;
+                        p.time[k] = t;
                     }
                 }
                 _ => {}
@@ -316,12 +325,15 @@ fn mout(o: &Out) -> Option<String> {
 /// Gorre and each brother (fidchell.rs's own `frame_json`'s, minus the
 /// class-specific tail).
 #[allow(clippy::too_many_arguments)]
-fn part_json(b: &Boss, ch: &Char) -> String {
-    let f = ch.foe_state().unwrap();
+/// A part's fields, its gauge through its `param` (Gorre's for a brother
+/// after the drain's 21).
+fn part_json(b: &Boss, scene: &Scene, c: usize, gorre: usize) -> String {
+    let ch = &scene.chars[c];
+    let f = scene.param(c).unwrap();
     format!(
         "\"act\":[{},{},{}],\"move\":[{},{},{}],\"tgt\":[{},{},{},{}],\"pos\":[{}],\"posp\":[{}],\"dirc\":[{}],\
          \"hp\":[{},{}],\"pp\":[{},{}],\"flags\":[{},{},{},{},{},{},{},{},{},{},{},{}],\"tr\":[{},{}],\
-         \"anm\":[\"{}\",{},{}],\"pat\":[{},{},{}]",
+         \"anm\":[\"{}\",{},{}],\"pat\":[{},{},{}],\"param\":[\"{}\",{},{},{},{},{},{}]",
         b.act_num,
         b.act_proccess,
         b.act_count,
@@ -359,12 +371,31 @@ fn part_json(b: &Boss, ch: &Char) -> String {
         b.pat_index,
         b.pat_num,
         b.pat_mode,
+        // Whose block `param` points at, and all of it.
+        match scene.param_owner(c) {
+            o if o == c => "own",
+            o if o == gorre => "gorre",
+            _ => "other",
+        },
+        list(f.real),
+        list(f.temp),
+        list(f.time),
+        f.pp,
+        f.pp_count,
+        f.pp_restore,
     )
 }
 
 /// A brother's own tail: its formation offset (`m_posB`) and id.
 fn brother_json(x: &Brother) -> String {
     format!("\"posb\":[{}],\"id\":{}", v3(&x.offset), x.id)
+}
+
+/// Script kind 12's word: the field (low 4 bits), the value (-8..7, the
+/// next 4) and the time (the rest, in tens of frames).
+fn buff(p0: i16) -> (usize, i16, i16) {
+    let w = p0 as u16;
+    (usize::from(w & 0xf), (((w >> 4) & 0xf) as i16 ^ 8) - 8, (w >> 8) as i16 * 10)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -405,9 +436,9 @@ fn frame_json(
         .iter()
         .map(|&c| format!("[{},{},{}]", scene.chars[c].hp, scene.chars[c].cond[1], scene.chars[c].cond[0]))
         .collect();
-    let gorre = part_json(b, &scene.chars[me]);
-    let br0 = format!("{{{},{}}}", part_json(b0, &scene.chars[x.brother_me[0]]), brother_json(x0));
-    let br1 = format!("{{{},{}}}", part_json(b1, &scene.chars[x.brother_me[1]]), brother_json(x1));
+    let gorre = part_json(b, scene, me, me);
+    let br0 = format!("{{{},{}}}", part_json(b0, scene, x.brother_me[0], me), brother_json(x0));
+    let br1 = format!("{{{},{}}}", part_json(b1, scene, x.brother_me[1], me), brother_json(x1));
     format!(
         "{{{},\"maxrange\":{},\"br0\":{},\"br1\":{},\"eff\":[{}],\"party\":[{}],\"out\":[{}],\
          \"menu\":[{},{},{},{},{},{}],\"listed\":[{},{},{}],\"rand\":{},\"cc\":{}}}",

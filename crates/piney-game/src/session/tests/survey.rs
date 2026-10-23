@@ -769,7 +769,7 @@ impl StoryPilot {
         }
         // A broken protect does not wait for the last skill to land: the
         // break is short (Fidchell's under 300 frames).
-        let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene.chars[e], false));
+        let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene, e, false));
         if t != -1 || (!broken && self.ended.is_some_and(|at| f < at + 60)) {
             return None;
         }
@@ -850,7 +850,7 @@ impl StoryPilot {
         let t = &c.data.t;
         let sure = |e: usize, sk: &piney_battle::param::SkillParam| {
             let Some(k) = chars.first().copied().flatten() else { return -1 };
-            let mut tgt = c.scene.chars[e].clone();
+            let mut tgt = c.scene.view(e).into_owned();
             let (mut none, env) = (|| 0, piney_battle::chara::Env::default());
             let roll = piney_battle::damage::Roll::Quiet(100);
             let one = piney_battle::damage::F_ONE;
@@ -884,7 +884,8 @@ impl StoryPilot {
                 if matches!(fo.boss.as_ref().map(|b| &b.class), Some(Class::GorreBrother(_))) {
                     fo.row.p_def_pp > fo.row.m_def_pp
                 } else {
-                    fo.real[elm::P_DEF] > fo.real[elm::M_DEF]
+                    let real = c.scene.real(e);
+                    real[elm::P_DEF] > real[elm::M_DEF]
                 }
             }
             _ => false,
@@ -902,7 +903,7 @@ impl StoryPilot {
         // A boss or a Data Bug with its protect broken (`pp_count` frames
         // left): Kite's Data Drain (Skills, page 5, skill 2) before the
         // break mends.
-        let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene.chars[e], self.held));
+        let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene, e, self.held));
         let drains = piney_fieldui::items::skill_list(&ui.texts().items, w.state(), 0, 5)[0] == DATA_DRAIN;
         let items = &ui.texts().items;
         let state = w.state();
@@ -1027,11 +1028,12 @@ impl StoryPilot {
         };
         if fighting
             && let Some(e) = foe.filter(|&e| reach(e))
-            && let piney_battle::chara::Body::Foe(fo) = &c.scene.chars[e].body
+            && c.scene.chars[e].foe_state().is_some()
         {
+            let real = c.scene.real(e);
             let resist = |x: i16| {
                 let kind = items.skill(i32::from(x)).map_or(0, |p| p.kind);
-                (0..6).filter(|i| kind & (4 << i) != 0).map(|i| fo.real[8 + i]).min().unwrap_or(i16::MAX)
+                (0..6).filter(|i| kind & (4 << i) != 0).map(|i| real[8 + i]).min().unwrap_or(i16::MAX)
             };
             let best = (1..party.len())
                 .filter_map(|slot| {
@@ -1082,7 +1084,7 @@ impl StoryPilot {
         // its element), of the page the foe is weaker to, else of the other
         // (a spell from afar rather than a chase).
         let resist = |sk: &piney_battle::param::SkillParam| {
-            let el = foe.and_then(|e| c.scene.chars[e].foe_state()).map(|fo| fo.real);
+            let el = foe.filter(|&e| c.scene.chars[e].foe_state().is_some()).map(|e| *c.scene.real(e));
             (0..6)
                 .filter(|&i| sk.attr[i] != 0)
                 .map(|i| el.map_or(100, |r| i32::from(r[8 + i])))
@@ -1865,7 +1867,8 @@ fn whole_story(disc: &str) {
         {
             let c = a.world().combat();
             let ch = &c.scene.chars[me];
-            let b = ch.foe_state().and_then(|fo| fo.boss.as_ref().map(|b| (b.act_num, fo.pp)));
+            let pp = c.scene.param(me).map_or(0, |p| p.pp);
+            let b = ch.foe_state().and_then(|fo| fo.boss.as_ref().map(|b| (b.act_num, pp)));
             println!("BOSS {f} {b:?} hp {}/{} {}", ch.hp, ch.max_hp, fighters(a));
         }
         if f.is_multiple_of(30)
@@ -2085,10 +2088,12 @@ const DATA_BUG: i32 = 0x40;
 /// left), or with `any` any foe (a fight that holds the walk: event 206's
 /// Napylons, who heal each other faster than a lone Kite hurts them):
 /// Data Drain's to take.
-fn drainable(ch: &piney_battle::chara::Char, any: bool) -> bool {
+fn drainable(scene: &piney_battle::scene::Scene, e: usize, any: bool) -> bool {
+    let ch = &scene.chars[e];
+    let count = scene.param(e).map_or(0, |p| p.pp_count);
     ch.hp > 0
         && matches!(&ch.body, piney_battle::chara::Body::Foe(f)
-            if (any || f.boss.is_some() || ch.ty() & DATA_BUG != 0) && f.pp_count > 0)
+            if (any || f.boss.is_some() || ch.ty() & DATA_BUG != 0) && count > 0)
 }
 
 /// Data Drain's reach (2000 plus the boss's width).
@@ -2105,7 +2110,7 @@ fn approach_boss(a: &crate::area::AreaMode) -> Option<Raw> {
     {
         return None;
     }
-    let boss = drain_candidates(c).into_iter().find(|&e| drainable(&c.scene.chars[e], false))?;
+    let boss = drain_candidates(c).into_iter().find(|&e| drainable(&c.scene, e, false))?;
     let p = w.player().body.pos.map(f32::from_bits);
     let q = c.scene.chars[boss].pos.map(f32::from_bits);
     if (q[0] - p[0]).hypot(q[1] - p[1]) < DRAIN_NEAR {
@@ -2200,7 +2205,7 @@ fn casting_gold(c: &piney_world::combat::Combat, e: usize) -> bool {
 /// 0 a hit its Exdefense bars.
 fn kite_hit(c: &piney_world::combat::Combat, e: usize, sid: i32, roll: i32) -> i32 {
     let (Some(&(_, k)), Some(sk)) = (c.members.first(), c.data.t.skill(sid)) else { return -1 };
-    let mut tgt = c.scene.chars[e].clone();
+    let mut tgt = c.scene.view(e).into_owned();
     let (mut none, env) = (|| 0, piney_battle::chara::Env::default());
     let roll = piney_battle::damage::Roll::Quiet(roll);
     let (t, one) = (&c.data.t, piney_battle::damage::F_ONE);
@@ -2394,14 +2399,15 @@ fn fighters(a: &crate::area::AreaMode) -> String {
                 ch.spc_char.flags
             ),
             Body::Foe(f) => {
+                let p = c.scene.param(k).cloned().unwrap_or_default();
                 format!(
                     "{} {}/{} lv {} pp {} break {}{}",
                     String::from_utf8_lossy(&f.row.name),
                     ch.hp,
                     ch.max_hp,
                     f.row.base.level,
-                    f.pp,
-                    f.pp_count,
+                    p.pp,
+                    p.pp_count,
                     if f.boss.is_some() { " boss" } else { "" }
                 )
             }

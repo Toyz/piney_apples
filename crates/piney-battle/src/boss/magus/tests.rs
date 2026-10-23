@@ -255,7 +255,7 @@ fn past_half_the_gauge_the_laser_comes() {
     let Some(mut f) = fight() else { return };
     let me = f.me;
     let max = f.t.bosses[ROW].max_pp;
-    f.scene.chars[me].foe_state_mut().unwrap().pp = max;
+    f.scene.param_mut(me).unwrap().pp = max;
     f.affect_on(me, 1, 10);
     assert_eq!(f.magus().reserve_laser, 1);
     assert_eq!(f.magus().high_drive, 1);

@@ -1834,7 +1834,7 @@ fn affect_of(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
         ch.hp = EPITAPH_HP;
         ch.max_hp = EPITAPH_HP;
     } else if (t == 1 || t == 3) && x.pat_mode == 0 {
-        let pp = cx.scene.chars[me].foe_state().map_or(0, |f| f.pp);
+        let pp = cx.scene.param(me).map_or(0, |p| p.pp);
         let id = usize::try_from(cx.scene.chars[me].id()).unwrap_or(0);
         let max = cx.t.bosses.get(id).map_or(0, |r| r.max_pp);
         if pp >= max >> 1 {

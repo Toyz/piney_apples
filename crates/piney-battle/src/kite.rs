@@ -487,8 +487,8 @@ impl Cx<'_> {
         let (a, b) = (self.scene.listed(me), self.scene.listed(tp));
         crate::damage::skill_damage_value(
             self.t,
-            &self.scene.chars[me],
-            &self.scene.chars[tp],
+            &self.scene.view(me),
+            &self.scene.view(tp),
             sid,
             a,
             b,
@@ -2046,8 +2046,8 @@ fn attack_body(ctx: &mut party_ai::Ctx, me: usize, tp: usize) -> i32 {
         let sid = if item { ctx.t.item(s0).map_or(0, |p| p.skill_id) } else { s0 };
         let v = target.map_or(0, |t| {
             let (a, b) = (ctx.scene.listed(me), ctx.scene.listed(t));
-            let (cp, tc) = (&ctx.scene.chars[me], &ctx.scene.chars[t]);
-            crate::damage::skill_damage_value(ctx.t, cp, tc, sid, a, b, &Env::default()).dmg
+            let (cp, tc) = (ctx.scene.view(me), ctx.scene.view(t));
+            crate::damage::skill_damage_value(ctx.t, &cp, &tc, sid, a, b, &Env::default()).dmg
         });
         ctx.crew.send(0x10008, id, id, 0, 0, v, target);
     }

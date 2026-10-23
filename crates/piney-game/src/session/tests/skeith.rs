@@ -563,10 +563,10 @@ fn skeith_drained_through_the_menus() {
                 }
                 // Enough hits would have broken its protect.
                 if let Some(me) = c.boss_char()
-                    && let Some(f) = c.scene.chars[me].foe_state_mut()
-                    && f.boss.as_ref().is_some_and(|b| b.epitaph == 0)
+                    && c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.epitaph == 0)
+                    && let Some(p) = c.scene.param_mut(me)
                 {
-                    f.pp_count = f.pp_count.max(5);
+                    p.pp_count = p.pp_count.max(5);
                 }
             }
             let w = a.world();
@@ -687,7 +687,10 @@ fn skeith_drains_a_member() {
         acts.insert(b.act_num);
         if !hit && b.act_num == 0 && b.lock_player == 0 {
             // The gauge past half, then a hit: the Super table.
-            f.pp = f.row.max_pp;
+            let max = f.row.max_pp;
+            if let Some(p) = f.param_mut() {
+                p.pp = max;
+            }
             if let Some(b) = f.boss.as_mut() {
                 b.queued.push((1, [10, 0, 0], kite));
             }
@@ -753,7 +756,10 @@ fn member_drain_shots() {
         let Some(me) = c.boss_char() else { continue };
         let Some(f) = c.scene.chars[me].foe_state_mut() else { continue };
         if !hit && f.boss.as_ref().is_some_and(|b| b.act_num == 0 && b.lock_player == 0) {
-            f.pp = f.row.max_pp;
+            let max = f.row.max_pp;
+            if let Some(p) = f.param_mut() {
+                p.pp = max;
+            }
             if let Some(b) = f.boss.as_mut() {
                 b.queued.push((1, [10, 0, 0], kite));
             }
@@ -831,10 +837,10 @@ fn drain_with_side(side: Side, mut each: impl FnMut(&mut Session, i16, i16, &FxC
                     ch.hp = 9999;
                 }
                 if let Some(me) = c.boss_char()
-                    && let Some(f) = c.scene.chars[me].foe_state_mut()
-                    && f.boss.as_ref().is_some_and(|b| b.epitaph == 0)
+                    && c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.epitaph == 0)
+                    && let Some(p) = c.scene.param_mut(me)
                 {
-                    f.pp_count = f.pp_count.max(5);
+                    p.pp_count = p.pp_count.max(5);
                 }
             }
             let w = a.world();
@@ -1150,10 +1156,13 @@ fn innis_drained_through_the_menus() {
                 }
                 // Enough hits would have broken its protect.
                 if let Some(me) = c.boss_char()
-                    && let Some(f) = c.scene.chars[me].foe_state_mut()
-                    && f.boss.as_ref().is_some_and(|b| innis_epitaph(b) == Some(0))
+                    && c.scene.chars[me]
+                        .foe_state()
+                        .and_then(|f| f.boss.as_ref())
+                        .is_some_and(|b| innis_epitaph(b) == Some(0))
+                    && let Some(p) = c.scene.param_mut(me)
                 {
-                    f.pp_count = f.pp_count.max(5);
+                    p.pp_count = p.pp_count.max(5);
                 }
             }
             let w = a.world();
@@ -1515,7 +1524,7 @@ fn magus_under_the_autopilot() {
             }
         }
         if f.is_multiple_of(600) {
-            let f2 = c.scene.chars[me].foe_state().unwrap();
+            let f2 = c.scene.param(me).unwrap();
             let down = r.parts.iter().filter(|&&p| c.scene.listed(p)).count();
             println!(
                 "{f}: Magus act {} hp {hp}/{} pp {} break {} drained {drained} - body -{body_dmg}, leaves -{leaf_dmg}, \
@@ -1570,10 +1579,13 @@ fn magus_drained_through_the_menus() {
                 }
                 // Enough hits would have broken its protect.
                 if let Some(me) = c.boss_char()
-                    && let Some(f) = c.scene.chars[me].foe_state_mut()
-                    && f.boss.as_ref().is_some_and(|b| magus_epitaph(b) == Some(0))
+                    && c.scene.chars[me]
+                        .foe_state()
+                        .and_then(|f| f.boss.as_ref())
+                        .is_some_and(|b| magus_epitaph(b) == Some(0))
+                    && let Some(p) = c.scene.param_mut(me)
                 {
-                    f.pp_count = f.pp_count.max(5);
+                    p.pp_count = p.pp_count.max(5);
                 }
             }
             let w = a.world();

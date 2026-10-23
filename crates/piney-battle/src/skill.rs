@@ -444,9 +444,9 @@ fn modify_one(
     out: &mut ModifyEvents,
 ) -> bool {
     let sure = force || (stype == 1 && (sid == 156 || sid == 162));
-    if sure || condition_success(&scene.chars[c], sid, scene.listed(c), rng) {
+    if sure || condition_success(&scene.view(c), sid, scene.listed(c), rng) {
         let mut e = Events::new();
-        modify_condition(t, &mut scene.chars[c], sid, &mut e);
+        scene.lend(c, |ch| modify_condition(t, ch, sid, &mut e));
         crate::damage::place(&mut e, creator, c);
         out.events.extend(e);
         out.started.push(c);
@@ -719,11 +719,11 @@ pub fn target_condition_by_skill(ch: &Char, sid: i32) -> i32 {
 /// needs the target's table row and its lowered defences: an Exdefense
 /// immunity the skill runs into (bit 0x1 with a physical skill, 0x2 with
 /// magic) that is not broken rules the roll out.
-fn exdefense_blocks(tp: &Char, stype: i32) -> bool {
-    let Some(f) = tp.foe_state() else { return false };
+fn exdefense_blocks(scene: &Scene, tp: usize, stype: i32) -> bool {
+    let (Some(f), Some(p)) = (scene.chars[tp].foe_state(), scene.param(tp)) else { return false };
     let ex = i32::from(f.row.exdefense);
-    (ex & 1 != 0 && stype & 1 != 0 && f.real[elm::P_DEF] >= f.row.elm[elm::P_DEF])
-        || (ex & 2 != 0 && stype & 2 != 0 && f.real[elm::M_DEF] >= f.row.elm[elm::M_DEF])
+    (ex & 1 != 0 && stype & 1 != 0 && p.real[elm::P_DEF] >= f.row.elm[elm::P_DEF])
+        || (ex & 2 != 0 && stype & 2 != 0 && p.real[elm::M_DEF] >= f.row.elm[elm::M_DEF])
 }
 
 /// The rules of `_ccSkillRequest(cp, tp, sid, stype)` (gcmn 0x00572860),
@@ -811,7 +811,7 @@ pub fn request(
         && scene.chars[cp].ty() & 5 != 0
         && scene.listed(tp)
         && scene.chars[tp].ty() & ty::FOE != 0
-        && !exdefense_blocks(&scene.chars[tp], sk.ty)
+        && !exdefense_blocks(scene, tp, sk.ty)
     {
         let a = skill_attribute(sk.ty);
         if a != -1 && a == crate::chara::check_char_attribute(&scene.chars[tp], 1) && (rng.rand() >> 3) % 100 < 50 {

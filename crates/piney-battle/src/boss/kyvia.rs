@@ -527,19 +527,28 @@ impl Tree {
 }
 
 /// `ccChar::SetBaseParam(ccGetBossParam(row), &param)` (MUT gcmn
-/// 0x00591090): the row's base and stats, HP and SP full, the gauge
-/// empty, the conditions cleared and alive.
+/// 0x00591090) with the character's own `param`.
 pub(crate) fn set_base_param(cx: &mut Cx, who: usize, row: usize) {
+    set_base_param_of(cx, who, row, who);
+}
+
+/// `SetBaseParam` with `owner`'s `param` (OUT gcmn 0x0058d160): `who`
+/// points at that block from now on, and the row sets it (`real` the
+/// row's stats, no buffs, the gauge empty), the base, HP and SP full, the
+/// conditions cleared and alive.
+pub(crate) fn set_base_param_of(cx: &mut Cx, who: usize, row: usize, owner: usize) {
     let Some(r) = cx.t.bosses.get(row).cloned() else { return };
+    if owner == who {
+        cx.scene.own_param(who);
+    } else {
+        cx.scene.share_param(who, owner);
+    }
+    if let Some(p) = cx.scene.param_mut(who) {
+        *p = crate::chara::Param { real: r.elm, ..Default::default() };
+    }
     let ch = &mut cx.scene.chars[who];
     let (hp, sp) = (r.max_hp, r.max_sp);
     if let Some(f) = ch.foe_state_mut() {
-        f.real = r.elm;
-        f.temp = Default::default();
-        f.time = Default::default();
-        f.pp = 0;
-        f.pp_count = 0;
-        f.pp_restore = 0;
         f.row = r;
     }
     ch.max_hp = hp;
@@ -635,9 +644,9 @@ pub(crate) fn part_affect(b: &mut Boss, cx: &mut Cx) -> bool {
             let ch = &mut cx.scene.chars[me];
             ch.hp = v;
             ch.max_hp = v;
-            if let Some(f) = ch.foe_state_mut() {
-                f.pp = -1;
-                f.pp_count = 0;
+            if let Some(p) = cx.scene.param_mut(me) {
+                p.pp = -1;
+                p.pp_count = 0;
             }
         }
         13 => {

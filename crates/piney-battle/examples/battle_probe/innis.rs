@@ -222,10 +222,10 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             let kite = members[0];
             match kind {
                 0 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 1, [p0, 0, 0], &mut rand, &mut ev),
-                1 => scene.chars[me].foe_state_mut().unwrap().pp = p0,
+                1 => scene.param_mut(me).unwrap().pp = p0,
                 2 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 13, [0; 3], &mut rand, &mut ev),
                 3 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 21, [0; 3], &mut rand, &mut ev),
-                4 => scene.chars[me].foe_state_mut().unwrap().pp_count = p0,
+                4 => scene.param_mut(me).unwrap().pp_count = p0,
                 _ => {}
             }
         }
@@ -303,7 +303,7 @@ fn frame_json(
 ) -> String {
     let Class::Innis(x) = &b.class else { return "{}".into() };
     let ch = &scene.chars[me];
-    let f = ch.foe_state().unwrap();
+    let f = scene.param(me).unwrap();
     // The rings and the missiles run natively in the harness, where their
     // making is seen in the effects' slots only.
     let native = |o: &&Out| {

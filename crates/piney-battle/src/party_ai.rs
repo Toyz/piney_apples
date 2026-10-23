@@ -1401,7 +1401,7 @@ impl Ctx<'_> {
     /// characters of the scene ([`skill_damage_value`]).
     fn value(&self, cp: usize, tp: usize, sid: i32) -> i32 {
         let (a, b) = (self.scene.listed(cp), self.scene.listed(tp));
-        skill_damage_value(self.t, &self.scene.chars[cp], &self.scene.chars[tp], sid, a, b, &Default::default()).dmg
+        skill_damage_value(self.t, &self.scene.view(cp), &self.scene.view(tp), sid, a, b, &Default::default()).dmg
     }
 
     fn act_num(&self, ch: usize) -> i16 {
@@ -1824,7 +1824,7 @@ impl Ctx<'_> {
         }
         let tyb = ch.ty();
         let temp = if tyb & 0x60 != 0 || tyb & 0x80 != 0 || tyb & 4 != 0 {
-            match ch.temp_time() {
+            match self.scene.temp_time(p) {
                 Some((temp, _)) => *temp,
                 None => return 0,
             }
@@ -2298,7 +2298,7 @@ impl Ctx<'_> {
             if (ene && d >= 2) || (!ene && d != 0) {
                 continue;
             }
-            if ((ene || !later) && !self.in_sight(body, c)) || target_condition_by_skill(&self.scene.chars[c], sid) != 0
+            if ((ene || !later) && !self.in_sight(body, c)) || target_condition_by_skill(&self.scene.view(c), sid) != 0
             {
                 continue;
             }
@@ -2421,7 +2421,7 @@ impl Ctx<'_> {
 
     /// `ccAI::CheckTargetConditionBySkill(tp, sid)` (gcmn 0x005937a0).
     pub fn check_target_condition_by_skill(&self, tp: usize, sid: i32) -> i32 {
-        target_condition_by_skill(&self.scene.chars[tp], sid)
+        target_condition_by_skill(&self.scene.view(tp), sid)
     }
 
     /// `ccAI::CheckSkillMask` (gcmn 0x00594e80).

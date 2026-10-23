@@ -102,7 +102,7 @@ pub fn drain(
                 continue;
             }
             let cty = ch.ty();
-            if cty & ty::FOE != 0 && ch.foe_state().is_none_or(|f| f.pp_count == 0) {
+            if cty & ty::FOE != 0 && scene.param(c).is_none_or(|p| p.pp_count == 0) {
                 continue;
             }
             let d = crate::geom::plane_dist(t.volume, ch.pos_p, centre);
@@ -222,8 +222,8 @@ const CONDS: [(usize, i16, bool, i32); 7] = [
 
 fn condition_on(scene: &mut Scene, c: usize, k: usize, roll: i32, out: &mut SideEffect) {
     let (i, frames, body, num) = CONDS[k];
+    let tol = i32::from(scene.real(c)[if body { elm::BODY } else { elm::SPIRIT }]);
     let ch = &mut scene.chars[c];
-    let tol = i32::from(ch.real()[if body { elm::BODY } else { elm::SPIRIT }]);
     if roll < tol {
         out.starts.push(SideStart::Miss(c));
     } else {

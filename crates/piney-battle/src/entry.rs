@@ -1837,7 +1837,8 @@ impl EntryCtrl {
                 if let Some(e) = foe.as_mut() {
                     e.hit.sw = false;
                 }
-                out.lists[k].push((cx.scene.chars[c].clone(), obj, foe));
+                // Kept with the block its `param` points at in hand.
+                out.lists[k].push((cx.scene.view(c).into_owned(), obj, foe));
                 out.olds[k].push(c);
                 cur = self.links[c].next;
             }

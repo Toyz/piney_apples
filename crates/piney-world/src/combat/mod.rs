@@ -2293,11 +2293,14 @@ impl Combat {
     /// shows, and its effect kept, remade or ended
     /// ([`piney_battle::chara::disp_condition_effect`]).
     fn disp_condition(&mut self, c: usize) {
-        let Some(ch) = self.scene.chars.get_mut(c) else { return };
+        if c >= self.scene.chars.len() {
+            return;
+        }
         let ep = self.cond_fx.get(&c).copied();
-        let act =
-            piney_battle::chara::disp_condition_effect(ch, ep, self.cond_fx_shown, self.eye_view, self.data.volume);
-        let num = ch.condition_num;
+        let (shown, eye, volume) = (self.cond_fx_shown, self.eye_view, self.data.volume);
+        // Through the character's `param` (a sharer's lent its owner's).
+        let act = self.scene.lend(c, |ch| piney_battle::chara::disp_condition_effect(ch, ep, shown, eye, volume));
+        let num = self.scene.chars[c].condition_num;
         match act {
             CondFx::Keep => return,
             CondFx::Kill | CondFx::Delete => {

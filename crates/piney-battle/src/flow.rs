@@ -510,42 +510,24 @@ impl SkillRun {
         let Some(tg) = self.target else { return };
         let listed = scene.listed(tg);
         let mut e = Events::new();
-        let r = match self.creator {
+        // The target through its `param` (the caster's pays SP only).
+        let (id, count, stype, ann) = (self.id, self.count, i32::from(self.stype), f.annihilated);
+        let r = scene.lend_in(tg, |chars| match self.creator {
             Some(c) if c != tg => {
-                let (a, b) = pair_mut(&mut scene.chars, c, tg);
-                skill::recovery_system(
-                    t,
-                    Some(a),
-                    b,
-                    self.id,
-                    self.count,
-                    i32::from(self.stype),
-                    f.annihilated,
-                    listed,
-                    &mut e,
-                )
+                let (a, b) = pair_mut(chars, c, tg);
+                skill::recovery_system(t, Some(a), b, id, count, stype, ann, listed, &mut e)
             }
             // A cure on the caster itself: the target's part, then the
             // caster's on the same character.
             Some(c) => {
-                let ch = &mut scene.chars[c];
-                match skill::cure_target(ch, self.id, self.count, f.annihilated, listed, &mut e) {
+                let ch = &mut chars[c];
+                match skill::cure_target(ch, id, count, ann, listed, &mut e) {
                     None => skill::CureResult { end: false },
-                    Some(pay) => skill::cure_creator(t, Some(ch), self.id, i32::from(self.stype), pay),
+                    Some(pay) => skill::cure_creator(t, Some(ch), id, stype, pay),
                 }
             }
-            None => skill::recovery_system(
-                t,
-                None,
-                &mut scene.chars[tg],
-                self.id,
-                self.count,
-                i32::from(self.stype),
-                f.annihilated,
-                listed,
-                &mut e,
-            ),
-        };
+            None => skill::recovery_system(t, None, &mut chars[tg], id, count, stype, ann, listed, &mut e),
+        });
         damage::place(&mut e, self.creator.unwrap_or(NOBODY), tg);
         nobody(&mut e);
         ev.extend(e);

@@ -143,7 +143,7 @@ pub fn affect_enemy(t: &Tables, scene: &mut Scene, on: usize, ev: &mut Events) -
         let a = &scene.chars[on].affect;
         (a.ty, a.param[0])
     };
-    let by_char = by.map(|i| scene.chars[i].clone());
+    let by_char = by.map(|i| scene.view(i).into_owned());
     let ch = &mut scene.chars[on];
     let mut hp = ch.hp;
     let mut sp = ch.sp;
@@ -200,11 +200,12 @@ pub fn affect_enemy(t: &Tables, scene: &mut Scene, on: usize, ev: &mut Events) -
     {
         let ex = i32::from(f.row.exdefense);
         let sid = i32::from(ch.affect.param[1]);
+        let real = ch.real();
         if check_type_of(t, sid) == 1 {
-            if ex & 2 != 0 && f.real[elm::M_DEF] >= f.row.elm[elm::M_DEF] {
+            if ex & 2 != 0 && real[elm::M_DEF] >= f.row.elm[elm::M_DEF] {
                 ev.push(Event::ResistantShield { on: me, magic: 1 });
             }
-        } else if ex & 1 != 0 && f.real[elm::P_DEF] >= f.row.elm[elm::P_DEF] {
+        } else if ex & 1 != 0 && real[elm::P_DEF] >= f.row.elm[elm::P_DEF] {
             ev.push(Event::ResistantShield { on: me, magic: 0 });
         }
     }
@@ -244,9 +245,9 @@ pub fn clear_condition(ch: &mut Char) {
         *temp = [0; 16];
         *time = [0; 16];
     }
-    if let Some(f) = ch.foe_state_mut() {
-        f.pp = 0;
-        f.pp_count = 0;
+    if let Some(p) = ch.param_mut() {
+        p.pp = 0;
+        p.pp_count = 0;
     }
 }
 

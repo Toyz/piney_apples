@@ -9,7 +9,7 @@
 use piney_data::field::ee;
 use piney_data::volume::Volume;
 
-use crate::chara::{AffectFunc, Char, Env, Foe, cdiv, check_char_attribute};
+use crate::chara::{AffectFunc, Char, Env, cdiv, check_char_attribute};
 use crate::event::{Event, Events, Who};
 use crate::param::{SkillParam, cond, elm, ty};
 use crate::rand::Rng;
@@ -88,11 +88,11 @@ pub fn exdefense_held(t: &Tables, scene: &Scene, tp: usize, sid: i32) -> i32 {
     if !scene.listed(tp) || ch.ty() & 0xe0 == 0 {
         return 0;
     }
-    let Some(f) = ch.foe_state() else { return 0 };
+    let (Some(f), Some(p)) = (ch.foe_state(), scene.param(tp)) else { return 0 };
     let ex = i32::from(f.row.exdefense);
     let held = |bits: &[(i32, usize)], stype: i32| {
         bits.iter()
-            .filter(|&&(bit, i)| ex & bit != 0 && stype & bit != 0 && f.real[i] >= f.row.elm[i])
+            .filter(|&&(bit, i)| ex & bit != 0 && stype & bit != 0 && p.real[i] >= f.row.elm[i])
             .fold(0, |a, &(bit, _)| a | bit)
     };
     if sid == -1 {
@@ -110,10 +110,12 @@ pub fn exdefense_held(t: &Tables, scene: &Scene, tp: usize, sid: i32) -> i32 {
     r
 }
 
-/// The Exdefense bits of foe `f` whose defence is now below its row's:
-/// the immunities a lowering broke (the target window strikes them out).
-pub fn exdefense_lowered(f: &Foe) -> i32 {
-    EXDEF.iter().filter(|&&(_, i)| f.real[i] < f.row.elm[i]).fold(0, |a, &(bit, _)| a | bit)
+/// The Exdefense bits of foe `c` whose defence (its `param`'s) is now
+/// below its row's: the immunities a lowering broke (the target window
+/// strikes them out).
+pub fn exdefense_lowered(scene: &Scene, c: usize) -> i32 {
+    let (Some(f), Some(p)) = (scene.chars[c].foe_state(), scene.param(c)) else { return 0 };
+    EXDEF.iter().filter(|&&(_, i)| p.real[i] < f.row.elm[i]).fold(0, |a, &(bit, _)| a | bit)
 }
 
 /// The Exdefense bits by defence: (bit, stat index).
@@ -340,13 +342,13 @@ fn protect(
         return None;
     };
     let hp = i32::from(tgt.hp);
-    let f = tgt.foe_state_mut()?;
-    if f.pp_count != 0 || f.pp < 0 || f.row.max_pp < 0 || npd {
+    let (row, f) = crate::chara::row_and_param(tgt.foe_state_mut()?);
+    if f.pp_count != 0 || f.pp < 0 || row.max_pp < 0 || npd {
         return None;
     }
     let v = if adef == 0 {
         let a = (atk + i32::from(sk.atk)).max(1);
-        let d = i32::from(if physical { f.row.p_def_pp } else { f.row.m_def_pp }).max(1);
+        let d = i32::from(if physical { row.p_def_pp } else { row.m_def_pp }).max(1);
         let mut v = cdiv(a.wrapping_mul(a), 2 * d);
         v = cdiv(v.wrapping_mul(hit), if boss { 80 } else { 100 });
         if v <= 0 {
@@ -367,11 +369,11 @@ fn protect(
         0
     };
     f.pp = f.pp.wrapping_add(v as i16);
-    if f.pp < f.row.max_pp {
+    if f.pp < row.max_pp {
         return Some(v);
     }
     if !boss {
-        f.pp = f.row.max_pp;
+        f.pp = row.max_pp;
         if hp - dmg <= 0 {
             return Some(v);
         }
@@ -484,10 +486,11 @@ pub fn calc_damage_in(
     ev: &mut Events,
 ) -> Damage {
     let listed = scene.listed(me) && scene.listed(target);
-    let att = scene.chars[me].clone();
+    // Both through their `param`s: a sharer's lent its owner's.
+    let att = scene.lend(me, |c| c.clone());
     let mut e = Events::new();
-    let r =
-        calc_battle_damage_on(t, &att, &mut scene.chars[target], sk, mag, roll, listed, me == target, rng, env, &mut e);
+    let r = scene
+        .lend(target, |tgt| calc_battle_damage_on(t, &att, tgt, sk, mag, roll, listed, me == target, rng, env, &mut e));
     place(&mut e, me, target);
     ev.extend(e);
     r

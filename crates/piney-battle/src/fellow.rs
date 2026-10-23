@@ -560,8 +560,8 @@ impl Frame<'_> {
         let (a, b) = (self.scene.listed(me), self.scene.listed(tp));
         crate::damage::skill_damage_value(
             self.t,
-            &self.scene.chars[me],
-            &self.scene.chars[tp],
+            &self.scene.view(me),
+            &self.scene.view(tp),
             sid,
             a,
             b,

@@ -38,7 +38,7 @@ fn hell_hound_targeted() -> Option<(Session, usize)> {
 /// a debuff leaves them): `CalcReal`'s `real` falls below the row's.
 fn lower_fire(s: &mut Session, hound: usize) {
     let c = area(s).world_mut().combat_mut();
-    let f = c.scene.chars[hound].foe_state_mut().unwrap();
+    let f = c.scene.param_mut(hound).unwrap();
     f.temp[elm::FIRE] = -10;
     f.time[elm::FIRE] = 3600;
 }

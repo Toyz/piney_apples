@@ -12,7 +12,7 @@ use piney_data::libm;
 use piney_data::save::SaveData;
 use piney_data::volume::Volume;
 
-use crate::chara::{self, Body, Char, Env};
+use crate::chara::{self, Char, Env};
 use crate::event::Event;
 use crate::param::{EnemyTable, F_ONE, SkillParam, ThinkParam, cond, ty};
 use crate::rand::Rng;
@@ -847,11 +847,11 @@ pub fn clear_target(e: &mut Enemy) {
 /// debuffs gone, the protect gauge emptied, `conditionNum` -1.
 pub fn clear_condition_enemy(ch: &mut Char, out: &mut Vec<Out>) {
     clear_condition(ch);
-    if let Body::Foe(f) = &mut ch.body {
-        f.temp = [0; 16];
-        f.time = [0; 16];
-        f.pp = 0;
-        f.pp_count = 0;
+    if let Some(p) = ch.param_mut() {
+        p.temp = [0; 16];
+        p.time = [0; 16];
+        p.pp = 0;
+        p.pp_count = 0;
     }
     ch.condition_num = -1;
     out.push(Out::ClearConditionEffect);
@@ -1145,14 +1145,14 @@ fn select_skill_target(cx: &mut Cx, e: &Enemy, sid: i32, sk: &SkillParam) -> Opt
     if sk.ty & bits::BUFF != 0 {
         return cx.scene.ene_list.clone().into_iter().find(|&c| {
             check_skill_range(cx.scene, cx.t.volume, me, c, range)
-                && skill::target_condition_by_skill(&cx.scene.chars[c], sid) == 0
+                && skill::target_condition_by_skill(&cx.scene.view(c), sid) == 0
         });
     }
     if sk.ty & bits::DEBUFF != 0 {
         for c in cx.scene.pc_list.clone() {
             if !check_skill_range(cx.scene, cx.t.volume, me, c, range)
-                || skill::target_condition_by_skill(&cx.scene.chars[c], sid) != 0
-                || !skill::condition_success(&cx.scene.chars[c], sid, cx.scene.listed(c), cx.rand)
+                || skill::target_condition_by_skill(&cx.scene.view(c), sid) != 0
+                || !skill::condition_success(&cx.scene.view(c), sid, cx.scene.listed(c), cx.rand)
             {
                 continue;
             }
@@ -1160,7 +1160,7 @@ fn select_skill_target(cx: &mut Cx, e: &Enemy, sid: i32, sk: &SkillParam) -> Opt
             let v = if ch.no_death {
                 F_2000
             } else {
-                let re = ch.real();
+                let re = cx.scene.real(c);
                 ee::from_int(i32::from(re[15]) + i32::from(re[14]))
             };
             if !ee::le(rate, v) || first(rate) {

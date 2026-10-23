@@ -1066,10 +1066,10 @@ impl Boss {
         }
         if (self.lock_player != 0 || self.erase_target != 0)
             && self.epitaph == 0
-            && let Some(f) = cx.scene.chars[me].foe_state_mut()
-            && f.pp_count > 0
+            && let Some(p) = cx.scene.param_mut(me)
+            && p.pp_count > 0
         {
-            f.pp_count += 1;
+            p.pp_count += 1;
         }
     }
 
@@ -1081,7 +1081,10 @@ impl Boss {
     pub(crate) fn calc_real(&mut self, cx: &mut Cx) {
         let me = cx.me;
         let mut ev = Events::new();
-        chara::calc_real(cx.t, &mut cx.scene.chars[me], 0, cx.env, &mut ev);
+        // On the block its `param` points at (Gorre's, for a brother after
+        // the drain's 21).
+        let (t, env) = (cx.t, cx.env);
+        cx.scene.lend(me, |ch| chara::calc_real(t, ch, 0, env, &mut ev));
         for mut e in ev {
             e.map_who(|w| if w == Who::Me { Who::Char(me) } else { w });
             match e {
@@ -1452,7 +1455,8 @@ impl Boss {
             if ch.hp <= 0 {
                 continue;
             }
-            let field = |k: usize| i32::from(ch.real()[k]);
+            let real = cx.scene.real(c);
+            let field = |k: usize| i32::from(real[k]);
             let conds = || {
                 let v = &ch.cond.v;
                 let slow = v[15] != 0 && ee::lt(ch.cond.speed_value, ONE);
@@ -1641,9 +1645,13 @@ impl Boss {
 
     fn hit(&mut self, cx: &mut Cx, m: usize, sk: &SkillParam, half: bool) {
         let me = cx.me;
-        let (att, tgt) = two(&mut cx.scene.chars, me, m);
+        let att = cx.scene.lend(me, |c| c.clone());
         let listed = true;
-        let d = damage::calc_battle_damage(cx.t, att, tgt, sk, ONE, Roll::Draw, listed, cx.rand, cx.env, &mut cx.ev);
+        let (t, env) = (cx.t, cx.env);
+        let (rand, ev) = (&mut *cx.rand, &mut cx.ev);
+        let d = cx
+            .scene
+            .lend(m, |tgt| damage::calc_battle_damage(t, &att, tgt, sk, ONE, Roll::Draw, listed, rand, env, ev));
         let mut dmg = d.dmg as i16;
         if half {
             dmg = ee::to_int(ee::mul(ee::from_int(i32::from(dmg)), HALF)) as i16;
@@ -2408,7 +2416,7 @@ impl Boss {
             ch.hp = 4500;
             ch.max_hp = 4500;
         } else if (t == 1 || t == 3) && self.pat_mode == 0 {
-            let pp = cx.scene.chars[me].foe_state().map_or(0, |f| f.pp);
+            let pp = cx.scene.param(me).map_or(0, |p| p.pp);
             let id = usize::try_from(cx.scene.chars[me].id()).unwrap_or(0);
             let max = cx.t.bosses.get(id).map_or(0, |r| r.max_pp);
             if pp >= max >> 1 {
@@ -2440,9 +2448,9 @@ impl Boss {
                 let ch = &mut cx.scene.chars[me];
                 ch.hp = v;
                 ch.max_hp = v;
-                if let Some(f) = ch.foe_state_mut() {
-                    f.pp = -1;
-                    f.pp_count = 0;
+                if let Some(p) = cx.scene.param_mut(me) {
+                    p.pp = -1;
+                    p.pp_count = 0;
                 }
             }
             13 => {
@@ -2565,17 +2573,5 @@ pub fn apply_queued(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn
         a.param = param;
         a.person = person;
         entry(scene, ctx, on, rng, ev);
-    }
-}
-
-/// Two characters of the scene at once, the first shared.
-fn two(chars: &mut [crate::chara::Char], a: usize, b: usize) -> (&crate::chara::Char, &mut crate::chara::Char) {
-    assert_ne!(a, b);
-    if a < b {
-        let (l, r) = chars.split_at_mut(b);
-        (&l[a], &mut r[0])
-    } else {
-        let (l, r) = chars.split_at_mut(a);
-        (&r[0], &mut l[b])
     }
 }

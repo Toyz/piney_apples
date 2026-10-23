@@ -212,7 +212,7 @@ fn half_the_gauge_brings_the_super_table() {
     let Some(mut f) = fight() else { return };
     let me = f.me;
     let max = f.t.bosses[ROW].max_pp;
-    f.scene.chars[me].foe_state_mut().unwrap().pp = max;
+    f.scene.param_mut(me).unwrap().pp = max;
     f.affect(1, 10);
     assert_eq!(f.boss().pat_tbl, Tbl::Super);
     assert_eq!(f.fid().pat_mode, 1);

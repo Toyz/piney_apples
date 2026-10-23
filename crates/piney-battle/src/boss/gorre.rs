@@ -424,10 +424,10 @@ fn frame(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
             b.reserve_forbid_menu = 0;
             b.reserve_forbid_chat_except = 0;
         }
-        if let Some(f) = cx.scene.chars[me].foe_state_mut()
-            && f.pp_count > 0
+        if let Some(p) = cx.scene.param_mut(me)
+            && p.pp_count > 0
         {
-            f.pp_count += 1;
+            p.pp_count += 1;
         }
     } else if b.reserve_forbid_menu == -1 && cx.env.menu_type == -1 {
         cx.out(Out::MenuForbid { on: false, chat_except: false });
@@ -436,11 +436,12 @@ fn frame(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     }
     b.move_(cx);
     // No `PreDrawAnm`: Gorre's own clip stands still but in the Kerse.
-    // The broken protect's count is the three's.
-    let count = cx.scene.chars[me].foe_state().map_or(0, |f| f.pp_count);
-    for p in &x.brothers {
-        if let Some(f) = cx.scene.chars[p.me].foe_state_mut() {
-            f.pp_count = count;
+    // The broken protect's count handed to both brothers' `param`s (after
+    // the drain's 21 the one block, written onto itself).
+    let count = cx.scene.param(me).map_or(0, |p| p.pp_count);
+    for b in &x.brothers {
+        if let Some(p) = cx.scene.param_mut(b.me) {
+            p.pp_count = count;
         }
     }
 }
@@ -658,10 +659,10 @@ fn on_wave(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
     let c = b.act_count;
     b.act_count += 1;
     if b.act_num == act::WAVE
-        && let Some(f) = cx.scene.chars[cx.me].foe_state_mut()
-        && f.pp_count > 0
+        && let Some(p) = cx.scene.param_mut(cx.me)
+        && p.pp_count > 0
     {
-        f.pp_count += 1;
+        p.pp_count += 1;
     }
     match b.act_proccess {
         0 => {

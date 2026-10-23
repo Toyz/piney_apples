@@ -155,11 +155,12 @@ pub(super) fn frame(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
         }
     }
     cx.scene.chars[me].cond[cond::HOLD] = 0;
+    // Through its `param`: Gorre's, after the drain's 21.
     if gb.lock_player != 0
-        && let Some(f) = cx.scene.chars[me].foe_state_mut()
-        && f.pp_count > 0
+        && let Some(p) = cx.scene.param_mut(me)
+        && p.pp_count > 0
     {
-        f.pp_count += 1;
+        p.pp_count += 1;
     }
     cx.me = old;
 }

@@ -121,7 +121,7 @@ pub fn skill_useful(t: &Tables, scene: &Scene, party: &Party, sorted: &[SortEntr
         if base.ty & ty::FOE == 0 {
             return true;
         }
-        if ch.foe_state().map_or(0, |f| f.pp_count) != 0 {
+        if scene.param(e.ch).map_or(0, |p| p.pp_count) != 0 {
             return true;
         }
     }
@@ -456,12 +456,15 @@ fn personality_short(ch: &mut Char, off: usize) -> Option<&mut i16> {
             0x14..=0x23 => Some(&mut p.elm[i - 0x14]),
             _ => None,
         },
-        Body::Foe(f) => match i {
-            0..=15 => Some(&mut f.real[i]),
-            16..=31 => Some(&mut f.temp[i - 16]),
-            32..=47 => Some(&mut f.time[i - 32]),
-            _ => None,
-        },
+        Body::Foe(f) => {
+            let (_, p) = crate::chara::row_and_param(f);
+            match i {
+                0..=15 => Some(&mut p.real[i]),
+                16..=31 => Some(&mut p.temp[i - 16]),
+                32..=47 => Some(&mut p.time[i - 32]),
+                _ => None,
+            }
+        }
         Body::Other { .. } => None,
     }
 }
@@ -475,7 +478,12 @@ fn personality_short(ch: &mut Char, off: usize) -> Option<&mut i16> {
 /// at 999.
 fn book(scene: &mut Scene, tp: usize, id: i32, later: bool) -> (i32, i32) {
     let Some(&(up, stat, amount)) = usize::try_from(id).ok().and_then(|i| BOOKS.get(i)) else { return (0, 0) };
-    let ch = &mut scene.chars[tp];
+    // Through `tp`'s `param`, a sharer's lent it.
+    scene.lend(tp, |ch| book_on(ch, up, later));
+    (stat, amount)
+}
+
+fn book_on(ch: &mut Char, up: Up, later: bool) {
     match up {
         Up::Stat(f, d) => {
             if let Some(x) = personality_short(ch, 0x28 + 2 * f) {
@@ -510,7 +518,6 @@ fn book(scene: &mut Scene, tp: usize, id: i32, later: bool) -> (i32, i32) {
             ch.sp = if v < 1000 { v as i16 } else { 999 };
         }
     }
-    (stat, amount)
 }
 
 /// A book read by a party member outside a fight: `AddSpcItem`'s
@@ -1292,9 +1299,9 @@ mod tests {
         use_item_request(&t, &mut scene, &mut env, 0, 0, 12 << 16, 0, &mut rng);
         // An energy sutra: maxHP at +0x24, temp[2].
         use_item_request(&t, &mut scene, &mut env, 0, 0, 12 << 16 | 32, 0, &mut rng);
-        let f = scene.chars[0].foe_state().unwrap();
-        assert_eq!(f.temp[4], 10);
-        assert_eq!(f.temp[2], 10);
+        let p = scene.param(0).unwrap();
+        assert_eq!(p.temp[4], 10);
+        assert_eq!(p.temp[2], 10);
         assert_eq!(scene.chars[0].hp, 10);
     }
 }

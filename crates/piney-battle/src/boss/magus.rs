@@ -345,7 +345,7 @@ fn epitaph(x: &Magus) -> bool {
 }
 
 fn pp_of(cx: &Cx) -> i16 {
-    cx.scene.chars[cx.me].foe_state().map_or(0, |f| f.pp)
+    cx.scene.param(cx.me).map_or(0, |p| p.pp)
 }
 
 /// `GetMaxPP()` (0x00475540): `bossTbl[base->id].maxPP`.
@@ -438,10 +438,10 @@ pub(super) fn main(b: &mut Boss, cx: &mut Cx) {
         cx.scene.chars[p.me].cond[cond::HOLD] = 0;
     }
     if b.lock_player != 0
-        && let Some(f) = cx.scene.chars[me].foe_state_mut()
-        && f.pp_count > 0
+        && let Some(p) = cx.scene.param_mut(me)
+        && p.pp_count > 0
     {
-        f.pp_count += 1;
+        p.pp_count += 1;
     }
     ls.put(cx);
     b.class = Class::Magus(x);
@@ -2133,9 +2133,9 @@ fn affect_of(b: &mut Boss, x: &mut Magus, cx: &mut Cx) {
             let ch = &mut cx.scene.chars[me];
             ch.hp = 4500;
             ch.max_hp = 4500;
-            if let Some(f) = ch.foe_state_mut() {
-                f.pp = -1;
-                f.pp_count = 0;
+            if let Some(p) = cx.scene.param_mut(me) {
+                p.pp = -1;
+                p.pp_count = 0;
             }
             b.anm.speed = 256;
         }

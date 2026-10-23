@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-430 entries: audio 38, battle 97, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 108, save 16, script 53, test 189, tooling 35, ui 94, video 16, volumes 82, world 124.
+431 entries: audio 38, battle 98, build 20, content 3, decomp 28, disc 5, engine 21, format 17, iop 3, render 108, save 16, script 53, test 190, tooling 36, ui 94, video 16, volumes 82, world 124.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -442,3 +442,4 @@ The [reference](docs/README.md) says what is true now.
 | 428 | [Magus's flashes fade in, hold and out and its grow's sound loops until it ends: EntryFlash2 and EntryFlash3 on the fader, ccSeOn3DLoop's id kept for ccSeOffLoop, and acts 30 and 23 shown unreachable from every writer of m_bDropping and m_bDrop](worklog/0428-magus-s-flashes-fade-in-hold-and-out-and-its-grow-s-sound.md) | 2026-10-22 | battle, audio, render, test, tooling |
 | 429 | [Gorre's brothers' shields stand tall over them: ccBoss05Brother::Affect's effResistantShield of its own kind, its scale halved in x and 1.3 times in z and its offset 200 higher, checked against the game's Affect on the element manager](worklog/0429-gorre-s-brothers-shields-stand-tall-over-them.md) | 2026-10-22 | battle, render, test, tooling |
 | 430 | [Kyvia's gomoras bend through all three of their shapes: no gomora picks one of CMP_ex01gom2-4, MPH_ex01gom1 bends MDL_ex01gom1 through them by each gomora's own clip, and the port's bodies now draw their clips' morphs, checked against the game's ccAnm and GomoraInit on both discs](worklog/0430-kyvia-s-gomoras-bend-through-all-three-of-their-shapes-no.md) | 2026-10-22 | battle, render, test, tooling |
+| 431 | [Gorre's brothers share its param as the game does: one block that Gorre owns and the brothers read and write through it after the drain's 21, so a buff on one brother is on all three and runs out three times as fast, checked frame by frame against the game's code](worklog/0431-gorre-s-brothers-share-its-param-as-the-game-does-one-block.md) | 2026-10-22 | battle, test, tooling |

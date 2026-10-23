@@ -162,10 +162,10 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             let kite = members[0];
             match kind {
                 0 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 1, [p0, 0, 0], &mut rand, &mut ev),
-                1 => scene.chars[me].foe_state_mut().unwrap().pp = p0,
+                1 => scene.param_mut(me).unwrap().pp = p0,
                 2 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 13, [0; 3], &mut rand, &mut ev),
                 3 => affect::entry_affect(tables, &mut scene, &actx, me, kite, 21, [0; 3], &mut rand, &mut ev),
-                4 => scene.chars[me].foe_state_mut().unwrap().pp_count = p0,
+                4 => scene.param_mut(me).unwrap().pp_count = p0,
                 _ => {}
             }
             let _ = sf;
@@ -304,7 +304,7 @@ pub(crate) fn out_json(o: &Out) -> Option<String> {
 
 fn frame_json(b: &Boss, scene: &Scene, me: usize, out: &[Out], rand: &Rand, cc: &Genrand) -> String {
     let ch = &scene.chars[me];
-    let f = ch.foe_state().unwrap();
+    let f = scene.param(me).unwrap();
     let outs: Vec<String> = out.iter().filter_map(out_json).collect();
     let effs: Vec<String> = b
         .effects

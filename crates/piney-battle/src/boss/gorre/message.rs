@@ -87,16 +87,19 @@ fn on_report_affect(b: &mut Boss, x: &mut Gorre, from: usize, cx: &mut Cx) {
     let (hp, mhp) = (cx.scene.chars[bm].hp, cx.scene.chars[bm].max_hp);
     match ty {
         21 => {
+            // `SetBaseParam(brother, row 4, &Gorre's param)` (0x004ae160,
+            // 0x004ae188): both brothers point at Gorre's block from now
+            // on, which the row sets twice over.
             for k in 0..2 {
-                crate::boss::kyvia::set_base_param(cx, x.brothers[k].me, ROW);
+                crate::boss::kyvia::set_base_param_of(cx, x.brothers[k].me, ROW, me);
             }
             for c in [me, x.brothers[0].me, x.brothers[1].me] {
                 let ch = &mut cx.scene.chars[c];
                 ch.hp = 6000;
                 ch.max_hp = 6000;
-                if let Some(f) = ch.foe_state_mut() {
-                    f.pp = -1;
-                    f.pp_count = 0;
+                if let Some(p) = cx.scene.param_mut(c) {
+                    p.pp = -1;
+                    p.pp_count = 0;
                 }
             }
         }
@@ -131,7 +134,7 @@ fn on_report_affect(b: &mut Boss, x: &mut Gorre, from: usize, cx: &mut Cx) {
             }
             share_hp(x, me, cx, h);
             // `GetPP() >= GetMaxPP() / 2`: the Super table, once.
-            let gp = cx.scene.chars[me].foe_state().map_or(0, |f| f.pp);
+            let gp = cx.scene.param(me).map_or(0, |p| p.pp);
             let max = cx.t.bosses.get(ROW).map_or(0, |r| r.max_pp);
             if b.pat_mode == 0 && gp >= max >> 1 {
                 b.set_pattern_tbl(Tbl::Super);
@@ -157,25 +160,26 @@ fn share_hp(x: &Gorre, me: usize, cx: &mut Cx, hp: i16) {
 /// is Gorre's and the other's.
 fn share_protect(x: &Gorre, me: usize, from: usize, cx: &mut Cx) {
     let (bm, other) = (x.brothers[from].me, x.brothers[1 - from].me);
-    let Some((pp, count)) = cx.scene.chars[bm].foe_state().map(|f| (f.pp, f.pp_count)) else { return };
-    if count == 300 {
+    let count = |cx: &Cx| cx.scene.param(bm).map_or(0, |p| p.pp_count);
+    // Each through the character's `param`, in the game's order.
+    if count(cx) >= 0 {
+        let n = count(cx);
+        if let Some(p) = cx.scene.param_mut(me) {
+            p.pp_count = n;
+        }
+    }
+    if count(cx) == 300 {
         cx.ev.push(Event::Protect { on: Who::Char(other), broken: 0, kind: 2 });
+        if let Some(p) = cx.scene.param_mut(other) {
+            p.pp = 0;
+            p.pp_count = 300;
+        }
     }
-    let chars = &mut cx.scene.chars;
-    if count >= 0
-        && let Some(f) = chars[me].foe_state_mut()
-    {
-        f.pp_count = count;
-    }
-    if count == 300
-        && let Some(f) = chars[other].foe_state_mut()
-    {
-        f.pp = 0;
-        f.pp_count = 300;
-    }
+    // `GetPP()` of the struck brother, read again for each.
     for c in [me, other] {
-        if let Some(f) = chars[c].foe_state_mut() {
-            f.pp = pp;
+        let pp = cx.scene.param(bm).map_or(0, |p| p.pp);
+        if let Some(p) = cx.scene.param_mut(c) {
+            p.pp = pp;
         }
     }
 }

@@ -3559,7 +3559,7 @@ mod tests {
                     // The goblin's protect broken, as enough hits would.
                     let c = a.world_mut().combat_mut();
                     for &e in &c.enemies() {
-                        if let Some(fs) = c.scene.chars[e].foe_state_mut() {
+                        if let Some(fs) = c.scene.param_mut(e) {
                             fs.pp_count = 5;
                         }
                     }
@@ -3946,7 +3946,8 @@ mod tests {
             }
             let listed = c.enemies();
             for &e in &listed {
-                let (temp, time) = c.scene.chars[e].temp_time_mut().unwrap();
+                let p = c.scene.param_mut(e).unwrap();
+                let (temp, time) = (&mut p.temp, &mut p.time);
                 if time[0] == 0 {
                     temp[0] = -10;
                     time[0] = 7200;

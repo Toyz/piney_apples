@@ -113,12 +113,15 @@ pub(crate) fn read_char(t: &mut Toks) -> Char {
             row.exdefense = t.i16();
             row.item = std::array::from_fn(|_| t.i32());
             let mut f = Foe::new(row);
-            f.real = t.elm();
-            f.temp = t.elm();
-            f.time = t.elm();
-            f.pp = t.i16();
-            f.pp_count = t.i16();
-            f.pp_restore = t.i16();
+            let param = piney_battle::chara::Param {
+                real: t.elm(),
+                temp: t.elm(),
+                time: t.elm(),
+                pp: t.i16(),
+                pp_count: t.i16(),
+                pp_restore: t.i16(),
+            };
+            f.param = piney_battle::chara::ParamAt::Own(param);
             Body::Foe(Box::new(f))
         }
         _ => Body::Other { base, real: t.elm() },
@@ -228,7 +231,9 @@ pub(crate) fn state(c: &Char) -> String {
                 list(p.time)
             );
         }
-        Body::Foe(f) => {
+        Body::Foe(_) => {
+            // A probe's characters hold their own blocks.
+            let f = c.param().expect("a probe's own character");
             s += &format!(
                 ",\"real\":{},\"temp\":{},\"time\":{},\"PP\":{}",
                 list(f.real),

@@ -58,7 +58,7 @@ fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&mut Combat, usize, 
         let f = c.scene.chars[me].foe_state();
         let now = Seen {
             act: f.and_then(|f| f.boss.as_ref()).map_or(-1, |b| b.act_num),
-            pp_count: f.map_or(0, |f| f.pp_count),
+            pp_count: c.scene.param(me).map_or(0, |p| p.pp_count),
             effects: census.effects,
             draws: census.boss_draws,
             anchored: census.anchored_generators,
@@ -75,8 +75,9 @@ fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&mut Combat, usize, 
 /// events shown as the frame shows a rule's. True when the protect broke.
 fn break_protect(c: &mut Combat, me: usize, sid: i32) -> bool {
     let Some(k) = c.kite else { return false };
-    if let Some(f) = c.scene.chars[me].foe_state_mut() {
-        f.pp = f.row.max_pp - 1;
+    let max = c.scene.chars[me].foe_state().map_or(0, |f| f.row.max_pp);
+    if let Some(p) = c.scene.param_mut(me) {
+        p.pp = max - 1;
     }
     let d = c.data.clone();
     let Some(sk) = d.t.skill(sid).cloned() else { return false };
@@ -251,6 +252,60 @@ fn gorres_brothers_show_the_protect_break_and_return() {
     assert!(!breaks.contains_key(&g) && !returns.contains_key(&g), "a protect picture on Gorre itself");
 }
 
+/// Gorre's brothers on Gorre's `param` (worklog 431): the drain's 21 on a
+/// brother (`SendMessage`'s `SetBaseParam(brother, row 4, &Gorre's)`)
+/// points both at Gorre's block. A debuff on one brother (skill 163 as
+/// `_ccSkillModifyCondition` writes it) is then on all three, and its time
+/// runs down by Gorre's `CalcRealEx` and both brothers' `CalcReal`: three
+/// a frame. Before, each brother kept its own copy, and the debuff stayed
+/// on the one hit, counting down once a frame.
+#[test]
+fn gorres_brothers_share_its_param_after_the_drain() {
+    let Some(mut s) = event_218_arena() else { return };
+    let (mut drained, mut hit, mut gorre) = (false, None::<u32>, 0usize);
+    let (mut shared, mut steps) = (0u32, BTreeMap::<i32, u32>::new());
+    let (mut last, mut lowered) = (None::<i16>, 0u32);
+    fight(&mut s, 2400, |c, me, i, _| {
+        gorre = me;
+        let brothers = c.boss.as_ref().map_or(Vec::new(), |r| r.parts.clone());
+        let [b0, b1] = brothers[..] else { return };
+        if !drained && i > 200 && c.scene.listed(b0) {
+            let kite = c.kite;
+            if let Some(b) = c.scene.chars[b0].foe_state_mut().and_then(|f| f.boss.as_mut()) {
+                b.queued.push((21, [0, 0, 0], kite));
+            }
+            drained = true;
+        }
+        let on_gorre = [b0, b1].iter().all(|&b| c.scene.param_owner(b) == me);
+        shared += u32::from(on_gorre);
+        if on_gorre && hit.is_none() && c.scene.listed(b1) {
+            let t = c.data.t.clone();
+            let mut ev = Vec::new();
+            c.scene.lend(b1, |ch| piney_battle::skill::modify_condition(&t, ch, 163, &mut ev));
+            hit = Some(i);
+        }
+        // Skill 163 lowers field 0; Gorre's and brother 0's see it.
+        let time = c.scene.param(me).map(|p| p.time[0]);
+        if let (Some(a), Some(b)) = (last, time)
+            && a > 0
+        {
+            *steps.entry(i32::from(a - b)).or_default() += 1;
+        }
+        last = time;
+        let row = c.scene.chars[b0].foe_state().map_or([0; 16], |f| f.row.elm);
+        lowered += u32::from(c.scene.real(b0)[0] < row[0] && c.scene.real(me)[0] < row[0]);
+    });
+    println!(
+        "on Gorre's block {shared} frames; the debuff from {hit:?}, its time's steps {steps:?}, lowered {lowered}"
+    );
+    assert!(shared > 1000, "the brothers on Gorre's block in {shared} frames");
+    assert!(hit.is_some(), "no debuff");
+    let threes = steps.get(&3).copied().unwrap_or(0);
+    assert!(threes > 500 && threes * 10 > steps.values().sum::<u32>() * 9, "its time's steps {steps:?}");
+    assert!(lowered > 500, "brother 0 and Gorre lowered in {lowered} frames");
+    let _ = gorre;
+}
+
 /// Innis's class.
 fn innis(c: &Combat, me: usize) -> Option<&piney_battle::boss::innis::Innis> {
     match &c.scene.chars[me].foe_state()?.boss.as_ref()?.class {
@@ -271,10 +326,11 @@ fn innis_magic(s: &mut Session, frames: u32) -> Vec<(Option<i32>, Seen)> {
     let (mut casts, mut flying) = (0, None);
     let mut elements = Vec::new();
     let seen = fight(s, frames, |c, me, i, now| {
-        if i == 300
-            && let Some(f) = c.scene.chars[me].foe_state_mut()
-        {
-            f.pp = f.row.max_pp / 2;
+        if i == 300 {
+            let max = c.scene.chars[me].foe_state().map_or(0, |f| f.row.max_pp);
+            if let Some(p) = c.scene.param_mut(me) {
+                p.pp = max / 2;
+            }
         }
         if let Some(Class::Innis(x)) =
             c.scene.chars[me].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
@@ -357,10 +413,11 @@ fn innis_unforced(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &
         if i >= frames || all && casts.last().is_some_and(|c| i > c.frame + 70) {
             break;
         }
-        if i == 300
-            && let Some(f) = c.scene.chars[me].foe_state_mut()
-        {
-            f.pp = f.row.max_pp / 2;
+        if i == 300 {
+            let max = c.scene.chars[me].foe_state().map_or(0, |f| f.row.max_pp);
+            if let Some(p) = c.scene.param_mut(me) {
+                p.pp = max / 2;
+            }
         }
         let b = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref());
         let element = b.and_then(|b| {
@@ -473,10 +530,11 @@ fn innis_shots() {
         }
         let Some(me) = c.boss_char() else { continue };
         let i = n - *came.get_or_insert(n);
-        if i == 300
-            && let Some(f) = c.scene.chars[me].foe_state_mut()
-        {
-            f.pp = f.row.max_pp / 2;
+        if i == 300 {
+            let max = c.scene.chars[me].foe_state().map_or(0, |f| f.row.max_pp);
+            if let Some(p) = c.scene.param_mut(me) {
+                p.pp = max / 2;
+            }
         }
         // Each magic's element in turn, as innis_magic forces them.
         if let Some(Class::Innis(x)) =

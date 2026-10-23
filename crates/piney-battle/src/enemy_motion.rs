@@ -3125,9 +3125,10 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
         {
             let ch = &mut self.ai.scene.chars[me];
             let Body::Foe(f) = &mut ch.body else { return };
-            f.real = f.row.elm;
+            let (row, p) = chara::row_and_param(f);
+            p.real = row.elm;
             if enemy {
-                let (hp, sp) = (f.row.max_hp, f.row.max_sp);
+                let (hp, sp) = (row.max_hp, row.max_sp);
                 ch.max_hp = hp;
                 ch.max_sp = sp;
             }
@@ -3139,6 +3140,7 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
             let ch = &mut self.ai.scene.chars[me];
             chara::condition_battle_effect(t, ch);
             let Body::Foe(f) = &mut ch.body else { return };
+            let (row, f) = chara::row_and_param(f);
             let temp = f.temp;
             chara::add_elm(&mut f.real, &temp, 32767, 0);
             if f.pp_count != 0 && (enemy || f.pp >= 0) {
@@ -3146,17 +3148,17 @@ impl<W: MotionWorld + ?Sized> Motion<'_, '_, W> {
                 if f.pp_count <= 0 {
                     f.pp_count = 0;
                     if enemy {
-                        f.pp = (i32::from(f.row.max_pp) / 2) as i16;
+                        f.pp = (i32::from(row.max_pp) / 2) as i16;
                         ev.push(Event::Protect { on: Who::Me, broken: 1, kind: -1 });
                     } else {
                         f.pp_restore = f.pp_restore.wrapping_add(1);
                         if f.pp_restore >= 2 {
                             f.pp_restore = 2;
-                            f.pp = (i32::from(f.row.max_pp) * 3).wrapping_div(4) as i16;
+                            f.pp = (i32::from(row.max_pp) * 3).wrapping_div(4) as i16;
                         } else {
-                            f.pp = (i32::from(f.row.max_pp) / 2) as i16;
+                            f.pp = (i32::from(row.max_pp) / 2) as i16;
                         }
-                        let kind = if f.row.base.id != 0 { 2 } else { 1 };
+                        let kind = if row.base.id != 0 { 2 } else { 1 };
                         ev.push(Event::Protect { on: Who::Me, broken: 1, kind });
                     }
                     ev.push(Event::SetProtect { state: 1, on: Who::Me });

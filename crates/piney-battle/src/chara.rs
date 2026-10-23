@@ -11,11 +11,10 @@ use crate::param::*;
 use crate::tables::Tables;
 use piney_data::volume::Volume;
 
-/// An enemy's or boss's own state: its table row (as the game reads it
-/// through `ccChar.base`) and `ccEnemyParam` / `ccBossParam`.
+/// `ccEnemyParam` / `ccBossParam`: the stats block a foe's `ccChar.param`
+/// (+4) points at.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Foe {
-    pub row: FoeRow,
+pub struct Param {
     pub real: Elm,
     pub temp: Elm,
     pub time: Elm,
@@ -24,6 +23,30 @@ pub struct Foe {
     pub pp_count: i16,
     /// `ccBossParam.PPrestore`: how many breaks a boss has recovered from.
     pub pp_restore: i16,
+}
+
+/// Where a foe's `param` points: its own block, or the one another
+/// character owns, read and written through that owner
+/// ([`crate::scene::Scene::param`]). Gorre's brothers point at Gorre's
+/// after the drain's 21 (`SetBaseParam(row 4, &Gorre's param)`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ParamAt {
+    Own(Param),
+    Of(usize),
+}
+
+impl Default for ParamAt {
+    fn default() -> ParamAt {
+        ParamAt::Own(Param::default())
+    }
+}
+
+/// An enemy's or boss's own state: its table row (as the game reads it
+/// through `ccChar.base`) and its `param`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Foe {
+    pub row: FoeRow,
+    pub param: ParamAt,
     /// A boss's own state (`ccBoss` and its class), whose `Affect` an
     /// affect on it runs ([`AffectFunc::Boss`]).
     pub boss: Option<Box<crate::boss::Boss>>,
@@ -33,7 +56,50 @@ impl Foe {
     /// A fresh foe from its row, as `SetBaseParam` and the spawn leave it:
     /// `real` the row's stats, no buffs, an empty gauge.
     pub fn new(row: FoeRow) -> Foe {
-        Foe { real: row.elm, row, ..Foe::default() }
+        Foe { param: ParamAt::Own(Param { real: row.elm, ..Param::default() }), row, boss: None }
+    }
+
+    /// Its block when it holds one: its own, or one lent to it
+    /// ([`crate::scene::Scene::lend`]); None while it points at another's.
+    pub fn param(&self) -> Option<&Param> {
+        match &self.param {
+            ParamAt::Own(p) => Some(p),
+            ParamAt::Of(_) => None,
+        }
+    }
+
+    pub fn param_mut(&mut self) -> Option<&mut Param> {
+        match &mut self.param {
+            ParamAt::Own(p) => Some(p),
+            ParamAt::Of(_) => None,
+        }
+    }
+
+    /// Who owns the block it points at, when not itself.
+    pub fn owner(&self) -> Option<usize> {
+        match self.param {
+            ParamAt::Own(_) => None,
+            ParamAt::Of(o) => Some(o),
+        }
+    }
+}
+
+/// The block a foe holds. Reading one that points at another's without
+/// it lent ([`crate::scene::Scene::lend`]) is a bug in the port, not a
+/// state of the game, so it stops there.
+fn held(f: &Foe) -> &Param {
+    f.param().expect("a shared param read without Scene::lend")
+}
+
+fn held_mut(f: &mut Foe) -> &mut Param {
+    f.param_mut().expect("a shared param written without Scene::lend")
+}
+
+/// The foe's row and the block it holds, apart.
+pub fn row_and_param(f: &mut Foe) -> (&FoeRow, &mut Param) {
+    match &mut f.param {
+        ParamAt::Own(p) => (&f.row, p),
+        ParamAt::Of(_) => panic!("a shared param written without Scene::lend"),
     }
 }
 
@@ -304,11 +370,12 @@ impl Char {
     }
 
     /// The `real` block: the party member's `ccSpcParam.real`, the foe's
-    /// `ccEnemyParam.real`, or an object's.
+    /// `param`'s, or an object's. A foe pointing at another's block must be
+    /// lent it first ([`crate::scene::Scene::lend`]).
     pub fn real(&self) -> &Elm {
         match &self.body {
             Body::Spc(p) => &p.real,
-            Body::Foe(f) => &f.real,
+            Body::Foe(f) => &held(f).real,
             Body::Other { real, .. } => real,
         }
     }
@@ -316,7 +383,7 @@ impl Char {
     pub fn real_mut(&mut self) -> &mut Elm {
         match &mut self.body {
             Body::Spc(p) => &mut p.real,
-            Body::Foe(f) => &mut f.real,
+            Body::Foe(f) => &mut held_mut(f).real,
             Body::Other { real, .. } => real,
         }
     }
@@ -325,7 +392,10 @@ impl Char {
     pub fn temp_time_mut(&mut self) -> Option<(&mut Elm, &mut Elm)> {
         match &mut self.body {
             Body::Spc(p) => Some((&mut p.temp, &mut p.time)),
-            Body::Foe(f) => Some((&mut f.temp, &mut f.time)),
+            Body::Foe(f) => {
+                let p = held_mut(f);
+                Some((&mut p.temp, &mut p.time))
+            }
             Body::Other { .. } => None,
         }
     }
@@ -333,9 +403,21 @@ impl Char {
     pub fn temp_time(&self) -> Option<(&Elm, &Elm)> {
         match &self.body {
             Body::Spc(p) => Some((&p.temp, &p.time)),
-            Body::Foe(f) => Some((&f.temp, &f.time)),
+            Body::Foe(f) => {
+                let p = held(f);
+                Some((&p.temp, &p.time))
+            }
             Body::Other { .. } => None,
         }
+    }
+
+    /// A foe's `param` block as the character holds it (see [`Foe::param`]).
+    pub fn param(&self) -> Option<&Param> {
+        self.foe_state().map(held)
+    }
+
+    pub fn param_mut(&mut self) -> Option<&mut Param> {
+        self.foe_state_mut().map(held_mut)
     }
 
     pub fn dead(&self) -> bool {
@@ -479,34 +561,36 @@ pub fn calc_real(t: &Tables, ch: &mut Char, flag: i32, env: &Env, ev: &mut Event
     } else if tyb & ty::FOE != 0 {
         let enemy = tyb & ty::ENEMY != 0;
         let Body::Foe(f) = &mut ch.body else { return };
-        f.real = f.row.elm;
+        let (row, p) = row_and_param(f);
+        p.real = row.elm;
         if enemy {
-            ch.max_hp = f.row.max_hp;
-            ch.max_sp = f.row.max_sp;
+            ch.max_hp = row.max_hp;
+            ch.max_sp = row.max_sp;
         }
         if flag == 0 {
             condition_time_count(ch, env, ev);
         }
         condition_battle_effect(t, ch);
         let Body::Foe(f) = &mut ch.body else { return };
-        let temp = f.temp;
-        add_elm(&mut f.real, &temp, 32767, 0);
-        if flag == 0 && f.pp_count != 0 && (enemy || f.pp >= 0) {
-            f.pp_count = f.pp_count.wrapping_sub(1);
-            if f.pp_count <= 0 {
-                f.pp_count = 0;
+        let (row, p) = row_and_param(f);
+        let temp = p.temp;
+        add_elm(&mut p.real, &temp, 32767, 0);
+        if flag == 0 && p.pp_count != 0 && (enemy || p.pp >= 0) {
+            p.pp_count = p.pp_count.wrapping_sub(1);
+            if p.pp_count <= 0 {
+                p.pp_count = 0;
                 if enemy {
-                    f.pp = (i32::from(f.row.max_pp) / 2) as i16;
+                    p.pp = (i32::from(row.max_pp) / 2) as i16;
                     ev.push(Event::Protect { on: Who::Me, broken: 1, kind: -1 });
                 } else {
-                    f.pp_restore = f.pp_restore.wrapping_add(1);
-                    if f.pp_restore >= 2 {
-                        f.pp_restore = 2;
-                        f.pp = cdiv(i32::from(f.row.max_pp) * 3, 4) as i16;
+                    p.pp_restore = p.pp_restore.wrapping_add(1);
+                    if p.pp_restore >= 2 {
+                        p.pp_restore = 2;
+                        p.pp = cdiv(i32::from(row.max_pp) * 3, 4) as i16;
                     } else {
-                        f.pp = (i32::from(f.row.max_pp) / 2) as i16;
+                        p.pp = (i32::from(row.max_pp) / 2) as i16;
                     }
-                    let kind = if f.row.base.id != 0 { 2 } else { 1 };
+                    let kind = if row.base.id != 0 { 2 } else { 1 };
                     ev.push(Event::Protect { on: Who::Me, broken: 1, kind });
                 }
                 ev.push(Event::SetProtect { state: 1, on: Who::Me });

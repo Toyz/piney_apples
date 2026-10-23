@@ -108,7 +108,7 @@ fn char_info(w: &FieldWorld, who: usize, names: &dyn Fn(i32) -> Vec<u8>) -> Opti
         base.label.map(piney_data::tables::sjis::encode).unwrap_or_default()
     };
     let g = w.hud_geometry(who).unwrap_or_default();
-    let (ability, elements) = match ch.temp_time() {
+    let (ability, elements) = match c.scene.temp_time(who) {
         Some((temp, _)) => (
             std::array::from_fn(|i| temp.get(i).copied().unwrap_or(0)),
             std::array::from_fn(|i| temp.get(8 + i).copied().unwrap_or(0)),
@@ -148,11 +148,11 @@ fn char_info(w: &FieldWorld, who: usize, names: &dyn Fn(i32) -> Vec<u8>) -> Opti
         act_num: c.ctrl.entry_obj(who).map_or(0, |o| o.act_num),
         attribute: if ch.is_foe() { piney_battle::chara::check_char_attribute(ch, 0) } else { -1 },
         exdefense: ch.foe_state().map_or(0, |f| f.row.exdefense),
-        exdefense_lowered: ch.foe_state().map_or(0, |f| piney_battle::damage::exdefense_lowered(f) as i16),
+        exdefense_lowered: piney_battle::damage::exdefense_lowered(&c.scene, who) as i16,
         tag: g.tag,
         bar_res: g.bar_res,
         bar: g.bar,
-        pp: ch.foe_state().map_or(0, |fs| fs.pp_count),
+        pp: c.scene.param(who).map_or(0, |p| p.pp_count),
         arrow: g.arrow,
         width: f(base.width),
         in_view: g.in_view,
@@ -394,7 +394,7 @@ impl AreaMode {
         let c = self.world.combat_mut();
         let mut n = 0;
         for e in c.enemies() {
-            if let Some(f) = c.scene.chars[e].foe_state_mut() {
+            if let Some(f) = c.scene.param_mut(e) {
                 f.pp_count = 1800;
                 f.pp = 0;
                 n += 1;

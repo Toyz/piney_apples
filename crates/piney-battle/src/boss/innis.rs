@@ -830,7 +830,7 @@ fn action_decision(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
     x.ex_spin_back_flg = 0;
     let me = cx.me;
     if x.epitaph_flg == 0 {
-        let (pp, count) = cx.scene.chars[me].foe_state().map_or((0, 0), |f| (f.pp, f.pp_count));
+        let (pp, count) = cx.scene.param(me).map_or((0, 0), |p| (p.pp, p.pp_count));
         let max = f64::from(cx.t.bosses.get(1).map_or(0, |r| r.max_pp));
         if count == 0 && 0.2 * max >= f64::from(pp) {
             if x.now_mode != 0 {
@@ -1557,7 +1557,7 @@ fn skill_attack(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
 fn enemy_attack(b: &mut Boss, _x: &mut Innis, cx: &mut Cx) {
     let me = cx.me;
     let max = i32::from(cx.t.bosses.get(1).map_or(0, |r| r.max_pp)) / 2;
-    let pp = i32::from(cx.scene.chars[me].foe_state().map_or(0, |f| f.pp));
+    let pp = i32::from(cx.scene.param(me).map_or(0, |p| p.pp));
     if pp >= max {
         let _ = cx.cc.rand();
     }
@@ -2142,9 +2142,9 @@ pub(super) fn affect(b: &mut Boss, cx: &mut Cx) {
             let ch = &mut cx.scene.chars[me];
             ch.hp = v;
             ch.max_hp = v;
-            if let Some(f) = ch.foe_state_mut() {
-                f.pp = -1;
-                f.pp_count = 0;
+            if let Some(p) = cx.scene.param_mut(me) {
+                p.pp = -1;
+                p.pp_count = 0;
             }
         }
         13 => {

@@ -393,6 +393,16 @@ class Game:
         return pairs
 
 
+TIMED = (0, 1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13)
+
+
+def buff(p0):
+    """Kind 12's word as battle_probe's `buff` reads it: (field, value -8..7,
+    time in tens of frames)."""
+    w = p0 & 0xFFFF
+    return w & 0xF, ((w >> 4) & 0xF ^ 8) - 8, (w >> 8) * 10
+
+
 def rnd_case(c, rnd):
     n = rnd.randrange(1, 4)
     party = [rnd_member(c, rnd, k) for k in range(n)]
@@ -405,19 +415,20 @@ def rnd_case(c, rnd):
     rough = rnd.random() < 0.5
     # Gorre's own (0-4) and the brothers' (5 a hit with the normal attack's
     # skill, 10 with none, 11 with skill 2, a spell, 6 a drain, 8 a heal,
-    # 9 the drain's 21 - after
-    # which Gorre's gauge is theirs too, so no more pokes at it).
+    # 12 a buff or debuff through its `param`, 9 the drain's 21 - after
+    # which Gorre's block is theirs too, so no more pokes at Gorre's).
     # A quiet case (no hits on the brothers, the gauge untouched) runs the
     # Normal table through to its Talk.
     quiet = rnd.random() < 0.15
     reset = rnd.randrange(frames // 2, frames) if rnd.random() < 0.3 and not quiet else frames
     hard = rnd.random() < 0.3
     for f in sorted(rnd.sample(range(frames), min(frames // (10 if rough else 30), 300))):
-        kinds = (0, 8) if quiet else (0, 0, 1, 4, 5, 5, 10, 11, 8) if f < reset else (0, 5, 5, 10, 11, 8)
+        kinds = (0, 8) if quiet else (0, 0, 1, 4, 5, 5, 10, 11, 8, 12) if f < reset else (0, 5, 5, 10, 11, 8, 12, 12)
         kind = 6 if rnd.random() < 0.02 and not quiet else rnd.choice(kinds)
         p0 = {0: rnd.randrange(-1, 900), 1: rnd.randrange(0, max_pp + 1),
               4: rnd.choice((0, 0, rnd.randrange(0, 300))), 5: rnd.randrange(0, 4000 if hard else 900),
-              10: rnd.randrange(0, 900), 11: rnd.randrange(0, 900), 6: 0, 8: rnd.randrange(0, 500)}[kind]
+              10: rnd.randrange(0, 900), 11: rnd.randrange(0, 900), 6: 0, 8: rnd.randrange(0, 500),
+              12: rnd.choice(TIMED) | rnd.randrange(16) << 4 | rnd.randrange(1, 128) << 8}[kind]
         script.append((f, kind, rnd.randrange(2), p0))
     if reset < frames:
         script.append((reset, 9, rnd.randrange(2), 0))
@@ -559,6 +570,13 @@ def run_game(game, case):
                 m.store(BOSS + 0xE0 + 0x62, 2, p0 & 0xFFFF)
             elif kind == 7 and who < len(party):
                 m.store(SCN + 0x1000 * who + 8, 2, p0 & 0xFFFF)
+            elif kind == 12:
+                # Through the brother's `param` (+4), as ccSkillModifyCondition
+                # writes a buff: temp and time of the field.
+                k, v, t = buff(p0)
+                pa = m.load(br_of(m, min(who, 1)) + 4, 4)
+                m.store(pa + 0x20 + 2 * k, 2, v & 0xFFFF)
+                m.store(pa + 0x40 + 2 * k, 2, t & 0xFFFF)
             elif kind in BROTHER_AFFECTS:
                 ty, p1 = BROTHER_AFFECTS[kind]
                 m.call(ea, (br_of(m, min(who, 1)), kite, ty, p0 & 0xFFFF, p1, 0))
@@ -600,7 +618,18 @@ def char_fields(game, a, has_pat_mode):
         "tr": [ld(0x88), ld(0x8C)],
         "anm": [clip[0] or "", clip[1] >> 8, m.load(anm + 0x9C, 2)],
         "pat": [s32(ld(0x20C)), s32(ld(0x210)), s32(ld(0x29408)) if has_pat_mode else 0],
+        "param": param_block(m, a),
     }
+
+
+def param_block(m, a):
+    """Whose ccBossParam the character's `param` (+4) points at - its own
+    (+0xe0) or Gorre's, as the drain's 21 sets both brothers' - and the
+    whole block: real, temp, time, PP, PPcount, PPrestore."""
+    p = m.load(a + 4, 4)
+    at = "own" if p == a + 0xE0 else "gorre" if p == BOSS + 0xE0 else "other"
+    shorts = [s16(m.load(p + 2 * k, 2)) for k in range(0x33)]
+    return [at, shorts[0:16], shorts[16:32], shorts[32:48]] + shorts[48:51]
 
 
 def game_state(game, n):
@@ -784,7 +813,7 @@ def bulk(n, seed0=9900):
     game = Game()
     acts = set()
     shields = {}
-    total = bad = 0
+    total = bad = shared = buffed = 0
     for k in range(n):
         rnd = random.Random(seed0 + k)
         try:
@@ -798,10 +827,15 @@ def bulk(n, seed0=9900):
             for o in fr["out"]:
                 if o and o[0] == "shield":
                     shields[o[1]] = shields.get(o[1], 0) + 1
+            # Frames with the brothers on Gorre's block, and of those with
+            # a buff or debuff running on it.
+            on_gorre = all(fr[b]["param"][0] == "gorre" for b in ("br0", "br1"))
+            shared += on_gorre
+            buffed += on_gorre and any(fr["param"][3])
         total += len(frames) - 1
         print(f"case {seed0 + k} ok ({len(frames) - 1} frames)", flush=True)
     print(f"{n} cases, {bad} mismatched, {total} frames matched; acts reached:", sorted(acts),
-          "shields by kind:", shields)
+          "shields by kind:", shields, f"brothers on Gorre's block: {shared} frames, {buffed} with a buff running")
 
 
 if __name__ == "__main__":
