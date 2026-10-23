@@ -878,24 +878,14 @@ impl Hits {
         self.sync(body);
         let mut r = 0;
         if body.sw {
-            let mut offset = body.offset;
-            for other in &self.chars {
-                if other.id == body.id || body.mask & other.kind == 0 {
-                    continue;
-                }
-                let d = vsub(other.pos, body.pos);
-                let d = sqrtf_on(self.volume, dot(d, d));
-                let over = sub(add(other.radius, body.radius), d);
-                if lt(over, 0) {
-                    continue;
-                }
-                let mut v = vscale(normalize(vsub(body.pos, other.pos)), over);
-                v[3] = 0;
-                offset = vadd(offset, v);
+            let others = self.chars.iter().filter(|c| c.id != body.id).map(|c| (c.pos, c.radius, c.kind));
+            if let Some((offset, kinds)) =
+                piney_battle::world::char_push(self.volume, body.pos, body.radius, body.mask, others)
+            {
+                body.offset = offset;
                 r = 1;
-                self.char_type |= other.kind;
+                self.char_type = kinds;
             }
-            body.offset = offset;
         }
         if body.mask2 != 0 {
             let mut tp = body.pos;

@@ -129,6 +129,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
+        part_hits: &mut piney_battle::boss::NoHits,
         game_over: false,
         // InitBossCamera is a no-op in the harness: no bossCam, no quake.
         boss_cam: false,
@@ -183,6 +184,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cc: &mut cc,
             clips: &clip,
             collide: &mut none,
+            part_hits: &mut piney_battle::boss::NoHits,
             game_over: false,
             boss_cam: false,
             cam: CamView::default(),

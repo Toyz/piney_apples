@@ -29,6 +29,13 @@ and world_screen.
 The pads: the left stick often, the right stick and the camera buttons
 (L1, R1, L2, R2, pressures) now and then, over the four control schemes.
 
+With ZrotControlFlg set (Kyvia's, +0x129; Mutation's +0x139) the stick,
+or L1 and R1, turns ZrotCont, compared too. On a later volume (whose
+ccBossCam is 0x150 bytes, its members from +0xd0 on 0x10 further) SetMode
+3 and 4 come and go as well: ExLock's bit 4 holds the pad between them.
+
+    PINEY_VOLUME=mutation python3 tools/test_bosscam_rs.py
+
 Skipped when the disc is not extracted or cargo is missing.
 """
 
@@ -43,6 +50,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import volume  # noqa: E402
 from volume import va as inf_va  # noqa: E402  # Infection's addresses on PINEY_VOLUME's disc
 
 import test_evcam_rs as tev  # noqa: E402
@@ -57,6 +65,18 @@ TCAM, BCAM, CAMID = inf_va(0x00383CE0), inf_va(0x00383D50), inf_va(0x0037897C)
 PLW_CHAR = inf_va(0x00730300)
 TRANSFER = [0, fb(1000.0), fb(200.0), ONE]
 IDLE = (0, 0, 0, 0, 0, 0, [0] * 12)
+# Mutation on, a float at +0xdc (the eye's lift, 0 but for ccBoss08_c)
+# puts Xrot to the count 4 further and, aligned, RotZ on 0x10 further; the
+# camera is 0x150 bytes.
+LATER = volume.NAME != "infection"
+SIZE = 0x150 if LATER else 0x140
+
+
+def off(o):
+    """A ccBossCam member's (Infection's offset) offset on this volume."""
+    if not LATER or o < 0xDC:
+        return o
+    return o + 4 if o < 0xF0 else o + 0x10
 
 
 def build():
@@ -94,21 +114,31 @@ class Game(tev.Game):
         return {
             "init_lock": m.load(c + 1, 1), "reset": m.load(c + 4, 4, True), "view": self.rvec(c + 0x10),
             "pos": self.rvec(c + 0x20), "rot": self.rvec(c + 0x30), "move_transfer": self.rvec(c + 0xB0),
-            "deg": m.load(c + 0xE0, 2, True), "mem_dirc_z": m.load(c + 0xE2, 2, True),
-            "remit_rot_max": m.load(c + 0xE4, 2, True), "count": m.load(c + 0xE8, 4, True),
-            "camera_type": m.load(c + 0x10C, 4, True), "quake_flg": m.load(c + 2, 1), "quake": self.rvec(c + 0xC0),
+            "deg": m.load(c + off(0xE0), 2, True), "mem_dirc_z": m.load(c + off(0xE2), 2, True),
+            "remit_rot_max": m.load(c + off(0xE4), 2, True), "count": m.load(c + off(0xE8), 4, True),
+            "camera_type": m.load(c + off(0x10C), 4, True), "quake_flg": m.load(c + 2, 1),
+            "quake": self.rvec(c + 0xC0), "zrot_cont": m.load(c + off(0x100), 4), "ex_lock": m.load(c + off(0x128), 1),
         }
 
     def make(self, transfer, boss):
         """ccBossCam::ccBossCam(PView, transfer) with PView at `boss`."""
         m = self.m
         m.store(PLW_CHAR, 4, tw.PLAYER)
-        self.bc = self.malloc(m, 0x140)
+        self.bc = self.malloc(m, SIZE)
         self.bpos = self.malloc(m, 0x10)
         self.vec(self.bpos, boss)
         self.vec(tw.ARGS, transfer)
         self.call("__ct__9ccBossCamFPfPA4_f", self.bc, tw.ARGS, self.bpos)
         return {"boss": self.boss_state(), "cameras": self.cameras()}
+
+    def sway(self):
+        """ZrotControlFlg set, as Kyvia's constructor sets it."""
+        self.m.store(self.bc + off(0x129), 1, 1)
+
+    def set_mode(self, mode, rng):
+        """SetMode(mode, range, 0, 0) (Mutation's 3 and 4, Kyvia's)."""
+        self.call("SetMode__9ccBossCamFifPfP6ccChar", self.bc, mode, 0, 0, fargs=[rng])
+        return self.boss_state()
 
     def quake(self, q):
         self.vec(tw.ARGS, q)
@@ -137,6 +167,26 @@ class Game(tev.Game):
 def pads(rng, n, l2=True):
     ps = tev.walk_pads(rng, n)
     return [p if l2 else (p[0] & ~1, p[1] & ~1) + tuple(p[2:]) for p in ps]
+
+
+def sway_pads(rng, n):
+    """Runs of the right stick leant one way, of L1 or R1 at a pressure
+    (or none), and of nothing."""
+    out = []
+    while len(out) < n:
+        k = rng.randrange(4)
+        run = rng.randrange(5, 40)
+        press = [0] * 12
+        if k == 0:
+            a, power = rng.uniform(-math.pi, math.pi), rng.choice((1, 40, 128, 255))
+            p = (0, 0, 0, 0, power, fb(a), press)
+        elif k in (1, 2):
+            press[8 if k == 1 else 9] = rng.choice((0, 80, 156, 200, 255))
+            p = (4 if k == 1 else 8, 0, 0, 0, 0, 0, press)
+        else:
+            p = IDLE
+        out += [p] * run
+    return out[:n]
 
 
 def step(boss, rng):
@@ -174,7 +224,7 @@ class BossCameraAgainstGame(unittest.TestCase):
         self.g.frame()
         self.same(self.g.cameras(), self.probe.ask("frame", *tev.pad_words(pad)), what)
 
-    def run_case(self, label, scheme, rng, frames):
+    def run_case(self, label, scheme, rng, frames, sway=False):
         kite = (0, fb(5600.0), fb(600.0))
         dircz = fb(rng.uniform(-math.pi, math.pi))
         self.g.begin(kite, dircz, scheme, 3, 1, {}, {})
@@ -186,9 +236,19 @@ class BossCameraAgainstGame(unittest.TestCase):
         got = self.probe.ask("boss", *TRANSFER)
         self.same(want["boss"], got["boss"], f"{label}: made")
         self.same(want["cameras"], got["cameras"], f"{label}: made")
-        for f, pad in enumerate([IDLE] * 2 + pads(rng, frames)):
+        if sway:
+            self.g.sway()
+            self.probe.ask("sway")
+        for f, pad in enumerate([IDLE] * 2 + (sway_pads(rng, frames) if sway else pads(rng, frames))):
             self.frame(pad, f"{label}: frame {f} on camera 2")
             boss = step(boss, rng) if f >= 2 else boss
+            if sway and LATER and rng.random() < 0.03:
+                # Kyvia's attacks: mode 3 at a range, mode 4 after.
+                mode = 3 if self.g.boss_state()["ex_lock"] & 0x10 == 0 else 4
+                r = fb(rng.choice((2500.0, 3100.0)))
+                want = self.g.set_mode(mode, r)
+                self.same(want, self.probe.ask("mode", mode, r)["boss"], f"{label}: SetMode({mode}) {f}")
+                self.seen["modes"].add(mode)
             if rng.random() < 0.15:
                 v = self.g.quake([fb(35.0), fb(35.0), fb(35.0), ONE])
                 self.probe.ask("quake", *v)
@@ -200,12 +260,13 @@ class BossCameraAgainstGame(unittest.TestCase):
             self.seen["reset"].add(b["reset"])
             self.seen["count"] = max(self.seen["count"], b["count"])
             self.seen["zoom"].add(b["move_transfer"][1])
+            self.seen["zrot"].add(b["zrot_cont"])
         self.same(self.g.off(), self.probe.ask("off"), f"{label}: OffBossCamera")
         for f, pad in enumerate([IDLE] * 2 + pads(rng, 6, l2=False)):
             self.frame(pad, f"{label}: frame {f} back on camera 1")
 
     def setUp(self):
-        self.seen = {"reset": set(), "count": 0, "zoom": set()}
+        self.seen = {"reset": set(), "count": 0, "zoom": set(), "zrot": set(), "modes": set()}
 
     def test_schemes(self):
         rng = random.Random(1)
@@ -214,6 +275,17 @@ class BossCameraAgainstGame(unittest.TestCase):
         # Both resets, and the zoom between its ends.
         self.assertEqual(self.seen["reset"], {0, 1, 2})
         self.assertGreater(len(self.seen["zoom"]), 20)
+
+    def test_sway(self):
+        """ZrotControlFlg: the stick and L1/R1 turn the eye, held to +-0.5."""
+        rng = random.Random(3)
+        for scheme in (0, 1, 2, 3):
+            self.run_case(f"sway {scheme}", scheme, rng, 300, sway=True)
+        self.assertIn(0x3F000000, self.seen["zrot"])
+        self.assertIn(0xBF000000, self.seen["zrot"])
+        self.assertGreater(len(self.seen["zrot"]), 100)
+        if LATER:
+            self.assertEqual(self.seen["modes"], {3, 4})
 
     def test_long_chase(self):
         """Long runs of catching up: count past 20 doubles the turn."""

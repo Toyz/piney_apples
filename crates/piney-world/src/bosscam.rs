@@ -4,11 +4,12 @@
 //! from the boss, the boss straight ahead, the heading turning at most
 //! `RemitRotMax` a frame; the pad raises and lowers it; `QuakeCam` shakes it
 //! for a frame. Innis uses modes 5 and 6 and `Xrot`; Kyvia modes 3 and 4
-//! (Mutation's `SetTransfer`) and `SetRotXLimit`; the pad's sway (+0x139)
-//! is left out. `tools/test_bosscam_rs.py` checks it (docs/engine/boss.md).
+//! (Mutation's `SetTransfer`), `SetRotXLimit` and the stick's turn about
+//! the player (`ZrotControlFlg`). `tools/test_bosscam_rs.py` checks it
+//! (docs/engine/boss.md).
 
 use crate::camera::{CamPad, Camera, id, kind};
-use crate::ee::{self, F, ONE, V4, add, deg2rad, div, le, lt, mul, rad2deg, sub, vadd};
+use crate::ee::{self, F, ONE, V4, add, deg2rad, div, from_int, le, lt, mul, rad2deg, sinf, sub, vadd};
 use crate::evcam::{UNIT, rot_x, rot_z};
 
 /// `3 pi / 4` and `pi / 4`: where `Pad_Control` reads the right stick as
@@ -28,6 +29,16 @@ const L2: u32 = 0x1;
 const R2: u32 = 0x2;
 const L1: u32 = 0x4;
 const R1: u32 = 0x8;
+
+/// The turn's steps: the stick's sine times its power by this, or L1 and
+/// R1 at 0.015 plus 0.0008 a step of pressure past 155 (0.08 more with no
+/// pressure); held to +-0.5.
+const ZROT_STICK: F = 0x3971_2c28;
+const ZROT_BUTTON: F = 0x3c75_c28f;
+const ZROT_PRESS: F = 0x3a51_b717;
+const ZROT_NO_PRESS: F = 0x3da3_d70a;
+const ZROT_MAX: F = 0x3f00_0000;
+const ZROT_MIN: F = 0xbf00_0000;
 
 /// A `ccBossCam` (0x140 bytes).
 #[derive(Clone, Debug, PartialEq)]
@@ -72,6 +83,12 @@ pub struct BossCam {
     /// +0x10c `CameraType`: `cameraControlType` as `Pad_Control` last read
     /// it (the constructor's 0 or 1 until then).
     pub camera_type: i32,
+    /// +0x128 `ExLock` (Mutation's +0x138): bit 4 from `SetMode(3)` until
+    /// 4, bit 0 from 5 until 6; while either is set the pad is not read.
+    pub ex_lock: u8,
+    /// +0x129 `ZrotControlFlg` (Mutation's +0x139, set by Kyvia): the
+    /// stick (or L1 and R1) turns the eye about the player (`ZrotCont`).
+    pub zrot_control: bool,
     /// +0x40 `TempCamView`, +0x50 `TempCamPos`, +0x60 `TempCamRot`: what
     /// mode 5 kept and mode 6 puts back.
     pub temp_view: V4,
@@ -83,6 +100,11 @@ pub struct BossCam {
     pub trans_target: i32,
     pub trans_started: bool,
     pub trans_saved: F,
+    /// Mutation's +0xdc: the eye raised by this times `1 - t` (the zoom's
+    /// share), the constructor's 0 (only Quarantine's `ccBoss08_c` sets it).
+    pub lift: F,
+    /// From Mutation on `CamMain` adds the lift and sets `CamPos.w` 1.
+    pub later: bool,
 }
 
 impl BossCam {
@@ -118,12 +140,16 @@ impl BossCam {
             basis_rot: 0,
             limit_rot: ONE,
             camera_type: i32::from(matches!(camera.scheme.number, 2 | 3)),
+            ex_lock: 0,
+            zrot_control: false,
             temp_view: [0; 4],
             temp_pos: [0; 4],
             temp_rot: [0; 4],
             trans_target: 0,
             trans_started: false,
             trans_saved: 0,
+            lift: 0,
+            later: camera.volume != piney_data::volume::Volume::Inf,
         }
     }
 
@@ -142,18 +168,23 @@ impl BossCam {
     }
 
     /// `ccBossCam::SetMode(mode, 0, 0, 0)` (MUT gcmn 0x00475ae0) for modes
-    /// 5 and 6: 5 locks the eye and keeps it; 6 puts it back, sets camera
-    /// 2 there at once and unlocks. `ResetFlg` is the mode (6 then 0).
+    /// 3 to 6: 3 and 4 set and clear `ExLock` bit 4; 5 locks the eye and
+    /// keeps it; 6 puts it back, sets camera 2 there at once and unlocks
+    /// (bit 0 set and cleared). `ResetFlg` is the mode (6 then 0).
     pub fn set_mode(&mut self, mode: i32, camera: &mut Camera) {
         self.reset = mode;
         match mode {
+            3 => self.ex_lock |= 0x10,
+            4 => self.ex_lock &= 1,
             5 => {
+                self.ex_lock |= 1;
                 self.lock = true;
                 self.temp_view = self.view;
                 self.temp_pos = self.pos;
                 self.temp_rot = self.rot;
             }
             6 => {
+                self.ex_lock &= 0x10;
                 self.lock = false;
                 self.view = self.temp_view;
                 self.pos = self.temp_pos;
@@ -188,10 +219,10 @@ impl BossCam {
         self.quake_flg = true;
     }
 
-    /// `ccBossCam::CamMain()` (0x0045fbe0): the eye and view for this frame
-    /// from the pad, `player` (`tempChar.pos`) and `view_at` (the boss's
-    /// `pos`), set on camera 2 (`cameraSetPos`, `cameraSetView`) with the
-    /// quake added.
+    /// `ccBossCam::CamMain()` (0x0045fbe0, MUT gcmn 0x004755a0): the eye
+    /// and view for this frame from the pad, `player` (`tempChar.pos`) and
+    /// `view_at` (the boss's `pos`), set on camera 2 (`cameraSetPos`,
+    /// `cameraSetView`) with the quake added.
     pub fn cam_main(&mut self, camera: &mut Camera, pad: &CamPad, player: V4, view_at: V4) {
         if !self.lock {
             self.view = view_at;
@@ -215,6 +246,12 @@ impl BossCam {
                 let z = self.zrot_cont;
                 let m = rot_z(&rot_z(&UNIT, self.rot[2]), z);
                 self.pos = vadd(self.pos, ee::apply(&m, self.move_transfer));
+                if self.later {
+                    // MUT gcmn 0x004757a4: (0, 0, lift (1 - t), 1), w then 1.
+                    let up = (f64::from(ee::f(self.lift)) * (1.0 - f64::from(ee::f(t)))) as f32;
+                    self.pos = vadd(self.pos, [0, 0, up.to_bits(), ONE]);
+                    self.pos[3] = ONE;
+                }
                 let m = rot_z(&rot_z(&rot_x(&UNIT, x), self.rot[2]), z);
                 self.view = vadd(self.pos, ee::apply(&m, AHEAD));
             } else {
@@ -306,15 +343,18 @@ impl BossCam {
         }
     }
 
-    /// `ccBossCam::Pad_Control()` (0x004602a0), with `ExLock` and
-    /// `ZrotControlFlg` 0. Schemes A (`cameraControlType` 0, 1): the right
-    /// stick leant (power 2 or more) within pi/4 of angle 0 adds
+    /// `ccBossCam::Pad_Control()` (0x004602a0, MUT gcmn 0x00475cf0), not
+    /// while `ExLock` holds. Schemes A (`cameraControlType` 0, 1): the
+    /// right stick leant (power 2 or more) within pi/4 of angle 0 adds
     /// `checkCameraDistModValue` up to the farthest, within pi/4 of pi
     /// down to the nearest; R2 eases in, else L2 eases out. Schemes B
     /// (2, 3): R2 adds it up to the farthest and R1 down to the nearest,
-    /// the same value both; L1 eases in and L2 out.
+    /// the same value both; L1 eases in and L2 out. Then the turn.
     fn pad_control(&mut self, camera: &Camera, pad: &CamPad) {
         self.camera_type = camera.scheme.number;
+        if (self.ex_lock >> 4) | (self.ex_lock & 1) != 0 {
+            return;
+        }
         let far = |s: &Self| add(s.transfer[1], s.max_range);
         let zoom_out = |s: &mut Self| {
             s.move_transfer[1] = add(s.move_transfer[1], camera.dist_mod(pad));
@@ -361,7 +401,45 @@ impl BossCam {
                     self.reset = 2;
                 }
             }
-            _ => {}
+            _ => return,
+        }
+        if self.zrot_control {
+            self.zrot_turn(pad);
+        }
+    }
+
+    /// `Pad_Control`'s turn with `ZrotControlFlg`: the right stick's
+    /// sideways lean (`sinf(dirc) * pow`, past 1) turns `ZrotCont`; in
+    /// schemes A, without it, L1 and R1 turn it by their pressure. The
+    /// direction flips with the scheme's second type (1 and 3).
+    fn zrot_turn(&mut self, pad: &CamPad) {
+        let ty = self.camera_type;
+        let lean = mul(from_int(i32::from(pad.pow_r)), sinf(pad.dirc_r));
+        let button = |press: u8| match press {
+            156.. => add(ZROT_BUTTON, mul(ZROT_PRESS, from_int(i32::from(press) - 155))),
+            0 => add(ZROT_BUTTON, ZROT_NO_PRESS),
+            _ => ZROT_BUTTON,
+        };
+        // + turns with a scheme's first type (0 or 2), - with its second.
+        let step = if f64::from(ee::f(lean)).abs() > 1.0 {
+            Some((mul(lean, ZROT_STICK), matches!(ty, 0 | 2)))
+        } else if ty > 1 {
+            None
+        } else if pad.direct & L1 != 0 {
+            Some((button(pad.pow[piney_input::pressure::L1]), ty == 0))
+        } else if pad.direct & R1 != 0 {
+            Some((button(pad.pow[piney_input::pressure::R1]), ty != 0))
+        } else {
+            None
+        };
+        if let Some((v, plus)) = step {
+            self.zrot_cont = if plus { add(self.zrot_cont, v) } else { sub(self.zrot_cont, v) };
+        }
+        if !le(self.zrot_cont, ZROT_MAX) {
+            self.zrot_cont = ZROT_MAX;
+        }
+        if lt(self.zrot_cont, ZROT_MIN) {
+            self.zrot_cont = ZROT_MIN;
         }
     }
 

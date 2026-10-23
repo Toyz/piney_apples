@@ -30,6 +30,9 @@ const NEG_PI: F = 0xc049_0fdb;
 /// `bossFunc`'s codes: Kyvia's first fight and its second.
 pub const CODE: i32 = 12;
 pub const CODE_SECOND: i32 = 13;
+/// The body's `bodyHit` radius, 400 in both constructors (MUT gcmn
+/// 0x004d2d10, OUT 0x004d5b60); its height and kind are its row's.
+pub const BODY_RADIUS: F = 0x43c8_0000;
 
 /// Which of Kyvia's fights the body is: its first (`ccBossKyvia01`,
 /// Mutation's field 9) or its second (`ccBossKyvia02`, kyvia02.cpp,

@@ -28,6 +28,7 @@ use crate::param::{SkillParam, cond};
 use crate::rand::Rng;
 use crate::scene::Scene;
 use crate::tables::Tables;
+use crate::world::CharHit;
 
 type F = u32;
 
@@ -633,7 +634,8 @@ pub enum Out {
     },
     /// `bossCam->SetRotXLimit(v)` (MUT gcmn 0x00475a40).
     CamRotXLimit(F),
-    /// `bossCam` +0x139: the pad's sway (Kyvia's).
+    /// `bossCam` +0x139 `ZrotControlFlg` (Kyvia's): the right stick, or
+    /// L1 and R1, turns the eye about the player.
     CamSway(bool),
     /// `EVENTAREAB8::Move()` (MUT gcmn 0x0041e750): the disc on to its next
     /// stage.
@@ -654,11 +656,6 @@ pub enum Out {
     SkillStart {
         who: usize,
         sid: i32,
-    },
-    /// `ccCharHit::HitEnable` / `HitDisable` of a part's `bodyHit`.
-    PartHit {
-        who: usize,
-        on: bool,
     },
     /// `effSmokeRock(pos, rot, 0, 20, -1, 75)`: a meteor's landing.
     SmokeRock {
@@ -833,6 +830,8 @@ pub struct Cx<'a> {
     /// `ccCharHit::CollisionDetection` of the body hit at `pos`: the push
     /// out of whatever it overlaps.
     pub collide: &'a mut dyn FnMut(V4) -> Option<V4>,
+    /// The collision list as the boss's own parts reach it ([`PartHits`]).
+    pub part_hits: &'a mut dyn PartHits,
     /// `compulsionGameOver`.
     pub game_over: bool,
     /// `bossCam` is set: `InitBossCamera` made the camera, so `QuakeCam`
@@ -847,6 +846,37 @@ pub struct Cx<'a> {
     pub me: usize,
     pub out: Vec<Out>,
     pub ev: Events,
+}
+
+/// The collision list (`ccCharHitTop`, main 0x0037890c) as a boss's own
+/// parts reach it, each `bodyHit` by its part's character (Kyvia's
+/// gomoras, `kyviaGomora::Move`).
+pub trait PartHits {
+    /// `ccCharHit::HitEnable` (`on`) or `HitDisable`: `hit` into the list
+    /// at its tail, or out of it; `hit.sw` follows.
+    fn switch(&mut self, who: usize, hit: &mut CharHit, on: bool);
+    /// `ccCharHit::CollisionDetection` of the bodies (`mask2` 0): the
+    /// list's copy made `hit`, then `hit.offset` the push out of the
+    /// others ([`crate::world::char_push`]); true when one was touched.
+    fn collide(&mut self, who: usize, hit: &mut CharHit) -> bool;
+    /// The list's copy of `who`'s body made `hit` (its owner moved it).
+    fn sync(&mut self, who: usize, hit: &CharHit);
+}
+
+/// No list: a switch only sets `sw`, and nothing is ever touched.
+pub struct NoHits;
+
+impl PartHits for NoHits {
+    fn switch(&mut self, _: usize, hit: &mut CharHit, on: bool) {
+        hit.sw = on;
+    }
+
+    fn collide(&mut self, _: usize, hit: &mut CharHit) -> bool {
+        hit.offset = [0; 4];
+        false
+    }
+
+    fn sync(&mut self, _: usize, _: &CharHit) {}
 }
 
 /// The cameras as a boss's rules read them: `cameraGetRot(camID)` (the
@@ -2483,6 +2513,7 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
         cc: &mut cc,
         clips: benv.clips,
         collide: &mut collide,
+        part_hits: &mut NoHits,
         game_over: benv.game_over,
         // Affect never quakes.
         boss_cam: false,

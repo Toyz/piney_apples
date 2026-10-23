@@ -1,8 +1,7 @@
-//! Kyvia's pictures in its fights: the meteors (`ANM_x300`) with their
-//! trails, the beams' particles following their ends, the core's auras
-//! following it, and the second fight's thunderbolts (`CMP_x012`). Before,
-//! the fight's generators were never started and its meteors and bolts had
-//! no picture.
+//! Kyvia's fights: the meteors (`ANM_x300`) with their trails, the beams'
+//! particles following their ends, the core's auras following it, the
+//! second fight's thunderbolts (`CMP_x012`), the arm, the gomoras' pushes
+//! on each other and the stick's turn of the camera.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -70,11 +69,26 @@ fn core_of(c: &Combat, me: usize) -> Option<usize> {
 /// time run short (`NowDmgtime` to `Dmgtime`), so the body strikes in
 /// turn: the arm, the beams, the meteors (and in the second fight the
 /// thunder). `each` sees every frame.
-pub(super) fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32, &Seen)) -> Vec<Seen> {
+pub(super) fn fight(s: &mut Session, frames: u32, each: impl FnMut(&Session, &Frame, u32, &Seen)) -> Vec<Seen> {
+    fight_leaning(s, frames, |_| 128, true, each)
+}
+
+/// [`fight`] with the right stick's x at `rx(i)` on the fight's frame `i`
+/// (128 centred; leant, its y a step down, as straight sideways reads as
+/// angle 0), the core's time cut short only with `hurry`.
+fn fight_leaning(
+    s: &mut Session,
+    frames: u32,
+    rx: impl Fn(u32) -> u8,
+    hurry: bool,
+    mut each: impl FnMut(&Session, &Frame, u32, &Seen),
+) -> Vec<Seen> {
     let mut pad = Pad::default();
-    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
     let (mut came, mut seen) = (None, Vec::new());
     for n in 0..frames + 6000 {
+        let lean = came.map_or(128, |c| rx(n - c));
+        let ry = if lean == 128 { 128 } else { 129 };
+        let still = Raw { analog: true, lx: 128, ly: 128, rx: lean, ry, ..Raw::default() };
         let talking = match &s.stage {
             Stage::Area(a) => a.vm().is_some_and(|v| v.playing().is_some()) || a.ui().ctrl.check_menu_type() != -1,
             _ => false,
@@ -95,7 +109,8 @@ pub(super) fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session,
         if i >= frames {
             break;
         }
-        if c.scene.listed(core)
+        if hurry
+            && c.scene.listed(core)
             && let Some(Class::KyviaCore(x)) =
                 c.scene.chars[core].foe_state_mut().and_then(|f| f.boss.as_mut()).map(|b| &mut b.class)
         {
@@ -183,6 +198,118 @@ fn kyvias_arm_sweeps_with_its_after_images() {
         assert!(shown > 30, "{disc}: the arm drawn in {shown} frames of act 3");
         assert!(doubled > 10, "{disc}: its after-images in {doubled} frames");
     }
+}
+
+/// The gomoras' `bodyHit`s.
+fn gomora_hits(s: &Session) -> Vec<piney_battle::world::CharHit> {
+    let Stage::Area(a) = &s.stage else { return Vec::new() };
+    let c = a.world().combat();
+    let Some(core) = c.boss_char().and_then(|me| core_of(c, me)) else { return Vec::new() };
+    let Some(Class::KyviaCore(x)) = c.scene.chars[core].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class)
+    else {
+        return Vec::new();
+    };
+    (x.gomoras.iter())
+        .filter_map(|&g| match &c.scene.chars[g].foe_state()?.boss.as_ref()?.class {
+            Class::Gomora(gx) => Some(gx.hit),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The gomoras push each other apart (`kyviaGomora::Move`'s
+/// `CollisionDetection`): out of the core their bodies are in the field's
+/// list (kind and mask 128) and a gomora run into another is put back out
+/// of it. Before, no gomora had a body in the list and none was pushed.
+#[test]
+fn kyvias_gomoras_push_each_other_apart() {
+    for (disc, s) in [("mutation", event_108_disc()), ("outbreak", event_211_disc())] {
+        let Some(mut s) = s else { continue };
+        let (mut listed, mut pushed) = (0u32, 0u32);
+        fight_leaning(
+            &mut s,
+            6000,
+            |_| 128,
+            false,
+            |s, _, _, _| {
+                let gs = gomora_hits(s);
+                listed += u32::from(gs.iter().any(|h| h.sw && h.kind == 0x80 && h.mask == 0x80));
+                pushed += u32::from(gs.iter().any(|h| h.offset != [0; 4]));
+            },
+        );
+        println!("{disc}: gomoras' bodies listed in {listed} frames, one pushed in {pushed}");
+        assert!(listed > 1000, "{disc}: the gomoras' bodies listed in {listed} frames");
+        assert!(pushed > 0, "{disc}: no gomora pushed");
+    }
+}
+
+/// Kyvia's camera turns about Kite with the right stick (`ZrotControlFlg`,
+/// set by the constructor): leant right then left, `ZrotCont` goes to +0.5
+/// and back to -0.5, except while an attack's `SetMode(3)` holds the pad
+/// (`ExLock` bit 4). Before, the stick did not turn it.
+#[test]
+fn the_stick_turns_kyvias_camera() {
+    let Some(mut s) = event_108_disc() else { return };
+    let (mut most, mut least, mut held) = (0f32, 0f32, 0u32);
+    let mut last = None;
+    fight_leaning(
+        &mut s,
+        3000,
+        |i| if (i / 300) % 2 == 0 { 255 } else { 0 },
+        true,
+        |s, _, _, _| {
+            let Stage::Area(a) = &s.stage else { return };
+            let Some(cam) = a.world().combat().boss.as_ref().and_then(|r| r.cam.as_ref()) else { return };
+            let z = f32::from_bits(cam.zrot_cont);
+            (most, least) = (most.max(z), least.min(z));
+            if cam.ex_lock & 0x10 != 0 && last == Some(cam.zrot_cont) {
+                held += 1;
+            }
+            last = Some(cam.zrot_cont);
+            assert!(cam.zrot_control, "the constructor's ZrotControlFlg");
+        },
+    );
+    println!("ZrotCont from {least} to {most}, held through {held} frames of mode 3");
+    assert_eq!((least, most), (-0.5, 0.5));
+    assert!(held > 100, "the pad read while mode 3 held it ({held} frames unmoved)");
+}
+
+/// Shots to `PINEY_SHOTS` (default /mnt/data/claude/scratch/a427): the
+/// first fight with the stick leant right then left (the eye turned about
+/// Kite), every 40th frame, and frames a gomora was pushed.
+#[test]
+#[ignore]
+fn kyvia_push_and_turn_shots() {
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/a427".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let Some(mut s) = event_108_disc() else { return };
+    let mut gs: Option<piney_gs::Gs> = None;
+    let mut pushes = 0u32;
+    fight_leaning(
+        &mut s,
+        2400,
+        |i| if (i / 600) % 2 == 0 { 255 } else { 0 },
+        false,
+        |s, frame, i, now| {
+            let pushed = gomora_hits(s).iter().any(|h| h.offset != [0; 4]);
+            pushes += u32::from(pushed);
+            let Stage::Area(a) = &s.stage else { return };
+            let z = a.world().combat().boss.as_ref().and_then(|r| r.cam.as_ref()).map_or(0, |c| c.zrot_cont);
+            let tag = if pushed && pushes.is_multiple_of(25) {
+                "push"
+            } else if i.is_multiple_of(40) {
+                "turn"
+            } else {
+                return;
+            };
+            let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
+            g.set_overlay(Mode::archive(s));
+            g.render(frame);
+            let (w, h) = g.target_size();
+            let path = format!("{dir}/kyvia-{tag}-{i:05}-act{}-z{:+.2}.png", now.act, f32::from_bits(z));
+            std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+        },
+    );
 }
 
 /// Shots of both fights to `PINEY_SHOTS` (default

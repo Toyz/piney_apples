@@ -2,8 +2,9 @@
 //! `ccBossCam`) over the field's camera and player tasks, as `merchcam_probe`
 //! runs them. One request a line (numbers in hex), one JSON line back:
 //! `start` (Kite and the camera), `frame` (one frame of the tasks), `boss`
-//! (`BossCam::new`), `quake` (`QuakeCam`), `main` (`CamMain` toward the boss)
-//! and `off` (`OffBossCamera`), each followed by the cameras.
+//! (`BossCam::new`), `quake` (`QuakeCam`), `main` (`CamMain` toward the boss),
+//! `sway` (`ZrotControlFlg` set), `mode` (`SetMode(mode, range)`) and `off`
+//! (`OffBossCamera`), each followed by the cameras.
 
 use std::io::BufRead;
 use std::sync::Arc;
@@ -47,7 +48,7 @@ fn boss_cam(b: &BossCam) -> String {
     format!(
         "{{\"init_lock\": {}, \"reset\": {}, \"view\": {}, \"pos\": {}, \"rot\": {}, \"move_transfer\": {}, \
          \"deg\": {}, \"mem_dirc_z\": {}, \"remit_rot_max\": {}, \"count\": {}, \"camera_type\": {}, \
-         \"quake_flg\": {}, \"quake\": {}}}",
+         \"quake_flg\": {}, \"quake\": {}, \"zrot_cont\": {}, \"ex_lock\": {}}}",
         u8::from(b.init_lock),
         b.reset,
         list(&b.view),
@@ -60,7 +61,9 @@ fn boss_cam(b: &BossCam) -> String {
         b.count,
         b.camera_type,
         u8::from(b.quake_flg),
-        list(&b.quake)
+        list(&b.quake),
+        b.zrot_cont,
+        b.ex_lock
     )
 }
 
@@ -112,7 +115,7 @@ fn main() {
                 run = Some(Run {
                     hits: Hits::new(volume, models.clone()),
                     player: Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
-                    camera: Camera::new(pos, dirc, mode, Scheme::new(n(6) as i32)),
+                    camera: Camera { volume, ..Camera::new(pos, dirc, mode, Scheme::new(n(6) as i32)) },
                     rand: Rand(u64::from(n(8))),
                     mode,
                     boss: None,
@@ -130,6 +133,16 @@ fn main() {
                 let b = BossCam::new(&mut r.camera, v4(1), r.player.body.pos);
                 println!("{{\"boss\": {}, \"cameras\": {}}}", boss_cam(&b), cameras(&r.camera));
                 r.boss = Some(b);
+            }
+            Some("sway") => {
+                run.as_mut().unwrap().boss.as_mut().unwrap().zrot_control = true;
+                println!("{{}}");
+            }
+            Some("mode") => {
+                let r = run.as_mut().unwrap();
+                let b = r.boss.as_mut().unwrap();
+                b.set_mode_range(n(1) as i32, n(2), &mut r.camera);
+                println!("{{\"boss\": {}}}", boss_cam(b));
             }
             Some("quake") => {
                 let r = run.as_mut().unwrap();

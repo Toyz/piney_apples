@@ -2,8 +2,8 @@
 title: Bosses - Kyvia's first fight
 status: partial
 volumes: MUT
-covers: MUT gcmn.prg:0x006192c0 bossFunc (code 12), 0x00480540 SetupSkillName, 0x00473350 ccBoss::DrawParts, 0x004710b0 ccBossAfterImageEx::Init, 0x00471320 ccBossAfterImageEx::Draw, 0x004d29a0 ccThKyvia01, 0x004d2a80 ccBossKyvia01::ccBossKyvia01, 0x004d4410 ccBossKyvia01::Main, 0x004d47c0 Think, 0x004d48a0 SwitchActionPattern, 0x004d4a80 SwitchDeadCheck, 0x004d4c10 CheckDiscMove, 0x004d5140 CheckDmgSmokeEff, 0x004d3330 Action, 0x004d3cf0 DeadKyviaVoice, 0x004d3fc0 DeadKyviaCam, 0x004d53b0 KyviaMagicDamage, 0x004d5450 SetBPos, 0x004d5930 HandAtk, 0x004d60a0 LightAtk, 0x004d8bb0 MegidFlame, 0x004d91e0 Slave, 0x004d92b0 EntrySlave, 0x004f7e80 kyviaCore::InitData, 0x004f80f0 ResetData, 0x004f82c0 CoreInit, 0x004f8770 SetCoreBaseParam, 0x004f8a30 kyviaCore::kyviaCore, 0x004f8cd0 Action, 0x004f9630 Main, 0x004f99c0 Affect, 0x004f9dc0 StartInit, 0x004f9f40 ActionStart, 0x004fa960 CoreVoice, 0x004faac0 Think, 0x004fae40 ThinkESCAPE, 0x004fb110 ChangeAttribute, 0x004fb1f0 CharHoldON, 0x004fb360 FadeCore, 0x004fb550 FadeCheck, 0x004fb5e0 GetGomoraState, 0x004fb860 JudgmentDmgAnm, 0x004fb8e0 CheckCountAtkTime, 0x004fbba0 CheckCountGomora, 0x004fc300 SetCoreState, 0x004fc4c0 GetActNum, 0x004fc5e0 SwitchActionPattern, 0x004fc8b0 MoveSpline, 0x004fca70 SetSpPoint, 0x004fd630 Slave, 0x004fd700 EntrySlave, 0x004fd980 KillGomora, 0x004fdc90 EntryGomora, 0x004fdda0 StartGomora, 0x004fde50 CheckGomoraSkillAct, 0x004fdf10 kyviaGomora::InitData, 0x004fe260 ResetData, 0x004fe460 GomoraInit, 0x004fe6c0 GetAttribute, 0x004fe740 StartInit, 0x004ff3d0 SetGomoraState, 0x004ff480 Affect, 0x004ff800 Action, 0x005004d0 Main, 0x00500850 Move, 0x005009a0 DepartureMove, 0x00500be0 NextGList, 0x00500c50 ListStepUp, 0x00500d50 Think, 0x00501370 TimeAuraCount, 0x005017c0 CheckCountAtkTime, 0x00501de0 RndTarget, 0x00501f20 GetRndSkill, 0x00501fe0 MoveGomora, 0x00502220 FadeGomora, 0x00502530 MoveSpline, 0x00502670 SetSpPoint, 0x00503640 SetAtkPoint, 0x0047aa90 ccBossEffMeteoriteMissile::ccBossEffMeteoriteMissile, 0x0047b330 Draw, 0x0047b910 Spline, 0x0048d9f0 ccBossEffMeteoriteMissileCreate, 0x00475ae0 ccBossCam::SetMode, 0x00475a40 SetRotXLimit, 0x00476380 SetTransfer, 0x0061b190 Kyvia01AnmTbl, 0x0061b360 kyviaCoreAnmTbl, 0x0061b620 kyviaGomoraAnmTbl, 0x0061b510 AllGomoraList_1[0], 0x0061f650 KyviaGenerator, 0x0061fce0 KyviaDmgGenerator, 0x0061f3d0 CoreGenerator, 0x0061eec0 GomoraGenerator, 0x0061f1b0 GomoraAuraGenerator, 0x0061d900 MissileSmokeGenerator, 0x0061e290 BurstSmokeGenerator
-worklog: 272, 420, 425, 426
+covers: MUT gcmn.prg:0x006192c0 bossFunc (code 12), 0x00480540 SetupSkillName, 0x00473350 ccBoss::DrawParts, 0x004710b0 ccBossAfterImageEx::Init, 0x00471320 ccBossAfterImageEx::Draw, 0x004d29a0 ccThKyvia01, 0x004d2a80 ccBossKyvia01::ccBossKyvia01, 0x004d4410 ccBossKyvia01::Main, 0x004d47c0 Think, 0x004d48a0 SwitchActionPattern, 0x004d4a80 SwitchDeadCheck, 0x004d4c10 CheckDiscMove, 0x004d5140 CheckDmgSmokeEff, 0x004d3330 Action, 0x004d3cf0 DeadKyviaVoice, 0x004d3fc0 DeadKyviaCam, 0x004d53b0 KyviaMagicDamage, 0x004d5450 SetBPos, 0x004d5930 HandAtk, 0x004d60a0 LightAtk, 0x004d8bb0 MegidFlame, 0x004d91e0 Slave, 0x004d92b0 EntrySlave, 0x004f7e80 kyviaCore::InitData, 0x004f80f0 ResetData, 0x004f82c0 CoreInit, 0x004f8770 SetCoreBaseParam, 0x004f8a30 kyviaCore::kyviaCore, 0x004f8cd0 Action, 0x004f9630 Main, 0x004f99c0 Affect, 0x004f9dc0 StartInit, 0x004f9f40 ActionStart, 0x004fa960 CoreVoice, 0x004faac0 Think, 0x004fae40 ThinkESCAPE, 0x004fb110 ChangeAttribute, 0x004fb1f0 CharHoldON, 0x004fb360 FadeCore, 0x004fb550 FadeCheck, 0x004fb5e0 GetGomoraState, 0x004fb860 JudgmentDmgAnm, 0x004fb8e0 CheckCountAtkTime, 0x004fbba0 CheckCountGomora, 0x004fc300 SetCoreState, 0x004fc4c0 GetActNum, 0x004fc5e0 SwitchActionPattern, 0x004fc8b0 MoveSpline, 0x004fca70 SetSpPoint, 0x004fd630 Slave, 0x004fd700 EntrySlave, 0x004fd980 KillGomora, 0x004fdc90 EntryGomora, 0x004fdda0 StartGomora, 0x004fde50 CheckGomoraSkillAct, 0x004fdf10 kyviaGomora::InitData, 0x004fe260 ResetData, 0x004fe460 GomoraInit, 0x004fe6c0 GetAttribute, 0x004fe740 StartInit, 0x004ff3d0 SetGomoraState, 0x004ff480 Affect, 0x004ff800 Action, 0x005004d0 Main, 0x00500850 Move, 0x005009a0 DepartureMove, 0x00500be0 NextGList, 0x00500c50 ListStepUp, 0x00500d50 Think, 0x00501370 TimeAuraCount, 0x005017c0 CheckCountAtkTime, 0x00501de0 RndTarget, 0x00501f20 GetRndSkill, 0x00501fe0 MoveGomora, 0x00502220 FadeGomora, 0x00502530 MoveSpline, 0x00502670 SetSpPoint, 0x00503640 SetAtkPoint, 0x0047aa90 ccBossEffMeteoriteMissile::ccBossEffMeteoriteMissile, 0x0047b330 Draw, 0x0047b910 Spline, 0x0048d9f0 ccBossEffMeteoriteMissileCreate, 0x00475ae0 ccBossCam::SetMode, 0x00475a40 SetRotXLimit, 0x00476380 SetTransfer, 0x00475cf0 Pad_Control, 0x004755a0 CamMain, 0x00500850 kyviaGomora::Move, main 0x001534f0 ccCharHit::CollisionDetection, 0x0061b190 Kyvia01AnmTbl, 0x0061b360 kyviaCoreAnmTbl, 0x0061b620 kyviaGomoraAnmTbl, 0x0061b510 AllGomoraList_1[0], 0x0061f650 KyviaGenerator, 0x0061fce0 KyviaDmgGenerator, 0x0061f3d0 CoreGenerator, 0x0061eec0 GomoraGenerator, 0x0061f1b0 GomoraAuraGenerator, 0x0061d900 MissileSmokeGenerator, 0x0061e290 BurstSmokeGenerator
+worklog: 272, 420, 425, 426, 427
 ---
 
 # Bosses - Kyvia's first fight
@@ -44,7 +44,9 @@ the menus are free again.
 `DiscExFlg` 1, `AFtiming` 2; exit off, drawn, body hit (radius 400) and
 cheat HP on; `ANM_ex01nut0` in act 0. It stands at `DMY_marker01` of the
 event map's stream (`dummypos`). `InitBossCamera(450, 1050)`, the pitch
-(+0xe0) 0.26, `SetRotXLimit(0.6)`, +0x139 1 (the pad's sway). The arm's
+(+0xe0) 0.26, `SetRotXLimit(0.6)`, +0x139 1 (`ZrotControlFlg`: the stick
+turns the camera, [below](#the-camera)). Its body hit (radius 400, its
+row's height and kind 0x80) goes into the hits' list. The arm's
 animation `ANM_ex0batc0` (`anmw`). The blur (the effect manager's +4):
 `m_enabled` (+0x24) 1, `m_exit` (+0x28) 0, `m_scale` (+0x0c) 1.0,
 `m_abgr` (+0x1c) `DefaultARGB` 0x30808080 (`ExARGB` 0x60808080). Then one
@@ -187,6 +189,21 @@ old value), unless another gomora is casting:
 `KillGomora` sets a gomora's HP 0 and act 14; its death fades it
 (`FadeGomora`, 0.05 a frame) and it waits again (state 3, exited).
 
+**The pushes.** Once out (`Think`'s step 2, MUT gcmn 0x00500f9c) a
+gomora's `bodyHit` (+0x240) takes its row's width as radius and height,
+kind and mask 0x80 (bosses) and `mask2` 0 (no ground), and goes into the
+hits' list (`HitEnable`); the dash takes it out and puts it back, act 14
+takes it out. `kyviaGomora::Move` (0x00500850) moves the gomora as
+`ccBoss::Move` does, then puts the hit 100 below it and runs
+`CollisionDetection` (main 0x001534f0): the push out of every other
+listed body of a boss kind, `r1 + r2 - d` along the line between the
+centres, summed in the list's order. Pushed, the gomora and its `posP`
+move by the whole push (its height too, which `ccBoss::Move` drops) and
+the hit stands at the gomora's place itself, not 100 below, until the next
+`Move`. The others it meets are the gomoras out before it in the frame
+and the body (radius 400, standing off the disc); the core's body is never
+listed (`bodyHitSW` 0).
+
 ## Death
 
 The core at 0 HP (act 14, 0x004f9184): the gomoras killed, its particles,
@@ -204,6 +221,31 @@ eye's y off the view, kept that far from the range; 4: back to what 3
 left, +0x134) and then ease `MoveTransfer.y` a quarter of the way a frame,
 snapping within 8 and clearing `ResetFlg`. `SetRotXLimit(v)` sets +0x114
 `v` and +0x118 `1 - v`.
+
+Mutation's `SetMode` also keeps `ExLock` (+0x138): mode 3 sets its bit 4
+and mode 4 clears it, mode 5 sets bit 0 and mode 6 clears it. While
+either bit is set `Pad_Control` (0x00475cf0) reads nothing: from the end
+of an attack's mode 3 ease until its mode 4 the stick neither zooms nor
+turns.
+
+**The stick's turn** (`ZrotControlFlg`, +0x139, Kyvia's constructor):
+after the zoom and the resets, `Pad_Control` turns `ZrotCont` (+0x110),
+the eye's turn about the player in `CamMain`, held to +-0.5:
+
+- the right stick's sideways lean, `sinf(dirc) * pow` past 1 (as a
+  double), times 0.00023 (0x39712c28): added in schemes 0 and 2,
+  taken off in 1 and 3;
+- in schemes A only, without it, L1 or R1 by 0.015, plus 0.0008 a step
+  of pressure past 155 (0.08 more at no pressure): L1 adds in scheme 0,
+  R1 in scheme 1, and the other takes off.
+
+Infection's `Pad_Control` has the same turn; no Infection boss sets the
+flag. Mutation's `CamMain` (0x004755a0) also raises the eye by its +0xdc
+times `1 - t` (the zoom's share; 0 but for Quarantine's `ccBoss08_c`)
+and sets `CamPos.w` 1. Mutation's `ccBossCam` is 0x150 bytes: that float
+at +0xdc puts `Xrot` to `count` 4 further (+0xe0-+0xec) and, aligned,
+the rest from `RotZ` 0x10 further (`ZrotCont` +0x110, `CameraType` +0x11c,
+`ExLock` +0x138, `ZrotControlFlg` +0x139, `tempChar` +0x13c).
 
 ## The pictures
 
@@ -291,6 +333,19 @@ The pictures (worklog 420):
 - The tables are the effect group's `boss_kyvia*`, `boss_core*` and
   `boss_gomora*`.
 
+The pushes and the camera (worklog 427):
+
+- A gomora keeps its `bodyHit` (`Gomora::hit`) and reaches the list
+  through `Cx::part_hits` (`boss::PartHits`: `switch`, `collide`,
+  `sync`); `piney_world::combat::boss` answers it from the field's hits
+  (`hit::Hits`, the body's entry radius `kyvia::BODY_RADIUS`). The push is
+  `piney_battle::world::char_push`, which `Hits::collision_detection`
+  uses too. After the body's push its entry is moved with it, for the
+  gomoras that move after it in the frame.
+- `piney_world::bosscam::BossCam` keeps `ex_lock`, `zrot_control` (from
+  `Out::CamSway`) and Mutation's `lift`; `pad_control` reads nothing under
+  `ExLock` and turns `zrot_cont` with the flag.
+
 ## Checks
 
 `tools/test_battle_kyvia_rs.py` builds the game's `ccBossKyvia01(1)` with
@@ -313,8 +368,7 @@ caster's `skillID` and `skillStatus` 1 as `_ccSkillRequest` does, and
 nothing clears them); the meteors run natively with their drawing,
 particles and `effSmokeRock` stubbed; the camera's `CamMain` never runs
 and a mode 3 or 4 is cleared after the case's delay; W2P/P2W are
-identity; `CollisionDetection` finds nothing and `HitEnable`/`HitDisable`
-only set the flag.
+identity.
 
 The calls include the arm's: each `DrawParts` with the anm's frame and
 flag, and each `EntryAfterImageAnm` with the arm's frame, place, turn and
@@ -322,6 +376,19 @@ all of its `ENTRYAFTERIMAGE_T` (worklog 426: 200 Mutation cases, 120 of
 Outbreak's second fight and 40 of its first, act 3 in each run).
 `session::tests::kyvia_fx::kyvias_arm_sweeps_with_its_after_images` sees
 the arm drawn with its after-images on both discs.
+
+The hits' list runs natively from an empty list each case (`SetHitSW`,
+`HitEnable`, `HitDisable`, `CollisionDetection`; `ccModelHitCheckQ`
+finds no ground), against battle_probe's own list of the body's and the
+gomoras' bodies (worklog 427). Each gomora's `bodyHit` (switch, masks,
+kind, radius, height, place, push) is compared every frame, and the boss
+camera's `ExLock` and `ZrotControlFlg`: 120 Mutation cases, 60 of
+Outbreak's second fight and 30 of its first agree, gomoras pushed in each
+run. `tools/test_bosscam_rs.py`'s `test_sway` runs the game's
+`Pad_Control` with the flag on all four schemes (on Mutation and Outbreak
+with `SetMode` 3 and 4 between): `ZrotCont` and the cameras agree.
+`session::tests::kyvia_fx::kyvias_gomoras_push_each_other_apart` and
+`the_stick_turns_kyvias_camera` see both in play.
 
 `PINEY_VOLUME=outbreak PINEY_KYVIA_FIGHT=1` runs Outbreak's copy of the
 fight (its `Main` and the disc's `Move` and `IsMove` by address): the
@@ -346,9 +413,6 @@ their ends and the auras following the core.
 
 ## Unknown
 
-- The gomoras' pushes on each other (their `CollisionDetection`) are not
-  ported, nor the pad's sway (+0x139). The arm's picture is (worklog
-  426).
 - The EX mode (`KyviaExFlg`) and levels 3-5 are Kyvia's later fights; the
   shared code for them is ported as far as levels 1 and 2 read it, and
   the gomora lists for those two. Level 2 is [the second

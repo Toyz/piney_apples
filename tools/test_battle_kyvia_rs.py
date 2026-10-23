@@ -192,12 +192,17 @@ class Game:
                      "Draw__7ccClumpFv", "SetTransparency__7ccClumpFf", "__dt__7ccClumpFv",
                      "ParticleDelete__19ccParticleGeneratorFv",
                      "Init__7ccLayerFsP6ccView", "SetFrame__6ccViewFffffffff", "__dt__7ccLayerFv",
-                     "changeCamera__Fi", "SetHitSW__9ccCharHitFi", "DrawPartsClump__6ccBossFP7ccClump"):
+                     "changeCamera__Fi", "DrawPartsClump__6ccBossFP7ccClump"):
             hook(name, nop)
-        hook("CollisionDetection__9ccCharHitFv", lambda mm, *a: 0)
-        # The hits' list is not kept: HitEnable and HitDisable set the flag.
-        hook("HitEnable__9ccCharHitFv", lambda mm, a, *_: mm.store(a, 4, 1) or 0)
-        hook("HitDisable__9ccCharHitFv", lambda mm, a, *_: mm.store(a, 4, 0) or 0)
+
+        # The hits' list (SetHitSW, HitEnable, HitDisable and
+        # CollisionDetection) runs natively from an empty list each case:
+        # the body's and the gomoras' bodies. No ground: ccModelHitCheckQ
+        # finds nothing (-1.0).
+        def no_ground(mm, *_):
+            mm.f[0] = 0xBF800000
+            return 0
+        hook("ccModelHitCheckQ__FPfPffUii", no_ground)
         hook("__ct__16ccDrawPacketCtrlFv", this)
 
         def init_cam(mm, a, *_):
@@ -495,6 +500,8 @@ def run_game(game, case):
     m.mem[CAM:CAM + 0x150] = bytes(0x150)
     m.mem[WM:WM + 0x5000] = bytes(0x5000)
     m.store(game.sym("_g_bossEffManager"), 4, MGR)
+    for name in ("ccCharHitTop", "ccCharHitTail", "ccCharHitEntryNum"):
+        m.store(game.sym(name), 4, 0)
     m.store(game.sym("scFadeDef"), 4, STAGE + 0x200)
     # worldman->eventmap (+1092), its stream (+420) and discPrevPos (+0xca0)
     m.store(game.sym("worldman"), 4, WM)
@@ -659,9 +666,13 @@ GOMORA = ([(0x29368, "u"), (0x2936C, "i"), (0x29370, "f"), (0x293D0, "i"), (0x29
            (0x29444, "i"), (0x29448, "i"), (0x29450, "u"), (0x29452, "h"), (0x2945E, "h")]
           + vs(0x29460, 4) + vs(0x294A0, 8) + vs(0x29520, 4)
           + [(0x29580, "v"), (0x295D0, "i"), (0x295D4, "u"), (0x295D8, "f"), (0x295E0, "u"), (0x295E4, "i"),
-             (0x295E8, "i"), (0x293E0, "p")])
-# The boss camera's: ResetFlg, lock, CamView, CamPos, the pitch (+0xe0).
-CAM_F = [(0x4, "i"), (0x0, "u"), (0x10, "v"), (0x20, "v"), (0xE0, "f")]
+             (0x295E8, "i"), (0x293E0, "p")]
+          # bodyHit: hitSW, mask, mask2, type, radius, height, pos, offset.
+          + [(0x240, "i"), (0x244, "i"), (0x248, "i"), (0x24C, "i"), (0x254, "f"), (0x258, "f"), (0x260, "v"),
+             (0x270, "v")])
+# The boss camera's: ResetFlg, lock, CamView, CamPos, the pitch (+0xe0),
+# ExLock and ZrotControlFlg (the stick's turn, +0x139).
+CAM_F = [(0x4, "i"), (0x0, "u"), (0x10, "v"), (0x20, "v"), (0xE0, "f"), (0x138, "u"), (0x139, "u")]
 
 
 def listed(game, ch):
@@ -806,6 +817,7 @@ def bulk(n, seed0=9300):
     core_acts = set()
     gomora_acts = set()
     thunders = set()
+    pushes = 0
     total = 0
     for k in range(n):
         rnd = random.Random(seed0 + k)
@@ -815,10 +827,12 @@ def bulk(n, seed0=9300):
         gomora_acts |= {g[2] for fr in frames for g in fr["gomoras"]}
         # The second fight's ThunderType while its act 6 runs.
         thunders |= {fr["kyvia"][-5] for fr in frames if FIGHT == 2 and fr["act"][0] == 6}
+        # Gomoras pushed (their bodyHit's offset, the last three).
+        pushes += sum(1 for fr in frames for g in fr["gomoras"] if any(g[-3:]))
         total += len(frames) - 1
         print(f"case {seed0 + k} ok ({len(frames) - 1} frames)", flush=True)
     print(f"{n} cases, {total} frames; acts reached:", sorted(acts), "core's:", sorted(core_acts),
-          "gomoras':", sorted(gomora_acts), "thunders:", sorted(thunders))
+          "gomoras':", sorted(gomora_acts), "thunders:", sorted(thunders), "gomoras pushed:", pushes)
 
 
 if __name__ == "__main__":

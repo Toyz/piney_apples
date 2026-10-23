@@ -527,6 +527,11 @@ task, when the mode changes, so camera 3 holds after the fight.
 `SetMode`, `SetFreeCamPosView` and `SetRotXLimit` are other bosses'.
 Without them `ExLock`, `ZrotControlFlg`, `Xrot` and `ZrotCont` stay 0, and
 `ResetFlg` is never 3 or 4. `lock` is only cleared (`OnThinkRandDrive`).
+`Pad_Control` reads nothing while `ExLock` is set, and with
+`ZrotControlFlg` (Kyvia's) the stick, or L1 and R1, turns `ZrotCont`:
+[Kyvia's page](boss-kyvia.md#the-camera), which also has Mutation's
+`CamMain` and layout. `tools/test_bosscam_rs.py` runs on any volume
+(`PINEY_VOLUME`), its `test_sway` with the flag set.
 
 ## The cinema: `ccBossEffCinemaFade`
 

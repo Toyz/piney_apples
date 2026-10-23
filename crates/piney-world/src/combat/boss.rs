@@ -440,6 +440,7 @@ impl Combat {
             cc: &mut self.cc,
             clips: &clip,
             collide: &mut none,
+            part_hits: &mut boss::NoHits,
             game_over: false,
             boss_cam: true,
             cam: cam_view(camera, None, false),
@@ -492,7 +493,8 @@ impl Combat {
             f.boss = Some(Box::new(b));
         }
         let ty = self.scene.chars[me].ty() as u32;
-        let hit = CharHit { pos, radius: w, height: h, kind: ty, ..CharHit::default() };
+        let radius = if matches!(code, KYVIA | KYVIA_SECOND) { boss::kyvia::BODY_RADIUS } else { w };
+        let hit = CharHit { pos, radius, height: h, kind: ty, ..CharHit::default() };
         let transfer = match code {
             INNIS => INNIS_CAM_TRANSFER,
             KYVIA | KYVIA_SECOND => KYVIA_CAM_TRANSFER,
@@ -609,8 +611,14 @@ impl Combat {
             let mut hits = hits.borrow_mut();
             let mut body = super::spc::to_body(me, kite, &CharHit { pos, sw: true, ..hit }, false);
             hits.sync(&body);
-            (hits.collision_detection(&mut body) != 0).then_some(body.offset)
+            let off = (hits.collision_detection(&mut body) != 0).then_some(body.offset)?;
+            // After a push the hit stands where the boss was put (the
+            // push's height dropped), for the parts that move after it.
+            body.pos = ee::vadd(pos, [off[0], off[1], 0, off[3]]);
+            hits.sync(&body);
+            Some(off)
         };
+        let mut part_hits = PartList { hits: &hits, kite };
         // BreakMirror's ccLandHitCheck(pos, 0x20000000).
         let mut land = |pos: V4| hits.borrow_mut().land(pos, 0x2000_0000);
         let mut cx = boss::Cx {
@@ -625,6 +633,7 @@ impl Combat {
             cc: &mut self.cc,
             clips: &clip,
             collide: &mut collide,
+            part_hits: &mut part_hits,
             game_over: false,
             boss_cam: true,
             cam: cv,
@@ -737,7 +746,11 @@ impl Combat {
                             c.xrot = if *add { ee::add(c.xrot, *v) } else { *v };
                         }
                     }
-                    Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) | Out::CamMaxRange(_) => {
+                    Out::CamModeRange { .. }
+                    | Out::CamInitLock
+                    | Out::CamRotXLimit(_)
+                    | Out::CamMaxRange(_)
+                    | Out::CamSway(_) => {
                         if let Some(c) = r.cam.as_mut() {
                             cam_out(c, o, camera);
                         }
@@ -906,6 +919,9 @@ impl Combat {
             self.cast.actors.remove(&me);
             for k in std::mem::take(&mut r.images).into_iter().chain(std::mem::take(&mut r.parts)) {
                 self.cast.actors.remove(&k);
+                // A part's body (a gomora's) goes with its boss.
+                let id = super::spc::body_id(k, self.kite);
+                hits.chars.retain(|c| c.id != id);
             }
         }
         ev
@@ -1026,6 +1042,31 @@ impl Combat {
         let me = self.boss_char()?;
         let c = &self.scene.chars[me];
         (c.cond[cond::DEAD] == 0).then_some((c.hp, c.max_hp))
+    }
+}
+
+/// A boss's parts' bodies in the field's list (Kyvia's gomoras).
+struct PartList<'h, 'w> {
+    hits: &'h RefCell<&'w mut crate::hit::Hits>,
+    kite: Option<usize>,
+}
+
+impl boss::PartHits for PartList<'_, '_> {
+    fn switch(&mut self, who: usize, hit: &mut CharHit, on: bool) {
+        let mut body = super::spc::to_body(who, self.kite, hit, false);
+        self.hits.borrow_mut().set_hit_sw(&mut body, on);
+        hit.sw = body.sw;
+    }
+
+    fn collide(&mut self, who: usize, hit: &mut CharHit) -> bool {
+        let mut body = super::spc::to_body(who, self.kite, hit, false);
+        let touched = self.hits.borrow_mut().collision_detection(&mut body) != 0;
+        hit.offset = body.offset;
+        touched
+    }
+
+    fn sync(&mut self, who: usize, hit: &CharHit) {
+        self.hits.borrow_mut().sync(&super::spc::to_body(who, self.kite, hit, false));
     }
 }
 
@@ -1182,6 +1223,7 @@ fn cam_out(c: &mut BossCam, o: &Out, camera: &mut Camera) {
         Out::CamRotXLimit(v) => c.set_rot_x_limit(*v),
         Out::CamPitch { add, v } => c.xrot = if *add { ee::add(c.xrot, *v) } else { *v },
         Out::CamMaxRange(v) => c.max_range = *v,
+        Out::CamSway(on) => c.zrot_control = *on,
         _ => {}
     }
 }

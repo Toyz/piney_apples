@@ -15,6 +15,7 @@ use crate::boss::{Anm, Boss, Class, Cx, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
 use crate::param::cond;
+use crate::world::CharHit;
 
 type F = u32;
 
@@ -84,8 +85,8 @@ pub struct Gomora {
     pub atk_tar_pos: V4,
     /// `AtkTarBase->height`.
     pub atk_tar_height: F,
-    /// `bodyHit` enabled (`HitEnable`/`HitDisable`).
-    pub hit_on: bool,
+    /// `bodyHit` (+0x240): kind and mask 128 (bosses), no ground.
+    pub hit: CharHit,
     pub anm_w: Anm,
 }
 
@@ -233,8 +234,9 @@ pub(crate) fn main(g: &mut Part<Gomora>, core: usize, acts: &[i16], cx: &mut Cx)
 }
 
 /// `kyviaGomora::Move` (MUT gcmn 0x00500850): `ccBoss::Move`'s step, then
-/// its body hit 100 below it pushed out of the others. The push (gomoras
-/// on each other) is not ported.
+/// its body hit put 100 below it and pushed out of the other bosses'
+/// (`CollisionDetection`, the push's height kept, unlike `ccBoss::Move`);
+/// after a push the hit stands at the gomora's place itself.
 fn move_(g: &mut Part<Gomora>, cx: &mut Cx) {
     let me = g.me;
     let mut pp = cx.world.frame.w2p(cx.scene.chars[me].pos);
@@ -244,9 +246,18 @@ fn move_(g: &mut Part<Gomora>, cx: &mut Cx) {
         pp[1] = ee::sub(pp[1], ee::mul(s, piney_data::libm::cosf(g.b.move_dirc)));
     }
     pp = geom::vadd(pp, g.b.move_vector);
+    let mut pos = cx.world.frame.p2w(pp);
+    g.x.hit.pos = [pos[0], pos[1], ee::sub(pos[2], 0x42c8_0000), pos[3]];
+    if cx.part_hits.collide(me, &mut g.x.hit) {
+        let off = g.x.hit.offset;
+        pos = geom::vadd(pos, off);
+        pp = geom::vadd(pp, off);
+        g.x.hit.pos = pos;
+        cx.part_hits.sync(me, &g.x.hit);
+    }
     let ch = &mut cx.scene.chars[me];
     ch.pos_p = pp;
-    ch.pos = cx.world.frame.p2w(pp);
+    ch.pos = pos;
 }
 
 /// `FadeGomora` (MUT gcmn 0x00502220).
@@ -328,6 +339,12 @@ fn think(g: &mut Part<Gomora>, acts: &[i16], cx: &mut Cx) {
                 g.x.state = 0;
                 g.x.alpha = ONE;
                 g.x.life_flg = 1;
+                let base = cx.scene.chars[me].base();
+                g.x.hit.radius = base.width;
+                g.x.hit.height = base.height;
+                g.x.hit.kind = 0x80;
+                g.x.hit.mask = 0x80;
+                g.x.hit.mask2 = 0;
                 hit(g, cx, true);
                 crate::fellow::entry_cmnd(cx.scene, me);
                 g.x.dp_cou = 3;
@@ -388,8 +405,7 @@ fn think(g: &mut Part<Gomora>, acts: &[i16], cx: &mut Cx) {
 
 /// `HitEnable` / `HitDisable` of the gomora's `bodyHit`.
 fn hit(g: &mut Part<Gomora>, cx: &mut Cx, on: bool) {
-    g.x.hit_on = on;
-    cx.out(Out::PartHit { who: g.me, on });
+    cx.part_hits.switch(g.me, &mut g.x.hit, on);
 }
 
 /// `StartInit` (MUT gcmn 0x004fe740): its attribute from the list (4: none,

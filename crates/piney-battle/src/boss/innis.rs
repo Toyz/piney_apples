@@ -2600,6 +2600,7 @@ mod tests {
                 cc: &mut self.cc,
                 clips: &clip,
                 collide: &mut none,
+                part_hits: &mut crate::boss::NoHits,
                 game_over: false,
                 boss_cam: true,
                 cam: CamView::default(),

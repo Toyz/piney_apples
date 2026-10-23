@@ -11,7 +11,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::kyvia::core::Core;
 use piney_battle::boss::kyvia::gomora::Gomora;
 use piney_battle::boss::kyvia::{Fight, Follow, Gen, GenOp, Held, Kyvia, Place};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, DiscView, EffKind, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, DiscView, EffKind, Out, PartHits};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::{Event, Events, Who};
@@ -20,10 +20,12 @@ use piney_battle::param::cond;
 use piney_battle::rand::Rand;
 use piney_battle::scene::Scene;
 use piney_battle::tables::Tables;
+use piney_battle::world::{CharHit, char_push};
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::field::ee;
 use piney_data::iso::Iso;
+use std::cell::RefCell;
 
 use crate::boss::{eff_num, out_json};
 use crate::{Toks, read_char};
@@ -96,6 +98,10 @@ struct FakeCam {
     temp_pos: V4,
     xrot: u32,
     left: i32,
+    /// +0x138 `ExLock` (modes 3 and 5 set bits 4 and 0, 4 and 6 clear
+    /// them) and +0x139 `ZrotControlFlg`.
+    ex_lock: u8,
+    sway: u8,
 }
 
 impl FakeCam {
@@ -104,12 +110,16 @@ impl FakeCam {
             Out::CamMode { mode } | Out::CamModeRange { mode, .. } => {
                 self.reset = *mode;
                 match mode {
+                    3 => self.ex_lock |= 0x10,
+                    4 => self.ex_lock &= 1,
                     5 => {
+                        self.ex_lock |= 1;
                         self.lock = 1;
                         self.temp_view = self.view;
                         self.temp_pos = self.pos;
                     }
                     6 => {
+                        self.ex_lock &= 0x10;
                         self.lock = 0;
                         self.view = self.temp_view;
                         self.pos = self.temp_pos;
@@ -123,6 +133,7 @@ impl FakeCam {
                 self.pos = *pos;
             }
             Out::CamPitch { add, v } => self.xrot = if *add { ee::add(self.xrot, *v) } else { *v },
+            Out::CamSway(on) => self.sway = u8::from(*on),
             _ => {}
         }
     }
@@ -142,6 +153,58 @@ impl FakeCam {
             self.left = 0;
         }
     }
+}
+
+/// The collision list (`ccCharHitTop`) as the harness runs it natively:
+/// the body's hit from its constructor, then each gomora's as it enables
+/// it, in order; no ground (`ccModelHitCheckQ` finds nothing there).
+struct HitList {
+    volume: piney_data::volume::Volume,
+    chars: Vec<(usize, CharHit)>,
+}
+
+impl HitList {
+    fn sync(&mut self, who: usize, hit: &CharHit) {
+        if let Some(e) = self.chars.iter_mut().find(|(w, _)| *w == who) {
+            e.1 = *hit;
+        }
+    }
+
+    fn push_of(&self, who: usize, hit: &CharHit) -> Option<(V4, u32)> {
+        let others = self.chars.iter().filter(|(w, _)| *w != who).map(|(_, h)| (h.pos, h.radius, h.kind));
+        char_push(self.volume, hit.pos, hit.radius, hit.mask, others)
+    }
+}
+
+struct Shared<'l>(&'l RefCell<HitList>);
+
+impl PartHits for Shared<'_> {
+    fn switch(&mut self, who: usize, hit: &mut CharHit, on: bool) {
+        let mut l = self.0.borrow_mut();
+        if on && !hit.sw {
+            hit.sw = true;
+            l.chars.push((who, *hit));
+        } else if !on && hit.sw {
+            hit.sw = false;
+            l.chars.retain(|(w, _)| *w != who);
+        }
+    }
+
+    fn collide(&mut self, who: usize, hit: &mut CharHit) -> bool {
+        hit.offset = [0; 4];
+        let mut l = self.0.borrow_mut();
+        l.sync(who, hit);
+        let push = if hit.sw { l.push_of(who, hit) } else { None };
+        push.map(|(off, _)| hit.offset = off).is_some()
+    }
+
+    fn sync(&mut self, who: usize, hit: &CharHit) {
+        self.0.borrow_mut().sync(who, hit);
+    }
+}
+
+fn ee_vadd(a: V4, b: V4) -> V4 {
+    std::array::from_fn(|k| ee::add(a[k], b[k]))
 }
 
 struct Case {
@@ -217,6 +280,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
     let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false };
     let actx =
         AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: crate::probe_volume() };
+    let list = RefCell::new(HitList { volume: crate::probe_volume(), chars: Vec::new() });
     let mut none = |_| None;
     let mut land = |p: V4| p[2];
     let mut cx = Cx {
@@ -231,6 +295,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
+        part_hits: &mut Shared(&list),
         game_over: false,
         boss_cam: true,
         cam: view(0, 0),
@@ -243,6 +308,28 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
     let mut boss = piney_battle::boss::kyvia::new(&mut cx, fight);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
+    // The constructor's SetHitSW: the body first in the list.
+    let body = CharHit {
+        sw: true,
+        kind: scene.chars[me].ty() as u32,
+        radius: piney_battle::boss::kyvia::BODY_RADIUS,
+        height: scene.chars[me].base().height,
+        pos: scene.chars[me].pos,
+        ..CharHit::default()
+    };
+    list.borrow_mut().chars.push((me, body));
+    // ccBoss::Move's CollisionDetection of the body; after a push its hit
+    // stands where the body was put (the push's height dropped).
+    let mut body_push = |pos: V4| {
+        let mut l = list.borrow_mut();
+        let mut h = l.chars.iter().find(|(w, _)| *w == me)?.1;
+        h.pos = pos;
+        l.sync(me, &h);
+        let (off, _) = l.push_of(me, &h)?;
+        h.pos = ee_vadd(pos, [off[0], off[1], 0, off[3]]);
+        l.sync(me, &h);
+        Some(off)
+    };
     HELD.with(|s| s.borrow_mut().clear());
     ROLES.with(|r| *r.borrow_mut() = roles(&boss, &scene));
     for o in &out {
@@ -308,7 +395,8 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
             rand: &mut rand,
             cc: &mut cc,
             clips: &clip,
-            collide: &mut none,
+            collide: &mut body_push,
+            part_hits: &mut Shared(&list),
             game_over: false,
             boss_cam: true,
             cam: view(f, cam.reset),
@@ -500,7 +588,6 @@ fn kout(o: &Out) -> Option<String> {
             e.es[3],
             e.scale_time
         ),
-        Out::PartHit { .. } => return None,
         _ => return out_json(o),
     })
 }
@@ -622,6 +709,17 @@ fn gomora_json(g: &Gomora, me: usize) -> String {
         g.tmp_state.to_string(),
     ]);
     v.push(holds(Held::GomoraAura(me)));
+    let h = &g.hit;
+    v.extend([
+        u8::from(h.sw).to_string(),
+        (h.mask as i32).to_string(),
+        (h.mask2 as i32).to_string(),
+        h.kind.to_string(),
+        h.radius.to_string(),
+        h.height.to_string(),
+        v3(&h.pos),
+        v3(&h.offset),
+    ]);
     v.join(",")
 }
 
@@ -718,7 +816,7 @@ fn frame_json(
     };
     format!(
         "{{\"act\":[{},{},{}],\"pos\":[{}],\"flags\":[{},{},{},{},{},{},{},{}],\"anm\":[\"{}\",{},\"{}\",{}],\
-         \"kyvia\":[{}],\"core\":{},\"gomoras\":[{}],\"cam\":[{},{},{},{},{}],\"blur\":[{},{},{},{}],\
+         \"kyvia\":[{}],\"core\":{},\"gomoras\":[{}],\"cam\":[{},{},{},{},{},{},{}],\"blur\":[{},{},{},{}],\
          \"eff\":[{}],\"party\":[{}],\"out\":[{}],\"menu\":[{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
         b.act_num,
         b.act_proccess,
@@ -744,6 +842,8 @@ fn frame_json(
         v3(&cam.view),
         v3(&cam.pos),
         cam.xrot,
+        cam.ex_lock,
+        cam.sway,
         blur[0],
         blur[1],
         blur[2],

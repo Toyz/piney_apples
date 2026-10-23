@@ -158,3 +158,34 @@ pub trait World {
         false
     }
 }
+
+/// The bodies' half of `ccCharHit::CollisionDetection` (main 0x00153470):
+/// the push out of each of `others` (their place, radius and kind, in the
+/// list's order, the body itself left out) whose kind `mask` names, `r1 +
+/// r2 - d` along the line between the centres (w 0), summed in order; and
+/// the kinds touched (`hitResultCharType`). None when none was touched.
+pub fn char_push(
+    volume: piney_data::volume::Volume,
+    pos: V4,
+    radius: F,
+    mask: u32,
+    others: impl IntoIterator<Item = (V4, F, u32)>,
+) -> Option<(V4, u32)> {
+    use crate::geom::{add, dot, lt, normalize, sqrt_on, sub, vadd, vscale, vsub};
+    let mut hit = None;
+    for (at, r, kind) in others {
+        if mask & kind == 0 {
+            continue;
+        }
+        let d = vsub(at, pos);
+        let over = sub(add(r, radius), sqrt_on(volume, dot(d, d)));
+        if lt(over, 0) {
+            continue;
+        }
+        let mut v = vscale(normalize(vsub(pos, at)), over);
+        v[3] = 0;
+        let (off, kinds) = hit.unwrap_or(([0; 4], 0));
+        hit = Some((vadd(off, v), kinds | kind));
+    }
+    hit
+}
