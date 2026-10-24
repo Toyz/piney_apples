@@ -66,7 +66,8 @@ time: plans/volumes.md, plans/build-data.md. Status on 2026-09-29.
   game (no `ConvGame` carry-over from Mutation) reaches 219's staff roll in
   403,800 frames under the autopilot (plans/outbreak-story.md; not yet
   played by hand). Quarantine: power-on to the desktop with the opening
-  streams' sound; next
+  streams' sound; its 14 events surveyed from their own starts, 9 done
+  (plans/quarantine-story.md, worklog 441)
 - [ ] The side events of Mutation and Outbreak: Outbreak's 26 (250-275
   but 258, and 361) run by `outbreak_side_event_survey`, 22 to their end
   (plans/outbreak-side-events.md, worklog 306); GOB3-5's goblins, two

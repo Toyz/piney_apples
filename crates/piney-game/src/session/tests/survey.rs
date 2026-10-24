@@ -1587,6 +1587,17 @@ fn outbreak_story_survey() {
     }
 }
 
+/// Quarantine's (M4, 301-314).
+#[test]
+#[ignore]
+fn quarantine_story_survey() {
+    let only = std::env::var("PINEY_SURVEY_ONLY").ok().and_then(|v| v.parse().ok());
+    match only {
+        Some(n) => survey("quarantine", n..=n),
+        None => survey("quarantine", 301..=314),
+    }
+}
+
 /// The party, the members' address and call bits and the story's wants,
 /// for `mutation_whole_story`'s trace.
 fn whole_state(s: &Session) -> String {
@@ -1735,6 +1746,13 @@ fn mutation_whole_story() {
 #[ignore]
 fn outbreak_whole_story() {
     whole_story("outbreak");
+}
+
+/// Quarantine's, as [`mutation_whole_story`]: 301 to 314.
+#[test]
+#[ignore]
+fn quarantine_whole_story() {
+    whole_story("quarantine");
 }
 
 /// The survey's aids in a whole story (`PINEY_SURVEY_AIDS`). A run without

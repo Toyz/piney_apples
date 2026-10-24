@@ -465,6 +465,11 @@ is the desktop as the boot leaves it, with nothing brought forward. 104 and
 105 start on the board, 115 in Carmina Gadelica (`in_town 2`), and the
 rest on the desktop, each where its first located block is.
 
+Quarantine's are 301-314 (`start::QUA_STORY`). 301, the new game's, is
+the desktop as the boot leaves it. 304 starts in Fort Ouph (`in_town 3`),
+308-310 and 313 in Lia Fail (`in_town 4`; 313's first blocks, in towns 0-3,
+only mark its gate), 312 in Mac Anu, and the rest on the desktop.
+
 ## The World
 
 In the field (`game.status` 5) the task runs beside the field's tasks, the

@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-440 entries: audio 39, battle 106, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 113, save 16, script 53, test 199, tooling 42, ui 95, video 16, volumes 82, world 127.
+441 entries: audio 39, battle 106, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 113, save 16, script 54, test 200, tooling 42, ui 95, video 16, volumes 83, world 127.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -452,3 +452,4 @@ The [reference](docs/README.md) says what is true now.
 | 438 | [The endings hold the desktop's music in the frame their pass settles: a frame's events go out in the game's order, the event task's pass before the desktop's load, so Outbreak's sound 10 holds the theme under its ending and roll](worklog/0438-the-endings-hold-the-desktop-s-music-in-the-frame-their.md) | 2026-10-23 | audio, ui, test |
 | 439 | [Quarantine's ccBoss08 keeps its first form's m_exit from town 4's room: on the story's way the manager lands where town 4's scene freed its objects and buffers, the party and the title wait choose 0 or a pixel word, and straight into the field it reads RAM no game code writes](worklog/0439-quarantine-s-ccboss08-keeps-its-first-form-s-m-exit-from.md) | 2026-10-24 | engine, tooling, battle, test |
 | 440 | [Gorre's brothers look as the game draws them: x51's own faces, backs and orbs, never shaded, lit by the arena's green distant light, the close-ups being streams 71 and 72 and the flat teal the trail's own colour](worklog/0440-gorre-s-brothers-look-as-the-game-draws-them-x51-s-own.md) | 2026-10-24 | render, battle, test |
+| 441 | [Quarantine's story surveyed: fourteen starts, nine events done, the rest stopped by town 5, two missing bosses, a short run and an ending's area](worklog/0441-quarantine-s-story-surveyed-fourteen-starts-nine-events.md) | 2026-10-24 | script, test, volumes |

@@ -7179,6 +7179,11 @@ mod tests {
         starts_open_their_event("outbreak");
     }
 
+    #[test]
+    fn quarantine_story_starts_open_their_event() {
+        starts_open_their_event("quarantine");
+    }
+
     /// Each start point of the disc's story opens its event where it
     /// should, without the story before it playing again.
     fn starts_open_their_event(disc: &str) {

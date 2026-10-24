@@ -51,11 +51,12 @@ pub fn story(volume: Volume) -> &'static [i32] {
     }
 }
 
-/// The events a start can be made at: Infection's, Mutation's, Outbreak's.
-pub const POINTS: [i32; 59] = [
+/// The events a start can be made at: Infection's, Mutation's, Outbreak's,
+/// Quarantine's.
+pub const POINTS: [i32; 73] = [
     3, 4, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 101, 102, 103, 104,
     105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211,
-    212, 213, 214, 215, 216, 217, 218, 219,
+    212, 213, 214, 215, 216, 217, 218, 219, 301, 302, 303, 304, 305, 306, 307, 308, 309, 310, 311, 312, 313, 314,
 ];
 
 /// `charTbl` row 2, Orca.
@@ -85,7 +86,10 @@ pub enum Place {
 /// (`game_status 5`, `in_town 2`: Carmina Gade). M201, the new game's, is
 /// the desktop as the boot leaves it, nothing brought forward. Outbreak's:
 /// the desktop but for M314, M315, M317 (the board) and M310, M311, M313
-/// (`in_town 3`); M301 is the new game's.
+/// (`in_town 3`); M301 is the new game's. Quarantine's: the desktop but
+/// for M404 (`in_town 3`), M408-M410 and M413 (town 4) and M412 (town 0);
+/// M401 is the new game's. M413's first blocks in towns 0-3 only mark its
+/// gate; its first that plays a scene is town 4's.
 pub fn place(n: i32) -> Option<Place> {
     Some(match n {
         3 => Place::Field,
@@ -99,9 +103,8 @@ pub fn place(n: i32) -> Option<Place> {
         201..=209 | 212 | 216 | 218 | 219 => Place::Desktop,
         214 | 215 | 217 => Place::Board,
         210 | 211 | 213 => Place::Town,
-        // Quarantine's Kyvia fights, from their towns (their first
-        // blocks' `in_town`).
-        308 | 312 => Place::Town,
+        301..=303 | 305..=307 | 311 | 314 => Place::Desktop,
+        304 | 308..=310 | 312 | 313 => Place::Town,
         _ => return None,
     })
 }
@@ -112,7 +115,8 @@ pub fn log_in_town(n: i32) -> Option<u8> {
     match n {
         115 => Some(2),
         210 | 211 | 213 => Some(3),
-        308 => Some(4),
+        304 => Some(3),
+        308..=310 | 313 => Some(4),
         312 => Some(0),
         _ => None,
     }
