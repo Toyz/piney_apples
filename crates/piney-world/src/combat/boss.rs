@@ -51,6 +51,15 @@ pub const KYVIA_FOURTH: i32 = 15;
 /// and keeps this history's word. Not 0: no blur.
 pub const HEAP_EXIT: u32 = 0x0100_003f;
 
+/// Quarantine's `ccBoss08` (code 7, event 313): its first form writes
+/// nothing to the blur, so `m_exit` is the word under the manager. On the
+/// story's way (town 4, then field 8) it lands in the room town 4 left:
+/// 0 (a clump object's +0x2c) with two members after 900 frames at the title,
+/// a blit buffer's pixels in other histories (docs/engine/heap.md
+/// "ccBoss08's m_exit"). The port keeps the 900-frame word: the
+/// manager's own blur until `ccBoss08_b`'s constructor writes its own.
+pub const BOSS08_HEAP_EXIT: u32 = 0;
+
 /// Skeith's file and model (`x11`, `CMP_trall`), and the effects' file.
 pub const FILE: &str = "x11";
 pub const CLUMP: &str = "CMP_trall";
@@ -1372,6 +1381,21 @@ pub fn above(pos: V4, dz: f32) -> V4 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `ccBoss08`'s first form on [`BOSS08_HEAP_EXIT`]: the manager's own
+    /// blur from its first `Main`, never exiting: 0x40808080, turn 0, the
+    /// scale eased from 1.01 to 1.0 by a thirtieth a frame and held.
+    #[test]
+    fn boss08s_first_form_shows_the_managers_own_blur() {
+        let mut blur = boss::blur::Blur::new(BOSS08_HEAP_EXIT);
+        let mut statics = boss::blur::Statics::default();
+        let shown: Vec<_> = (0..600).map(|_| blur.main(&mut statics).expect("a reflex every frame")).collect();
+        assert!(shown.iter().all(|r| r.abgr == 0x4080_8080 && r.turn == 0));
+        let scales: Vec<f32> = shown.iter().map(|r| f32::from_bits(r.scale)).collect();
+        assert!(scales[0] > 1.0 && scales[0] < 1.01, "{}", scales[0]);
+        assert!(scales.windows(2).all(|w| w[1] <= w[0]), "the scale only falls");
+        assert!(scales[40..].iter().all(|&x| x == 1.0), "held at 1.0");
+    }
 
     fn disc(name: &str) -> Option<std::sync::Arc<piney_data::archive::Archive>> {
         let p = std::path::PathBuf::from(format!("../../work/{name}/{name}.iso"));

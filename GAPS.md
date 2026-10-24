@@ -116,6 +116,14 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   picture worklog 422; the brothers' shields worklog 429; the brothers' bodies,
   trails and waves drawn, worklog 437), [x] Kyvia 02 (above); each event
   finishes under the autopilot
+- [ ] Quarantine's own bosses, none ported (`start_boss` takes no code
+  5-7, so their events go on without the fight): `ccBoss06` (code 5,
+  event 307), `ccBoss07` (6, event 310), `ccBoss08` (7, event 313):
+  `ccThBoss08`'s first form (`ccBoss08` and its `ccBoss08Seed`s, about
+  20 KB of code), second (`ccBoss08_b` and `ccBoss08Root`, about 28 KB)
+  and third (`ccBoss08_c`, `ccBoss08KillerEye`, `ccBoss08Eye`, about
+  31 KB). The
+  first form's blur word is measured (worklog 439, `BOSS08_HEAP_EXIT`)
 - [x] The Data Bugs (enemy type 0x40): drawn with their base form's clips
   and held at half their HP (`virusFlag`, worklog 299)
 

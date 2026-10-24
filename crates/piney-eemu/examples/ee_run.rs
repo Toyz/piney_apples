@@ -366,13 +366,29 @@ fn main() {
     let model: Rc<RefCell<Model>> =
         Rc::new(RefCell::new(if std::env::var_os("EE_HEAP_MODEL").is_some() { Model::Waiting } else { Model::Off }));
     let (heap_top, heap_end) = (sym("heapTop__6ccHeap").unwrap(), sym("heapEnd__6ccHeap").unwrap());
+    // EE_FILL=word: at the first `_ccMalloc` the region's one hole (past
+    // its record, to `heapEnd`) filled with `word`, so a word no one wrote
+    // since `InitFirst` shows as it. RAM here starts zeroed; the console's
+    // is what the boot left.
+    let fill: Option<u32> =
+        std::env::var("EE_FILL").ok().and_then(|v| u32::from_str_radix(v.trim_start_matches("0x"), 16).ok());
+    let filled = Rc::new(RefCell::new(fill.is_none()));
     if std::env::var_os("EE_HEAP").is_some() {
         let p = pending.clone();
         sys.watch(sym("_ccMalloc__FUiUiUii").unwrap(), move |sys, a| {
+            if !*filled.borrow() {
+                *filled.borrow_mut() = true;
+                let (top, end) = (sys.r32(heap_top), sys.r32(heap_end));
+                eprintln!("filling {:#x}..{end:#x} with {:#010x}", top + 32, fill.unwrap_or(0));
+                for at in (top + 32..end).step_by(4) {
+                    sys.w32(at, fill.unwrap_or(0));
+                }
+            }
             p.borrow_mut().insert(sys.current_id(), (a[1], a[3], sys.cpu.r[31] as u32, a[0]));
         });
         let (p, h, l, t, m) = (pending.clone(), heap.clone(), live.clone(), trace.clone(), model.clone());
-        sys.watch(0x0010_098c, move |sys, _| {
+        // `_ccMalloc`'s `jr ra` (+0x2ac, main 0x0010098c on every volume).
+        sys.watch(sym("_ccMalloc__FUiUiUii").unwrap() + 0x2ac, move |sys, _| {
             let v = sys.cpu.r[2] as u32;
             let (req, flags, ra, align) = p.borrow_mut().remove(&sys.current_id()).unwrap_or((0, 0, 0, 0));
             let mut m = m.borrow_mut();
@@ -444,11 +460,12 @@ fn main() {
             }
         });
     }
-    // Gorre's fight: the boss effect manager's `operator new(0x1038)` in
-    // ccThBossEffect (OUT gcmn 0x00472ea4) returns to 0x00472eac.
-    {
+    // A boss fight: the boss effect manager's `operator new(0x1038)` in
+    // ccThBossEffect returns 0x0c bytes into it (OUT gcmn 0x00472eac, QUA
+    // 0x003657bc).
+    if let Some(at) = sym("ccThBossEffect__FPv") {
         let h = heap.clone();
-        sys.watch(0x0047_2eac, move |sys, _| {
+        sys.watch(at + 0x1c, move |sys, _| {
             let m = sys.cpu.r[2] as u32;
             let exit = sys.r32(m + 0x2c);
             eprintln!("MANAGER at {m:#x} (vblank {}): m_exit word {exit:#010x}", sys.vblanks);
@@ -485,7 +502,8 @@ fn main() {
         .map(|v| v.split(',').map(|x| x.parse().unwrap()).collect())
         .unwrap_or_else(|| vec![1, 3, 5, -1, -1, -1]);
 
-    // Later scene changes: EE_THEN="vblank:a,t,f,d,fl,b;vblank:..."
+    // Later steps: EE_THEN="vblank:a,t,f,d,fl,b;vblank:..." - a scene, a
+    // member's id (an invite), three words (a warp) or 118,n (`area n`).
     let then: Vec<(u64, Vec<i32>)> = std::env::var("EE_THEN")
         .ok()
         .map(|v| {
@@ -501,7 +519,17 @@ fn main() {
     sys.boot(entry);
     let step = 60.min(vblanks);
     let mut done = 0;
-    let gp = 0x0038_ddf0;
+    // `_start`'s `$gp` (OUT 0x0038ddf0, QUA 0x00280770): the `lui` and
+    // `addiu` on `$a0` before its `move $gp, $a0`.
+    let gp = {
+        let w = |a: u32| sys.r32(a);
+        let at = (entry..entry + 0x100).step_by(4).find(|&a| w(a) == 0x0080_e025).expect("_start's move $gp");
+        let ops: Vec<u32> = (entry..at).step_by(4).map(w).collect();
+        let hi = ops.iter().rfind(|&&o| o >> 16 == 0x3c04).expect("lui $a0") << 16;
+        let lo = ops.iter().rfind(|&&o| o >> 16 == 0x2484).expect("addiu $a0") & 0xffff;
+        hi.wrapping_add(lo as u16 as i16 as u32)
+    };
+    eprintln!("gp {gp:#x}");
     while done < vblanks {
         if let Some(bytes) = save.as_ref()
             && done == go_at
@@ -510,6 +538,12 @@ fn main() {
             sys.write(sd, bytes);
             let game = sys.r32(sym("game").unwrap());
             eprintln!("injecting the save at {sd:#x}; game {game:#x}; scene {scene:?}");
+            // EE_AREA=n: the event instruction `area n` for a story area
+            // (1-13) before the scene: `WORLD_MAN.eventAreaNumber` (+0x120).
+            if let Some(n) = std::env::var("EE_AREA").ok().and_then(|v| v.parse::<u32>().ok()) {
+                let wm = sys.r32(sym("worldman").unwrap());
+                sys.w32(wm + 0x120, n);
+            }
             sys.call(sym("ChangeRequest__6ccGameFii").unwrap(), &[game, 5, 8], gp).unwrap();
             let sc: Vec<u32> = std::iter::once(game).chain(scene.iter().map(|&v| v as u32)).collect();
             sys.call(sym("ChangeScene__6ccGameFiiiiii").unwrap(), &sc, gp).unwrap();
@@ -528,6 +562,13 @@ fn main() {
                     let t = sys.call(start, &[task, 34, 4096], gp).unwrap();
                     sys.w32(t + 0x14, 1);
                     sys.w32(t + 0x18, sc[0] as u32);
+                    continue;
+                }
+                if let [118, n] = sc[..] {
+                    // The event instruction `area n` (1-13).
+                    let wm = sys.r32(sym("worldman").unwrap());
+                    eprintln!("area {n} at vblank {}", sys.vblanks);
+                    sys.w32(wm + 0x120, n as u32);
                     continue;
                 }
                 if sc.len() == 3 {
@@ -562,7 +603,7 @@ fn main() {
             .collect();
         eprintln!("vblank {} threads {}", sys.vblanks, live.join(" "));
         for k in 0..sys.threads.len() {
-            if sys.threads[k].func == 0x0014_7f40
+            if Some(sys.threads[k].func) == sym("ccStream_PlaySceneThread__FP6ccTscb")
                 && sys.threads[k].state != State::Dormant
                 && let Some(st) = sys.thread_reg(k, 21)
             {

@@ -195,3 +195,24 @@ fn blur_shots() {
         });
     }
 }
+
+/// `ccSaveData` before Quarantine's event 313's fight, written to
+/// `PINEY_SAVE_OUT` for piney-eemu's `ee_run` (the whole program run to
+/// `ccBoss08`'s first frame): the story to 313, its blocks 0-14 played
+/// (`PINEY_SAVE_BLOCKS`) and `eventStatus[0]` 1 (block 15's). The party
+/// is `ee_run`'s to invite.
+#[test]
+#[ignore]
+fn event_313_save_bytes() {
+    let Ok(out) = std::env::var("PINEY_SAVE_OUT") else { return };
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/quarantine/quarantine.iso");
+    if !iso.exists() {
+        return;
+    }
+    let blocks: u32 = std::env::var("PINEY_SAVE_BLOCKS").ok().and_then(|v| v.parse().ok()).unwrap_or(15);
+    let (mut state, _) = crate::start::state_at(&iso, 313).unwrap();
+    let f = state.save.event_flag(313);
+    state.save.set_event_flag(313, f | ((1 << blocks) - 1));
+    state.save.set_u8(offset::EVENT_STATUS, 1);
+    std::fs::write(out, state.save.bytes()).unwrap();
+}

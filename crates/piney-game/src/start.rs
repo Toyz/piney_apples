@@ -296,17 +296,7 @@ pub fn build(iso: &Path, n: i32) -> Result<Start, String> {
         "story:{n}: {volume:?}'s start points are {:?}",
         story.iter().filter(|&&e| place(e).is_some()).collect::<Vec<_>>()
     ))?;
-    let areas = crate::story::from_tables(piney_data::area::AreaTables::of(volume));
-    let (mut state, mut vm) = crate::world::new_game(&mut disc)?;
-    for &e in story.iter().take_while(|&&e| e < n) {
-        vm.flag_set(e, &mut Replay { save: &mut state.save, areas: &areas });
-        // The first Log in, which the story's second event opens after.
-        if e == story[0] {
-            crate::session::log_in(iso, &mut state);
-        }
-    }
-    let goes = goes(&vm, n);
-    fights(&mut state.save, &areas, story, n, &goes);
+    let (mut state, vm) = state_at(iso, n)?;
     let at = match place {
         Place::Desktop => Resume::Desktop,
         Place::Board => Resume::Board,
@@ -330,6 +320,27 @@ pub fn build(iso: &Path, n: i32) -> Result<Start, String> {
         }
     };
     Ok(Start { state, vm, at })
+}
+
+/// The save and the event task as the story leaves them before event `n`
+/// of the disc's volume: each event before it replayed, its fights won.
+/// [`build`]'s, for any event of the story, a start point or not.
+pub fn state_at(iso: &Path, n: i32) -> Result<(SaveState, Vm), String> {
+    let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+    let volume = disc.volume().map_err(|e| e.to_string())?;
+    let story = story(volume);
+    let areas = crate::story::from_tables(piney_data::area::AreaTables::of(volume));
+    let (mut state, mut vm) = crate::world::new_game(&mut disc)?;
+    for &e in story.iter().take_while(|&&e| e < n) {
+        vm.flag_set(e, &mut Replay { save: &mut state.save, areas: &areas });
+        // The first Log in, which the story's second event opens after.
+        if e == story[0] {
+            crate::session::log_in(iso, &mut state);
+        }
+    }
+    let goes = goes(&vm, n);
+    fights(&mut state.save, &areas, story, n, &goes);
+    Ok((state, vm))
 }
 
 /// The session for `--mode story:N`.

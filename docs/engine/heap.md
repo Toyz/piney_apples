@@ -1,9 +1,9 @@
 ---
 title: The heap - ccHeap and what it leaves behind
 status: solid
-volumes: OUT
-covers: OUT SLUS_205.63:0x00100390 ccHeap::InitFirst, 0x00100500 ccHeapFree::SearchFree, 0x001005b0 ccHeapFree::AddTbl, 0x001006e0 _ccMalloc, 0x001009a0 _ccFree, 0x00100b60 ccMemReduce, 0x00100c90 ccMalloc, 0x00100cb0 ccMallocB, 0x00100cd0 ccMemalign, 0x00100ce0 ccMemalignB, 0x00100cf0 ccFree, 0x00386b80 heapTop, 0x00386b84 heapEnd, 0x00386b8c useEnd, 0x00386b90 useEndB, 0x003872d0 freeTbl; OUT gcmn.prg:0x00472e90 ccThBossEffect (its operator new)
-worklog: 432, 436
+volumes: OUT, QUA
+covers: OUT SLUS_205.63:0x00100390 ccHeap::InitFirst, 0x00100500 ccHeapFree::SearchFree, 0x001005b0 ccHeapFree::AddTbl, 0x001006e0 _ccMalloc, 0x001009a0 _ccFree, 0x00100b60 ccMemReduce, 0x00100c90 ccMalloc, 0x00100cb0 ccMallocB, 0x00100cd0 ccMemalign, 0x00100ce0 ccMemalignB, 0x00100cf0 ccFree, 0x00386b80 heapTop, 0x00386b84 heapEnd, 0x00386b8c useEnd, 0x00386b90 useEndB, 0x003872d0 freeTbl; OUT gcmn.prg:0x00472e90 ccThBossEffect (its operator new); QUA gcmn.prg:0x003657a0 ccThBossEffect, 0x003aca30 ccThBoss08, 0x003acbd0 ccBoss08::ccBoss08, 0x003b2270 ccBoss08_b::ccBoss08_b's blur write, 0x003b9640 ccBoss08_c::ccBoss08_c's blur write; QUA SLUS_205.64:0x0013ab68 ccClump::Init's new(0xb0), 0x00104200 ccBltData::Init
+worklog: 432, 436, 439
 ---
 
 # The heap - ccHeap and what it leaves behind
@@ -148,8 +148,67 @@ The port has no game heap. It takes the 900-frame history's word,
 histories, and keeps it on `Combat::heap_exit`: a 0 there plays the other
 outcome.
 
+## ccBoss08's m_exit
+
+Quarantine's last fight, `ccBoss08` (`bossFunc` code 7), starts in
+event 313:
+
+- Block 14 runs in town 4 and ends with `area 8` and `scene 1 4 8`.
+- In field 8, block 15's `entry type=7 code=7` starts the fight's tasks,
+  and block 16's `stream 105` (1,100 frames) plays before the first form.
+
+`ccThBoss08` (QUA gcmn 0x003aca30) makes the first form, `ccBoss08`. It
+runs it to its exit, then `ccThBoss08b_Main`; with `saveData` +0x652f
+set it goes straight to `ccThBoss08c_Main`. The effect manager is the
+same `operator new(0x1038)` (QUA gcmn 0x003657b4).
+
+A register-tracked scan of every function of the eight classes found
+the blur written only by `ccBoss08_b`'s constructor, its
+`OnThinkBodyPress` and `OnThinkRootDrain`, and `ccBoss08_c`'s
+constructor. The first form's classes (`ccBoss08`, its `ccBoss08Seed`s)
+and `ccThBoss08` never touch it. So through the first form `m_exit` is the
+word under the manager.
+
+`ee_run` runs Quarantine with the port's save before event 313 (blocks
+0-14 played, `eventStatus[0]` 1). The heap model placed every handout
+where the game did (56,537 in the first run).
+
+| history | the manager | under its +0x2c | `m_exit` | blur |
+| --- | --- | --- | --- | --- |
+| town 4, BlackRose and member 2, save at 900 frames | 0x01465c30 | a town-4 clump object's +0x2c (`ccClump::Init`'s `new(0xb0)`) | 0 | yes |
+| town 4, BlackRose alone, 900 frames | 0x013a7890 | a 0x10000 `ccBltData` buffer of town 4 | 0xffea7682 | no |
+| town 4, both members, 1,440 frames | 0x014663a0 | the same buffer | 0xbebeb6d4 | no |
+| town 0, both members, 900 frames | 0x014667c0 | a model's DMA colour buffer (`Decode_Mmat01`) | 0x80657077 | no |
+| field 8 at once, Kite alone, 900, 240 or 1,440 frames | 0x012c7480, 0x013c2e90, 0x012c7350 | nothing: past every block handed out | the boot's | - |
+
+- **On the story's way.** The manager lands in the room town 4's scene
+  freed at the change, and reads what one of its owners wrote there.
+  As for Gorre, the party and the frame the save was loaded on decide
+  which. Both outcomes come from ordinary play.
+- **Straight to the field.** Nothing is ever handed out at or above the
+  manager, so its word is RAM no code of the game writes.
+  `EE_FILL=a5a5a5a5` fills the heap's one hole at the first `_ccMalloc`,
+  and all three runs read 0xa5a5a5a5 back.
+
+  The game never reloads itself (no call of `LoadExecPS2` or
+  `ExecPS2`). So that RAM is what the console's boot (the BIOS's loader)
+  left. That code is not on the disc, and nothing here can say what it
+  holds.
+
+  The story never takes this way: block 14 always runs in town 4
+  first. Only a console start at field 8 would.
+
+The port has no `ccBoss08` yet. It keeps the first history's word,
+`piney_world::combat::boss::BOSS08_HEAP_EXIT` = 0: the manager's own blur
+through the first form, from the fight's first frame.
+
 ## Checks
 
+- `ee_run` runs any volume. It finds `_start`'s `$gp`,
+  `_ccMalloc`'s return and `ccThBossEffect`'s `new` by symbol.
+  `EE_AREA=n` or `EE_THEN`'s `118,n` is the event instruction `area n`
+  (`WORLD_MAN.eventAreaNumber`). `EE_FILL=word` fills the heap's one
+  hole at the first handout.
 - `ee_run` with `EE_HEAP` prints the manager's word, the blocks under it
   and what came into the hole (`MANAGER at ...`); `EE_TRACE` writes every
   handout, free and cut; `EE_DUMP_FREED=size:path` the bytes of a freed
