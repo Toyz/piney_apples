@@ -177,7 +177,8 @@ Quarantine's executable has, in event 314 "Ending", block 3
    0x1000) and breathes until its tscb's +0x14 is set. The thread is
    `STFROLL_VOL4`, Quarantine's staff roll. It draws with `ccKanji`
    (`Init`), sprites of `TEX_hackrogo` and `TEX_hackrogo_2`, particle
-   generators, and the `ending` animations.
+   generators, and the `ending` animations
+   ([the field staff roll](../engine/stfroll.md)).
 5. Both buffers are freed.
 
 Nothing reads the two globals. Every instruction in the executable and the

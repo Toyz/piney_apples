@@ -344,6 +344,10 @@ impl Host for AreaHost<'_> {
             self.st.log("gate_hack_anim".into());
             self.gate_hack_menus(false);
         }
+        if w == Wait::EndingKanji {
+            self.st.log("ending_kanji".into());
+            self.world.ending_start();
+        }
     }
 
     /// The town's `scene` woke in this area's set-up (its instruction
@@ -355,6 +359,8 @@ impl Host for AreaHost<'_> {
             Wait::PlayerSkill => self.world.player_skill_busy(),
             // gate_hack_anim: while ccCheckGtHackAnm() (ghoFlag).
             Wait::GateHackAnim => self.world.gate_hack_anim(),
+            // ending_kanji: until STFROLL_VOL4's tscb +0x14 is set.
+            Wait::EndingKanji => self.world.ending_running(),
             // piros_colour: its breaths.
             Wait::PirosColour => {
                 let Some(mut seq) = self.st.piros.take() else { return false };

@@ -48,6 +48,7 @@ pub mod skillstart;
 pub mod space;
 pub mod spell;
 pub mod sprite;
+pub mod stfroll;
 pub mod strfx;
 pub mod summoned;
 pub mod summons;

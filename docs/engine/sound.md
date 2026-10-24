@@ -468,6 +468,10 @@ except that 4 means play type 0 with +0x5f set (areas 1-12 and 18). Area
 +0x108..+0x114. Area 48 forces play type 0; otherwise `game.areaPrev` 2
 (the player came from a dungeon) forces 1. 25 of the 123 rows name a bank:
 areas 1-13, 15, 16, 18, 23, 25, 48, 66, 67, 71, 77, 91 and 101.
+Quarantine's table runs to 127 rows (`eventPlayType` too, 127 bytes;
+`sqVolTblEvent` 126 rows). Its field 126, the ending's
+staff roll ([stfroll.md](stfroll.md#the-music)), takes row 126: -1, play
+type 3, so no bank.
 
 1. `initBeforeLoad` (0x00183080): fades 0 and 1 off, `bgmStopFlag` (+0x61)
    set, +0x134 set, +0x133 and +0x137 cleared; the task's next frame
@@ -1176,9 +1180,7 @@ These are models of the hardware, not checked against a PS2.
 - Neither the canals' nor the church's volumes were compared with the
   game playing; they follow the code, run in unit tests.
 - Event bank rows past 122 (`game.field` 123 and up) read past the end of
-  `sqDataEvent`. No Infection scenario gets there. Quarantine's ending
-  (event 314) sets field 126 (`eventAreaNumber` 126): whether that loads
-  the event bank's row 126 is not known.
+  Infection's `sqDataEvent`. No Infection scenario gets there.
 - The SPU2's own behaviour - envelope timing, ENVX/ENDX, interpolation,
   reverb - rests on the PlayStation SPU documentation, not on measurement.
 - The synthesizer paths no data takes: noise voices, exclusive groups,

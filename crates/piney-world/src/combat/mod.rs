@@ -241,6 +241,9 @@ pub trait FxTasks {
     fn skill_anim(&mut self, _key: u32, _file: &str) -> Option<flow::AnimFrame> {
         None
     }
+    /// Quarantine's `STFROLL_VOL4` (66), the field staff roll event 314's
+    /// `ending_kanji` starts: its main, once it runs.
+    fn ending(&mut self, _w: &mut FxWorld) {}
     /// `ccThBossEffect` (66), before the boss's task: the starters for
     /// `w.shows`, then `ccBossEffManager::Draw` over the boss's effects.
     fn boss_effects(&mut self, _w: &mut FxWorld) {}
@@ -2001,6 +2004,11 @@ impl Combat {
             self.consequence(e, x.hits, bounds, x.puppet_show);
         }
         self.drain_chats(t, x.save, &party, &ents);
+        // STFROLL_VOL4 (66): the ending's staff roll, while it runs (no
+        // boss is in its field). It reads no shows: they stay for the
+        // effects' pass.
+        let seen = self.shows.len();
+        self.fx_run(x, bounds, seen, |fx, w| fx.ending(w), fx, None);
         // ccThBossEffect (66): the boss effect manager's pass (on past the
         // boss's exit, as its task is); ccThBoss01 (66): the boss, then the
         // effects its Main made.
@@ -2228,6 +2236,21 @@ impl Combat {
             let frame = stage::PlayerFrame { bounds, player: self.scene.chars[k].pos };
             self.breath_pass(from, x.hits, &frame);
         }
+        self.fx_run(x, bounds, from, run, fx, damage);
+        self.fx_seen = self.shows.len();
+    }
+
+    /// An effect task over the battle as it stands, with the shows from
+    /// `from` on; none marked seen.
+    fn fx_run(
+        &mut self,
+        x: &mut Tasks,
+        bounds: MapBounds,
+        from: usize,
+        run: impl FnOnce(&mut dyn FxTasks, &mut FxWorld),
+        fx: &mut dyn FxTasks,
+        damage: Option<(&Env, &mut Events)>,
+    ) {
         let d = self.data.clone();
         let mut w = FxWorld {
             t: &d.t,
@@ -2249,7 +2272,6 @@ impl Combat {
             damage: damage.map(|(env, ev)| FxDamage { skills: &self.skills, env, ev }),
         };
         run(fx, &mut w);
-        self.fx_seen = self.shows.len();
     }
 
     /// What an event of the rules leads to, outside the affects already

@@ -97,6 +97,10 @@ fn main() {
     let sym = |n: &str| syms.get(n).map(|s| s.1);
     let mut sys = Sys::new();
     sys.log = std::env::var_os("EE_LOG").is_some();
+    // EE_SPIN=n: give up after n instructions with no vertical blank.
+    if let Some(n) = std::env::var("EE_SPIN").ok().and_then(|v| v.parse().ok()) {
+        sys.spin_limit = n;
+    }
     let entry = load_elf(&mut sys, &std::fs::read(elf).unwrap());
     let disc = Rc::new(RefCell::new(Disc {
         file: File::open(iso_path).unwrap(),
@@ -495,6 +499,26 @@ fn main() {
             }
         });
     }
+    // EE_PRINT=name,0xaddr,...: each call of these printed with its vblank,
+    // its first four arguments and the active ccLayer (its priority).
+    if let Ok(list) = std::env::var("EE_PRINT") {
+        let active = sym("active__7ccLayer").unwrap();
+        for w in list.split(',').filter(|w| !w.is_empty()) {
+            let at = match u32::from_str_radix(w.trim_start_matches("0x"), 16) {
+                Ok(a) if w.starts_with("0x") => a,
+                _ => sym(w).unwrap_or_else(|| panic!("no symbol {w}")),
+            };
+            let name = w.to_string();
+            sys.watch(at, move |sys, a| {
+                let lay = sys.r32(active);
+                let pri = if lay != 0 { sys.r32(lay + 4) as i16 } else { 0 };
+                eprintln!(
+                    "PRINT {} {name} {:#x} {:#x} {:#x} {:#x} active {lay:#x} pri {pri}",
+                    sys.vblanks, a[0], a[1], a[2], a[3]
+                );
+            });
+        }
+    }
     let save = std::env::var("EE_SAVE").ok().map(|p| std::fs::read(p).unwrap());
     let go_at: u64 = std::env::var("EE_GO").ok().and_then(|v| v.parse().ok()).unwrap_or(240);
     let scene: Vec<i32> = std::env::var("EE_SCENE")
@@ -564,6 +588,40 @@ fn main() {
                     sys.w32(t + 0x18, sc[0] as u32);
                     continue;
                 }
+                if let [169, list, func] = sc[..] {
+                    // Quarantine's `ending_kanji` from outside the event
+                    // task: the file list added, then its thread (66).
+                    // A task of its own (code written at 0x80000) does
+                    // what the instruction does after the flag: the list
+                    // added (it breathes), then `func`, which starts the
+                    // thread and breathes until it is done.
+                    let game = sys.r32(sym("game").unwrap());
+                    sys.w32(game + 0x7c, 1);
+                    eprintln!("ending_kanji at vblank {}", sys.vblanks);
+                    let jal = |t: u32| 0x0c00_0000 | ((t >> 2) & 0x03ff_ffff);
+                    let (list, func) = (list as u32, func as u32);
+                    let lo = list & 0xffff;
+                    let hi = (list >> 16).wrapping_add(u32::from(lo & 0x8000 != 0)) & 0xffff;
+                    let code = [
+                        0x3c04_0000 | hi,
+                        0x2484_0000 | lo,
+                        jal(sym("ccLoadFLAdd__FP10ccFileList").unwrap()),
+                        0,
+                        jal(func),
+                        0,
+                        0x2404_0001,
+                        jal(sym("ccBreathThread__Fi").unwrap()),
+                        0,
+                        0x1000_fffc,
+                        0,
+                    ];
+                    for (k, w) in code.iter().enumerate() {
+                        sys.w32(0x0008_0000 + 4 * k as u32, *w);
+                    }
+                    let start = sym("ccStartThread__FPFPv_vii").unwrap();
+                    sys.call(start, &[0x0008_0000, 32, 4096], gp).unwrap();
+                    continue;
+                }
                 if let [118, n] = sc[..] {
                     // The event instruction `area n` (1-13).
                     let wm = sys.r32(sym("worldman").unwrap());
@@ -586,6 +644,15 @@ fn main() {
         }
         if let Err(e) = sys.run_vblanks(step) {
             eprintln!("stopped: {e} at pc {:#x} ra {:#x}", sys.run.pc, sys.cpu.r[31] as u32);
+            let sp = sys.cpu.r[29] as u32;
+            let up: Vec<String> = (0..48)
+                .map(|i| sys.r32(sp + 4 * i))
+                .filter(|&v| (0x100000..0x700000).contains(&v))
+                .map(|v| format!("{v:x}"))
+                .collect();
+            eprintln!("  stack {}", up.join(" "));
+            let regs: Vec<String> = (1..32).map(|i| format!("r{i} {:x}", sys.cpu.r[i] as u32)).collect();
+            eprintln!("  regs {}", regs.join(" "));
             eprintln!("intc {:?} enabled {:#x}", sys.handlers, sys.enabled_intc);
             eprintln!("dmac {:?} enabled {:#x}", sys.dmac, sys.enabled_dmac);
             let io = sys.io.borrow();

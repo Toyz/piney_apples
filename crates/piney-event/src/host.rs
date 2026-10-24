@@ -403,6 +403,9 @@ pub enum Wait {
     /// target (`cmndTarget +0x08`) has not acted; after each busy frame the
     /// interpreter calls [`Host::player_skill_step`]; `end` restores the menu.
     PlayerSkill,
+    /// Quarantine's `ending_kanji` (code 169): `begin` starts the field's
+    /// staff roll (`STFROLL_VOL4`), `busy` until its tscb's +0x14 is set.
+    EndingKanji,
 }
 
 thread_local! {
@@ -801,10 +804,9 @@ pub trait Host {
     fn grunty_mail(&mut self) {
         unported("grunty_mail");
     }
-    /// Quarantine's `ending_kanji`.
-    fn ending_kanji(&mut self) {
-        unported("ending_kanji");
-    }
+    /// Quarantine's `ending_kanji`, once its staff roll is over (the
+    /// roll itself is [`Wait::EndingKanji`]).
+    fn ending_kanji(&mut self) {}
 }
 
 /// A host that records every call and otherwise behaves like the defaults.

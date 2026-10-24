@@ -555,6 +555,20 @@ impl AreaMode {
         self.stream.player.as_ref().and_then(crate::stream::StreamPlayer::entry_name)
     }
 
+    /// What Quarantine's field staff roll (`STFROLL_VOL4`) asked this
+    /// frame: its camera (`changeCamera(3)`, the position and view) and
+    /// its music (`ccBgmPlay(2)`, `ccBgmStop`).
+    fn ending_asks(&mut self) {
+        use piney_world::field_world::EndingAsk;
+        for a in self.world.fx_mut().take_ending_asks() {
+            match a {
+                EndingAsk::Camera { pos, view } => self.world.ending_camera(pos, view),
+                EndingAsk::Bgm(n) => self.events.extend(usize::try_from(n).ok().map(Event::BgmStream)),
+                EndingAsk::BgmStop => self.events.push(Event::BgmStreamStop),
+            }
+        }
+    }
+
     /// One frame of the event task (`ccThEvent`, priority 32), before the
     /// world's tasks; then `ccSetupGameCtrl`'s side of the passes.
     fn event_frame(&mut self, pad: &Pad) {
@@ -1686,6 +1700,7 @@ impl Mode for AreaMode {
                 }
             }
         }
+        self.ending_asks();
         self.gate_stream(pad);
         self.member_item_steps();
         // The battle's sounds this frame, then the effects', heard from the

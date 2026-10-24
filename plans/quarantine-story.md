@@ -50,7 +50,7 @@ event from its own start, 447 s):
 | 311 | done under god (worklog 449) | was: the pilot stood at dungeon 103's point 1 (another dungeon's); the four dungeons left by the members' Sprite Ocarina, the lake by Gate Out |
 | 312 | blocks 0xe09 (worklog 449) | field 12's disc: the fourth Kyvia fight under the pilot (area 108's way out was field 9, Infection's); the cores wear slowly and the fourth place's heals outpace the party; `kyvia_s_fourth_fight_to_its_end` plays it with its aids |
 | 313 | blocks 0x7401 (worklog 462) | was: Lia Fail, BlackRose's "Are you ready?" not answered (the party she asks for); now on to field 8's fight |
-| 314 | ends (worklog 464) | was: field 122 through the gate (`area 126` and the desktop's `scene` unported); now through field 126's empty map to its end, the staff roll (`ending_kanji`) not yet ported |
+| 314 | ends (worklog 464, 465) | was: field 122 through the gate (`area 126` and the desktop's `scene` unported); now through field 126's empty map, its staff roll (`ending_kanji`, 11742 frames, worklog 465) and the desktop's to its end |
 
 ## The gaps, in story order
 
@@ -74,8 +74,8 @@ event from its own start, 447 s):
    first form); 313's answer under the pilot (worklog 462: BlackRose and
    another called, Yes twice, on to field 8).
 7. **314**: `area 126` and the desktop's `scene` into field 126's empty
-   map (worklog 464); next `ending_kanji`, `STFROLL_VOL4`, the hacking
-   logos.
+   map (worklog 464); `ending_kanji`, `STFROLL_VOL4`, the hacking logos
+   (worklog 465: every frame against the game's code, its music alone).
 8. The whole runs: from the new game, and from an Outbreak save
    (`ConvGame`).
 

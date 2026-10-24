@@ -387,6 +387,7 @@ The 40 conditions and 12 precondition tags have the same lengths everywhere.
     the handler's two stores and two loads for `ccFree`.
   - It is used in event 314 "Ending", block 3; OUT's copy of that script
     already contains it and skips it.
+  - The port: `Wait::EndingKanji`, the roll in [stfroll.md](stfroll.md).
 
 **Same length, changed behaviour, from MUT on** (MUT addresses; OUT and QUA
 run the same code):

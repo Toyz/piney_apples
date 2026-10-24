@@ -319,6 +319,9 @@ pub struct Sys {
     pub heap_end: u32,
     pub hblank: u64,
     pub vblanks: u64,
+    /// Instructions with no vertical blank before `run_vblanks` gives up
+    /// (a thread spinning on what no interrupt here sets).
+    pub spin_limit: u64,
     /// Syscalls not stood in for, by number (logged once each).
     pub unknown_syscalls: HashMap<i32, u32>,
     pub log: bool,
@@ -363,6 +366,7 @@ impl Sys {
             heap_end: 0,
             hblank: 0,
             vblanks: 0,
+            spin_limit: 4_000_000_000,
             unknown_syscalls: HashMap::new(),
             log: false,
             in_isr: false,
@@ -1177,9 +1181,10 @@ impl Sys {
             if self.vblanks != at.0 {
                 at = (self.vblanks, self.executed);
             }
-            if self.executed - at.1 > 4_000_000_000 {
+            if self.executed - at.1 > self.spin_limit {
                 return Err(format!(
-                    "no vertical blank for 4e9 steps: thread {} at {:#x}",
+                    "no vertical blank for {} steps: thread {} at {:#x}",
+                    self.spin_limit,
                     self.current_id(),
                     self.run.pc
                 ));

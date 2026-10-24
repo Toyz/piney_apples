@@ -110,6 +110,20 @@ fn vol(out: &mut Out, rows: &[Vec<u8>]) {
     }
 }
 
+/// A play type table's rows: one per row of its `SQ_LOAD` table (`loads`),
+/// which the game indexes it with alike, or more where it has grown more,
+/// at most up to the next global.
+fn play_rows(p: &Program, re: Option<&Program>, name: &str, loads: usize) -> Result<Vec<Vec<u8>>, String> {
+    let s = sym(p, name)?;
+    let gap = p.following(s.value).ok_or("no global after")?.value - s.value;
+    let own = match re {
+        Some(re) => extent(p, re, name, 1)?,
+        None => s.size,
+    };
+    let count = own.max(loads as u32).min(gap);
+    (0..count).map(|i| p.read(s.value + i, 1)).collect()
+}
+
 /// A play type table: an s8 per row.
 fn play(out: &mut Out, rows: &[Vec<u8>]) {
     out.count(rows.len());
@@ -157,15 +171,17 @@ pub fn bytes(v: Vol) -> Result<Vec<u8>, String> {
                 return Err(format!("the field's tables point at {name}"));
             }
         }
-        load(&mut out, &rows(m, rm, &fl[k], 24)?);
+        let loads = rows(m, rm, &fl[k], 24)?;
+        load(&mut out, &loads);
         vol(&mut out, &rows(m, rm, &fv[k], 36)?);
-        play(&mut out, &rows(m, rm, &fp[k], 1)?);
+        play(&mut out, &play_rows(m, rm, &fp[k], loads.len())?);
     }
     for (lo, vo, pl) in CONTEXTS {
-        load(&mut out, &rows(m, rm, lo, 24)?);
+        let loads = rows(m, rm, lo, 24)?;
+        load(&mut out, &loads);
         vol(&mut out, &rows(m, rm, vo, 36)?);
         match pl {
-            Some(pl) => play(&mut out, &rows(m, rm, pl, 1)?),
+            Some(pl) => play(&mut out, &play_rows(m, rm, pl, loads.len())?),
             None => out.count(0),
         }
     }

@@ -165,7 +165,7 @@ compared. (GAPS.md "After Infection" tracks the phases.)
 
 ### ui
 
-- [[94]] the later volumes' staff rolls (stfroll2-4) not tried — GAPS.md lists Quarantine's staff roll as its own
+- [[94]] the later volumes' staff rolls (stfroll2-4) not tried — answered: the desktop's roll plays on every volume (every_ending_plays_over_no_desktop_theme), and Quarantine's own, `STFROLL_VOL4`, by [[465]]
 - [[276]] Mutation's staff roll and what the desktop does after it (the save for Outbreak's carry-over) — not followed
 
 - [[390]] tools/test_fieldui_rs.py on Outbreak and Quarantine: every Ryu Book case matches, but 7 (OUT) and 8 (QUA) of the other menus' cases differ: three of noise, whose Disp block the harness does not find there (`DISP_NOIZ`, `GT_HACK` left empty: test_inter_noiz, test_a_new_scenes_menu, test_gate_hack), and test_gate_refusal, test_chat_member_refusals, test_low_hp (conIcon), test_spring_throw, QUA's test_skill_refusals — not read

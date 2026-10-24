@@ -506,6 +506,15 @@ impl Camera {
         self.cam_id = n;
     }
 
+    /// `changeCamera(3)`, `cameraSetPos(pos, 3)`, `cameraSetView(view, 3)`:
+    /// the event camera at `pos` looking at `view` (the field staff roll's).
+    pub fn set_event(&mut self, pos: V4, view: V4) {
+        self.change_camera(id::EVENT);
+        let c = self.cam_mut(id::EVENT);
+        c.pos = pos;
+        c.view = view;
+    }
+
     /// `ccMenuCtrl::SetMerchantCamera()` (gcmn 0x005269d0), as a shop's menu
     /// opens: `changeCamera(3)`, `ecam`'s view and position (a breeder's the town's
     /// fixed pair; else 500 out from the merchant at his heading less 1.3708 and

@@ -795,7 +795,8 @@ for 126: gcmn 0x00305120, 0x1c4 bytes, vtable 0x002766b0.
   The party stands at `eventStartPos` as the last story map left it
   (field 8's arena on the story's way), the others as any map's.
 - Block 3 there hides Kite (`pc_act 0 6`: act 14, transparency 0) and
-  runs `ending_kanji`, the staff roll `STFROLL_VOL4`.
+  runs `ending_kanji`, the staff roll `STFROLL_VOL4`
+  ([stfroll.md](stfroll.md)).
 
 The port: `piney_world::evarea_end::EndArea`. `WorldMan::event_start`
 carries `eventStartPos` from one story map to the next. The desktop's

@@ -28,6 +28,7 @@ pub mod race;
 pub mod registry;
 pub mod sjis;
 pub mod staffroll;
+pub mod stfroll;
 pub mod stream;
 pub mod talk;
 pub mod title;

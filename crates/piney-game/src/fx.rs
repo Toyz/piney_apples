@@ -58,6 +58,95 @@ pub struct AreaFx {
     skill_files: std::collections::HashMap<String, Option<std::rc::Rc<piney_desktop::assets::SceneFile>>>,
     skill_anims:
         std::collections::HashMap<u32, (std::rc::Rc<piney_desktop::assets::SceneFile>, piney_world::pose::Play)>,
+    /// Quarantine's field staff roll: asked to start (the save's names), and
+    /// running.
+    ending_asked: Option<piney_desktop::kanji::Names>,
+    ending: Option<Box<Ending>>,
+}
+
+/// `STFROLL_VOL4` as it runs, and what it draws with.
+struct Ending {
+    roll: piney_effect::stfroll::StfRoll,
+    file: piney_desktop::assets::SceneFile,
+    morphers: std::collections::HashMap<u32, u32>,
+    fonts: Option<piney_desktop::kanji::Fonts>,
+    names: piney_desktop::kanji::Names,
+    /// The logo's textures by name, found once each.
+    logos: std::collections::HashMap<&'static str, Option<(piney_draw::TexRef, i32)>>,
+    /// The last frame's draws, and what it asked since the world last took
+    /// them.
+    draws: Vec<piney_effect::stfroll::Draw>,
+    asks: Vec<piney_world::field_world::EndingAsk>,
+}
+
+impl Ending {
+    fn ask(&mut self, asks: Vec<piney_effect::stfroll::Ask>) {
+        use piney_effect::stfroll::Ask;
+        use piney_world::field_world::EndingAsk;
+        self.asks.extend(asks.into_iter().map(|a| match a {
+            Ask::Camera { pos, view } => EndingAsk::Camera { pos, view },
+            Ask::Bgm(n) => EndingAsk::Bgm(n),
+            Ask::BgmStop => EndingAsk::BgmStop,
+        }));
+    }
+
+    /// The roll's draws as the game sends them: the credits' kanji on layer
+    /// 129, the logo's mask on sysLayer, the ring and book (`ccAnm::Draw`
+    /// with `ccLayer::active` sysLayer: Kite, hidden, makes no arms effect
+    /// to leave it otherwise), all through sysLayer's view (`ccLayer::Init`'s).
+    fn draw(&mut self, archive: &Archive, camera: &piney_world::camera::Camera, ctx: &mut Ctx) {
+        use piney_effect::stfroll::{Draw, TEXT_LAYER};
+        const SYS_LAYER: i16 = 0;
+        // sysLayer's `SetFrame(0, 0, 512, 384, 256, 192, 1, 1)`, which the
+        // roll's text layer takes too.
+        let view = piney_desktop::view::LayerView::default_layer();
+        let to_screen = piney_world::draw::screen(&camera.world_screen);
+        for d in &self.draws {
+            match d {
+                Draw::Line { x, y, text, .. } => {
+                    let Some(fonts) = &self.fonts else { continue };
+                    let mut k = piney_desktop::kanji::Kanji::init(3, 16);
+                    k.kt = piney_desktop::kanji::Kt::LargeFixed;
+                    let c = piney_data::tables::kanji::SPRITE_COLOR_TABLE[7];
+                    k.colour = [c[0], c[1], c[2], 0x80];
+                    k.dx = f32::from_bits(*x);
+                    k.dy = f32::from_bits(*y);
+                    let raw = piney_data::tables::sjis::encode(text);
+                    ctx.disp(fonts, &mut k, TEXT_LAYER, &view, &raw, &self.names);
+                }
+                Draw::Logo { tex, transp } => {
+                    let found = self.logos.entry(tex).or_insert_with(|| {
+                        piney_desktop::staffroll::picture_tex(archive, piney_effect::stfroll::CCS, tex)
+                    });
+                    let Some((t, h)) = found else { continue };
+                    let mut m = piney_desktop::sprite::Sprite::mask(SYS_LAYER, t.clone(), *h, 1);
+                    m.transp = f32::from_bits(*transp);
+                    (m.dx, m.dy, m.sx, m.sy) = (0.0, 0.0, 512.0, 384.0);
+                    (m.su, m.sv, m.wu, m.wv, m.wi) = (512, 512, 0, 0, 1);
+                    m.make_packet(0, &view);
+                    m.send(&mut ctx.layers);
+                }
+                Draw::Anm { anim, time, matrix, transparency } => {
+                    let Some(mut play) = piney_world::pose::Play::new(&self.file, anim.clip()) else { continue };
+                    (play.time, play.posed) = (*time, *time);
+                    piney_world::town::anim_draw_blended(
+                        &mut ctx.layers,
+                        SYS_LAYER,
+                        to_screen,
+                        (&self.file, &self.morphers),
+                        &play,
+                        piney_world::draw::mat(matrix),
+                        &[],
+                        f32::from_bits(*transparency),
+                        None,
+                        None,
+                        piney_world::draw::Fogging::None,
+                        None,
+                    );
+                }
+            }
+        }
+    }
 }
 
 impl AreaFx {
@@ -94,6 +183,8 @@ impl AreaFx {
             archive: archive.clone(),
             skill_files: Default::default(),
             skill_anims: Default::default(),
+            ending_asked: None,
+            ending: None,
         })
     }
 
@@ -156,6 +247,53 @@ impl AreaFx {
 }
 
 impl FxTasks for AreaFx {
+    /// `STFROLL_VOL4` (gcmn 0x004f0950): its thread's first run makes the
+    /// object (`Init(0)`); each run after it the main, until it is done
+    /// (+0x108), when the tscb's +0x14 is set and it breathes for good.
+    fn ending(&mut self, w: &mut FxWorld) {
+        if let Some(names) = self.ending_asked.take() {
+            let volume = self.fx.assets.volume;
+            let file = match piney_desktop::assets::SceneFile::read(&self.archive, piney_effect::stfroll::CCS) {
+                Ok(f) => f,
+                Err(e) => {
+                    tracing::warn!("the staff roll's scene file: {e}");
+                    return;
+                }
+            };
+            let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
+            let t = piney_data::tables::stfroll::of(volume);
+            let mut asks = Vec::new();
+            let roll = piney_effect::stfroll::StfRoll::new(t, &file, &mut asks);
+            let fonts = piney_desktop::assets::read_fonts(volume, &self.archive).ok();
+            let mut e = Ending {
+                roll,
+                file,
+                morphers,
+                fonts,
+                names,
+                logos: Default::default(),
+                draws: Vec::new(),
+                asks: Vec::new(),
+            };
+            e.ask(asks);
+            self.ending = Some(Box::new(e));
+            return;
+        }
+        let Some(e) = self.ending.as_mut() else { return };
+        // Done, the thread only breathes: its main draws no more.
+        if e.roll.done {
+            e.draws.clear();
+            return;
+        }
+        let t = piney_data::tables::stfroll::of(self.fx.assets.volume);
+        let mut host = BattleHost::of(w);
+        let (ctrl, mut cx) = self.fx.split(&mut host);
+        let (draws, asks) = e.roll.main(ctrl, &mut cx, t, &e.file);
+        e.draws = draws;
+        e.ask(asks);
+        self.events.extend(self.fx.take_events());
+    }
+
     fn effect(&mut self, w: &mut FxWorld) {
         self.start(w);
         let mut host = BattleHost::of(w);
@@ -273,6 +411,18 @@ impl AreaFx {
 impl FieldFx for AreaFx {
     fn tasks(&mut self) -> &mut dyn FxTasks {
         self
+    }
+
+    fn ending_start(&mut self, names: piney_desktop::kanji::Names) {
+        self.ending_asked = Some(names);
+    }
+
+    fn ending_running(&self) -> bool {
+        self.ending_asked.is_some() || self.ending.as_ref().is_some_and(|e| !e.roll.done)
+    }
+
+    fn take_ending_asks(&mut self) -> Vec<piney_world::field_world::EndingAsk> {
+        self.ending.as_mut().map(|e| std::mem::take(&mut e.asks)).unwrap_or_default()
     }
 
     fn census(&self) -> piney_world::field_world::FxCensus {
@@ -411,6 +561,9 @@ impl FieldFx for AreaFx {
         let host = ViewHost { view, camera };
         self.fx.fly_fonts(&host, false, false);
         flyfont::send(&self.fx.font.take(), &self.font, &mut ctx.layers);
+        if let Some(e) = &mut self.ending {
+            e.draw(&self.archive, view.camera, ctx);
+        }
     }
 
     /// A story map's sprites (`EVENTAREA02::DrawLensFlare`,

@@ -1059,6 +1059,145 @@ fn staffroll() -> Group {
     ])
 }
 
+/// Where Quarantine's field staff roll (`STFROLL_VOL4`, event 314's
+/// `ending_kanji`) keeps its data, found through its code: the thread that
+/// names itself "STFROLL_VOL4" calls its object's main as its third call
+/// without a name; that calls, as its seventh, the step that makes the
+/// generators, whose first `lui`/`addiu` pair builds the generator rows'
+/// address (QUA gcmn 0x005cee00). Everything else lies at fixed distances
+/// past them in the same block of data.
+fn stfroll_base(c: &Ctx) -> Result<u32, String> {
+    let (lo, hi) = c.p.code_range(true);
+    let word = |a: u32| c.p.u32(a);
+    let pair_at = |a: u32| -> Result<Option<u32>, String> {
+        let (w, x) = (word(a)?, word(a + 4)?);
+        Ok((w >> 26 == 0x0f && x >> 26 == 0x09 && (x >> 21) & 31 == (w >> 16) & 31)
+            .then(|| ((w & 0xffff) << 16).wrapping_add(sext16(x) as u32)))
+    };
+    let unnamed_calls = |f: u32, n: u32| -> Result<Vec<u32>, String> {
+        let mut out = Vec::new();
+        for k in 0..n {
+            let w = word(f + 4 * k)?;
+            if w == 0x03e0_0008 {
+                break;
+            }
+            if w >> 26 == 3 {
+                let t = (f & 0xf000_0000) | ((w & 0x03ff_ffff) << 2);
+                if !matches!(c.p.symbol_at(t, 0), Some((_, 0))) {
+                    out.push(t);
+                }
+            }
+        }
+        Ok(out)
+    };
+    let mut thread = None;
+    let mut a = lo;
+    while a + 8 <= hi && thread.is_none() {
+        if let Some(t) = pair_at(a)?
+            && c.p.mapped(t)
+            && c.p.cstr(t, 16).is_ok_and(|s| s == b"STFROLL_VOL4")
+        {
+            // The function's start: the nearest `addiu $sp, $sp, -n` above.
+            let mut f = a;
+            while f > lo && !(word(f)? >> 16 == 0x27bd && word(f)? & 0x8000 != 0) {
+                f -= 4;
+            }
+            thread = Some(f);
+        }
+        a += 4;
+    }
+    let thread = thread.ok_or("no code names STFROLL_VOL4")?;
+    let main = *unnamed_calls(thread, 64)?.get(2).ok_or("the staff roll's thread makes fewer than 3 calls")?;
+    let gens = *unnamed_calls(main, 64)?.get(6).ok_or("the staff roll's main makes fewer than 7 calls")?;
+    for k in 0..256 {
+        if let Some(t) = pair_at(gens + 4 * k)? {
+            return Ok(t);
+        }
+    }
+    Err(format!("0x{gens:08x} builds no table"))
+}
+
+/// `layout` read `off` bytes past [`stfroll_base`].
+fn stfroll_at(off: u32, layout: Layout) -> Layout {
+    let inner = layout.clone();
+    custom(Rc::new(move |c| inner.read(c, stfroll_base(c)?.wrapping_add(off))), layout)
+}
+
+/// A staff roll line (12 bytes): its place and its text, none on the row
+/// that ends the table.
+fn stfroll_line() -> Layout {
+    strukt(
+        "StfRollLine",
+        12,
+        vec![("x", 0, float()), ("y", 4, float()), ("text", 8, opt(cstr()))],
+        "A line of Quarantine's field staff roll: where it starts (`x`, and `y`, which the roll rewrites as it adds the line) and its text (none: the table's end).",
+    )
+}
+
+fn stfroll() -> Group {
+    let none = || Value::List(Vec::new());
+    let qua_only = |e: Entry| e.absent(Vol::Inf, none()).absent(Vol::Mut, none()).absent(Vol::Out, none());
+    let qua_only_va =
+        |e: Entry| e.absent(Vol::Inf, Value::Int(0)).absent(Vol::Mut, Value::Int(0)).absent(Vol::Out, Value::Int(0));
+    let lines = || array_through(stfroll_line(), Rc::new(|r: &Value| r.list()[2] == Value::None));
+    group(
+        "stfroll",
+        "StfRoll",
+        "Quarantine's field staff roll (`STFROLL_VOL4`, event 314's `ending_kanji`): its generators, force fields, the comets' random ranges and its lines. None on the other volumes.",
+        vec![
+            qua_only(derived(
+                "gens",
+                stfroll_at(0, array(gen_param(), 9)),
+                GCMN,
+                "The nine generators (QUA gcmn 0x005cee00): 0 and 1 the two glows; 5 a comet's main generator, 4 its other, 2 and 3 started with it and left running; 6 and 7 phase 3's two at the ring's place; 8 the last comet's main.",
+            )),
+            qua_only_va(derived(
+                "gens_va",
+                stfroll_at(0, addr()),
+                GCMN,
+                "Where the volume keeps them: their rows' identity, as the game's pointers to them.",
+            )),
+            qua_only(derived(
+                "ffs",
+                stfroll_at(0x200, array(ff_param(), 11)),
+                GCMN,
+                "The force fields after them (0x005cf000), 0x20 bytes each.",
+            )),
+            qua_only_va(derived("ffs_va", stfroll_at(0x200, addr()), GCMN, "Where the volume keeps them.")),
+            qua_only(derived(
+                "rand_x",
+                stfroll_at(0x360, array(float(), 6)),
+                GCMN,
+                "The comets' path points' x ranges (`ccRandF` of one picked by `abs(ccRand() % 6)`).",
+            )),
+            qua_only(derived(
+                "rand_y",
+                stfroll_at(0x380, array(float(), 6)),
+                GCMN,
+                "Their y ranges for the first and third paths.",
+            )),
+            qua_only(derived(
+                "rand_y2",
+                stfroll_at(0x3a0, array(float(), 6)),
+                GCMN,
+                "Their y ranges for the second path.",
+            )),
+            qua_only(derived(
+                "lines",
+                stfroll_at(0x3c0, lines()),
+                GCMN,
+                "The credits (0x005cf1c0), through the row that ends them.",
+            )),
+            qua_only(derived(
+                "end_lines",
+                stfroll_at(0xe20, lines()),
+                GCMN,
+                "The last page's lines (0x005cfc20), through the row that ends them.",
+            )),
+        ],
+    )
+}
+
 fn mail() -> Group {
     group(
         "mail",
@@ -5070,6 +5209,7 @@ pub fn groups() -> Rc<Vec<Group>> {
         mail(),
         kanji(),
         staffroll(),
+        stfroll(),
         nameentry(),
         toppage(),
         game(),

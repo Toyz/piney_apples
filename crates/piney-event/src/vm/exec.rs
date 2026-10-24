@@ -691,7 +691,7 @@ impl Vm {
             Op::TransOff { ty, code } => host.trans(ty, code, false),
             Op::TransOn { ty, code } => host.trans(ty, code, true),
             Op::GruntyMail {} => host.grunty_mail(),
-            Op::EndingKanji {} => host.ending_kanji(),
+            Op::EndingKanji {} => return self.ending_kanji(host, run),
 
             // Bookkeeping instructions that do nothing more when playing.
             Op::SaveParty {} | Op::ClearCount {} | Op::VirusCore { .. } => {}
@@ -748,6 +748,23 @@ impl Vm {
             }
         }
         host.message_close();
+        Step::Done
+    }
+
+    /// Quarantine's `ending_kanji` (code 169, QUA main 0x001c52e8), playing
+    /// only: `game.pauseFlag` 1, the player at the origin, `KFED.BIN` and
+    /// `KFAED.BIN` read (and freed unread), `ending.ccs` loaded, then
+    /// `STFROLL_VOL4` started (gcmn 0x004f0a30) and waited for.
+    fn ending_kanji<H: Host + ?Sized>(&mut self, host: &mut H, run: &mut OpRun) -> Step {
+        if run.step == 0 {
+            host.begin(Wait::EndingKanji);
+            run.step = 1;
+        }
+        if host.busy(Wait::EndingKanji) {
+            return Step::Yield;
+        }
+        host.end(Wait::EndingKanji);
+        host.ending_kanji();
         Step::Done
     }
 

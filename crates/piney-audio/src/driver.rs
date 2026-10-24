@@ -1503,6 +1503,20 @@ mod tests {
         }
     }
 
+    /// Quarantine's field 126 (event 314's staff roll) picks row 126 of
+    /// `sqDataEvent`, the last of the disc's 127, which is empty (-1), at
+    /// `eventPlayType[126]` 3: the field loads no bank. (`sqVolTblEvent`
+    /// has 126 rows; an empty row never reads its volumes.)
+    #[test]
+    fn field_126_has_no_bank() {
+        let t = piney_data::sound::tables_of(Volume::Qua);
+        assert_eq!((t.event.load.len(), t.event.vol.len()), (127, 126));
+        assert!(!t.event.load[126].is_used());
+        let pick = SqContext::Event { field: 126, area_prev: 0 }.pick(t, Volume::Qua);
+        assert!(pick.row.is_none_or(|(r, _)| !r.is_used()));
+        assert_eq!(pick.play_type, 3);
+    }
+
     #[test]
     fn bgm_plans() {
         let w = BgmWorld { scene_replaced: true, ..Default::default() };

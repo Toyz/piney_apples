@@ -3572,6 +3572,24 @@ impl FieldWorld {
         self.camera.set_fountain(s, p);
     }
 
+    /// `ending_kanji`'s start (QUA main 0x001c52e8): the player put at the
+    /// origin (`plw+0x20`'s +0x40), then the staff roll's thread.
+    pub fn ending_start(&mut self) {
+        self.ev_party(|p| p.pc_put(0, 0, 0, 0));
+        let names = self.state().names();
+        self.fx_mut().ending_start(names);
+    }
+
+    /// Whether the staff roll runs.
+    pub fn ending_running(&mut self) -> bool {
+        self.fx_mut().ending_running()
+    }
+
+    /// The staff roll's camera (`changeCamera(3)`, its position and view).
+    pub fn ending_camera(&mut self, pos: V4, view: V4) {
+        self.camera.set_event(pos, view);
+    }
+
     /// `changeCamera(n)` from the menus (1: the player's camera back).
     pub fn change_camera(&mut self, n: i16) {
         self.camera.change_camera(n);
@@ -4088,6 +4106,17 @@ pub struct FxView<'a> {
     pub kite: Option<usize>,
 }
 
+/// What the field staff roll (`STFROLL_VOL4`) asks of the game.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EndingAsk {
+    /// `changeCamera(3)`, `cameraSetPos(pos, 3)`, `cameraSetView(view, 3)`.
+    Camera { pos: V4, view: V4 },
+    /// `ccBgmPlay(n)`: `BGM.BIN` track `n`.
+    Bgm(i32),
+    /// `ccBgmStop()`.
+    BgmStop,
+}
+
 /// The field's effects as the world holds them: the tasks the battle's
 /// frame runs ([`combat::FxTasks`]) and their draw, after the characters.
 pub trait FieldFx {
@@ -4116,6 +4145,17 @@ pub trait FieldFx {
     /// The screen noise the effects asked for since the last call
     /// (`ccMenu->noiz->SetNoizBs(bs)`: the spells' blasts).
     fn take_noises(&mut self) -> Vec<i32> {
+        Vec::new()
+    }
+    /// Quarantine's `ending_kanji`: the field staff roll started, its
+    /// lines' `#0` and `#1` the save's names.
+    fn ending_start(&mut self, _names: piney_desktop::kanji::Names) {}
+    /// Whether the staff roll still runs (its tscb's +0x14 not yet set).
+    fn ending_running(&self) -> bool {
+        false
+    }
+    /// What the staff roll asked of the game since the last call.
+    fn take_ending_asks(&mut self) -> Vec<EndingAsk> {
         Vec::new()
     }
     /// A story map's `ccEff` sprites of the frame (area 15's lens flare),

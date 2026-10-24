@@ -84,12 +84,14 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   (`str1430` ...) not yet
 - [ ] The event engine's new instructions: decoded by volume (99 `noise`,
   168 `grunty_mail`, 169 `ending_kanji`); `grunty_mail` is ported (the
-  desktop's), Quarantine's `ending_kanji` not
+  desktop's), and Quarantine's `ending_kanji` (worklog 0465)
 - [x] The Grunty race (`PG_RACE`): menu 88, the race's task, its flags,
   HUD and result, the town ride (worklog 0395, docs/engine/flag-race.md)
 - [x] `town06` (Quarantine's town 5, `ROOTTOWN06`) and the gate's warp to it
   (root-towns.md, worklog 442)
-- [ ] Quarantine's staff roll and hacking logos
+- [x] Quarantine's staff roll and hacking logos (`STFROLL_VOL4` in field
+  126, checked frame by frame against the game's code: worklog 0465,
+  docs/engine/stfroll.md)
 - [ ] A new menu after `AreaInfoMenu` (messages, number input)
 - [x] Kyvia's fights: [x] the first (`ccBossKyvia01`, `kyviaCore`,
   `kyviaGomora`, worklog 272), [x] the second (Outbreak's `ccBossKyvia02`,
