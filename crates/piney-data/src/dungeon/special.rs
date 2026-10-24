@@ -88,16 +88,19 @@ pub fn event_branch(area: i32) -> Option<(&'static [i32], i32, Arrival)> {
     })
 }
 
-/// `WORLD_MAN::Enter` on -255 (main 0x0019e2cc): the field
-/// `ChangeArea(1, n)` takes the party to, by `WORLD_MAN.eventAreaNumber`.
-/// Area 47 goes to field 9 on volume 2 and 10 otherwise. Area 27's call
+/// `WORLD_MAN::Enter` on -255 (main 0x0019e2cc; QUA 0x001b07b8): the
+/// field `ChangeArea(1, n)` takes the party to, by
+/// `WORLD_MAN.eventAreaNumber`. Area 47 goes to field 9 on volume 2 and
+/// 10 otherwise; area 108 to field 9 on volume 1 and 12 from Mutation on
+/// (Quarantine's Kyvia 04). Area 27's call
 /// falls through into area 46's `ChangeArea(1, 2)`, but the first call's
 /// `ChangeRequest(6, 7)` sleeps the calling task in
 /// `ccSleepNoSleepThread(1, 1)`, so the second never runs: field 1.
 pub fn exit_field(area: i32, volume: u32) -> Option<i32> {
     Some(match area {
         66 => 67,
-        108 => 9,
+        108 if volume == 1 => 9,
+        108 => 12,
         47 if volume == 2 => 9,
         47 => 10,
         73 => 4,
@@ -134,5 +137,13 @@ mod tests {
         assert_eq!(exit_field(27, 1), Some(1));
         assert_eq!(exit_field(47, 1), Some(10));
         assert_eq!(exit_field(14, 1), None);
+    }
+
+    #[test]
+    fn area_108_leads_to_field_12_after_infection() {
+        assert_eq!(exit_field(108, 1), Some(9));
+        for v in 2..=4 {
+            assert_eq!(exit_field(108, v), Some(12), "volume {v}");
+        }
     }
 }

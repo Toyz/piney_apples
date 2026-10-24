@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-448 entries: audio 39, battle 111, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 116, save 16, script 55, test 206, tooling 43, ui 95, video 16, volumes 87, world 129.
+449 entries: audio 39, battle 111, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 116, save 16, script 55, test 207, tooling 43, ui 95, video 16, volumes 88, world 130.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -460,3 +460,4 @@ The [reference](docs/README.md) says what is true now.
 | 446 | [The dungeon walk no longer puts Kite past what stops him: it finds a way by the room's path-finding cells, then by the walls themselves, and goes on to the doorway's next point when a pillar holds the first](worklog/0446-the-dungeon-walk-no-longer-puts-kite-past-what-stops-him-it.md) | 2026-10-24 | test, world |
 | 447 | [Tarvos (ccBoss07) is ported from Quarantine's code: its guards held off by the kind of blow, its spike rain and phantom drawn as they fly, its blows' notes from the fight's ccRand, and event 310 ends in the arena under god with its music](worklog/0447-tarvos-ccboss07-is-ported-from-quarantine-s-code-its-guards.md) | 2026-10-24 | battle, render, volumes, test |
 | 448 | [The boss shots render every frame: a shot rendered alone fed the blur the last shot's picture, so Tarvos's target window wore Balmung's from 277 frames before; Tarvos's 30000 HP reads 0000 through cheatHpStr, and the phantom's unwritten view is drawn for one frame](worklog/0448-the-boss-shots-render-every-frame-a-shot-rendered-alone-fed.md) | 2026-10-24 | test, render, battle |
+| 449 | [Event 311 ends under the autopilot: an event point counts only in its own dungeon, the members' Sprite Ocarina leaves a dungeon the story is done with, and a lake by its Gate Out; area 108's way out is field 12 from Mutation on, so 312 reaches Kyvia's fourth fight](worklog/0449-event-311-ends-under-the-autopilot-an-event-point-counts.md) | 2026-10-24 | world, test, volumes |

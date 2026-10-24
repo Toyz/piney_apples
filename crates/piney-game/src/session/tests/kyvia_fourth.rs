@@ -184,3 +184,31 @@ fn kyvia_fourth_shots() {
         }
     });
 }
+
+/// The fourth fight under god as the story autopilot plays it with
+/// BlackRose and Balmung, no other aid: Kite walked to each place the body
+/// waits at, the parts fought (the healing gomoras first), until event
+/// 312 goes on past the fight. `PINEY_DEBUG_PILOT` prints the fight every
+/// 300 frames. Not yet: the cores wear down some 25,000 frames each, and
+/// at the fourth place the gomoras' heals outpace the party's blows.
+#[test]
+#[ignore]
+fn kyvia_fourth_under_the_pilot() {
+    let Some(mut s) = super::arena::arena_session(&super::arena::EVENT_312, &[15, 6]) else { return };
+    s.console("god");
+    let mut pad = Pad::default();
+    let mut pilot = super::survey::StoryPilot::default();
+    let mut on_at = None;
+    for f in 0..400_000u32 {
+        let raw = pilot.next(&s, u64::from(f));
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if event_flag(&mut s, 312).is_some_and(|x| x & 1 << 17 != 0) {
+            on_at = Some(f);
+            break;
+        }
+    }
+    println!("event 312 on at {on_at:?}");
+    assert!(on_at.is_some(), "event 312 never went on past its fight: {}", Mode::title(&s));
+}

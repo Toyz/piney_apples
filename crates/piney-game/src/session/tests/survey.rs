@@ -221,11 +221,15 @@ impl StoryPilot {
             let w = a.world();
             let sc = w.scene();
             let wants = story_wants(vm, &w.state().save);
+            // A point of this dungeon's (a block set in another names its
+            // own dungeon's point).
+            let here =
+                |at: Option<(i16, i16)>| at.is_none_or(|(f, d)| (i32::from(f), i32::from(d)) == (sc.field, sc.dungeon));
             if sc.area == kind::DUNGEON {
                 let to = lake_below(w, &wants)
                     .or_else(|| {
                         wants.iter().find_map(|&x| match x {
-                            Want::Point(n) => vm.mng.point(n).filter(|p| p.floor >= 0 && p.block >= 0),
+                            Want::Point(n, at) if here(at) => vm.mng.point(n).filter(|p| p.floor >= 0 && p.block >= 0),
                             _ => None,
                         })
                     })
@@ -409,7 +413,8 @@ impl StoryPilot {
         let sc = w.scene();
         let vm = a.vm()?;
         let at_point = wants.iter().any(|&x| {
-            matches!(x, Want::Point(n) if vm.mng.point(n).is_some_and(|p| (i32::from(p.floor), i32::from(p.block)) == (sc.floor, sc.block)))
+            matches!(x, Want::Point(n, at) if at.is_none_or(|(f, d)| (i32::from(f), i32::from(d)) == (sc.field, sc.dungeon))
+                && vm.mng.point(n).is_some_and(|p| (i32::from(p.floor), i32::from(p.block)) == (sc.floor, sc.block)))
         });
         let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
         let quiet = playing && a.ui().menu_type() == -1 && w.combat().battle.in_battle == 0;
@@ -437,16 +442,27 @@ impl StoryPilot {
 
     /// Out of a field or dungeon the story wants nothing of (none of its
     /// wants names it; no event NPC waits, no fight, no event playing) for
-    /// 300 frames: PERSONAL (menu 1, or 2 in a dungeon), Gate Out (menu
-    /// 10), YES, back to town.
+    /// 300 frames: from a field PERSONAL (menu 1), Gate Out (menu 10), YES,
+    /// back to town; from a dungeon a member's Sprite Ocarina (CHAT's
+    /// eighth order), back to its field.
     fn gate_out(&mut self, a: &crate::area::AreaMode, f: u64) -> Option<Raw> {
         let w = a.world();
         let sc = w.scene();
         let vm = a.vm()?;
         let wants = story_wants(vm, &w.state().save);
+        // A dungeon whose way out leads to a wanted field (an arena) is
+        // where the story wants him.
+        let exit = match w.place() {
+            Place::Dungeon(d) => piney_data::dungeon::special::exit_field(d.event_area, w.volume().number() as u32),
+            _ => None,
+        };
         let here = wants.iter().any(|x| match *x {
-            Want::Area(fd) | Want::Dungeon(fd, _) => i32::from(fd) == sc.field,
-            Want::Point(_) => sc.area == kind::DUNGEON,
+            Want::Area(fd) => i32::from(fd) == sc.field || Some(i32::from(fd)) == exit,
+            Want::Dungeon(fd, _) => i32::from(fd) == sc.field,
+            Want::Point(_, at) => {
+                sc.area == kind::DUNGEON
+                    && at.is_none_or(|(f, d)| (i32::from(f), i32::from(d)) == (sc.field, sc.dungeon))
+            }
             _ => false,
         });
         let banned = a.calls().iter().rev().find_map(|(_, c)| match c.as_str() {
@@ -479,6 +495,34 @@ impl StoryPilot {
             r if r < row => Buttons::DOWN,
             _ => Buttons::UP,
         };
+        // A dungeon has no Gate Out: CHAT's eighth order there (Skill
+        // Usage, row 7) has a member play his Sprite Ocarina, back to the
+        // field (from below a lake, to the lake), as a player leaves one.
+        let members = w.party().iter().skip(1).any(|&id| id >= 0);
+        // A lake (dungeon type 8 or 9) has the field's PERSONAL, Gate Out
+        // and all, and no ocarina.
+        let ty = w.world_man().dungeon_type.get(sc.dungeon.max(0) as usize).map_or(0, |&t| i32::from(t));
+        if sc.area == kind::DUNGEON && members && !matches!(ty, 8 | 9) {
+            if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(8) {
+                let l = m.list();
+                eprintln!(
+                    "OCARINA {f} menu {} proccess {} page {} select {} y {}",
+                    ui.menu_type(),
+                    m.proccess,
+                    l.page,
+                    l.select,
+                    l.y
+                );
+            }
+            return Some(match ui.menu_type() {
+                -1 => press(Buttons::SQUARE),
+                // Changing menus; the ocarina's own (86, `GoField`).
+                88 | 86 => still,
+                3 if m.list().page != 0 => press(Buttons::LEFT),
+                3 => press(go_to(7)),
+                _ => press(Buttons::CIRCLE),
+            });
+        }
         Some(match (ui.menu_type(), m.proccess) {
             (-1, _) => press(Buttons::TRIANGLE),
             // A menu changing to the next (`MENU_CHANGING`): wait.
@@ -852,7 +896,10 @@ impl StoryPilot {
         if !playing || banned == Some(true) {
             return None;
         }
-        if let Some(raw) = flee_wave(a) {
+        if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(300) {
+            kyvia_trace(a, f);
+        }
+        if let Some(raw) = flee_wave(a).or_else(|| kyvia_place(a)) {
             return Some(raw);
         }
         let haste = haste_for_gold(a).filter(|_| !waiting);
@@ -2495,6 +2542,7 @@ fn approach_roamer(a: &crate::area::AreaMode) -> Option<Raw> {
                 piney_world::combat::boss::FIDCHELL
                     | piney_world::combat::boss::GORRE
                     | piney_world::combat::boss::MACHA
+                    | piney_world::combat::boss::TARVOS
             )
     })?;
     let me = &c.scene.chars[r.me];
@@ -2513,6 +2561,51 @@ fn approach_roamer(a: &crate::area::AreaMode) -> Option<Raw> {
         return None;
     }
     let q = me.pos.map(f32::from_bits);
+    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
+}
+
+/// Kyvia's fourth fight a line (`PINEY_DEBUG_PILOT`).
+fn kyvia_trace(a: &crate::area::AreaMode, f: u64) {
+    use piney_battle::boss::Class;
+    let w = a.world();
+    let c = w.combat();
+    let Some(r) = c.boss.as_ref().filter(|r| r.code == piney_world::combat::boss::KYVIA_FOURTH) else { return };
+    let Some(b) = c.scene.chars[r.me].foe_state().and_then(|f| f.boss.as_ref()) else { return };
+    let Class::Kyvia(x) = &b.class else { return };
+    let core = &c.scene.chars[x.core];
+    let p = w.player().body.pos.map(|v| f32::from_bits(v) as i32);
+    let fourth = x.fourth.as_ref().map(|f| (f.core_lv_count, f.rising, f.fight_flg));
+    eprintln!(
+        "KYVIA {f} exit {} act {} st {} disc {} fourth {fourth:?} core {}/{} listed {} kite {p:?} | {}",
+        r.exit,
+        b.act_num,
+        x.st_flg,
+        x.disc_lv,
+        core.hp,
+        core.max_hp,
+        c.scene.listed(x.core),
+        fighters(a)
+    );
+}
+
+/// Kyvia's fourth body waiting for Kite (`StFlg` 1, not rising): the walk
+/// to the next place it opened (`CoreAppearPos[CoreLvCount]`), to within
+/// 100, as a player goes on past the opened gate.
+fn kyvia_place(a: &crate::area::AreaMode) -> Option<Raw> {
+    use piney_battle::boss::Class;
+    let w = a.world();
+    let c = w.combat();
+    let r = c.boss.as_ref().filter(|r| !r.exit && r.code == piney_world::combat::boss::KYVIA_FOURTH)?;
+    let b = c.scene.chars[r.me].foe_state()?.boss.as_ref()?;
+    let Class::Kyvia(x) = &b.class else { return None };
+    let f = x.fourth.as_ref().filter(|f| x.st_flg == 1 && f.rising == 0)?;
+    let at = *f.core_appear_pos.get(usize::try_from(f.core_lv_count).ok()?)?;
+    let p = w.player().body.pos.map(f32::from_bits);
+    let q = at.map(f32::from_bits);
+    if (q[0] - p[0]).hypot(q[1] - p[1]) < 100.0 {
+        return None;
+    }
     let cam_z = f32::from_bits(w.camera().rot()[2]);
     Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
 }

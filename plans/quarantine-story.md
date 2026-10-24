@@ -47,8 +47,8 @@ event from its own start, 447 s):
 | 307 | done under god (worklog 443) | was: no code 5 (`ccBoss06`); Macha ported, the event ends at 16,952 frames of the arena; with no aid the party falls (worklog 444) |
 | 308 | done under god (worklog 447) | Kyvia's third fight on field 11's disc ends within 200,000 frames of the event's start; nothing to port |
 | 310 | ported (worklog 447) | was: field 7's arena, no code 6; Tarvos ported (`ccBoss07`, its spike rain and phantom) |
-| 311 | blocks 0x6ff | field 103's dungeon: the first of four goal rooms done at 40,000 frames |
-| 312 | blocks 0x209 | field 108's dungeon at 40,000 frames |
+| 311 | done under god (worklog 449) | was: the pilot stood at dungeon 103's point 1 (another dungeon's); the four dungeons left by the members' Sprite Ocarina, the lake by Gate Out |
+| 312 | blocks 0xe09 (worklog 449) | field 12's disc: the fourth Kyvia fight under the pilot (area 108's way out was field 9, Infection's); the cores wear slowly and the fourth place's heals outpace the party; `kyvia_s_fourth_fight_to_its_end` plays it with its aids |
 | 313 | blocks 0x1 | Lia Fail: BlackRose's "Are you ready?" not answered (the party she asks for) |
 | 314 | blocks 0x7 | field 122 through the gate: `area 126` (no words) and its `scene` unported |
 
@@ -61,7 +61,7 @@ event from its own start, 447 s):
    with no aid (worklog 444).
 3. **308**: the pilot through Kyvia's third fight: done under god.
 4. **310**: `ccBoss07` (code 6): ported (worklog 447).
-5. **311, 312**: longer runs (four goal rooms; Kyvia's fourth).
+5. **311, 312**: 311 done under god; 312 reaches Kyvia's fourth fight, which the pilot does not yet win (worklog 449).
 6. **313**: the pilot's answer to BlackRose; `ccBoss08` (code 7) in all its
    forms.
 7. **314**: `area` / `scene` to field 126, `ending_kanji`, `STFROLL_VOL4`,

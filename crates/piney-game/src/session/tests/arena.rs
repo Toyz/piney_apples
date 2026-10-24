@@ -29,6 +29,10 @@ pub(super) const EVENT_307: Arena = Arena { event: 307, done: 0b11, dungeon: 107
 /// Tarvos).
 pub(super) const EVENT_310: Arena = Arena { event: 310, done: 0x7f, dungeon: 102, town: 4, field: 7 };
 
+/// Event 312: area 108's dungeon, field 12's disc (blocks 0-9 done; block
+/// 10 makes Kyvia's fourth body).
+pub(super) const EVENT_312: Arena = Arena { event: 312, done: 0x3ff, dungeon: 108, town: 0, field: 12 };
+
 /// The event in its arena with Kite and `members` as a player calls them
 /// before the gate.
 pub(super) fn arena_session(a: &Arena, members: &[i32]) -> Option<Session> {

@@ -2457,8 +2457,10 @@ mod tests {
         /// A block of that field's story map (area 15's church, 1), which
         /// its door swaps to.
         FieldBlock(i16, i16),
-        /// Event point `num` of the dungeon.
-        Point(i32),
+        /// Event point `num` of the dungeon the block is set in (field and
+        /// dungeon; None when the block names none): event 311's points 1
+        /// are each of four dungeons'.
+        Point(i32, Option<(i16, i16)>),
         Party(i32),
         /// Kite alone: a block takes a wanted area off the gate's barred
         /// list (`del_area_code`) only with no one else in the party
@@ -2649,14 +2651,18 @@ mod tests {
                     }
                     _ => {}
                 }
+                let dungeon = match scene {
+                    [2, _, field, dungeon, ..] if field >= 0 => Some((field, dungeon)),
+                    _ => None,
+                };
                 if point >= 0 && !repeats {
-                    out.push(Want::Point(point));
+                    out.push(Want::Point(point, dungeon));
                 }
                 for c in &block.conds {
                     match *c {
                         Cond::GateWords { area, .. } => out.push(Want::Area(area)),
                         Cond::InParty { pc } if required.contains(&pc) => out.push(Want::Party(i32::from(pc))),
-                        Cond::InPoint { num } if !repeats => out.push(Want::Point(i32::from(num))),
+                        Cond::InPoint { num } if !repeats => out.push(Want::Point(i32::from(num), dungeon)),
                         Cond::NearMarker { marker, bounds, comp }
                             if !repeats && comp.test(0, i32::from(bounds)) == Some(true) =>
                         {

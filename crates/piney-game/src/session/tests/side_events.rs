@@ -529,7 +529,7 @@ fn a_followed_side_event_wants_its_foes_down_and_its_marker() {
     assert!(gob.contains(&Want::Clear(78)), "{gob:?}");
     assert!(!wants(250, false).contains(&Want::Clear(78)));
     let rachel = wants(257, true);
-    assert!(rachel.contains(&Want::Marker(0)) && rachel.contains(&Want::Point(1)), "{rachel:?}");
+    assert!(rachel.contains(&Want::Marker(0)) && rachel.iter().any(|w| matches!(w, Want::Point(1, _))), "{rachel:?}");
     assert!(!wants(257, false).contains(&Want::Marker(0)));
 }
 

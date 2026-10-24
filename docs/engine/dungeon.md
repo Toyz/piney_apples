@@ -407,7 +407,7 @@ It leaves out `bgColor` (the change's fade covers those frames).
 | 15, `game.floor` > 0 | `level -= 1`; `ChangeScene(2, -2, -2, -2, level, DownRoom[level])` |
 | 15 on floor 0 | `ChangeArea(1, eventAreaNumber)` (field type 4: `ChangeScene(2, -2, -2, 0, 0, lastRoom)`) |
 | -1 | `level += 1`; `ChangeScene(2, -2, -2, -2, level, 0)` (field type 4, dungeon 0: `lastRoom = game.block`, `ChangeScene(2, -2, -2, 1, 0, 0)`) |
-| -255 | the event areas' way out, `ChangeArea(1, n)`: 66 to field 67, 108 to 9, 47 to 9 (volume 2) or 10, 73 to 4, 46 to 2, 27 to 1 (its call falls into 46's, but `ChangeRequest(6, 7)` has put the task to sleep) |
+| -255 | the event areas' way out, `ChangeArea(1, n)`: 66 to field 67, 108 to 9 (Infection) or 12 (Mutation on; QUA main 0x001b07d4), 47 to 9 (volume 2) or 10, 73 to 4, 46 to 2, 27 to 1 (its call falls into 46's, but `ChangeRequest(6, 7)` has put the task to sleep) |
 
 So the room behind a door is built before the fade out, and the scene
 change only re-runs `ccSetupGameCtrl` (the player at `position`).
