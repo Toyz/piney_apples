@@ -204,17 +204,13 @@ fn magus_flashes_and_its_grows_loop() {
 #[ignore]
 fn magus_flash_shots() {
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/a428".into());
-    std::fs::create_dir_all(&dir).unwrap();
+    let mut shots = Shots::new(&dir);
     let Some(mut s) = event_115_session() else { return };
-    let mut gs: Option<piney_gs::Gs> = None;
     fight(&mut s, 9000, |s, frame, i, now| {
-        let Some((status, t)) = magus_flash(s).filter(|_| i.is_multiple_of(8)) else { return };
-        let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
-        g.set_overlay(Mode::archive(s));
-        g.render(frame);
-        let (w, h) = g.target_size();
-        let path = format!("{dir}/magus-{i:05}-act{}-status{status}-t{t}.png", now.act);
-        std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+        let path = magus_flash(s)
+            .filter(|_| i.is_multiple_of(8))
+            .map(|(status, t)| format!("{dir}/magus-{i:05}-act{}-status{status}-t{t}.png", now.act));
+        shots.frame(s, frame, path);
     });
 }
 
@@ -225,19 +221,11 @@ fn magus_flash_shots() {
 #[ignore]
 fn magus_shots() {
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/a421".into());
-    std::fs::create_dir_all(&dir).unwrap();
+    let mut shots = Shots::new(&dir);
     let Some(mut s) = event_115_session() else { return };
-    let mut gs: Option<piney_gs::Gs> = None;
     fight(&mut s, 9000, |s, frame, i, now| {
         let shown = !now.draws.is_empty() || now.shocks > 0;
-        if !(shown && i.is_multiple_of(6)) {
-            return;
-        }
-        let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
-        g.set_overlay(Mode::archive(s));
-        g.render(frame);
-        let (w, h) = g.target_size();
-        let path = format!("{dir}/magus-{i:05}-act{}.png", now.act);
-        std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+        let path = (shown && i.is_multiple_of(6)).then(|| format!("{dir}/magus-{i:05}-act{}.png", now.act));
+        shots.frame(s, frame, path);
     });
 }

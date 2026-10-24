@@ -132,7 +132,11 @@ The phantom's constructor hands `SetFreeCamPosView` a view it never
 writes (sp+144): `operator new`'s frame left `$s1` there, the target's
 pointer (a float under 1e-37), its sign word and `$s1`'s upper half,
 which no code of the game writes but by saving and restoring. The port
-takes (0, 0, 0); the next `Draw` sets the view anew.
+takes (0, 0, 0). One frame draws with it: the boss's `CamMain` copies the
+locked eye and view to camera 2 after `Move`, in the frame the phantom is
+made, and its first `Draw` sets the view anew only in the next pass. That
+frame looks from the target's place toward (0, 0, z), `z` the upper half's
+first word.
 
 ## In the port
 

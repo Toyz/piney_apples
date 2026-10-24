@@ -153,19 +153,11 @@ fn fidchell_spells_show() {
 #[ignore]
 fn fidchell_shots() {
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/fidchell-fx".into());
-    std::fs::create_dir_all(&dir).unwrap();
+    let mut shots = Shots::new(&dir);
     let Some(mut s) = event_207_arena() else { return };
-    let mut gs: Option<piney_gs::Gs> = None;
     run(&mut s, |s, i, frame, seen| {
         let busy = SCHEDULE.iter().any(|x| (x.0..x.0 + 480).contains(&i));
-        if !(busy && i % 8 == 0 || i % 60 == 59) {
-            return;
-        }
-        let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
-        g.set_overlay(Mode::archive(s));
-        g.render(frame);
-        let (w, h) = g.target_size();
-        let path = format!("{dir}/fid-{i:04}-act{}.png", seen.act);
-        std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+        let shot = busy && i % 8 == 0 || i % 60 == 59;
+        shots.frame(s, frame, shot.then(|| format!("{dir}/fid-{i:04}-act{}.png", seen.act)));
     });
 }

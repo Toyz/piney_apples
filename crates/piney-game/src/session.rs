@@ -7040,6 +7040,34 @@ mod tests {
         story_session_on("infection", n, prepare)
     }
 
+    /// A run's shots: every frame rendered, as the game draws every frame
+    /// (a boss's blur feeds back the frame before, its HUD with it: a
+    /// frame rendered alone took the last shot's picture), the ones asked
+    /// for written as PNGs.
+    pub(super) struct Shots {
+        gs: Option<piney_gs::Gs>,
+    }
+
+    impl Shots {
+        pub(super) fn new(dir: &str) -> Shots {
+            std::fs::create_dir_all(dir).unwrap();
+            Shots { gs: None }
+        }
+
+        /// The frame rendered; at `path`, written.
+        pub(super) fn frame(&mut self, s: &Session, frame: &Frame, path: Option<String>) {
+            let g = self
+                .gs
+                .get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
+            g.set_overlay(Mode::archive(s));
+            g.render(frame);
+            if let Some(path) = path {
+                let (w, h) = g.target_size();
+                std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+            }
+        }
+    }
+
     /// [`story_session_with`] on the disc `disc` (`work/DISC/DISC.iso`).
     fn story_session_on(disc: &str, n: i32, prepare: impl FnOnce(&mut crate::start::Start)) -> Option<Session> {
         let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));

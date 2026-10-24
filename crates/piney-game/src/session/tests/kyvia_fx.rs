@@ -362,9 +362,8 @@ fn the_stick_turns_kyvias_camera() {
 #[ignore]
 fn kyvia_push_and_turn_shots() {
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/a427".into());
-    std::fs::create_dir_all(&dir).unwrap();
+    let mut shots = Shots::new(&dir);
     let Some(mut s) = event_108_disc() else { return };
-    let mut gs: Option<piney_gs::Gs> = None;
     let mut pushes = 0u32;
     fight_leaning(
         &mut s,
@@ -377,18 +376,14 @@ fn kyvia_push_and_turn_shots() {
             let Stage::Area(a) = &s.stage else { return };
             let z = a.world().combat().boss.as_ref().and_then(|r| r.cam.as_ref()).map_or(0, |c| c.zrot_cont);
             let tag = if pushed && pushes.is_multiple_of(25) {
-                "push"
+                Some("push")
             } else if i.is_multiple_of(40) {
-                "turn"
+                Some("turn")
             } else {
-                return;
+                None
             };
-            let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
-            g.set_overlay(Mode::archive(s));
-            g.render(frame);
-            let (w, h) = g.target_size();
-            let path = format!("{dir}/kyvia-{tag}-{i:05}-act{}-z{:+.2}.png", now.act, f32::from_bits(z));
-            std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+            let path = tag.map(|tag| format!("{dir}/kyvia-{tag}-{i:05}-act{}-z{:+.2}.png", now.act, f32::from_bits(z)));
+            shots.frame(s, frame, path);
         },
     );
 }
@@ -405,7 +400,7 @@ fn kyvia_gomora_shape_shots() {
         let Some(mut s) = s else { continue };
         let ccs = piney_data::ccs::Ccs::parse(s.archive.inflate_named(disc).unwrap()).unwrap();
         let base = ccs.find_object("MDL_ex01gom1").unwrap();
-        let mut gs: Option<piney_gs::Gs> = None;
+        let mut shots = Shots::new(&dir);
         fight_leaning(
             &mut s,
             3000,
@@ -413,20 +408,14 @@ fn kyvia_gomora_shape_shots() {
             false,
             |s, frame, i, now| {
                 let ms = gomora_morphs(frame, disc, &ccs, base);
-                if ms.is_empty() || !i.is_multiple_of(50) {
-                    return;
-                }
-                let shape: Vec<String> = ms[0]
-                    .iter()
-                    .map(|(t, w)| format!("{}{:.0}", t.trim_start_matches("MDL_ex01"), w * 100.0))
-                    .collect();
-                let g =
-                    gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
-                g.set_overlay(Mode::archive(s));
-                g.render(frame);
-                let (w, h) = g.target_size();
-                let path = format!("{dir}/gomora-{disc}-{i:05}-act{}-{}.png", now.act, shape.join("-"));
-                std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+                let path = (!ms.is_empty() && i.is_multiple_of(50)).then(|| {
+                    let shape: Vec<String> = ms[0]
+                        .iter()
+                        .map(|(t, w)| format!("{}{:.0}", t.trim_start_matches("MDL_ex01"), w * 100.0))
+                        .collect();
+                    format!("{dir}/gomora-{disc}-{i:05}-act{}-{}.png", now.act, shape.join("-"))
+                });
+                shots.frame(s, frame, path);
             },
         );
     }
@@ -442,18 +431,11 @@ fn kyvia_shots() {
     std::fs::create_dir_all(&dir).unwrap();
     for (name, s) in [("mut", event_108_disc()), ("out", event_211_disc())] {
         let Some(mut s) = s else { continue };
-        let mut gs: Option<piney_gs::Gs> = None;
+        let mut shots = Shots::new(&dir);
         fight(&mut s, 4000, |s, frame, i, now| {
             let shown = now.draws.iter().any(|d| d == "ANM_x300" || d == "CMP_x012") || now.anchored > 0;
-            if !(shown && i.is_multiple_of(6)) {
-                return;
-            }
-            let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
-            g.set_overlay(Mode::archive(s));
-            g.render(frame);
-            let (w, h) = g.target_size();
-            let path = format!("{dir}/kyvia-{name}-{i:05}-act{}.png", now.act);
-            std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+            let path = (shown && i.is_multiple_of(6)).then(|| format!("{dir}/kyvia-{name}-{i:05}-act{}.png", now.act));
+            shots.frame(s, frame, path);
         });
     }
 }

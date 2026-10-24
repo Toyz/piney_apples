@@ -140,16 +140,21 @@ pub(super) fn play(
 }
 
 /// The fight under god from the arena to the event's end, every frame's
-/// events through [`crate::handle`] from the start: the frames the music
-/// played, and a shot every ten seconds and at each act's first frame in
-/// `dir` (`name-FRAME-actN.png`).
+/// events through [`crate::handle`] and every frame rendered from the
+/// start: the frames the music played, and a shot every ten seconds and at each act's first frame in
+/// `dir` (`name-FRAME-actN.png`); with `PINEY_SHOTS_AT=A-B` every frame
+/// from A to B too, its command target printed.
 pub(super) fn god_shots(s: &mut Session, event: i32, boss: fn(&Class) -> bool, dir: &str, name: &str) -> (Played, u32) {
-    std::fs::create_dir_all(dir).unwrap();
+    let mut shots = Shots::new(dir);
     s.console("god");
     let audio = piney_audio::Audio::headless(&s.iso).ok();
-    let mut gs: Option<piney_gs::Gs> = None;
     let mut seen: BTreeSet<i16> = BTreeSet::new();
     let mut music = 0u32;
+    // PINEY_SHOTS_AT=A-B: a shot every frame from A to B as well.
+    let range = std::env::var("PINEY_SHOTS_AT").ok().and_then(|v| {
+        let (a, b) = v.split_once('-')?;
+        Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?))
+    });
     let p = play(s, event, boss, 60_000, |s, frame, n| {
         let rate = Mode::frame_rate(s);
         crate::handle(s.take_events(), audio.as_ref());
@@ -167,15 +172,13 @@ pub(super) fn god_shots(s: &mut Session, event: i32, boss: fn(&Class) -> bool, d
             _ => None,
         };
         let first = act.is_some_and(|x| seen.insert(x));
-        if !first && !n.is_multiple_of(600) {
-            return;
+        let span = range.is_some_and(|(a, b)| (a..=b).contains(&n));
+        if span && let Stage::Area(a) = &s.stage {
+            eprintln!("FRAME {n} act {act:?} target {:?}", a.world().command_target_code());
         }
-        let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
-        g.set_overlay(Mode::archive(s));
-        g.render(frame);
-        let (w, h) = g.target_size();
-        let path = format!("{dir}/{name}-{n:05}-act{}.png", act.unwrap_or(-1));
-        std::fs::write(&path, piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+        let shot = first || span || n.is_multiple_of(600);
+        let path = shot.then(|| format!("{dir}/{name}-{n:05}-act{}.png", act.unwrap_or(-1)));
+        shots.frame(s, frame, path);
     });
     (p, music)
 }
