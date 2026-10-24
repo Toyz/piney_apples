@@ -44,7 +44,7 @@ event from its own start, 447 s):
 | --- | --- | --- |
 | 301 | done (worklog 442) | was: Fort Ouph, blocks 0x7b; town 5 (`town06`) ported, the gate's warp to it, the pilot's way there |
 | 302-306, 309 | done | |
-| 307 | blocks 0xf | field 6's arena: `start_boss` has no code 5 (`ccBoss06`) |
+| 307 | done under god (worklog 443) | was: no code 5 (`ccBoss06`); Macha ported, the event ends at 16,952 frames of the arena; with no aid the party falls (worklog 444) |
 | 308 | blocks 0xf7 | field 11: Kyvia's third fight still going at 40,000 frames |
 | 310 | blocks 0x3d1 | field 7's arena: no code 6 (`ccBoss07`) |
 | 311 | blocks 0x6ff | field 103's dungeon: the first of four goal rooms done at 40,000 frames |
@@ -57,7 +57,8 @@ event from its own start, 447 s):
 1. **301**: `town06` (`ROOTTOWN06`, QUA gcmn 0x004ec350; its table found by
    piney-gen), the gate's town-5 warp. Then blocks 7-10.
 2. **307**: `ccBoss06` (code 5), with its effects (`ccBossEffLaserShot`,
-   `ccBossEffLightBallShock`, ...).
+   `ccBossEffLightBallShock`): ported (worklog 443). Open: the fight won
+   with no aid (worklog 444).
 3. **308**: the pilot through Kyvia's third fight.
 4. **310**: `ccBoss07` (code 6).
 5. **311, 312**: longer runs (four goal rooms; Kyvia's fourth).

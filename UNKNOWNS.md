@@ -238,6 +238,7 @@ player until one of these turns out wrong.
 - [[274]] whether Skeith's and Innis's drains through the menus lost their 21 before [[274]]'s fix — not checked
 - [[275]] what the community note's enemyList00 refers to — the code gives story areas column 6
 - [[276]] whether a run without the level aid beats Kyvia 01 — not tried
+- [[444]] whether the pilot beats Macha with no aid, and at what level and tactics — not reached: the start's party (70, 70, 75) falls before the gauge breaks, and so does one raised to 90 by the diagnostic
 - [[279]] which enemy and area the report's staff came from, and whether it was drained — report detail
 
 ### world

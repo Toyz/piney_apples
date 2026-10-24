@@ -81,6 +81,13 @@ pub(super) struct StoryPilot {
     buys: Vec<Buy>,
     stocked: Vec<i32>,
     leaving: bool,
+    /// In a boss fight: the party's HP as last seen, what each member lost
+    /// a frame over the last second, and the most a member lost in one
+    /// second, which the pilot heals ahead of (a player learns the boss's
+    /// hits; a Pha spell lands in three blows ten frames apart).
+    party_hp: Vec<i16>,
+    losses: std::collections::VecDeque<Vec<i32>>,
+    worst_hit: i32,
 }
 
 /// What the pilot does in a fight through the menus.
@@ -100,13 +107,31 @@ enum Action {
     Item { cat: i8, id: i16, target: i16 },
 }
 
+impl Action {
+    /// A heal, revive, cure or soul: before a walk after the foe.
+    fn mends(self) -> bool {
+        matches!(
+            self,
+            Action::Item { .. }
+                | Action::Designate { page: 2, .. }
+                | Action::Skill { page: 2, .. }
+                | Action::Chat { page: 0, row: 1 }
+        )
+    }
+}
+
 /// The recovery Kite carries or knows: Repth, a Healing Potion,
 /// Resurrect, a Mage's Soul.
 const REPTH: i16 = 150;
 const DATA_DRAIN: i16 = 2;
 const RIP_MAEN: i16 = 180;
 const POTION: (i8, i16) = (10, 1);
+/// `ccSkillParam.type`'s recovery bit.
+const HEAL: u32 = 0x40000;
 const RESURRECT: (i8, i16) = (10, 5);
+/// Rip Synk (the Restorative's): charm, confusion, sleep and curse cured.
+const RIP_SYNK: i16 = 179;
+const RESTORATIVE: (i8, i16) = (10, 4);
 const MAGES_SOUL: (i8, i16) = (10, 18);
 /// A Speed Charm (`itemTblD` row 56): Ap Do (177), haste for 9000 frames.
 const SPEED_CHARM: (i8, i16) = (11, 56);
@@ -149,6 +174,9 @@ impl Default for StoryPilot {
             buys: Vec::new(),
             stocked: Vec::new(),
             leaving: false,
+            party_hp: Vec::new(),
+            losses: std::collections::VecDeque::new(),
+            worst_hit: 0,
         }
     }
 }
@@ -633,11 +661,9 @@ impl StoryPilot {
         Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
 
-    /// The fight through the menus, one action at a time and a second
-    /// apart: at a fight's start Skills! to both members; a member down,
-    /// a member standing with a revive for him (Designate Skill); a member
-    /// under 45% of his HP, a member's heal for him, else First Aid!; else
-    /// in a fight, Kite's first attack skill he has the SP for.
+    /// The fight through the menus, one action at a time ([`Self::choose`]);
+    /// a heal, cure or revive before a walk after the foe. Against a boss
+    /// the party's HP is watched for the most a member loses in a second.
     fn fight(&mut self, a: &crate::area::AreaMode, f: u64) -> Option<Raw> {
         self.now = f;
         self.held = self.walker.held(a, f);
@@ -664,12 +690,47 @@ impl StoryPilot {
         if !fighting {
             self.skills_ordered = None;
         }
+        if c.boss.as_ref().is_some_and(|r| !r.exit) {
+            let hp: Vec<i16> = c.members.iter().map(|&(_, k)| c.scene.chars[k].hp).collect();
+            if hp.len() == self.party_hp.len() {
+                let lost = hp.iter().zip(&self.party_hp).map(|(&now, &was)| i32::from(was - now).max(0)).collect();
+                self.losses.push_back(lost);
+                if self.losses.len() > 60 {
+                    self.losses.pop_front();
+                }
+                let second = (0..hp.len()).map(|m| self.losses.iter().map(|l| l[m]).sum::<i32>()).max();
+                self.worst_hit = self.worst_hit.max(second.unwrap_or(0));
+            } else {
+                self.losses.clear();
+            }
+            self.party_hp = hp;
+        } else {
+            (self.party_hp, self.worst_hit) = (Vec::new(), 0);
+            self.losses.clear();
+        }
+        // Kite held (a boss's cinema), asleep, paralysed, confused or
+        // charmed: no menu opens for him, so no action begins, and one not
+        // yet open is given up.
+        let stuck = c.members.first().is_some_and(|&(_, k)| {
+            use piney_battle::param::cond;
+            let v = &c.scene.chars[k].cond;
+            [cond::HOLD, cond::SLEEP, cond::PARALYSIS, cond::CONFUSION, cond::CHARM].iter().any(|&i| v[i] != 0)
+        });
+        if stuck && t == -1 && (self.action.is_none() || !self.opened) {
+            self.action = None;
+            return None;
+        }
         if let Some(act) = self.action {
             self.opened |= t != -1;
             if (self.opened && t == -1) || f > self.began + 600 {
                 self.action = None;
-                // A skill takes its time to land.
-                self.ended = Some(if matches!(act, Action::Chat { .. }) { f } else { f + 180 });
+                // A heal or item takes its time to land (the HP it mends
+                // is read again after); an order or Kite's attack does not.
+                self.ended = Some(match act {
+                    Action::Designate { .. } => f + 180,
+                    _ if act.mends() && !matches!(act, Action::Chat { .. }) => f + 90,
+                    _ => f,
+                });
                 return None;
             }
             // A skill at a boss's part: the cursor down the candidates
@@ -775,7 +836,11 @@ impl StoryPilot {
         // A broken protect does not wait for the last skill to land: the
         // break is short (Fidchell's under 300 frames).
         let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene, e, false));
-        if t != -1 || (!broken && self.ended.is_some_and(|at| f < at + 60)) {
+        // While the last action lands no new one begins; against a boss
+        // Kite still goes after it and strikes (nothing else moves him in
+        // its arena).
+        let waiting = !broken && self.ended.is_some_and(|at| f < at + 60);
+        if t != -1 || (waiting && !c.boss.as_ref().is_some_and(|r| !r.exit)) {
             return None;
         }
         let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
@@ -787,8 +852,13 @@ impl StoryPilot {
         if !playing || banned == Some(true) {
             return None;
         }
-        let haste = haste_for_gold(a);
+        if let Some(raw) = flee_wave(a) {
+            return Some(raw);
+        }
+        let haste = haste_for_gold(a).filter(|_| !waiting);
+        let chosen = haste.or_else(|| self.choose(a)).filter(|_| !waiting);
         if haste.is_none()
+            && !chosen.is_some_and(|act| act.mends() || matches!(act, Action::Skill { .. }))
             && let Some(raw) = approach_boss(a)
                 .or_else(|| approach_part(a))
                 .or_else(|| approach_roamer(a))
@@ -799,7 +869,7 @@ impl StoryPilot {
         }
         // No skill to pay for (god's SP hid it): the action button's plain
         // blow at the foe the command target names.
-        let Some(act) = haste.or_else(|| self.choose(a)) else {
+        let Some(act) = chosen else {
             let on_foe = matches!(w.command_target_code(), Some((piney_world::entry::Kind::Enemy, _)));
             // A golden goblin is in reach for a frame or two: at once.
             let gold = self.quarry.is_some_and(|q| shakes_off_holds(c, q) && c.scene.chars[q].hp > 0);
@@ -823,13 +893,13 @@ impl StoryPilot {
     }
 
     /// The next action: at a fight's start the order to both members
-    /// (Magic! against a foe whose Exdefense bars blows or whose physical
-    /// defence is the higher, else Skills!); someone down, a member's Rip
-    /// Maen, else Kite's Resurrect; someone under 45% of his HP (70% out of
-    /// a fight), a member's heal, else Kite's Repth, a Healing Potion, First
-    /// Aid!; out of a fight, someone under a third of his SP, a Mage's Soul;
-    /// in a fight, Kite's strongest skill in reach of the nearest foe that he
-    /// has the SP for and that its Exdefense does not bar.
+    /// (Magic! or Skills! by the foe's defences); someone down, a member's
+    /// Rip Maen, else Kite's Resurrect; someone charmed, confused or asleep,
+    /// Kite's Rip Synk or a Restorative; someone low (under 45% of his HP,
+    /// 60% or the boss's worst second against a boss, 70% out of a fight),
+    /// a member's heal, else Kite's, a potion, First Aid!; someone dry of SP
+    /// (a third out of a fight, a sixth against a boss), a Mage's Soul; in a
+    /// fight, Kite's strongest skill in reach that hurts the nearest foe.
     fn choose(&self, a: &crate::area::AreaMode) -> Option<Action> {
         let w = a.world();
         let ui = a.ui();
@@ -900,6 +970,16 @@ impl StoryPilot {
             (false, true) => false,
             _ => by_defence,
         };
+        // A boss that guards neither kind more (Macha's 6000 and 6000):
+        // Kite's strongest skill of either page.
+        let even = c.boss.as_ref().is_some_and(|r| !r.exit)
+            && !barred(1)
+            && !barred(2)
+            && foe.is_some_and(|e| {
+                use piney_battle::param::elm;
+                let real = c.scene.real(e);
+                real[elm::P_DEF] == real[elm::M_DEF]
+            });
         // Again when the boss part fought needs the other kind.
         let reorder = focus(c).is_some() && self.skills_ordered != Some(magic);
         if fighting && members > 0 && (self.skills_ordered.is_none() || reorder) {
@@ -932,9 +1012,20 @@ impl StoryPilot {
             }
         }
         let down = |ch: &piney_battle::chara::Char| ch.hp <= 0;
-        let limit = if fighting { 45 } else { 70 };
+        // Against a boss whose spells take some 700 HP at once (Macha's
+        // Pha- spells), before a hit can fell him.
+        let boss = c.boss.as_ref().is_some_and(|r| !r.exit);
+        let limit = match (fighting, boss) {
+            (true, true) => 60,
+            (true, false) => 45,
+            _ => 70,
+        };
+        let worst = if fighting && boss { self.worst_hit * 5 / 4 } else { 0 };
         let low = |ch: &piney_battle::chara::Char| {
-            ch.hp > 0 && ch.cond.v[0] == 0 && i32::from(ch.hp) * 100 < i32::from(ch.max_hp) * limit
+            ch.hp > 0
+                && ch.cond.v[0] == 0
+                && (i32::from(ch.hp) * 100 < i32::from(ch.max_hp) * limit
+                    || (i32::from(ch.hp) <= worst && ch.hp < ch.max_hp))
         };
         // The menus' target rows: the party in order, the fallen for a
         // revive, those in a normal condition else.
@@ -988,6 +1079,27 @@ impl StoryPilot {
                 return Some(Action::Chat { page: 0, row: 1 });
             }
         }
+        // A member charmed, confused or asleep (Macha's wave confuses, and
+        // the confused strike the party): Kite's Rip Synk, else a
+        // Restorative.
+        use piney_battle::param::cond;
+        let lost = |ch: &piney_battle::chara::Char| {
+            !down(ch) && [cond::SLEEP, cond::CONFUSION, cond::CHARM].iter().any(|&i| ch.cond.v[i] != 0)
+        };
+        if fighting
+            && let Some(k) = kite
+            && let Some(who) = chars.iter().position(|ch| ch.is_some_and(lost))
+        {
+            let target = row(who, false);
+            let cost = items.skill(i32::from(RIP_SYNK)).map_or(i32::MAX, |p| p.cost);
+            let knows = piney_fieldui::items::skill_list(items, state, 0, 2).contains(&RIP_SYNK);
+            if knows && i32::from(k.sp) >= cost {
+                return Some(Action::Skill { page: 2, skill: RIP_SYNK, target: Some(target) });
+            }
+            if carried(RESTORATIVE) {
+                return Some(Action::Item { cat: RESTORATIVE.0, id: RESTORATIVE.1, target });
+            }
+        }
         let lowest = chars
             .iter()
             .enumerate()
@@ -1000,30 +1112,59 @@ impl StoryPilot {
                 return Some(Action::Designate { slot, page: 2, skill, target });
             }
             if let Some(k) = kite {
-                let knows = piney_fieldui::items::skill_list(items, state, 0, 2).contains(&REPTH);
-                let cost = items.skill(i32::from(REPTH)).map_or(i32::MAX, |p| p.cost);
-                if knows && i32::from(k.sp) >= cost {
-                    return Some(Action::Skill { page: 2, skill: REPTH, target: Some(target) });
+                // Kite's heal (Repth, else the cheapest he has the SP for:
+                // Quarantine's Kite knows Pha Repth), else a Healing Potion,
+                // else the cheapest item that casts a heal (Recovery Drink).
+                let heals = |x: i16| items.skill(i32::from(x)).is_some_and(|p| p.kind & HEAL != 0);
+                let cost = |x: i16| items.skill(i32::from(x)).map_or(i32::MAX, |p| p.cost);
+                let known = piney_fieldui::items::skill_list(items, state, 0, 2);
+                let skill = known
+                    .iter()
+                    .copied()
+                    .filter(|&x| x >= 0 && heals(x) && cost(x) <= i32::from(k.sp))
+                    .min_by_key(|&x| (x != REPTH, cost(x)));
+                if let Some(skill) = skill {
+                    return Some(Action::Skill { page: 2, skill, target: Some(target) });
                 }
                 if carried(POTION) {
                     return Some(Action::Item { cat: POTION.0, id: POTION.1, target });
+                }
+                let potion = (0..piney_fieldui::items::ITEMS)
+                    .map(|n| piney_fieldui::items::save_item(state, 0, n))
+                    .filter(|it| it.num > 0)
+                    .filter_map(|it| {
+                        let p = items.item(i32::from(it.cat), i32::from(it.id))?;
+                        items.skill(p.skill).is_some_and(|sk| sk.kind & HEAL != 0).then_some((it, p.price))
+                    })
+                    .min_by_key(|&(_, price)| price);
+                if let Some((it, _)) = potion {
+                    return Some(Action::Item { cat: it.cat, id: it.id, target });
                 }
             }
             if fighting && members > 0 && self.first_aid_at.is_none_or(|at| self.now > at + 600) {
                 return Some(Action::Chat { page: 0, row: 1 });
             }
         }
-        if !fighting {
-            let dry = chars.iter().position(|ch| {
+        // Out of a fight, someone under a third of his SP; in a boss fight,
+        // someone under a sixth (his heals and revives cost 10-50).
+        let dry_under = match (fighting, boss) {
+            (false, _) => Some(3),
+            (true, true) => Some(6),
+            (true, false) => None,
+        };
+        if let Some(part) = dry_under
+            && kite.is_some()
+            && carried(MAGES_SOUL)
+            && let Some(dry) = chars.iter().position(|ch| {
                 ch.is_some_and(|ch| {
-                    !down(ch) && ch.cond.v[0] == 0 && ch.max_sp > 0 && i32::from(ch.sp) * 3 < i32::from(ch.max_sp)
+                    !down(ch) && ch.cond.v[0] == 0 && ch.max_sp > 0 && i32::from(ch.sp) * part < i32::from(ch.max_sp)
                 })
-            })?;
-            return (kite.is_some() && carried(MAGES_SOUL)).then(|| Action::Item {
-                cat: MAGES_SOUL.0,
-                id: MAGES_SOUL.1,
-                target: row(dry, false),
-            });
+            })
+        {
+            return Some(Action::Item { cat: MAGES_SOUL.0, id: MAGES_SOUL.1, target: row(dry, false) });
+        }
+        if !fighting {
+            return None;
         }
         // A member's spell of the element the foe resists least, if under
         // 100, at the nearest foe.
@@ -1071,13 +1212,14 @@ impl StoryPilot {
         };
         // Not a foe the walk has given up on, unless it still goes at it
         // (the room's doors shut until it falls): its blows alone may not
-        // do (Deadly Present's Exdefense bars them).
+        // do (Deadly Present's Exdefense bars them). A boss as far as a
+        // skill reaches (a spell at Macha as she flees).
         let (near, nearest) = foes(c)
             .into_iter()
             .filter(|&e| (!self.walker.hopeless.contains(&e) || self.walker.foe == Some(e)) && c.scene.chars[e].hp > 0)
             .map(|e| (e, dist(e)))
             .min_by(|x, y| x.1.total_cmp(&y.1))
-            .filter(|&(_, d)| d < 600.0)?;
+            .filter(|&(_, d)| d < 600.0 || boss)?;
         // A golden goblin that shakes off holds (see [`shakes_off_holds`]):
         // the plain blow.
         if shakes_off_holds(c, near) {
@@ -1101,14 +1243,19 @@ impl StoryPilot {
             c.data.t.skill(i32::from(x)).map_or(0, |sk| i32::from(sk.atk) * i32::from(sk.dmg_rate) * 100 / resist(sk))
         };
         let pages = if magic { [1, 0] } else { [0, 1] };
-        let (page, skill) = pages.into_iter().find_map(|page| {
+        let best = |page: i32| {
             let reach = |x: &i16| {
                 items.skill(i32::from(*x)).is_some_and(|sk| sk.cost <= i32::from(kite.sp) && nearest < sk.trigger_range)
             };
             let list = piney_fieldui::items::skill_list(items, state, 0, page);
             let usable = list.iter().copied().filter(|&x| x >= 0).filter(reach).filter(|&x| hurts(i32::from(x)));
             usable.max_by_key(|&x| strength(x)).map(|x| (page, x))
-        })?;
+        };
+        let (page, skill) = if even {
+            pages.into_iter().filter_map(best).max_by_key(|&(_, x)| strength(x))?
+        } else {
+            pages.into_iter().find_map(best)?
+        };
         Some(Action::Skill { page: page as i16, skill, target: None })
     }
 
@@ -2341,18 +2488,22 @@ fn approach_part(a: &crate::area::AreaMode) -> Option<Raw> {
 }
 
 /// In a fight with no field foe near, a walk to within 350 of a boss
-/// that roams its arena and is a target (Fidchell: its chases, escapes
-/// and dashes; Gorre: its own chase and dash to the centre, leaving Kite
-/// standing out of his skills' reach).
+/// that roams its arena and is a target (Fidchell's chases and dashes,
+/// Gorre's dash to the centre, Macha's escapes), and on until it is his
+/// command target (Macha floats out of his facing); battle mode or not
+/// (Macha's escapes take her past its 2,200).
 fn approach_roamer(a: &crate::area::AreaMode) -> Option<Raw> {
     let w = a.world();
     let c = w.combat();
     let r = c.boss.as_ref().filter(|r| {
-        !r.exit && matches!(r.code, piney_world::combat::boss::FIDCHELL | piney_world::combat::boss::GORRE)
+        !r.exit
+            && matches!(
+                r.code,
+                piney_world::combat::boss::FIDCHELL
+                    | piney_world::combat::boss::GORRE
+                    | piney_world::combat::boss::MACHA
+            )
     })?;
-    if c.battle.in_battle == 0 {
-        return None;
-    }
     let me = &c.scene.chars[r.me];
     if !c.scene.listed(r.me) || me.hp <= 0 || me.cond[piney_battle::param::cond::DEAD] != 0 {
         return None;
@@ -2362,12 +2513,37 @@ fn approach_roamer(a: &crate::area::AreaMode) -> Option<Raw> {
         let q = c.scene.chars[e].pos.map(f32::from_bits);
         (q[0] - p[0]).hypot(q[1] - p[1])
     };
-    if dist(r.me) < 350.0 || c.enemies().into_iter().any(|e| e != r.me && c.scene.chars[e].hp > 0 && dist(e) < 400.0) {
+    let aimed = matches!(w.command_target_code(), Some((piney_world::entry::Kind::Enemy, _)));
+    if (dist(r.me) < 350.0 && aimed)
+        || c.enemies().into_iter().any(|e| e != r.me && c.scene.chars[e].hp > 0 && dist(e) < 400.0)
+    {
         return None;
     }
     let q = me.pos.map(f32::from_bits);
     let cam_z = f32::from_bits(w.camera().rot()[2]);
     Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
+}
+
+/// Macha winding up her wave (its blow 55 frames on reaches 900, takes
+/// SP and confuses): Kite runs from her while within 1,000, as a player
+/// who has seen it does.
+fn flee_wave(a: &crate::area::AreaMode) -> Option<Raw> {
+    use piney_battle::boss::macha::act;
+    let w = a.world();
+    let c = w.combat();
+    let r = c.boss.as_ref().filter(|r| !r.exit && r.code == piney_world::combat::boss::MACHA)?;
+    let me = &c.scene.chars[r.me];
+    let b = me.foe_state()?.boss.as_ref()?;
+    if !matches!(b.act_num, act::WAVE | act::EPITAPH_WAVE) {
+        return None;
+    }
+    let p = w.player().body.pos.map(f32::from_bits);
+    let q = me.pos.map(f32::from_bits);
+    if (q[0] - p[0]).hypot(q[1] - p[1]) >= 1000.0 {
+        return None;
+    }
+    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    Some(stick_toward(cam_z, (p[0] - q[0]).atan2(-(p[1] - q[1]))))
 }
 
 /// Kite straight to the story map's door ([`piney_world::field_world::FieldWorld::door`]),

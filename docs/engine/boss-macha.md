@@ -3,7 +3,7 @@ title: Bosses - Macha
 status: partial
 volumes: QUA, INF
 covers: QUA gcmn.prg:0x003a3460-0x003a81e0 (boss06.cpp), 0x003a3640 ccBoss06::ccBoss06, 0x003a3b00 SetPatternMode, 0x003a3bb0 ExecPatternIndex, 0x003a4270 Main, 0x003a4310 Think, 0x003a44a0 Affect, 0x003a4980 OnThinkNeutral, 0x003a4ae0 OnThinkDamage, 0x003a4be0 OnThinkChase, 0x003a4e90 OnThinkDashCenter, 0x003a50a0 OnThinkSkill, 0x003a55e0 OnThinkEscape, 0x003a58a0 OnThinkTransfer, 0x003a5b60 OnThinkBackDash, 0x003a5f10 OnThinkLightBall, 0x003a6ad0 OnThinkWave, 0x003a6d70 OnThinkCharm, 0x003a72f0 OnThinkEyeLaser, 0x003a7500 OnThinkDead, 0x003a75d0 OnThinkDrain, 0x003a7810 OnThinkEpitaphWave, 0x003a7aa0 OnThinkDataDrainAtk, 0x003a7d30 OnThinkMagic, 0x003741b0-0x003746b0 ccBossEffLaserShot, 0x00374440 ccBossEffLaserShot::Draw, 0x003746c0-0x00374b8c ccBossEffLightBallShock, 0x003748a0 ccBossEffLightBallShock::Draw, 0x0037d250 ccBossEffLaserShotCreate, 0x0037d320 ccBossEffLightBallShockCreate, 0x00360d30 ccBoss::ExecPattern, 0x00361e30 ccBoss::ChangeNextPattern, 0x005ec270 BOSS06AnmTbl, 0x005ec2e0 boss06NormalActTbl, 0x005ec330 boss06ExpertActTbl, 0x005ec390 boss6EpitaphActTbl, 0x005ec3f0 @1198, 0x005ec410 @1913
-worklog: 443
+worklog: 443, 444
 ---
 
 # Bosses - Macha
@@ -146,8 +146,13 @@ the shock's life.
 acts 0-5, 12-14, 16, 18 and 22-24 come, the drain and its death, and event
 307 ends at frame 16,952 with its music through it.
 
+`machas_fight_to_its_end` and `event_307_from_its_start` (ignored) play it
+with no aid; neither is won yet (worklog 444).
+
 ## Unknown
 
 - The ball's, wave's and shock's pictures are not checked against the
   game's draw frame by frame.
-- The fight is not yet won without god.
+- Without god the party (Kite 70, BlackRose 70, Balmung 75) falls before
+  the gauge breaks; whether the pilot's tactics or the party's levels
+  are short is open (worklog 444).
