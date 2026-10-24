@@ -3,7 +3,7 @@ title: Bosses - Gorre
 status: partial
 volumes: OUT, INF
 covers: OUT gcmn.prg:0x004a9130-0x004b0b50 (boss05.cpp), 0x004a9130 ccBoss05::ccBoss05, 0x004a9650 CalcRealEx, 0x004a99a0 ExecPatternIndex, 0x004aa100 IsValidArea, 0x004aa210 Main, 0x004aa5f0 Move, 0x004aa6b0 ChangeAction, 0x004aa760 Think, 0x004aa8e0 OnThinkNeutral, 0x004aaa40 OnThinkDrain, 0x004aaaf0 OnThinkDead, 0x004aaf40 OnThinkEscape, 0x004ab210 OnThinkDmg, 0x004ab2e0 OnThinkKerse, 0x004aba30 OnThinkWander, 0x004abb90 OnThinkMagic, 0x004ac060 OnThinkDataDrainAtk, 0x004ac320 OnThinkDashCenter, 0x004ac5d0 OnThinkTornade, 0x004ac850 OnThinkSkill, 0x004acdf0 OnThinkTalk, 0x004ad0c0 OnThinkWave, 0x004ad320 OnThinkChase, 0x004ad5e0 OnThinkEpitaph, 0x004ad740 OnThinkEpitaphWave, 0x004ad980 Slave, 0x004ada60 EntrySlave, 0x004adbb0 SendMessage, 0x004add68 SendMessage's effProtect, 0x004a980c CalcRealEx's effProtect, 0x004ae990 ccBoss05Brother::Init, 0x004aed70 Move, 0x004aefb0 Main, 0x004af020 Think, 0x004af0e0 OnThinkNeutral, 0x004af1f0 OnThinkEpitaph, 0x004af300 OnThinkEpitaphWave, 0x004af8d0 OnThinkTornade, 0x004afe10 OnThinkWave, 0x004b0490 OnThinkDead, 0x004b05b0 Order, 0x004b07c0 Affect, 0x004b0b00 OnExit, 0x0046d490 ccBoss::Main, 0x0046e730 ccBoss::Draw, 0x0046ef20 ccBoss::EntryAfterImage, 0x0046ef80 ccBoss::DrawAfterImages, 0x0046c710 ccBossAfterImageManager::EntryAfterImageAnm, 0x0046c9d0 ccBossAfterImageEx::Init, 0x006dfd90 Think's jump table (@1462), 0x006dfdf0 OnThinkKerse's (@1644), 0x006dfe10 SendMessage's (@2268), 0x00618040 boss05NormalActTbl, 0x006180e0 boss05SuperActTbl, 0x006181b0 boss05EpitaphActTbl, 0x00618218 @1261, 0x00618230 @1672, 0x00618240 @1777, 0x00618250 @2074, 0x00384e80 ccBoss05's vtable, 0x00384de0 ccBoss05Brother's, 0x004700a0 ccBoss::OffBossCamera, 0x0046f9e0 ccBoss::InitBossCamera, 0x00472090 ccBossCam::ccBossCam; INF gcmn.prg:0x00497010-0x0049e590 (boss05.cpp), 0x005ebf10 Boss05AnmTbl, 0x005ebf80 boss05SlaveAnmTbl1, 0x005ebff0 boss05SlaveAnmTbl2, 0x005ec060 boss05NormalActTbl, 0x005ec100 boss05SuperActTbl, 0x005ec1c0 boss05EpitaphActTbl, 0x005ec228 @1261, 0x005ec240 @1672, 0x005ec250 @1777, 0x005ec260 @2074; OUT gcmn.prg:0x0048a6e0 ccBossEffFinalPhotonFlashCreate, 0x00480b70 ccBossEffFinalPhotonFlash::Draw, 0x00480d00 ccBossEffFinalPhotonFlash::Explode, 0x0058d160 ccChar::SetBaseParam, 0x00597bb0 _ccSkillModifyCondition, 0x0058d270 ccChar::CalcReal
-worklog: 296, 297, 303, 422, 429, 436, 437
+worklog: 296, 297, 303, 422, 429, 436, 437, 440
 ---
 
 # Bosses - Gorre
@@ -139,6 +139,21 @@ Gorre, so the brothers had no actor from the port of Gorre (worklog 303)
 on, and their trails and waves were drawn at Gorre's place with Gorre's
 unused anms. `combat::boss::clip_body` now picks the clump the clip
 poses, and `gorre::Pic` carries each brother's trail and wave.
+
+How the brothers look (worklog 440):
+
+- **The models.** The first brother's body is a carved grey face
+  (`TEX_ex51bod1`) with a yellow orb (`TEX_9504eye-y`); its back is
+  scaly stone round a yellow oval (`TEX_ex51bod3`). The second's is the
+  same with blue (`TEX_9504eye-b`, `TEX_ex51bod4`). Nothing in
+  boss05.cpp swaps a palette or a texture.
+- **The light.** A brother is never shaded: no `ccBoss` code writes
+  +0x80. So the arena's light group lights it: a green distant light
+  (0.349, 0.435, 0.318), a yellowish ambient, and red omni lights at the
+  edge. That makes the stone olive or orange in the field.
+- **The cinematics.** The close-ups with open eyes and teeth are streams
+  71 and 72.
+- **The trail.** It is a flat teal (0x00505000 at `colorAlpha` 100).
 
 `ccBoss05::ChangeAction`: the base's, then `Order(act)` on both brothers
 (whether or not the base took it), `m_actSub*` cleared.

@@ -105,7 +105,8 @@ impl Place {
         }
     }
 
-    fn lights(&self) -> &crate::town::TownLights {
+    /// The light group the place draws with.
+    pub fn lights(&self) -> &crate::town::TownLights {
         match self {
             Place::Field(f) => &f.lights,
             Place::Dungeon(d) => &d.lights,

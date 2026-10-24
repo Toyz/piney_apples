@@ -848,7 +848,8 @@ fn gorres_brothers_are_drawn_through_the_fight() {
 }
 
 /// Shots of Gorre's fight to `PINEY_SHOTS` (default
-/// /mnt/data/claude/scratch/a437): every 100th frame of 3000.
+/// /mnt/data/claude/scratch/a437): every 100th frame of 4000 (the
+/// Talk's stream 71, which draws the brothers in close-up, about 3,400).
 #[test]
 #[ignore]
 fn gorre_brothers_shots() {
@@ -856,7 +857,7 @@ fn gorre_brothers_shots() {
     std::fs::create_dir_all(&dir).unwrap();
     let Some(mut s) = event_218_arena() else { return };
     let mut gs: Option<piney_gs::Gs> = None;
-    brothers_fight(&mut s, 3000, |s, frame, i| {
+    brothers_fight(&mut s, 4000, |s, frame, i| {
         let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
         g.set_overlay(Mode::archive(s));
         g.render(frame);
@@ -865,4 +866,64 @@ fn gorre_brothers_shots() {
             std::fs::write(format!("{dir}/gorre-{i:05}.png"), piney_gs::png::encode(w, h, &g.read_back())).unwrap();
         }
     });
+}
+
+/// Shots of the brothers' bodies from `x51` alone to `PINEY_SHOTS`
+/// (default /mnt/data/claude/scratch/a440): each clump at its neutral clip
+/// (`ANM_ex51nut` on `CMP_trall`, `ANM_ex52nut` on `CMP_trall2`,
+/// `ANM_ex5xnut` on `CMP_trallx`), turned 0, 90, 180 and 270 degrees, once
+/// under a plain white ambient and once under the arena's own lights.
+#[test]
+#[ignore]
+fn gorre_brothers_model_shots() {
+    use piney_world::draw;
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/a440".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let Some(mut s) = event_218_arena() else { return };
+    // The arena's lights, once the fight is up.
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let mut arena = None;
+    for n in 0..3000u32 {
+        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
+        s.step(&pad);
+        s.take_events();
+        if let Stage::Area(a) = &s.stage
+            && a.world().combat().boss_char().is_some()
+        {
+            arena = Some(a.world().place().lights().clone());
+            break;
+        }
+    }
+    let arena = arena.expect("the fight");
+    let white = piney_world::town::TownLights { ambient: glam::Vec3::splat(1.0), lights: Vec::new(), fog: None };
+    let file = std::rc::Rc::new(piney_desktop::assets::SceneFile::read(&s.archive, "x51").unwrap());
+    let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap();
+    let f = |x: f32| x.to_bits();
+    for (clump, clip) in [("CMP_trall", "ANM_ex51nut"), ("CMP_trall2", "ANM_ex52nut"), ("CMP_trallx", "ANM_ex5xnut")] {
+        let body = piney_world::body::Body::of(file.clone(), clump).unwrap();
+        let play = body.play(clip).unwrap();
+        for (name, lights) in [("white", &white), ("arena", &arena)] {
+            for turn in [0u32, 90, 180, 270] {
+                let r = (turn as f32).to_radians();
+                let root = piney_world::body::root([0, 0, 0, f(1.0)], [0, 0, f(r), f(1.0)]);
+                let eye = [0, f(-1800.0), f(400.0), f(1.0)];
+                let at = [0, 0, f(400.0), f(1.0)];
+                let ws = piney_data::anim::vu_mul(
+                    &piney_world::camera::VIEW_SCREEN,
+                    &piney_world::camera::pos_target(eye, at),
+                );
+                let mut layers = piney_desktop::layers::Layers::default();
+                body.draw(&mut layers, draw::CHAR_LAYER, draw::screen(&ws), &play, root, 1.0, lights, false, &[]);
+                let mut frame = Frame::new();
+                frame.cmds = layers.flatten();
+                frame.clear = piney_draw::Rgba([0x40, 0x40, 0x40, 0x80]);
+                gs.render(&frame);
+                let (w, h) = gs.target_size();
+                let path = format!("{dir}/{clump}-{name}-{turn:03}.png");
+                std::fs::write(path, piney_gs::png::encode(w, h, &gs.read_back())).unwrap();
+            }
+        }
+    }
 }
