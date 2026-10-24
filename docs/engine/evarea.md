@@ -38,6 +38,7 @@ else                              eventAreaFlag (+0x124) = 1; position 0;
   13 EVENTAREA01    15 EVENTAREA02    16 EVENTAREA07    43 EVENTAREA03
   66 EVENTAREA04    67 EVENTAREA05    91 EVENTAREA06
   9-12 EVENTAREAB8  1-8 EVENTAREAB0   any other: a store to address 0
+  (Quarantine also 126: the ending's empty map, below)
 ```
 
 No seed is set and nothing is generated. `ccThFieldDisp` (0x001a4430) then
@@ -775,6 +776,31 @@ back at the list's tail (`HitEnable`) for `SwitchGateON` and
 hits, the rocks' cells and the ride. `FieldWorld` hands Kyvia the disc
 (`IsMove`, `discPrevPos`, `DMY_marker01`) each frame and carries out
 `Move` and the gates (`DiscArea::body_hit`).
+
+## Field 126: the ending's empty map (Quarantine)
+
+Event 314's block 2 runs on the desktop: `area 126` (Quarantine's own
+case of instruction 118: `eventAreaNumber` 126, nothing generated),
+`mode 5`, then `scene 1 0 126`, whose `ChangeRequest(6, 7)` is the
+frame's last. `GO(1)` (QUA main 0x001b302c) makes a class with no symbol
+for 126: gcmn 0x00305120, 0x1c4 bytes, vtable 0x002766b0.
+
+- The constructor runs `EVENTAREA::EVENTAREA` and clears `modelArray`
+  (50), `anmArray` (25), `bg` (6) and the light count. It loads no file,
+  sets no fog and no `ccSys.bgColor`, and never calls `SetStartPos`.
+- `Draw` (0x00305260) only sets `ccMenu` +0x0c (`panelStatus`) to 3
+  each frame, so the party's panels go out. The other slots are the
+  base's.
+- So the field is the clear colour, black from the desktop's set-up.
+  The party stands at `eventStartPos` as the last story map left it
+  (field 8's arena on the story's way), the others as any map's.
+- Block 3 there hides Kite (`pc_act 0 6`: act 14, transparency 0) and
+  runs `ending_kanji`, the staff roll `STFROLL_VOL4`.
+
+The port: `piney_world::evarea_end::EndArea`. `WorldMan::event_start`
+carries `eventStartPos` from one story map to the next. The desktop's
+`area` and `change_scene` are recorded, and the session sets the field up
+from the desktop (`Session::story_scene`).
 
 ## Unknown
 

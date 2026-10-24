@@ -459,41 +459,14 @@ impl Session {
                 match crate::area::set_generate_code(&self.iso, words, self.scene.server, &state.save) {
                     Ok((wm, go)) => {
                         // A new area: the last one's dungeon is gone.
-                        self.world_man = Some(wm);
+                        self.world_man = Some(wm.keeping_start(self.world_man.as_ref()));
                         self.dungeon = None;
                         self.scene.go(go, &mut state.save);
                     }
                     Err(e) => tracing::warn!("{e}"),
                 }
             }
-            Some(Pending::Story(c)) => {
-                // Instruction 118 `area n` (ccEvAreaCodeAdd): a story area
-                // past 13 is SimGenerateCode of its words on this server.
-                if let Some((n, _)) = c.area {
-                    match crate::area::ev_area_world_man(&self.iso, i32::from(n), self.scene.server, &state.save) {
-                        Ok(Some(wm)) => {
-                            self.world_man = Some(wm);
-                            self.dungeon = None;
-                        }
-                        // 1-13: no words; the same WORLD_MAN takes the
-                        // number (its fixed story map, model and flags).
-                        Ok(None) => {
-                            if let Some(cur) = self.world_man {
-                                match crate::area::ev_area_number(&self.iso, i32::from(n), &cur, &state.save) {
-                                    Ok(wm) => {
-                                        self.world_man = Some(wm);
-                                        self.dungeon = None;
-                                    }
-                                    Err(e) => tracing::warn!("{e}"),
-                                }
-                            }
-                        }
-                        Err(e) => tracing::warn!("{e}"),
-                    }
-                }
-                let go = piney_data::area::Go::ChangeScene(c.scene.map(i32::from));
-                self.scene.go(go, &mut state.save);
-            }
+            Some(Pending::Story(c)) => self.story_scene(&c, &mut state.save),
             None => {}
         }
         self.stage = self.world_stage(state, vm, true)?;
@@ -510,6 +483,40 @@ impl Session {
             }
         }
         Ok(())
+    }
+
+    /// The scripts' `area n` and `scene` (`c`) applied to the session's
+    /// `WORLD_MAN` and scene.
+    fn story_scene(&mut self, c: &crate::field_host::SceneChange, save: &mut piney_data::save::SaveData) {
+        // Instruction 118 `area n` (ccEvAreaCodeAdd): a story area past 13
+        // is SimGenerateCode of its words on this server.
+        if let Some((n, _)) = c.area {
+            match crate::area::ev_area_world_man(&self.iso, i32::from(n), self.scene.server, save) {
+                Ok(Some(wm)) => {
+                    self.world_man = Some(wm.keeping_start(self.world_man.as_ref()));
+                    self.dungeon = None;
+                }
+                // 1-13 (and Quarantine's 126): no words; the same
+                // WORLD_MAN takes the number (its fixed story map, model
+                // and flags).
+                // A session started on the desktop (a story start point)
+                // has none yet: the game's is WORLD_MAN::Init's random
+                // area, of which the number is all a story map reads.
+                Ok(None) => {
+                    let cur = self.world_man.unwrap_or_default();
+                    match crate::area::ev_area_number(&self.iso, i32::from(n), &cur, save) {
+                        Ok(wm) => {
+                            self.world_man = Some(wm);
+                            self.dungeon = None;
+                        }
+                        Err(e) => tracing::warn!("{e}"),
+                    }
+                }
+                Err(e) => tracing::warn!("{e}"),
+            }
+        }
+        let go = piney_data::area::Go::ChangeScene(c.scene.map(i32::from));
+        self.scene.go(go, save);
     }
 
     /// Whether the port has the scene `go` leads to: Mac Anu and Dun
@@ -965,6 +972,16 @@ impl Session {
             (request::DESKTOP, Stage::Desktop(d)) => {
                 let (state, vm) = d.leave();
                 self.enter_desktop(state, vm, rate)?
+            }
+            // The scripts' `scene` from the desktop (event 314's field 126
+            // after its `mode 5`): ccSetupGameCtrl for that scene, on the
+            // WORLD_MAN and party the last area left.
+            (request::NEW_GAME | request::GAME_CTRL, Stage::Desktop(d)) if d.scene_change().is_some() => {
+                let c = d.scene_change().cloned().expect("a scene change");
+                let (mut state, vm) = d.leave();
+                self.story_scene(&c, &mut state.save);
+                self.area = Some((self.scene.area, self.scene.town));
+                self.world_stage(state, vm, false)?
             }
             (request::NEW_GAME | request::GAME_CTRL, Stage::TopPage(t)) => {
                 // Log in: `ccSetupNewGame` (GCMN.PRG), then `ccSetupGameCtrl`
@@ -6932,6 +6949,9 @@ mod tests {
 
     /// Quarantine's Corbenik, its three forms (event 313).
     mod corbenik;
+
+    /// Quarantine's ending (event 314).
+    mod ending;
 
     /// A survey of the side events where they play (ignored; a diagnostic).
     mod side_events;

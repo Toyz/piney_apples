@@ -42,6 +42,8 @@ pub enum StoryRequest {
     Message { rec: u32 },
     /// `ccGame::ChangeArea(a, n)`.
     ChangeArea(i32, i32),
+    /// `ccMenu->panelStatus = n` (field 126's `Draw`).
+    PanelStatus(i16),
 }
 
 /// The frame a story map's scene sees: the cameras, the save, the server,
@@ -111,6 +113,8 @@ pub struct At<'a> {
     pub field_prev: i32,
     pub server: i32,
     pub save: &'a SaveData,
+    /// `WORLD_MAN.eventStartPos` as the last map's `SetStartPos` left it.
+    pub event_start: V4,
 }
 
 /// `GO(1)`'s map for `at.field` (`eventAreaNumber`, whose
@@ -147,6 +151,9 @@ pub fn build(
         crate::evarea07::AREA => Box::new(Giant::new(archive, at.volume, def_se, area_prev, 0)?),
         crate::evarea03::AREA => Box::new(Area43::new(archive, at.volume, at.save, at.server, def_se)?),
         crate::evarea01::AREA => Box::new(crate::evarea01::Area13::new(archive, at.volume, def_se)?),
+        crate::evarea_end::AREA if at.volume == Volume::Qua => {
+            Box::new(crate::evarea_end::EndArea::new(at.volume, def_se, at.event_start))
+        }
         f if crate::evarea_b8::is_disc(f) => {
             Box::new(crate::evarea_b8::DiscArea::new(archive, at.volume, f, at.field_prev, def_se, cc)?)
         }

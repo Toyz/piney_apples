@@ -324,7 +324,7 @@ impl AreaMode {
     pub fn leave(mut self) -> (SaveState, Option<Vm>, Scene, WorldMan, Option<Kept>, Spcs) {
         // ccSetupGameCtrl's ccStoreSpcCondition, for the next scene's party.
         self.world.store_conditions();
-        let (state, scene, wm) = (self.world.state_out(), self.world.scene(), *self.world.world_man());
+        let (state, scene, wm) = (self.world.state_out(), self.world.scene(), self.world.world_man_out());
         let spcs = self.world.spcs().clone();
         (state, self.vm, scene, wm, self.world.into_kept(), spcs)
     }
@@ -1820,6 +1820,7 @@ impl Mode for AreaMode {
                     self.story_message = true;
                 }
                 Request::Story(StoryRequest::ChangeArea(..)) => {}
+                Request::Story(StoryRequest::PanelStatus(n)) => self.ui.ctrl.panel_status = n,
                 Request::Game(GameRequest::SoundFadeOut) => out.push(Event::SoundFadeOut),
                 Request::Game(GameRequest::AllSoundOff) => out.push(Event::AllSoundOff),
                 Request::Game(GameRequest::EvVoiceStop) => out.push(Event::VoiceStop),
@@ -1904,8 +1905,10 @@ impl Mode for AreaMode {
         out
     }
 
+    /// `ccSys`'s rate: the scripts' `frame_rate` once one ran here (event
+    /// 314's `frame_rate 1` in field 126), else the field's.
     fn frame_rate(&self) -> u32 {
-        self.world.frame_rate()
+        self.st.frame_rate.unwrap_or_else(|| self.world.frame_rate())
     }
 
     /// A stream's own files while the scripts play one.

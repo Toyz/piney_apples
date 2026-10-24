@@ -378,6 +378,7 @@ impl FieldWorld {
                 field_prev: scene.field_prev,
                 server: scene.server,
                 save: &save.save,
+                event_start: world_man.event_start,
             };
             crate::story_map::build(&archive, &at, world_man.field_model, kept_map, def_se, &mut cc)?
         } else {
@@ -1044,6 +1045,17 @@ impl FieldWorld {
     /// `ccAddPlayTime`'s `gameCnt` clocks on the scene this area holds.
     pub fn add_play_time(&mut self, rate: i32) {
         self.scene.add_play_time(rate);
+    }
+
+    /// `WORLD_MAN` as the area leaves it: `eventStartPos` the story map's
+    /// last start, for a map after it that sets none.
+    pub fn world_man_out(&self) -> WorldMan {
+        let mut wm = self.world_man;
+        if let Place::Story(m) = &self.place {
+            let ([x, y, z, _], dirc, _) = m.start_positions();
+            wm.event_start = [x, y, z, dirc];
+        }
+        wm
     }
 
     pub fn world_man(&self) -> &WorldMan {
@@ -2556,6 +2568,7 @@ impl FieldWorld {
             }
             StoryRequest::Message { .. } => self.requests.push(Request::Story(r)),
             StoryRequest::ChangeArea(a, n) => self.change_area(a, n),
+            StoryRequest::PanelStatus(_) => self.requests.push(Request::Story(r)),
         }
     }
 

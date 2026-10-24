@@ -602,6 +602,11 @@ impl Host for AreaHost<'_> {
         }
     }
 
+    fn set_frame_rate(&mut self, rate: i16) {
+        self.st.log(format!("set_frame_rate {rate}"));
+        self.st.frame_rate = u32::try_from(rate).ok().filter(|&r| r > 0);
+    }
+
     fn area(&mut self, area: i16) {
         let words = self.st.stories.get(&area).map(|a| a.words).unwrap_or_default();
         self.st.log(format!("area {area} {words:?}"));

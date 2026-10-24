@@ -515,7 +515,5 @@ The boards, the windows and the camera:
 ## Unknown
 
 - What fills OUT's and QUA's BSS message groups.
-- What `eventAreaNumber` 126 loads (QUA's ending, event 314, block 2); the
-  port gives area 126 no words and has not played that block.
 - `npc_act` -3 and -5 (row 139's drain, the Administrator's -5) are not
   ported; only volume 2's event 114 uses them.

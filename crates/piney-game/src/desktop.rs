@@ -90,6 +90,10 @@ pub(crate) struct HostState {
     pub(crate) announcements: Option<Arc<Announcements>>,
     /// Every announcement's lines, as shown.
     pub(crate) announced: Vec<Vec<Vec<u8>>>,
+    /// The `area` instruction's story area and its words, and the `scene`
+    /// that follows it (event 314's way into field 126 from here).
+    pub(crate) area: Option<(i16, [Option<i32>; 3])>,
+    pub(crate) change: Option<crate::field_host::SceneChange>,
 }
 
 impl HostState {
@@ -415,6 +419,22 @@ impl Host for Bridge<'_> {
         self.st.events.push(Event::ChangeMode { num, sf });
     }
 
+    /// `area` (instruction 118) on the desktop: recorded for the scene
+    /// that follows, as in a field (event 314's `area 126`).
+    fn area(&mut self, area: i16) {
+        let words = self.story_area(area).map(|a| a.words).unwrap_or_default();
+        self.st.area = Some((area, words));
+    }
+
+    /// `ccGame::ChangeScene` on the desktop (event 314's `scene 1 0 126`
+    /// after its `mode 5`): recorded for the session, and its
+    /// `ChangeRequest(6, 7)`, the last request of the frame.
+    fn change_scene(&mut self, area: i16, town: i16, field: i16, dungeon: i16, floor: i16, block: i16) {
+        let scene = [area, town, field, dungeon, floor, block];
+        self.st.change = Some(crate::field_host::SceneChange { scene, area: self.st.area });
+        self.st.events.push(Event::ChangeMode { num: 6, sf: 7 });
+    }
+
     fn sound_effect(&mut self, se: i32) {
         self.st.events.push(Event::Se(se));
     }
@@ -718,6 +738,11 @@ impl DesktopMode {
 
     /// Leave the desktop: the save and the event task, for the next mode.
     /// `ccGame::ChangeRequest` disables the task's phase.
+    /// The scene the scripts sent the player to from the desktop.
+    pub fn scene_change(&self) -> Option<&crate::field_host::SceneChange> {
+        self.st.change.as_ref()
+    }
+
     pub fn leave(self) -> (SaveState, Option<Vm>) {
         let DesktopMode { stage, mut vm, .. } = self;
         if let Some(vm) = &mut vm {

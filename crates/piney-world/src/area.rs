@@ -354,6 +354,11 @@ pub struct WorldMan {
     /// none (`ccRegisterDifficultyEnemy` then ranks by the level); 255
     /// outside a story area.
     pub ev_enemy: i32,
+    /// +0x70 `eventStartPos`: where the last story map's `SetStartPos`
+    /// stood the party (w its facing). Nothing else writes it, so it
+    /// outlives the map: a map that sets none (Quarantine's field 126)
+    /// stands the party where the last one did.
+    pub event_start: [u32; 4],
 }
 
 /// The save flag the volume's `SetDungeonTypeFromField` reads: the crisis
@@ -400,7 +405,15 @@ impl WorldMan {
             circle_ofs: code.attrs.circle_ofs,
             item_ofs: code.attrs.item_ofs,
             ev_enemy: info.map_or(255, |i| i.enemy),
+            // SimGenerateCode leaves it; the caller carries it over.
+            event_start: [0; 4],
         }
+    }
+
+    /// `self` with `eventStartPos` as `before` held it (a new area's
+    /// words rewrite the code, not the start).
+    pub fn keeping_start(self, before: Option<&WorldMan>) -> WorldMan {
+        WorldMan { event_start: before.map_or(self.event_start, |b| b.event_start), ..self }
     }
 
     /// Instruction 118 `area n` for `n` 1-13 (`ccEvAreaCodeAdd`):

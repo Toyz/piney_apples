@@ -538,11 +538,16 @@ pub enum EvArea {
     Missing,
 }
 
+/// Quarantine's ending field (event 314's `area 126`, `scene 1 0 126`).
+pub const ENDING_AREA: i32 = 126;
+
 /// Instruction 118 `area n` on `server` (the current `ccGame.server`, which
 /// the instruction does not change: on a server other than the story
 /// area's the generated area is a random one, `event` 0).
 pub fn ev_area(t: &AreaTables, n: i32, server: i32, flag71: bool) -> EvArea {
-    if (1..=13).contains(&n) {
+    // Quarantine's instruction 118 has a case of its own for 126 (QUA main
+    // 0x001c3204): `eventAreaNumber = 126`, no Quit, nothing generated.
+    if (1..=13).contains(&n) || (n == ENDING_AREA && t.volume == 4) {
         return EvArea::Number(n);
     }
     let words = [0, 1, 2].map(|part| t.word_from_event(n, part, flag71).map(|w| w.id));
@@ -735,6 +740,10 @@ mod tests {
         assert_eq!(ev_area(&t, 14, 0, false), EvArea::Generated(r));
         assert_eq!(story_area_code(&t, 14, false), Some(r));
         assert_eq!(ev_area(&t, 5, 0, false), EvArea::Number(5));
+        // Only Quarantine's instruction takes 126 as a number.
+        assert_eq!(ev_area(&t, ENDING_AREA, 0, false), EvArea::Missing);
+        let q = AreaTables::of(Volume::Qua);
+        assert_eq!(ev_area(q, ENDING_AREA, 0, false), EvArea::Number(ENDING_AREA));
         // Area 94's Howling is not a keyword in Infection.
         assert_eq!(story_area_code(&t, 94, false), None);
         assert_eq!(r.dungeon_type(&t, false), [0, 0]);

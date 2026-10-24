@@ -195,6 +195,13 @@ table at 0x00355f00:
 - anything else (0, 14 and up, negative): `SimGenerateCode(A, B, C)` with
   the IDs of `GetWordParamFromEvCode(n, 0)`, `(n, 1)` and `(n, 2)`.
 
+Quarantine adds a case before the switch (QUA main 0x001c3204): `n` 126,
+the ending's field, sets `eventAreaNumber = 126` alone (no `Quit`, nothing
+generated). Its row (127th, added from Mutation on) has no address, so
+the general case would read its words through NULL. Mutation and Outbreak
+have no such case. The port: `piney_data::area::ev_area` gives
+`EvArea::Number(126)` on Quarantine only.
+
 The instruction sets nothing else: not `game.server`, not `game.field`.
 `SimGenerateCode` matches the words against the story areas on the
 current `game.server`, so on the story area's own server `eventAreaNumber`
