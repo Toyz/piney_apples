@@ -6862,6 +6862,9 @@ mod tests {
     /// Quarantine's town 5 in event 301.
     mod town06;
 
+    /// Quarantine's Macha (event 307).
+    mod macha;
+
     /// A survey of the side events where they play (ignored; a diagnostic).
     mod side_events;
 

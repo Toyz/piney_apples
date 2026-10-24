@@ -217,6 +217,18 @@ pub struct Combat {
     pub gorre_skills: &'static [i32],
     /// `@2074`: `SendMessage`'s msg 7, the brother's spell in the Tornade, one by `ccRand() & 3`.
     pub gorre_tornade_skills: &'static [i32],
+    /// `BOSS06AnmTbl`: Macha's clip by act.
+    pub macha_anims: &'static [Option<&'static str>],
+    /// `boss06NormalActTbl`: Macha's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too).
+    pub macha_normal: &'static [i32],
+    /// `boss06ExpertActTbl`: Macha's once its gauge is half full, through its closing -1.
+    pub macha_expert: &'static [i32],
+    /// `boss6EpitaphActTbl`: Macha's once drained, through its closing -1.
+    pub macha_epitaph: &'static [i32],
+    /// `@1198`: pattern 10's skills, one drawn by `ccRand() % 3` and dropped.
+    pub macha_rand_skills: &'static [i32],
+    /// `@1913`: `OnThinkMagic`'s spells, by `abs(ccSys.count & 3)`.
+    pub macha_magic_skills: &'static [i32],
     /// `_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.
     pub cinema_skill_names: &'static [CinemaSkillName],
     /// The cinema's names by `game.field` and skill (`OnCinemaMode` with a skill, from Outbreak on); none before.
@@ -314,6 +326,12 @@ impl crate::store::Load for Combat {
             gorre_magic_skills: crate::store::Load::load(r),
             gorre_skills: crate::store::Load::load(r),
             gorre_tornade_skills: crate::store::Load::load(r),
+            macha_anims: crate::store::Load::load(r),
+            macha_normal: crate::store::Load::load(r),
+            macha_expert: crate::store::Load::load(r),
+            macha_epitaph: crate::store::Load::load(r),
+            macha_rand_skills: crate::store::Load::load(r),
+            macha_magic_skills: crate::store::Load::load(r),
             cinema_skill_names: crate::store::Load::load(r),
             cinema_skill_rows: crate::store::Load::load(r),
             weapon_infos: crate::store::Load::load(r),
@@ -529,6 +547,24 @@ impl Combat {
     }
     pub fn gorre_tornade_skills(&self) -> &'static [i32] {
         self.gorre_tornade_skills
+    }
+    pub fn macha_anims(&self) -> &'static [Option<&'static str>] {
+        self.macha_anims
+    }
+    pub fn macha_normal(&self) -> &'static [i32] {
+        self.macha_normal
+    }
+    pub fn macha_expert(&self) -> &'static [i32] {
+        self.macha_expert
+    }
+    pub fn macha_epitaph(&self) -> &'static [i32] {
+        self.macha_epitaph
+    }
+    pub fn macha_rand_skills(&self) -> &'static [i32] {
+        self.macha_rand_skills
+    }
+    pub fn macha_magic_skills(&self) -> &'static [i32] {
+        self.macha_magic_skills
     }
     pub fn cinema_skill_names(&self) -> &'static [CinemaSkillName] {
         self.cinema_skill_names
@@ -759,6 +795,27 @@ pub static GORRE_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLo
 /// `@2074`: `SendMessage`'s msg 7, the brother's spell in the Tornade, one by `ccRand() & 3`.
 pub static GORRE_TORNADE_SKILLS: std::sync::LazyLock<&'static [i32]> =
     std::sync::LazyLock::new(|| shared().gorre_tornade_skills);
+
+/// `BOSS06AnmTbl`: Macha's clip by act.
+pub static MACHA_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().macha_anims);
+
+/// `boss06NormalActTbl`: Macha's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too).
+pub static MACHA_NORMAL: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().macha_normal);
+
+/// `boss06ExpertActTbl`: Macha's once its gauge is half full, through its closing -1.
+pub static MACHA_EXPERT: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().macha_expert);
+
+/// `boss6EpitaphActTbl`: Macha's once drained, through its closing -1.
+pub static MACHA_EPITAPH: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().macha_epitaph);
+
+/// `@1198`: pattern 10's skills, one drawn by `ccRand() % 3` and dropped.
+pub static MACHA_RAND_SKILLS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().macha_rand_skills);
+
+/// `@1913`: `OnThinkMagic`'s spells, by `abs(ccSys.count & 3)`.
+pub static MACHA_MAGIC_SKILLS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().macha_magic_skills);
 
 /// `ehkBreathInfo`: `ccEnemyH`'s two fire breaths.
 pub static EHK_BREATH_INFO: std::sync::LazyLock<&'static [EnemyBrInfo]> =

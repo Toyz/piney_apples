@@ -268,7 +268,7 @@ impl ProbeBlur {
     pub(crate) fn read_statics(blur: Blur, t: &mut Toks) -> ProbeBlur {
         let init = t.int() != 0;
         let rad = t.u32();
-        let statics = Statics { boss03_rad: init.then_some(rad) };
+        let statics = Statics { boss03_rad: init.then_some(rad), ..Statics::default() };
         ProbeBlur { blur, statics, reflex: None }
     }
 
@@ -280,8 +280,10 @@ impl ProbeBlur {
     /// The boss's writes this frame, in order.
     pub(crate) fn apply(&mut self, out: &[Out]) {
         for o in out {
-            if let Out::Blur(s) = o {
-                self.blur.set(*s);
+            match o {
+                Out::Blur(s) => self.blur.set(*s),
+                Out::BlurSinRot(r) => self.statics.sin_rot = *r,
+                _ => {}
             }
         }
     }
@@ -293,6 +295,7 @@ impl ProbeBlur {
         let func = match b.func {
             None => "0",
             Some(BlurFunc::Boss03) => "\"boss03\"",
+            Some(BlurFunc::Boss06) => "\"boss06\"",
         };
         let reflex = self.reflex.map_or("null".into(), |r| format!("[{},{},{}]", r.scale, r.turn, r.abgr));
         format!(
@@ -349,10 +352,10 @@ fn tbl_num(t: Tbl) -> i32 {
 pub(crate) fn eff_num(k: EffKind) -> i32 {
     use piney_battle::boss::innis::Element;
     match k {
-        EffKind::WaveShock => 0,
+        EffKind::WaveShock | EffKind::WaveShockScaled { .. } => 0,
         EffKind::MagicSquare { .. } => 1,
         EffKind::ForceGenerator { .. } => 2,
-        EffKind::AutoSamonRing { .. } => 3,
+        EffKind::AutoSamonRing { .. } | EffKind::AutoSamonRingOf { .. } => 3,
         EffKind::IceBreak => 4,
         EffKind::Dead => 5,
         EffKind::SamonRing { .. } => 6,
@@ -369,6 +372,8 @@ pub(crate) fn eff_num(k: EffKind) -> i32 {
         EffKind::Thunderbolt { .. } => 17,
         EffKind::MagicalBall => 18,
         EffKind::HellExpress => 19,
+        EffKind::LaserShot => 20,
+        EffKind::LightBallShock => 21,
     }
 }
 

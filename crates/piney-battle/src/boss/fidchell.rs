@@ -289,7 +289,7 @@ fn select(b: &mut Boss, cx: &mut Cx, ty: i32) -> Option<usize> {
 
 /// `ccBoss::IsValidArea(p)` (OUT gcmn 0x0046f100): the world place's x and
 /// y each under the centre's plus 2500, their signs lost to `fabs`.
-fn valid_area(b: &Boss, cx: &Cx, p: V4) -> bool {
+pub(super) fn valid_area(b: &Boss, cx: &Cx, p: V4) -> bool {
     let w = super::p2w(cx, p);
     let lx = ee::sub(ee::add(0x453b_8000, b.center_pos[0]), 0x43fa_0000);
     let ly = ee::sub(ee::add(0x453b_8000, b.center_pos[1]), 0x43fa_0000);

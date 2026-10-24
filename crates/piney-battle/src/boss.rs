@@ -12,6 +12,7 @@ pub mod fidchell;
 pub mod gorre;
 pub mod innis;
 pub mod kyvia;
+pub mod macha;
 pub mod magus;
 
 use piney_data::field::ee;
@@ -111,6 +112,7 @@ pub struct BossData {
     pub kyvia: kyvia::KyviaData,
     pub fidchell: fidchell::FidchellData,
     pub gorre: gorre::GorreData,
+    pub macha: macha::MachaData,
 }
 
 impl BossData {
@@ -123,6 +125,7 @@ impl BossData {
             kyvia: kyvia::KyviaData::of(volume),
             fidchell: fidchell::FidchellData::of(volume),
             gorre: gorre::GorreData::of(volume),
+            macha: macha::MachaData::of(volume),
         }
     }
 }
@@ -154,6 +157,8 @@ pub enum Class {
     Gorre(Box<gorre::Gorre>),
     /// `ccBoss05Brother`.
     GorreBrother(Box<gorre::brother::Brother>),
+    /// `ccBoss06`.
+    Macha(Box<macha::Macha>),
     /// A bare `ccBoss` (a slave's base).
     Plain,
 }
@@ -343,13 +348,17 @@ pub struct Eff {
     pub ball: Option<Box<kyvia::magic_ball::MagicalBall>>,
     /// Kyvia's hell's express ([`kyvia::hell::Hell`]).
     pub hell: Option<Box<kyvia::hell::Hell>>,
+    /// Macha's lasers and blast ([`macha::eff::Fx`]).
+    pub macha: Option<Box<macha::eff::Fx>>,
 }
 
 /// The effects the bosses make (`ccBossEff*Create`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EffKind {
-    /// `ccBossEffWaveShockCreate(pos, dirc, scale)` (0x00478820).
+    /// `ccBossEffWaveShockCreate(pos, dirc, scale)` (0x00478820) at 1.0.
     WaveShock,
+    /// The same at another scale (Macha's Epitaph's 2.0).
+    WaveShockScaled { scale: F },
     /// `ccBossEffMagicSquareCreate(pos, n)` (0x00478b10).
     MagicSquare { n: i32 },
     /// `ccBossEffForceGeneratorCreate(p, rot, speed, r0, r1, num, life,
@@ -358,6 +367,8 @@ pub enum EffKind {
     ForceGenerator { num: i32, life: i32, speed: F, r0: F, r1: F, clt: i32 },
     /// `ccBossEffAutoSamonRingCreate(pos, rot, param, n)` (0x00479900).
     AutoSamonRing { n: i32 },
+    /// The same with another `param` (Macha's blast's (0, 2/3, 10)).
+    AutoSamonRingOf { n: i32, param: [F; 3] },
     /// `ccBossEffIceBreakCreate(pos, scale)` (0x00479240).
     IceBreak,
     /// `ccBossEffDeadCreate(pos, pos, 0)` (0x004795d0).
@@ -398,6 +409,12 @@ pub enum EffKind {
     /// `HellSpecialExpressCreate(pos, dataSet)` (QUA gcmn 0x0037bf40):
     /// Kyvia's fourth fight's hell's express.
     HellExpress,
+    /// `ccBossEffLaserShotCreate(from, to, speed)` (QUA gcmn 0x0037d250):
+    /// a laser of Macha's eyes ([`macha::eff::Laser`]).
+    LaserShot,
+    /// `ccBossEffLightBallShockCreate(pos)` (QUA gcmn 0x0037d320): Macha's
+    /// light ball's blast ([`macha::eff::Shock`]).
+    LightBallShock,
 }
 
 impl Effects {
@@ -422,6 +439,7 @@ impl Effects {
             bolt: None,
             ball: None,
             hell: None,
+            macha: None,
         };
         match self.slots.iter().position(Option::is_none) {
             Some(k) => {
@@ -471,7 +489,7 @@ impl Eff {
         let life = match self.kind {
             // ccBossEffWaveShock::Draw (0x0046b3f0): its ccAnm to the end
             // of ANM_ex31lhit (46 frames).
-            EffKind::WaveShock => 45,
+            EffKind::WaveShock | EffKind::WaveShockScaled { .. } => 45,
             // ccBossEffMagicSquareCreate(pos, n) makes a ccBossEffLight
             // (pos, n, 80, 10), for n 1 (pos, 1, 60, 10): 1 + life + wait.
             EffKind::MagicSquare { n: 1 } => 71,
@@ -481,7 +499,7 @@ impl Eff {
             EffKind::ForceGenerator { num, life, .. } => life + (num - 1) / 2 * 10 + 3,
             // ccBossEffAutoSamonRing::Draw (0x0046ed70): its
             // ccEffSamonRing fades out in 20 frames, whatever the model.
-            EffKind::AutoSamonRing { .. } | EffKind::LeafRing => 20,
+            EffKind::AutoSamonRing { .. } | EffKind::AutoSamonRingOf { .. } | EffKind::LeafRing => 20,
             // ccBossEffIceBreak::Draw (0x0046cc10): the flash (1 frame),
             // 61 frames, 61 more; the last one clears it.
             EffKind::IceBreak => 1 + 61 + 61,
@@ -508,7 +526,9 @@ impl Eff {
             | EffKind::RockTower { .. }
             | EffKind::Thunderbolt { .. }
             | EffKind::MagicalBall
-            | EffKind::HellExpress => return,
+            | EffKind::HellExpress
+            | EffKind::LaserShot
+            | EffKind::LightBallShock => return,
         };
         if self.count >= life {
             self.enabled = false;
@@ -785,6 +805,13 @@ pub enum Out {
     /// `ccMenu` +0x238 `dummyTarget` (Quarantine's): the target whose HP
     /// the gauge shows.
     DummyTarget(Option<usize>),
+    /// `EntryAfterImage(&t)`: an after-image of the boss's pose in its own
+    /// params (Macha's white ones).
+    AfterImageWith(AfterImageParams),
+    /// What Macha shows beside its body ([`macha::Pic`]).
+    Macha(macha::Pic),
+    /// `g_sinRot` (`ccBoss06BlurParamFuncCB`'s phase) set.
+    BlurSinRot(F),
 }
 
 /// `ccBoss`, with `ccBoss01`'s members (Skeith's); another class's own
@@ -921,6 +948,11 @@ pub trait PartHits {
     fn collide(&mut self, who: usize, hit: &mut CharHit) -> bool;
     /// The list's copy of `who`'s body made `hit` (its owner moved it).
     fn sync(&mut self, who: usize, hit: &CharHit);
+    /// `ccHitCheckLM(sp, ep, mask)` on the land: where the segment first
+    /// meets it (Macha's lasers). None without land.
+    fn line(&mut self, _sp: V4, _ep: V4, _mask: u32) -> Option<V4> {
+        None
+    }
 }
 
 /// No list: a switch only sets `sw`, and nothing is ever touched.
@@ -975,6 +1007,9 @@ pub struct DiscView {
     /// one `EntryFlash3` takes): the fourth fight reads both.
     pub blur_abgr: u32,
     pub blur_scale: F,
+    /// The blur's `m_exit` (+0x28) as the boss's task starts (Macha's
+    /// `Transfer` waits on it).
+    pub blur_exit: u32,
     pub fades: [FadeView; 4],
 }
 
@@ -1130,6 +1165,7 @@ impl Boss {
             Class::Magus(_) => magus::main(self, cx),
             Class::Kyvia(_) => kyvia::main(self, cx),
             Class::Fidchell(_) => fidchell::main(self, cx),
+            Class::Macha(_) => macha::main(self, cx),
             Class::Gorre(_) => gorre::main(self, cx),
             _ => self.skeith_main(cx),
         }
@@ -2485,6 +2521,7 @@ impl Boss {
             Class::KyviaCore(_) => return kyvia::core::affect(self, cx),
             Class::Gomora(_) => return kyvia::gomora::affect(self, cx),
             Class::Fidchell(_) => return fidchell::affect(self, cx),
+            Class::Macha(_) => return macha::affect(self, cx),
             Class::Gorre(_) => return gorre::affect(self, cx),
             Class::GorreBrother(_) => return gorre::brother_affect(self, cx),
             _ => {}

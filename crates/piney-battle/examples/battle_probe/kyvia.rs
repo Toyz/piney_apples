@@ -341,6 +341,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         marker: case.marker,
         blur_abgr: blur.blur.abgr,
         blur_scale: blur.blur.scale,
+        blur_exit: blur.blur.exit,
         fades: fade.view(),
     };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };

@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-442 entries: audio 39, battle 106, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 113, save 16, script 55, test 201, tooling 42, ui 95, video 16, volumes 84, world 128.
+443 entries: audio 39, battle 107, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 114, save 16, script 55, test 202, tooling 42, ui 95, video 16, volumes 85, world 128.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -454,3 +454,4 @@ The [reference](docs/README.md) says what is true now.
 | 440 | [Gorre's brothers look as the game draws them: x51's own faces, backs and orbs, never shaded, lit by the arena's green distant light, the close-ups being streams 71 and 72 and the flat teal the trail's own colour](worklog/0440-gorre-s-brothers-look-as-the-game-draws-them-x51-s-own.md) | 2026-10-24 | render, battle, test |
 | 441 | [Quarantine's story surveyed: fourteen starts, nine events done, the rest stopped by town 5, two missing bosses, a short run and an ending's area](worklog/0441-quarantine-s-story-surveyed-fourteen-starts-nine-events.md) | 2026-10-24 | script, test, volumes |
 | 442 | [Quarantine's town 5 is town06: a sixth Root Town no symbol names, reached by the gate's town 4 while event 301 holds eventStatus[51], and event 301 now ends](worklog/0442-quarantine-s-town-5-is-town06-a-sixth-root-town-no-symbol.md) | 2026-10-24 | world, volumes, script, test |
+| 443 | [Macha (ccBoss06) ported from Quarantine's code: its patterns read their operands from its own table, its lasers fly to the land and its light ball's shock bursts, and event 307 ends in the arena](worklog/0443-macha-ccboss06-ported-from-quarantine-s-code-its-patterns.md) | 2026-10-24 | battle, render, volumes, test |

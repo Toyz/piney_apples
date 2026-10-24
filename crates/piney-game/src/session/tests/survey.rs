@@ -154,6 +154,11 @@ impl Default for StoryPilot {
 }
 
 impl StoryPilot {
+    /// The fight's action under way, for a trace.
+    pub(super) fn doing(&self) -> String {
+        format!("{:?} opened {} began {}", self.action, self.opened, self.began)
+    }
+
     pub(super) fn next(&mut self, s: &Session, f: u64) -> Raw {
         if let Stage::Area(a) = &s.stage
             && !a.streaming()
@@ -2398,7 +2403,7 @@ fn arena_door(w: &piney_world::field_world::FieldWorld, wants: &[Want]) -> Optio
 
 /// The party's and the foes' HP and levels (the foes by name), for
 /// `PINEY_DEBUG_PILOT`.
-fn fighters(a: &crate::area::AreaMode) -> String {
+pub(super) fn fighters(a: &crate::area::AreaMode) -> String {
     use piney_battle::chara::Body;
     let c = a.world().combat();
     let one = |k: usize| {

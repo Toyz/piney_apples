@@ -169,14 +169,21 @@ mod tests {
             // From Mutation on, area 125's dungeon has 15 floors.
             assert_eq!(d.edit_floors_by_event.iter().any(|&(e, f)| e == 125 && f == 15), v != Volume::Inf);
             // The towns' and event areas' pieces are the same on every disc;
-            // only where they sit in memory moves.
+            // only where they sit in memory moves. From Mutation on the code
+            // carries town06 (`RT_MODELTABLE06`, `ROOTTOWN06`) too, which
+            // only Quarantine's gate reaches.
             let (models, objs, sets) = statics::of(v);
-            assert_eq!(models.len(), inf_models.len());
+            let town06 = |name: &str| name.contains("06");
+            assert_eq!(models.iter().any(|m| m.name == "RT_MODELTABLE06"), v != Volume::Inf, "{v}");
+            let models: Vec<_> =
+                models.iter().filter(|m| !town06(m.name) || inf_models.iter().any(|b| b.name == m.name)).collect();
+            assert_eq!(models.len(), inf_models.len(), "{v}");
             for (a, b) in models.iter().zip(inf_models) {
                 assert_eq!((a.name, a.scenes, a.rows), (b.name, b.scenes, b.rows), "{v} {}", a.name);
             }
             assert_eq!(objs.len(), inf_objs.len());
-            assert_eq!(sets, inf_sets, "{v}");
+            let sets: Vec<_> = sets.iter().filter(|s| !town06(&format!("{s:?}")) || inf_sets.contains(s)).collect();
+            assert_eq!(sets, inf_sets.iter().collect::<Vec<_>>(), "{v}");
             // The fields' tables are Infection's, but for Outbreak's and
             // Quarantine's square root.
             let f = field::tables_of(v);

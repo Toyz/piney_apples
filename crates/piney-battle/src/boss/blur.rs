@@ -27,6 +27,9 @@ pub enum BlurFunc {
     /// `ccBoss03BlurParamCB` (INF gcmn 0x004610e0): Skeith's and
     /// Fidchell's.
     Boss03,
+    /// `ccBoss06BlurParamFuncCB` (QUA gcmn 0x003a34a0): Macha's
+    /// `Transfer`'s.
+    Boss06,
 }
 
 /// A boss's write to the blur.
@@ -57,6 +60,9 @@ pub struct Reflex {
 pub struct Statics {
     /// `ccBoss03BlurParamCB`'s `blurRad`, None before its first call.
     pub boss03_rad: Option<F>,
+    /// `g_sinRot` (QUA gp 0x00279814): `ccBoss06BlurParamFuncCB`'s phase,
+    /// which Macha's `Transfer` sets.
+    pub sin_rot: F,
 }
 
 /// `ccBossBlur`'s members (offsets from the blur, the manager's +4).
@@ -172,6 +178,18 @@ impl BlurFunc {
                 *scale = ee::add(ONE, ee::mul(0x3c23_d70a, libm::sinf(r)));
                 *turn = ee::mul(PI, ee::div(libm::sinf(r), 0x44e1_0000));
                 *abgr = 0x4880_8080;
+            }
+            BlurFunc::Boss06 => {
+                // g_sinRot += 0.0349 (2 pi / 180), back by 2 pi past pi; the
+                // scale 1 + 0.2 sin, the turn kept.
+                let mut r = ee::add(statics.sin_rot, 0x3d0e_fa35);
+                if !ee::le(r, PI) {
+                    r = ee::sub(r, TWO_PI);
+                }
+                statics.sin_rot = r;
+                *scale = ee::add(ONE, ee::mul(0x3e4c_cccd, libm::sinf(r)));
+                let _ = turn;
+                *abgr = 0x7080_8080;
             }
         }
     }

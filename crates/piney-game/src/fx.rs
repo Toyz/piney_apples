@@ -826,6 +826,8 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         // What Fidchell's rules ask beside: the back dash's and a tower's
         // dust, a meteor's landing, a tower's and a strike's rocks.
         Show::Boss(_, piney_battle::boss::Out::Fidchell(p)) => fx.fidchell_calls(h, p),
+        // Macha's lasers, blast and their bursts, the back dash's dust.
+        Show::Boss(_, piney_battle::boss::Out::Macha(p)) => fx.macha_calls(h, p),
         // effSkillStart(who, sid, 0, 0): Fidchell's skill, a gomora's.
         Show::Boss(_, piney_battle::boss::Out::SkillStart { who, sid }) => {
             fx.skill_start(h, cref(*who), *sid, 0, 0);
@@ -862,11 +864,15 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
     const TEN: u32 = 0x4120_0000;
     Some(match kind {
         EffKind::WaveShock => Make::WaveShock { pos, dirc, scale: ONE },
+        EffKind::WaveShockScaled { scale } => Make::WaveShock { pos, dirc, scale },
         EffKind::MagicSquare { n } => Make::MagicSquare { pos, n },
         EffKind::ForceGenerator { num, life, speed, r0, r1, clt } => {
             Make::ForceGenerator { p: pos, rot: dirc, speed, r0, r1, num, life, clt }
         }
         EffKind::AutoSamonRing { n } => Make::AutoSamonRing { pos, rot: dirc, param: [0, 0x3eaa_aaab, TEN, 0], n },
+        EffKind::AutoSamonRingOf { n, param: [a, b, c] } => {
+            Make::AutoSamonRing { pos, rot: dirc, param: [a, b, c, 0], n }
+        }
         EffKind::IceBreak => Make::IceBreak { pos, scale: 0x4000_0000 },
         EffKind::Dead => Make::Dead { pos },
         // Magus's leaf's ring (model 195, DeadEffect's parameter).
@@ -881,7 +887,12 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
         EffKind::HellExpress => Make::Hell { rules_slot: id },
         EffKind::Needle { .. } => Make::Needles { rules_slot: id },
         EffKind::FinalPhotonFlash => Make::FinalPhotonFlash { pos },
-        EffKind::MeteoSworm { .. } | EffKind::ThunderStorm { .. } | EffKind::RockTower { .. } => {
+        // Macha's lasers and blast: drawn from their rules' state.
+        EffKind::MeteoSworm { .. }
+        | EffKind::ThunderStorm { .. }
+        | EffKind::RockTower { .. }
+        | EffKind::LaserShot
+        | EffKind::LightBallShock => {
             return None;
         }
     })

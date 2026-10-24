@@ -23,6 +23,7 @@ mod innis;
 mod items;
 mod kite;
 mod kyvia;
+mod macha;
 mod magus;
 mod navi;
 mod party_ai;
@@ -652,6 +653,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .or_else(|| kyvia::handle(cmd, &mut t, &mut tables, &iso_path))
                     .or_else(|| magus::handle(cmd, &mut t, &mut tables, &iso_path))
                     .or_else(|| fidchell::handle(cmd, &mut t, &mut tables, &iso_path))
+                    .or_else(|| macha::handle(cmd, &mut t, &mut tables, &iso_path))
                     .or_else(|| gorre::handle(cmd, &mut t, &mut tables, &iso_path))
                 {
                     Some(r) => r,

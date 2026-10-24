@@ -33,6 +33,7 @@ pub mod host;
 pub mod innis;
 pub mod kyvia;
 pub mod levelup;
+pub mod macha;
 pub mod magus;
 pub mod nodes;
 pub mod particle;
@@ -657,6 +658,21 @@ impl Effects {
         for b in bursts {
             magus::leaf_explode(&mut cx, b);
         }
+    }
+
+    /// A picture of Macha's this frame ([`macha::calls`]): its lasers and
+    /// blast join the boss effects' pass's draws.
+    pub fn macha_calls(&mut self, host: &mut dyn Host, pic: &piney_battle::boss::macha::Pic) {
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.boss_draws,
+        };
+        macha::calls(&mut self.ctrl, &mut cx, pic);
     }
 
     /// The laser's shocks drawn this frame, each where its beam met the

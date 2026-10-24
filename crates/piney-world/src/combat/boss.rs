@@ -36,6 +36,8 @@ pub const INNIS: i32 = 1;
 pub const MAGUS: i32 = 2;
 pub const FIDCHELL: i32 = 3;
 pub const GORRE: i32 = 4;
+/// Quarantine's: Macha (row 5).
+pub const MACHA: i32 = 5;
 pub const KYVIA: i32 = 12;
 /// Kyvia's second fight (`ccBossKyvia02`, Outbreak's field 10) and its
 /// third (`ccBossKyvia03`, Quarantine's field 11).
@@ -89,6 +91,10 @@ pub const FIDCHELL_EPITAPH: &str = "CMP_trallx";
 /// brothers' Epitaph `ANM_ex5x*` ([`BossRun::parts`]).
 pub const GORRE_CLUMP: &str = "CMP_trall";
 pub const GORRE_BROTHERS: [&str; 3] = ["CMP_trall", "CMP_trall2", "CMP_trallx"];
+/// Macha's file (`x61`): its body, and the body its Epitaph's clips
+/// (`ANM_ex6x*`) move.
+pub const MACHA_CLUMP: &str = "CMP_trall1";
+pub const MACHA_EPITAPH: &str = "CMP_trall2";
 /// The wave's animation in [`EFF_FILE`].
 pub const ANM_WAVE: &str = "ANM_xx11wave";
 /// Fidchell's prediction's layer: `m_predTxt.layer`, `ccLayer::Init(254,
@@ -106,6 +112,8 @@ pub const KYVIA_FOURTH_CAM_TRANSFER: V4 = [0, 0x442f_0000, 0x437a_0000, ONE];
 pub const FIDCHELL_CAM_TRANSFER: V4 = [0, 0x44bb_8000, 0x437a_0000, ONE];
 /// Gorre's `InitBossCamera(200, 1500)`.
 pub const GORRE_CAM_TRANSFER: V4 = [0, 0x44bb_8000, 0x4348_0000, ONE];
+/// Macha's `InitBossCamera(250, 1000)`.
+pub const MACHA_CAM_TRANSFER: V4 = [0, 0x447a_0000, 0x437a_0000, ONE];
 
 /// A clip's frames and whether it loops, by name, in the boss's files.
 pub type Clips = HashMap<String, (u32, bool)>;
@@ -127,7 +135,12 @@ pub struct BossRun {
     pub afterimages: Vec<AfterImage>,
     /// The waves' `DrawParts` this frame: each animation's pose time, at
     /// the boss's place and heading (Gorre's brothers each their own).
-    pub waves: Vec<(u32, V4, V4)>,
+    pub waves: Vec<(u32, V4, V4, f32)>,
+    /// Macha's light ball this frame (`anmBallCharge` or `anmBall` of its
+    /// file: the clip, pose time, place and turn), on effLayer, and its
+    /// omni light while it is in the group.
+    pub ball: Option<(String, u32, V4, V4)>,
+    pub light: Option<V4>,
     /// Kyvia's arm's `DrawParts` this frame: its clip, pose time, place
     /// and turn.
     pub arm: Option<(String, u32, V4, V4)>,
@@ -270,6 +283,12 @@ impl AfterImage {
         }
     }
 
+    /// `EntryAfterImage(&t)`: the boss's pose in `t`'s params (Macha's
+    /// white ones: no blend, transparency 1 by -1/30).
+    pub fn boss_with(clip: String, time: u32, pos: V4, dirc: V4, p: &boss::AfterImageParams) -> AfterImage {
+        AfterImage { image: Image::Boss, ..AfterImage::anm(clip, time, pos, dirc, p) }
+    }
+
     /// The blend, the fade and the growth of one `Draw`; false once faded
     /// out.
     fn step(&mut self) -> bool {
@@ -329,6 +348,7 @@ impl BossLook {
             INNIS => (INNIS_FILE, CLUMP),
             MAGUS => (MAGUS_FILE, CLUMP),
             FIDCHELL => (boss::fidchell::FILE, FIDCHELL_CLUMP),
+            MACHA => (boss::macha::FILE, MACHA_CLUMP),
             GORRE => (boss::gorre::FILE, GORRE_CLUMP),
             KYVIA => (boss::kyvia::Fight::First.file(), KYVIA_CLUMP),
             KYVIA_SECOND => (boss::kyvia::Fight::Second.file(), KYVIA_SECOND_CLUMP),
@@ -404,6 +424,7 @@ impl BossLook {
                 let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, boss::fidchell::FILE)?);
                 Body::of(file, FIDCHELL_EPITAPH).ok().map(Rc::new).into_iter().collect()
             }
+            MACHA => Body::of(body.file.clone(), MACHA_EPITAPH).ok().map(Rc::new).into_iter().collect(),
             GORRE => GORRE_BROTHERS.iter().filter_map(|c| Body::of(body.file.clone(), c).ok().map(Rc::new)).collect(),
             _ => Vec::new(),
         };
@@ -429,7 +450,7 @@ impl Combat {
         if self.boss.is_some()
             || !matches!(
                 code,
-                SKEITH | INNIS | MAGUS | FIDCHELL | GORRE | KYVIA | KYVIA_SECOND | KYVIA_THIRD | KYVIA_FOURTH
+                SKEITH | INNIS | MAGUS | FIDCHELL | GORRE | MACHA | KYVIA | KYVIA_SECOND | KYVIA_THIRD | KYVIA_FOURTH
             )
         {
             return;
@@ -480,6 +501,7 @@ impl Combat {
             MAGUS => boss::magus::new(&mut cx, kite_pos, kite_dirc, center),
             FIDCHELL => boss::fidchell::new(&mut cx, kite_pos, kite_dirc, center),
             GORRE => boss::gorre::new(&mut cx, kite_pos, kite_dirc, center),
+            MACHA => boss::macha::new(&mut cx, kite_pos, kite_dirc, center),
             KYVIA => boss::kyvia::new(&mut cx, boss::kyvia::Fight::First),
             KYVIA_SECOND => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Second),
             KYVIA_THIRD => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Third),
@@ -532,6 +554,7 @@ impl Combat {
             KYVIA_FOURTH => KYVIA_FOURTH_CAM_TRANSFER,
             FIDCHELL => FIDCHELL_CAM_TRANSFER,
             GORRE => GORRE_CAM_TRANSFER,
+            MACHA => MACHA_CAM_TRANSFER,
             _ => CAM_TRANSFER,
         };
         // InitBossCamera(z, y), in the constructor, and what the
@@ -553,6 +576,8 @@ impl Combat {
             look: look.clone(),
             afterimages: Vec::new(),
             waves: Vec::new(),
+            ball: None,
+            light: None,
             arm: None,
             shards: Vec::new(),
             cam_sw: cam.is_some(),
@@ -642,6 +667,7 @@ impl Combat {
         let mut disc = run.disc;
         disc.blur_abgr = run.blur.abgr;
         disc.blur_scale = run.blur.scale;
+        disc.blur_exit = run.blur.exit;
         let mut part_out = Vec::new();
         for &p in &parts {
             boss::apply_queued(&mut self.scene, &actx, p, &mut self.rand, &mut ev);
@@ -664,6 +690,11 @@ impl Combat {
                 x.shock_pos = shocks.map(|s| s.0);
                 x.shock_at = shocks.map(|s| s.1);
             }
+        }
+        // Macha's eyes, where the lasers leave from: the dummies as the body
+        // was last posed (`GetSubstAdrsF`'s LW matrix).
+        if let (Class::Macha(x), Some(a)) = (&mut b.class, self.cast.actors.get(&me)) {
+            x.eyes = node_points(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc, boss::macha::EYES, x.eyes);
         }
         // ccBoss::Move: SetHitSW(bodyHitSW), then the body at the new place
         // pushed out of the others (CollisionDetection).
@@ -727,6 +758,7 @@ impl Combat {
             r.reflex = r.blur.main(&mut self.blur_statics);
             cx.disc.blur_abgr = r.blur.abgr;
             cx.disc.blur_scale = r.blur.scale;
+            cx.disc.blur_exit = r.blur.exit;
             // A mode the effects set (the ball's end) is the camera's
             // before the boss reads its ResetFlg.
             if let Some(c) = r.cam.as_mut() {
@@ -776,6 +808,7 @@ impl Combat {
             Class::Innis(x) => x.anm_w.posed,
             Class::Magus(x) => x.anm_w.posed,
             Class::Fidchell(x) => x.anm_w.posed,
+            Class::Macha(x) => x.anm_w.posed,
             _ => b.anm_wave.posed,
         };
         let clip = b.anm.clip.clone().unwrap_or_default();
@@ -797,6 +830,7 @@ impl Combat {
             for o in &out {
                 match o {
                     Out::Blur(s) => r.blur.set(*s),
+                    Out::BlurSinRot(v) => self.blur_statics.sin_rot = *v,
                     // OnCinemaMode's other checks (the party wiped out, a
                     // forced game over) end the fight first here.
                     Out::Cinema(Some(n)) => {
@@ -905,6 +939,7 @@ impl Combat {
             // EntryAfterImage in the frame's Think, then DrawAfterImages:
             // each image steps its fade as it draws, the new one too.
             r.waves.clear();
+            r.ball = None;
             r.arm = None;
             r.reverse = out.contains(&Out::Reverse);
             r.shards = match &b.class {
@@ -931,7 +966,19 @@ impl Combat {
                         let p = self.scene.chars[c].pos;
                         r.afterimages.push(AfterImage::leaf(a.clip.unwrap_or_default(), a.posed, p, lb.dirc));
                     }
-                    Out::DrawWave => r.waves.push((wave_time, at.pos, dirc)),
+                    Out::DrawWave => r.waves.push((wave_time, at.pos, dirc, 1.0)),
+                    // Macha's white images, its ball, light and wave.
+                    Out::AfterImageWith(p) => {
+                        r.afterimages.push(AfterImage::boss_with(clip.clone(), time, at.pos, dirc, p));
+                    }
+                    Out::Macha(boss::macha::Pic::Ball { charge, time, pos, dirc }) => {
+                        let c = if *charge { boss::macha::BALL_CHARGE } else { boss::macha::BALL };
+                        r.ball = Some((c.to_string(), *time, *pos, *dirc));
+                    }
+                    Out::Macha(boss::macha::Pic::Light(p)) => r.light = *p,
+                    Out::Macha(boss::macha::Pic::Wave { time, pos, dirc, scale }) => {
+                        r.waves.push((*time, *pos, *dirc, ee::f(*scale)));
+                    }
                     // A brother's trail (`EntryAfterImage(0)`) and wave.
                     Out::Gorre(boss::gorre::Pic::Image { clip, frame, pos, dirc, .. }) => {
                         // ccBossAfterImageEx::Init: its own anm at the frame.
@@ -944,7 +991,9 @@ impl Combat {
                         let p = &piney_battle::boss::AfterImageParams::ENTRY;
                         r.afterimages.push(AfterImage::anm(clip.clone(), a.posed, *pos, *dirc, p));
                     }
-                    Out::Gorre(boss::gorre::Pic::Wave { time, pos, dirc, .. }) => r.waves.push((*time, *pos, *dirc)),
+                    Out::Gorre(boss::gorre::Pic::Wave { time, pos, dirc, .. }) => {
+                        r.waves.push((*time, *pos, *dirc, 1.0));
+                    }
                     Out::DrawArm { time, pos, dirc } => {
                         r.arm = arm.as_ref().and_then(|a| a.clip.clone()).map(|c| (c, *time, *pos, *dirc));
                     }
@@ -1050,10 +1099,15 @@ impl Combat {
     /// Fidchell's body for its clip: `CMP_trallx` under the Epitaph's
     /// `ANM_ex4x*`, `CMP_trall1` under the rest.
     fn fidchell_body(&mut self, b: &Boss, me: usize) {
-        let Some(look) = self.boss.as_ref().map(|r| r.look.clone()).filter(|l| l.code == FIDCHELL) else { return };
+        let Some(look) = self.boss.as_ref().map(|r| r.look.clone()) else { return };
+        let epitaph = match look.code {
+            FIDCHELL => "ANM_ex4x",
+            MACHA => "ANM_ex6x",
+            _ => return,
+        };
         let clip = b.anm.clip.clone().unwrap_or_default();
         let body = match look.images.first() {
-            Some(x) if clip.starts_with("ANM_ex4x") => x.clone(),
+            Some(x) if clip.starts_with(epitaph) => x.clone(),
             _ => look.body.clone(),
         };
         let pos = self.scene.chars[me].pos;
@@ -1200,6 +1254,10 @@ impl boss::PartHits for PartList<'_, '_> {
     fn sync(&mut self, who: usize, hit: &CharHit) {
         self.hits.borrow_mut().sync(&super::spc::to_body(who, self.kite, hit, false));
     }
+
+    fn line(&mut self, sp: V4, ep: V4, mask: u32) -> Option<V4> {
+        self.hits.borrow_mut().line(sp, ep, mask, 0).map(|(cp, _)| cp)
+    }
 }
 
 /// Of `bodies`, the clump whose nodes `clip` poses: `ccAnm::SetAnm` takes
@@ -1281,6 +1339,24 @@ fn leaf_points(body: &crate::body::Body, play: &crate::pose::Play, pos: V4, dirc
     let worlds = body.worlds(play, crate::body::root(pos, dirc));
     std::array::from_fn(|k| {
         let Some(m) = body.node(&leaf_name("OBJ_ex31leaf", k)).and_then(|n| worlds.get(&n)) else { return last[k] };
+        let p = *m * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
+        [p.x.to_bits(), p.y.to_bits(), p.z.to_bits(), p.w.to_bits()]
+    })
+}
+
+/// The world places of `names`' nodes as the body is posed (each kept from
+/// `last` where the body has none).
+fn node_points<const N: usize>(
+    body: &crate::body::Body,
+    play: &crate::pose::Play,
+    pos: V4,
+    dirc: V4,
+    names: [&str; N],
+    last: [V4; N],
+) -> [V4; N] {
+    let worlds = body.worlds(play, crate::body::root(pos, dirc));
+    std::array::from_fn(|k| {
+        let Some(m) = body.node(names[k]).and_then(|n| worlds.get(&n)) else { return last[k] };
         let p = *m * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
         [p.x.to_bits(), p.y.to_bits(), p.z.to_bits(), p.w.to_bits()]
     })

@@ -603,7 +603,8 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   `ccBoss01::Main`, the effect manager's pass included; `Class::Innis` is
   Mutation's `ccBoss02` ([Innis](boss-innis.md)), `Class::Magus`
   ([Magus](boss-magus.md)), `Class::Kyvia` ([Kyvia](boss-kyvia.md)),
-  `Class::Fidchell` Outbreak's `ccBoss04` ([Fidchell](boss-fidchell.md)).
+  `Class::Fidchell` Outbreak's `ccBoss04` ([Fidchell](boss-fidchell.md)),
+  `Class::Macha` Quarantine's `ccBoss06` ([Macha](boss-macha.md)).
   Each boss's tables come from the build through `BossData`
   (`tables::combat`).
 - `Foe.boss` carries the boss's state.
@@ -626,7 +627,7 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
 1. An event's `entry 7 code` makes the boss at the entry control's
    set-up (`FieldWorld::start_boss(code)`, `Combat::start_boss`): code 0
    Skeith from `bossTbl` row 0, code 1 Innis from row 1 (2 Magus, 3
-   Fidchell, 12 Kyvia on their pages), its centre the arena's
+   Fidchell, 5 Macha, 12 Kyvia on their pages), its centre the arena's
    `DMY_center01`. Other codes start nothing.
 2. `ccBoss01::Main` runs each frame after the entry control, the task
    order's 66.

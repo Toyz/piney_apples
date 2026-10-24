@@ -182,6 +182,12 @@ fn array_until(inner: Layout, until: Until) -> Layout {
 /// and their operands (one for 2, 6, 10, 11 and 12, two for 9), so pattern
 /// 10's own -1 operand does not end it.
 fn gorre_patterns() -> Until {
+    patterns_through(&[(2, 1), (6, 1), (10, 1), (11, 1), (12, 1), (9, 2)])
+}
+
+/// A pattern table through its closing -1, each pattern's operands
+/// (`ops`: pattern, count) passed over, so an operand's -1 does not end it.
+fn patterns_through(ops: &'static [(i128, u32)]) -> Until {
     let owed = std::cell::Cell::new(0u32);
     Rc::new(move |v| {
         if owed.get() > 0 {
@@ -189,13 +195,16 @@ fn gorre_patterns() -> Until {
             return false;
         }
         let w = v.int();
-        owed.set(match w {
-            2 | 6 | 10 | 11 | 12 => 1,
-            9 => 2,
-            _ => 0,
-        });
+        owed.set(ops.iter().find(|o| o.0 == w).map_or(0, |o| o.1));
         w == -1
     })
+}
+
+/// A `boss06*ActTbl` (Macha's): Gorre's operand counts (`ccBoss06::
+/// ExecPatternIndex` reads one for 2, 10 and 11, two for 9; the base one
+/// for 6 and 12).
+fn macha_patterns() -> Until {
+    patterns_through(&[(2, 1), (6, 1), (10, 1), (11, 1), (12, 1), (9, 2)])
 }
 
 fn array_through(inner: Layout, until: Until) -> Layout {
@@ -2291,6 +2300,42 @@ fn combat() -> Group {
                 array(I32, 4),
                 GCMN,
                 "`@2074`: `SendMessage`'s msg 7, the brother's spell in the Tornade, one by `ccRand() & 3`.",
+            ),
+            e("macha_anims", 0x005E_C270, array(opt(cstr()), 25), GCMN, "`BOSS06AnmTbl`: Macha's clip by act."),
+            e(
+                "macha_normal",
+                0x005E_C2E0,
+                array_through(I32, macha_patterns()),
+                GCMN,
+                "`boss06NormalActTbl`: Macha's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too).",
+            ),
+            e(
+                "macha_expert",
+                0x005E_C330,
+                array_through(I32, macha_patterns()),
+                GCMN,
+                "`boss06ExpertActTbl`: Macha's once its gauge is half full, through its closing -1.",
+            ),
+            e(
+                "macha_epitaph",
+                0x005E_C390,
+                array_through(I32, macha_patterns()),
+                GCMN,
+                "`boss6EpitaphActTbl`: Macha's once drained, through its closing -1.",
+            ),
+            e(
+                "macha_rand_skills",
+                0x005E_C3F0,
+                array(I32, 3),
+                GCMN,
+                "`@1198`: pattern 10's skills, one drawn by `ccRand() % 3` and dropped.",
+            ),
+            e(
+                "macha_magic_skills",
+                0x005E_C410,
+                array(I32, 4),
+                GCMN,
+                "`@1913`: `OnThinkMagic`'s spells, by `abs(ccSys.count & 3)`.",
             ),
             e(
                 "cinema_skill_names",

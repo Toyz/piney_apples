@@ -2978,7 +2978,14 @@ impl FieldWorld {
         let springs = &self.combat.spring_lights;
         let rays = &self.combat.rad_lights;
         let flashes = &self.combat.weapons.lights;
-        if extra.is_empty() && symbols.is_empty() && springs.is_empty() && rays.is_empty() && flashes.is_empty() {
+        let macha = self.combat.boss.as_ref().and_then(|r| r.light);
+        if extra.is_empty()
+            && symbols.is_empty()
+            && springs.is_empty()
+            && rays.is_empty()
+            && flashes.is_empty()
+            && macha.is_none()
+        {
             return std::borrow::Cow::Borrowed(self.place.lights());
         }
         let mut l = self.place.lights().clone();
@@ -2991,6 +2998,9 @@ impl FieldWorld {
             l.lights.insert(0, omni_light(o));
         }
         l.lights.extend(extra);
+        if let Some(p) = macha {
+            l.lights.insert(0, macha_light(p));
+        }
         std::borrow::Cow::Owned(l)
     }
 
@@ -3111,10 +3121,14 @@ impl FieldWorld {
                 }
             }
         }
-        for &(time, pos, dirc) in &run.waves {
+        // Macha's light ball: its ccAnm of the boss's file on effLayer.
+        if let Some((clip, time, pos, dirc)) = &run.ball {
+            anm_draw(ctx, draw::EFF_LAYER, clip, *time, crate::body::root(*pos, *dirc), 1.0, None);
+        }
+        for &(time, pos, dirc, scale) in &run.waves {
             let Some(mut p) = crate::pose::Play::new(&run.look.eff, combat::boss::ANM_WAVE) else { continue };
             (p.time, p.posed) = (time, time);
-            let root = crate::body::root(pos, dirc);
+            let root = crate::body::root(pos, dirc) * glam::Mat4::from_scale(glam::Vec3::splat(scale));
             let file = (&*run.look.eff, &run.look.eff_morphers);
             crate::town::anim_draw_on(
                 &mut ctx.layers,
@@ -3823,6 +3837,23 @@ fn symbol_light(p: V4, intensity: F) -> crate::town::Light {
 /// A spring's or the rays' `ccOmniLight` (`ccLight(4, 1)`) as its frame
 /// left it: at its matrix's place, `ccSetColor`'s RGB (red the low byte,
 /// each over 255), its intensity and fall-off.
+/// Macha's light ball's light (`OnThinkLightBall` step 0): `ccLight(4,
+/// 1)`, white (`ccSetColor(0x00ffffff, 1.0)`), intensity 1, full to 0 and
+/// gone at 500 (`farDownEnd2` 250000).
+fn macha_light(p: [u32; 4]) -> crate::town::Light {
+    crate::town::Light {
+        kind: 4,
+        pos: glam::Vec3::new(ee::f(p[0]), ee::f(p[1]), ee::f(p[2])),
+        dir: glam::Vec3::ZERO,
+        colour: glam::Vec3::ONE,
+        intensity: 1.0,
+        far_start: 0.0,
+        far_end: 500.0,
+        radius: [0.0; 2],
+        priority: 1,
+    }
+}
+
 fn omni_light(o: &piney_battle::prim::OmniLight) -> crate::town::Light {
     let p = o.matrix[3];
     let rgb = |k: u32| ((o.rgb >> (8 * k)) & 0xff) as f32 / 255.0;
