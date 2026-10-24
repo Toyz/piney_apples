@@ -149,8 +149,9 @@ fn gate_out_pad(a: &crate::area::AreaMode, f: u64) -> Raw {
         _ => Buttons::UP,
     };
     match (ui.menu_type(), m.proccess) {
+        // A menu changing (88, 92 from Mutation on): wait.
+        _ if m.menu != m.menu_next => still,
         (-1, _) => press(Buttons::TRIANGLE),
-        (88, _) => still,
         (1 | 2, 1) => {
             let l = m.list();
             match l.items.iter().take(l.y.max(0) as usize).position(|&it| it == 10) {

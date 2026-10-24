@@ -155,6 +155,9 @@ pub(super) struct Walker {
     /// checks for the portals; once [`Walker::blocked`], every foe of the
     /// room: an event's entries shut its doors until they fall).
     pub(super) wary: bool,
+    /// The story pilot's grinding: the magic portals on the way opened
+    /// too, for the experience their foes bring (see `StoryPilot`).
+    pub(super) grind: bool,
     /// The story's walk: each foe fought, its HP and the frame it was first
     /// fought; one that has lost none after [`HOPELESS`] frames, or still
     /// stands after three times that, is walked past (a level-49 Squidbod
@@ -317,7 +320,7 @@ impl Walker {
                         .into_iter()
                         // In the goal room too: an event's portal there
                         // holds its `no_active` until its foes fall.
-                        .filter(|_| !self.wary || self.stuck >= 2 || self.blocked > 0 || in_goal)
+                        .filter(|_| !self.wary || self.grind || self.stuck >= 2 || self.blocked > 0 || in_goal)
                         .find(|&m| {
                             matches!(c.ctrl.objs.get(m), Some(piney_battle::entry::Obj::Circle(o))
                         if (o.obj.ent.floor, o.obj.ent.block) == (sc.floor, sc.block))

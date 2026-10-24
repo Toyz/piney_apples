@@ -85,6 +85,18 @@ pub(super) struct StoryPilot {
     /// until the next town).
     shop_since: Option<(i32, u64)>,
     no_shop: Option<i32>,
+    /// The strongest common foe met in this field and its dungeon (the
+    /// field's number and the level), which the grinding keeps above.
+    seen: Option<(i32, i16)>,
+    /// A grinding exit asked for (the area and when), and an area where
+    /// one did not come within [`GRIND_EXIT`] frames (the tutorial's field
+    /// has no Gate Out): no grinding there.
+    grind_exit: Option<((i32, i32), u64)>,
+    no_grind: Option<(i32, i32)>,
+    /// The area whose magic portals the grinding has seen: only from such
+    /// an area is the way out and back taken (the tutorial's field has
+    /// none, and its lessons want no detour).
+    had_portals: Option<(i32, i32)>,
     leaving: bool,
     /// In a boss fight: the party's HP as last seen, what each member lost
     /// a frame over the last second, and the most a member lost in one
@@ -169,11 +181,21 @@ fn pick_heal(items: &piney_fieldui::items::ItemTables, list: &[i16], sp: i16, mi
 /// What Kite keeps on him, bought in town with the gold the fights bring,
 /// as a player stocks up: revives first, then heals, then souls.
 /// Quarantine's towns sell no Healing Potion, but the Recovery Drink.
-const STOCK: [((i8, i16), i32); 4] = [(RESURRECT, 6), (POTION, 10), (RECOVERY_DRINK, 10), (MAGES_SOUL, 6)];
+/// Heals before revives: a level-1 party's gold goes on Health Drinks
+/// (100 GP, 150 HP), left out of the stock once Kite has 400
+/// HP or more.
+const STOCK: [((i8, i16), i32); 5] =
+    [(HEALTH_DRINK, 10), (POTION, 10), (RECOVERY_DRINK, 10), (RESURRECT, 6), (MAGES_SOUL, 6)];
+const HEALTH_DRINK: (i8, i16) = (10, 0);
 const RECOVERY_DRINK: (i8, i16) = (10, 23);
 /// Frames a walk to a town's shop is given (Mutation's Dun Loireag's
 /// item shop, behind its gate, is out of the walk's reach).
 const SHOP_TRIES: u64 = 3000;
+/// The levels the grinding keeps the party over the strongest common foe
+/// it has met here.
+const GRIND_OVER: i16 = 3;
+/// Frames a grinding exit is given before the area's grinding is dropped.
+const GRIND_EXIT: u64 = 1500;
 /// The blows a Speed Charm's haste (9000 frames) lands on golden goblins,
 /// about: 27 in 14,000 frames on GOB3-1's, 37 in 18,000 on GOB3-4's.
 const BLOWS_A_CHARM: i32 = 15;
@@ -214,6 +236,10 @@ impl Default for StoryPilot {
             stocked: Vec::new(),
             shop_since: None,
             no_shop: None,
+            seen: None,
+            grind_exit: None,
+            no_grind: None,
+            had_portals: None,
             leaving: false,
             party_hp: Vec::new(),
             losses: std::collections::VecDeque::new(),
@@ -228,6 +254,105 @@ impl StoryPilot {
         format!("{:?} opened {} began {}", self.action, self.opened, self.began)
     }
 
+    /// Whether the walk opens the magic portals on its way, as a player
+    /// fights for his levels: while the weakest of the party is below the
+    /// strongest common foe met in this field or its dungeon by
+    /// [`GRIND_OVER`], and everyone stands with most of his HP (out of a
+    /// fight the pilot mends first).
+    fn grinding(&mut self, a: &crate::area::AreaMode) -> bool {
+        use piney_battle::chara::Body;
+        let w = a.world();
+        let c = w.combat();
+        let field = w.scene().field;
+        if self.seen.is_some_and(|(f, _)| f != field) {
+            self.seen = None;
+        }
+        let area = (w.scene().area, field);
+        if self.no_grind.is_some_and(|x| x != area) {
+            self.no_grind = None;
+        }
+        if self.no_grind == Some(area) {
+            return false;
+        }
+        let top = foes(c)
+            .into_iter()
+            .filter_map(|k| match &c.scene.chars[k].body {
+                Body::Foe(fo) if fo.boss.is_none() => Some(fo.row.base.level),
+                _ => None,
+            })
+            .max();
+        if let Some(lv) = top {
+            let was = self.seen.map_or(0, |(_, l)| l);
+            self.seen = Some((field, was.max(lv)));
+        }
+        if !c.ctrl.list(piney_battle::entry::Kind::Circle).is_empty() {
+            self.had_portals = Some(area);
+        }
+        let Some((_, seen)) = self.seen else { return false };
+        let party: Vec<&piney_battle::chara::Char> = c.members.iter().map(|&(_, k)| &c.scene.chars[k]).collect();
+        let levels: Vec<i16> = party.iter().filter_map(|ch| ch.spc().map(|p| p.base.level)).collect();
+        let low = levels.iter().copied().min().unwrap_or(99);
+        let high = levels.iter().copied().max().unwrap_or(0);
+        let well = party.iter().all(|ch| ch.hp > 0 && i32::from(ch.hp) * 100 >= i32::from(ch.max_hp) * 70);
+        // Not while a guest far above leads (Orca at 50 through Infection's
+        // tutorial, whose lessons want no detour), nor while the events
+        // wait on someone here.
+        let led = high >= low + 20;
+        low < seen + GRIND_OVER && well && !led && w.event_targets().is_empty()
+    }
+
+    /// A grinding exit: out and back in for the portals anew, unless the
+    /// last one asked here has not come in [`GRIND_EXIT`] frames.
+    fn grind_leave(&mut self, a: &crate::area::AreaMode, f: u64) {
+        let sc = a.world().scene();
+        let area = (sc.area, sc.field);
+        if self.had_portals != Some(area) {
+            return;
+        }
+        match self.grind_exit {
+            Some((x, since)) if x == area && f > since + GRIND_EXIT => {
+                (self.no_grind, self.grind_exit, self.leaving) = (Some(area), None, false);
+            }
+            Some((x, _)) if x == area => self.leaving = true,
+            _ => {
+                self.grind_exit = Some((area, f));
+                self.leaving = true;
+            }
+        }
+    }
+
+    /// Grinding in a field ([`Self::grinding`]): to the nearest magic
+    /// portal and X to open it, its foes then fought; with none left, out
+    /// by the gate and back for them anew.
+    fn grind_field(&mut self, a: &crate::area::AreaMode, f: u64) -> Option<Raw> {
+        let w = a.world();
+        let c = w.combat();
+        let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+        if !playing || c.battle.in_battle != 0 || a.ui().menu_type() != -1 || !self.grinding(a) {
+            return None;
+        }
+        let p = w.player().body.pos.map(f32::from_bits);
+        let dist = |m: usize| {
+            let q = c.scene.chars[m].pos.map(f32::from_bits);
+            (q[0] - p[0]).hypot(q[1] - p[1])
+        };
+        let Some(m) =
+            c.ctrl.list(piney_battle::entry::Kind::Circle).into_iter().min_by(|&x, &y| dist(x).total_cmp(&dist(y)))
+        else {
+            self.grind_leave(a, f);
+            return None;
+        };
+        let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+        if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(300) {
+            eprintln!("GRIND {f} portal {m} at {:.0} kite {:?}", dist(m), p.map(|v| v as i32));
+        }
+        if dist(m) < 250.0 {
+            return Some(if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
+        }
+        let q = c.scene.chars[m].pos.map(f32::from_bits);
+        self.walk_after(w, q, 200.0, f, false)
+    }
+
     /// What Kite is to buy here: nothing in a town whose shop the walk
     /// gave up on.
     fn buys(&self) -> &[Buy] {
@@ -239,6 +364,15 @@ impl StoryPilot {
             && !a.streaming()
         {
             self.provision(a);
+            // A grinding exit that has not come: given up, and no more
+            // grinding here.
+            let sc = a.world().scene();
+            if let Some((area, since)) = self.grind_exit
+                && area == (sc.area, sc.field)
+                && f > since + GRIND_EXIT
+            {
+                (self.no_grind, self.grind_exit, self.leaving) = (Some(area), None, false);
+            }
             if self.leaving
                 && let Some(raw) = self.gate_out(a, f).or_else(|| out_of_battle(a))
             {
@@ -252,8 +386,12 @@ impl StoryPilot {
             if self.buys.iter().any(|b| b.item == SPEED_CHARM) {
                 self.buys.retain(|b| b.item == SPEED_CHARM);
             } else {
+                // `spcParam[0].maxHP` (+0x24).
+                let save = &w.world().state().save;
+                let strong = save.i16(piney_data::save::by_id::spc_param(0) + 0x24) >= 400;
+                self.buys.retain(|b| !(strong && b.item == HEALTH_DRINK));
                 for (item, carry) in STOCK {
-                    if !self.buys.iter().any(|b| b.item == item) {
+                    if !self.buys.iter().any(|b| b.item == item) && !(strong && item == HEALTH_DRINK) {
                         self.buys.push(Buy { item, carry });
                     }
                 }
@@ -305,6 +443,17 @@ impl StoryPilot {
                     .map(|p| (p.floor as usize, p.block as usize))
                     .or_else(|| self.item_spot(w, &wants).map(|(f, i, _)| (f, i)))
                     .or_else(|| arena_door(w, &wants));
+                // Grinding: before the goal, a room of this floor (else
+                // of another) with a magic portal still shut.
+                let grind = self.grinding(a);
+                let portal = if grind { portal_room(w) } else { None };
+                // None left: out and back in, for the portals anew (the
+                // way out is a member's ocarina).
+                let members = w.party().iter().skip(1).any(|&id| id >= 0);
+                if grind && portal.is_none() && members && w.combat().battle.in_battle == 0 {
+                    self.grind_leave(a, f);
+                }
+                let to = portal.or(to);
                 if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(500) {
                     eprintln!("GOAL {f} {to:?} at {:?} wants {wants:?}", (sc.floor, sc.block));
                 }
@@ -319,11 +468,17 @@ impl StoryPilot {
                 if let Some(raw) = self.open_point_statue(a, &wants, f) {
                     return raw;
                 }
+                self.walker.grind = grind;
                 if let Some(to) = to
                     && let Some(raw) = self.walker.step(s, to, f)
                 {
                     return raw;
                 }
+            }
+            if sc.area == kind::FIELD
+                && let Some(raw) = self.grind_field(a, f)
+            {
+                return raw;
             }
             if sc.area == kind::FIELD
                 && wants.iter().any(|w| matches!(*w, Want::Dungeon(f, _) if f == sc.field as i16))
@@ -583,19 +738,22 @@ impl StoryPilot {
                     l.y
                 );
             }
-            return Some(match ui.menu_type() {
+            // Changing menus (88, 92 from Mutation on: `changing`); the
+            // ocarina's own (86, `GoField`).
+            let t = ui.menu_type();
+            return Some(match t {
+                _ if m.menu != m.menu_next => still,
                 -1 => press(Buttons::SQUARE),
-                // Changing menus; the ocarina's own (86, `GoField`).
-                88 | 86 => still,
+                86 => still,
                 3 if m.list().page != 0 => press(Buttons::LEFT),
                 3 => press(go_to(7)),
                 _ => press(Buttons::CIRCLE),
             });
         }
         Some(match (ui.menu_type(), m.proccess) {
+            // A menu changing to the next (88, 92 from Mutation on): wait.
+            _ if m.menu != m.menu_next => still,
             (-1, _) => press(Buttons::TRIANGLE),
-            // A menu changing to the next (`MENU_CHANGING`): wait.
-            (88, _) => still,
             // PERSONAL: menu 1 in a field, 2 in a dungeon (0 in a town).
             (1 | 2, 1) => {
                 let l = m.list();
@@ -2676,6 +2834,24 @@ fn focus(c: &piney_world::combat::Combat) -> Option<usize> {
         .min_by_key(|&(_, d)| d)
         .map(|(p, _)| p);
     healer.or(brother).or_else(|| nearest_seed(c)).or_else(|| r.parts.first().copied().filter(|&p| up(p)))
+}
+
+/// The room of a magic portal still standing in this dungeon, this floor's
+/// first: (floor, room).
+fn portal_room(w: &piney_world::field_world::FieldWorld) -> Option<(usize, usize)> {
+    let c = w.combat();
+    let sc = w.scene();
+    let rooms: Vec<(i32, i32)> = c
+        .ctrl
+        .list(piney_battle::entry::Kind::Circle)
+        .into_iter()
+        .filter_map(|m| match c.ctrl.objs.get(m) {
+            Some(piney_battle::entry::Obj::Circle(o)) => Some((o.obj.ent.floor, o.obj.ent.block)),
+            _ => None,
+        })
+        .filter(|&(fl, b)| fl >= 0 && b >= 0)
+        .collect();
+    rooms.iter().find(|&&(fl, _)| fl == sc.floor).or_else(|| rooms.first()).map(|&(fl, b)| (fl as usize, b as usize))
 }
 
 /// Out of a boss fight, the foe the party strikes together: of those
