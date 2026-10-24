@@ -13,6 +13,7 @@ use std::io::{BufRead, Write};
 // answers the commands it knows and returns None for the rest.
 mod boss;
 mod corbenik;
+mod corbenik_b;
 mod enemy_ai;
 mod enemy_motion;
 mod evparty;

@@ -139,6 +139,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cam: CamView::default(),
         land: &mut land,
         disc: piney_battle::boss::DiscView::default(),
+        gen_alive: &|_| true,
         me,
         out: Vec::new(),
         ev: Events::new(),
@@ -200,6 +201,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cam: CamView::default(),
             land: &mut land,
             disc: piney_battle::boss::DiscView::default(),
+            gen_alive: &|_| true,
             me,
             out: Vec::new(),
             ev: Events::new(),
@@ -296,6 +298,7 @@ impl ProbeBlur {
             None => "0",
             Some(BlurFunc::Boss03) => "\"boss03\"",
             Some(BlurFunc::Boss06) => "\"boss06\"",
+            Some(BlurFunc::Boss08B) => "\"boss08b\"",
         };
         let reflex = self.reflex.map_or("null".into(), |r| format!("[{},{},{}]", r.scale, r.turn, r.abgr));
         format!(
@@ -379,6 +382,10 @@ pub(crate) fn eff_num(k: EffKind) -> i32 {
         EffKind::Eruption => 24,
         EffKind::CorbenikWave => 26,
         EffKind::Flush => 27,
+        EffKind::StarDustFlash => 28,
+        EffKind::Transform => 29,
+        EffKind::RootDrain => 30,
+        EffKind::Thunder3 => 31,
     }
 }
 

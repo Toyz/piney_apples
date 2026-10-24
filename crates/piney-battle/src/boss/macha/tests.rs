@@ -86,6 +86,7 @@ impl Fight {
             cam: CamView { shake: true, ..CamView::default() },
             land: &mut land,
             disc: crate::boss::DiscView::default(),
+            gen_alive: &|_| true,
             me: self.me,
             out: Vec::new(),
             ev: Events::new(),

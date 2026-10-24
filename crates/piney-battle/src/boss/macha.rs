@@ -1106,7 +1106,7 @@ fn on_light_ball(b: &mut Boss, x: &mut Macha, cx: &mut Cx) {
                 let pos = x.ball_pos;
                 // ccBossEffLightBallShock's constructor makes its ring
                 // first: (0, 2/3, 10), model 180.
-                let param = [0, 0x3f2a_aaab, 0x4120_0000];
+                let param = [0, 0x3f2a_aaab, 0x4120_0000, 0];
                 b.effect_at(cx, EffKind::AutoSamonRingOf { n: 180, param }, pos, [0, 0, 0, ONE]);
                 make_fx(b, cx, EffKind::LightBallShock, Fx::Shock(eff::Shock::new(pos)), pos);
                 cx.out(Out::SeNote { se: 35, note: 60 });

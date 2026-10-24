@@ -2,8 +2,8 @@
 title: Bosses - Corbenik
 status: partial
 volumes: QUA, INF
-covers: QUA gcmn.prg:0x003ac9f0-0x003b1a40 (boss08.cpp), 0x003aca30 ccThBoss08, 0x003acbd0 ccBoss08::ccBoss08, 0x003ad000 Main, 0x003ad030 Slave, 0x003ad0d0 Affect, 0x003ad460 Think, 0x003ad5d0 PreDrawAnm, 0x003ad9d0 SendMessage, 0x003adae0 ExecPatternIndex, 0x003adc30 SetPatternMode, 0x003adce0 OnThinkNeutral, 0x003ade20 ChangeNextPattern, 0x003ade90 _calcJumpPos, 0x003adf80 WaveFuncCB, 0x003adff0 OnThinkWave, 0x003ae780 OnThinkEscape, 0x003aea40 OnThinkSeed, 0x003aed10 OnThinkFlash, 0x003af090 OnThinkPollen, 0x003af190 OnThinkBodyPress, 0x003af4b0 OnThinkDie, 0x003af990 OnThinkMagic, 0x003aff40 _ChangeVibeType, 0x003affd0 _BeginBlink, 0x003b00b0 ccBoss08Seed::ccBoss08Seed, 0x003b03b0 ccBoss08Seed::Affect, 0x003b06a0 ccBoss08Seed::Main, 0x003b09f0 ccBoss08Seed::PreDrawAnm, 0x003b0ac0 ccBoss08Seed::Think, 0x003b0b50 ccBoss08Seed::Order, 0x003b0f40 OnThinkFly, 0x003b1440 OnExit, 0x003b1500 OnThinkCountDown, 0x003b17b0 OnThinkFire, 0x003b1970 OnThinkDead, 0x00376ea0 ccBossEffFlush::Draw, 0x00377c80 ccBossEffWave::Draw, 0x0037dd60 ccBossEffWaveCreate, 0x0037dec0 ccBossEffFlushCreate, 0x00360120 ccBoss::Move, 0x005ec630 boss08AnmTbl, 0x005ec690 boss08SeedAnmTbl, 0x005ec6e0 boss08ActNormalTbl
-worklog: 450
+covers: QUA gcmn.prg:0x003ac9f0-0x003b1a40 (boss08.cpp), 0x003aca30 ccThBoss08, 0x003acbd0 ccBoss08::ccBoss08, 0x003ad000 Main, 0x003ad030 Slave, 0x003ad0d0 Affect, 0x003ad460 Think, 0x003ad5d0 PreDrawAnm, 0x003ad9d0 SendMessage, 0x003adae0 ExecPatternIndex, 0x003adc30 SetPatternMode, 0x003adce0 OnThinkNeutral, 0x003ade20 ChangeNextPattern, 0x003ade90 _calcJumpPos, 0x003adf80 WaveFuncCB, 0x003adff0 OnThinkWave, 0x003ae780 OnThinkEscape, 0x003aea40 OnThinkSeed, 0x003aed10 OnThinkFlash, 0x003af090 OnThinkPollen, 0x003af190 OnThinkBodyPress, 0x003af4b0 OnThinkDie, 0x003af990 OnThinkMagic, 0x003aff40 _ChangeVibeType, 0x003affd0 _BeginBlink, 0x003b00b0 ccBoss08Seed::ccBoss08Seed, 0x003b03b0 ccBoss08Seed::Affect, 0x003b06a0 ccBoss08Seed::Main, 0x003b09f0 ccBoss08Seed::PreDrawAnm, 0x003b0ac0 ccBoss08Seed::Think, 0x003b0b50 ccBoss08Seed::Order, 0x003b0f40 OnThinkFly, 0x003b1440 OnExit, 0x003b1500 OnThinkCountDown, 0x003b17b0 OnThinkFire, 0x003b1970 OnThinkDead, 0x00376ea0 ccBossEffFlush::Draw, 0x00377c80 ccBossEffWave::Draw, 0x0037dd60 ccBossEffWaveCreate, 0x0037dec0 ccBossEffFlushCreate, 0x00360120 ccBoss::Move, 0x005ec630 boss08AnmTbl, 0x005ec690 boss08SeedAnmTbl, 0x005ec6e0 boss08ActNormalTbl, 0x003b1a50 boss08BBlurParamCB, 0x003b1b90 ccThBoss08b_Main, 0x003b1c50 ccBoss08_b::ccBoss08_b, 0x003b2610 ccBoss08_b::Main, 0x003b2a00 Slave, 0x003b2ae0 Affect, 0x003b3020 Think, 0x003b3200 ChangeNextPattern, 0x003b32f0 SetPatternMode, 0x003b33c0 ExecPatternIndex, 0x003b3600 PreDrawAnm, 0x003b3820 IsValidArea, 0x003b38a0 OnThinkNeutral, 0x003b3a40 OnThinkEscape, 0x003b3d00 OnThinkSybly, 0x003b4160 OnThinkWave, 0x003b4500 OnThinkStarDust, 0x003b4cd0 OnThinkBodyPress, 0x003b5b80 the barrier's message, 0x003b5cf0 the death, 0x003b5f60 OnThinkMagic, 0x003b6340 OnThinkSetupBarrier, 0x003b6750 the return, 0x003b6960 OnThinkRandomDrive, 0x003b6f50 _EntryElement, 0x003b7140 _DrawElement, 0x003b74b0 _InitElement, 0x003b7560 OnThinkRootDrain, 0x003b8910 SetupRoot, 0x003b8b00 EntryRoot, 0x003b8c10 ccBoss08Root::ccBoss08Root, 0x003b8e00 ccBoss08Root::Order, 0x003b8e80 ccBoss08Root::Think, 0x003b8fb0 ccBoss08Root::PreDrawAnm, 0x00372e10 ccBossEffTransform, 0x00374bb0 ccBossEffStarDustFlash, 0x00375c60 ccBossEffThunder3, 0x00378600 ccBossEffDrain::Draw, 0x00379600 ccBossEffLaserRain, 0x005ec730 boss08BNormalActTbl, 0x005ec790 boss08BSuperActTbl, 0x005ec7e0 boss08bAnmTbl, 0x005ec840 boss08RootAnmTblA, 0x005ec890 boss08RootAnmTblB, 0x003781e8 boss08DmgBarriar
+worklog: 450, 451
 ---
 
 # Bosses - Corbenik
@@ -26,8 +26,9 @@ with its eight seeds), runs it until `CheckExit`, resets the menu, flashes
 313's block 15 makes it with `eventStatus[0]` 1 (forms one and two),
 block 19 with 2 (form three).
 
-Only the first form is ported so far
-(`crates/piney-battle/src/boss/corbenik/first.rs`, `seed.rs`, `eff.rs`).
+The first and second forms are ported
+(`crates/piney-battle/src/boss/corbenik/first.rs`, `seed.rs`, `second.rs`,
+`stardust.rs`, `eff.rs`); the third is not yet.
 
 ## The first form's class
 
@@ -157,3 +158,69 @@ pushed out, the push's height dropped).
 and the flush native, scripted blows on the body and on the seeds, the
 land ending past a case's x. 46 cases (137,730 frames) agree, reaching
 acts 0, 6, 7, 12, 14, 16, 17, 18, 20, 21 and the seeds' 0, 3, 4, 5, 14.
+
+## The second form
+
+`ccThBoss08b_Main` news `ccBoss08_b` (0xfa5e0) in the task the first form
+left, after a frame's `Breath`; the first form's effects stay in the
+manager. The constructor makes five roots first (`ccBoss08Root`, row 8,
+each `ccRand() & 1` picking `boss08RootAnmTblA` or `B`, exited, at 512),
+then the body: row 8, 500 behind Kite and 10 up, `OnCheatHP` (unread),
+`CMP_trall2` with `ANM_xx11wave`, `ANM_ex8natc4` (the root drain's own
+root), `OBJ_ex8bria` (the barrier) and `boss08DmgBarriar`
+(`ANM_ex8bdmg0`), the boss camera (200, 1000), the blur on, sixteen
+elements on the body's clip. Quarantine's class has three words more than
+Infection's DWARF (+0x294b4-+0x294bc: the message's wait, shown, run out).
+
+Its tables: `boss08BNormalActTbl` `2 60, 4, 1, 2 90, 17, 2 120, 16, 3, 18,
+2 150, 4, 1, 3, 14, 2 150` and from half its HP `boss08BSuperActTbl` `2
+60, 4, 1, 2 90, 17, 3, 18, 2 150, 4, 1, 3, 15, 2 150`. Its own words: 1
+the wave (act 3), 14 the magic (6), 15 the star dust (5), 16 the press
+(4), 17 the sybly (21), 18 the root drain (22), 19 the barrier (23). The
+base's 4 (the chase, 18) has no `Think`: the next frame is the neutral.
+
+- **Neutral** (0) turns to its target (256).
+- **Wave** (3): `ANM_ex8act3` from its frame 1; SE 172 (note 63) at
+  frames 7-46, 223 at 59, 224 at 101; at 105 a flash and a WaveShock, at
+  110 boss skill 28; from 105 the quake (50) and the wave drawn; both clips
+  over, the next pattern.
+- **Sybly** (21): skill 157 compelled on every member up, under its cinema
+  and camera.
+- **Magic** (6): skill 244 at the target.
+- **Star dust** (5): at `SelectTarget(3)` (the 3 its step switch leaves in
+  `$a1`: the member with the least HP); the camera 2000 out, the blur
+  eased; `ccBossEffStarDustFlash`, then boss skill 30 at the target.
+- **Press** (4): to 500 past the target, vanished into sixteen images
+  circling the target; sixteen elements shot across it every 8 frames to
+  90, each that arrives boss skill 29 and a ring (195).
+- **Root drain** (22): at `SelectTarget(1)` (the farthest), from 1500
+  past it; the ground breaks, the five roots come up between it and the
+  target every 8 frames (each a quake of 30 frames), the camera circles;
+  then `ccBossEffRootDrain` at the target and boss skill 57 every fifth
+  frame from 45 to 95 with its HP and SP drains at 100 (their
+  `EntryAffect`s on the boss itself at once, inside the damage).
+- **Barrier** (23, once the body is at a fifth of its HP): the transform
+  (`ccBossEffTransform`, 272 draws), `bossTbl` row 48's stats (its
+  `Exdefense` written 256 into the table) and the barrier up.
+- **Return** (7, the base's word 6) and the **random drive** (20, the
+  base's word 7): no table holds them.
+
+Its HP never kills it. A blow on the barrier shows 0 and takes the
+barrier's own count (the HP the body had when it was asked for): out, the
+death (14); under 4000 the first time, menu 74's stream 94 (act 24) and a
+3630-frame wait, after which the next pattern is the death. The drain (13)
+sets a tenth of its HP and the gauge -1. The death hides the body and
+exits once no menu is open.
+
+The star dust (0x180) gathers 64 stars (`ccRandF` thrice each), raises
+them, strikes the core with a bolt each (`ccBossEffThunder3`, 24 `ccRandF`
+a draw), pulls them in (a ring each, `190 + ccRand() & 7`), bursts, drops
+the camera from 3000 over the target and rains 32 lasers
+(`ccBossEffLaserRain`, starts within 2000 at 1000 up, ends within 1000,
+each a trail of sixteen segments 100 apart).
+
+`tools/test_battle_corbenik_b_rs.py` runs `ccBoss08_b` natively: the
+WaveShock and the rings stand-ins; the star dust, its bolts and rain, the
+transform and the drain native; a particle generator living the case's
+frames. Its cases agree frame by frame and reach acts 0, 3, 4, 5, 6, 14,
+16, 18, 20, 21, 22, 23 and 24.

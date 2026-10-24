@@ -30,6 +30,9 @@ pub enum BlurFunc {
     /// `ccBoss06BlurParamFuncCB` (QUA gcmn 0x003a34a0): Macha's
     /// `Transfer`'s.
     Boss06,
+    /// `boss08BBlurParamCB` (QUA gcmn 0x003b1a50): Corbenik's second
+    /// form's press and root drain.
+    Boss08B,
 }
 
 /// A boss's write to the blur.
@@ -41,6 +44,8 @@ pub enum Set {
     Turn(F),
     Abgr(u32),
     Func(BlurFunc),
+    /// +0x2c 0: no callback.
+    NoFunc,
     /// +0x24 0, the scale, turn and colour taken as where `Main` eases
     /// from (`ccBossKyvia01::CheckDiscMove`'s next stage).
     Ease,
@@ -63,6 +68,8 @@ pub struct Statics {
     /// `g_sinRot` (QUA gp 0x00279814): `ccBoss06BlurParamFuncCB`'s phase,
     /// which Macha's `Transfer` sets.
     pub sin_rot: F,
+    /// `boss08BBlurParamCB`'s `blurRad` (QUA gp 0x00279820), from 0.
+    pub boss08b_rad: F,
 }
 
 /// `ccBossBlur`'s members (offsets from the blur, the manager's +4).
@@ -103,6 +110,7 @@ impl Blur {
             Set::Turn(v) => self.turn = v,
             Set::Abgr(v) => self.abgr = v,
             Set::Func(f) => self.func = Some(f),
+            Set::NoFunc => self.func = None,
             Set::Ease => {
                 self.enabled = false;
                 (self.scale0, self.turn0, self.abgr0) = (self.scale, self.turn, self.abgr);
@@ -175,6 +183,17 @@ impl BlurFunc {
                     r = ee::sub(r, TWO_PI);
                 }
                 statics.boss03_rad = Some(r);
+                *scale = ee::add(ONE, ee::mul(0x3c23_d70a, libm::sinf(r)));
+                *turn = ee::mul(PI, ee::div(libm::sinf(r), 0x44e1_0000));
+                *abgr = 0x4880_8080;
+            }
+            BlurFunc::Boss08B => {
+                // Boss03's, on its own static from 0.
+                let mut r = ee::add(statics.boss08b_rad, 0x3dd6_7750);
+                if !ee::le(r, PI) {
+                    r = ee::sub(r, TWO_PI);
+                }
+                statics.boss08b_rad = r;
                 *scale = ee::add(ONE, ee::mul(0x3c23_d70a, libm::sinf(r)));
                 *turn = ee::mul(PI, ee::div(libm::sinf(r), 0x44e1_0000));
                 *abgr = 0x4880_8080;

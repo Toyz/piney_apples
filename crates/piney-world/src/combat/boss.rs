@@ -513,6 +513,7 @@ impl Combat {
             cam: cam_view(camera, None, false),
             land: &mut land,
             disc,
+            gen_alive: &|_| true,
             me,
             out: Vec::new(),
             ev: Events::new(),
@@ -764,6 +765,7 @@ impl Combat {
             cam: cv,
             land: &mut land,
             disc,
+            gen_alive: &|_| true,
             me,
             out: Vec::new(),
             ev: Events::new(),
@@ -1341,6 +1343,7 @@ fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> CamView {
         eye: bcam.map_or(c.pos, |b| b.pos),
         active_pos: camera.cam(camera.cam_id).pos,
         active_view: camera.cam(camera.cam_id).view,
+        boss_view: bcam.map_or(c.view, |b| b.view),
     }
 }
 

@@ -332,6 +332,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         eye,
         active_pos: case.cam_pos,
         active_view: case.cam_view,
+        boss_view: [0; 4],
     };
     // The frames the disc rides on after the body's `Move`.
     let mut ride = 0;
@@ -370,6 +371,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         cam: view(0, 0, [0; 4]),
         land: &mut land,
         disc: disc(0, 0, &blur, &fade),
+        gen_alive: &|_| true,
         me,
         out: Vec::new(),
         ev: Events::new(),
@@ -483,6 +485,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
             cam: view(f, cam.reset, cam.pos),
             land: &mut land,
             disc: disc(f, ride, &blur, &fade),
+            gen_alive: &|_| true,
             me,
             out: Vec::new(),
             ev: Events::new(),

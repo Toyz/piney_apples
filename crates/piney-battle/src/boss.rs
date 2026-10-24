@@ -171,6 +171,11 @@ pub enum Class {
     Corbenik(Box<corbenik::first::First>),
     /// `ccBoss08Seed`.
     CorbenikSeed(Box<corbenik::seed::Seed>),
+    /// `ccBoss08_b`, the second form: its roots are bosses of their own
+    /// characters.
+    CorbenikB(Box<corbenik::second::Second>),
+    /// `ccBoss08Root`.
+    CorbenikRoot(Box<corbenik::second::Root>),
     /// A bare `ccBoss` (a slave's base).
     Plain,
 }
@@ -384,7 +389,7 @@ pub enum EffKind {
     /// `ccBossEffAutoSamonRingCreate(pos, rot, param, n)` (0x00479900).
     AutoSamonRing { n: i32 },
     /// The same with another `param` (Macha's blast's (0, 2/3, 10)).
-    AutoSamonRingOf { n: i32, param: [F; 3] },
+    AutoSamonRingOf { n: i32, param: [F; 4] },
     /// `ccBossEffIceBreakCreate(pos, scale)` (0x00479240).
     IceBreak,
     /// `ccBossEffDeadCreate(pos, pos, 0)` (0x004795d0).
@@ -446,6 +451,19 @@ pub enum EffKind {
     /// `ccBossEffFlushCreate(pos, start, end)` (QUA gcmn 0x0037dec0): a
     /// seed's flush ([`corbenik::eff::Flush`]).
     Flush,
+    /// `ccBossEffStarDustFlashCreate(pos, target)` (QUA gcmn 0x0037dbd0):
+    /// the second form's star dust ([`corbenik::eff::StarDust`]).
+    StarDustFlash,
+    /// `ccBossEffTransformCreate(pos)` (QUA gcmn 0x0037e270): its barrier's
+    /// transform ([`corbenik::eff::Transform`]).
+    Transform,
+    /// `ccBossEffThunder3Create(sp, ep, w, life, follow, clut)` (QUA gcmn
+    /// 0x0037dc40): a bolt of the star dust's
+    /// ([`corbenik::stardust::Thunder`]).
+    Thunder3,
+    /// `ccBossEffRootDrainCreate(pos)` (QUA gcmn 0x0037e140), a
+    /// `ccBossEffDrain`: the root drain ([`corbenik::eff::Drain`]).
+    RootDrain,
 }
 
 impl Effects {
@@ -566,7 +584,11 @@ impl Eff {
             | EffKind::Phantom
             | EffKind::Eruption
             | EffKind::CorbenikWave
-            | EffKind::Flush => return,
+            | EffKind::Flush
+            | EffKind::StarDustFlash
+            | EffKind::Transform
+            | EffKind::Thunder3
+            | EffKind::RootDrain => return,
         };
         if self.count >= life {
             self.enabled = false;
@@ -857,6 +879,16 @@ pub enum Out {
     Corbenik(corbenik::Pic),
     /// `activeCamPtr->type` (+0x5c) set.
     CameraType(i32),
+    /// `bossCam->lock` (+0x00) set.
+    CamLock(bool),
+    /// `bossCam->CamView` (+0x10) written straight (Corbenik's star dust
+    /// while the camera is free).
+    CamLook(V4),
+    /// `cameraSetRot(rot, cam)`.
+    CameraRot {
+        cam: i32,
+        rot: V4,
+    },
     /// `ccMenu->panelStatus` (+0x0c) set.
     PanelStatus(i16),
     /// `g_sinRot` (`ccBoss06BlurParamFuncCB`'s phase) set.
@@ -970,6 +1002,10 @@ pub struct Cx<'a> {
     pub land: &'a mut dyn FnMut(V4) -> F,
     /// `EVENTAREAB8`'s disc as Kyvia reads it ([`DiscView`]).
     pub disc: DiscView,
+    /// `ccCheckParticleGenerator(g)` of a generator the rules made and
+    /// keyed ([`Out::Corbenik`]'s `Gen`): still on the particle system's
+    /// list (its life and its particles' run out on their own).
+    pub gen_alive: &'a dyn Fn(u32) -> bool,
     pub me: usize,
     pub out: Vec<Out>,
     pub ev: Events,
@@ -1042,6 +1078,9 @@ pub struct CamView {
     /// (docs/engine/boss-kyvia-second.md "Which camera").
     pub active_pos: V4,
     pub active_view: V4,
+    /// The boss camera's own view (`CamView`, +0x10), which Corbenik's
+    /// second form reads and moves.
+    pub boss_view: V4,
 }
 
 /// `WORLD_MAN.eventmap` as an `EVENTAREAB8` for Kyvia's rules: `IsMove()`,
@@ -1217,6 +1256,7 @@ impl Boss {
             Class::Macha(_) => macha::main(self, cx),
             Class::Tarvos(_) => tarvos::main(self, cx),
             Class::Corbenik(_) => corbenik::first::main(self, cx),
+            Class::CorbenikB(_) => corbenik::second::main(self, cx),
             Class::Gorre(_) => gorre::main(self, cx),
             _ => self.skeith_main(cx),
         }
@@ -2576,6 +2616,7 @@ impl Boss {
             Class::Tarvos(_) => return tarvos::affect(self, cx),
             Class::Corbenik(_) => return corbenik::first::affect(self, cx),
             Class::CorbenikSeed(_) => return corbenik::seed::affect(self, cx),
+            Class::CorbenikB(_) => return corbenik::second::affect(self, cx),
             Class::Gorre(_) => return gorre::affect(self, cx),
             Class::GorreBrother(_) => return gorre::brother_affect(self, cx),
             _ => {}
@@ -2741,6 +2782,7 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
         cam: CamView::default(),
         land: &mut land,
         disc: DiscView::default(),
+        gen_alive: &|_| true,
         me: on,
         out: Vec::new(),
         ev: Events::new(),

@@ -874,9 +874,7 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
             Make::ForceGenerator { p: pos, rot: dirc, speed, r0, r1, num, life, clt }
         }
         EffKind::AutoSamonRing { n } => Make::AutoSamonRing { pos, rot: dirc, param: [0, 0x3eaa_aaab, TEN, 0], n },
-        EffKind::AutoSamonRingOf { n, param: [a, b, c] } => {
-            Make::AutoSamonRing { pos, rot: dirc, param: [a, b, c, 0], n }
-        }
+        EffKind::AutoSamonRingOf { n, param } => Make::AutoSamonRing { pos, rot: dirc, param, n },
         EffKind::IceBreak => Make::IceBreak { pos, scale: 0x4000_0000 },
         EffKind::Dead => Make::Dead { pos },
         // Magus's leaf's ring (model 195, DeadEffect's parameter).
@@ -902,7 +900,11 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
         | EffKind::Phantom
         | EffKind::Eruption
         | EffKind::CorbenikWave
-        | EffKind::Flush => {
+        | EffKind::Flush
+        | EffKind::StarDustFlash
+        | EffKind::Transform
+        | EffKind::Thunder3
+        | EffKind::RootDrain => {
             return None;
         }
     })

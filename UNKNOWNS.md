@@ -243,6 +243,7 @@ player until one of these turns out wrong.
 - [[447]] the upper half of `$s1` in the boss's thread when the phantom is made (the view its constructor hands the boss camera) — no game code writes it but by saving and restoring, so it is what the kernel's `StartThread` left in the thread's first context; taken as 0. [[448]]: seen, for the one frame the phantom is made (`CamMain` puts the view on camera 2 before the phantom's first `Draw` sets it anew)
 - [[447]] the spikes', the phantom's sprite's and its lights' pictures against the game's draw — not checked frame by frame
 - [[450]] Corbenik's first form in the world: the seeds as actors, their pictures (the flush, the count, the charge), the leap and the wave in the arena, both forms in one task — not ported yet
+- [[451]] what the second form's star dust and press do to the boss camera while it is free (`ResetFlg` 5): not checked against the game (the harness's camera stays at 0)
 - [[279]] which enemy and area the report's staff came from, and whether it was drained — report detail
 
 ### world

@@ -113,6 +113,7 @@ impl Fight {
             cam: CamView::default(),
             land: &mut land,
             disc: crate::boss::DiscView::default(),
+            gen_alive: &|_| true,
             me: self.me,
             out: Vec::new(),
             ev: Events::new(),
@@ -250,4 +251,74 @@ fn a_flush_shrinks_in_ten_steps() {
         assert!(n < 100);
     }
     assert_eq!(n, 10, "ten draws on, off at the eleventh");
+}
+
+// --- the second form ----------------------------------------------------------------------------
+
+fn fight_b() -> Option<Fight> {
+    let mut f = fight()?;
+    let me = f.me;
+    let t = f.t.bosses[super::second::ROW].clone();
+    let mut ch = Char::foe(t);
+    ch.condition_num = -1;
+    ch.affect.func = AffectFunc::Boss;
+    f.scene.chars[me] = ch;
+    let b = f.with_cx(|cx| super::second::new(cx, [0, 0, 0, ONE], VF0, VF0, Default::default())).0;
+    f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));
+    Some(f)
+}
+
+impl Fight {
+    fn second(&mut self) -> super::second::Second {
+        match &self.boss().class {
+            Class::CorbenikB(x) => (**x).clone(),
+            _ => panic!("not the second form"),
+        }
+    }
+}
+
+#[test]
+fn the_second_form_stands_with_its_roots_put_away() {
+    let Some(mut f) = fight_b() else { return };
+    let x = f.second();
+    assert!(!x.barrier);
+    assert_eq!(f.boss().pat_tbl, Tbl::Normal);
+    for r in x.root_me {
+        let b = f.scene.chars[r].foe_state().unwrap().boss.as_ref().unwrap();
+        assert_eq!(b.exit, 1, "a root starts exited");
+    }
+}
+
+#[test]
+fn its_hp_brings_the_super_table_and_asks_for_the_barrier() {
+    let Some(mut f) = fight_b() else { return };
+    let me = f.me;
+    let max = f.scene.chars[me].max_hp;
+    f.scene.chars[me].hp = max / 2 + 1;
+    f.affect(me, 1, 2, 0);
+    assert_eq!(f.boss().pat_tbl, Tbl::Super);
+    let before = f.scene.chars[me].hp;
+    f.affect(me, 1, before - max / 5, 0);
+    let x = f.second();
+    assert!(x.reserve_setup_barrier);
+    assert_eq!(x.life_counter, i32::from(before), "the barrier's count is the HP before the blow");
+}
+
+#[test]
+fn the_barrier_takes_the_blows_and_its_count_kills() {
+    let Some(mut f) = fight_b() else { return };
+    let me = f.me;
+    let hp = f.scene.chars[me].hp;
+    if let Class::CorbenikB(x) = &mut f.boss().class {
+        x.barrier = true;
+        x.life_counter = 4100;
+    }
+    let out = f.affect(me, 1, 200, 0);
+    assert!(out.contains(&Out::FlyFont { kind: 2, n: 0 }), "a blow on the barrier shows 0");
+    assert_eq!(f.scene.chars[me].hp, hp, "the body's HP untouched");
+    let x = f.second();
+    assert!(x.msg_shown && x.msg_count == 3630, "under 4000 the message and its wait");
+    assert_eq!(f.boss().act_num, super::second::act::BARRIER_MSG);
+    f.affect(me, 1, 30000, 0);
+    assert_eq!(f.boss().act_num, super::second::act::DIE, "the count out: the death");
 }

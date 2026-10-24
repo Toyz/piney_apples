@@ -2450,6 +2450,20 @@ fn combat() -> Group {
                 "`boss08BSuperActTbl`: its patterns from half its HP.",
             ),
             e(
+                "corbenik_root_anims_a",
+                0x005E_C840,
+                array(opt(cstr()), 19),
+                GCMN,
+                "`boss08RootAnmTblA`: a root's clip by act (`ccRand() & 1` set).",
+            ),
+            e(
+                "corbenik_root_anims_b",
+                0x005E_C890,
+                array(opt(cstr()), 19),
+                GCMN,
+                "`boss08RootAnmTblB`: the other root's.",
+            ),
+            e(
                 "corbenik_dmg_barrier",
                 0x0037_81E8,
                 array(opt(cstr()), 1),

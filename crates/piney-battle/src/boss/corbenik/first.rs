@@ -9,7 +9,7 @@ use piney_data::field::ee;
 
 use super::eff::{self, Fx};
 use super::seed::{self, Seed};
-use super::{Gen, Pic, SEEDS};
+use super::{Gen, Pic, SEEDS, make_fx, manager_pass, select, target_ok, word, wrap_hi};
 use crate::boss::kyvia::Part;
 use crate::boss::{Boss, Class, Cx, EffKind, Out, Tbl, VF0};
 use crate::enemy_ai::{get_dirc, rand_f2};
@@ -25,8 +25,6 @@ const NEG_PI: F = 0xc049_0fdb;
 const TWO_PI: F = 0x40c9_0fdb;
 const HALF_PI: F = 0x3fc9_0fdb;
 const NEG_HALF_PI: F = 0xbfc9_0fdb;
-/// `SelectTarget`'s radius: 999999.
-const FAR: F = 0x4974_23f0;
 /// The stage fader's colour (`BeginStageEffect(0x64000000, ...)`).
 const DARK: u32 = 0x6400_0000;
 /// The leap's turn each jump: 2.0944 (2 pi / 3).
@@ -135,25 +133,6 @@ fn seeds_targetable(x: &mut First, cx: &mut Cx, on: bool) {
     }
 }
 
-fn word(tbl: &[i32], i: i32) -> i32 {
-    usize::try_from(i).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0)
-}
-
-fn target_ok(cx: &Cx, t: Option<usize>) -> bool {
-    cx.valid(t) && t.is_some_and(|t| !cx.dead(t))
-}
-
-fn select(b: &mut Boss, cx: &mut Cx, ty: i32) -> Option<usize> {
-    let t = b.select_target(cx, ty, FAR);
-    cx.scene.chars[cx.me].target_char = t;
-    t
-}
-
-/// An angle past pi taken a turn back (once).
-fn wrap_hi(v: F) -> F {
-    if ee::le(v, PI) { v } else { ee::sub(v, TWO_PI) }
-}
-
 // --- the constructor ----------------------------------------------------------------------
 
 /// `ccBoss08::ccBoss08` (0x003acbd0): the boss is `scene.chars[cx.me]`
@@ -223,44 +202,6 @@ pub(crate) fn main(b: &mut Boss, cx: &mut Cx) {
     put_seeds(cx, &mut x, found);
     cx.scene.chars[cx.me].cond[cond::HOLD] = 0;
     b.class = Class::Corbenik(x);
-}
-
-/// `ccBossEffManager::Draw`'s pass: each enabled effect's `Draw` in slot
-/// order, a disabled one freed.
-fn manager_pass(b: &mut Boss, cx: &mut Cx) {
-    let mut k = 0;
-    while k < b.effects.slots.len() {
-        let Some(e) = b.effects.slots[k].as_mut() else {
-            k += 1;
-            continue;
-        };
-        if !e.enabled {
-            b.effects.slots[k] = None;
-            k += 1;
-            continue;
-        }
-        let Some(mut fx) = e.corbenik.take() else {
-            e.draw();
-            k += 1;
-            continue;
-        };
-        let alive = fx.draw(cx, b);
-        if let Some(e) = b.effects.slots[k].as_mut() {
-            e.corbenik = Some(fx);
-            e.enabled = alive;
-        }
-        k += 1;
-    }
-}
-
-/// An effect of Corbenik's own made in the first free slot.
-fn make_fx(b: &mut Boss, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32 {
-    let id = b.effects.create(kind);
-    if let Some(e) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
-        e.corbenik = Some(Box::new(fx));
-    }
-    cx.out(Out::Effect { id, kind, pos, dirc: VF0 });
-    id
 }
 
 /// `ccBoss::Main` (QUA gcmn 0x0035fda0) on the first form: `PreDrawAnm`

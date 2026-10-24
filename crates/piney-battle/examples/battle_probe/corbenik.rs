@@ -55,7 +55,7 @@ fn load(iso_path: &str) -> (BossData, Clips) {
 
 /// Answers `corbenikclips` and `corbenik`; None for any other command.
 pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) -> Option<String> {
-    if !matches!(cmd, "corbenikclips" | "corbenik") {
+    if !matches!(cmd, "corbenikclips" | "corbenik" | "corbenikb") {
         return None;
     }
     DATA.with(|d| {
@@ -71,6 +71,8 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) ->
             v.sort();
             let body: Vec<String> = v.iter().map(|(k, (f, l))| format!("\"{k}\":[{f},{}]", u8::from(*l))).collect();
             format!("{{{}}}", body.join(","))
+        } else if cmd == "corbenikb" {
+            crate::corbenik_b::run(tables, data, clips, t)
         } else {
             run(tables, data, clips, t)
         }
@@ -105,24 +107,24 @@ impl piney_battle::boss::PartHits for Plane {
 
 /// The cameras as the harness keeps them: each one's eye and view as set,
 /// `camID`, and the active camera's `type` as written.
-struct Cams {
-    set: std::collections::HashMap<i32, (V4, V4)>,
-    id: i32,
-    ty: i32,
+pub(crate) struct Cams {
+    pub(crate) set: std::collections::HashMap<i32, (V4, V4)>,
+    pub(crate) id: i32,
+    pub(crate) ty: i32,
 }
 
 impl Cams {
-    fn get(&self, n: i32) -> (V4, V4) {
+    pub(crate) fn get(&self, n: i32) -> (V4, V4) {
         self.set.get(&n).copied().unwrap_or(([0, 0, 0, 0x3f80_0000], [0, 0, 0, 0x3f80_0000]))
     }
 
-    fn view(&self) -> CamView {
+    pub(crate) fn view(&self) -> CamView {
         let (pos, view) = self.get(self.id);
         let (p2, v2) = self.get(2);
         CamView { pos: p2, view: v2, active_pos: pos, active_view: view, ..CamView::default() }
     }
 
-    fn apply(&mut self, out: &[Out]) {
+    pub(crate) fn apply(&mut self, out: &[Out]) {
         for o in out {
             match o {
                 Out::CameraChange(n) => self.id = *n,
@@ -200,6 +202,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cam: cams.view(),
         land: &mut land,
         disc: piney_battle::boss::DiscView::default(),
+        gen_alive: &|_| true,
         me,
         out: Vec::new(),
         ev: Events::new(),
@@ -289,6 +292,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cam: cams.view(),
             land: &mut land,
             disc: piney_battle::boss::DiscView { blur_exit: blur.blur.exit, ..Default::default() },
+            gen_alive: &|_| true,
             me,
             out: Vec::new(),
             ev: Events::new(),
@@ -335,45 +339,77 @@ fn seed_chars(scene: &Scene, me: usize) -> [usize; 8] {
     }
 }
 
-fn v3(v: &V4) -> String {
+pub(crate) fn v3(v: &V4) -> String {
     format!("{},{},{}", v[0], v[1], v[2])
 }
 
 /// A call as the harness records it.
-fn mout(o: &Out) -> Option<String> {
+pub(crate) fn mout(o: &Out) -> Option<String> {
     Some(match o {
         Out::Corbenik(p) => match p {
-            Pic::Particles { which, .. } => {
-                let w = match which {
-                    Gen::WaveRing => "ring",
-                    Gen::WaveSquare => "square",
-                    Gen::SeedShot => "smoke",
-                };
-                format!("[\"gen\",\"{w}\"]")
-            }
+            Pic::Particles { which, .. } => format!("[\"gen\",\"{}\"]", gen_name(*which)),
             Pic::Charge { on: true, .. } => "[\"gen\",\"charge\"]".into(),
             Pic::Charge { on: false, .. } => "[\"gen_del\"]".into(),
             Pic::CountDown { n, .. } => format!("[\"count\",{n}]"),
             Pic::SeedImage { .. } => "[\"afterimage_anm\"]".into(),
-            Pic::Burst { .. } => "[\"burst\",0]".into(),
+            Pic::Burst { kind, .. } => format!("[\"burst\",{kind}]"),
             Pic::SeedShield { .. } => "[\"shield\",1]".into(),
-            Pic::Wave { .. } | Pic::Flush { .. } => return None,
+            Pic::Gen { which, .. } => format!("[\"gen\",\"{}\"]", gen_name(*which)),
+            Pic::Barrier
+            | Pic::BarrierHit { .. }
+            | Pic::PressImage { .. }
+            | Pic::Element { .. }
+            | Pic::TransformLay { .. }
+            | Pic::RootL { .. }
+            | Pic::Wave { .. }
+            | Pic::Flush { .. } => return None,
+            Pic::ElementSmoke { .. } | Pic::Smoke { .. } => "[\"smoke\"]".into(),
+            Pic::LaserRadiate { .. } => "[\"radiate2\"]".into(),
+            Pic::Star { .. } | Pic::StarCore { .. } | Pic::Thunder { .. } | Pic::Laser { .. } => return None,
+            Pic::Radiate { .. } => "[\"radiate\"]".into(),
         },
         Out::CameraChange(n) => format!("[\"cam\",{n}]"),
         Out::CameraPos { cam, pos } => format!("[\"campos\",{cam},{}]", v3(pos)),
         Out::CameraView { cam, view } => format!("[\"camview\",{cam},{}]", v3(view)),
         Out::CinemaSkill(sid) => format!("[\"cinema_skill\",{sid}]"),
+        Out::CamMode { mode } => format!("[\"cammode\",{mode}]"),
+        Out::SeNote { se, note } => format!("[\"senote\",{se},{note}]"),
+        Out::FreeCam { pos, view } => format!("[\"freecam\",{},{}]", v3(pos), v3(view)),
+        Out::AfterImageWith(p) => format!("[\"afterimage\",{},{}]", p.color, p.trans_spd),
+        Out::CamEye(_) | Out::CamLook(_) | Out::CamLock(_) | Out::CameraRot { .. } => return None,
         Out::FlashFade { t_in, t_out, hold, colour } => {
             format!("[\"flash3\",{t_in},{t_out},{},{colour}]", hold.unwrap_or(-1))
         }
         // Corbenik's own effects run natively in the harness: seen in the slots.
-        Out::Effect { kind: EffKind::CorbenikWave | EffKind::Flush, .. } => return None,
+        Out::Effect {
+            kind:
+                EffKind::CorbenikWave
+                | EffKind::Flush
+                | EffKind::StarDustFlash
+                | EffKind::Transform
+                | EffKind::RootDrain
+                | EffKind::Thunder3,
+            ..
+        } => return None,
         Out::Skill(_, s) => format!("[\"skill\",{},{}]", s.sid, u8::from(s.stype == 2)),
         _ => return out_json(o),
     })
 }
 
-fn some(id: Option<i32>) -> String {
+fn gen_name(g: Gen) -> &'static str {
+    match g {
+        Gen::WaveRing => "ring",
+        Gen::WaveSquare => "square",
+        Gen::SeedShot => "smoke",
+        Gen::RootDrain0 => "drain0",
+        Gen::RootDrain1a => "drain1a",
+        Gen::RootDrain1b => "drain1b",
+        Gen::RootDrain2 => "drain2",
+        Gen::Transform => "transform",
+    }
+}
+
+pub(crate) fn some(id: Option<i32>) -> String {
     u8::from(id.is_some_and(|k| k >= 0)).to_string()
 }
 

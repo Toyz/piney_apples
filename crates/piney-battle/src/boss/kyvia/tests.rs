@@ -95,6 +95,7 @@ impl Bout {
             cam: CamView::default(),
             land: &mut land,
             disc: self.disc,
+            gen_alive: &|_| true,
             me: self.me,
             out: Vec::new(),
             ev: Events::new(),

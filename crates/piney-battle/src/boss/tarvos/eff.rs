@@ -363,7 +363,7 @@ impl Phantom {
                 cx.out(Out::Tarvos(Pic::PhantomSprite { pos: self.pos, size: self.size }));
                 let mut s = ee::sub(self.size, 0x42c8_0000);
                 if ee::lt(s, 0) {
-                    let param = [0, 0x3f2a_aaab, 0x4120_0000];
+                    let param = [0, 0x3f2a_aaab, 0x4120_0000, 0];
                     b.effect_at(cx, EffKind::AutoSamonRingOf { n: 195, param }, self.pos, [0; 4]);
                     s = 0;
                     self.init_radiate();

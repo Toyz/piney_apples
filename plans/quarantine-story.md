@@ -63,10 +63,11 @@ event from its own start, 447 s):
 4. **310**: `ccBoss07` (code 6): ported (worklog 447).
 5. **311, 312**: 311 done under god; 312 reaches Kyvia's fourth fight, which the pilot does not yet win (worklog 449).
 6. **313**: the pilot's answer to BlackRose; `ccBoss08` (code 7) in all its
-   forms. The first form and its seeds ported and checked against the
-   game (worklog 450, docs/engine/boss-corbenik.md); next the second form
-   (`ccBoss08_b`, its roots), the third (`ccBoss08_c`, its eye and killer
-   eyes), their effects, the world's side and the session tests.
+   forms. The first form and its seeds (worklog 450) and the second, its
+   roots, barrier and effects (worklog 451) ported and checked against the
+   game (docs/engine/boss-corbenik.md); next the third (`ccBoss08_c`, its
+   eye and killer eyes, the tera and reflection lasers), the world's side
+   and the session tests.
 7. **314**: `area` / `scene` to field 126, `ending_kanji`, `STFROLL_VOL4`,
    the hacking logos.
 8. The whole runs: from the new game, and from an Outbreak save

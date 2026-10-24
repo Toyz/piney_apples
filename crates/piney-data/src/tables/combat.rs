@@ -255,6 +255,10 @@ pub struct Combat {
     pub corbenik_b_normal: &'static [i32],
     /// `boss08BSuperActTbl`: its patterns from half its HP.
     pub corbenik_b_super: &'static [i32],
+    /// `boss08RootAnmTblA`: a root's clip by act (`ccRand() & 1` set).
+    pub corbenik_root_anims_a: &'static [Option<&'static str>],
+    /// `boss08RootAnmTblB`: the other root's.
+    pub corbenik_root_anims_b: &'static [Option<&'static str>],
     /// `boss08DmgBarriar`: the barrier's clip as a blow lands on it.
     pub corbenik_dmg_barrier: &'static [Option<&'static str>],
     /// `_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.
@@ -373,6 +377,8 @@ impl crate::store::Load for Combat {
             corbenik_b_anims: crate::store::Load::load(r),
             corbenik_b_normal: crate::store::Load::load(r),
             corbenik_b_super: crate::store::Load::load(r),
+            corbenik_root_anims_a: crate::store::Load::load(r),
+            corbenik_root_anims_b: crate::store::Load::load(r),
             corbenik_dmg_barrier: crate::store::Load::load(r),
             cinema_skill_names: crate::store::Load::load(r),
             cinema_skill_rows: crate::store::Load::load(r),
@@ -646,6 +652,12 @@ impl Combat {
     }
     pub fn corbenik_b_super(&self) -> &'static [i32] {
         self.corbenik_b_super
+    }
+    pub fn corbenik_root_anims_a(&self) -> &'static [Option<&'static str>] {
+        self.corbenik_root_anims_a
+    }
+    pub fn corbenik_root_anims_b(&self) -> &'static [Option<&'static str>] {
+        self.corbenik_root_anims_b
     }
     pub fn corbenik_dmg_barrier(&self) -> &'static [Option<&'static str>] {
         self.corbenik_dmg_barrier
@@ -947,6 +959,14 @@ pub static CORBENIK_B_NORMAL: std::sync::LazyLock<&'static [i32]> =
 /// `boss08BSuperActTbl`: its patterns from half its HP.
 pub static CORBENIK_B_SUPER: std::sync::LazyLock<&'static [i32]> =
     std::sync::LazyLock::new(|| shared().corbenik_b_super);
+
+/// `boss08RootAnmTblA`: a root's clip by act (`ccRand() & 1` set).
+pub static CORBENIK_ROOT_ANIMS_A: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().corbenik_root_anims_a);
+
+/// `boss08RootAnmTblB`: the other root's.
+pub static CORBENIK_ROOT_ANIMS_B: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().corbenik_root_anims_b);
 
 /// `boss08DmgBarriar`: the barrier's clip as a blow lands on it.
 pub static CORBENIK_DMG_BARRIER: std::sync::LazyLock<&'static [Option<&'static str>]> =

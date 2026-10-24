@@ -170,6 +170,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         eye: [0; 4],
         active_pos: [0; 4],
         active_view: [0; 4],
+        boss_view: [0; 4],
     };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
@@ -196,6 +197,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cam: view(rot.first().copied().unwrap_or(0), false),
         land: &mut land,
         disc: piney_battle::boss::DiscView::default(),
+        gen_alive: &|_| true,
         me,
         out: Vec::new(),
         ev: Events::new(),
@@ -252,6 +254,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cam: view(rot[f], moving[f]),
             land: &mut land,
             disc: piney_battle::boss::DiscView::default(),
+            gen_alive: &|_| true,
             me,
             out: Vec::new(),
             ev: Events::new(),
