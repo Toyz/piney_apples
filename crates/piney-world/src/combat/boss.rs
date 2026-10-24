@@ -25,7 +25,7 @@ use crate::body::Body;
 use crate::bosscam::BossCam;
 use crate::camera::{CamPad, Camera, id};
 use crate::cinema::{Cinema, Name as CinemaName, Sent as CinemaSent};
-use crate::ee::{self, ONE, V4};
+use crate::ee::{self, F, ONE, V4};
 use crate::lattice::{Lattice, StripVertex};
 
 /// `bossFunc`'s codes the port has: Skeith (`bossTbl` row 0), Innis
@@ -40,6 +40,9 @@ pub const GORRE: i32 = 4;
 pub const MACHA: i32 = 5;
 pub const TARVOS: i32 = 6;
 pub const KYVIA: i32 = 12;
+/// Quarantine's `ccBoss08` (code 7): Corbenik, its first two forms in one
+/// task, or its third when the save says so ([`super::corbenik`]).
+pub const CORBENIK: i32 = 7;
 /// Kyvia's second fight (`ccBossKyvia02`, Outbreak's field 10) and its
 /// third (`ccBossKyvia03`, Quarantine's field 11).
 pub const KYVIA_SECOND: i32 = 13;
@@ -129,6 +132,8 @@ pub struct BossRun {
     pub code: i32,
     /// The boss's scene index.
     pub me: usize,
+    /// `DMY_center01`, which a later form is made at too.
+    pub center: V4,
     /// The task's parameter +0x14: the boss has exited.
     pub exit: bool,
     pub clips: Rc<Clips>,
@@ -197,6 +202,8 @@ pub struct BossRun {
     /// Magus's dropped leaves its after-images hide this frame (act 8's
     /// callback).
     pub dropped: Vec<usize>,
+    /// Corbenik's pictures of x81 this frame ([`super::corbenik::Shown`]).
+    pub corbenik: Vec<super::corbenik::Shown>,
 }
 
 /// One `ccBossAfterImageEx` (`Init` MUT gcmn 0x004710b0, `Draw`
@@ -345,6 +352,9 @@ pub struct BossLook {
     /// `CMP_ex21ef{ID}1`-`5`), the file and each clump's models, by
     /// `ID * 5 + k`.
     pub shards: Option<(Rc<piney_desktop::assets::SceneFile>, Vec<Vec<u32>>)>,
+    /// `DMY_dummy1` of the boss's file (Corbenik's third form's eyes ride
+    /// it), 0 without one.
+    pub dummy: V4,
 }
 
 impl BossLook {
@@ -367,9 +377,17 @@ impl BossLook {
             KYVIA_SECOND => (boss::kyvia::Fight::Second.file(), KYVIA_SECOND_CLUMP),
             KYVIA_THIRD => (boss::kyvia::Fight::Third.file(), KYVIA_THIRD_CLUMP),
             KYVIA_FOURTH => (boss::kyvia::Fight::Fourth.file(), KYVIA_FOURTH_CLUMP),
+            CORBENIK => (boss::corbenik::FILE, super::corbenik::BODIES[0]),
             _ => (FILE, CLUMP),
         };
         let body = Rc::new(Body::read(archive, file, clump)?);
+        let dummy = body
+            .file
+            .scene
+            .dummies
+            .iter()
+            .find(|(o, _)| body.file.ccs.object_name(**o) == Some("DMY_dummy1"))
+            .map_or([0; 4], |(_, d)| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE]);
         let mut clips = Clips::new();
         for stem in [file, EFF_FILE] {
             let ccs = piney_data::ccs::Ccs::parse(archive.inflate_named(stem)?)?;
@@ -440,9 +458,13 @@ impl BossLook {
             MACHA => Body::of(body.file.clone(), MACHA_EPITAPH).ok().map(Rc::new).into_iter().collect(),
             TARVOS => Body::of(body.file.clone(), TARVOS_EPITAPH).ok().map(Rc::new).into_iter().collect(),
             GORRE => GORRE_BROTHERS.iter().filter_map(|c| Body::of(body.file.clone(), c).ok().map(Rc::new)).collect(),
+            CORBENIK => super::corbenik::BODIES
+                .iter()
+                .filter_map(|c| Body::of(body.file.clone(), c).ok().map(Rc::new))
+                .collect(),
             _ => Vec::new(),
         };
-        Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, skill_names, images, shards })
+        Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, skill_names, images, shards, dummy })
     }
 }
 
@@ -452,6 +474,9 @@ impl Combat {
     /// arena's centre `center` (`DMY_center01`) or Kyvia's disc (`disc`)
     /// and its actor. Nothing for a code the port lacks, without the
     /// tables or without Kite.
+    /// `third` is Corbenik's: `saveData` +0x652f (`eventStatus[55]`) 1,
+    /// which `ccThBoss08` reads for its third form.
+    #[allow(clippy::too_many_arguments)]
     pub fn start_boss(
         &mut self,
         look: &Rc<BossLook>,
@@ -459,6 +484,7 @@ impl Combat {
         disc: boss::DiscView,
         env: &Env,
         camera: &mut Camera,
+        third: bool,
     ) {
         let code = look.code;
         if self.boss.is_some()
@@ -475,6 +501,7 @@ impl Combat {
                     | KYVIA_SECOND
                     | KYVIA_THIRD
                     | KYVIA_FOURTH
+                    | CORBENIK
             )
         {
             return;
@@ -532,6 +559,8 @@ impl Combat {
             KYVIA_SECOND => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Second),
             KYVIA_THIRD => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Third),
             KYVIA_FOURTH => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Fourth),
+            CORBENIK if third => boss::corbenik::third::new(&mut cx, kite_pos, kite_dirc, center, look.dummy),
+            CORBENIK => boss::corbenik::first::new(&mut cx, kite_pos, kite_dirc, center),
             _ => Boss::new(&mut cx, kite_pos, kite_dirc, center),
         };
         let out = std::mem::take(&mut cx.out);
@@ -543,7 +572,11 @@ impl Combat {
         let pos = self.scene.chars[me].pos;
         let (h, w) = (self.scene.chars[me].base().height, self.scene.chars[me].base().width);
         let clip0 = b.anm.clip.clone().unwrap_or_default();
-        if let Some(a) = Actor::new(look.body.clone(), &clip0, Look::Boss, pos, b.dirc, h, w) {
+        let body0 = match code {
+            CORBENIK => clip_body(&look.images, &clip0).unwrap_or_else(|| look.body.clone()),
+            _ => look.body.clone(),
+        };
+        if let Some(a) = Actor::new(body0, &clip0, Look::Boss, pos, b.dirc, h, w) {
             self.cast.actors.insert(me, a);
         }
         let images = match &b.class {
@@ -562,7 +595,7 @@ impl Combat {
             }
             Class::Magus(x) => x.leaves.clone(),
             Class::Gorre(x) => x.brother_me.to_vec(),
-            _ => Vec::new(),
+            _ => super::corbenik::parts(&b.class),
         };
         if let Some(f) = self.scene.chars[me].foe_state_mut() {
             f.boss = Some(Box::new(b));
@@ -585,17 +618,22 @@ impl Combat {
         };
         // InitBossCamera(z, y), in the constructor, and what the
         // constructor set on it then. Magus makes none: it turns camera 3
-        // itself (`CalcCamera`).
-        let cam = (code != MAGUS).then(|| {
-            let mut cam = BossCam::new(camera, transfer, kite_pos);
-            for o in &ctor_out {
-                cam_out(&mut cam, o, camera);
+        // itself (`CalcCamera`); nor does Corbenik's first form.
+        let cam = match code {
+            MAGUS => None,
+            CORBENIK => third.then(|| super::corbenik::third_camera(camera, kite_pos)),
+            _ => {
+                let mut cam = BossCam::new(camera, transfer, kite_pos);
+                for o in &ctor_out {
+                    cam_out(&mut cam, o, camera);
+                }
+                Some(cam)
             }
-            cam
-        });
+        };
         self.boss = Some(BossRun {
             code,
             me,
+            center,
             exit: false,
             clips: look.clips.clone(),
             hit,
@@ -633,6 +671,7 @@ impl Combat {
             body_hits: Vec::new(),
             arena_clump: Vec::new(),
             dropped: Vec::new(),
+            corbenik: Vec::new(),
         });
     }
 
@@ -751,6 +790,9 @@ impl Combat {
         let mut part_hits = PartList { hits: &hits, kite };
         // BreakMirror's ccLandHitCheck(pos, 0x20000000).
         let mut land = |pos: V4| hits.borrow_mut().land(pos, 0x2000_0000);
+        // ccCheckParticleGenerator on a generator the rules keep.
+        let alive = self.gens_alive.clone();
+        let gen_alive = |k: u32| alive.as_ref().is_none_or(|s| s.contains(&k));
         let mut cx = boss::Cx {
             t: &d.t,
             data,
@@ -769,7 +811,7 @@ impl Combat {
             cam: cv,
             land: &mut land,
             disc,
-            gen_alive: &|_| true,
+            gen_alive: &gen_alive,
             me,
             out: Vec::new(),
             ev: Events::new(),
@@ -815,6 +857,15 @@ impl Combat {
         ev.extend(std::mem::take(&mut cx.ev));
         drop(cx);
         let hits = hits.into_inner();
+        // Corbenik's task past its first form: the second made the same
+        // frame (`ccThBoss08`).
+        let (mut hit, mut parts) = (hit, parts);
+        if let Some(o) = self.corbenik_next_form(&mut b, env, check, world, camera, hits) {
+            out.extend(o);
+            if let Some(r) = self.boss.as_ref() {
+                (hit, parts) = (r.hit, r.parts.clone());
+            }
+        }
         let exited = b.exit != 0;
         // The body's copy in the list where the boss stands now.
         let at = CharHit { pos: self.scene.chars[me].pos, sw: b.body_hit_sw != 0 && !exited, ..hit };
@@ -859,6 +910,10 @@ impl Combat {
             _ => None,
         };
         let kite_pos = kite.map(|k| self.scene.chars[k].pos);
+        // The second form's barrier rides OBJ_ex8body2 as the body was
+        // last drawn (`GetSubstAdrsF`).
+        let barrier_at = (self.cast.actors.get(&me))
+            .and_then(|a| super::corbenik::body2(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc));
         if let Some(r) = self.boss.as_mut() {
             // Think and Action's QuakeCam, SetMode, SetFreeCamPosView and
             // BeginDeadEffect, then after Move the camera (bossCam &&
@@ -928,11 +983,24 @@ impl Combat {
                     }
                     Out::DiscNextStage => r.disc_next = true,
                     // Kyvia's fourth fight: CamPos written, field 12's walls.
+                    // Corbenik's forms write CamView and the lock too.
                     Out::CamEye(pos) => {
                         if let Some(c) = r.cam.as_mut() {
                             c.pos = *pos;
                         }
                     }
+                    Out::CamLook(view) => {
+                        if let Some(c) = r.cam.as_mut() {
+                            c.view = *view;
+                        }
+                    }
+                    Out::CamLock(on) => {
+                        if let Some(c) = r.cam.as_mut() {
+                            c.lock = *on;
+                        }
+                    }
+                    // activeCamPtr->type (Corbenik's death: 3).
+                    Out::CameraType(t) => camera.active_mut().kind = *t,
                     Out::FieldBodyHit { n, on } => r.body_hits.push((*n, *on)),
                     Out::Corbenik(boss::corbenik::Pic::ArenaClump { on }) => r.arena_clump.push(*on),
                     // Magus's cameras: changeCamera, cameraSetPos/View.
@@ -1058,6 +1126,7 @@ impl Combat {
                     _ => {}
                 }
             }
+            r.corbenik = super::corbenik::shown(&b, &out, barrier_at, &clips, &mut r.afterimages, &mut r.waves);
             r.afterimages.retain_mut(AfterImage::step);
         }
         // The actor: ccAnm::Draw of the boss's clip at its frame, placed by
@@ -1089,7 +1158,15 @@ impl Combat {
         if let Some(f) = self.scene.chars[me].foe_state_mut() {
             f.boss = Some(b);
         }
-        self.part_actors(&parts, exited);
+        // Corbenik's eyes' flashes as their PreDrawAnm set them.
+        let blends: HashMap<usize, F> = out
+            .iter()
+            .filter_map(|o| match o {
+                Out::Corbenik(boss::corbenik::Pic::Eye { eye, blend, .. }) => Some((*eye, *blend)),
+                _ => None,
+            })
+            .collect();
+        self.part_actors(&parts, exited, &blends);
         for (p, o) in part_out {
             match &o {
                 Out::HitMark { by } => {
@@ -1105,7 +1182,8 @@ impl Combat {
         }
         for o in out {
             match &o {
-                Out::DeleteCmnd => self.scene.ene_list.retain(|&c| c != me),
+                // ccDeleteCmnd: the rules took the character off the
+                // lists themselves (a part's comes with the boss's outs).
                 // checkCameraShakeRange(pos), then cameraShake: its `rand()`.
                 Out::CameraShake { pos, s } => {
                     if shake_range(camera, &world, *pos) {
@@ -1149,16 +1227,25 @@ impl Combat {
     /// `ANM_ex7x*`), the first body under the rest.
     fn fidchell_body(&mut self, b: &Boss, me: usize) {
         let Some(look) = self.boss.as_ref().map(|r| r.look.clone()) else { return };
-        let epitaph = match look.code {
-            FIDCHELL => "ANM_ex4x",
-            MACHA => "ANM_ex6x",
-            TARVOS => "ANM_ex7x",
-            _ => return,
-        };
         let clip = b.anm.clip.clone().unwrap_or_default();
-        let body = match look.images.first() {
-            Some(x) if clip.starts_with(epitaph) => x.clone(),
-            _ => look.body.clone(),
+        let body = match look.code {
+            // Corbenik: the clump of x81 its form's clip poses.
+            CORBENIK => match clip_body(&look.images, &clip) {
+                Some(x) => x,
+                None => return,
+            },
+            FIDCHELL | MACHA | TARVOS => {
+                let epitaph = match look.code {
+                    FIDCHELL => "ANM_ex4x",
+                    MACHA => "ANM_ex6x",
+                    _ => "ANM_ex7x",
+                };
+                match look.images.first() {
+                    Some(x) if clip.starts_with(epitaph) => x.clone(),
+                    _ => look.body.clone(),
+                }
+            }
+            _ => return,
         };
         let pos = self.scene.chars[me].pos;
         let (h, w) = (self.scene.chars[me].base().height, self.scene.chars[me].base().width);
@@ -1207,8 +1294,9 @@ impl Combat {
 
     /// Kyvia's core and gomoras (`ccBoss::Draw` of each): the core's
     /// model and the gomoras' at their clips, places and turns, at their
-    /// `Alpha`, while their `drawSW` holds.
-    fn part_actors(&mut self, parts: &[usize], exited: bool) {
+    /// `Alpha`, while their `drawSW` holds. Corbenik's parts at the matrix
+    /// their `PreDrawAnm` set, an eye in the flash's blend (`blends`).
+    fn part_actors(&mut self, parts: &[usize], exited: bool, blends: &HashMap<usize, F>) {
         let Some(look) = self.boss.as_ref().map(|r| r.look.clone()) else { return };
         for (k, &p) in parts.iter().enumerate() {
             let Some(pb) = self.scene.chars[p].foe_state().and_then(|f| f.boss.as_ref()) else { continue };
@@ -1218,12 +1306,13 @@ impl Combat {
             let pick = usize::from(k > 0 && look.code != MAGUS);
             let clip = pb.anm.clip.as_deref().unwrap_or_default();
             let body = match look.code {
-                GORRE => clip_body(&look.images, clip),
+                GORRE | CORBENIK => clip_body(&look.images, clip),
                 _ => look.images.get(pick).cloned(),
             };
             let Some(body) = body else { continue };
             let (anm, dirc, alpha) = (pb.anm.clone(), pb.dirc, pb.transparency);
             let pos = self.scene.chars[p].pos;
+            let matrix = super::corbenik::part_matrix(&pb.class, pos, dirc);
             if let Some(a) = self.cast.actors.get_mut(&p)
                 && !Rc::ptr_eq(&a.ch.body, &body)
                 && let Some(n) = Actor::new(body.clone(), clip, Look::Boss, pos, dirc, 0, 0)
@@ -1245,6 +1334,10 @@ impl Combat {
             a.drawn = shown;
             a.alpha = alpha;
             a.trans_dist = false;
+            a.matrix = matrix;
+            if let Some(&rate) = blends.get(&p) {
+                a.ch.blend = crate::foe::FogBlend { rate, colour: super::corbenik::EYE_FLASH }.fog();
+            }
         }
     }
 
@@ -1337,7 +1430,7 @@ fn pose(a: &mut Actor, anm: &piney_battle::boss::Anm, pos: V4, dirc: V4) {
 /// What a boss's rules read of the cameras this frame: the active
 /// camera's turn (`cameraGetRot(camID)`), camera 2's eye and view, and
 /// the boss camera's `CheckMoveCamera`.
-fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> CamView {
+pub(super) fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> CamView {
     let c = camera.cam(id::BATTLE);
     CamView {
         rot: camera.rot(),
@@ -1354,7 +1447,8 @@ fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> CamView {
         fade: Some(boss::CamFade {
             eye: camera.active().pos,
             deg1: camera.active().deg[1],
-            eye_view: camera.tcam.kind == crate::camera::kind::EYE,
+            // checkCameraType(): activeCamPtr->type.
+            eye_view: camera.active().kind == crate::camera::kind::EYE,
             far: crate::foe::AREA_FAR,
             fade: crate::foe::AREA_FADE,
         }),

@@ -842,11 +842,12 @@ pub enum Out {
         hold: Option<i32>,
         colour: u32,
     },
-    /// `scFadeDef->EntryFade(t, mode, colour, 0, 0, 512, 384)`.
+    /// `scFadeDef->EntryFade(t, from, to, 0, 0, 512, 384)`: from colour
+    /// `from` to `to` over `t`, then held.
     EntryFade {
         t: i32,
-        mode: i32,
-        colour: u32,
+        from: u32,
+        to: u32,
     },
     /// `ccSeOnNote(se, note)`.
     SeNote {

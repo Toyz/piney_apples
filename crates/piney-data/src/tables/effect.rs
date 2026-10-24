@@ -447,6 +447,54 @@ pub struct Effect {
     pub boss_phantom_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_phantom_ff_va: u32,
+    /// `g_seedShotSmokeGen`: Corbenik's seeds thrown.
+    pub boss_seed_shot: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_seed_shot_va: u32,
+    /// `g_seedShotSmokeFF`.
+    pub boss_seed_shot_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_seed_shot_ff_va: u32,
+    /// `g_rootDrainGen`: the second form's root drain, in four turns.
+    pub boss_root_drain: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_root_drain_va: u32,
+    /// `g_rootDrainFF`.
+    pub boss_root_drain_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_root_drain_ff_va: u32,
+    /// `g_transformGen`: the barrier's transform.
+    pub boss_transform: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_transform_va: u32,
+    /// `g_transformFF`.
+    pub boss_transform_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_transform_ff_va: u32,
+    /// `g_generateEyeGen`: where the killer eyes are born.
+    pub boss_generate_eye: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_generate_eye_va: u32,
+    /// `g_generateEyeFF`.
+    pub boss_generate_eye_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_generate_eye_ff_va: u32,
+    /// The tera laser's charge's own generator (QUA gcmn 0x00515490), from Mutation on right after `g_generateEyeFF`.
+    pub boss_tera_charge: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_tera_charge_va: u32,
+    /// Its force field (QUA 0x005154d0).
+    pub boss_tera_charge_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_tera_charge_ff_va: u32,
+    /// The tera laser's beam's fall (QUA 0x005154f0), following the beam.
+    pub boss_tera_fall: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_tera_fall_va: u32,
+    /// Its force field (QUA 0x00515530).
+    pub boss_tera_fall_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_tera_fall_ff_va: u32,
 }
 
 impl crate::store::Load for Effect {
@@ -654,6 +702,30 @@ impl crate::store::Load for Effect {
             boss_phantom_va: crate::store::Load::load(r),
             boss_phantom_ff: crate::store::Load::load(r),
             boss_phantom_ff_va: crate::store::Load::load(r),
+            boss_seed_shot: crate::store::Load::load(r),
+            boss_seed_shot_va: crate::store::Load::load(r),
+            boss_seed_shot_ff: crate::store::Load::load(r),
+            boss_seed_shot_ff_va: crate::store::Load::load(r),
+            boss_root_drain: crate::store::Load::load(r),
+            boss_root_drain_va: crate::store::Load::load(r),
+            boss_root_drain_ff: crate::store::Load::load(r),
+            boss_root_drain_ff_va: crate::store::Load::load(r),
+            boss_transform: crate::store::Load::load(r),
+            boss_transform_va: crate::store::Load::load(r),
+            boss_transform_ff: crate::store::Load::load(r),
+            boss_transform_ff_va: crate::store::Load::load(r),
+            boss_generate_eye: crate::store::Load::load(r),
+            boss_generate_eye_va: crate::store::Load::load(r),
+            boss_generate_eye_ff: crate::store::Load::load(r),
+            boss_generate_eye_ff_va: crate::store::Load::load(r),
+            boss_tera_charge: crate::store::Load::load(r),
+            boss_tera_charge_va: crate::store::Load::load(r),
+            boss_tera_charge_ff: crate::store::Load::load(r),
+            boss_tera_charge_ff_va: crate::store::Load::load(r),
+            boss_tera_fall: crate::store::Load::load(r),
+            boss_tera_fall_va: crate::store::Load::load(r),
+            boss_tera_fall_ff: crate::store::Load::load(r),
+            boss_tera_fall_ff_va: crate::store::Load::load(r),
         }
     }
 }
@@ -1265,6 +1337,78 @@ impl Effect {
     pub fn boss_phantom_ff_va(&self) -> u32 {
         self.boss_phantom_ff_va
     }
+    pub fn boss_seed_shot(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_seed_shot
+    }
+    pub fn boss_seed_shot_va(&self) -> u32 {
+        self.boss_seed_shot_va
+    }
+    pub fn boss_seed_shot_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_seed_shot_ff
+    }
+    pub fn boss_seed_shot_ff_va(&self) -> u32 {
+        self.boss_seed_shot_ff_va
+    }
+    pub fn boss_root_drain(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_root_drain
+    }
+    pub fn boss_root_drain_va(&self) -> u32 {
+        self.boss_root_drain_va
+    }
+    pub fn boss_root_drain_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_root_drain_ff
+    }
+    pub fn boss_root_drain_ff_va(&self) -> u32 {
+        self.boss_root_drain_ff_va
+    }
+    pub fn boss_transform(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_transform
+    }
+    pub fn boss_transform_va(&self) -> u32 {
+        self.boss_transform_va
+    }
+    pub fn boss_transform_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_transform_ff
+    }
+    pub fn boss_transform_ff_va(&self) -> u32 {
+        self.boss_transform_ff_va
+    }
+    pub fn boss_generate_eye(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_generate_eye
+    }
+    pub fn boss_generate_eye_va(&self) -> u32 {
+        self.boss_generate_eye_va
+    }
+    pub fn boss_generate_eye_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_generate_eye_ff
+    }
+    pub fn boss_generate_eye_ff_va(&self) -> u32 {
+        self.boss_generate_eye_ff_va
+    }
+    pub fn boss_tera_charge(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_tera_charge
+    }
+    pub fn boss_tera_charge_va(&self) -> u32 {
+        self.boss_tera_charge_va
+    }
+    pub fn boss_tera_charge_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_tera_charge_ff
+    }
+    pub fn boss_tera_charge_ff_va(&self) -> u32 {
+        self.boss_tera_charge_ff_va
+    }
+    pub fn boss_tera_fall(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_tera_fall
+    }
+    pub fn boss_tera_fall_va(&self) -> u32 {
+        self.boss_tera_fall_va
+    }
+    pub fn boss_tera_fall_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_tera_fall_ff
+    }
+    pub fn boss_tera_fall_ff_va(&self) -> u32 {
+        self.boss_tera_fall_ff_va
+    }
 }
 
 /// `effectCCSTbl`: the effect files, up to the row with no name.
@@ -1768,6 +1912,38 @@ pub static BOSS_PHANTOM: std::sync::LazyLock<&'static [ParticleGeneratorParam]> 
 /// `g_phantomFF`.
 pub static BOSS_PHANTOM_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
     std::sync::LazyLock::new(|| shared().boss_phantom_ff);
+
+/// `g_seedShotSmokeGen`: Corbenik's seeds thrown.
+pub static BOSS_SEED_SHOT: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_seed_shot);
+
+/// `g_seedShotSmokeFF`.
+pub static BOSS_SEED_SHOT_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_seed_shot_ff);
+
+/// `g_rootDrainGen`: the second form's root drain, in four turns.
+pub static BOSS_ROOT_DRAIN: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_root_drain);
+
+/// `g_rootDrainFF`.
+pub static BOSS_ROOT_DRAIN_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_root_drain_ff);
+
+/// `g_transformGen`: the barrier's transform.
+pub static BOSS_TRANSFORM: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_transform);
+
+/// `g_transformFF`.
+pub static BOSS_TRANSFORM_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_transform_ff);
+
+/// `g_generateEyeGen`: where the killer eyes are born.
+pub static BOSS_GENERATE_EYE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_generate_eye);
+
+/// `g_generateEyeFF`.
+pub static BOSS_GENERATE_EYE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_generate_eye_ff);
 
 /// The volume's Effect (read once a run; kept here per volume).
 pub fn of(v: Volume) -> &'static Effect {

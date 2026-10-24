@@ -358,3 +358,49 @@ killer eye is in and neither in its neutral nor wandering.
 eyes, killer eyes, lasers, eye birth and charge; the WaveShock and the
 rings are stand-ins, `ccBossEffExplode2Create` and the arena's clump
 switch only note themselves.
+
+## In the field
+
+`piney_world::combat::corbenik` and `boss.rs` run the forms where event
+313 makes them (`entry 7 7`, field 8's arena):
+
+- **The start.** `ccThBoss08` reads `saveData` +0x652f (`eventStatus[55]`,
+  which block 18 adds 1 to): 1 makes the third form (row 9, its sixteen
+  eyes and three killer eyes, and its camera: `InitBossCamera(980, 1500)`,
+  the pitch `atan2f(500, 1000)` at +0xe0, the range 1000 at +0xd8, the
+  eye raised by `1500 tanf(pitch)` at +0xdc, `SetRotXLimit(1.0)`); else the
+  first form (row 7, its eight seeds, no boss camera).
+- **The second form.** Once the first form's `CheckExit` holds, in the
+  same frame (QUA gcmn 0x003acaf8): the menu's forbid, `forbidChatExcept`
+  and `cursolOff` cleared, `EntryFlash(30, 0x80e0ffff)`, the first form and
+  its seeds deleted (the seeds' bodies leave the field's list), then
+  `ccBoss08_b` on the same character with the effect manager as it was,
+  its five roots, and `InitBossCamera(200, 1000)`. The task's +0x14 (what
+  `absent 7` reads) is set only when the second form exits.
+- **The bodies.** Each form and part is drawn as the clump of x81 its
+  clip poses. The seeds are drawn 50 up at 3x and the roots at 1.5x
+  (`SetMatrix_PosRotZYXScale`), the eyes turned XYZ in their flash's fog
+  (0xffffff).
+- **The pictures.** These come from the rules' `Pic`s:
+  - In the field, from x81: the barrier object and its hit clip at the
+    body's `OBJ_ex8body2` as it was last drawn, the press's images, the
+    elements (the neutral clip one step on, turned XYZ), the drain's root.
+  - In the field, from xeffect: the laser rain's and the reflected
+    lasers' segments (`OBJ_ex31les1`, and `les0` in fog 50 at 0xff0000,
+    one way round for each effect) and their heads' `ANM_ex31les3`.
+  - The effects draw the rest: the sprites (the flush, the stars, the
+    core, the sparks), the clumps (`CMP_x012` bolts, the tera beam, the
+    transform's lays on `CLT_ex8efc2c1`, the heads' `CMP_ex31les3`), and
+    every generator, burst, shield, smoke and radiate.
+  - The seeds' counts and after-images are drawn as Magus's leaves'.
+- **The generators the rules keep.** Each generator the rules keep (the
+  root drain's last, the laser's charge, the tera laser's glow and fall)
+  is held by its key. The effects answer `ccCheckParticleGenerator` for
+  each key, and the boss's next frame reads the answer
+  (`Combat::gens_alive`).
+
+A part's `ccDeleteCmnd` comes with its boss's outs. The world used to
+take that out off the boss itself, which dropped the first form from the
+lists after its first wave. The rules take the character off the lists
+themselves, so the world no longer acts on that out.
+`session::tests::corbenik` plays the forms under god from the arena.

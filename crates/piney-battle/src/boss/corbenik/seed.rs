@@ -56,6 +56,21 @@ pub struct Seed {
     pub charge: bool,
 }
 
+/// A seed's `ENTRYAFTERIMAGE_T` (+0x29360, its constructor 0x003b0288):
+/// colour 0x005050ff at 100, transparency 1 by -1/30, its scale 3 to 9
+/// over 30 draws.
+pub const IMAGE: crate::boss::AfterImageParams = crate::boss::AfterImageParams {
+    color: 0x0050_50ff,
+    color_alpha: 0x42c8_0000,
+    color_spd: 0,
+    max_frame: 0,
+    transparency: 0x3f80_0000,
+    trans_spd: 0xbd08_8889,
+    ss: [0x4040_0000, 0x4040_0000, 0x4040_0000, 0x3f80_0000],
+    es: [0x4110_0000, 0x4110_0000, 0x4110_0000, 0x3f80_0000],
+    scale_time: 0x41f0_0000,
+};
+
 /// A seed out of its character (`Class::CorbenikSeed`), and whether one
 /// was there.
 pub(crate) fn take(cx: &mut Cx, me: usize) -> (Part<Seed>, bool) {

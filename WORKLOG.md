@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-456 entries: audio 39, battle 117, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 117, save 16, script 55, test 211, tooling 44, ui 95, video 16, volumes 89, world 131.
+457 entries: audio 39, battle 117, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 117, save 16, script 55, test 211, tooling 44, ui 95, video 16, volumes 89, world 132.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -468,3 +468,4 @@ The [reference](docs/README.md) says what is true now.
 | 454 | [Field 8's last stage: EVENTAREAB0's NextStage and the clump Corbenik's lasers hide](worklog/0454-field-8-s-last-stage-eventareab0-s-nextstage-and-the-clump.md) | 2026-10-24 | world |
 | 455 | [Every boss fades by the camera's distance as ccBoss::Draw does, checked against the game in each boss's harness](worklog/0455-every-boss-fades-by-the-camera-s-distance-as-ccboss-draw.md) | 2026-10-24 | battle |
 | 456 | [Kyvia's third and fourth bodies never fade: their constructors clear transDist, found by cameras forced into the fade band](worklog/0456-kyvia-s-third-and-fourth-bodies-never-fade-their.md) | 2026-10-24 | battle |
+| 457 | [Corbenik's three forms play in field 8: code 7, the second form in the first's task, their parts, cameras, generators and pictures, under god to event 313's end](worklog/0457-corbenik-s-three-forms-play-in-field-8-code-7-the-second.md) | 2026-10-24 | world |

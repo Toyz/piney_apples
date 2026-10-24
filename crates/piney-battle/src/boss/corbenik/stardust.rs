@@ -11,7 +11,7 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::Pic;
-use crate::boss::{Boss, Cx, EffKind, Out, VF0};
+use crate::boss::{Anm, Boss, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 
@@ -468,9 +468,13 @@ pub struct Laser {
     pub end: V4,
     /// +0x220 the fall a frame (200 along its way).
     pub vec: V4,
-    /// +0x234, +0x238 its pitch and heading.
+    /// +0x234, +0x238 its pitch and heading; the trail's back up its way,
+    /// which its draws turn by (`_Init`'s second pair, in +0x240's,
+    /// +0x280's and +0x2c0's matrices).
     pub pitch: F,
     pub yaw: F,
+    pub back_pitch: F,
+    pub back_yaw: F,
     /// +0x300: 0 falling, 1 landed this frame, 3 free.
     pub state: i32,
 }
@@ -485,6 +489,9 @@ pub struct LaserRain {
     pub center: V4,
     pub count: i32,
     pub lasers: Vec<Laser>,
+    /// +0x18 the heads' one `ANM_ex31les3`, stepped once for each laser
+    /// still falling as it is drawn.
+    pub head: Anm,
     pub enabled: bool,
 }
 
@@ -492,7 +499,9 @@ impl LaserRain {
     /// The constructor (0x00379600): each laser set (`_Init`) and free, then
     /// four entered.
     pub fn new(cx: &mut Cx, center: V4) -> LaserRain {
-        let mut r = LaserRain { center, count: 0, lasers: vec![Laser::default(); 32], enabled: true };
+        let mut head = Anm::new();
+        head.set("ANM_ex31les3", cx.clips);
+        let mut r = LaserRain { center, count: 0, lasers: vec![Laser::default(); 32], head, enabled: true };
         for k in 0..32 {
             r.init(cx, k);
             r.lasers[k].state = 3;
@@ -528,12 +537,14 @@ impl LaserRain {
         let yaw = get_dirc(sp, epp);
         let vec = turned(pt, yaw, [0x4348_0000, 0, 0, ONE]);
         // The trail: each segment 100 back up the way from the one before.
-        let back = turned(pitch(cx, epp, sp), get_dirc(epp, sp), [0x42c8_0000, 0, 0, ONE]);
+        let (bp, by) = (pitch(cx, epp, sp), get_dirc(epp, sp));
+        let back = turned(bp, by, [0x42c8_0000, 0, 0, ONE]);
         let l = &mut self.lasers[k];
         l.start = start;
         l.end = end;
         l.pitch = pt;
         l.yaw = yaw;
+        (l.back_pitch, l.back_yaw) = (bp, by);
         l.vec = vec;
         l.segs = Vec::with_capacity(16);
         let mut at = start;
@@ -600,7 +611,15 @@ impl LaserRain {
                     self.lasers[k].segs[s].0 = p;
                 }
                 let l = &self.lasers[k];
-                cx.out(Out::Corbenik(Pic::Laser { pos: p, pitch: l.pitch, yaw: l.yaw, alpha: l.segs[s].1 }));
+                cx.out(Out::Corbenik(Pic::Laser { pos: p, pitch: l.back_pitch, yaw: l.back_yaw, alpha: l.segs[s].1 }));
+            }
+            // Its head, unless it landed this frame: the shared clip a step
+            // on, at the first segment.
+            if self.lasers[k].state != 1 {
+                self.head.forward();
+                let l = &self.lasers[k];
+                let (pos, pitch, yaw) = (l.segs[0].0, l.back_pitch, l.back_yaw);
+                cx.out(Out::Corbenik(Pic::LaserHead { time: self.head.posed, pos, pitch, yaw }));
             }
             if landed_all {
                 self.lasers[k].state = 3;

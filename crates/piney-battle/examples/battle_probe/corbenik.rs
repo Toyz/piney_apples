@@ -457,7 +457,11 @@ pub(crate) fn mout(o: &Out) -> Option<String> {
             | Pic::Flush { .. } => return None,
             Pic::ElementSmoke { .. } | Pic::Smoke { .. } => "[\"smoke\"]".into(),
             Pic::LaserRadiate { .. } => "[\"radiate2\"]".into(),
-            Pic::Star { .. } | Pic::StarCore { .. } | Pic::Thunder { .. } | Pic::Laser { .. } => return None,
+            Pic::Star { .. }
+            | Pic::StarCore { .. }
+            | Pic::Thunder { .. }
+            | Pic::Laser { .. }
+            | Pic::LaserHead { .. } => return None,
             Pic::Radiate { .. } => "[\"radiate\"]".into(),
             Pic::Eye { .. }
             | Pic::Killer { .. }
@@ -471,7 +475,7 @@ pub(crate) fn mout(o: &Out) -> Option<String> {
             Pic::ArenaClump { on } => format!("[\"clump\",{}]", u8::from(*on)),
             Pic::Explode2 { .. } => "[\"explode2\"]".into(),
         },
-        Out::EntryFade { t, mode, colour } => format!("[\"fade\",{t},{mode},{colour}]"),
+        Out::EntryFade { t, from, to } => format!("[\"fade\",{t},{from},{to}]"),
         Out::CameraChange(n) => format!("[\"cam\",{n}]"),
         Out::CameraPos { cam, pos } => format!("[\"campos\",{cam},{}]", v3(pos)),
         Out::CameraView { cam, view } => format!("[\"camview\",{cam},{}]", v3(view)),

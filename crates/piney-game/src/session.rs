@@ -6877,6 +6877,9 @@ mod tests {
     /// Quarantine's Tarvos (event 310).
     mod tarvos;
 
+    /// Quarantine's Corbenik, its three forms (event 313).
+    mod corbenik;
+
     /// A survey of the side events where they play (ignored; a diagnostic).
     mod side_events;
 

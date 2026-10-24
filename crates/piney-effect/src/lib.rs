@@ -11,6 +11,7 @@ pub mod ability;
 pub mod arrival;
 pub mod boss;
 pub mod convergence;
+pub mod corbenik;
 pub mod damupr;
 pub mod debris;
 pub mod dmath;
@@ -680,6 +681,33 @@ impl Effects {
             draws: &mut self.boss_draws,
         };
         tarvos::calls(&mut self.ctrl, &mut cx, &self.assets.boss, &mut self.boss.tarvos, me, pic);
+    }
+
+    /// A picture of Corbenik's this frame ([`corbenik::calls`]): its
+    /// generators, the seeds' charges, its bursts, shields, smoke and
+    /// radiates. `char_of` names a scene character as the host does.
+    pub fn corbenik_calls(
+        &mut self,
+        host: &mut dyn Host,
+        char_of: &dyn Fn(usize) -> CharRef,
+        pic: &piney_battle::boss::corbenik::Pic,
+    ) {
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.boss_draws,
+        };
+        corbenik::calls(&mut self.ctrl, &mut cx, &self.assets.boss, &mut self.boss.corbenik, char_of, pic);
+    }
+
+    /// The keys of the generators Corbenik's fight keeps that still run
+    /// (`ccCheckParticleGenerator`), for its rules' next frame.
+    pub fn corbenik_alive(&mut self) -> std::collections::HashSet<u32> {
+        self.boss.corbenik.alive(&self.particles)
     }
 
     /// A picture of Macha's this frame ([`macha::calls`]): its lasers and

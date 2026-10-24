@@ -113,7 +113,7 @@ impl Grow {
             if ee::le(s.alpha, 0) {
                 continue;
             }
-            cx.out(Out::Corbenik(Pic::Spark { pos: s.pos, frame: s.frame, alpha: s.alpha }));
+            cx.out(Out::Corbenik(Pic::Spark { pos: s.pos, frame: s.frame, alpha: s.alpha, turn: s.turn }));
             s.frame += 1;
             let mut a = ee::sub(s.alpha, 0x3d08_8889);
             if ee::lt(a, 0) {

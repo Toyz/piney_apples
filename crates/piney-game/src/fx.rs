@@ -67,8 +67,12 @@ impl AreaFx {
         // ccEffectCtrl(0) outside a Root Town (INF 0x001c31bc: game+0x14,
         // the area, not 0) looks its ids up in effectTbl, not effectTbl2.
         fx.ctrl.town = false;
-        // The boss effects' file (the WaveShock's animation).
+        // The boss effects' file (the WaveShock's animation); on
+        // Quarantine Corbenik's file too (its effects' clumps).
         fx.assets.add_file(archive, "xeffect")?;
+        if volume == piney_data::volume::Volume::Qua {
+            fx.assets.add_file(archive, piney_battle::boss::corbenik::FILE)?;
+        }
         let font = flyfont::font_tex(archive)?;
         let circle = fx.assets.add_file(archive, piney_effect::portal::FILE).ok().and_then(|_| {
             let c =
@@ -216,6 +220,10 @@ impl FxTasks for AreaFx {
         }
         let (f, play) = self.skill_anims.get_mut(&key)?;
         Some(play.forward_notes(f))
+    }
+
+    fn boss_gens_alive(&mut self) -> Option<std::collections::HashSet<u32>> {
+        Some(self.fx.corbenik_alive())
     }
 
     /// `ccThBossEffect`: the starters, then `ccBossEffManager::Draw`.
@@ -830,6 +838,9 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         Show::Boss(_, piney_battle::boss::Out::Macha(p)) => fx.macha_calls(h, p),
         // Tarvos's spikes, phantom, transfer, eruptions and shield.
         Show::Boss(me, piney_battle::boss::Out::Tarvos(p)) => fx.tarvos_calls(h, cref(*me), p),
+        // Corbenik's generators, its seeds' charges, bursts, shields,
+        // smoke and radiates.
+        Show::Boss(_, piney_battle::boss::Out::Corbenik(p)) => fx.corbenik_calls(h, &cref, p),
         // Tarvos's spell's ccNoiz::SetNoizBs.
         Show::Boss(_, piney_battle::boss::Out::Noise(bs)) => fx.noise(h, *bs),
         // effSkillStart(who, sid, 0, 0): Fidchell's skill, a gomora's.

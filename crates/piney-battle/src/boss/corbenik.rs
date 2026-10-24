@@ -238,7 +238,8 @@ pub enum Pic {
     /// The star dust's: a star (`EFF_x000` on `CLT_x000c7`, 0x80e0ffff,
     /// `size` each way, at `scale`), the core it gathers into, a bolt's
     /// drawn points (`CMP_x012` segments, `width` across, at `alpha`), a
-    /// laser's segment (`OBJ_ex31les1` and `les0` under fog 50 at 0xff0000)
+    /// laser's segment (`OBJ_ex31les1`, then `les0` under fog 50 at
+    /// 0xff0000, turned by its trail's pitch and heading, a twentieth long)
     /// and a laser's landing radiate
     /// (`effRadiateSomething2(end, (0, DEG2RAD(-16384), turn), 45, 4, 4)`).
     Star {
@@ -265,6 +266,15 @@ pub enum Pic {
     LaserRadiate {
         pos: V4,
         turn: F,
+    },
+    /// A falling laser's head: `ANM_ex31les3` (posed at `time`) and
+    /// `CMP_ex31les3` (2, 2, 3) turned about x by its pitch and z by its
+    /// heading, at `pos`.
+    LaserHead {
+        time: u32,
+        pos: V4,
+        pitch: F,
+        yaw: F,
     },
     /// One of the transform's lays (`CMP_ex8efc2`) at `pos`, turned by
     /// `rot`, at `alpha`.
@@ -298,7 +308,7 @@ pub enum Pic {
     },
     /// The tera laser's beam (`CMP_ex8efc3` scaled by `scale`, turned
     /// `-pi/2` about x then XYZ by `rot`, at `pos`), its charge's sparks
-    /// (`EFF_x011` on `CLT_x011c2`, each at its place, frame and alpha) and
+    /// (`EFF_x011` on `CLT_x011c2`, each at its place, frame, alpha and turn) and
     /// a reflected laser's head (`ANM_ex31les3`'s `CMP_ex31les3` from `from`
     /// toward `to`) and segments (`OBJ_ex31les1` and `les0` under fog 50,
     /// `len` a thousandth of their length, at `alpha`).
@@ -311,6 +321,7 @@ pub enum Pic {
         pos: V4,
         frame: i32,
         alpha: F,
+        turn: F,
     },
     RefrectHead {
         time: u32,

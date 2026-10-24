@@ -633,7 +633,7 @@ fn on_die(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
         4 => {
             b.act_count += 1;
             match b.act_count {
-                20 => cx.out(Out::EntryFade { t: 45, mode: 0, colour: 0x8000_0000 }),
+                20 => cx.out(Out::EntryFade { t: 45, from: 0, to: 0x8000_0000 }),
                 140 => {
                     on_exit(b, x, cx);
                     cam_back(cx);

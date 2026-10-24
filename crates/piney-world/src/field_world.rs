@@ -2833,7 +2833,9 @@ impl FieldWorld {
             area: self.scene.area,
             ..piney_battle::chara::Env::default()
         };
-        self.combat.start_boss(&look, center, disc, &env, &mut self.camera);
+        // ccThBoss08: Corbenik's third form once saveData +0x652f is 1.
+        let third = self.save.save.event_status(55) == 1;
+        self.combat.start_boss(&look, center, disc, &env, &mut self.camera, third);
     }
 
     /// `worldman->eventArea->SwitchLayer()` in a boss arena.
@@ -2955,6 +2957,22 @@ impl FieldWorld {
                     draw::char_shadow(&mut ctx.layers, a.alpha, a.ch.height, |l| {
                         a.ch.body.draw_char_arms(l, to_screen, &a.ch.play, p, d, alpha, lights, shaded, &a.swaps, arms)
                     });
+                }
+                // A boss's part at the matrix its PreDrawAnm set
+                // (Corbenik's seeds, roots and eyes), in its blend.
+                (Look::Boss, Some(m)) => {
+                    a.ch.body.draw_fog(
+                        &mut ctx.layers,
+                        draw::CHAR_LAYER,
+                        to_screen,
+                        &a.ch.play,
+                        draw::mat(m),
+                        ee::f(a.alpha),
+                        lights,
+                        false,
+                        &a.swaps,
+                        a.ch.blend.into(),
+                    );
                 }
                 // ccChar::Draw with the character's blend (an affect's
                 // tint: piros_colour on Piros).
@@ -3085,6 +3103,55 @@ impl FieldWorld {
                 &[],
                 fog,
             );
+        }
+        // Corbenik's pictures (x81's and xeffect's): the barrier object at
+        // the body's OBJ_ex8body2 (or its hit clip), the press's images,
+        // the elements, the drain's root, the lasers' segments and heads;
+        // on charLayer, the clips lit.
+        for s in &run.corbenik {
+            use combat::corbenik::Shown;
+            match s {
+                Shown::Obj { eff, name, world, alpha, fog } => {
+                    let file = if *eff { &run.look.eff } else { &run.look.body.file };
+                    let Some(model) = file.ccs.find_object(name).and_then(|o| file.obj_model.get(&o)) else {
+                        continue;
+                    };
+                    let rows = std::collections::HashMap::new();
+                    let d = draw::Draw {
+                        file,
+                        model: *model,
+                        world: *world,
+                        alpha: *alpha,
+                        rows: &rows,
+                        lights: None,
+                        nodes: &[],
+                        morph: Vec::new(),
+                        clut_swaps: Vec::new(),
+                    };
+                    let fog = fog.map_or(draw::Fogging::None, draw::Fogging::Const);
+                    draw::model_edited(&mut ctx.layers, draw::CHAR_LAYER, to_screen, d, None, fog);
+                }
+                Shown::Anm { eff: false, clip, time, root, alpha } => {
+                    anm_draw(ctx, draw::CHAR_LAYER, clip, *time, *root, *alpha, None);
+                }
+                Shown::Anm { eff: true, clip, time, root, alpha } => {
+                    let Some(mut p) = crate::pose::Play::new(&run.look.eff, clip) else { continue };
+                    (p.time, p.posed) = (*time, *time);
+                    let file = (&*run.look.eff, &run.look.eff_morphers);
+                    crate::town::anim_draw_on(
+                        &mut ctx.layers,
+                        draw::CHAR_LAYER,
+                        to_screen,
+                        file,
+                        &p,
+                        *root,
+                        &[],
+                        *alpha,
+                        None,
+                        None,
+                    );
+                }
+            }
         }
         // Kyvia's arm: DrawParts(anmw, 0) on objLayer, no blend.
         if let Some((clip, time, pos, dirc)) = &run.arm {

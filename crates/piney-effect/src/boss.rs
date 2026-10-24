@@ -87,6 +87,23 @@ pub mod va {
     pub const TRANS_EFF_FF: u32 = 0x005f_19e0;
     pub const PHANTOM: u32 = 0x005f_1a00;
     pub const PHANTOM_FF: u32 = 0x005f_1a70;
+    /// Corbenik's: `g_seedShotSmokeGen`, `g_rootDrainGen`,
+    /// `g_transformGen`, `g_generateEyeGen` and their force fields.
+    pub const SEED_SHOT: u32 = 0x005f_1a90;
+    pub const SEED_SHOT_FF: u32 = 0x005f_1ad0;
+    pub const ROOT_DRAIN: u32 = 0x005f_1b10;
+    pub const ROOT_DRAIN_FF: u32 = 0x005f_1bc0;
+    pub const TRANSFORM: u32 = 0x005f_1ca0;
+    pub const TRANSFORM_FF: u32 = 0x005f_1ce0;
+    pub const GENERATE_EYE: u32 = 0x005f_1d00;
+    pub const GENERATE_EYE_FF: u32 = 0x005f_1d40;
+    /// The tera laser's charge's and fall's rows, from Mutation on right
+    /// after `g_generateEyeFF` (QUA 0x00515490, 0x005154d0, 0x005154f0,
+    /// 0x00515530): keyed where they would follow it on Infection.
+    pub const TERA_CHARGE: u32 = 0x005f_1d60;
+    pub const TERA_CHARGE_FF: u32 = 0x005f_1da0;
+    pub const TERA_FALL: u32 = 0x005f_1dc0;
+    pub const TERA_FALL_FF: u32 = 0x005f_1e00;
 }
 
 /// A generator row of one of [`va`]'s tables: its address.
@@ -140,6 +157,12 @@ impl Tables {
         gens(va::LEAF_DEAD, t.boss_leaf_dead(), t.boss_leaf_dead_va());
         gens(va::TRANS_EFF, t.boss_trans_eff(), t.boss_trans_eff_va());
         gens(va::PHANTOM, t.boss_phantom(), t.boss_phantom_va());
+        gens(va::SEED_SHOT, t.boss_seed_shot(), t.boss_seed_shot_va());
+        gens(va::ROOT_DRAIN, t.boss_root_drain(), t.boss_root_drain_va());
+        gens(va::TRANSFORM, t.boss_transform(), t.boss_transform_va());
+        gens(va::GENERATE_EYE, t.boss_generate_eye(), t.boss_generate_eye_va());
+        gens(va::TERA_CHARGE, t.boss_tera_charge(), t.boss_tera_charge_va());
+        gens(va::TERA_FALL, t.boss_tera_fall(), t.boss_tera_fall_va());
         let mut ffs = |key: u32, rows: &[piney_data::tables::types::ParticleForceFieldParam], at: u32| {
             for k in 0..rows.len() {
                 out.ffs.insert(key + 0x20 * k as u32, FfParam::row(rows, at, k));
@@ -166,6 +189,12 @@ impl Tables {
         ffs(va::LEAF_DEAD_FF, t.boss_leaf_dead_ff(), t.boss_leaf_dead_ff_va());
         ffs(va::TRANS_EFF_FF, t.boss_trans_eff_ff(), t.boss_trans_eff_ff_va());
         ffs(va::PHANTOM_FF, t.boss_phantom_ff(), t.boss_phantom_ff_va());
+        ffs(va::SEED_SHOT_FF, t.boss_seed_shot_ff(), t.boss_seed_shot_ff_va());
+        ffs(va::ROOT_DRAIN_FF, t.boss_root_drain_ff(), t.boss_root_drain_ff_va());
+        ffs(va::TRANSFORM_FF, t.boss_transform_ff(), t.boss_transform_ff_va());
+        ffs(va::GENERATE_EYE_FF, t.boss_generate_eye_ff(), t.boss_generate_eye_ff_va());
+        ffs(va::TERA_CHARGE_FF, t.boss_tera_charge_ff(), t.boss_tera_charge_ff_va());
+        ffs(va::TERA_FALL_FF, t.boss_tera_fall_ff(), t.boss_tera_fall_ff_va());
         out
     }
 
@@ -210,6 +239,8 @@ pub struct BossEffects {
     pub magus_kept: crate::magus::Kept,
     /// Tarvos's phantom's sprite and generators.
     pub tarvos: crate::tarvos::Kept,
+    /// The generators Corbenik's fight keeps, and its seeds' charges.
+    pub corbenik: crate::corbenik::Kept,
 }
 
 /// One slot: `m_bEnabled` and the effect.

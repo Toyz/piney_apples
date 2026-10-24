@@ -19,19 +19,32 @@ pub(super) struct Arena {
     pub dungeon: i32,
     pub town: i32,
     pub field: i32,
+    /// `eventStatus[k]` as the blocks done leave them (0 else).
+    pub status: &'static [(usize, u8)],
 }
 
 /// Event 307: area 107's dungeon, field 6 (blocks 0-1 done; block 2 makes
 /// Macha, block 4 waits for her to be gone).
-pub(super) const EVENT_307: Arena = Arena { event: 307, done: 0b11, dungeon: 107, town: 3, field: 6 };
+pub(super) const EVENT_307: Arena = Arena { event: 307, done: 0b11, dungeon: 107, town: 3, field: 6, status: &[] };
 
 /// Event 310: area 102's dungeon, field 7 (blocks 0-6 done; block 7 makes
 /// Tarvos).
-pub(super) const EVENT_310: Arena = Arena { event: 310, done: 0x7f, dungeon: 102, town: 4, field: 7 };
+pub(super) const EVENT_310: Arena = Arena { event: 310, done: 0x7f, dungeon: 102, town: 4, field: 7, status: &[] };
 
 /// Event 312: area 108's dungeon, field 12's disc (blocks 0-9 done; block
 /// 10 makes Kyvia's fourth body).
-pub(super) const EVENT_312: Arena = Arena { event: 312, done: 0x3ff, dungeon: 108, town: 0, field: 12 };
+pub(super) const EVENT_312: Arena = Arena { event: 312, done: 0x3ff, dungeon: 108, town: 0, field: 12, status: &[] };
+
+/// Event 313: field 8's arena from town 4 (blocks 0-14 done,
+/// `eventStatus[0]` 1; block 15 makes Corbenik's first form, which plays
+/// the second in the same task).
+pub(super) const EVENT_313: Arena =
+    Arena { event: 313, done: 0x7fff, dungeon: 108, town: 4, field: 8, status: &[(0, 1)] };
+
+/// Event 313 past the second form (blocks 0-18 done, `eventStatus[0]` 2
+/// and `[55]` 1; block 19 makes the third form).
+pub(super) const EVENT_313_THIRD: Arena =
+    Arena { event: 313, done: 0x7ffff, dungeon: 108, town: 4, field: 8, status: &[(0, 2), (55, 1)] };
 
 /// The event in its arena with Kite and `members` as a player calls them
 /// before the gate.
@@ -47,6 +60,9 @@ pub(super) fn arena_session(a: &Arena, members: &[i32]) -> Option<Session> {
     let f = state.save.event_flag(a.event as usize);
     state.save.set_event_flag(a.event as usize, f | a.done);
     state.save.set_u8(offset::EVENT_STATUS, 0);
+    for &(k, v) in a.status {
+        state.save.set_u8(offset::EVENT_STATUS + k, v);
+    }
     let mut scene = piney_world::area::Scene::log_in(&mut state.save);
     let wm = crate::area::story_world_man(&mut d, a.dungeon, false).unwrap();
     let wm = crate::area::ev_area_number(&iso, a.field, &wm, &state.save).unwrap();
@@ -149,6 +165,18 @@ pub(super) fn play(
 /// `dir` (`name-FRAME-actN.png`); with `PINEY_SHOTS_AT=A-B` every frame
 /// from A to B too, its command target printed.
 pub(super) fn god_shots(s: &mut Session, event: i32, boss: fn(&Class) -> bool, dir: &str, name: &str) -> (Played, u32) {
+    god_shots_for(s, event, boss, dir, name, 60_000)
+}
+
+/// [`god_shots`] over at most `frames` frames.
+pub(super) fn god_shots_for(
+    s: &mut Session,
+    event: i32,
+    boss: fn(&Class) -> bool,
+    dir: &str,
+    name: &str,
+    frames: u32,
+) -> (Played, u32) {
     let mut shots = Shots::new(dir);
     s.console("god");
     let audio = piney_audio::Audio::headless(&s.iso).ok();
@@ -159,7 +187,7 @@ pub(super) fn god_shots(s: &mut Session, event: i32, boss: fn(&Class) -> bool, d
         let (a, b) = v.split_once('-')?;
         Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?))
     });
-    let p = play(s, event, boss, 60_000, |s, frame, n| {
+    let p = play(s, event, boss, frames, |s, frame, n| {
         let rate = Mode::frame_rate(s);
         crate::handle(s.take_events(), audio.as_ref());
         let playing = audio.as_ref().is_some_and(|a| {

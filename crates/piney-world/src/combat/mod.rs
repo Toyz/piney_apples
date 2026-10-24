@@ -11,6 +11,7 @@ pub mod boss;
 pub mod breath;
 pub mod cast;
 pub mod chat;
+pub mod corbenik;
 pub mod dust;
 pub mod gate_out;
 pub mod ride;
@@ -246,6 +247,11 @@ pub trait FxTasks {
     /// After the boss's task: the starters for `w.shows` - the
     /// `ccBossEff*Create`s its Main made (`Show::Boss`, `Out::Effect`).
     fn boss_shows(&mut self, _w: &mut FxWorld) {}
+    /// The keys of the generators a boss's rules keep that still run
+    /// (`ccCheckParticleGenerator`); None without effects.
+    fn boss_gens_alive(&mut self) -> Option<std::collections::HashSet<u32>> {
+        None
+    }
 }
 
 /// A running attack spell as `ccSkill::Main` hands it to its system.
@@ -447,6 +453,10 @@ pub struct Combat {
     /// The word the heap leaves at the effect manager's `m_exit`, which
     /// only Gorre's constructor does not write (`boss::HEAP_EXIT`).
     pub heap_exit: u32,
+    /// The keys of the generators a boss's rules keep that the particle
+    /// system still runs, as the effects last answered
+    /// ([`FxTasks::boss_gens_alive`]); None without effects (all run).
+    pub gens_alive: Option<std::collections::HashSet<u32>>,
     /// The blur callbacks' function statics, which last until power-off
     /// (the session carries them from area to area).
     pub blur_statics: piney_battle::boss::blur::Statics,
@@ -716,6 +726,7 @@ impl Combat {
             entrance: Entrance::default(),
             boss: None,
             heap_exit: boss::HEAP_EXIT,
+            gens_alive: None,
             blur_statics: Default::default(),
             restore: [None; 18],
             npcs: Vec::new(),
@@ -1995,6 +2006,7 @@ impl Combat {
         // effects its Main made.
         if self.boss.is_some() {
             self.fx_call(x, bounds, |fx, w| fx.boss_effects(w), fx, None);
+            self.gens_alive = fx.boss_gens_alive();
             let world = enemy_ai::World {
                 puppet_show: x.puppet_show,
                 ride: self.ride.flag,

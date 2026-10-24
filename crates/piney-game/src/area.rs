@@ -1075,8 +1075,19 @@ impl AreaMode {
         use piney_fieldui::spr::{Obj, Spr, font_type, make_signed_num};
         let mut font = Spr::new(Obj::SysFont, 256);
         for s in shows {
-            let piney_world::combat::Show::Boss(_, Out::Magus(Pic::Count { leaf, n })) = s else { continue };
-            let Some(pos) = self.world.combat().scene.chars.get(*leaf).map(|c| c.pos) else { continue };
+            // Corbenik's seeds' counts the same (`ccBoss08Seed::
+            // OnThinkCountDown`, QUA gcmn 0x003b1500), at their place then.
+            let (pos, n) = match s {
+                piney_world::combat::Show::Boss(_, Out::Magus(Pic::Count { leaf, n })) => {
+                    let Some(pos) = self.world.combat().scene.chars.get(*leaf).map(|c| c.pos) else { continue };
+                    (pos, n)
+                }
+                piney_world::combat::Show::Boss(
+                    _,
+                    Out::Corbenik(piney_battle::boss::corbenik::Pic::CountDown { pos, n }),
+                ) => (*pos, n),
+                _ => continue,
+            };
             let up = [0, 0, 0x42c8_0000, 0];
             let ws = &self.world.camera().world_screen;
             let Some((x, y, _)) = piney_world::char::calc_tag_pos(ws, pos, up, 0) else { continue };
@@ -1098,6 +1109,10 @@ impl AreaMode {
             match s {
                 Show::Boss(_, Out::Flash { t, colour }) => {
                     self.st.fade_def.flash(*t as i16, *colour);
+                }
+                // Corbenik's third form's death: EntryFade to black.
+                Show::Boss(_, Out::EntryFade { t, from, to }) => {
+                    self.st.fade_def.entry(*t as i16, *from, *to);
                 }
                 // Magus's EntryFlash2 (the rise) and EntryFlash3 (the laser).
                 Show::Boss(_, Out::FlashFade { t_in, t_out, hold: None, colour }) => {
