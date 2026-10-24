@@ -202,7 +202,7 @@ class Game:
             return int(ended)
         hook("_AnimateForward__5ccAnmFUi", forward)
         for name in ("SetMatrix_PosRotZYX__7ccCoordFPfPf", "Draw__5ccAnmFv", "Draw__6ccBossFv",
-                     "DrawAfterImages__6ccBossFv", "DrawParts__6ccBossFP5ccAnmi", "DrawStageEffect__6ccBossFv",
+                     "DrawAfterImages__6ccBossFv", "DrawStageEffect__6ccBossFv",
                      "InitAfterImage__6ccBossFP5ccAnmi", "SetMatrix_PosRotXYZScale__7ccCoordFPfPfPf",
                      "SetMatrix_PosRotZYXScale__7ccCoordFPfPfPf", "Draw__7ccClumpFv", "SetTransparency__7ccClumpFf",
                      "__dt__7ccClumpFv", "Init__7ccLayerFsP6ccView", "SetFrame__6ccViewFffffffff",
@@ -257,7 +257,17 @@ class Game:
         hook("ccSeOn__Fi", lambda mm, se, *_: out.append(["se", s32(se)]) or 0)
         hook("ccSeOn3DNote__FiPfc", lambda mm, se, p, n, *_: out.append(["se3dnote", s32(se), n & 0xFF]) or 0)
         hook("ccSeOnNote__Fic", lambda mm, se, n, *_: out.append(["senote", s32(se), n & 0xFF]) or 0)
-        hook("EntryAfterImage__6ccBossFP17ENTRYAFTERIMAGE_T", lambda mm, *a: out.append(["afterimage"]) or 0)
+        # A brother's trail and wave: which brother, the anm's frameNow, its
+        # place and turn (`EntryAfterImageAnm(+0xd4, p, +0x40, +0x60)`,
+        # `anmw.SetMatrix_PosRotZYX(+0x40, +0x60)` then `DrawParts`).
+        def shown(key, who, anm):
+            k = next((j for j in range(2) if br_of(m, j) == who), -1)
+            pos = [m.load(who + 0x40 + 4 * j, 4) for j in range(3)]
+            out.append([key, k, s32(m.load(anm + 0x98, 4))] + pos + [m.load(who + 0x68, 4)])
+            return 0
+        hook("EntryAfterImage__6ccBossFP17ENTRYAFTERIMAGE_T",
+             lambda mm, who, *a: shown("afterimage", who, mm.load(who + 0xD4, 4)))
+        hook("DrawParts__6ccBossFP5ccAnmi", lambda mm, who, anm, *a: shown("drawparts", who, anm))
         hook("OnCinemaMode__16ccBossEffManagerFi", lambda mm, a, n, *_: out.append(["cinema", s32(n)]) or 0)
         hook("OffCinemaMode__16ccBossEffManagerFv", lambda mm, *a: out.append(["cinema", -99]) or 0)
         # SwitchLayer is unnamed in Outbreak's build (0x00417db0, cited in
@@ -821,7 +831,7 @@ def bulk(n, seed0=9900):
     rs.build()
     game = Game()
     acts = set()
-    shields = {}
+    shields, shown = {}, {}
     total = bad = shared = buffed = 0
     for k in range(n):
         rnd = random.Random(seed0 + k)
@@ -836,6 +846,8 @@ def bulk(n, seed0=9900):
             for o in fr["out"]:
                 if o and o[0] == "shield":
                     shields[o[1]] = shields.get(o[1], 0) + 1
+                if o and o[0] in ("afterimage", "drawparts"):
+                    shown[(o[0], o[1])] = shown.get((o[0], o[1]), 0) + 1
             # Frames with the brothers on Gorre's block, and of those with
             # a buff or debuff running on it.
             on_gorre = all(fr[b]["param"][0] == "gorre" for b in ("br0", "br1"))
@@ -844,7 +856,7 @@ def bulk(n, seed0=9900):
         total += len(frames) - 1
         print(f"case {seed0 + k} ok ({len(frames) - 1} frames)", flush=True)
     print(f"{n} cases, {bad} mismatched, {total} frames matched; acts reached:", sorted(acts),
-          "shields by kind:", shields, f"brothers on Gorre's block: {shared} frames, {buffed} with a buff running")
+          "shields by kind:", shields, "trails and waves by brother:", shown, f"brothers on Gorre's block: {shared} frames, {buffed} with a buff running")
 
 
 if __name__ == "__main__":

@@ -69,6 +69,25 @@ pub mod act {
     pub const MAGIC: i16 = 22;
 }
 
+/// What a brother's `ccBoss::Main` shows beside its body (its `Draw` of
+/// `x51` at its clip, the port's actor): `who` is its scene character.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Pic {
+    /// `EntryAfterImage(0)`: the brother's clip at `frameNow`, at its place
+    /// and turn, in the manager's own params ([`super::AfterImageParams::ENTRY`]).
+    Image { who: usize, clip: String, frame: i32, pos: V4, dirc: V4 },
+    /// `anmw.SetMatrix_PosRotZYX(pos, dirc)` and `DrawParts(anmw, 0)`: the
+    /// wave at the brother, posed at `time`, on objLayer.
+    Wave { who: usize, time: u32, pos: V4, dirc: V4 },
+}
+
+/// `EntryAfterImage(0)` on the brother `who` as it stands.
+fn brother_image(b: &Boss, who: usize, cx: &mut Cx) {
+    let clip = b.anm.clip.clone().unwrap_or_default();
+    let pos = cx.scene.chars[who].pos;
+    cx.out(Out::Gorre(Pic::Image { who, clip, frame: b.anm.frame(), pos, dirc: b.dirc }));
+}
+
 /// Gorre's tables (`tables::combat`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct GorreData {
@@ -760,9 +779,11 @@ fn on_dash_center(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
             cx.se3d(229);
         }
         1 => {
+            // `m_brotherM`'s, then `m_brotherP`'s (0x004ac414, 0x004ac42c).
             if b.act_count & 3 == 3 {
-                cx.out(Out::AfterImage);
-                cx.out(Out::AfterImage);
+                for p in x.brothers.iter().rev() {
+                    brother_image(&p.b, p.me, cx);
+                }
                 if b.act_count == 3 {
                     cx.se3d(57);
                 }

@@ -74,9 +74,12 @@ pub const MAGUS_LEAF: &str = "CMP_ex31leaf";
 /// (`ANM_ex4x*`) move.
 pub const FIDCHELL_CLUMP: &str = "CMP_trall1";
 pub const FIDCHELL_EPITAPH: &str = "CMP_trallx";
-/// Gorre's file (`x51`): its body and its two brothers' (the same model,
-/// its own characters drawn as [`BossRun::parts`]).
+/// Gorre's file (`x51`): its body (`CMP_trall`, which its Kerse's
+/// `ANM_ex51act1` poses) and its brothers' clumps, whose objects their
+/// clips draw: the first's `ANM_ex51*`, the second's `ANM_ex52*`, both
+/// brothers' Epitaph `ANM_ex5x*` ([`BossRun::parts`]).
 pub const GORRE_CLUMP: &str = "CMP_trall";
+pub const GORRE_BROTHERS: [&str; 3] = ["CMP_trall", "CMP_trall2", "CMP_trallx"];
 /// The wave's animation in [`EFF_FILE`].
 pub const ANM_WAVE: &str = "ANM_xx11wave";
 /// Fidchell's prediction's layer: `m_predTxt.layer`, `ccLayer::Init(254,
@@ -113,9 +116,9 @@ pub struct BossRun {
     pub look: Rc<BossLook>,
     /// `m_aiMngr`'s after-images being drawn.
     pub afterimages: Vec<AfterImage>,
-    /// The wave's `DrawParts` this frame: its animation's pose time, at the
-    /// boss's place and heading.
-    pub wave: Option<(u32, V4, V4)>,
+    /// The waves' `DrawParts` this frame: each animation's pose time, at
+    /// the boss's place and heading (Gorre's brothers each their own).
+    pub waves: Vec<(u32, V4, V4)>,
     /// Kyvia's arm's `DrawParts` this frame: its clip, pose time, place
     /// and turn.
     pub arm: Option<(String, u32, V4, V4)>,
@@ -392,6 +395,7 @@ impl BossLook {
                 let file = Rc::new(piney_desktop::assets::SceneFile::read(archive, boss::fidchell::FILE)?);
                 Body::of(file, FIDCHELL_EPITAPH).ok().map(Rc::new).into_iter().collect()
             }
+            GORRE => GORRE_BROTHERS.iter().filter_map(|c| Body::of(body.file.clone(), c).ok().map(Rc::new)).collect(),
             _ => Vec::new(),
         };
         Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, skill_names, images, shards })
@@ -539,7 +543,7 @@ impl Combat {
             hit,
             look: look.clone(),
             afterimages: Vec::new(),
-            wave: None,
+            waves: Vec::new(),
             arm: None,
             shards: Vec::new(),
             cam_sw: cam.is_some(),
@@ -891,7 +895,7 @@ impl Combat {
             r.hit = at;
             // EntryAfterImage in the frame's Think, then DrawAfterImages:
             // each image steps its fade as it draws, the new one too.
-            r.wave = None;
+            r.waves.clear();
             r.arm = None;
             r.reverse = out.contains(&Out::Reverse);
             r.shards = match &b.class {
@@ -918,7 +922,20 @@ impl Combat {
                         let p = self.scene.chars[c].pos;
                         r.afterimages.push(AfterImage::leaf(a.clip.unwrap_or_default(), a.posed, p, lb.dirc));
                     }
-                    Out::DrawWave => r.wave = Some((wave_time, at.pos, dirc)),
+                    Out::DrawWave => r.waves.push((wave_time, at.pos, dirc)),
+                    // A brother's trail (`EntryAfterImage(0)`) and wave.
+                    Out::Gorre(boss::gorre::Pic::Image { clip, frame, pos, dirc, .. }) => {
+                        // ccBossAfterImageEx::Init: its own anm at the frame.
+                        let mut a = piney_battle::boss::Anm::new();
+                        a.set(clip, &|c: &str| clips.get(c).copied());
+                        (a.time, a.posed) = (*frame as u32 * 256, *frame as u32 * 256);
+                        if *frame == 0 {
+                            a.forward();
+                        }
+                        let p = &piney_battle::boss::AfterImageParams::ENTRY;
+                        r.afterimages.push(AfterImage::anm(clip.clone(), a.posed, *pos, *dirc, p));
+                    }
+                    Out::Gorre(boss::gorre::Pic::Wave { time, pos, dirc, .. }) => r.waves.push((*time, *pos, *dirc)),
                     Out::DrawArm { time, pos, dirc } => {
                         r.arm = arm.as_ref().and_then(|a| a.clip.clone()).map(|c| (c, *time, *pos, *dirc));
                     }
@@ -1083,11 +1100,23 @@ impl Combat {
         for (k, &p) in parts.iter().enumerate() {
             let Some(pb) = self.scene.chars[p].foe_state().and_then(|f| f.boss.as_ref()) else { continue };
             let shown = pb.draw_sw != 0 && pb.exit == 0 && !exited;
-            // Kyvia's core then its gomoras; Magus's leaves, one model.
+            // Kyvia's core then its gomoras; Magus's leaves, one model;
+            // Gorre's brothers the clump their clip poses.
             let pick = usize::from(k > 0 && look.code != MAGUS);
-            let Some(body) = look.images.get(pick).cloned() else { continue };
+            let clip = pb.anm.clip.as_deref().unwrap_or_default();
+            let body = match look.code {
+                GORRE => clip_body(&look.images, clip),
+                _ => look.images.get(pick).cloned(),
+            };
+            let Some(body) = body else { continue };
             let (anm, dirc, alpha) = (pb.anm.clone(), pb.dirc, pb.set_transparency);
             let pos = self.scene.chars[p].pos;
+            if let Some(a) = self.cast.actors.get_mut(&p)
+                && !Rc::ptr_eq(&a.ch.body, &body)
+                && let Some(n) = Actor::new(body.clone(), clip, Look::Boss, pos, dirc, 0, 0)
+            {
+                *a = n;
+            }
             let a = match self.cast.actors.entry(p) {
                 std::collections::btree_map::Entry::Occupied(o) => o.into_mut(),
                 std::collections::btree_map::Entry::Vacant(v) => {
@@ -1162,6 +1191,16 @@ impl boss::PartHits for PartList<'_, '_> {
     fn sync(&mut self, who: usize, hit: &CharHit) {
         self.hits.borrow_mut().sync(&super::spc::to_body(who, self.kite, hit, false));
     }
+}
+
+/// Of `bodies`, the clump whose nodes `clip` poses: `ccAnm::SetAnm` takes
+/// the clip's own objects, and its first track's is one of that clump's.
+fn clip_body(bodies: &[Rc<Body>], clip: &str) -> Option<Rc<Body>> {
+    let poses = |b: &Body| {
+        let first = b.anim(clip).and_then(|k| b.file.anims[k].tracks.first());
+        first.is_some_and(|t| b.nodes.contains(&t.target))
+    };
+    bodies.iter().find(|b| poses(b)).cloned()
 }
 
 /// An actor posed as a `ccAnm` left it: its clip (set anew when it

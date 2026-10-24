@@ -2,8 +2,8 @@
 title: Bosses - Gorre
 status: partial
 volumes: OUT, INF
-covers: OUT gcmn.prg:0x004a9130-0x004b0b50 (boss05.cpp), 0x004a9130 ccBoss05::ccBoss05, 0x004a9650 CalcRealEx, 0x004a99a0 ExecPatternIndex, 0x004aa100 IsValidArea, 0x004aa210 Main, 0x004aa5f0 Move, 0x004aa6b0 ChangeAction, 0x004aa760 Think, 0x004aa8e0 OnThinkNeutral, 0x004aaa40 OnThinkDrain, 0x004aaaf0 OnThinkDead, 0x004aaf40 OnThinkEscape, 0x004ab210 OnThinkDmg, 0x004ab2e0 OnThinkKerse, 0x004aba30 OnThinkWander, 0x004abb90 OnThinkMagic, 0x004ac060 OnThinkDataDrainAtk, 0x004ac320 OnThinkDashCenter, 0x004ac5d0 OnThinkTornade, 0x004ac850 OnThinkSkill, 0x004acdf0 OnThinkTalk, 0x004ad0c0 OnThinkWave, 0x004ad320 OnThinkChase, 0x004ad5e0 OnThinkEpitaph, 0x004ad740 OnThinkEpitaphWave, 0x004ad980 Slave, 0x004ada60 EntrySlave, 0x004adbb0 SendMessage, 0x004add68 SendMessage's effProtect, 0x004a980c CalcRealEx's effProtect, 0x004ae990 ccBoss05Brother::Init, 0x004aed70 Move, 0x004aefb0 Main, 0x004af020 Think, 0x004af0e0 OnThinkNeutral, 0x004af1f0 OnThinkEpitaph, 0x004af300 OnThinkEpitaphWave, 0x004af8d0 OnThinkTornade, 0x004afe10 OnThinkWave, 0x004b0490 OnThinkDead, 0x004b05b0 Order, 0x004b07c0 Affect, 0x004b0b00 OnExit, 0x006dfd90 Think's jump table (@1462), 0x006dfdf0 OnThinkKerse's (@1644), 0x006dfe10 SendMessage's (@2268), 0x00618040 boss05NormalActTbl, 0x006180e0 boss05SuperActTbl, 0x006181b0 boss05EpitaphActTbl, 0x00618218 @1261, 0x00618230 @1672, 0x00618240 @1777, 0x00618250 @2074, 0x00384e80 ccBoss05's vtable, 0x00384de0 ccBoss05Brother's, 0x004700a0 ccBoss::OffBossCamera, 0x0046f9e0 ccBoss::InitBossCamera, 0x00472090 ccBossCam::ccBossCam; INF gcmn.prg:0x00497010-0x0049e590 (boss05.cpp), 0x005ebf10 Boss05AnmTbl, 0x005ebf80 boss05SlaveAnmTbl1, 0x005ebff0 boss05SlaveAnmTbl2, 0x005ec060 boss05NormalActTbl, 0x005ec100 boss05SuperActTbl, 0x005ec1c0 boss05EpitaphActTbl, 0x005ec228 @1261, 0x005ec240 @1672, 0x005ec250 @1777, 0x005ec260 @2074; OUT gcmn.prg:0x0048a6e0 ccBossEffFinalPhotonFlashCreate, 0x00480b70 ccBossEffFinalPhotonFlash::Draw, 0x00480d00 ccBossEffFinalPhotonFlash::Explode, 0x0058d160 ccChar::SetBaseParam, 0x00597bb0 _ccSkillModifyCondition, 0x0058d270 ccChar::CalcReal
-worklog: 296, 297, 303, 422, 429, 436
+covers: OUT gcmn.prg:0x004a9130-0x004b0b50 (boss05.cpp), 0x004a9130 ccBoss05::ccBoss05, 0x004a9650 CalcRealEx, 0x004a99a0 ExecPatternIndex, 0x004aa100 IsValidArea, 0x004aa210 Main, 0x004aa5f0 Move, 0x004aa6b0 ChangeAction, 0x004aa760 Think, 0x004aa8e0 OnThinkNeutral, 0x004aaa40 OnThinkDrain, 0x004aaaf0 OnThinkDead, 0x004aaf40 OnThinkEscape, 0x004ab210 OnThinkDmg, 0x004ab2e0 OnThinkKerse, 0x004aba30 OnThinkWander, 0x004abb90 OnThinkMagic, 0x004ac060 OnThinkDataDrainAtk, 0x004ac320 OnThinkDashCenter, 0x004ac5d0 OnThinkTornade, 0x004ac850 OnThinkSkill, 0x004acdf0 OnThinkTalk, 0x004ad0c0 OnThinkWave, 0x004ad320 OnThinkChase, 0x004ad5e0 OnThinkEpitaph, 0x004ad740 OnThinkEpitaphWave, 0x004ad980 Slave, 0x004ada60 EntrySlave, 0x004adbb0 SendMessage, 0x004add68 SendMessage's effProtect, 0x004a980c CalcRealEx's effProtect, 0x004ae990 ccBoss05Brother::Init, 0x004aed70 Move, 0x004aefb0 Main, 0x004af020 Think, 0x004af0e0 OnThinkNeutral, 0x004af1f0 OnThinkEpitaph, 0x004af300 OnThinkEpitaphWave, 0x004af8d0 OnThinkTornade, 0x004afe10 OnThinkWave, 0x004b0490 OnThinkDead, 0x004b05b0 Order, 0x004b07c0 Affect, 0x004b0b00 OnExit, 0x0046d490 ccBoss::Main, 0x0046e730 ccBoss::Draw, 0x0046ef20 ccBoss::EntryAfterImage, 0x0046ef80 ccBoss::DrawAfterImages, 0x0046c710 ccBossAfterImageManager::EntryAfterImageAnm, 0x0046c9d0 ccBossAfterImageEx::Init, 0x006dfd90 Think's jump table (@1462), 0x006dfdf0 OnThinkKerse's (@1644), 0x006dfe10 SendMessage's (@2268), 0x00618040 boss05NormalActTbl, 0x006180e0 boss05SuperActTbl, 0x006181b0 boss05EpitaphActTbl, 0x00618218 @1261, 0x00618230 @1672, 0x00618240 @1777, 0x00618250 @2074, 0x00384e80 ccBoss05's vtable, 0x00384de0 ccBoss05Brother's, 0x004700a0 ccBoss::OffBossCamera, 0x0046f9e0 ccBoss::InitBossCamera, 0x00472090 ccBossCam::ccBossCam; INF gcmn.prg:0x00497010-0x0049e590 (boss05.cpp), 0x005ebf10 Boss05AnmTbl, 0x005ebf80 boss05SlaveAnmTbl1, 0x005ebff0 boss05SlaveAnmTbl2, 0x005ec060 boss05NormalActTbl, 0x005ec100 boss05SuperActTbl, 0x005ec1c0 boss05EpitaphActTbl, 0x005ec228 @1261, 0x005ec240 @1672, 0x005ec250 @1777, 0x005ec260 @2074; OUT gcmn.prg:0x0048a6e0 ccBossEffFinalPhotonFlashCreate, 0x00480b70 ccBossEffFinalPhotonFlash::Draw, 0x00480d00 ccBossEffFinalPhotonFlash::Explode, 0x0058d160 ccChar::SetBaseParam, 0x00597bb0 _ccSkillModifyCondition, 0x0058d270 ccChar::CalcReal
+worklog: 296, 297, 303, 422, 429, 436, 437
 ---
 
 # Bosses - Gorre
@@ -113,6 +113,32 @@ No `PreDrawAnm` and no `Draw`: nothing in Outbreak calls
 `CheckExit`), so Gorre's own body is neither animated nor drawn except in
 the Kerse's step 2, which forwards its clip and draws it at `m_talkPos`
 (`gorre::body`). The two brothers are what is seen of the fight.
+
+## What is drawn
+
+Each brother's `Main` is `ccBoss::Main` (0x0046d490), whose last steps,
+while `drawSW` (+0x1d5) holds, are `PreDrawAnm`, `ccBoss::Draw` and
+`DrawAfterImages`:
+
+- `ccBoss::Draw` (0x0046e730) draws the brother's anm (+0xd4) with
+  `ccAnm::Draw`, on layer 5, at `setTransparency`, in the conditions' fog
+  blend. The anm draws its clip's own objects: the first brother's
+  `ANM_ex51*` pose `CMP_trall`'s, the second's `ANM_ex52*` `CMP_trall2`'s,
+  the Epitaph's `ANM_ex5x*` `CMP_trallx`'s (`boss05SlaveAnmTbl1`/`2`).
+- `EntryAfterImage(0)` on a brother (the Wave's spin every fourth frame,
+  the Epitaph's every sixth, Gorre's dash `m_brotherM`'s then
+  `m_brotherP`'s) takes the brother's anm at `frameNow`, its place and
+  turn, in `EntryAfterImageAnm`'s own params for a null param (0x0046c7b8):
+  colour 0x00505000 at 100, transparency 1 by -1/80, no scale.
+- The strike's wave is the brother's own `anmw` at the brother's place
+  and turn (`SetMatrix_PosRotZYX(+0x40, +0x60)`, `DrawParts`).
+
+Until worklog 437 the port drew none of this (issue #73): the field's
+part actors took a body from `BossLook::images`, which held nothing for
+Gorre, so the brothers had no actor from the port of Gorre (worklog 303)
+on, and their trails and waves were drawn at Gorre's place with Gorre's
+unused anms. `combat::boss::clip_body` now picks the clump the clip
+poses, and `gorre::Pic` carries each brother's trail and wave.
 
 `ccBoss05::ChangeAction`: the base's, then `Order(act)` on both brothers
 (whether or not the base took it), `m_actSub*` cleared.
@@ -313,6 +339,15 @@ mismatches over `bulk 100` from 9900, 20000 and 40000 (every act but 1,
 `gorres_brothers_show_the_protect_break_and_return` (piney-game's
 `boss_fx`, Outbreak's event 218 in the arena) breaks one brother and
 checks both show the break and the returns, none on Gorre.
+The pictures (worklog 437): the harness records each `EntryAfterImage`
+and `DrawParts` with the brother, the anm's `frameNow`, the place and
+turn, against `gorre::Pic`. `bulk 100` from 9900, 20000 and 40000 agree
+(7,085 trails and 29,780 waves a brother), and so do 30 on Quarantine.
+`gorres_brothers_are_drawn_through_the_fight` (`boss_fx`) plays 6,000
+frames of the arena: from Gorre's first `Main` each brother's actor is
+drawn exactly when its `drawSW` holds, every field frame on the boss
+camera draws `x51` models for both, and the two waves stand apart.
+`gorre_brothers_shots` (ignored) writes shots.
 `outbreak_story_survey` finishes event 218 (`PINEY_SURVEY_GOD=1`,
 150,000 frames): the shared gauge broken, a brother drained, the three
 down.

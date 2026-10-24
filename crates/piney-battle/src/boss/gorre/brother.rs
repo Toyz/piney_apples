@@ -324,7 +324,7 @@ fn spin(b: &mut Boss, x: &mut Brother, kind: Wave, cx: &mut Cx) {
     match kind {
         Wave::Plain => {
             if c & 3 == 0 {
-                cx.out(Out::AfterImage);
+                super::brother_image(b, cx.me, cx);
                 if b.act_count == 1 {
                     cx.se3d(229);
                 }
@@ -333,7 +333,7 @@ fn spin(b: &mut Boss, x: &mut Brother, kind: Wave, cx: &mut Cx) {
         Wave::Epitaph => {
             if c == 5 {
                 b.act_count = 0;
-                cx.out(Out::AfterImage);
+                super::brother_image(b, cx.me, cx);
             }
         }
     }
@@ -380,7 +380,8 @@ fn strike(b: &mut Boss, kind: Wave, cx: &mut Cx) {
         _ => {
             let ended = b.anm_wave.forward();
             b.anm_wave.speed = 512;
-            cx.out(Out::DrawWave);
+            let (who, time, pos, dirc) = (cx.me, b.anm_wave.posed, cx.pos(), b.dirc);
+            cx.out(Out::Gorre(super::Pic::Wave { who, time, pos, dirc }));
             if b.anm.frame() == 55 {
                 let pos = cx.pos();
                 b.skill_damage(cx, None, Some(pos), 18);

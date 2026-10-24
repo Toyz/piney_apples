@@ -455,6 +455,85 @@ impl Mode for LauncherMode {
     }
 }
 
+/// A player's `pad_log` (and its `.card`, copied to `.card-test` beside
+/// it) replayed as `main` runs it: the launcher on the build's discs on the
+/// row the log's titles show (its sound from the launcher's disc), then on
+/// its `Event::Boot` the game after
+/// the logos with a fresh engine for the chosen disc; its console lines
+/// before the frames they came before. `each` sees every
+/// frame after its events went through [`crate::handle`] and the engine's
+/// frame ran: its line in the log, the mode and its events, the engine
+/// (whose `render` takes the frame's samples).
+#[cfg(test)]
+pub(crate) fn replay_pad_log(log: &str, mut each: impl FnMut(u32, &mut dyn Mode, &[Event], &piney_audio::Audio)) {
+    fn copy(src: &Path, dst: &Path) {
+        std::fs::create_dir_all(dst).unwrap();
+        for e in std::fs::read_dir(src).unwrap().flatten() {
+            let to = dst.join(e.file_name());
+            if e.path().is_dir() {
+                copy(&e.path(), &to);
+            } else {
+                std::fs::copy(e.path(), to).unwrap();
+            }
+        }
+    }
+    let dir = piney_data::pack::default_build().expect("a build");
+    let disc = |v: &str| Some(dir.join(format!("{v}.disc"))).filter(|p| p.exists());
+    let discs = [disc("infection"), disc("mutation"), disc("outbreak"), disc("quarantine")];
+    let first = discs.iter().flatten().next().unwrap().clone();
+    let launcher_iso = discs[2].clone().unwrap_or(first);
+    let card = PathBuf::from(format!("{log}.card-test"));
+    let _ = std::fs::remove_dir_all(&card);
+    copy(Path::new(&format!("{log}.card")), &card);
+    // The row the player's launcher remembered: its first title's volume.
+    let text = std::fs::read_to_string(log).unwrap_or_default();
+    let row = text.lines().find_map(|l| {
+        let t = l.split(" | launcher - ").nth(1)?;
+        Volume::ALL.iter().position(|v| t.starts_with(&format!("{} - ", v.title())))
+    });
+    let memo = PathBuf::from(format!("{log}.launcher-test"));
+    std::fs::write(&memo, row.unwrap_or(0).to_string()).unwrap();
+    let mut steps = crate::padlog::read(log).unwrap();
+    let mut audio = piney_audio::Audio::headless(&launcher_iso).unwrap();
+    let mut mode: Box<dyn Mode> = Box::new(LauncherMode::new(discs, Some(memo), None, None));
+    let mut pad = Pad::default();
+    let mut line = 0u32;
+    while let Some(step) = steps.pop_front() {
+        let raw = match step {
+            crate::padlog::Step::Pad(raw) => raw,
+            // A console line before the frame's pad, as `main` runs it.
+            crate::padlog::Step::Console(l) => {
+                eprintln!("replay console> {l}: {}", mode.console(&l));
+                continue;
+            }
+        };
+        pad.read(&raw);
+        mode.step(&pad);
+        let events = mode.take_events();
+        let boot = events.iter().find_map(|e| if let Event::Boot(p) = e { Some(p.clone()) } else { None });
+        crate::handle(events.clone(), Some(&audio));
+        audio.frame();
+        each(line, mode.as_mut(), &events, &audio);
+        if let Some(path) = boot {
+            let data = Iso::open(&path).unwrap().read_path("DATA/DATA.BIN").unwrap();
+            let archive = Arc::new(Archive::new(data).unwrap());
+            let played = LOGOS.len() as i32;
+            let s = crate::session::Session::after_logos(
+                path.clone(),
+                archive,
+                true,
+                Some(card.clone()),
+                true,
+                played,
+                None,
+            );
+            mode = Box::new(s.unwrap());
+            audio = piney_audio::Audio::headless(&path).unwrap();
+        }
+        line += 1;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -595,42 +674,18 @@ mod tests {
         assert_eq!(ys, vec![9000.0, 4500.0, 0.0, -4500.0]);
     }
 
-    /// A player's `pad_log` replayed as `main` runs it: the launcher on the
-    /// build's discs (its sound from the launcher's disc), then on its
-    /// `Event::Boot` the game after the logos with a fresh engine for the
-    /// chosen disc. Each press that asks for a sound, and whether it is
-    /// heard, is printed. A diagnostic: `PINEY_PADLOG=FILE cargo test
-    /// --release -p piney-game replay_through_the_launcher -- --ignored
-    /// --nocapture`.
+    /// A player's `pad_log` replayed as `main` runs it ([`super::replay_pad_log`]).
+    /// Each press that asks for a sound, and whether it is heard, is
+    /// printed. A diagnostic: `PINEY_PADLOG=FILE cargo test --release -p
+    /// piney-game replay_through_the_launcher -- --ignored --nocapture`.
     #[test]
     #[ignore]
     fn replay_through_the_launcher() {
         let Some(log) = std::env::var_os("PINEY_PADLOG") else { return };
-        let log = log.into_string().unwrap();
-        let dir = piney_data::pack::default_build().expect("a build");
-        let disc = |v: &str| Some(dir.join(format!("{v}.disc"))).filter(|p| p.exists());
-        let discs = [disc("infection"), disc("mutation"), disc("outbreak"), disc("quarantine")];
-        let first = discs.iter().flatten().next().unwrap().clone();
-        let launcher_iso = discs[2].clone().unwrap_or(first);
-        let card = PathBuf::from(format!("{log}.card-test"));
-        let _ = std::fs::remove_dir_all(&card);
-        copy(Path::new(&format!("{log}.card")), &card);
-        let mut steps = crate::padlog::read(&log).unwrap();
-        let mut audio = piney_audio::Audio::headless(&launcher_iso).unwrap();
-        let mut mode: Box<dyn Mode> = Box::new(LauncherMode::new(discs, None, None, None));
-        let mut pad = Pad::default();
         let mut buf = vec![0i16; 2 * 800];
-        let mut f = 0u32;
         let mut pending: Vec<(u32, Vec<i32>)> = Vec::new();
-        while let Some(step) = steps.pop_front() {
-            let crate::padlog::Step::Pad(raw) = step else { continue };
-            pad.read(&raw);
-            mode.step(&pad);
-            let events = mode.take_events();
-            let ses: Vec<i32> =
-                events.iter().filter_map(|e| if let Event::Se(n) = e { Some(*n) } else { None }).collect();
-            let boot = events.iter().find_map(|e| if let Event::Boot(p) = e { Some(p.clone()) } else { None });
-            for e in &events {
+        super::replay_pad_log(&log.into_string().unwrap(), |f, mode, events, audio| {
+            for e in events {
                 if matches!(
                     e,
                     Event::Volumes { .. }
@@ -643,9 +698,10 @@ mod tests {
                 ) {
                     eprintln!("frame {f}: {e:?}");
                 }
+                if let Event::Boot(p) = e {
+                    eprintln!("frame {f}: boot {}", p.display());
+                }
             }
-            crate::handle(events, Some(&audio));
-            audio.frame();
             audio.render(&mut buf);
             let peak = buf.iter().map(|&x| i32::from(x).abs()).max().unwrap_or(0);
             for p in &mut pending {
@@ -658,41 +714,12 @@ mod tests {
                 eprintln!("frame {at}: peak over the 12 frames after {}", peaks.iter().max().unwrap());
                 false
             });
+            let ses: Vec<i32> =
+                events.iter().filter_map(|e| if let Event::Se(n) = e { Some(*n) } else { None }).collect();
             if !ses.is_empty() {
                 eprintln!("frame {f}: se {ses:?} | {}", mode.title());
                 pending.push((f, Vec::new()));
             }
-            if let Some(path) = boot {
-                eprintln!("frame {f}: boot {}", path.display());
-                let data = Iso::open(&path).unwrap().read_path("DATA/DATA.BIN").unwrap();
-                let archive = Arc::new(Archive::new(data).unwrap());
-                let played = LOGOS.len() as i32;
-                mode = Box::new(
-                    crate::session::Session::after_logos(
-                        path.clone(),
-                        archive,
-                        true,
-                        Some(card.clone()),
-                        true,
-                        played,
-                        None,
-                    )
-                    .unwrap(),
-                );
-                audio = piney_audio::Audio::headless(&path).unwrap();
-            }
-            f += 1;
-        }
-        fn copy(src: &Path, dst: &Path) {
-            std::fs::create_dir_all(dst).unwrap();
-            for e in std::fs::read_dir(src).unwrap().flatten() {
-                let to = dst.join(e.file_name());
-                if e.path().is_dir() {
-                    copy(&e.path(), &to);
-                } else {
-                    std::fs::copy(e.path(), to).unwrap();
-                }
-            }
-        }
+        });
     }
 }

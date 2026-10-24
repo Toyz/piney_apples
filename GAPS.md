@@ -113,7 +113,8 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   flashes and the grow's loop (worklog 428)
 - [ ] Outbreak's bosses: [x] Fidchell (`ccBoss04`, worklogs 294-295),
   [x] Gorre and its brothers (`ccBoss05`, worklog 303; FinalPhotonFlash's
-  picture worklog 422; the brothers' shields worklog 429), [x] Kyvia 02 (above); each event
+  picture worklog 422; the brothers' shields worklog 429; the brothers' bodies,
+  trails and waves drawn, worklog 437), [x] Kyvia 02 (above); each event
   finishes under the autopilot
 - [x] The Data Bugs (enemy type 0x40): drawn with their base form's clips
   and held at half their HP (`virusFlag`, worklog 299)

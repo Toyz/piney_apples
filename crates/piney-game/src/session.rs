@@ -1001,6 +1001,11 @@ impl Mode for Session {
         self.hud_scale = k;
     }
 
+    #[cfg(test)]
+    fn session(&mut self) -> Option<&mut Session> {
+        Some(self)
+    }
+
     fn step(&mut self, pad: &Pad) -> Frame {
         self.sys_frames = self.sys_frames.wrapping_add(1);
         match &mut self.stage {
@@ -6992,6 +6997,9 @@ mod tests {
 
     /// Kyvia's fourth fight, event 312 played to its end.
     mod kyvia_fourth;
+
+    /// Issue #73: Outbreak's last fight and its ending, the player's log.
+    mod outbreak_end;
 
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.

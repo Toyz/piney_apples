@@ -198,6 +198,23 @@ pub struct AfterImageParams {
     pub scale_time: F,
 }
 
+impl AfterImageParams {
+    /// `ccBossAfterImageManager::EntryAfterImageAnm`'s own, for a null
+    /// param (OUT gcmn 0x0046c7b8): colour 0x00505000 at 100, transparency
+    /// 1 by -1/80, `maxFrame` 40, `ss` and `es` (0, 0, 0, 1), no scale.
+    pub const ENTRY: AfterImageParams = AfterImageParams {
+        color: 0x0050_5000,
+        color_alpha: 0x42c8_0000,
+        color_spd: 0,
+        max_frame: 0x4220_0000,
+        transparency: 0x3f80_0000,
+        trans_spd: 0xbc4c_cccd,
+        ss: [0, 0, 0, 0x3f80_0000],
+        es: [0, 0, 0, 0x3f80_0000],
+        scale_time: 0,
+    };
+}
+
 /// A `ccAnm` as the rules read it: the clip, `frameNow * 256 + frameCnt`,
 /// `frameSpd` (+0x9c), the clip's length and whether it loops.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -213,7 +230,8 @@ pub struct Anm {
 }
 
 impl Anm {
-    fn new() -> Anm {
+    /// `ccAnm::ccAnm`: no clip, `frameSpd` 256.
+    pub fn new() -> Anm {
         Anm { clip: None, time: 0, speed: 256, frames: 0, looping: false, posed: 0 }
     }
 
@@ -744,6 +762,8 @@ pub enum Out {
     Magus(magus::Pic),
     /// What Fidchell shows or asks beside ([`fidchell::Pic`]).
     Fidchell(fidchell::Pic),
+    /// What Gorre's brothers show beside their bodies ([`gorre::Pic`]).
+    Gorre(gorre::Pic),
     /// `OnCinemaMode` with a skill's name (OUT gcmn 0x004733b0): the bars
     /// and the name `sid`'s row gives (OUT 0x00472550).
     CinemaSkill(i32),

@@ -739,3 +739,130 @@ fn event_218_save_bytes() {
     state.save.set_u8(offset::EVENT_STATUS, 2);
     std::fs::write(out, state.save.bytes()).unwrap();
 }
+
+/// One frame of Gorre's fight as [`brothers_fight`] sees it: whether each
+/// brother's `ccBoss::Main` draws it (`drawSW`, not out) and whether its
+/// actor is drawn; the frame's `x51` models by name; whether the frame is
+/// the field's (models drawn, no stream nor menu movie playing).
+struct BrotherSeen {
+    due: [bool; 2],
+    /// Seen: on the boss camera (2) and above `ccObj::Draw`'s 1/128.
+    shown: bool,
+    drawn: [bool; 2],
+    models: Vec<String>,
+    world: bool,
+    /// The waves drawn (each at a brother, none at Gorre) and the brothers'
+    /// trails alive.
+    waves: Vec<[u32; 4]>,
+    trails: usize,
+}
+
+/// Gorre's arena for `frames` frames from the boss's making, the party
+/// kept up and the event's lines moved on; `each` sees every frame.
+fn brothers_fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32)) -> Vec<BrotherSeen> {
+    let x51 = piney_desktop::assets::SceneFile::read(&s.archive, "x51").unwrap();
+    let mut pad = Pad::default();
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let (mut came, mut seen) = (None, Vec::new());
+    for n in 0..frames + 3000 {
+        let playing = matches!(&s.stage, Stage::Area(a) if a.vm().is_some_and(|v| v.playing().is_some()));
+        pad.read(&if playing && n.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
+        let frame = s.step(&pad);
+        s.take_events();
+        let Stage::Area(a) = &mut s.stage else { continue };
+        let boss_cam = a.world().camera().cam_id == 2;
+        let c = a.world_mut().combat_mut();
+        for &(_, k) in &c.members {
+            c.scene.chars[k].max_hp = 9999;
+            c.scene.chars[k].hp = 9999;
+        }
+        let Some(me) = c.boss_char() else { continue };
+        let i = n - *came.get_or_insert(n);
+        if i >= frames {
+            break;
+        }
+        let Some(Class::Gorre(x)) = c.scene.chars[me].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class)
+        else {
+            continue;
+        };
+        let bm = x.brother_me;
+        let due = bm.map(|k| {
+            let b = c.scene.chars[k].foe_state().and_then(|f| f.boss.as_ref());
+            b.is_some_and(|b| b.draw_sw != 0 && b.exit == 0)
+        });
+        let drawn = bm.map(|k| c.cast.actors.get(&k).is_some_and(|a| a.drawn));
+        let run = c.boss.as_ref().unwrap();
+        let waves = run.waves.iter().map(|w| w.1).collect();
+        let trails = run.afterimages.iter().filter(|a| a.clip.starts_with("ANM_ex5")).count();
+        let alpha = bm.map(|k| c.cast.actors.get(&k).map_or(0.0, |a| f32::from_bits(a.alpha)));
+        let shown = boss_cam && alpha.iter().all(|&t| t > 1.0 / 128.0);
+        let models: Vec<String> = frame
+            .cmds
+            .iter()
+            .filter_map(|c| match c {
+                piney_draw::Cmd::Model(m) if m.file == "x51" => x51.ccs.object_name(m.model).map(str::to_string),
+                _ => None,
+            })
+            .collect();
+        let Stage::Area(a) = &s.stage else { continue };
+        let drew = frame.cmds.iter().any(|c| matches!(c, piney_draw::Cmd::Model(_)));
+        let world = drew && !a.streaming() && !a.movie_playing();
+        each(s, &frame, i);
+        seen.push(BrotherSeen { due, shown, drawn, models, world, waves, trails });
+    }
+    seen
+}
+
+/// Issue #73: Gorre's brothers are drawn. Each brother's `Main` is
+/// `ccBoss::Main`, whose `Draw` draws its anm (`ANM_ex51*` on
+/// `CMP_trall`, `ANM_ex52*` on `CMP_trall2`, the Epitaph's `ANM_ex5x*`
+/// on `CMP_trallx`) while its `drawSW` holds: from Gorre's first `Main`
+/// on, every field frame that holds it draws both, each its own model.
+#[test]
+fn gorres_brothers_are_drawn_through_the_fight() {
+    let Some(mut s) = event_218_arena() else { return };
+    let seen = brothers_fight(&mut s, 6000, |_, _, _| {});
+    assert_eq!(seen.len(), 6000, "the fight not reached");
+    // The constructor's frame: the task's first Main is the next.
+    let due: Vec<&BrotherSeen> = seen[1..].iter().filter(|f| f.due.iter().any(|&d| d)).collect();
+    let missed: Vec<usize> = (1..seen.len()).filter(|&i| seen[i].due != seen[i].drawn).collect();
+    let bare = due.iter().filter(|f| f.world && f.shown && f.models.is_empty()).count();
+    let first = |f: &BrotherSeen, b: &str| f.models.iter().any(|m| m.contains(b));
+    let both = due
+        .iter()
+        .filter(|f| f.due == [true; 2] && f.world && f.shown)
+        .all(|f| (first(f, "ex51") && first(f, "ex52")) || f.models.iter().filter(|m| m.contains("ex5x")).count() >= 2);
+    println!("{} frames, {} with a brother due, {} missed, {bare} bare", seen.len(), due.len(), missed.len());
+    assert!(due.len() > 5000, "the brothers drawn too seldom: {}", due.len());
+    assert!(missed.is_empty(), "frames whose drawn brothers part from drawSW: {:?}", &missed[..missed.len().min(8)]);
+    assert_eq!(bare, 0, "a field frame with a brother due drew no x51 model");
+    assert!(both, "a frame drew one brother's model only");
+    assert!(seen[1].drawn == [true; 2], "not drawn from the first Main");
+    // Each brother's wave at its own place, and their trails.
+    let waves = seen.iter().filter(|f| f.waves.len() == 2 && f.waves[0] != f.waves[1]).count();
+    let lone = seen.iter().filter(|f| f.waves.len() == 1).count();
+    let trails = seen.iter().filter(|f| f.trails > 0).count();
+    println!("{waves} frames with both waves, {lone} with one; {trails} with trails");
+    assert!(waves > 0 && lone == 0, "the brothers' waves");
+    assert!(trails > 0, "the brothers' trails");
+}
+
+/// Shots of Gorre's fight to `PINEY_SHOTS` (default
+/// /mnt/data/claude/scratch/a437): every 100th frame of 3000.
+#[test]
+#[ignore]
+fn gorre_brothers_shots() {
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/a437".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let Some(mut s) = event_218_arena() else { return };
+    let mut gs: Option<piney_gs::Gs> = None;
+    brothers_fight(&mut s, 3000, |s, frame, i| {
+        let g = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap());
+        g.set_overlay(Mode::archive(s));
+        g.render(frame);
+        if i.is_multiple_of(100) {
+            let (w, h) = g.target_size();
+            std::fs::write(format!("{dir}/gorre-{i:05}.png"), piney_gs::png::encode(w, h, &g.read_back())).unwrap();
+        }
+    });
+}

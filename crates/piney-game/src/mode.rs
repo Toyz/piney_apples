@@ -302,6 +302,12 @@ pub trait Mode {
         "no console commands here".into()
     }
 
+    /// The game's session, for tests that replay a player's log.
+    #[cfg(test)]
+    fn session(&mut self) -> Option<&mut crate::session::Session> {
+        None
+    }
+
     /// `ccPad::actuaterSw`: the save's Vibration option (+0x8428), which
     /// the game sets it from at a load and a new game and with it in the
     /// Vibration menus; None without a save.

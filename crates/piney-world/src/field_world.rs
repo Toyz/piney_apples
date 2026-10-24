@@ -3103,9 +3103,8 @@ impl FieldWorld {
                 }
             }
         }
-        if let Some((time, pos, dirc)) = run.wave
-            && let Some(mut p) = crate::pose::Play::new(&run.look.eff, combat::boss::ANM_WAVE)
-        {
+        for &(time, pos, dirc) in &run.waves {
+            let Some(mut p) = crate::pose::Play::new(&run.look.eff, combat::boss::ANM_WAVE) else { continue };
             (p.time, p.posed) = (time, time);
             let root = crate::body::root(pos, dirc);
             let file = (&*run.look.eff, &run.look.eff_morphers);

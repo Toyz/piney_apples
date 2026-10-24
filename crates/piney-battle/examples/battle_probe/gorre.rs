@@ -9,6 +9,7 @@
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::gorre;
+use piney_battle::boss::gorre::Pic;
 use piney_battle::boss::gorre::brother::Brother;
 use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, Out};
 use piney_battle::chara::{AffectFunc, Env};
@@ -291,7 +292,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
                 _ => {}
             }
         }
-        let outs: Vec<String> = all.iter().filter_map(|o| out_of(o, &cam2)).collect();
+        let outs: Vec<String> = all.iter().filter_map(|o| out_of(o, &cam2, &brothers)).collect();
         lines.push(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
     }
     format!("[{}]", lines.join(","))
@@ -299,9 +300,17 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
 
 /// A call as the harness records it, `OffBossCamera`'s three (camera 2's
 /// eye and view to camera 1, then the change) as one.
-fn out_of(o: &Out, cam2: &(V4, V4)) -> Option<String> {
+fn out_of(o: &Out, cam2: &(V4, V4), brothers: &[usize; 2]) -> Option<String> {
+    let k = |who: &usize| brothers.iter().position(|b| b == who).map_or(-1, |k| k as i32);
     match o {
         Out::BossCamOff => Some(format!("[\"campos\",1,{}],[\"camview\",1,{}],[\"cam\",1]", v3(&cam2.0), v3(&cam2.1))),
+        // A brother's trail and wave: which, the anm's frame, place, turn.
+        Out::Gorre(Pic::Image { who, frame, pos, dirc, .. }) => {
+            Some(format!("[\"afterimage\",{},{frame},{},{}]", k(who), v3(pos), dirc[2]))
+        }
+        Out::Gorre(Pic::Wave { who, time, pos, dirc }) => {
+            Some(format!("[\"drawparts\",{},{},{},{}]", k(who), time >> 8, v3(pos), dirc[2]))
+        }
         _ => mout(o),
     }
 }
