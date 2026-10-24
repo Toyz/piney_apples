@@ -133,6 +133,25 @@ fn corbenik_fight_to_its_end() {
         }
         let hp: Vec<i16> = c.members.iter().map(|&(_, k)| c.scene.chars[k].hp).collect();
         if trace && f == 40 {
+            // What the party carries into the fight: each one's skills,
+            // Kite's items.
+            let items = &a.ui().texts().items;
+            let state = a.world().state();
+            let name = |v: Vec<u8>| String::from_utf8_lossy(&v).trim_end_matches('\0').to_string();
+            for &pc in &[0usize, 15, 6] {
+                let skills: Vec<String> = (0..20)
+                    .map(|k| piney_fieldui::items::save_skill(state, pc, k))
+                    .filter(|&x| x >= 0)
+                    .filter_map(|x| items.skill(i32::from(x)).map(|p| format!("{x} {}", name(p.name.clone()))))
+                    .collect();
+                eprintln!("pc {pc} skills {skills:?}");
+            }
+            let carried: Vec<String> = (0..piney_fieldui::items::ITEMS)
+                .map(|k| piney_fieldui::items::save_item(state, 0, k))
+                .filter(|it| it.id >= 0)
+                .map(|it| format!("{} x{}", name(items.item_name(i32::from(it.cat), i32::from(it.id))), it.num))
+                .collect();
+            eprintln!("Kite's items {carried:?}");
             let k = &c.data.t.boss_skills[31];
             eprintln!(
                 "boss skill 31 {} atk {} hit {} reach {} range {} ty {} rate {}",

@@ -17,6 +17,9 @@ of several characters on the command lists for the area rules.
 Checks:
   damage, protect, exdefense   ccChar::CalcBattleDamage (0x0056d910)
   skill_damage                 ccSkillDamage, one target (0x00573e60)
+  boss_on_party                the same with a boss's own row on a member
+                               in his level's gear (Corbenik's PhaJuk Zot
+                               on 313's party on Quarantine)
   area_damage                  ccSkillDamage over an area, ccSkillDamage
                                at a point (0x005743c0), ccSkillDamage2
                                (0x005746d0)
@@ -335,6 +338,44 @@ class Checks:
         req = (f"skilldmg {ser_char(att, b)} {ser_char(tgt, b)} {ser_skill(sk)} {sid} {ac} {ser_env(env)} "
                f"{state}")
         return req, game, "skill_damage"
+
+    def boss_on_party(self, rnd):
+        """A boss's own row (unmodified) casting an attack spell on a party
+        member as the game makes him: his level's parameters
+        (ccSetLevelParam), his charTbl gear, CalcReal, sometimes Ap Vorma
+        and an element's Ap (+50 mDef, +100 one element). On Quarantine a
+        third of the cases are Corbenik's PhaJuk Zot (bossTbl 7, skill
+        252) on the party at 313's start or at 99."""
+        b, data, g = self.b, self.data, self.game
+        env = b.Env()
+        qua = volume.NAME == "quarantine" and rnd.random() < 1 / 3
+        if qua:
+            row, lv = rnd.choice(((0, 70), (15, 70), (6, 75), (0, 99), (15, 99), (6, 99)))
+            boss, sid = dict(data.bosses[7]), 252
+        else:
+            row, lv = rnd.randrange(len(data.chars)), rnd.randrange(1, 100)
+            boss = dict(rnd.choice(data.bosses))
+            spells = [i for i, k in enumerate(data.skills) if k["type"] & 0xFF == 2 and k["atk"] > 0]
+            sid = rnd.choice(spells)
+        pc = b.PC(data, data.chars[row])
+        lvp = g.set_level_param(pc, lv)
+        pc.level, pc.elm = lv, list(lvp["elm"])
+        pc.p_maxHP, pc.p_maxSP = lvp["pmax"]
+        pc.type = 1 if row == 0 else 2
+        if rnd.random() < 0.3:
+            pc.temp[5] += 50
+            pc.temp[rnd.randrange(8, 14)] += 100
+        real = g.calc_real(pc, 1, env)
+        pc.real = list(real["real"])
+        pc.maxHP, pc.maxSP = real["HP/SP"][2], real["HP/SP"][3]
+        pc.HP, pc.SP = pc.maxHP, pc.maxSP
+        f = b.Foe(boss, "boss")
+        f.type = 0x80
+        sk = dict(data.skills[sid])
+        state = rnd.getrandbits(64)
+        game = g.skill_damage(f, pc, sk, sid, 0, env, state)
+        req = f"skilldmg {ser_char(f, b)} {ser_char(pc, b)} {ser_skill(sk)} {sid} 0 {ser_env(env)} {state}"
+        return req, game, "boss_on_party"
 
     def value(self, rnd):
         b, tb, data = self.b, self.tb, self.data
@@ -894,7 +935,7 @@ def check_affect(checks, rnd):
     return req, out, "affect"
 
 
-CHECKS = ("damage", "protect", "exdefense", "skill_damage", "area_damage", "value", "recovery", "area_recovery",
+CHECKS = ("damage", "protect", "exdefense", "skill_damage", "boss_on_party", "area_damage", "value", "recovery", "area_recovery",
           "cure", "hold", "modify", "request", "calc_real", "disp_condition", "level", "modify_condition",
           "condition_success",
           "target_condition", "exp", "erosion", "affect")
@@ -977,6 +1018,7 @@ class BattleAgainstGame(Against):
     def test_skill_damage(self):
         self.check("skill_damage", 4)
         self.check("area_damage", 5)
+        self.check("boss_on_party", 21)
 
     def test_value(self):
         self.check("value", 6)

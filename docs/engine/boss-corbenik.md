@@ -160,6 +160,26 @@ and the flush native, scripted blows on the body and on the seeds, the
 land ending past a case's x. 46 cases (137,730 frames) agree, reaching
 acts 0, 6, 7, 12, 14, 16, 17, 18, 20, 21 and the seeds' 0, 3, 4, 5, 14.
 
+**The magic on the party.** Skill 252 (PhaJuk Zot: wind, atk 130,
+dmgRate 60, splash at half within 300) is four `ccSkillDamage2` calls 20
+frames apart (`UpheavalSystem`, checked on Quarantine by
+`tools/test_effect_spell_rs.py ids 5 252`). `tools/test_battle_rs.py`'s
+`boss_on_party` runs Quarantine's `ccSkillDamage` on the party as the
+game makes it (`ccSetLevelParam`, charTbl gear, `CalcReal`) and agrees
+with the port. A blow on the member aimed at:
+
+| member | level 70 / 75 | level 99 | HP at 99 |
+| --- | --- | --- | --- |
+| Kite | 480-786 | 330-633 | 1,827 |
+| BlackRose | 1,026-1,299 | 690-1,000 | 2,030 |
+| Balmung | 693-1,005 | 498-843 | 2,030 |
+
+So four blows kill the member aimed at at any level, unless rolls and
+misses (5% a blow) are kind. Ap Vorma and Ap Juka (+50 mDef, +100 wind)
+take 10-15% off; none of the 313 party knows either. The party has
+Balmung's Rip Maen, Kite's Pha Repth and five each of Resurrect and the
+Recovery Drink.
+
 ## The second form
 
 `ccThBoss08b_Main` news `ccBoss08_b` (0xfa5e0) in the task the first form
