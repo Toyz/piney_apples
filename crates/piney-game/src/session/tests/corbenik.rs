@@ -19,7 +19,11 @@ fn corbenik(c: &Class) -> bool {
 fn corbenik_under_god() {
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/qua/corbenik".into());
     let Some(mut s) = arena_session(&EVENT_313, &[15, 6]) else { return };
-    let (p, music) = god_shots_for(&mut s, 313, corbenik, &dir, "corbenik", 240_000);
+    let n = std::env::var("PINEY_CORBENIK_FRAMES").ok().and_then(|v| v.parse().ok()).unwrap_or(240_000);
+    let (p, music) = god_shots_for(&mut s, 313, corbenik, &dir, "corbenik", n);
+    if n < 240_000 {
+        return;
+    }
     eprintln!("acts {:?} hurt {:?} ended {:?} music {music} of {}", p.acts, p.hurt, p.ended_at, p.frames);
     assert!(p.ended_at.is_some(), "event 313 did not end: {}", Mode::title(&s));
 }

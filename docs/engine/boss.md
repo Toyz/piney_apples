@@ -789,6 +789,14 @@ but `ccBossKyvia01`'s unreachable second stage and Quarantine's
 So the blur is drawn every frame of every fight, except Gorre's and
 `ccBoss08`'s first form, whose `m_exit` stays as the heap left it.
 
+While a menu stills the world, the blur keeps drawing. `StillOn` (INF
+gcmn 0x00525a80) calls `ccLayer::OffFlipExcept` (main 0x00108830) on the
+menu's layer, which keeps the packets of every other layer. It then lets
+only the noise, still and game layers flip again. So the manager's layer
+keeps its last `ccBufferSampling` packet, which samples each new frame
+over the still scene, and the cinema's name stays at its last
+transparency (worklog 460).
+
 `ccBoss03BlurParamCB` (INF 0x004610e0, OUT 0x00472b90): `blurRad` plus
 pi/30, less 2 pi past pi. Scale `1 + 0.01 sin`, turn `pi sin / 1800`,
 colour 0x48808080. `blurRad` is a function static, never reset by a
