@@ -204,6 +204,9 @@ pub struct BossRun {
     pub dropped: Vec<usize>,
     /// Corbenik's pictures of x81 this frame ([`super::corbenik::Shown`]).
     pub corbenik: Vec<super::corbenik::Shown>,
+    /// Each part's `ccAnm` transparency (+0x88) as its last `ccBoss::Draw`
+    /// copied it (the constructor's 1 before).
+    pub anm_alpha: HashMap<usize, F>,
 }
 
 /// One `ccBossAfterImageEx` (`Init` MUT gcmn 0x004710b0, `Draw`
@@ -672,6 +675,7 @@ impl Combat {
             arena_clump: Vec::new(),
             dropped: Vec::new(),
             corbenik: Vec::new(),
+            anm_alpha: HashMap::new(),
         });
     }
 
@@ -1313,6 +1317,15 @@ impl Combat {
             let (anm, dirc, alpha) = (pb.anm.clone(), pb.dirc, pb.transparency);
             let pos = self.scene.chars[p].pos;
             let matrix = super::corbenik::part_matrix(&pb.class, pos, dirc);
+            // A seed's PreDrawAnm draws its clip once more first, at the
+            // transparency the last ccBoss::Draw gave the anm.
+            let again = matches!(pb.class, Class::CorbenikSeed(_)) && pb.draw_sw != 0 && pb.exit == 0 && !exited;
+            if let Some(r) = self.boss.as_mut() {
+                let prev = r.anm_alpha.insert(p, alpha).unwrap_or(ONE);
+                if again {
+                    r.corbenik.push(super::corbenik::Shown::Again { who: p, alpha: ee::f(prev) });
+                }
+            }
             if let Some(a) = self.cast.actors.get_mut(&p)
                 && !Rc::ptr_eq(&a.ch.body, &body)
                 && let Some(n) = Actor::new(body.clone(), clip, Look::Boss, pos, dirc, 0, 0)

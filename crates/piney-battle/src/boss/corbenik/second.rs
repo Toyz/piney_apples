@@ -966,7 +966,9 @@ fn on_body_press(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
             e.dirc[2] = get_dirc(b.center_pos_p, w2p(cx, b.target_pos));
             e.pos = out_from(cx, b.target_pos, d, [0x43fa_0000, 0, 0, ONE]);
             b.anm.forward();
-            let (pos, dirc, alpha) = (e.pos, e.dirc, e.alpha);
+            // The body's clip at the image, at the anm's transparency as the
+            // last ccBoss::Draw left it (0x003b5460: none is set here).
+            let (pos, dirc, alpha) = (e.pos, e.dirc, b.transparency);
             cx.out(Out::Corbenik(Pic::PressImage { time: b.anm.posed, pos, dirc, alpha }));
         }
         3 => {

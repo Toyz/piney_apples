@@ -206,8 +206,30 @@ impl Combat {
 /// transparency.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Shown {
-    Obj { eff: bool, name: &'static str, world: glam::Mat4, alpha: f32, fog: Option<piney_draw::Fog> },
-    Anm { eff: bool, clip: String, time: u32, root: glam::Mat4, alpha: f32 },
+    Obj {
+        eff: bool,
+        name: &'static str,
+        world: glam::Mat4,
+        alpha: f32,
+        fog: Option<piney_draw::Fog>,
+        blend: Option<u8>,
+    },
+    Anm {
+        eff: bool,
+        clip: String,
+        time: u32,
+        root: glam::Mat4,
+        alpha: f32,
+        blend: Option<u8>,
+    },
+    /// A seed's clip drawn by its `PreDrawAnm` (0x003b09f0) before its
+    /// `ccBoss::Draw`, at the matrix it set and the anm's last
+    /// transparency, on the layer the body's `Draw` left active (sysLayer:
+    /// priority 0, after objLayer).
+    Again {
+        who: usize,
+        alpha: f32,
+    },
 }
 
 /// The second form's barrier object, and the node it rides.
@@ -285,8 +307,11 @@ fn way(a: V4, b: V4) -> (F, F, F) {
 
 /// The two objects of a laser segment, the second in the red fog.
 fn laser_pair(v: &mut Vec<Shown>, world: glam::Mat4, alpha: f32, first: &'static str, second: &'static str) {
-    v.push(Shown::Obj { eff: true, name: first, world, alpha, fog: None });
-    v.push(Shown::Obj { eff: true, name: second, world, alpha, fog: LASER_FOG.fog() });
+    // OBJ_ex31les1's model is set to `alphaBlendTbl[1]` (and Z unwritten)
+    // by both effects' constructors.
+    let blend = |n: &str| (n == LES1).then_some(1);
+    v.push(Shown::Obj { eff: true, name: first, world, alpha, fog: None, blend: blend(first) });
+    v.push(Shown::Obj { eff: true, name: second, world, alpha, fog: LASER_FOG.fog(), blend: blend(second) });
 }
 
 /// What the frame's outs show this way (`out` the boss's, `barrier_at`
@@ -316,12 +341,12 @@ pub fn shown(
             // at the node, at `setTransparency`.
             Pic::Barrier => {
                 if let Some(world) = barrier_at {
-                    v.push(Shown::Obj { eff: false, name: BARRIER, world, alpha, fog: None });
+                    v.push(Shown::Obj { eff: false, name: BARRIER, world, alpha, fog: None, blend: None });
                 }
             }
             Pic::BarrierHit { time } => {
                 if let (Some(root), Some(clip)) = (barrier_at, hit_clip.clone()) {
-                    v.push(Shown::Anm { eff: false, clip, time: *time, root, alpha });
+                    v.push(Shown::Anm { eff: false, clip, time: *time, root, alpha, blend: None });
                 }
             }
             Pic::PressImage { time, pos, dirc, alpha } => v.push(Shown::Anm {
@@ -330,6 +355,7 @@ pub fn shown(
                 time: *time,
                 root: crate::body::root(*pos, *dirc),
                 alpha: ee::f(*alpha),
+                blend: None,
             }),
             Pic::Element { pos, dirc, alpha } => v.push(Shown::Anm {
                 eff: false,
@@ -337,6 +363,7 @@ pub fn shown(
                 time: ELEMENT_TIME,
                 root: mat4(&pos_rot_xyz(*pos, *dirc)),
                 alpha: ee::f(*alpha),
+                blend: None,
             }),
             Pic::RootL { time, pos, alpha } => v.push(Shown::Anm {
                 eff: false,
@@ -344,6 +371,7 @@ pub fn shown(
                 time: *time,
                 root: mat4(&geom::trans_matrix(&geom::unit_matrix(), *pos)),
                 alpha: ee::f(*alpha),
+                blend: None,
             }),
             // `ccBossEffLaserRain::Draw` (0x00379940): les1, then les0 in
             // the fog, a twentieth long; the head's clip.
@@ -353,7 +381,7 @@ pub fn shown(
             }
             Pic::LaserHead { time, pos, pitch, yaw } => {
                 let root = mat4(&head(*pos, *pitch, *yaw));
-                v.push(Shown::Anm { eff: true, clip: LES3.into(), time: *time, root, alpha: 1.0 });
+                v.push(Shown::Anm { eff: true, clip: LES3.into(), time: *time, root, alpha: 1.0, blend: Some(1) });
             }
             // `ccBossEffRefrectionLaser::Draw` (0x003773d0): les0, then les1
             // in the fog, `ccGetDist3D / 2000` long; the head's clip.
@@ -365,7 +393,7 @@ pub fn shown(
             Pic::RefrectHead { time, from, to } => {
                 let (_, pitch, yaw) = way(*from, *to);
                 let root = mat4(&head(*from, pitch, yaw));
-                v.push(Shown::Anm { eff: true, clip: LES3.into(), time: *time, root, alpha: 1.0 });
+                v.push(Shown::Anm { eff: true, clip: LES3.into(), time: *time, root, alpha: 1.0, blend: Some(1) });
             }
             // `ccBossEffWave::Draw` (0x00377c80): the unit matrix moved to
             // the place.

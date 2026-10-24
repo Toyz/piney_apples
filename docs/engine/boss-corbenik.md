@@ -378,7 +378,11 @@ switch only note themselves.
   its five roots, and `InitBossCamera(200, 1000)`. The task's +0x14 (what
   `absent 7` reads) is set only when the second form exits.
 - **The bodies.** Each form and part is drawn as the clump of x81 its
-  clip poses. The seeds are drawn 50 up at 3x and the roots at 1.5x
+  clip poses. A seed is drawn twice a frame: its `PreDrawAnm` draws the
+  clip at its matrix with the anm's transparency as the last
+  `ccBoss::Draw` copied it (1 at first), on sysLayer (the layer the
+  body's `Draw` leaves active: priority 0, after objLayer), then its
+  `ccBoss::Draw` draws it on charLayer. The seeds are drawn 50 up at 3x and the roots at 1.5x
   (`SetMatrix_PosRotZYXScale`), the eyes turned XYZ in their flash's fog
   (0xffffff).
 - **The pictures.** These come from the rules' `Pic`s:
@@ -393,6 +397,12 @@ switch only note themselves.
     transform's lays on `CLT_ex8efc2c1`, the heads' `CMP_ex31les3`), and
     every generator, burst, shield, smoke and radiate.
   - The seeds' counts and after-images are drawn as Magus's leaves'.
+  - `OBJ_ex31les1`'s model is set to `alphaBlendTbl[1]` (Z unwritten) by
+    both laser effects' constructors, and their head clip to
+    `SetBlendType(1)`; the field draws both with that blend.
+  - The first press image (`OnThinkBodyPress` 0x003b5460) sets no
+    transparency: the body's clip draws at the anm's, the last
+    `ccBoss::Draw`'s. The others draw at their image's.
 - **The generators the rules keep.** Each generator the rules keep (the
   root drain's last, the laser's charge, the tera laser's glow and fall)
   is held by its key. The effects answer `ccCheckParticleGenerator` for

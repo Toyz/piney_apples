@@ -970,6 +970,25 @@ pub fn anim_draw_fog(
     lights: Option<&dyn Fn(Mat4) -> piney_draw::Lights>,
     fog: draw::Fogging,
 ) {
+    anim_draw_blended(layers, layer, to_screen, (file, morphers), play, root, extra, alpha, rows, lights, fog, None);
+}
+
+/// [`anim_draw_fog`] with the anm's blend (`ccAnm::SetBlendType(t)`).
+#[allow(clippy::too_many_arguments)]
+pub fn anim_draw_blended(
+    layers: &mut Layers,
+    layer: i16,
+    to_screen: Mat4,
+    (file, morphers): (&SceneFile, &HashMap<u32, u32>),
+    play: &Play,
+    root: Mat4,
+    extra: &[u32],
+    alpha: f32,
+    rows: Option<&HashMap<u32, [u8; 2]>>,
+    lights: Option<&dyn Fn(Mat4) -> piney_draw::Lights>,
+    fog: draw::Fogging,
+    blend: Option<u8>,
+) {
     let worlds = play.worlds(file, root, extra);
     let own = play.uv_rows(file);
     let rows = rows.unwrap_or(&own);
@@ -987,7 +1006,7 @@ pub fn anim_draw_fog(
         let lit = file.models.get(&model).is_some_and(|i| i.mtype & 1 != 0);
         let lights = lights.filter(|_| lit).map(|l| l(world));
         let d = Draw { file, model, world, alpha, rows, lights, nodes: &[], morph: m, clut_swaps: Vec::new() };
-        draw::model_edited(layers, layer, to_screen, d, None, fog);
+        draw::model_blended(layers, layer, to_screen, d, None, fog, &[], blend);
     }
 }
 

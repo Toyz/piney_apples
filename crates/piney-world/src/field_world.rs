@@ -3111,7 +3111,7 @@ impl FieldWorld {
         for s in &run.corbenik {
             use combat::corbenik::Shown;
             match s {
-                Shown::Obj { eff, name, world, alpha, fog } => {
+                Shown::Obj { eff, name, world, alpha, fog, blend } => {
                     let file = if *eff { &run.look.eff } else { &run.look.body.file };
                     let Some(model) = file.ccs.find_object(name).and_then(|o| file.obj_model.get(&o)) else {
                         continue;
@@ -3129,16 +3129,31 @@ impl FieldWorld {
                         clut_swaps: Vec::new(),
                     };
                     let fog = fog.map_or(draw::Fogging::None, draw::Fogging::Const);
-                    draw::model_edited(&mut ctx.layers, draw::CHAR_LAYER, to_screen, d, None, fog);
+                    draw::model_blended(&mut ctx.layers, draw::CHAR_LAYER, to_screen, d, None, fog, &[], *blend);
                 }
-                Shown::Anm { eff: false, clip, time, root, alpha } => {
+                Shown::Anm { eff: false, clip, time, root, alpha, .. } => {
                     anm_draw(ctx, draw::CHAR_LAYER, clip, *time, *root, *alpha, None);
                 }
-                Shown::Anm { eff: true, clip, time, root, alpha } => {
+                Shown::Again { who, alpha } => {
+                    let Some(a) = self.combat.cast.actors.get(who) else { continue };
+                    let Some(m) = &a.matrix else { continue };
+                    a.ch.body.draw(
+                        &mut ctx.layers,
+                        draw::OBJ_LAYER,
+                        to_screen,
+                        &a.ch.play,
+                        draw::mat(m),
+                        *alpha,
+                        lights,
+                        false,
+                        &a.swaps,
+                    );
+                }
+                Shown::Anm { eff: true, clip, time, root, alpha, blend } => {
                     let Some(mut p) = crate::pose::Play::new(&run.look.eff, clip) else { continue };
                     (p.time, p.posed) = (*time, *time);
                     let file = (&*run.look.eff, &run.look.eff_morphers);
-                    crate::town::anim_draw_on(
+                    crate::town::anim_draw_blended(
                         &mut ctx.layers,
                         draw::CHAR_LAYER,
                         to_screen,
@@ -3149,6 +3164,8 @@ impl FieldWorld {
                         *alpha,
                         None,
                         None,
+                        draw::Fogging::None,
+                        *blend,
                     );
                 }
             }
