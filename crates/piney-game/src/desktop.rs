@@ -851,7 +851,11 @@ impl Mode for DesktopMode {
     }
 
     fn take_events(&mut self) -> Vec<Event> {
-        let mut out = Vec::new();
+        // The frame's order: the event task's pass (and a movie's end)
+        // before the desktop's own. The pass that settles the set-up comes
+        // before `ccSetupDesktop`'s `ccSndChangeData` and `ccSndBgmCtrl`, so
+        // an ending's `sound 10` holds the music even in that frame (#73).
+        let mut out = std::mem::take(&mut self.st.events);
         if let Stage::Play(desktop) = &mut self.stage {
             for r in desktop.take_requests() {
                 match r {
@@ -875,7 +879,6 @@ impl Mode for DesktopMode {
                 }
             }
         }
-        out.append(&mut self.st.events);
         out
     }
 

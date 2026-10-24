@@ -14,14 +14,23 @@ use super::*;
 /// story:31 (the desktop with event 31 next) with a card in MEMORY CARD
 /// slot 1 at `card`. None without the disc.
 fn ending(card: PathBuf) -> Option<Session> {
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    ending_on("infection", 31, card, None)
+}
+
+/// story:`n` on `disc`'s volume (its ending), the desktop's music set to
+/// `dt_bgm` when given, with a card at `card`. None without the disc.
+fn ending_on(disc: &str, n: i32, card: PathBuf, dt_bgm: Option<u8>) -> Option<Session> {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
     if !iso.exists() {
-        eprintln!("infection.iso not present; skipped");
+        eprintln!("{disc}.iso not present; skipped");
         return None;
     }
-    let mut disc = Iso::open(&iso).unwrap();
-    let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-    let start = crate::start::build(&iso, 31).unwrap();
+    let mut d = Iso::open(&iso).unwrap();
+    let archive = Arc::new(Archive::new(d.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let mut start = crate::start::build(&iso, n).unwrap();
+    if let Some(b) = dt_bgm {
+        start.state.save.set_u8(offset::DT_BGM, b);
+    }
     Some(Session::resume(iso, archive, Some(card), start.state, start.vm, start.at).unwrap())
 }
 
@@ -45,17 +54,28 @@ struct Player {
     /// A headless engine every frame's events go to, as `main` routes
     /// them, rendered a vertical blank's samples at a time.
     audio: Option<piney_audio::Audio>,
+    /// The music's events by frame, while [`Player::hearing`].
+    music: Vec<(u32, Event)>,
 }
 
 impl Player {
     fn new(s: Session) -> Self {
-        Player { s, pad: Pad::default(), frames: 0, vblanks: 0, last: None, shots: None, audio: None }
+        Player {
+            s,
+            pad: Pad::default(),
+            frames: 0,
+            vblanks: 0,
+            last: None,
+            shots: None,
+            audio: None,
+            music: Vec::new(),
+        }
     }
 
     /// With a headless engine hearing everything from the session's start.
     fn hearing(s: Session) -> Self {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
-        Player { audio: Some(piney_audio::Audio::headless(&iso).unwrap()), ..Player::new(s) }
+        let audio = piney_audio::Audio::headless(&s.iso).unwrap();
+        Player { audio: Some(audio), ..Player::new(s) }
     }
 
     fn step(&mut self, buttons: Buttons) {
@@ -65,6 +85,23 @@ impl Player {
         let f = self.s.step(&self.pad);
         let events = self.s.take_events();
         if let Some(a) = &self.audio {
+            let music = events.iter().filter(|e| {
+                matches!(
+                    e,
+                    Event::DesktopBgm(_)
+                        | Event::Bgm(_)
+                        | Event::BgmStream(_)
+                        | Event::BgmStreamStop
+                        | Event::SqLoad(_)
+                        | Event::SqPlay(_)
+                        | Event::SqStop(_)
+                        | Event::BgmCtrl(_)
+                        | Event::HoldBgm
+                        | Event::StreamMusic { .. }
+                        | Event::StreamBgm(_)
+                )
+            });
+            self.music.extend(music.map(|e| (self.frames, e.clone())));
             crate::handle(events, Some(a));
             a.frame();
             a.render(&mut vec![0i16; 1600 * rate as usize]);
@@ -381,4 +418,57 @@ fn save_menu_shots() {
     p.play_to_save_menu();
     p.save_to_first_file();
     let _ = std::fs::remove_dir_all(&card);
+}
+
+/// Issue #73: each ending (Infection's 31, Mutation's 116, Outbreak's 219)
+/// from its first frame to the staff roll's end, under the desktop music
+/// rows a player picks (15 the reporter's, 47, 27): no sequence plays.
+/// Outbreak's `sound 10` comes in the frame its set-up pass settles, so
+/// the hold must reach the sound before the desktop's load. After the
+/// roll, menu 8's cancel starts the theme (sequence 1 for rows 27 and 7,
+/// and 47 from Outbreak on). Every frame's events go to the engine.
+#[test]
+fn every_ending_plays_over_no_desktop_theme() {
+    use piney_data::volume::Volume;
+    for (disc, n, volume) in
+        [("infection", 31, Volume::Inf), ("mutation", 116, Volume::Mut), ("outbreak", 219, Volume::Out)]
+    {
+        for dt in [15u8, 47, 27] {
+            let Some(s) = ending_on(disc, n, empty_card(), Some(dt)) else { continue };
+            let mut p = Player::hearing(s);
+            let mut first = None;
+            let mut rolled = false;
+            for i in 0..40_000u32 {
+                let rolling = p.rolling();
+                rolled |= rolling;
+                if rolled && !rolling {
+                    break;
+                }
+                p.step(if !rolled && i % 30 == 0 { Buttons::CROSS } else { Buttons::NONE });
+                if first.is_none() && p.sequences() != [false; 3] {
+                    first = Some((p.frames, p.sequences(), Mode::title(&p.s)));
+                }
+            }
+            println!("{disc} {n} dtBgm {dt}: rolled {rolled}, first sequence {first:?}");
+            assert!(rolled, "{disc}: no staff roll");
+            assert!(first.is_none(), "{disc} dtBgm {dt}: a sequence under the ending: {first:?}");
+            for _ in 0..600 {
+                if p.desktop().menu().menu == 8 {
+                    break;
+                }
+                p.step(Buttons::NONE);
+            }
+            p.wait(40);
+            p.tap(Buttons::CIRCLE);
+            for _ in 0..120 {
+                if !p.desktop().slept() {
+                    break;
+                }
+                p.step(Buttons::NONE);
+            }
+            p.wait(10);
+            let sq = usize::from(piney_audio::driver::desktop_second(volume, i32::from(dt)));
+            assert!(p.sequences()[sq], "{disc} dtBgm {dt}: the theme after the roll: {:?}", p.sequences());
+        }
+    }
 }

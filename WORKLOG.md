@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-437 entries: audio 38, battle 104, build 20, content 3, decomp 28, disc 5, engine 22, format 17, iop 3, render 112, save 16, script 53, test 196, tooling 41, ui 94, video 16, volumes 82, world 127.
+438 entries: audio 39, battle 104, build 20, content 3, decomp 28, disc 5, engine 22, format 17, iop 3, render 112, save 16, script 53, test 197, tooling 41, ui 95, video 16, volumes 82, world 127.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -449,3 +449,4 @@ The [reference](docs/README.md) says what is true now.
 | 435 | [Kyvia's thunder reads the boss camera: no reachable code changes camID from 2 in its fights](worklog/0435-kyvia-s-thunder-reads-the-boss-camera-no-reachable-code.md) | 2026-10-22 | battle, world, test |
 | 436 | [Gorre's m_exit is stream 64's mesh word where the manager lands in the cutscene's hole: the title wait, the weapons and the party move it, and both outcomes come from ordinary play](worklog/0436-gorre-s-m-exit-is-stream-64-s-mesh-word-where-the-manager.md) | 2026-10-23 | engine, tooling, battle, test |
 | 437 | [Gorre's brothers are drawn: each brother's ccBoss::Main draws the clump its clip poses, its trail and its own wave, none of which the port had drawn since Gorre was ported](worklog/0437-gorre-s-brothers-are-drawn-each-brother-s-ccboss-main-draws.md) | 2026-10-23 | battle, render, test, tooling |
+| 438 | [The endings hold the desktop's music in the frame their pass settles: a frame's events go out in the game's order, the event task's pass before the desktop's load, so Outbreak's sound 10 holds the theme under its ending and roll](worklog/0438-the-endings-hold-the-desktop-s-music-in-the-frame-their.md) | 2026-10-23 | audio, ui, test |
