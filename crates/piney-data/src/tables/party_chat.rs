@@ -458,9 +458,6 @@ impl PartyChat {
     }
 }
 
-pub static GOTO_RECORD_SHOP: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().goto_record_shop);
-
 pub static BETTER_WEAPON: std::sync::LazyLock<&'static [Option<&'static str>]> =
     std::sync::LazyLock::new(|| shared().better_weapon);
 

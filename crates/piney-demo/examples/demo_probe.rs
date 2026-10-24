@@ -219,7 +219,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         files.push(Rc::new(SceneFile::read(&archive, piney_demo::names::title_file(v))?));
     }
     let mut vol: i16 = 1;
-    let tables = NewGameTables::of(piney_data::volume::Volume::Inf);
+    let tables = NewGameTables::of(disc);
     let font = piney_data::ccs::Ccs::parse(archive.inflate_named(piney_desktop::assets::FONT_FILE)?)?;
     let (_, cluts) = piney_data::texture::read(&font)?;
     let clut = font.find_object("CLT_xasc00").and_then(|o| cluts.get(&o)).ok_or("CLT_xasc00")?;

@@ -102,8 +102,9 @@ pub mod va {
 /// `@3726`: what `#a` and `#b` become with nothing given.
 pub const NONE: &[u8] = b" ";
 
-/// Every line table with its entries: one a character (19) or three
-/// (57), and the three weapon and level lines.
+/// Every line table with its entries on Infection to Outbreak: one a
+/// personality (19) or three (57), and the three weapon and level lines.
+/// Quarantine's hold 22 and 66 (its two new members' rows 20 and 21).
 pub const TABLES: [(u32, usize); 77] = [
     (va::STANDBY_ACCEPT, 19),
     (va::ACCEPT, 57),
@@ -818,15 +819,19 @@ impl Ctx<'_> {
                     self.chat_line(me, Chat::AttributeFollow(attr));
                     return 4;
                 }
+                // Who speaks of a crowd and of a foe's tricks: Quarantine
+                // adds its members 18-20 (QUA gcmn 0x004a5acc, 0x004a5b80).
+                let qua = self.t.volume == piney_data::volume::Volume::Qua;
                 let n = self.count_target_in_area(me, 0xe0, 0x447a_0000);
                 if n >= 6 {
-                    if id == 3 || (9..=12).contains(&id) || id == 15 {
+                    if matches!(id, 3 | 9..=12 | 15) || (qua && (18..=20).contains(&id)) {
                         self.chat_template(me, A_LOT_OF_ENEMY);
                         return 5;
                     }
                 } else {
                     let tricks = self.rt.foe_condition_skills(t);
-                    if tricks > 0 && matches!(id, 2 | 5 | 6 | 9 | 13 | 14 | 17) {
+                    let tricky = matches!(id, 2 | 5 | 6 | 9 | 13 | 14 | 17) || (qua && (18..=20).contains(&id));
+                    if tricks > 0 && tricky {
                         self.chat_template(me, CONDITION_MODIFY_ENEMY);
                         return 6;
                     }

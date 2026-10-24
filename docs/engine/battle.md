@@ -1334,9 +1334,11 @@ request. A later line in the same frame overwrites an earlier one.
 gate      partyFlag (ccSpcChar +0xe0 bits 14-16, signed) is 1; else nothing,
           no draw
 row       MessageIndex() (0x0058dc40): the character id; 18 for id 1 while
-          saveData +0x220d is set (id 1's lines, garbled)
-19 table  one line a character
-57 table  three a character, 3 row + v: v from (rand() >> 3) % 100, below
+          saveData +0x220d is set (id 1's lines, garbled); Quarantine's
+          21 (QUA gcmn 0x004a5ec8)
+19 table  one line a character (Quarantine: 22, rows 19-21 its new
+          voices and id 1's garbled ones)
+57 table  three a character (Quarantine: 66), 3 row + v: v from (rand() >> 3) % 100, below
           60 the first, below 90 the second, else the third ("variant");
           or (rand() >> 3) % 3 where noted
 say       unless manualSW (byte 0 bit 0) is set or the entry is null:

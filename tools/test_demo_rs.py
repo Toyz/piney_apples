@@ -787,7 +787,10 @@ class DemoAgainstGame(unittest.TestCase):
         def names(m, before_spc, before_ccs):
             # Only the bytes NewGame wrote: up to and with each NUL.
             out = []
-            for base, n, size_, cap, before in ((spc, 17, 24, 20, before_spc), (ccs, 18, 32, 32, before_ccs)):
+            # 18 characters on Infection, 21 from Mutation on.
+            chars = 18 if volume.NAME == "infection" else 21
+            for base, n, size_, cap, before in ((spc, chars - 1, 24, 20, before_spc),
+                                                 (ccs, chars, 32, 32, before_ccs)):
                 lst = []
                 for i in range(n):
                     b = bytes(m.mem[base + size_ * i:base + size_ * i + cap])
@@ -808,8 +811,9 @@ class DemoAgainstGame(unittest.TestCase):
         for m, sws in runs:
             for sw in sws:
                 before = bytes(m.mem[SAVE:SAVE + size])
-                m.store(spc, 17 * 24, 0)
-                m.store(ccs, 18 * 32, 0)
+                chars = 18 if volume.NAME == "infection" else 21
+                m.mem[spc:spc + (chars - 1) * 24] = bytes((chars - 1) * 24)
+                m.mem[ccs:ccs + chars * 32] = bytes(chars * 32)
                 m.call(new_game, [SAVE, sw])
                 after = bytes(m.mem[SAVE:SAVE + size])
                 cases.append((sw, m.load(SAVE + 0x842b, 1), after != before))
@@ -818,8 +822,20 @@ class DemoAgainstGame(unittest.TestCase):
         got = ask(lines)
         for c, w, g in zip(cases, want, got):
             if w != g:
-                diff = [hex(i // 2) for i in range(0, len(w[0]), 2) if w[0][i:i + 2] != g[0][i:i + 2]][:12]
-                print("NewGame", c, "bytes differing at", diff, "names", w[1:] == g[1:])
+                at = [i // 2 for i in range(0, len(w[0]), 2) if w[0][i:i + 2] != g[0][i:i + 2]]
+                spans = []
+                for a in at:
+                    if spans and a <= spans[-1][1] + 4:
+                        spans[-1][1] = a
+                    else:
+                        spans.append([a, a])
+                if os.environ.get("PINEY_DUMP_NEWGAME"):
+                    for a, b in spans[:6]:
+                        a0 = a - a % 4
+                        print(f"  {a0:#06x} game {w[0][2 * a0:2 * (b + 4)]}")
+                        print(f"  {a0:#06x} port {g[0][2 * a0:2 * (b + 4)]}")
+                print("NewGame", c, "bytes differing in", ", ".join(f"{a:#x}-{b:#x}" for a, b in spans[:16]),
+                      "names", w[1:] == g[1:])
         self.check("ccSaveData::NewGame", cases, want, got)
 
     # ccThDemo ------------------------------------------------------------------------

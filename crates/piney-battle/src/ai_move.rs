@@ -507,10 +507,12 @@ impl Ctx<'_> {
     }
 
     /// `ccAI::MessageIndex()` (gcmn 0x0058dc40): the body's character id,
-    /// 18 for id 1 while `saveData` +0x220d is set.
+    /// another row for id 1 while `saveData` +0x220d is set: 18, on
+    /// Quarantine 21 (QUA gcmn 0x004a5ec8; its tables grew to 22 rows).
     pub fn message_index(&self, me: usize) -> i32 {
         let id = i32::from(self.scene.chars[self.body_of(me)].base().id);
-        if id == 1 && self.save.u8(0x220d) != 0 { 18 } else { id }
+        let other = if self.t.volume == Volume::Qua { 21 } else { 18 };
+        if id == 1 && self.save.u8(0x220d) != 0 { other } else { id }
     }
 
     fn line(&mut self, me: usize, table: TownLine) {

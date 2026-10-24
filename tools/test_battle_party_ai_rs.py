@@ -978,6 +978,19 @@ def make_checks(pc):
     ])
 
 
+# ccFellow's vtable slots (Infection's): the carry names UseSkill only up to
+# Mutation; from Outbreak on it is found where the vtable points.
+FELLOW_SLOTS = {"UseSkill__8ccFellowFiP6ccChar": 0x28, "Attack__8ccFellowFP6ccChari": 0x1C}
+
+
+def fellow_fn(ai, mangled):
+    try:
+        volume.span(mangled)
+        return mangled
+    except KeyError:
+        return ai.m.load(VT_FELLOW + FELLOW_SLOTS[mangled], 4)
+
+
 def fellow_checks(pc):
     """ccFellow's UseSkill and Attack, called on the member's ccChar."""
     ai = pc.ai
@@ -989,7 +1002,7 @@ def fellow_checks(pc):
             if me is not None and w["chars"][me].type & 4:
                 break
         args, gargs = argf(rnd, w, me)
-        ret = ai.run(w, mangled, (ai.va(me),) + tuple(a & 0xFFFFFFFF for a in gargs))
+        ret = ai.run(w, fellow_fn(ai, mangled), (ai.va(me),) + tuple(a & 0xFFFFFFFF for a in gargs))
         out = ai.read_world(w, s32(ret))
         pc.c.scene.restore()
         return request(fn, [me] + args, w, pc.b), out, fn
