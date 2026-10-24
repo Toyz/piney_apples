@@ -92,7 +92,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
     let mut menu = [0i32; 7];
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
-    let mut cams = Cams { set: [(2, cam2)].into_iter().collect(), id: 1, ty: 0 };
+    let mut cams = Cams { set: [(2, cam2)].into_iter().collect(), id: 1, ..Cams::default() };
     let gens: RefCell<HashMap<u32, usize>> = RefCell::new(HashMap::new());
     let frame_no = std::cell::Cell::new(0usize);
     let alive = |k: u32| gens.borrow().get(&k).is_none_or(|&c| frame_no.get() - c < gen_life);
@@ -133,7 +133,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
     cams.apply(&out);
     let outs: Vec<String> = out.iter().filter_map(mout).collect();
     blur.apply(&out);
-    lines.push(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur));
+    lines.push(with_cam(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur), &cams));
     for f in 0..frames {
         frame_no.set(f);
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
@@ -241,7 +241,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
             }
         }
         let outs: Vec<String> = all.iter().filter_map(mout).collect();
-        lines.push(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur));
+        lines.push(with_cam(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur), &cams));
     }
     format!("[{}]", lines.join(","))
 }
@@ -296,6 +296,11 @@ fn root_json(scene: &Scene, r: usize) -> String {
         b.anm.frame(),
         x.quake_time,
     )
+}
+
+/// The boss camera beside the frame, as the harness's `bosscam`.
+fn with_cam(line: String, cams: &Cams) -> String {
+    line.replacen("\"rand\":", &format!("\"bosscam\":{},\"rand\":", cams.boss.json()), 1)
 }
 
 fn frame_json(

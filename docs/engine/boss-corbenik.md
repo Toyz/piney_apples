@@ -224,3 +224,12 @@ WaveShock and the rings stand-ins; the star dust, its bolts and rain, the
 transform and the drain native; a particle generator living the case's
 frames. Its cases agree frame by frame and reach acts 0, 3, 4, 5, 6, 14,
 16, 18, 20, 21, 22, 23 and 24.
+
+The boss camera is free while `ResetFlg` (+0x04) is 5: `SetMode` writes
+its mode there, so the form's own `SetMode(5)` (the star dust, press, root
+drain, sybly, barrier and death acts) frees it until a `SetMode(6)` puts
+it back. Only then do `SetFreeCamPosView` and the straight writes to its
+eye (+0x20) and view (+0x10) land: the star dust's follow of its core, the
+press's eye at frame 120, the root drain's rising eye. The harness runs
+`SetMode` and `SetFreeCamPosView` as the game's do on its camera and
+compares the camera every frame; those writes agree.

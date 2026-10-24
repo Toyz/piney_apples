@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-451 entries: audio 39, battle 113, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 117, save 16, script 55, test 209, tooling 43, ui 95, video 16, volumes 89, world 130.
+452 entries: audio 39, battle 114, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 117, save 16, script 55, test 210, tooling 43, ui 95, video 16, volumes 89, world 130.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -463,3 +463,4 @@ The [reference](docs/README.md) says what is true now.
 | 449 | [Event 311 ends under the autopilot: an event point counts only in its own dungeon, the members' Sprite Ocarina leaves a dungeon the story is done with, and a lake by its Gate Out; area 108's way out is field 12 from Mutation on, so 312 reaches Kyvia's fourth fight](worklog/0449-event-311-ends-under-the-autopilot-an-event-point-counts.md) | 2026-10-24 | world, test, volumes |
 | 450 | [Corbenik's first form (ccBoss08) and its eight seeds are ported from Quarantine's code and agree with it frame by frame](worklog/0450-corbenik-s-first-form-ccboss08-and-its-eight-seeds-are.md) | 2026-10-24 | battle, volumes, test |
 | 451 | [Corbenik's second form (ccBoss08_b), its roots, its barrier and its effects are ported from Quarantine's code and agree with it frame by frame](worklog/0451-corbenik-s-second-form-ccboss08-b-its-roots-its-barrier-and.md) | 2026-10-24 | battle, render, test |
+| 452 | [The second form's boss camera is checked while free: SetMode(5) is the form's own, and the star dust's, press's and root drain's eye and view writes agree with the game](worklog/0452-the-second-form-s-boss-camera-is-checked-while-free-setmode.md) | 2026-10-24 | battle, test |

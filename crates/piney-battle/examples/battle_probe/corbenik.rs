@@ -106,11 +106,42 @@ impl piney_battle::boss::PartHits for Plane {
 }
 
 /// The cameras as the harness keeps them: each one's eye and view as set,
-/// `camID`, and the active camera's `type` as written.
+/// `camID`, the active camera's `type` as written, and the boss camera.
+#[derive(Default)]
 pub(crate) struct Cams {
     pub(crate) set: std::collections::HashMap<i32, (V4, V4)>,
     pub(crate) id: i32,
     pub(crate) ty: i32,
+    pub(crate) boss: BossCam,
+}
+
+/// The harness's zeroed `ccBossCam` as `SetMode`, `SetFreeCamPosView` and
+/// the form's straight writes leave it: `lock`, `ResetFlg`, `ExLock`, its
+/// view (+0x10) and eye (+0x20), and the kept ones (+0x40, +0x50).
+#[derive(Default)]
+pub(crate) struct BossCam {
+    lock: bool,
+    reset: i32,
+    ex_lock: u8,
+    view: V4,
+    pos: V4,
+    keep_view: V4,
+    keep_pos: V4,
+}
+
+impl BossCam {
+    pub(crate) fn json(&self) -> String {
+        format!(
+            "[{},{},{},{},{},{},{}]",
+            u8::from(self.lock),
+            self.reset,
+            self.ex_lock,
+            v3(&self.view),
+            v3(&self.pos),
+            v3(&self.keep_view),
+            v3(&self.keep_pos)
+        )
+    }
 }
 
 impl Cams {
@@ -121,16 +152,52 @@ impl Cams {
     pub(crate) fn view(&self) -> CamView {
         let (pos, view) = self.get(self.id);
         let (p2, v2) = self.get(2);
-        CamView { pos: p2, view: v2, active_pos: pos, active_view: view, ..CamView::default() }
+        let b = &self.boss;
+        CamView {
+            pos: p2,
+            view: v2,
+            active_pos: pos,
+            active_view: view,
+            reset: b.reset,
+            eye: b.pos,
+            boss_view: b.view,
+            ..CamView::default()
+        }
     }
 
     pub(crate) fn apply(&mut self, out: &[Out]) {
         for o in out {
+            let b = &mut self.boss;
             match o {
                 Out::CameraChange(n) => self.id = *n,
                 Out::CameraPos { cam, pos } => self.set.entry(*cam).or_insert(([0; 4], [0; 4])).0 = *pos,
                 Out::CameraView { cam, view } => self.set.entry(*cam).or_insert(([0; 4], [0; 4])).1 = *view,
                 Out::CameraType(t) => self.ty = *t,
+                Out::CamMode { mode } => {
+                    b.reset = *mode;
+                    match mode {
+                        3 => b.ex_lock |= 0x10,
+                        4 => b.ex_lock &= 1,
+                        5 => {
+                            b.ex_lock |= 1;
+                            b.lock = true;
+                            (b.keep_view, b.keep_pos) = (b.view, b.pos);
+                        }
+                        6 => {
+                            b.ex_lock &= 0x10;
+                            b.lock = false;
+                            (b.view, b.pos) = (b.keep_view, b.keep_pos);
+                            self.set.insert(2, (b.pos, b.view));
+                            b.reset = 0;
+                        }
+                        8 | 10 => b.reset = 0,
+                        _ => {}
+                    }
+                }
+                Out::FreeCam { pos, view } if b.reset == 5 => (b.pos, b.view) = (*pos, *view),
+                Out::CamEye(p) => b.pos = *p,
+                Out::CamLook(v) => b.view = *v,
+                Out::CamLock(on) => b.lock = *on,
                 _ => {}
             }
         }
@@ -175,7 +242,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let mut menu = [0i32; 7];
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
-    let mut cams = Cams { set: [(2, cam2)].into_iter().collect(), id: 1, ty: 0 };
+    let mut cams = Cams { set: [(2, cam2)].into_iter().collect(), id: 1, ..Cams::default() };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
     let volume = crate::probe_volume();
