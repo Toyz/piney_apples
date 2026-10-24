@@ -899,7 +899,7 @@ impl StoryPilot {
         if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(300) {
             kyvia_trace(a, f);
         }
-        if let Some(raw) = flee_wave(a).or_else(|| kyvia_place(a)) {
+        if let Some(raw) = flee_wave(a).or_else(|| flee_seeds(a)).or_else(|| kyvia_place(a)) {
             return Some(raw);
         }
         let haste = haste_for_gold(a).filter(|_| !waiting);
@@ -2495,7 +2495,57 @@ fn focus(c: &piney_world::combat::Combat) -> Option<usize> {
         })
         .min_by_key(|&(_, d)| d)
         .map(|(p, _)| p);
-    healer.or(brother).or_else(|| r.parts.first().copied().filter(|&p| up(p)))
+    healer.or(brother).or_else(|| nearest_seed(c)).or_else(|| r.parts.first().copied().filter(|&p| up(p)))
+}
+
+/// Corbenik's seeds counting down to their burst (boss skill 31: 600 at
+/// 990, 800 around, setting off every seed within it): each with its
+/// frames left. Magic cannot touch them (mDef 9990); blows can (250 HP).
+fn live_seeds(c: &piney_world::combat::Combat) -> Vec<(usize, i32)> {
+    use piney_battle::boss::{Class, corbenik::seed::act};
+    let Some(r) = c.boss.as_ref().filter(|r| !r.exit && r.code == piney_world::combat::boss::CORBENIK) else {
+        return Vec::new();
+    };
+    (r.parts.iter().copied())
+        .filter(|&k| c.scene.listed(k) && c.scene.chars[k].hp > 0)
+        .filter_map(|k| {
+            let b = c.scene.chars[k].foe_state()?.boss.as_ref()?;
+            let Class::CorbenikSeed(x) = &b.class else { return None };
+            (b.act_num == act::COUNT_DOWN).then_some((k, x.exp_count))
+        })
+        .collect()
+}
+
+/// The counting seed nearest Kite, to break before it bursts.
+fn nearest_seed(c: &piney_world::combat::Combat) -> Option<usize> {
+    let kite = c.members.first().map(|&(_, k)| c.scene.chars[k].pos.map(f32::from_bits))?;
+    let d = |k: usize| {
+        let q = c.scene.chars[k].pos.map(f32::from_bits);
+        (q[0] - kite[0]).hypot(q[1] - kite[1])
+    };
+    live_seeds(c).into_iter().map(|(k, _)| k).min_by(|&x, &y| d(x).total_cmp(&d(y)))
+}
+
+/// A Corbenik seed about to burst (under 40 frames left) within 950 of
+/// Kite: he runs from the nearest such, as a player who has seen the
+/// count does.
+fn flee_seeds(a: &crate::area::AreaMode) -> Option<Raw> {
+    let w = a.world();
+    let c = w.combat();
+    let p = w.player().body.pos.map(f32::from_bits);
+    let (q, d) = live_seeds(c)
+        .into_iter()
+        .filter(|&(_, n)| n < 40)
+        .map(|(k, _)| {
+            let q = c.scene.chars[k].pos.map(f32::from_bits);
+            (q, (q[0] - p[0]).hypot(q[1] - p[1]))
+        })
+        .min_by(|x, y| x.1.total_cmp(&y.1))?;
+    if d >= 950.0 {
+        return None;
+    }
+    let cam_z = f32::from_bits(w.camera().rot()[2]);
+    Some(stick_toward(cam_z, (p[0] - q[0]).atan2(-(p[1] - q[1]))))
 }
 
 /// In a fight with no field foe near, a walk to within 350 of [`focus`]'s

@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-460 entries: audio 39, battle 117, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 118, save 16, script 55, test 211, tooling 44, ui 97, video 16, volumes 89, world 132.
+461 entries: audio 39, battle 118, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 118, save 16, script 55, test 212, tooling 44, ui 97, video 16, volumes 89, world 132.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -472,3 +472,4 @@ The [reference](docs/README.md) says what is true now.
 | 458 | [Corbenik's seeds draw twice a frame, its lasers in their own blend, its first press image at the body's last transparency, as the code does](worklog/0458-corbenik-s-seeds-draw-twice-a-frame-its-lasers-in-their-own.md) | 2026-10-24 | render |
 | 459 | [The battle banner stays off through a boss's fight: the HUD reads eventMng.bossEntry, which the port fed as -1](worklog/0459-the-battle-banner-stays-off-through-a-boss-s-fight-the-hud.md) | 2026-10-24 | ui |
 | 460 | [Corbenik's dark frame under Cruel Exploitation is the game's: the pilot's skill menu dims and stills the world, and StillOn keeps the blur's layer](worklog/0460-corbenik-s-dark-frame-under-cruel-exploitation-is-the-game.md) | 2026-10-24 | ui |
+| 461 | [Corbenik without aid: the pilot breaks or runs from the seeds, and the start's party still falls in the first form, whose four-blow magic kills the member it aims at at any level](worklog/0461-corbenik-without-aid-the-pilot-breaks-or-runs-from-the.md) | 2026-10-24 | test, battle |

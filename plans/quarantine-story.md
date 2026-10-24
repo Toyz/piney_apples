@@ -69,7 +69,9 @@ event from its own start, 447 s):
    game (docs/engine/boss-corbenik.md); field 8's last stage and the clump
    the lasers hide (worklog 454); every boss's camera fade (`ccBoss::Draw`,
    worklog 455, Kyvia's third and fourth bodies not, 456); the world's side: the three forms play
-   in field 8 under god to event 313's end (worklog 457); next the no-aid fight and 313's answer.
+   in field 8 under god to event 313's end (worklog 457); the no-aid
+   fight played but not won (worklog 461: the start's party falls in the
+   first form); next 313's answer.
 7. **314**: `area` / `scene` to field 126, `ending_kanji`, `STFROLL_VOL4`,
    the hacking logos.
 8. The whole runs: from the new game, and from an Outbreak save

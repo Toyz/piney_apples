@@ -137,7 +137,10 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   The first form and its seeds (worklog 450), the second form, its
   roots, barrier and effects (worklog 451) and the third form, its eyes,
   killer eyes and lasers (worklog 453) are ported and checked against
-  the game; the world's side is not
+  the game; the world's side plays all three in field 8 (worklog 457)
+- [ ] Corbenik won with no aid: the pilot breaks or runs from its seeds
+  (worklog 461), but the party the start leaves (70, 70, 75) falls in the
+  first form
 - [x] The Data Bugs (enemy type 0x40): drawn with their base form's clips
   and held at half their HP (`virusFlag`, worklog 299)
 

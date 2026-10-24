@@ -250,7 +250,8 @@ player until one of these turns out wrong.
 - [[455]] Kyvia's fourth fight's body kept 1 in every case, so its own fade was checked through the first three fights only — answered by [[456]] (its and the third's constructors clear `transDist`: they never fade; forced cameras compare it)
 - [[457]] Corbenik's seed's second draw in its `PreDrawAnm` (at the last frame's transparency) is left out; the lasers' blend settings (`alphaBlendTbl[1]`, the render state, the head's `SetBlendType(1)`) are not applied; the first press image's transparency (the body's last) (docs/engine/boss-corbenik.md "In the field") — answered by [[458]] (all three ported as the code does them)
 - [[457]] Field 8's sky shows "BATTLE MODE ON" tiled across its top through Corbenik's fight: not compared with the game — answered by [[459]] (the HUD's waiting band, which `eventMng.bossEntry` keeps off through every boss's fight; the port fed it -1)
-- [[457]] Corbenik's fight with no aid, and event 313's town part under the pilot (BlackRose's "Are you ready?"), not played yet
+- [[457]] Corbenik's fight with no aid, and event 313's town part under the pilot (BlackRose's "Are you ready?"), not played yet — the fight played by [[461]] (not won: the start's party falls in the first form, and so does one raised to 99 by the diagnostic); the town part not played yet
+- [[461]] whether the pilot beats Corbenik with no aid, and at what level and tactics — not reached: Skill 252's four blows take more than any member's HP at level 99 from the member it aims at, so a win needs the dead revived and Kite out of its splash
 - [[279]] which enemy and area the report's staff came from, and whether it was drained — report detail
 
 ### world
