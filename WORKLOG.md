@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-441 entries: audio 39, battle 106, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 113, save 16, script 54, test 200, tooling 42, ui 95, video 16, volumes 83, world 127.
+442 entries: audio 39, battle 106, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 113, save 16, script 55, test 201, tooling 42, ui 95, video 16, volumes 84, world 128.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -453,3 +453,4 @@ The [reference](docs/README.md) says what is true now.
 | 439 | [Quarantine's ccBoss08 keeps its first form's m_exit from town 4's room: on the story's way the manager lands where town 4's scene freed its objects and buffers, the party and the title wait choose 0 or a pixel word, and straight into the field it reads RAM no game code writes](worklog/0439-quarantine-s-ccboss08-keeps-its-first-form-s-m-exit-from.md) | 2026-10-24 | engine, tooling, battle, test |
 | 440 | [Gorre's brothers look as the game draws them: x51's own faces, backs and orbs, never shaded, lit by the arena's green distant light, the close-ups being streams 71 and 72 and the flat teal the trail's own colour](worklog/0440-gorre-s-brothers-look-as-the-game-draws-them-x51-s-own.md) | 2026-10-24 | render, battle, test |
 | 441 | [Quarantine's story surveyed: fourteen starts, nine events done, the rest stopped by town 5, two missing bosses, a short run and an ending's area](worklog/0441-quarantine-s-story-surveyed-fourteen-starts-nine-events.md) | 2026-10-24 | script, test, volumes |
+| 442 | [Quarantine's town 5 is town06: a sixth Root Town no symbol names, reached by the gate's town 4 while event 301 holds eventStatus[51], and event 301 now ends](worklog/0442-quarantine-s-town-5-is-town06-a-sixth-root-town-no-symbol.md) | 2026-10-24 | world, volumes, script, test |

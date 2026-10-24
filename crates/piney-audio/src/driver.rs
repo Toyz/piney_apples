@@ -1490,6 +1490,19 @@ mod tests {
         assert_eq!(setup_context(&town), Some(SqContext::Town { town: 0, crisis: true }));
     }
 
+    /// Quarantine's town 5 (`town06`) picks rows 5 and 11 of
+    /// `sqDataTown`, both empty (-1): the table runs to 12 rows on the disc,
+    /// past Infection's size, and the town loads no bank.
+    #[test]
+    fn town_06_has_no_bank() {
+        let t = piney_data::sound::tables_of(Volume::Qua);
+        assert_eq!(t.town.load.len(), 12);
+        for crisis in [false, true] {
+            let pick = SqContext::Town { town: 5, crisis }.pick(t, Volume::Qua);
+            assert!(pick.row.is_some_and(|(r, _)| !r.is_used()), "crisis {crisis}");
+        }
+    }
+
     #[test]
     fn bgm_plans() {
         let w = BgmWorld { scene_replaced: true, ..Default::default() };

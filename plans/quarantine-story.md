@@ -42,7 +42,7 @@ event from its own start, 447 s):
 
 | event | state | last place, and why |
 | --- | --- | --- |
-| 301 | blocks 0x7b | Fort Ouph. Block 7 wants town 5 (`town06`, `ROOTTOWN06`), which the port cannot build; the gate's warp to town 4 lands in town 5 while `eventStatus[51]` is set (QUA gcmn 0x0047306c) |
+| 301 | done (worklog 442) | was: Fort Ouph, blocks 0x7b; town 5 (`town06`) ported, the gate's warp to it, the pilot's way there |
 | 302-306, 309 | done | |
 | 307 | blocks 0xf | field 6's arena: `start_boss` has no code 5 (`ccBoss06`) |
 | 308 | blocks 0xf7 | field 11: Kyvia's third fight still going at 40,000 frames |

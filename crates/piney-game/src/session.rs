@@ -101,6 +101,9 @@ pub struct Session {
     /// The boss blur callbacks' function statics: power-on to power-off,
     /// from one area to the next.
     blur_statics: piney_battle::boss::blur::Statics,
+    /// `StartPos` (main bss) as the last scene's set-up left it: what a
+    /// town with no start of its own keeps (Quarantine's town 5).
+    start_before: ([u32; 4], [u32; 4]),
     /// `gtHackFlag` and `ccGame.setupMode`, from the gate hack's OK to the
     /// next scene's set-up (`ccClearGtHack` in each set-up decides whether
     /// the flag stays).
@@ -220,6 +223,7 @@ impl Session {
             refused: None,
             spcs: None,
             blur_statics: Default::default(),
+            start_before: ([0; 4], [0; 4]),
             gt_hack: false,
             setup_mode: false,
             shown: None,
@@ -351,7 +355,8 @@ impl Session {
         if self.scene.area == piney_world::area::kind::TOWN {
             // ccClearGtHack in the town's set-up: the flag goes.
             self.gt_hack = false;
-            let mut w = WorldMode::enter(&self.iso, self.archive.clone(), state, vm)?;
+            let mut w = WorldMode::enter_after(&self.iso, self.archive.clone(), state, vm, self.start_before)?;
+            self.start_before = w.world().start();
             w.init_rand(Arrival { frames: self.sys_frames, faded }.rand_count());
             // ccSpcManager and ccPartyManager as the last area left them.
             if let Some(spcs) = self.spcs.clone() {
@@ -369,6 +374,7 @@ impl Session {
         let at = Arrival { frames: self.sys_frames, faded };
         let mut a = AreaMode::enter(&self.iso, self.archive.clone(), state, vm, self.scene, wm, kept, at, spcs)?;
         a.world_mut().combat_mut().blur_statics = self.blur_statics;
+        self.start_before = a.world().start();
         a.set_gate_hack(self.gt_hack, self.setup_mode);
         self.setup_mode = false;
         Ok(Stage::Area(Box::new(a)))
@@ -967,8 +973,9 @@ impl Session {
                 log_in(&self.iso, &mut state);
                 self.scene = piney_world::area::Scene::log_in(&mut state.save);
                 self.restock(&mut state);
-                match WorldMode::enter(&self.iso, self.archive.clone(), state.clone(), vm) {
+                match WorldMode::enter_after(&self.iso, self.archive.clone(), state.clone(), vm, self.start_before) {
                     Ok(mut w) => {
+                        self.start_before = w.world().start();
                         w.init_rand(Arrival { frames: self.sys_frames, faded: false }.rand_count());
                         w.set_card(self.card.as_deref(), self.card_position);
                         Stage::World(Box::new(w))
@@ -2670,7 +2677,11 @@ mod tests {
         let save = &w.world().state().save;
         let here = w.town_number();
         let flag = i32::from(save.i16(TOWN_MOVE_FLAG));
-        (0..5).filter(|&t| flag & (1 << t) != 0 && t != here).position(|t| t == town)
+        // The gate's town 4 is town 5 while `eventStatus[51]` is set (from
+        // Mutation on: `GtTownMenu`'s warp, Quarantine's event 301).
+        let five = w.world().volume() != piney_data::volume::Volume::Inf && save.event_status(51) != 0;
+        let lands = |t: i32| if t == 4 && five { 5 } else { t };
+        (0..5).filter(|&t| flag & (1 << t) != 0 && t != here).position(|t| lands(t) == town)
     }
 
     /// The row of `area` in this server's Word List, or the town (by its
@@ -6847,6 +6858,9 @@ mod tests {
 
     /// A survey of the main events' starts (ignored; a diagnostic).
     mod survey;
+
+    /// Quarantine's town 5 in event 301.
+    mod town06;
 
     /// A survey of the side events where they play (ignored; a diagnostic).
     mod side_events;

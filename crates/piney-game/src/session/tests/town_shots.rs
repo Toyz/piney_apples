@@ -1,7 +1,8 @@
 //! Headless shots of a Root Town from where a log-in puts Kite, turned
 //! about him in eight steps: `PINEY_TOWN=N PINEY_SHOTS=DIR cargo test
 //! --release -p piney-game town_shots -- --ignored --nocapture` (town 0-4,
-//! default 4, Lia Fail; shots under `/mnt/data/claude/scratch/towns/shots`).
+//! default 4, Lia Fail; `PINEY_DISC=quarantine` for town 5; shots under
+//! `/mnt/data/claude/scratch/towns/shots`).
 
 use std::path::PathBuf;
 
@@ -17,9 +18,10 @@ fn still(buttons: Buttons) -> Raw {
 #[ignore]
 fn town_shots() {
     use piney_event::host::PcCommand;
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let disc = std::env::var("PINEY_DISC").unwrap_or_else(|_| "infection".into());
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
     if !iso.exists() {
-        eprintln!("infection.iso not present; skipped");
+        eprintln!("{disc}.iso not present; skipped");
         return;
     }
     let town: u8 = std::env::var("PINEY_TOWN").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
@@ -80,9 +82,10 @@ fn town_shots() {
 #[ignore]
 fn pc_menu_shot() {
     use piney_world::entry::{Kind, Npc};
-    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+    let disc = std::env::var("PINEY_DISC").unwrap_or_else(|_| "infection".into());
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{disc}/{disc}.iso"));
     if !iso.exists() {
-        eprintln!("infection.iso not present; skipped");
+        eprintln!("{disc}.iso not present; skipped");
         return;
     }
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/towns/shots".into());

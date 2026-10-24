@@ -63,6 +63,7 @@ pub mod town02;
 pub mod town03;
 pub mod town04;
 pub mod town05;
+pub mod town06;
 pub mod town_party;
 pub mod town_ride;
 
@@ -126,9 +127,13 @@ pub const CARMINA_GADE: i32 = 2;
 pub const FORT_OUPH: i32 = 3;
 pub const LIA_FAIL: i32 = 4;
 
-/// The towns [`World::enter`] builds: all five Root Towns.
+/// Quarantine's sixth (`ROOTTOWN06`).
+pub const TOWN_06: i32 = 5;
+
+/// The towns [`World::enter`] builds: all five Root Towns, and
+/// Quarantine's sixth (which [`Town::open`] refuses on another volume).
 pub fn town_ported(town: i32) -> bool {
-    matches!(town, MAC_ANU | DUN_LOIREAG | CARMINA_GADE | FORT_OUPH | LIA_FAIL)
+    matches!(town, MAC_ANU | DUN_LOIREAG | CARMINA_GADE | FORT_OUPH | LIA_FAIL | TOWN_06)
 }
 
 /// `WORLD_MAN::SetCharPosition` (main 0x001a1190) in a town: the player's
@@ -136,12 +141,20 @@ pub fn town_ported(town: i32) -> bool {
 /// (0, 6000, 0), and (600, -3900, 0) facing pi - as a position (w 1) and
 /// a heading (`dirc`, z).
 pub fn start_position(town: i32) -> (V4, V4) {
+    town_start(town, (START_POS, START_DIRC))
+}
+
+/// [`start_position`] where `SetCharPosition` has no case for the town
+/// (Quarantine's town 5, QUA main 0x001b3ac0): `StartPos` (main bss
+/// 0x00670190) keeps what the scene before left there, `before`.
+pub fn town_start(town: i32, before: (V4, V4)) -> (V4, V4) {
     match town {
+        0 => (START_POS, START_DIRC),
         1 => ([0, 0x455a_c000, 0, ONE], START_DIRC),
         2 => ([0, 0x4416_0000, 0, ONE], START_DIRC),
         3 => ([0, 0x45bb_8000, 0, ONE], START_DIRC),
         4 => ([0x4416_0000, 0xc573_c000, 0, ONE], [0, 0, ee::PI, 0]),
-        _ => (START_POS, START_DIRC),
+        _ => before,
     }
 }
 
@@ -384,12 +397,23 @@ impl World {
     /// `lastTown` (`saveData+0x8426`, 0-4): the town and Kite read from the disc, the camera and
     /// player as the tasks set them up at the town's start. The frames that
     /// follow fade out, hold, then fade the town in.
-    pub fn enter(iso: &mut Iso, archive: Arc<Archive>, mut save: SaveState) -> piney_data::Result<World> {
+    pub fn enter(iso: &mut Iso, archive: Arc<Archive>, save: SaveState) -> piney_data::Result<World> {
+        World::enter_after(iso, archive, save, ([0; 4], [0; 4]))
+    }
+
+    /// [`World::enter`] after a scene whose start (`StartPos`) was
+    /// `before`: what a town with no start of its own keeps.
+    pub fn enter_after(
+        iso: &mut Iso,
+        archive: Arc<Archive>,
+        mut save: SaveState,
+        before: (V4, V4),
+    ) -> piney_data::Result<World> {
         let volume = iso.volume()?;
         let (char_names, char_files): (Vec<Vec<u8>>, Vec<String>) = load_char_tbl(iso)?.into_iter().unzip();
         let town_no = i32::from(save.save.u8(offset::LAST_TOWN) as i8);
         if !town_ported(town_no) {
-            return Err(piney_data::Error::NotFound(format!("town {town_no}: there are five Root Towns, 0-4")));
+            return Err(piney_data::Error::NotFound(format!("town {town_no}: no such Root Town")));
         }
         // ccSetupNewGame: newGameFlag set to 1.
         if save.save.u8(offset::NEW_GAME_FLAG) as i8 != 1 {
@@ -410,7 +434,7 @@ impl World {
         let velocity = save_f(&save, spc + 0xd4);
         let height = save_f(&save, spc + 0x18);
         let width = save_f(&save, spc + 0x1c);
-        let start = start_position(town_no);
+        let start = town_start(town_no, before);
         let mut player = Player::new(start.0, start.1, velocity, width, height);
         // The disc's: its square root (`sqrt.s` from Outbreak on) and the
         // AI's modes.
@@ -473,6 +497,12 @@ impl World {
             race_events: Vec::new(),
             kite_asleep: false,
         })
+    }
+
+    /// `StartPos` as this town's set-up left it: where Kite came in and
+    /// his facing.
+    pub fn start(&self) -> (V4, V4) {
+        self.start
     }
 
     /// Hold the set-up after its two black frames (true) until the caller

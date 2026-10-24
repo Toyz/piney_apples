@@ -1,9 +1,9 @@
 ---
 title: Carmina Gade, Fort Ouph and Lia Fail - ROOTTOWN03, 04 and 05
 status: partial
-volumes: MUT, OUT
-covers: MUT gcmn.prg:0x0043b980 ROOTTOWN03::ROOTTOWN03, 0x0043e400 ROOTTOWN03::Draw, 0x0043cb30 DrawBG, 0x0043ce60 DrawObj2, 0x0043cdc0 DrawObj, 0x0043cf00 DrawFloor, 0x00388f60 ROOTTOWN03 vtable, 0x0043af10 AIRSHIP::AIRSHIP, 0x0043b0c0 AIRSHIP::Move; OUT gcmn.prg:0x00439c50 ROOTTOWN04::ROOTTOWN04, 0x0043c430 ROOTTOWN04::Draw, 0x0043aa40 DrawBG, 0x0043af40 DrawObj2, 0x0043ae50 DrawObj, 0x0043b030 DrawFloor, 0x003842d0 ROOTTOWN04 vtable, 0x0043c5e0 ROOTTOWN05::ROOTTOWN05, 0x0043e8e0 ROOTTOWN05::Draw, 0x0043d200 DrawBG, 0x0043d410 DrawObj2, 0x0043d370 DrawObj, 0x0043d4b0 DrawFloor, 0x00384300 ROOTTOWN05 vtable
-worklog: 97, 198, 218, 219, 260
+volumes: MUT, OUT, QUA
+covers: MUT gcmn.prg:0x0043b980 ROOTTOWN03::ROOTTOWN03, 0x0043e400 ROOTTOWN03::Draw, 0x0043cb30 DrawBG, 0x0043ce60 DrawObj2, 0x0043cdc0 DrawObj, 0x0043cf00 DrawFloor, 0x00388f60 ROOTTOWN03 vtable, 0x0043af10 AIRSHIP::AIRSHIP, 0x0043b0c0 AIRSHIP::Move; OUT gcmn.prg:0x00439c50 ROOTTOWN04::ROOTTOWN04, 0x0043c430 ROOTTOWN04::Draw, 0x0043aa40 DrawBG, 0x0043af40 DrawObj2, 0x0043ae50 DrawObj, 0x0043b030 DrawFloor, 0x003842d0 ROOTTOWN04 vtable, 0x0043c5e0 ROOTTOWN05::ROOTTOWN05, 0x0043e8e0 ROOTTOWN05::Draw, 0x0043d200 DrawBG, 0x0043d410 DrawObj2, 0x0043d370 DrawObj, 0x0043d4b0 DrawFloor, 0x00384300 ROOTTOWN05 vtable; QUA gcmn.prg:0x004ec350 ROOTTOWN06::ROOTTOWN06, 0x004eca00 ROOTTOWN06::DrawBG, 0x004ecbf0 DrawObj, 0x004ecc90 DrawObj2, 0x004ecd30 DrawFloor, 0x004ecdd0 DrawMap, 0x004ecde0 ROOTTOWN06::Draw, 0x002785e0 ROOTTOWN06 vtable, 0x005ce5b0 RT_MODELTABLE06, 0x0047305c GtTownMenu's warp; QUA SLUS_205.64:0x001b2bf0 WORLD_MAN::GO's town 5, 0x001b3ac0 WORLD_MAN::SetCharPosition's towns, 0x00212afc townNameTbl's row 5, 0x002094b8 sqDataTown's row 11
+worklog: 97, 198, 218, 219, 260, 442
 ---
 
 # Carmina Gade, Fort Ouph and Lia Fail - ROOTTOWN03, 04 and 05
@@ -132,6 +132,51 @@ DrawObj2, DrawObj, DrawFloor  0x0043d410, 0x0043d370, 0x0043d4b0: the
 ```
 
 The BLT chunks only load textures into the GS.
+
+## Town 5 (QUA)
+
+Quarantine's sixth Root Town (`game.town` 5, file `town06`), the sixth case
+of `WORLD_MAN::GO(0)`'s town switch (QUA main 0x001b2bf0). No symbol names
+its class; the port calls it `ROOTTOWN06`. Only event 301 goes there.
+
+```text
+ROOTTOWN06()  0x004ec350: town06; SetFog(1500, 10000, 0, 75, 0x00f0c080)
+              and ccSys.bgColor the same (Lia Fail's); WORLD_MAN +0x490
+              cleared (no map); 3 STATICMODELs (RT_MODELTABLE06, QUA gcmn
+              0x005ce5b0: MDL_sr6flo1 floor, _obj1 obj, _obj2 obj2, each
+              clip 100,000); the clumps CMP_sr6met1 (+0x1ac),
+              CMP_sr6bac1, _cro1, _cro2, _cro3 (+0x264..+0x270), each
+              SetFogSw(0); the lights from ANM_sr6town1a: one,
+              LGT_sr6lig1, a distant light (SetLightDirection); BLT_bg,
+              _obj, _obj2, _floor
+Draw()        0x004ecde0 (vtable 0x002785e0): DrawBG; on objLayer
+              DrawObj2 (type 3), DrawObj (type 2), DrawFloor (type 1),
+              DrawMap (0x004ecdd0, nothing), the type-0 rows (none)
+DrawBG()      0x004eca00: Lia Fail's three scrolls (read by nothing);
+              CMP_sr6bac1 at the origin on bgLayer[0] (-100), the three
+              crosses on refLayer (30), CMP_sr6met1 on bgLayer[1] (-90)
+```
+
+How the game gets there and what it reads:
+
+- **The gate's warp.** `GtTownMenu` turns the chosen town 4 into 5 while
+  `eventStatus[51]` is set (QUA gcmn 0x0047305c; the same code is in
+  Mutation's and Outbreak's, MUT 0x0058499c, OUT 0x0058071c, not in
+  Infection's). Event 301's block 3 sets the byte; block 8 clears it
+  before its `scene` to town 4. Quarantine's carry names this code
+  `GtRandomMenu+0x964`: the `GtTownMenu` symbol was not carried.
+- **The start.** `WORLD_MAN::SetCharPosition` (QUA main 0x001b3ac0) has
+  cases for towns 0-4 only. For town 5 `StartPos` (main bss 0x00670190)
+  keeps what the scene before left: in the story, Fort Ouph's gate
+  (0, 6000, 0). Block 8's `pc_put` then stands Kite at (0, 30, 0).
+- **The loading card.** `townNameTbl` has a sixth row (QUA main
+  0x00212afc), Lia Fail's words again.
+- **The music.** `sqDataTown` runs to twelve rows on the disc. Town 5's
+  rows, 5 and its crisis 11 (QUA main 0x002094b8), are empty (-1): the
+  town loads no bank.
+- **The gate.** After 301 nothing sets `eventStatus[51]` again, and in
+  town 5 block 8 plays on arrival with the menus barred. So no input
+  reaches town 5's own gate or its departure stream.
 
 ## Unknown
 

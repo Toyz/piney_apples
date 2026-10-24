@@ -818,7 +818,8 @@ impl Town {
     }
 
     /// The town `WORLD_MAN::GO(0)` builds for `game.town` `no`
-    /// (`ROOTTOWN01` .. `05`), `crisis` the save's crisis byte.
+    /// (`ROOTTOWN01` .. `05`, and Quarantine's `06`), `crisis` the save's
+    /// crisis byte.
     pub fn open(archive: &Arc<Archive>, volume: piney_data::volume::Volume, no: i32, crisis: bool) -> Result<Town> {
         let mut town = match no {
             0 => crate::town01::new(archive, crisis),
@@ -826,7 +827,8 @@ impl Town {
             2 => crate::town03::new(archive, crisis),
             3 => crate::town04::new(archive, crisis),
             4 => crate::town05::new(archive, crisis),
-            n => Err(Error::NotFound(format!("town {n}: there are five, 0-4"))),
+            5 if volume == piney_data::volume::Volume::Qua => crate::town06::new(archive, crisis),
+            n => Err(Error::NotFound(format!("town {n}: {volume:?} has none"))),
         }?;
         // The towns' tables are Infection's on every disc; the collision
         // takes the disc's square root.
@@ -1002,12 +1004,17 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn archive() -> Option<Arc<Archive>> {
-        const ISO: &str = "../../work/infection/infection.iso";
-        if !std::path::Path::new(ISO).exists() {
-            eprintln!("skipped: no {ISO}");
+        archive_of("infection")
+    }
+
+    /// The archive of `work/{disc}/{disc}.iso`, if it is there.
+    pub(crate) fn archive_of(disc: &str) -> Option<Arc<Archive>> {
+        let iso = format!("../../work/{disc}/{disc}.iso");
+        if !std::path::Path::new(&iso).exists() {
+            eprintln!("skipped: no {iso}");
             return None;
         }
-        let mut iso = piney_data::iso::Iso::open(ISO).unwrap();
+        let mut iso = piney_data::iso::Iso::open(&iso).unwrap();
         Some(Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap()))
     }
 

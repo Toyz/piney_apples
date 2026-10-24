@@ -176,7 +176,20 @@ pub struct WorldMode {
 
 impl WorldMode {
     /// `ccSetupNewGame` and `ccSetupGameCtrl` in town `town` on `state`.
-    pub fn enter(iso: &Path, archive: Arc<Archive>, mut state: SaveState, vm: Option<Vm>) -> Result<WorldMode, String> {
+    #[cfg(test)]
+    pub fn enter(iso: &Path, archive: Arc<Archive>, state: SaveState, vm: Option<Vm>) -> Result<WorldMode, String> {
+        WorldMode::enter_after(iso, archive, state, vm, ([0; 4], [0; 4]))
+    }
+
+    /// [`WorldMode::enter`] after a scene whose set-up left `StartPos` at
+    /// `before` ([`piney_world::World::enter_after`]).
+    pub fn enter_after(
+        iso: &Path,
+        archive: Arc<Archive>,
+        mut state: SaveState,
+        vm: Option<Vm>,
+        before: ([u32; 4], [u32; 4]),
+    ) -> Result<WorldMode, String> {
         repair_buttons(&mut state);
         let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let mut ui = FieldUi::new(&mut disc, archive.clone()).map_err(|e| format!("the field's menus: {e}"))?;
@@ -193,7 +206,8 @@ impl WorldMode {
         st.stream.iso = Some(iso.to_path_buf());
         st.stream.data = Some(archive.clone());
         st.announcements = crate::desktop::announcements(iso);
-        let mut world = World::enter(&mut disc, archive.clone(), state).map_err(|e| format!("The World: {e}"))?;
+        let mut world =
+            World::enter_after(&mut disc, archive.clone(), state, before).map_err(|e| format!("The World: {e}"))?;
         let t = &world.town().base;
         let map = piney_world::map::town::TownMap::open(&archive, world.volume(), t.no, &t.file.stem)
             .map_err(|e| tracing::warn!("the town's map: {e}"))
@@ -1543,6 +1557,7 @@ impl Mode for WorldMode {
             2 => "Carmina Gadelica",
             3 => "Fort Ouph",
             4 => "Lia Fail",
+            5 => "town06",
             _ => "a Root Town",
         };
         format!(

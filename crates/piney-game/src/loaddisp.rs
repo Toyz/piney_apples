@@ -121,6 +121,8 @@ impl LoadDisp {
         let mut lines = Vec::new();
         match kind {
             Kind::Town => {
+                // Quarantine's `townNameTbl` has a sixth row, town 5's
+                // (QUA main 0x00212afc): Lia Fail's words again.
                 let card = Town::from_index(scene.town.clamp(0, 4)).unwrap_or(Town::MacAnu).card();
                 lines.push(centred(encode(card.name), 168.0));
                 lines.push(centred(encode(card.sub), 196.0));

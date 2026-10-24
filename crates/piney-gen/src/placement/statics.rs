@@ -40,19 +40,95 @@ fn tables_named<'a>(p: &'a Program, word: &str) -> Vec<&'a crate::elf::Symbol> {
     out
 }
 
+fn model_rows(p: &Program, va: u32, n: u32) -> Result<Vec<ModelRow>, String> {
+    let mut rows = Vec::new();
+    for k in 0..n {
+        let w = words(&p.read(va + MODEL_ROW * k, MODEL_ROW as usize)?);
+        if w[1] == 0 {
+            continue;
+        }
+        let pos = if w[2] as i32 != 0 { text(p, w[3])? } else { None };
+        rows.push((w[0] as i32, text(p, w[1])?.unwrap_or_default(), w[2] as i32, pos, w[4]));
+    }
+    Ok(rows)
+}
+
 fn model_tables(p: &Program) -> Result<Vec<(String, u32, Vec<ModelRow>)>, String> {
     let mut out = Vec::new();
     for s in tables_named(p, "MODELTABLE") {
-        let mut rows = Vec::new();
-        for k in 0..s.size / MODEL_ROW {
-            let w = words(&p.read(s.value + MODEL_ROW * k, MODEL_ROW as usize)?);
-            if w[1] == 0 {
-                continue;
-            }
-            let pos = if w[2] as i32 != 0 { text(p, w[3])? } else { None };
-            rows.push((w[0] as i32, text(p, w[1])?.unwrap_or_default(), w[2] as i32, pos, w[4]));
+        out.push((s.name.clone(), s.value, model_rows(p, s.value, s.size / MODEL_ROW)?));
+    }
+    for t in unnamed_towns(p)? {
+        if !out.iter().any(|(n, _, _)| *n == t.table) {
+            let rows = model_rows(p, t.va, t.rows)?;
+            out.push((t.table, t.va, rows));
         }
-        out.push((s.name.clone(), s.value, rows));
+    }
+    Ok(out)
+}
+
+/// A Root Town whose constructor no symbol names (Quarantine's
+/// `ROOTTOWN06`): its class, scene file and model table, read from the code.
+struct UnnamedTown {
+    class: String,
+    file: String,
+    table: String,
+    va: u32,
+    rows: u32,
+}
+
+/// The `ROOTTOWN`s a later volume adds with no name to carry: each
+/// `GetCCSAdrs("townNN")` outside every named function, the
+/// `STATICMODEL` table its next `STATICMODEL::STATICMODEL` takes (the last
+/// address built before the call) and the loop's bound (the `sltiu` after
+/// it). Quarantine's town06 (gcmn 0x004ec350): `RT_MODELTABLE06`, 3 rows.
+fn unnamed_towns(p: &Program) -> Result<Vec<UnnamedTown>, String> {
+    let Some(ov) = &p.overlay else { return Ok(Vec::new()) };
+    let ccs = p.symbol_named("GetCCSAdrs__8ccStreamFPCc").ok_or("no GetCCSAdrs")?.value;
+    let Some(model) = p.symbol_named("__ct__11STATICMODELFP8ccStreamP17STATIC_MODEL_INFO").map(|s| s.value) else {
+        return Ok(Vec::new());
+    };
+    let w = words(&p.read(ov.text, ov.text_size as usize)?);
+    let built = crate::xfer::addresses(&w, p.gp);
+    let jal_to = |x: u32, to: u32| x >> 26 == 3 && (x & 0x03ff_ffff) << 2 == to & 0x0fff_ffff;
+    let named = |va: u32| p.functions().any(|f| f.value <= va && va < f.value + f.size.max(4));
+    let mut out = Vec::new();
+    for (i, &x) in w.iter().enumerate() {
+        let at = ov.text + 4 * i as u32;
+        if !jal_to(x, ccs) || named(at) {
+            continue;
+        }
+        let file = (i.saturating_sub(5)..=(i + 1).min(w.len() - 1))
+            .rev()
+            .find_map(|j| built.get(&j).filter(|_| (w[j] >> 16) & 31 == 4))
+            .map(|&va| p.cstr(va, 64).map(|b| latin1(&b)))
+            .transpose()?;
+        let Some(file) = file else { continue };
+        let Some(digits) = file
+            .strip_prefix("town")
+            .filter(|d| d.len() == 2 && d.bytes().all(|c| c.is_ascii_digit()))
+            .map(str::to_string)
+        else {
+            continue;
+        };
+        let Some(call) = (i..(i + 400).min(w.len())).find(|&j| jal_to(w[j], model)) else { continue };
+        let Some(va) = (i..call)
+            .rev()
+            .filter_map(|j| built.get(&j).copied())
+            .find(|&a| !(ov.text..ov.text + ov.text_size).contains(&a))
+        else {
+            continue;
+        };
+        let Some(rows) = (call..(call + 12).min(w.len())).find(|&j| w[j] >> 26 == 0x0B).map(|j| w[j] & 0xFFFF) else {
+            continue;
+        };
+        out.push(UnnamedTown {
+            class: format!("ROOTTOWN{digits}"),
+            file,
+            table: format!("RT_MODELTABLE{digits}"),
+            va,
+            rows,
+        });
     }
     Ok(out)
 }
@@ -115,6 +191,11 @@ fn scene_sets(p: &Program) -> Result<Vec<(String, Vec<String>)>, String> {
         }
         if !files.is_empty() {
             out.push((class.to_string(), files));
+        }
+    }
+    for t in unnamed_towns(p)? {
+        if !out.iter().any(|(c, _)| *c == t.class) {
+            out.push((t.class, vec![t.file]));
         }
     }
     out.sort();

@@ -313,6 +313,13 @@ fn sound_off(scene: &Scene) -> crate::Request {
 }
 
 impl FieldWorld {
+    /// `StartPos` as this scene's set-up left it: the leader's place and
+    /// his facing (z).
+    pub fn start(&self) -> (V4, V4) {
+        let (pos, rot, _) = self.start;
+        (pos, [0, 0, rot, 0])
+    }
+
     /// `ccSetupGameCtrl` for `scene` (area 1: a field of `world_man`'s
     /// words), reading the field and Kite from the disc. `at.faded`: the
     /// scene that asked for it has already faded out (its own tasks ran

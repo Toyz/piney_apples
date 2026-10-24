@@ -931,6 +931,15 @@ pub fn town_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         10 => {
             let gone = leave(m, x);
             if gone {
+                // From Mutation on (MUT gcmn 0x0058499c, QUA 0x0047305c):
+                // town 4 while `eventStatus[51]` is set is town 5
+                // (Quarantine's town06, event 301's).
+                if x.texts.words.volume > 1
+                    && m.lists[i].index == 4
+                    && x.save.save.u8(piney_data::save::offset::EVENT_STATUS + 51) != 0
+                {
+                    m.lists[i].index = 5;
+                }
                 x.req.push(Request::ChangeArea { area: 0, n: i32::from(m.lists[i].index) });
             }
         }
