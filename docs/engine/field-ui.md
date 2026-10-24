@@ -267,7 +267,10 @@ face's name, "You have new mail."); the target cursor and window (name, HP
 and SP bars, numbers, element and condition icons); the party panels (face,
 name, HP and SP bars coloured by `ccGetNowMaxColor`: under 20 % colour 2,
 under 40 % 23, under 60 % 6, else 22); the enemies' life bars and
-off-screen arrows; the protect marks; the battle banner; the new-mail notice
+off-screen arrows; the protect marks; the battle banner (not while a menu
+forbids, an event runs (`eventMng` +0x04) or a boss is entered
+(`eventMng.bossEntry`, +0x08, 0 or more: no banner at all through a boss's
+fight; the port feeds the field's boss code there)); the new-mail notice
 (towns); `ccMsg->Disp`; then every sprite's `SendPacket` in a fixed order
 (each prepends to the layer, so the last sent is drawn first).
 

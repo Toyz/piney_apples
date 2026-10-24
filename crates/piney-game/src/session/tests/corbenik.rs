@@ -64,3 +64,20 @@ fn corbenik_trace() {
         );
     });
 }
+
+/// The HUD reads `eventMng.bossEntry` (7 once 313's block 15 enters
+/// Corbenik), which keeps the battle banner off through the fight.
+#[test]
+fn the_banner_stays_off_through_the_fight() {
+    let Some(mut s) = arena_session(&EVENT_313, &[15, 6]) else { return };
+    let mut seen = None;
+    super::arena::play(&mut s, 313, corbenik, 400, |s, _, _| {
+        s.take_events();
+        if let Stage::Area(a) = &s.stage
+            && a.world().combat().boss_char().is_some()
+        {
+            seen = Some(a.hud_world().boss_entry);
+        }
+    });
+    assert_eq!(seen, Some(7), "the HUD's bossEntry once Corbenik is in");
+}

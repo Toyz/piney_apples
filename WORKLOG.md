@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-458 entries: audio 39, battle 117, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 118, save 16, script 55, test 211, tooling 44, ui 95, video 16, volumes 89, world 132.
+459 entries: audio 39, battle 117, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 118, save 16, script 55, test 211, tooling 44, ui 96, video 16, volumes 89, world 132.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -470,3 +470,4 @@ The [reference](docs/README.md) says what is true now.
 | 456 | [Kyvia's third and fourth bodies never fade: their constructors clear transDist, found by cameras forced into the fade band](worklog/0456-kyvia-s-third-and-fourth-bodies-never-fade-their.md) | 2026-10-24 | battle |
 | 457 | [Corbenik's three forms play in field 8: code 7, the second form in the first's task, their parts, cameras, generators and pictures, under god to event 313's end](worklog/0457-corbenik-s-three-forms-play-in-field-8-code-7-the-second.md) | 2026-10-24 | world |
 | 458 | [Corbenik's seeds draw twice a frame, its lasers in their own blend, its first press image at the body's last transparency, as the code does](worklog/0458-corbenik-s-seeds-draw-twice-a-frame-its-lasers-in-their-own.md) | 2026-10-24 | render |
+| 459 | [The battle banner stays off through a boss's fight: the HUD reads eventMng.bossEntry, which the port fed as -1](worklog/0459-the-battle-banner-stays-off-through-a-boss-s-fight-the-hud.md) | 2026-10-24 | ui |

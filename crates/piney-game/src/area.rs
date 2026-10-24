@@ -714,7 +714,7 @@ impl AreaMode {
     /// `charTbl`), the command target and the one before it,
     /// `cmndSortRoot`'s chain, the three command lists, `game.inBattle`, the
     /// player's skill and attack.
-    fn hud_world(&self) -> piney_fieldui::World {
+    pub(crate) fn hud_world(&self) -> piney_fieldui::World {
         let save = self.world.state();
         let s = &save.save;
         let names = |id: i32| if id == 0 { s.name().to_vec() } else { self.world.char_name(id) };
@@ -774,7 +774,9 @@ impl AreaMode {
             obj_chain: chain(&c.scene.obj_list),
             area_codes: vm.map_or([(-1, -1); 16], |vm| vm.mng.area_codes),
             event_status: vm.map_or(0, |vm| vm.mng.status),
-            boss_entry: -1,
+            // eventMng.bossEntry (+0x08): the code `entry 7` made, which
+            // keeps the battle banner off through a boss's fight.
+            boss_entry: self.world.boss_entry().unwrap_or(-1),
             field_attr: wm.field_attr(),
             event_area: wm.event,
             area_word: (wm.area_level, wm.item_ofs),
