@@ -370,6 +370,12 @@ pub struct Gs {
 
 impl Gs {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue, assets: Assets) -> Self {
+        let lost = watch_loss(&device);
+        Gs::on(device, queue, lost, assets)
+    }
+
+    /// A GS on `device`, whose loss `lost` follows.
+    fn on(device: wgpu::Device, queue: wgpu::Queue, lost: Arc<AtomicBool>, assets: Assets) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("gs"),
             source: wgpu::ShaderSource::Wgsl(SHADER.into()),
@@ -402,7 +408,6 @@ impl Gs {
         let white = upload(&device, &queue, &tex_layout, &samplers, 1, 1, &[255; 4]);
         let shadow = shadow::ShadowGpu::new(&device, TARGET_FORMAT);
         let target = make_target(&device, piney_draw::SCREEN_WIDTH.into(), piney_draw::SCREEN_HEIGHT.into());
-        let lost = watch_loss(&device);
         let chunk = vertex_chunk(device.limits().max_buffer_size);
         Gs {
             device,
@@ -431,20 +436,11 @@ impl Gs {
     }
 
     /// A GS on the first adapter, with no window: for tests and `--shot`.
+    /// Every headless GS of the process shares one device (see
+    /// [`headless_device`]).
     pub fn headless(assets: Assets) -> Result<Self, String> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            force_fallback_adapter: false,
-            compatible_surface: None,
-            apply_limit_buckets: false,
-        }))
-        .map_err(|e| e.to_string())?;
-        let (device, queue) = pollster::block_on(
-            adapter.request_device(&wgpu::DeviceDescriptor { label: Some("gs"), ..Default::default() }),
-        )
-        .map_err(|e| e.to_string())?;
-        Ok(Gs::new(device, queue, assets))
+        let (device, queue, lost) = headless_device()?;
+        Ok(Gs::on(device, queue, lost, assets))
     }
 
     /// The same GS on a new device, after [`Gs::lost`]: the assets and the
@@ -1021,6 +1017,33 @@ fn vertex_chunk(max_buffer_size: u64) -> usize {
     (n.min(u64::from(u32::MAX)) as usize / 3 * 3).max(3)
 }
 
+/// The process's headless device, made on first use and again once lost.
+/// A device costs about 600 MB of address space on the NVIDIA driver, so
+/// a device per GS made tests run side by side under `ulimit -v` run out:
+/// the devices were lost, and frames read back black (worklog 467).
+fn headless_device() -> Result<(wgpu::Device, wgpu::Queue, Arc<AtomicBool>), String> {
+    type Shared = Option<(wgpu::Device, wgpu::Queue, Arc<AtomicBool>)>;
+    static SHARED: std::sync::Mutex<Shared> = std::sync::Mutex::new(None);
+    let mut shared = SHARED.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(s) = shared.as_ref().filter(|s| !s.2.load(Ordering::Acquire)) {
+        return Ok(s.clone());
+    }
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        force_fallback_adapter: false,
+        compatible_surface: None,
+        apply_limit_buckets: false,
+    }))
+    .map_err(|e| e.to_string())?;
+    let (device, queue) =
+        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { label: Some("gs"), ..Default::default() }))
+            .map_err(|e| e.to_string())?;
+    let lost = watch_loss(&device);
+    *shared = Some((device.clone(), queue.clone(), lost.clone()));
+    Ok((device, queue, lost))
+}
+
 /// A flag the device sets when it is lost. Once it is, what it is still
 /// asked to do fails with errors that are logged, not fatal (they would
 /// panic by default); out of memory counts as lost. Any other error panics
@@ -1545,14 +1568,20 @@ mod tests {
 
     use super::*;
 
+    /// A headless GS over Infection's archive, which the tests share (its
+    /// 136 MB once, not once a test).
     fn gs() -> Option<Gs> {
-        let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
-        if !iso.exists() {
-            eprintln!("infection.iso not present; skipped");
-            return None;
-        }
-        let archive = Archive::new(Iso::open(iso).ok()?.read_path("DATA/DATA.BIN").ok()?).ok()?;
-        match Gs::headless(Assets::new(Arc::new(archive))) {
+        static ARCHIVE: std::sync::OnceLock<Option<Arc<Archive>>> = std::sync::OnceLock::new();
+        let archive = ARCHIVE.get_or_init(|| {
+            let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/infection/infection.iso");
+            if !iso.exists() {
+                eprintln!("infection.iso not present; skipped");
+                return None;
+            }
+            let data = Iso::open(iso).ok()?.read_path("DATA/DATA.BIN").ok()?;
+            Archive::new(data).ok().map(Arc::new)
+        });
+        match Gs::headless(Assets::new(archive.clone()?)) {
             Ok(g) => Some(g),
             Err(e) => {
                 eprintln!("no GPU ({e}); skipped");
@@ -1693,7 +1722,13 @@ mod tests {
     /// device is lost, and draws again on a new one.
     #[test]
     fn a_lost_device_stops_the_drawing_and_a_new_one_resumes_it() {
-        let (Some(mut gs), Some((device, queue))) = (gs(), device(Default::default())) else { return };
+        // A device of its own to destroy: the headless one is shared.
+        let (Some(assets), Some((own, own_queue)), Some((device, queue))) =
+            (gs().map(|g| g.assets), device(Default::default()), device(Default::default()))
+        else {
+            return;
+        };
+        let mut gs = Gs::new(own, own_queue, assets);
         let frame = many_cells();
         gs.render(&frame);
         gs.device().destroy();
