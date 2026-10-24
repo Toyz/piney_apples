@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-449 entries: audio 39, battle 111, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 116, save 16, script 55, test 207, tooling 43, ui 95, video 16, volumes 88, world 130.
+450 entries: audio 39, battle 112, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 116, save 16, script 55, test 208, tooling 43, ui 95, video 16, volumes 89, world 130.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -461,3 +461,4 @@ The [reference](docs/README.md) says what is true now.
 | 447 | [Tarvos (ccBoss07) is ported from Quarantine's code: its guards held off by the kind of blow, its spike rain and phantom drawn as they fly, its blows' notes from the fight's ccRand, and event 310 ends in the arena under god with its music](worklog/0447-tarvos-ccboss07-is-ported-from-quarantine-s-code-its-guards.md) | 2026-10-24 | battle, render, volumes, test |
 | 448 | [The boss shots render every frame: a shot rendered alone fed the blur the last shot's picture, so Tarvos's target window wore Balmung's from 277 frames before; Tarvos's 30000 HP reads 0000 through cheatHpStr, and the phantom's unwritten view is drawn for one frame](worklog/0448-the-boss-shots-render-every-frame-a-shot-rendered-alone-fed.md) | 2026-10-24 | test, render, battle |
 | 449 | [Event 311 ends under the autopilot: an event point counts only in its own dungeon, the members' Sprite Ocarina leaves a dungeon the story is done with, and a lake by its Gate Out; area 108's way out is field 12 from Mutation on, so 312 reaches Kyvia's fourth fight](worklog/0449-event-311-ends-under-the-autopilot-an-event-point-counts.md) | 2026-10-24 | world, test, volumes |
+| 450 | [Corbenik's first form (ccBoss08) and its eight seeds are ported from Quarantine's code and agree with it frame by frame](worklog/0450-corbenik-s-first-form-ccboss08-and-its-eight-seeds-are.md) | 2026-10-24 | battle, volumes, test |

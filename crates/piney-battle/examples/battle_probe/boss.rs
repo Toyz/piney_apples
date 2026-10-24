@@ -377,6 +377,8 @@ pub(crate) fn eff_num(k: EffKind) -> i32 {
         EffKind::SpikeRain => 22,
         EffKind::Phantom => 23,
         EffKind::Eruption => 24,
+        EffKind::CorbenikWave => 26,
+        EffKind::Flush => 27,
     }
 }
 

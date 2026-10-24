@@ -243,6 +243,20 @@ pub struct Combat {
     pub tarvos_skills: &'static [i32],
     /// `@1568`: the two words `OnThinkMagic` copies; it casts the second.
     pub tarvos_magic_skills: &'static [i32],
+    /// `boss08AnmTbl` (boss08.cpp): Corbenik's first form's clip by act.
+    pub corbenik_anims: &'static [Option<&'static str>],
+    /// `boss08SeedAnmTbl`: a seed's clip by act.
+    pub corbenik_seed_anims: &'static [Option<&'static str>],
+    /// `boss08ActNormalTbl`: the first form's patterns, through the -1 that closes it.
+    pub corbenik_normal: &'static [i32],
+    /// `boss08bAnmTbl` (boss08_b.cpp): the second form's clip by act.
+    pub corbenik_b_anims: &'static [Option<&'static str>],
+    /// `boss08BNormalActTbl`: the second form's patterns, through the -1 that closes it.
+    pub corbenik_b_normal: &'static [i32],
+    /// `boss08BSuperActTbl`: its patterns from half its HP.
+    pub corbenik_b_super: &'static [i32],
+    /// `boss08DmgBarriar`: the barrier's clip as a blow lands on it.
+    pub corbenik_dmg_barrier: &'static [Option<&'static str>],
     /// `_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.
     pub cinema_skill_names: &'static [CinemaSkillName],
     /// The cinema's names by `game.field` and skill (`OnCinemaMode` with a skill, from Outbreak on); none before.
@@ -353,6 +367,13 @@ impl crate::store::Load for Combat {
             tarvos_rand_skills: crate::store::Load::load(r),
             tarvos_skills: crate::store::Load::load(r),
             tarvos_magic_skills: crate::store::Load::load(r),
+            corbenik_anims: crate::store::Load::load(r),
+            corbenik_seed_anims: crate::store::Load::load(r),
+            corbenik_normal: crate::store::Load::load(r),
+            corbenik_b_anims: crate::store::Load::load(r),
+            corbenik_b_normal: crate::store::Load::load(r),
+            corbenik_b_super: crate::store::Load::load(r),
+            corbenik_dmg_barrier: crate::store::Load::load(r),
             cinema_skill_names: crate::store::Load::load(r),
             cinema_skill_rows: crate::store::Load::load(r),
             weapon_infos: crate::store::Load::load(r),
@@ -607,6 +628,27 @@ impl Combat {
     }
     pub fn tarvos_magic_skills(&self) -> &'static [i32] {
         self.tarvos_magic_skills
+    }
+    pub fn corbenik_anims(&self) -> &'static [Option<&'static str>] {
+        self.corbenik_anims
+    }
+    pub fn corbenik_seed_anims(&self) -> &'static [Option<&'static str>] {
+        self.corbenik_seed_anims
+    }
+    pub fn corbenik_normal(&self) -> &'static [i32] {
+        self.corbenik_normal
+    }
+    pub fn corbenik_b_anims(&self) -> &'static [Option<&'static str>] {
+        self.corbenik_b_anims
+    }
+    pub fn corbenik_b_normal(&self) -> &'static [i32] {
+        self.corbenik_b_normal
+    }
+    pub fn corbenik_b_super(&self) -> &'static [i32] {
+        self.corbenik_b_super
+    }
+    pub fn corbenik_dmg_barrier(&self) -> &'static [Option<&'static str>] {
+        self.corbenik_dmg_barrier
     }
     pub fn cinema_skill_names(&self) -> &'static [CinemaSkillName] {
         self.cinema_skill_names
@@ -882,6 +924,33 @@ pub static TARVOS_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyL
 /// `@1568`: the two words `OnThinkMagic` copies; it casts the second.
 pub static TARVOS_MAGIC_SKILLS: std::sync::LazyLock<&'static [i32]> =
     std::sync::LazyLock::new(|| shared().tarvos_magic_skills);
+
+/// `boss08AnmTbl` (boss08.cpp): Corbenik's first form's clip by act.
+pub static CORBENIK_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().corbenik_anims);
+
+/// `boss08SeedAnmTbl`: a seed's clip by act.
+pub static CORBENIK_SEED_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().corbenik_seed_anims);
+
+/// `boss08ActNormalTbl`: the first form's patterns, through the -1 that closes it.
+pub static CORBENIK_NORMAL: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().corbenik_normal);
+
+/// `boss08bAnmTbl` (boss08_b.cpp): the second form's clip by act.
+pub static CORBENIK_B_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().corbenik_b_anims);
+
+/// `boss08BNormalActTbl`: the second form's patterns, through the -1 that closes it.
+pub static CORBENIK_B_NORMAL: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().corbenik_b_normal);
+
+/// `boss08BSuperActTbl`: its patterns from half its HP.
+pub static CORBENIK_B_SUPER: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().corbenik_b_super);
+
+/// `boss08DmgBarriar`: the barrier's clip as a blow lands on it.
+pub static CORBENIK_DMG_BARRIER: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().corbenik_dmg_barrier);
 
 /// `ehkBreathInfo`: `ccEnemyH`'s two fire breaths.
 pub static EHK_BREATH_INFO: std::sync::LazyLock<&'static [EnemyBrInfo]> =

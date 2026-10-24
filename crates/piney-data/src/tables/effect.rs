@@ -423,6 +423,14 @@ pub struct Effect {
     pub boss_leaf_dead_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_leaf_dead_ff_va: u32,
+    /// `g_seedShotSmokeGen`: Corbenik's seeds thrown.
+    pub boss_seed_shot_smoke: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_seed_shot_smoke_va: u32,
+    /// `g_seedShotSmokeFF`.
+    pub boss_seed_shot_smoke_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_seed_shot_smoke_ff_va: u32,
     /// `g_transEffGen`: Tarvos's transfer.
     pub boss_trans_eff: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
@@ -634,6 +642,10 @@ impl crate::store::Load for Effect {
             boss_leaf_dead_va: crate::store::Load::load(r),
             boss_leaf_dead_ff: crate::store::Load::load(r),
             boss_leaf_dead_ff_va: crate::store::Load::load(r),
+            boss_seed_shot_smoke: crate::store::Load::load(r),
+            boss_seed_shot_smoke_va: crate::store::Load::load(r),
+            boss_seed_shot_smoke_ff: crate::store::Load::load(r),
+            boss_seed_shot_smoke_ff_va: crate::store::Load::load(r),
             boss_trans_eff: crate::store::Load::load(r),
             boss_trans_eff_va: crate::store::Load::load(r),
             boss_trans_eff_ff: crate::store::Load::load(r),
@@ -1217,6 +1229,18 @@ impl Effect {
     pub fn boss_leaf_dead_ff_va(&self) -> u32 {
         self.boss_leaf_dead_ff_va
     }
+    pub fn boss_seed_shot_smoke(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_seed_shot_smoke
+    }
+    pub fn boss_seed_shot_smoke_va(&self) -> u32 {
+        self.boss_seed_shot_smoke_va
+    }
+    pub fn boss_seed_shot_smoke_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_seed_shot_smoke_ff
+    }
+    pub fn boss_seed_shot_smoke_ff_va(&self) -> u32 {
+        self.boss_seed_shot_smoke_ff_va
+    }
     pub fn boss_trans_eff(&self) -> &'static [ParticleGeneratorParam] {
         self.boss_trans_eff
     }
@@ -1720,6 +1744,14 @@ pub static BOSS_LEAF_DEAD: std::sync::LazyLock<&'static [ParticleGeneratorParam]
 /// `g_leafDeadFF`.
 pub static BOSS_LEAF_DEAD_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
     std::sync::LazyLock::new(|| shared().boss_leaf_dead_ff);
+
+/// `g_seedShotSmokeGen`: Corbenik's seeds thrown.
+pub static BOSS_SEED_SHOT_SMOKE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_seed_shot_smoke);
+
+/// `g_seedShotSmokeFF`.
+pub static BOSS_SEED_SHOT_SMOKE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_seed_shot_smoke_ff);
 
 /// `g_transEffGen`: Tarvos's transfer.
 pub static BOSS_TRANS_EFF: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =

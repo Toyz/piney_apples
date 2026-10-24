@@ -8,6 +8,7 @@
 //! and boss-innis.md, boss-magus.md, boss-kyvia.md, boss-fidchell.md.
 
 pub mod blur;
+pub mod corbenik;
 pub mod fidchell;
 pub mod gorre;
 pub mod innis;
@@ -115,6 +116,7 @@ pub struct BossData {
     pub gorre: gorre::GorreData,
     pub macha: macha::MachaData,
     pub tarvos: tarvos::TarvosData,
+    pub corbenik: corbenik::CorbenikData,
 }
 
 impl BossData {
@@ -129,6 +131,7 @@ impl BossData {
             gorre: gorre::GorreData::of(volume),
             macha: macha::MachaData::of(volume),
             tarvos: tarvos::TarvosData::of(volume),
+            corbenik: corbenik::CorbenikData::of(volume),
         }
     }
 }
@@ -163,6 +166,11 @@ pub enum Class {
     /// `ccBoss06`.
     Macha(Box<macha::Macha>),
     Tarvos(Box<tarvos::Tarvos>),
+    /// `ccBoss08`, the first form: its seeds are bosses of their own
+    /// characters.
+    Corbenik(Box<corbenik::first::First>),
+    /// `ccBoss08Seed`.
+    CorbenikSeed(Box<corbenik::seed::Seed>),
     /// A bare `ccBoss` (a slave's base).
     Plain,
 }
@@ -356,6 +364,8 @@ pub struct Eff {
     pub macha: Option<Box<macha::eff::Fx>>,
     /// Tarvos's spike rain and phantom ([`tarvos::eff::Fx`]).
     pub tarvos: Option<Box<tarvos::eff::Fx>>,
+    /// Corbenik's wave and flush ([`corbenik::eff::Fx`]).
+    pub corbenik: Option<Box<corbenik::eff::Fx>>,
 }
 
 /// The effects the bosses make (`ccBossEff*Create`).
@@ -430,6 +440,12 @@ pub enum EffKind {
     /// `ccBossEffEruptionCreate(pos, n, 100, 10)` (QUA gcmn 0x0037b7b0):
     /// made off, its `Draw` empty; the next pass frees its slot.
     Eruption,
+    /// `ccBossEffWaveCreate(pos, cb)` (QUA gcmn 0x0037dd60): Corbenik's
+    /// wave ([`corbenik::eff::Wave`]).
+    CorbenikWave,
+    /// `ccBossEffFlushCreate(pos, start, end)` (QUA gcmn 0x0037dec0): a
+    /// seed's flush ([`corbenik::eff::Flush`]).
+    Flush,
 }
 
 impl Effects {
@@ -456,6 +472,7 @@ impl Effects {
             hell: None,
             macha: None,
             tarvos: None,
+            corbenik: None,
         };
         match self.slots.iter().position(Option::is_none) {
             Some(k) => {
@@ -547,7 +564,9 @@ impl Eff {
             | EffKind::LightBallShock
             | EffKind::SpikeRain
             | EffKind::Phantom
-            | EffKind::Eruption => return,
+            | EffKind::Eruption
+            | EffKind::CorbenikWave
+            | EffKind::Flush => return,
         };
         if self.count >= life {
             self.enabled = false;
@@ -834,6 +853,12 @@ pub enum Out {
     /// `ccMenu->noiz->SetNoizBs(bs)`: the screen broken up for `bs`
     /// frames (Tarvos's magic, a leftover register's 20).
     Noise(i32),
+    /// What Corbenik, its seeds and its effects show ([`corbenik::Pic`]).
+    Corbenik(corbenik::Pic),
+    /// `activeCamPtr->type` (+0x5c) set.
+    CameraType(i32),
+    /// `ccMenu->panelStatus` (+0x0c) set.
+    PanelStatus(i16),
     /// `g_sinRot` (`ccBoss06BlurParamFuncCB`'s phase) set.
     BlurSinRot(F),
 }
@@ -1191,6 +1216,7 @@ impl Boss {
             Class::Fidchell(_) => fidchell::main(self, cx),
             Class::Macha(_) => macha::main(self, cx),
             Class::Tarvos(_) => tarvos::main(self, cx),
+            Class::Corbenik(_) => corbenik::first::main(self, cx),
             Class::Gorre(_) => gorre::main(self, cx),
             _ => self.skeith_main(cx),
         }
@@ -2548,6 +2574,8 @@ impl Boss {
             Class::Fidchell(_) => return fidchell::affect(self, cx),
             Class::Macha(_) => return macha::affect(self, cx),
             Class::Tarvos(_) => return tarvos::affect(self, cx),
+            Class::Corbenik(_) => return corbenik::first::affect(self, cx),
+            Class::CorbenikSeed(_) => return corbenik::seed::affect(self, cx),
             Class::Gorre(_) => return gorre::affect(self, cx),
             Class::GorreBrother(_) => return gorre::brother_affect(self, cx),
             _ => {}

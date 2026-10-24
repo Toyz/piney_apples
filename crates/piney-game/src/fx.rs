@@ -891,8 +891,8 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
         EffKind::HellExpress => Make::Hell { rules_slot: id },
         EffKind::Needle { .. } => Make::Needles { rules_slot: id },
         EffKind::FinalPhotonFlash => Make::FinalPhotonFlash { pos },
-        // Macha's lasers and blast, Tarvos's spikes, phantom and eruption:
-        // drawn from their rules' state.
+        // Macha's lasers and blast, Tarvos's spikes, phantom and eruption,
+        // Corbenik's own: drawn from their rules' state.
         EffKind::MeteoSworm { .. }
         | EffKind::ThunderStorm { .. }
         | EffKind::RockTower { .. }
@@ -900,7 +900,9 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
         | EffKind::LightBallShock
         | EffKind::SpikeRain
         | EffKind::Phantom
-        | EffKind::Eruption => {
+        | EffKind::Eruption
+        | EffKind::CorbenikWave
+        | EffKind::Flush => {
             return None;
         }
     })

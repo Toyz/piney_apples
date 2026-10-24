@@ -12,6 +12,7 @@ use std::io::{BufRead, Write};
 // Requests of the other rule sets, each in its own module: `handle`
 // answers the commands it knows and returns None for the rest.
 mod boss;
+mod corbenik;
 mod enemy_ai;
 mod enemy_motion;
 mod evparty;
@@ -657,6 +658,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .or_else(|| macha::handle(cmd, &mut t, &mut tables, &iso_path))
                     .or_else(|| gorre::handle(cmd, &mut t, &mut tables, &iso_path))
                     .or_else(|| tarvos::handle(cmd, &mut t, &mut tables, &iso_path))
+                    .or_else(|| corbenik::handle(cmd, &mut t, &mut tables, &iso_path))
                 {
                     Some(r) => r,
                     None => format!("{{\"error\":\"unknown command {cmd}\"}}"),

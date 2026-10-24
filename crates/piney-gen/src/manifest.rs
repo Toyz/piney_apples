@@ -207,6 +207,20 @@ fn macha_patterns() -> Until {
     patterns_through(&[(2, 1), (6, 1), (10, 1), (11, 1), (12, 1), (9, 2)])
 }
 
+/// `boss08ActNormalTbl` (Corbenik's first form): `ccBoss08::
+/// ExecPatternIndex` reads one operand for 15; the base one for 2, 6 and
+/// 12, two for 9 and 11.
+fn corbenik_patterns() -> Until {
+    patterns_through(&[(2, 1), (6, 1), (9, 2), (11, 2), (12, 1), (15, 1)])
+}
+
+/// `boss08BNormalActTbl` and `boss08BSuperActTbl` (the second form):
+/// `ccBoss08_b::ExecPatternIndex`'s own words (1, 14-19) take none; the
+/// base's 2, 6 and 12 one, 9 and 11 two.
+fn corbenik_b_patterns() -> Until {
+    patterns_through(&[(2, 1), (6, 1), (9, 2), (11, 2), (12, 1)])
+}
+
 fn array_through(inner: Layout, until: Until) -> Layout {
     Layout::Array {
         inner: Box::new(inner),
@@ -2394,6 +2408,55 @@ fn combat() -> Group {
                 "`@1568`: the two words `OnThinkMagic` copies; it casts the second.",
             ),
             e(
+                "corbenik_anims",
+                0x005E_C630,
+                array(opt(cstr()), 22),
+                GCMN,
+                "`boss08AnmTbl` (boss08.cpp): Corbenik's first form's clip by act.",
+            ),
+            e(
+                "corbenik_seed_anims",
+                0x005E_C690,
+                array(opt(cstr()), 19),
+                GCMN,
+                "`boss08SeedAnmTbl`: a seed's clip by act.",
+            ),
+            e(
+                "corbenik_normal",
+                0x005E_C6E0,
+                array_through(I32, corbenik_patterns()),
+                GCMN,
+                "`boss08ActNormalTbl`: the first form's patterns, through the -1 that closes it.",
+            ),
+            e(
+                "corbenik_b_anims",
+                0x005E_C7E0,
+                array(opt(cstr()), 24),
+                GCMN,
+                "`boss08bAnmTbl` (boss08_b.cpp): the second form's clip by act.",
+            ),
+            e(
+                "corbenik_b_normal",
+                0x005E_C730,
+                array_through(I32, corbenik_b_patterns()),
+                GCMN,
+                "`boss08BNormalActTbl`: the second form's patterns, through the -1 that closes it.",
+            ),
+            e(
+                "corbenik_b_super",
+                0x005E_C790,
+                array_through(I32, corbenik_b_patterns()),
+                GCMN,
+                "`boss08BSuperActTbl`: its patterns from half its HP.",
+            ),
+            e(
+                "corbenik_dmg_barrier",
+                0x0037_81E8,
+                array(opt(cstr()), 1),
+                GCMN,
+                "`boss08DmgBarriar`: the barrier's clip as a blow lands on it.",
+            ),
+            e(
                 "cinema_skill_names",
                 0x005E_B040,
                 array(
@@ -3355,6 +3418,10 @@ fn effect() -> Group {
             derived("boss_leaf_dead_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_leaf_dead", 0),
             e("boss_leaf_dead_ff", 0x005F_1960, array(ff_param(), 2), GCMN, "`g_leafDeadFF`."),
             derived("boss_leaf_dead_ff_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_leaf_dead_ff", 0),
+            e("boss_seed_shot_smoke", 0x005F_1A90, array(gen_param(), 1), GCMN, "`g_seedShotSmokeGen`: Corbenik's seeds thrown."),
+            derived("boss_seed_shot_smoke_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_seed_shot_smoke", 0),
+            e("boss_seed_shot_smoke_ff", 0x005F_1AD0, array(ff_param(), 2), GCMN, "`g_seedShotSmokeFF`."),
+            derived("boss_seed_shot_smoke_ff_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_seed_shot_smoke_ff", 0),
             e("boss_trans_eff", 0x005F_19A0, array(gen_param(), 1), GCMN, "`g_transEffGen`: Tarvos's transfer."),
             derived("boss_trans_eff_va", addr(), GCMN, "Where the volume keeps it: its rows' identity, as the game's pointers to them.").after("boss_trans_eff", 0),
             e("boss_trans_eff_ff", 0x005F_19E0, array(ff_param(), 1), GCMN, "`g_transEffFF`."),
