@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-467 entries: audio 40, battle 119, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 120, save 16, script 57, test 215, tooling 45, ui 97, video 16, volumes 89, world 133.
+468 entries: audio 40, battle 120, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 120, save 16, script 57, test 216, tooling 45, ui 97, video 16, volumes 89, world 133.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -479,3 +479,4 @@ The [reference](docs/README.md) says what is true now.
 | 465 | [Quarantine's field staff roll: STFROLL_VOL4 ported and checked frame by frame against the game's code, drawn on sysLayer, its music alone over field 126's empty event bank](worklog/0465-quarantine-s-field-staff-roll-stfroll-vol4-ported-and.md) | 2026-10-24 | render, audio |
 | 466 | [Town 4's stall under a filled heap was ee_run's: the save went in without LoadGame, so Kite's name pointer was the port's stand-in inside the heap](worklog/0466-town-4-s-stall-under-a-filled-heap-was-ee-run-s-the-save.md) | 2026-10-24 | tooling |
 | 467 | [piney-gs's flaky tests ran out of address space: a wgpu device a test under ulimit -v lost its devices; every headless GS now shares one device, and the tests one archive](worklog/0467-piney-gs-s-flaky-tests-ran-out-of-address-space-a-wgpu.md) | 2026-10-24 | test, render |
+| 468 | [The no-aid whole runs stop in their first dungeons; the pilot now fights casters, strikes the weakest foe, prefers blows to weak casts, sizes its heals and buys its stock, and Quarantine's run ends 301-303](worklog/0468-the-no-aid-whole-runs-stop-in-their-first-dungeons-the.md) | 2026-10-24 | test, battle |

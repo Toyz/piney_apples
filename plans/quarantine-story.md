@@ -77,7 +77,12 @@ event from its own start, 447 s):
    map (worklog 464); `ending_kanji`, `STFROLL_VOL4`, the hacking logos
    (worklog 465: every frame against the game's code, its music alone).
 8. The whole runs: from the new game, and from an Outbreak save
-   (`ConvGame`).
+   (`ConvGame`). With no aid (worklog 468) the new game's run ends 301,
+   302 and 303. It stalls at area 101's gate hack, whose Virus Cores the
+   pilot does not yet win by draining common foes. Mutation's stops at a
+   gate hack after 101-103. Outbreak's lone Kite falls in 203's field 71.
+   Next: cores and infection from play, levels from the portals, then
+   the bosses' tactics.
 
 Side finding settled (worklog 439, 466): town 4's stall under a filled
 heap was `ee_run`'s. It wrote the save in without `LoadGame`, so Kite's

@@ -2824,10 +2824,13 @@ mod tests {
         let world = w.world();
         let ty = world.merchants().iter().find(|m| piney_world::entry::Npc::code(*m) == code)?.flags;
         let f = piney_data::tables::fieldui::of(world.volume());
+        // `VenderMenu`'s three (0x100 the weapons, 0x400 the items, 0x800
+        // the magic); the Recorder (0x1000) and the Elf (0x200) sell none.
         let lists = match ty {
             t if t & 0x100 != 0 => f.equip_shop(),
             t if t & 0x800 != 0 => f.magic_shop(),
-            _ => f.item_shop(),
+            t if t & 0x400 != 0 => f.item_shop(),
+            _ => return None,
         };
         let stock = lists.get(w.server().clamp(0, 4) as usize)?;
         stock.iter().take_while(|&&c| c > 0).position(|&c| c == (i32::from(cat) << 16 | i32::from(id)))

@@ -239,9 +239,17 @@ impl Walker {
                     // The goal room's foes, however far: its event waits on
                     // them (`no_active`: 203's and 206's Data Bugs and their
                     // drained forms stand off out of reach).
+                    // A foe whose skill aims at one of the party (a caster
+                    // out of the 600) is fought too.
+                    let party: Vec<usize> = c.members.iter().map(|&(_, k)| k).collect();
                     let near = |e: usize| {
                         let q = c.scene.chars[e].pos.map(f32::from_bits);
-                        !self.wary || self.blocked > 0 || shut || in_goal || (q[0] - p[0]).hypot(q[1] - p[1]) < 600.0
+                        !self.wary
+                            || self.blocked > 0
+                            || shut
+                            || in_goal
+                            || (q[0] - p[0]).hypot(q[1] - p[1]) < 600.0
+                            || c.scene.chars[e].target_char.is_some_and(|t| party.contains(&t))
                     };
                     let (hopeless, stuck) = (&self.hopeless, self.blocked > 0 || shut);
                     let dist = |e: usize| {
@@ -252,9 +260,16 @@ impl Walker {
                         .enemies()
                         .into_iter()
                         .filter(|&e| c.scene.chars[e].hp > 0 && near(e) && (stuck || !hopeless.contains(&e)));
-                    // The story's walk goes at the nearest (a lone Kite's
-                    // chases across a room are long).
-                    let foe = if self.wary { live.min_by(|&a, &b| dist(a).total_cmp(&dist(b))) } else { live.next() };
+                    // The story's walk goes at the one with the least HP (the
+                    // party strikes it together), the nearest of equals (a
+                    // lone Kite's chases across a room are long).
+                    let foe = if self.wary {
+                        live.min_by(|&a, &b| {
+                            c.scene.chars[a].hp.cmp(&c.scene.chars[b].hp).then(dist(a).total_cmp(&dist(b)))
+                        })
+                    } else {
+                        live.next()
+                    };
                     self.foe = foe;
                     if let Some(e) = foe
                         && self.wary

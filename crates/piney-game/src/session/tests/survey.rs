@@ -80,6 +80,11 @@ pub(super) struct StoryPilot {
     /// way out of one to buy it ([`Self::provision`]).
     buys: Vec<Buy>,
     stocked: Vec<i32>,
+    /// The town and frame a shop goal began, and a town whose shop the
+    /// walk did not reach in [`SHOP_TRIES`] frames (its stock given up
+    /// until the next town).
+    shop_since: Option<(i32, u64)>,
+    no_shop: Option<i32>,
     leaving: bool,
     /// In a boss fight: the party's HP as last seen, what each member lost
     /// a frame over the last second, and the most a member lost in one
@@ -135,6 +140,40 @@ const RESTORATIVE: (i8, i16) = (10, 4);
 const MAGES_SOUL: (i8, i16) = (10, 18);
 /// A Speed Charm (`itemTblD` row 56): Ap Do (177), haste for 9000 frames.
 const SPEED_CHARM: (i8, i16) = (11, 56);
+/// The HP one of the Repth heals mends (Repth and La Repth 150, Ol and
+/// Ola Repth 400, Pha and Phal Repth all of it), on someone of `max` HP.
+fn heal_amount(skill: i16, max: i32) -> i32 {
+    match skill {
+        150 | 153 => 150,
+        151 | 154 => 400,
+        152 | 155 => max,
+        _ => 0,
+    }
+}
+
+/// Of the heals in `list` that `sp` pays for, the cheapest that mends
+/// `missing` HP of `max`, else the one that mends most: a Repth's 150 is
+/// nothing against blows of 600.
+fn pick_heal(items: &piney_fieldui::items::ItemTables, list: &[i16], sp: i16, missing: i32, max: i32) -> Option<i16> {
+    let cost = |x: i16| items.skill(i32::from(x)).map_or(i32::MAX, |p| p.cost);
+    let usable: Vec<i16> =
+        list.iter().copied().filter(|&x| x >= 0 && heal_amount(x, max) > 0 && cost(x) <= i32::from(sp)).collect();
+    usable
+        .iter()
+        .copied()
+        .filter(|&x| heal_amount(x, max) >= missing)
+        .min_by_key(|&x| cost(x))
+        .or_else(|| usable.iter().copied().max_by_key(|&x| heal_amount(x, max)))
+}
+
+/// What Kite keeps on him, bought in town with the gold the fights bring,
+/// as a player stocks up: revives first, then heals, then souls.
+/// Quarantine's towns sell no Healing Potion, but the Recovery Drink.
+const STOCK: [((i8, i16), i32); 4] = [(RESURRECT, 6), (POTION, 10), (RECOVERY_DRINK, 10), (MAGES_SOUL, 6)];
+const RECOVERY_DRINK: (i8, i16) = (10, 23);
+/// Frames a walk to a town's shop is given (Mutation's Dun Loireag's
+/// item shop, behind its gate, is out of the walk's reach).
+const SHOP_TRIES: u64 = 3000;
 /// The blows a Speed Charm's haste (9000 frames) lands on golden goblins,
 /// about: 27 in 14,000 frames on GOB3-1's, 37 in 18,000 on GOB3-4's.
 const BLOWS_A_CHARM: i32 = 15;
@@ -173,6 +212,8 @@ impl Default for StoryPilot {
             point_since: None,
             buys: Vec::new(),
             stocked: Vec::new(),
+            shop_since: None,
+            no_shop: None,
             leaving: false,
             party_hp: Vec::new(),
             losses: std::collections::VecDeque::new(),
@@ -187,6 +228,12 @@ impl StoryPilot {
         format!("{:?} opened {} began {}", self.action, self.opened, self.began)
     }
 
+    /// What Kite is to buy here: nothing in a town whose shop the walk
+    /// gave up on.
+    fn buys(&self) -> &[Buy] {
+        if self.no_shop.is_some() { &[] } else { &self.buys }
+    }
+
     pub(super) fn next(&mut self, s: &Session, f: u64) -> Raw {
         if let Stage::Area(a) = &s.stage
             && !a.streaming()
@@ -198,8 +245,30 @@ impl StoryPilot {
                 return raw;
             }
         }
-        if let Stage::World(_) = &s.stage {
+        if let Stage::World(w) = &s.stage {
             self.leaving = false;
+            // While a field's goblins want Speed Charms, the gold is kept
+            // for them.
+            if self.buys.iter().any(|b| b.item == SPEED_CHARM) {
+                self.buys.retain(|b| b.item == SPEED_CHARM);
+            } else {
+                for (item, carry) in STOCK {
+                    if !self.buys.iter().any(|b| b.item == item) {
+                        self.buys.push(Buy { item, carry });
+                    }
+                }
+            }
+            let town = w.town_number();
+            if self.no_shop.is_some_and(|t| t != town) {
+                self.no_shop = None;
+            }
+            let shopping = matches!(gate_goal(w, &self.town_talked, self.buys()), Some(GateGoal::Shop(_)));
+            match (shopping, self.shop_since) {
+                (true, Some((t, since))) if t == town && f > since + SHOP_TRIES => self.no_shop = Some(town),
+                (true, Some((t, _))) if t == town => {}
+                (true, _) => self.shop_since = Some((town, f)),
+                (false, _) => self.shop_since = None,
+            }
         }
         if let Stage::Area(a) = &s.stage
             && !a.streaming()
@@ -298,7 +367,7 @@ impl StoryPilot {
             self.path.clear();
             self.mark = None;
         }
-        story_player_with(s, f, &self.town_talked, &self.buys)
+        story_player_with(s, f, &self.town_talked, self.buys())
     }
 
     /// With an important item wanted ([`Want::Item`]): where to take it in
@@ -565,7 +634,7 @@ impl StoryPilot {
             Some((_, at)) if f > at + 120 => self.town_talking = None,
             Some(_) => {}
             None => {
-                if let Some(GateGoal::Talk(kind, code)) = gate_goal(w, &self.town_talked, &self.buys)
+                if let Some(GateGoal::Talk(kind, code)) = gate_goal(w, &self.town_talked, self.buys())
                     && w.world().command_target() == Some((kind, code))
                 {
                     self.town_talking = Some(((kind, code), f));
@@ -582,7 +651,7 @@ impl StoryPilot {
         use piney_world::entry::Kind;
         let world = w.world();
         let marker = |m: i16| world.marker(m).map(|mk| mk.pos);
-        let (target, to) = match gate_goal(w, &self.town_talked, &self.buys)? {
+        let (target, to) = match gate_goal(w, &self.town_talked, self.buys())? {
             GateGoal::Talk(kind, code) => ((kind, code), None),
             GateGoal::Shop(code) => ((Kind::Npc, code), None),
             GateGoal::Marker(m) => ((Kind::Gimmick, -1), Some(marker(m)?)),
@@ -755,18 +824,34 @@ impl StoryPilot {
         // Kite held (a boss's cinema), asleep, paralysed, confused or
         // charmed: no menu opens for him, so no action begins, and one not
         // yet open is given up.
+        // Getting up from a revive (`dead` 5, 78 frames) too: a menu opened
+        // then sleeps the world, and him with it, until the action gives up.
         let stuck = c.members.first().is_some_and(|&(_, k)| {
             use piney_battle::param::cond;
             let v = &c.scene.chars[k].cond;
-            [cond::HOLD, cond::SLEEP, cond::PARALYSIS, cond::CONFUSION, cond::CHARM].iter().any(|&i| v[i] != 0)
+            v[cond::DEAD] == 5
+                || [cond::HOLD, cond::SLEEP, cond::PARALYSIS, cond::CONFUSION, cond::CHARM].iter().any(|&i| v[i] != 0)
         });
         if stuck && t == -1 && (self.action.is_none() || !self.opened) {
             self.action = None;
             return None;
         }
         if let Some(act) = self.action {
-            self.opened |= t != -1;
-            if (self.opened && t == -1) || f > self.began + 600 {
+            // A menu changing (`CheckMenuType` answers the last list's
+            // number, 92 from Mutation on, while `menu` and `menuNext`
+            // differ: a window fading out to another or to none): neither
+            // open nor shut yet, so no press.
+            let changing = m.menu != m.menu_next;
+            self.opened |= t != -1 && !changing;
+            if f > self.began + 600 {
+                self.action = None;
+                self.ended = Some(f);
+                return None;
+            }
+            if changing {
+                return Some(still);
+            }
+            if self.opened && t == -1 {
                 self.action = None;
                 // A heal or item takes its time to land (the HP it mends
                 // is read again after); an order or Kite's attack does not.
@@ -781,7 +866,7 @@ impl StoryPilot {
             // until the command target is [`focus`]'s (a few rounds at most).
             let aim = (t == 65 && m.proccess == 1 && matches!(act, Action::Skill { target: None, .. }))
                 || (t == 73 && m.proccess != 10 && matches!(act, Action::Designate { page: 1, .. }));
-            if aim && let Some(part) = focus(c) {
+            if aim && let Some(part) = focus(c).or_else(|| prey(c)) {
                 let on = w.targeting().target == Some((piney_world::entry::Kind::Enemy, part as i32));
                 if !on && self.target_tries < 24 {
                     if f.is_multiple_of(8) {
@@ -957,7 +1042,7 @@ impl StoryPilot {
             party.iter().map(|&id| if id < 0 { None } else { c.who(id).map(|k| &c.scene.chars[k]) }).collect();
         let members = chars.iter().skip(1).filter(|ch| ch.is_some()).count();
         let kite_at = chars.first().copied().flatten().map(|k| k.pos.map(f32::from_bits));
-        let foe = focus(c).or_else(|| {
+        let foe = focus(c).or_else(|| prey(c)).or_else(|| {
             foes(c).into_iter().filter(|&e| c.scene.chars[e].hp > 0).min_by(|&x, &y| {
                 let d = |e: usize| {
                     let q = c.scene.chars[e].pos.map(f32::from_bits);
@@ -1027,11 +1112,6 @@ impl StoryPilot {
                 let real = c.scene.real(e);
                 real[elm::P_DEF] == real[elm::M_DEF]
             });
-        // Again when the boss part fought needs the other kind.
-        let reorder = focus(c).is_some() && self.skills_ordered != Some(magic);
-        if fighting && members > 0 && (self.skills_ordered.is_none() || reorder) {
-            return Some(Action::Chat { page: 0, row: if magic { 6 } else { 0 } });
-        }
         // A boss or a Data Bug with its protect broken (`pp_count` frames
         // left): Kite's Data Drain (Skills, page 5, skill 2) before the
         // break mends.
@@ -1155,7 +1235,13 @@ impl StoryPilot {
             .map(|(k, _)| k);
         if let Some(who) = lowest {
             let target = row(who, false);
-            if let Some((slot, skill)) = member_skill(false) {
+            let (missing, max) = chars[who].map_or((0, 0), |ch| (i32::from(ch.max_hp - ch.hp), i32::from(ch.max_hp)));
+            let member_heal = (1..party.len()).find_map(|slot| {
+                let ch = chars[slot].filter(can_order)?;
+                let list = piney_fieldui::items::skill_list(items, state, party[slot] as usize, 2);
+                pick_heal(items, &list, ch.sp, missing, max).map(|skill| (slot, skill))
+            });
+            if let Some((slot, skill)) = member_heal {
                 return Some(Action::Designate { slot, page: 2, skill, target });
             }
             if let Some(k) = kite {
@@ -1165,11 +1251,13 @@ impl StoryPilot {
                 let heals = |x: i16| items.skill(i32::from(x)).is_some_and(|p| p.kind & HEAL != 0);
                 let cost = |x: i16| items.skill(i32::from(x)).map_or(i32::MAX, |p| p.cost);
                 let known = piney_fieldui::items::skill_list(items, state, 0, 2);
-                let skill = known
-                    .iter()
-                    .copied()
-                    .filter(|&x| x >= 0 && heals(x) && cost(x) <= i32::from(k.sp))
-                    .min_by_key(|&x| (x != REPTH, cost(x)));
+                let skill = pick_heal(items, &known, k.sp, missing, max).or_else(|| {
+                    known
+                        .iter()
+                        .copied()
+                        .filter(|&x| x >= 0 && heals(x) && cost(x) <= i32::from(k.sp))
+                        .min_by_key(|&x| (x != REPTH, cost(x)))
+                });
                 if let Some(skill) = skill {
                     return Some(Action::Skill { page: 2, skill, target: Some(target) });
                 }
@@ -1192,6 +1280,12 @@ impl StoryPilot {
                 return Some(Action::Chat { page: 0, row: 1 });
             }
         }
+        // The order to both members at a fight's start, once no one needs
+        // mending; again when the boss part fought needs the other kind.
+        let reorder = focus(c).is_some() && self.skills_ordered != Some(magic);
+        if fighting && members > 0 && (self.skills_ordered.is_none() || reorder) {
+            return Some(Action::Chat { page: 0, row: if magic { 6 } else { 0 } });
+        }
         // Out of a fight, someone under a third of his SP; in a boss fight,
         // someone under a sixth (his heals and revives cost 10-50).
         let dry_under = match (fighting, boss) {
@@ -1213,97 +1307,132 @@ impl StoryPilot {
         if !fighting {
             return None;
         }
-        // A member's spell of the element the foe resists least, if under
-        // 100, at the nearest foe.
-        let reach = |e: usize| {
-            let q = c.scene.chars[e].pos.map(f32::from_bits);
-            kite_at.is_some_and(|p| (q[0] - p[0]).hypot(q[1] - p[1]) < 1500.0)
-        };
-        if fighting
-            && let Some(e) = foe.filter(|&e| reach(e))
-            && c.scene.chars[e].foe_state().is_some()
-        {
-            let real = c.scene.real(e);
-            let resist = |x: i16| {
-                let kind = items.skill(i32::from(x)).map_or(0, |p| p.kind);
-                (0..6).filter(|i| kind & (4 << i) != 0).map(|i| real[8 + i]).min().unwrap_or(i16::MAX)
+        // Else a member's spell of the element the foe resists least, if
+        // under 100, at the nearest foe.
+        let member_spell = || -> Option<Action> {
+            let reach = |e: usize| {
+                let q = c.scene.chars[e].pos.map(f32::from_bits);
+                kite_at.is_some_and(|p| (q[0] - p[0]).hypot(q[1] - p[1]) < 1500.0)
             };
-            let best = (1..party.len())
-                .filter_map(|slot| {
-                    let ch = chars[slot].filter(can_order)?;
-                    let list = piney_fieldui::items::skill_list(items, state, party[slot] as usize, 1);
-                    let skill = list
-                        .iter()
-                        .copied()
-                        .filter(|&x| x >= 0)
-                        .filter(|&x| items.skill(i32::from(x)).is_some_and(|p| p.cost <= i32::from(ch.sp)))
-                        .filter(|&x| hurts(i32::from(x)))
-                        .min_by_key(|&x| resist(x))?;
-                    Some((slot, skill, resist(skill)))
-                })
-                .min_by_key(|&(_, _, r)| r);
-            // At a boss part that magic hurts (Kyvia's core resists no
-            // element but guards against one kind), any spell.
-            let at_part = magic && focus(c) == Some(e);
-            if let Some((slot, skill, r)) = best
-                && (r < 100 || at_part)
+            if fighting
+                && let Some(e) = foe.filter(|&e| reach(e))
+                && c.scene.chars[e].foe_state().is_some()
             {
-                return Some(Action::Designate { slot, page: 1, skill, target: 0 });
+                let real = c.scene.real(e);
+                let resist = |x: i16| {
+                    let kind = items.skill(i32::from(x)).map_or(0, |p| p.kind);
+                    (0..6).filter(|i| kind & (4 << i) != 0).map(|i| real[8 + i]).min().unwrap_or(i16::MAX)
+                };
+                let best = (1..party.len())
+                    .filter_map(|slot| {
+                        let ch = chars[slot].filter(can_order)?;
+                        let list = piney_fieldui::items::skill_list(items, state, party[slot] as usize, 1);
+                        let skill = list
+                            .iter()
+                            .copied()
+                            .filter(|&x| x >= 0)
+                            .filter(|&x| items.skill(i32::from(x)).is_some_and(|p| p.cost <= i32::from(ch.sp)))
+                            .filter(|&x| hurts(i32::from(x)))
+                            .min_by_key(|&x| resist(x))?;
+                        Some((slot, skill, resist(skill)))
+                    })
+                    .min_by_key(|&(_, _, r)| r);
+                // At a boss part that magic hurts (Kyvia's core resists no
+                // element but guards against one kind), any spell.
+                let at_part = magic && focus(c) == Some(e);
+                if let Some((slot, skill, r)) = best
+                    && (r < 100 || at_part)
+                {
+                    return Some(Action::Designate { slot, page: 1, skill, target: 0 });
+                }
             }
-        }
-        let kite = kite?;
-        let p = kite.pos.map(f32::from_bits);
-        let dist = |e: usize| {
-            let q = c.scene.chars[e].pos.map(f32::from_bits);
-            (q[0] - p[0]).hypot(q[1] - p[1])
+            None
         };
-        // Not a foe the walk has given up on, unless it still goes at it
-        // (the room's doors shut until it falls): its blows alone may not
-        // do (Deadly Present's Exdefense bars them). A boss as far as a
-        // skill reaches (a spell at Macha as she flees).
-        let (near, nearest) = foes(c)
-            .into_iter()
-            .filter(|&e| (!self.walker.hopeless.contains(&e) || self.walker.foe == Some(e)) && c.scene.chars[e].hp > 0)
-            .map(|e| (e, dist(e)))
-            .min_by(|x, y| x.1.total_cmp(&y.1))
-            .filter(|&(_, d)| d < 600.0 || boss)?;
-        // A golden goblin that shakes off holds (see [`shakes_off_holds`]):
-        // the plain blow.
-        if shakes_off_holds(c, near) {
-            return None;
-        }
-        // Of the skills whose reach (`triggerRange`) holds the nearest foe
-        // (the target menu offers no one beyond it: Gale of Swords' 350),
-        // the strongest (`atk` by `dmgRate`, over the foe's resistance to
-        // its element), of the page the foe is weaker to, else of the other
-        // (a spell from afar rather than a chase).
-        let resist = |sk: &piney_battle::param::SkillParam| {
-            let el = foe.filter(|&e| c.scene.chars[e].foe_state().is_some()).map(|e| *c.scene.real(e));
-            (0..6)
-                .filter(|&i| sk.attr[i] != 0)
-                .map(|i| el.map_or(100, |r| i32::from(r[8 + i])))
-                .min()
-                .unwrap_or(100)
-                .max(1)
-        };
-        let strength = |x: i16| {
-            c.data.t.skill(i32::from(x)).map_or(0, |sk| i32::from(sk.atk) * i32::from(sk.dmg_rate) * 100 / resist(sk))
-        };
-        let pages = if magic { [1, 0] } else { [0, 1] };
-        let best = |page: i32| {
-            let reach = |x: &i16| {
-                items.skill(i32::from(*x)).is_some_and(|sk| sk.cost <= i32::from(kite.sp) && nearest < sk.trigger_range)
+        // Out of a boss fight Kite's own strongest skill in reach first: a
+        // member's order holds the pilot for its 180 frames, while Kite
+        // stands idle. Against a boss the members' spells first, as tuned.
+        let kite_skill = || -> Option<Action> {
+            let kite = kite?;
+            let p = kite.pos.map(f32::from_bits);
+            let dist = |e: usize| {
+                let q = c.scene.chars[e].pos.map(f32::from_bits);
+                (q[0] - p[0]).hypot(q[1] - p[1])
             };
-            let list = piney_fieldui::items::skill_list(items, state, 0, page);
-            let usable = list.iter().copied().filter(|&x| x >= 0).filter(reach).filter(|&x| hurts(i32::from(x)));
-            usable.max_by_key(|&x| strength(x)).map(|x| (page, x))
+            // Not a foe the walk has given up on, unless it still goes at it
+            // (the room's doors shut until it falls): its blows alone may not
+            // do (Deadly Present's Exdefense bars them). A boss as far as a
+            // skill reaches (a spell at Macha as she flees).
+            // Or one whose skill aims at the party (a caster standing off):
+            // a spell reaches it.
+            let party_chars: Vec<usize> = c.members.iter().map(|&(_, k)| k).collect();
+            let aims = |e: usize| c.scene.chars[e].target_char.is_some_and(|t| party_chars.contains(&t));
+            // The party's prey first ([`prey`]), else the nearest.
+            let candidates = || {
+                foes(c)
+                    .into_iter()
+                    .filter(|&e| {
+                        (!self.walker.hopeless.contains(&e) || self.walker.foe == Some(e)) && c.scene.chars[e].hp > 0
+                    })
+                    .map(|e| (e, dist(e)))
+                    .filter(|&(e, d)| d < 600.0 || boss || aims(e))
+            };
+            let (near, nearest) = prey(c)
+                .and_then(|e| candidates().find(|&(x, _)| x == e))
+                .or_else(|| candidates().min_by(|x, y| x.1.total_cmp(&y.1)))?;
+            // A golden goblin that shakes off holds (see [`shakes_off_holds`]):
+            // the plain blow.
+            if shakes_off_holds(c, near) {
+                return None;
+            }
+            // Of the skills whose reach (`triggerRange`) holds the nearest foe
+            // (the target menu offers no one beyond it: Gale of Swords' 350),
+            // the strongest (`atk` by `dmgRate`, over the foe's resistance to
+            // its element), of the page the foe is weaker to, else of the other
+            // (a spell from afar rather than a chase).
+            let resist = |sk: &piney_battle::param::SkillParam| {
+                let el = foe.filter(|&e| c.scene.chars[e].foe_state().is_some()).map(|e| *c.scene.real(e));
+                (0..6)
+                    .filter(|&i| sk.attr[i] != 0)
+                    .map(|i| el.map_or(100, |r| i32::from(r[8 + i])))
+                    .min()
+                    .unwrap_or(100)
+                    .max(1)
+            };
+            let strength = |x: i16| {
+                c.data
+                    .t
+                    .skill(i32::from(x))
+                    .map_or(0, |sk| i32::from(sk.atk) * i32::from(sk.dmg_rate) * 100 / resist(sk))
+            };
+            let pages = if magic { [1, 0] } else { [0, 1] };
+            let best = |page: i32| {
+                let reach = |x: &i16| {
+                    items
+                        .skill(i32::from(*x))
+                        .is_some_and(|sk| sk.cost <= i32::from(kite.sp) && nearest < sk.trigger_range)
+                };
+                let list = piney_fieldui::items::skill_list(items, state, 0, page);
+                let usable = list.iter().copied().filter(|&x| x >= 0).filter(reach).filter(|&x| hurts(i32::from(x)));
+                usable.max_by_key(|&x| strength(x)).map(|x| (page, x))
+            };
+            let (page, skill) = if even {
+                pages.into_iter().filter_map(best).max_by_key(|&(_, x)| strength(x))?
+            } else {
+                pages.into_iter().find_map(best)?
+            };
+            // Out of a boss fight, a foe the blows reach: the skill only when
+            // its sure hit is three plain blows' or more (a cast and its
+            // menus take the time of some three blows).
+            if !boss && nearest < 600.0 {
+                let blow = t.skill(1).map_or(0, |sk| sure(near, sk));
+                let hit = t.skill(i32::from(skill)).map_or(0, |sk| sure(near, sk));
+                if blow > 0 && hit < 3 * blow {
+                    return None;
+                }
+            }
+            Some(Action::Skill { page: page as i16, skill, target: None })
         };
-        let (page, skill) = if even {
-            pages.into_iter().filter_map(best).max_by_key(|&(_, x)| strength(x))?
-        } else {
-            pages.into_iter().find_map(best)?
-        };
-        Some(Action::Skill { page: page as i16, skill, target: None })
+        if boss { member_spell().or_else(kite_skill) } else { kite_skill().or_else(member_spell) }
     }
 
     /// In a field whose events wait for its foes all down ([`Want::Clear`]),
@@ -1319,6 +1448,14 @@ impl StoryPilot {
     fn provision(&mut self, a: &crate::area::AreaMode) {
         let w = a.world();
         let sc = w.scene();
+        // A field whose events want no clearing: no goblins' charms kept
+        // for (the town's standing stock comes back).
+        if sc.area == kind::FIELD
+            && let Some(vm) = a.vm()
+            && !story_wants(vm, &w.state().save).contains(&Want::Clear(sc.field as i16))
+        {
+            self.buys.retain(|b| b.item != SPEED_CHARM);
+        }
         if self.leaving || self.action.is_some() || sc.area != kind::FIELD {
             return;
         }
@@ -1362,7 +1499,8 @@ impl StoryPilot {
         if !again {
             self.stocked.push(sc.field);
         }
-        self.buys = vec![Buy { item: SPEED_CHARM, carry: charms }];
+        self.buys.retain(|b| b.item != SPEED_CHARM);
+        self.buys.insert(0, Buy { item: SPEED_CHARM, carry: charms });
         self.leaving = charms_left(w) < charms;
         if std::env::var_os("PINEY_DEBUG_PILOT").is_some() {
             eprintln!("PROVISION field {} again {again} charms {charms} leaving {}", sc.field, self.leaving);
@@ -1794,6 +1932,34 @@ fn quarantine_story_survey() {
 
 /// The party, the members' address and call bits and the story's wants,
 /// for `mutation_whole_story`'s trace.
+/// Kite's gold, the party's levels and Kite's stock (revives, heals,
+/// souls), for a whole run's lines.
+fn purse(s: &Session) -> String {
+    let (state, party) = match &s.stage {
+        Stage::Area(a) => (a.world().state(), a.world().party()),
+        Stage::World(w) => (w.world().state(), w.world().party()),
+        _ => return String::new(),
+    };
+    let count = |(cat, id): (i8, i16)| -> i32 {
+        (0..piney_fieldui::items::ITEMS)
+            .map(|k| piney_fieldui::items::save_item(state, 0, k))
+            .filter(|it| (it.cat, it.id) == (cat, id))
+            .map(|it| i32::from(it.num))
+            .sum()
+    };
+    let save = &state.save;
+    let levels: Vec<i16> = party
+        .iter()
+        .filter(|&&id| id >= 0)
+        .map(|&id| save.i16(piney_data::save::by_id::spc_param(id as usize) + piney_data::save::offset::SPC_LEVEL))
+        .collect();
+    format!(
+        "gold {} levels {levels:?} stock {:?}",
+        save.i32(piney_fieldui::menus::shop::GOLD),
+        STOCK.map(|(it, _)| count(it))
+    )
+}
+
 fn whole_state(s: &Session) -> String {
     let (party, vm, save) = match &s.stage {
         Stage::Area(a) => (a.world().party(), a.vm(), &a.world().state().save),
@@ -2067,7 +2233,7 @@ fn whole_story(disc: &str) {
         s.step(&pad);
         s.take_events();
         if matches!(s.stage, Stage::Area(_) | Stage::World(_)) && f.is_multiple_of(30) {
-            last_place = format!("{} {}", Mode::title(&s), whole_state(&s));
+            last_place = format!("{} {} {}", Mode::title(&s), purse(&s), whole_state(&s));
         }
         // `PINEY_TRACE_BOSS`: a boss fight a line a second: the party, the
         // boss's act, HP and protect.
@@ -2087,7 +2253,7 @@ fn whole_story(disc: &str) {
             && a.world().combat().battle.in_battle != 0
         {
             fight.push_back(format!("{f} {}", fighters(a)));
-            if fight.len() > 40 {
+            if fight.len() > 400 {
                 fight.pop_front();
             }
         }
@@ -2101,13 +2267,13 @@ fn whole_story(disc: &str) {
             continue;
         }
         if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(3000) {
-            eprintln!("WHOLE {f} {} {}", Mode::title(&s), whole_state(&s));
+            eprintln!("WHOLE {f} {} {} {}", Mode::title(&s), purse(&s), whole_state(&s));
         }
         for &n in story {
             if !ended.contains(&n) && event_flag(&mut s, n).is_some_and(|x| x & 3 << 62 != 0) {
                 ended.push(n);
                 last_end = f;
-                println!("{f}: event {n} ended - {}", Mode::title(&s));
+                println!("{f}: event {n} ended - {} - {}", Mode::title(&s), purse(&s));
             }
         }
         if ended.contains(&last) {
@@ -2166,6 +2332,9 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
             if god {
                 s.console("god");
             }
+            // `PINEY_SURVEY_EXP`: a diagnostic, the experience the party is
+            // short of a fight by (the console's `exp`, once, in the field).
+            let mut exp: Option<i32> = std::env::var("PINEY_SURVEY_EXP").ok().and_then(|v| v.parse().ok());
             let mut pad = Pad::default();
             let mut titles: Vec<String> = Vec::new();
             let mut flag = 0u64;
@@ -2175,6 +2344,14 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                     s.console("infection 0");
                     cores_for_hack(&mut s);
                     levels_for_boss(&mut s);
+                }
+                if let Some(n) = exp
+                    && let Stage::Area(a) = &s.stage
+                    && matches!(a.world().phase(), piney_world::Phase::Play(p) if p > 30)
+                    && !a.world().combat().members.is_empty()
+                {
+                    s.console(&format!("exp {n}"));
+                    exp = None;
                 }
                 let raw = pilot.next(&s, f);
                 // `PINEY_DEBUG_PILOT`: the pilot's actions and goals, and
@@ -2186,12 +2363,15 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                 {
                     let m = &a.ui().ctrl;
                     eprintln!(
-                        "PILOT {f} {} {:?} proccess {} status {} {}",
+                        "PILOT {f} {} {:?} proccess {} status {} {} walk at {:?} hopeless {:?} doing {}",
                         Mode::title(&s),
                         raw.buttons,
                         m.proccess,
                         m.menu_status,
-                        fighters(a)
+                        fighters(a),
+                        pilot.walker.foe,
+                        pilot.walker.hopeless,
+                        pilot.doing()
                     );
                 }
                 if std::env::var_os("PINEY_DEBUG_PILOT").is_some()
@@ -2498,6 +2678,28 @@ fn focus(c: &piney_world::combat::Combat) -> Option<usize> {
     healer.or(brother).or_else(|| nearest_seed(c)).or_else(|| r.parts.first().copied().filter(|&p| up(p)))
 }
 
+/// Out of a boss fight, the foe the party strikes together: of those
+/// within 1500 of Kite or whose skill aims at the party, the one with the
+/// least HP (one down is one less hitting the party; blows spread over
+/// three foes leave all three standing).
+fn prey(c: &piney_world::combat::Combat) -> Option<usize> {
+    if c.boss.as_ref().is_some_and(|r| !r.exit) {
+        return None;
+    }
+    let k = c.kite?;
+    let p = c.scene.chars[k].pos.map(f32::from_bits);
+    let party: Vec<usize> = c.members.iter().map(|&(_, m)| m).collect();
+    foes(c)
+        .into_iter()
+        .filter(|&e| c.scene.chars[e].hp > 0)
+        .filter(|&e| {
+            let q = c.scene.chars[e].pos.map(f32::from_bits);
+            (q[0] - p[0]).hypot(q[1] - p[1]) < 1500.0
+                || c.scene.chars[e].target_char.is_some_and(|t| party.contains(&t))
+        })
+        .min_by_key(|&e| c.scene.chars[e].hp)
+}
+
 /// Corbenik's seeds counting down to their burst (boss skill 31: 600 at
 /// 990, 800 around, setting off every seed within it): each with its
 /// frames left. Magic cannot touch them (mDef 9990); blows can (250 HP).
@@ -2735,15 +2937,22 @@ pub(super) fn fighters(a: &crate::area::AreaMode) -> String {
             ),
             Body::Foe(f) => {
                 let p = c.scene.param(k).cloned().unwrap_or_default();
+                // How far from Kite, and whom its skill aims at.
+                let d = c.kite.map_or(0.0, |kk| {
+                    let (a, b) = (c.scene.chars[kk].pos.map(f32::from_bits), ch.pos.map(f32::from_bits));
+                    (a[0] - b[0]).hypot(a[1] - b[1])
+                });
                 format!(
-                    "{} {}/{} lv {} pp {} break {}{}",
+                    "{} {}/{} lv {} pp {} break {}{} at {d:.0} aims {:?} skill {}",
                     String::from_utf8_lossy(&f.row.name),
                     ch.hp,
                     ch.max_hp,
                     f.row.base.level,
                     p.pp,
                     p.pp_count,
-                    if f.boss.is_some() { " boss" } else { "" }
+                    if f.boss.is_some() { " boss" } else { "" },
+                    ch.target_char,
+                    ch.skill_id
                 )
             }
             Body::Other { .. } => String::new(),
