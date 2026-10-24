@@ -79,6 +79,7 @@ event from its own start, 447 s):
 8. The whole runs: from the new game, and from an Outbreak save
    (`ConvGame`).
 
-Side finding to settle (worklog 439): town 4 stalls at about 1,440
-vblanks with the heap pre-filled: some town-4 code reads heap memory it
-never wrote and expects 0.
+Side finding settled (worklog 439, 466): town 4's stall under a filled
+heap was `ee_run`'s. It wrote the save in without `LoadGame`, so Kite's
+name pointer was the port's stand-in, inside the heap. The game reads no
+unwritten heap there.

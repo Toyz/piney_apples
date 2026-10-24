@@ -209,6 +209,14 @@ through the first form, from the fight's first frame.
   `EE_AREA=n` or `EE_THEN`'s `118,n` is the event instruction `area n`
   (`WORLD_MAN.eventAreaNumber`). `EE_FILL=word` fills the heap's one
   hole at the first handout.
+- `EE_SAVE` writes the save over `saveData`, then calls
+  `ccSaveData::LoadGame()`, as `ccThDemo` does after a load (worklog 466).
+  `LoadGame` rebuilds the names' pointers and allocates nothing.
+  - Before that call, character 0's name pointer stayed the port's
+    stand-in `SAVE_VA` (0x01810000), which lies inside the heap.
+  - Unfilled, it read as an empty name. Under `EE_FILL` the menu's
+    `FacePanelDisp` walked `ccKanjiStrlen` over 25 MB of 0xa5. That was
+    the town-4 "stall", the harness's own.
 - `ee_run` with `EE_HEAP` prints the manager's word, the blocks under it
   and what came into the hole (`MANAGER at ...`); `EE_TRACE` writes every
   handout, free and cut; `EE_DUMP_FREED=size:path` the bytes of a freed

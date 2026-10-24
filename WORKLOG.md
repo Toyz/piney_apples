@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-465 entries: audio 40, battle 119, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 119, save 16, script 57, test 214, tooling 44, ui 97, video 16, volumes 89, world 133.
+466 entries: audio 40, battle 119, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 119, save 16, script 57, test 214, tooling 45, ui 97, video 16, volumes 89, world 133.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -477,3 +477,4 @@ The [reference](docs/README.md) says what is true now.
 | 463 | [PhaJuk Zot's damage is Quarantine's own: its ccSkillDamage on the party as the game makes it agrees with the port, and four blows kill the member aimed at at any level](worklog/0463-phajuk-zot-s-damage-is-quarantine-s-own-its-ccskilldamage.md) | 2026-10-24 | battle, test |
 | 464 | [Event 314 reaches field 126 and its end: Quarantine's area 126 sets the number alone, the desktop's scene sets the field up, and its map is an empty EVENTAREA that puts the panels out](worklog/0464-event-314-reaches-field-126-and-its-end-quarantine-s-area.md) | 2026-10-24 | world, script |
 | 465 | [Quarantine's field staff roll: STFROLL_VOL4 ported and checked frame by frame against the game's code, drawn on sysLayer, its music alone over field 126's empty event bank](worklog/0465-quarantine-s-field-staff-roll-stfroll-vol4-ported-and.md) | 2026-10-24 | render, audio |
+| 466 | [Town 4's stall under a filled heap was ee_run's: the save went in without LoadGame, so Kite's name pointer was the port's stand-in inside the heap](worklog/0466-town-4-s-stall-under-a-filled-heap-was-ee-run-s-the-save.md) | 2026-10-24 | tooling |

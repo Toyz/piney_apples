@@ -560,6 +560,10 @@ fn main() {
         {
             let sd = sys.r32(sym("saveData").unwrap());
             sys.write(sd, bytes);
+            // ccThDemo's `ccSaveData::LoadGame()` after a load: the names'
+            // and CCS names' pointers rebuilt (the save holds the port's
+            // stand-in for character 0's), velocities, default words.
+            sys.call(sym("LoadGame__10ccSaveDataFv").unwrap(), &[sd], gp).unwrap();
             let game = sys.r32(sym("game").unwrap());
             eprintln!("injecting the save at {sd:#x}; game {game:#x}; scene {scene:?}");
             // EE_AREA=n: the event instruction `area n` for a story area
@@ -645,12 +649,13 @@ fn main() {
         if let Err(e) = sys.run_vblanks(step) {
             eprintln!("stopped: {e} at pc {:#x} ra {:#x}", sys.run.pc, sys.cpu.r[31] as u32);
             let sp = sys.cpu.r[29] as u32;
-            let up: Vec<String> = (0..48)
-                .map(|i| sys.r32(sp + 4 * i))
-                .filter(|&v| (0x100000..0x700000).contains(&v))
-                .map(|v| format!("{v:x}"))
+            // The words above sp that could be return addresses, by offset.
+            let up: Vec<String> = (0..256)
+                .map(|i| (4 * i, sys.r32(sp + 4 * i)))
+                .filter(|&(_, v)| (0x100000..0x700000).contains(&v) && v & 3 == 0)
+                .map(|(o, v)| format!("+{o:x}:{v:x}"))
                 .collect();
-            eprintln!("  stack {}", up.join(" "));
+            eprintln!("  sp {sp:#x} stack {}", up.join(" "));
             let regs: Vec<String> = (1..32).map(|i| format!("r{i} {:x}", sys.cpu.r[i] as u32)).collect();
             eprintln!("  regs {}", regs.join(" "));
             eprintln!("intc {:?} enabled {:#x}", sys.handlers, sys.enabled_intc);
