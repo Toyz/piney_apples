@@ -172,11 +172,7 @@ fn fight_then_back(orb: bool) -> Option<(Vec<Held>, bool)> {
         }
         fight |= to.is_some() && area(&s).world().combat().battle.in_battle != 0;
         let r = match (to, fight, shut) {
-            (Some(t), false, _) => {
-                let r = walker.step(&s, t, f).expect("out of the dungeon before a fight");
-                walker.put(&mut s);
-                r
-            }
+            (Some(t), false, _) => walker.step(&s, t, f).expect("out of the dungeon before a fight"),
             (_, true, None) => {
                 let a = area(&s);
                 let c = &a.ui().ctrl;

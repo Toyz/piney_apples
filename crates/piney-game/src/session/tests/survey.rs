@@ -1322,11 +1322,6 @@ impl StoryPilot {
         }
     }
 
-    /// Kite put where the walk found him stuck.
-    pub(super) fn after(&mut self, s: &mut Session) {
-        self.walker.put(s);
-    }
-
     /// In a field, a Data Bug on the lists farther than 350 from Kite, who
     /// knows Data Drain: a walk to it, fight or not (its HP stops at half;
     /// only a drain ends it), as [`Self::walk_after`] goes (event 206's, in
@@ -2021,7 +2016,6 @@ fn whole_story(disc: &str) {
             }
         }
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
@@ -2175,7 +2169,6 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                         whole_state(&s)
                     );
                 }
-                pilot.after(&mut s);
                 pad.read(&raw);
                 s.step(&pad);
                 s.take_events();
@@ -2630,7 +2623,6 @@ fn story_211_walks_round_the_rock_into_area_47_s_dungeon() {
     let (mut pad, mut pilot) = (Pad::default(), StoryPilot::default());
     for f in 0..10_000u64 {
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
@@ -2663,7 +2655,6 @@ fn event_18_back_in_town() {
             cores_for_hack(&mut s);
         }
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         let t0 = std::time::Instant::now();
         s.step(&pad);
@@ -2707,7 +2698,6 @@ fn event_18_town_card() {
     let mut pilot = StoryPilot::default();
     for f in 0..1500u64 {
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         let t0 = std::time::Instant::now();
         s.step(&pad);
@@ -2746,7 +2736,6 @@ fn frame_cost_over_a_long_run() {
     let (mut sum, mut worst) = (0f64, 0f64);
     for f in 1..=frames {
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         let t0 = std::time::Instant::now();
         let frame = s.step(&pad);
@@ -2886,7 +2875,6 @@ fn event_115_field_13_talks_to_six() {
     let (mut story_map, mut placed, mut arena) = (false, false, false);
     for f in 0..8000u64 {
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
@@ -2932,7 +2920,6 @@ fn event_13_leaves_mia_and_elk_out() {
     let (mut met, mut done) = (false, None);
     for f in 0..30000u64 {
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
@@ -2971,7 +2958,6 @@ fn event_13_s_town_again_has_no_card() {
     let mut put = None;
     for f in 0..30000u64 {
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
@@ -3075,9 +3061,6 @@ fn event_14_blackrose_after_the_administrator() {
             }
             _ => pilot.next(&s, f),
         };
-        if step == 0 {
-            pilot.after(&mut s);
-        }
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
@@ -3127,7 +3110,6 @@ fn bob_s_keywords_show_in_the_field() {
     let mut pilot = StoryPilot::default();
     for f in 0..200_000u64 {
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();

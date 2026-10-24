@@ -16,7 +16,6 @@ fn event_301_goes_through_town_5() {
     let mut ended = None;
     for f in 0..20_000u64 {
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();

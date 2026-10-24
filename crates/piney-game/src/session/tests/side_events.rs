@@ -302,7 +302,6 @@ pub(super) fn play_with(
             eprintln!("SIDE {f} {} wants {wants:?} targets {targets:?} foes {foes:?}", Mode::title(&s));
         }
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         let frame = s.step(&pad);
         s.take_events();
@@ -637,7 +636,6 @@ fn search_bt_shot() {
             break;
         }
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
@@ -1017,7 +1015,6 @@ fn the_tutorial_statue_s_glow_ends() {
     let mut n = 0u64;
     while event_flag(&mut s, 4).is_none_or(|x| x & (1 << 7) == 0) {
         let raw = pilot.next(&s, n);
-        pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();

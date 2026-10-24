@@ -143,18 +143,17 @@ pub(super) struct Walker {
     // (a wall inside a big room, a box).
     mark: Option<[f32; 2]>,
     via: Option<[f32; 2]>,
-    // Checks in this room that found him stopped; past a few, he is put in
-    // the leg's doorway (`pc_put`): the rooms whose floors run in rings and
-    // ledges, or with a fenced statue in the way, are more than the
-    // straight lines here can walk.
+    // Checks in this room that found him stopped, and the way round what
+    // stops him: the room's cells (`SetPathFindingMap`'s links, the map
+    // the members' `PathFindingInDungeon` walks), next cell first.
     stuck: u32,
-    put: Option<[f32; 3]>,
-    /// The times he has been put in this room.
-    puts: u32,
+    route: Vec<[f32; 2]>,
+    /// The times four checks in a row found him stopped in this room.
+    blocked: u32,
     /// The story's walk: only the enemies within 600 of Kite fought, and
     /// the magic portals left shut, unless he is stuck in the room (two
-    /// checks for the portals; once put, every foe of the room: an event's
-    /// entries shut its doors until they fall).
+    /// checks for the portals; once [`Walker::blocked`], every foe of the
+    /// room: an event's entries shut its doors until they fall).
     pub(super) wary: bool,
     /// The story's walk: each foe fought, its HP and the frame it was first
     /// fought; one that has lost none after [`HOPELESS`] frames, or still
@@ -211,7 +210,8 @@ impl Walker {
                 self.goal = None;
                 self.via = None;
                 self.stuck = 0;
-                self.puts = 0;
+                self.route.clear();
+                self.blocked = 0;
                 self.fought.clear();
                 self.hopeless.clear();
                 self.chase_via = None;
@@ -241,9 +241,9 @@ impl Walker {
                     // drained forms stand off out of reach).
                     let near = |e: usize| {
                         let q = c.scene.chars[e].pos.map(f32::from_bits);
-                        !self.wary || self.puts > 0 || shut || in_goal || (q[0] - p[0]).hypot(q[1] - p[1]) < 600.0
+                        !self.wary || self.blocked > 0 || shut || in_goal || (q[0] - p[0]).hypot(q[1] - p[1]) < 600.0
                     };
-                    let (hopeless, stuck) = (&self.hopeless, self.puts > 0 || shut);
+                    let (hopeless, stuck) = (&self.hopeless, self.blocked > 0 || shut);
                     let dist = |e: usize| {
                         let q = c.scene.chars[e].pos.map(f32::from_bits);
                         (q[0] - p[0]).hypot(q[1] - p[1])
@@ -302,7 +302,7 @@ impl Walker {
                         .into_iter()
                         // In the goal room too: an event's portal there
                         // holds its `no_active` until its foes fall.
-                        .filter(|_| !self.wary || self.stuck >= 2 || self.puts > 0 || in_goal)
+                        .filter(|_| !self.wary || self.stuck >= 2 || self.blocked > 0 || in_goal)
                         .find(|&m| {
                             matches!(c.ctrl.objs.get(m), Some(piney_battle::entry::Obj::Circle(o))
                         if (o.obj.ent.floor, o.obj.ent.block) == (sc.floor, sc.block))
@@ -330,36 +330,53 @@ impl Walker {
                             if let (Some(m), Some(q), Some(h)) = (self.mark, self.goal, here)
                                 && (m[0] - p[0]).hypot(m[1] - p[1]) < 60.0
                             {
-                                self.via = waypoint(d, p, q, h);
-                                self.stuck += 1;
-                                if self.stuck >= 4 {
-                                    self.stuck = 0;
-                                    self.puts += 1;
-                                    self.via = None;
-                                    // The doorway's centre (between the
-                                    // leg's points 900 inside and 1500
-                                    // beyond it), or the stairs.
-                                    let at = match (leg_goal(d, p, l, 1), leg_goal(d, p, l, 2)) {
-                                        (Some(a), Some(b)) if l != Leg::Stairs => {
-                                            [a[0] + (b[0] - a[0]) * 0.375, a[1] + (b[1] - a[1]) * 0.375]
+                                // Round it by the room's cells; stopped
+                                // again (a wall inside a cell the map
+                                // calls open), by the walls themselves;
+                                // else by a point that sees the goal.
+                                self.route = match self.stuck % 2 {
+                                    0 => route(&c.keep.path, [p[0], p[1]], q),
+                                    _ => {
+                                        // The point itself out of reach (a
+                                        // pillar on the doorway's line): on
+                                        // to the leg's next one.
+                                        let (way, reached) = detour(d, p, q);
+                                        if !reached && self.stage < 2 && l != Leg::Stairs {
+                                            self.stage += 1;
+                                            self.goal = leg_goal(d, p, l, self.stage);
+                                            self.goal.map_or_else(Vec::new, |g| detour(d, p, g).0)
+                                        } else {
+                                            way
                                         }
-                                        _ => q,
-                                    };
-                                    let mut hits = d.hits.clone();
-                                    let v = |z: f32| [at[0].to_bits(), at[1].to_bits(), z.to_bits(), 1f32.to_bits()];
-                                    let mut z = f32::from_bits(hits.land(v(p[2] + 1000.0), 0x2000_0001));
-                                    if hits.num == 0 {
-                                        z = p[2];
                                     }
-                                    self.put = Some([at[0], at[1], z]);
-                                    self.stage = 2;
-                                    self.goal = leg_goal(d, p, l, 2).or(Some(at));
+                                };
+                                if std::env::var_os("PINEY_DEBUG_WALK").is_some() {
+                                    let cell = ((p[0] / 300.0) as i32, (p[1] / 300.0) as i32);
+                                    eprintln!(
+                                        "WALK {f} room {:?} at {:?} goal {q:?} cell {cell:?} links {:#x} ready {} route {:?}",
+                                        self.room,
+                                        [p[0] as i32, p[1] as i32, p[2] as i32],
+                                        c.keep.path.link_at(cell.0, cell.1),
+                                        c.keep.path.ready,
+                                        self.route.iter().map(|r| [r[0] as i32, r[1] as i32]).collect::<Vec<_>>()
+                                    );
+                                }
+                                self.via = if self.route.is_empty() { waypoint(d, p, q, h) } else { None };
+                                self.stuck += 1;
+                                if self.stuck.is_multiple_of(4) {
+                                    self.blocked += 1;
                                 }
                             }
                             self.mark = Some([p[0], p[1]]);
                         }
                         if self.via.is_some_and(|v| (v[0] - p[0]).hypot(v[1] - p[1]) < 150.0) {
                             self.via = None;
+                        }
+                        while self.route.first().is_some_and(|n| (n[0] - p[0]).hypot(n[1] - p[1]) < 120.0) {
+                            self.route.remove(0);
+                        }
+                        if let Some(&n) = self.route.first() {
+                            return Some(toward(n));
                         }
                         match self.goal {
                             Some(_) if self.via.is_some() => self.via.map_or(still, toward),
@@ -381,16 +398,96 @@ impl Walker {
         };
         Some(raw)
     }
+}
 
-    /// Kite put where [`Walker::step`] found him stuck, if it did.
-    pub(super) fn put(&mut self, s: &mut Session) {
-        if let (Some(q), Stage::Area(a)) = (self.put.take(), &mut s.stage) {
-            let c = |v: f32| (v / 10.0).round() as i16;
-            let cmd = piney_event::host::PcCommand::Put { pc: 0, x: c(q[0]), y: c(q[1]), z: c(q[2]) };
-            a.world_mut().pc_command(cmd);
-            eprintln!("walk_to: Kite put at {q:?}, stuck in room {:?}", self.room);
+/// A way from `p` to `q` round the walls themselves: breadth first over
+/// points 150 apart within 4,500 of either end, from each to its eight
+/// neighbours where [`waypoint`]'s test (three wall lines 50 apart, at
+/// two heights) finds nothing between; the points after `p` to the one
+/// nearest `q`, and whether that one is within 150 of it.
+fn detour(d: &DungeonArea, p: [f32; 4], q: [f32; 2]) -> (Vec<[f32; 2]>, bool) {
+    const STEP: f32 = 150.0;
+    let at = |x: f32, y: f32, h: f32| [x.to_bits(), y.to_bits(), (p[2] + h).to_bits(), 1f32.to_bits()];
+    let mut hits = d.hits.clone();
+    let mut clear = |a: [f32; 2], b: [f32; 2]| {
+        let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+        let n = dx.hypot(dy).max(1.0);
+        let (sx, sy) = (-dy / n * 50.0, dx / n * 50.0);
+        [30.0, 95.0].into_iter().all(|h| {
+            [-1.0f32, 0.0, 1.0].into_iter().all(|k| {
+                let (ox, oy) = (sx * k, sy * k);
+                hits.line(at(a[0] + ox, a[1] + oy, h), at(b[0] + ox, b[1] + oy, h), 0x4000_0001, 1).is_none()
+            })
+        })
+    };
+    let pos = |c: (i32, i32)| [p[0] + STEP * c.0 as f32, p[1] + STEP * c.1 as f32];
+    let inside = |c: (i32, i32)| {
+        let x = pos(c);
+        (x[0] - p[0]).hypot(x[1] - p[1]) < 4500.0 || (x[0] - q[0]).hypot(x[1] - q[1]) < 4500.0
+    };
+    let far = |c: &(i32, i32)| {
+        let x = pos(*c);
+        ((x[0] - q[0]).hypot(x[1] - q[1]) * 10.0) as i64
+    };
+    let mut back: std::collections::HashMap<(i32, i32), (i32, i32)> = std::collections::HashMap::new();
+    let mut queue = std::collections::VecDeque::from([(0, 0)]);
+    back.insert((0, 0), (0, 0));
+    while let Some(c) = queue.pop_front() {
+        if far(&c) < 1500 {
+            break;
+        }
+        for (dx, dy) in [(0, -1), (1, 0), (0, 1), (-1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)] {
+            let n = (c.0 + dx, c.1 + dy);
+            if !back.contains_key(&n) && inside(n) && clear(pos(c), pos(n)) {
+                back.insert(n, c);
+                queue.push_back(n);
+            }
         }
     }
+    let Some(mut c) = back.keys().copied().min_by_key(far) else { return (Vec::new(), false) };
+    let reached = far(&c) < 1500;
+    let mut way = Vec::new();
+    while c != (0, 0) {
+        way.push(pos(c));
+        c = back[&c];
+    }
+    way.reverse();
+    (way, reached)
+}
+
+/// The way from `from` to the cell of `to` over the room's path-finding
+/// links (`buf`: bits 1, 2, 4, 8 a walkable neighbour at y - 1, x + 1,
+/// y + 1, x - 1; cells of 300, `WORLD_MAN::Get2DPos`), breadth first
+/// within 48 cells: the centres of its cells after the first, to the
+/// reached cell nearest `to` when `to`'s is not reached. Empty with none.
+fn route(map: &piney_battle::navi::PathMap, from: [f32; 2], to: [f32; 2]) -> Vec<[f32; 2]> {
+    let cell = |p: [f32; 2]| ((p[0] / 300.0) as i32, (p[1] / 300.0) as i32);
+    let (start, goal) = (cell(from), cell(to));
+    let near = |c: (i32, i32)| (c.0 - start.0).abs() <= 48 && (c.1 - start.1).abs() <= 48;
+    let mut back: std::collections::HashMap<(i32, i32), (i32, i32)> = std::collections::HashMap::new();
+    let mut queue = std::collections::VecDeque::from([start]);
+    back.insert(start, start);
+    while let Some(c) = queue.pop_front() {
+        if c == goal {
+            break;
+        }
+        let links = map.link_at(c.0, c.1);
+        for (bit, n) in [(1, (c.0, c.1 - 1)), (2, (c.0 + 1, c.1)), (4, (c.0, c.1 + 1)), (8, (c.0 - 1, c.1))] {
+            if links & bit != 0 && near(n) && !back.contains_key(&n) {
+                back.insert(n, c);
+                queue.push_back(n);
+            }
+        }
+    }
+    let dist = |c: &(i32, i32)| (c.0 - goal.0).pow(2) + (c.1 - goal.1).pow(2);
+    let Some(mut c) = back.keys().copied().min_by_key(dist) else { return Vec::new() };
+    let mut way = Vec::new();
+    while c != start {
+        way.push([150.0 + 300.0 * c.0 as f32, 150.0 + 300.0 * c.1 as f32]);
+        c = back[&c];
+    }
+    way.reverse();
+    way
 }
 
 /// The walk ([`Walker`]) to `to` until the session leaves the dungeon or
@@ -406,7 +503,6 @@ pub(super) fn walk_to(
     let mut walker = Walker::default();
     for f in 0..frames {
         let Some(raw) = walker.step(s, to, f) else { break };
-        walker.put(s);
         pad.read(&raw);
         let frame = s.step(&pad);
         let events = s.take_events();
@@ -1835,7 +1931,6 @@ fn a_rooms_menu_is_made_anew_after_its_passes() {
     let (mut pad, mut walker) = (Pad::default(), Walker::default());
     for f in 0..6000 {
         let Some(raw) = walker.step(&s, (0, 6), f) else { break };
-        walker.put(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();

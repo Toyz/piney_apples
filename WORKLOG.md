@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-445 entries: audio 39, battle 109, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 114, save 16, script 55, test 203, tooling 43, ui 95, video 16, volumes 86, world 128.
+446 entries: audio 39, battle 109, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 114, save 16, script 55, test 204, tooling 43, ui 95, video 16, volumes 86, world 129.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -457,3 +457,4 @@ The [reference](docs/README.md) says what is true now.
 | 443 | [Macha (ccBoss06) ported from Quarantine's code: its patterns read their operands from its own table, its lasers fly to the land and its light ball's shock bursts, and event 307 ends in the arena](worklog/0443-macha-ccboss06-ported-from-quarantine-s-code-its-patterns.md) | 2026-10-24 | battle, render, volumes, test |
 | 444 | [Macha without aid: the pilot heals ahead of the boss's worst second, cures charm and confusion, refills SP, runs from the wave and casts at range, and the party the start leaves still falls before the drain](worklog/0444-macha-without-aid-the-pilot-heals-ahead-of-the-boss-s-worst.md) | 2026-10-24 | test, battle |
 | 445 | [Macha's fight checked against Quarantine's code: the members' AI, the battle rules and the new game's party agree, and the members' lines were Outbreak's on the new voices, misplaced on two discs](worklog/0445-macha-s-fight-checked-against-quarantine-s-code-the-members.md) | 2026-10-24 | battle, volumes, tooling |
+| 446 | [The dungeon walk no longer puts Kite past what stops him: it finds a way by the room's path-finding cells, then by the walls themselves, and goes on to the doorway's next point when a pillar holds the first](worklog/0446-the-dungeon-walk-no-longer-puts-kite-past-what-stops-him-it.md) | 2026-10-24 | test, world |

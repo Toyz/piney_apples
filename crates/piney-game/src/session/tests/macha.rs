@@ -56,7 +56,6 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&mut Session, &Frame,
     let mut last_hp: Vec<i16> = Vec::new();
     for f in 0..frames {
         let raw = pilot.next(s, u64::from(f));
-        pilot.after(s);
         pad.read(&raw);
         let frame = s.step(&pad);
         each(s, &frame, f);

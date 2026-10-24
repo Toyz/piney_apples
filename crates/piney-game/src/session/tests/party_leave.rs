@@ -115,7 +115,6 @@ fn event_18_leaves_kite_alone() {
             s.console("kill");
         }
         let raw = pilot.next(&s, f);
-        pilot.after(&mut s);
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
