@@ -183,3 +183,31 @@ fn corbenik_fight_to_its_end() {
     assert!(p.over_at.is_none(), "the party fell at {:?}: {}", p.over_at, Mode::title(&s));
     assert!(p.ended_at.is_some(), "event 313 did not end: {}", Mode::title(&s));
 }
+
+/// Event 313's town part from its own story start (Lia Fail) under the
+/// pilot: BlackRose and another member called before her "Are you
+/// ready?" (her block for a party of two refuses), both answers Yes,
+/// and on through block 14 (`area 8`, the scene to field 8's arena).
+#[test]
+fn event_313_answers_blackrose() {
+    let Some(mut s) = story_session_on("quarantine", 313, |_| {}) else { return };
+    let (mut pad, mut pilot) = (Pad::default(), super::survey::StoryPilot::default());
+    let (mut at, mut party) = (None, [0, -1, -1]);
+    for f in 0..20_000u64 {
+        let raw = pilot.next(&s, f);
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+        if super::survey::event_flag(&mut s, 313).is_some_and(|x| x & 1 << 14 != 0) {
+            at = Some(f);
+            break;
+        }
+        if let Stage::World(w) = &s.stage {
+            party = w.world().party();
+        }
+    }
+    let flags = super::survey::event_flag(&mut s, 313).unwrap_or(0);
+    eprintln!("block 14 at {at:?}, party {party:?}");
+    assert!(at.is_some(), "block 14 not played (blocks {:#x}): {}", flags & 0xffff, Mode::title(&s));
+    assert!(party.contains(&15) && party[1..].iter().any(|&m| m != -1 && m != 15), "the party asked: {party:?}");
+}

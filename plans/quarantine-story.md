@@ -49,7 +49,7 @@ event from its own start, 447 s):
 | 310 | ported (worklog 447) | was: field 7's arena, no code 6; Tarvos ported (`ccBoss07`, its spike rain and phantom) |
 | 311 | done under god (worklog 449) | was: the pilot stood at dungeon 103's point 1 (another dungeon's); the four dungeons left by the members' Sprite Ocarina, the lake by Gate Out |
 | 312 | blocks 0xe09 (worklog 449) | field 12's disc: the fourth Kyvia fight under the pilot (area 108's way out was field 9, Infection's); the cores wear slowly and the fourth place's heals outpace the party; `kyvia_s_fourth_fight_to_its_end` plays it with its aids |
-| 313 | blocks 0x1 | Lia Fail: BlackRose's "Are you ready?" not answered (the party she asks for) |
+| 313 | blocks 0x7401 (worklog 462) | was: Lia Fail, BlackRose's "Are you ready?" not answered (the party she asks for); now on to field 8's fight |
 | 314 | blocks 0x7 | field 122 through the gate: `area 126` (no words) and its `scene` unported |
 
 ## The gaps, in story order
@@ -71,7 +71,8 @@ event from its own start, 447 s):
    worklog 455, Kyvia's third and fourth bodies not, 456); the world's side: the three forms play
    in field 8 under god to event 313's end (worklog 457); the no-aid
    fight played but not won (worklog 461: the start's party falls in the
-   first form); next 313's answer.
+   first form); 313's answer under the pilot (worklog 462: BlackRose and
+   another called, Yes twice, on to field 8).
 7. **314**: `area` / `scene` to field 126, `ending_kanji`, `STFROLL_VOL4`,
    the hacking logos.
 8. The whole runs: from the new game, and from an Outbreak save

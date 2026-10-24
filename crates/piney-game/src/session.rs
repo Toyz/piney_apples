@@ -2481,6 +2481,10 @@ mod tests {
         /// Kite with this member and no one else: a block refuses the gate
         /// while anyone else is along (`party_other`, event 21's Elk).
         Only(i32),
+        /// This member and someone else along: the block that goes on
+        /// wants `party_other` (event 313's BlackRose, whose block for a
+        /// party of two is a refusal).
+        Others(i32),
         /// An important item (category 15) Kite lacks, which a block waits
         /// on (`has_item`: event 22's cures); a story room's statue holds it.
         Item(i16),
@@ -2538,6 +2542,20 @@ mod tests {
                     _ => None,
                 })
                 .collect();
+            // The members the event takes as a pair: its block for Kite and
+            // `pc` alone unbars the way (event 21's `del_area_code`), so its
+            // `party_other` blocks refuse. Elsewhere (event 313) the pair
+            // is the refusal and `party_other` the way on.
+            let pairs: Vec<i16> = script
+                .blocks
+                .iter()
+                .filter(|b| b.ops.iter().any(|o| matches!(o, piney_event::ir::Op::DelAreaCode { .. })))
+                .flat_map(|b| &b.conds)
+                .filter_map(|c| match *c {
+                    Cond::InPartyOf2 { pc } => Some(pc),
+                    _ => None,
+                })
+                .collect();
             let mut scene = [-1i16; 6];
             let mut point = -1i32;
             let mut after = -1i16;
@@ -2587,7 +2605,7 @@ mod tests {
                     continue;
                 }
                 if let Some(pc) = block.conds.iter().find_map(|c| match *c {
-                    Cond::PartyOther { pc } => Some(i32::from(pc)),
+                    Cond::PartyOther { pc } if pairs.contains(&pc) => Some(i32::from(pc)),
                     _ => None,
                 }) {
                     out.push(Want::Only(pc));
@@ -2607,6 +2625,25 @@ mod tests {
                 let unbars = block.ops.iter().any(|o| matches!(o, piney_event::ir::Op::DelAreaCode { .. }));
                 if unbars && block.conds.iter().any(|c| matches!(*c, Cond::NotInParty { pc: -1 })) {
                     out.push(Want::Alone);
+                }
+                // Short of nothing but an answer (event 313's "Are you
+                // ready?"): the party its `in_party` and `party_other` ask
+                // for, gathered before the question.
+                let answered = block.conds.iter().all(|c| match *c {
+                    Cond::Status { index, num, comp } => comp.test(status(index), i32::from(num)).unwrap_or(false),
+                    Cond::StatusRange { index, lo, hi } => (i32::from(lo)..=i32::from(hi)).contains(&status(index)),
+                    Cond::EventDone { event } => done(event),
+                    Cond::NotInParty { .. } | Cond::HasItem { .. } => false,
+                    _ => true,
+                });
+                if !reachable && answered {
+                    for c in &block.conds {
+                        match *c {
+                            Cond::InParty { pc } if required.contains(&pc) => out.push(Want::Party(i32::from(pc))),
+                            Cond::PartyOther { pc } if !pairs.contains(&pc) => out.push(Want::Others(i32::from(pc))),
+                            _ => {}
+                        }
+                    }
                 }
                 if !reachable {
                     // Short of nothing but an important item: the way on.
@@ -2864,6 +2901,20 @@ mod tests {
                 .map(|_| GateGoal::Marker(m)),
             _ => None,
         });
+        // The party a question waits on (event 313's BlackRose and someone
+        // else): gathered before the talk that asks it.
+        let callable = |pc: i32| flags & calls & (1 << pc) != 0;
+        let gather = wants.iter().find_map(|&x| match x {
+            Want::Party(pc) if !alone && !party.contains(&pc) && party.contains(&-1) && callable(pc) => {
+                Some(GateGoal::Invite(pc))
+            }
+            Want::Others(pc)
+                if party.contains(&pc) && party.contains(&-1) && !party.iter().skip(1).any(|&m| m != -1 && m != pc) =>
+            {
+                companion(w, &party, flags & calls).map(GateGoal::Invite)
+            }
+            _ => None,
+        });
         // What Kite is to carry out, bought here first.
         let wanted = shop_for(w, buys)
             .map(GateGoal::Shop)
@@ -2877,6 +2928,7 @@ mod tests {
                     _ => None,
                 })
             })
+            .or(gather)
             .or_else(|| (alone && party.iter().skip(1).any(|&m| m != -1)).then_some(GateGoal::Disband))
             .or_else(|| others.then_some(GateGoal::Disband))
             .or_else(|| {
@@ -2923,6 +2975,7 @@ mod tests {
         // post only when the story wants nothing here (event 108 holds the
         // board on the top page, not in town).
         Some(match (talk, wanted, marked_areas(w).last(), marked_town(w)) {
+            (Some(_), ..) if gather.is_some() => gather?,
             (Some((kind, code)), ..) => GateGoal::Talk(kind, code),
             _ if mail => GateGoal::LogOut,
             (None, Some(g), ..) => g,
