@@ -904,7 +904,9 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
         | EffKind::StarDustFlash
         | EffKind::Transform
         | EffKind::Thunder3
-        | EffKind::RootDrain => {
+        | EffKind::RootDrain
+        | EffKind::TeraLaser
+        | EffKind::RefrectionLaser => {
             return None;
         }
     })

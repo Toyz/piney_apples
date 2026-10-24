@@ -1344,6 +1344,14 @@ fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> CamView {
         active_pos: camera.cam(camera.cam_id).pos,
         active_view: camera.cam(camera.cam_id).view,
         boss_view: bcam.map_or(c.view, |b| b.view),
+        // ccBoss::Draw's fade: the active camera, a field's distances.
+        fade: Some(boss::CamFade {
+            eye: camera.active().pos,
+            deg1: camera.active().deg[1],
+            eye_view: camera.tcam.kind == crate::camera::kind::EYE,
+            far: crate::foe::AREA_FAR,
+            fade: crate::foe::AREA_FADE,
+        }),
     }
 }
 

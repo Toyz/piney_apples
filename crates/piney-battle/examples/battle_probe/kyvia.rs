@@ -333,6 +333,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         active_pos: case.cam_pos,
         active_view: case.cam_view,
         boss_view: [0; 4],
+        fade: None,
     };
     // The frames the disc rides on after the body's `Move`.
     let mut ride = 0;

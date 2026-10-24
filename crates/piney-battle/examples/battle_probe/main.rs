@@ -14,6 +14,7 @@ use std::io::{BufRead, Write};
 mod boss;
 mod corbenik;
 mod corbenik_b;
+mod corbenik_c;
 mod enemy_ai;
 mod enemy_motion;
 mod evparty;

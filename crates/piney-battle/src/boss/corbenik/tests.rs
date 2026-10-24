@@ -322,3 +322,91 @@ fn the_barrier_takes_the_blows_and_its_count_kills() {
     f.affect(me, 1, 30000, 0);
     assert_eq!(f.boss().act_num, super::second::act::DIE, "the count out: the death");
 }
+
+// --- the third form -----------------------------------------------------------------------------
+
+fn fight_c() -> Option<Fight> {
+    let mut f = fight()?;
+    let me = f.me;
+    let t = f.t.bosses[super::third::ROW].clone();
+    let mut ch = Char::foe(t);
+    ch.condition_num = -1;
+    ch.affect.func = AffectFunc::Boss;
+    f.scene.chars[me] = ch;
+    let dummy = [0, 0, 0x4396_0000, ONE];
+    let b = f.with_cx(|cx| super::third::new(cx, [0, 0, 0, ONE], VF0, VF0, dummy)).0;
+    f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));
+    Some(f)
+}
+
+impl Fight {
+    fn third(&mut self) -> super::third::Third {
+        match &self.boss().class {
+            Class::CorbenikC(x) => (**x).clone(),
+            _ => panic!("not the third form"),
+        }
+    }
+
+    fn part(&self, c: usize) -> &Boss {
+        self.scene.chars[c].foe_state().unwrap().boss.as_ref().unwrap()
+    }
+}
+
+#[test]
+fn the_third_form_rides_its_eyes_on_the_dummy() {
+    let Some(mut f) = fight_c() else { return };
+    let x = f.third();
+    for &k in &x.killer_me {
+        assert_eq!(f.part(k).exit, 1, "a killer eye starts out");
+    }
+    f.frame();
+    let x = f.third();
+    // The body drew: the dummy is 300 over its place, and each eye rides
+    // it on its offset.
+    let pos = f.scene.chars[f.me].pos;
+    for &e in &x.eye_me {
+        assert_eq!(f.part(e).exit, 0, "an eye is in");
+        let (ep, b) = (f.scene.chars[e].pos, f.part(e));
+        let Class::CorbenikEye(y) = &b.class else { panic!("not an eye") };
+        let want = crate::geom::vadd([pos[0], pos[1], piney_data::field::ee::add(pos[2], 0x4396_0000), ONE], y.pos_b);
+        assert_eq!(ep[..3], want[..3], "on the dummy plus its offset");
+    }
+}
+
+#[test]
+fn half_its_hp_turns_the_table_with_stream_88() {
+    let Some(mut f) = fight_c() else { return };
+    let me = f.me;
+    let max = f.scene.chars[me].max_hp;
+    f.scene.chars[me].hp = max / 2 + 1;
+    let out = f.affect(me, 1, 2, 0);
+    let _ = out;
+    assert_eq!(f.boss().pat_tbl, Tbl::Super);
+    assert!(f.third().half);
+    f.affect(me, 1, 2, 0);
+    assert!(f.third().half, "only once");
+}
+
+#[test]
+fn the_eye_entry_throws_the_killer_eyes() {
+    let Some(mut f) = fight_c() else { return };
+    f.frame();
+    {
+        let b = f.boss();
+        (b.act_num, b.act_proccess, b.act_count) = (super::third::act::ENTRY_EYE, 0, 0);
+    }
+    f.frame();
+    let x = f.third();
+    for &k in &x.killer_me {
+        let b = f.part(k);
+        assert_eq!((b.exit, b.act_num), (0, super::eye::killer_act::GENERATE), "born and thrown");
+    }
+    for _ in 0..400 {
+        f.frame();
+    }
+    let x = f.third();
+    for &k in &x.killer_me {
+        assert!(f.scene.listed(k), "on the lists once landed");
+        assert!(super::eye::KILLER_ROW as i16 <= f.scene.chars[k].id(), "its own row");
+    }
+}

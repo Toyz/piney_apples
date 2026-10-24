@@ -244,6 +244,8 @@ player until one of these turns out wrong.
 - [[447]] the spikes', the phantom's sprite's and its lights' pictures against the game's draw — not checked frame by frame
 - [[450]] Corbenik's first form in the world: the seeds as actors, their pictures (the flush, the count, the charge), the leap and the wave in the arena, both forms in one task — not ported yet
 - [[451]] what the second form's star dust and press do to the boss camera while it is free (`ResetFlg` 5): not checked against the game (the harness's camera stays at 0) — answered by [[452]] (the form's own `SetMode(5)` frees it; the harness runs `SetMode` as the game does and the eye and view writes of the star dust, press and root drain agree)
+- [[453]] `ccBoss::Draw`'s camera fade on the other bosses (Skeith to Tarvos, Corbenik's first two forms): their rules set `transparency` to `setTransparency` and their harnesses leave the draw out; the game fades it by the active camera's distance (7000 out over 600 in a field) at each draw, and the code that reads `transparency` back (a fade's next step) reads the faded value — not checked for them; the third form takes it (its dummy's matrix and its eyes' fades)
+- [[453]] what the arena's clump `worldman->eventArea` +0x2bc switches is (Quarantine's `EVENTAREAB0` draws it at 0x0030a9d8 while set): its model and picture, the world's side
 - [[279]] which enemy and area the report's staff came from, and whether it was drained — report detail
 
 ### world

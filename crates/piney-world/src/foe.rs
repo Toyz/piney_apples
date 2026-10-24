@@ -30,7 +30,7 @@ use piney_draw::Fog;
 use crate::body::Body;
 use crate::chara::light_matrix;
 use crate::draw::{self, CHAR_LAYER, Draw, EFF_LAYER};
-use crate::ee::{self, F, ONE, V4};
+use crate::ee::{self, F, V4};
 use crate::pose::Play;
 use crate::town::{self, TownLights};
 
@@ -552,44 +552,7 @@ impl Camera {
     }
 }
 
-/// `ccGetCameraTransparency` with both points already in the player's
-/// frame: toward 0 as the camera comes within 1.25 r of the point (r the
-/// pitch's blend of `width` and `height`, at least 180; `hide` set, unless
-/// it was), 1 out to `far`, then down to 0 over `fade`.
-#[allow(clippy::too_many_arguments)]
-pub fn camera_transparency(
-    volume: piney_data::volume::Volume,
-    pos_p: V4,
-    cam_p: V4,
-    deg1: i16,
-    width: F,
-    height: F,
-    far: F,
-    fade: F,
-    hide: &mut bool,
-) -> F {
-    let d = ee::vsub(cam_p, pos_p);
-    let dist = ee::sqrtf_on(volume, ee::dot(d, d));
-    let t = ee::div(ee::from_int(8192 - i32::from(deg1)), 0x4600_0000);
-    let u = ee::sub(ONE, t);
-    let mut r = ee::add(ee::mul(width, t), ee::mul(height, u));
-    if ee::lt(r, 0x4334_0000) {
-        r = 0x4334_0000;
-    }
-    let r2 = ee::mul(0x3fa0_0000, r);
-    if !*hide && ee::lt(dist, r2) {
-        *hide = true;
-        let near = ee::mul(0x3f4c_cccd, r);
-        let f = ee::sub(dist, near);
-        return if ee::le(f, 0) { 0 } else { ee::div(f, ee::sub(r2, near)) };
-    }
-    *hide = false;
-    if ee::le(far, 0) || ee::le(dist, far) {
-        return ONE;
-    }
-    let over = ee::sub(dist, far);
-    if ee::le(over, fade) { ee::div(ee::sub(fade, over), fade) } else { 0 }
-}
+pub use piney_battle::geom::camera_transparency;
 
 /// `ccDrawEnv::SetFogBlend(rate, colour)` (main 0x001057f0): a rate of 0
 /// is no blend.
@@ -947,6 +910,7 @@ mod tests {
     use piney_data::iso::Iso;
 
     use super::*;
+    use crate::ee::ONE;
 
     const ISO: &str = "../../work/infection/infection.iso";
 

@@ -261,6 +261,34 @@ pub struct Combat {
     pub corbenik_root_anims_b: &'static [Option<&'static str>],
     /// `boss08DmgBarriar`: the barrier's clip as a blow lands on it.
     pub corbenik_dmg_barrier: &'static [Option<&'static str>],
+    /// `boss08cAnmTbl` (boss08_c.cpp): the third form's clip by act.
+    pub corbenik_c_anims: &'static [Option<&'static str>],
+    /// Infection's `boss08CNormalActTbl`, Quarantine's nameless `SetPatternMode(0)` table: the third form's first patterns.
+    pub corbenik_c_first: &'static [i32],
+    /// Quarantine's `boss08CNormalActTbl` (`SetPatternMode(1)`'s, built after the first): the third form's patterns from half its HP.
+    pub corbenik_c_normal: &'static [i32],
+    /// `boss08KillerEyeAnmTbl`: a killer eye's clip by act.
+    pub corbenik_killer_anims: &'static [Option<&'static str>],
+    /// `boss08EyeAnmTbl`: an eye's clip by act.
+    pub corbenik_eye_anims: &'static [Option<&'static str>],
+    /// `boss08KillerEyeActTbl`: the first killer eye's patterns.
+    pub corbenik_killer_acts: &'static [i32],
+    /// `boss08DownnerEyeActTbl`: the second's.
+    pub corbenik_downner_acts: &'static [i32],
+    /// `boss08RipsEyeActTbl`: the third's.
+    pub corbenik_rips_acts: &'static [i32],
+    /// `@2388`: a killer eye's pattern 14 asks one of these, by `abs(ccRand() % 13)`.
+    pub corbenik_killer_skills: &'static [i32],
+    /// `@2391`: its pattern 15 compels one of these, by `abs(ccRand() % 3)`.
+    pub corbenik_killer_compels: &'static [i32],
+    /// `@1714`: the killer eyes' rows a slave attack picks from, by `abs(ccRand() % 3)`.
+    pub corbenik_slave_ids: &'static [i32],
+    /// `@2448`: each killer eye's throw, in sixths of pi off its heading.
+    pub corbenik_killer_turns: &'static [f32],
+    /// `@2016`: the three rings' radii the eyes take up round the laser's target.
+    pub corbenik_refrect_radii: &'static [f32],
+    /// `@2017`: the rings' heights (the first word unread).
+    pub corbenik_refrect_heights: &'static [f32],
     /// `_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.
     pub cinema_skill_names: &'static [CinemaSkillName],
     /// The cinema's names by `game.field` and skill (`OnCinemaMode` with a skill, from Outbreak on); none before.
@@ -380,6 +408,20 @@ impl crate::store::Load for Combat {
             corbenik_root_anims_a: crate::store::Load::load(r),
             corbenik_root_anims_b: crate::store::Load::load(r),
             corbenik_dmg_barrier: crate::store::Load::load(r),
+            corbenik_c_anims: crate::store::Load::load(r),
+            corbenik_c_first: crate::store::Load::load(r),
+            corbenik_c_normal: crate::store::Load::load(r),
+            corbenik_killer_anims: crate::store::Load::load(r),
+            corbenik_eye_anims: crate::store::Load::load(r),
+            corbenik_killer_acts: crate::store::Load::load(r),
+            corbenik_downner_acts: crate::store::Load::load(r),
+            corbenik_rips_acts: crate::store::Load::load(r),
+            corbenik_killer_skills: crate::store::Load::load(r),
+            corbenik_killer_compels: crate::store::Load::load(r),
+            corbenik_slave_ids: crate::store::Load::load(r),
+            corbenik_killer_turns: crate::store::Load::load(r),
+            corbenik_refrect_radii: crate::store::Load::load(r),
+            corbenik_refrect_heights: crate::store::Load::load(r),
             cinema_skill_names: crate::store::Load::load(r),
             cinema_skill_rows: crate::store::Load::load(r),
             weapon_infos: crate::store::Load::load(r),
@@ -661,6 +703,48 @@ impl Combat {
     }
     pub fn corbenik_dmg_barrier(&self) -> &'static [Option<&'static str>] {
         self.corbenik_dmg_barrier
+    }
+    pub fn corbenik_c_anims(&self) -> &'static [Option<&'static str>] {
+        self.corbenik_c_anims
+    }
+    pub fn corbenik_c_first(&self) -> &'static [i32] {
+        self.corbenik_c_first
+    }
+    pub fn corbenik_c_normal(&self) -> &'static [i32] {
+        self.corbenik_c_normal
+    }
+    pub fn corbenik_killer_anims(&self) -> &'static [Option<&'static str>] {
+        self.corbenik_killer_anims
+    }
+    pub fn corbenik_eye_anims(&self) -> &'static [Option<&'static str>] {
+        self.corbenik_eye_anims
+    }
+    pub fn corbenik_killer_acts(&self) -> &'static [i32] {
+        self.corbenik_killer_acts
+    }
+    pub fn corbenik_downner_acts(&self) -> &'static [i32] {
+        self.corbenik_downner_acts
+    }
+    pub fn corbenik_rips_acts(&self) -> &'static [i32] {
+        self.corbenik_rips_acts
+    }
+    pub fn corbenik_killer_skills(&self) -> &'static [i32] {
+        self.corbenik_killer_skills
+    }
+    pub fn corbenik_killer_compels(&self) -> &'static [i32] {
+        self.corbenik_killer_compels
+    }
+    pub fn corbenik_slave_ids(&self) -> &'static [i32] {
+        self.corbenik_slave_ids
+    }
+    pub fn corbenik_killer_turns(&self) -> &'static [f32] {
+        self.corbenik_killer_turns
+    }
+    pub fn corbenik_refrect_radii(&self) -> &'static [f32] {
+        self.corbenik_refrect_radii
+    }
+    pub fn corbenik_refrect_heights(&self) -> &'static [f32] {
+        self.corbenik_refrect_heights
     }
     pub fn cinema_skill_names(&self) -> &'static [CinemaSkillName] {
         self.cinema_skill_names
@@ -971,6 +1055,46 @@ pub static CORBENIK_ROOT_ANIMS_B: std::sync::LazyLock<&'static [Option<&'static 
 /// `boss08DmgBarriar`: the barrier's clip as a blow lands on it.
 pub static CORBENIK_DMG_BARRIER: std::sync::LazyLock<&'static [Option<&'static str>]> =
     std::sync::LazyLock::new(|| shared().corbenik_dmg_barrier);
+
+/// `boss08cAnmTbl` (boss08_c.cpp): the third form's clip by act.
+pub static CORBENIK_C_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().corbenik_c_anims);
+
+/// Infection's `boss08CNormalActTbl`, Quarantine's nameless `SetPatternMode(0)` table: the third form's first patterns.
+pub static CORBENIK_C_FIRST: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().corbenik_c_first);
+
+/// `boss08KillerEyeAnmTbl`: a killer eye's clip by act.
+pub static CORBENIK_KILLER_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().corbenik_killer_anims);
+
+/// `boss08EyeAnmTbl`: an eye's clip by act.
+pub static CORBENIK_EYE_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().corbenik_eye_anims);
+
+/// `@2388`: a killer eye's pattern 14 asks one of these, by `abs(ccRand() % 13)`.
+pub static CORBENIK_KILLER_SKILLS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().corbenik_killer_skills);
+
+/// `@2391`: its pattern 15 compels one of these, by `abs(ccRand() % 3)`.
+pub static CORBENIK_KILLER_COMPELS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().corbenik_killer_compels);
+
+/// `@1714`: the killer eyes' rows a slave attack picks from, by `abs(ccRand() % 3)`.
+pub static CORBENIK_SLAVE_IDS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().corbenik_slave_ids);
+
+/// `@2448`: each killer eye's throw, in sixths of pi off its heading.
+pub static CORBENIK_KILLER_TURNS: std::sync::LazyLock<&'static [f32]> =
+    std::sync::LazyLock::new(|| shared().corbenik_killer_turns);
+
+/// `@2016`: the three rings' radii the eyes take up round the laser's target.
+pub static CORBENIK_REFRECT_RADII: std::sync::LazyLock<&'static [f32]> =
+    std::sync::LazyLock::new(|| shared().corbenik_refrect_radii);
+
+/// `@2017`: the rings' heights (the first word unread).
+pub static CORBENIK_REFRECT_HEIGHTS: std::sync::LazyLock<&'static [f32]> =
+    std::sync::LazyLock::new(|| shared().corbenik_refrect_heights);
 
 /// `ehkBreathInfo`: `ccEnemyH`'s two fire breaths.
 pub static EHK_BREATH_INFO: std::sync::LazyLock<&'static [EnemyBrInfo]> =

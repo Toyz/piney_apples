@@ -246,6 +246,45 @@ pub fn get_dirc_chg_f(from: F, to: F, mode: i32) -> F {
     deg2rad(get_dirc_chg(rad2deg(from), rad2deg(to), mode) as i16)
 }
 
+/// `ccGetCameraTransparency(pos, width, height, far, fade, &hide)` (QUA
+/// main 0x001eefa0) with both points already in the player's frame: toward 0 as the camera comes within 1.25 r of the point (r the
+/// pitch's blend of `width` and `height`, at least 180; `hide` set, unless
+/// it was), 1 out to `far`, then down to 0 over `fade`.
+#[allow(clippy::too_many_arguments)]
+pub fn camera_transparency(
+    volume: Volume,
+    pos_p: V4,
+    cam_p: V4,
+    deg1: i16,
+    width: F,
+    height: F,
+    far: F,
+    fade: F,
+    hide: &mut bool,
+) -> F {
+    let d = vsub(cam_p, pos_p);
+    let dist = sqrt_on(volume, dot(d, d));
+    let t = div(from_int(8192 - i32::from(deg1)), 0x4600_0000);
+    let u = sub(ONE, t);
+    let mut r = add(mul(width, t), mul(height, u));
+    if lt(r, 0x4334_0000) {
+        r = 0x4334_0000;
+    }
+    let r2 = mul(0x3fa0_0000, r);
+    if !*hide && lt(dist, r2) {
+        *hide = true;
+        let near = mul(0x3f4c_cccd, r);
+        let f = sub(dist, near);
+        return if le(f, 0) { 0 } else { div(f, sub(r2, near)) };
+    }
+    *hide = false;
+    if le(far, 0) || le(dist, far) {
+        return ONE;
+    }
+    let over = sub(dist, far);
+    if le(over, fade) { div(sub(fade, over), fade) } else { 0 }
+}
+
 /// A 4x4 matrix as `libvu0` stores it: four rows of four floats (`sceVu0FMATRIX`).
 pub type M4 = [V4; 4];
 

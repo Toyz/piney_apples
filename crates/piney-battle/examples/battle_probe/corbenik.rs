@@ -32,30 +32,39 @@ type Clips = std::collections::HashMap<String, (u32, bool)>;
 type V4 = [u32; 4];
 
 thread_local! {
-    static DATA: std::cell::RefCell<Option<(BossData, Clips)>> = const { std::cell::RefCell::new(None) };
+    static DATA: std::cell::RefCell<Option<(BossData, Clips, V4)>> = const { std::cell::RefCell::new(None) };
 }
 
-fn load(iso_path: &str) -> (BossData, Clips) {
+/// The clips of Corbenik's file and the effects', and `DMY_dummy1`'s
+/// place in its file (w 1, as `Decode_DummyPos` leaves it): the third
+/// form's eye dummy.
+fn load(iso_path: &str) -> (BossData, Clips, V4) {
     let mut iso = Iso::open(iso_path).expect("the ISO");
     let data = BossData::of(iso.volume().expect("the volume"));
     let arc = Archive::new(iso.read_path("DATA/DATA.BIN").expect("DATA.BIN")).expect("DATA.BIN");
     let mut clips = std::collections::HashMap::new();
+    let mut dummy = [0, 0, 0, 0x3f80_0000];
     for stem in [corbenik::FILE, "xeffect"] {
         let Ok(raw) = arc.inflate_named(stem) else { continue };
         let ccs = Ccs::parse(raw).expect("a CCSF");
         let scene = piney_data::scene::Scene::read(&ccs).expect("its scene");
+        for (obj, d) in &scene.dummies {
+            if ccs.object_name(*obj) == Some("DMY_dummy1") && stem == corbenik::FILE {
+                dummy = [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), 0x3f80_0000];
+            }
+        }
         for a in piney_data::anim::Animation::all(&ccs, &scene).expect("its animations") {
             if let Some(name) = ccs.object_name(a.object) {
                 clips.insert(name.to_string(), (a.frames, a.looping));
             }
         }
     }
-    (data, clips)
+    (data, clips, dummy)
 }
 
 /// Answers `corbenikclips` and `corbenik`; None for any other command.
 pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) -> Option<String> {
-    if !matches!(cmd, "corbenikclips" | "corbenik" | "corbenikb") {
+    if !matches!(cmd, "corbenikclips" | "corbenik" | "corbenikb" | "corbenikc" | "corbenikdummy") {
         return None;
     }
     DATA.with(|d| {
@@ -65,7 +74,7 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) ->
     });
     Some(DATA.with(|d| {
         let d = d.borrow();
-        let (data, clips) = d.as_ref().unwrap();
+        let (data, clips, dummy) = d.as_ref().unwrap();
         if cmd == "corbenikclips" {
             let mut v: Vec<_> = clips.iter().collect();
             v.sort();
@@ -73,6 +82,10 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables, iso: &str) ->
             format!("{{{}}}", body.join(","))
         } else if cmd == "corbenikb" {
             crate::corbenik_b::run(tables, data, clips, t)
+        } else if cmd == "corbenikc" {
+            crate::corbenik_c::run(tables, data, clips, *dummy, t)
+        } else if cmd == "corbenikdummy" {
+            format!("[{},{},{}]", dummy[0], dummy[1], dummy[2])
         } else {
             run(tables, data, clips, t)
         }
@@ -113,6 +126,8 @@ pub(crate) struct Cams {
     pub(crate) id: i32,
     pub(crate) ty: i32,
     pub(crate) boss: BossCam,
+    /// `ccBoss::Draw`'s camera fade, as the harness's active camera has it.
+    pub(crate) fade: Option<piney_battle::boss::CamFade>,
 }
 
 /// The harness's zeroed `ccBossCam` as `SetMode`, `SetFreeCamPosView` and
@@ -161,6 +176,7 @@ impl Cams {
             reset: b.reset,
             eye: b.pos,
             boss_view: b.view,
+            fade: self.fade,
             ..CamView::default()
         }
     }
@@ -434,7 +450,19 @@ pub(crate) fn mout(o: &Out) -> Option<String> {
             Pic::LaserRadiate { .. } => "[\"radiate2\"]".into(),
             Pic::Star { .. } | Pic::StarCore { .. } | Pic::Thunder { .. } | Pic::Laser { .. } => return None,
             Pic::Radiate { .. } => "[\"radiate\"]".into(),
+            Pic::Eye { .. }
+            | Pic::Killer { .. }
+            | Pic::TeraBeam { .. }
+            | Pic::Spark { .. }
+            | Pic::RefrectHead { .. }
+            | Pic::RefrectSeg { .. }
+            | Pic::GenMove { .. } => return None,
+            Pic::KillerShield { magic, .. } => format!("[\"shield\",{magic}]"),
+            Pic::GenKill { .. } => "[\"gen_kill\"]".into(),
+            Pic::ArenaClump { on } => format!("[\"clump\",{}]", u8::from(*on)),
+            Pic::Explode2 { .. } => "[\"explode2\"]".into(),
         },
+        Out::EntryFade { t, mode, colour } => format!("[\"fade\",{t},{mode},{colour}]"),
         Out::CameraChange(n) => format!("[\"cam\",{n}]"),
         Out::CameraPos { cam, pos } => format!("[\"campos\",{cam},{}]", v3(pos)),
         Out::CameraView { cam, view } => format!("[\"camview\",{cam},{}]", v3(view)),
@@ -455,7 +483,9 @@ pub(crate) fn mout(o: &Out) -> Option<String> {
                 | EffKind::StarDustFlash
                 | EffKind::Transform
                 | EffKind::RootDrain
-                | EffKind::Thunder3,
+                | EffKind::Thunder3
+                | EffKind::TeraLaser
+                | EffKind::RefrectionLaser,
             ..
         } => return None,
         Out::Skill(_, s) => format!("[\"skill\",{},{}]", s.sid, u8::from(s.stype == 2)),
@@ -473,6 +503,14 @@ fn gen_name(g: Gen) -> &'static str {
         Gen::RootDrain1b => "drain1b",
         Gen::RootDrain2 => "drain2",
         Gen::Transform => "transform",
+        Gen::GenerateEye => "generate_eye",
+        Gen::BossDead0 => "dead0",
+        Gen::BossDead1a => "dead1a",
+        Gen::BossDead1b => "dead1b",
+        Gen::LaserCharge => "laser_charge",
+        Gen::TeraCharge => "tera_charge",
+        Gen::TeraChargeGlow => "tera_glow",
+        Gen::TeraFall => "tera_fall",
     }
 }
 

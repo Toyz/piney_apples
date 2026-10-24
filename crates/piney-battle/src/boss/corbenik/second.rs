@@ -538,100 +538,24 @@ fn exec_pattern_index(b: &mut Boss, x: &mut Second, cx: &mut Cx, tbl: &[i32], i:
     s
 }
 
-/// `ccBoss::ExecPatternIndex` (QUA gcmn, Outbreak's code).
+/// `ccBoss::ExecPatternIndex` through this class's `ChangeAction` and
+/// `ExecPattern` ([`super::base_exec_pattern_index`]).
 fn base_exec_pattern_index(b: &mut Boss, x: &mut Second, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    let orig = i;
-    let mut i = i;
-    let mut pat = word(tbl, i);
-    i += 1;
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if pat == -1 {
-        pat = word(tbl, 0);
-        i = 1;
+    super::base_exec_pattern_index(b, cx, &mut BaseHost { x }, tbl, i)
+}
+
+struct BaseHost<'a> {
+    x: &'a mut Second,
+}
+
+impl super::Host for BaseHost<'_> {
+    fn change_action(&mut self, b: &mut Boss, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
+        b.change_action(cx, n, forbid, af);
     }
-    b.pat_num = pat;
-    let me = cx.me;
-    let neutral = |b: &mut Boss, cx: &mut Cx| {
-        let n = if b.epitaph != 0 { act::BASE_EPITAPH } else { act::NEUTRAL };
-        b.change_action(cx, n, 3, true);
-    };
-    match pat {
-        2 => {
-            let mut t = word(tbl, i);
-            i += 1;
-            if t == -1 && !cx.annihilated() {
-                t = 30;
-            }
-            b.stop_time = t;
-            b.stop_counter = 0;
-            neutral(b, cx);
-        }
-        3 => b.change_action(cx, act::ESCAPE, 3, true),
-        4 => b.change_action(cx, act::BASE_CHASE, 3, true),
-        5 => b.change_action(cx, act::BASE_RETURN, 3, true),
-        7 => b.change_action(cx, act::RANDOM_DRIVE, 3, true),
-        6 => {
-            let d = ee::from_int(word(tbl, i));
-            i += 1;
-            let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), b.center_dirc), NEG_HALF_PI);
-            let v = geom::apply_matrix(&m, [d, 0, 0, ONE]);
-            let p = geom::vadd(v, cx.scene.chars[me].pos_p);
-            b.dash_pos = p2w(cx, p);
-            b.dash_prev_pos = cx.scene.chars[me].pos;
-            b.change_action(cx, act::RETURN, 3, true);
-        }
-        8 => neutral(b, cx),
-        9 | 11 => {
-            let ty = word(tbl, i);
-            i += 1;
-            let sid = word(tbl, i);
-            i += 1;
-            if pat == 9 {
-                let t = select(b, cx, ty);
-                if !target_ok(cx, t) {
-                    exec_pattern(b, x, cx, 2, 30);
-                    return orig;
-                }
-                b.calc_target_info(cx);
-            }
-            let on = if pat == 9 { cx.scene.chars[me].target_char } else { Some(me) };
-            if let Some(tp) = on
-                && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
-            {
-                cx.out(Out::Skill(tp, k));
-            }
-            exec_pattern(b, x, cx, 2, 30);
-        }
-        12 => {
-            let sid = word(tbl, i);
-            i += 1;
-            let members = cx.party.members;
-            let mut last = None;
-            for m in members.into_iter().flatten() {
-                if target_ok(cx, Some(m)) {
-                    last = Some(m);
-                }
-            }
-            for m in members.into_iter().flatten() {
-                if Some(m) != last
-                    && target_ok(cx, Some(m))
-                    && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, m, sid, 0, false, cx.rand)
-                {
-                    cx.out(Out::Skill(m, k));
-                }
-            }
-            if let Some(l) = last
-                && target_ok(cx, Some(l))
-                && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, l, sid, 1, false, cx.rand)
-            {
-                cx.out(Out::Skill(l, k));
-            }
-            exec_pattern(b, x, cx, 2, -2);
-        }
-        _ => neutral(b, cx),
+
+    fn exec_pattern(&mut self, b: &mut Boss, cx: &mut Cx, pat: i32, p0: i32) {
+        exec_pattern(b, self.x, cx, pat, p0);
     }
-    i
 }
 
 /// `ccBoss08_b::Think` (0x003b3020).

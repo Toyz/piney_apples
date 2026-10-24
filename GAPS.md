@@ -134,9 +134,10 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   and third (`ccBoss08_c`, `ccBoss08KillerEye`, `ccBoss08Eye`, about
   31 KB). The
   first form's blur word is measured (worklog 439, `BOSS08_HEAP_EXIT`).
-  The first form and its seeds (worklog 450) and the second form, its
-  roots, barrier and effects (worklog 451) are ported and checked against
-  the game; the third form and the world's side are not
+  The first form and its seeds (worklog 450), the second form, its
+  roots, barrier and effects (worklog 451) and the third form, its eyes,
+  killer eyes and lasers (worklog 453) are ported and checked against
+  the game; the world's side is not
 - [x] The Data Bugs (enemy type 0x40): drawn with their base form's clips
   and held at half their HP (`virusFlag`, worklog 299)
 

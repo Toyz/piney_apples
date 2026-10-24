@@ -176,6 +176,12 @@ pub enum Class {
     CorbenikB(Box<corbenik::second::Second>),
     /// `ccBoss08Root`.
     CorbenikRoot(Box<corbenik::second::Root>),
+    /// `ccBoss08_c`: Corbenik's third form; its eyes and killer eyes are
+    /// bosses of their own characters.
+    CorbenikC(Box<corbenik::third::Third>),
+    /// `ccBoss08Eye`, `ccBoss08KillerEye`.
+    CorbenikEye(Box<corbenik::eye::Eye>),
+    CorbenikKiller(Box<corbenik::eye::Killer>),
     /// A bare `ccBoss` (a slave's base).
     Plain,
 }
@@ -464,6 +470,13 @@ pub enum EffKind {
     /// `ccBossEffRootDrainCreate(pos)` (QUA gcmn 0x0037e140), a
     /// `ccBossEffDrain`: the root drain ([`corbenik::eff::Drain`]).
     RootDrain,
+    /// `ccBossEffTeraLaserCreate(pos, rot, scale, target, cb)` (QUA gcmn
+    /// 0x0037e060): the third form's tera laser ([`corbenik::laser::Tera`]).
+    TeraLaser,
+    /// `ccBossEffRefrectionLaserCreate(sp, ep, eyes, n, cb)` (QUA gcmn
+    /// 0x0037da10): a laser bounced off the eyes
+    /// ([`corbenik::laser::Refrect`]).
+    RefrectionLaser,
 }
 
 impl Effects {
@@ -588,7 +601,9 @@ impl Eff {
             | EffKind::StarDustFlash
             | EffKind::Transform
             | EffKind::Thunder3
-            | EffKind::RootDrain => return,
+            | EffKind::RootDrain
+            | EffKind::TeraLaser
+            | EffKind::RefrectionLaser => return,
         };
         if self.count >= life {
             self.enabled = false;
@@ -825,6 +840,12 @@ pub enum Out {
         t_in: i32,
         t_out: i32,
         hold: Option<i32>,
+        colour: u32,
+    },
+    /// `scFadeDef->EntryFade(t, mode, colour, 0, 0, 512, 384)`.
+    EntryFade {
+        t: i32,
+        mode: i32,
         colour: u32,
     },
     /// `ccSeOnNote(se, note)`.
@@ -1081,6 +1102,21 @@ pub struct CamView {
     /// The boss camera's own view (`CamView`, +0x10), which Corbenik's
     /// second form reads and moves.
     pub boss_view: V4,
+    /// What `ccBoss::Draw`'s camera fade reads, None for no fade.
+    pub fade: Option<CamFade>,
+}
+
+/// `ccBoss::Draw`'s camera fade (`ccGetCameraTransparency`): the active
+/// camera's eye (`activeCamPtr->pos`) and pitch (`->deg[1]`), whether it is
+/// the eye view (`checkCameraType() == 1`: no fade), and the far end and
+/// fade `game.area` picks (a town 4000 and 400, else 7000 and 600).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CamFade {
+    pub eye: V4,
+    pub deg1: i16,
+    pub eye_view: bool,
+    pub far: F,
+    pub fade: F,
 }
 
 /// `WORLD_MAN.eventmap` as an `EVENTAREAB8` for Kyvia's rules: `IsMove()`,
@@ -1257,6 +1293,7 @@ impl Boss {
             Class::Tarvos(_) => tarvos::main(self, cx),
             Class::Corbenik(_) => corbenik::first::main(self, cx),
             Class::CorbenikB(_) => corbenik::second::main(self, cx),
+            Class::CorbenikC(_) => corbenik::third::main(self, cx),
             Class::Gorre(_) => gorre::main(self, cx),
             _ => self.skeith_main(cx),
         }
@@ -1722,6 +1759,35 @@ impl Boss {
         let pp = cx.scene.chars[me].pos_p;
         self.target_dirc = get_dirc(pp, self.target_pos_p);
         self.target_dist = dist(cx, pp, self.target_pos_p);
+    }
+
+    /// `ccBoss::Draw`'s transparency (QUA gcmn 0x00361040): `setTransparency`
+    /// times the camera's fade (`transDist` is set on every boss), or as it
+    /// is in the eye view; whether the clip is drawn (0.05 or more, or the
+    /// camera inside it).
+    pub(crate) fn draw_fade(&mut self, cx: &Cx, pos: V4) -> bool {
+        let me = cx.me;
+        let (w, h) = (cx.scene.chars[me].base().width, cx.scene.chars[me].base().height);
+        let (t, hide) = match cx.cam.fade {
+            Some(f) if !f.eye_view => {
+                let mut hide = false;
+                let k = geom::camera_transparency(
+                    cx.actx.volume,
+                    w2p(cx, pos),
+                    w2p(cx, f.eye),
+                    f.deg1,
+                    w,
+                    h,
+                    f.far,
+                    f.fade,
+                    &mut hide,
+                );
+                (ee::mul(self.set_transparency, k), hide)
+            }
+            _ => (self.set_transparency, false),
+        };
+        self.transparency = t;
+        hide || !ee::lt(t, 0x3d4c_cccd)
     }
 
     /// `ccBoss::EraseCmndTarget` (0x0045df40): the boss "dead" to the
@@ -2617,6 +2683,8 @@ impl Boss {
             Class::Corbenik(_) => return corbenik::first::affect(self, cx),
             Class::CorbenikSeed(_) => return corbenik::seed::affect(self, cx),
             Class::CorbenikB(_) => return corbenik::second::affect(self, cx),
+            Class::CorbenikC(_) => return corbenik::third::affect(self, cx),
+            Class::CorbenikKiller(_) => return corbenik::eye::affect(self, cx),
             Class::Gorre(_) => return gorre::affect(self, cx),
             Class::GorreBrother(_) => return gorre::brother_affect(self, cx),
             _ => {}
@@ -2647,6 +2715,12 @@ impl Boss {
 
     /// `ccBoss::Affect` (0x0045c730).
     fn base_affect(&mut self, cx: &mut Cx) {
+        self.base_affect_with(cx, &mut |b, cx, n, forbid, af| b.change_action(cx, n, forbid, af));
+    }
+
+    /// `ccBoss::Affect` with the class's `ChangeAction` (`ca`), which it
+    /// calls through the vtable.
+    pub(crate) fn base_affect_with(&mut self, cx: &mut Cx, ca: &mut dyn FnMut(&mut Boss, &mut Cx, i16, i16, bool)) {
         let me = cx.me;
         let (t, p0, person) = {
             let a = &cx.scene.chars[me].affect;
@@ -2671,7 +2745,7 @@ impl Boss {
                 }
             }
             13 => {
-                self.change_action(cx, act::EPITAPH, 2, true);
+                ca(self, cx, act::EPITAPH, 2, true);
                 cx.scene.chars[me].affect.ty = 0;
             }
             7 | 9 => {
@@ -2693,10 +2767,10 @@ impl Boss {
                     h = 0;
                     cx.out(Out::ClearSpcCondition);
                     affect::clear_conditions(&mut cx.scene.chars[me]);
-                    self.change_action(cx, act::DEAD, 2, true);
+                    ca(self, cx, act::DEAD, 2, true);
                 } else if t == 1 {
                     let n = if cx.env.count & 1 != 0 { act::DAMAGE0 } else { act::DAMAGE1 };
-                    self.change_action(cx, n, 0, true);
+                    ca(self, cx, n, 0, true);
                 }
                 cx.scene.chars[me].hp = h;
             }

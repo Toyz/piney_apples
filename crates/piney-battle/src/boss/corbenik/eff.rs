@@ -22,12 +22,15 @@ pub enum Fx {
     Drain(Box<Drain>),
     StarDust(Box<super::stardust::StarDust>),
     Thunder(Box<super::stardust::Thunder>),
+    Tera(Box<super::laser::Tera>),
+    Refrect(Box<super::laser::Refrect>),
 }
 
 impl Fx {
     /// The effect's `Draw` (out of its slot of `b`'s manager while it
-    /// runs): whether it is still enabled.
-    pub fn draw(&mut self, cx: &mut Cx, b: &mut Boss, slot: usize) -> bool {
+    /// runs): whether it is still enabled. `third` is the third form when
+    /// it runs the pass (a reflected laser's callback reaches its eyes).
+    pub fn draw(&mut self, cx: &mut Cx, b: &mut Boss, slot: usize, third: Option<&mut super::third::Third>) -> bool {
         match self {
             Fx::Wave(w) => w.draw(cx, b),
             Fx::Flush(f) => f.draw(cx),
@@ -35,6 +38,11 @@ impl Fx {
             Fx::Drain(d) => d.draw(cx),
             Fx::StarDust(s) => s.draw(cx, b, slot),
             Fx::Thunder(t) => t.draw(cx, b),
+            Fx::Tera(t) => t.draw(cx, b),
+            Fx::Refrect(r) => match third {
+                Some(x) => r.draw(cx, b, x),
+                None => r.enabled,
+            },
         }
     }
 }

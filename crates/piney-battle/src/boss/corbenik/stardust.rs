@@ -563,7 +563,7 @@ impl LaserRain {
     /// radiate, turned by `ccRandF(pi)`.
     fn hit(&mut self, cx: &mut Cx, k: usize) {
         let end = self.lasers[k].end;
-        cx.out(Out::Corbenik(Pic::Burst { pos: end, spd: VF0, kind: -1 }));
+        cx.out(Out::Corbenik(Pic::Burst { pos: end, spd: VF0, scale: ONE, kind: -1, grow: Some(super::GROW) }));
         if self.count < 60 {
             let z = rand_f(cx.cc, PI);
             cx.out(Out::Corbenik(Pic::LaserRadiate { pos: end, turn: z }));

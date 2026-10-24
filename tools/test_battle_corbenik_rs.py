@@ -192,6 +192,7 @@ class Game:
             ch = self.alloc(32, name)
             m.store(ch + 0x10, 4, self.clips.get(name, [0, 0])[0])
             m.store(a + 0xA8, 4, ch)
+            m.store(a + 0x94, 4, ch)
 
         hook("SetAnm__5ccAnmFP10ccAnmChunkUi", lambda mm, a, ch, *_: set_anm(a, self.names.get(ch)) or 0)
         hook("SetAnm__5ccAnmFP8ccStreamPcUi", lambda mm, a, s, n, *_: set_anm(a, self.cstr(n)) or 0)

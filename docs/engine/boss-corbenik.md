@@ -2,8 +2,8 @@
 title: Bosses - Corbenik
 status: partial
 volumes: QUA, INF
-covers: QUA gcmn.prg:0x003ac9f0-0x003b1a40 (boss08.cpp), 0x003aca30 ccThBoss08, 0x003acbd0 ccBoss08::ccBoss08, 0x003ad000 Main, 0x003ad030 Slave, 0x003ad0d0 Affect, 0x003ad460 Think, 0x003ad5d0 PreDrawAnm, 0x003ad9d0 SendMessage, 0x003adae0 ExecPatternIndex, 0x003adc30 SetPatternMode, 0x003adce0 OnThinkNeutral, 0x003ade20 ChangeNextPattern, 0x003ade90 _calcJumpPos, 0x003adf80 WaveFuncCB, 0x003adff0 OnThinkWave, 0x003ae780 OnThinkEscape, 0x003aea40 OnThinkSeed, 0x003aed10 OnThinkFlash, 0x003af090 OnThinkPollen, 0x003af190 OnThinkBodyPress, 0x003af4b0 OnThinkDie, 0x003af990 OnThinkMagic, 0x003aff40 _ChangeVibeType, 0x003affd0 _BeginBlink, 0x003b00b0 ccBoss08Seed::ccBoss08Seed, 0x003b03b0 ccBoss08Seed::Affect, 0x003b06a0 ccBoss08Seed::Main, 0x003b09f0 ccBoss08Seed::PreDrawAnm, 0x003b0ac0 ccBoss08Seed::Think, 0x003b0b50 ccBoss08Seed::Order, 0x003b0f40 OnThinkFly, 0x003b1440 OnExit, 0x003b1500 OnThinkCountDown, 0x003b17b0 OnThinkFire, 0x003b1970 OnThinkDead, 0x00376ea0 ccBossEffFlush::Draw, 0x00377c80 ccBossEffWave::Draw, 0x0037dd60 ccBossEffWaveCreate, 0x0037dec0 ccBossEffFlushCreate, 0x00360120 ccBoss::Move, 0x005ec630 boss08AnmTbl, 0x005ec690 boss08SeedAnmTbl, 0x005ec6e0 boss08ActNormalTbl, 0x003b1a50 boss08BBlurParamCB, 0x003b1b90 ccThBoss08b_Main, 0x003b1c50 ccBoss08_b::ccBoss08_b, 0x003b2610 ccBoss08_b::Main, 0x003b2a00 Slave, 0x003b2ae0 Affect, 0x003b3020 Think, 0x003b3200 ChangeNextPattern, 0x003b32f0 SetPatternMode, 0x003b33c0 ExecPatternIndex, 0x003b3600 PreDrawAnm, 0x003b3820 IsValidArea, 0x003b38a0 OnThinkNeutral, 0x003b3a40 OnThinkEscape, 0x003b3d00 OnThinkSybly, 0x003b4160 OnThinkWave, 0x003b4500 OnThinkStarDust, 0x003b4cd0 OnThinkBodyPress, 0x003b5b80 the barrier's message, 0x003b5cf0 the death, 0x003b5f60 OnThinkMagic, 0x003b6340 OnThinkSetupBarrier, 0x003b6750 the return, 0x003b6960 OnThinkRandomDrive, 0x003b6f50 _EntryElement, 0x003b7140 _DrawElement, 0x003b74b0 _InitElement, 0x003b7560 OnThinkRootDrain, 0x003b8910 SetupRoot, 0x003b8b00 EntryRoot, 0x003b8c10 ccBoss08Root::ccBoss08Root, 0x003b8e00 ccBoss08Root::Order, 0x003b8e80 ccBoss08Root::Think, 0x003b8fb0 ccBoss08Root::PreDrawAnm, 0x00372e10 ccBossEffTransform, 0x00374bb0 ccBossEffStarDustFlash, 0x00375c60 ccBossEffThunder3, 0x00378600 ccBossEffDrain::Draw, 0x00379600 ccBossEffLaserRain, 0x005ec730 boss08BNormalActTbl, 0x005ec790 boss08BSuperActTbl, 0x005ec7e0 boss08bAnmTbl, 0x005ec840 boss08RootAnmTblA, 0x005ec890 boss08RootAnmTblB, 0x003781e8 boss08DmgBarriar
-worklog: 450, 451
+covers: QUA gcmn.prg:0x003ac9f0-0x003b1a40 (boss08.cpp), 0x003aca30 ccThBoss08, 0x003acbd0 ccBoss08::ccBoss08, 0x003ad000 Main, 0x003ad030 Slave, 0x003ad0d0 Affect, 0x003ad460 Think, 0x003ad5d0 PreDrawAnm, 0x003ad9d0 SendMessage, 0x003adae0 ExecPatternIndex, 0x003adc30 SetPatternMode, 0x003adce0 OnThinkNeutral, 0x003ade20 ChangeNextPattern, 0x003ade90 _calcJumpPos, 0x003adf80 WaveFuncCB, 0x003adff0 OnThinkWave, 0x003ae780 OnThinkEscape, 0x003aea40 OnThinkSeed, 0x003aed10 OnThinkFlash, 0x003af090 OnThinkPollen, 0x003af190 OnThinkBodyPress, 0x003af4b0 OnThinkDie, 0x003af990 OnThinkMagic, 0x003aff40 _ChangeVibeType, 0x003affd0 _BeginBlink, 0x003b00b0 ccBoss08Seed::ccBoss08Seed, 0x003b03b0 ccBoss08Seed::Affect, 0x003b06a0 ccBoss08Seed::Main, 0x003b09f0 ccBoss08Seed::PreDrawAnm, 0x003b0ac0 ccBoss08Seed::Think, 0x003b0b50 ccBoss08Seed::Order, 0x003b0f40 OnThinkFly, 0x003b1440 OnExit, 0x003b1500 OnThinkCountDown, 0x003b17b0 OnThinkFire, 0x003b1970 OnThinkDead, 0x00376ea0 ccBossEffFlush::Draw, 0x00377c80 ccBossEffWave::Draw, 0x0037dd60 ccBossEffWaveCreate, 0x0037dec0 ccBossEffFlushCreate, 0x00360120 ccBoss::Move, 0x005ec630 boss08AnmTbl, 0x005ec690 boss08SeedAnmTbl, 0x005ec6e0 boss08ActNormalTbl, 0x003b1a50 boss08BBlurParamCB, 0x003b1b90 ccThBoss08b_Main, 0x003b1c50 ccBoss08_b::ccBoss08_b, 0x003b2610 ccBoss08_b::Main, 0x003b2a00 Slave, 0x003b2ae0 Affect, 0x003b3020 Think, 0x003b3200 ChangeNextPattern, 0x003b32f0 SetPatternMode, 0x003b33c0 ExecPatternIndex, 0x003b3600 PreDrawAnm, 0x003b3820 IsValidArea, 0x003b38a0 OnThinkNeutral, 0x003b3a40 OnThinkEscape, 0x003b3d00 OnThinkSybly, 0x003b4160 OnThinkWave, 0x003b4500 OnThinkStarDust, 0x003b4cd0 OnThinkBodyPress, 0x003b5b80 the barrier's message, 0x003b5cf0 the death, 0x003b5f60 OnThinkMagic, 0x003b6340 OnThinkSetupBarrier, 0x003b6750 the return, 0x003b6960 OnThinkRandomDrive, 0x003b6f50 _EntryElement, 0x003b7140 _DrawElement, 0x003b74b0 _InitElement, 0x003b7560 OnThinkRootDrain, 0x003b8910 SetupRoot, 0x003b8b00 EntryRoot, 0x003b8c10 ccBoss08Root::ccBoss08Root, 0x003b8e00 ccBoss08Root::Order, 0x003b8e80 ccBoss08Root::Think, 0x003b8fb0 ccBoss08Root::PreDrawAnm, 0x00372e10 ccBossEffTransform, 0x00374bb0 ccBossEffStarDustFlash, 0x00375c60 ccBossEffThunder3, 0x00378600 ccBossEffDrain::Draw, 0x00379600 ccBossEffLaserRain, 0x005ec730 boss08BNormalActTbl, 0x005ec790 boss08BSuperActTbl, 0x005ec7e0 boss08bAnmTbl, 0x005ec840 boss08RootAnmTblA, 0x005ec890 boss08RootAnmTblB, 0x003781e8 boss08DmgBarriar, 0x003b9070 ccThBoss08c_Main, 0x003b9140 _RefrectLaserCB, 0x003b9250 ccBoss08_c::ccBoss08_c, 0x003b9810 Affect, 0x003b99d0 PreDrawAnm, 0x003b9a50 Think, 0x003b9b90 SetPatternMode, 0x003b9c50 ExecPatternIndex, 0x003b9ff0 OnThinkNeutral, 0x003ba210 the death, 0x003ba9c0 OnThinkDataDrain, 0x003bad50 OnThinkEntryEye, 0x003bb460 OnThinkWave, 0x003bb750 OnThinkTeraLaser, 0x003bc430 OnThinkSlaveAttack, 0x003bc6c0 OnThinkWander, 0x003bc900 OnThinkLaser, 0x003bd6c0 ChangeAction, 0x003bd870 Slave, 0x003bd960 SetupSlave, 0x003bdbc0 EntryKiller, 0x003bdc50 CalcTeraLaserPos, 0x003bdf00 SetupRefrectLaserPos, 0x003be760 ResetRefrectLaserPos, 0x003be7c0 CalcLaserTurningPoints, 0x003be920 ccBoss08Eye, 0x003bf360 ccBoss08KillerEye, 0x00376f60 ccBossEffRefrectionLaser, 0x00377d40 ccBossEffEnergyGrow2, 0x003781e0 the tera laser's charge, 0x00378900 ccBossEffTeraLaser, 0x00360630 ccBoss::ExecPatternIndex, 0x00363d70 ccBossCam::SetMode, 0x0050fc70 boss08cAnmTbl, 0x0050fd20 the third form's first table, 0x0050fdd0 boss08CNormalActTbl
+worklog: 450, 451, 452, 453
 ---
 
 # Bosses - Corbenik
@@ -26,9 +26,10 @@ with its eight seeds), runs it until `CheckExit`, resets the menu, flashes
 313's block 15 makes it with `eventStatus[0]` 1 (forms one and two),
 block 19 with 2 (form three).
 
-The first and second forms are ported
-(`crates/piney-battle/src/boss/corbenik/first.rs`, `seed.rs`, `second.rs`,
-`stardust.rs`, `eff.rs`); the third is not yet.
+All three forms are ported in `crates/piney-battle/src/boss/corbenik/`:
+the first in `first.rs` and `seed.rs`, the second in `second.rs` and
+`stardust.rs`, the third in `third.rs`, `eye.rs` and `laser.rs`, and the
+shared effects in `eff.rs`.
 
 ## The first form's class
 
@@ -233,3 +234,127 @@ eye (+0x20) and view (+0x10) land: the star dust's follow of its core, the
 press's eye at frame 120, the root drain's rising eye. The harness runs
 `SetMode` and `SetFreeCamPosView` as the game's do on its camera and
 compares the camera every frame; those writes agree.
+
+## The third form
+
+`ccThBoss08c_Main` news `ccBoss08_c` (0xa4fb0 in Quarantine, 0xa4f30 in
+Infection's DWARF) and runs its `Main` after each `Breath`. The
+constructor builds the three killer eyes inside it first
+(`ccBoss08KillerEye`, row 9, out, at Kite less 500 on y with his heading,
+their clip 0 and after-images set), then the body: row 9, 500 behind Kite
+turned to face him, drawn and hit, `x81`'s `DMY_dummy1` kept as the eye
+dummy (a `ccDummyPosChunk`: its place at +0x10, w 1), the wave clip, on
+the lists, sixteen eyes, the centre, the stage fader, act 0,
+`SetPatternMode(0)`, the boss camera (`InitBossCamera(980, 1500)`, its
+pitch `atan2f(500, 1000)`, range 1000, `SetRotXLimit(1.0)`) and the blur
+(on, `0x48808080`, scale 1.01).
+
+Quarantine's class has its own members past Infection's:
+
+```text
++0x29350 anmw            +0x29354 dmyEye
++0x29358 m_effLaser[16]  +0x29398 m_genEnergy
++0x293a0 m_killerEyeTbl[3] (0x293e0 each)
++0xa4f44 m_stageEff      +0xa4f48 m_patMode   +0xa4f4c m_bossEff
++0xa4f60 m_eyeCenterOffset   +0xa4f70 m_oldPos
++0xa4f80 m_pauseSlaveFlag    +0xa4f88 m_attackSlave
++0xa4f8c m_slvAtkMode (always 1)
++0xa4f90 the half-HP turn taken   +0xa4fa0 where it dies
+```
+
+### The eyes
+
+`SetupSlave` news sixteen `ccBoss08Eye` (0x293d0 each; each constructor
+draws three `ccRandF(1 degree)` for the turn its offset takes each frame),
+then sets each on the body: `SetMaster`, `Order(0)`, and an offset of
+`|ccRandF(1000)| + 4500` out, pitched down by `ccRandF(pi)` held to 30-150
+degrees and turned round by another `ccRandF(pi)`. An eye follows every
+act the body takes (`ChangeAction` sends each `Order(n)`, which is its
+`ChangeAction(n, 3, 0)`; `Order(23)` is a reflection's flash). In its
+neutral it rides the dummy plus its offset, facing the body; in the laser
+it faces the body's target, in the tera laser its own. Any other act puts
+it back to the neutral.
+
+The dummy's place is `ApplyMatrix(anm, dmyEye->pos)`: the body clip's
+world matrix as its last draw left it (`ccBoss::Draw` draws the clip while
+its transparency is 0.05 or more, and the draw computes the matrix from
+the `SetMatrix_PosRotZYX` its `PreDrawAnm` set). The body's own
+`PreDrawAnm` runs before its draw, so its eye centre offset is a frame
+behind; its `Slave` runs after the draw.
+
+### The killer eyes
+
+`EntryKiller(3)` (the eye entry) gives each killer eye that is out a new
+life (`Generate`): its member (slot `k % 3`, else the nearest), out of
+the dummy with the body's heading, row 45 + `k % 3` (45, 46, 47: guards by
+`Exdefense`), drawn and on but no body hit, unseen, act 3. It fades in
+over 90 frames drifting along its heading, is thrown at 120 (30 a frame,
+`@2448` sixths of pi off a quarter turn from its heading, spinning by
+`ccRandF(pi/2)`; one `rand()` drawn and dropped), bounces to a stop, rises
+to 200 facing its target and at 90 takes its table: `boss08KillerEyeActTbl`
+(`2 30, 7 240, 17`), `boss08DownnerEyeActTbl` (`7 480`) or
+`boss08RipsEyeActTbl` (`7 960`). Its pattern 7 is the wander (act 8, its
+length the next word, in `actProccess`), 17 the press (act 4): it flies at
+its target, draws back, dives on it (boss skill 60), flies back. 14 asks a
+skill of `@2388` by `ccRand() % 13` on its target, 15 compels one of
+`@2391`, 16 asks skill 154 on the body; the body's slave attack calls them
+(`Attack()` by row: 45 14, 46 15, 47 16). While the body pauses its slaves
+a killer eye's next pattern is 2 -1, which holds it in its neutral for
+good: from the body's first pause on, the killer eyes act only when the
+body's slave attacks call them. A blow takes its HP (its own `Affect`:
+SE 175, the guard's shield); at 0 it dies into a root drain at its place
+and is out once the drain is over.
+
+### The patterns and acts
+
+`SetPatternMode(0)`'s table (Infection's `boss08CNormalActTbl`):
+`2 90, 17, 7, 18 45, 2 150, 1, 2 300, 18 47, 7, 2 150, 2 -3, 14, 2 150,
+1, 2 150, 18 45, 2 150, 18 46`. At half its HP (the first blow there:
+stream 88) `SetPatternMode(1)`, Quarantine's new `boss08CNormalActTbl`:
+`2 60, 17, 7, 18 45, 1, 2 90, 18 47, 7, 2 150, 2 -3, 14, 2 150, 1, 2 150,
+2 -3, 16, 2 150, 17, 18 45, 2 150, 18 46, 7, 2 150, 2 -3, 15, -1`. Every
+word lets the slaves go first. Its own words: 1 the wave (act 6), 14 the
+laser (3), 15 the data drain (4), 16 the tera laser (5) (those three
+pausing the slaves), 17 the eye entry (20) once every killer eye is out,
+else the next word, 18 n a slave attack (21) by row n. The rest go to the
+base's `ExecPatternIndex` from the word it was called at: after a 17
+passed over, the base reads the 17 again and takes the neutral, and the
+next call starts at the word after it. The base's 7 is the wander (act 8,
+round the centre for 300 frames). Its neutral's wait -3 holds while a
+killer eye is in and neither in its neutral nor wandering.
+
+- **Wave** (6): `ANM_xx11wave` from its start at 512; by the body's clip,
+  SE 255 at 61, from 70 the quake and the wave drawn, at 73 a flash and a
+  WaveShock, at 85 boss skill 59.
+- **Eye entry** (20): the camera 1500 out from the dummy, the eye's birth
+  there (`ccBossEffGenerateEyeCreate`), `EntryKiller(3)`; at 90 the camera
+  3000 out, drawn back 6.67 a frame to 220 (while the camera is free).
+- **Laser** (3): the dark stage, the body unseen 1000 past the target; the
+  eyes fly from 1500 behind the target to three rings round it
+  (`SetupRefrectLaserPos(50, 90)`: `@2016` radii 1000, 1500, 2000 at
+  `@2017` heights 2000, 1000, 250; 3, 5 and 8 eyes; each slowing from 50
+  to arrive in 90 frames); the charge at the dummy; then `16 / n` lasers
+  at each of the n members alive (`ccBossEffRefrectionLaser`, 200 a draw
+  from the dummy through 3-5 eyes picked by `ccRand` to the member, a ring
+  trio and a flash at each eye, a burst and SE 35 where it ends); all
+  over, boss skill 58 at the target. `ResetRefrectLaserPos` never steps
+  past the first eye: only it goes back to where it was.
+- **Tera laser** (5): from 1500 past the target the body rises out of
+  sight, the eyes and killer eyes fade (the killer eyes out at 60); at 30
+  the tera laser falls from 3000 over the origin onto the target
+  (`ccBossEffTeraLaser`: its charge grows sparks for 170 draws, 11 every
+  fourth draw by three `ccRandF` each, then a flash, the beam falling 200
+  a draw, a ring and bursts, boss skill 56 at 25, three bursts; the beam
+  thinning out).
+- **Data drain** (4): stream 107 on the member's slot at 45, then the
+  drain.
+- **Slave attack** (21): the killer eye of the row (-1: one of `@1714` by
+  `ccRand() % 3`) attacks; the next frame, the next pattern.
+- **Death** (14): the camera 2000 out, `BossDeadGenerator` thrice over 95
+  frames, at 20 more a fade to black, at 140 the killer eyes and the body
+  out.
+
+`tools/test_battle_corbenik_c_rs.py` runs `ccBoss08_c` natively with its
+eyes, killer eyes, lasers, eye birth and charge; the WaveShock and the
+rings are stand-ins, `ccBossEffExplode2Create` and the arena's clump
+switch only note themselves.

@@ -386,6 +386,8 @@ pub(crate) fn eff_num(k: EffKind) -> i32 {
         EffKind::Transform => 29,
         EffKind::RootDrain => 30,
         EffKind::Thunder3 => 31,
+        EffKind::TeraLaser => 32,
+        EffKind::RefrectionLaser => 33,
     }
 }
 

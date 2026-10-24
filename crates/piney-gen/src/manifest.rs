@@ -221,6 +221,49 @@ fn corbenik_b_patterns() -> Until {
     patterns_through(&[(2, 1), (6, 1), (9, 2), (11, 2), (12, 1)])
 }
 
+/// `boss08CNormalActTbl` and the mode-0 table before it (the third
+/// form): `ccBoss08_c::ExecPatternIndex` reads one operand for 18 (its
+/// own 1 and 14-17 none); the base one for 2, 6 and 12, two for 9 and 11.
+fn corbenik_c_patterns() -> Until {
+    patterns_through(&[(2, 1), (6, 1), (9, 2), (11, 2), (12, 1), (18, 1)])
+}
+
+/// A killer eye's table (`boss08KillerEyeActTbl` and the two after it):
+/// `ccBoss08KillerEye::ExecPatternIndex` reads one operand for 7; the
+/// base one for 2, 6 and 12, two for 9 and 11.
+fn corbenik_killer_patterns() -> Until {
+    patterns_through(&[(2, 1), (6, 1), (7, 1), (9, 2), (11, 2), (12, 1)])
+}
+
+/// The table the last `lui`/`addiu` pair of the function at Infection's
+/// `func` builds: Quarantine's `ccBoss08_c::SetPatternMode` builds a new
+/// mode-1 table after Infection's old one (now its mode 0), so the carry
+/// finds only the old.
+fn last_table_in(func: u32, layout: Layout) -> CustomFn {
+    Rc::new(move |c| {
+        let f = find(c, func, None);
+        let mut last = None;
+        for k in 0..64 {
+            let (w, x) = (c.p.u32(f + 4 * k)?, c.p.u32(f + 4 * k + 4)?);
+            if w == 0x03e0_0008 {
+                break;
+            }
+            if w >> 26 == 0x0f && x >> 26 == 0x09 && (x >> 21) & 31 == (w >> 16) & 31 {
+                last = Some(((w & 0xffff) << 16).wrapping_add(sext16(x) as u32));
+            }
+        }
+        layout.read(c, last.ok_or_else(|| format!("0x{f:08x} builds no table"))?)
+    })
+}
+
+/// The volume's own symbol `name` (the carry misplaces a table that grew).
+fn named(name: &'static str, layout: Layout) -> CustomFn {
+    Rc::new(move |c| {
+        let s = c.p.symbol_named(name).ok_or_else(|| format!("no {name}"))?;
+        layout.read(c, s.value)
+    })
+}
+
 fn array_through(inner: Layout, until: Until) -> Layout {
     Layout::Array {
         inner: Box::new(inner),
@@ -2469,6 +2512,116 @@ fn combat() -> Group {
                 array(opt(cstr()), 1),
                 GCMN,
                 "`boss08DmgBarriar`: the barrier's clip as a blow lands on it.",
+            ),
+            e(
+                "corbenik_c_anims",
+                0x005E_C8F0,
+                array(opt(cstr()), 23),
+                GCMN,
+                "`boss08cAnmTbl` (boss08_c.cpp): the third form's clip by act.",
+            ),
+            e(
+                "corbenik_c_first",
+                0x005E_C9A0,
+                array_through(I32, corbenik_c_patterns()),
+                GCMN,
+                "Infection's `boss08CNormalActTbl`, Quarantine's nameless `SetPatternMode(0)` table: the third form's first patterns.",
+            ),
+            e(
+                "corbenik_c_normal",
+                0x004B_2610,
+                custom(
+                    last_table_in(0x004B_2610, array_through(I32, corbenik_c_patterns())),
+                    array_through(I32, corbenik_c_patterns()),
+                ),
+                GCMN,
+                "Quarantine's `boss08CNormalActTbl` (`SetPatternMode(1)`'s, built after the first): the third form's patterns from half its HP.",
+            ),
+            e(
+                "corbenik_killer_anims",
+                0x005E_C950,
+                array(opt(cstr()), 20),
+                GCMN,
+                "`boss08KillerEyeAnmTbl`: a killer eye's clip by act.",
+            ),
+            e(
+                "corbenik_eye_anims",
+                0x005E_CA60,
+                array(opt(cstr()), 15),
+                GCMN,
+                "`boss08EyeAnmTbl`: an eye's clip by act.",
+            ),
+            e(
+                "corbenik_killer_acts",
+                0x005E_CAE0,
+                custom(
+                    named("boss08KillerEyeActTbl", array_through(I32, corbenik_killer_patterns())),
+                    array_through(I32, corbenik_killer_patterns()),
+                ),
+                GCMN,
+                "`boss08KillerEyeActTbl`: the first killer eye's patterns.",
+            ),
+            e(
+                "corbenik_downner_acts",
+                0x005E_CAF0,
+                custom(
+                    named("boss08DownnerEyeActTbl", array_through(I32, corbenik_killer_patterns())),
+                    array_through(I32, corbenik_killer_patterns()),
+                ),
+                GCMN,
+                "`boss08DownnerEyeActTbl`: the second's.",
+            ),
+            e(
+                "corbenik_rips_acts",
+                0x005E_CB00,
+                custom(
+                    named("boss08RipsEyeActTbl", array_through(I32, corbenik_killer_patterns())),
+                    array_through(I32, corbenik_killer_patterns()),
+                ),
+                GCMN,
+                "`boss08RipsEyeActTbl`: the third's.",
+            ),
+            e(
+                "corbenik_killer_skills",
+                0x005E_CB10,
+                array(I32, 13),
+                GCMN,
+                "`@2388`: a killer eye's pattern 14 asks one of these, by `abs(ccRand() % 13)`.",
+            ),
+            e(
+                "corbenik_killer_compels",
+                0x005E_CB48,
+                array(I32, 3),
+                GCMN,
+                "`@2391`: its pattern 15 compels one of these, by `abs(ccRand() % 3)`.",
+            ),
+            e(
+                "corbenik_slave_ids",
+                0x005E_CA50,
+                array(I32, 3),
+                GCMN,
+                "`@1714`: the killer eyes' rows a slave attack picks from, by `abs(ccRand() % 3)`.",
+            ),
+            e(
+                "corbenik_killer_turns",
+                0x005E_CB58,
+                array(float(), 3),
+                GCMN,
+                "`@2448`: each killer eye's throw, in sixths of pi off its heading.",
+            ),
+            e(
+                "corbenik_refrect_radii",
+                0x005E_CAC0,
+                array(float(), 3),
+                GCMN,
+                "`@2016`: the three rings' radii the eyes take up round the laser's target.",
+            ),
+            e(
+                "corbenik_refrect_heights",
+                0x005E_CAD0,
+                array(float(), 4),
+                GCMN,
+                "`@2017`: the rings' heights (the first word unread).",
             ),
             e(
                 "cinema_skill_names",

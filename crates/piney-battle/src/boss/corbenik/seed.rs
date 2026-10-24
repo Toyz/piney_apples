@@ -378,7 +378,7 @@ fn on_fire(mb: &mut Boss, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
                 return;
             }
             p.x.eff_flush = None;
-            cx.out(Out::Corbenik(Pic::Burst { pos, spd: b.move_vector, kind: 0 }));
+            cx.out(Out::Corbenik(Pic::Burst { pos, spd: b.move_vector, scale: ONE, kind: 0, grow: Some(super::GROW) }));
             cx.out(Out::Se3dNote { se: 35, pos, note: 53 });
             let at = cx.scene.chars[p.me].pos_p;
             let from = usize::try_from(p.x.slave_id).unwrap_or(usize::MAX);

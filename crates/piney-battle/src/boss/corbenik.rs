@@ -8,12 +8,15 @@
 //! DWARF, whose gcmn carries the classes unused). docs/engine/boss-corbenik.md.
 
 pub mod eff;
+pub mod eye;
 pub mod first;
+pub mod laser;
 pub mod second;
 pub mod seed;
 pub mod stardust;
 #[cfg(test)]
 mod tests;
+pub mod third;
 
 use piney_data::volume::Volume;
 
@@ -35,6 +38,8 @@ pub const CODE: i32 = 7;
 pub const ROW: usize = 7;
 pub const SEED_ROW: usize = 44;
 pub const FILE: &str = "x81";
+/// `SetScaleAnm(1, 4, 15)`: a burst grown 1 to 4 over 15 frames.
+pub const GROW: [F; 3] = [0x3f80_0000, 0x4080_0000, 0x4170_0000];
 /// The seeds `ccBoss08` carries (`m_seedTbl[8]`).
 pub const SEEDS: usize = 8;
 
@@ -56,6 +61,23 @@ pub struct CorbenikData {
     pub root_anims_a: Vec<Option<String>>,
     pub root_anims_b: Vec<Option<String>>,
     pub dmg_barrier: Vec<Option<String>>,
+    /// The third form's: `boss08cAnmTbl`, its two pattern tables (mode 0
+    /// and, from half its HP, mode 1), the eyes' and killer eyes' clips,
+    /// the killer eyes' three pattern tables (by slot), their skills and
+    /// compels, the slave attack's rows, the killer eyes' throws and the
+    /// reflected laser's rings (radii, heights).
+    pub c_anims: Vec<Option<String>>,
+    pub c_first: Vec<i32>,
+    pub c_normal: Vec<i32>,
+    pub eye_anims: Vec<Option<String>>,
+    pub killer_anims: Vec<Option<String>>,
+    pub killer_acts: [Vec<i32>; 3],
+    pub killer_skills: Vec<i32>,
+    pub killer_compels: Vec<i32>,
+    pub slave_ids: Vec<i32>,
+    pub killer_turns: Vec<F>,
+    pub refrect_radii: Vec<F>,
+    pub refrect_heights: Vec<F>,
 }
 
 impl CorbenikData {
@@ -73,6 +95,31 @@ impl CorbenikData {
             root_anims_a: s(t.corbenik_root_anims_a()),
             root_anims_b: s(t.corbenik_root_anims_b()),
             dmg_barrier: s(t.corbenik_dmg_barrier()),
+            c_anims: s(t.corbenik_c_anims()),
+            c_first: t.corbenik_c_first().to_vec(),
+            c_normal: t.corbenik_c_normal().to_vec(),
+            eye_anims: s(t.corbenik_eye_anims()),
+            killer_anims: s(t.corbenik_killer_anims()),
+            killer_acts: [
+                t.corbenik_killer_acts().to_vec(),
+                t.corbenik_downner_acts().to_vec(),
+                t.corbenik_rips_acts().to_vec(),
+            ],
+            killer_skills: t.corbenik_killer_skills().to_vec(),
+            killer_compels: t.corbenik_killer_compels().to_vec(),
+            slave_ids: t.corbenik_slave_ids().to_vec(),
+            killer_turns: bits(t.corbenik_killer_turns()),
+            refrect_radii: bits(t.corbenik_refrect_radii()),
+            refrect_heights: bits(t.corbenik_refrect_heights()),
+        }
+    }
+
+    /// The third form's table by [`Tbl`] (0 the first, 1 the normal).
+    pub(crate) fn words_c(&self, t: Tbl) -> &[i32] {
+        match t {
+            Tbl::Normal => &self.c_first,
+            Tbl::Super => &self.c_normal,
+            _ => &[],
         }
     }
 
@@ -125,12 +172,15 @@ pub enum Pic {
         pos: V4,
         dirc: V4,
     },
-    /// `effExplode3(pos, spd, 1, kind)` grown 1 to 4 over 15: a seed
-    /// bursts (kind 0), a laser lands (-1).
+    /// `effExplode3(pos, spd, scale, kind)`, then `SetScaleAnm(grow)` when
+    /// given: a seed bursts (kind 0), a laser lands (-1, a random kind the
+    /// effect draws from `ccRand`), the tera laser strikes.
     Burst {
         pos: V4,
         spd: V4,
+        scale: F,
         kind: i32,
+        grow: Option<[F; 3]>,
     },
     /// `effResistantShield(seed, 1, -1)`, its scale's x a quarter and its
     /// offset 100 down: a spell on a seed.
@@ -223,6 +273,75 @@ pub enum Pic {
         rot: V4,
         alpha: F,
     },
+    /// An eye (`ccBoss08Eye`'s `ANM_ex8nut6` at its clip's time, turned
+    /// XYZ, its flash's fog `blend` toward white), a killer eye (turned
+    /// ZYX) and a killer eye's guard (`effResistantShield(eye, magic,
+    /// -1)`, its offset's height 0).
+    Eye {
+        eye: usize,
+        time: u32,
+        pos: V4,
+        dirc: V4,
+        blend: F,
+        alpha: F,
+    },
+    Killer {
+        eye: usize,
+        time: u32,
+        pos: V4,
+        dirc: V4,
+        alpha: F,
+    },
+    KillerShield {
+        eye: usize,
+        magic: i32,
+    },
+    /// The tera laser's beam (`CMP_ex8efc3` scaled by `scale`, turned
+    /// `-pi/2` about x then XYZ by `rot`, at `pos`), its charge's sparks
+    /// (`EFF_x011` on `CLT_x011c2`, each at its place, frame and alpha) and
+    /// a reflected laser's head (`ANM_ex31les3`'s `CMP_ex31les3` from `from`
+    /// toward `to`) and segments (`OBJ_ex31les1` and `les0` under fog 50,
+    /// `len` a thousandth of their length, at `alpha`).
+    TeraBeam {
+        pos: V4,
+        rot: V4,
+        scale: V4,
+    },
+    Spark {
+        pos: V4,
+        frame: i32,
+        alpha: F,
+    },
+    RefrectHead {
+        time: u32,
+        from: V4,
+        to: V4,
+    },
+    RefrectSeg {
+        from: V4,
+        to: V4,
+        alpha: F,
+    },
+    /// `ccBossEffExplode2Create(pos)` (QUA gcmn 0x0037d760): five
+    /// `BurstSmokeGenerator` rows about `pos` and `ccEnemyEffDust(pos, 10,
+    /// 5)`.
+    Explode2 {
+        pos: V4,
+    },
+    /// A kept particle generator moved to `pos` (it follows a place), or
+    /// killed (`ParticleKill`).
+    GenMove {
+        key: u32,
+        pos: V4,
+    },
+    GenKill {
+        key: u32,
+    },
+    /// `worldman->eventArea` +0x2bc (QUA gcmn 0x0030aa40): the arena's
+    /// extra clump drawn (on) or not; the lasers hide it.
+    ArenaClump {
+        on: bool,
+    },
     /// The root drain's own root (`ANM_ex8natc4`) at the target.
     RootL {
         time: u32,
@@ -256,9 +375,160 @@ pub enum Gen {
     RootDrain2,
     /// `g_transformGen` (`g_transformFF`): the barrier's transform.
     Transform,
+    /// The third form's: `g_generateEyeGen` (`g_generateEyeFF`) where the
+    /// killer eyes are born; `BossDeadGenerator` row 0 (ff 0, 1, texture
+    /// 105) and row 1 (ff 6 or ff 3, 2, texture 31) at its death;
+    /// `g_energyChargeGenerator` row 2 (ff 2, 5) as the laser charges and
+    /// row 4 (ff 5, 7, texture 108) under the tera laser's charge; the
+    /// charge's own (QUA 0x00515490, ff 0x005154d0) and the beam's fall
+    /// (0x005154f0, ff 0x00515530, following the beam).
+    GenerateEye,
+    BossDead0,
+    BossDead1a,
+    BossDead1b,
+    LaserCharge,
+    TeraCharge,
+    TeraChargeGlow,
+    TeraFall,
+}
+
+fn bits(v: &[f32]) -> Vec<F> {
+    v.iter().map(|f| f.to_bits()).collect()
 }
 
 // --- shared by the forms ---------------------------------------------------------------
+
+/// `anm->SetAnm(anm->chunk)`: the clip it plays from its start.
+fn restart(anm: &mut crate::boss::Anm, cx: &Cx) {
+    if let Some(c) = anm.clip.clone() {
+        anm.set(&c, cx.clips);
+    }
+}
+
+/// A class's own `ChangeAction` and `ExecPattern`, which the base's
+/// `ExecPatternIndex` calls through the vtable.
+pub(crate) trait Host {
+    fn change_action(&mut self, b: &mut Boss, cx: &mut Cx, n: i16, forbid: i16, af: bool);
+    fn exec_pattern(&mut self, b: &mut Boss, cx: &mut Cx, pat: i32, p0: i32);
+}
+
+/// The base's acts its patterns set: the neutral, the epitaph's, the
+/// escape (3), chase (4), return home (5), dash home (6) and wander (7).
+mod base_act {
+    pub const NEUTRAL: i16 = 0;
+    pub const RETURN: i16 = 7;
+    pub const WANDER: i16 = 8;
+    pub const EPITAPH: i16 = 12;
+    pub const ESCAPE: i16 = 16;
+    pub const BASE_RETURN: i16 = 17;
+    pub const BASE_CHASE: i16 = 18;
+}
+
+/// `ccBoss::ExecPatternIndex` (QUA gcmn 0x00360630): 2 a wait (-1 with
+/// the party up: 30), 3-7 the base's moves (7 the wander, act 8), 8 the
+/// neutral held (forbid 3), 9 and 11 a skill on the target or on itself,
+/// 12 one on every member; any other word the neutral let go (forbid 1).
+/// `h` is the class's `ChangeAction` and `ExecPattern`.
+pub(crate) fn base_exec_pattern_index(b: &mut Boss, cx: &mut Cx, h: &mut dyn Host, tbl: &[i32], i: i32) -> i32 {
+    let orig = i;
+    let mut i = i;
+    let mut pat = word(tbl, i);
+    i += 1;
+    b.move_spd = 0;
+    b.move_vector = VF0;
+    if pat == -1 {
+        pat = word(tbl, 0);
+        i = 1;
+    }
+    b.pat_num = pat;
+    let me = cx.me;
+    let neutral = |b: &mut Boss, cx: &mut Cx, h: &mut dyn Host, forbid: i16| {
+        if b.epitaph != 0 {
+            h.change_action(b, cx, base_act::EPITAPH, 3, true);
+        } else {
+            h.change_action(b, cx, base_act::NEUTRAL, forbid, true);
+        }
+    };
+    match pat {
+        2 => {
+            let mut t = word(tbl, i);
+            i += 1;
+            if t == -1 && !cx.annihilated() {
+                t = 30;
+            }
+            b.stop_time = t;
+            b.stop_counter = 0;
+            neutral(b, cx, h, 3);
+        }
+        3 => h.change_action(b, cx, base_act::ESCAPE, 3, true),
+        4 => h.change_action(b, cx, base_act::BASE_CHASE, 3, true),
+        5 => h.change_action(b, cx, base_act::BASE_RETURN, 3, true),
+        7 => h.change_action(b, cx, base_act::WANDER, 3, true),
+        6 => {
+            let d = ee::from_int(word(tbl, i));
+            i += 1;
+            let m = crate::geom::rot_matrix_z(
+                &crate::geom::rot_matrix_z(&crate::geom::unit_matrix(), b.center_dirc),
+                0xbfc9_0fdb,
+            );
+            let v = crate::geom::apply_matrix(&m, [d, 0, 0, 0x3f80_0000]);
+            let p = crate::geom::vadd(v, cx.scene.chars[me].pos_p);
+            b.dash_pos = crate::boss::p2w(cx, p);
+            b.dash_prev_pos = cx.scene.chars[me].pos;
+            h.change_action(b, cx, base_act::RETURN, 3, true);
+        }
+        8 => neutral(b, cx, h, 3),
+        9 | 11 => {
+            let ty = word(tbl, i);
+            i += 1;
+            let sid = word(tbl, i);
+            i += 1;
+            if pat == 9 {
+                let t = select(b, cx, ty);
+                if !target_ok(cx, t) {
+                    h.exec_pattern(b, cx, 2, 30);
+                    return orig;
+                }
+                b.calc_target_info(cx);
+            }
+            let on = if pat == 9 { cx.scene.chars[me].target_char } else { Some(me) };
+            if let Some(tp) = on
+                && let Some(k) = crate::item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
+            {
+                cx.out(Out::Skill(tp, k));
+            }
+            h.exec_pattern(b, cx, 2, 30);
+        }
+        12 => {
+            let sid = word(tbl, i);
+            i += 1;
+            let members = cx.party.members;
+            let mut last = None;
+            for m in members.into_iter().flatten() {
+                if target_ok(cx, Some(m)) {
+                    last = Some(m);
+                }
+            }
+            for m in members.into_iter().flatten() {
+                if Some(m) != last
+                    && target_ok(cx, Some(m))
+                    && let Some(k) = crate::item::item_skill_request(cx.t, cx.scene, me, m, sid, 0, false, cx.rand)
+                {
+                    cx.out(Out::Skill(m, k));
+                }
+            }
+            if let Some(l) = last
+                && target_ok(cx, Some(l))
+                && let Some(k) = crate::item::item_skill_request(cx.t, cx.scene, me, l, sid, 1, false, cx.rand)
+            {
+                cx.out(Out::Skill(l, k));
+            }
+            h.exec_pattern(b, cx, 2, -2);
+        }
+        _ => neutral(b, cx, h, 1),
+    }
+    i
+}
 
 fn word(tbl: &[i32], i: i32) -> i32 {
     usize::try_from(i).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0)
@@ -289,6 +559,11 @@ fn wrap_lo(v: F) -> F {
 /// `ccBossEffManager::Draw`'s pass: each enabled effect's `Draw` in slot
 /// order, a disabled one freed. Corbenik's own run their rules here.
 fn manager_pass(b: &mut Boss, cx: &mut Cx) {
+    manager_pass_x(b, cx, None);
+}
+
+/// The pass with the third form's members at hand (its eyes).
+fn manager_pass_x(b: &mut Boss, cx: &mut Cx, mut third: Option<&mut third::Third>) {
     let mut k = 0;
     while k < b.effects.slots.len() {
         let Some(e) = b.effects.slots[k].as_mut() else {
@@ -305,7 +580,7 @@ fn manager_pass(b: &mut Boss, cx: &mut Cx) {
             k += 1;
             continue;
         };
-        let alive = fx.draw(cx, b, k);
+        let alive = fx.draw(cx, b, k, third.as_deref_mut());
         if let Some(e) = b.effects.slots[k].as_mut() {
             e.corbenik = Some(fx);
             e.enabled = alive;
