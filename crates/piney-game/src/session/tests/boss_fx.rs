@@ -786,9 +786,11 @@ fn brothers_fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &
             continue;
         };
         let bm = x.brother_me;
+        // Due while drawSW holds and ccBoss::Draw drew it (not faded out
+        // by the camera's distance).
         let due = bm.map(|k| {
             let b = c.scene.chars[k].foe_state().and_then(|f| f.boss.as_ref());
-            b.is_some_and(|b| b.draw_sw != 0 && b.exit == 0)
+            b.is_some_and(|b| b.draw_sw != 0 && b.exit == 0 && b.drawn)
         });
         let drawn = bm.map(|k| c.cast.actors.get(&k).is_some_and(|a| a.drawn));
         let run = c.boss.as_ref().unwrap();
@@ -816,8 +818,9 @@ fn brothers_fight(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &
 /// Issue #73: Gorre's brothers are drawn. Each brother's `Main` is
 /// `ccBoss::Main`, whose `Draw` draws its anm (`ANM_ex51*` on
 /// `CMP_trall`, `ANM_ex52*` on `CMP_trall2`, the Epitaph's `ANM_ex5x*`
-/// on `CMP_trallx`) while its `drawSW` holds: from Gorre's first `Main`
-/// on, every field frame that holds it draws both, each its own model.
+/// on `CMP_trallx`) while its `drawSW` holds and the camera's fade leaves
+/// it shown: from Gorre's first `Main` on, every field frame that holds
+/// it draws both, each its own model.
 #[test]
 fn gorres_brothers_are_drawn_through_the_fight() {
     let Some(mut s) = event_218_arena() else { return };

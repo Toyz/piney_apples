@@ -346,7 +346,7 @@ fn pre_draw_anm(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
 /// shows, which leaves its world matrix `SetMatrix_PosRotZYX(pos, dirc)`.
 fn draw(b: &mut Boss, x: &mut Third, cx: &mut Cx) {
     let pos = cx.scene.chars[cx.me].pos;
-    if b.draw_fade(cx, pos) {
+    if b.draw(cx) {
         x.body_world = geom::trans_matrix(&geom::rot_matrix(&geom::unit_matrix(), b.dirc), pos);
     }
 }

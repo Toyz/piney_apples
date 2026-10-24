@@ -137,6 +137,7 @@ fn frame(mb: &mut Boss, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
     if p.b.draw_sw != 0 {
         // `PreDrawAnm` (0x003b09f0): the clip forward, drawn 50 up at 3x.
         p.b.anm_status = i8::from(p.b.anm.forward());
+        p.b.draw(cx);
     }
     cx.scene.chars[me].cond[cond::HOLD] = 0;
 }

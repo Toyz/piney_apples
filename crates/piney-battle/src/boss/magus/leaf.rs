@@ -175,6 +175,7 @@ pub(super) fn main(ls: &mut Leaves, k: usize, mb: &mut Boss, mx: &mut Magus, cx:
         mov(&mut ls.0[k].b, cx);
         if ls.0[k].b.draw_sw != 0 {
             pre_draw_anm(&mut ls.0[k], cx);
+            ls.0[k].b.draw(cx);
         }
     });
 }

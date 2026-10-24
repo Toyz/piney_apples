@@ -112,6 +112,7 @@ class Game:
                      sym("g_seedShotSmokeGen"): "smoke", sym("g_energyChargeGenerator"): "charge"}
         self.hooks()
         bb.install_blur(self)
+        bb.install_draw(self)
 
     def sym(self, name):
         return self.g.sym(name)
@@ -270,8 +271,7 @@ class Game:
             lambda mm, a, sid, *_: out.append(["cinema_skill", s32(sid)]) or 0
         hook("effResistantShield__FP6ccCharii", lambda mm, ch, magic, *_: out.append(["shield", s32(magic)]) or 0)
         hook("effExplode3__FPfPffi", lambda mm, p, r, kind, *_: out.append(["burst", s32(kind)]) or 0)
-        hook("SetFogBlend__9ccDrawEnvFfUi",
-             lambda mm, a, colour, *_: out.append(["fog", mm.f[12], colour & 0xFFFFFFFF]) or 0)
+        hook("SetFogBlend__9ccDrawEnvFfUi", bb.own_fog(out))
 
         def gen(mm, a, param, *_):
             out.append(["gen", self.gens.get(param, hex(param))])
@@ -428,6 +428,7 @@ def rnd_case(c, rnd):
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
     case.update(bb.blur_case(rnd))
+    case.update(bb.draw_case(rnd))
     return case
 
 
@@ -457,8 +458,7 @@ def run_game(game, case):
     game.hole = struct.unpack("<f", struct.pack("<I", case["hole"]))[0]
     game.cams = {2: [list(case["cam2"][0]), list(case["cam2"][1])]}
     m.store(game.sym("camID"), 2, 1)
-    m.mem[ACAM:ACAM + 0x70] = bytes(0x70)
-    m.store(game.sym("activeCamPtr"), 4, ACAM)
+    bb.put_draw_camera(game, case, ACAM)
     m.mem[FONT:FONT + 0x100] = bytes(0x100)
     m.store(game.sym("font"), 4, FONT)
     m.store(game.sym("cmn_bossCam__10ccIBossEff"), 4, 0)
@@ -638,6 +638,7 @@ def request(game, case, pre):
     for mm in case["menus"]:
         parts += list(mm)
     parts += bb.blur_tokens(case)
+    parts += bb.draw_tokens(case)
     return " ".join(str(x) for x in parts)
 
 

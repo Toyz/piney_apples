@@ -1061,7 +1061,8 @@ impl Combat {
             r.afterimages.retain_mut(AfterImage::step);
         }
         // The actor: ccAnm::Draw of the boss's clip at its frame, placed by
-        // SetMatrix_PosRotZYX(pos, dirc), at setTransparency, while drawn.
+        // SetMatrix_PosRotZYX(pos, dirc), at the transparency ccBoss::Draw
+        // left (the camera's fade), while drawn.
         // Fidchell's Epitaph clips move its other body.
         // Gorre's own body is drawn only in its Kerse, at `m_talkPos`.
         let (pos, dirc, shown) = match (&b.class, boss::gorre::body(&b)) {
@@ -1073,8 +1074,8 @@ impl Combat {
         let dropped = self.magus_dropped(&b);
         if let Some(a) = self.cast.actors.get_mut(&me) {
             pose(a, &b.anm, pos, dirc);
-            a.drawn = shown && !exited;
-            a.alpha = b.set_transparency;
+            a.drawn = shown && !exited && b.drawn;
+            a.alpha = b.transparency;
             a.trans_dist = false;
             // PreDrawAnm's hiding, but in the grow (act 26).
             let grow = b.act_num == boss::magus::act::LEAF_GROW;
@@ -1170,13 +1171,13 @@ impl Combat {
     }
 
     /// Innis's images (`ccBoss02Slave::Draw` through `ccBoss::Draw`): each
-    /// a `CMP_ex21monN` of x21 at the image's clip, place and turn while
-    /// its `drawSW` holds.
+    /// a `CMP_ex21monN` of x21 at the image's clip, place and turn, at the
+    /// transparency `Draw` left, while its `drawSW` holds and it drew.
     fn image_actors(&mut self, b: &Boss, exited: bool) {
         let Class::Innis(x) = &b.class else { return };
         let Some(look) = self.boss.as_ref().map(|r| r.look.clone()) else { return };
         for s in &x.slaves {
-            let shown = s.b.draw_sw != 0 && s.b.exit == 0 && !exited;
+            let shown = s.b.draw_sw != 0 && s.b.exit == 0 && !exited && s.b.drawn;
             let Some(body) = look.images.get(s.samon_id.clamp(0, 2) as usize).cloned() else { continue };
             let pos = self.scene.chars[s.me].pos;
             let entry = self.cast.actors.entry(s.me);
@@ -1199,7 +1200,7 @@ impl Combat {
             }
             pose(a, &s.b.anm, pos, s.b.dirc);
             a.drawn = shown;
-            a.alpha = s.transparency;
+            a.alpha = s.b.transparency;
             a.trans_dist = false;
         }
     }
@@ -1211,7 +1212,7 @@ impl Combat {
         let Some(look) = self.boss.as_ref().map(|r| r.look.clone()) else { return };
         for (k, &p) in parts.iter().enumerate() {
             let Some(pb) = self.scene.chars[p].foe_state().and_then(|f| f.boss.as_ref()) else { continue };
-            let shown = pb.draw_sw != 0 && pb.exit == 0 && !exited;
+            let shown = pb.draw_sw != 0 && pb.exit == 0 && !exited && pb.drawn;
             // Kyvia's core then its gomoras; Magus's leaves, one model;
             // Gorre's brothers the clump their clip poses.
             let pick = usize::from(k > 0 && look.code != MAGUS);
@@ -1221,7 +1222,7 @@ impl Combat {
                 _ => look.images.get(pick).cloned(),
             };
             let Some(body) = body else { continue };
-            let (anm, dirc, alpha) = (pb.anm.clone(), pb.dirc, pb.set_transparency);
+            let (anm, dirc, alpha) = (pb.anm.clone(), pb.dirc, pb.transparency);
             let pos = self.scene.chars[p].pos;
             if let Some(a) = self.cast.actors.get_mut(&p)
                 && !Rc::ptr_eq(&a.ch.body, &body)

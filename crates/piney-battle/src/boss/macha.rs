@@ -382,6 +382,7 @@ fn frame(b: &mut Boss, x: &mut Macha, cx: &mut Cx) {
     b.move_(cx);
     if b.draw_sw != 0 {
         b.anm_status = i8::from(b.anm.forward());
+        b.draw(cx);
     }
     cx.scene.chars[me].cond[cond::HOLD] = 0;
 }

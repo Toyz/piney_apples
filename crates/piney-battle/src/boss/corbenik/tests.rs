@@ -49,6 +49,7 @@ struct Fight {
     rand: Rand,
     cc: Genrand,
     count: u32,
+    cam: CamView,
 }
 
 fn pc(ty: i32, id: i16, x: f32) -> Char {
@@ -79,7 +80,17 @@ fn fight() -> Option<Fight> {
     ch.affect.func = AffectFunc::Boss;
     let me = scene.add(ch, 3);
     let party = Party { members: [Some(kite), Some(member), None], ids: [0, 1, -1], num: 2 };
-    let mut f = Fight { t, data, scene, party, me, rand: Rand(11), cc: Genrand::seeded(4357), count: 0 };
+    let mut f = Fight {
+        t,
+        data,
+        scene,
+        party,
+        me,
+        rand: Rand(11),
+        cc: Genrand::seeded(4357),
+        count: 0,
+        cam: CamView::default(),
+    };
     let b = f.with_cx(|cx| first::new(cx, [0, 0, 0, ONE], VF0, VF0)).0;
     f.scene.chars[me].foe_state_mut().unwrap().boss = Some(Box::new(b));
     Some(f)
@@ -110,7 +121,7 @@ impl Fight {
             part_hits: &mut Land,
             game_over: false,
             boss_cam: false,
-            cam: CamView::default(),
+            cam: self.cam,
             land: &mut land,
             disc: crate::boss::DiscView::default(),
             gen_alive: &|_| true,
@@ -409,4 +420,30 @@ fn the_eye_entry_throws_the_killer_eyes() {
         assert!(f.scene.listed(k), "on the lists once landed");
         assert!(super::eye::KILLER_ROW as i16 <= f.scene.chars[k].id(), "its own row");
     }
+}
+
+#[test]
+fn the_camera_fades_the_body_as_ccboss_draw_does() {
+    let Some(mut f) = fight_c() else { return };
+    f.frame();
+    let at = |f: &Fight, dx: f32, eye_view: bool| {
+        let pos = f.scene.chars[f.me].pos;
+        let eye = [piney_data::field::ee::add(pos[0], dx.to_bits()), pos[1], pos[2], ONE];
+        Some(crate::boss::CamFade { eye, deg1: 0, eye_view, far: 0x45da_c000, fade: 0x4416_0000 })
+    };
+    // Far past 7000 and its 600: gone, not drawn.
+    f.cam.fade = at(&f, 9000.0, false);
+    f.frame();
+    let b = f.boss();
+    assert_eq!((b.transparency, b.drawn), (0, false), "faded out past the far end");
+    // The eye view never fades.
+    f.cam.fade = at(&f, 9000.0, true);
+    f.frame();
+    let b = f.boss();
+    assert_eq!((b.transparency, b.drawn), (b.set_transparency, true), "the eye view: setTransparency");
+    // Inside the far end: setTransparency as it is.
+    f.cam.fade = at(&f, 2000.0, false);
+    f.frame();
+    let b = f.boss();
+    assert_eq!(b.transparency, b.set_transparency, "near enough: no fade");
 }

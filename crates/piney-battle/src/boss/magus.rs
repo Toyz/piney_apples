@@ -488,6 +488,7 @@ fn frame(b: &mut Boss, x: &mut Magus, ls: &mut Leaves, cx: &mut Cx) {
     mov(b, x, cx);
     if b.draw_sw != 0 {
         pre_draw_anm(b, x, cx);
+        b.draw(cx);
     }
     for k in 0..ls.0.len() {
         if ls.0[k].b.exit == 0 {

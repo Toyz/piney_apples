@@ -152,6 +152,7 @@ pub(super) fn frame(gb: &mut Boss, gx: &mut Gorre, k: usize, cx: &mut Cx) {
         mov(&mut p.b, &mut p.x, cx);
         if p.b.draw_sw != 0 {
             p.b.anm_status = i8::from(p.b.anm.forward());
+            p.b.draw(cx);
         }
     }
     cx.scene.chars[me].cond[cond::HOLD] = 0;

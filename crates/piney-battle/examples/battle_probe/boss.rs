@@ -101,10 +101,12 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
     let mut blur = ProbeBlur::read(t);
+    let fade = read_fade(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
     scene.chars[me].affect.func = AffectFunc::Boss;
+    crate::boss::row_size(&mut scene, me, tables);
     let party = Party { members, ids, num: members.iter().flatten().count() as i32 };
     let clip = |name: &str| clips.get(name).copied();
     let mut forbid = 0i16;
@@ -136,7 +138,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         game_over: false,
         // InitBossCamera is a no-op in the harness: no bossCam, no quake.
         boss_cam: false,
-        cam: CamView::default(),
+        cam: CamView { fade, ..CamView::default() },
         land: &mut land,
         disc: piney_battle::boss::DiscView::default(),
         gen_alive: &|_| true,
@@ -198,7 +200,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             part_hits: &mut piney_battle::boss::NoHits,
             game_over: false,
             boss_cam: false,
-            cam: CamView::default(),
+            cam: CamView { fade, ..CamView::default() },
             land: &mut land,
             disc: piney_battle::boss::DiscView::default(),
             gen_alive: &|_| true,
@@ -252,6 +254,28 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
 /// The effect manager's blur as a harness keeps it: made with the heap's
 /// word at `m_exit` and the callbacks' statics the case gives, `Main` run
 /// before each boss frame and the boss's writes applied after.
+/// The boss's size as `SetBaseParam` leaves it: its base is the boss row's
+/// (the request's base id), whose height and width `ccBoss::Draw`'s fade
+/// reads; the request carries neither.
+pub(crate) fn row_size(scene: &mut Scene, me: usize, tables: &Tables) {
+    let id = scene.chars[me].base().id;
+    if let Some(r) = usize::try_from(id).ok().and_then(|k| tables.bosses.get(k)) {
+        let (height, width) = (r.base.height, r.base.width);
+        let b = scene.chars[me].base_mut();
+        b.height = height;
+        b.width = width;
+    }
+}
+
+/// The active camera `ccBoss::Draw`'s fade reads (tools/test_battle_boss_rs.py
+/// `draw_case`): its eye, `deg[1]` and type (1 the eye view), in a field.
+pub(crate) fn read_fade(t: &mut Toks) -> Option<piney_battle::boss::CamFade> {
+    let eye = [t.u32(), t.u32(), t.u32(), 0x3f80_0000];
+    let deg1 = t.i16();
+    let eye_view = t.int() == 1;
+    Some(piney_battle::boss::CamFade { eye, deg1, eye_view, far: 0x45da_c000, fade: 0x4416_0000 })
+}
+
 pub(crate) struct ProbeBlur {
     pub(crate) blur: Blur,
     pub(crate) statics: Statics,
@@ -453,7 +477,7 @@ fn frame_json(b: &Boss, scene: &Scene, me: usize, out: &[Out], rand: &Rand, cc: 
         "{{\"act\":[{},{},{}],\"pat\":[{},{},{},{}],\"stop\":[{},{},{},{}],\"move\":[{},{},{},{},{}],\
          \"tgt\":[{},{},{}],\"pos\":[{},{},{}],\"posp\":[{},{},{}],\"dirc\":{},\"hp\":[{},{}],\"pp\":[{},{}],\
          \"flags\":[{},{},{},{},{},{},{},{},{},{},{}],\"anm\":[\"{}\",{}],\"wave\":[\"{}\",{},{}],\
-         \"tr\":[{},{}],\"center\":[{},{}],\"eff\":[{}],\"party\":[{}],\"out\":[{}],\"rand\":{},\"cc\":{}}}",
+         \"tr\":[{},{},{}],\"center\":[{},{}],\"eff\":[{}],\"party\":[{}],\"out\":[{}],\"rand\":{},\"cc\":{}}}",
         b.act_num,
         b.act_proccess,
         b.act_count,
@@ -502,6 +526,7 @@ fn frame_json(b: &Boss, scene: &Scene, me: usize, out: &[Out], rand: &Rand, cc: 
         b.anm_wave.speed,
         b.animate.transparency,
         b.set_transparency,
+        b.transparency,
         b.center_dist,
         b.center_dirc,
         effs.join(","),

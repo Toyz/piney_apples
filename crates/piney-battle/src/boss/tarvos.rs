@@ -400,6 +400,7 @@ fn frame(b: &mut Boss, x: &mut Tarvos, cx: &mut Cx) {
         if transfer && !ee::le(x.blend_rate, 0) {
             cx.out(Out::Tarvos(Pic::Fog { rate: x.blend_rate, colour: BLEND_COLOR }));
         }
+        b.draw(cx);
     }
     cx.scene.chars[me].cond[cond::HOLD] = 0;
 }

@@ -978,6 +978,8 @@ pub struct Boss {
     /// `ccChar`: what the draw blends to.
     pub transparency: F,
     pub set_transparency: F,
+    /// Whether the last `ccBoss::Draw` drew the clip ([`Boss::draw`]).
+    pub drawn: bool,
     pub anm: Anm,
     pub anm_wave: Anm,
     pub effects: Effects,
@@ -1386,6 +1388,7 @@ impl Boss {
         self.move_(cx);
         if self.draw_sw != 0 {
             self.pre_draw_anm(cx);
+            self.draw(cx);
         }
     }
 
@@ -1761,12 +1764,14 @@ impl Boss {
         self.target_dist = dist(cx, pp, self.target_pos_p);
     }
 
-    /// `ccBoss::Draw`'s transparency (QUA gcmn 0x00361040): `setTransparency`
-    /// times the camera's fade (`transDist` is set on every boss), or as it
-    /// is in the eye view; whether the clip is drawn (0.05 or more, or the
+    /// `ccBoss::Draw` (INF gcmn 0x0045d4b0, QUA 0x00361040), every boss's:
+    /// `transparency` is `setTransparency` times the active camera's fade
+    /// at the boss's place (`transDist` is set on every boss), or as it is
+    /// in the eye view; whether the clip is drawn (0.05 or more, or the
     /// camera inside it).
-    pub(crate) fn draw_fade(&mut self, cx: &Cx, pos: V4) -> bool {
+    pub(crate) fn draw(&mut self, cx: &Cx) -> bool {
         let me = cx.me;
+        let pos = cx.scene.chars[me].pos;
         let (w, h) = (cx.scene.chars[me].base().width, cx.scene.chars[me].base().height);
         let (t, hide) = match cx.cam.fade {
             Some(f) if !f.eye_view => {
@@ -1787,7 +1792,8 @@ impl Boss {
             _ => (self.set_transparency, false),
         };
         self.transparency = t;
-        hide || !ee::lt(t, 0x3d4c_cccd)
+        self.drawn = hide || !ee::lt(t, 0x3d4c_cccd);
+        self.drawn
     }
 
     /// `ccBoss::EraseCmndTarget` (0x0045df40): the boss "dead" to the

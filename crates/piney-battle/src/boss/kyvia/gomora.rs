@@ -245,6 +245,7 @@ pub(crate) fn main(g: &mut Part<Gomora>, core: usize, acts: &[i16], cx: &mut Cx)
             g.b.anm_status = i8::from(g.b.anm.forward());
             g.b.transparency = g.x.alpha;
             g.b.set_transparency = g.x.alpha;
+            g.b.draw(cx);
         }
     });
 }

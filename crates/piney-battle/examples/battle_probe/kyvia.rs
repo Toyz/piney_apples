@@ -309,12 +309,14 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         Vec::new()
     };
     let mut blur = crate::boss::ProbeBlur::read(t);
+    let cam_fade = crate::boss::read_fade(t);
     let mut fade = FakeFade::default();
     let case = Case { frames, rot, moving, prev, marker, cam_pos, cam_view, delay };
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
     scene.chars[me].affect.func = AffectFunc::Boss;
+    crate::boss::row_size(&mut scene, me, tables);
     let party = Party { members, ids, num: members.iter().flatten().count() as i32 };
     let clip = |name: &str| clips.get(name).copied();
     let mut forbid = 0i16;
@@ -333,7 +335,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         active_pos: case.cam_pos,
         active_view: case.cam_view,
         boss_view: [0; 4],
-        fade: None,
+        fade: cam_fade,
     };
     // The frames the disc rides on after the body's `Move`.
     let mut ride = 0;
@@ -734,7 +736,7 @@ fn kout(o: &Out) -> Option<String> {
 fn boss_json(b: &Boss, scene: &Scene, who: usize) -> String {
     let ch = &scene.chars[who];
     format!(
-        "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\"{}\",{}",
+        "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\"{}\",{},{},{}",
         b.exit,
         b.draw_sw,
         b.act_num,
@@ -752,6 +754,8 @@ fn boss_json(b: &Boss, scene: &Scene, who: usize) -> String {
         u8::from(scene.listed(who)),
         b.anm.clip.as_deref().unwrap_or(""),
         b.anm.frame(),
+        b.transparency,
+        b.set_transparency,
     )
 }
 
@@ -1036,7 +1040,7 @@ fn frame_json(
         _ => ("[]".into(), Vec::new()),
     };
     format!(
-        "{{\"act\":[{},{},{}],\"pos\":[{}],\"flags\":[{},{},{},{},{},{},{},{}],\"anm\":[\"{}\",{},\"{}\",{}],\
+        "{{\"act\":[{},{},{}],\"pos\":[{}],\"flags\":[{},{},{},{},{},{},{},{}],\"tr\":[{},{}],\"anm\":[\"{}\",{},\"{}\",{}],\
          \"kyvia\":[{}],\"core\":{},\"gomoras\":[{}],\"cam\":[{},{},{},{},{},{},{}],\"blur\":{},\
          \"eff\":[{}],\"party\":[{}],\"out\":[{}],\"menu\":[{},{},{},{},{},{},{}],\"rand\":{},\"cc\":{}}}",
         b.act_num,
@@ -1051,6 +1055,8 @@ fn frame_json(
         b.lock_player,
         b.reserve_forbid_menu,
         b.reserve_forbid_chat_except,
+        b.transparency,
+        b.set_transparency,
         b.anm.clip.as_deref().unwrap_or(""),
         b.anm.frame(),
         x.anm_w.clip.as_deref().unwrap_or(""),

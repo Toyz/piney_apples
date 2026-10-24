@@ -437,6 +437,7 @@ fn frame(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
     b.move_(cx);
     if b.draw_sw != 0 {
         pre_draw_anm(b, x, cx);
+        b.draw(cx);
     }
     slave(b, x, cx);
     cx.scene.chars[me].cond[cond::HOLD] = 0;

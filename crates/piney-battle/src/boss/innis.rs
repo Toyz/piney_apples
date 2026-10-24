@@ -489,6 +489,7 @@ fn frame(b: &mut Boss, x: &mut Innis, cx: &mut Cx) {
         b.anm_status = i8::from(b.anm.forward());
         b.transparency = x.alpha;
         b.set_transparency = x.alpha;
+        b.draw(cx);
     }
     // Slave(): each image's ccBoss::Main.
     for k in 0..x.slaves.len() {

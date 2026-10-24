@@ -123,6 +123,75 @@ def make_manager(game, mgr, case):
         m.store(rad_at, 4, rad if init else 0)
 
 
+# ccBoss::Draw run natively (docs/engine/boss.md "The camera fade"): its
+# transparency is setTransparency times ccGetCameraTransparency from the
+# active camera, a stand-in at the case's eye, pitch and type, in a field
+# (game.area 1: 7000 out over 600). Only the clip's drawing is left out.
+DRAW_CAM = 0x01AB0000           # activeCamPtr's stand-in
+DRAW_SCRATCH = 0x01AB1000       # ccSys's matrix stack (+604)
+DRAW_STUBS = ("SetActiveLayer__9WORLD_MANFi", "SetFogBlend__9ccDrawEnvFfUi", "ResetFogBlend__9ccDrawEnvFv",
+              "GetAmbient__9ccDrawEnvFPf", "SetAmbient__9ccDrawEnvFPf", "SleepDistantLight__9WORLD_MANFv",
+              "Draw__5ccAnmFv")
+
+
+def draw_case(rnd):
+    """The active camera: in the arena (near the boss now and then), about
+    it, 7000 out where the fade runs, or past it; its pitch; now and then
+    the eye view (type 1, no fade)."""
+    import math
+    kind = rnd.randrange(4)
+    if kind == 2:
+        a, d = rnd.uniform(-math.pi, math.pi), rnd.uniform(6700, 7800)
+        x, y = d * math.cos(a), d * math.sin(a)
+    else:
+        r = (500, 2500, 0, 9000)[kind]
+        x, y = rnd.uniform(-r, r), rnd.uniform(-r, r)
+    eye = [fbits(x), fbits(y), fbits(rnd.uniform(0, 600 if kind == 0 else 1500))]
+    deg1 = rnd.choice((0, rnd.randrange(-0x2000, 0x4000)))
+    return {"draw_cam": eye + [deg1, int(rnd.random() < 0.1)]}
+
+
+def draw_tokens(case):
+    return list(case["draw_cam"])
+
+
+def install_draw(game):
+    """ccBoss::Draw natively: its drawing calls left out."""
+    m, sym = game.m, game.sym
+    m.hooks.pop(sym("Draw__6ccBossFv"), None)
+    for n in DRAW_STUBS:
+        m.hooks.setdefault(sym(n), lambda mm, *a: 0)
+    awake = game.g.prog.symbol_named("AwakeDistantLight__9WORLD_MANFv")
+    m.hooks.setdefault(awake.value if awake else volume.callee("Draw__6ccBossFv", 0), lambda mm, *a: 0)
+
+
+def own_fog(out):
+    """A SetFogBlend hook that notes the boss's own blends, not those
+    ccBoss::Draw makes as it draws (the hit flash, the condition tint)."""
+    lo, hi = volume.span("Draw__6ccBossFv")
+
+    def fog(mm, a, colour, *_):
+        if not lo <= (mm.r[31] & 0xFFFFFFFF) < hi:
+            out.append(["fog", mm.f[12], colour & 0xFFFFFFFF])
+        return 0
+    return fog
+
+
+def put_draw_camera(game, case, at=DRAW_CAM):
+    """activeCamPtr at `at` with the case's eye, deg[1] (+90) and type
+    (+92); game.area 1; ccSys's matrix stack."""
+    m, sym = game.m, game.sym
+    x, y, z, deg1, kind = case["draw_cam"]
+    m.mem[at:at + 0x70] = bytes(0x70)
+    for k, w in enumerate((x, y, z, F_ONE)):
+        m.store(at + 4 * k, 4, w)
+    m.store(at + 90, 2, deg1 & 0xFFFF)
+    m.store(at + 92, 4, kind)
+    m.store(sym("activeCamPtr"), 4, at)
+    m.store(m.load(sym("game"), 4) + 0x14, 4, 1)
+    m.store(m.load(sym("ccSys"), 4) + 604, 4, DRAW_SCRATCH)
+
+
 def blur_main(game, mgr):
     """The end of the manager's pass: ccBossBlur::Main."""
     game.blur_reflex = None
@@ -205,6 +274,7 @@ class Game:
         self.out = []
         self.hooks()
         install_blur(self)
+        install_draw(self)
 
     def alloc(self, n, name=None):
         a = self.fake_at
@@ -453,6 +523,7 @@ def rnd_case(c, rnd):
             "rand": rnd.randrange(0, 1 << 63), "seed": seed, "mti": rnd.randrange(1, 624), "count": rnd.randrange(0, 1000)}
     # Drawn last, so the cases of a seed are the ones before the blur.
     case.update(blur_case(rnd))
+    case.update(draw_case(rnd))
     return case
 
 
@@ -465,6 +536,7 @@ def run_game(game, case):
     game.out.clear()
     game.stage_on = False
     m.mem[BOSS:BOSS + BOSS_SIZE] = bytes(BOSS_SIZE)
+    put_draw_camera(game, case)
     make_manager(game, MGR, case)
     m.store(game.sym("_g_bossEffManager"), 4, MGR)
     m.store(game.sym("scFadeDef"), 4, STAGE + 0x200)
@@ -552,7 +624,7 @@ def game_state(game, n):
                   ld(0x1D1, 1, True)],
         "anm": [clip[0] or "", clip[1] >> 8],
         "wave": [wclip[0] or "", wclip[1] >> 8, m.load(wave + 0x9C, 2)],
-        "tr": [ld(0x294B0 + 0x120 - 0x130), ld(0x8C)],
+        "tr": [ld(0x294B0 + 0x120 - 0x130), ld(0x8C), ld(0x88)],
         "center": [ld(0x200), ld(0x204)],
         "eff": game.effects(),
         "party": party,
@@ -588,6 +660,7 @@ def request(game, case, pre):
     for mm in case["menus"]:
         parts += list(mm)
     parts += blur_tokens(case)
+    parts += draw_tokens(case)
     return " ".join(str(x) for x in parts)
 
 

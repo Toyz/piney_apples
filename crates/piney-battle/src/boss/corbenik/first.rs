@@ -247,6 +247,7 @@ fn frame(b: &mut Boss, x: &mut First, cx: &mut Cx) {
     b.move_(cx);
     if b.draw_sw != 0 {
         pre_draw_anm(b);
+        b.draw(cx);
     }
     // `Slave` (0x003ad030): each seed not exited, its own `Main`.
     for k in 0..SEEDS {

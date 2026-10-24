@@ -1001,9 +1001,10 @@ fn on_kerse(b: &mut Boss, x: &mut Gorre, cx: &mut Cx) {
                 }
                 _ => {}
             }
-            // Gorre's own clip runs here only (`PreDrawAnm` is never called
-            // on Outbreak's Gorre), posed at `m_talkPos`.
+            // Gorre's own clip runs and draws here only (`PreDrawAnm` is
+            // never called on Outbreak's Gorre), posed at `m_talkPos`.
             b.anm_status = i8::from(b.anm.forward());
+            b.draw(cx);
         }
         3 => {
             b.act_count += 1;

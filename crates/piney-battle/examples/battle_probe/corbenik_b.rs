@@ -82,17 +82,25 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
     let mut blur = crate::boss::ProbeBlur::read(t);
+    let fade = crate::boss::read_fade(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
     scene.chars[me].affect.func = AffectFunc::Boss;
+    crate::boss::row_size(&mut scene, me, tables);
     let party = Party { members, ids, num: members.iter().flatten().count() as i32 };
     let clip = |name: &str| clips.get(name).copied();
     let mut forbid = 0i16;
     let mut menu = [0i32; 7];
     let mut lines = Vec::new();
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
-    let mut cams = Cams { set: [(2, cam2)].into_iter().collect(), id: 1, ..Cams::default() };
+    let mut cams = Cams {
+        set: [(2, cam2)].into_iter().collect(),
+        id: 1,
+        ty: fade.map_or(0, |f| i32::from(f.eye_view)),
+        fade,
+        ..Cams::default()
+    };
     let gens: RefCell<HashMap<u32, usize>> = RefCell::new(HashMap::new());
     let frame_no = std::cell::Cell::new(0usize);
     let alive = |k: u32| gens.borrow().get(&k).is_none_or(|&c| frame_no.get() - c < gen_life);

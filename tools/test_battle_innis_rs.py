@@ -103,6 +103,7 @@ class Game:
         self.frame = {"rot": 0, "pos": [0, 0, 0, F_ONE], "view": [0, 0, 0, F_ONE]}
         self.hooks()
         bb.install_blur(self)
+        bb.install_draw(self)
 
     def sym(self, name):
         return self.g.sym(name)
@@ -416,6 +417,7 @@ def rnd_case(c, rnd):
             "count": rnd.randrange(0, 1000)}
     # Drawn last, so the cases of a seed are the ones before the blur.
     case.update(bb.blur_case(rnd))
+    case.update(bb.draw_case(rnd))
     return case
 
 
@@ -436,6 +438,7 @@ def run_game(game, case):
     game.frame["view"] = case["cam_view"]
     game.frame["rot"] = case["rot"][0]
     m.mem[BOSS:BOSS + BOSS_SIZE] = bytes(BOSS_SIZE)
+    bb.put_draw_camera(game, case)
     bb.make_manager(game, MGR, case)
     m.mem[CAM:CAM + 0x150] = bytes(0x150)
     m.store(game.sym("_g_bossEffManager"), 4, MGR)
@@ -549,7 +552,7 @@ INNIS = [(0x20, "i"), (0x24, "u"), (0x25, "u"), (0x28, "i"), (0x2C, "f"), (0x30,
 SLAVE = [(0x1D4, "b"), (0x1D5, "b"), (0x1A2, "h"), (0x1A4, "h"), (0x1A6, "h"), (0x40, "v"), (0x60, "v"),
          (0x190, "v"), (0x180, "f"), (0x29354, "i"), (0x29358, "f"), (0x2935C, "f"), (0x29360, "f"),
          (0x29364, "u"), (0x29370, "v"), (0x293B0, "v"), (0x293C0, "v"), (0x293D0, "i"), (0x293D8, "i"),
-         (0x293DC, "u"), (0x2B8, "i"), (0x29400, "i")]
+         (0x293DC, "u"), (0x2B8, "i"), (0x29400, "i"), (0x88, "f"), (0x8C, "f")]
 # Its BreakMirror's: f, SetPointFlg, the first shard's VX, VZ, X, Z.
 MIRROR = [(0x110, "b"), (0x111, "u"), (0x3F8, "f"), (0x4E8, "f"), (0x5D8, "f"), (0x6C8, "f")]
 # The boss camera's: ResetFlg, lock, CamView, CamPos, Xrot (+0xe0).
@@ -648,6 +651,7 @@ def request(game, case, pre):
     for mm in case["menus"]:
         parts += list(mm)
     parts += bb.blur_tokens(case)
+    parts += bb.draw_tokens(case)
     return " ".join(str(x) for x in parts)
 
 

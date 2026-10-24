@@ -79,6 +79,41 @@ and 13.
 `Move` steps `posP` by `moveSpd` along `moveDirc` (`x += sin`,
 `y -= cos`) plus `moveVector`, then resolves the body hit.
 
+## The camera fade: `ccBoss::Draw`
+
+`ccBoss::Draw` (INF gcmn 0x0045d4b0, MUT 0x00472e50, OUT 0x0046e730, QUA
+0x00361040) is the same in every volume and every boss draws through it:
+`ccBoss::Main` (Skeith, Magus, Fidchell, Gorre's brothers, Macha, Tarvos,
+Corbenik's three forms, its eyes and killer eyes, Innis's images), and the
+classes with their own `Main` call it themselves (Innis, Magus's leaves,
+Gorre in the Kerse only, the seeds, the second form, Kyvia's four bodies,
+its core and gomoras). What the rules see of it:
+
+```
+if transDist (+0x90, 1 from ccChar's constructor) and checkCameraType() != 1:
+  far, fade = game.area 0 ? (4000, 400) : (7000, 600)
+  transparency = setTransparency * ccGetCameraTransparency(pos, base width,
+                 base height, far, fade, &hide)     # activeCamPtr's eye
+else: transparency = setTransparency
+the clip is drawn when transparency >= 0.05 or hide (the camera inside it)
+```
+
+The rest is drawing: the condition tint and fog blend (+0xa6..+0xb8,
+`SetFogBlend`), the draw environment's alpha (`setTransparency` when
+`hide`), the clip's own transparency and `ccAnm::Draw`. Innis, Kyvia's
+core and gomoras and Gorre's Kerse set both words to their alpha first,
+so their drawn transparency is that alpha faded. Code that reads
+`transparency` back reads the faded value: Skeith's `animate` fade starts
+from it, as do Magus's chase and the seeds' fall.
+
+The port: `Boss::draw` (piney_battle::boss) at each of those places,
+`CamView.fade` the active camera (the world's `cam_view`: its eye, pitch
+and the eye view, a field's distances). Every boss harness runs `Draw`
+natively against a stand-in active camera (`draw_case` in
+tools/test_battle_boss_rs.py: near, about the arena or far, a random
+pitch, now and then the eye view) and compares the transparency of the
+boss and its parts each frame.
+
 ## Actions and patterns
 
 `ChangeAction(n, forbid, anm)` gates on `actForbid`:

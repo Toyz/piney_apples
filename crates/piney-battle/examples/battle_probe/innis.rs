@@ -149,10 +149,12 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let nm = t.int() as usize;
     let menus: Vec<(usize, i32)> = (0..nm).map(|_| (t.int() as usize, t.i32())).collect();
     let mut blur = crate::boss::ProbeBlur::read(t);
+    let fade = crate::boss::read_fade(t);
     for m in members.iter().flatten() {
         scene.chars[*m].affect.func = AffectFunc::None;
     }
     scene.chars[me].affect.func = AffectFunc::Boss;
+    crate::boss::row_size(&mut scene, me, tables);
     let party = Party { members, ids, num: members.iter().flatten().count() as i32 };
     let clip = |name: &str| clips.get(name).copied();
     let mut forbid = 0i16;
@@ -171,7 +173,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         active_pos: [0; 4],
         active_view: [0; 4],
         boss_view: [0; 4],
-        fade: None,
+        fade,
     };
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
@@ -398,7 +400,7 @@ fn frame_json(
             let sc = &scene.chars[s.me];
             let m = &s.mirror;
             format!(
-                "[{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\"{}\",{},{},{},{},{},{},{}]",
+                "[{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\"{}\",{},{},{},{},{},{},{}]",
                 sb.exit,
                 sb.draw_sw,
                 sb.act_num,
@@ -421,6 +423,8 @@ fn frame_json(
                 s.end_flg,
                 s.order_num,
                 s.quake_time,
+                sb.transparency,
+                sb.set_transparency,
                 sb.anm.clip.as_deref().unwrap_or(""),
                 sb.anm.frame(),
                 m.f,

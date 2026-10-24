@@ -926,6 +926,7 @@ fn frame(b: &mut Boss, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
     }
     if b.draw_sw != 0 {
         b.anm_status = i8::from(b.anm.forward());
+        b.draw(cx);
     }
     // Slave(): the core's Main.
     if let Some(c) = t.core.as_mut() {

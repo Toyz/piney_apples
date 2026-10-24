@@ -89,6 +89,7 @@ class Game:
         self.frame = {"rot": 0, "pos": [0, 0, 0, F_ONE], "view": [0, 0, 0, F_ONE]}
         self.hooks()
         bb.install_blur(self)
+        bb.install_draw(self)
 
     def sym(self, name):
         s = self.g.prog.symbol_named(name)
@@ -523,6 +524,7 @@ def rnd_case(c, rnd):
         case["walks"] = walks
     # Drawn last, so the cases of a seed are the ones before the blur.
     case.update(bb.blur_case(rnd))
+    case.update(bb.draw_case(rnd))
     return case
 
 
@@ -611,6 +613,7 @@ def run_game(game, case):
     game.ride, game.ride2, game.stage_on = 0, case["ride2"], False
     f_ = FIGHTS[FIGHT]
     m.mem[BOSS:BOSS + f_["size"]] = bytes(f_["size"])
+    bb.put_draw_camera(game, case)
     bb.make_manager(game, MGR, case)
     m.mem[CAM:CAM + 0x150] = bytes(0x150)
     m.mem[WM:WM + 0x5000] = bytes(0x5000)
@@ -848,7 +851,7 @@ def boss_part(game, a):
             + f32s(m, a + 0x40, 3) + f32s(m, a + 0x60, 3)
             + [ld(0x70, 2, True), ld(0x74, 2, True), (tgt - SCN) // 0x1000 if tgt else -1,
                ld(0x1D0, 1, True), ld(0x1D2, 1, True), ld(0x1D3, 1, True), s32(ld(0x2BC)), listed(game, a),
-               clip[0] or "", clip[1] >> 8])
+               clip[0] or "", clip[1] >> 8, ld(0x88), ld(0x8C)])
 
 
 def stream(game, a):
@@ -874,6 +877,7 @@ def game_state(game, n):
         "pos": f32s(m, a + 0x40, 3),
         "flags": [ld(0x1D0, 1, True), ld(0x1D1, 1, True), ld(0x1D2, 1, True), ld(0x1D4, 1, True),
                   ld(0x1D5, 1, True), ld(0x1D7, 1, True), s32(ld(0x29334)), s32(ld(0x29338))],
+        "tr": [ld(0x88), ld(0x8C)],
         "anm": [clip[0] or "", clip[1] >> 8, wclip[0] or "", wclip[1] >> 8],
         "kyvia": fields(m, a, f_["fields"]),
         "core": boss_part(game, core) + fields(m, core, CORE) + [stream(game, core)],
@@ -984,6 +988,7 @@ def request(game, case, pre):
         for wf, p in case["walks"]:
             parts += [wf] + p
     parts += bb.blur_tokens(case)
+    parts += bb.draw_tokens(case)
     return " ".join(str(x) for x in parts)
 
 

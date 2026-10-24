@@ -424,6 +424,7 @@ fn frame(b: &mut Boss, x: &mut Fidchell, cx: &mut Cx) {
     if b.draw_sw != 0 {
         // ccBoss::PreDrawAnm (0x0046e6c0).
         b.anm_status = i8::from(b.anm.forward());
+        b.draw(cx);
     }
     cx.scene.chars[me].cond[cond::HOLD] = 0;
 }

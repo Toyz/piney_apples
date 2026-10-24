@@ -223,8 +223,7 @@ pub(crate) fn eye_main(p: &mut Part<Eye>, m: &MasterView, cx: &mut Cx) {
         eye_move(b, &mut p.x, m, cx);
         if p.b.draw_sw != 0 {
             eye_pre_draw(&mut p.b, &mut p.x, cx);
-            let pos = cx.scene.chars[me].pos;
-            p.b.draw_fade(cx, pos);
+            p.b.draw(cx);
         }
         cx.scene.chars[me].cond[cond::HOLD] = 0;
     });
@@ -439,8 +438,7 @@ pub(crate) fn killer_main(mb: &mut Boss, p: &mut Part<Killer>, v: &KillerView, c
         killer_move(&mut p.b, &mut p.x, cx);
         if p.b.draw_sw != 0 {
             killer_pre_draw(&mut p.b, cx);
-            let pos = cx.scene.chars[me].pos;
-            p.b.draw_fade(cx, pos);
+            p.b.draw(cx);
         }
         cx.scene.chars[me].cond[cond::HOLD] = 0;
     });

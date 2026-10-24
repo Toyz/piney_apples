@@ -114,6 +114,7 @@ class Game:
         self.center, self.push, self.frame_no = [0, 0, 0, F_ONE], [0, 0], 0
         self.hooks()
         bb.install_blur(self)
+        bb.install_draw(self)
 
     def sym(self, name):
         return self.g.sym(name)
@@ -481,6 +482,7 @@ def rnd_case(c, rnd):
             "count": rnd.randrange(0, 1000)}
     # Drawn last, so the cases of a seed are the ones before the blur.
     case.update(bb.blur_case(rnd))
+    case.update(bb.draw_case(rnd))
     return case
 
 
@@ -531,6 +533,7 @@ def run_game(game, case):
     game.rot_now = rot_at(case, 0)
     game.cams = {2: [list(case["cam2"][0]), list(case["cam2"][1])]}
     m.mem[BOSS:BOSS + BOSS_SIZE] = bytes(BOSS_SIZE)
+    bb.put_draw_camera(game, case)
     bb.make_manager(game, MGR, case)
     m.store(game.sym("_g_bossEffManager"), 4, MGR)
     m.store(game.sym("scFadeDef"), 4, STAGE + 0x200)
@@ -723,6 +726,7 @@ def request(game, case, pre):
     for mm in case["menus"]:
         parts += list(mm)
     parts += bb.blur_tokens(case)
+    parts += bb.draw_tokens(case)
     return " ".join(str(x) for x in parts)
 
 

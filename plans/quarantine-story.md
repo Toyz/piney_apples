@@ -66,8 +66,9 @@ event from its own start, 447 s):
    forms. The first form and its seeds (worklog 450), the second, its
    roots, barrier and effects (worklog 451), and the third, its eyes,
    killer eyes and lasers (worklog 453) ported and checked against the
-   game (docs/engine/boss-corbenik.md); next the world's side and the
-   session tests.
+   game (docs/engine/boss-corbenik.md); field 8's last stage and the clump
+   the lasers hide (worklog 454); every boss's camera fade (`ccBoss::Draw`,
+   worklog 455); next the world's side and the session tests.
 7. **314**: `area` / `scene` to field 126, `ending_kanji`, `STFROLL_VOL4`,
    the hacking logos.
 8. The whole runs: from the new game, and from an Outbreak save

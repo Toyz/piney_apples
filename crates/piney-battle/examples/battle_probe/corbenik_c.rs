@@ -86,6 +86,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, dummy: V4, t:
         scene.chars[*m].affect.func = AffectFunc::None;
     }
     scene.chars[me].affect.func = AffectFunc::Boss;
+    crate::boss::row_size(&mut scene, me, tables);
     let party = Party { members, ids, num: members.iter().flatten().count() as i32 };
     let clip = |name: &str| clips.get(name).copied();
     let mut forbid = 0i16;

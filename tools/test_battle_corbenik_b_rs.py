@@ -264,6 +264,7 @@ def rnd_case(c, rnd):
             "rand": rnd.randrange(0, 1 << 63), "seed": rnd.randrange(1, 1 << 32), "mti": rnd.randrange(1, 624),
             "count": rnd.randrange(0, 1000)}
     case.update(bb.blur_case(rnd))
+    case.update(bb.draw_case(rnd))
     return case
 
 
@@ -283,8 +284,7 @@ def run_game(game, case):
     game.center = case["center"]
     game.cams = {2: [list(case["cam2"][0]), list(case["cam2"][1])]}
     m.store(game.sym("camID"), 2, 1)
-    m.mem[ACAM:ACAM + 0x70] = bytes(0x70)
-    m.store(game.sym("activeCamPtr"), 4, ACAM)
+    bb.put_draw_camera(game, case, ACAM)
     m.mem[FONT:FONT + 0x100] = bytes(0x100)
     m.store(game.sym("font"), 4, FONT)
     m.mem[DENV:DENV + 0x200] = bytes(0x200)
@@ -487,6 +487,7 @@ def request(game, case, pre):
     for mm in case["menus"]:
         parts += list(mm)
     parts += bb.blur_tokens(case)
+    parts += bb.draw_tokens(case)
     return " ".join(str(x) for x in parts)
 
 
