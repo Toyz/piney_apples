@@ -804,6 +804,9 @@ pub fn new(cx: &mut Cx, fight: Fight) -> Boss {
     b.draw_sw = 1;
     b.body_hit_sw = i8::from(fight != Fight::Fourth);
     b.cheat_hp = 1;
+    // The third's and fourth's constructors clear transDist (QUA gcmn
+    // 0x003d0f50, 0x003da018): those bodies never fade.
+    b.trans_dist_off = matches!(fight, Fight::Third | Fight::Fourth);
     b.dirc = VF0;
     b.anm.set(clip, cx.clips);
     b.change_action(cx, act::NEUTRAL, 0, true);

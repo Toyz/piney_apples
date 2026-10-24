@@ -151,6 +151,23 @@ def draw_case(rnd):
     return {"draw_cam": eye + [deg1, int(rnd.random() < 0.1)]}
 
 
+# Cameras that fade whatever stands about the origin: 7360 out (half
+# through the fade), 7680 and 2048 aside at a pitch, 512 off (the near
+# fade), 9216 out (gone), and the eye view at 9216 (no fade).
+FORCED_DRAW_CAMS = ([0x45e6_0000, 0, 0x4396_0000, 0, 0], [0x45f0_0000, 0x4500_0000, 0x4448_0000, 0x1000, 0],
+                    [0x4400_0000, 0x4300_0000, 0x4348_0000, 0, 0], [0x4610_0000, 0, 0, 0, 0],
+                    [0x4610_0000, 0, 0, 0, 1])
+
+
+def forced_draw_cases(c, rnd_case, seed0):
+    """A case for each forced camera (the rest of the case as drawn: its
+    per-frame lists are as long as its frames)."""
+    for k, cam in enumerate(FORCED_DRAW_CAMS):
+        case = rnd_case(c, random.Random(seed0 + k))
+        case["draw_cam"] = list(cam)
+        yield k, case
+
+
 def draw_tokens(case):
     return list(case["draw_cam"])
 

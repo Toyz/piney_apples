@@ -825,6 +825,13 @@ class Against(unittest.TestCase):
             with self.subTest(create[0]):
                 self.assertEqual(native_life(self.game, create), eff_life(kind))
 
+    def test_forced_cameras(self):
+        """ccBoss::Draw's fade against cameras in and about the fade band
+        (bb.FORCED_DRAW_CAMS): the brothers fade, Gorre in its Kerse
+        (worklog 455)."""
+        for k, case in bb.forced_draw_cases(self.game.c, rnd_case, 9910):
+            compare(self.game, case, f"camera {k}")
+
     def test_cases(self):
         for seed in range(6):
             rnd = random.Random(8500 + seed)

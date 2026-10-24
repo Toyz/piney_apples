@@ -1043,6 +1043,13 @@ class Against(unittest.TestCase):
                 self.assertEqual(test_anim.check_playback(g, c, scene, off, a, speed, steps, counts), [], anm)
         self.assertGreater(counts["morph states"], 500)
 
+    def test_forced_cameras(self):
+        """ccBoss::Draw's fade against cameras in and about the fade band
+        (bb.FORCED_DRAW_CAMS); Kyvia's third and fourth bodies clear
+        transDist and never fade (worklog 455)."""
+        for k, case in bb.forced_draw_cases(self.game.c, rnd_case, 9320):
+            compare(self.game, case, f"camera {k}")
+
     def test_cases(self):
         for seed in range(6):
             rnd = random.Random(7300 + seed)

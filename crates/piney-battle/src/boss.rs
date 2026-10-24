@@ -980,6 +980,9 @@ pub struct Boss {
     pub set_transparency: F,
     /// Whether the last `ccBoss::Draw` drew the clip ([`Boss::draw`]).
     pub drawn: bool,
+    /// `transDist` (+0x90) cleared: no camera fade. `ccBoss`'s constructor
+    /// sets it; only Kyvia's third and fourth constructors clear it.
+    pub trans_dist_off: bool,
     pub anm: Anm,
     pub anm_wave: Anm,
     pub effects: Effects,
@@ -1774,7 +1777,7 @@ impl Boss {
         let pos = cx.scene.chars[me].pos;
         let (w, h) = (cx.scene.chars[me].base().width, cx.scene.chars[me].base().height);
         let (t, hide) = match cx.cam.fade {
-            Some(f) if !f.eye_view => {
+            Some(f) if !f.eye_view && !self.trans_dist_off => {
                 let mut hide = false;
                 let k = geom::camera_transparency(
                     cx.actx.volume,

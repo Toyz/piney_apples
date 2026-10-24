@@ -98,6 +98,11 @@ else: transparency = setTransparency
 the clip is drawn when transparency >= 0.05 or hide (the camera inside it)
 ```
 
+`transDist` is set by `ccBoss`'s constructor and cleared only by
+`ccBossKyvia03`'s and `ccBossKyvia04`'s (OUT gcmn 0x004de640, 0x004e7708;
+QUA 0x003d0f50, 0x003da018): Kyvia's third and fourth bodies never fade;
+their core and gomoras do.
+
 The rest is drawing: the condition tint and fog blend (+0xa6..+0xb8,
 `SetFogBlend`), the draw environment's alpha (`setTransparency` when
 `hide`), the clip's own transparency and `ccAnm::Draw`. Innis, Kyvia's
