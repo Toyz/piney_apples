@@ -239,6 +239,9 @@ player until one of these turns out wrong.
 - [[275]] what the community note's enemyList00 refers to — the code gives story areas column 6
 - [[276]] whether a run without the level aid beats Kyvia 01 — not tried
 - [[444]] whether the pilot beats Macha with no aid, and at what level and tactics — not reached: the start's party (70, 70, 75) falls before the gauge breaks, and so does one raised to 90 by the diagnostic; [[445]] found the fight's rules, the members' AI and the new game's party the game's own on Quarantine's code, so the fight is as hard as the game's
+- [[447]] whether the pilot beats Tarvos with no aid — not reached: the start's party (70, 70, 75) falls at 35,022 frames, before the drain
+- [[447]] the upper half of `$s1` in the boss's thread when the phantom is made (the view its constructor hands the boss camera) — no game code writes it but by saving and restoring, so it is what the kernel's `StartThread` left in the thread's first context; taken as 0
+- [[447]] the spikes', the phantom's sprite's and its lights' pictures against the game's draw — not checked frame by frame
 - [[279]] which enemy and area the report's staff came from, and whether it was drained — report detail
 
 ### world

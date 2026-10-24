@@ -143,7 +143,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
     let volume = crate::probe_volume();
-    let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false };
+    let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false, cc: None };
     let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
     let mut none = |_| None;
     let mut land = |p: V4| p[2];
@@ -182,7 +182,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     lines.push(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false };
+        let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false, cc: None };
         let actx = AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume };
         let mut out = Vec::new();
         let brothers = match &boss.class {

@@ -59,7 +59,7 @@ impl Fight {
         let clip = |n: &str| Some((60, n.contains("nut")));
         let env = Env { count: self.count, menu_type: -1, ..Env::default() };
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false };
+        let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false, cc: None };
         let actx =
             AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Out };
         let mut none = |_| None;
@@ -111,7 +111,7 @@ impl Fight {
         let clip = |n: &str| Some((60, n.contains("nut")));
         let env = Env { count: self.count, menu_type: -1, ..Env::default() };
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false };
+        let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false, cc: None };
         let actx =
             AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Out };
         let mut ev = Events::new();

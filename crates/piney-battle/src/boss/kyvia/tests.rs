@@ -72,7 +72,7 @@ impl Bout {
         let clip = |_: &str| Some((60, false));
         let env = Env { count: self.count, menu_type: -1, ..Env::default() };
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false };
+        let benv = BossEnv { t: &self.t, data: &self.data, clips: &clip, env: &env, game_over: false, cc: None };
         let actx =
             AffectCtx { party: &self.party, menu: true, skill_check: &check, boss: Some(&benv), volume: self.volume };
         let mut none = |_| None;
@@ -218,7 +218,7 @@ fn a_hit_on_the_core_shows_its_resistance() {
     let clip = |_: &str| Some((60, false));
     let env = Env { count: 1, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
-    let benv = BossEnv { t: &f.t, data: &f.data, clips: &clip, env: &env, game_over: false };
+    let benv = BossEnv { t: &f.t, data: &f.data, clips: &clip, env: &env, game_over: false, cc: None };
     let actx = AffectCtx { party: &f.party, menu: true, skill_check: &check, boss: Some(&benv), volume: Volume::Mut };
     let mut ev = Events::new();
     // A normal attack (skill 1): physical, which attribute 0 resists.

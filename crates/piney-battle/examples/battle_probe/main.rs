@@ -28,6 +28,7 @@ mod magus;
 mod navi;
 mod party_ai;
 mod spawn;
+mod tarvos;
 
 use piney_battle::affect;
 use piney_battle::chara::{self, AffectFunc, Body, Char, Env, Foe};
@@ -655,6 +656,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .or_else(|| fidchell::handle(cmd, &mut t, &mut tables, &iso_path))
                     .or_else(|| macha::handle(cmd, &mut t, &mut tables, &iso_path))
                     .or_else(|| gorre::handle(cmd, &mut t, &mut tables, &iso_path))
+                    .or_else(|| tarvos::handle(cmd, &mut t, &mut tables, &iso_path))
                 {
                     Some(r) => r,
                     None => format!("{{\"error\":\"unknown command {cmd}\"}}"),

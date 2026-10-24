@@ -423,6 +423,22 @@ pub struct Effect {
     pub boss_leaf_dead_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_leaf_dead_ff_va: u32,
+    /// `g_transEffGen`: Tarvos's transfer.
+    pub boss_trans_eff: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_trans_eff_va: u32,
+    /// `g_transEffFF`.
+    pub boss_trans_eff_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_trans_eff_ff_va: u32,
+    /// `g_phantomGen`: the phantom's lights, circling then thrown out.
+    pub boss_phantom: &'static [ParticleGeneratorParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_phantom_va: u32,
+    /// `g_phantomFF`.
+    pub boss_phantom_ff: &'static [ParticleForceFieldParam],
+    /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
+    pub boss_phantom_ff_va: u32,
 }
 
 impl crate::store::Load for Effect {
@@ -618,6 +634,14 @@ impl crate::store::Load for Effect {
             boss_leaf_dead_va: crate::store::Load::load(r),
             boss_leaf_dead_ff: crate::store::Load::load(r),
             boss_leaf_dead_ff_va: crate::store::Load::load(r),
+            boss_trans_eff: crate::store::Load::load(r),
+            boss_trans_eff_va: crate::store::Load::load(r),
+            boss_trans_eff_ff: crate::store::Load::load(r),
+            boss_trans_eff_ff_va: crate::store::Load::load(r),
+            boss_phantom: crate::store::Load::load(r),
+            boss_phantom_va: crate::store::Load::load(r),
+            boss_phantom_ff: crate::store::Load::load(r),
+            boss_phantom_ff_va: crate::store::Load::load(r),
         }
     }
 }
@@ -1193,6 +1217,30 @@ impl Effect {
     pub fn boss_leaf_dead_ff_va(&self) -> u32 {
         self.boss_leaf_dead_ff_va
     }
+    pub fn boss_trans_eff(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_trans_eff
+    }
+    pub fn boss_trans_eff_va(&self) -> u32 {
+        self.boss_trans_eff_va
+    }
+    pub fn boss_trans_eff_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_trans_eff_ff
+    }
+    pub fn boss_trans_eff_ff_va(&self) -> u32 {
+        self.boss_trans_eff_ff_va
+    }
+    pub fn boss_phantom(&self) -> &'static [ParticleGeneratorParam] {
+        self.boss_phantom
+    }
+    pub fn boss_phantom_va(&self) -> u32 {
+        self.boss_phantom_va
+    }
+    pub fn boss_phantom_ff(&self) -> &'static [ParticleForceFieldParam] {
+        self.boss_phantom_ff
+    }
+    pub fn boss_phantom_ff_va(&self) -> u32 {
+        self.boss_phantom_ff_va
+    }
 }
 
 /// `effectCCSTbl`: the effect files, up to the row with no name.
@@ -1672,6 +1720,22 @@ pub static BOSS_LEAF_DEAD: std::sync::LazyLock<&'static [ParticleGeneratorParam]
 /// `g_leafDeadFF`.
 pub static BOSS_LEAF_DEAD_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
     std::sync::LazyLock::new(|| shared().boss_leaf_dead_ff);
+
+/// `g_transEffGen`: Tarvos's transfer.
+pub static BOSS_TRANS_EFF: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_trans_eff);
+
+/// `g_transEffFF`.
+pub static BOSS_TRANS_EFF_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_trans_eff_ff);
+
+/// `g_phantomGen`: the phantom's lights, circling then thrown out.
+pub static BOSS_PHANTOM: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
+    std::sync::LazyLock::new(|| shared().boss_phantom);
+
+/// `g_phantomFF`.
+pub static BOSS_PHANTOM_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
+    std::sync::LazyLock::new(|| shared().boss_phantom_ff);
 
 /// The volume's Effect (read once a run; kept here per volume).
 pub fn of(v: Volume) -> &'static Effect {

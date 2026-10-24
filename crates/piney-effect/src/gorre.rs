@@ -3,7 +3,7 @@
 //! (`Create` 0x0048a6e0, `Draw` 0x00480b70, `Explode` 0x00480d00).
 //! docs/engine/boss-gorre.md, "The flash".
 
-use crate::boss::{Tables, ff_row, gen_row, va};
+use crate::boss::Tables;
 use crate::draw::DrawRec;
 use crate::ee::{self, F, V4};
 use crate::eff::Eff;
@@ -86,39 +86,14 @@ impl PhotonFlash {
         Drawn { on: true, ring: Some(self.pos) }
     }
 
-    /// `Explode`: SEs 35 and 40 (note 55) the first time; five
-    /// `BurstSmokeGenerator`s up the place (rows 2 at +100 and 2 and 3 at
-    /// +170 with ff 2, 4 at z 0 with ff 3 and 2, 7 at z 90 with ff 6, 7
-    /// and 8); `ccEnemyEffDust(pos, 10, 5)`.
+    /// `Explode`: SEs 35 and 40 (note 55) the first time; then
+    /// [`crate::boss::explode2`] at the place.
     fn explode(&mut self, cx: &mut Cx, t: &Tables) {
         if !self.boom {
             self.boom = true;
             cx.raise(Event::SoundNote { se: 35, note: 55 });
             cx.raise(Event::SoundNote { se: 40, note: 55 });
         }
-        let mut at = self.pos;
-        let rows: [(u32, &[u32], Option<F>); 5] = [
-            (2, &[2], Some(0x42c8_0000)),
-            (2, &[2], Some(0x428c_0000)),
-            (3, &[2], None),
-            (4, &[3, 2], None),
-            (7, &[6, 7, 8], Some(0x42b4_0000)),
-        ];
-        for (k, (row, ffs, up)) in rows.into_iter().enumerate() {
-            // The fourth's z is set to 0 before its start.
-            if k == 3 {
-                at[2] = 0;
-            }
-            if let Some(dz) = up {
-                at[2] = ee::add(at[2], dz);
-            }
-            let ff = std::array::from_fn(|j| ffs.get(j).map_or(0, |&r| ff_row(va::BURST_SMOKE_FF, r)));
-            if let Some(mut g) = t.generator(cx, gen_row(va::BURST_SMOKE, row), ff) {
-                g.pos = at;
-                cx.particles.start(g);
-            }
-        }
-        let (life, tex) = (crate::dust::DUST_LIFE, crate::dust::DUST_TEX);
-        crate::dust::enemy_eff_dust(cx, self.pos, 10, 0x40a0_0000, life, tex);
+        crate::boss::explode2(cx, t, self.pos);
     }
 }

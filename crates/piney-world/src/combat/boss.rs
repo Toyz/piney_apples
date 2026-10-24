@@ -36,8 +36,9 @@ pub const INNIS: i32 = 1;
 pub const MAGUS: i32 = 2;
 pub const FIDCHELL: i32 = 3;
 pub const GORRE: i32 = 4;
-/// Quarantine's: Macha (row 5).
+/// Quarantine's: Macha (row 5) and Tarvos (row 6).
 pub const MACHA: i32 = 5;
+pub const TARVOS: i32 = 6;
 pub const KYVIA: i32 = 12;
 /// Kyvia's second fight (`ccBossKyvia02`, Outbreak's field 10) and its
 /// third (`ccBossKyvia03`, Quarantine's field 11).
@@ -95,6 +96,10 @@ pub const GORRE_BROTHERS: [&str; 3] = ["CMP_trall", "CMP_trall2", "CMP_trallx"];
 /// (`ANM_ex6x*`) move.
 pub const MACHA_CLUMP: &str = "CMP_trall1";
 pub const MACHA_EPITAPH: &str = "CMP_trall2";
+/// Tarvos's file (`x71`): its body, and the body its Epitaph's clips
+/// (`ANM_ex7x*`) move.
+pub const TARVOS_CLUMP: &str = "CMP_trall";
+pub const TARVOS_EPITAPH: &str = "CMP_trall2";
 /// The wave's animation in [`EFF_FILE`].
 pub const ANM_WAVE: &str = "ANM_xx11wave";
 /// Fidchell's prediction's layer: `m_predTxt.layer`, `ccLayer::Init(254,
@@ -141,6 +146,10 @@ pub struct BossRun {
     /// omni light while it is in the group.
     pub ball: Option<(String, u32, V4, V4)>,
     pub light: Option<V4>,
+    /// Tarvos's `PreDrawAnm` this frame: `SetFogBlend(m_blendRate,
+    /// 0x404080)`, which its body's draw keeps when `ccBoss::Draw` sets no
+    /// blend of its own.
+    pub fog: Option<crate::foe::FogBlend>,
     /// Kyvia's arm's `DrawParts` this frame: its clip, pose time, place
     /// and turn.
     pub arm: Option<(String, u32, V4, V4)>,
@@ -349,6 +358,7 @@ impl BossLook {
             MAGUS => (MAGUS_FILE, CLUMP),
             FIDCHELL => (boss::fidchell::FILE, FIDCHELL_CLUMP),
             MACHA => (boss::macha::FILE, MACHA_CLUMP),
+            TARVOS => (boss::tarvos::FILE, TARVOS_CLUMP),
             GORRE => (boss::gorre::FILE, GORRE_CLUMP),
             KYVIA => (boss::kyvia::Fight::First.file(), KYVIA_CLUMP),
             KYVIA_SECOND => (boss::kyvia::Fight::Second.file(), KYVIA_SECOND_CLUMP),
@@ -425,6 +435,7 @@ impl BossLook {
                 Body::of(file, FIDCHELL_EPITAPH).ok().map(Rc::new).into_iter().collect()
             }
             MACHA => Body::of(body.file.clone(), MACHA_EPITAPH).ok().map(Rc::new).into_iter().collect(),
+            TARVOS => Body::of(body.file.clone(), TARVOS_EPITAPH).ok().map(Rc::new).into_iter().collect(),
             GORRE => GORRE_BROTHERS.iter().filter_map(|c| Body::of(body.file.clone(), c).ok().map(Rc::new)).collect(),
             _ => Vec::new(),
         };
@@ -450,7 +461,17 @@ impl Combat {
         if self.boss.is_some()
             || !matches!(
                 code,
-                SKEITH | INNIS | MAGUS | FIDCHELL | GORRE | MACHA | KYVIA | KYVIA_SECOND | KYVIA_THIRD | KYVIA_FOURTH
+                SKEITH
+                    | INNIS
+                    | MAGUS
+                    | FIDCHELL
+                    | GORRE
+                    | MACHA
+                    | TARVOS
+                    | KYVIA
+                    | KYVIA_SECOND
+                    | KYVIA_THIRD
+                    | KYVIA_FOURTH
             )
         {
             return;
@@ -469,7 +490,7 @@ impl Combat {
         let clip = |name: &str| clips.get(name).copied();
         let party = self.party;
         let check = |_: usize| 0;
-        let benv = BossEnv { t: &d.t, data, clips: &clip, env, game_over: false };
+        let benv = BossEnv { t: &d.t, data, clips: &clip, env, game_over: false, cc: None };
         let actx =
             AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: self.data.volume };
         let mut none = |_| None;
@@ -502,6 +523,7 @@ impl Combat {
             FIDCHELL => boss::fidchell::new(&mut cx, kite_pos, kite_dirc, center),
             GORRE => boss::gorre::new(&mut cx, kite_pos, kite_dirc, center),
             MACHA => boss::macha::new(&mut cx, kite_pos, kite_dirc, center),
+            TARVOS => boss::tarvos::new(&mut cx, kite_pos, kite_dirc, center),
             KYVIA => boss::kyvia::new(&mut cx, boss::kyvia::Fight::First),
             KYVIA_SECOND => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Second),
             KYVIA_THIRD => boss::kyvia::new(&mut cx, boss::kyvia::Fight::Third),
@@ -578,6 +600,7 @@ impl Combat {
             waves: Vec::new(),
             ball: None,
             light: None,
+            fog: None,
             arm: None,
             shards: Vec::new(),
             cam_sw: cam.is_some(),
@@ -655,10 +678,17 @@ impl Combat {
         let Some(data) = d.bosses.as_ref() else { return ev };
         let clip = |name: &str| clips.get(name).copied();
         let party = self.party;
-        let benv = BossEnv { t: &d.t, data, clips: &clip, env, game_over: false };
+        let benv = BossEnv { t: &d.t, data, clips: &clip, env, game_over: false, cc: None };
         let actx =
             AffectCtx { party: &party, menu: true, skill_check: check, boss: Some(&benv), volume: self.data.volume };
-        boss::apply_queued(&mut self.scene, &actx, me, &mut self.rand, &mut ev);
+        // The frame's hits on the boss, with the fight's ccRand.
+        let cc = std::cell::RefCell::new(std::mem::take(&mut self.cc));
+        {
+            let benv = BossEnv { cc: Some(&cc), ..benv };
+            let actx = AffectCtx { boss: Some(&benv), ..actx };
+            boss::apply_queued(&mut self.scene, &actx, me, &mut self.rand, &mut ev);
+        }
+        self.cc = cc.into_inner();
         // Kyvia's core and gomoras: their affects of the frame so far, and
         // what they asked (their hits' marks and numbers).
         let parts = run.parts.clone();
@@ -809,6 +839,7 @@ impl Combat {
             Class::Magus(x) => x.anm_w.posed,
             Class::Fidchell(x) => x.anm_w.posed,
             Class::Macha(x) => x.anm_w.posed,
+            Class::Tarvos(x) => x.anm_w.posed,
             _ => b.anm_wave.posed,
         };
         let clip = b.anm.clip.clone().unwrap_or_default();
@@ -940,6 +971,7 @@ impl Combat {
             // each image steps its fade as it draws, the new one too.
             r.waves.clear();
             r.ball = None;
+            r.fog = None;
             r.arm = None;
             r.reverse = out.contains(&Out::Reverse);
             r.shards = match &b.class {
@@ -978,6 +1010,14 @@ impl Combat {
                     Out::Macha(boss::macha::Pic::Light(p)) => r.light = *p,
                     Out::Macha(boss::macha::Pic::Wave { time, pos, dirc, scale }) => {
                         r.waves.push((*time, *pos, *dirc, ee::f(*scale)));
+                    }
+                    // Tarvos's wave (its Epitaph's by DrawParts) and the
+                    // transfer's fog over its body.
+                    Out::Tarvos(boss::tarvos::Pic::Wave { time, pos, dirc, .. }) => {
+                        r.waves.push((*time, *pos, *dirc, 1.0));
+                    }
+                    Out::Tarvos(boss::tarvos::Pic::Fog { rate, colour }) => {
+                        r.fog = Some(crate::foe::FogBlend { rate: *rate, colour: *colour });
                     }
                     // A brother's trail (`EntryAfterImage(0)`) and wave.
                     Out::Gorre(boss::gorre::Pic::Image { clip, frame, pos, dirc, .. }) => {
@@ -1096,13 +1136,15 @@ impl Combat {
         ev
     }
 
-    /// Fidchell's body for its clip: `CMP_trallx` under the Epitaph's
-    /// `ANM_ex4x*`, `CMP_trall1` under the rest.
+    /// The body for the clip: Fidchell's `CMP_trallx` under the Epitaph's
+    /// `ANM_ex4x*` (Macha's and Tarvos's `CMP_trall2` under `ANM_ex6x*`,
+    /// `ANM_ex7x*`), the first body under the rest.
     fn fidchell_body(&mut self, b: &Boss, me: usize) {
         let Some(look) = self.boss.as_ref().map(|r| r.look.clone()) else { return };
         let epitaph = match look.code {
             FIDCHELL => "ANM_ex4x",
             MACHA => "ANM_ex6x",
+            TARVOS => "ANM_ex7x",
             _ => return,
         };
         let clip = b.anm.clip.clone().unwrap_or_default();

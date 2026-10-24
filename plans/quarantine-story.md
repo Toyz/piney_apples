@@ -45,8 +45,8 @@ event from its own start, 447 s):
 | 301 | done (worklog 442) | was: Fort Ouph, blocks 0x7b; town 5 (`town06`) ported, the gate's warp to it, the pilot's way there |
 | 302-306, 309 | done | |
 | 307 | done under god (worklog 443) | was: no code 5 (`ccBoss06`); Macha ported, the event ends at 16,952 frames of the arena; with no aid the party falls (worklog 444) |
-| 308 | blocks 0xf7 | field 11: Kyvia's third fight still going at 40,000 frames |
-| 310 | blocks 0x3d1 | field 7's arena: no code 6 (`ccBoss07`) |
+| 308 | done under god (worklog 447) | Kyvia's third fight on field 11's disc ends within 200,000 frames of the event's start; nothing to port |
+| 310 | ported (worklog 447) | was: field 7's arena, no code 6; Tarvos ported (`ccBoss07`, its spike rain and phantom) |
 | 311 | blocks 0x6ff | field 103's dungeon: the first of four goal rooms done at 40,000 frames |
 | 312 | blocks 0x209 | field 108's dungeon at 40,000 frames |
 | 313 | blocks 0x1 | Lia Fail: BlackRose's "Are you ready?" not answered (the party she asks for) |
@@ -59,8 +59,8 @@ event from its own start, 447 s):
 2. **307**: `ccBoss06` (code 5), with its effects (`ccBossEffLaserShot`,
    `ccBossEffLightBallShock`): ported (worklog 443). Open: the fight won
    with no aid (worklog 444).
-3. **308**: the pilot through Kyvia's third fight.
-4. **310**: `ccBoss07` (code 6).
+3. **308**: the pilot through Kyvia's third fight: done under god.
+4. **310**: `ccBoss07` (code 6): ported (worklog 447).
 5. **311, 312**: longer runs (four goal rooms; Kyvia's fourth).
 6. **313**: the pilot's answer to BlackRose; `ccBoss08` (code 7) in all its
    forms.

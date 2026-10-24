@@ -6862,8 +6862,14 @@ mod tests {
     /// Quarantine's town 5 in event 301.
     mod town06;
 
+    /// A story boss's fight from its arena (Macha's, Tarvos's).
+    mod arena;
+
     /// Quarantine's Macha (event 307).
     mod macha;
+
+    /// Quarantine's Tarvos (event 310).
+    mod tarvos;
 
     /// A survey of the side events where they play (ignored; a diagnostic).
     mod side_events;

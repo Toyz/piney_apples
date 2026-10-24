@@ -128,7 +128,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let view = CamView::default();
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
-    let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false };
+    let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false, cc: None };
     let actx =
         AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: crate::probe_volume() };
     let mut none = |_| None;
@@ -168,7 +168,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     lines.push(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false };
+        let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false, cc: None };
         let actx = AffectCtx {
             party: &party,
             menu: true,

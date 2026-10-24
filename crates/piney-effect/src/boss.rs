@@ -82,6 +82,11 @@ pub mod va {
     pub const LEAF_MARKER_FF: u32 = 0x005f_18c0;
     pub const LEAF_DEAD: u32 = 0x005f_1920;
     pub const LEAF_DEAD_FF: u32 = 0x005f_1960;
+    /// Tarvos's: `g_transEffGen`, `g_phantomGen` and their force fields.
+    pub const TRANS_EFF: u32 = 0x005f_19a0;
+    pub const TRANS_EFF_FF: u32 = 0x005f_19e0;
+    pub const PHANTOM: u32 = 0x005f_1a00;
+    pub const PHANTOM_FF: u32 = 0x005f_1a70;
 }
 
 /// A generator row of one of [`va`]'s tables: its address.
@@ -133,6 +138,8 @@ impl Tables {
         gens(va::CHARGE, t.boss_energy_charge(), t.boss_energy_charge_va());
         gens(va::LEAF_MARKER, t.boss_leaf_marker(), t.boss_leaf_marker_va());
         gens(va::LEAF_DEAD, t.boss_leaf_dead(), t.boss_leaf_dead_va());
+        gens(va::TRANS_EFF, t.boss_trans_eff(), t.boss_trans_eff_va());
+        gens(va::PHANTOM, t.boss_phantom(), t.boss_phantom_va());
         let mut ffs = |key: u32, rows: &[piney_data::tables::types::ParticleForceFieldParam], at: u32| {
             for k in 0..rows.len() {
                 out.ffs.insert(key + 0x20 * k as u32, FfParam::row(rows, at, k));
@@ -157,6 +164,8 @@ impl Tables {
         ffs(va::CHARGE_FF, t.boss_energy_charge_ff(), t.boss_energy_charge_ff_va());
         ffs(va::LEAF_MARKER_FF, t.boss_leaf_marker_ff(), t.boss_leaf_marker_ff_va());
         ffs(va::LEAF_DEAD_FF, t.boss_leaf_dead_ff(), t.boss_leaf_dead_ff_va());
+        ffs(va::TRANS_EFF_FF, t.boss_trans_eff_ff(), t.boss_trans_eff_ff_va());
+        ffs(va::PHANTOM_FF, t.boss_phantom_ff(), t.boss_phantom_ff_va());
         out
     }
 
@@ -199,6 +208,8 @@ pub struct BossEffects {
     pub kyvia_kept: crate::kyvia::Kept,
     /// Those Magus's leaves keep.
     pub magus_kept: crate::magus::Kept,
+    /// Tarvos's phantom's sprite and generators.
+    pub tarvos: crate::tarvos::Kept,
 }
 
 /// One slot: `m_bEnabled` and the effect.
@@ -1155,6 +1166,37 @@ pub(crate) fn particle_eff(cx: &Cx, name: &str) -> Option<Box<Eff>> {
     let o = cx.assets.find("particle", name)?;
     let (j, c) = cx.assets.eff_chunk(o)?;
     Some(Box::new(Eff::init(o.file, j, c, true, &cx.assets.alpha_blend)))
+}
+
+/// `ccBossEffExplode2Create(pos)` (QUA 0x0037d760, Gorre's flash's
+/// `Explode` the same): five `BurstSmokeGenerator`s up the place (rows 2
+/// at +100 and 2 and 3 at +170 with ff 2, 4 at z 0 with ff 3 and 2, 7 at
+/// z 90 with ff 6, 7 and 8); `ccEnemyEffDust(pos, 10, 5)`.
+pub(crate) fn explode2(cx: &mut Cx, t: &Tables, pos: V4) {
+    let mut at = pos;
+    let rows: [(u32, &[u32], Option<F>); 5] = [
+        (2, &[2], Some(0x42c8_0000)),
+        (2, &[2], Some(0x428c_0000)),
+        (3, &[2], None),
+        (4, &[3, 2], None),
+        (7, &[6, 7, 8], Some(0x42b4_0000)),
+    ];
+    for (k, (row, ffs, up)) in rows.into_iter().enumerate() {
+        // The fourth's z is set to 0 before its start.
+        if k == 3 {
+            at[2] = 0;
+        }
+        if let Some(dz) = up {
+            at[2] = ee::add(at[2], dz);
+        }
+        let ff = std::array::from_fn(|j| ffs.get(j).map_or(0, |&r| ff_row(va::BURST_SMOKE_FF, r)));
+        if let Some(mut g) = t.generator(cx, gen_row(va::BURST_SMOKE, row), ff) {
+            g.pos = at;
+            cx.particles.start(g);
+        }
+    }
+    let (life, tex) = (crate::dust::DUST_LIFE, crate::dust::DUST_TEX);
+    crate::dust::enemy_eff_dust(cx, pos, 10, 0x40a0_0000, life, tex);
 }
 
 /// `ccSetColor(out, color, s)` (OUT main 0x00136f90). With no alpha byte

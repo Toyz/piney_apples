@@ -604,7 +604,8 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   Mutation's `ccBoss02` ([Innis](boss-innis.md)), `Class::Magus`
   ([Magus](boss-magus.md)), `Class::Kyvia` ([Kyvia](boss-kyvia.md)),
   `Class::Fidchell` Outbreak's `ccBoss04` ([Fidchell](boss-fidchell.md)),
-  `Class::Macha` Quarantine's `ccBoss06` ([Macha](boss-macha.md)).
+  `Class::Macha` Quarantine's `ccBoss06` ([Macha](boss-macha.md)),
+  `Class::Tarvos` its `ccBoss07` ([Tarvos](boss-tarvos.md)).
   Each boss's tables come from the build through `BossData`
   (`tables::combat`).
 - `Foe.boss` carries the boss's state.
@@ -627,8 +628,8 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
 1. An event's `entry 7 code` makes the boss at the entry control's
    set-up (`FieldWorld::start_boss(code)`, `Combat::start_boss`): code 0
    Skeith from `bossTbl` row 0, code 1 Innis from row 1 (2 Magus, 3
-   Fidchell, 5 Macha, 12 Kyvia on their pages), its centre the arena's
-   `DMY_center01`. Other codes start nothing.
+   Fidchell, 5 Macha, 6 Tarvos, 12 Kyvia on their pages), its centre the
+   arena's `DMY_center01`. Other codes start nothing.
 2. `ccBoss01::Main` runs each frame after the entry control, the task
    order's 66.
 3. It draws as an actor of `x11`'s `CMP_trall` at the boss's clip and
@@ -638,7 +639,8 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
 4. The boss joins the enemies Kite and the HUD target.
 5. Affects from Kite's and the members' frames, whose contexts carry no
    `BossEnv`, are queued on the boss and applied first in its task, the
-   same frame.
+   same frame, with the fight's `ccRand` (`BossEnv::cc`: Tarvos's
+   `Affect` draws it).
 6. The boss's own `CalcReal(0)` (`Boss::calc_real`, every class's `Main`
    and every part's) names what it raises by the boss's index: the
    protect's return (`effProtect(this, 1, kind)`, kind 2 when the row's

@@ -50,6 +50,7 @@ pub mod sprite;
 pub mod strfx;
 pub mod summoned;
 pub mod summons;
+pub mod tarvos;
 pub mod thunder;
 pub mod tornado;
 pub mod upheaval;
@@ -658,6 +659,27 @@ impl Effects {
         for b in bursts {
             magus::leaf_explode(&mut cx, b);
         }
+    }
+
+    /// `ccMenu->noiz->SetNoizBs(bs)` from the boss's rules (Tarvos's spell).
+    pub fn noise(&mut self, host: &mut dyn Host, bs: i32) {
+        let (_, mut cx) = self.split(host);
+        spell::noise(&mut cx, bs);
+    }
+
+    /// A picture of Tarvos's this frame ([`tarvos::calls`]): its spikes and
+    /// phantom join the boss effects' pass's draws. `me` is the boss.
+    pub fn tarvos_calls(&mut self, host: &mut dyn Host, me: CharRef, pic: &piney_battle::boss::tarvos::Pic) {
+        let mut cx = Cx {
+            host,
+            assets: &self.assets,
+            particles: &mut self.particles,
+            hits: &mut self.hits,
+            spells: &mut self.spells,
+            events: &mut self.events,
+            draws: &mut self.boss_draws,
+        };
+        tarvos::calls(&mut self.ctrl, &mut cx, &self.assets.boss, &mut self.boss.tarvos, me, pic);
     }
 
     /// A picture of Macha's this frame ([`macha::calls`]): its lasers and

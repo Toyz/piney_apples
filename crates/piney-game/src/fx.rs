@@ -828,6 +828,10 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         Show::Boss(_, piney_battle::boss::Out::Fidchell(p)) => fx.fidchell_calls(h, p),
         // Macha's lasers, blast and their bursts, the back dash's dust.
         Show::Boss(_, piney_battle::boss::Out::Macha(p)) => fx.macha_calls(h, p),
+        // Tarvos's spikes, phantom, transfer, eruptions and shield.
+        Show::Boss(me, piney_battle::boss::Out::Tarvos(p)) => fx.tarvos_calls(h, cref(*me), p),
+        // Tarvos's spell's ccNoiz::SetNoizBs.
+        Show::Boss(_, piney_battle::boss::Out::Noise(bs)) => fx.noise(h, *bs),
         // effSkillStart(who, sid, 0, 0): Fidchell's skill, a gomora's.
         Show::Boss(_, piney_battle::boss::Out::SkillStart { who, sid }) => {
             fx.skill_start(h, cref(*who), *sid, 0, 0);
@@ -887,12 +891,16 @@ fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> O
         EffKind::HellExpress => Make::Hell { rules_slot: id },
         EffKind::Needle { .. } => Make::Needles { rules_slot: id },
         EffKind::FinalPhotonFlash => Make::FinalPhotonFlash { pos },
-        // Macha's lasers and blast: drawn from their rules' state.
+        // Macha's lasers and blast, Tarvos's spikes, phantom and eruption:
+        // drawn from their rules' state.
         EffKind::MeteoSworm { .. }
         | EffKind::ThunderStorm { .. }
         | EffKind::RockTower { .. }
         | EffKind::LaserShot
-        | EffKind::LightBallShock => {
+        | EffKind::LightBallShock
+        | EffKind::SpikeRain
+        | EffKind::Phantom
+        | EffKind::Eruption => {
             return None;
         }
     })

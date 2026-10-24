@@ -2030,11 +2030,16 @@ impl Combat {
                 let ch = &mut self.scene.chars[who];
                 let erased = ch.foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.erase_target != 0);
                 let dead = ch.cond[cond::DEAD];
-                let blend = if dead == 1 && erased {
+                let mut blend = if dead == 1 && erased {
                     crate::foe::FogBlend::default()
                 } else {
                     crate::foe::char_blend(dead, ch.condition_num, x.effect_sw, &mut ch.affect)
                 };
+                if blend.rate == 0
+                    && let Some(f) = self.boss.as_ref().filter(|r| r.me == who).and_then(|r| r.fog)
+                {
+                    blend = f;
+                }
                 a.ch.blend = blend.fog();
                 continue;
             }

@@ -229,6 +229,20 @@ pub struct Combat {
     pub macha_rand_skills: &'static [i32],
     /// `@1913`: `OnThinkMagic`'s spells, by `abs(ccSys.count & 3)`.
     pub macha_magic_skills: &'static [i32],
+    /// `boss0xAnmTbl` (boss07.cpp): Tarvos's clip by act.
+    pub tarvos_anims: &'static [Option<&'static str>],
+    /// `boss07NormalActTbl`: Tarvos's patterns, through the -1 that closes it.
+    pub tarvos_normal: &'static [i32],
+    /// `boss07SuperActTbl`: Tarvos's once its gauge is half full, through its closing -1.
+    pub tarvos_super: &'static [i32],
+    /// `boss07EpitaphActTbl`: Tarvos's once drained, through its closing -1.
+    pub tarvos_epitaph: &'static [i32],
+    /// `@1178`: pattern 10's skills, one drawn by `ccRand() % 3` and dropped.
+    pub tarvos_rand_skills: &'static [i32],
+    /// `@1517`: `OnThinkSkill`'s skill, one by `abs(ccRand() % 3)`.
+    pub tarvos_skills: &'static [i32],
+    /// `@1568`: the two words `OnThinkMagic` copies; it casts the second.
+    pub tarvos_magic_skills: &'static [i32],
     /// `_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.
     pub cinema_skill_names: &'static [CinemaSkillName],
     /// The cinema's names by `game.field` and skill (`OnCinemaMode` with a skill, from Outbreak on); none before.
@@ -332,6 +346,13 @@ impl crate::store::Load for Combat {
             macha_epitaph: crate::store::Load::load(r),
             macha_rand_skills: crate::store::Load::load(r),
             macha_magic_skills: crate::store::Load::load(r),
+            tarvos_anims: crate::store::Load::load(r),
+            tarvos_normal: crate::store::Load::load(r),
+            tarvos_super: crate::store::Load::load(r),
+            tarvos_epitaph: crate::store::Load::load(r),
+            tarvos_rand_skills: crate::store::Load::load(r),
+            tarvos_skills: crate::store::Load::load(r),
+            tarvos_magic_skills: crate::store::Load::load(r),
             cinema_skill_names: crate::store::Load::load(r),
             cinema_skill_rows: crate::store::Load::load(r),
             weapon_infos: crate::store::Load::load(r),
@@ -565,6 +586,27 @@ impl Combat {
     }
     pub fn macha_magic_skills(&self) -> &'static [i32] {
         self.macha_magic_skills
+    }
+    pub fn tarvos_anims(&self) -> &'static [Option<&'static str>] {
+        self.tarvos_anims
+    }
+    pub fn tarvos_normal(&self) -> &'static [i32] {
+        self.tarvos_normal
+    }
+    pub fn tarvos_super(&self) -> &'static [i32] {
+        self.tarvos_super
+    }
+    pub fn tarvos_epitaph(&self) -> &'static [i32] {
+        self.tarvos_epitaph
+    }
+    pub fn tarvos_rand_skills(&self) -> &'static [i32] {
+        self.tarvos_rand_skills
+    }
+    pub fn tarvos_skills(&self) -> &'static [i32] {
+        self.tarvos_skills
+    }
+    pub fn tarvos_magic_skills(&self) -> &'static [i32] {
+        self.tarvos_magic_skills
     }
     pub fn cinema_skill_names(&self) -> &'static [CinemaSkillName] {
         self.cinema_skill_names
@@ -816,6 +858,30 @@ pub static MACHA_RAND_SKILLS: std::sync::LazyLock<&'static [i32]> =
 /// `@1913`: `OnThinkMagic`'s spells, by `abs(ccSys.count & 3)`.
 pub static MACHA_MAGIC_SKILLS: std::sync::LazyLock<&'static [i32]> =
     std::sync::LazyLock::new(|| shared().macha_magic_skills);
+
+/// `boss0xAnmTbl` (boss07.cpp): Tarvos's clip by act.
+pub static TARVOS_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
+    std::sync::LazyLock::new(|| shared().tarvos_anims);
+
+/// `boss07NormalActTbl`: Tarvos's patterns, through the -1 that closes it.
+pub static TARVOS_NORMAL: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tarvos_normal);
+
+/// `boss07SuperActTbl`: Tarvos's once its gauge is half full, through its closing -1.
+pub static TARVOS_SUPER: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tarvos_super);
+
+/// `boss07EpitaphActTbl`: Tarvos's once drained, through its closing -1.
+pub static TARVOS_EPITAPH: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tarvos_epitaph);
+
+/// `@1178`: pattern 10's skills, one drawn by `ccRand() % 3` and dropped.
+pub static TARVOS_RAND_SKILLS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().tarvos_rand_skills);
+
+/// `@1517`: `OnThinkSkill`'s skill, one by `abs(ccRand() % 3)`.
+pub static TARVOS_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tarvos_skills);
+
+/// `@1568`: the two words `OnThinkMagic` copies; it casts the second.
+pub static TARVOS_MAGIC_SKILLS: std::sync::LazyLock<&'static [i32]> =
+    std::sync::LazyLock::new(|| shared().tarvos_magic_skills);
 
 /// `ehkBreathInfo`: `ccEnemyH`'s two fire breaths.
 pub static EHK_BREATH_INFO: std::sync::LazyLock<&'static [EnemyBrInfo]> =

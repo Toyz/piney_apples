@@ -124,9 +124,11 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
 - [ ] Macha won with no aid: the pilot heals ahead of its hits, cures
   its charm and confusion and refills SP (worklog 444), but the party
   the start leaves (70, 70, 75) still falls before the gauge breaks
-- [ ] Quarantine's other bosses (`start_boss` takes no code 6-7, so
-  their events go on without the fight): `ccBoss07` (6, event 310),
-  `ccBoss08` (7, event 313):
+- [x] Tarvos (`ccBoss07`, code 6, event 310; its spike rain and phantom,
+  worklog 447): event 310 ends under god
+- [ ] Tarvos won with no aid
+- [ ] Quarantine's last boss (`start_boss` takes no code 7, so its event
+  goes on without the fight): `ccBoss08` (7, event 313):
   `ccThBoss08`'s first form (`ccBoss08` and its `ccBoss08Seed`s, about
   20 KB of code), second (`ccBoss08_b` and `ccBoss08Root`, about 28 KB)
   and third (`ccBoss08_c`, `ccBoss08KillerEye`, `ccBoss08Eye`, about

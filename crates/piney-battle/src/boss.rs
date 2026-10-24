@@ -14,6 +14,7 @@ pub mod innis;
 pub mod kyvia;
 pub mod macha;
 pub mod magus;
+pub mod tarvos;
 
 use piney_data::field::ee;
 use piney_data::libm;
@@ -113,6 +114,7 @@ pub struct BossData {
     pub fidchell: fidchell::FidchellData,
     pub gorre: gorre::GorreData,
     pub macha: macha::MachaData,
+    pub tarvos: tarvos::TarvosData,
 }
 
 impl BossData {
@@ -126,6 +128,7 @@ impl BossData {
             fidchell: fidchell::FidchellData::of(volume),
             gorre: gorre::GorreData::of(volume),
             macha: macha::MachaData::of(volume),
+            tarvos: tarvos::TarvosData::of(volume),
         }
     }
 }
@@ -159,6 +162,7 @@ pub enum Class {
     GorreBrother(Box<gorre::brother::Brother>),
     /// `ccBoss06`.
     Macha(Box<macha::Macha>),
+    Tarvos(Box<tarvos::Tarvos>),
     /// A bare `ccBoss` (a slave's base).
     Plain,
 }
@@ -350,6 +354,8 @@ pub struct Eff {
     pub hell: Option<Box<kyvia::hell::Hell>>,
     /// Macha's lasers and blast ([`macha::eff::Fx`]).
     pub macha: Option<Box<macha::eff::Fx>>,
+    /// Tarvos's spike rain and phantom ([`tarvos::eff::Fx`]).
+    pub tarvos: Option<Box<tarvos::eff::Fx>>,
 }
 
 /// The effects the bosses make (`ccBossEff*Create`).
@@ -415,6 +421,15 @@ pub enum EffKind {
     /// `ccBossEffLightBallShockCreate(pos)` (QUA gcmn 0x0037d320): Macha's
     /// light ball's blast ([`macha::eff::Shock`]).
     LightBallShock,
+    /// `ccBossEffSpikeRainCreate(target, owner, cb)` (QUA gcmn 0x0037d180):
+    /// Tarvos's 32 spikes ([`tarvos::eff::SpikeRain`]).
+    SpikeRain,
+    /// `ccBossEffPhantomCreate(pos, dirc)` (QUA gcmn 0x0037dca0): Tarvos's
+    /// phantom ([`tarvos::eff::Phantom`]).
+    Phantom,
+    /// `ccBossEffEruptionCreate(pos, n, 100, 10)` (QUA gcmn 0x0037b7b0):
+    /// made off, its `Draw` empty; the next pass frees its slot.
+    Eruption,
 }
 
 impl Effects {
@@ -440,6 +455,7 @@ impl Effects {
             ball: None,
             hell: None,
             macha: None,
+            tarvos: None,
         };
         match self.slots.iter().position(Option::is_none) {
             Some(k) => {
@@ -528,7 +544,10 @@ impl Eff {
             | EffKind::MagicalBall
             | EffKind::HellExpress
             | EffKind::LaserShot
-            | EffKind::LightBallShock => return,
+            | EffKind::LightBallShock
+            | EffKind::SpikeRain
+            | EffKind::Phantom
+            | EffKind::Eruption => return,
         };
         if self.count >= life {
             self.enabled = false;
@@ -810,6 +829,11 @@ pub enum Out {
     AfterImageWith(AfterImageParams),
     /// What Macha shows beside its body ([`macha::Pic`]).
     Macha(macha::Pic),
+    /// What Tarvos and its effects show ([`tarvos::Pic`]).
+    Tarvos(tarvos::Pic),
+    /// `ccMenu->noiz->SetNoizBs(bs)`: the screen broken up for `bs`
+    /// frames (Tarvos's magic, a leftover register's 20).
+    Noise(i32),
     /// `g_sinRot` (`ccBoss06BlurParamFuncCB`'s phase) set.
     BlurSinRot(F),
 }
@@ -1166,6 +1190,7 @@ impl Boss {
             Class::Kyvia(_) => kyvia::main(self, cx),
             Class::Fidchell(_) => fidchell::main(self, cx),
             Class::Macha(_) => macha::main(self, cx),
+            Class::Tarvos(_) => tarvos::main(self, cx),
             Class::Gorre(_) => gorre::main(self, cx),
             _ => self.skeith_main(cx),
         }
@@ -2522,6 +2547,7 @@ impl Boss {
             Class::Gomora(_) => return kyvia::gomora::affect(self, cx),
             Class::Fidchell(_) => return fidchell::affect(self, cx),
             Class::Macha(_) => return macha::affect(self, cx),
+            Class::Tarvos(_) => return tarvos::affect(self, cx),
             Class::Gorre(_) => return gorre::affect(self, cx),
             Class::GorreBrother(_) => return gorre::brother_affect(self, cx),
             _ => {}
@@ -2637,6 +2663,9 @@ pub struct BossEnv<'a> {
     pub env: &'a Env,
     /// `compulsionGameOver`.
     pub game_over: bool,
+    /// The fight's `ccRand`, for an Affect that draws it (Tarvos's blows'
+    /// notes, a table its gauge brings); None draws from a throwaway.
+    pub cc: Option<&'a std::cell::RefCell<crate::rand::Genrand>>,
 }
 
 /// `bossAffectFunc` (gcmn 0x0045f090) from `EntryAffect` on the boss
@@ -2657,9 +2686,12 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
         return;
     };
     let Some(mut boss) = scene.chars[on].foe_state_mut().and_then(|f| f.boss.take()) else { return };
-    // `ccRand` is not drawn from an affect of Skeith's (the Super table
-    // starts with a wait) or Innis's.
-    let mut cc = crate::rand::Rand::default();
+    let mut spare = crate::rand::Rand::default();
+    let mut held = benv.cc.map(|c| c.borrow_mut());
+    let cc: &mut dyn Rng = match held.as_deref_mut() {
+        Some(g) => g,
+        None => &mut spare,
+    };
     let mut collide = |_| None;
     let mut land = |_| 0;
     let mut cx = Cx {
@@ -2671,7 +2703,7 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
         env: benv.env,
         actx: ctx,
         rand: rng,
-        cc: &mut cc,
+        cc,
         clips: benv.clips,
         collide: &mut collide,
         part_hits: &mut NoHits,

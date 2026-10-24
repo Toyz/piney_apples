@@ -115,7 +115,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     let menu_at = |f: usize| menus.iter().rfind(|(k, _)| *k <= f).map_or(-1, |(_, v)| *v);
     let env0 = Env { count: count0, menu_type: -1, ..Env::default() };
     let check = |_: usize| 0;
-    let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false };
+    let benv = BossEnv { t: tables, data, clips: &clip, env: &env0, game_over: false, cc: None };
     let actx =
         AffectCtx { party: &party, menu: true, skill_check: &check, boss: Some(&benv), volume: crate::probe_volume() };
     let mut none = |_| None;
@@ -153,7 +153,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     );
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
-        let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false };
+        let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false, cc: None };
         let actx = AffectCtx {
             party: &party,
             menu: true,
@@ -374,6 +374,9 @@ pub(crate) fn eff_num(k: EffKind) -> i32 {
         EffKind::HellExpress => 19,
         EffKind::LaserShot => 20,
         EffKind::LightBallShock => 21,
+        EffKind::SpikeRain => 22,
+        EffKind::Phantom => 23,
+        EffKind::Eruption => 24,
     }
 }
 
