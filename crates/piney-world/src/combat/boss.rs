@@ -190,6 +190,9 @@ pub struct BossRun {
     /// `EVENTAREAB8`'s `body[n]` hits the fight turned off or on this
     /// frame (field 12's), for the area.
     pub body_hits: Vec<(usize, bool)>,
+    /// Field 8's arena clump switched this frame (`eventArea` +0x2bc,
+    /// Corbenik's lasers), in order.
+    pub arena_clump: Vec<bool>,
     pub disc_next: bool,
     /// Magus's dropped leaves its after-images hide this frame (act 8's
     /// callback).
@@ -628,6 +631,7 @@ impl Combat {
             disc,
             disc_next: false,
             body_hits: Vec::new(),
+            arena_clump: Vec::new(),
             dropped: Vec::new(),
         });
     }
@@ -930,6 +934,7 @@ impl Combat {
                         }
                     }
                     Out::FieldBodyHit { n, on } => r.body_hits.push((*n, *on)),
+                    Out::Corbenik(boss::corbenik::Pic::ArenaClump { on }) => r.arena_clump.push(*on),
                     // Magus's cameras: changeCamera, cameraSetPos/View.
                     Out::CameraChange(n) => camera.change_camera(*n as i16),
                     Out::CameraPos { cam, pos } => camera.cam_mut(*cam as i16).pos = *pos,

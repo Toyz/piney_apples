@@ -2598,6 +2598,15 @@ impl FieldWorld {
         {
             a.next_stage();
         }
+        // Field 8's last stage's clump, switched by Corbenik's lasers.
+        if let Some(r) = self.combat.boss.as_mut() {
+            let sets = std::mem::take(&mut r.arena_clump);
+            if let Some(a) = self.place.story_mut::<crate::evarea_b0::Arena>() {
+                for on in sets {
+                    a.set_clump(on);
+                }
+            }
+        }
         // Field 12's body[n] hits from Kyvia's fourth fight's gates.
         if let Some(r) = self.combat.boss.as_mut() {
             let hits = std::mem::take(&mut r.body_hits);

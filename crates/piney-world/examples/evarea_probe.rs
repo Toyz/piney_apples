@@ -157,6 +157,8 @@ fn main() {
                     evarea_b0::Piece::Firefly { draw: d, layer } => {
                         format!("[\"eff\", {}, {}, {}, {}, {layer}]", list(d.pos), d.pattern, d.transparency, d.scale)
                     }
+                    evarea_b0::Piece::LastAnm { layer } => format!("[\"last_anm\", {layer}]"),
+                    evarea_b0::Piece::LastClump { layer } => format!("[\"last_clump\", {layer}]"),
                 }));
                 let bob = list(a.models[6..9].iter().map(|m| list(m.pos)));
                 let v = (ee::to_int(ee::mul(a.scroll_shown, 0x4580_0000)) & 0xffff) as u16;

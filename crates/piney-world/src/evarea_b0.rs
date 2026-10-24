@@ -102,7 +102,28 @@ pub enum Piece {
     Model { k: usize, layer: i16 },
     /// A firefly's (or spark's) `ccEff::Draw`.
     Firefly { draw: FireflyDraw, layer: i16 },
+    /// The last stage's `ccAnm::Draw` (`ANM_se4_8bac1a`) at the origin.
+    LastAnm { layer: i16 },
+    /// Its clump (`CMP_se4_8f01`), while `+0x2bc` holds.
+    LastClump { layer: i16 },
 }
+
+/// Field 8's last stage, which Quarantine's constructor loads beside
+/// `se4_7` (QUA gcmn 0x00308b90): `se4_8` (+0x2a8), its `ANM_se4_8bac1a`
+/// (+0x2ac) and its floor `CMP_se4_8f01` (+0x2b0), with their hits.
+pub struct LastStage {
+    pub file: Rc<SceneFile>,
+    pub anm: piney_desktop::anm::Anm,
+    pub clump: (u32, Vec<u32>),
+    pub hit_models: Vec<HitModel>,
+}
+
+/// The stage `NextStage` leaves, and the field it does it on.
+pub const LAST_STAGE: &str = "se4_8";
+pub const LAST_FIELD: i32 = 8;
+/// `saveData` byte the constructor reads: set, the arena starts at its
+/// last stage (Corbenik's third form, `ccThBoss08`'s test likewise).
+pub const LAST_STAGE_BYTE: usize = 0x652f;
 
 /// `EVENTAREAB0` as `WORLD_MAN.eventmap` holds it.
 pub struct Arena {
@@ -127,6 +148,12 @@ pub struct Arena {
     pub sw: [i32; 3],
     /// `layerSw` (+0x2b4).
     pub layer_sw: bool,
+    /// Field 8's last stage, `stageSW` (+0x2b4 in Quarantine's class:
+    /// `NextStage` ran) and its clump drawn (+0x2bc, which Corbenik's
+    /// lasers switch: QUA gcmn 0x0030aa40).
+    pub last: Option<LastStage>,
+    pub stage_sw: bool,
+    pub clump_on: bool,
     /// `fieldrand`, which the fireflies and the bobbing draw from. `GO(1)`
     /// sets no seed for a story map; the port starts the arena's own.
     pub rng: Rng,
@@ -212,7 +239,21 @@ impl Arena {
             let (at, _) = crate::town::dummy_bits(&Position::Dummy(marker), c, sc);
             fireflies.push(Firefly::arena(volume, &mut rng, at));
         }
+        let last = if field == LAST_FIELD {
+            let f = Rc::new(SceneFile::read(archive, LAST_STAGE)?);
+            let mut anm = piney_desktop::anm::Anm::new();
+            anm.set(&f, "ANM_se4_8bac1a");
+            let clump = clump_models(&f, "CMP_se4_8f01")
+                .ok_or_else(|| Error::NotFound(format!("{LAST_STAGE}: CMP_se4_8f01")))?;
+            let hit_models = HitModel::read(volume, &f.ccs)?;
+            Some(LastStage { file: f, anm, clump, hit_models })
+        } else {
+            None
+        };
         Ok(Arena {
+            last,
+            stage_sw: false,
+            clump_on: false,
             field,
             stage,
             file,
@@ -230,6 +271,27 @@ impl Arena {
             hit_models,
             hits,
         })
+    }
+
+    /// `NextStage` (QUA gcmn 0x0030aa70), field 8 only and once: the
+    /// stage's models deleted, its omni lights out of the group (the
+    /// distant light kept), `stageSW` and the clump on, the last stage's
+    /// clump and clip hit instead.
+    pub fn next_stage(&mut self) {
+        if self.field != LAST_FIELD || self.stage_sw {
+            return;
+        }
+        let Some(last) = self.last.as_ref() else { return };
+        self.models.clear();
+        self.lights.lights.truncate(1);
+        self.stage_sw = true;
+        self.clump_on = true;
+        self.hits.models = last.hit_models.clone();
+    }
+
+    /// `+0x2bc` set (QUA gcmn 0x0030aa40, `on` the call's 1).
+    pub fn set_clump(&mut self, on: bool) {
+        self.clump_on = on;
     }
 
     /// `SwitchLayer` (gcmn 0x004095b0).
@@ -260,6 +322,18 @@ impl Arena {
     /// the bobbing models, their draws from `fieldrand`).
     pub fn select(&mut self, player: V4) -> Vec<Piece> {
         let mut out = Vec::new();
+        // The last stage (QUA 0x0030a968): its clip forward and drawn on
+        // objLayer, the clump on floorLayer while +0x2bc holds; no more.
+        if self.stage_sw {
+            if let Some(l) = self.last.as_mut() {
+                l.anm.forward();
+            }
+            out.push(Piece::LastAnm { layer: layer::OBJ });
+            if self.clump_on {
+                out.push(Piece::LastClump { layer: draw::FLOOR_LAYER });
+            }
+            return out;
+        }
         // DrawBG: the material takes v, then v steps.
         self.scroll_shown = self.scroll_v;
         self.scroll_v = ee::add(self.scroll_v, SCROLL);
@@ -323,9 +397,13 @@ impl Arena {
     }
 
     fn model_draw(&self, layers: &mut Layers, layer: i16, to_screen: Mat4, model: u32, world: Mat4) {
+        self.file_draw(&self.file, layers, layer, to_screen, model, world);
+    }
+
+    fn file_draw(&self, file: &SceneFile, layers: &mut Layers, layer: i16, to_screen: Mat4, model: u32, world: Mat4) {
         let rows = self.scroll_rows();
         let d = Draw {
-            file: &self.file,
+            file,
             model,
             world,
             alpha: 1.0,
@@ -347,8 +425,12 @@ impl Arena {
         } else {
             let saved =
                 (self.scroll_v, self.scroll_shown, self.sw, self.rng, self.models.clone(), self.fireflies.clone());
+            let anm = self.last.as_ref().map(|l| l.anm.clone());
             let p = self.select(player);
             (self.scroll_v, self.scroll_shown, self.sw, self.rng, self.models, self.fireflies) = saved;
+            if let (Some(l), Some(a)) = (self.last.as_mut(), anm) {
+                l.anm = a;
+            }
             p
         };
         let eff = usize::try_from(self.field).ok().and_then(|f| FIREFLY_EFF.get(f)).copied().unwrap_or("");
@@ -366,6 +448,18 @@ impl Arena {
                     let world =
                         Mat4::from_translation(glam::Vec3::new(ee::f(m.pos[0]), ee::f(m.pos[1]), ee::f(m.pos[2])));
                     self.model_draw(layers, layer, to_screen, m.model, world);
+                }
+                Piece::LastAnm { layer } => {
+                    let Some(l) = self.last.as_ref() else { continue };
+                    for inst in l.anm.instances() {
+                        self.file_draw(&l.file, layers, layer, to_screen, inst.model, inst.world);
+                    }
+                }
+                Piece::LastClump { layer } => {
+                    let Some(l) = self.last.as_ref() else { continue };
+                    for &m in &l.clump.1 {
+                        self.file_draw(&l.file, layers, layer, to_screen, m, Mat4::IDENTITY);
+                    }
                 }
                 Piece::Firefly { draw, layer } => sprites.push(StorySprite {
                     file: self.stage,
@@ -409,5 +503,22 @@ mod tests {
         assert_eq!(a.light_objects.len(), 20);
         assert!(a.bg.iter().all(|b| b.is_some()));
         assert_eq!(a.fireflies.len(), FIREFLIES);
+    }
+
+    /// Corbenik's arena's last stage: `se4_8`'s clip and floor drawn, its
+    /// floor gone while the lasers switch it off.
+    #[test]
+    fn corbenik_last_stage() {
+        let Some(archive) = crate::town::tests::archive_of("quarantine") else { return };
+        let mut a = Arena::new(&archive, Volume::Qua, LAST_FIELD, 0).unwrap();
+        assert!(a.select([0, 0, 0, ONE]).iter().any(|p| matches!(p, Piece::Firefly { .. } | Piece::Model { .. })));
+        a.next_stage();
+        assert!(a.stage_sw && a.clump_on);
+        assert_eq!(a.lights.lights.len(), 1, "the distant light kept");
+        assert!(!a.hits.models.is_empty(), "the last stage's hit");
+        let p = a.select([0, 0, 0, ONE]);
+        assert_eq!(p, vec![Piece::LastAnm { layer: layer::OBJ }, Piece::LastClump { layer: draw::FLOOR_LAYER }]);
+        a.set_clump(false);
+        assert_eq!(a.select([0, 0, 0, ONE]), vec![Piece::LastAnm { layer: layer::OBJ }]);
     }
 }

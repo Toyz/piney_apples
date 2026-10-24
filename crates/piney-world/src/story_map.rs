@@ -128,7 +128,15 @@ pub fn build(
     let (field, area_prev) = (at.field, at.area_prev);
     let map: Box<dyn StoryMap> = match field {
         _ if model == 0 => return Ok(None),
-        f if crate::evarea_b0::is_arena(f) => Box::new(Arena::new(archive, at.volume, f, def_se)?),
+        f if crate::evarea_b0::is_arena(f) => {
+            let mut a = Arena::new(archive, at.volume, f, def_se)?;
+            // Quarantine's constructor: field 8 at its last stage once the
+            // save says so (QUA gcmn 0x0030a170).
+            if at.volume == Volume::Qua && at.save.record()[crate::evarea_b0::LAST_STAGE_BYTE] != 0 {
+                a.next_stage();
+            }
+            Box::new(a)
+        }
         crate::evarea::AREA => {
             let kept = match kept {
                 Some(Kept::Event(e)) if area_prev == crate::area::kind::FIELD => Some(e),

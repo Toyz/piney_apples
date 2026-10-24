@@ -120,7 +120,7 @@ Missing pieces that only the later volumes need.
 - [[272]] Kyvia's later fights (levels 2-5, the EX mode); fields 10-12 not played through (docs/engine/evarea.md, boss-kyvia.md, GAPS.md) — Mutation onward — answered by [[304]] (level 2, field 10), [[433]] (level 3, field 11, event 308 played) and [[434]] (levels 4 and 5, the EX mode, the gates and the rebirth; field 12, event 312 played)
 - docs/engine/battle.md `ccBoss04`'s Affect and AI are not ported — a later volume's boss (ported in [[294]])
 - [[72]] [[84]] the other `EVENTAREA` classes (04-06; areas 66, 67, 91) get generated fields (docs/engine/evarea.md, field-walk.md) — the later volumes' story maps; no Infection script reaches them
-- [[112]] `EVENTAREAB0`'s `NextStage` (field 8, `se4_8`) is not ported (docs/engine/evarea.md) — a later volume's last arena
+- [[112]] `EVENTAREAB0`'s `NextStage` (field 8, `se4_8`) is not ported (docs/engine/evarea.md) — a later volume's last arena — answered by [[454]] (Quarantine's class: `se4_8`'s clip and floor clump, the save's 0x652f, the lights and hits)
 - [[114]] [[157]] type 32's tree and leaves (`ANM_se4_2lea`, `LEAF`) are not ported (docs/engine/dungeon.md) — a later volume's event room
 - [[220]] on Outbreak and Quarantine `GetEventAreaInfo(0)` returns NULL where the port finds row 0 — Outbreak's and Quarantine's areas
 - [[77]] [[260]] `DrawMap` of towns 2-4 draws four sprites in the later volumes; [[260]] and docs/engine/map.md say the port draws three, but crates/piney-world/src/map/town.rs now carries a fourth (MARKS) sprite on the towns' own layers: to confirm — the later towns' maps
@@ -245,7 +245,7 @@ player until one of these turns out wrong.
 - [[450]] Corbenik's first form in the world: the seeds as actors, their pictures (the flush, the count, the charge), the leap and the wave in the arena, both forms in one task — not ported yet
 - [[451]] what the second form's star dust and press do to the boss camera while it is free (`ResetFlg` 5): not checked against the game (the harness's camera stays at 0) — answered by [[452]] (the form's own `SetMode(5)` frees it; the harness runs `SetMode` as the game does and the eye and view writes of the star dust, press and root drain agree)
 - [[453]] `ccBoss::Draw`'s camera fade on the other bosses (Skeith to Tarvos, Corbenik's first two forms): their rules set `transparency` to `setTransparency` and their harnesses leave the draw out; the game fades it by the active camera's distance (7000 out over 600 in a field) at each draw, and the code that reads `transparency` back (a fade's next step) reads the faded value — not checked for them; the third form takes it (its dummy's matrix and its eyes' fades)
-- [[453]] what the arena's clump `worldman->eventArea` +0x2bc switches is (Quarantine's `EVENTAREAB0` draws it at 0x0030a9d8 while set): its model and picture, the world's side
+- [[453]] what the arena's clump `worldman->eventArea` +0x2bc switches is (Quarantine's `EVENTAREAB0` draws it at 0x0030a9d8 while set): its model and picture, the world's side — answered by [[454]] (`se4_8`'s floor clump `CMP_se4_8f01` on floorLayer; the tera and reflected lasers hide it while their dark stage effect plays)
 - [[279]] which enemy and area the report's staff came from, and whether it was drained — report detail
 
 ### world
@@ -1270,7 +1270,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/evarea.md: EA_moveTex02's scroll starts at 0 on a new map after the town — research (phase only; duplicates [[84]])
 - docs/engine/evarea.md: EVENTAREAB8 not compared with the game's Draw frame by frame — research (duplicates [[272]])
 - docs/engine/evarea.md: fields 10-12 not played through their events (Kyvia's later fights) — play (volumes) — answered by [[304]] (field 10), [[433]] (field 11) and [[434]] (field 12, its gates' bodies)
-- docs/engine/evarea.md: the other EVENTAREA classes (04-06; areas 66, 67, 91) and EVENTAREAB0's NextStage — play (duplicates [[72]], [[112]])
+- docs/engine/evarea.md: the other EVENTAREA classes (04-06; areas 66, 67, 91) and EVENTAREAB0's NextStage — play (duplicates [[72]], [[112]]); NextStage answered by [[454]]
 - docs/engine/evarea.md: the fields' type-1 fireflies — answered (stale; [[130]], crates/piney-world/src/firefly.rs (tools/test_field_ambient_rs.py))
 - docs/engine/evarea.md: event 11's instructions in the map — answered ([[90]], [[91]])
 
