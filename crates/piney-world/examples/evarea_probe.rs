@@ -213,9 +213,11 @@ fn main() {
                 let mode = n(6) as i8;
                 a.set_center(pos[0], pos[1]);
                 a.hits.chars.clear();
+                // The disc's square roots (sqrt.s from Outbreak on), as the
+                // world probe's player and camera take them.
                 run = Some(Run {
-                    player: Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
-                    camera: Camera::new(pos, dirc, mode, scheme),
+                    player: Player { volume, ..Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000) },
+                    camera: Camera { volume, ..Camera::new(pos, dirc, mode, scheme) },
                     rand: Rand(u64::from(n(7))),
                     mode,
                 });
@@ -250,7 +252,7 @@ fn main() {
                         "\"act\": {}, \"act_old\": {}, \"act_cnt\": {}, \"anm_flag\": {}, \"react_cnt\": {}, ",
                         "\"transfer_lag\": {}, \"walk_run_cnt\": {}, \"cloak\": {}, \"transparency\": {}, ",
                         "\"frame_spd\": {}, \"time\": {}, \"attribute\": {}, \"stop_cnt\": {}, \"drawn\": {}, ",
-                        "\"target_count\": {}, \"angle\": {}, ",
+                        "\"arms\": {:?}, \"target_count\": {}, \"angle\": {}, ",
                         "\"cam_pos\": {}, \"cam_view\": {}, \"cam_rot\": {}, \"cam_rot2\": {}, \"cam_rot3\": {}, ",
                         "\"cam_dist\": {}, \"cam_deg\": [{}, {}], \"cam_type\": {}, \"cam_reset_flag\": {}, ",
                         "\"cam_reset_dirc\": {}, \"resetting\": {}, \"mem_dirc_z\": {}, \"mode\": {}, ",
@@ -280,6 +282,13 @@ fn main() {
                     p.hit_attribute,
                     p.stop_cnt,
                     u8::from(p.drawn),
+                    // ArmsEffect / ClearArmsEffect from ccPlayer::Main, as
+                    // the world harness reports them (worklog 378).
+                    match p.arms {
+                        Some(piney_world::arms::ArmsCall::Effect) => "effect",
+                        Some(piney_world::arms::ArmsCall::Clear) => "clear",
+                        None => "none",
+                    },
                     b.target_count,
                     list(p.angle),
                     list(t.pos),

@@ -422,7 +422,8 @@ impl World {
             save.save.set_u8(offset::NEW_GAME_FLAG, 1);
         }
         let crisis = save.save.u8(offset::CRISIS) != 0;
-        let town = Town::open_with(&archive, volume, town_no, crisis, save.field_rand)?;
+        let mut town = Town::open_with(&archive, volume, town_no, crisis, save.field_rand)?;
+        town.take_statics(&save.scroll_statics);
         let gate = Gate::new(&archive, &town.base.file)?;
         let party = town_party::TownParty::new(iso, town_no as usize, &town.base.file)?;
         // ccPlayer::ccPlayer's EquipWeapon: the blades the save has him hold.
@@ -1110,6 +1111,7 @@ impl World {
         if let Some(r) = self.town.field_rand() {
             out.field_rand = r;
         }
+        self.town.put_statics(&mut out.scroll_statics);
         match &self.town_pcs {
             Some(t) => t.borrow().mt.put(&mut out.cc),
             None => mt::Mt::init(self.rand_count).put(&mut out.cc),

@@ -381,6 +381,7 @@ impl FieldWorld {
                 event_start: world_man.event_start,
                 field_rand: save.field_rand,
                 move_tex: save.move_tex,
+                scroll_statics: save.scroll_statics,
             };
             crate::story_map::build(&archive, &at, world_man.field_model, kept_map, def_se, &mut cc)?
         } else {
@@ -398,7 +399,8 @@ impl FieldWorld {
                 params.event = scene.field.max(0);
                 let ft = params.field_type as usize;
                 let def_se = crate::field_area::DEF_SE.get(ft).copied().unwrap_or(0xc000);
-                let field = FieldArea::with_world(&archive, volume, params, def_se, world_man.hack, scene.server)?;
+                let mut field = FieldArea::with_world(&archive, volume, params, def_se, world_man.hack, scene.server)?;
+                field.take_statics(&save.scroll_statics);
                 let (pos, rot) =
                     field_start(scene.area_prev, params.field_type, field.start_pos(), field.dungeon_pos());
                 (Place::Field(Box::new(field)), pos, rot)
@@ -438,6 +440,8 @@ impl FieldWorld {
                         crate::dungeon_area::bans_of(&save.save),
                     )?),
                 };
+                let mut d = d;
+                d.take_statics(&save.scroll_statics);
                 let (pos, rot) = d.start();
                 (Place::Dungeon(d), pos, rot)
             }
@@ -1120,8 +1124,13 @@ impl FieldWorld {
         if let Some(r) = self.field_rand() {
             out.field_rand = r;
         }
-        if let Place::Story(m) = &self.place {
-            m.put_scrolls(&mut out.move_tex);
+        match &self.place {
+            Place::Story(m) => {
+                m.put_scrolls(&mut out.move_tex);
+                m.put_statics(&mut out.scroll_statics);
+            }
+            Place::Dungeon(d) => d.put_statics(&mut out.scroll_statics),
+            Place::Field(f) => f.put_statics(&mut out.scroll_statics),
         }
         out
     }

@@ -460,3 +460,54 @@ fn the_holy_grounds_scroll_carries_across_visits() {
     let (again, _) = visit(&mut s);
     assert_eq!(again, left, "the second visit's scroll");
 }
+
+/// Worklog 474: Dun Loireag's `DrawBG` and `Draw` scrolls (`v$1346`,
+/// `v2$1347`, `u$1777`) are statics of the executable's own data, set by
+/// no load. The town left for field 66 and come back to by Gate Out goes
+/// on where it was, and log in (GCMN.PRG loaded) leaves them. Before,
+/// each visit started them at 0.
+#[test]
+fn dun_loireags_scrolls_carry_across_visits() {
+    use piney_world::town::scroll_statics as statics;
+    use piney_world::town02::DunLoireag;
+    let Some((mut s, tables)) = in_dun_loireag() else { return };
+    let town = |s: &Session| match &s.stage {
+        Stage::World(w) => w.world().town().class::<DunLoireag>().map(|d| (d.bg_scroll, d.bg_scroll2, d.water_u)),
+        _ => None,
+    };
+    let left = town(&s).expect("Dun Loireag");
+    assert_ne!(left, ([0, 0], 0, 0), "the scrolls never moved");
+    let (_, _) = gate_to_66(&mut s, tables);
+    let Stage::Area(a) = &mut s.stage else { panic!("{}", Mode::title(&s)) };
+    let carried = a.world().state_out().scroll_statics;
+    a.gate_out();
+    a.vm_mut().unwrap().disable();
+    let mut pad = Pad::default();
+    let mut back = None;
+    for _ in 0..600 {
+        pad.read(&still());
+        s.step(&pad);
+        s.take_events();
+        if let Some(t) = town(&s) {
+            back = Some(t);
+            break;
+        }
+    }
+    let back = back.expect("back in Dun Loireag");
+    // u$1777 steps 0.005 a frame and wraps at 1: the town back goes on
+    // from what the field carried, a few steps on, not from 0.
+    let carried_u = f32::from_bits(carried[statics::TOWN02_WATER]);
+    let on = (f32::from_bits(back.2) - carried_u).rem_euclid(1.0);
+    assert!(carried_u > 0.0, "the field carried no u$1777");
+    assert!(on < 0.05, "u$1777 restarted: {carried_u} then {}", f32::from_bits(back.2));
+    let carried_v = f32::from_bits(carried[statics::TOWN02_BG]);
+    let v_on = (f32::from_bits(back.0[0]) - carried_v).rem_euclid(1.0);
+    assert!(v_on < 0.1, "v$1346 restarted: {carried_v} then {}", f32::from_bits(back.0[0]));
+    let mut state = match &s.stage {
+        Stage::World(w) => w.world().state_out(),
+        _ => unreachable!(),
+    };
+    let before = state.scroll_statics;
+    crate::session::log_in(&s.iso, &mut state, 0);
+    assert_eq!(state.scroll_statics, before, "log in leaves the executable's statics");
+}

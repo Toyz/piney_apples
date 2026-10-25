@@ -16,6 +16,7 @@ use piney_desktop::layers::Layers;
 
 use crate::draw::OBJ_LAYER;
 use crate::ee::{self, F, ONE};
+use crate::town::scroll_statics as statics;
 use crate::town::{Base, FogParams, RootTown, Spec, Town, TownSprite, TownView, clump_models};
 
 /// `ChangeScene`'s town number.
@@ -134,6 +135,12 @@ impl Town06 {
 }
 
 impl RootTown for Town06 {
+    fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
+        statics::take(&mut self.bg_scroll, s, statics::TOWN06_BG);
+    }
+    fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
+        statics::put(&self.bg_scroll, s, statics::TOWN06_BG);
+    }
     fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, _v: &TownView) -> Vec<TownSprite> {
         let pieces = self.select(base);
         self.draw_pieces(base, layers, to_screen, &pieces);

@@ -573,6 +573,26 @@ pub fn set_event_data(tables: &Tables, event_area: i32, area: i32, f20: F) -> Ev
 }
 
 impl DungeonArea {
+    /// `DrawWater`'s `u$8862` and a lake's `DrawBG` `v$8917`: statics of
+    /// the executable's data, the same for every dungeon, which carry on
+    /// across them all ([`crate::town::scroll_statics`]).
+    pub fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
+        use crate::town::scroll_statics::{DUNGEON_LAKE, DUNGEON_WATER};
+        self.water_u = s[DUNGEON_WATER];
+        if let Some(l) = self.lake.as_mut() {
+            l.v = s[DUNGEON_LAKE];
+        }
+    }
+
+    /// The statics written back.
+    pub fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
+        use crate::town::scroll_statics::{DUNGEON_LAKE, DUNGEON_WATER};
+        s[DUNGEON_WATER] = self.water_u;
+        if let Some(l) = &self.lake {
+            s[DUNGEON_LAKE] = l.v;
+        }
+    }
+
     /// `GO(2)` for `scene` (`game.dungeon`, floor, block) of `world_man`'s
     /// area: `DUNGEON::DUNGEON(game.dungeon)`, `Generate` (random, or the
     /// story area's `EditDungeon`), `SetRoom(0, 0)`, `GetStartPosition`;

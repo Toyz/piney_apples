@@ -19,6 +19,7 @@ use crate::cloud::{self, Cloud};
 use crate::draw::{EFF_LAYER, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
 use crate::lensflare;
+use crate::town::scroll_statics as statics;
 use crate::town::{Base, FogParams, RootTown, Spec, Town, TownSprite, TownView, clump_models, crisis_rows};
 
 /// `ChangeScene`'s town number.
@@ -288,6 +289,12 @@ impl FortOuph {
 }
 
 impl RootTown for FortOuph {
+    fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
+        statics::take(&mut self.bg_scroll, s, statics::TOWN04_BG);
+    }
+    fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
+        statics::put(&self.bg_scroll, s, statics::TOWN04_BG);
+    }
     fn field_rand(&self) -> Option<&Rng> {
         Some(&self.rng)
     }

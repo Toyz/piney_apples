@@ -73,7 +73,19 @@ EV = tw.EV
 EVENTMNG, WORLDMAN = tw.EVENTMNG, tw.WORLDMAN
 ACTIVE_CAM, CAMID, PLW_PW = inf_va(0x0037896C), inf_va(0x0037897C), inf_va(0x00730300)
 LAYER_ACTIVE = tw.LAYER_ACTIVE
-EA02_VTABLE = inf_va(0x00375B30)
+
+
+def vtable(inf_addr):
+    """A class's vtable on this volume, None where the stripped executable
+    names none (Outbreak's and Quarantine's EVENTAREA vtables): the check
+    is then that the constructor stored one."""
+    try:
+        return inf_va(inf_addr)
+    except KeyError:
+        return None
+
+
+EA02_VTABLE = vtable(0x00375B30)
 # WORLD_MAN's layers (+0x494 bgLayer[10], objLayer, obj2Layer, floorLayer,
 # effLayer, charLayer, refLayer) and their priorities as GO makes them.
 LAYERS = [(0x494 + 4 * k, p) for k, p in enumerate((-100, -90, -80, -70, -60, -50, -45, -40, -35, -30))] + [
@@ -225,7 +237,7 @@ class MapGame(tw.Pieces):
         set_area(m, self.obj)
         self.log.clear()
         self.call("__ct__11EVENTAREA02Fv", self.obj)
-        assert m.load(self.obj + 0x1C0, 4) == EA02_VTABLE
+        assert m.load(self.obj + 0x1C0, 4) == (EA02_VTABLE or m.load(self.obj + 0x1C0, 4) or -1)
 
     def state(self):
         """The map as the probe's `state` lists it."""
@@ -305,7 +317,7 @@ class MapGame(tw.Pieces):
 
 
 FIELDRAND_SEED, RANDCNT = inf_va(0x00377D20), inf_va(0x00378A80)
-EAB0_VTABLE = inf_va(0x00375BF0)
+EAB0_VTABLE = vtable(0x00375BF0)
 
 
 class ArenaGame(MapGame):
@@ -332,7 +344,7 @@ class ArenaGame(MapGame):
         m.store(FIELDRAND_SEED, 4, seed)
         self.log.clear()
         self.call("__ct__11EVENTAREAB0Fv", self.obj)
-        assert m.load(self.obj + 0x1C0, 4) == EAB0_VTABLE
+        assert m.load(self.obj + 0x1C0, 4) == (EAB0_VTABLE or m.load(self.obj + 0x1C0, 4) or -1)
 
     def state(self):
         m, o = self.m, self.obj
@@ -343,13 +355,25 @@ class ArenaGame(MapGame):
         bg = [self.names.get(m.load(o + 0x1A8 + 4 * k, 4)) for k in range(3)]
         return {"models": models, "bg": bg, "start": self.rvec(WM + 0x70)}
 
+    def switch_layer(self):
+        """EVENTAREAB0::SwitchLayer, by name, else (Outbreak, Quarantine)
+        the function just before Draw that opens on `lw $v1, n($a0)`."""
+        hit = self.prog.symbol_named("SwitchLayer__11EVENTAREAB0Fv")
+        if hit is not None:
+            return hit.value
+        m = self.m
+        draw = m.load(m.load(self.obj + 0x1C0, 4) + 8, 4)
+        return next(a for a in range(draw - 0x40, draw, 4) if m.load(a, 4) >> 16 == 0x8C83)
+
     def draw(self, player):
         """One EVENTAREAB0::Draw with the player at `player`: the pieces,
         the bobbing models, the scroll's v offset, fieldrand's seed."""
         m, o = self.m, self.obj
         self.vec(PLAYER + 0x40, list(player) + [ONE])
         self.draws = []
-        self.call("Draw__11EVENTAREAB0Fv", o)
+        # Draw through the vtable (+0x08): Outbreak and Quarantine name
+        # no EVENTAREAB0::Draw.
+        self.call(m.load(m.load(o + 0x1C0, 4) + 8, 4), o)
         bg = {m.load(o + 0x1A8 + 4 * k, 4): k for k in range(3)}
         models = {m.load(m.load(o + 0x78 + 4 * k, 4) + 4, 4): k for k in range(m.load(o, 4))}
         pieces = []
@@ -505,7 +529,7 @@ class ArenaAgainstGame(unittest.TestCase):
         drawn = 0
         for f, (sw, player, p) in enumerate(zip(switches, players, got)):
             if sw:
-                g.call("SwitchLayer__11EVENTAREAB0Fv", g.obj)
+                g.call(g.switch_layer(), g.obj)
             want = g.draw(player)
             self.assertEqual(want, p, "frame %d" % f)
             drawn += sum(1 for q in want["pieces"] if q[0] == "eff")

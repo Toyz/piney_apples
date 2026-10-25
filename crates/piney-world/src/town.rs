@@ -442,6 +442,9 @@ pub trait RootTown: Any {
     fn field_rand(&self) -> Option<&piney_data::dungeon::Rng> {
         None
     }
+    /// The class's scroll statics ([`scroll_statics`]) as the game holds them.
+    fn take_statics(&mut self, _s: &[u32; piney_desktop::SCROLL_STATICS]) {}
+    fn put_statics(&self, _s: &mut [u32; piney_desktop::SCROLL_STATICS]) {}
     fn field_rand_mut(&mut self) -> Option<&mut piney_data::dungeon::Rng> {
         None
     }
@@ -626,6 +629,46 @@ pub(crate) fn water0_draw(
             clut_swaps: Vec::new(),
         };
         draw::model_edited(layers, layer, to_screen, d, e, draw::Fogging::None);
+    }
+}
+
+/// Where each draw's scroll statics sit in `SaveState::scroll_statics`:
+/// statics of the executable's own small data (INF names; 0 at power-on),
+/// which no load sets again (docs/engine/root-towns.md).
+pub mod scroll_statics {
+    use piney_desktop::SCROLL_STATICS;
+
+    /// `ROOTTOWN01::DrawBG`'s `v$1334` (two), `Draw`'s `u$1841`.
+    pub const TOWN01_BG: usize = 0;
+    pub const TOWN01_WATER: usize = 2;
+    /// `ROOTTOWN02`'s `v$1346` (two), `v2$1347`, `u$1777`.
+    pub const TOWN02_BG: usize = 3;
+    pub const TOWN02_BG2: usize = 5;
+    pub const TOWN02_WATER: usize = 6;
+    /// `ROOTTOWN03`'s `v$1474` (two), `u$1875`.
+    pub const TOWN03_BG: usize = 7;
+    pub const TOWN03_WATER: usize = 9;
+    /// `ROOTTOWN04`'s `v$1269` (two); `ROOTTOWN05`'s `v$1244` (two) and
+    /// `v2$1245`; Quarantine's `ROOTTOWN06`'s three.
+    pub const TOWN04_BG: usize = 10;
+    pub const TOWN05_BG: usize = 12;
+    pub const TOWN06_BG: usize = 15;
+    /// `EVENTAREAB0::DrawBG`'s `v$1597`.
+    pub const ARENA_BG: usize = 18;
+    /// `DUNGEON::DrawWater`'s `u$8862`, `DrawBG`'s `v$8917`.
+    pub const DUNGEON_WATER: usize = 19;
+    pub const DUNGEON_LAKE: usize = 20;
+    /// `WORLD::DrawBG`'s sky `v$4519` (0 on its first use, `init$4520`).
+    pub const WORLD_BG: usize = 21;
+
+    /// The statics from `at` into `dst`.
+    pub fn take(dst: &mut [u32], src: &[u32; SCROLL_STATICS], at: usize) {
+        dst.copy_from_slice(&src[at..at + dst.len()]);
+    }
+
+    /// `src` into the statics from `at`.
+    pub fn put(src: &[u32], dst: &mut [u32; SCROLL_STATICS], at: usize) {
+        dst[at..at + src.len()].copy_from_slice(src);
     }
 }
 
@@ -862,6 +905,16 @@ impl Town {
     /// does not draw from it.
     pub fn field_rand(&self) -> Option<piney_data::dungeon::Rng> {
         self.class.field_rand().copied()
+    }
+
+    /// The scroll statics as the game holds them, for the class's draws.
+    pub fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
+        self.class.take_statics(s);
+    }
+
+    /// The class's scroll statics written back.
+    pub fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
+        self.class.put_statics(s);
     }
 
     /// `fieldrand` set from outside (a gate menu's `SimGenerateCode`).

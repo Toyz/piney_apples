@@ -18,6 +18,7 @@ use piney_desktop::layers::Layers;
 use crate::cloud;
 use crate::draw::{EFF_LAYER, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
+use crate::town::scroll_statics as statics;
 use crate::town::{Base, FogParams, RootTown, Spec, Town, TownSprite, TownView, clump_models};
 
 /// `ChangeScene`'s town number.
@@ -215,6 +216,12 @@ impl LiaFail {
 }
 
 impl RootTown for LiaFail {
+    fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
+        statics::take(&mut self.bg_scroll, s, statics::TOWN05_BG);
+    }
+    fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
+        statics::put(&self.bg_scroll, s, statics::TOWN05_BG);
+    }
     fn field_rand(&self) -> Option<&Rng> {
         Some(&self.rng)
     }

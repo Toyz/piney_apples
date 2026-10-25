@@ -3,7 +3,7 @@ title: Carmina Gade, Fort Ouph and Lia Fail - ROOTTOWN03, 04 and 05
 status: partial
 volumes: MUT, OUT, QUA
 covers: MUT gcmn.prg:0x0043b980 ROOTTOWN03::ROOTTOWN03, 0x0043e400 ROOTTOWN03::Draw, 0x0043cb30 DrawBG, 0x0043ce60 DrawObj2, 0x0043cdc0 DrawObj, 0x0043cf00 DrawFloor, 0x00388f60 ROOTTOWN03 vtable, 0x0043af10 AIRSHIP::AIRSHIP, 0x0043b0c0 AIRSHIP::Move; OUT gcmn.prg:0x00439c50 ROOTTOWN04::ROOTTOWN04, 0x0043c430 ROOTTOWN04::Draw, 0x0043aa40 DrawBG, 0x0043af40 DrawObj2, 0x0043ae50 DrawObj, 0x0043b030 DrawFloor, 0x003842d0 ROOTTOWN04 vtable, 0x0043c5e0 ROOTTOWN05::ROOTTOWN05, 0x0043e8e0 ROOTTOWN05::Draw, 0x0043d200 DrawBG, 0x0043d410 DrawObj2, 0x0043d370 DrawObj, 0x0043d4b0 DrawFloor, 0x00384300 ROOTTOWN05 vtable; QUA gcmn.prg:0x004ec350 ROOTTOWN06::ROOTTOWN06, 0x004eca00 ROOTTOWN06::DrawBG, 0x004ecbf0 DrawObj, 0x004ecc90 DrawObj2, 0x004ecd30 DrawFloor, 0x004ecdd0 DrawMap, 0x004ecde0 ROOTTOWN06::Draw, 0x002785e0 ROOTTOWN06 vtable, 0x005ce5b0 RT_MODELTABLE06, 0x0047305c GtTownMenu's warp; QUA SLUS_205.64:0x001b2bf0 WORLD_MAN::GO's town 5, 0x001b3ac0 WORLD_MAN::SetCharPosition's towns, 0x00212afc townNameTbl's row 5, 0x002094b8 sqDataTown's row 11
-worklog: 97, 198, 218, 219, 260, 442
+worklog: 97, 198, 218, 219, 260, 442, 474
 ---
 
 # Carmina Gade, Fort Ouph and Lia Fail - ROOTTOWN03, 04 and 05
@@ -177,6 +177,28 @@ How the game gets there and what it reads:
 - **The gate.** After 301 nothing sets `eventStatus[51]` again, and in
   town 5 block 8 plays on arrival with the menus barred. So no input
   reaches town 5's own gate or its departure stream.
+
+## The scroll statics
+
+Each Root Town's `DrawBG` (and `Draw`, for its water) keeps its scrolls
+in function statics: Mac Anu's `v$1334` (two) and `u$1841`; Dun
+Loireag's `v$1346` (two), `v2$1347` and `u$1777`; Carmina Gade's
+`v$1474` (two) and `u$1875`; Fort Ouph's `v$1269` (two); Lia Fail's
+`v$1244` (two) and `v2$1245`; Quarantine's town 5 its three (QUA gp
+0x00279980). All sit in the executable's own small data (INF
+0x00378168-0x00378b98; OUT gp 0x00386e98-0x00386ee8), 0 as it loads. No
+load sets them again: GCMN.PRG's load at log in brings code and its
+own data, not main's, and the soft reset boots nothing. So each scroll
+goes on from its town's last visit, across log ins and resets, until
+power-off. The same holds for `EVENTAREAB0::DrawBG`'s `v$1597`,
+`DUNGEON::DrawWater`'s `u$8862`, the lakes' `DrawBG` `v$8917` and
+`WORLD::DrawBG`'s sky `v$4519`.
+
+The port keeps them in `SaveState::scroll_statics`
+(`town::scroll_statics` names the slots). Each town, arena, dungeon and
+field takes them as it is made and hands them back as it is left;
+`SaveState::carry_memory` keeps them through the soft reset (worklog
+474).
 
 ## Unknown
 

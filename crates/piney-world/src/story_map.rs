@@ -4,7 +4,7 @@
 //! `Place::Story` holds; [`build`] is `GO(1)`'s choice.
 
 use piney_data::dungeon::Rng;
-use piney_desktop::MOVE_TEX_ROWS;
+use piney_desktop::{MOVE_TEX_ROWS, SCROLL_STATICS};
 use std::any::Any;
 use std::sync::Arc;
 
@@ -113,6 +113,10 @@ pub trait StoryMap: Any {
     fn put_scrolls(&self, _gcmn: &mut [[u32; 2]; MOVE_TEX_ROWS]) {}
     /// The scroll taken from gcmn's data, for a map just made.
     fn take_scrolls(&mut self, _gcmn: &[[u32; 2]; MOVE_TEX_ROWS]) {}
+    /// The map's scroll statics in the executable's data
+    /// (`town::scroll_statics`), taken and handed back.
+    fn take_statics(&mut self, _s: &[u32; SCROLL_STATICS]) {}
+    fn put_statics(&self, _s: &mut [u32; SCROLL_STATICS]) {}
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn into_any(self: Box<Self>) -> Box<dyn Any>;
@@ -134,6 +138,8 @@ pub struct At<'a> {
     pub field_rand: Rng,
     /// gcmn's `EA_moveTex` scrolls.
     pub move_tex: [[u32; 2]; MOVE_TEX_ROWS],
+    /// The executable's scroll statics.
+    pub scroll_statics: [u32; SCROLL_STATICS],
 }
 
 /// `GO(1)`'s map for `at.field` (`eventAreaNumber`, whose
@@ -187,6 +193,7 @@ pub fn build(
     if made {
         map.take_scrolls(&at.move_tex);
     }
+    map.take_statics(&at.scroll_statics);
     Ok(Some(map))
 }
 
@@ -235,6 +242,12 @@ impl StoryMap for EventArea {
 }
 
 impl StoryMap for Arena {
+    fn take_statics(&mut self, s: &[u32; SCROLL_STATICS]) {
+        self.scroll_v = s[crate::town::scroll_statics::ARENA_BG];
+    }
+    fn put_statics(&self, s: &mut [u32; SCROLL_STATICS]) {
+        s[crate::town::scroll_statics::ARENA_BG] = self.scroll_v;
+    }
     fn field_rand(&self) -> Option<&Rng> {
         Some(&self.rng)
     }

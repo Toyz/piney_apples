@@ -271,7 +271,7 @@ player until one of these turns out wrong.
 - [[65]] ccSys +0x358, the frame count that picks the PCs — an input depending on run time
 - [[65]] an event NPC placed after set-up goes to the list's end — order not checked
 - [[72]] SimGenerateCode and GO move the global generator; the port leaves those draws aside — docs/engine/field-walk.md Unknown
-- [[97]] fieldrand's state on entering a town (the port starts at 13) and the scrolls' statics starting at 0 per town — phase only — fieldrand answered by [[473]] (one stream in `SaveState::field_rand`, which the towns take and hand on); the town's scroll statics remain
+- [[97]] fieldrand's state on entering a town (the port starts at 13) and the scrolls' statics starting at 0 per town — phase only — fieldrand answered by [[473]] (one stream in `SaveState::field_rand`, which the towns take and hand on); the scroll statics by [[474]] (the executable's data, `SaveState::scroll_statics`)
 - [[106]] how long the game holds the Chaos Gate loop (ccLoadResourceFL's time) — not measured (docs/engine/field-walk.md Unknown)
 - [[106]] ghoCam's markers from the desktop's anm player not compared — docs/engine/field-walk.md Unknown
 - [[108]] the town branch of SetCharPosition read, not run — offsets match the field's checked ones
@@ -1481,7 +1481,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/town02.md: EFF_srzsmo1's alpha test (clouds by colour) on the console — research (duplicates [[97]])
 - docs/engine/town02.md: the frame-buffer copy's size and point sampling — play (duplicates [[97]])
 - docs/engine/town02.md: whether water 0's coordinate has a local translation — research (duplicates [[97]])
-- docs/engine/town02.md: fieldrand on entering the town; the scrolls across visits — research (duplicates [[97]]); fieldrand answered by [[473]]
+- docs/engine/town02.md: fieldrand on entering the town; the scrolls across visits — research (duplicates [[97]]); fieldrand answered by [[473]]; the scrolls by [[474]]
 
 ### docs/formats/pss.md
 

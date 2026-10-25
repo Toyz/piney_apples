@@ -456,7 +456,8 @@ The port's copy is the whole 512 x 448 frame sampled at the same
 fractions, not the game's 128 x 128 point-sampled one, so the refraction
 is sharper than the game's. The clouds draw on from the game's
 `fieldrand` as the scene before left it (`Town::open_with`); the scrolls
-start at 0.
+go on from where the last visit left them (`SaveState::scroll_statics`,
+worklog 474).
 
 ## Checks
 
@@ -543,5 +544,5 @@ grown Little Grunty (`scratch/grunties/shots`).
 - Whether water 0's coordinate has a local translation: the animation has
   no record for it, so the port takes the root alone (`(0, 4200, 0)`,
   `+0x70` zero) for the reach; checked only as inputs to `waterUVModifi2`.
-- The scrolls across visits (above). `fieldrand`'s state on entering the
-  town is answered by worklog 473.
+- The scrolls across visits are answered by worklog 474, and `fieldrand`'s
+  state on entering the town by worklog 473.

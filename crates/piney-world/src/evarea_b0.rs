@@ -522,4 +522,20 @@ mod tests {
         a.set_clump(false);
         assert_eq!(a.select([0, 0, 0, ONE]), vec![Piece::LastAnm { layer: layer::OBJ }]);
     }
+
+    /// `DrawBG`'s `v$1597` is the executable's: an arena takes it as the
+    /// last one left it and hands it back.
+    #[test]
+    fn the_arenas_scroll_is_the_executables() {
+        use crate::story_map::StoryMap;
+        let Some(archive) = crate::town::tests::archive() else { return };
+        let mut a = Arena::new(&archive, Volume::Inf, 1, 0).unwrap();
+        let mut s = [0; piney_desktop::SCROLL_STATICS];
+        s[crate::town::scroll_statics::ARENA_BG] = 0x3e80_0000;
+        a.take_statics(&s);
+        assert_eq!(a.scroll_v, 0x3e80_0000);
+        a.scroll_v = 0x3f00_0000;
+        a.put_statics(&mut s);
+        assert_eq!(s[crate::town::scroll_statics::ARENA_BG], 0x3f00_0000);
+    }
 }

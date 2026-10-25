@@ -521,7 +521,7 @@ enum Stage {
     /// `ccSetupDesktop`'s waits: the event task's pass at `phase` (0, then
     /// 2) runs one event frame per game frame on the save until it settles.
     Setup {
-        save: SaveState,
+        save: Box<SaveState>,
         phase: i32,
         frames: u32,
         /// Black, and the event's own window when it opens one.
@@ -621,7 +621,7 @@ impl DesktopMode {
             let mut disc = Iso::open(&mode.iso).map_err(|e| format!("{}: {e}", mode.iso.display()))?;
             let screen =
                 SetupScreen::new(&mut disc, mode.archive.clone(), &state).map_err(|e| format!("setup: {e}"))?;
-            Stage::Setup { save: state, phase: 0, frames: 0, screen: Box::new(screen) }
+            Stage::Setup { save: Box::new(state), phase: 0, frames: 0, screen: Box::new(screen) }
         } else {
             Stage::Play(Box::new(mode.build(state)?))
         };
@@ -723,7 +723,7 @@ impl DesktopMode {
         // here the setup ran at the rate it was entered with.
         self.st.frame_rate = Some(piney_desktop::FRAME_RATE);
         let Stage::Setup { save, .. } = std::mem::replace(&mut self.stage, Stage::Gone) else { unreachable!() };
-        self.stage = Stage::Play(Box::new(self.build(save)?));
+        self.stage = Stage::Play(Box::new(self.build(*save)?));
         Ok(frame)
     }
 
@@ -750,7 +750,7 @@ impl DesktopMode {
         }
         let state = match stage {
             Stage::Play(desktop) => desktop.state().clone(),
-            Stage::Setup { save, .. } => save,
+            Stage::Setup { save, .. } => *save,
             Stage::Gone => SaveState::fresh(),
         };
         (state, vm)

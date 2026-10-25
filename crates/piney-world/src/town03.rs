@@ -21,6 +21,7 @@ use piney_desktop::layers::Layers;
 use crate::draw::{OBJ_LAYER, OBJ2_LAYER};
 use crate::ee::{self, F, ONE, V4};
 use crate::pose::Play;
+use crate::town::scroll_statics as statics;
 use crate::town::{
     Base, FogParams, RootTown, Spec, Town, TownEvent, TownSprite, TownView, WaterZero, anim_draw_fog, clump_models,
     crisis_rows, pos_rot_zyx, water0_draw,
@@ -456,6 +457,14 @@ impl CarminaGade {
 }
 
 impl RootTown for CarminaGade {
+    fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
+        statics::take(&mut self.bg_scroll, s, statics::TOWN03_BG);
+        statics::take(std::slice::from_mut(&mut self.water_u), s, statics::TOWN03_WATER);
+    }
+    fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
+        statics::put(&self.bg_scroll, s, statics::TOWN03_BG);
+        statics::put(std::slice::from_ref(&self.water_u), s, statics::TOWN03_WATER);
+    }
     fn field_rand(&self) -> Option<&Rng> {
         Some(&self.rng)
     }

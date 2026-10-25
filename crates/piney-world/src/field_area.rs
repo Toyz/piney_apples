@@ -157,6 +157,20 @@ pub struct FieldArea {
     smoke_tex: Option<piney_desktop::message::WindowTexture>,
 }
 
+impl FieldArea {
+    /// `WORLD::DrawBG`'s sky scroll `v$4519`: a static of the executable's
+    /// data, which goes on from field to field
+    /// ([`crate::town::scroll_statics`]).
+    pub fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
+        self.bg_v = s[crate::town::scroll_statics::WORLD_BG];
+    }
+
+    /// The static written back.
+    pub fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
+        s[crate::town::scroll_statics::WORLD_BG] = self.bg_v;
+    }
+}
+
 impl Drop for FieldArea {
     /// The ambient drawing's function statics outlive `WORLD`: kept for
     /// the next field.

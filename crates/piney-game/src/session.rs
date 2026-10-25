@@ -938,22 +938,24 @@ impl Session {
             }
             (request::RESET | request::TITLE, old) => {
                 // The soft reset is the mother task's (no new boot): the
-                // C library's rand() runs on.
-                let rand = match old {
-                    Stage::Title(t) => Some(t.state.rand),
-                    Stage::Desktop(d) => Some(d.leave().0.rand),
-                    Stage::TopPage(t) => Some(t.leave().0.rand),
-                    Stage::World(w) => Some(w.leave().0.rand),
+                // C library's rand() runs on, and what else memory holds.
+                let held = match old {
+                    Stage::Title(t) => Some(t.state.clone()),
+                    Stage::Desktop(d) => Some(d.leave().0),
+                    Stage::TopPage(t) => Some(t.leave().0),
+                    Stage::World(w) => Some(w.leave().0),
                     Stage::Area(a) => {
                         self.blur_statics = a.world().combat().blur_statics;
-                        Some(a.leave().0.rand)
+                        Some(a.leave().0)
                     }
                     Stage::Gone => None,
                 };
                 let mut stage = self.boot_title(false)?;
                 self.title_sound();
                 if let Stage::Title(t) = &mut stage {
-                    t.state.rand = rand.unwrap_or(t.state.rand);
+                    if let Some(h) = &held {
+                        t.state.carry_memory(h);
+                    }
                     self.events.push(crate::mode::display_offset(&t.state.save));
                 }
                 stage

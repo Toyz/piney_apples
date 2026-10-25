@@ -91,13 +91,32 @@ pub struct SaveState {
     /// `MoveTexture` left it: overlay data, from `ccSetupNewGame`'s load of
     /// GCMN.PRG (all 0) to the next ([`MOVE_TEX_ROWS`]).
     pub move_tex: [[u32; 2]; MOVE_TEX_ROWS],
+    /// The draws' scroll statics in the executable's own small data (the
+    /// Root Towns' `DrawBG` and `Draw`, `EVENTAREAB0::DrawBG`, `DUNGEON`'s
+    /// and `WORLD`'s): 0 at power-on and never set again, so each carries
+    /// on across visits, log ins and soft resets ([`SCROLL_STATICS`]).
+    pub scroll_statics: [u32; SCROLL_STATICS],
 }
+
+/// The scroll statics the port keeps (piney-world's `town::statics` names
+/// them).
+pub const SCROLL_STATICS: usize = 22;
 
 /// The `EA_moveTex` rows gcmn holds: `EA_moveTex02`'s two, `04`, `05`,
 /// `06`, and `07`'s two (piney-world's `evarea::scroll` names them).
 pub const MOVE_TEX_ROWS: usize = 7;
 
 impl SaveState {
+    /// What memory holds across `ccThMother`'s soft reset, which boots
+    /// nothing again: `rand()`, `fieldrand`, gcmn's scrolls (until the
+    /// next log in loads GCMN.PRG) and the executable's scroll statics.
+    pub fn carry_memory(&mut self, from: &SaveState) {
+        self.rand = from.rand;
+        self.field_rand = from.field_rand;
+        self.move_tex = from.move_tex;
+        self.scroll_statics = from.scroll_statics;
+    }
+
     pub fn new(save: SaveData) -> Self {
         SaveState {
             save,
@@ -108,6 +127,7 @@ impl SaveState {
             cc: Default::default(),
             field_rand: piney_data::dungeon::Rng::POWER_ON,
             move_tex: [[0; 2]; MOVE_TEX_ROWS],
+            scroll_statics: [0; SCROLL_STATICS],
         }
     }
 
@@ -204,6 +224,24 @@ impl SaveState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The soft reset keeps what memory holds and nothing of the save.
+    #[test]
+    fn a_soft_reset_carries_memory() {
+        let mut old = SaveState::fresh();
+        old.rand = 77;
+        old.field_rand = piney_data::dungeon::Rng { seed: 5, count: 9 };
+        old.move_tex[3] = [1, 2];
+        old.scroll_statics[6] = 0x3f00_0000;
+        old.save.set_u8(0, 0x5a);
+        let mut new = SaveState::fresh();
+        new.carry_memory(&old);
+        assert_eq!(
+            (new.rand, new.field_rand, new.move_tex, new.scroll_statics),
+            (77, old.field_rand, old.move_tex, old.scroll_statics)
+        );
+        assert_eq!(new.save, SaveState::fresh().save);
+    }
 
     #[test]
     fn fresh_game() {

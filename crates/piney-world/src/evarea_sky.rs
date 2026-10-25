@@ -496,16 +496,18 @@ impl StoryMap for SkyMap {
         })
     }
     fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite> {
-        let pieces = if step {
-            self.select(v)
-        } else {
-            let saved =
-                (self.move_tex, self.base.objects.clone(), self.started, self.clouds.clone(), self.rng, self.flares);
-            let p = self.select(v);
-            (self.move_tex, self.base.objects, self.started, self.clouds, self.rng, self.flares) = saved;
-            p
-        };
-        self.draw_pieces(layers, to_screen, &pieces)
+        if step {
+            let pieces = self.select(v);
+            return self.draw_pieces(layers, to_screen, &pieces);
+        }
+        // Drawn, not stepped: the pieces of a step put back after (the
+        // clouds a first step would make are drawn from that step's).
+        let saved =
+            (self.move_tex, self.base.objects.clone(), self.started, self.clouds.clone(), self.rng, self.flares);
+        let pieces = self.select(v);
+        let sprites = self.draw_pieces(layers, to_screen, &pieces);
+        (self.move_tex, self.base.objects, self.started, self.clouds, self.rng, self.flares) = saved;
+        sprites
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self
@@ -549,6 +551,10 @@ mod tests {
                 let mut m = m;
                 let mut layers = Layers::default();
                 let v = TownView { player: m.start, ..TownView::default() };
+                // A draw while the tasks sleep, before any step, puts the
+                // clouds back as they were (none yet).
+                m.draw(&mut layers, Mat4::IDENTITY, &v, false);
+                assert!(m.clouds.is_empty() && !m.started);
                 m.draw(&mut layers, Mat4::IDENTITY, &v, true);
                 assert_eq!(m.clouds.len(), CLOUDS);
                 assert!(!layers.flatten().is_empty(), "{class:?}: nothing drawn");

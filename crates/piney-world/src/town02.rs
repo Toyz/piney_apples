@@ -2,8 +2,8 @@
 //! 0x004266a0 through the vtable at 0x00375ff0), the second Root Town
 //! (`game.town` 1, the server Theta), and what it adds to the [`Base`]: the
 //! sky, clouds and sun clumps, 25 `CLOUD`s, the lens flare, and three waters,
-//! one drawn through a frame-buffer copy (docs/engine/town02.md). The game's
-//! scroll statics carry across visits; here they start at 0 with each town.
+//! one drawn through a frame-buffer copy (docs/engine/town02.md). The
+//! scroll statics carry across visits (`town::scroll_statics`).
 //! The clouds draw from `fieldrand`, the game's one stream, which the town
 //! takes from the scene before ([`crate::town::Town::open_with`]).
 
@@ -23,6 +23,7 @@ use crate::draw::{EFF_LAYER, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
 use crate::lensflare;
 use crate::pose::Play;
+use crate::town::scroll_statics as statics;
 use crate::town::{
     Base, FogParams, RootTown, Spec, Town, TownSprite, TownView, WaterZero, anim_draw_on, clump_models, crisis_rows,
     pos_rot_zyx, water_rows, water0_draw,
@@ -361,6 +362,16 @@ impl DunLoireag {
 }
 
 impl RootTown for DunLoireag {
+    fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
+        statics::take(&mut self.bg_scroll, s, statics::TOWN02_BG);
+        statics::take(std::slice::from_mut(&mut self.bg_scroll2), s, statics::TOWN02_BG2);
+        statics::take(std::slice::from_mut(&mut self.water_u), s, statics::TOWN02_WATER);
+    }
+    fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
+        statics::put(&self.bg_scroll, s, statics::TOWN02_BG);
+        statics::put(std::slice::from_ref(&self.bg_scroll2), s, statics::TOWN02_BG2);
+        statics::put(std::slice::from_ref(&self.water_u), s, statics::TOWN02_WATER);
+    }
     fn field_rand(&self) -> Option<&Rng> {
         Some(&self.rng)
     }

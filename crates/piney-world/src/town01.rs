@@ -21,6 +21,7 @@ use piney_desktop::layers::Layers;
 use crate::draw::OBJ_LAYER;
 use crate::ee::{self, F, ONE, V4};
 use crate::pose::Play;
+use crate::town::scroll_statics as statics;
 use crate::town::{
     Base, FogParams, RootTown, Spec, Town, TownSprite, TownView, WaterZero, anim_draw, clump_models, crisis_rows,
     pos_rot_zyx, water_rows, water0_draw,
@@ -325,6 +326,14 @@ impl MacAnu {
 }
 
 impl RootTown for MacAnu {
+    fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
+        statics::take(&mut self.bg_scroll, s, statics::TOWN01_BG);
+        statics::take(std::slice::from_mut(&mut self.water_u), s, statics::TOWN01_WATER);
+    }
+    fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
+        statics::put(&self.bg_scroll, s, statics::TOWN01_BG);
+        statics::put(std::slice::from_ref(&self.water_u), s, statics::TOWN01_WATER);
+    }
     fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
         let pieces = self.select(base, v);
         self.draw_pieces(base, layers, to_screen, &pieces);
