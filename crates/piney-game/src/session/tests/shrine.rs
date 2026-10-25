@@ -174,7 +174,7 @@ pub(super) struct Walker {
 
 /// Frames of fighting a foe that loses no HP before the story's walk goes
 /// past it.
-const HOPELESS: u64 = 1800;
+pub(super) const HOPELESS: u64 = 1800;
 
 impl Walker {
     /// A foe of this room fought for three times [`HOPELESS`] and still

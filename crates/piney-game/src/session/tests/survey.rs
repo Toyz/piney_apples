@@ -83,6 +83,8 @@ pub(super) struct StoryPilot {
     /// whose foes it was weighed for (once each), and whether he is on his
     /// way out of one to buy it ([`Self::provision`]).
     buys: Vec<Buy>,
+    /// What Kite sells in town, down to the `carry` kept.
+    sells: Vec<Buy>,
     stocked: Vec<i32>,
     /// The town and frame a shop goal began, and a town whose shop the
     /// walk did not reach in [`SHOP_TRIES`] frames (its stock given up
@@ -95,20 +97,48 @@ pub(super) struct StoryPilot {
     /// A grinding exit asked for (the area and when), and an area where
     /// one did not come within [`GRIND_EXIT`] frames (the tutorial's field
     /// has no Gate Out): no grinding there.
-    grind_exit: Option<((i32, i32), u64)>,
-    no_grind: Option<(i32, i32)>,
+    pub(super) grind_exit: Option<((i32, i32), u64)>,
+    pub(super) no_grind: Option<(i32, i32)>,
     /// The area whose magic portals the grinding has seen: only from such
     /// an area is the way out and back taken (the tutorial's field has
     /// none, and its lessons want no detour).
-    had_portals: Option<(i32, i32)>,
+    pub(super) had_portals: Option<(i32, i32)>,
     /// The last [`Self::grinding`] found the party below its foes, well or
     /// not: then no walk to the story's goal (its fight) until it is.
     grind_wanted: bool,
+    /// The grinding was on when last weighed (or its fight still goes on).
+    ground_last: bool,
     /// Boxes walked to: the one now (field, floor, room, index) and since
     /// when, and those given up.
     box_since: Option<((i32, i32, i32, usize), u64)>,
     boxes_tried: Vec<(i32, i32, i32, usize)>,
-    leaving: bool,
+    /// The levels the gate shows the story areas at (`ccAnalyzeEnemyList`
+    /// of the field and its dungeon's floors), by (server, area).
+    needs: std::collections::HashMap<(i32, i32), i16>,
+    /// An area to grind in before a stretch the story wants Kite alone
+    /// for, and Kite's level wanted there ([`LONE_OVER`] above that
+    /// stretch's area).
+    pub(super) detour: Option<i16>,
+    lone_target: i16,
+    /// Detour areas with nothing to fight, and those where the grinding
+    /// found portals.
+    pub(super) barren: Vec<i16>,
+    /// In a field: the foes chased (index, HP then, since when), and those
+    /// let be (see [`Self::approach_foe`]).
+    field_fought: (Place2, Vec<(usize, i16, u64)>),
+    field_hopeless: Vec<usize>,
+    /// The Virus Cores (`itemTbl` category 15, A-H) the next gated area's
+    /// protect asks more of than Kite holds: (core, how many short).
+    pub(super) cores_short: Vec<(i16, i32)>,
+    /// The cores the gated area asks, whole (core, count), and whether the
+    /// detour is a farm for them.
+    cores_need: Vec<(i16, i32)>,
+    farming: bool,
+    /// The field (area, field) whose portals these are, those given up
+    /// on, and the one walked to and since when.
+    portals_tried: (Place2, Vec<usize>, Option<(usize, u64)>),
+    ground: Vec<i16>,
+    pub(super) leaving: bool,
     /// In a boss fight: the party's HP as last seen, what each member lost
     /// a frame over the last second, and the most a member lost in one
     /// second, which the pilot heals ahead of (a player learns the boss's
@@ -117,6 +147,11 @@ pub(super) struct StoryPilot {
     losses: std::collections::VecDeque<Vec<i32>>,
     worst_hit: i32,
 }
+
+/// A field or dungeon by (area kind, field).
+type Place2 = (i32, i32);
+/// Virus Cores by (core, count).
+type Cores = Vec<(i16, i32)>;
 
 /// What the pilot does in a fight through the menus.
 #[derive(Clone, Copy, Debug)]
@@ -205,6 +240,12 @@ const SHOP_TRIES: u64 = 3000;
 /// The levels the grinding keeps the party over the strongest common foe
 /// it has met here.
 const GRIND_OVER: i16 = 3;
+/// The levels a lone Kite is kept over the level his stretch's area is
+/// shown at: field 18's three level-7 foes felled him at 7.
+const LONE_OVER: i16 = 4;
+/// Frames the walk to one field portal is given (out of reach behind a
+/// cliff, it is passed by).
+const PORTAL_TRIES: u64 = 6000;
 /// Frames a grinding exit is given before the area's grinding is dropped.
 const GRIND_EXIT: u64 = 1500;
 /// The blows a Speed Charm's haste (9000 frames) lands on golden goblins,
@@ -245,6 +286,7 @@ impl Default for StoryPilot {
             nothing_since: None,
             point_since: None,
             buys: Vec::new(),
+            sells: Vec::new(),
             stocked: Vec::new(),
             shop_since: None,
             no_shop: None,
@@ -253,8 +295,20 @@ impl Default for StoryPilot {
             no_grind: None,
             had_portals: None,
             grind_wanted: false,
+            ground_last: false,
             box_since: None,
             boxes_tried: Vec::new(),
+            needs: std::collections::HashMap::new(),
+            detour: None,
+            lone_target: 0,
+            barren: Vec::new(),
+            field_fought: ((-1, -1), Vec::new()),
+            field_hopeless: Vec::new(),
+            cores_short: Vec::new(),
+            cores_need: Vec::new(),
+            farming: false,
+            portals_tried: ((-1, -1), Vec::new(), None),
+            ground: Vec::new(),
             leaving: false,
             party_hp: Vec::new(),
             losses: std::collections::VecDeque::new(),
@@ -306,8 +360,14 @@ impl StoryPilot {
         }
         if !c.ctrl.list(piney_battle::entry::Kind::Circle).is_empty() {
             self.had_portals = Some(area);
+            if !self.ground.contains(&(field as i16)) {
+                self.ground.push(field as i16);
+            }
         }
-        let Some((_, seen)) = self.seen else { return false };
+        // The level the gate showed this area at, when the pilot weighed it
+        // (a detour's), stands in for the foes not yet met.
+        let shown = self.needs.iter().filter(|&(&(_, n), _)| n == field).map(|(_, &lv)| lv).max();
+        let Some(seen) = self.seen.map(|(_, l)| l).max(shown) else { return false };
         let party: Vec<&piney_battle::chara::Char> = c.members.iter().map(|&(_, k)| &c.scene.chars[k]).collect();
         let levels: Vec<i16> = party.iter().filter_map(|ch| ch.spc().map(|p| p.base.level)).collect();
         let low = levels.iter().copied().min().unwrap_or(99);
@@ -316,10 +376,25 @@ impl StoryPilot {
         // Not while a guest far above leads (Orca at 50 through Infection's
         // tutorial, whose lessons want no detour), nor while the events
         // wait on someone here.
-        let led = high >= low + 20;
-        let want = low < seen + GRIND_OVER && !led && w.event_targets().is_empty();
+        // (A detour's area is the pilot's own: no lesson there.)
+        let led = high >= low + 20 && self.detour != Some(field as i16);
+        // In a detour's area, until it has done its part too.
+        let detour = self.detour_holds(w, field);
+        // One of the party down while grinding here: the area's foes are
+        // more than the grinding should take on (QUA field 100's Dark
+        // Maidens, casters that keep away): no more of it here.
+        if self.ground_last && party.iter().any(|ch| ch.hp <= 0) {
+            (self.no_grind, self.ground_last) = (Some(area), false);
+            if self.detour == Some(field as i16) {
+                self.barren.push(field as i16);
+                self.detour = None;
+            }
+            return false;
+        }
+        let want = (low < seen + GRIND_OVER || detour) && !led && w.event_targets().is_empty();
         self.grind_wanted = want;
         let on = want && well;
+        self.ground_last = on || (self.ground_last && c.battle.in_battle != 0);
         if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && self.now.is_multiple_of(600) {
             eprintln!(
                 "GRINDING {} {area:?} on {on} low {low} seen {seen} well {well} led {led} leaving {} exit {:?} no {:?} had {:?}",
@@ -364,15 +439,50 @@ impl StoryPilot {
             let q = c.scene.chars[m].pos.map(f32::from_bits);
             (q[0] - p[0]).hypot(q[1] - p[1])
         };
-        let Some(m) =
-            c.ctrl.list(piney_battle::entry::Kind::Circle).into_iter().min_by(|&x, &y| dist(x).total_cmp(&dist(y)))
+        let field_now = (w.scene().area, w.scene().field);
+        if self.portals_tried.0 != field_now {
+            self.portals_tried = (field_now, Vec::new(), None);
+        }
+        // The nearest not given up on (one the walk has not reached in
+        // [`PORTAL_TRIES`] frames: behind a cliff the field's hits close).
+        let tried = &self.portals_tried.1;
+        let Some(m) = c
+            .ctrl
+            .list(piney_battle::entry::Kind::Circle)
+            .into_iter()
+            .filter(|m| !tried.contains(m))
+            .min_by(|&x, &y| dist(x).total_cmp(&dist(y)))
         else {
+            // A detour's field with none: its dungeon's, if it has one;
+            // else out and back.
+            let field = w.scene().field;
+            if self.detour == Some(field as i16) {
+                if let Some(raw) = self.walk_into_dungeon(a, f) {
+                    return Some(raw);
+                }
+                // Nothing to fight here (an event's field, its portals
+                // spent): another detour from town.
+                if !self.ground.contains(&(field as i16)) {
+                    self.barren.push(field as i16);
+                }
+                self.detour = None;
+                self.had_portals = Some((w.scene().area, field));
+            }
             self.grind_leave(a, f);
             return None;
         };
         let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
         if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(300) {
             eprintln!("GRIND {f} portal {m} at {:.0} kite {:?}", dist(m), p.map(|v| v as i32));
+        }
+        match self.portals_tried.2 {
+            Some((x, since)) if x == m && f > since + PORTAL_TRIES => {
+                self.portals_tried.1.push(m);
+                self.portals_tried.2 = None;
+                return None;
+            }
+            Some((x, _)) if x == m => {}
+            _ => self.portals_tried.2 = Some((m, f)),
         }
         if dist(m) < 250.0 {
             return Some(if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
@@ -422,10 +532,134 @@ impl StoryPilot {
         })
     }
 
+    /// The level the gate shows story area `n` at on `server`, as a player
+    /// reads it, for its deepest part: `ccAnalyzeEnemyList` of the field's
+    /// rank and of its dungeon's first three floors' (`enemy_rank`).
+    fn need(&mut self, iso: &std::path::Path, words: &piney_fieldui::words::Words, server: i32, n: i32) -> i16 {
+        if let Some(&lv) = self.needs.get(&(server, n)) {
+            return lv;
+        }
+        let lv =
+            Iso::open(iso).ok().and_then(|mut d| crate::area::story_world_man(&mut d, n, false).ok()).map_or(0, |wm| {
+                let (k, r) = wm.enemy_rank(1, n, 0, 0);
+                (0..4).map(|fl| words.analyze_enemies(server, k, r + fl)).max().unwrap_or(0) as i16
+            });
+        self.needs.insert((server, n), lv);
+        lv
+    }
+
+    /// In town, a detour first, to grind with the members in an area of
+    /// the gate's list: before a stretch the story wants Kite alone for,
+    /// while he is short of its level by [`LONE_OVER`] (the strongest area
+    /// within two of his level); or before an area behind a gate hack,
+    /// while Virus Cores are short (an area whose foes' drains give one).
+    fn plan_detour(&mut self, s: &Session, w: &crate::world::WorldMode) {
+        let Some(vm) = w.vm() else { return };
+        let save = &w.world().state().save;
+        let wants = story_wants(vm, save);
+        let next = wants.iter().find_map(|&x| match x {
+            Want::Area(a) => Some(a),
+            _ => None,
+        });
+        let Some(next) = next else {
+            (self.detour, self.lone_target, self.farming) = (None, 0, false);
+            return;
+        };
+        let server = w.server().clamp(0, 4);
+        let words = &w.ui().texts().words;
+        let iso = s.iso.clone();
+        let level =
+            |id: i32| save.i16(piney_data::save::by_id::spc_param(id as usize) + piney_data::save::offset::SPC_LEVEL);
+        let lone =
+            wants.contains(&Want::Alone) && level(0) < self.need(&iso, words, server, i32::from(next)) + LONE_OVER;
+        let farm = !lone && !self.cores_short.is_empty();
+        if !lone && !farm {
+            (self.detour, self.lone_target, self.farming) = (None, 0, false);
+            return;
+        }
+        let target = if lone { self.need(&iso, words, server, i32::from(next)) + LONE_OVER } else { 0 };
+        // Kept while it still pays: its level within two of Kite's (a
+        // kill's experience falls off with the gap, `expCalcTbl`).
+        if let Some(d) = self.detour
+            && self.farming == farm
+        {
+            let lv = self.need(&iso, words, server, i32::from(d));
+            if farm || lv + 2 >= level(0) {
+                return;
+            }
+        }
+        use piney_fieldui::menus::gate::GATE_ORDER_LIST;
+        let volume = w.world().volume();
+        let short: Vec<i32> = self.cores_short.iter().map(|&(id, _)| i32::from(id)).collect();
+        let areas: Vec<i16> = (0..64)
+            .map(|k| save.i16(GATE_ORDER_LIST + 128 * server as usize + 2 * k))
+            .filter(|&a| a > 0 && a != next && !self.barren.contains(&a))
+            // Not one behind a gate hack (its protect asks cores).
+            .filter(|&a| words.event(i32::from(a)).is_none_or(|e| (0..4).all(|k| e.protect[2 * k + 1] <= 0)))
+            .filter(|&a| !farm || area_cores(&iso, volume, server, i32::from(a)).iter().any(|c| short.contains(c)))
+            .collect();
+        let rated: Vec<(i16, i16)> = areas.iter().map(|&a| (a, self.need(&iso, words, server, i32::from(a)))).collect();
+        let low = level(0);
+        let pick = rated
+            .iter()
+            .filter(|&&(_, lv)| lv > 0 && lv <= low + 2)
+            .max_by_key(|&&(_, lv)| lv)
+            .or_else(|| rated.iter().filter(|&&(_, lv)| lv > 0).min_by_key(|&&(_, lv)| lv))
+            .map(|&(a, _)| a);
+        let changed = pick != self.detour;
+        (self.detour, self.lone_target, self.farming) = (pick, target, farm);
+        if changed && std::env::var_os("PINEY_DEBUG_PILOT").is_some() {
+            eprintln!(
+                "DETOUR to {pick:?} for Kite {} (lone to {target}, cores {:?}) before area {next}; rated {rated:?}",
+                level(0),
+                self.cores_short
+            );
+        }
+    }
+
+    /// Whether the detour still holds the pilot in `field`: a lone
+    /// stretch's level not yet reached, or a farm's cores still short.
+    fn detour_holds(&self, w: &piney_world::field_world::FieldWorld, field: i32) -> bool {
+        if self.detour != Some(field as i16) {
+            return false;
+        }
+        let save = &w.state().save;
+        let kite = save.i16(piney_data::save::by_id::spc_param(0) + piney_data::save::offset::SPC_LEVEL);
+        let held = |id: i16| i32::from(save.u8(piney_data::save::offset::IMP_ITEM_LIST + id as usize) as i8);
+        kite < self.lone_target || (self.farming && self.cores_need.iter().any(|&(id, need)| held(id) < need))
+    }
+
+    /// Foe `e` Data Drain may give a Virus Core the story's next gated area
+    /// is short of (`enemyTbl.item`: three codes, category 15 in the high
+    /// half), while Kite's infection is under 60%: kills bring it down.
+    fn core_foe(&self, a: &crate::area::AreaMode, e: usize) -> bool {
+        if !self.unaided || self.cores_short.is_empty() {
+            return false;
+        }
+        let erosion = a.world().state().save.i16(piney_battle::exp::SAVE_EROSION);
+        let c = a.world().combat();
+        erosion < 60
+            && c.scene.chars[e].foe_state().is_some_and(|f| {
+                f.boss.is_none()
+                    && f.row.item.iter().any(|&code| {
+                        code >> 16 == 15 && self.cores_short.iter().any(|&(id, _)| i32::from(id) == code & 0xffff)
+                    })
+            })
+    }
+
     /// What Kite is to buy here: nothing in a town whose shop the walk
     /// gave up on.
     fn buys(&self) -> &[Buy] {
         if self.no_shop.is_some() { &[] } else { &self.buys }
+    }
+
+    /// The town walk's errands: the stock to buy, what to sell, a detour.
+    fn errands(&self) -> Errands<'_> {
+        Errands {
+            buys: self.buys(),
+            sells: if self.no_shop.is_some() { &[] } else { &self.sells },
+            detour: self.detour,
+        }
     }
 
     pub(super) fn next(&mut self, s: &Session, f: u64) -> Raw {
@@ -459,6 +693,9 @@ impl StoryPilot {
         if let Stage::World(w) = &s.stage {
             self.leaving = false;
             (self.box_since, self.boxes_tried) = (None, Vec::new());
+            if self.unaided {
+                self.plan_detour(s, w);
+            }
             // While a field's goblins want Speed Charms, the gold is kept
             // for them.
             if self.buys.iter().any(|b| b.item == SPEED_CHARM) {
@@ -474,11 +711,16 @@ impl StoryPilot {
                     }
                 }
             }
+            if self.unaided {
+                self.sells = spare(w);
+                (self.cores_short, self.cores_need) = cores_short(w);
+            }
             let town = w.town_number();
             if self.no_shop.is_some_and(|t| t != town) {
                 self.no_shop = None;
             }
-            let shopping = matches!(gate_goal(w, &self.town_talked, self.buys()), Some(GateGoal::Shop(_)));
+            let shopping =
+                matches!(gate_goal(w, &self.town_talked, &self.errands()), Some(GateGoal::Shop(_) | GateGoal::Sell(_)));
             match (shopping, self.shop_since) {
                 (true, Some((t, since))) if t == town && f > since + SHOP_TRIES => self.no_shop = Some(town),
                 (true, Some((t, _))) if t == town => {}
@@ -612,7 +854,7 @@ impl StoryPilot {
             self.path.clear();
             self.mark = None;
         }
-        story_player_with(s, f, &self.town_talked, self.buys())
+        story_player_with(s, f, &self.town_talked, &self.errands())
     }
 
     /// With an important item wanted ([`Want::Item`]): where to take it in
@@ -839,6 +1081,9 @@ impl StoryPilot {
             || w.combat().battle.in_battle != 0
             || !w.event_targets().is_empty()
             || vm.playing().is_some();
+        // A detour's area is where the pilot wants him until it has done
+        // its part.
+        let here = here || self.detour_holds(w, sc.field);
         let here = here && !self.leaving;
         if here || (busy && !self.gating) {
             (self.idle_since, self.gating) = (None, false);
@@ -931,7 +1176,7 @@ impl StoryPilot {
             Some((_, at)) if f > at + 120 => self.town_talking = None,
             Some(_) => {}
             None => {
-                if let Some(GateGoal::Talk(kind, code)) = gate_goal(w, &self.town_talked, self.buys())
+                if let Some(GateGoal::Talk(kind, code)) = gate_goal(w, &self.town_talked, &self.errands())
                     && w.world().command_target() == Some((kind, code))
                 {
                     self.town_talking = Some(((kind, code), f));
@@ -948,9 +1193,9 @@ impl StoryPilot {
         use piney_world::entry::Kind;
         let world = w.world();
         let marker = |m: i16| world.marker(m).map(|mk| mk.pos);
-        let (target, to) = match gate_goal(w, &self.town_talked, self.buys())? {
+        let (target, to) = match gate_goal(w, &self.town_talked, &self.errands())? {
             GateGoal::Talk(kind, code) => ((kind, code), None),
-            GateGoal::Shop(code) => ((Kind::Npc, code), None),
+            GateGoal::Shop(code) | GateGoal::Sell(code) => ((Kind::Npc, code), None),
             GateGoal::Marker(m) => ((Kind::Gimmick, -1), Some(marker(m)?)),
             GateGoal::Area(_) | GateGoal::Town(_) => ((Kind::Gimmick, 16), None),
             GateGoal::LogOut | GateGoal::Invite(_) | GateGoal::Disband => return None,
@@ -1161,9 +1406,16 @@ impl StoryPilot {
             }
             // A skill at a boss's part: the cursor down the candidates
             // until the command target is [`focus`]'s (a few rounds at most).
-            let aim = (t == 65 && m.proccess == 1 && matches!(act, Action::Skill { target: None, .. }))
+            let aim = (t == 65
+                && m.proccess == 1
+                && matches!(act, Action::Skill { target: None, .. } | Action::Item { target: -1, .. }))
                 || (t == 73 && m.proccess != 10 && matches!(act, Action::Designate { page: 1, .. }));
-            if aim && let Some(part) = focus(c).or_else(|| prey(c)) {
+            let to_drain = || {
+                matches!(act, Action::Skill { page: 5, .. })
+                    .then(|| drain_candidates(c).into_iter().find(|&e| drainable(&c.scene, e, self.core_foe(a, e))))
+                    .flatten()
+            };
+            if aim && let Some(part) = focus(c).or_else(to_drain).or_else(|| prey(c, &self.field_hopeless)) {
                 let on = w.targeting().target == Some((piney_world::entry::Kind::Enemy, part as i32));
                 if !on && self.target_tries < 24 {
                     if f.is_multiple_of(8) {
@@ -1223,20 +1475,19 @@ impl StoryPilot {
                     let list = piney_fieldui::items::skill_list(&ui.texts().items, w.state(), 0, i32::from(page));
                     press(go_to(list.iter().position(|&x| x == skill).unwrap_or(0) as i16))
                 }
-                (5, Action::Item { cat, .. }) if m.list().page != item_page(&ui.texts().items, cat) => {
-                    press(if m.list().page < item_page(&ui.texts().items, cat) {
-                        Buttons::RIGHT
-                    } else {
-                        Buttons::LEFT
-                    })
+                (5, Action::Item { cat, .. }) if m.list().page != page_of(&ui.texts().items, cat) => {
+                    press(if m.list().page < page_of(&ui.texts().items, cat) { Buttons::RIGHT } else { Buttons::LEFT })
                 }
                 (5, Action::Item { cat, id, .. }) => {
-                    let page = i32::from(item_page(&ui.texts().items, cat));
+                    let page = i32::from(page_of(&ui.texts().items, cat));
                     let list = piney_fieldui::items::item_list(&ui.texts().items, w.state(), 0, page);
                     let row = list.iter().position(|it| (it.cat, it.id) == (cat, id));
                     press(row.map_or(Buttons::CIRCLE, |r| go_to(r as i16)))
                 }
                 (65, _) if m.proccess == 2 => press(Buttons::CROSS),
+                // A charm at a foe (`target` -1): on whoever the cursor
+                // was walked to.
+                (65, Action::Item { target: -1, .. }) => press(Buttons::CROSS),
                 (65, Action::Skill { target: Some(r), .. } | Action::Item { target: r, .. }) => {
                     press(if r >= m.list().my { Buttons::CIRCLE } else { go_to(r) })
                 }
@@ -1261,7 +1512,7 @@ impl StoryPilot {
         }
         // A broken protect does not wait for the last skill to land: the
         // break is short (Fidchell's under 300 frames).
-        let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene, e, false));
+        let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene, e, self.core_foe(a, e)));
         // While the last action lands no new one begins; against a boss
         // Kite still goes after it and strikes (nothing else moves him in
         // its arena).
@@ -1339,7 +1590,7 @@ impl StoryPilot {
             party.iter().map(|&id| if id < 0 { None } else { c.who(id).map(|k| &c.scene.chars[k]) }).collect();
         let members = chars.iter().skip(1).filter(|ch| ch.is_some()).count();
         let kite_at = chars.first().copied().flatten().map(|k| k.pos.map(f32::from_bits));
-        let foe = focus(c).or_else(|| prey(c)).or_else(|| {
+        let foe = focus(c).or_else(|| prey(c, &self.field_hopeless)).or_else(|| {
             foes(c).into_iter().filter(|&e| c.scene.chars[e].hp > 0).min_by(|&x, &y| {
                 let d = |e: usize| {
                     let q = c.scene.chars[e].pos.map(f32::from_bits);
@@ -1412,7 +1663,7 @@ impl StoryPilot {
         // A boss or a Data Bug with its protect broken (`pp_count` frames
         // left): Kite's Data Drain (Skills, page 5, skill 2) before the
         // break mends.
-        let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene, e, self.held));
+        let broken = drain_candidates(c).into_iter().any(|e| drainable(&c.scene, e, self.held || self.core_foe(a, e)));
         let drains = piney_fieldui::items::skill_list(&ui.texts().items, w.state(), 0, 5)[0] == DATA_DRAIN;
         let items = &ui.texts().items;
         let state = w.state();
@@ -1670,12 +1921,14 @@ impl StoryPilot {
                 foes(c)
                     .into_iter()
                     .filter(|&e| {
-                        (!self.walker.hopeless.contains(&e) || self.walker.foe == Some(e)) && c.scene.chars[e].hp > 0
+                        (!self.walker.hopeless.contains(&e) || self.walker.foe == Some(e))
+                            && !self.field_hopeless.contains(&e)
+                            && c.scene.chars[e].hp > 0
                     })
                     .map(|e| (e, dist(e)))
                     .filter(|&(e, d)| d < 600.0 || boss || aims(e))
             };
-            let (near, nearest) = prey(c)
+            let (near, nearest) = prey(c, &self.field_hopeless)
                 .and_then(|e| candidates().find(|&(x, _)| x == e))
                 .or_else(|| candidates().min_by(|x, y| x.1.total_cmp(&y.1)))?;
             // A golden goblin that shakes off holds (see [`shakes_off_holds`]):
@@ -1734,7 +1987,33 @@ impl StoryPilot {
             }
             Some(Action::Skill { page: page as i16, skill, target: None })
         };
-        if boss { member_spell().or_else(kite_skill) } else { kite_skill().or_else(member_spell) }
+        // A charm of Kite's (`itemTbl` category 11: a spell for no SP), out
+        // of a boss fight, when his own skills give nothing: the strongest
+        // whose sure hit on the foe is three blows' or more, in its reach.
+        let charm = || -> Option<Action> {
+            let kite = kite?;
+            let e = foe?;
+            let q = c.scene.chars[e].pos.map(f32::from_bits);
+            let p = kite.pos.map(f32::from_bits);
+            let d = (q[0] - p[0]).hypot(q[1] - p[1]);
+            let blow = t.skill(1).map_or(0, |sk| sure(e, sk)).max(1);
+            (0..piney_fieldui::items::ITEMS)
+                .map(|n| piney_fieldui::items::save_item(state, 0, n))
+                .filter(|it| it.cat == 11 && it.num > 0 && (it.cat, it.id) != SPEED_CHARM)
+                .filter_map(|it| {
+                    let sid = items.item(i32::from(it.cat), i32::from(it.id))?.skill;
+                    let hit = sure(e, t.skill(sid)?);
+                    let reach = items.skill(sid)?.trigger_range;
+                    (d < reach && hit >= 3 * blow).then_some((it, hit))
+                })
+                .max_by_key(|&(_, hit)| hit)
+                .map(|(it, _)| Action::Item { cat: it.cat, id: it.id, target: -1 })
+        };
+        if boss {
+            member_spell().or_else(kite_skill)
+        } else {
+            kite_skill().or_else(|| if self.unaided { charm() } else { None }).or_else(member_spell)
+        }
     }
 
     /// In a field whose events wait for its foes all down ([`Want::Clear`]),
@@ -1846,11 +2125,33 @@ impl StoryPilot {
         // opens bring them); a field to clear: every foe.
         let party: Vec<usize> = c.members.iter().map(|&(_, k)| k).collect();
         let engaged = |e: usize| dist(e) < 1500.0 || c.scene.chars[e].target_char.is_some_and(|t| party.contains(&t));
+        // A foe chased in this field that has lost no HP in [`HOPELESS`]
+        // frames (a caster keeping its distance) is let be.
+        let here = (sc.area, sc.field);
+        if self.field_fought.0 != here {
+            self.field_fought = (here, Vec::new());
+            self.field_hopeless.clear();
+        }
+        let now = self.now;
         let live: Vec<usize> = c
             .enemies()
             .into_iter()
             .filter(|&e| c.scene.chars[e].hp > 0 && (clear || (self.unaided && engaged(e))))
+            .filter(|e| clear || !self.field_hopeless.contains(e))
             .collect();
+        if self.unaided {
+            for &e in &live {
+                let hp = c.scene.chars[e].hp;
+                match self.field_fought.1.iter().find(|x| x.0 == e) {
+                    None => self.field_fought.1.push((e, hp, now)),
+                    Some(&(_, first, since)) if now > since + super::shrine::HOPELESS && hp >= first => {
+                        self.field_hopeless.push(e)
+                    }
+                    Some(_) => {}
+                }
+            }
+        }
+        let live: Vec<usize> = live.into_iter().filter(|e| clear || !self.field_hopeless.contains(e)).collect();
         if live.is_empty() {
             return None;
         }
@@ -2561,6 +2862,27 @@ fn whole_story(disc: &str) {
             }
         }
         let raw = pilot.next(&s, f);
+        // `PINEY_DEBUG_FROM`: from this frame on, every 25 frames the place,
+        // the pad and the pilot's grinding state.
+        if std::env::var("PINEY_DEBUG_FROM").ok().and_then(|v| v.parse::<u64>().ok()).is_some_and(|from| f >= from)
+            && f.is_multiple_of(25)
+        {
+            eprintln!(
+                "STEP {f} {} {:?} leaving {} detour {:?} exit {:?} no {:?} had {:?} barren {:?} doing {}",
+                Mode::title(&s),
+                raw.buttons,
+                pilot.leaving,
+                pilot.detour,
+                pilot.grind_exit,
+                pilot.no_grind,
+                pilot.had_portals,
+                pilot.barren,
+                pilot.doing(),
+            );
+            if let Stage::Area(a) = &s.stage {
+                eprintln!("STEPF {f} {}", fighters(a));
+            }
+        }
         pad.read(&raw);
         s.step(&pad);
         s.take_events();
@@ -2727,9 +3049,14 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
                         })
                         .collect();
                     eprintln!(
-                        "TOWN {f} {} {:?} kite {:?} targets {targets:?} command {:?} {}",
+                        "TOWN {f} {} {:?} proccess {} page {} select {} wait {} {} kite {:?} targets {targets:?} command {:?} {}",
                         Mode::title(&s),
                         raw.buttons,
+                        w.ui().ctrl.proccess,
+                        w.ui().ctrl.list().page,
+                        w.ui().ctrl.list().select,
+                        w.ui().ctrl.wait_count,
+                        purse(&s),
                         at(world.player().body.pos),
                         world.command_target(),
                         whole_state(&s)
@@ -2901,18 +3228,6 @@ fn haste_for_gold(a: &crate::area::AreaMode) -> Option<Action> {
         .then_some(Action::Item { cat: SPEED_CHARM.0, id: SPEED_CHARM.1, target: 0 })
 }
 
-/// The Items menu's page that lists category `cat` (`SetItemList`'s
-/// filters: -1 recovery and tools, -2 the equipment, else one category).
-fn item_page(t: &piney_fieldui::items::ItemTables, cat: i8) -> i16 {
-    let c = i32::from(cat);
-    let lists = |f: i32| match f {
-        -1 => c == 10 || c == 13,
-        -2 => (0..10).contains(&c),
-        f => c == f,
-    };
-    t.pages.iter().position(|&f| lists(f)).unwrap_or(0) as i16
-}
-
 /// Whether foe `e` is a golden goblin that a blow frees from a hold
 /// (`goldFlag`, `goldVolume` 2 up: `thinkGold`'s `goldDisHold`): an art
 /// lands one hit of its combo, the normal attack (which holds nothing)
@@ -3017,6 +3332,89 @@ fn focus(c: &piney_world::combat::Combat) -> Option<usize> {
     healer.or(brother).or_else(|| nearest_seed(c)).or_else(|| r.parts.first().copied().filter(|&p| up(p)))
 }
 
+/// The Virus Cores the next area the story wants asks more of than Kite
+/// holds (`impItemList`, the cores at category 15), when the gate will
+/// ask its hack: its words' protect (`EVENTAREA_INFO.protect`, four
+/// (core, count) pairs), and the whole ask.
+fn cores_short(w: &crate::world::WorldMode) -> (Cores, Cores) {
+    let Some(vm) = w.vm() else { return (Vec::new(), Vec::new()) };
+    let save = &w.world().state().save;
+    let words = &w.ui().texts().words;
+    let held = |id: i32| i32::from(save.u8(piney_data::save::offset::IMP_ITEM_LIST + id as usize) as i8);
+    // The gate opens the hack (`GateMenu`) for an area of this server not
+    // yet in `protectArea` whose protect asks any core.
+    use piney_fieldui::menus::gate::PROTECT_AREA;
+    let hacked =
+        |code: i32| code >= 0 && save.i32(PROTECT_AREA + 4 * (code as usize >> 5)) as u32 & (1 << (code & 31)) != 0;
+    let server = w.server();
+    let next = story_wants(vm, save).iter().find_map(|&x| match x {
+        Want::Area(a) => Some(a),
+        _ => None,
+    });
+    let need = next
+        .and_then(|a| words.event(i32::from(a)))
+        .filter(|e| !hacked(e.code) && e.server == server)
+        .map(|e| (0..4).map(|k| (e.protect[2 * k], e.protect[2 * k + 1])).collect::<Vec<_>>())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|&(_, need)| need > 0)
+        .map(|(id, need)| (id as i16, need))
+        .collect::<Vec<_>>();
+    let short = need.iter().map(|&(id, n)| (id, n - held(i32::from(id)))).filter(|&(_, n)| n > 0).collect();
+    (short, need)
+}
+
+/// The Virus Cores (their ids, A-H as 0-7) the foes of story area `n`'s
+/// field and dungeon may give to Data Drain: the rows `ccRegisterEnemyList`
+/// registers from its rank (`enemy_rank`, the next three, and each floor's
+/// one on) and their `enemyTbl.item` codes of category 15.
+fn area_cores(iso: &std::path::Path, volume: piney_data::volume::Volume, server: i32, n: i32) -> Vec<i32> {
+    let Some(wm) = Iso::open(iso).ok().and_then(|mut d| crate::area::story_world_man(&mut d, n, false).ok()) else {
+        return Vec::new();
+    };
+    let (k, r) = wm.enemy_rank(1, n, 0, 0);
+    let t = piney_battle::Tables::of(volume);
+    let lists = piney_data::tables::battle::of(volume).enemy_lists();
+    let Some(list) =
+        lists.get(server.clamp(0, 4) as usize).and_then(|l| l.get(k.clamp(0, 6) as usize)).and_then(|l| l.list)
+    else {
+        return Vec::new();
+    };
+    let mut out: Vec<i32> = Vec::new();
+    for at in r.max(0)..r.max(0) + 6 {
+        let Some(&row) = list.get(at as usize) else { continue };
+        let Some(e) = usize::try_from(row).ok().and_then(|i| t.enemies.get(i)) else { continue };
+        for &code in &e.param.item {
+            if code >> 16 == 15 && !out.contains(&(code & 0xffff)) {
+                out.push(code & 0xffff);
+            }
+        }
+    }
+    out
+}
+
+/// What Kite sells in town, as a player clears his bag for gold: the
+/// equipment he carries (categories 0-9; none is worn from the bag), the
+/// gifts and odds (13 but the Fairy's Orb, 14), and of the spell charms
+/// (11) all but three of each (the Speed Charms kept whole).
+fn spare(w: &crate::world::WorldMode) -> Vec<Buy> {
+    let state = w.world().state();
+    let mut out: Vec<Buy> = Vec::new();
+    for it in (0..piney_fieldui::items::ITEMS).map(|k| piney_fieldui::items::save_item(state, 0, k)) {
+        if it.num <= 0 || out.iter().any(|b| b.item == (it.cat, it.id)) {
+            continue;
+        }
+        let keep = match it.cat {
+            0..=9 | 14 => 0,
+            13 if it.id != 2 => 0,
+            11 if (it.cat, it.id) != SPEED_CHARM => 3,
+            _ => continue,
+        };
+        out.push(Buy { item: (it.cat, it.id), carry: keep });
+    }
+    out
+}
+
 /// The room of a magic portal still standing in this dungeon, this floor's
 /// first: (floor, room).
 fn portal_room(w: &piney_world::field_world::FieldWorld) -> Option<(usize, usize)> {
@@ -3039,7 +3437,7 @@ fn portal_room(w: &piney_world::field_world::FieldWorld) -> Option<(usize, usize
 /// within 1500 of Kite or whose skill aims at the party, the one with the
 /// least HP (one down is one less hitting the party; blows spread over
 /// three foes leave all three standing).
-fn prey(c: &piney_world::combat::Combat) -> Option<usize> {
+fn prey(c: &piney_world::combat::Combat, skip: &[usize]) -> Option<usize> {
     if c.boss.as_ref().is_some_and(|r| !r.exit) {
         return None;
     }
@@ -3048,7 +3446,7 @@ fn prey(c: &piney_world::combat::Combat) -> Option<usize> {
     let party: Vec<usize> = c.members.iter().map(|&(_, m)| m).collect();
     foes(c)
         .into_iter()
-        .filter(|&e| c.scene.chars[e].hp > 0)
+        .filter(|&e| c.scene.chars[e].hp > 0 && !skip.contains(&e))
         .filter(|&e| {
             let q = c.scene.chars[e].pos.map(f32::from_bits);
             (q[0] - p[0]).hypot(q[1] - p[1]) < 1500.0

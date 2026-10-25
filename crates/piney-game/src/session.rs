@@ -2344,7 +2344,7 @@ mod tests {
     /// the same for the windows and the camera tutorial's prompts held (a
     /// scheme A player: L1 to turn, the right stick to zoom, R2 to reset).
     fn story_player(s: &Session, f: u64) -> Raw {
-        story_player_with(s, f, &[], &[])
+        story_player_with(s, f, &[], &Errands::default())
     }
 
     /// [`story_player`], passing by the town NPCs in `talked`.
@@ -2352,11 +2352,11 @@ mod tests {
         s: &Session,
         f: u64,
         talked: &[(piney_world::entry::Kind, i32)],
-        buys: &[Buy],
+        errands: &Errands,
     ) -> Raw {
         if let Stage::World(w) = &s.stage
             && !w.streaming()
-            && let Some(raw) = gate_player(w, f, talked, buys)
+            && let Some(raw) = gate_player(w, f, talked, errands)
         {
             return raw;
         }
@@ -2829,6 +2829,8 @@ mod tests {
         Disband,
         /// Buy from this merchant (an NPC's code) what [`Buy`] asks for.
         Shop(i32),
+        /// Sell to this merchant what [`Errands::sells`] lets go.
+        Sell(i32),
     }
 
     /// An item the autopilot carries out of town: so many of it, bought
@@ -2838,6 +2840,16 @@ mod tests {
     pub(super) struct Buy {
         pub(super) item: (i8, i16),
         pub(super) carry: i32,
+    }
+
+    /// What the autopilot's town walk is to do besides the story: buy
+    /// ([`Buy`]: up to `carry`), sell (down to `carry` kept), and go to an
+    /// area of its own first (a detour to grind in).
+    #[derive(Clone, Copy, Debug, Default)]
+    pub(super) struct Errands<'a> {
+        pub(super) buys: &'a [Buy],
+        pub(super) sells: &'a [Buy],
+        pub(super) detour: Option<i16>,
     }
 
     /// The Buy menu's stock row of `item` at merchant `code` of this town:
@@ -2859,6 +2871,18 @@ mod tests {
         stock.iter().take_while(|&&c| c > 0).position(|&c| c == (i32::from(cat) << 16 | i32::from(id)))
     }
 
+    /// The bag's page (`SetItemList`'s table) that holds category `cat`:
+    /// -1 the usable items (10, 13), -2 the equipment (0-9), else that one.
+    fn page_of(t: &piney_fieldui::items::ItemTables, cat: i8) -> i16 {
+        let c = i32::from(cat);
+        let lists = |f: i32| match f {
+            -1 => c == 10 || c == 13,
+            -2 => (0..10).contains(&c),
+            f => c == f,
+        };
+        t.pages.iter().position(|&f| lists(f)).unwrap_or(0) as i16
+    }
+
     /// How many of `buy` Kite still wants (none past 99 carried), as many
     /// as his gold pays for.
     fn short_of(w: &crate::world::WorldMode, buy: &Buy) -> i32 {
@@ -2872,6 +2896,38 @@ mod tests {
         let price = w.ui().texts().items.item(i32::from(cat), i32::from(id)).map_or(0, |p| p.price).max(1);
         let gold = state.save.i32(piney_fieldui::menus::shop::GOLD);
         (buy.carry.min(99) - have).min(gold / price).max(0)
+    }
+
+    /// How many of `sell` Kite has over the `carry` he keeps.
+    fn over(w: &crate::world::WorldMode, sell: &Buy) -> i32 {
+        let state = w.world().state();
+        let have: i32 = (0..piney_fieldui::items::ITEMS)
+            .map(|k| piney_fieldui::items::save_item(state, 0, k))
+            .filter(|it| (it.cat, it.id) == sell.item)
+            .map(|it| i32::from(it.num))
+            .sum();
+        (have - sell.carry).max(0)
+    }
+
+    /// A merchant of this town who buys (`VenderMenu`'s three: 0x100, 0x400,
+    /// 0x800), when Kite has any of `sells` over what he keeps.
+    fn sell_at(w: &crate::world::WorldMode, sells: &[Buy]) -> Option<i32> {
+        sells.iter().any(|b| over(w, b) > 0).then_some(())?;
+        // The nearest of them to Kite.
+        let world = w.world();
+        let kite = world.player().body.pos.map(f32::from_bits);
+        let far = |code: i32| {
+            world.char_place(piney_world::entry::Kind::Npc, code).map_or(f32::MAX, |(p, _)| {
+                let p = p.map(f32::from_bits);
+                (p[0] - kite[0]).hypot(p[1] - kite[1])
+            })
+        };
+        world
+            .merchants()
+            .iter()
+            .filter(|m| m.flags & 0xd00 != 0)
+            .map(piney_world::entry::Npc::code)
+            .min_by(|&a, &b| far(a).total_cmp(&far(b)))
     }
 
     /// The merchant of this town who sells the first of `buys` Kite is
@@ -2890,9 +2946,10 @@ mod tests {
     pub(super) fn gate_goal(
         w: &crate::world::WorldMode,
         talked: &[(piney_world::entry::Kind, i32)],
-        buys: &[Buy],
+        errands: &Errands,
     ) -> Option<GateGoal> {
         use piney_world::entry::Kind;
+        let (buys, detour) = (errands.buys, errands.detour);
         let save = &w.world().state().save;
         // A mail unread, or a post new on the board (posted, or written
         // for the player: 1, 7): the top page reads them. Not the posts
@@ -2959,60 +3016,71 @@ mod tests {
             _ => None,
         });
         // What Kite is to carry out, bought here first.
-        let wanted = shop_for(w, buys)
-            .map(GateGoal::Shop)
-            .or(marker)
-            .or_else(|| {
-                // Not while this town is wanted too (event 22's Mac Anu and
-                // Dun Loireag): the two would send Kite back and forth.
-                let here_wanted = wants.contains(&Want::Town(here));
-                wants.iter().find_map(|&x| match x {
-                    Want::Town(t) if t != here && !here_wanted => town_row(w, t).map(GateGoal::Town),
-                    _ => None,
-                })
-            })
-            .or(gather)
-            .or_else(|| (alone && party.iter().skip(1).any(|&m| m != -1)).then_some(GateGoal::Disband))
-            .or_else(|| others.then_some(GateGoal::Disband))
-            .or_else(|| {
-                wants.iter().find_map(|&x| match x {
-                    Want::Party(pc)
-                        if !alone
-                            && !party.contains(&pc)
-                            && party.contains(&-1)
-                            && flags & (1 << pc) != 0
-                            && calls & (1 << pc) != 0 =>
-                    {
-                        Some(GateGoal::Invite(pc))
-                    }
-                    _ => None,
-                })
-            })
-            .or_else(|| {
-                // Such a member, the party full (event 210's Piros, after
-                // 209's Balmung and Wiseman): the others sent away first.
-                let full = !party.contains(&-1);
-                let callable = |pc: i32| flags & calls & (1 << pc) != 0;
-                wants
+        // A detour the pilot asks for (an area to grind in before a stretch
+        // the story wants Kite alone for): the stock, the free slots filled,
+        // then that area; no disband.
+        let detour = detour.and_then(|a| {
+            let fill = party.contains(&-1).then(|| companion(w, &party, flags & calls)).flatten();
+            shop_for(w, buys).map(GateGoal::Shop).or(fill.map(GateGoal::Invite)).or_else(|| area_way(w, a))
+        });
+        let wanted =
+            detour.or_else(|| {
+                shop_for(w, buys)
+                    .map(GateGoal::Shop)
+                    .or_else(|| sell_at(w, errands.sells).map(GateGoal::Sell))
+                    .or(marker)
+                    .or_else(|| {
+                        // Not while this town is wanted too (event 22's Mac Anu and
+                        // Dun Loireag): the two would send Kite back and forth.
+                        let here_wanted = wants.contains(&Want::Town(here));
+                        wants.iter().find_map(|&x| match x {
+                            Want::Town(t) if t != here && !here_wanted => town_row(w, t).map(GateGoal::Town),
+                            _ => None,
+                        })
+                    })
+                    .or(gather)
+                    .or_else(|| (alone && party.iter().skip(1).any(|&m| m != -1)).then_some(GateGoal::Disband))
+                    .or_else(|| others.then_some(GateGoal::Disband))
+                    .or_else(|| {
+                        wants.iter().find_map(|&x| match x {
+                            Want::Party(pc)
+                                if !alone
+                                    && !party.contains(&pc)
+                                    && party.contains(&-1)
+                                    && flags & (1 << pc) != 0
+                                    && calls & (1 << pc) != 0 =>
+                            {
+                                Some(GateGoal::Invite(pc))
+                            }
+                            _ => None,
+                        })
+                    })
+                    .or_else(|| {
+                        // Such a member, the party full (event 210's Piros, after
+                        // 209's Balmung and Wiseman): the others sent away first.
+                        let full = !party.contains(&-1);
+                        let callable = |pc: i32| flags & calls & (1 << pc) != 0;
+                        wants
                     .iter()
                     .any(|&x| matches!(x, Want::Party(pc) if !alone && full && !party.contains(&pc) && callable(pc)))
                     .then_some(GateGoal::Disband)
-            })
-            .or_else(|| {
-                // Going out: the free slots filled first, as a player
-                // would, with the members who answer calls, those who
-                // revive or heal first.
-                let out = wants.iter().any(|&x| matches!(x, Want::Area(a) if area_way(w, a).is_some()));
-                (out && !alone && only.is_none() && party.contains(&-1))
-                    .then(|| companion(w, &party, flags & calls))
-                    .flatten()
-                    .map(GateGoal::Invite)
-            })
-            .or_else(|| {
-                wants.iter().find_map(|&x| match x {
-                    Want::Area(a) => area_way(w, a),
-                    _ => None,
-                })
+                    })
+                    .or_else(|| {
+                        // Going out: the free slots filled first, as a player
+                        // would, with the members who answer calls, those who
+                        // revive or heal first.
+                        let out = wants.iter().any(|&x| matches!(x, Want::Area(a) if area_way(w, a).is_some()));
+                        (out && !alone && only.is_none() && party.contains(&-1))
+                            .then(|| companion(w, &party, flags & calls))
+                            .flatten()
+                            .map(GateGoal::Invite)
+                    })
+                    .or_else(|| {
+                        wants.iter().find_map(|&x| match x {
+                            Want::Area(a) => area_way(w, a),
+                            _ => None,
+                        })
+                    })
             });
         // A mail comes before the story's wants (events wait on it); a
         // post only when the story wants nothing here (event 108 holds the
@@ -3045,12 +3113,13 @@ mod tests {
         w: &crate::world::WorldMode,
         f: u64,
         talked: &[(piney_world::entry::Kind, i32)],
-        buys: &[Buy],
+        errands: &Errands,
     ) -> Option<Raw> {
         use piney_world::entry::Kind;
+        let buys = errands.buys;
         let still =
             |buttons: Buttons| Raw { buttons, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
-        let goal = gate_goal(w, talked, buys)?;
+        let goal = gate_goal(w, talked, errands)?;
         let world = w.world();
         let ui = w.ui();
         let c = &ui.ctrl;
@@ -3109,8 +3178,45 @@ mod tests {
             (52, 4, GateGoal::Shop(_)) => return Some(every(8, go_to(0))),
             (52, 10..=12, _) => return Some(every(8, Buttons::CROSS)),
             (52, _, GateGoal::Shop(_)) => return Some(still(Buttons::NONE)),
-            // A shop's or a breeder's own menu, opened by a talk: back out.
-            (23..=27 | 44..=46 | 52, ..) => return Some(every(8, Buttons::CIRCLE)),
+            // The sale: Sell (51), the page and row of the first thing over
+            // what Kite keeps, the count up to the surplus, OK, and Yes.
+            // Once nothing is over, back out.
+            (24, 1, GateGoal::Sell(_)) => return Some(every(8, go_to_item(51))),
+            (51, 1, GateGoal::Sell(_)) => {
+                let items = &ui.texts().items;
+                let state = world.state();
+                let Some(b) = errands.sells.iter().find(|b| over(w, b) > 0) else {
+                    return Some(every(8, Buttons::CIRCLE));
+                };
+                let page = page_of(items, b.item.0);
+                if c.list().page != page {
+                    return Some(every(8, if c.list().page < page { Buttons::RIGHT } else { Buttons::LEFT }));
+                }
+                let list = piney_fieldui::items::item_list(items, state, 0, i32::from(page));
+                let row = list.iter().position(|it| (it.cat, it.id) == b.item);
+                return Some(every(8, row.map_or(Buttons::CIRCLE, go_to)));
+            }
+            (51, 2, GateGoal::Sell(_)) => {
+                let items = &ui.texts().items;
+                let page = i32::from(c.list().page);
+                let list = piney_fieldui::items::item_list(items, world.state(), 0, page);
+                let it = list.get(c.list().select.max(0) as usize).copied();
+                let want = it
+                    .and_then(|it| errands.sells.iter().find(|b| b.item == (it.cat, it.id)))
+                    .map_or(0, |b| over(w, b));
+                let b = match i32::from(c.wait_count) {
+                    _ if want == 0 => Buttons::CIRCLE,
+                    n if n < want => Buttons::UP,
+                    n if n > want => Buttons::DOWN,
+                    _ => Buttons::CROSS,
+                };
+                return Some(every(8, b));
+            }
+            (51, 4, GateGoal::Sell(_)) => return Some(every(8, go_to(0))),
+            (51, _, GateGoal::Sell(_)) => return Some(still(Buttons::NONE)),
+            // A shop's or a breeder's own menu, opened by a talk, or the
+            // Sell page with nothing left over: back out.
+            (23..=27 | 44..=46 | 51 | 52, ..) => return Some(every(8, Buttons::CIRCLE)),
             // The call: PERSONAL, Party, Add, the member's face, OK, and
             // the greeting closed.
             (0, 1, GateGoal::Invite(_)) => return Some(every(8, go_to_item(9))),
