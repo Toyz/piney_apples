@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-481 entries: audio 40, battle 127, build 20, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 122, save 16, script 57, test 229, tooling 45, ui 98, video 16, volumes 89, world 137.
+482 entries: audio 40, battle 127, build 20, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 123, save 16, script 57, test 230, tooling 45, ui 98, video 16, volumes 89, world 138.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -493,3 +493,4 @@ The [reference](docs/README.md) says what is true now.
 | 479 | [Twenty-two play questions were already answered: the triage's list against the work since](worklog/0479-twenty-two-play-questions-were-already-answered-the-triage.md) | 2026-10-25 | test |
 | 480 | [A field's lake and background as the code draws them: the lake's three animations and mirror, the hacked fields' backgrounds, DrawBG's turns and aurora](worklog/0480-a-field-s-lake-and-background-as-the-code-draws-them-the.md) | 2026-10-25 | render, world, test |
 | 481 | [The water's picture is the game's 128 x 128 point-sampled copy: towns' water 0, the field's haze and lake mirror](worklog/0481-the-water-s-picture-is-the-game-s-128-x-128-point-sampled.md) | 2026-10-25 | render, test |
+| 482 | [A lake's statues and flowers already take its palettes: EntryObject's ChangeClut is the file's clut_swaps](worklog/0482-a-lake-s-statues-and-flowers-already-take-its-palettes.md) | 2026-10-25 | render, world, test |

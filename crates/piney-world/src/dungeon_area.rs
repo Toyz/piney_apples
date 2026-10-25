@@ -2281,6 +2281,48 @@ mod tests {
         }
     }
 
+    /// A lake's statues and flowers under `GetBG` 1-3: `EntryObject`
+    /// (gcmn 0x005c6e80) runs `ccClump::ChangeClut(+0x24c[k], +0x14c[k])`
+    /// on each, the same `SetClutList` pairs `SetRoom` runs on the room.
+    /// The swap writes the shared materials, and the port's file-wide
+    /// `clut_swaps` draw every model of the file with them: each clump has
+    /// a palette on the list. Under `GetBG` 0 there is none.
+    #[test]
+    fn a_lakes_statues_take_its_palettes() {
+        let Some(archive) = crate::town::tests::archive() else { return };
+        let run = |weather: u32| {
+            let wm = WorldMan { field_type: 4, weather, level_max: 2, room_max: 4, ..WorldMan::default() };
+            let mut scene = Scene::init();
+            scene.area = 2;
+            scene.field = 40;
+            DungeonArea::new(&archive, &wm, &scene).unwrap()
+        };
+        assert!(run(0).clut_swaps.is_empty(), "GetBG 0");
+        for bg in 1..=3 {
+            let d = run(bg);
+            assert!(matches!(d.dtype, 8 | 9), "a lake: {}", d.dtype);
+            let (textures, _) = piney_data::texture::read(&d.file.ccs).unwrap();
+            let from: Vec<u32> = d.clut_swaps.iter().map(|s| s.0).collect();
+            let names = dress::LAKE_PIECES.iter().map(|p| p.1).chain(dress::LAKE_PICKS);
+            let mut seen = 0;
+            for name in names {
+                let Some(c) = d.file.ccs.find_object(name) else { continue };
+                seen += 1;
+                let nodes = d.file.scene.clumps.iter().find(|(k, _)| *k == c).map(|(_, n)| n.clone()).unwrap();
+                let cluts: Vec<u32> = (nodes.iter())
+                    .filter_map(|n| d.file.obj_model.get(n))
+                    .filter_map(|m| d.file.models.get(m))
+                    .flat_map(|i| i.mmats.iter().filter_map(|mm| mm.material))
+                    .filter_map(|mat| d.file.scene.materials.get(&mat))
+                    .filter_map(|m| textures.iter().find(|t| t.object == m.texture))
+                    .map(|t| t.clut)
+                    .collect();
+                assert!(cluts.iter().any(|c| from.contains(c)), "bg {bg} {name}: {cluts:?} not swapped");
+            }
+            assert_eq!(seen, 8, "bg {bg}: the lake's clumps in {}", d.file.stem);
+        }
+    }
+
     /// The Gott statue room: story area 14's type-14 row (floor 1, room 4)
     /// and a random dungeon's (`symFlag`) are built from `symroom[type]`,
     /// drawn from the dungeon's file, and give a kind-2 slot (their

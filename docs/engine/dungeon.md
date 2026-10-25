@@ -3,7 +3,7 @@ title: Dungeon generation
 status: partial
 volumes: all
 covers: INF gcmn.prg:0x00597d84 ccPlayer::ccPlayer (the lake's arrival), 0x005c1440 DUNGEON::SetClutList, 0x005c17b0 DUNGEON::ChangeClut; INF SLUS_202.67:0x0013aad0 ccModel::ChangeClut, 0x00152d00 ccAnm::ChangeClut; INF gcmn.prg:0x005c12a0 DUNGEON::Generate, 0x005c0110 MakeFloor, 0x005b6840 FOOT::FOOT, 0x005b7330 FOOT::Move, 0x005b78c0 FOOT::CheckDirection, 0x005ba1d0 DUNGEON::MakeRoom, 0x005bb340 SetAllGim, 0x005be020 MakeRealMap, 0x005bcbb0 DUNGEON::MakeRoom(ROOMDATA *), 0x005b7c00 DUNGEON::DUNGEON, 0x005c1ca0 SetRoom, 0x005c3a50 ClearRoom, 0x005c1980 DeleteRoom, 0x005c7c30 SetDoor, 0x005cd3d0 MoveDoor, 0x005c9e10 GotoNextRoom, 0x005ce930 DUNGEON::Draw, 0x005cf030 DUNGEON::GetHeight, 0x005cf040 GetStartPosition, 0x005c4560 SetLight, 0x0042e010 ccCheckActiveObject, 0x00571da0 initHitCheck, 0x005c8820 DUNGEON::OpenDoor, 0x005c8f50 CloseDoor, 0x005c8800 CloseDoor2, 0x005cf080 GetRoom2DPos, 0x005b6720 GetEditDungeonPtr; INF SLUS_202.67:0x001382f0 ccCoord::SetMatrix_PosRotZYX, 0x00110a30 sceVu0RotMatrixZ, 0x00139330 ccDirectLight::CheckRange, 0x001392d0 ccDirectLight::Init, 0x001389b0 ccCreateLight, 0x00105820 ccDrawEnv::SetFog, 0x0019f4b0 WORLD_MAN::SetDungeonTexClut, 0x0019cf50 SetDungeonTypeFromField, 0x0019c460 fieldrand, 0x0019f8e0 WORLD_MAN::GO, 0x0019dda0 WORLD_MAN::Enter, 0x001a1190 WORLD_MAN::SetCharPosition, 0x001a10c0 WORLD_MAN::GetHeight, 0x001a4070 WORLD_MAN::SetPrevRoom, 0x00151f30 ccAnm::HitEnable, 0x001520f0 ccAnm::SetHitMatrix, 0x00153760 ccModelHit::HitEnable, 0x001107b0 sceVu0InversMatrix, 0x0014cb80 ccStream::Decode_ExtObj, 0x001b3620 ccEvent::SetEventPoint, 0x001b3590 ccEvent::SetEventPos, 0x001a22b0 WORLD_MAN::Get2DMapPtr, 0x001b218c open_door, 0x001b21cc close_door, 0x0019dca0 WORLD_MAN::RoomSelect, 0x001b0948 room, 0x001b097c room_point; INF gcmn.prg:0x005c95c0 DUNGEON::RoomSelect, 0x005b61e0 DUNGEON::GetBanRoom; INF SLUS_202.67:0x0013cff0 ccClump::HitEnable, 0x0013d240 ccClump::SetHitMatrix, 0x001d9dd0 ccGetDist, 0x00178400 ccSaveData::CheckAreaBan; INF gcmn.prg:0x005c3f30 DUNGEON::SetWater, 0x005c70c0 SetObject, 0x005c6e80 EntryObject, 0x005c3ad0 SetAnmObject, 0x005ce1c0 DrawWater, 0x005cdee0 DrawEff, 0x005ce3d0 DUNGEON::DrawBG, 0x00503cf0 SNOW::SNOW(ccStream *, float *), 0x00503e80 SNOW::Move, 0x005042f0 SNOW::Draw, 0x00502e20 calcPos3; INF SLUS_202.67:0x00151ce0 ccAnm::GetSubstAdrs, 0x00101ad0 ccMatchIndex, 0x00101e20 ccSubstSearchResult::SetTbl, 0x00138b60 ccSetColor, 0x00139060 ccLightGrp::AddGrp, 0x0013ba20 ccEff::Init, 0x0014bce0 ccStream::Decode_Model, 0x0013b5c0 ccObj::Init; MUT SLUS_205.62:0x001b6f70 WORLD_MAN::EntryGimmick
-worklog: 19, 25, 30, 34, 114, 147, 156, 161, 181, 220, 343, 362, 379, 391
+worklog: 19, 25, 30, 34, 114, 147, 156, 161, 181, 220, 343, 362, 379, 391, 482
 ---
 
 # Dungeon generation
@@ -615,8 +615,12 @@ nothing to draw.
 - The glows' omni lights join `lights` and flicker with their glows.
 - Water 0 samples the frame drawn so far, not the copy made after it.
 - `u` lives as long as the dungeon.
-- Not ported: type 32's tree and leaves; `EntryObject`'s palettes for the
-  lakes' statues and flowers with `GetBG` not 0.
+- `EntryObject`'s palettes for the lakes' statues and flowers (`GetBG` 1-3:
+  `ccClump::ChangeClut(+0x24c[k], +0x14c[k])`, the `SetClutList` pairs)
+  are the file's `clut_swaps`, which every model of the file draws with, as
+  the shared materials do in the game (`a_lakes_statues_take_its_palettes`,
+  worklog 482).
+- Not ported: type 32's tree and leaves.
 
 ## The lakes' sky and fireflies
 
@@ -1201,8 +1205,6 @@ scene's menu](field-ui.md#a-new-scenes-menu)), Kite's idle count every
   position), and neither is the draw of the ban block's nodes (the port
   draws the clump's models at its matrix).
 
-- `EntryObject`'s palettes for the lakes' statues and flowers with
-  `GetBG` not 0.
 - A story dungeon's `fieldrand` after `Generate` (its gimmicks' draws).
 - What `ccObj::Duplicate(0x2008)` and `(0x2000)` copy of the water's
   object: the port takes each water's `OBJ_f_8s40_` materials as its own

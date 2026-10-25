@@ -87,7 +87,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 - [[79]] [[231]] `SetFogSw` / `SetShadowSw` on the spell pieces (and on other objects that turn fog off; only the gate was fixed) and the drill's `ccDrawEnv` settings are not modelled (docs/engine/effects.md) — spells and objects fogged or shadowed where the game turns it off
 - [[79]] the explosions' palette swaps are kept on the element but not drawn (docs/engine/effects.md) — spell explosions' colours — answered by [[411]]: `ccAnm` draws carry their objects' palette swaps (`AnmObj::change_clut`); the explosion's `OBJ_x048`-`051` own `CLT_x048`-`051` (`the_explosions_substitutes_own_their_palettes`)
 - docs/engine/effects.md `ccEntryChangeCLUT` swaps every texture on the palette where the game swaps per material — enemies whose palette-swapped texture shares a palette
-- [[157]] [[161]] `EntryObject`'s palettes for the lakes' statues and flowers when `GetBG` is not 0 are not ported (docs/engine/dungeon.md) — lake dungeons by evening and night
+- [[157]] [[161]] `EntryObject`'s palettes for the lakes' statues and flowers when `GetBG` is not 0 are not ported (docs/engine/dungeon.md) — lake dungeons by evening and night — answered by [[482]] (the file's `clut_swaps`, the same `SetClutList` pairs; a_lakes_statues_take_its_palettes)
 - [[158]] `DUNGEON.fog` is not zeroed at the game over's TV, and the squeeze moves the whole finished frame, not only what sysLayer's view draws — the game over, in a dungeon most
 - [[266]] Innis's pictures are not drawn: missiles, SamonRings, particle generators, blur, shield, mirrors' shards; the MagicSquare for n 1 and 2 (docs/engine/boss-innis.md) — Mutation's first boss — answered by [[411]] (issue #69): the missiles, rings, generators, shield and shards are drawn (`piney_effect::innis`, `test_innis_effects` in tools/test_boss_effect_rs.py, `session::tests::boss_fx`); the squares were [[295]]'s. The blur stays with [[117]]
 - [[274]] Magus's pictures are named, not drawn: the leaves' markers, charges and bursts, the laser's shocks and thunder, the needles, the smoke; the body's dropped leaves are not hidden (docs/engine/boss-magus.md) — Mutation's Magus — answered by [[421]] (drawn, the dropped leaves hidden, the blinks' after-images and the countdowns too)
@@ -1235,7 +1235,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/dungeon.md: the palette swaps over the whole file; the door functions' own ChangeClut; no picture compared — research (duplicates [[147]])
 - docs/engine/dungeon.md: type 32's leaves (ANM_se4_2lea, LEAF), a later volume's room — play (duplicates [[114]])
 - docs/engine/dungeon.md: how ccLight combines an event room's LGT_ record with SetRoom's place; the ban block's nodes — research (duplicates [[114]])
-- docs/engine/dungeon.md: EntryObject's palettes for the lakes' statues and flowers with GetBG not 0 — play (duplicates [[157]], [[161]])
+- docs/engine/dungeon.md: EntryObject's palettes for the lakes' statues and flowers with GetBG not 0 — play (duplicates [[157]], [[161]]) — answered by [[482]]
 - docs/engine/dungeon.md: a story dungeon's fieldrand after Generate — research (duplicates [[157]])
 - docs/engine/dungeon.md: what ccObj::Duplicate(0x2008)/(0x2000) copy of the water's object — research (duplicates [[157]])
 - docs/engine/dungeon.md: whether a room's dummies can make more than 32 room lights — research (none checked comes near)

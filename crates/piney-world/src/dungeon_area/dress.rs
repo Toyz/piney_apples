@@ -78,14 +78,15 @@ const SPARK_CLUT: [[&str; 3]; 2] =
 
 /// `DUNGEON::SetObject`'s lake pieces: each dummy's clump, then
 /// `OBJ_0ps4*`'s picked by `fieldrand(4)`.
-const LAKE_PIECES: [(&str, &str); 4] = [
+pub(super) const LAKE_PIECES: [(&str, &str); 4] = [
     ("OBJ_0ps0*", "CMP_o_statue_l2_"),
     ("OBJ_0ps1*", "CMP_o_statue_l3_"),
     ("OBJ_0ps2*", "CMP_o_flower_l2_"),
     ("OBJ_0ps3*", "CMP_o_flower_l3_"),
 ];
 const LAKE_PICKED: &str = "OBJ_0ps4*";
-const LAKE_PICKS: [&str; 4] = ["CMP_o_statue_l0_", "CMP_o_statue_l1_", "CMP_o_flower_l0_", "CMP_o_flower_l1_"];
+pub(super) const LAKE_PICKS: [&str; 4] =
+    ["CMP_o_statue_l0_", "CMP_o_statue_l1_", "CMP_o_flower_l0_", "CMP_o_flower_l1_"];
 /// Types 3 and 7's walls (@7087-7090).
 const WALLS: [(&str, &str); 2] = [("OBJ_0paw0*", "ANM_sd5aw0_a"), ("OBJ_0paw1*", "ANM_sd5aw1_a")];
 /// `SetAnmObject`'s dummies and anms by type (0-3; @5566 0x00696ad0,
