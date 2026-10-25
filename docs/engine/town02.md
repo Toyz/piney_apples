@@ -3,7 +3,7 @@ title: Dun Loireag - ROOTTOWN02, its clouds, lens flare and water
 status: partial
 volumes: INF
 covers: INF gcmn.prg:0x004240c0 ROOTTOWN02::ROOTTOWN02, 0x004266a0 ROOTTOWN02::Draw, 0x00425130 ROOTTOWN02::DrawBG, 0x00425500 DrawObj, 0x004255e0 DrawObj2, 0x004256c0 DrawFloor, 0x00375ff0 ROOTTOWN02 vtable, 0x005d4bb0 RT_MODELTABLE02, 0x005d4d40 RT_OBJTABLE02, 0x005d4e20 town02Light, 0x00504400 CLOUD::SetPos, 0x00504860 CLOUD::Init, 0x00504a10 CLOUD::Move, 0x00504ce0 CLOUD::Draw, 0x00503090 LENSFLARE::LENSFLARE, 0x00503360 LENSFLARE::Draw, 0x005ed7e0 @973, 0x005025d0 waterUVModifi2, 0x00509f30 ccSetDog, 0x0050f0b0 ccSetChibiGuso, 0x00509390 ccDog::ccDog, 0x00509680 ccDog::main, 0x00509a80 ccDog::move, 0x0050a1f0 dogAction, 0x0050a260 inuCheckNote, 0x0050a2e0 ccDog::effect, 0x005ee220 markPosTbl, 0x005ee180 inuAnmTbl, 0x0054a680 ccMenuCtrl::NorainuMenu, 0x0050ef10 setDog, 0x0050ac00 ccPGuso::ccPGuso, 0x0050b3c0 ccPGuso::main, 0x0050bba0 ccPGuso::adultMain, 0x0050bca0 ccPGuso::move, 0x0050c0f0 ccPGuso::paramCalc, 0x0050c8f0 ccPGuso::evoAct, 0x0050c960 evoActChibi2, 0x0050cbb0 evoActPon1, 0x0050d5a0 evoActPon2, 0x0050dd30 evoActAdult, 0x0050e820 runAway, 0x0050e990 pgDead, 0x0050eac0 adultSetup, 0x0050eda0 changeAnmPG, 0x0050f390 dogAction, 0x0050f720 dogAction2, 0x0050f9d0 dogActionAdult, 0x0050fec0 inuCheckNote (the Grunties'), 0x0050ff30 burpEff, 0x005100e0 evoEff, 0x005102a0 ccPGuso::effect, 0x00510490 moveCam, 0x005ee300 pgAnmPtr, 0x005ee310 pgAnmPtrAdult, 0x005ee340 ccsTblPG, 0x005ee3c0 markPosTbl (pgbreed), 0x005ee3e0 adultGusoParam, 0x005ee440 pgSizeParam, 0x005ee450 foodTbl, 0x005ee510 needFoodTbl1, 0x005ee530 needFoodTbl2, 0x005ee550 camPosDef, 0x005ee590 camViewDef, 0x005ee5d0 inuPos, 0x005ee610 playerPos, 0x005ee650 pgChatTbl; INF SLUS_202.67:0x001d0f00 effEvolvePG, 0x001d0fd0 effGrowPG, 0x00108e30 ccLayer::MakePacketDrawBuffTrans, 0x0013f3b0 ccObj::CheckBoundingBox, 0x00129d08 fptoui, 0x0019c460 fieldrand, 0x0019ccb0 WORLD_MAN::Init, 0x001a1190 WORLD_MAN::SetCharPosition, 0x001b62e0 ccEntryEventMng, 0x00160cb0 checkCameraType, 0x00161700 cameraGetRot2, 0x001615d0 cameraGetView
-worklog: 96, 142, 162, 395
+worklog: 96, 142, 162, 395, 481
 ---
 
 # Dun Loireag - ROOTTOWN02, its clouds, lens flare and water
@@ -452,9 +452,12 @@ same place in the draw order as the game's copy). `cloud::Cloud` is
 `World::enter` builds the town of the save's `lastTown` (0 or 1) and
 starts Kite at `start_position`; the session changes scene to either town.
 
-The port's copy is the whole 512 x 448 frame sampled at the same
-fractions, not the game's 128 x 128 point-sampled one, so the refraction
-is sharper than the game's. The clouds draw on from the game's
+The port's copy is the game's: `TexRef::SampledFrame` 128 x 128, each
+texel the frame's pixel at its centre (the copy's sprite reads nearest),
+which the water reads with its own filter (piney-gs's `Params::SAMPLED`,
+worklog 481). The field's heat haze and its lake's mirror take the same
+128 x 128 copy (`WORLD` +0x53bc, made in `WORLD::Init` and `Generate`:
+`tw` and `th` 7, 32 bits). The clouds draw on from the game's
 `fieldrand` as the scene before left it (`Town::open_with`); the scrolls
 go on from where the last visit left them (`SaveState::scroll_statics`,
 worklog 474).
@@ -540,7 +543,10 @@ grown Little Grunty (`scratch/grunties/shots`).
   GEQUAL with `Draw`'s reference and AFAIL FB_ONLY; most of the texture is
   below the reference, so it is drawn by colour alone. The port draws the
   same; what the picture looks like on the console is not checked.
-- The frame-buffer copy's size and point sampling (above).
+- Where the copy's sprite samples within each texel: the port takes the
+  texel's centre, as `ScaledFrame` does; the GS's rule for a sprite's
+  texture coordinates (the pixel's corner or its centre) moves the pick
+  by at most half a texel of the copy.
 - Whether water 0's coordinate has a local translation: the animation has
   no record for it, so the port takes the root alone (`(0, 4200, 0)`,
   `+0x70` zero) for the reach; checked only as inputs to `waterUVModifi2`.

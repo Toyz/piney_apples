@@ -105,6 +105,11 @@ impl Params {
     /// The texture is the frame at full size, read as the smaller copy
     /// [`TexRef::ScaledFrame`] of [`GVertex::region`]'s size would be.
     pub const SCALED: u32 = 1 << 22;
+    /// The texture is the frame at full size, read as the point-sampled
+    /// copy [`TexRef::SampledFrame`] of [`GVertex::region`]'s size would
+    /// be; with [`Params::SAMPLED_NEAREST`], that copy read unfiltered.
+    pub const SAMPLED: u32 = 1 << 23;
+    pub const SAMPLED_NEAREST: u32 = 1 << 24;
 
     /// The same, with a failing alpha test discarding the pixel: the first
     /// pass of an FB_ONLY draw, colour and Z.
@@ -140,6 +145,11 @@ pub fn prim(p: &Prim, tex_size: Option<(u32, u32)>, screen: Screen, params: Para
     let (params, region) = match p.state.texture.as_ref().map(|t| (&t.tex, t.wrap)) {
         Some((&TexRef::ScaledFrame { width, height }, _)) if tex_size.is_some() => {
             (Params(params.0 | Params::SCALED), u32::from(width) | u32::from(height) << 16)
+        }
+        Some((&TexRef::SampledFrame { width, height }, _)) if tex_size.is_some() => {
+            let nearest = p.state.texture.as_ref().is_some_and(|t| t.filter == piney_draw::Filter::Nearest);
+            let bits = Params::SAMPLED | if nearest { Params::SAMPLED_NEAREST } else { 0 };
+            (Params(params.0 | bits), u32::from(width) | u32::from(height) << 16)
         }
         Some((_, piney_draw::Wrap::Region { mask, fix })) => {
             (Params(params.0 | Params::REGION), u32::from(mask) | u32::from(fix) << 16)

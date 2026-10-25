@@ -1989,9 +1989,7 @@ runs event 2's character flow through the World API.
 
 ## Unknown
 
-- Water 0's copy of the frame buffer is the whole frame, not the game's
-  128 x 128 ([Dun Loireag](town02.md#the-water-and-the-frame-buffer-copy)).
-  The town's fog is VU1's by each vertex's depth (`piney_draw::DepthFog`
+- The town's fog is VU1's by each vertex's depth (`piney_draw::DepthFog`
   on the town's `TownLights`, worklog 0145) but is not compared with the
   game's pictures. Kite's running steps raise their dust in a town as in
   the fields (`CheckNote`'s `ccEffPawSmoke` at his feet, `Kite::feet`,

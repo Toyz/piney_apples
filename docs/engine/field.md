@@ -146,7 +146,8 @@ and through `ccModel::SetUV(0, vftoi12(v$4933), 0, 1)` of the third's
 all three draw with both. It moves the three to the copy of the place
 nearest the player (`ccTransPosW2P`, `P2W`), draws the first and third on
 objLayer and the second on refLayer (+0x4d0, priority 30), its
-`OBJ_water00` sampling the picture under it (`waterUVModifi`). Then `u` and
+`OBJ_water00` sampling the picture under it (`waterUVModifi`) through the
+128 x 128 point-sampled copy `MakePacketDrawBuffTrans` makes into +0x53bc. Then `u` and
 `v` go on by 0.005, both back to 0 once `v` is past 1. `u$4930` and
 `v$4933` (gp 0x00378d4c, 0x00378d54) are statics of the executable and
 carry from field to field.

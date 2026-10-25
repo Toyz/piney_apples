@@ -84,6 +84,31 @@ fn fs(i: VOut) -> FOut {
         let tr = min((tc & vec2<u32>(m)) | vec2<u32>(f), dims - vec2<u32>(1u));
         t = textureLoad(tex, vec2<i32>(tr), 0);
     }
+    if ((i.params & (1u << 23u)) != 0u) {
+        // A point-sampled copy of the frame at a smaller size (width,
+        // height in the region word): each of its texels is the frame's
+        // pixel at that texel's centre, read with the draw's own filter
+        // (bit 24: nearest).
+        let n = vec2<f32>(f32(i.region & 0xffffu), f32(i.region >> 16u));
+        let dims = vec2<f32>(textureDimensions(tex));
+        let hi = n - vec2<f32>(1.0);
+        let px = dims - vec2<f32>(1.0);
+        if ((i.params & (1u << 24u)) != 0u) {
+            let c = clamp(floor(i.uv * n), vec2<f32>(0.0), hi);
+            t = textureLoad(tex, vec2<i32>(min(floor((c + 0.5) / n * dims), px)), 0);
+        } else {
+            let q = i.uv * n - vec2<f32>(0.5);
+            let b = floor(q);
+            let w = q - b;
+            let c00 = clamp(b, vec2<f32>(0.0), hi);
+            let c11 = clamp(b + vec2<f32>(1.0), vec2<f32>(0.0), hi);
+            let t00 = textureLoad(tex, vec2<i32>(min(floor((c00 + 0.5) / n * dims), px)), 0);
+            let t10 = textureLoad(tex, vec2<i32>(min(floor((vec2<f32>(c11.x, c00.y) + 0.5) / n * dims), px)), 0);
+            let t01 = textureLoad(tex, vec2<i32>(min(floor((vec2<f32>(c00.x, c11.y) + 0.5) / n * dims), px)), 0);
+            let t11 = textureLoad(tex, vec2<i32>(min(floor((c11 + 0.5) / n * dims), px)), 0);
+            t = mix(mix(t00, t10, w.x), mix(t01, t11, w.x), w.y);
+        }
+    }
     if ((i.params & (1u << 22u)) != 0u) {
         // A copy of the frame at a smaller size (width, height in the
         // region word), read bilinearly: each of the four texels is itself
@@ -594,15 +619,16 @@ impl Gs {
                                 }
                                 // The whole frame copied; the shader reads it
                                 // through the smaller texture's grid.
-                                TexRef::ScaledFrame { .. } => {
+                                TexRef::ScaledFrame { .. } | TexRef::SampledFrame { .. } => {
                                     copies.push(FrameCopy { before: draws.len(), x: 0, y: 0, width: w, height: h });
                                     Some(TexKey::Copy(copies.len() - 1))
                                 }
                             };
                             let size = match (&key, &ts.tex) {
-                                (_, &TexRef::ScaledFrame { width, height }) => {
-                                    Some((u32::from(width).max(1), u32::from(height).max(1)))
-                                }
+                                (
+                                    _,
+                                    &TexRef::ScaledFrame { width, height } | &TexRef::SampledFrame { width, height },
+                                ) => Some((u32::from(width).max(1), u32::from(height).max(1))),
                                 (Some(TexKey::Copy(n)), _) => Some((copies[*n].width, copies[*n].height)),
                                 (Some(TexKey::Previous), _) => Some((w, h)),
                                 _ => key.as_ref().and_then(|k| self.texture(k)),
@@ -647,9 +673,19 @@ impl Gs {
                             });
                             Some(TexKey::Copy(copies.len() - 1))
                         }
+                        // The frame point-sampled small: the whole frame
+                        // copied, read through the copy's grid.
+                        Some(&TexRef::SampledFrame { .. }) => {
+                            copies.push(FrameCopy { before: draws.len(), x: 0, y: 0, width: w, height: h });
+                            Some(TexKey::Copy(copies.len() - 1))
+                        }
                         Some(TexRef::Ccs { file, texture, clut }) => {
                             Some(TexKey::Ccs { file: file.clone(), texture: *texture, clut: *clut })
                         }
+                        _ => None,
+                    };
+                    let sampled = match m.edits.as_ref().and_then(|e| e.tex.as_ref()) {
+                        Some(&TexRef::SampledFrame { width, height }) => Some((width, height)),
                         _ => None,
                     };
                     // The texture coordinates the EE wrote over the model's.
@@ -740,6 +776,13 @@ impl Gs {
                             fog,
                             if m.fog.is_none() { m.depth_fog.as_ref() } else { None },
                         ));
+                        if let (Some((sw, sh)), true) = (sampled, swap.is_some() && key == swap) {
+                            let nearest = if m.tex.filter == Filter::Nearest { Params::SAMPLED_NEAREST } else { 0 };
+                            for v in &mut verts[first as usize..] {
+                                v.params |= Params::SAMPLED | nearest;
+                                v.region = u32::from(sw) | u32::from(sh) << 16;
+                            }
+                        }
                         let sampler = sampler_index(m.tex.filter, d.wrap);
                         let draw = Draw { pipe, tex: key, sampler, first, count: 0, fix, scissor: m.state.scissor };
                         push(&mut verts, &mut draws, draw, test);
@@ -2257,6 +2300,46 @@ mod tests {
         assert_eq!(reds[..2], [0, 0], "{reds:?}");
         assert!(reds[3].abs_diff(0x80) <= 2, "{reds:?}");
         assert_eq!(reds[4..], [0xff, 0xff], "{reds:?}");
+    }
+
+    /// The frame point-sampled into a small copy (`TexRef::SampledFrame`,
+    /// a water's `MakePacketDrawBuffTrans`): one red pixel column at x 64
+    /// is texel 0 of a 4-wide copy (each texel the pixel at its centre,
+    /// 64 + 128 i), read back unfiltered over the whole width: red over
+    /// the first quarter, black past it.
+    #[test]
+    fn a_sampled_frame_reads_the_pixels_at_its_texels_centres() {
+        let Some(mut gs) = gs() else { return };
+        let plain = DrawState::sprite(Blend::MIX, None);
+        let sprite = |x0: f32, x1: f32, y0: f32, y1: f32, uv: [f32; 4], rgba, st: DrawState| {
+            let v = |x, y, u, v| Vertex { x, y, u, v, rgba, ..Default::default() };
+            Cmd::Prim(Prim {
+                kind: PrimKind::Sprite,
+                gouraud: false,
+                state: st,
+                verts: vec![v(x0, y0, uv[0], uv[1]), v(x1, y1, uv[2], uv[3])],
+            })
+        };
+        let mut frame = Frame::new();
+        frame.cmds.push(sprite(0.0, 512.0, 0.0, 448.0, [0.0; 4], Rgba::new(0, 0, 0, 0x80), plain.clone()));
+        frame.cmds.push(sprite(64.0, 65.0, 0.0, 448.0, [0.0; 4], Rgba::new(0xff, 0, 0, 0x80), plain.clone()));
+        let sampled = DrawState {
+            blend: None,
+            texture: Some(piney_draw::TexState {
+                tex: TexRef::SampledFrame { width: 4, height: 1 },
+                func: piney_draw::TexFunc::Decal,
+                use_alpha: false,
+                filter: Filter::Nearest,
+                wrap: Wrap::Clamp,
+            }),
+            ..plain
+        };
+        frame.cmds.push(sprite(0.0, 512.0, 0.0, 448.0, [0.0, 0.0, 4.0, 1.0], Rgba::NEUTRAL, sampled));
+        gs.render(&frame);
+        let img = gs.read_back();
+        let w = gs.target_size().0;
+        let reds: Vec<u8> = [10u32, 120, 140, 300, 500].iter().map(|&x| pixel(&img, w, x, 200)[0]).collect();
+        assert_eq!(reds, [0xff, 0xff, 0, 0, 0]);
     }
 
     #[test]

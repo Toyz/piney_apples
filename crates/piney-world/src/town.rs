@@ -580,12 +580,10 @@ impl WaterZero {
     /// The model's texture coordinates and texture as the draw sends them.
     pub(crate) fn edits(&self) -> std::sync::Arc<piney_draw::VertexEdits> {
         let st = self.st.iter().flatten().enumerate().map(|(i, &st)| (0, i as u32, st)).collect();
-        let tex = piney_draw::TexRef::FrameBuffer {
-            x: 0,
-            y: 0,
-            width: piney_draw::SCREEN_WIDTH,
-            height: piney_draw::SCREEN_HEIGHT,
-        };
+        // MakePacketDrawBuffTrans: the picture point-sampled into the
+        // 128 x 128 texture the water samples (WORLD +0x53bc, a town's
+        // +0x1d4).
+        let tex = piney_draw::TexRef::SampledFrame { width: 128, height: 128 };
         std::sync::Arc::new(piney_draw::VertexEdits { st, tex: Some(tex), ..Default::default() })
     }
 }

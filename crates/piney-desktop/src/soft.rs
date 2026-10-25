@@ -276,6 +276,21 @@ impl Canvas {
         Image { w, h, texels }
     }
 
+    /// The whole buffer point-sampled into `width` x `height`
+    /// ([`TexRef::SampledFrame`]): each texel the pixel at its centre
+    /// scaled up.
+    fn sampled(&self, width: u16, height: u16) -> Image {
+        let (w, h) = (usize::from(width.max(1)), usize::from(height.max(1)));
+        let texels = (0..w * h)
+            .map(|i| {
+                let x = (((i % w) * 2 + 1) * self.w / (2 * w)).min(self.w - 1);
+                let y = (((i / w) * 2 + 1) * self.h / (2 * h)).min(self.h - 1);
+                self.px[y * self.w + x]
+            })
+            .collect();
+        Image { w, h, texels }
+    }
+
     /// The buffer as 8-bit RGBA for a PNG (alpha opaque).
     pub fn rgba(&self) -> Vec<u8> {
         self.px.iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect()
@@ -514,6 +529,7 @@ impl Canvas {
             &TexRef::FrameBuffer { x, y, width, height } => Some(Rc::new(self.region(x, y, width, height))),
             TexRef::PreviousFrame => Some(Rc::new(Image { w: self.w, h: self.h, texels: self.previous.clone() })),
             &TexRef::ScaledFrame { width, height } => Some(Rc::new(self.scaled(width, height))),
+            &TexRef::SampledFrame { width, height } => Some(Rc::new(self.sampled(width, height))),
         });
         let tex = match (&p.state.texture, &img) {
             (Some(t), Some(i)) => Some((i.as_ref(), t.func, t.use_alpha, t.filter, t.wrap)),
@@ -740,6 +756,18 @@ mod tests {
         assert_eq!(c.px[6 * 8][..3], [0, 0, 200]);
         assert_eq!(c.px[4][..3], [200, 0, 0]);
         assert_eq!(c.px[7][..3], [10, 10, 10]);
+    }
+
+    /// [`TexRef::SampledFrame`]: each texel the pixel at its centre, 8
+    /// wide into 2: pixels 2 and 6.
+    #[test]
+    fn a_sampled_frame_takes_its_texels_centres() {
+        let mut c = Canvas::new(8, 1, Rgba::new(0, 0, 0, 0));
+        for (x, p) in c.px.iter_mut().enumerate() {
+            *p = [x as u8 * 10, 0, 0, 0x80];
+        }
+        let img = c.sampled(2, 1);
+        assert_eq!(img.texels.iter().map(|t| t[0]).collect::<Vec<_>>(), [20, 60]);
     }
 
     #[test]

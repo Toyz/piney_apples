@@ -312,6 +312,12 @@ pub enum TexRef {
     /// at ((i + 0.5) W / `width`, (j + 0.5) H / `height`) pixels, W x H the
     /// frame, clamped at its edges.
     ScaledFrame { width: u16, height: u16 },
+    /// The whole frame buffer as it is when this command starts drawing,
+    /// copied into a `width` x `height` texture by one point-sampled
+    /// sprite (`ccLayer::MakePacketDrawBuffTrans`, TEX1 nearest): texel
+    /// (i, j) is the frame's pixel at ((i + 0.5) W / `width`, (j + 0.5) H /
+    /// `height`). The draw then reads that texture with its own filter.
+    SampledFrame { width: u16, height: u16 },
 }
 
 /// TEX0.TFX.

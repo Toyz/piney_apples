@@ -83,7 +83,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 ### render
 
 - [[38]] [[39]] [[72]] the field water's run-time textures and scroll, and the clouds' blending, are approximations (docs/engine/field.md, field-walk.md) — every field with water or clouds — answered by [[480]] (the lake's three animations, scrolls and refLayer mirror; `DrawBG`'s plain and hacked backgrounds, turns and aurora; tools/test_field_ambient_rs.py)
-- [[97]] water 0's frame-buffer copy is the whole frame, not the game's 128 x 128 point-sampled one (docs/engine/field-game.md, town02.md) — the towns' water
+- [[97]] water 0's frame-buffer copy is the whole frame, not the game's 128 x 128 point-sampled one (docs/engine/field-game.md, town02.md) — the towns' water — answered by [[481]] (`TexRef::SampledFrame` 128 x 128 for every `waterUVModifi` copy)
 - [[79]] [[231]] `SetFogSw` / `SetShadowSw` on the spell pieces (and on other objects that turn fog off; only the gate was fixed) and the drill's `ccDrawEnv` settings are not modelled (docs/engine/effects.md) — spells and objects fogged or shadowed where the game turns it off
 - [[79]] the explosions' palette swaps are kept on the element but not drawn (docs/engine/effects.md) — spell explosions' colours — answered by [[411]]: `ccAnm` draws carry their objects' palette swaps (`AnmObj::change_clut`); the explosion's `OBJ_x048`-`051` own `CLT_x048`-`051` (`the_explosions_substitutes_own_their_palettes`)
 - docs/engine/effects.md `ccEntryChangeCLUT` swaps every texture on the palette where the game swaps per material — enemies whose palette-swapped texture shares a palette
@@ -1299,7 +1299,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 
 ### docs/engine/field-game.md
 
-- docs/engine/field-game.md: water 0's frame-buffer copy is the whole frame, not the game's 128 x 128 — play (duplicates [[97]])
+- docs/engine/field-game.md: water 0's frame-buffer copy is the whole frame, not the game's 128 x 128 — play (duplicates [[97]]) — answered by [[481]]
 - docs/engine/field-game.md: the town's per-vertex fog not compared with the game's pictures — research (duplicates [[145]])
 - docs/engine/field-game.md: the areas' light values at frame 1 not checked — research (duplicates [[141]])
 - docs/engine/field-game.md: SetLightMatrix's second group at ccDrawEnv +0x88 — research (duplicates [[141]])
@@ -1479,7 +1479,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/town02.md: effEvolvePG's and effGrowPG's particles not compared — research (duplicates [[162]])
 - docs/engine/town02.md: the dogs' walks; the stuck count +0x21c — research (duplicates [[142]])
 - docs/engine/town02.md: EFF_srzsmo1's alpha test (clouds by colour) on the console — research (duplicates [[97]])
-- docs/engine/town02.md: the frame-buffer copy's size and point sampling — play (duplicates [[97]])
+- docs/engine/town02.md: the frame-buffer copy's size and point sampling — play (duplicates [[97]]) — answered by [[481]]; where within a texel the GS sprite samples is research
 - docs/engine/town02.md: whether water 0's coordinate has a local translation — research (duplicates [[97]])
 - docs/engine/town02.md: fieldrand on entering the town; the scrolls across visits — research (duplicates [[97]]); fieldrand answered by [[473]]; the scrolls by [[474]]
 
