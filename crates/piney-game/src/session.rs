@@ -2806,7 +2806,7 @@ mod tests {
     }
 
     /// What the story autopilot goes to the Chaos Gate for.
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     pub(super) enum GateGoal {
         /// The marked story area at this row of the Word List.
         Area(usize),

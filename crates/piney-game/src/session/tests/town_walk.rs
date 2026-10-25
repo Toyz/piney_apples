@@ -37,9 +37,15 @@ impl TownWalker {
             return None;
         }
         if f.is_multiple_of(60) {
+            // Stopped short: the place a step ahead of him closed (what
+            // stops him there the walls do not show: Mac Anu's weapon
+            // shop's way to the gate), and the turn he made for.
             if self.mark.is_some_and(|m| (m[0] - p[0]).hypot(m[1] - p[1]) < 60.0)
                 && let Some(&q) = self.path.first()
             {
+                let d = (q[0] - p[0]).hypot(q[1] - p[1]).max(1.0);
+                let ahead = [p[0] + (q[0] - p[0]) / d * 250.0, p[1] + (q[1] - p[1]) / d * 250.0];
+                self.avoid.push((ahead, f));
                 self.avoid.push((q, f));
             }
             self.mark = Some([p[0], p[1]]);
@@ -54,18 +60,31 @@ impl TownWalker {
             closed.extend(
                 people
                     .map(|q| [f32::from_bits(q[0]), f32::from_bits(q[1])])
-                    .filter(|q| (q[0] - to[0]).hypot(q[1] - to[1]) > 50.0),
+                    .filter(|q| (q[0] - to[0]).hypot(q[1] - to[1]) > 50.0)
+                    // One beside him would close his own cells (a member
+                    // just invited stands at his side): stepped round.
+                    .filter(|q| (q[0] - p[0]).hypot(q[1] - p[1]) > 250.0),
             );
             let look = super::survey::Look { n, step: 100.0, wide: self.wide, heights: &[30.0, 95.0], avoid: &closed };
             let near = self.near - 10.0;
             let goal = |q: [f32; 2], _| (q[0] - to[0]).hypot(q[1] - to[1]) < near;
-            self.path = super::survey::path_wide(&world.town().base.hits, [p[0], p[1], p[2]], mid, &look, goal);
+            let hits = &world.town().base.hits;
+            self.path = super::survey::path_wide(hits, [p[0], p[1], p[2]], mid, &look, goal);
+            // No way round them all (one standing in a lane): round the
+            // places he stopped at only, else round nothing.
+            let stopped: Vec<[f32; 2]> = self.avoid.iter().map(|&(q, _)| q).collect();
+            for avoid in [&stopped[..], &[]] {
+                if self.path.is_empty() {
+                    let look = super::survey::Look { avoid, ..look };
+                    self.path = super::survey::path_wide(hits, [p[0], p[1], p[2]], mid, &look, goal);
+                }
+            }
         }
         while self.path.len() > 1 && (self.path[0][0] - p[0]).hypot(self.path[0][1] - p[1]) < 100.0 {
             self.path.remove(0);
         }
         let q = self.path.first().copied().unwrap_or(to);
         let cam_z = f32::from_bits(world.camera().rot()[2]);
-        Some(super::stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
+        Some(super::survey::run_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
 }

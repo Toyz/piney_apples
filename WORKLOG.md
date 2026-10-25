@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-475 entries: audio 40, battle 124, build 20, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 120, save 16, script 57, test 223, tooling 45, ui 97, video 16, volumes 89, world 136.
+476 entries: audio 40, battle 125, build 20, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 120, save 16, script 57, test 224, tooling 45, ui 97, video 16, volumes 89, world 136.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -487,3 +487,4 @@ The [reference](docs/README.md) says what is true now.
 | 473 | [fieldrand is one stream and gcmn's scrolls outlive their maps: the story maps' clouds draw on from the scene before, WORLD_MAN::Init seeds it at log in, and EA_moveTex02 and 04-07 carry across visits](worklog/0473-fieldrand-is-one-stream-and-gcmn-s-scrolls-outlive-their.md) | 2026-10-25 | world, engine, test |
 | 474 | [Root Towns' scroll statics live in the executable's data and carry across visits, log ins and resets, with the arena's, dungeons' and field's; test_evarea_rs passes on all four volumes](worklog/0474-root-towns-scroll-statics-live-in-the-executable-s-data-and.md) | 2026-10-25 | world, test |
 | 475 | [Field 18's lone Kite is the story's rule; the pilot detours to grind before it, reads the gate's area levels, casts charms, sells its spare items, and farms Virus Cores where foes give them](worklog/0475-field-18-s-lone-kite-is-the-story-s-rule-the-pilot-detours.md) | 2026-10-25 | test, battle |
+| 476 | [The pilot buys and wears a better weapon, walks lone Kite past field 18's foes, grinds where kills pay and holds the members back for drains; Infection reaches area 18's dungeon](worklog/0476-the-pilot-buys-and-wears-a-better-weapon-walks-lone-kite.md) | 2026-10-25 | test, battle |
