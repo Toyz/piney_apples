@@ -196,7 +196,9 @@ made about the player where he stands at the first `Draw` (the arrival's
 start). `EVENTAREA04`-`07`, `EVENTAREAB8` and `ROOTTOWN04` use the class
 too. `fieldrand`'s `seed` is a global: `WORLD_MAN::Init` (main 0x0019ccb0)
 seeds it with the frame count and the area words it picks, and every
-field and dungeon since reseeds it; the executable holds 13.
+field and dungeon since reseeds it; the executable holds 13. The port
+keeps it as one stream in `SaveState::field_rand` (worklog 473,
+docs/engine/evarea.md).
 
 ## LENSFLARE
 
@@ -452,8 +454,9 @@ starts Kite at `start_position`; the session changes scene to either town.
 
 The port's copy is the whole 512 x 448 frame sampled at the same
 fractions, not the game's 128 x 128 point-sampled one, so the refraction
-is sharper than the game's. The clouds' `fieldrand` starts from 13 with
-each town (`DunLoireag::rng`); the scrolls start at 0.
+is sharper than the game's. The clouds draw on from the game's
+`fieldrand` as the scene before left it (`Town::open_with`); the scrolls
+start at 0.
 
 ## Checks
 
@@ -540,5 +543,5 @@ grown Little Grunty (`scratch/grunties/shots`).
 - Whether water 0's coordinate has a local translation: the animation has
   no record for it, so the port takes the root alone (`(0, 4200, 0)`,
   `+0x70` zero) for the reach; checked only as inputs to `waterUVModifi2`.
-- `fieldrand`'s state on entering the town, and the scrolls across visits
-  (above).
+- The scrolls across visits (above). `fieldrand`'s state on entering the
+  town is answered by worklog 473.

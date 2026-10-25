@@ -39,7 +39,7 @@ from volume import ELF, ISO, ROOT, va as inf_va  # noqa: E402  # PINEY_VOLUME's 
 EXAMPLE = os.path.join(os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "target")), "release", "examples",
                        "area_probe")
 
-WM, WP, GAME, SAVE, STR = 0x01800000, 0x01801000, 0x01802000, 0x01810000, 0x01820000
+WM, WP, GAME, SAVE, STR, SYS = 0x01800000, 0x01801000, 0x01802000, 0x01810000, 0x01820000, 0x01830000
 SEED, RANDCNT = inf_va(0x00377D20), inf_va(0x00378A80)  # the RNG's globals
 CRISIS = 0x6772                                # saveData.crisis
 ATTRS = ("fieldType", "dungeonSize", "weather", "ground", "object", "areaLevel", "enemyOfs", "itemOfs",
@@ -130,6 +130,24 @@ class Game:
                     m.hooks[k] = v
         assert len(calls) == 1, calls
         return calls[0]
+
+    def init(self, count, server):
+        """WORLD_MAN::Init in ccSetupNewGame, ccSys.count `count`: the
+        globals seed and randcnt it leaves."""
+        m = self.m
+        self.clear(WM, 0x4E0)
+        self.clear(WP, 0x30)
+        self.clear(SAVE, 0x8530)
+        self.clear(GAME, 0x88)
+        self.clear(SYS, 0x400)
+        m.store(self.sym("ccSys"), 4, SYS)
+        m.store(SYS + 0x358, 4, count)
+        m.store(GAME + 0x1C, 4, server)
+        m.store(WM + 0x158, 4, WP)
+        m.store(self.vol, 4, self.volume)
+        m.store(RANDCNT, 4, 5)
+        m.call(self.sym("Init__9WORLD_MANFv"), (WM,))
+        return {"seed": m.load(SEED, 4), "randcnt": m.load(RANDCNT, 4)}
 
     def protect(self, n):
         self.m.store(WM + 0x120, 4, n & 0xFFFFFFFF)
@@ -277,6 +295,16 @@ class TestAreaRs(unittest.TestCase):
         got = ask([f"wordid {t}" for t in texts])
         for t, r in zip(texts, got):
             self.assertEqual(r["id"], self.game.word_id(t), t)
+
+    def test_world_man_init(self):
+        """WORLD_MAN::Init's fieldrand over 300 frame counts on each server
+        (its retries for story areas and lakes among them)."""
+        rnd = random.Random(74)
+        cases = [(c, s) for s in range(5) for c in [0, 1, 2, 3, 1000] + [rnd.randrange(1 << 32) for _ in range(55)]]
+        got = ask([f"init {c} {s}" for c, s in cases])
+        for (c, s), r in zip(cases, got):
+            self.assertEqual(r, self.game.init(c, s), (c, s))
+        print(f"\nWORLD_MAN::Init: {len(cases)} counts, 0 mismatches", file=sys.stderr)
 
 
 if __name__ == "__main__":

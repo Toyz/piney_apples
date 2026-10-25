@@ -294,3 +294,169 @@ fn mirror_world_shots() {
         }
     }
 }
+
+/// Mutation logged in to Dun Loireag (Theta) after event 115, its tasks
+/// run 100 frames (its clouds draw from `fieldrand`).
+fn in_dun_loireag() -> Option<(Session, &'static piney_data::area::AreaTables)> {
+    let iso = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
+    if !iso.exists() {
+        eprintln!("mutation.iso not present; skipped");
+        return None;
+    }
+    let mut d = Iso::open(&iso).unwrap();
+    let archive = Arc::new(Archive::new(d.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let tables = crate::area::area_tables(&mut d).unwrap();
+    let (mut state, vm) = crate::start::state_at(&iso, 116).unwrap();
+    state.save.set_u8(offset::LAST_TOWN, piney_world::DUN_LOIREAG as u8);
+    let scene = piney_world::area::Scene::log_in(&mut state.save);
+    let mut s = Session::in_world(iso, archive, None, state, Some(vm), scene, None).unwrap();
+    let mut pad = Pad::default();
+    for _ in 0..300 {
+        pad.read(&still());
+        s.step(&pad);
+        s.take_events();
+    }
+    assert!(matches!(s.stage, Stage::World(_)), "{}", Mode::title(&s));
+    Some((s, tables))
+}
+
+/// The gate's words for area 66, and the session stepped until the
+/// Mirror World's map is up: its `fieldrand` and scroll as made, before
+/// its first stepped `Draw`.
+fn gate_to_66(s: &mut Session, tables: &piney_data::area::AreaTables) -> (piney_data::dungeon::Rng, [u32; 2]) {
+    use piney_world::evarea_sky::SkyMap;
+    let code = piney_data::area::story_area_code(tables, 66, false).unwrap();
+    s.go(Pending::Words([code.a, code.b, code.c]));
+    let mut pad = Pad::default();
+    for _ in 0..400 {
+        pad.read(&still());
+        s.step(&pad);
+        s.take_events();
+        if let Stage::Area(a) = &s.stage
+            && let Some(m) = a.world().place().story::<SkyMap>()
+        {
+            assert!(!m.started, "the map drew before the first look");
+            return (m.rng, m.move_tex.scroll());
+        }
+    }
+    panic!("no Mirror World: {}", Mode::title(s));
+}
+
+/// Worklog 473: the sky maps' clouds draw from `fieldrand`, the game's one
+/// stream. `GO(1)` sets no seed for a story map, so the gate's
+/// `SimGenerateCode` (the code of area 66's words, moved on by 13 draws)
+/// is where the Mirror World's clouds begin, whatever the town drew
+/// before. Before, the map started its own from 0.
+#[test]
+fn the_mirror_worlds_clouds_draw_on_from_the_gates_words() {
+    let Some((mut s, tables)) = in_dun_loireag() else { return };
+    let code = piney_data::area::story_area_code(tables, 66, false).unwrap();
+    let (rng, _) = gate_to_66(&mut s, tables);
+    assert_eq!(rng.seed, code.seed);
+    assert_ne!(rng.seed, 0);
+}
+
+/// Worklog 473: `EA_moveTex04`'s scroll is gcmn's data. It carries on
+/// from the last visit to field 66 (out to the town and back), and only
+/// `ccSetupNewGame`'s load of GCMN.PRG (log in) sets it to 0 again.
+/// Before, each map started its scroll at 0.
+#[test]
+fn the_mirror_worlds_scroll_carries_across_visits() {
+    use piney_world::evarea_sky::SkyMap;
+    let Some((mut s, tables)) = in_dun_loireag() else { return };
+    let (_, first) = gate_to_66(&mut s, tables);
+    assert_eq!(first, [0, 0], "a new log in's scroll");
+    let mut pad = Pad::default();
+    for _ in 0..300 {
+        pad.read(&still());
+        s.step(&pad);
+        s.take_events();
+    }
+    // Gate Out: the scroll the map leaves is the last it drew.
+    let Stage::Area(a) = &mut s.stage else { panic!("{}", Mode::title(&s)) };
+    a.gate_out();
+    a.vm_mut().unwrap().disable();
+    let mut left = [0; 2];
+    for _ in 0..400 {
+        if let Stage::Area(a) = &s.stage
+            && let Some(m) = a.world().place().story::<SkyMap>()
+        {
+            left = m.move_tex.scroll();
+        }
+        if matches!(s.stage, Stage::World(_)) {
+            break;
+        }
+        pad.read(&still());
+        s.step(&pad);
+        s.take_events();
+    }
+    assert!(matches!(s.stage, Stage::World(_)), "{}", Mode::title(&s));
+    assert_ne!(left, [0, 0], "the scroll never moved");
+    let Stage::World(w) = &s.stage else { unreachable!() };
+    assert_eq!(w.world().state().move_tex[piney_world::evarea::scroll::EA04], left, "the town carries gcmn's data");
+    for _ in 0..100 {
+        pad.read(&still());
+        s.step(&pad);
+        s.take_events();
+    }
+    let (_, again) = gate_to_66(&mut s, tables);
+    assert_eq!(again, left, "the second visit's scroll");
+    // Log in loads GCMN.PRG again.
+    let Stage::Area(a) = &s.stage else { unreachable!() };
+    let mut state = a.world().state_out();
+    crate::session::log_in(&s.iso, &mut state, 0);
+    assert_eq!(state.move_tex, [[0; 2]; piney_desktop::MOVE_TEX_ROWS]);
+}
+
+/// Worklog 473: area 15's `EA_moveTex02` is gcmn's data too: Infection's
+/// holy ground, left by Gate Out and entered again by the gate's words,
+/// goes on with the clouds' scroll where it was.
+#[test]
+fn the_holy_grounds_scroll_carries_across_visits() {
+    use piney_world::evarea::{EventArea, scroll};
+    let Some((iso, archive)) = crate::session::area15::disc() else { return };
+    let mut d = Iso::open(&iso).unwrap();
+    let tables = crate::area::area_tables(&mut d).unwrap();
+    let code = piney_data::area::story_area_code(tables, 15, false).unwrap();
+    let mut s = crate::session::area15::start(&iso, &archive, None);
+    let mut pad = Pad::default();
+    let mut step = |s: &mut Session| {
+        pad.read(&still());
+        s.step(&pad);
+        s.take_events();
+    };
+    let scroll_of = |s: &Session| match &s.stage {
+        Stage::Area(a) => a.world().place().story::<EventArea>().map(|e| e.move_tex[0].scroll()),
+        _ => None,
+    };
+    let mut visit = |s: &mut Session| {
+        for _ in 0..200 {
+            step(s);
+        }
+        s.go(Pending::Words([code.a, code.b, code.c]));
+        let mut first = None;
+        for _ in 0..700 {
+            step(s);
+            first = first.or(scroll_of(s));
+        }
+        let Stage::Area(a) = &mut s.stage else { panic!("{}", Mode::title(s)) };
+        a.gate_out();
+        a.vm_mut().into_iter().for_each(|v| v.disable());
+        let mut left = None;
+        for _ in 0..400 {
+            left = scroll_of(s).or(left);
+            if matches!(s.stage, Stage::World(_)) {
+                break;
+            }
+            step(s);
+        }
+        (first.expect("the holy ground"), left.expect("the holy ground's last scroll"))
+    };
+    let (first, left) = visit(&mut s);
+    assert_eq!(first, [0, 0], "a new log in's scroll");
+    assert_ne!(left, [0, 0], "the scroll never moved");
+    let Stage::World(w) = &s.stage else { panic!("{}", Mode::title(&s)) };
+    assert_eq!(w.world().state().move_tex[scroll::EA02], left);
+    let (again, _) = visit(&mut s);
+    assert_eq!(again, left, "the second visit's scroll");
+}

@@ -65,6 +65,8 @@ pub struct Generated {
     pub base: Word,
     /// +0x120 `eventAreaNumber`: the story area the words name, 0 none.
     pub event: i32,
+    /// `fieldrand`'s `seed` afterwards: the code moved on by 13 draws.
+    pub seed: u32,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -224,6 +226,7 @@ impl Words {
         base.fields[6] = (rand() % 20) as i32 - 9;
         base.fields[7] = (rand() % 20) as i32 - 9;
         base.fields[8] = (rand() % 3) as i32;
+        let seed = seed;
         let mut merged = order[0].clone();
         merge(&mut merged, &order[1]);
         merge(&mut merged, &order[2]);
@@ -250,7 +253,7 @@ impl Words {
         if base.fields[1] >= 11 {
             base.fields[1] = 1;
         }
-        Generated { ids, base, event }
+        Generated { ids, base, event, seed }
     }
 }
 

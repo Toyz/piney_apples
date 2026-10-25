@@ -339,7 +339,7 @@ pub fn state_at(iso: &Path, n: i32) -> Result<(SaveState, Vm), String> {
         vm.flag_set(e, &mut Replay { save: &mut state.save, areas: &areas });
         // The first Log in, which the story's second event opens after.
         if e == story[0] {
-            crate::session::log_in(iso, &mut state);
+            crate::session::log_in(iso, &mut state, 0);
         }
     }
     let goes = goes(&vm, n);

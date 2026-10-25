@@ -4,8 +4,8 @@
 //! sky, clouds and sun clumps, 25 `CLOUD`s, the lens flare, and three waters,
 //! one drawn through a frame-buffer copy (docs/engine/town02.md). The game's
 //! scroll statics carry across visits; here they start at 0 with each town.
-//! The clouds draw from `fieldrand`, which starts from 13 unless the host sets
-//! [`DunLoireag::rng`].
+//! The clouds draw from `fieldrand`, the game's one stream, which the town
+//! takes from the scene before ([`crate::town::Town::open_with`]).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -89,9 +89,6 @@ const WATER_STEP: F = 0x3ba3_d70a;
 const K4096: F = 0x4580_0000;
 /// The `CLOUD`s `Draw` makes on its first call (+0x1d8, type 0).
 pub const CLOUDS: usize = 25;
-/// The area generator's `seed` (main 0x00377d20) as the executable holds
-/// it.
-pub const FIELD_SEED: u32 = 13;
 
 /// `WORLD_MAN`'s layers (`GO`, `ccLayer::Init` priorities) the town draws
 /// on besides `objLayer`.
@@ -216,7 +213,7 @@ pub fn new(archive: &Arc<Archive>, crisis: bool) -> Result<Town> {
         started: false,
         clouds: Vec::new(),
         pat_num,
-        rng: Rng::new(FIELD_SEED),
+        rng: Rng::POWER_ON,
         flares: None,
     };
     Ok(Town::new(base, d))
@@ -364,6 +361,13 @@ impl DunLoireag {
 }
 
 impl RootTown for DunLoireag {
+    fn field_rand(&self) -> Option<&Rng> {
+        Some(&self.rng)
+    }
+    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
+        Some(&mut self.rng)
+    }
+
     fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
         let pieces = self.select(base, v);
         self.draw_pieces(base, layers, to_screen, &pieces)

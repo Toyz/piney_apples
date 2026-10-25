@@ -87,14 +87,14 @@ pub struct Area13 {
     pub glows: [Glow; 7],
     /// The glow's pattern count (`ccEff` +0x30).
     pub pat_num: u16,
-    /// `fieldrand`: `GO(1)` sets no seed for a story map; the map keeps its
-    /// own, from 0.
+    /// `fieldrand`, the game's one stream: `GO(1)` sets no seed for a story
+    /// map, so the map draws on from where the scene before left it.
     pub rng: Rng,
 }
 
 impl Area13 {
-    /// `EVENTAREA01::EVENTAREA01`.
-    pub fn new(archive: &Arc<Archive>, volume: Volume, def_se: u32) -> Result<Area13> {
+    /// `EVENTAREA01::EVENTAREA01`, `fieldrand` the game's (`rng`).
+    pub fn new(archive: &Arc<Archive>, volume: Volume, def_se: u32, rng: Rng) -> Result<Area13> {
         let mut base = Base::read_volume(archive, volume, FILE, &SPEC)?;
         let (c, sc) = (&base.file.ccs, &base.file.scene);
         // The collision: the models' Hit chunks, in the order the
@@ -116,7 +116,7 @@ impl Area13 {
         let pat_num = crate::cloud::eff_pat_num(c, EFF).ok_or_else(|| Error::NotFound(format!("{FILE}: {EFF}")))?;
         // Each glow: its frame, its wait and its flicker drawn from
         // fieldrand in that order; then the places.
-        let mut rng = Rng::new(0);
+        let mut rng = rng;
         let mut glows = [Glow { pos: [0, 0, 0, ONE], frame: 0, wait: 0, count: 0 }; 7];
         for g in &mut glows {
             g.frame = rng.below(u32::from(pat_num));
@@ -177,6 +177,12 @@ impl Area13 {
 }
 
 impl StoryMap for Area13 {
+    fn field_rand(&self) -> Option<&Rng> {
+        Some(&self.rng)
+    }
+    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
+        Some(&mut self.rng)
+    }
     fn hits(&self) -> &Hits {
         &self.base.hits
     }
@@ -283,7 +289,7 @@ mod tests {
     #[test]
     fn area_13() {
         let Some(archive) = archive() else { return };
-        let mut a = Area13::new(&archive, Volume::Mut, 0).unwrap();
+        let mut a = Area13::new(&archive, Volume::Mut, 0, Rng::new(0)).unwrap();
         assert_eq!((0..7).filter(|&r| a.base.model(r).is_some()).count(), 7);
         assert!(a.base.object(0).is_some());
         assert_eq!(a.base.lights.lights.len(), 11);

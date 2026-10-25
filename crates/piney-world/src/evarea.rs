@@ -74,6 +74,19 @@ pub fn rev_root() -> [V4; 4] {
     crate::town::pos_rot_zyx(REV_POS, REV_ROT)
 }
 
+/// Where each map's `EA_moveTex` rows keep their scroll in
+/// `SaveState::move_tex`: gcmn's data, which lasts from `ccSetupNewGame`'s
+/// load of GCMN.PRG to the next, across visits.
+pub mod scroll {
+    /// `EA_moveTex02`'s two rows.
+    pub const EA02: usize = 0;
+    pub const EA04: usize = 2;
+    pub const EA05: usize = 3;
+    pub const EA06: usize = 4;
+    /// `EA_moveTex07`'s two rows.
+    pub const EA07: usize = 5;
+}
+
 /// A `MOVETEX` (0x14 bytes).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MoveTex {
@@ -97,6 +110,17 @@ impl MoveTex {
         if !ee::le(self.v, ONE) {
             self.v = 0;
         }
+    }
+
+    /// The row with its scroll as gcmn's data holds it (`state[row]`).
+    pub fn at(self, state: &[[u32; 2]], row: usize) -> MoveTex {
+        let [u, v] = state.get(row).copied().unwrap_or_default();
+        MoveTex { u, v, ..self }
+    }
+
+    /// The scroll (u, v), for gcmn's data.
+    pub fn scroll(&self) -> [u32; 2] {
+        [self.u, self.v]
     }
 
     /// `vftoi12(u)`, `vftoi12(v)` as 16-bit offsets.

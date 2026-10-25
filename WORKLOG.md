@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-472 entries: audio 40, battle 123, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 120, save 16, script 57, test 220, tooling 45, ui 97, video 16, volumes 89, world 134.
+473 entries: audio 40, battle 123, build 20, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 120, save 16, script 57, test 221, tooling 45, ui 97, video 16, volumes 89, world 135.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -484,3 +484,4 @@ The [reference](docs/README.md) says what is true now.
 | 470 | [A kill's experience is the game's: ccExpDistributor, the level table and the level-ups agree natively on all four volumes, so Infection's slow levels are the pilot's few kills](worklog/0470-a-kill-s-experience-is-the-game-s-ccexpdistributor-the.md) | 2026-10-24 | battle, test |
 | 471 | [Infection's no-aid run passes event 14's Data Bug at level 7 and ends events up to 16: grinding in any field, rests for SP, boxes opened, skills at a Data Bug's protect](worklog/0471-infection-s-no-aid-run-passes-event-14-s-data-bug-at-level.md) | 2026-10-24 | test, battle |
 | 472 | [Bitter Fantasy Mirror World is its own map: EVENTAREA04-06 ported, so field 66 has its ground and area 66's last door reaches the arena and its fight (#74)](worklog/0472-bitter-fantasy-mirror-world-is-its-own-map-eventarea04-06.md) | 2026-10-25 | world, test |
+| 473 | [fieldrand is one stream and gcmn's scrolls outlive their maps: the story maps' clouds draw on from the scene before, WORLD_MAN::Init seeds it at log in, and EA_moveTex02 and 04-07 carry across visits](worklog/0473-fieldrand-is-one-stream-and-gcmn-s-scrolls-outlive-their.md) | 2026-10-25 | world, engine, test |

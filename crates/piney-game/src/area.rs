@@ -1387,6 +1387,8 @@ impl AreaMode {
     fn menu_request(&mut self, r: piney_fieldui::Request) {
         use piney_fieldui::Request as R;
         match r {
+            // The gate menu's SimGenerateCode reseeds fieldrand.
+            R::FieldSeed(seed) => self.world.set_field_seed(seed),
             // The Grunty Flute's: ccClearConditionAllEnemy, ccPuccigusoStart.
             R::ItemStep(piney_battle::item::Step::ClearConditionAllEnemy) => {
                 self.world.combat_mut().clear_condition_all_enemy();
@@ -2013,6 +2015,25 @@ pub fn ev_area_number(
     let tables = area_tables(&mut disc)?;
     let crisis = save.u8(offset::CRISIS) != 0;
     Ok(wm.with_event_number(tables, n, piney_data::area::flag71(save), crisis))
+}
+
+/// `SimGenerateCode`'s mark on `state.field_rand` (`AreaCode::field_rand`):
+/// of the gate's `words`, or (`words` None) of story area `n`'s past 13 as
+/// instruction 118 `area n` makes it; `n` 1-13 make nothing. On `server`.
+pub fn sim_field_rand(iso: &Path, words: Option<[i32; 3]>, n: i32, server: i32, state: &mut SaveState) {
+    use piney_data::area::{EvArea, ev_area, flag71, sim_generate_code};
+    let Ok(tables) = Iso::open(iso).map_err(|e| e.to_string()).and_then(|mut d| area_tables(&mut d)) else { return };
+    let f71 = flag71(&state.save);
+    let code = match words {
+        Some([a, b, c]) => sim_generate_code(tables, a, b, c, server, f71),
+        None => match ev_area(tables, n, server, f71) {
+            EvArea::Generated(code) => Some(code),
+            _ => None,
+        },
+    };
+    if let Some(code) = code {
+        state.field_rand = code.field_rand(state.field_rand);
+    }
 }
 
 /// `WORLD_MAN::SetGenerateCode(a, b, c)` on `server` with `save`'s flags:

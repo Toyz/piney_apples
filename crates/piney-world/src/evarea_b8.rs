@@ -186,7 +186,8 @@ pub struct DiscArea {
     pub body_anm: Option<Play>,
     pub bodies: Vec<(u32, Vec<u32>, V4)>,
     body_models: Vec<Vec<HitModel>>,
-    /// `fieldrand` (the map's own; `GO(1)` sets no seed for a story map).
+    /// `fieldrand`, the game's one stream (`GO(1)` sets no seed for a
+    /// story map).
     pub rng: Rng,
     hit_models: Vec<HitModel>,
     pub hits: Hits,
@@ -255,13 +256,15 @@ pub fn set_float_rock_param(
 
 impl DiscArea {
     /// `EVENTAREAB8::EVENTAREAB8` for `field` (9-12), `field_prev`
-    /// `game.fieldPrev`; `fieldrand` from 0, `ccRand` the game's.
+    /// `game.fieldPrev`; `fieldrand` (`rng`) and `ccRand` the game's.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         archive: &Arc<Archive>,
         volume: Volume,
         field: i32,
         field_prev: i32,
         def_se: u32,
+        rng: Rng,
         cc: &mut dyn CcRand,
     ) -> Result<DiscArea> {
         if !is_disc(field) {
@@ -365,7 +368,7 @@ impl DiscArea {
             body_anm: None,
             bodies: Vec::new(),
             body_models: Vec::new(),
-            rng: Rng::new(0),
+            rng,
             hit_models,
             hits,
         };
@@ -770,6 +773,12 @@ impl DiscArea {
 }
 
 impl StoryMap for DiscArea {
+    fn field_rand(&self) -> Option<&Rng> {
+        Some(&self.rng)
+    }
+    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
+        Some(&mut self.rng)
+    }
     fn hits(&self) -> &Hits {
         &self.hits
     }
@@ -866,7 +875,7 @@ mod tests {
     fn the_disc_of_field_9() {
         let Some(archive) = archive() else { return };
         let mut cc = Genrand::default();
-        let a = DiscArea::new(&archive, Volume::Mut, 9, 0, 0, &mut cc).unwrap();
+        let a = DiscArea::new(&archive, Volume::Mut, 9, 0, 0, Rng::new(0), &mut cc).unwrap();
         let name = |o: u32| a.file.ccs.object_name(o).unwrap().to_string();
         assert_eq!(a.models.len(), 1);
         assert_eq!(name(a.models[0].model), "MDL_se1_6flo1");
@@ -899,7 +908,7 @@ mod tests {
     fn the_disc_rides_to_its_end() {
         let Some(archive) = archive() else { return };
         let mut cc = Genrand::default();
-        let mut a = DiscArea::new(&archive, Volume::Mut, 9, 0, 0, &mut cc).unwrap();
+        let mut a = DiscArea::new(&archive, Volume::Mut, 9, 0, 0, Rng::new(0), &mut cc).unwrap();
         let v = TownView::default();
         let first = a.trans_center().unwrap();
         let mut prev = a.disc_prev;
@@ -930,7 +939,7 @@ mod tests {
     fn the_later_discs_stop_at_their_stages() {
         let Some(archive) = archive() else { return };
         let mut cc = Genrand::default();
-        let mut a = DiscArea::new(&archive, Volume::Mut, 10, 0, 0, &mut cc).unwrap();
+        let mut a = DiscArea::new(&archive, Volume::Mut, 10, 0, 0, Rng::new(0), &mut cc).unwrap();
         let v = TownView::default();
         let mut n = 0;
         while a.is_move() && n < 2000 {

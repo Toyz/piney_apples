@@ -73,8 +73,6 @@ const SPEC: Spec = Spec {
 /// `DrawBG`'s scrolls a frame (OUT gp 0x00386ee0..0x00386ee8): 0.01, 0.02
 /// and 0.001.
 const BG_STEP: [F; 3] = [0x3c23_d70a, 0x3ca3_d70a, 0x3a83_126f];
-/// The area generator's `seed` as the executable holds it.
-pub const FIELD_SEED: u32 = 13;
 
 /// `WORLD_MAN`'s layers the town draws on besides `objLayer`.
 pub mod layer {
@@ -122,11 +120,11 @@ pub struct LiaFail {
 }
 
 /// `ROOTTOWN05::ROOTTOWN05`: `town05` (whatever the crisis byte says).
-pub fn new(archive: &Arc<Archive>, _crisis: bool) -> Result<Town> {
+pub fn new(archive: &Arc<Archive>, _crisis: bool, rng: Rng) -> Result<Town> {
     let base = Base::read(archive, FILE, &SPEC)?;
     let file = base.file.clone();
     let pat_num = cloud::eff_pat_num(&file.ccs, GLOW).ok_or_else(|| Error::NotFound(format!("{FILE}: {GLOW}")))?.max(1);
-    let mut rng = Rng::new(FIELD_SEED);
+    let mut rng = rng;
     let glows = std::array::from_fn(|_| {
         let frame = rng.below(u32::from(pat_num)) as u16;
         let wait = rng.below(100) as i32 + 30;
@@ -217,6 +215,13 @@ impl LiaFail {
 }
 
 impl RootTown for LiaFail {
+    fn field_rand(&self) -> Option<&Rng> {
+        Some(&self.rng)
+    }
+    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
+        Some(&mut self.rng)
+    }
+
     fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
         let pieces = self.select(base, v);
         self.draw_pieces(base, layers, to_screen, &pieces)
@@ -233,7 +238,7 @@ mod tests {
     #[test]
     fn constructor() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let t = new(&archive, false).unwrap();
+        let t = new(&archive, false, Rng::POWER_ON).unwrap();
         let b = &t.base;
         assert_eq!(b.no, NO);
         assert_eq!((0..7).filter(|&r| b.model(r).is_some()).count(), 7);
@@ -252,7 +257,7 @@ mod tests {
     #[test]
     fn a_frame() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let mut t = new(&archive, false).unwrap();
+        let mut t = new(&archive, false, Rng::POWER_ON).unwrap();
         let (base, d) = t.parts_mut::<LiaFail>().unwrap();
         let before = d.glows;
         let p = d.select(base, &TownView::default());

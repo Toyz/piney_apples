@@ -144,7 +144,8 @@ fn main() {
                 println!("{{\"to\": {to}, \"state\": {}}}", state(a));
             }
             Some("arena") => {
-                let a = Arena::new_seeded(&archive, volume, n(1) as i32, 0, n(2)).unwrap();
+                let a =
+                    Arena::new_seeded(&archive, volume, n(1) as i32, 0, piney_data::dungeon::Rng::new(n(2))).unwrap();
                 println!("{}", arena_state(&a));
                 arena = Some(a);
             }

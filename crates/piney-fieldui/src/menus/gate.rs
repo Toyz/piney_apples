@@ -119,9 +119,12 @@ fn address(x: &Ctx, ids: [i32; 3]) -> Vec<u8> {
     s
 }
 
-fn generate(m: &mut MenuCtrl, x: &Ctx, ids: [i32; 3]) {
+fn generate(m: &mut MenuCtrl, x: &mut Ctx, ids: [i32; 3]) {
     let flag71 = (x.save.save.i32(FLAG71 + 4) as u32 >> 30) & 1 != 0;
     m.generated = x.texts.words.generate(ids, x.world.game.server, flag71);
+    // SimGenerateCode reseeds the game's one fieldrand: the town's or
+    // field's draws go on from there.
+    x.req.push(Request::FieldSeed(m.generated.seed));
 }
 
 fn temp3(m: &MenuCtrl) -> [i32; 3] {
@@ -666,7 +669,7 @@ fn list_open(m: &mut MenuCtrl, x: &Ctx, n: usize, cursors: bool) {
 }
 
 /// The confirmation for a listed address (proccess 3).
-fn list_confirm(m: &mut MenuCtrl, x: &Ctx, ids: [i32; 3]) {
+fn list_confirm(m: &mut MenuCtrl, x: &mut Ctx, ids: [i32; 3]) {
     let i = idx(m);
     m.temp[..3].copy_from_slice(&ids);
     m.menu_status = 1;

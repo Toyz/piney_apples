@@ -146,18 +146,34 @@ pub struct Session {
     settings_stage: u8,
 }
 
-/// Log in's `ccSetupNewGame` (main 0x001687a0), its part in the save:
+/// Log in's `ccSetupNewGame` (main 0x001687a0), its part in the state:
 /// `InitSpcParam` (a new game's kit while `newGameFlag` is 0),
 /// `newGameFlag` = 1, `SetSpcBaseMsg`
-/// ([`piney_fieldui::newgame::setup_new_game`]).
-pub(crate) fn log_in(iso: &std::path::Path, state: &mut SaveState) {
-    let done = Iso::open(iso)
-        .map_err(|e| e.to_string())
-        .and_then(|mut disc| piney_fieldui::newgame::setup_new_game(state, &mut disc).map_err(|e| e.to_string()));
+/// ([`piney_fieldui::newgame::setup_new_game`]); GCMN.PRG loaded anew, so
+/// the story maps' scrolls are 0; and `WORLD_MAN::Init`'s `fieldrand`
+/// from `ccSys.count`, `frames` at the request plus [`NEW_GAME_FRAMES`].
+pub(crate) fn log_in(iso: &std::path::Path, state: &mut SaveState, frames: u32) {
+    state.move_tex = Default::default();
+    let done = Iso::open(iso).map_err(|e| e.to_string()).and_then(|mut disc| {
+        let v = disc.volume().map_err(|e| e.to_string())?;
+        let town = usize::from(state.save.u8(offset::LAST_TOWN)).min(7);
+        let server = piney_world::area::SERVER_OF_TOWN[town];
+        let tables = piney_data::area::AreaTables::of(v);
+        let flag71 = piney_data::area::flag71(&state.save);
+        let count = frames.wrapping_add(NEW_GAME_FRAMES);
+        state.field_rand = piney_data::area::world_man_init(tables, count, server, flag71);
+        piney_fieldui::newgame::setup_new_game(state, &mut disc).map_err(|e| e.to_string())
+    });
     if let Err(e) = done {
         tracing::warn!("ccSetupNewGame: {e}");
     }
 }
+
+/// `ccSetupNewGame`'s frames before `WORLD_MAN::Init` reads
+/// `ccSys.count`: `ccBreathThread(2)`, then one in its wait for GCMN.PRG
+/// (the loader starts after the first test; the port's load takes no
+/// longer).
+const NEW_GAME_FRAMES: u32 = 3;
 
 /// A change of scene the session makes itself.
 #[derive(Clone, Debug, PartialEq)]
@@ -321,7 +337,7 @@ impl Session {
             Resume::World(w) => {
                 let InWorld { scene, world_man, spcs } = *w;
                 let mut state = state;
-                log_in(&self.iso, &mut state);
+                log_in(&self.iso, &mut state, self.sys_frames);
                 self.area = Some((scene.area, scene.town));
                 (self.scene, self.world_man, self.spcs) = (scene, world_man, spcs);
                 self.world_stage(state, vm, false)?
@@ -458,6 +474,7 @@ impl Session {
             Some(Pending::Words(words)) => {
                 match crate::area::set_generate_code(&self.iso, words, self.scene.server, &state.save) {
                     Ok((wm, go)) => {
+                        crate::area::sim_field_rand(&self.iso, Some(words), 0, self.scene.server, &mut state);
                         // A new area: the last one's dungeon is gone.
                         self.world_man = Some(wm.keeping_start(self.world_man.as_ref()));
                         self.dungeon = None;
@@ -466,7 +483,7 @@ impl Session {
                     Err(e) => tracing::warn!("{e}"),
                 }
             }
-            Some(Pending::Story(c)) => self.story_scene(&c, &mut state.save),
+            Some(Pending::Story(c)) => self.story_scene(&c, &mut state),
             None => {}
         }
         self.stage = self.world_stage(state, vm, true)?;
@@ -487,10 +504,14 @@ impl Session {
 
     /// The scripts' `area n` and `scene` (`c`) applied to the session's
     /// `WORLD_MAN` and scene.
-    fn story_scene(&mut self, c: &crate::field_host::SceneChange, save: &mut piney_data::save::SaveData) {
+    fn story_scene(&mut self, c: &crate::field_host::SceneChange, state: &mut SaveState) {
         // Instruction 118 `area n` (ccEvAreaCodeAdd): a story area past 13
-        // is SimGenerateCode of its words on this server.
+        // is SimGenerateCode of its words on this server. Its `scene`
+        // follows in the same frame and puts every task to sleep, so no
+        // draw comes between.
         if let Some((n, _)) = c.area {
+            crate::area::sim_field_rand(&self.iso, None, i32::from(n), self.scene.server, state);
+            let save = &mut state.save;
             match crate::area::ev_area_world_man(&self.iso, i32::from(n), self.scene.server, save) {
                 Ok(Some(wm)) => {
                     self.world_man = Some(wm.keeping_start(self.world_man.as_ref()));
@@ -516,7 +537,7 @@ impl Session {
             }
         }
         let go = piney_data::area::Go::ChangeScene(c.scene.map(i32::from));
-        self.scene.go(go, save);
+        self.scene.go(go, &mut state.save);
     }
 
     /// Whether the port has the scene `go` leads to: Mac Anu and Dun
@@ -979,7 +1000,7 @@ impl Session {
             (request::NEW_GAME | request::GAME_CTRL, Stage::Desktop(d)) if d.scene_change().is_some() => {
                 let c = d.scene_change().cloned().expect("a scene change");
                 let (mut state, vm) = d.leave();
-                self.story_scene(&c, &mut state.save);
+                self.story_scene(&c, &mut state);
                 self.area = Some((self.scene.area, self.scene.town));
                 self.world_stage(state, vm, false)?
             }
@@ -987,7 +1008,7 @@ impl Session {
                 // Log in: `ccSetupNewGame` (GCMN.PRG), then `ccSetupGameCtrl`
                 // in the area `ChangeArea` left (area 0, a Root Town).
                 let (mut state, vm) = t.leave();
-                log_in(&self.iso, &mut state);
+                log_in(&self.iso, &mut state, self.sys_frames);
                 self.scene = piney_world::area::Scene::log_in(&mut state.save);
                 self.restock(&mut state);
                 match WorldMode::enter_after(&self.iso, self.archive.clone(), state.clone(), vm, self.start_before) {
@@ -7759,10 +7780,16 @@ mod area15 {
         let w = arrived(&s).unwrap();
         assert!(w.place().story::<piney_world::evarea07::Giant>().is_some_and(|g| g.block == 0), "{}", Mode::title(&s));
         assert_eq!(w.scene().area_prev, 2);
-        let back = piney_world::evarea07::Giant::new(&archive, piney_data::volume::Volume::Inf, 0, 2, 0)
-            .unwrap()
-            .start
-            .map(f32::from_bits);
+        let back = piney_world::evarea07::Giant::new(
+            &archive,
+            piney_data::volume::Volume::Inf,
+            0,
+            2,
+            piney_data::dungeon::Rng::new(0),
+        )
+        .unwrap()
+        .start
+        .map(f32::from_bits);
         assert!(at(w, [back[0], back[1], back[2]]), "{} (DMY_marker02 {back:?})", Mode::title(&s));
     }
 

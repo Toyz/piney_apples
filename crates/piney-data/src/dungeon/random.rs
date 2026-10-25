@@ -21,6 +21,10 @@ pub struct Rng {
 }
 
 impl Rng {
+    /// `seed` (main 0x0038aca0 on Mutation) as the executable holds it, 13,
+    /// and `randcnt` 0: the state at power-on.
+    pub const POWER_ON: Rng = Rng { seed: 13, count: 0 };
+
     pub fn new(seed: u32) -> Rng {
         Rng { seed, count: 0 }
     }

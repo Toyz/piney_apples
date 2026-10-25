@@ -154,8 +154,8 @@ pub struct Arena {
     pub last: Option<LastStage>,
     pub stage_sw: bool,
     pub clump_on: bool,
-    /// `fieldrand`, which the fireflies and the bobbing draw from. `GO(1)`
-    /// sets no seed for a story map; the port starts the arena's own.
+    /// `fieldrand`, which the fireflies and the bobbing draw from: the
+    /// game's one stream, which `GO(1)` does not seed for a story map.
     pub rng: Rng,
     /// The 54 `FIREFLY2`s (+0x1c4).
     pub fireflies: Vec<Firefly>,
@@ -170,14 +170,15 @@ fn staged(name: &str, stage: &str) -> String {
 }
 
 impl Arena {
-    /// `EVENTAREAB0::EVENTAREAB0` for `field` (1-8), `fieldrand` from 0.
+    /// `EVENTAREAB0::EVENTAREAB0` for `field` (1-8), `fieldrand` from 0
+    /// (for the checks).
     pub fn new(archive: &Arc<Archive>, volume: Volume, field: i32, def_se: u32) -> Result<Arena> {
-        Arena::new_seeded(archive, volume, field, def_se, 0)
+        Arena::new_seeded(archive, volume, field, def_se, Rng::new(0))
     }
 
-    /// `EVENTAREAB0::EVENTAREAB0` for `field` (1-8), `fieldrand` from
-    /// `seed` (the fireflies draw from it as they are made).
-    pub fn new_seeded(archive: &Arc<Archive>, volume: Volume, field: i32, def_se: u32, seed: u32) -> Result<Arena> {
+    /// `EVENTAREAB0::EVENTAREAB0` for `field` (1-8), `fieldrand` the
+    /// game's (`rng`: the fireflies draw from it as they are made).
+    pub fn new_seeded(archive: &Arc<Archive>, volume: Volume, field: i32, def_se: u32, rng: Rng) -> Result<Arena> {
         let stage = *usize::try_from(field)
             .ok()
             .filter(|_| is_arena(field))
@@ -229,7 +230,7 @@ impl Arena {
             Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
         hits.models = models.iter().filter_map(|m| hit_models.iter().find(|h| h.parent == m.model).cloned()).collect();
         // The fireflies, each over its marker.
-        let mut rng = Rng::new(seed);
+        let mut rng = rng;
         let mut fireflies = Vec::with_capacity(FIREFLIES);
         for k in 0..FIREFLIES {
             let marker = MARKERS[k % MARKERS.len()];

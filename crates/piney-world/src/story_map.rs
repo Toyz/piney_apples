@@ -3,6 +3,8 @@
 //! holds as `eventmap` (docs/engine/evarea.md). Each is a [`StoryMap`] that
 //! `Place::Story` holds; [`build`] is `GO(1)`'s choice.
 
+use piney_data::dungeon::Rng;
+use piney_desktop::MOVE_TEX_ROWS;
 use std::any::Any;
 use std::sync::Arc;
 
@@ -98,6 +100,19 @@ pub trait StoryMap: Any {
     fn file(&self) -> Option<&piney_desktop::assets::SceneFile> {
         None
     }
+    /// `fieldrand` as the map's draws leave it, for a map that draws from
+    /// it; None leaves the game's as the map found it.
+    fn field_rand(&self) -> Option<&Rng> {
+        None
+    }
+    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
+        None
+    }
+    /// The map's `EA_moveTex` rows' scroll written into gcmn's data
+    /// (`evarea::scroll`).
+    fn put_scrolls(&self, _gcmn: &mut [[u32; 2]; MOVE_TEX_ROWS]) {}
+    /// The scroll taken from gcmn's data, for a map just made.
+    fn take_scrolls(&mut self, _gcmn: &[[u32; 2]; MOVE_TEX_ROWS]) {}
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn into_any(self: Box<Self>) -> Box<dyn Any>;
@@ -115,6 +130,10 @@ pub struct At<'a> {
     pub save: &'a SaveData,
     /// `WORLD_MAN.eventStartPos` as the last map's `SetStartPos` left it.
     pub event_start: V4,
+    /// `fieldrand` as the scene before left it.
+    pub field_rand: Rng,
+    /// gcmn's `EA_moveTex` scrolls.
+    pub move_tex: [[u32; 2]; MOVE_TEX_ROWS],
 }
 
 /// `GO(1)`'s map for `at.field` (`eventAreaNumber`, whose
@@ -129,11 +148,12 @@ pub fn build(
     def_se: u32,
     cc: &mut dyn piney_battle::rand::Rng,
 ) -> Result<Option<Box<dyn StoryMap>>> {
-    let (field, area_prev) = (at.field, at.area_prev);
-    let map: Box<dyn StoryMap> = match field {
+    let (field, area_prev, rng) = (at.field, at.area_prev, at.field_rand);
+    let mut made = true;
+    let mut map: Box<dyn StoryMap> = match field {
         _ if model == 0 => return Ok(None),
         f if crate::evarea_b0::is_arena(f) => {
-            let mut a = Arena::new(archive, at.volume, f, def_se)?;
+            let mut a = Arena::new_seeded(archive, at.volume, f, def_se, rng)?;
             // Quarantine's constructor: field 8 at its last stage once the
             // save says so (QUA gcmn 0x0030a170).
             if at.volume == Volume::Qua && at.save.record()[crate::evarea_b0::LAST_STAGE_BYTE] != 0 {
@@ -146,26 +166,41 @@ pub fn build(
                 Some(Kept::Event(e)) if area_prev == crate::area::kind::FIELD => Some(e),
                 _ => None,
             };
+            made = kept.is_none();
             EventArea::for_scene(archive, at.volume, kept, def_se)?
         }
-        crate::evarea07::AREA => Box::new(Giant::new(archive, at.volume, def_se, area_prev, 0)?),
+        crate::evarea07::AREA => Box::new(Giant::new(archive, at.volume, def_se, area_prev, rng)?),
         crate::evarea03::AREA => Box::new(Area43::new(archive, at.volume, at.save, at.server, def_se)?),
-        crate::evarea01::AREA => Box::new(crate::evarea01::Area13::new(archive, at.volume, def_se)?),
+        crate::evarea01::AREA => Box::new(crate::evarea01::Area13::new(archive, at.volume, def_se, rng)?),
         crate::evarea_end::AREA if at.volume == Volume::Qua => {
             Box::new(crate::evarea_end::EndArea::new(at.volume, def_se, at.event_start))
         }
         f if crate::evarea_b8::is_disc(f) => {
-            Box::new(crate::evarea_b8::DiscArea::new(archive, at.volume, f, at.field_prev, def_se, cc)?)
+            Box::new(crate::evarea_b8::DiscArea::new(archive, at.volume, f, at.field_prev, def_se, rng, cc)?)
         }
         f => match crate::evarea_sky::Class::of(f) {
-            Some(c) => Box::new(crate::evarea_sky::SkyMap::new(archive, at.volume, c, def_se, area_prev)?),
+            Some(c) => Box::new(crate::evarea_sky::SkyMap::new(archive, at.volume, c, def_se, area_prev, rng)?),
             None => return Ok(None),
         },
     };
+    // gcmn's scrolls carry on into a new map; a kept one has its own.
+    if made {
+        map.take_scrolls(&at.move_tex);
+    }
     Ok(Some(map))
 }
 
 impl StoryMap for EventArea {
+    fn put_scrolls(&self, gcmn: &mut [[u32; 2]; MOVE_TEX_ROWS]) {
+        for (k, t) in self.move_tex.iter().enumerate() {
+            gcmn[crate::evarea::scroll::EA02 + k] = t.scroll();
+        }
+    }
+    fn take_scrolls(&mut self, gcmn: &[[u32; 2]; MOVE_TEX_ROWS]) {
+        for (k, t) in self.move_tex.iter_mut().enumerate() {
+            *t = t.at(gcmn, crate::evarea::scroll::EA02 + k);
+        }
+    }
     fn hits(&self) -> &Hits {
         &self.hits
     }
@@ -200,6 +235,12 @@ impl StoryMap for EventArea {
 }
 
 impl StoryMap for Arena {
+    fn field_rand(&self) -> Option<&Rng> {
+        Some(&self.rng)
+    }
+    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
+        Some(&mut self.rng)
+    }
     fn hits(&self) -> &Hits {
         &self.hits
     }
@@ -230,6 +271,22 @@ impl StoryMap for Arena {
 }
 
 impl StoryMap for Giant {
+    fn field_rand(&self) -> Option<&Rng> {
+        Some(&self.rng)
+    }
+    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
+        Some(&mut self.rng)
+    }
+    fn put_scrolls(&self, gcmn: &mut [[u32; 2]; MOVE_TEX_ROWS]) {
+        for (k, t) in self.move_tex.iter().enumerate() {
+            gcmn[crate::evarea::scroll::EA07 + k] = t.scroll();
+        }
+    }
+    fn take_scrolls(&mut self, gcmn: &[[u32; 2]; MOVE_TEX_ROWS]) {
+        for (k, t) in self.move_tex.iter_mut().enumerate() {
+            *t = t.at(gcmn, crate::evarea::scroll::EA07 + k);
+        }
+    }
     fn hits(&self) -> &Hits {
         &self.hits
     }

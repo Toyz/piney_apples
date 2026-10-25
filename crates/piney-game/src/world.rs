@@ -795,6 +795,8 @@ impl WorldMode {
             // enables it. Left running, its play pass would start the next
             // area's phase-4 blocks during the hold, before the set-up's
             // passes, and hold them (event 11's talk on the holy ground).
+            // The gate menu's SimGenerateCode reseeds fieldrand.
+            R::FieldSeed(seed) => self.world.set_field_seed(seed),
             R::GoToArea(words) => {
                 let [a, b, c] = words;
                 self.leaving = Some(format!("to the area of words {a} {b} {c}"));

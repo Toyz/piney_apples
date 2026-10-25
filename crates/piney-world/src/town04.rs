@@ -72,8 +72,6 @@ const BG_STEP: [F; 2] = [0x3c23_d70a, 0x3b03_126f];
 const K4096: F = 0x4580_0000;
 /// The `CLOUD`s `Draw` makes on its first call (+0x1c4, type 0).
 pub const CLOUDS: usize = 25;
-/// The area generator's `seed` as the executable holds it.
-pub const FIELD_SEED: u32 = 13;
 
 /// `WORLD_MAN`'s layers the town draws on besides `objLayer`.
 pub mod layer {
@@ -171,7 +169,7 @@ pub fn new(archive: &Arc<Archive>, crisis: bool) -> Result<Town> {
         started: false,
         clouds: Vec::new(),
         pat_num,
-        rng: Rng::new(FIELD_SEED),
+        rng: Rng::POWER_ON,
         flares: None,
     };
     Ok(Town::new(base, d))
@@ -290,6 +288,13 @@ impl FortOuph {
 }
 
 impl RootTown for FortOuph {
+    fn field_rand(&self) -> Option<&Rng> {
+        Some(&self.rng)
+    }
+    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
+        Some(&mut self.rng)
+    }
+
     fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
         let pieces = self.select(base, v);
         self.draw_pieces(base, layers, to_screen, &pieces)

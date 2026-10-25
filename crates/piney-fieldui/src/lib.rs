@@ -124,6 +124,9 @@ pub enum Request {
     /// for a dungeon, or a story dungeon's `ChangeScene(2, -2, ..)`).
     /// Asked every frame until the area changes.
     GoToArea([i32; 3]),
+    /// `SimGenerateCode`'s mark on `fieldrand` (`seed`), from the gate
+    /// menu's look at the words.
+    FieldSeed(u32),
     /// `ccGame::ChangeArea(area, n)`: Other Servers' town (area 0); Gate
     /// Out's town `n` (`game.town`, at least 0) once its fade has made the
     /// screen black.

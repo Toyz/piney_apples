@@ -436,6 +436,15 @@ pub trait RootTown: Any {
     fn water0(&self) -> Option<&WaterZero> {
         None
     }
+
+    /// `fieldrand`, the game's one stream, for a class whose draws take
+    /// from it (the clouds, the glows).
+    fn field_rand(&self) -> Option<&piney_data::dungeon::Rng> {
+        None
+    }
+    fn field_rand_mut(&mut self) -> Option<&mut piney_data::dungeon::Rng> {
+        None
+    }
 }
 
 /// A Root Town as the field holds it: the base and its class.
@@ -821,19 +830,45 @@ impl Town {
     /// (`ROOTTOWN01` .. `05`, and Quarantine's `06`), `crisis` the save's
     /// crisis byte.
     pub fn open(archive: &Arc<Archive>, volume: piney_data::volume::Volume, no: i32, crisis: bool) -> Result<Town> {
+        Town::open_with(archive, volume, no, crisis, piney_data::dungeon::Rng::POWER_ON)
+    }
+
+    /// [`Town::open`] with `fieldrand` as the game has it (`rng`), which
+    /// `ROOTTOWN05`'s constructor and the classes' draws take from.
+    pub fn open_with(
+        archive: &Arc<Archive>,
+        volume: piney_data::volume::Volume,
+        no: i32,
+        crisis: bool,
+        rng: piney_data::dungeon::Rng,
+    ) -> Result<Town> {
         let mut town = match no {
             0 => crate::town01::new(archive, crisis),
             1 => crate::town02::new(archive, crisis),
             2 => crate::town03::new(archive, crisis),
             3 => crate::town04::new(archive, crisis),
-            4 => crate::town05::new(archive, crisis),
+            4 => crate::town05::new(archive, crisis, rng),
             5 if volume == piney_data::volume::Volume::Qua => crate::town06::new(archive, crisis),
             n => Err(Error::NotFound(format!("town {n}: {volume:?} has none"))),
         }?;
         // The towns' tables are Infection's on every disc; the collision
         // takes the disc's square root.
         town.base.hits.volume = volume;
+        town.set_field_rand(rng);
         Ok(town)
+    }
+
+    /// `fieldrand` as the class's draws leave it; None for a class that
+    /// does not draw from it.
+    pub fn field_rand(&self) -> Option<piney_data::dungeon::Rng> {
+        self.class.field_rand().copied()
+    }
+
+    /// `fieldrand` set from outside (a gate menu's `SimGenerateCode`).
+    pub fn set_field_rand(&mut self, rng: piney_data::dungeon::Rng) {
+        if let Some(r) = self.class.field_rand_mut() {
+            *r = rng;
+        }
     }
 
     /// The class, when it is a `T`.

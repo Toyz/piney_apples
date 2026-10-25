@@ -14,6 +14,7 @@ use piney_data::dungeon::Rng;
 use piney_data::statics::{DrawPass, Position};
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
+use piney_desktop::MOVE_TEX_ROWS;
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
@@ -206,8 +207,9 @@ pub struct SkyMap {
     pub started: bool,
     pub clouds: Vec<Cloud>,
     pat_num: u16,
-    /// `fieldrand`: `GO(1)` sets no seed for a story map; the map keeps its
-    /// own, from 0, as the other story maps do.
+    /// `fieldrand`, the game's one stream: `GO(1)` sets no seed for a story
+    /// map, so the clouds' `Init` draws on from where the scene before left
+    /// it (a gate's `SimGenerateCode`, the dungeon).
     pub rng: Rng,
     /// The flare's sun (`DMY_dummy5`, w 1), and where the flares were
     /// drawn last.
@@ -253,8 +255,16 @@ fn start(class: Class, file: &SceneFile, area_prev: i32) -> Result<V4> {
 }
 
 impl SkyMap {
-    /// The class's constructor; `game.areaPrev` is `area_prev`.
-    pub fn new(archive: &Arc<Archive>, volume: Volume, class: Class, def_se: u32, area_prev: i32) -> Result<SkyMap> {
+    /// The class's constructor; `game.areaPrev` is `area_prev`, `rng` the
+    /// game's `fieldrand`.
+    pub fn new(
+        archive: &Arc<Archive>,
+        volume: Volume,
+        class: Class,
+        def_se: u32,
+        area_prev: i32,
+        rng: Rng,
+    ) -> Result<SkyMap> {
         let k = class.kind();
         let mut base = Base::read_volume(archive, volume, k.file, &k.spec)?;
         let file = base.file.clone();
@@ -291,7 +301,7 @@ impl SkyMap {
             started: false,
             clouds: Vec::new(),
             pat_num,
-            rng: Rng::new(0),
+            rng,
             sun,
             flares: None,
         })
@@ -418,7 +428,30 @@ impl SkyMap {
     }
 }
 
+impl Class {
+    /// The class's `EA_moveTex` row in gcmn's data.
+    fn scroll_row(self) -> usize {
+        match self {
+            Class::Mirror => crate::evarea::scroll::EA04,
+            Class::Arena => crate::evarea::scroll::EA05,
+            Class::Whale => crate::evarea::scroll::EA06,
+        }
+    }
+}
+
 impl StoryMap for SkyMap {
+    fn field_rand(&self) -> Option<&Rng> {
+        Some(&self.rng)
+    }
+    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
+        Some(&mut self.rng)
+    }
+    fn put_scrolls(&self, gcmn: &mut [[u32; 2]; MOVE_TEX_ROWS]) {
+        gcmn[self.class.scroll_row()] = self.move_tex.scroll();
+    }
+    fn take_scrolls(&mut self, gcmn: &[[u32; 2]; MOVE_TEX_ROWS]) {
+        self.move_tex = self.move_tex.at(gcmn, self.class.scroll_row());
+    }
     fn hits(&self) -> &Hits {
         &self.base.hits
     }
@@ -502,7 +535,7 @@ mod tests {
         ] {
             let Some(archive) = crate::town::tests::archive_of(disc) else { continue };
             for (class, models, objects) in [(Class::Mirror, 11, 1), (Class::Arena, 9, 1), (Class::Whale, 3, 21)] {
-                let m = SkyMap::new(&archive, volume, class, 0, 1).unwrap();
+                let m = SkyMap::new(&archive, volume, class, 0, 1, Rng::new(0)).unwrap();
                 let k = class.kind();
                 assert_eq!((0..models).filter(|&r| m.base.model(r).is_some()).count(), models, "{class:?}");
                 assert_eq!((0..objects).filter(|&r| m.base.object(r).is_some()).count(), objects, "{class:?}");
@@ -527,11 +560,11 @@ mod tests {
     #[test]
     fn the_starts() {
         let Some(archive) = crate::town::tests::archive_of("mutation") else { return };
-        let gate = SkyMap::new(&archive, Volume::Mut, Class::Mirror, 0, 0).unwrap().start;
-        let back = SkyMap::new(&archive, Volume::Mut, Class::Mirror, 0, 2).unwrap().start;
+        let gate = SkyMap::new(&archive, Volume::Mut, Class::Mirror, 0, 0, Rng::new(0)).unwrap().start;
+        let back = SkyMap::new(&archive, Volume::Mut, Class::Mirror, 0, 2, Rng::new(0)).unwrap().start;
         assert_eq!(gate, [ee::k(4600.0), ee::k(-4700.0), ee::k(910.0), 0x4049_0fdb]);
         assert_eq!(back, [ee::k(-8000.0), ee::k(5800.0), ee::k(920.0), 0]);
-        let arena = SkyMap::new(&archive, Volume::Mut, Class::Arena, 0, 2).unwrap().start;
+        let arena = SkyMap::new(&archive, Volume::Mut, Class::Arena, 0, 2, Rng::new(0)).unwrap().start;
         assert_eq!((arena[1], arena[2]), (ee::k(9000.0), ee::k(800.0)));
     }
 }

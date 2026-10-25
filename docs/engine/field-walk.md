@@ -975,15 +975,12 @@ host default (`take_unported` empty).
 - The water's run-time textures and the sky's clouds' blending are
   approximations. (The fog is VU1's by each vertex's depth, as the game's:
   `piney_draw::DepthFog`.)
-- Of the story maps of their own (`EVENTAREA_INFO.model` not 0, an
-  `EVENTAREA` class) areas 15's and 16's and the boss arenas are built
-  ([their page](evarea.md)); the others, which no Infection script
-  reaches, get a generated field.
+- The story maps of their own (`EVENTAREA_INFO.model` not 0, an
+  `EVENTAREA` class) are all built ([their page](evarea.md); the last,
+  04-06, in worklog 472).
 - A `HIT_` node's local matrix is taken as the identity inside its model.
 - Where no result qualifies, the ground attribute's type nibbles come from
   a stale register holding a heap address; they cannot be matched.
-- `SimGenerateCode` also moves the global RNG (`seed`, `randcnt`), which
-  the port's area words leave aside; so does `GO` (`fieldrand`).
 - `ccPlayer::CollisionTest` guards `WORLD_MAN::Enter` only with `dneFlag`,
   so the game may call it again on the frames of the fade out while Kite
   still stands on the entrance or a door; the port takes the first change

@@ -87,9 +87,6 @@ const K4096: F = 0x4580_0000;
 const NO_FOG_ROWS: std::ops::Range<usize> = 29..34;
 /// `DrawFloor`'s rows.
 const FLOOR_ROWS: std::ops::Range<usize> = 0..8;
-/// The area generator's `seed` as the executable holds it: the airship's
-/// `fieldrand`.
-pub const FIELD_SEED: u32 = 13;
 
 /// The airship's dummies, its clip and its numbers.
 pub mod ship {
@@ -375,7 +372,7 @@ pub fn new(archive: &Arc<Archive>, crisis: bool) -> Result<Town> {
         water_u: 0,
         water0: WaterZero::new(&file, WATER_MODEL, WATER_REACH)?,
         ship: Airship::new(&file)?,
-        rng: Rng::new(FIELD_SEED),
+        rng: Rng::POWER_ON,
     };
     Ok(Town::new(base, d))
 }
@@ -459,6 +456,13 @@ impl CarminaGade {
 }
 
 impl RootTown for CarminaGade {
+    fn field_rand(&self) -> Option<&Rng> {
+        Some(&self.rng)
+    }
+    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
+        Some(&mut self.rng)
+    }
+
     fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
         let pieces = self.select(base, v);
         self.draw_pieces(base, layers, to_screen, &pieces);

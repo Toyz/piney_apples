@@ -421,7 +421,8 @@ impl World {
         if save.save.u8(offset::NEW_GAME_FLAG) as i8 != 1 {
             save.save.set_u8(offset::NEW_GAME_FLAG, 1);
         }
-        let town = Town::open(&archive, volume, town_no, save.save.u8(offset::CRISIS) != 0)?;
+        let crisis = save.save.u8(offset::CRISIS) != 0;
+        let town = Town::open_with(&archive, volume, town_no, crisis, save.field_rand)?;
         let gate = Gate::new(&archive, &town.base.file)?;
         let party = town_party::TownParty::new(iso, town_no as usize, &town.base.file)?;
         // ccPlayer::ccPlayer's EquipWeapon: the blades the save has him hold.
@@ -1106,6 +1107,9 @@ impl World {
     /// as the town left them.
     pub fn state_out(&self) -> SaveState {
         let mut out = SaveState { rand: self.rand.0, ..self.save.clone() };
+        if let Some(r) = self.town.field_rand() {
+            out.field_rand = r;
+        }
         match &self.town_pcs {
             Some(t) => t.borrow().mt.put(&mut out.cc),
             None => mt::Mt::init(self.rand_count).put(&mut out.cc),
@@ -1117,6 +1121,15 @@ impl World {
     /// stream).
     pub fn set_rand(&mut self, rand: u64) {
         self.rand.0 = rand;
+    }
+
+    /// `SimGenerateCode`'s `fieldrand` (the gate menu's words): the town's
+    /// draws go on from `seed`, `randcnt` moved on by its 13.
+    pub fn set_field_seed(&mut self, seed: u32) {
+        let r = self.town.field_rand().unwrap_or(self.save.field_rand);
+        let r = piney_data::dungeon::Rng { seed, count: r.count.wrapping_add(13) };
+        self.save.field_rand = r;
+        self.town.set_field_rand(r);
     }
 
     /// The save, for what the field's menus write (items, tactics, the

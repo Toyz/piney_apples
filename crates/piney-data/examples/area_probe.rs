@@ -80,6 +80,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 EvArea::Generated(r) => format!("{{\"generated\":{}}}", code_json(tables, &r, false)),
                 EvArea::Missing => "{\"missing\":1}".to_string(),
             },
+            "init" => {
+                let r = area::world_man_init(tables, n[0] as u32, n[1] as i32, false);
+                format!("{{\"seed\":{},\"randcnt\":{}}}", r.seed, r.count)
+            }
             "wordid" => format!("{{\"id\":{}}}", tables.word_id(rest)),
             "go" => match area::sim_generate_code(tables, n[0] as i32, n[1] as i32, n[2] as i32, n[3] as i32, false)
                 .map(|r| r.go())

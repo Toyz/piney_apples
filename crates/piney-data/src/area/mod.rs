@@ -522,6 +522,47 @@ pub fn sim_generate_code(t: &AreaTables, a: i32, b: i32, c: i32, server: i32, fl
     })
 }
 
+impl AreaCode {
+    /// `fieldrand` after this `SimGenerateCode`: its `seed`, and `randcnt`
+    /// moved on from `before`'s by the draws (it is not reset).
+    pub fn field_rand(&self, before: dungeon::Rng) -> dungeon::Rng {
+        dungeon::Rng { seed: self.seed, count: before.count.wrapping_add(self.randcnt) }
+    }
+}
+
+/// The rows of `word_a1`, `word_b1` and `word_c1` `WORLD_MAN::Init` picks
+/// among (its divisors, the same on every volume: MUT main 0x001b1824,
+/// 0x001b17a8).
+const INIT_WORDS: [u32; 3] = [29, 28, 28];
+
+/// `fieldrand` as `WORLD_MAN::Init` (MUT main 0x001b1720, in
+/// `ccSetupNewGame`) leaves it: `seed` = `ccSys.count` (`count`), then
+/// draws for a random first-group triple (`c`, `b`, `a`) and its
+/// `SimGenerateCode`, again (`seed` + 1 first) while the words make a story
+/// area on `server`, or while the field is a lake (type 4); `randcnt` 0.
+pub fn world_man_init(t: &AreaTables, count: u32, server: i32, flag71: bool) -> dungeon::Rng {
+    let group = |slot: Slot, k: u32| t.words.iter().filter(|w| w.slot == slot && w.group == 1).nth(k as usize);
+    let mut rng = dungeon::Rng::new(count);
+    // Bounded: the game loops until a triple is right; every volume's
+    // tables find one within a few tries.
+    for _ in 0..10_000 {
+        let c = rng.below(INIT_WORDS[2]);
+        let b = rng.below(INIT_WORDS[1]);
+        let a = rng.below(INIT_WORDS[0]);
+        let (Some(wa), Some(wb), Some(wc)) = (group(0, a), group(1, b), group(2, c)) else { break };
+        let Some(code) = sim_generate_code(t, wa.id, wb.id, wc.id, server, flag71) else { break };
+        rng.seed = code.seed;
+        if code.event != 0 {
+            rng.seed = rng.seed.wrapping_add(1);
+            continue;
+        }
+        if code.attrs.field_type != 4 {
+            break;
+        }
+    }
+    dungeon::Rng { seed: rng.seed, count: 0 }
+}
+
 /// What the event instruction 118 `area n` (`ccEvAreaCodeAdd`, in
 /// `ccEvent::Execute` at 0x001b04b8, while playing) does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -695,6 +736,24 @@ mod tests {
             let t = AreaTables::of(v);
             let models: Vec<i32> = (1..=13).map(|n| t.event_area_info(n, false).map_or(-1, |e| e.model)).collect();
             assert_eq!(models, [1; 13], "{v:?}");
+        }
+    }
+
+    /// `WORLD_MAN::Init`'s pick lists are the first groups, 29, 28 and 28
+    /// rows on every volume, and its loop ends on a field that is neither a
+    /// story area nor a lake.
+    #[test]
+    fn world_man_init_picks_a_plain_field() {
+        for v in Volume::ALL {
+            let t = AreaTables::of(v);
+            let rows: Vec<usize> =
+                (0..3).map(|slot| t.words.iter().filter(|w| w.slot == slot && w.group == 1).count()).collect();
+            assert_eq!(rows, INIT_WORDS.map(|n| n as usize), "{v:?}");
+            for count in [0, 1, 777, 123_456] {
+                let r = world_man_init(t, count, 0, false);
+                assert_eq!(r.count, 0);
+                assert_ne!(r.seed, count, "{v:?}: the seed moved on");
+            }
         }
     }
 

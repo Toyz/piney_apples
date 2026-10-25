@@ -112,8 +112,8 @@ pub struct Giant {
     /// The 25 `CLOUD`s (+0x1ec) and `EFF_srzsmo1`'s `patNum`.
     pub clouds: Vec<Cloud>,
     pat_num: u16,
-    /// `fieldrand`, which the clouds and the bob draw from. `GO(1)` sets
-    /// no seed for a story map; the port starts the map's own.
+    /// `fieldrand`, which the clouds and the bob draw from: the game's one
+    /// stream, which `GO(1)` does not seed for a story map.
     pub rng: Rng,
     /// The sun's place, and where the flares were drawn last.
     pub sun: V4,
@@ -134,8 +134,8 @@ fn marker(file: &SceneFile, name: &'static str) -> Result<V4> {
 
 impl Giant {
     /// `EVENTAREA07::EVENTAREA07`, `game.areaPrev` being `area_prev` (a
-    /// dungeon's 2 starts at its door), `fieldrand` from `seed`.
-    pub fn new(archive: &Arc<Archive>, volume: Volume, def_se: u32, area_prev: i32, seed: u32) -> Result<Giant> {
+    /// dungeon's 2 starts at its door), `fieldrand` the game's (`rng`).
+    pub fn new(archive: &Arc<Archive>, volume: Volume, def_se: u32, area_prev: i32, rng: Rng) -> Result<Giant> {
         let file = Rc::new(SceneFile::read(archive, FILE)?);
         let file_2 = Rc::new(SceneFile::read(archive, FILE_2)?);
         let eff = Rc::new(SceneFile::read(archive, EFF_FILE)?);
@@ -173,7 +173,7 @@ impl Giant {
             rising: false,
             clouds: Vec::new(),
             pat_num,
-            rng: Rng::new(seed),
+            rng,
             sun,
             flares: None,
             hit_models,
@@ -532,7 +532,7 @@ mod tests {
     #[test]
     fn the_giants_blocks() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let mut g = Giant::new(&archive, Volume::Inf, 0, 0, 0).unwrap();
+        let mut g = Giant::new(&archive, Volume::Inf, 0, 0, Rng::new(0)).unwrap();
         let name = |f: &SceneFile, o: u32| f.ccs.object_name(o).unwrap().to_string();
         assert_eq!((g.models.len(), g.objects.len()), (8, 2));
         assert!(g.bg.iter().all(|b| b.is_some()));
@@ -542,7 +542,7 @@ mod tests {
         assert_eq!(name(&g.file, g.hits.models[0].parent), "MDL_se1_7ob1_1");
         assert_eq!(g.light_objects.len(), 1);
         let arrive = g.start;
-        let back = Giant::new(&archive, Volume::Inf, 0, 2, 0).unwrap().start;
+        let back = Giant::new(&archive, Volume::Inf, 0, 2, Rng::new(0)).unwrap().start;
         assert_ne!(arrive, back, "DMY_marker01 and 02 are different places");
         g.change_block(1, 1).unwrap();
         assert_eq!((g.models.len(), g.objects.len(), g.clouds.len()), (2, 0, 0));
@@ -558,7 +558,7 @@ mod tests {
     #[test]
     fn the_background_bobs() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let mut g = Giant::new(&archive, Volume::Inf, 0, 0, 7).unwrap();
+        let mut g = Giant::new(&archive, Volume::Inf, 0, 0, Rng::new(7)).unwrap();
         let v = TownView::default();
         let (mut top, mut turns, mut last) = (0.0f32, 0, g.rising);
         for _ in 0..600 {

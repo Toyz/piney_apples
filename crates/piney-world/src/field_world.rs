@@ -379,6 +379,8 @@ impl FieldWorld {
                 server: scene.server,
                 save: &save.save,
                 event_start: world_man.event_start,
+                field_rand: save.field_rand,
+                move_tex: save.move_tex,
             };
             crate::story_map::build(&archive, &at, world_man.field_model, kept_map, def_se, &mut cc)?
         } else {
@@ -413,6 +415,11 @@ impl FieldWorld {
                 let d = match dungeons.slots[n].take() {
                     Some(mut d) => {
                         d.reenter(&scene)?;
+                        // GO(2) keeps fieldrand's seed across its calls for a
+                        // dungeon already made (MUT main 0x001b5d40,
+                        // 0x001b5d9c) and zeroes randcnt: its draws go on
+                        // from the game's stream.
+                        d.rng = piney_data::dungeon::Rng { seed: save.field_rand.seed, count: 0 };
                         // Back up from a field type 4 area's second dungeon.
                         if world_man.field_type == 4
                             && scene.dungeon_prev == 1
@@ -1110,7 +1117,37 @@ impl FieldWorld {
     pub fn state_out(&self) -> SaveState {
         let mut out = SaveState { rand: self.combat.rand.0, rand_s: self.combat.rnds, ..self.save.clone() };
         crate::mt::put(&self.combat.cc, &mut out.cc);
+        if let Some(r) = self.field_rand() {
+            out.field_rand = r;
+        }
+        if let Place::Story(m) = &self.place {
+            m.put_scrolls(&mut out.move_tex);
+        }
         out
+    }
+
+    /// `fieldrand` as the place's draws leave it (None: a story map that
+    /// does not draw from it, which leaves the stream as it came).
+    pub fn field_rand(&self) -> Option<piney_data::dungeon::Rng> {
+        match &self.place {
+            Place::Field(f) => Some(f.rng),
+            Place::Dungeon(d) => Some(d.rng),
+            Place::Story(m) => m.field_rand().copied(),
+        }
+    }
+
+    /// `SimGenerateCode`'s `fieldrand` (a gate menu's words): the place's
+    /// draws go on from `seed`, `randcnt` moved on by its 13.
+    pub fn set_field_seed(&mut self, seed: u32) {
+        let r = match &mut self.place {
+            Place::Field(f) => Some(&mut f.rng),
+            Place::Dungeon(d) => Some(&mut d.rng),
+            Place::Story(m) => m.field_rand_mut(),
+        };
+        match r {
+            Some(r) => *r = piney_data::dungeon::Rng { seed, count: r.count.wrapping_add(13) },
+            None => self.save.field_rand = piney_data::dungeon::Rng { seed, ..self.save.field_rand },
+        }
     }
 
     /// The game's `rand()` handed back by what played in this mode (a

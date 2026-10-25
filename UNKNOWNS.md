@@ -271,17 +271,17 @@ player until one of these turns out wrong.
 - [[65]] ccSys +0x358, the frame count that picks the PCs — an input depending on run time
 - [[65]] an event NPC placed after set-up goes to the list's end — order not checked
 - [[72]] SimGenerateCode and GO move the global generator; the port leaves those draws aside — docs/engine/field-walk.md Unknown
-- [[97]] fieldrand's state on entering a town (the port starts at 13) and the scrolls' statics starting at 0 per town — phase only
+- [[97]] fieldrand's state on entering a town (the port starts at 13) and the scrolls' statics starting at 0 per town — phase only — fieldrand answered by [[473]] (one stream in `SaveState::field_rand`, which the towns take and hand on); the town's scroll statics remain
 - [[106]] how long the game holds the Chaos Gate loop (ccLoadResourceFL's time) — not measured (docs/engine/field-walk.md Unknown)
 - [[106]] ghoCam's markers from the desktop's anm player not compared — docs/engine/field-walk.md Unknown
 - [[108]] the town branch of SetCharPosition read, not run — offsets match the field's checked ones
 - [[110]] the town frame gets menu_type -1 or 0, not which menu — not revisited
 - [[110]] a second rebootSpcManager in one town visit makes no new AI for Kite's stand-in — not revisited
 - [[111]] RoomSelect's bgColor 0 and GS words not modelled — the change's fade covers them
-- [[111]] SimGenerateCode's moves of seed and randcnt left aside — docs/engine/field-walk.md Unknown
-- [[112]] fieldrand's seed on arrival not carried across scenes (the arena's firefly bobbing) — phase only
+- [[111]] SimGenerateCode's moves of seed and randcnt left aside — docs/engine/field-walk.md Unknown — answered by [[473]] (`AreaCode::field_rand` at the gate menu's looks, SetGenerateCode and instruction 118; `randcnt` is read by nothing but its own increments)
+- [[112]] fieldrand's seed on arrival not carried across scenes (the arena's firefly bobbing) — phase only — answered by [[473]] (the arena draws on from the scene before)
 - [[114]] area 67's type-34 row behind a door with no branch would crash the game; whether the story reaches it — not known
-- [[115]] fieldrand's seed on arrival not carried from the dungeon — same as [[112]]
+- [[115]] fieldrand's seed on arrival not carried from the dungeon — same as [[112]] — answered by [[473]]
 - [[132]] ccEntryEventMng's second argument to ccSetRtownPC (the port uses -1) — answered by [[393]]: -1
 - [[132]] the event NPC classes step outside the entry control's NPC turn, so their effects start a frame late — docs/engine/field-game.md Unknown
 - [[134]] whether Kite should walk around the fenced statue in a statue room's open doorway (area 18's dungeon) — not compared
@@ -349,7 +349,7 @@ player until one of these turns out wrong.
 - [[83]] effResistantShield with no affectPerson reads through a null pointer — game UB (docs/engine/effects.md Unknown)
 - [[83]] effHeal's return: the game returns 0, the port its slot — not compared, no caller uses it
 - [[83]] the new particle generator rows seen only in shots — docs/engine/effects.md Unknown
-- [[84]] EA_moveTex02's scroll restarts at 0 with a new map after the town, where the game's carries on — docs/engine/evarea.md Unknown
+- [[84]] EA_moveTex02's scroll restarts at 0 with a new map after the town, where the game's carries on — docs/engine/evarea.md Unknown — answered by [[473]] (gcmn's scrolls in `SaveState::move_tex`, 0 again at log in)
 - [[88]] the sharp-bilinear scaler not seen at the user's window size — checked by test only
 - [[88]] no setting for a plain or television-like filter — a port option idea, not the game's
 - [[96]] the gate hack's 3D not compared with the game's pixels — calls compared
@@ -1273,7 +1273,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 ### docs/engine/evarea.md
 
 - docs/engine/evarea.md: the fog by depth not compared with the game's pictures; PRIM.FGE from SetFogSw — research (duplicates [[145]])
-- docs/engine/evarea.md: EA_moveTex02's scroll starts at 0 on a new map after the town — research (phase only; duplicates [[84]])
+- docs/engine/evarea.md: EA_moveTex02's scroll starts at 0 on a new map after the town — research (phase only; duplicates [[84]]) — answered by [[473]]
 - docs/engine/evarea.md: EVENTAREAB8 not compared with the game's Draw frame by frame — research (duplicates [[272]])
 - docs/engine/evarea.md: fields 10-12 not played through their events (Kyvia's later fights) — play (volumes) — answered by [[304]] (field 10), [[433]] (field 11) and [[434]] (field 12, its gates' bodies)
 - docs/engine/evarea.md: the other EVENTAREA classes (04-06; areas 66, 67, 91) and EVENTAREAB0's NextStage — play (duplicates [[72]], [[112]]); NextStage answered by [[454]]; the classes answered by [[472]]
@@ -1481,7 +1481,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/town02.md: EFF_srzsmo1's alpha test (clouds by colour) on the console — research (duplicates [[97]])
 - docs/engine/town02.md: the frame-buffer copy's size and point sampling — play (duplicates [[97]])
 - docs/engine/town02.md: whether water 0's coordinate has a local translation — research (duplicates [[97]])
-- docs/engine/town02.md: fieldrand on entering the town; the scrolls across visits — research (duplicates [[97]])
+- docs/engine/town02.md: fieldrand on entering the town; the scrolls across visits — research (duplicates [[97]]); fieldrand answered by [[473]]
 
 ### docs/formats/pss.md
 

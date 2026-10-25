@@ -82,11 +82,33 @@ pub struct SaveState {
     /// last scene left it: each set-up's `ccInitRand` makes it anew, and
     /// the desktop's staff roll draws on from it.
     pub cc: crate::staffroll::CcRand,
+    /// `fieldrand`'s `seed` and `randcnt`: one stream for the whole game.
+    /// `WORLD_MAN::Init` and `SimGenerateCode` seed it, `GO` seeds it for a
+    /// generated field or a new dungeon, and the towns', fields', dungeons'
+    /// and story maps' draws move it on; each mode hands it on.
+    pub field_rand: piney_data::dungeon::Rng,
+    /// `gcmn.prg`'s `EA_moveTex` rows' scroll (u, v) as the story maps'
+    /// `MoveTexture` left it: overlay data, from `ccSetupNewGame`'s load of
+    /// GCMN.PRG (all 0) to the next ([`MOVE_TEX_ROWS`]).
+    pub move_tex: [[u32; 2]; MOVE_TEX_ROWS],
 }
+
+/// The `EA_moveTex` rows gcmn holds: `EA_moveTex02`'s two, `04`, `05`,
+/// `06`, and `07`'s two (piney-world's `evarea::scroll` names them).
+pub const MOVE_TEX_ROWS: usize = 7;
 
 impl SaveState {
     pub fn new(save: SaveData) -> Self {
-        SaveState { save, operate: 0, operate_set: -1, rand: 1, rand_s: 0, cc: Default::default() }
+        SaveState {
+            save,
+            operate: 0,
+            operate_set: -1,
+            rand: 1,
+            rand_s: 0,
+            cc: Default::default(),
+            field_rand: piney_data::dungeon::Rng::POWER_ON,
+            move_tex: [[0; 2]; MOVE_TEX_ROWS],
+        }
     }
 
     /// The save the port starts from when it does not boot through the
