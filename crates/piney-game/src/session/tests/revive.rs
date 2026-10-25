@@ -316,3 +316,66 @@ fn a_member_spoken_to_and_left_follows_again() {
     let moved = (m[0] - start[0]).hypot(m[1] - start[1]);
     assert!(moved > 300.0, "Mia stood: moved {moved:.0}, Kite {:.0} away", (k[0] - m[0]).hypot(k[1] - m[1]));
 }
+
+/// Issue #26: Elk felled three times in one fight and raised each time by
+/// the Resurrect (while down, lying, and as a ghost) keeps what his AI is
+/// made with (`manualSW`, `talkFlag`, the strategy, his registry slot, the
+/// party flag), and then takes a direct order: Repth on Kite (CHAT's
+/// Designate Skill, `RequestChatCmd(5)`), which he casts.
+#[test]
+fn elk_raised_again_and_again_takes_orders() {
+    const REPTH: i16 = 150;
+    let Some(mut s) = field_with_mia_and_elk() else { return };
+    let (mia, elk, kite) = {
+        let c = area(&mut s).world().combat();
+        (c.who(MIA).unwrap(), c.who(ELK).unwrap(), c.kite.unwrap())
+    };
+    let made = |s: &mut Session| {
+        let c = area(s).world().combat();
+        let (a, sp) = (&c.crew.ais[&elk], &c.crew.spc[&elk]);
+        (a.manual_sw, a.talk_flag, a.strategy, sp.spc_list_num, c.scene.chars[elk].party_flag & 7)
+    };
+    let before = made(&mut s);
+    for how in ["down", "lying", "a ghost"] {
+        area(&mut s).world_mut().entry_affect(elk, Some(mia), 1, [9999, 0, 0]);
+        step(&mut s, 1);
+        assert_ne!(char(&mut s, elk).cond[cond::DEAD], 0, "Elk not felled");
+        match how {
+            "down" => step(&mut s, 5),
+            "lying" => lying(&mut s, elk),
+            _ => {
+                for _ in 0..600 {
+                    step(&mut s, 1);
+                    if char(&mut s, elk).cond[cond::DEAD] == 4 {
+                        break;
+                    }
+                }
+                assert_eq!(char(&mut s, elk).cond[cond::DEAD], 4, "Elk never a ghost");
+            }
+        }
+        resurrect(&mut s, elk);
+        step(&mut s, 120);
+        assert_eq!(char(&mut s, elk).cond[cond::DEAD], 0, "Elk raised while {how}");
+        assert_eq!(made(&mut s), before, "Elk's AI after he was raised while {how}");
+    }
+    {
+        let w = area(&mut s).world_mut();
+        let save = &mut w.state_mut().save;
+        let at = piney_fieldui::items::SKILL_LIST + 40 * ELK as usize;
+        if !(0..20).any(|k| save.i16(at + 2 * k) == REPTH) {
+            let free = (0..20).find(|&k| save.i16(at + 2 * k) < 0).unwrap();
+            save.set_i16(at + 2 * free, REPTH);
+        }
+        let c = w.combat_mut();
+        c.scene.chars[elk].sp = c.scene.chars[elk].max_sp.max(60);
+        c.scene.chars[kite].hp = (c.scene.chars[kite].max_hp / 3).max(1);
+        w.chat_cmd(elk, 5, Some(kite), i32::from(REPTH));
+    }
+    for _ in 0..600 {
+        step(&mut s, 1);
+        if char(&mut s, elk).skill_id == REPTH {
+            return;
+        }
+    }
+    panic!("Elk never cast Repth on Kite: {:?}", made(&mut s));
+}

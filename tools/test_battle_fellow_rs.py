@@ -1603,12 +1603,52 @@ def run_checks(fc):
             out.append((pos, [0, 0, fl(h), 0], int(mode > 0), int(mode == 2)))
         return out
 
-    def check(area, foes_range):
+    def edge(rnd, w, frames):
+        """Issue #7's fight: the member under Wonder Battle (strategy 0),
+        Orca, BlackRose or Mistral by its spcAIParam row, its foes about the
+        edge of its territory and drifting there; each foe's place each
+        frame."""
+        chars = w["chars"]
+        me = chars[1]
+        row = rnd.choice((2, 15, 16, 16))
+        me.id = row
+        w["party"]["ids"][1] = row
+        w["lists"] = {ch.id: v for ch, v in zip(chars, w["lists"].values())}
+        a = w["ais"][1]
+        a[P.AI_AT["param"]] = row
+        a[P.AI_AT["strategyCMD"]] = a[P.AI_AT["strategy"]] = 0
+        a[P.AI_AT["mode"]] = a[P.AI_AT["modeOld"]] = rnd.choice((1, 2, 3))
+        w["game"]["in_battle"] = 1
+        w["game"]["party_strategy"] = 0
+        territory = {2: 800.0, 15: 1500.0, 16: 1800.0}[row]
+        mx, my = ff(me.pos[0]), ff(me.pos[1])
+        drift = []
+        for f in chars[2:]:
+            d = territory + rnd.uniform(-250, 250) if rnd.random() < 0.8 else rnd.uniform(100, 2500)
+            h = rnd.uniform(-math.pi, math.pi)
+            x, y = mx + d * math.sin(h), my - d * math.cos(h)
+            f.pos = [fl(x), fl(y), 0, F_ONE]
+            f.pos_p = list(f.pos)
+            path, v, left = [], (0.0, 0.0), 0
+            for _ in range(frames):
+                if left <= 0:
+                    left = rnd.randrange(10, 80)
+                    sp = rnd.choice((0.0, 0.0, rnd.uniform(0.5, 3.0), rnd.uniform(3.0, 9.0)))
+                    g = rnd.uniform(-math.pi, math.pi)
+                    v = (sp * math.sin(g), -sp * math.cos(g))
+                left -= 1
+                x, y = x + v[0], y + v[1]
+                path.append([fl(x), fl(y), 0, F_ONE])
+            drift.append(path)
+        return drift
+
+    def check(area, foes_range, edged=False):
         def run(rnd):
             foes = rnd.choice(foes_range)
             w = world(rnd, area, foes)
             fel = [fellow_state(rnd, ch, i) for i, ch in enumerate(w["chars"])]
-            frames = rnd.randrange(60, 301)
+            frames = rnd.randrange(300, 601) if edged else rnd.randrange(60, 301)
+            drift = edge(rnd, w, frames) if edged else []
             q = {
                 "land": [0] * (4 * frames + 50),
                 "attr": [0] * (frames + 20),
@@ -1636,10 +1676,13 @@ def run_checks(fc):
             m = fg.m
             game = []
             kva = fg.va(0)
-            for pos, dirc, mv, run_ in steps:
+            for k, (pos, dirc, mv, run_) in enumerate(steps):
                 fg.g.put(kva + 0x40, "<4I", *pos)
                 fg.g.put(kva + 0x50, "<4I", *pos)
                 fg.g.put(kva + 0x60, "<4I", *dirc)
+                for j, way in enumerate(drift):
+                    fg.g.put(fg.va(2 + j) + 0x40, "<4I", *way[k])
+                    fg.g.put(fg.va(2 + j) + 0x50, "<4I", *way[k])
                 fl_ = m.load(kva + 0xE0, 1) & ~0x28
                 m.store(kva + 0xE0, 1, fl_ | (8 if mv else 0) | (0x20 if run_ else 0))
                 env.count = (env.count + 1) & 0xFFFFFFFF
@@ -1649,7 +1692,13 @@ def run_checks(fc):
                 game.append(fg.read_case(w, 0))
             fc.c.scene.restore()
             env.count = (env.count - frames) & 0xFFFFFFFF
-            extra = " ".join(" ".join(str(x) for x in pos + pos + dirc + [mv, run_]) for pos, dirc, mv, run_ in steps)
+            extra = " ".join(" ".join(str(x) for x in pos + pos + dirc + [mv, run_]
+                                      + [v for way in drift for v in way[k] + way[k]])
+                             for k, (pos, dirc, mv, run_) in enumerate(steps))
+            if edged:
+                lines = [k for k, g_ in enumerate(game) for _ in range(str(g_).count("ChatMessageAttackTarget"))]
+                EDGE_LINES.append((w["chars"][1].id, frames, lines))
+                return request("Run", [1, frames, len(drift)], c, b, extra), {"frames": game}, "RunFieldEdge"
             name = "Run" + ("Dungeon" if area == 2 else "Field") + ("Foes" if foes_range[0] else "")
             return request("Run", [1, frames], c, b, extra), {"frames": game}, name
         return run
@@ -1786,6 +1835,7 @@ def run_checks(fc):
     return [
         ("RunField", check(1, (0,))),
         ("RunFieldFoes", check(1, (1, 2, 3))),
+        ("RunFieldEdge", check(1, (1, 2, 3), edged=True)),
         ("RunDungeon", check(2, (0,))),
         ("RunDungeonFoes", check(2, (1, 2, 3))),
         ("RunDungeonNavi", navi_check(2)),
@@ -1941,6 +1991,9 @@ def kite_walk(rnd, cells, reach, start, frames, off):
 
 # the runner -----------------------------------------------------------------------------------
 
+# RunFieldEdge's (member row, frames, the frames of its ChatMessageAttackTarget calls) per case.
+EDGE_LINES = []
+
 def diff_frames(port, game, what):
     """The first frame that differs, and where."""
     if not isinstance(port, dict) or "frames" not in port:
@@ -1997,7 +2050,8 @@ def _check(name):
 
 CHECK_NAMES = ["SetDircZ", "CheckFrontObstacle", "CheckFrontObstacleF", "FollowPlayer", "LeavePlayer",
                "FollowTarget", "FollowTargetDirc", "Move", "HitCheck", "CheckNote", "Action", "Main",
-               "RunField", "RunFieldFoes", "RunDungeon", "RunDungeonFoes", "RunDungeonNavi", "RunFieldNavi"]
+               "RunField", "RunFieldFoes", "RunDungeon", "RunDungeonFoes", "RunDungeonNavi", "RunFieldNavi",
+               "RunFieldEdge"]
 FELLOW = {name: _check(name) for name in CHECK_NAMES}
 T.run = run
 

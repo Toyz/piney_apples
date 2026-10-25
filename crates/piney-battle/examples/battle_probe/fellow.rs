@@ -1036,8 +1036,15 @@ pub(crate) fn handle(cmd: &str, t: &mut Toks, tables: &mut Tables) -> Option<Str
         let frames = a(1) as usize;
         let kite = c.party.members[0];
         let mut snaps = Vec::with_capacity(frames);
+        // RunFieldEdge's foes, placed each frame after Kite (scene 2 on).
+        let drifting = args.get(2).map_or(0, |&n| n as usize);
         for _ in 0..frames {
             let (pos, pos_p, dirc, mv, run) = read_kite(t);
+            for j in 0..drifting {
+                let ch = &mut c.scene.chars[2 + j];
+                ch.pos = v4(t);
+                ch.pos_p = v4(t);
+            }
             if let Some(k) = kite {
                 let ch = &mut c.scene.chars[k];
                 ch.pos = pos;

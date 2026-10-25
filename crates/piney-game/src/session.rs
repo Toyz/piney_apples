@@ -4314,6 +4314,80 @@ mod tests {
         assert!(left.is_empty(), "the drain's clips still running 120 frames on: {left:?}");
     }
 
+    /// Issue #5 to the fight's end: The Hanged Man used on the goblin, the
+    /// drain with its movie, the drained form felled. Once the battle mode
+    /// is off nothing the scroll, the paralysis or the drain started is
+    /// left: no generator follows a character, no effect a target, and no
+    /// condition effect is held.
+    #[test]
+    fn a_scroll_paralysed_foe_drained_leaves_nothing_after_the_fight() {
+        use piney_battle::param::cond;
+        let paralysed = |s: &Session| match &s.stage {
+            Stage::Area(a) => {
+                let c = a.world().combat();
+                c.enemies().iter().any(|&e| c.scene.chars[e].cond[cond::PARALYSIS] != 0)
+            }
+            _ => false,
+        };
+        let given = std::cell::Cell::new(false);
+        let worn = std::cell::Cell::new(false);
+        let drained = std::cell::Cell::new(false);
+        let plan = |s: &Session| {
+            if paralysed(s) { Some(4) } else { given.get().then_some(5) }
+        };
+        let Some(mut s) = drain_with(true, plan, |s, _, _| {
+            let Stage::Area(a) = &mut s.stage else { return };
+            if !given.get() {
+                let save = &mut a.world_mut().state_mut().save;
+                save.set_i16(offset::ITEM_LIST, 37);
+                save.set_u8(offset::ITEM_LIST + 2, 11);
+                save.set_u8(offset::ITEM_LIST + 3, 9);
+                given.set(true);
+            }
+            drained.set(drained.get() || a.ui().ctrl.menu == 66);
+            let c = a.world_mut().combat_mut();
+            for e in c.enemies() {
+                // Kept up until the drain: the members' blows fall on it.
+                let ch = &mut c.scene.chars[e];
+                if ch.cond[cond::DEAD] == 0 && !drained.get() {
+                    ch.hp = 9999;
+                }
+                worn.set(worn.get() || c.condition_effect(e) == Some(1));
+            }
+        }) else {
+            return;
+        };
+        assert!(worn.get(), "no foe wore the paralysis");
+        let mut pad = Pad::default();
+        let mut over = None;
+        for f in 0..3000 {
+            run(&mut s, &mut pad, 0..1, &[]);
+            let Stage::Area(a) = &mut s.stage else { panic!("left the area") };
+            let c = a.world_mut().combat_mut();
+            // The drained form falls to the next blow.
+            for e in c.enemies() {
+                if c.scene.chars[e].cond[cond::DEAD] == 0 {
+                    c.scene.chars[e].hp = 1;
+                }
+            }
+            if c.battle.in_battle == 0 && f > 10 {
+                over = Some(f);
+            }
+            if over.is_some_and(|o| f > o + 120) {
+                break;
+            }
+        }
+        assert!(over.is_some(), "the fight never ended");
+        let Stage::Area(a) = &s.stage else { panic!() };
+        let census = a.world().fx().census();
+        let c = a.world().combat();
+        assert_eq!(census.char_generators, Vec::<u32>::new(), "generators on characters");
+        let aimed: Vec<_> = census.effect_targets.iter().filter(|e| e.1.is_some()).collect();
+        assert!(aimed.is_empty(), "effects on characters: {aimed:?}");
+        let held: Vec<usize> = (0..c.scene.chars.len()).filter(|&k| c.condition_effect(k).is_some()).collect();
+        assert!(held.is_empty(), "condition effects held: {held:?}");
+    }
+
     /// Issue #10: an attack scroll (`itemTblD` row 0, skill 193, type
     /// 0xc106) used on the goblin from PERSONAL's Items by a Kite with no
     /// `targetChar`. `_ccSkillRequest`

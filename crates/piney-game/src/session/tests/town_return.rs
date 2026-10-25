@@ -218,6 +218,95 @@ fn the_status_portraits_come_back_from_a_field() {
     }
 }
 
+/// `id`'s Status page (party page `page`) opened in the town: the slot
+/// the page is on (`StatusMenuDisp` walks the occupied slots) sends its
+/// `menuFace`, whose face is `id`'s `menuFaceCcsList` row. The menu closed
+/// after.
+fn portrait(s: &mut Session, page: i16, id: i32) {
+    let mut pad = Pad::default();
+    for f in 1..3000u64 {
+        let Stage::World(w) = &s.stage else { panic!("left the town: {}", Mode::title(s)) };
+        let Some(raw) = status_pad(w, f, page) else { break };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    let Stage::World(w) = &s.stage else { unreachable!() };
+    let ui = w.ui();
+    assert_eq!((ui.ctrl.menu, ui.ctrl.list().page), (8, page), "{id}'s Status page");
+    let slot = w.world().party().iter().position(|&m| m == id).expect("in the party");
+    let faces: Vec<u8> = (ui.draws().iter())
+        .filter_map(|d| match d {
+            piney_fieldui::ctrl::Draw::Send(p) => p.first().and_then(|p| match p.obj {
+                piney_fieldui::spr::Obj::MenuFace(i) => Some(i),
+                _ => None,
+            }),
+            _ => None,
+        })
+        .collect();
+    assert!(faces.contains(&(slot as u8)), "{id}'s portrait draw: slot {slot}, sent {faces:?}");
+    assert_eq!(ui.ctrl.face_tex[slot], id, "{id}'s face");
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    for f in 0..600u64 {
+        let Stage::World(w) = &s.stage else { break };
+        if w.ui().menu_type() == -1 {
+            break;
+        }
+        pad.read(&Raw { buttons: if f % 8 == 0 { Buttons::CIRCLE } else { Buttons::NONE }, ..still });
+        s.step(&pad);
+        s.take_events();
+    }
+}
+
+/// Issue #3 by the other ways the party changes around a field: Mistral
+/// and BlackRose called, BlackRose felled in the field, back by Gate Out;
+/// then BlackRose out of the party (`ccParty::DelMember` of her slot,
+/// which leaves Mistral in slot 2 behind an empty one), a field and back by
+/// `town 0`. Each Status page draws its member's slot's face: the faces
+/// follow `memberID` in every scene's `ccMenuCtrl` and every join.
+#[test]
+fn the_status_portraits_follow_the_slots() {
+    let Some((iso, archive)) = disc() else { return };
+    let mut s = start(&iso, &archive, None);
+    hold(&mut s, 128, 128, 900, |s| in_town(s).is_some());
+    invite(&mut s, BLACKROSE);
+    invite(&mut s, MISTRAL);
+    to_the_field(&mut s, &iso);
+    {
+        let Stage::Area(a) = &mut s.stage else { unreachable!() };
+        let w = a.world_mut();
+        let (br, k) = (w.combat().who(BLACKROSE).expect("BlackRose in the field"), w.combat().kite);
+        w.entry_affect(br, k, 1, [9999, 0, 0]);
+    }
+    let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+    let mut pad = Pad::default();
+    for f in 0..3000u64 {
+        if in_town(&s).is_some() {
+            break;
+        }
+        let raw = match &s.stage {
+            Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(n) if n > 12) => gate_out_pad(a, f),
+            _ => still,
+        };
+        pad.read(&raw);
+        s.step(&pad);
+        s.take_events();
+    }
+    let Stage::World(w) = &mut s.stage else { panic!("not back in Mac Anu: {}", Mode::title(&s)) };
+    assert_eq!(w.world().party(), [0, BLACKROSE, MISTRAL]);
+    portrait(&mut s, 1, BLACKROSE);
+    portrait(&mut s, 2, MISTRAL);
+    let Stage::World(w) = &mut s.stage else { unreachable!() };
+    w.world_mut().party_remove(BLACKROSE);
+    assert_eq!(w.world().party(), [0, -1, MISTRAL]);
+    portrait(&mut s, 1, MISTRAL);
+    to_the_field(&mut s, &iso);
+    back_to_town(&mut s);
+    let Stage::World(w) = &s.stage else { unreachable!() };
+    assert_eq!(w.world().party(), [0, -1, MISTRAL]);
+    portrait(&mut s, 1, MISTRAL);
+}
+
 /// Orca's `spcDefaultItemList` row: (category, id, count).
 fn kit(v: Volume) -> Vec<(i32, i32, i32)> {
     let rows = piney_data::tables::battle::of(v).spc_default_items();
