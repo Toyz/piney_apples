@@ -337,6 +337,27 @@ impl Backgrounds {
     pub fn row(&self, field_type: u32, weather: u32) -> Option<&'static BgRow> {
         self.rows[field_type as usize].get(weather as usize)
     }
+
+    /// Whether a field type has a hacked background (`backccs2`; type 4
+    /// has none, and no hacked field is of it).
+    pub fn has_hacked(&self, field_type: u32) -> bool {
+        self.ccs2[field_type as usize].is_some()
+    }
+
+    /// `BGTBL2`'s row when `hacked`, else `BGTBL`'s.
+    pub fn row_of(&self, field_type: u32, weather: u32, hacked: bool) -> Option<&'static BgRow> {
+        let rows = if hacked { self.rows2 } else { self.rows };
+        rows[field_type as usize].get(weather as usize)
+    }
+
+    /// The background file `WORLD::Init` reads: `backccs2`'s when `hacked`
+    /// (and the type has one), else `backccs`'s, its `?` `1` + weather.
+    pub fn file_name(&self, field_type: u32, weather: u32, hacked: bool) -> String {
+        match self.ccs2[field_type as usize].filter(|_| hacked) {
+            Some(name) => name.replace('?', &(weather + 1).to_string()),
+            None => self.ccs_name(field_type, weather),
+        }
+    }
 }
 
 impl Tables {

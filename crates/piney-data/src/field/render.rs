@@ -561,9 +561,9 @@ pub fn cover_offset(quadrant: u32) -> [u32; 3] {
 }
 
 /// The lake's water surface: `SetLake` plays the animation three times at
-/// the lake object's centre (z 0, no rotation or scale), each drawn in its
-/// own layer - one with its UVs scrolled each frame (`waterUVModifi`), two
-/// with textures `Generate` makes at run time (not modelled).
+/// the lake object's centre (z 0, no rotation or scale); `WORLD::Draw`
+/// scrolls their materials and draws two on objLayer and the third on
+/// refLayer, its `OBJ_water00` sampling the picture under it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Water {
     /// The CCS file (`WORLD.effccs`, `field_eff`) ...
@@ -573,18 +573,25 @@ pub struct Water {
     pub pos: [f32; 3],
 }
 
-/// What `WORLD::DrawBG` (gcmn 0x005a7ef0) draws: the clumps centred on the
-/// player's position at z 0 (`WORLD.BGPos`), unrotated, each in its own
-/// background layer; the sky material's V scrolls by 0.003 a frame.
+/// What `WORLD::Init` (gcmn 0x005a4cd0) loads for `WORLD::DrawBG`
+/// (0x005a7ef0): a plain field's (`isHacked` 2) from `backccs`, `BGTBL` and
+/// `BgMatName`, a hacked one's from `backccs2`, `BGTBL2` and `BgMatName2`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Background {
     /// The background CCS file (without `.cmp`).
     pub ccs: String,
-    /// The sky, two cloud layers and the mountains, and for field type 6
-    /// the aurora: Clump chunks in [`Background::ccs`], in drawing order
-    /// (the aurora before the mountains).
+    /// `WORLD` +0x60b0, +0x60b4, +0x60b8, +0x60bc and, hacked, +0x60c0:
+    /// Clump chunks in [`Background::ccs`]. Plain: the sky, two cloud
+    /// layers and the mountains; hacked: the sky, three data layers and the
+    /// mountains.
     pub clumps: Vec<&'static str>,
+    /// +0x60c4: field type 6's aurora.
+    pub aurora: Option<&'static str>,
+    /// The material whose V `DrawBG` scrolls (`BgMatName` /
+    /// `BgMatName2`).
     pub sky_material: Option<&'static str>,
+    /// `isHacked` is not 2: `DrawBG`'s second way.
+    pub hacked: bool,
     /// `ccDrawEnv::SetFog`'s arguments.
     pub fog: super::Fog,
 }
@@ -630,11 +637,19 @@ impl Field {
     /// ([`Tables::ccs`]), `background` the background file of its field type
     /// and weather ([`Backgrounds::ccs_name`](super::Backgrounds::ccs_name)).
     pub fn scene(&self, t: &Tables, field_ccs: &Ccs, background: &Ccs) -> Result<Scene> {
+        self.scene_of(t, field_ccs, background, false)
+    }
+
+    /// [`Field::scene`] for a field whose `isHacked` is not 2 when `hacked`
+    /// (its background, light and fog from `BGTBL2`): `background` is
+    /// [`Backgrounds::file_name`](super::Backgrounds::file_name)'s.
+    pub fn scene_of(&self, t: &Tables, field_ccs: &Ccs, background: &Ccs, hacked: bool) -> Result<Scene> {
         let (ft, weather) = (self.params.field_type, self.params.weather);
         let Some(ccs) = t.ccs[ft as usize] else {
             return format_err(format!("field type {ft} has no field"));
         };
-        let Some(row) = t.backgrounds.row(ft, weather) else {
+        let hacked = hacked && t.backgrounds.has_hacked(ft);
+        let Some(row) = t.backgrounds.row_of(ft, weather, hacked) else {
             return format_err(format!("no background for field type {ft}, weather {weather}"));
         };
         let light = Light::from_anime(background, row.anime, row.light)?;
@@ -655,11 +670,11 @@ impl Field {
             anime: t.water,
             pos: [f32::from_bits(o.pos[0]), f32::from_bits(o.pos[1]), 0.0],
         });
-        let mut clumps = row.clumps[..3].to_vec();
-        if ft == AURORA_FIELD {
-            clumps.extend(t.backgrounds.aurora.get(weather as usize));
-        }
-        clumps.push(row.clumps[3]);
+        // Hacked, the sky is BGTBL2's `p` and the four named clumps follow.
+        let clumps: Vec<&'static str> =
+            if hacked { row.p.into_iter().chain(row.clumps).collect() } else { row.clumps.to_vec() };
+        let aurora = (ft == AURORA_FIELD).then(|| t.backgrounds.aurora.get(weather as usize).copied()).flatten();
+        let materials = if hacked { t.backgrounds.material2 } else { t.backgrounds.material };
         Ok(Scene {
             ccs,
             ground_model,
@@ -670,9 +685,11 @@ impl Field {
             objects: self.placements(t),
             water,
             background: Background {
-                ccs: t.backgrounds.ccs_name(ft, weather),
+                ccs: t.backgrounds.file_name(ft, weather, hacked),
                 clumps,
-                sky_material: t.backgrounds.material[ft as usize].get(weather as usize).copied(),
+                aurora,
+                sky_material: materials[ft as usize].get(weather as usize).copied(),
+                hacked,
                 fog: row.fog,
             },
             light,

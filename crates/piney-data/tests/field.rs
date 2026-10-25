@@ -297,6 +297,24 @@ fn a_field_scene_from_the_disc() {
     assert_eq!(s.background.sky_material, Some("MAT_sfp7bac1"));
     assert_eq!((s.background.fog.near, s.background.fog.far, s.background.fog.percent), (1000.0, 8800.0, 90.0));
     assert_eq!(s.objects.len(), 107);
+    assert!(!s.background.hacked && s.background.aurora.is_none());
+
+    // The same field hacked (isHacked 3): BGTBL2's sky, data layers and
+    // mountains in bg_p1_1, and its light and fog.
+    let name = INF.backgrounds.file_name(10, 0, true);
+    assert_eq!(name, "bg_p1_1");
+    let bg2 = Ccs::parse(arc.inflate_named(&name).unwrap()).unwrap();
+    let h = f.scene_of(&INF, &field_ccs, &bg2, true).unwrap();
+    assert!(h.background.hacked);
+    assert_eq!(
+        h.background.clumps,
+        ["CMP_sfp9bac1", "CMP_sfp9dat1_1", "CMP_sfp9dat1_2", "CMP_sfp9dat1_3", "CMP_sfp9mou1"]
+    );
+    for clump in &h.background.clumps {
+        assert!(bg2.find_object(clump).is_some(), "{clump}");
+    }
+    assert_eq!(h.background.sky_material, Some("MAT_sfp9dat1_3"));
+    assert_ne!(h.light, s.light, "BGTBL2's light");
 }
 
 #[test]

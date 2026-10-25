@@ -87,7 +87,6 @@ const BG_STEP: [F; 2] = [0x3c23_d70a, 0x3ca3_d70a];
 const BG_STEP2: F = 0x3a83_126f;
 /// The water's scroll a frame, `u$1777` (0x00378b6c): 0.005.
 const WATER_STEP: F = 0x3ba3_d70a;
-const K4096: F = 0x4580_0000;
 /// The `CLOUD`s `Draw` makes on its first call (+0x1d8, type 0).
 pub const CLOUDS: usize = 25;
 
@@ -166,11 +165,6 @@ pub struct DunLoireag {
     pub flares: Option<[V4; 6]>,
 }
 
-/// `vftoi12(x)` as the 16 bits the materials keep.
-fn vftoi12(x: F) -> u16 {
-    (ee::to_int(ee::mul(x, K4096)) & 0xffff) as u16
-}
-
 /// `ROOTTOWN02::ROOTTOWN02`: `town02d` when the save's crisis byte is set,
 /// else `town02`, and `town_z`.
 pub fn new(archive: &Arc<Archive>, crisis: bool) -> Result<Town> {
@@ -239,10 +233,10 @@ impl DunLoireag {
                 self.clouds.push(c);
             }
         }
-        // ccAnm::SetUV of vftoi12(u) into water 1's U and water 2's V;
+        // ccAnm::SetUV of ee::vftoi12(u) into water 1's U and water 2's V;
         // waterUVModifi2 of water 0 (its UVs, for the draw); 2 and 1 on
         // effLayer, 0 on objLayer and the copy after it.
-        self.water_uv = vftoi12(self.water_u);
+        self.water_uv = ee::vftoi12(self.water_u);
         self.water0.modify(base.hits.volume, &water_root(), [0, 0, 0, ONE], v.eye, &v.world_screen);
         for k in [2usize, 1, 0] {
             self.water[k].forward(&base.file);
@@ -263,10 +257,10 @@ impl DunLoireag {
                 *x = 0;
             }
         }
-        self.cloud_uv = self.bg_scroll.map(vftoi12);
+        self.cloud_uv = self.bg_scroll.map(ee::vftoi12);
         out.extend([Piece::Sky, Piece::Sun, Piece::CloudSky(0), Piece::CloudSky(1)]);
         if self.crisis_sky.is_some() {
-            self.bg_uv = vftoi12(self.bg_scroll2);
+            self.bg_uv = ee::vftoi12(self.bg_scroll2);
             out.extend((0..3).map(Piece::CrisisSky));
         }
         // DrawObj2, DrawObj, DrawFloor: each walks the 20 rows for its

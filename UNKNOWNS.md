@@ -82,7 +82,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 ### render
 
-- [[38]] [[39]] [[72]] the field water's run-time textures and scroll, and the clouds' blending, are approximations (docs/engine/field.md, field-walk.md) — every field with water or clouds
+- [[38]] [[39]] [[72]] the field water's run-time textures and scroll, and the clouds' blending, are approximations (docs/engine/field.md, field-walk.md) — every field with water or clouds — answered by [[480]] (the lake's three animations, scrolls and refLayer mirror; `DrawBG`'s plain and hacked backgrounds, turns and aurora; tools/test_field_ambient_rs.py)
 - [[97]] water 0's frame-buffer copy is the whole frame, not the game's 128 x 128 point-sampled one (docs/engine/field-game.md, town02.md) — the towns' water
 - [[79]] [[231]] `SetFogSw` / `SetShadowSw` on the spell pieces (and on other objects that turn fog off; only the gate was fixed) and the drill's `ccDrawEnv` settings are not modelled (docs/engine/effects.md) — spells and objects fogged or shadowed where the game turns it off
 - [[79]] the explosions' palette swaps are kept on the element but not drawn (docs/engine/effects.md) — spell explosions' colours — answered by [[411]]: `ccAnm` draws carry their objects' palette swaps (`AnmObj::change_clut`); the explosion's `OBJ_x048`-`051` own `CLT_x048`-`051` (`the_explosions_substitutes_own_their_palettes`)
@@ -1319,7 +1319,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 ### docs/engine/field.md
 
 - docs/engine/field.md: how the fog table's near, far and percentage map to the GS fog — answered (stale; [[145]] (DepthFog::set_fog))
-- docs/engine/field.md: the water's run-time texture and UV scroll — play (approximated; duplicates [[38]], [[72]])
+- docs/engine/field.md: the water's run-time texture and UV scroll — play (approximated; duplicates [[38]], [[72]]) — answered by [[480]]
 - docs/engine/field.md: the objects' own draw code and the type-6 FOBJECT2s DrawMesh draws — research (duplicates [[38]])
 - docs/engine/field.md: whether a tile's alpha is clamped beyond 7,200 — research (duplicates [[38]])
 - docs/engine/field.md: EntryGimmick's fieldrand draws on the entry task's first slice; the port makes them on Play(0)'s frame — research (ordering)

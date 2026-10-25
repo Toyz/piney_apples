@@ -22,7 +22,7 @@ use piney_draw::VertexEdits;
 
 use crate::draw::{self, Draw, FLOOR_LAYER, OBJ_LAYER, OBJ2_LAYER};
 use crate::ee::{self, F, ONE, V4};
-use crate::field_ambient::{Ambient, Env, Frame, Model, Op, Statics, Weather};
+use crate::field_ambient::{Ambient, BgSlot, Env, Frame, Model, Op, Statics, Weather};
 use crate::hit::{HitModel, Hits};
 use crate::pose::Play;
 use crate::town::{Light, TownLights};
@@ -117,15 +117,17 @@ pub struct FieldArea {
     /// The ground tile model and the covers' models (MDL_ objects).
     ground_model: Option<u32>,
     cover_models: Vec<Option<u32>>,
-    /// The background's models by clump, in `DrawBG`'s order, with each
-    /// clump's layer.
-    bg_models: Vec<(i16, Vec<u32>)>,
-    /// `DrawBG`'s sky scroll (V, 0.003 a frame).
-    bg_v: F,
-    /// The lake's water surface (`SetLake`: `ANM_sfwat1_1a` of
-    /// `field_eff`), at the lake's centre.
-    water: Option<(Play, V4)>,
-    water_u: F,
+    /// `DrawBG`'s clumps' models by slot.
+    bg_models: BgModels,
+    /// The materials `DrawBG` scrolls: `BgMatName`'s (or `BgMatName2`'s)
+    /// in V, the aurora's first object's in U.
+    bg_mat: Option<u32>,
+    aurora_mats: Vec<u32>,
+    /// What the last [`Op::BgV`] and [`Op::BgU`] wrote.
+    bg_uv: [u16; 2],
+    /// The lake's water (`SetLake`), whose place and scroll the ambient
+    /// drawing keeps ([`crate::field_ambient::lake`]).
+    lake: Option<Lake>,
     /// The light the ground and objects were lit by, as Kite's draw takes
     /// it.
     pub lights: TownLights,
@@ -162,12 +164,20 @@ impl FieldArea {
     /// data, which goes on from field to field
     /// ([`crate::town::scroll_statics`]).
     pub fn take_statics(&mut self, s: &[u32; piney_desktop::SCROLL_STATICS]) {
-        self.bg_v = s[crate::town::scroll_statics::WORLD_BG];
+        if let Some(bg) = &mut self.ambient.bg {
+            bg.v = s[crate::town::scroll_statics::WORLD_BG];
+            crate::town::scroll_statics::take(&mut bg.turn, s, crate::town::scroll_statics::WORLD_BG_TURN);
+        }
+        crate::town::scroll_statics::take(&mut self.ambient.lake_uv, s, crate::town::scroll_statics::WORLD_LAKE);
     }
 
     /// The static written back.
     pub fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
-        s[crate::town::scroll_statics::WORLD_BG] = self.bg_v;
+        if let Some(bg) = &self.ambient.bg {
+            s[crate::town::scroll_statics::WORLD_BG] = bg.v;
+            crate::town::scroll_statics::put(&bg.turn, s, crate::town::scroll_statics::WORLD_BG_TURN);
+        }
+        crate::town::scroll_statics::put(&self.ambient.lake_uv, s, crate::town::scroll_statics::WORLD_LAKE);
     }
 }
 
@@ -251,7 +261,7 @@ fn fade(d: F, near: F, far: F, len: F) -> F {
 impl FieldArea {
     /// [`FieldArea::with_world`] on server 0, not hacked.
     pub fn new(archive: &Archive, params: field::Params, def_se: u32) -> Result<FieldArea> {
-        FieldArea::with_world(archive, Volume::Inf, params, def_se, 0, 0)
+        FieldArea::with_world(archive, Volume::Inf, params, def_se, 2, 0)
     }
 
     /// `WORLD::WORLD`, `Init` and `Generate` for `params` (a story area's
@@ -299,10 +309,12 @@ impl FieldArea {
         let ft = params.field_type as usize;
         let stem = tables.ccs[ft].ok_or_else(|| Error::NotFound(format!("field type {ft} has no field")))?;
         let file = Rc::new(SceneFile::read(archive, stem)?);
-        let bg_name = tables.backgrounds.ccs_name(params.field_type, params.weather);
+        // isHacked other than 2: BGTBL2's background, light and fog.
+        let hacked = hack != 2 && tables.backgrounds.has_hacked(params.field_type);
+        let bg_name = tables.backgrounds.file_name(params.field_type, params.weather, hacked);
         let bg = Rc::new(SceneFile::read(archive, &bg_name)?);
         let eff = SceneFile::read(archive, tables.effect_ccs).ok().map(Rc::new);
-        let scene = field.scene(tables, &file.ccs, &bg.ccs)?;
+        let scene = field.scene_of(tables, &file.ccs, &bg.ccs, hacked)?;
         let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
         let hit_models = crate::hit::HitModel::read(volume, &file.ccs)?;
         let mut model_hits = Vec::new();
@@ -434,27 +446,43 @@ impl FieldArea {
             m.sort_unstable();
             m
         };
-        let row =
-            tables.backgrounds.row(params.field_type, params.weather).ok_or(Error::NotFound("background".into()))?;
-        let mut bg_models = vec![
-            (draw::BG_LAYER, clump_models(row.clumps[0])),
-            (draw::BG_LAYER + 10, clump_models(row.clumps[1])),
-            (draw::BG_LAYER + 20, clump_models(row.clumps[2])),
-        ];
-        if params.field_type == 6
-            && let Some(a) = tables.backgrounds.aurora.get(params.weather as usize)
-        {
-            bg_models.push((draw::BG_LAYER + 40, clump_models(a)));
-        }
-        bg_models.push((draw::BG_LAYER + 30, clump_models(row.clumps[3])));
+        let back = &scene.background;
+        let slot = |k: usize| back.clumps.get(k).map_or_else(Vec::new, |c| clump_models(c));
+        let bg_models: BgModels =
+            [slot(0), slot(1), slot(2), slot(3), slot(4), back.aurora.map_or_else(Vec::new, clump_models)];
+        ambient.bg = Some(crate::field_ambient::DrawBg {
+            hacked: back.hacked,
+            aurora: back.aurora.is_some(),
+            ..Default::default()
+        });
+        let bg_mat = back.sky_material.and_then(|n| bg.ccs.find_object(n));
+        // SetUV of the aurora's first object's model: its materials' U.
+        let aurora_mats: Vec<u32> = back
+            .aurora
+            .and_then(|a| bg.ccs.find_object(a))
+            .and_then(|o| clump_nodes(&bg.scene, o))
+            .and_then(|nodes| nodes.first().copied())
+            .map(|first| {
+                let mut mats: Vec<u32> = (bg.scene.model_owner.iter())
+                    .filter(|(_, o)| **o == first)
+                    .filter_map(|(m, _)| bg.models.get(m))
+                    .flat_map(|i| i.mmats.iter().filter_map(|m| m.material))
+                    .collect();
+                mats.sort_unstable();
+                mats.dedup();
+                mats
+            })
+            .unwrap_or_default();
 
-        let water = match (&eff, scene.water) {
-            (Some(e), Some(w)) => Play::new(e, w.anime).map(|mut p| {
-                p.forward(e);
-                (p, [w.pos[0].to_bits(), w.pos[1].to_bits(), w.pos[2].to_bits(), ONE])
-            }),
+        let lake = match (&eff, scene.water) {
+            (Some(e), Some(w)) => Lake::new(e, w.anime),
             _ => None,
         };
+        if lake.is_some()
+            && let Some(w) = scene.water
+        {
+            ambient.lake = Some([w.pos[0].to_bits(), w.pos[1].to_bits(), w.pos[2].to_bits(), ONE]);
+        }
 
         let l = &scene.light;
         let amb = l.ambient_rgb().map(f32::from_bits);
@@ -563,9 +591,10 @@ impl FieldArea {
             ground_model,
             cover_models,
             bg_models,
-            bg_v: 0,
-            water,
-            water_u: 0,
+            bg_mat,
+            aurora_mats,
+            bg_uv: [0, 0],
+            lake,
             lights,
             drawn: Vec::new(),
             map: None,
@@ -925,70 +954,40 @@ impl FieldArea {
             let f = fog_at(world.w_axis.truncate());
             model_fogged(layers, FLOOR_LAYER, to_screen, dr, Some(&self.cover_edits[i]), f);
         }
+    }
 
-        // The lake: its scrolling copy of the water surface.
-        if let (Some(eff), Some((play, pos))) = (self.eff.clone(), self.water.as_mut()) {
-            if step {
-                play.forward(&eff);
-                self.water_u = ee::add(self.water_u, 0x3ba3_d70a);
-                if !ee::le(self.water_u, ONE) {
-                    self.water_u = ee::sub(self.water_u, ONE);
-                }
+    /// `ccClump::Draw` of `DrawBG`'s clump `slot` on `layer` (the game's
+    /// priority) at `matrix`, the scroll's offsets on the materials it
+    /// wrote (a file's materials are one set for all its models).
+    fn bg_draw(&self, layers: &mut Layers, to_screen: Mat4, slot: BgSlot, layer: i16, matrix: &[V4; 4]) {
+        let bg = &self.bg;
+        let mut rows: HashMap<u32, [u8; 2]> = HashMap::new();
+        for (&mat, m) in &bg.scene.materials {
+            let mut row = [0u8; 2];
+            if Some(mat) == self.bg_mat {
+                row[1] = (self.bg_uv[0].wrapping_sub(m.crop_v) >> 4) as u8;
             }
-            let u = (ee::to_int(ee::mul(self.water_u, 0x4580_0000)) & 0xffff) as u16;
-            let mut uv = HashMap::new();
-            for (&mat, m) in &eff.scene.materials {
-                uv.insert(mat, [(u.wrapping_sub(m.crop_u) >> 4) as u8, 0]);
+            if self.aurora_mats.contains(&mat) {
+                row[0] = (self.bg_uv[1].wrapping_sub(m.crop_u) >> 4) as u8;
             }
-            let (p, _) = Self::nearest([pos[0], pos[1], pos[2]], player);
-            let root = Mat4::from_translation(Vec3::new(ee::f(p[0]), ee::f(p[1]), ee::f(p[2])));
-            let morphers = HashMap::new();
-            crate::town::anim_draw_on(
-                layers,
-                OBJ_LAYER,
-                to_screen,
-                (&eff, &morphers),
-                play,
-                root,
-                &[],
-                1.0,
-                Some(&uv),
-                None,
-            );
-        }
-
-        // DrawBG: centred on the player at z 0; the sky's V scrolls.
-        if step {
-            self.bg_v = ee::add(self.bg_v, 0x3b44_9ba6);
-            if !ee::le(self.bg_v, ONE) {
-                self.bg_v = 0;
+            if row != [0, 0] {
+                rows.insert(mat, row);
             }
         }
-        let bg = self.bg.clone();
-        let mut bg_rows = HashMap::new();
-        if let Some(name) = self.scene.background.sky_material
-            && let Some(mat) = bg.ccs.find_object(name)
-            && let Some(m) = bg.scene.materials.get(&mat)
-        {
-            let v = (ee::to_int(ee::mul(self.bg_v, 0x4580_0000)) & 0xffff) as u16;
-            bg_rows.insert(mat, [0, (v.wrapping_sub(m.crop_v) >> 4) as u8]);
-        }
-        let centre = Mat4::from_translation(Vec3::new(ee::f(player[0]), ee::f(player[1]), 0.0));
-        for (layer, models) in &self.bg_models {
-            for &model in models {
-                let d = Draw {
-                    file: &bg,
-                    model,
-                    world: centre,
-                    alpha: 1.0,
-                    rows: &bg_rows,
-                    lights: None,
-                    nodes: &[],
-                    morph: Vec::new(),
-                    clut_swaps: Vec::new(),
-                };
-                draw::model(layers, *layer, to_screen, d);
-            }
+        let world = draw::mat(matrix);
+        for &model in &self.bg_models[slot as usize] {
+            let d = Draw {
+                file: bg,
+                model,
+                world,
+                alpha: 1.0,
+                rows: &rows,
+                lights: None,
+                nodes: &[],
+                morph: Vec::new(),
+                clut_swaps: Vec::new(),
+            };
+            draw::model(layers, layer, to_screen, d);
         }
     }
 
@@ -1061,6 +1060,17 @@ impl FieldArea {
             }
         }
         for op in ops {
+            match op {
+                Op::LakeUv { u, v } => {
+                    if let Some(lake) = self.lake.as_mut() {
+                        lake.uv = [*u, *v];
+                    }
+                }
+                Op::BgV(v) => self.bg_uv[0] = *v,
+                Op::BgU(u) => self.bg_uv[1] = *u,
+                Op::Bg { slot, layer, matrix } => self.bg_draw(layers, to_screen, *slot, *layer, matrix),
+                _ => {}
+            }
             let Op::Model { layer, what, matrix, alpha, shadow } = op else { continue };
             let layer = ambient_layer(*layer);
             let root = draw::mat(matrix);
@@ -1083,6 +1093,29 @@ impl FieldArea {
                     let edits = water.st.is_some().then(|| (water.model.object, water.edits()));
                     let rows = play.uv_rows(file);
                     anim_edited(layers, layer, to_screen, (file, play, &rows), root, ee::f(*alpha), edits);
+                }
+                Model::Lake(k) => {
+                    let (Some(eff), Some(lake)) = (self.eff.clone(), self.lake.as_mut()) else { continue };
+                    // Each animation steps once before its draw; the three
+                    // are in step, so the one clip steps with the first.
+                    if step && *k == 0 {
+                        lake.play.forward(&eff);
+                    }
+                    let rows = lake.rows(&eff);
+                    let edits = (*k == 1).then(|| {
+                        let worlds = lake.play.worlds(&eff, root, &[]);
+                        let lw = worlds.iter().find(|(o, _)| {
+                            let target = eff.scene.ext.get(o).copied().unwrap_or(**o);
+                            eff.obj_model.get(&target) == Some(&lake.mirror.model.object)
+                        });
+                        if let Some((_, lw)) = lw {
+                            let lw: [V4; 4] = lw.to_cols_array_2d().map(|c| c.map(f32::to_bits));
+                            lake.mirror.modify(volume, &lw, lw[3], lw[3], world_screen);
+                        }
+                        (lake.mirror.model.object, lake.mirror.edits())
+                    });
+                    let edits = edits.filter(|_| lake.mirror.st.is_some());
+                    anim_edited(layers, layer, to_screen, (&eff, &lake.play, &rows), root, ee::f(*alpha), edits);
                 }
                 Model::Tobj | Model::TobjRunner(_) => {
                     let Some((file, plays)) = &self.tobj else { continue };
@@ -1285,6 +1318,68 @@ pub fn ambient_layer(k: u8) -> i16 {
     }
 }
 
+/// `SetLake`'s three animations of `ANM_sfwat1_1a` (`field_eff`), in step
+/// (each set up alike and stepped once a frame before its draw): their
+/// clip, the second's `OBJ_water00` as `waterUVModifi` leaves it, and the
+/// materials the scroll writes (`MAT_sfzwat1_1`'s U; the V of every
+/// material `OBJ_water00`'s model uses). A file's materials are one set
+/// for all its models, so each animation draws with both.
+struct Lake {
+    play: Play,
+    mirror: crate::town::WaterZero,
+    u_mat: Option<u32>,
+    v_mats: Vec<u32>,
+    /// What the last frame's [`Op::LakeUv`] wrote.
+    uv: [u16; 2],
+}
+
+impl Lake {
+    /// The lake's pieces of `field_eff`.
+    fn new(eff: &SceneFile, anime: &str) -> Option<Lake> {
+        let play = Play::new(eff, anime)?;
+        let o = eff.ccs.find_object(LAKE_MODEL)?;
+        let target = eff.scene.ext.get(&o).copied().unwrap_or(o);
+        let id = eff.obj_model.get(&target).copied()?;
+        let model = piney_data::model::models(&eff.ccs).ok()?.into_iter().find(|m| m.object == id)?;
+        let mut v_mats: Vec<u32> = model.mmats.iter().filter_map(|m| m.material).collect();
+        v_mats.sort_unstable();
+        v_mats.dedup();
+        let u_mat = eff.ccs.find_object(LAKE_MATERIAL);
+        let mirror = crate::town::WaterZero { model, st: None, reach: 0x7f7f_ffff };
+        Some(Lake { play, mirror, u_mat, v_mats, uv: [0, 0] })
+    }
+
+    /// The materials' offsets the scroll wrote, less each one's own, over
+    /// the clip's own (`_AnimateForward` comes after the scroll's writes).
+    fn rows(&self, eff: &SceneFile) -> HashMap<u32, [u8; 2]> {
+        let mut rows: HashMap<u32, [u8; 2]> = HashMap::new();
+        let [u, v] = self.uv;
+        for (&mat, m) in &eff.scene.materials {
+            let mut row = [0u8; 2];
+            if Some(mat) == self.u_mat {
+                row[0] = (u.wrapping_sub(m.crop_u) >> 4) as u8;
+            }
+            if self.v_mats.contains(&mat) {
+                row[1] = (v.wrapping_sub(m.crop_v) >> 4) as u8;
+            }
+            if row != [0, 0] {
+                rows.insert(mat, row);
+            }
+        }
+        rows.extend(self.play.uv_rows(eff));
+        rows
+    }
+}
+
+/// The lake's model whose texture is the picture under it, and the
+/// material whose U the scroll writes.
+const LAKE_MODEL: &str = "OBJ_water00";
+const LAKE_MATERIAL: &str = "MAT_sfzwat1_1";
+
+/// The models of each of `DrawBG`'s clumps, by [`BgSlot`]: the sky, the
+/// layers, the mountains (hacked), the aurora.
+type BgModels = [Vec<u32>; 6];
+
 /// `refLayer` (`WORLD_MAN` +0x4d0, priority 30), where the heat haze and
 /// the frame buffer's copy it samples go.
 pub const REF_LAYER: i16 = 30;
@@ -1475,14 +1570,27 @@ mod tests {
     fn area14_pieces() {
         let Some(archive) = crate::town::tests::archive() else { return };
         let f = area14(&archive);
-        let sizes: Vec<usize> = f.bg_models.iter().map(|b| b.1.len()).collect();
+        let sizes: Vec<usize> = f.bg_models[..4].iter().map(Vec::len).collect();
         eprintln!(
-            "bg {sizes:?} water {} objects {} hits {:?}",
-            f.water.is_some(),
+            "bg {sizes:?} lake {} objects {} hits {:?}",
+            f.lake.is_some(),
             f.objects.len(),
             f.objects.iter().map(|o| o.hits.len()).collect::<Vec<_>>()
         );
         assert!(sizes.iter().all(|&n| n > 0));
+    }
+
+    /// Area 14's lake as `SetLake` makes it: `OBJ_water00`'s model and its
+    /// materials, `MAT_sfzwat1_1`, and the place `Draw` starts from.
+    #[test]
+    fn area14_has_its_lake() {
+        let Some(archive) = crate::town::tests::archive() else { return };
+        let f = area14(&archive);
+        let lake = f.lake.as_ref().expect("area 14's lake");
+        assert!(lake.u_mat.is_some(), "MAT_sfzwat1_1");
+        assert!(!lake.v_mats.is_empty(), "OBJ_water00's materials");
+        let at = f.ambient.lake.expect("the lake's place");
+        assert_eq!(at[2], 0, "the lake stands at height 0");
     }
 
     /// Δ's airship hums: `TOBJ::Init` asks once for the loop
@@ -1503,7 +1611,7 @@ mod tests {
             protect: false,
             skip_init: false,
         };
-        let mut f = FieldArea::with_world(&archive, Volume::Inf, params, DEF_SE[10], 0, 0).unwrap();
+        let mut f = FieldArea::with_world(&archive, Volume::Inf, params, DEF_SE[10], 2, 0).unwrap();
         assert_eq!(f.ambient.tobj.as_ref().map(|t| t.server), Some(0));
         assert!(f.ambient.tobj_se_start);
         let player = [24000f32.to_bits(), 24000f32.to_bits(), 0, 1f32.to_bits()];

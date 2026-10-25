@@ -91,7 +91,6 @@ const WATER_STEP: F = 0x3ba3_d70a;
 /// `DrawBG`'s two scrolls a frame (`v$1334`, gcmn gp 0x00378168): 0.01
 /// (unused) and 0.002, each back to 0 past 1.
 const BG_STEP: [F; 2] = [0x3c23_d70a, 0x3b03_126f];
-const K4096: F = 0x4580_0000;
 
 /// One piece `ROOTTOWN01::Draw` draws, in its order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -208,7 +207,7 @@ impl MacAnu {
         }
         out.push(Piece::Sky);
         if self.crisis_sky.is_some() {
-            self.bg_uv = (ee::to_int(ee::mul(self.bg_scroll[1], K4096)) & 0xffff) as u16;
+            self.bg_uv = ee::vftoi12(self.bg_scroll[1]);
             out.extend((0..3).map(Piece::CrisisSky));
         }
         // DrawObj2 (0x00422900): the rows of type 3, then the static
@@ -267,7 +266,7 @@ impl MacAnu {
             eye,
             &v.world_screen,
         );
-        self.water_uv = (ee::to_int(ee::mul(self.water_u, K4096)) & 0xffff) as u16;
+        self.water_uv = ee::vftoi12(self.water_u);
         self.water_u = ee::add(self.water_u, WATER_STEP);
         if !ee::le(self.water_u, ONE) {
             self.water_u = ee::sub(self.water_u, ONE);

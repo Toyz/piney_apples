@@ -100,7 +100,7 @@ pub struct SaveState {
 
 /// The scroll statics the port keeps (piney-world's `town::statics` names
 /// them).
-pub const SCROLL_STATICS: usize = 22;
+pub const SCROLL_STATICS: usize = 26;
 
 /// The `EA_moveTex` rows gcmn holds: `EA_moveTex02`'s two, `04`, `05`,
 /// `06`, and `07`'s two (piney-world's `evarea::scroll` names them).

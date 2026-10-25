@@ -55,6 +55,11 @@ HEAP, HEAP_END = 0x01400000, 0x01F00000
 WORLD_SIZE = 0x61E0
 
 
+def s32(v):
+    v &= 0xFFFFFFFF
+    return v - (1 << 32) if v & 0x80000000 else v
+
+
 def fb(x):
     return struct.unpack("<I", struct.pack("<f", x))[0]
 
@@ -117,8 +122,8 @@ class Game:
             m.hooks[sym(name)] = nop
         m.hooks[sym("GetCCSAdrs__8ccStreamFPCc")] = lambda mm, a0, *a: self.fake("ccs:" + self.cstr(a0))
         m.hooks[sym("GetChunkAdrsF__8ccStreamFPCci")] = self.chunk
-        m.hooks[sym("GetSubstAdrsF__5ccAnmFPCcb")] = lambda mm, s, a1, *a: self.fake("subst:" + self.cstr(a1))
-        m.hooks[sym("GetSubstAdrsF__8ccStreamFPCci")] = lambda mm, s, a1, *a: self.fake("subst:" + self.cstr(a1))
+        m.hooks[sym("GetSubstAdrsF__5ccAnmFPCcb")] = self.anm_subst
+        m.hooks[sym("GetSubstAdrsF__8ccStreamFPCci")] = self.stream_subst
         m.hooks[sym("Init__5ccEffFP10ccEffChunki")] = self.eff_init
         m.hooks[sym("Draw__5ccEffFUs")] = self.eff_draw_own
         m.hooks[sym("Draw__5ccEffFPfUs")] = self.eff_draw_at
@@ -132,9 +137,8 @@ class Game:
             ["seloop", self.vec(a0, 3), mm.f[12]]) or 0
         m.hooks[sym("EntryFlash__8ccScFadeFiiffff")] = self.flash
         m.hooks[sym("MakePacket__8ccSpriteFii")] = self.sprite
-        m.hooks[sym("Draw__7ccClumpFv")] = lambda mm, a0, *a: self.ops.append(
-            ["model", self.layer, "bird", self.vec(a0 + 0x40, 16), 0x3F800000, None]) or 0
-        m.hooks[sym("Init__7ccClumpFP12ccClumpChunk")] = lambda mm, a0, a1, *a: self.m.store(a0 + 0x9c, 4, a1) or 0
+        m.hooks[sym("Draw__7ccClumpFv")] = self.clump_draw
+        m.hooks[sym("Init__7ccClumpFP12ccClumpChunk")] = self.clump_init
         for name in ("__ct__16ccDrawPacketCtrlFv", "Init__7ccLayerFsP6ccView", "SetFrame__6ccViewFffffffff",
                      "SetTex__8ccSpriteFPcPci", "ccInitKanji__Fii", "SetCCS__5FIELDFP8ccStream",
                      "SetFogSw__7ccClumpFi", "SetFog__9ccDrawEnvFffffUi", "SetLightEnv__5ccAnmF11ccAnmOption",
@@ -150,11 +154,12 @@ class Game:
                      "GetAmbient__9ccDrawEnvFPf", "HitEnable__8FOBJECT2Fv", "SetPosition__6FCOVERFiiiP5FIELDP8ccStreamPcf",
                      "DrawMiniMap__5WORLDFv", "MakePacket__16ccBufferSamplingFP7ccLayer", "LockBlt__13ccBltGrpChunkFv",
                      "UnlockBlt__13ccBltGrpChunkFv", "MakePacketLoadData__13ccBltGrpChunkFP7ccLayer",
-                     "DrawObject__5WORLDFv", "DrawMesh__5WORLDFv", "DrawBG__5WORLDFv", "Draw__8FOBJECT2Fv",
-                     "MakePacketDrawBuffTrans__7ccLayerFP10ccTexChunk", "SetUV__7ccModelFiiP15ccMaterialChunki",
+                     "DrawObject__5WORLDFv", "DrawMesh__5WORLDFv", "Draw__8FOBJECT2Fv",
+                     "MakePacketDrawBuffTrans__7ccLayerFP10ccTexChunk",
                      "waterUVModifi__FP5ccObj", "SendPacketS__6ccMaskFv"):
             m.hooks[sym(name)] = nop
         m.hooks[sym("Draw__5ccAnmFv")] = self.anm_draw
+        m.hooks[sym("SetUV__7ccModelFiiP15ccMaterialChunki")] = self.lake_uv
         # the camera, as each case sets it
         m.hooks[sym("cameraGetPos__FPfi")] = lambda mm, a0, a1, *a: self.put(a0, self.cam_pos[a1 & 0xFFFF]) or 0
         m.hooks[sym("cameraGetRot__FPfi")] = lambda mm, a0, a1, *a: self.put(a0, self.cam_rot) or 0
@@ -165,6 +170,65 @@ class Game:
         m.hooks[sym("ccRand__Fv")] = self.cc_rand
         m.hooks[sym("Reset__19ccSubstSearchResultFUs")] = nop
         m.hooks[sym("GetSubstAdrs__5ccAnmFPCcP19ccSubstSearchResult")] = self.subst
+
+    def anm_subst(self, m, s, name, *_):
+        """An animation's object: OBJ_water00's has a model (+0x94), so
+        the lake's SetUV is called."""
+        n = self.cstr(name)
+        a = self.fake("subst:" + n)
+        if n == "OBJ_water00":
+            m.store(a + 0x94, 4, self.fake("model:water00"))
+        return a
+
+    def stream_subst(self, m, s, name, *_):
+        """A stream's material: its chunk (+0xc) zeroed, so the offset it
+        is given is the scroll's own; DrawBG's is kept."""
+        n = self.cstr(name)
+        a = self.fake("subst:" + n)
+        m.store(a + 0xC, 4, self.fake("chunk0"))
+        if n.startswith("MAT_") and n != "MAT_sfzwat1_1":
+            self.bg_mat = a
+        return a
+
+    def clump_init(self, m, clump, chunk, *_):
+        """ccClump::Init: the chunk at +0x9c, and an object (+0x94's first)
+        with a model, so DrawBG's SetUV of the aurora is called."""
+        m.store(clump + 0x9C, 4, chunk)
+        arr = self.fake("objs:%x" % clump, 0x10)
+        obj = self.fake("obj0:%x" % clump, 0x100)
+        m.store(arr, 4, obj)
+        m.store(obj + 0x94, 4, self.fake("model:%x" % clump))
+        m.store(clump + 0x94, 4, arr)
+        return 0
+
+    BG_SLOTS = (0x60B0, 0x60B4, 0x60B8, 0x60BC, 0x60C0, 0x60C4)
+
+    def clump_draw(self, m, a, *_):
+        """ccClump::Draw: one of DrawBG's (its slot, the active layer's
+        priority, its matrix; before the call's first, the scrolled
+        material's V), else BIRD's."""
+        w = self.w
+        slots = [m.load(w + off, 4) for off in self.BG_SLOTS]
+        if a in slots:
+            k = slots.index(a)
+            if k == 4 or (k == 0 and self.case_hack == 2):
+                self.ops.append(["bgv", m.load(self.bg_mat + 0x16, 2) if self.bg_mat else -1])
+            lay = m.load(self.sym("active__7ccLayer"), 4)
+            self.ops.append(["bg", k, s32(lay), self.vec(a + 0x40, 16)])
+            return 0
+        self.ops.append(["model", self.layer, "bird", self.vec(a + 0x40, 16), 0x3F800000, None])
+        return 0
+
+    def lake_uv(self, m, model, u, v, *_):
+        """ccModel::SetUV(0, v, 0, 1) of the lake's OBJ_water00, after the
+        write of MAT_sfzwat1_1's U: both offsets; DrawBG's (u, 0, 0, 2) of
+        the aurora: its U."""
+        if m.r[8] & 0xFFFFFFFF == 2:
+            self.ops.append(["bgu", u & 0xFFFF])
+            return 0
+        mat = self.by_name.get("subst:MAT_sfzwat1_1", 0)
+        self.ops.append(["lakeuv", m.load(mat + 0x14, 2) if mat else -1, v & 0xFFFF])
+        return 0
 
     def tobj_se_start(self, m, *_):
         self.tobj_se += 1
@@ -197,14 +261,16 @@ class Game:
     def anm_draw(self, m, a, *_):
         w = self.w
         t = m.load(w + 0x60CC, 4)
-        known = {m.load(w + 0x6160, 4): "haze"}
+        known = {m.load(w + 0x6160, 4): "haze", m.load(w + 0x53B0, 4): "lake0", m.load(w + 0x53B4, 4): "lake1",
+                 m.load(w + 0x53B8, 4): "lake2"}
+        known.pop(0, None)
         if t:
             known.update({m.load(t + 0x40, 4): "tobj", m.load(t + 0x44, 4): "runner0", m.load(t + 0x48, 4): "runner1"})
         what = known.get(a)
         if what is None:
             return 0
         shadow = None
-        if what != "haze":
+        if what.startswith(("tobj", "runner")):
             # ccDrawEnv +0xa0 and +0xa4: the shadow's length and transparency
             shadow = [m.load(DRAWENV + 0xA0, 4), m.load(DRAWENV + 0xA4, 1)]
         self.ops.append(["model", self.layer, what, self.vec(a + 0x40, 16), m.load(a + 0x88, 4), shadow])
@@ -267,6 +333,11 @@ class Game:
         m.store(WM + 0x0C, 4, c["b"])
         m.store(WM + 0x10, 4, c["type"])
         m.store(WM + 0xF0, 4, c["hack"])
+        self.case_hack = c["hack"]
+        self.bg_mat = 0
+        # DrawBG sets ccLayer::active from these: each its priority
+        for k, off in enumerate((0x494, 0x498, 0x49C, 0x4A0, 0x4A4)):
+            m.store(WM + off, 4, (-100 + 10 * k) & 0xFFFFFFFF)
         m.store(WM + 0x120, 4, c["event"])
         m.store(WM + 0x158, 4, WP)
         m.store(WP + 0xC, 4, c["type"])
@@ -384,6 +455,12 @@ class Game:
                 self.put(a + 0x10, self.sun)
         m.call(sym("Draw__5WORLDFv"), (self.w,), limit=200_000_000)
         return {"ops": self.ops, "rand": m.load(sym("randcnt"), 4), "cc": self.cc_count}
+
+    def lake(self):
+        """SetLake's place (the second animation's matrix), if Generate
+        made a lake."""
+        a = self.m.load(self.w + 0x53B4, 4)
+        return self.vec(a + 0x70)[:3] if a else None
 
     def set_fires(self, fires):
         self.m.store(self.w + 0x358, 4, len(fires))
@@ -533,6 +610,10 @@ def run_case(g, pr, c, n, rnd, fires=()):
     if fires:
         g.set_fires(list(fires))
         pr.ask("fires " + hx(len(fires), *[v for p in fires for v in p]))
+    lake = g.lake()
+    if lake:
+        pr.ask("lake " + hx(*lake))
+    pr.ask("bg %d %d" % (int(c["hack"] != 2), int(c["type"] == 6)))
     fr = frames(rnd, n, [fb(24000.0), fb(24000.0)])
     for i, f in enumerate(fr):
         a = g.frame(f)
@@ -545,6 +626,9 @@ def run_case(g, pr, c, n, rnd, fires=()):
 
 
 ROWS = {0: 4, 1: 4, 2: 4, 3: 4, 5: 8, 6: 6, 7: 8, 8: 8, 9: 8, 10: 8}
+# BGTBL's rows (BGTBL2 has as many for these types): WORLD::Init reads a
+# background past them from whatever follows, so no field has one
+BG_ROWS = {0: 4, 1: 8, 2: 4, 3: 4, 5: 6, 6: 6, 7: 8, 8: 8, 9: 8, 10: 8}
 
 
 def random_case(rnd, ty, b, hack):
@@ -567,7 +651,7 @@ def sweep(n_frames, seed, only=None):
         if only is not None and ty not in only:
             continue
         for b in range(rows):
-            for hack in (0, 3):
+            for hack in (2, 3) if b < BG_ROWS[ty] else ():
                 c = random_case(rnd, ty, b, hack)
                 fires = fire_places(rnd) if ty == 7 else ()
                 d = run_case(g, pr, c, n_frames, rnd, fires)
@@ -587,6 +671,7 @@ class AmbientAgainstGame(unittest.TestCase):
         of picture among them."""
         self.assertEqual(sweep(1000, 1), 0)
         for k in ("flash:", "se:236", "se3d:43", "seloop:", "smoke:", "mask:", "model:bird", "model:haze", "model:tobj",
+                  "model:lake0", "model:lake1", "model:lake2", "lakeuv:", "bg:", "bgv:", "bgu:",
                   "model:runner0", "eff:EFF_sfp8thu1", "eff:EFF_sflenz_1", "eff:EFF_sfzdigi1", "eff:EFF_sfzfir1",
                   "eff:EFF_sfpfir_2", "eff:EFF_sfa8fir1", "eff:EFF_sfg8sno1", "eff:EFF_sfh8sno1"):
             self.assertIn(k, SEEN)

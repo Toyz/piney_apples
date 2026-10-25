@@ -2,8 +2,8 @@
 title: Field generation
 status: partial
 volumes: all
-covers: INF gcmn.prg:0x005a6da0 WORLD::Generate, 0x005a4cd0 WORLD::Init, 0x005adc60 FIELD::MakeField, 0x005a6b00 WORLD::MakeHill, 0x005b4070 FRACTAL2::Generate, 0x005abd20 SetDungeonEnter, 0x005ac7e0 SetLake, 0x005ac120 SetKeyObject, 0x005aba50 SetCover, 0x005a8570 WORLD::DrawMesh, 0x005b0aa0 FIELD_MESH::RelocateMesh, 0x005ae940 FIELD::CalcWorldMeshPosition, 0x005b1890 FCOVER::SetPosition, 0x005b19d0 FCOVER::Draw, 0x005a9070 WORLD::DrawEffect, 0x005a97b0 WORLD::Draw (its weather), 0x005a4840 WORLD::SetRainEffect, 0x005a8860 WORLD::DrawRain, 0x005a8f40 WORLD::DrawSnow, 0x005a6a50 WORLD::SetSmoke2d, 0x005ad600 WORLD::DrawSteam, 0x005aae90 WORLD::SetSpecialObj (the fires), 0x00503650 SNOW::SNOW, 0x00503e80 SNOW::Move, 0x005042f0 SNOW::Draw, 0x005028e0 calcPos, 0x00502ba0 calcPos2, 0x00502330 waterUVModifi, 0x005b1ed0 FIREFLY::FIREFLY, 0x005b2100 FIREFLY::SetBasePosition, 0x005b21a0 FIREFLY::Init, 0x005b2900 FIREFLY::Init (hacked), 0x005b30a0 FIREFLY::Move, 0x005b3a60 FIREFLY::Draw, 0x005b1b60 NSPLINE::PreCalc, 0x005d0560 TOBJ::Init, 0x005d0db0 TOBJ::Move, 0x005d08d0 TOBJ::Draw, 0x005d1440 BIRD::Init, 0x005d1540 BIRD::SetPos, 0x005d1590 BIRD::Move, 0x005d1560 BIRD::Draw, 0x00503360 LENSFLARE::Draw (mode 1); INF SLUS_202.67:0x00106c70 ccBufferSampling::SetShade (the seven-argument form), 0x00106dd0 ccBufferSampling::MakePacket, 0x00108930 ccLayer::Add, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x0019f190 WORLD_MAN::GetWeather, 0x0019ef50 WORLD_MAN::GetTime, 0x0019f0d0 WORLD_MAN::CheckLensFlare, 0x001da710 ccCheckCameraDeg, 0x001ce300 effSmoke, 0x001412b0 ccShadowModel::Draw, 0x00105820 ccDrawEnv::SetFog, 0x0015c4b0 ccMask::ccMask
-worklog: 19, 25, 33, 38, 130, 145, 164, 365
+covers: INF gcmn.prg:0x005a6da0 WORLD::Generate, 0x005a4cd0 WORLD::Init, 0x005adc60 FIELD::MakeField, 0x005a6b00 WORLD::MakeHill, 0x005b4070 FRACTAL2::Generate, 0x005abd20 SetDungeonEnter, 0x005ac7e0 SetLake, 0x005ac120 SetKeyObject, 0x005aba50 SetCover, 0x005a8570 WORLD::DrawMesh, 0x005b0aa0 FIELD_MESH::RelocateMesh, 0x005ae940 FIELD::CalcWorldMeshPosition, 0x005b1890 FCOVER::SetPosition, 0x005b19d0 FCOVER::Draw, 0x005a9070 WORLD::DrawEffect, 0x005a97b0 WORLD::Draw (its weather, the lake), 0x005a7ef0 WORLD::DrawBG, 0x005a4840 WORLD::SetRainEffect, 0x005a8860 WORLD::DrawRain, 0x005a8f40 WORLD::DrawSnow, 0x005a6a50 WORLD::SetSmoke2d, 0x005ad600 WORLD::DrawSteam, 0x005aae90 WORLD::SetSpecialObj (the fires), 0x00503650 SNOW::SNOW, 0x00503e80 SNOW::Move, 0x005042f0 SNOW::Draw, 0x005028e0 calcPos, 0x00502ba0 calcPos2, 0x00502330 waterUVModifi, 0x005b1ed0 FIREFLY::FIREFLY, 0x005b2100 FIREFLY::SetBasePosition, 0x005b21a0 FIREFLY::Init, 0x005b2900 FIREFLY::Init (hacked), 0x005b30a0 FIREFLY::Move, 0x005b3a60 FIREFLY::Draw, 0x005b1b60 NSPLINE::PreCalc, 0x005d0560 TOBJ::Init, 0x005d0db0 TOBJ::Move, 0x005d08d0 TOBJ::Draw, 0x005d1440 BIRD::Init, 0x005d1540 BIRD::SetPos, 0x005d1590 BIRD::Move, 0x005d1560 BIRD::Draw, 0x00503360 LENSFLARE::Draw (mode 1); INF SLUS_202.67:0x00106c70 ccBufferSampling::SetShade (the seven-argument form), 0x00106dd0 ccBufferSampling::MakePacket, 0x00108930 ccLayer::Add, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x0019f190 WORLD_MAN::GetWeather, 0x0019ef50 WORLD_MAN::GetTime, 0x0019f0d0 WORLD_MAN::CheckLensFlare, 0x001da710 ccCheckCameraDeg, 0x001ce300 effSmoke, 0x001412b0 ccShadowModel::Draw, 0x00105820 ccDrawEnv::SetFog, 0x0015c4b0 ccMask::ccMask
+worklog: 19, 25, 33, 38, 130, 145, 164, 365, 480
 ---
 
 # Field generation
@@ -137,16 +137,42 @@ way, each at the copy of its position nearest the player. Tiles beyond
 8,400 are culled, and tiles fade between 6,700 and 7,200 with alpha
 (7200 − d) / 500. Cover draws within 7,200, fading from 6,700.
 
-**Lake** (*read*). The three copies of `field_eff`'s `ANM_sfwat1_1a` sit at
-the lake object's centre, (x, y, 0). They differ in render layer: one
-scrolls its UVs every frame, and two use a texture `Generate` builds at run
-time.
+**Lake** (*read*). `SetLake` (0x005ac7e0) makes three `ccAnm`s of
+`field_eff`'s `ANM_sfwat1_1a` (`WORLD` +0x53b0, +0x53b4, +0x53b8), fog off,
+at the lake object's centre (x, y, 0). Each `WORLD::Draw` (0x005a9aac on)
+writes `vftoi12(u$4930)` less the material's own into `MAT_sfzwat1_1`'s U,
+and through `ccModel::SetUV(0, vftoi12(v$4933), 0, 1)` of the third's
+`OBJ_water00` into its materials' V. A file's materials are one set, so
+all three draw with both. It moves the three to the copy of the place
+nearest the player (`ccTransPosW2P`, `P2W`), draws the first and third on
+objLayer and the second on refLayer (+0x4d0, priority 30), its
+`OBJ_water00` sampling the picture under it (`waterUVModifi`). Then `u` and
+`v` go on by 0.005, both back to 0 once `v` is past 1. `u$4930` and
+`v$4933` (gp 0x00378d4c, 0x00378d54) are statics of the executable and
+carry from field to field.
 
 **Background** (*read*).
-- `DrawBG` draws the sky, two cloud layers and the mountains, centred on the
-  player, each in its own background layer. Field type 6 adds an aurora
-  (`CMP_sfh7aur{weather+1}`). Only the sky material's V scrolls, by 0.003 a
-  frame.
+- `WORLD::Init` loads a plain field's background (`isHacked`, +0x2c, 2)
+  from `backccs` (`bg_<x>{weather+1}`), `BGTBL` and `BgMatName`: the sky,
+  two cloud layers and the mountains into +0x60b0-0x60bc. A hacked field's
+  (`SetHackFlag` from `WORLD_MAN` +0xf0: 3 in the crisis, and the story
+  areas whose `EVENTAREA_INFO.flag` is 3) comes from `backccs2`
+  (`bg_<x>1_{weather+1}`), `BGTBL2` and `BgMatName2`: the sky (the row's
+  `p`), three data layers and the mountains into +0x60b0-0x60c0, its light
+  and fog from `BGTBL2` too. Field type 6 adds an aurora
+  (`CMP_sfh7aur{weather+1}`, +0x60c4). Type 4 has no hacked background.
+- `DrawBG` (0x005a7ef0) draws them about `WORLD`'s centre (+0x6140) at
+  z 0, on `WORLD_MAN`'s layers +0x494 to +0x4a4 (priorities -100 to -60).
+  Plain: `BgMatName`'s V is written from `v$4519`, which then goes on by
+  0.003 (past 1, back by 1). Hacked: `rot2$4526.z` goes on and
+  `rot3$4527.z` back by 0.001 (each wrapped at 3.14), `BgMatName2`'s V is
+  written, the mountains are drawn unturned on -60, and `v$4519` goes
+  back by 0.003 (below 0, on by 1). Then both: the sky on -100 and the
+  first layer on -90 unturned, the second on -80 turned by `rot2`, the
+  aurora on -80 by `rot3` (`SetUV(vftoi12(v$4519), 0, 0, 2)` of its first
+  model: its U), the last layer on -70 by `rot3`. The turns and the scroll
+  are statics of the executable: a plain field after a hacked one draws
+  its clouds at the turns the hacked one left.
 - Fog comes from the same per-type, per-weather table: colour, near, far and
   a percentage. `ccDrawEnv::SetFog` (0x00105820) turns them into VU1's fog
   terms (fogA, fogB, fMin, fMax), and each vertex's F is
@@ -328,14 +354,17 @@ through piney-effect (`piney-game fx/ambient.rs`: each `ccEff` made once as
 `tools/test_field_ambient_rs.py` runs the game's `WORLD::Init`,
 `Generate` and `Draw` (with `DrawEffect`, `DrawRain`, `DrawSnow`,
 `DrawSteam`, SNOW, FIREFLY, FIREFLY2, TOBJ, BIRD and the lens flare as they
-are) in eemu and the `ambient_probe` example side by side: every field
-type and background row, hacked and not, a random server and seed, and a
-walk of the player and the camera; compared are `fieldrand`'s count after
-`Init` and after `Generate`, what they made, and each frame's pictures in
-order (names, places, patterns, scales, transparencies, fog bits, layers,
-matrices, the masks, the puffs, the sounds with TOBJ's hum, the flash)
-with the counts of `fieldrand` and `ccRand`. 124 cases of 1,000 frames: 0
-mismatches.
+are, and the lake's and `DrawBG`'s draws) in eemu and the `ambient_probe`
+example side by side: every field type and background row, hacked and
+not, a random server and seed, and a walk of the player and the camera;
+compared are `fieldrand`'s count after `Init` and after `Generate`, what
+they made, and each frame's pictures in order (names, places, patterns,
+scales, transparencies, fog bits, layers, matrices, the masks, the puffs,
+the sounds with TOBJ's hum, the flash, the lake's scroll and three
+animations, the background's clumps with their layers and turns and its
+material writes) with the counts of `fieldrand` and `ccRand`. 120 cases
+of 1,000 frames, and type 6's 12 of 3,400 (past the turns' wrap): 0
+mismatches (worklog 480).
 `piney-game --mode field:14/TYPE,ROW[,HACK[,SEED]]` shows another field's
 weather over story area 14.
 
@@ -388,8 +417,7 @@ from each loop's decrement).
 
 ## Unknown
 
-- The water's run-time texture and UV scroll, the objects' own draw code,
-  and the type-6 `FOBJECT2`s `DrawMesh` draws.
+- The objects' own draw code, and the type-6 `FOBJECT2`s `DrawMesh` draws.
 - Whether a tile's alpha is clamped beyond 7,200.
 
 - `WORLD_MAN::EntryGimmick`'s `SetFood`, `SetMagicCircle` and

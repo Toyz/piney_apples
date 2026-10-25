@@ -972,9 +972,6 @@ host default (`take_unported` empty).
 
 ## Unknown
 
-- The water's run-time textures and the sky's clouds' blending are
-  approximations. (The fog is VU1's by each vertex's depth, as the game's:
-  `piney_draw::DepthFog`.)
 - The story maps of their own (`EVENTAREA_INFO.model` not 0, an
   `EVENTAREA` class) are all built ([their page](evarea.md); the last,
   04-06, in worklog 472).

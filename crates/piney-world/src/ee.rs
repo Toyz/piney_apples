@@ -28,6 +28,12 @@ pub const fn k(x: f32) -> F {
     x.to_bits()
 }
 
+/// `vftoi12(x)`: fixed point with 12 fraction bits, as the 16 bits a
+/// material's UV offset keeps.
+pub fn vftoi12(x: F) -> u16 {
+    (to_int(mul(x, 0x4580_0000)) & 0xffff) as u16
+}
+
 /// A vector's x, y, z as floats, for drawing.
 pub fn f3(v: V4) -> [f32; 3] {
     [f(v[0]), f(v[1]), f(v[2])]

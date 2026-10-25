@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-479 entries: audio 40, battle 127, build 20, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 120, save 16, script 57, test 227, tooling 45, ui 98, video 16, volumes 89, world 136.
+480 entries: audio 40, battle 127, build 20, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 121, save 16, script 57, test 228, tooling 45, ui 98, video 16, volumes 89, world 137.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -491,3 +491,4 @@ The [reference](docs/README.md) says what is true now.
 | 477 | [Four old reports from the code: the Status faces, the scroll's sparks, Wonder Battle's chatter run against the game, Elk raised again and again](worklog/0477-four-old-reports-from-the-code-the-status-faces-the-scroll.md) | 2026-10-25 | ui, battle, test |
 | 478 | [Issue 7's foe side: Mad Grass under blows at the edge of a member's range, the game's motion against the port's](worklog/0478-issue-7-s-foe-side-mad-grass-under-blows-at-the-edge-of-a.md) | 2026-10-25 | battle, test |
 | 479 | [Twenty-two play questions were already answered: the triage's list against the work since](worklog/0479-twenty-two-play-questions-were-already-answered-the-triage.md) | 2026-10-25 | test |
+| 480 | [A field's lake and background as the code draws them: the lake's three animations and mirror, the hacked fields' backgrounds, DrawBG's turns and aurora](worklog/0480-a-field-s-lake-and-background-as-the-code-draws-them-the.md) | 2026-10-25 | render, world, test |

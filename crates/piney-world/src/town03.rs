@@ -82,7 +82,6 @@ const SPEC: Spec = Spec {
 const BG_STEP: [F; 2] = [0x3a83_126f, 0x3b03_126f];
 /// The water's scroll a frame, `u$1875`: 0.005.
 const WATER_STEP: F = 0x3ba3_d70a;
-const K4096: F = 0x4580_0000;
 /// The rows `Draw` draws without fog first (29-33), and below which it
 /// draws the type-0 rows after them.
 const NO_FOG_ROWS: std::ops::Range<usize> = 29..34;
@@ -347,11 +346,6 @@ pub struct CarminaGade {
     pub rng: Rng,
 }
 
-/// `vftoi12(x)` as the 16 bits the materials keep.
-fn vftoi12(x: F) -> u16 {
-    (ee::to_int(ee::mul(x, K4096)) & 0xffff) as u16
-}
-
 /// `ROOTTOWN03::ROOTTOWN03`: `town03d` when the save's crisis byte is set,
 /// else `town03`.
 pub fn new(archive: &Arc<Archive>, crisis: bool) -> Result<Town> {
@@ -403,7 +397,7 @@ impl CarminaGade {
         }
         out.extend((0..4).map(Piece::Back));
         if self.crisis_sky.is_some() {
-            self.bg_uv = vftoi12(self.bg_scroll[1]);
+            self.bg_uv = ee::vftoi12(self.bg_scroll[1]);
             out.extend((0..3).map(Piece::CrisisSky));
         }
         // DrawObj2, DrawObj (the rows of type 3, 2), DrawFloor (rows 0-7).

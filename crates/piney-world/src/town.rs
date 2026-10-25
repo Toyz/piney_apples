@@ -660,6 +660,10 @@ pub mod scroll_statics {
     pub const DUNGEON_LAKE: usize = 20;
     /// `WORLD::DrawBG`'s sky `v$4519` (0 on its first use, `init$4520`).
     pub const WORLD_BG: usize = 21;
+    /// `WORLD::Draw`'s lake scrolls, `u$4930` and `v$4933`.
+    pub const WORLD_LAKE: usize = 22;
+    /// `WORLD::DrawBG`'s turns, `rot2$4526.z` and `rot3$4527.z`.
+    pub const WORLD_BG_TURN: usize = 24;
 
     /// The statics from `at` into `dst`.
     pub fn take(dst: &mut [u32], src: &[u32; SCROLL_STATICS], at: usize) {

@@ -841,7 +841,7 @@ pub fn build_field(
     let middle = Mat4::from_translation(Vec3::new(field::WORLD_SIZE / 2.0, field::WORLD_SIZE / 2.0, 0.0));
     let mut sky = placed_file(bg, |bsc| {
         let mut out = Vec::new();
-        for clump in &fs.background.clumps {
+        for clump in fs.background.clumps.iter().chain(&fs.background.aurora) {
             out.extend(anime_instances(bg, bsc, None, Some(clump), middle)?);
         }
         Ok(out)

@@ -213,6 +213,26 @@ pub enum Op {
     /// `tobjSeLoopStart` started) at its place, its volume scaled by its
     /// transparency.
     SeLoop(V4, F),
+    /// `DrawBG`'s write of the scrolled material's V, and of the aurora's
+    /// first model's U through `ccModel::SetUV(u, 0, 0, 2)` (`vftoi12` of
+    /// `v$4519` before and after it moves, less each material's own).
+    BgV(u16),
+    BgU(u16),
+    /// `ccClump::Draw` of one of `DrawBG`'s clumps on its layer (`WORLD_MAN`
+    /// +0x494 to +0x4a4: priority -100 to -60), at `SetMatrix_PosRotZYX`.
+    Bg {
+        slot: BgSlot,
+        layer: i16,
+        matrix: [V4; 4],
+    },
+    /// The lake's scroll as `WORLD::Draw` writes it before the lake's
+    /// draws: `MAT_sfzwat1_1`'s U and, through `ccModel::SetUV(0, v, 0,
+    /// 1)` of the third's `OBJ_water00`, its materials' V (`vftoi12` of
+    /// `u$4930` and `v$4933`, each less the material's own offset).
+    LakeUv {
+        u: u16,
+        v: u16,
+    },
     /// `scFadeDef->EntryFlash(frames, colour, x, y, w, h)`.
     Flash {
         frames: i32,
@@ -232,6 +252,87 @@ pub enum Model {
     TobjRunner(u8),
     /// The heat haze, `ANM_sfzair1a` of `sfzair1`.
     Haze,
+    /// The lake's three `ccAnm`s of `ANM_sfwat1_1a` (`field_eff`):
+    /// `WORLD` +0x53b0, +0x53b4, +0x53b8. The second is drawn on refLayer,
+    /// its `OBJ_water00` sampling the picture under it (`waterUVModifi`).
+    Lake(u8),
+}
+
+/// One of `DrawBG`'s clumps (`WORLD` +0x60b0 on).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BgSlot {
+    /// +0x60b0, +0x60b4, +0x60b8, +0x60bc: `BGTBL`'s four, or
+    /// `BGTBL2`'s `p` and first three.
+    Sky,
+    First,
+    Second,
+    Last,
+    /// +0x60c0: hacked, `BGTBL2`'s fourth.
+    Mountains,
+    /// +0x60c4: field type 6's aurora.
+    Aurora,
+}
+
+/// `WORLD::DrawBG` (gcmn 0x005a7ef0): `isHacked` other than 2 picks the
+/// second way; `aurora` is field type 6; `v` (`v$4519`) and `turn`
+/// (`rot2$4526.z`, `rot3$4527.z`) are statics of the executable, which
+/// the runtime carries from field to field.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DrawBg {
+    pub hacked: bool,
+    pub aurora: bool,
+    pub v: F,
+    pub turn: [F; 2],
+}
+
+/// `DrawBG`'s steps: the scroll 0.003 a frame, the turns 0.001, wrapped at
+/// 3.14.
+const BG_STEP: F = 0x3b44_9ba6;
+const TURN_STEP: F = 0x3a83_126f;
+const TURN_MAX: F = 0x4048_f5c3;
+
+impl DrawBg {
+    /// One call about `centre` (`WORLD` +0x6140, z 0). Plain: the scrolled
+    /// material's V written, the scroll on (past 1, back by 1). Hacked: the
+    /// turns on, the V written, the mountains drawn unturned, the scroll
+    /// back (below 0, on by 1). Then the sky and first layer unturned, the
+    /// second by `rot2`, the aurora (its U the scroll) and the last layer
+    /// by `rot3`.
+    pub fn frame(&mut self, centre: [F; 2], out: &mut Vec<Op>) {
+        let at = [centre[0], centre[1], 0, ONE];
+        let m = |rz: F| crate::town::pos_rot_zyx(at, [0, 0, rz]);
+        if self.hacked {
+            let [r2, r3] = &mut self.turn;
+            *r2 = ee::add(*r2, TURN_STEP);
+            if !ee::le(*r2, TURN_MAX) {
+                *r2 = ee::neg(TURN_MAX);
+            }
+            *r3 = ee::sub(*r3, TURN_STEP);
+            if ee::lt(*r3, ee::neg(TURN_MAX)) {
+                *r3 = TURN_MAX;
+            }
+            out.push(Op::BgV(ee::vftoi12(self.v)));
+            out.push(Op::Bg { slot: BgSlot::Mountains, layer: -60, matrix: m(0) });
+            self.v = ee::sub(self.v, BG_STEP);
+            if ee::lt(self.v, 0) {
+                self.v = ee::add(self.v, ONE);
+            }
+        } else {
+            out.push(Op::BgV(ee::vftoi12(self.v)));
+            self.v = ee::add(self.v, BG_STEP);
+            if !ee::le(self.v, ONE) {
+                self.v = ee::sub(self.v, ONE);
+            }
+        }
+        out.push(Op::Bg { slot: BgSlot::Sky, layer: -100, matrix: m(0) });
+        out.push(Op::Bg { slot: BgSlot::First, layer: -90, matrix: m(0) });
+        out.push(Op::Bg { slot: BgSlot::Second, layer: -80, matrix: m(self.turn[0]) });
+        if self.aurora {
+            out.push(Op::BgU(ee::vftoi12(self.v)));
+            out.push(Op::Bg { slot: BgSlot::Aurora, layer: -80, matrix: m(self.turn[1]) });
+        }
+        out.push(Op::Bg { slot: BgSlot::Last, layer: -70, matrix: m(self.turn[1]) });
+    }
 }
 
 /// `field_eff`, `WORLD`'s effects file (+0x6154).
@@ -1132,6 +1233,27 @@ pub fn haze(field_type: u32, env: &Env) -> Op {
     Op::Model { layer: 6, what: Model::Haze, matrix, alpha: 0x3f33_3333, shadow: None }
 }
 
+/// `WORLD::Draw`'s lake (gcmn 0x005a9aac-0x005a9d70): the scroll written,
+/// the three animations moved to the copy of `at` nearest the player
+/// (`ccTransPosW2P`, `P2W`), the first and third drawn on objLayer, the
+/// second on refLayer, then both scrolls on by 0.005, back to 0 together
+/// once V is past 1.
+pub fn lake(at: &mut V4, uv: &mut [F; 2], env: &Env, out: &mut Vec<Op>) {
+    out.push(Op::LakeUv { u: ee::vftoi12(uv[0]), v: ee::vftoi12(uv[1]) });
+    *at = env.p2w(env.w2p(*at));
+    let mut matrix = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], *at];
+    matrix[3][3] = ONE;
+    for (k, layer) in [(0, 1), (2, 1), (1, 6)] {
+        out.push(Op::Model { layer, what: Model::Lake(k), matrix, alpha: ONE, shadow: None });
+    }
+    const STEP: F = 0x3ba3_d70a;
+    uv[0] = ee::add(uv[0], STEP);
+    uv[1] = ee::add(uv[1], STEP);
+    if !ee::le(uv[1], ONE) {
+        *uv = [0, 0];
+    }
+}
+
 /// The lens flare's sun for field type `ty` and background row `b`: the
 /// dummy `DMY_<x>lig_<b + 1>point` of the background's file (the table at
 /// gcmn 0x006588f0 by type; none for type 4).
@@ -1216,6 +1338,17 @@ pub struct Ambient {
     pub bird: Option<Bird>,
     /// Types 0-3: the heat haze.
     pub haze: bool,
+    /// `SetLake`'s water: where the three animations stand (the
+    /// `FOBJECT2`'s place at height 0; `Draw` moves them to the copy
+    /// nearest the player), None without a lake.
+    pub lake: Option<V4>,
+    /// `WORLD::Draw`'s `u$4930` and `v$4933` (gcmn gp 0x00378d4c,
+    /// 0x00378d54): statics of the executable, which the runtime carries
+    /// from field to field.
+    pub lake_uv: [F; 2],
+    /// `DrawBG`, the last of `Draw`'s pictures; None where the caller draws
+    /// no background.
+    pub bg: Option<DrawBg>,
     /// +0x34: `Draw` has run once.
     pub drawn: bool,
 }
@@ -1264,6 +1397,9 @@ impl Ambient {
             tobj_se_start: false,
             bird: None,
             haze: ty <= 3,
+            lake: None,
+            lake_uv: [0, 0],
+            bg: None,
             drawn: false,
         }
     }
@@ -1352,6 +1488,9 @@ impl Ambient {
         if self.haze {
             out.push(haze(ty, env));
         }
+        if let Some(at) = &mut self.lake {
+            lake(at, &mut self.lake_uv, env, &mut out);
+        }
         // DrawEffect, layer 3.
         if matches!(weather, 2 | 3) {
             draw_rain(&mut self.drops, self.thunder.as_mut(), weather, st, env, rng, &mut out);
@@ -1430,6 +1569,10 @@ impl Ambient {
         }
         if ty == 0 {
             draw_steam(st, env, rng, &mut out);
+        }
+        // DrawBG, about WORLD's centre.
+        if let Some(bg) = &mut self.bg {
+            bg.frame([env.centre[0], env.centre[1]], &mut out);
         }
         out
     }

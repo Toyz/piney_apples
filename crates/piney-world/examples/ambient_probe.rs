@@ -58,6 +58,7 @@ fn op_json(op: &Op) -> String {
                 Model::Tobj => "tobj".to_string(),
                 Model::TobjRunner(k) => format!("runner{k}"),
                 Model::Haze => "haze".to_string(),
+                Model::Lake(k) => format!("lake{k}"),
             };
             format!("[\"model\",{layer},\"{what}\",{},{alpha},{shadow}]", list(&m))
         }
@@ -66,6 +67,13 @@ fn op_json(op: &Op) -> String {
         Op::SeLoopStart => "[\"seloopstart\"]".to_string(),
         Op::SeLoop(p, r) => format!("[\"seloop\",{},{r}]", list(&p[..3])),
         Op::Flash { frames, colour, rect } => format!("[\"flash\",{frames},{colour},{}]", list(rect)),
+        Op::LakeUv { u, v } => format!("[\"lakeuv\",{u},{v}]"),
+        Op::BgV(v) => format!("[\"bgv\",{v}]"),
+        Op::BgU(u) => format!("[\"bgu\",{u}]"),
+        Op::Bg { slot, layer, matrix } => {
+            let m: Vec<u32> = matrix.iter().flatten().copied().collect();
+            format!("[\"bg\",{},{layer},{}]", *slot as u8, list(&m))
+        }
     }
 }
 
@@ -215,6 +223,20 @@ fn main() {
                 let k = hex(w[1]) as usize;
                 s.ambient.fires =
                     (0..k).map(|i| [hex(w[2 + 3 * i]), hex(w[3 + 3 * i]), hex(w[4 + 3 * i]), 0]).collect();
+                "{}".into()
+            }
+            "bg" => {
+                let s = st.as_mut().unwrap();
+                s.ambient.bg = Some(piney_world::field_ambient::DrawBg {
+                    hacked: w[1] == "1",
+                    aurora: w[2] == "1",
+                    ..Default::default()
+                });
+                "{}".into()
+            }
+            "lake" => {
+                let s = st.as_mut().unwrap();
+                s.ambient.lake = Some([hex(w[1]), hex(w[2]), hex(w[3]), ONE]);
                 "{}".into()
             }
             "frame" => {

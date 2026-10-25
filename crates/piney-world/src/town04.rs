@@ -70,7 +70,6 @@ const SPEC: Spec = Spec {
 /// `DrawBG`'s scrolls a frame (OUT gp 0x00386ed0, 0x00386ed4): 0.01 for
 /// the clouds, 0.002 for the crisis sky.
 const BG_STEP: [F; 2] = [0x3c23_d70a, 0x3b03_126f];
-const K4096: F = 0x4580_0000;
 /// The `CLOUD`s `Draw` makes on its first call (+0x1c4, type 0).
 pub const CLOUDS: usize = 25;
 
@@ -135,11 +134,6 @@ pub struct FortOuph {
     pub flares: Option<[V4; 6]>,
 }
 
-/// `vftoi12(x)` as the 16 bits the materials keep.
-fn vftoi12(x: F) -> u16 {
-    (ee::to_int(ee::mul(x, K4096)) & 0xffff) as u16
-}
-
 /// `ROOTTOWN04::ROOTTOWN04`: `town04d` when the save's crisis byte is set,
 /// else `town04`, and `town_z`.
 pub fn new(archive: &Arc<Archive>, crisis: bool) -> Result<Town> {
@@ -199,10 +193,10 @@ impl FortOuph {
                 *x = 0;
             }
         }
-        self.cloud_u = vftoi12(self.bg_scroll[0]);
+        self.cloud_u = ee::vftoi12(self.bg_scroll[0]);
         out.extend([Piece::Sky, Piece::Sun]);
         if self.crisis_sky.is_some() {
-            self.bg_uv = vftoi12(self.bg_scroll[1]);
+            self.bg_uv = ee::vftoi12(self.bg_scroll[1]);
             out.extend((0..3).map(Piece::CrisisSky));
         }
         out.extend((0..3).map(Piece::CloudSky));
@@ -361,6 +355,6 @@ mod tests {
         assert!(p.contains(&Piece::Map));
         assert_eq!(d.clouds.len(), CLOUDS);
         assert_eq!(d.bg_scroll, BG_STEP);
-        assert_eq!(d.cloud_u, vftoi12(BG_STEP[0]));
+        assert_eq!(d.cloud_u, ee::vftoi12(BG_STEP[0]));
     }
 }
