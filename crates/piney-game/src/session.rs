@@ -7109,6 +7109,9 @@ mod tests {
     /// Issue #73: Outbreak's last fight and its ending, the player's log.
     mod outbreak_end;
 
+    /// Issue #74: Bitter Fantasy Mirror World, fields 66 and 67.
+    mod mirror_world;
+
     /// A story start's session (`--mode story:N`), its event task recording
     /// the blocks it plays. None without the disc.
     fn story_session(n: i32) -> Option<Session> {

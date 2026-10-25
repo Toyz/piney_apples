@@ -157,7 +157,10 @@ pub fn build(
         f if crate::evarea_b8::is_disc(f) => {
             Box::new(crate::evarea_b8::DiscArea::new(archive, at.volume, f, at.field_prev, def_se, cc)?)
         }
-        _ => return Ok(None),
+        f => match crate::evarea_sky::Class::of(f) {
+            Some(c) => Box::new(crate::evarea_sky::SkyMap::new(archive, at.volume, c, def_se, area_prev)?),
+            None => return Ok(None),
+        },
     };
     Ok(Some(map))
 }

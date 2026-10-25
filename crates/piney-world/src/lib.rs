@@ -30,6 +30,7 @@ pub mod evarea07;
 pub mod evarea_b0;
 pub mod evarea_b8;
 pub mod evarea_end;
+pub mod evarea_sky;
 pub mod evcam;
 pub mod event;
 pub mod field_ambient;

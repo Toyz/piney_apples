@@ -465,7 +465,10 @@ impl Mode for LauncherMode {
 /// frame ran: its line in the log, the mode and its events, the engine
 /// (whose `render` takes the frame's samples).
 #[cfg(test)]
-pub(crate) fn replay_pad_log(log: &str, mut each: impl FnMut(u32, &mut dyn Mode, &[Event], &piney_audio::Audio)) {
+pub(crate) fn replay_pad_log(
+    log: &str,
+    mut each: impl FnMut(u32, &mut dyn Mode, &[Event], &piney_audio::Audio, &Frame),
+) {
     fn copy(src: &Path, dst: &Path) {
         std::fs::create_dir_all(dst).unwrap();
         for e in std::fs::read_dir(src).unwrap().flatten() {
@@ -508,12 +511,12 @@ pub(crate) fn replay_pad_log(log: &str, mut each: impl FnMut(u32, &mut dyn Mode,
             }
         };
         pad.read(&raw);
-        mode.step(&pad);
+        let frame = mode.step(&pad);
         let events = mode.take_events();
         let boot = events.iter().find_map(|e| if let Event::Boot(p) = e { Some(p.clone()) } else { None });
         crate::handle(events.clone(), Some(&audio));
         audio.frame();
-        each(line, mode.as_mut(), &events, &audio);
+        each(line, mode.as_mut(), &events, &audio, &frame);
         if let Some(path) = boot {
             let data = Iso::open(&path).unwrap().read_path("DATA/DATA.BIN").unwrap();
             let archive = Arc::new(Archive::new(data).unwrap());
@@ -684,7 +687,7 @@ mod tests {
         let Some(log) = std::env::var_os("PINEY_PADLOG") else { return };
         let mut buf = vec![0i16; 2 * 800];
         let mut pending: Vec<(u32, Vec<i32>)> = Vec::new();
-        super::replay_pad_log(&log.into_string().unwrap(), |f, mode, events, audio| {
+        super::replay_pad_log(&log.into_string().unwrap(), |f, mode, events, audio, _| {
             for e in events {
                 if matches!(
                     e,

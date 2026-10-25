@@ -101,11 +101,12 @@ What the later volumes' code adds, by `tools/voldiff.py` (docs/disc/volumes.md
   their gates, the EX mode, hell's express, the rebirth, worklog 434)
 - [x] The Root Towns 02-05 (`ROOTTOWN03`-`05`, their `DrawMap`; worklogs
   218, 260) - the party of 21 (`SPC_01`-`SPC_20`) still to check
-- [ ] The other `EVENTAREA` classes (04-06; areas 66, 67, 91).
-  Area 16's `EVENTAREA07` (worklog 177), area 43's `EVENTAREA03` (worklog
-  263), area 13's `EVENTAREA01` (worklog 264) and Kyvia's disc
-  `EVENTAREAB8` (fields 9-12, worklog 272) are ported, all behind
-  `StoryMap`; `GO(1)` takes the map from the field's own number, a
+- [x] The other `EVENTAREA` classes: 04-06 (areas 66, 67, 91; Bitter
+  Fantasy Mirror World, its arena, the Sea of Cloud Whale; worklog 472,
+  issue #74). Area 16's `EVENTAREA07` (worklog 177), area 43's
+  `EVENTAREA03` (worklog 263), area 13's `EVENTAREA01` (worklog 264) and
+  Kyvia's disc `EVENTAREAB8` (fields 9-12, worklog 272) are ported, all
+  behind `StoryMap`; `GO(1)` takes the map from the field's own number, a
   dungeon's way out too (worklog 423)
 - [x] Mutation's bosses: Innis (`ccBoss02`, worklog 266), Kyvia 01
   (`ccThKyvia01`, the `kyvia*` classes, worklog 272), Magus (`ccBoss03`,

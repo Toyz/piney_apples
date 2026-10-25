@@ -17,7 +17,7 @@ fn issue_73_replay() {
     let Some(log) = std::env::var_os("PINEY_PADLOG") else { return };
     let (mut fight, mut drawn, mut after) = (0u32, 0u32, None::<u32>);
     let mut buf = vec![0i16; 2 * 1600];
-    crate::launcher::replay_pad_log(&log.into_string().unwrap(), |f, mode, events, audio| {
+    crate::launcher::replay_pad_log(&log.into_string().unwrap(), |f, mode, events, audio, _| {
         audio.render(&mut buf);
         let title = mode.title();
         if std::env::var_os("PINEY_TITLES").is_some() {
