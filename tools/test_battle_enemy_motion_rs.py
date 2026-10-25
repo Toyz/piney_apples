@@ -51,6 +51,9 @@ Checks (MOTION maps a name to fn(checks, rnd) -> (request, game, label)):
   main        ccEnemy::main (0x00432cd0) for 1-3 enemies of the races over
               60-300 frames, party members moving on scripted paths,
               events on the enemies between frames; compared every frame
+  mainedge    the same for 1-3 Mad Grass (row 219) over 300-600 frames,
+              Kite at the first's side and hitting often, the members about
+              1500 or 1800 from it (issue #7's fight)
 """
 
 import copy
@@ -99,6 +102,7 @@ STREAM, STREAM2 = 0x01037100, 0x01037200
 ANM_OFS, ANM2_OFS, NOTES_OFS, WC_OFS, DC_OFS = 0x900, 0xA20, 0xB40, 0xD00, 0xD10
 MOVE_LO, MOVE_HI = volume.span("moveEnemy__7ccEnemyFv")   # moveEnemy: its W2P/P2W are logged
 NOTE_EVENTS = (1, 2, 0x8005, 0x8003, 0x8002, 3, 0x8004, 0x8001, 0, 5)
+MAD_GRASS = 219         # enemyTbl's row (race P), issue #7's foe
 
 
 def fl(v):
@@ -1121,18 +1125,27 @@ def check_excl(checks, rnd):
     return req, out, which + "_" + h.kinds[h.cur]
 
 
-def check_main(checks, rnd, frames=None):
+def check_main(checks, rnd, frames=None, edge=False):
     h = harness(checks)
     nene = rnd.choice((1, 1, 2, 3))
     rows = []
     while len(rows) < nene:
-        r = h.pick_row(rnd, PICK)
+        r = MAD_GRASS if edge and not rows else h.pick_row(rnd, PICK)
         if r not in rows:
             rows.append(r)
-    nframes = frames or rnd.choice((60, 60, 90, 120, 200, 300))
+    nframes = frames or (rnd.choice((300, 400, 600)) if edge else rnd.choice((60, 60, 90, 120, 200, 300)))
+    hit_p = 0.15 if edge else 0.03
 
     def tweak(chars, foes, pcs, enes, me, mxs):
-        if rnd.random() < 0.3:
+        if edge:
+            # Issue #7's fight: Kite at the first foe's side, the members
+            # about a Wavemaster's 1800 from it (or a Heavy Blade's 1500)
+            fx, fy = fl(chars[me].pos[0]), fl(chars[me].pos[1])
+            for k, i in enumerate(i for i, c in enumerate(chars) if c.type & 7):
+                d = rnd.uniform(60, 200) if k == 0 else rnd.choice((1800.0, 1500.0)) + rnd.uniform(-150, 150)
+                a = rnd.uniform(-math.pi, math.pi)
+                chars[i].pos = [fbits(fx + d * math.sin(a)), fbits(fy - d * math.cos(a)), chars[i].pos[2], F_ONE]
+        if not edge and rnd.random() < 0.3:
             # the party out of sight: the enemies wander
             for c in chars:
                 if c.type & 7:
@@ -1159,7 +1172,8 @@ def check_main(checks, rnd, frames=None):
         for i in pcs:
             p0 = chars[i].pos
             ang = rnd.uniform(-math.pi, math.pi)
-            spd = rnd.choice((0.0, rnd.uniform(0, 12), rnd.uniform(0, 40)))
+            spd = rnd.choice((0.0, 0.0, rnd.uniform(0, 3))) if edge else \
+                rnd.choice((0.0, rnd.uniform(0, 12), rnd.uniform(0, 40)))
             paths[i] = (fl(p0[0]), fl(p0[1]), fl(p0[2]), math.cos(ang) * spd, math.sin(ang) * spd,
                         rnd.choice((0, rnd.uniform(0, 0.05))))
         tail = [f"main {me} {nframes}"]
@@ -1182,10 +1196,10 @@ def check_main(checks, rnd, frames=None):
                 moves.append(f"{i} {' '.join(map(str, pos + pos_p))} {dead}")
             events = []
             for i in live:
-                if rnd.random() > 0.03:
+                if rnd.random() > hit_p:
                     continue
                 va = h.ptr(i)
-                kind = rnd.choice((0, 1, 1, 1, 2, 2, 3, 4))
+                kind = 1 if edge and rnd.random() < 0.8 else rnd.choice((0, 1, 1, 1, 2, 2, 3, 4))
                 if kind == 0:
                     a, b_ = rnd.choice((0, 1, 5, -3, rnd.randrange(1, 200))), 0
                     g.put(va + 0x70, "<h", a)
@@ -1218,8 +1232,14 @@ def check_main(checks, rnd, frames=None):
             frames_out.append({"rets": rets, "calls": list(g.calls), "rand": g.rand_now(), "cc": h.cc_state(),
                                "state": h.read_state(chars, foes)})
         return {"frames": frames_out, "kill": h.kill(foes[me]["ids"][0])}, " ".join(tail)
-    req, out = h.mcase(rnd, None, rows=rows, tweak=tweak, main=main, patch_row=rnd.random() < 0.5)
-    return req, out, "main"
+    req, out = h.mcase(rnd, None, rows=rows, tweak=tweak, main=main, patch_row=not edge and rnd.random() < 0.5)
+    return req, out, "mainedge" if edge else "main"
+
+
+def check_main_edge(checks, rnd):
+    """Issue #7: Mad Grass under Kite's blows, the members at the edge of
+    their territory; its place each frame compared with the rest."""
+    return check_main(checks, rnd, edge=True)
 
 
 MOTION = {
@@ -1234,6 +1254,7 @@ MOTION = {
     "moveex": check_moveex,
     "excl": check_excl,
     "main": check_main,
+    "mainedge": check_main_edge,
 }
 
 
@@ -1261,6 +1282,7 @@ class EnemyMotionAgainstGame(rs.Against):
 
     def test_main(self):
         self.check("main", 21010)
+        self.check("mainedge", 21011)
 
 
 if __name__ == "__main__":
