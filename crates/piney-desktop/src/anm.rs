@@ -126,9 +126,14 @@ impl Ctx {
     }
 
     pub fn finish(self) -> Frame {
+        self.finish_with(|_, _, _| {})
+    }
+
+    /// [`Ctx::finish`] through [`Layers::flatten_with`]'s `each`.
+    pub fn finish_with(self, each: impl FnMut(i16, bool, &mut Cmd)) -> Frame {
         let mut f = Frame::new();
         f.uploads = self.uploads;
-        f.cmds = self.layers.flatten();
+        f.cmds = self.layers.flatten_with(each);
         f
     }
 }

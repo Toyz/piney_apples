@@ -55,9 +55,21 @@ pub fn corners(rect: [f32; 4]) -> [(i32, i32); 4] {
     [(x0, y0), (x0, y0 + h), (x0 + w, y0), (x0 + w, y0 + h)]
 }
 
+/// As [`draw_on`] on the older layer of priority `layer`
+/// ([`crate::layers::Layers::older`]): `ccGame.layer` (254, the mother
+/// task's, made at boot) beside a boss's own 254.
+pub fn draw_older(ctx: &mut Ctx, layer: i16, c0: u32, c1: u32, cnt: u32, tcnt: u32) {
+    ctx.layers.older(layer, vec![element(FULL, c0, c1, cnt, tcnt)]);
+}
+
 /// As [`draw_on`] over `rect` (x, y, w, h in logical units).
 #[allow(clippy::too_many_arguments)]
 pub fn draw_rect(ctx: &mut Ctx, layer: i16, rect: [f32; 4], c0: u32, c1: u32, cnt: u32, tcnt: u32) {
+    ctx.layers.prepend(layer, vec![element(rect, c0, c1, cnt, tcnt)]);
+}
+
+/// The fading element over `rect` (x, y, w, h in logical units).
+fn element(rect: [f32; 4], c0: u32, c1: u32, cnt: u32, tcnt: u32) -> Cmd {
     let rgba = Rgba(colour(c0, c1, cnt, tcnt));
     let v = |(x, y): (i32, i32)| Vertex {
         x: (x - XYOFFSET_X) as f32 / 16.0,
@@ -73,7 +85,7 @@ pub fn draw_rect(ctx: &mut Ctx, layer: i16, rect: [f32; 4], c0: u32, c1: u32, cn
         state: DrawState::sprite(Blend::MIX, None),
         verts: corners(rect).map(v).to_vec(),
     };
-    ctx.layers.prepend(layer, vec![Cmd::Prim(prim)]);
+    Cmd::Prim(prim)
 }
 
 #[cfg(test)]

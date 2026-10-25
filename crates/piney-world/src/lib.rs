@@ -1358,14 +1358,14 @@ impl World {
     pub fn step_into_with(&mut self, pad: &Pad, ctx: &mut Ctx, host: &mut dyn race::RaceHost) {
         match self.phase {
             Phase::FadeOut(k) => {
-                piney_desktop::fade::draw_on(ctx, draw::FADE_LAYER, 0, 0x8000_0000, k, FADE_FRAMES);
+                piney_desktop::fade::draw_older(ctx, draw::FADE_LAYER, 0, 0x8000_0000, k, FADE_FRAMES);
                 self.phase = if k + 1 < FADE_FRAMES { Phase::FadeOut(k + 1) } else { Phase::Hold(0) };
                 if k + 1 == FADE_FRAMES {
                     self.requests.push(Request::AllSoundOff);
                 }
             }
             Phase::Hold(k) => {
-                piney_desktop::fade::draw_on(ctx, draw::FADE_LAYER, 0, 0x8000_0000, FADE_FRAMES, FADE_FRAMES);
+                piney_desktop::fade::draw_older(ctx, draw::FADE_LAYER, 0, 0x8000_0000, FADE_FRAMES, FADE_FRAMES);
                 if !self.tasks_start() {
                     // ccEnableThEvent's waits: still the last held frame.
                     if k + 1 < HOLD_FRAMES {
@@ -1391,7 +1391,7 @@ impl World {
                     self.frame(pad, ctx, f >= 2, host);
                 }
                 if f < FADE_FRAMES {
-                    piney_desktop::fade::draw_on(ctx, draw::FADE_LAYER, 0x8000_0000, 0, f, FADE_FRAMES);
+                    piney_desktop::fade::draw_older(ctx, draw::FADE_LAYER, 0x8000_0000, 0, f, FADE_FRAMES);
                 } else if f == FADE_FRAMES {
                     self.requests.push(Request::BgmCtrl);
                 }

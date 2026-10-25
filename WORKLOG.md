@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-482 entries: audio 40, battle 127, build 20, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 123, save 16, script 57, test 230, tooling 45, ui 98, video 16, volumes 89, world 138.
+483 entries: audio 40, battle 127, build 20, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 123, save 16, script 57, test 230, tooling 45, ui 98, video 16, volumes 89, world 139.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -494,3 +494,4 @@ The [reference](docs/README.md) says what is true now.
 | 480 | [A field's lake and background as the code draws them: the lake's three animations and mirror, the hacked fields' backgrounds, DrawBG's turns and aurora](worklog/0480-a-field-s-lake-and-background-as-the-code-draws-them-the.md) | 2026-10-25 | render, world, test |
 | 481 | [The water's picture is the game's 128 x 128 point-sampled copy: towns' water 0, the field's haze and lake mirror](worklog/0481-the-water-s-picture-is-the-game-s-128-x-128-point-sampled.md) | 2026-10-25 | render, test |
 | 482 | [A lake's statues and flowers already take its palettes: EntryObject's ChangeClut is the file's clut_swaps](worklog/0482-a-lake-s-statues-and-flowers-already-take-its-palettes.md) | 2026-10-25 | render, world, test |
+| 483 | [The game over's squeeze reaches only sysLayer's view: the maps, menus and font keep their place, and a dungeon's fog zero only keeps the clear black](worklog/0483-the-game-over-s-squeeze-reaches-only-syslayer-s-view-the.md) | 2026-10-25 | world |

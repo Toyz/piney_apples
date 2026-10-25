@@ -1791,15 +1791,21 @@ impl Mode for AreaMode {
             let events = &mut self.events;
             self.world.with_rands(|cc, rand| t.step(cc, rand, &mut ctx, events))
         });
-        let mut frame = ctx.finish();
+        // The noise's view squeezes only the layers sharing sysLayer's.
+        let mut frame = match over.as_ref().and_then(|s| s.view) {
+            Some(v) => ctx.finish_with(|pri, older, c| {
+                if crate::gameover::through_sys_view(pri, older) {
+                    crate::gameover::squeeze(c, &v);
+                }
+            }),
+            None => ctx.finish(),
+        };
         self.world.set_clear(&mut frame);
-        if let Some(step) = over {
-            if let Some(v) = step.view {
-                crate::gameover::squeeze(&mut frame, &v);
-            }
-            if step.black {
-                frame.clear = piney_draw::Rgba::BLACK;
-            }
+        // `ccSys.bgColor` 0 at the TV; a dungeon's `DUNGEON.fog` 0 with it,
+        // so `DUNGEON::Draw` (gcmn 0x005cee68) finds them equal and never
+        // puts the fog colour back: black to the end.
+        if over.is_some_and(|s| s.black) {
+            frame.clear = piney_draw::Rgba::BLACK;
         }
         // The set-up's screen, black with the event's window, while a pass
         // waits on one (the church's "Open the book." in event 11); the

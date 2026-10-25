@@ -24,7 +24,9 @@ pub const OBJ2_LAYER: i16 = -10;
 pub const OBJ_LAYER: i16 = 0;
 pub const CHAR_LAYER: i16 = 10;
 pub const EFF_LAYER: i16 = 20;
-/// `ccGame.layer`, where `ccGame.fade` (the field's entry fades) draws.
+/// `ccGame.layer`, where `ccGame.fade` (the field's entry fades) draws:
+/// `ccThMother`'s (main 0x00167a2c), with a view of its own, older than a
+/// boss's 254, so drawn with `fade::draw_older`.
 pub const FADE_LAYER: i16 = 254;
 
 /// Stored columns of float bits to a matrix.

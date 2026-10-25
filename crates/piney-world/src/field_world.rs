@@ -1445,14 +1445,14 @@ impl FieldWorld {
     pub fn step_into(&mut self, pad: &Pad, ctx: &mut Ctx) {
         match self.phase {
             Phase::FadeOut(k) => {
-                piney_desktop::fade::draw_on(ctx, draw::FADE_LAYER, 0, 0x8000_0000, k, FADE_FRAMES);
+                piney_desktop::fade::draw_older(ctx, draw::FADE_LAYER, 0, 0x8000_0000, k, FADE_FRAMES);
                 self.phase = if k + 1 < FADE_FRAMES { Phase::FadeOut(k + 1) } else { Phase::Hold(0) };
                 if k + 1 == FADE_FRAMES {
                     self.requests.push(Request::Game(sound_off(&self.scene)));
                 }
             }
             Phase::Hold(k) => {
-                piney_desktop::fade::draw_on(ctx, draw::FADE_LAYER, 0, 0x8000_0000, FADE_FRAMES, FADE_FRAMES);
+                piney_desktop::fade::draw_older(ctx, draw::FADE_LAYER, 0, 0x8000_0000, FADE_FRAMES, FADE_FRAMES);
                 if self.tasks_start() {
                     // After a gate hack's stream (setupMode 0 at the
                     // set-up's end) its ccSndSQLoad came before it.
@@ -1485,7 +1485,7 @@ impl FieldWorld {
                     self.entry_setup(&CamPad::from_pad(pad));
                 }
                 if f < FADE_FRAMES {
-                    piney_desktop::fade::draw_on(ctx, draw::FADE_LAYER, 0x8000_0000, 0, f, FADE_FRAMES);
+                    piney_desktop::fade::draw_older(ctx, draw::FADE_LAYER, 0x8000_0000, 0, f, FADE_FRAMES);
                 } else if f == FADE_FRAMES {
                     self.requests.push(Request::Game(crate::Request::BgmCtrl));
                 }

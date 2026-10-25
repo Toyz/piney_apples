@@ -189,14 +189,23 @@ impl GameOverTask {
     }
 }
 
+/// Whether layer `pri` (`older`: the older of its priority) draws
+/// through sysLayer's view. These field layers have views of their own
+/// (`ccLayer::Init(pri, 0)`, main 0x00108260): the maps (40, 45, 50), the
+/// hack menu (127, 128), GAME OVER (129), the font (240), the menus and
+/// event windows (242), the book's buttons (243) and `ccGame.layer` (254,
+/// the older; a boss's newer 254 shares sysLayer's).
+pub fn through_sys_view(pri: i16, older: bool) -> bool {
+    !matches!((pri, older), (40 | 45 | 50 | 127..=129 | 240 | 242 | 243, _) | (254, true))
+}
+
 /// sysLayer's view squeezed as `ccView::SetFrame(x, y, w, h, cx, cy, ax,
 /// ay)` leaves it: a point that the default frame (0, 0, 512, 384, 256,
 /// 192, 1, 1) put at (px, py) now lands at (x + cx + (px - 256) ax, y + cy +
-/// (py - 192) ay), and nothing is drawn outside the frame. Applied to
-/// every command of the frame (the field's layers, the noise and its fader
-/// all draw through sysLayer's view), in frame-buffer pixels (the view's
-/// 384 rows are the buffer's 448).
-pub fn squeeze(frame: &mut Frame, v: &ViewFrame) {
+/// (py - 192) ay), and nothing is drawn outside the frame. Applied to a
+/// command of a layer [`through_sys_view`], in frame-buffer pixels (the
+/// view's 384 rows are the buffer's 448).
+pub fn squeeze(c: &mut Cmd, v: &ViewFrame) {
     let s = f32::from(piney_draw::SCREEN_HEIGHT) / 384.0;
     let (bx, by) = (v.x + v.cx - 256.0 * v.ax, (v.y + v.cy) * s - 224.0 * v.ay);
     let m = Mat4::from_cols(
@@ -213,28 +222,26 @@ pub fn squeeze(frame: &mut Frame, v: &ViewFrame) {
         sc.y0 = sc.y0.max(y0);
         sc.y1 = sc.y1.min(y1);
     };
-    for c in &mut frame.cmds {
-        match c {
-            Cmd::Prim(p) => {
-                for q in &mut p.verts {
-                    q.x = v.ax * q.x + bx;
-                    q.y = v.ay * q.y + by;
-                }
-                clip(&mut p.state.scissor);
+    match c {
+        Cmd::Prim(p) => {
+            for q in &mut p.verts {
+                q.x = v.ax * q.x + bx;
+                q.y = v.ay * q.y + by;
             }
-            Cmd::Model(md) => {
-                md.to_screen = (m * Mat4::from_cols_array_2d(&md.to_screen)).to_cols_array_2d();
-                for n in &mut md.nodes {
-                    *n = (m * Mat4::from_cols_array_2d(n)).to_cols_array_2d();
-                }
-                clip(&mut md.state.scissor);
+            clip(&mut p.state.scissor);
+        }
+        Cmd::Model(md) => {
+            md.to_screen = (m * Mat4::from_cols_array_2d(&md.to_screen)).to_cols_array_2d();
+            for n in &mut md.nodes {
+                *n = (m * Mat4::from_cols_array_2d(n)).to_cols_array_2d();
             }
-            // The buffer's cover moves with the view; its Z and counts are
-            // the buffer's own.
-            Cmd::Shadow(sh) => {
-                let [x0, y0, x1, y1] = sh.rect;
-                sh.rect = [v.ax * x0 + bx, v.ay * y0 + by, v.ax * x1 + bx, v.ay * y1 + by];
-            }
+            clip(&mut md.state.scissor);
+        }
+        // The buffer's cover moves with the view; its Z and counts are the
+        // buffer's own.
+        Cmd::Shadow(sh) => {
+            let [x0, y0, x1, y1] = sh.rect;
+            sh.rect = [v.ax * x0 + bx, v.ay * y0 + by, v.ax * x1 + bx, v.ay * y1 + by];
         }
     }
 }
@@ -258,10 +265,47 @@ mod tests {
             state: DrawState::sprite(piney_draw::Blend::MIX, None),
             verts: vec![at(0.0, 0.0), at(512.0, 448.0)],
         }));
-        squeeze(&mut f, &v);
+        squeeze(&mut f.cmds[0], &v);
         let Cmd::Prim(p) = &f.cmds[0] else { panic!() };
         assert_eq!((p.verts[0].x, p.verts[0].y), (0.0, 196.0));
         assert_eq!((p.verts[1].x, p.verts[1].y), (512.0, 252.0));
         assert_eq!((p.state.scissor.y0, p.state.scissor.y1), (196, 251));
+    }
+
+    /// Only the layers sharing sysLayer's view squeeze: the field's,
+    /// sysLayer, the noise's and a boss's 254; not the map, the menus, the
+    /// font or `ccGame.layer`.
+    #[test]
+    fn the_squeeze_leaves_the_layers_with_views_of_their_own() {
+        let v = ViewFrame { x: 0.0, y: 168.0, w: 512.0, h: 48.0, cx: 256.0, cy: 24.0, ax: 1.0, ay: 48.0 / 384.0 };
+        let sprite = || {
+            let at = |x: f32, y: f32| Vertex { x, y, ..Default::default() };
+            Cmd::Prim(Prim {
+                kind: PrimKind::Sprite,
+                gouraud: false,
+                state: DrawState::sprite(piney_draw::Blend::MIX, None),
+                verts: vec![at(0.0, 0.0), at(512.0, 448.0)],
+            })
+        };
+        let mut ctx = Ctx::new(View::default());
+        let shared = [-100, 0, 10, 20, 60, 200, 241, 254];
+        let own = [40, 45, 50, 127, 128, 129, 240, 242, 243];
+        for p in shared.into_iter().chain(own) {
+            ctx.layers.prepend(p, vec![sprite()]);
+        }
+        ctx.layers.older(0, vec![sprite()]);
+        ctx.layers.older(254, vec![sprite()]);
+        let mut seen = Vec::new();
+        ctx.finish_with(|pri, older, c| {
+            if through_sys_view(pri, older) {
+                squeeze(c, &v);
+            }
+            let Cmd::Prim(p) = c else { panic!() };
+            seen.push((pri, older, p.verts[0].y));
+        });
+        for (pri, older, y) in seen {
+            let squeezed = shared.contains(&pri) && !(pri == 254 && older);
+            assert_eq!(y, if squeezed { 196.0 } else { 0.0 }, "layer {pri} older {older}");
+        }
     }
 }

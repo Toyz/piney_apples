@@ -80,12 +80,20 @@ impl Layers {
     }
 
     /// Everything in GS order.
-    pub fn flatten(mut self) -> Vec<Cmd> {
+    pub fn flatten(self) -> Vec<Cmd> {
+        self.flatten_with(|_, _, _| {})
+    }
+
+    /// [`Layers::flatten`], each command first through `each(priority,
+    /// older, cmd)`: what a layer's view does to its packets (the game
+    /// over's squeeze of the layers sharing sysLayer's view).
+    pub fn flatten_with(mut self, mut each: impl FnMut(i16, bool, &mut Cmd)) -> Vec<Cmd> {
         for (pri, cmd) in self.shadows.flush().into_iter().rev() {
             self.layers.entry(pri).or_default().front.push(vec![cmd]);
         }
         let mut out = Vec::new();
-        for (_, mut layer) in self.layers {
+        for (pri, mut layer) in self.layers {
+            let from = out.len();
             for group in layer.front.into_iter().rev() {
                 out.extend(group);
             }
@@ -97,8 +105,12 @@ impl Layers {
             layer.sorted.reverse();
             layer.sorted.sort_by(|a, b| key(a.0).total_cmp(&key(b.0)));
             out.extend(layer.sorted.into_iter().map(|(_, c)| c));
+            let newer = out.len();
             for group in layer.older.into_iter().rev() {
                 out.extend(group);
+            }
+            for (i, c) in out[from..].iter_mut().enumerate() {
+                each(pri, from + i >= newer, c);
             }
         }
         out
@@ -140,5 +152,24 @@ mod tests {
         l.older(1, vec![tag(8)]);
         l.older(1, vec![tag(9)]);
         assert_eq!(tags(l.flatten()), vec![7, 6, 2, 3, 4, 5, 1, 9, 8]);
+    }
+
+    /// `flatten_with` sees each command with its layer and whether it is
+    /// the older layer's.
+    #[test]
+    fn flatten_with_names_each_layer() {
+        let mut l = Layers::default();
+        l.prepend(254, vec![tag(1)]);
+        l.older(254, vec![tag(2)]);
+        l.sorted(0, 1.0, tag(3));
+        l.older(0, vec![tag(4)]);
+        let mut seen = Vec::new();
+        let cmds = l.flatten_with(|pri, older, c| {
+            if let Cmd::Prim(p) = c {
+                seen.push((pri, older, p.verts.len()));
+            }
+        });
+        assert_eq!(tags(cmds), vec![3, 4, 1, 2]);
+        assert_eq!(seen, vec![(0, false, 3), (0, true, 4), (254, false, 1), (254, true, 2)]);
     }
 }
