@@ -20,6 +20,10 @@ use super::*;
 /// `walk_into_dungeon`); in a dungeon, to the room of the event point the
 /// story wants ([`Walker`]).
 pub(super) struct StoryPilot {
+    /// Playing with no aid (no god): the grinding, the boxes, the rests
+    /// and the fights in any field, as a player who has no god plays.
+    /// Off, the pilot keeps to the story's way, as under god.
+    pub(super) unaided: bool,
     walker: Walker,
     /// The way to the entrance's door cells, next point first, and where
     /// Kite stood at the last check.
@@ -97,6 +101,13 @@ pub(super) struct StoryPilot {
     /// an area is the way out and back taken (the tutorial's field has
     /// none, and its lessons want no detour).
     had_portals: Option<(i32, i32)>,
+    /// The last [`Self::grinding`] found the party below its foes, well or
+    /// not: then no walk to the story's goal (its fight) until it is.
+    grind_wanted: bool,
+    /// Boxes walked to: the one now (field, floor, room, index) and since
+    /// when, and those given up.
+    box_since: Option<((i32, i32, i32, usize), u64)>,
+    boxes_tried: Vec<(i32, i32, i32, usize)>,
     leaving: bool,
     /// In a boss fight: the party's HP as last seen, what each member lost
     /// a frame over the last second, and the most a member lost in one
@@ -203,6 +214,7 @@ const BLOWS_A_CHARM: i32 = 15;
 impl Default for StoryPilot {
     fn default() -> Self {
         StoryPilot {
+            unaided: false,
             walker: Walker::wary(),
             path: Vec::new(),
             mark: None,
@@ -240,6 +252,9 @@ impl Default for StoryPilot {
             grind_exit: None,
             no_grind: None,
             had_portals: None,
+            grind_wanted: false,
+            box_since: None,
+            boxes_tried: Vec::new(),
             leaving: false,
             party_hp: Vec::new(),
             losses: std::collections::VecDeque::new(),
@@ -261,6 +276,10 @@ impl StoryPilot {
     /// fight the pilot mends first).
     fn grinding(&mut self, a: &crate::area::AreaMode) -> bool {
         use piney_battle::chara::Body;
+        self.grind_wanted = false;
+        if !self.unaided {
+            return false;
+        }
         let w = a.world();
         let c = w.combat();
         let field = w.scene().field;
@@ -298,7 +317,16 @@ impl StoryPilot {
         // tutorial, whose lessons want no detour), nor while the events
         // wait on someone here.
         let led = high >= low + 20;
-        low < seen + GRIND_OVER && well && !led && w.event_targets().is_empty()
+        let want = low < seen + GRIND_OVER && !led && w.event_targets().is_empty();
+        self.grind_wanted = want;
+        let on = want && well;
+        if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && self.now.is_multiple_of(600) {
+            eprintln!(
+                "GRINDING {} {area:?} on {on} low {low} seen {seen} well {well} led {led} leaving {} exit {:?} no {:?} had {:?}",
+                self.now, self.leaving, self.grind_exit, self.no_grind, self.had_portals
+            );
+        }
+        on
     }
 
     /// A grinding exit: out and back in for the portals anew, unless the
@@ -353,6 +381,47 @@ impl StoryPilot {
         self.walk_after(w, q, 200.0, f, false)
     }
 
+    /// Out of a fight, someone under 70% of his HP and a heal known in the
+    /// party that its caster's SP does not yet pay for: stand still, as a
+    /// player rests. SP comes back out of a fight, the faster standing
+    /// (`maxSP / 20` a second, `ccSpcChar::CheckSpRegeneSpeed`), and the
+    /// heal follows. Not where the events hold the party, nor for one down.
+    fn resting(&self, a: &crate::area::AreaMode) -> bool {
+        if !self.unaided {
+            return false;
+        }
+        let w = a.world();
+        let c = w.combat();
+        let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+        if !playing
+            || c.battle.in_battle != 0
+            || a.ui().menu_type() != -1
+            || a.vm().is_some_and(|vm| vm.playing().is_some())
+        {
+            return false;
+        }
+        let items = &a.ui().texts().items;
+        let party = w.party();
+        let chars: Vec<&piney_battle::chara::Char> = c.members.iter().map(|&(_, k)| &c.scene.chars[k]).collect();
+        let hurt = chars.iter().any(|ch| ch.hp > 0 && i32::from(ch.hp) * 100 < i32::from(ch.max_hp) * 70);
+        if !hurt {
+            return false;
+        }
+        // A healer short of SP now, who will have it.
+        party.iter().zip(&chars).any(|(&id, ch)| {
+            if id < 0 || ch.hp <= 0 {
+                return false;
+            }
+            let list = piney_fieldui::items::skill_list(items, w.state(), id as usize, 2);
+            let costs: Vec<i32> = list
+                .iter()
+                .filter(|&&x| heal_amount(x, 1) > 0)
+                .filter_map(|&x| items.skill(i32::from(x)).map(|p| p.cost))
+                .collect();
+            costs.iter().any(|&cost| cost <= i32::from(ch.max_sp)) && costs.iter().all(|&cost| cost > i32::from(ch.sp))
+        })
+    }
+
     /// What Kite is to buy here: nothing in a town whose shop the walk
     /// gave up on.
     fn buys(&self) -> &[Buy] {
@@ -367,20 +436,29 @@ impl StoryPilot {
             // A grinding exit that has not come: given up, and no more
             // grinding here.
             let sc = a.world().scene();
-            if let Some((area, since)) = self.grind_exit
-                && area == (sc.area, sc.field)
-                && f > since + GRIND_EXIT
-            {
-                (self.no_grind, self.grind_exit, self.leaving) = (Some(area), None, false);
+            match self.grind_exit {
+                Some((area, since)) if area == (sc.area, sc.field) && f > since + GRIND_EXIT => {
+                    (self.no_grind, self.grind_exit, self.leaving) = (Some(area), None, false);
+                }
+                // Out: it came.
+                Some((area, _)) if area != (sc.area, sc.field) => self.grind_exit = None,
+                _ => {}
             }
             if self.leaving
                 && let Some(raw) = self.gate_out(a, f).or_else(|| out_of_battle(a))
             {
                 return raw;
             }
+            // On the way out for the portals anew: no other walk meanwhile
+            // (the gate's 300 frames of quiet would take Kite into the
+            // dungeon the story wants), a fight excepted.
+            if self.grind_exit.is_some() && self.leaving && a.world().combat().battle.in_battle == 0 {
+                return Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+            }
         }
         if let Stage::World(w) = &s.stage {
             self.leaving = false;
+            (self.box_since, self.boxes_tried) = (None, Vec::new());
             // While a field's goblins want Speed Charms, the gold is kept
             // for them.
             if self.buys.iter().any(|b| b.item == SPEED_CHARM) {
@@ -413,6 +491,12 @@ impl StoryPilot {
             && let Some(raw) = self.fight(a, f)
         {
             return raw;
+        }
+        if let Stage::Area(a) = &s.stage
+            && !a.streaming()
+            && self.resting(a)
+        {
+            return Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
         }
         if let Stage::Area(a) = &s.stage
             && !a.streaming()
@@ -453,7 +537,10 @@ impl StoryPilot {
                 if grind && portal.is_none() && members && w.combat().battle.in_battle == 0 {
                     self.grind_leave(a, f);
                 }
-                let to = portal.or(to);
+                // Below the foes but hurt: no walk on to the goal (the
+                // story's fight there) until mended (`resting`).
+                let to =
+                    if self.grind_wanted && !grind && w.combat().battle.in_battle == 0 { None } else { portal.or(to) };
                 if std::env::var_os("PINEY_DEBUG_PILOT").is_some() && f.is_multiple_of(500) {
                     eprintln!("GOAL {f} {to:?} at {:?} wants {wants:?}", (sc.floor, sc.block));
                 }
@@ -463,6 +550,9 @@ impl StoryPilot {
                     return raw;
                 }
                 if let Some(raw) = self.open_item(a, &wants, f) {
+                    return raw;
+                }
+                if let Some(raw) = self.open_box(a, f) {
                     return raw;
                 }
                 if let Some(raw) = self.open_point_statue(a, &wants, f) {
@@ -623,6 +713,55 @@ impl StoryPilot {
         }
         let q = w.combat().scene.chars[i].pos.map(f32::from_bits);
         let p = w.player().body.pos.map(f32::from_bits);
+        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
+    }
+
+    /// In a dungeon room with no foe standing, a treasure box of the room
+    /// not yet opened: up to it and X, as a player takes what the
+    /// rooms hold (the items sold for gold; `GetItemMenu`'s lines are the
+    /// story player's OK).
+    fn open_box(&mut self, a: &crate::area::AreaMode, f: u64) -> Option<Raw> {
+        if !self.unaided {
+            return None;
+        }
+        let w = a.world();
+        let c = w.combat();
+        let sc = w.scene();
+        let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
+        if !playing || c.battle.in_battle != 0 || a.ui().menu_type() != -1 {
+            return None;
+        }
+        if c.enemies().into_iter().any(|e| c.scene.chars[e].hp > 0) {
+            return None;
+        }
+        let p = w.player().body.pos.map(f32::from_bits);
+        let i = c.ctrl.list(piney_battle::entry::Kind::Gimmick).into_iter().find(|&i| {
+            // `gimmickTbl` rows 0 and 1, `ccGimBox`'s treasure boxes (the
+            // breakables and the virus crystal are rows 2-14).
+            c.ctrl.entry_obj(i).is_some_and(|o| {
+                o.obj_flag
+                    && !o.cmnd_flag
+                    && matches!(o.gim_id, 0 | 1)
+                    && (o.ent.floor, o.ent.block) == (sc.floor, sc.block)
+            }) && i < c.scene.chars.len()
+                && !self.boxes_tried.contains(&(sc.field, sc.floor, sc.block, i))
+        })?;
+        // Tried for long enough (out of reach behind a wall): passed by.
+        let key = (sc.field, sc.floor, sc.block, i);
+        match self.box_since {
+            Some((k, since)) if k == key && f > since + 900 => {
+                self.boxes_tried.push(key);
+                return None;
+            }
+            Some((k, _)) if k == key => {}
+            _ => self.box_since = Some((key, f)),
+        }
+        let still = Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
+        if w.command_target_code() == Some((piney_world::entry::Kind::Gimmick, i as i32)) {
+            return Some(if f.is_multiple_of(8) { Raw { buttons: Buttons::CROSS, ..still } } else { still });
+        }
+        let q = c.scene.chars[i].pos.map(f32::from_bits);
         let cam_z = f32::from_bits(w.camera().rot()[2]);
         Some(stick_toward(cam_z, (q[0] - p[0]).atan2(-(q[1] - p[1]))))
     }
@@ -1419,7 +1558,9 @@ impl StoryPilot {
                 if let Some(skill) = skill {
                     return Some(Action::Skill { page: 2, skill, target: Some(target) });
                 }
-                if carried(POTION) {
+                // Out of a fight, rest for the SP instead (`resting`).
+                let rest = !fighting && self.resting(a);
+                if !rest && carried(POTION) {
                     return Some(Action::Item { cat: POTION.0, id: POTION.1, target });
                 }
                 let potion = (0..piney_fieldui::items::ITEMS)
@@ -1430,7 +1571,7 @@ impl StoryPilot {
                         items.skill(p.skill).is_some_and(|sk| sk.kind & HEAL != 0).then_some((it, p.price))
                     })
                     .min_by_key(|&(_, price)| price);
-                if let Some((it, _)) = potion {
+                if let Some((it, _)) = potion.filter(|_| !rest) {
                     return Some(Action::Item { cat: it.cat, id: it.id, target });
                 }
             }
@@ -1581,7 +1722,10 @@ impl StoryPilot {
             // Out of a boss fight, a foe the blows reach: the skill only when
             // its sure hit is three plain blows' or more (a cast and its
             // menus take the time of some three blows).
-            if !boss && nearest < 600.0 {
+            // A Data Bug's HP holds until its protect breaks, which the
+            // skills' attack fills the faster (`(atk + skill atk)^2`):
+            // not there.
+            if !boss && nearest < 600.0 && c.scene.chars[near].ty() & DATA_BUG == 0 {
                 let blow = t.skill(1).map_or(0, |sk| sure(near, sk));
                 let hit = t.skill(i32::from(skill)).map_or(0, |sk| sure(near, sk));
                 if blow > 0 && hit < 3 * blow {
@@ -1690,13 +1834,26 @@ impl StoryPilot {
         let c = w.combat();
         let sc = w.scene();
         let wants = story_wants(a.vm()?, &w.state().save);
-        if sc.area != kind::FIELD || !wants.contains(&Want::Clear(sc.field as i16)) {
+        let clear = wants.contains(&Want::Clear(sc.field as i16));
+        if sc.area != kind::FIELD {
             return None;
         }
         let p = w.player().body.pos.map(f32::from_bits);
         let at = |e: usize| c.scene.chars[e].pos.map(f32::from_bits);
         let dist = |e: usize| (at(e)[0] - p[0]).hypot(at(e)[1] - p[1]);
-        let live: Vec<usize> = c.enemies().into_iter().filter(|&e| c.scene.chars[e].hp > 0).collect();
+        // Any field's fight: the foes within 1,500 of Kite or aiming at the
+        // party, fought back as a player does (the portals the grinding
+        // opens bring them); a field to clear: every foe.
+        let party: Vec<usize> = c.members.iter().map(|&(_, k)| k).collect();
+        let engaged = |e: usize| dist(e) < 1500.0 || c.scene.chars[e].target_char.is_some_and(|t| party.contains(&t));
+        let live: Vec<usize> = c
+            .enemies()
+            .into_iter()
+            .filter(|&e| c.scene.chars[e].hp > 0 && (clear || (self.unaided && engaged(e))))
+            .collect();
+        if live.is_empty() {
+            return None;
+        }
         // Up to a golden goblin that runs: within the command target's
         // reach (150 and both widths in a fight, `ccCheckTargetRange`).
         let close = |e: usize| if shakes_off_holds(c, e) { 150.0 } else { 300.0 };
@@ -2088,8 +2245,17 @@ fn quarantine_story_survey() {
     }
 }
 
-/// The party, the members' address and call bits and the story's wants,
-/// for `mutation_whole_story`'s trace.
+/// Kite's level in the save (0 off the field, town or desktop): the
+/// members come and go.
+fn party_levels(s: &Session) -> i32 {
+    let state = match &s.stage {
+        Stage::Area(a) => a.world().state(),
+        Stage::World(w) => w.world().state(),
+        _ => return 0,
+    };
+    i32::from(state.save.i16(piney_data::save::by_id::spc_param(0) + piney_data::save::offset::SPC_LEVEL))
+}
+
 /// Kite's gold, the party's levels and Kite's stock (revives, heals,
 /// souls), for a whole run's lines.
 fn purse(s: &Session) -> String {
@@ -2111,13 +2277,20 @@ fn purse(s: &Session) -> String {
         .filter(|&&id| id >= 0)
         .map(|&id| save.i16(piney_data::save::by_id::spc_param(id as usize) + piney_data::save::offset::SPC_LEVEL))
         .collect();
+    let carried: Vec<(i8, i16, u8)> = (0..piney_fieldui::items::ITEMS)
+        .map(|k| piney_fieldui::items::save_item(state, 0, k))
+        .filter(|it| it.num > 0)
+        .map(|it| (it.cat, it.id, it.num as u8))
+        .collect();
     format!(
-        "gold {} levels {levels:?} stock {:?}",
+        "gold {} levels {levels:?} stock {:?} items {carried:?}",
         save.i32(piney_fieldui::menus::shop::GOLD),
         STOCK.map(|(it, _)| count(it))
     )
 }
 
+/// The party, the members' address and call bits and the story's wants,
+/// for `mutation_whole_story`'s trace.
 fn whole_state(s: &Session) -> String {
     let (party, vm, save) = match &s.stage {
         Stage::Area(a) => (a.world().party(), a.vm(), &a.world().state().save),
@@ -2365,7 +2538,7 @@ fn whole_story(disc: &str) {
         s.console("god");
     }
     let mut pad = Pad::default();
-    let mut pilot = StoryPilot::default();
+    let mut pilot = StoryPilot { unaided: aids == Aids::None, ..StoryPilot::default() };
     let mut ended: Vec<i32> = Vec::new();
     // The last place in The World and its state, for a game over's report.
     let mut last_place = String::new();
@@ -2375,6 +2548,7 @@ fn whole_story(disc: &str) {
     // given up (200,000).
     let stall: u64 = std::env::var("PINEY_SURVEY_STALL").ok().and_then(|v| v.parse().ok()).unwrap_or(200_000);
     let mut last_end = 0u64;
+    let mut best_levels = 0i32;
     for f in 0..frames {
         // As the survey's god: the infection held at 0, the hack's cores.
         if aids != Aids::None && f.is_multiple_of(30) {
@@ -2437,6 +2611,13 @@ fn whole_story(disc: &str) {
         if ended.contains(&last) {
             return;
         }
+        // A level gained is progress too (the grinding between events).
+        let lv = party_levels(&s);
+        if lv > best_levels {
+            best_levels = lv;
+            last_end = f;
+            println!("{f}: Kite at level {lv} - {}", purse(&s));
+        }
         if f - last_end > stall {
             let menu = match &s.stage {
                 Stage::Area(a) => {
@@ -2496,7 +2677,7 @@ fn survey(disc: &str, events: std::ops::RangeInclusive<i32>) {
             let mut pad = Pad::default();
             let mut titles: Vec<String> = Vec::new();
             let mut flag = 0u64;
-            let mut pilot = StoryPilot::default();
+            let mut pilot = StoryPilot { unaided: !god, ..StoryPilot::default() };
             for f in 0..frames {
                 if god && f.is_multiple_of(30) {
                     s.console("infection 0");

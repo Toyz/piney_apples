@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-470 entries: audio 40, battle 122, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 120, save 16, script 57, test 218, tooling 45, ui 97, video 16, volumes 89, world 133.
+471 entries: audio 40, battle 123, build 20, content 3, decomp 28, disc 5, engine 23, format 17, iop 3, render 120, save 16, script 57, test 219, tooling 45, ui 97, video 16, volumes 89, world 133.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -482,3 +482,4 @@ The [reference](docs/README.md) says what is true now.
 | 468 | [The no-aid whole runs stop in their first dungeons; the pilot now fights casters, strikes the weakest foe, prefers blows to weak casts, sizes its heals and buys its stock, and Quarantine's run ends 301-303](worklog/0468-the-no-aid-whole-runs-stop-in-their-first-dungeons-the.md) | 2026-10-24 | test, battle |
 | 469 | [Infection with no aid falls in event 14's dungeon at level 2; the pilot begins to grind: the portals on the way opened while the party is below its foes, and out and back for more](worklog/0469-infection-with-no-aid-falls-in-event-14-s-dungeon-at-level.md) | 2026-10-24 | test, battle |
 | 470 | [A kill's experience is the game's: ccExpDistributor, the level table and the level-ups agree natively on all four volumes, so Infection's slow levels are the pilot's few kills](worklog/0470-a-kill-s-experience-is-the-game-s-ccexpdistributor-the.md) | 2026-10-24 | battle, test |
+| 471 | [Infection's no-aid run passes event 14's Data Bug at level 7 and ends events up to 16: grinding in any field, rests for SP, boxes opened, skills at a Data Bug's protect](worklog/0471-infection-s-no-aid-run-passes-event-14-s-data-bug-at-level.md) | 2026-10-24 | test, battle |
