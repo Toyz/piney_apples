@@ -121,7 +121,7 @@ Missing pieces that only the later volumes need.
 - docs/engine/battle.md `ccBoss04`'s Affect and AI are not ported — a later volume's boss — answered by [[294]] (Fidchell, checked against Outbreak's code; [[479]])
 - [[72]] [[84]] the other `EVENTAREA` classes (04-06; areas 66, 67, 91) get generated fields (docs/engine/evarea.md, field-walk.md) — the later volumes' story maps; no Infection script reaches them — answered by [[472]] (`piney_world::evarea_sky::SkyMap`: 66 and 67 are event 163's from Mutation on, 91 event 263's from Outbreak on; issue #74)
 - [[112]] `EVENTAREAB0`'s `NextStage` (field 8, `se4_8`) is not ported (docs/engine/evarea.md) — a later volume's last arena — answered by [[454]] (Quarantine's class: `se4_8`'s clip and floor clump, the save's 0x652f, the lights and hits)
-- [[114]] [[157]] type 32's tree and leaves (`ANM_se4_2lea`, `LEAF`) are not ported (docs/engine/dungeon.md) — a later volume's event room
+- [[114]] [[157]] type 32's tree and leaves (`ANM_se4_2lea`, `LEAF`) are not ported (docs/engine/dungeon.md) — a later volume's event room — answered by [[492]] (dungeon_area/leaves.rs; tools/test_dungeon_rt.py `test_leaves`, 400 frames of area 101's room against the game)
 - [[220]] on Outbreak and Quarantine `GetEventAreaInfo(0)` returns NULL where the port finds row 0 — Outbreak's and Quarantine's areas
 - [[77]] [[260]] `DrawMap` of towns 2-4 draws four sprites in the later volumes; [[260]] and docs/engine/map.md say the port draws three, but crates/piney-world/src/map/town.rs now carries a fourth (MARKS) sprite on the towns' own layers: to confirm — the later towns' maps
 - [[260]] which events place characters in Fort Ouph and Lia Fail — Outbreak's and Quarantine's stories
@@ -1233,7 +1233,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 ### docs/engine/dungeon.md
 
 - docs/engine/dungeon.md: the palette swaps over the whole file; the door functions' own ChangeClut; no picture compared — research (duplicates [[147]])
-- docs/engine/dungeon.md: type 32's leaves (ANM_se4_2lea, LEAF), a later volume's room — play (duplicates [[114]])
+- docs/engine/dungeon.md: type 32's leaves (ANM_se4_2lea, LEAF), a later volume's room — play (duplicates [[114]]) — answered by [[492]]
 - docs/engine/dungeon.md: how ccLight combines an event room's LGT_ record with SetRoom's place; the ban block's nodes — research (duplicates [[114]])
 - docs/engine/dungeon.md: EntryObject's palettes for the lakes' statues and flowers with GetBG not 0 — play (duplicates [[157]], [[161]]) — answered by [[482]]
 - docs/engine/dungeon.md: a story dungeon's fieldrand after Generate — research (duplicates [[157]])

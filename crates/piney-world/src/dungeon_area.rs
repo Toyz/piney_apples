@@ -21,6 +21,7 @@ use piney_desktop::layers::Layers;
 
 mod dress;
 pub mod lake;
+pub mod leaves;
 
 pub use dress::{Clump, Dressing, RoomLight, Spark, Water};
 
@@ -351,6 +352,9 @@ pub struct DungeonArea {
     /// room, which `MakeRoom(ROOMDATA *)` loads for a row of type 25-35
     /// (the last such row's, floor by floor).
     pub spccs: Option<RoomFile>,
+    /// The `ccRandF()` draws type 32's leaves made since the caller last
+    /// settled them ([`DungeonArea::settle_leaves`]).
+    leaf_rand_owed: u32,
     /// `WORLD_MAN.specialRoom` (+0x160): -1 (the constructor, and
     /// `GotoNextRoom` as it leaves a room), 0 once `GotoNextRoom` or
     /// `RoomSelect` has stood the party in an event room at its
@@ -704,6 +708,7 @@ impl DungeonArea {
             base_lights: lights,
             room_fog: fog,
             spccs,
+            leaf_rand_owed: 0,
             special_room: -1,
             dungeon: scene.dungeon,
             bans,
@@ -1147,6 +1152,9 @@ impl DungeonArea {
             let root = Self::room_root(&slot);
             self.room = if self.spccs.is_some() { self.make_anm_in(true, er.anm, &root, 2) } else { None };
             self.event_room_lights(er, row);
+            if self.event_room_type(f, i) == Some(leaves::LEAF_ROOM) {
+                self.set_leaves(slot.pos);
+            }
             let [near, far, _, max] = special::EVENT_ROOM_FOG.map(f32::from_bits);
             self.room_fog = FogRow { colour: [0.0; 3], near, far, max, ambient: self.fog.ambient };
         } else {
@@ -1916,6 +1924,8 @@ impl DungeonArea {
         self.draw_bg(layers, to_screen, self.here(player), step);
         let mut ops = self.draw_dress(layers, to_screen, world_screen, step);
         self.draw_fireflies(player, step, &mut ops);
+        let fog = self.room_depth_fog();
+        self.draw_leaves(layers, to_screen, fog, step);
         if !self.shown(player).1 {
             return ops;
         }

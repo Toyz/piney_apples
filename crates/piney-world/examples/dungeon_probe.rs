@@ -5,7 +5,8 @@
 //! Requests: `new`, `room`, `roomc`, `select`, `land`, `height`, `goto`,
 //! `enter`, `back`, `drawn`, `movedoor`, `opendoor`, `closedoor`, `closedoor2`,
 //! `info`, `draweff`, `drawbg`, `rng`, `ban`, `bans`, `fog`, `eventdata`,
-//! `slots`, `start`, `pad`; the fields are the harness's.
+//! `slots`, `start`, `pad`, `leaves`, `leafeff`; the fields are the
+//! harness's.
 
 use std::io::BufRead;
 use std::sync::Arc;
@@ -40,6 +41,24 @@ fn list(v: &[u32]) -> String {
 
 fn mat(m: &[V4; 4]) -> String {
     list(&m.iter().flatten().copied().collect::<Vec<_>>())
+}
+
+/// Type 32's leaves: each one's timer, spin, turns, place, step.
+fn leaves(d: &DungeonArea) -> String {
+    let Some(l) = d.dress.leaves.as_ref() else { return "null".into() };
+    let one = |x: &piney_world::dungeon_area::leaves::Leaf| {
+        format!(
+            "[{}, {}, {}, {}, {}, {}, {}]",
+            x.timer,
+            x.spin,
+            x.rot_z,
+            x.rot_x.map_or(-1, i64::from),
+            list(&x.centre),
+            list(&x.off),
+            list(&x.vel)
+        )
+    };
+    format!("[{}]", l.leaves.iter().map(one).collect::<Vec<_>>().join(", "))
 }
 
 fn hit_list(d: &DungeonArea) -> String {
@@ -261,6 +280,30 @@ fn main() {
                 let a = d.as_mut().unwrap();
                 a.come_back(n(1) as i32);
                 println!("{{\"position\": {}, \"hits\": {}}}", list(&a.position), hit_list(a));
+            }
+            "leaves" => {
+                // The owed ccRandF()s from sgenrand(seed)'s words.
+                let a = d.as_mut().unwrap();
+                let mut cc = piney_battle::rand::Genrand::seeded(n(1) as u32);
+                a.settle_leaves(&mut cc);
+                println!("{{\"leaves\": {}, \"rng\": [{}, {}]}}", leaves(a), a.rng.seed, a.rng.count);
+            }
+            "leafeff" => {
+                let a = d.as_mut().unwrap();
+                let frames: Vec<String> = (0..n(1))
+                    .map(|_| {
+                        a.draw_eff(true);
+                        let ms: Vec<String> = a.step_leaves(true).iter().map(mat).collect();
+                        format!(
+                            "{{\"leaves\": {}, \"matrices\": [{}], \"rng\": [{}, {}]}}",
+                            leaves(a),
+                            ms.join(", "),
+                            a.rng.seed,
+                            a.rng.count
+                        )
+                    })
+                    .collect();
+                println!("{{\"frames\": [{}]}}", frames.join(", "));
             }
             "draweff" => {
                 let a = d.as_mut().unwrap();

@@ -87,6 +87,8 @@ EXAMPLE = os.path.join(os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "ta
 
 ONE = 0x3F800000
 M32 = 0xFFFFFFFF
+# ccRand's mt[624] (doublewords) and mti.
+MT, MTI = inf_va(0x003FF400), inf_va(0x00377FD0)
 # Scratch memory past the program's end (0x00730600).
 CCSDATA, SYS, SCRATCH, GAME, SAVE, WM = 0x00800000, 0x00D00000, 0x00D10000, 0x00D20000, 0x00D30000, 0x00D40000
 MISC, DRAWENV, MENU, ENT, PLAYER, ARGS = 0x00D41000, 0x00D41100, 0x00D41400, 0x00D41600, 0x00D42000, 0x00D43000
@@ -507,6 +509,59 @@ class Game:
                 if r:
                     lights.append(m.load(m.load(r + 0x38, 4) + 0xC0, 4))
             frames.append({"sprites": [list(x) for x in drawn], "lights": lights,
+                           "rng": [m.load(self.sym("seed"), 4), m.load(self.sym("randcnt"), 4)]})
+        for k in hooks:
+            del m.hooks[self.sym(k)]
+        return frames
+
+    def put_cc(self, seed):
+        """ccRand as sgenrand(seed) leaves it (mt[624] of doublewords, mti
+        624), for the LEAF constructors' ccRandF."""
+        words = []
+        for _ in range(624):
+            w = seed & 0xFFFF0000
+            seed = (seed * 69069 + 1) & M32
+            w |= (seed & 0xFFFF0000) >> 16
+            seed = (seed * 69069 + 1) & M32
+            words.append(w)
+        self.m.mem[MT:MT + 8 * 624] = struct.pack("<624Q", *words)
+        self.m.store(MTI, 4, 624)
+
+    def leaves(self):
+        """Type 32's LEAF[20] (+0xd38c0): timer, spin, turns about z and x,
+        centre, place, step; None without them."""
+        m = self.m
+        if not m.load(DG + 0xD38BC, 4):
+            return None
+        out = []
+        for k in range(20):
+            a = m.load(DG + 0xD38C0 + 4 * k, 4)
+            t = m.load(a + 4, 4)
+            out.append([t - (1 << 32) if t & 0x80000000 else t, m.load(a + 0x10, 4), m.load(a + 0x14, 4),
+                        m.load(a + 0x18, 4), self.rvec(a + 0x20), self.rvec(a + 0x30), self.rvec(a + 0x40)])
+        return out
+
+    def leaf_eff(self, n):
+        """N frames of DUNGEON::DrawEff in a type 32 room: its sprites and
+        the tree's ccAnm::Draw stubbed, each leaf's ccModel::Draw matrix
+        (0x40 before its ccDrawModelParam) recorded, with the leaves and
+        fieldrand after the frame (the leaves' part is 0x005ce108)."""
+        m = self.m
+        drawn = []
+        hooks = {
+            "Draw__5ccAnmFv": lambda mm, *a: 0,
+            "Draw__5ccEffFPfUs": lambda mm, *a: 0,
+            "Draw__5ccEffFUs": lambda mm, *a: 0,
+            "Draw__7ccModelFP16ccDrawModelParam": lambda mm, model, prm, *a: drawn.append(
+                [m.load(prm - 0x40 + 4 * k, 4) for k in range(16)]) or 0,
+        }
+        for k, fn in hooks.items():
+            m.hooks[self.sym(k)] = fn
+        frames = []
+        for _ in range(n):
+            drawn.clear()
+            self.call("DrawEff__7DUNGEONFv", DG)
+            frames.append({"leaves": self.leaves(), "matrices": list(drawn),
                            "rng": [m.load(self.sym("seed"), 4), m.load(self.sym("randcnt"), 4)]})
         for k in hooks:
             del m.hooks[self.sym(k)]
@@ -1333,6 +1388,47 @@ class DungeonAgainstGame(unittest.TestCase):
                                  (game["position"], game["level"], game["enter"], special), where)
                 self.same_hits(mine["hits"], g.hit_list(), where + ": the room built")
                 self.count("RoomSelect into an event room")
+
+    def test_leaves(self):
+        """Type 32's tree and leaves (area 101's event room): SetRoom's
+        twenty LEAFs (timer, spin and place from fieldrand, the tilt from
+        ccRandF on a seeded ccRand), then 400 frames of DrawEff: each leaf's
+        Move and Draw, its model's matrix, fieldrand after each frame."""
+        p = self.probe
+        rng = random.Random(59)
+        for field, code in ((101, 0),):
+            g = Game()
+            seeds = (rng.getrandbits(32), rng.getrandbits(32), rng.getrandbits(32))
+            info = p.ask(f"new {seeds[0]} {seeds[1]} {seeds[2]} 1 0 3 7 2 {field} {code} 0")
+            if "error" in info:
+                self.count("leaf dungeons skipped (port error)")
+                continue
+            g.make(info, seeds, 1, 0, 3, 7, field, code, 0)
+            rooms = [(f, i) for f in range(10) for i in range(15) if g.room_type(f, i) == 32
+                     and f < len(info["floors"]) and info["floors"][f]["rooms"][i][4]]
+            self.assertTrue(rooms, f"area {field}: a room of type 32")
+            for f, i in rooms:
+                what = f"area {field} SetRoom({f}, {i})"
+                cc = rng.getrandbits(32)
+                # The port's fieldrand after a story dungeon's Generate is
+                # not the game's (docs/engine/dungeon.md); start both alike.
+                p.ask("rng {} {}".format(g.m.load(g.sym("seed"), 4), g.m.load(g.sym("randcnt"), 4)))
+                p.ask(f"room {f} {i}")
+                mine = p.ask(f"leaves {cc}")
+                g.put_cc(cc)
+                g.set_room(f, i)
+                game = g.leaves()
+                self.assertIsNotNone(game, what + ": the leaves")
+                self.assertEqual(mine["leaves"], game, what + ": the leaves made")
+                self.assertEqual(mine["rng"], [g.m.load(g.sym("seed"), 4), g.m.load(g.sym("randcnt"), 4)],
+                                 what + ": fieldrand")
+                self.count("leaf rooms set")
+                for k, (a, b) in enumerate(zip(p.ask("leafeff 400")["frames"], g.leaf_eff(400))):
+                    self.assertEqual(a, b, f"{what}: DrawEff frame {k}")
+                    self.count("leaf frames")
+                    self.count("leaves starting again from the top",
+                               sum(x[5][2] > y[5][2] for x, y in zip(b["leaves"], prev["leaves"])) if k else 0)
+                    prev = b
 
     def same_doors(self, mine, game, what):
         words, doors, hits = game

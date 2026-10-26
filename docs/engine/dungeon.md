@@ -3,7 +3,7 @@ title: Dungeon generation
 status: partial
 volumes: all
 covers: INF gcmn.prg:0x00597d84 ccPlayer::ccPlayer (the lake's arrival), 0x005c1440 DUNGEON::SetClutList, 0x005c17b0 DUNGEON::ChangeClut; INF SLUS_202.67:0x0013aad0 ccModel::ChangeClut, 0x00152d00 ccAnm::ChangeClut; INF gcmn.prg:0x005c12a0 DUNGEON::Generate, 0x005c0110 MakeFloor, 0x005b6840 FOOT::FOOT, 0x005b7330 FOOT::Move, 0x005b78c0 FOOT::CheckDirection, 0x005ba1d0 DUNGEON::MakeRoom, 0x005bb340 SetAllGim, 0x005be020 MakeRealMap, 0x005bcbb0 DUNGEON::MakeRoom(ROOMDATA *), 0x005b7c00 DUNGEON::DUNGEON, 0x005c1ca0 SetRoom, 0x005c3a50 ClearRoom, 0x005c1980 DeleteRoom, 0x005c7c30 SetDoor, 0x005cd3d0 MoveDoor, 0x005c9e10 GotoNextRoom, 0x005ce930 DUNGEON::Draw, 0x005cf030 DUNGEON::GetHeight, 0x005cf040 GetStartPosition, 0x005c4560 SetLight, 0x0042e010 ccCheckActiveObject, 0x00571da0 initHitCheck, 0x005c8820 DUNGEON::OpenDoor, 0x005c8f50 CloseDoor, 0x005c8800 CloseDoor2, 0x005cf080 GetRoom2DPos, 0x005b6720 GetEditDungeonPtr; INF SLUS_202.67:0x001382f0 ccCoord::SetMatrix_PosRotZYX, 0x00110a30 sceVu0RotMatrixZ, 0x00139330 ccDirectLight::CheckRange, 0x001392d0 ccDirectLight::Init, 0x001389b0 ccCreateLight, 0x00105820 ccDrawEnv::SetFog, 0x0019f4b0 WORLD_MAN::SetDungeonTexClut, 0x0019cf50 SetDungeonTypeFromField, 0x0019c460 fieldrand, 0x0019f8e0 WORLD_MAN::GO, 0x0019dda0 WORLD_MAN::Enter, 0x001a1190 WORLD_MAN::SetCharPosition, 0x001a10c0 WORLD_MAN::GetHeight, 0x001a4070 WORLD_MAN::SetPrevRoom, 0x00151f30 ccAnm::HitEnable, 0x001520f0 ccAnm::SetHitMatrix, 0x00153760 ccModelHit::HitEnable, 0x001107b0 sceVu0InversMatrix, 0x0014cb80 ccStream::Decode_ExtObj, 0x001b3620 ccEvent::SetEventPoint, 0x001b3590 ccEvent::SetEventPos, 0x001a22b0 WORLD_MAN::Get2DMapPtr, 0x001b218c open_door, 0x001b21cc close_door, 0x0019dca0 WORLD_MAN::RoomSelect, 0x001b0948 room, 0x001b097c room_point; INF gcmn.prg:0x005c95c0 DUNGEON::RoomSelect, 0x005b61e0 DUNGEON::GetBanRoom; INF SLUS_202.67:0x0013cff0 ccClump::HitEnable, 0x0013d240 ccClump::SetHitMatrix, 0x001d9dd0 ccGetDist, 0x00178400 ccSaveData::CheckAreaBan; INF gcmn.prg:0x005c3f30 DUNGEON::SetWater, 0x005c70c0 SetObject, 0x005c6e80 EntryObject, 0x005c3ad0 SetAnmObject, 0x005ce1c0 DrawWater, 0x005cdee0 DrawEff, 0x005ce3d0 DUNGEON::DrawBG, 0x00503cf0 SNOW::SNOW(ccStream *, float *), 0x00503e80 SNOW::Move, 0x005042f0 SNOW::Draw, 0x00502e20 calcPos3; INF SLUS_202.67:0x00151ce0 ccAnm::GetSubstAdrs, 0x00101ad0 ccMatchIndex, 0x00101e20 ccSubstSearchResult::SetTbl, 0x00138b60 ccSetColor, 0x00139060 ccLightGrp::AddGrp, 0x0013ba20 ccEff::Init, 0x0014bce0 ccStream::Decode_Model, 0x0013b5c0 ccObj::Init; MUT SLUS_205.62:0x001b6f70 WORLD_MAN::EntryGimmick
-worklog: 19, 25, 30, 34, 114, 147, 156, 161, 181, 220, 343, 362, 379, 391, 482, 483, 486
+worklog: 19, 25, 30, 34, 114, 147, 156, 161, 181, 220, 343, 362, 379, 391, 482, 483, 486, 492
 ---
 
 # Dungeon generation
@@ -622,7 +622,32 @@ nothing to draw.
   are the file's `clut_swaps`, which every model of the file draws with, as
   the shared materials do in the game (`a_lakes_statues_take_its_palettes`,
   worklog 482).
-- Not ported: type 32's tree and leaves.
+- Type 32's tree and leaves (`dungeon_area/leaves.rs`): `set_leaves` makes
+  the tree and the twenty `LEAF`s with `fieldrand`; their `ccRandF` tilts
+  are owed until the world draws them from `ccRand`
+  (`DungeonArea::settle_leaves`, after each call that can `SetRoom`).
+  `step_leaves` is `DrawEff`'s last part; the tree draws fogged, the
+  leaves unfogged (tools/test_dungeon_rt.py `test_leaves`, worklog 492).
+
+## Type 32's tree and leaves
+
+Area 101's event room (type 32, `se4_2`). `SetRoom` (gcmn 0x005c2fe8)
+makes a `ccAnm` of `ANM_se4_2lea` from `spccs` at the room's centre
+(+0xd38bc; flag +0x8d 1, one `_AnimateForward`) and twenty `LEAF`s
+(+0xd38c0, 0x50 bytes each). `LEAF::LEAF` (0x00505050): the centre (w 0)
+at +0x20; +0x08 15.0, +0x0c 0.6; timer +0x04 `fieldrand(20) + 10`; turn
+about z +0x14 0; spin +0x10 -0.05 when `fieldrand(100)` is under 51, else
+0.05; turn about x +0x18 `ccRandF() * -2`; `MDL_se4_2lea` at +0x1c;
+`calcLeafPos(+0x30, +0x40, 15.0, 0.6)` (0x00504da0): place x, y
+`fieldrand(100) - 50`, z `fieldrand(600) + 400`; step x, y
+`(fieldrand(15) - 7.5) / 10`, z `-(fieldrand(5) + 1) * 0.6`.
+
+`DrawEff`'s end (0x005ce108): the tree forward and drawn, then each leaf's
+`Move` (0x00505360: the step added, w 1; under z 300 `calcLeafPos` again)
+and `Draw` (0x005051f0): the matrix `RotZ(+0x14)`, `RotX(+0x18)`, moved by
+centre plus place; +0x14 on by the spin; the timer down, and at 0 a new
+`fieldrand(20) + 10` and the spin 0.05 if +0x14 is below 0, else -0.05;
+the model drawn with PRIM 0xc (no fog). `DeleteRoom` frees them.
 
 ## The lakes' sky and fireflies
 
@@ -744,7 +769,7 @@ The lights: `LGT_se1_3lig1` for 25 and 28, `LGT_se2_2lig1`,
 `LGT_se3_1lig1`, `LGT_se3_3lig1`, `LGT_se4_2lig1`, `LGT_se4_6lig1` for
 29-33. Types 26 and 35 read the ambient and set neither it nor a light. Type
 32 also makes `ANM_se4_2lea` at the centre and twenty `LEAF` objects
-(+0xd38bc, +0xd38c0); the port does not. The next `SetRoom` takes the light
+(+0xd38bc, +0xd38c0; below). The next `SetRoom` takes the light
 out of the group (`DelGrp`). The port draws the event room's lit models
 (`SetLightEnv(1)`) with that group: the light as the chunk's record at the
 frame, its place replaced by the row's.
@@ -1201,8 +1226,7 @@ scene's menu](field-ui.md#a-new-scenes-menu)), Kite's idle count every
   (the game's `ChangeClut` in the first `SetRoom` writes the shared
   models); what the door functions' own `ChangeClut` calls add is not
   checked, nor is a picture of a swapped dungeon compared with the game's.
-- Type 32's leaves (`ANM_se4_2lea`, `LEAF`), a later volume's room, are not
-  ported. How `ccLight` combines an event room's `LGT_` record with the
+- How `ccLight` combines an event room's `LGT_` record with the
   place `SetRoom` gives it is not checked (the port moves the omni light's
   position), and neither is the draw of the ban block's nodes (the port
   draws the clump's models at its matrix).

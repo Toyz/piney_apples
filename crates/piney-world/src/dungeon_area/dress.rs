@@ -296,6 +296,8 @@ pub struct Dressing {
     /// `anmobj[0..10]` (types 3 and 7), `anmobj2[0..10]` (types 0-3).
     pub anm_objects: Vec<Anm>,
     pub anm_objects2: Vec<Anm>,
+    /// Type 32's tree and leaves.
+    pub leaves: Option<super::leaves::Leaves>,
 }
 
 /// Each Eff chunk's (0x0e00) pattern transparencies by its `EFF_` object:

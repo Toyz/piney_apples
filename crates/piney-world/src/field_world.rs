@@ -442,6 +442,7 @@ impl FieldWorld {
                 };
                 let mut d = d;
                 d.take_statics(&save.scroll_statics);
+                d.settle_leaves(&mut cc);
                 let (pos, rot) = d.start();
                 (Place::Dungeon(d), pos, rot)
             }
@@ -1254,6 +1255,7 @@ impl FieldWorld {
         let Place::Dungeon(d) = &mut self.place else { return false };
         d.bans = crate::dungeon_area::bans_of(&self.save.save);
         d.room_select(f, b, clear);
+        d.settle_leaves(&mut self.combat.cc);
         self.scene.change_scene(-2, -2, -2, -2, floor, block, &mut self.save.save);
         self.requests.push(Request::ChangeScene);
         true
@@ -1266,7 +1268,11 @@ impl FieldWorld {
     pub fn show_map(&mut self) -> bool {
         let combat = &self.combat;
         let clear = |f: i32, b: i32| room_clear(combat, f, b);
-        crate::map::show_map(&mut self.place, self.world_man.field_model, self.player.body.pos, &clear)
+        let done = crate::map::show_map(&mut self.place, self.world_man.field_model, self.player.body.pos, &clear);
+        if let Place::Dungeon(d) = &mut self.place {
+            d.settle_leaves(&mut self.combat.cc);
+        }
+        done
     }
 
     /// `WORLD_MAN::GoField` (main 0x0019e410; `TransFieldMenu`, menu 86):
@@ -1316,20 +1322,24 @@ impl FieldWorld {
                 }
                 Err(err) => tracing::warn!("EVENTAREA::ChangeBlock: {err}"),
             },
-            Place::Dungeon(d) => match d.enter(
-                self.player.body.pos,
-                &self.scene,
-                &clear,
-                &mut self.save.save,
-                &mut self.dungeons.last_room,
-            ) {
-                Some(Exit::Area { area, n }) => self.change_area(area, n),
-                Some(Exit::Scene { area, town, field, dungeon, floor, block }) => {
-                    self.scene.change_scene(area, town, field, dungeon, floor, block, &mut self.save.save);
-                    self.requests.push(Request::ChangeScene);
+            Place::Dungeon(d) => {
+                let exit = d.enter(
+                    self.player.body.pos,
+                    &self.scene,
+                    &clear,
+                    &mut self.save.save,
+                    &mut self.dungeons.last_room,
+                );
+                d.settle_leaves(&mut self.combat.cc);
+                match exit {
+                    Some(Exit::Area { area, n }) => self.change_area(area, n),
+                    Some(Exit::Scene { area, town, field, dungeon, floor, block }) => {
+                        self.scene.change_scene(area, town, field, dungeon, floor, block, &mut self.save.save);
+                        self.requests.push(Request::ChangeScene);
+                    }
+                    None => {}
                 }
-                None => {}
-            },
+            }
         }
     }
 
