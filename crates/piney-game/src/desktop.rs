@@ -996,9 +996,9 @@ mod tests {
         }
     }
 
-    /// Every case of `crates/piney-game/tests/announce_fixture.txt`, the
-    /// game's own `ccEvent::Execute` of `gate_add_msg`, `member_add_msg` and
-    /// `desktop_item` on the desktop and the board (tools/
+    /// Every case of each volume's `crates/piney-game/tests/announce_fixture*.txt`,
+    /// the game's own `ccEvent::Execute` of `gate_add_msg`, `member_add_msg`
+    /// and `desktop_item` on the desktop and the board (tools/
     /// test_desktop_announce_rs.py), replayed through the port's event task
     /// with the Bridge and its announcements on a new game's save: the
     /// sounds, each line `DispInfo` hands `ChangeInfo` (length and hash), the
@@ -1006,17 +1006,37 @@ mod tests {
     /// and every save byte it changed.
     #[test]
     fn announcements_match_the_game() {
+        let discs = [
+            (piney_data::volume::Volume::Inf, "infection", "", 159),
+            (piney_data::volume::Volume::Mut, "mutation", "_mut", 160),
+            (piney_data::volume::Volume::Out, "outbreak", "_out", 160),
+            (piney_data::volume::Volume::Qua, "quarantine", "_qua", 160),
+        ];
+        for (volume, disc, suffix, cases) in discs {
+            announcements_of(volume, disc, suffix, cases);
+        }
+    }
+
+    fn announcements_of(volume: piney_data::volume::Volume, disc: &str, suffix: &str, cases: usize) {
         use piney_event::ir::{Block, Event as Script, GameText, Op};
         use piney_event::state::ScriptSave as _;
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let iso = root.join("../../work/infection/infection.iso");
+        let iso = root.join(format!("../../work/{disc}/{disc}.iso"));
         if !iso.exists() {
-            eprintln!("infection.iso not present; skipped");
+            eprintln!("{disc}.iso not present; skipped");
             return;
         }
-        let text = std::fs::read_to_string(root.join("tests/announce_fixture.txt")).unwrap();
+        let text = std::fs::read_to_string(root.join(format!("tests/announce_fixture{suffix}.txt"))).unwrap();
+        // An event of the volume's own main story, which the pass walks
+        // (Infection's 1, Mutation's 101, ...).
+        let number = 100 * (volume.number() - 1) as u16 + 1;
         let mut disc = Iso::open(&iso).unwrap();
-        let base = crate::world::new_game_state(&mut disc).unwrap();
+        // The game's new game as the harness makes it (the boot's save,
+        // NewGame(1), NewGame(0)), without the volume's start event.
+        let init = piney_desktop::InitText::from_disc(&mut disc).unwrap();
+        let mut base = SaveState::fresh_with(&init);
+        piney_fieldui::newgame::new_game_on(&mut base, &mut disc, false).unwrap();
+        piney_desktop::extras::new_game(&mut base.save, volume);
         let ann = Arc::new(Announcements::from_disc(&mut disc).unwrap());
         let mut n = 0;
         for line in text.lines().filter(|l| l.starts_with("announce ")) {
@@ -1034,9 +1054,8 @@ mod tests {
                 open: Vec::new(),
                 blocks: vec![Block { tags: Vec::new(), conds: Vec::new(), ops: vec![op] }],
             };
-            let event =
-                Script { number: 1, label: GameText::default(), script, messages: Vec::new(), parody: Vec::new() };
-            let mut vm = Vm::new(Arc::new(Library::new(piney_data::volume::Volume::Inf, [event])));
+            let event = Script { number, label: GameText::default(), script, messages: Vec::new(), parody: Vec::new() };
+            let mut vm = Vm::new(Arc::new(Library::new(volume, [event])));
             let mut state = base.clone();
             let mut st = HostState { status, announcements: Some(ann.clone()), ..HostState::default() };
             let mut h = Rec {
@@ -1053,7 +1072,7 @@ mod tests {
             for f in 0..200 {
                 h.frame = f;
                 vm.frame(&mut h);
-                if end.is_none() && h.b.save_ref().flags(1) & 1 != 0 {
+                if end.is_none() && h.b.save_ref().flags(i32::from(number)) & 1 != 0 {
                     end = Some(f);
                 }
             }
@@ -1090,7 +1109,7 @@ mod tests {
             assert_eq!(diff, parts[5][1..], "{line}: the save");
             n += 1;
         }
-        assert_eq!(n, 159);
+        assert_eq!(n, cases, "{suffix}");
     }
 
     /// The desktop with the movies `unlocked` (`dtStrList`'s first word)

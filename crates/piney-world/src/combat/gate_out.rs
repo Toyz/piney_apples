@@ -12,12 +12,15 @@ use std::rc::Rc;
 use piney_desktop::anm::Anm;
 use piney_desktop::assets::SceneFile;
 
+use piney_data::volume::Volume;
+
 use crate::camera::{Camera, id};
 use crate::ee::{self, F, ONE, V4};
 
 /// `ccAddRequestFileListSpc`'s `gateHackingOutID` by `game.field` (gcmn
 /// 0x005a11dc-0x005a1400), and `GateHackOutCcsName[id]` (0x006540c0):
-/// the camera file `x<name>` and its animation `ANM_str<name>0`.
+/// the camera file `x<name>` and its animation `ANM_str<name>0`. From
+/// Mutation on (MUT gcmn 0x005cc4fc) [`LATER_GATE_OUT`] follows, ids 19-26.
 pub const GATE_OUT: [(i32, &str); 19] = [
     (19, "7404cam"),
     (22, "7407cam"),
@@ -40,18 +43,33 @@ pub const GATE_OUT: [(i32, &str); 19] = [
     (91, "7467cam"),
 ];
 
-/// `gateHackingOutID` for `field`: its index in [`GATE_OUT`], -1 for none.
-pub fn gate_hacking_out_id(field: i32) -> i32 {
-    GATE_OUT.iter().position(|&(f, _)| f == field).map_or(-1, |i| i as i32)
+/// The rows Mutation, Outbreak and Quarantine add (the same on all three).
+pub const LATER_GATE_OUT: [(i32, &str); 8] = [
+    (100, "7476cam"),
+    (101, "7477cam"),
+    (102, "7478cam"),
+    (103, "7479cam"),
+    (104, "7480cam"),
+    (105, "7481cam"),
+    (106, "7482cam"),
+    (108, "7484cam"),
+];
+
+/// The volume's rows, by `gateHackingOutID`.
+fn rows(volume: Volume) -> impl Iterator<Item = &'static (i32, &'static str)> {
+    let later: &[(i32, &str)] = if volume == Volume::Inf { &[] } else { &LATER_GATE_OUT };
+    GATE_OUT.iter().chain(later)
+}
+
+/// `gateHackingOutID` for `field`: its row's index, -1 for none.
+pub fn gate_hacking_out_id(volume: Volume, field: i32) -> i32 {
+    rows(volume).position(|&(f, _)| f == field).map_or(-1, |i| i as i32)
 }
 
 /// `ccGateHackOutCcsName()`'s name for `gateHackingOutID`.
-pub fn ccs_name(id: i32) -> Option<&'static str> {
-    usize::try_from(id).ok().and_then(|i| GATE_OUT.get(i)).map(|&(_, n)| n)
+pub fn ccs_name(volume: Volume, id: i32) -> Option<&'static str> {
+    usize::try_from(id).ok().and_then(|i| rows(volume).nth(i)).map(|&(_, n)| n)
 }
-
-/// `volumeNum`: this disc is volume 1 (the hacked arrival needs below 4).
-pub const VOLUME_NUM: i32 = 1;
 
 /// `ccClearGtHack` (main 0x001b77c0), from `ccStartThEvent`: whether
 /// `gtHackFlag` stays: in a field, or a dungeon of type 8 or 9
@@ -74,8 +92,16 @@ fn arrival_place(area: i32, field_type: i32, dungeon: i32) -> bool {
 /// `game.field` ([`gate_hacking_out_id`], -1 for an area without one) and
 /// the camera file `x<name>.ccs` on the file list. None when it does not
 /// look (the ID then keeps whatever it was).
-pub fn hack_out_id(area: i32, area_prev: i32, field_type: i32, dungeon: i32, field: i32, gt_hack: bool) -> Option<i32> {
-    (arrival_place(area, field_type, dungeon) && area_prev == 0 && gt_hack).then(|| gate_hacking_out_id(field))
+pub fn hack_out_id(
+    volume: Volume,
+    area: i32,
+    area_prev: i32,
+    field_type: i32,
+    dungeon: i32,
+    field: i32,
+    gt_hack: bool,
+) -> Option<i32> {
+    (arrival_place(area, field_type, dungeon) && area_prev == 0 && gt_hack).then(|| gate_hacking_out_id(volume, field))
 }
 
 /// `ccAI::ccAI`'s `arrivalChatCnt` (+0x80, gcmn 0x0057c8f4): 150 in a

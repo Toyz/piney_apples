@@ -1055,7 +1055,9 @@ impl Vm {
                         Place::Desktop => {
                             host.message_close();
                             host.desktop_message_done();
-                            10
+                            // From Mutation on a ccBreathThread(1) follows
+                            // dtMenu +0x10 (MUT main 0x001c7d68).
+                            if self.lib.volume == piney_data::volume::Volume::Inf { 10 } else { 11 }
                         }
                         Place::Field => {
                             host.message_close();

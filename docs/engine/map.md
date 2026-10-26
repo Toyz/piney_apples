@@ -3,7 +3,7 @@ title: The minimap - town, field and dungeon maps, the map button and ShowMap
 status: partial
 volumes: INF, MUT, OUT, QUA
 covers: INF SLUS_202.67:0x001a4430 ccThFieldDisp, 0x001a3fd0 WORLD_MAN::ChangeMapMode, 0x001a3b70 WORLD_MAN::SetMapAlpha, 0x001a3b80 WORLD_MAN::GetMapAlpha, 0x001a3ee0 WORLD_MAN::ShowMap, 0x0015a960 ccSprite::SetPrim, 0x0015ae80 ccSprite::MakePacket, 0x0015aed0 ccSprite::MakePacketStr, 0x0015c4b0 ccMask::ccMask, 0x0015c690 ccMask::MakePacketS, 0x0015c5e0 ccMask::SendPacketS, 0x00102190 ccRotate, 0x00104ae0 ccView::SetFrame, 0x001538d0 ccHitCheckLM, 0x00129d08 fptoui; INF gcmn.prg:0x00517800 ccThGameCtrl, 0x00421470 ROOTTOWN01::ROOTTOWN01, 0x00422d00 ROOTTOWN01::DrawMap, 0x005d4ad0 RT01ICONPOS, 0x004240c0 ROOTTOWN02::ROOTTOWN02, 0x00425760 ROOTTOWN02::DrawMap, 0x005d4e90 RT02ICONPOS, 0x005a4cd0 WORLD::Init, 0x005a6da0 WORLD::Generate, 0x005a97b0 WORLD::Draw, 0x005a3940 WORLD::DrawMiniMap, 0x005a3170 WORLD::DrawHeightOnMiniMap, 0x005a1b60 WORLD::DrawKeyObjectOnMiniMap, 0x005a1ff0 WORLD::DrawSubObjectOnMiniMap, 0x005a2510 WORLD::DrawLakeOnMiniMap, 0x005a2840 WORLD::DrawCircleOnMiniMap, 0x005a2c60 WORLD::DrawDungeonOnMiniMap, 0x005ad990 WORLD::ShowMap, 0x0042e0c0 ccCheckFountain, 0x00658680 KeyIconTBL, 0x006586b0 SubIconTBL, 0x006586e0 BaseIconTBL, 0x00658710 TreeIconTBL, 0x006584b0 FP_DUNGEON, 0x006571f0 fieldminimap, 0x005b7c00 DUNGEON::DUNGEON, 0x005ce930 DUNGEON::Draw, 0x005cd850 DUNGEON::MakeMiniMap, 0x005cc160 DUNGEON::DrawMap, 0x005cf260 DUNGEON::ShowMap, 0x005c7c30 DUNGEON::SetDoor, 0x0042e010 ccCheckActiveObject, 0x00695550 levelstr; INF SLUS_202.67:0x003782f8 mapmsg
-worklog: 494
+worklog: 494, 497
 ---
 
 # The minimap - town, field and dungeon maps, the map button and ShowMap
@@ -463,6 +463,10 @@ there.
   while the flag race runs (racers missing, fading, off the view): Fort
   Ouph 1,356 and 836 packets, Lia Fail 1,358 and 789, none differing, on
   Mutation, Outbreak and Quarantine (worklog 494);
+- the field and dungeon maps below run on every volume's code
+  (`PINEY_VOLUME`): the dungeon over a later volume's `DUNGEON` laid out as
+  its constructor does (tools/test_dungeon_rt.py's `BLOCKS`), the height
+  map's loop found by its code (Outbreak's keeps `WORLD` in `$s2`);
 - `WORLD::DrawMiniMap` and its six helpers over a `WORLD` laid out from the
   port's generation of story area 14's field and nine random fields of
   types 0-3 and 5-9 (fobj2[], fobj[40][40], water, dx[0]), 60 frames each

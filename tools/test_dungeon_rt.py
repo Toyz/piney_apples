@@ -98,6 +98,34 @@ STUB = 0x00D43800
 # which the frames below share the machine with.
 DG, GIMPOS, HEAP0, HEAP_END = 0x00E00000, 0x00EE0000, 0x01100000, 0x01F00000
 DG_SIZE = 0xD3910
+# From Mutation on DUNGEON is 0xce0 bytes (docs/engine/dungeon.md, "Other
+# volumes"): the per-floor arrays are new[] blocks it points at, sized by its
+# floor count (+0x430: 10, area 125's 15), and the fields from object[10]
+# (Infection's +0xd3588) on sit 0xd2c30 lower. The harness keeps the blocks
+# at ARRAYS, below the heap.
+LATER = volume.NAME != "infection"
+ARRAYS = HEAP0
+HEAP_START = HEAP0 + 0x140000 if LATER else HEAP0
+# name: (Infection's offset, the later pointer's offset, a later block's
+# bytes a floor).
+BLOCKS = {"realmap": (0x430, 0x434, 0x4B00), "room": (0x2F230, None, 60), "rotate": (0x2F488, 0x7CC, 60),
+          "pos": (0x2F6E0, 0x7D0, 0xF0), "anim": (0x30040, 0x7BC, 0x78), "minimap": (0x306D0, 0x7C0, 45),
+          "roomdata": (0x30894, 0x7C4, 15 * 0x4C), "smallmap": (0x33538, 0x7C8, 0x10000),
+          "startpos": (0x30590, 0x930, 32)}
+# Fields Mutation moved on their own: UpRoom, DownRoom, edit, center,
+# envLight (room[15][15] is inline at +0x438).
+MOVED = {0xD3538: 0x8B8, 0xD3560: 0x8F4, 0x3351C: 0x934, 0x33520: 0x938, 0x33530: 0x948, 0x2F230: 0x438}
+
+
+def D(off):
+    """DUNGEON's field at Infection's offset `off`, on this volume."""
+    if not LATER:
+        return DG + off
+    if off in MOVED:
+        return DG + MOVED[off]
+    if off >= 0xD3588:
+        return DG + off - 0xD2C30
+    return DG + off
 PLW = inf_va(0x00730300)
 
 # The story areas whose dungeons GotoNextRoom has branches of its own for.
@@ -158,7 +186,7 @@ class Game:
         self.m = machine_class()(self.prog)
         self.sym = lambda n: self.prog.symbol_named(n).value      # noqa: E731
         m = self.m
-        self.heap = HEAP0
+        self.heap = HEAP_START
         for name in ("ccMalloc__FUi", "__nw__FUi", "ccMemalign__FUiUi", "__nwa__FUi"):
             m.hooks[self.sym(name)] = self.malloc
         m.hooks[self.sym("ccMemalignB__FUiUi")] = lambda mm, al, n, *a: self.malloc(mm, n)
@@ -181,7 +209,7 @@ class Game:
         m.store(self.sym("ccMenu"), 4, MENU)
         m.store(self.sym("g_entCtrl"), 4, ENT)
         m.store(PLW, 4, PLAYER)
-        m.store(self.sym("volumeNum"), 4, 1)
+        m.store(self.sym("volumeNum"), 4, volume.number() if LATER else 1)
         self.stem = None
         self.base = HEAP0
         self.names = {}
@@ -239,6 +267,24 @@ class Game:
     def rvec(self, a, n=4):
         return [self.m.load(a + 4 * i, 4) for i in range(n)]
 
+    def at(self, name, f=0):
+        """Floor f's part of DUNGEON's per-floor array `name` (BLOCKS)."""
+        inf, ptr, step = BLOCKS[name]
+        if not LATER:
+            if name == "startpos":
+                return DG + inf + 16 * f
+            return DG + inf + step * f
+        if ptr is None:
+            return D(inf) + step * f
+        return self.m.load(DG + ptr, 4) + step * f
+
+    def startpos(self, s, f):
+        """startpos[s][f] (Infection's [2][10]; later [floors][2])."""
+        return DG + 0x30590 + 0xA0 * s + 16 * f if not LATER else self.at("startpos", f) + 16 * s
+
+    def floor_count(self):
+        return self.m.load(DG + 0x430, 4) if LATER else 10
+
     # --- the scene file -----------------------------------------------------
     def load(self, stem, spccs=""):
         """ccStream::DecodeSetup over the file, and over the event room's
@@ -257,7 +303,7 @@ class Game:
         # One stream at a time: the old one leaves ccStream's list with the
         # heap it lived on.
         m.store(self.sym("ccscRoot"), 4, 0)
-        self.heap = HEAP0
+        self.heap = HEAP_START
         self.ccs = self.stream(CCSDATA)
         self.spccs, self.spccs_name, self.anm_chunks = 0, spccs, {}
         if spccs:
@@ -304,28 +350,41 @@ class Game:
         m.store(DG + 0x144, 4, info["fog_va"])
         m.store(DG + 0x148, 4, info["fog_index"])
         m.store(DG + 0x424, 4, GIMPOS)
-        m.store(DG + 0xD3884, 4, self.ccs)
+        m.store(D(0xD3884), 4, self.ccs)
         # The constructor's ishack (WORLD_MAN.hackFlag, +0xf0) and, in the
         # lakes, field_eff.
         m.store(DG + 0x40, 4, hack)
         if info["dtype"] in (8, 9):
             m.store(DG + 0x34C, 4, self.eff)
-        for i in range(10):
-            m.store(DG + 0xD3538 + 4 * i, 4, 15)
-            m.store(DG + 0xD3560 + 4 * i, 4, 15)
-        for i in range(150):
-            m.store(DG + 0x30894 + 0x4C * i, 4, 10)
+        if LATER:
+            # The constructor's new[]s, kept at ARRAYS.
+            n = 15 if info["event"] == 125 else 10
+            m.store(DG + 0x430, 4, n)
+            a = ARRAYS
+            for name in ("realmap", "rotate", "pos", "anim", "minimap", "roomdata", "smallmap", "startpos"):
+                size = BLOCKS[name][2] * n
+                m.mem[a:a + size] = bytes(size)
+                m.store(DG + BLOCKS[name][1], 4, a)
+                a = (a + size + 15) & ~15
+        n = self.floor_count()
+        for i in range(n):
+            m.store(D(0xD3538) + 4 * i, 4, 15)
+            m.store(D(0xD3560) + 4 * i, 4, 15)
+        for i in range(15 * n):
+            m.store(self.at("roomdata") + 0x4C * i, 4, n)
         # The constructor's realmap: every cell {d 0, next 15, here 15}.
-        m.mem[DG + 0x430:DG + 0x430 + 10 * 0x4B00] = bytes((0, 15, 15)) * (10 * 6400)
+        rm = self.at("realmap")
+        m.mem[rm:rm + n * 0x4B00] = bytes((0, 15, 15)) * (n * 6400)
         ed = 0
         if info["event"]:
             base = self.sym("EditDungeon")
-            for k in range(88):
+            for k in range(90 if LATER else 88):
                 if m.load(base + 24 * k, 4) == info["event"] and m.load(base + 24 * k + 4, 4) == code:
                     ed = base + 24 * k
-            rows, n = m.load(ed + 8, 4), m.load(ed + 12, 4)
-            m.mem[DG + 0x30894:DG + 0x30894 + 0x4C * n] = m.mem[rows:rows + 0x4C * n]
-        m.store(DG + 0x3351C, 4, ed)
+            rows, cnt = m.load(ed + 8, 4), m.load(ed + 12, 4)
+            rd = self.at("roomdata")
+            m.mem[rd:rd + 0x4C * cnt] = m.mem[rows:rows + 0x4C * cnt]
+        m.store(D(0x3351C), 4, ed)
         m.mem[WM:WM + 0x4E0] = bytes(0x4E0)
         # The DUNGEON constructor's specialRoom -1; WORLD_MAN.dungeon[d].
         m.store(WM + 0x160, 4, M32)
@@ -358,10 +417,10 @@ class Game:
         own object's name."""
         m = self.m
         self.names = {}
-        anms = [m.load(DG + 0x2F230 + 4 * k, 4) for k in range(150)]
+        anms = [m.load(D(0x2F230) + 4 * k, 4) for k in range(15 * self.floor_count())]
         anms += [m.load(DG + 0x3F4 + 4 * k, 4) for k in range(4)]
         # SetObject's anmobj[10] and SetAnmObject's anmobj2[10].
-        anms += [m.load(DG + off + 4 * k, 4) for off in (0xD35B0, 0xD35D8) for k in range(10)]
+        anms += [m.load(D(off) + 4 * k, 4) for off in (0xD35B0, 0xD35D8) for k in range(10)]
         for anm in anms:
             if not anm:
                 continue
@@ -384,7 +443,7 @@ class Game:
         # SetDoor's ban block (DUNGEON+0xd3880) and SetObject's object[10]
         # (+0xd3588), ccClumps: their nodes' (+0x94, +0x98) models' hits
         # under the clump's name (its chunk's index, +0x90).
-        for clump in [m.load(DG + 0xD3880, 4)] + [m.load(DG + 0xD3588 + 4 * k, 4) for k in range(10)]:
+        for clump in [m.load(D(0xD3880), 4)] + [m.load(D(0xD3588) + 4 * k, 4) for k in range(10)]:
             if not clump:
                 continue
             name = self.cstr(m.load(clump + 0x90, 4) + 8)
@@ -458,14 +517,14 @@ class Game:
                            self.rvec(light + 0xB0, 3), m.load(light + 0xC0, 4)])
         objects = []
         for k in range(10):
-            c = m.load(DG + 0xD3588 + 4 * k, 4)
+            c = m.load(D(0xD3588) + 4 * k, 4)
             if c:
                 objects.append([self.cstr(m.load(c + 0x90, 4) + 8), self.rvec(c + 0x40, 16)])
         anms = []
         for off in (0xD35B0, 0xD35D8):
             out = []
             for k in range(10):
-                a = m.load(DG + off + 4 * k, 4)
+                a = m.load(D(off) + 4 * k, 4)
                 if a:
                     out.append([self.chunk_name(m.load(a + 0x94, 4)), self.rvec(a + 0x40, 16)])
             anms.append(out)
@@ -473,7 +532,7 @@ class Game:
         # its stack) and pattern (+0x50).
         fireflies = []
         for k in range(5):
-            f = m.load(DG + 0xD38A8 + 4 * k, 4)
+            f = m.load(D(0xD38A8) + 4 * k, 4)
             if f:
                 fireflies.append([self.rvec(f + 0x90, 3), m.load(f + 0x50, 4)])
         return {"water": water, "sparks": sparks, "lights": lights, "objects": objects, "anmobj": anms[0],
@@ -545,14 +604,16 @@ class Game:
         """Type 32's LEAF[20] (+0xd38c0): timer, spin, turns about z and x,
         centre, place, step; None without them."""
         m = self.m
-        if not m.load(DG + 0xD38BC, 4):
+        if not m.load(D(0xD38BC), 4):
             return None
         out = []
         for k in range(20):
-            a = m.load(DG + 0xD38C0 + 4 * k, 4)
+            a = m.load(D(0xD38C0) + 4 * k, 4)
             t = m.load(a + 4, 4)
+            # The centre's w is what SetRoom left on its stack (0 here on
+            # Infection and Mutation, 1.0 on Outbreak); nothing reads it.
             out.append([t - (1 << 32) if t & 0x80000000 else t, m.load(a + 0x10, 4), m.load(a + 0x14, 4),
-                        m.load(a + 0x18, 4), self.rvec(a + 0x20), self.rvec(a + 0x30), self.rvec(a + 0x40)])
+                        m.load(a + 0x18, 4), self.rvec(a + 0x20, 3), self.rvec(a + 0x30), self.rvec(a + 0x40)])
         return out
 
     def leaf_eff(self, n):
@@ -619,10 +680,10 @@ class Game:
         # symFlag, or the lakes' lakeFlag (+0x44), picks the statue room.
         sym = (m.load(DG + 0x34, 4), m.load(DG + 0x38, 4)) if 1 in (m.load(DG + 0x30, 4), m.load(DG + 0x44, 4)) else None
         statue = self.cstr(m.load(inf_va(0x00696AA0) + 4 * m.load(DG + 0x10, 4), 4))
-        for f in range(10):
+        for f in range(self.floor_count()):
             rooms = []
             for i in range(15):
-                ai = DG + 0x30040 + f * 0x78 + i * 8
+                ai = self.at("anim", f) + i * 8
                 k, r, tbl = m.load(ai, 1), m.load(ai + 1, 1), m.load(ai + 4, 4)
                 name = ""
                 if tbl:
@@ -630,11 +691,11 @@ class Game:
                     name = self.cstr(m.load(m.load(row, 4) + 4 * r, 4))
                 if (f, i) == sym:
                     name = statue
-                pos = self.rvec(DG + 0x2F6E0 + f * 0xF0 + i * 16, 2)
-                rot = m.load(DG + 0x2F488 + f * 60 + i * 4, 4)
+                pos = self.rvec(self.at("pos", f) + i * 16, 2)
+                rot = m.load(self.at("rotate", f) + i * 4, 4)
                 rooms.append([pos[0], pos[1], rot, name])
-            start = [self.rvec(DG + 0x30590 + 0xA0 * s + 16 * f) for s in range(2)]
-            out.append({"up": m.load(DG + 0xD3538 + 4 * f, 4), "down": m.load(DG + 0xD3560 + 4 * f, 4),
+            start = [self.rvec(self.startpos(s, f)) for s in range(2)]
+            out.append({"up": m.load(D(0xD3538) + 4 * f, 4), "down": m.load(D(0xD3560) + 4 * f, 4),
                         "start": start, "rooms": rooms})
         return out
 
@@ -642,8 +703,8 @@ class Game:
         """The type of the first story row of type 16 or more at (f, i), 0
         with none (the search MakeRoom, SetRoom and GotoNextRoom make)."""
         m = self.m
-        for k in range(150):
-            a = DG + 0x30894 + 0x4C * k
+        for k in range(15 * self.floor_count()):
+            a = self.at("roomdata") + 0x4C * k
             if m.load(a, 4) == f and m.load(a + 4, 4) == i and m.load(a + 0x10, 4) >= 16:
                 return m.load(a + 0x10, 4)
         return 0
@@ -710,8 +771,8 @@ class Game:
             del m.hooks[self.sym(name)]
         level = m.load(DG + 0x4, 4)
         cx, cy = int(bf(x) / 750), int(bf(y) / 750)
-        here = m.load(DG + 0x430 + level * 0x4B00 + 3 * (80 * cx + cy) + 2, 1)
-        room = m.load(DG + 0x2F230 + level * 60 + 4 * here, 4) if here < 15 else 0
+        here = m.load(self.at("realmap", level) + 3 * (80 * cx + cy) + 2, 1)
+        room = m.load(D(0x2F230) + level * 60 + 4 * here, 4) if here < 15 else 0
         doors = [m.load(DG + 0x3F4 + 4 * k, 4) for k in range(4)]
         return {"here": here if here < 15 else -1, "room": int(bool(room) and room in drawn),
                 "doors": sum(1 for d in doors if d and d in drawn)}
@@ -837,14 +898,13 @@ class Game:
         m.store(WM + 0x164, 4, 0)
         for k in range(4):
             m.store(WM + 0x20 + 4 * k, 4, 0xDEADBEEF)
-        go = 0x001A0CAC
+        go, stop = go_back_span()
         # lui $s1, hi; ori $s1, $s1, lo; j go; nop
         for k, w in enumerate((0x3C110000 | (WM >> 16), 0x36310000 | (WM & 0xFFFF),
                                0x08000000 | ((go >> 2) & 0x3FFFFFF), 0)):
             m.store(STUB + 4 * k, 4, w)
         # At the branch's end the hook returns to eemu's sentinel (0xfffffff0),
         # which ends the call.
-        stop = 0x001A0D60
         m.hooks[stop] = lambda mm, *a: mm.r.__setitem__(31, 0xFFFFFFF0) or 0
         self.heap = self.base
         self.fogs = []
@@ -853,6 +913,19 @@ class Game:
         finally:
             del m.hooks[stop]
         return self.rvec(WM + 0x20), m.load(WM + 0x164, 4)
+
+
+def go_back_span():
+    """GO(2)'s way back in the volume's code: from the worldman load before
+    its `fieldType == 4` test (lw $v1, 16($v0)) to past its `dungeonback =
+    1` (sw $v0, 0x164($s1)), WORLD_MAN in $s1 (INF main 0x001a0cac to
+    0x001a0d60)."""
+    start, end = volume.span("GO__9WORLD_MANFi", None)
+    p = volume.program(ELF, None)
+    code = [(a, struct.unpack("<I", p.read(a, 4))[0]) for a in range(start, end, 4)]
+    k = [i for i, (_, w) in enumerate(code) if w == 0xAE220164][-1]
+    j = max(i for i in range(1, k) if code[i][1] == 0x8C430010 and code[i - 1][1] >> 16 == 0x8F82)
+    return code[j - 1][0], code[k][0] + 4
 
 
 def cases():
@@ -972,10 +1045,10 @@ class DungeonAgainstGame(unittest.TestCase):
             # Every room: SetRoom, its hits, the ground in it, GetHeight.
             story = {}
             if info["event"]:
-                for i in range(150):
-                    a = DG + 0x30894 + 0x4C * i
+                for i in range(15 * g.floor_count()):
+                    a = g.at("roomdata") + 0x4C * i
                     fl, idx, rt = g.m.load(a, 4), g.m.load(a + 4, 4), g.m.load(a + 0x10, 4)
-                    if fl < 10:
+                    if fl < g.floor_count():
                         story[(fl, idx)] = rt
             for f, fl in enumerate(info["floors"]):
                 for i, room in enumerate(fl["rooms"]):
@@ -1181,7 +1254,9 @@ class DungeonAgainstGame(unittest.TestCase):
                 self.assertEqual(mine["start"], game["start"], f"{what} floor {f} startpos")
             # DrawBG's scroll (v$8917) as the lake's first DrawBG finds it.
             g.m.store(g.sym("v$8917"), 4, 0)
-            g.m.store(g.sym("init$8918"), 1, 1)
+            # Outbreak's and Quarantine's code keeps no first-time flag.
+            if g.prog.symbol_named("init$8918"):
+                g.m.store(g.sym("init$8918"), 1, 1)
             self.same_hits(info["hits"], g.hit_list(), what + ": SetRoom(0, 0)")
             self.same_dress(info["dress"], g.dress(), what + ": SetRoom(0, 0)")
             if dtype == 8:
@@ -1267,10 +1342,10 @@ class DungeonAgainstGame(unittest.TestCase):
             g.make(info, seeds, ft, weather, lmax, rmax, field, code, server)
             story = {}
             if info["event"]:
-                for i in range(150):
-                    a = DG + 0x30894 + 0x4C * i
+                for i in range(15 * g.floor_count()):
+                    a = g.at("roomdata") + 0x4C * i
                     fl_, idx, rt = g.m.load(a, 4), g.m.load(a + 4, 4), g.m.load(a + 0x10, 4)
-                    if fl_ < 10:
+                    if fl_ < g.floor_count():
                         story[(fl_, idx)] = rt
             rooms = [(f, i) for f, fl in enumerate(info["floors"]) for i, r in enumerate(fl["rooms"])
                      if r[4] and story.get((f, i), 0) < 15]
@@ -1316,7 +1391,7 @@ class DungeonAgainstGame(unittest.TestCase):
             # MakeRoom: an event room's animIdx names the table row's model;
             # its own Anime chunk is SetRoom's (checked below), and spccs is
             # the file MakeRoom loaded.
-            self.assertEqual(g.m.load(DG + 0xD3888, 4), g.spccs, what + ": spccs")
+            self.assertEqual(g.m.load(D(0xD3888), 4), g.spccs, what + ": spccs")
             event_rooms = []
             for f, (mine, game) in enumerate(zip(info["floors"], g.floors())):
                 self.assertEqual((mine["up"], mine["down"]), (game["up"], game["down"]), f"{what} floor {f}")
@@ -1337,7 +1412,7 @@ class DungeonAgainstGame(unittest.TestCase):
                 where = f"{what}: SetRoom({f}, {i})"
                 mine = p.ask(f"room {f} {i}")
                 g.set_room(f, i)
-                anm = g.m.load(DG + 0x2F230 + f * 60 + 4 * i, 4)
+                anm = g.m.load(D(0x2F230) + f * 60 + 4 * i, 4)
                 self.assertEqual(name, g.anm_chunks.get(g.m.load(anm + 0x94, 4)), where + ": the Anime chunk")
                 self.same_hits(mine["hits"], g.hit_list(), where)
                 fog = p.ask("fog")
@@ -1435,11 +1510,13 @@ class DungeonAgainstGame(unittest.TestCase):
                 g.set_room(f, i)
                 game = g.leaves()
                 self.assertIsNotNone(game, what + ": the leaves")
-                self.assertEqual(mine["leaves"], game, what + ": the leaves made")
+                strip = lambda ls: [x[:4] + [x[4][:3]] + x[5:] for x in ls]  # noqa: E731
+                self.assertEqual(strip(mine["leaves"]), game, what + ": the leaves made")
                 self.assertEqual(mine["rng"], [g.m.load(g.sym("seed"), 4), g.m.load(g.sym("randcnt"), 4)],
                                  what + ": fieldrand")
                 self.count("leaf rooms set")
                 for k, (a, b) in enumerate(zip(p.ask("leafeff 400")["frames"], g.leaf_eff(400))):
+                    a = dict(a, leaves=strip(a["leaves"]))
                     self.assertEqual(a, b, f"{what}: DrawEff frame {k}")
                     self.count("leaf frames")
                     self.count("leaves starting again from the top",
@@ -1470,10 +1547,10 @@ class DungeonAgainstGame(unittest.TestCase):
             rooms = [(f, i) for f, fl in enumerate(info["floors"]) for i, r in enumerate(fl["rooms"]) if r[4]]
             story = {}
             if info["event"]:
-                for i in range(150):
-                    a = DG + 0x30894 + 0x4C * i
+                for i in range(15 * g.floor_count()):
+                    a = g.at("roomdata") + 0x4C * i
                     fl_, idx, rt = g.m.load(a, 4), g.m.load(a + 4, 4), g.m.load(a + 0x10, 4)
-                    if fl_ < 10:
+                    if fl_ < g.floor_count():
                         story[(fl_, idx)] = rt
             rooms = [r for r in rooms if story.get(r, 0) < 15]
             rng.shuffle(rooms)
@@ -1591,7 +1668,7 @@ class DungeonAgainstGame(unittest.TestCase):
         """(x, y, here, d, next) of every room cell of floor f."""
         m = g.m
         out = []
-        base = DG + 0x430 + f * 0x4B00
+        base = g.at("realmap", f)
         raw = bytes(m.mem[base:base + 0x4B00])
         for x in range(80):
             for y in range(80):
@@ -1622,7 +1699,7 @@ class EventDataAgainstGame(unittest.TestCase):
         m.hooks[g.sym("SetEventPos__7ccEventFiiifPf")] = lambda mm, ev, f, b, n: calls.append(
             ("pos", [f, b, n, mm.f[12] & M32] + g.rvec(mm.r[8], 3))) or 0
         base = g.sym("EditDungeon")
-        events = sorted({m.load(base + 24 * k, 4) for k in range(88)})
+        events = sorted({m.load(base + 24 * k, 4) for k in range(90 if LATER else 88)})
         cases = [(e, 2) for e in events] + [(e, 1) for e in events[:10]] + [(0, 2), (1, 2), (200, 2), (-5, 2)]
         counts = {"areas": 0, "points": 0, "positions": 0, "warps": 0}
         for event, area in cases:

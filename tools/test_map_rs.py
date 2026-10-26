@@ -653,12 +653,13 @@ class World(Game):
         def stop(mm, *a):
             mm.set(31, 0xFFFFFFF0)
             return 0
-        start, end = paint_span()
+        start, end, base = paint_span()
         h[end] = stop
-        # A trampoline: $s0 = WORLD, then into the loop.
+        # A trampoline: the loop's WORLD register (lui/ori), then into it.
         code = WORK
         w = self.w
-        tramp = [0x3C100000 | (w >> 16), 0x36100000 | (w & 0xFFFF), 0x08000000 | (start >> 2), 0]
+        tramp = [0x3C000000 | base << 16 | (w >> 16), 0x34000000 | base << 21 | base << 16 | (w & 0xFFFF),
+                 0x08000000 | (start >> 2), 0]
         for i, word in enumerate(tramp):
             m.store(code + 4 * i, 4, word)
         self.call(code)
@@ -668,14 +669,18 @@ class World(Game):
 
 def paint_span():
     """WORLD::Generate's height map painting in the volume's code: from the
-    field type's load before `fieldminimap` is read (lw $v0, 16($s0); sll
-    $v1, $v0, 2) to past its rows' loop (slti $v1, $s2, 80; bnez; nop). A
-    later volume's Generate grows before it, so the carry's offset within
-    the function misses it."""
+    field type's load before `fieldminimap` is read (lw $v0, 16(WORLD); sll
+    $v1, $v0, 2) to the load of the type again past its rows' loop (lw
+    $a0, 16(WORLD)), and WORLD's register ($s0; Outbreak's and
+    Quarantine's recompiled code keeps it in $s2). A later volume's
+    Generate grows before it, so the carry's offset within the function
+    misses it."""
     code = words(*volume.span("Generate__5WORLDFv"))
-    i = next(i for i in range(len(code) - 1) if code[i][1] == 0x8E020010 and code[i + 1][1] == 0x00021880)
-    j = next(j for j in range(i, len(code)) if code[j][1] == 0x2A430050)
-    return code[i][0], code[j][0] + 12
+    i = next(i for i in range(len(code) - 1)
+             if code[i][1] & 0xFC1FFFFF == 0x8C020010 and code[i + 1][1] == 0x00021880)
+    base = code[i][1] >> 21 & 31
+    j = next(j for j in range(i + 2, len(code)) if code[j][1] == 0x8C040010 | base << 21)
+    return code[i][0], code[j][0], base
 
 
 def field_frames(rng):
@@ -767,6 +772,10 @@ class DungeonMap(Game):
         m.store(k + 0xA8, 4, self.font_layer)
         self.masks.append(k)
         self.kanji_id = {k: 4}
+        # The arrow's pulse (r$8238 in Infection): the static ccRotate turns
+        # (addiu $a0, $gp, ..).
+        pulse = next(w for _, w in words(*volume.span("DrawMap__7DUNGEONFv")) if w >> 16 == 0x2784)
+        self.pulse = (self.prog.gp + ((pulse & 0xFFFF) ^ 0x8000) - 0x8000) & M32
         # From here the dungeon's own allocator serves SetRoom.
         self.own_new = False
         for name in ("ccMalloc__FUi", "__nw__FUi", "ccMemalign__FUiUi", "__nwa__FUi"):
@@ -778,12 +787,12 @@ class DungeonMap(Game):
         map, map1, map2, map3, kanji), the pulse from 0 as a new DUNGEON's
         port starts it."""
         for k, a in enumerate(self.masks):
-            self.m.store(DG + 0xD388C + 4 * k, 4, a)
-        self.m.store(self.sym("r$8238"), 4, 0)
+            self.m.store(dr().D(0xD388C) + 4 * k, 4, a)
+        self.m.store(self.pulse, 4, 0)
 
     def squares(self, f):
         m = self.m
-        base = DG + 0x33538 + (f << 16)
+        base = self.dg.at("smallmap", f)
         return [[x, y, m.load(base + (x << 8) + y, 1)] for x in range(200) for y in range(200)
                 if m.load(base + (x << 8) + y, 1)]
 
@@ -793,7 +802,7 @@ class DungeonMap(Game):
 
     def texsum(self):
         m = self.m
-        ch = self.call("GetChunkAdrsF__8ccStreamFPCci", m.load(DG + 0xD3884, 4), self.cstr_at("TEX_xdsmap02"), 0)
+        ch = self.call("GetChunkAdrsF__8ccStreamFPCci", m.load(dr().D(0xD3884), 4), self.cstr_at("TEX_xdsmap02"), 0)
         tex = m.load(m.load(ch + 0x28, 4) + 4, 4)
         data = m.mem[tex:tex + 0x10000]
         return sum((i + 1) * b for i, b in enumerate(data))
@@ -830,9 +839,14 @@ class DungeonMap(Game):
                     m.store(ENT + head, 4, e)
                 prev = e
         m.store(ENT + 0x28, 4, len(gims))
-        keep = [(self.sym("r$8238"), 16), (DG + 0x42C, 4)]
+        keep = [(self.pulse, 16), (DG + 0x42C, 4)]
         outs, sent = self.run_twice(lambda: self.call("DrawMap__7DUNGEONFv", DG), keep)
         return outs, sent, m.load(MENU + 0x10, 2)
+
+
+def dr():
+    import test_dungeon_rt
+    return test_dungeon_rt
 
 
 def dungeon_cases():
@@ -867,10 +881,10 @@ class DungeonMapAgainstGame(unittest.TestCase):
                 counts["dungeons"] += 1
                 story = {}
                 if info["event"]:
-                    for i in range(150):
-                        a = DG + 0x30894 + 0x4C * i
+                    for i in range(15 * dg.floor_count()):
+                        a = dg.at("roomdata") + 0x4C * i
                         fl, idx, rt = g.m.load(a, 4), g.m.load(a + 4, 4), g.m.load(a + 0x10, 4)
-                        if fl < 10:
+                        if fl < dg.floor_count():
                             story[(fl, idx)] = rt
                 floors = [f for f, fl in enumerate(info["rooms"]) if any(r[0] for r in fl)][:2]
                 if len(floors) > 1:
@@ -881,7 +895,7 @@ class DungeonMapAgainstGame(unittest.TestCase):
                     rooms = [i for i, r in enumerate(info["rooms"][f]) if r[0] and story.get((f, i), 0) < 15]
                     for i in rooms:
                         # The room's size as MakeRoom set it.
-                        self.assertEqual(info["rooms"][f][i][1], g.m.load(DG + 0x306D0 + 45 * f + 3 * i, 1),
+                        self.assertEqual(info["rooms"][f][i][1], g.m.load(dg.at("minimap", f) + 3 * i, 1),
                                          f"{what}: room {f}/{i} size")
                         mine = p.ask(f"droom {f:x} {i:x}")
                         dg.set_room(f, i)
@@ -934,7 +948,7 @@ class DungeonMapAgainstGame(unittest.TestCase):
         the room it leaves built, then the floor's squares."""
         m = g.m
         up = next(i for i, r in enumerate(info["rooms"][f]) if r[0])
-        centre = [m.load(DG + 0x2F6E0 + f * 0xF0 + up * 16 + 4 * k, 4) for k in range(2)]
+        centre = [m.load(dg.at("pos", f) + up * 16 + 4 * k, 4) for k in range(2)]
         m.store(DG + 4, 4, f)
         g.set_player((centre[0], centre[1], 0, ONE), 0)
         # The room he stands in built, as the game has it (ShowMap deletes

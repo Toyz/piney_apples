@@ -133,7 +133,8 @@ impl DungeonArea {
     /// centre (`ccAnm::SetAnm` of `spccs`, one step on), then the twenty
     /// leaves; each owes a `ccRandF` ([`DungeonArea::settle_leaves`]).
     pub(super) fn set_leaves(&mut self, centre: [F; 2]) {
-        // The room's centre as SetRoom holds it (w 0).
+        // The room's centre; its w is whatever SetRoom's stack held, which
+        // nothing reads (0 here).
         let centre = [centre[0], centre[1], 0, 0];
         let mut root = [[ONE, 0, 0, 0], [0, ONE, 0, 0], [0, 0, ONE, 0], [0, 0, 0, ONE]];
         for (t, c) in root[3].iter_mut().zip(centre).take(3) {

@@ -163,6 +163,7 @@ fn main() {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path).unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    let volume = iso.volume().unwrap();
     let mut d: Option<DungeonArea> = None;
     let mut scene = Scene::init();
     let kite = SceneFile::read(&archive, "ctu1body").unwrap();
@@ -211,7 +212,7 @@ fn main() {
                 scene.floor = 0;
                 scene.block = 0;
                 scene.server = n(11) as i32;
-                match DungeonArea::new(&archive, &wm, &scene) {
+                match DungeonArea::new_banned(&archive, volume, &wm, &scene, piney_world::dungeon_area::NO_BANS) {
                     Ok(a) => {
                         let floors: Vec<String> = a
                             .floors
@@ -446,7 +447,7 @@ fn main() {
             }
             "eventdata" => {
                 let e = piney_world::dungeon_area::set_event_data(
-                    &piney_data::dungeon::INF,
+                    piney_data::dungeon::tables_of(volume),
                     n(1) as i32,
                     n(2) as i32,
                     hex(w[3]),
@@ -606,7 +607,10 @@ fn main() {
                 a.hits.chars.clear();
                 a.hits.center = [pos[0], pos[1]];
                 a.hits.hit_enable(&mut player.hit_body);
-                let camera = Camera::new(pos, dirc, mode, Scheme::new(hex(w[5]) as i32));
+                let mut camera = Camera::new(pos, dirc, mode, Scheme::new(hex(w[5]) as i32));
+                // The disc's square roots (Outbreak's and Quarantine's sqrt.s).
+                player.volume = volume;
+                camera.volume = volume;
                 run = Some(Run { player, camera, rand: Rand(u64::from(hex(w[7]))), mode });
                 println!("{{}}");
             }

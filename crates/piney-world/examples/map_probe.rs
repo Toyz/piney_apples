@@ -222,7 +222,8 @@ fn main() {
                 scene.floor = 0;
                 scene.block = 0;
                 scene.server = d(11) as i32;
-                let mut a = DungeonArea::new(&archive, &wm, &scene).unwrap();
+                let mut a =
+                    DungeonArea::new_banned(&archive, volume, &wm, &scene, piney_world::dungeon_area::NO_BANS).unwrap();
                 let edit = if a.event != 0 { a.tables.edit(a.event, scene.dungeon) } else { None };
                 let floors = dungeon::floors_of(&a, edit);
                 let file = a.file.clone();

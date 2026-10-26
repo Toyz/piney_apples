@@ -762,7 +762,8 @@ impl DungeonArea {
                     level_max: world_man.level_max,
                     room_max: world_man.room_max,
                     server,
-                    volume: 1,
+                    // volumeNum: Infection's 1 to Quarantine's 4.
+                    volume: volume.number() as u32,
                     word_a: world_man.words[0] as u32,
                     field_type: world_man.field_type,
                     code: code as u32,

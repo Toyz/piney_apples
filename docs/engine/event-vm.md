@@ -3,7 +3,7 @@ title: The event interpreter
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x001b5a60 ccThEvent, 0x001b5230 ccStartThEvent, 0x001b52c0 ccEnableThEvent, 0x001b5360 ccDisableThEvent, 0x001b5380 ccStartEvent, 0x001b55f0 ccStartEventConvert, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x001a7400 ccEvent::CheckOpen, 0x001a7120 CheckCurrentOpen, 0x001a6ec0 SetCurrentOpen, 0x001a8d20 ccEvent::Execute, 0x001a6ca0 ccEvent::Init, 0x001b32f0 CheckOperate, 0x001b33d0 AddOperate, 0x001b34a0 DelOperate, 0x001b27b0 DispInfo, 0x00177730 ccSaveData::AddItem, 0x00177af0 DelItem, 0x00177590 ccAddSkill, 0x00177eb0 AddFriendship, 0x00178160 SetGateList, 0x00178480 SetAreaBan, 0x00178570 ClearAreaBan, 0x00178af0 NewMail, 0x00178b80 ReadNewMail, 0x00307140 addItemCategoryTbl, 0x00307180 the friendship caps, 0x00168960 ccSetupGameCtrl (its event passes), 0x00167380 ccGame::ChangeScene, 0x001671e0 ccGame::ChangeRequest, 0x0015a200 ccSleepNoSleepThread, 0x00160400 ccScFade::EntryFade, 0x00160490 ContinueFade, 0x0015fb80 SendPacket, 0x00315120 eventAreaInfo, 0x001a29a0 WORLD_MAN::GetWordParamFromEvCode, 0x00311790-0x00314c10 word_a1-word_c4, 0x001b1c00 fade, 0x001b1c60 fade_more, 0x001b04b8 area, 0x001b01d8 scene, 0x001af440 member_add_msg, 0x001af980 gate_add_msg, 0x001aff34 desktop_item, 0x0019d3b0 WORLD_MAN::GetEventAreaInfo, 0x0015f860 ccKanjiStrSeparate, 0x00377e5c serverStr, 0x00377e0c getItemMenuStr, 0x00378150 bookItemAddMsg, 0x00387840 spcNameList, 0x00168320 ccSetupDesktop (its passes, its return on a mode change, SetFrameRate); INF SLUS_202.67:0x001b0c1c ccEvent::Execute's piros_colour, 0x00160240 ccScFade::EntryFlash; INF gcmn.prg:0x0056b1c0 ccChar::Draw
-worklog: 18, 24, 40, 325, 329, 355, 489
+worklog: 18, 24, 40, 325, 329, 355, 489, 497
 ---
 
 # The event interpreter
@@ -670,17 +670,22 @@ the host takes with its frame (69 calls), the voices, the save's gate,
 word and member bits, and the party.
 
 `tools/test_desktop_announce_rs.py` runs `Execute` in eemu on
-one-instruction scripts with `ccGame.status` 2 and 3 and phase 5 -
-`gate_add_msg` for all 126 `eventAreaInfo` codes, `member_add_msg` for
+one-instruction scripts with `ccGame.status` 2 and 3 and phase 5, on each
+volume's code (as event 1, or the volume's first story event 101, 201,
+301) - `gate_add_msg` for all 126 (127 from Mutation on) `eventAreaInfo`
+codes, `member_add_msg` for
 members 1-17 on the game's own new game (NewGame, which fills
 `spcNameList`), `desktop_item` for types 0-3 and ids 1, 7, 50 and 123 with
 GCMN.PRG in - with `DispInfo`, `GetEventAreaInfo`,
 `GetWordParamFromEvCode`, `SetGateList` and the string code native, and
-writes `crates/piney-game/tests/announce_fixture.txt` (numbers only: each
+writes `crates/piney-game/tests/announce_fixture.txt` (`_mut`, `_out`,
+`_qua` for the later volumes; numbers only: each
 line's length and FNV-1a hash, the frames of the window, its polls, its
 close and the end, `dtMenu +0x06` and `+0x10`, every save byte changed);
-`desktop.rs`'s `announcements_match_the_game` replays the 159 cases
-through the task, the `Bridge` and `Announcements`: 0 mismatches.
+`desktop.rs`'s `announcements_match_the_game` replays the 159 cases (160
+on each later volume) through the task, the `Bridge` and `Announcements`,
+on a new game made as the harness makes it (no start event): 0
+mismatches.
 `session.rs`'s `story_starts_open_their_event` starts each story point and
 sees block 0 of its event play, and none of the story before it;
 `story_3_is_where_event_2_leaves_the_game` sets story:3 beside event 2

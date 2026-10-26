@@ -638,13 +638,16 @@ impl FieldWorld {
         let s = &self.scene;
         let ft = self.world_man.field_type as i32;
         let chat = gate_out::arrival_chat(s.area, s.area_prev, ft, s.dungeon, self.gt_hack);
-        let id = gate_out::hack_out_id(s.area, s.area_prev, ft, s.dungeon, s.field, self.gt_hack).unwrap_or(-1);
+        let id =
+            gate_out::hack_out_id(self.volume, s.area, s.area_prev, ft, s.dungeon, s.field, self.gt_hack).unwrap_or(-1);
+        // ccPlayer::ccPlayer sets ghoFlag for an ID (Infection also asks
+        // volumeNum < 4, which its 1 always is; MUT gcmn 0x005c2f94 does not).
         let mut hacked = false;
-        if let Some(name) = gate_out::ccs_name(id) {
+        if let Some(name) = gate_out::ccs_name(self.volume, id) {
             let a = &mut self.combat.cast.gate.anim;
             a.name = name;
             a.file = SceneFile::read(&self.archive, &format!("x{name}")).ok().map(Rc::new);
-            hacked = gate_out::VOLUME_NUM < 4;
+            hacked = true;
         }
         let member_transfer = combat::Entrance::member_transfer(s.area, s.area_prev, ft, s.dungeon, false);
         combat::Entrance { chat, hacked, member_transfer }

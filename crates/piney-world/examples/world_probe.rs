@@ -342,14 +342,14 @@ fn main() {
             Some("ghoid") => {
                 use piney_world::combat::gate_out::{arrival_chat, ccs_name, hack_out_id};
                 let (a, p, ft, d, f, g) = (n(1) as i32, n(2) as i32, n(3) as i32, n(4) as i32, n(5) as i32, n(6) != 0);
-                let id = hack_out_id(a, p, ft, d, f, g);
-                let file = id.and_then(ccs_name).map_or("null".to_string(), |s| format!("\"{s}\""));
+                let id = hack_out_id(volume, a, p, ft, d, f, g);
+                let file = id.and_then(|i| ccs_name(volume, i)).map_or("null".to_string(), |s| format!("\"{s}\""));
                 let id = id.map_or("null".to_string(), |i| i.to_string());
                 println!("{{\"id\": {id}, \"file\": {file}, \"chat\": {}}}", arrival_chat(a, p, ft, d, g));
             }
             // `gho STATE CAMERA SET N (ENDED ACT MARKERS)xN`: GateHackingOut
             // frame by frame on a scripted ghoCam (gate_probe below).
-            Some("gho") => println!("{}", gate_probe(&w[1..])),
+            Some("gho") => println!("{}", gate_probe(&w[1..], volume)),
             Some("tagpos") => {
                 let m: [[u32; 4]; 4] = std::array::from_fn(|c| std::array::from_fn(|r| n(1 + 4 * c + r)));
                 let got = piney_world::char::calc_tag_pos(
@@ -1183,7 +1183,7 @@ fn party_probe(w: &[&str]) -> String {
 /// `tcam` and `ecam` (pos, view, rot, dist, deg0, deg1), the animation set,
 /// N, and per frame: ended, act (ffffffff as it is) and the three markers'
 /// x y z. Out, per frame: the same state after the call.
-fn gate_probe(w: &[&str]) -> String {
+fn gate_probe(w: &[&str], volume: piney_data::volume::Volume) -> String {
     use piney_world::combat::gate_out::{GateState, GhoCam, Kite, Marker, gate_hacking_out};
     let mut at = 0usize;
     let mut next = || {
@@ -1224,6 +1224,8 @@ fn gate_probe(w: &[&str]) -> String {
     let mut pos_cam = v4(&mut next);
     let mut pos_view = v4(&mut next);
     let mut camera = Camera::new([0; 4], [0; 4], 3, Scheme::new(0));
+    // The volume's sqrtf (OUT and QUA truncate).
+    camera.volume = volume;
     camera.cam_id = next() as i32 as i16;
     for n in [1i16, 3] {
         let (p, v, r) = (v4(&mut next), v4(&mut next), v4(&mut next));

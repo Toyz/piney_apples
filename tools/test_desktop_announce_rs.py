@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """piney-game's announcements on the desktop and the board (desktop.rs's
 Bridge::announce and story_area, story.rs's Announcements) against the
-game's own ccEvent::Execute (INF SLUS_202.67:0x001a8d20) run in eemu (the
-Rust eemu_rs when it is built into tools/, as test_anim.machine_class picks).
+game's own ccEvent::Execute (INF SLUS_202.67:0x001a8d20; PINEY_VOLUME's
+own on a later disc, as its first story event, with its save extension)
+run in eemu (the Rust eemu_rs when it is built into tools/, as
+test_anim.machine_class picks). Each volume has its fixture.
 
 Each case is a one-instruction script run by Execute at level 2, with
 ccGame.status 2 (the desktop) or 3 (the board) and eventMng.enablePhase 5
@@ -48,9 +50,16 @@ inf_va = functools.partial(va, overlay='desktop')  # this overlay's globals
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELF = volume.ELF
-FIXTURE = os.path.join(ROOT, "crates", "piney-game", "tests", "announce_fixture.txt")
+# One fixture a volume: Infection's announce_fixture.txt, the later ones
+# announce_fixture_mut.txt, _out, _qua.
+SUFFIX = {"infection": "", "mutation": "_mut", "outbreak": "_out", "quarantine": "_qua"}[volume.NAME]
+FIXTURE = os.path.join(ROOT, "crates", "piney-game", "tests", f"announce_fixture{SUFFIX}.txt")
 
 SIZE = 0x8530
+# From Mutation on, the save's extension (characters 18-20), which the
+# constructor puts on the heap behind a $gp pointer; compared as before,
+# ccSaveData's bytes only.
+EXT = 0x01820000
 # gp globals
 CCSYS, GAME_P, DTMENU_P, SAVEDATA = inf_va(0x003788E0), inf_va(0x003789CC), inf_va(0x003789D0), inf_va(0x003789D8)
 WORLDMAN_P, CCMSG_P, EVENTMNG_P = inf_va(0x00378A7C), inf_va(0x00378A8C), inf_va(0x00378A94)
@@ -59,7 +68,8 @@ WORLDMAN_P, CCMSG_P, EVENTMNG_P = inf_va(0x00378A7C), inf_va(0x00378A8C), inf_va
 SAVE = 0x01810000
 EV, GAMEOBJ, SYSOBJ, DTM, MSG, WM = 0x01840000, 0x01841000, 0x01842000, 0x01843000, 0x01844000, 0x01845000
 SCRIPT, PTR = 0x01846000, 0x01846800
-EVENT_AREA_INFO, EVENT_AREAS, RECORD = inf_va(0x00315120), 126, 0x54
+# eventAreaInfo's rows: 126, from Mutation on 127 (area 126's).
+EVENT_AREA_INFO, EVENT_AREAS, RECORD = inf_va(0x00315120), 126 if volume.NAME == "infection" else 127, 0x54
 
 OPS = {"gate": 90, "member": 80, "item": 167}
 
@@ -93,6 +103,10 @@ class Game:
             m.store(g, 4, v)
         for name in ("SetDisplayOffset__8ccSystemFii", "SetSoundEnv__10ccSaveDataFv", "setCameraCtrlType__Fi"):
             m.hooks[sym(name)] = lambda mm, *a: 0
+        ext = test_save_init_rs.extension_pointer(ELF)
+        if ext:
+            m.mem[EXT:EXT + test_save_init_rs.EXT_SIZE] = test_save_init_rs.boot_extension(ELF)
+            m.store(ext, 4, EXT)
         if save is None:
             # The game's new game: the boot's save, NewGame(1), NewGame(0).
             m.mem[SAVE:SAVE + SIZE] = test_save_init_rs.boot_save(ELF)
@@ -164,7 +178,9 @@ class Game:
             m.store(SCRIPT + 2 * i, 2, w & 0xFFFF)
         m.store(PTR, 4, SCRIPT)
         self.frame, self.first, self.log, self.polls, self.poll, self.lines = 0, None, [], 0, poll, [None] * 4
-        m.call(self.sym("Execute__7ccEventFRPsiii"), [EV, PTR, 1, 0, 2])
+        # Event 1, or the volume's own first story event (101, 201, 301),
+        # one the port's pass walks.
+        m.call(self.sym("Execute__7ccEventFRPsiii"), [EV, PTR, 100 * (volume.number() - 1) + 1, 0, 2])
         end = self.frame - (self.first or 0)
         after = bytes(m.mem[SAVE:SAVE + SIZE])
         diff = [(i, after[i]) for i in range(SIZE) if after[i] != self.save[i]]
