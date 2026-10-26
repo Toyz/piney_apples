@@ -54,6 +54,42 @@ const THUMB_HELD: [u8; 4] = [0xb0, 0xb8, 0xe0, 0xff];
 /// A piece of a drawn row: its x, its text, its colour.
 type Piece = (u32, Vec<u8>, [u8; 3]);
 
+/// The words an argument written `arg` in a help line takes that start with
+/// `word`: its lower-case alternatives (`[on|off]`), and, for `PATH` or
+/// `FILE`, the entries of the folder `word` names (folders ending in `/`).
+fn arg_candidates(arg: &str, word: &str) -> Vec<String> {
+    let alts = arg.trim_matches(|c| c == '[' || c == ']').split('|');
+    let mut out = Vec::new();
+    for alt in alts {
+        if alt == "PATH" || alt == "FILE" {
+            out.extend(paths(word));
+        } else if alt.bytes().all(|b| b.is_ascii_lowercase() || b == b'_') && alt.starts_with(word) {
+            out.push(alt.to_string());
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// The files and folders `word` begins to name: in the folder before its
+/// last `/` (the current one without), each name that starts with the rest.
+fn paths(word: &str) -> Vec<String> {
+    let (dir, stem) = match word.rfind('/') {
+        Some(at) => word.split_at(at + 1),
+        None => ("", word),
+    };
+    let Ok(entries) = std::fs::read_dir(if dir.is_empty() { "." } else { dir }) else { return Vec::new() };
+    entries
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().into_string().ok()?;
+            let slash = if e.path().is_dir() { "/" } else { "" };
+            name.starts_with(stem).then(|| format!("{dir}{name}{slash}"))
+        })
+        .collect()
+}
+
 /// Where the last overlay put the scroll bar, in window pixels, and the
 /// rows it scrolls over.
 #[derive(Clone, Copy, Default)]
@@ -115,6 +151,9 @@ pub struct Console {
     history_file: Option<std::path::PathBuf>,
     /// The commands Tab completes.
     commands: Vec<String>,
+    /// Each command's arguments as its help line writes them (`[on|off]`,
+    /// `PATH`), for Tab past the first word.
+    usage: Vec<(String, Vec<String>)>,
     fonts: Option<Fonts>,
 }
 
@@ -168,15 +207,19 @@ impl Console {
     /// The commands Tab completes: the first word of each `help` line that
     /// names one (a command, two spaces, what it does).
     pub fn set_commands(&mut self, help: &str) {
-        let mut c: Vec<String> = help
+        let usage: Vec<(String, Vec<String>)> = help
             .lines()
             .filter(|l| l.contains("  "))
-            .filter_map(|l| l.split_whitespace().next())
-            .map(str::to_string)
+            .filter_map(|l| {
+                let mut w = l.split("  ").next()?.split_whitespace();
+                Some((w.next()?.to_string(), w.map(str::to_string).collect()))
+            })
             .collect();
+        let mut c: Vec<String> = usage.iter().map(|(name, _)| name.clone()).collect();
         c.sort();
         c.dedup();
         self.commands = c;
+        self.usage = usage;
     }
 
     /// A key pressed while open, with the text it types and whether Ctrl is
@@ -299,13 +342,25 @@ impl Console {
         self.drag = None;
     }
 
-    /// Tab: the first word completed from the commands, as far as they
-    /// agree; with more than one left, they are listed.
+    /// Tab: the word before the cursor's end completed, as far as the
+    /// candidates agree; with more than one left, they are listed. The
+    /// first word from the commands; a later one from its argument in the
+    /// command's help line: the words of `[on|off]` or `[FILE|stop]`, and
+    /// for `PATH` or `FILE` the files and folders on the disk.
     fn complete(&mut self) {
-        if self.line.contains(' ') {
-            return;
-        }
-        let found: Vec<String> = self.commands.iter().filter(|c| c.starts_with(&self.line)).cloned().collect();
+        let (head, word) = match self.line.rfind(' ') {
+            Some(at) => self.line.split_at(at + 1),
+            None => ("", self.line.as_str()),
+        };
+        let (head, word) = (head.to_string(), word.to_string());
+        let nth = head.split_whitespace().count();
+        let found: Vec<String> = if nth == 0 {
+            self.commands.iter().filter(|c| c.starts_with(&word)).cloned().collect()
+        } else {
+            let name = head.split_whitespace().next().unwrap_or("");
+            let arg = self.usage.iter().find(|(n, _)| n == name).and_then(|(_, a)| a.get(nth - 1));
+            arg.map_or_else(Vec::new, |a| arg_candidates(a, &word))
+        };
         let Some(first) = found.first() else { return };
         let mut common = first.clone();
         for c in &found[1..] {
@@ -313,12 +368,14 @@ impl Console {
             common.truncate(n);
         }
         if found.len() == 1 {
-            self.line = format!("{common} ");
+            // A folder goes on being completed; anything else is a word.
+            let end = if common.ends_with('/') { "" } else { " " };
+            self.line = format!("{head}{common}{end}");
         } else {
-            if common.len() == self.line.len() {
+            if common.len() == word.len() {
                 self.say(found.join("  "));
             }
-            self.line = common;
+            self.line = format!("{head}{common}");
         }
         self.cursor = self.line.len();
     }
@@ -657,6 +714,28 @@ mod tests {
         c.cursor = 2;
         c.complete();
         assert_eq!(c.line, "version ");
+    }
+
+    /// Tab past the first word: a command's words from its help line
+    /// (`[on|off]`, `[FILE|stop]`), and the disk's names for `PATH` (cargo
+    /// runs tests in the crate's folder).
+    #[test]
+    fn tab_completes_the_arguments() {
+        let mut c = Console::new(None);
+        c.set_commands(crate::APP_HELP);
+        let tab = |c: &mut Console, line: &str| {
+            c.line = line.into();
+            c.complete();
+            c.line.clone()
+        };
+        assert_eq!(tab(&mut c, "deflicker of"), "deflicker off ");
+        assert_eq!(tab(&mut c, "vsync o"), "vsync o");
+        assert_eq!(c.log.last().map(String::as_str), Some("off  on"));
+        assert_eq!(tab(&mut c, "pad_log st"), "pad_log stop ");
+        assert_eq!(tab(&mut c, "import_card sr"), "import_card src/");
+        assert_eq!(tab(&mut c, "import_card src/conso"), "import_card src/console.rs ");
+        assert_eq!(tab(&mut c, "story 1"), "story 1");
+        assert_eq!(tab(&mut c, "deflicker on x"), "deflicker on x");
     }
 
     /// The scroll bar: the wheel scrolls back three rows a notch, the thumb

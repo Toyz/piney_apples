@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-497 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 125, save 16, script 60, test 231, tooling 46, ui 99, video 16, volumes 89, world 143. 122 entries still have open questions - [listed below](#still-open).
+498 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 125, save 16, script 60, test 231, tooling 47, ui 99, video 16, volumes 89, world 143. 122 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -509,6 +509,7 @@ The [reference](docs/README.md) says what is true now.
 | 495 | [Which events place characters in Fort Ouph and Lia Fail, each placed by the port; a party entry at marker 99 stays put, and a full registry still places a registered one](worklog/0495-which-events-place-characters-in-fort-ouph-and-lia-fail.md) | 2026-10-25 | script |
 | 496 | [A story dungeon's fieldrand after Generate is the game's: each floor's draw and SetAllGim's story rolls at construction, and the gimPos headings ported](worklog/0496-a-story-dungeon-s-fieldrand-after-generate-is-the-game-s.md) | 2026-10-25 | world |
 | 497 | [test_map_rs's field and dungeon maps, the dungeon harness, test_gate_out_rs and test_desktop_announce_rs run on all four volumes; the later gate-out IDs, volumeNum in the generator and DispInfo's extra frame ported](worklog/0497-test-map-rs-s-field-and-dungeon-maps-the-dungeon-harness.md) | 2026-10-25 | test |
+| 498 | [The console's Tab completes arguments too: a command's on/off and stop words from its help line, and paths for PATH and FILE](worklog/0498-the-console-s-tab-completes-arguments-too-a-command-s-on.md) | 2026-10-25 | tooling |
 
 ## Still open
 
