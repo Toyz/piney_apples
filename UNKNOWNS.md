@@ -106,7 +106,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 ### build
 
-- [[259]] a later volume's image played without Infection's disc falls back to `work/`, and `crate::die` ends the process — a player who owns only a later disc
+- [[259]] a later volume's image played without Infection's disc falls back to `work/`, and `crate::die` ends the process — a player who owns only a later disc — answered by [[487]]: Infection's disc stays needed (the owner's choice); the game and piney-build now say so before generating, and the game names every disc it plays first, so Infection's beside a later one is found whatever its order
 
 ### volumes
 

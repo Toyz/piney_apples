@@ -120,6 +120,11 @@ fn run(inputs: &[PathBuf], out: &Path, verify: bool, export: Option<&Path>) -> R
     for s in &sources {
         piney_build::use_disc(s.volume, &s.path);
     }
+    // A later volume made fresh needs Infection's disc: said here, before
+    // anything is written, rather than by the generator ending the run.
+    for s in sources.iter().filter(|s| !s.from_build) {
+        piney_build::infection_beside(s.volume)?;
+    }
     if let Some(dir) = export {
         export_symbols(&sources, dir)?;
         // With no disc given, only the names: the build stays as it is.

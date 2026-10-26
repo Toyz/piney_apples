@@ -84,8 +84,11 @@ stable ids so an override can name one line rather than replace a file.
    Mutation, 35 s each for Outbreak and Quarantine), the tables' layouts
    from Infection's DWARF on its disc. Nothing new is committed: a build
    of a later volume needs Infection's disc beside it (the owner's
-   choice, over committing the names, carry and layouts as facts). The
-   tools, with no disc named, still read `work/`.
+   choice, over committing the names, carry and layouts as facts).
+   Without it the game and piney-build stop with that message before
+   generating (`piney_build::infection_beside`). The game names every
+   disc it plays before making any one's data. The tools, with no disc
+   named, still read `work/`.
 3. **The placement groups.** Done: `tools/area_tables.py`, `statics.py`,
    `sound_tables.py`, `field_tables.py` and `dungeon_tables.py` ported
    into `piney_gen::placement` and deleted, with setbl.cpp's rows; the

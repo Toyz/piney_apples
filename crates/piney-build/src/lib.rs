@@ -48,6 +48,21 @@ pub fn port_files(disc: &mut Iso) -> Result<Vec<(String, Vec<u8>)>, String> {
     Ok(files)
 }
 
+/// Whether volume `v`'s data can be made: a later volume's needs
+/// Infection's disc beside it, once (the tables' layouts are Infection's
+/// DWARF, and its globals are found by Infection's own; the owner chose
+/// that over committing them). An error to show the player, where the
+/// generator would end the process.
+pub fn infection_beside(v: Volume) -> Result<(), String> {
+    if v == Volume::Inf {
+        return Ok(());
+    }
+    let inf = piney_gen::volume::Vol::Inf;
+    piney_gen::source::read(inf, inf.exe())
+        .map(|_| ())
+        .map_err(|e| format!("{v}'s data is made once with Infection's disc beside it; give its image too ({e})"))
+}
+
 /// A disc image's port data, made in its data folder
 /// ([`pack::image_data_dir`]) when missing or of another version; true
 /// when it was made. A build's disc has its own and is left alone.
@@ -60,6 +75,7 @@ pub fn image_data(image: &Path) -> Result<bool, String> {
     let dir = iso.data_dir().ok_or_else(|| err(&"no port folder to keep its data in"))?.to_path_buf();
     let v = iso.volume().map_err(|e| err(&e))?;
     use_disc(v, image);
+    infection_beside(v).map_err(|e| err(&e))?;
     let files = port_files(&mut iso).map_err(|e| err(&e))?;
     // The version last (it is first in the list): until it is there, the
     // data counts as missing.
@@ -74,4 +90,19 @@ pub fn image_data(image: &Path) -> Result<bool, String> {
         std::fs::rename(&part, &target).map_err(|e| err(&e))?;
     }
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A later volume without Infection's disc is an error to show, not
+    /// the generator's end of the process; Infection needs no other.
+    #[test]
+    fn a_later_volume_asks_for_infections_disc() {
+        assert_eq!(infection_beside(Volume::Inf), Ok(()));
+        use_disc(Volume::Inf, Path::new("/nonexistent/infection.iso"));
+        let e = infection_beside(Volume::Mut).unwrap_err();
+        assert!(e.contains("Infection's disc"), "{e}");
+    }
 }

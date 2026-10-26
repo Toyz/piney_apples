@@ -1324,6 +1324,13 @@ fn main() {
         Some((_, discs)) => discs.iter().flatten().cloned().collect(),
         None => vec![iso.clone()],
     };
+    // Every disc named first: a later volume's data is made with
+    // Infection's beside it, whichever comes first or has its data.
+    for path in &playing {
+        if let Ok(v) = Iso::open(path).and_then(|mut d| d.volume()) {
+            piney_build::use_disc(v, path);
+        }
+    }
     for path in &playing {
         match piney_build::image_data(path) {
             Ok(true) => println!("{}: the port's data made from the disc (once)", path.display()),
