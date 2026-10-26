@@ -176,23 +176,6 @@ def found(name, caller, nth, overlay="gcmn"):
     return at
 
 
-def called(caller, prefix, overlay="gcmn"):
-    """The first function `caller` calls whose name starts with `prefix`,
-    for a harness that hooks it: where the carry swapped two overloads'
-    names (Outbreak's WORLD_MAN::GetEventAreaInfo(void) is filed as the
-    int one, main 0x001a7ce0), the call says which one runs."""
-    import struct
-    p = program(ELF, overlay)
-    start, end = span(caller, overlay)
-    for a in range(start, end, 4):
-        w = struct.unpack("<I", p.read(a, 4))[0]
-        if w >> 26 == 3:
-            hit = p.symbol_at((w & 0x03FFFFFF) << 2, 0)
-            if hit and hit[1] == 0 and hit[0].name.startswith(prefix):
-                return hit[0].value
-    raise KeyError("%s calls no %s* in %s" % (caller, prefix, NAME))
-
-
 def number():
     """The disc's `volumeNum` (1-4), as the executable holds it."""
     import struct

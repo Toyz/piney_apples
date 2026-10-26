@@ -35,7 +35,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from volume import ELF, ISO, ROOT, va as inf_va  # noqa: E402  # PINEY_VOLUME's disc
+from volume import ELF, ISO, NAME as VOLUME, ROOT, va as inf_va  # noqa: E402  # PINEY_VOLUME's disc
 EXAMPLE = os.path.join(os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "target")), "release", "examples",
                        "area_probe")
 
@@ -154,8 +154,15 @@ class Game:
         return self.m.call(self.sym("IsProtectArea__9WORLD_MANFv"), (WM,))
 
     def info_row(self, n):
+        """{"row": index} for a table row (-1 for NULL), {"sub": code} for
+        a substitute record outside the table (from Mutation on)."""
         va = self.m.call(self.sym("GetEventAreaInfo__9WORLD_MANFi"), (WM, n & 0xFFFFFFFF))
-        return -1 if va == 0 else (va - self.sym("eventAreaInfo")) // 0x54
+        if va == 0:
+            return {"row": -1}
+        k, off = divmod(va - self.sym("eventAreaInfo"), 0x54)
+        if off == 0 and 0 <= k < 127:
+            return {"row": k}
+        return {"sub": s32(self.m.load(va, 4))}
 
     def from_ev(self, n, part):
         va = self.m.call(self.sym("GetWordParamFromEvCode__9WORLD_MANFii"), (WM, n & 0xFFFFFFFF, part))
@@ -242,7 +249,7 @@ class TestAreaRs(unittest.TestCase):
         for n, r in zip(numbers, got[:len(numbers)]):
             self.assertEqual(r["protect"], self.game.protect(n), f"IsProtectArea {n}")
         for n, r in zip(numbers, got[len(numbers):]):
-            self.assertEqual(r["row"], self.game.info_row(n), f"GetEventAreaInfo {n}")
+            self.assertEqual(r, self.game.info_row(n), f"GetEventAreaInfo {n}")
         protected = sum(r["protect"] for r in got[:len(numbers)])
         print(f"\nIsProtectArea, GetEventAreaInfo: {len(numbers)} area numbers each, 0 mismatches, "
               f"{protected} protected", file=sys.stderr)
@@ -259,6 +266,10 @@ class TestAreaRs(unittest.TestCase):
         got = ask([f"ev {n} {s} 0" for n, s in cases])
         generated = 0
         for (n, s), r in zip(cases, got):
+            if n == 126 and VOLUME == "quarantine":
+                # QUA main 0x001c3204: the ending's field sets the number alone.
+                self.assertEqual(r, {"number": 126}, n)
+                continue
             ids = [self.game.from_ev(n, p) for p in range(3)]
             if None in ids:
                 self.assertIn("missing", r, n)

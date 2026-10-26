@@ -68,8 +68,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             "protect" => format!("{{\"protect\":{}}}", tables.is_protect_area(n[0] as i32, false) as i32),
             "info" => {
-                let row = tables.events.iter().take(tables.search()).position(|e| e.code == n[0] as i32);
-                format!("{{\"row\":{}}}", row.map_or(-1, |r| r as i64))
+                // A table row by its index, a substitute record by its code.
+                let info = tables.event_area_info(n[0] as i32, false);
+                match info.map(|e| (e, tables.events.iter().position(|x| std::ptr::eq(x, e)))) {
+                    None => "{\"row\":-1}".to_string(),
+                    Some((_, Some(r))) => format!("{{\"row\":{r}}}"),
+                    Some((e, None)) => format!("{{\"sub\":{}}}", e.code),
+                }
             }
             "fromev" => match tables.word_from_event(n[0] as i32, n[1] as usize, false) {
                 Some(w) => format!("{{\"id\":{}}}", w.id),

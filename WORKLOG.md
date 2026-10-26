@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-492 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 125, save 16, script 59, test 230, tooling 45, ui 98, video 16, volumes 89, world 142.
+493 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 125, save 16, script 59, test 230, tooling 46, ui 98, video 16, volumes 89, world 142.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -504,3 +504,4 @@ The [reference](docs/README.md) says what is true now.
 | 490 | [npc_act -3, row 139's drain, ported and checked against the game; the Administrator's -5 already was, now checked too](worklog/0490-npc-act-3-row-139-s-drain-ported-and-checked-against-the.md) | 2026-10-25 | world |
 | 491 | [marker_pos everywhere it has a stream: a dungeon's DUNGEON file and every event map's; a plain field is the game's own crash](worklog/0491-marker-pos-everywhere-it-has-a-stream-a-dungeon-s-dungeon.md) | 2026-10-25 | script |
 | 492 | [Type 32's tree and leaves ported: area 101's event room's twenty LEAFs, 400 frames bit-exact with the game](worklog/0492-type-32-s-tree-and-leaves-ported-area-101-s-event-room-s.md) | 2026-10-25 | world |
+| 493 | [GetEventAreaInfo(0) on Outbreak and Quarantine finds row 0 as the port does: the carried names of its two overloads were crossed](worklog/0493-geteventareainfo-0-on-outbreak-and-quarantine-finds-row-0.md) | 2026-10-25 | tooling |

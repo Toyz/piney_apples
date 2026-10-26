@@ -3,7 +3,7 @@ title: The four discs
 status: solid
 volumes: all
 covers: SYSTEM.CNF and every file on each disc, INF SLUS_202.67, MUT SLUS_205.62, OUT SLUS_205.63, QUA SLUS_205.64, QUA DATA/KFED.BIN, QUA DATA/KFAED.BIN, IOPRP243.IMG, OUT STREAM/STRT.BIN, OUT/QUA VOICE2
-worklog: 20, 21, 23, 24, 25, 239
+worklog: 20, 21, 23, 24, 25, 239, 493
 ---
 
 # The four discs
@@ -138,6 +138,7 @@ section  va(8 hex)  size  FUNC|OBJECT  name  how
 | `content` | a global found by what it holds: its numbers equal, its pointers to the same strings; not when two of Infection's hold the same |
 | `layout` | between two carried globals whose words agree and which sit the same distance apart in both, a global at its offset whose words agree (90%), or a `data` name moved there because they agree better; or two `data` names of one size that agree better each at the other's place |
 | `ref` | a function that builds a carried global's (or a string's) address, where only one function does on each side |
+| `overload` | two overloads of one name, one taking no arguments, renamed by which body reads its first argument's register before writing it |
 
 `FUNC` sizes are the destination's own (to the next entry point, less
 padding), except for `exact`, whose size is Infection's.
@@ -163,6 +164,12 @@ ref, pointer again: what a global holds outranks a table's pointer to it,
 since a table can keep Infection's layout while rows are added to what it
 points at (Mutation's `pcMsg4`). The pointer pass does not take a
 pointer's bytes for text (`0x006f2d98` reads "\x98-o").
+
+The last pass checks pairs of overloads. Outbreak's and Quarantine's
+`WORLD_MAN::GetEventAreaInfo()` loads `eventAreaNumber` into `$a1` and
+`(int)` reads `$a1` as passed. Their bodies grew alike, so order and ref
+had named them crosswise (worklog 493). It renames that one pair on each
+volume and nothing on Mutation.
 
 The data pass pairs a function's globals by the order its code builds
 them, and a reordered function misleads it. The layout pass found, on all

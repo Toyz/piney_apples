@@ -4,7 +4,7 @@
 //! functions exist in all four volumes at other addresses. The passes, main
 //! and each overlay against their namesakes: exact, call, data and order;
 //! cross; code; content; pointer; layout; content again and ref; prefix;
-//! pointer again; ctor. Each is in docs/disc/volumes.md ("Names for the
+//! pointer again; ctor; overload. Each is in docs/disc/volumes.md ("Names for the
 //! stripped executables").
 
 use std::collections::{HashMap, HashSet};
@@ -1039,6 +1039,108 @@ fn code_checks(v: Vol, rows: Vec<Row>) -> (Vec<Row>, usize) {
     (out, n)
 }
 
+/// A mangled name up to its arguments (`GetEventAreaInfo__9WORLD_MANF`):
+/// `name__F` or `name__<n><class>F`; None for any other.
+fn overload_base(name: &str) -> Option<&str> {
+    let at = name.find("__")? + 2;
+    let rest = &name[at..];
+    let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+    let skip = match digits {
+        0 => 0,
+        _ => digits + rest[..digits].parse::<usize>().ok()?,
+    };
+    (rest.as_bytes().get(skip) == Some(&b'F')).then(|| &name[..at + skip + 1])
+}
+
+/// The general registers an instruction reads and writes, as masks (MIPS
+/// and the R5900's own: MMI, `lq`, `sq`); `$zero` left out.
+fn gpr_use(w: u32) -> (u32, u32) {
+    let (op, rs, rt, rd) = (w >> 26, (w >> 21) & 31, (w >> 16) & 31, (w >> 11) & 31);
+    let (s, t, d) = (1u32 << rs, 1u32 << rt, 1u32 << rd);
+    let (reads, writes) = match op {
+        0 => match w & 63 {
+            0 | 2 | 3 | 0x38 | 0x3a | 0x3b | 0x3c | 0x3e | 0x3f => (t, d),
+            8 => (s, 0),
+            9 => (s, d),
+            0x10 | 0x12 => (0, d),
+            0x11 | 0x13 => (s, 0),
+            0x0c | 0x0d | 0x0f => (0, 0),
+            _ => (s | t, d),
+        },
+        1 | 6 | 7 | 0x16 | 0x17 | 0x2f | 0x33 | 0x31 | 0x35 | 0x36 | 0x39 | 0x3d | 0x3e => (s, 0),
+        2 => (0, 0),
+        3 => (0, 1 << 31),
+        4 | 5 | 0x14 | 0x15 => (s | t, 0),
+        0x08..=0x0e | 0x18 | 0x19 => (s, t),
+        0x0f => (0, t),
+        0x11 => match rs {
+            0..=2 => (0, t),
+            4..=6 => (t, 0),
+            _ => (0, 0),
+        },
+        0x1c => (s | t, d),
+        0x1a | 0x1b | 0x22 | 0x26 => (s | t, t),
+        0x1e | 0x20 | 0x21 | 0x23..=0x25 | 0x27 | 0x37 => (s, t),
+        0x1f | 0x28..=0x2e | 0x3f => (s | t, 0),
+        _ => (0, 0),
+    };
+    (reads & !1, writes & !1)
+}
+
+/// The registers a body reads before it writes them, read straight down.
+fn live_in(words: &[u32]) -> u32 {
+    let (mut live, mut written) = (0, 0);
+    for &w in words {
+        let (r, wr) = gpr_use(w);
+        live |= r & !written;
+        written |= wr;
+    }
+    live
+}
+
+/// Two overloads the earlier passes named crosswise: where exactly two
+/// functions of a section share a name up to their arguments, one taking
+/// none (`...Fv`), the body that reads its first argument's register
+/// (`$a1` for a member, `$a0` else) before writing it is the other one.
+/// Outbreak's and Quarantine's `WORLD_MAN::GetEventAreaInfo()` (which loads
+/// `eventAreaNumber` into `$a1`) was filed as the `(int)` one: the order
+/// pass placed it by a body grown alike in both.
+fn overloads(v: Vol, rows: Vec<Row>) -> (Vec<Row>, usize) {
+    let mut groups: HashMap<(&'static str, &str), Vec<usize>> = HashMap::new();
+    for (i, r) in rows.iter().enumerate() {
+        if r.kind == "FUNC"
+            && let Some(base) = overload_base(&r.name)
+        {
+            groups.entry((r.sec, base)).or_default().push(i);
+        }
+    }
+    let mut swaps: Vec<(usize, usize)> = Vec::new();
+    for (&(sec, base), ix) in &groups {
+        let &[a, b] = ix.as_slice() else { continue };
+        let (bare_a, bare_b) = (rows[a].name.ends_with("Fv"), rows[b].name.ends_with("Fv"));
+        if bare_a == bare_b {
+            continue;
+        }
+        let ov = SECTIONS.into_iter().find(|o| o.unwrap_or("main") == sec).flatten();
+        let dst = side(v, ov);
+        let arg = if base.ends_with("__F") { 1 << 4 } else { 1 << 5 };
+        let reads = |r: &Row| dst.run(r.va, r.size / 4).map(|w| live_in(w) & arg != 0);
+        let (Some(ra), Some(rb)) = (reads(&rows[a]), reads(&rows[b])) else { continue };
+        // The argument-less one's body must not read it, the other's must.
+        if ra != rb && ra == bare_a {
+            swaps.push((a, b));
+        }
+    }
+    let n = swaps.len();
+    let mut rows = rows;
+    for (a, b) in swaps {
+        let (na, nb) = (rows[a].name.clone(), rows[b].name.clone());
+        rows[a] = Row { name: nb, how: "overload", ..rows[a].clone() };
+        rows[b] = Row { name: na, how: "overload", ..rows[b].clone() };
+    }
+    (rows, n)
+}
+
 /// Each overlay's static initialisers, from its constructor list: the
 /// volume's entries pair with Infection's by position when both lists are
 /// as long. Each runs to the next one up, the last to the list itself. A
@@ -1117,6 +1219,7 @@ fn carry_symbols(v: Vol) -> Vec<Row> {
     // What the content pass found can name more through its pointers.
     let (rows, n_more, n_moved2) = pointers(v, rows);
     let (rows, n_ctor) = ctors(v, rows);
+    let (rows, n_swapped) = overloads(v, rows);
     n_pointer += n_more;
     n_moved += n_moved2;
     println!("{}:", v.tag());
@@ -1132,6 +1235,7 @@ fn carry_symbols(v: Vol) -> Vec<Row> {
     println!("ref       {n_ref} functions named by the globals they build");
     println!("prefix    {n_prefix} functions named by their opening words");
     println!("ctor      {n_ctor} static initialisers named from the overlays' constructor lists");
+    println!("overload  {n_swapped} pairs of overloads whose names the passes crossed");
     rows
 }
 
@@ -1160,4 +1264,27 @@ pub fn write(v: Vol, check: bool) -> bool {
     std::fs::write(&path, text).unwrap_or_else(|e| crate::die(&format!("{}: {e}", path.display())));
     println!("{rows} symbols -> {}", path.display());
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_overloads_base_stops_at_its_arguments() {
+        assert_eq!(overload_base("GetEventAreaInfo__9WORLD_MANFi"), Some("GetEventAreaInfo__9WORLD_MANF"));
+        assert_eq!(overload_base("ccGetEventAreaInfo__Fi"), Some("ccGetEventAreaInfo__F"));
+        assert_eq!(overload_base("eventAreaInfo"), None);
+    }
+
+    /// Outbreak's two openings (main 0x001a7ce0, 0x001a7dc0): `()` loads
+    /// `$a1` from `this`, `(int)` reads it as passed.
+    #[test]
+    fn the_argument_less_body_writes_its_first_argument_first() {
+        let bare = [0x8c85_0120, 0x2402_0047, 0x14a2_000d];
+        let with_int = [0x2402_0047, 0x14a2_000c];
+        assert_eq!(live_in(&bare) & (1 << 5), 0);
+        assert_ne!(live_in(&bare) & (1 << 4), 0);
+        assert_ne!(live_in(&with_int) & (1 << 5), 0);
+    }
 }

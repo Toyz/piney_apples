@@ -3,7 +3,7 @@ title: Area keywords and the area generator
 status: partial
 volumes: all
 covers: INF SLUS_202.67:0x0019e5c0 WORLD_MAN::SimGenerateCode, 0x0019e500 CopyWordParam, 0x001a2340 GetWordParamPtr, 0x001a25d0 GetWordParamPtr(int), 0x001a3370 GetWordParamID, 0x001a29a0 GetWordParamFromEvCode, 0x001a4290 ccCheckEventAreaNum, 0x001a4220 ccGetEventAreaInfo, 0x0019d3b0 WORLD_MAN::GetEventAreaInfo, 0x0019ceb0 WORLD_MAN::IsProtectArea, 0x001b04b8 ccEvAreaCodeAdd (event instruction 118), 0x001b7020 ccRegisterDifficultyEnemy; INF gcmn.prg:0x0042ed70 ccRegisterEnemyList; word_a1..word_c4, eventAreaInfo, dungeonData, ccEnemyListInfo; MUT SLUS_205.62:0x001b9330 ccGetEventAreaInfo, 0x001b1f10 WORLD_MAN::GetEventAreaInfo; OUT SLUS_205.63:0x001af500 ccGetEventAreaInfo
-worklog: 11, 13, 21, 68, 78, 181, 220, 259
+worklog: 11, 13, 21, 68, 78, 181, 220, 259, 493
 ---
 
 # Area keywords and the area generator
@@ -240,7 +240,12 @@ nine attributes, `seed` and `randcnt`: 0 mismatches. `IsProtectArea` and
 for every code and part (378), instruction 118's generation for every code
 outside 1-13 on every server (555 areas), and `GetWordParamID` for every
 keyword and two non-words: 0 mismatches. The harness runs on any volume's
-disc through `PINEY_VOLUME`.
+disc through `PINEY_VOLUME`, and passes on all four. `GetEventAreaInfo(n)`
+answers a table row or, from Mutation on, a substitute record (area 47's
+from Outbreak on); Quarantine's instruction 118 with 126 sets the number
+alone. Outbreak's and Quarantine's "`GetEventAreaInfo(0)` is NULL" was the
+harness calling `GetEventAreaInfo()`, whose carried name was crossed with
+`(int)`'s (worklog 493; docs/disc/volumes.md).
 
 ## Story areas
 
