@@ -5,8 +5,8 @@
 //! Requests: `new`, `room`, `roomc`, `select`, `land`, `height`, `goto`,
 //! `enter`, `back`, `drawn`, `movedoor`, `opendoor`, `closedoor`, `closedoor2`,
 //! `info`, `draweff`, `drawbg`, `rng`, `ban`, `bans`, `fog`, `eventdata`,
-//! `slots`, `start`, `pad`, `leaves`, `leafeff`; the fields are the
-//! harness's.
+//! `slots`, `start`, `pad`, `leaves`, `leafeff`, `gims`; the fields are
+//! the harness's.
 
 use std::io::BufRead;
 use std::sync::Arc;
@@ -304,6 +304,16 @@ fn main() {
                     })
                     .collect();
                 println!("{{\"frames\": [{}]}}", frames.join(", "));
+            }
+            "gims" => {
+                // SetAllGim's gimPos slots in their order.
+                let a = d.as_mut().unwrap();
+                let rows: Vec<String> = a
+                    .gim_slots()
+                    .iter()
+                    .map(|g| format!("[{}, {}, {}, {}, {}]", list(&g.pos), list(&g.dirc), g.floor, g.block, g.kind))
+                    .collect();
+                println!("{{\"gims\": [{}]}}", rows.join(", "));
             }
             "draweff" => {
                 let a = d.as_mut().unwrap();

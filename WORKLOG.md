@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-495 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 125, save 16, script 60, test 230, tooling 46, ui 99, video 16, volumes 89, world 142. 122 entries still have open questions - [listed below](#still-open).
+496 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 125, save 16, script 60, test 230, tooling 46, ui 99, video 16, volumes 89, world 143. 122 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -507,6 +507,7 @@ The [reference](docs/README.md) says what is true now.
 | 493 | [GetEventAreaInfo(0) on Outbreak and Quarantine finds row 0 as the port does: the carried names of its two overloads were crossed](worklog/0493-geteventareainfo-0-on-outbreak-and-quarantine-finds-row-0.md) | 2026-10-25 | tooling |
 | 494 | [The later towns' map: the fourth sprite is the game's, and Fort Ouph's and Lia Fail's DrawMap ported and checked against the game](worklog/0494-the-later-towns-map-the-fourth-sprite-is-the-game-s-and.md) | 2026-10-25 | ui |
 | 495 | [Which events place characters in Fort Ouph and Lia Fail, each placed by the port; a party entry at marker 99 stays put, and a full registry still places a registered one](worklog/0495-which-events-place-characters-in-fort-ouph-and-lia-fail.md) | 2026-10-25 | script |
+| 496 | [A story dungeon's fieldrand after Generate is the game's: each floor's draw and SetAllGim's story rolls at construction, and the gimPos headings ported](worklog/0496-a-story-dungeon-s-fieldrand-after-generate-is-the-game-s.md) | 2026-10-25 | world |
 
 ## Still open
 
@@ -628,7 +629,7 @@ The [reference](docs/README.md) says what is true now.
 - [288. Open questions after the triage: menus, the desktop and the text](worklog/0288-open-questions-after-the-triage-menus-the-desktop-and-the.md) (49 questions) - (volumes) #94: the later volumes' staff rolls (stfroll2-4) are not tried; GAPS.md lists Quarantine's staff roll as its...
 - [287. Open questions after the triage: the event scripts and their hosts](worklog/0287-open-questions-after-the-triage-the-event-scripts-and-their.md) (23 questions) - #11: which story areas Infection itself can reach; derivable from the scripts' gate_add (docs/engine/events.md, ops 89...
 - [286. Open questions after the triage: battle](worklog/0286-open-questions-after-the-triage-battle.md) (50 questions) - (volumes) #21: whether ccRegisterDifficultyEnemy matches on the other volumes; read on all four (#275), never run in...
-- [285. Open questions after the triage: towns, fields and dungeons](worklog/0285-open-questions-after-the-triage-towns-fields-and-dungeons.md) (55 questions) - (volumes) #206: where Mutation's and Outbreak's idolItemList44 is; neither candidate reads like Infection's.
+- [285. Open questions after the triage: towns, fields and dungeons](worklog/0285-open-questions-after-the-triage-towns-fields-and-dungeons.md) (54 questions) - (volumes) #206: where Mutation's and Outbreak's idolItemList44 is; neither candidate reads like Infection's.
 - [284. Open questions after the triage: the effects and the streams' effect tasks](worklog/0284-open-questions-after-the-triage-the-effects-and-the-streams.md) (51 questions) - (volumes) #280, #281: Outbreak's and Quarantine's sqrt.s in the distance fade and their one-ulp float differences...
 - [283. Open questions after the triage: the draw path](worklog/0283-open-questions-after-the-triage-the-draw-path.md) (56 questions) - #17: the DMA order of the matrix, material and model packets (docs/engine/render.md Unknown).
 - [282. Open questions after the triage: the disc, the formats, the engine core and the tools](worklog/0282-open-questions-after-the-triage-the-disc-the-formats-the.md) (43 questions) - #4: the EE encodings the game never uses (the debug and performance-counter moves, rsqrt.s, max.s/min.s, vrnext/vrget...

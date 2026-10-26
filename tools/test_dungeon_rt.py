@@ -514,6 +514,20 @@ class Game:
             del m.hooks[self.sym(k)]
         return frames
 
+    def gims(self):
+        """gimPos as SetAllGim filled it: pos, dirc, floor, room, type, up to
+        the first free slot (type -1)."""
+        m = self.m
+        out = []
+        for i in range(750):
+            a = GIMPOS + 0x30 * i
+            kind = m.load(a + 0x22, 1)
+            if kind == 0xFF:
+                break
+            sb = lambda v: v - 256 if v & 0x80 else v  # noqa: E731
+            out.append([self.rvec(a), self.rvec(a + 0x10), sb(m.load(a + 0x20, 1)), sb(m.load(a + 0x21, 1)), kind])
+        return out
+
     def put_cc(self, seed):
         """ccRand as sgenrand(seed) leaves it (mt[624] of doublewords, mti
         624), for the LEAF constructors' ccRandF."""
@@ -949,13 +963,12 @@ class DungeonAgainstGame(unittest.TestCase):
             self.assertEqual(fog, (info["near"], info["far"], 0, info["max"], info["fog"]), what + ": SetFog")
             self.assertEqual(list(amb), info["ambient"], what + ": SetAmbient")
             self.same_hits(info["hits"], g.hit_list(), what + ": SetRoom(0, 0)")
-            if info["event"]:
-                # A story dungeon's Generate draws for its gimmicks (SetAllGim),
-                # which the port does not: its fieldrand starts from the game's.
-                p.ask("rng {} {}".format(*g.dress()["rng"]))
-                self.count("story dungeons' fieldrand taken from the game")
-            else:
-                self.same_dress(info["dress"], g.dress(), what + ": SetRoom(0, 0)")
+            self.same_dress(info["dress"], g.dress(), what + ": SetRoom(0, 0)")
+            # SetAllGim's slots, story rooms' CheckEntryItemBox and
+            # CheckEntryCircle with them.
+            gims = g.gims()
+            self.assertEqual(p.ask("gims")["gims"], gims, what + ": gimPos")
+            self.count("gimPos slots", len(gims))
             # Every room: SetRoom, its hits, the ground in it, GetHeight.
             story = {}
             if info["event"]:
@@ -1314,6 +1327,12 @@ class DungeonAgainstGame(unittest.TestCase):
                     elif a[4]:
                         self.assertEqual(a[:4], b, f"{what} floor {f} room {i}")
             self.assertEqual(info["position"], g.rvec(WM + 0x20), what + ": GetStartPosition")
+            # Generate's draws: each floor's fieldrand(5) and SetAllGim's
+            # rolls, then SetRoom(0, 0)'s dressing.
+            self.assertEqual(info["dress"]["rng"], [g.m.load(g.sym("seed"), 4), g.m.load(g.sym("randcnt"), 4)],
+                             what + ": fieldrand after Generate")
+            self.assertEqual(p.ask("gims")["gims"], g.gims(), what + ": gimPos")
+            self.count("story dungeons' fieldrand and gimPos after Generate")
             for f, i, name in event_rooms:
                 where = f"{what}: SetRoom({f}, {i})"
                 mine = p.ask(f"room {f} {i}")
@@ -1410,9 +1429,6 @@ class DungeonAgainstGame(unittest.TestCase):
             for f, i in rooms:
                 what = f"area {field} SetRoom({f}, {i})"
                 cc = rng.getrandbits(32)
-                # The port's fieldrand after a story dungeon's Generate is
-                # not the game's (docs/engine/dungeon.md); start both alike.
-                p.ask("rng {} {}".format(g.m.load(g.sym("seed"), 4), g.m.load(g.sym("randcnt"), 4)))
                 p.ask(f"room {f} {i}")
                 mine = p.ask(f"leaves {cc}")
                 g.put_cc(cc)

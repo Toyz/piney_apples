@@ -113,8 +113,8 @@ pub struct Slot {
     pub made: bool,
     /// `minimap[f][i].size`: the room's size (0-2), as the map scans it.
     pub size: u8,
-    /// A random room's `SetAllGim` rolls as the generator made them (each
-    /// dummy's keep, in the searches' order); None for a story room.
+    /// The room's `SetAllGim` rolls as `Generate` made them (each dummy's
+    /// keep, in the searches' order).
     pub rolls: Option<Vec<bool>>,
     /// The model is in the event room's own scene file (`spccs`), not the
     /// dungeon's: a story row of type 25-35 ([`dungeon::special`]).
@@ -384,8 +384,7 @@ pub struct DungeonArea {
     /// `roomEnterFlag` (+0x4c): set by the constructor and `GotoNextRoom`,
     /// cleared by `Draw` when it runs `SetPathFindingMap` for the room.
     pub room_enter: bool,
-    /// `fieldrand` as the generator left it (the random dungeon's; a story
-    /// dungeon's from its seed, not checked against the game).
+    /// `fieldrand` as `Generate` left it, then each `SetRoom`'s dressing.
     pub rng: dungeon::Rng,
     /// `WORLD_MAN.entryFlag[1 + dungeon]` (+0x58 + 4 dungeon): `EntryGimmick`
     /// (main 0x001a1fe0) placed this dungeon's boxes, portals and idols.
@@ -749,7 +748,12 @@ impl DungeonArea {
             kept_actors: Vec::new(),
         };
         area.floors = match edit {
-            Some(e) => area.story_floors(e),
+            Some(e) => {
+                let floors = area.story_floors(e);
+                area.floors = floors;
+                area.story_rolls(e);
+                std::mem::take(&mut area.floors)
+            }
             None => {
                 let dummies = Dummies::read(&area.file.ccs, &tables.gim_patterns)?;
                 let params = dungeon::Params {
@@ -1987,52 +1991,90 @@ impl crate::hit::Heights for Heights {
 /// fountain the statue 2, `OBJ_0ps0*`-`OBJ_0ps3*` the special objects 3-6).
 const GIM_KINDS: [i8; 8] = [0, 1, 2, 2, 3, 4, 5, 6];
 
+/// A `gimPos` slot's heading as `SetAllGim` turns it, from the dummy's
+/// world matrix `w`. `p` is the point 150 down its y axis:
+/// - a box: `atan2` in doubles of (x, -y) of `p` less the dummy's place
+///   (0x005bb5c0);
+/// - a portal: `atan2f(p.x, p.y)`, `p` itself (0x005bb8a4, its first
+///   heading overwritten);
+/// - the rest: `atan2f` of the x axis's y and x (0x005bbb74).
+fn gim_heading(kind: i8, w: &[V4; 4]) -> F {
+    let p = ee::apply(w, [0, ee::k(-150.0), 0, ONE]);
+    match kind {
+        0 => {
+            let (x, y) = (ee::sub(p[0], w[3][0]), ee::sub(p[1], w[3][1]));
+            let (x, y) = (f64::from(f32::from_bits(x)), f64::from(f32::from_bits(ee::mul(0xbf80_0000, y))));
+            (x.atan2(y) as f32).to_bits()
+        }
+        1 => piney_data::libm::atan2f(p[0], p[1]),
+        _ => {
+            let mut m = *w;
+            m[3] = [0, 0, 0, m[3][3]];
+            let a = ee::apply(&m, [ONE, 0, 0, 0]);
+            piney_data::libm::atan2f(a[1], a[0])
+        }
+    }
+}
+
 impl DungeonArea {
+    /// The dummies of a built room's model that `SetAllGim`'s searches find,
+    /// in their order: the search's index and the dummy's world matrix.
+    fn room_dummies(&self, slot: &Slot) -> Vec<(usize, [V4; 4])> {
+        let Some(model) = slot.model else { return Vec::new() };
+        let Some(anm) = self.make_anm_in(slot.special, model, &Self::room_root(slot), 1) else { return Vec::new() };
+        let patterns = self.tables.gim_patterns;
+        let mut out = Vec::new();
+        for (k, pat) in patterns.iter().enumerate() {
+            for o in &anm.objects {
+                if self.name_in(slot.special, o.target).is_some_and(|n| pat.matches(n)) {
+                    out.push((k, o.world));
+                }
+            }
+        }
+        out
+    }
+
+    /// `DUNGEON::Generate`'s draws for a story dungeon (gcmn 0x005c12a0): each
+    /// floor's `fieldrand(5)` (ten floors, a lake one) before its
+    /// `MakeFloor`, whose `MakeRoom(ROOMDATA)`s run `SetAllGim` (0x005bb340)
+    /// in building order. A room holds no box or portal where a
+    /// `GIMMICKDATA` row or an event is; else a box on `fieldrand(100) >=
+    /// 20`, a portal always, a special object on `>= 31`.
+    fn story_rolls(&mut self, edit: &'static dungeon::EditDungeon) {
+        let levels = if dungeon::is_lake(self.dtype) { 1 } else { FLOORS };
+        for f in 0..levels.min(self.floors.len()) {
+            self.rng.below(5);
+            for i in self.floors[f].order.clone() {
+                let kinds: Vec<usize> =
+                    self.room_dummies(&self.floors[f].rooms[i]).into_iter().map(|(k, _)| k).collect();
+                let rolls =
+                    kinds.into_iter().map(|k| self.story_keep(edit, GIM_KINDS[k], f as i32, i as i32)).collect();
+                self.floors[f].rooms[i].rolls = Some(rolls);
+            }
+        }
+    }
+
     /// `DUNGEON::SetAllGim(room)` (gcmn 0x005bb340) over every room the dungeon
     /// built, in `MakeRoom`'s order: each dummy of the room's model that a search
-    /// finds (and a roll keeps) becomes a `gimPos` slot, heading along its x
-    /// axis. A story room holds no box or portal where a `GIMMICKDATA` row or an
-    /// event is; else a box on `fieldrand(100) >= 20`, a portal always, a
-    /// special object on `>= 31`. The box and portal headings and a story
-    /// dungeon's `fieldrand` state are not checked against the game.
+    /// finds and its roll kept becomes a `gimPos` slot ([`gim_heading`]).
     pub fn gim_slots(&mut self) -> Vec<piney_battle::entry::GimSlot> {
         let mut out = Vec::new();
-        let patterns = self.tables.gim_patterns;
-        let edit = self.edit;
-        for (f, fl) in self.floors.clone().iter().enumerate() {
+        for (f, fl) in self.floors.iter().enumerate() {
             for &i in &fl.order {
                 let Some(slot) = fl.rooms.get(i) else { continue };
-                let Some(model) = slot.model else { continue };
-                let Some(anm) = self.make_anm_in(slot.special, model, &Self::room_root(slot), 1) else { continue };
-                let mut roll = 0usize;
-                for (k, pat) in patterns.iter().enumerate() {
-                    let found: Vec<[V4; 4]> = anm
-                        .objects
-                        .iter()
-                        .filter(|o| self.name_in(slot.special, o.target).is_some_and(|n| pat.matches(n)))
-                        .map(|o| o.world)
-                        .collect();
-                    for w in found {
-                        let keep = match &slot.rolls {
-                            Some(r) => {
-                                let x = r.get(roll).copied().unwrap_or(false);
-                                roll += 1;
-                                x
-                            }
-                            None => self.story_keep(edit, GIM_KINDS[k], f as i32, i as i32),
-                        };
-                        if !keep {
-                            continue;
-                        }
-                        let heading = piney_data::libm::atan2f(w[0][1], w[0][0]);
-                        out.push(piney_battle::entry::GimSlot {
-                            pos: w[3],
-                            dirc: [0, 0, heading, 0],
-                            floor: f as i8,
-                            block: i as i8,
-                            kind: GIM_KINDS[k],
-                        });
+                let rolls = slot.rolls.as_deref().unwrap_or(&[]);
+                for (n, (k, w)) in self.room_dummies(slot).into_iter().enumerate() {
+                    if !rolls.get(n).copied().unwrap_or(false) {
+                        continue;
                     }
+                    let heading = gim_heading(GIM_KINDS[k], &w);
+                    out.push(piney_battle::entry::GimSlot {
+                        pos: w[3],
+                        dirc: [0, 0, heading, 0],
+                        floor: f as i8,
+                        block: i as i8,
+                        kind: GIM_KINDS[k],
+                    });
                 }
             }
         }
@@ -2041,8 +2083,7 @@ impl DungeonArea {
 
     /// A story room's `CheckEntryItemBox` / `CheckEntryCircle` (gcmn
     /// 0x005cf800, 0x005cf690) and the special objects' roll.
-    fn story_keep(&mut self, edit: Option<&'static dungeon::EditDungeon>, kind: i8, f: i32, b: i32) -> bool {
-        let Some(e) = edit else { return true };
+    fn story_keep(&mut self, e: &'static dungeon::EditDungeon, kind: i8, f: i32, b: i32) -> bool {
         let rows = |lo: i32| e.gimmicks.iter().any(|g| g.floor == f && g.index == b && (lo..=4).contains(&g.gim_type));
         let event = e.rooms.iter().any(|r| r.event_flag != 0 && r.floor == f && r.index == b);
         match kind {

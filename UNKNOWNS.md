@@ -290,7 +290,7 @@ player until one of these turns out wrong.
 - [[142]] ccDog's constructor leaves the stuck count (+0x21c) unset — the port starts at 0
 - [[154]] the Zeit statue not reached and opened in play — last floor of its dungeon
 - [[154]] the fourth clock (+0x70) has no reader found — not found
-- [[157]] a story dungeon's fieldrand after Generate — docs/engine/dungeon.md Unknown
+- [[157]] a story dungeon's fieldrand after Generate — docs/engine/dungeon.md Unknown — answered by [[496]] (Generate's per-floor draw and SetAllGim's story rolls at construction; tools/test_dungeon_rt.py compares fieldrand and gimPos)
 - [[162]] the Grunties' camera writes land a frame's NPCs later than the game's — ordering
 - [[162]] runAway's one frame of checkHitResultAttlibute not compared — harness lacks the collision's last result
 - [[163]] what row 19 with param[2] 0 was for — no setter leaves it 0
@@ -1236,7 +1236,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/dungeon.md: type 32's leaves (ANM_se4_2lea, LEAF), a later volume's room — play (duplicates [[114]]) — answered by [[492]]
 - docs/engine/dungeon.md: how ccLight combines an event room's LGT_ record with SetRoom's place; the ban block's nodes — research (duplicates [[114]])
 - docs/engine/dungeon.md: EntryObject's palettes for the lakes' statues and flowers with GetBG not 0 — play (duplicates [[157]], [[161]]) — answered by [[482]]
-- docs/engine/dungeon.md: a story dungeon's fieldrand after Generate — research (duplicates [[157]])
+- docs/engine/dungeon.md: a story dungeon's fieldrand after Generate — research (duplicates [[157]]) — answered by [[496]] (Generate's per-floor draw and SetAllGim's story rolls at construction; tools/test_dungeon_rt.py compares fieldrand and gimPos)
 - docs/engine/dungeon.md: what ccObj::Duplicate(0x2008)/(0x2000) copy of the water's object — research (duplicates [[157]])
 - docs/engine/dungeon.md: whether a room's dummies can make more than 32 room lights — research (none checked comes near)
 - docs/engine/dungeon.md: the warps (warpPoint) — research; a lake's way between its dungeons not run against the game — answered by [[379]] (test_lake_stairs)
