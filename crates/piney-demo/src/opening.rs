@@ -84,6 +84,19 @@ pub const DEMO_FADE_AT: i32 = 2380;
 pub const DEMO_LEAVE_AT: i32 = 2400;
 /// `AllAnimate`: the icons' turn a frame about y, radians (0x3cf5c28f).
 pub const ICON_SPIN: u32 = 0x3cf5_c28f;
+
+/// `AllAnimate`'s `m_Rot_ICO.y` a frame on: less [`ICON_SPIN`], wrapped by
+/// 2 pi above pi and below -pi (EE single precision).
+pub fn spin_icons(y: f32) -> f32 {
+    let mut y = eef::sub(y, f32::from_bits(ICON_SPIN));
+    if !eef::le(y, f32::from_bits(PI)) {
+        y = eef::sub(y, f32::from_bits(TWO_PI));
+    }
+    if eef::lt(y, f32::from_bits(MINUS_PI)) {
+        y = eef::add(y, f32::from_bits(TWO_PI));
+    }
+    y
+}
 const PI: u32 = 0x4049_0fdb;
 const MINUS_PI: u32 = 0xc049_0fdb;
 const TWO_PI: u32 = 0x40c9_0fdb;
@@ -1052,15 +1065,7 @@ impl Opening {
             }
             _ => {}
         }
-        let y = eef::sub(self.rot_ico[1], f32::from_bits(ICON_SPIN));
-        self.rot_ico[1] = y;
-        if !eef::le(y, f32::from_bits(PI)) {
-            self.rot_ico[1] = eef::sub(y, f32::from_bits(TWO_PI));
-        }
-        let y = self.rot_ico[1];
-        if eef::lt(y, f32::from_bits(MINUS_PI)) {
-            self.rot_ico[1] = eef::add(y, f32::from_bits(TWO_PI));
-        }
+        self.rot_ico[1] = spin_icons(self.rot_ico[1]);
         for i in 0..n {
             self.ico_dvec[i] = dummy_pos(&self.file, &self.a_ico_d[i], self.coord[i]);
             place(&mut self.a_ico[i], self.ico_dvec[i], Some(self.rot_ico));

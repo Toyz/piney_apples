@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-500 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 126, save 16, script 60, test 231, tooling 47, ui 100, video 16, volumes 89, world 143. 122 entries still have open questions - [listed below](#still-open).
+501 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 126, save 16, script 60, test 231, tooling 47, ui 101, video 16, volumes 89, world 143. 122 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -512,6 +512,7 @@ The [reference](docs/README.md) says what is true now.
 | 498 | [The console's Tab completes arguments too: a command's on/off and stop words from its help line, and paths for PATH and FILE](worklog/0498-the-console-s-tab-completes-arguments-too-a-command-s-on.md) | 2026-10-25 | tooling |
 | 499 | [The STATUS title's 1-pixel gaps are the original's on hardware: the GS samples the blank cell's clear ninth column under the game's REPEAT clamp](worklog/0499-the-status-title-s-1-pixel-gaps-are-the-original-s-on.md) | 2026-10-25 | render |
 | 500 | [The chest's target cursor is the game's: every draw compared for a chest target, and the ghost square is the diamond cell's own inner square](worklog/0500-the-chest-s-target-cursor-is-the-game-s-every-draw-compared.md) | 2026-10-25 | ui |
+| 501 | [The launcher's icons turn as the title's: the whole icon by AllAnimate's m_Rot_ICO, not the letter alone](worklog/0501-the-launcher-s-icons-turn-as-the-title-s-the-whole-icon-by.md) | 2026-10-26 | ui |
 
 ## Still open
 

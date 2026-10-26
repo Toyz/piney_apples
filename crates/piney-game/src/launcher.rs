@@ -40,9 +40,6 @@ const SE_OK: i32 = 4;
 const SE_REFUSED: i32 = 20;
 /// Frames between the choice and the game.
 const CHOSEN_FRAMES: u32 = 24;
-/// The launcher's frames (two vblanks each) an icon takes to turn once:
-/// the title's 120 at one vblank.
-const ICON_TURN: u32 = 60;
 /// Where the credit's text starts: its right end 24 in from the screen's
 /// (the font's type 2 half-width cells are 7.5 across here), on the
 /// copyright's second line.
@@ -128,6 +125,8 @@ pub struct LauncherMode {
     main_volume: Option<i16>,
     /// The opening is over and the rows answer.
     menu: bool,
+    /// The icons' turn about y (`m_Rot_ICO.y`, the title's).
+    icon_rot: f32,
     /// The row chosen and the frames until its game starts.
     chosen: Option<(usize, u32)>,
     frame: u32,
@@ -165,6 +164,7 @@ impl LauncherMode {
             menu: false,
             chosen: None,
             frame: 0,
+            icon_rot: 0.0,
             events: Vec::new(),
         }
     }
@@ -277,6 +277,11 @@ impl LauncherMode {
         let pulse = 0.7 + 0.3 * (self.frame as f32 * 0.12).sin();
         let have: Vec<bool> = self.discs.iter().map(Option::is_some).collect();
         let frame = self.frame;
+        // The title's m_Rot_ICO a vblank on, twice a launcher frame.
+        if menu {
+            self.icon_rot = piney_demo::opening::spin_icons(piney_demo::opening::spin_icons(self.icon_rot));
+        }
+        let rot = self.icon_rot;
         let Some(scene) = self.selector.as_mut().and_then(|p| p.stream_mut().scene_mut()) else { return };
         let first = |scene: &piney_stream::scene::Scene, name: &str| scene.nodes_named(name).first().copied();
         for (row, &have) in have.iter().enumerate() {
@@ -309,12 +314,11 @@ impl LauncherMode {
                     scene.set_alpha(i, dim);
                 }
             }
-            // The icon turns once the rows answer, as the title's do
-            // (`ANM_xdt_ic00`: its inner object a turn about y every 120
-            // frames at 60 a second).
-            if menu && let Some(i) = first(scene, &format!("OBJ_xdt_ico_{row}1_")) {
-                let turn = (frame % ICON_TURN) as f32 / ICON_TURN as f32 * std::f32::consts::TAU;
-                scene.turn_y(i, turn.to_bits());
+            // The icon turns once the rows answer, as the title's do: the
+            // whole icon (its root, the shell, and the letter with it)
+            // about y at its place by `m_Rot_ICO` (`AllAnimate`).
+            if menu && let Some(i) = first(scene, &format!("OBJ_xdt_ico_{row}0_")) {
+                scene.turn_y(i, rot.to_bits());
             }
         }
     }
@@ -615,7 +619,7 @@ mod tests {
             gs.set_overlay(l.archive());
             gs.render(&frame);
             let (w, h) = gs.target_size();
-            let path = format!("{dir}/l-{:03}.png", l.frame % ICON_TURN);
+            let path = format!("{dir}/l-{:03}.png", l.frame);
             std::fs::write(&path, piney_gs::png::encode(w, h, &gs.read_back())).unwrap();
             shots += 1;
             if shots == 12 {
