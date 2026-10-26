@@ -1651,7 +1651,8 @@ class FieldUiAgainstGame(unittest.TestCase):
                                                    (0x8, b"Merchant", 0, 0, 0, 0, (10, 5)),
                                                    (0x80, b"Skeith", 9000, 12000, 0, 0, None),
                                                    (0x80, b"Innis", 29884, 30000, 0, 0, None),
-                                                   (0x40, b"Big One", 1234, 20000, 0, 0, (300, 100))):
+                                                   (0x40, b"Big One", 1234, 20000, 0, 0, (300, 100)),
+                                                   (0x100000, b"Treasure", 0, 0, 0, 0, (260, 300))):
             sc = Scenario(70)
             self.party(sc, 2)
             sc.target = Char(0x200, types, 5, hp, sp, mhp, msp, name, tag=tag)

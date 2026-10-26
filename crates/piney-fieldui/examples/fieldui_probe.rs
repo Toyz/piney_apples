@@ -972,7 +972,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Request::DrainAffect(h) => format!("[\"affect\",{h},13]"),
                             Request::Affect { target, kind } => format!("[\"affect\",{target},{kind}]"),
                             Request::Flash => "[\"flash\"]".into(),
-                            Request::KeepLayers | Request::AreaCodeSet(_) | Request::AreaLevel(_) => String::new(),
+                            Request::KeepLayers
+                            | Request::AreaCodeSet(_)
+                            | Request::AreaLevel(_)
+                            | Request::FieldSeed(_) => String::new(),
                             Request::TransferOut(h) => format!("[\"transfer_out\",{h}]"),
                             Request::DeleteNoPartyMember => "[\"delete_no_party\"]".into(),
                             Request::GoToArea(w) => format!("[\"goto\",{},{},{}]", w[0], w[1], w[2]),

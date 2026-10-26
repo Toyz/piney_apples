@@ -184,3 +184,54 @@ fn hold_until(s: &mut Session, max: u32, done: impl Fn(&Session) -> bool) {
     }
     panic!("not reached in {max} frames: {}", Mode::title(s));
 }
+
+/// Shots of the target cursor on area 18's B2 story box: Kite walked to
+/// room 4 and run at the box until it is his command target, then 40
+/// frames still, every 4th to `$PINEY_SHOTS` (/mnt/data/claude/scratch/
+/// chest), with the cursor's packets printed.
+#[test]
+#[ignore]
+fn chest_cursor_shots() {
+    let Some(mut s) = in_area_18() else { return };
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/chest".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    s.console("god");
+    hold_until(&mut s, 600, |s| matches!(&s.stage, Stage::Area(a) if matches!(a.world().place(), Place::Dungeon(_))));
+    walk_to(&mut s, (1, 4), 30000, |_, _, _| {});
+    let the_box = |s: &Session| {
+        let Stage::Area(a) = &s.stage else { return None };
+        let c = a.world().combat();
+        c.ctrl.list(Kind::Gimmick).into_iter().find(|&g| {
+            c.ctrl.entry_obj(g).is_some_and(|o| o.obj_flag && o.gim_id == 0 && o.ent.floor == 1 && o.ent.block == 4)
+        })
+    };
+    hold_until(&mut s, 300, |s| the_box(s).is_some());
+    let g = the_box(&s).unwrap();
+    let mut pad = Pad::default();
+    for _ in 0..400 {
+        let Stage::Area(a) = &s.stage else { panic!("left the area") };
+        let w = a.world();
+        if w.command_target() == Some(g) {
+            break;
+        }
+        let c = w.combat();
+        let at = c.scene.chars[g].pos.map(f32::from_bits);
+        let p = c.scene.chars[c.kite.unwrap()].pos.map(f32::from_bits);
+        let cam_z = f32::from_bits(w.camera().rot()[2]);
+        pad.read(&stick_toward(cam_z, (at[0] - p[0]).atan2(-(at[1] - p[1]))));
+        s.step(&pad);
+        s.take_events();
+    }
+    let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap();
+    for f in 0..40 {
+        pad.read(&Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
+        let frame = s.step(&pad);
+        s.take_events();
+        if f % 4 == 0 {
+            gs.set_overlay(Mode::archive(&s));
+            gs.render(&frame);
+            let (wd, h) = gs.target_size();
+            std::fs::write(format!("{dir}/f{f:02}.png"), piney_gs::png::encode(wd, h, &gs.read_back())).unwrap();
+        }
+    }
+}
