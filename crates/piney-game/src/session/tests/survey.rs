@@ -3972,15 +3972,17 @@ pub(super) fn fighters(a: &crate::area::AreaMode) -> String {
                     let (a, b) = (c.scene.chars[kk].pos.map(f32::from_bits), ch.pos.map(f32::from_bits));
                     (a[0] - b[0]).hypot(a[1] - b[1])
                 });
+                // A boss's act and its Epitaph flag.
+                let boss =
+                    f.boss.as_ref().map_or(String::new(), |b| format!(" boss act {} epitaph {}", b.act_num, b.epitaph));
                 format!(
-                    "{} {}/{} lv {} pp {} break {}{} at {d:.0} aims {:?} skill {}",
+                    "{} {}/{} lv {} pp {} break {}{boss} at {d:.0} aims {:?} skill {}",
                     String::from_utf8_lossy(&f.row.name),
                     ch.hp,
                     ch.max_hp,
                     f.row.base.level,
                     p.pp,
                     p.pp_count,
-                    if f.boss.is_some() { " boss" } else { "" },
                     ch.target_char,
                     ch.skill_id
                 )
