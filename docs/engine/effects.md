@@ -2466,9 +2466,10 @@ every draw in order, every event and `rand()`'s state:
   aref 112); the shadow model switch for effect objects (never reached).
 - Effects the game calls that are not ported (Skeith's `BeginDeadEffect`
   and `ccBossEffDead` are, in piney-battle's `boss.rs` and
-  piney-effect's): `effVirusCrystal` from `ccRtownPC::eventMode` (the
-  mode volume 2's event 114 gives), and the later volumes' bosses'
-  `effSmoke`. Every other caller of `effSmoke` in Infection is ported
+  piney-effect's): the later volumes' bosses' `effSmoke`.
+  `ccRtownPC::eventMode`'s -3 is ported: `effAfterDrain`,
+  `effVirusCrystal` and `effRemoveTrap`
+  ([field-game](field-game.md)). Every other caller of `effSmoke` in Infection is ported
   (`WORLD::DrawSteam` and `DrawEffect` in `field_ambient`, `ccGimSymbol`,
   `ccDog`, `ccPGuso`, `ccPucciguso`, the enemies' dust and broken parts).
 - `effResistantShield` with no `affectPerson` reads the heading's target

@@ -1748,6 +1748,11 @@ class MerchantRun(Pieces):
             # Outbreak and Quarantine name no AwakeDistantLight: left to run.
             if self.prog.symbol_named(name) is not None:
                 m.hooks[sym(name)] = nop
+        # The Administrator's act -5: its sound and rings, recorded.
+        for name in ("effSkillExecForceRing__FP6ccCharii", "effSkillExecForceRing2__FP6ccCharii",
+                     "effSkillTornadeRings__FP6ccCharii"):
+            m.hooks[sym(name)] = lambda mm, ch, *a, name=name: self.events.append(("ring", name)) or 0
+        m.hooks[sym("ccSeOn__Fi")] = lambda mm, n, *a: self.events.append(("se", n)) or 0
         for off, v in ((0x420, -24000.0), (0x424, -24000.0), (0x428, 24000.0), (0x42C, 24000.0)):
             m.store(WM + off, 4, fb(v))
         m.store(PLW_PW, 4, PLAYER)
@@ -1859,6 +1864,10 @@ class MerchantRun(Pieces):
             elif op[0] == "fade":
                 m.store(o + 0xF0, 2, op[2])
                 m.store(o + 0xF2, 2, op[3])
+            elif op[0] == "act":
+                # The event's `npc_act` on a merchant: actNum N, actProcess 0.
+                m.store(o + 0x1F4, 4, op[2] & 0xFFFFFFFF)
+                m.store(o + 0x1F8, 4, 0)
         out, layers, gone = [], [], []
         for o in self.objs:
             self.events = []
@@ -2033,7 +2042,9 @@ class MerchantsAgainstGame(unittest.TestCase):
         self.assertEqual([o["id"] for o in first], [29, 5, 6, 7, 8, 9, 10])
         here = [struct.unpack("<f", struct.pack("<I", v))[0] for v in first[0]["pos"][:3]]
         rng = random.Random(60)
-        ops = {100: [("breed", 0, 14)], 300: [("breed", 0, 0)], 400: [("grot", 0, 8192, 64)]}
+        # From 500 the event's acts on him: shown (2), then the force rings (-5).
+        ops = {100: [("breed", 0, 14)], 300: [("breed", 0, 0)], 400: [("grot", 0, 8192, 64)],
+               500: [("act", 0, 2)], 520: [("act", 0, -5)]}
         lines, frames = [], []
         for i in range(600):
             pl = (here[0] + rng.uniform(-900, 900), here[1] + rng.uniform(-900, 900), here[2])
@@ -2048,15 +2059,16 @@ class MerchantsAgainstGame(unittest.TestCase):
             lines.append(line)
         got = self.ask(["merchstart " + hexs(*[fb(v) for v in start], 1, 4, 29, 6)] + lines)
         self.assertEqual(first, got[0])
-        drawn = 0
+        drawn, rings = 0, 0
         for i, (f, port) in enumerate(zip(frames, got[1:])):
             pl, cam, view, deg1, eye, kite_hit, ops = f
             want, _ = g.frame([fb(v) for v in pl], [fb(v) for v in cam], [fb(v) for v in view], deg1 & 0xFFFF,
                               eye, kite_hit, ops)
             drawn += want[0]["drawn"]
+            rings += want[0]["act"][:2] == [-5, 2]
             self.assertEqual(want, port, "frame %d %s" % (i, f))
         self.assertGreater(drawn, 0)
-
+        self.assertGreater(rings, 0, "act -5 never ran its course")
 
     def test_every_town(self):
         """ccSetMerchant(0) in each Root Town beside set_merchants, every merchant (ids, names,
@@ -2190,7 +2202,7 @@ class TownPcsRun(Field):
         super().__init__(town)
         m, sym = self.m, self.sym
         self.stems = {}
-        rows = list(range(30, 80)) + ([120, 121] + list(range(159, 168)) + list(range(180, 184)) if LATER else [])
+        rows = list(range(30, 80)) + [139] + ([120, 121] + list(range(159, 168)) + list(range(180, 184)) if LATER else [])
         for row in rows:
             f = bytes(self.prog.cstr(self.prog.u32(NPC_TBL + 0x70 * row + 0x6C))).decode()
             self.stems[row] = f.split(".")[0].lower()
@@ -2267,7 +2279,12 @@ class TownPcsRun(Field):
         # A SEARCH PC's going: effOpenBox at its place, and at its last stage effVirusCrystal and
         # ccSeOn3DNote(167, pos, 40) - recorded against the PC whose pos (+0x40) they were given.
         m.hooks[sym("effOpenBox__FPf")] = lambda mm, pos, *a: self.events.append(("openbox", pos - 0x40)) or 0
-        m.hooks[sym("effVirusCrystal__FPf")] = lambda mm, pos, *a: self.events.append(("crystal", pos - 0x40)) or 0
+        # Row 139's drain (eventMode -3) passes a copy of its pos: kept by value.
+        m.hooks[sym("effVirusCrystal__FPf")] = lambda mm, pos, *a: self.events.extend(
+            [("crystal", pos - 0x40), ("crystalv", tuple(self.rvec(pos)[:2]))]) or 0
+        m.hooks[sym("effAfterDrain__FP6ccChari")] = lambda mm, ch, *a: self.events.append(("afterdrain", ch)) or 0
+        m.hooks[sym("effRemoveTrap__FPfii")] = lambda mm, pos, a, b, *r: self.events.append(
+            ("removetrap", tuple(self.rvec(pos)[:2]), a, b)) or 0
         m.hooks[sym("ccSeOn3DNote__FiPfc")] = (
             lambda mm, n, pos, note, *a: self.events.append(("se3d", pos - 0x40, n, note & 0xFF)) or 0)
 
@@ -2426,6 +2443,11 @@ class TownPcsRun(Field):
                     crystal = ("crystal", o) in mine
                     assert not crystal or ("se3d", o, 167, 40) in mine, mine
                     events.append(["vanish", int(crystal)])
+                elif e[0] == "afterdrain":
+                    # Then effVirusCrystal and effRemoveTrap(pos, 103, 121) at its place.
+                    at = tuple(self.rvec(o + 0x40)[:2])
+                    assert ("crystalv", at) in self.events and ("removetrap", at, 103, 121) in self.events
+                    events.append(["drained"])
             pcs.append({
                 "row": h(m.load(o, 4) + 0xC), "pos": self.rvec(o + 0x40), "posp": self.rvec(o + 0x50),
                 "dirc": self.rvec(o + 0x60), "act": h(o + 0x2A4), "proc": h(o + 0x2A6),
@@ -2512,7 +2534,7 @@ class TownPcsRun(Field):
             o, kind, x, y, z = self.pcs[a[1]], a[2], a[3], a[4], a[5]
             ten = fb(10.0)
             if kind == 0:
-                m.store(o + 0x2A8, 2, x)
+                m.store(o + 0x2A8, 2, x & 0xFFFF)
                 m.store(o + 0x2AA, 2, 0)
             elif kind in (1, 2):
                 m.store(o + 0x2A8, 2, 0xFFFF)
@@ -2717,6 +2739,7 @@ class TownPcsAgainstGame(unittest.TestCase):
                 stats["searching"] += pc.get("search", 0) != 0
                 stats["gone for the race"] += pc["act"] == 9
                 stats["vanished"] += sum(e[0] == "vanish" for e in pc["events"])
+                stats["drained"] += sum(e[0] == "drained" for e in pc["events"])
                 stats["crystal"] += sum(e == ["vanish", 1] for e in pc["events"])
         got = ask(lines)
         self.assertEqual({"town": want0[0], "pcs": want0[1]}, got[0], label + " start")
@@ -2863,6 +2886,13 @@ class TownPcsAgainstGame(unittest.TestCase):
         seen.update(self.run_pcs(g, "shops", (fb(2000.0), fb(-2000.0), 0), 0, 12345, 1, 1100,
                                  chase(away=(9999, 9999), rest=((200, 700),))))
         seen.update(self.run_pcs(g, "event", (fb(300.0), fb(-300.0), fb(600.0)), 0, 99, 1, 900, event_pc))
+
+        def drain_pc(i, kite, pcs):
+            # Row 139 brought in, shown, then drained (eventMode -3): its two clips, the drain's
+            # effects and the fade.
+            script = {80: [("add", 139, -1)], 81: [("ev", 15, 0, 3, 0, 0)], 160: [("ev", 15, 0, -3, 0, 0)]}
+            return 0, 0, script.get(i, [])
+        seen.update(self.run_pcs(g, "drain", (fb(300.0), fb(-300.0), fb(600.0)), 0, 99, 1, 300, drain_pc))
 
         held = {}
 

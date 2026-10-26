@@ -1311,6 +1311,13 @@ impl Mode for WorldMode {
                             self.events.push(Event::Se3d { n: 167, pos, note: Some(40), ear });
                         }
                     }
+                    piney_world::rtownpc::PcEvent::Drained { pos } => {
+                        self.events.push(Event::Se(79));
+                        pc_starts.push(crate::town_fx::Start::AfterDrain(2 << 24 | (code as u32 & 0xff_ffff)));
+                        self.events.push(Event::Se(60));
+                        pc_starts.push(crate::town_fx::Start::VirusCrystal(pos));
+                        pc_starts.push(crate::town_fx::Start::RemoveTrap(pos, 103, 121));
+                    }
                     piney_world::rtownpc::PcEvent::Step { param, ccs_type, pos, attribute, feet, dirc_z, speed } => {
                         if let Some(se) = piney_audio::se3d::pc_note(param, ccs_type, attribute) {
                             let cam = self.world.camera().active();

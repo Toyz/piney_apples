@@ -310,7 +310,15 @@ pub enum PcEvent {
     /// at its place, and at stage 5 `effVirusCrystal` there and
     /// `ccSeOn3DNote(167, pos, 40)` (MUT gcmn 0x00524568).
     Vanish { pos: V4, crystal: bool },
+    /// Row 139's drain (`npc_act -3`, its second step; INF gcmn
+    /// 0x00508d40, MUT 0x00525334): `ccSeOn(79)`, `effAfterDrain(pc, 0)`,
+    /// `ccSeOn(60)`, then `effVirusCrystal` and `effRemoveTrap(pos, 103,
+    /// 121)` at its place.
+    Drained { pos: V4 },
 }
+
+/// The one `npcTbl` row `eventMode`'s -3 acts on (`+0x124 == 139`).
+pub const DRAIN_ROW: usize = 139;
 
 /// The town's walking PCs' shared state: the globals of `rtownnpc.cpp` and
 /// what they read of the rest of the game.
@@ -1626,7 +1634,33 @@ impl RtownPc {
                 self.ev_act_num = 2;
                 ctx.hits.hit_enable(&mut self.char.hit);
             }
-            // -3: row 139's drain (anmTbl[5], [6], effects), not a town PC's.
+            // -3, row 139's drain (MUT gcmn 0x00525264): shown whole on
+            // anmTbl[5], then anmTbl[6] with the drain's sounds and
+            // effects, then a fade by 0.02 a frame; no other row moves.
+            -3 if self.row.row == DRAIN_ROW => match self.ev_act_process {
+                0 => {
+                    self.transrate = ONE;
+                    self.set_anm(5);
+                    self.ev_act_process = 1;
+                }
+                1 | 2 => {
+                    if self.ev_act_process == 1 {
+                        self.set_anm(6);
+                    }
+                    self.events.push(PcEvent::Drained { pos: self.char.pos });
+                    self.ev_act_process = 3;
+                }
+                3 => {
+                    let t = sub(self.transrate, FADE_STEP);
+                    self.transrate = t;
+                    if lt(t, 0) {
+                        self.transrate = 0;
+                        self.ev_act_process = 4;
+                        self.act_cnt = 0;
+                    }
+                }
+                _ => {}
+            },
             -3 => {}
             _ => {
                 if self.ev_act_process == 0 {

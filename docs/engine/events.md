@@ -3,7 +3,7 @@ title: Event scripts
 status: partial
 volumes: all
 covers: MUT SLUS_205.62:0x001bdf00 ccEvent::Execute, OUT SLUS_205.63:0x001b4250, QUA SLUS_205.64:0x001bba60; INF SLUS_202.67:0x001a8d20 ccEvent::Execute, 0x001a7400 ccEvent::CheckOpen, 0x001a6ec0 ccEvent::SetCurrentOpen, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x001ac7c8 ccEvent::Execute case 45 (radiator), 0x00317e30 eventTbl, evMsgTbl, evMsgTblp
-worklog: 18, 24, 40, 176, 178, 179, 239, 325, 376, 377, 489
+worklog: 18, 24, 40, 176, 178, 179, 239, 325, 376, 377, 489, 490
 ---
 
 # Event scripts
@@ -523,5 +523,3 @@ The boards, the windows and the camera:
 
 ## Unknown
 
-- `npc_act` -3 and -5 (row 139's drain, the Administrator's -5) are not
-  ported; only volume 2's event 114 uses them.

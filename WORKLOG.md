@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-489 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 125, save 16, script 58, test 230, tooling 45, ui 98, video 16, volumes 89, world 140.
+490 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 125, save 16, script 58, test 230, tooling 45, ui 98, video 16, volumes 89, world 141.
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -501,3 +501,4 @@ The [reference](docs/README.md) says what is true now.
 | 487 | [A later volume without Infection's disc: a clear error before generating, and every played disc named first so Infection's is found](worklog/0487-a-later-volume-without-infection-s-disc-a-clear-error.md) | 2026-10-25 | build |
 | 488 | [Innis drained under the survey's pilot reaches its Epitaph: the first drain at a break, the item drop with it](worklog/0488-innis-drained-under-the-survey-s-pilot-reaches-its-epitaph.md) | 2026-10-25 | battle |
 | 489 | [The later volumes' event cases settled: the rewritten ones are Infection's behaviour, area 126 and the NULL dtMenu test as the port has them, and nothing fills the BSS message groups](worklog/0489-the-later-volumes-event-cases-settled-the-rewritten-ones.md) | 2026-10-25 | script |
+| 490 | [npc_act -3, row 139's drain, ported and checked against the game; the Administrator's -5 already was, now checked too](worklog/0490-npc-act-3-row-139-s-drain-ported-and-checked-against-the.md) | 2026-10-25 | world |

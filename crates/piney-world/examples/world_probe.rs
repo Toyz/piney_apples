@@ -555,6 +555,8 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
                         (m.entry.fade_flag, m.entry.fade_cnt) = (n(k + 2) as i16, n(k + 3) as i16);
                         k += 1;
                     }
+                    // The event's `npc_act` on him: actNum N, actProcess 0.
+                    "act" => (m.act_num, m.act_process) = (n(k + 2) as i32, 0),
                     op => panic!("merch: {op}?"),
                 }
                 k += 3;
@@ -702,6 +704,7 @@ fn pcs_json(town: &piney_world::rtownpc::TownPcs, pcs: &[piney_world::rtownpc::R
                     PcEvent::Chat(t) => Some(format!("[\"chat\", {t:?}]")),
                     PcEvent::Transfer => Some("[\"transfer\"]".into()),
                     PcEvent::Vanish { crystal, .. } => Some(format!("[\"vanish\", {}]", u8::from(*crystal))),
+                    PcEvent::Drained { .. } => Some("[\"drained\"]".into()),
                     // The steps' sounds and dust are presentation, which
                     // the probe's game side does not record.
                     PcEvent::Step { .. } => None,

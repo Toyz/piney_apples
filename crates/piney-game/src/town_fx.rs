@@ -32,6 +32,11 @@ pub struct TownFx {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Start {
     Transfer(CharRef),
+    /// `effAfterDrain(ch, 0)`: a drained character's after-effect (row
+    /// 139's drain, `npc_act -3`).
+    AfterDrain(CharRef),
+    /// `effRemoveTrap(pos, a, b)`.
+    RemoveTrap(V4, i32, i32),
     WarpTransfer(CharRef),
     /// The Administrator's act -5: `effSkillExecForceRing(ch, 4, 1)`,
     /// `effSkillExecForceRing2(ch, 4, 1)` and `effSkillTornadeRings(ch, 4,
@@ -142,6 +147,12 @@ impl TownFx {
                 }
                 Start::WarpTransfer(c) => {
                     self.fx.warp_transfer(&mut h, c);
+                }
+                Start::AfterDrain(c) => {
+                    self.fx.after_drain(&mut h, c, 0);
+                }
+                Start::RemoveTrap(pos, a, b) => {
+                    self.fx.remove_trap(&mut h, pos, a, b);
                 }
                 Start::Vanish(c) => {
                     let pos = h.char_pos(c);
