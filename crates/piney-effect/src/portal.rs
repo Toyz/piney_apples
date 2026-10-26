@@ -409,14 +409,13 @@ impl MagicCircle {
 }
 
 /// `ccEntryChangeCLUT(ent, clump)` (gcmn 0x0042e670) on the circle:
-/// `ccClump::ChangeClut(CLT_x031c2, MAT_clut)`, as a swap of the palette
-/// `MAT_clut`'s texture uses (every texture on that palette takes it).
+/// `ccClump::ChangeClut(CLT_x031c2, MAT_clut)`, a swap of that material's
+/// palette (`(MAT_, CLT_)`, as [`piney_draw::ModelDraw::clut_swaps`]
+/// takes one).
 fn clut_swaps(f: &piney_desktop::assets::SceneFile) -> Option<(u32, u32)> {
     let mat = f.ccs.find_object(CLUT_MATERIAL)?;
-    let tex = f.scene.materials.get(&mat)?.texture;
-    let (textures, _) = piney_data::texture::read(&f.ccs).ok()?;
-    let from = textures.iter().find(|t| t.object == tex)?.clut;
-    Some((from, f.ccs.find_object(CLUT)?))
+    f.scene.materials.get(&mat)?;
+    Some((mat, f.ccs.find_object(CLUT)?))
 }
 
 impl MagicCircle {

@@ -505,8 +505,11 @@ pub struct ModelDraw {
     pub state: DrawState,
     /// How every material's texture is sampled (wrap is per mmat).
     pub tex: TexParams,
-    /// Palette replacements: (CLT_ drawn, CLT_ used instead), for
-    /// `ccAnm::ChangeClut`.
+    /// Palette replacements, each a `ccMaterial`'s clut changed in turn
+    /// (main 0x0013aad0, 0x0013d610): (CLT_, CLT_ used instead) changes
+    /// every material whose palette is now the first (`ccAnm::ChangeClut`,
+    /// `ccClump::ChangeClut(clut, clut)`); (MAT_, CLT_) that material's
+    /// (`ccClump::ChangeClut(clut, material)`). See [`clut_of`].
     pub clut_swaps: Vec<(u32, u32)>,
     /// Texture replacements: (MAT_ whose texture is replaced, TEX_ used
     /// instead, with its own palette), for `ccClump::ChangeTex` (the
@@ -535,6 +538,13 @@ pub struct ModelDraw {
     /// Vertex data the EE rewrote in the model's own packets before this
     /// draw; None: the model as the file has it.
     pub edits: Option<std::sync::Arc<VertexEdits>>,
+}
+
+/// The palette an mmat of material `material`, whose texture's own
+/// palette is `own`, draws with after `swaps` ([`ModelDraw::clut_swaps`]),
+/// applied in order as the game changes the `ccMaterial`.
+pub fn clut_of(swaps: &[(u32, u32)], material: Option<u32>, own: u32) -> u32 {
+    swaps.iter().fold(own, |c, &(from, to)| if from == c || Some(from) == material { to } else { c })
 }
 
 /// What the EE wrote into a model's vertex data in memory, which every
@@ -645,6 +655,20 @@ pub struct Lights {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A material's swap leaves another material on the same palette alone;
+    /// a palette's swap follows the palette as earlier swaps left it.
+    #[test]
+    fn palettes_change_by_material_and_by_palette() {
+        let (mat_a, mat_b, own, red, blue) = (10, 11, 20, 21, 22);
+        let by_material = [(mat_a, red)];
+        assert_eq!(clut_of(&by_material, Some(mat_a), own), red);
+        assert_eq!(clut_of(&by_material, Some(mat_b), own), own);
+        let chained = [(mat_a, red), (red, blue)];
+        assert_eq!(clut_of(&chained, Some(mat_a), own), blue);
+        assert_eq!(clut_of(&chained, Some(mat_b), own), own);
+        assert_eq!(clut_of(&[(own, blue)], Some(mat_b), own), blue);
+    }
 
     #[test]
     fn blend_register_round_trips() {

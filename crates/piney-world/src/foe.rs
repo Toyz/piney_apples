@@ -123,13 +123,13 @@ pub fn second_stem_of(name: &[u8]) -> String {
 // a posed clump -------------------------------------------------------------------------
 
 /// `ccClump::ChangeClut(clut, material)` (main 0x0013d610) as a swap: the
-/// material `material`'s texture drawn through `clut` in place of its own
-/// palette (`from`).
+/// `ccMaterial` of `material` (object `mat`) drawn through `clut` (`to`),
+/// whatever other material shares its texture's palette.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClutSwap {
     pub material: String,
     pub clut: String,
-    pub from: u32,
+    pub mat: u32,
     pub to: u32,
 }
 
@@ -168,16 +168,16 @@ impl Model {
         let f = self.body.file.clone();
         let m = f.ccs.find_object(material).ok_or_else(|| Error::NotFound(material.into()))?;
         let to = f.ccs.find_object(clut).ok_or_else(|| Error::NotFound(clut.into()))?;
-        let tex = f.scene.materials.get(&m).ok_or_else(|| Error::NotFound(material.into()))?.texture;
-        let (textures, _) = piney_data::texture::read(&f.ccs)?;
-        let from = textures.iter().find(|t| t.object == tex).ok_or_else(|| Error::NotFound(material.into()))?.clut;
-        self.swaps.push(ClutSwap { material: material.into(), clut: clut.into(), from, to });
+        if !f.scene.materials.contains_key(&m) {
+            return Err(Error::NotFound(material.into()));
+        }
+        self.swaps.push(ClutSwap { material: material.into(), clut: clut.into(), mat: m, to });
         Ok(())
     }
 
-    /// The swaps as the draw takes them.
+    /// The swaps as the draw takes them: (MAT_, CLT_), by material.
     pub fn clut_swaps(&self) -> Vec<(u32, u32)> {
-        self.swaps.iter().map(|s| (s.from, s.to)).collect()
+        self.swaps.iter().map(|s| (s.mat, s.to)).collect()
     }
 
     /// [`Body::parents`] of the model's body.
@@ -968,31 +968,39 @@ mod tests {
         assert_eq!(got, [(MAT_CLUT, "CLT_egmfbodyc3"), (G_MAT, G_CLUT)]);
     }
 
-    /// A swap by palette is a swap by material: no other material of the
-    /// file draws the swapped material's texture.
+    /// `ccClump::ChangeClut(clut, material)` changes that material's
+    /// palette only: every other material of the file, whatever palette
+    /// its texture has, draws with its own. Rows 87, 145 and 205 (ecs1,
+    /// egk1, elg1) have other materials on `MAT_clut`'s palette.
     #[test]
-    fn only_material_uses_swapped_palettes() {
+    fn a_palette_swap_is_the_materials_own() {
         let Some(mut d) = disc() else { return };
-        let mut looks: Vec<Model> = [67, 130, 151, 154, 185, 187, 189, 219, 268]
+        let mut looks: Vec<Model> = [67, 87, 130, 145, 151, 154, 185, 187, 189, 205, 219, 268]
             .iter()
             .map(|&id| EnemyLook::load(&mut d.files, &d.t, id).unwrap().model)
             .collect();
         looks.push(Circle::load(&mut d.files, Volume::Inf).unwrap().model);
+        let mut shared = 0;
         for m in looks {
             let f = m.file();
-            for s in &m.swaps {
-                let mat = f.ccs.find_object(&s.material).unwrap();
-                let tex = f.scene.materials[&mat].texture;
-                let others: Vec<u32> = f
-                    .scene
-                    .materials
-                    .iter()
-                    .filter(|(o, mt)| **o != mat && mt.texture == tex)
-                    .map(|(o, _)| *o)
-                    .collect();
-                assert!(others.is_empty(), "{}: {} shares its texture with {others:?}", f.stem, s.material);
+            let (textures, _) = piney_data::texture::read(&f.ccs).unwrap();
+            let swaps = m.clut_swaps();
+            let own_of = |o: u32| {
+                let tex = f.scene.materials.get(&o)?.texture;
+                textures.iter().find(|t| t.object == tex).map(|t| t.clut)
+            };
+            shared += m
+                .swaps
+                .iter()
+                .filter(|s| f.scene.materials.keys().any(|&o| o != s.mat && own_of(o) == own_of(s.mat)))
+                .count();
+            for (&o, mt) in &f.scene.materials {
+                let Some(own) = textures.iter().find(|t| t.object == mt.texture).map(|t| t.clut) else { continue };
+                let want = m.swaps.iter().rev().find(|s| s.mat == o).map_or(own, |s| s.to);
+                assert_eq!(piney_draw::clut_of(&swaps, Some(o), own), want, "{} material {o}", f.stem);
             }
         }
+        assert_eq!(shared, 3, "the rows whose MAT_clut shares its palette");
     }
 
     /// The Chicken Hand's `OBJ_dummy05` hangs from the tail in the clump

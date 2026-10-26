@@ -128,13 +128,14 @@ impl Assets {
         img
     }
 
-    fn material_texture(&mut self, stem: &str, mat: Option<u32>, tex_swaps: &[(u32, u32)]) -> Option<(u32, u32)> {
+    fn material_texture(&mut self, stem: &str, mat: Option<u32>, m: &ModelDraw) -> Option<(u32, u32)> {
         let f = self.file(stem)?;
-        let m = f.scene.materials.get(&mat?)?;
-        let texture = mat.and_then(|o| tex_swaps.iter().find(|(from, _)| *from == o)).map_or(m.texture, |s| s.1);
+        let material = f.scene.materials.get(&mat?)?;
+        let texture =
+            mat.and_then(|o| m.tex_swaps.iter().find(|(from, _)| *from == o)).map_or(material.texture, |s| s.1);
         let (textures, _) = texture::read(&f.ccs).ok()?;
         let t = textures.iter().find(|t| t.object == texture)?;
-        Some((t.object, t.clut))
+        Some((t.object, piney_draw::clut_of(&m.clut_swaps, mat, t.clut)))
     }
 }
 
@@ -596,9 +597,7 @@ impl Canvas {
             let Some(mm) = model.mmats.get(md.index as usize) else { continue };
             let morphed = if targets.is_empty() { None } else { model.morph(md.index as usize, &targets) };
             let positions = morphed.as_deref().unwrap_or(&mm.positions);
-            let tex = assets
-                .material_texture(&m.file, mm.material, &m.tex_swaps)
-                .and_then(|(t, c)| assets.image(&m.file, t, c));
+            let tex = assets.material_texture(&m.file, mm.material, m).and_then(|(t, c)| assets.image(&m.file, t, c));
             let texw = tex.as_ref().map_or((1.0, 1.0), |i| (i.w as f32, i.h as f32));
             let verts: Vec<Option<V>> = (0..mm.positions.len())
                 .map(|i| {

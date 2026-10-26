@@ -78,7 +78,7 @@ fn each_ryu_book_plays_its_own_cover() {
 }
 
 /// `ccThBook`'s palette: Book I draws the backdrop on its own palette,
-/// Book III on `CLT_x800bac1c2` (`stream_cluts[2]`), and Book I read
+/// Book III its `MAT_clut` on `CLT_x800bac1c2` (`stream_cluts[2]`), and Book I read
 /// after it in the same town keeps that one, the town's `str8800e`
 /// being the same loaded file.
 #[test]
@@ -87,7 +87,7 @@ fn a_ryu_books_cover_takes_the_books_palette() {
         let Some(mut s) = town(v) else { continue };
         let backdrop = StreamFile::read(&s.archive, "str8800e").unwrap();
         let id = |name: &str| backdrop.sf.ccs.find_object(name).unwrap();
-        let book3 = vec![(id("CLT_x800bac1"), id("CLT_x800bac1c2"))];
+        let book3 = vec![(id("MAT_clut"), id("CLT_x800bac1c2"))];
         assert_eq!(read_and_close(&mut s, v, 0).1, [Vec::new()], "{v:?} Book I first");
         assert_eq!(read_and_close(&mut s, v, 2).1, std::slice::from_ref(&book3), "{v:?} Book III");
         assert_eq!(read_and_close(&mut s, v, 0).1, [book3], "{v:?} Book I after Book III");

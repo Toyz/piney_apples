@@ -716,8 +716,7 @@ impl Gs {
                                     .and_then(|o| m.tex_swaps.iter().find(|(from, _)| *from == o))
                                     .map_or(mat.texture, |s| s.1);
                                 let t = file.texture(texture)?;
-                                let clut =
-                                    m.clut_swaps.iter().find(|(from, _)| *from == t.clut).map_or(t.clut, |s| s.1);
+                                let clut = piney_draw::clut_of(&m.clut_swaps, mm.material, t.clut);
                                 Some(TexKey::Ccs { file: m.file.clone(), texture, clut })
                             })
                         });
