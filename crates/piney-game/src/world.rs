@@ -312,6 +312,17 @@ impl WorldMode {
 
     /// The world: the session hands it the party the last area left; tests
     /// place the player.
+    /// `ccGame::ChangeArea(area, n)` from the town (a menu's, or the
+    /// console's `town`): `ChangeRequest`'s `ccDisableThEvent`, then the
+    /// session's change of scene.
+    pub fn change_area(&mut self, area: i32, n: i32) {
+        self.leaving = Some(format!("ChangeArea({area}, {n})"));
+        if let Some(vm) = &mut self.vm {
+            vm.disable();
+        }
+        self.events.push(Event::Go(piney_data::area::Go::ChangeArea(area, n)));
+    }
+
     pub fn world_mut(&mut self) -> &mut World {
         &mut self.world
     }
@@ -805,13 +816,7 @@ impl WorldMode {
                 }
                 self.events.push(Event::GoToArea(words));
             }
-            R::ChangeArea { area, n } => {
-                self.leaving = Some(format!("ChangeArea({area}, {n})"));
-                if let Some(vm) = &mut self.vm {
-                    vm.disable();
-                }
-                self.events.push(Event::Go(piney_data::area::Go::ChangeArea(area, n)));
-            }
+            R::ChangeArea { area, n } => self.change_area(area, n),
             // Log Out (4, 7) and OPTION's Title Screen (1, 7):
             // ccGame::ChangeRequest, for the session.
             R::ChangeMode { num, sf } => self.events.push(Event::ChangeMode { num, sf }),

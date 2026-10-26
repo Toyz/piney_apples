@@ -647,10 +647,14 @@ impl Session {
             let Some((n, town)) = num(1).and_then(|n| Some((n, Town::from_index(n)?))) else {
                 return "town N (0 Mac Anu, 1 Dun Loireag, 2 Carmina Gadelica, 3 Fort Ouph, 4 Lia Fail)".into();
             };
-            if !matches!(self.stage, Stage::World(_) | Stage::Area(_)) {
-                return "town works in The World (a town, field or dungeon)".into();
+            // As Gate Out's ChangeArea(0, town) goes: the scene's own
+            // change, its event task disabled and its tasks asleep.
+            let to = piney_world::area::kind::TOWN;
+            match &mut self.stage {
+                Stage::World(w) => w.change_area(to, n),
+                Stage::Area(a) => a.change_area(to, n),
+                _ => return "town works in The World (a town, field or dungeon)".into(),
             }
-            self.go(Pending::Go(piney_data::area::Go::ChangeArea(piney_world::area::kind::TOWN, n)));
             return format!("to {town:?}");
         }
         if cmd == "invite_party" {
@@ -3954,8 +3958,23 @@ mod tests {
         };
         let mut pad = Pad::default();
         let mut chunk = vec![0i16; 1600];
-        for to in [1, 0, 1] {
+        // Every way between Infection's towns: from the field, to the town
+        // it is in, to each other one, and a second jump before the first
+        // arrival is over (a negative wait: frames before the next).
+        let jumps: [(i32, i32); 9] =
+            [(1, 600), (1, 600), (0, 600), (2, 600), (2, 600), (1, 600), (0, -20), (2, 600), (0, 600)];
+        for (to, wait) in jumps {
             eprintln!("-- {}", s.console(&format!("town {to}")));
+            if wait < 0 {
+                for _ in 0..-wait {
+                    pad.read(&Raw { analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() });
+                    s.step(&pad);
+                    feed(&audio, s.take_events());
+                    audio.frame();
+                    audio.render(&mut chunk);
+                }
+                continue;
+            }
             let mut sq = 0f64;
             let mut n = 0usize;
             for k in 0..600u32 {

@@ -1215,6 +1215,15 @@ impl AreaMode {
         self.world.gate_out();
     }
 
+    /// `ccGame::ChangeArea(area, n)` as a menu makes it (the console's
+    /// `town`): the world's change of scene, whose `ChangeRequest` disables
+    /// the event task and puts the tasks to sleep as any other does.
+    pub fn change_area(&mut self, area: i32, n: i32) {
+        if !self.leaving {
+            self.world.change_area(area, n);
+        }
+    }
+
     fn talk(&mut self, t: TalkRequest) {
         // The talk menus read the one spoken to (cmndTarget) from before the
         // step that opens them, as the town's do: a party member (21), an

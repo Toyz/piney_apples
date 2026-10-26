@@ -68,7 +68,7 @@ Maybe an ingame quake console so we can debug and test various game features mor
 
 - [x] a console command to go to a town (`town N`: 0 Mac Anu, 1 Dun Loireag, 2 Carmina Gadelica, 3 Fort Ouph, 4 Lia Fail; Net Slum is not one of Infection's towns)
 
-- [ ] the music breaks between towns after the console's `town` (the session's own events through a headless engine give each town its music on field -> Dun Loireag -> Mac Anu -> Dun Loireag, `town_jumps_keep_the_music`; what was heard and where the jump started from are still to be told)
+- [x] the music breaks between towns after the console's `town`. The console's jump was not the game's way: it went straight to the session's change of scene, so the scene's event task went on running through the fade and hold (no `ChangeRequest` `ccDisableThEvent`), and in a field or dungeon the tasks did not sleep; a town's or field's events could start their next blocks (sounds and music among them) under the change. `town` now goes through the scene's own `ChangeArea`, as Gate Out's does (`WorldMode::change_area`, `AreaMode::change_area`). `town_jumps_keep_the_music` now takes every way between the towns: from the field, to the town it is in, to each other one, and a second jump before the first arrival ends; each town plays its music (worklog 503)
 
 - [x] Lia Fail's lamp glows (blooms) drew in front of the buildings (`ROOTTOWN05`'s 19 `EFF_se1_1ef1` glows keep `ccEff::Init`'s depth test and fog: its constructor and `Draw` (OUT gcmn 0x0043e8e0) never call `SetRenderState`; the port drew every town sprite with the depth test off, as only `LENSFLARE` and `CLOUD` set it; `TownSprite::depth`, checked with `town_shots`; fixed)
 
