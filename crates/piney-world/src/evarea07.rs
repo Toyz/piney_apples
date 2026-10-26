@@ -164,7 +164,7 @@ impl Giant {
             models: Vec::new(),
             objects: Vec::new(),
             bg: Default::default(),
-            lights: TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: Some(FOG[0].depth()) },
+            lights: TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: Some(FOG[0]) },
             light_objects: Vec::new(),
             fog: FOG[0],
             start: [0, 0, 0, ONE],
@@ -238,8 +238,7 @@ impl Giant {
                 group.push(l.at(256));
             }
         }
-        self.lights =
-            TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG[b].depth()) };
+        self.lights = TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG[b]) };
         self.fog = FOG[b];
         match (b, area_prev) {
             (0, 2) => self.start = marker(&file, "DMY_marker02")?,

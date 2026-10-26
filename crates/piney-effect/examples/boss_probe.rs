@@ -137,7 +137,7 @@ fn generator(g: &Generator) -> String {
 
 fn draw(fx: &Effects, d: &DrawRec) -> String {
     match d {
-        DrawRec::Clump { obj, matrix, alpha, layer, clut } => {
+        DrawRec::Clump { obj, matrix, alpha, layer, clut, .. } => {
             let f = obj.file;
             let clut = clut.map_or("null".to_string(), |(a, b)| {
                 let n = |o: u32| fx.assets.files[f].ccs.object_name(o).unwrap_or("?").to_string();

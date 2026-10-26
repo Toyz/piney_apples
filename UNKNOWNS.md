@@ -84,7 +84,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 - [[38]] [[39]] [[72]] the field water's run-time textures and scroll, and the clouds' blending, are approximations (docs/engine/field.md, field-walk.md) — every field with water or clouds — answered by [[480]] (the lake's three animations, scrolls and refLayer mirror; `DrawBG`'s plain and hacked backgrounds, turns and aurora; tools/test_field_ambient_rs.py)
 - [[97]] water 0's frame-buffer copy is the whole frame, not the game's 128 x 128 point-sampled one (docs/engine/field-game.md, town02.md) — the towns' water — answered by [[481]] (`TexRef::SampledFrame` 128 x 128 for every `waterUVModifi` copy)
-- [[79]] [[231]] `SetFogSw` / `SetShadowSw` on the spell pieces (and on other objects that turn fog off; only the gate was fixed) and the drill's `ccDrawEnv` settings are not modelled (docs/engine/effects.md) — spells and objects fogged or shadowed where the game turns it off
+- [[79]] [[231]] `SetFogSw` / `SetShadowSw` on the spell pieces (and on other objects that turn fog off; only the gate was fixed) and the drill's `ccDrawEnv` settings are not modelled (docs/engine/effects.md) — spells and objects fogged or shadowed where the game turns it off — answered by [[484]]: every piece's fog bit as the game sets it, checked per draw against the game for every spell; the area-level calls were already modelled; no effect casts a shadow (the drill's shadow models are refused)
 - [[79]] the explosions' palette swaps are kept on the element but not drawn (docs/engine/effects.md) — spell explosions' colours — answered by [[411]]: `ccAnm` draws carry their objects' palette swaps (`AnmObj::change_clut`); the explosion's `OBJ_x048`-`051` own `CLT_x048`-`051` (`the_explosions_substitutes_own_their_palettes`)
 - docs/engine/effects.md `ccEntryChangeCLUT` swaps every texture on the palette where the game swaps per material — enemies whose palette-swapped texture shares a palette
 - [[157]] [[161]] `EntryObject`'s palettes for the lakes' statues and flowers when `GetBG` is not 0 are not ported (docs/engine/dungeon.md) — lake dungeons by evening and night — answered by [[482]] (the file's `clut_swaps`, the same `SetClutList` pairs; a_lakes_statues_take_its_palettes)
@@ -345,7 +345,7 @@ player until one of these turns out wrong.
 - [[61]] the CPU renderer drops triangles behind the camera instead of cutting them — the software model only; not revisited
 - [[69]] the fader drawn with the desktop's corner constants in the field — not checked
 - [[79]] undefined behaviour taken one way (odd sizes or drain types, stack leftovers as 0, the goblin summons' read) — docs/engine/effects.md Unknown
-- [[79]] a sprite's fog — docs/engine/effects.md: Prim has no fog, the effects' own sprites never fog
+- [[79]] a sprite's fog — docs/engine/effects.md: Prim has no fog, the effects' own sprites never fog — answered by [[484]]: `DrawState::fog` carries a sprite's F and FOGCOL, the effects' camera has the area's `SetFog`
 - [[83]] effResistantShield with no affectPerson reads through a null pointer — game UB (docs/engine/effects.md Unknown)
 - [[83]] effHeal's return: the game returns 0, the port its slot — not compared, no caller uses it
 - [[83]] the new particle generator rows seen only in shots — docs/engine/effects.md Unknown
@@ -1252,7 +1252,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/effects.md: unknown_0c of the Eff chunk (112 in every chunk) — research (read past)
 - docs/engine/effects.md: what ccEffect::level means to the ids that use it — research (beyond each case's code)
 - docs/engine/effects.md: ccEffObj nodes in a clump (DrawNoAnm) — research (none found; not ported)
-- docs/engine/effects.md: ccBltData flag bit 1; a sprite's FOG dropped (the effects' sprites never fog) — research (not needed)
+- docs/engine/effects.md: ccBltData flag bit 1; a sprite's FOG dropped (the effects' sprites never fog) — research (not needed) — the fog part answered by [[484]]
 - docs/engine/effects.md: Draw's unsorted path, a TEST reference over 255, the effect objects' shadow switch — research (never reached)
 - docs/engine/effects.md: effVirusCrystal from ccRtownPC::eventMode (Mutation's event 114) and the later volumes' bosses' effSmoke — play (not ported); the bosses' effSmoke answered by [[479]]'s list
 - docs/engine/effects.md: effResistantShield's null read; effAbilityUp/Down with a failed new — research (game UB)
@@ -1264,7 +1264,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/effects.md: what each particle generator row looks like on screen — research (no capture)
 - docs/engine/effects.md: what reads the save's portal counts; entryCircleObject, what comes out of a portal — research (duplicates [[193]])
 - docs/engine/effects.md: ccEntryChangeCLUT swaps every texture on the palette, where the game swaps per material — play (known divergence; not checked on screen)
-- docs/engine/effects.md: SetFogSw and SetShadowSw on the spell pieces, the drill's ccDrawEnv settings not modelled — play (duplicates [[79]], [[231]])
+- docs/engine/effects.md: SetFogSw and SetShadowSw on the spell pieces, the drill's ccDrawEnv settings not modelled — play (duplicates [[79]], [[231]]) — answered by [[484]]
 - docs/engine/effects.md: the explosions' palette swaps not in the draw record — play (duplicates [[79]])
 - docs/engine/effects.md: ccEnergyGrowElement's m_genRnd — research (0 at its one caller)
 - docs/engine/effects.md: ccThunderBoltElement's MissileSmoke/BurstSmoke paths — research (no data reaches them)

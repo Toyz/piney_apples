@@ -369,7 +369,7 @@ impl Bolt {
         let clut = self.cluts.map(|(own, c1)| (own, if b.mode == 1 { c1 } else { own }));
         if let Some(obj) = self.clump {
             for &matrix in &b.segments {
-                cx.draws.push(DrawRec::Clump { obj, matrix, alpha: ONE, layer: EFFECT_LAYER, clut });
+                cx.draws.push(DrawRec::Clump { obj, matrix, alpha: ONE, layer: EFFECT_LAYER, clut, fog: true });
             }
         }
         if b.end_flg != 0 && b.flg2 != 0 {

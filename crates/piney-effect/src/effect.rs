@@ -103,6 +103,9 @@ pub struct Effect {
     /// (the CLUT object drawn instead of, the one drawn), in the object's
     /// file; for a `ccEff`, (0, the CLUT its `ccTex` draws with: +0x3c).
     pub clut_swap: Option<(u32, u32)>,
+    /// The fog bit of `effPtr`'s objects: `InitEffect`'s `SetFogSw(0)`, a
+    /// piece's `ccClump::SetFogSw(1)`.
+    pub fog_sw: bool,
 }
 
 impl Default for Effect {
@@ -140,6 +143,7 @@ impl Default for Effect {
             temp: [0; 4],
             sn: 0,
             clut_swap: None,
+            fog_sw: false,
         }
     }
 }
@@ -287,6 +291,7 @@ impl EffectCtrl {
         e.layer = None;
         e.temp = [0; 4];
         e.clut_swap = None;
+        e.fog_sw = false;
         if id < 0 {
             return;
         }
@@ -425,7 +430,7 @@ impl EffectCtrl {
             return;
         }
         let alpha = e.transparency;
-        let (disp, pos, pat, clut) = (e.disp_sw, e.pos, e.tex_anm_pat, e.clut_swap);
+        let (disp, pos, pat, clut, fog) = (e.disp_sw, e.pos, e.tex_anm_pat, e.clut_swap, e.fog_sw);
         let clump_matrix = matrix(e);
         match &mut e.obj {
             Obj::Anm { obj, play, matrix } if disp => {
@@ -436,6 +441,7 @@ impl EffectCtrl {
                     alpha,
                     layer,
                     clut: Vec::new(),
+                    fog,
                 });
             }
             Obj::Eff(eff) => {
@@ -449,7 +455,7 @@ impl EffectCtrl {
                 step_pattern(e, kind);
             }
             Obj::Clump(obj) if disp => {
-                cx.draws.push(DrawRec::Clump { obj: *obj, matrix: clump_matrix, alpha, layer, clut });
+                cx.draws.push(DrawRec::Clump { obj: *obj, matrix: clump_matrix, alpha, layer, clut, fog });
             }
             _ => {}
         }
@@ -520,7 +526,7 @@ impl EffectCtrl {
             ONE
         };
         let alpha = ee::mul(e.transparency, fade);
-        let (disp, pos, pat, clut) = (e.disp_sw, e.pos, e.tex_anm_pat, e.clut_swap);
+        let (disp, pos, pat, clut, fog) = (e.disp_sw, e.pos, e.tex_anm_pat, e.clut_swap, e.fog_sw);
         let clump_matrix = matrix(space::fw2lw(pos, player, bounds), e);
         match &mut e.obj {
             Obj::Anm { obj, play, matrix } if disp => {
@@ -531,6 +537,7 @@ impl EffectCtrl {
                     alpha,
                     layer,
                     clut: Vec::new(),
+                    fog,
                 });
             }
             Obj::Eff(eff) => {
@@ -544,7 +551,7 @@ impl EffectCtrl {
                 step_pattern(e, kind);
             }
             Obj::Clump(obj) if disp => {
-                cx.draws.push(DrawRec::Clump { obj: *obj, matrix: clump_matrix, alpha, layer, clut });
+                cx.draws.push(DrawRec::Clump { obj: *obj, matrix: clump_matrix, alpha, layer, clut, fog });
             }
             _ => {}
         }

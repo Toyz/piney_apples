@@ -29,6 +29,17 @@ impl CharState {
 }
 
 impl Camera {
+    /// With the draw environment `cc3d` as the area's `SetFog(near, far,
+    /// nearRate, farRate, colour)` left it, which `ccEff::Draw` and a
+    /// fogged model read; None keeps `Reset`'s.
+    pub fn fogged(mut self, fog: Option<piney_world::town::FogParams>) -> Camera {
+        if let Some(f) = fog {
+            let colour = u32::from(f.colour[0]) | u32::from(f.colour[1]) << 8 | u32::from(f.colour[2]) << 16;
+            self.env.set_fog(f.near.to_bits(), f.far.to_bits(), f.near_rate.to_bits(), f.far_rate.to_bits(), colour);
+        }
+        self
+    }
+
     /// The camera as `cameraSet` left it: the eye of `cameraGetPos(camID)`
     /// and `activeCamPtr`'s eye and view point (`ccCheckCameraDeg`), both
     /// `cameraList[camID]`: `tcam` in play, `ecam` while an event's camera

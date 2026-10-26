@@ -181,10 +181,24 @@ impl Missile {
         let m = vu::pos_rot_xyz_scale(pos, rot, THREE);
         match &mut self.pics {
             Pics::Ice { crystal: Some(obj), .. } => {
-                cx.draws.push(DrawRec::Clump { obj: *obj, matrix: m, alpha: ONE, layer: EFFECT_LAYER, clut: None });
+                cx.draws.push(DrawRec::Clump {
+                    obj: *obj,
+                    matrix: m,
+                    alpha: ONE,
+                    layer: EFFECT_LAYER,
+                    clut: None,
+                    fog: true,
+                });
             }
             Pics::Lightning { bolt: Some(obj) } => {
-                cx.draws.push(DrawRec::Clump { obj: *obj, matrix: m, alpha: HALF, layer: EFFECT_LAYER, clut: None });
+                cx.draws.push(DrawRec::Clump {
+                    obj: *obj,
+                    matrix: m,
+                    alpha: HALF,
+                    layer: EFFECT_LAYER,
+                    clut: None,
+                    fog: true,
+                });
             }
             Pics::Blaze { ball: Some(a) } => {
                 a.forward(cx);

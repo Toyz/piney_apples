@@ -74,6 +74,9 @@ pub struct DrawState {
     /// SCISSOR_1: pixels outside are not drawn. Each layer's view sets it
     /// at the head of the layer's list (`ccLayer::AddAll`).
     pub scissor: Scissor,
+    /// PRIM.FGE of a primitive: the one F every vertex's FOG carries and
+    /// FOGCOL (a `ccEff` sprite's). A model's fog is [`ModelDraw`]'s own.
+    pub fog: Option<Fog>,
 }
 
 impl DrawState {
@@ -86,6 +89,7 @@ impl DrawState {
             depth: Depth::NONE,
             texture,
             scissor: Scissor::FULL,
+            fog: None,
         }
     }
 }

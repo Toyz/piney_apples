@@ -501,7 +501,7 @@ impl FieldArea {
                 radius: [0.0; 2],
                 priority: -1,
             }],
-            fog: Some(set_fog(&scene.background.fog)),
+            fog: Some(fog_params(&scene.background.fog)),
         };
 
         let heights: Rc<dyn crate::hit::Heights> = Rc::new(Heights(field.clone()));
@@ -1450,8 +1450,13 @@ fn anim_edited(
 /// `ccDrawEnv::SetFog(near, far, 0, percent, colour)` as VU1 fogs each
 /// vertex by its depth.
 pub fn set_fog(fog: &field::Fog) -> piney_draw::DepthFog {
+    fog_params(fog).depth()
+}
+
+/// `WORLD::Init`'s `cc3d->SetFog(near, far, 0, percent, colour)`.
+pub fn fog_params(fog: &field::Fog) -> crate::town::FogParams {
     let colour = fog.colour.map(|c| c.clamp(0.0, 255.0) as u8);
-    piney_draw::DepthFog::set_fog(fog.near, fog.far, 0.0, fog.percent, colour)
+    crate::town::FogParams { near: fog.near, far: fog.far, near_rate: 0.0, far_rate: fog.percent, colour }
 }
 
 /// `WORLD_MAN`'s two `ccBufferSampling`s (+0x418, +0x41c), which every

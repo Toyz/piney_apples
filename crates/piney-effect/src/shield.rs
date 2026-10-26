@@ -167,6 +167,7 @@ impl ResistantShield {
                 alpha: ONE,
                 layer: EFFECT_LAYER,
                 clut: Vec::new(),
+                fog: true,
             });
         }
         if done {

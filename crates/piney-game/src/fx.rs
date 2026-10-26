@@ -62,6 +62,8 @@ pub struct AreaFx {
     /// running.
     ending_asked: Option<piney_desktop::kanji::Names>,
     ending: Option<Box<Ending>>,
+    /// `cc3d`'s fog this frame ([`FieldFx::set_fog`]).
+    fog: Option<piney_world::town::FogParams>,
 }
 
 /// `STFROLL_VOL4` as it runs, and what it draws with.
@@ -185,6 +187,7 @@ impl AreaFx {
             skill_anims: Default::default(),
             ending_asked: None,
             ending: None,
+            fog: None,
         })
     }
 
@@ -409,6 +412,9 @@ impl AreaFx {
 }
 
 impl FieldFx for AreaFx {
+    fn set_fog(&mut self, fog: Option<piney_world::town::FogParams>) {
+        self.fog = fog;
+    }
     fn tasks(&mut self) -> &mut dyn FxTasks {
         self
     }
@@ -552,7 +558,7 @@ impl FieldFx for AreaFx {
     /// (`ccMenuCtrl::Disp`: `ccCtrlFlyFont`, `ccDamUprStr`, sent on the
     /// menu layer before the menu's own).
     fn draw(&mut self, view: &FxView, ctx: &mut Ctx) {
-        let camera = FxCamera::from_field(view.camera);
+        let camera = FxCamera::from_field(view.camera).fogged(self.fog);
         self.fx.draw(&mut ctx.layers, &camera);
         if let Some((mc, spark)) = &self.circle {
             let frame = circle_frame(view, mc, spark);
@@ -570,7 +576,7 @@ impl FieldFx for AreaFx {
     /// `EVENTAREAB0`'s fireflies): each `ccEff::Draw(pos, pat)` on its
     /// layer.
     fn story_sprites(&mut self, sprites: &[StorySprite], camera: &piney_world::camera::Camera, ctx: &mut Ctx) {
-        let cam = FxCamera::from_field(camera);
+        let cam = FxCamera::from_field(camera).fogged(self.fog);
         for s in sprites {
             let Some(mut e) = self.story_eff(s) else { continue };
             e.pos = s.pos;
@@ -610,6 +616,8 @@ fn circle_frame(view: &FxView, mc: &MagicCircle, spark: &Eff) -> CircleFrame {
             alpha: a.alpha,
             layer: piney_effect::effect::EFFECT_LAYER,
             clut: Vec::new(),
+            // ccMagicCircle's constructor: SetFogSw(0) on its clump.
+            fog: false,
         });
         for p in c.parts.iter().filter(|p| p.status != 0) {
             let mut e = spark.clone();

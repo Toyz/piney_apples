@@ -325,7 +325,7 @@ impl DiscArea {
                 group.push(l.at(256));
             }
         }
-        let lights = TownLights { ambient: ambient.unwrap_or(Vec3::ZERO), lights: group, fog: Some(FOG.depth()) };
+        let lights = TownLights { ambient: ambient.unwrap_or(Vec3::ZERO), lights: group, fog: Some(FOG) };
         let marker = c.find_object(MARKER).ok_or_else(|| Error::NotFound(format!("{FILE}: {MARKER}")))?;
         let disc_pos = sc
             .dummies

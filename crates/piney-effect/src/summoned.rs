@@ -643,7 +643,7 @@ pub enum SummonKind {
         roots: [V4; 8],
         gp_leaf: Option<GenRef>,
         cmp_tree: Option<ObjRef>,
-        anm_roots: Option<AnmObj>,
+        anm_roots: Option<Box<AnmObj>>,
         tree_alpha: F,
     },
     /// +0x5a0 `m_genPos`, +0x5b0 `m_genPosP`, +0x5c0 `m_elements` (level
@@ -1487,7 +1487,7 @@ impl Summoned {
         let p = if ee::eq(0xbf80_0000, hit) { s.t_pos } else { space::p2w(to, player, bounds) };
         base.anim.pos = p;
         base.anim.sp = p;
-        let anm_roots = AnmObj::new(cx, "particle", "ANM_x403");
+        let anm_roots = AnmObj::new(cx, "particle", "ANM_x403").map(Box::new);
         let cmp_tree = drawelm::particle_clump(cx, "CMP_x401b_1");
         fade(&mut base.anim, 0, ONE, 0x3d88_8889);
         scale_anim(&mut base.anim, VF0, [0x4040_0000, 0x4040_0000, 0x4040_0000, ONE], 0x4170_0000);
@@ -1557,9 +1557,16 @@ impl Summoned {
     }
 
     /// The tree's clump and roots at the element's place.
-    fn tree_draw(cx: &mut Cx, a: &Animate, alpha: F, cmp: Option<ObjRef>, anm: &mut Option<AnmObj>, forward: bool) {
+    fn tree_draw(
+        cx: &mut Cx,
+        a: &Animate,
+        alpha: F,
+        cmp: Option<ObjRef>,
+        anm: &mut Option<Box<AnmObj>>,
+        forward: bool,
+    ) {
         let m = vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale);
-        drawelm::draw_clump(cx, cmp, m, alpha);
+        drawelm::draw_clump(cx, cmp, m, alpha, true);
         if let Some(r) = anm.as_mut() {
             if forward {
                 r.forward(cx);

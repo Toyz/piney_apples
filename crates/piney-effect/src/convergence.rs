@@ -322,7 +322,8 @@ pub fn eff_skill_charge_obj(
         let a = ee::rad2deg(ee::atan2f(d[1], d[0])) as i16;
         ctrl.effects[i].rot = [0, 0, ee::deg2rad(a.wrapping_add(16384)), 0];
     }
-    // Dark, wind, water: SetFogSw(clump, 1).
+    // Dark, wind, water: ccClump::SetFogSw(1) (0x001d6358).
+    ctrl.effects[i].fog_sw = matches!(ty & 0xfc, attr::DARK | attr::WIND | attr::WATER);
     let pos = cx.host.char_pos(tp);
     let eff_iv = cx.spells.data.convergence.eff_iv;
     let e = &mut ctrl.effects[i];

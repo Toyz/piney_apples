@@ -1276,7 +1276,7 @@ impl Mode for WorldMode {
         }
         let sprites = self.world.take_town_sprites();
         if let Some(fx) = &mut self.town_fx {
-            fx.draw(&sprites, self.world.camera(), wctx);
+            fx.draw(&sprites, self.world.camera(), self.world.fog(), wctx);
         }
         if matches!(self.world.phase(), Phase::Play(f) if f >= 1) && !self.world.asleep() {
             self.calc_real_party();
@@ -1454,7 +1454,7 @@ impl Mode for WorldMode {
                 }
             }
             if !self.hack_screen {
-                fx.draw_effects(&camera, &mut ctx);
+                fx.draw_effects(&camera, self.world.fog(), &mut ctx);
             }
         }
         // ccMenu's fader, sent last by Disp (so drawn first on its layer).

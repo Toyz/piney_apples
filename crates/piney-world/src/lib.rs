@@ -1260,6 +1260,11 @@ impl World {
         &self.player
     }
 
+    /// `cc3d`'s fog as the town's constructor set it (`SetFog`).
+    pub fn fog(&self) -> Option<town::FogParams> {
+        self.town.base.lights.fog
+    }
+
     pub fn camera(&self) -> &Camera {
         &self.camera
     }

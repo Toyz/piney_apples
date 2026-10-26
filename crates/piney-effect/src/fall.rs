@@ -276,7 +276,8 @@ pub fn eff_meteo_fire_ball2(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, t: CharRe
             r[0] = ee::deg2rad(8192);
             e.rot = r;
             e.scale = ee::vscale(ONE_VECTOR, 0x4080_0000);
-            // SetFogSw(clump, 1).
+            // ccClump::SetFogSw(1) (0x001cd710).
+            e.fog_sw = true;
         }
         _ => {
             let rn = cx.host.rand() >> 3;
@@ -284,7 +285,8 @@ pub fn eff_meteo_fire_ball2(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, t: CharRe
             r[1] = ee::deg2rad(((rn << 4) & 0x7000) as i16);
             r[2] = ee::deg2rad(((rn << 8) & 0xf000) as i16);
             ctrl.effects[i].rot = r;
-            // Soil: SetFogSw(clump, 1).
+            // Soil: ccClump::SetFogSw(1) (0x001cd7a4).
+            ctrl.effects[i].fog_sw = p3 == 0;
         }
     }
     let e = &mut ctrl.effects[i];

@@ -481,7 +481,8 @@ pub fn eff_smmons_fragment(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: 
                 f.rotate = a;
             }
         }
-        // Water and soil: SetFogSw(clump, 1).
+        // Water and soil: ccClump::SetFogSw(1) (0x001d2728).
+        ctrl.effects[k].fog_sw = matches!(atr & 0xfc, attr::WATER | attr::SOIL);
     }
     last
 }
@@ -931,11 +932,13 @@ pub fn drill_pre(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) -> Next {
             return Next::End;
         }
     }
-    // The one it draws, by texAnmPat, in its object's place for the draw.
+    // The one it draws, by texAnmPat, in its object's place for the draw:
+    // a ccAnm of its own, whose objects keep ccObj::Init's fog bit.
     let pat = usize::from(ctrl.effects[i].tex_anm_pat.min(1));
     if let Some(d) = cx.spells.drills.get_mut(&i) {
         let a = d.anm[pat].take().unwrap_or(Obj::None);
         ctrl.effects[i].obj = a;
+        ctrl.effects[i].fog_sw = true;
     }
     Next::Draw
 }
@@ -947,6 +950,8 @@ pub fn drill_post(ctrl: &mut EffectCtrl, cx: &mut Cx, i: usize) {
     if let Some(d) = cx.spells.drills.get_mut(&i) {
         let own = d.own.clone().unwrap_or(Obj::None);
         let a = std::mem::replace(&mut ctrl.effects[i].obj, own);
+        // The row's own object: InitEffect's SetFogSw(0).
+        ctrl.effects[i].fog_sw = false;
         if !matches!(a, Obj::None) {
             d.anm[pat] = Some(a);
         }

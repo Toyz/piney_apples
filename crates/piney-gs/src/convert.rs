@@ -156,12 +156,15 @@ pub fn prim(p: &Prim, tex_size: Option<(u32, u32)>, screen: Screen, params: Para
         }
         _ => (params, 0),
     };
+    // PRIM.FGE: the one F the primitive's vertices carry.
+    let params = if p.state.fog.is_some() { Params(params.0 | Params::FOG) } else { params };
+    let fog = fog_word(p.state.fog);
     let vertex = |x: f32, y: f32, z: u32, u: f32, v: f32, c: Rgba| GVertex {
         clip: screen.clip_2d(x, y, z),
         uv: [(u + TEXEL_BIAS) / tw, (v + TEXEL_BIAS) / th],
         colour: colour(c),
         params: params.0,
-        fog: 0,
+        fog,
         fog_f: 0.0,
         region,
     };

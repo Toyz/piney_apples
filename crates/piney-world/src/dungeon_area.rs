@@ -696,7 +696,7 @@ impl DungeonArea {
                 radius: [0.0; 2],
                 priority: -1,
             }],
-            fog: Some(piney_draw::DepthFog::set_fog(fog.near, fog.far, 0.0, fog.max, fog.colour_bytes())),
+            fog: Some(room_fog_params(&fog)),
         };
         let mut area = DungeonArea {
             hits,
@@ -1155,7 +1155,7 @@ impl DungeonArea {
             let root = Self::room_root(&slot);
             self.room = slot.model.and_then(|m| self.make_anm_in(slot.special, m, &root, 1));
         }
-        self.lights.fog = Some(self.room_depth_fog());
+        self.lights.fog = Some(room_fog_params(&self.room_fog));
         // After the room's hits: SetWater, SetLight, SetObject, SetDoor,
         // SetAnmObject ([`Dressing`]).
         if self.room.is_some() {
@@ -1172,8 +1172,7 @@ impl DungeonArea {
     /// VU1's fog by depth as the last `SetRoom` set it (`SetFog(near, far,
     /// 0, max, colour)`).
     fn room_depth_fog(&self) -> piney_draw::DepthFog {
-        let f = self.room_fog;
-        piney_draw::DepthFog::set_fog(f.near, f.far, 0.0, f.max, f.colour_bytes())
+        room_fog_params(&self.room_fog).depth()
     }
 
     /// `WORLD_MAN::RoomSelect(f, i)`'s part in the dungeon (main 0x0019dca0):
@@ -2149,6 +2148,12 @@ impl DungeonArea {
             ban_room: self.ban_room().is_some(),
         }
     }
+}
+
+/// A room's fog as `SetRoom` sets it: `cc3d->SetFog(near, far, 0, max,
+/// colour)`.
+fn room_fog_params(f: &FogRow) -> crate::town::FogParams {
+    crate::town::FogParams { near: f.near, far: f.far, near_rate: 0.0, far_rate: f.max, colour: f.colour_bytes() }
 }
 
 #[cfg(test)]

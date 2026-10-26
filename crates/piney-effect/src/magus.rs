@@ -168,7 +168,7 @@ impl Needles {
             let m = geom::rot_matrix_x(&m, NEG_HALF_PI);
             let m = geom::rot_matrix_z(&geom::rot_matrix_y(&geom::rot_matrix_x(&m, r[0]), r[1]), r[2]);
             let matrix = geom::trans_matrix(&m, n.pos);
-            cx.draws.push(DrawRec::Clump { obj, matrix, alpha, layer: EFFECT_LAYER, clut: None });
+            cx.draws.push(DrawRec::Clump { obj, matrix, alpha, layer: EFFECT_LAYER, clut: None, fog: true });
         }
     }
 }
@@ -202,7 +202,7 @@ pub fn leaf_explode(cx: &mut Cx, ex: &Explode) {
         // sceVu0MulMatrix(m, local, m): the place's matrix through the
         // scale.
         let matrix = geom::mul_matrix(&geom::trans_matrix(&geom::unit_matrix(), ex.pos), &s);
-        cx.draws.push(DrawRec::Clump { obj, matrix, alpha: ex.exp.alpha, layer: CHAR_LAYER, clut: None });
+        cx.draws.push(DrawRec::Clump { obj, matrix, alpha: ex.exp.alpha, layer: CHAR_LAYER, clut: None, fog: true });
     }
 }
 

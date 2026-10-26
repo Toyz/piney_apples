@@ -663,6 +663,7 @@ pub fn model_state(blend_type: u8) -> DrawState {
         depth: Depth { test: ZTest::GEqual, write: true },
         texture: None,
         scissor: Scissor::FULL,
+        fog: None,
     }
 }
 

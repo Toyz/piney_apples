@@ -394,7 +394,7 @@ fn main_in(p: &mut Particle, gene: Option<&Generator>, view: &mut View, layer: O
                 // ccClump::ChangeClut's swap: the file's own CLUT drawn as
                 // the particle's.
                 let clut = p.clut.and_then(|(new, old)| old.map(|o| (o.object, new.object)));
-                view.draws.push(DrawRec::Clump { obj: *obj, matrix: *matrix, alpha, layer, clut });
+                view.draws.push(DrawRec::Clump { obj: *obj, matrix: *matrix, alpha, layer, clut, fog: false });
             }
         }
         Obj::Anm { obj, play, matrix } => {
@@ -410,6 +410,7 @@ fn main_in(p: &mut Particle, gene: Option<&Generator>, view: &mut View, layer: O
                     alpha,
                     layer,
                     clut: Vec::new(),
+                    fog: false,
                 });
             }
         }

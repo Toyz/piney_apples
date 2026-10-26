@@ -254,7 +254,7 @@ impl Model {
         fog: Option<Fog>,
     ) {
         // No blend: the draw environment's fog, by each vertex's depth.
-        let fog = match (fog, lights.and_then(|(l, _)| l.fog)) {
+        let fog = match (fog, lights.and_then(|(l, _)| l.depth_fog())) {
             (Some(f), _) => draw::Fogging::Const(f),
             (None, Some(d)) => draw::Fogging::Depth(d),
             (None, None) => draw::Fogging::None,

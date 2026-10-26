@@ -263,6 +263,7 @@ impl ThunderBolt {
                         alpha: ONE,
                         layer,
                         clut: self.clut,
+                        fog: false,
                     });
                 }
             }

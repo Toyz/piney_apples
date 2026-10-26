@@ -291,7 +291,7 @@ impl Body {
         let node_mats: Vec<Mat4> = self.nodes.iter().map(|o| worlds.get(o).copied().unwrap_or(root)).collect();
         let rows = Default::default();
         // No blend: the draw environment's fog, by each vertex's depth.
-        let fog = match (fog, lights.fog) {
+        let fog = match (fog, lights.depth_fog()) {
             (crate::draw::Fogging::None, Some(d)) => crate::draw::Fogging::Depth(d),
             (f, _) => f,
         };

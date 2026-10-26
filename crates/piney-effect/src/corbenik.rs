@@ -160,7 +160,7 @@ const NEG_HALF_PI: F = 0xbfc9_0fdb;
 /// layer.
 fn clump(cx: &mut Cx, file: &str, name: &str, matrix: vu::M4, alpha: F, clut: Option<(u32, u32)>) {
     if let Some(obj) = cx.assets.find(file, name) {
-        cx.draws.push(DrawRec::Clump { obj, matrix, alpha, layer: EFFECT_LAYER, clut });
+        cx.draws.push(DrawRec::Clump { obj, matrix, alpha, layer: EFFECT_LAYER, clut, fog: true });
     }
 }
 

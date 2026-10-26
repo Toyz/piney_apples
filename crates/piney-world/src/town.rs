@@ -80,10 +80,18 @@ pub struct TownLights {
     pub ambient: Vec3,
     /// In `town00Light`'s order (the group keeps descending priority).
     pub lights: Vec<Light>,
-    /// The draw environment's fog (`ccDrawEnv::SetFog`), which VU1 puts on
-    /// every model drawn with PRIM.FGE (`SetFogSw` on: the characters, a
-    /// town's buildings) by each vertex's depth; None, none.
-    pub fog: Option<piney_draw::DepthFog>,
+    /// The draw environment's fog (`cc3d->SetFog`'s arguments), which VU1
+    /// puts on every model drawn with PRIM.FGE (`SetFogSw` on: the
+    /// characters, a town's buildings) by each vertex's depth, and the
+    /// effects' sprites take at their centre; None, none.
+    pub fog: Option<FogParams>,
+}
+
+impl TownLights {
+    /// [`TownLights::fog`] as VU1 fogs a model by depth.
+    pub fn depth_fog(&self) -> Option<piney_draw::DepthFog> {
+        self.fog.map(|f| f.depth())
+    }
 }
 
 /// Little-endian reads that fail on short data.
@@ -735,7 +743,7 @@ impl Base {
             table,
             models,
             objects,
-            lights: TownLights { fog: Some(spec.fog.depth()), ..lights },
+            lights: TownLights { fog: Some(spec.fog), ..lights },
             fog: spec.fog,
             hits,
             clear: spec.clear,

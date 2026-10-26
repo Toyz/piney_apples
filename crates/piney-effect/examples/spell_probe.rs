@@ -262,9 +262,19 @@ fn slot(fx: &Effects, i: usize, e: &Effect) -> String {
     )
 }
 
+/// A clump's or animation's fog bit as it draws: (kind, name, bit).
+fn fog(fx: &Effects, d: &DrawRec) -> Option<String> {
+    let (kind, obj, on) = match d {
+        DrawRec::Clump { obj, fog, .. } => ("clump", obj, fog),
+        DrawRec::Anm { obj, fog, .. } => ("anm", obj, fog),
+        DrawRec::Eff { .. } => return None,
+    };
+    Some(format!("[\"{kind}\", \"{}\", {}]", fx.assets.name(*obj), u8::from(*on)))
+}
+
 fn draw(fx: &Effects, d: &DrawRec) -> String {
     match d {
-        DrawRec::Clump { obj, matrix, alpha, layer, clut } => {
+        DrawRec::Clump { obj, matrix, alpha, layer, clut, .. } => {
             let mut s =
                 format!("[\"clump\", \"{}\", {}, {}, {}", fx.assets.name(*obj), list(&matrix.concat()), alpha, layer);
             if clut.is_some() {
@@ -689,7 +699,7 @@ fn summoned(fx: &Effects, u: &Summoned) -> String {
             j.raw("m_needleTbl", el);
             j.raw("m_rootsTbl", arr(roots.iter().map(|p| format!("{{\"pos\": {}}}", list(p))).collect()));
             j.raw("m_gpLeaf", gp(*gp_leaf)).raw("m_cmpTree", clump(fx, *cmp_tree, None));
-            j.raw("m_anmRoots", anm(fx, anm_roots)).u("m_treeAlpha", *tree_alpha);
+            j.raw("m_anmRoots", anm(fx, &anm_roots.as_deref().cloned())).u("m_treeAlpha", *tree_alpha);
         }
         SummonKind::Goblin { gen_pos, gen_pos_p, elements, stars } => {
             j.v("m_genPos", gen_pos).v("m_genPosP", gen_pos_p);
@@ -1094,6 +1104,7 @@ fn main() {
                     .map(|(i, e)| slot(&fx, i, e))
                     .collect();
                 let draws: Vec<String> = fx.draws().iter().map(|d| draw(&fx, d)).collect();
+                let fogs: Vec<String> = fx.draws().iter().filter_map(|d| fog(&fx, d)).collect();
                 let events: Vec<String> = events.iter().filter_map(event).collect();
                 let gens: Vec<String> = std::mem::take(&mut fx.particles.started).iter().map(generator).collect();
                 let mut skills: Vec<&Spell> = fx.spells.runs.iter().collect();
@@ -1125,11 +1136,13 @@ fn main() {
                     .collect();
                 println!(
                     concat!(
-                        "{{\"slots\": [{}], \"draws\": [{}], \"events\": [{}], \"gens\": [{}], \"skills\": [{}], ",
-                        "\"chars\": {{{}}}, \"elements\": [{}], \"eff2\": [{}], \"rand\": {}, \"genrand\": {}}}"
+                        "{{\"slots\": [{}], \"draws\": [{}], \"fog\": [{}], \"events\": [{}], \"gens\": [{}], ",
+                        "\"skills\": [{}], \"chars\": {{{}}}, \"elements\": [{}], \"eff2\": [{}], \"rand\": {}, ",
+                        "\"genrand\": {}}}"
                     ),
                     slots.join(", "),
                     draws.join(", "),
+                    fogs.join(", "),
                     events.join(", "),
                     gens.join(", "),
                     skills.join(", "),

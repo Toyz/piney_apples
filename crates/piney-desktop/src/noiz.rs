@@ -188,6 +188,7 @@ impl Band {
                 depth: Depth::NONE,
                 texture: Some(tex),
                 scissor: sc,
+                fog: None,
             },
             verts,
         }
@@ -357,6 +358,7 @@ impl Sampling {
                     wrap: self.wrap,
                 }),
                 scissor: sc,
+                fog: None,
             },
             verts: (0..4).map(corner).collect(),
         }
@@ -390,6 +392,7 @@ pub fn reverse_prim_in(view: &EffView) -> Prim {
             depth: Depth::NONE,
             texture: None,
             scissor: view.layer.scissor,
+            fog: None,
         },
         verts: vec![v(view.min[0], view.min[1]), v(view.max[0], view.max[1])],
     }

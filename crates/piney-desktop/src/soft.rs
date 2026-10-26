@@ -551,7 +551,8 @@ impl Canvas {
             AlphaTest::On { reference, .. } => reference,
             AlphaTest::Off => 0,
         };
-        let r = Raster { state: &p.state, tex, alpha_ref, fog: None, depth_fog: false, gouraud: p.gouraud, flat };
+        let r =
+            Raster { state: &p.state, tex, alpha_ref, fog: p.state.fog, depth_fog: false, gouraud: p.gouraud, flat };
         match p.kind {
             PrimKind::Sprite => {
                 for pair in vs.chunks(2) {
@@ -756,6 +757,30 @@ mod tests {
         assert_eq!(c.px[6 * 8][..3], [0, 0, 200]);
         assert_eq!(c.px[4][..3], [200, 0, 0]);
         assert_eq!(c.px[7][..3], [10, 10, 10]);
+    }
+
+    /// A primitive with PRIM.FGE (a fogged `ccEff` sprite): its colour
+    /// through the fog stage, `(Cs F + FOGCOL (0xff - F)) >> 8`.
+    #[test]
+    fn a_fogged_primitive_takes_its_f() {
+        use piney_draw::{Fog, Prim, Vertex};
+        let mut c = Canvas::new(4, 4, Rgba::new(0, 0, 0, 0));
+        let mut assets = Assets::new(std::sync::Arc::new(Archive::new(Vec::new()).unwrap()));
+        let state = DrawState {
+            blend: None,
+            fog: Some(Fog { f: 0x40, colour: [0, 0, 200] }),
+            ..DrawState::sprite(Blend::MIX, None)
+        };
+        let v = |x, y| Vertex { x, y, rgba: Rgba::new(200, 0, 0, 0x80), ..Default::default() };
+        let mut f = Frame { width: 4, height: 4, ..Frame::default() };
+        f.cmds.push(Cmd::Prim(Prim {
+            kind: PrimKind::Sprite,
+            gouraud: false,
+            state,
+            verts: vec![v(0.0, 0.0), v(4.0, 4.0)],
+        }));
+        c.draw(&f, &mut assets);
+        assert_eq!(c.px[5][..3], [50, 0, 149], "200 x 0x40 and 200 x 0xbf, >> 8");
     }
 
     /// [`TexRef::SampledFrame`]: each texel the pixel at its centre, 8

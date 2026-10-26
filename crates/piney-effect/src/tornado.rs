@@ -368,7 +368,8 @@ pub fn eff_skill_tornade_obj_pos(
         e.rot_speed[0] = ((rn >> 4) & 0xf000) as u16;
         e.rot_speed[1] = ((rn >> 8) & 0xf000) as u16;
     }
-    // Water and soil: SetFogSw(clump, 1).
+    // Water and soil: ccClump::SetFogSw(1) (0x001d5ac4).
+    ctrl.effects[i].fog_sw = matches!(a, attr::WATER | attr::SOIL);
     ctrl.effects[i].offset = offset;
     Some(i)
 }

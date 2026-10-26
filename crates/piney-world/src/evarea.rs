@@ -303,7 +303,7 @@ impl EventArea {
             objects: Vec::new(),
             bg: Default::default(),
             rev: None,
-            lights: TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: Some(FOG[0].depth()) },
+            lights: TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: Some(FOG[0]) },
             fog: FOG[0],
             start: [0, 0, 0, ONE],
             move_tex: MOVE_TEX,
@@ -410,8 +410,7 @@ impl EventArea {
                 group.push(l.at(256));
             }
         }
-        self.lights =
-            TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG[b].depth()) };
+        self.lights = TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG[b]) };
         self.fog = FOG[b];
         self.start = self.marker(["DMY_marker02", "DMY_marker01_2"][b])?;
         self.rev = if b == 1 {

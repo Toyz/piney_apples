@@ -156,7 +156,8 @@ pub fn eff_smoke_rock(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, n:
         e.velocity = v;
         e.rot_speed[0] = ((rn >> 4) & 0xf000) as u16;
         e.rot_speed[2] = ((rn >> 8) & 0xf000) as u16;
-        // SetFogSw(clump, 1).
+        // ccClump::SetFogSw(1) (0x001cdc88).
+        e.fog_sw = true;
         let (g1, g2) = if x == 0 { (189, -1) } else { (85, 86) };
         for row in [g1, g2] {
             if row <= 0 {
@@ -191,7 +192,8 @@ pub fn eff_ice_rock(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, s: F
         e.velocity = v;
         e.rot_speed[0] = ((rn >> 4) & 0xf00) as u16;
         e.rot_speed[2] = ((rn >> 8) & 0xf00) as u16;
-        // SetFogSw(clump, 1).
+        // ccClump::SetFogSw(1) (0x001cecf0).
+        e.fog_sw = true;
     }
     last
 }
@@ -323,7 +325,8 @@ fn radiate(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, atr: i32, n: 
             // Into the ccEff's ccTex.clutChunk (+0x3c).
             f.clut = swap;
         }
-        // Water and soil: SetFogSw(clump, 1).
+        // Water and soil: ccClump::SetFogSw(1) (0x001d50b0, 0x001d5500).
+        e.fog_sw = matches!(atr & 0xfc, crate::spell::attr::WATER | crate::spell::attr::SOIL);
     }
     last
 }
@@ -336,6 +339,8 @@ struct Smoke {
     id: fn(i32) -> i16,
     tex: Option<i16>,
     leaf: bool,
+    /// `SetFogSw(1)` on the piece (the ice's).
+    fog: bool,
 }
 
 /// The `effSmoke*` family: n pieces thrown out from `p` (as
@@ -366,7 +371,8 @@ fn smoke(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, s: F, n: i32, k
             e.rot_speed[0] = ((rn >> 4) & 0xf000) as u16;
             e.rot_speed[2] = ((rn >> 8) & 0xf000) as u16;
         }
-        // The ice: SetFogSw(clump, 1).
+        // The ice: ccClump::SetFogSw(1) (0x001d6684).
+        ctrl.effects[k].fog_sw = kind.fog;
         if let Some(t) = kind.tex {
             pfx::start(cx, SMOKE_ROW, |g| {
                 g.sync_pos_type = false;
@@ -381,31 +387,40 @@ fn smoke(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, s: F, n: i32, k
 /// `effSmokeIce(p, r, v, s, n)` (main 0x001d6410): ice 122-124 (one of
 /// three at random), smoke `pTexMod` 110.
 pub fn eff_smoke_ice(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, s: F, n: i32) -> Option<usize> {
-    smoke(ctrl, cx, p, r, v, s, n, Smoke { id: |rn| 122 + ((rn & 0xf) % 3) as i16, tex: Some(110), leaf: false })
+    smoke(
+        ctrl,
+        cx,
+        p,
+        r,
+        v,
+        s,
+        n,
+        Smoke { id: |rn| 122 + ((rn & 0xf) % 3) as i16, tex: Some(110), leaf: false, fog: true },
+    )
 }
 
 /// `effSmokeSparks(p, r, v, s, n)` (main 0x001d6750): sparks 126, smoke
 /// `pTexMod` 151.
 pub fn eff_smoke_sparks(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, s: F, n: i32) -> Option<usize> {
-    smoke(ctrl, cx, p, r, v, s, n, Smoke { id: |_| 126, tex: Some(151), leaf: false })
+    smoke(ctrl, cx, p, r, v, s, n, Smoke { id: |_| 126, tex: Some(151), leaf: false, fog: false })
 }
 
 /// `effSmokeLeaf(p, r, v, s, n)` (main 0x001d6a70): leaves 127, each
 /// sprite turned at random and fogged, smoke `pTexMod` 1.
 pub fn eff_smoke_leaf(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, s: F, n: i32) -> Option<usize> {
-    smoke(ctrl, cx, p, r, v, s, n, Smoke { id: |_| 127, tex: Some(1), leaf: true })
+    smoke(ctrl, cx, p, r, v, s, n, Smoke { id: |_| 127, tex: Some(1), leaf: true, fog: false })
 }
 
 /// `effSmokeElectric(p, r, v, s, n)` (main 0x001d6db0): sparks 128, no
 /// smoke.
 pub fn eff_smoke_electric(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, s: F, n: i32) -> Option<usize> {
-    smoke(ctrl, cx, p, r, v, s, n, Smoke { id: |_| 128, tex: None, leaf: false })
+    smoke(ctrl, cx, p, r, v, s, n, Smoke { id: |_| 128, tex: None, leaf: false, fog: false })
 }
 
 /// `effSmokeSmoke(p, r, v, s, n)` (main 0x001d7060): smoke 129, smoke
 /// `pTexMod` 31.
 pub fn eff_smoke_smoke(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, s: F, n: i32) -> Option<usize> {
-    smoke(ctrl, cx, p, r, v, s, n, Smoke { id: |_| 129, tex: Some(31), leaf: false })
+    smoke(ctrl, cx, p, r, v, s, n, Smoke { id: |_| 129, tex: Some(31), leaf: false, fog: false })
 }
 
 #[cfg(test)]

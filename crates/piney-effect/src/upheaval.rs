@@ -202,7 +202,8 @@ fn pillar(ctrl: &mut EffectCtrl, cx: &mut Cx, at: V4, attr: i32, n: i32) {
     e.life_time = 80;
     e.offset = p;
     e.rot = [0, 0, ee::deg2rad(turn), 0];
-    // SetFogSw(clump, 1).
+    // ccClump::SetFogSw(1) (gcmn 0x00578e0c).
+    e.fog_sw = true;
 }
 
 /// The pillars' case of the first switch (main 0x001c4468).
@@ -330,7 +331,8 @@ pub fn eff_upheaval_fragment(
         e.rot_speed[2] = ((rn >> 8) & 0x3c0) as u16;
         if kind == 0 || kind == 1 {
             e.scale = ee::vscale(ONE_VECTOR, 0x3e99_999a);
-            // SetFogSw(clump, 1).
+            // ccClump::SetFogSw(1) (0x001d16b0).
+            e.fog_sw = true;
         }
         if kind == 2
             && let Obj::Eff(f) = &mut e.obj
@@ -1027,7 +1029,7 @@ impl UpheavalMngr {
         let sp = self.base.anim.sp;
         let t = self.tree_parts();
         let a = t.tree_animate.clone();
-        drawelm::draw_clump(cx, t.big_tree, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
+        drawelm::draw_clump(cx, t.big_tree, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
         if let Some(anm) = t.anm_roots.as_mut() {
             anm.forward(cx);
             anm.draw(cx, vu::pos_rot_zyx_scale(a.pos, a.dirc, ee::vscale(a.scale, 0x3f00_0000)), a.transparency);
@@ -1233,7 +1235,7 @@ impl UpheavalPart {
             PartKind::Tree { tree } => (tree, true),
             PartKind::Hand { .. } => return,
         };
-        drawelm::draw_clump(cx, obj, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
+        drawelm::draw_clump(cx, obj, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
         let (mut off, mut spd) = (a.offset, a.speed);
         if c == 0 {
             off[2] = 0xc492_4000;

@@ -220,7 +220,7 @@ impl Arena {
                 group.push(l.at(256));
             }
         }
-        let lights = TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG.depth()) };
+        let lights = TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG) };
         let (pos, rot) = crate::town::dummy_bits(&Position::DummyRot("DMY_center01"), c, sc);
         if c.find_object("DMY_center01").is_none() {
             return Err(Error::NotFound(format!("{stage}: DMY_center01")));

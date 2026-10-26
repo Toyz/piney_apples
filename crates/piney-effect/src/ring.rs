@@ -126,6 +126,7 @@ impl RingElement {
                 alpha: self.drawn_alpha,
                 layer: EFFECT_LAYER,
                 clut: self.clut,
+                fog: false,
             });
         }
     }

@@ -37,12 +37,13 @@ pub struct Camera {
 #[derive(Clone, Debug, PartialEq)]
 pub enum DrawRec {
     /// `ccClump::SetTransparency(alpha)`, `ccClump::Draw` at `matrix`; a
-    /// duplicate's CLUT swap (from, to).
-    Clump { obj: ObjRef, matrix: M4, alpha: F, layer: i16, clut: Option<(u32, u32)> },
+    /// duplicate's CLUT swap (from, to); `fog` its objects' fog bit
+    /// (`ccObj::Init` sets it, `SetFogSw` changes it).
+    Clump { obj: ObjRef, matrix: M4, alpha: F, layer: i16, clut: Option<(u32, u32)>, fog: bool },
     /// `ccAnm::Draw`: its transparency `alpha`, posed where `play` is, at
     /// `matrix`; its objects' CLUT swaps (`GetSubstAdrsF`, `Duplicate`,
-    /// `ChangeClut`), each (from, to).
-    Anm { obj: ObjRef, play: Play, matrix: M4, alpha: F, layer: i16, clut: Vec<(u32, u32)> },
+    /// `ChangeClut`), each (from, to); `fog` as a clump's.
+    Anm { obj: ObjRef, play: Play, matrix: M4, alpha: F, layer: i16, clut: Vec<(u32, u32)>, fog: bool },
     /// `ccEff::Draw(pat)` of `eff` as it stood.
     Eff { eff: Box<Eff>, pat: u16, layer: i16 },
 }
@@ -57,8 +58,11 @@ impl DrawRec {
     /// Into `layers` through `camera`'s view.
     pub fn render(&self, assets: &Assets, layers: &mut Layers, camera: &Camera) {
         let to_screen = wdraw::screen(&camera.world_screen);
+        // PRIM.FGE from the object's fog bit: VU1's fog by depth from the
+        // draw environment.
+        let fogging = |on: bool| if on { wdraw::Fogging::Depth(camera.env.depth_fog()) } else { wdraw::Fogging::None };
         match self {
-            DrawRec::Clump { obj, matrix, alpha, layer, clut } => {
+            DrawRec::Clump { obj, matrix, alpha, layer, clut, fog } => {
                 let file = &assets.files[obj.file];
                 let rows = Default::default();
                 for d in nodes::clump(assets, *obj, matrix, *alpha) {
@@ -73,10 +77,10 @@ impl DrawRec {
                         morph: Vec::new(),
                         clut_swaps: clut.iter().copied().collect(),
                     };
-                    wdraw::model(layers, *layer, to_screen, d);
+                    wdraw::model_edited(layers, *layer, to_screen, d, None, fogging(*fog));
                 }
             }
-            DrawRec::Anm { obj, play, matrix, alpha, layer, clut } => {
+            DrawRec::Anm { obj, play, matrix, alpha, layer, clut, fog } => {
                 // As `anim_draw_on`, with each object's own transparency.
                 let file = &assets.files[obj.file];
                 let rows = play.uv_rows(file);
@@ -98,7 +102,7 @@ impl DrawRec {
                         morph: m,
                         clut_swaps: clut.clone(),
                     };
-                    wdraw::model(layers, *layer, to_screen, d);
+                    wdraw::model_edited(layers, *layer, to_screen, d, None, fogging(*fog));
                 }
             }
             DrawRec::Eff { eff, pat, layer } => eff.render(assets, layers, *layer, *pat, camera),

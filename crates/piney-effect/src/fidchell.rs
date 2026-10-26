@@ -169,6 +169,7 @@ impl Spell {
                             alpha: t.drawn_alpha,
                             layer: EFFECT_LAYER,
                             clut: None,
+                            fog: true,
                         });
                     }
                 }
@@ -196,7 +197,7 @@ fn draw_meteor(cx: &mut Cx, m: &rules::Meteor, fire: &mut Option<AnmObj>, glow: 
         }
     }
     if let Some(obj) = glow {
-        cx.draws.push(DrawRec::Clump { obj, matrix: mat, alpha: ONE, layer: EFFECT_LAYER, clut: None });
+        cx.draws.push(DrawRec::Clump { obj, matrix: mat, alpha: ONE, layer: EFFECT_LAYER, clut: None, fog: true });
     }
     let mut r = ee::add(*turn, GLOW_TURN);
     if ee::lt(r, ee::neg(PI)) {
@@ -243,7 +244,14 @@ fn draw_bolt(cx: &mut Cx, volume: Volume, t: &rules::Thunder, clump: Option<ObjR
         m = vu::rot_z(&m, NEG_HALF_PI);
         m = vu::trans(&m, p);
         if let Some(obj) = clump {
-            cx.draws.push(DrawRec::Clump { obj, matrix: m, alpha: t.alpha, layer: EFFECT_LAYER, clut: None });
+            cx.draws.push(DrawRec::Clump {
+                obj,
+                matrix: m,
+                alpha: t.alpha,
+                layer: EFFECT_LAYER,
+                clut: None,
+                fog: true,
+            });
         }
         if let Some(e) = eff.as_mut() {
             e.scale_y = ee::mul(0x3ccc_cccd, d3);

@@ -1499,7 +1499,7 @@ impl SamonRing {
         let m = vu::pos_rot_xyz_scale(self.pos, self.rot, self.scale);
         let on = !ee::lt(self.transparency, 0);
         if let Some(obj) = self.clump {
-            cx.draws.push(DrawRec::Clump { obj, matrix: m, alpha, layer: EFFECT_LAYER, clut: self.clut });
+            cx.draws.push(DrawRec::Clump { obj, matrix: m, alpha, layer: EFFECT_LAYER, clut: self.clut, fog: true });
         }
         on
     }
@@ -1557,6 +1557,7 @@ impl IceBreak {
                     alpha: self.transparency,
                     layer: EFFECT_LAYER,
                     clut: None,
+                    fog: true,
                 });
             }
         }

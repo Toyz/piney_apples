@@ -2342,6 +2342,30 @@ mod tests {
         assert_eq!(reds, [0xff, 0xff, 0, 0, 0]);
     }
 
+    /// A primitive with PRIM.FGE (a fogged `ccEff` sprite): its colour
+    /// through the fog stage, `(Cs F + FOGCOL (0xff - F)) >> 8`.
+    #[test]
+    fn a_fogged_primitive_takes_its_f() {
+        let Some(mut gs) = gs() else { return };
+        let fogged = DrawState {
+            blend: None,
+            fog: Some(piney_draw::Fog { f: 0x40, colour: [0, 0, 200] }),
+            ..DrawState::sprite(Blend::MIX, None)
+        };
+        let v = |x, y| Vertex { x, y, rgba: Rgba::new(200, 0, 0, 0x80), ..Default::default() };
+        let mut frame = Frame::new();
+        frame.cmds.push(Cmd::Prim(Prim {
+            kind: PrimKind::Sprite,
+            gouraud: false,
+            state: fogged,
+            verts: vec![v(0.0, 0.0), v(512.0, 448.0)],
+        }));
+        gs.render(&frame);
+        let img = gs.read_back();
+        let p = pixel(&img, gs.target_size().0, 100, 100);
+        assert!(p[0].abs_diff(50) <= 1 && p[1] == 0 && p[2].abs_diff(149) <= 1, "{p:?}");
+    }
+
     #[test]
     fn present_letterboxes_and_keeps_values() {
         let Some(mut gs) = gs() else { return };

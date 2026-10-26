@@ -2471,6 +2471,7 @@ impl FieldWorld {
         // WORLD_MAN::GO's shadow packets, the area's distant light their
         // direction (SetLightDirection, copied at GO), sysLayer's view.
         ctx.layers.shadows = draw::go_shadows(self.place.lights(), &self.camera.world_screen);
+        self.fx.set_fog(self.place.lights().fog);
         self.draw_cast(ctx, to_screen);
         {
             let area = self.scene.area;
@@ -3111,7 +3112,7 @@ impl FieldWorld {
             let Some(mut p) = crate::pose::Play::new(file, clip) else { return };
             (p.time, p.posed) = (time, time);
             let lit = |world: glam::Mat4| crate::chara::light_matrix(lights, world, false);
-            let fog = match (fog, lights.fog) {
+            let fog = match (fog, lights.depth_fog()) {
                 (Some(f), _) => draw::Fogging::Const(f),
                 (None, Some(d)) => draw::Fogging::Depth(d),
                 (None, None) => draw::Fogging::None,
@@ -3320,6 +3321,7 @@ impl FieldWorld {
             depth: Depth { test: ZTest::Greater, write: false },
             texture: None,
             scissor: Scissor::FULL,
+            fog: None,
         };
         let mut group = Vec::new();
         for rays in &self.combat.rays {
@@ -3369,6 +3371,7 @@ impl FieldWorld {
             depth: Depth { test: ZTest::Greater, write: false },
             texture: None,
             scissor: Scissor::FULL,
+            fog: None,
         };
         // A pair's two vertices and whether they draw (no ADC).
         let pair = |q: &piney_battle::weapon::Pair| {
@@ -4093,6 +4096,7 @@ fn reverse_packet() -> piney_draw::Cmd {
         depth: Depth { test: ZTest::Always, write: false },
         texture: None,
         scissor: Scissor::FULL,
+        fog: None,
     };
     let v = |x: f32, y: f32| Vertex { x, y, z: 0, u: 0.0, v: 0.0, rgba: Rgba([0xff, 0xff, 0xff, 0x80]) };
     Cmd::Prim(Prim { kind: PrimKind::Sprite, gouraud: false, state, verts: vec![v(0.0, 0.0), v(512.0, 384.0)] })
@@ -4119,6 +4123,7 @@ pub(crate) fn trail_packet(strip: &[crate::lattice::StripVertex], ws: &[V4; 4]) 
         depth: Depth { test: ZTest::Greater, write: false },
         texture: None,
         scissor: Scissor::FULL,
+        fog: None,
     };
     let verts: Vec<(Vertex, bool)> = strip
         .iter()
@@ -4167,6 +4172,9 @@ pub enum EndingAsk {
 /// frame runs ([`combat::FxTasks`]) and their draw, after the characters.
 pub trait FieldFx {
     fn tasks(&mut self) -> &mut dyn combat::FxTasks;
+    /// `cc3d`'s fog as the place's `SetFog` left it, before the frame's
+    /// draws: what the effects' sprites and fogged models read.
+    fn set_fog(&mut self, _fog: Option<crate::town::FogParams>) {}
     fn draw(&mut self, _view: &FxView, _ctx: &mut Ctx) {}
     /// Whether it draws the magic portals (then the world does not).
     fn draws_circles(&self) -> bool {

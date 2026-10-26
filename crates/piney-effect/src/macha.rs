@@ -30,7 +30,14 @@ pub fn calls(ctrl: &mut EffectCtrl, cx: &mut Cx, p: &Pic) {
             let m = vu::rot_z(&m, heading);
             let m = vu::trans(&m, pos);
             if let Some(obj) = cx.assets.find("xeffect", "CMP_ex31les0") {
-                cx.draws.push(DrawRec::Clump { obj, matrix: m, alpha: ONE, layer: EFFECT_LAYER, clut: None });
+                cx.draws.push(DrawRec::Clump {
+                    obj,
+                    matrix: m,
+                    alpha: ONE,
+                    layer: EFFECT_LAYER,
+                    clut: None,
+                    fog: true,
+                });
             }
         }
         // ccParticleExplode(pos, (0, 0, 5), 5, 1), (0, 0, 2), then
@@ -45,7 +52,14 @@ pub fn calls(ctrl: &mut EffectCtrl, cx: &mut Cx, p: &Pic) {
         Pic::Blast { pos, scale, transparency } => {
             let m = vu::pos_rot_zyx_scale(pos, VF0, [scale, scale, scale, ONE]);
             if let Some(obj) = cx.assets.find("xeffect", "CMP_ex31exp1") {
-                cx.draws.push(DrawRec::Clump { obj, matrix: m, alpha: transparency, layer: EFFECT_LAYER, clut: None });
+                cx.draws.push(DrawRec::Clump {
+                    obj,
+                    matrix: m,
+                    alpha: transparency,
+                    layer: EFFECT_LAYER,
+                    clut: None,
+                    fog: true,
+                });
             }
         }
         // ccParticleExplode(pos, 0, size, kind), effSmoke(pos, 0, size, 30,

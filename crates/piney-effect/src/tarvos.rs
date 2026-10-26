@@ -49,7 +49,14 @@ pub fn calls(ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, kept: &mut Kept, me
             let m = vu::rot_z(&m, heading);
             let m = vu::trans(&m, pos);
             if let Some(obj) = cx.assets.find("xeffect", "CMP_ex71body2") {
-                cx.draws.push(DrawRec::Clump { obj, matrix: m, alpha: transparency, layer: EFFECT_LAYER, clut: None });
+                cx.draws.push(DrawRec::Clump {
+                    obj,
+                    matrix: m,
+                    alpha: transparency,
+                    layer: EFFECT_LAYER,
+                    clut: None,
+                    fog: true,
+                });
             }
         }
         Pic::PhantomStart => phantom_start(cx, t, kept),

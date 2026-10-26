@@ -270,6 +270,8 @@ class SpellMachine(base.EffectMachine):
         self.skill_key = {}
         self.clut = {}                   # clump or ccEff -> [(new, old)]
         self.clump_alpha_of = {}
+        self.__dict__.setdefault("fog", {})  # clump or ccAnm -> its objects' fog bit
+        self.fogs = []
         self.dup = {}                    # duplicated clump -> source
         for n in range(245):
             m.store(PARTICLE_CCS_ADRS + 4 * n, 4, CLUT_TAG + 0x10 * n)
@@ -317,6 +319,8 @@ class SpellMachine(base.EffectMachine):
             "EntryFlash__8ccScFadeFiiffff":
                 lambda mm, fade, time, color, *a: rec(["flash", time, color, [mm.f[12 + i] for i in range(4)]]),
             "SetShadowSw__7ccClumpFi": lambda mm, *a: 0,
+            "SetFogSw__7ccClumpFi": self.set_fog_sw,
+            "SetFogSw__5ccAnmFi": self.set_fog_sw,
             "SetShadowSw__5ccAnmFi": lambda mm, *a: 0,
             "ccLandHitCheck__FPfUi": self.land_hit_check,
         }
@@ -462,7 +466,25 @@ class SpellMachine(base.EffectMachine):
         self.clump_alpha_of[clump] = m.f[12]
         return 0
 
+    def clump_init(self, m, clump, chunk, *a):
+        # ccObj::Init sets every object's fog bit.
+        self.__dict__.setdefault("fog", {})[clump] = 1
+        return super().clump_init(m, clump, chunk, *a)
+
+    def set_anm(self, m, anm, chunk, *a):
+        self.__dict__.setdefault("fog", {})[anm] = 1
+        return super().set_anm(m, anm, chunk, *a)
+
+    def set_fog_sw(self, m, obj, on, *a):
+        self.fog[obj] = on & 1
+        return 0
+
+    def anm_draw(self, m, anm, *a):
+        self.fogs.append(["anm", self.anm[anm][0], self.fog.get(anm, 1)])
+        return super().anm_draw(m, anm, *a)
+
     def clump_draw(self, m, clump, *a):
+        self.fogs.append(["clump", self.clump.get(clump, "?"), self.fog.get(clump, 1)])
         # ccClump::Init leaves every object's transparency 1.
         self.draws.append(["clump", self.clump.get(clump, "?"), self.rvec(clump + 0x40, 16),
                            self.clump_alpha_of.get(clump, ONE), self.layer()])
@@ -634,7 +656,7 @@ class SpellMachine(base.EffectMachine):
     def frame(self):
         """ccThEffect (ccEffectCtrl::Main, ccEffectElementManager::Main),
         then ccThSkill (each ccSkill's Main, deleting the ones over)."""
-        self.draws, self.events, self.gens = [], [], []
+        self.draws, self.events, self.gens, self.fogs = [], [], [], []
         self.call("Main__12ccEffectCtrlFv", self.effc)
         self.call("Main__22ccEffectElementManagerFv", self.mgr)
         p = self.m.load(SKILL_TOP, 4)
@@ -643,7 +665,7 @@ class SpellMachine(base.EffectMachine):
             if self.call("Main__7ccSkillFv", p) & 0xFFFFFFFF:
                 self.call("__dt__7ccSkillFv", p, 1)
             p = nxt
-        return {"slots": self.live(), "draws": self.draws, "events": self.events, "gens": self.gens,
+        return {"slots": self.live(), "draws": self.draws, "fog": self.fogs, "events": self.events, "gens": self.gens,
                 "skills": [self.skill_state(k) for k in sorted(self.skills)],
                 "chars": {str(c): self.char_state(c) for c in sorted(self.chars)},
                 "elements": self.elements(), "eff2": self.effects2(),

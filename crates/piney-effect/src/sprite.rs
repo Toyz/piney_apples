@@ -11,7 +11,7 @@ use piney_data::ccs::Ccs;
 use piney_desktop::layers::Layers;
 use piney_desktop::view::{XYOFFSET_X, XYOFFSET_Y};
 use piney_draw::{
-    AlphaFail, AlphaTest, Blend, Cmd, Compare, Depth, DrawState, Filter, Prim, PrimKind, Rgba, Scissor, TexFunc,
+    AlphaFail, AlphaTest, Blend, Cmd, Compare, Depth, DrawState, Filter, Fog, Prim, PrimKind, Rgba, Scissor, TexFunc,
     TexRef, TexState, Vertex, Wrap, ZTest,
 };
 
@@ -112,6 +112,18 @@ impl DrawEnv {
         self.fog_a = ee::div(d, span);
         self.fog_b = ee::sub(fmax, b);
         self.fog_color = color & 0xff_ffff;
+    }
+
+    /// The fog VU1 puts on a model drawn with PRIM.FGE, by each vertex's
+    /// w.
+    pub fn depth_fog(&self) -> piney_draw::DepthFog {
+        piney_draw::DepthFog {
+            a: ee::f(self.fog_a),
+            b: ee::f(self.fog_b),
+            min: ee::f(self.fog_min),
+            max: ee::f(self.fog_max),
+            colour: [0, 8, 16].map(|k| (self.fog_color >> k) as u8),
+        }
     }
 }
 
@@ -372,7 +384,8 @@ fn compare(v: u64) -> Compare {
 impl GsSprite {
     /// As a [`Prim`] in frame-buffer pixels (XYOFFSET taken off), texels
     /// (ST times the texture's size: Q is 1), the state from ALPHA_1,
-    /// TEST_1, ZBUF_1, TEX1_1 and CLAMP_1. FOG is dropped.
+    /// TEST_1, ZBUF_1, TEX1_1 and CLAMP_1; with PRIM.FGE, FOG's F and
+    /// FOGCOL.
     pub fn prim(&self, stem: &str) -> Prim {
         let (tw, th) = self.tex.map_or((0, 0), |t| (t.tw, t.th));
         let c = (self.rgbaq as u32).to_le_bytes();
@@ -421,6 +434,8 @@ impl GsSprite {
                 depth,
                 texture,
                 scissor: Scissor::FULL,
+                fog: (self.prim & 0x20 != 0)
+                    .then(|| Fog { f: self.fog, colour: [0, 8, 16].map(|k| (self.fog_color >> k) as u8) }),
             },
             verts,
         }
@@ -478,6 +493,44 @@ mod tests {
         e.render(a, &mut layers, 20, 0, &camera);
         let cmds = layers.flatten();
         assert!(matches!(&cmds[..], [Cmd::Prim(Prim { kind: PrimKind::Strip, .. })]));
+    }
+
+    /// A fogged sprite under an area's fog (Mac Anu's `SetFog(1000, 7500,
+    /// 0, 85, 0x144870)`, the camera the game's `cc3d` as
+    /// [`Camera::fogged`] sets it): its `Prim` carries FOG's F at its
+    /// centre's w and FOGCOL; without PRIM.FGE, no fog.
+    #[test]
+    fn a_fogged_sprite_carries_its_f() {
+        let Some(fx) = crate::testing::effects() else { return };
+        let a = &fx.assets;
+        let p = a.file_index("particle").unwrap();
+        let wv = piney_world::camera::pos_target([0, ee::k(-4000.0), 0, ONE], [0, 0, 0, ONE]);
+        let mac_anu = piney_world::town::FogParams {
+            near: 1000.0,
+            far: 7500.0,
+            near_rate: 0.0,
+            far_rate: 85.0,
+            colour: [0x70, 0x48, 0x14],
+        };
+        let camera = Camera {
+            world_view: wv,
+            world_screen: piney_data::anim::vu_mul(&piney_world::camera::VIEW_SCREEN, &wv),
+            ..Camera::default()
+        }
+        .fogged(Some(mac_anu));
+        let mut want = DrawEnv::default();
+        want.set_fog(ee::k(1000.0), ee::k(7500.0), 0, ee::k(85.0), 0x0014_4870);
+        assert_eq!(camera.env, want);
+        let mut e = Eff::init(p, 0, &a.effs[p][0], true, &a.alpha_blend);
+        e.pos = [0, 0, 0, ONE];
+        let g = e.packet(a, 0, &camera).unwrap().gs.unwrap();
+        // 4000 away: 255 + (38.25 - 255) (4000 - 1000) / 6500, truncated.
+        assert_eq!(g.fog, 154);
+        let fog = g.prim("particle").state.fog;
+        assert_eq!(fog, Some(piney_draw::Fog { f: 154, colour: [0x70, 0x48, 0x14] }));
+        e.prim &= !0x20;
+        let g = e.packet(a, 0, &camera).unwrap().gs.unwrap();
+        assert_eq!(g.prim("particle").state.fog, None);
     }
 
     #[test]

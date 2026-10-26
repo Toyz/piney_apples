@@ -68,6 +68,9 @@ pub struct AnmObj {
     /// Its objects' CLUT swaps (from, to), as [`AnmObj::change_clut`]
     /// made them.
     pub clut: Vec<(u32, u32)>,
+    /// Its objects' fog bit: on from `ccObj::Init`, off after
+    /// [`AnmObj::fog_off`].
+    pub fog: bool,
 }
 
 impl AnmObj {
@@ -75,7 +78,13 @@ impl AnmObj {
     pub fn new(cx: &Cx, file: &str, name: &str) -> Option<AnmObj> {
         let obj = cx.assets.find(file, name)?;
         let play = Play::new(&cx.assets.files[obj.file], name)?;
-        Some(AnmObj { obj, play, clut: Vec::new() })
+        Some(AnmObj { obj, play, clut: Vec::new(), fog: true })
+    }
+
+    /// `ccAnm::SetFogSw(0)`.
+    pub fn fog_off(mut self) -> AnmObj {
+        self.fog = false;
+        self
     }
 
     /// For each (object, CLUT) pair: `GetSubstAdrsF(object)`,
@@ -113,6 +122,7 @@ impl AnmObj {
             alpha,
             layer: EFFECT_LAYER,
             clut,
+            fog: self.fog,
         });
     }
 }
@@ -122,14 +132,23 @@ pub fn particle_clump(cx: &Cx, name: &str) -> Option<ObjRef> {
     cx.assets.find("particle", name)
 }
 
-pub(crate) fn draw_clump(cx: &mut Cx, obj: Option<ObjRef>, matrix: vu::M4, alpha: F) {
-    draw_clump_clut(cx, obj, matrix, alpha, None);
+/// A clump's `Draw`; `fog` its objects' fog bit (`ccObj::Init`'s on, or
+/// as the owner's `SetFogSw` left it).
+pub(crate) fn draw_clump(cx: &mut Cx, obj: Option<ObjRef>, matrix: vu::M4, alpha: F, fog: bool) {
+    draw_clump_clut(cx, obj, matrix, alpha, None, fog);
 }
 
 /// A clump with its palette swapped (from, to).
-pub(crate) fn draw_clump_clut(cx: &mut Cx, obj: Option<ObjRef>, matrix: vu::M4, alpha: F, clut: Option<(u32, u32)>) {
+pub(crate) fn draw_clump_clut(
+    cx: &mut Cx,
+    obj: Option<ObjRef>,
+    matrix: vu::M4,
+    alpha: F,
+    clut: Option<(u32, u32)>,
+    fog: bool,
+) {
     if let Some(obj) = obj {
-        cx.draws.push(DrawRec::Clump { obj, matrix, alpha, layer: EFFECT_LAYER, clut });
+        cx.draws.push(DrawRec::Clump { obj, matrix, alpha, layer: EFFECT_LAYER, clut, fog });
     }
 }
 
@@ -274,7 +293,7 @@ impl DrawElm {
     /// `new ccFireElement` (gcmn 0x004f96f0).
     pub fn fire(cx: &Cx) -> DrawElm {
         let kind = DrawKind::Fire {
-            anm: AnmObj::new(cx, "particle", "ANM_x300"),
+            anm: AnmObj::new(cx, "particle", "ANM_x300").map(AnmObj::fog_off),
             kasa: particle_clump(cx, "CMP_x100"),
             kasa_rot: 0,
             sync_sw: 1,
@@ -344,12 +363,16 @@ impl DrawElm {
 
     /// `new ccFireBallElement` (gcmn 0x004fbfd0).
     pub fn fire_ball(cx: &Cx) -> DrawElm {
-        DrawElm { base: Base::default(), kind: DrawKind::FireBall { anm: AnmObj::new(cx, "particle", "ANM_x300") } }
+        DrawElm {
+            base: Base::default(),
+            kind: DrawKind::FireBall { anm: AnmObj::new(cx, "particle", "ANM_x300").map(AnmObj::fog_off) },
+        }
     }
 
     /// `new ccPlasmaBallElement` (gcmn 0x004fc2d0).
     pub fn plasma_ball(cx: &Cx) -> DrawElm {
-        let kind = DrawKind::PlasmaBall { anm: AnmObj::new(cx, "particle", "ANM_x502"), org_scale: 0 };
+        let kind =
+            DrawKind::PlasmaBall { anm: AnmObj::new(cx, "particle", "ANM_x502").map(AnmObj::fog_off), org_scale: 0 };
         DrawElm { base: Base::default(), kind }
     }
 
@@ -556,14 +579,14 @@ impl DrawElm {
                         anm.restart();
                     }
                 }
-                draw_clump(cx, *kasa, m, a.transparency);
+                draw_clump(cx, *kasa, m, a.transparency, false);
                 *kasa_rot = turn(*kasa_rot, 0x3dd6_7750);
             }
             DrawKind::Rock { cmp } => {
-                draw_clump(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
+                draw_clump(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
             }
             DrawKind::Dark { cmp } => {
-                draw_clump(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
+                draw_clump(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
                 for k in 1..3 {
                     self.base.anim.dirc[k] = turn(self.base.anim.dirc[k], 0x3e56_7750);
                 }
@@ -576,7 +599,7 @@ impl DrawElm {
                 m = vu::rot_z(&m, NEG_HALF_PI);
                 // m_pos into the matrix's translation row, w and all.
                 m[3] = a.pos;
-                draw_clump(cx, *cmp, m, a.transparency);
+                draw_clump(cx, *cmp, m, a.transparency, true);
             }
             DrawKind::Thunder { bow, connection, anm_index, b_shock } => {
                 let (bow, idx) = (*bow, *anm_index);
@@ -619,10 +642,10 @@ impl DrawElm {
                 }
             }
             DrawKind::Blantch { cmp } | DrawKind::Needle { cmp } => {
-                draw_clump(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency);
+                draw_clump(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, true);
             }
             DrawKind::MagicCircle { cmp, clut, scale_spd, scale_limit, fade_spd, fade_limit } => {
-                draw_clump_clut(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, *clut);
+                draw_clump_clut(cx, *cmp, vu::pos_rot_zyx_scale(a.pos, a.dirc, a.scale), a.transparency, *clut, false);
                 let b = &mut self.base;
                 if !ee::eq(0, *scale_spd) {
                     let mut v = ee::add(b.anim.scale[0], *scale_spd);
@@ -764,7 +787,7 @@ fn thunder_draw(cx: &mut Cx, a: &crate::element::Animate, bow: Option<ObjRef>, c
         m = vu::rot_z(&m, dirc);
         m = vu::rot_z(&m, NEG_HALF_PI);
         m = vu::trans(&m, c[i][0]);
-        draw_clump(cx, bow, m, a.transparency);
+        draw_clump(cx, bow, m, a.transparency, false);
     }
 }
 

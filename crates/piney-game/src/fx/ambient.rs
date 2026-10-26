@@ -63,7 +63,7 @@ pub(super) fn draw(
     camera: &piney_world::camera::Camera,
     ctx: &mut piney_desktop::anm::Ctx,
 ) {
-    let cam = FxCamera::from_field(camera);
+    let cam = FxCamera::from_field(camera).fogged(fx.fog);
     for op in ops {
         match op {
             Op::Sprite(s) => {

@@ -208,6 +208,7 @@ pub fn draw(picture: &Picture) -> Frame {
             wrap: Wrap::Clamp,
         }),
         scissor: Scissor::FULL,
+        fog: None,
     };
     let v = |x: f32, y: f32, u: f32, v: f32| Vertex { x, y, z: 0, u, v, rgba: Rgba::NEUTRAL };
     f.cmds.push(Cmd::Prim(Prim {

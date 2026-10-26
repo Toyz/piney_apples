@@ -386,6 +386,7 @@ impl MagicCircle {
             alpha: t,
             layer: EFFECT_LAYER,
             clut: Vec::new(),
+            fog: false,
         });
         for p in &mut self.parts {
             if p.status == 0 {

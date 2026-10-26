@@ -6,6 +6,7 @@
 //! Gate (`effTransfer`, `effWarpTransfer`) the characters start, run after the
 //! town's tasks, so their `rand()` draws come after the frame's others.
 
+use piney_world::town::FogParams;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -186,8 +187,8 @@ impl TownFx {
     }
 
     /// The effects' draws of the frame.
-    pub fn draw_effects(&self, camera: &Camera, ctx: &mut Ctx) {
-        self.fx.draw(&mut ctx.layers, &FxCamera::from_field(camera));
+    pub fn draw_effects(&self, camera: &Camera, fog: Option<FogParams>, ctx: &mut Ctx) {
+        self.fx.draw(&mut ctx.layers, &FxCamera::from_field(camera).fogged(fog));
     }
 
     /// The `ccEff` of a sprite as its owner's constructor left it.
@@ -211,8 +212,8 @@ impl TownFx {
     }
 
     /// Each sprite's `ccEff::Draw(pos, pattern)` on its layer.
-    pub fn draw(&mut self, sprites: &[TownSprite], camera: &Camera, ctx: &mut Ctx) {
-        let cam = FxCamera::from_field(camera);
+    pub fn draw(&mut self, sprites: &[TownSprite], camera: &Camera, fog: Option<FogParams>, ctx: &mut Ctx) {
+        let cam = FxCamera::from_field(camera).fogged(fog);
         for s in sprites {
             let Some(mut e) = self.eff(s) else { continue };
             e.pos = s.pos;

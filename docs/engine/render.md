@@ -3,7 +3,7 @@ title: The model draw path and VU1 microcode
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x001dac80-0x001de790 VU1 microcode, 0x001de790-0x001dea80 VU0 microcode, 0x0013eab0 ccModel::Draw, 0x0013e350 ccSetMatrixPacket, 0x0013e6c0 ccSetMaterialPacket, 0x0013e130 ccSetModelPacket, 0x0013e9e0 _ccCheckBoundingBoxEx, 0x00108260 ccLayer::Init
-worklog: 10, 17, 244
+worklog: 10, 17, 244, 484
 ---
 
 # The model draw path and VU1 microcode
@@ -132,8 +132,10 @@ The port carries the fog as `piney_draw::ModelDraw::depth_fog` (a
 leaves them). Both renderers compute F at each vertex's w and interpolate
 it across the triangle in screen space, as the GS does; a constant `fog`
 (`ccChar::Draw`'s blend) wins over it. piney-world fogs a model by the
-draw environment's fog (`TownLights::fog`) unless the game's `SetFogSw(0)`
-turns it off (the skies, clouds and water).
+draw environment's fog (`TownLights::fog`, `SetFog`'s arguments) unless
+the game's `SetFogSw(0)` turns it off (the skies, clouds and water). A 2D
+primitive with PRIM.FGE (a `ccEff` sprite) carries its one F and FOGCOL
+as `DrawState::fog`; both renderers put it through the same fog stage.
 
 Light colours are doubled in `mc_SetMatrix` (`loi 2.0`) and light directions
 renormalised there. In the `lit` line `c_i` are the colours as the matrix
