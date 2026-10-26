@@ -335,7 +335,7 @@ impl World {
         if code != 0 {
             return true;
         }
-        let (pos, rot) = if marker >= 0 { self.marker_bits(marker).unwrap_or(([0; 4], 0)) } else { ([0; 4], 0) };
+        let (pos, rot) = self.spc_marker(marker).unwrap_or((self.player.body.pos, self.player.body.dirc[2]));
         self.player.body.pos = pos;
         self.player.spc().set_dirc_z(ee::rad2deg(rot) as u16);
         true

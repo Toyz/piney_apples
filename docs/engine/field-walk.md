@@ -3,7 +3,7 @@ title: Leaving the town - Kite in a field and its dungeon
 status: partial
 volumes: INF
 covers: INF SLUS_202.67:0x00168960 ccSetupGameCtrl (areas 1 and 2), 0x00165530 loadCheck, 0x0019ad70 ccLoadDispInit, 0x0019c290 ccLoadDispTh, 0x0019ba50 ccLoadDisp::allDisp, 0x0019f8e0 WORLD_MAN::GO, 0x001a1190 WORLD_MAN::SetCharPosition, 0x0019eea0 WORLD_MAN::SetGenerateCode, 0x0019dda0 WORLD_MAN::Enter, 0x0019e410 WORLD_MAN::GoField, 0x001a0ef0 WORLD_MAN::SetCenter, 0x001a0fd0 WORLD_MAN::AddCenter, 0x001a20b0 WORLD_MAN::SetActiveLayer, 0x001a4430 ccThFieldDisp, 0x0013b5c0 ccObj::Init, 0x0013a440 ccModel::Init, 0x00153760 ccModelHit::HitEnable, 0x001537e0 ccModelHit::HitDisable, 0x0013cf50 ccClump::HitEnable, 0x0013d0b0 ccClump::HitDisable, 0x0013d150 ccClump::SetHitMatrix, 0x00151e60 ccAnm::HitEnable, 0x001520f0 ccAnm::SetHitMatrix, 0x00153930 _ccHitCheckLM, 0x00153a30 prepareHitLine, 0x00153be0 prepareHitSphere, 0x00153e80 checkHitResultAttlibute, 0x00167380 ccGame::ChangeScene, 0x001674a0 ccGame::ChangeArea, 0x001671e0 ccGame::ChangeRequest, 0x0015a200 ccSleepNoSleepThread, 0x0015a010 ccDeleteAllThread, 0x001b5230 ccStartThEvent, 0x001ab9b4 teach_camera1-3 (ccEvent::Execute), 0x001676a0 ccGame::SetInBattle, 0x0019c430 ccLoadDispCheck, 0x001b77c0 ccClearGtHack, 0x001b7840 ccSetGtHack, 0x001b7850 ccCheckGtHack, 0x00378a98 gtHackFlag, 0x00378cc0 ghoFlag, 0x00162870 cameraParamChange; INF gcmn.prg:0x005a97b0 WORLD::Draw, 0x005a8320 WORLD::DrawObject, 0x005a8570 WORLD::DrawMesh, 0x005a7ef0 WORLD::DrawBG, 0x005aa2b0 WORLD::SetCenter, 0x005aa3d0 WORLD::AddCenter, 0x005aa520 WORLD::GetHeight, 0x005b0e90 FOBJECT::Draw, 0x005b13f0 FOBJECT2::Draw, 0x005b1700 FOBJECT2::HitEnable, 0x005b0aa0 FIELD_MESH::RelocateMesh, 0x00571e00 ccLandHitCheck, 0x00597910 ccPlayer::ccPlayer, 0x00598310 ccPlayer::Main, 0x0059b3c0 ccPlayer::MapLoopAdjustPos, 0x0059b470 ccPlayer::W2MPos, 0x0059b5a0 ccPlayer::W2PPos, 0x0059b710 ccPlayer::P2WPos, 0x0059b940 ccTransPosW2P, 0x0059b980 ccTransPosP2W, 0x0059b9c0 ccTransPosFW2LW, 0x0059ff50 ccGetStartPositions, 0x0056b1c0 ccChar::Draw, 0x0053c8e0 ccMenuCtrl::GateoutMenu, 0x0051a000 ccCheckInAreaCmnd, 0x0059cd60 ccCheckGtHackAnm, 0x0051a750 ccInitRecoveryReq, 0x0051a790 ccEntryRecoveryReq, 0x0051a7f0 ccCtrlRecoveryReq, 0x0072eb10 recoveryReq, 0x00572700 ccSkillRequest, 0x00516a80 ccThGameOver, 0x00516a20 ccAddRequestFileListGameOver, 0x00516d30 ccGameOverNoise::Main, 0x00516d90 ccGameOverNoise::NOISE, 0x005170c0 ccGameOverNoise::TV, 0x00517150 ccGameOverNoise::Noise, 0x005171d0 ccGameOverNoise::Noise2, 0x00517240 ccGameOverNoise::Noise3, 0x005172c0 ccGameOverNoise::Noise4, 0x00517330 ccGameOverNoise::StretchTV_Y, 0x005174d0 ccGameOverNoise::StretchTV_X, 0x005175b0 ccGameOverNoise::StretchTV_Init, 0x005175d0 ccGameOverNoise::InitData, 0x0056a7c0 ccOpenGameOverMenu, SLUS_202.67:0x00180580 ccSndGameOver, 0x0059a0c8 ccPlayer::AnimCtrl, 0x0059ce80 ccParty::AddMember, 0x0059cf60 ccParty::DelMember, 0x0059cfe0 ccParty::CheckMemberID, 0x005a08e0 inviteSpc, 0x005a0f50 disbandSpc, 0x005a1070 expulsionSpc, 0x0059bc00 ccPlayer::GateHackingOut, 0x005a10e0 ccAddRequestFileListSpc, 0x005a1490 ccGateHackOutCcsName, 0x006540c0 GateHackOutCcsName, 0x0041ae80 ccFellow::Initialize (the hacked arrival), 0x0057c5f0 ccAI::ccAI (arrivalChatCnt)
-worklog: 72, 74, 75, 80, 87, 98, 103, 106, 108, 110, 130, 138, 158, 164, 177, 180, 186, 191, 218, 250, 260, 366, 376, 483
+worklog: 72, 74, 75, 80, 87, 98, 103, 106, 108, 110, 130, 138, 158, 164, 177, 180, 186, 191, 218, 250, 260, 366, 376, 483, 495
 ---
 
 # Leaving the town - Kite in a field and its dungeon
@@ -145,6 +145,31 @@ A character the event registers outside the party (`entry 0-2 code`,
 `ccEntryCmnd`, the event's command list. Side event 61 builds Natsume
 this way in her dungeon room; the port's `FieldWorld::set_spc_entries`
 takes the registrations and `EvParty::place_entry` the placing.
+
+In a town the place is `markerEvTbl[marker]`'s dummy in the town's
+file. From Mutation on (MUT main 0x001cba88, OUT 0x001c2158) a marker of
+99 or more leaves the character where it stands, its own `pos` and
+`dirc` put back. When the registry is full, `EntrySpc` gives -1 and only
+the `bootParam` is skipped (`ccRegisterEventMng`, OUT 0x001c2c78); the
+entry stays on the list, so a character already registered is still
+placed. Lia Fail's event 301 block 9 enters Kite at marker 99 with four
+members in (`World::spc_marker`, `entry_spc`).
+
+**Which events place characters in Fort Ouph and Lia Fail.** Read from
+the scripts: a block's `in_town` condition, or the scene tag in force.
+- Fort Ouph (town 3), 26 entries: Outbreak's 205, 207, 209, 210, 211
+  and side events 262 and 267-275; Quarantine's 301 and 304.
+- Lia Fail (town 4), 41 entries: Quarantine's 301, 303, 306, 309, 310,
+  313 and side event 360.
+- The types are party members (2) and town NPCs (3, the Administrator
+  type 4). Side events 267-275 put their NPC with `param` -1, where the
+  town's search finds it a place.
+- All of them run under the crisis: event 116 sets it, and 313-315
+  clear it. So Fort Ouph is `town04d`, whose `DMY_marker_ev07`-`09`
+  event 209 needs and `town04` lacks.
+- crates/piney-world/tests/later_towns.rs puts each block's entries
+  through the town on Mutation's, Outbreak's and Quarantine's discs, and
+  each character stands at its marker after the set-up.
 
 The entry control in a field thus holds `EntryGimmick`'s portals, enemies,
 foods, a lake's spring, the entrance's swirls and the symbols, and the

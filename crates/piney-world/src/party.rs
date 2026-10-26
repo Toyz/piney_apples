@@ -904,10 +904,10 @@ impl crate::World {
         if self.spcs.slot_of(i32::from(code)).is_none() {
             return;
         }
-        let (pos, rot) =
-            if marker >= 0 { self.marker_bits(marker).unwrap_or((crate::ee::VF0, 0)) } else { (crate::ee::VF0, 0) };
+        let at = self.spc_marker(marker);
         self.with_party(|_, chars, _| {
             let Some(mut c) = chars.spc(i32::from(code)) else { return };
+            let (pos, rot) = at.unwrap_or((*c.pos, c.dirc[2]));
             *c.pos = pos;
             c.set_dirc_z(crate::ee::rad2deg(rot) as u16);
             if param == 5 {
@@ -919,23 +919,43 @@ impl crate::World {
         }
     }
 
+    /// Where `ccEntryEventMng` puts a party character in town (MUT main
+    /// 0x001cba88): `markerEvTbl[marker]`'s dummy, `vf0` below 0 (and for
+    /// a dummy the file lacks); from Mutation on, None for a marker of 99
+    /// or more, which leaves the character where it stands.
+    pub(crate) fn spc_marker(&self, marker: i16) -> Option<(V4, ee::F)> {
+        if marker >= 99 && self.volume != piney_data::volume::Volume::Inf {
+            return None;
+        }
+        let none = (crate::ee::VF0, 0);
+        Some(if marker >= 0 { self.marker_bits(marker).unwrap_or(none) } else { none })
+    }
+
     /// An event's `entry` of a party character (types 0-2): registered
     /// (`EntrySpc`, `bootParam = param`: `ccRegisterEventMng`) and placed by
     /// the town's set-up ([`crate::World::place_entries`]); after the
     /// set-up a new party member is built and placed at once (the game
     /// would only at the next area).
+    ///
+    /// A full registry (`EntrySpc`'s -1) only skips `bootParam`
+    /// (`ccRegisterEventMng`, OUT main 0x001c2c78): the entry stays on the
+    /// list, and `ccEntryEventMng` still places a character already
+    /// registered (Kite in Lia Fail's event 301 block 9, with four members
+    /// in). False when the character is not registered at all.
     pub(crate) fn entry_spc(&mut self, code: i16, marker: i16, param: i16) -> bool {
-        let i = self.spcs.entry_spc(i32::from(code));
-        if i < 0 {
+        let slot = usize::try_from(self.spcs.entry_spc(i32::from(code))).ok();
+        if let Some(i) = slot {
+            self.spcs.registry[i].boot_param = i32::from(param);
+        }
+        if self.spcs.slot_of(i32::from(code)).is_none() {
             return false;
         }
-        self.spcs.registry[i as usize].boot_param = i32::from(param);
         if !self.placed {
             self.spc_entries.push((2, code, marker, param));
             return true;
         }
-        if code != 0 && self.party.member(i32::from(code)).is_none() {
-            self.build_spc(i as usize);
+        if let Some(i) = slot.filter(|_| code != 0 && self.party.member(i32::from(code)).is_none()) {
+            self.build_spc(i);
             self.place_spc(code, marker, param);
             self.party.combat.set_party(self.spcs.party());
         }

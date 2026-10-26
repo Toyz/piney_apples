@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-494 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 125, save 16, script 59, test 230, tooling 46, ui 99, video 16, volumes 89, world 142. 122 entries still have open questions - [listed below](#still-open).
+495 entries: audio 40, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 125, save 16, script 60, test 230, tooling 46, ui 99, video 16, volumes 89, world 142. 122 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -506,6 +506,7 @@ The [reference](docs/README.md) says what is true now.
 | 492 | [Type 32's tree and leaves ported: area 101's event room's twenty LEAFs, 400 frames bit-exact with the game](worklog/0492-type-32-s-tree-and-leaves-ported-area-101-s-event-room-s.md) | 2026-10-25 | world |
 | 493 | [GetEventAreaInfo(0) on Outbreak and Quarantine finds row 0 as the port does: the carried names of its two overloads were crossed](worklog/0493-geteventareainfo-0-on-outbreak-and-quarantine-finds-row-0.md) | 2026-10-25 | tooling |
 | 494 | [The later towns' map: the fourth sprite is the game's, and Fort Ouph's and Lia Fail's DrawMap ported and checked against the game](worklog/0494-the-later-towns-map-the-fourth-sprite-is-the-game-s-and.md) | 2026-10-25 | ui |
+| 495 | [Which events place characters in Fort Ouph and Lia Fail, each placed by the port; a party entry at marker 99 stays put, and a full registry still places a registered one](worklog/0495-which-events-place-characters-in-fort-ouph-and-lia-fail.md) | 2026-10-25 | script |
 
 ## Still open
 
@@ -621,7 +622,7 @@ The [reference](docs/README.md) says what is true now.
 - [294. Fidchell, Outbreak's first phase boss, and its four spells](worklog/0294-fidchell-outbreak-s-first-phase-boss-and-its-four-spells.md) (4 questions) - The pictures: the prediction's text, the meteors and their light, the bolts, the towers and the dust are named, not...
 - [293. Outbreak's story under the autopilot: its starts, going alone, a story map's door, the Data Bugs](worklog/0293-outbreak-s-story-under-the-autopilot-its-starts-going-alone.md) (3 questions) - entry 3 29 (Lios as a walking PC, file ctr1) is refused ("not a walking PC's file") in the towns of 209 and 216-218...
 - [292. Key items were never used: the Key Items menu's use call, and the epitaphs' pages](worklog/0292-key-items-were-never-used-the-key-items-menu-s-use-call-and.md) (2 questions) - The Ryu Books (273-280): ccStartThread(ccThBook, 35, 0x1000) and the steps after it (BookStart, CloseChat, WaitBook)...
-- [291. Open questions after the triage: the later volumes](worklog/0291-open-questions-after-the-triage-the-later-volumes.md) (15 questions) - (play) #260: which events place characters in Fort Ouph and Lia Fail — Outbreak's and Quarantine's stories.
+- [291. Open questions after the triage: the later volumes](worklog/0291-open-questions-after-the-triage-the-later-volumes.md) (14 questions) - (volumes) #198, #218, #220: the functions voldiff marks changed (296 on Mutation, 561 on Outbreak, 565 on Quarantine...
 - [290. Open questions after the triage: the save](worklog/0290-open-questions-after-the-triage-the-save.md) (7 questions) - #246: what each eventStatus index counts; it belongs to the scripts that use it.
 - [289. Open questions after the triage: sound, voices and movies](worklog/0289-open-questions-after-the-triage-sound-voices-and-movies.md) (35 questions) - (volumes) #203: Outbreak's and Quarantine's ccVoiceRequest cases; #227 leaves their spcVoiceData to be checked.
 - [288. Open questions after the triage: menus, the desktop and the text](worklog/0288-open-questions-after-the-triage-menus-the-desktop-and-the.md) (49 questions) - (volumes) #94: the later volumes' staff rolls (stfroll2-4) are not tried; GAPS.md lists Quarantine's staff roll as its...
