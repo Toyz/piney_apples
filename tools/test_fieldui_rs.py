@@ -189,7 +189,7 @@ class Char:
 
     def __init__(self, handle, types, cid, hp, sp, mhp, msp, name, cond=(), tag=None, width=0.0, view=True,
                  pos=(0.0, 0.0, 0.0), chat=(0, 0, 0, 0, 0, 0), item=None, trap=None, size=None, busy=None,
-                 exdef=None):
+                 exdef=None, boost=None):
         self.handle, self.types, self.id = handle, types, cid
         self.hp, self.sp, self.mhp, self.msp = hp, sp, mhp, msp
         self.name, self.cond, self.tag = name, list(cond) + [0] * (16 - len(cond)), tag
@@ -205,6 +205,9 @@ class Char:
         # A foe's (Exdefense, lowered): its table row's immunities (+0x64)
         # and the bits of those defences its `real` has below the row's.
         self.exdef = exdef
+        # A member's timed boosts: personality.temp's eight abilities
+        # (+0x88) and six elements (+0x98), each below 0 a DOWN, above an UP.
+        self.boost = boost
 
     def pos_line(self):
         return f"pos {self.handle} {self.width!r} {int(self.view)} " + " ".join(repr(float(v)) for v in self.pos)
@@ -363,6 +366,9 @@ class Scenario:
                 out.append(f"item {c.handle} {c.item}")
                 if c.trap is not None:
                     out.append(f"trap {c.handle} {c.trap[0]} {c.trap[1]}")
+        for c in self.party.values():
+            if c.boost is not None:
+                out.append(f"boost {c.handle} " + " ".join(str(v) for v in c.boost[0] + c.boost[1]))
         for c in ([self.target] if self.target else []) + [e.c for e in self.sorted]:
             if c.exdef is not None:
                 out.append(f"exdef {c.handle} {c.exdef[0]} {c.exdef[1]}")
@@ -664,6 +670,11 @@ class Game:
         if c.busy:
             m.store(a + 0x7C, 2, c.busy[0] & 0xFFFF)
             m.store(a + 0xEE, 2, c.busy[1] & 0xFFFF)
+        if c.boost is not None:
+            for k, v in enumerate(c.boost[0]):
+                m.store(pers + 0x88 + 2 * k, 2, v & 0xFFFF)
+            for k, v in enumerate(c.boost[1]):
+                m.store(pers + 0x98 + 2 * k, 2, v & 0xFFFF)
         if c.exdef is not None:
             # ccGetEnemyParam / ccGetBossParam(id): the row's elm (+0x28)
             # all 100 and its Exdefense; ccEnemyParam.real (personality +0)
@@ -2021,6 +2032,19 @@ class FieldUiAgainstGame(unittest.TestCase):
         self.party(sc, 1)
         sc.saves.append((0x2264 + 7, 1, 1))
         self.compare(sc, "new mail")
+
+    def test_boosts(self):
+        # The party's timed boosts on their panels (ConditionIconDisp's UP
+        # and DOWN icons, five a row): every ability and element up for
+        # Kite (fourteen icons), a mix for Orca, conditions besides for
+        # Mistral.
+        sc = Scenario(80)
+        sc.party[0] = Char(0x100, 1, 0, 120, 60, 120, 60, b"Kite", boost=([5] * 8, [3] * 6))
+        sc.party[1] = Char(0x101, 1, 2, 150, 80, 150, 80, b"Orca",
+                           boost=([4, -2, 0, 9, 0, -1, 3, 0], [0, -5, 0, 2, 0, 0]))
+        sc.party[2] = Char(0x102, 1, 5, 90, 9, 100, 100, b"Mistral", cond=[0] * 7 + [1, 0, 0, 0, 0, 1, 1],
+                           boost=([1, 1, 1, 1, 1, 1, 1, 1], [-1] * 6))
+        self.compare(sc, "boosts")
 
     def test_low_hp(self):
         sc = Scenario(80)

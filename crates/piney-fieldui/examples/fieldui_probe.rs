@@ -307,6 +307,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // exdef HANDLE EXDEFENSE LOWERED: a foe's row Exdefense and the
             // bits of the defences now below the row's.
             "exdef" => exdefs_of.push((n(1) as u32, n(2) as i16, n(3) as i16)),
+            // boost HANDLE A0..A7 E0..E5: a member's timed boosts
+            // (personality.temp's abilities and elements).
+            "boost" => {
+                let h = n(1) as u32;
+                let ability: [i16; 8] = std::array::from_fn(|k| n(2 + k) as i16);
+                let elements: [i16; 6] = std::array::from_fn(|k| n(10 + k) as i16);
+                for c in world.party.iter_mut().flatten().filter(|c| c.handle == h) {
+                    c.ability = ability;
+                    c.elements = elements;
+                }
+            }
             // online ID: an npcTbl row on g_entCtrl's NPC list.
             "online" => world.npcs.push(n(1) as i32),
             "areaitem" => {
