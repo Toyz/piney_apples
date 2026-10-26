@@ -112,7 +112,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 Missing pieces that only the later volumes need.
 
-- [[24]] [[325]] what fills Outbreak's and Quarantine's BSS message groups (docs/engine/events.md); what `eventAreaNumber` 126 loads — answered by [[464]] (Quarantine's own case of instruction 118 sets the number alone; `GO(1)` makes an empty map, gcmn 0x00305120, whose `Draw` only puts the panels out)
+- [[24]] [[325]] what fills Outbreak's and Quarantine's BSS message groups (docs/engine/events.md); what `eventAreaNumber` 126 loads — answered by [[464]] (Quarantine's own case of instruction 118 sets the number alone; `GO(1)` makes an empty map, gcmn 0x00305120, whose `Draw` only puts the panels out) — the groups answered by [[489]]: nothing fills them; only loads (Execute's message cases, the tutorial menus), never reached in a volume's own play
 - [[65]] [[116]] `npc_act -3` (row 139's drain, with `effVirusCrystal`) and `-5` are not ported; only Mutation's event 114 uses them (docs/engine/events.md, effects.md, field-game.md) — Mutation's event 114
 - [[275]] `marker_pos` on a plain field (`WORLD_MAN` +0x438's stream) is not ported, and no event map but `EVENTAREA01` answers `StoryMap::file` — Mutation's field events
 - [[395]] from Mutation on a field ride's charge (MUT gcmn 0x0052f790, the knockback 0x0052f250, `+0x158`..`+0x160`), its Grunty chat (0x00530e50, 0x00530dd0) and the `+0x1e0` range — answered by [[403]]: they are the Grunty's search (foods, the dungeon or portals by kind; a balloon line; the Grunty leads Kite until within the range). Mutation never starts it (no code sets flag bit 6); Outbreak and Quarantine start it with Triangle. Ported (`ride::seek`, `seek_move`), tools/test_ride_rs.py's search cases on three volumes, `outbreaks_grunty_leads_kite_to_the_dungeon` / docs/engine/grunty-ride.md "The search in a field"
@@ -1282,7 +1282,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 
 ### docs/engine/events.md
 
-- docs/engine/events.md: what fills OUT's and QUA's BSS message groups; what OUT's rewritten cases do — play (duplicates [[24]])
+- docs/engine/events.md: what fills OUT's and QUA's BSS message groups; what OUT's rewritten cases do — play (duplicates [[24]]) — the groups answered by [[489]]: nothing fills them; only loads (Execute's message cases, the tutorial menus), never reached in a volume's own play
 - docs/engine/events.md: what gcmn 0x004f0a30's thread does with the KFED buffers — answered ([[239]] (the staff roll; the buffers are never read))
 - docs/engine/events.md: npc_act -3 and -5 (row 139's drain, the Administrator's -5) not ported; only Mutation's event 114 uses them — play (duplicates [[65]])
 - docs/engine/events.md: the numbering of streams, markers, menus, operations, sound commands, act codes — answered (the bullet itself closes it ([[176]], [[178]], [[179]]))

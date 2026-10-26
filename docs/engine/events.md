@@ -3,7 +3,7 @@ title: Event scripts
 status: partial
 volumes: all
 covers: MUT SLUS_205.62:0x001bdf00 ccEvent::Execute, OUT SLUS_205.63:0x001b4250, QUA SLUS_205.64:0x001bba60; INF SLUS_202.67:0x001a8d20 ccEvent::Execute, 0x001a7400 ccEvent::CheckOpen, 0x001a6ec0 ccEvent::SetCurrentOpen, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x001ac7c8 ccEvent::Execute case 45 (radiator), 0x00317e30 eventTbl, evMsgTbl, evMsgTblp
-worklog: 18, 24, 40, 176, 178, 179, 239, 325, 376, 377
+worklog: 18, 24, 40, 176, 178, 179, 239, 325, 376, 377, 489
 ---
 
 # Event scripts
@@ -451,7 +451,15 @@ compilation. Several structure offsets moved without a change in behaviour.
 
 Each volume has message text only for its own main story (INF M1, MUT M2,
 OUT M3, QUA M4) and the side events. OUT's and QUA's other M groups point
-into BSS. Voice comes from each volume's own files.
+into BSS, and nothing fills them. A scan of every code word finds only
+loads of them:
+- `Execute`'s message cases, through `evMsgTbl`/`evMsgTblp`;
+- the tutorial menus (`PartyMenuT`, `PersonalMenuT`, `PartyDisbandMenu`,
+  `PartyInMenuT`, `GateMenuT`, `GtNewMenuT`, `PersonalMenuTS`), on M1's
+  events 2-4.
+No store reaches them. Each volume's pass walks only its own main story
+(`story_stages`), so in play nothing reads them. Voice comes from each
+volume's own files.
 
 ## The port
 
@@ -515,6 +523,5 @@ The boards, the windows and the camera:
 
 ## Unknown
 
-- What fills OUT's and QUA's BSS message groups.
 - `npc_act` -3 and -5 (row 139's drain, the Administrator's -5) are not
   ported; only volume 2's event 114 uses them.
