@@ -900,11 +900,38 @@ set and `game.area` is 1 or 2:
   `ccGetSkillParam(sid)+0x2c` (the jump table at 0x0034d830). For example,
   Kite subtracts 6, or 123 when the bit is clear; characters 9, 10, 16
   and 17 use row 0, or subtract 150.
-- **Sending it.** The line goes as `evVoicePlay` sends one, and the queue
-  empties.
-- **A quirk.** A character without a file, or a row without a line,
-  returns before the queue empties, so the same word is tried again the
-  next frame.
+- **Sending it.** The first queued word goes as `evVoicePlay` sends a
+  line, and the whole queue empties: other words queued in the same frame
+  are lost. The menu task (34) queues Kite's before the party's (48).
+  SEWORDS refuses a line while channel 0 still plays one
+  ([voice](../formats/voice.md)), so a word asked for during another
+  word, or during a message's line, is not heard either.
+- **A quirk.** A character without a file (a NULL), or a row without a
+  line, returns before the queue empties. The same word is tried every
+  frame, and every later word is lost, until the sound task is made again
+  at power-on.
+- **The later volumes.** `charTbl` has 21 rows from Mutation on. On
+  Infection, Outbreak and Quarantine, every character's every skill has a
+  line in both languages.
+  - **Mutation.** `spcVoiceData` and `spcVoiceDataE` stop at 18. Tsukasa
+    and Subaru (18, 19) read NULLs, so their first word holds the queue.
+    Sora (20) reads past the arrays: a name that is empty in Japanese and
+    lies at address 2 in English. The line is sent, nothing opens and the
+    queue empties.
+  - **Outbreak.** It gives the three their files, but its table still
+    runs to 18, so they subtract 6.
+  - **Quarantine.** Its jump table (QUA 0x00252710) runs to 21. In
+    Japanese the three read row 0, or row 1 when the bit is clear. In
+    English, when the bit is clear, all three subtract 150 (Tsukasa) or
+    123 (Subaru, Sora); when it is set, Tsukasa reads row 0, Subaru
+    subtracts 96 and Sora 6.
+  - **The port.** `piney-gen` reads both arrays for every `charTbl` row, a
+    NULL as no file and a name past them as the game reads it. Each
+    table's reach goes into `skill_memory`.
+  - **Checked.** `tools/sound_ee.py words-fixture` runs the game's
+    `ccWordsPlay` and `skillVoicePlay` on all four discs, for every
+    character, skill and language. The port sends the same:
+    `crates/piney-audio/tests/words.rs`.
 
 **Who calls it.** `ccWordsPlay` has one caller, `_ccSkillRequest` (gcmn
 0x00572b98): a character's own skill (stype 0: the menus' `ccSkillRequest`,

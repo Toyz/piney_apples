@@ -102,10 +102,10 @@ impl crate::store::Load for FieldVoice {
     }
 }
 
-/// One language's skill words for a character: the file, and where its table's row 0 is in `skill_memory`.
+/// One language's skill words for a character: the file (None for a NULL, where `skillVoicePlay` returns and the queue holds), and where its table's row 0 is in `skill_memory`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SkillWords {
-    pub file: &'static str,
+    pub file: Option<&'static str>,
     pub row0: i32,
 }
 
@@ -141,7 +141,7 @@ pub struct Voice {
     pub field: &'static [FieldVoice],
     /// `ccVoicePgFood`'s table: a Grunty food calling out.
     pub food: VoiceTable,
-    /// `skillVoicePlay`'s tables by `charTbl` row, for the characters with a file.
+    /// `skillVoicePlay`'s tables by `charTbl` row (18 on Infection, 21 from Mutation on).
     pub skill: &'static [SkillVoice],
     /// The memory `skillVoicePlay` reads its rows from: every table and the rows within reach of them (ids 0-303), as `VOICE_DATA`.
     pub skill_memory: &'static [VoiceData],

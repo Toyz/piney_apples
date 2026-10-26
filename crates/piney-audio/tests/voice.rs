@@ -409,9 +409,11 @@ fn field_lines(path: &std::path::Path, volume: piney_data::volume::Volume) -> us
         let rows = &voice.skill_memory[w.row0 as usize..];
         &rows[..rows.iter().position(|r| (r.ofs, r.siz) == (0, 0)).unwrap_or(rows.len())]
     };
-    for s in voice.skill {
-        tables.push((s.jp.file, own(&s.jp)));
-        tables.push((s.en.file, own(&s.en)));
+    // Mutation's Sora (20) names no file: the game sends an empty name.
+    for w in voice.skill.iter().flat_map(|s| [&s.jp, &s.en]) {
+        if let Some(file) = w.file.filter(|f| !f.is_empty()) {
+            tables.push((file, own(w)));
+        }
     }
     let mut n = 0;
     for (name, rows) in tables {

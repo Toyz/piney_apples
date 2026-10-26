@@ -1339,9 +1339,11 @@ impl Driver {
     /// dungeon: the first queued word, from the character's file and rows in
     /// the disc's tables ([`piney_data::tables::voice::SkillVoice`]), the row
     /// by a per-character rule on the skill id, sent as `evVoicePlay` sends a
-    /// line; then the queue emptied. A character without a file, or a row of
-    /// -1, leaves the queue for next frame. A row outside the character's
-    /// table sends what lies there (`skill_memory`) and empties it too.
+    /// line; then the queue emptied. A character whose file pointer is NULL
+    /// (Mutation's Tsukasa and Subaru), or a row of -1, leaves the queue for
+    /// next frame, every frame. A row outside the character's table sends
+    /// what lies there (`skill_memory`) and empties it too; so does a name
+    /// no file has (Mutation's Sora: the arrays read past their ends).
     pub fn skill_voice_play(&mut self, out: &mut Vec<Command>) {
         if self.words_num == 0 {
             return;
@@ -1350,10 +1352,12 @@ impl Driver {
         let (c, sid, type_bit) = self.words[i];
         let Some(v) = usize::try_from(c).ok().and_then(|k| self.voice.skill.get(k)) else { return };
         let words = if self.voice_english { &v.en } else { &v.jp };
-        let at = i64::from(words.row0) + i64::from(skill_row(c, sid, type_bit));
+        let Some(file) = words.file else { return };
+        let row = skill_row(self.volume, c, sid, type_bit, self.voice_english);
+        let at = i64::from(words.row0) + i64::from(row);
         let row = usize::try_from(at).ok().and_then(|k| self.voice.skill_memory.get(k)).copied();
         let Some(r) = row.filter(|r| r.ofs != -1) else { return };
-        out.push(Command::Voice(VoiceCmd { file: words.file, ofs: r.ofs, size: r.siz, vol: VOICE_VOL }));
+        out.push(Command::Voice(VoiceCmd { file, ofs: r.ofs, size: r.siz, vol: VOICE_VOL }));
         self.words = [(-1, -1, false); 4];
         self.words_num = 0;
     }
@@ -1420,40 +1424,19 @@ impl Driver {
 /// `skillVoicePlay`'s row for character `c` (`charTbl` row) and skill `sid`
 /// (the jump table at 0x0034d830): the id less a base by character, the
 /// base by bit 0 of the skill's type (clear: 123 for most, 114 for 4 and
-/// 15, 150 for 9, 10, 16 and 17); past character 17, less 6.
-pub fn skill_row(c: i16, sid: i16, type_bit: bool) -> i32 {
+/// 15, 150 for 9, 10, 16 and 17); past character 17, less 6. Quarantine's
+/// table runs to 21 (QUA 0x00252710): Tsukasa, Subaru and Sora (18-20)
+/// read row 0 or 1 in Japanese, and English rows of their own.
+pub fn skill_row(volume: Volume, c: i16, sid: i16, type_bit: bool, english: bool) -> i32 {
     let clear = !type_bit;
     let s = i32::from(sid);
+    let by_bit = |clear_base: i32, set_base: i32| if clear { s - clear_base } else { s - set_base };
     match c {
-        0 | 7 | 11 => {
-            if clear {
-                s - 123
-            } else {
-                s - 6
-            }
-        }
-        1 | 2 | 3 | 6 | 12 => {
-            if clear {
-                s - 123
-            } else {
-                s - 33
-            }
-        }
+        0 | 7 | 11 => by_bit(123, 6),
+        1 | 2 | 3 | 6 | 12 => by_bit(123, 33),
         5 | 13 => s - 123,
-        8 | 14 => {
-            if clear {
-                s - 123
-            } else {
-                s - 96
-            }
-        }
-        4 | 15 => {
-            if clear {
-                s - 114
-            } else {
-                s - 60
-            }
-        }
+        8 | 14 => by_bit(123, 96),
+        4 | 15 => by_bit(114, 60),
         9 | 10 | 16 | 17 => {
             if clear {
                 s - 150
@@ -1461,6 +1444,16 @@ pub fn skill_row(c: i16, sid: i16, type_bit: bool) -> i32 {
                 0
             }
         }
+        18..=20 if volume == Volume::Qua && !english => i32::from(clear),
+        18 if volume == Volume::Qua => {
+            if clear {
+                s - 150
+            } else {
+                0
+            }
+        }
+        19 if volume == Volume::Qua => by_bit(123, 96),
+        20 if volume == Volume::Qua => by_bit(123, 6),
         _ => s - 6,
     }
 }

@@ -4508,34 +4508,30 @@ fn field_voices(c: &Ctx, food: bool) -> Read {
     Ok(Value::List(out))
 }
 
-/// `skillVoicePlay`'s tables (main 0x0017e350) by `charTbl` row, as
-/// (file, table) for Japanese (`spcVoiceData`, `voiceData`) and English
-/// (`spcVoiceDataE`, `voiceDataE`). Only the rows with a file are read: the
-/// game gives up on a character without one before it looks at the rows
-/// (Mutation's `voiceData` has three more than files).
-fn skill_voice_tables(c: &Ctx) -> Result<Vec<Vec<(Value, u32)>>, String> {
-    let sides = [(0x0030_7230, 0x0030_71E0), (0x0030_72D0, 0x0030_7280)];
-    let mut out = Vec::new();
-    for (files, rows) in sides {
-        let (files, rows) = (find(c, files, MAIN), find(c, rows, MAIN));
-        let mut side = Vec::new();
-        for k in 0..64 {
-            let name = c.p.u32(files + 4 * k)?;
-            if name == 0 {
-                break;
-            }
-            let t = c.p.u32(rows + 4 * k)?;
-            if c.p.u32(t).is_err() {
-                return Err(format!("voiceData row {k} is no table (0x{t:08x})"));
-            }
-            side.push((disc_path(c, name)?, t));
+/// One language's words for a character as `skillVoicePlay` (main
+/// 0x0017e350) reads them: `spcVoiceData[c]` (None for a NULL, where the
+/// game returns and the queue holds) and `voiceData[c]`, the address of
+/// its row 0. Both arrays are read past their ends as the game does; a
+/// name at an address no file maps (Mutation's English 20th: 2, the
+/// kernel's memory) is one the disc does not have, so it is empty.
+type SkillSide = Option<(Value, u32)>;
+
+/// `skillVoicePlay`'s tables by `charTbl` row (18 on Infection, 21 from
+/// Mutation on), Japanese (`spcVoiceData`, `voiceData`) and English
+/// (`spcVoiceDataE`, `voiceDataE`).
+fn skill_voice_tables(c: &Ctx) -> Result<Vec<[SkillSide; 2]>, String> {
+    let chars = if c.volume == Vol::Inf { 18 } else { 21 };
+    let sides =
+        [(0x0030_7230, 0x0030_71E0), (0x0030_72D0, 0x0030_7280)].map(|(f, r)| (find(c, f, MAIN), find(c, r, MAIN)));
+    let side = |k: u32, (files, rows): (u32, u32)| -> Result<SkillSide, String> {
+        let name = c.p.u32(files + 4 * k)?;
+        if name == 0 {
+            return Ok(None);
         }
-        out.push(side);
-    }
-    if out[0].len() != out[1].len() {
-        return Err(format!("{} Japanese and {} English skill files", out[0].len(), out[1].len()));
-    }
-    Ok(out)
+        let file = if c.p.mapped(name) { disc_path(c, name)? } else { Value::Bytes(Vec::new()) };
+        Ok(Some((file, c.p.u32(rows + 4 * k)?)))
+    };
+    (0..chars).map(|k| Ok([side(k, sides[0])?, side(k, sides[1])?])).collect()
 }
 
 /// The rows `skillVoicePlay` can reach from a table: ids 0-303 less a base
@@ -4543,33 +4539,58 @@ fn skill_voice_tables(c: &Ctx) -> Result<Vec<Vec<(Value, u32)>>, String> {
 const SKILL_ROWS_BEFORE: u32 = 150;
 const SKILL_ROWS_AFTER: u32 = 298;
 
-/// Where `skill_memory` starts: 150 rows before the lowest table.
-fn skill_memory_start(t: &[Vec<(Value, u32)>]) -> u32 {
-    t.iter().flatten().map(|r| r.1).min().unwrap_or(0) - 8 * SKILL_ROWS_BEFORE
+/// The stretches of memory the rows are read from: each table's reach,
+/// merged where they overlap on the same 8-byte grid, in address order.
+fn skill_memory_spans(t: &[[SkillSide; 2]]) -> Vec<(u32, u32)> {
+    let mut reach: Vec<(u32, u32)> =
+        (t.iter().flatten().flatten()).map(|&(_, a)| (a - 8 * SKILL_ROWS_BEFORE, a + 8 * SKILL_ROWS_AFTER)).collect();
+    reach.sort_unstable();
+    let mut spans: Vec<(u32, u32)> = Vec::new();
+    for (a, b) in reach {
+        match spans.last_mut() {
+            Some(last) if a <= last.1 && (a - last.0).is_multiple_of(8) => last.1 = last.1.max(b),
+            _ => spans.push((a, b)),
+        }
+    }
+    spans
+}
+
+/// Where row 0 at address `a` is in `skill_memory`.
+fn skill_memory_row(spans: &[(u32, u32)], a: u32) -> Result<i128, String> {
+    let mut before = 0;
+    for &(s, e) in spans {
+        if s <= a && a < e && (a - s).is_multiple_of(8) {
+            return Ok(i128::from(before + (a - s) / 8));
+        }
+        before += (e - s) / 8;
+    }
+    Err(format!("skill voice table 0x{a:08x} is off the rows"))
 }
 
 /// Each character's file and where its table's row 0 is in `skill_memory`.
 fn skill_voices(c: &Ctx) -> Read {
     let t = skill_voice_tables(c)?;
-    let start = skill_memory_start(&t);
-    let words = |(file, a): &(Value, u32)| match (a - start) % 8 {
-        0 => Ok(Value::List(vec![file.clone(), Value::Int(i128::from((a - start) / 8))])),
-        _ => Err(format!("skill voice table 0x{a:08x} is off the rows of 0x{start:08x}")),
+    let spans = skill_memory_spans(&t);
+    let words = |s: &SkillSide| -> Read {
+        Ok(match s {
+            None => Value::List(vec![Value::None, Value::Int(0)]),
+            Some((file, a)) => Value::List(vec![file.clone(), Value::Int(skill_memory_row(&spans, *a)?)]),
+        })
     };
-    let rows = t[0].iter().zip(&t[1]).map(|(j, e)| Ok(Value::List(vec![words(j)?, words(e)?])));
+    let rows = t.iter().map(|[j, e]| Ok(Value::List(vec![words(j)?, words(e)?])));
     Ok(Value::List(rows.collect::<Result<Vec<_>, String>>()?))
 }
 
-/// The memory `skillVoicePlay` reads its rows from, as `VOICE_DATA`: the
-/// tables of both languages and what lies within a row's reach of them
-/// (the next table, `itemTblE`, the message tables after them). A row
+/// The memory `skillVoicePlay` reads its rows from, as `VOICE_DATA`: each
+/// table of both languages and what lies within a row's reach of it (the
+/// next table, `itemTblE`, the message tables; for a character past the
+/// arrays, the strings it points into), stretch after stretch. A row
 /// outside a character's table plays what lies there, as the game does.
 fn skill_memory(c: &Ctx) -> Read {
-    let t = skill_voice_tables(c)?;
-    let start = skill_memory_start(&t);
-    let end = t.iter().flatten().map(|r| r.1).max().unwrap_or(0) + 8 * SKILL_ROWS_AFTER;
+    let spans = skill_memory_spans(&skill_voice_tables(c)?);
     let row = ty("VOICE_DATA", vec![]);
-    let rows = (start..end).step_by(8).map(|a| row.read(c, a)).collect::<Result<Vec<_>, _>>()?;
+    let rows =
+        (spans.iter().flat_map(|&(s, e)| (s..e).step_by(8))).map(|a| row.read(c, a)).collect::<Result<Vec<_>, _>>()?;
     Ok(Value::List(rows))
 }
 
@@ -4577,8 +4598,8 @@ fn skill_words() -> Layout {
     strukt(
         "SkillWords",
         0,
-        vec![("file", 0, cstr()), ("row0", 4, I32)],
-        "One language's skill words for a character: the file, and where its table's row 0 is in `skill_memory`.",
+        vec![("file", 0, opt(cstr())), ("row0", 4, I32)],
+        "One language's skill words for a character: the file (None for a NULL, where `skillVoicePlay` returns and the queue holds), and where its table's row 0 is in `skill_memory`.",
     )
 }
 
@@ -4692,7 +4713,7 @@ fn voice() -> Group {
                     ),
                 ),
                 GCMN,
-                "`skillVoicePlay`'s tables by `charTbl` row, for the characters with a file.",
+                "`skillVoicePlay`'s tables by `charTbl` row (18 on Infection, 21 from Mutation on).",
             ),
             derived(
                 "skill_memory",

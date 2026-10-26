@@ -94,7 +94,20 @@ Maybe an ingame quake console so we can debug and test various game features mor
 - [x] a Fairy's Orb used in a dungeon fight broke the camera: the rooms it rebuilds for the map came back with their doors open (`SetDoor` asks `ccCheckActiveObject`; worklog 301, 302, `an_orb_in_a_dungeon_fight`). The dungeon vanishing for the orb's frames is the game's own `DUNGEON::ShowMap`
 - [x] Twin Hills' keywords from Waffle's post (event 14 block 2): the game's own window, read before event 14 ends; after it Mia gives them at the gate (event 18 block 7); `the_boards_keyword_announcements`
 - [x] no keyboard keys for the right stick (now I / J / K / L), and an Xbox pad read as nothing (the first connected gamepad was read; now the one that last sent input)
-- [ ] party members' skill voice lines not heard (not reproduced: every member's line plays in the port's fights, worklog 300; needs the area, the party and a `--pad-log`)
+- [x] party members' skill voice lines not heard. On Infection the path is the game's, step by step:
+  - **The request.** It names the skill for any caster (stype 0 or 2, id 6 and up).
+  - **`ccWordsPlay`.** It keeps every party character, since all are type 6 and Kite is 7.
+  - **`skillVoicePlay`.** It has a line for each of the 18 characters' every skill in both languages. It plays one word a frame, the first queued, and the words queued in the same frame are lost; Kite's, from the menu task, come first.
+  - **SEWORDS.** It refuses a line while one still plays.
+
+  So a member's word that lands with another's, or during a line, is not heard. That is the original's behaviour.
+
+  The later volumes differed from the game, and are fixed:
+  - **Quarantine's Tsukasa, Subaru and Sora.** Their own rows, by language, were read as Infection's less 6, which gave the wrong lines.
+  - **Mutation's Sora.** The port held the queue, so after her first word no skill word was heard at all. The game sends an empty name and empties the queue.
+  - **Mutation's Tsukasa and Subaru.** They do hold the queue in the game, with NULL files.
+
+  Every character, skill and language on all four discs is now compared with the game run in eemu (`tools/sound_ee.py words-fixture`, `crates/piney-audio/tests/words.rs`, `every_party_characters_skill_words`; worklog 505)
 - [ ] drained forms feel too tanky (not reproduced: the spawn, row, protect and grace match the game; a drained Gremlin falls to the attack button after its 60-frame grace, and a drained Data Bug's base form takes whole hits, no `virusFlag`: `a_drained_form_falls_to_kites_blows`, `a_drained_data_bug_s_base_form_takes_whole_hits`. Every Infection drained form is a 50-HP row with no Exdefense; 186 of the 303 rows do have one, which leaves blows of the barred kind at 0, as Outbreak's side events 256, 262 and 263 showed (worklog 307). Needs a `--pad-log`)
 - [x] enemies drop treasure chests too often (the game's rate: a foe taken away leaves a box 1 in 4, `entryEnemyObject` gcmn 0x00430250; the port's the same)
 - [ ] Infection, issue #3: the Status screen's big portrait is missing back in a town from a field (the reporter's screenshot: Mistral's Status page with no face). Not reproduced: `StatusMenuDisp` (gcmn 0x005362d0) draws the page's slot's `menuFace`, set by the menu's constructor (`ccCheckMenuFaceNameParty` 0x0056a930) and `SetMenuFace` (0x00526940), every face a texture of `xwin_f00`; with Orca, and with BlackRose and Mistral, called by the Party menu, a field and back by `town 0` or PERSONAL's Gate Out, each page draws its face (`the_status_portraits_come_back_from_a_field`, a headless render too; worklog 312). Worklog 477 went over every writer: the menu's constructor (from `memberID`), `PartyInMenu`/`PartyInMenuT` after `ccThPartyAdd` (0x0053b3b8), the event's `party_add` (case 77, 0x001af2b4, only once the menu exists); no leave, death, scene change or texture eviction touches a face, and the face is sent only for a slot `ccPartyManager` holds (`Disp` 0x00522130). Every route the port takes (Gate Out, `town 0`, a member felled in the field, one taken out leaving an empty slot 1) draws each page's face (`the_status_portraits_follow_the_slots`), and a check over every frame of the whole suite found no occupied slot without its member's face. Not found

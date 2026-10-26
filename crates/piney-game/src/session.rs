@@ -7208,6 +7208,9 @@ mod tests {
     /// Every skill's effects drawn (a survey).
     mod skill_fx;
 
+    /// What becomes of every party character's skill words.
+    mod skill_words;
+
     /// Issue #48: the tornados' hits, the system's and the element's.
     mod wood_tornado;
 

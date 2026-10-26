@@ -90,6 +90,13 @@ while ccSnd +0x13a (the Flag Race's hold) is set. Steps as above, with
 `hold H` (+0x13a), `area A` (game.area, which ccPgBgmInit reads from
 Mutation on: 0 the town's path, which sets the hold) and `off`
 (ccAllSoundOff); each line starts with the executable's volume.
+
+    tools/sound_ee.py words-fixture ELF  the skill words
+                                        (crates/piney-audio/tests/words_fixture_VOL.txt)
+
+ccWordsPlay(sid, ch) and skillVoicePlay with GCMN.PRG (ccGetSkillParam)
+for every charTbl character and skill id in both languages, each followed
+by Kite's skill 10: what reaches sewordCmd, and whether the queue held.
 """
 
 import argparse
@@ -726,6 +733,39 @@ HOLD_SCENARIOS = (
     "hold 1+stop+hold 0+stop+play", "hold 1+stop+stop+play", "hold 1+off+play", "off+play",
     "area 1+pginit+play", "area 1+hold 1+pginit+play",
 )
+def words_fixture(elf):
+    """ccWordsPlay and skillVoicePlay for every charTbl character (18 on
+    Infection, 21 from Mutation on) and every skill id, in both languages,
+    each followed by one of Kite's words: whether the queue held shows."""
+    fe = VoiceEe(elf, "gcmn")
+    chars = 18 if os.path.basename(elf) == "SLUS_202.67" else 21
+    print("# tools/sound_ee.py words-fixture: ccWordsPlay(sid, ch) and skillVoicePlay run in "
+          "tools/eemu.py with GCMN.PRG, then Kite's skill 10; what reaches sewordCmd.")
+    print("# `file LANG CHAR NAME`: the name a character's lines go out with;")
+    print("# `LANG CHAR SID BIT OFS SIZE`: a line sent, the queue emptied (Kite's next word went out);")
+    print("# `LANG CHAR SID BIT held`: nothing sent, and Kite's next word neither: the queue held.")
+    bits = {sid: fe.skill_bit(sid) for sid in range(304)}
+    kite = f"words 0 7 10 0 {bits[10]}"
+    for lang in (0, 1):
+        for c in range(chars):
+            named = False
+            for sid in range(6, 304):
+                b = bits[sid]
+                fe.run(lang, 0, [f"words {c} 6 {sid} 0 {b}", "skill", kite, "skill"])
+                sent = [line.split(" ", 6) for line in fe.log]
+                if not sent:
+                    print(f"{lang} {c} {sid} {b} held")
+                    continue
+                if len(sent) != 2 or any(x[1] != "80e0" for x in sent):
+                    raise SystemExit(f"{lang} {c} {sid}: {fe.log}")
+                _, _, ofs, size, _, _, name = sent[0]
+                if not named:
+                    print(f"file {lang} {c} {name}")
+                    named = True
+                print(f"{lang} {c} {sid} {b} {ofs} {size}")
+    return 0
+
+
 # ccPgBgmInit's town path (the race), which only the later volumes have.
 HOLD_TOWN = ("area 0+pginit+stop+play", "area 0+pginit+hold 0+stop+play", "area 0+pginit+off+play")
 
@@ -754,7 +794,11 @@ def main():
     p.add_argument("elf")
     p = sub.add_parser("hold-fixture")
     p.add_argument("elf", nargs="+")
+    p = sub.add_parser("words-fixture")
+    p.add_argument("elf")
     args = parser.parse_args()
+    if args.cmd == "words-fixture":
+        return words_fixture(args.elf)
     if args.cmd == "hold-fixture":
         return hold_fixture(args.elf)
     if args.cmd == "voice-fixture":
