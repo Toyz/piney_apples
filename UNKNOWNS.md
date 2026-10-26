@@ -102,7 +102,7 @@ gap, they share one line. The Docs section repeats the doc bullets.
 
 ### script
 
-- [[87]] the event cameras in event 4's rooms (the user saw the camera in the walls) were not re-shot since each block plays in its own room — event 4's dungeon scenes
+- [[87]] the event cameras in event 4's rooms (the user saw the camera in the walls) were not re-shot since each block plays in its own room — event 4's dungeon scenes — answered by [[486]]: re-shot; the cameras are the scripts' absolute points on rooms placed as the game places them; block 6's camz_move sweeps past the walls on its straight path, as the game's does
 
 ### build
 
