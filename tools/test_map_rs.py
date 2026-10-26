@@ -351,7 +351,8 @@ LATER = volume.NAME != "infection"
 # ROOTTOWN's mapw (maph, stepw, steph after it): 4 bytes on from Mutation.
 MAPW = 0x80 if LATER else 0x7C
 # The towns' steps (stepw, steph).
-STEPS = {0: (0x3FC66666, 0x3FCCCCCD), 1: (0x3FA3D70A, 0x3FA5E354), 2: (0x3F828F5C, 0x3F81A9FC)}
+STEPS = {0: (0x3FC66666, 0x3FCCCCCD), 1: (0x3FA3D70A, 0x3FA5E354), 2: (0x3F828F5C, 0x3F81A9FC),
+         3: (0x3F4CCCCD, 0x3F4CCCCD), 4: (0x40000000, 0x40000000)}
 
 
 def words(start, end):
@@ -378,11 +379,12 @@ def race_globals():
 
 
 class Town(Game):
-    """ROOTTOWN01 (ROOTTOWN02 `town` 1, ROOTTOWN03 2) as its constructor
+    """ROOTTOWN01 (ROOTTOWN02 to 05: `town` 1 to 4) as its constructor
     leaves the map part. Infection's Dun Loireag's arrow is on the font
-    layer, its steps 1.28 and 1.2921. From Mutation on Dun Loireag and
-    Carmina Gade put the map on a layer of priority 40 and a fourth mask,
-    the flag race's racers, on one of 45 over the screen."""
+    layer, its steps 1.28 and 1.2921. From Mutation on the towns but Mac
+    Anu put the map on a layer of priority 40 and a fourth mask, the flag
+    race's racers, on one of 45 over the screen: ccMask(128, 32), but
+    Lia Fail's ccMask(6, 6) (OUT gcmn 0x0043caec)."""
 
     def __init__(self, town=0, **kw):
         super().__init__(**kw)
@@ -400,7 +402,7 @@ class Town(Game):
                                              4))
         if own:
             marks = self.layer(45, (0, 0, 512, 384, 256, 192, 1, 1))
-            m.store(self.rt + 0x1C, 4, self.mask(3, 128, 32, marks))
+            m.store(self.rt + 0x1C, 4, self.mask(3, *((6, 6) if town == 4 else (128, 32)), marks))
         m.store(self.rt + MAPW, 4, 140)
         m.store(self.rt + MAPW + 4, 4, 256)
         m.store(self.rt + MAPW + 8, 4, STEPS[town][0])
@@ -493,12 +495,22 @@ class TownMapAgainstGame(unittest.TestCase):
         mirrored and flipped."""
         self.run_town(2, "town03", town_frames(random.Random(5), (0, 0, 0, ONE)))
 
+    @unittest.skipUnless(LATER, "Fort Ouph's map is Mutation's on")
+    def test_fort_ouph(self):
+        """ROOTTOWN04::DrawMap: all over Fort Ouph (steps 0.8)."""
+        self.run_town(3, "town04", town_frames(random.Random(8), (0, 0, 0, ONE)))
+
+    @unittest.skipUnless(LATER, "Lia Fail's map is Mutation's on")
+    def test_lia_fail(self):
+        """ROOTTOWN05::DrawMap: all over Lia Fail (steps 2.0)."""
+        self.run_town(4, "town05", town_frames(random.Random(9), (0, 0, 0, ONE)))
+
     @unittest.skipUnless(LATER, "the flag race is Mutation's on")
     def test_flag_race(self):
         """Dun Loireag's and Carmina Gade's maps while the flag race runs
         and after: the racers (some missing, some fading, some off the
         map's view) and the signs held back and fading on."""
-        for town, stem in ((1, "town02"), (2, "town03")):
+        for town, stem in ((1, "town02"), (2, "town03"), (3, "town04"), (4, "town05")):
             rng = random.Random(6 + town)
             frames = []
             for k, (mode, alpha, pos, dircz) in enumerate(town_frames(rng, (0, 0x455AC000, 0, ONE))):

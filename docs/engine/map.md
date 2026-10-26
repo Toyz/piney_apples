@@ -1,8 +1,9 @@
 ---
 title: The minimap - town, field and dungeon maps, the map button and ShowMap
 status: partial
-volumes: INF, MUT
+volumes: INF, MUT, OUT, QUA
 covers: INF SLUS_202.67:0x001a4430 ccThFieldDisp, 0x001a3fd0 WORLD_MAN::ChangeMapMode, 0x001a3b70 WORLD_MAN::SetMapAlpha, 0x001a3b80 WORLD_MAN::GetMapAlpha, 0x001a3ee0 WORLD_MAN::ShowMap, 0x0015a960 ccSprite::SetPrim, 0x0015ae80 ccSprite::MakePacket, 0x0015aed0 ccSprite::MakePacketStr, 0x0015c4b0 ccMask::ccMask, 0x0015c690 ccMask::MakePacketS, 0x0015c5e0 ccMask::SendPacketS, 0x00102190 ccRotate, 0x00104ae0 ccView::SetFrame, 0x001538d0 ccHitCheckLM, 0x00129d08 fptoui; INF gcmn.prg:0x00517800 ccThGameCtrl, 0x00421470 ROOTTOWN01::ROOTTOWN01, 0x00422d00 ROOTTOWN01::DrawMap, 0x005d4ad0 RT01ICONPOS, 0x004240c0 ROOTTOWN02::ROOTTOWN02, 0x00425760 ROOTTOWN02::DrawMap, 0x005d4e90 RT02ICONPOS, 0x005a4cd0 WORLD::Init, 0x005a6da0 WORLD::Generate, 0x005a97b0 WORLD::Draw, 0x005a3940 WORLD::DrawMiniMap, 0x005a3170 WORLD::DrawHeightOnMiniMap, 0x005a1b60 WORLD::DrawKeyObjectOnMiniMap, 0x005a1ff0 WORLD::DrawSubObjectOnMiniMap, 0x005a2510 WORLD::DrawLakeOnMiniMap, 0x005a2840 WORLD::DrawCircleOnMiniMap, 0x005a2c60 WORLD::DrawDungeonOnMiniMap, 0x005ad990 WORLD::ShowMap, 0x0042e0c0 ccCheckFountain, 0x00658680 KeyIconTBL, 0x006586b0 SubIconTBL, 0x006586e0 BaseIconTBL, 0x00658710 TreeIconTBL, 0x006584b0 FP_DUNGEON, 0x006571f0 fieldminimap, 0x005b7c00 DUNGEON::DUNGEON, 0x005ce930 DUNGEON::Draw, 0x005cd850 DUNGEON::MakeMiniMap, 0x005cc160 DUNGEON::DrawMap, 0x005cf260 DUNGEON::ShowMap, 0x005c7c30 DUNGEON::SetDoor, 0x0042e010 ccCheckActiveObject, 0x00695550 levelstr; INF SLUS_202.67:0x003782f8 mapmsg
+worklog: 494
 ---
 
 # The minimap - town, field and dungeon maps, the map button and ShowMap
@@ -185,13 +186,15 @@ signs       RT02ICONPOS (gcmn 0x005d4e90), six of them
 
 The sends, the scroll, the shades and the fading out are Mac Anu's.
 
-## From Mutation: Dun Loireag and Carmina Gade
+## From Mutation: the towns but Mac Anu
 
 From Mutation on (MUT gcmn: `ROOTTOWN02` 0x00437e70 / `DrawMap`
 0x00439740, `ROOTTOWN03` 0x0043b980 / 0x0043cfb0) the town class keeps
 its map part 4 bytes further on (`mapw` +0x80 .. `steph` +0x8c). Mac
-Anu's map is otherwise Infection's. Dun Loireag's and Carmina Gade's
-(`game.town` 2) change:
+Anu's map is otherwise Infection's. Dun Loireag's, Carmina Gade's
+(`game.town` 2), Fort Ouph's (3; OUT gcmn `ROOTTOWN04` 0x00439c50 /
+0x0043b0d0) and Lia Fail's (4; `ROOTTOWN05` 0x0043c5e0 / 0x0043d550)
+change:
 
 ```text
 ROOTTOWN0n()  two layers of the class's own: +0x1b4 of priority 40 with
@@ -203,17 +206,30 @@ ROOTTOWN0n()  two layers of the class's own: +0x1b4 of priority 40 with
               Dun Loireag: town02(d), stepw 1.28, steph 1.2921
               Carmina Gade: town03(d)::TEX_sr3map1, RT03ICONPOS, stepw
               1.02 (0x3f828f5c), steph 1.013 (0x3f81a9fc)
-DrawMap()     Carmina Gade: (x, y) move by (16, 46) before the scroll
-              the arrow at (68 + x, (80 + y) - 14), Carmina Gade's at
-              (70 + x, (80 + y) - 14); Dun Loireag still dims a sign
-              under the arrow's point in screen pixels
+              Fort Ouph: town04(d)::TEX_sr4map1, steps 0.8
+              Lia Fail: town05::TEX_sr5map1, steps 2.0; its layers at
+              +0x414 and +0x418, map[3] ccMask(6, 6)
+DrawMap()     Carmina Gade: (x, y) move by (16, 46) before the scroll,
+              Fort Ouph's y by 16
+              the arrow at (68 + x, (80 + y) - 14), Carmina Gade's and
+              Fort Ouph's at (70 + x, ...), Lia Fail's at (87 + x,
+              (92 + y) - 14); its point in screen pixels at (that base
+              + (340 + x), ((base y + 36) + y) - 14)
+              Dun Loireag still dims a sign whose balloon (bx, by) has
+              the point within bx..bx + 54, by + 10..by + 49; Fort
+              Ouph and Lia Fail within bx + 8..bx + 46, by + 10..by + 45
               while the flag race runs in the town (0x005ff790: the
               area 0 and the race's state 0x0038bd44 set), each of its
               three racers (0x00774a90) with its place inside the map's
               view: map[3], 24 x 24 at (3712, 144 + 24 i), at 12 + ((420
-              + px) - 24), y - 12; alpha 128 fade (+0x1ec, 0x005fd100),
+              + px) - 24), y - 12 (Fort Ouph's y + 12; Lia Fail's at
+              24 + ((420 + px) - 24), y; neither moves the racers by its
+              map's offset); alpha 128 fade (+0x1ec, 0x005fd100),
               12 fade per pixel within 11 of the view's top or bottom
-              and then no sign draws (each still fades in or out)
+              and then no sign draws (each still fades in or out, but
+              Fort Ouph's hold their fade in)
+              Lia Fail's sign shows only while its row is within the
+              map's 160 rows (top < y < top + 160), else it fades out
               Carmina Gade's sign 3 draws its balloon mirrored and
               flipped (ctrl 0x60), and left of the middle its label 6
               lower; no sign dims
@@ -442,6 +458,11 @@ there.
   `RT02ICONPOS` carried: 191 frames from Dun Loireag's start over the town
   and around each sign with the arrow on its balloon - 2,992 packets, 168
   of them dimmed to 64, none differing;
+- from Mutation on, `ROOTTOWN02`-`05::DrawMap` on their own layers with
+  the fourth mask (Lia Fail's 6 x 6), each town walked 95 frames and again
+  while the flag race runs (racers missing, fading, off the view): Fort
+  Ouph 1,356 and 836 packets, Lia Fail 1,358 and 789, none differing, on
+  Mutation, Outbreak and Quarantine (worklog 494);
 - `WORLD::DrawMiniMap` and its six helpers over a `WORLD` laid out from the
   port's generation of story area 14's field and nine random fields of
   types 0-3 and 5-9 (fobj2[], fobj[40][40], water, dx[0]), 60 frames each
@@ -494,7 +515,7 @@ its red arrow on it, and line 25's `show_map` sets `mapFlag`.
   sprite whose corners are all off the screen.
 - `RT01ICONPOS` and the pulses' angles are the game's globals and statics,
   kept across visits; the port keeps the town's for the town's mode and
-  starts a new area's at 0. `ROOTTOWN03`-`05`'s `DrawMap` are not ported.
+  starts a new area's at 0.
 - `WORLD_MAN::ShowMap` in a field reads `EVENTAREA_INFO` by
   `eventAreaNumber` (`game.field`); the port's host takes the story area's
   `model` its `WORLD_MAN` was made with, which is the same area wherever the

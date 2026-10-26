@@ -123,7 +123,7 @@ Missing pieces that only the later volumes need.
 - [[112]] `EVENTAREAB0`'s `NextStage` (field 8, `se4_8`) is not ported (docs/engine/evarea.md) — a later volume's last arena — answered by [[454]] (Quarantine's class: `se4_8`'s clip and floor clump, the save's 0x652f, the lights and hits)
 - [[114]] [[157]] type 32's tree and leaves (`ANM_se4_2lea`, `LEAF`) are not ported (docs/engine/dungeon.md) — a later volume's event room — answered by [[492]] (dungeon_area/leaves.rs; tools/test_dungeon_rt.py `test_leaves`, 400 frames of area 101's room against the game)
 - [[220]] on Outbreak and Quarantine `GetEventAreaInfo(0)` returns NULL where the port finds row 0 — Outbreak's and Quarantine's areas — answered by [[493]]: the game's `(int)` finds row 0 too; Outbreak's and Quarantine's carried names for `GetEventAreaInfo()` and `(int)` were crossed (piney-gen syms' overload pass), and tools/test_area_rs.py passes on all four volumes
-- [[77]] [[260]] `DrawMap` of towns 2-4 draws four sprites in the later volumes; [[260]] and docs/engine/map.md say the port draws three, but crates/piney-world/src/map/town.rs now carries a fourth (MARKS) sprite on the towns' own layers: to confirm — the later towns' maps
+- [[77]] [[260]] `DrawMap` of towns 2-4 draws four sprites in the later volumes; [[260]] and docs/engine/map.md say the port draws three, but crates/piney-world/src/map/town.rs now carries a fourth (MARKS) sprite on the towns' own layers: to confirm — the later towns' maps — answered by [[494]]: the fourth mask is the game's in all four later towns; Fort Ouph's and Lia Fail's own offsets, arrow, racers, dimming and fades ported and checked against `ROOTTOWN04`/`05::DrawMap` in tools/test_map_rs.py on Mutation, Outbreak and Quarantine
 - [[260]] which events place characters in Fort Ouph and Lia Fail — Outbreak's and Quarantine's stories
 - [[393]] Mutation's `ccRtownPC` (MUT gcmn 0x00522040): body kind 8, 50 `rtpcCcsName` names, the later rows' weapon tables, the SEARCH PCs' set-up (0x00521e50) — answered by [[397]] (rtownpc.rs `Pool`, `Search`, `search_mode`; tools/test_world_rs.py `TownPcsAgainstGame` on all four volumes)
 - [[393]] `ccSetMerchant(0)` from Mutation on also makes row 175 + town ("Event NPC") when `saveData+0x652c` is set, its act (0x00521a00) and affect (0x00521990), and what sets the byte — answered by [[397]]: `eventStatus[52]`, which event 317 (ITEM COMPLETE) sets when mail 328 is read (merchant.rs `EVENT_NPC`, `event_npc_act`; `MerchantsAgainstGame.test_event_npc`)
@@ -1368,7 +1368,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/map.md: what sets WORLD_MAN.specialRoom beyond the known rooms; ccMenu.mapStatus 3 — research (duplicates [[77]])
 - docs/engine/map.md: the rotated cull reads a leftover width and height — research (duplicates [[144]])
 - docs/engine/map.md: RT01ICONPOS and the pulse angles restart per area — research (phase only; duplicates [[77]])
-- docs/engine/map.md: ROOTTOWN03-05's DrawMap — play (duplicates [[260]]; crates/piney-world/src/map/town.rs now has a fourth sprite, to confirm)
+- docs/engine/map.md: ROOTTOWN03-05's DrawMap — play (duplicates [[260]]; crates/piney-world/src/map/town.rs now has a fourth sprite, to confirm) — answered by [[494]]
 - docs/engine/map.md: ShowMap reads EVENTAREA_INFO by eventAreaNumber; the host takes the model its WORLD_MAN was made with — research (the same area)
 
 ### docs/engine/overview.md
