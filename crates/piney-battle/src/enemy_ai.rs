@@ -2249,4 +2249,44 @@ mod tests {
         record_kill(&mut save, 6, 0, [0; 3]);
         assert_eq!(save.u8(SAVE_ENEMY_KILL_COUNT + 6), 0x80);
     }
+
+    /// What a Data Drain leaves, on every volume (BUGS.md, drained forms
+    /// that feel too tanky). An ordinary foe becomes its race's first row,
+    /// 50 HP at level 0, but Astro Prince (288, 1,000 HP from Mutation
+    /// on) and rows 203-206's head (20,806 HP on Infection and Mutation;
+    /// Quarantine's The Bracelet, 3,000). A Data Bug becomes its base form
+    /// at full HP: 31 whole monsters of 250-7,890 HP, three of which bar
+    /// blows (Exdefense 0x1) while their defence holds.
+    #[test]
+    fn drained_forms_by_volume() {
+        use piney_data::volume::Volume;
+        for vol in [Volume::Inf, Volume::Mut, Volume::Out, Volume::Qua] {
+            let t = Tables::of(vol);
+            let ids = 0..t.enemies.len() as i32;
+            let row = |id: i32| &t.enemies[id as usize].param;
+            let mut heads: Vec<i32> =
+                ids.clone().filter(|&id| middle_boss(&t, id) < 0).map(|id| drain_id(&t, id)).collect();
+            let mut bases: Vec<i32> = ids.map(|id| middle_boss(&t, id)).filter(|&m| m >= 0).collect();
+            for v in [&mut heads, &mut bases] {
+                v.sort_unstable();
+                v.dedup();
+            }
+            assert_eq!(heads.len(), 23, "{vol:?}");
+            for id in heads {
+                let r = row(id);
+                let hp = match id {
+                    203 if matches!(vol, Volume::Inf | Volume::Mut) => 20806,
+                    203 => 3000,
+                    288 if vol != Volume::Inf => 1000,
+                    _ => 50,
+                };
+                assert_eq!((r.max_hp, r.exdefense), (hp, 0), "{vol:?} head {id}");
+                assert_eq!(r.base.level, if id == 203 { 99 } else { 0 }, "{vol:?} head {id}");
+            }
+            assert_eq!(bases.len(), 31, "{vol:?}");
+            assert!(bases.iter().all(|&id| (250..=7890).contains(&row(id).max_hp)), "{vol:?}");
+            let blows_barred: Vec<i32> = bases.into_iter().filter(|&id| row(id).exdefense & 1 != 0).collect();
+            assert_eq!(blows_barred, [52, 53, 109], "{vol:?}: House Golem, Earthman Drill, Sand Mountain");
+        }
+    }
 }

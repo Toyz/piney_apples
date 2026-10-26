@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-505 entries: audio 42, battle 128, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 127, save 16, script 60, test 231, tooling 47, ui 102, video 16, volumes 89, world 143. 122 entries still have open questions - [listed below](#still-open).
+506 entries: audio 42, battle 129, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 127, save 16, script 60, test 231, tooling 47, ui 102, video 16, volumes 89, world 143. 122 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -517,6 +517,7 @@ The [reference](docs/README.md) says what is true now.
 | 503 | [The console's town changes area the game's way: through the scene's ChangeArea, its event task disabled, so the music holds between towns](worklog/0503-the-console-s-town-changes-area-the-game-s-way-through-the.md) | 2026-10-26 | audio |
 | 504 | [Infection's weapons and skills miss no effect: every starter they reach is the port's, and every skill row's effects draw in view](worklog/0504-infection-s-weapons-and-skills-miss-no-effect-every-starter.md) | 2026-10-26 | render |
 | 505 | [Skill words are the game's on every disc: Mutation's Sora no longer holds the queue, Quarantine's Tsukasa, Subaru and Sora read their own rows](worklog/0505-skill-words-are-the-game-s-on-every-disc-mutation-s-sora-no.md) | 2026-10-26 | audio |
+| 506 | [Drained forms are the game's: an ordinary foe's is its race's 50-HP head, a Data Bug's its whole base form, three barring blows](worklog/0506-drained-forms-are-the-game-s-an-ordinary-foe-s-is-its-race.md) | 2026-10-26 | battle |
 
 ## Still open
 

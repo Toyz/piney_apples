@@ -912,6 +912,21 @@ frames, with `ccExpDistributor` and the enemy book's record
   falls below half its HP (above). A drained enemy becomes
   its middle boss's base form, else the first row of its race group
   (`ccGetDrainId`, 0x0042e3c0).
+- **What a drain leaves.** The table's rows, the same on all four
+  volumes but where noted (`drained_forms_by_volume`).
+  - **Ordinary foes.** The 23 race heads are 50 HP at level 0, with no
+    Exdefense. A drained ordinary foe falls to a few blows (Kite at level
+    1 takes 19 of a Gremlin's 50 a blow). The exceptions are Astro Prince (288),
+    at 1,000 HP from Mutation on, and the head of rows 203-206. On
+    Infection and Mutation those rows are unused (`AAAAAAA`, 20,806 HP);
+    on Quarantine the head is The Bracelet (3,000 HP).
+  - **Data Bugs.** A Data Bug's drain leaves its base form at full HP: 31
+    monsters of 250 to 7,890 HP at levels 5 to 98.
+    - Most bar one element.
+    - House Golem (52), Earthman Drill (53) and Sand Mountain (109) bar
+      blows (Exdefense 0x1). Their real pDef has to fall below the row's
+      before an ATTACK or an art does any damage.
+    - These are the drained forms that last.
 
 **`defaultThink`** in full. Every fourth frame of an act (not an attack) an
 enemy with a close range retargets the nearest, then its preferred kind if
