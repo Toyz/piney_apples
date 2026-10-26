@@ -4257,8 +4257,14 @@ pub trait FieldFx {
 pub struct FxCensus {
     /// The ids of the live `ccEffect` slots.
     pub effects: Vec<i16>,
+    /// Those not yet through a pass (made after `ccThEffect` this frame)
+    /// or whose last pass left `dispSW` off: out of the camera's cone
+    /// (`ccCheckCameraDeg`) or past its distance.
+    pub effects_unseen: Vec<i16>,
     /// The live particles.
     pub particles: usize,
+    /// The particles' draws of the last step.
+    pub particle_draws: usize,
     /// The live generators a party character's `armsEffectSW` holds
     /// (`StartArmsEffect`'s, along a weapon).
     pub weapon_generators: usize,

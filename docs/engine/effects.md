@@ -2450,6 +2450,16 @@ every draw in order, every event and `rand()`'s state:
   everything ends, compare every live slot, draw, generator, particle and
   rand's state each frame. All match: 5313 frames, 15093 effect draws and
   234972 particle draws.
+- The weapons' and skills' effects in play (piney-game's
+  `session/tests/skill_fx.rs`). Every `eff*`, `ccParticle*` and
+  `startParticle*` starter is listed with its callers in Infection's main
+  and gcmn, and each one a weapon or skill path reaches is started by the
+  port where the game calls it. Kite then casts every row of `skillTbl`
+  (300, Data Drain's 2-5 aside) on a Mimic in a field. Every effect id
+  started draws its object on each frame in view (`dispSW` on after a
+  pass), particles draw, and each element art lights the blades
+  (`every_skills_effects_draw`, ignored). A sample per kind and Elk's art
+  run in the suite.
 
 ## Unknown
 

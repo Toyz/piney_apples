@@ -435,6 +435,10 @@ impl FieldFx for AreaFx {
         piney_world::field_world::FxCensus {
             effects: self.fx.ctrl.effects.iter().filter(|e| e.status != 0).map(|e| e.id).collect(),
             effect_targets: (self.fx.ctrl.effects.iter()).filter(|e| e.status != 0).map(|e| (e.id, e.target)).collect(),
+            effects_unseen: (self.fx.ctrl.effects.iter())
+                .filter(|e| e.status != 0 && (!e.disp_sw || e.cnt == 0))
+                .map(|e| e.id)
+                .collect(),
             shields: (self.fx.spells.elements.slots.iter().flatten())
                 .filter_map(|e| match e {
                     piney_effect::element::Element::Shield(s) => {
@@ -444,6 +448,7 @@ impl FieldFx for AreaFx {
                 })
                 .collect(),
             particles: self.fx.particles.live().count(),
+            particle_draws: self.fx.particle_draws().len(),
             weapon_generators: (self.fx.particles.gens.iter())
                 .filter(|g| matches!(g.sync_sw, Some(piney_effect::IntRef::CharAt(_, piney_effect::ARMS_SW))))
                 .count(),

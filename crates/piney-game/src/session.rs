@@ -7205,6 +7205,9 @@ mod tests {
     /// A spell or art holds its targets where they stand.
     mod spell_hold;
 
+    /// Every skill's effects drawn (a survey).
+    mod skill_fx;
+
     /// Issue #48: the tornados' hits, the system's and the element's.
     mod wood_tornado;
 
