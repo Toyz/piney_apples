@@ -773,6 +773,10 @@ impl DiscArea {
 }
 
 impl StoryMap for DiscArea {
+    /// `marker_pos`'s stream (+0x1a4).
+    fn file(&self) -> Option<&SceneFile> {
+        Some(&self.file)
+    }
     fn field_rand(&self) -> Option<&Rng> {
         Some(&self.rng)
     }

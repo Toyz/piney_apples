@@ -171,6 +171,10 @@ impl Area43 {
 }
 
 impl StoryMap for Area43 {
+    /// `marker_pos`'s stream (+0x1a4).
+    fn file(&self) -> Option<&SceneFile> {
+        Some(&self.file)
+    }
     fn hits(&self) -> &Hits {
         &self.hits
     }

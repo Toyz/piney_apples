@@ -1002,8 +1002,15 @@ impl FieldWorld {
     }
 
     pub fn marker(&self, n: i16) -> Option<piney_event::host::Marker> {
-        let Place::Story(m) = &self.place else { return None };
-        let (p, r) = crate::event::marker_in(m.file()?, self.volume, n)?;
+        // `ccEvMarker2Pos` (INF main 0x001b1aa4): an event map's stream
+        // (`WORLD_MAN` +0x444, +0x1a4), a dungeon's (`dungeon[game.dungeon]`
+        // +0xd3884); a plain field stores to address 0 (0x001b1b78).
+        let file = match &self.place {
+            Place::Story(m) => m.file()?,
+            Place::Dungeon(d) => &d.file,
+            Place::Field(_) => return None,
+        };
+        let (p, r) = crate::event::marker_in(file, self.volume, n)?;
         Some(piney_event::host::Marker { pos: p.map(f32::from_bits), dirc: f32::from_bits(r) })
     }
 

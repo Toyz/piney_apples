@@ -3,7 +3,7 @@ title: Event scripts
 status: partial
 volumes: all
 covers: MUT SLUS_205.62:0x001bdf00 ccEvent::Execute, OUT SLUS_205.63:0x001b4250, QUA SLUS_205.64:0x001bba60; INF SLUS_202.67:0x001a8d20 ccEvent::Execute, 0x001a7400 ccEvent::CheckOpen, 0x001a6ec0 ccEvent::SetCurrentOpen, 0x001b5ef0 eventSub, 0x001b6160 ccEventFlagSet, 0x001ac7c8 ccEvent::Execute case 45 (radiator), 0x00317e30 eventTbl, evMsgTbl, evMsgTblp
-worklog: 18, 24, 40, 176, 178, 179, 239, 325, 376, 377, 489, 490
+worklog: 18, 24, 40, 176, 178, 179, 239, 325, 376, 377, 489, 490, 491
 ---
 
 # Event scripts
@@ -499,6 +499,18 @@ The numbers the instructions take all have their tables:
 - The streams are `streamTbl`'s ([stream](stream.md#the-tables)).
 - The markers are `markerEvTbl`'s in a Root Town, and the event positions
   elsewhere ([field game](field-game.md)).
+- `marker_pos` (`ccEvMarker2Pos`, INF main 0x001b1aa4) finds
+  `markerEvTbl[marker]` by `game` +0x14:
+  - a town: `WORLD_MAN` +0x430's stream (+0x1a4);
+  - a field with an event map (`game` +0x24): +0x444's stream (+0x1a4, the
+    map's own file: `se1_2`, `se2_1`, `se1_6` and the rest);
+  - a dungeon: `dungeon[game.dungeon]` +0xd3884, its `DungeonName` file;
+  - a plain field: none. The case stores to address 0 (0x001b1b78), the
+    game's crash, which the port's VM records as a fault.
+  The port answers all of them (`FieldWorld::marker`, every `StoryMap::file`).
+  Every script's `marker_pos` (events 115, 206, 216, 218 on each volume)
+  is in a block under an earlier block's `in_field` town 2 field 13,
+  `EVENTAREA01`.
 - The menus are `ccMenuCtrl`'s ([field UI](field-ui.md)); the operations
   are listed above.
 - The sound commands are `ccSndEvRequest`'s

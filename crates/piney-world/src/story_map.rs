@@ -198,6 +198,10 @@ pub fn build(
 }
 
 impl StoryMap for EventArea {
+    /// `marker_pos`'s stream (+0x1a4).
+    fn file(&self) -> Option<&piney_desktop::assets::SceneFile> {
+        Some(&self.file)
+    }
     fn put_scrolls(&self, gcmn: &mut [[u32; 2]; MOVE_TEX_ROWS]) {
         for (k, t) in self.move_tex.iter().enumerate() {
             gcmn[crate::evarea::scroll::EA02 + k] = t.scroll();
@@ -242,6 +246,10 @@ impl StoryMap for EventArea {
 }
 
 impl StoryMap for Arena {
+    /// `marker_pos`'s stream (+0x1a4).
+    fn file(&self) -> Option<&piney_desktop::assets::SceneFile> {
+        Some(&self.file)
+    }
     fn take_statics(&mut self, s: &[u32; SCROLL_STATICS]) {
         self.scroll_v = s[crate::town::scroll_statics::ARENA_BG];
     }
@@ -284,6 +292,10 @@ impl StoryMap for Arena {
 }
 
 impl StoryMap for Giant {
+    /// `marker_pos`'s stream (+0x1a4).
+    fn file(&self) -> Option<&piney_desktop::assets::SceneFile> {
+        Some(&self.file)
+    }
     fn field_rand(&self) -> Option<&Rng> {
         Some(&self.rng)
     }
