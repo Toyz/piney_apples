@@ -758,6 +758,55 @@ mod tests {
         assert_eq!(c.px[7][..3], [10, 10, 10]);
     }
 
+    /// The GS's sprite rule, as this canvas and the GPU path draw it: the
+    /// pixels whose integer point lies in [x0, x1), each sampling (nearest)
+    /// the texel under that point of the UV interpolated across. A cell
+    /// `su` texels wide drawn `su` pixels wide therefore samples all `su`
+    /// columns, its last too, whatever the sprite's fraction: the STATUS
+    /// title's blank cell (`xwindow` cell 38, 9 wide, its ninth column
+    /// clear) shows the clear column on the GS as here.
+    #[test]
+    fn a_sprite_samples_its_last_texel_column() {
+        use piney_draw::{Prim, TexState, Vertex};
+        let mut c = Canvas::new(32, 4, Rgba::new(0, 0, 0, 0));
+        let mut assets = Assets::new(std::sync::Arc::new(Archive::new(Vec::new()).unwrap()));
+        let state = |tex: Option<TexRef>| DrawState {
+            blend: None,
+            texture: tex.map(|tex| TexState {
+                tex,
+                func: TexFunc::Modulate,
+                use_alpha: false,
+                filter: Filter::Nearest,
+                wrap: Wrap::Repeat,
+            }),
+            ..DrawState::sprite(Blend::MIX, None)
+        };
+        let sprite = |x0: f32, x1: f32, y0: f32, u1: f32, rgba, st| {
+            let v = |x, y, u, v| Vertex { x, y, u, v, rgba, ..Default::default() };
+            Cmd::Prim(Prim {
+                kind: PrimKind::Sprite,
+                gouraud: false,
+                state: st,
+                verts: vec![v(x0, y0, 0.0, 0.0), v(x1, y0 + 1.0, u1, 1.0)],
+            })
+        };
+        let mut f = Frame { width: 32, height: 4, ..Frame::default() };
+        // The cell: eight bar columns, the ninth another colour.
+        f.cmds.push(sprite(0.0, 8.0, 0.0, 0.0, Rgba::new(200, 0, 0, 0x80), state(None)));
+        f.cmds.push(sprite(8.0, 9.0, 0.0, 0.0, Rgba::new(0, 0, 200, 0x80), state(None)));
+        let cell = TexRef::FrameBuffer { x: 0, y: 0, width: 16, height: 1 };
+        f.cmds.push(sprite(10.0, 19.0, 2.0, 9.0, Rgba::NEUTRAL, state(Some(cell.clone()))));
+        f.cmds.push(sprite(10.5, 19.5, 3.0, 9.0, Rgba::NEUTRAL, state(Some(cell))));
+        c.draw(&f, &mut assets);
+        let row = |y: usize| (0..32).map(|x| c.px[y * 32 + x][2] == 200).collect::<Vec<_>>();
+        // Whole pixels: 10-17 the bar, 18 the ninth column.
+        assert_eq!(row(2).iter().position(|&b| b), Some(18));
+        assert_eq!(c.px[2 * 32 + 10][0], 200);
+        // Half a pixel on: 11-18 the bar, 19 the ninth column.
+        assert_eq!(row(3).iter().position(|&b| b), Some(19));
+        assert_eq!(c.px[3 * 32 + 11][0], 200);
+    }
+
     /// A primitive with PRIM.FGE (a fogged `ccEff` sprite): its colour
     /// through the fog stage, `(Cs F + FOGCOL (0xff - F)) >> 8`.
     #[test]

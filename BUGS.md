@@ -42,7 +42,7 @@ Maybe an ingame quake console so we can debug and test various game features mor
 
 - [x] the dungeon's music kept playing from the Gott statue room through Skeith's scene and on under the Helba theme (the desktop set-up's `ccAllSoundOff` sends SNDBASE's 0x140, whose `allSoundOff` stops every sequencer; the port's only silenced the voices sounding, so the dungeon's sequencer played on under streams 4-6; `all_sound_off_stops_the_music`; fixed)
 
-- [ ] the STATUS title bar has 1-pixel gaps (found: the title's blank cell, `xwindow` cell 38, is 8 texels of bar and a clear ninth column in all four discs' texture, and `DispLine(0)` draws it 9 wide with nearest sampling, so the game's own code and data give the same gaps; waiting on a PS2 capture of a titled window to compare)
+- [x] the STATUS title bar has 1-pixel gaps. The game's own, on hardware too: the title's blank cell (`xwindow` cell 38) is 8 texels of bar and a clear ninth column in all four discs' texture, and `DispLine(0)` draws it as a SPRITE 9 pixels wide with UV across all 9 texels. `ccSprite::SetTag` (main 0x0015c0c0) sends CLAMP_1 0 (REPEAT both ways, no region clamp) and TEX1 with MXL 0. The GS draws a sprite's pixels whose integer point lies in [x0, x1), each sampling the texel under that point of the UV interpolated across. So 9 pixels over 9 texels sample all nine columns, the clear one included, whatever the sprite's sub-pixel offset (`a_sprite_samples_its_last_texel_column`; worklog 499)
 
 - [ ] the chest's target cursor shows a ghost square (the four corner arrows and the diamond are the game's: `targetCursol`'s square outline turned a fixed pi/4 at gcmn 0x0051f36c; which square is the ghost is still to be pinned down)
 
