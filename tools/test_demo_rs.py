@@ -76,7 +76,8 @@ ELF = volume.ELF
 ISO = volume.ISO
 EXAMPLE = os.path.join(os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "target")), "release", "examples",
                        "demo_probe")
-TITLE1 = volume.DATA + "::title1"
+# The disc's own title scene (names.rs `title_file`): title1 .. title4.
+TITLE = volume.DATA + "::title%d" % volume.number()
 
 # gp globals (INF SLUS_202.67 .sdata).
 CCSYS, SAVEDATA, DTMENU, SCFADEDEF, SAVESYS, GAME = (inf_va(0x003788e0), inf_va(0x003789d8), inf_va(0x003789d0), inf_va(0x00378968), inf_va(0x003789d4),
@@ -116,10 +117,11 @@ def build():
                     "--example", "demo_probe"], cwd=ROOT, check=True)
 
 
-# The volume the tests under `volumes` run as: the control's m_NowVol in
-# eemu (Infection's overlay holds every volume's branches) and the probe's
-# `vol N` (its title<N>).
-VOL = [1]
+# The volume the tests run as: the control's m_NowVol in eemu (each
+# overlay holds every volume's branches) and the probe's `vol N` (its
+# title<N>). The disc's own, but under `volumes`, which runs each.
+DISC_VOL = volume.number()
+VOL = [DISC_VOL]
 
 
 def ask(lines):
@@ -138,7 +140,7 @@ def volumes(test):
                 with self.subTest(volume=v):
                     test(self)
         finally:
-            VOL[0] = 1
+            VOL[0] = DISC_VOL
     run.__name__ = test.__name__
     run.__doc__ = test.__doc__
     return run
@@ -886,6 +888,11 @@ class DemoAgainstGame(unittest.TestCase):
             return STREAM
 
         m.store(STREAM + 0x17e, 2, 8)
+        # From Mutation on, ccThDemo looks for a previous volume's save on
+        # both cards after the boot check (OUT 0x001713c0), then sets
+        # m_Max_CurNO to 4 whatever it found (OUT 0x004152e0). CheckPort 0:
+        # nothing on the port to read.
+        m.hooks[self.p.symbol_named("CheckPort__7ccMcardFii").value] = lambda mm, *a: 0
         m.hooks.update({
             inf_va(0x00159e10): tbreath, inf_va(0x0015a320): cbreath,
             FN["bootcard"]: boot, FN["main"]: main, inf_va(0x00409df0): mpeg,
@@ -1276,6 +1283,10 @@ class DemoAgainstGame(unittest.TestCase):
         from eemu import Machine
         sym = lambda n: self.p.symbol_named(n).value  # noqa: E731
         ccs = inf_va(0x00387600)
+        # ccsNameList holds a name per character: 18 in Infection, 21 from
+        # Mutation on, where spcNameList follows it (the later volumes'
+        # carried symbol keeps Infection's size).
+        count = (sym("spcNameList") - ccs) // 32
         rng = random.Random(22)
         want, lines = [], []
         for _ in range(6):
@@ -1289,7 +1300,7 @@ class DemoAgainstGame(unittest.TestCase):
             m.mem[SAVE:SAVE + 0x8530] = data
             m.call(sym("LoadGame__10ccSaveDataFv"), [SAVE])
             names = []
-            for i in range(18):
+            for i in range(count):
                 # The bytes LoadGame wrote: up to and with the NUL, at most 32.
                 b = bytes(m.mem[ccs + 32 * i:ccs + 32 * i + 32])
                 names.append((b[:b.index(0) + 1] if 0 in b else b).hex())
@@ -1378,7 +1389,7 @@ class DemoAgainstGame(unittest.TestCase):
         import ccs
         import ccsmodel
         from eemu import f_to_py
-        models = {m.obj: m for m in ccsmodel.models(ccs.Ccs(ccs.load(TITLE1)))}
+        models = {m.obj: m for m in ccsmodel.models(ccs.Ccs(ccs.load(TITLE)))}
         objs = ask(["lit 0 20"])[0]
         self.assertGreater(len(objs), 0)
         vertices, off_by_one, bad = 0, 0, []

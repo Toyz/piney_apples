@@ -479,10 +479,8 @@ pub trait Control {
     fn set_logo_act(&mut self, act: i32);
     /// `m_ParoFLG`, which picks the opening stream.
     fn parody_item(&self) -> bool;
-    /// `m_NowVol`, which picks it too.
-    fn volume(&self) -> i16 {
-        1
-    }
+    /// `m_NowVol`, which picks it too, and the opening movie.
+    fn volume(&self) -> i16;
 }
 
 impl Control for Opening {

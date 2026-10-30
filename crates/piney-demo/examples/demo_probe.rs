@@ -163,6 +163,8 @@ struct Script {
     main: Vec<i32>,
     logo_act: i32,
     events: Vec<String>,
+    /// `m_NowVol`: the volume the requests run as (`vol N`).
+    vol: i16,
 }
 
 impl Control for Script {
@@ -186,6 +188,10 @@ impl Control for Script {
 
     fn parody_item(&self) -> bool {
         false
+    }
+
+    fn volume(&self) -> i16 {
+        self.vol
     }
 }
 
@@ -218,7 +224,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for v in [piney_data::volume::Volume::Mut, piney_data::volume::Volume::Out, piney_data::volume::Volume::Qua] {
         files.push(Rc::new(SceneFile::read(&archive, piney_demo::names::title_file(v))?));
     }
-    let mut vol: i16 = 1;
+    let mut vol = disc.number() as i16;
     let tables = NewGameTables::of(disc);
     let font = piney_data::ccs::Ccs::parse(archive.inflate_named(piney_desktop::assets::FONT_FILE)?)?;
     let (_, cluts) = piney_data::texture::read(&font)?;
@@ -568,11 +574,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("[\"{}\",[{}],[{}]]", hex(save.bytes()), list(&names.spc), list(&names.ccs));
             }
             "consts" => {
-                // The boot questions' texts, Infection's (the harness's).
+                // The boot questions' texts, the disc's (the harness's).
                 use piney_data::tables::{sjis::encode, title};
                 let hex = |s: &str| encode(s).iter().map(|x| format!("{x:02x}")).collect::<String>();
                 let msg = |n: usize| {
-                    let lines = title::of(piney_data::volume::Volume::Inf).save_sys_msg[n].unwrap_or_default();
+                    let lines = title::of(disc).save_sys_msg[n].unwrap_or_default();
                     lines.iter().map(|s| format!("\"{}\"", hex(s))).collect::<Vec<_>>().join(",")
                 };
                 println!(
@@ -594,7 +600,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             "logo" => {
                 let v = nums(&mut it);
-                let mut s = Script { boot: Vec::new(), main: Vec::new(), logo_act: v[0] as i32, events: Vec::new() };
+                let mut s =
+                    Script { boot: Vec::new(), main: Vec::new(), logo_act: v[0] as i32, events: Vec::new(), vol };
                 let p = Pad::default();
                 let mut w = World::new(-1);
                 let mut skipped = v[1] != 0;
@@ -657,7 +664,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
                 let first_boot = v[0] == "0";
                 let mut skips = list(v[1]);
-                let mut s = Script { boot: list(v[2]), main: list(v[3]), logo_act: 0, events: Vec::new() };
+                let mut s = Script { boot: list(v[2]), main: list(v[3]), logo_act: 0, events: Vec::new(), vol };
                 let frames: usize = v[4].parse().unwrap();
                 let p = Pad::default();
                 let mut w = World::new(-1);
@@ -793,7 +800,8 @@ fn lit(iso_path: &str, archive: &Arc<Archive>, frames: &[i64]) -> Result<String,
         d.take_requests();
     }
     let mut assets = piney_gs::assets::Assets::new(archive.clone());
-    let gfile = assets.file(piney_demo::names::TITLE_FILE).ok_or("title1")?;
+    let title = piney_demo::names::title_file(iso.volume()?);
+    let gfile = assets.file(title).ok_or(title)?;
     let screen = Screen { width: 512.0, height: 448.0, scale: 1.0 };
     let (mut at, mut out) = (0i64, Vec::new());
     for &want in frames {

@@ -461,7 +461,40 @@ class Microcode:
                 end = tva + 16 + tag.qwc * 16
             self.vu0.load(vif.Stream(segs))
             self.vu0.range = (sym["mcVu0_Top"].value, end)
-        self._labels()
+        if "ccInitDL_dsmS" in sym:
+            self._labels()
+        else:
+            self._carry()
+
+    def _va_of(self, data):
+        """Where `data` sits in this ELF's loaded segments, or None."""
+        for s in self.elf.segments:
+            if s.type != 1:
+                continue
+            at = self.elf.data.find(data, s.offset, s.offset + s.filesz)
+            if at >= 0:
+                return s.vaddr + (at - s.offset)
+        return None
+
+    def _carry(self):
+        """A stripped executable (Mutation on): each VU's upload is
+        Infection's, byte for byte, elsewhere; found by its bytes, loaded
+        from here, with Infection's labels (micro addresses, the same)."""
+        import volume
+        inf = Microcode(volume.INF_ELF)
+        for mine, theirs in ((self.vu1, inf.vu1), (self.vu0, inf.vu0)):
+            if theirs.range is None:
+                continue
+            s, e = theirs.range
+            va = self._va_of(inf.elf.read(s, e - s))
+            if va is None:
+                continue
+            mine.load(vif.Stream([(va, self.elf.read(va, e - s))]))
+            mine.range = (va, va + e - s)
+            for name, addr in theirs.labels.items():
+                mine.add_label(name, addr)
+            mine.globals = set(theirs.globals)
+            mine.relocs = dict(theirs.relocs)
 
     def blob_of_va(self, va):
         for b in (self.vu1, self.vu0):
