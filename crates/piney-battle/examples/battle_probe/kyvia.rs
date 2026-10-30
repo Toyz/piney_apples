@@ -332,6 +332,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         reset,
         shake: false,
         eye,
+        active: 2,
         active_pos: case.cam_pos,
         active_view: case.cam_view,
         boss_view: [0; 4],

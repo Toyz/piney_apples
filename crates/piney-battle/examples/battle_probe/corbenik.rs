@@ -171,6 +171,7 @@ impl Cams {
         CamView {
             pos: p2,
             view: v2,
+            active: self.id,
             active_pos: pos,
             active_view: view,
             reset: b.reset,

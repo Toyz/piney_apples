@@ -633,7 +633,7 @@ fn on_die(b: &mut Boss, x: &mut First, cx: &mut Cx) {
                 let v = geom::apply_matrix(&m, [0x4120_0000, 0, 0, ONE]);
                 let eye = crate::boss::w2p(cx, cx.cam.active_pos);
                 let pos = crate::boss::p2w(cx, geom::vadd(eye, v));
-                cx.out(Out::CameraPos { cam: 2, pos });
+                cx.out(Out::CameraPos { cam: cx.cam.active, pos });
             }
             if c == 150 {
                 // The flash's element lands in `m_stageEff`.
@@ -727,8 +727,10 @@ fn on_magic(b: &mut Boss, x: &mut First, cx: &mut Cx) {
                 x.act_pos = VF0;
                 x.act_pos[2] = rand_f2(cx.cc, 0x42c8_0000, 0x4248_0000);
             }
+            // `cameraGetView` and `cameraSetView` on `camID`, the active
+            // camera (QUA gcmn 0x003afd98), not camera 2.
             let view = geom::vadd(cx.cam.active_view, x.act_pos);
-            cx.out(Out::CameraView { cam: 2, view });
+            cx.out(Out::CameraView { cam: cx.cam.active, view });
             let v = ee::mul(x.act_pos[2], 0xbf66_6666);
             x.act_pos[2] = v;
             if f64::from(f32::from_bits(v)).abs() < 10.0 {

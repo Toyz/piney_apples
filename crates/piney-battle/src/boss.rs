@@ -1100,6 +1100,8 @@ pub struct CamView {
     /// The boss camera's own eye (`CamPos`, +0x20), which Kyvia's fourth
     /// fight reads and moves.
     pub eye: V4,
+    /// `camID`, the active camera, which some rules set by number.
+    pub active: i32,
     /// The active camera's eye and view: in Kyvia's fights always the boss
     /// camera's, as nothing reachable there changes `camID` from 2
     /// (docs/engine/boss-kyvia-second.md "Which camera").

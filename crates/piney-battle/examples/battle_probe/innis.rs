@@ -170,6 +170,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         reset: 0,
         shake: false,
         eye: [0; 4],
+        active: 1,
         active_pos: [0; 4],
         active_view: [0; 4],
         boss_view: [0; 4],

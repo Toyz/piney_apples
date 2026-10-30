@@ -85,12 +85,17 @@ read); the rest are the base's (2 the wait, 3 the escape).
   3000); camera 2 2500 out and 500 up from the target along the centre's
   way, looking 100 over it. Skill 252 on it 60 frames on; the stage back
   160 frames after, the view shaken from 95 (a `ccRandF(100, 50)` kick at
-  95, 115, 135 and 155, times -0.9 a frame, 0 under 10); 15 frames on all
-  back (camera 1) and the next pattern.
+  95, 115, 135 and 155, times -0.9 a frame, 0 under 10). The shake gets
+  and sets the view of `camID`, the active camera, not camera 2 (QUA gcmn
+  0x003afd98). 15 frames on all back (camera 1) and the next pattern,
+  with `m_actProccess` added to after `ChangeNextPattern` zeroes it: a
+  Magic picked again starts at its step 1, never sets camera 2, and
+  shakes camera 1.
 - **Die** (14): off the lists with its seeds, the party locked, the dead
   effect; camera 2 2000 out and 50 up from its place at height 200 (turned
   by its heading, the centre's), the active camera's type 3; the counts
-  held. From 60 frames the eye moves 10 a frame across the centre's way;
+  held. From 60 frames the eye of `camID` moves 10 a frame across the
+  centre's way;
   at 150 `EntryFlash3(100, 20, 1, 0x80ffffff)` (its element in
   `m_stageEff`), `panelStatus` 3, its command gone; at 250 menu 74's
   stream 106 (mask 512), the body hidden; once the menu closes, out and

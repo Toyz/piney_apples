@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-511 entries: audio 43, battle 130, build 23, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 235, tooling 49, ui 102, video 16, volumes 91, world 145. 124 entries still have open questions - [listed below](#still-open).
+512 entries: audio 43, battle 131, build 23, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 235, tooling 49, ui 102, video 16, volumes 92, world 145. 124 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -523,6 +523,7 @@ The [reference](docs/README.md) says what is true now.
 | 509 | [Clean-up section 0, items 4, 5, 7, 8 and 9: the story sprites keyed by file, store groups read once, eemu's bus owned by its system, the field ambient statics carried in the save, the executable guard per disc, the events shared](worklog/0509-clean-up-section-0-items-4-5-7-8-and-9-the-story-sprites.md) | 2026-10-29 | engine, world, script, tooling, test |
 | 510 | [Clean-up section 0, item 6: piney-gen's library returns errors instead of ending the process; the manifest's own mistakes panic](worklog/0510-clean-up-section-0-item-6-piney-gen-s-library-returns.md) | 2026-10-29 | tooling, build |
 | 511 | [The game's discs never serve their executable, in the suite too: the suite's check images get their port data as the launcher makes it](worklog/0511-the-game-s-discs-never-serve-their-executable-in-the-suite.md) | 2026-10-29 | test, build |
+| 512 | [Corbenik's Magic shakes the active camera's view, not camera 2's: a Magic picked again starts at step 1 and shakes camera 1, as the game's does](worklog/0512-corbenik-s-magic-shakes-the-active-camera-s-view-not-camera.md) | 2026-10-29 | battle, volumes |
 
 ## Still open
 

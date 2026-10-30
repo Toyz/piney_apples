@@ -1451,6 +1451,7 @@ pub(super) fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> 
         reset: bcam.map_or(0, |b| b.reset),
         shake,
         eye: bcam.map_or(c.pos, |b| b.pos),
+        active: i32::from(camera.cam_id),
         active_pos: camera.cam(camera.cam_id).pos,
         active_view: camera.cam(camera.cam_id).view,
         boss_view: bcam.map_or(c.view, |b| b.view),
