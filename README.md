@@ -5,17 +5,25 @@ PlayStation 2 (CyberConnect2 / Bandai, 2002-2003): .hack//Infection,
 .hack//Mutation, .hack//Outbreak and .hack//Quarantine. It is written in Rust
 from a reverse engineering of the games, and it plays your own discs.
 
-**Status: work in progress.**
+**Status: all four parts play from power-on to their endings.** Players
+have played each of them through on the port, with no emulator involved:
+Infection to its staff roll, Mutation on into its post-game quest,
+Outbreak through Gorre and its ending, and Quarantine through Corbenik, the
+ending and its credits. Thanks to everyone who played it and reported what
+they found, among them ThreePendant, shugo21-bit, CrackedPixel and
+dothacknetwork: their bug reports and pad recordings drove most of the
+fixes.
 
 | part | disc | where it stands |
 | --- | --- | --- |
-| .hack//Infection | `SLUS_202.67` | Playable from power-on to the ending: the whole story, the staff roll and the save after it |
-| .hack//Mutation | `SLUS_205.62` | The whole story, all 16 events, plays through under the test autopilot from the new game to the ending; not yet played through by hand |
-| .hack//Outbreak | `SLUS_205.63` | The whole story, all 19 events, plays through under the test autopilot from the new game to the ending and staff roll; not yet played through by hand |
-| .hack//Quarantine | `SLUS_205.64` | Boots: the title, the opening cut scenes with their sound, the desktop, the Root Towns; its story comes after Outbreak's |
+| .hack//Infection | `SLUS_202.67` | The whole story, its bosses, the ending, the staff roll and the save after it |
+| .hack//Mutation | `SLUS_205.62` | The whole story (all 16 events), its bosses (Innis, Magus, Cubia), the ending, and the post-game quest; carries Infection's clear data |
+| .hack//Outbreak | `SLUS_205.63` | The whole story (all 19 events), its bosses (Fidchell, Cubia, Gorre), the ending and staff roll; carries Mutation's clear data |
+| .hack//Quarantine | `SLUS_205.64` | The whole story, its bosses (Macha, Tarvos, Cubia, Corbenik in all three forms), the ending and its own credits; carries Outbreak's clear data |
 
-What is still missing is listed in [GAPS.md](GAPS.md), and the known bugs in
-[BUGS.md](BUGS.md).
+It is still a work in progress: some side events are not finished yet, and
+bugs turn up as people play. What is still missing is listed in
+[GAPS.md](GAPS.md), and the known bugs in [BUGS.md](BUGS.md).
 
 ## Not an emulator
 
@@ -33,7 +41,8 @@ none of that code.
 - **How we know it matches.** Each part is checked against the game's own
   code: the original functions are run one instruction at a time in a
   small interpreter written for this project, and the port has to give the
-  same results. More than 850 tests hold it to that.
+  same results. More than 1,200 tests, and 85 harnesses that run the
+  game's own functions beside the port's, hold it to that.
 - **What it reads** is your discs, once. `piney-build` reads them into a
   build and generates the tables the engine needs from the discs' own
   executables. During play nothing from the PlayStation 2 runs, and no BIOS
@@ -227,7 +236,7 @@ works, with its buttons where a DualShock 2 has them. With more than one
 connected, the one that last sent input is read. Escape asks to quit, and
 F1 or `` ` `` opens the console. Its history scrolls with Page Up / Page
 Down, the mouse wheel or the scroll bar on its right; Tab completes a
-command.
+command and its arguments (options, and file paths).
 
 ### Reporting a bug
 
