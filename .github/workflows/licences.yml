@@ -1,0 +1,25 @@
+# Every crate in the graph carries a licence deny.toml allows: the port stays
+# MIT OR Apache-2.0, with no copyleft crate inside. cargo-deny is pinned, so a
+# release that reads licences differently changes nothing without a commit.
+name: licences
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  licences:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.20.2
+
+      - name: Check the licences
+        run: cargo deny check licenses

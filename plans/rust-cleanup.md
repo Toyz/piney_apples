@@ -62,6 +62,11 @@ order; tick items off here as they land, with the worklog entry.
       used or deleted. Then deny it.
 - [ ] `#[allow(clippy::too_many_arguments)]` (152): parameter and context
       structs (below), then a threshold and deny.
+- [x] A licence allowlist (`deny.toml`) so no copyleft crate can enter: MIT,
+      Apache-2.0 (and WITH LLVM-exception), BSD-2/3-Clause, ISC, Zlib,
+      Unicode-3.0 / Unicode-DFS-2016, Unlicense, CC0-1.0, BSL-1.0, MPL-2.0;
+      an OR licence passes by an allowed option. CI runs `cargo deny check
+      licenses` (`.github/workflows/licences.yml`). (worklog 515)
 
 ## 2. Lifts
 

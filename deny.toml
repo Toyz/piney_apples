@@ -1,0 +1,30 @@
+# cargo-deny: the licences every crate in the graph may carry. The port is
+# MIT OR Apache-2.0 on purpose, so nothing copyleft may enter: no GPL, LGPL or
+# AGPL. MPL-2.0 is allowed (its copyleft is per file). An OR licence passes
+# when one of its options is allowed (`r-efi`'s "MIT OR Apache-2.0 OR
+# LGPL-2.1-or-later" passes by MIT). CI runs `cargo deny check licenses`
+# (.github/workflows/licences.yml); advisories, bans and sources are not
+# checked yet.
+
+[graph]
+all-features = true
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Unlicense",
+    "CC0-1.0",
+    "BSL-1.0",
+    "MPL-2.0",
+]
+confidence-threshold = 0.93
+# An allowed licence no crate uses today is not an error.
+unused-allowed-license = "allow"
