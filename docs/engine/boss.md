@@ -639,8 +639,9 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
 
 `piney_battle::boss` holds the rules:
 
-- A boss is `Boss { base: BossBase, class: Class }`: `ccBoss`'s members
-  and its class's own, apart, so a class's rules hold both at once.
+- A boss is `Boss { def, base: BossBase, class: Class, output }`: what
+  it is (`BossDef`), `ccBoss`'s members and its class's own, apart, so a
+  class's rules hold both at once, and what its frame shows (`Output`).
 - `Boss::main` and `Boss::affect` go through one `match` on the class
   (`Class::with_rules`) to its `BossClass` impl: `Class::Skeith` is
   `ccBoss01` with its own members (`boss::skeith::Skeith`: `m_patMode`,
@@ -701,10 +702,11 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
 **In the field** (`piney_world::combat::boss`):
 
 1. An event's `entry 7 code` makes the boss at the entry control's
-   set-up (`FieldWorld::start_boss(code)`, `Combat::start_boss`): code 0
-   Skeith from `bossTbl` row 0, code 1 Innis from row 1 (2 Magus, 3
-   Fidchell, 5 Macha, 6 Tarvos, 12 Kyvia on their pages), its centre the
-   arena's `DMY_center01`. Other codes start nothing.
+   set-up (`FieldWorld::start_boss(code)`, `Combat::start_boss`): the
+   code's def (`BossDef::of`) makes it from its `bossTbl` row (code 0
+   Skeith, 1 Innis, 2 Magus, 3 Fidchell, 4 Gorre, 5 Macha, 6 Tarvos, 7
+   Corbenik, 12-15 Kyvia's fights), its centre the arena's
+   `DMY_center01`. Other codes start nothing.
 2. `ccBoss01::Main` runs each frame after the entry control, the task
    order's 66.
 3. It draws as an actor of `x11`'s `CMP_trall` at the boss's clip and
@@ -748,14 +750,40 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
    boss and runs after its `Main`.
 9. The area host answers `present/absent 7` from the task's exit.
 
-A boss the field starts is one row of `combat::boss::BOSSES` (`BossDef`:
-its file and body, the clumps its images and parts draw with, which body
-an Epitaph's clips move, its camera, its hit's radius, its constructor)
-and one `piney_battle::boss::Shape`: what the field reads of the class
-after its frame (the wave `DrawWave` poses, its parts, Innis's images and
-shards, where Gorre's body stands, Magus's hidden leaves, a part's
-`PreDrawAnm` matrix). What it draws besides its bodies, waves and
-after-images is a list of `combat::boss::Picture`s (worklog 529).
+**Defs and requests** (worklog 537). A boss is a def,
+`piney_battle::boss::defs` (`BossDef`): its class (`BossGameClass`), its
+file and body, the clumps its images and parts draw with, which body an
+Epitaph's clips move, its camera (`CamDef`: none, or `InitBossCamera` at
+a transfer, then what its constructor asked of it), its hit's radius and
+its constructor. Every def is `BASE_BOSS` (a part's `BASE_PART`) with its
+differences; `defs::BOSSES` is `bossFunc`, a def a code, and Corbenik's
+later forms and every part have theirs. The field reads a boss only
+through its def and what it asks, the same for every boss:
+
+- `Out`, the frame's calls in order: sounds, cameras, flashes, effects
+  made, pictures beside the bodies (`Out::Picture`: an object or a clip of
+  its file or xeffect, at a place, a matrix or a node of the body as last
+  drawn, at the body's `setTransparency` unless its own), after-images
+  (`AfterImagePart` of a part drawn with its body), counts over a
+  character or a place, a clip on a layer of its own (`AnmText`), a voice
+  line, an omni light, a body's fog, the arena's clump; and
+  `Out::Fx(FxCall)`, what its effects module in piney-effect makes beside
+  the effects it keeps (one `Effects::boss_call`).
+- `Output`, written after its frame (`Boss::show`) for it and each part:
+  where `ccBoss::Draw` puts the body and whether, a `PreDrawAnm` matrix
+  and a clip drawn again, its parts, the images it keeps (Innis's
+  slaves), the shard clumps drawn, the objects its draw hides, the
+  wave's pose, its sword trail (a row at two dummies under a node), the
+  places its effects' generators follow and the bursts drawn.
+- What it reads of the field comes through `Cx::field` (`boss::Field`):
+  the collision list, the land's lines, a node of a body as last drawn
+  (Magus's leaves, Macha's eyes), a clip's entries posed on it (Magus's
+  laser's shocks) and a character's heading.
+- `Boss::hand_over` is the task's step after `Main`: Corbenik's first form
+  exiting makes the second (`ccThBoss08`, QUA gcmn 0x003acaf8) on the
+  same character, its seeds asked off the field (`Out::PartRemoved`), and
+  `Out::Remade` has the field make its hit, parts and camera anew from the
+  new def.
 
 `tools/test_bosscam_rs.py` builds the game's `ccBossCam` in eemu over the
 field's camera and player tasks. Each frame it runs `CamMain` with the

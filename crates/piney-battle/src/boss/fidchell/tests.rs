@@ -76,7 +76,7 @@ impl Fight {
             cc: &mut self.cc,
             clips: &clip,
             collide: &mut none,
-            part_hits: &mut crate::boss::NoHits,
+            field: &mut crate::boss::NoField,
             game_over: false,
             boss_cam: true,
             cam: CamView { shake: true, ..CamView::default() },
@@ -182,7 +182,7 @@ fn the_prediction_lays_its_skill_on_the_members_then_its_spell_comes() {
     assert!(outs.contains(&Out::Cinema(Some(PRED_CINEMA[p as usize]))));
     let sid = f.data.fidchell.pred_skills[p as usize];
     assert_eq!(outs.iter().filter(|o| matches!(o, Out::Skill(_, s) if s.sid == sid)).count(), 2, "each member");
-    assert!(outs.iter().any(|o| matches!(o, Out::Fidchell(Pic::Voice(_)))));
+    assert!(outs.iter().any(|o| matches!(o, Out::Voice { .. })));
     assert_eq!(f.fid().reserve_pred, 0);
 }
 

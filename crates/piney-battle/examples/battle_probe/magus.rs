@@ -10,7 +10,7 @@
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::magus::leaf::Leaf;
 use piney_battle::boss::magus::{self, Gen, Held, Magus, Pic, Place};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, GenOp, LoopOp, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, FxCall, GenOp, LoopOp, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -147,7 +147,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
-        part_hits: &mut piney_battle::boss::NoHits,
+        field: &mut piney_battle::boss::NoField,
         game_over: false,
         boss_cam: false,
         cam: view,
@@ -256,7 +256,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cc: &mut cc,
             clips: &clip,
             collide: &mut pushed,
-            part_hits: &mut piney_battle::boss::NoHits,
+            field: &mut piney_battle::boss::NoField,
             game_over: false,
             boss_cam: false,
             cam: view,
@@ -306,15 +306,15 @@ fn v3(v: &V4) -> String {
 /// A call as the harness records it.
 fn mout(o: &Out) -> Option<String> {
     Some(match o {
-        Out::Magus(p) => match p {
+        Out::Fx(FxCall::Magus(p)) => match p {
             Pic::Particles { which, at, held } => gen_json(*which, at, *held),
             Pic::Gen { held, op } => return gen_op_json(*held, *op),
-            Pic::Count { n, .. } => format!("[\"count\",{n}]"),
             Pic::Dust { .. } => "[\"dust\"]".into(),
             Pic::ShockBurst { turn, .. } => format!("[\"shock_burst\",{turn}]"),
-            Pic::LeafAfterImage { frame, .. } => format!("[\"afterimage_leaf\",{frame}]"),
             Pic::Shocks { .. } => return None,
         },
+        Out::Count { n, .. } => format!("[\"count\",{n}]"),
+        Out::AfterImagePart { frame, .. } => format!("[\"afterimage_leaf\",{frame}]"),
         Out::CameraChange(n) => format!("[\"cam\",{n}]"),
         Out::CameraPos { cam, pos } => format!("[\"campos\",{cam},{}]", v3(pos)),
         Out::CameraView { cam, view } => format!("[\"camview\",{cam},{}]", v3(view)),

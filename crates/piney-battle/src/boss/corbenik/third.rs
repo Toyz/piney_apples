@@ -113,7 +113,7 @@ fn cam_back(cx: &mut Cx) {
 }
 
 fn arena_clump(cx: &mut Cx, on: bool) {
-    cx.out(Out::Corbenik(Pic::ArenaClump { on }));
+    cx.out(Out::StageClump(on));
 }
 
 /// `ccCheckTarget(t)` with `t` not dead (`lh 8`).
@@ -195,12 +195,20 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, dummy: V4) -> B
     cx.out(Out::Blur(blur::Set::Enable));
     cx.out(Out::Blur(blur::Set::Abgr(BLUR_ABGR)));
     cx.out(Out::Blur(blur::Set::Scale(BLUR_SCALE)));
+    // InitBossCamera(980, 1500) (0x003b95bc) and what the constructor sets
+    // on it: the pitch `atan2f(500, 1000)`, its range 1000, the eye raised
+    // by `1500 tanf(pitch)`, `SetRotXLimit(1.0)`.
+    let pitch = piney_data::libm::atan2f(0x43fa_0000, 0x447a_0000);
+    cx.out(Out::CamPitch { add: false, v: pitch });
+    cx.out(Out::CamMaxRange(0x447a_0000));
+    cx.out(Out::CamLift(ee::mul(CAM_Y, piney_data::libm::tanf(pitch))));
+    cx.out(Out::CamRotXLimit(ONE));
     for (k, p) in x.killers.iter_mut().enumerate() {
         eye::set_master(&mut p.x, me, k as i32);
     }
     x.eyes.put(cx);
     x.killers.put(cx);
-    Boss { base: b, class: Class::CorbenikC(x) }
+    Boss::of(&crate::boss::defs::CORBENIK_THIRD, b, Class::CorbenikC(x))
 }
 
 /// `SetupSlave` (0x003bd960): the sixteen eyes made (each its own
@@ -226,14 +234,18 @@ fn setup_slave(x: &mut Third, cx: &mut Cx) {
 
 // --- the frame ------------------------------------------------------------------------------------
 
-impl crate::boss::Shape for Third {
-    /// The eyes, then the killer eyes.
-    fn parts(&self, _scene: &crate::scene::Scene) -> Vec<usize> {
-        self.eye_me.iter().chain(self.killer_me.iter()).copied().collect()
-    }
-}
-
 impl crate::boss::BossClass for Third {
+    /// The eyes, then the killer eyes.
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = crate::boss::BodyDraw {
+            pos: cx.scene.chars[cx.me].pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            ..crate::boss::BodyDraw::default()
+        };
+        out.parts.extend(self.eye_me.iter().chain(self.killer_me.iter()));
+    }
+
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);
     }
@@ -521,7 +533,7 @@ fn on_die(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
         1 => {
             b.act_proccess += 1;
             x.dead_pos[2] = ee::add(x.dead_pos[2], 0x435c_0000);
-            cx.out(Out::Corbenik(Pic::Particles { which: Gen::BossDead0, pos: x.dead_pos }));
+            cx.out(Pic::Particles { which: Gen::BossDead0, pos: x.dead_pos });
             cx.out(Out::SeNote { se: 56, note: 56 });
         }
         2 => {
@@ -530,7 +542,7 @@ fn on_die(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             if c == 35 {
                 b.act_proccess += 1;
                 x.dead_pos[2] = ee::add(x.dead_pos[2], 0x41a0_0000);
-                cx.out(Out::Corbenik(Pic::Particles { which: Gen::BossDead1a, pos: x.dead_pos }));
+                cx.out(Pic::Particles { which: Gen::BossDead1a, pos: x.dead_pos });
                 b.act_count = 0;
                 cx.out(Out::SeNote { se: 104, note: 36 });
             }
@@ -541,7 +553,7 @@ fn on_die(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             if c == 60 {
                 b.act_proccess += 1;
                 x.dead_pos[2] = ee::add(x.dead_pos[2], 0x41a0_0000);
-                cx.out(Out::Corbenik(Pic::Particles { which: Gen::BossDead1b, pos: x.dead_pos }));
+                cx.out(Pic::Particles { which: Gen::BossDead1b, pos: x.dead_pos });
                 b.act_count = 0;
             }
         }
@@ -649,7 +661,7 @@ fn on_entry_eye(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             let at = eye::dummy_at(&x.body_world, x.dummy);
             let eye_pos = super::out_from(cx, at, d, [0x44bb_8000, 0, 0xc2c8_0000, ONE]);
             cx.free_cam(eye_pos, at);
-            cx.out(Out::Corbenik(Pic::Particles { which: Gen::GenerateEye, pos: at }));
+            cx.out(Pic::Particles { which: Gen::GenerateEye, pos: at });
             entry_killer(b, x, cx);
             cx.out(Out::SeNote { se: 48, note: 48 });
             b.act_count = 0;
@@ -1111,7 +1123,7 @@ fn on_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             let at = eye::dummy_at(&x.body_world, x.dummy);
             let key = x.next_key();
             x.gen_energy = Some(key);
-            cx.out(Out::Corbenik(Pic::Gen { key, which: Gen::LaserCharge, pos: at }));
+            cx.out(Pic::Gen { key, which: Gen::LaserCharge, pos: at });
             cx.out(Out::SeNote { se: 246, note: 65 });
             b.act_count = 0;
             b.act_proccess += 1;
@@ -1121,7 +1133,7 @@ fn on_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
                 return;
             }
             if let Some(key) = x.gen_energy {
-                cx.out(Out::Corbenik(Pic::GenKill { key }));
+                cx.out(Pic::GenKill { key });
             }
             cx.out(Out::Flash { t: 10, colour: 0x80e0_ffff });
             b.draw_sw = 0;

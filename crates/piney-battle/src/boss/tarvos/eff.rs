@@ -132,7 +132,7 @@ impl SpikeRain {
             let p = crate::boss::w2p(cx, s.pos);
             let pitch = atan2d(ee::sub(p[2], aim_p[2]), crate::boss::dist(cx, p, aim_p));
             let heading = get_dirc(p, aim_p);
-            cx.out(Out::Tarvos(Pic::Spike { pos: s.pos, pitch, heading, transparency: s.transparency }));
+            cx.out(Pic::Spike { pos: s.pos, pitch, heading, transparency: s.transparency });
             match s.state {
                 0 => {
                     let w = s.wait;
@@ -252,8 +252,8 @@ impl Phantom {
             cx.out(Out::CamMode { mode: 5 });
             cx.out(Out::FreeCam { pos, view: [0; 4] });
         }
-        cx.out(Out::Tarvos(Pic::PhantomStart));
-        cx.out(Out::Tarvos(Pic::PhantomLights(Box::new(lights.map(|l| (l.pos, l.state))))));
+        cx.out(Pic::PhantomStart);
+        cx.out(Pic::PhantomLights(Box::new(lights.map(|l| (l.pos, l.state)))));
         Phantom {
             lights,
             size: 0x447a_0000,
@@ -360,7 +360,7 @@ impl Phantom {
                 }
             }
             3 => {
-                cx.out(Out::Tarvos(Pic::PhantomSprite { pos: self.pos, size: self.size }));
+                cx.out(Pic::PhantomSprite { pos: self.pos, size: self.size });
                 let mut s = ee::sub(self.size, 0x42c8_0000);
                 if ee::lt(s, 0) {
                     let param = [0, 0x3f2a_aaab, 0x4120_0000, 0];
@@ -413,7 +413,7 @@ impl Phantom {
                         l.pos = crate::boss::p2w(cx, p);
                         l.vel[2] = ee::sub(l.vel[2], 0x40a0_0000);
                         if ee::lt(p[2], 0) {
-                            cx.out(Out::Tarvos(Pic::Burst { pos: l.pos, kind: BURSTS[l.kind as usize & 7] }));
+                            cx.out(Pic::Burst { pos: l.pos, kind: BURSTS[l.kind as usize & 7] });
                             cx.out(Out::Se { se: 35 });
                             if index == 13 || index == 0 {
                                 cx.out(Out::SeNote { se: 56, note: 57 });
@@ -446,8 +446,8 @@ impl Phantom {
                     self.pos[2] = 0x4396_0000;
                 }
                 if !self.burst && self.lights.iter().filter(|l| l.state == 5).count() >= 3 {
-                    cx.out(Out::Tarvos(Pic::Radiate { pos: self.pos }));
-                    cx.out(Out::Tarvos(Pic::Explode { pos: self.origin }));
+                    cx.out(Pic::Radiate { pos: self.pos });
+                    cx.out(Pic::Explode { pos: self.origin });
                     self.burst = true;
                 }
                 if done {
@@ -466,7 +466,7 @@ impl Phantom {
             _ => {}
         }
         if (0..=5).contains(&self.state) {
-            cx.out(Out::Tarvos(Pic::PhantomLights(Box::new(self.lights.map(|l| (l.pos, l.state))))));
+            cx.out(Pic::PhantomLights(Box::new(self.lights.map(|l| (l.pos, l.state)))));
         }
         true
     }

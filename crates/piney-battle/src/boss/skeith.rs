@@ -60,19 +60,21 @@ pub struct Skeith {
     pub act_dirc: V4,
 }
 
-impl Shape for Skeith {
-    fn wave(&self) -> Option<&Anm> {
-        Some(&self.anm_wave)
-    }
-
-    /// `ccBoss01::DrawCross` (0x0047c390): `m_lattice` (+0x2935c), a row a
-    /// frame in the cross, while it stands.
-    fn sword_trail(&self, b: &BossBase) -> Option<bool> {
-        Some(b.act_num == act::CROSS && b.exit == 0)
-    }
-}
-
 impl BossClass for Skeith {
+    /// The wave as posed; `ccBoss01::DrawCross` (0x0047c390): `m_lattice`
+    /// (+0x2935c), a row a frame in the cross at the sword's two dummies,
+    /// while it stands.
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut Output) {
+        out.body =
+            BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, shown: b.draw_sw != 0, ..BodyDraw::default() };
+        out.wave = Some(self.anm_wave.posed);
+        out.trail = if b.act_num == act::CROSS && b.exit == 0 {
+            Trail::Row { node: "OBJ_ex11swd", points: ["DMY_xdummy_w01", "DMY_xdummy_w02"] }
+        } else {
+            Trail::Keep
+        };
+    }
+
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);
     }
@@ -133,7 +135,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     // The blur on under `ccBoss03BlurParamCB` (INF gcmn 0x0047bc40).
     cx.out(Out::Blur(blur::Set::Enable));
     cx.out(Out::Blur(blur::Set::Func(blur::BlurFunc::Boss03)));
-    Boss { base: b, class: Class::Skeith(Box::new(skeith)) }
+    Boss::of(&super::defs::SKEITH, b, Class::Skeith(Box::new(skeith)))
 }
 
 /// Skeith's patterns: `ccBoss01::ExecPatternIndex` over the base's, the

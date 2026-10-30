@@ -131,9 +131,6 @@ impl TarvosData {
 /// What Tarvos shows beside its body, and what its effects draw.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Pic {
-    /// `ccDrawEnv::SetFogBlend(rate, colour)` before the body's draw: the
-    /// transfer's fog.
-    Fog { rate: F, colour: u32 },
     /// `ccBossEffTransEffectCreate(pos)` (0x0037db00): three particle
     /// generators (`g_transEffGen`, two of `MagicSquareGenerator`'s), no
     /// slot.
@@ -253,7 +250,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     cx.out(Out::Blur(super::blur::Set::Func(super::blur::BlurFunc::Boss03)));
     set_pattern_mode(&mut b, &mut x, cx, 0);
     set_def_mode(&mut x, cx, 0);
-    Boss { base: b, class: Class::Tarvos(x) }
+    Boss::of(&crate::boss::defs::TARVOS, b, Class::Tarvos(x))
 }
 
 /// `SetPatternMode(m)` (0x003a8e00): `@1201[m]` set and run from its start.
@@ -295,13 +292,17 @@ fn set_def_mode(x: &mut Tarvos, cx: &mut Cx, d: i32) {
 
 // --- the frame --------------------------------------------------------------------------------
 
-impl crate::boss::Shape for Tarvos {
-    fn wave(&self) -> Option<&crate::boss::Anm> {
-        Some(&self.anm_w)
-    }
-}
-
 impl crate::boss::BossClass for Tarvos {
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = crate::boss::BodyDraw {
+            pos: cx.scene.chars[cx.me].pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            ..crate::boss::BodyDraw::default()
+        };
+        out.wave = Some(self.anm_w.posed);
+    }
+
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);
     }
@@ -340,7 +341,7 @@ fn frame(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             b.anm_status = i8::from(b.anm.forward());
         }
         if transfer && !ee::le(x.blend_rate, 0) {
-            cx.out(Out::Tarvos(Pic::Fog { rate: x.blend_rate, colour: BLEND_COLOR }));
+            cx.out(Out::Fog { who: cx.me, blend: crate::boss::Blend { rate: x.blend_rate, colour: BLEND_COLOR } });
         }
         b.draw(cx);
     }
@@ -372,7 +373,7 @@ fn spike_hit(b: &mut BossBase, cx: &mut Cx, t: usize, pos: V4, index: i32) {
             e.enabled = false;
         }
         cx.out(Out::Effect { id, kind: EffKind::Eruption, pos, dirc: VF0 });
-        cx.out(Out::Tarvos(Pic::Eruption { pos }));
+        cx.out(Pic::Eruption { pos });
     }
 }
 
@@ -1070,7 +1071,7 @@ fn on_transfer(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             }
             b.unlock_player();
             let pos = cx.pos();
-            cx.out(Out::Tarvos(Pic::TransEffect { pos }));
+            cx.out(Pic::TransEffect { pos });
             b.act_proccess += 1;
         }
         3 => {
@@ -1098,7 +1099,7 @@ fn on_transfer(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             cx.scene.chars[me].pos = super::p2w(cx, p);
             b.anm.set(OUT_CLIP, cx.clips);
             let pos = cx.pos();
-            cx.out(Out::Tarvos(Pic::TransEffect { pos }));
+            cx.out(Pic::TransEffect { pos });
             b.act_count = 0;
             b.act_proccess += 1;
         }
@@ -1110,7 +1111,7 @@ fn on_transfer(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             b.act_count += 1;
             if c == 45 {
                 let pos = cx.pos();
-                cx.out(Out::Tarvos(Pic::TransEffect { pos }));
+                cx.out(Pic::TransEffect { pos });
             }
             if matches!(f, 89 | 74 | 60 | 48 | 21) {
                 let pos = cx.pos();
@@ -1367,6 +1368,6 @@ pub(super) fn affect(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
         _ => false,
     };
     if shield {
-        cx.out(Out::Tarvos(Pic::Shield { magic: x.def_mode }));
+        cx.out(Pic::Shield { magic: x.def_mode });
     }
 }

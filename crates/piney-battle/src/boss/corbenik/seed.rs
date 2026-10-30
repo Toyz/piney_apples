@@ -88,7 +88,7 @@ pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, k: i32) -> Part<Seed> {
     let hit = CharHit { radius: base.width, height: base.height, kind: base.ty as u32, ..CharHit::default() };
     as_me(cx, me, |cx| b.change_action(cx, act::WAIT, 3, true));
     let x = Seed { master, slave_id: k, hit, exp_count: 150, blink_time: 30, ..Seed::default() };
-    Part { b: Box::new(Boss { base: b, class: Class::Plain }), x: Box::new(x), me }
+    Part { b: Box::new(Boss::of(&crate::boss::defs::SEED, b, Class::Plain)), x: Box::new(x), me }
 }
 
 /// `ccBoss08Seed::Main` (0x003b06a0), `x.seeds[k]` its own frame: the
@@ -133,16 +133,16 @@ fn move_(p: &mut Part<Seed>, cx: &mut Cx) {
     pp = geom::vadd(pp, b.base.move_vector);
     let mut pos = crate::boss::p2w(cx, pp);
     let on = b.base.body_hit_sw != 0;
-    cx.part_hits.switch(me, &mut p.x.hit, on);
+    cx.field.switch(me, &mut p.x.hit, on);
     if on {
         p.x.hit.pos = pos;
-        if cx.part_hits.collide(me, &mut p.x.hit) {
+        if cx.field.collide(me, &mut p.x.hit) {
             let mut off = p.x.hit.offset;
             off[2] = 0;
             pos = geom::vadd(pos, off);
             pp = geom::vadd(pp, off);
             p.x.hit.pos = pos;
-            cx.part_hits.sync(me, &p.x.hit);
+            cx.field.sync(me, &p.x.hit);
         }
     }
     let ch = &mut cx.scene.chars[me];
@@ -197,7 +197,7 @@ pub(crate) fn order(b: &mut BossBase, x: &mut Seed, cx: &mut Cx, n: i32, master_
             x.blink_time = 30;
             x.charge = true;
             let pos = cx.pos();
-            cx.out(Out::Corbenik(Pic::Charge { seed: me, pos, on: true }));
+            cx.out(Pic::Charge { seed: me, pos, on: true });
             b.entry_cmnd_target(cx);
             b.change_action(cx, act::COUNT_DOWN, 3, true);
         }
@@ -217,7 +217,7 @@ fn charge_off(x: &mut Seed, cx: &mut Cx) {
     if x.charge {
         x.charge = false;
         let me = cx.me;
-        cx.out(Out::Corbenik(Pic::Charge { seed: me, pos: VF0, on: false }));
+        cx.out(Pic::Charge { seed: me, pos: VF0, on: false });
     }
 }
 
@@ -257,7 +257,7 @@ fn on_fly(b: &mut BossBase, x: &mut Seed, cx: &mut Cx) {
             sp[2] = ee::add(sp[2], 0x42c8_0000);
             let mut ep = pos;
             ep[2] = ee::sub(ep[2], 0x42c8_0000);
-            if cx.part_hits.line(sp, ep, 0x2000_0000).is_none() {
+            if cx.field.line(sp, ep, 0x2000_0000).is_none() {
                 x.range_out = true;
                 return;
             }
@@ -309,7 +309,7 @@ fn on_count_down(b: &mut BossBase, x: &mut Seed, paused: bool, cx: &mut Cx) {
     let mut tag = cx.pos();
     tag[2] = ee::add(tag[2], 0x42c8_0000);
     let n = ee::to_int(ee::div(ee::from_int(x.exp_count + 29), 0x41f0_0000));
-    cx.out(Out::Corbenik(Pic::CountDown { pos: tag, n }));
+    cx.out(Out::Count { at: crate::boss::Spot::At(tag), n });
     if paused {
         return;
     }
@@ -352,13 +352,7 @@ fn on_fire(mb: &mut BossBase, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
                 return;
             }
             p.x.eff_flush = None;
-            cx.out(Out::Corbenik(Pic::Burst {
-                pos,
-                spd: b.base.move_vector,
-                scale: ONE,
-                kind: 0,
-                grow: Some(super::GROW),
-            }));
+            cx.out(Pic::Burst { pos, spd: b.base.move_vector, scale: ONE, kind: 0, grow: Some(super::GROW) });
             cx.out(Out::Se3dNote { se: 35, pos, note: 53 });
             let at = cx.scene.chars[p.me].pos_p;
             let from = usize::try_from(p.x.slave_id).unwrap_or(usize::MAX);
@@ -407,18 +401,18 @@ fn on_dead(b: &mut BossBase, x: &mut Seed, cx: &mut Cx) {
 const DRAW_UP: F = 0x4248_0000;
 const DRAW_SCALE: F = 0x4040_0000;
 
-impl crate::boss::Shape for Seed {
-    fn matrix(&self, pos: V4, dirc: V4) -> Option<geom::M4> {
-        let at = [pos[0], pos[1], ee::add(pos[2], DRAW_UP), ONE];
-        Some(super::pos_rot_zyx_scale(at, dirc, DRAW_SCALE))
-    }
-
-    fn draws_again(&self) -> bool {
-        true
-    }
-}
-
 impl crate::boss::BossClass for Seed {
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        let pos = cx.scene.chars[cx.me].pos;
+        out.body = crate::boss::BodyDraw {
+            pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            matrix: Some(super::pos_rot_zyx_scale([pos[0], pos[1], ee::add(pos[2], DRAW_UP), ONE], b.dirc, DRAW_SCALE)),
+            again: b.draw_sw != 0 && b.exit == 0,
+        };
+    }
+
     fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
         affect(b, cx);
     }
@@ -459,6 +453,6 @@ pub(crate) fn affect(b: &mut BossBase, cx: &mut Cx) {
         cx.scene.chars[me].hp = h;
     }
     if crate::skill::check_type_of(cx.t, i32::from(p1)) == 1 {
-        cx.out(Out::Corbenik(Pic::SeedShield { seed: me }));
+        cx.out(Pic::SeedShield { seed: me });
     }
 }

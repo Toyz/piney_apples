@@ -72,6 +72,9 @@ pub mod act {
 /// The event number the prediction's voice is asked with
 /// (`ccEvVoiceRequest(-40, n)`, OUT gcmn 0x004a51c0): a field voice group.
 pub const PRED_VOICE_EVENT: i32 = -40;
+/// The prediction's layer: `m_predTxt.layer`, `ccLayer::Init(254,
+/// sysLayer's view)` in its constructor (OUT gcmn 0x004a361c).
+pub const PRED_TEXT_LAYER: i16 = 254;
 
 /// Fidchell's tables (`tables::combat`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -152,41 +155,17 @@ impl Default for PredInfo {
 /// What Fidchell shows or asks beside the other bosses' calls.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Pic {
-    /// The prediction's text (`m_predTxt.anmText` of x41) drawn this frame
-    /// on its own layer (254) at `pos`, turned by `dirc`.
-    Text {
-        clip: String,
-        time: u32,
-        pos: V4,
-        dirc: V4,
-    },
-    /// `ccEvVoiceRequest(PRED_VOICE_EVENT, n)`, `ccEvVoiceStop()`.
-    Voice(i32),
-    VoiceStop,
     /// `effSmoke(pos, vel, size, 60, 114, 512, 32)`: the back dash's dust
     /// (size 8), a rock tower breaking out (10).
-    Smoke {
-        pos: V4,
-        vel: V4,
-        size: F,
-    },
+    Smoke { pos: V4, vel: V4, size: F },
     /// A meteor's landing (`effSmokeRock`, two `ccParticleExplode`).
-    MeteorLand {
-        pos: V4,
-    },
+    MeteorLand { pos: V4 },
     /// `effRadiateSomething2(pos, rot, 4, 4, 45)`: a tower's rocks.
-    Radiate {
-        pos: V4,
-        rot: V4,
-    },
+    Radiate { pos: V4, rot: V4 },
     /// A thunder's strike (`ccBossEffThunder2::Shock`): `effFlareRing`,
     /// four `effRadiateSomething2` turned by `turn`, five
     /// `ccParticleExplode` at `vels`.
-    Shock {
-        pos: V4,
-        turn: F,
-        vels: [V4; 5],
-    },
+    Shock { pos: V4, turn: F, vels: [V4; 5] },
 }
 
 /// `ccBoss04`'s own members (+0x29350 on).
@@ -310,7 +289,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.pat_index = 0;
     x.pat_mode = 0;
     start_table(&mut b, &mut x, cx, Tbl::Normal);
-    Boss { base: b, class: Class::Fidchell(x) }
+    Boss::of(&crate::boss::defs::FIDCHELL, b, Class::Fidchell(x))
 }
 
 /// A table's start as the constructor, `Affect` and `OnThinkDrain` make it:
@@ -328,13 +307,17 @@ fn start_table(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, t: Tbl) {
 
 // --- the frame --------------------------------------------------------------------------------
 
-impl crate::boss::Shape for Fidchell {
-    fn wave(&self) -> Option<&crate::boss::Anm> {
-        Some(&self.anm_w)
-    }
-}
-
 impl crate::boss::BossClass for Fidchell {
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = crate::boss::BodyDraw {
+            pos: cx.scene.chars[cx.me].pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            ..crate::boss::BodyDraw::default()
+        };
+        out.wave = Some(self.anm_w.posed);
+    }
+
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);
     }
@@ -639,7 +622,7 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             b.act_proccess += 1;
         }
         1 if c >= 15 => {
-            cx.out(Out::Fidchell(Pic::VoiceStop));
+            cx.out(Out::VoiceStop);
             b.act_proccess += 1;
         }
         2 => {
@@ -659,14 +642,14 @@ fn on_prediction(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
             let v = geom::apply_matrix(&m, [0x447a_0000, 0, 0, ONE]);
             x.pred_pos = super::p2w(cx, geom::vadd(p, v));
             let voice = cx.data.fidchell.pred_voices[k];
-            cx.out(Out::Fidchell(Pic::Voice(voice)));
+            cx.out(Out::Voice { event: PRED_VOICE_EVENT, msg: voice });
             b.act_proccess += 1;
         }
         3 => {
             x.pred_dirc = cx.cam.rot;
             let done = x.pred_txt.forward();
             let clip = x.pred_txt.clip.clone().unwrap_or_default();
-            cx.out(Out::Fidchell(Pic::Text { clip, time: x.pred_txt.posed, pos: x.pred_pos, dirc: x.pred_dirc }));
+            cx.out(Out::AnmText { clip, layer: PRED_TEXT_LAYER });
             if !done {
                 return;
             }
@@ -1194,7 +1177,7 @@ fn on_back_dash(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
         let vel =
             [ee::mul(0x4040_0000, libm::cosf(b.move_dirc)), ee::mul(0x4040_0000, libm::sinf(b.move_dirc)), 0, ONE];
         let pos = cx.pos();
-        cx.out(Out::Fidchell(Pic::Smoke { pos, vel, size: 0x4100_0000 }));
+        cx.out(Pic::Smoke { pos, vel, size: 0x4100_0000 });
     }
     if b.act_count >= 31 {
         b.entry_cmnd_target(cx);

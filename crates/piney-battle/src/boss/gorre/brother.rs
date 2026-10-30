@@ -122,7 +122,7 @@ pub fn new(cx: &mut Cx, me: usize, master_me: usize, offset: V4, dirc: V4, id: i
     let mut anm_w = Anm::new();
     anm_w.set(ANM_WAVE, cx.clips);
     let x = Brother { offset, rad_spd: INIT_SPD, rad_accel: INIT_ACCEL, id, master_me, anm_w, ..Brother::default() };
-    Part { b: Box::new(Boss { base: b, class: Class::Plain }), x: Box::new(x), me }
+    Part { b: Box::new(Boss::of(&crate::boss::defs::BROTHER, b, Class::Plain)), x: Box::new(x), me }
 }
 
 fn translate(t: V4) -> geom::M4 {
@@ -561,7 +561,11 @@ fn affect_alone(b: &mut BossBase, x: &mut Brother, cx: &mut Cx) {
     let (other, found) = Part::take_or_stand_in(cx, gx.brother_me[1 - k]);
     gx.brothers[1 - k] = other;
     let base = std::mem::take(b);
-    gx.brothers[k] = Part { b: Box::new(Boss { base, class: Class::Plain }), x: Box::new(std::mem::take(x)), me };
+    gx.brothers[k] = Part {
+        b: Box::new(Boss::of(&crate::boss::defs::BROTHER, base, Class::Plain)),
+        x: Box::new(std::mem::take(x)),
+        me,
+    };
     // The report first (a drain only before the brother's Epitaph,
     // `CheckEpitaph`); what Gorre makes of it is Gorre's to show.
     let start = cx.out.len();

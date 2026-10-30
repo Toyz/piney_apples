@@ -139,7 +139,7 @@ impl Meteor {
         if ee::le(self.pos[2], self.end_height) {
             self.end_flag = true;
             let at = [self.pos[0], self.pos[1], self.end_height, self.pos[3]];
-            h.out(Out::Fidchell(Pic::MeteorLand { pos: at }));
+            h.out(Out::from(Pic::MeteorLand { pos: at }));
             h.out(Out::Se3d { se: 35, pos: at });
             h.out(Out::Se3d { se: 40, pos: at });
         }
@@ -327,7 +327,7 @@ impl Thunder {
         }
         let mut at = self.pos;
         at[2] = TEN;
-        h.out(Out::Fidchell(Pic::Shock { pos: at, turn, vels }));
+        h.out(Out::from(Pic::Shock { pos: at, turn, vels }));
     }
 }
 
@@ -491,9 +491,9 @@ impl RockTower {
                     if !ee::le(t.pos[2], 0xc2c8_0000) {
                         t.pos[2] = 0xc2c8_0000;
                         t.status += 1;
-                        h.out(Out::Fidchell(Pic::Smoke { pos: t.pos, vel: VF0, size: TEN }));
+                        h.out(Out::from(Pic::Smoke { pos: t.pos, vel: VF0, size: TEN }));
                         let rot = [geom::deg2rad(-16384), 0, rand_f(h.cc(), PI), ONE];
-                        h.out(Out::Fidchell(Pic::Radiate { pos: t.pos, rot }));
+                        h.out(Out::from(Pic::Radiate { pos: t.pos, rot }));
                     }
                     gone = false;
                 }

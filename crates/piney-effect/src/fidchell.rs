@@ -320,7 +320,6 @@ pub fn calls(ctrl: &mut EffectCtrl, cx: &mut Cx, p: &Pic) {
                 particle::cc_particle_explode(cx, pos, v, FIVE, 1);
             }
         }
-        Pic::Text { .. } | Pic::Voice(_) | Pic::VoiceStop => {}
     }
 }
 
@@ -331,7 +330,7 @@ fn out_here(ctrl: Option<&mut EffectCtrl>, cx: &mut Cx, o: &Out) {
         Out::Se { se } => cx.raise(Event::Sound { se }),
         Out::SeNote { se, note } => cx.raise(Event::SoundNote { se, note: i32::from(note) }),
         Out::Se3d { se, pos } => cx.raise(Event::Sound3d { se, pos }),
-        Out::Fidchell(ref p) => {
+        Out::Fx(piney_battle::boss::FxCall::Fidchell(ref p)) => {
             if let Some(ctrl) = ctrl {
                 calls(ctrl, cx, p);
             }

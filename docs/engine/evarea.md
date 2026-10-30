@@ -670,7 +670,7 @@ the tera laser (its step 3, count 29) and the reflected laser (count 15) clear
 it with the stage darkened, and set it again when the laser's dark stage
 effect ends. On screen the floor clump goes and the clip stays while the laser
 plays; the hits stay on. The port:
-`Arena::next_stage`, `set_clump` (from `Pic::ArenaClump` through
+`Arena::next_stage`, `set_clump` (from `Out::StageClump` through
 `BossRun.arena_clump`), `Piece::LastAnm` and `LastClump`.
 
 **The port.** `piney_world::story_map::boss_arena::Arena`. `FieldWorld` holds it as

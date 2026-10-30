@@ -149,7 +149,7 @@ pub(crate) fn new_eye(cx: &mut Cx, me: usize) -> Part<Eye> {
         *r = rand_f(cx.cc, 0x3c8e_fa35);
     }
     let x = Eye { hit, pos_b: VF0, pos_bp: VF0, move_vector_b: VF0, rot_dirc, ..Eye::default() };
-    Part { b: Box::new(Boss { base: b, class: Class::Plain }), x: Box::new(x), me }
+    Part { b: Box::new(Boss::of(&crate::boss::defs::EYE, b, Class::Plain)), x: Box::new(x), me }
 }
 
 /// `SetupSlave`'s part of an eye (0x003bd960): `SetMaster`, on, act 0 held
@@ -282,15 +282,15 @@ fn eye_move(b: &mut BossBase, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
     pp = geom::vadd(pp, b.move_vector);
     let mut pos = p2w(cx, pp);
     let on = b.body_hit_sw != 0;
-    cx.part_hits.switch(me, &mut x.hit, on);
+    cx.field.switch(me, &mut x.hit, on);
     if on {
         x.hit.pos = pos;
-        if cx.part_hits.collide(me, &mut x.hit) {
+        if cx.field.collide(me, &mut x.hit) {
             let off = x.hit.offset;
             pos = geom::vadd(pos, off);
             pp = geom::vadd(pp, off);
             x.hit.pos = pos;
-            cx.part_hits.sync(me, &x.hit);
+            cx.field.sync(me, &x.hit);
         }
     }
     let ch = &mut cx.scene.chars[me];
@@ -303,9 +303,8 @@ fn eye_move(b: &mut BossBase, x: &mut Eye, m: &MasterView, cx: &mut Cx) {
 fn eye_pre_draw(b: &mut BossBase, x: &mut Eye, cx: &mut Cx) {
     b.anm_status = i8::from(b.anm.forward());
     let me = cx.me;
-    let pos = cx.scene.chars[me].pos;
     let blend = x.color_blend;
-    cx.out(Out::Corbenik(Pic::Eye { eye: me, time: b.anm.posed, pos, dirc: b.dirc, blend, alpha: b.transparency }));
+    cx.out(Out::Fog { who: me, blend: crate::boss::Blend { rate: blend, colour: super::EYE_FLASH } });
     if !geom::eq(blend, 0) {
         let mut v = ee::sub(blend, 0x4055_5555);
         if ee::lt(v, 0) {
@@ -362,7 +361,7 @@ pub(crate) fn new_killer(cx: &mut Cx, me: usize, kite_pos: V4, kite_dirc: V4) ->
     }
     let eai = AfterImageParams { color: 0xffff_ffff, ss: VF0, es: VF0, ..AfterImageParams::default() };
     let x = Killer { hit, eai, spin: VF0, press_start: VF0, ..Killer::default() };
-    Part { b: Box::new(Boss { base: b, class: Class::Plain }), x: Box::new(x), me }
+    Part { b: Box::new(Boss::of(&crate::boss::defs::KILLER_EYE, b, Class::Plain)), x: Box::new(x), me }
 }
 
 /// What a killer eye reads of the body.
@@ -419,16 +418,16 @@ fn killer_move(b: &mut BossBase, x: &mut Killer, cx: &mut Cx) {
     pp = geom::vadd(pp, b.move_vector);
     let mut pos = p2w(cx, pp);
     let on = b.body_hit_sw != 0;
-    cx.part_hits.switch(me, &mut x.hit, on);
+    cx.field.switch(me, &mut x.hit, on);
     if on {
         x.hit.pos = pos;
-        if cx.part_hits.collide(me, &mut x.hit) {
+        if cx.field.collide(me, &mut x.hit) {
             let mut off = x.hit.offset;
             off[2] = 0;
             pos = geom::vadd(pos, off);
             pp = geom::vadd(pp, off);
             x.hit.pos = pos;
-            cx.part_hits.sync(me, &x.hit);
+            cx.field.sync(me, &x.hit);
         }
     }
     let ch = &mut cx.scene.chars[me];
@@ -452,7 +451,7 @@ fn killer_pre_draw(b: &mut BossBase, cx: &mut Cx) {
     }
     let me = cx.me;
     let pos = cx.scene.chars[me].pos;
-    cx.out(Out::Corbenik(Pic::Killer { eye: me, time: b.anm.posed, pos, dirc: b.dirc, alpha: b.transparency }));
+    cx.out(Pic::Killer { eye: me, time: b.anm.posed, pos, dirc: b.dirc, alpha: b.transparency });
 }
 
 /// `SetMaster(body, k)`.
@@ -954,17 +953,22 @@ pub(crate) fn on_exit(b: &mut BossBase, _cx: &mut Cx) {
     b.exit = 1;
 }
 
-/// `ccBoss08Eye::PreDrawAnm` (0x003bed70): turned XYZ.
-impl crate::boss::Shape for Eye {
-    fn matrix(&self, pos: V4, dirc: V4) -> Option<geom::M4> {
-        let m = geom::rot_matrix_x(&geom::unit_matrix(), dirc[0]);
-        let m = geom::rot_matrix_y(&m, dirc[1]);
-        let m = geom::rot_matrix_z(&m, dirc[2]);
-        Some(geom::trans_matrix(&m, pos))
+impl crate::boss::BossClass for Eye {
+    /// `ccBoss08Eye::PreDrawAnm` (0x003bed70): turned XYZ.
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        let pos = cx.scene.chars[cx.me].pos;
+        let m = geom::rot_matrix_x(&geom::unit_matrix(), b.dirc[0]);
+        let m = geom::rot_matrix_y(&m, b.dirc[1]);
+        let m = geom::rot_matrix_z(&m, b.dirc[2]);
+        out.body = crate::boss::BodyDraw {
+            pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            matrix: Some(geom::trans_matrix(&m, pos)),
+            again: false,
+        };
     }
 }
-
-impl crate::boss::BossClass for Eye {}
 
 impl crate::boss::BossClass for Killer {
     fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
@@ -1015,8 +1019,8 @@ pub(crate) fn affect(b: &mut BossBase, cx: &mut Cx) {
     let ex = cx.scene.chars[me].foe_state().map_or(0, |f| f.row.exdefense);
     let kind = crate::skill::check_type_of(cx.t, i32::from(p1));
     match ex {
-        1 if kind == 0 => cx.out(Out::Corbenik(Pic::KillerShield { eye: me, magic: 0 })),
-        2 if kind == 1 => cx.out(Out::Corbenik(Pic::KillerShield { eye: me, magic: 1 })),
+        1 if kind == 0 => cx.out(Pic::KillerShield { eye: me, magic: 0 }),
+        2 if kind == 1 => cx.out(Pic::KillerShield { eye: me, magic: 1 }),
         _ => {}
     }
 }

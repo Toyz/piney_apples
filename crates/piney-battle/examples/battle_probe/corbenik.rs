@@ -13,7 +13,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::corbenik::first::First;
 use piney_battle::boss::corbenik::seed::Seed;
 use piney_battle::boss::corbenik::{self, Gen, Pic};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -101,7 +101,7 @@ struct Plane {
     hole: f32,
 }
 
-impl piney_battle::boss::PartHits for Plane {
+impl piney_battle::boss::Field for Plane {
     fn switch(&mut self, _: usize, hit: &mut piney_battle::world::CharHit, on: bool) {
         hit.sw = on;
     }
@@ -289,7 +289,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
-        part_hits: &mut plane,
+        field: &mut plane,
         game_over: false,
         boss_cam: false,
         cam: cams.view(),
@@ -379,7 +379,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cc: &mut cc,
             clips: &clip,
             collide: &mut none,
-            part_hits: &mut plane,
+            field: &mut plane,
             game_over: false,
             boss_cam: false,
             cam: cams.view(),
@@ -439,41 +439,31 @@ pub(crate) fn v3(v: &V4) -> String {
 /// A call as the harness records it.
 pub(crate) fn mout(o: &Out) -> Option<String> {
     Some(match o {
-        Out::Corbenik(p) => match p {
+        Out::Fx(FxCall::Corbenik(p)) => match p {
             Pic::Particles { which, .. } => format!("[\"gen\",\"{}\"]", gen_name(*which)),
             Pic::Charge { on: true, .. } => "[\"gen\",\"charge\"]".into(),
             Pic::Charge { on: false, .. } => "[\"gen_del\"]".into(),
-            Pic::CountDown { n, .. } => format!("[\"count\",{n}]"),
             Pic::Burst { kind, .. } => format!("[\"burst\",{kind}]"),
             Pic::SeedShield { .. } => "[\"shield\",1]".into(),
             Pic::Gen { which, .. } => format!("[\"gen\",\"{}\"]", gen_name(*which)),
-            Pic::Barrier
-            | Pic::BarrierHit { .. }
-            | Pic::PressImage { .. }
-            | Pic::Element { .. }
-            | Pic::TransformLay { .. }
-            | Pic::RootL { .. }
-            | Pic::Flush { .. } => return None,
+            Pic::TransformLay { .. } | Pic::Flush { .. } => return None,
             Pic::ElementSmoke { .. } | Pic::Smoke { .. } => "[\"smoke\"]".into(),
             Pic::LaserRadiate { .. } => "[\"radiate2\"]".into(),
-            Pic::Star { .. }
-            | Pic::StarCore { .. }
-            | Pic::Thunder { .. }
-            | Pic::Laser { .. }
-            | Pic::LaserHead { .. } => return None,
+            Pic::Star { .. } | Pic::StarCore { .. } | Pic::Thunder { .. } | Pic::LaserHead { .. } => return None,
             Pic::Radiate { .. } => "[\"radiate\"]".into(),
-            Pic::Eye { .. }
-            | Pic::Killer { .. }
+            Pic::Killer { .. }
             | Pic::TeraBeam { .. }
             | Pic::Spark { .. }
             | Pic::RefrectHead { .. }
-            | Pic::RefrectSeg { .. }
             | Pic::GenMove { .. } => return None,
             Pic::KillerShield { magic, .. } => format!("[\"shield\",{magic}]"),
             Pic::GenKill { .. } => "[\"gen_kill\"]".into(),
-            Pic::ArenaClump { on } => format!("[\"clump\",{}]", u8::from(*on)),
             Pic::Explode2 { .. } => "[\"explode2\"]".into(),
         },
+        Out::Count { n, .. } => format!("[\"count\",{n}]"),
+        Out::StageClump(on) => format!("[\"clump\",{}]", u8::from(*on)),
+        // Drawn: the runtime's.
+        Out::Picture(_) | Out::Fog { .. } => return None,
         Out::AfterImageAnm { .. } => "[\"afterimage_anm\"]".into(),
         Out::EntryFade { t, from, to } => format!("[\"fade\",{t},{from},{to}]"),
         Out::CameraChange(n) => format!("[\"cam\",{n}]"),

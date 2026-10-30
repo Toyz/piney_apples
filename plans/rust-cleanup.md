@@ -332,6 +332,16 @@ Where the code does by hand, per kind, what a system should do once:
       lets the neutral go (forbid 1: OUT 0x004a4664 to 0x0046e384, QUA
       0x003a4228 and 0x003a8db0 to 0x00360c94), not 3 as ported; worklog
       536 fixed it.)
+      (worklog 537, the request flow: `BossDef` in `boss::defs` for every
+      class, the world's `BOSSES` and `SKEITH_DEF` folded in; `Shape` gone
+      for one `Output` written after the frame and generic `Out`s
+      (pictures, counts, voice, light, fog, part after-images, the effect
+      calls as `Out::Fx` to one `Effects::boss_call`); inputs through
+      `Cx::field`; Corbenik's form change a `Boss::hand_over`; no boss
+      named in piney-world's combat or piney-game's fx and area. Left: the
+      runner and the shared systems, then each boss's own systems, then
+      `Class`, `each_class!`, `BossData` and the Innis slave's `base_main`
+      out.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

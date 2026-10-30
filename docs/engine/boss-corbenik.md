@@ -386,8 +386,9 @@ switch only note themselves.
 
 ## In the field
 
-`piney_world::combat::corbenik` and `boss.rs` run the forms where event
-313 makes them (`entry 7 7`, field 8's arena):
+`piney_world::combat::boss` runs the forms where event 313 makes them
+(`entry 7 7`, field 8's arena), each by its def (`defs::CORBENIK`,
+`CORBENIK_SECOND`, `CORBENIK_THIRD`):
 
 - **The start.** `ccThBoss08` reads `saveData` +0x652f (`eventStatus[55]`,
   which block 18 adds 1 to): 1 makes the third form (row 9, its sixteen
@@ -400,8 +401,11 @@ switch only note themselves.
   and `cursolOff` cleared, `EntryFlash(30, 0x80e0ffff)`, the first form and
   its seeds deleted (the seeds' bodies leave the field's list), then
   `ccBoss08_b` on the same character with the effect manager as it was,
-  its five roots, and `InitBossCamera(200, 1000)`. The task's +0x14 (what
-  `absent 7` reads) is set only when the second form exits.
+  its five roots, and `InitBossCamera(200, 1000)`: the first form's
+  `Boss::hand_over`, the seeds asked off the field (`Out::PartRemoved`),
+  `Out::Remade` the field's cue to make the hit, parts and camera anew.
+  The task's +0x14 (what `absent 7` reads) is set only when the second
+  form exits.
 - **The bodies.** Each form and part is drawn as the clump of x81 its
   clip poses. A seed is drawn twice a frame: its `PreDrawAnm` draws the
   clip at its matrix with the anm's transparency as the last
@@ -410,7 +414,7 @@ switch only note themselves.
   `ccBoss::Draw` draws it on charLayer. The seeds are drawn 50 up at 3x and the roots at 1.5x
   (`SetMatrix_PosRotZYXScale`), the eyes turned XYZ in their flash's fog
   (0xffffff).
-- **The pictures.** These come from the rules' `Pic`s:
+- **The pictures.** These come from the rules' `Out::Picture`s and `Pic`s:
   - In the field, from x81: the barrier object and its hit clip at the
     body's `OBJ_ex8body2` as it was last drawn, the press's images, the
     elements (the neutral clip one step on, turned XYZ), the drain's root.

@@ -254,7 +254,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, effects: crate:
     cx.out(Out::Blur(blur::Set::Enable));
     init_elements(&b, &mut x, cx);
     set_pattern_mode(&mut b, &mut x, cx, 0);
-    Boss { base: b, class: Class::CorbenikB(x) }
+    Boss::of(&crate::boss::defs::CORBENIK_SECOND, b, Class::CorbenikB(x))
 }
 
 /// `ccBoss08Root::ccBoss08Root` (0x003b8c10): row 8, its clips by
@@ -272,7 +272,7 @@ fn new_root(cx: &mut Cx, me: usize, k: usize) -> Part<Root> {
     b.draw_sw = 1;
     b.exit = 1;
     let _ = k;
-    Part { b: Box::new(Boss { base: b, class: Class::Plain }), x: Box::new(Root::default()), me }
+    Part { b: Box::new(Boss::of(&crate::boss::defs::ROOT, b, Class::Plain)), x: Box::new(Root::default()), me }
 }
 
 /// `_InitElement` (0x003b74b0): each element's clip the body's own, a
@@ -305,24 +305,33 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Second, cx: &mut Cx, m: i32) {
 
 // --- the frame ------------------------------------------------------------------------------------
 
-impl crate::boss::Shape for Second {
-    fn parts(&self, _scene: &crate::scene::Scene) -> Vec<usize> {
-        self.root_me.to_vec()
-    }
-}
-
 /// `ccBoss08Root::PreDrawAnm` (0x003b8fb0, `@1033`): at 1.5x.
 const ROOT_SCALE: F = 0x3fc0_0000;
 
-impl crate::boss::Shape for Root {
-    fn matrix(&self, pos: V4, dirc: V4) -> Option<geom::M4> {
-        Some(super::pos_rot_zyx_scale(pos, dirc, ROOT_SCALE))
+impl crate::boss::BossClass for Root {
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        let pos = cx.scene.chars[cx.me].pos;
+        out.body = crate::boss::BodyDraw {
+            pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            matrix: Some(super::pos_rot_zyx_scale(pos, b.dirc, ROOT_SCALE)),
+            again: false,
+        };
     }
 }
 
-impl crate::boss::BossClass for Root {}
-
 impl crate::boss::BossClass for Second {
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = crate::boss::BodyDraw {
+            pos: cx.scene.chars[cx.me].pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            ..crate::boss::BodyDraw::default()
+        };
+        out.parts.extend(self.root_me);
+    }
+
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);
     }
@@ -378,13 +387,14 @@ fn pre_draw_anm(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     if x.flash_barrier {
         x.barrier_anm_status = x.anm_barrier.forward();
         if !x.barrier_anm_status {
-            let (clip, time) = (x.anm_barrier.clip.clone(), x.anm_barrier.posed);
-            cx.out(Out::Corbenik(Pic::BarrierHit { clip, time }));
+            if let Some(clip) = x.anm_barrier.clip.clone() {
+                super::pictures::barrier(cx, Some((clip, x.anm_barrier.posed)));
+            }
             return;
         }
         x.flash_barrier = false;
     }
-    cx.out(Out::Corbenik(Pic::Barrier));
+    super::pictures::barrier(cx, None);
 }
 
 /// `Slave` (0x003b2a00): each root's `Main`; a root's quake time shakes
@@ -865,7 +875,7 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             // The body's clip at the image, at the anm's transparency as the
             // last ccBoss::Draw left it (0x003b5460: none is set here).
             let (pos, dirc, alpha) = (e.pos, e.dirc, b.transparency);
-            cx.out(Out::Corbenik(Pic::PressImage { time: b.anm.posed, pos, dirc, alpha }));
+            super::pictures::press_image(cx, b.anm.posed, pos, dirc, alpha);
         }
         3 => {
             let tp = w2p(cx, b.target_pos);
@@ -907,7 +917,7 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 e.pos = super::out_from(cx, b.target_pos, e.angle, [0x447a_0000, 0, 0, ONE]);
                 e.dirc[2] = get_dirc(w2p(cx, e.pos), tp);
                 let (pos, dirc, alpha) = (e.pos, e.dirc, e.alpha);
-                cx.out(Out::Corbenik(Pic::PressImage { time: b.anm.posed, pos, dirc, alpha }));
+                super::pictures::press_image(cx, b.anm.posed, pos, dirc, alpha);
             }
         }
         4 => {
@@ -986,7 +996,7 @@ fn draw_elements(b: &mut BossBase, x: &mut Second, cx: &mut Cx) -> bool {
         let e = &mut x.elements[k];
         let d = [NEG_HALF_PI, 0, get_dirc(w2p(cx, e.sp), tp), 0];
         let (pos, alpha) = (e.pos, e.alpha);
-        cx.out(Out::Corbenik(Pic::Element { pos, dirc: d, alpha }));
+        super::pictures::element(cx, pos, d, alpha);
         let cur = w2p(cx, e.pos);
         match e.state {
             1 => {
@@ -1020,7 +1030,7 @@ fn draw_elements(b: &mut BossBase, x: &mut Second, cx: &mut Cx) -> bool {
         e.count += 1;
         if n & 3 == 0 {
             let pos = e.pos;
-            cx.out(Out::Corbenik(Pic::ElementSmoke { pos, vec: e.vec }));
+            cx.out(Pic::ElementSmoke { pos, vec: e.vec });
         }
         let e = &mut x.elements[k];
         e.pos = p2w(cx, geom::vadd(cur, e.vec));
@@ -1474,10 +1484,10 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 cx.out(Out::Se { se: 36 });
                 cx.out(Out::Se { se: 56 });
                 let pos = cx.pos();
-                cx.out(Out::Corbenik(Pic::Radiate { pos }));
+                cx.out(Pic::Radiate { pos });
                 for k in 0..4 {
                     let z = ee::mul(0x40fb_53d2, ee::from_int(k));
-                    cx.out(Out::Corbenik(Pic::Smoke { pos, rot: [0, 0, z, ONE] }));
+                    cx.out(Pic::Smoke { pos, rot: [0, 0, z, ONE] });
                 }
                 cx.quake([0x41f0_0000, 0x41f0_0000, 0x4248_0000]);
             } else if f == 35 {
@@ -1675,7 +1685,7 @@ fn root_l(b: &BossBase, x: &mut Second, cx: &mut Cx) {
     }
     x.root_anm_status = x.anm_root_l.forward();
     let pos = b.target_pos;
-    cx.out(Out::Corbenik(Pic::RootL { time: x.anm_root_l.posed, pos, alpha: x.root_transparency }));
+    super::pictures::root_l(cx, x.anm_root_l.posed, pos, x.root_transparency);
     if x.anm_root_l.frame() == 2 {
         cx.out(Out::Se { se: 206 });
     }
@@ -1700,7 +1710,7 @@ fn root_main(b: &mut BossBase, x: &mut Root, cx: &mut Cx) {
             if b.anm_status != 0 {
                 x.quake_time = 30;
                 let pos = cx.pos();
-                cx.out(Out::Corbenik(Pic::Radiate { pos }));
+                cx.out(Pic::Radiate { pos });
                 b.change_action(cx, 0, 3, true);
             }
         }

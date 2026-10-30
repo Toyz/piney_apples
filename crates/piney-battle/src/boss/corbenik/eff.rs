@@ -108,7 +108,7 @@ impl Flush {
     }
 
     pub(crate) fn draw(&mut self, cx: &mut Cx) -> bool {
-        cx.out(Out::Corbenik(Pic::Flush { pos: self.pos, size: self.size }));
+        cx.out(Pic::Flush { pos: self.pos, size: self.size });
         let v = ee::add(self.size, ee::div(ee::sub(self.end, self.start), 0x4120_0000));
         self.size = v;
         if ee::lt(v, self.end) {
@@ -174,7 +174,7 @@ impl Transform {
         let mut on = true;
         match self.state {
             0 => {
-                cx.out(Out::Corbenik(Pic::Particles { which: super::Gen::Transform, pos: self.pos }));
+                cx.out(Pic::Particles { which: super::Gen::Transform, pos: self.pos });
                 cx.out(Out::SeNote { se: 246, note: 52 });
                 self.state += 1;
             }
@@ -209,7 +209,7 @@ impl Transform {
             if l.state <= 0 {
                 continue;
             }
-            cx.out(Out::Corbenik(Pic::TransformLay { pos: self.pos, rot: l.rot, alpha: l.alpha }));
+            cx.out(Pic::TransformLay { pos: self.pos, rot: l.rot, alpha: l.alpha });
             match l.state {
                 1 => {
                     let a = ee::add(l.alpha, 0x3d08_8889);
@@ -259,14 +259,14 @@ impl Drain {
             1 => {
                 self.state = 2;
                 self.pos[2] = ee::add(self.pos[2], 0x4248_0000);
-                cx.out(Out::Corbenik(Pic::Particles { which: Gen::RootDrain0, pos: self.pos }));
+                cx.out(Pic::Particles { which: Gen::RootDrain0, pos: self.pos });
             }
             2 => {
                 let c = self.count;
                 self.count += 1;
                 if c == 35 {
                     self.state = 3;
-                    cx.out(Out::Corbenik(Pic::Particles { which: Gen::RootDrain1a, pos: self.pos }));
+                    cx.out(Pic::Particles { which: Gen::RootDrain1a, pos: self.pos });
                     self.count = 0;
                 }
             }
@@ -275,7 +275,7 @@ impl Drain {
                 self.count += 1;
                 if c == 60 {
                     self.state = 4;
-                    cx.out(Out::Corbenik(Pic::Particles { which: Gen::RootDrain1b, pos: self.pos }));
+                    cx.out(Pic::Particles { which: Gen::RootDrain1b, pos: self.pos });
                     self.count = 0;
                 }
             }
@@ -285,7 +285,7 @@ impl Drain {
                 if c == 20 {
                     self.state = 5;
                     self.kept = true;
-                    cx.out(Out::Corbenik(Pic::Gen { key: self.key, which: Gen::RootDrain2, pos: self.pos }));
+                    cx.out(Pic::Gen { key: self.key, which: Gen::RootDrain2, pos: self.pos });
                 }
             }
             5 if !(cx.gen_alive)(self.key) => {

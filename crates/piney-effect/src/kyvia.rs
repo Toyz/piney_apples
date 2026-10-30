@@ -6,10 +6,11 @@
 //! (`ccBossEffMagicalBall`, QUA 0x0036b4e0) and the fourth's hell's express
 //! (`HellSpecialExpress`, QUA 0x0036cdc0). docs/engine/boss-kyvia*.md.
 
+use piney_battle::boss::Follow;
 use piney_battle::boss::kyvia::hell::{Hell as HellRules, HellHost, HellOut};
 use piney_battle::boss::kyvia::magic_ball::{BallHost, BallOut, MagicalBall};
 use piney_battle::boss::kyvia::thunder::{Bolt as Strokes, BoltData};
-use piney_battle::boss::kyvia::{Follow, Gen, GenOp, Held, Meteorite as Flights, Place, Table};
+use piney_battle::boss::kyvia::{Gen, GenOp, Held, Meteorite as Flights, Place, Table};
 use piney_battle::rand::Rng;
 
 use crate::boss::{Tables, ff_row, gen_row, va};
@@ -36,7 +37,7 @@ const METEOR: u32 = 0x2000_0000;
 /// own `CharPos`).
 pub fn anchor(f: Follow) -> Option<u32> {
     match f {
-        Follow::Char(_) => None,
+        Follow::Char(_) | Follow::Marker(_) => None,
         Follow::DeadSmoke => Some(MEMBER),
         Follow::BeamHead(k) => Some(MEMBER | 0x1_0000 | u32::from(k)),
         Follow::BeamTail(k) => Some(MEMBER | 0x2_0000 | u32::from(k)),

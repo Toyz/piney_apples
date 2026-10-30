@@ -158,11 +158,9 @@ impl AreaFx {
         // ccEffectCtrl(0) outside a Root Town (INF 0x001c31bc: game+0x14,
         // the area, not 0) looks its ids up in effectTbl, not effectTbl2.
         fx.ctrl.town = false;
-        // The boss effects' file (the WaveShock's animation); on
-        // Quarantine Corbenik's file too (its effects' clumps).
-        fx.assets.add_file(archive, "xeffect")?;
-        if volume == piney_data::volume::Volume::Qua {
-            fx.assets.add_file(archive, piney_battle::boss::corbenik::FILE)?;
+        // The files the boss effects draw from.
+        for f in piney_effect::boss::files(volume) {
+            fx.assets.add_file(archive, f)?;
         }
         let font = flyfont::font_tex(archive)?;
         let circle = fx.assets.add_file(archive, piney_effect::portal::FILE).ok().and_then(|_| {
@@ -373,14 +371,8 @@ impl FxTasks for AreaFx {
         // Owned: the host borrows the scene mutably.
         let owned = boss_fx(w.scene);
         let fx: Vec<_> = owned.iter().map(|(k, f)| (*k, f)).collect();
-        let members = kyvia_members(w.scene);
-        let m = magus_shows(w.scene);
-        let src = piney_effect::boss::Source {
-            fx: &fx,
-            kyvia_members: &members,
-            magus_markers: &m.markers,
-            magus_bursts: &m.bursts,
-        };
+        let (follow, explodes) = boss_follows(w.scene);
+        let src = piney_effect::boss::Source { fx: &fx, follow: &follow, explodes: &explodes };
         let mut host = BattleHost::of(w);
         self.fx.boss_sync(&mut host, &src);
         self.events.extend(self.fx.take_events());
@@ -643,60 +635,20 @@ fn boss_fx(scene: &Scene) -> Vec<(i32, piney_battle::boss::Fx)> {
     out
 }
 
-/// The places Kyvia's fight's generators follow: its body's and its
-/// gomoras' members.
-fn kyvia_members(scene: &Scene) -> Vec<(piney_battle::boss::kyvia::Follow, V4)> {
-    use piney_battle::boss::Class;
-    use piney_battle::boss::kyvia::Follow;
-    let mut out = Vec::new();
-    for (c, ch) in scene.chars.iter().enumerate() {
+/// What the bosses still in their task show their effects: the places
+/// their generators follow and the bursts drawn ([`piney_battle::boss::Output`]),
+/// by character.
+fn boss_follows(
+    scene: &Scene,
+) -> (Vec<(piney_battle::boss::Follow, V4)>, Vec<piney_battle::boss::magus::leaf::Explode>) {
+    let mut follow = Vec::new();
+    let mut explodes = Vec::new();
+    for ch in &scene.chars {
         let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.base.exit == 0) else { continue };
-        match &b.class {
-            Class::Kyvia(x) => {
-                out.push((Follow::DeadSmoke, x.ded_dmg_vec));
-                for k in 0..3u8 {
-                    out.push((Follow::BeamHead(k), x.l_bpos[usize::from(k)]));
-                    out.push((Follow::BeamTail(k), x.l_bpos_sub[usize::from(k)]));
-                }
-            }
-            Class::Gomora(g) => out.push((Follow::Aura(c), g.aura_pos)),
-            _ => {}
-        }
+        follow.extend_from_slice(&b.output.follow);
+        explodes.extend_from_slice(&b.output.explodes);
     }
-    out
-}
-
-/// What Magus's fight left this frame for its pictures: the bursts of
-/// the leaves bursting (act 21, their `PreDrawAnm`), and each leaf's
-/// marker's place.
-#[derive(Default)]
-struct MagusShows {
-    bursts: Vec<piney_battle::boss::magus::leaf::Explode>,
-    markers: Vec<(usize, V4)>,
-}
-
-fn magus_shows(scene: &Scene) -> MagusShows {
-    use piney_battle::boss::Class;
-    let mut out = MagusShows::default();
-    for (c, ch) in scene.chars.iter().enumerate() {
-        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.base.exit == 0) else { continue };
-        if let Class::MagusLeaf(l) = &b.class {
-            out.markers.push((c, l.marker_pos));
-            if b.base.act_num == piney_battle::boss::magus::leaf::act::FIRE {
-                out.bursts.push(l.exp);
-            }
-        }
-    }
-    out
-}
-
-/// Magus's laser's shock `k` as its `PreDrawAnm` drew it: where its beam
-/// met the ground, at its transparency; None when it missed.
-fn magus_shock(scene: &Scene, me: usize, k: usize) -> Option<(V4, piney_effect::ee::F)> {
-    match &scene.chars[me].foe_state()?.boss.as_ref()?.class {
-        piney_battle::boss::Class::Magus(x) => Some((*x.shock_at.get(k)?.as_ref()?, x.shocks.get(k)?.transparency)),
-        _ => None,
-    }
+    (follow, explodes)
 }
 
 /// A scene index as the effects name a character.
@@ -872,54 +824,15 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
         Show::DrainLevelDown(k) => {
             fx.fly_font_level_down(Some(cref(*k)), 23);
         }
-        // Magus's leaves' generators and what they do to those they keep;
-        // the laser's shocks and their bursts where the beams met the
-        // ground.
-        Show::Boss(
-            _,
-            piney_battle::boss::Out::Magus(piney_battle::boss::magus::Pic::Particles { which, at, held }),
-        ) => {
-            fx.magus_particles(h, *which, *at, *held);
-        }
-        Show::Boss(_, piney_battle::boss::Out::Magus(piney_battle::boss::magus::Pic::Gen { held, op })) => {
-            fx.magus_gen_op(h, *held, *op);
-        }
-        Show::Boss(me, piney_battle::boss::Out::Magus(piney_battle::boss::magus::Pic::Shocks { upto })) => {
-            let shocks: Vec<_> = (0..=*upto).filter_map(|k| magus_shock(h.w.scene, *me, k)).collect();
-            fx.magus_shocks(h, &shocks);
-        }
-        Show::Boss(me, piney_battle::boss::Out::Magus(piney_battle::boss::magus::Pic::ShockBurst { shock, turn })) => {
-            if let Some((at, _)) = magus_shock(h.w.scene, *me, *shock) {
-                fx.magus_shock_burst(h, at, *turn);
-            }
-        }
-        // A leaf of Magus's lands: ccEnemyEffDust(pos, 30, 4.0).
-        Show::Boss(_, piney_battle::boss::Out::Magus(piney_battle::boss::magus::Pic::Dust { pos })) => {
-            let (life, tex) = (piney_effect::dust::DUST_LIFE, piney_effect::dust::DUST_TEX);
-            fx.enemy_dust(h, *pos, 30, 0x4080_0000, life, tex);
-        }
         // The boss's ccBossEff*Create (those the effects have).
         Show::Boss(_, piney_battle::boss::Out::Effect { id, kind, pos, dirc }) => {
             if let Some(m) = boss_make(*id, *kind, *pos, *dirc) {
                 fx.boss_create(h, m);
             }
         }
-        // Innis's and its images' particle generators.
-        Show::Boss(_, piney_battle::boss::Out::Particles { which, pos }) => {
-            fx.innis_particles(h, *which, *pos);
-        }
-        // Kyvia's fight's generators (the meteors' and bolts' own come with
-        // their pictures, [`boss_fx`]), and what it does to those it
-        // keeps.
-        Show::Boss(_, piney_battle::boss::Out::KyviaParticles { which, at, held }) => {
-            use piney_battle::boss::kyvia::Gen;
-            if !matches!(which, Gen::Trail(_) | Gen::Burst(_)) {
-                fx.kyvia_particles(h, *which, *at, *held);
-            }
-        }
-        Show::Boss(_, piney_battle::boss::Out::KyviaGen { held, op }) => {
-            fx.kyvia_gen_op(h, *held, *op);
-        }
+        // What a boss's rules ask beside the effects they keep: its
+        // effects module makes it (generators, smoke, bursts, rings).
+        Show::Boss(me, piney_battle::boss::Out::Fx(c)) => fx.boss_call(h, cref(*me), &cref, c),
         // A boss's Affect on a blow it resists: effResistantShield(this,
         // magic, -1), a Gorre brother's reshaped.
         Show::Boss(me, piney_battle::boss::Out::Shield { magic, stretched }) => {
@@ -929,16 +842,6 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
                 fx.resistant_shield(h, cref(*me), *magic, -1);
             }
         }
-        // What Fidchell's rules ask beside: the back dash's and a tower's
-        // dust, a meteor's landing, a tower's and a strike's rocks.
-        Show::Boss(_, piney_battle::boss::Out::Fidchell(p)) => fx.fidchell_calls(h, p),
-        // Macha's lasers, blast and their bursts, the back dash's dust.
-        Show::Boss(_, piney_battle::boss::Out::Macha(p)) => fx.macha_calls(h, p),
-        // Tarvos's spikes, phantom, transfer, eruptions and shield.
-        Show::Boss(me, piney_battle::boss::Out::Tarvos(p)) => fx.tarvos_calls(h, cref(*me), p),
-        // Corbenik's generators, its seeds' charges, bursts, shields,
-        // smoke and radiates.
-        Show::Boss(_, piney_battle::boss::Out::Corbenik(p)) => fx.corbenik_calls(h, &cref, p),
         // Tarvos's spell's ccNoiz::SetNoizBs.
         Show::Boss(_, piney_battle::boss::Out::Noise(bs)) => fx.noise(h, *bs),
         // effSkillStart(who, sid, 0, 0): Fidchell's skill, a gomora's.

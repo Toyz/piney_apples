@@ -8,7 +8,7 @@
 use piney_data::field::ee;
 use piney_data::libm;
 
-use super::{Out, Pic};
+use super::Pic;
 use crate::boss::Cx;
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
@@ -76,11 +76,11 @@ impl Laser {
     /// bursts and rocks there and the effect off; then a step on.
     fn draw(&mut self, cx: &mut Cx) -> bool {
         let (a, r) = aim(cx, self.start, self.end);
-        cx.out(Out::Macha(Pic::Laser { pos: self.pos, pitch: a, heading: r }));
+        cx.out(Pic::Laser { pos: self.pos, pitch: a, heading: r });
         let mut alive = true;
-        if let Some(at) = cx.part_hits.line(self.start, self.pos, LAND) {
+        if let Some(at) = cx.field.line(self.start, self.pos, LAND) {
             let turn = rand_f(cx.cc, PI);
-            cx.out(Out::Macha(Pic::LaserHit { pos: at, turn }));
+            cx.out(Pic::LaserHit { pos: at, turn });
             alive = false;
         }
         let p = geom::vadd(crate::boss::w2p(cx, self.pos), self.vel);
@@ -110,7 +110,7 @@ impl Shock {
 
     /// `Draw` (0x003748a0).
     fn draw(&mut self, cx: &mut Cx) -> bool {
-        cx.out(Out::Macha(Pic::Blast { pos: self.pos, scale: self.scale, transparency: self.transparency }));
+        cx.out(Pic::Blast { pos: self.pos, scale: self.scale, transparency: self.transparency });
         self.scale = ee::add(self.scale, 0x4055_5555);
         let t = ee::sub(self.transparency, 0x3d08_8889);
         let alive = !ee::lt(t, 0);
@@ -128,7 +128,7 @@ impl Shock {
             let pos = geom::vadd(self.pos, v);
             let rock = soft_add(45.0, libm::fabsf(rand_f(cx.cc, 0x4234_0000)));
             let size = soft_add(1.0, libm::fabsf(rand_f(cx.cc, 0x41a0_0000)));
-            cx.out(Out::Macha(Pic::Burst { pos, rock, size, kind: k & 1 }));
+            cx.out(Pic::Burst { pos, rock, size, kind: k & 1 });
         }
         alive
     }

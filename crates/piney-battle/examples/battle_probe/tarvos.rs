@@ -10,7 +10,7 @@
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::tarvos::{self, Pic, Tarvos};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -87,7 +87,7 @@ fn shake(m: i64, f: usize) -> bool {
 /// The land as the case has it: the plane z 0.
 struct Plane;
 
-impl piney_battle::boss::PartHits for Plane {
+impl piney_battle::boss::Field for Plane {
     fn switch(&mut self, _: usize, hit: &mut piney_battle::world::CharHit, on: bool) {
         hit.sw = on;
     }
@@ -181,7 +181,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
-        part_hits: &mut Plane,
+        field: &mut Plane,
         game_over: false,
         boss_cam: true,
         cam: view_at(0, true),
@@ -268,7 +268,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cc: &mut cc,
             clips: &clip,
             collide: &mut pushed,
-            part_hits: &mut Plane,
+            field: &mut Plane,
             game_over: false,
             boss_cam: true,
             cam: view_at(f, false),
@@ -318,7 +318,8 @@ fn v3(v: &V4) -> String {
 /// A call as the harness records it.
 fn mout(o: &Out, cam2: &(V4, V4), cam_sw: &mut bool, max_range: &mut u32) -> Option<String> {
     Some(match o {
-        Out::Tarvos(p) => match p {
+        Out::Fog { blend, .. } => format!("[\"fog\",{},{}]", blend.rate, blend.colour),
+        Out::Fx(FxCall::Tarvos(p)) => match p {
             // Drawn: the runtime's; the eruption's particles start in its
             // Create, which runs natively (its slot is seen).
             Pic::Spike { .. }
@@ -326,7 +327,6 @@ fn mout(o: &Out, cam2: &(V4, V4), cam_sw: &mut bool, max_range: &mut u32) -> Opt
             | Pic::PhantomStart
             | Pic::PhantomLights(_)
             | Pic::Eruption { .. } => return None,
-            Pic::Fog { rate, colour } => format!("[\"fog\",{rate},{colour}]"),
             Pic::TransEffect { .. } => "[\"trans\"]".into(),
             Pic::Burst { kind, .. } => format!("[\"burst\",{kind}]"),
             Pic::Radiate { .. } => "[\"radiate\"]".into(),

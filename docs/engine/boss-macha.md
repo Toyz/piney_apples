@@ -126,11 +126,12 @@ comes.
   two effects (`Fx`), handed out as `Out::Macha(Pic)`. `blur::BlurFunc::Boss06`
   is the transfer's callback. The tables come through `MachaData`
   (`tables::combat`, `piney-gen`'s `macha_*` entries).
-- `piney_world::combat::boss` starts it for `entry 7 5` (`MACHA`), its
-  body `CMP_trall1`, the drained `CMP_trall2`, the eyes' places from the
-  posed body each frame (`OBJ_dummy_r_eye`, `_l_eye`), the ball and its
-  light, the waves at their scale, and the laser's land hits through
-  `PartHits::line`.
+- `piney_world::combat::boss` starts it for `entry 7 5` (`defs::MACHA`),
+  its body `CMP_trall1`, the drained `CMP_trall2`; Macha reads the eyes'
+  places from its body as last drawn at the start of each frame
+  (`Field::node`, `OBJ_dummy_r_eye`, `_l_eye`); the ball (`Out::Picture`)
+  and its light (`Out::Light`), the waves at their scale, and the laser's
+  land hits through `Field::line`.
 - `piney_effect::macha` draws the bolts, blasts, bursts and dust.
 
 ## Checks

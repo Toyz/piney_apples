@@ -7,7 +7,7 @@ use super::first::{self, First, act};
 use super::seed::{self, Seed};
 use super::{Pic, ROW, SEEDS};
 use crate::affect::{self, AffectCtx};
-use crate::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, Out, Tbl, VF0};
+use crate::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, FxCall, Out, Tbl, VF0};
 use crate::chara::{AffectFunc, Char, Env};
 use crate::enemy_ai::{Genrand, IDENTITY, World};
 use crate::event::Events;
@@ -23,7 +23,7 @@ const ONE: u32 = 0x3f80_0000;
 /// Land under every place.
 struct Land;
 
-impl crate::boss::PartHits for Land {
+impl crate::boss::Field for Land {
     fn switch(&mut self, _: usize, hit: &mut CharHit, on: bool) {
         hit.sw = on;
     }
@@ -118,7 +118,7 @@ impl Fight {
             cc: &mut self.cc,
             clips: &clip,
             collide: &mut none,
-            part_hits: &mut Land,
+            field: &mut Land,
             game_over: false,
             boss_cam: false,
             cam: self.cam,
@@ -203,8 +203,8 @@ fn the_seeds_fly_count_down_and_burst() {
     }
     let thrown = outs.iter().filter(|o| matches!(o, Out::Se3dNote { se: 65, note: 65, .. })).count();
     assert!(thrown >= 3, "the seeds bounce ({thrown})");
-    assert!(outs.iter().any(|o| matches!(o, Out::Corbenik(Pic::CountDown { n: 5, .. }))), "5 seconds at first");
-    let bursts = outs.iter().filter(|o| matches!(o, Out::Corbenik(Pic::Burst { .. }))).count();
+    assert!(outs.iter().any(|o| matches!(o, Out::Count { n: 5, .. })), "5 seconds at first");
+    let bursts = outs.iter().filter(|o| matches!(o, Out::Fx(FxCall::Corbenik(Pic::Burst { .. })))).count();
     assert!(bursts >= 3, "the seeds burst ({bursts})");
 }
 
@@ -245,9 +245,9 @@ fn a_spell_on_a_seed_shows_its_shield() {
     let s = s.expect("a seed counts down");
     let spell = (1..f.t.skills.len() as i32).find(|&k| crate::skill::check_type_of(&f.t, k) == 1).unwrap();
     let out = f.affect(s, 1, 5, spell as i16);
-    assert!(out.contains(&Out::Corbenik(Pic::SeedShield { seed: s })));
+    assert!(out.contains(&Pic::SeedShield { seed: s }.into()));
     let out = f.affect(s, 1, 5, 1);
-    assert!(!out.iter().any(|o| matches!(o, Out::Corbenik(Pic::SeedShield { .. }))));
+    assert!(!out.iter().any(|o| matches!(o, Out::Fx(FxCall::Corbenik(Pic::SeedShield { .. })))));
     assert_eq!(f.seed(s).0.base.act_num, seed::act::COUNT_DOWN, "its count goes on");
     assert_eq!(f.first().seed_me.len(), SEEDS);
 }

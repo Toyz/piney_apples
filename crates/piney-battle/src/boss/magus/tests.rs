@@ -4,7 +4,7 @@
 use super::leaf::{Leaf, act as leaf_act};
 use super::*;
 use crate::affect::{self, AffectCtx};
-use crate::boss::{BossData, BossEnv, CamView, VF0};
+use crate::boss::{BossData, BossEnv, CamView, FxCall, VF0};
 use crate::chara::{AffectFunc, Char, Env};
 use crate::enemy_ai::{Genrand, IDENTITY, World};
 use crate::event::Events;
@@ -83,7 +83,7 @@ impl Fight {
             cc: &mut self.cc,
             clips: &clip,
             collide: &mut none,
-            part_hits: &mut crate::boss::NoHits,
+            field: &mut crate::boss::NoField,
             game_over: false,
             boss_cam: false,
             cam: CamView::default(),
@@ -267,7 +267,9 @@ fn past_half_the_gauge_the_laser_comes() {
     assert_eq!(f.magus().cam_id, 1);
     assert!(outs.contains(&Out::Cinema(Some(9))));
     assert_eq!(
-        outs.iter().filter(|o| matches!(o, Out::Magus(Pic::Particles { which: super::Gen::Thunder, .. }))).count(),
+        outs.iter()
+            .filter(|o| matches!(o, Out::Fx(FxCall::Magus(Pic::Particles { which: super::Gen::Thunder, .. }))))
+            .count(),
         12
     );
     assert_eq!(f.boss().base.lock_player, 0);

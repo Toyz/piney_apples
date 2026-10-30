@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::affect::{self, AffectCtx};
-use crate::boss::{BossData, BossEnv, CamView};
+use crate::boss::{BossData, BossEnv, CamView, FxCall};
 use crate::chara::{AffectFunc, Char, Env};
 use crate::enemy_ai::{Genrand, IDENTITY, World};
 use crate::event::Events;
@@ -80,7 +80,7 @@ impl Fight {
             cc: &mut self.cc,
             clips: &clip,
             collide: &mut none,
-            part_hits: &mut crate::boss::NoHits,
+            field: &mut crate::boss::NoField,
             game_over: false,
             boss_cam: true,
             cam: CamView { shake: true, ..CamView::default() },
@@ -163,9 +163,9 @@ fn the_guard_holds_off_blows_of_its_kind() {
     let Some(mut f) = fight() else { return };
     // Skill 1, the normal attack, is physical (ccSkillCheckType 0).
     let out = f.affect(1, 10, 1);
-    assert!(out.contains(&Out::Tarvos(Pic::Shield { magic: 0 })));
+    assert!(out.contains(&Pic::Shield { magic: 0 }.into()));
     let out = f.affect(3, 10, 0);
-    assert!(!out.iter().any(|o| matches!(o, Out::Tarvos(Pic::Shield { .. }))), "no skill, no shield");
+    assert!(!out.iter().any(|o| matches!(o, Out::Fx(FxCall::Tarvos(Pic::Shield { .. })))), "no skill, no shield");
 }
 
 #[test]
@@ -200,7 +200,7 @@ fn the_spike_rain_reaches_kite_and_fades() {
     assert!(frames < 600, "the rain ends");
     let first = out.iter().filter(|o| matches!(o, Out::Se3d { se: 63, .. })).count();
     assert_eq!(first, 1, "the first flight sounds once");
-    let erupts = out.iter().filter(|o| matches!(o, Out::Tarvos(Pic::Eruption { .. }))).count();
+    let erupts = out.iter().filter(|o| matches!(o, Out::Fx(FxCall::Tarvos(Pic::Eruption { .. })))).count();
     assert_eq!(erupts, 4, "every eighth spike erupts");
 }
 
@@ -212,7 +212,7 @@ fn the_phantom_rings_and_bursts_its_fourteen_lights() {
     assert!(frames < 2000, "the phantom ends");
     let ring = out.iter().filter(|o| matches!(o, Out::Effect { kind: EffKind::AutoSamonRingOf { n: 195, .. }, .. }));
     assert_eq!(ring.count(), 1);
-    let bursts = out.iter().filter(|o| matches!(o, Out::Tarvos(Pic::Burst { .. }))).count();
+    let bursts = out.iter().filter(|o| matches!(o, Out::Fx(FxCall::Tarvos(Pic::Burst { .. })))).count();
     assert_eq!(bursts, 14);
     assert_eq!(out.last(), Some(&Out::CamMode { mode: 6 }), "the camera back last");
 }

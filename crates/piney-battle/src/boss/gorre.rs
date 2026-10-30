@@ -287,28 +287,29 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     for (k, ok) in found.into_iter().enumerate() {
         std::mem::take(&mut x.brothers[k]).put_back(cx, ok);
     }
-    Boss { base: b, class: Class::Gorre(Box::new(x)) }
+    Boss::of(&crate::boss::defs::GORRE, b, Class::Gorre(Box::new(x)))
 }
 
 // --- the frame --------------------------------------------------------------------------------
 
-impl crate::boss::Shape for Gorre {
-    fn parts(&self, _scene: &crate::scene::Scene) -> Vec<usize> {
-        self.brother_me.to_vec()
-    }
-
-    /// Only in the Kerse's step 2 (`SetMatrix_PosRotZYX(m_talkPos,
-    /// m_talkDirc)`, `ccBoss::Draw`); its `Main` draws nothing else.
-    fn drawn_at(&self, b: &BossBase, pos: V4) -> (V4, V4, bool) {
-        if b.act_num == act::KERSE && b.act_proccess == 2 {
-            (self.talk_pos, [0, 0, self.talk_dirc, ONE], true)
-        } else {
-            (pos, b.dirc, false)
-        }
-    }
-}
-
 impl crate::boss::BossClass for Gorre {
+    /// The brothers; its body drawn only in the Kerse's step 2
+    /// (`SetMatrix_PosRotZYX(m_talkPos, m_talkDirc)`, `ccBoss::Draw`); its
+    /// `Main` draws nothing else.
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = if b.act_num == act::KERSE && b.act_proccess == 2 {
+            crate::boss::BodyDraw {
+                pos: self.talk_pos,
+                dirc: [0, 0, self.talk_dirc, ONE],
+                shown: true,
+                ..Default::default()
+            }
+        } else {
+            crate::boss::BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, ..Default::default() }
+        };
+        out.parts.extend(self.brother_me);
+    }
+
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);
     }

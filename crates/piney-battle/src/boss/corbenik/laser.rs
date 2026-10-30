@@ -44,7 +44,7 @@ fn dist3d(cx: &Cx, a: V4, b: V4) -> F {
 
 /// `effExplode3(pos, 0, scale, kind)` grown by `grow`.
 fn burst(cx: &mut Cx, pos: V4, scale: F, kind: i32, grow: Option<[F; 3]>) {
-    cx.out(Out::Corbenik(Pic::Burst { pos, spd: VF0, scale, kind, grow }));
+    cx.out(Pic::Burst { pos, spd: VF0, scale, kind, grow });
 }
 
 // --- the tera laser --------------------------------------------------------------------------------
@@ -113,7 +113,7 @@ impl Grow {
             if ee::le(s.alpha, 0) {
                 continue;
             }
-            cx.out(Out::Corbenik(Pic::Spark { pos: s.pos, frame: s.frame, alpha: s.alpha, turn: s.turn }));
+            cx.out(Pic::Spark { pos: s.pos, frame: s.frame, alpha: s.alpha, turn: s.turn });
             s.frame += 1;
             let mut a = ee::sub(s.alpha, 0x3d08_8889);
             if ee::lt(a, 0) {
@@ -140,8 +140,8 @@ pub struct Charge {
 
 impl Charge {
     fn new(cx: &mut Cx, pos: V4, glow: u32) -> Charge {
-        cx.out(Out::Corbenik(Pic::Particles { which: Gen::TeraCharge, pos }));
-        cx.out(Out::Corbenik(Pic::Gen { key: glow, which: Gen::TeraChargeGlow, pos }));
+        cx.out(Pic::Particles { which: Gen::TeraCharge, pos });
+        cx.out(Pic::Gen { key: glow, which: Gen::TeraChargeGlow, pos });
         Charge { pos, count: 0, state: 0, radius: 0, grow: Grow::new(pos), glow }
     }
 
@@ -252,7 +252,7 @@ impl Tera {
                         self.pos = self.target;
                         self.pos[2] = 0x453b_8000;
                         self.fall = Some(fall_key);
-                        cx.out(Out::Corbenik(Pic::Gen { key: fall_key, which: Gen::TeraFall, pos: self.pos }));
+                        cx.out(Pic::Gen { key: fall_key, which: Gen::TeraFall, pos: self.pos });
                     }
                     let z = ee::sub(self.pos[2], 0x4348_0000);
                     self.pos[2] = z;
@@ -262,7 +262,7 @@ impl Tera {
                         self.state += 1;
                     }
                     if let Some(key) = self.fall {
-                        cx.out(Out::Corbenik(Pic::GenMove { key, pos: self.pos }));
+                        cx.out(Pic::GenMove { key, pos: self.pos });
                     }
                 }
             }
@@ -294,7 +294,7 @@ impl Tera {
                     }
                 } else if c >= 40 {
                     if c == 55 {
-                        cx.out(Out::Corbenik(Pic::Explode2 { pos: t }));
+                        cx.out(Pic::Explode2 { pos: t });
                         burst(cx, t, ONE, 0, Some([0x4080_0000, 0x4120_0000, 0x4170_0000]));
                     }
                     let mut s = ee::sub(self.scale[0], 0x3daa_aaab);
@@ -312,12 +312,12 @@ impl Tera {
             _ => {}
         }
         if self.state != 0 {
-            cx.out(Out::Corbenik(Pic::TeraBeam { pos: self.pos, rot: self.rot, scale: self.scale }));
+            cx.out(Pic::TeraBeam { pos: self.pos, rot: self.rot, scale: self.scale });
         }
         if !self.enabled {
             // The destructor: the charge's glow killed if it still runs.
             if (cx.gen_alive)(self.charge.glow) {
-                cx.out(Out::Corbenik(Pic::GenKill { key: self.charge.glow }));
+                cx.out(Pic::GenKill { key: self.charge.glow });
             }
         }
         self.enabled
@@ -385,12 +385,13 @@ impl Refrect {
         if !self.segs[0].done {
             self.head.forward();
             let (from, to) = (self.segs[0].pos, self.segs[1].pos);
-            cx.out(Out::Corbenik(Pic::RefrectHead { time: self.head.posed, from, to }));
+            super::pictures::refrect_head(cx, self.head.posed, from, to);
+            cx.out(Pic::RefrectHead { from, to });
         }
         for k in 0..SEGS - 1 {
             if !self.segs[k].done {
                 let (from, to, alpha) = (self.segs[k].pos, self.segs[k + 1].pos, self.segs[k].alpha);
-                cx.out(Out::Corbenik(Pic::RefrectSeg { from, to, alpha }));
+                super::pictures::refrect_seg(cx, from, to, alpha);
             }
         }
         let last = self.pts.len() - 1;

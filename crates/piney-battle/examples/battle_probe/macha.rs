@@ -11,7 +11,7 @@
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::macha::{self, Macha, Pic};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -88,7 +88,7 @@ fn shake(m: i64, f: usize) -> bool {
 /// The land as the case has it: the plane z 0.
 struct Plane;
 
-impl piney_battle::boss::PartHits for Plane {
+impl piney_battle::boss::Field for Plane {
     fn switch(&mut self, _: usize, hit: &mut piney_battle::world::CharHit, on: bool) {
         hit.sw = on;
     }
@@ -183,7 +183,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
-        part_hits: &mut Plane,
+        field: &mut Plane,
         game_over: false,
         boss_cam: true,
         cam: view_at(0, true),
@@ -263,7 +263,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cc: &mut cc,
             clips: &clip,
             collide: &mut pushed,
-            part_hits: &mut Plane,
+            field: &mut Plane,
             game_over: false,
             boss_cam: true,
             cam: view_at(f, false),
@@ -313,11 +313,10 @@ fn v3(v: &V4) -> String {
 /// A call as the harness records it.
 fn mout(o: &Out, cam2: &(V4, V4), cam_sw: &mut bool, max_range: &mut u32) -> Option<String> {
     Some(match o {
-        Out::Macha(p) => match p {
-            // Drawn: the runtime's.
-            Pic::Light(_) | Pic::Laser { .. } | Pic::Blast { .. } => {
-                return None;
-            }
+        // Drawn: the runtime's.
+        Out::Light(_) => return None,
+        Out::Fx(FxCall::Macha(p)) => match p {
+            Pic::Laser { .. } | Pic::Blast { .. } => return None,
             Pic::Smoke { .. } => "[\"smoke\"]".into(),
             Pic::LaserHit { .. } => "[\"explode\"],[\"explode\"],[\"smokerock\"]".into(),
             Pic::Burst { .. } => "[\"explode\"],[\"smoke\"],[\"smokerock\"]".into(),

@@ -1,17 +1,19 @@
 //! The bosses in the field: what `ccBossEntryStart(code)` (gcmn 0x0045b2a0)
 //! starts for an event's `entry 7 code` - `ccThBossEffect` and
 //! `bossFunc[code]` at priority 66 - over the battle's scene
-//! ([`piney_battle::boss`]). Codes 0 Skeith, 1 Innis, 2 Magus (its leaves
-//! characters of their own), 3 Fidchell, 12 Kyvia's first fight (its core
-//! and gomoras likewise); the others start nothing. Once `CheckExit()` the
-//! task sets its parameter's +0x14, which `absent 7` reads.
+//! ([`piney_battle::boss`]), by the code's def ([`BossDef`]); a code the
+//! port lacks starts nothing. Every boss is read the same way: its def,
+//! its frame's requests ([`Out`]) and what it shows ([`boss::Output`]).
+//! Once `CheckExit()` the task sets its parameter's +0x14, which
+//! `absent 7` reads.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use piney_battle::affect::AffectCtx;
-use piney_battle::boss::{self, Boss, BossEnv, CamView, Class, Out};
+use piney_battle::boss::defs::{BodyPick, BossDef, CamDef, PartBody, Spawn};
+use piney_battle::boss::{self, Boss, BossEnv, CamView, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::World;
 use piney_battle::event::{Event, Events, Who};
@@ -27,27 +29,6 @@ use crate::camera::{CamPad, Camera, id};
 use crate::chara::body::Body;
 use crate::ee::{self, F, ONE, V4};
 use crate::sky::lattice::{Lattice, StripVertex};
-
-/// `bossFunc`'s codes the port has: Skeith (`bossTbl` row 0), Innis
-/// (row 1), Magus (row 2), Fidchell (row 3), Gorre (row 4) and Kyvia 01
-/// (row 12).
-pub const SKEITH: i32 = 0;
-pub const INNIS: i32 = 1;
-pub const MAGUS: i32 = 2;
-pub const FIDCHELL: i32 = 3;
-pub const GORRE: i32 = 4;
-/// Quarantine's: Macha (row 5) and Tarvos (row 6).
-pub const MACHA: i32 = 5;
-pub const TARVOS: i32 = 6;
-pub const KYVIA: i32 = 12;
-/// Quarantine's `ccBoss08` (code 7): Corbenik, its first two forms in one
-/// task, or its third when the save says so ([`super::corbenik`]).
-pub const CORBENIK: i32 = 7;
-/// Kyvia's second fight (`ccBossKyvia02`, Outbreak's field 10) and its
-/// third (`ccBossKyvia03`, Quarantine's field 11).
-pub const KYVIA_SECOND: i32 = 13;
-pub const KYVIA_THIRD: i32 = 14;
-pub const KYVIA_FOURTH: i32 = 15;
 
 /// Gorre's `m_exit` (the manager's +0x2c, which its constructor leaves):
 /// the word of stream 64's decoded mesh where the manager lands in the
@@ -70,225 +51,6 @@ pub const BOSS08_HEAP_EXIT: u32 = 0;
 pub const EFF_FILE: &str = "xeffect";
 /// The wave's animation in [`EFF_FILE`].
 pub const ANM_WAVE: &str = "ANM_xx11wave";
-/// Fidchell's prediction's layer: `m_predTxt.layer`, `ccLayer::Init(254,
-/// sysLayer's view)` in its constructor (OUT gcmn 0x004a361c).
-pub const PRED_TEXT_LAYER: i16 = 254;
-
-/// `InitBossCamera(z, y)`'s `transfer`: Skeith's (200, 1000), the eye 1000
-/// behind Kite and 200 up at its nearest.
-pub const CAM_TRANSFER: V4 = [0, 0x447a_0000, 0x4348_0000, ONE];
-
-/// Which body draws a clip of the boss's own.
-#[derive(Clone, Copy, Debug)]
-pub enum BodyPick {
-    Body,
-    /// The first image under the Epitaph's clips (by their names' start),
-    /// the body under the rest.
-    Epitaph(&'static str),
-    /// The image whose nodes the clip poses ([`clip_body`]).
-    ByClip,
-}
-
-/// Which image draws a part's clip.
-#[derive(Clone, Copy, Debug)]
-pub enum PartBody {
-    /// The first part the first image, the others the second.
-    InOrder,
-    /// The first image.
-    First,
-    /// The image whose nodes its clip poses.
-    ByClip,
-}
-
-/// The boss camera its constructor makes.
-#[derive(Clone, Copy, Debug)]
-pub enum CamDef {
-    /// `InitBossCamera` at this transfer, with what the constructor set.
-    Transfer(V4),
-    /// None: it turns camera 3 itself (Magus's `CalcCamera`).
-    Own,
-    /// None for Corbenik's first form; the third's own.
-    Corbenik,
-}
-
-/// Where a boss is made: Kite's place and heading, the arena's centre
-/// (`DMY_center01`), whether Corbenik is in its third form (`saveData`
-/// +0x652f, `eventStatus[55]`, 1) and the look's `DMY_dummy1`.
-pub struct Spawn {
-    pub kite_pos: V4,
-    pub kite_dirc: V4,
-    pub center: V4,
-    pub third: bool,
-    pub dummy: V4,
-}
-
-/// A boss the field starts by its code (`bossFunc`'s, `ccBossEntryStart`):
-/// its file and body, the clumps of that file it draws its images and
-/// parts with, its camera, its hit and its constructor. A boss is one row
-/// of [`BOSSES`] and one [`piney_battle::boss::Shape`].
-pub struct BossDef {
-    pub code: i32,
-    pub file: &'static str,
-    pub clump: &'static str,
-    /// [`BossLook::images`]' clumps.
-    pub images: &'static [&'static str],
-    /// The mirrors' shards (`CMP_ex21ef{ID}1`-`5`): [`BossLook::shards`].
-    pub shards: bool,
-    pub body: BodyPick,
-    pub part: PartBody,
-    pub cam: CamDef,
-    /// The body hit's radius, when not the base's width.
-    pub radius: Option<F>,
-    pub make: fn(&mut boss::Cx, &Spawn) -> Boss,
-}
-
-impl BossDef {
-    /// Boss `code`'s row, None for a code the port lacks.
-    pub fn of(code: i32) -> Option<&'static BossDef> {
-        BOSSES.iter().find(|d| d.code == code)
-    }
-}
-
-/// Skeith (`x11`'s `CMP_trall`): the row the others start from, and the
-/// look of a code the port lacks.
-const SKEITH_DEF: BossDef = BossDef {
-    code: SKEITH,
-    file: "x11",
-    clump: "CMP_trall",
-    images: &[],
-    shards: false,
-    body: BodyPick::Body,
-    part: PartBody::InOrder,
-    cam: CamDef::Transfer(CAM_TRANSFER),
-    radius: None,
-    make: |cx, s| piney_battle::boss::skeith::new(cx, s.kite_pos, s.kite_dirc, s.center),
-};
-
-/// Kyvia's fights: the body in the fight's file (`Fight::file`), and its
-/// core's and gomoras' clumps there (the same names in each), whose
-/// objects their clips (`ANM_ex0cnut0`, `ANM_ex0gnut0`) draw and morph.
-/// `InitBossCamera(450, 1050)`, the fourth fight's (250, 700).
-const KYVIA_DEF: BossDef = BossDef {
-    code: KYVIA,
-    file: boss::kyvia::Fight::First.file(),
-    clump: "CMP_trallex01",
-    images: &["CMP_trall2", "CMP_trall3"],
-    cam: CamDef::Transfer([0, 0x4483_4000, 0x43e1_0000, ONE]),
-    radius: Some(boss::kyvia::BODY_RADIUS),
-    make: |cx, _| boss::kyvia::new(cx, boss::kyvia::Fight::First),
-    ..SKEITH_DEF
-};
-
-pub static BOSSES: [BossDef; 12] = [
-    SKEITH_DEF,
-    // Innis (`x21`): its body, its three images (`Mon1`-`Mon3`'s models),
-    // its mirrors' shards. `InitBossCamera(200, 900)`.
-    BossDef {
-        code: INNIS,
-        file: "x21",
-        images: &["CMP_ex21mon1", "CMP_ex21mon2", "CMP_ex21mon3"],
-        shards: true,
-        cam: CamDef::Transfer([0, 0x4461_0000, 0x4348_0000, ONE]),
-        make: |cx, s| boss::innis::new(cx, s.kite_pos, s.kite_dirc, s.center),
-        ..SKEITH_DEF
-    },
-    // Magus (`x31`): its body and its leaves' model.
-    BossDef {
-        code: MAGUS,
-        file: "x31",
-        images: &["CMP_ex31leaf"],
-        part: PartBody::First,
-        cam: CamDef::Own,
-        make: |cx, s| boss::magus::new(cx, s.kite_pos, s.kite_dirc, s.center),
-        ..SKEITH_DEF
-    },
-    // Fidchell (`x41`): its body, and the body its Epitaph's clips
-    // (`ANM_ex4x*`) move. `InitBossCamera(250, 1500)`.
-    BossDef {
-        code: FIDCHELL,
-        file: boss::fidchell::FILE,
-        clump: "CMP_trall1",
-        images: &["CMP_trallx"],
-        body: BodyPick::Epitaph("ANM_ex4x"),
-        cam: CamDef::Transfer([0, 0x44bb_8000, 0x437a_0000, ONE]),
-        make: |cx, s| boss::fidchell::new(cx, s.kite_pos, s.kite_dirc, s.center),
-        ..SKEITH_DEF
-    },
-    // Gorre (`x51`): its body (which its Kerse's `ANM_ex51act1` poses) and
-    // its brothers' clumps, whose objects their clips draw: the first's
-    // `ANM_ex51*`, the second's `ANM_ex52*`, both brothers' Epitaph
-    // `ANM_ex5x*`. `InitBossCamera(200, 1500)`.
-    BossDef {
-        code: GORRE,
-        file: boss::gorre::FILE,
-        images: &["CMP_trall", "CMP_trall2", "CMP_trallx"],
-        part: PartBody::ByClip,
-        cam: CamDef::Transfer([0, 0x44bb_8000, 0x4348_0000, ONE]),
-        make: |cx, s| boss::gorre::new(cx, s.kite_pos, s.kite_dirc, s.center),
-        ..SKEITH_DEF
-    },
-    // Macha (`x61`) and Tarvos (`x71`): the body, and the body their
-    // Epitaphs' clips (`ANM_ex6x*`, `ANM_ex7x*`) move. Macha's
-    // `InitBossCamera(250, 1000)`.
-    BossDef {
-        code: MACHA,
-        file: boss::macha::FILE,
-        clump: "CMP_trall1",
-        images: &["CMP_trall2"],
-        body: BodyPick::Epitaph("ANM_ex6x"),
-        cam: CamDef::Transfer([0, 0x447a_0000, 0x437a_0000, ONE]),
-        make: |cx, s| boss::macha::new(cx, s.kite_pos, s.kite_dirc, s.center),
-        ..SKEITH_DEF
-    },
-    BossDef {
-        code: TARVOS,
-        file: boss::tarvos::FILE,
-        images: &["CMP_trall2"],
-        body: BodyPick::Epitaph("ANM_ex7x"),
-        make: |cx, s| boss::tarvos::new(cx, s.kite_pos, s.kite_dirc, s.center),
-        ..SKEITH_DEF
-    },
-    KYVIA_DEF,
-    BossDef {
-        code: KYVIA_SECOND,
-        file: boss::kyvia::Fight::Second.file(),
-        clump: "CMP_trallex02",
-        make: |cx, _| boss::kyvia::new(cx, boss::kyvia::Fight::Second),
-        ..KYVIA_DEF
-    },
-    BossDef {
-        code: KYVIA_THIRD,
-        file: boss::kyvia::Fight::Third.file(),
-        clump: "CMP_trallex03",
-        make: |cx, _| boss::kyvia::new(cx, boss::kyvia::Fight::Third),
-        ..KYVIA_DEF
-    },
-    BossDef {
-        code: KYVIA_FOURTH,
-        file: boss::kyvia::Fight::Fourth.file(),
-        clump: "CMP_trallex04",
-        cam: CamDef::Transfer([0, 0x442f_0000, 0x437a_0000, ONE]),
-        make: |cx, _| boss::kyvia::new(cx, boss::kyvia::Fight::Fourth),
-        ..KYVIA_DEF
-    },
-    // Corbenik (`x81`): its forms' and parts' clumps, the first form's the
-    // body ([`super::corbenik::BODIES`]); InitBossCamera only in the third.
-    BossDef {
-        code: CORBENIK,
-        file: boss::corbenik::FILE,
-        clump: super::corbenik::BODIES[0],
-        images: &super::corbenik::BODIES,
-        body: BodyPick::ByClip,
-        part: PartBody::ByClip,
-        cam: CamDef::Corbenik,
-        make: |cx, s| match s.third {
-            true => boss::corbenik::third::new(cx, s.kite_pos, s.kite_dirc, s.center, s.dummy),
-            false => boss::corbenik::first::new(cx, s.kite_pos, s.kite_dirc, s.center),
-        },
-        ..SKEITH_DEF
-    },
-];
-
 /// A clip's frames and whether it loops, by name, in the boss's files.
 pub type Clips = HashMap<String, (u32, bool)>;
 
@@ -312,11 +74,10 @@ pub struct BossRun {
     /// The waves' `DrawParts` this frame: each animation's pose time, at
     /// the boss's place and heading (Gorre's brothers each their own).
     pub waves: Vec<(u32, V4, V4, f32)>,
-    /// Macha's light ball's omni light while it is in the group.
-    pub light: Option<V4>,
-    /// Tarvos's `PreDrawAnm` this frame: `SetFogBlend(m_blendRate,
-    /// 0x404080)`, which its body's draw keeps when `ccBoss::Draw` sets no
-    /// blend of its own.
+    /// The boss's omni light while it is in the group ([`Out::Light`]).
+    pub light: Option<piney_battle::prim::OmniLight>,
+    /// Its `PreDrawAnm`'s `SetFogBlend` this frame ([`Out::Fog`]), which its
+    /// body's draw keeps when `ccBoss::Draw` sets no blend of its own.
     pub fog: Option<crate::chara::foe::FogBlend>,
     /// What the boss draws this frame besides its bodies, its waves and
     /// its after-images ([`Picture`]).
@@ -340,14 +101,15 @@ pub struct BossRun {
     /// frame.
     pub cinema: Cinema,
     pub cinema_sent: CinemaSent,
-    /// Fidchell's prediction (`m_predTxt.anmText`, x41's `ANM_ex41txtN`,
-    /// no depth test) by its clip, and whether it was drawn this frame.
-    pub pred_text: Option<(String, piney_desktop::anm::Anm)>,
+    /// A clip of the boss's file on a layer of its own ([`Out::AnmText`],
+    /// Fidchell's prediction): its clip, the layer and its `ccAnm`; and
+    /// whether it was drawn this frame.
+    pub text: Option<(String, i16, piney_desktop::anm::Anm)>,
     pub text_shown: bool,
-    /// Innis's images' scene indices, drawn while theirs `drawSW` holds.
+    /// The images it keeps (their characters), drawn while theirs `drawSW`
+    /// holds.
     pub images: Vec<usize>,
-    /// Kyvia's core and gomoras (their characters), drawn while theirs
-    /// `drawSW` holds.
+    /// Its parts (their characters), drawn while theirs `drawSW` holds.
     pub parts: Vec<usize>,
     /// `WORLD_MAN.eventmap` as an `EVENTAREAB8` this frame (Kyvia's disc),
     /// and whether the boss asked it on (`EVENTAREAB8::Move`).
@@ -359,9 +121,8 @@ pub struct BossRun {
     /// Corbenik's lasers), in order.
     pub arena_clump: Vec<bool>,
     pub disc_next: bool,
-    /// Magus's dropped leaves its after-images hide this frame (act 8's
-    /// callback).
-    pub dropped: Vec<usize>,
+    /// The body's objects its after-images hide this frame.
+    pub dropped: Vec<&'static str>,
     /// Each part's `ccAnm` transparency (+0x88) as its last `ccBoss::Draw`
     /// copied it (the constructor's 1 before).
     pub anm_alpha: HashMap<usize, F>,
@@ -394,8 +155,8 @@ pub struct AfterImage {
 pub enum Image {
     /// The boss's body.
     Boss,
-    /// Magus's leaf (`BossLook::images[0]`).
-    Leaf,
+    /// One of the look's images (a part's body: Magus's leaf).
+    Look(usize),
     /// The objects a clip of the boss's file animates (`ccAnm::Draw`).
     Anm,
 }
@@ -424,7 +185,7 @@ pub enum Picture {
         alpha: f32,
         blend: Option<u8>,
     },
-    /// A part's clip its `PreDrawAnm` draws ([`piney_battle::boss::Shape::draws_again`])
+    /// A part's clip its `PreDrawAnm` draws ([`boss::BodyDraw::again`])
     /// before its `ccBoss::Draw`, at the matrix it set and the anm's last
     /// transparency, on the layer the body's `Draw` left active (sysLayer:
     /// priority 0, after objLayer).
@@ -459,23 +220,6 @@ impl AfterImage {
         }
     }
 
-    /// A leaf's blink (`ccBoss03Leaf` +0x29660, set in its constructor
-    /// 0x004a4c64): colour 0x005050ff at `colorAlpha` 100, transparency 0.5
-    /// by -1/60, its scale from 1 to (1, 4, 2) over 30 draws.
-    pub fn leaf(clip: String, time: u32, pos: V4, dirc: V4) -> AfterImage {
-        let (from, to) = ([1.0f32; 3], [1.0, 4.0, 2.0]);
-        let step = std::array::from_fn(|k| (to[k] - from[k]) * (1.0 / 30.0));
-        AfterImage {
-            transparency: 0.5,
-            fade: f32::from_bits(0x3c88_8889),
-            image: Image::Leaf,
-            blend: crate::chara::foe::FogBlend { rate: 0x42c8_0000, colour: 0x0050_50ff },
-            scale: from,
-            grow: Some((step, to)),
-            ..AfterImage::boss(clip, time, pos, dirc)
-        }
-    }
-
     /// `EntryAfterImageAnm(anm, pos, dirc, p)` of a clip of the boss's
     /// file at `time`, as `Init` takes `p` (colour -1: no blend; a scale
     /// only with `scaleTime` over 0).
@@ -499,6 +243,12 @@ impl AfterImage {
             grow,
             ..AfterImage::boss(clip, time, pos, dirc)
         }
+    }
+
+    /// `EntryAfterImage` on a part's own `ccAnm` in `p` (a leaf's blink),
+    /// drawn with look image `k`.
+    pub fn part(k: usize, clip: String, time: u32, pos: V4, dirc: V4, p: &boss::AfterImageParams) -> AfterImage {
+        AfterImage { image: Image::Look(k), ..AfterImage::anm(clip, time, pos, dirc, p) }
     }
 
     /// `EntryAfterImage(&t)`: the boss's pose in `t`'s params (Macha's
@@ -567,7 +317,7 @@ impl BossLook {
         volume: piney_data::volume::Volume,
         field: i32,
     ) -> piney_data::Result<BossLook> {
-        let def = BossDef::of(code).unwrap_or(&SKEITH_DEF);
+        let def = BossDef::of(code).unwrap_or(&piney_battle::boss::defs::SKEITH);
         let (file, clump) = (def.file, def.clump);
         let body = Rc::new(Body::read(archive, file, clump)?);
         let dummy = body
@@ -634,13 +384,11 @@ impl BossLook {
 }
 
 impl Combat {
-    /// `ccBossEntryStart(code)`: the boss made (`ccBoss01::ccBoss01`,
-    /// `ccBoss02::ccBoss02`, `ccBossKyvia01::ccBossKyvia01(1)`) at the
-    /// arena's centre `center` (`DMY_center01`) or Kyvia's disc (`disc`)
-    /// and its actor. Nothing for a code the port lacks, without the
-    /// tables or without Kite.
-    /// `third` is Corbenik's: `saveData` +0x652f (`eventStatus[55]`) 1,
-    /// which `ccThBoss08` reads for its third form.
+    /// `ccBossEntryStart(code)`: the boss its def makes at the arena's
+    /// centre `center` (`DMY_center01`) or Kyvia's disc (`disc`), and its
+    /// actor. Nothing for a code the port lacks, without the tables or
+    /// without Kite. `third` is Corbenik's: `saveData` +0x652f
+    /// (`eventStatus[55]`) 1, which `ccThBoss08` reads for its third form.
     pub fn start_boss(
         &mut self,
         look: &Rc<BossLook>,
@@ -683,7 +431,7 @@ impl Combat {
             cc: &mut self.cc,
             clips: &clip,
             collide: &mut none,
-            part_hits: &mut boss::NoHits,
+            field: &mut boss::NoField,
             game_over: false,
             boss_cam: true,
             cam: cam_view(camera, None, false),
@@ -695,7 +443,8 @@ impl Combat {
             ev: Events::new(),
         };
         let spawn = Spawn { kite_pos, kite_dirc, center, third, dummy: look.dummy };
-        let b = (def.make)(&mut cx, &spawn);
+        let mut b = (def.make)(&mut cx, &spawn);
+        b.show(&mut cx);
         let out = std::mem::take(&mut cx.out);
         drop(cx);
         let ctor_out = out.clone();
@@ -705,35 +454,26 @@ impl Combat {
         let pos = self.scene.chars[me].pos;
         let (h, w) = (self.scene.chars[me].base().height, self.scene.chars[me].base().width);
         let clip0 = b.base.anm.clip.clone().unwrap_or_default();
-        let body0 = match def.body {
-            BodyPick::ByClip => clip_body(&look.images, &clip0).unwrap_or_else(|| look.body.clone()),
+        let body0 = match look.def.body {
+            BodyPick::ByClip => {
+                clip_image(&look.images, &clip0).map_or_else(|| look.body.clone(), |k| look.images[k].clone())
+            }
             BodyPick::Body | BodyPick::Epitaph(_) => look.body.clone(),
         };
         if let Some(a) = Actor::new(body0, &clip0, Look::Boss, pos, b.base.dirc, h, w) {
             self.cast.actors.insert(me, a);
         }
-        let shape = b.class.shape();
-        let images = shape.images().iter().map(|f| f.me).collect();
-        let parts = shape.parts(&self.scene);
+        let images = b.output.figures.iter().map(|f| f.me).collect();
+        let parts = b.output.parts.clone();
+        let (cam_def, radius) = (b.def.cam, b.def.radius.unwrap_or(w));
         if let Some(f) = self.scene.chars[me].foe_state_mut() {
             f.boss = Some(Box::new(b));
         }
         let ty = self.scene.chars[me].ty() as u32;
-        let radius = def.radius.unwrap_or(w);
         let hit = CharHit { pos, radius, height: h, kind: ty, ..CharHit::default() };
         // InitBossCamera(z, y), in the constructor, and what the
         // constructor set on it then.
-        let cam = match def.cam {
-            CamDef::Own => None,
-            CamDef::Corbenik => third.then(|| super::corbenik::third_camera(camera, kite_pos)),
-            CamDef::Transfer(transfer) => {
-                let mut cam = BossCam::new(camera, transfer, kite_pos);
-                for o in &ctor_out {
-                    cam_out(&mut cam, o, camera);
-                }
-                Some(cam)
-            }
-        };
+        let cam = new_cam(cam_def, camera, kite_pos, &ctor_out);
         self.boss = Some(BossRun {
             code,
             me,
@@ -764,7 +504,7 @@ impl Combat {
             trail: (Vec::new(), 0),
             cinema: Cinema::new(),
             cinema_sent: CinemaSent::default(),
-            pred_text: None,
+            text: None,
             text_shown: false,
             images,
             parts,
@@ -793,9 +533,9 @@ impl Combat {
     }
 
     /// `ccThBossEffect` and the boss task's frame: the queued affects,
-    /// the class's `Main`, the boss's actor set from it; what it asks goes
-    /// to the shows ([`Show::Boss`]). The events its affects cause come
-    /// back.
+    /// the boss's `Main`, its actors set from what it shows; what it asks
+    /// goes to the shows ([`Show::Boss`]). The events its affects cause
+    /// come back.
     pub(super) fn boss_frame(
         &mut self,
         env: &Env,
@@ -835,8 +575,8 @@ impl Combat {
             boss::apply_queued(&mut self.scene, &actx, me, &mut self.rand, &mut ev);
         }
         self.cc = cc.into_inner();
-        // Kyvia's core and gomoras: their affects of the frame so far, and
-        // what they asked (their hits' marks and numbers).
+        // The parts: their affects of the frame so far, and what they
+        // asked (their hits' marks and numbers).
         let parts = run.parts.clone();
         // The blur as the manager's pass finds it (the fourth fight's
         // effects and its great meteor read its colour).
@@ -853,25 +593,6 @@ impl Combat {
         }
         let Some(mut b) = self.scene.chars[me].foe_state_mut().and_then(|f| f.boss.take()) else { return ev };
         let mut out = b.base.take_pending();
-        // Magus's leaves hang where its body was last posed: `Init` reads
-        // `OBJ_ex31leafNN`'s world matrix.
-        let laser = b.base.act_num == boss::magus::act::LASER;
-        let (anm, dirc) = (b.base.anm.clone(), b.base.dirc);
-        if let (Class::Magus(x), Some(a)) = (&mut b.class, self.cast.actors.get(&me)) {
-            x.leaf_pos = leaf_points(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc, x.leaf_pos);
-            // The laser's shocks as SetupLaserShock and PreDrawAnm find
-            // them (`magus_shocks`).
-            if laser {
-                let shocks = magus_shocks(&a.ch.body, anm, &clip, (a.ch.pos, a.ch.dirc), dirc, hits);
-                x.shock_pos = shocks.map(|s| s.0);
-                x.shock_at = shocks.map(|s| s.1);
-            }
-        }
-        // Macha's eyes, where the lasers leave from: the dummies as the body
-        // was last posed (`GetSubstAdrsF`'s LW matrix).
-        if let (Class::Macha(x), Some(a)) = (&mut b.class, self.cast.actors.get(&me)) {
-            x.eyes = node_points(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc, boss::macha::EYES, x.eyes);
-        }
         // ccBoss::Move: SetHitSW(bodyHitSW), then the body at the new place
         // pushed out of the others (CollisionDetection).
         let kite = self.kite;
@@ -889,7 +610,7 @@ impl Combat {
             hits.sync(&body);
             Some(off)
         };
-        let mut part_hits = PartList { hits: &hits, kite };
+        let mut field = FieldView { hits: &hits, kite, actors: &self.cast.actors, spc: &self.crew.spc };
         // BreakMirror's ccLandHitCheck(pos, 0x20000000).
         let mut land = |pos: V4| hits.borrow_mut().land(pos, 0x2000_0000);
         // ccCheckParticleGenerator on a generator the rules keep.
@@ -907,7 +628,7 @@ impl Combat {
             cc: &mut self.cc,
             clips: &clip,
             collide: &mut collide,
-            part_hits: &mut part_hits,
+            field: &mut field,
             game_over: false,
             boss_cam: true,
             cam: cv,
@@ -955,17 +676,34 @@ impl Combat {
         let early = |o: &Out| matches!(o, Out::Blur(_) | Out::CamMode { .. } | Out::CamModeRange { .. });
         out.extend(fx_out.into_iter().filter(|o| !early(o)));
         b.main(&mut cx);
+        b.hand_over(&mut cx);
+        b.show(&mut cx);
         out.extend(std::mem::take(&mut cx.out));
         ev.extend(std::mem::take(&mut cx.ev));
         drop(cx);
         let hits = hits.into_inner();
-        // Corbenik's task past its first form: the second made the same
-        // frame (`ccThBoss08`).
+        // A boss made anew on its character (Corbenik's next form, the same
+        // frame): its hit, parts, after-images and camera as its def makes
+        // them, and the parts gone with the old one off the field.
         let (mut hit, mut parts) = (hit, parts);
-        if let Some(o) = self.corbenik_next_form(&mut b, env, check, world, camera, hits) {
-            out.extend(o);
-            if let Some(r) = self.boss.as_ref() {
-                (hit, parts) = (r.hit, r.parts.clone());
+        if out.contains(&Out::Remade)
+            && let (Some(r), Some(k)) = (self.boss.as_mut(), kite)
+        {
+            let base = self.scene.chars[me].base();
+            let (h, w, ty) = (base.height, base.width, base.ty as u32);
+            let radius = b.def.radius.unwrap_or(w);
+            r.hit = CharHit { pos: self.scene.chars[me].pos, radius, height: h, kind: ty, ..CharHit::default() };
+            r.parts = b.output.parts.clone();
+            r.afterimages.clear();
+            r.cam = new_cam(b.def.cam, camera, self.scene.chars[k].pos, &[]);
+            r.cam_sw = true;
+            (hit, parts) = (r.hit, r.parts.clone());
+        }
+        for o in &out {
+            if let Out::PartRemoved(k) = *o {
+                self.cast.actors.remove(&k);
+                let id = super::spc::body_id(k, self.kite);
+                hits.chars.retain(|c| c.id != id);
             }
         }
         let exited = b.base.exit != 0;
@@ -974,17 +712,19 @@ impl Combat {
         let mut body = super::spc::to_body(me, kite, &at, false);
         hits.set_hit_sw(&mut body, at.sw);
         hits.sync(&body);
-        // The class's sword trail after its Main: a new row at the sword's
-        // two dummies (DMY_xdummy_w01, _w02 under OBJ_ex11swd as it was
-        // last drawn) when the class adds one, then the trail's Disp.
-        let trail = b.class.shape().sword_trail(&b.base);
-        let cross = (trail == Some(true))
-            .then(|| self.cast.actors.get(&me).and_then(|a| sword_points(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc)))
-            .flatten();
+        // The boss's sword trail after its Main: a new row at the dummies
+        // it names (as the body was last drawn) when it adds one, then the
+        // trail's Disp.
+        let shown = &b.output;
+        let row = match shown.trail {
+            boss::Trail::Row { node, points } => (self.cast.actors.get(&me))
+                .and_then(|a| dummy_points(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc, node, points)),
+            boss::Trail::None | boss::Trail::Keep => None,
+        };
         if let Some(r) = self.boss.as_mut()
-            && trail.is_some()
+            && shown.trail != boss::Trail::None
         {
-            if let Some([p1, p2]) = cross {
+            if let Some([p1, p2]) = row {
                 r.lattice.next_vertex();
                 r.lattice.set_pos(p1, 0);
                 r.lattice.set_pos(p2, 1);
@@ -992,14 +732,10 @@ impl Combat {
             r.trail = r.lattice.disp();
         }
         let dirc = b.base.dirc;
-        let wave_time = b.class.shape().wave().map_or(0, |a| a.posed);
+        let wave_time = shown.wave.unwrap_or(0);
         let clip = b.base.anm.clip.clone().unwrap_or_default();
         let time = b.base.anm.posed;
         let kite_pos = kite.map(|k| self.scene.chars[k].pos);
-        // The second form's barrier rides OBJ_ex8body2 as the body was
-        // last drawn (`GetSubstAdrsF`).
-        let barrier_at = (self.cast.actors.get(&me))
-            .and_then(|a| super::corbenik::body2(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc));
         if let Some(r) = self.boss.as_mut() {
             // Think and Action's QuakeCam, SetMode, SetFreeCamPosView and
             // BeginDeadEffect, then after Move the camera (bossCam &&
@@ -1022,17 +758,17 @@ impl Combat {
                         let name = r.look.skill_names.get(sid).cloned();
                         r.cinema.on(name);
                     }
-                    // Fidchell's prediction: SetAnm at its step 2 (anew when
-                    // the text was not up the frame before), then
+                    // A clip on its own layer: SetAnm anew when the clip
+                    // changed or was not up the frame before, then
                     // _AnimateForward and Draw each frame.
-                    Out::Fidchell(boss::fidchell::Pic::Text { clip, .. }) => {
-                        if !text_was || r.pred_text.as_ref().is_none_or(|(c, _)| c != clip) {
+                    Out::AnmText { clip, layer } => {
+                        if !text_was || r.text.as_ref().is_none_or(|(c, _, _)| c != clip) {
                             let mut a = piney_desktop::anm::Anm::new();
                             a.set(&r.look.body.file, clip);
                             a.zenable = false;
-                            r.pred_text = Some((clip.clone(), a));
+                            r.text = Some((clip.clone(), *layer, a));
                         }
-                        if let Some((_, a)) = r.pred_text.as_mut() {
+                        if let Some((_, _, a)) = r.text.as_mut() {
                             a.forward();
                         }
                         r.text_shown = true;
@@ -1062,6 +798,7 @@ impl Combat {
                     | Out::CamInitLock
                     | Out::CamRotXLimit(_)
                     | Out::CamMaxRange(_)
+                    | Out::CamLift(_)
                     | Out::CamSway(_) => {
                         if let Some(c) = r.cam.as_mut() {
                             cam_out(c, o, camera);
@@ -1088,7 +825,7 @@ impl Combat {
                     // activeCamPtr->type (Corbenik's death: 3).
                     Out::CameraType(t) => camera.active_mut().kind = *t,
                     Out::FieldBodyHit { n, on } => r.body_hits.push((*n, *on)),
-                    Out::Corbenik(boss::corbenik::Pic::ArenaClump { on }) => r.arena_clump.push(*on),
+                    Out::StageClump(on) => r.arena_clump.push(*on),
                     // Magus's cameras: changeCamera, cameraSetPos/View.
                     Out::CameraChange(n) => camera.change_camera(*n as i16),
                     Out::CameraPos { cam, pos } => camera.cam_mut(*cam as i16).pos = *pos,
@@ -1133,50 +870,81 @@ impl Combat {
             r.waves.clear();
             r.fog = None;
             r.reverse = out.contains(&Out::Reverse);
-            // Innis's mirrors' shards `Mbreak` drew (`DrawPartsClump`).
-            r.pictures = (b.class.shape().shards().into_iter())
-                .map(|(clump, pos, rot)| Picture::Clump { clump, world: crate::chara::body::root(pos, rot) })
+            // The shards it drew (`DrawPartsClump`), then its pictures.
+            r.pictures = (shown.clumps.iter())
+                .map(|&(clump, pos, rot)| Picture::Clump { clump, world: crate::chara::body::root(pos, rot) })
                 .collect();
+            // Where a picture on a node of the body rides: the body as
+            // it was last drawn (`GetSubstAdrsF`).
+            let actor = self.cast.actors.get(&me);
+            let node = |name: &str| actor.and_then(|a| node_world(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc, name));
             for o in &out {
                 match o {
                     Out::AfterImage => r.afterimages.push(AfterImage::boss(clip.clone(), time, at.pos, dirc)),
-                    // A leaf's blink: its anm at `frameNow` (`_AnimateFrame`;
-                    // at frame 0 `Init` steps it once instead).
-                    Out::Magus(boss::magus::Pic::LeafAfterImage { leaf, frame }) => {
-                        let Some(&c) = parts.get(*leaf) else { continue };
-                        let Some(lb) = self.scene.chars[c].foe_state().and_then(|f| f.boss.as_ref()) else { continue };
-                        let mut a = lb.base.anm.clone();
-                        (a.time, a.posed) = (*frame as u32 * 256, *frame as u32 * 256);
-                        if *frame == 0 {
+                    // A part's after-image: its anm at `frameNow`
+                    // (`_AnimateFrame`; at frame 0 `Init` steps it once).
+                    &Out::AfterImagePart { who, frame, ref params } => {
+                        let Some(k) = parts.iter().position(|&p| p == who) else { continue };
+                        let Some(pb) = self.scene.chars[who].foe_state().and_then(|f| f.boss.as_ref()) else {
+                            continue;
+                        };
+                        let mut a = pb.base.anm.clone();
+                        (a.time, a.posed) = (frame as u32 * 256, frame as u32 * 256);
+                        if frame == 0 {
                             a.forward();
                         }
-                        let p = self.scene.chars[c].pos;
-                        r.afterimages.push(AfterImage::leaf(a.clip.unwrap_or_default(), a.posed, p, lb.base.dirc));
+                        let clip = a.clip.unwrap_or_default();
+                        let Some(image) = part_image(&r.look, k, &clip) else { continue };
+                        let p = self.scene.chars[who].pos;
+                        r.afterimages.push(AfterImage::part(image, clip, a.posed, p, pb.base.dirc, params));
                     }
                     Out::DrawWave => r.waves.push((wave_time, at.pos, dirc, 1.0)),
-                    // Macha's white images and its light.
                     Out::AfterImageWith(p) => {
                         r.afterimages.push(AfterImage::boss_with(clip.clone(), time, at.pos, dirc, p));
                     }
-                    Out::Macha(boss::macha::Pic::Light(p)) => r.light = *p,
+                    Out::Light(p) => r.light = *p,
                     Out::Wave { time, pos, dirc, scale, .. } => r.waves.push((*time, *pos, *dirc, ee::f(*scale))),
-                    // The transfer's fog over Tarvos's body.
-                    Out::Tarvos(boss::tarvos::Pic::Fog { rate, colour }) => {
-                        r.fog = Some(crate::chara::foe::FogBlend { rate: *rate, colour: *colour });
+                    &Out::Fog { who, blend } if who == me => {
+                        r.fog = Some(crate::chara::foe::FogBlend { rate: blend.rate, colour: blend.colour });
                     }
-                    // Kyvia's arm, Macha's ball.
-                    Out::DrawAnm { clip, time, pos, dirc, layer } => r.pictures.push(Picture::Anm {
-                        eff: false,
-                        layer: match layer {
-                            boss::AnmLayer::Obj => crate::draw::OBJ_LAYER,
-                            boss::AnmLayer::Eff => crate::draw::EFF_LAYER,
-                        },
-                        clip: clip.clone(),
-                        time: *time,
-                        root: crate::chara::body::root(*pos, *dirc),
-                        alpha: 1.0,
-                        blend: None,
-                    }),
+                    Out::Picture(p) => {
+                        let alpha = |a: Option<F>| ee::f(a.unwrap_or(b.base.set_transparency));
+                        let root = |at: &boss::Root| match *at {
+                            boss::Root::At { pos, dirc } => Some(crate::chara::body::root(pos, dirc)),
+                            boss::Root::Matrix(m) => Some(mat4(&m)),
+                            boss::Root::Node(name) => node(name),
+                        };
+                        let shown = match p {
+                            &boss::Picture::Obj { file, name, ref at, alpha: a, fog, blend } => {
+                                root(at).map(|world| Picture::Obj {
+                                    eff: file == boss::PicFile::Eff,
+                                    name,
+                                    world,
+                                    alpha: alpha(a),
+                                    fog: fog.and_then(|f| {
+                                        crate::chara::foe::FogBlend { rate: f.rate, colour: f.colour }.fog()
+                                    }),
+                                    blend,
+                                })
+                            }
+                            boss::Picture::Anm { file, layer, clip: c, time, at, alpha: a, blend } => {
+                                root(at).map(|root| Picture::Anm {
+                                    eff: *file == boss::PicFile::Eff,
+                                    layer: match layer {
+                                        boss::AnmLayer::Obj => crate::draw::OBJ_LAYER,
+                                        boss::AnmLayer::Eff => crate::draw::EFF_LAYER,
+                                        boss::AnmLayer::Char => crate::draw::CHAR_LAYER,
+                                    },
+                                    clip: c.clone().unwrap_or_else(|| clip.clone()),
+                                    time: *time,
+                                    root,
+                                    alpha: alpha(*a),
+                                    blend: *blend,
+                                })
+                            }
+                        };
+                        r.pictures.extend(shown);
+                    }
                     // ccBossAfterImageEx::Init: its own anm at the frame,
                     // `_AnimateFrame(frame)`, or at frame 0 one step on.
                     Out::AfterImageAnm { clip, frame, pos, dirc, params, .. } => {
@@ -1191,39 +959,35 @@ impl Combat {
                     _ => {}
                 }
             }
-            r.pictures.extend(super::corbenik::shown(&b, &out, barrier_at));
             r.afterimages.retain_mut(AfterImage::step);
         }
         // The actor: ccAnm::Draw of the boss's clip at its frame, placed by
-        // SetMatrix_PosRotZYX(pos, dirc), at the transparency ccBoss::Draw
-        // left (the camera's fade), while drawn.
-        // An Epitaph's clips move the other body; Gorre's own is drawn
-        // only in its Kerse, at `m_talkPos`.
-        let (pos, dirc, shown) = b.class.shape().drawn_at(&b.base, self.scene.chars[me].pos);
+        // SetMatrix_PosRotZYX(pos, dirc) where its draw puts it, at the
+        // transparency ccBoss::Draw left (the camera's fade), while drawn;
+        // the objects its draw hides hidden.
+        let body_draw = b.output.body;
         self.clip_body(&b, me);
-        let dropped = b.class.shape().hidden(&self.scene);
         if let Some(a) = self.cast.actors.get_mut(&me) {
-            pose(a, &b.base.anm, pos, dirc);
-            a.drawn = shown && !exited && b.base.drawn;
+            pose(a, &b.base.anm, body_draw.pos, body_draw.dirc);
+            a.drawn = body_draw.shown && !exited && b.base.drawn;
             a.alpha = b.base.transparency;
             a.trans_dist = false;
-            // PreDrawAnm's hiding, but in the grow (act 26).
-            let grow = b.base.act_num == boss::magus::act::LEAF_GROW;
-            a.ch.play.hidden = if grow { Vec::new() } else { dropped_objects(&a.ch.body, &a.ch.play, &dropped) };
+            a.ch.play.hidden = objects_named(&a.ch.body, &a.ch.play, &b.output.hidden);
         }
-        // Act 8's after-image callback (0x0049e7c0) hides them likewise.
         if let Some(r) = self.boss.as_mut() {
-            r.dropped = if b.base.act_num == boss::magus::act::TO_CENTRE { dropped } else { Vec::new() };
+            r.dropped = if b.output.hidden_in_images { b.output.hidden.clone() } else { Vec::new() };
         }
         self.image_actors(&b, exited);
         if let Some(f) = self.scene.chars[me].foe_state_mut() {
             f.boss = Some(b);
         }
-        // Corbenik's eyes' flashes as their PreDrawAnm set them.
-        let blends: HashMap<usize, F> = out
+        // The parts' own fog (an eye's flash) as their PreDrawAnm set it.
+        let blends: HashMap<usize, crate::chara::foe::FogBlend> = out
             .iter()
-            .filter_map(|o| match o {
-                Out::Corbenik(boss::corbenik::Pic::Eye { eye, blend, .. }) => Some((*eye, *blend)),
+            .filter_map(|o| match *o {
+                Out::Fog { who, blend } if who != me => {
+                    Some((who, crate::chara::foe::FogBlend { rate: blend.rate, colour: blend.colour }))
+                }
                 _ => None,
             })
             .collect();
@@ -1255,7 +1019,7 @@ impl Combat {
                 // ccItemSkillRequest: the skill run from the boss on its
                 // target, as an item's through a character.
                 Out::Skill(tp, k) => self.item_skill(me, *tp, k),
-                // A gomora's skill (ccItemSkillRequest, ccSkillRequestParam).
+                // A part's skill (ccItemSkillRequest, ccSkillRequestParam).
                 Out::SkillFrom { user, target, skill } => self.item_skill(*user, *target, skill),
                 // ccHitMarkDisp and ccEntryFlyFontNew over the boss: the
                 // effects' as for any character's.
@@ -1290,8 +1054,8 @@ impl Combat {
         let clip = b.base.anm.clip.clone().unwrap_or_default();
         let body = match look.def.body {
             BodyPick::Body => return,
-            BodyPick::ByClip => match clip_body(&look.images, &clip) {
-                Some(x) => x,
+            BodyPick::ByClip => match clip_image(&look.images, &clip) {
+                Some(k) => look.images[k].clone(),
                 None => return,
             },
             BodyPick::Epitaph(start) => match look.images.first() {
@@ -1309,15 +1073,14 @@ impl Combat {
         }
     }
 
-    /// The class's images ([`piney_battle::boss::Shape::images`]: Innis's
+    /// The images the boss keeps ([`boss::Output::figures`]: Innis's
     /// `ccBoss02Slave::Draw` through `ccBoss::Draw`): each the look's image
     /// at its clip, place and turn, at the transparency `Draw` left, while
     /// its `drawSW` holds and it drew.
     fn image_actors(&mut self, b: &Boss, exited: bool) {
         let Some(look) = self.boss.as_ref().map(|r| r.look.clone()) else { return };
-        for f in b.class.shape().images() {
-            let s = f.base;
-            let shown = s.draw_sw != 0 && s.exit == 0 && !exited && s.drawn;
+        for f in &b.output.figures {
+            let shown = f.shown && !exited;
             let Some(body) = look.images.get(f.image).cloned() else { continue };
             let pos = self.scene.chars[f.me].pos;
             let entry = self.cast.actors.entry(f.me);
@@ -1327,20 +1090,20 @@ impl Combat {
                     if !shown {
                         continue;
                     }
-                    let clip = s.anm.clip.clone().unwrap_or_default();
-                    let Some(a) = Actor::new(body.clone(), &clip, Look::Boss, pos, s.dirc, 0, 0) else { continue };
+                    let clip = f.anm.clip.clone().unwrap_or_default();
+                    let Some(a) = Actor::new(body.clone(), &clip, Look::Boss, pos, f.dirc, 0, 0) else { continue };
                     v.insert(a)
                 }
             };
             if !Rc::ptr_eq(&a.ch.body, &body) {
-                let clip = s.anm.clip.clone().unwrap_or_default();
-                if let Some(n) = Actor::new(body.clone(), &clip, Look::Boss, pos, s.dirc, 0, 0) {
+                let clip = f.anm.clip.clone().unwrap_or_default();
+                if let Some(n) = Actor::new(body.clone(), &clip, Look::Boss, pos, f.dirc, 0, 0) {
                     *a = n;
                 }
             }
-            pose(a, &s.anm, pos, s.dirc);
+            pose(a, &f.anm, pos, f.dirc);
             a.drawn = shown;
-            a.alpha = s.transparency;
+            a.alpha = f.alpha;
             a.trans_dist = false;
         }
     }
@@ -1349,24 +1112,19 @@ impl Combat {
     /// gomoras', Magus's leaves, Gorre's brothers, Corbenik's parts, at
     /// their clips, places and turns ([`BossDef::part`]), at their `Alpha`,
     /// while their `drawSW` holds; at the matrix their `PreDrawAnm` set,
-    /// an eye in the flash's blend (`blends`).
-    fn part_actors(&mut self, parts: &[usize], exited: bool, blends: &HashMap<usize, F>) {
+    /// in the fog it set (`blends`).
+    fn part_actors(&mut self, parts: &[usize], exited: bool, blends: &HashMap<usize, crate::chara::foe::FogBlend>) {
         let Some(look) = self.boss.as_ref().map(|r| r.look.clone()) else { return };
         for (k, &p) in parts.iter().enumerate() {
             let Some(pb) = self.scene.chars[p].foe_state().and_then(|f| f.boss.as_ref()) else { continue };
-            let shown = pb.base.draw_sw != 0 && pb.base.exit == 0 && !exited && pb.base.drawn;
+            let drawn = pb.output.body;
+            let shown = drawn.shown && pb.base.exit == 0 && !exited && pb.base.drawn;
             let clip = pb.base.anm.clip.as_deref().unwrap_or_default();
-            let body = match look.def.part {
-                PartBody::ByClip => clip_body(&look.images, clip),
-                PartBody::First => look.images.first().cloned(),
-                PartBody::InOrder => look.images.get(usize::from(k > 0)).cloned(),
-            };
-            let Some(body) = body else { continue };
+            let Some(body) = part_image(&look, k, clip).map(|i| look.images[i].clone()) else { continue };
             let (anm, dirc, alpha) = (pb.base.anm.clone(), pb.base.dirc, pb.base.transparency);
             let pos = self.scene.chars[p].pos;
-            let shape = pb.class.shape();
-            let matrix = shape.matrix(pos, dirc);
-            let again = shape.draws_again() && pb.base.draw_sw != 0 && pb.base.exit == 0 && !exited;
+            let matrix = drawn.matrix;
+            let again = drawn.again && !exited;
             if let Some(r) = self.boss.as_mut() {
                 let prev = r.anm_alpha.insert(p, alpha).unwrap_or(ONE);
                 if again {
@@ -1395,8 +1153,8 @@ impl Combat {
             a.alpha = alpha;
             a.trans_dist = false;
             a.matrix = matrix;
-            if let Some(&rate) = blends.get(&p) {
-                a.ch.blend = crate::chara::foe::FogBlend { rate, colour: super::corbenik::EYE_FLASH }.fog();
+            if let Some(blend) = blends.get(&p) {
+                a.ch.blend = blend.fog();
             }
         }
     }
@@ -1421,12 +1179,17 @@ impl Combat {
 }
 
 /// A boss's parts' bodies in the field's list (Kyvia's gomoras).
-struct PartList<'h, 'w> {
+/// What a boss reaches of the field in its frame ([`boss::Field`]): the
+/// collision list as its parts reach it, the land, its bodies as last
+/// drawn (the cast's actors) and the characters' headings (the spcs').
+struct FieldView<'h, 'w, 'c> {
     hits: &'h RefCell<&'w mut crate::hit::Hits>,
     kite: Option<usize>,
+    actors: &'c std::collections::BTreeMap<usize, Actor>,
+    spc: &'c std::collections::BTreeMap<usize, piney_battle::party_ai::Spc>,
 }
 
-impl boss::PartHits for PartList<'_, '_> {
+impl boss::Field for FieldView<'_, '_, '_> {
     fn switch(&mut self, who: usize, hit: &mut CharHit, on: bool) {
         let mut body = super::spc::to_body(who, self.kite, hit, false);
         self.hits.borrow_mut().set_hit_sw(&mut body, on);
@@ -1447,16 +1210,77 @@ impl boss::PartHits for PartList<'_, '_> {
     fn line(&mut self, sp: V4, ep: V4, mask: u32) -> Option<V4> {
         self.hits.borrow_mut().line(sp, ep, mask, 0).map(|(cp, _)| cp)
     }
+
+    fn node(&mut self, who: usize, name: &str) -> Option<V4> {
+        let a = self.actors.get(&who)?;
+        let m = node_world(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc, name)?;
+        let p = m * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
+        Some([p.x.to_bits(), p.y.to_bits(), p.z.to_bits(), p.w.to_bits()])
+    }
+
+    fn clip_entries(
+        &mut self,
+        who: usize,
+        clip: &str,
+        time: [u32; 2],
+        names: &[&str],
+        out: &mut [Option<(V4, piney_battle::geom::M4)>],
+    ) -> bool {
+        let Some(a) = self.actors.get(&who) else { return false };
+        let body = &a.ch.body;
+        let Some(mut play) = body.play(clip) else {
+            out.fill(None);
+            return true;
+        };
+        (play.time, play.posed) = (time[0], time[1]);
+        let file = &body.file;
+        let root = crate::chara::body::root(a.ch.pos, a.ch.dirc);
+        let poses = file.anims[play.anim].entry_poses_at(play.posed);
+        let found: Vec<_> = play.instances(file, root).into_iter().zip(poses).collect();
+        // An ExtObj copy is its own entry; the last of a name is taken.
+        for (o, name) in out.iter_mut().zip(names) {
+            *o = (found.iter().rev())
+                .find(|(i, _)| file.ccs.object_name(i.entry) == Some(name))
+                .map(|(i, p)| (rows(i.world)[3], rows(p.map_or(glam::Mat4::IDENTITY, |p| p.matrix()))));
+        }
+        true
+    }
+
+    fn dirc(&mut self, who: usize) -> Option<V4> {
+        self.spc.get(&who).map(|s| s.dirc)
+    }
 }
 
 /// Of `bodies`, the clump whose nodes `clip` poses: `ccAnm::SetAnm` takes
 /// the clip's own objects, and its first track's is one of that clump's.
-fn clip_body(bodies: &[Rc<Body>], clip: &str) -> Option<Rc<Body>> {
+fn clip_image(bodies: &[Rc<Body>], clip: &str) -> Option<usize> {
     let poses = |b: &Body| {
         let first = b.anim(clip).and_then(|k| b.file.anims[k].tracks.first());
         first.is_some_and(|t| b.nodes.contains(&t.target))
     };
-    bodies.iter().find(|b| poses(b)).cloned()
+    bodies.iter().position(|b| poses(b))
+}
+
+/// Which of the look's images draws part `k` (of the boss's parts) at
+/// `clip` ([`BossDef::part`]).
+fn part_image(look: &BossLook, k: usize, clip: &str) -> Option<usize> {
+    let k = match look.def.part {
+        PartBody::ByClip => clip_image(&look.images, clip)?,
+        PartBody::First => 0,
+        PartBody::InOrder => usize::from(k > 0),
+    };
+    (k < look.images.len()).then_some(k)
+}
+
+/// The boss camera its def makes (`InitBossCamera` at the transfer, behind
+/// `player`), and what its constructor set on it then (`ctor`).
+fn new_cam(def: CamDef, camera: &mut Camera, player: V4, ctor: &[Out]) -> Option<BossCam> {
+    let CamDef::Transfer(transfer) = def else { return None };
+    let mut cam = BossCam::new(camera, transfer, player);
+    for o in ctor {
+        cam_out(&mut cam, o, camera);
+    }
+    Some(cam)
 }
 
 /// An actor posed as a `ccAnm` left it: its clip (set anew when it
@@ -1502,23 +1326,30 @@ pub(super) fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> 
     }
 }
 
-/// The sword's two trail points (`DMY_xdummy_w01`, `_w02` of the boss's
-/// file) under `OBJ_ex11swd`'s world matrix (`GetObjAdrsF` of the clump),
-/// the body posed by `play` at `pos`, `dirc` (`sceVu0ApplyMatrix`).
-fn sword_points(
-    body: &crate::chara::body::Body,
+/// Two dummies of the boss's file (`points`) under `node`'s world matrix
+/// (`GetObjAdrsF` of the clump), the body posed by `play` at `pos`, `dirc`
+/// (`sceVu0ApplyMatrix`): a sword trail's row.
+fn dummy_points(
+    body: &Body,
     play: &crate::chara::pose::Play,
     pos: V4,
     dirc: V4,
+    node: &str,
+    points: [&str; 2],
 ) -> Option<[V4; 2]> {
-    let sword = body.node("OBJ_ex11swd")?;
-    let m = *body.worlds(play, crate::chara::body::root(pos, dirc)).get(&sword)?;
+    let m = node_world(body, play, pos, dirc, node)?;
     let point = |name: &str| -> Option<V4> {
         let d = body.file.scene.dummies.get(&body.file.ccs.find_object(name)?)?;
         let p = m * glam::Vec4::new(d.pos.x, d.pos.y, d.pos.z, 1.0);
         Some([p.x.to_bits(), p.y.to_bits(), p.z.to_bits(), p.w.to_bits()])
     };
-    Some([point("DMY_xdummy_w01")?, point("DMY_xdummy_w02")?])
+    Some([point(points[0])?, point(points[1])?])
+}
+
+/// Node `name`'s world matrix, the body posed by `play` at `pos`, `dirc`.
+fn node_world(body: &Body, play: &crate::chara::pose::Play, pos: V4, dirc: V4, name: &str) -> Option<glam::Mat4> {
+    let n = body.node(name)?;
+    body.worlds(play, crate::chara::body::root(pos, dirc)).get(&n).copied()
 }
 
 /// `checkCameraShakeRange(pos)` (main 0x00162f10): `pos` in the active
@@ -1537,113 +1368,25 @@ fn shake_range(camera: &Camera, world: &World, pos: V4) -> bool {
     ee::lt(ee::sqrtf_on(camera.volume, ee::dot(dv, dv)), 0x44fa_0000)
 }
 
-/// Where each of Magus's twelve leaves hangs (`OBJ_ex31leaf`,
-/// `OBJ_ex31leaf01`-`11` of x31) on the body posed by `play` at `pos`,
-/// `dirc`; a leaf the model lacks keeps `last`'s.
-fn leaf_points(
-    body: &crate::chara::body::Body,
-    play: &crate::chara::pose::Play,
-    pos: V4,
-    dirc: V4,
-    last: [V4; 12],
-) -> [V4; 12] {
-    let worlds = body.worlds(play, crate::chara::body::root(pos, dirc));
-    std::array::from_fn(|k| {
-        let Some(m) = body.node(&leaf_name("OBJ_ex31leaf", k)).and_then(|n| worlds.get(&n)) else { return last[k] };
-        let p = *m * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
-        [p.x.to_bits(), p.y.to_bits(), p.z.to_bits(), p.w.to_bits()]
-    })
-}
-
-/// The world places of `names`' nodes as the body is posed (each kept from
-/// `last` where the body has none).
-fn node_points<const N: usize>(
-    body: &crate::chara::body::Body,
-    play: &crate::chara::pose::Play,
-    pos: V4,
-    dirc: V4,
-    names: [&str; N],
-    last: [V4; N],
-) -> [V4; N] {
-    let worlds = body.worlds(play, crate::chara::body::root(pos, dirc));
-    std::array::from_fn(|k| {
-        let Some(m) = body.node(names[k]).and_then(|n| worlds.get(&n)) else { return last[k] };
-        let p = *m * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
-        [p.x.to_bits(), p.y.to_bits(), p.z.to_bits(), p.w.to_bits()]
-    })
-}
-
-/// Magus's laser's clip, whose objects are the shocks.
-const MAGUS_LASER: &str = "ANM_ex31atc2";
-
 /// A matrix in the EE's rows (x, y, z axes, the place).
 fn rows(m: glam::Mat4) -> piney_battle::geom::M4 {
     let row = |v: glam::Vec4| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits(), v.w.to_bits()];
     [row(m.x_axis), row(m.y_axis), row(m.z_axis), row(m.w_axis)]
 }
 
-/// The entry `name` of the body's animation `play` (an ExtObj copy is its
-/// own; the last of that name) under `root`: its place and its own matrix.
-fn anm_object(body: &Body, play: &crate::chara::pose::Play, root: glam::Mat4, name: &str) -> Option<(V4, glam::Mat4)> {
-    let file = &body.file;
-    let poses = file.anims[play.anim].entry_poses_at(play.posed);
-    let found = play.instances(file, root).into_iter().zip(poses).rev();
-    let (i, p) = found.into_iter().find(|(i, _)| file.ccs.object_name(i.entry) == Some(name))?;
-    Some((rows(i.world)[3], p.map_or(glam::Mat4::IDENTITY, |p| p.matrix())))
+/// An EE matrix (its rows) as glam's.
+fn mat4(m: &piney_battle::geom::M4) -> glam::Mat4 {
+    glam::Mat4::from_cols_array_2d(&m.map(|r| r.map(f32::from_bits)))
 }
 
-/// Magus's twelve shocks (`OBJ_ex31les00`-`55` of [`MAGUS_LASER`]) as the
-/// laser finds them: the clip one step on from the boss's anm (from frame
-/// 0 when another clip plays, as `SetupLaserShock` follows `SetAnm` and a
-/// step), the body at its last place `at`. Each shock's place, and where
-/// its beam (`magus::shock_beam`, turned by its leaf of the other parity
-/// and Magus's heading `dirc`) meets the land (`ccHitCheckLM`, 0x20000000).
-fn magus_shocks(
-    body: &Body,
-    mut anm: boss::Anm,
-    clips: &dyn Fn(&str) -> Option<(u32, bool)>,
-    at: (V4, V4),
-    dirc: V4,
-    hits: &mut crate::hit::Hits,
-) -> [(V4, Option<V4>); 12] {
-    if anm.clip.as_deref() != Some(MAGUS_LASER) {
-        anm.set(MAGUS_LASER, clips);
-    }
-    anm.forward();
-    let play = body.play(MAGUS_LASER).map(|mut p| {
-        (p.time, p.posed) = (anm.time, anm.posed);
-        p
-    });
-    let root = crate::chara::body::root(at.0, at.1);
-    std::array::from_fn(|k| {
-        let found = play.as_ref().and_then(|p| {
-            let (a, _) = anm_object(body, p, root, &format!("OBJ_ex31les{:02}", 5 * k))?;
-            let (_, leaf) = anm_object(body, p, root, &leaf_name("OBJ_ex31leaf", k ^ 1))?;
-            Some((a, leaf))
-        });
-        let Some((a, leaf)) = found else { return (ee::VF0, None) };
-        let end = boss::magus::shock_beam(a, &rows(leaf), dirc);
-        (a, hits.line(a, end, 0x2000_0000, 0).map(|(cp, _)| cp))
-    })
-}
-
-/// The entries of `play` the dropped leaves `leaves` hide: each one's
-/// `EXT_ex31leaf*` (the ExtObj `OBJ_ex31leafNN`) and its light
-/// (`OBJ_ex31lighNN`, paired with the leaves in the search's order).
-pub fn dropped_objects(body: &Body, play: &crate::chara::pose::Play, leaves: &[usize]) -> Vec<u32> {
-    if leaves.is_empty() {
+/// The entries of `play` whose objects `names` are: what a draw hides.
+pub fn objects_named(body: &Body, play: &crate::chara::pose::Play, names: &[&str]) -> Vec<u32> {
+    if names.is_empty() {
         return Vec::new();
     }
-    let names: Vec<String> =
-        leaves.iter().flat_map(|&k| [leaf_name("OBJ_ex31leaf", k), leaf_name("OBJ_ex31ligh", k)]).collect();
     let file = &body.file;
     let entries = file.anims[play.anim].objects.iter().map(|&(e, _)| e);
-    entries.filter(|&e| file.ccs.object_name(e).is_some_and(|n| names.iter().any(|m| m == n))).collect()
-}
-
-/// Leaf `k`'s object of a kind: `OBJ_ex31leaf`, `OBJ_ex31leaf01`-`11`.
-fn leaf_name(stem: &str, k: usize) -> String {
-    if k == 0 { stem.to_string() } else { format!("{stem}{k:02}") }
+    entries.filter(|&e| file.ccs.object_name(e).is_some_and(|n| names.contains(&n))).collect()
 }
 
 /// What a boss asks of its camera beside the frame's moves: a mode with a
@@ -1655,6 +1398,7 @@ fn cam_out(c: &mut BossCam, o: &Out, camera: &mut Camera) {
         Out::CamRotXLimit(v) => c.set_rot_x_limit(*v),
         Out::CamPitch { add, v } => c.xrot = if *add { ee::add(c.xrot, *v) } else { *v },
         Out::CamMaxRange(v) => c.max_range = *v,
+        Out::CamLift(v) => c.lift = *v,
         Out::CamSway(on) => c.zrot_control = *on,
         _ => {}
     }
@@ -1667,6 +1411,8 @@ pub fn above(pos: V4, dz: f32) -> V4 {
 
 #[cfg(test)]
 mod tests {
+    use piney_battle::boss::defs;
+
     use super::*;
 
     /// `ccBoss08`'s first form on [`BOSS08_HEAP_EXIT`]: the manager's own
@@ -1706,12 +1452,18 @@ mod tests {
     /// `SetupSkillName` reads `TEX_kbi_skl` from the field's x01 or x02.
     #[test]
     fn kyvias_attacks_have_their_names_on_the_disc() {
-        for (name, v, code, field, want) in [
-            ("mutation", piney_data::volume::Volume::Mut, KYVIA, 9, &[(32, 0), (33, 1), (34, 2)][..]),
-            ("outbreak", piney_data::volume::Volume::Out, KYVIA_SECOND, 10, &[(36, 1), (37, 0), (38, 2), (46, 8)][..]),
+        for (name, v, def, field, want) in [
+            ("mutation", piney_data::volume::Volume::Mut, defs::KYVIA, 9, &[(32, 0), (33, 1), (34, 2)][..]),
+            (
+                "outbreak",
+                piney_data::volume::Volume::Out,
+                defs::KYVIA_SECOND,
+                10,
+                &[(36, 1), (37, 0), (38, 2), (46, 8)][..],
+            ),
         ] {
             let Some(a) = disc(name) else { continue };
-            let look = BossLook::load(&a, code, v, field).unwrap();
+            let look = BossLook::load(&a, def.code.unwrap(), v, field).unwrap();
             for &(n, row) in want {
                 assert_eq!(look.names.get(&n).map(|c| c.row), Some(row), "{name}: cinema {n}");
             }
@@ -1721,14 +1473,15 @@ mod tests {
     #[test]
     fn fidchells_skills_have_their_names_in_field_4() {
         let Some(a) = outbreak() else { return };
-        let look = BossLook::load(&a, FIDCHELL, piney_data::volume::Volume::Out, 4).unwrap();
+        let fidchell = defs::FIDCHELL.code.unwrap();
+        let look = BossLook::load(&a, fidchell, piney_data::volume::Volume::Out, 4).unwrap();
         let mut sids: Vec<i32> = look.skill_names.keys().copied().collect();
         sids.sort();
         assert_eq!(sids, [157, 158, 160, 203, 219, 227, 259]);
         let rows: Vec<i32> =
             look.skill_names.values().map(|n| n.row).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
         assert_eq!(rows, (8..=14).collect::<Vec<_>>());
-        let elsewhere = BossLook::load(&a, FIDCHELL, piney_data::volume::Volume::Out, 3).unwrap();
+        let elsewhere = BossLook::load(&a, fidchell, piney_data::volume::Volume::Out, 3).unwrap();
         assert!(elsewhere.skill_names.is_empty());
     }
 }

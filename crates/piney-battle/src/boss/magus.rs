@@ -43,6 +43,54 @@ pub const ROW: usize = 2;
 pub const LEAF_ROW: usize = 11;
 /// `slaveNum[0]`: the leaves.
 pub const LEAVES: usize = 12;
+/// The leaves' objects on the body (`OBJ_ex31leaf`, `OBJ_ex31leaf01`-`11`
+/// of x31) and their lights (`OBJ_ex31ligh*`, paired with the leaves in
+/// the search's order).
+pub const LEAF_OBJS: [&str; LEAVES] = [
+    "OBJ_ex31leaf",
+    "OBJ_ex31leaf01",
+    "OBJ_ex31leaf02",
+    "OBJ_ex31leaf03",
+    "OBJ_ex31leaf04",
+    "OBJ_ex31leaf05",
+    "OBJ_ex31leaf06",
+    "OBJ_ex31leaf07",
+    "OBJ_ex31leaf08",
+    "OBJ_ex31leaf09",
+    "OBJ_ex31leaf10",
+    "OBJ_ex31leaf11",
+];
+pub const LIGHT_OBJS: [&str; LEAVES] = [
+    "OBJ_ex31ligh",
+    "OBJ_ex31ligh01",
+    "OBJ_ex31ligh02",
+    "OBJ_ex31ligh03",
+    "OBJ_ex31ligh04",
+    "OBJ_ex31ligh05",
+    "OBJ_ex31ligh06",
+    "OBJ_ex31ligh07",
+    "OBJ_ex31ligh08",
+    "OBJ_ex31ligh09",
+    "OBJ_ex31ligh10",
+    "OBJ_ex31ligh11",
+];
+/// The laser's clip, and its objects that are the shocks
+/// (`OBJ_ex31les00`-`55`, every fifth).
+const LASER_CLIP: &str = "ANM_ex31atc2";
+const SHOCK_OBJS: [&str; LEAVES] = [
+    "OBJ_ex31les00",
+    "OBJ_ex31les05",
+    "OBJ_ex31les10",
+    "OBJ_ex31les15",
+    "OBJ_ex31les20",
+    "OBJ_ex31les25",
+    "OBJ_ex31les30",
+    "OBJ_ex31les35",
+    "OBJ_ex31les40",
+    "OBJ_ex31les45",
+    "OBJ_ex31les50",
+    "OBJ_ex31les55",
+];
 /// `bossBlur`'s colours: the constructor's and the rise's.
 pub const BLUR: u32 = 0x4880_8080;
 pub const BLUR_RISE: u32 = 0x6080_8080;
@@ -119,26 +167,21 @@ pub struct Shock {
 }
 
 /// What Magus shows that the rules do not keep, for the runtime.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Pic {
     /// A particle generator started: which, where, and who keeps it.
     Particles { which: Gen, at: Place, held: Option<Held> },
     /// What the fight does to a generator it keeps.
     Gen { held: Held, op: super::GenOp },
-    /// Shocks 0 to `upto` drawn this frame (`ccBoss03LaserShock::Draw`).
-    Shocks { upto: usize },
+    /// The shocks drawn this frame (`ccBoss03LaserShock::Draw`) whose beams
+    /// met the ground: where, at the transparency their `Draw` left.
+    Shocks { shocks: Vec<(V4, F)> },
     /// A shock's burst where its beam met the ground: two
     /// `ccParticleExplode` and `effSmokeRock`, turned by `turn`
     /// (`ccRandF(pi)`) about z.
-    ShockBurst { shock: usize, turn: F },
-    /// `EntryAfterImageAnm` of leaf `leaf` (its slave number; its blink)
-    /// at its anm's `frameNow`.
-    LeafAfterImage { leaf: usize, frame: i32 },
+    ShockBurst { at: V4, turn: F },
     /// `ccEnemyEffDust(pos, 30, 4.0)`: a leaf lands.
     Dust { pos: V4 },
-    /// `OnThinkCountDown`'s number over leaf `leaf` (its character): the
-    /// seconds left, `(m_expCntr + 29) / 30`.
-    Count { leaf: usize, n: i32 },
 }
 
 /// Magus's particle generators, by where the game makes them: a leaf's
@@ -370,35 +413,37 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     // SetPatternTbl(boss03EpitaphActTbl): its index 0.
     b.pat_index = 0;
     x.reserve_leaf_drop = 1;
-    Boss { base: b, class: Class::Magus(Box::new(x)) }
+    Boss::of(&crate::boss::defs::MAGUS, b, Class::Magus(Box::new(x)))
 }
 
 // --- the frame --------------------------------------------------------------------------------
 
-impl crate::boss::Shape for Magus {
-    fn wave(&self) -> Option<&crate::boss::Anm> {
-        Some(&self.anm_w)
-    }
-
-    fn parts(&self, _scene: &crate::scene::Scene) -> Vec<usize> {
-        self.leaves.clone()
-    }
-
-    /// The leaves dropped (`m_bDrop`), unless in the Epitaph
-    /// (`ccBoss03::PreDrawAnm` 0x004a0a90 and 0x0049e7f0).
-    fn hidden(&self, scene: &crate::scene::Scene) -> Vec<usize> {
-        if self.epitaph != 0 {
-            return Vec::new();
-        }
-        let dropped = |c: usize| match scene.chars[c].foe_state().and_then(|f| f.boss.as_deref()) {
+impl crate::boss::BossClass for Magus {
+    /// The wave as posed and the leaves; the dropped leaves' objects and
+    /// lights (`m_bDrop`) hidden, unless in the Epitaph (`ccBoss03::
+    /// PreDrawAnm` 0x004a0a90 and 0x0049e7f0) or the grow (act 26); act 8's
+    /// after-image callback (0x0049e7c0) hides them likewise.
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = crate::boss::BodyDraw {
+            pos: cx.scene.chars[cx.me].pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            ..crate::boss::BodyDraw::default()
+        };
+        out.wave = Some(self.anm_w.posed);
+        out.parts.extend_from_slice(&self.leaves);
+        let dropped = |c: usize| match cx.scene.chars[c].foe_state().and_then(|f| f.boss.as_deref()) {
             Some(Boss { class: Class::MagusLeaf(l), .. }) => l.drop != 0,
             _ => false,
         };
-        self.leaves.iter().enumerate().filter(|&(_, &c)| dropped(c)).map(|(k, _)| k).collect()
+        if self.epitaph == 0 && b.act_num != act::LEAF_GROW {
+            for (k, _) in self.leaves.iter().enumerate().filter(|&(_, &c)| dropped(c)) {
+                out.hidden.extend([LEAF_OBJS[k], LIGHT_OBJS[k]]);
+            }
+        }
+        out.hidden_in_images = b.act_num == act::TO_CENTRE;
     }
-}
 
-impl crate::boss::BossClass for Magus {
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);
     }
@@ -409,6 +454,7 @@ impl crate::boss::BossClass for Magus {
 
 /// `ccThBossEffect`'s pass and `ccBoss03::Main` (0x0049f580).
 pub(super) fn main(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
+    read_body(b, x, cx);
     let mut ls = Leaves::take(cx, &x.leaves);
     manager_pass(b, cx);
     if matches!(b.act_num, act::RETURN | act::WANDER | act::STOP | act::EPITAPH | act::NEUTRAL) {
@@ -481,6 +527,44 @@ fn mov(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     ch.pos = pos;
 }
 
+/// What the frame reads of the body as it was last drawn: where each leaf
+/// hangs (`OBJ_ex31leafNN`'s world place, which a leaf's `Init` reads;
+/// one the model lacks kept), and in the laser the shocks as
+/// `SetupLaserShock` and `PreDrawAnm` find them: the clip one step on from
+/// the body's anm (from frame 0 under another clip, as `SetupLaserShock`
+/// follows `SetAnm` and a step), each shock's place and where its beam,
+/// turned by its leaf of the other parity, meets the land.
+fn read_body(b: &BossBase, x: &mut Magus, cx: &mut Cx) {
+    let me = cx.me;
+    for (k, name) in LEAF_OBJS.iter().enumerate() {
+        if let Some(p) = cx.field.node(me, name) {
+            x.leaf_pos[k] = p;
+        }
+    }
+    if b.act_num != act::LASER {
+        return;
+    }
+    let mut anm = b.anm.clone();
+    if anm.clip.as_deref() != Some(LASER_CLIP) {
+        anm.set(LASER_CLIP, cx.clips);
+    }
+    anm.forward();
+    let names: [&str; 2 * LEAVES] =
+        std::array::from_fn(|k| if k < LEAVES { SHOCK_OBJS[k] } else { LEAF_OBJS[k - LEAVES] });
+    let mut found = [None; 2 * LEAVES];
+    if !cx.field.clip_entries(me, LASER_CLIP, [anm.time, anm.posed], &names, &mut found) {
+        return;
+    }
+    for k in 0..LEAVES {
+        let (Some((a, _)), Some((_, leaf))) = (found[k], found[LEAVES + (k ^ 1)]) else {
+            (x.shock_pos[k], x.shock_at[k]) = (VF0, None);
+            continue;
+        };
+        let end = shock_beam(a, &leaf, b.dirc);
+        (x.shock_pos[k], x.shock_at[k]) = (a, cx.field.line(a, end, 0x2000_0000));
+    }
+}
+
 /// `ccBoss03::PreDrawAnm` (0x004a08c0): the clip forward (not in the
 /// laser's second step), and in its third the shocks' beams by the clip's
 /// frame.
@@ -490,18 +574,24 @@ fn pre_draw_anm(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     }
     if b.act_num == act::LASER && b.act_proccess == 2 && b.anm.frame() >= 100 {
         let n = (((b.anm.frame() - 100) as u32 / 15) * 2).min(11) as usize;
-        cx.out(Out::Magus(Pic::Shocks { upto: n }));
+        // Asked before their bursts, with what their draws leave.
+        let at = cx.out.len();
+        cx.out(Pic::Shocks { shocks: Vec::new() });
         for k in 0..=n {
             shock_draw(x, k, cx);
         }
+        let shocks = (0..=n).filter_map(|k| Some((x.shock_at[k]?, x.shocks[k].transparency))).collect();
+        cx.out[at] = Pic::Shocks { shocks }.into();
     }
 }
 
 /// `ccBoss03LaserShock::Draw` (0x004a7630) as far as the rules go
 /// ([`Shock::draw`]), its burst shown.
 fn shock_draw(x: &mut Magus, k: usize, cx: &mut Cx) {
-    if let Some(turn) = x.shocks[k].draw(x.shock_at[k].is_some(), cx.cc) {
-        cx.out(Out::Magus(Pic::ShockBurst { shock: k, turn }));
+    if let Some(turn) = x.shocks[k].draw(x.shock_at[k].is_some(), cx.cc)
+        && let Some(at) = x.shock_at[k]
+    {
+        cx.out(Pic::ShockBurst { at, turn });
     }
 }
 
@@ -1632,7 +1722,7 @@ fn on_laser(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
                 setup_laser_shock(x);
                 for k in 0..LEAVES {
                     let at = Place::At(x.shock_pos[k]);
-                    cx.out(Out::Magus(Pic::Particles { which: Gen::Thunder, at, held: None }));
+                    cx.out(Pic::Particles { which: Gen::Thunder, at, held: None });
                 }
                 cx.out(Out::Se { se: 68 });
             } else if b.act_count == 40 {

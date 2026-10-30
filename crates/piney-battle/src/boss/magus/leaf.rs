@@ -88,6 +88,21 @@ impl Explode {
     }
 }
 
+/// A leaf's blink (`ccBoss03Leaf` +0x29660, set in its constructor
+/// 0x004a4c64): colour 0x005050ff at `colorAlpha` 100, transparency 0.5
+/// by -1/60, its scale from 1 to (1, 4, 2) over 30 draws.
+pub const BLINK: crate::boss::AfterImageParams = crate::boss::AfterImageParams {
+    color: 0x0050_50ff,
+    color_alpha: 0x42c8_0000,
+    color_spd: 0,
+    max_frame: 0,
+    transparency: 0x3f00_0000,
+    trans_spd: 0xbc88_8889,
+    ss: [ONE, ONE, ONE, ONE],
+    es: [ONE, 0x4080_0000, 0x4000_0000, ONE],
+    scale_time: 0x41f0_0000,
+};
+
 /// `ccBoss03Leaf`'s own members (+0x29350 on) and its `ccBoss` links.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Leaf {
@@ -144,7 +159,7 @@ pub(super) fn new(cx: &mut Cx, k: i32) -> usize {
     // The marker (a ccAnimateObject) starts opaque.
     let x = Leaf { master: cx.me, slave_id: k, marker_alpha: ONE, ..Leaf::default() };
     if let Some(f) = cx.scene.chars[me].foe_state_mut() {
-        f.boss = Some(Box::new(Boss { base: b, class: Class::MagusLeaf(Box::new(x)) }));
+        f.boss = Some(Box::new(Boss::of(&crate::boss::defs::LEAF, b, Class::MagusLeaf(Box::new(x)))));
     }
     me
 }
@@ -312,18 +327,18 @@ fn marker_off(x: &mut Leaf, me: usize, cx: &mut Cx) {
 /// cleared.
 fn marker_pause(me: usize, on: bool, cx: &mut Cx) {
     for j in 0..2 {
-        cx.out(Out::Magus(Pic::Gen { held: Held::Marker(me, j), op: GenOp::Pause(on) }));
+        cx.out(Pic::Gen { held: Held::Marker(me, j), op: GenOp::Pause(on) });
     }
 }
 
 /// The grow's charge killed (`ccCheckParticleGenerator`, `ParticleKill`).
 fn charge_kill(me: usize, cx: &mut Cx) {
-    cx.out(Out::Magus(Pic::Gen { held: Held::Charge(me), op: GenOp::Kill }));
+    cx.out(Pic::Gen { held: Held::Charge(me), op: GenOp::Kill });
 }
 
 /// A leaf's generator started.
 fn particles(cx: &mut Cx, which: Gen, at: Place, held: Option<Held>) {
-    cx.out(Out::Magus(Pic::Particles { which, at, held }));
+    cx.out(Pic::Particles { which, at, held });
 }
 
 /// `Order(n)` (0x004a6780): 24 fall, 25 the countdown again, 26 burst, 27
@@ -429,7 +444,7 @@ fn on_drop(p: &mut Part<Leaf>, cx: &mut Cx) {
     ch.pos_p = pp;
     let clip = if p.x.slave_id & 1 != 0 { "ANM_ex31lea1" } else { "ANM_ex31lea0" };
     p.b.base.anm.set(clip, cx.clips);
-    cx.out(Out::Magus(Pic::Dust { pos }));
+    cx.out(Pic::Dust { pos });
     cx.out(Out::Se3dNote { se: 56, pos, note: 72 });
     if p.x.marker_init {
         p.x.marker_forbid = 0;
@@ -468,7 +483,7 @@ fn on_count_down(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, c
     let me = ls.0[k].me;
     let x = &mut ls.0[k].x;
     let n = ee::to_int(ee::div(ee::from_int(x.exp_cntr + 29), 0x41f0_0000));
-    cx.out(Out::Magus(Pic::Count { leaf: me, n }));
+    cx.out(Out::Count { at: crate::boss::Spot::Char(me), n });
     x.marker_pos = cx.scene.chars[me].pos;
     x.marker_alpha = ee::div(x.exp_alpha, 0x42c8_0000);
 }
@@ -487,7 +502,7 @@ fn count_down(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: 
     if check_blink(x) {
         let t = ((u64::from((x.exp_cntr as u32).wrapping_mul(30)) * 0x91a2_b3c5) >> 32) as u32 >> 8;
         set_blink_time(x, t as i32);
-        cx.out(Out::Magus(Pic::LeafAfterImage { leaf: k, frame: p.b.base.anm.frame() }));
+        cx.out(Out::AfterImagePart { who: p.me, frame: p.b.base.anm.frame(), params: BLINK });
     }
     if x.blink_base_time != 0 {
         let base = ee::from_int(x.blink_base_time);
@@ -581,6 +596,21 @@ fn dead_effect(mb: &mut BossBase, dirc: V4, cx: &mut Cx) {
 // --- Affect ------------------------------------------------------------------------------------
 
 impl crate::boss::BossClass for Leaf {
+    /// Its marker's place, which its generator follows, and its burst while
+    /// it bursts (act 21, its `PreDrawAnm`).
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = crate::boss::BodyDraw {
+            pos: cx.scene.chars[cx.me].pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            ..crate::boss::BodyDraw::default()
+        };
+        out.follow.push((crate::boss::Follow::Marker(cx.me), self.marker_pos));
+        if b.act_num == act::FIRE {
+            out.explodes.push(self.exp);
+        }
+    }
+
     fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
         affect(b, cx);
     }

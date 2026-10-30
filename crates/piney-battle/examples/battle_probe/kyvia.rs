@@ -10,8 +10,10 @@
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::kyvia::core::Core;
 use piney_battle::boss::kyvia::gomora::Gomora;
-use piney_battle::boss::kyvia::{Fight, Follow, Gen, GenOp, Held, Kyvia, Place};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, DiscView, EffKind, FadeView, Fx, Out, PartHits};
+use piney_battle::boss::kyvia::{Fight, Gen, GenOp, Held, Kyvia, Place};
+use piney_battle::boss::{
+    Boss, BossData, BossEnv, CamView, Class, Cx, DiscView, EffKind, FadeView, Field, Follow, Fx, FxCall, Out, Picture,
+};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::{Event, Events, Who};
@@ -231,7 +233,7 @@ impl HitList {
 
 struct Shared<'l>(&'l RefCell<HitList>);
 
-impl PartHits for Shared<'_> {
+impl Field for Shared<'_> {
     fn switch(&mut self, who: usize, hit: &mut CharHit, on: bool) {
         let mut l = self.0.borrow_mut();
         if on && !hit.sw {
@@ -369,7 +371,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
-        part_hits: &mut Shared(&list),
+        field: &mut Shared(&list),
         game_over: false,
         boss_cam: true,
         cam: view(0, 0, [0; 4]),
@@ -491,7 +493,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
             cc: &mut cc,
             clips: &clip,
             collide: &mut body_push,
-            part_hits: &mut Shared(&list),
+            field: &mut Shared(&list),
             game_over: false,
             boss_cam: true,
             cam: view(f, cam.reset, cam.pos),
@@ -655,6 +657,7 @@ fn gen_json(which: Gen, at: &Place, held: Option<Held>) -> String {
                 Follow::Plasma(k) => format!("[\"plasma\",{k}]"),
                 Follow::Plasma2(k) => format!("[\"plasma2\",{k}]"),
                 Follow::Soul(k) => format!("[\"soul\",{k}]"),
+                Follow::Marker(c) => format!("[{},\"marker\"]", role(c)),
             };
             format!("[\"follow\",{f},{}]", v3(&off))
         }
@@ -698,8 +701,8 @@ fn paused(h: Held) -> String {
 
 fn kout(o: &Out) -> Option<String> {
     Some(match o {
-        Out::KyviaParticles { which, at, held } => gen_json(*which, at, *held),
-        Out::KyviaGen { held, op } => return gen_op_json(*held, *op),
+        Out::Fx(FxCall::KyviaParticles { which, at, held }) => gen_json(*which, at, *held),
+        Out::Fx(FxCall::KyviaGen { held, op }) => return gen_op_json(*held, *op),
         Out::SkillFrom { skill, .. } => format!("[\"skill\",{}]", skill.sid),
         Out::SkillStart { sid, .. } => format!("[\"skill_start\",{sid}]"),
         Out::DiscNextStage => "[\"disc_next\"]".into(),
@@ -717,7 +720,9 @@ fn kout(o: &Out) -> Option<String> {
         Out::FieldBodyHit { n, on } => format!("[\"gate\",{n},{}]", u8::from(*on)),
         Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) | Out::CamSway(_) => return None,
         // DrawParts(anmw, 0) at the arm's frame (its place is tesPOS).
-        Out::DrawAnm { time, .. } | Out::Wave { time, .. } => format!("[\"draw_parts\",{},0]", time >> 8),
+        Out::Picture(Picture::Anm { time, .. }) | Out::Wave { time, .. } => {
+            format!("[\"draw_parts\",{},0]", time >> 8)
+        }
         Out::AfterImageAnm { frame, pos, dirc, params: e, .. } => format!(
             "[\"afterimage_anm\",{frame},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]",
             v3(pos),

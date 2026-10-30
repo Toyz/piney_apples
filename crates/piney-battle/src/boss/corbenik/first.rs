@@ -156,7 +156,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     x.seeds = Parts::take(cx, &x.seed_me);
     set_pattern_mode(&mut b, &mut x, cx, 0);
     x.seeds.put(cx);
-    Boss { base: b, class: Class::Corbenik(x) }
+    Boss::of(&crate::boss::defs::CORBENIK, b, Class::Corbenik(x))
 }
 
 /// `SetPatternMode(m)` (0x003adc30): mode 0 the normal table (any other a
@@ -172,19 +172,52 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut First, cx: &mut Cx, m: i32) {
 
 // --- the frame -----------------------------------------------------------------------------
 
-impl crate::boss::Shape for First {
-    fn parts(&self, _scene: &crate::scene::Scene) -> Vec<usize> {
-        self.seed_me.to_vec()
-    }
-}
-
 impl crate::boss::BossClass for First {
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = crate::boss::BodyDraw {
+            pos: cx.scene.chars[cx.me].pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            ..crate::boss::BodyDraw::default()
+        };
+        out.parts.extend(self.seed_me);
+    }
+
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);
     }
+
+    fn next(&mut self, b: &mut BossBase, cx: &mut Cx) -> Option<Boss> {
+        (b.exit != 0).then(|| next_form(b, self, cx)).flatten()
+    }
+
     fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
         affect(b, self, cx);
     }
+}
+
+/// `ccThBoss08` past the first form's exit (QUA gcmn 0x003acaf8): the
+/// menu's forbid, `forbidChatExcept` and `cursolOff` cleared, the flash
+/// (`EntryFlash(30, 0x80e0ffff)`), the first form deleted (its seeds with
+/// it: off the lists, their bosses gone) and the second made
+/// (`ccThBoss08b_Main`) on the same character with the manager's effects,
+/// at Kite. None without Kite.
+fn next_form(b: &mut BossBase, x: &First, cx: &mut Cx) -> Option<Boss> {
+    let kite = cx.world.player?;
+    cx.out(Out::MenuForbid { on: false, chat_except: false });
+    cx.out(Out::CursorOff(false));
+    cx.out(Out::Flash { t: 30, colour: 0x80e0_ffff });
+    for &k in &x.seed_me {
+        cx.scene.ene_list.retain(|&c| c != k);
+        if let Some(f) = cx.scene.chars[k].foe_state_mut() {
+            f.boss = None;
+        }
+        cx.out(Out::PartRemoved(k));
+    }
+    cx.out(Out::Remade);
+    let (kite_pos, kite_dirc) = (cx.scene.chars[kite].pos, cx.field.dirc(kite).unwrap_or_default());
+    let effects = std::mem::take(&mut b.effects);
+    Some(super::second::new(cx, kite_pos, kite_dirc, b.center_pos, effects))
 }
 
 /// The effect manager's pass, then `ccBoss08::Main` (0x003ad000):
@@ -390,8 +423,8 @@ fn on_wave(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
             }
             let pos = cx.pos();
             cx.out(Out::Se3d { se: 228, pos });
-            cx.out(Out::Corbenik(Pic::Particles { which: Gen::WaveRing, pos }));
-            cx.out(Out::Corbenik(Pic::Particles { which: Gen::WaveSquare, pos }));
+            cx.out(Pic::Particles { which: Gen::WaveRing, pos });
+            cx.out(Pic::Particles { which: Gen::WaveSquare, pos });
             b.erase_cmnd_target(cx);
             b.act_count = 0;
             b.act_proccess += 1;
@@ -516,7 +549,7 @@ fn on_seed(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
         if b.act_proccess == 0 {
             let mut p = pos;
             p[2] = ee::add(p[2], 0x43fa_0000);
-            cx.out(Out::Corbenik(Pic::Particles { which: Gen::SeedShot, pos: p }));
+            cx.out(Pic::Particles { which: Gen::SeedShot, pos: p });
         }
         b.act_proccess += 1;
     }

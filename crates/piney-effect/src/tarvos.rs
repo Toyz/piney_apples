@@ -106,8 +106,6 @@ pub fn calls(ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, kept: &mut Kept, me
                 b.anim.offset[2] = ee::add(b.anim.offset[2], 0x42a0_0000);
             }
         }
-        // The waves and the fog: the field's.
-        Pic::Fog { .. } => {}
     }
 }
 

@@ -11,7 +11,6 @@ pub mod boss;
 pub mod breath;
 pub mod cast;
 pub mod chat;
-pub mod corbenik;
 pub mod dust;
 pub mod gate_out;
 pub mod ride;

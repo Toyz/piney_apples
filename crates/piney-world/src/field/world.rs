@@ -3104,13 +3104,13 @@ impl FieldWorld {
         let springs = &self.combat.spring_lights;
         let rays = &self.combat.rad_lights;
         let flashes = &self.combat.weapons.lights;
-        let macha = self.combat.boss.as_ref().and_then(|r| r.light);
+        let boss_light = self.combat.boss.as_ref().and_then(|r| r.light);
         if extra.is_empty()
             && symbols.is_empty()
             && springs.is_empty()
             && rays.is_empty()
             && flashes.is_empty()
-            && macha.is_none()
+            && boss_light.is_none()
         {
             return std::borrow::Cow::Borrowed(self.place.lights());
         }
@@ -3124,8 +3124,9 @@ impl FieldWorld {
             l.lights.insert(0, omni_light(o));
         }
         l.lights.extend(extra);
-        if let Some(p) = macha {
-            l.lights.insert(0, macha_light(p));
+        // The boss's own (Macha's light ball's).
+        if let Some(o) = &boss_light {
+            l.lights.insert(0, omni_light(o));
         }
         std::borrow::Cow::Owned(l)
     }
@@ -3180,14 +3181,14 @@ impl FieldWorld {
                     anm_draw(ctx, draw::EFF_LAYER, &a.clip, a.time, root, a.transparency, fog);
                     continue;
                 }
-                combat::boss::Image::Leaf => run.look.images.first(),
+                combat::boss::Image::Look(k) => run.look.images.get(k),
                 combat::boss::Image::Boss => Some(&run.look.body),
             };
             let Some(body) = body else { continue };
             let Some(mut p) = body.play(&a.clip) else { continue };
             (p.time, p.posed) = (a.time, a.time);
             if a.image == combat::boss::Image::Boss {
-                p.hidden = combat::boss::dropped_objects(body, &p, &run.dropped);
+                p.hidden = combat::boss::objects_named(body, &p, &run.dropped);
             }
             let fog = fog.map_or(draw::Fogging::None, draw::Fogging::Const);
             body.draw_fog(
@@ -3203,10 +3204,8 @@ impl FieldWorld {
                 fog,
             );
         }
-        // The boss's pictures: Corbenik's (x81's and xeffect's: the barrier
-        // object at the body's OBJ_ex8body2 or its hit clip, the press's
-        // images, the elements, the drain's root, the lasers' segments and
-        // heads), Kyvia's arm, Macha's light ball, Innis's mirrors' shards.
+        // The boss's pictures: the shard clumps it drew, the objects and
+        // clips it asked ([`Out::Picture`]), its parts' clips drawn again.
         let rows = std::collections::HashMap::new();
         for s in &run.pictures {
             use combat::boss::Picture;
@@ -3290,12 +3289,12 @@ impl FieldWorld {
         if run.reverse {
             ctx.layers.prepend(REVERSE_LAYER, vec![reverse_packet()]);
         }
-        // Fidchell's prediction (OnThinkPrediction's step 3): its ccAnm on
-        // its own layer, on sysLayer's view through the animation's own
-        // camera, no depth test.
-        if let Some((_, a)) = run.pred_text.as_ref().filter(|_| run.text_shown) {
+        // A clip on its own layer (Fidchell's prediction): its ccAnm on
+        // sysLayer's view through the animation's own camera, no depth
+        // test.
+        if let Some((_, layer, a)) = run.text.as_ref().filter(|_| run.text_shown) {
             let view = ctx.view.clone();
-            a.draw_on(ctx, combat::boss::PRED_TEXT_LAYER, &view);
+            a.draw_on(ctx, *layer, &view);
         }
         // The cinema's bars and name (ccBossEffManager::Draw's last step).
         let cinema = run.cinema.packets(&run.cinema_sent);
@@ -4038,23 +4037,6 @@ fn symbol_light(p: V4, intensity: F) -> crate::town::Light {
 /// A spring's or the rays' `ccOmniLight` (`ccLight(4, 1)`) as its frame
 /// left it: at its matrix's place, `ccSetColor`'s RGB (red the low byte,
 /// each over 255), its intensity and fall-off.
-/// Macha's light ball's light (`OnThinkLightBall` step 0): `ccLight(4,
-/// 1)`, white (`ccSetColor(0x00ffffff, 1.0)`), intensity 1, full to 0 and
-/// gone at 500 (`farDownEnd2` 250000).
-fn macha_light(p: [u32; 4]) -> crate::town::Light {
-    crate::town::Light {
-        kind: 4,
-        pos: glam::Vec3::new(ee::f(p[0]), ee::f(p[1]), ee::f(p[2])),
-        dir: glam::Vec3::ZERO,
-        colour: glam::Vec3::ONE,
-        intensity: 1.0,
-        far_start: 0.0,
-        far_end: 500.0,
-        radius: [0.0; 2],
-        priority: 1,
-    }
-}
-
 fn omni_light(o: &piney_battle::prim::OmniLight) -> crate::town::Light {
     let p = o.matrix[3];
     let rgb = |k: u32| ((o.rgb >> (8 * k)) & 0xff) as f32 / 255.0;

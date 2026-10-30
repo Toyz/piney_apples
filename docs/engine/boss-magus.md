@@ -343,10 +343,11 @@ field's `leaf_counts` sends the countdown's font.
 `magus_drop_skills`) are the build's combat group. Each leaf is a
 character with a `Boss` of `Class::MagusLeaf`, taken out for the body's
 frame. The body's leaf places (`OBJ_ex31leafNN`'s world matrix), the
-shocks' objects and where their beams meet the land are the runtime's
-(`Magus::leaf_pos`, `shock_pos`, `shock_at`): `piney_world::combat::boss`
-poses x31's body before the frame ("The pictures"), at the place the
-last frame left. That is `PreDrawAnm`'s own: the laser keeps Magus's
+shocks' objects and where their beams meet the land
+(`Magus::leaf_pos`, `shock_pos`, `shock_at`) Magus reads at the start of
+its frame through `Cx::field` (`boss::Field::node`, `clip_entries`,
+`line`): the field answers from x31's body as last drawn ("The
+pictures"), at the place the last frame left. That is `PreDrawAnm`'s own: the laser keeps Magus's
 place through `Move`, and `CalcCamera`, which puts it over Kite at the
 clip's frame 135, runs after `PreDrawAnm` (`ccBoss03::Main` is
 `ccBoss::Main` then `CalcCamera`). Camera 3 moves are `Out::CameraChange`,

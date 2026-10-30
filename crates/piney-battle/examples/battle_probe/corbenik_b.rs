@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::corbenik::second::{self, Second};
 use piney_battle::boss::corbenik::{self, Pic};
-use piney_battle::boss::{Boss, BossData, BossEnv, Class, Cx, Effects, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, Class, Cx, Effects, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -37,7 +37,7 @@ fn v4(t: &mut Toks) -> V4 {
 /// The land everywhere; nothing pushes.
 struct Land;
 
-impl piney_battle::boss::PartHits for Land {
+impl piney_battle::boss::Field for Land {
     fn switch(&mut self, _: usize, hit: &mut piney_battle::world::CharHit, on: bool) {
         hit.sw = on;
     }
@@ -124,7 +124,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
-        part_hits: &mut hits,
+        field: &mut hits,
         game_over: false,
         boss_cam: true,
         cam: cams.view(),
@@ -206,7 +206,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
             cc: &mut cc,
             clips: &clip,
             collide: &mut none,
-            part_hits: &mut hits,
+            field: &mut hits,
             game_over: false,
             boss_cam: true,
             cam: cams.view(),
@@ -242,7 +242,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
                     menu[5] = *stream;
                 }
                 Out::PanelStatus(p) => menu[6] = i32::from(*p),
-                Out::Corbenik(Pic::Gen { key, .. }) => {
+                Out::Fx(FxCall::Corbenik(Pic::Gen { key, .. })) => {
                     gens.borrow_mut().insert(*key, f);
                 }
                 _ => {}

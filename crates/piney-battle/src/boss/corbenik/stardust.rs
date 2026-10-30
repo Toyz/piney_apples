@@ -167,7 +167,7 @@ impl StarDust {
     /// The core drawn at its size.
     fn draw_core(&self, cx: &mut Cx) {
         if !geom::eq(0, self.core_scale) {
-            cx.out(Out::Corbenik(Pic::StarCore { pos: self.core, scale: self.core_scale }));
+            cx.out(Pic::StarCore { pos: self.core, scale: self.core_scale });
         }
     }
 
@@ -252,7 +252,7 @@ impl StarDust {
                 all_four = false;
             }
             if s.state > 0 {
-                cx.out(Out::Corbenik(Pic::Star { pos: s.pos, scale: s.scale, size: s.size }));
+                cx.out(Pic::Star { pos: s.pos, scale: s.scale, size: s.size });
             }
         }
         self.draw_core(cx);
@@ -429,12 +429,12 @@ impl Thunder {
         let last = self.pts.len() - 1;
         self.pts[last] = e;
         let shown = (self.shown - 1).max(0) as usize;
-        cx.out(Out::Corbenik(Pic::Thunder {
+        cx.out(Pic::Thunder {
             pts: self.pts[..=shown.min(last)].to_vec(),
             shown: self.shown,
             alpha: self.alpha,
             width: self.width,
-        }));
+        });
         if self.shown != n {
             self.shown += 1;
             return true;
@@ -568,10 +568,10 @@ impl LaserRain {
     /// radiate, turned by `ccRandF(pi)`.
     fn hit(&mut self, cx: &mut Cx, k: usize) {
         let end = self.lasers[k].end;
-        cx.out(Out::Corbenik(Pic::Burst { pos: end, spd: VF0, scale: ONE, kind: -1, grow: Some(super::GROW) }));
+        cx.out(Pic::Burst { pos: end, spd: VF0, scale: ONE, kind: -1, grow: Some(super::GROW) });
         if self.count < 60 {
             let z = rand_f(cx.cc, PI);
-            cx.out(Out::Corbenik(Pic::LaserRadiate { pos: end, turn: z }));
+            cx.out(Pic::LaserRadiate { pos: end, turn: z });
         }
     }
 
@@ -605,7 +605,7 @@ impl LaserRain {
                     self.lasers[k].segs[s].0 = p;
                 }
                 let l = &self.lasers[k];
-                cx.out(Out::Corbenik(Pic::Laser { pos: p, pitch: l.back_pitch, yaw: l.back_yaw, alpha: l.segs[s].1 }));
+                super::pictures::laser(cx, p, l.back_pitch, l.back_yaw, l.segs[s].1);
             }
             // Its head, unless it landed this frame: the shared clip a step
             // on, at the first segment.
@@ -613,7 +613,8 @@ impl LaserRain {
                 self.head.forward();
                 let l = &self.lasers[k];
                 let (pos, pitch, yaw) = (l.segs[0].0, l.back_pitch, l.back_yaw);
-                cx.out(Out::Corbenik(Pic::LaserHead { time: self.head.posed, pos, pitch, yaw }));
+                super::pictures::laser_head(cx, self.head.posed, pos, pitch, yaw);
+                cx.out(Pic::LaserHead { pos, pitch, yaw });
             }
             if landed_all {
                 self.lasers[k].state = 3;

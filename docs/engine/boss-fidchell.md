@@ -357,7 +357,7 @@ In the field (`piney_world::combat::boss`, code `FIDCHELL`): x41's
 boss camera `InitBossCamera(250, 1500)` with `MaxRenge` 600; the cinema's
 names from x41's `TEX_fid_skl` (rows 14-17, 64-67), and a skill's from
 `cinema_skill_rows` for the fight's field (`BossLook::skill_names`). The
-text is a `piney_desktop::anm::Anm` (`zenable` off) set from `Pic::Text`,
+text is a `piney_desktop::anm::Anm` (`zenable` off) set from `Out::AnmText`,
 drawn on layer 254 through the frame's view and its own camera. The
 voice goes to the event voice path (`Event::Voice { event: -40, .. }`,
 `Event::VoiceStop`).

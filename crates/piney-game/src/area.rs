@@ -881,13 +881,13 @@ impl AreaMode {
                     out.push(Event::Se(*se));
                     (None, [0; 4])
                 }
-                // Fidchell's prediction: ccEvVoiceStop, then
-                // ccEvVoiceRequest(-40, n), a field voice group's line.
-                Show::Boss(_, piney_battle::boss::Out::Fidchell(piney_battle::boss::fidchell::Pic::Voice(msg))) => {
-                    out.push(Event::Voice { event: piney_battle::boss::fidchell::PRED_VOICE_EVENT, msg: *msg });
+                // ccEvVoiceRequest(event, n), a field voice group's line
+                // (Fidchell's prediction), and ccEvVoiceStop.
+                Show::Boss(_, piney_battle::boss::Out::Voice { event, msg }) => {
+                    out.push(Event::Voice { event: *event, msg: *msg });
                     (None, [0; 4])
                 }
-                Show::Boss(_, piney_battle::boss::Out::Fidchell(piney_battle::boss::fidchell::Pic::VoiceStop)) => {
+                Show::Boss(_, piney_battle::boss::Out::VoiceStop) => {
                     out.push(Event::VoiceStop);
                     (None, [0; 4])
                 }
@@ -1071,27 +1071,26 @@ impl AreaMode {
     /// What the boss asked of the screen, the map and the menus this
     /// frame: `scFadeDef->EntryFlash`, `EVENTAREAB0::SwitchLayer`, the
     /// menus' lock and the cursor.
-    /// Magus's leaves' countdowns (`ccBoss03Leaf::OnThinkCountDown`, MUT
-    /// gcmn 0x004a6384): where `ccCalcTagPos` puts the leaf 100 up, the
-    /// global font, type 1, `ccSpriteColorTable[7]`, shadowed (+4 bit
-    /// 0x10), `MakeSignedNum(2, seconds)`.
-    fn leaf_counts(&mut self, shows: &[piney_world::combat::Show], ctx: &mut Ctx) {
-        use piney_battle::boss::{Out, magus::Pic};
+    /// The boss's counts ([`piney_battle::boss::Out::Count`]; a leaf's
+    /// `ccBoss03Leaf::OnThinkCountDown`, MUT gcmn 0x004a6384): where
+    /// `ccCalcTagPos` puts the place 100 up, the global font, type 1,
+    /// `ccSpriteColorTable[7]`, shadowed (+4 bit 0x10), `MakeSignedNum(2,
+    /// seconds)`.
+    fn boss_counts(&mut self, shows: &[piney_world::combat::Show], ctx: &mut Ctx) {
+        use piney_battle::boss::{Out, Spot};
         use piney_fieldui::spr::{Obj, Spr, font_type, make_signed_num};
         let mut font = Spr::new(Obj::SysFont, 256);
         for s in shows {
-            // Corbenik's seeds' counts the same (`ccBoss08Seed::
-            // OnThinkCountDown`, QUA gcmn 0x003b1500), at their place then.
-            let (pos, n) = match s {
-                piney_world::combat::Show::Boss(_, Out::Magus(Pic::Count { leaf, n })) => {
-                    let Some(pos) = self.world.combat().scene.chars.get(*leaf).map(|c| c.pos) else { continue };
-                    (pos, n)
+            // A count over a character (a leaf's, `OnThinkCountDown`) or a
+            // place (a seed's, `ccBoss08Seed::OnThinkCountDown`, QUA gcmn
+            // 0x003b1500), where it is then.
+            let piney_world::combat::Show::Boss(_, Out::Count { at, n }) = s else { continue };
+            let pos = match *at {
+                Spot::Char(c) => {
+                    let Some(pos) = self.world.combat().scene.chars.get(c).map(|c| c.pos) else { continue };
+                    pos
                 }
-                piney_world::combat::Show::Boss(
-                    _,
-                    Out::Corbenik(piney_battle::boss::corbenik::Pic::CountDown { pos, n }),
-                ) => (*pos, n),
-                _ => continue,
+                Spot::At(pos) => pos,
             };
             let up = [0, 0, 0x42c8_0000, 0];
             let ws = &self.world.camera().world_screen;
@@ -1782,7 +1781,7 @@ impl Mode for AreaMode {
             self.st.fade_def.send(&mut ctx, piney_desktop::layers::FONT_LAYER);
         }
         // The global font, sent at the flip after the field's tasks.
-        self.leaf_counts(&shows, &mut ctx);
+        self.boss_counts(&shows, &mut ctx);
         // ccThGameOver, after the field's tasks (the same priority, started
         // later): its noise over the field, which it squeezes away.
         let over = self.game_over.as_mut().map(|t| {

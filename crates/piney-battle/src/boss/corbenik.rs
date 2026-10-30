@@ -11,6 +11,7 @@ pub mod eff;
 pub mod eye;
 pub mod first;
 pub mod laser;
+mod pictures;
 pub mod second;
 pub mod seed;
 pub mod stardust;
@@ -36,6 +37,29 @@ pub const CODE: i32 = 7;
 pub const ROW: usize = 7;
 pub const SEED_ROW: usize = 44;
 pub const FILE: &str = "x81";
+/// The clumps of x81 its forms' and parts' clips pose (the first is the
+/// look's body, the first form's): the first form, the second, the
+/// third's pieces, the seeds, the eyes, the killer eyes, the roots, the
+/// dome and the barrier.
+pub const BODIES: [&str; 14] = [
+    "CMP_trall1",
+    "CMP_trall2",
+    "CMP_trall0",
+    "CMP_trall3",
+    "CMP_ex8body30",
+    "CMP_ex8lbod06",
+    "CMP_ex8aseed1",
+    "CMP_trall5",
+    "CMP_trall8",
+    "CMP_trall2b",
+    "CMP_trall2c",
+    "CMP_trall2d",
+    "CMP_trall4",
+    "CMP_trallb",
+];
+/// An eye's flash (`ccBoss08Eye::PreDrawAnm` 0x003bed70):
+/// `SetFogBlend(blend, 0xffffff)`.
+pub const EYE_FLASH: u32 = 0x00ff_ffff;
 /// `SetScaleAnm(1, 4, 15)`: a burst grown 1 to 4 over 15 frames.
 pub const GROW: [F; 3] = [0x3f80_0000, 0x4080_0000, 0x4170_0000];
 /// The seeds `ccBoss08` carries (`m_seedTbl[8]`).
@@ -155,12 +179,6 @@ pub enum Pic {
         pos: V4,
         on: bool,
     },
-    /// A seed's count over its head (`ccCalcTagPos` of its place 100 up,
-    /// `ccFont` type 1, `MakeSignedNum(2, n)`).
-    CountDown {
-        pos: V4,
-        n: i32,
-    },
     /// `effExplode3(pos, spd, scale, kind)`, then `SetScaleAnm(grow)` when
     /// given: a seed bursts (kind 0), a laser lands (-1, a random kind the
     /// effect draws from `ccRand`), the tera laser strikes.
@@ -182,30 +200,8 @@ pub enum Pic {
         pos: V4,
         size: F,
     },
-    /// The second form's barrier (`OBJ_ex8bria` at its body's
-    /// `OBJ_ex8body2`), or its hit clip (`boss08DmgBarriar`) posed at
-    /// `time` while a blow flashes it.
-    Barrier,
-    BarrierHit {
-        clip: Option<String>,
-        time: u32,
-    },
-    /// The body drawn at a press's image: its clip's pose, the place, the
-    /// heading, its transparency.
-    PressImage {
-        time: u32,
-        pos: V4,
-        dirc: V4,
-        alpha: F,
-    },
-    /// An element (`BODYELEMENT_T`'s clip, the fog 3x the body's height,
-    /// layer 3) at `pos` turned XYZ by `dirc`, and its trail
-    /// (`effSmoke(pos, vec / 10, 8, 60, 114, 512, 32)` every fourth draw).
-    Element {
-        pos: V4,
-        dirc: V4,
-        alpha: F,
-    },
+    /// An element's trail (`effSmoke(pos, vec / 10, 8, 60, 114, 512, 32)`
+    /// every fourth draw).
     ElementSmoke {
         pos: V4,
         vec: V4,
@@ -242,21 +238,13 @@ pub enum Pic {
         alpha: F,
         width: F,
     },
-    Laser {
-        pos: V4,
-        pitch: F,
-        yaw: F,
-        alpha: F,
-    },
     LaserRadiate {
         pos: V4,
         turn: F,
     },
-    /// A falling laser's head: `ANM_ex31les3` (posed at `time`) and
-    /// `CMP_ex31les3` (2, 2, 3) turned about x by its pitch and z by its
-    /// heading, at `pos`.
+    /// A falling laser's head's `CMP_ex31les3` (2, 2, 3) turned about x by
+    /// its pitch and z by its heading, at `pos`.
     LaserHead {
-        time: u32,
         pos: V4,
         pitch: F,
         yaw: F,
@@ -268,18 +256,8 @@ pub enum Pic {
         rot: V4,
         alpha: F,
     },
-    /// An eye (`ccBoss08Eye`'s `ANM_ex8nut6` at its clip's time, turned
-    /// XYZ, its flash's fog `blend` toward white), a killer eye (turned
-    /// ZYX) and a killer eye's guard (`effResistantShield(eye, magic,
-    /// -1)`, its offset's height 0).
-    Eye {
-        eye: usize,
-        time: u32,
-        pos: V4,
-        dirc: V4,
-        blend: F,
-        alpha: F,
-    },
+    /// A killer eye (turned ZYX) and a killer eye's guard
+    /// (`effResistantShield(eye, magic, -1)`, its offset's height 0).
     Killer {
         eye: usize,
         time: u32,
@@ -309,14 +287,8 @@ pub enum Pic {
         turn: F,
     },
     RefrectHead {
-        time: u32,
         from: V4,
         to: V4,
-    },
-    RefrectSeg {
-        from: V4,
-        to: V4,
-        alpha: F,
     },
     /// `ccBossEffExplode2Create(pos)` (QUA gcmn 0x0037d760): five
     /// `BurstSmokeGenerator` rows about `pos` and `ccEnemyEffDust(pos, 10,
@@ -332,17 +304,6 @@ pub enum Pic {
     },
     GenKill {
         key: u32,
-    },
-    /// `worldman->eventArea` +0x2bc (QUA gcmn 0x0030aa40): the arena's
-    /// extra clump drawn (on) or not; the lasers hide it.
-    ArenaClump {
-        on: bool,
-    },
-    /// The root drain's own root (`ANM_ex8natc4`) at the target.
-    RootL {
-        time: u32,
-        pos: V4,
-        alpha: F,
     },
     /// A particle generator the form keeps under `key` (its
     /// `ccCheckParticleGenerator` answered by [`crate::boss::Cx::gen_alive`]),

@@ -23,6 +23,16 @@ use crate::{Cx, Event, VecRef, debris, drawelm, vu};
 /// The manager's slots.
 pub const SLOTS: usize = 1024;
 
+/// The files the boss effects draw from on `volume`: `xeffect` (the
+/// WaveShock's animation), and on Quarantine Corbenik's (its effects'
+/// clumps).
+pub fn files(volume: Volume) -> &'static [&'static str] {
+    match volume {
+        Volume::Qua => &["xeffect", piney_battle::boss::corbenik::FILE],
+        _ => &["xeffect"],
+    }
+}
+
 const PI: F = ee::PI;
 const TWO_PI: F = 0x40c9_0fdb;
 const NEG_PI: F = 0xc049_0fdb;
@@ -783,17 +793,20 @@ impl BossEffects {
                 m.mirror(ctrl, cx, t, f);
             }
         }
-        for &(f, p) in src.kyvia_members {
-            if let Some(a) = crate::kyvia::anchor(f) {
+        // The places the fight's generators follow: Kyvia's members, a
+        // leaf's marker.
+        for &(f, p) in src.follow {
+            let anchor = match f {
+                Follow::Marker(c) => Some(crate::magus::marker_anchor(c)),
+                f => crate::kyvia::anchor(f),
+            };
+            if let Some(a) = anchor {
                 ctrl.anchors.insert(a, p);
             }
         }
         self.mirror_group(ctrl, cx, t, fx, &[Mirror::Meteorite, Mirror::Bolt, Mirror::Ball, Mirror::Hell]);
-        for &(c, p) in src.magus_markers {
-            ctrl.anchors.insert(crate::magus::marker_anchor(c), p);
-        }
         self.mirror_group(ctrl, cx, t, fx, &[Mirror::Needles]);
-        for b in src.magus_bursts {
+        for b in src.explodes {
             crate::magus::leaf_explode(cx, b);
         }
     }
@@ -1582,17 +1595,17 @@ mod tests {
     }
 }
 
-use piney_battle::boss::Fx as BFx;
+use piney_battle::boss::{Follow, Fx as BFx};
 
 /// What the fight's rules left this frame for the boss effects' pictures
 /// ([`BossEffects::sync`]): each effect with its rules by its slot there,
-/// Kyvia's members' places, Magus's leaves' markers and bursts.
+/// the places the generators follow ([`piney_battle::boss::Output::follow`])
+/// and the bursts drawn ([`piney_battle::boss::Output::explodes`]).
 #[derive(Clone, Copy, Default)]
 pub struct Source<'a> {
     pub fx: &'a [(i32, &'a BFx)],
-    pub kyvia_members: &'a [(piney_battle::boss::kyvia::Follow, V4)],
-    pub magus_markers: &'a [(usize, V4)],
-    pub magus_bursts: &'a [piney_battle::boss::magus::leaf::Explode],
+    pub follow: &'a [(Follow, V4)],
+    pub explodes: &'a [piney_battle::boss::magus::leaf::Explode],
 }
 
 /// A picture of an effect the fight's rules keep: the rules' state it

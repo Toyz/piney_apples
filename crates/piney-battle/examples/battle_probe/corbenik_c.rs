@@ -13,7 +13,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::corbenik::eye::{Eye, Killer};
 use piney_battle::boss::corbenik::third::{self, Third};
 use piney_battle::boss::corbenik::{Pic, laser};
-use piney_battle::boss::{Boss, BossData, BossEnv, Class, Cx, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, Class, Cx, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -36,7 +36,7 @@ fn v4(t: &mut Toks) -> V4 {
 /// The land everywhere; nothing pushes.
 struct Land;
 
-impl piney_battle::boss::PartHits for Land {
+impl piney_battle::boss::Field for Land {
     fn switch(&mut self, _: usize, hit: &mut piney_battle::world::CharHit, on: bool) {
         hit.sw = on;
     }
@@ -118,7 +118,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, dummy: V4, t:
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
-        part_hits: &mut hits,
+        field: &mut hits,
         game_over: false,
         boss_cam: true,
         cam: cams.view(),
@@ -218,7 +218,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, dummy: V4, t:
             cc: &mut cc,
             clips: &clip,
             collide: &mut none,
-            part_hits: &mut hits,
+            field: &mut hits,
             game_over: false,
             boss_cam: true,
             cam: cams.view(),
@@ -267,7 +267,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, dummy: V4, t:
 /// Each kept generator noted with the frame it was made in.
 fn note_gens(out: &[Out], gens: &RefCell<HashMap<u32, usize>>, f: usize) {
     for o in out {
-        if let Out::Corbenik(Pic::Gen { key, .. }) = o {
+        if let Out::Fx(FxCall::Corbenik(Pic::Gen { key, .. })) = o {
             gens.borrow_mut().insert(*key, f);
         }
     }

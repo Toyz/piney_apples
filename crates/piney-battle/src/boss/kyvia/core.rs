@@ -173,7 +173,7 @@ pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, lv: i16) -> Boss {
         x.gomoras.push(g);
     }
     x.anm_w.set("ANM_xx11wave", cx.clips);
-    Boss { base: b, class: Class::KyviaCore(Box::new(x)) }
+    Boss::of(&crate::boss::defs::CORE, b, Class::KyviaCore(Box::new(x)))
 }
 
 /// `SetCoreBaseParam(lv, attr)` (MUT gcmn 0x004f8770, OUT 0x004f5150): the

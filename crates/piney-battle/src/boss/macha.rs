@@ -128,9 +128,6 @@ impl MachaData {
 /// What Macha shows beside its body, each frame it is drawn.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Pic {
-    /// The light ball's omni light (`ccOmniLight`, colour 0x00ffffff at
-    /// 1.0, its range 500 to 250000) at `pos`; `None` once deleted.
-    Light(Option<V4>),
     /// `effSmoke(pos, vel, 8, 60, 114, 512, 32)`: the back dash's dust.
     Smoke { pos: V4, vel: V4 },
     /// A laser's bolt (`xeffect`'s `CMP_ex31les0`) drawn at a tenth of its
@@ -248,7 +245,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     cx.out(Out::Blur(Set::Func(BlurFunc::Boss03)));
     // SetBlendTypeAfterImage(0): +0x292f8, which nothing reads.
     set_pattern_mode(&mut b, &mut x, cx, 0);
-    Boss { base: b, class: Class::Macha(x) }
+    Boss::of(&crate::boss::defs::MACHA, b, Class::Macha(x))
 }
 
 /// `SetPatternMode(m)` (0x003a3b00): `@1143[m]` set and run from its start.
@@ -268,13 +265,17 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Macha, cx: &mut Cx, m: i32) {
 
 // --- the frame --------------------------------------------------------------------------------
 
-impl crate::boss::Shape for Macha {
-    fn wave(&self) -> Option<&crate::boss::Anm> {
-        Some(&self.anm_w)
-    }
-}
-
 impl crate::boss::BossClass for Macha {
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = crate::boss::BodyDraw {
+            pos: cx.scene.chars[cx.me].pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            ..crate::boss::BodyDraw::default()
+        };
+        out.wave = Some(self.anm_w.posed);
+    }
+
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);
     }
@@ -284,7 +285,31 @@ impl crate::boss::BossClass for Macha {
 }
 
 /// `ccThBossEffect`'s pass and `ccBoss06::Main` (0x003a4270).
+/// The light ball's light (`OnThinkLightBall` step 0): `ccLight(4, 1)` at
+/// `pos`, white (`ccSetColor(0x00ffffff, 1.0)`), intensity 1, full to 0
+/// and gone at 500 (`farDownEnd2` 250000).
+fn ball_light(pos: V4) -> crate::prim::OmniLight {
+    let mut matrix = geom::unit_matrix();
+    matrix[3] = pos;
+    crate::prim::OmniLight {
+        matrix,
+        mat_calc: false,
+        rgb: 0x00ff_ffff,
+        intensity: ONE,
+        far_start: 0,
+        far_end: 0x43fa_0000,
+        far_end2: 0x4874_2400,
+    }
+}
+
 pub(super) fn main(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
+    // The eyes, where the lasers leave from: the body as last drawn
+    // (`GetSubstAdrsF`'s LW matrix).
+    for (k, name) in EYES.iter().enumerate() {
+        if let Some(p) = cx.field.node(cx.me, name) {
+            x.eyes[k] = p;
+        }
+    }
     manager_pass(b, cx);
     frame(b, x, cx);
     let me = cx.me;
@@ -804,7 +829,7 @@ fn on_back_dash(b: &mut BossBase, cx: &mut Cx) {
         let vel =
             [ee::mul(0x4040_0000, libm::cosf(b.move_dirc)), ee::mul(0x4040_0000, libm::sinf(b.move_dirc)), 0, ONE];
         let pos = cx.pos();
-        cx.out(Out::Macha(Pic::Smoke { pos, vel }));
+        cx.out(Pic::Smoke { pos, vel });
     }
     if b.act_count >= 31 {
         b.entry_cmnd_target(cx);
@@ -835,7 +860,7 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             // The light made at the origin (ccLight's unit matrix); it
             // follows the ball from frame 20.
             x.light = true;
-            cx.out(Out::Macha(Pic::Light(Some([0, 0, 0, ONE]))));
+            cx.out(Out::Light(Some(ball_light([0, 0, 0, ONE]))));
             x.light_rot = rand_f(cx.cc, PI);
             b.lock_player(cx, true);
             b.erase_cmnd_target(cx);
@@ -859,7 +884,7 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             let mut p = cx.pos();
             p[2] = 0x4409_8000;
             let (clip, time) = (BALL_CHARGE.to_string(), x.anm_ball_charge.posed);
-            cx.out(Out::DrawAnm { clip, time, pos: p, dirc: b.dirc, layer: crate::boss::AnmLayer::Eff });
+            cx.out(crate::boss::Picture::anm(clip, time, p, b.dirc, crate::boss::AnmLayer::Eff));
             let mut p = cx.pos();
             p[2] = 0x4396_0000;
             x.light_rot = ee::add(x.light_rot, 0x3e56_7750);
@@ -869,13 +894,13 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI), x.light_rot);
             let v = geom::apply_matrix(&m, [0x4348_0000, 0, 0, ONE]);
             let p = super::p2w(cx, geom::vadd(super::w2p(cx, p), v));
-            cx.out(Out::Macha(Pic::Light(Some(p))));
+            cx.out(Out::Light(Some(ball_light(p))));
             if f == 20 {
                 cx.out(Out::SeNote { se: 246, note: 55 });
             }
             if done {
                 cx.out(Out::SeNote { se: 57, note: 60 });
-                cx.out(Out::Macha(Pic::Light(None)));
+                cx.out(Out::Light(None));
                 x.light = false;
                 b.act_proccess += 1;
             }
@@ -889,7 +914,7 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             x.ball_pos = super::p2w(cx, geom::vadd(super::w2p(cx, x.ball_pos), v));
             x.anm_ball.forward();
             let (clip, time) = (BALL.to_string(), x.anm_ball.posed);
-            cx.out(Out::DrawAnm { clip, time, pos: x.ball_pos, dirc: b.dirc, layer: crate::boss::AnmLayer::Eff });
+            cx.out(crate::boss::Picture::anm(clip, time, x.ball_pos, b.dirc, crate::boss::AnmLayer::Eff));
             if f == 140 {
                 let vp = b.target_pos;
                 cx.free_cam_from(vp, b.dirc, [0x44bb_8000, 0, 0x42c8_0000, ONE]);

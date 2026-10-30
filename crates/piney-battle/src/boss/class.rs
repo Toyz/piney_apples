@@ -1,14 +1,15 @@
 //! What a boss class adds to `ccBoss`: [`BossClass`], the frame and the
-//! affect its vtable runs (one dispatch, [`Class::with_rules`]), and
+//! affect its vtable runs and what it shows (one dispatch,
+//! [`Class::with_rules`]), and
 //! [`Patterns`], the calls `ccBoss`'s pattern code makes back into the
 //! class, with what differs between the classes' copies of it
 //! ([`BaseActs`]).
 
 use piney_data::field::ee;
 
-use super::{Anm, BossBase, BossData, Class, Cx, NEG_HALF_PI, Out, act};
-use crate::geom::{self, M4, V4};
-use crate::scene::Scene;
+use super::output::{BodyDraw, Output};
+use super::{BossBase, BossData, Class, Cx, NEG_HALF_PI, Out, act};
+use crate::geom;
 
 type F = u32;
 
@@ -29,85 +30,26 @@ pub(crate) trait BossClass {
     /// `ccBossEffManager::Draw`'s pass where the class runs it before the
     /// blur and the boss's task (Kyvia's).
     fn effects_pass(&mut self, _b: &mut BossBase, _cx: &mut Cx) {}
+
+    /// The boss that takes its place once its frame ends (Corbenik's
+    /// second form, made as the first exits).
+    fn next(&mut self, _b: &mut BossBase, _cx: &mut Cx) -> Option<super::Boss> {
+        None
+    }
+
+    /// Its frame's draw requests ([`Output`]), read after the frame: by
+    /// default its body where its character stands, at its heading, while
+    /// `drawSW` holds.
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut Output) {
+        out.body =
+            BodyDraw { pos: cx.scene.chars[cx.me].pos, dirc: b.dirc, shown: b.draw_sw != 0, ..BodyDraw::default() };
+    }
 }
 
 /// A bare `ccBoss` (a part between its master's takes).
 struct Bare;
 
 impl BossClass for Bare {}
-
-/// What the field draws of a class beside its rules, read after its
-/// frame: the wave `DrawWave` poses (`m_anmw`), the characters drawn as its
-/// images and parts, where its body stands, and what its `PreDrawAnm`
-/// changes in a part's draw. A class with none keeps the defaults.
-pub trait Shape {
-    /// `m_anmw` as [`Out::DrawWave`] poses it.
-    fn wave(&self) -> Option<&Anm> {
-        None
-    }
-
-    /// The characters of its parts, drawn and hit with the boss.
-    fn parts(&self, _scene: &Scene) -> Vec<usize> {
-        Vec::new()
-    }
-
-    /// Its images (Innis's), each drawn while its `drawSW` holds.
-    fn images(&self) -> Vec<Figure<'_>> {
-        Vec::new()
-    }
-
-    /// The shard clumps drawn this frame (`DrawPartsClump`): the clump
-    /// (`ID * 5 + k`), its place and turn.
-    fn shards(&self) -> Vec<(usize, V4, V4)> {
-        Vec::new()
-    }
-
-    /// The parts, by their index in [`Shape::parts`], its body's draw
-    /// hides.
-    fn hidden(&self, _scene: &Scene) -> Vec<usize> {
-        Vec::new()
-    }
-
-    /// Where its body is drawn (`SetMatrix_PosRotZYX`) and whether, its
-    /// character standing at `pos`: by default there, at its heading, while
-    /// `drawSW` holds.
-    fn drawn_at(&self, b: &BossBase, pos: V4) -> (V4, V4, bool) {
-        (pos, b.dirc, b.draw_sw != 0)
-    }
-
-    /// A sword trail (`ccLattice`) the field keeps for the class: None for
-    /// none, else whether this frame adds a row (the sword's two dummies).
-    fn sword_trail(&self, _b: &BossBase) -> Option<bool> {
-        None
-    }
-
-    /// A part's clip matrix as its `PreDrawAnm` sets it, when not the
-    /// base's `SetMatrix_PosRotZYX(pos, dirc)`.
-    fn matrix(&self, _pos: V4, _dirc: V4) -> Option<M4> {
-        None
-    }
-
-    /// Whether a part's `PreDrawAnm` draws its clip once more before its
-    /// `ccBoss::Draw`.
-    fn draws_again(&self) -> bool {
-        false
-    }
-}
-
-/// An image a class keeps inside its own members: its character, its
-/// `ccBoss` and which of the look's images it draws with.
-pub struct Figure<'a> {
-    pub me: usize,
-    pub base: &'a BossBase,
-    pub image: usize,
-}
-
-impl Shape for Bare {}
-impl Shape for super::magus::leaf::Leaf {}
-impl Shape for super::kyvia::core::Core {}
-impl Shape for super::kyvia::gomora::Gomora {}
-impl Shape for super::gorre::brother::Brother {}
-impl Shape for super::corbenik::eye::Killer {}
 
 /// One arm a class: `$x` bound to its boxed members, `$plain` for a bare
 /// `ccBoss`.
@@ -142,11 +84,6 @@ impl Class {
     /// The class's rules.
     pub(crate) fn with_rules<R>(&mut self, f: impl FnOnce(&mut dyn BossClass) -> R) -> R {
         each_class!(self, x => f(&mut **x), f(&mut Bare))
-    }
-
-    /// What the field draws of it.
-    pub fn shape(&self) -> &dyn Shape {
-        each_class!(self, x => &**x as &dyn Shape, &Bare)
     }
 }
 

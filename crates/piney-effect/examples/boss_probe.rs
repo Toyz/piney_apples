@@ -384,7 +384,7 @@ fn main() {
                 for _ in 0..400 {
                     let done = ex.draw();
                     fx.boss_step(&mut host);
-                    fx.boss_sync(&mut host, &piney_effect::boss::Source { magus_bursts: &[ex], ..Default::default() });
+                    fx.boss_sync(&mut host, &piney_effect::boss::Source { explodes: &[ex], ..Default::default() });
                     let draws: Vec<String> = fx.boss_draws().iter().map(|d| draw(&fx, d)).collect();
                     println!("{{\"draws\": [{}], \"done\": {}}}", draws.join(", "), u8::from(done));
                     if done {
@@ -394,7 +394,7 @@ fn main() {
                 continue;
             }
             "lshock" => {
-                use piney_battle::boss::magus::{Shock, shock_beam};
+                use piney_battle::boss::magus::{Pic, Shock, shock_beam};
                 let a = v4(1);
                 let local: [[u32; 4]; 4] = [v4(5), v4(9), v4(13), v4(17)];
                 let dirc = v4(21);
@@ -406,11 +406,13 @@ fn main() {
                     fx.boss_step(&mut host);
                     let end = shock_beam(a, &local, dirc);
                     let burst = sh.draw(hit, &mut CcRand(&mut host));
+                    let call = |p| piney_battle::boss::FxCall::Magus(p);
                     if hit {
-                        fx.magus_shocks(&mut host, &[(at, sh.transparency)]);
+                        let shocks = vec![(at, sh.transparency)];
+                        fx.boss_call(&mut host, 0, &|c| c as CharRef, &call(Pic::Shocks { shocks }));
                     }
                     if let Some(turn) = burst {
-                        fx.magus_shock_burst(&mut host, at, turn);
+                        fx.boss_call(&mut host, 0, &|c| c as CharRef, &call(Pic::ShockBurst { at, turn }));
                     }
                     let extra = format!(", \"hits\": [{}], \"done\": {}", list(&end[..3]), ee::from_int(sh.draw));
                     println!("{}", frame_json(&mut fx, &host, &mut started, &extra));

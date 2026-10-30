@@ -10,7 +10,7 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::blur::Set;
-use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Fx, Out, PassMode, VF0, word};
+use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Fx, FxCall, Out, PassMode, VF0, word};
 use crate::chara::AffectFunc;
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
@@ -374,7 +374,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     x.vec_center = [center[0], center[1], center[2], ONE];
     x.vec_center_p = super::w2p(cx, x.vec_center);
     crate::fellow::entry_cmnd(cx.scene, me);
-    Boss { base: b, class: Class::Innis(Box::new(x)) }
+    Boss::of(&crate::boss::defs::INNIS, b, Class::Innis(Box::new(x)))
 }
 
 impl Slave {
@@ -413,30 +413,33 @@ impl Slave {
 
 // --- the frame ------------------------------------------------------------------------------
 
-impl crate::boss::Shape for Innis {
-    fn wave(&self) -> Option<&crate::boss::Anm> {
-        Some(&self.anm_w)
-    }
-
-    /// The slaves, each its `CMP_ex21monN` by `MonsterID`.
-    fn images(&self) -> Vec<crate::boss::Figure<'_>> {
-        (self.slaves.iter())
-            .map(|s| crate::boss::Figure { me: s.me, base: &s.b, image: s.samon_id.clamp(0, 2) as usize })
-            .collect()
-    }
-
-    /// The mirrors' shards `Mbreak` drew (`BreakMirror::SetStream(x21, ID)`:
-    /// `CMP_ex21ef{ID}1`-`5`).
-    fn shards(&self) -> Vec<(usize, V4, V4)> {
-        (self.slaves.iter())
+impl crate::boss::BossClass for Innis {
+    /// The wave as posed; the slaves, each its `CMP_ex21monN` by
+    /// `MonsterID`; the mirrors' shards `Mbreak` drew
+    /// (`BreakMirror::SetStream(x21, ID)`: `CMP_ex21ef{ID}1`-`5`).
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = crate::boss::BodyDraw {
+            pos: cx.scene.chars[cx.me].pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            ..crate::boss::BodyDraw::default()
+        };
+        out.wave = Some(self.anm_w.posed);
+        out.figures.extend(self.slaves.iter().map(|s| crate::boss::Figure {
+            me: s.me,
+            image: s.samon_id.clamp(0, 2) as usize,
+            anm: s.b.anm.clone(),
+            dirc: s.b.dirc,
+            alpha: s.b.transparency,
+            shown: s.b.draw_sw != 0 && s.b.exit == 0 && s.b.drawn,
+        }));
+        let shards = (self.slaves.iter())
             .filter_map(|s| s.mirror.models.map(|id| (id, &s.mirror.drawn)))
             .filter(|(id, _)| (0..3).contains(id))
-            .flat_map(|(id, drawn)| drawn.iter().map(move |&(k, p, r)| (id as usize * 5 + k, p, r)))
-            .collect()
+            .flat_map(|(id, drawn)| drawn.iter().map(move |&(k, p, r)| (id as usize * 5 + k, p, r)));
+        out.clumps.extend(shards);
     }
-}
 
-impl crate::boss::BossClass for Innis {
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);
     }
@@ -981,13 +984,13 @@ fn switch_action_pattern(b: &mut BossBase, x: &mut Innis, pattern: i32, cx: &mut
     set_camera_eyes(b, x, cx);
     let field = vec3(0, 0, 0x4348_0000);
     if x.dd_flg == 0 {
-        cx.out(Out::Particles { which: Gen::InisField(2), pos: field });
-        cx.out(Out::Particles { which: Gen::InisField(3), pos: field });
+        cx.out(FxCall::Innis { which: Gen::InisField(2), pos: field });
+        cx.out(FxCall::Innis { which: Gen::InisField(3), pos: field });
         x.dd_flg = 1;
     }
     if x.dd_flg == 1 {
-        cx.out(Out::Particles { which: Gen::InisField(0), pos: field });
-        cx.out(Out::Particles { which: Gen::InisField(1), pos: field });
+        cx.out(FxCall::Innis { which: Gen::InisField(0), pos: field });
+        cx.out(FxCall::Innis { which: Gen::InisField(1), pos: field });
         x.dd_flg = -1;
     }
     let at = x.af_timing;
@@ -1312,7 +1315,7 @@ fn pattern10(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             x.cou += 1;
             if x.cou >= 40 {
                 x.escape_act_cou = 2;
-                cx.out(Out::Particles { which: Gen::Tornado, pos: x.rot_vec });
+                cx.out(FxCall::Innis { which: Gen::Tornado, pos: x.rot_vec });
                 b.erase_cmnd_target(cx);
             }
             set_camera_eyes(b, x, cx);
@@ -1474,7 +1477,7 @@ fn skill_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
             x.zoom_vec = VF0;
             x.zoom_vec[2] = ee::add(x.zoom_vec[2], 0x437a_0000);
             x.zoom_vec = geom::vadd(x.zoom_vec, b.target_pos);
-            cx.out(Out::Particles { which: Gen::InisField(4), pos: x.zoom_vec });
+            cx.out(FxCall::Innis { which: Gen::InisField(4), pos: x.zoom_vec });
             let tp = b.target_pos;
             cx.out(Out::Se3d { se: 225, pos: tp });
             cx.out(Out::Se3d { se: 225, pos: tp });
@@ -1660,7 +1663,7 @@ fn all_attack(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
                     EffKind::SamonRing { model: 192, scale: [ONE; 4], spoint: [0x3f00_0000; 4], tpoint: 0x3ca3_d70a };
                 let id = b.effects.create(k);
                 cx.out(Out::Effect { id, kind: k, pos, dirc: VF0 });
-                cx.out(Out::Particles { which: Gen::Burst(2), pos });
+                cx.out(FxCall::Innis { which: Gen::Burst(2), pos });
             }
             if b.act_count == 40 {
                 b.skill_damage(cx, None, Some(pos), 4);
@@ -2312,10 +2315,10 @@ impl Slave {
     /// rings (the image's model, turned by the camera), sounds.
     fn enemy_burst(&mut self, master: &mut BossBase, cx: &mut Cx) {
         let tp = self.target_pos;
-        cx.out(Out::Particles { which: Gen::Burst(3), pos: tp });
+        cx.out(FxCall::Innis { which: Gen::Burst(3), pos: tp });
         let mut up = tp;
         up[2] = ee::add(up[2], 0x4248_0000);
-        cx.out(Out::Particles { which: Gen::Burst(4), pos: up });
+        cx.out(FxCall::Innis { which: Gen::Burst(4), pos: up });
         let r = cx.cam.rot;
         let mut rot = VF0;
         rot[1] = fp(dp(rand_f(cx.cc, 0x3e4c_cccd)) + 0.785_398_185_253_143_3);
@@ -2553,7 +2556,7 @@ mod tests {
                 cc: &mut self.cc,
                 clips: &clip,
                 collide: &mut none,
-                part_hits: &mut crate::boss::NoHits,
+                field: &mut crate::boss::NoField,
                 game_over: false,
                 boss_cam: true,
                 cam: CamView::default(),
@@ -2624,7 +2627,7 @@ mod tests {
         let out = f.frame();
         // Pattern[0] is 6, Pattern03(20); the four InisField generators.
         assert_eq!(f.innis().move_flg, 6);
-        assert_eq!(out.iter().filter(|o| matches!(o, Out::Particles { .. })).count(), 4);
+        assert_eq!(out.iter().filter(|o| matches!(o, Out::Fx(crate::boss::FxCall::Innis { .. }))).count(), 4);
     }
 
     #[test]

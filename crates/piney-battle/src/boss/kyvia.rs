@@ -19,7 +19,7 @@ use self::core::Core;
 use self::gomora::Gomora;
 use super::blur::Set;
 use super::{AfterImageParams, Anm, Boss, BossBase, Class, Cx, EffKind, Fx, Out, PassMode, VF0};
-use crate::boss::Part;
+use crate::boss::{Follow, Part};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
 use crate::param::cond;
@@ -77,6 +77,16 @@ impl Fight {
             CODE_THIRD => Some(Fight::Third),
             CODE_FOURTH => Some(Fight::Fourth),
             _ => None,
+        }
+    }
+
+    /// The fight's def.
+    pub const fn def(self) -> &'static crate::boss::BossDef {
+        match self {
+            Fight::First => &crate::boss::defs::KYVIA,
+            Fight::Second => &crate::boss::defs::KYVIA_SECOND,
+            Fight::Third => &crate::boss::defs::KYVIA_THIRD,
+            Fight::Fourth => &crate::boss::defs::KYVIA_FOURTH,
         }
     }
 
@@ -358,27 +368,6 @@ impl Gen {
     }
 }
 
-/// What a generator follows (`syncPos`, `syncPosType` 0), each frame: a
-/// character's place, or a member of the fight that moves.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Follow {
-    /// The character's `pos` (the core's and its auras').
-    Char(usize),
-    /// The body's `DedDmgVec` (+0x29540), the death's smoke.
-    DeadSmoke,
-    /// `LBpos[k]` (+0x294a0), `LBposSub[k]` (+0x294d0): a beam's ends.
-    BeamHead(u8),
-    BeamTail(u8),
-    /// A gomora's `AuraPos` (+0x293f0), by its character.
-    Aura(usize),
-    /// The magical ball's `PlaPos[k]` and `PlaPos2[k]` (the boss's one
-    /// ball).
-    Plasma(u8),
-    Plasma2(u8),
-    /// Hell's express's `Pos[k]` (a soul's place; the boss's one).
-    Soul(u8),
-}
-
 /// Where a generator stands: its `pos` (+0x60), or following a place with
 /// its `offset` (+0x80).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -421,12 +410,12 @@ pub use super::GenOp;
 /// `new ccParticleGenerator` and `startParticleGenerator`: one of the
 /// fight's generators, where it stands, and the member that keeps it.
 pub(crate) fn particles(cx: &mut Cx, which: Gen, at: Place, held: Option<Held>) {
-    cx.out(Out::KyviaParticles { which, at, held });
+    cx.out(crate::boss::FxCall::KyviaParticles { which, at, held });
 }
 
 /// What the fight does to a generator it keeps.
 pub(crate) fn gen_op(cx: &mut Cx, held: Held, op: GenOp) {
-    cx.out(Out::KyviaGen { held, op });
+    cx.out(crate::boss::FxCall::KyviaGen { held, op });
 }
 
 /// `ccBossKyvia01`'s own members (+0x29350 on), and `ccBossKyvia02`'s.
@@ -775,7 +764,7 @@ pub fn new(cx: &mut Cx, fight: Fight) -> Boss {
     x.thunder = fight.later().then(thunder::Thunder::default);
     x.fourth = (fight == Fight::Fourth).then(|| Box::new(fourth::Fourth::new()));
     x.quake_vector = [0x4120_0000, 0x4120_0000, 0x4120_0000, 0];
-    Boss { base: b, class: Class::Kyvia(Box::new(x)) }
+    Boss::of(fight.def(), b, Class::Kyvia(Box::new(x)))
 }
 
 // --- the frame ---------------------------------------------------------------------------
@@ -788,20 +777,29 @@ pub(super) fn effects_pass(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) {
     t.put(cx);
 }
 
-impl crate::boss::Shape for Kyvia {
-    /// The core, then its gomoras.
-    fn parts(&self, scene: &crate::scene::Scene) -> Vec<usize> {
-        let mut v = vec![self.core];
-        if let Some(Class::KyviaCore(c)) =
-            scene.chars[self.core].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class)
-        {
-            v.extend(c.gomoras.iter().copied());
-        }
-        v
-    }
-}
-
 impl crate::boss::BossClass for Kyvia {
+    /// The core, then its gomoras; where the death's smoke and the beams'
+    /// ends are, for the generators that follow them.
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = crate::boss::BodyDraw {
+            pos: cx.scene.chars[cx.me].pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            ..crate::boss::BodyDraw::default()
+        };
+        out.parts.push(self.core);
+        if let Some(Class::KyviaCore(c)) =
+            cx.scene.chars[self.core].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class)
+        {
+            out.parts.extend(c.gomoras.iter().copied());
+        }
+        out.follow.push((Follow::DeadSmoke, self.ded_dmg_vec));
+        for k in 0..3u8 {
+            out.follow.push((Follow::BeamHead(k), self.l_bpos[usize::from(k)]));
+            out.follow.push((Follow::BeamTail(k), self.l_bpos_sub[usize::from(k)]));
+        }
+    }
+
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);
     }
@@ -1686,7 +1684,7 @@ fn hand_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
             let ended = x.anm_w.forward();
             let clip = x.anm_w.clip.clone().unwrap_or_default();
             let (time, pos, dirc) = (x.anm_w.posed, x.tes_pos, x.tes_dirc);
-            cx.out(Out::DrawAnm { clip, time, pos, dirc, layer: crate::boss::AnmLayer::Obj });
+            cx.out(crate::boss::Picture::anm(clip, time, pos, dirc, crate::boss::AnmLayer::Obj));
             if x.anm_w.frame() == 48 {
                 core_damage_all(t, cx, x.fight.skills()[0]);
                 cx.out(Out::Se3dNote { se: 56, pos: x.disc_pos, note: 72 });

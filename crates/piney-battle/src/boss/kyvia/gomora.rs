@@ -140,7 +140,7 @@ pub(crate) fn new(cx: &mut Cx, me: usize, master: usize, k: i32, lv: i16) -> Bos
     b.change_action(cx, act::NEUTRAL, 0, true);
     let mut x = x;
     x.anm_w.set("ANM_xx11wave", cx.clips);
-    Boss { base: b, class: Class::Gomora(Box::new(x)) }
+    Boss::of(&crate::boss::defs::GOMORA, b, Class::Gomora(Box::new(x)))
 }
 
 /// `ResetData` (MUT gcmn 0x004fe260).
@@ -264,12 +264,12 @@ fn move_(g: &mut Part<Gomora>, cx: &mut Cx) {
     pp = geom::vadd(pp, g.b.base.move_vector);
     let mut pos = cx.world.frame.p2w(pp);
     g.x.hit.pos = [pos[0], pos[1], ee::sub(pos[2], 0x42c8_0000), pos[3]];
-    if cx.part_hits.collide(me, &mut g.x.hit) {
+    if cx.field.collide(me, &mut g.x.hit) {
         let off = g.x.hit.offset;
         pos = geom::vadd(pos, off);
         pp = geom::vadd(pp, off);
         g.x.hit.pos = pos;
-        cx.part_hits.sync(me, &g.x.hit);
+        cx.field.sync(me, &g.x.hit);
     }
     let ch = &mut cx.scene.chars[me];
     ch.pos_p = pp;
@@ -421,7 +421,7 @@ fn think(g: &mut Part<Gomora>, acts: &[i16], cx: &mut Cx) {
 
 /// `HitEnable` / `HitDisable` of the gomora's `bodyHit`.
 fn hit(g: &mut Part<Gomora>, cx: &mut Cx, on: bool) {
-    cx.part_hits.switch(g.me, &mut g.x.hit, on);
+    cx.field.switch(g.me, &mut g.x.hit, on);
 }
 
 /// `StartInit` (MUT gcmn 0x004fe740): its attribute from the list (4: none,
@@ -988,6 +988,17 @@ fn dead(g: &mut Part<Gomora>, cx: &mut Cx) {
 }
 
 impl crate::boss::BossClass for Gomora {
+    /// Its aura's place, which its generators follow.
+    fn show(&self, b: &BossBase, cx: &mut Cx, out: &mut crate::boss::Output) {
+        out.body = crate::boss::BodyDraw {
+            pos: cx.scene.chars[cx.me].pos,
+            dirc: b.dirc,
+            shown: b.draw_sw != 0,
+            ..crate::boss::BodyDraw::default()
+        };
+        out.follow.push((crate::boss::Follow::Aura(cx.me), self.aura_pos));
+    }
+
     fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
         affect(b, cx);
     }

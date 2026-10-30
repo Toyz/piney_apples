@@ -9,7 +9,7 @@
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::fidchell::{self, Fidchell, Pic};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, Out};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, FxCall, Out};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -160,7 +160,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
-        part_hits: &mut piney_battle::boss::NoHits,
+        field: &mut piney_battle::boss::NoField,
         game_over: false,
         boss_cam: true,
         cam: view_at(0, true),
@@ -231,7 +231,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cc: &mut cc,
             clips: &clip,
             collide: &mut pushed,
-            part_hits: &mut piney_battle::boss::NoHits,
+            field: &mut piney_battle::boss::NoField,
             game_over: false,
             boss_cam: true,
             cam: view_at(f, false),
@@ -281,10 +281,10 @@ fn v3(v: &V4) -> String {
 /// A call as the harness records it.
 fn mout(o: &Out, cam2: &(V4, V4), cam_sw: &mut bool, max_range: &mut u32) -> Option<String> {
     Some(match o {
-        Out::Fidchell(p) => match p {
-            Pic::Text { .. } => return None,
-            Pic::Voice(n) => format!("[\"voice\",{n}]"),
-            Pic::VoiceStop => "[\"voice_stop\"]".into(),
+        Out::AnmText { .. } => return None,
+        Out::Voice { msg, .. } => format!("[\"voice\",{msg}]"),
+        Out::VoiceStop => "[\"voice_stop\"]".into(),
+        Out::Fx(FxCall::Fidchell(p)) => match p {
             Pic::Smoke { .. } => "[\"smoke\"]".into(),
             Pic::MeteorLand { .. } => "[\"smokerock\"],[\"explode\"],[\"explode\"]".into(),
             Pic::Radiate { .. } => "[\"radiate\"]".into(),

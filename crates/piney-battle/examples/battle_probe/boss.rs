@@ -9,7 +9,7 @@
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::blur::{Blur, BlurFunc, Reflex, Statics};
 use piney_battle::boss::skeith::{self, Skeith};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, Out, Tbl};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, FxCall, Out, Tbl};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -135,7 +135,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         cc: &mut cc,
         clips: &clip,
         collide: &mut none,
-        part_hits: &mut piney_battle::boss::NoHits,
+        field: &mut piney_battle::boss::NoField,
         game_over: false,
         // InitBossCamera is a no-op in the harness: no bossCam, no quake.
         boss_cam: false,
@@ -198,7 +198,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             cc: &mut cc,
             clips: &clip,
             collide: &mut none,
-            part_hits: &mut piney_battle::boss::NoHits,
+            field: &mut piney_battle::boss::NoField,
             game_over: false,
             boss_cam: false,
             cam: CamView { fade, ..CamView::default() },
@@ -434,7 +434,7 @@ pub(crate) fn out_json(o: &Out) -> Option<String> {
         Out::ClearSpcCondition => "[\"clear_spc\"]".into(),
         Out::AfterImage => "[\"afterimage\"]".into(),
         Out::Shield { magic, .. } => format!("[\"shield\",{magic}]"),
-        Out::Particles { which, .. } => match which {
+        Out::Fx(FxCall::Innis { which, .. }) => match which {
             Gen::InisField(r) => format!("[\"particles\",\"InisField\",{r}]"),
             Gen::Tornado => "[\"particles\",\"Tornado\",0]".into(),
             Gen::Burst(r) => format!("[\"particles\",\"Burst\",{r}]"),

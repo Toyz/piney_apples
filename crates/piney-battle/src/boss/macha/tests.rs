@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::affect::{self, AffectCtx};
-use crate::boss::{BossData, BossEnv, CamView};
+use crate::boss::{BossData, BossEnv, CamView, FxCall};
 use crate::chara::{AffectFunc, Char, Env};
 use crate::enemy_ai::{Genrand, IDENTITY, World};
 use crate::event::Events;
@@ -80,7 +80,7 @@ impl Fight {
             cc: &mut self.cc,
             clips: &clip,
             collide: &mut none,
-            part_hits: &mut crate::boss::NoHits,
+            field: &mut crate::boss::NoField,
             game_over: false,
             boss_cam: true,
             cam: CamView { shake: true, ..CamView::default() },
@@ -184,7 +184,7 @@ fn the_shock_fades_in_thirty_frames_and_bursts_in_eights() {
             let alive = fx.draw(cx);
             (alive, std::mem::take(&mut cx.out))
         });
-        bursts += out.iter().filter(|o| matches!(o, Out::Macha(Pic::Burst { .. }))).count();
+        bursts += out.iter().filter(|o| matches!(o, Out::Fx(FxCall::Macha(Pic::Burst { .. })))).count();
         if !alive {
             break;
         }

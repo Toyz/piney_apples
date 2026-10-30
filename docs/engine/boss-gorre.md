@@ -112,7 +112,7 @@ No `PreDrawAnm` and no `Draw`: nothing in Outbreak calls
 `ccBoss05::PreDrawAnm` (nor does its task, `ccThBoss05`: `Main`, then
 `CheckExit`), so Gorre's own body is neither animated nor drawn except in
 the Kerse's step 2, which forwards its clip and draws it at `m_talkPos`
-(`Shape::drawn_at`). The two brothers are what is seen of the fight.
+(its `Output::body`). The two brothers are what is seen of the fight.
 
 ## What is drawn
 

@@ -544,16 +544,53 @@ impl Effects {
         self.boss.sync(&mut self.ctrl, &mut cx, &self.assets.boss, src);
     }
 
+    /// What a boss's rules ask beside the effects they keep
+    /// ([`piney_battle::boss::FxCall`]), as its effects module makes it:
+    /// `me` the boss, `char_of` a scene character as the host names it.
+    pub fn boss_call(
+        &mut self,
+        host: &mut dyn Host,
+        me: CharRef,
+        char_of: &dyn Fn(usize) -> CharRef,
+        call: &piney_battle::boss::FxCall,
+    ) {
+        use piney_battle::boss::{FxCall, kyvia, magus};
+        match call {
+            &FxCall::Innis { which, pos } => self.innis_particles(host, which, pos),
+            // The meteors' and bolts' own come with their pictures.
+            &FxCall::KyviaParticles { which, at, held } => {
+                if !matches!(which, kyvia::Gen::Trail(_) | kyvia::Gen::Burst(_)) {
+                    self.kyvia_particles(host, which, at, held);
+                }
+            }
+            &FxCall::KyviaGen { held, op } => self.kyvia_gen_op(host, held, op),
+            FxCall::Magus(p) => match *p {
+                magus::Pic::Particles { which, at, held } => self.magus_particles(host, which, at, held),
+                magus::Pic::Gen { held, op } => self.magus_gen_op(host, held, op),
+                magus::Pic::Shocks { ref shocks } => self.magus_shocks(host, shocks),
+                magus::Pic::ShockBurst { at, turn } => self.magus_shock_burst(host, at, turn),
+                // A leaf lands: ccEnemyEffDust(pos, 30, 4.0).
+                magus::Pic::Dust { pos } => {
+                    self.enemy_dust(host, pos, 30, 0x4080_0000, dust::DUST_LIFE, dust::DUST_TEX)
+                }
+            },
+            FxCall::Fidchell(p) => self.fidchell_calls(host, p),
+            FxCall::Macha(p) => self.macha_calls(host, p),
+            FxCall::Tarvos(p) => self.tarvos_calls(host, me, p),
+            FxCall::Corbenik(p) => self.corbenik_calls(host, char_of, p),
+        }
+    }
+
     /// A particle generator Innis or one of its images starts
     /// ([`innis::start`]).
-    pub fn innis_particles(&mut self, host: &mut dyn Host, which: piney_battle::boss::innis::Gen, pos: V4) {
+    fn innis_particles(&mut self, host: &mut dyn Host, which: piney_battle::boss::innis::Gen, pos: V4) {
         let (_, mut cx) = self.split(host);
         let assets = cx.assets;
         innis::start(&mut cx, &assets.boss, which, pos);
     }
 
     /// A particle generator of Kyvia's fight started ([`kyvia::start`]).
-    pub fn kyvia_particles(
+    fn kyvia_particles(
         &mut self,
         host: &mut dyn Host,
         which: piney_battle::boss::kyvia::Gen,
@@ -573,7 +610,7 @@ impl Effects {
     }
 
     /// What Kyvia's fight does to a generator it keeps ([`kyvia::gen_op`]).
-    pub fn kyvia_gen_op(
+    fn kyvia_gen_op(
         &mut self,
         host: &mut dyn Host,
         held: piney_battle::boss::kyvia::Held,
@@ -599,7 +636,7 @@ impl Effects {
 
     /// A picture of Tarvos's this frame ([`tarvos::calls`]): its spikes and
     /// phantom join the boss effects' pass's draws. `me` is the boss.
-    pub fn tarvos_calls(&mut self, host: &mut dyn Host, me: CharRef, pic: &piney_battle::boss::tarvos::Pic) {
+    fn tarvos_calls(&mut self, host: &mut dyn Host, me: CharRef, pic: &piney_battle::boss::tarvos::Pic) {
         let mut cx = Cx {
             host,
             assets: &self.assets,
@@ -615,7 +652,7 @@ impl Effects {
     /// A picture of Corbenik's this frame ([`corbenik::calls`]): its
     /// generators, the seeds' charges, its bursts, shields, smoke and
     /// radiates. `char_of` names a scene character as the host does.
-    pub fn corbenik_calls(
+    fn corbenik_calls(
         &mut self,
         host: &mut dyn Host,
         char_of: &dyn Fn(usize) -> CharRef,
@@ -641,7 +678,7 @@ impl Effects {
 
     /// A picture of Macha's this frame ([`macha::calls`]): its lasers and
     /// blast join the boss effects' pass's draws.
-    pub fn macha_calls(&mut self, host: &mut dyn Host, pic: &piney_battle::boss::macha::Pic) {
+    fn macha_calls(&mut self, host: &mut dyn Host, pic: &piney_battle::boss::macha::Pic) {
         let mut cx = Cx {
             host,
             assets: &self.assets,
@@ -656,7 +693,7 @@ impl Effects {
 
     /// The laser's shocks drawn this frame, each where its beam met the
     /// ground at its transparency ([`magus::laser_shock`]).
-    pub fn magus_shocks(&mut self, host: &mut dyn Host, shocks: &[(V4, F)]) {
+    fn magus_shocks(&mut self, host: &mut dyn Host, shocks: &[(V4, F)]) {
         let mut cx = Cx {
             host,
             assets: &self.assets,
@@ -672,7 +709,7 @@ impl Effects {
     }
 
     /// A generator of Magus's leaves started ([`magus::start`]).
-    pub fn magus_particles(
+    fn magus_particles(
         &mut self,
         host: &mut dyn Host,
         which: piney_battle::boss::magus::Gen,
@@ -692,7 +729,7 @@ impl Effects {
     }
 
     /// What a leaf does to a generator it keeps ([`magus::gen_op`]).
-    pub fn magus_gen_op(
+    fn magus_gen_op(
         &mut self,
         host: &mut dyn Host,
         held: piney_battle::boss::magus::Held,
@@ -711,7 +748,7 @@ impl Effects {
     }
 
     /// A shock's burst ([`magus::shock_burst`]).
-    pub fn magus_shock_burst(&mut self, host: &mut dyn Host, at: V4, turn: F) {
+    fn magus_shock_burst(&mut self, host: &mut dyn Host, at: V4, turn: F) {
         let (ctrl, mut cx) = self.split(host);
         magus::shock_burst(ctrl, &mut cx, at, turn);
     }
@@ -719,7 +756,7 @@ impl Effects {
     /// What one of Fidchell's rules asks beside its spells' pictures
     /// (dust, a landing's rocks and bursts, a strike's flare and rocks):
     /// [`fidchell::calls`].
-    pub fn fidchell_calls(&mut self, host: &mut dyn Host, pic: &piney_battle::boss::fidchell::Pic) {
+    fn fidchell_calls(&mut self, host: &mut dyn Host, pic: &piney_battle::boss::fidchell::Pic) {
         let (ctrl, mut cx) = self.split(host);
         fidchell::calls(ctrl, &mut cx, pic);
     }

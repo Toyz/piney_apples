@@ -10,12 +10,14 @@
 pub mod blur;
 mod class;
 pub mod corbenik;
+pub mod defs;
 pub mod fidchell;
 pub mod gorre;
 pub mod innis;
 pub mod kyvia;
 pub mod macha;
 pub mod magus;
+pub mod output;
 mod part;
 pub mod skeith;
 pub mod tarvos;
@@ -37,7 +39,8 @@ use crate::scene::Scene;
 use crate::tables::Tables;
 use crate::world::CharHit;
 use class::{BaseActs, BossClass, Patterns, base_change_next_pattern, base_exec_pattern_index, word};
-pub use class::{Figure, Shape};
+pub use defs::BossDef;
+pub use output::{AnmLayer, Blend, BodyDraw, Figure, Follow, Output, PicFile, Picture, Root, Spot, Trail};
 pub use part::{Part, PartClass, Parts};
 
 type F = u32;
@@ -614,20 +617,13 @@ pub enum GenOp {
     Forget,
 }
 
-/// The layer a [`Out::DrawAnm`] goes on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AnmLayer {
-    Obj,
-    Eff,
-}
-
 /// What the rules ask of the rest of the game, in order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Out {
     /// `EntryAfterImage(&m_eai)`: an after-image of the boss's pose.
     AfterImage,
     /// `m_anmw.SetMatrix_PosRotZYX(pos, dirc)` and `DrawParts(m_anmw, 0)`:
-    /// the wave (`xeffect`'s `ANM_xx11wave`, the class's [`Shape::wave`])
+    /// the wave (`xeffect`'s `ANM_xx11wave`, posed as [`Output::wave`])
     /// drawn at the boss this frame, on objLayer.
     DrawWave,
     /// `ccSeOn3D(se, pos)`.
@@ -734,30 +730,14 @@ pub enum Out {
     },
     /// A write to the effect manager's blur through `ccBoss` +0x148.
     Blur(blur::Set),
-    /// A particle generator started (`startParticleGenerator`), by its
-    /// rows, at `pos`.
-    Particles {
-        which: innis::Gen,
-        pos: V4,
-    },
+    /// An effect beside the ones the boss keeps, for the effects to make.
+    Fx(FxCall),
     /// `effResistantShield(this, magic, -1)`: a blow of the kind the boss
     /// resists (Innis's spells, 1; Gorre's brothers' by row). `stretched`:
     /// a brother's, its element reshaped ([`gorre::brother`]).
     Shield {
         magic: i32,
         stretched: bool,
-    },
-    /// A particle generator of Kyvia's fight started: which, where, and
-    /// the member that keeps it.
-    KyviaParticles {
-        which: kyvia::Gen,
-        at: kyvia::Place,
-        held: Option<kyvia::Held>,
-    },
-    /// What the fight does to a generator it keeps.
-    KyviaGen {
-        held: kyvia::Held,
-        op: kyvia::GenOp,
     },
     /// `bossCam->SetRotXLimit(v)` (MUT gcmn 0x00475a40).
     CamRotXLimit(F),
@@ -798,17 +778,10 @@ pub enum Out {
     /// `bossCam` +0x01 `InitLock` set: the next turn goes straight to the
     /// boss.
     CamInitLock,
-    /// A `ccAnm` of the boss's file drawn this frame: `clip` posed at
-    /// `time`, at `pos` turned by `dirc`, on `layer`. Kyvia's arm
-    /// (`DrawParts(anmw, 0)`, objLayer), Macha's light ball
-    /// (`anmBallCharge`, `anmBall`: `ccAnm::Draw` on effLayer).
-    DrawAnm {
-        clip: String,
-        time: u32,
-        pos: V4,
-        dirc: V4,
-        layer: AnmLayer,
-    },
+    /// A picture drawn beside the bodies this frame ([`Picture`]): Kyvia's
+    /// arm, Macha's light ball, Corbenik's barrier, images, elements, root
+    /// and lasers.
+    Picture(Picture),
     /// `EntryAfterImageAnm(anm, pos, dirc, params)` (or `EntryAfterImage`
     /// on a part's own `ccAnm`): an after-image of character `who`'s
     /// `clip` at its frame `frame` (`ccBossAfterImageEx::Init`: at frame 0
@@ -819,6 +792,13 @@ pub enum Out {
         frame: i32,
         pos: V4,
         dirc: V4,
+        params: AfterImageParams,
+    },
+    /// An after-image of part `who`'s clip at its frame `frame`, drawn with
+    /// the part's body in `params` (a leaf of Magus's blinking).
+    AfterImagePart {
+        who: usize,
+        frame: i32,
         params: AfterImageParams,
     },
     /// The wave (`xeffect`'s `ANM_xx11wave`) posed at `time` at `pos`,
@@ -876,10 +856,26 @@ pub enum Out {
         se: i32,
         op: LoopOp,
     },
-    /// What Magus shows beside ([`magus::Pic`]).
-    Magus(magus::Pic),
-    /// What Fidchell shows or asks beside ([`fidchell::Pic`]).
-    Fidchell(fidchell::Pic),
+    /// `ccFont` type 1, `MakeSignedNum(2, n)` over a place 100 up
+    /// (`ccCalcTagPos`): a leaf's count, a seed's.
+    Count {
+        at: Spot,
+        n: i32,
+    },
+    /// A clip of the boss's file played on a layer of its own, through the
+    /// clip's own camera, no depth test (Fidchell's prediction,
+    /// `m_predTxt.anmText`): set anew when it changed or was not up the
+    /// frame before, then forward and drawn each frame it is asked.
+    AnmText {
+        clip: String,
+        layer: i16,
+    },
+    /// `ccEvVoiceRequest(event, msg)`, `ccEvVoiceStop()`.
+    Voice {
+        event: i32,
+        msg: i32,
+    },
+    VoiceStop,
     /// `OnCinemaMode` with a skill's name (OUT gcmn 0x004733b0): the bars
     /// and the name `sid`'s row gives (OUT 0x00472550).
     CinemaSkill(i32),
@@ -904,15 +900,29 @@ pub enum Out {
     /// `EntryAfterImage(&t)`: an after-image of the boss's pose in its own
     /// params (Macha's white ones).
     AfterImageWith(AfterImageParams),
-    /// What Macha shows beside its body ([`macha::Pic`]).
-    Macha(macha::Pic),
-    /// What Tarvos and its effects show ([`tarvos::Pic`]).
-    Tarvos(tarvos::Pic),
+    /// A `ccOmniLight` in the characters' group while Some (Macha's light
+    /// ball's).
+    Light(Option<crate::prim::OmniLight>),
+    /// `PreDrawAnm`'s `SetFogBlend` over character `who`'s body (Tarvos's
+    /// transfer, an eye's flash).
+    Fog {
+        who: usize,
+        blend: Blend,
+    },
     /// `ccMenu->noiz->SetNoizBs(bs)`: the screen broken up for `bs`
     /// frames (Tarvos's magic, a leftover register's 20).
     Noise(i32),
-    /// What Corbenik, its seeds and its effects show ([`corbenik::Pic`]).
-    Corbenik(corbenik::Pic),
+    /// The arena's clump switched (`eventArea` +0x2bc, Corbenik's lasers
+    /// on field 8).
+    StageClump(bool),
+    /// Character `who`, a part, gone with its master's form: off the
+    /// field's lists and bodies.
+    PartRemoved(usize),
+    /// The boss made anew on its character (Corbenik's next form): its
+    /// hit, parts, after-images and camera as its def makes them.
+    Remade,
+    /// `bossCam` +0xe4 (the eye's lift) set.
+    CamLift(F),
     /// `activeCamPtr->type` (+0x5c) set.
     CameraType(i32),
     /// `bossCam->lock` (+0x00) set.
@@ -931,12 +941,81 @@ pub enum Out {
     BlurSinRot(F),
 }
 
-/// A boss: `ccBoss`'s members and its class's own ([`Class`]), apart, so
-/// that a class's rules hold both at once.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// An effect a boss's rules ask beside the ones it keeps rules of:
+/// particle generators, smoke, bursts, rings, as each boss's effects
+/// module in the effects makes them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FxCall {
+    /// Innis's and its images' generators (`startParticleGenerator`), by
+    /// their rows, at `pos`.
+    Innis {
+        which: innis::Gen,
+        pos: V4,
+    },
+    /// A generator of Kyvia's fight started: which, where, and the member
+    /// that keeps it; what the fight does to one it keeps.
+    KyviaParticles {
+        which: kyvia::Gen,
+        at: kyvia::Place,
+        held: Option<kyvia::Held>,
+    },
+    KyviaGen {
+        held: kyvia::Held,
+        op: kyvia::GenOp,
+    },
+    Magus(magus::Pic),
+    Fidchell(fidchell::Pic),
+    Macha(macha::Pic),
+    Tarvos(tarvos::Pic),
+    Corbenik(corbenik::Pic),
+}
+
+/// `Out::Fx` of each boss's effect calls.
+macro_rules! fx_call {
+    ($($t:ty => $v:ident),* $(,)?) => {$(
+        impl From<$t> for Out {
+            fn from(p: $t) -> Out {
+                Out::Fx(FxCall::$v(p))
+            }
+        }
+    )*};
+}
+
+fx_call! {
+    magus::Pic => Magus,
+    fidchell::Pic => Fidchell,
+    macha::Pic => Macha,
+    tarvos::Pic => Tarvos,
+    corbenik::Pic => Corbenik,
+}
+
+impl From<FxCall> for Out {
+    fn from(c: FxCall) -> Out {
+        Out::Fx(c)
+    }
+}
+
+impl From<Picture> for Out {
+    fn from(p: Picture) -> Out {
+        Out::Picture(p)
+    }
+}
+
+/// A boss: what it is ([`BossDef`]), `ccBoss`'s members and its class's
+/// own ([`Class`]), apart, so that a class's rules hold both at once; and
+/// what it shows ([`Output`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Boss {
+    pub def: &'static BossDef,
     pub base: BossBase,
     pub class: Class,
+    pub output: Output,
+}
+
+impl Default for Boss {
+    fn default() -> Boss {
+        Boss::of(&defs::BASE_BOSS, BossBase::default(), Class::Plain)
+    }
 }
 
 /// `ccBoss`'s members. Floats are bits;
@@ -1030,8 +1109,8 @@ pub struct Cx<'a> {
     /// `ccCharHit::CollisionDetection` of the body hit at `pos`: the push
     /// out of whatever it overlaps.
     pub collide: &'a mut dyn FnMut(V4) -> Option<V4>,
-    /// The collision list as the boss's own parts reach it ([`PartHits`]).
-    pub part_hits: &'a mut dyn PartHits,
+    /// What the boss reaches of the field ([`Field`]).
+    pub field: &'a mut dyn Field,
     /// `compulsionGameOver`.
     pub game_over: bool,
     /// `bossCam` is set: `InitBossCamera` made the camera, so `QuakeCam`
@@ -1044,7 +1123,7 @@ pub struct Cx<'a> {
     /// `EVENTAREAB8`'s disc as Kyvia reads it ([`DiscView`]).
     pub disc: DiscView,
     /// `ccCheckParticleGenerator(g)` of a generator the rules made and
-    /// keyed ([`Out::Corbenik`]'s `Gen`): still on the particle system's
+    /// keyed ([`corbenik::Pic::Gen`]): still on the particle system's
     /// list (its life and its particles' run out on their own).
     pub gen_alive: &'a dyn Fn(u32) -> bool,
     pub me: usize,
@@ -1061,10 +1140,11 @@ pub enum LoopOp {
     Off { forget: bool },
 }
 
-/// The collision list (`ccCharHitTop`, main 0x0037890c) as a boss's own
-/// parts reach it, each `bodyHit` by its part's character (Kyvia's
-/// gomoras, `kyviaGomora::Move`).
-pub trait PartHits {
+/// What a boss reaches of the field in its frame: the collision list
+/// (`ccCharHitTop`, main 0x0037890c) as its parts reach it, each `bodyHit`
+/// by its part's character (Kyvia's gomoras, `kyviaGomora::Move`), the
+/// land, its bodies as last drawn and a character's heading.
+pub trait Field {
     /// `ccCharHit::HitEnable` (`on`) or `HitDisable`: `hit` into the list
     /// at its tail, or out of it; `hit.sw` follows.
     fn switch(&mut self, who: usize, hit: &mut CharHit, on: bool);
@@ -1079,12 +1159,36 @@ pub trait PartHits {
     fn line(&mut self, _sp: V4, _ep: V4, _mask: u32) -> Option<V4> {
         None
     }
+    /// The world place of node `name` of character `who`'s body as it was
+    /// last drawn (`GetSubstAdrsF`'s matrix); None without one.
+    fn node(&mut self, _who: usize, _name: &str) -> Option<V4> {
+        None
+    }
+    /// The entries `names` of `clip` posed at `time` (`posed` the pose's)
+    /// on `who`'s body where it was last drawn: each one's place and own
+    /// matrix, None where the clip has none. False, `out` untouched, when
+    /// the field holds no body to pose.
+    fn clip_entries(
+        &mut self,
+        _who: usize,
+        _clip: &str,
+        _time: [u32; 2],
+        _names: &[&str],
+        _out: &mut [Option<(V4, geom::M4)>],
+    ) -> bool {
+        false
+    }
+    /// `ccChar.dirc` of character `who` as the field keeps it.
+    fn dirc(&mut self, _who: usize) -> Option<V4> {
+        None
+    }
 }
 
-/// No list: a switch only sets `sw`, and nothing is ever touched.
-pub struct NoHits;
+/// No field: a switch only sets `sw`, nothing is ever touched, and no
+/// body is posed.
+pub struct NoField;
 
-impl PartHits for NoHits {
+impl Field for NoField {
     fn switch(&mut self, _: usize, hit: &mut CharHit, on: bool) {
         hit.sw = on;
     }
@@ -1168,7 +1272,8 @@ pub struct FadeView {
 }
 
 impl Cx<'_> {
-    fn out(&mut self, o: Out) {
+    fn out(&mut self, o: impl Into<Out>) {
+        let o = o.into();
         self.out.push(o);
     }
 
@@ -1305,6 +1410,11 @@ pub(crate) fn hit_hp(hp: i16, p0: i16, cheat: Option<i16>, mhp: i16) -> i16 {
 }
 
 impl Boss {
+    /// A boss of `def` with these members, nothing shown yet.
+    pub fn of(def: &'static BossDef, base: BossBase, class: Class) -> Boss {
+        Boss { def, base, class, output: Output::default() }
+    }
+
     /// The boss task's frame: the effect manager's pass (its task runs
     /// first in the frame), then the class's `Main`.
     /// `ccBossEffManager::Draw`'s pass over the effects whose `Draw` the
@@ -1312,21 +1422,53 @@ impl Boss {
     /// blur's `Main` and the boss's task. The other classes' effects run
     /// in their `main`.
     pub fn effects_pass(&mut self, cx: &mut Cx) {
-        let Boss { base, class } = self;
+        let Boss { base, class, .. } = self;
         class.with_rules(|r| r.effects_pass(base, cx));
     }
 
     /// The class's `Main` ([`BossClass::main`]).
     pub fn main(&mut self, cx: &mut Cx) {
-        let Boss { base, class } = self;
+        let Boss { base, class, .. } = self;
         class.with_rules(|r| r.main(base, cx));
+    }
+
+    /// The boss task's own step after its class's `Main`: when the class
+    /// hands over to another (`ccThBoss08` past the first form), the boss
+    /// that takes its place.
+    pub fn hand_over(&mut self, cx: &mut Cx) {
+        let Boss { base, class, .. } = self;
+        if let Some(next) = class.with_rules(|r| r.next(base, cx)) {
+            *self = next;
+        }
     }
 
     /// The class's `Affect` ([`BossClass::affect`]): what an `EntryAffect`
     /// on the boss does at once (`bossAffectFunc`, 0x0045f090).
     pub fn affect(&mut self, cx: &mut Cx) {
-        let Boss { base, class } = self;
+        let Boss { base, class, .. } = self;
         class.with_rules(|r| r.affect(base, cx));
+    }
+
+    /// What the frame shows ([`Output`]), the boss's and each of its
+    /// parts' own, written after its frame for the field to read.
+    pub fn show(&mut self, cx: &mut Cx) {
+        let Boss { base, class, output, .. } = self;
+        output.clear();
+        class.with_rules(|r| r.show(base, cx, output));
+        let me = cx.me;
+        for k in 0..self.output.parts.len() {
+            let p = self.output.parts[k];
+            let Some(mut b) = cx.scene.chars.get_mut(p).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take())
+            else {
+                continue;
+            };
+            cx.me = p;
+            b.show(cx);
+            cx.me = me;
+            if let Some(f) = cx.scene.chars[p].foe_state_mut() {
+                f.boss = Some(b);
+            }
+        }
     }
 }
 
@@ -2082,7 +2224,7 @@ pub fn entry(scene: &mut Scene, ctx: &AffectCtx, on: usize, rng: &mut dyn Rng, e
         cc,
         clips: benv.clips,
         collide: &mut collide,
-        part_hits: &mut NoHits,
+        field: &mut NoField,
         game_over: benv.game_over,
         // Affect never quakes.
         boss_cam: false,
