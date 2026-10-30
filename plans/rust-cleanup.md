@@ -104,6 +104,18 @@ order; tick items off here as they land, with the worklog entry.
       `as_any` impls: `StoryMap: Any` upcasts), `party_starts(StartSpread)`,
       `event_hits()`, `light_group`, one `ground_dist`. Keep each map's
       `statics::tables()` vs `statics::of(volume)` choice and its quirks.
+- [ ] Name the maps by what they are, not the game's class numbers:
+      `town01.rs`..`town06.rs` and `evarea*.rs` follow the game's C++
+      classes (`ROOTTOWN02`, `EVENTAREAB0`) and say nothing to a reader
+      (`evarea.rs` is even `EVENTAREA02`). Move them into
+      `piney-world/src/town/` (`mod.rs` with `Base` and `RootTown`,
+      `mac_anu.rs`, `dun_loireag.rs`, `carmina_gadelica.rs`,
+      `fort_ouph.rs`, `lia_fail.rs`, the sixth town by its name from the
+      loading cards) and `src/story_map/` (`holy_ground.rs`, `giant.rs`,
+      `boss_arena.rs`, `disc.rs`, `ending.rs`, `sky.rs`, areas 13 and 43 by
+      their names from the area words). Each module keeps the game class in
+      its doc and a `#[doc(alias = "ROOTTOWN02")]`, so the decompiled name
+      still finds it. The probes and tests named after them follow.
 - [ ] Towns: `step_scrolls`, `Sky` (clouds and lens flare), `WaterSpec`
       with the two real wrap rules as data, `Base::passes`, statics slots.
 - [ ] `AreaMap` trait over field, dungeon and story map (the 3-arm match
