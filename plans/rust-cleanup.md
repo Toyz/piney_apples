@@ -104,18 +104,39 @@ order; tick items off here as they land, with the worklog entry.
       `as_any` impls: `StoryMap: Any` upcasts), `party_starts(StartSpread)`,
       `event_hits()`, `light_group`, one `ground_dist`. Keep each map's
       `statics::tables()` vs `statics::of(volume)` choice and its quirks.
-- [ ] Name the maps by what they are, not the game's class numbers:
-      `town01.rs`..`town06.rs` and `evarea*.rs` follow the game's C++
-      classes (`ROOTTOWN02`, `EVENTAREAB0`) and say nothing to a reader
-      (`evarea.rs` is even `EVENTAREA02`). Move them into
-      `piney-world/src/town/` (`mod.rs` with `Base` and `RootTown`,
-      `mac_anu.rs`, `dun_loireag.rs`, `carmina_gadelica.rs`,
-      `fort_ouph.rs`, `lia_fail.rs`, the sixth town by its name from the
-      loading cards) and `src/story_map/` (`holy_ground.rs`, `giant.rs`,
-      `boss_arena.rs`, `disc.rs`, `ending.rs`, `sky.rs`, areas 13 and 43 by
-      their names from the area words). Each module keeps the game class in
-      its doc and a `#[doc(alias = "ROOTTOWN02")]`, so the decompiled name
-      still finds it. The probes and tests named after them follow.
+- [ ] Module trees and dispatch registries. The crates' `src/` roots are
+      flooded (piney-world 60 files and 4 folders, piney-effect 51,
+      piney-battle 39, piney-desktop 30, piney-game 28), and per-kind
+      things are dispatched by hand-written `match` arms whose constructors
+      each take different arguments, quirks inline (`Town::open_with`,
+      `story_map::build`). Two parts, done together:
+      - Group by subsystem, each folder a `mod.rs` with a small API. In
+        piney-world: `town/` (`Town`, `RootTown`, registry; `mac_anu`,
+        `dun_loireag`, `carmina_gadelica`, `fort_ouph`, `lia_fail`, the
+        sixth town by its loading-card name; `pc` = rtownpc, `merchant`,
+        `party`, `ride`, `dog`), `story_map/` (`StoryMap`, `MapCore`,
+        registry; `holy_ground` = EVENTAREA02, `giant` = 07, `boss_arena` =
+        B0, `disc` = B8, `ending`, `sky` = 04-06, areas 13 and 43 by their
+        area-word names), `field/`, `dungeon/`, `chara/` (char, chara,
+        body, pose, motion, arms, player, party, ai, navi, foe, npc),
+        `camera/` (camera, evcam, bosscam, cinema), `event/` (event, entry,
+        talk, gate, gameover), `grunty/` (grunty, race), the sky effects
+        (cloud, lensflare, lattice, firefly); `ee`, `mt`, `hit`, `draw`,
+        `area` stay at the root as the shared core. Each module keeps the
+        game's class in its doc and `#[doc(alias = "EVENTAREAB0")]`.
+      - Registries, not `match`: one constructor input (`MapEnv`: archive,
+        volume, save, server, def_se, rng, cc, area_prev, field_prev, kept,
+        event_start, crisis), and a table of definitions, e.g.
+        `MapDef { class, claims: fn(field, &MapEnv) -> bool, make: fn(&mut
+        MapEnv) -> Result<Box<dyn StoryMap>> }` with `static MAPS` and a
+        `build` that finds the first claim; `TownDef { no, volumes, make }`
+        likewise. Each kind's quirks live in its own `make` (Quarantine's
+        field 8 last stage, area 15's kept map). A new map or town is one
+        module and one table row.
+      - The same for the other crates: piney-effect and piney-battle by
+        system (the `BossClass` registry, effects by kind), piney-desktop
+        (an app table), piney-fieldui (the `MenuDef` table), piney-game
+        (modes and hosts). Probes and tests named after old files follow.
 - [ ] Towns: `step_scrolls`, `Sky` (clouds and lens flare), `WaterSpec`
       with the two real wrap rules as data, `Base::passes`, statics slots.
 - [ ] `AreaMap` trait over field, dungeon and story map (the 3-arm match
