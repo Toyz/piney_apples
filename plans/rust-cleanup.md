@@ -29,8 +29,10 @@ order; tick items off here as they land, with the worklog entry.
       (worklog 509; latent: no two cached names collide today.)
 - [x] `piney-data` `store::group` races: two threads can load and leak one
       group twice and get different `&'static` pointers. (worklog 509)
-- [ ] `piney-gen` `die()` calls `process::exit` from library code that the
+- [x] `piney-gen` `die()` calls `process::exit` from library code that the
       game reaches through `piney_build::image_data` (43 sites): `Result`.
+      (worklog 510: faults and searches `Result`; the manifest's own
+      mistakes `panic!`.)
 - [x] `piney-eemu` thread-local `BUS` is never uninstalled: a second `Sys` on
       a thread silently routes through a dead one. Put the bus in `Mem`.
       (worklog 509)

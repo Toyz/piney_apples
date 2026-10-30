@@ -23,9 +23,3 @@ pub mod talk;
 pub mod text;
 pub mod volume;
 pub mod xfer;
-
-/// A fault in the discs or the manifest: said, and the run ends.
-pub fn die(msg: &str) -> ! {
-    eprintln!("piney-gen: {msg}");
-    std::process::exit(2)
-}

@@ -19,13 +19,21 @@ pub type Maker = fn(Vol) -> Result<Option<Vec<u8>>, String>;
 
 /// The placement groups, by their file's name.
 pub const GROUPS: &[(&str, Maker)] = &[
-    ("area", |v| area::bytes(v).map(Some)),
-    ("dungeon", |v| dungeon::bytes(v).map(Some)),
-    ("field", |v| field::bytes(v).map(Some)),
-    ("setbl", sound::setbl),
-    ("sound", |v| sound::bytes(v).map(Some)),
-    ("statics", |v| statics::bytes(v).map(Some)),
+    ("area", |v| read(v, |v| area::bytes(v).map(Some))),
+    ("dungeon", |v| read(v, |v| dungeon::bytes(v).map(Some))),
+    ("field", |v| read(v, |v| field::bytes(v).map(Some))),
+    ("setbl", |v| read(v, sound::setbl)),
+    ("sound", |v| read(v, |v| sound::bytes(v).map(Some))),
+    ("statics", |v| read(v, |v| statics::bytes(v).map(Some))),
 ];
+
+/// `make` for the volume once its programs and Infection's are read
+/// ([`crate::volume::load`]).
+fn read(v: Vol, make: Maker) -> Result<Option<Vec<u8>>, String> {
+    crate::volume::load(Vol::Inf)?;
+    crate::volume::load(v)?;
+    make(v)
+}
 
 /// Bytes in `piney_data::store`'s form.
 #[derive(Default)]

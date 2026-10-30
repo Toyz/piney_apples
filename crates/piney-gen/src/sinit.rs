@@ -64,30 +64,31 @@ thread_local! {
 
 /// `saveSysMsg` as `__sinit_sdmng.cpp` fills it: each message's address,
 /// 0 for none.
-pub fn save_sys_msg(v: Vol) -> Rc<Vec<u32>> {
+pub fn save_sys_msg(v: Vol) -> Result<Rc<Vec<u32>>, String> {
     if let Some(x) = SAVE_SYS.with(|m| m.borrow().get(&v).cloned()) {
-        return x;
+        return Ok(x);
     }
     let c = ctx(v, None);
     let mut m = machine(&c.p, Features { vu: true, ..Features::default() });
-    let table = c.p.symbol_named("saveSysMsg").unwrap_or_else(|| crate::die("no saveSysMsg")).value;
+    let named = |name: &str| c.p.symbol_named(name).map(|s| s.value).ok_or_else(|| format!("{}: no {name}", v.tag()));
+    let table = named("saveSysMsg")?;
     m.ram[table as usize..(table + 4 * SAVE_SYS_MSG_WORDS) as usize].fill(0);
-    let init = c.p.symbol_named("__sinit_sdmng.cpp").unwrap_or_else(|| crate::die("no __sinit_sdmng.cpp")).value;
-    m.call(init, &[], 5_000_000).unwrap_or_else(|e| crate::die(&format!("{}: __sinit_sdmng.cpp: {e:?}", v.tag())));
+    let init = named("__sinit_sdmng.cpp")?;
+    m.call(init, &[], 5_000_000).map_err(|e| format!("{}: __sinit_sdmng.cpp: {e:?}", v.tag()))?;
     let out = Rc::new((0..SAVE_SYS_MSG_WORDS).map(|i| load(&m, table + 4 * i)).collect::<Vec<_>>());
     SAVE_SYS.with(|x| x.borrow_mut().insert(v, out.clone()));
-    out
+    Ok(out)
 }
 
 /// The words of the program's code or data at `va`.
-fn run(p: &Program, va: u32, n: u32) -> Vec<u32> {
-    let b = p.read(va, 4 * n as usize).unwrap_or_else(|e| crate::die(&e));
-    b.chunks(4).map(|c| u32::from_le_bytes(c.try_into().unwrap())).collect()
+fn run(p: &Program, va: u32, n: u32) -> Result<Vec<u32>, String> {
+    let b = p.read(va, 4 * n as usize)?;
+    Ok(b.chunks(4).map(|c| u32::from_le_bytes(c.try_into().unwrap())).collect())
 }
 
 /// {Infection's name: (address, end)} of the volume's desktop.prg static
 /// initialisers, by their places in the overlay's constructor list.
-fn initialisers(v: Vol) -> HashMap<String, (u32, u32)> {
+fn initialisers(v: Vol) -> Result<HashMap<String, (u32, u32)>, String> {
     let inf = ctx(Vol::Inf, Some("desktop")).p;
     let p = ctx(v, Some("desktop")).p;
     let listed = |q: &Program| {
@@ -104,19 +105,19 @@ fn initialisers(v: Vol) -> HashMap<String, (u32, u32)> {
         .collect();
     let mine = listed(&p);
     if names.len() != mine.len() {
-        crate::die(&format!("{}: {} desktop initialisers, Infection {}", v.tag(), mine.len(), names.len()));
+        return Err(format!("{}: {} desktop initialisers, Infection {}", v.tag(), mine.len(), names.len()));
     }
     let mut ends = mine.clone();
     ends.sort();
     ends.push(p.overlay.as_ref().unwrap().ctor_start);
-    names
+    Ok(names
         .into_iter()
         .zip(mine)
         .map(|(n, w)| {
             let k = ends.iter().position(|&e| e == w).unwrap();
             (n, (w, ends[k + 1]))
         })
-        .collect()
+        .collect())
 }
 
 pub struct MailLinks {
@@ -128,34 +129,34 @@ pub struct MailLinks {
 }
 
 /// The mail tables' replies, `MailTbl`'s or `MailTblp`'s.
-pub fn mail_links(v: Vol, parody: bool) -> Rc<MailLinks> {
+pub fn mail_links(v: Vol, parody: bool) -> Result<Rc<MailLinks>, String> {
     if let Some(x) = MAIL.with(|m| m.borrow().get(&(v, parody)).cloned()) {
-        return x;
+        return Ok(x);
     }
     let p = ctx(v, Some("desktop")).p;
-    let inits = initialisers(v);
+    let inits = initialisers(v)?;
     let name = |parody: bool| if parody { "__sinit_mailtblp.cpp" } else { "__sinit_mailtbl.cpp" };
     // The run of addresses the initialiser builds right below its MailTbl:
     // the ReMail rows it copies.
-    let remail = |parody: bool| -> (u32, u32) {
+    let remail = |parody: bool| -> Result<(u32, u32), String> {
         let (a, end) = inits[name(parody)];
-        let tbl = carried(v, DESKTOP, INF_MAIL_TBL[usize::from(parody)])
-            .unwrap_or_else(|| crate::die(&format!("{}: MailTbl not carried", v.tag())));
+        let tbl = carried(v, DESKTOP, INF_MAIL_TBL[usize::from(parody)])?
+            .ok_or_else(|| format!("{}: MailTbl not carried", v.tag()))?;
         let mut below: Vec<u32> =
-            xfer::addresses(&run(&p, a, (end - a) / 4), p.gp).into_values().filter(|&x| x < tbl).collect();
+            xfer::addresses(&run(&p, a, (end - a) / 4)?, p.gp).into_values().filter(|&x| x < tbl).collect();
         below.sort();
-        let mut lo = *below.last().unwrap_or_else(|| crate::die("no ReMail below MailTbl"));
+        let mut lo = *below.last().ok_or_else(|| format!("{}: no ReMail below MailTbl", v.tag()))?;
         for &x in below.iter().rev() {
             if lo - x > 0x100 {
                 break;
             }
             lo = x;
         }
-        (tbl, lo)
+        Ok((tbl, lo))
     };
-    let (tbl, rem) = remail(parody);
+    let (tbl, rem) = remail(parody)?;
     let nre = (tbl - rem) / REMAIL_SIZE;
-    let nmail = (remail(true).1 - remail(false).0) / MAIL_SIZE;
+    let nmail = (remail(true)?.1 - remail(false)?.0) / MAIL_SIZE;
     let mut m = machine(&p, Features::default());
     for k in 0..nre {
         for f in 0..5 {
@@ -170,7 +171,7 @@ pub fn mail_links(v: Vol, parody: bool) -> Rc<MailLinks> {
         }
     }
     let init = inits[name(parody)].0;
-    m.call(init, &[], 5_000_000).unwrap_or_else(|e| crate::die(&format!("{}: {}: {e:?}", v.tag(), name(parody))));
+    m.call(init, &[], 5_000_000).map_err(|e| format!("{}: {}: {e:?}", v.tag(), name(parody)))?;
     let mut links = Vec::new();
     for i in 0..nmail {
         let mut row = [0i32; 2];
@@ -182,7 +183,7 @@ pub fn mail_links(v: Vol, parody: bool) -> Rc<MailLinks> {
             }
             let k = (w[0] >> 4) & 0xFFFFF;
             if !w.iter().enumerate().all(|(f, &x)| x == MARK | k << 4 | f as u32) || k >= nre {
-                crate::die(&format!("{}: mail {i}: reply slot 0x{slot:x} is not a whole ReMail row: {w:x?}", v.tag()));
+                return Err(format!("{}: mail {i}: reply slot 0x{slot:x} is not a whole ReMail row: {w:x?}", v.tag()));
             }
             row[s] = k as i32;
         }
@@ -190,5 +191,5 @@ pub fn mail_links(v: Vol, parody: bool) -> Rc<MailLinks> {
     }
     let out = Rc::new(MailLinks { remail: rem, remail_rows: nre, links });
     MAIL.with(|x| x.borrow_mut().insert((v, parody), out.clone()));
-    out
+    Ok(out)
 }

@@ -8,7 +8,13 @@
 use std::process::ExitCode;
 
 use piney_gen::volume::{self, Vol};
-use piney_gen::{carry, die, dtype, dwarf, locate, manifest, render, syms};
+use piney_gen::{carry, dtype, dwarf, locate, manifest, render, syms};
+
+/// A fault in the discs or the manifest: said, and the run ends.
+fn die(msg: &str) -> ! {
+    eprintln!("piney-gen: {msg}");
+    std::process::exit(2)
+}
 
 fn usage() -> ! {
     die(
@@ -41,7 +47,7 @@ fn formatted(text: Result<String, String>) -> String {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let groups = manifest::groups();
+    let groups = manifest::groups().unwrap_or_else(|e| die(&e));
     match args.first().map(String::as_str) {
         Some("show") => {
             let Some(name) = args.get(1) else { usage() };
@@ -51,7 +57,7 @@ fn main() -> ExitCode {
                 Some(_) => usage(),
             };
             let g = groups.iter().find(|g| g.name == name).unwrap_or_else(|| die(&format!("no group {name}")));
-            for (e, v) in g.entries.iter().zip(locate::extract(g, v).iter()) {
+            for (e, v) in g.entries.iter().zip(locate::extract(g, v).unwrap_or_else(|e| die(&e)).iter()) {
                 let line = format!("{}: {v:?}", e.name);
                 println!("{}", line.chars().take(200).collect::<String>());
             }
@@ -109,7 +115,7 @@ fn main() -> ExitCode {
         }
         Some("global") => {
             // Infection's DWARF: each global's type, and its struct's members.
-            let dw = dtype::dwarf();
+            let dw = dtype::dwarf().unwrap_or_else(|e| die(&e));
             for name in &args[1..] {
                 if dw.global_named(name).is_empty()
                     && let Some((ms, size)) = dw.members(name)
@@ -150,7 +156,8 @@ fn main() -> ExitCode {
             }
             let mut current = true;
             for v in volume::VOLUMES.into_iter().filter(|&v| v != Vol::Inf && only.is_none_or(|o| o == v)) {
-                current &= if cmd == "carry" { carry::write(v, check) } else { syms::write(v, check) };
+                let written = if cmd == "carry" { carry::write(v, check) } else { syms::write(v, check) };
+                current &= written.unwrap_or_else(|e| die(&e));
             }
             if current { ExitCode::SUCCESS } else { ExitCode::FAILURE }
         }

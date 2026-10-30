@@ -173,7 +173,7 @@ pub fn write(l: &Layout, value: &Value, out: &mut Vec<u8>) -> Result<(), String>
 /// Every entry of `g` for volume `v`, in the manifest's order: the file a
 /// built group's `Load` reads.
 pub fn group_bytes(g: &Group, v: Vol) -> Result<Vec<u8>, String> {
-    let values = crate::locate::extract(g, v);
+    let values = crate::locate::extract(g, v)?;
     let mut out = Vec::new();
     for (e, value) in g.entries.iter().zip(values.iter()) {
         write(&e.layout, value, &mut out).map_err(|m| format!("{}.{} ({}): {m}", g.name, e.name, v.tag()))?;

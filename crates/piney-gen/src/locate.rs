@@ -20,7 +20,7 @@ pub fn section(overlay: Option<&str>) -> u32 {
         Some("demo") => 2,
         Some("desktop") => 3,
         Some("toppage") => 4,
-        Some(o) => crate::die(&format!("unknown overlay {o}")),
+        Some(o) => panic!("unknown overlay {o}: the manifest names five"),
     }
 }
 
@@ -35,64 +35,71 @@ thread_local! {
     static EXTRACTED: RefCell<HashMap<(String, Vol), Values>> = RefCell::new(HashMap::new());
 }
 
-fn rows(v: Vol) -> Rows {
-    CARRY.with(|c| c.borrow_mut().entry(v).or_insert_with(|| Rc::new(crate::carry::cached(v))).clone())
+fn rows(v: Vol) -> Result<Rows, String> {
+    if let Some(r) = CARRY.with(|c| c.borrow().get(&v).cloned()) {
+        return Ok(r);
+    }
+    let r = Rc::new(crate::carry::cached(v)?);
+    CARRY.with(|c| c.borrow_mut().insert(v, r.clone()));
+    Ok(r)
 }
 
 /// Infection's `inf` in the volume by the carry: a global holding it, or a
 /// stretch between two rows laid out alike.
-pub fn carried(v: Vol, sec: u32, inf: u32) -> Option<u32> {
+pub fn carried(v: Vol, sec: u32, inf: u32) -> Result<Option<u32>, String> {
     if v == Vol::Inf {
-        return Some(inf);
+        return Ok(Some(inf));
     }
-    let rows = rows(v);
+    let rows = rows(v)?;
     let key = (sec, inf, u32::MAX, u32::MAX);
     let i = rows.partition_point(|r| *r <= key);
     for r in rows[i.saturating_sub(8)..i].iter().rev() {
         if r.0 == sec && r.1 <= inf && inf < r.1 + r.2.max(1) {
-            return Some(r.3 + inf - r.1);
+            return Ok(Some(r.3 + inf - r.1));
         }
     }
     if i > 0 && i < rows.len() {
         let (lo, hi) = (rows[i - 1], rows[i]);
         if lo.0 == sec && sec == hi.0 && hi.1.wrapping_sub(lo.1) == hi.3.wrapping_sub(lo.3) {
-            return Some(lo.3 + inf - lo.1);
+            return Ok(Some(lo.3 + inf - lo.1));
         }
     }
-    None
+    Ok(None)
 }
 
-fn carry_of(v: Vol, overlay: Option<&str>, inf: u32) -> Option<u32> {
+/// [`carried`] in the overlay's section, or main's for a low address.
+fn carry_of(v: Vol, overlay: Option<&str>, inf: u32) -> Result<Option<u32>, String> {
     let sec = if inf >= 0x0040_0000 { section(overlay) } else { 0 };
-    carried(v, sec, inf)
-        .or_else(|| if sec == 0 && overlay.is_some() { carried(v, section(overlay), inf) } else { None })
+    match carried(v, sec, inf)? {
+        None if sec == 0 && overlay.is_some() => carried(v, section(overlay), inf),
+        found => Ok(found),
+    }
 }
 
 /// The entry's address in the volume: the carry's, the volume's own name
 /// for it, or the code's.
-pub fn locate(v: Vol, overlay: Option<&'static str>, inf: u32) -> Option<u32> {
+pub fn locate(v: Vol, overlay: Option<&'static str>, inf: u32) -> Result<Option<u32>, String> {
     if v == Vol::Inf {
-        return Some(inf);
+        return Ok(Some(inf));
     }
-    if let Some(va) = carry_of(v, overlay, inf) {
-        return Some(va);
+    if let Some(va) = carry_of(v, overlay, inf)? {
+        return Ok(Some(va));
     }
     let ip = ctx(Vol::Inf, overlay).p;
     if let Some((s, 0)) = ip.symbol_at(inf, 0)
         && ip.symbol_named(&s.name).is_some()
         && let Some(mine) = ctx(v, overlay).p.symbol_named(&s.name)
     {
-        return Some(mine.value);
+        return Ok(Some(mine.value));
     }
-    by_code(v, overlay, inf)
+    Ok(by_code(v, overlay, inf))
 }
 
 /// Infection's `inf` in the context's volume (for a custom entry).
-pub fn find(c: &Ctx, inf: u32, overlay: Option<&'static str>) -> u32 {
+pub fn find(c: &Ctx, inf: u32, overlay: Option<&'static str>) -> Result<u32, String> {
     let ov = overlay.or(c.overlay);
-    locate(c.volume, ov, inf).unwrap_or_else(|| {
-        crate::die(&format!("{}: find (Infection 0x{inf:08x}) not found: give it a finder", c.volume.tag()))
-    })
+    locate(c.volume, ov, inf)?
+        .ok_or_else(|| format!("{}: find (Infection 0x{inf:08x}) not found: give it a finder", c.volume.tag()))
 }
 
 const LO_OPS: [u32; 19] =
@@ -115,7 +122,8 @@ fn code(v: Vol, overlay: Option<&'static str>) -> Code {
                 let p = ctx(v, overlay).p;
                 let (lo, hi) = p.code_range(overlay.is_some());
                 let n = (hi - lo) / 4;
-                let raw = p.read(lo, 4 * n as usize).unwrap_or_else(|e| crate::die(&e));
+                // The program's own code range: a read of it cannot miss.
+                let raw = p.read(lo, 4 * n as usize).unwrap_or_else(|e| panic!("{}: its own code: {e}", v.tag()));
                 let words: Vec<u32> = raw.chunks(4).map(|b| u32::from_le_bytes(b.try_into().unwrap())).collect();
                 let keys = words.iter().map(|&w| key(w)).collect();
                 Rc::new((lo, words, keys))
@@ -214,7 +222,7 @@ fn code_candidates(v: Vol, overlay: Option<&'static str>, inf: u32) -> Vec<u32> 
 
 /// Where the nearest of Infection's other globals went, shifted by their
 /// distance: a block of globals keeps its order.
-fn neighbour_candidates(v: Vol, overlay: Option<&'static str>, inf: u32) -> Vec<u32> {
+fn neighbour_candidates(v: Vol, overlay: Option<&'static str>, inf: u32) -> Result<Vec<u32>, String> {
     let p = ctx(Vol::Inf, overlay).p;
     let sec = if inf >= 0x0040_0000 { section(overlay) } else { 0 };
     let mut near: Vec<(u32, u32)> = p
@@ -224,21 +232,21 @@ fn neighbour_candidates(v: Vol, overlay: Option<&'static str>, inf: u32) -> Vec<
         .map(|s| (s.value.abs_diff(inf), s.value))
         .collect();
     near.sort();
-    let place = |v: Vol, at: u32| {
-        carried(v, sec, at)
-            .or_else(|| if sec == 0 && overlay.is_some() { carried(v, section(overlay), at) } else { None })
+    let place = |v: Vol, at: u32| match carried(v, sec, at)? {
+        None if sec == 0 && overlay.is_some() => carried(v, section(overlay), at),
+        found => Ok(found),
     };
     // Past Mutation a block laid out as Mutation's (a table that grew there)
     // keeps Mutation's distances, not Infection's.
-    let mutation = if matches!(v, Vol::Out | Vol::Qua) { place(Vol::Mut, inf) } else { None };
+    let mutation = if matches!(v, Vol::Out | Vol::Qua) { place(Vol::Mut, inf)? } else { None };
     let mut out = Vec::new();
     for &(_, at) in near.iter().take(12) {
-        if let Some(c) = place(v, at) {
+        if let Some(c) = place(v, at)? {
             let va = c.wrapping_add(inf).wrapping_sub(at);
             if !out.contains(&va) {
                 out.push(va);
             }
-            if let (Some(m), Some(m_at)) = (mutation, place(Vol::Mut, at)) {
+            if let (Some(m), Some(m_at)) = (mutation, place(Vol::Mut, at)?) {
                 let va = c.wrapping_add(m).wrapping_sub(m_at);
                 if !out.contains(&va) {
                     out.push(va);
@@ -246,22 +254,23 @@ fn neighbour_candidates(v: Vol, overlay: Option<&'static str>, inf: u32) -> Vec<
             }
         }
     }
-    out
+    Ok(out)
 }
 
-fn read_or_die(g: &Group, e: &Entry, c: &Ctx, va: u32) -> Value {
-    e.layout
-        .read(c, va)
-        .unwrap_or_else(|err| crate::die(&format!("{}: {}.{} at 0x{va:08x}: {err}", c.volume.tag(), g.name, e.name)))
+/// The entry's value read at `va`.
+fn read_at(g: &Group, e: &Entry, c: &Ctx, va: u32) -> Result<Value, String> {
+    e.layout.read(c, va).map_err(|err| format!("{}: {}.{} at 0x{va:08x}: {err}", c.volume.tag(), g.name, e.name))
 }
 
 /// Every entry's value in the volume.
-pub fn extract(g: &Group, v: Vol) -> Rc<Vec<Value>> {
+pub fn extract(g: &Group, v: Vol) -> Result<Rc<Vec<Value>>, String> {
     let k = (g.name.to_string(), v);
     if let Some(x) = EXTRACTED.with(|m| m.borrow().get(&k).cloned()) {
-        return x;
+        return Ok(x);
     }
-    let inf = (v != Vol::Inf).then(|| extract(g, Vol::Inf));
+    crate::volume::load(Vol::Inf)?;
+    crate::volume::load(v)?;
+    let inf = if v == Vol::Inf { None } else { Some(extract(g, Vol::Inf)?) };
     let mut out = Vec::new();
     let mut found: HashMap<&str, u32> = HashMap::new();
     for (i, e) in g.entries.iter().enumerate() {
@@ -272,25 +281,25 @@ pub fn extract(g: &Group, v: Vol) -> Rc<Vec<Value>> {
         }
         if let Some((base, off)) = e.after {
             let va = found[base].wrapping_add(off as u32);
-            out.push(read_or_die(g, e, &c, va));
+            out.push(read_at(g, e, &c, va)?);
             found.insert(e.name, va);
             continue;
         }
         let Some(infa) = e.inf else {
             // Its own finder.
-            out.push(read_or_die(g, e, &c, 0));
+            out.push(read_at(g, e, &c, 0)?);
             continue;
         };
         if v == Vol::Inf {
-            out.push(read_or_die(g, e, &c, infa));
+            out.push(read_at(g, e, &c, infa)?);
             found.insert(e.name, infa);
             continue;
         }
-        let first = locate(v, e.overlay, infa);
+        let first = locate(v, e.overlay, infa)?;
         let mut cands: Vec<u32> = first.into_iter().collect();
         if !(e.carried && first.is_some()) {
             cands.extend(code_candidates(v, e.overlay, infa));
-            cands.extend(neighbour_candidates(v, e.overlay, infa));
+            cands.extend(neighbour_candidates(v, e.overlay, infa)?);
         }
         let mut tried: Vec<(u32, Value)> = Vec::new();
         let mut errors = Vec::new();
@@ -305,7 +314,7 @@ pub fn extract(g: &Group, v: Vol) -> Rc<Vec<Value>> {
         }
         if tried.is_empty() {
             let why = if errors.is_empty() { "not found: give it a finder".to_string() } else { errors.join("; ") };
-            crate::die(&format!("{}: {}.{} (Infection 0x{infa:08x}): {why}", v.tag(), g.name, e.name));
+            return Err(format!("{}: {}.{} (Infection 0x{infa:08x}): {why}", v.tag(), g.name, e.name));
         }
         let want = &inf.as_ref().unwrap()[i];
         let mut best = 0;
@@ -322,5 +331,5 @@ pub fn extract(g: &Group, v: Vol) -> Rc<Vec<Value>> {
     }
     let out = Rc::new(out);
     EXTRACTED.with(|m| m.borrow_mut().insert(k, out.clone()));
-    out
+    Ok(out)
 }

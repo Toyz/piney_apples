@@ -36,7 +36,7 @@ pub fn port_files(disc: &mut Iso) -> Result<Vec<(String, Vec<u8>)>, String> {
     // The generator reads the volume's files from the disc named for it
     // ([`use_disc`]).
     let gv = piney_gen::volume::VOLUMES[v as usize];
-    for g in piney_gen::manifest::groups().iter().filter(|g| piney_gen::data::in_build(g)) {
+    for g in piney_gen::manifest::groups()?.iter().filter(|g| piney_gen::data::in_build(g)) {
         let bytes = piney_gen::data::group_bytes(g, gv)?;
         files.push((format!("{}/{}.bin", piney_data::store::TABLES_DIR, g.name), bytes));
     }

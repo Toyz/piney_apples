@@ -23,7 +23,7 @@ fn sec_name(s: &str) -> &'static str {
         "demo" => "demo",
         "desktop" => "desktop",
         "toppage" => "toppage",
-        other => crate::die(&format!("unknown section {other}")),
+        other => panic!("unknown section {other}: Infection's executable has five"),
     }
 }
 
@@ -202,7 +202,7 @@ fn text_at(p: &Program, va: u32) -> Option<Vec<u8>> {
 /// pointer a pointer. One place only, and at least one string or two
 /// non-zero numbers to tell it by. This names the tables a recompiled body
 /// no longer shows (Outbreak's and Quarantine's `EA_MODELTABLE`s).
-fn content(v: Vol, rows: &[Row]) -> Vec<Row> {
+fn content(v: Vol, rows: &[Row]) -> Result<Vec<Row>, String> {
     let mut have: HashSet<(&str, String)> = rows.iter().map(|r| (r.sec, r.name.clone())).collect();
     let mut taken: HashSet<(&str, u32)> = rows.iter().map(|r| (r.sec, r.va)).collect();
     let mut out = Vec::new();
@@ -240,7 +240,7 @@ fn content(v: Vol, rows: &[Row]) -> Vec<Row> {
                 pointer_at.insert(r.offset, a);
             }
         }
-        let raw = dp.read(d_lo, (d_hi - d_lo) as usize).unwrap_or_else(|e| crate::die(&e));
+        let raw = dp.read(d_lo, (d_hi - d_lo) as usize)?;
         let words: Vec<u32> = raw.as_chunks::<4>().0.iter().map(|&c| u32::from_le_bytes(c)).collect();
         let mut by_value: HashMap<u32, Vec<usize>> = HashMap::new();
         for (i, &w) in words.iter().enumerate() {
@@ -252,7 +252,7 @@ fn content(v: Vol, rows: &[Row]) -> Vec<Row> {
         let mut strings: HashMap<Vec<u8>, Vec<u32>> = HashMap::new();
         let main = (dp.main_seg.vaddr, dp.main_seg.vaddr + dp.main_seg.filesz);
         for (lo, hi) in [(d_lo, d_hi), main] {
-            let data = dp.read(lo, (hi - lo) as usize).unwrap_or_else(|e| crate::die(&e));
+            let data = dp.read(lo, (hi - lo) as usize)?;
             strings_in(&data, lo, &mut strings);
         }
         let want_sec = ov.map_or("main".to_string(), |o| format!("{o}.prg"));
@@ -276,7 +276,7 @@ fn content(v: Vol, rows: &[Row]) -> Vec<Row> {
                         None => pattern.push(Pat::Ptr),
                     }
                 } else {
-                    let w = sp.u32(va).unwrap_or_else(|e| crate::die(&e));
+                    let w = sp.u32(va).unwrap_or_else(|e| panic!("Infection's {}: {e}", sym.name));
                     pattern.push(Pat::Word(w));
                     info += u32::from(w != 0);
                 }
@@ -347,7 +347,7 @@ fn content(v: Vol, rows: &[Row]) -> Vec<Row> {
             }
         }
     }
-    out
+    Ok(out)
 }
 
 /// Functions named by the globals they build. Where exactly one of
@@ -358,7 +358,7 @@ fn content(v: Vol, rows: &[Row]) -> Vec<Row> {
 /// branches below it). This names the recompiled constructors the order
 /// pass could not (Outbreak's `EVENTAREA` and `ROOTTOWN`s, found through
 /// their tables).
-fn refs(v: Vol, rows: &[Row]) -> Vec<Row> {
+fn refs(v: Vol, rows: &[Row]) -> Result<Vec<Row>, String> {
     let mut out = Vec::new();
     for ov in SECTIONS {
         let sec = ov.unwrap_or("main");
@@ -400,7 +400,7 @@ fn refs(v: Vol, rows: &[Row]) -> Vec<Row> {
             if hi <= lo {
                 continue;
             }
-            let data = dst.p.read(lo, (hi - lo) as usize).unwrap_or_else(|e| crate::die(&e));
+            let data = dst.p.read(lo, (hi - lo) as usize)?;
             strings_in(&data, lo, &mut places);
         }
         for (name, text) in literal.iter() {
@@ -465,7 +465,7 @@ fn refs(v: Vol, rows: &[Row]) -> Vec<Row> {
             named_fn.insert(va);
         }
     }
-    out
+    Ok(out)
 }
 
 /// Functions changed further on but opening alike: an Infection function
@@ -639,7 +639,7 @@ fn pointers(v: Vol, rows: Vec<Row>) -> (Vec<Row>, usize, usize) {
                 p_ok += u32::from(w == 0 || others.iter().any(|x| region(x, w, dst_floor).is_some()));
             } else {
                 n_all += 1;
-                let sw = sp.u32(o.value + off).unwrap_or_else(|e| crate::die(&e));
+                let sw = sp.u32(o.value + off).unwrap_or_else(|e| panic!("Infection's {}: {e}", o.name));
                 n_ok += u32::from(w == sw || region(&dp, w, dst_floor).is_none());
             }
         }
@@ -1192,7 +1192,9 @@ fn ctors(v: Vol, rows: Vec<Row>) -> (Vec<Row>, usize) {
 }
 
 /// The volume's sidecar rows, every pass in turn, with what each found.
-fn carry_symbols(v: Vol) -> Vec<Row> {
+fn carry_symbols(v: Vol) -> Result<Vec<Row>, String> {
+    crate::volume::load(Vol::Inf)?;
+    crate::volume::load(v)?;
     let (mut rows, stats) = transfer(v);
     let across = cross(v, &rows);
     let n_across = across.len();
@@ -1202,15 +1204,15 @@ fn carry_symbols(v: Vol) -> Vec<Row> {
     // What a global holds (its numbers, the strings it points at) outranks
     // a table's pointer to it: Mutation's pcMsg4 keeps Infection's layout
     // with rows added to what it points at.
-    let found = content(v, &rows);
+    let found = content(v, &rows)?;
     let mut n_content = found.len();
     rows.extend(found);
     let (rows2, mut n_pointer, mut n_moved) = pointers(v, rows);
     let (mut rows, n_layout, n_relaid) = layout(v, rows2);
-    let more = content(v, &rows);
+    let more = content(v, &rows)?;
     n_content += more.len();
     rows.extend(more);
-    let by_ref = refs(v, &rows);
+    let by_ref = refs(v, &rows)?;
     let n_ref = by_ref.len();
     rows.extend(by_ref);
     let by_prefix = prefixes(v, &rows);
@@ -1236,34 +1238,34 @@ fn carry_symbols(v: Vol) -> Vec<Row> {
     println!("prefix    {n_prefix} functions named by their opening words");
     println!("ctor      {n_ctor} static initialisers named from the overlays' constructor lists");
     println!("overload  {n_swapped} pairs of overloads whose names the passes crossed");
-    rows
+    Ok(rows)
 }
 
 /// The symbols carried to the volume, as its sidecar's text.
-pub fn text(v: Vol) -> String {
-    let rows = carry_symbols(v);
+pub fn text(v: Vol) -> Result<String, String> {
+    let rows = carry_symbols(v)?;
     let mut text =
         format!("# symbols carried from {} by piney-gen syms\n# section\tva\tsize\ttype\tname\thow\n", Vol::Inf.exe());
     for r in &rows {
         text.push_str(&format!("{}\t{:08x}\t{}\t{}\t{}\t{}\n", r.sec, r.va, r.size, r.kind, r.name, r.how));
     }
-    text
+    Ok(text)
 }
 
 /// Carry the symbols to the volume and write its sidecar (or with `check`,
 /// say whether the sidecar holds them).
-pub fn write(v: Vol, check: bool) -> bool {
-    let text = text(v);
+pub fn write(v: Vol, check: bool) -> Result<bool, String> {
+    let text = text(v)?;
     let rows = text.lines().filter(|l| !l.starts_with('#')).count();
     let path = std::path::PathBuf::from(format!("{}.syms", elf_path(v).display()));
     if check {
         let same = std::fs::read_to_string(&path).is_ok_and(|t| t == text);
         println!("{} {}", path.display(), if same { "is current" } else { "differs" });
-        return same;
+        return Ok(same);
     }
-    std::fs::write(&path, text).unwrap_or_else(|e| crate::die(&format!("{}: {e}", path.display())));
+    std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
     println!("{rows} symbols -> {}", path.display());
-    true
+    Ok(true)
 }
 
 #[cfg(test)]

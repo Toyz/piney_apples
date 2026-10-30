@@ -61,7 +61,7 @@ pub fn symbols_text(v: Vol) -> Result<String, String> {
     }
     // The ELF's own table: main's and every overlay's (a program opened
     // with no overlay keeps only main's).
-    let p = crate::volume::ctx(v, None).p;
+    let p = crate::volume::open(v, None)?.p;
     let mut rows: Vec<(String, u32, u32, &str, &str)> = Vec::new();
     for s in &p.elf.symbols {
         let kind = match s.kind {
@@ -115,6 +115,7 @@ pub fn syms(v: Vol) -> Result<Option<(String, String)>, String> {
     MAKING.with(|m| m.borrow_mut().retain(|&x| x != v));
     crate::volume::forget(v);
     crate::xfer::forget(v);
+    let text = text?;
     MADE.with(|m| m.borrow_mut().insert(v, text.clone()));
     Ok(Some((text, format!("{}'s carried names", v.tag()))))
 }

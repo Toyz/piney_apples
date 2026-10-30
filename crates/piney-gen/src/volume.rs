@@ -96,18 +96,30 @@ thread_local! {
     static PROGRAMS: RefCell<Programs> = RefCell::new(HashMap::new());
 }
 
-pub fn ctx(volume: Vol, overlay: Option<&'static str>) -> Ctx {
+/// The volume's executable with `overlay` loaded, read once a run.
+pub fn open(volume: Vol, overlay: Option<&'static str>) -> Result<Ctx, String> {
     if let Some(p) = PROGRAMS.with(|m| m.borrow().get(&(volume, overlay)).cloned()) {
-        return Ctx { volume, overlay, p };
+        return Ok(Ctx { volume, overlay, p });
     }
-    let open = || -> Result<Program, String> {
-        let exe = volume.exe();
+    let exe = volume.exe();
+    let read = || -> Result<Program, String> {
         let elf = crate::elf::Elf::parse(crate::source::read(volume, exe)?, exe)?;
         Program::from_parts(elf, || crate::source::syms(volume), |path| crate::source::read(volume, path), overlay)
     };
-    let p = Rc::new(open().unwrap_or_else(|e| crate::die(&format!("{}: {e}", volume.tag()))));
+    let p = Rc::new(read().map_err(|e| format!("{}: {e}", volume.tag()))?);
     PROGRAMS.with(|m| m.borrow_mut().insert((volume, overlay), p.clone()));
-    Ctx { volume, overlay, p }
+    Ok(Ctx { volume, overlay, p })
+}
+
+/// Every program of the volume read ([`open`]): the generator's entry
+/// points call it first, so that [`ctx`] has nothing left to fail on.
+pub fn load(volume: Vol) -> Result<(), String> {
+    crate::xfer::SECTIONS.into_iter().try_for_each(|ov| open(volume, ov).map(drop))
+}
+
+/// [`open`] for a volume [`load`] has read.
+pub fn ctx(volume: Vol, overlay: Option<&'static str>) -> Ctx {
+    open(volume, overlay).unwrap_or_else(|e| panic!("{e} (an entry point reads the volume first: volume::load)"))
 }
 
 /// Drop the volume's programs read so far (their names changed).

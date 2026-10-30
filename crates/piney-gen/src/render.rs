@@ -159,8 +159,9 @@ pub fn structs_of(g: &Group) -> Vec<Rc<StructDef>> {
             s.fields.iter().for_each(|f| walk(&f.2, out, g));
             match out.iter().find(|x| x.name == s.name) {
                 None => out.push(s.clone()),
+                // The manifest's mistake: two uses of one name laid out apart.
                 Some(x) if definition(x) != definition(s) => {
-                    crate::die(&format!("{}: two layouts named {}: give their uses one override", g.name, s.name))
+                    panic!("{}: two layouts named {}: give their uses one override", g.name, s.name)
                 }
                 _ => {}
             }
@@ -181,7 +182,7 @@ pub fn render(g: &Group) -> Result<String, String> {
     if crate::data::in_build(g) {
         return render_built(g);
     }
-    let values: Vec<Rc<Vec<Value>>> = VOLUMES.iter().map(|&v| extract(g, v)).collect();
+    let values: Vec<Rc<Vec<Value>>> = VOLUMES.iter().map(|&v| extract(g, v)).collect::<Result<_, _>>()?;
     let n = g.entries.len();
     let alike: Vec<bool> = (0..n).map(|i| values.iter().all(|vv| vv[i] == values[0][i])).collect();
     let keyed: Vec<usize> = (0..n).filter(|&i| matches!(g.entries[i].layout, Layout::Keyed { .. })).collect();
@@ -359,7 +360,7 @@ pub fn render(g: &Group) -> Result<String, String> {
 /// entries alike on every volume their statics as before (read on first
 /// use) and the keyed entries' enum methods.
 fn render_built(g: &Group) -> Result<String, String> {
-    let values: Vec<Rc<Vec<Value>>> = VOLUMES.iter().map(|&v| extract(g, v)).collect();
+    let values: Vec<Rc<Vec<Value>>> = VOLUMES.iter().map(|&v| extract(g, v)).collect::<Result<_, _>>()?;
     let n = g.entries.len();
     let alike: Vec<bool> = (0..n).map(|i| values.iter().all(|vv| vv[i] == values[0][i])).collect();
     // The data run registers the functions and characters the values use.

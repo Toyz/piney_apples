@@ -22,19 +22,21 @@ thread_local! {
 }
 
 /// Infection's DWARF, read once.
-pub fn dwarf() -> Rc<Dwarf> {
-    DWARF.with(|d| {
-        d.borrow_mut()
-            .get_or_insert_with(|| {
-                let exe = Vol::Inf.exe();
-                let bytes = crate::source::read(Vol::Inf, exe).unwrap_or_else(|e| {
-                    crate::die(&format!("{e} (Infection's disc is needed for the tables' layouts)"))
-                });
-                let elf = Elf::parse(bytes, exe).unwrap_or_else(|e| crate::die(&e));
-                Rc::new(Dwarf::read(&elf).unwrap_or_else(|e| crate::die(&e)))
-            })
-            .clone()
-    })
+pub fn dwarf() -> Result<Rc<Dwarf>, String> {
+    if let Some(d) = DWARF.with(|d| d.borrow().clone()) {
+        return Ok(d);
+    }
+    let exe = Vol::Inf.exe();
+    let bytes = crate::source::read(Vol::Inf, exe)
+        .map_err(|e| format!("{e} (Infection's disc is needed for the tables' layouts)"))?;
+    let d = Rc::new(Dwarf::read(&Elf::parse(bytes, exe)?)?);
+    DWARF.with(|x| *x.borrow_mut() = Some(d.clone()));
+    Ok(d)
+}
+
+/// The DWARF [`crate::manifest::groups`] read before it laid out a type.
+fn read_dwarf() -> Rc<Dwarf> {
+    dwarf().unwrap_or_else(|e| panic!("{e}: manifest::groups reads the DWARF first"))
 }
 
 /// Member names that are Rust keywords, and what the port calls them.
@@ -130,8 +132,9 @@ pub fn ty_doc(name: &str, over: Overrides, doc: Option<&str>) -> Layout {
     if let Some(s) = TYPES.with(|t| t.borrow().get(&key).cloned()) {
         return Layout::Struct(s);
     }
-    let dw = dwarf();
-    let Some(&d) = dw.aggregates(name).first() else { crate::die(&format!("no DWARF type {name}")) };
+    // A name or a layout the DWARF does not have is the manifest's mistake.
+    let dw = read_dwarf();
+    let Some(&d) = dw.aggregates(name).first() else { panic!("no DWARF type {name}") };
     let d = dw.die(d);
     let lay = |t: &Ty, path: &str| layout(&dw, name, &over, t, path);
     let mut fields = Vec::new();
@@ -140,7 +143,7 @@ pub fn ty_doc(name: &str, over: Overrides, doc: Option<&str>) -> Layout {
         if c.tag != TAG_MEMBER {
             continue;
         }
-        let off = dwarf::member_offset(c).unwrap_or_else(|| crate::die(&format!("{name}: a member without an offset")));
+        let off = dwarf::member_offset(c).unwrap_or_else(|| panic!("{name}: a member without an offset"));
         let cname = c.name().unwrap_or_default();
         let t = dw.type_of(c).unwrap_or(Ty::Unknown);
         let mut l = lay(&t, cname);
@@ -178,7 +181,7 @@ fn layout(dw: &Dwarf, name: &str, over: &Overrides, t: &Ty, path: &str) -> Layou
             "int" => Layout::Num(Num::I32),
             "unsigned int" => Layout::Num(Num::U32),
             "float" => Layout::Float,
-            other => crate::die(&format!("{name}.{path}: no layout for {other}")),
+            other => panic!("{name}.{path}: no layout for {other}"),
         },
         Ty::Named(i) => {
             let sub = dw.die(*i);
@@ -195,7 +198,7 @@ fn layout(dw: &Dwarf, name: &str, over: &Overrides, t: &Ty, path: &str) -> Layou
         }
         Ty::Array(n, inner) => Layout::Fixed {
             inner: Box::new(layout(dw, name, over, inner, path)),
-            n: n.unwrap_or_else(|| crate::die(&format!("{name}.{path}: an array without a bound"))) as usize,
+            n: n.unwrap_or_else(|| panic!("{name}.{path}: an array without a bound")) as usize,
             empty: None,
         },
         Ty::Ptr(inner) => match **inner {
@@ -205,6 +208,6 @@ fn layout(dw: &Dwarf, name: &str, over: &Overrides, t: &Ty, path: &str) -> Layou
             _ => Layout::Num(Num::U32),
         },
         Ty::Cv(inner) => layout(dw, name, over, inner, path),
-        other => crate::die(&format!("{name}.{path}: no layout for {other:?}")),
+        other => panic!("{name}.{path}: no layout for {other:?}"),
     }
 }

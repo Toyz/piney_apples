@@ -114,17 +114,20 @@ impl Num {
     }
 }
 
+/// A count the volume decides.
+pub type CountFn = Rc<dyn Fn(&Ctx) -> Result<usize, String>>;
+
 /// A count: a number, or one the volume decides.
 #[derive(Clone)]
 pub enum Count {
     N(usize),
-    By(Rc<dyn Fn(&Ctx) -> usize>),
+    By(CountFn),
 }
 
 impl Count {
-    fn get(&self, ctx: &Ctx) -> usize {
+    fn get(&self, ctx: &Ctx) -> Result<usize, String> {
         match self {
-            Count::N(n) => *n,
+            Count::N(n) => Ok(*n),
             Count::By(f) => f(ctx),
         }
     }
@@ -336,7 +339,7 @@ impl Layout {
                 Value::List(out)
             }
             Layout::Bytes { n, blank } => {
-                let mut out = ctx.p.read(va, n.get(ctx))?;
+                let mut out = ctx.p.read(va, n.get(ctx)?)?;
                 for &(lo, hi) in blank {
                     out[lo..hi].fill(0);
                 }
@@ -428,7 +431,7 @@ impl Layout {
                         return Err(format!("0x{va:08x}: no terminator row within {limit}"));
                     }
                     None => {
-                        for i in 0..n.get(ctx) {
+                        for i in 0..n.get(ctx)? {
                             out.push(inner.read(ctx, va + step * i as u32)?);
                         }
                     }

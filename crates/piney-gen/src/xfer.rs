@@ -402,7 +402,8 @@ pub fn side(v: Vol, overlay: Option<&'static str>) -> Rc<Side> {
     }
     let p = ctx(v, overlay).p;
     let (lo, hi, code_hi) = span(&p, overlay);
-    let raw = p.read(lo, (hi - lo) as usize).unwrap_or_else(|e| crate::die(&e));
+    // The program's own span lies in its file: a read of it cannot miss.
+    let raw = p.read(lo, (hi - lo) as usize).unwrap_or_else(|e| panic!("{}: its own span: {e}", v.tag()));
     let words = raw.as_chunks::<4>().0.iter().map(|&c| u32::from_le_bytes(c)).collect();
     let s = Rc::new(Side { p, lo, hi, code_hi, words });
     SIDES.with(|m| m.borrow_mut().insert((v, overlay), s.clone()));

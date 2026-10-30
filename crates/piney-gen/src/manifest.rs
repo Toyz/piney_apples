@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::dtype;
-use crate::layout::{Count, CustomFn, Layout, Num, Read, StructDef, Until, Value};
+use crate::layout::{Count, CountFn, CustomFn, Layout, Num, Read, StructDef, Until, Value};
 use crate::locate::{extract, find};
 use crate::sinit;
 use crate::talk;
@@ -159,7 +159,7 @@ fn array(inner: Layout, n: usize) -> Layout {
 }
 
 /// `n` rows, the count the volume's.
-fn array_by(inner: Layout, n: Rc<dyn Fn(&Ctx) -> usize>) -> Layout {
+fn array_by(inner: Layout, n: CountFn) -> Layout {
     Layout::Array { inner: Box::new(inner), n: Count::By(n), until: None, through: false, limit: 4096, stride: None }
 }
 
@@ -241,7 +241,7 @@ fn corbenik_killer_patterns() -> Until {
 /// finds only the old.
 fn last_table_in(func: u32, layout: Layout) -> CustomFn {
     Rc::new(move |c| {
-        let f = find(c, func, None);
+        let f = find(c, func, None)?;
         let mut last = None;
         for k in 0..64 {
             let (w, x) = (c.p.u32(f + 4 * k)?, c.p.u32(f + 4 * k + 4)?);
@@ -320,12 +320,12 @@ fn custom(f: CustomFn, layout: Layout) -> Layout {
 /// A count by volume: Infection's, then the later volumes'.
 /// `KyviaGenerator`'s rows: the table runs to `KyviaDmgGenerator` (28 on
 /// Mutation, 30 from Outbreak).
-fn kyvia_rows() -> Rc<dyn Fn(&Ctx) -> usize> {
-    Rc::new(|c| ((find(c, 0x005F_13D0, GCMN) - find(c, 0x005F_0DB0, GCMN)) / 0x38) as usize)
+fn kyvia_rows() -> CountFn {
+    Rc::new(|c| Ok(((find(c, 0x005F_13D0, GCMN)? - find(c, 0x005F_0DB0, GCMN)?) / 0x38) as usize))
 }
 
-fn later(inf: usize, later: usize) -> Rc<dyn Fn(&Ctx) -> usize> {
-    Rc::new(move |c| if c.volume == Vol::Inf { inf } else { later })
+fn later(inf: usize, later: usize) -> CountFn {
+    Rc::new(move |c| Ok(if c.volume == Vol::Inf { inf } else { later }))
 }
 
 /// A row whose field `i` is the text `t` (a table's terminator row).
@@ -344,7 +344,7 @@ fn identity(n: i128) -> Value {
 /// the first empty one); None where the entry is NULL.
 fn save_sys_msg_lines(c: &Ctx) -> Read {
     let mut out = Vec::new();
-    for &va in sinit::save_sys_msg(c.volume).iter() {
+    for &va in sinit::save_sys_msg(c.volume)?.iter() {
         out.push(if va == 0 { Value::None } else { lines(5).read(c, va)? });
     }
     Ok(Value::List(out))
@@ -352,7 +352,7 @@ fn save_sys_msg_lines(c: &Ctx) -> Read {
 
 /// An array indexed by `volumeNum - 1`: the volume's own element.
 fn by_volume(inf: u32, layout: Layout) -> CustomFn {
-    Rc::new(move |c| layout.read(c, find(c, inf, None) + 4 * c.volume.index() as u32))
+    Rc::new(move |c| layout.read(c, find(c, inf, None)? + 4 * c.volume.index() as u32))
 }
 
 fn sext16(w: u32) -> i128 {
@@ -366,7 +366,7 @@ fn sext16(w: u32) -> i128 {
 /// address.
 fn callee_table(caller: u32, nth: usize, layout: Layout) -> CustomFn {
     Rc::new(move |c| {
-        let f = find(c, caller, None);
+        let f = find(c, caller, None)?;
         let size = match c.p.symbol_at(f, 0) {
             Some((s, 0)) => s.size,
             _ => return Err(format!("no function starts at 0x{f:08x}")),
@@ -404,7 +404,7 @@ fn callee_table(caller: u32, nth: usize, layout: Layout) -> CustomFn {
 fn cinema_skill_rows(c: &Ctx) -> Read {
     use piney_eemu::cpu::Features;
     const GAME: u32 = 0x0100_0000;
-    let on = find(c, 0x0046_A9B0, None);
+    let on = find(c, 0x0046_A9B0, None)?;
     let size = match c.p.symbol_at(on, 0) {
         Some((s, 0)) => s.size,
         _ => return Err(format!("no function starts at 0x{on:08x}")),
@@ -466,7 +466,7 @@ fn cinema_skill_rows(c: &Ctx) -> Read {
 /// 0x0059e93c for 288, 0x0059e964 for 289).
 fn item_pages(item: u32, layout: Layout) -> CustomFn {
     Rc::new(move |c| {
-        let f = find(c, 0x0057_AA80, None);
+        let f = find(c, 0x0057_AA80, None)?;
         let size = match c.p.symbol_at(f, 0) {
             Some((s, 0)) => s.size,
             _ => return Err(format!("no function starts at 0x{f:08x}")),
@@ -496,7 +496,7 @@ fn item_pages(item: u32, layout: Layout) -> CustomFn {
 /// none) up to Outbreak, 22 on Quarantine, whose two new members (rows 20
 /// and 21) speak in their own spellings; the tables end in a null pad.
 fn by_char(k: usize) -> Layout {
-    array_by(opt(cstr()), Rc::new(move |c: &Ctx| k * if c.volume == Vol::Qua { 22 } else { 19 }))
+    array_by(opt(cstr()), Rc::new(move |c: &Ctx| Ok(k * if c.volume == Vol::Qua { 22 } else { 19 })))
 }
 
 fn remark(name: &'static str, caller: u32, nth: usize, doc: &'static str) -> Entry {
@@ -508,7 +508,7 @@ fn remark(name: &'static str, caller: u32, nth: usize, doc: &'static str) -> Ent
 /// `ccCheckVoiceGrp` (main 0x0017fff0): its `sltiu` bound (+4), its jump
 /// table (`lui`/`addiu` at +16, +20), each case `li $v0, n` or -1.
 fn voice_groups(c: &Ctx) -> Read {
-    let f = find(c, 0x0017_FFF0, None);
+    let f = find(c, 0x0017_FFF0, None)?;
     let (lui, addiu) = (c.p.u32(f + 16)?, c.p.u32(f + 20)?);
     let table = ((lui & 0xffff) << 16).wrapping_add(sext16(addiu) as u32);
     let n = c.p.u32(f + 4)? & 0xffff;
@@ -527,7 +527,7 @@ fn voice_groups(c: &Ctx) -> Read {
 /// found in each volume) holds a case per category, `li $v0, n` or
 /// `move $v0, $zero`.
 fn item_icons(c: &Ctx) -> Read {
-    let table = find(c, 0x0034_D250, None);
+    let table = find(c, 0x0034_D250, None)?;
     let mut out = Vec::new();
     for k in 0..16 {
         let w = c.p.u32(c.p.u32(table + 4 * k)?)?;
@@ -558,15 +558,15 @@ fn remail_row() -> Layout {
 /// `MailTbl` (`MailTblp`), as many rows as its initialiser fills.
 fn mails(parody: bool) -> CustomFn {
     Rc::new(move |c| {
-        let m = sinit::mail_links(c.volume, parody);
-        array(mail_row(), m.links.len()).read(c, find(c, if parody { 0x0042_5280 } else { 0x0041_DFD0 }, DESKTOP))
+        let m = sinit::mail_links(c.volume, parody)?;
+        array(mail_row(), m.links.len()).read(c, find(c, if parody { 0x0042_5280 } else { 0x0041_DFD0 }, DESKTOP)?)
     })
 }
 
 /// `ReMail` (`ReMailp`): the rows below `MailTbl` its initialiser copies.
 fn remails(parody: bool) -> CustomFn {
     Rc::new(move |c| {
-        let m = sinit::mail_links(c.volume, parody);
+        let m = sinit::mail_links(c.volume, parody)?;
         array(remail_row(), m.remail_rows as usize).read(c, m.remail)
     })
 }
@@ -574,7 +574,7 @@ fn remails(parody: bool) -> CustomFn {
 /// Each mail's two replies, rows of `ReMail` (-1 none).
 fn replies(parody: bool) -> CustomFn {
     Rc::new(move |c| {
-        let m = sinit::mail_links(c.volume, parody);
+        let m = sinit::mail_links(c.volume, parody)?;
         let row = |&(a, b): &(i32, i32)| Value::List(vec![Value::Int(i128::from(a)), Value::Int(i128::from(b))]);
         Ok(Value::List(m.links.iter().map(row).collect()))
     })
@@ -1677,7 +1677,7 @@ fn fieldui() -> Group {
                 0x0037_7E24,
                 custom(
                     Rc::new(|c| {
-                        text_lines(if c.volume == Vol::Inf { 3 } else { 5 }).read(c, find(c, 0x0037_7E24, GCMN))
+                        text_lines(if c.volume == Vol::Inf { 3 } else { 5 }).read(c, find(c, 0x0037_7E24, GCMN)?)
                     }),
                     text_lines(5),
                 ),
@@ -1960,7 +1960,7 @@ fn battle() -> Group {
 /// Skeith's act tables (`ptr[3]`: normal, super, Epitaph), each its words
 /// to the -1 and the one past it (a wrap reads the first again).
 fn skeith_acts(c: &Ctx) -> Read {
-    let t = find(c, 0x005E_B598, None);
+    let t = find(c, 0x005E_B598, None)?;
     let mut out = Vec::new();
     for k in 0..3 {
         let va = c.p.u32(t + 4 * k)?;
@@ -1983,7 +1983,7 @@ fn skeith_acts(c: &Ctx) -> Read {
 /// found by the function's first `lw rX, off($gp)`; each list a gomora's
 /// attribute by slave, the pointers to a null.
 fn kyvia_gomora_lists(c: &Ctx) -> Read {
-    let f = find(c, 0x004E_3570, GCMN);
+    let f = find(c, 0x004E_3570, GCMN)?;
     let gp = c.p.gp.ok_or("no gp")?;
     let mut global = None;
     for k in 0..64 {
@@ -2012,7 +2012,7 @@ fn kyvia_gomora_lists(c: &Ctx) -> Read {
 /// `kyviaGomora::GomoraInit(2)` and `ListStepUp(n)` give level 2's gomoras,
 /// by the core's deaths, each to its null; each list's rows to theirs.
 fn kyvia_gomora_lists_2(c: &Ctx) -> Read {
-    let at = find(c, 0x005E_CED0, GCMN);
+    let at = find(c, 0x005E_CED0, GCMN)?;
     let mut out = Vec::new();
     for k in 0..3 {
         let lists = c.p.u32(at + 4 * k)?;
@@ -2064,7 +2064,7 @@ fn gomora_steps(c: &Ctx, at: u32, steps: u32) -> Read {
 /// level, in its order: `AllGomoraList_1` ($gp), `_2`, a third level's
 /// from Mutation on (Infection has no case 3), `_4`.
 fn gomora_list_tables(c: &Ctx) -> Result<Vec<u32>, String> {
-    let f = find(c, 0x004E_5D20, GCMN);
+    let f = find(c, 0x004E_5D20, GCMN)?;
     let gp = c.p.gp.ok_or("no gp")?;
     let mut out = Vec::new();
     for k in 0..64 {
@@ -2097,7 +2097,7 @@ fn kyvia_gomora_lists_3(c: &Ctx) -> Read {
 
 /// `AllGomoraList_4` (INF gcmn 0x005ecee0, `short **[5]`): level 4's.
 fn kyvia_gomora_lists_4(c: &Ctx) -> Read {
-    gomora_steps(c, find(c, 0x005E_CEE0, GCMN), 5)
+    gomora_steps(c, find(c, 0x005E_CEE0, GCMN)?, 5)
 }
 
 /// Every GCMN.PRG global of Infection's named `*{suffix}` (the enemies'
@@ -2118,7 +2118,7 @@ fn named_blocks(suffix: &'static str, row: &'static str, size: u32) -> CustomFn 
         let layout = ty(row, vec![]);
         let mut out = Vec::new();
         for (name, value, bytes) in syms {
-            let va = find(c, value, GCMN);
+            let va = find(c, value, GCMN)?;
             let mut rows = Vec::new();
             for k in 0..bytes / size {
                 rows.push(layout.read(c, va + size * k)?);
@@ -2879,7 +2879,7 @@ fn stream_data() -> Layout {
 /// (six inserted before `str6100`, which moves from 106 to 112, and the
 /// shared `STRSUB` ones from 126 to 138). `streamTbl`, `streamTblE` and
 /// `strSndTbl` have as many rows; the code indexes them unchecked.
-fn streams() -> Rc<dyn Fn(&Ctx) -> usize> {
+fn streams() -> CountFn {
     later(134, 140)
 }
 
@@ -2902,10 +2902,10 @@ fn gate_rows(n: usize) -> Layout {
 /// `ccEventStream` does.
 fn subtitles(inf: u32) -> CustomFn {
     Rc::new(move |c| {
-        let t = find(c, inf, None);
+        let t = find(c, inf, None)?;
         let ev = ev_msg();
         let mut out = Vec::new();
-        for k in 0..streams()(c) as u32 {
+        for k in 0..streams()(c)? as u32 {
             let base = c.p.u32(t + 4 * k)?;
             if base == 0 {
                 out.push(Value::None);
@@ -2945,7 +2945,7 @@ fn event_obj() -> Layout {
 /// as the ending's walk reads the run (a stray string between them reads
 /// as nothing).
 fn event_objs(c: &Ctx) -> Read {
-    let (a, b) = (find(c, 0x0034_EB60, None), find(c, 0x0034_F1F0, None));
+    let (a, b) = (find(c, 0x0034_EB60, None)?, find(c, 0x0034_F1F0, None)?);
     let mut out = Vec::new();
     for at in (a..b).step_by(16).chain((b..b + 6 * 16).step_by(16)) {
         out.push(event_obj_row(c, at)?);
@@ -2978,7 +2978,7 @@ fn event_obj_row(c: &Ctx, at: u32) -> Read {
 /// has no such row before its end (a name pointer that is 0 or not
 /// mapped: Infection's 22 rows run into other data).
 fn demo_func(c: &Ctx, scene: &[u8]) -> Result<Option<Vec<u32>>, String> {
-    let t = find(c, 0x0034_F420, None);
+    let t = find(c, 0x0034_F420, None)?;
     for k in 0..64 {
         let name = c.p.u32(t + 8 * k)?;
         if name == 0 || !c.p.mapped(name) {
@@ -3459,7 +3459,7 @@ fn effect_row() -> Layout {
 /// register and the CLUT's being those the first case assigns, in that
 /// order: from `first`, each id's (particleTbl row, CLUT flag).
 fn tex_switch(c: &Ctx) -> Read {
-    let setup = find(c, 0x001B_F0F0, None);
+    let setup = find(c, 0x001B_F0F0, None)?;
     let bad = |what: &str| format!("ccParticle::Setup's switch: {what}");
     let is_head = |a: u32| -> bool {
         let (Ok(addi), Ok(sltiu)) = (c.p.u32(a), c.p.u32(a + 4)) else { return false };
@@ -3511,7 +3511,7 @@ fn tex_switch(c: &Ctx) -> Read {
 /// `tornadeThunderTbl[16]`'s pointers as offsets into the time lists at
 /// 0x0033fd40 (INF), where each entry's list starts.
 fn thunder_offsets(c: &Ctx) -> Read {
-    let (t, lists) = (find(c, 0x0033_FDB0, None), find(c, 0x0033_FD40, None));
+    let (t, lists) = (find(c, 0x0033_FDB0, None)?, find(c, 0x0033_FD40, None)?);
     let mut out = Vec::new();
     for k in 0..16 {
         out.push(Value::Int(i128::from(c.p.u32(t + 4 * k)?.wrapping_sub(lists) as i32)));
@@ -3768,7 +3768,7 @@ fn effect() -> Group {
 /// them: `ccNaviGetLandmarkPos` reads one past the last (the next town's
 /// first).
 fn navi_landmarks(c: &Ctx) -> Read {
-    let (marks, towns) = (find(c, 0x0061_9408, None), find(c, 0x0061_9420, None));
+    let (marks, towns) = (find(c, 0x0061_9408, None)?, find(c, 0x0061_9420, None)?);
     let row = ty("ccLandmark", vec![]);
     let mut out = Vec::new();
     for town in 0..5 {
@@ -3787,7 +3787,7 @@ fn navi_landmarks(c: &Ctx) -> Read {
 /// and 14 of them), each an `unsigned char` run: two bytes, `n`, `2n`
 /// bytes, a count and that many bytes more; none for a null.
 fn navi_lines(c: &Ctx) -> Read {
-    let t = find(c, 0x0061_9440, None);
+    let t = find(c, 0x0061_9440, None)?;
     let mut out = Vec::new();
     for (town, n_lines) in [8u32, 10, 10, 18, 14].into_iter().enumerate() {
         let tbl = c.p.u32(t + 4 * town as u32)?;
@@ -3812,8 +3812,8 @@ fn navi_lines(c: &Ctx) -> Read {
 /// and running (`ctw2AnmTbl`, row 15, four more), a row for each of
 /// `rtpcCcsName`'s files.
 fn rtpc_anms(c: &Ctx) -> Read {
-    let t = find(c, 0x005E_DEB0, GCMN);
-    let names = names_until_null().read(c, find(c, 0x005E_D900, GCMN))?;
+    let t = find(c, 0x005E_DEB0, GCMN)?;
+    let names = names_until_null().read(c, find(c, 0x005E_D900, GCMN)?)?;
     let mut out = Vec::new();
     for k in 0..names.list().len() as u32 {
         let tbl = c.p.u32(t + 4 * k)?;
@@ -3830,10 +3830,10 @@ fn names_until_null() -> Layout {
 /// The sign PCs' weapons: one for each `npcTbl` row from 180.
 fn sign_weapon_names(c: &Ctx) -> Read {
     let a = crate::rtownpc::addrs(c)?.sign.ok_or("no sign PCs' weapons")?;
-    let g = groups();
+    let g = groups()?;
     let battle = g.iter().find(|x| x.name == "battle").ok_or("no battle group")?;
     let k = battle.entries.iter().position(|e| e.name == "npcs").ok_or("no npcs")?;
-    let rows = extract(battle, c.volume)[k].list().len();
+    let rows = extract(battle, c.volume)?[k].list().len();
     array(opt(cstr()), rows.saturating_sub(180)).read(c, a)
 }
 
@@ -3861,7 +3861,7 @@ fn walk_extra_rows(c: &Ctx) -> Read {
 /// the volume's symbol there holds), none for a null.
 fn map_icons(inf: u32) -> CustomFn {
     Rc::new(move |c| {
-        let t = find(c, inf, GCMN);
+        let t = find(c, inf, GCMN)?;
         let row = ty("FIELDMAPICON", vec![]);
         let mut out = Vec::new();
         for k in 0..11 {
@@ -4110,12 +4110,12 @@ fn voice_branch() -> Layout {
 /// 50 events).
 fn event_voices(c: &Ctx) -> Read {
     use std::collections::{BTreeSet, HashMap};
-    let f = find(c, 0x0017_E810, MAIN);
+    let f = find(c, 0x0017_E810, MAIN)?;
     let size = match c.p.symbol_at(f, 0) {
         Some((s, 0)) => s.size,
         _ => return Err(format!("no function starts at 0x{f:08x}")),
     };
-    let voice_file = find(c, 0x0037_89E4, MAIN);
+    let voice_file = find(c, 0x0037_89E4, MAIN)?;
     let gp = c.p.gp.ok_or("no $gp")?;
     let (mut hi, mut pending, mut li) = (HashMap::new(), Vec::new(), None);
     let mut stores: Vec<(i128, Vec<u32>)> = Vec::new();
@@ -4221,7 +4221,7 @@ fn disc_path(c: &Ctx, va: u32) -> Read {
 /// straight into `evVoiceFileE`, which ends in a NULL).
 fn file_names(inf: u32) -> CustomFn {
     Rc::new(move |c| {
-        let a = find(c, inf, MAIN);
+        let a = find(c, inf, MAIN)?;
         let syms = &c.p.symbols;
         let next = syms.get(syms.partition_point(|s| s.value <= a)).map_or(a + 256, |s| s.value);
         let mut out = Vec::new();
@@ -4244,7 +4244,7 @@ fn file_names(inf: u32) -> CustomFn {
 /// (built into `$a1`). None where the code has no such test (Infection).
 fn gate_refusal(c: &Ctx) -> Read {
     use std::collections::HashMap;
-    let f = find(c, 0x0055_DF10, GCMN);
+    let f = find(c, 0x0055_DF10, GCMN)?;
     let w = body(c, f)?;
     let Some(k0) = w.iter().position(|&x| x >> 26 == 0x20 && (0x64f8..0x6548).contains(&(x & 0xffff))) else {
         return Ok(Value::None);
@@ -4359,7 +4359,7 @@ struct VoiceCaseAlt {
 /// branch, one English after it besides any alternative, both one file.
 fn voice_case(c: &Ctx, w: &[u32], f: u32, lo: usize, hi: usize) -> Result<VoiceCase, String> {
     use std::collections::HashMap;
-    let voice_file = find(c, 0x0037_89E4, MAIN);
+    let voice_file = find(c, 0x0037_89E4, MAIN)?;
     let gp = c.p.gp.ok_or("no $gp")?;
     let at = |k: usize| f + 4 * k as u32;
     let branch = |k: usize| (k as i128 + 1 + sext16(w[k])) as usize;
@@ -4450,7 +4450,7 @@ fn voice_case(c: &Ctx, w: &[u32], f: u32, lo: usize, hi: usize) -> Result<VoiceC
 /// `beq $a0, r`), each case read by `voice_case`, then the food. A table
 /// runs to the next table either builds.
 fn field_voice_cases(c: &Ctx) -> Result<(Vec<(i128, VoiceCase)>, VoiceCase), String> {
-    let f = find(c, 0x0017_EEB0, MAIN);
+    let f = find(c, 0x0017_EEB0, MAIN)?;
     let w = body(c, f)?;
     let mut targets: Vec<(i128, usize)> = Vec::new();
     let mut k = 0;
@@ -4470,7 +4470,7 @@ fn field_voice_cases(c: &Ctx) -> Result<(Vec<(i128, VoiceCase)>, VoiceCase), Str
         cases.push((group, voice_case(c, &w, f, lo, hi)?));
     }
     cases.sort_by_key(|g| -g.0);
-    let food = find(c, 0x0018_00E0, MAIN);
+    let food = find(c, 0x0018_00E0, MAIN)?;
     let fw = body(c, food)?;
     Ok((cases, voice_case(c, &fw, food, 0, fw.len())?))
 }
@@ -4521,8 +4521,8 @@ type SkillSide = Option<(Value, u32)>;
 /// (`spcVoiceDataE`, `voiceDataE`).
 fn skill_voice_tables(c: &Ctx) -> Result<Vec<[SkillSide; 2]>, String> {
     let chars = if c.volume == Vol::Inf { 18 } else { 21 };
-    let sides =
-        [(0x0030_7230, 0x0030_71E0), (0x0030_72D0, 0x0030_7280)].map(|(f, r)| (find(c, f, MAIN), find(c, r, MAIN)));
+    let found = |(f, r): (u32, u32)| -> Result<(u32, u32), String> { Ok((find(c, f, MAIN)?, find(c, r, MAIN)?)) };
+    let sides = [found((0x0030_7230, 0x0030_71E0))?, found((0x0030_72D0, 0x0030_7280))?];
     let side = |k: u32, (files, rows): (u32, u32)| -> Result<SkillSide, String> {
         let name = c.p.u32(files + 4 * k)?;
         if name == 0 {
@@ -4909,7 +4909,7 @@ fn book_msg() -> Layout {
 /// (MUT gcmn 0x0042e510, OUT 0x00429f40, QUA 0x0031c850): their stream
 /// tables put six streams before the covers.
 fn cover_stream(c: &Ctx) -> Read {
-    let w = body(c, find(c, 0x0041_A990, None))?;
+    let w = body(c, find(c, 0x0041_A990, None)?)?;
     let arg = |x: u32| x >> 26 == 0x23 && (x >> 16) & 31 == 2 && x & 0xffff == 0x14;
     let add = |x: u32| x >> 26 == 0x09 && (x >> 21) & 31 == 2;
     w.windows(2)
@@ -4932,7 +4932,7 @@ fn book() -> Group {
         e(
             "count_stop",
             0x005D_2988,
-            array_by(opt(cstr()), Rc::new(|c| if matches!(c.volume, Vol::Out | Vol::Qua) { 4 } else { 3 })),
+            array_by(opt(cstr()), Rc::new(|c| Ok(if matches!(c.volume, Vol::Out | Vol::Qua) { 4 } else { 3 }))),
             GCMN,
             "`countStopMsg`: by `volumeNum` - 1; three, four from Outbreak on (\"in Vol. 4.\").",
         ),
@@ -4958,7 +4958,7 @@ fn book() -> Group {
     v.push(
         derived(
             "unknown",
-            custom(Rc::new(|c| ptr(cstr()).read(c, find(c, 0x0037_80B4, None) + 4)), ptr(cstr())),
+            custom(Rc::new(|c| ptr(cstr()).read(c, find(c, 0x0037_80B4, None)? + 4)), ptr(cstr())),
             GCMN,
             "Book IV's skill for enemies 203-206, from Mutation on (none on Infection).",
         )
@@ -4974,7 +4974,7 @@ fn book() -> Group {
     // Three volumes' caps, four from Outbreak on (its tables add a row
     // for Quarantine).
     for &(name, inf, doc, n) in BOOK_LIMITS {
-        let rows = Rc::new(move |c: &Ctx| if matches!(c.volume, Vol::Out | Vol::Qua) { n / 3 * 4 } else { n });
+        let rows = Rc::new(move |c: &Ctx| Ok(if matches!(c.volume, Vol::Out | Vol::Qua) { n / 3 * 4 } else { n }));
         v.push(e(name, inf, array_by(I32, rows), GCMN, doc));
     }
     group("book", "Book", "The Ryu Books (`BOOK`, gcmn book.cpp): the windows, the rewards and their texts.", v)
@@ -5072,7 +5072,7 @@ fn chained(name: &'static str, inf: u32) -> Entry {
         let per: usize = if c.volume == Vol::Qua { 22 } else { 19 };
         let before: usize =
             CHAT_CHAIN.iter().take_while(|&&(a, _)| a != inf).map(|&(_, k)| (4 * per * k).div_ceil(16) * 16).sum();
-        let at = find(c, CHAT_CHAIN[0].0, None) + before as u32;
+        let at = find(c, CHAT_CHAIN[0].0, None)? + before as u32;
         by_char(k).read(c, at)
     });
     derived(name, custom(f, by_char(k)), GCMN, "")
@@ -5216,10 +5216,12 @@ thread_local! {
 }
 
 /// Every group, in the order the tables module lists them; built once.
-pub fn groups() -> Rc<Vec<Group>> {
+pub fn groups() -> Result<Rc<Vec<Group>>, String> {
     if let Some(g) = GROUPS.with(|g| g.borrow().clone()) {
-        return g;
+        return Ok(g);
     }
+    // The layouts of Infection's types come from its DWARF.
+    dtype::dwarf()?;
     let g = Rc::new(vec![
         title(),
         fonts(),
@@ -5248,5 +5250,5 @@ pub fn groups() -> Rc<Vec<Group>> {
         registry(),
     ]);
     GROUPS.with(|x| *x.borrow_mut() = Some(g.clone()));
-    g
+    Ok(g)
 }

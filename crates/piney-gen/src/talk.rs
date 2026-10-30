@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
 use crate::dtype::dwarf;
-use crate::dwarf::Ty;
+use crate::dwarf::{Dwarf, Ty};
 use crate::layout::{Value, text_at};
 use crate::locate::{carried, extract};
 use crate::manifest::{ev_msg, groups};
@@ -38,8 +38,7 @@ thread_local! {
     static CLOSURE: RefCell<HashMap<Vol, Objects>> = RefCell::new(HashMap::new());
 }
 
-fn classify(t: &Ty) -> Option<(Kind, Option<u32>)> {
-    let dw = dwarf();
+fn classify(dw: &Dwarf, t: &Ty) -> Option<(Kind, Option<u32>)> {
     let (n, inner) = match t {
         Ty::Array(n, inner) => (*n, &**inner),
         t => (Some(1), t),
@@ -61,13 +60,14 @@ fn classify(t: &Ty) -> Option<(Kind, Option<u32>)> {
 }
 
 /// Infection's message globals: {address: (kind, count)}.
-fn inf_objects() -> Objects {
+fn inf_objects() -> Result<Objects, String> {
     if let Some(x) = INF.with(|i| i.borrow().clone()) {
-        return x;
+        return Ok(x);
     }
     let mut out: BTreeMap<u32, (Kind, u32)> = BTreeMap::new();
-    for (addr, t) in dwarf().globals() {
-        let Some((kind, n)) = classify(&t) else { continue };
+    let dw = dwarf()?;
+    for (addr, t) in dw.globals() {
+        let Some((kind, n)) = classify(&dw, &t) else { continue };
         let n = match n {
             Some(n) => n,
             None => {
@@ -89,7 +89,7 @@ fn inf_objects() -> Objects {
     }
     let out = Rc::new(out);
     INF.with(|i| *i.borrow_mut() = Some(out.clone()));
-    out
+    Ok(out)
 }
 
 fn text(c: &Ctx, va: u32) -> Option<Vec<u8>> {
@@ -131,28 +131,28 @@ fn shape(c: &Ctx, va: u32) -> (Kind, u32) {
 }
 
 /// The addresses the talk pages start from in the volume.
-fn roots(v: Vol) -> Vec<u32> {
-    let gs = groups();
-    let get = |g: &str, e: &str| -> Value {
+fn roots(v: Vol) -> Result<Vec<u32>, String> {
+    let gs = groups()?;
+    let get = |g: &str, e: &str| -> Result<Value, String> {
         let g = gs.iter().find(|x| x.name == g).unwrap();
         let i = g.entries.iter().position(|x| x.name == e).unwrap();
-        extract(g, v)[i].clone()
+        Ok(extract(g, v)?[i].clone())
     };
     let mut out: Vec<u32> = Vec::new();
-    for row in get("battle", "npcs").list() {
+    for row in get("battle", "npcs")?.list() {
         // (param (base (name, ccsname, kind, id, level, exp, gold, height, width, msg)), entry)
         let msg = row.list()[0].list()[0].list()[9].int() as u32;
         if msg != 0 {
             out.push(msg);
         }
     }
-    out.extend(get("fieldui", "spc_msg_tbl").list().iter().map(|w| w.int() as u32).filter(|&w| w != 0));
+    out.extend(get("fieldui", "spc_msg_tbl")?.list().iter().map(|w| w.int() as u32).filter(|&w| w != 0));
     // From Mutation on, the Flag Race's greeting and its results' table.
     for k in ["greet_va", "results_va", "talk_va"] {
-        out.push(get("race", k).int() as u32);
+        out.push(get("race", k)?.int() as u32);
     }
     // And the Event NPC's word once Item List is complete.
-    out.push(get("registry", "done_va").int() as u32);
+    out.push(get("registry", "done_va")?.int() as u32);
     for k in [
         "spc_msg_present10_va",
         "spc_msg_present11_va",
@@ -162,19 +162,19 @@ fn roots(v: Vol) -> Vec<u32> {
         "error_data_va",
         "kite_self_talk_va",
     ] {
-        out.push(get("fieldui", k).int() as u32);
+        out.push(get("fieldui", k)?.int() as u32);
     }
-    out
+    Ok(out)
 }
 
 /// {address: (kind, count)} of every object the roots reach.
-fn closure(v: Vol) -> Objects {
+fn closure(v: Vol) -> Result<Objects, String> {
     if let Some(x) = CLOSURE.with(|m| m.borrow().get(&v).cloned()) {
-        return x;
+        return Ok(x);
     }
-    let out = Rc::new(if v == Vol::Inf { inf_closure() } else { later_closure(v) });
+    let out = Rc::new(if v == Vol::Inf { inf_closure()? } else { later_closure(v)? });
     CLOSURE.with(|m| m.borrow_mut().insert(v, out.clone()));
-    out
+    Ok(out)
 }
 
 /// The size of one of an object's elements.
@@ -184,15 +184,15 @@ fn stride(kind: Kind) -> u32 {
 
 /// Infection's closure: each address reached is in the object its DWARF
 /// declares there.
-fn inf_closure() -> BTreeMap<u32, (Kind, u32)> {
+fn inf_closure() -> Result<BTreeMap<u32, (Kind, u32)>, String> {
     let c = ctx(Vol::Inf, Some("gcmn"));
-    let mut known: BTreeMap<u32, (Kind, u32)> = (*inf_objects()).clone();
+    let mut known: BTreeMap<u32, (Kind, u32)> = (*inf_objects()?).clone();
     let containing = |known: &BTreeMap<u32, (Kind, u32)>, a: u32| -> Option<u32> {
         let (&s, &(kind, n)) = known.range(..=a).next_back()?;
         (a < s + n * stride(kind)).then_some(s)
     };
     let mut out: BTreeMap<u32, (Kind, u32)> = BTreeMap::new();
-    let mut todo = roots(Vol::Inf);
+    let mut todo = roots(Vol::Inf)?;
     while let Some(a) = todo.pop() {
         if a == 0 {
             continue;
@@ -211,7 +211,7 @@ fn inf_closure() -> BTreeMap<u32, (Kind, u32)> {
         out.insert(s, known[&s]);
         follow(&c, s, known[&s], &mut todo);
     }
-    out
+    Ok(out)
 }
 
 /// A pointer table's words, to be reached in turn.
@@ -227,21 +227,23 @@ fn follow(c: &Ctx, s: u32, (kind, n): (Kind, u32), todo: &mut Vec<u32>) {
 /// them), so each address reached is an object of its own shape, at least
 /// Infection's count where the carry puts that very object there; objects
 /// that overlap are then one.
-fn later_closure(v: Vol) -> BTreeMap<u32, (Kind, u32)> {
+fn later_closure(v: Vol) -> Result<BTreeMap<u32, (Kind, u32)>, String> {
     let c = ctx(v, Some("gcmn"));
     let mut inf: HashMap<u32, (Kind, u32)> = HashMap::new();
-    for (&at, &(kind, n)) in inf_objects().iter() {
+    for (&at, &(kind, n)) in inf_objects()?.iter() {
         let sec = if at >= 0x0040_0000 { 1 } else { 0 };
-        let Some(va) = carried(v, sec, at).or_else(|| if sec == 0 { carried(v, 1, at) } else { None }) else {
-            continue;
+        let found = match carried(v, sec, at)? {
+            None if sec == 0 => carried(v, 1, at)?,
+            found => found,
         };
+        let Some(va) = found else { continue };
         // A table by character (`spcMsgTbl`, the gift thanks) has a row for
         // each of the later volumes' 21 (characters 18-20 in the extension).
         let n = if kind == Kind::Ptr && n == INF_CHARACTERS { LATER_CHARACTERS } else { n };
         inf.insert(va, (kind, n));
     }
     let mut found: BTreeMap<u32, (Kind, u32)> = BTreeMap::new();
-    let mut todo = roots(v);
+    let mut todo = roots(v)?;
     while let Some(a) = todo.pop() {
         if a == 0 || found.contains_key(&a) || !mapped(&c, a) {
             continue;
@@ -269,7 +271,7 @@ fn later_closure(v: Vol) -> BTreeMap<u32, (Kind, u32)> {
             }
         }
     }
-    out
+    Ok(out)
 }
 
 /// [(address, [record], [(name, str) addresses])] of the record arrays
@@ -277,7 +279,7 @@ fn later_closure(v: Vol) -> BTreeMap<u32, (Kind, u32)> {
 pub fn records(c: &Ctx) -> Result<Value, String> {
     let ev = ev_msg();
     let mut out = Vec::new();
-    for (&s, &(kind, n)) in closure(c.volume).iter() {
+    for (&s, &(kind, n)) in closure(c.volume)?.iter() {
         if kind != Kind::Rec {
             continue;
         }
@@ -300,7 +302,7 @@ pub fn records(c: &Ctx) -> Result<Value, String> {
 /// [(address, [word])] of the pointer tables reached, by address.
 pub fn pointers(c: &Ctx) -> Result<Value, String> {
     let mut out = Vec::new();
-    for (&s, &(kind, n)) in closure(c.volume).iter() {
+    for (&s, &(kind, n)) in closure(c.volume)?.iter() {
         if kind != Kind::Ptr {
             continue;
         }

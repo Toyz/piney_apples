@@ -217,7 +217,9 @@ fn content_agrees(
 }
 
 /// The volume's carry: the rows, sorted.
-pub fn carry(v: Vol) -> Vec<(u32, u32, u32, u32)> {
+pub fn carry(v: Vol) -> Result<Rows, String> {
+    crate::volume::load(Vol::Inf)?;
+    crate::volume::load(v)?;
     let mut out: Out = BTreeMap::new();
     let vol_main = section_symbols(&ctx(v, None).p, None);
     for (ov, sec) in sections() {
@@ -269,15 +271,16 @@ pub fn carry(v: Vol) -> Vec<(u32, u32, u32, u32)> {
     by_pointers(v, &mut out);
     by_sequence(v, &mut out);
     let (src, dp) = (ctx(Vol::Inf, None).p, ctx(v, None).p);
-    let main = dp.read(dp.main_seg.vaddr, dp.main_seg.filesz as usize).unwrap_or_else(|e| crate::die(&e));
+    // Main's file part, and Infection's own fonts in it, cannot miss.
+    let main =
+        dp.read(dp.main_seg.vaddr, dp.main_seg.filesz as usize).unwrap_or_else(|e| panic!("{}: main: {e}", v.tag()));
     for (name, size) in FONTS {
-        let f = src.symbol_named(name).unwrap_or_else(|| crate::die(&format!("no {name}")));
-        let want = src.read(f.value, size as usize).unwrap_or_else(|e| crate::die(&e));
-        let at = memmem::find(&main, &want)
-            .unwrap_or_else(|| crate::die(&format!("{}: {name} not found by content", v.tag())));
+        let f = src.symbol_named(name).unwrap_or_else(|| panic!("Infection has no {name}"));
+        let want = src.read(f.value, size as usize).unwrap_or_else(|e| panic!("Infection's {name}: {e}"));
+        let at = memmem::find(&main, &want).ok_or_else(|| format!("{}: {name} not found by content", v.tag()))?;
         out.insert((0, f.value), (size, dp.main_seg.vaddr + at as u32));
     }
-    out.into_iter().map(|((sec, inf), (size, va))| (sec, inf, size, va)).collect()
+    Ok(out.into_iter().map(|((sec, inf), (size, va))| (sec, inf, size, va)).collect())
 }
 
 /// An uncarried global of 8 bytes or more (no pointers in it, as
@@ -287,7 +290,8 @@ fn by_content(v: Vol, out: &mut Out) {
         let (src, dst) = (ctx(Vol::Inf, ov).p, ctx(v, ov).p);
         let want = section_index(&src, ov);
         let (lo, hi, _) = xfer::span(&dst, ov);
-        let hay = dst.read(lo, (hi - lo) as usize).unwrap_or_else(|e| crate::die(&e));
+        // The section's own span: a read of it cannot miss.
+        let hay = dst.read(lo, (hi - lo) as usize).unwrap_or_else(|e| panic!("{}: its own span: {e}", v.tag()));
         let relocated = inf_relocs(ov);
         for sym in &src.symbols {
             if sym.shndx as usize != want
@@ -347,7 +351,7 @@ fn by_pointers(v: Vol, out: &mut Out) {
             let (lo, hi) = dspan(ov);
             let (tlo, thi) = dspan(target);
             let (p, tp) = (dst(ov), dst(target));
-            let words = p.read(lo, (hi - lo) as usize).unwrap_or_else(|e| crate::die(&e));
+            let words = p.read(lo, (hi - lo) as usize).unwrap_or_else(|e| panic!("{}: its own span: {e}", v.tag()));
             let mut found: HashMap<Vec<u8>, Vec<u32>> = HashMap::new();
             let mut k = 0;
             while k + 3 < words.len() {
@@ -635,18 +639,19 @@ fn json(rows: &[(u32, u32, u32, u32)]) -> String {
 
 /// Make the volume's carry and write it (or with `check`, say whether the
 /// cache holds it).
-pub fn write(v: Vol, check: bool) -> bool {
-    let text = json(&carry(v));
+pub fn write(v: Vol, check: bool) -> Result<bool, String> {
+    let text = json(&carry(v)?);
     let p = path(v);
     if check {
         let same = std::fs::read_to_string(&p).is_ok_and(|t| t == text);
         println!("{} {}", p.display(), if same { "is current" } else { "differs" });
-        return same;
+        return Ok(same);
     }
-    std::fs::create_dir_all(p.parent().unwrap()).unwrap_or_else(|e| crate::die(&e.to_string()));
-    std::fs::write(&p, text).unwrap_or_else(|e| crate::die(&format!("{}: {e}", p.display())));
+    let fail = |e: std::io::Error| format!("{}: {e}", p.display());
+    std::fs::create_dir_all(p.parent().unwrap()).map_err(fail)?;
+    std::fs::write(&p, text).map_err(fail)?;
     println!("{} -> {}", v.tag(), p.display());
-    true
+    Ok(true)
 }
 
 /// A carry's rows: (section, Infection's address, its size, the volume's
@@ -661,21 +666,20 @@ thread_local! {
 /// The volume's carry: made in memory when a disc is named for it
 /// ([`crate::source::use_disc`]), else from the cache in `work/`, made
 /// when missing.
-pub fn cached(v: Vol) -> Rows {
+pub fn cached(v: Vol) -> Result<Rows, String> {
     if crate::source::disc(v).is_some() {
         if let Some(c) = MADE.with(|m| m.borrow().get(&v).cloned()) {
-            return (*c).clone();
+            return Ok((*c).clone());
         }
-        let c = Rc::new(carry(v));
+        let c = Rc::new(carry(v)?);
         MADE.with(|m| m.borrow_mut().insert(v, c.clone()));
-        return (*c).clone();
+        return Ok((*c).clone());
     }
     let p = path(v);
     if !p.exists() {
-        write(v, false);
+        write(v, false)?;
     }
-    let text = std::fs::read_to_string(&p).unwrap_or_else(|e| crate::die(&format!("{}: {e}", p.display())));
-    let raw: Vec<[u64; 4]> =
-        serde_json::from_str(&text).unwrap_or_else(|e| crate::die(&format!("{}: {e}", p.display())));
-    raw.into_iter().map(|r| (r[0] as u32, r[1] as u32, r[2] as u32, r[3] as u32)).collect()
+    let text = std::fs::read_to_string(&p).map_err(|e| format!("{}: {e}", p.display()))?;
+    let raw: Vec<[u64; 4]> = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", p.display()))?;
+    Ok(raw.into_iter().map(|r| (r[0] as u32, r[1] as u32, r[2] as u32, r[3] as u32)).collect())
 }
