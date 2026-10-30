@@ -209,7 +209,7 @@ impl WorldMode {
         let mut world =
             World::enter_after(&mut disc, archive.clone(), state, before).map_err(|e| format!("The World: {e}"))?;
         let t = &world.town().base;
-        let map = piney_world::map::town::TownMap::open(archive, world.volume(), t.no, &t.file.stem)
+        let map = piney_world::map::town::TownMap::open(archive, world.volume(), t.no, &t.core.file.stem)
             .map_err(|e| tracing::warn!("the town's map: {e}"))
             .ok()
             .map(Box::new);
@@ -1367,7 +1367,8 @@ impl Mode for WorldMode {
             // ccSoundMain's scene sounds: Mac Anu's canals, the breeder's
             // tune by DMY_merchant6.
             let town = &self.world.town().base;
-            let breeder = town.file.ccs.find_object("DMY_merchant6").and_then(|o| town.file.scene.dummies.get(&o));
+            let breeder =
+                town.core.file.ccs.find_object("DMY_merchant6").and_then(|o| town.core.file.scene.dummies.get(&o));
             let scene_sound = piney_audio::scene::SceneInput {
                 camera: Some(self.world.camera().active().pos),
                 kite: self.world.player().body.pos,

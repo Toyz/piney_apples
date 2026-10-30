@@ -46,14 +46,14 @@ fn pass(p: DrawPass) -> u32 {
 
 /// The map's state as the test compares it.
 fn state(a: &EventArea) -> String {
-    let name = |o: u32| format!("\"{}\"", a.file.ccs.object_name(o).unwrap_or("?"));
+    let name = |o: u32| format!("\"{}\"", a.core.file.ccs.object_name(o).unwrap_or("?"));
     let models =
         list(a.models.iter().map(|m| format!("[{}, {}, {}, {}]", m.row, pass(m.pass), name(m.model), list(m.pos))));
     let objects = list(a.objects.iter().map(|o| {
         format!(
             "[{}, {}, {}, {}, {}, {}]",
             o.row,
-            name(a.file.anims[o.play.anim].object),
+            name(a.core.file.anims[o.play.anim].object),
             mat(&o.root),
             list(o.pos),
             o.clip,
@@ -71,19 +71,19 @@ fn state(a: &EventArea) -> String {
         f.far_rate.to_bits(),
         u32::from(f.colour[0]) | u32::from(f.colour[1]) << 8 | u32::from(f.colour[2]) << 16
     );
-    let hits = list(a.hits.models.iter().map(|h| name(h.object)));
+    let hits = list(a.core.hits.models.iter().map(|h| name(h.object)));
     let tex = list(a.move_tex.iter().map(|t| list(t.offsets())));
     format!(
         "{{\"block\": {}, \"models\": {models}, \"objects\": {objects}, \"bg\": {bg}, \"lights\": {lights}, \"fog\": {fog}, \"start\": {}, \"hits\": {hits}, \"rev\": {}, \"tex\": {tex}}}",
         a.block,
-        list(a.start),
+        list(a.core.start),
         a.rev.as_ref().map_or(-1, |r| r.time as i64),
     )
 }
 
 /// The arena's state as the test compares it.
 fn arena_state(a: &Arena) -> String {
-    let name = |o: u32| format!("\"{}\"", a.file.ccs.object_name(o).unwrap_or("?"));
+    let name = |o: u32| format!("\"{}\"", a.core.file.ccs.object_name(o).unwrap_or("?"));
     let models =
         list(a.models.iter().map(|m| format!("[{}, {}, {}, {}]", m.row, pass(m.pass), name(m.model), list(m.pos))));
     let bg = list(a.bg.iter().map(|b| b.as_ref().map_or("null".to_string(), |(c, _)| name(*c))));
@@ -97,10 +97,10 @@ fn arena_state(a: &Arena) -> String {
         f.far_rate.to_bits(),
         u32::from(f.colour[0]) | u32::from(f.colour[1]) << 8 | u32::from(f.colour[2]) << 16
     );
-    let hits = list(a.hits.models.iter().map(|h| name(h.object)));
+    let hits = list(a.core.hits.models.iter().map(|h| name(h.object)));
     format!(
         "{{\"models\": {models}, \"bg\": {bg}, \"lights\": {lights}, \"fog\": {fog}, \"start\": {}, \"hits\": {hits}}}",
-        list(a.start)
+        list(a.core.start)
     )
 }
 
@@ -164,7 +164,10 @@ fn main() {
                 }));
                 let bob = list(a.models[6..9].iter().map(|m| list(m.pos)));
                 let v = (ee::to_int(ee::mul(a.scroll_shown, 0x4580_0000)) & 0xffff) as u16;
-                println!("{{\"pieces\": {out}, \"bob\": {bob}, \"v\": {v}, \"seed\": {}}}", a.rng.seed);
+                println!(
+                    "{{\"pieces\": {out}, \"bob\": {bob}, \"v\": {v}, \"seed\": {}}}",
+                    a.core.field_rand.map_or(0, |r| r.seed)
+                );
             }
             Some("arenaswitch") => {
                 arena.as_mut().unwrap().switch_layer();
@@ -196,8 +199,8 @@ fn main() {
             }
             Some("land") => {
                 let a = area.as_mut().unwrap();
-                let z = a.hits.land([n(1), n(2), n(3), ee::ONE], hit::LAND_MASK);
-                let h = &a.hits;
+                let z = a.core.hits.land([n(1), n(2), n(3), ee::ONE], hit::LAND_MASK);
+                let h = &a.core.hits;
                 println!(
                     "{{\"z\": {z}, \"num\": {}, \"att\": {}, \"cp\": {}, \"attribute\": {}}}",
                     h.num,
@@ -213,7 +216,7 @@ fn main() {
                 let scheme = Scheme::new(n(5) as i32);
                 let mode = n(6) as i8;
                 a.set_center(pos[0], pos[1]);
-                a.hits.chars.clear();
+                a.core.hits.chars.clear();
                 // The disc's square roots (sqrt.s from Outbreak on), as the
                 // world probe's player and camera take them.
                 run = Some(Run {
@@ -240,9 +243,9 @@ fn main() {
                     dirc_r: n(6),
                     pow,
                 };
-                tasks(&mut r.camera, &mut r.player, &mut a.hits, &anims, &mut r.rand, &pad, &mut r.mode);
+                tasks(&mut r.camera, &mut r.player, &mut a.core.hits, &anims, &mut r.rand, &pad, &mut r.mode);
                 if r.player.events.contains(&piney_world::chara::motion::ActEvent::Arrived) {
-                    a.hits.hit_enable(&mut r.player.hit_body);
+                    a.core.hits.hit_enable(&mut r.player.hit_body);
                 }
                 let (p, b, s, c) = (&r.player, &r.player.body, &r.player.acts, &r.camera);
                 let t = &c.tcam;
@@ -309,7 +312,7 @@ fn main() {
                     mat(&c.world_view),
                     mat(&c.world_screen),
                     u8::from(p.enter),
-                    list(a.hits.center),
+                    list(a.core.hits.center),
                     u8::from(p.attribute_qualified)
                 );
             }

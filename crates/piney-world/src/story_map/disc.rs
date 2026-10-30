@@ -19,10 +19,11 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
+use crate::area::AreaCore;
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
-use crate::hit::{HitModel, Hits};
+use crate::hit::HitModel;
 use crate::sky::cloud::{self, Cloud};
 use crate::story_map::holy_ground::Placing;
 use crate::story_map::holy_ground::{StaticModel, StaticObject, StorySprite, clump_models, layer};
@@ -147,7 +148,10 @@ pub enum Piece {
 pub struct DiscArea {
     /// `game.field` (9-12).
     pub field: i32,
-    pub file: Rc<SceneFile>,
+    /// The stage's file, its lights and collision, the start as the
+    /// constructor left it (w the facing), and `fieldrand`, the game's one
+    /// stream (`GO(1)` sets no seed for a story map).
+    pub core: AreaCore,
     pub body_file: Option<Rc<SceneFile>>,
     pub eff: Rc<SceneFile>,
     /// `modelArray` (+0x78), `anmArray` (+0x140): `EA_MODELTABLEB8`,
@@ -156,7 +160,6 @@ pub struct DiscArea {
     pub objects: Vec<StaticObject>,
     /// `bg[0..3]`: each clump's models.
     pub bg: [Option<(u32, Vec<u32>)>; 4],
-    pub lights: TownLights,
     pub light_objects: Vec<u32>,
     /// `DrawBG`'s static scroll and the value the material last took.
     pub scroll_v: F,
@@ -173,8 +176,6 @@ pub struct DiscArea {
     /// the disc was put last.
     pub disc_pos: V4,
     pub disc_prev: V4,
-    /// `WORLD_MAN.eventStartPos` as the constructor left it: w the facing.
-    pub start: V4,
     /// The 40 rocks (+0x200) and `floatRockPos` (MUT 0x0073eb00), the
     /// cells taken.
     pub rocks: Vec<FloatRock>,
@@ -188,11 +189,7 @@ pub struct DiscArea {
     pub body_anm: Option<Play>,
     pub bodies: Vec<(u32, Vec<u32>, V4)>,
     body_models: Vec<Vec<HitModel>>,
-    /// `fieldrand`, the game's one stream (`GO(1)` sets no seed for a
-    /// story map).
-    pub rng: Rng,
     hit_models: Vec<HitModel>,
-    pub hits: Hits,
 }
 
 /// `(float)(n)` of a `fieldrand` or `ccRand` result as the constructor
@@ -316,15 +313,15 @@ impl DiscArea {
         }
         let pat_num = cloud::eff_pat_num(&eff.ccs, cloud::EFF_SMOKE)
             .ok_or_else(|| Error::NotFound(format!("{EFF_FILE}: {}", cloud::EFF_SMOKE)))?;
+        let core = AreaCore { file: file.clone(), hits, lights, field_rand: None, start: [0; 4] };
         let mut a = DiscArea {
             field,
-            file: file.clone(),
+            core,
             body_file,
             eff,
             models,
             objects,
             bg,
-            lights,
             light_objects,
             scroll_v: ONE,
             disc_cnt,
@@ -334,7 +331,6 @@ impl DiscArea {
             cam,
             disc_pos,
             disc_prev: [0; 4],
-            start: [0; 4],
             rocks: Vec::new(),
             grid: [[0; 10]; 10],
             rock_models,
@@ -342,9 +338,7 @@ impl DiscArea {
             body_anm: None,
             bodies: Vec::new(),
             body_models: Vec::new(),
-            rng,
             hit_models,
-            hits,
         };
         // Back in the field it left (fieldPrev), fields 9 and 11 start
         // with the disc at the end of its run.
@@ -365,7 +359,7 @@ impl DiscArea {
         // The start: the path's dummy (its world translation, w 1) plus
         // the marker (w 1 too), so the leader faces 2.0; field 12's own.
         if field == 12 {
-            a.start = START_12;
+            a.core.start = START_12;
             let bf = a.body_file.clone().expect("se4_9");
             let bhits = HitModel::read(volume, &bf.ccs)?;
             for (name, at) in BODIES {
@@ -378,7 +372,7 @@ impl DiscArea {
                     h.rm = crate::hit::UNIT;
                     h.rm[3] = pos;
                     h.im = crate::dungeon::invers(&h.rm);
-                    a.hits.models.push(h.clone());
+                    a.core.hits.models.push(h.clone());
                     own.push(h);
                 }
                 a.body_models.push(own);
@@ -388,23 +382,24 @@ impl DiscArea {
             a.body_anm = Some(play);
         } else {
             let t = a.path_point();
-            a.start = [ee::add(t[0], disc_pos[0]), ee::add(t[1], disc_pos[1]), ee::add(t[2], disc_pos[2]), 0x4000_0000];
+            a.core.start =
+                [ee::add(t[0], disc_pos[0]), ee::add(t[1], disc_pos[1]), ee::add(t[2], disc_pos[2]), 0x4000_0000];
             // anmArray[0]'s anm: HitEnable, SetHitMatrix at its root.
             a.disc_hits();
         }
+        let mut rng = rng;
         for _ in 0..FLOAT_ROCKS {
             let mut r = FloatRock::default();
-            set_float_rock_param(&mut r, &mut a.grid, field, &mut a.rng, cc);
-            r.rock = a.rng.below(ROCKS.len() as u32) as usize;
+            set_float_rock_param(&mut r, &mut a.grid, field, &mut rng, cc);
+            r.rock = rng.below(ROCKS.len() as u32) as usize;
             a.rocks.push(r);
         }
-        for _ in 0..25 {
-            a.clouds.push(Cloud::init(1, pat_num, [0, 0, 0, ONE], &mut a.rng));
-        }
+        a.clouds = (0..25).map(|_| Cloud::init(1, pat_num, [0, 0, 0, ONE], &mut rng)).collect();
+        a.core.field_rand = Some(rng);
         if field != 12 {
             // SetTransCenter(the start), SetTransDiff(0).
-            a.disc_prev = a.start;
-            a.hits.trans = Some(a.start);
+            a.disc_prev = a.core.start;
+            a.core.hits.trans = Some(a.core.start);
         }
         Ok(a)
     }
@@ -413,7 +408,7 @@ impl DiscArea {
     /// translation (w 1).
     fn path_point(&self) -> V4 {
         let (Some(p), Some(d)) = (&self.disc, self.dummy) else { return [0, 0, 0, ONE] };
-        let w = p.worlds(&self.file, Mat4::IDENTITY, &[d]);
+        let w = p.worlds(&self.core.file, Mat4::IDENTITY, &[d]);
         let t = w.get(&d).map_or(Vec3::ZERO, |m| m.w_axis.truncate());
         [t.x.to_bits(), t.y.to_bits(), t.z.to_bits(), ONE]
     }
@@ -423,11 +418,11 @@ impl DiscArea {
     /// matrix under the object's root, and its inverse.
     fn disc_hits(&mut self) {
         let Some(o) = self.objects.first() else { return };
-        let worlds = o.play.worlds(&self.file, draw::mat(&o.root), &[]);
+        let worlds = o.play.worlds(&self.core.file, draw::mat(&o.root), &[]);
         let mut list = Vec::new();
         for (&obj, &m) in &worlds {
-            let target = self.file.scene.ext.get(&obj).copied().unwrap_or(obj);
-            let Some(&model) = self.file.obj_model.get(&target) else { continue };
+            let target = self.core.file.scene.ext.get(&obj).copied().unwrap_or(obj);
+            let Some(&model) = self.core.file.obj_model.get(&target) else { continue };
             for h in self.hit_models.iter().filter(|h| h.parent == model) {
                 let mut h = h.clone();
                 h.rm = cols(m);
@@ -436,7 +431,7 @@ impl DiscArea {
             }
         }
         list.sort_by_key(|h| h.object);
-        self.hits.models = list;
+        self.core.hits.models = list;
     }
 
     /// The disc's step by field and `discCnt` (in `Draw` and in the part
@@ -459,10 +454,10 @@ impl DiscArea {
         match stop {
             Some(s) if frame >= s => self.moving = false,
             Some(_) => {
-                p.forward(&self.file);
+                p.forward(&self.core.file);
             }
             None => {
-                if p.forward(&self.file) {
+                if p.forward(&self.core.file) {
                     self.moving = false;
                 }
             }
@@ -476,11 +471,11 @@ impl DiscArea {
     pub fn body_hit(&mut self, n: usize, on: bool) {
         let Some(own) = self.body_models.get(n) else { return };
         for h in own {
-            let at = self.hits.models.iter().position(|m| m == h);
+            let at = self.core.hits.models.iter().position(|m| m == h);
             match (on, at) {
-                (true, None) => self.hits.models.push(h.clone()),
+                (true, None) => self.core.hits.models.push(h.clone()),
                 (false, Some(k)) => {
-                    self.hits.models.remove(k);
+                    self.core.hits.models.remove(k);
                 }
                 _ => {}
             }
@@ -525,13 +520,13 @@ impl DiscArea {
             o.root = crate::town::pos_rot_zyx(prev, [0; 3]);
         }
         self.disc_hits();
-        self.hits.trans = Some(prev);
+        self.core.hits.trans = Some(prev);
         self.disc_prev = pos;
     }
 
     /// `WORLD_MAN::GetTransCenter` while the party rides.
     pub fn trans_center(&self) -> Option<V4> {
-        self.hits.trans
+        self.core.hits.trans
     }
 
     /// `DrawRock` (MUT 0x0041f130) for rock `k`: its fade (in over 40
@@ -559,7 +554,9 @@ impl DiscArea {
             self.grid[x][y] = 0;
             let field = self.field;
             let mut r = self.rocks[k];
-            set_float_rock_param(&mut r, &mut self.grid, field, &mut self.rng, cc);
+            if let Some(rng) = &mut self.core.field_rand {
+                set_float_rock_param(&mut r, &mut self.grid, field, rng, cc);
+            }
             self.rocks[k] = r;
         }
     }
@@ -607,7 +604,7 @@ impl DiscArea {
     /// `DrawObj` or `DrawFloor`: the models of `pass`, then its static
     /// objects (each stepped and drawn within its clip of the eye).
     fn row_pieces(&mut self, out: &mut Vec<Piece>, pass: DrawPass, layer: i16, eye: V4) {
-        let volume = self.hits.volume;
+        let volume = self.core.hits.volume;
         for (k, m) in self.models.iter().enumerate() {
             if m.pass == pass {
                 out.push(Piece::Model { k, layer });
@@ -621,7 +618,7 @@ impl DiscArea {
             let (dx, dy) = (ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
             let d = ee::ground_dist(volume, dx, dy);
             if o.clip == 0 || ee::lt(d, o.clip) {
-                o.play.forward(&self.file);
+                o.play.forward(&self.core.file);
                 out.push(Piece::Object { k, layer, time: o.play.time });
             }
         }
@@ -631,8 +628,8 @@ impl DiscArea {
     /// the material's crop, in V).
     fn scroll_rows(&self) -> HashMap<u32, [u8; 2]> {
         let mut rows = HashMap::new();
-        if let Some(mat) = self.file.ccs.find_object(SCROLL_MAT)
-            && let Some(m) = self.file.scene.materials.get(&mat)
+        if let Some(mat) = self.core.file.ccs.find_object(SCROLL_MAT)
+            && let Some(m) = self.core.file.scene.materials.get(&mat)
         {
             let v = (ee::to_int(ee::mul(self.scroll_v, 0x4580_0000)) & 0xffff) as u16;
             rows.insert(mat, [0, (v.wrapping_sub(m.crop_v) >> 4) as u8]);
@@ -659,7 +656,7 @@ impl DiscArea {
 
     /// The pieces into the field's layers.
     fn draw_pieces(&self, layers: &mut Layers, to_screen: Mat4, pieces: Vec<Piece>) {
-        let file = &*self.file;
+        let file = &*self.core.file;
         for p in pieces {
             match p {
                 Piece::Bg { k, layer } => {
@@ -745,34 +742,17 @@ impl DiscArea {
 }
 
 impl StoryMap for DiscArea {
-    /// `marker_pos`'s stream (+0x1a4).
-    fn file(&self) -> Option<&SceneFile> {
-        Some(&self.file)
+    fn core(&self) -> &AreaCore {
+        &self.core
     }
-    fn field_rand(&self) -> Option<&Rng> {
-        Some(&self.rng)
+    fn core_mut(&mut self) -> &mut AreaCore {
+        &mut self.core
     }
-    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
-        Some(&mut self.rng)
-    }
-    fn hits(&self) -> &Hits {
-        &self.hits
-    }
-    fn hits_mut(&mut self) -> &mut Hits {
-        &mut self.hits
-    }
-    fn lights(&self) -> &TownLights {
-        &self.lights
-    }
-    /// `WORLD_MAN::SetCharPosition` for fields 9-11 (the default): the
-    /// leader at the start facing its w, the others at (+300, +150),
-    /// (-300, +150) and (0, +300); field 12's own places.
-    fn start(&self) -> V4 {
-        self.start
-    }
-    /// Field 12's: the two at their own places, everyone at its height.
+    /// `WORLD_MAN::SetCharPosition`: fields 9-11 the default (the others
+    /// at (+300, +150), (-300, +150), (0, +300)); field 12's own: the two
+    /// at their own places, everyone at its height.
     fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        let (leader, dirc, mut others) = party_starts(self.start, StartSpread::BEHIND);
+        let (leader, dirc, mut others) = party_starts(self.core.start, StartSpread::BEHIND);
         if self.field != 12 {
             return (leader, dirc, others);
         }
@@ -812,7 +792,7 @@ impl StoryMap for DiscArea {
         Vec::new()
     }
     fn trans_center(&self) -> Option<V4> {
-        self.hits.trans
+        self.core.hits.trans
     }
 }
 
@@ -850,7 +830,7 @@ mod tests {
         let Some(archive) = archive() else { return };
         let mut cc = Genrand::default();
         let a = DiscArea::new(&archive, Volume::Mut, 9, 0, 0, Rng::new(0), &mut cc).unwrap();
-        let name = |o: u32| a.file.ccs.object_name(o).unwrap().to_string();
+        let name = |o: u32| a.core.file.ccs.object_name(o).unwrap().to_string();
         assert_eq!(a.models.len(), 1);
         assert_eq!(name(a.models[0].model), "MDL_se1_6flo1");
         assert_eq!(a.models[0].pass, DrawPass::Floor);
@@ -859,16 +839,16 @@ mod tests {
         assert_eq!(a.light_objects.len(), 1);
         assert_eq!(a.disc_cnt, 2);
         assert!(a.disc.is_some() && a.dummy.is_some() && a.cam.is_some());
-        assert!(!a.hits.models.is_empty(), "the disc's Hit chunk");
-        assert!(a.hits.models.iter().all(|h| name(h.object) == "HIT_se1_6ob1hit"));
+        assert!(!a.core.hits.models.is_empty(), "the disc's Hit chunk");
+        assert!(a.core.hits.models.iter().all(|h| name(h.object) == "HIT_se1_6ob1hit"));
         assert_eq!(a.rocks.len(), FLOAT_ROCKS);
         let cells: std::collections::BTreeSet<(u32, u32)> = a.rocks.iter().map(|r| (r.x, r.y)).collect();
         assert_eq!(cells.len(), FLOAT_ROCKS, "a cell each");
         assert!(cells.iter().all(|&(x, y)| !((3..7).contains(&x) && (3..7).contains(&y))));
         assert!(a.rocks.iter().all(|r| (90..240).contains(&r.life) && r.cnt == 0));
         assert_eq!(a.clouds.len(), 25);
-        assert_eq!(a.start[3], 0x4000_0000);
-        assert_eq!(a.trans_center(), Some(a.start));
+        assert_eq!(a.core.start[3], 0x4000_0000);
+        assert_eq!(a.trans_center(), Some(a.core.start));
         let (leader, facing, others) = a.start_positions();
         assert_eq!(facing, 0x4000_0000);
         assert_eq!(others[2][1], ee::add(0x4396_0000, leader[1]));

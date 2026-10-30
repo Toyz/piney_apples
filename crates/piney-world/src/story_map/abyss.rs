@@ -17,10 +17,11 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
+use crate::area::AreaCore;
 use crate::camera::{Camera, id};
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
-use crate::hit::{HitModel, Hits};
+use crate::hit::HitModel;
 use crate::story_map::holy_ground::Placing;
 use crate::story_map::holy_ground::{StaticModel, StorySprite, layer};
 use crate::story_map::{Made, MapDef};
@@ -59,17 +60,16 @@ const MARK_BIT: u32 = 0x800;
 
 /// `EVENTAREA03` as `WORLD_MAN.eventmap` holds it.
 pub struct Area43 {
-    pub file: Rc<SceneFile>,
+    /// The start is the table's (`START`); no draw takes `fieldrand`.
+    pub core: AreaCore,
     /// `modelArray`: `EA_MODELTABLE03`'s rows.
     pub models: Vec<StaticModel>,
-    pub lights: TownLights,
     /// +0x1c4 `cnt`: the fly-over's frame.
     pub cnt: i32,
     /// +0x1c8 `flag`: area 43 marked on the server as the map was made.
     pub flag: bool,
     /// Where `kiteSelfTalk` is in the volume.
     self_talk: u32,
-    pub hits: Hits,
 }
 
 impl Area43 {
@@ -94,7 +94,8 @@ impl Area43 {
         let at = piney_data::save::offset::GATE_LIST_MARK + 20 * server.clamp(0, 4) as usize + 4 * MARK_WORD;
         let flag = save.i32(at) as u32 & MARK_BIT != 0;
         let self_talk = piney_data::tables::fieldui::of(volume).kite_self_talk_va;
-        Ok(Area43 { file, models, lights, cnt: 0, flag, self_talk, hits })
+        let core = AreaCore { file, hits, lights, field_rand: None, start: START };
+        Ok(Area43 { core, models, cnt: 0, flag, self_talk })
     }
 
     /// `cameraSetView`, `cameraSetPos`, then `cameraGetRot` into
@@ -149,7 +150,7 @@ impl Area43 {
     fn model_draw(&self, layers: &mut Layers, to_screen: Mat4, m: &StaticModel) {
         let world = Mat4::from_translation(glam::Vec3::new(ee::f(m.pos[0]), ee::f(m.pos[1]), ee::f(m.pos[2])));
         let d = Draw {
-            file: &self.file,
+            file: &self.core.file,
             model: m.model,
             world,
             alpha: 1.0,
@@ -164,23 +165,11 @@ impl Area43 {
 }
 
 impl StoryMap for Area43 {
-    /// `marker_pos`'s stream (+0x1a4).
-    fn file(&self) -> Option<&SceneFile> {
-        Some(&self.file)
+    fn core(&self) -> &AreaCore {
+        &self.core
     }
-    fn hits(&self) -> &Hits {
-        &self.hits
-    }
-    fn hits_mut(&mut self) -> &mut Hits {
-        &mut self.hits
-    }
-    fn lights(&self) -> &TownLights {
-        &self.lights
-    }
-    /// `WORLD_MAN::SetCharPosition` in a story map: the leader at the
-    /// start, the others at (+300, +150), (-300, +150), (0, +300).
-    fn start(&self) -> V4 {
-        START
+    fn core_mut(&mut self) -> &mut AreaCore {
+        &mut self.core
     }
     fn clear(&self) -> [u8; 3] {
         BG_COLOR
@@ -229,10 +218,10 @@ mod tests {
         let Some(archive) = archive() else { return };
         let mut save = SaveData::default();
         let a = Area43::new(&archive, Volume::Mut, &save, 1, 0).unwrap();
-        let name = |o: u32| a.file.ccs.object_name(o).unwrap().to_string();
+        let name = |o: u32| a.core.file.ccs.object_name(o).unwrap().to_string();
         assert_eq!(a.models.iter().map(|m| name(m.model)).collect::<Vec<_>>(), ["MDL_se2_1fl1", "MDL_se2_1ba1"]);
-        assert!(!a.hits.models.is_empty());
-        assert_eq!(a.lights.lights.len(), 1);
+        assert!(!a.core.hits.models.is_empty());
+        assert_eq!(a.core.lights.lights.len(), 1);
         assert!(!a.flag);
         // Draw: both pass-0 models go out on objLayer.
         let mut a = a;

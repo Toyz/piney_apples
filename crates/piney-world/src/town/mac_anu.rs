@@ -142,8 +142,8 @@ pub fn new(env: &TownEnv<'_>) -> Result<Town> {
     let stem = if crisis { "town01d" } else { "town01" };
     let base = Base::read(archive, stem, &SPEC)?;
     let water_file = Rc::new(SceneFile::read(archive, "wat1")?);
-    let sky = clump_models(&base.file, SKY);
-    let crisis_sky = crisis.then(|| CRISIS_SKY.map(|(n, _)| clump_models(&base.file, n)));
+    let sky = clump_models(&base.core.file, SKY);
+    let crisis_sky = crisis.then(|| CRISIS_SKY.map(|(n, _)| clump_models(&base.core.file, n)));
     let wplay = Play::new(&water_file, WATER_ANIM).ok_or(Error::NotFound(WATER_ANIM.into()))?;
     let mut water = [wplay.clone(), wplay.clone(), wplay];
     for w in &mut water {
@@ -254,7 +254,7 @@ impl MacAnu {
         // waterUVModifi2 of water 0 (rooted at the identity, unposed), the
         // scroll steps, then 2, 1 and 0 step and draw.
         self.water0.modify(
-            base.hits.volume,
+            base.core.hits.volume,
             &pos_rot_zyx([0, 0, 0, ONE], [0; 3]),
             [0, 0, 0, ONE],
             eye,
@@ -296,7 +296,7 @@ impl MacAnu {
                     let Some(models) = &self.crisis_sky else { continue };
                     // The materials' offsets: the scroll less each one's
                     // crop, MAT_sr1dat1_2 in U, MAT_sr1dat1_3 in U and V.
-                    let rows = crisis_rows(&base.file, &CRISIS_MATS, self.bg_uv);
+                    let rows = crisis_rows(&base.core.file, &CRISIS_MATS, self.bg_uv);
                     base.clump_draw(layers, CRISIS_SKY[k].1, to_screen, &models[k], Mat4::IDENTITY, &rows);
                 }
                 Piece::Model(row) => base.row_draw(layers, OBJ_LAYER, to_screen, row),

@@ -89,7 +89,7 @@ pub struct Town06 {
 pub fn new(env: &TownEnv<'_>) -> Result<Town> {
     let archive = env.archive;
     let base = Base::read_volume(archive, piney_data::volume::Volume::Qua, FILE, &SPEC)?;
-    let file = base.file.clone();
+    let file = base.core.file.clone();
     let d = Town06 {
         back: clump_models(&file, BACK),
         crosses: CROSSES.map(|n| clump_models(&file, n)),
@@ -176,7 +176,7 @@ mod tests {
         let d = t.class::<Town06>().unwrap();
         assert!(!d.back.is_empty() && !d.meteor.is_empty());
         assert!(d.crosses.iter().all(|c| !c.is_empty()));
-        assert_eq!(b.lights.lights.len(), 1);
+        assert_eq!(b.core.lights.lights.len(), 1);
         assert_eq!(b.clear, Some(BG_COLOR));
     }
 

@@ -33,6 +33,7 @@ use piney_data::save::SaveData;
 use piney_data::volume::Volume;
 use piney_desktop::layers::Layers;
 
+use crate::area::AreaCore;
 use crate::camera::Camera;
 use crate::ee::{F, V4};
 use crate::hit::{HitModel, Hits};
@@ -76,12 +77,23 @@ pub struct StoryFrame<'a> {
 
 /// An `EVENTAREA` as the field's tasks use it.
 pub trait StoryMap: Any {
-    fn hits(&self) -> &Hits;
-    fn hits_mut(&mut self) -> &mut Hits;
-    fn lights(&self) -> &TownLights;
+    /// What every map holds ([`AreaCore`]).
+    fn core(&self) -> &AreaCore;
+    fn core_mut(&mut self) -> &mut AreaCore;
+    fn hits(&self) -> &Hits {
+        &self.core().hits
+    }
+    fn hits_mut(&mut self) -> &mut Hits {
+        &mut self.core_mut().hits
+    }
+    fn lights(&self) -> &TownLights {
+        &self.core().lights
+    }
     /// `eventStartPos` as the map's `SetStartPos` left it: the place, the
     /// facing in w.
-    fn start(&self) -> V4;
+    fn start(&self) -> V4 {
+        self.core().start
+    }
     /// How the others stand about the leader.
     fn spread(&self) -> StartSpread {
         StartSpread::BEHIND
@@ -120,17 +132,17 @@ pub trait StoryMap: Any {
         None
     }
     /// The map's scene file, where `marker_pos` finds `markerEvTbl`'s
-    /// dummies (`WORLD_MAN` +0x444's stream); None where not ported.
+    /// dummies (`WORLD_MAN` +0x444's stream).
     fn file(&self) -> Option<&piney_desktop::assets::SceneFile> {
-        None
+        Some(&self.core().file)
     }
     /// `fieldrand` as the map's draws leave it, for a map that draws from
     /// it; None leaves the game's as the map found it.
     fn field_rand(&self) -> Option<&Rng> {
-        None
+        self.core().field_rand.as_ref()
     }
     fn field_rand_mut(&mut self) -> Option<&mut Rng> {
-        None
+        self.core_mut().field_rand.as_mut()
     }
     /// The map's `EA_moveTex` rows' scroll written into gcmn's data
     /// (`evarea::scroll`).

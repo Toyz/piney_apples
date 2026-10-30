@@ -143,6 +143,23 @@ impl SceneFile {
         Ok(SceneFile { stem: stem.to_string(), ccs, scene, anims, anim_by_name, obj_model, models, shadows })
     }
 
+    /// A file with nothing in it: the stream of a map that loads none
+    /// (Quarantine's ending), where no name is found.
+    pub fn empty() -> SceneFile {
+        let ccs = Ccs {
+            data: Vec::new(),
+            name: String::new(),
+            version: 0,
+            frames: 0,
+            header_words: Vec::new(),
+            files: Vec::new(),
+            objects: Vec::new(),
+        };
+        let (anims, anim_by_name) = (Vec::new(), HashMap::new());
+        let (obj_model, models, shadows) = (HashMap::new(), HashMap::new(), HashMap::new());
+        SceneFile { stem: String::new(), ccs, scene: Scene::default(), anims, anim_by_name, obj_model, models, shadows }
+    }
+
     /// `ccStream::GetChunkAdrsF(name)` for an Anime chunk.
     pub fn anim(&self, name: &str) -> Option<usize> {
         self.anim_by_name.get(name).copied()

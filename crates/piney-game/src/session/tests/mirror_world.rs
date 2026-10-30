@@ -217,7 +217,7 @@ fn fields_66_and_91_are_their_maps() {
         let w = a.world();
         let sky = w.place().story::<SkyMap>().unwrap_or_else(|| panic!("{disc}: field {field} is no story map"));
         assert_eq!(sky.class, class, "{disc}");
-        let start = sky.start.map(f32::from_bits);
+        let start = sky.base.core.start.map(f32::from_bits);
         if class == Class::Mirror {
             assert_eq!(start[..3], [4600.0, -4700.0, 910.0], "{disc}: the start");
         }
@@ -336,7 +336,7 @@ fn gate_to_66(s: &mut Session, tables: &piney_data::area::AreaTables) -> (piney_
             && let Some(m) = a.world().place().story::<SkyMap>()
         {
             assert!(!m.started, "the map drew before the first look");
-            return (m.rng, m.move_tex.scroll());
+            return (m.base.core.field_rand.expect("the sky draws from fieldrand"), m.move_tex.scroll());
         }
     }
     panic!("no Mirror World: {}", Mode::title(s));

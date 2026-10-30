@@ -19,9 +19,10 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
+use crate::area::AreaCore;
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
-use crate::hit::{HitModel, Hits, UNIT};
+use crate::hit::{HitModel, UNIT};
 use crate::sky::cloud::{self, Cloud};
 use crate::sky::lensflare::{self, FLARES};
 use crate::story_map::holy_ground::Placing;
@@ -88,8 +89,9 @@ pub enum Piece {
 
 /// `EVENTAREA07` as `WORLD_MAN.eventmap` holds it.
 pub struct Giant {
-    /// `se1_7_1`, `se1_7_2` and `town_z`.
-    pub file: Rc<SceneFile>,
+    /// `se1_7_1` (the core's file), its lights and start as the block set
+    /// them, the collision, `fieldrand`; then `se1_7_2` and `town_z`.
+    pub core: AreaCore,
     pub file_2: Rc<SceneFile>,
     pub eff: Rc<SceneFile>,
     /// `blk` (+0x1e4).
@@ -99,14 +101,8 @@ pub struct Giant {
     pub objects: Vec<StaticObject>,
     /// `bg[0..3]` (+0x1a8): each clump's models.
     pub bg: [Option<(u32, Vec<u32>)>; 4],
-    /// The light group from the block's light animation at frame 1, and
-    /// the ambient.
-    pub lights: TownLights,
     pub light_objects: Vec<u32>,
     pub fog: FogParams,
-    /// `WORLD_MAN.eventStartPos` as the last `SetStartPos` left it: the
-    /// dummy's position, w its turn about z.
-    pub start: V4,
     pub move_tex: [MoveTex; 2],
     /// The bob (+0x1d8, the z of +0x1d0) and its direction (+0x1c4: 1
     /// rising).
@@ -115,14 +111,10 @@ pub struct Giant {
     /// The 25 `CLOUD`s (+0x1ec) and `EFF_srzsmo1`'s `patNum`.
     pub clouds: Vec<Cloud>,
     pat_num: u16,
-    /// `fieldrand`, which the clouds and the bob draw from: the game's one
-    /// stream, which `GO(1)` does not seed for a story map.
-    pub rng: Rng,
     /// The sun's place, and where the flares were drawn last.
     pub sun: V4,
     pub flares: Option<[V4; 6]>,
     hit_models: [Vec<HitModel>; 2],
-    pub hits: Hits,
 }
 
 /// A dummy's position with its turn about z in w (the chunk's +0x28
@@ -155,28 +147,30 @@ impl Giant {
             .ok_or_else(|| Error::NotFound(format!("{FILE}: {SUN}")))?;
         let hit_models = [HitModel::read(volume, &file.ccs)?, HitModel::read(volume, &file_2.ccs)?];
         let hits = event_hits(volume, def_se, Vec::new());
+        // The file is block 0's, `marker_pos`'s stream (+0x1a4); the lights
+        // and the start are the block's, as `ChangeBlock` sets them;
+        // fieldrand, which the clouds and the bob draw from, is the game's
+        // one stream, which `GO(1)` does not seed for a story map.
+        let lights = TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: Some(FOG[0]) };
+        let core = AreaCore { file, hits, lights, field_rand: Some(rng), start: [0, 0, 0, ONE] };
         let mut g = Giant {
-            file,
+            core,
             file_2,
             eff,
             block: 0,
             models: Vec::new(),
             objects: Vec::new(),
             bg: Default::default(),
-            lights: TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: Some(FOG[0]) },
             light_objects: Vec::new(),
             fog: FOG[0],
-            start: [0, 0, 0, ONE],
             move_tex: MOVE_TEX,
             bob: 0,
             rising: false,
             clouds: Vec::new(),
             pat_num,
-            rng,
             sun,
             flares: None,
             hit_models,
-            hits,
         };
         g.change_block(0, area_prev)?;
         Ok(g)
@@ -184,7 +178,7 @@ impl Giant {
 
     /// The scene file block `block`'s names are in.
     fn block_file(&self, block: i32) -> &Rc<SceneFile> {
-        if block == 0 { &self.file } else { &self.file_2 }
+        if block == 0 { &self.core.file } else { &self.file_2 }
     }
 
     /// `EVENTAREA07::ChangeBlock(block)` (gcmn 0x00405c80), `game.areaPrev`
@@ -219,23 +213,22 @@ impl Giant {
         };
         let (ambient, group, objects) = light_group(&file, anim, lights, false)?;
         self.light_objects = objects;
-        self.lights = TownLights { ambient, lights: group, fog: Some(FOG[b]) };
+        self.core.lights = TownLights { ambient, lights: group, fog: Some(FOG[b]) };
         self.fog = FOG[b];
         match (b, area_prev) {
-            (0, 2) => self.start = marker(&file, "DMY_marker02")?,
-            (0, _) => self.start = marker(&file, "DMY_marker01")?,
+            (0, 2) => self.core.start = marker(&file, "DMY_marker02")?,
+            (0, _) => self.core.start = marker(&file, "DMY_marker01")?,
             // DMY_marker03 is in neither of Infection's files: the game
             // would read through a null chunk. The start stays.
             _ => {
                 if let Ok(m) = marker(&file, "DMY_marker03") {
-                    self.start = m;
+                    self.core.start = m;
                 }
             }
         }
         if b == 0 {
-            for _ in 0..CLOUDS {
-                let cl = Cloud::init(CLOUD_TYPE, self.pat_num, [0, 0, 0, ONE], &mut self.rng);
-                self.clouds.push(cl);
+            if let Some(rng) = &mut self.core.field_rand {
+                self.clouds = (0..CLOUDS).map(|_| Cloud::init(CLOUD_TYPE, self.pat_num, [0, 0, 0, ONE], rng)).collect();
             }
             // objects[1], models[0] and [4] at the bob, as it stands.
             let at = [0, 0, self.bob, 0];
@@ -251,7 +244,7 @@ impl Giant {
         }
         // The collision: the block's models' Hit chunks, at their places.
         let hm = &self.hit_models[b];
-        self.hits.models = self
+        self.core.hits.models = self
             .models
             .iter()
             .filter_map(|m| {
@@ -283,7 +276,7 @@ impl Giant {
 
     /// `EVENTAREA::SetCenter(x, y)`.
     pub fn set_center(&mut self, x: F, y: F) {
-        self.hits.center = [x, y];
+        self.core.hits.center = [x, y];
     }
 
     /// `ccSys.bgColor`: block 0's (block 1 keeps it).
@@ -302,7 +295,7 @@ impl Giant {
             return out;
         }
         // DrawBG: the bob steps by fieldrand(25), turning at 350 and 0.
-        let r = ee::from_int(self.rng.below(25) as i32);
+        let r = self.core.field_rand.as_mut().map_or(0, |rng| ee::from_int(rng.below(25) as i32));
         if self.rising {
             self.bob = ee::add(self.bob, r);
             if !ee::le(self.bob, BOB_TOP) {
@@ -328,10 +321,13 @@ impl Giant {
         self.row_pieces(&mut out, DrawPass::Floor, layer::OBJ, v.eye);
         // effLayer: each cloud's Move, then its Draw.
         for k in 0..self.clouds.len() {
-            self.clouds[k].step(self.hits.volume, v.player, &mut self.rng, &|_, _| 0);
+            let volume = self.core.hits.volume;
+            if let Some(rng) = &mut self.core.field_rand {
+                self.clouds[k].step(volume, v.player, rng, &|_, _| 0);
+            }
             let c = &self.clouds[k];
             let in_view = crate::town::pc::check_camera_deg(c.pos, cloud::VIEW_DEG, &v.cam, v.player);
-            if c.drawn(self.hits.volume, v.player, in_view) {
+            if c.drawn(volume, v.player, in_view) {
                 out.push(Piece::Cloud { k });
             }
         }
@@ -354,7 +350,7 @@ impl Giant {
             }
         }
         let file = self.block_file(self.block).clone();
-        let volume = self.hits.volume;
+        let volume = self.core.hits.volume;
         for k in 0..self.objects.len() {
             let o = &mut self.objects[k];
             if o.pass != pass {
@@ -372,8 +368,8 @@ impl Giant {
     fn scroll_rows(&self) -> HashMap<u32, [u8; 2]> {
         let mut rows = HashMap::new();
         for t in &self.move_tex {
-            let Some(mat) = self.file.ccs.find_object(t.mat) else { continue };
-            let Some(m) = self.file.scene.materials.get(&mat) else { continue };
+            let Some(mat) = self.core.file.ccs.find_object(t.mat) else { continue };
+            let Some(m) = self.core.file.scene.materials.get(&mat) else { continue };
             let [u, v] = t.offsets();
             rows.insert(mat, [(u.wrapping_sub(m.crop_u) >> 4) as u8, (v.wrapping_sub(m.crop_v) >> 4) as u8]);
         }
@@ -411,11 +407,12 @@ impl Giant {
                 self.bob,
                 self.rising,
                 self.clouds.clone(),
-                self.rng,
+                self.core.field_rand,
                 self.flares,
             );
             let p = self.select(v);
-            (self.move_tex, self.objects, self.bob, self.rising, self.clouds, self.rng, self.flares) = saved;
+            (self.move_tex, self.objects, self.bob, self.rising, self.clouds, self.core.field_rand, self.flares) =
+                saved;
             p
         };
         let file = self.block_file(self.block).clone();
@@ -492,15 +489,11 @@ pub const DEF: MapDef = MapDef {
 };
 
 impl StoryMap for Giant {
-    /// `marker_pos`'s stream (+0x1a4).
-    fn file(&self) -> Option<&piney_desktop::assets::SceneFile> {
-        Some(&self.file)
+    fn core(&self) -> &AreaCore {
+        &self.core
     }
-    fn field_rand(&self) -> Option<&Rng> {
-        Some(&self.rng)
-    }
-    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
-        Some(&mut self.rng)
+    fn core_mut(&mut self) -> &mut AreaCore {
+        &mut self.core
     }
     fn put_scrolls(&self, gcmn: &mut [[u32; 2]; MOVE_TEX_ROWS]) {
         for (k, t) in self.move_tex.iter().enumerate() {
@@ -511,18 +504,6 @@ impl StoryMap for Giant {
         for (k, t) in self.move_tex.iter_mut().enumerate() {
             *t = t.at(gcmn, crate::story_map::holy_ground::scroll::EA07 + k);
         }
-    }
-    fn hits(&self) -> &Hits {
-        &self.hits
-    }
-    fn hits_mut(&mut self) -> &mut Hits {
-        &mut self.hits
-    }
-    fn lights(&self) -> &TownLights {
-        &self.lights
-    }
-    fn start(&self) -> V4 {
-        self.start
     }
     /// Main 0x001a1190's (+-200, -150).
     fn spread(&self) -> StartSpread {
@@ -557,17 +538,17 @@ mod tests {
         assert_eq!((g.models.len(), g.objects.len()), (8, 2));
         assert!(g.bg.iter().all(|b| b.is_some()));
         assert_eq!(g.clouds.len(), CLOUDS);
-        assert_eq!(g.hits.models.len(), 1);
-        assert_eq!(name(&g.file, g.hits.models[0].object), "HIT_se1_7ob1hit");
-        assert_eq!(name(&g.file, g.hits.models[0].parent), "MDL_se1_7ob1_1");
+        assert_eq!(g.core.hits.models.len(), 1);
+        assert_eq!(name(&g.core.file, g.core.hits.models[0].object), "HIT_se1_7ob1hit");
+        assert_eq!(name(&g.core.file, g.core.hits.models[0].parent), "MDL_se1_7ob1_1");
         assert_eq!(g.light_objects.len(), 1);
-        let arrive = g.start;
-        let back = Giant::new(&archive, Volume::Inf, 0, 2, Rng::new(0)).unwrap().start;
+        let arrive = g.core.start;
+        let back = Giant::new(&archive, Volume::Inf, 0, 2, Rng::new(0)).unwrap().core.start;
         assert_ne!(arrive, back, "DMY_marker01 and 02 are different places");
         g.change_block(1, 1).unwrap();
         assert_eq!((g.models.len(), g.objects.len(), g.clouds.len()), (2, 0, 0));
-        assert_eq!(g.hits.models.len(), 1);
-        assert_eq!(name(&g.file_2, g.hits.models[0].object), "HIT_se1_7ob1_5hit");
+        assert_eq!(g.core.hits.models.len(), 1);
+        assert_eq!(name(&g.file_2, g.core.hits.models[0].object), "HIT_se1_7ob1_5hit");
         assert_eq!(g.light_objects.len(), 3);
         assert_eq!(g.enter(1, 1).unwrap(), Some(0));
         assert_eq!(g.block, 0);

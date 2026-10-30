@@ -2922,7 +2922,7 @@ impl FieldWorld {
             }
         };
         let center = match self.place.story::<Arena>() {
-            Some(a) => [a.start[0], a.start[1], a.start[2], ONE],
+            Some(a) => [a.core.start[0], a.core.start[1], a.core.start[2], ONE],
             None => self.player.body.pos,
         };
         let disc = self.place.story::<crate::story_map::disc::DiscArea>().map(disc_view).unwrap_or_default();

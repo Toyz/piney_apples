@@ -8,7 +8,6 @@
 use std::collections::HashMap;
 
 use glam::Mat4;
-use piney_data::dungeon::Rng;
 use piney_data::statics::DrawPass;
 use piney_data::{Error, Result};
 use piney_desktop::layers::Layers;
@@ -117,15 +116,13 @@ pub struct LiaFail {
     pub points: [V4; GLOWS],
     pub glows: [Glow; GLOWS],
     pat_num: u16,
-    /// `fieldrand` as the glows draw from it.
-    pub rng: Rng,
 }
 
 /// `ROOTTOWN05::ROOTTOWN05`: `town05` (whatever the crisis byte says).
 pub fn new(env: &TownEnv<'_>) -> Result<Town> {
     let (archive, rng) = (env.archive, env.rng);
-    let base = Base::read(archive, FILE, &SPEC)?;
-    let file = base.file.clone();
+    let mut base = Base::read(archive, FILE, &SPEC)?;
+    let file = base.core.file.clone();
     let pat_num = cloud::eff_pat_num(&file.ccs, GLOW).ok_or_else(|| Error::NotFound(format!("{FILE}: {GLOW}")))?.max(1);
     let mut rng = rng;
     let glows = std::array::from_fn(|_| {
@@ -144,7 +141,9 @@ pub fn new(env: &TownEnv<'_>) -> Result<Town> {
             .map(|d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE])
             .ok_or(Error::NotFound(name))?;
     }
-    let d = LiaFail { sky: clump_models(&file, SKY), bg_scroll: [0; 3], points, glows, pat_num, rng };
+    // fieldrand, which the glows draw from.
+    base.core.field_rand = Some(rng);
+    let d = LiaFail { sky: clump_models(&file, SKY), bg_scroll: [0; 3], points, glows, pat_num };
     Ok(Town::new(base, d))
 }
 
@@ -162,14 +161,15 @@ impl LiaFail {
         }
         out.push(Piece::Map);
         out.extend(base.rows(DrawPass::Other).map(Piece::Model));
+        let Some(rng) = &mut base.core.field_rand else { return out };
         for (k, g) in self.glows.iter_mut().enumerate() {
             if g.wait == 0 {
-                let pattern = self.rng.below(u32::from(self.pat_num)) as u16;
+                let pattern = rng.below(u32::from(self.pat_num)) as u16;
                 out.push(Piece::Glow(k, pattern));
                 g.flicker -= 1;
                 if g.flicker == 0 {
-                    g.wait = self.rng.below(100) as i32 + 30;
-                    g.flicker = self.rng.below(15) as i32 + 1;
+                    g.wait = rng.below(100) as i32 + 30;
+                    g.flicker = rng.below(15) as i32 + 1;
                 }
             } else {
                 g.wait -= 1;
@@ -217,12 +217,6 @@ impl RootTown for LiaFail {
     fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
         statics::put(&self.bg_scroll, s, statics::TOWN05_BG);
     }
-    fn field_rand(&self) -> Option<&Rng> {
-        Some(&self.rng)
-    }
-    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
-        Some(&mut self.rng)
-    }
 
     fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
         let pieces = self.select(base, v);
@@ -247,7 +241,7 @@ mod tests {
             archive: &archive,
             volume: piney_data::volume::Volume::Out,
             crisis: false,
-            rng: Rng::POWER_ON,
+            rng: piney_data::dungeon::Rng::POWER_ON,
         })
         .unwrap();
         let b = &t.base;
@@ -255,7 +249,7 @@ mod tests {
         assert_eq!((0..7).filter(|&r| b.model(r).is_some()).count(), 7);
         let d = t.class::<LiaFail>().unwrap();
         assert!(!d.sky.is_empty());
-        assert_eq!(b.lights.lights.len(), 20);
+        assert_eq!(b.core.lights.lights.len(), 20);
         assert_eq!(b.clear, Some(BG_COLOR));
         assert!(d.points.iter().all(|p| p[3] == ONE));
         assert!(
@@ -272,7 +266,7 @@ mod tests {
             archive: &archive,
             volume: piney_data::volume::Volume::Out,
             crisis: false,
-            rng: Rng::POWER_ON,
+            rng: piney_data::dungeon::Rng::POWER_ON,
         })
         .unwrap();
         let (base, d) = t.parts_mut::<LiaFail>().unwrap();

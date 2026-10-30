@@ -14,14 +14,15 @@ use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::layers::Layers;
 
+use crate::area::AreaCore;
 use crate::draw::{self, Draw};
 use crate::ee::{ONE, V4};
-use crate::hit::{HitModel, Hits};
+use crate::hit::HitModel;
 use crate::story_map::StoryMap;
 use crate::story_map::holy_ground::{StorySprite, layer};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{event_hits, model_hits};
-use crate::town::{Base, FogParams, Spec, TownLights, TownView};
+use crate::town::{Base, FogParams, Spec, TownView};
 
 /// `game.field` of this map.
 pub const AREA: i32 = 13;
@@ -84,26 +85,21 @@ pub struct Area13 {
     pub base: Base,
     /// `bg[0]`: the background clump's models.
     pub bg: Option<(u32, Vec<u32>)>,
-    /// `DMY_marker_ev01`'s position, w its turn about z.
-    pub start: V4,
     pub glows: [Glow; 7],
     /// The glow's pattern count (`ccEff` +0x30).
     pub pat_num: u16,
-    /// `fieldrand`, the game's one stream: `GO(1)` sets no seed for a story
-    /// map, so the map draws on from where the scene before left it.
-    pub rng: Rng,
 }
 
 impl Area13 {
     /// `EVENTAREA01::EVENTAREA01`, `fieldrand` the game's (`rng`).
     pub fn new(archive: &Arc<Archive>, volume: Volume, def_se: u32, rng: Rng) -> Result<Area13> {
         let mut base = Base::read_volume(archive, volume, FILE, &SPEC)?;
-        let (c, sc) = (&base.file.ccs, &base.file.scene);
+        let (c, sc) = (&base.core.file.ccs, &base.core.file.scene);
         // The collision: the models' Hit chunks, in the order the
         // STATICMODELs were built, over GO's bounds.
         let hit_models = HitModel::read(volume, c)?;
         let hits = event_hits(volume, def_se, model_hits(base.models.iter().flatten().map(|m| m.model), &hit_models));
-        let bg = crate::story_map::holy_ground::clump_models(&base.file, BG);
+        let bg = crate::story_map::holy_ground::clump_models(&base.core.file, BG);
         let (pos, rot) = crate::town::dummy_bits(&Position::DummyRot(START), c, sc);
         if c.find_object(START).is_none() {
             return Err(Error::NotFound(format!("{FILE}: {START}")));
@@ -125,8 +121,13 @@ impl Area13 {
             }
             g.pos = crate::town::dummy_bits(&Position::Dummy(name), c, sc).0;
         }
-        base.hits = hits;
-        Ok(Area13 { base, bg, start: [pos[0], pos[1], pos[2], rot[2]], glows, pat_num, rng })
+        base.core.hits = hits;
+        // The start: `DMY_marker_ev01`'s position, w its turn about z.
+        // fieldrand: `GO(1)` sets no seed for a story map, so the map draws
+        // on from where the scene before left it.
+        base.core.start = [pos[0], pos[1], pos[2], rot[2]];
+        base.core.field_rand = Some(rng);
+        Ok(Area13 { base, bg, glows, pat_num })
     }
 
     /// Each glow's `ccEff::Draw` this frame: waiting, its animation's next
@@ -135,13 +136,14 @@ impl Area13 {
     pub fn glow_frames(&mut self) -> [u32; 7] {
         let n = u32::from(self.pat_num).max(1);
         let mut out = [0; 7];
+        let Some(rng) = &mut self.base.core.field_rand else { return out };
         for (k, g) in self.glows.iter_mut().enumerate() {
             if g.wait == 0 {
-                out[k] = self.rng.below(n) & 0xffff;
+                out[k] = rng.below(n) & 0xffff;
                 g.count = g.count.wrapping_sub(1);
                 if g.count == 0 {
-                    g.wait = self.rng.below(100) + 30;
-                    g.count = self.rng.below(15) + 1;
+                    g.wait = rng.below(100) + 30;
+                    g.count = rng.below(15) + 1;
                 }
             } else {
                 g.wait -= 1;
@@ -158,7 +160,7 @@ impl Area13 {
     fn clump_draw(&self, layers: &mut Layers, layer: i16, to_screen: Mat4, model: u32) {
         let rows = Default::default();
         let d = Draw {
-            file: &self.base.file,
+            file: &self.base.core.file,
             model,
             world: Mat4::IDENTITY,
             alpha: 1.0,
@@ -173,28 +175,11 @@ impl Area13 {
 }
 
 impl StoryMap for Area13 {
-    fn field_rand(&self) -> Option<&Rng> {
-        Some(&self.rng)
+    fn core(&self) -> &AreaCore {
+        &self.base.core
     }
-    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
-        Some(&mut self.rng)
-    }
-    fn hits(&self) -> &Hits {
-        &self.base.hits
-    }
-    fn file(&self) -> Option<&piney_desktop::assets::SceneFile> {
-        Some(&self.base.file)
-    }
-    fn hits_mut(&mut self) -> &mut Hits {
-        &mut self.base.hits
-    }
-    fn lights(&self) -> &TownLights {
-        &self.base.lights
-    }
-    /// `WORLD_MAN::SetCharPosition` in a story map: the leader at the
-    /// start, the others at (+300, +150), (-300, +150), (0, +300).
-    fn start(&self) -> V4 {
-        self.start
+    fn core_mut(&mut self) -> &mut AreaCore {
+        &mut self.base.core
     }
     fn clear(&self) -> [u8; 3] {
         BG_COLOR
@@ -225,9 +210,9 @@ impl StoryMap for Area13 {
         let frames = if step {
             self.glow_frames()
         } else {
-            let saved = (self.glows, self.rng);
+            let saved = (self.glows, self.base.core.field_rand);
             let f = self.glow_frames();
-            (self.glows, self.rng) = saved;
+            (self.glows, self.base.core.field_rand) = saved;
             f
         };
         self.glows
@@ -279,9 +264,9 @@ mod tests {
         let mut a = Area13::new(&archive, Volume::Mut, 0, Rng::new(0)).unwrap();
         assert_eq!((0..7).filter(|&r| a.base.model(r).is_some()).count(), 7);
         assert!(a.base.object(0).is_some());
-        assert_eq!(a.base.lights.lights.len(), 11);
+        assert_eq!(a.base.core.lights.lights.len(), 11);
         assert!(a.bg.is_some());
-        assert!(!a.base.hits.models.is_empty());
+        assert!(!a.base.core.hits.models.is_empty());
         assert!(a.pat_num > 0);
         assert!(a.glows.iter().all(|g| g.frame < u32::from(a.pat_num) && (30..130).contains(&g.wait)));
         let mut layers = Layers::default();

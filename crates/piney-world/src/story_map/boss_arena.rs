@@ -20,9 +20,10 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
+use crate::area::AreaCore;
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
-use crate::hit::{HitModel, Hits};
+use crate::hit::HitModel;
 use crate::sky::firefly::{Firefly, FireflyDraw};
 use crate::story_map::holy_ground::Placing;
 use crate::story_map::holy_ground::{StaticModel, StorySprite, clump_models, layer};
@@ -132,19 +133,20 @@ pub const LAST_STAGE_BYTE: usize = 0x652f;
 
 /// `EVENTAREAB0` as `WORLD_MAN.eventmap` holds it.
 pub struct Arena {
-    /// `game.field` it was made for, and the stage's scene file (+0x1a4).
+    /// `game.field` it was made for.
     pub field: i32,
     pub stage: &'static str,
-    pub file: Rc<SceneFile>,
+    /// The stage's scene file (+0x1a4), the light group from `lgtAnm` at
+    /// frame 1 and the ambient, the collision, `eventStartPos` from
+    /// `DMY_center01` (w its turn about z), and `fieldrand`, which the
+    /// fireflies and the bobbing draw from: the game's one stream, which
+    /// `GO(1)` does not seed for a story map.
+    pub core: AreaCore,
     /// `modelArray` (+0x78): EA_MODELTABLEB0's nine rows, the stage's.
     pub models: Vec<StaticModel>,
     /// `bg[0..2]` (+0x1a8): each clump's models.
     pub bg: [Option<(u32, Vec<u32>)>; 3],
-    /// The light group from `lgtAnm` at frame 1, and the ambient.
-    pub lights: TownLights,
     pub light_objects: Vec<u32>,
-    /// `WORLD_MAN.eventStartPos` from `DMY_center01`, w its turn about z.
-    pub start: V4,
     /// `DrawBG`'s `v` (a static of the function in the game), and the
     /// value the last `DrawBG` wrote to the material before stepping it.
     pub scroll_v: F,
@@ -159,13 +161,9 @@ pub struct Arena {
     pub last: Option<LastStage>,
     pub stage_sw: bool,
     pub clump_on: bool,
-    /// `fieldrand`, which the fireflies and the bobbing draw from: the
-    /// game's one stream, which `GO(1)` does not seed for a story map.
-    pub rng: Rng,
     /// The 54 `FIREFLY2`s (+0x1c4).
     pub fireflies: Vec<Firefly>,
     hit_models: Vec<HitModel>,
-    pub hits: Hits,
 }
 
 /// A name of `se1_5`'s with the stage's digits: the constructor writes the
@@ -240,20 +238,16 @@ impl Arena {
             clump_on: false,
             field,
             stage,
-            file,
+            core: AreaCore { file, hits, lights, field_rand: Some(rng), start: [pos[0], pos[1], pos[2], rot[2]] },
             models,
             bg,
-            lights,
             light_objects,
-            start: [pos[0], pos[1], pos[2], rot[2]],
             scroll_v: 0,
             scroll_shown: 0,
             sw: [0, 1, 0],
             layer_sw: false,
-            rng,
             fireflies,
             hit_models,
-            hits,
         })
     }
 
@@ -267,10 +261,10 @@ impl Arena {
         }
         let Some(last) = self.last.as_ref() else { return };
         self.models.clear();
-        self.lights.lights.truncate(1);
+        self.core.lights.lights.truncate(1);
         self.stage_sw = true;
         self.clump_on = true;
-        self.hits.models = last.hit_models.clone();
+        self.core.hits.models = last.hit_models.clone();
     }
 
     /// `+0x2bc` set (QUA gcmn 0x0030aa40, `on` the call's 1).
@@ -285,7 +279,7 @@ impl Arena {
 
     /// `EVENTAREA::SetCenter(x, y)`.
     pub fn set_center(&mut self, x: F, y: F) {
-        self.hits.center = [x, y];
+        self.core.hits.center = [x, y];
     }
 
     /// `EVENTAREAB0::Draw` for this frame, the player at `player`: the
@@ -327,16 +321,18 @@ impl Arena {
         out.push(Piece::Model { k: 5, layer: if self.layer_sw { layer::OBJ } else { REF_LAYER } });
         // effLayer: each firefly's Draw, then its Move.
         let mut drawn = Vec::new();
-        let volume = self.hits.volume;
+        let volume = self.core.hits.volume;
         for f in &mut self.fireflies {
             f.draw(volume, player, &mut drawn);
-            f.step(volume, player, &mut self.rng);
+            if let Some(rng) = &mut self.core.field_rand {
+                f.step(volume, player, rng);
+            }
         }
         out.extend(drawn.into_iter().map(|draw| Piece::Firefly { draw, layer: layer::EFF }));
         // Models 6-8 bob: up by fieldrand(5) until past 50, down until
         // under -50.
         for k in 0..3 {
-            let r = ee::from_int(self.rng.below(5) as i32);
+            let r = self.core.field_rand.as_mut().map_or(0, |rng| ee::from_int(rng.below(5) as i32));
             let z = &mut self.models[6 + k].pos[2];
             if self.sw[k] == 0 {
                 *z = ee::add(*z, r);
@@ -358,8 +354,8 @@ impl Arena {
     fn scroll_rows(&self) -> HashMap<u32, [u8; 2]> {
         let mut rows = HashMap::new();
         let name = format!("MAT_{}clo1", self.stage);
-        if let Some(mat) = self.file.ccs.find_object(&name)
-            && let Some(m) = self.file.scene.materials.get(&mat)
+        if let Some(mat) = self.core.file.ccs.find_object(&name)
+            && let Some(m) = self.core.file.scene.materials.get(&mat)
         {
             let v = (ee::to_int(ee::mul(self.scroll_shown, 0x4580_0000)) & 0xffff) as u16;
             rows.insert(mat, [0, (v.wrapping_sub(m.crop_v) >> 4) as u8]);
@@ -368,7 +364,7 @@ impl Arena {
     }
 
     fn model_draw(&self, layers: &mut Layers, layer: i16, to_screen: Mat4, model: u32, world: Mat4) {
-        self.file_draw(&self.file, layers, layer, to_screen, model, world);
+        self.file_draw(&self.core.file, layers, layer, to_screen, model, world);
     }
 
     fn file_draw(&self, file: &SceneFile, layers: &mut Layers, layer: i16, to_screen: Mat4, model: u32, world: Mat4) {
@@ -394,11 +390,17 @@ impl Arena {
         let pieces = if step {
             self.select(player)
         } else {
-            let saved =
-                (self.scroll_v, self.scroll_shown, self.sw, self.rng, self.models.clone(), self.fireflies.clone());
+            let saved = (
+                self.scroll_v,
+                self.scroll_shown,
+                self.sw,
+                self.core.field_rand,
+                self.models.clone(),
+                self.fireflies.clone(),
+            );
             let anm = self.last.as_ref().map(|l| l.anm.clone());
             let p = self.select(player);
-            (self.scroll_v, self.scroll_shown, self.sw, self.rng, self.models, self.fireflies) = saved;
+            (self.scroll_v, self.scroll_shown, self.sw, self.core.field_rand, self.models, self.fireflies) = saved;
             if let (Some(l), Some(a)) = (self.last.as_mut(), anm) {
                 l.anm = a;
             }
@@ -470,33 +472,17 @@ pub const DEF: MapDef = MapDef {
 };
 
 impl StoryMap for Arena {
-    /// `marker_pos`'s stream (+0x1a4).
-    fn file(&self) -> Option<&piney_desktop::assets::SceneFile> {
-        Some(&self.file)
+    fn core(&self) -> &AreaCore {
+        &self.core
+    }
+    fn core_mut(&mut self) -> &mut AreaCore {
+        &mut self.core
     }
     fn take_statics(&mut self, s: &[u32; SCROLL_STATICS]) {
         self.scroll_v = s[crate::town::scroll_statics::ARENA_BG];
     }
     fn put_statics(&self, s: &mut [u32; SCROLL_STATICS]) {
         s[crate::town::scroll_statics::ARENA_BG] = self.scroll_v;
-    }
-    fn field_rand(&self) -> Option<&Rng> {
-        Some(&self.rng)
-    }
-    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
-        Some(&mut self.rng)
-    }
-    fn hits(&self) -> &Hits {
-        &self.hits
-    }
-    fn hits_mut(&mut self) -> &mut Hits {
-        &mut self.hits
-    }
-    fn lights(&self) -> &TownLights {
-        &self.lights
-    }
-    fn start(&self) -> V4 {
-        self.start
     }
     fn clear(&self) -> [u8; 3] {
         crate::story_map::boss_arena::BG_COLOR
@@ -516,12 +502,12 @@ mod tests {
     fn skeith_arena() {
         let Some(archive) = crate::town::tests::archive() else { return };
         let a = Arena::new(&archive, Volume::Inf, 1, 0).unwrap();
-        let name = |o: u32| a.file.ccs.object_name(o).unwrap().to_string();
+        let name = |o: u32| a.core.file.ccs.object_name(o).unwrap().to_string();
         assert_eq!(a.stage, "se1_5");
         assert_eq!(a.models.len(), 9);
         assert_eq!(name(a.models[5].model), "MDL_se1_5ob0");
-        assert_eq!(a.hits.models.len(), 1);
-        assert_eq!(name(a.hits.models[0].object), "HIT_se1_5fl0hit");
+        assert_eq!(a.core.hits.models.len(), 1);
+        assert_eq!(name(a.core.hits.models[0].object), "HIT_se1_5fl0hit");
         assert_eq!(a.light_objects.len(), 20);
         assert!(a.bg.iter().all(|b| b.is_some()));
         assert_eq!(a.fireflies.len(), FIREFLIES);
@@ -536,8 +522,8 @@ mod tests {
         assert!(a.select([0, 0, 0, ONE]).iter().any(|p| matches!(p, Piece::Firefly { .. } | Piece::Model { .. })));
         a.next_stage();
         assert!(a.stage_sw && a.clump_on);
-        assert_eq!(a.lights.lights.len(), 1, "the distant light kept");
-        assert!(!a.hits.models.is_empty(), "the last stage's hit");
+        assert_eq!(a.core.lights.lights.len(), 1, "the distant light kept");
+        assert!(!a.core.hits.models.is_empty(), "the last stage's hit");
         let p = a.select([0, 0, 0, ONE]);
         assert_eq!(p, vec![Piece::LastAnm { layer: layer::OBJ }, Piece::LastClump { layer: draw::FLOOR_LAYER }]);
         a.set_clump(false);

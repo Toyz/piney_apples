@@ -260,12 +260,12 @@ fn the_entry_controls_set_up() {
     assert_eq!((world.merchants()[0].ch.pos, world.merchants()[0].ch.dirc), world.marker_dummy(5).unwrap());
     assert_eq!(world.pcs().len(), 13);
     assert_eq!((world.pcs()[0].row.row, world.pcs()[0].char.pos, world.pcs()[0].char.dirc), (40, at, rot));
-    let kinds: Vec<u32> = world.town().base.hits.chars.iter().map(|b| b.kind).collect();
+    let kinds: Vec<u32> = world.town().base.core.hits.chars.iter().map(|b| b.kind).collect();
     assert_eq!(kinds, [2; 19]);
     for _ in 0..100 {
         step(&mut world, &mut pad, Raw::default());
     }
-    assert_eq!(world.town().base.hits.chars.last().map(|b| b.kind), Some(7));
+    assert_eq!(world.town().base.core.hits.chars.last().map(|b| b.kind), Some(7));
 }
 
 /// Event 2 ("MG0020 TEACH_T") as it drives the characters through the

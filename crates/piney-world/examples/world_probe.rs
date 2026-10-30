@@ -433,7 +433,7 @@ fn props_command(
         }
         "gate" => {
             if props.gate.is_none() {
-                let file = town(props, archive, volume, 0).base.file.clone();
+                let file = town(props, archive, volume, 0).base.core.file.clone();
                 props.gate = Some(piney_world::event::gate::Gate::new(archive, &file).unwrap());
             }
             let g = props.gate.as_mut().unwrap();
@@ -507,12 +507,12 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
                 let [ty, code, marker] = [0, 1, 2].map(|k| hex(e[k]) as i16);
                 let row = piney_world::chara::npc::NpcRow::of(volume, code as usize).unwrap();
                 if row.event_class(ty) == Some(piney_world::chara::npc::EventClass::Merchant) {
-                    let at = piney_world::event::event_marker_in(&t.file, volume, marker);
-                    let m = merchant::event_merchant(archive, &row, &mut t.hits, no, v3(1), at);
+                    let at = piney_world::event::event_marker_in(&t.core.file, volume, marker);
+                    let m = merchant::event_merchant(archive, &row, &mut t.core.hits, no, v3(1), at);
                     ms.list.push(m.unwrap());
                 }
             }
-            let (file, written, hits) = (&t.file, &mut t.written, &mut t.hits);
+            let (file, written, hits) = (&t.core.file, &mut t.written, &mut t.core.hits);
             let made = merchant::set_merchants(archive, volume, file, written, hits, no, v3(1), ms.status).unwrap();
             ms.list.extend(made);
             ms.town = Some(town);
@@ -570,7 +570,7 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
             };
             let view = View { player, cam: cam_pos, deg1, eye };
             let mut rand = Rand(1);
-            let hits = &mut ms.town.as_mut().unwrap().base.hits;
+            let hits = &mut ms.town.as_mut().unwrap().base.core.hits;
             ms.kite.pos = player;
             ms.kite.radius = 0x4234_0000;
             hits.set_hit_sw(&mut ms.kite, kite_hit);
@@ -982,13 +982,13 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             // The SEARCH set-up alone in town TOWN, Kite at (0, 0, 0, 0).
             let (no, code, stage) = (n(1) as i32, n(2) as i32, n(3) as i16);
             let mut town = piney_world::town::Town::open(archive, volume, no, false).unwrap();
-            let t = pc::TownPcs::new(volume, no, &town.base.file, Mt::init(0)).unwrap();
+            let t = pc::TownPcs::new(volume, no, &town.base.core.file, Mt::init(0)).unwrap();
             let t = std::rc::Rc::new(std::cell::RefCell::new(t));
-            let set_up = pc::Search::set_up(&t.borrow(), &town.base.file, code, stage).unwrap();
+            let set_up = pc::Search::set_up(&t.borrow(), &town.base.core.file, code, stage).unwrap();
             let row = piney_world::chara::npc::NpcRow::of(volume, code as usize).unwrap();
             let model = pc::load_model(archive, &mut pc::Files::new(), &t.borrow().tables, &row).unwrap();
             let origin = pc::Origin::Search(set_up);
-            let pc = pc::RtownPc::place_as(&t, &row, &model, origin, [0; 4], &mut town.base.hits);
+            let pc = pc::RtownPc::place_as(&t, &row, &model, origin, [0; 4], &mut town.base.core.hits);
             println!("{{{}}}", pcs_json(&t.borrow(), &[pc]));
         }
         "pcrace" => {

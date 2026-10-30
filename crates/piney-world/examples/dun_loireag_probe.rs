@@ -42,7 +42,7 @@ fn pass(p: DrawPass) -> u32 {
 /// The town as the constructor left it.
 fn state(town: &Town) -> String {
     let t = &town.base;
-    let name = |o: u32| format!("\"{}\"", t.file.ccs.object_name(o).unwrap_or("?"));
+    let name = |o: u32| format!("\"{}\"", t.core.file.ccs.object_name(o).unwrap_or("?"));
     let table = piney_data::statics::tables().iter().find(|x| x.name == "RT_MODELTABLE02").unwrap();
     let models = list((0..table.rows.len()).filter_map(|r| {
         let m = t.model(r)?;
@@ -50,7 +50,7 @@ fn state(town: &Town) -> String {
         Some(format!("[{r}, {}, {}, {}]", pass(table.rows[r].pass), name(m.model), list(pos)))
     }));
     let objects = list((0..9).filter_map(|r| t.object(r).map(|(time, root)| format!("[{r}, {}, {time}]", mat(&root)))));
-    let lights = list(t.lights.lights.iter().map(|l| {
+    let lights = list(t.core.lights.lights.iter().map(|l| {
         let v3 = |v: glam::Vec3| list(v.to_array().map(f32::to_bits));
         format!(
             "[{}, {}, {}, {}, {}, {}, {}]",
@@ -97,7 +97,7 @@ fn main() {
         match w.first().copied() {
             Some("new") => {
                 let mut t = Town::open(&archive, volume, 1, n(1) != 0).unwrap();
-                t.parts_mut::<DunLoireag>().unwrap().1.rng = Rng::new(n(2));
+                t.set_field_rand(Rng::new(n(2)));
                 println!("{}", state(&t));
                 town = Some(t);
             }
@@ -146,7 +146,7 @@ fn main() {
                     d.water_uv,
                     list(d.cloud_uv),
                     d.bg_uv,
-                    d.rng.seed,
+                    t.core.field_rand.map_or(0, |r| r.seed),
                     d.water_u,
                     list([d.bg_scroll[0], d.bg_scroll[1], d.bg_scroll2])
                 );

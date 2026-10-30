@@ -979,11 +979,11 @@ mod tests {
     fn mac_anu() -> Option<(Vec<Merchant>, Hits)> {
         let archive = crate::town::tests::archive()?;
         let town = crate::town::Town::open(&archive, piney_data::volume::Volume::Inf, 0, false).unwrap();
-        let mut hits = town.base.hits.clone();
+        let mut hits = town.base.core.hits.clone();
         let m = set_merchants(
             &archive,
             Volume::Inf,
-            &town.base.file,
+            &town.base.core.file,
             &mut Vec::new(),
             &mut hits,
             0,

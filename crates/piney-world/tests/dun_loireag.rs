@@ -77,7 +77,7 @@ fn arrival_in_dun_loireag_then_walking() {
     let save = in_dun_loireag(&mut iso);
     let mut world = World::enter(&mut iso, archive, save).unwrap();
     assert_eq!(world.town().base.no, 1);
-    assert_eq!(world.town().base.file.stem, "town02");
+    assert_eq!(world.town().base.core.file.stem, "town02");
     assert_eq!(world.clear_colour(), Some([0x80, 0xc0, 0xf0]));
     let mut pad = Pad::default();
     for _ in 0..FADE_FRAMES + HOLD_FRAMES {

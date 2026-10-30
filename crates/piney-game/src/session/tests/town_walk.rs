@@ -68,7 +68,7 @@ impl TownWalker {
             let look = super::survey::Look { n, step: 100.0, wide: self.wide, heights: &[30.0, 95.0], avoid: &closed };
             let near = self.near - 10.0;
             let goal = |q: [f32; 2], _| (q[0] - to[0]).hypot(q[1] - to[1]) < near;
-            let hits = &world.town().base.hits;
+            let hits = &world.town().base.core.hits;
             self.path = super::survey::path_wide(hits, [p[0], p[1], p[2]], mid, &look, goal);
             // No way round them all (one standing in a lane): round the
             // places he stopped at only, else round nothing.

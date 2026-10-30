@@ -51,14 +51,14 @@ fn ship(s: &Airship) -> String {
 
 /// The town as the constructor left it.
 fn state(t: &Town) -> String {
-    let name = |o: u32| format!("\"{}\"", t.base.file.ccs.object_name(o).unwrap_or("?"));
+    let name = |o: u32| format!("\"{}\"", t.base.core.file.ccs.object_name(o).unwrap_or("?"));
     let table = piney_data::statics::tables().iter().find(|x| x.name == "RT_MODELTABLE03").unwrap();
     let models = list((0..table.rows.len()).filter_map(|r| {
         let m = t.base.model(r)?;
         let pos = m.pos.to_array().map(f32::to_bits);
         Some(format!("[{r}, {}, {}, {}]", pass(table.rows[r].pass), name(m.model), list(pos)))
     }));
-    let lights = list(t.base.lights.lights.iter().map(|l| l.kind));
+    let lights = list(t.base.core.lights.lights.iter().map(|l| l.kind));
     let f = &t.base.fog;
     let fog = format!(
         "[{}, {}, {}, {}, {}]",
@@ -91,7 +91,7 @@ fn main() {
         match w.first().copied() {
             Some("new") => {
                 let mut t = Town::open(&archive, volume, 2, n(1) != 0).unwrap();
-                t.parts_mut::<CarminaGade>().unwrap().1.rng = Rng::new(n(2));
+                t.set_field_rand(Rng::new(n(2)));
                 println!("{}", state(&t));
                 town = Some(t);
             }
@@ -129,7 +129,7 @@ fn main() {
                     "{{\"pieces\": {out}, \"ship\": {}, \"root\": {}, \"events\": {events}, \"seed\": {}, \"scroll\": {}, \"bg\": {}, \"u\": {}}}",
                     ship(&d.ship),
                     list(d.ship.root.iter().flatten()),
-                    d.rng.seed,
+                    t.core.field_rand.map_or(0, |r| r.seed),
                     list(d.bg_scroll),
                     d.bg_uv,
                     d.water_u

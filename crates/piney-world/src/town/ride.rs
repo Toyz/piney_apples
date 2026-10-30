@@ -259,7 +259,7 @@ impl crate::World {
         let p = &mut self.player;
         p.acts.stop_flag = true;
         p.listed = false;
-        self.town.base.hits.hit_disable(&mut p.hit_body);
+        self.town.base.core.hits.hit_disable(&mut p.hit_body);
         self.kite_asleep = true;
         self.camera.type_lock = false;
         self.ride =
@@ -310,7 +310,7 @@ impl crate::World {
             let mut events = Vec::new();
             let mut next = || self.rand.rand();
             let mut w = TownStage {
-                hits: &mut self.town.base.hits,
+                hits: &mut self.town.base.core.hits,
                 camera: &mut self.camera,
                 pad: *pad,
                 volume: self.volume,
@@ -334,7 +334,7 @@ impl crate::World {
             pad: piney_battle::kite::Pad { pow_l: pad.pow_l, dirc_l: pad.dirc_l },
             pause: self.player.acts.pause,
             dne: false,
-            bounds: crate::combat::Combat::bounds(0, &self.town.base.hits),
+            bounds: crate::combat::Combat::bounds(0, &self.town.base.core.hits),
             area: 0,
             race,
             push: pad.push,
@@ -344,7 +344,7 @@ impl crate::World {
         let TownRideObj { ride: rd, kite, pg, notes } = o;
         let mut next = || self.rand.rand();
         let mut w = TownStage {
-            hits: &mut self.town.base.hits,
+            hits: &mut self.town.base.core.hits,
             camera: &mut self.camera,
             pad: *pad,
             volume: self.volume,
@@ -383,11 +383,11 @@ impl crate::World {
         self.camera.type_lock = true;
         if let Some(o) = r.obj {
             let mut b = spc::to_body(BODY_WHO, None, &o.ride.hit, false);
-            self.town.base.hits.hit_disable(&mut b);
+            self.town.base.core.hits.hit_disable(&mut b);
         }
         let p = &mut self.player;
         if p.dead == 0 {
-            self.town.base.hits.hit_enable(&mut p.hit_body);
+            self.town.base.core.hits.hit_enable(&mut p.hit_body);
         }
         p.skill_status = 0;
         p.acts.act = crate::chara::motion::act::IDLE;

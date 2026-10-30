@@ -7,7 +7,6 @@
 use std::collections::HashMap;
 
 use glam::{Mat4, Vec3};
-use piney_data::dungeon::Rng;
 use piney_data::statics::DrawPass;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
@@ -129,8 +128,6 @@ pub struct FortOuph {
     pub clouds: Vec<Cloud>,
     /// `EFF_srzsmo1`'s `patNum`.
     pat_num: u16,
-    /// `fieldrand` as the clouds draw from it.
-    pub rng: Rng,
     /// Where `LENSFLARE::Draw` put its flares last (None: not drawn).
     pub flares: Option<[V4; 6]>,
 }
@@ -140,8 +137,10 @@ pub struct FortOuph {
 pub fn new(env: &TownEnv<'_>) -> Result<Town> {
     let (archive, crisis) = (env.archive, env.crisis);
     let stem = if crisis { CRISIS_FILE } else { FILE };
-    let base = Base::read(archive, stem, &SPEC)?;
-    let file = base.file.clone();
+    let mut base = Base::read(archive, stem, &SPEC)?;
+    // fieldrand, which the clouds draw from.
+    base.core.field_rand = Some(env.rng);
+    let file = base.core.file.clone();
     let eff = SceneFile::read(archive, EFF_FILE)?;
     let pat_num = cloud::eff_pat_num(&eff.ccs, cloud::EFF_SMOKE)
         .ok_or_else(|| Error::NotFound(format!("{EFF_FILE}: {}", cloud::EFF_SMOKE)))?;
@@ -166,7 +165,6 @@ pub fn new(env: &TownEnv<'_>) -> Result<Town> {
         started: false,
         clouds: Vec::new(),
         pat_num,
-        rng: Rng::POWER_ON,
         flares: None,
     };
     Ok(Town::new(base, d))
@@ -181,9 +179,8 @@ impl FortOuph {
         let mut out = Vec::new();
         if !self.started {
             self.started = true;
-            for _ in 0..CLOUDS {
-                let c = Cloud::init(0, self.pat_num, v.player, &mut self.rng);
-                self.clouds.push(c);
+            if let Some(rng) = &mut base.core.field_rand {
+                self.clouds = (0..CLOUDS).map(|_| Cloud::init(0, self.pat_num, v.player, rng)).collect();
             }
         }
         // DrawBG (0x0043aa40).
@@ -212,10 +209,12 @@ impl FortOuph {
         }
         // The clouds: Move, then Draw.
         for k in 0..self.clouds.len() {
-            self.clouds[k].step(base.hits.volume, v.player, &mut self.rng, &|_, _| 0);
+            if let Some(rng) = &mut base.core.field_rand {
+                self.clouds[k].step(base.core.hits.volume, v.player, rng, &|_, _| 0);
+            }
             let c = &self.clouds[k];
             let in_view = crate::town::pc::check_camera_deg(c.pos, cloud::VIEW_DEG, &v.cam, v.player);
-            if c.drawn(base.hits.volume, v.player, in_view) {
+            if c.drawn(base.core.hits.volume, v.player, in_view) {
                 out.push(Piece::Cloud(k));
             }
         }
@@ -236,11 +235,11 @@ impl FortOuph {
                 }
                 Piece::CrisisSky(k) => {
                     let Some(models) = &self.crisis_sky else { continue };
-                    let rows = crisis_rows(&base.file, &CRISIS_MATS, self.bg_uv);
+                    let rows = crisis_rows(&base.core.file, &CRISIS_MATS, self.bg_uv);
                     base.clump_draw(layers, CRISIS_SKY[k].1, to_screen, &models[k], Mat4::IDENTITY, &rows);
                 }
                 Piece::CloudSky(k) => {
-                    let rows = cloud_rows(&base.file, self.cloud_u);
+                    let rows = cloud_rows(&base.core.file, self.cloud_u);
                     base.clump_draw(layers, layer::BG5, to_screen, &self.cloud_sky[k], Mat4::IDENTITY, &rows);
                 }
                 Piece::Model(row) => base.row_draw(layers, OBJ_LAYER, to_screen, row),
@@ -283,12 +282,6 @@ impl RootTown for FortOuph {
     }
     fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
         statics::put(&self.bg_scroll, s, statics::TOWN04_BG);
-    }
-    fn field_rand(&self) -> Option<&Rng> {
-        Some(&self.rng)
-    }
-    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
-        Some(&mut self.rng)
     }
 
     fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
@@ -336,10 +329,10 @@ mod tests {
         let d = t.class::<FortOuph>().unwrap();
         assert!(!d.sky.is_empty() && !d.sun.is_empty() && d.cloud_sky.iter().all(|c| !c.is_empty()));
         assert!(d.crisis_sky.is_none());
-        assert_eq!(b.lights.lights.len(), 6);
+        assert_eq!(b.core.lights.lights.len(), 6);
         assert_eq!(b.clear, Some(BG_COLOR));
         assert!(d.pat_num > 0);
-        assert!(!b.hits.models.is_empty());
+        assert!(!b.core.hits.models.is_empty());
         let c = new(&crate::town::TownEnv {
             archive: &archive,
             volume: piney_data::volume::Volume::Out,

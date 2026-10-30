@@ -186,8 +186,18 @@ fn main() {
                 let tw = town.as_mut().unwrap();
                 rand = piney_world::Rand(u64::from(n(3)));
                 mt = Mt::init(0);
-                g = grunty::set_dog(&archive, &tables, &mut bodies, &tw.base.file, &mut tw.base.hits, &save, t, id, 0)
-                    .unwrap();
+                g = grunty::set_dog(
+                    &archive,
+                    &tables,
+                    &mut bodies,
+                    &tw.base.core.file,
+                    &mut tw.base.core.hits,
+                    &save,
+                    t,
+                    id,
+                    0,
+                )
+                .unwrap();
                 match &g {
                     Some(x) => println!("{}", state(x, &save)),
                     None => println!("null"),
@@ -233,7 +243,7 @@ fn main() {
                     player,
                     player_dirc,
                     view,
-                    hits: &mut tw.base.hits,
+                    hits: &mut tw.base.core.hits,
                     rand: &mut rand,
                     mt: &mut mt,
                     save: &mut save,

@@ -6,7 +6,29 @@
 //! `ChangeRequest(6, 7)`. -2 keeps a value, -1 is none
 //! (docs/engine/field-game.md).
 
+use std::rc::Rc;
+
+use piney_data::dungeon::Rng;
 use piney_data::save::{SaveData, offset};
+use piney_desktop::assets::SceneFile;
+
+use crate::ee::V4;
+use crate::hit::Hits;
+use crate::town::TownLights;
+
+/// What every area holds, a Root Town's [`crate::town::Base`] and each
+/// story map alike: its scene file (the stream `marker_pos` reads, +0x1a4
+/// on an `EVENTAREA`), its collision, its light group, `fieldrand` when its
+/// draws take from it (None leaves the game's as the map found it), and
+/// `WORLD_MAN.eventStartPos` as a story map's `SetStartPos` left it (w the
+/// facing; a town's stays 0).
+pub struct AreaCore {
+    pub file: Rc<SceneFile>,
+    pub hits: Hits,
+    pub lights: TownLights,
+    pub field_rand: Option<Rng>,
+    pub start: V4,
+}
 
 /// `@1489` (main 0x00306dc0): each town's server.
 pub const SERVER_OF_TOWN: [i32; 8] = [0, 1, 2, 3, 4, 0, 1, 2];

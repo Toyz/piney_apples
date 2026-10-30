@@ -296,7 +296,11 @@ Where the code does by hand, per kind, what a system should do once:
       `statics::tables()` vs `statics::of(volume)` choice and its quirks.
       (worklog 531: the loader is `StaticModel::load` and
       `StaticObject::load` with `Placing`; `start_positions` defaulted
-      from `start` and `spread`; `hits` and `lights` stay one-liners.)
+      from `start` and `spread`; `hits` and `lights` stay one-liners.
+      Worklog 533: one `area::AreaCore { file, hits, lights, field_rand,
+      start }` in every story map and in the towns' `Base`; `StoryMap`
+      defaults the getters through `core()`, the towns' `fieldrand` is the
+      core's, `RootTown::field_rand` gone.)
 - [ ] Module trees and dispatch registries. The crates' `src/` roots are
       flooded (piney-world 60 files and 4 folders, piney-effect 51,
       piney-battle 39, piney-desktop 30, piney-game 28), and per-kind

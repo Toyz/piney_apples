@@ -7,11 +7,14 @@
 //! slots are the base's. Event 314's block 3 then hides Kite (`pc_act 0
 //! 6`) and runs the staff roll over it. docs/engine/evarea.md.
 
+use std::rc::Rc;
+
 use glam::{Mat4, Vec3};
+use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
+use crate::area::AreaCore;
 use crate::ee::V4;
-use crate::hit::Hits;
 use crate::story_map::event_hits;
 use crate::story_map::holy_ground::StorySprite;
 use crate::story_map::{Made, MapDef};
@@ -21,12 +24,10 @@ use crate::town::{TownLights, TownView};
 /// `game.field` / `eventAreaNumber` of the ending.
 pub const AREA: i32 = piney_data::area::ENDING_AREA;
 
-/// The ending's empty map.
+/// The ending's empty map: no file, no lights, `eventStartPos` as the
+/// last story map's `SetStartPos` left it.
 pub struct EndArea {
-    hits: Hits,
-    lights: TownLights,
-    /// `eventStartPos` as the last story map's `SetStartPos` left it.
-    start: V4,
+    core: AreaCore,
 }
 
 impl EndArea {
@@ -34,24 +35,22 @@ impl EndArea {
     /// `start` is `WORLD_MAN.eventStartPos`, which it does not set.
     pub fn new(volume: piney_data::volume::Volume, def_se: u32, start: V4) -> EndArea {
         let hits = event_hits(volume, def_se, Vec::new());
-        EndArea { hits, lights: TownLights { ambient: Vec3::ZERO, lights: Vec::new(), fog: None }, start }
+        let lights = TownLights { ambient: Vec3::ZERO, lights: Vec::new(), fog: None };
+        let file = Rc::new(SceneFile::empty());
+        EndArea { core: AreaCore { file, hits, lights, field_rand: None, start } }
     }
 }
 
 impl StoryMap for EndArea {
-    fn hits(&self) -> &Hits {
-        &self.hits
+    fn core(&self) -> &AreaCore {
+        &self.core
     }
-    fn hits_mut(&mut self) -> &mut Hits {
-        &mut self.hits
+    fn core_mut(&mut self) -> &mut AreaCore {
+        &mut self.core
     }
-    fn lights(&self) -> &TownLights {
-        &self.lights
-    }
-    /// `SetCharPosition`'s "any other" map: the leader at `eventStartPos`,
-    /// the others at (+300, +150), (-300, +150) and (0, +300).
-    fn start(&self) -> V4 {
-        self.start
+    /// The constructor loads no stream (+0x1a4 stays 0).
+    fn file(&self) -> Option<&SceneFile> {
+        None
     }
     /// `ccSys.bgColor` is not touched: the desktop's set-up left it black,
     /// and event 314 comes from the desktop.

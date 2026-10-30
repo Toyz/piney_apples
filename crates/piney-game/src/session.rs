@@ -442,7 +442,9 @@ impl Session {
         // scene whose list holds the same file again keeps them
         // (`ccFileExistCheck`, INF main 0x001640f0).
         let kept_town = match &stage {
-            Stage::World(w) => Some((w.world().town().base.file.stem.clone(), w.world().town().base.written.clone())),
+            Stage::World(w) => {
+                Some((w.world().town().base.core.file.stem.clone(), w.world().town().base.written.clone()))
+            }
             _ => None,
         };
         let (mut state, vm) = match stage {
@@ -488,7 +490,7 @@ impl Session {
         }
         self.stage = self.world_stage(state, vm, true)?;
         if let (Some((stem, written)), Stage::World(w)) = (kept_town, &mut self.stage)
-            && w.world().town().base.file.stem == stem
+            && w.world().town().base.core.file.stem == stem
         {
             w.world_mut().town_mut().base.written = written;
         }
@@ -8003,6 +8005,7 @@ mod area15 {
             piney_data::dungeon::Rng::new(0),
         )
         .unwrap()
+        .core
         .start
         .map(f32::from_bits);
         assert!(at(w, [back[0], back[1], back[2]]), "{} (DMY_marker02 {back:?})", Mode::title(&s));

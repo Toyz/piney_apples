@@ -19,10 +19,11 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
+use crate::area::AreaCore;
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
-use crate::hit::{HitModel, Hits};
+use crate::hit::HitModel;
 use crate::story_map::{Enter, StoryMap};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{event_hits, light_group, model_hits};
@@ -287,8 +288,14 @@ pub enum Kept {
 
 /// `EVENTAREA02` as `WORLD_MAN.eventmap` holds it.
 pub struct EventArea {
-    /// `se1_2` (+0x1a4) and `town_z` (`effccs`, +0x1dc).
-    pub file: Rc<SceneFile>,
+    /// `se1_2` (+0x1a4); the light group as `ChangeBlock` filled it from
+    /// the light animation (`lgtAnm`, +0x74, after one `_AnimateForward`),
+    /// and the ambient; the collision with the block's models on its list;
+    /// `WORLD_MAN.eventStartPos` (+0x70) as the last `SetStartPos` left it
+    /// (the dummy's position, w its turn about z in radians). No draw takes
+    /// `fieldrand`.
+    pub core: AreaCore,
+    /// `town_z` (`effccs`, +0x1dc).
     pub eff: Rc<SceneFile>,
     /// `blk` (+0x1e0).
     pub block: i32,
@@ -299,22 +306,14 @@ pub struct EventArea {
     pub bg: [Option<(u32, Vec<u32>)>; 5],
     /// `revAnm` (+0x1e4).
     pub rev: Option<Play>,
-    /// The light group as `ChangeBlock` filled it from the light animation
-    /// (`lgtAnm`, +0x74, after one `_AnimateForward`), and the ambient.
-    pub lights: TownLights,
     /// `ccDrawEnv::SetFog` as the block set it.
     pub fog: FogParams,
-    /// `WORLD_MAN.eventStartPos` (+0x70) as the last `SetStartPos` left it:
-    /// the dummy's position, w its turn about z (radians).
-    pub start: V4,
     /// `EA_moveTex02`.
     pub move_tex: [MoveTex; 2],
     /// The light group's LGT_ objects, in `lightList`'s order.
     pub light_objects: Vec<u32>,
-    /// The block's `ccModelHit`s by model (the Hit chunks of the file), and
-    /// the collision world with those of the block's models on its list.
+    /// The block's `ccModelHit`s by model (the Hit chunks of the file).
     hit_models: Vec<HitModel>,
-    pub hits: Hits,
 }
 
 /// A clump's models as `ccClump::Draw` draws them: each node's own model.
@@ -343,24 +342,22 @@ impl EventArea {
         }
         let hit_models = HitModel::read(volume, &file.ccs)?;
         let hits = event_hits(volume, def_se, Vec::new());
+        let lights = TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: Some(FOG[0]) };
         let mut a = EventArea {
-            file,
+            core: AreaCore { file, hits, lights, field_rand: None, start: [0, 0, 0, ONE] },
             eff,
             block: 0,
             models: Vec::new(),
             objects: Vec::new(),
             bg: Default::default(),
             rev: None,
-            lights: TownLights { ambient: glam::Vec3::ZERO, lights: Vec::new(), fog: Some(FOG[0]) },
             fog: FOG[0],
-            start: [0, 0, 0, ONE],
             move_tex: MOVE_TEX,
             light_objects: Vec::new(),
             hit_models,
-            hits,
         };
         a.change_block(0)?;
-        a.start = a.marker("DMY_marker01")?;
+        a.core.start = a.marker("DMY_marker01")?;
         Ok(a)
     }
 
@@ -383,7 +380,7 @@ impl EventArea {
     /// and `ChangeBlock` hand it to `WORLD_MAN::SetStartPos` (they copy the
     /// DummyPosRot chunk's +0x28 into +0x1c).
     fn marker(&self, name: &'static str) -> Result<V4> {
-        let (c, sc) = (&self.file.ccs, &self.file.scene);
+        let (c, sc) = (&self.core.file.ccs, &self.core.file.scene);
         if c.find_object(name).is_none() {
             return Err(Error::NotFound(format!("{FILE}: {name}")));
         }
@@ -396,7 +393,7 @@ impl EventArea {
     pub fn change_block(&mut self, block: i32) -> Result<()> {
         self.block = block;
         let b = usize::from(block != 0);
-        let (_c, _sc) = (&self.file.ccs, &self.file.scene);
+        let (_c, _sc) = (&self.core.file.ccs, &self.core.file.scene);
         let names = [("EA_MODELTABLE02", "EA_OBJTABLE02"), ("EA_MODELTABLE0202", "EA_OBJTABLE0202")][b];
         let table =
             statics::tables().iter().find(|t| t.name == names.0).ok_or_else(|| Error::NotFound(names.0.into()))?;
@@ -405,11 +402,11 @@ impl EventArea {
         // modelNum 4 and anmNum 0, or 7 and 1: the whole tables but for the
         // first's one placeholder object row.
         let anm_num = [0, 1][b];
-        self.models = StaticModel::load(&self.file, table, Placing::Dummy, str::to_string)?;
-        self.objects = StaticObject::load(&self.file, obj_table, anm_num, Placing::Dummy)?;
+        self.models = StaticModel::load(&self.core.file, table, Placing::Dummy, str::to_string)?;
+        self.objects = StaticObject::load(&self.core.file, obj_table, anm_num, Placing::Dummy)?;
         // The collision: the block's models' Hit chunks, in the order the
         // STATICMODELs were built.
-        self.hits.models = model_hits(self.models.iter().map(|m| m.model), &self.hit_models);
+        self.core.hits.models = model_hits(self.models.iter().map(|m| m.model), &self.hit_models);
         let bg: &[(usize, &str)] = if b == 0 {
             &[(3, "CMP_se1_2bg1_1"), (2, "CMP_se1_2wa1_1"), (1, "CMP_se1_2cl1_1"), (0, "CMP_se1_2cl2_1")]
         } else {
@@ -417,7 +414,7 @@ impl EventArea {
         };
         self.bg = Default::default();
         for &(k, name) in bg {
-            self.bg[k] = Some(clump_models(&self.file, name).ok_or_else(|| Error::NotFound(name.into()))?);
+            self.bg[k] = Some(clump_models(&self.core.file, name).ok_or_else(|| Error::NotFound(name.into()))?);
         }
         // The light animation's lights (eventarea02Light, eventarea0202Light)
         // at frame 1, and its ambient.
@@ -426,13 +423,13 @@ impl EventArea {
         } else {
             ("ANM_se1_2bac2a", &["LGT_se1_2lig2", "LGT_omni01", "LGT_omni02", "LGT_omni03", "LGT_omni13"])
         };
-        let (ambient, group, objects) = light_group(&self.file, anim, lights, false)?;
+        let (ambient, group, objects) = light_group(&self.core.file, anim, lights, false)?;
         self.light_objects = objects;
-        self.lights = TownLights { ambient, lights: group, fog: Some(FOG[b]) };
+        self.core.lights = TownLights { ambient, lights: group, fog: Some(FOG[b]) };
         self.fog = FOG[b];
-        self.start = self.marker(["DMY_marker02", "DMY_marker01_2"][b])?;
+        self.core.start = self.marker(["DMY_marker02", "DMY_marker01_2"][b])?;
         self.rev = if b == 1 {
-            Some(Play::new(&self.file, "ANM_se1_2la1a").ok_or_else(|| Error::NotFound("ANM_se1_2la1a".into()))?)
+            Some(Play::new(&self.core.file, "ANM_se1_2la1a").ok_or_else(|| Error::NotFound("ANM_se1_2la1a".into()))?)
         } else {
             None
         };
@@ -452,7 +449,7 @@ impl EventArea {
     /// `WORLD_MAN::AddCenter` moves with the player ([`Hits::center`]; the
     /// map's bounds are never crossed, so it never wraps).
     pub fn set_center(&mut self, x: F, y: F) {
-        self.hits.center = [x, y];
+        self.core.hits.center = [x, y];
     }
 
     /// `ccSys.bgColor`, the constructor's.
@@ -467,7 +464,7 @@ impl EventArea {
     /// its `@1260` share of the way from the sun toward it: `LENSFLARE`'s
     /// drawing ([`crate::sky::lensflare::points`]) without its tests.
     pub fn lens_flare(&self, cam: &FlareCamera) -> [V4; 6] {
-        let (c, sc) = (&self.file.ccs, &self.file.scene);
+        let (c, sc) = (&self.core.file.ccs, &self.core.file.scene);
         let sun = c
             .find_object(SUN)
             .and_then(|o| sc.dummies.get(&o))
@@ -481,7 +478,7 @@ impl EventArea {
     /// Kite's place (`DrawWithOutFog` measures from him), `puppet_show`
     /// `eventMng.puppetShow`.
     pub fn select(&mut self, eye: V4, player: V4, cam: &FlareCamera, puppet_show: bool) -> Vec<Piece> {
-        let volume = self.hits.volume;
+        let volume = self.core.hits.volume;
         let mut out = Vec::new();
         // DrawBG.
         if self.block == 0 {
@@ -524,12 +521,12 @@ impl EventArea {
             }
             let d = ee::ground_dist(volume, ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
             if within(d, o.clip) {
-                o.play.forward(&self.file);
+                o.play.forward(&self.core.file);
                 out.push(Piece::Object { k, layer: layer::OBJ2, time: o.play.time });
             }
         }
         if let Some(r) = &mut self.rev {
-            r.forward(&self.file);
+            r.forward(&self.core.file);
             out.push(Piece::Rev { layer: layer::OBJ2, time: r.time });
         }
         // DrawFloor, then the type-0 rows, on objLayer.
@@ -556,8 +553,8 @@ impl EventArea {
     fn scroll_rows(&self) -> HashMap<u32, [u8; 2]> {
         let mut rows = HashMap::new();
         for t in &self.move_tex {
-            let Some(mat) = self.file.ccs.find_object(t.mat) else { continue };
-            let Some(m) = self.file.scene.materials.get(&mat) else { continue };
+            let Some(mat) = self.core.file.ccs.find_object(t.mat) else { continue };
+            let Some(m) = self.core.file.scene.materials.get(&mat) else { continue };
             let [u, v] = t.offsets();
             rows.insert(mat, [(u.wrapping_sub(m.crop_u) >> 4) as u8, (v.wrapping_sub(m.crop_v) >> 4) as u8]);
         }
@@ -568,7 +565,7 @@ impl EventArea {
     fn model_draw(&self, layers: &mut Layers, layer: i16, to_screen: Mat4, model: u32, world: Mat4, fog: bool) {
         let rows = self.scroll_rows();
         let d = Draw {
-            file: &self.file,
+            file: &self.core.file,
             model,
             world,
             alpha: 1.0,
@@ -640,7 +637,7 @@ impl EventArea {
                         layers,
                         layer,
                         to_screen,
-                        &self.file,
+                        &self.core.file,
                         &o.play,
                         root,
                         &[],
@@ -657,7 +654,7 @@ impl EventArea {
                         layers,
                         layer,
                         to_screen,
-                        &self.file,
+                        &self.core.file,
                         r,
                         root,
                         &[],
@@ -708,9 +705,11 @@ pub const DEF: MapDef = MapDef {
 };
 
 impl StoryMap for EventArea {
-    /// `marker_pos`'s stream (+0x1a4).
-    fn file(&self) -> Option<&piney_desktop::assets::SceneFile> {
-        Some(&self.file)
+    fn core(&self) -> &AreaCore {
+        &self.core
+    }
+    fn core_mut(&mut self) -> &mut AreaCore {
+        &mut self.core
     }
     fn put_scrolls(&self, gcmn: &mut [[u32; 2]; MOVE_TEX_ROWS]) {
         for (k, t) in self.move_tex.iter().enumerate() {
@@ -721,18 +720,6 @@ impl StoryMap for EventArea {
         for (k, t) in self.move_tex.iter_mut().enumerate() {
             *t = t.at(gcmn, crate::story_map::holy_ground::scroll::EA02 + k);
         }
-    }
-    fn hits(&self) -> &Hits {
-        &self.hits
-    }
-    fn hits_mut(&mut self) -> &mut Hits {
-        &mut self.hits
-    }
-    fn lights(&self) -> &TownLights {
-        &self.lights
-    }
-    fn start(&self) -> V4 {
-        self.start
     }
     fn clear(&self) -> [u8; 3] {
         EventArea::clear(self)
@@ -756,26 +743,26 @@ mod tests {
     fn blocks_and_the_door() {
         let Some(archive) = crate::town::tests::archive() else { return };
         let mut a = EventArea::new(&archive, Volume::Inf, 0).unwrap();
-        let name = |a: &EventArea, o: u32| a.file.ccs.object_name(o).unwrap().to_string();
+        let name = |a: &EventArea, o: u32| a.core.file.ccs.object_name(o).unwrap().to_string();
         assert_eq!(a.models.len(), 4);
         assert!(a.objects.is_empty() && a.rev.is_none());
-        assert_eq!(a.hits.models.len(), 1);
-        assert_eq!(name(&a, a.hits.models[0].object), "HIT_se1_2fl1_1hit");
+        assert_eq!(a.core.hits.models.len(), 1);
+        assert_eq!(name(&a, a.core.hits.models[0].object), "HIT_se1_2fl1_1hit");
         // DMY_marker01: (0, -3600, 0), turned -179.99998 degrees.
-        assert_eq!(a.start[..3], [0, ee::k(-3600.0), 0]);
-        assert!((ee::f(a.start[3]) + std::f32::consts::PI).abs() < 1e-5);
-        assert_eq!(a.lights.lights.len(), 1);
+        assert_eq!(a.core.start[..3], [0, ee::k(-3600.0), 0]);
+        assert!((ee::f(a.core.start[3]) + std::f32::consts::PI).abs() < 1e-5);
+        assert_eq!(a.core.lights.lights.len(), 1);
         // Into the church and out again.
         assert_eq!(a.enter(-1).unwrap(), 1);
         assert_eq!((a.models.len(), a.objects.len(), a.rev.is_some()), (7, 1, true));
-        assert_eq!(name(&a, a.hits.models[0].object), "HIT_se1_2fl1_2hit");
-        assert_eq!(a.start[..3], [0, ee::k(900.0), 0]);
-        assert_eq!(a.lights.lights.len(), 5);
+        assert_eq!(name(&a, a.core.hits.models[0].object), "HIT_se1_2fl1_2hit");
+        assert_eq!(a.core.start[..3], [0, ee::k(900.0), 0]);
+        assert_eq!(a.core.lights.lights.len(), 5);
         assert_eq!(a.enter(1).unwrap(), 0);
-        assert_eq!(a.start[..3], [0, ee::k(2700.0), ee::k(200.0)]);
+        assert_eq!(a.core.start[..3], [0, ee::k(2700.0), ee::k(200.0)]);
         // Standing on the door's floor: its ground has the Enter bit.
-        let z = a.hits.land([ee::k(95.0), ee::k(3700.0), ee::k(300.0), ONE], crate::hit::LAND_MASK);
+        let z = a.core.hits.land([ee::k(95.0), ee::k(3700.0), ee::k(300.0), ONE], crate::hit::LAND_MASK);
         assert!((ee::f(z) - 200.0).abs() < 1e-3);
-        assert_ne!(a.hits.nearest.att & 0x8_0000, 0);
+        assert_ne!(a.core.hits.nearest.att & 0x8_0000, 0);
     }
 }

@@ -61,7 +61,7 @@ impl Ear {
     /// for its fades ([`super::town_walk::TownWalker`]).
     fn walk_to_ranch(&mut self) {
         let town = &self.world().town().base;
-        let d = town.file.ccs.find_object("DMY_merchant6").and_then(|o| town.file.scene.dummies.get(&o));
+        let d = town.core.file.ccs.find_object("DMY_merchant6").and_then(|o| town.core.file.scene.dummies.get(&o));
         let to = d.map(|d| [d.pos.x, d.pos.y]).expect("no DMY_merchant6");
         let mut walk = super::town_walk::TownWalker::new(to, 990.0);
         for f in 0..4000u32 {

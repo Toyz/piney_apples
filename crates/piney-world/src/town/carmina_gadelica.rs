@@ -343,8 +343,6 @@ pub struct CarminaGade {
     pub water0: WaterZero,
     /// `town03Ship`.
     pub ship: Airship,
-    /// `fieldrand` as the airship draws from it.
-    pub rng: Rng,
 }
 
 /// `ROOTTOWN03::ROOTTOWN03`: `town03d` when the save's crisis byte is set,
@@ -352,8 +350,10 @@ pub struct CarminaGade {
 pub fn new(env: &TownEnv<'_>) -> Result<Town> {
     let (archive, crisis) = (env.archive, env.crisis);
     let stem = if crisis { CRISIS_FILE } else { FILE };
-    let base = Base::read(archive, stem, &SPEC)?;
-    let file = base.file.clone();
+    let mut base = Base::read(archive, stem, &SPEC)?;
+    // fieldrand, which the airship draws from.
+    base.core.field_rand = Some(env.rng);
+    let file = base.core.file.clone();
     let wplay = Play::new(&file, WATER_ANIM).ok_or_else(|| Error::NotFound(WATER_ANIM.into()))?;
     let mut water = [wplay.clone(), wplay.clone(), wplay];
     for w in &mut water {
@@ -369,7 +369,6 @@ pub fn new(env: &TownEnv<'_>) -> Result<Town> {
         water_u: 0,
         water0: WaterZero::new(&file, WATER_MODEL, WATER_REACH)?,
         ship: Airship::new(&file)?,
-        rng: Rng::POWER_ON,
     };
     Ok(Town::new(base, d))
 }
@@ -385,10 +384,12 @@ impl CarminaGade {
     /// scrolls, the water's scroll.
     pub fn select(&mut self, base: &mut Base, v: &TownView) -> Vec<Piece> {
         let mut out = Vec::new();
-        self.water0.modify(base.hits.volume, &water_root(), [0, 0, 0, ONE], v.eye, &v.world_screen);
-        self.water[0].forward(&base.file);
+        self.water0.modify(base.core.hits.volume, &water_root(), [0, 0, 0, ONE], v.eye, &v.world_screen);
+        self.water[0].forward(&base.core.file);
         out.extend([Piece::Water(0), Piece::Copy]);
-        self.ship.step(&base.file, &mut self.rng, &mut base.events);
+        if let Some(rng) = &mut base.core.field_rand {
+            self.ship.step(&base.core.file, rng, &mut base.events);
+        }
         out.push(Piece::Ship);
         // DrawBG (0x0043cb30).
         step_scrolls(&mut self.bg_scroll, &BG_STEP);
@@ -413,7 +414,7 @@ impl CarminaGade {
     /// The pieces into the field's layers.
     fn draw_pieces(&self, base: &Base, layers: &mut Layers, to_screen: Mat4, pieces: &[Piece]) {
         let none = HashMap::new();
-        let fm = &*base.file;
+        let fm = &*base.core.file;
         for &piece in pieces {
             match piece {
                 // Water 0: the picture so far (the copy made after it on
@@ -432,7 +433,7 @@ impl CarminaGade {
                 Piece::Back(k) => base.clump_draw(layers, BACK[k].1, to_screen, &self.back[k], Mat4::IDENTITY, &none),
                 Piece::CrisisSky(k) => {
                     let Some(models) = &self.crisis_sky else { continue };
-                    let rows = crisis_rows(&base.file, &CRISIS_MATS, self.bg_uv);
+                    let rows = crisis_rows(&base.core.file, &CRISIS_MATS, self.bg_uv);
                     base.clump_draw(layers, CRISIS_SKY[k].1, to_screen, &models[k], Mat4::IDENTITY, &rows);
                 }
                 Piece::Model(row) => base.row_draw(layers, OBJ2_LAYER, to_screen, row),
@@ -452,12 +453,6 @@ impl RootTown for CarminaGade {
     fn put_statics(&self, s: &mut [u32; piney_desktop::SCROLL_STATICS]) {
         statics::put(&self.bg_scroll, s, statics::TOWN03_BG);
         statics::put(std::slice::from_ref(&self.water_u), s, statics::TOWN03_WATER);
-    }
-    fn field_rand(&self) -> Option<&Rng> {
-        Some(&self.rng)
-    }
-    fn field_rand_mut(&mut self) -> Option<&mut Rng> {
-        Some(&mut self.rng)
     }
 
     fn draw(&mut self, base: &mut Base, layers: &mut Layers, to_screen: Mat4, v: &TownView) -> Vec<TownSprite> {
@@ -513,10 +508,10 @@ mod tests {
         let d = t.class::<CarminaGade>().unwrap();
         assert!(d.back.iter().all(|c| !c.is_empty()));
         assert!(d.crisis_sky.is_none());
-        assert_eq!(b.lights.lights.len(), 12);
+        assert_eq!(b.core.lights.lights.len(), 12);
         assert_eq!(b.clear, Some(BG_COLOR));
         assert_eq!((d.ship.pos, d.ship.to), (d.ship.markers[0], d.ship.markers[1]));
-        assert!(!b.hits.models.is_empty());
+        assert!(!b.core.hits.models.is_empty());
     }
 
     /// Every frame's pieces come in `Draw`'s order, and the airship flies

@@ -74,9 +74,9 @@ fn main() {
                 let list_ = piney_world::town::merchant::set_merchants(
                     &archive,
                     volume,
-                    &t.file,
+                    &t.core.file,
                     &mut Vec::new(),
-                    &mut t.hits,
+                    &mut t.core.hits,
                     0,
                     player,
                     false,

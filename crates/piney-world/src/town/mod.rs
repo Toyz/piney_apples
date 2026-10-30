@@ -43,6 +43,7 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
+use crate::area::AreaCore;
 use crate::chara::pose::Play;
 use crate::draw::{self, Draw, OBJ_LAYER};
 use crate::ee::{self, F, ONE, V4};
@@ -425,15 +426,14 @@ pub struct TownSprite {
 pub struct Base {
     /// `ChangeScene`'s town number (`game.town`): 0 Mac Anu .. 4 Lia Fail.
     pub no: i32,
-    /// `town01` .. `town05`, or a `d` variant in crisis.
-    pub file: Rc<SceneFile>,
+    /// The file (`town01` .. `town05`, or a `d` variant in crisis), the
+    /// lights, the collision, and `fieldrand` for a class that draws from it.
+    pub core: AreaCore,
     pub(crate) table: &'static ModelTable,
     /// By row: where each static model draws.
     pub(crate) models: Vec<Option<PlacedModel>>,
     pub(crate) objects: Vec<Object>,
-    pub lights: TownLights,
     pub fog: FogParams,
-    pub hits: Hits,
     /// `ccSys.bgColor` (+0x18) as the constructor set it: None keeps
     /// `ccSetupGameCtrl`'s black.
     pub clear: Option<[u8; 3]>,
@@ -509,17 +509,9 @@ pub trait RootTown: Any {
         None
     }
 
-    /// `fieldrand`, the game's one stream, for a class whose draws take
-    /// from it (the clouds, the glows).
-    fn field_rand(&self) -> Option<&piney_data::dungeon::Rng> {
-        None
-    }
     /// The class's scroll statics ([`scroll_statics`]) as the game holds them.
     fn take_statics(&mut self, _s: &[u32; piney_desktop::SCROLL_STATICS]) {}
     fn put_statics(&self, _s: &mut [u32; piney_desktop::SCROLL_STATICS]) {}
-    fn field_rand_mut(&mut self) -> Option<&mut piney_data::dungeon::Rng> {
-        None
-    }
 }
 
 /// A Root Town as the field holds it: the base and its class.
@@ -809,15 +801,14 @@ impl Base {
         let light_anim = file.anim(spec.light_anim).ok_or_else(|| Error::NotFound(spec.light_anim.into()))?;
         let lights = read_lights(&file, light_anim, spec.lights)?;
         let hits = Hits::new(volume, HitModel::read(volume, c)?);
+        let lights = TownLights { fog: Some(spec.fog), ..lights };
         Ok(Base {
             no: spec.no,
-            file,
+            core: AreaCore { file, hits, lights, field_rand: None, start: [0; 4] },
             table,
             models,
             objects,
-            lights: TownLights { fog: Some(spec.fog), ..lights },
             fog: spec.fog,
-            hits,
             clear: spec.clear,
             events: Vec::new(),
             written: Vec::new(),
@@ -862,14 +853,14 @@ impl Base {
     /// from Outbreak on) or with a clip of 0, the animation steps. True
     /// when it is to be drawn.
     pub(crate) fn object_step(&mut self, i: usize, eye: V4) -> bool {
-        let volume = self.hits.volume;
+        let volume = self.core.hits.volume;
         let o = &mut self.objects[i];
         let (dx, dy) = (ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
         let d = ee::ground_dist(volume, dx, dy);
         if !(ee::lt(d, o.clip) || ee::eq(o.clip, 0)) {
             return false;
         }
-        o.play.forward(&self.file);
+        o.play.forward(&self.core.file);
         true
     }
 
@@ -891,7 +882,7 @@ impl Base {
         let Some(p) = self.model(row) else { return };
         let rows = Default::default();
         let d = Draw {
-            file: &self.file,
+            file: &self.core.file,
             model: p.model,
             world: Mat4::from_translation(p.pos),
             alpha: 1.0,
@@ -908,7 +899,7 @@ impl Base {
     pub(crate) fn object_draw(&self, layers: &mut Layers, layer: i16, to_screen: Mat4, row: usize) {
         let Some(o) = self.objects.iter().find(|o| o.row == row) else { return };
         let root = draw::mat(&o.root);
-        let fm = &*self.file;
+        let fm = &*self.core.file;
         anim_draw_fog(layers, layer, to_screen, fm, &o.play, root, &[], 1.0, None, None, self.depth_fog());
     }
 
@@ -931,7 +922,7 @@ impl Base {
     ) {
         for &m in models {
             let d = Draw {
-                file: &self.file,
+                file: &self.core.file,
                 model: m,
                 world,
                 alpha: 1.0,
@@ -997,7 +988,7 @@ impl Town {
         let mut town = (def.make)(&TownEnv { archive, volume, crisis, rng })?;
         // The towns' tables are Infection's on every disc; the collision
         // takes the disc's square root.
-        town.base.hits.volume = volume;
+        town.base.core.hits.volume = volume;
         town.set_field_rand(rng);
         Ok(town)
     }
@@ -1005,7 +996,7 @@ impl Town {
     /// `fieldrand` as the class's draws leave it; None for a class that
     /// does not draw from it.
     pub fn field_rand(&self) -> Option<piney_data::dungeon::Rng> {
-        self.class.field_rand().copied()
+        self.base.core.field_rand
     }
 
     /// The scroll statics as the game holds them, for the class's draws.
@@ -1020,7 +1011,7 @@ impl Town {
 
     /// `fieldrand` set from outside (a gate menu's `SimGenerateCode`).
     pub fn set_field_rand(&mut self, rng: piney_data::dungeon::Rng) {
-        if let Some(r) = self.class.field_rand_mut() {
+        if let Some(r) = &mut self.base.core.field_rand {
             *r = rng;
         }
     }
@@ -1251,7 +1242,7 @@ pub(crate) mod tests {
     fn town_lights() {
         let Some(archive) = archive() else { return };
         let t = Town::open(&archive, piney_data::volume::Volume::Inf, 0, false).unwrap();
-        let l = &t.base.lights;
+        let l = &t.base.core.lights;
         assert_eq!(l.ambient, Vec3::new(113.0, 113.0, 120.0) / 255.0);
         assert_eq!(l.lights.len(), 6);
         assert_eq!((l.lights[0].kind, l.lights[0].intensity, l.lights[0].priority), (1, 1.0, -1));

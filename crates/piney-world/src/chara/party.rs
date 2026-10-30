@@ -777,7 +777,7 @@ impl crate::World {
         &mut self,
         f: impl FnOnce(&mut Spcs, &mut crate::town::party::TownChars, &mut Hits) -> R,
     ) -> R {
-        self.party.with_chars(&mut self.player, &mut self.spcs, &mut self.town.base.hits, f)
+        self.party.with_chars(&mut self.player, &mut self.spcs, &mut self.town.base.core.hits, f)
     }
 
     /// The town's fellow tasks deleted as the scene changes
@@ -823,7 +823,7 @@ impl crate::World {
                 width,
                 height,
                 r.boot_param,
-                &mut self.town.base.hits,
+                &mut self.town.base.core.hits,
             );
             p.party_flag = party_flag_bits(r.party_flag);
             p.list_num = i as i32;
@@ -861,7 +861,7 @@ impl crate::World {
             r.boot_param,
             party_flag_bits(r.party_flag),
             i as i32,
-            &mut self.town.base.hits,
+            &mut self.town.base.core.hits,
             &mut self.rand,
         );
     }
@@ -973,7 +973,7 @@ impl crate::World {
         // 1 Theta).
         let server = i32::from(self.save.save.u8(piney_data::save::offset::LAST_TOWN) as i8);
         let mut x = crate::town::party::TownFrame {
-            hits: &mut self.town.base.hits,
+            hits: &mut self.town.base.core.hits,
             camera: &mut self.camera,
             save: &mut self.save.save,
             rand: &mut self.rand,
@@ -1086,7 +1086,7 @@ impl crate::World {
         let scene = crate::area::Scene::init();
         let c = &mut self.party.combat;
         c.rand = piney_battle::rand::Rand(self.rand.0);
-        c.with_ai(&mut self.town.base.hits, &mut self.camera, &scene, &mut self.save.save, 0, |ctx| {
+        c.with_ai(&mut self.town.base.core.hits, &mut self.camera, &scene, &mut self.save.save, 0, |ctx| {
             ctx.request_chat_cmd(m, cmd, t, sid)
         });
         self.rand.0 = c.rand.0;
@@ -1115,7 +1115,7 @@ impl crate::World {
         let scene = crate::area::Scene::init();
         let c = &mut self.party.combat;
         c.rand = piney_battle::rand::Rand(self.rand.0);
-        c.with_ai(&mut self.town.base.hits, &mut self.camera, &scene, &mut self.save.save, 0, |ctx| {
+        c.with_ai(&mut self.town.base.core.hits, &mut self.camera, &scene, &mut self.save.save, 0, |ctx| {
             ctx.chat_line(m, chat)
         });
         self.rand.0 = c.rand.0;
