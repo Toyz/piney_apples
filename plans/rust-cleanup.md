@@ -98,6 +98,34 @@ a lift truly cannot work, say exactly why and ask the maintainer.
 
 ## 2. Lifts
 
+The shape the world's code converges on (the maintainer's direction,
+2026-10-30): **systems, composed.** A town, story map, field or dungeon is a
+small core plus the systems it has, not one struct that does everything
+inline. Each system follows one contract:
+
+```rust
+trait MapSystem {
+    fn step(&mut self, cx: &mut StepCx);               // per frame, the game's arithmetic
+    fn draw(&self, cx: &DrawCx, out: &mut Vec<Piece>); // emits requests, never draws
+    fn take_statics(&mut self, _: &Statics) {}         // what carries across visits
+    fn put_statics(&self, _: &mut Statics) {}
+}
+```
+
+- Systems: water, sky (with the crisis sky), clouds, lens flare,
+  fireflies, static objects and models, scrolls, light groups, the minimap;
+  in fields rain, thunder, steam, the lake; in dungeons the dress, lake,
+  leaves, portals and gimmicks; for characters body, arms, motion, AI and
+  hits; the bosses already go this way (parts, `Fx`, the wave, `Shape`).
+- Each map keeps the game's order explicit: its definition lists the order
+  its `Draw` ran its parts in (`[Objects(Other), Sky, Water, Models, Map]`),
+  so bit-exactness never depends on a scheduler. Not a dynamic ECS: nothing
+  needs queries, and the order must stay visible.
+- Systems emit draw and sound requests, never draw: Classic and Modern
+  (plans/modern.md) consume the same requests, so a system is written once.
+- A new town or map is its definition (systems and order); a new kind of
+  thing is one new system.
+
 - [x] `Table` trait (`const NAME`, default `of(v)` / `shared()`) and one
       keyed cache with a per-key `OnceLock` in `store.rs`; piney-gen emits
       `impl Table` and a one-line `of`; drop the 1,017 field accessors and
