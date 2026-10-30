@@ -172,6 +172,18 @@ shape for everything that comes in kinds:
 | desktop app | input repeat, window, cursor | `AppDef` |
 | effect | generators, elements, draw requests | `EffectDef` |
 
+**What a system is** (the maintainer's rule, 2026-10-30, after a boss
+pass made `System` a flag): a system is a real object holding its own
+state, built from the def, stepped and drawn by one runner in the def's
+`order`. Its output goes into the frame as requests that the world
+consumes generically, the same for every member of a kind. Not allowed,
+for any kind: a system enum used only as a flag (`has(System::X)`) gating
+a method on the thing; a getter per system on the thing (`boss.shards()`,
+`town.water()`) that the world calls by name; downcasts to a concrete
+member (`class::<Innis>()`) outside its own module. A member's unique
+logic is its own system object. Adding a system adds no method anywhere
+else.
+
 Not an ECS: no scheduler, no queries; each definition states its order,
 which keeps it bit-exact and readable. New towns, maps, bosses, menus, and
 fragment's later, are definitions; a new kind of behaviour is one system.
