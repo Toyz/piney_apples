@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 pub mod carry;
+pub mod classes;
 pub mod data;
 pub mod dtype;
 pub mod dwarf;

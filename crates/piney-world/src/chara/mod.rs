@@ -9,7 +9,7 @@ pub mod char;
 pub mod foe;
 pub mod kite;
 pub mod motion;
-#[doc(alias = "ccnavi")]
+#[doc(alias = "ccNavi")]
 pub mod navi;
 pub mod npc;
 pub mod party;

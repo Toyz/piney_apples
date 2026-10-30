@@ -322,6 +322,15 @@ Where the code does by hand, per kind, what a system should do once:
       - Shared helpers for systems live in `piney-battle/src/boss/systems/`.
       Checked by the pins (byte-identical), every boss harness against the
       game, the golden boss shots, the suite.
+      (worklog 535: the defs' classes are generated, `piney_data::classes`:
+      `GameClass` one table row a class, `BossGameClass` the `ccBoss`
+      subtree. A first pass, `BossDef` with `BASE_BOSS` and the order run
+      over a class trait, made `System` a flag with getters and downcasts
+      and was set aside by the rule above; what it showed for the next
+      pass: no boss derives its def from anything but `BASE_BOSS` or
+      `BASE_PART`; Fidchell's, Macha's and Tarvos's unknown pattern word
+      lets the neutral go (forbid 1: OUT 0x004a4664 to 0x0046e384, QUA
+      0x003a4228 and 0x003a8db0 to 0x00360c94), not 3 as ported.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

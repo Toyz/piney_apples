@@ -14,6 +14,7 @@ pub mod anim;
 pub mod archive;
 pub mod area;
 pub mod ccs;
+pub mod classes;
 pub mod dungeon;
 pub mod exe;
 pub mod field;

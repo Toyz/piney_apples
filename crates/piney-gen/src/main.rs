@@ -111,6 +111,9 @@ fn run() -> Result<ExitCode, String> {
                 put(formatted(render::types_rs(&groups))?, "types.rs")?;
                 // Every group rendered: the characters they use are all known.
                 put(formatted(render::sjis_rs())?, "sjis.rs")?;
+                // The game's classes, beside the tables.
+                let file = volume::root().join("crates/piney-data/src/classes.rs");
+                current &= render::write_or_check(&formatted(piney_gen::classes::render())?, &file, check)?;
             }
             Ok(if current && data_current { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }

@@ -1,0 +1,202 @@
+//! The game's classes as `piney_data::classes::GameClass`: the names of
+//! Infection's DWARF classes (and of the later volumes' classes it lacks,
+//! by their carried vtables), each one's base from the DWARF, and its
+//! constructor (`__ct__<n><name>F..`, the lowest when overloaded) and
+//! vtable (`__vt__<n><name>`) on each volume, from the symbols
+//! (`source::symbols_text`). A class is listed when it has a vtable or a
+//! constructor on some volume, or is the base of one that does.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use crate::dwarf::{TAG_CLASS, TAG_STRUCT, Ty};
+use crate::volume::VOLUMES;
+
+/// DWARF 1's `TAG_inheritance`: a base class, its type the base.
+const TAG_INHERITANCE: u16 = 0x1c;
+
+/// One class: its name, its base and its addresses by volume.
+struct Class {
+    base: Option<String>,
+    ctor: [Option<u32>; 4],
+    vtable: [Option<u32>; 4],
+}
+
+/// `<len><name>` at the start of a mangled tail: the name and what follows.
+fn length_name(s: &str) -> Option<(&str, &str)> {
+    let digits = s.bytes().take_while(u8::is_ascii_digit).count();
+    let n: usize = s[..digits].parse().ok()?;
+    Some((s.get(digits..digits + n)?, s.get(digits + n..)?))
+}
+
+/// The Rust variant for a class name: `ccBoss08_b` -> `CcBoss08B`,
+/// `ROOTTOWN01` -> `Roottown01`.
+fn variant(name: &str) -> String {
+    let all_caps = !name.chars().any(|c| c.is_ascii_lowercase());
+    name.split('_')
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            let rest = if all_caps { w[1..].to_ascii_lowercase() } else { w[1..].to_string() };
+            w[..1].to_ascii_uppercase() + &rest
+        })
+        .collect()
+}
+
+/// Every class with its base and addresses.
+fn classes() -> Result<BTreeMap<String, Class>, String> {
+    let dw = crate::dtype::dwarf()?;
+    // Infection's DWARF: each named class and struct, with its first base.
+    let mut bases: BTreeMap<String, Option<String>> = BTreeMap::new();
+    for d in &dw.dies {
+        if d.tag != TAG_CLASS && d.tag != TAG_STRUCT {
+            continue;
+        }
+        let Some(name) = d.name().filter(|n| !n.starts_with('@') && !n.is_empty()) else { continue };
+        let base = d.children.iter().map(|&c| dw.die(c)).find(|c| c.tag == TAG_INHERITANCE).and_then(|c| {
+            match dw.type_of(c)? {
+                Ty::Named(i) => dw.die(i).name().map(str::to_string),
+                _ => None,
+            }
+        });
+        let e = bases.entry(name.to_string()).or_insert(None);
+        if e.is_none() {
+            *e = base;
+        }
+    }
+    let mut out: BTreeMap<String, Class> = BTreeMap::new();
+    for v in VOLUMES {
+        let text = crate::source::symbols_text(v)?;
+        for line in text.lines().filter(|l| !l.starts_with('#')) {
+            let f: Vec<&str> = line.split('\t').collect();
+            let (Some(va), Some(sym)) = (f.get(1).and_then(|a| u32::from_str_radix(a, 16).ok()), f.get(4)) else {
+                continue;
+            };
+            let (ctor, tail) = match (sym.strip_prefix("__vt__"), sym.strip_prefix("__ct__")) {
+                (Some(t), _) => (false, t),
+                (_, Some(t)) => (true, t),
+                _ => continue,
+            };
+            // A constructor's name is followed by its arguments (`F..`), a
+            // vtable's by nothing.
+            let Some((name, rest)) = length_name(tail) else { continue };
+            if if ctor { !rest.starts_with('F') } else { !rest.is_empty() } {
+                continue;
+            }
+            let c = out.entry(name.to_string()).or_insert_with(|| Class {
+                base: bases.get(name).cloned().flatten(),
+                ctor: [None; 4],
+                vtable: [None; 4],
+            });
+            let slot = if ctor { &mut c.ctor[v.index()] } else { &mut c.vtable[v.index()] };
+            *slot = Some(slot.map_or(va, |old| old.min(va)));
+        }
+    }
+    // Each listed class's bases, to the root.
+    let mut todo: Vec<String> = out.values().filter_map(|c| c.base.clone()).collect();
+    while let Some(b) = todo.pop() {
+        if out.contains_key(&b) {
+            continue;
+        }
+        let base = bases.get(&b).cloned().flatten();
+        todo.extend(base.clone());
+        out.insert(b, Class { base, ctor: [None; 4], vtable: [None; 4] });
+    }
+    Ok(out)
+}
+
+/// `crates/piney-data/src/classes.rs`, unformatted: the enum (names
+/// only), one table row a class, and the families as narrow enums with
+/// the same discriminants.
+pub fn render() -> Result<String, String> {
+    let cs = classes()?;
+    let mut seen = BTreeSet::new();
+    for n in cs.keys() {
+        if !seen.insert(variant(n)) {
+            return Err(format!("two classes are {}", variant(n)));
+        }
+    }
+    let index: BTreeMap<&String, usize> = cs.keys().enumerate().map(|(k, n)| (n, k)).collect();
+    let mut s = String::from(
+        "//! The game's classes (generated by `piney-gen gen` from Infection's DWARF\n\
+         //! and every volume's symbols; do not edit): [`GameClass`] names one, its\n\
+         //! row of [`CLASSES`] holds its name, its base and its constructor and\n\
+         //! vtable on each volume. A class is listed when it has a vtable or a\n\
+         //! constructor on some volume, or is the base of one that does. The\n\
+         //! families are narrow enums with the same discriminants.\n\n\
+         use crate::volume::Volume;\n\n\
+         /// A class of the game's, by its name in the symbols.\n\
+         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]\n\
+         #[repr(u16)]\n\
+         pub enum GameClass {\n",
+    );
+    for n in cs.keys() {
+        if variant(n) != *n {
+            s += &format!("    #[doc(alias = \"{n}\")]\n");
+        }
+        s += &format!("    {},\n", variant(n));
+    }
+    s += "}\n\n/// A class's row: its name, its base (Infection's DWARF, the first where\n\
+          /// it has two; none for a root or a class the DWARF lacks), its\n\
+          /// constructor (the lowest of its overloads) and vtable by volume.\n\
+          #[derive(Clone, Copy, Debug, PartialEq, Eq)]\npub struct ClassInfo {\n    pub class: GameClass,\n    pub name: &'static str,\n\
+          \x20   pub base: Option<GameClass>,\n    pub constructor: [Option<u32>; 4],\n    pub vtable: [Option<u32>; 4],\n}\n\n";
+    s += &format!("/// How many classes there are.\npub const COUNT: usize = {};\n\n", cs.len());
+    s += "/// Every class's row, by its discriminant (one line a row).\n#[rustfmt::skip]\npub static CLASSES: [ClassInfo; COUNT] = [\n";
+    let row = |a: [Option<u32>; 4]| {
+        let r: Vec<String> = a.iter().map(|x| x.map_or("None".to_string(), |x| format!("Some(0x{x:08x})"))).collect();
+        format!("[{}]", r.join(", "))
+    };
+    for (n, c) in &cs {
+        let base = c.base.as_ref().map_or("None".to_string(), |b| format!("Some(GameClass::{})", variant(b)));
+        s += &format!(
+            "    ClassInfo {{ class: GameClass::{}, name: \"{n}\", base: {base}, constructor: {}, vtable: {} }},\n",
+            variant(n),
+            row(c.ctor),
+            row(c.vtable)
+        );
+    }
+    s += "];\n\nimpl GameClass {\n    /// Its row.\n    pub const fn info(self) -> &'static ClassInfo {\n        &CLASSES[self as usize]\n    }\n\n\
+          \x20   /// Its name in the symbols and the DWARF.\n    pub const fn name(self) -> &'static str {\n        self.info().name\n    }\n\n\
+          \x20   /// Its base class.\n    pub const fn base(self) -> Option<GameClass> {\n        self.info().base\n    }\n\n\
+          \x20   /// Its constructor's address on `v`.\n    pub const fn constructor(self, v: Volume) -> Option<u32> {\n        self.info().constructor[v as usize]\n    }\n\n\
+          \x20   /// Its vtable's address on `v`.\n    pub const fn vtable(self, v: Volume) -> Option<u32> {\n        self.info().vtable[v as usize]\n    }\n\n\
+          \x20   /// Every class, in order.\n    pub fn all() -> impl Iterator<Item = GameClass> {\n        CLASSES.iter().map(|c| c.class)\n    }\n}\n";
+    for (family, root, doc) in FAMILIES {
+        let members: Vec<&String> = cs.keys().filter(|n| descends(&cs, n, root)).collect();
+        s += &format!(
+            "\n/// {doc}\n#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]\n#[repr(u16)]\npub enum {family} {{\n"
+        );
+        for n in &members {
+            if variant(n) != **n {
+                s += &format!("    #[doc(alias = \"{n}\")]\n");
+            }
+            s += &format!("    {} = {},\n", variant(n), index[n]);
+        }
+        s += &format!(
+            "}}\n\nimpl {family} {{\n    /// The class as [`GameClass`] (the same discriminant).\n\
+             \x20   pub const fn class(self) -> GameClass {{\n        CLASSES[self as usize].class\n    }}\n}}\n\n\
+             impl From<{family}> for GameClass {{\n    fn from(c: {family}) -> GameClass {{\n        c.class()\n    }}\n}}\n"
+        );
+    }
+    Ok(s)
+}
+
+/// The families generated so far: an enum each, of the classes whose
+/// ancestry in the DWARF reaches the root (the root among them). The
+/// towns', story maps' and characters' follow as their defs land.
+const FAMILIES: [(&str, &str, &str); 1] = [(
+    "BossGameClass",
+    "ccBoss",
+    "A boss's class: `ccBoss` and every class derived from it (the bosses, Kyvia's, the parts and slaves).",
+)];
+
+/// `name`'s ancestry reaches `root`.
+fn descends(cs: &BTreeMap<String, Class>, name: &str, root: &str) -> bool {
+    let mut at = Some(name.to_string());
+    while let Some(n) = at {
+        if n == root {
+            return true;
+        }
+        at = cs.get(&n).and_then(|c| c.base.clone());
+    }
+    false
+}
