@@ -99,7 +99,7 @@ a lift truly cannot work, say exactly why and ask the maintainer.
 ## 2. Lifts
 
 The shape the world's code converges on (the maintainer's direction,
-2026-10-30): **systems, composed.** A town, story map, field or dungeon is a
+2026-10-30): **defs and systems.** A town, story map, field or dungeon is a
 small core plus the systems it has, not one struct that does everything
 inline. Each system follows one contract:
 
@@ -126,7 +126,14 @@ trait MapSystem {
 - A new town or map is its definition (systems and order); a new kind of
   thing is one new system.
 
-### Definitions: what a thing is, as data
+### Defs and systems
+
+The name (the maintainer's, 2026-10-30): a *def* says what a thing is (its
+systems and their order), a *system* is one reusable behaviour. Component
+composition from data, with no ECS scheduler and no queries, so it is not
+called an ECS. In code: `*Def` types (`TownDef`, `FieldDef`, `BossDef`,
+`MenuDef`, ...) and the systems under `piney-world/src/systems/` (`water.rs`,
+`sky.rs`, `npcs.rs`, ...); other crates the same where they gain systems.
 
 The maintainer's shape, 2026-10-30 ("this works for basically everything"):
 a thing is a definition naming its systems, not a struct that does
