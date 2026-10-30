@@ -214,8 +214,8 @@ fn main() {
                 let mode = n(6) as i8;
                 run = Some(Run {
                     hits: Hits::new(volume, models.clone()),
-                    player: Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
-                    camera: Camera::new(pos, dirc, mode, Scheme::new(n(5) as i32)),
+                    player: Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
+                    camera: Camera::new(volume, pos, dirc, mode, Scheme::new(n(5) as i32)),
                     rand: Rand(u64::from(n(7))),
                     mode,
                     ev: EventCam::new(),

@@ -135,8 +135,8 @@ fn main() {
                 let mode = n(7) as i8;
                 run = Some(Run {
                     hits: Hits::new(volume, models.clone()),
-                    player: Player { volume, ..Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000) },
-                    camera: Camera { volume, ..Camera::new(pos, dirc, mode, scheme) },
+                    player: Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
+                    camera: Camera::new(volume, pos, dirc, mode, scheme),
                     rand: Rand(u64::from(n(8))),
                     mode,
                 });
@@ -903,11 +903,9 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             let dirc = [0, 0, n(6), 0];
             let mode = n(8) as i8;
             let mut hits = Hits::new(volume, pcs.models.clone().unwrap());
-            let mut player = Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000);
+            let mut player = Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000);
             player.hit_body.manual = w.len() > 10 && n(10) != 0;
-            player.volume = volume;
-            let mut camera = Camera::new(pos, dirc, mode, Scheme::new(n(7) as i32));
-            camera.volume = volume;
+            let camera = Camera::new(volume, pos, dirc, mode, Scheme::new(n(7) as i32));
             let pool = if w.len() > 12 { pc_pool(volume, n(11), n(12)) } else { rtownpc::Pool::default() };
             let (count, reserved) = (n(1), n(2) as i32);
             let (town, list_) =
@@ -1223,9 +1221,8 @@ fn gate_probe(w: &[&str], volume: piney_data::volume::Volume) -> String {
     let mut pos = v4(&mut next);
     let mut pos_cam = v4(&mut next);
     let mut pos_view = v4(&mut next);
-    let mut camera = Camera::new([0; 4], [0; 4], 3, Scheme::new(0));
+    let mut camera = Camera::new(volume, [0; 4], [0; 4], 3, Scheme::new(0));
     // The volume's sqrtf (OUT and QUA truncate).
-    camera.volume = volume;
     camera.cam_id = next() as i32 as i16;
     for n in [1i16, 3] {
         let (p, v, r) = (v4(&mut next), v4(&mut next), v4(&mut next));

@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn the_cone_is_the_active_cameras() {
         let f = |v: f32| v.to_bits();
-        let mut c = FieldCamera::new([0, 0, 0, ONE], [0; 4], 0, Scheme::new(1));
+        let mut c = FieldCamera::new(piney_data::volume::Volume::Inf, [0, 0, 0, ONE], [0; 4], 0, Scheme::new(1));
         c.tcam.pos = [f(0.0), f(-500.0), f(200.0), ONE];
         c.tcam.view = [0, 0, f(100.0), ONE];
         c.ecam.pos = [f(0.0), f(500.0), f(200.0), ONE];

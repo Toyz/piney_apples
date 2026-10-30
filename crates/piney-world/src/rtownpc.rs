@@ -1957,7 +1957,13 @@ mod tests {
         assert_eq!(swaps, [(Some("MAT_tex"), Some("TEX_cwm3bod1v3"))], "changeTEX");
         // Kite standing at the gate: the two walkers from the plaza head
         // south down the stairs, shown and on the command list.
-        let cam = crate::camera::Camera::new(crate::START_POS, crate::START_DIRC, 3, crate::camera::Scheme::new(0));
+        let cam = crate::camera::Camera::new(
+            piney_data::volume::Volume::Inf,
+            crate::START_POS,
+            crate::START_DIRC,
+            3,
+            crate::camera::Scheme::new(0),
+        );
         let mut rand = crate::Rand(1);
         for _ in 0..120 {
             let t = cam.tcam.clone();

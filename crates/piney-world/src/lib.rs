@@ -442,14 +442,10 @@ impl World {
         let height = save_f(&save, spc + 0x18);
         let width = save_f(&save, spc + 0x1c);
         let start = town_start(town_no, before);
-        let mut player = Player::new(start.0, start.1, velocity, width, height);
-        // The disc's: its square root (`sqrt.s` from Outbreak on) and the
-        // AI's modes.
-        player.volume = volume;
+        let player = Player::new(volume, start.0, start.1, velocity, width, height);
         let scheme = Scheme::new(i32::from(save.save.u8(offset::CAM_TYPE) as i8));
         let mode = save.save.u8(offset::CAMERA_MODE) as i8;
-        let mut camera = Camera::new(start.0, start.1, mode, scheme);
-        camera.volume = volume;
+        let camera = Camera::new(volume, start.0, start.1, mode, scheme);
         let rand = Rand(save.rand);
         Ok(World {
             save,

@@ -477,16 +477,14 @@ impl FieldWorld {
         let f = |at: usize| save.save.i32(at) as u32;
         let (velocity, height, width) = (f(spc + 0xd4), f(spc + 0x18), f(spc + 0x1c));
         let dirc = [0, 0, rot, 0];
-        let mut player = Player::new(pos, dirc, velocity, width, height);
-        player.volume = volume;
+        let player = Player::new(volume, pos, dirc, velocity, width, height);
         let starts = match &place {
             Place::Story(m) => m.start_positions().2,
             _ => party_starts(scene.area, pos, rot),
         };
         let scheme = Scheme::new(i32::from(save.save.u8(offset::CAM_TYPE) as i8));
         let mode = save.save.u8(offset::CAMERA_MODE) as i8;
-        let mut camera = Camera::new(pos, dirc, mode, scheme);
-        camera.volume = volume;
+        let camera = Camera::new(volume, pos, dirc, mode, scheme);
         // ccPlayer::ccPlayer: WORLD_MAN::SetCenter at his feet; he arrives
         // (act 13) from a town, and stands (act 2) with his body on the list
         // at once coming back from the dungeon or inside one.

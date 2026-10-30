@@ -173,8 +173,8 @@ fn main() {
                 f.set_center(pos[0], pos[1]);
                 f.hits.center = [pos[0], pos[1]];
                 run = Some(Run {
-                    player: Player { volume, ..Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000) },
-                    camera: Camera { volume, ..Camera::new(pos, dirc, mode, scheme) },
+                    player: Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
+                    camera: Camera::new(volume, pos, dirc, mode, scheme),
                     rand: Rand(u64::from(n(7))),
                     mode,
                 });

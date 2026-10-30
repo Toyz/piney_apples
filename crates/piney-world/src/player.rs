@@ -322,8 +322,9 @@ pub fn manual_move(b: &mut Body) {
 
 impl Player {
     /// `ccPlayer::ccPlayer(0)` arriving in a town: at the start position,
-    /// act 13 (the fade-in), with `speed` his `velocity` (27.5 for Kite).
-    pub fn new(pos: V4, dirc: V4, speed: F, width: F, height: F) -> Self {
+    /// act 13 (the fade-in), with `speed` his `velocity` (27.5 for Kite),
+    /// on `volume`'s disc.
+    pub fn new(volume: piney_data::volume::Volume, pos: V4, dirc: V4, speed: F, width: F, height: F) -> Self {
         let acts = Acts::arriving();
         Player {
             body: Body {
@@ -368,7 +369,7 @@ impl Player {
             enter: false,
             dne: false,
             attribute_qualified: true,
-            volume: piney_data::volume::Volume::Inf,
+            volume,
         }
     }
 
@@ -385,9 +386,9 @@ impl Player {
     /// [`Player::new`], off the command list when `boot` has bit 2,
     /// `SetBootStatus(boot)`, `restraintSW` unless standing; then a `ccAI` in mode
     /// 1, manual when `boot` has bit 2. Event 2's `pc_mode -3 6` makes him start
-    /// out of sight (act 14) under manual control.
+    /// out of sight (act 14) under manual control. The disc is `hits`'.
     pub fn build(pos: V4, dirc: V4, speed: F, width: F, height: F, boot: i32, hits: &mut Hits) -> Self {
-        let mut p = Player::new(pos, dirc, speed, width, height);
+        let mut p = Player::new(hits.volume, pos, dirc, speed, width, height);
         p.listed = boot & 4 == 0;
         // The arrival's restraintSW is the constructor's for act 13; the
         // ccSpcChar constructor leaves it 0 for one standing.

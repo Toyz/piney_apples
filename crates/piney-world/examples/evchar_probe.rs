@@ -237,7 +237,7 @@ fn main() {
                     party,
                     spcs,
                     save,
-                    camera: Camera::new(pos, dirc, mode, Scheme::new(n(5) as i32)),
+                    camera: Camera::new(volume, pos, dirc, mode, Scheme::new(n(5) as i32)),
                     rand: Rand(u64::from(n(7))),
                     mode,
                     banned: false,

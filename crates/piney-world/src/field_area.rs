@@ -1622,7 +1622,13 @@ mod tests {
         assert_eq!(f.ambient.tobj.as_ref().map(|t| t.server), Some(0));
         assert!(f.ambient.tobj_se_start);
         let player = [24000f32.to_bits(), 24000f32.to_bits(), 0, 1f32.to_bits()];
-        let cam = crate::camera::Camera::new(player, [0; 4], 3, crate::camera::Scheme::new(0));
+        let cam = crate::camera::Camera::new(
+            piney_data::volume::Volume::Inf,
+            player,
+            [0; 4],
+            3,
+            crate::camera::Scheme::new(0),
+        );
         let mut n = 1u32;
         let mut cc = || {
             n = n.wrapping_mul(1_103_515_245).wrapping_add(12_345);

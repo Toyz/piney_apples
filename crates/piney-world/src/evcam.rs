@@ -979,7 +979,7 @@ mod tests {
     #[test]
     fn switches_cameras() {
         let pos = [0, 0x45af_0000, 0x4416_0000, ONE];
-        let mut cam = Camera::new(pos, [0; 4], 3, Scheme::new(0));
+        let mut cam = Camera::new(piney_data::volume::Volume::Inf, pos, [0; 4], 3, Scheme::new(0));
         let mut ev = EventCam::new();
         let scene = One([0x4200_0000, 0x45b0_0000, 0x4416_0000, ONE]);
         ev.command(CameraCommand::ZSet { v: [-2, 574, 102], c: [-3, 537, 68] }, &mut cam, &scene);

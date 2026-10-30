@@ -216,8 +216,7 @@ pub struct Camera {
     pub world_screen: [V4; 4],
     /// The screen shake (`cameraShake`, `cameraShockAbsorber`).
     pub shake: Shake,
-    /// The disc's volume: its code's square root ([`sqrtf_on`]); its
-    /// owner sets it after [`Camera::new`].
+    /// The disc's volume: its code's square root ([`sqrtf_on`]).
     pub volume: Volume,
 }
 
@@ -463,8 +462,9 @@ impl Camera {
     /// a town: `changeCamera(1)`, the camera 970 behind the start position
     /// looking at it (120 up), pitch 1512, of type `camera_mode`
     /// (`saveData.cameraMode`, 3 on a new game; 0 is taken as 3); then
-    /// `ecam` and `bcam` copied from it.
-    pub fn new(start_pos: V4, start_dirc: V4, camera_mode: i8, scheme: Scheme) -> Self {
+    /// `ecam` and `bcam` copied from it. On `volume`'s disc (its square
+    /// root).
+    pub fn new(volume: Volume, start_pos: V4, start_dirc: V4, camera_mode: i8, scheme: Scheme) -> Self {
         let mut view = start_pos;
         view[2] = add(view[2], INIT_VIEW_Z);
         let deg = [rad2deg(start_dirc[2]), PITCH_DEFAULT];
@@ -496,7 +496,7 @@ impl Camera {
             world_view: [[0; 4]; 4],
             world_screen: [[0; 4]; 4],
             shake: Shake::default(),
-            volume: Volume::Inf,
+            volume,
         }
     }
 
@@ -1030,7 +1030,7 @@ mod tests {
     fn a_wiped_out_party_follows() {
         let sp = [k(1500.5), k(-2500.25), k(30.0), ONE];
         let sd = [0, 0, k(0.7), 0];
-        let mut c = Camera::new(sp, sd, 1, Scheme::new(0));
+        let mut c = Camera::new(piney_data::volume::Volume::Inf, sp, sd, 1, Scheme::new(0));
         assert_eq!(c.active().kind, kind::EYE);
         let mut mode = 1;
         c.main(&CamPad::default(), sd[2], true, true, &mut mode);
@@ -1050,7 +1050,7 @@ mod tests {
     fn follows_as_the_game_does() {
         let sp = [k(1500.5), k(-2500.25), k(30.0), ONE];
         let sd = [0, 0, k(0.7), 0];
-        let mut c = Camera::new(sp, sd, 3, Scheme::new(0));
+        let mut c = Camera::new(piney_data::volume::Volume::Inf, sp, sd, 3, Scheme::new(0));
         assert_eq!(c.tcam.view, [0x44bb_9000, 0xc51c_4400, 0x4316_0000, ONE]);
         assert_eq!(c.tcam.pos, [0x445c_9022, 0xc4dc_c1e9, 0x4391_0f68, ONE]);
         assert_eq!(c.tcam.rot, [0x3e14_70b4, 0, 0x3f33_3189, 0]);

@@ -597,7 +597,7 @@ fn main() {
                 let pos = [hex(w[1]), hex(w[2]), hex(w[3]), ee::ONE];
                 let dirc = [0, 0, hex(w[4]), 0];
                 let mode = hex(w[6]) as i8;
-                let mut player = Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000);
+                let mut player = Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000);
                 player.acts.act = motion::act::IDLE;
                 player.acts.act_old = motion::act::IDLE;
                 player.acts.anim = motion::act::IDLE as usize;
@@ -607,10 +607,8 @@ fn main() {
                 a.hits.chars.clear();
                 a.hits.center = [pos[0], pos[1]];
                 a.hits.hit_enable(&mut player.hit_body);
-                let mut camera = Camera::new(pos, dirc, mode, Scheme::new(hex(w[5]) as i32));
+                let camera = Camera::new(volume, pos, dirc, mode, Scheme::new(hex(w[5]) as i32));
                 // The disc's square roots (Outbreak's and Quarantine's sqrt.s).
-                player.volume = volume;
-                camera.volume = volume;
                 run = Some(Run { player, camera, rand: Rand(u64::from(hex(w[7]))), mode });
                 println!("{{}}");
             }

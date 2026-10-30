@@ -507,7 +507,7 @@ mod tests {
     use crate::camera::Scheme;
 
     fn cam() -> (Camera, BossCam) {
-        let mut camera = Camera::new([0, 0, 0, ONE], [0; 4], 3, Scheme::new(0));
+        let mut camera = Camera::new(piney_data::volume::Volume::Inf, [0, 0, 0, ONE], [0; 4], 3, Scheme::new(0));
         let b = BossCam::new(&mut camera, [0, 0x447a_0000, 0x4348_0000, ONE], [0, 0, 0, ONE]);
         (camera, b)
     }
