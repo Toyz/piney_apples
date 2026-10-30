@@ -199,7 +199,14 @@ a lift truly cannot work, say exactly why and ask the maintainer.
 - [ ] Towns: `step_scrolls`, `Sky` (clouds and lens flare), `WaterSpec`
       with the two real wrap rules as data, `Base::passes`, statics slots.
       (worklog 532: `step_scrolls`, `Wrap` and `WaterSpec`; `Sky`,
-      `Base::passes` and the statics slots to come.)
+      `Base::passes` and the statics slots to come.) Also one `town::Water`
+      component: Mac Anu, Dun Loireag and Carmina Gadelica each build their
+      water by hand in `new` (its file, `Play` of the water anim cloned three
+      times and stepped once, `WaterZero::new`, `water_u` / `water_uv`
+      stepped by `vftoi12` then `WATER.step`, `water_rows`, its own statics
+      slot). A `WaterDef { file, anim, model, reach, spec, statics_slot }`
+      constant per town and a `water: Water` member with `new`, `step`,
+      `rows`, `take` / `put`; `Sky` the same way for the clouds and flares.
 - [ ] `AreaMap` trait over field, dungeon and story map (the 3-arm match
       inlined 19 times in `field_world.rs`).
 - [ ] `EvHost<W: HostWorld>` for the 29 identical `Host` methods in
