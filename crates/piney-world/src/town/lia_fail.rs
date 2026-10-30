@@ -14,9 +14,10 @@ use piney_data::{Error, Result};
 use piney_desktop::layers::Layers;
 
 use crate::draw::{EFF_LAYER, OBJ_LAYER};
-use crate::ee::{self, F, ONE, V4};
+use crate::ee::{F, ONE, V4};
 use crate::sky::cloud;
 use crate::town::scroll_statics as statics;
+use crate::town::step_scrolls;
 use crate::town::{Base, FogParams, RootTown, Spec, Town, TownSprite, TownView, clump_models};
 use crate::town::{TownDef, TownEnv};
 use piney_data::volume::Volume;
@@ -153,14 +154,7 @@ impl LiaFail {
     pub fn select(&mut self, base: &mut Base, _v: &TownView) -> Vec<Piece> {
         let mut out = Vec::new();
         // DrawBG (0x0043d200).
-        for (x, step) in self.bg_scroll.iter_mut().zip(BG_STEP) {
-            *x = ee::add(*x, step);
-        }
-        for x in &mut self.bg_scroll {
-            if !ee::le(*x, ONE) {
-                *x = 0;
-            }
-        }
+        step_scrolls(&mut self.bg_scroll, &BG_STEP);
         out.push(Piece::Sky);
         // DrawObj2, DrawObj, DrawFloor, DrawMap, then the type-0 rows.
         for pass in [DrawPass::Obj2, DrawPass::Obj, DrawPass::Floor] {

@@ -15,8 +15,9 @@ use piney_data::statics::DrawPass;
 use piney_desktop::layers::Layers;
 
 use crate::draw::OBJ_LAYER;
-use crate::ee::{self, F, ONE};
+use crate::ee::F;
 use crate::town::scroll_statics as statics;
+use crate::town::step_scrolls;
 use crate::town::{Base, FogParams, RootTown, Spec, Town, TownSprite, TownView, clump_models};
 use crate::town::{TownDef, TownEnv};
 use piney_data::volume::Volume;
@@ -103,14 +104,7 @@ impl Town06 {
     /// scrolls stepped as `DrawBG` steps them.
     pub fn select(&mut self, base: &Base) -> Vec<Piece> {
         // DrawBG (0x004eca00).
-        for (x, step) in self.bg_scroll.iter_mut().zip(BG_STEP) {
-            *x = ee::add(*x, step);
-        }
-        for x in &mut self.bg_scroll {
-            if !ee::le(*x, ONE) {
-                *x = 0;
-            }
-        }
+        step_scrolls(&mut self.bg_scroll, &BG_STEP);
         let mut out = vec![Piece::Back];
         out.extend((0..3).map(Piece::Cross));
         out.push(Piece::Meteor);

@@ -446,6 +446,50 @@ pub struct Base {
     pub written: Vec<(String, V4)>,
 }
 
+/// How a town's scroll comes back once a step takes it to 1.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Wrap {
+    /// Above 1, back to 0 (`DrawBG`'s scrolls).
+    Past,
+    /// At 1 or above, back to 0 (Dun Loireag's and Carmina Gadelica's water).
+    AtOrPast,
+    /// Above 1, less 1 (Mac Anu's water).
+    Less,
+}
+
+impl Wrap {
+    /// `u` stepped by `step`, wrapped.
+    pub fn step(self, u: F, step: F) -> F {
+        let u = ee::add(u, step);
+        match self {
+            Wrap::Past if !ee::le(u, ONE) => 0,
+            Wrap::AtOrPast if !ee::lt(u, ONE) => 0,
+            Wrap::Less if !ee::le(u, ONE) => ee::sub(u, ONE),
+            _ => u,
+        }
+    }
+}
+
+/// `DrawBG`'s scrolls: each stepped by its step, back to 0 past 1.
+pub fn step_scrolls(scrolls: &mut [F], steps: &[F]) {
+    for (x, &step) in scrolls.iter_mut().zip(steps) {
+        *x = Wrap::Past.step(*x, step);
+    }
+}
+
+/// A town's water scroll: its step a frame and how it wraps.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WaterSpec {
+    pub step: F,
+    pub wrap: Wrap,
+}
+
+impl WaterSpec {
+    pub fn step(self, u: F) -> F {
+        self.wrap.step(u, self.step)
+    }
+}
+
 /// A Root Town class: what `ROOTTOWN01` .. `05` hold besides the [`Base`],
 /// and their `Draw` (virtual in the game, through each class's vtable).
 pub trait RootTown: Any {

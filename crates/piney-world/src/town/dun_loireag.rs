@@ -27,6 +27,7 @@ use crate::town::{
     pos_rot_zyx, water_rows, water0_draw,
 };
 use crate::town::{TownDef, TownEnv};
+use crate::town::{WaterSpec, Wrap, step_scrolls};
 use piney_data::volume::Volume;
 
 /// `ChangeScene`'s town number.
@@ -85,8 +86,8 @@ const SPEC: Spec = Spec {
 /// 0.02, `v2$1347` (0x00378b5c) 0.001.
 const BG_STEP: [F; 2] = [0x3c23_d70a, 0x3ca3_d70a];
 const BG_STEP2: F = 0x3a83_126f;
-/// The water's scroll a frame, `u$1777` (0x00378b6c): 0.005.
-const WATER_STEP: F = 0x3ba3_d70a;
+/// The water's scroll a frame, `u$1777` (0x00378b6c): 0.005, back to 0 at 1.
+const WATER: WaterSpec = WaterSpec { step: 0x3ba3_d70a, wrap: Wrap::AtOrPast };
 /// The `CLOUD`s `Draw` makes on its first call (+0x1d8, type 0).
 pub const CLOUDS: usize = 25;
 
@@ -251,20 +252,10 @@ impl DunLoireag {
             out.push(Piece::Water(k));
         }
         out.push(Piece::Copy);
-        self.water_u = ee::add(self.water_u, WATER_STEP);
-        if !ee::lt(self.water_u, ONE) {
-            self.water_u = 0;
-        }
+        self.water_u = WATER.step(self.water_u);
         // DrawBG (0x00425130).
-        for (x, step) in self.bg_scroll.iter_mut().zip(BG_STEP) {
-            *x = ee::add(*x, step);
-        }
-        self.bg_scroll2 = ee::add(self.bg_scroll2, BG_STEP2);
-        for x in self.bg_scroll.iter_mut().chain(std::iter::once(&mut self.bg_scroll2)) {
-            if !ee::le(*x, ONE) {
-                *x = 0;
-            }
-        }
+        step_scrolls(&mut self.bg_scroll, &BG_STEP);
+        self.bg_scroll2 = Wrap::Past.step(self.bg_scroll2, BG_STEP2);
         self.cloud_uv = self.bg_scroll.map(ee::vftoi12);
         out.extend([Piece::Sky, Piece::Sun, Piece::CloudSky(0), Piece::CloudSky(1)]);
         if self.crisis_sky.is_some() {
@@ -474,6 +465,6 @@ mod tests {
         assert_eq!(d.clouds.len(), CLOUDS);
         assert!(p.contains(&Piece::Map));
         assert_eq!(d.water_uv, 0);
-        assert_eq!(d.water_u, WATER_STEP);
+        assert_eq!(d.water_u, WATER.step);
     }
 }

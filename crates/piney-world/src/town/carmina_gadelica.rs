@@ -25,6 +25,7 @@ use crate::town::{
     crisis_rows, pos_rot_zyx, water0_draw,
 };
 use crate::town::{TownDef, TownEnv};
+use crate::town::{WaterSpec, Wrap, step_scrolls};
 use piney_data::volume::Volume;
 
 /// `ChangeScene`'s town number.
@@ -80,8 +81,8 @@ const SPEC: Spec = Spec {
 /// `DrawBG`'s scrolls a frame, `v$1474` (MUT gcmn gp 0x0038b118): 0.001 and
 /// 0.002.
 const BG_STEP: [F; 2] = [0x3a83_126f, 0x3b03_126f];
-/// The water's scroll a frame, `u$1875`: 0.005.
-const WATER_STEP: F = 0x3ba3_d70a;
+/// The water's scroll a frame, `u$1875`: 0.005, back to 0 at 1.
+const WATER: WaterSpec = WaterSpec { step: 0x3ba3_d70a, wrap: Wrap::AtOrPast };
 /// The rows `Draw` draws without fog first (29-33), and below which it
 /// draws the type-0 rows after them.
 const NO_FOG_ROWS: std::ops::Range<usize> = 29..34;
@@ -390,12 +391,7 @@ impl CarminaGade {
         self.ship.step(&base.file, &mut self.rng, &mut base.events);
         out.push(Piece::Ship);
         // DrawBG (0x0043cb30).
-        for (x, step) in self.bg_scroll.iter_mut().zip(BG_STEP) {
-            *x = ee::add(*x, step);
-            if !ee::le(*x, ONE) {
-                *x = 0;
-            }
-        }
+        step_scrolls(&mut self.bg_scroll, &BG_STEP);
         out.extend((0..4).map(Piece::Back));
         if self.crisis_sky.is_some() {
             self.bg_uv = ee::vftoi12(self.bg_scroll[1]);
@@ -410,10 +406,7 @@ impl CarminaGade {
         out.extend(NO_FOG_ROWS.map(Piece::ModelNoFog));
         out.extend(base.rows(DrawPass::Other).filter(|&row| row < NO_FOG_ROWS.start).map(Piece::ModelNoFog));
         out.push(Piece::Map);
-        self.water_u = ee::add(self.water_u, WATER_STEP);
-        if !ee::lt(self.water_u, ONE) {
-            self.water_u = 0;
-        }
+        self.water_u = WATER.step(self.water_u);
         out
     }
 

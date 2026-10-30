@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-531 entries: audio 43, battle 139, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 150. 126 entries still have open questions - [listed below](#still-open).
+532 entries: audio 43, battle 139, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 151. 126 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -543,6 +543,7 @@ The [reference](docs/README.md) says what is true now.
 | 529 | [Boss split, step seven: the world side by class hooks, a BossDef row a boss, one Picture list, the shared wave and after-image outs](worklog/0529-boss-split-step-seven-the-world-side-by-class-hooks-a.md) | 2026-10-30 | battle |
 | 530 | [Kyvia's core's wave drawn at the core with its own anmw: Out::Wave from act 13, which no game code sets, forced in a harness case and a shot](worklog/0530-kyvia-s-core-s-wave-drawn-at-the-core-with-its-own-anmw-out.md) | 2026-10-30 | battle |
 | 531 | [Story maps' shared set-up: no as_any, party_starts by StartSpread, one statics loader, event_hits and model_hits, light_group, one ee::ground_dist](worklog/0531-story-maps-shared-set-up-no-as-any-party-starts-by.md) | 2026-10-30 | world |
+| 532 | [Towns' scrolls: step_scrolls, the wrap rules as data (Wrap), each water one WaterSpec](worklog/0532-towns-scrolls-step-scrolls-the-wrap-rules-as-data-wrap-each.md) | 2026-10-30 | world |
 
 ## Still open
 

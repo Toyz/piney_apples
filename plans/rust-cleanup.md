@@ -177,6 +177,8 @@ order; tick items off here as they land, with the worklog entry.
         (modes and hosts). Probes and tests named after old files follow.
 - [ ] Towns: `step_scrolls`, `Sky` (clouds and lens flare), `WaterSpec`
       with the two real wrap rules as data, `Base::passes`, statics slots.
+      (worklog 532: `step_scrolls`, `Wrap` and `WaterSpec`; `Sky`,
+      `Base::passes` and the statics slots to come.)
 - [ ] `AreaMap` trait over field, dungeon and story map (the 3-arm match
       inlined 19 times in `field_world.rs`).
 - [ ] `EvHost<W: HostWorld>` for the 29 identical `Host` methods in

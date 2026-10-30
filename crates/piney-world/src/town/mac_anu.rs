@@ -25,6 +25,7 @@ use crate::town::{
     pos_rot_zyx, water_rows, water0_draw,
 };
 use crate::town::{TownDef, TownEnv};
+use crate::town::{WaterSpec, Wrap, step_scrolls};
 use piney_data::volume::Volume;
 
 /// `wateranmname[0]`, `watername[0]`, and the model water 0 draws.
@@ -86,8 +87,8 @@ const SW_Y: F = 0xc548_0000; // -3200
 const LOD11_PLAZA: F = 0x44fa_0000; // 2000
 const LOD8_PLAZA: F = 0x4509_8000; // 2200
 const LOD8: F = 0x4516_0000; // 2400
-/// The water's scroll a frame, 0.005, and `vftoi12`'s 4096.
-const WATER_STEP: F = 0x3ba3_d70a;
+/// The water's scroll a frame, 0.005, less 1 past 1.
+const WATER: WaterSpec = WaterSpec { step: 0x3ba3_d70a, wrap: Wrap::Less };
 /// `DrawBG`'s two scrolls a frame (`v$1334`, gcmn gp 0x00378168): 0.01
 /// (unused) and 0.002, each back to 0 past 1.
 const BG_STEP: [F; 2] = [0x3c23_d70a, 0x3b03_126f];
@@ -197,12 +198,7 @@ impl MacAnu {
         self.clip = clip;
         // DrawBG (0x00422250): the scrolls step; the sky at the origin, and
         // in crisis the three clumps over it.
-        for (v, step) in self.bg_scroll.iter_mut().zip(BG_STEP) {
-            *v = ee::add(*v, step);
-            if !ee::le(*v, ONE) {
-                *v = 0;
-            }
-        }
+        step_scrolls(&mut self.bg_scroll, &BG_STEP);
         out.push(Piece::Sky);
         if self.crisis_sky.is_some() {
             self.bg_uv = ee::vftoi12(self.bg_scroll[1]);
@@ -265,10 +261,7 @@ impl MacAnu {
             &v.world_screen,
         );
         self.water_uv = ee::vftoi12(self.water_u);
-        self.water_u = ee::add(self.water_u, WATER_STEP);
-        if !ee::le(self.water_u, ONE) {
-            self.water_u = ee::sub(self.water_u, ONE);
-        }
+        self.water_u = WATER.step(self.water_u);
         for k in [2usize, 1, 0] {
             self.water[k].forward(&self.water_file);
             out.push(Piece::Water(k));

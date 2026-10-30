@@ -18,6 +18,7 @@ use crate::ee::{self, F, ONE, V4};
 use crate::sky::cloud::{self, Cloud};
 use crate::sky::lensflare;
 use crate::town::scroll_statics as statics;
+use crate::town::step_scrolls;
 use crate::town::{Base, FogParams, RootTown, Spec, Town, TownSprite, TownView, clump_models, crisis_rows};
 use crate::town::{TownDef, TownEnv};
 use piney_data::volume::Volume;
@@ -186,14 +187,7 @@ impl FortOuph {
             }
         }
         // DrawBG (0x0043aa40).
-        for (x, step) in self.bg_scroll.iter_mut().zip(BG_STEP) {
-            *x = ee::add(*x, step);
-        }
-        for x in &mut self.bg_scroll {
-            if !ee::le(*x, ONE) {
-                *x = 0;
-            }
-        }
+        step_scrolls(&mut self.bg_scroll, &BG_STEP);
         self.cloud_u = ee::vftoi12(self.bg_scroll[0]);
         out.extend([Piece::Sky, Piece::Sun]);
         if self.crisis_sky.is_some() {
