@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-513 entries: audio 43, battle 131, build 23, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 236, tooling 49, ui 102, video 16, volumes 93, world 146. 124 entries still have open questions - [listed below](#still-open).
+514 entries: audio 43, battle 131, build 23, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 236, tooling 50, ui 102, video 16, volumes 94, world 146. 124 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -525,6 +525,7 @@ The [reference](docs/README.md) says what is true now.
 | 511 | [The game's discs never serve their executable, in the suite too: the suite's check images get their port data as the launcher makes it](worklog/0511-the-game-s-discs-never-serve-their-executable-in-the-suite.md) | 2026-10-29 | test, build |
 | 512 | [Corbenik's Magic shakes the active camera's view, not camera 2's: a Magic picked again starts at step 1 and shakes camera 1, as the game's does](worklog/0512-corbenik-s-magic-shakes-the-active-camera-s-view-not-camera.md) | 2026-10-29 | battle, volumes |
 | 513 | [field_probe reports arms and runs on its disc's volume: test_field_rt passes on all four volumes](worklog/0513-field-probe-reports-arms-and-runs-on-its-disc-s-volume-test.md) | 2026-10-29 | test, world, volumes |
+| 514 | [piney-gen carry --check is clean: Outbreak's and Quarantine's carry caches made again, with GetEventAreaInfo's overloads uncrossed as worklog 493 left them](worklog/0514-piney-gen-carry-check-is-clean-outbreak-s-and-quarantine-s.md) | 2026-10-29 | tooling, volumes |
 
 ## Still open
 
