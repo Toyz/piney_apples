@@ -232,7 +232,7 @@ mod tests {
     /// the camera's distance from y 0.
     #[test]
     fn the_canals() {
-        let t = &piney_data::sound::INF;
+        let t = piney_data::sound::tables_of(Volume::Inf);
         let mut d = driver(1);
         let mut out = Vec::new();
         let at = |y| SceneInput { camera: cam(0.0, y), mac_anu: true, ..SceneInput::default() };
@@ -262,7 +262,7 @@ mod tests {
     /// church, then the church's own inside.
     #[test]
     fn the_church() {
-        let t = &piney_data::sound::INF;
+        let t = piney_data::sound::tables_of(Volume::Inf);
         let mut d = driver(2);
         let at = |y, block| SceneInput { camera: cam(0.0, y), block, ..SceneInput::default() };
         let mut out = Vec::new();
@@ -287,7 +287,7 @@ mod tests {
     /// Dun Loireag's breeder: within 1000 the tune in, beyond 1200 out.
     #[test]
     fn the_breeder() {
-        let t = &piney_data::sound::INF;
+        let t = piney_data::sound::tables_of(Volume::Inf);
         let mut d = driver(3);
         let breeder = Some([f(1000.0), f(1000.0), 0, f(1.0)]);
         let at = |x: f32| SceneInput { kite: [f(x), f(1000.0), 0, f(1.0)], breeder, ..SceneInput::default() };

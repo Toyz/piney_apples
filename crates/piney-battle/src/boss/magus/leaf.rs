@@ -632,7 +632,7 @@ pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
     if p0 < 0 {
         return;
     }
-    let mut h = if b.cheat_hp != 0 { hp.wrapping_sub(p0 / 10).max(mhp / 2) } else { hp.wrapping_sub(p0) };
+    let mut h = crate::boss::hit_hp(hp, p0, (b.cheat_hp != 0).then_some(10), mhp);
     if h <= 0 {
         h = 0;
         crate::affect::clear_conditions(&mut cx.scene.chars[me]);

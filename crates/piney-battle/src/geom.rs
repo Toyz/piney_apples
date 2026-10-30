@@ -117,7 +117,9 @@ pub fn fptoui(v: F) -> u32 {
 
 /// `ccGetDircChg(from, to, mode)` (main 0x001d9eb0): the turn toward `to`,
 /// the short way, in 16-bit units; with a mode below 0x10000,
-/// `(to - from) * 16 / mode`, at least 1, at most 24576.
+/// `(to - from) * 16 / mode`, at least 1, at most 24576. A mode of 0 traps
+/// in the game (`__divdi3` divides by zero on purpose); here it takes the
+/// whole turn, as any mode of 0x10000 or more does.
 pub fn get_dirc_chg(from: i16, to: i16, mode: i32) -> i32 {
     let d = i32::from(to) - i32::from(from);
     if d == 0 {
@@ -128,11 +130,9 @@ pub fn get_dirc_chg(from: i16, to: i16, mode: i32) -> i32 {
     if neg {
         x = 0x10_0000 - x;
     }
-    if mode & 0xf_0000 == 0 {
-        x /= i64::from(mode & 0xffff);
-        if x == 0 {
-            x = 1;
-        }
+    let div = i64::from(mode & 0xffff);
+    if mode & 0xf_0000 == 0 && div != 0 {
+        x = (x / div).max(1);
     }
     if x >= 24577 {
         x = 24576;

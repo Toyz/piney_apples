@@ -4,13 +4,15 @@
 //! Numbers are hex, floats their bit patterns. Requests: `field` (`Init` and
 //! `Generate`'s ambient parts, with `fieldrand`'s counts), `fires` (type 7's
 //! fire places) and `frame` (one `WORLD::Draw`: the pictures in order and the
-//! counts of `fieldrand` and `ccRand`); the fields are the harness's.
+//! counts of `fieldrand` and `ccRand`); the fields are the harness's, on the
+//! volume its one argument names (`volumeNum`).
 
 use std::io::BufRead;
 
 use piney_battle::rand::Genrand;
 use piney_data::dungeon::Rng;
 use piney_data::field;
+use piney_data::volume::Volume;
 use piney_world::ee::{F, ONE, V4};
 use piney_world::evarea::FlareCamera;
 use piney_world::field_ambient::{Ambient, Cloth, Env, Frame, Model, Op, Statics, Weather};
@@ -158,7 +160,8 @@ fn state_json(a: &Ambient, init: u32, made: u32) -> String {
 }
 
 fn main() {
-    let tables = &field::INF;
+    let volume = std::env::args().nth(1).and_then(|n| Volume::from_number(n.parse().ok()?)).expect("volumeNum 1-4");
+    let tables = field::tables_of(volume);
     let mut st: Option<State> = None;
     for line in std::io::stdin().lock().lines() {
         let line = line.unwrap();
@@ -184,7 +187,7 @@ fn main() {
                 let mut rng = Rng::new(params.seed);
                 let blank = |x: F, y: F| field::blank_height(x, y);
                 let env = Env {
-                    volume: piney_data::volume::Volume::Inf,
+                    volume,
                     player: centre,
                     centre,
                     ofs: [centre[0], centre[1]],
@@ -253,20 +256,8 @@ fn main() {
                 let fl = &s.field;
                 let heights = |x: F, y: F| fl.get_height(x, y);
                 let bounds = piney_world::field_area::BOUNDS;
-                let env = Env {
-                    volume: piney_data::volume::Volume::Inf,
-                    player,
-                    centre,
-                    ofs,
-                    height: &heights,
-                    eye,
-                    eye1,
-                    rot,
-                    rot2,
-                    eye_view,
-                    odd,
-                    bounds,
-                };
+                let env =
+                    Env { volume, player, centre, ofs, height: &heights, eye, eye1, rot, rot2, eye_view, odd, bounds };
                 let flare_cam = FlareCamera { eye, view, rot: if eye_view { rot2 } else { rot } };
                 let at = move |_: &[V4; 4]| runners;
                 let frame = Frame { env, flare_cam, sun: Some(sun), runners: &at };

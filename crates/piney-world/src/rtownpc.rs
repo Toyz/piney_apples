@@ -250,30 +250,9 @@ pub fn get_dist3d(volume: Volume, a: V4, b: V4) -> F {
     sqrtf_on(volume, dot(d, d))
 }
 
-/// `ccGetDircChg(from, to, mode)` (0x001d9eb0): the turn toward `to`, the
-/// short way; with a mode below 0x10000, `(to - from) / (mode / 16)`, at
-/// least 1 (64: a quarter of the way), at most 24576.
-pub fn get_dirc_chg(from: i16, to: i16, mode: i32) -> i32 {
-    let d = i32::from(to) - i32::from(from);
-    if d == 0 {
-        return 0;
-    }
-    let mut x = i64::from((d & 0xffff) << 4);
-    let neg = x >= 0x8_0001;
-    if neg {
-        x = 0x10_0000 - x;
-    }
-    if mode & 0xf_0000 == 0 {
-        x /= i64::from(mode & 0xffff);
-        if x == 0 {
-            x = 1;
-        }
-    }
-    if x >= 24577 {
-        x = 24576;
-    }
-    if neg { -x as i32 } else { x as i32 }
-}
+/// `ccGetDircChg(from, to, mode)` (0x001d9eb0): with a mode below 0x10000,
+/// `(to - from) / (mode / 16)`, at least 1 (64: a quarter of the way).
+pub use piney_battle::geom::get_dirc_chg;
 
 /// `ccSetDirc(&r, to, mode)` (0x001da0b0): `r` turned toward `to`.
 pub fn set_dirc(r: &mut F, to: F, mode: i32) {

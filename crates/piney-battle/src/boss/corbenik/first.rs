@@ -784,7 +784,7 @@ fn affect_of(b: &mut Boss, x: &mut First, cx: &mut Cx) {
         5 => b.stop = 1,
         7 | 9 => {
             cx.out(Out::FlyFont { kind: 20, n: i32::from(p0) });
-            cx.scene.chars[me].hp = (hp + p0).min(mhp);
+            cx.scene.chars[me].hp = crate::boss::heal_hp(hp, p0, mhp);
         }
         1 | 3 => {
             if cx.annihilated() || cx.game_over {
@@ -797,7 +797,7 @@ fn affect_of(b: &mut Boss, x: &mut First, cx: &mut Cx) {
             let pos = cx.pos();
             cx.out(Out::Se3d { se: 195, pos });
             cx.out(Out::HitMark { by: person });
-            let mut h = hp - p0;
+            let mut h = crate::boss::hit_hp(hp, p0, None, mhp);
             if h <= 0 {
                 h = 0;
                 // `m_pauseCntDownFlag`: the seeds' counts held (not

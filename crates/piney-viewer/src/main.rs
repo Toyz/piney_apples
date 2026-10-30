@@ -19,10 +19,11 @@ use gilrs::{Axis, Button, EventType, Gilrs};
 use glam::{Mat4, Vec3};
 use piney_data::archive::Archive;
 use piney_data::ccs::{self, Ccs};
-use piney_data::dungeon::{self, Dummies, Dungeon, INF, Params, TexClut};
+use piney_data::dungeon::{self, Dummies, Dungeon, Params, TexClut};
 use piney_data::field;
 use piney_data::iso::Iso;
 use piney_data::statics;
+use piney_data::volume::Volume;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
@@ -121,11 +122,13 @@ struct DungeonView {
     floor: usize,
     /// `WORLD_MAN.clutType` / `texType` for the area.
     tex_clut: TexClut,
+    /// The disc's dungeon tables.
+    tables: &'static dungeon::Tables,
 }
 
 impl DungeonView {
-    fn generate(archive: &Archive, params: Params, floor: usize) -> Result<Self, String> {
-        let tables = &INF;
+    fn generate(archive: &Archive, volume: Volume, params: Params, floor: usize) -> Result<Self, String> {
+        let tables = dungeon::tables_of(volume);
         let tex_clut = tables.tex_clut(params.server, params.field_type);
         let tex = u32::from(tex_clut.tex_type);
         let dummies = Dummies::load(archive, tables, params.dtype, tex).map_err(|e| e.to_string())?;
@@ -133,13 +136,13 @@ impl DungeonView {
         let name = tables.ccs_name(params.dtype, tex);
         let ccs = archive.inflate_named(name).and_then(Ccs::parse).map_err(|e| format!("{name}: {e}"))?;
         let floor = floor.min(generated.floors.len().saturating_sub(1));
-        Ok(DungeonView { params, dungeon: generated, ccs, floor, tex_clut })
+        Ok(DungeonView { params, dungeon: generated, ccs, floor, tex_clut, tables })
     }
 
     fn mesh(&self) -> piney_data::Result<Mesh> {
         let fl = &self.dungeon.floors[self.floor];
         // `WORLD_MAN::GetBG` (the lakes' row) is 0 here: no field sets it.
-        let (table, row) = INF.fog_table(self.params.dtype, self.tex_clut, 0);
+        let (table, row) = self.tables.fog_table(self.params.dtype, self.tex_clut, 0);
         let env = table.rows.get(row).map(mesh::Env::from_row);
         let label = format!(
             "dungeon seed {} type {} ({}) server {} floor {}/{} - {} rooms{} - {}[{row}]",
@@ -153,7 +156,7 @@ impl DungeonView {
             if self.dungeon.statue.as_ref().is_some_and(|s| s.floor == self.floor) { ", Gott statue" } else { "" },
             table.name,
         );
-        mesh::build_dungeon(&self.ccs, fl, self.params.dtype, env, label)
+        mesh::build_dungeon(self.tables, &self.ccs, fl, self.params.dtype, env, label)
     }
 }
 
@@ -165,16 +168,19 @@ impl DungeonView {
 struct FieldView {
     params: field::Params,
     field: field::Field,
+    /// The disc's field tables.
+    tables: &'static field::Tables,
 }
 
 impl FieldView {
-    fn generate(params: field::Params) -> Result<Self, String> {
-        let generated = field::generate(&field::INF, &params).map_err(|e| e.to_string())?;
-        Ok(FieldView { params, field: generated })
+    fn generate(volume: Volume, params: field::Params) -> Result<Self, String> {
+        let tables = field::tables_of(volume);
+        let generated = field::generate(tables, &params).map_err(|e| e.to_string())?;
+        Ok(FieldView { params, field: generated, tables })
     }
 
     fn mesh(&self, archive: &Archive) -> Result<Mesh, String> {
-        let t = &field::INF;
+        let t = self.tables;
         let (ft, weather) = (self.params.field_type, self.params.weather);
         let name = t.ccs[ft as usize].ok_or(format!("field type {ft} has no field"))?;
         let read = |n: &str| archive.inflate_named(n).and_then(Ccs::parse).map_err(|e| format!("{n}: {e}"));
@@ -190,7 +196,7 @@ impl FieldView {
             if scene.water.is_some() { ", a lake" } else { "" },
             bg.name,
         );
-        mesh::build_field(&c, &bg, eff.as_ref(), &scene, ft, false, label).map_err(|e| e.to_string())
+        mesh::build_field(&c, &bg, eff.as_ref(), &scene, &t.lit_clumps(ft), false, label).map_err(|e| e.to_string())
     }
 }
 
@@ -202,9 +208,9 @@ fn field_params(seed: u32, field_type: u32, weather: u32) -> field::Params {
 
 /// The next field type that has a field (type 4's gate leads straight into
 /// a dungeon).
-fn next_field_type(ft: u32) -> u32 {
+fn next_field_type(tables: &field::Tables, ft: u32) -> u32 {
     let mut n = (ft + 1) % field::FIELD_TYPES as u32;
-    while field::INF.ccs[n as usize].is_none() {
+    while tables.ccs[n as usize].is_none() {
         n = (n + 1) % field::FIELD_TYPES as u32;
     }
     n
@@ -213,26 +219,28 @@ fn next_field_type(ft: u32) -> u32 {
 /// A field type whose random area gets dungeon type `dtype` (the E types,
 /// 4-7 and 9, only come from story areas: their rule), preferring one whose
 /// dungeon loads the plain textures (`texType` 0) on `server`.
-fn field_type_for(dtype: u8, server: u32) -> u32 {
-    let rows = if matches!(dtype, 4..=7 | 9) { &INF.types.story_e } else { &INF.types.random };
+fn field_type_for(tables: &dungeon::Tables, dtype: u8, server: u32) -> u32 {
+    let rows = if matches!(dtype, 4..=7 | 9) { &tables.types.story_e } else { &tables.types.random };
     let fits: Vec<u32> = (0..11).filter(|&ft| rows[ft as usize][0] == dtype).collect();
-    fits.iter().copied().find(|&ft| INF.tex_clut(server, ft).tex_type == 0).or(fits.first().copied()).unwrap_or(0)
+    fits.iter().copied().find(|&ft| tables.tex_clut(server, ft).tex_type == 0).or(fits.first().copied()).unwrap_or(0)
 }
 
 /// The generator's inputs for a seed, type, `dungeonData` row and server, as
-/// a random area in volume 1 would give them: a field of a type that leads
-/// to that dungeon type (4, for the lake types 8 and 9, leads straight in).
-fn dungeon_params(seed: u32, dtype: u8, size: usize, server: u32) -> Params {
-    let d = dungeon::INF.dungeon_data[size.min(10)];
+/// a random area on the disc's volume would give them: a field of a type that
+/// leads to that dungeon type (4, for the lake types 8 and 9, leads straight
+/// in).
+fn dungeon_params(volume: Volume, seed: u32, dtype: u8, size: usize, server: u32) -> Params {
+    let tables = dungeon::tables_of(volume);
+    let d = tables.dungeon_data[size.min(10)];
     Params {
         seed,
         dtype,
         level_max: d.levels,
         room_max: d.rooms,
         server,
-        volume: 1,
+        volume: volume.number() as u32,
         word_a: 0,
-        field_type: field_type_for(dtype, server),
+        field_type: field_type_for(tables, dtype, server),
         code: 0,
     }
 }
@@ -245,6 +253,8 @@ struct Loaded {
 
 struct Viewer {
     archive: Archive,
+    /// The disc's volume, whose tables the generated areas take.
+    volume: Volume,
     /// Members with at least one model chunk.
     files: Vec<usize>,
     current: usize,
@@ -339,7 +349,7 @@ impl Viewer {
 
     /// Generate the field again.
     fn regenerate_field(&mut self, params: field::Params) {
-        match FieldView::generate(params) {
+        match FieldView::generate(self.volume, params) {
             Ok(v) => {
                 self.field = Some(v);
                 self.load_field();
@@ -352,12 +362,14 @@ impl Viewer {
     /// and the floor.
     fn regenerate(&mut self, seed: u32, dtype: u8) {
         let Some(view) = &self.dungeon else { return };
-        let size = dungeon::INF
+        let size = view
+            .tables
             .dungeon_data
             .iter()
             .position(|d| d.levels == view.params.level_max && d.rooms == view.params.room_max)
             .unwrap_or(5);
-        match DungeonView::generate(&self.archive, dungeon_params(seed, dtype, size, view.params.server), view.floor) {
+        let params = dungeon_params(self.volume, seed, dtype, size, view.params.server);
+        match DungeonView::generate(&self.archive, self.volume, params, view.floor) {
             Ok(v) => {
                 self.dungeon = Some(v);
                 self.load_dungeon();
@@ -387,7 +399,8 @@ impl Viewer {
     fn next_anime(&mut self) {
         if let Some(view) = &self.field {
             let p = view.params;
-            self.regenerate_field(field_params(p.seed, next_field_type(p.field_type), p.weather));
+            let ft = next_field_type(view.tables, p.field_type);
+            self.regenerate_field(field_params(p.seed, ft, p.weather));
             return;
         }
         if let Some(view) = &self.dungeon {
@@ -738,7 +751,7 @@ fn main() {
     let mut placed_only = false;
     let mut size = (1280u32, 800u32);
     let mut dungeon_args: Option<(u32, u8, usize, u32)> = None;
-    let mut field_args: Option<field::Params> = None;
+    let mut field_args: Option<(u32, u32, u32)> = None;
     let mut floor = 0usize;
     let mut bright = 1.0f32;
     let mut fog = false;
@@ -757,12 +770,9 @@ fn main() {
             "--field" => {
                 let v: Vec<u32> = args.next().unwrap_or_default().split(',').filter_map(|x| x.parse().ok()).collect();
                 if let Some(&seed) = v.first() {
-                    let mut ft = v.get(1).copied().unwrap_or(0) % field::FIELD_TYPES as u32;
-                    if field::INF.ccs[ft as usize].is_none() {
-                        ft = next_field_type(ft);
-                    }
+                    let ft = v.get(1).copied().unwrap_or(0) % field::FIELD_TYPES as u32;
                     let weather = v.get(2).copied().unwrap_or(0).min(field::WEATHERS as u32 - 1);
-                    field_args = Some(field_params(seed, ft, weather));
+                    field_args = Some((seed, ft, weather));
                 }
             }
             "--dungeon" => {
@@ -803,7 +813,8 @@ fn main() {
             _ => start = Some(a.to_ascii_lowercase()),
         }
     }
-    let data = match Iso::open(&iso).and_then(|mut i| i.read_path("DATA/DATA.BIN")) {
+    let opened = Iso::open(&iso).and_then(|mut i| Ok((i.volume()?, i.read_path("DATA/DATA.BIN")?)));
+    let (volume, data) = match opened {
         Ok(d) => d,
         Err(e) => {
             tracing::error!("{}: {e}", iso.display());
@@ -813,7 +824,7 @@ fn main() {
     let archive = Archive::new(data).expect("DATA.BIN");
     let dungeon_view = match dungeon_args {
         Some((seed, dtype, dsize, server)) => {
-            match DungeonView::generate(&archive, dungeon_params(seed, dtype, dsize, server), floor) {
+            match DungeonView::generate(&archive, volume, dungeon_params(volume, seed, dtype, dsize, server), floor) {
                 Ok(v) => Some(v),
                 Err(e) => {
                     tracing::warn!("dungeon seed {seed} type {dtype}: {e}");
@@ -823,8 +834,14 @@ fn main() {
         }
         None => None,
     };
+    // A field type with no field (type 4) moves on to the next that has one.
+    let field_args = field_args.map(|(seed, ft, weather)| {
+        let tables = field::tables_of(volume);
+        let ft = if tables.ccs[ft as usize].is_none() { next_field_type(tables, ft) } else { ft };
+        field_params(seed, ft, weather)
+    });
     let field_view = match field_args {
-        Some(p) => match FieldView::generate(p) {
+        Some(p) => match FieldView::generate(volume, p) {
             Ok(v) => Some(v),
             Err(e) => {
                 tracing::warn!("field seed {} type {}: {e}", p.seed, p.field_type);
@@ -900,6 +917,7 @@ fn main() {
     let gilrs = Gilrs::new().map_err(|e| tracing::warn!("no gamepad support: {e}")).ok();
     let mut viewer = Viewer {
         archive,
+        volume,
         files,
         current: 0,
         anime: None,

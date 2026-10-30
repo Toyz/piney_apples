@@ -8,7 +8,7 @@ use glam::{Mat4, Vec3};
 use piney_data::anim::{self, Animation};
 use piney_data::ccs::Ccs;
 use piney_data::dungeon::place::{self, Frame};
-use piney_data::dungeon::{Floor, FogRow, INF};
+use piney_data::dungeon::{Floor, FogRow, Tables};
 use piney_data::field;
 use piney_data::model::{self, Kind};
 use piney_data::scene::{self, Scene};
@@ -643,7 +643,14 @@ fn anime_instances(
 /// door animation at each door dummy, open - its last frame, where `SetDoor`
 /// leaves a room no entity is in. The game draws one room at a time; this
 /// draws them all, so each doorway shows both rooms' halves.
-pub fn build_dungeon(c: &Ccs, floor: &Floor, dtype: u8, env: Option<Env>, label: String) -> piney_data::Result<Mesh> {
+pub fn build_dungeon(
+    tables: &Tables,
+    c: &Ccs,
+    floor: &Floor,
+    dtype: u8,
+    env: Option<Env>,
+    label: String,
+) -> piney_data::Result<Mesh> {
     let models = model::models(c)?;
     let sc = Scene::read(c)?;
     let (textures, cluts) = texture::read(c)?;
@@ -679,7 +686,7 @@ pub fn build_dungeon(c: &Ccs, floor: &Floor, dtype: u8, env: Option<Env>, label:
     let mut jobs = Vec::new();
     // A piece whose transparency track ends at 0 (a door leaf that fades
     // out as it opens) is not drawn.
-    for p in place::floor(c, &sc, &INF, dtype, floor, Frame::Last)?.into_iter().filter(|p| p.alpha > 0.0) {
+    for p in place::floor(c, &sc, tables, dtype, floor, Frame::Last)?.into_iter().filter(|p| p.alpha > 0.0) {
         let pose: Pose = Rc::new(HashMap::from([(p.target, p.world)]));
         for &k in owned.get(&p.target).map_or(&[][..], |v| v) {
             jobs.push(Job::still(k, Some(pose.clone()), Vec3::ZERO));
@@ -694,8 +701,8 @@ pub fn build_dungeon(c: &Ccs, floor: &Floor, dtype: u8, env: Option<Env>, label:
 /// file, its background file and the effect file holding the lake's water:
 /// each chip's ground tile and cover the type's template with the listed
 /// vertices' z and colour rewritten (`SetMESH2`, `SetSmallMESH`), the objects
-/// at the game's z lit as `CalcObjectVertexColor` lights them (once per time
-/// the tables list the clump), the background round the field's middle. The
+/// at the game's z lit as `CalcObjectVertexColor` lights them (`lit`, the
+/// volume's `Tables::lit_clumps`: once per listing), the background round the field's middle. The
 /// whole 80 x 80 map is drawn, where the game draws the 12 x 12 chips round
 /// the player on a torus.
 pub fn build_field(
@@ -703,7 +710,7 @@ pub fn build_field(
     bg: &Ccs,
     eff: Option<&Ccs>,
     fs: &field::Scene,
-    field_type: u32,
+    lit: &[(&str, u32)],
     with_background: bool,
     label: String,
 ) -> piney_data::Result<Mesh> {
@@ -714,7 +721,7 @@ pub fn build_field(
 
     // `CalcObjectVertexColor` on the rigid models of the object clumps, in
     // place, once per listing.
-    for (clump, times) in field::INF.lit_clumps(field_type) {
+    for &(clump, times) in lit {
         let Some(nodes) = c.find_object(clump).and_then(|o| sc.clump_of(o)) else { continue };
         let owned: Vec<usize> = models
             .iter()
@@ -1022,7 +1029,7 @@ mod tests {
             return;
         }
         let arc = Archive::new(Iso::open(iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap();
-        let t = &field::INF;
+        let t = field::tables_of(piney_data::volume::Volume::Inf);
         for ft in (0..field::FIELD_TYPES as u32).filter(|&ft| t.ccs[ft as usize].is_some()) {
             let params = field::Params {
                 seed: 4321 + ft,
@@ -1039,7 +1046,7 @@ mod tests {
             let bg = Ccs::parse(arc.inflate_named(&t.backgrounds.ccs_name(ft, params.weather)).unwrap()).unwrap();
             let eff = Ccs::parse(arc.inflate_named(t.effect_ccs).unwrap()).unwrap();
             let scene = f.scene(t, &c, &bg).unwrap();
-            let mesh = build_field(&c, &bg, Some(&eff), &scene, ft, true, String::new()).unwrap();
+            let mesh = build_field(&c, &bg, Some(&eff), &scene, &t.lit_clumps(ft), true, String::new()).unwrap();
             assert!(mesh.stats.triangles > 10_000, "type {ft}: {} triangles", mesh.stats.triangles);
             assert!(mesh.vertices.iter().all(|v| v.pos.iter().all(|x| x.is_finite())), "type {ft}");
             let n = mesh.indices.len();
@@ -1057,10 +1064,11 @@ mod tests {
             return;
         }
         let arc = Archive::new(Iso::open(iso).unwrap().read_path("DATA/DATA.BIN").unwrap()).unwrap();
+        let t = dungeon::tables_of(piney_data::volume::Volume::Inf);
         let mut doors = 0;
         for dtype in 0..10u8 {
-            let c = Ccs::parse(arc.inflate_named(INF.ccs_name(dtype, 0)).unwrap()).unwrap();
-            let dummies = Dummies::read(&c, &INF.gim_patterns).unwrap();
+            let c = Ccs::parse(arc.inflate_named(t.ccs_name(dtype, 0)).unwrap()).unwrap();
+            let dummies = Dummies::read(&c, &t.gim_patterns).unwrap();
             let p = Params {
                 seed: 154874216,
                 dtype,
@@ -1072,17 +1080,14 @@ mod tests {
                 field_type: if dungeon::is_lake(dtype) { 4 } else { 7 },
                 code: 0,
             };
-            let d = dungeon::generate(&INF, &p, &dummies).unwrap();
-            let row = INF.fog_row(dtype, TexClut { clut_type: 2, tex_type: 0 }, 0).unwrap();
-            let mesh = build_dungeon(&c, &d.floors[0], dtype, Some(Env::from_row(row)), String::new()).unwrap();
+            let d = dungeon::generate(t, &p, &dummies).unwrap();
+            let row = t.fog_row(dtype, TexClut { clut_type: 2, tex_type: 0 }, 0).unwrap();
+            let mesh = build_dungeon(t, &c, &d.floors[0], dtype, Some(Env::from_row(row)), String::new()).unwrap();
             let n = mesh.vertices.len() as u32;
             assert!(mesh.indices.iter().all(|&i| i < n) && mesh.stats.triangles > 1000, "type {dtype}");
             let sc = Scene::read(&c).unwrap();
-            doors += place::floor(&c, &sc, &INF, dtype, &d.floors[0], Frame::Last)
-                .unwrap()
-                .iter()
-                .filter(|p| p.door)
-                .count();
+            doors +=
+                place::floor(&c, &sc, t, dtype, &d.floors[0], Frame::Last).unwrap().iter().filter(|p| p.door).count();
         }
         assert!(doors > 50, "{doors} door pieces");
     }

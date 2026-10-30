@@ -461,7 +461,7 @@ pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
         cx.out(Out::HitMark { by: person });
         let hp = cx.scene.chars[me].hp;
         let mhp = cx.scene.chars[me].max_hp;
-        let mut h = if b.cheat_hp != 0 { (hp - p0 / 5).max(mhp / 2) } else { hp - p0 };
+        let mut h = crate::boss::hit_hp(hp, p0, (b.cheat_hp != 0).then_some(5), mhp);
         if h <= 0 {
             h = 0;
             crate::affect::clear_conditions(&mut cx.scene.chars[me]);

@@ -1,6 +1,7 @@
 //! Prints what `piney_data::field` makes, one JSON line per request, for
 //! `tools/test_field_rs.py` to compare with `tools/field.py` and
-//! `tools/eemu.py` (`field_snapshot [DATA.BIN] < requests`). The requests are
+//! `tools/eemu.py` (`field_snapshot VOLUME [DATA.BIN] < requests`, VOLUME the
+//! disc's `volumeNum`, whose tables it reads). The requests are
 //! `field`, `render` (what the game draws of a field under a light: vertex
 //! normals and colours, the ground tiles and covers, `WORLD::GetHeight` at 200
 //! fixed points), `light` (a background file's frame-0 light), `objcol`
@@ -12,7 +13,8 @@ use std::io::{BufRead, Write as _};
 
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
-use piney_data::field::{self, INF, Light, Params, ee};
+use piney_data::field::{self, Light, Params, Tables, ee};
+use piney_data::volume::Volume;
 
 /// The points `render` asks WORLD::GetHeight for; tools/test_field_rs.py
 /// makes the same.
@@ -27,7 +29,10 @@ fn height_points() -> Vec<[f32; 2]> {
 }
 
 fn main() {
-    let archive = std::env::args().nth(1).map(|p| Archive::new(std::fs::read(p).expect("DATA.BIN")).expect("archive"));
+    let mut args = std::env::args().skip(1);
+    let volume = args.next().and_then(|n| Volume::from_number(n.parse().ok()?)).expect("VOLUME: volumeNum 1-4");
+    let tables = field::tables_of(volume);
+    let archive = args.next().map(|p| Archive::new(std::fs::read(p).expect("DATA.BIN")).expect("archive"));
     let stdout = std::io::stdout();
     let mut out = std::io::BufWriter::new(stdout.lock());
     for line in std::io::stdin().lock().lines() {
@@ -35,16 +40,19 @@ fn main() {
         let w: Vec<&str> = line.split_whitespace().collect();
         let n = |i: usize| -> i64 { w[i].parse().unwrap() };
         let json = match w.first().copied() {
-            Some("field") => snapshot(&Params {
-                seed: n(1) as u32,
-                field_type: n(2) as u32,
-                weather: n(3) as u32,
-                ground: n(4) as u32,
-                object: n(5) as u32,
-                event: n(6) as i32,
-                protect: n(7) != 0,
-                skip_init: n(8) != 0,
-            }),
+            Some("field") => snapshot(
+                tables,
+                &Params {
+                    seed: n(1) as u32,
+                    field_type: n(2) as u32,
+                    weather: n(3) as u32,
+                    ground: n(4) as u32,
+                    object: n(5) as u32,
+                    event: n(6) as i32,
+                    protect: n(7) != 0,
+                    skip_init: n(8) != 0,
+                },
+            ),
             Some("render") => {
                 let p = Params {
                     seed: n(1) as u32,
@@ -61,7 +69,7 @@ fn main() {
                     rotation: [n(10) as u32, n(11) as u32, n(12) as u32],
                     colour: n(13) as u32,
                 };
-                render(&p, &light)
+                render(tables, &p, &light)
             }
             Some("light") => {
                 let arc = archive.as_ref().expect("light needs DATA.BIN");
@@ -126,8 +134,8 @@ fn nums(v: &[u32]) -> String {
     list(v, |x| x.to_string())
 }
 
-fn snapshot(p: &Params) -> String {
-    let fl = match field::generate(&INF, p) {
+fn snapshot(tables: &Tables, p: &Params) -> String {
+    let fl = match field::generate(tables, p) {
         Ok(f) => f,
         Err(e) => return format!("{{\"error\": \"{e}\"}}"),
     };
@@ -181,8 +189,8 @@ fn words_hex(v: impl IntoIterator<Item = u32>) -> String {
     s
 }
 
-fn render(p: &Params, light: &Light) -> String {
-    let fl = match field::generate(&INF, p) {
+fn render(tables: &Tables, p: &Params, light: &Light) -> String {
+    let fl = match field::generate(tables, p) {
         Ok(f) => f,
         Err(e) => return format!("{{\"error\": \"{e}\"}}"),
     };
@@ -191,7 +199,7 @@ fn render(p: &Params, light: &Light) -> String {
     let mut tiles = Vec::with_capacity(1600);
     for x in 0..40 {
         for y in 0..40 {
-            let t = fl.tile(&INF, x, y, 600f32.to_bits(), Some(&colours));
+            let t = fl.tile(tables, x, y, 600f32.to_bits(), Some(&colours));
             tiles.push(format!(
                 "[{}, {}, {}, {}]",
                 t.visible,
@@ -202,7 +210,7 @@ fn render(p: &Params, light: &Light) -> String {
         }
     }
     let covers = list(&fl.covers, |c| {
-        let m = fl.cover_mesh(&INF, c, 300f32.to_bits(), Some(&colours));
+        let m = fl.cover_mesh(tables, c, 300f32.to_bits(), Some(&colours));
         format!(
             "[{}, {}, {}]",
             nums(&m.pos),

@@ -253,7 +253,7 @@ layer 3        DrawEffect:
                  WORLD's centre offset; a
                  screen flash (EntryFlash(10, 0x80ffffff, 0, 0, 512, 384))
                  every 900-1,499 frames (the first after 750), sound 236
-                 30-49 frames later
+                 (235 from Mutation on) 30-49 frames later
   the fires      type 7, even frames: each fire within 6,500 of the eye
                  puffs effSmoke(fire + m (10, 0, 0), m (1, 0, 0) + (0, 0,
                  2.5), 1, 8, 208, 512, 32), m three ccRand turns

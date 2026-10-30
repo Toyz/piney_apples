@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-507 entries: audio 43, battle 129, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 128, save 16, script 61, test 232, tooling 47, ui 102, video 16, volumes 90, world 143. 122 entries still have open questions - [listed below](#still-open).
+508 entries: audio 43, battle 130, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 128, save 16, script 61, test 233, tooling 47, ui 102, video 16, volumes 91, world 144. 123 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -519,9 +519,11 @@ The [reference](docs/README.md) says what is true now.
 | 505 | [Skill words are the game's on every disc: Mutation's Sora no longer holds the queue, Quarantine's Tsukasa, Subaru and Sora read their own rows](worklog/0505-skill-words-are-the-game-s-on-every-disc-mutation-s-sora-no.md) | 2026-10-26 | audio |
 | 506 | [Drained forms are the game's: an ordinary foe's is its race's 50-HP head, a Data Bug's its whole base form, three barring blows](worklog/0506-drained-forms-are-the-game-s-an-ordinary-foe-s-is-its-race.md) | 2026-10-26 | battle |
 | 507 | [Quarantine's ending is the game's: the desktop set-up waits out event 314's streams at rate 2, its staff_roll grants wallpapers instead of a roll, and the book's pages bend by their own morphers](worklog/0507-quarantine-s-ending-is-the-game-s-the-desktop-set-up-waits.md) | 2026-10-29 | script, audio, render, volumes, test |
+| 508 | [Clean-up section 0, items 1-3: every caller names its volume's tables (the later volumes' thunder is sound 235), one guarded ccGetDircChg, and the bosses' HP kept in a short as the game keeps it](worklog/0508-clean-up-section-0-items-1-3-every-caller-names-its-volume.md) | 2026-10-29 | world, battle, volumes, test |
 
 ## Still open
 
+- [508. Clean-up section 0, items 1-3: every caller names its volume's tables (the later volumes' thunder is sound 235), one guarded ccGetDircChg, and the bosses' HP kept in a short as the game keeps it](worklog/0508-clean-up-section-0-items-1-3-every-caller-names-its-volume.md) - Why test_field_rt.py's game side returns an arms key that field_probe never prints (it errors before any frame, at HEAD...
 - [481. The water's picture is the game's 128 x 128 point-sampled copy: towns' water 0, the field's haze and lake mirror](worklog/0481-the-water-s-picture-is-the-game-s-128-x-128-point-sampled.md) - whether the GS samples a sprite's texels at each pixel's corner or its centre (half a copy texel; research, hardware)
 - [480. A field's lake and background as the code draws them: the lake's three animations and mirror, the hacked fields' backgrounds, DrawBG's turns and aurora](worklog/0480-a-field-s-lake-and-background-as-the-code-draws-them-the.md) - how the lake's mirror and the hacked skies look on a PS2 beside the port's (the frame copy's size is #97's)
 - [477. Four old reports from the code: the Status faces, the scroll's sparks, Wonder Battle's chatter run against the game, Elk raised again and again](worklog/0477-four-old-reports-from-the-code-the-status-faces-the-scroll.md) (2 questions) - #3: what left the reporter's Mistral page without its face; no path in the game's code or the port's leaves an occupied...

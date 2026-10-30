@@ -10,16 +10,20 @@ order; tick items off here as they land, with the worklog entry.
 
 ## 0. Real bugs the audit turned up
 
-- [ ] `field::INF` / `dungeon::INF` / `sound::INF` statics: `piney-world`
+- [x] `field::INF` / `dungeon::INF` / `sound::INF` statics: `piney-world`
       `field_area.rs:277` and `field_ambient.rs:360` read Infection's field
       tables on every volume (Outbreak and Quarantine take `sqrt.s`, not
       newlib `sqrtf`). Delete the statics so every caller names its volume
       (16 sites, the viewer too); check an Outbreak field against the game.
-- [ ] `piney-battle` `geom.rs` `get_dirc_chg` divides by `mode & 0xffff`
+      (worklog 508: the fields were already the game's; the later volumes'
+      thunder was not, and is now.)
+- [x] `piney-battle` `geom.rs` `get_dirc_chg` divides by `mode & 0xffff`
       with no zero guard (the world's copy has one); gimmick data feeds it.
-- [ ] Boss `affect`s do plain `i16` `hp ± p0` (panics on overflow in debug);
+      (worklog 508: one guarded copy.)
+- [x] Boss `affect`s do plain `i16` `hp ± p0` (panics on overflow in debug);
       others use `wrapping_*`. One `hit_hp` computing in `i32` as the game's
-      `int` promotion does, checked against the code.
+      `int` promotion does, checked against the code. (worklog 508: the
+      code keeps the sum in a `short`, so `i16` wrapping it is.)
 - [ ] `piney-game` `fx.rs:201` sprite cache key leaves out the file
       (`town_fx.rs:210` has it): two maps' same-named effects collide.
 - [ ] `piney-data` `store::group` races: two threads can load and leak one

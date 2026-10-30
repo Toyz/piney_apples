@@ -10,7 +10,13 @@
 use std::path::PathBuf;
 
 use piney_data::iso::Iso;
-use piney_data::sound::{self, Hd, INF, SndData, Tables, adpcm, voice};
+use piney_data::sound::{self, Hd, SndData, Tables, adpcm, voice};
+use piney_data::volume::Volume;
+
+/// Infection's sound tables.
+fn inf() -> &'static Tables {
+    sound::tables_of(Volume::Inf)
+}
 
 fn iso_path() -> Option<PathBuf> {
     let p = std::env::var_os("PINEY_ISO")
@@ -242,7 +248,7 @@ fn banks_vags_and_sequences_match_the_tools() {
                 sqs += 1;
             }
             "bgm" => {
-                let t = &INF.bgm[num(&f[1]) as usize];
+                let t = &inf().bgm[num(&f[1]) as usize];
                 assert_eq!([t.ofs, t.size, t.mode].map(|x| x as i64), [num(&f[2]), num(&f[3]), num(&f[4])]);
                 let pcm = sound::bgm_pcm(&bgm_bin, t).unwrap();
                 assert_eq!(pcm.len() as i64, num(&f[5]));
@@ -295,9 +301,9 @@ fn tables_hang_together() {
     // Every jukebox row names a used loading row whose bank has the
     // sequence the game plays, and NO is its index.
     let snd = iso_path().map(|p| SndData::read(&mut Iso::open(p).unwrap()).unwrap());
-    for (i, w) in INF.wave.iter().enumerate() {
+    for (i, w) in inf().wave.iter().enumerate() {
         assert_eq!(w.no, i as i32);
-        let (load, vol) = INF.wave(w).unwrap_or_else(|| panic!("Wave[{i}] loads nothing"));
+        let (load, vol) = inf().wave(w).unwrap_or_else(|| panic!("Wave[{i}] loads nothing"));
         assert!(load.is_used());
         let seq = Tables::wave_sequence(w.no);
         assert_eq!(vol[seq].midi_port as usize, seq);
@@ -307,9 +313,9 @@ fn tables_hang_together() {
             assert!(bank.sequence(seq).is_some(), "Wave[{i}] plays sequence {seq} of a bank without it");
         }
     }
-    assert_eq!(INF.se.len(), 237);
-    assert!(INF.se.iter().all(|s| s.port == 0));
-    assert_eq!(INF.commse, [0, 0x6260, 0x12a560]);
+    assert_eq!(inf().se.len(), 237);
+    assert!(inf().se.iter().all(|s| s.port == 0));
+    assert_eq!(inf().commse, [0, 0x6260, 0x12a560]);
     let _ = sound::PCM_RATE;
 }
 
@@ -319,7 +325,6 @@ fn tables_hang_together() {
 /// every jukebox row names a bank.
 #[test]
 fn later_volumes_tables_place_their_discs() {
-    use piney_data::volume::Volume;
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work");
     for (dir, volume) in [("mutation", Volume::Mut), ("outbreak", Volume::Out), ("quarantine", Volume::Qua)] {
         let path = root.join(dir).join(format!("{dir}.iso"));

@@ -14,8 +14,13 @@ use piney_audio::Audio;
 use piney_audio::driver::{Command, Driver};
 use piney_audio::seword::{self, Word};
 use piney_data::iso::Iso;
-use piney_data::sound::INF;
-use piney_data::sound::voice;
+use piney_data::sound::{self, Tables, voice};
+use piney_data::volume::Volume;
+
+/// Infection's sound tables.
+fn inf() -> &'static Tables {
+    sound::tables_of(Volume::Inf)
+}
 
 /// The IOP's name for a file as a path on the disc, as piney-gen writes
 /// the tables: `cdrom0:\VOICE_E\EVVOL1_E.BIN` is `VOICE_E/EVVOL1_E.BIN`.
@@ -51,7 +56,6 @@ fn words(cmds: &[Command]) -> Vec<String> {
 /// path of `ccPgBgmInit` (the race's start) sets it. Infection's ignore it.
 #[test]
 fn the_race_holds_channel_0_as_the_game_does() {
-    use piney_data::volume::Volume;
     let mut n = 0;
     for line in include_str!("voice_hold_fixture.txt").lines().filter(|l| !l.starts_with('#')) {
         let (head, want) = line.split_once(" |").unwrap();
@@ -122,7 +126,7 @@ fn the_driver_asks_what_the_game_asks() {
                 }
                 "stop" => d.voice_stop(),
                 "pginit" => d.pg_bgm_init(),
-                "play" => d.frame(&INF, &mut out),
+                "play" => d.frame(inf(), &mut out),
                 "lang" => d.voice_english = w[1] == "1",
                 "parody" => d.parody = w[1] == "1",
                 "words" => {
@@ -315,7 +319,7 @@ fn every_event_line_is_in_its_file() {
         eprintln!("skipped: no disc image");
         return;
     };
-    assert_eq!(event_lines(&path, piney_data::volume::Volume::Inf), 1152);
+    assert_eq!(event_lines(&path, Volume::Inf), 1152);
 }
 
 /// Mutation's own event lines (its second hundred's main and side events,
@@ -327,7 +331,7 @@ fn every_mutation_event_line_is_in_its_file() {
         eprintln!("skipped: no disc image");
         return;
     }
-    let n = event_lines(&path, piney_data::volume::Volume::Mut);
+    let n = event_lines(&path, Volume::Mut);
     assert!(n > 1000, "{n} lines");
 }
 
@@ -440,7 +444,7 @@ fn every_field_line_is_in_its_file() {
         eprintln!("skipped: no disc image");
         return;
     };
-    let n = field_lines(&path, piney_data::volume::Volume::Inf);
+    let n = field_lines(&path, Volume::Inf);
     assert!(n > 7000, "{n} lines");
 }
 
@@ -451,7 +455,7 @@ fn every_mutation_field_line_is_in_its_file() {
         eprintln!("skipped: no disc image");
         return;
     }
-    let n = field_lines(&path, piney_data::volume::Volume::Mut);
+    let n = field_lines(&path, Volume::Mut);
     assert!(n > 7000, "{n} lines");
 }
 

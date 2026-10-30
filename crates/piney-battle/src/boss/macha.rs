@@ -1508,7 +1508,7 @@ fn affect_of(b: &mut Boss, x: &mut Macha, cx: &mut Cx) {
     }
     cx.out(Out::HitMark { by: person });
     let (hp, mhp) = (cx.scene.chars[me].hp, cx.scene.chars[me].max_hp);
-    let mut h = if b.cheat_hp != 0 { (hp - p0 / 10).max(mhp / 2) } else { hp - p0 };
+    let mut h = super::hit_hp(hp, p0, (b.cheat_hp != 0).then_some(10), mhp);
     if h <= 0 {
         h = 0;
         cx.out(Out::ClearSpcCondition);

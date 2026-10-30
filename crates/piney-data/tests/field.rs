@@ -10,9 +10,15 @@ use std::path::PathBuf;
 
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
-use piney_data::field::{self, FIELD_TYPES, INF, Kind, Light, Params, ee};
+use piney_data::field::{self, FIELD_TYPES, Kind, Light, Params, Tables, ee};
 use piney_data::iso::Iso;
 use piney_data::model;
+use piney_data::volume::Volume;
+
+/// Infection's field tables.
+fn inf() -> &'static Tables {
+    field::tables_of(Volume::Inf)
+}
 
 /// FNV-1a over 32-bit words' little-endian bytes.
 fn fnv(map: &[u32]) -> u64 {
@@ -44,7 +50,7 @@ const RANDOM: Params =
 fn the_first_story_area() {
     // Bursting Passed Over Aqua Field: event 14, field type 10.
     let p = Params { seed: 1_420_855, field_type: 10, weather: 0, ground: 1, object: 1, event: 14, ..RANDOM };
-    let f = field::generate(&INF, &p).unwrap();
+    let f = field::generate(inf(), &p).unwrap();
     assert_eq!(f.init_draws, 0);
     let hills: Vec<_> = f.hills.iter().map(|h| (h.x, h.y, h.size)).collect();
     assert_eq!(hills, [(22, 11, 24), (48, 45, 16), (48, 1, 12), (40, 65, 12), (60, 9, 16), (26, 59, 14)]);
@@ -64,7 +70,7 @@ fn the_first_story_area() {
     assert_eq!((lake.index, lake.x, lake.y, lake.info.clump), (0, 25, 19, "CMP_sfp4lak1"));
 
     // What a viewer draws.
-    let placed = f.placements(&INF);
+    let placed = f.placements(inf());
     assert_eq!(placed.len(), 107);
     assert!(placed.iter().all(|p| p.ccs == "field_p"));
     assert_eq!(placed[0].kind, Kind::Entrance);
@@ -89,12 +95,12 @@ const BG_P1: Light =
 #[test]
 fn the_first_story_area_drawn() {
     let p = Params { seed: 1_420_855, field_type: 10, weather: 0, ground: 1, object: 1, event: 14, ..RANDOM };
-    let f = field::generate(&INF, &p).unwrap();
+    let f = field::generate(inf(), &p).unwrap();
     assert_eq!(fnv(&f.vertex_normals().concat()), 0x9cf0_6dd8_2905_da3d);
     let colours = f.vertex_colours(&BG_P1);
     assert_eq!(fnv(&colours.concat()), 0xc522_cee8_59bf_e024);
 
-    let t = f.tile(&INF, 5, 7, 600f32.to_bits(), Some(&colours));
+    let t = f.tile(inf(), 5, 7, 600f32.to_bits(), Some(&colours));
     assert!(t.visible);
     assert_eq!(t.pos, [0x45ce_4000, 0x460c_a000, 0]); // 6,600 and 9,000
     let z: Vec<i16> = t.z.iter().map(|&(_, z)| z).collect();
@@ -107,10 +113,10 @@ fn the_first_story_area_drawn() {
     );
     assert_eq!(t.colours[..3], [(0, [151, 153, 160]), (1, [147, 149, 157]), (2, [150, 152, 159])]);
     let visible =
-        (0..40).flat_map(|x| (0..40).map(move |y| (x, y))).filter(|&(x, y)| f.tile(&INF, x, y, 0, None).visible);
+        (0..40).flat_map(|x| (0..40).map(move |y| (x, y))).filter(|&(x, y)| f.tile(inf(), x, y, 0, None).visible);
     assert_eq!(visible.count(), 1550);
 
-    let c = f.cover_mesh(&INF, &f.covers[0], 300f32.to_bits(), Some(&colours));
+    let c = f.cover_mesh(inf(), &f.covers[0], 300f32.to_bits(), Some(&colours));
     assert_eq!((f.covers[0].x, f.covers[0].y, f.covers[0].quadrant, c.mesh), (0, 0, 0, "MDL_sfp5tur3"));
     assert_eq!(c.pos, [300f32.to_bits(), 300f32.to_bits(), 2.5f32.to_bits()]);
     let z: Vec<i16> = c.z.iter().map(|&(_, z)| z).collect();
@@ -126,7 +132,7 @@ fn the_first_story_area_drawn() {
 
 #[test]
 fn random_fields() {
-    let f = field::generate(&INF, &RANDOM).unwrap();
+    let f = field::generate(inf(), &RANDOM).unwrap();
     assert_eq!((f.hills.len(), f.objects.len(), f.covers.len()), (9, 69, 1562));
     assert_eq!(kinds(&f), [1, 10, 30, 11, 17, 0]);
     assert_eq!((f.entrance, f.start), (Some([0, 21]), [6, 1]));
@@ -138,7 +144,7 @@ fn random_fields() {
 
     // Field type 1: trees in rows.
     let p = Params { seed: 0x00c0_ffee, field_type: 1, weather: 3, ground: 1, object: 0, ..RANDOM };
-    let f = field::generate(&INF, &p).unwrap();
+    let f = field::generate(inf(), &p).unwrap();
     assert_eq!((f.hills.len(), f.objects.len(), f.covers.len()), (6, 88, 1540));
     assert_eq!(kinds(&f), [1, 16, 24, 28, 19, 0]);
     assert_eq!((f.entrance, f.start), (Some([21, 2]), [3, 1]));
@@ -148,7 +154,7 @@ fn random_fields() {
 
     // Field type 5 in heavy weather: 1,621 draws before Generate.
     let p = Params { seed: 987_654_321, field_type: 5, weather: 6, ground: 0, object: 1, ..RANDOM };
-    let f = field::generate(&INF, &p).unwrap();
+    let f = field::generate(inf(), &p).unwrap();
     assert_eq!(f.init_draws, 1621);
     assert_eq!((f.hills.len(), f.objects.len(), f.covers.len()), (4, 106, 1462));
     assert_eq!((f.entrance, f.start), (Some([24, 22]), [10, 0]));
@@ -159,27 +165,27 @@ fn random_fields() {
 #[test]
 fn inputs_out_of_range() {
     let p = Params { field_type: 11, ..RANDOM };
-    assert_eq!(field::generate(&INF, &p).unwrap_err(), field::GenerateError::FieldType(11));
+    assert_eq!(field::generate(inf(), &p).unwrap_err(), field::GenerateError::FieldType(11));
     let p = Params { ground: 3, ..RANDOM };
-    assert_eq!(field::generate(&INF, &p).unwrap_err(), field::GenerateError::Ground(3));
+    assert_eq!(field::generate(inf(), &p).unwrap_err(), field::GenerateError::Ground(3));
 }
 
 #[test]
 fn counts_and_draws() {
     // Type 7 halves key and tree objects and thirds base ones; type 1 has a
     // sixth of the trees; `object` takes 80% or 90%, truncated.
-    let c = |ft, kind, obj| INF.count(ft, kind, obj);
+    let c = |ft, kind, obj| inf().count(ft, kind, obj);
     assert_eq!([c(0, Kind::Key, 2), c(0, Kind::Sub, 2), c(0, Kind::Base, 2), c(0, Kind::Tree, 2)], [20, 30, 35, 35]);
     assert_eq!([c(7, Kind::Key, 2), c(7, Kind::Sub, 2), c(7, Kind::Base, 2), c(7, Kind::Tree, 2)], [10, 30, 11, 17]);
     assert_eq!([c(1, Kind::Tree, 0), c(1, Kind::Tree, 1), c(1, Kind::Tree, 2)], [4, 4, 5]);
     assert_eq!([c(0, Kind::Base, 0), c(0, Kind::Base, 1)], [28, 31]);
     assert_eq!(
-        [INF.init_draws(0, 0), INF.init_draws(2, 9), INF.init_draws(5, 3), INF.init_draws(6, 4)],
+        [inf().init_draws(0, 0), inf().init_draws(2, 9), inf().init_draws(5, 3), inf().init_draws(6, 4)],
         [112, 21, 721, 1621]
     );
-    assert_eq!(INF.init_draws(4, 0) + INF.init_draws(7, 0) + INF.init_draws(10, 9), 0);
-    assert_eq!(INF.percent[0], ee::bits(0.8));
-    assert_eq!(INF.ccs[4], None);
+    assert_eq!(inf().init_draws(4, 0) + inf().init_draws(7, 0) + inf().init_draws(10, 9), 0);
+    assert_eq!(inf().percent[0], ee::bits(0.8));
+    assert_eq!(inf().ccs[4], None);
 }
 
 fn data_bin() -> Option<Archive> {
@@ -193,6 +199,26 @@ fn data_bin() -> Option<Archive> {
     Some(Archive::new(data).unwrap())
 }
 
+/// Each volume's field tables are Infection's but for `volumeNum` and the
+/// square root (`docs/engine/field.md`); with the generator's unit test
+/// that the two roots never part, a later disc's field is the one
+/// Infection's tables make.
+#[test]
+fn later_volumes_differ_only_in_the_square_root() {
+    let plain = |v: Volume| {
+        let t = field::tables_of(v);
+        let s = format!("{t:?}").replacen(&format!("volume: {},", t.volume), "volume: 1,", 1);
+        s.replacen("sqrt: Fpu,", "sqrt: Newlib,", 1)
+    };
+    let inf = plain(Volume::Inf);
+    for v in [Volume::Mut, Volume::Out, Volume::Qua] {
+        assert_eq!(plain(v), inf, "{v}");
+    }
+    assert_eq!(field::tables_of(Volume::Mut).sqrt, field::Sqrt::Newlib);
+    assert_eq!(field::tables_of(Volume::Out).sqrt, field::Sqrt::Fpu);
+    assert_eq!(field::tables_of(Volume::Qua).sqrt, field::Sqrt::Fpu);
+}
+
 #[test]
 fn every_model_is_in_its_field_file() {
     let Some(arc) = data_bin() else {
@@ -201,18 +227,18 @@ fn every_model_is_in_its_field_file() {
     };
     let mut checked = 0;
     for ft in 0..FIELD_TYPES {
-        let Some(name) = INF.ccs[ft] else { continue };
+        let Some(name) = inf().ccs[ft] else { continue };
         let c = Ccs::parse(arc.inflate_named(name).unwrap()).unwrap();
-        let tables = [&INF.enter, &INF.lake, &INF.key, &INF.sub, &INF.base, &INF.tree];
+        let tables = [&inf().enter, &inf().lake, &inf().key, &inf().sub, &inf().base, &inf().tree];
         let rows = tables.iter().flat_map(|t| t.by_type[ft].iter());
         let names = rows.flat_map(|r| [Some(r.clump), r.anm]).flatten();
-        for n in names.chain(INF.base_mesh[ft].iter().copied()).chain(INF.small_mesh[ft].iter().copied()) {
+        for n in names.chain(inf().base_mesh[ft].iter().copied()).chain(inf().small_mesh[ft].iter().copied()) {
             assert!(c.find_object(n).is_some(), "{n} not in {name}");
             checked += 1;
         }
     }
-    let eff = Ccs::parse(arc.inflate_named(INF.effect_ccs).unwrap()).unwrap();
-    assert!(eff.find_object(INF.water).is_some());
+    let eff = Ccs::parse(arc.inflate_named(inf().effect_ccs).unwrap()).unwrap();
+    assert!(eff.find_object(inf().water).is_some());
     assert_eq!(checked, 359);
 }
 
@@ -233,11 +259,13 @@ fn the_templates_match_the_mesh_tables() {
     let cover: fn(f32) -> i8 = |v| ((v - 300.0) / 600.0).round() as i8;
     let mut models = 0;
     for ft in 0..FIELD_TYPES {
-        let Some(name) = INF.ccs[ft] else { continue };
+        let Some(name) = inf().ccs[ft] else { continue };
         let c = Ccs::parse(arc.inflate_named(name).unwrap()).unwrap();
         let all = model::models(&c).unwrap();
-        let checks =
-            [(INF.base_mesh[ft], INF.mesh.tile, 600.0, ground), (INF.small_mesh[ft], INF.mesh.cover, 300.0, cover)];
+        let checks = [
+            (inf().base_mesh[ft], inf().mesh.tile, 600.0, ground),
+            (inf().small_mesh[ft], inf().mesh.cover, 300.0, cover),
+        ];
         for (names, cells, scale, offset) in checks {
             for mdl in names {
                 let obj = c.find_object(mdl).unwrap();
@@ -271,8 +299,8 @@ fn a_field_scene_from_the_disc() {
             _ => &[0, 1, 2, 3, 4, 5, 6, 7],
         };
         for &w in reach {
-            let row = INF.backgrounds.row(ft, w).unwrap();
-            let c = Ccs::parse(arc.inflate_named(&INF.backgrounds.ccs_name(ft, w)).unwrap()).unwrap();
+            let row = inf().backgrounds.row(ft, w).unwrap();
+            let c = Ccs::parse(arc.inflate_named(&inf().backgrounds.ccs_name(ft, w)).unwrap()).unwrap();
             for clump in row.clumps {
                 assert!(c.find_object(clump).is_some(), "{clump}");
             }
@@ -283,10 +311,10 @@ fn a_field_scene_from_the_disc() {
     assert_eq!(rows, 64);
 
     let p = Params { seed: 1_420_855, field_type: 10, weather: 0, ground: 1, object: 1, event: 14, ..RANDOM };
-    let f = field::generate(&INF, &p).unwrap();
-    let field_ccs = Ccs::parse(arc.inflate_named(INF.ccs[10].unwrap()).unwrap()).unwrap();
-    let bg = Ccs::parse(arc.inflate_named(&INF.backgrounds.ccs_name(10, 0)).unwrap()).unwrap();
-    let s = f.scene(&INF, &field_ccs, &bg).unwrap();
+    let f = field::generate(inf(), &p).unwrap();
+    let field_ccs = Ccs::parse(arc.inflate_named(inf().ccs[10].unwrap()).unwrap()).unwrap();
+    let bg = Ccs::parse(arc.inflate_named(&inf().backgrounds.ccs_name(10, 0)).unwrap()).unwrap();
+    let s = f.scene(inf(), &field_ccs, &bg).unwrap();
     assert_eq!((s.ccs, s.ground_model, s.ground_scale, s.cover_scale), ("field_p", "MDL_sfp5tur1", 600.0, 300.0));
     assert_eq!(s.light, BG_P1);
     assert_eq!((s.tiles.len(), s.tiles.iter().filter(|t| t.visible).count(), s.covers.len()), (1600, 1550, 1550));
@@ -301,10 +329,10 @@ fn a_field_scene_from_the_disc() {
 
     // The same field hacked (isHacked 3): BGTBL2's sky, data layers and
     // mountains in bg_p1_1, and its light and fog.
-    let name = INF.backgrounds.file_name(10, 0, true);
+    let name = inf().backgrounds.file_name(10, 0, true);
     assert_eq!(name, "bg_p1_1");
     let bg2 = Ccs::parse(arc.inflate_named(&name).unwrap()).unwrap();
-    let h = f.scene_of(&INF, &field_ccs, &bg2, true).unwrap();
+    let h = f.scene_of(inf(), &field_ccs, &bg2, true).unwrap();
     assert!(h.background.hacked);
     assert_eq!(
         h.background.clumps,
@@ -321,8 +349,8 @@ fn a_field_scene_from_the_disc() {
 fn lit_clumps() {
     // Field type 8 names two rock clumps twice in its sub table; lake fields
     // light their lake pieces too.
-    let lit = INF.lit_clumps(8);
+    let lit = inf().lit_clumps(8);
     assert_eq!(lit.iter().find(|(c, _)| *c == "CMP_sfk3roc1"), Some(&("CMP_sfk3roc1", 2)));
     assert!(lit.iter().any(|(c, _)| *c == "CMP_sfk4lak1"));
-    assert!(!INF.lit_clumps(0).iter().any(|&(_, n)| n > 1));
+    assert!(!inf().lit_clumps(0).iter().any(|&(_, n)| n > 1));
 }

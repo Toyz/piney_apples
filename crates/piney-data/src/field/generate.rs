@@ -635,3 +635,23 @@ pub fn generate(t: &Tables, p: &Params) -> Result<Field, GenerateError> {
         rng: g.rng,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::field::Sqrt;
+
+    /// `ccGetDist`'s two square roots never part on the generator's two
+    /// tests: every point it measures between is on the 600-unit lattice at
+    /// z 0, and no lattice distance comes within an ulp of 8000 or 7000.
+    #[test]
+    fn both_square_roots_test_alike() {
+        let lattice = |k: i32| ee::mul(CELL, ee::from_int(k));
+        for (dx, dy) in (-80..=80).flat_map(|a| (-80..=80).map(move |b| (lattice(a), lattice(b)))) {
+            let s = ee::add(ee::add(ee::mul(dx, dx), ee::mul(dy, dy)), ee::mul(ZERO, ZERO));
+            let (newlib, fpu) = (Sqrt::Newlib.apply(s), Sqrt::Fpu.apply(s));
+            assert_eq!(ee::lt(newlib, ENTRANCE_FAR), ee::lt(fpu, ENTRANCE_FAR), "{s:#x}");
+            assert_eq!(ee::le(newlib, START_FAR), ee::le(fpu, START_FAR), "{s:#x}");
+        }
+    }
+}

@@ -356,8 +356,8 @@ pub const TOBJ_RUNNER: &str = "ANM_sft5run0";
 pub const BIRD_CLUMP: &str = "CMP_sfp8how1";
 
 /// The field's own CCS file (`fieldccs[type]`, `WORLD` +0x6148).
-pub fn field_file(field_type: u32) -> &'static str {
-    piney_data::field::INF.ccs.get(field_type as usize).copied().flatten().unwrap_or(EFF_FILE)
+pub fn field_file(volume: piney_data::volume::Volume, field_type: u32) -> &'static str {
+    piney_data::field::tables_of(volume).ccs.get(field_type as usize).copied().flatten().unwrap_or(EFF_FILE)
 }
 
 /// A float of a `fieldrand` result, which the game converts as unsigned
@@ -517,7 +517,7 @@ impl Snow {
             const G: [&str; 4] = ["EFF_sfg8sno1", "EFF_sfg8sno2", "EFF_sfg8sno3", "EFF_sfg8sno4"];
             const H: [&str; 4] = ["EFF_sfh8sno1", "EFF_sfh8sno2", "EFF_sfh8sno3", "EFF_sfh8sno4"];
             s.eff = Eff::new(if field_type == 5 { G[k] } else { H[k] });
-            s.eff.file = field_file(field_type);
+            s.eff.file = field_file(env.volume, field_type);
             s.calc_pos(env, rng);
             let z0 = rng.below(800) as i32;
             // GetHeight(x, y != -500): the comparison went into the
@@ -533,7 +533,7 @@ impl Snow {
             }
         } else {
             s.eff = Eff::new("EFF_sfa8fir1").scaled(0x3f00_0000);
-            s.eff.file = field_file(field_type);
+            s.eff.file = field_file(env.volume, field_type);
             s.calc_pos2(env, rng);
         }
         s
@@ -811,10 +811,17 @@ pub fn draw_rain(
     }
 }
 
+/// The thunder's sound: 236 on Infection, 235 from Mutation on, whose
+/// `DrawRain` passes one less (MUT gcmn 0x005d43d4, OUT 0x005d1c90, QUA
+/// 0x004c46f0).
+fn thunder_se(volume: piney_data::volume::Volume) -> i32 {
+    if volume == piney_data::volume::Volume::Inf { 236 } else { 235 }
+}
+
 /// `DrawRain`'s storm: a bolt somewhere ahead every 30-59 frames (the
 /// first after 60-119), shown four frames at the centre's offset; a flash
 /// of the screen every 900-1499 frames (the first after 750) and its
-/// thunder (sound 236) 30-49 frames later.
+/// thunder ([`thunder_se`]) 30-49 frames later.
 fn storm(th: &mut Thunder, st: &mut Statics, env: &Env, rng: &mut Rng, out: &mut Vec<Op>) {
     let tcnt = st.tcnt.get_or_insert(0);
     *tcnt -= 1;
@@ -853,7 +860,7 @@ fn storm(th: &mut Thunder, st: &mut Statics, env: &Env, rng: &mut Rng, out: &mut
         st.secnt -= 1;
     }
     if st.secnt == 0 && st.seflag {
-        out.push(Op::Se(236));
+        out.push(Op::Se(thunder_se(env.volume)));
         st.seflag = false;
     }
     if th.frames != 0 {

@@ -514,7 +514,7 @@ class Probe:
         env = dict(os.environ)
         subprocess.run(["cargo", "build", "--release", "-q", "-p", "piney-world", "--example", "ambient_probe"],
                        cwd=ROOT, check=True, env=env)
-        self.p = subprocess.Popen([EXAMPLE], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.p = subprocess.Popen([EXAMPLE, str(volume.number())], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
 
     def ask(self, line):
         self.p.stdin.write(line + "\n")
@@ -670,7 +670,9 @@ class AmbientAgainstGame(unittest.TestCase):
         server: Init, Generate and 1,000 frames of a walk; and every kind
         of picture among them."""
         self.assertEqual(sweep(1000, 1), 0)
-        for k in ("flash:", "se:236", "se3d:43", "seloop:", "smoke:", "mask:", "model:bird", "model:haze", "model:tobj",
+        # The thunder: sound 236 on Infection, 235 from Mutation on.
+        thunder = "se:236" if volume.NAME == "infection" else "se:235"
+        for k in ("flash:", thunder, "se3d:43", "seloop:", "smoke:", "mask:", "model:bird", "model:haze", "model:tobj",
                   "model:lake0", "model:lake1", "model:lake2", "lakeuv:", "bg:", "bgv:", "bgu:",
                   "model:runner0", "eff:EFF_sfp8thu1", "eff:EFF_sflenz_1", "eff:EFF_sfzdigi1", "eff:EFF_sfzfir1",
                   "eff:EFF_sfpfir_2", "eff:EFF_sfa8fir1", "eff:EFF_sfg8sno1", "eff:EFF_sfh8sno1"):

@@ -3,8 +3,8 @@
 
 tools/test_field.py checks field.py against the game's own WORLD::Init and
 WORLD::Generate; this checks the Rust port against field.py, field by field: the
-field_snapshot example (built with cargo, reading the tables piney-gen writes
-to work/data) answers the same requests as field.py -
+field_snapshot example (built with cargo, reading PINEY_VOLUME's tables, which
+piney-gen writes to the build) answers the same requests as field.py -
 
   - every story area that has a field (its words through areas.py, its
     IsProtectArea record, WORLD::Init's draws), and random fields across all
@@ -62,8 +62,8 @@ def build():
 
 def ask(requests, *args):
     """The example's answers, one parsed JSON value per request."""
-    p = subprocess.run([EXAMPLE, *args], input="\n".join(requests) + "\n", capture_output=True, text=True,
-                       check=True)
+    p = subprocess.run([EXAMPLE, str(volume.number()), *args], input="\n".join(requests) + "\n",
+                       capture_output=True, text=True, check=True)
     out = [json.loads(line) for line in p.stdout.splitlines()]
     if len(out) != len(requests):
         raise AssertionError(f"{len(requests)} requests, {len(out)} answers")

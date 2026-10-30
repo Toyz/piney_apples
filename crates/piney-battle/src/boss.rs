@@ -1224,6 +1224,24 @@ fn dist(cx: &Cx, a: V4, b: V4) -> F {
     crate::enemy_ai::get_dist_on(cx.actx.volume, a, b)
 }
 
+/// An `Affect`'s heal (7, 9): `hp + p0`, no more than `mhp`. Every class
+/// adds in `int` but keeps the sum in a `short` before the clamp (`addu`,
+/// then a sign extension from bit 15: INF 0x0045c9f0, QUA 0x003b2f40), so
+/// it wraps as an `i16`.
+pub(crate) fn heal_hp(hp: i16, p0: i16, mhp: i16) -> i16 {
+    hp.wrapping_add(p0).min(mhp)
+}
+
+/// An `Affect`'s hit (1, 3): `hp - p0` kept in a `short` as the heal is;
+/// under `cheatHP` (`cheat`, its divisor: 10, or the Killer Eye's and the
+/// seeds' 5) `hp - p0 / cheat`, never below half of `mhp`.
+pub(crate) fn hit_hp(hp: i16, p0: i16, cheat: Option<i16>, mhp: i16) -> i16 {
+    match cheat {
+        Some(by) => hp.wrapping_sub(p0 / by).max(mhp / 2),
+        None => hp.wrapping_sub(p0),
+    }
+}
+
 impl Boss {
     /// The constructors (`ccBoss::ccBoss` 0x0045bcf0, `ccBoss01::ccBoss01`
     /// 0x0047b410) as far as the rules go: Skeith stands 500 behind Kite
@@ -2760,7 +2778,7 @@ impl Boss {
             }
             7 | 9 => {
                 cx.out(Out::FlyFont { kind: 20, n: i32::from(p0) });
-                cx.scene.chars[me].hp = (hp + p0).min(mhp);
+                cx.scene.chars[me].hp = heal_hp(hp, p0, mhp);
             }
             1 | 3 => {
                 if cx.annihilated() || cx.game_over {
@@ -2772,7 +2790,7 @@ impl Boss {
                 }
                 cx.out(Out::HitMark { by: person });
                 // cheatHP: a tenth of the hit, never below half.
-                let mut h = if self.cheat_hp != 0 { (hp - p0 / 10).max(mhp / 2) } else { hp - p0 };
+                let mut h = hit_hp(hp, p0, (self.cheat_hp != 0).then_some(10), mhp);
                 if h <= 0 {
                     h = 0;
                     cx.out(Out::ClearSpcCondition);

@@ -1866,7 +1866,7 @@ fn affect_of(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
         }
         7 | 9 => {
             cx.out(Out::FlyFont { kind: 20, n: i32::from(p0) });
-            cx.scene.chars[me].hp = (hp + p0).min(mhp);
+            cx.scene.chars[me].hp = crate::boss::heal_hp(hp, p0, mhp);
         }
         1 | 3 => {
             let shown = if x.barrier { if p0 == -1 { -1 } else { 0 } } else { p0 };
@@ -1894,7 +1894,7 @@ fn affect_of(b: &mut Boss, x: &mut Second, cx: &mut Cx) {
                 return;
             }
             cx.out(Out::HitMark { by: person });
-            let h = hp - p0;
+            let h = crate::boss::hit_hp(hp, p0, None, mhp);
             let note = (cx.cc.rand() % 5).abs() + 60;
             cx.out(Out::Se3dNote { se: 195, pos: cx.pos(), note: note as u8 });
             if h > 0 {

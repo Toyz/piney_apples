@@ -27,9 +27,6 @@ pub fn tables_of(v: Volume) -> &'static Tables {
     READ[v as usize].get_or_init(|| crate::store::group(v, "sound"))
 }
 
-/// Infection's sound tables, read on first use.
-pub static INF: std::sync::LazyLock<&'static Tables> = std::sync::LazyLock::new(|| tables_of(Volume::Inf));
-
 // Read from the build's file, field by field (`piney_gen::placement::sound`
 // writes them).
 

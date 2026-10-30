@@ -112,18 +112,17 @@ fn on_report_affect(b: &mut Boss, x: &mut Gorre, from: usize, cx: &mut Cx) {
             for _ in 0..2 {
                 cx.out(Out::FlyFont { kind: 20, n: i32::from(p0) });
             }
-            share_hp(x, me, cx, hp.wrapping_add(p0).min(mhp));
+            share_hp(x, me, cx, crate::boss::heal_hp(hp, p0, mhp));
         }
         1 | 3 => {
             if cx.annihilated() || cx.game_over {
                 return;
             }
-            let mut h = if b.cheat_hp != 0 {
+            let cheat = b.cheat_hp != 0;
+            if cheat {
                 share_protect(x, me, from, cx);
-                hp.wrapping_sub(p0 / 10).max(mhp / 2)
-            } else {
-                hp.wrapping_sub(p0)
-            };
+            }
+            let mut h = crate::boss::hit_hp(hp, p0, cheat.then_some(10), mhp);
             if h <= 0 {
                 h = 0;
                 fall(b, x, cx);

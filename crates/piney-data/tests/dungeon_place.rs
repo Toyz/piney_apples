@@ -14,10 +14,16 @@ use glam::{Mat4, Vec3};
 use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::dungeon::place::{self, Exit, ExitKind, Frame};
-use piney_data::dungeon::{self, CELL, Dummies, EAST, INF, NO_ROOM, NORTH, Params, RoomSize, SOUTH, WEST};
+use piney_data::dungeon::{self, CELL, Dummies, EAST, NO_ROOM, NORTH, Params, RoomSize, SOUTH, Tables, WEST};
 use piney_data::iso::Iso;
 use piney_data::model;
 use piney_data::scene::{self, Scene};
+use piney_data::volume::Volume;
+
+/// Infection's dungeon tables.
+fn inf() -> &'static Tables {
+    dungeon::tables_of(Volume::Inf)
+}
 
 fn data_bin() -> Option<Archive> {
     let path = std::env::var_os("PINEY_ISO")
@@ -66,7 +72,7 @@ struct TypeFile {
 
 impl TypeFile {
     fn load(arc: &Archive, dtype: u8) -> TypeFile {
-        let c = Ccs::parse(arc.inflate_named(INF.ccs_name(dtype, 0)).unwrap()).unwrap();
+        let c = Ccs::parse(arc.inflate_named(inf().ccs_name(dtype, 0)).unwrap()).unwrap();
         let sc = Scene::read(&c).unwrap();
         let models = model::models(&c).unwrap();
         TypeFile { c, sc, models, exits: HashMap::new(), reach: HashMap::new() }
@@ -80,7 +86,7 @@ impl TypeFile {
         let across = Vec3::new(out.y, -out.x, 0.0);
         let mut best = f32::MIN;
         for p in place::pieces(c, sc, anime, Frame::First).unwrap() {
-            if c.object_name(p.target).is_some_and(|n| n.starts_with(INF.doors.gate)) {
+            if c.object_name(p.target).is_some_and(|n| n.starts_with(inf().doors.gate)) {
                 continue;
             }
             for m in models.iter().filter(|m| sc.model_owner.get(&m.object) == Some(&p.target)) {
@@ -121,7 +127,7 @@ impl TypeFile {
         let (c, sc) = (&self.c, &self.sc);
         self.exits.entry(anime).or_insert_with(|| {
             let pieces = place::pieces(c, sc, anime, Frame::First).unwrap();
-            place::exits(c, &INF.doors, &pieces)
+            place::exits(c, &inf().doors, &pieces)
         })
     }
 }
@@ -139,7 +145,7 @@ fn every_room_model_marks_its_exits() {
     for dtype in 0..10u8 {
         let mut f = TypeFile::load(&arc, dtype);
         let mut seen = HashSet::new();
-        for set in &INF.rooms {
+        for set in &inf().rooms {
             let table = set[dtype as usize];
             let size = match table.name.as_bytes()[0] {
                 b's' => RoomSize::Small,
@@ -210,7 +216,7 @@ fn doorways_reach_past_the_edge() {
         let mut f = TypeFile::load(&arc, dtype);
         // The gate wall: the target of the first gate copy in the type's rooms.
         let rooms: Vec<&'static str> =
-            INF.rooms.iter().flat_map(|s| s[dtype as usize].rows).flat_map(|r| r.models).copied().collect();
+            inf().rooms.iter().flat_map(|s| s[dtype as usize].rows).flat_map(|r| r.models).copied().collect();
         let gate = rooms.iter().find_map(|m| f.exits(m).iter().find(|e| e.kind == ExitKind::Gate).map(|e| e.target));
         let models = &f.models;
         let span = |pieces: &[place::Piece]| {
@@ -228,7 +234,7 @@ fn doorways_reach_past_the_edge() {
             }
             (lo, hi)
         };
-        let name = INF.doors.anime[dtype as usize];
+        let name = inf().doors.anime[dtype as usize];
         for frame in [Frame::First, Frame::Last] {
             let (lo, hi) = span(&place::pieces(&f.c, &f.sc, name, frame).unwrap());
             eprintln!("type {dtype} door {name} ({frame:?}): y {lo:.1} .. {hi:.1}");
@@ -238,7 +244,7 @@ fn doorways_reach_past_the_edge() {
             let piece =
                 place::Piece { controller: obj, target: obj, own: Mat4::IDENTITY, world: Mat4::IDENTITY, alpha: 1.0 };
             let (lo, hi) = span(&[piece]);
-            eprintln!("type {dtype} gate {}: y {lo:.1} .. {hi:.1}", INF.doors.gate);
+            eprintln!("type {dtype} gate {}: y {lo:.1} .. {hi:.1}", inf().doors.gate);
             assert!(hi > INSET + 199.0, "gate spans {lo} .. {hi}");
         }
     }
@@ -261,9 +267,9 @@ fn generated_floors_join_up() {
     let (mut opposite_misses, mut statues) = (0, 0);
     for dtype in 0..10u8 {
         let mut f = TypeFile::load(&arc, dtype);
-        let dummies = Dummies::read(&f.c, &INF.gim_patterns).unwrap();
+        let dummies = Dummies::read(&f.c, &inf().gim_patterns).unwrap();
         for (n, seed) in seeds(40, 0x5eed + u32::from(dtype)).into_iter().enumerate() {
-            let size = INF.dungeon_data[1 + n % 10];
+            let size = inf().dungeon_data[1 + n % 10];
             let p = Params {
                 seed,
                 dtype,
@@ -275,7 +281,7 @@ fn generated_floors_join_up() {
                 field_type: if dungeon::is_lake(dtype) { 4 } else { 0 },
                 code: 0,
             };
-            let Ok(d) = dungeon::generate(&INF, &p, &dummies) else { continue };
+            let Ok(d) = dungeon::generate(inf(), &p, &dummies) else { continue };
             dungeons += 1;
             for fl in &d.floors {
                 floors += 1;

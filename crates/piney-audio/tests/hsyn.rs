@@ -15,7 +15,13 @@ use piney_audio::midi::Sequencer;
 use piney_audio::spu::{Recorder, Regs, Write};
 use piney_audio::{MUSIC_SPU_BASE, SE_SPU_ADDR};
 use piney_data::iso::Iso;
-use piney_data::sound::{Bank, INF, SndData};
+use piney_data::sound::{self, Bank, SndData, Tables};
+use piney_data::volume::Volume;
+
+/// Infection's sound tables.
+fn inf() -> &'static Tables {
+    sound::tables_of(Volume::Inf)
+}
 
 fn iso_path() -> Option<PathBuf> {
     let p = std::env::var_os("PINEY_ISO")
@@ -42,7 +48,7 @@ fn se_synth(se: &Arc<Bank>) -> (Synth, Recorder) {
 }
 
 fn se_bytes(n: usize) -> Vec<u8> {
-    piney_audio::driver::Driver::new().se_on(&INF.se[n])
+    piney_audio::driver::Driver::new().se_on(&inf().se[n])
 }
 
 #[test]
@@ -52,7 +58,7 @@ fn every_sound_effect_writes_what_modhsyn_writes() {
         return;
     };
     let snd = SndData::read(&mut Iso::open(path).unwrap()).unwrap();
-    let se = Arc::new(snd.commse(&INF).unwrap());
+    let se = Arc::new(snd.commse(inf()).unwrap());
     let mut state: Option<(Synth, Recorder)> = None;
     let mut last = String::new();
     let mut checked = 0;
@@ -102,7 +108,7 @@ fn positioned_sound_effects_write_what_modhsyn_writes() {
         return;
     };
     let snd = SndData::read(&mut Iso::open(path).unwrap()).unwrap();
-    let se = Arc::new(snd.commse(&INF).unwrap());
+    let se = Arc::new(snd.commse(inf()).unwrap());
     let fixture = include_str!("se3d_fixture.txt");
     let mut lines = fixture.lines().filter(|l| !l.starts_with('#'));
     let mut checked = 0;
@@ -150,7 +156,7 @@ fn jukebox_rows_play_as_modhsyn_plays_them() {
         return;
     };
     let snd = SndData::read(&mut Iso::open(path).unwrap()).unwrap();
-    let se = Arc::new(snd.commse(&INF).unwrap());
+    let se = Arc::new(snd.commse(inf()).unwrap());
     let lines: Vec<Vec<&str>> = include_str!("song_fixture.txt")
         .lines()
         .filter(|l| l.starts_with("song "))
@@ -174,10 +180,10 @@ fn jukebox_rows_play_as_modhsyn_plays_them() {
         for port in 0..4 {
             syn.all_sound_off(port, &mut rec);
         }
-        let w = INF.wave[no];
-        let (row, vols) = INF.wave(&w).unwrap();
+        let w = inf().wave[no];
+        let (row, vols) = inf().wave(&w).unwrap();
         let bank = Arc::new(snd.load_row(&row).unwrap());
-        let at = MUSIC_SPU_BASE + INF.commse[2];
+        let at = MUSIC_SPU_BASE + inf().commse[2];
         for i in 0..3 {
             if i == 0 || row.sq_size[i] != 0 {
                 syn.load(i + 1, bank.clone(), at);

@@ -661,15 +661,20 @@ fn check_direction(map: &mut RealMap, f: &Foot) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{DummyCounts, INF};
+    use super::super::{DummyCounts, Tables, tables_of};
     use super::*;
+    use crate::volume::Volume;
+
+    fn inf() -> &'static Tables {
+        tables_of(Volume::Inf)
+    }
 
     /// Floors as (rooms, down stairs, restarts).
     type Shape = Vec<(usize, Option<usize>, u32)>;
 
     fn run(p: Params) -> (Rng, u32, Option<(usize, usize)>, Shape) {
         // No dummies: the numbers tools/dungeon.py gives with empty counts.
-        let g = generate(&INF, &p, &|_: &str| DummyCounts::default()).unwrap();
+        let g = generate(inf(), &p, &|_: &str| DummyCounts::default()).unwrap();
         assert!(g.gimmicks.is_empty());
         let shape = g.floors.iter().map(|f| (f.rooms.len(), f.down, f.retries)).collect();
         (g.rng, g.level_max, g.statue.map(|s| (s.floor, s.room)), shape)
@@ -718,6 +723,6 @@ mod tests {
 
     #[test]
     fn bad_type() {
-        assert_eq!(generate(&INF, &params(1, 10, 2, 5), &|_: &str| [0; 8]).unwrap_err(), GenerateError::Type(10));
+        assert_eq!(generate(inf(), &params(1, 10, 2, 5), &|_: &str| [0; 8]).unwrap_err(), GenerateError::Type(10));
     }
 }

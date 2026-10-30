@@ -3,8 +3,8 @@
 
 tools/test_dungeon.py checks dungeon.py against the game's own code; this
 checks the Rust port against dungeon.py, field by field: the
-dungeon_snapshot example (built with cargo, reading the tables piney-gen
-writes to work/data) answers the same requests as dungeon.py -
+dungeon_snapshot example (built with cargo, reading PINEY_VOLUME's tables,
+which piney-gen writes to the build) answers the same requests as dungeon.py -
 
   - random dungeons across all ten types, servers 0-4, volumes 1-4, word
     131, lake dungeons entered from field type 4, dungeonData sizes and raw
@@ -53,7 +53,7 @@ def build():
 
 def ask(requests, *args):
     """The example's answers, one parsed JSON value per request."""
-    p = subprocess.run([EXAMPLE, DATA_BIN, *args], input="\n".join(requests) + "\n",
+    p = subprocess.run([EXAMPLE, DATA_BIN, str(volume.number()), *args], input="\n".join(requests) + "\n",
                        capture_output=True, text=True, check=True)
     out = [json.loads(line) for line in p.stdout.splitlines()]
     if len(out) != len(requests):

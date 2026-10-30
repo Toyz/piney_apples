@@ -7,8 +7,14 @@
 use std::path::PathBuf;
 
 use piney_data::archive::Archive;
-use piney_data::dungeon::{self, Dummies, Gim, INF, Params};
+use piney_data::dungeon::{self, Dummies, Gim, Params, Tables};
 use piney_data::iso::Iso;
+use piney_data::volume::Volume;
+
+/// Infection's dungeon tables.
+fn inf() -> &'static Tables {
+    dungeon::tables_of(Volume::Inf)
+}
 
 fn data_bin() -> Option<Archive> {
     let path = std::env::var_os("PINEY_ISO")
@@ -29,7 +35,7 @@ fn random_dungeons_from_the_disc() {
     };
 
     // Type 1 (sd2), three floors.
-    let d = Dummies::load(&arc, &INF, 1, 0).unwrap();
+    let d = Dummies::load(&arc, inf(), 1, 0).unwrap();
     assert_eq!(d.by_anime.len(), 103);
     assert_eq!(d.get("ANM_sd2m1n01")[..2], [2, 1]);
     let p = Params {
@@ -43,7 +49,7 @@ fn random_dungeons_from_the_disc() {
         field_type: 0,
         code: 0,
     };
-    let g = dungeon::generate(&INF, &p, &d).unwrap();
+    let g = dungeon::generate(inf(), &p, &d).unwrap();
     assert_eq!((g.rng.seed, g.rng.count), (4_083_085_511, 2834));
     assert_eq!(g.statue.map(|s| (s.floor, s.room)), Some((2, 4)));
     assert_eq!(g.gimmicks.len(), 28);
@@ -55,9 +61,9 @@ fn random_dungeons_from_the_disc() {
     assert_eq!(boxes, 2);
 
     // A lake dungeon straight from field type 4.
-    let d = Dummies::load(&arc, &INF, 9, 0).unwrap();
+    let d = Dummies::load(&arc, inf(), 9, 0).unwrap();
     let p = Params { seed: 0x0135_7bdf, dtype: 9, field_type: 4, ..p };
-    let g = dungeon::generate(&INF, &p, &d).unwrap();
+    let g = dungeon::generate(inf(), &p, &d).unwrap();
     assert_eq!((g.rng.seed, g.rng.count, g.gimmicks.len()), (4_028_004_216, 761, 7));
     let shape: Vec<_> = g.floors.iter().map(|f| (f.rooms.len(), f.down, f.retries)).collect();
     assert_eq!(shape, [(8, Some(7), 1)]);
@@ -68,7 +74,7 @@ fn random_dungeons_from_the_disc() {
 #[test]
 fn first_story_dungeon() {
     // Needs no disc: the layout is all table.
-    let s = dungeon::story(&INF, 14, 0).unwrap();
+    let s = dungeon::story(inf(), 14, 0).unwrap();
     assert_eq!(s.edit.name, "D0001_room");
     assert_eq!(s.floors.iter().map(|f| f.rooms.len()).collect::<Vec<_>>(), [5, 5]);
     assert_eq!((s.floors[0].up, s.floors[0].down), (0, Some(4)));

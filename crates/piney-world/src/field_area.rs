@@ -274,7 +274,7 @@ impl FieldArea {
         hack: u32,
         server: i32,
     ) -> Result<FieldArea> {
-        let tables = &field::INF;
+        let tables = field::tables_of(volume);
         let generated = field::generate(tables, &params).map_err(|e| Error::Format(e.to_string()))?;
         let field = Rc::new(generated);
         // WORLD::Init's weather (its draws before the layout's), then
@@ -1547,7 +1547,7 @@ mod tests {
     #[test]
     fn the_mouths_hands_take_their_bones() {
         let Some(archive) = crate::town::tests::archive() else { return };
-        let file = SceneFile::read(&archive, crate::field_ambient::field_file(8)).unwrap();
+        let file = SceneFile::read(&archive, crate::field_ambient::field_file(Volume::Inf, 8)).unwrap();
         let mut play = Play::new(&file, "ANM_sfk1sto1a").unwrap();
         play.forward(&file);
         let obj = |n: &str| file.ccs.find_object(n).unwrap();

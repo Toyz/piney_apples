@@ -144,36 +144,10 @@ impl Ai {
     }
 }
 
-/// `ccGetDircChg(cur, tgt, spd)` (main 0x001d9eb0): the step from `cur` toward
-/// `tgt` the shorter way, in sixteenths of the 16-bit angle, divided by `spd &
-/// 0xffff` (at least 1) when `spd & 0xf0000` is 0, at most 24576. The game's
-/// switch on `spd & 0xf0000` can never match 1 or 2, so any other rate takes the
-/// whole step; a rate of 0 divides by zero in the game (`__divdi3`), here the
+/// `ccGetDircChg(cur, tgt, spd)` (main 0x001d9eb0); the game's switch on
+/// `spd & 0xf0000` can never match 1 or 2, so any other rate takes the
 /// whole step.
-pub fn get_dirc_chg(cur: i16, tgt: i16, spd: i32) -> i32 {
-    let d = i32::from(tgt).wrapping_sub(i32::from(cur));
-    if d == 0 {
-        return 0;
-    }
-    let mut a = i64::from(d as u32 & 0xffff) << 4;
-    let neg = a >= 0x8_0001;
-    if neg {
-        a = 0x10_0000 - a;
-    }
-    if spd & 0xf_0000 == 0 {
-        let div = i64::from(spd & 0xffff);
-        if div != 0 {
-            a /= div;
-            if a == 0 {
-                a = 1;
-            }
-        }
-    }
-    if a >= 24577 {
-        a = 24576;
-    }
-    (if neg { -a } else { a }) as i32
-}
+pub use piney_battle::geom::get_dirc_chg;
 
 /// `ccSetDirc(&r, to, spd)` (main 0x001da0b0): `r` turned toward `to`, both
 /// through `RAD2DEG`, the result through `DEG2RAD`.
@@ -634,6 +608,8 @@ mod tests {
         // capped at 24576.
         assert_eq!(get_dirc_chg(0, 1000, 0x1_0000), 16_000);
         assert_eq!(get_dirc_chg(0, 3000, -5), 24576);
+        // A rate of 0 (the game traps): the whole step, not a panic.
+        assert_eq!(get_dirc_chg(0, 1000, 0), 16_000);
     }
 
     #[test]

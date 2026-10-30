@@ -1,8 +1,9 @@
 //! Prints what `piney_data::dungeon` makes, one JSON line per request, for
 //! `tools/test_dungeon_rs.py` to compare with `tools/dungeon.py`
-//! (`dungeon_snapshot DATA.BIN [--plain-fixed EV=T,...] < requests`). The
-//! requests are `random`, `story`, `type`, `dummies`, `fog` and `texclut`, with
-//! the arguments the test sends; `type plain` asks a copy of Infection's rule
+//! (`dungeon_snapshot DATA.BIN VOLUME [--plain-fixed EV=T,...] < requests`,
+//! VOLUME the disc's `volumeNum`, whose tables it reads). The requests are
+//! `random`, `story`, `type`, `dummies`, `fog` and `texclut`, with the
+//! arguments the test sends; `type plain` asks a copy of the volume's rule
 //! with Mutation's save-flag rule and the `--plain-fixed` areas.
 
 use std::collections::HashMap;
@@ -10,14 +11,17 @@ use std::fmt::Write as _;
 use std::io::{BufRead, Write as _};
 
 use piney_data::archive::Archive;
-use piney_data::dungeon::{self, Dummies, INF, Params, SaveFlag, TexClut, TypeRule};
+use piney_data::dungeon::{self, Dummies, Params, SaveFlag, Tables, TexClut, TypeRule};
+use piney_data::volume::Volume;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let Some(path) = args.get(1) else {
-        eprintln!("usage: dungeon_snapshot DATA.BIN [--plain-fixed EV=T,...] < requests");
+    let (Some(path), Some(volume)) = (args.get(1), args.get(2).and_then(|n| Volume::from_number(n.parse().ok()?)))
+    else {
+        eprintln!("usage: dungeon_snapshot DATA.BIN VOLUME [--plain-fixed EV=T,...] < requests");
         std::process::exit(2);
     };
+    let tables = dungeon::tables_of(volume);
     let archive = Archive::new(std::fs::read(path).expect("DATA.BIN")).expect("archive");
     let plain_fixed: Vec<(i32, u8)> = match args.iter().position(|a| a == "--plain-fixed") {
         Some(i) => args[i + 1]
@@ -32,7 +36,7 @@ fn main() {
     let plain = TypeRule {
         plain_fixed: Box::leak(plain_fixed.into_boxed_slice()),
         save_flag: SaveFlag::RandomPath { offset: 0x5ec8, bit: 62 },
-        ..INF.types
+        ..tables.types
     };
     let mut dummies: HashMap<u8, Dummies> = HashMap::new();
     let stdout = std::io::stdout();
@@ -56,19 +60,19 @@ fn main() {
                 };
                 let d = dummies
                     .entry(p.dtype)
-                    .or_insert_with(|| Dummies::load(&archive, &INF, p.dtype, 0).expect("dungeon CCS"));
-                random(&p, d)
+                    .or_insert_with(|| Dummies::load(&archive, tables, p.dtype, 0).expect("dungeon CCS"));
+                random(tables, &p, d)
             }
-            Some("story") => story(n(1) as i32, n(2) as i32),
+            Some("story") => story(tables, n(1) as i32, n(2) as i32),
             Some("type") => {
-                let rule = if w[1] == "plain" { &plain } else { &INF.types };
+                let rule = if w[1] == "plain" { &plain } else { &tables.types };
                 let t = rule.types(n(2) as u32, n(3) as i32, n(4) as i32, n(5) != 0);
                 format!("[{}, {}]", t[0], t[1])
             }
-            Some("dummies") => counts(&archive, w[1]),
+            Some("dummies") => counts(tables, &archive, w[1]),
             Some("fog") => {
                 let tc = TexClut { clut_type: n(2) as u8, tex_type: n(3) as u8 };
-                let (table, index) = INF.fog_table(n(1) as u8, tc, n(4) as u32);
+                let (table, index) = tables.fog_table(n(1) as u8, tc, n(4) as u32);
                 let row = &table.rows[index];
                 format!(
                     "{{\"table\": {}, \"index\": {index}, \"fog\": {}, \"ambient\": {}}}",
@@ -78,7 +82,7 @@ fn main() {
                 )
             }
             Some("texclut") => {
-                let tc = INF.tex_clut(n(1) as u32, n(2) as u32);
+                let tc = tables.tex_clut(n(1) as u32, n(2) as u32);
                 format!("[{}, {}]", tc.clut_type, tc.tex_type)
             }
             _ => panic!("bad request: {line}"),
@@ -99,8 +103,8 @@ fn list<T>(items: impl IntoIterator<Item = T>, f: impl Fn(T) -> String) -> Strin
     format!("[{}]", items.into_iter().map(f).collect::<Vec<_>>().join(", "))
 }
 
-fn random(p: &Params, d: &Dummies) -> String {
-    let g = match dungeon::generate(&INF, p, d) {
+fn random(tables: &Tables, p: &Params, d: &Dummies) -> String {
+    let g = match dungeon::generate(tables, p, d) {
         Ok(g) => g,
         Err(dungeon::GenerateError::NoDownStairs { floor }) => {
             return format!("{{\"error\": \"no down stairs\", \"floor\": {floor}}}");
@@ -170,9 +174,9 @@ fn random(p: &Params, d: &Dummies) -> String {
     )
 }
 
-fn story(event: i32, index: i32) -> String {
-    let Some(s) = dungeon::story(&INF, event, index) else { return "null".to_string() };
-    let slot = INF.edit.iter().position(|e| std::ptr::eq(e, s.edit)).unwrap();
+fn story(tables: &Tables, event: i32, index: i32) -> String {
+    let Some(s) = dungeon::story(tables, event, index) else { return "null".to_string() };
+    let slot = tables.edit.iter().position(|e| std::ptr::eq(e, s.edit)).unwrap();
     let floors = list(&s.floors, |fl| {
         format!(
             "{{\"level\": {}, \"up\": {}, \"down\": {}, \"rooms\": {}, \"map\": \"{}\"}}",
@@ -190,10 +194,10 @@ fn story(event: i32, index: i32) -> String {
     )
 }
 
-fn counts(archive: &Archive, name: &str) -> String {
+fn counts(tables: &Tables, archive: &Archive, name: &str) -> String {
     let Ok(data) = archive.inflate_named(name) else { return "null".to_string() };
     let c = piney_data::ccs::Ccs::parse(data).expect("CCSF");
-    let d = Dummies::read(&c, &INF.gim_patterns).expect("dummies");
+    let d = Dummies::read(&c, &tables.gim_patterns).expect("dummies");
     let mut names: Vec<_> = d.by_anime.keys().collect();
     names.sort();
     let items: Vec<String> = names.iter().map(|k| format!("\"{k}\": {}", list(d.get(k), |v| v.to_string()))).collect();

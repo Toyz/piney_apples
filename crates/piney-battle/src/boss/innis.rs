@@ -2148,7 +2148,7 @@ pub(super) fn affect(b: &mut Boss, cx: &mut Cx) {
         }
         7 | 9 => {
             cx.out(Out::FlyFont { kind: 20, n: i32::from(p0) });
-            cx.scene.chars[me].hp = (hp + p0).min(mhp);
+            cx.scene.chars[me].hp = super::heal_hp(hp, p0, mhp);
         }
         1 | 3 => {
             if cx.annihilated() || cx.game_over {
@@ -2157,7 +2157,7 @@ pub(super) fn affect(b: &mut Boss, cx: &mut Cx) {
             cx.out(Out::FlyFont { kind: 2, n: i32::from(p0) });
             if p0 >= 0 {
                 cx.out(Out::HitMark { by: person });
-                let mut h = if b.cheat_hp != 0 { (hp - p0 / 10).max(mhp / 2) } else { hp - p0 };
+                let mut h = super::hit_hp(hp, p0, (b.cheat_hp != 0).then_some(10), mhp);
                 if h <= 0 {
                     h = 0;
                     cx.out(Out::ClearSpcCondition);
