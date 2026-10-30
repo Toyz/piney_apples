@@ -15,8 +15,8 @@ use piney_battle::world::CharHit;
 
 use super::Combat;
 use super::boss::CAM_TRANSFER;
-use crate::bosscam::BossCam;
 use crate::camera::Camera;
+use crate::camera::bosscam::BossCam;
 use crate::ee::{self, F, ONE, V4};
 use piney_battle::geom::M4;
 
@@ -248,14 +248,19 @@ const SEED_CLIP: &str = "ANM_ex8aseed";
 const LES0: &str = "OBJ_ex31les0";
 const LES1: &str = "OBJ_ex31les1";
 const LES3: &str = "ANM_ex31les3";
-const LASER_FOG: crate::foe::FogBlend = crate::foe::FogBlend { rate: 0x4248_0000, colour: 0x00ff_0000 };
+const LASER_FOG: crate::chara::foe::FogBlend = crate::chara::foe::FogBlend { rate: 0x4248_0000, colour: 0x00ff_0000 };
 const HALF_PI: F = 0x3fc9_0fdb;
 const NEG_HALF_PI: F = 0xbfc9_0fdb;
 
 /// `OBJ_ex8body2`'s world matrix as the body was last drawn.
-pub fn body2(body: &crate::body::Body, play: &crate::pose::Play, pos: V4, dirc: V4) -> Option<glam::Mat4> {
+pub fn body2(
+    body: &crate::chara::body::Body,
+    play: &crate::chara::pose::Play,
+    pos: V4,
+    dirc: V4,
+) -> Option<glam::Mat4> {
     let n = body.node(BODY2)?;
-    body.worlds(play, crate::body::root(pos, dirc)).get(&n).copied()
+    body.worlds(play, crate::chara::body::root(pos, dirc)).get(&n).copied()
 }
 
 fn mat4(m: &M4) -> glam::Mat4 {
@@ -353,7 +358,7 @@ pub fn shown(
                 eff: false,
                 clip: body_clip.clone(),
                 time: *time,
-                root: crate::body::root(*pos, *dirc),
+                root: crate::chara::body::root(*pos, *dirc),
                 alpha: ee::f(*alpha),
                 blend: None,
             }),

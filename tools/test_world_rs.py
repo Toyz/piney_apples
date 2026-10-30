@@ -986,7 +986,7 @@ def f32(bits):
 @unittest.skipUnless(os.path.exists(ELF) and os.path.exists(ISO) and shutil.which("cargo"),
                      "needs the extracted disc and cargo")
 class WeaponAgainstGame(unittest.TestCase):
-    """crates/piney-world/src/chara.rs's weapons against KiteWeapons: which
+    """crates/piney-world/src/chara/kite.rs's weapons against KiteWeapons: which
     hand gets which model, and the matrix each is drawn at, frame by frame
     over Kite's town acts and some battle ones at several frame speeds, at
     the arrival and at random places and headings (one with x and y turns

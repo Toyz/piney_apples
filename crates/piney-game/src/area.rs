@@ -1,6 +1,6 @@
 //! Mode 6 outside the towns: `ccSetupGameCtrl` for a field (area 1) or a
 //! dungeon (area 2), with the field's menus and HUD (`piney-fieldui`) over
-//! `piney_world::field_world`. A frame runs the event task (`ccThEvent`,
+//! `piney_world::field::world`. A frame runs the event task (`ccThEvent`,
 //! [`crate::area_host`]), the world's tasks, then `ccThMenu`. The event task
 //! arrives asleep in the `scene` that asked for this area and ends it before
 //! `ccStartThEvent`; then the passes at 0 and 2, `rebootSpcManager`, and
@@ -20,11 +20,11 @@ use piney_event::vm::Vm;
 use piney_fieldui::FieldUi;
 use piney_input::Pad;
 use piney_world::area::{Scene, WorldMan};
-use piney_world::evarea::Kept;
-use piney_world::field_world::{FieldWorld, Request};
-use piney_world::party::Spcs;
+use piney_world::chara::party::Spcs;
+use piney_world::event::talk::{self, TalkRequest};
+use piney_world::field::world::{FieldWorld, Request};
 use piney_world::story_map::StoryRequest;
-use piney_world::talk::{self, TalkRequest};
+use piney_world::story_map::holy_ground::Kept;
 use piney_world::{Phase, Request as GameRequest};
 
 use crate::area_host::{self, AreaHost};
@@ -69,7 +69,7 @@ pub struct AreaMode {
     /// a step a frame over the area until it ends.
     drain_movie: Option<crate::stream::StreamPlayer>,
     /// Its `ccThDrainEnemy`, drawn into it.
-    drain_enemy: Option<piney_world::foe::DrainEnemy>,
+    drain_enemy: Option<piney_world::chara::foe::DrainEnemy>,
     /// The members' item uses being played ([`MemberItem`]).
     member_items: Vec<MemberItem>,
     /// The movie is `StreamMenu`'s (menu 74), with its `ccThStrParty`.
@@ -82,7 +82,7 @@ pub struct AreaMode {
     /// `ccMenu` +0x238 `dummyTarget` a boss set (Kyvia's fourth fight's
     /// death): the character whose HP the gauge shows, read each frame.
     dummy_target: Option<usize>,
-    str_party: Option<piney_world::foe::StrParty>,
+    str_party: Option<piney_world::chara::foe::StrParty>,
     /// The game over past `ccThGameCtrl`'s signal (`ccThGameOver`).
     game_over: Option<crate::gameover::GameOverTask>,
     /// The riding Grunty's sequence (`ride.rs`).
@@ -554,7 +554,7 @@ impl AreaMode {
     /// frame: its camera (`changeCamera(3)`, the position and view) and
     /// its music (`ccBgmPlay(2)`, `ccBgmStop`).
     fn ending_asks(&mut self) {
-        use piney_world::field_world::EndingAsk;
+        use piney_world::field::world::EndingAsk;
         for a in self.world.fx_mut().take_ending_asks() {
             match a {
                 EndingAsk::Camera { pos, view } => self.world.ending_camera(pos, view),
@@ -627,9 +627,9 @@ impl AreaMode {
                 vm.start_thread(&mut h);
                 // WORLD_MAN::SetEventData: a story dungeon's rooms and
                 // positions as the event manager's points and positions.
-                if let piney_world::field_world::Place::Dungeon(d) = self.world.place() {
+                if let piney_world::field::world::Place::Dungeon(d) = self.world.place() {
                     let area = self.world.scene().area;
-                    let ed = piney_world::dungeon_area::set_event_data(d.tables, d.event_area, area, 0);
+                    let ed = piney_world::dungeon::set_event_data(d.tables, d.event_area, area, 0);
                     for [floor, block, num] in ed.points {
                         vm.mng.set_event_point(floor, block, num);
                     }
@@ -699,15 +699,15 @@ impl AreaMode {
     }
 
     /// The command target's (kind, code) of a scene index.
-    fn target_of(&self, i: usize) -> (piney_world::entry::Kind, i32) {
+    fn target_of(&self, i: usize) -> (piney_world::event::entry::Kind, i32) {
         let c = self.world.combat();
         let ch = &c.scene.chars[i];
         if ch.is_pc() {
-            (piney_world::entry::Kind::Spc, i32::from(ch.id()))
+            (piney_world::event::entry::Kind::Spc, i32::from(ch.id()))
         } else if ch.is_foe() {
-            (piney_world::entry::Kind::Enemy, i as i32)
+            (piney_world::event::entry::Kind::Enemy, i as i32)
         } else {
-            (piney_world::entry::Kind::Gimmick, i as i32)
+            (piney_world::event::entry::Kind::Gimmick, i as i32)
         }
     }
 
@@ -912,7 +912,7 @@ impl AreaMode {
                     (se3d::inu_note(v, *param, *attribute), at)
                 }
                 // The Administrator's act -5: ccSeOn(217).
-                Show::Npc(_, piney_world::merchant::SysopEvent::Vanish) => {
+                Show::Npc(_, piney_world::town::merchant::SysopEvent::Vanish) => {
                     out.push(Event::Se(217));
                     (None, [0; 4])
                 }
@@ -980,7 +980,7 @@ impl AreaMode {
         }
         // A field's weather: the thunder's sound and flash, the steam's.
         for call in self.world.take_ambient_calls() {
-            use piney_world::field_ambient::Op;
+            use piney_world::field::ambient::Op;
             match call {
                 Op::Se(n) => out.push(Event::Se(n)),
                 Op::SeLoopStart => out.push(Event::TobjSeLoopStart),
@@ -1095,7 +1095,7 @@ impl AreaMode {
             };
             let up = [0, 0, 0x42c8_0000, 0];
             let ws = &self.world.camera().world_screen;
-            let Some((x, y, _)) = piney_world::char::calc_tag_pos(ws, pos, up, 0) else { continue };
+            let Some((x, y, _)) = piney_world::chara::char::calc_tag_pos(ws, pos, up, 0) else { continue };
             font_type(&mut font, 1);
             font.set_colour(7);
             (font.dx, font.dy, font.shadow) = (x as f32, y as f32, true);
@@ -1219,7 +1219,7 @@ impl AreaMode {
         // administrator (23), a breeder (27), a dog (44), a Grunty (45, 46).
         use piney_fieldui::talk::{Speaker, TalkTarget};
         if let TalkRequest::Menu { menu: 21 | 23 | 27 | 44 | 45 | 46, kind, code } = t {
-            let target = if kind == piney_world::entry::Kind::Spc {
+            let target = if kind == piney_world::event::entry::Kind::Spc {
                 TalkTarget { handle: (1 << 24) | u32::from(code as u16), who: Speaker::Spc(code) }
             } else {
                 // An event NPC's stand-in: its scene index, its npcTbl row.

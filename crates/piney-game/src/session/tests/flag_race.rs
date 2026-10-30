@@ -5,7 +5,7 @@
 //! and mail 324, which tells of the race, has been read.
 
 use piney_input::{Buttons, Raw};
-use piney_world::entry::Kind;
+use piney_world::event::entry::Kind;
 
 use super::*;
 
@@ -175,8 +175,8 @@ fn mutations_rankings_show_the_towns_racers() {
         let Some(mut s) = dun_loireag(3, 4) else { return };
         if let (Stage::World(w), Some((time, row))) = (&mut s.stage, own) {
             let save = &mut w.world_mut().state_mut().save;
-            save.set_i16(piney_world::race::RACE_RECORDS, time);
-            save.set_i16(piney_world::race::RACE_RECORDS + 2, row);
+            save.set_i16(piney_world::grunty::race::RACE_RECORDS, time);
+            save.set_i16(piney_world::grunty::race::RACE_RECORDS + 2, row);
         }
         speak_to_breeder(&mut s).expect("the breeder's list did not open");
         to_rankings(&mut s);
@@ -303,7 +303,7 @@ fn mutations_flag_race_runs_and_quits() {
         assert_eq!(world.state().save.i32(GOLD), 900, "100 GP paid");
         assert!(world.town_riding(), "Kite rides");
         assert_eq!(world.flags().len(), 3, "the three flags");
-        assert!(world.flags().iter().all(|f| f.state == piney_world::race::FlagState::Out), "the flags out");
+        assert!(world.flags().iter().all(|f| f.state == piney_world::grunty::race::FlagState::Out), "the flags out");
     }
     let t0 = s_race_time(&s);
     press(&mut s, Buttons::NONE, 30);
@@ -359,7 +359,7 @@ fn ride_to_flags(s: &mut impl Frames, max: u32) -> Option<u32> {
             let near = world
                 .flags()
                 .iter()
-                .filter(|fl| fl.state == piney_world::race::FlagState::Out)
+                .filter(|fl| fl.state == piney_world::grunty::race::FlagState::Out)
                 .map(|fl| (fl.n, fl.pos.map(f32::from_bits)))
                 .min_by(|a, b| {
                     (a.1[0] - kite[0]).hypot(a.1[1] - kite[1]).total_cmp(&(b.1[0] - kite[0]).hypot(b.1[1] - kite[1]))
@@ -400,8 +400,8 @@ fn mutations_flag_race_won() {
         save.set_i32(GOLD, 1000);
         // Dun Loireag's three ranks: 5:00, 5:00, 5:00 by Grunty 146.
         for k in 0..3 {
-            save.set_i16(piney_world::race::RACE_RECORDS + 4 * k, 9000);
-            save.set_i16(piney_world::race::RACE_RECORDS + 4 * k + 2, 146);
+            save.set_i16(piney_world::grunty::race::RACE_RECORDS + 4 * k, 9000);
+            save.set_i16(piney_world::grunty::race::RACE_RECORDS + 4 * k + 2, 146);
         }
     }
     speak_to_breeder(&mut s).expect("the breeder's list did not open");
@@ -422,8 +422,8 @@ fn mutations_flag_race_won() {
     {
         let Stage::World(w) = &s.stage else { unreachable!() };
         let save = &w.world().state().save;
-        assert_eq!(save.i16(piney_world::race::RACE_RECORDS), time, "the time first in the save");
-        assert_eq!(save.i16(piney_world::race::RACE_RECORDS + 4), 9000, "the old first moved down");
+        assert_eq!(save.i16(piney_world::grunty::race::RACE_RECORDS), time, "the time first in the save");
+        assert_eq!(save.i16(piney_world::grunty::race::RACE_RECORDS + 4), 9000, "the old first moved down");
     }
     // The time's word, then the Rankings page.
     assert!(until(&mut s, 300, Buttons::CROSS, 15, |s| status(s).0 == (FLAG_RACE, 32)), "no ranks: {:?}", status(&s));
@@ -441,7 +441,7 @@ fn mutations_flag_race_won() {
     let wp = i32::from(t.wallpapers[1]) - 1;
     let bits = save.i32(piney_data::save::offset::DT_WALLPAPER_LIST + 4 * (wp / 32) as usize) as u32;
     assert_ne!(bits & (1 << (wp % 32)), 0, "Dun Loireag's wallpaper");
-    assert_eq!(save.u8(piney_world::race::RACE_PRIZES), 1, "the first rank's prize given once");
+    assert_eq!(save.u8(piney_world::grunty::race::RACE_PRIZES), 1, "the first rank's prize given once");
 }
 
 /// A new save's race: Kite's time against Dun Loireag's racers (Balmung
@@ -470,7 +470,7 @@ fn mutations_flag_race_against_the_towns_racers() {
     println!("the ride took {took} frames; the time {} against {racers:?}: rank {}", r.time, r.rank);
     assert_eq!(r.rank, want, "the rank of {} against {racers:?}", r.time);
     let save = &w.world().state().save;
-    let records: Vec<i16> = (0..3).map(|k| save.i16(piney_world::race::RACE_RECORDS + 4 * k)).collect();
+    let records: Vec<i16> = (0..3).map(|k| save.i16(piney_world::grunty::race::RACE_RECORDS + 4 * k)).collect();
     match want {
         1..=3 => assert_eq!(records[want as usize - 1], r.time, "the time in the save: {records:?}"),
         _ => assert_eq!(records, [0; 3], "no rank, nothing written"),
@@ -631,8 +631,8 @@ fn mutations_race_music_lasts_the_results() {
             };
             let save = &mut w.world_mut().state_mut().save;
             for (k, r) in records.into_iter().enumerate() {
-                save.set_i16(piney_world::race::RACE_RECORDS + 4 * k, r);
-                save.set_i16(piney_world::race::RACE_RECORDS + 4 * k + 2, 146);
+                save.set_i16(piney_world::grunty::race::RACE_RECORDS + 4 * k, r);
+                save.set_i16(piney_world::grunty::race::RACE_RECORDS + 4 * k + 2, 146);
             }
         }
         let from = e.log.len();

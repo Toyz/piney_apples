@@ -14,8 +14,8 @@ use piney_data::iso::Iso;
 use piney_data::save::offset;
 use piney_draw::Cmd;
 use piney_input::{Pad, Raw};
+use piney_world::chara::motion::act;
 use piney_world::hit::{FLOOR, HitModel, Hits, LAND_MASK, WALL};
-use piney_world::motion::act;
 use piney_world::{FADE_FRAMES, HOLD_FRAMES, Phase, SaveState, World, ee};
 
 const ISO: &str = "../../work/infection/infection.iso";
@@ -99,10 +99,10 @@ fn arrival_in_dun_loireag_then_walking() {
     assert_eq!(world.player().acts.act, act::IDLE);
     assert!(sprites > 0, "no clouds or flares drawn");
     // ccSetMerchant(0) in town 1: npcTbl rows 5-10.
-    let ids: Vec<i32> = world.merchants().iter().map(piney_world::entry::Npc::code).collect();
+    let ids: Vec<i32> = world.merchants().iter().map(piney_world::event::entry::Npc::code).collect();
     assert_eq!(ids, [5, 6, 7, 8, 9, 10]);
     assert_eq!(world.pcs().len(), 15);
-    let d = world.town().class::<piney_world::town02::DunLoireag>().unwrap();
+    let d = world.town().class::<piney_world::town::dun_loireag::DunLoireag>().unwrap();
     assert_eq!(d.clouds.len(), 25);
     // Stick up: he runs south and stays on the ground.
     let start = world.player().body.pos;

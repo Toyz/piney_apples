@@ -1,5 +1,5 @@
 //! Answers `tools/test_gamectrl_rs.py`: the battle half of `ccThGameCtrl`
-//! (`piney_world::talk`) on the cases it is sent, one JSON line each.
+//! (`piney_world::event::talk`) on the cases it is sent, one JSON line each.
 //! Requests: `inbattle` (`ccGame::SetInBattle`), `inarea`
 //! (`ccCheckInAreaCmnd`, `ccCheckTargetTypeId`), `select` (`ccSortCmnd`,
 //! `ccCheckTargetRange`, `ccSelectTarget`), `ctrl_start` (a new task) and
@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use std::io::BufRead;
 
 use piney_world::ee::{self, V4};
-use piney_world::entry::Kind;
-use piney_world::talk::{
+use piney_world::event::entry::Kind;
+use piney_world::event::talk::{
     self, Battle, Cmnd, Cond, Ctrl, Host, InBattle, Input, Leader, LeaderState, Member, Party, RecoveryReqs, Scope,
     Targeting, Who,
 };

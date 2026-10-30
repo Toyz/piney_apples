@@ -13,7 +13,7 @@ its `game.town` and drawn by `ccThFieldDisp` each frame, as Mac Anu
 ([the field game](field-game.md#what-the-town-draws)) and Dun Loireag
 ([Dun Loireag](town02.md)) are. Infection's executable carries earlier
 `ROOTTOWN03`-`05` classes that no disc reaches; these are the later
-volumes'. The ports are `crates/piney-world/src/town03.rs`, `town04.rs`
+volumes'. The ports are `crates/piney-world/src/town/carmina_gadelica.rs`, `town04.rs`
 and `town05.rs`.
 
 ## Carmina Gade (MUT)

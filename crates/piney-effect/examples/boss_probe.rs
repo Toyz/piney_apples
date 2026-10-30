@@ -17,7 +17,7 @@ use piney_effect::draw::{Camera, DrawRec};
 use piney_effect::particle::Generator;
 use piney_effect::{CharRef, Effects, Event, Host, ONE, V4, VecRef, ee};
 use piney_world::Rand;
-use piney_world::lattice::Lattice;
+use piney_world::sky::lattice::Lattice;
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()

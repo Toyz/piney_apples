@@ -7,7 +7,7 @@ use std::f32::consts::PI;
 use piney_fieldui::ctrl::After;
 use piney_fieldui::menus::hack::Resume;
 use piney_input::{Buttons, Raw};
-use piney_world::entry::Kind;
+use piney_world::event::entry::Kind;
 
 use super::*;
 

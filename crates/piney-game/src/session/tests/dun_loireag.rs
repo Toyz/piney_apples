@@ -7,7 +7,7 @@ use std::f32::consts::PI;
 use std::path::PathBuf;
 
 use piney_input::{Buttons, Raw};
-use piney_world::entry::Kind;
+use piney_world::event::entry::Kind;
 
 use super::*;
 
@@ -345,7 +345,7 @@ fn the_dogs_walk_their_routes_and_sit_to_talk() {
         w.world()
             .dogs()
             .iter()
-            .map(|d| (piney_world::entry::Npc::code(d), d.ch.pos.map(f32::from_bits), d.cur, d.act))
+            .map(|d| (piney_world::event::entry::Npc::code(d), d.ch.pos.map(f32::from_bits), d.cur, d.act))
             .collect()
     };
     let start = dogs(&s);
@@ -911,7 +911,7 @@ fn the_grown_grunty_talks() {
 #[test]
 fn a_walker_stands_through_its_talk() {
     use piney_event::host::PcCommand;
-    use piney_world::entry::Npc as _;
+    use piney_world::event::entry::Npc as _;
     let Some((iso, archive)) = disc() else { return };
     let mut d = Iso::open(&iso).unwrap();
     let mut state = crate::world::new_game_state(&mut d).unwrap();

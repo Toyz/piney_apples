@@ -17,7 +17,7 @@ him down with the party about him. Riding, the enemies go home and pay
 no heed, the party's AI keeps still, and the music is `BGM.BIN`'s first
 track. The port is `crates/piney-battle/src/ride.rs` (the object's
 rules), `crates/piney-world/src/combat/ride.rs` (its frame on the field's
-tasks, its two clumps), `crates/piney-world/src/field_world/ride.rs` (the
+tasks, its two clumps), `crates/piney-world/src/field/world/ride.rs` (the
 party asleep and awake, the flags) and `crates/piney-game/src/area/ride.rs`
 (the sequence on the fader, the menu and the music).
 
@@ -329,7 +329,7 @@ for the Flag Race ([flag-race.md](flag-race.md)):
   and heading (the race's finish).
 
 The port: `piney_battle::ride`'s `Ride::later`, `main_later`,
-`control_move_later` and `RaceRide`, and `piney_world::town_ride`
+`control_move_later` and `RaceRide`, and `piney_world::town::ride`
 (`ride_start_town`, `ride_slot`, `ride_exit_town`, `ride_place`, the
 town's `RideWorld`).
 

@@ -18,7 +18,7 @@ use piney_effect::eff::Eff;
 use piney_effect::files::ObjRef;
 use piney_effect::nodes;
 use piney_effect::sprite::{self, Packet};
-use piney_world::pose::Play;
+use piney_world::chara::pose::Play;
 
 fn hex(s: &str) -> u64 {
     u64::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()

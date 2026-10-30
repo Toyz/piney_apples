@@ -268,7 +268,7 @@ never handed on.
   `time`, `coord` or `ccstag`.
 
 `tools/anim.py` (`Animation.passed_notes`, `forward_notes`) and the port
-(`Animation::passed_notes`, `forward_notes`, `piney_world::pose::Play::forward_notes`)
+(`Animation::passed_notes`, `forward_notes`, `piney_world::chara::pose::Play::forward_notes`)
 give the notes in delivery order. `tools/test_anim.py notes` runs each
 animation with notes through the game's `_AnimateForward` and
 `NoteProcess`, with a hooked `funcNoteProcess` recording each note:

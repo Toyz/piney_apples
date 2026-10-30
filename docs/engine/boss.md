@@ -460,7 +460,7 @@ cleared in `SendPacket`) and adds its world z to a sum; `SendPacket`
 divides the sum by twice the rows for the key, and also clears the
 first-row flag.
 
-**The port.** `piney_world::lattice::Lattice` is `ccLattice`. The boss's
+**The port.** `piney_world::sky::lattice::Lattice` is `ccLattice`. The boss's
 field run (`BossRun`) keeps one: in the cross it takes the two dummies
 through `OBJ_ex11swd`'s world matrix at the actor's drawn pose, and
 `FieldWorld` sends the strip each frame (`trail_packet`) as the triangles
@@ -622,7 +622,7 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
     at alpha 0 over one frame, deleted when done. It shows as an opaque
     black band, drawn by both faders' `SendPacket`.
 
-**The port**: `piney_world::cinema::Cinema`, in `BossRun` (`cinema`,
+**The port**: `piney_world::camera::cinema::Cinema`, in `BossRun` (`cinema`,
 `cinema_sent`).
 - **Order.** It steps at the start of the boss's frame (the manager's
   time) and takes `Out::Cinema` after `Main`.
@@ -709,7 +709,7 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
    - the cinema ([above](#the-cinema-ccbosseffcinemafade)) and the blur
      ([above](#the-blur)) are drawn; no script of this volume holds the
      boss (`hold 7`).
-8. The boss camera (`piney_world::bosscam::BossCam`) is made with the
+8. The boss camera (`piney_world::camera::bosscam::BossCam`) is made with the
    boss and runs after its `Main`.
 9. The area host answers `present/absent 7` from the task's exit.
 

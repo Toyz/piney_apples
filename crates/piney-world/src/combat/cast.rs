@@ -15,8 +15,8 @@ use piney_battle::world::{AnmSlot, Note};
 
 use piney_desktop::assets::SceneFile;
 
-use crate::body::Body;
-use crate::char::Char;
+use crate::chara::body::Body;
+use crate::chara::char::Char;
 use crate::ee::{F, ONE, V4};
 
 /// Who an actor is.
@@ -44,7 +44,7 @@ pub struct Actor {
     pub ch: Char,
     pub look: Look,
     /// A middle boss's second model's player (`ccEnemy` +0x1bc).
-    pub second: Option<crate::pose::Play>,
+    pub second: Option<crate::chara::pose::Play>,
     /// The second clump's file, whose clips that player plays: the 'X'
     /// file (`ccEnemy` +0x1b4).
     pub second_file: Option<Rc<SceneFile>>,
@@ -70,10 +70,10 @@ pub struct Actor {
     pub arms: Option<f32>,
     /// An enemy's `ccChar::Draw` as it decided this frame (its fog blend,
     /// transparency, whether drawn and shaded).
-    pub how: Option<crate::foe::CharDraw>,
+    pub how: Option<crate::chara::foe::CharDraw>,
     /// A party character's weapon trails and points
     /// (`ccSpcChar::ArmsEffect`), from its first `ArmsEffect`.
-    pub weapon: Option<Box<crate::arms::Arms>>,
+    pub weapon: Option<Box<crate::chara::arms::Arms>>,
     /// A party character's right hand (`objHandR`'s `lwMatrix`) as its
     /// last draw left it ([`Actor::keep_hand`]).
     pub hand_r: Option<M4>,
@@ -115,7 +115,7 @@ impl Actor {
     /// one.
     pub fn hand_now(&self) -> Option<M4> {
         let body = &self.ch.body;
-        let node = body.node(crate::arms::R_HAND)?;
+        let node = body.node(crate::chara::arms::R_HAND)?;
         let m = *body.worlds(&self.ch.play, self.ch.root()).get(&node)?;
         let row = |v: glam::Vec4| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits(), v.w.to_bits()];
         Some([row(m.x_axis), row(m.y_axis), row(m.z_axis), row(m.w_axis)])
@@ -137,10 +137,11 @@ impl Actor {
             }
             AnmSlot::Second => {
                 let spd = self.second.as_ref().map_or(256, |p| p.frame_spd);
-                self.second = self.second_file.as_deref().and_then(|f| crate::pose::Play::new(f, name)).map(|mut p| {
-                    p.frame_spd = spd;
-                    p
-                });
+                self.second =
+                    self.second_file.as_deref().and_then(|f| crate::chara::pose::Play::new(f, name)).map(|mut p| {
+                        p.frame_spd = spd;
+                        p
+                    });
             }
         }
     }
@@ -183,20 +184,20 @@ impl Actor {
 
 /// One `_AnimateForward` of `play` and the notes it collected, in the
 /// order `NoteProcess` hands them on.
-fn forward_notes(play: &mut crate::pose::Play, file: &SceneFile) -> (bool, Vec<(u32, u32)>) {
+fn forward_notes(play: &mut crate::chara::pose::Play, file: &SceneFile) -> (bool, Vec<(u32, u32)>) {
     play.forward_notes(file)
 }
 
 /// The bodies the area's enemies and portals may be drawn with, found by
 /// the clip their constructors set first; each enemy row's look
-/// ([`crate::foe::EnemyLook`]) and the portal's ([`crate::foe::Circle`]).
+/// ([`crate::chara::foe::EnemyLook`]) and the portal's ([`crate::chara::foe::Circle`]).
 #[derive(Clone, Default)]
 pub struct Looks {
     pub bodies: Vec<(Rc<Body>, Look, F, F)>,
-    pub enemies: Vec<Rc<crate::foe::EnemyLook>>,
-    pub circle: Option<Rc<crate::foe::Circle>>,
+    pub enemies: Vec<Rc<crate::chara::foe::EnemyLook>>,
+    pub circle: Option<Rc<crate::chara::foe::Circle>>,
     /// The boxes', breakables' and idols' looks by gimmick row.
-    pub gimmicks: Vec<Rc<crate::foe::GimLook>>,
+    pub gimmicks: Vec<Rc<crate::chara::foe::GimLook>>,
 }
 
 impl Looks {
@@ -219,8 +220,8 @@ impl Looks {
 
     /// The looks of `rows` and their drained forms not held yet, in row
     /// order, each as `ccEntryCtrl::initEntryCCS` and the race's
-    /// constructor make it ([`crate::foe::EnemyLook`]).
-    pub fn add_enemies(&mut self, files: &mut crate::foe::Files, data: &super::BattleData, rows: &[i32]) {
+    /// constructor make it ([`crate::chara::foe::EnemyLook`]).
+    pub fn add_enemies(&mut self, files: &mut crate::chara::foe::Files, data: &super::BattleData, rows: &[i32]) {
         let own = rows.iter().copied().filter(|&r| r >= 0);
         let drains = own.clone().map(|r| piney_battle::enemy_ai::drain_id(&data.t, r));
         let mut rows: Vec<i32> = own.chain(drains).filter(|&r| r >= 0).collect();
@@ -228,7 +229,7 @@ impl Looks {
         rows.dedup();
         rows.retain(|&r| self.enemy(r).is_none());
         for r in rows {
-            let Ok(look) = crate::foe::EnemyLook::load(files, &data.t, r) else { continue };
+            let Ok(look) = crate::chara::foe::EnemyLook::load(files, &data.t, r) else { continue };
             let body = Rc::new(look.model.body.clone());
             self.bodies.push((body, Look::Enemy(r), look.height, look.width));
             self.enemies.push(Rc::new(look));
@@ -236,12 +237,12 @@ impl Looks {
     }
 
     /// An enemy row's look.
-    pub fn enemy(&self, row: i32) -> Option<&crate::foe::EnemyLook> {
+    pub fn enemy(&self, row: i32) -> Option<&crate::chara::foe::EnemyLook> {
         self.enemies.iter().find(|l| l.ene_id == row).map(|l| &**l)
     }
 
     /// A gimmick row's look.
-    pub fn gimmick(&self, row: i32) -> Option<&crate::foe::GimLook> {
+    pub fn gimmick(&self, row: i32) -> Option<&crate::chara::foe::GimLook> {
         self.gimmicks.iter().find(|l| l.row == row).map(|l| &**l)
     }
 }
@@ -311,8 +312,8 @@ impl Cast {
 /// registers (three from `rank`, the last kept past the end), their
 /// drained forms, the `extra` rows (an event's), each as
 /// `ccEntryCtrl::initEntryCCS` and the race's constructor make it
-/// ([`crate::foe::EnemyLook`]); and the magic portal
-/// ([`crate::foe::Circle`], `xmagcir`'s `CMP_xmagcir0`).
+/// ([`crate::chara::foe::EnemyLook`]); and the magic portal
+/// ([`crate::chara::foe::Circle`], `xmagcir`'s `CMP_xmagcir0`).
 pub fn load_looks(
     archive: &std::sync::Arc<piney_data::archive::Archive>,
     data: &super::BattleData,
@@ -333,9 +334,9 @@ pub fn load_looks(
     }
     rows.extend_from_slice(extra);
     let mut looks = Looks::default();
-    let mut files = crate::foe::Files::new(archive.clone());
+    let mut files = crate::chara::foe::Files::new(archive.clone());
     looks.add_enemies(&mut files, data, &rows);
-    if let Ok(c) = crate::foe::Circle::load(&mut files, data.volume) {
+    if let Ok(c) = crate::chara::foe::Circle::load(&mut files, data.volume) {
         let body = Rc::new(c.model.body.clone());
         looks.bodies.push((body, Look::Circle, 0x4348_0000, 0x4348_0000));
         looks.circle = Some(Rc::new(c));
@@ -345,7 +346,7 @@ pub fn load_looks(
     // its file and clips with an earlier one draws with that body, its own
     // palette put on when it is drawn.
     for row in (0..15).chain(17..18).chain(piney_battle::gimmick::FOOD_ROWS).chain(38..45) {
-        let Ok(g) = crate::foe::GimLook::load(&mut files, data.volume, row) else { continue };
+        let Ok(g) = crate::chara::foe::GimLook::load(&mut files, data.volume, row) else { continue };
         let body = Rc::new(g.model.body.clone());
         looks.bodies.push((body, Look::Gimmick(row), g.height, g.width));
         looks.gimmicks.push(Rc::new(g));
@@ -353,7 +354,7 @@ pub fn load_looks(
     // The Spring of Myst (row 20, XGWATER0.CCS): both clumps, the clip
     // picking one ([`Looks::find`]); `SetBlendType(4)`.
     for (clump, _) in piney_battle::gimetc::SPRING_MODEL {
-        let Ok(g) = crate::foe::GimLook::load_clump(&mut files, data.volume, 20, clump) else { continue };
+        let Ok(g) = crate::chara::foe::GimLook::load_clump(&mut files, data.volume, 20, clump) else { continue };
         let mut body = g.model.body.clone();
         body.blend = Some(4);
         looks.bodies.push((Rc::new(body), Look::Gimmick(20), g.height, g.width));

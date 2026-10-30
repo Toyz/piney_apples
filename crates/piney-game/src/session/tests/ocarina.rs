@@ -7,8 +7,8 @@
 
 use piney_input::Buttons;
 use piney_world::area::kind;
-use piney_world::dungeon_area::DungeonArea;
-use piney_world::field_world::Place;
+use piney_world::dungeon::DungeonArea;
+use piney_world::field::world::Place;
 
 use super::ride::{area, raw};
 use super::*;

@@ -14,10 +14,10 @@ use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
 use piney_desktop::assets::SceneFile;
 use piney_world::camera::{Cam, CamPad, Camera, CameraHits, Scheme, avoid_obstacle};
+use piney_world::chara::motion::PLAYER_ANIM_TBL;
+use piney_world::chara::player::{Body, MoveInput, Player, control_move};
 use piney_world::ee::V4;
 use piney_world::hit::{self, HitModel, Hits};
-use piney_world::motion::PLAYER_ANIM_TBL;
-use piney_world::player::{Body, MoveInput, Player, control_move};
 use piney_world::{Rand, ee, tasks};
 
 fn hex(s: &str) -> u32 {
@@ -54,7 +54,7 @@ fn main() {
     let mut merchants = Merchants::default();
     let mut pcs = Pcs::default();
     // `weapon`: Kite as the field draws him, read on first use.
-    let mut kite_draw: Option<piney_world::chara::Kite> = None;
+    let mut kite_draw: Option<piney_world::chara::kite::Kite> = None;
     let stdin = std::io::stdin();
     for line in stdin.lock().lines() {
         let line = line.unwrap();
@@ -210,8 +210,8 @@ fn main() {
                     p.stop_cnt,
                     u8::from(p.drawn),
                     match p.arms {
-                        Some(piney_world::arms::ArmsCall::Effect) => "effect",
-                        Some(piney_world::arms::ArmsCall::Clear) => "clear",
+                        Some(piney_world::chara::arms::ArmsCall::Effect) => "effect",
+                        Some(piney_world::chara::arms::ArmsCall::Clear) => "clear",
                         None => "none",
                     },
                     b.target_count,
@@ -236,7 +236,7 @@ fn main() {
             }
             // `weapon`: the weapons' matrices, for test_weapon.
             Some("weapon") => {
-                let k = kite_draw.get_or_insert_with(|| piney_world::chara::Kite::read(&archive).unwrap());
+                let k = kite_draw.get_or_insert_with(|| piney_world::chara::kite::Kite::read(&archive).unwrap());
                 let (pos, dirc) = ([n(3), n(4), n(5), ee::ONE], [n(6), n(7), n(8), 0]);
                 let worlds = k.worlds(n(1) as i16, n(2), pos, dirc);
                 let (body, weapon) = (&k.file.ccs, &k.weapon.as_ref().unwrap().ccs);
@@ -248,7 +248,7 @@ fn main() {
                     })
                     .collect();
                 let mats: Vec<String> = k
-                    .weapons(&worlds, piney_world::chara::root(pos, dirc))
+                    .weapons(&worlds, piney_world::chara::kite::root(pos, dirc))
                     .iter()
                     .map(|(_, w)| list(&w.to_cols_array().map(f32::to_bits)))
                     .collect();
@@ -262,8 +262,8 @@ fn main() {
             // the candidates' [dist, dirc], the sorted order, each one's
             // range, the target index (-1 none) and cmndTargetPriNum after.
             Some("target") => {
-                use piney_world::entry::Kind;
-                use piney_world::talk::{Cmnd, Leader, check_range, select, sort};
+                use piney_world::event::entry::Kind;
+                use piney_world::event::talk::{Cmnd, Leader, check_range, select, sort};
                 let leader = Leader { volume, pos_p: [n(1), n(2), n(3), ee::ONE], dirc: [0, 0, n(4), 0], width: n(5) };
                 let (eye, mode, mut pri) = (n(6) != 0, n(7) as i32, n(8) as i32);
                 let count = n(9) as usize;
@@ -310,14 +310,14 @@ fn main() {
                 let at = 2 + 16 * count;
                 let group = piney_world::town::TownLights { ambient: Vec3::ZERO, lights, fog: None };
                 let world = glam::Mat4::from_translation(Vec3::new(f(at), f(at + 1), f(at + 2)));
-                let l = piney_world::chara::light_matrix(&group, world, false);
+                let l = piney_world::chara::kite::light_matrix(&group, world, false);
                 let bits = |v: &[[f32; 3]; 3], k: f32| {
                     list(&v.iter().flatten().map(|x| (x / k).to_bits()).collect::<Vec<_>>())
                 };
                 println!(
                     "{{\"dirs\": {}, \"colours\": {}}}",
                     bits(&l.dirs, 1.0),
-                    bits(&l.colours, piney_world::chara::VU_LIGHT_SCALE)
+                    bits(&l.colours, piney_world::chara::kite::VU_LIGHT_SCALE)
                 );
             }
             // `dirc AX AY BX BY`: ccGetDirc's heading from A to B as RAD2DEG.
@@ -328,7 +328,7 @@ fn main() {
             // `tagpos M.. P.. O.. MODE`: ccCalcTagPosChar with world_screen M, the
             // character at P and offset O (x and y 0x7fffffff when ccCalcTagPos left
             // them). `party ...`: the party manager and the registry, then N calls (1
-            // `AddMember`, 2 `DelMember`, 3 `expulsionSpc`) on party.rs's `Spcs`.
+            // `AddMember`, 2 `DelMember`, 3 `expulsionSpc`) on chara/party.rs's `Spcs`.
             Some("party") => println!("{}", party_probe(&w[1..])),
             // `gtclear AREA AREAPREV DTYPE`: ccClearGtHack's rule;
             // `ghoid AREA AREAPREV FIELDTYPE DUNGEON FIELD GT`:
@@ -352,7 +352,7 @@ fn main() {
             Some("gho") => println!("{}", gate_probe(&w[1..], volume)),
             Some("tagpos") => {
                 let m: [[u32; 4]; 4] = std::array::from_fn(|c| std::array::from_fn(|r| n(1 + 4 * c + r)));
-                let got = piney_world::char::calc_tag_pos(
+                let got = piney_world::chara::char::calc_tag_pos(
                     &m,
                     [n(17), n(18), n(19), ee::ONE],
                     [n(20), n(21), n(22), 0],
@@ -377,7 +377,7 @@ fn main() {
 #[derive(Default)]
 struct Props {
     towns: [Option<piney_world::town::Town>; 2],
-    gate: Option<piney_world::gate::Gate>,
+    gate: Option<piney_world::event::gate::Gate>,
 }
 
 fn props_command(
@@ -388,8 +388,8 @@ fn props_command(
     props: &mut Props,
 ) -> bool {
     use piney_data::volume::Volume;
+    use piney_world::town::mac_anu::{MacAnu, Piece};
     use piney_world::town::{RootTown, Town};
-    use piney_world::town01::{MacAnu, Piece};
     let n = |i: usize| hex(w[i]);
     // Mac Anu as the disc has it (its town01, its tables).
     fn town<'a>(props: &'a mut Props, archive: &Arc<Archive>, volume: Volume, k: u32) -> &'a mut Town {
@@ -434,7 +434,7 @@ fn props_command(
         "gate" => {
             if props.gate.is_none() {
                 let file = town(props, archive, volume, 0).base.file.clone();
-                props.gate = Some(piney_world::gate::Gate::new(archive, &file).unwrap());
+                props.gate = Some(piney_world::event::gate::Gate::new(archive, &file).unwrap());
             }
             let g = props.gate.as_mut().unwrap();
             if w.len() > 9 {
@@ -481,7 +481,7 @@ fn props_command(
 #[derive(Default)]
 struct Merchants {
     town: Option<piney_world::town::Town>,
-    list: Vec<piney_world::merchant::Merchant>,
+    list: Vec<piney_world::town::merchant::Merchant>,
     /// `eventStatus[52]` (`merchstatus V`): the Event NPC's.
     status: bool,
     /// Kite's body (radius 45, kind 7) on the character list after theirs
@@ -491,9 +491,9 @@ struct Merchants {
 
 fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &str, ms: &mut Merchants) -> bool {
     use piney_world::camera::kind;
-    use piney_world::char::View;
-    use piney_world::entry::{Npc, NpcCtx};
-    use piney_world::merchant;
+    use piney_world::chara::char::View;
+    use piney_world::event::entry::{Npc, NpcCtx};
+    use piney_world::town::merchant;
     let n = |i: usize| hex(w[i]);
     let v3 = |i: usize| [n(i), n(i + 1), n(i + 2), ee::ONE];
     match cmd {
@@ -505,8 +505,8 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
             ms.list.clear();
             for e in w.get(5..).unwrap_or_default().chunks(3) {
                 let [ty, code, marker] = [0, 1, 2].map(|k| hex(e[k]) as i16);
-                let row = piney_world::npc::NpcRow::of(volume, code as usize).unwrap();
-                if row.event_class(ty) == Some(piney_world::npc::EventClass::Merchant) {
+                let row = piney_world::chara::npc::NpcRow::of(volume, code as usize).unwrap();
+                if row.event_class(ty) == Some(piney_world::chara::npc::EventClass::Merchant) {
                     let at = piney_world::event::event_marker_in(&t.file, volume, marker);
                     let m = merchant::event_merchant(archive, &row, &mut t.hits, no, v3(1), at);
                     ms.list.push(m.unwrap());
@@ -639,7 +639,7 @@ fn merchant_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso_path: &st
     true
 }
 
-// --- Mac Anu's walking PCs (rtownpc.rs, navi.rs, mt.rs) and character collision
+// --- Mac Anu's walking PCs (town/pc.rs, chara/navi.rs, mt.rs) and character collision
 //
 // `pcsel` (`ccInitRand`, `ccRegisterRandomNpc`), `pcroute`
 // (`RouteSearchByMap`, `GetDestination`), `pcstart` (Kite and the town's
@@ -656,8 +656,8 @@ struct PcRun {
     camera: Camera,
     rand: Rand,
     mode: i8,
-    town: std::rc::Rc<std::cell::RefCell<piney_world::rtownpc::TownPcs>>,
-    pcs: Vec<piney_world::rtownpc::RtownPc>,
+    town: std::rc::Rc<std::cell::RefCell<piney_world::town::pc::TownPcs>>,
+    pcs: Vec<piney_world::town::pc::RtownPc>,
     kite_char: u32,
 }
 
@@ -670,8 +670,8 @@ struct Pcs {
 
 /// The pool `pcsel` and `pcstart` draw from: on `server`, the events
 /// `done`'s bits name done (300, 358, 315).
-fn pc_pool(volume: piney_data::volume::Volume, server: u32, done: u32) -> piney_world::rtownpc::Pool {
-    use piney_world::rtownpc::{Pool, Tables};
+fn pc_pool(volume: piney_data::volume::Volume, server: u32, done: u32) -> piney_world::town::pc::Pool {
+    use piney_world::town::pc::{Pool, Tables};
     let bit = |n: usize| match n {
         300 => done & 1 != 0,
         358 => done & 2 != 0,
@@ -680,8 +680,8 @@ fn pc_pool(volume: piney_data::volume::Volume, server: u32, done: u32) -> piney_
     Pool::with(&Tables::of(volume), server as i32, bit)
 }
 
-fn pcs_json(town: &piney_world::rtownpc::TownPcs, pcs: &[piney_world::rtownpc::RtownPc]) -> String {
-    use piney_world::rtownpc::PcEvent;
+fn pcs_json(town: &piney_world::town::pc::TownPcs, pcs: &[piney_world::town::pc::RtownPc]) -> String {
+    use piney_world::town::pc::PcEvent;
     let t = format!(
         "{{\"shown\": {}, \"chatnum\": {}, \"chatcnt\": {}, \"chatmes\": {}, \"talk\": {}, \"mti\": {}}}",
         town.shown,
@@ -768,7 +768,7 @@ fn pcs_json(town: &piney_world::rtownpc::TownPcs, pcs: &[piney_world::rtownpc::R
 }
 
 /// From Mutation on, a PC's fields of the later class.
-fn later(pc: &piney_world::rtownpc::RtownPc) -> String {
+fn later(pc: &piney_world::town::pc::RtownPc) -> String {
     if pc.volume == piney_data::volume::Volume::Inf {
         return String::new();
     }
@@ -838,9 +838,9 @@ fn kite_json(r: &PcRun) -> String {
 }
 
 fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs: &mut Pcs) -> bool {
+    use piney_world::chara::navi::{Navi, NaviMap};
     use piney_world::mt::Mt;
-    use piney_world::navi::{Navi, NaviMap};
-    use piney_world::rtownpc;
+    use piney_world::town::pc;
     let n = |i: usize| hex(w[i]);
     let ours = ["pcsel", "pcreserve", "pcroute", "pcstart", "pcpad", "pchit", "pcinfl", "pcadd", "pcev", "pcpos"];
     if !ours.contains(&cmd) && !matches!(cmd, "pcsearch" | "pcrace" | "pcstatus" | "pcsearchat") {
@@ -856,8 +856,8 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
     match cmd {
         "pcsel" => {
             let mut mt = Mt::init(n(1));
-            let pool = if w.len() > 4 { pc_pool(volume, n(3), n(4)) } else { rtownpc::Pool::default() };
-            let rows = rtownpc::register_random_npc(&mut mt, n(2) as i32, &pool);
+            let pool = if w.len() > 4 { pc_pool(volume, n(3), n(4)) } else { pc::Pool::default() };
+            let rows = pc::register_random_npc(&mut mt, n(2) as i32, &pool);
             let next = mt.rand();
             println!("{{\"rows\": {}, \"next\": {}}}", list(&rows.map(|r| i32::from(r) as u32)), next as u32);
         }
@@ -906,10 +906,9 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             let mut player = Player::new(volume, pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000);
             player.hit_body.manual = w.len() > 10 && n(10) != 0;
             let camera = Camera::new(volume, pos, dirc, mode, Scheme::new(n(7) as i32));
-            let pool = if w.len() > 12 { pc_pool(volume, n(11), n(12)) } else { rtownpc::Pool::default() };
+            let pool = if w.len() > 12 { pc_pool(volume, n(11), n(12)) } else { pc::Pool::default() };
             let (count, reserved) = (n(1), n(2) as i32);
-            let (town, list_) =
-                rtownpc::enter(archive, volume, town01, 0, count, reserved, &pool, pos, &mut hits).unwrap();
+            let (town, list_) = pc::enter(archive, volume, town01, 0, count, reserved, &pool, pos, &mut hits).unwrap();
             let r = PcRun { hits, player, camera, rand: Rand(u64::from(n(9))), mode, town, pcs: list_, kite_char: 0 };
             println!("{{{}}}", pcs_json(&r.town.borrow(), &r.pcs));
             pcs.run = Some(r);
@@ -953,29 +952,29 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
         }
         "pcadd" => {
             let r = pcs.run.as_mut().unwrap();
-            let row = piney_world::npc::NpcRow::of(volume, n(1) as usize).unwrap();
+            let row = piney_world::chara::npc::NpcRow::of(volume, n(1) as usize).unwrap();
             let model = {
                 let t = r.town.borrow();
-                let mut files = rtownpc::Files::new();
-                rtownpc::load_model(archive, &mut files, &t.tables, &row).unwrap()
+                let mut files = pc::Files::new();
+                pc::load_model(archive, &mut files, &t.tables, &row).unwrap()
             };
             let pos = r.player.body.pos;
-            let pc = rtownpc::RtownPc::place(&r.town, &row, &model, n(2) as i32, pos, &mut r.hits);
+            let pc = pc::RtownPc::place(&r.town, &row, &model, n(2) as i32, pos, &mut r.hits);
             r.pcs.push(pc);
             println!("{{{}}}", pcs_json(&r.town.borrow(), &r.pcs));
         }
         "pcsearch" => {
             let r = pcs.run.as_mut().unwrap();
             let (code, stage) = (n(1) as i32, n(2) as i16);
-            let row = piney_world::npc::NpcRow::of(volume, code as usize).unwrap();
-            let set_up = rtownpc::Search::set_up(&r.town.borrow(), town01, code, stage).unwrap();
+            let row = piney_world::chara::npc::NpcRow::of(volume, code as usize).unwrap();
+            let set_up = pc::Search::set_up(&r.town.borrow(), town01, code, stage).unwrap();
             let model = {
                 let t = r.town.borrow();
-                let mut files = rtownpc::Files::new();
-                rtownpc::load_model(archive, &mut files, &t.tables, &row).unwrap()
+                let mut files = pc::Files::new();
+                pc::load_model(archive, &mut files, &t.tables, &row).unwrap()
             };
-            let (pos, origin) = (r.player.body.pos, rtownpc::Origin::Search(set_up));
-            let pc = rtownpc::RtownPc::place_as(&r.town, &row, &model, origin, pos, &mut r.hits);
+            let (pos, origin) = (r.player.body.pos, pc::Origin::Search(set_up));
+            let pc = pc::RtownPc::place_as(&r.town, &row, &model, origin, pos, &mut r.hits);
             r.pcs.push(pc);
             println!("{{{}}}", pcs_json(&r.town.borrow(), &r.pcs));
         }
@@ -983,13 +982,13 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             // The SEARCH set-up alone in town TOWN, Kite at (0, 0, 0, 0).
             let (no, code, stage) = (n(1) as i32, n(2) as i32, n(3) as i16);
             let mut town = piney_world::town::Town::open(archive, volume, no, false).unwrap();
-            let t = rtownpc::TownPcs::new(volume, no, &town.base.file, Mt::init(0)).unwrap();
+            let t = pc::TownPcs::new(volume, no, &town.base.file, Mt::init(0)).unwrap();
             let t = std::rc::Rc::new(std::cell::RefCell::new(t));
-            let set_up = rtownpc::Search::set_up(&t.borrow(), &town.base.file, code, stage).unwrap();
-            let row = piney_world::npc::NpcRow::of(volume, code as usize).unwrap();
-            let model = rtownpc::load_model(archive, &mut rtownpc::Files::new(), &t.borrow().tables, &row).unwrap();
-            let origin = rtownpc::Origin::Search(set_up);
-            let pc = rtownpc::RtownPc::place_as(&t, &row, &model, origin, [0; 4], &mut town.base.hits);
+            let set_up = pc::Search::set_up(&t.borrow(), &town.base.file, code, stage).unwrap();
+            let row = piney_world::chara::npc::NpcRow::of(volume, code as usize).unwrap();
+            let model = pc::load_model(archive, &mut pc::Files::new(), &t.borrow().tables, &row).unwrap();
+            let origin = pc::Origin::Search(set_up);
+            let pc = pc::RtownPc::place_as(&t, &row, &model, origin, [0; 4], &mut town.base.hits);
             println!("{{{}}}", pcs_json(&t.borrow(), &[pc]));
         }
         "pcrace" => {
@@ -1015,7 +1014,7 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             println!("{{\"ok\": {}}}", u8::from(pc.command(&cmd, None, None)));
         }
         "pcpad" => {
-            use piney_world::entry::{Npc, NpcCtx};
+            use piney_world::event::entry::{Npc, NpcCtx};
             let r = pcs.run.as_mut().unwrap();
             let mut pow = [0u8; 12];
             for (k, p) in pow.iter_mut().enumerate() {
@@ -1032,11 +1031,11 @@ fn pcs_command(cmd: &str, w: &[&str], archive: &Arc<Archive>, iso: &mut Iso, pcs
             };
             tasks(&mut r.camera, &mut r.player, &mut r.hits, &anims_of(archive), &mut r.rand, &pad, &mut r.mode);
             r.kite_char = r.hits.char_type;
-            if r.player.events.contains(&piney_world::motion::ActEvent::Arrived) {
+            if r.player.events.contains(&piney_world::chara::motion::ActEvent::Arrived) {
                 r.hits.hit_enable(&mut r.player.hit_body);
             }
             let t = r.camera.tcam.clone();
-            let view = piney_world::char::View {
+            let view = piney_world::chara::char::View {
                 player: r.player.body.pos,
                 cam: t.pos,
                 deg1: t.deg[1],
@@ -1068,11 +1067,11 @@ fn anims_of(archive: &Arc<Archive>) -> Vec<&'static piney_data::anim::Animation>
     PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect()
 }
 
-/// The `party` request ([`piney_world::party::Spcs`] against `ccParty` and
+/// The `party` request ([`piney_world::chara::party::Spcs`] against `ccParty` and
 /// `ccSPC`).
 fn party_probe(w: &[&str]) -> String {
+    use piney_world::chara::party::{Registry, SpcChars, Spcs};
     use piney_world::combat::spc::SpcRec;
-    use piney_world::party::{Registry, SpcChars, Spcs};
     let mut at = 0usize;
     let mut next = || {
         let v = hex(w[at]) as i32;
@@ -1092,7 +1091,7 @@ fn party_probe(w: &[&str]) -> String {
         recs: Vec<Option<SpcRec>>,
     }
     impl SpcChars for Chars {
-        fn spc(&mut self, id: i32) -> Option<piney_world::ai::SpcRef<'_>> {
+        fn spc(&mut self, id: i32) -> Option<piney_world::chara::ai::SpcRef<'_>> {
             let k = self.ids.iter().position(|&x| x == id)?;
             self.recs[k].as_mut().map(|r| r.spc_ref())
         }

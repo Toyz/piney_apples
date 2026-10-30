@@ -339,7 +339,7 @@ The tables come from the build (`tables::combat`: `innis_pattern`,
 the `Draw` with what it asks in order (`innis::Call`) and what it drew
 (`Missile::shown`). The camera's modes,
 eye and pitch are `Out::CamMode`, `FreeCam` and `CamPitch`, which
-`piney_world::bosscam::BossCam` applies. The blur's colour, the
+`piney_world::camera::bosscam::BossCam` applies. The blur's colour, the
 particles and the shield are `Out::Blur`, `Particles` and `Shield`.
 
 `piney_effect::innis` draws the missiles: each made at its `Out::Effect`

@@ -688,7 +688,7 @@ pub struct Drill {
 /// A `ccAnm` of X703.CCS as an effect draws it.
 fn x703_anm(cx: &Cx, name: &str) -> Option<Obj> {
     let obj = cx.assets.find("x703", name)?;
-    let play = piney_world::pose::Play::new(&cx.assets.files[obj.file], name)?;
+    let play = piney_world::chara::pose::Play::new(&cx.assets.files[obj.file], name)?;
     Some(Obj::Anm { obj, play, matrix: vu::UNIT })
 }
 

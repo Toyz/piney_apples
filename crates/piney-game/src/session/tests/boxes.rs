@@ -7,7 +7,7 @@
 use piney_battle::entry::{Kind, Obj};
 use piney_world::area::{Scene, kind};
 use piney_world::combat::spc::body_id;
-use piney_world::field_world::Place;
+use piney_world::field::world::Place;
 
 use super::shrine::walk_to;
 use super::*;

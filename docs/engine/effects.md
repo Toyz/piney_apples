@@ -1374,7 +1374,7 @@ exp (`ccExpDistributor`), the enemy book (`saveData` +0x68b7 by row,
 enemy to `ccEntryCtrl::entryEnemyObject` and returns 1 (deleted).
 `ccEntryObj::routine` (0x0042fa60) fades it each frame: `setTransparency`
 less 1 / 30 until 0, `transparency` the same (ported as
-`piney_world::merchant::EntryObj::routine`). `animEnemy` (0x00434560) and
+`piney_world::town::merchant::EntryObj::routine`). `animEnemy` (0x00434560) and
 `dispEnemy` (0x004348b0) only play and draw the body; the races' dust
 (`ccEnemyDustCtrl::ctrl` 0x0043aa90, `ccEnemyEffDustRing`) follows the
 animation frames of any act by the race's `ccEnemyDustInfo` tables. Bosses

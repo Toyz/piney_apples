@@ -19,7 +19,7 @@ use piney_desktop::view::LayerView;
 
 use crate::area::{Scene, kind};
 use crate::ee::{self, F, V4};
-use crate::field_world::Place;
+use crate::field::world::Place;
 use sprite::Out;
 
 /// `mapLayer`'s priority (`ccLayer::Init(50, 0)`).

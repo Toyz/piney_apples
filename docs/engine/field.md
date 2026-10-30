@@ -338,7 +338,7 @@ dummy taken to the player's side of the map, each flare wrapped likewise.
 - `FIREFLY2::SetBasePosition2` asks the height at the offset, not at the
   place.
 
-**The port.** `piney_world::field_ambient` makes and steps all of it:
+**The port.** `piney_world::field::ambient` makes and steps all of it:
 `Ambient::init` and `generate` at `FieldArea::with_world`, `Ambient::draw`
 a frame's pictures as a list of `Op`s in the game's order (sprites,
 `effSmoke` puffs, the 2D smoke's masks, models, sounds, flashes);

@@ -16,13 +16,13 @@ use piney_data::save::{SaveData, offset};
 use piney_desktop::assets::SceneFile;
 use piney_world::Rand;
 use piney_world::camera::{CamPad, Camera, Scheme};
+use piney_world::chara::motion::{ActEvent, PLAYER_ANIM_TBL};
+use piney_world::chara::party::{self, FaceTarget, SpcChars, Spcs};
+use piney_world::chara::player::Player;
 use piney_world::combat::spc::SpcRec;
 use piney_world::ee::{self, V4};
 use piney_world::hit::{HitModel, Hits};
-use piney_world::motion::{ActEvent, PLAYER_ANIM_TBL};
-use piney_world::party::{self, FaceTarget, SpcChars, Spcs};
-use piney_world::player::Player;
-use piney_world::town_party::{TownFrame, TownParty};
+use piney_world::town::party::{TownFrame, TownParty};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -59,7 +59,7 @@ struct Run {
     banned: bool,
 }
 
-fn ai_json(ai: Option<&piney_world::ai::Ai>) -> String {
+fn ai_json(ai: Option<&piney_world::chara::ai::Ai>) -> String {
     let Some(a) = ai else { return "null".into() };
     obj(&[
         ("manual", b(a.manual_sw)),
@@ -316,7 +316,7 @@ fn main() {
                 {
                     let rand = &mut r.rand;
                     let mut next = || rand.rand();
-                    let mut f = piney_world::player::Frame {
+                    let mut f = piney_world::chara::player::Frame {
                         pad: &pad,
                         camera: &mut r.camera,
                         hits: &mut r.hits,

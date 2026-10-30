@@ -1,5 +1,5 @@
 //! Answers `tools/test_dungeon_rt.py` (`dungeon_probe ISO < requests`):
-//! builds a dungeon as `WORLD_MAN::GO(2)` does (`piney_world::dungeon_area`),
+//! builds a dungeon as `WORLD_MAN::GO(2)` does (`piney_world::dungeon`),
 //! sets its rooms up, queries their collision, walks its doors and stairs,
 //! and prints one JSON line a request, as the game's code does in eemu.
 //! Requests: `new`, `room`, `roomc`, `select`, `land`, `height`, `goto`,
@@ -16,11 +16,11 @@ use piney_data::iso::Iso;
 use piney_desktop::assets::SceneFile;
 use piney_world::area::{Scene, WorldMan};
 use piney_world::camera::{CamPad, Camera, Scheme};
-use piney_world::dungeon_area::{DungeonArea, Exit};
+use piney_world::chara::motion::{self, PLAYER_ANIM_TBL};
+use piney_world::chara::player::Player;
+use piney_world::dungeon::{DungeonArea, Exit};
 use piney_world::ee::{self, V4};
 use piney_world::hit::LAND_MASK;
-use piney_world::motion::{self, PLAYER_ANIM_TBL};
-use piney_world::player::Player;
 use piney_world::{Rand, tasks};
 
 /// Kite and the camera in the dungeon.
@@ -46,7 +46,7 @@ fn mat(m: &[V4; 4]) -> String {
 /// Type 32's leaves: each one's timer, spin, turns, place, step.
 fn leaves(d: &DungeonArea) -> String {
     let Some(l) = d.dress.leaves.as_ref() else { return "null".into() };
-    let one = |x: &piney_world::dungeon_area::leaves::Leaf| {
+    let one = |x: &piney_world::dungeon::leaves::Leaf| {
         format!(
             "[{}, {}, {}, {}, {}, {}, {}]",
             x.timer,
@@ -73,11 +73,11 @@ fn hit_list(d: &DungeonArea) -> String {
     format!("[{}]", items.join(", "))
 }
 
-/// What `SetRoom` stood in the room ([`piney_world::dungeon_area::Dressing`]),
+/// What `SetRoom` stood in the room ([`piney_world::dungeon::Dressing`]),
 /// and `fieldrand` after it.
 fn dress(d: &DungeonArea) -> String {
     let x = &d.dress;
-    let anm_name = |a: &piney_world::dungeon_area::Anm| -> String {
+    let anm_name = |a: &piney_world::dungeon::Anm| -> String {
         d.file.ccs.object_name(d.file.anims[a.play.anim].object).unwrap_or("?").to_string()
     };
     let water = match &x.water {
@@ -120,7 +120,7 @@ fn dress(d: &DungeonArea) -> String {
         })
         .collect();
     let objects: Vec<String> = x.objects.iter().map(|c| format!("[\"{}\", {}]", c.name, mat(&c.m))).collect();
-    let anms = |v: &[piney_world::dungeon_area::Anm]| -> String {
+    let anms = |v: &[piney_world::dungeon::Anm]| -> String {
         let items: Vec<String> = v.iter().map(|a| format!("[\"{}\", {}]", anm_name(a), mat(&a.root))).collect();
         format!("[{}]", items.join(", "))
     };
@@ -212,7 +212,7 @@ fn main() {
                 scene.floor = 0;
                 scene.block = 0;
                 scene.server = n(11) as i32;
-                match DungeonArea::new_banned(&archive, volume, &wm, &scene, piney_world::dungeon_area::NO_BANS) {
+                match DungeonArea::new_banned(&archive, volume, &wm, &scene, piney_world::dungeon::NO_BANS) {
                     Ok(a) => {
                         let floors: Vec<String> = a
                             .floors
@@ -260,7 +260,7 @@ fn main() {
                             fog.near.to_bits(),
                             fog.far.to_bits(),
                             fog.max.to_bits(),
-                            list(&piney_world::dungeon_area::ambient_bits(fog)),
+                            list(&piney_world::dungeon::ambient_bits(fog)),
                             list(&a.position),
                             floors.join(", "),
                             hit_list(&a),
@@ -328,7 +328,7 @@ fn main() {
                     let sprites: Vec<String> = ops
                         .iter()
                         .filter_map(|o| match o {
-                            piney_world::field_ambient::Op::Sprite(s) => {
+                            piney_world::field::ambient::Op::Sprite(s) => {
                                 Some(format!("[\"{}\", {}, {}, {}]", s.name, list(&s.pos), s.pattern, s.transparency))
                             }
                             _ => None,
@@ -446,7 +446,7 @@ fn main() {
                 println!("{{\"info\": {:?}}}", a.map_2d_info(n(2) as i32));
             }
             "eventdata" => {
-                let e = piney_world::dungeon_area::set_event_data(
+                let e = piney_world::dungeon::set_event_data(
                     piney_data::dungeon::tables_of(volume),
                     n(1) as i32,
                     n(2) as i32,
@@ -559,10 +559,10 @@ fn main() {
                 println!("{{\"exit\": {out}, \"level\": {}}}", a.level);
             }
             "ban" => {
-                piney_world::dungeon_area::ban_area(&mut save, [n(1) as i32, n(2) as i32, n(3) as i32, n(4) as i32]);
+                piney_world::dungeon::ban_area(&mut save, [n(1) as i32, n(2) as i32, n(3) as i32, n(4) as i32]);
                 // The dungeon reads the save's bans when it builds a room.
                 if let Some(a) = d.as_mut() {
-                    a.bans = piney_world::dungeon_area::bans_of(&save);
+                    a.bans = piney_world::dungeon::bans_of(&save);
                 }
                 println!("{{}}");
             }
@@ -668,8 +668,8 @@ fn main() {
                     p.stop_cnt,
                     u8::from(p.drawn),
                     match p.arms {
-                        Some(piney_world::arms::ArmsCall::Effect) => "effect",
-                        Some(piney_world::arms::ArmsCall::Clear) => "clear",
+                        Some(piney_world::chara::arms::ArmsCall::Effect) => "effect",
+                        Some(piney_world::chara::arms::ArmsCall::Clear) => "clear",
                         None => "none",
                     },
                     b.target_count,

@@ -3472,7 +3472,7 @@ Then each lattice's `Disp`.
   others on (0, 1). The generators follow the points and stop when the
   switch goes 0.
 
-**In the port.** `piney_world::arms::Arms` is the state: the dummies from
+**In the port.** `piney_world::chara::arms::Arms` is the state: the dummies from
 the file hung on the actor's hands, the lattices, the points and this
 frame's strips. Each party `Actor` keeps one (`weapon`), made at its
 first call and re-read by `change_equip`. `Combat::arms_shown` runs the

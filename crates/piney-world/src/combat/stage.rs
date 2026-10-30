@@ -100,9 +100,9 @@ pub enum Show {
     /// index.
     Boss(usize, piney_battle::boss::Out),
     /// An event NPC's start, with its stand-in's scene index
-    /// ([`crate::field_npcs`]): `effTransfer` as a PC or the Administrator
+    /// ([`crate::field::npcs`]): `effTransfer` as a PC or the Administrator
     /// comes or goes, the Administrator's act -5 (its rings and sound).
-    Npc(usize, crate::merchant::SysopEvent),
+    Npc(usize, crate::town::merchant::SysopEvent),
     /// The riding Grunty's sounds and dust (`piney_battle::ride::Out`'s
     /// `Sound` and `Smoke`; [`super::ride`]).
     Ride(piney_battle::ride::Out),
@@ -185,7 +185,7 @@ pub struct Stage<'a> {
     /// The registry and the party, for the party changes the members' AI
     /// asks (`resignParty`, `disbandSpc`: remote command 5); None where
     /// they are not carried out.
-    pub spcs: Option<&'a mut crate::party::Spcs>,
+    pub spcs: Option<&'a mut crate::chara::party::Spcs>,
     /// Each character's enemy skills that change conditions
     /// ([`super::chat::condition_skills`]), as `ChatMessageAttackTarget`
     /// counts them.
@@ -207,7 +207,7 @@ pub struct Stage<'a> {
 /// `naviPointNameTable` names.
 #[derive(Clone, Copy)]
 pub struct TownNav<'a> {
-    pub map: &'a crate::navi::NaviMap,
+    pub map: &'a crate::chara::navi::NaviMap,
     /// `naviPointNameTable` (gcmn 0x00653c80) by name: 1 `DMY_gate`, 2-7
     /// `DMY_merchant1`-`6`, the positions of the town file's dummies.
     pub points: &'a [V4],
@@ -442,7 +442,7 @@ impl World for Stage<'_> {
     fn eff_pat_num(&mut self, who: usize, name: &str) -> Option<u16> {
         let crate::combat::cast::Look::Gimmick(row) = self.cast.get(who)?.look else { return None };
         let g = self.cast.looks.gimmick(row)?;
-        crate::foe::eff_pat_num(&g.model.body.file, name).ok()
+        crate::chara::foe::eff_pat_num(&g.model.body.file, name).ok()
     }
     /// The hand the last draw left ([`super::cast::Actor::keep_hand`]), or
     /// before any, the pose the actor stands in.
@@ -463,10 +463,10 @@ impl NaviWorld for Stage<'_> {
         &self.map2d
     }
     /// `ccNavi::RouteSearchByMap` in a Root Town (piney-world's
-    /// [`crate::navi::Navi::route_search`]); nothing outside one.
+    /// [`crate::chara::navi::Navi::route_search`]); nothing outside one.
     fn route_search_by_map(&mut self, navi: &mut Navi, finish: &mut i16, start: V4, goal: V4) -> i32 {
         let Some(t) = self.town else { return 0 };
-        let mut n = crate::navi::Navi::default();
+        let mut n = crate::chara::navi::Navi::default();
         let r = n.route_search(t.map, start, goal, self.hits);
         navi.goal_pos = n.goal_pos;
         navi.name = n.name;
@@ -612,9 +612,9 @@ impl Runtime for Stage<'_> {
             // field or a dungeon; not the fights' harnesses).
             Call::ResignParty { id } | Call::DisbandSpc { id } if self.spcs.is_some() => {
                 let how = if matches!(call, Call::ResignParty { .. }) {
-                    crate::ai::PartyLeave::Resign
+                    crate::chara::ai::PartyLeave::Resign
                 } else {
-                    crate::ai::PartyLeave::Disband
+                    crate::chara::ai::PartyLeave::Disband
                 };
                 let ids: Vec<(i32, usize)> = (0..scene.chars.len())
                     .filter(|&w| scene.chars[w].is_pc() && Some(w) != self.kite)

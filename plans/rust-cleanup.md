@@ -155,7 +155,9 @@ order; tick items off here as they land, with the worklog entry.
         `build` that finds the first claim; `TownDef { no, volumes, make }`
         likewise. Each kind's quirks live in its own `make` (Quarantine's
         field 8 last stage, area 15's kept map). A new map or town is one
-        module and one table row.
+        module and one table row. (worklog 521: piney-world's tree and
+        both registries; area 13 is `truths_core`, the sixth town
+        `relic_city`.)
       - The same for the other crates: piney-effect and piney-battle by
         system (the `BossClass` registry, effects by kind), piney-desktop
         (an app table), piney-fieldui (the `MenuDef` table), piney-game

@@ -1,5 +1,5 @@
 //! The event scripts outside the towns: `piney-event`'s interpreter hosted by
-//! a field or dungeon (`piney_world::field_world`), as [`crate::field_host`]
+//! a field or dungeon (`piney_world::field::world`), as [`crate::field_host`]
 //! hosts it in a town, with the same [`FieldState`]. Windows and menus go to
 //! the field UI, the camera instructions to the area's event camera, the
 //! characters' to piney-battle's `EvParty`, `scene` and `area` to the session,
@@ -16,7 +16,7 @@ use piney_event::host::{
 };
 use piney_fieldui::FieldUi;
 use piney_world::area::Scene;
-use piney_world::field_world::FieldWorld;
+use piney_world::field::world::FieldWorld;
 
 use crate::field_host::{CcGame, FieldState, STATUS_WORLD, SceneChange};
 use crate::mode::Event;
@@ -530,7 +530,7 @@ impl Host for AreaHost<'_> {
         self.world.set_event_positions(positions.iter().map(to).collect());
     }
 
-    /// The event's NPCs outside the towns (`piney_world::field_npcs`).
+    /// The event's NPCs outside the towns (`piney_world::field::npcs`).
     fn npc(&mut self, c: NpcCommand) {
         let done = self.world.npc_command(c);
         self.st.log(format!("npc {c:?}{}", if done { "" } else { " (not done)" }));

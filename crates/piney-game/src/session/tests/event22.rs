@@ -75,7 +75,7 @@ fn player(w: &WorldMode, f: u64) -> Raw {
 }
 
 /// Piros's tint as the town holds it.
-fn tint(w: &WorldMode) -> Option<piney_world::char::AffectColour> {
+fn tint(w: &WorldMode) -> Option<piney_world::chara::char::AffectColour> {
     w.world().fellow_affect(crate::piros::PIROS)
 }
 
@@ -191,7 +191,7 @@ fn story_22_in_area_31(dungeon: bool) -> Option<Session> {
     if dungeon {
         scene.change_area(kind::DUNGEON, 0, save);
     }
-    let mut spcs = piney_world::party::Spcs::new_game();
+    let mut spcs = piney_world::chara::party::Spcs::new_game();
     let i = spcs.entry_spc(crate::piros::PIROS) as usize;
     spcs.registry[i].party_flag = 1;
     spcs.member_id[1] = crate::piros::PIROS;
@@ -368,7 +368,7 @@ fn event_22_dungeon_shot() {
 /// 100), facing as Kite does), arriving (act 13).
 #[test]
 fn the_town_takes_the_party_back() {
-    use piney_world::entry::Kind;
+    use piney_world::event::entry::Kind;
     let Some(mut s) = story_22_in_area_31(false) else { return };
     let mut pad = Pad::default();
     let mut out = false;
@@ -410,7 +410,7 @@ fn the_town_takes_the_party_back() {
 /// Mac Anu with Piros in the party (back from area 31, as
 /// [`the_town_takes_the_party_back`]): the session and the frame count.
 fn mac_anu_with_piros() -> Option<(Session, u64)> {
-    use piney_world::entry::Kind;
+    use piney_world::event::entry::Kind;
     let mut s = story_22_in_area_31(false)?;
     let mut pad = Pad::default();
     let mut out = false;
@@ -450,7 +450,7 @@ fn piros_says_his_arrival_line_in_mac_anu() {
         s.step(&pad);
         s.take_events();
         let Stage::World(w) = &s.stage else { continue };
-        let who = crate::world::handle(piney_world::entry::Kind::Spc, crate::piros::PIROS);
+        let who = crate::world::handle(piney_world::event::entry::Kind::Spc, crate::piros::PIROS);
         if let Some(slot) = w.ui().ctrl.chat.slots.iter().find(|x| x.cf > 0 && x.who == who) {
             said = Some((f - f0, String::from_utf8_lossy(&slot.text).into_owned()));
             break;
@@ -488,7 +488,7 @@ fn stick(cam_z: f32, h: f32) -> Raw {
 /// plaza) from frame 150 to 450, then stands. Piros's greatest distance from where he started, his distance
 /// from Kite at the end, his `actType`s in order, and how far Kite went.
 fn piros_in_mac_anu(follow: bool, frames: u64) -> Option<(f32, f32, Vec<i16>, f32)> {
-    use piney_world::entry::Kind;
+    use piney_world::event::entry::Kind;
     let (mut s, f0) = mac_anu_with_piros()?;
     let mut pad = Pad::default();
     let (mut start, mut kite_start) = (None, None);
@@ -651,14 +651,22 @@ fn the_gates_circle_sounds() {
             && let Stage::World(w) = &mut s.stage
             && matches!(w.world().phase(), piney_world::Phase::Play(n) if n > 60)
         {
-            w.world_mut().affect(piney_world::entry::Kind::Gimmick, i32::from(piney_world::gate::GIMMICK), 11);
+            w.world_mut().affect(
+                piney_world::event::entry::Kind::Gimmick,
+                i32::from(piney_world::event::gate::GIMMICK),
+                11,
+            );
             opened = Some(f);
         }
         if let Some(o) = opened
             && f == o + 100
             && let Stage::World(w) = &mut s.stage
         {
-            w.world_mut().affect(piney_world::entry::Kind::Gimmick, i32::from(piney_world::gate::GIMMICK), 0);
+            w.world_mut().affect(
+                piney_world::event::entry::Kind::Gimmick,
+                i32::from(piney_world::event::gate::GIMMICK),
+                0,
+            );
         }
         pad.read(&raw);
         s.step(&pad);
@@ -736,7 +744,7 @@ fn the_walking_pcs_have_footsteps() {
 #[test]
 #[ignore]
 fn piros_menu_shot() {
-    use piney_world::entry::Kind;
+    use piney_world::event::entry::Kind;
     let Some((mut s, _)) = mac_anu_with_piros() else { return };
     let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/spcmenu".into());
     std::fs::create_dir_all(&dir).unwrap();
@@ -801,7 +809,7 @@ fn piros_menu_shot() {
 /// stops where he is instead of running on while the menu is open.
 #[test]
 fn piros_stops_when_spoken_to_while_running() {
-    use piney_world::entry::Kind;
+    use piney_world::event::entry::Kind;
     let Some((mut s, _)) = mac_anu_with_piros() else { return };
     let mut pad = Pad::default();
     let mut step = |s: &mut Session| {
@@ -862,7 +870,7 @@ fn a_member_reports_his_equipment_in_town() {
     speakers(&mut s, Some((crate::piros::PIROS, 0)));
     s.step(&pad);
     s.take_events();
-    let piros = crate::world::handle(piney_world::entry::Kind::Spc, crate::piros::PIROS);
+    let piros = crate::world::handle(piney_world::event::entry::Kind::Spc, crate::piros::PIROS);
     assert!(speakers(&mut s, None).contains(&piros), "Piros's line up");
 }
 

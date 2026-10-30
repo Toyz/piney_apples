@@ -8,7 +8,7 @@
 
 use piney_battle::entry::Kind;
 use piney_world::area::{Scene, WorldMan, kind};
-use piney_world::field_world::Place;
+use piney_world::field::world::Place;
 
 use super::*;
 

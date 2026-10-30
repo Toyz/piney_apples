@@ -485,7 +485,7 @@ fn rock_step(r: &mut Rock, out: &mut Vec<PartDraw>) {
     r.vel = ee::vadd(r.vel, r.acc);
     r.rot[1] = rotate(r.rot[1], r.drot[1]);
     r.rot[2] = rotate(r.rot[2], r.drot[2]);
-    let matrix = piney_world::field_ambient::pos_rot_xyz_scale(r.pos, r.rot, r.scale);
+    let matrix = piney_world::field::ambient::pos_rot_xyz_scale(r.pos, r.rot, r.scale);
     out.push(PartDraw::Rock { model: r.model, matrix });
 }
 

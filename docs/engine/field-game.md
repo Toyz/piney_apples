@@ -470,7 +470,7 @@ the force, cycle, turn, matrix, offset, oscillator, `rand()`'s state, and
 
 The event scripts' camera instructions ([events](events.md), codes 22-36,
 40-44, 48-50) drive a second camera, `ecam`, through a task of their own,
-`ccThCameraExecute`. The port is `crates/piney-world/src/evcam.rs`;
+`ccThCameraExecute`. The port is `crates/piney-world/src/camera/evcam.rs`;
 `tools/test_evcam_rs.py` checks it against the game (see [Checks](#checks)).
 
 ### Three cameras
@@ -771,7 +771,7 @@ characters the same way.
   and the slot of the record it pushes out. In a descending group the
   first three that answer take slots 2, 1 and 0, and a later light of
   equal priority is not asked.
-- **The port.** `piney_world::chara::light_matrix` sorts the lights
+- **The port.** `piney_world::chara::kite::light_matrix` sorts the lights
   stably by descending priority and takes the first three that answer.
   `tools/test_lights_rs.py` checks it against the game's code: groups
   built with the game's `ccCreateLight` and `AddGrp`, then
@@ -1161,7 +1161,7 @@ Events 2-4 use `entry` (event 2: Orca, type 2 code 2, marker 3, param 5),
   72.5 running). Then the body stands, the command is done with
   `remoteFlag` 1 and `gDeg` the heading it had. In a town a member's walk
   is the battle's `ManualControl` (the town's party runs on the battle's
-  machinery) and Kite's the town's own (`piney_world::ai`). `pc_command`
+  machinery) and Kite's the town's own (`piney_world::chara::ai`). `pc_command`
   puts the characters on the command list or takes them off. Event 21
   walks Elk up to Kite in Mac Anu this way, and event 30 walks Kite and
   BlackRose in Dun Loireag. `npc_act` and `npc_walk_*` are a PC's event
@@ -1537,7 +1537,7 @@ below).
 
 The town's party members are the battle's characters, run by
 `piney-battle`'s machinery as the fields run theirs
-(`piney_world::town_party::TownParty`, `combat::town`): a `Combat` of area
+(`piney_world::town::party::TownParty`, `combat::town`): a `Combat` of area
 0 holds them, each built by `Combat::add_member` (`ccFellow::Initialize`
 and Reboot's AI, `arrivalChatCnt` 150), and each frame (`TownParty::frame`,
 after `ccThPlayer`) runs `ccThSpc`, `ccThAISystem` and each member's

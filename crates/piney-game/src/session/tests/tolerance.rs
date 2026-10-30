@@ -27,7 +27,7 @@ fn hell_hound_targeted() -> Option<(Session, usize)> {
     at[1] = (f32::from_bits(at[1]) + 600.0 * dirc.cos()).to_bits();
     let hound = w.put_enemy(HELL_HOUND, at, 0).expect("the Hell Hounds");
     // The command target fixed on it, as the field's menus fix it.
-    w.change_command_target(Some((piney_world::entry::Kind::Enemy, hound as i32)));
+    w.change_command_target(Some((piney_world::event::entry::Kind::Enemy, hound as i32)));
     w.set_target_fix(true);
     step(&mut s, 30);
     assert_eq!(area(&mut s).world().command_target(), Some(hound), "the Hell Hound targeted");

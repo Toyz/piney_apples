@@ -270,7 +270,7 @@ fn place(u: &mut Uproll, host: &dyn Host, ch: CharRef, world_screen: &[V4; 4]) {
         p[2] = ee::add(p[2], ee::mul(LIFT, host.char_height(ch)));
         lift = 16;
     }
-    let tag = piney_world::char::calc_tag_pos(world_screen, host.char_pos(ch), [0, 0, TAG_HEIGHT, ONE], 1);
+    let tag = piney_world::chara::char::calc_tag_pos(world_screen, host.char_pos(ch), [0, 0, TAG_HEIGHT, ONE], 1);
     if !matches!(tag, Some((_, _, 1))) {
         u.disp_sw = false;
         return;

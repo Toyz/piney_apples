@@ -79,7 +79,7 @@ fn town_shots() {
 #[test]
 #[ignore]
 fn pc_menu_shot() {
-    use piney_world::entry::{Kind, Npc};
+    use piney_world::event::entry::{Kind, Npc};
     let disc = std::env::var("PINEY_DISC").unwrap_or_else(|_| "infection".into());
     let iso = crate::check_image(&disc);
     if !iso.exists() {

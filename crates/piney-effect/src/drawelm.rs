@@ -7,7 +7,7 @@
 //! docs/engine/effects.md ("The element manager and the elements").
 
 use piney_data::volume::Volume;
-use piney_world::pose::Play;
+use piney_world::chara::pose::Play;
 
 use crate::draw::DrawRec;
 use crate::ee::{self, F, ONE, V4, VF0};

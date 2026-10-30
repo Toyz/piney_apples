@@ -11,8 +11,8 @@ use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
 use piney_draw::Cmd;
 use piney_input::{Pad, Raw};
+use piney_world::chara::motion::act;
 use piney_world::hit::{FLOOR, HitModel, Hits, LAND_MASK, WALL};
-use piney_world::motion::act;
 use piney_world::{FADE_FRAMES, HOLD_FRAMES, Phase, Request, SaveState, World, ee};
 
 const ISO: &str = "../../work/infection/infection.iso";
@@ -188,8 +188,8 @@ fn markers_and_event_commands() {
 fn talking_to_the_recorder() {
     use piney_event::host::PcCommand;
     use piney_input::Buttons;
-    use piney_world::entry::Kind;
-    use piney_world::talk::{Shop, TalkRequest};
+    use piney_world::event::entry::Kind;
+    use piney_world::event::talk::{Shop, TalkRequest};
     let Some((mut iso, archive)) = disc() else { return };
     let save = new_game(&mut iso);
     let mut world = World::enter(&mut iso, archive, save).unwrap();
@@ -364,7 +364,7 @@ fn event_two_characters() {
 /// menu's close (0) clears the flag.
 #[test]
 fn a_member_spoken_to_stands_facing_kite() {
-    use piney_world::entry::Kind;
+    use piney_world::event::entry::Kind;
     let Some((mut iso, archive)) = disc() else { return };
     let save = new_game(&mut iso);
     let mut world = World::enter(&mut iso, archive, save).unwrap();
@@ -437,7 +437,7 @@ fn kites_notes() {
     let Some((_, archive)) = disc() else { return };
     let file = piney_desktop::assets::SceneFile::read(&archive, "ctu1body").unwrap();
     let run = |name: &str, steps: u32| {
-        let mut play = piney_world::pose::Play::new(&file, name).unwrap();
+        let mut play = piney_world::chara::pose::Play::new(&file, name).unwrap();
         let mut out = Vec::new();
         for i in 1..=steps {
             let (ended, notes) = play.forward_notes(&file);

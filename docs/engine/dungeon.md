@@ -223,7 +223,7 @@ code.
 ## Entering and walking a dungeon
 
 Infection's code only (the other volumes are not read for this section).
-The port is `crates/piney-world/src/dungeon_area.rs`;
+The port is `crates/piney-world/src/dungeon/mod.rs`;
 `tools/test_dungeon_rt.py` runs the game's own code beside it
 ([Checked](#checked)).
 
@@ -254,7 +254,7 @@ dungeon 1 below it (`dungeonType[1] = 2`). `dungeon[n]` keeps each, so the
 lake's stairs down make the second and the second's floor-0 stairs up find
 the lake as it was left; `GO(2)`'s last branch then builds `lastRoom`
 with the party at its stairs down. The port keeps them the same way
-(`piney_world::dungeon_area::Dungeons`, the slots and `lastRoom`, carried
+(`piney_world::dungeon::Dungeons`, the slots and `lastRoom`, carried
 in `Kept`; `DungeonArea::come_back`). Until worklog 191 it kept one
 dungeon, so the lake itself was taken for the second.
 `tools/test_dungeon_rt.py`'s `test_lake_stairs` runs the game's `Enter` on
@@ -620,7 +620,7 @@ nothing to draw.
   drawn.
 
 **The port** (`dungeon_area::Dressing`,
-`crates/piney-world/src/dungeon_area/dress.rs`):
+`crates/piney-world/src/dungeon/dress.rs`):
 
 - `set_room_with` runs `set_water`, `set_light`, `set_object`, `set_door`
   and `set_anm_object` with `DungeonArea.rng` as `fieldrand`; the pieces
@@ -723,7 +723,7 @@ DrawEff       (0x005cdee0) after the glows, types 8 and 9 by night or
   back within 2,500 of him when more than 3,000 away (z 0 in field type
   4), their sparks `EFF_sfpfir_1` (`EFF_sfzfir1` in field type 9).
 
-The port (`crates/piney-world/src/dungeon_area/lake.rs`):
+The port (`crates/piney-world/src/dungeon/lake.rs`):
 
 - `Lake::new` finds the clumps and the material; `DungeonArea::draw` calls
   `draw_bg` (`bg_scroll`, `bg_world`) before the dressing, and

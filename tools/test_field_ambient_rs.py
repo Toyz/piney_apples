@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """crates/piney-world's field weather and ambient pictures
-(piney_world::field_ambient) against the game's own WORLD code run in
+(piney_world::field::ambient) against the game's own WORLD code run in
 tools/eemu.py (the Rust eemu_rs VuMachine when built).
 
 The game's side is a field made by its own WORLD::Init and WORLD::Generate

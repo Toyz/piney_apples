@@ -425,7 +425,7 @@ fn the_town_restocks_from_the_rand_the_field_left() {
 /// found her and turns to face Kite, and stays stopped through Talk (47).
 #[test]
 fn mistral_spoken_to_while_running_stands_facing_kite() {
-    use piney_world::entry::Kind;
+    use piney_world::event::entry::Kind;
     let Some((iso, archive)) = disc() else { return };
     let mut s = start(&iso, &archive, None);
     hold(&mut s, 128, 128, 900, |s| in_town(s).is_some());
@@ -499,7 +499,7 @@ fn mistral_spoken_to_while_running_stands_facing_kite() {
 /// runs up. Her menu (21) stops her where it found her, facing Kite.
 #[test]
 fn mistral_running_after_kite_stops_when_spoken_to() {
-    use piney_world::entry::Kind;
+    use piney_world::event::entry::Kind;
     let Some((iso, archive)) = disc() else { return };
     let mut s = start(&iso, &archive, None);
     hold(&mut s, 128, 128, 900, |s| in_town(s).is_some());

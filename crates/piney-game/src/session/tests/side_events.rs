@@ -562,7 +562,7 @@ fn search_bt_walks_from_its_stages_landmark() {
         return;
     };
     assert!(placed.is_some(), "SEARCH BT not placed");
-    let bt = |s: &Session| -> Option<piney_world::rtownpc::RtownPc> {
+    let bt = |s: &Session| -> Option<piney_world::town::pc::RtownPc> {
         let Stage::World(w) = &s.stage else { return None };
         w.world().pcs().iter().find(|p| p.row.id == 165).cloned()
     };
@@ -577,7 +577,7 @@ fn search_bt_walks_from_its_stages_landmark() {
         }
     }
     let p = first.expect("BT never made");
-    let t = piney_world::rtownpc::Tables::of(piney_data::volume::Volume::Out);
+    let t = piney_world::town::pc::Tables::of(piney_data::volume::Volume::Out);
     let marks = t.search_marks[165 - 159].as_ref().unwrap()[0];
     assert!(p.search && p.stage == 0, "not a SEARCH PC: {} {}", p.search, p.stage);
     assert_eq!((p.mark_pos, p.target_num), (marks, marks[1]));
@@ -586,7 +586,7 @@ fn search_bt_walks_from_its_stages_landmark() {
     let mut start = [0; 4];
     let town = w.world().town().base.no;
     assert_eq!(town, 2, "Carmina Gadelica");
-    let _ = piney_world::rtownpc::Search::set_up(&p.town.borrow(), &w.world().town().base.file, 165, 0)
+    let _ = piney_world::town::pc::Search::set_up(&p.town.borrow(), &w.world().town().base.file, 165, 0)
         .map(|set| start = set.pos);
     assert_eq!((p.char.pos[0], p.char.pos[1]), (start[0], start[1]), "not at its landmark");
     // Its walk (act 6 routes it, then 3): it glimmers below 0.3, moves,

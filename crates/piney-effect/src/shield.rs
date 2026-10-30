@@ -7,7 +7,7 @@
 //! b)` (main 0x001d9ce0) is `atan2f(b.y - a.y, b.x - a.x) + pi / 2` brought
 //! into -pi..pi. See docs/engine/effects.md ("The resistant shield").
 
-use piney_world::pose::Play;
+use piney_world::chara::pose::Play;
 
 use crate::draw::DrawRec;
 use crate::ee::{self, F, ONE, V4};

@@ -47,8 +47,8 @@ use piney_battle::world::{AnmSlot, CharHit};
 use piney_data::iso::Iso;
 use piney_data::save::SaveData;
 
-use crate::body::Body;
 use crate::camera::{CamPad, Camera};
+use crate::chara::body::Body;
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::Hits;
 
@@ -128,7 +128,7 @@ pub struct Tasks<'a> {
     /// The registry and the party (`ccSpcManager`, `ccPartyManager`, the
     /// game's globals): a member's remote command 5 leaves it here as in a
     /// town. None where no party is kept (the fights' harnesses).
-    pub spcs: Option<&'a mut crate::party::Spcs>,
+    pub spcs: Option<&'a mut crate::chara::party::Spcs>,
 }
 
 /// What the field's effects (`ccThEffect`, `ccThParticle`, which live
@@ -309,7 +309,7 @@ pub struct DungeonEntries {
     pub gims: Option<entry::DungeonGims>,
     pub rng: piney_data::dungeon::Rng,
     /// The dungeon's type and the built room's breakables' dummies
-    /// ([`crate::dungeon_area::DungeonArea::breakables_here`]).
+    /// ([`crate::dungeon::DungeonArea::breakables_here`]).
     pub dtype: u8,
     pub breakables: Vec<(u8, V4)>,
 }
@@ -318,7 +318,7 @@ pub struct DungeonEntries {
 /// `WORLD_MAN::EntryGimmick`'s field setters (`WORLD::SetFood`,
 /// `SetMagicCircle`, `SetSpecialObj`, in that order), with the field's
 /// `fieldrand` as `Generate` left it: the objects and in-points
-/// ([`crate::field_area::FieldArea::field_gims`]), the map `SetMagicCircle`
+/// ([`crate::field::area::FieldArea::field_gims`]), the map `SetMagicCircle`
 /// reads, `circleOfs`, `eventAreaNumber` and `fieldStartPos`.
 pub struct FieldEntries {
     pub gims: entry::FieldGims,
@@ -418,13 +418,13 @@ pub struct Combat {
     pub force_side_draws: Option<[i32; 2]>,
     /// The members' `ccUseItemRequest` calls of the frame (their AI's
     /// `UseItem`, the ocarina command), for the runtime to carry out
-    /// ([`crate::field_world::FieldWorld::take_member_items`]).
+    /// ([`crate::field::world::FieldWorld::take_member_items`]).
     pub member_items: Vec<MemberItem>,
     /// `ccGame`'s battle state (+0x58 `inBattle`, +0x5c `inBattleCnt`,
     /// +0x60 `inBattleDist`), which `ccThGameCtrl` keeps.
-    pub battle: crate::talk::InBattle,
+    pub battle: crate::event::talk::InBattle,
     /// `recoveryReq`: the element heals `ccThGameCtrl` hands out.
-    pub recovery: crate::talk::RecoveryReqs<usize>,
+    pub recovery: crate::event::talk::RecoveryReqs<usize>,
     /// `WORLD_MAN::Enter` asked by Kite's frame.
     pub enter: bool,
     /// The entry control's set-up has run.
@@ -465,8 +465,8 @@ pub struct Combat {
     pub blur_statics: piney_battle::boss::blur::Statics,
     /// What `ccRestoreSpcCondition` puts back into the characters built
     /// next, by `charTbl` row: the party's `storeCondition` when the scene
-    /// restores it ([`crate::party::restores_condition`]), else none.
-    pub restore: [Option<crate::party::StoredCondition>; 18],
+    /// restores it ([`crate::chara::party::restores_condition`]), else none.
+    pub restore: [Option<crate::chara::party::StoredCondition>; 18],
     /// The event's NPCs `ccEntryEventMng` made (type 3 a town PC, type 4
     /// the Administrator): their stand-ins on the entry control's NPC list,
     /// which the world moves, draws and speaks for.
@@ -713,8 +713,8 @@ impl Combat {
             dust_rings: 0,
             force_side_draws: None,
             member_items: Vec::new(),
-            battle: crate::talk::InBattle::default(),
-            recovery: crate::talk::RecoveryReqs::default(),
+            battle: crate::event::talk::InBattle::default(),
+            recovery: crate::event::talk::RecoveryReqs::default(),
             enter: false,
             started: false,
             part_pats: 0,
@@ -804,7 +804,7 @@ impl Combat {
         &mut self,
         x: &mut Tasks,
         restore: bool,
-        store: &[Option<crate::party::StoredCondition>; 18],
+        store: &[Option<crate::chara::party::StoredCondition>; 18],
     ) {
         let bounds = Self::bounds(x.scene.area, x.hits);
         let mut ev = Vec::new();
@@ -1862,7 +1862,7 @@ impl Combat {
                         a.drawn = true;
                         a.alpha = ONE;
                         a.matrix =
-                            Some(crate::field_ambient::pos_rot_xyz_scale(pos, dirc, [scale[0], scale[1], scale[2]]));
+                            Some(crate::field::ambient::pos_rot_xyz_scale(pos, dirc, [scale[0], scale[1], scale[2]]));
                     }
                 }
                 entry::Out::CircleDraw { who, transparency } => {
@@ -2032,7 +2032,7 @@ impl Combat {
         }
         // ccChar::Draw of each enemy dispEnemy placed: its fog blend and
         // transparency (the affect flash moves on as it draws).
-        let fcam = crate::foe::Camera {
+        let fcam = crate::chara::foe::Camera {
             player: self.scene.chars[kite_i].pos,
             cam: x.camera.active().pos,
             deg1: x.camera.active().deg[1],
@@ -2051,9 +2051,9 @@ impl Combat {
                 let erased = ch.foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| b.erase_target != 0);
                 let dead = ch.cond[cond::DEAD];
                 let mut blend = if dead == 1 && erased {
-                    crate::foe::FogBlend::default()
+                    crate::chara::foe::FogBlend::default()
                 } else {
-                    crate::foe::char_blend(dead, ch.condition_num, x.effect_sw, &mut ch.affect)
+                    crate::chara::foe::char_blend(dead, ch.condition_num, x.effect_sw, &mut ch.affect)
                 };
                 if blend.rate == 0
                     && let Some(f) = self.boss.as_ref().filter(|r| r.me == who).and_then(|r| r.fog)
@@ -2067,7 +2067,7 @@ impl Combat {
                 continue;
             }
             let st = self.foes.get(who).and_then(Option::as_ref).map_or(ONE, |f| f.set_transparency);
-            a.how = Some(crate::foe::char_draw(&mut self.scene.chars[who], st, true, x.effect_sw, 0, &fcam));
+            a.how = Some(crate::chara::foe::char_draw(&mut self.scene.chars[who], st, true, x.effect_sw, 0, &fcam));
         }
         for level in exps {
             for g in exp::exp_distributor(t, &mut self.scene, &party, x.save, level, x.count) {
@@ -2422,7 +2422,7 @@ impl Combat {
     /// `ccSpcChar::ArmsEffect`, `ClearArmsEffect` and `SetArmsEffectColor`
     /// as Kite's and the members' frames called them (shows from `from`
     /// on), in order: each character's weapon trails and points
-    /// ([`crate::arms::Arms`]) from its hands as its actor stands posed
+    /// ([`crate::chara::arms::Arms`]) from its hands as its actor stands posed
     /// now. A character none called draws no trail this frame.
     fn arms_shown(&mut self, from: usize) {
         enum Call {
@@ -2458,7 +2458,7 @@ impl Combat {
             let Some(a) = self.cast.get_mut(who) else { continue };
             let body = a.ch.body.clone();
             let w = a.weapon.get_or_insert_with(|| {
-                let mut w = crate::arms::Arms::default();
+                let mut w = crate::chara::arms::Arms::default();
                 w.equip(&body, job);
                 Box::new(w)
             });
@@ -2466,7 +2466,7 @@ impl Combat {
                 Call::Effect => {
                     let root = a.ch.root();
                     let worlds = body.worlds(&a.ch.play, root);
-                    let (r, l) = crate::arms::Arms::hands(&body, &worlds, root);
+                    let (r, l) = crate::chara::arms::Arms::hands(&body, &worlds, root);
                     let aura = t.equip(i32::from(job), i32::from(weapon)).map_or(-1, |e| e.aura_sw);
                     w.effect(r, l, aura, trajectory, skill_id);
                 }
@@ -2662,13 +2662,13 @@ impl Combat {
     }
 
     /// A party character's `ccSpcChar` members through `f` (piney-world's
-    /// [`crate::ai::SpcRef`]: `ManualModeAI`, `SetRemoteCmd` ...), written
+    /// [`crate::chara::ai::SpcRef`]: `ManualModeAI`, `SetRemoteCmd` ...), written
     /// back.
     pub fn with_spc<R>(
         &mut self,
         who: usize,
         hits: &mut Hits,
-        f: impl FnOnce(&mut crate::ai::SpcRef, &mut Hits) -> R,
+        f: impl FnOnce(&mut crate::chara::ai::SpcRef, &mut Hits) -> R,
     ) -> R {
         let td = self.cast.get(who).is_none_or(|a| a.trans_dist);
         let mut r = spc::SpcRec::read(&self.scene, &self.crew, who, self.kite, td);

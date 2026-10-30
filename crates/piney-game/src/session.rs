@@ -85,7 +85,7 @@ pub struct Session {
     world_man: Option<piney_world::area::WorldMan>,
     /// The dungeon the party is in, between its rooms' scenes (or area
     /// 15's story map, between its blocks'): what `WORLD_MAN` keeps.
-    dungeon: Option<piney_world::evarea::Kept>,
+    dungeon: Option<piney_world::story_map::holy_ground::Kept>,
     /// A change of scene asked for in The World, and the frames of
     /// `ccSetupGameCtrl`'s fade out drawn over the old scene since (its
     /// tasks still run under it).
@@ -97,7 +97,7 @@ pub struct Session {
     refused: Option<piney_data::area::Go>,
     /// `ccSpcManager` and `ccPartyManager`, carried from one area to the
     /// next (the town's own until it leaves).
-    spcs: Option<piney_world::party::Spcs>,
+    spcs: Option<piney_world::chara::party::Spcs>,
     /// The boss blur callbacks' function statics: power-on to power-off,
     /// from one area to the next.
     blur_statics: piney_battle::boss::blur::Statics,
@@ -213,7 +213,7 @@ pub enum Resume {
 pub struct InWorld {
     pub scene: piney_world::area::Scene,
     pub world_man: Option<piney_world::area::WorldMan>,
-    pub spcs: Option<piney_world::party::Spcs>,
+    pub spcs: Option<piney_world::chara::party::Spcs>,
 }
 
 impl Session {
@@ -2352,7 +2352,7 @@ mod tests {
     pub(super) fn story_player_with(
         s: &Session,
         f: u64,
-        talked: &[(piney_world::entry::Kind, i32)],
+        talked: &[(piney_world::event::entry::Kind, i32)],
         errands: &Errands,
     ) -> Raw {
         if let Stage::World(w) = &s.stage
@@ -2819,7 +2819,7 @@ mod tests {
         /// Speak to this one in the town, an event's target (`add_target`):
         /// an NPC or merchant, a party character (event 11's BlackRose) or
         /// the Chaos Gate (event 11's, type 13).
-        Talk(piney_world::entry::Kind, i32),
+        Talk(piney_world::event::entry::Kind, i32),
         /// Walk to this marker of the town (`markerEvTbl`), which an
         /// event's `near_marker` waits for (event 13's 31).
         Marker(i16),
@@ -2858,7 +2858,7 @@ mod tests {
     /// 0x800 the magic's, else the items') on this server.
     fn stock_row(w: &crate::world::WorldMode, code: i32, (cat, id): (i8, i16)) -> Option<usize> {
         let world = w.world();
-        let ty = world.merchants().iter().find(|m| piney_world::entry::Npc::code(*m) == code)?.flags;
+        let ty = world.merchants().iter().find(|m| piney_world::event::entry::Npc::code(*m) == code)?.flags;
         let f = piney_data::tables::fieldui::of(world.volume());
         // `VenderMenu`'s three (0x100 the weapons, 0x400 the items, 0x800
         // the magic); the Recorder (0x1000) and the Elf (0x200) sell none.
@@ -2918,7 +2918,7 @@ mod tests {
         let world = w.world();
         let kite = world.player().body.pos.map(f32::from_bits);
         let far = |code: i32| {
-            world.char_place(piney_world::entry::Kind::Npc, code).map_or(f32::MAX, |(p, _)| {
+            world.char_place(piney_world::event::entry::Kind::Npc, code).map_or(f32::MAX, |(p, _)| {
                 let p = p.map(f32::from_bits);
                 (p[0] - kite[0]).hypot(p[1] - kite[1])
             })
@@ -2927,7 +2927,7 @@ mod tests {
             .merchants()
             .iter()
             .filter(|m| m.flags & 0xd00 != 0)
-            .map(piney_world::entry::Npc::code)
+            .map(piney_world::event::entry::Npc::code)
             .min_by(|&a, &b| far(a).total_cmp(&far(b)))
     }
 
@@ -2936,7 +2936,7 @@ mod tests {
     fn shop_for(w: &crate::world::WorldMode, buys: &[Buy]) -> Option<i32> {
         let world = w.world();
         buys.iter().filter(|b| short_of(w, b) > 0).find_map(|b| {
-            let code = |m: &piney_world::merchant::Merchant| piney_world::entry::Npc::code(m);
+            let code = |m: &piney_world::town::merchant::Merchant| piney_world::event::entry::Npc::code(m);
             world.merchants().iter().map(code).find(|&c| stock_row(w, c, b.item).is_some())
         })
     }
@@ -2946,10 +2946,10 @@ mod tests {
     /// member to call, an area's words, the marks. None with none.
     pub(super) fn gate_goal(
         w: &crate::world::WorldMode,
-        talked: &[(piney_world::entry::Kind, i32)],
+        talked: &[(piney_world::event::entry::Kind, i32)],
         errands: &Errands,
     ) -> Option<GateGoal> {
-        use piney_world::entry::Kind;
+        use piney_world::event::entry::Kind;
         let (buys, detour) = (errands.buys, errands.detour);
         let save = &w.world().state().save;
         // A mail unread, or a post new on the board (posted, or written
@@ -3113,10 +3113,10 @@ mod tests {
     fn gate_player(
         w: &crate::world::WorldMode,
         f: u64,
-        talked: &[(piney_world::entry::Kind, i32)],
+        talked: &[(piney_world::event::entry::Kind, i32)],
         errands: &Errands,
     ) -> Option<Raw> {
-        use piney_world::entry::Kind;
+        use piney_world::event::entry::Kind;
         let buys = errands.buys;
         let still =
             |buttons: Buttons| Raw { buttons, analog: true, lx: 128, ly: 128, rx: 128, ry: 128, ..Raw::default() };
@@ -3461,7 +3461,7 @@ mod tests {
         assert!(cells.contains(&(1296, 1040)), "its red arrow");
         let flag = |s: &Session| match &s.stage {
             Stage::Area(a) => match a.world().place() {
-                piney_world::field_world::Place::Field(fa) => fa.map.as_ref().is_some_and(|m| m.map_flag),
+                piney_world::field::world::Place::Field(fa) => fa.map.as_ref().is_some_and(|m| m.map_flag),
                 _ => false,
             },
             _ => false,
@@ -4729,7 +4729,7 @@ mod tests {
                 if w.scene().area == 2 {
                     break;
                 }
-                let piney_world::field_world::Place::Field(fa) = w.place() else { break };
+                let piney_world::field::world::Place::Field(fa) = w.place() else { break };
                 let mid = fa.dungeon_pos().unwrap().map(f32::from_bits);
                 let p = w.player().body.pos.map(f32::from_bits);
                 let (dx, dy) = (mid[0] - p[0], mid[1] - p[1]);
@@ -4805,7 +4805,7 @@ mod tests {
     /// beyond it (2); for the stairs, the nearest point of his room (a
     /// 150-unit grid) whose ground has bit 0x80000 and leads no room on
     /// (`GotoNextRoom`'s stairs).
-    fn leg_goal(d: &piney_world::dungeon_area::DungeonArea, kite: [f32; 4], leg: Leg, stage: u8) -> Option<[f32; 2]> {
+    fn leg_goal(d: &piney_world::dungeon::DungeonArea, kite: [f32; 4], leg: Leg, stage: u8) -> Option<[f32; 2]> {
         use piney_data::dungeon::{EAST, NO_ROOM, NORTH, SOUTH, WEST};
         let fl = d.floors.get(d.level)?;
         let cell = |v: f32| (v / 750.0) as i32;
@@ -4942,7 +4942,7 @@ mod tests {
                 let playing = matches!(w.phase(), piney_world::Phase::Play(n) if n > 12);
                 let c = w.combat();
                 match (legs.get(leg), c.kite, w.place()) {
-                    (Some(&l), Some(k), piney_world::field_world::Place::Dungeon(d))
+                    (Some(&l), Some(k), piney_world::field::world::Place::Dungeon(d))
                         if playing && banned != Some(true) && a.ui().menu_type() == -1 =>
                     {
                         let p = c.scene.chars[k].pos.map(f32::from_bits);
@@ -5099,7 +5099,7 @@ mod tests {
                 kite_on_it |= c.scene.chars[k].skill_id == 1 && c.scene.chars[k].target_char == Some(e);
             }
             if room == (0, 3)
-                && let piney_world::field_world::Place::Dungeon(d) = w.place()
+                && let piney_world::field::world::Place::Dungeon(d) = w.place()
             {
                 // This room's portal (the dungeon's others are kept on the
                 // list, switched off).
@@ -5173,7 +5173,7 @@ mod tests {
         let n = walk_into_dungeon(&mut s, |s, n, _| {
             let Stage::Area(a) = &s.stage else { return };
             let w = a.world();
-            let piney_world::field_world::Place::Field(fa) = w.place() else { return };
+            let piney_world::field::world::Place::Field(fa) = w.place() else { return };
             if n.is_multiple_of(100) {
                 let c = w.combat();
                 let k = c.kite.unwrap();
@@ -6147,7 +6147,7 @@ mod tests {
             let foe = c.enemies().first().map(|&e| c.scene.chars[e].hp);
             let room3 = (w.scene().floor, w.scene().block) == (0, 3);
             let (doors_open, circles) = match w.place() {
-                piney_world::field_world::Place::Dungeon(d) => {
+                piney_world::field::world::Place::Dungeon(d) => {
                     (d.door.door_flag, c.ctrl.list(piney_battle::entry::Kind::Circle).len())
                 }
                 _ => (false, 0),
@@ -6265,7 +6265,7 @@ mod tests {
         // A blade of another file: ChangeEquip's ChangeWeapon hangs it on
         // his hands.
         let t = &a.world().combat().data.t;
-        let (now, _) = piney_world::body::weapon_of(t, &a.world().state().save, 0).expect("Kite's blades");
+        let (now, _) = piney_world::chara::body::weapon_of(t, &a.world().state().save, 0).expect("Kite's blades");
         let (i, other) = (0..64)
             .find_map(|i| {
                 let n = String::from_utf8(t.job_weapon(0, i)?.ccsname.clone()).ok()?;
@@ -6311,7 +6311,7 @@ mod tests {
             wm,
             None,
             Arrival::default(),
-            piney_world::party::Spcs::default(),
+            piney_world::chara::party::Spcs::default(),
         )
         .unwrap();
         let mut pad = Pad::default();
@@ -6352,7 +6352,7 @@ mod tests {
     /// dungeon kept was taken for whichever came next.
     #[test]
     fn a_lake_keeps_both_its_dungeons() {
-        use piney_world::evarea::Kept;
+        use piney_world::story_map::holy_ground::Kept;
         let iso = crate::check_image("infection");
         if !iso.exists() {
             return;
@@ -6377,7 +6377,7 @@ mod tests {
                 wm,
                 kept,
                 Arrival::default(),
-                piney_world::party::Spcs::default(),
+                piney_world::chara::party::Spcs::default(),
             )
             .unwrap();
             let pad = Pad::default();
@@ -6668,7 +6668,7 @@ mod tests {
     fn story_4_item_add_and_room() {
         use piney_battle::item::get_item_num;
         use piney_event::host::Host;
-        use piney_world::field_world::Place;
+        use piney_world::field::world::Place;
         let Some((mut s, _)) = story_4_first_room() else { return };
         let Stage::Area(a) = &mut s.stage else { panic!("not in the area") };
         let save = a.world().state().save.clone();
@@ -6745,7 +6745,7 @@ mod tests {
                 gs.render(&frame);
                 let Stage::Area(a) = &s.stage else { panic!("left the area") };
                 let w = a.world();
-                let piney_world::field_world::Place::Dungeon(d) = w.place() else { panic!("not in the dungeon") };
+                let piney_world::field::world::Place::Dungeon(d) = w.place() else { panic!("not in the dungeon") };
                 let c = w.combat();
                 let kp = c.scene.chars[c.kite.unwrap()].pos;
                 let cam = w.camera().active().pos;
@@ -7819,7 +7819,7 @@ mod tests {
     }
 }
 
-/// Area 15's story map through the runtime (`piney_world::evarea`):
+/// Area 15's story map through the runtime (`piney_world::story_map::holy_ground`):
 /// arriving from the Chaos Gate's words and from a start in the field, the
 /// church's door in and out, each a change of scene the session makes.
 #[cfg(test)]
@@ -7857,7 +7857,7 @@ mod area15 {
     }
 
     /// The area mode's world once its fade in has begun.
-    pub(super) fn playing(s: &Session) -> Option<&piney_world::field_world::FieldWorld> {
+    pub(super) fn playing(s: &Session) -> Option<&piney_world::field::world::FieldWorld> {
         match &s.stage {
             Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(f) if f >= 2) => Some(a.world()),
             _ => None,
@@ -7866,7 +7866,7 @@ mod area15 {
 
     /// A new area mode's world set up, before its tasks' first frame (the
     /// scene before plays on under its fade out, the change already made).
-    fn arrived(s: &Session) -> Option<&piney_world::field_world::FieldWorld> {
+    fn arrived(s: &Session) -> Option<&piney_world::field::world::FieldWorld> {
         match &s.stage {
             Stage::Area(a) if matches!(a.world().phase(), piney_world::Phase::Play(0)) => Some(a.world()),
             _ => None,
@@ -7912,7 +7912,7 @@ mod area15 {
     }
 
     /// Whether Kite stands within a unit of (x, y, z).
-    fn at(w: &piney_world::field_world::FieldWorld, want: [f32; 3]) -> bool {
+    fn at(w: &piney_world::field::world::FieldWorld, want: [f32; 3]) -> bool {
         let p = w.player().body.pos.map(f32::from_bits);
         (0..3).all(|k| (p[k] - want[k]).abs() < 1.0)
     }
@@ -7939,7 +7939,7 @@ mod area15 {
         // ccSndSQLoad(5): the story map's event bank.
         assert!(matches!(banks[..], [piney_audio::SqContext::Event { field: 15, .. }]), "{banks:?}");
         let w = playing(&s).unwrap();
-        assert!(w.place().story::<piney_world::evarea::EventArea>().is_some_and(|e| e.block == 0));
+        assert!(w.place().story::<piney_world::story_map::holy_ground::EventArea>().is_some_and(|e| e.block == 0));
         assert_eq!((w.scene().field, w.scene().block), (15, -1));
         assert!(at(w, [0.0, -3600.0, 0.0]), "{}", Mode::title(&s));
         // Up the bridge: Enter on the door, the scene's block 1, a new set-up.
@@ -7947,14 +7947,18 @@ mod area15 {
         let banks = hold(&mut s, 128, 0, 1500, |s| arrived(s).is_some_and(|w| w.scene().block == 1));
         assert!(banks.is_empty(), "the same scene: no bank loaded");
         let w = arrived(&s).unwrap();
-        assert!(w.place().story::<piney_world::evarea::EventArea>().is_some_and(|e| e.block == 1 && e.rev.is_some()));
+        assert!(
+            w.place()
+                .story::<piney_world::story_map::holy_ground::EventArea>()
+                .is_some_and(|e| e.block == 1 && e.rev.is_some())
+        );
         assert!(at(w, [0.0, 900.0, 0.0]), "{}", Mode::title(&s));
         assert_eq!(w.player().acts.act, 2, "through the door he stands at once");
         assert_eq!(w.scene().area_prev, 1);
         // Back down the nave and out.
         hold(&mut s, 128, 255, 1500, |s| arrived(s).is_some_and(|w| w.scene().block == 0));
         let w = arrived(&s).unwrap();
-        assert!(w.place().story::<piney_world::evarea::EventArea>().is_some_and(|e| e.block == 0));
+        assert!(w.place().story::<piney_world::story_map::holy_ground::EventArea>().is_some_and(|e| e.block == 0));
         assert!(at(w, [0.0, 2700.0, 200.0]), "{}", Mode::title(&s));
     }
 
@@ -7970,7 +7974,9 @@ mod area15 {
         assert!(matches!(banks[..], [piney_audio::SqContext::Event { field: 16, .. }]), "{banks:?}");
         let w = playing(&s).unwrap();
         assert!(
-            w.place().story::<piney_world::evarea07::Giant>().is_some_and(|g| g.block == 0 && g.clouds.len() == 25)
+            w.place()
+                .story::<piney_world::story_map::giant::Giant>()
+                .is_some_and(|g| g.block == 0 && g.clouds.len() == 25)
         );
         assert!(at(w, [0.0, -5400.0, -50.0]), "{}", Mode::title(&s));
         hold(&mut s, 128, 128, 120, |s| playing(s).is_some_and(|w| w.player().acts.act == 2));
@@ -7980,12 +7986,16 @@ mod area15 {
         let Stage::Area(a) = &mut s.stage else { panic!("not in the dungeon") };
         assert!(a.world_mut().go_field());
         hold(&mut s, 128, 128, 600, |s| {
-            arrived(s).is_some_and(|w| w.place().story::<piney_world::evarea07::Giant>().is_some())
+            arrived(s).is_some_and(|w| w.place().story::<piney_world::story_map::giant::Giant>().is_some())
         });
         let w = arrived(&s).unwrap();
-        assert!(w.place().story::<piney_world::evarea07::Giant>().is_some_and(|g| g.block == 0), "{}", Mode::title(&s));
+        assert!(
+            w.place().story::<piney_world::story_map::giant::Giant>().is_some_and(|g| g.block == 0),
+            "{}",
+            Mode::title(&s)
+        );
         assert_eq!(w.scene().area_prev, 2);
-        let back = piney_world::evarea07::Giant::new(
+        let back = piney_world::story_map::giant::Giant::new(
             &archive,
             piney_data::volume::Volume::Inf,
             0,
@@ -8014,7 +8024,7 @@ mod area15 {
         let w = playing(&s).unwrap();
         assert_eq!((w.scene().area, w.scene().field), (1, 15));
         assert_eq!(w.world_man().field_model, 1);
-        assert!(w.place().story::<piney_world::evarea::EventArea>().is_some_and(|e| e.block == 0));
+        assert!(w.place().story::<piney_world::story_map::holy_ground::EventArea>().is_some_and(|e| e.block == 0));
         assert!(at(w, [0.0, -3600.0, 0.0]), "{}", Mode::title(&s));
     }
 
@@ -8263,7 +8273,7 @@ mod area15 {
         hold(&mut s, 128, 128, 600, |s| playing(s).is_some());
         let w = playing(&s).unwrap();
         assert_eq!((w.scene().area, w.scene().field), (1, 15));
-        assert!(w.place().story::<piney_world::evarea::EventArea>().is_some_and(|e| e.block == 0));
+        assert!(w.place().story::<piney_world::story_map::holy_ground::EventArea>().is_some_and(|e| e.block == 0));
         assert!(at(w, [0.0, -3600.0, 0.0]), "{}", Mode::title(&s));
         // The event task's passes there are over: play goes on, the events
         // at phase 5.

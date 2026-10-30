@@ -1,5 +1,5 @@
 //! Answers `tools/test_cinema_rs.py`: the boss fight's cinema
-//! (`piney_world::cinema::Cinema`, `ccBossEffCinemaFade`). One request a line,
+//! (`piney_world::camera::cinema::Cinema`, `ccBossEffCinemaFade`). One request a line,
 //! one JSON line back: `on N` (`OnCinemaMode(N)`; only 2, Skeith's, has a
 //! name), `off` (`OffCinemaMode`), `draw` (the name's transparency bits and
 //! `wv`, the bars' y).
@@ -7,7 +7,7 @@
 use std::io::BufRead;
 
 use piney_draw::TexRef;
-use piney_world::cinema::{Cinema, Name};
+use piney_world::camera::cinema::{Cinema, Name};
 
 fn main() {
     let mut c = Cinema::new();

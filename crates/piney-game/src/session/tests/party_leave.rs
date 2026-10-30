@@ -74,7 +74,7 @@ fn party(s: &Session) -> ([i32; 3], Vec<i32>) {
 }
 
 /// Where the room's magic portal stands while it is switched on.
-fn portal(w: &piney_world::field_world::FieldWorld) -> Option<[u32; 4]> {
+fn portal(w: &piney_world::field::world::FieldWorld) -> Option<[u32; 4]> {
     let c = w.combat();
     c.ctrl
         .list(piney_battle::entry::Kind::Circle)

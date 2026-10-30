@@ -905,12 +905,12 @@ fn gorre_brothers_model_shots() {
     let mut gs = piney_gs::Gs::headless(piney_gs::Assets::new(s.archive.clone())).unwrap();
     let f = |x: f32| x.to_bits();
     for (clump, clip) in [("CMP_trall", "ANM_ex51nut"), ("CMP_trall2", "ANM_ex52nut"), ("CMP_trallx", "ANM_ex5xnut")] {
-        let body = piney_world::body::Body::of(file.clone(), clump).unwrap();
+        let body = piney_world::chara::body::Body::of(file.clone(), clump).unwrap();
         let play = body.play(clip).unwrap();
         for (name, lights) in [("white", &white), ("arena", &arena)] {
             for turn in [0u32, 90, 180, 270] {
                 let r = (turn as f32).to_radians();
-                let root = piney_world::body::root([0, 0, 0, f(1.0)], [0, 0, f(r), f(1.0)]);
+                let root = piney_world::chara::body::root([0, 0, 0, f(1.0)], [0, 0, f(r), f(1.0)]);
                 let eye = [0, f(-1800.0), f(400.0), f(1.0)];
                 let at = [0, 0, f(400.0), f(1.0)];
                 let ws = piney_data::anim::vu_mul(

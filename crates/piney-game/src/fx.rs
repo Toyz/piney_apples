@@ -1,6 +1,6 @@
 //! The field's effects (piney-effect's `ccThEffect` and `ccThParticle`) over a
 //! field's or dungeon's battle, installed into the world
-//! ([`piney_world::field_world::FieldFx`]) and run at their places in the frame
+//! ([`piney_world::field::world::FieldFx`]) and run at their places in the frame
 //! (`ccThEffect` 80, `ccThParticle` 98). Each task first starts what the tasks
 //! before it asked for ([`Show`], Kite's arrival, a level up, a kill's
 //! experience); here the starters run in a batch at the next effect task, so
@@ -22,12 +22,12 @@ use piney_effect::eff::Eff;
 use piney_effect::portal::{CircleFrame, MagicCircle};
 use piney_effect::{CharRef, Effects, Host, ONE, V4, flyfont, vu};
 use piney_world::combat::{FxTasks, FxWorld, Look, Show, SpellDamage, SpellOut, SpellRun};
-use piney_world::evarea::StorySprite;
-use piney_world::field_world::{FieldFx, FxView};
-use piney_world::merchant::SysopEvent;
+use piney_world::field::world::{FieldFx, FxView};
+use piney_world::story_map::holy_ground::StorySprite;
+use piney_world::town::merchant::SysopEvent;
 
 /// An ambient sprite's `ccEff` by file, name, fog bit, depth test and
-/// palette change (`piney_world::field_ambient::Sprite`).
+/// palette change (`piney_world::field::ambient::Sprite`).
 type AmbientKey = (&'static str, &'static str, bool, bool, Option<(&'static str, &'static str)>);
 
 /// The effects of an area and what they draw with.
@@ -50,7 +50,7 @@ pub struct AreaFx {
     /// file, name, fog bit, depth test and palette change, and its smoke
     /// puffs waiting for the next effect task ([`ambient`]).
     ambient: std::collections::HashMap<AmbientKey, Option<Eff>>,
-    ambient_smoke: Vec<piney_world::field_ambient::Op>,
+    ambient_smoke: Vec<piney_world::field::ambient::Op>,
     archive: Arc<Archive>,
     /// Each character's condition effect (`ccChar` +0x2c), by scene index.
     conditions: std::collections::HashMap<usize, piney_effect::particle::ConditionEffect>,
@@ -58,7 +58,7 @@ pub struct AreaFx {
     /// running skill's animation of its file, by the run's key.
     skill_files: std::collections::HashMap<String, Option<std::rc::Rc<piney_desktop::assets::SceneFile>>>,
     skill_anims:
-        std::collections::HashMap<u32, (std::rc::Rc<piney_desktop::assets::SceneFile>, piney_world::pose::Play)>,
+        std::collections::HashMap<u32, (std::rc::Rc<piney_desktop::assets::SceneFile>, piney_world::chara::pose::Play)>,
     /// Quarantine's field staff roll: asked to start (the save's names), and
     /// running.
     ending_asked: Option<piney_desktop::kanji::Names>,
@@ -78,13 +78,13 @@ struct Ending {
     /// The last frame's draws, and what it asked since the world last took
     /// them.
     draws: Vec<piney_effect::stfroll::Draw>,
-    asks: Vec<piney_world::field_world::EndingAsk>,
+    asks: Vec<piney_world::field::world::EndingAsk>,
 }
 
 impl Ending {
     fn ask(&mut self, asks: Vec<piney_effect::stfroll::Ask>) {
         use piney_effect::stfroll::Ask;
-        use piney_world::field_world::EndingAsk;
+        use piney_world::field::world::EndingAsk;
         self.asks.extend(asks.into_iter().map(|a| match a {
             Ask::Camera { pos, view } => EndingAsk::Camera { pos, view },
             Ask::Bgm(n) => EndingAsk::Bgm(n),
@@ -129,7 +129,7 @@ impl Ending {
                     m.send(&mut ctx.layers);
                 }
                 Draw::Anm { anim, time, matrix, transparency } => {
-                    let Some(mut play) = piney_world::pose::Play::new(&self.file, anim.clip()) else { continue };
+                    let Some(mut play) = piney_world::chara::pose::Play::new(&self.file, anim.clip()) else { continue };
                     (play.time, play.posed) = (*time, *time);
                     piney_world::town::anim_draw_blended(
                         &mut ctx.layers,
@@ -347,7 +347,7 @@ impl FxTasks for AreaFx {
                 .entry(file.to_string())
                 .or_insert_with(|| piney_desktop::assets::SceneFile::read(archive, file).ok().map(std::rc::Rc::new))
                 .clone()?;
-            let play = piney_world::pose::Play::new(&f, &format!("ANM_{file}"))?;
+            let play = piney_world::chara::pose::Play::new(&f, &format!("ANM_{file}"))?;
             self.skill_anims.insert(key, (f, play));
         }
         let (f, play) = self.skill_anims.get_mut(&key)?;
@@ -418,12 +418,12 @@ impl FieldFx for AreaFx {
         self.ending_asked.is_some() || self.ending.as_ref().is_some_and(|e| !e.roll.done)
     }
 
-    fn take_ending_asks(&mut self) -> Vec<piney_world::field_world::EndingAsk> {
+    fn take_ending_asks(&mut self) -> Vec<piney_world::field::world::EndingAsk> {
         self.ending.as_mut().map(|e| std::mem::take(&mut e.asks)).unwrap_or_default()
     }
 
-    fn census(&self) -> piney_world::field_world::FxCensus {
-        piney_world::field_world::FxCensus {
+    fn census(&self) -> piney_world::field::world::FxCensus {
+        piney_world::field::world::FxCensus {
             effects: self.fx.ctrl.effects.iter().filter(|e| e.status != 0).map(|e| e.id).collect(),
             effect_targets: (self.fx.ctrl.effects.iter()).filter(|e| e.status != 0).map(|e| (e.id, e.target)).collect(),
             effects_unseen: (self.fx.ctrl.effects.iter())
@@ -586,7 +586,7 @@ impl FieldFx for AreaFx {
 
     fn field_ambient(
         &mut self,
-        ops: &[piney_world::field_ambient::Op],
+        ops: &[piney_world::field::ambient::Op],
         fresh: bool,
         camera: &piney_world::camera::Camera,
         ctx: &mut Ctx,

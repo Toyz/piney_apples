@@ -22,7 +22,7 @@ fn area_43_flies_over_and_sends_the_party_back() {
     hold(&mut s, 128, 128, 400, |s| playing(s).is_some());
     let w = playing(&s).unwrap();
     assert_eq!((w.scene().area, w.scene().field), (1, 43));
-    let a = w.place().story::<piney_world::evarea03::Area43>().expect("EVENTAREA03");
+    let a = w.place().story::<piney_world::story_map::abyss::Area43>().expect("EVENTAREA03");
     assert!(!a.flag, "area 43 marked on a new game");
     let calls = |s: &Session| match &s.stage {
         Stage::Area(a) => a.calls().iter().map(|(_, c)| c.clone()).collect::<Vec<_>>(),
@@ -32,7 +32,7 @@ fn area_43_flies_over_and_sends_the_party_back() {
     let w = playing(&s).unwrap();
     assert_eq!(w.camera().cam_id, piney_world::camera::id::EVENT);
     assert!(calls(&s).iter().any(|c| c == "menu_ban true"));
-    assert_eq!(w.place().story::<piney_world::evarea03::Area43>().unwrap().cnt, 141);
+    assert_eq!(w.place().story::<piney_world::story_map::abyss::Area43>().unwrap().cnt, 141);
     // OK until the line closes and the town comes.
     let mut pad = Pad::default();
     for f in 0..600u32 {

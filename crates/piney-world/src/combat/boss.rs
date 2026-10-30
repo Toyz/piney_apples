@@ -21,12 +21,12 @@ use piney_battle::world::CharHit;
 use super::Combat;
 use super::cast::{Actor, Look};
 use super::stage::Show;
-use crate::body::Body;
-use crate::bosscam::BossCam;
+use crate::camera::bosscam::BossCam;
+use crate::camera::cinema::{Cinema, Name as CinemaName, Sent as CinemaSent};
 use crate::camera::{CamPad, Camera, id};
-use crate::cinema::{Cinema, Name as CinemaName, Sent as CinemaSent};
+use crate::chara::body::Body;
 use crate::ee::{self, F, ONE, V4};
-use crate::lattice::{Lattice, StripVertex};
+use crate::sky::lattice::{Lattice, StripVertex};
 
 /// `bossFunc`'s codes the port has: Skeith (`bossTbl` row 0), Innis
 /// (row 1), Magus (row 2), Fidchell (row 3), Gorre (row 4) and Kyvia 01
@@ -154,7 +154,7 @@ pub struct BossRun {
     /// Tarvos's `PreDrawAnm` this frame: `SetFogBlend(m_blendRate,
     /// 0x404080)`, which its body's draw keeps when `ccBoss::Draw` sets no
     /// blend of its own.
-    pub fog: Option<crate::foe::FogBlend>,
+    pub fog: Option<crate::chara::foe::FogBlend>,
     /// Kyvia's arm's `DrawParts` this frame: its clip, pose time, place
     /// and turn.
     pub arm: Option<(String, u32, V4, V4)>,
@@ -225,7 +225,7 @@ pub struct AfterImage {
     pub fade: f32,
     pub image: Image,
     /// `SetFogBlend(colorAlpha, color)`; rate 0 for none.
-    pub blend: crate::foe::FogBlend,
+    pub blend: crate::chara::foe::FogBlend,
     pub blend_spd: ee::F,
     pub scale: [f32; 3],
     pub grow: Option<([f32; 3], [f32; 3])>,
@@ -256,7 +256,7 @@ impl AfterImage {
             transparency: 1.0,
             fade: AFTERIMAGE_FADE,
             image: Image::Boss,
-            blend: crate::foe::FogBlend { rate: 0x42c8_0000, colour: 0x00ff_ffff },
+            blend: crate::chara::foe::FogBlend { rate: 0x42c8_0000, colour: 0x00ff_ffff },
             blend_spd: 0,
             scale: [1.0; 3],
             grow: None,
@@ -273,7 +273,7 @@ impl AfterImage {
             transparency: 0.5,
             fade: f32::from_bits(0x3c88_8889),
             image: Image::Leaf,
-            blend: crate::foe::FogBlend { rate: 0x42c8_0000, colour: 0x0050_50ff },
+            blend: crate::chara::foe::FogBlend { rate: 0x42c8_0000, colour: 0x0050_50ff },
             scale: from,
             grow: Some((step, to)),
             ..AfterImage::boss(clip, time, pos, dirc)
@@ -297,7 +297,7 @@ impl AfterImage {
             transparency: f32::from_bits(p.transparency),
             fade: -f32::from_bits(p.trans_spd),
             image: Image::Anm,
-            blend: crate::foe::FogBlend { rate, colour: p.color },
+            blend: crate::chara::foe::FogBlend { rate, colour: p.color },
             blend_spd: p.color_spd,
             scale,
             grow,
@@ -1094,7 +1094,7 @@ impl Combat {
                         r.waves.push((*time, *pos, *dirc, 1.0));
                     }
                     Out::Tarvos(boss::tarvos::Pic::Fog { rate, colour }) => {
-                        r.fog = Some(crate::foe::FogBlend { rate: *rate, colour: *colour });
+                        r.fog = Some(crate::chara::foe::FogBlend { rate: *rate, colour: *colour });
                     }
                     // A brother's trail (`EntryAfterImage(0)`) and wave.
                     Out::Gorre(boss::gorre::Pic::Image { clip, frame, pos, dirc, .. }) => {
@@ -1347,7 +1347,7 @@ impl Combat {
             a.trans_dist = false;
             a.matrix = matrix;
             if let Some(&rate) = blends.get(&p) {
-                a.ch.blend = crate::foe::FogBlend { rate, colour: super::corbenik::EYE_FLASH }.fog();
+                a.ch.blend = crate::chara::foe::FogBlend { rate, colour: super::corbenik::EYE_FLASH }.fog();
             }
         }
     }
@@ -1461,8 +1461,8 @@ pub(super) fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> 
             deg1: camera.active().deg[1],
             // checkCameraType(): activeCamPtr->type.
             eye_view: camera.active().kind == crate::camera::kind::EYE,
-            far: crate::foe::AREA_FAR,
-            fade: crate::foe::AREA_FADE,
+            far: crate::chara::foe::AREA_FAR,
+            fade: crate::chara::foe::AREA_FADE,
         }),
     }
 }
@@ -1470,9 +1470,14 @@ pub(super) fn cam_view(camera: &Camera, bcam: Option<&BossCam>, shake: bool) -> 
 /// The sword's two trail points (`DMY_xdummy_w01`, `_w02` of the boss's
 /// file) under `OBJ_ex11swd`'s world matrix (`GetObjAdrsF` of the clump),
 /// the body posed by `play` at `pos`, `dirc` (`sceVu0ApplyMatrix`).
-fn sword_points(body: &crate::body::Body, play: &crate::pose::Play, pos: V4, dirc: V4) -> Option<[V4; 2]> {
+fn sword_points(
+    body: &crate::chara::body::Body,
+    play: &crate::chara::pose::Play,
+    pos: V4,
+    dirc: V4,
+) -> Option<[V4; 2]> {
     let sword = body.node("OBJ_ex11swd")?;
-    let m = *body.worlds(play, crate::body::root(pos, dirc)).get(&sword)?;
+    let m = *body.worlds(play, crate::chara::body::root(pos, dirc)).get(&sword)?;
     let point = |name: &str| -> Option<V4> {
         let d = body.file.scene.dummies.get(&body.file.ccs.find_object(name)?)?;
         let p = m * glam::Vec4::new(d.pos.x, d.pos.y, d.pos.z, 1.0);
@@ -1500,8 +1505,14 @@ fn shake_range(camera: &Camera, world: &World, pos: V4) -> bool {
 /// Where each of Magus's twelve leaves hangs (`OBJ_ex31leaf`,
 /// `OBJ_ex31leaf01`-`11` of x31) on the body posed by `play` at `pos`,
 /// `dirc`; a leaf the model lacks keeps `last`'s.
-fn leaf_points(body: &crate::body::Body, play: &crate::pose::Play, pos: V4, dirc: V4, last: [V4; 12]) -> [V4; 12] {
-    let worlds = body.worlds(play, crate::body::root(pos, dirc));
+fn leaf_points(
+    body: &crate::chara::body::Body,
+    play: &crate::chara::pose::Play,
+    pos: V4,
+    dirc: V4,
+    last: [V4; 12],
+) -> [V4; 12] {
+    let worlds = body.worlds(play, crate::chara::body::root(pos, dirc));
     std::array::from_fn(|k| {
         let Some(m) = body.node(&leaf_name("OBJ_ex31leaf", k)).and_then(|n| worlds.get(&n)) else { return last[k] };
         let p = *m * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
@@ -1512,14 +1523,14 @@ fn leaf_points(body: &crate::body::Body, play: &crate::pose::Play, pos: V4, dirc
 /// The world places of `names`' nodes as the body is posed (each kept from
 /// `last` where the body has none).
 fn node_points<const N: usize>(
-    body: &crate::body::Body,
-    play: &crate::pose::Play,
+    body: &crate::chara::body::Body,
+    play: &crate::chara::pose::Play,
     pos: V4,
     dirc: V4,
     names: [&str; N],
     last: [V4; N],
 ) -> [V4; N] {
-    let worlds = body.worlds(play, crate::body::root(pos, dirc));
+    let worlds = body.worlds(play, crate::chara::body::root(pos, dirc));
     std::array::from_fn(|k| {
         let Some(m) = body.node(names[k]).and_then(|n| worlds.get(&n)) else { return last[k] };
         let p = *m * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
@@ -1538,7 +1549,7 @@ fn rows(m: glam::Mat4) -> piney_battle::geom::M4 {
 
 /// The entry `name` of the body's animation `play` (an ExtObj copy is its
 /// own; the last of that name) under `root`: its place and its own matrix.
-fn anm_object(body: &Body, play: &crate::pose::Play, root: glam::Mat4, name: &str) -> Option<(V4, glam::Mat4)> {
+fn anm_object(body: &Body, play: &crate::chara::pose::Play, root: glam::Mat4, name: &str) -> Option<(V4, glam::Mat4)> {
     let file = &body.file;
     let poses = file.anims[play.anim].entry_poses_at(play.posed);
     let found = play.instances(file, root).into_iter().zip(poses).rev();
@@ -1568,7 +1579,7 @@ fn magus_shocks(
         (p.time, p.posed) = (anm.time, anm.posed);
         p
     });
-    let root = crate::body::root(at.0, at.1);
+    let root = crate::chara::body::root(at.0, at.1);
     std::array::from_fn(|k| {
         let found = play.as_ref().and_then(|p| {
             let (a, _) = anm_object(body, p, root, &format!("OBJ_ex31les{:02}", 5 * k))?;
@@ -1584,7 +1595,7 @@ fn magus_shocks(
 /// The entries of `play` the dropped leaves `leaves` hide: each one's
 /// `EXT_ex31leaf*` (the ExtObj `OBJ_ex31leafNN`) and its light
 /// (`OBJ_ex31lighNN`, paired with the leaves in the search's order).
-pub fn dropped_objects(body: &Body, play: &crate::pose::Play, leaves: &[usize]) -> Vec<u32> {
+pub fn dropped_objects(body: &Body, play: &crate::chara::pose::Play, leaves: &[usize]) -> Vec<u32> {
     if leaves.is_empty() {
         return Vec::new();
     }

@@ -1,7 +1,7 @@
 //! The game over after `ccThGameCtrl`'s signal (`docs/engine/field-walk.md`,
 //! "The game over"): `ccThGameCtrl`'s second step (the sound's
 //! `ccSndGameOver`, the task started), `ccThGameOver` (gcmn 0x00516a80)
-//! with its `ccGameOverNoise` over the field ([`piney_world::gameover`]),
+//! with its `ccGameOverNoise` over the field ([`piney_world::event::gameover`]),
 //! the field's tasks deleted once the noise is done, the "over" file's
 //! `ANM_xdggame0` (GAME OVER) on its own layer, and `ccOpenGameOverMenu`'s
 //! `ChangeRequest(1, 7)`: the soft reset to the title.
@@ -15,7 +15,7 @@ use piney_desktop::anm::{Anm, Ctx};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::view::View;
 use piney_draw::{Cmd, Frame, Rgba};
-use piney_world::gameover::{GameOverNoise, ViewFrame};
+use piney_world::event::gameover::{GameOverNoise, ViewFrame};
 
 use crate::field_host::ScFade;
 use crate::mode::Event;

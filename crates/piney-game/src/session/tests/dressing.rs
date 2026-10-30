@@ -9,8 +9,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use piney_world::area::{Scene, WorldMan, kind};
-use piney_world::dungeon_area::DungeonArea;
-use piney_world::field_world::Place;
+use piney_world::dungeon::DungeonArea;
+use piney_world::field::world::Place;
 
 use super::shrine::walk_to;
 use super::*;
@@ -315,7 +315,7 @@ fn a_lake_by_night_has_its_sky_and_fireflies() {
     for _ in 0..200 {
         step(&mut s);
     }
-    let lake_of = |s: &Session| -> piney_world::dungeon_area::lake::Lake {
+    let lake_of = |s: &Session| -> piney_world::dungeon::lake::Lake {
         let Stage::Area(a) = &s.stage else { panic!("in an area") };
         let Place::Dungeon(d) = a.world().place() else { panic!("in the dungeon") };
         d.lake.clone().expect("a lake")

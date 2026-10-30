@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use piney_world::pose::Play;
+use piney_world::chara::pose::Play;
 
 use crate::ee::{self, F, ONE};
 use crate::files::{Assets, ObjRef};

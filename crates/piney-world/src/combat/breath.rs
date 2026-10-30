@@ -18,7 +18,7 @@ use piney_battle::geom::{F, M4};
 use super::Combat;
 use super::stage::{PlayerFrame, Show};
 use crate::ee::V4;
-use crate::field_ambient::{Op, Sprite};
+use crate::field::ambient::{Op, Sprite};
 use crate::hit::Hits;
 
 /// A flame as the frame drew it.

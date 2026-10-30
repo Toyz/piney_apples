@@ -45,7 +45,7 @@ STATIC_MODEL_INFO   0x14 bytes, e.g. RT_MODELTABLE00 (32 rows), EA_MODELTABLE01
   from the camera eye: `clip[0]` on the gate plaza, `clip[1]` on the south
   plaza, `clip[2]` beyond y 1600 (`0x44c8 << 16`). The rules are on
   [the field game page](field-game.md#what-the-town-draws) and in
-  `crates/piney-world/src/town01.rs`, whose `MacAnu::select` gives what
+  `crates/piney-world/src/town/mac_anu.rs`, whose `MacAnu::select` gives what
   the game's `Draw` gives for any camera eye (run side by side in eemu,
   `tools/test_world_rs.py`).
 
@@ -127,7 +127,7 @@ UVs scrolled, water 1 in U and water 2 in V ([Dun Loireag](town02.md)).
 the sky on `objLayer`, the three over it on `WORLD_MAN`'s layers at +0x49c,
 +0x4a0 and +0x4a4 (priorities -80, -70, -60), `MAT_sr1dat1_2` scrolled in U
 and `MAT_sr1dat1_3` in U and V by 0.002 a frame
-(`crates/piney-world/src/town01.rs`, `CRISIS_SKY`). `ROOTTOWN03`-`05`
+(`crates/piney-world/src/town/mac_anu.rs`, `CRISIS_SKY`). `ROOTTOWN03`-`05`
 (Carmina Gade, Fort Ouph, Lia Fail) are on [their page](root-towns.md);
 their `DrawMap` is on [the minimap](map.md) page.
 

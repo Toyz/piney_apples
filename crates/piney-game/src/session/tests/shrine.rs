@@ -8,8 +8,8 @@
 
 use piney_data::dungeon::{NO_ROOM, RealMap};
 use piney_world::area::{Scene, kind};
-use piney_world::dungeon_area::DungeonArea;
-use piney_world::field_world::Place;
+use piney_world::dungeon::DungeonArea;
+use piney_world::field::world::Place;
 
 use super::*;
 
@@ -610,7 +610,7 @@ fn event_25_opens_in_area_23s_shrine() {
     }
     let Stage::World(w) = &s.stage else { unreachable!() };
     assert_eq!(w.world().town().base.no, 1, "Dun Loireag");
-    let bans = piney_world::dungeon_area::bans_of(&w.world().state().save);
+    let bans = piney_world::dungeon::bans_of(&w.world().state().save);
     assert!(bans.contains(&[23, 0, 2, 2]), "block 16's area_ban: {bans:?}");
     let vm = take_vm(&mut s).expect("the event task");
     let played = blocks(&vm);
@@ -829,7 +829,7 @@ fn point(s: &mut Session, num: i32) -> Option<(usize, usize)> {
 
 /// Event 29 in area 26's dungeon, the party put in the room of point 1, where
 /// block 14's `entry 3 86` and `entry 4 29` stand Meg and the Administrator
-/// ([`piney_world::field_npcs`]), block 15 puts and turns them, has them
+/// ([`piney_world::field::npcs`]), block 15 puts and turns them, has them
 /// face each other and Kite, and sends them off (`npc_act 29 4`: the
 /// Administrator's `effTransfer` and fade; `npc_act 86 4`: Meg's leaving).
 /// Every NPC instruction is carried out, none falls to a host default.

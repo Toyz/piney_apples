@@ -119,7 +119,7 @@ Missing pieces that only the later volumes need.
 - [[394]] [[397]] menus 90 and 91 (MUT gcmn 0x0058d470, 0x0058d9f0 with its page 0x0058edc0 and helpers 0x0058f5d0-0x0058f930, MUT main 0x0017b0b0, 0x0017b140: list 90 is Talk and Item List, 91 the item registry that gives desktop items, "Items were registered to the ...") are not ported. Who opens them is traced by [[397]]: the Event NPC (flags 0x10000000) opens 90 (MUT gcmn 0x00536aa0); the port shuts it at once — the later volumes' Event NPC — answered by [[399]] (menus/registry.rs: the list, Item List, its page and the registry; `EventNpcPages` in tools/test_fieldui_talk_rs.py on Mutation, Outbreak and Quarantine; the `item_list` session tests)
 - [[272]] Kyvia's later fights (levels 2-5, the EX mode); fields 10-12 not played through (docs/engine/evarea.md, boss-kyvia.md, GAPS.md) — Mutation onward — answered by [[304]] (level 2, field 10), [[433]] (level 3, field 11, event 308 played) and [[434]] (levels 4 and 5, the EX mode, the gates and the rebirth; field 12, event 312 played)
 - docs/engine/battle.md `ccBoss04`'s Affect and AI are not ported — a later volume's boss — answered by [[294]] (Fidchell, checked against Outbreak's code; [[479]])
-- [[72]] [[84]] the other `EVENTAREA` classes (04-06; areas 66, 67, 91) get generated fields (docs/engine/evarea.md, field-walk.md) — the later volumes' story maps; no Infection script reaches them — answered by [[472]] (`piney_world::evarea_sky::SkyMap`: 66 and 67 are event 163's from Mutation on, 91 event 263's from Outbreak on; issue #74)
+- [[72]] [[84]] the other `EVENTAREA` classes (04-06; areas 66, 67, 91) get generated fields (docs/engine/evarea.md, field-walk.md) — the later volumes' story maps; no Infection script reaches them — answered by [[472]] (`piney_world::story_map::sky::SkyMap`: 66 and 67 are event 163's from Mutation on, 91 event 263's from Outbreak on; issue #74)
 - [[112]] `EVENTAREAB0`'s `NextStage` (field 8, `se4_8`) is not ported (docs/engine/evarea.md) — a later volume's last arena — answered by [[454]] (Quarantine's class: `se4_8`'s clip and floor clump, the save's 0x652f, the lights and hits)
 - [[114]] [[157]] type 32's tree and leaves (`ANM_se4_2lea`, `LEAF`) are not ported (docs/engine/dungeon.md) — a later volume's event room — answered by [[492]] (dungeon_area/leaves.rs; tools/test_dungeon_rt.py `test_leaves`, 400 frames of area 101's room against the game)
 - [[220]] on Outbreak and Quarantine `GetEventAreaInfo(0)` returns NULL where the port finds row 0 — Outbreak's and Quarantine's areas — answered by [[493]]: the game's `(int)` finds row 0 too; Outbreak's and Quarantine's carried names for `GetEventAreaInfo()` and `(int)` were crossed (piney-gen syms' overload pass), and tools/test_area_rs.py passes on all four volumes
@@ -720,8 +720,8 @@ player until one of these turns out wrong.
 - [[26]] town01's missing water — answered by [[28]] (wat1, the canal water)
 - [[26]] animation key interpolation — answered by [[32]] (keys, rotations, loops, morphs checked)
 - [[27]] the canal water's placement (wat1, three duplicates) — answered by [[28]] / docs/engine/statics.md, docs/engine/root-towns.md
-- [[27]] the sky and CMP_sr1dat1_* clumps the constructor builds — answered by crates/piney-world/src/town01.rs (sky, CRISIS_SKY) (tools/test_world_rs.py)
-- [[27]] which LOD DrawObj picks and the flags at +0x1b0/+0x1b4 — answered by crates/piney-world/src/town01.rs (rows 11/8 swap to 29/30 by y; clip[3] at +0x1b0..+0x1b8)
+- [[27]] the sky and CMP_sr1dat1_* clumps the constructor builds — answered by crates/piney-world/src/town/mac_anu.rs (sky, CRISIS_SKY) (tools/test_world_rs.py)
+- [[27]] which LOD DrawObj picks and the flags at +0x1b0/+0x1b4 — answered by crates/piney-world/src/town/mac_anu.rs (rows 11/8 swap to 29/30 by y; clip[3] at +0x1b0..+0x1b8)
 - [[27]] animation beyond frame 0 — answered by [[32]], [[35]]
 - [[28]] why the water is three copies, their timing and blend — answered by docs/engine/root-towns.md (waters 1 and 2 are made and stepped once, never drawn; water 0 drawn), [[97]]
 - [[28]] the waves (morph playback) — answered by [[36]] (morph targets blend)
@@ -731,7 +731,7 @@ player until one of these turns out wrong.
 - [[29]] the unit of the runtime UV offset and where ccSetMaterialPacket makes the ST row — answered by [[137]] ((u >> 4) & 0xff in 1/256 of the texture, through STROW)
 - [[30]] the story dungeons' room models — answered by [[114]] / crates/piney-data/src/dungeon/special.rs
 - [[30]] the item boxes, circles and idols EntryGimmick places — answered by [[98]], [[164]]
-- [[30]] the start positions of rooms without a lake entry (OBJ_0ppp) — answered by docs/engine/dungeon.md "The start" (crates/piney-world/src/dungeon_area.rs, tools/test_dungeon_rt.py)
+- [[30]] the start positions of rooms without a lake entry (OBJ_0ppp) — answered by docs/engine/dungeon.md "The start" (crates/piney-world/src/dungeon/mod.rs, tools/test_dungeon_rt.py)
 - [[30]] the other volumes' dungeon tables — answered by [[181]], [[265]] (generated per volume)
 - [[31]] the rotation and placement rule that makes rooms join — answered by [[34]] (the room matrix was right)
 - [[31]] the door models and where they go — answered by [[34]], [[87]]
@@ -759,7 +759,7 @@ player until one of these turns out wrong.
 - [[37]] the desktop's sound printed, not played — answered by [[42]], [[46]]
 - [[37]] DEMO.PRG's title and opening, name entry, TOPPAGE.PRG — answered by [[43]], [[45]], [[58]]
 - [[38]] how the fog table's near, far and percentage map to the GS fog — answered by [[145]] (DepthFog::set_fog is SetFog's arithmetic); docs/engine/field.md Unknown bullet is stale
-- [[39]] the viewer's missing draw window and fade, sky scroll and player-centred background — answered by [[72]] / crates/piney-world/src/field_area.rs (DrawBG centred on the player, the sky's V scroll), crates/piney-data/src/field/render.rs (FADE_FROM 6700, COVER_RANGE 7200)
+- [[39]] the viewer's missing draw window and fade, sky scroll and player-centred background — answered by [[72]] / crates/piney-world/src/field/area.rs (DrawBG centred on the player, the sky's V scroll), crates/piney-data/src/field/render.rs (FADE_FROM 6700, COVER_RANGE 7200)
 - [[39]] the viewer's fog depth mapping — answered by [[145]]
 - [[40]] the story areas' gate words and servers not loaded from the executable — answered by [[181]], [[217]] (generated per volume) / crates/piney-data/src/area/mod.rs AreaTables
 - [[40]] piros_colour's frame shape — answered by [[99]], [[107]] (ported, tools/test_piros_rs.py)
@@ -788,7 +788,7 @@ player until one of these turns out wrong.
 - [[49]] the other volumes' movies — answered by [[245]] (later_openings_match_ffmpeg_exactly)
 - [[50]] LoadGame's vibration — answered by [[232]] (piney_input::actuator)
 - [[50]] [[51]] [[196]] Adjust Screen's display offset (`Request::DisplayOffset`) was dropped — answered by [[339]] (`Event::DisplayOffset`, the presenter moves the picture; present_moves_the_picture_by_the_display_offset) / docs/engine/overview.md "The screen"
-- [[50]] LoadGame's camera scheme — answered by crates/piney-world/src/camera.rs (camera_mode from the save), CameraType requests applied (crates/piney-game/src/world.rs, area.rs); [[254]]
+- [[50]] LoadGame's camera scheme — answered by crates/piney-world/src/camera/mod.rs (camera_mode from the save), CameraType requests applied (crates/piney-game/src/world.rs, area.rs); [[254]]
 - [[51]] the port's all-sound-off cutting only the voices — answered by BUGS.md (the dungeon music under Helba's theme; all_sound_off_stops_the_music)
 - [[52]] the streams' effect objects and effect tasks (StreamDemoFuncTbl) — answered by [[54]], [[57]], [[121]], [[122]], [[124]], [[125]], [[126]], [[133]], [[156]], [[160]]
 - [[52]] the subtitles under a stream — answered by [[85]]
@@ -981,14 +981,14 @@ player until one of these turns out wrong.
 - [[104]] which town is game.town 4 — answered by BUGS.md (console town 4 is Lia Fail), [[260]]
 - [[105]] Func_str8000, the drain streams' effect task — answered by [[125]]
 - [[106]] the party's arrival chat lines (arrivalChatCnt) — answered by [[123]] (ChatMessageEnteredTown / EnteredField)
-- [[107]] the condition colours ccChar::Draw applies in the fights — answered by [[195]] / crates/piney-world/src/foe.rs char_blend (used in combat/mod.rs; foe.rs unit tests)
+- [[107]] the condition colours ccChar::Draw applies in the fights — answered by [[195]] / crates/piney-world/src/chara/foe.rs char_blend (used in combat/mod.rs; foe.rs unit tests)
 - [[108]] no following in town — answered by [[110]]
 - [[109]] which EVENTAREAB0 area event 30 loads; SwitchLayer and DMY_center01 — answered by [[112]], [[113]]
 - [[109]] the boss entry (type 7) and present/absent 7 in the field's runtime — answered by [[113]] / docs/engine/boss.md
 - [[109]] CMP_trall, the afterimages, the cross's trail, ccBossCam, the stage fader, the reversed layer, the effects' pictures — answered by [[113]], [[115]], [[117]] / docs/engine/boss.md (tools/test_bosscam_rs.py)
 - [[109]] menu 74 (StreamMenu) — answered by [[113]]
 - [[110]] the members' chat lines and window; ChatMessageEnteredTown and EnteredField — answered by [[123]]
-- [[111]] RoomSelect's 71 and 77 branches (OBJ_user_point) — answered by crates/piney-world/src/dungeon_area.rs room_select (user_point)
+- [[111]] RoomSelect's 71 and 77 branches (OBJ_user_point) — answered by crates/piney-world/src/dungeon/mod.rs room_select (user_point)
 - [[112]] FIREFLY2 (the arena's fireflies) — answered by [[117]] / docs/engine/evarea.md (checked against the game's FIREFLY2s, tools/test_evarea_rs.py)
 - [[112]] sound bank 5 read from the session's WORLD_MAN, which for the arena is area 27's — answered by [[370]] (`GetEventAreaInfo(game.field)`'s model, main 0x00169160; skeith_plays_its_own_music)
 - [[113]] the cross's trail, the six effects, the reversed layer and the quake — answered by [[115]], [[117]]
@@ -997,7 +997,7 @@ player until one of these turns out wrong.
 - [[116]] the idol's dust ring — answered by [[118]] (an idol opening)
 - [[116]] no shot of a barrel smashed or a trap going off — answered by [[148]] (a breakable broken in play)
 - [[117]] Skeith's cinema — answered by [[128]] (tools/test_cinema_rs.py)
-- [[117]] the fields' type-1 fireflies (SetBasePosition2) — answered by [[130]] / crates/piney-world/src/firefly.rs (tools/test_field_ambient_rs.py); docs/engine/evarea.md bullet is stale
+- [[117]] the fields' type-1 fireflies (SetBasePosition2) — answered by [[130]] / crates/piney-world/src/sky/firefly.rs (tools/test_field_ambient_rs.py); docs/engine/evarea.md bullet is stale
 - [[119]] effSmoke's other callers — answered by [[190]]
 - [[121]] Func_str0090's and Func_str0110's fog — answered by [[127]]
 - [[121]] the effect tasks of streams 7-9, 11-16 and the str7xxx-str9xxx scenes — answered by [[122]], [[124]], [[125]], [[126]], [[133]]
@@ -1012,9 +1012,9 @@ player until one of these turns out wrong.
 - [[125]] Func_str7100, Func_str8800, Func_str0580/0581 — answered by [[126]], [[133]]
 - [[126]] stream 15's Func_str0580 and Func_str0581 — answered by [[133]]
 - [[127]] the port's fog per model, not per vertex — answered by [[145]]
-- [[128]] the cinema's other names (other bosses' rows, x01-x04) — answered by crates/piney-world/src/cinema.rs (all 72 rows of _g_cinemaSkillName; tools/test_cinema_rs.py)
+- [[128]] the cinema's other names (other bosses' rows, x01-x04) — answered by crates/piney-world/src/camera/cinema.rs (all 72 rows of _g_cinemaSkillName; tools/test_cinema_rs.py)
 - [[129]] the black screen in the church — answered by [[174]], BUGS.md (story 11's set-up windows)
-- [[129]] a merchant's sysopeAct transfer — answered by crates/piney-world/src/merchant.rs sysope_act, [[132]]
+- [[129]] a merchant's sysopeAct transfer — answered by crates/piney-world/src/town/merchant.rs sysope_act, [[132]]
 - [[129]] the stream effects not checked (tools/test_effect_str_rs.py to be written) — answered by [[131]]
 - [[130]] EntryGimmick in a field — answered by [[164]]
 - [[130]] WORLD_MAN's two ccBufferSampling depth shades — answered by [[152]]
@@ -1138,7 +1138,7 @@ Entries `cairns open` leaves out because a later entry names them in
 
 - [[54]] (closed by [[55]]) answered: ccMorpher::Modify against a run of the game — answered by [[55]]
 - [[54]] (closed by [[55]]) answered: Func_str0001's effects (noise, feedback, reversed buffer, fades, fog) — answered by [[57]], [[127]], [[156]]
-- [[54]] (closed by [[55]]) answered: town or field models with morphers — answered by crates/piney-world/src/pose.rs, town01.rs (the canal waves)
+- [[54]] (closed by [[55]]) answered: town or field models with morphers — answered by crates/piney-world/src/chara/pose.rs, town01.rs (the canal waves)
 - [[103]] (closed by [[108]]) answered: inviteSpc building an unregistered member at the Chaos Gate — answered for the towns by docs/engine/field-walk.md (party_add); [[250]]
 - [[103]] (closed by [[108]]) answered: the town does not take the party back from the field — answered by [[108]]
 - [[103]] (closed by [[108]]) research: the fellow task's own frames (a dismissed leaver's exit and walk away) not run against the game in a field — rules compared only
@@ -1203,7 +1203,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/battle.md: whether ccChar::Draw leaves node coordinates stale on a culled frame — research (duplicates [[170]])
 - docs/engine/battle.md: (events section) pc_walk_marker with no such event position — research (the checks do not make it)
 - docs/engine/battle.md: (events section) what eventMng.bossTscb +0x14 counts — research (hold 7 unused in Infection)
-- docs/engine/battle.md: (events section) remove -1 (deleteAllObject) not ported — research (crates/piney-world/src/field_world.rs remove_entry; which scripts use it outside the towns not surveyed)
+- docs/engine/battle.md: (events section) remove -1 (deleteAllObject) not ported — research (crates/piney-world/src/field/world.rs remove_entry; which scripts use it outside the towns not surveyed)
 - docs/engine/battle.md: (events section) pc_act and pc_mode on this crate's state — answered (piney-world ports them (Combat::menu_ban_conditions, menu_clear_conditions))
 
 ### docs/engine/boss-kyvia.md
@@ -1277,7 +1277,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 - docs/engine/evarea.md: EVENTAREAB8 not compared with the game's Draw frame by frame — research (duplicates [[272]])
 - docs/engine/evarea.md: fields 10-12 not played through their events (Kyvia's later fights) — play (volumes) — answered by [[304]] (field 10), [[433]] (field 11) and [[434]] (field 12, its gates' bodies)
 - docs/engine/evarea.md: the other EVENTAREA classes (04-06; areas 66, 67, 91) and EVENTAREAB0's NextStage — play (duplicates [[72]], [[112]]); NextStage answered by [[454]]; the classes answered by [[472]]
-- docs/engine/evarea.md: the fields' type-1 fireflies — answered (stale; [[130]], crates/piney-world/src/firefly.rs (tools/test_field_ambient_rs.py))
+- docs/engine/evarea.md: the fields' type-1 fireflies — answered (stale; [[130]], crates/piney-world/src/sky/firefly.rs (tools/test_field_ambient_rs.py))
 - docs/engine/evarea.md: event 11's instructions in the map — answered ([[90]], [[91]])
 
 ### docs/engine/events.md
@@ -1420,7 +1420,7 @@ no `## Unknown`; its "Not yet known or not ported" list is cited above.)
 
 - docs/engine/statics.md: why the water is three copies — answered (docs/engine/root-towns.md (waters 1 and 2 made and stepped once, never drawn); [[97]])
 - docs/engine/statics.md: how EVENTAREAB0 chooses its area — answered (stale; [[112]], docs/engine/evarea.md)
-- docs/engine/statics.md: the sky CMP_sr1bac1 and town01d's CMP_sr1dat1_1-3 built by the constructor — answered (described in the bullet; crates/piney-world/src/town01.rs (sky, CRISIS_SKY))
+- docs/engine/statics.md: the sky CMP_sr1bac1 and town01d's CMP_sr1dat1_1-3 built by the constructor — answered (described in the bullet; crates/piney-world/src/town/mac_anu.rs (sky, CRISIS_SKY))
 - docs/engine/statics.md: ROOTTOWN03-05's Draw — answered (stale; [[218]], [[260]]; their DrawMap is the map.md line)
 
 ### docs/engine/stream.md

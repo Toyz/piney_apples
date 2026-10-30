@@ -355,7 +355,7 @@ The gomoras' shapes (worklog 430). No gomora picks one of
   bend the same way.
 
 In the port, `kyvia::stream(lv)` is the stream and `Fight::file` its
-fight's. `piney_world::body::Body` keeps its file's morphers and draws
+fight's. `piney_world::chara::body::Body` keeps its file's morphers and draws
 each model with its clip's weights (`Body::morph_of`), as `foe::Model`
 did; before, a body was drawn unbent, and the gomoras as the bare
 `MDL_ex01gom1` of `CMP_ex01gom2`.
@@ -369,7 +369,7 @@ The pushes and the camera (worklog 427):
   `piney_battle::world::char_push`, which `Hits::collision_detection`
   uses too. After the body's push its entry is moved with it, for the
   gomoras that move after it in the frame.
-- `piney_world::bosscam::BossCam` keeps `ex_lock`, `zrot_control` (from
+- `piney_world::camera::bosscam::BossCam` keeps `ex_lock`, `zrot_control` (from
   `Out::CamSway`) and Mutation's `lift`; `pad_control` reads nothing under
   `ExLock` and turns `zrot_cont` with the flag.
 

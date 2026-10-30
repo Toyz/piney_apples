@@ -1,4 +1,4 @@
-//! Answers `tools/test_bosscam_rs.py`: the boss camera (`piney_world::bosscam`,
+//! Answers `tools/test_bosscam_rs.py`: the boss camera (`piney_world::camera::bosscam`,
 //! `ccBossCam`) over the field's camera and player tasks, as `merchcam_probe`
 //! runs them. One request a line (numbers in hex), one JSON line back:
 //! `start` (Kite and the camera), `frame` (one frame of the tasks), `boss`
@@ -13,11 +13,11 @@ use piney_data::archive::Archive;
 use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
 use piney_desktop::assets::SceneFile;
-use piney_world::bosscam::BossCam;
+use piney_world::camera::bosscam::BossCam;
 use piney_world::camera::{Cam, CamPad, Camera, Scheme};
+use piney_world::chara::motion::PLAYER_ANIM_TBL;
+use piney_world::chara::player::Player;
 use piney_world::hit::{HitModel, Hits};
-use piney_world::motion::PLAYER_ANIM_TBL;
-use piney_world::player::Player;
 use piney_world::{Rand, ee, tasks};
 
 fn hex(s: &str) -> u32 {

@@ -7,7 +7,7 @@ use std::f32::consts::PI;
 
 use piney_event::ScriptSave;
 use piney_input::{Buttons, Raw};
-use piney_world::entry::Kind;
+use piney_world::event::entry::Kind;
 
 use super::*;
 
@@ -603,7 +603,7 @@ fn event_11_blackrose_spoken_to_on_the_holy_ground() {
                 }
                 match c.who(BLACKROSE) {
                     Some(k) if w.party().contains(&BLACKROSE) => {
-                        if w.command_target_code() == Some((piney_world::entry::Kind::Spc, BLACKROSE)) {
+                        if w.command_target_code() == Some((piney_world::event::entry::Kind::Spc, BLACKROSE)) {
                             still(if f.is_multiple_of(12) { Buttons::CROSS } else { Buttons::NONE })
                         } else {
                             let q = c.scene.chars[k].pos.map(f32::from_bits);

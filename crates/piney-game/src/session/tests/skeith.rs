@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 
 use piney_input::{Buttons, Raw};
-use piney_world::field_world::FxCensus;
+use piney_world::field::world::FxCensus;
 
 use super::*;
 
@@ -1630,7 +1630,9 @@ fn magus_drained_through_the_menus() {
                 (4, _) if m.list().page < 5 => press(Buttons::RIGHT),
                 (4, _) => press(go_to(0)),
                 // The target menu: down to Magus, then take it.
-                (65, Some((me, _))) if w.targeting().target != Some((piney_world::entry::Kind::Enemy, me as i32)) => {
+                (65, Some((me, _)))
+                    if w.targeting().target != Some((piney_world::event::entry::Kind::Enemy, me as i32)) =>
+                {
                     press(Buttons::DOWN)
                 }
                 _ => press(Buttons::CROSS),

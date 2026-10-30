@@ -40,7 +40,7 @@ fidchell.rs; the magic squares 1 and 2 with their lights (modes 1 and 2),
 and the swarm's omni light (its place, colour, intensity and fall-off).
 
 test_skeiths_trail drives the game's ccLattice (the cross's trail,
-ccBoss01::DrawCross) against piney_world::lattice through the probe's
+ccBoss01::DrawCross) against piney_world::sky::lattice through the probe's
 lattice requests; its own docstring lists its stand-ins.
 
 Skipped when the disc is not extracted or cargo is missing.
@@ -937,7 +937,7 @@ class BossEffectsAgainstGame(unittest.TestCase):
         """The cross's trail: the game's ccLattice(2, 7) (gcmn lattice.cpp)
         driven as ccBoss01::DrawCross drives it - runs of frames in the
         cross (NextVertex, SetPos of both ends, Disp) between runs of Disp
-        alone - against piney_world::lattice. After each call: head, tail,
+        alone - against piney_world::sky::lattice. After each call: head, tail,
         each row's life and vertices, rows made, full, the first-row flag.
         After each Disp: the strip SendPacket sent (none, or each vertex's
         RGBA and ADC as MakePacket wrote them) and its ccDLSort key.

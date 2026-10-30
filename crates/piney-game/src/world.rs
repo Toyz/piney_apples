@@ -22,8 +22,8 @@ use piney_event::state::ScriptSave as _;
 use piney_event::vm::Vm;
 use piney_fieldui::FieldUi;
 use piney_input::Pad;
-use piney_world::entry::Kind;
-use piney_world::talk::{self, Shop, TalkRequest};
+use piney_world::event::entry::Kind;
+use piney_world::event::talk::{self, Shop, TalkRequest};
 use piney_world::{Phase, Request, World};
 
 use crate::field_host::{FieldHost, FieldState, MENU_LAYER, SceneChange};
@@ -328,7 +328,7 @@ impl WorldMode {
     /// The party the last area left (`ccSpcManager`, `ccPartyManager`), and
     /// each slot's menu face from it: `ccCheckMenuFaceNameParty` (gcmn
     /// 0x0056a930) reads `memberID[slot]` whenever it is asked.
-    pub fn set_spcs(&mut self, spcs: piney_world::party::Spcs) {
+    pub fn set_spcs(&mut self, spcs: piney_world::chara::party::Spcs) {
         self.world.set_spcs(spcs);
         let plcol = self.world.state().save.u8(offset::PLCOL) != 0;
         for (slot, &id) in self.world.party().iter().enumerate() {
@@ -648,11 +648,11 @@ impl WorldMode {
         }
     }
 
-    /// The Flag Race's asks of the frame (piney_world::race::RaceEvent):
+    /// The Flag Race's asks of the frame (piney_world::grunty::race::RaceEvent):
     /// its sounds and music, the menu's panels, map and ban, its effects
     /// (the flags' sparks, the ride's dust) into `starts`.
     fn race_events(&mut self, starts: &mut Vec<crate::town_fx::Start>) {
-        use piney_world::race::RaceEvent as R;
+        use piney_world::grunty::race::RaceEvent as R;
         let cam = self.world.camera().active();
         let ear = Some(piney_audio::se3d::Listener { pos: cam.pos, view: cam.view, kind: cam.kind });
         for e in self.world.take_race_events() {
@@ -1176,7 +1176,7 @@ pub(crate) fn ui_world(world: &World, vm: Option<&Vm>, area_level: i32) -> piney
 /// `ccMenu.menuFade` as the Flag Race fades on it.
 struct MenuFader<'a>(&'a mut piney_demo::fade::ScFade);
 
-impl piney_world::race::RaceHost for MenuFader<'_> {
+impl piney_world::grunty::race::RaceHost for MenuFader<'_> {
     fn entry_fade(&mut self, n: i16, col1: u32) -> i32 {
         self.0.entry_fade(n, 0, col1)
     }
@@ -1291,14 +1291,14 @@ impl Mode for WorldMode {
             let names = self.world.state().names();
             for (code, e) in self.world.take_pc_events() {
                 match e {
-                    piney_world::rtownpc::PcEvent::Chat(text) => {
+                    piney_world::town::pc::PcEvent::Chat(text) => {
                         let text = piney_data::tables::sjis::encode(text);
                         self.ui.open_chat(handle(Kind::Npc, code), &text, &names);
                     }
-                    piney_world::rtownpc::PcEvent::Transfer => {
+                    piney_world::town::pc::PcEvent::Transfer => {
                         pc_starts.push(crate::town_fx::Start::Transfer(2 << 24 | (code as u32 & 0xff_ffff)));
                     }
-                    piney_world::rtownpc::PcEvent::Vanish { pos, crystal } => {
+                    piney_world::town::pc::PcEvent::Vanish { pos, crystal } => {
                         pc_starts.push(crate::town_fx::Start::OpenBox(pos));
                         if crystal {
                             pc_starts.push(crate::town_fx::Start::VirusCrystal(pos));
@@ -1308,14 +1308,14 @@ impl Mode for WorldMode {
                             self.events.push(Event::Se3d { n: 167, pos, note: Some(40), ear });
                         }
                     }
-                    piney_world::rtownpc::PcEvent::Drained { pos } => {
+                    piney_world::town::pc::PcEvent::Drained { pos } => {
                         self.events.push(Event::Se(79));
                         pc_starts.push(crate::town_fx::Start::AfterDrain(2 << 24 | (code as u32 & 0xff_ffff)));
                         self.events.push(Event::Se(60));
                         pc_starts.push(crate::town_fx::Start::VirusCrystal(pos));
                         pc_starts.push(crate::town_fx::Start::RemoveTrap(pos, 103, 121));
                     }
-                    piney_world::rtownpc::PcEvent::Step { param, ccs_type, pos, attribute, feet, dirc_z, speed } => {
+                    piney_world::town::pc::PcEvent::Step { param, ccs_type, pos, attribute, feet, dirc_z, speed } => {
                         if let Some(se) = piney_audio::se3d::pc_note(param, ccs_type, attribute) {
                             let cam = self.world.camera().active();
                             let ear =
@@ -1332,7 +1332,7 @@ impl Mode for WorldMode {
             // ccDog::effect's effSmoke.
             for (_, e) in self.world.take_dog_events() {
                 match e {
-                    piney_world::dog::DogEvent::Note { param, pos, attribute } => {
+                    piney_world::town::dog::DogEvent::Note { param, pos, attribute } => {
                         if let Some(se) = piney_audio::se3d::inu_note(self.world.volume(), param, attribute) {
                             let cam = self.world.camera().active();
                             let ear =
@@ -1340,7 +1340,7 @@ impl Mode for WorldMode {
                             self.events.push(Event::Se3d { n: se.code, pos, note: se.note, ear });
                         }
                     }
-                    piney_world::dog::DogEvent::Smoke { pos, v } => {
+                    piney_world::town::dog::DogEvent::Smoke { pos, v } => {
                         pc_starts.push(crate::town_fx::Start::Smoke(pos, v));
                     }
                 }
@@ -1405,7 +1405,7 @@ impl Mode for WorldMode {
             }
             // The Administrator (ccMerchan::sysopeAct).
             for (id, e) in self.world.take_merchant_events() {
-                use piney_world::merchant::SysopEvent;
+                use piney_world::town::merchant::SysopEvent;
                 let c = 3 << 24 | (id as u32 & 0xff_ffff);
                 match e {
                     SysopEvent::Transfer => starts.push(Start::Transfer(c)),
@@ -1724,7 +1724,7 @@ mod tests {
         let state = new_game_state(&mut disc).unwrap();
         let mut mode = WorldMode::enter(&iso, &archive, state, None).unwrap();
         let t = piney_battle::tables::Tables::read(&mut disc).unwrap();
-        let (now, _) = piney_world::body::weapon_of(&t, &mode.world.state().save, 0).expect("Kite's blades");
+        let (now, _) = piney_world::chara::body::weapon_of(&t, &mode.world.state().save, 0).expect("Kite's blades");
         let (i, other) = (0..64)
             .find_map(|i| {
                 let n = String::from_utf8(t.job_weapon(0, i)?.ccsname.clone()).ok()?;

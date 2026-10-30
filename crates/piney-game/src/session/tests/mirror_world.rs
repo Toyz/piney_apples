@@ -61,8 +61,8 @@ fn issue_74_replay() {
 }
 
 /// The place's kind, for the replay's lines.
-fn place_kind(p: &piney_world::field_world::Place) -> &'static str {
-    use piney_world::field_world::Place;
+fn place_kind(p: &piney_world::field::world::Place) -> &'static str {
+    use piney_world::field::world::Place;
     match p {
         Place::Field(_) => "generated field",
         Place::Dungeon(_) => "dungeon",
@@ -139,12 +139,12 @@ fn area_66s_last_door_leads_to_the_arena() {
             }
             let Stage::Area(a) = &mut s.stage else { continue };
             let w = a.world();
-            let in_dungeon = matches!(w.place(), piney_world::field_world::Place::Dungeon(_));
+            let in_dungeon = matches!(w.place(), piney_world::field::world::Place::Dungeon(_));
             if in_dungeon || !matches!(w.phase(), piney_world::Phase::Play(n) if n > 60) {
                 continue;
             }
-            let sky = w.place().story::<piney_world::evarea_sky::SkyMap>();
-            arena |= sky.is_some_and(|m| m.class == piney_world::evarea_sky::Class::Arena);
+            let sky = w.place().story::<piney_world::story_map::sky::SkyMap>();
+            arena |= sky.is_some_and(|m| m.class == piney_world::story_map::sky::Class::Arena);
             assert_eq!(w.world_man().event, 67, "{disc}: eventAreaNumber");
             let c = w.combat();
             let foes: Vec<usize> = c.enemies().into_iter().filter(|&e| !c.dead(e)).collect();
@@ -185,7 +185,7 @@ fn area_66s_last_door_leads_to_the_arena() {
 /// `WORLD_MAN::Enter`'s `ChangeArea(2, 0)`, the dungeon.
 #[test]
 fn fields_66_and_91_are_their_maps() {
-    use piney_world::evarea_sky::{Class, SkyMap};
+    use piney_world::story_map::sky::{Class, SkyMap};
     for (disc, field, class) in
         [("mutation", 66, Class::Mirror), ("quarantine", 66, Class::Mirror), ("outbreak", 91, Class::Whale)]
     {
@@ -238,7 +238,7 @@ fn fields_66_and_91_are_their_maps() {
             s.step(&pad);
             s.take_events();
             if let Stage::Area(a) = &s.stage
-                && matches!(a.world().place(), piney_world::field_world::Place::Dungeon(_))
+                && matches!(a.world().place(), piney_world::field::world::Place::Dungeon(_))
             {
                 dungeon = true;
                 break;
@@ -324,7 +324,7 @@ fn in_dun_loireag() -> Option<(Session, &'static piney_data::area::AreaTables)> 
 /// Mirror World's map is up: its `fieldrand` and scroll as made, before
 /// its first stepped `Draw`.
 fn gate_to_66(s: &mut Session, tables: &piney_data::area::AreaTables) -> (piney_data::dungeon::Rng, [u32; 2]) {
-    use piney_world::evarea_sky::SkyMap;
+    use piney_world::story_map::sky::SkyMap;
     let code = piney_data::area::story_area_code(tables, 66, false).unwrap();
     s.go(Pending::Words([code.a, code.b, code.c]));
     let mut pad = Pad::default();
@@ -362,7 +362,7 @@ fn the_mirror_worlds_clouds_draw_on_from_the_gates_words() {
 /// Before, each map started its scroll at 0.
 #[test]
 fn the_mirror_worlds_scroll_carries_across_visits() {
-    use piney_world::evarea_sky::SkyMap;
+    use piney_world::story_map::sky::SkyMap;
     let Some((mut s, tables)) = in_dun_loireag() else { return };
     let (_, first) = gate_to_66(&mut s, tables);
     assert_eq!(first, [0, 0], "a new log in's scroll");
@@ -393,7 +393,11 @@ fn the_mirror_worlds_scroll_carries_across_visits() {
     assert!(matches!(s.stage, Stage::World(_)), "{}", Mode::title(&s));
     assert_ne!(left, [0, 0], "the scroll never moved");
     let Stage::World(w) = &s.stage else { unreachable!() };
-    assert_eq!(w.world().state().move_tex[piney_world::evarea::scroll::EA04], left, "the town carries gcmn's data");
+    assert_eq!(
+        w.world().state().move_tex[piney_world::story_map::holy_ground::scroll::EA04],
+        left,
+        "the town carries gcmn's data"
+    );
     for _ in 0..100 {
         pad.read(&still());
         s.step(&pad);
@@ -413,7 +417,7 @@ fn the_mirror_worlds_scroll_carries_across_visits() {
 /// goes on with the clouds' scroll where it was.
 #[test]
 fn the_holy_grounds_scroll_carries_across_visits() {
-    use piney_world::evarea::{EventArea, scroll};
+    use piney_world::story_map::holy_ground::{EventArea, scroll};
     let Some((iso, archive)) = crate::session::area15::disc() else { return };
     let mut d = Iso::open(&iso).unwrap();
     let tables = crate::area::area_tables(&mut d).unwrap();
@@ -468,8 +472,8 @@ fn the_holy_grounds_scroll_carries_across_visits() {
 /// each visit started them at 0.
 #[test]
 fn dun_loireags_scrolls_carry_across_visits() {
+    use piney_world::town::dun_loireag::DunLoireag;
     use piney_world::town::scroll_statics as statics;
-    use piney_world::town02::DunLoireag;
     let Some((mut s, tables)) = in_dun_loireag() else { return };
     let town = |s: &Session| match &s.stage {
         Stage::World(w) => w.world().town().class::<DunLoireag>().map(|d| (d.bg_scroll, d.bg_scroll2, d.water_u)),

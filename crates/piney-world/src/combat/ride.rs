@@ -22,7 +22,7 @@ use piney_desktop::layers::Layers;
 
 use super::spc;
 use super::stage::{Show, Stage};
-use crate::char::{Char, SHADED};
+use crate::chara::char::{Char, SHADED};
 use crate::ee::{F, ONE, V4};
 use crate::town::TownLights;
 
@@ -55,7 +55,7 @@ pub struct Riding {
 pub struct Pending {
     pub kind: i32,
     pub tables: Rc<RideTables>,
-    pub body: Rc<crate::body::Body>,
+    pub body: Rc<crate::chara::body::Body>,
 }
 
 /// The object and its two clumps.
@@ -125,9 +125,9 @@ impl RideObj {
         plw_pos: V4,
         plw_rot: V4,
         tables: Rc<RideTables>,
-        kite_body: Rc<crate::body::Body>,
+        kite_body: Rc<crate::chara::body::Body>,
         swaps: Vec<(u32, u32)>,
-        pg_body: Rc<crate::body::Body>,
+        pg_body: Rc<crate::chara::body::Body>,
         stage: &mut Stage,
         rand: &mut Rand,
     ) -> Option<RideObj> {

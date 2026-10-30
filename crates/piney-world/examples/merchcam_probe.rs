@@ -13,10 +13,10 @@ use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
 use piney_desktop::assets::SceneFile;
 use piney_world::camera::{self, Cam, CamPad, Camera, MerchantView, Scheme};
-use piney_world::entry::Npc;
+use piney_world::chara::motion::PLAYER_ANIM_TBL;
+use piney_world::chara::player::Player;
+use piney_world::event::entry::Npc;
 use piney_world::hit::{HitModel, Hits};
-use piney_world::motion::PLAYER_ANIM_TBL;
-use piney_world::player::Player;
 use piney_world::{Rand, ee, tasks};
 
 fn hex(s: &str) -> u32 {
@@ -71,7 +71,7 @@ fn main() {
                 let mut town = piney_world::town::Town::open(&archive, volume, 0, false).unwrap();
                 let player = [0, 0x45af_0000, 0x4416_0000, ee::ONE];
                 let t = &mut town.base;
-                let list_ = piney_world::merchant::set_merchants(
+                let list_ = piney_world::town::merchant::set_merchants(
                     &archive,
                     volume,
                     &t.file,

@@ -2,10 +2,10 @@
 //! the battle's characters ([`Combat::add_member`], area 0), each run by
 //! `ccFellow::Main` on its task (priority 50), walking by `ccAI::ActInTown`
 //! or, under an event, `ManualControl`. Kite is the town's own
-//! ([`crate::player::Player`]); the battle's scene holds a stand-in for him
+//! ([`crate::chara::player::Player`]); the battle's scene holds a stand-in for him
 //! ([`Combat::add_leader`], kept up by [`Combat::mirror_leader`]) with no body
 //! or animation of its own. The town gives the navigation [`TownNav`]: the
-//! landmarks ([`crate::navi::NaviMap`]) and `naviPointNameTable`'s dummies.
+//! landmarks ([`crate::chara::navi::NaviMap`]) and `naviPointNameTable`'s dummies.
 
 use std::cell::RefCell;
 
@@ -34,7 +34,7 @@ pub struct TownTasks<'a> {
     pub camera: &'a mut Camera,
     pub save: &'a mut SaveData,
     /// The registry and the party (the members' remote command 5).
-    pub spcs: &'a mut crate::party::Spcs,
+    pub spcs: &'a mut crate::chara::party::Spcs,
     pub nav: TownNav<'a>,
     /// `ccMenuCtrl::CheckMenuType()`, `forbid`, `eventMng->puppetShow`.
     pub menu_type: i32,
@@ -98,7 +98,7 @@ impl Combat {
     /// place (and `posP`, his own frame's), heading, act, the step's flags,
     /// `dead`, `partyFlag`, display, whether he is on the command list, and
     /// his AI's manual switch.
-    pub fn mirror_leader(&mut self, p: &crate::player::Player) {
+    pub fn mirror_leader(&mut self, p: &crate::chara::player::Player) {
         let Some(k) = self.kite else { return };
         let listed = p.listed;
         let c = &mut self.scene.chars[k];

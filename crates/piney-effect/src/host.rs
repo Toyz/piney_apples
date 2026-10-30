@@ -3,7 +3,7 @@
 //! characters an effect may name) and lends its `rand()`.
 
 use piney_world::camera::Camera as FieldCamera;
-use piney_world::player::Player;
+use piney_world::chara::player::Player;
 
 use crate::draw::Camera;
 use crate::ee::{F, ONE, V4};

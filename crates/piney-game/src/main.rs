@@ -1062,7 +1062,7 @@ fn make_mode(name: &str, assets: &mut Assets, o: &Options) -> Result<Box<dyn Mod
                     // Fields 1-8, the boss arenas, have no words: GO(1)
                     // keeps the WORLD_MAN of the area the party came from,
                     // area 27 (Theta, town 1) for Skeith's.
-                    Err(_) if piney_world::evarea_b0::is_arena(n) => {
+                    Err(_) if piney_world::story_map::boss_arena::is_arena(n) => {
                         town = 1;
                         area::story_world_man(&mut disc, 27, crisis)?
                     }

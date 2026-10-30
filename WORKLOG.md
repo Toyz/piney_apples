@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-520 entries: audio 43, battle 131, build 28, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 238, tooling 55, ui 102, video 16, volumes 94, world 147. 125 entries still have open questions - [listed below](#still-open).
+521 entries: audio 43, battle 131, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 238, tooling 55, ui 102, video 16, volumes 94, world 148. 126 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -532,9 +532,11 @@ The [reference](docs/README.md) says what is true now.
 | 518 | [Clean-up lift: the Table trait, one table cache indexed by generated IDs, and no accessors or LazyLock statics](worklog/0518-clean-up-lift-the-table-trait-one-table-cache-indexed-by.md) | 2026-10-30 | build, tooling |
 | 519 | [The later volumes' harness failures: the camera's and the rebuilt player's square root, evchar's fellow and ccAI, demo's probe as its disc](worklog/0519-the-later-volumes-harness-failures-the-camera-s-and-the.md) | 2026-10-30 | test, world |
 | 520 | [dead_code denied: the last 13 exemptions test-only, used or deleted](worklog/0520-dead-code-denied-the-last-13-exemptions-test-only-used-or.md) | 2026-10-30 | build, tooling |
+| 521 | [piney-world by subsystem: town, story_map, field, dungeon, chara, camera, event, grunty and sky folders, and the story maps and towns as registries](worklog/0521-piney-world-by-subsystem-town-story-map-field-dungeon-chara.md) | 2026-10-30 | world, build |
 
 ## Still open
 
+- [521. piney-world by subsystem: town, story_map, field, dungeon, chara, camera, event, grunty and sky folders, and the story maps and towns as registries](worklog/0521-piney-world-by-subsystem-town-story-map-field-dungeon-chara.md) - test_town02_rs runs on Infection only (its ROOTTOWN02 layout and statics are Infection's); making it run on the later...
 - [518. Clean-up lift: the Table trait, one table cache indexed by generated IDs, and no accessors or LazyLock statics](worklog/0518-clean-up-lift-the-table-trait-one-table-cache-indexed-by.md) - whether the Outbreak failures of test_evcam_rs, test_evchar_rs and test_demo_rs (the same before this lift) are the...
 - [510. Clean-up section 0, item 6: piney-gen's library returns errors instead of ending the process; the manifest's own mistakes panic](worklog/0510-clean-up-section-0-item-6-piney-gen-s-library-returns.md) - Why work/analysis/carry/out.json and qua.json no longer match what piney-gen carry makes (they differ at 21d97e2 too)...
 - [508. Clean-up section 0, items 1-3: every caller names its volume's tables (the later volumes' thunder is sound 235), one guarded ccGetDircChg, and the bosses' HP kept in a short as the game keeps it](worklog/0508-clean-up-section-0-items-1-3-every-caller-names-its-volume.md) - Why test_field_rt.py's game side returns an arms key that field_probe never prints (it errors before any frame, at HEAD...

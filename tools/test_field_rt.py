@@ -3,7 +3,7 @@
 tools/eemu.py (the Rust eemu_rs.so when present).
 
 The field_probe example builds a field as WORLD_MAN::GO(1) does
-(piney_world::field_area: story area 14's, from fieldSeed 1420855) and
+(piney_world::field::area: story area 14's, from fieldSeed 1420855) and
 answers the requests below; the game's side is the same field laid out in
 the interpreter's memory the way WORLD::Generate leaves it - the FIELD's
 height map and hidden chips, the chip meshes, the FOBJECT and FOBJECT2

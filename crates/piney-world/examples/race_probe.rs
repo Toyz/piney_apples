@@ -1,4 +1,4 @@
-//! Answers `tools/test_race_rs.py`: runs `piney_world::race` (the Flag
+//! Answers `tools/test_race_rs.py`: runs `piney_world::grunty::race` (the Flag
 //! Race, from Mutation on) on the states it is sent and prints one JSON line
 //! per request (`race_probe ISO < requests`). The commands: `split T`,
 //! `enter SERVER TIME ROW T0 R0 T1 R1 T2 R2` (main 0x0017a860 on the
@@ -12,7 +12,7 @@ use std::rc::Rc;
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_data::save::SaveData;
-use piney_world::race::{self, Flag, FlagState, Race, RaceEvent, RaceFiles};
+use piney_world::grunty::race::{self, Flag, FlagState, Race, RaceEvent, RaceFiles};
 
 struct Toks<'a>(std::str::SplitWhitespace<'a>);
 

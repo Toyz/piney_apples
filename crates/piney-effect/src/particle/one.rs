@@ -6,7 +6,7 @@
 //! times the transparency). The rules are in docs/engine/particles.md
 //! ("ccParticle").
 
-use piney_world::pose::Play;
+use piney_world::chara::pose::Play;
 
 use super::tables::Tables;
 use super::{GenRef, Generator, force};

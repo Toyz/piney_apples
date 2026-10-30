@@ -18,7 +18,7 @@ use piney_desktop::SaveState;
 use piney_event::host::{Host, StoryArea};
 use piney_event::vm::Vm;
 use piney_world::area::Scene;
-use piney_world::party::Spcs;
+use piney_world::chara::party::Spcs;
 
 use crate::session::{InWorld, Resume, Session};
 use piney_data::store::Table;

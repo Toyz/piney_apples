@@ -718,7 +718,7 @@ fn part_1070(p: &mut Part1070, out: &mut Vec<PartDraw>) {
     p.rot[1] = crate::ending::rotate(p.rot[1], p.drot[1]);
     p.rot[2] = crate::ending::rotate(p.rot[2], p.drot[2]);
     let at = ee::vadd(off, p.pos);
-    let matrix = piney_world::field_ambient::pos_rot_xyz_scale(at, p.rot, [p.scale[0], p.scale[1], p.scale[2]]);
+    let matrix = piney_world::field::ambient::pos_rot_xyz_scale(at, p.rot, [p.scale[0], p.scale[1], p.scale[2]]);
     out.push(PartDraw::Xpart { chunk: p.chunk, matrix });
 }
 

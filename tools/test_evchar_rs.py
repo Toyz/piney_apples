@@ -2,9 +2,9 @@
 """crates/piney-world's characters under the event scripts against the game's
 own code run in tools/eemu.py.
 
-The evchar_probe example runs the port (piney_world::ai, party, the
+The evchar_probe example runs the port (piney_world::chara::ai, party, the
 Player's frame, and the town's party members as the World runs them:
-piney_world::town_party, the battle's characters under piney-battle's
+piney_world::town::party, the battle's characters under piney-battle's
 ccFellow::Main) on the requests this sends it; the same requests go through
 the game's functions in eemu over Mac Anu's real collision mesh
 (test_world_rs.Field's machine):

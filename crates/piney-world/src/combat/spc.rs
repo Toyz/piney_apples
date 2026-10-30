@@ -1,5 +1,5 @@
 //! The party's characters in the battle's state as the event instructions
-//! and the AI's manual paths ([`crate::party`], [`crate::ai`]) see them: a
+//! and the AI's manual paths ([`crate::chara::party`], [`crate::chara::ai`]) see them: a
 //! [`SpcRec`] copies what a [`SpcRef`] lends out of the battle's [`Scene`],
 //! the [`Crew`] and the cast, and writes it back after. The copies are
 //! exact: every field is one the battle keeps, and the body a copy of the
@@ -10,10 +10,10 @@ use piney_battle::party_ai::{Ai as BAi, Crew};
 use piney_battle::scene::Scene;
 use piney_battle::world::CharHit;
 
-use crate::ai::{Ai, SpcRef};
+use crate::chara::ai::{Ai, SpcRef};
+use crate::chara::party::SpcChars;
 use crate::ee::{F, V4};
 use crate::hit::{self, Hits};
-use crate::party::SpcChars;
 
 /// `+0xe0` bits the battle's flag word holds beyond [`spc_flag`].
 pub mod flag {

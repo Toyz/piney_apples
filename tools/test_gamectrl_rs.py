@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The battle half of ccThGameCtrl (crates/piney-world/src/talk.rs) against
+"""The battle half of ccThGameCtrl (crates/piney-world/src/event/talk.rs) against
 the game's own code run in the EE interpreter (tools/test_anim.py's
 machine: crates/piney-eemu's when tools/eemu_rs.so is built).
 

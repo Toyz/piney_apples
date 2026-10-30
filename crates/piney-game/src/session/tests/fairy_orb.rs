@@ -6,7 +6,7 @@
 //! shut, as they were.
 
 use piney_input::Buttons;
-use piney_world::field_world::Place;
+use piney_world::field::world::Place;
 
 use super::ride::{area, in_field, raw};
 use super::*;

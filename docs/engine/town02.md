@@ -17,7 +17,7 @@ for it (`in_town 1`). `WORLD_MAN::GO(0)` builds `ROOTTOWN02` for town 1
 and `ccThFieldDisp` calls its `Draw` each frame, as it does
 `ROOTTOWN01`'s in Mac Anu ([Town and event-area assembly](statics.md),
 [the field game](field-game.md#what-the-town-draws)). The port is
-`crates/piney-world/src/town02.rs` with `cloud.rs` and `lensflare.rs`.
+`crates/piney-world/src/town/dun_loireag.rs` with `cloud.rs` and `lensflare.rs`.
 
 ## The constructor
 
@@ -323,7 +323,7 @@ Kite, Talk makes it sit up, and it walks on when the menu shuts
 `ccAddRequestFileListInu` (0x0050a460) register the rows and files for
 loading, which the port does as it places them.
 
-`piney_world::dog` is `ccSetDog` (`set_dogs`), the class (`Dog`) and its
+`piney_world::town::dog` is `ccSetDog` (`set_dogs`), the class (`Dog`) and its
 sounds and dust (`DogEvent`); `World` keeps the dogs after the merchants,
 as the entry control's list does, and `piney-game` plays their notes
 (`se3d::inu_note`) and dust (`effSmoke`).
@@ -465,7 +465,7 @@ worklog 474).
 ## Checks
 
 `tools/test_town02_rs.py` runs the game's own code in eemu beside
-`town02_probe`:
+`dun_loireag_probe`:
 
 - the constructor, `ROOTTOWN02::ROOTTOWN02` itself over town02 and town_z
   (and town02d): `SetFog`'s arguments and `ccSys.bgColor`, the files, the

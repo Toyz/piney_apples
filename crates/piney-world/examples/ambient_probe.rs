@@ -1,5 +1,5 @@
 //! Answers `tools/test_field_ambient_rs.py`: a field's weather and ambient
-//! pictures (`piney_world::field_ambient`) as `WORLD::Init`, `Generate` and
+//! pictures (`piney_world::field::ambient`) as `WORLD::Init`, `Generate` and
 //! `Draw` make and draw them, one request a line, one JSON line an answer.
 //! Numbers are hex, floats their bit patterns. Requests: `field` (`Init` and
 //! `Generate`'s ambient parts, with `fieldrand`'s counts), `fires` (type 7's
@@ -14,8 +14,8 @@ use piney_data::dungeon::Rng;
 use piney_data::field;
 use piney_data::volume::Volume;
 use piney_world::ee::{F, ONE, V4};
-use piney_world::evarea::FlareCamera;
-use piney_world::field_ambient::{Ambient, Cloth, Env, Frame, Model, Op, Statics, Weather};
+use piney_world::field::ambient::{Ambient, Cloth, Env, Frame, Model, Op, Statics, Weather};
+use piney_world::story_map::holy_ground::FlareCamera;
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -198,7 +198,7 @@ fn main() {
                     rot2: [0; 4],
                     eye_view: false,
                     odd: false,
-                    bounds: piney_world::field_area::BOUNDS,
+                    bounds: piney_world::field::area::BOUNDS,
                 };
                 let mut ambient = Ambient::init(weather, &env, &mut statics, &mut rng);
                 let init = rng.count;
@@ -230,7 +230,7 @@ fn main() {
             }
             "bg" => {
                 let s = st.as_mut().unwrap();
-                s.ambient.bg = Some(piney_world::field_ambient::DrawBg {
+                s.ambient.bg = Some(piney_world::field::ambient::DrawBg {
                     hacked: w[1] == "1",
                     aurora: w[2] == "1",
                     ..Default::default()
@@ -255,7 +255,7 @@ fn main() {
                 let runners = [v4(&w[35..39]), v4(&w[39..43])];
                 let fl = &s.field;
                 let heights = |x: F, y: F| fl.get_height(x, y);
-                let bounds = piney_world::field_area::BOUNDS;
+                let bounds = piney_world::field::area::BOUNDS;
                 let env =
                     Env { volume, player, centre, ofs, height: &heights, eye, eye1, rot, rot2, eye_view, odd, bounds };
                 let flare_cam = FlareCamera { eye, view, rot: if eye_view { rot2 } else { rot } };

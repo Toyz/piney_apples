@@ -17,7 +17,7 @@ use crate::eff::Eff;
 use crate::effect::{EFFECT_LAYER, check_camera_deg};
 use crate::files::{Assets, ObjRef};
 use crate::{Host, space, vu};
-use piney_world::pose::Play;
+use piney_world::chara::pose::Play;
 
 /// `gimmickTbl[15]`: the file, the circle, its animations, the sparks and
 /// the entry's palette.

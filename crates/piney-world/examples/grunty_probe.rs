@@ -14,7 +14,7 @@ use std::sync::Arc;
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_desktop::save::SaveState;
-use piney_world::char::View;
+use piney_world::chara::char::View;
 use piney_world::ee::{ONE, V4};
 use piney_world::grunty::{self, Bodies, Growth, Grunty, GruntyCtx, GruntyEvent, Tables};
 use piney_world::mt::Mt;
@@ -35,7 +35,7 @@ fn growth(g: &Growth) -> String {
         + &format!(",{}]", g.food_num)
 }
 
-fn anm_name(body: &piney_world::body::Body, p: Option<&piney_world::pose::Play>) -> String {
+fn anm_name(body: &piney_world::chara::body::Body, p: Option<&piney_world::chara::pose::Play>) -> String {
     match p {
         Some(p) => {
             let a = &body.file.anims[p.anim];

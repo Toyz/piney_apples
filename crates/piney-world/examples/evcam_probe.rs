@@ -1,5 +1,5 @@
 //! Answers `tools/test_evcam_rs.py` (`evcam_probe ISO < requests`): the event
-//! camera (evcam.rs) and the field's tasks around it - the event's camera
+//! camera (camera/evcam.rs) and the field's tasks around it - the event's camera
 //! instructions, then each frame `CamCtrl`, `cameraMain` and
 //! `ccPlayer::Main` - printing the state (`ccEvCamCtrl` as the game lays it
 //! out, the three cameras, Kite) as one JSON line. Requests: `start`, `char`,
@@ -15,12 +15,12 @@ use piney_data::ccs::Ccs;
 use piney_data::iso::Iso;
 use piney_desktop::assets::SceneFile;
 use piney_event::host::CameraCommand;
+use piney_world::camera::evcam::{Camz, EvCamCtrl, EventCam, Input, Scene};
 use piney_world::camera::{Cam, CamPad, Camera, Scheme};
+use piney_world::chara::motion::PLAYER_ANIM_TBL;
+use piney_world::chara::player::Player;
 use piney_world::ee::{self, V4};
-use piney_world::evcam::{Camz, EvCamCtrl, EventCam, Input, Scene};
 use piney_world::hit::{HitModel, Hits};
-use piney_world::motion::PLAYER_ANIM_TBL;
-use piney_world::player::Player;
 use piney_world::{Rand, tasks};
 
 fn hex(s: &str) -> u32 {

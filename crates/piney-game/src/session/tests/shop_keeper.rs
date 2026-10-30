@@ -8,7 +8,7 @@
 use piney_data::volume::Volume;
 use piney_event::ScriptSave as _;
 use piney_event::ir::Op;
-use piney_world::merchant::Merchant;
+use piney_world::town::merchant::Merchant;
 
 use super::area15::{hold, hold_frame};
 use super::*;
@@ -55,14 +55,14 @@ fn mutations_shop_keeper_stands_at_marker_6() {
     assert_eq!(world.town().base.no, 1);
     let (pos, rot) = world.marker_dummy(MARKER).expect("marker 6 in Dun Loireag's file");
     let m = shop_keeper(&s).expect("entry 4 29 not placed");
-    assert_eq!((m.name.as_str(), m.flags), ("Administrator", piney_world::npc::TYPE_SYSOPE));
+    assert_eq!((m.name.as_str(), m.flags), ("Administrator", piney_world::chara::npc::TYPE_SYSOPE));
     assert_eq!(world.merchants()[0].id, SHOP_KEEPER, "made before ccSetMerchant(0)'s");
     // At the marker's dummy, its rotation copied whole; then block 27's
     // `npc_face 29 2 0 0` turned him to Kite at once.
     let kite = world.player().body.pos;
     let face = piney_world::ee::deg2rad(piney_world::event::dirc_to(m.ch.pos, kite));
     assert_eq!((m.ch.pos, m.ch.dirc), (pos, [rot[0], rot[1], face, rot[3]]));
-    assert_eq!(m.anm_tbl, piney_world::merchant::ANM_TBL[0]);
+    assert_eq!(m.anm_tbl, piney_world::town::merchant::ANM_TBL[0]);
     let vm = w.vm().expect("the event task");
     assert!(blocks(vm).contains(&(EVENT, ARRIVAL as i32)), "block 25 did not run");
     // Block 27: faced toward Kite, the camera on him, his first line.
@@ -145,11 +145,11 @@ fn every_event_npc_entry_makes_a_class() {
     let mut before = std::collections::BTreeMap::new();
     let mut after = std::collections::BTreeMap::new();
     for &(volume, n, b, area, ty, code) in &all {
-        let row = piney_world::npc::NpcRow::of(volume, code as usize).unwrap();
+        let row = piney_world::chara::npc::NpcRow::of(volume, code as usize).unwrap();
         let old = match (area, ty) {
             (Area::Outside, 3) => row.func == Some(piney_data::tables::types::EntryFunc::RtownPC),
-            (Area::Outside, _) => piney_world::merchant::anm_tbl(i32::from(code), 0).is_some(),
-            (_, 3) => row.flags & piney_world::npc::TYPE_PC != 0,
+            (Area::Outside, _) => piney_world::town::merchant::anm_tbl(i32::from(code), 0).is_some(),
+            (_, 3) => row.flags & piney_world::chara::npc::TYPE_PC != 0,
             _ => false,
         };
         if !old {

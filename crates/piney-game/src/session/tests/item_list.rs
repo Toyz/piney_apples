@@ -6,7 +6,7 @@
 
 use piney_data::save::{by_id, ext, registry_row};
 use piney_input::{Buttons, Raw};
-use piney_world::entry::Kind;
+use piney_world::event::entry::Kind;
 
 use super::*;
 

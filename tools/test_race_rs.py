@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""piney_world::race (the Flag Race, from Mutation on: MUT gcmn race.cpp)
+"""piney_world::grunty::race (the Flag Race, from Mutation on: MUT gcmn race.cpp)
 against the game's own code run in tools/eemu.py (the Rust machine,
 crates/piney-eemu, when built) over test_battle's GameBattle (GCMN.PRG
 loaded), each case through the race_probe example too.

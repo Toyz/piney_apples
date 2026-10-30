@@ -653,7 +653,7 @@ the order's line opened by the menu in that frame is not dropped.
 
 The action button on the gate (type 0x2000) opens 28 with `firstTime` set:
 the gate's circle opens (`ccChar::EntryAffect(gate, plw, 11)`, which runs
-`chaosGateInfluence` - `piney_world::gate::Gate::influence` - on the gate)
+`chaosGateInfluence` - `piney_world::event::gate::Gate::influence` - on the gate)
 with a white flash (`ccScFade::EntryFlash(8, 0x3040c0c0)`). The list: Random
 (57), New Keyword (58), Word List (59), Warp History (60), Other Servers
 (61); the last three are greyed (`reverseHead` bits 2-4) while their lists
@@ -964,7 +964,7 @@ The port:
 - **The runtime.** `area.rs` plays the stream with
   `StreamPlayer::drain` over the two resident files
   (`piney_stream::Stream::with_resident`). The enemy is
-  `piney_world::foe::DrainEnemy`, drawn into the scene through
+  `piney_world::chara::foe::DrainEnemy`, drawn into the scene through
   `Stream::step_with` with the stream's camera and lights. The minimap is
   hidden with the world.
 
@@ -1012,7 +1012,7 @@ affect 13 on the member.
 In the port, `menus::stream` asks for `Request::StreamMenu(num)` and
 `Request::StrParty(flags)`. The area mode plays the stream as it plays
 the drain movie, over the field's resident files, and draws
-`piney_world::foe::StrParty` into it. `FieldUi::stream_menu_done` answers
+`piney_world::chara::foe::StrParty` into it. `FieldUi::stream_menu_done` answers
 the stream's end, and `FieldUi::open_stream_menu` is the boss's request.
 
 ## The tutorials (75 - 85)

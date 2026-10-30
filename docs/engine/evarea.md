@@ -276,7 +276,7 @@ floor stays on the list. `GO(1)` finds `eventmap` set and keeps it, and
 
 ## The port
 
-`crates/piney-world/src/evarea.rs`:
+`crates/piney-world/src/story_map/holy_ground.rs`:
 
 ```text
 EventArea::new            the constructor (the flares' ccEffs are the
@@ -312,7 +312,7 @@ arrival's camera, BlackRose, the church's streams) are the event host's:
 
 `tools/test_evarea_rs.py` builds `EVENTAREA02` with its own constructor in
 the interpreter, over `se1_2`'s objects as `tools/test_world_rs.py`'s
-`Pieces` serves them, and compares with the `evarea_probe` example:
+`Pieces` serves them, and compares with the `story_map_probe` example:
 
 - the set-up: the constructor, then `ChangeBlock(1)`, `(0)`, `(1)`: the
   constructor's fog, files and flares (`Init`'s chunks and fog switch,
@@ -392,7 +392,7 @@ Mutation's event 115 goes to field 13 (MUT gcmn 0x00414110 constructor,
 | not 0 | `wait` - 1; `ccEff::Draw(pos, frame)`; `frame` + 1, back to 0 at `patNum` |
 | 0 | `ccEff::Draw(pos, fieldrand(patNum))`; `count` - 1; at 0 a new `wait` and `count` as above |
 
-**The port.** `piney_world::evarea01::Area13`, a `StoryMap` on
+**The port.** `piney_world::story_map::truths_core::Area13`, a `StoryMap` on
 `town::Base` (`Base::read_volume`, the volume's tables). The glows are
 `StorySprite`s with `fog` off.
 
@@ -439,7 +439,7 @@ the pass-0 models. `DrawBG` would draw `bg[0]`, which is never set, and
 During event 102 the area is marked, so the event's block 4 fades out and
 changes scene while the map only draws.
 
-**The port.** `piney_world::evarea03::Area43`, a `StoryMap`. Its `frame`
+**The port.** `piney_world::story_map::abyss::Area43`, a `StoryMap`. Its `frame`
 runs the scene: it moves camera 3, and sends `MenuBan` and the message to
 the game as `Request::Story`. `AreaMode` answers `Check(0)` with the
 frame's pad before the field steps. `kiteSelfTalk` is the fieldui
@@ -512,7 +512,7 @@ from the dungeon, `GO(1)` makes a new one, which stands the party at
 `DMY_marker02`. `SetCharPosition` for fields 16 and 66 puts the others at
 (+200, -150), (-200, -150) and (0, +300).
 
-The port is `crates/piney-world/src/evarea07.rs`, held as
+The port is `crates/piney-world/src/story_map/giant.rs`, held as
 `field_world::Place::Giant`. The clouds and flares are story sprites
 (`StorySprite` carries a cloud's turn). `the_giants_blocks`,
 `the_background_bobs` and the session's
@@ -586,7 +586,7 @@ too (+0x9c set). The arena's are type 0 (+0x00). Type 1, which
 player (`SetBasePosition2`, 0x005b4ba0: a point up to 1500 each way from
 the base, turned by the camera's heading, at the ground's height); the
 fields' fireflies are on the [field](field.md) page, and both types are
-ported in `crates/piney-world/src/firefly.rs`.
+ported in `crates/piney-world/src/sky/firefly.rs`.
 
 ```text
 FIREFLY2()            0x005b4550  timer (+0xa0) fieldrand(20) + 10, pattern
@@ -673,11 +673,11 @@ plays; the hits stay on. The port:
 `Arena::next_stage`, `set_clump` (from `Pic::ArenaClump` through
 `BossRun.arena_clump`), `Piece::LastAnm` and `LastClump`.
 
-**The port.** `piney_world::evarea_b0::Arena`. `FieldWorld` holds it as
+**The port.** `piney_world::story_map::boss_arena::Arena`. `FieldWorld` holds it as
 `Place::Arena` for fields 1-8: standing the party at `DMY_center01`, the
 battle's tasks over its collision, drawing it in `ccThFieldDisp`'s place.
 The arena draws on from the game's `fieldrand` (below); the fireflies
-(`piney_world::firefly`, type 0) are made in the constructor from it and
+(`piney_world::sky::firefly`, type 0) are made in the constructor from it and
 drawn and moved in `Draw` with the player's position. Their sprites go to
 the effects' `story_sprites` (`EFF_se1_5fir1` of `se1_5`, `Init(chunk,
 1)`'s render state, the scale, transparency and pattern) on effLayer.
@@ -686,7 +686,7 @@ the effects' `story_sprites` (`EFF_se1_5fir1` of `se1_5`, `Init(chunk,
 
 **Checked.** `test_evarea_rs.py`'s `ArenaAgainstGame` builds the game's
 `EVENTAREAB0` for field 1 over `se1_5`, its fireflies the game's own
-`FIREFLY2`s, and compares it with `evarea_probe`'s `arena`. It checks:
+`FIREFLY2`s, and compares it with `story_map_probe`'s `arena`. It checks:
 
 - the models' rows, names and positions;
 - the background clumps, the lights in their order, the distant light;
@@ -770,7 +770,7 @@ with n 0-2, take `body[n]`'s hit out of the list (`HitDisable`) and put it
 back at the list's tail (`HitEnable`) for `SwitchGateON` and
 `SwitchGateOFF` ([the fourth fight](boss-kyvia-fourth.md#the-places)).
 
-**The port.** `piney_world::evarea_b8::DiscArea`, a `StoryMap`; its tests
+**The port.** `piney_world::story_map::disc::DiscArea`, a `StoryMap`; its tests
 (`the_disc_of_field_9`, `the_disc_rides_to_its_end`,
 `the_later_discs_stop_at_their_stages`) hold the pieces, the light, the
 hits, the rocks' cells and the ride. `FieldWorld` hands Kyvia the disc
@@ -850,7 +850,7 @@ grey Gate Out (`check_operate(14)` fails) for the rest of the event. Block
 the portal and the enemy gone) gives item (9, 64) and `scene` to the town.
 So the arena's one way out is the fight, as the game means it.
 
-The port: `piney_world::evarea_sky::SkyMap` (`Class::Mirror`, `Arena`,
+The port: `piney_world::story_map::sky::SkyMap` (`Class::Mirror`, `Arena`,
 `Whale`), a `StoryMap` that `story_map::build` makes for 66, 67 and 91.
 Before worklog 472 these fields fell through to a generated field of their
 rows' type 255: field 66 had no ground, and field 67 was another
@@ -921,7 +921,7 @@ for 126: gcmn 0x00305120, 0x1c4 bytes, vtable 0x002766b0.
   runs `ending_kanji`, the staff roll `STFROLL_VOL4`
   ([stfroll.md](stfroll.md)).
 
-The port: `piney_world::evarea_end::EndArea`. `WorldMan::event_start`
+The port: `piney_world::story_map::ending::EndArea`. `WorldMan::event_start`
 carries `eventStartPos` from one story map to the next. The desktop's
 `area` and `change_scene` are recorded, and the session sets the field up
 from the desktop (`Session::story_scene`).

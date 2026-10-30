@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""crates/piney-world/src/foe.rs (the enemies' and the magic portal's
+"""crates/piney-world/src/chara/foe.rs (the enemies' and the magic portal's
 drawing) against the game's own code run in the EE interpreter (the Rust
 machine, tools/test_anim.py's machine_class). The foe_probe example answers
 for the port.

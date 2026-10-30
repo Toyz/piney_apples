@@ -1,7 +1,7 @@
 //! Answers `tools/test_foe_rs.py` (`foe_probe ISO < requests`: `look`, `pose`,
 //! `circle`, `draw` - an enemy row's files, its clump posed, the portal's,
 //! and `ccChar::Draw`'s decisions) and renders enemies and a magic portal to
-//! PNG (`piney_world::foe`): `foe_probe ISO --shot OUT [--rows 130,151,...]
+//! PNG (`piney_world::chara::foe`): `foe_probe ISO --shot OUT [--rows 130,151,...]
 //! [--frame N] [--circle ANIM,N] [--dist D] [--pitch P] [--yaw Y] [--dead
 //! ROW] [--flash ROW]`. Numbers hex, floats their bits.
 
@@ -19,11 +19,11 @@ use piney_data::volume::Volume;
 use piney_desktop::layers::Layers;
 use piney_draw::Frame;
 use piney_world::camera::{VIEW_SCREEN, pos_target};
+use piney_world::chara::foe::{self, Camera, CharDraw, Circle, EnemyLook, Files, Model};
+use piney_world::chara::pose::Play;
 use piney_world::draw;
 use piney_world::ee::{self, F, ONE, V4};
-use piney_world::field_area::{self, DEF_SE, FieldArea};
-use piney_world::foe::{self, Camera, CharDraw, Circle, EnemyLook, Files, Model};
-use piney_world::pose::Play;
+use piney_world::field::area::{self, DEF_SE, FieldArea};
 
 fn hex(s: &str) -> u32 {
     u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap()
@@ -142,7 +142,7 @@ fn answer(d: &Disc, files: &mut Files, looks: &mut HashMap<i32, EnemyLook>, circ
                 cam: [n(21), n(22), n(23), ONE],
                 deg1: n(24) as i16,
                 eye: n(25) != 0,
-                bounds: field_area::BOUNDS,
+                bounds: area::BOUNDS,
                 town: n(26) != 0,
                 volume: piney_data::volume::Volume::Inf,
             };
@@ -273,7 +273,7 @@ fn shot(d: &Disc, s: &Shot) -> Result<(), Box<dyn std::error::Error>> {
         cam: eye,
         deg1: 1512,
         eye: false,
-        bounds: field_area::BOUNDS,
+        bounds: area::BOUNDS,
         town: false,
         volume: piney_data::volume::Volume::Inf,
     };

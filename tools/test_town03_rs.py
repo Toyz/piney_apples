@@ -1,9 +1,9 @@
-"""crates/piney-world's Carmina Gade (piney_world::town03, Mutation's
+"""crates/piney-world's Carmina Gade (piney_world::town::carmina_gadelica, Mutation's
 ROOTTOWN03 with its AIRSHIP) against Mutation's own code run in
 tools/eemu.py (the Rust eemu_rs.so when present). It runs on Mutation
 whatever PINEY_VOLUME says: Carmina Gade is Mutation's.
 
-The town03_probe example builds the town and answers the requests below;
+The carmina_gadelica_probe example builds the town and answers the requests below;
 the game's side is ROOTTOWN03 built by its own constructor in the
 interpreter (MUT gcmn 0x0043b980), its STATICMODELs, clumps, water ccAnms
 and AIRSHIP made by their own code over town03's objects as
@@ -49,7 +49,7 @@ from volume import va as inf_va  # noqa: E402
 ROOT = tw.ROOT
 ISO, ELF = tw.ISO, tw.ELF
 EXAMPLE = os.path.join(os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "target")), "release", "examples",
-                       "town03_probe")
+                       "carmina_gadelica_probe")
 LAYER_ACTIVE = tw.LAYER_ACTIVE
 # WORLD_MAN's layers (+0x494 bgLayer[10], objLayer, obj2Layer, floorLayer,
 # effLayer, charLayer, refLayer) and their priorities as GO makes them.
@@ -69,7 +69,7 @@ def f32(bits):
 
 def build():
     subprocess.run([shutil.which("cargo"), "build", "--release", "-q", "-p", "piney-world", "--example",
-                    "town03_probe"], cwd=ROOT, check=True)
+                    "carmina_gadelica_probe"], cwd=ROOT, check=True)
 
 
 def ask(lines):

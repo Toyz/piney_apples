@@ -1,5 +1,5 @@
 //! A field's weather and ambient pictures as the effects draw them
-//! (`piney_world::field_ambient`): each `ccEff` of `WORLD::Draw`, `DrawEffect`
+//! (`piney_world::field::ambient`): each `ccEff` of `WORLD::Draw`, `DrawEffect`
 //! and a dungeon's `DrawEff`, made once per name as `ccEff::Init` left it, and
 //! the steam's and fires' `effSmoke` puffs. The game calls `effSmoke` from
 //! `WORLD::Draw` (96) before `ccThParticle` (98); here a puff starts at the next
@@ -10,7 +10,7 @@ use piney_effect::Effects;
 use piney_effect::draw::Camera as FxCamera;
 use piney_effect::eff::Eff;
 use piney_effect::files::ObjRef;
-use piney_world::field_ambient::{Op, Sprite};
+use piney_world::field::ambient::{Op, Sprite};
 
 use super::{AreaFx, BattleHost};
 
@@ -76,7 +76,7 @@ pub(super) fn draw(
                 if let Some(c) = s.colour {
                     e.color = c;
                 }
-                let layer = piney_world::field_area::ambient_layer(s.layer);
+                let layer = piney_world::field::area::ambient_layer(s.layer);
                 e.render(&fx.fx.assets, &mut ctx.layers, layer, s.pattern, &cam);
             }
             Op::Smoke { .. } if fresh => fx.ambient_smoke.push(op.clone()),

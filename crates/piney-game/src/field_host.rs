@@ -767,7 +767,7 @@ impl Host for FieldHost<'_> {
         }
         self.st.log(format!("add_spc_item {pc} {category} {id} {num}"));
         let w = crate::world::ui_world(self.world, None, 0);
-        let h = crate::world::handle(piney_world::entry::Kind::Spc, code);
+        let h = crate::world::handle(piney_world::event::entry::Kind::Spc, code);
         let (c, i, n) = (i32::from(category), i32::from(id), i32::from(num));
         self.ui.add_spc_item(&w, self.world.state_mut(), h, code, c, i, n);
         true

@@ -267,7 +267,7 @@ In the port:
 - `crates/piney-game/src/piros.rs`'s `Sequence` gives each frame's actions
   to the host's `busy`; its first `busy` is the instruction's own frame.
 - The town host flashes its `scFadeDef` (on the font layer) and tints the
-  town's Piros (`piney_world::char::AffectColour`, drawn through
+  town's Piros (`piney_world::chara::char::AffectColour`, drawn through
   `Body::draw_char_fog`).
 - The field and dungeon host (`area_host.rs`) does the same: the flashes on
   the area's `scFadeDef`, the tint on Piros's character in the fights

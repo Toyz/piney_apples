@@ -1,5 +1,5 @@
 //! Answers `tools/test_field_rt.py` (`field_probe ISO < requests`): a field as
-//! `WORLD_MAN::GO(1)` builds it (`piney_world::field_area`), its collision,
+//! `WORLD_MAN::GO(1)` builds it (`piney_world::field::area`), its collision,
 //! its object passes and Kite and the camera walking it, one JSON line a
 //! request. Requests: `new`, `charpos`, `dgpos`, `place`, `clear`, `land`,
 //! `hitcheck`, `step`, `start`, `pad`; numbers hex, floats their bits, the
@@ -13,11 +13,11 @@ use piney_data::field;
 use piney_data::iso::Iso;
 use piney_desktop::assets::SceneFile;
 use piney_world::camera::{CamPad, Camera, Scheme};
+use piney_world::chara::motion::PLAYER_ANIM_TBL;
+use piney_world::chara::player::Player;
 use piney_world::ee::{self, V4};
-use piney_world::field_area::{DEF_SE, FieldArea};
+use piney_world::field::area::{DEF_SE, FieldArea};
 use piney_world::hit;
-use piney_world::motion::PLAYER_ANIM_TBL;
-use piney_world::player::Player;
 use piney_world::{Rand, tasks};
 
 fn hex(s: &str) -> u32 {
@@ -52,7 +52,7 @@ fn main() {
     let mut iso = Iso::open(&iso_path).unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     // The disc's own code: Outbreak's and Quarantine's square roots are
-    // `sqrt.s` (worklog 474 found the same in evarea_probe).
+    // `sqrt.s` (worklog 474 found the same in story_map_probe).
     let volume = iso.volume().unwrap();
     let kite = SceneFile::read(&archive, "ctu1body").unwrap();
     let anims: Vec<&piney_data::anim::Animation> =
@@ -103,13 +103,13 @@ fn main() {
             Some("charpos") => {
                 let start = [n(3), n(4), n(5), ee::ONE];
                 let dungeon = [n(6), n(7), n(8), ee::ONE];
-                let (p, rot) = piney_world::field_world::field_start(n(1) as i32, n(2), start, Some(dungeon));
-                let m = piney_world::field_world::party_starts(1, p, rot);
+                let (p, rot) = piney_world::field::world::field_start(n(1) as i32, n(2), start, Some(dungeon));
+                let m = piney_world::field::world::party_starts(1, p, rot);
                 let members = list(m.iter().map(|v| list([v[0], v[1], v[2], rot])));
                 println!("[{}, {}, {}, {rot}, {members}]", p[0], p[1], p[2]);
             }
             Some("dgpos") => {
-                let m = piney_world::field_world::party_starts(2, [n(1), n(2), n(3), ee::ONE], n(4));
+                let m = piney_world::field::world::party_starts(2, [n(1), n(2), n(3), ee::ONE], n(4));
                 println!("{}", list(m.iter().map(|v| list([v[0], v[1], v[2], n(4)]))));
             }
             Some("place") => {
@@ -197,7 +197,7 @@ fn main() {
                     pow,
                 };
                 tasks(&mut r.camera, &mut r.player, &mut f.hits, &anims, &mut r.rand, &pad, &mut r.mode);
-                if r.player.events.contains(&piney_world::motion::ActEvent::Arrived) {
+                if r.player.events.contains(&piney_world::chara::motion::ActEvent::Arrived) {
                     f.hits.hit_enable(&mut r.player.hit_body);
                 }
                 f.ofs = f.hits.center;
@@ -245,8 +245,8 @@ fn main() {
                     // ArmsEffect / ClearArmsEffect from ccPlayer::Main, as
                     // the world harness reports them (worklog 378).
                     match p.arms {
-                        Some(piney_world::arms::ArmsCall::Effect) => "effect",
-                        Some(piney_world::arms::ArmsCall::Clear) => "clear",
+                        Some(piney_world::chara::arms::ArmsCall::Effect) => "effect",
+                        Some(piney_world::chara::arms::ArmsCall::Clear) => "clear",
                         None => "none",
                     },
                     b.target_count,

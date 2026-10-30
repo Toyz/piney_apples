@@ -14,9 +14,9 @@ use piney_data::archive::Archive;
 use piney_data::iso::Iso;
 use piney_data::store::Table;
 use piney_world::area::{Scene, WorldMan};
-use piney_world::dungeon_area::DungeonArea;
+use piney_world::dungeon::DungeonArea;
 use piney_world::ee::ONE;
-use piney_world::field_area::{DEF_SE, FieldArea};
+use piney_world::field::area::{DEF_SE, FieldArea};
 use piney_world::map::sprite::{Out, Place, corners};
 use piney_world::map::{self, dungeon, field, town};
 
@@ -224,7 +224,7 @@ fn main() {
                 scene.block = 0;
                 scene.server = d(11) as i32;
                 let mut a =
-                    DungeonArea::new_banned(&archive, volume, &wm, &scene, piney_world::dungeon_area::NO_BANS).unwrap();
+                    DungeonArea::new_banned(&archive, volume, &wm, &scene, piney_world::dungeon::NO_BANS).unwrap();
                 let edit = if a.event != 0 { a.tables.edit(a.event, scene.dungeon) } else { None };
                 let floors = dungeon::floors_of(&a, edit);
                 let file = a.file.clone();

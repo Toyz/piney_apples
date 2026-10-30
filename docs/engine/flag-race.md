@@ -178,12 +178,12 @@ and 7.
 
 ## The port
 
-- `piney_world::race`: `Race` (the object, the task's loop as a
+- `piney_world::grunty::race`: `Race` (the object, the task's loop as a
   resumable `Pc` state machine, one breath a frame), `Flag`,
   `enter_time`, `split`, `before_camera_at`. It talks to the menu's fade
   through `RaceHost`, and to the game through `RaceEvent`s (se, bgm,
   `effOpenBox`, the ride's notes and dust, panel, map, forbid).
-- `piney_world::town_ride`: the riding Grunty's town path, a `RideWorld`
+- `piney_world::town::ride`: the riding Grunty's town path, a `RideWorld`
   over the town's ground.
 - `piney_world::grunty`: `RaceLink` and `race_step`.
 - `piney_fieldui::menus::flag_race`: menu 88 and its page. The Rankings

@@ -7,7 +7,7 @@
 //! either pass has one here, and an id with none only draws and ages. The
 //! rules are in docs/engine/effects.md ("ccEffect").
 
-use piney_world::pose::Play;
+use piney_world::chara::pose::Play;
 
 use crate::draw::DrawRec;
 use crate::ee::{self, F, ONE, V4};

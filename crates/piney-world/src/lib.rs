@@ -1,76 +1,34 @@
 //! The World (`DATA/GCMN.PRG`, the field game) as a state machine: a pad in,
 //! a [`piney_draw::Frame`] out, once per game frame at 30 frames a second.
 //! [`World::step`] is one frame of the town's tasks in priority order:
-//! `ccThGameCtrl` (33, talk.rs), `ccThCameraExecute` (33, evcam.rs),
-//! `ccThCamera` (40, camera.rs), `ccThPlayer` (49, player.rs), `ccThFellow`
-//! (50, town_party.rs), `ccThEntryCtrl` (64, gate.rs, merchant.rs,
-//! rtownpc.rs) and `ccThFieldDisp` (96, town*.rs). The event interpreter runs
-//! outside, in `piney-game` (docs/engine/field-game.md).
+//! `ccThGameCtrl` (33, `event::talk`), `ccThCameraExecute` (33,
+//! `camera::evcam`), `ccThCamera` (40, `camera`), `ccThPlayer` (49,
+//! `chara::player`), `ccThFellow` (50, `town::party`), `ccThEntryCtrl` (64,
+//! `event::gate`, `town::merchant`, `town::pc`) and `ccThFieldDisp` (96, the
+//! towns). The event interpreter runs outside, in `piney-game`
+//! (docs/engine/field-game.md). The modules go by subsystem: `town`,
+//! `story_map`, `field`, `dungeon`, `chara`, `camera`, `event`, `grunty`,
+//! `sky`; `ee`, `mt`, `hit`, `draw`, `area` are the shared core.
 // A library reports through its caller, never on stdout.
 #![deny(clippy::print_stdout)]
 #![forbid(unsafe_code)]
 
-pub mod ai;
 pub mod area;
-pub mod arms;
-pub mod body;
-pub mod bosscam;
 pub mod camera;
-pub mod char;
 pub mod chara;
-pub mod cinema;
-pub mod cloud;
 pub mod combat;
-pub mod dog;
 pub mod draw;
-pub mod dungeon_area;
+pub mod dungeon;
 pub mod ee;
-pub mod entry;
-pub mod evarea;
-pub mod evarea01;
-pub mod evarea03;
-pub mod evarea07;
-pub mod evarea_b0;
-pub mod evarea_b8;
-pub mod evarea_end;
-pub mod evarea_sky;
-pub mod evcam;
 pub mod event;
-pub mod field_ambient;
-pub mod field_area;
-pub mod field_firefly;
-pub mod field_npcs;
-pub mod field_world;
-pub mod firefly;
-pub mod foe;
-pub mod gameover;
-pub mod gate;
+pub mod field;
 pub mod grunty;
 pub mod hit;
-pub mod lattice;
-pub mod lensflare;
 pub mod map;
-pub mod merchant;
-pub mod motion;
 pub mod mt;
-pub mod navi;
-pub mod npc;
-pub mod party;
-pub mod player;
-pub mod pose;
-pub mod race;
-pub mod rtownpc;
+pub mod sky;
 pub mod story_map;
-pub mod talk;
 pub mod town;
-pub mod town01;
-pub mod town02;
-pub mod town03;
-pub mod town04;
-pub mod town05;
-pub mod town06;
-pub mod town_party;
-pub mod town_ride;
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -85,13 +43,18 @@ use piney_input::Pad;
 
 pub use piney_desktop::SaveState;
 
+use crate::camera::evcam;
 use crate::camera::{CamPad, Camera, Scheme};
-use crate::chara::Kite;
+use crate::chara::kite::Kite;
+use crate::chara::player::Player;
+use crate::chara::{arms, motion, npc, player};
 use crate::ee::{F, ONE, V4};
-use crate::entry::Npc as _;
-use crate::gate::Gate;
-use crate::player::Player;
+use crate::event::entry::Npc as _;
+use crate::event::gate::Gate;
+use crate::event::{entry, gate, talk};
+use crate::grunty::race;
 use crate::town::Town;
+use crate::town::{dog, merchant};
 
 /// `ccSystem.frameRate` in the field: two vertical blanks a frame
 /// (`ccSetupNewGame` 0x001688d0).
@@ -262,7 +225,7 @@ pub struct World {
     requests: Vec<Request>,
     rand: Rand,
     /// `ccEntryCtrl`'s NPC list: `ccSetMerchant(0)`'s merchants first
-    /// (merchant.rs), then everyone else (the walking PCs).
+    /// (town/merchant.rs), then everyone else (the walking PCs).
     merchants: Vec<merchant::Merchant>,
     /// `ccSetDog`'s dogs (Dun Loireag), after the merchants.
     dogs: Vec<dog::Dog>,
@@ -279,15 +242,15 @@ pub struct World {
     /// placed (with the state they share: `ccRand`, the navigation map,
     /// the chat groups).
     rand_count: u32,
-    town_pcs: Option<Rc<std::cell::RefCell<rtownpc::TownPcs>>>,
+    town_pcs: Option<Rc<std::cell::RefCell<crate::town::pc::TownPcs>>>,
     /// Town NPC entries (`entry 3|4 code marker`) waiting for the entry
     /// control's set-up, and whether it has run; `registNpcNum` as
     /// `ccRegisterEventMng` left it ([`World::set_regist_npc_num`]).
     event_npcs: Vec<EventEntry>,
     regist_npc_num: i32,
     placed: bool,
-    pcs: Vec<rtownpc::RtownPc>,
-    pc_events: Vec<(i32, rtownpc::PcEvent)>,
+    pcs: Vec<crate::town::pc::RtownPc>,
+    pc_events: Vec<(i32, crate::town::pc::PcEvent)>,
     /// What the Administrator's `sysopeAct` started, with his `npcID`.
     merchant_events: Vec<(i32, merchant::SysopEvent)>,
     /// The Chaos Gate's `ccSeOn3D`s (`gateAnm`: 71 as the circle opens,
@@ -309,11 +272,11 @@ pub struct World {
     event_targets: Vec<(i16, i16)>,
     /// The party members (the battle's characters) and the town's
     /// navigation for them.
-    party: town_party::TownParty,
-    /// `ccSpcManager` and `ccPartyManager` (party.rs); the events' party
+    party: crate::town::party::TownParty,
+    /// `ccSpcManager` and `ccPartyManager` (chara/party.rs); the events' party
     /// entries (type, code, marker, param) for `ccEntryEventMng`, and
     /// whether `ccSPC::Reboot` has built the registered characters.
-    spcs: party::Spcs,
+    spcs: crate::chara::party::Spcs,
     spc_entries: Vec<(i16, i16, i16, i16)>,
     rebooted: bool,
     /// `charTbl[i].ccsname` (DEMO.PRG), each party member's file.
@@ -327,7 +290,7 @@ pub struct World {
     /// and 2 (and the load): the screen stays black after the hold.
     loading: bool,
     archive: Arc<Archive>,
-    // --- the event camera (evcam.rs) ---
+    // --- the event camera (camera/evcam.rs) ---
     /// `eventMng.cam`, its task and `menu_ban`'s camera part.
     evcam: evcam::EventCam,
     /// `WORLD_MAN::SetCharPosition`'s start for the town: Kite's place and
@@ -336,12 +299,12 @@ pub struct World {
     /// The `ccEff`s the town's last draw asked for (Dun Loireag's lens
     /// flare and clouds), for the host's effects.
     town_sprites: Vec<town::TownSprite>,
-    // --- the Flag Race (race.rs, town_ride.rs), from Mutation on ---
+    // --- the Flag Race (grunty/race.rs, town/ride.rs), from Mutation on ---
     /// Its three flags (`0x00774a90`), its task (`0x0038bd44`) and the
     /// riding Grunty's (`pcgs`); what they asked of the game.
     flags: Vec<race::Flag>,
     race: Option<Box<race::Race>>,
-    ride: Option<town_ride::TownRide>,
+    ride: Option<crate::town::ride::TownRide>,
     race_events: Vec<race::RaceEvent>,
     /// `ccSpcSleep(1)` to `ccSPC::Wakeup(1)`: Kite's task asleep while he
     /// rides.
@@ -428,9 +391,9 @@ impl World {
         let mut town = Town::open_with(&archive, volume, town_no, crisis, save.field_rand)?;
         town.take_statics(&save.scroll_statics);
         let gate = Gate::new(&archive, &town.base.file)?;
-        let party = town_party::TownParty::new(iso, town_no as usize, &town.base.file)?;
+        let party = crate::town::party::TownParty::new(iso, town_no as usize, &town.base.file)?;
         // ccPlayer::ccPlayer's EquipWeapon: the blades the save has him hold.
-        let (kite, job) = match crate::body::weapon_of(&party.combat.data.t, &save.save, 0) {
+        let (kite, job) = match crate::chara::body::weapon_of(&party.combat.data.t, &save.save, 0) {
             Some((w, job)) => (Kite::read_armed(&archive, &w)?, job),
             None => (Kite::read(&archive)?, 0),
         };
@@ -482,7 +445,7 @@ impl World {
             menu_view: talk::MenuView::default(),
             event_targets: Vec::new(),
             party,
-            spcs: party::Spcs::new_game(),
+            spcs: crate::chara::party::Spcs::new_game(),
             spc_entries: Vec::new(),
             rebooted: false,
             char_files,
@@ -607,7 +570,7 @@ impl World {
     }
 
     /// A party member's affect tint, when it is in the town.
-    pub fn fellow_affect(&self, code: i32) -> Option<char::AffectColour> {
+    pub fn fellow_affect(&self, code: i32) -> Option<crate::chara::char::AffectColour> {
         self.party.actor(code).map(|f| f.ch.affect)
     }
 
@@ -745,11 +708,12 @@ impl World {
         let mut mt = mt::Mt::init(self.rand_count);
         let no = self.town.base.no;
         let server = area::SERVER_OF_TOWN.get(no as usize).copied().unwrap_or(0);
-        let pool = rtownpc::Pool::of(&rtownpc::Tables::of(self.volume), server, &self.save.save);
-        let rows = rtownpc::register_random_npc(&mut mt, reserved, &pool);
-        let town = Rc::new(std::cell::RefCell::new(rtownpc::TownPcs::new(self.volume, no, &self.town.base.file, mt)?));
+        let pool = crate::town::pc::Pool::of(&crate::town::pc::Tables::of(self.volume), server, &self.save.save);
+        let rows = crate::town::pc::register_random_npc(&mut mt, reserved, &pool);
+        let town =
+            Rc::new(std::cell::RefCell::new(crate::town::pc::TownPcs::new(self.volume, no, &self.town.base.file, mt)?));
         self.town_pcs = Some(town);
-        let mut files = rtownpc::Files::new();
+        let mut files = crate::town::pc::Files::new();
         for e in std::mem::take(&mut self.event_npcs) {
             self.place_event_npc(&mut files, e)?;
         }
@@ -778,8 +742,15 @@ impl World {
                 continue;
             }
             let row = npc::NpcRow::of(self.volume, r as usize)?;
-            let model = rtownpc::load_model(&self.archive, &mut files, &town.borrow().tables, &row)?;
-            self.pcs.push(rtownpc::RtownPc::place(&town, &row, &model, slot as i32, player, &mut self.town.base.hits));
+            let model = crate::town::pc::load_model(&self.archive, &mut files, &town.borrow().tables, &row)?;
+            self.pcs.push(crate::town::pc::RtownPc::place(
+                &town,
+                &row,
+                &model,
+                slot as i32,
+                player,
+                &mut self.town.base.hits,
+            ));
         }
         Ok(())
     }
@@ -787,7 +758,7 @@ impl World {
     /// An event's town NPC (`ccEntryEventMng`'s types 3 and 4): `npcTbl` row
     /// `code` made as its class and set at the marker. A merchant goes onto
     /// the NPC list before `ccSetMerchant(0)`'s.
-    fn place_event_npc(&mut self, files: &mut rtownpc::Files, e: EventEntry) -> piney_data::Result<()> {
+    fn place_event_npc(&mut self, files: &mut crate::town::pc::Files, e: EventEntry) -> piney_data::Result<()> {
         let row = npc::NpcRow::of(self.volume, e.code as usize)?;
         let (no, player) = (self.town.base.no, self.player.body.pos);
         match e.class {
@@ -798,19 +769,20 @@ impl World {
                 let stage =
                     usize::try_from(e.code - 117).ok().map(|k| self.save.save.u8(offset::EVENT_STATUS + k) as i8);
                 let file = &self.town.base.file;
-                let set_up =
-                    stage.and_then(|st| rtownpc::Search::set_up(&town.borrow(), file, i32::from(e.code), st.into()));
+                let set_up = stage
+                    .and_then(|st| crate::town::pc::Search::set_up(&town.borrow(), file, i32::from(e.code), st.into()));
                 let Some(s) = set_up else { return Ok(()) };
-                let model = rtownpc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
-                let origin = rtownpc::Origin::Search(s);
-                let pc = rtownpc::RtownPc::place_as(&town, &row, &model, origin, player, &mut self.town.base.hits);
+                let model = crate::town::pc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
+                let origin = crate::town::pc::Origin::Search(s);
+                let pc =
+                    crate::town::pc::RtownPc::place_as(&town, &row, &model, origin, player, &mut self.town.base.hits);
                 self.pcs.push(pc);
             }
             npc::EventClass::Pc => {
                 let town = self.town_pcs.clone().expect("the entry control's set-up ran");
-                let model = rtownpc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
+                let model = crate::town::pc::load_model(&self.archive, files, &town.borrow().tables, &row)?;
                 let at = self.event_marker(e.marker);
-                let mut pc = rtownpc::RtownPc::place(&town, &row, &model, -1, player, &mut self.town.base.hits);
+                let mut pc = crate::town::pc::RtownPc::place(&town, &row, &model, -1, player, &mut self.town.base.hits);
                 if let Some(at) = at {
                     (pc.char.pos, pc.char.dirc) = at;
                 }
@@ -845,7 +817,7 @@ impl World {
             self.event_npcs.push(e);
             return true;
         }
-        let mut files = rtownpc::Files::new();
+        let mut files = crate::town::pc::Files::new();
         self.place_event_npc(&mut files, e).is_ok()
     }
 
@@ -967,13 +939,13 @@ impl World {
     }
 
     /// The walking PCs.
-    pub fn pcs(&self) -> &[rtownpc::RtownPc] {
+    pub fn pcs(&self) -> &[crate::town::pc::RtownPc] {
         &self.pcs
     }
 
     /// What the walking PCs asked for since the last call (a chat line
     /// over one's head, one leaving through the gate), with the PC's code.
-    pub fn take_pc_events(&mut self) -> Vec<(i32, rtownpc::PcEvent)> {
+    pub fn take_pc_events(&mut self) -> Vec<(i32, crate::town::pc::PcEvent)> {
         std::mem::take(&mut self.pc_events)
     }
 
@@ -1208,7 +1180,7 @@ impl World {
     pub fn tag_pos(&self, kind: entry::Kind, code: i32, height_scale: f32, mode: i32) -> Option<(i32, i32, i32)> {
         let (pos, height) = self.char_place(kind, code)?;
         let offset = [0, 0, ee::mul(height, height_scale.to_bits()), 0];
-        char::calc_tag_pos(&self.camera.world_screen, pos, offset, mode)
+        crate::chara::char::calc_tag_pos(&self.camera.world_screen, pos, offset, mode)
     }
 
     /// What `ccChatMsg::Disp` asks of a speaker in the town: whether it is
@@ -1301,7 +1273,7 @@ impl World {
         }
         if id != 0 {
             self.party.change_weapon(&self.archive, &self.save.save, id);
-        } else if let Some((w, job)) = crate::body::weapon_of(&self.party.combat.data.t, &self.save.save, 0) {
+        } else if let Some((w, job)) = crate::chara::body::weapon_of(&self.party.combat.data.t, &self.save.save, 0) {
             self.kite.arm(&self.archive, &w);
             // EquipWeapon's dummies of the new file; the trails kept.
             self.kite_arms.equip(&self.kite.body, job);
@@ -1404,7 +1376,7 @@ impl World {
         }
     }
 
-    // --- the event camera (evcam.rs) ------------------------------------------
+    // --- the event camera (camera/evcam.rs) ------------------------------------------
 
     /// A camera instruction of the event scripts (`Host::camera`, at play
     /// level): `ccEvent::Execute`'s handler, which starts the event
@@ -1497,7 +1469,7 @@ impl World {
         // frame: relative to Kite, him at (0, 0, z).
         let leader = talk::Leader {
             volume: self.volume,
-            pos_p: char::w2p(p.body.pos, p.body.pos),
+            pos_p: crate::chara::char::w2p(p.body.pos, p.body.pos),
             dirc: p.body.dirc,
             width: p.width,
         };
@@ -1529,7 +1501,7 @@ impl World {
                 i32::from(gate::GIMMICK),
                 talk::flags::CHAOS_GATE,
                 gate::WIDTH,
-                char::w2p(self.gate.pos, p.body.pos),
+                crate::chara::char::w2p(self.gate.pos, p.body.pos),
             ));
         }
         // saveData.assignPAD: action, personal menu, chat, option (a save
@@ -1609,7 +1581,7 @@ impl World {
             Some(arms::ArmsCall::Effect) => {
                 let (pos, dirc) = (p.body.pos, p.body.dirc);
                 let worlds = self.kite.worlds(p.acts.act, p.acts.posed, pos, dirc);
-                let (r, l) = arms::Arms::hands(&self.kite.body, &worlds, chara::root(pos, dirc));
+                let (r, l) = arms::Arms::hands(&self.kite.body, &worlds, crate::chara::kite::root(pos, dirc));
                 let me = piney_battle::param::SpcParam::from_save(&self.save.save, 0);
                 let t = &self.party.combat.data.t;
                 let aura = t.equip(i32::from(me.job), i32::from(me.equipment[4])).map_or(-1, |e| e.aura_sw);
@@ -1761,8 +1733,12 @@ impl World {
         for f in &self.flags {
             f.draw(&mut ctx.layers, to_screen, &self.gate.lights(&self.town.base.lights));
         }
-        let view =
-            char::View { player: self.player.body.pos, cam: t.pos, deg1: t.deg[1], eye: t.kind == camera::kind::EYE };
+        let view = crate::chara::char::View {
+            player: self.player.body.pos,
+            cam: t.pos,
+            deg1: t.deg[1],
+            eye: t.kind == camera::kind::EYE,
+        };
         let lights = self.gate.lights(&self.town.base.lights);
         let p = &self.player;
         let mut cx = entry::NpcCtx {
@@ -1869,7 +1845,7 @@ impl World {
                 eye: a.pos,
                 player: self.player.body.pos,
                 cam: a.clone(),
-                flare: evarea::FlareCamera::of(&self.camera),
+                flare: crate::story_map::holy_ground::FlareCamera::of(&self.camera),
                 puppet_show: self.camera.puppet_show,
                 world_screen: self.camera.world_screen,
             };

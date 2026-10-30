@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""crates/piney-world's Dun Loireag (piney_world::town02, ROOTTOWN02, with
-its CLOUDs and LENSFLARE: piney_world::cloud, lensflare) against the game's
+"""crates/piney-world's Dun Loireag (piney_world::town::dun_loireag, ROOTTOWN02, with
+its CLOUDs and LENSFLARE: piney_world::sky::cloud, lensflare) against the game's
 own code run in tools/eemu.py (the Rust eemu_rs.so when present).
 
-The town02_probe example builds the town and answers the requests below;
+The dun_loireag_probe example builds the town and answers the requests below;
 the game's side is ROOTTOWN02 built by its own constructor in the
 interpreter (gcmn 0x004240c0), its STATICMODELs, STATICOBJECTs, clumps,
 water ccAnms, LENSFLARE and CLOUDs made by their own code over town02's

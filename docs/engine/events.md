@@ -532,7 +532,7 @@ The boards, the windows and the camera:
 - The camera's angles are `DEG2RAD` shorts, 65536 to a turn: `rotx` the
   pitch, `roty` the heading. The distances are tenths. `cam_mode4`
   (`cpCtrl` 4) leaves the camera point where it is while the look-at goes
-  on moving (`piney_world::evcam`).
+  on moving (`piney_world::camera::evcam`).
 
 ## Unknown
 

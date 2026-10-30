@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""crates/piney-world's story map of area 15 (piney_world::evarea,
+"""crates/piney-world's story map of area 15 (piney_world::story_map::holy_ground,
 EVENTAREA02) against the game's own code run in tools/eemu.py (the Rust
 eemu_rs.so when present).
 
-The evarea_probe example builds the map and answers the requests below; the
+The story_map_probe example builds the map and answers the requests below; the
 game's side is EVENTAREA02 built by its own constructor in the interpreter
 (gcmn 0x00401e00), its STATICMODELs, STATICOBJECT and clumps made by their
 own code over se1_2's objects as tools/test_world_rs.py's Pieces serves
@@ -68,7 +68,7 @@ from test_world_rs import GAME, ONE, PLAYER, SCRATCH, STREAM, TCAM, WM, fb, hexs
 ROOT = tw.ROOT
 ISO, ELF = tw.ISO, tw.ELF
 EXAMPLE = os.path.join(os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "target")), "release", "examples",
-                       "evarea_probe")
+                       "story_map_probe")
 EV = tw.EV
 EVENTMNG, WORLDMAN = tw.EVENTMNG, tw.WORLDMAN
 ACTIVE_CAM, CAMID, PLW_PW = inf_va(0x0037896C), inf_va(0x0037897C), inf_va(0x00730300)
@@ -100,7 +100,7 @@ def f32(bits):
 
 def build():
     subprocess.run([shutil.which("cargo"), "build", "--release", "-q", "-p", "piney-world", "--example",
-                    "evarea_probe"], cwd=ROOT, check=True)
+                    "story_map_probe"], cwd=ROOT, check=True)
 
 
 def ask(lines):
@@ -478,7 +478,7 @@ class Frames(tw.Field):
 @unittest.skipUnless(os.path.exists(ELF) and os.path.exists(ISO) and shutil.which("cargo"),
                      "needs the extracted disc and cargo")
 class ArenaAgainstGame(unittest.TestCase):
-    """EVENTAREAB0 (field 1, Skeith's arena) against piney_world::evarea_b0."""
+    """EVENTAREAB0 (field 1, Skeith's arena) against piney_world::story_map::boss_arena."""
 
     @classmethod
     def setUpClass(cls):

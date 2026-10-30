@@ -487,10 +487,7 @@ impl DungeonMap {
 /// `MakeRoom` 0x005ba8fc / 0x005bd800), and for a story dungeon (`edit`)
 /// the rooms of type 16 or more, which get a centre but no model and scan
 /// as a large area.
-pub fn floors_of(
-    area: &crate::dungeon_area::DungeonArea,
-    edit: Option<&piney_data::dungeon::EditDungeon>,
-) -> Vec<Floor> {
+pub fn floors_of(area: &crate::dungeon::DungeonArea, edit: Option<&piney_data::dungeon::EditDungeon>) -> Vec<Floor> {
     const CELL: F = 0x443b_8000;
     let mut out: Vec<Floor> = area
         .floors
@@ -525,16 +522,12 @@ pub fn floors_of(
 /// the player built again (true: done). Each `SetRoom`'s `SetDoor` opens
 /// the doors only when `clear(f, i)` (`ccCheckActiveObject`): in a fight
 /// the room is built again with them shut.
-pub fn show_map_step(
-    area: &mut crate::dungeon_area::DungeonArea,
-    player: V4,
-    clear: &dyn Fn(i32, i32) -> bool,
-) -> bool {
+pub fn show_map_step(area: &mut crate::dungeon::DungeonArea, player: V4, clear: &dyn Fn(i32, i32) -> bool) -> bool {
     let f = area.level;
     let here = area.here(player);
     area.delete_room();
     let Some(mut map) = area.map.take() else { return true };
-    let set_room = |area: &mut crate::dungeon_area::DungeonArea, i: usize| {
+    let set_room = |area: &mut crate::dungeon::DungeonArea, i: usize| {
         area.set_room_with(f, i, clear(f as i32, i as i32));
     };
     let done = match map.unseen(f) {
