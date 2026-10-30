@@ -8,6 +8,14 @@ step keeps behaviour bit-exact: the suite, the harnesses against the game's
 code, and a byte compare of the generated tables guard each one. Work it in
 order; tick items off here as they land, with the worklog entry.
 
+The lifts are not cosmetic. Each one is there to make the code faster, to
+make the next boss, map, town, menu or volume one impl or one table row,
+and to leave clean seams for the render and sound split (plans/modern.md:
+a core crate per system, Classic and Modern backends). So no lift is
+skipped, shrunk or worked around because the code has two shapes today or
+because the full version is more work: unifying the shapes is the point. If
+a lift truly cannot work, say exactly why and ask the maintainer.
+
 ## 0. Real bugs the audit turned up
 
 - [x] `field::INF` / `dungeon::INF` / `sound::INF` statics: `piney-world`
