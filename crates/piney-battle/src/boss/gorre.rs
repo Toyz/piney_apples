@@ -17,7 +17,7 @@ use piney_data::volume::Volume;
 use self::brother::Brother;
 use super::kyvia::Part;
 use super::{
-    BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, PI, Patterns, Skeith, TWO_PI, Tbl, VF0,
+    BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, PI, Patterns, SkeithPatterns, TWO_PI, Tbl, VF0,
     base_exec_pattern_index, word,
 };
 use crate::enemy_ai::get_dirc;
@@ -146,6 +146,8 @@ impl GorreData {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Gorre {
     pub brother_me: [usize; 2],
+    /// `stageEffId`: the stage effect a spell holds.
+    pub stage_eff_id: i32,
     pub brothers: [Part<Brother>; 2],
     /// `useBossCam` (+0x150): the boss camera on (`InitBossCamera`), until
     /// `OffBossCamera` as the three fall.
@@ -431,7 +433,7 @@ impl Patterns for Gorre {
     }
 
     /// `ccBoss05::ExecPatternIndex` (OUT gcmn 0x004a99a0), falling back on
-    /// `ccBoss::ExecPatternIndex` as Skeith runs it ([`Skeith`]'s acts and
+    /// `ccBoss::ExecPatternIndex` as Skeith runs it ([`SkeithPatterns`]: its acts and
     /// `ExecPattern`; its act numbers are Gorre's too). Pattern 10 skips its word (the spell is `OnThinkSkill`'s own).
     fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
         let x = self;
@@ -513,7 +515,7 @@ impl Patterns for Gorre {
                 // Gorre reaches changes the act (forbid 1 or 3, never
                 // refused), leaving `actProccess` 0: -1 before tells.
                 let proccess = std::mem::replace(&mut b.act_proccess, -1);
-                let r = base_exec_pattern_index(&mut Skeith, b, cx, tbl, orig);
+                let r = base_exec_pattern_index(&mut SkeithPatterns, b, cx, tbl, orig);
                 if b.act_proccess == -1 {
                     b.act_proccess = proccess;
                 } else {
@@ -878,7 +880,7 @@ fn on_kerse(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             b.calc_target_info(cx);
             b.lock_player(cx, true);
             cx.out(Out::SwitchLayer);
-            b.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
+            x.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
             x.fade = ONE;
             b.transparency = ONE;
             b.set_transparency = ONE;
@@ -970,7 +972,7 @@ fn on_kerse(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
         5 => {
             b.act_count += 1;
             if c == 15 {
-                let id = std::mem::replace(&mut b.stage_eff_id, -1);
+                let id = std::mem::replace(&mut x.stage_eff_id, -1);
                 b.end_stage_effect(cx, id, 0x8000_0000, 15);
                 b.act_count = 0;
                 b.act_proccess += 1;
@@ -1035,7 +1037,7 @@ fn on_skill(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             }
             b.calc_target_info(cx);
             cx.out(Out::SwitchLayer);
-            b.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
+            x.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
             let k = (cx.cc.rand() & 3).unsigned_abs() as usize;
             x.skill_id = cx.data.gorre.skills[k];
             let who = x.brothers[usize::from(k >= 2)].me;
@@ -1077,7 +1079,7 @@ fn on_skill(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             let c = b.act_count;
             b.act_count += 1;
             if c == 50 {
-                let id = std::mem::replace(&mut b.stage_eff_id, -1);
+                let id = std::mem::replace(&mut x.stage_eff_id, -1);
                 b.end_stage_effect(cx, id, 0x6400_0000, 15);
                 b.act_count = 0;
                 b.act_proccess += 1;
@@ -1114,7 +1116,7 @@ fn on_magic(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             }
             b.calc_target_info(cx);
             cx.out(Out::SwitchLayer);
-            b.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
+            x.stage_eff_id = b.begin_stage_effect(cx, 0x6400_0000, [15, 15, 30000]);
             b.lock_player(cx, true);
             erase_brothers(x, cx);
             b.act_proccess += 1;
@@ -1152,7 +1154,7 @@ fn on_magic(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
                 cx.out(Out::SwitchLayer);
                 cx.cinema_off();
                 cx.out(Out::CameraChange(2));
-                let id = std::mem::replace(&mut b.stage_eff_id, -1);
+                let id = std::mem::replace(&mut x.stage_eff_id, -1);
                 b.end_stage_effect(cx, id, 0x6400_0000, 15);
                 b.unlock_player();
                 entry_brothers(x, cx);

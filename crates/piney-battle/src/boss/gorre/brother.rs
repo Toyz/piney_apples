@@ -9,7 +9,7 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::super::kyvia::{self, Part};
-use super::super::{ANM_WAVE, Boss, BossBase, Class, Cx, EffKind, F, ONE, Out, PI, TWO_PI, VF0};
+use super::super::{ANM_WAVE, Anm, Boss, BossBase, Class, Cx, EffKind, F, ONE, Out, PI, TWO_PI, VF0};
 use super::Gorre;
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, V4};
@@ -95,6 +95,10 @@ pub struct Brother {
     pub sent: [bool; 8],
     /// `m_bWaveEnd`.
     pub wave_end: bool,
+    /// `anmw`: the wave's clip.
+    pub anm_w: Anm,
+    /// `effDead`: the death's effect.
+    pub eff_dead: Option<i32>,
     pub id: i32,
     /// `m_parent`'s scene index.
     pub master_me: usize,
@@ -114,8 +118,9 @@ pub fn new(cx: &mut Cx, me: usize, master_me: usize, offset: V4, dirc: V4, id: i
     let old = std::mem::replace(&mut cx.me, me);
     b.change_action(cx, act::NEUTRAL, 0, true);
     cx.me = old;
-    b.anm_wave.set(ANM_WAVE, cx.clips);
-    let x = Brother { offset, rad_spd: INIT_SPD, rad_accel: INIT_ACCEL, id, master_me, ..Brother::default() };
+    let mut anm_w = Anm::new();
+    anm_w.set(ANM_WAVE, cx.clips);
+    let x = Brother { offset, rad_spd: INIT_SPD, rad_accel: INIT_ACCEL, id, master_me, anm_w, ..Brother::default() };
     Part { b: Box::new(Boss { base: b, class: Class::Plain }), x: Box::new(x), me }
 }
 
@@ -259,7 +264,7 @@ fn on_wave(gb: &mut BossBase, gx: &mut Gorre, k: usize, kind: Wave, cx: &mut Cx)
             x.radius = WAVE_RADIUS;
             x.rad = 0;
             x.prev_offset = x.offset;
-            b.base.anm_wave.set(ANM_WAVE, cx.clips);
+            x.anm_w.set(ANM_WAVE, cx.clips);
             b.base.erase_cmnd_target(cx);
             b.base.body_hit_sw = 0;
             b.base.act_proccess += 1;
@@ -282,7 +287,7 @@ fn on_wave(gb: &mut BossBase, gx: &mut Gorre, k: usize, kind: Wave, cx: &mut Cx)
             }
         }
         2 => spin(&mut b.base, x, kind, cx),
-        3 => strike(&mut b.base, kind, cx),
+        3 => strike(&mut b.base, x, kind, cx),
         4 => {
             let c = b.base.act_count;
             b.base.act_count += 1;
@@ -360,7 +365,7 @@ fn spin(b: &mut BossBase, x: &mut Brother, kind: Wave, cx: &mut Cx) {
 /// 55; once the clip and the wave are both over, the act's own clip. Below
 /// 40 the game tests a register it never set there (`this`, nonzero), so
 /// the clip's end alone ends it.
-fn strike(b: &mut BossBase, kind: Wave, cx: &mut Cx) {
+fn strike(b: &mut BossBase, x: &mut Brother, kind: Wave, cx: &mut Cx) {
     let f = b.anm.frame();
     let over = match f {
         15 => {
@@ -373,9 +378,9 @@ fn strike(b: &mut BossBase, kind: Wave, cx: &mut Cx) {
         }
         f if (f as u32) < 40 => true,
         _ => {
-            let ended = b.anm_wave.forward();
-            b.anm_wave.speed = 512;
-            let (who, time, pos, dirc) = (cx.me, b.anm_wave.posed, cx.pos(), b.dirc);
+            let ended = x.anm_w.forward();
+            x.anm_w.speed = 512;
+            let (who, time, pos, dirc) = (cx.me, x.anm_w.posed, cx.pos(), b.dirc);
             cx.out(Out::Gorre(super::Pic::Wave { who, time, pos, dirc }));
             if b.anm.frame() == 55 {
                 let pos = cx.pos();
@@ -484,15 +489,15 @@ fn on_dead(gb: &mut BossBase, gx: &mut Gorre, k: usize, cx: &mut Cx) {
     let p = &mut gx.brothers[k];
     match p.b.base.act_proccess {
         0 => {
-            p.b.base.eff_dead = Some(p.b.base.effect(cx, EffKind::Dead));
+            p.x.eff_dead = Some(p.b.base.effect(cx, EffKind::Dead));
             delete_cmnd(cx);
             p.b.base.act_proccess += 1;
         }
-        1 if !p.b.base.effects.valid(p.b.base.eff_dead) => {
+        1 if !p.b.base.effects.valid(p.x.eff_dead) => {
             report(gb, gx, k, Msg::Dead, cx);
             let p = &mut gx.brothers[k];
             on_exit(&mut p.b.base, cx);
-            p.b.base.eff_dead = None;
+            p.x.eff_dead = None;
             p.b.base.act_proccess += 1;
         }
         _ => {}
@@ -521,7 +526,7 @@ pub(super) fn order(p: &mut Part<Brother>, cx: &mut Cx, on: i16) {
         3 | 5 => b.base.change_action(cx, act::WATCH, 3, true),
         act::WAVE => {
             x.wave_end = false;
-            b.base.anm_wave.set(ANM_WAVE, cx.clips);
+            x.anm_w.set(ANM_WAVE, cx.clips);
             b.base.change_action(cx, act::WAVE, 3, true);
         }
         _ => b.base.change_action(cx, on, 3, true),

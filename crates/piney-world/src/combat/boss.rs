@@ -878,7 +878,7 @@ impl Combat {
         // cross, the sword's two dummies (DMY_xdummy_w01, _w02 of x11) under
         // OBJ_ex11swd as it was last drawn, a new row of the trail; then
         // the trail's Disp.
-        let skeith = b.class == Class::Skeith;
+        let skeith = matches!(b.class, Class::Skeith(_));
         let cross = (skeith && b.base.act_num == piney_battle::boss::act::CROSS && !exited)
             .then(|| self.cast.actors.get(&me).and_then(|a| sword_points(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc)))
             .flatten();
@@ -899,7 +899,9 @@ impl Combat {
             Class::Fidchell(x) => x.anm_w.posed,
             Class::Macha(x) => x.anm_w.posed,
             Class::Tarvos(x) => x.anm_w.posed,
-            _ => b.base.anm_wave.posed,
+            Class::Skeith(x) => x.anm_wave.posed,
+            // No other class sets a wave on its base.
+            _ => 0,
         };
         let clip = b.base.anm.clip.clone().unwrap_or_default();
         let time = b.base.anm.posed;

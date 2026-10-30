@@ -8,7 +8,7 @@
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::blur::{Blur, BlurFunc, Reflex, Statics};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Cx, EffKind, Out, Tbl};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, Out, Skeith, Tbl};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -474,6 +474,11 @@ fn frame_json(b: &Boss, scene: &Scene, me: usize, out: &[Out], rand: &Rand, cc: 
         .iter()
         .map(|&c| format!("[{},{},{}]", scene.chars[c].hp, scene.chars[c].cond[1], scene.chars[c].cond[0]))
         .collect();
+    let bare = Skeith::default();
+    let sk = match &b.class {
+        Class::Skeith(s) => s,
+        _ => &bare,
+    };
     format!(
         "{{\"act\":[{},{},{}],\"pat\":[{},{},{},{}],\"stop\":[{},{},{},{}],\"move\":[{},{},{},{},{}],\
          \"tgt\":[{},{},{}],\"pos\":[{},{},{}],\"posp\":[{},{},{}],\"dirc\":{},\"hp\":[{},{}],\"pp\":[{},{}],\
@@ -522,10 +527,10 @@ fn frame_json(b: &Boss, scene: &Scene, me: usize, out: &[Out], rand: &Rand, cc: 
         b.base.anm_status,
         b.base.anm.clip.as_deref().unwrap_or(""),
         b.base.anm.frame(),
-        b.base.anm_wave.clip.as_deref().unwrap_or(""),
-        b.base.anm_wave.frame(),
-        b.base.anm_wave.speed,
-        b.base.animate.transparency,
+        sk.anm_wave.clip.as_deref().unwrap_or(""),
+        sk.anm_wave.frame(),
+        sk.anm_wave.speed,
+        sk.animate.transparency,
         b.base.set_transparency,
         b.base.transparency,
         b.base.center_dist,

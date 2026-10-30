@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-525 entries: audio 43, battle 134, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 149. 126 entries still have open questions - [listed below](#still-open).
+526 entries: audio 43, battle 135, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 149. 126 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -537,6 +537,7 @@ The [reference](docs/README.md) says what is true now.
 | 523 | [Boss split, step one: Boss { base: BossBase, class: Class }, each class's rules on both at once, the take/put pairs gone, pinned byte for byte](worklog/0523-boss-split-step-one-boss-base-bossbase-class-class-each.md) | 2026-10-30 | battle |
 | 524 | [Boss split, step two: the BossClass trait and its one dispatch, Patterns with BaseActs in place of corbenik::Host](worklog/0524-boss-split-step-two-the-bossclass-trait-and-its-one.md) | 2026-10-30 | battle |
 | 525 | [Boss split, step three: the base Main as building blocks each class calls in its order, one generic ExecPatternIndex, ChangeNextPattern and ExecPattern](worklog/0525-boss-split-step-three-the-base-main-as-building-blocks-each.md) | 2026-10-30 | battle |
+| 526 | [Boss split, step four: Skeith's own members out of BossBase into Class::Skeith, the brother's and Gorre's borrowed ones their own](worklog/0526-boss-split-step-four-skeith-s-own-members-out-of-bossbase.md) | 2026-10-30 | battle |
 
 ## Still open
 

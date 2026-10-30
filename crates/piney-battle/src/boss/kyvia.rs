@@ -650,12 +650,10 @@ pub(crate) fn plain_boss() -> BossBase {
     BossBase {
         wait_pat_num: -2,
         pat_num: 13,
-        stage_eff_id: -1,
         exit: 1,
         transparency: ONE,
         set_transparency: ONE,
         anm: Anm::new(),
-        anm_wave: Anm::new(),
         ..BossBase::default()
     }
 }

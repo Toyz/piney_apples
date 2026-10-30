@@ -98,7 +98,7 @@ order; tick items off here as they land, with the worklog entry.
       (worklog 518: keyed by a generated `const ID`, the cache a fixed
       array of `OnceLock`s; `registry` and `stfroll`, still Rust literals,
       keep their 12 accessors until they are in the build.)
-- [ ] Bosses: `Boss { base: BossBase, class: Class }` and a `BossClass`
+- [x] Bosses: `Boss { base: BossBase, class: Class }` and a `BossClass`
       trait (from `corbenik::Host`) with `BaseActs` data (neutral forbid,
       the dash's w, act ids); the base `Main` as ordered building blocks
       (`prologue`, `tick_stop`, `lock_party`, `forward_and_draw`,
@@ -108,8 +108,8 @@ order; tick items off here as they land, with the worklog entry.
       `Boss { base, class }`, the 10 take/put pairs gone; 524: the
       `BossClass` dispatch and `Patterns` with `BaseActs` for
       `corbenik::Host`; 525: the building blocks, one generic
-      `base_exec_pattern_index` and `base_change_next_pattern`; Skeith's
-      own members to come.)
+      `base_exec_pattern_index` and `base_change_next_pattern`; 526:
+      Skeith's own members in `Class::Skeith`.)
 - [ ] `Part<T: PartClass>` / `Parts<T>` for gomoras, leaves, brothers,
       roots, seeds, eyes (keep the placeholder semantics where code indexes).
 - [ ] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,

@@ -643,7 +643,8 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   and its class's own, apart, so a class's rules hold both at once.
 - `Boss::main` and `Boss::affect` go through one `match` on the class
   (`Class::with_rules`) to its `BossClass` impl: `Class::Skeith` is
-  `ccBoss01`, the effect manager's pass included; `Class::Innis` is
+  `ccBoss01` with its own members (`Skeith`), the effect manager's pass
+  included; `Class::Innis` is
   Mutation's `ccBoss02` ([Innis](boss-innis.md)), `Class::Magus`
   ([Magus](boss-magus.md)), `Class::Kyvia` ([Kyvia](boss-kyvia.md)),
   `Class::Fidchell` Outbreak's `ccBoss04` ([Fidchell](boss-fidchell.md)),

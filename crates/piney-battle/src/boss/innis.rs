@@ -323,14 +323,10 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
         anm_tbl: data.anm_tbl.clone(),
         wait_pat_num: -2,
         pat_num: 13,
-        stage_eff_id: -1,
         use_stage_eff: true,
         transparency: ONE,
         set_transparency: ONE,
         anm: Anm::new(),
-        anm_wave: Anm::new(),
-        animate: super::Fade { transparency: ONE, ..super::Fade::default() },
-        animate_dead: super::Fade { transparency: ONE, ..super::Fade::default() },
         ..BossBase::default()
     };
     let mut x = Innis {
@@ -395,12 +391,10 @@ impl Slave {
         let b = BossBase {
             wait_pat_num: -2,
             pat_num: 13,
-            stage_eff_id: -1,
             exit: 1,
             transparency: ONE,
             set_transparency: ONE,
             anm,
-            anm_wave: Anm::new(),
             ..BossBase::default()
         };
         Slave {

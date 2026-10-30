@@ -13,10 +13,11 @@ type F = u32;
 
 /// A class's `Main` and `Affect` on its `ccBoss` members (`b`) and its own
 /// (`self`). A part's frame runs from its master's, so a part leaves
-/// `main` as it is; a class with no `Affect` of its own keeps `ccBoss01`'s.
+/// `main` as `ccBoss`'s; a class with no `Affect` of its own keeps
+/// `ccBoss01`'s, as the port has always run it.
 pub(crate) trait BossClass {
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        b.skeith_main(cx);
+        b.base_main(cx, &mut |_, _| {});
     }
 
     fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
@@ -28,16 +29,20 @@ pub(crate) trait BossClass {
     fn effects_pass(&mut self, _b: &mut BossBase, _cx: &mut Cx) {}
 }
 
-/// Skeith (`ccBoss01`) and a bare `ccBoss`: the base's rules.
-pub(crate) struct Skeith;
+/// A bare `ccBoss` (a part between its master's takes).
+struct Bare;
 
-impl BossClass for Skeith {}
+impl BossClass for Bare {}
+
+/// `ccBoss01`'s pattern code, which reads none of Skeith's own members.
+pub(crate) struct SkeithPatterns;
 
 impl Class {
     /// The class's rules, one arm a class.
     pub(crate) fn with_rules<R>(&mut self, f: impl FnOnce(&mut dyn BossClass) -> R) -> R {
         match self {
-            Class::Skeith | Class::Plain => f(&mut Skeith),
+            Class::Skeith(x) => f(&mut **x),
+            Class::Plain => f(&mut Bare),
             Class::Innis(x) => f(&mut **x),
             Class::Magus(x) => f(&mut **x),
             Class::MagusLeaf(x) => f(&mut **x),
