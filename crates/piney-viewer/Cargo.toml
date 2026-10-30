@@ -11,7 +11,7 @@ piney-data.workspace = true
 flate2.workspace = true
 glam.workspace = true
 wgpu = "30.0.1"
-winit = "0.30.13"
+winit = { version = "0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita-notitle"] }
 pollster = "1.0.1"
 bytemuck = { version = "1.25.2", features = ["derive"] }
 gilrs = "0.11.2"

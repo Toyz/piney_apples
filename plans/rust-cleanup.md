@@ -77,10 +77,13 @@ order; tick items off here as they land, with the worklog entry.
       Unicode-3.0 / Unicode-DFS-2016, Unlicense, CC0-1.0, BSL-1.0, MPL-2.0;
       an OR licence passes by an allowed option. CI runs `cargo deny check
       licenses` (`.github/workflows/licences.yml`). (worklog 515)
-- [ ] cargo-deny's advisories, by updating the crates: zstd 0.13.3
+- [x] cargo-deny's advisories, by updating the crates: zstd 0.13.3
       (RUSTSEC-2026-0391), zstd-safe 7.3.0 (RUSTSEC-2026-0398, -0403),
       zstd-sys 2.1.0 (RUSTSEC-2026-0410); ttf-parser 0.25.1 is unmaintained
       (RUSTSEC-2026-0192). Then turn `[advisories]` on in `deny.toml` and CI.
+      (worklog 517: zstd 0.14.3; winit's `wayland-csd-adwaita-notitle`
+      drops ttf-parser, which only drew the title text of the Wayland
+      client-side frame.)
 
 ## 2. Lifts
 

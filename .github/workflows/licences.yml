@@ -1,6 +1,8 @@
 # Every crate in the graph carries a licence deny.toml allows: the port stays
-# MIT OR Apache-2.0, with no copyleft crate inside. cargo-deny is pinned, so a
-# release that reads licences differently changes nothing without a commit.
+# MIT OR Apache-2.0, with no copyleft crate inside; and no crate in it has a
+# RustSec advisory (vulnerable, unmaintained, unsound, yanked). cargo-deny is
+# pinned, so a release that reads licences differently changes nothing
+# without a commit; the advisory database is fetched fresh on each run.
 name: licences
 
 on:
@@ -21,5 +23,5 @@ jobs:
         with:
           tool: cargo-deny@0.20.2
 
-      - name: Check the licences
-        run: cargo deny check licenses
+      - name: Check the licences and advisories
+        run: cargo deny check licenses advisories

@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-516 entries: audio 43, battle 131, build 25, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 237, tooling 52, ui 102, video 16, volumes 94, world 146. 124 entries still have open questions - [listed below](#still-open).
+517 entries: audio 43, battle 131, build 26, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 237, tooling 53, ui 102, video 16, volumes 94, world 146. 124 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -528,6 +528,7 @@ The [reference](docs/README.md) says what is true now.
 | 514 | [piney-gen carry --check is clean: Outbreak's and Quarantine's carry caches made again, with GetEventAreaInfo's overloads uncrossed as worklog 493 left them](worklog/0514-piney-gen-carry-check-is-clean-outbreak-s-and-quarantine-s.md) | 2026-10-29 | tooling, volumes |
 | 515 | [A licence allowlist: deny.toml lets no copyleft crate in, and CI checks it with a pinned cargo-deny](worklog/0515-a-licence-allowlist-deny-toml-lets-no-copyleft-crate-in-and.md) | 2026-10-29 | build, tooling |
 | 516 | [Clean-up section 1: the workspace lints at deny in every crate, what they flagged fixed, the readers' own lints, and unsafe kept to eemu's Python buffers](worklog/0516-clean-up-section-1-the-workspace-lints-at-deny-in-every.md) | 2026-10-29 | build, tooling, test |
+| 517 | [cargo-deny's advisories on: zstd 0.14.3, and winit without the font parser](worklog/0517-cargo-deny-s-advisories-on-zstd-0-14-3-and-winit-without.md) | 2026-10-29 | build, tooling |
 
 ## Still open
 

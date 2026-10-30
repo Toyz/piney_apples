@@ -2,12 +2,21 @@
 # MIT OR Apache-2.0 on purpose, so nothing copyleft may enter: no GPL, LGPL or
 # AGPL. MPL-2.0 is allowed (its copyleft is per file). An OR licence passes
 # when one of its options is allowed (`r-efi`'s "MIT OR Apache-2.0 OR
-# LGPL-2.1-or-later" passes by MIT). CI runs `cargo deny check licenses`
-# (.github/workflows/licences.yml); advisories, bans and sources are not
+# LGPL-2.1-or-later" passes by MIT). CI runs `cargo deny check licenses
+# advisories` (.github/workflows/licences.yml); bans and sources are not
 # checked yet.
 
 [graph]
 all-features = true
+
+# RustSec: a vulnerable, unmaintained, unsound or yanked crate in the graph
+# fails; the fix is an update, or a feature that drops the crate (winit's
+# `wayland-csd-adwaita-notitle` keeps ttf-parser out), not an ignore.
+[advisories]
+unmaintained = "all"
+unsound = "all"
+yanked = "deny"
+ignore = []
 
 [licenses]
 allow = [
