@@ -20,3 +20,6 @@ trace = []
 [[example]]
 name = "toppage_probe"
 required-features = ["trace"]
+
+[lints]
+workspace = true

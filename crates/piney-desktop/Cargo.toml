@@ -19,3 +19,6 @@ trace = []
 [[example]]
 name = "desktop_probe"
 required-features = ["trace"]
+
+[lints]
+workspace = true

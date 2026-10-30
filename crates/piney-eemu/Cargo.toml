@@ -17,3 +17,6 @@ pyo3 = { version = "0.29", optional = true }
 # The Python module: cargo build --release -p piney-eemu --features python,
 # then copy target/release/libpiney_eemu.so to tools/eemu_rs.so.
 python = ["dep:pyo3"]
+
+[lints]
+workspace = true

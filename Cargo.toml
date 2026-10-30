@@ -30,3 +30,28 @@ opt-level = 1
 
 [profile.dev.package."*"]
 opt-level = 3
+
+# The guardrails (plans/rust-cleanup.md, section 1). Every crate takes
+# them with `[lints] workspace = true`. The casts stay off: about 1,900
+# deliberate PS2 casts; the readers turn them on per module.
+[workspace.lints.rust]
+unsafe_code = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "warn"
+exit = "warn"
+print_stdout = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+redundant_clone = "warn"
+implicit_clone = "warn"
+needless_pass_by_value = "warn"
+manual_let_else = "warn"
+match_same_arms = "warn"
+# Left at warn until the parameter structs land (section 3).
+too_many_arguments = "warn"

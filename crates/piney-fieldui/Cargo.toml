@@ -23,3 +23,6 @@ trace = []
 [[example]]
 name = "fieldui_probe"
 required-features = ["trace"]
+
+[lints]
+workspace = true

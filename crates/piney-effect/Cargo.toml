@@ -18,3 +18,6 @@ glam.workspace = true
 piney-gs.workspace = true
 piney-demo = { path = "../piney-demo" }
 piney-input.workspace = true
+
+[lints]
+workspace = true

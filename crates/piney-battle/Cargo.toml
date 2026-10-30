@@ -8,3 +8,6 @@ publish.workspace = true
 
 [dependencies]
 piney-data.workspace = true
+
+[lints]
+workspace = true

@@ -23,3 +23,6 @@ trace = ["piney-desktop/trace"]
 [[example]]
 name = "demo_probe"
 required-features = ["trace"]
+
+[lints]
+workspace = true

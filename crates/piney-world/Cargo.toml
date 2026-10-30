@@ -19,3 +19,6 @@ tracing.workspace = true
 [dev-dependencies]
 piney-gs.workspace = true
 piney-demo = { path = "../piney-demo" }
+
+[lints]
+workspace = true

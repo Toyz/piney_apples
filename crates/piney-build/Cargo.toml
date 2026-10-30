@@ -14,3 +14,6 @@ blake3 = "1"
 fastcdc = "3"
 flate2.workspace = true
 zstd = "0.13"
+
+[lints]
+workspace = true
