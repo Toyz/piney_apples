@@ -6,6 +6,7 @@
 //! (`piney_data::anim`), a frame per game frame at 29.97 a second. `--dungeon`
 //! and `--field` show a generated area (`DungeonView`, `FieldView`); `--shot`
 //! writes a PNG with no window (`Shot`); the controls are `window_event`'s.
+#![forbid(unsafe_code)]
 
 mod mesh;
 mod png;

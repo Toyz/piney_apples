@@ -6,6 +6,7 @@
 //! keeping an earlier build's other discs and checking every file unless
 //! `--no-verify` (the format is `piney_data::pack`'s). `--export-symbols DIR`
 //! writes each disc's `<executable>.syms`; with no DISC, the build's own.
+#![forbid(unsafe_code)]
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -145,7 +146,8 @@ fn run(inputs: &[PathBuf], out: &Path, verify: bool, export: Option<&Path>) -> R
     for m in &manifests {
         let path = out.join(pack::disc_name(m.volume));
         let part = path.with_extension("disc.part");
-        std::fs::write(&part, m.encode()).map_err(|e| format!("{}: {e}", part.display()))?;
+        std::fs::write(&part, m.encode().map_err(|e| e.to_string())?)
+            .map_err(|e| format!("{}: {e}", part.display()))?;
         std::fs::rename(&part, &path).map_err(|e| format!("{}: {e}", path.display()))?;
     }
     let total: u64 = manifests.iter().flat_map(|m| &m.entries).map(|e| u64::from(e.entry.size)).sum();

@@ -361,7 +361,7 @@ impl Program {
             if let Some(o) = &self.overlay_name {
                 names.push(format!("{o}.prg"));
             }
-            names.iter().flat_map(|n| self.resolve(self.elf.relocs(n))).collect()
+            names.iter().flat_map(|n| self.resolve(&self.elf.relocs(n))).collect()
         })
     }
 
@@ -370,7 +370,7 @@ impl Program {
     /// latest HI16 in table order, but code that shares one lui across uses
     /// breaks that: the nearest lui before it in the function that writes
     /// the register it uses is its partner.
-    fn resolve(&self, raw: Vec<(u32, u8, usize)>) -> Vec<Reloc> {
+    fn resolve(&self, raw: &[(u32, u8, usize)]) -> Vec<Reloc> {
         // Per symbol, its HI16s: (offset, the lui's rt, index), by offset.
         let mut his: HashMap<usize, Vec<(u32, u32, usize)>> = HashMap::new();
         for (k, &(off, kind, sym)) in raw.iter().enumerate() {

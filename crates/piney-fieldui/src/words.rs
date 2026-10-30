@@ -207,7 +207,7 @@ impl Words {
         for _ in 0..4 {
             rand();
         }
-        let mut order = [wa.clone(), wb, wc];
+        let mut order = [wa, wb, wc];
         for i in 1..3 {
             let mut j = i;
             while j > 0 && order[j].pri < order[j - 1].pri {

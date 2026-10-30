@@ -317,7 +317,7 @@ struct Row<'a> {
 
 /// Row `k` of a page of counter rows, the label at x0: `msg[1 + 2k]` the
 /// label, `msg[2 + 2k]` the count.
-fn counter_row(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>, k: i32, row: Row) {
+fn counter_row(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Vec<Draw>, k: i32, row: &Row) {
     let t = env.t;
     let (x0, y) = (row.x, row.y);
     if b.sel == k {
@@ -371,7 +371,7 @@ fn disp02(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
     for (k, (label, help, number_colour)) in rows.into_iter().enumerate() {
         let (y, num_x, wrap) = (y0 + 20 * k as i32, x0 + width + 28, (t.cnt1, t.cnt2));
         let row = Row { label, value: counts[k], number_colour, help, x: x0, y, num_x, wrap };
-        counter_row(b, m, x, env, draws, k as i32, row);
+        counter_row(b, m, x, env, draws, k as i32, &row);
     }
 }
 
@@ -432,7 +432,7 @@ fn disp04(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
             l1.extend_from_slice(format!("{slain}").as_bytes());
             l1.extend_from_slice(&encode(t.enemy_list_msg1));
             if b.msg_disp_flag == 0 {
-                help40(m, x, env, LIST_MODE, [Some(l1), Some(encode(t.enemy_list_msg2)), None]);
+                help40(m, x, env, LIST_MODE, &[Some(l1), Some(encode(t.enemy_list_msg2)), None]);
             }
         } else {
             counter_stop(m, x, b, env);
@@ -445,7 +445,7 @@ fn disp04(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
         l1.push(b' ');
         l1.extend_from_slice(&itoa_ns(e.kill_cnt));
         l1.extend_from_slice(&encode(t.enemy_slain_msg1));
-        help40(m, x, env, LIST_MODE, [Some(l1), Some(encode(t.char_msg2)), None]);
+        help40(m, x, env, LIST_MODE, &[Some(l1), Some(encode(t.char_msg2)), None]);
         b.button.dx = env.list_button_x();
         b.button.dy = 396.0;
         crate::window::disp_button(&mut b.button, 3, x.count, x.frame_rate);
@@ -562,7 +562,7 @@ fn disp04_sub(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mu
     // Mutation on spaces the last line in and writes the window's mode.
     let mut back = if env.later { b" ".to_vec() } else { Vec::new() };
     back.extend_from_slice(&encode(t.back_msg));
-    help40(m, x, env, SUB_MODE, [Some(encode(t.enemy_encount_msg0)), Some(l2), Some(back)]);
+    help40(m, x, env, SUB_MODE, &[Some(encode(t.enemy_encount_msg0)), Some(l2), Some(back)]);
     // Mutation on moves it left to 55, as the list's moved right.
     b.button.dx = if env.later { 55.0 } else { 71.0 };
     b.button.dy = 416.0;
@@ -577,7 +577,7 @@ const SUB_MODE: i32 = 0x1100;
 
 /// `BookHelp40` with its three lines written (from Mutation on its
 /// `emode` too), then `DispMsg`.
-fn help40(m: &mut MenuCtrl, x: &Ctx, env: &Env, emode: i32, lines: [Option<Vec<u8>>; 3]) {
+fn help40(m: &mut MenuCtrl, x: &Ctx, env: &Env, emode: i32, lines: &[Option<Vec<u8>>; 3]) {
     let msg = &env.t.help40;
     let emode = if env.later { emode } else { msg.emode };
     let names = x.save.names();
@@ -617,7 +617,7 @@ fn disp08(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
                     b.button.dy = 394.0;
                     crate::window::disp_button(&mut b.button, 3, x.count, x.frame_rate);
                     let lines = [help.str[1].map(encode), Some(encode(t.char_msg2)), help.str[3].map(encode)];
-                    disp_help(m, x, help, lines);
+                    disp_help(m, x, help, &lines);
                 }
             }
         }
@@ -662,7 +662,7 @@ fn disp08(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
                 (true, true, _) => {}
                 (true, false, true) => counter_stop(m, x, b, env),
                 _ => {
-                    help82(m, x, env, [Some(encode(t.back_msg)), None, None]);
+                    help82(m, x, env, &[Some(encode(t.back_msg)), None, None]);
                     b.button.dx = env.list_button_x();
                     b.button.dy = 372.0;
                     crate::window::disp_button(&mut b.button, 0, x.count, x.frame_rate);
@@ -726,7 +726,7 @@ fn disp08(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
                         b.button.dy = 396.0;
                         crate::window::disp_button(&mut b.button, 0, x.count, x.frame_rate);
                         if b.msg_disp_flag == 0 {
-                            help82(m, x, env, [Some(l1), Some(encode(t.back_msg)), None]);
+                            help82(m, x, env, &[Some(l1), Some(encode(t.back_msg)), None]);
                         }
                     } else {
                         counter_stop(m, x, b, env);
@@ -741,7 +741,7 @@ fn disp08(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
                     b.button.dy = 396.0;
                     crate::window::disp_button(&mut b.button, 0, x.count, x.frame_rate);
                     if b.msg_disp_flag == 0 {
-                        help82(m, x, env, [Some(l1), Some(encode(t.back_msg)), None]);
+                        help82(m, x, env, &[Some(l1), Some(encode(t.back_msg)), None]);
                     }
                 }
             }
@@ -757,14 +757,14 @@ fn disp08(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
 
 /// `msg`'s `DispMsg` with its three lines as given (the game patched
 /// some of them in place).
-fn disp_help(m: &mut MenuCtrl, x: &Ctx, msg: &BookMsg, lines: [Option<Vec<u8>>; 3]) {
+fn disp_help(m: &mut MenuCtrl, x: &Ctx, msg: &BookMsg, lines: &[Option<Vec<u8>>; 3]) {
     let names = x.save.names();
     let name = msg.str[0].map(encode);
     m.msg.disp_msg(msg.emode, name.as_deref(), [lines[0].as_deref(), lines[1].as_deref(), lines[2].as_deref()], &names);
 }
 
 /// `BookHelp82` with its three lines written, then `DispMsg`.
-fn help82(m: &mut MenuCtrl, x: &Ctx, env: &Env, lines: [Option<Vec<u8>>; 3]) {
+fn help82(m: &mut MenuCtrl, x: &Ctx, env: &Env, lines: &[Option<Vec<u8>>; 3]) {
     disp_help(m, x, &env.t.help82, lines);
 }
 
@@ -825,7 +825,7 @@ fn disp05(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
             line.extend_from_slice(&gp);
             line.push(b'.');
             if b.msg_disp_flag == 0 {
-                help50(m, x, env, [Some(line), None, None]);
+                help50(m, x, env, &[Some(line), None, None]);
             }
         } else {
             counter_stop(m, x, b, env);
@@ -845,7 +845,7 @@ fn disp05(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
         l3.extend_from_slice(format!("{}", c.friendship).as_bytes());
         l3.extend_from_slice(&encode(t.friendly1));
         if b.msg_disp_flag == 0 {
-            help50(m, x, env, [Some(l1), Some(l2), Some(l3)]);
+            help50(m, x, env, &[Some(l1), Some(l2), Some(l3)]);
         }
     }
     b.win.dx = piney_desktop::eef::from_int(left + 34);
@@ -854,7 +854,7 @@ fn disp05(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
 }
 
 /// `BookHelp50` with its three lines written, then `DispMsg`.
-fn help50(m: &mut MenuCtrl, x: &Ctx, env: &Env, lines: [Option<Vec<u8>>; 3]) {
+fn help50(m: &mut MenuCtrl, x: &Ctx, env: &Env, lines: &[Option<Vec<u8>>; 3]) {
     let msg = &env.t.help50;
     let names = x.save.names();
     let name = msg.str[0].map(encode);
@@ -875,7 +875,7 @@ fn disp06(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
     for (k, (label, help)) in rows.into_iter().enumerate() {
         let (y, num_x, wrap) = (y0 + 20 * k as i32, x0 + 250, (t.cnt1, t.cnt2));
         let row = Row { label, value: counts[k], number_colour: true, help, x: x0, y, num_x, wrap };
-        counter_row(b, m, x, env, draws, k as i32, row);
+        counter_row(b, m, x, env, draws, k as i32, &row);
     }
 }
 
@@ -901,7 +901,7 @@ fn disp07(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
     ];
     for (k, (label, help, y, wrap)) in rows.into_iter().enumerate() {
         let row = Row { label, value: counts[k], number_colour: true, help, x: x0, y, num_x: x0 + 182, wrap };
-        counter_row(b, m, x, env, draws, k as i32, row);
+        counter_row(b, m, x, env, draws, k as i32, &row);
     }
 }
 
@@ -973,7 +973,7 @@ fn disp03(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
             line.extend_from_slice(format!("{friends}").as_bytes());
             line.extend_from_slice(&encode(t.char_msg1));
             if b.msg_disp_flag == 0 {
-                help30(m, x, b, env, [Some(line), None, None]);
+                help30(m, x, b, env, &[Some(line), None, None]);
             }
         } else {
             counter_stop(m, x, b, env);
@@ -1007,7 +1007,7 @@ fn disp03(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
             line.extend_from_slice(format!("{trades}").as_bytes());
             line.extend_from_slice(&encode(t.trade_msg1));
             if b.msg_disp_flag == 0 {
-                help30(m, x, b, env, [Some(line), None, None]);
+                help30(m, x, b, env, &[Some(line), None, None]);
             }
         } else {
             counter_stop(m, x, b, env);
@@ -1021,7 +1021,7 @@ fn disp03(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mut Ve
         line.extend_from_slice(&now.name);
         line.extend_from_slice(b".");
         if b.msg_disp_flag == 0 {
-            help30(m, x, b, env, [Some(line), Some(encode(t.char_msg2)), None]);
+            help30(m, x, b, env, &[Some(line), Some(encode(t.char_msg2)), None]);
             b.button.dx = env.list_button_x();
             b.button.dy = 396.0;
             crate::window::disp_button(&mut b.button, 3, x.count, x.frame_rate);
@@ -1066,7 +1066,7 @@ fn disp03_sub(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mu
         }
         y += 20;
     }
-    help30(m, x, b, env, [Some(encode(t.back_msg)), None, None]);
+    help30(m, x, b, env, &[Some(encode(t.back_msg)), None, None]);
     b.button.dx = env.list_button_x();
     b.button.dy = 372.0;
     crate::window::disp_button(&mut b.button, 0, x.count, x.frame_rate);
@@ -1074,7 +1074,7 @@ fn disp03_sub(b: &mut Book, m: &mut MenuCtrl, x: &mut Ctx, env: &Env, draws: &mu
 
 /// `BookHelp30` with its three lines written (`DispMsg`, whatever
 /// `msgDispFlag` says: the callers test it where the game does).
-fn help30(m: &mut MenuCtrl, x: &Ctx, b: &Book, env: &Env, lines: [Option<Vec<u8>>; 3]) {
+fn help30(m: &mut MenuCtrl, x: &Ctx, b: &Book, env: &Env, lines: &[Option<Vec<u8>>; 3]) {
     let _ = b;
     let msg = &env.t.help30;
     let names = x.save.names();
@@ -1438,9 +1438,9 @@ fn flash() -> Vec<Step> {
 }
 
 /// `OpenInfo(head + number + tail, "", 0, 0)`: a reward's first window.
-fn count_info(msg: &BookMsg, number: Vec<u8>) -> Step {
+fn count_info(msg: &BookMsg, number: &[u8]) -> Step {
     let mut l = line(msg, 1);
-    l.extend_from_slice(&number);
+    l.extend_from_slice(number);
     l.extend_from_slice(&line(msg, 2));
     Step::Info([Some(l), Some(Vec::new()), None])
 }
@@ -1464,7 +1464,7 @@ pub fn row_steps(b: &Book, env: &Env, save: &SaveData, row: Bookitem, sel: i32, 
     let comp = |m: &BookMsg| Step::Info([Some(line(m, 1)), Some(Vec::new()), None]);
     // A count line with the message's third string as the window's second.
     let count3 = |m: &BookMsg, n: Vec<u8>| {
-        let Step::Info([l, _, _]) = count_info(m, n) else { unreachable!() };
+        let Step::Info([l, _, _]) = count_info(m, &n) else { unreachable!() };
         Step::Info([l, Some(line(m, 3)), None])
     };
     let mut out = flash();
@@ -1472,10 +1472,10 @@ pub fn row_steps(b: &Book, env: &Env, save: &SaveData, row: Bookitem, sel: i32, 
         // GetBook01Item (0x0040ddd0): the areas, or the time as h:mm:ss.
         0 => {
             let f = match sel {
-                0 => Some(count_info(&t.item_msg10, n)),
+                0 => Some(count_info(&t.item_msg10, &n)),
                 1 => Some(count_info(
                     &t.item_msg11,
-                    format!("{}:{:02}:{:02}", c / 10000, c % 10000 / 100, c % 100).into_bytes(),
+                    &format!("{}:{:02}:{:02}", c / 10000, c % 10000 / 100, c % 100).into_bytes(),
                 )),
                 _ => None,
             };
@@ -1484,7 +1484,7 @@ pub fn row_steps(b: &Book, env: &Env, save: &SaveData, row: Bookitem, sel: i32, 
         // GetBook02Item (0x0040e220).
         1 => {
             let f = match sel {
-                0 => Some(count_info(&t.item_msg20, n)),
+                0 => Some(count_info(&t.item_msg20, &n)),
                 1 => Some(count3(&t.item_msg21, n)),
                 2 => Some(count3(&t.item_msg22, n)),
                 _ => None,
@@ -1496,8 +1496,8 @@ pub fn row_steps(b: &Book, env: &Env, save: &SaveData, row: Bookitem, sel: i32, 
         2 => {
             let f = match sel {
                 0 if all => Some(comp(&t.item_msg31_comp)),
-                0 => Some(count_info(&t.item_msg31, n)),
-                1 => Some(count_info(&t.item_msg30, n)),
+                0 => Some(count_info(&t.item_msg31, &n)),
+                1 => Some(count_info(&t.item_msg30, &n)),
                 2 => Some(comp(&t.item_msg30_comp)),
                 3 => Some(comp(&t.item_msg31_comp)),
                 _ => None,
@@ -1507,18 +1507,18 @@ pub fn row_steps(b: &Book, env: &Env, save: &SaveData, row: Bookitem, sel: i32, 
         // GetBook04Item (0x0040eca0): another row has no window of its own.
         3 => match sel {
             0 if all => (Some(comp(&t.item_msg40_comp)), Some(&t.item_msg4)),
-            0 => (Some(count_info(&t.item_msg40, n)), Some(&t.item_msg4)),
+            0 => (Some(count_info(&t.item_msg40, &n)), Some(&t.item_msg4)),
             1 => (Some(comp(&t.item_msg40_comp)), Some(&t.item_msg4)),
             _ => (None, None),
         },
         // GetBookItem's own (0x004100d8): the count with `%d`.
-        4 => (Some(count_info(&t.item_msg50, format!("{c}").into_bytes())), Some(&t.item_msg5)),
+        4 => (Some(count_info(&t.item_msg50, &format!("{c}").into_bytes())), Some(&t.item_msg5)),
         // GetBook06Item (0x0040f100).
         5 => {
             let f = match sel {
-                0 => Some(count_info(&t.item_msg60, n)),
+                0 => Some(count_info(&t.item_msg60, &n)),
                 1 => Some(count3(&t.item_msg61, n)),
-                2 => Some(count_info(&t.item_msg62, n)),
+                2 => Some(count_info(&t.item_msg62, &n)),
                 _ => None,
             };
             (f, Some(&t.item_msg6))
@@ -1526,9 +1526,9 @@ pub fn row_steps(b: &Book, env: &Env, save: &SaveData, row: Bookitem, sel: i32, 
         // GetBook07Item (0x0040f5d0).
         6 => {
             let f = match sel {
-                0 => Some(count_info(&t.item_msg70, n)),
-                1 => Some(count_info(&t.item_msg71, n)),
-                2 => Some(count_info(&t.item_msg72, n)),
+                0 => Some(count_info(&t.item_msg70, &n)),
+                1 => Some(count_info(&t.item_msg71, &n)),
+                2 => Some(count_info(&t.item_msg72, &n)),
                 _ => None,
             };
             (f, Some(&t.item_msg7))
@@ -1544,7 +1544,7 @@ pub fn row_steps(b: &Book, env: &Env, save: &SaveData, row: Bookitem, sel: i32, 
                 1 | 2 if all => {
                     Some(Step::Info([Some(line(&t.item_msg81_comp, 1)), Some(line(&t.item_msg81_comp, 2)), None]))
                 }
-                1 | 2 => Some(count_info(&t.item_msg81, n)),
+                1 | 2 => Some(count_info(&t.item_msg81, &n)),
                 _ => None,
             };
             (f, Some(&t.item_msg8))

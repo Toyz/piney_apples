@@ -44,18 +44,28 @@ order; tick items off here as they land, with the worklog entry.
 
 ## 1. Guardrails
 
-- [ ] `[workspace.lints]` (rust: `unsafe_code = "deny"`,
-      `unsafe_op_in_unsafe_fn`, `rust_2018_idioms`, `unreachable_pub`;
-      clippy: `all`, `undocumented_unsafe_blocks`, `exit`, `print_stdout`,
-      `dbg_macro`, `todo`, `unimplemented`, `redundant_clone`,
-      `implicit_clone`, `needless_pass_by_value`, `manual_let_else`,
-      `match_same_arms`), `[lints] workspace = true` in every crate. Cast
-      lints stay off workspace-wide (about 1,900 deliberate PS2 casts); turn
-      `cast_possible_truncation`, `unwrap_used`, `expect_used` on per module
-      in the disc and file readers and writers.
-- [ ] `unsafe`: `eemu/python.rs:369` goes (reuse the `Buffer`); 138 and 145
-      stay, sound and documented, under a module-level allow.
-      `#![forbid(unsafe_code)]` everywhere else.
+- [x] `[workspace.lints]` (rust: `unsafe_code = "deny"`,
+      `unsafe_op_in_unsafe_fn`, `rust_2018_idioms` but for
+      `elided_lifetimes_in_paths`; clippy: `all`,
+      `undocumented_unsafe_blocks`, `exit`, `dbg_macro`, `todo`,
+      `unimplemented`, `redundant_clone`, `implicit_clone`,
+      `needless_pass_by_value`, `manual_let_else`), `[lints] workspace =
+      true` in every crate. Cast lints stay off workspace-wide (about 1,900
+      deliberate PS2 casts); `cast_possible_truncation`, `unwrap_used`,
+      `expect_used` are on in the disc and file readers and writers (`iso`,
+      `archive`, `pack`, `ps2card`). `print_stdout` is denied in each
+      library's `lib.rs` (programs and probes print by design; tests may,
+      `clippy.toml`). Left out: `unreachable_pub`, the maintainer's call
+      (a `pub` in a private module is crate-only already, the binaries have
+      no API, and its `pub(crate)` rewrite was noise); `match_same_arms`
+      (an arm per case of the game's switch, with its own note, is the
+      port's record of it: merging 105 pairs orphaned 29 notes);
+      `elided_lifetimes_in_paths`, the maintainer's call (2,539 `<'_>` of
+      noise: the compiler checks lifetimes whether written or not).
+      (worklog 516)
+- [x] `unsafe`: `eemu/python.rs:369` goes (reuse the `Buffer`); 138 and 145
+      stay, sound and documented, under an allow on `impl Buffer` alone.
+      `#![forbid(unsafe_code)]` in every other crate root. (worklog 516)
 - [ ] `#[allow(dead_code)]` (36): 26 are the generated unused `shared()`
       (go with the `Table` trait); the test-only accessors in `piney-game`
       (`area.rs`, `world.rs`, `stream.rs`) become `#[cfg(test)]`; the rest
@@ -67,6 +77,10 @@ order; tick items off here as they land, with the worklog entry.
       Unicode-3.0 / Unicode-DFS-2016, Unlicense, CC0-1.0, BSL-1.0, MPL-2.0;
       an OR licence passes by an allowed option. CI runs `cargo deny check
       licenses` (`.github/workflows/licences.yml`). (worklog 515)
+- [ ] cargo-deny's advisories, by updating the crates: zstd 0.13.3
+      (RUSTSEC-2026-0391), zstd-safe 7.3.0 (RUSTSEC-2026-0398, -0403),
+      zstd-sys 2.1.0 (RUSTSEC-2026-0410); ttf-parser 0.25.1 is unmaintained
+      (RUSTSEC-2026-0192). Then turn `[advisories]` on in `deny.toml` and CI.
 
 ## 2. Lifts
 

@@ -1224,20 +1224,20 @@ fn carry_symbols(v: Vol) -> Result<Vec<Row>, String> {
     let (rows, n_swapped) = overloads(v, rows);
     n_pointer += n_more;
     n_moved += n_moved2;
-    println!("{}:", v.tag());
-    println!("{:9} {:>8} {:>7} {:>6} {:>6} {:>8}", "section", "src fns", "exact", "call", "order", "globals");
+    eprintln!("{}:", v.tag());
+    eprintln!("{:9} {:>8} {:>7} {:>6} {:>6} {:>8}", "section", "src fns", "exact", "call", "order", "globals");
     for (sec, nsrc, exact, call, order, glob) in stats {
-        println!("{sec:9} {nsrc:8} {exact:7} {call:6} {order:6} {glob:8}");
+        eprintln!("{sec:9} {nsrc:8} {exact:7} {call:6} {order:6} {glob:8}");
     }
-    println!("cross     {n_across} globals by the order of the addresses built");
-    println!("code      {n_code} of the data pass's globals moved where the code builds them");
-    println!("pointer   {n_pointer} globals ({n_moved} of the data pass's moved)");
-    println!("layout    {n_layout} globals ({n_relaid} of the data pass's moved)");
-    println!("content   {n_content} globals found by what they hold");
-    println!("ref       {n_ref} functions named by the globals they build");
-    println!("prefix    {n_prefix} functions named by their opening words");
-    println!("ctor      {n_ctor} static initialisers named from the overlays' constructor lists");
-    println!("overload  {n_swapped} pairs of overloads whose names the passes crossed");
+    eprintln!("cross     {n_across} globals by the order of the addresses built");
+    eprintln!("code      {n_code} of the data pass's globals moved where the code builds them");
+    eprintln!("pointer   {n_pointer} globals ({n_moved} of the data pass's moved)");
+    eprintln!("layout    {n_layout} globals ({n_relaid} of the data pass's moved)");
+    eprintln!("content   {n_content} globals found by what they hold");
+    eprintln!("ref       {n_ref} functions named by the globals they build");
+    eprintln!("prefix    {n_prefix} functions named by their opening words");
+    eprintln!("ctor      {n_ctor} static initialisers named from the overlays' constructor lists");
+    eprintln!("overload  {n_swapped} pairs of overloads whose names the passes crossed");
     Ok(rows)
 }
 
@@ -1260,11 +1260,11 @@ pub fn write(v: Vol, check: bool) -> Result<bool, String> {
     let path = std::path::PathBuf::from(format!("{}.syms", elf_path(v).display()));
     if check {
         let same = std::fs::read_to_string(&path).is_ok_and(|t| t == text);
-        println!("{} {}", path.display(), if same { "is current" } else { "differs" });
+        eprintln!("{} {}", path.display(), if same { "is current" } else { "differs" });
         return Ok(same);
     }
     std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
-    println!("{rows} symbols -> {}", path.display());
+    eprintln!("{rows} symbols -> {}", path.display());
     Ok(true)
 }
 

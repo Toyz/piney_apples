@@ -6,6 +6,9 @@
 //! run the two tasks and record what they send to the GS; [`Effects::draw`]
 //! puts it in the frame's layers. The world is read through [`Host`]; sounds
 //! and damage calls go out as [`Event`]s.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod ability;
 pub mod arrival;

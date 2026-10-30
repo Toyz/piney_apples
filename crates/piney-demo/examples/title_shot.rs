@@ -90,7 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.card = Box::new(FilesCard::slot1(iso.volume()?, dir));
     }
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN")?)?);
-    let mut d = Demo::new(&mut iso, archive.clone(), config)?;
+    let mut d = Demo::new(&mut iso, &archive, config)?;
     let mut pad = Pad::default();
     let mut last = None;
     for f in 0..frames {

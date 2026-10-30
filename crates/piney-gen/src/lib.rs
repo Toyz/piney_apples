@@ -1,5 +1,8 @@
 //! The table generator as a library: piney-gen's command (`main.rs`) and
 //! piney-build use it. See `main.rs` for the commands.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod carry;
 pub mod data;

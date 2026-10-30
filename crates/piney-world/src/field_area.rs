@@ -861,7 +861,7 @@ impl FieldArea {
                             morph: m,
                             clut_swaps: Vec::new(),
                         };
-                        model_fogged(layers, layer, to_screen, d, self.lit.get(&model), f);
+                        model_fogged(layers, layer, to_screen, &d, self.lit.get(&model), f);
                     }
                 }
                 None => {
@@ -883,7 +883,7 @@ impl FieldArea {
                             morph: Vec::new(),
                             clut_swaps: Vec::new(),
                         };
-                        model_fogged(layers, layer, to_screen, d, self.lit.get(&model), f);
+                        model_fogged(layers, layer, to_screen, &d, self.lit.get(&model), f);
                     }
                 }
             }
@@ -920,7 +920,7 @@ impl FieldArea {
                     clut_swaps: Vec::new(),
                 };
                 let f = fog_at(world.w_axis.truncate());
-                model_fogged(layers, FLOOR_LAYER, to_screen, dr, Some(&self.tile_edits[i]), f);
+                model_fogged(layers, FLOOR_LAYER, to_screen, &dr, Some(&self.tile_edits[i]), f);
             }
         }
         for (i, c) in self.scene.covers.iter().enumerate() {
@@ -946,7 +946,7 @@ impl FieldArea {
                 clut_swaps: Vec::new(),
             };
             let f = fog_at(world.w_axis.truncate());
-            model_fogged(layers, FLOOR_LAYER, to_screen, dr, Some(&self.cover_edits[i]), f);
+            model_fogged(layers, FLOOR_LAYER, to_screen, &dr, Some(&self.cover_edits[i]), f);
         }
     }
 
@@ -981,7 +981,7 @@ impl FieldArea {
                 morph: Vec::new(),
                 clut_swaps: Vec::new(),
             };
-            draw::model(layers, layer, to_screen, d);
+            draw::model(layers, layer, to_screen, &d);
         }
     }
 
@@ -1086,7 +1086,7 @@ impl FieldArea {
                     }
                     let edits = water.st.is_some().then(|| (water.model.object, water.edits()));
                     let rows = play.uv_rows(file);
-                    anim_edited(layers, layer, to_screen, (file, play, &rows), root, ee::f(*alpha), edits);
+                    anim_edited(layers, layer, to_screen, (file, play, &rows), root, ee::f(*alpha), edits.as_ref());
                 }
                 Model::Lake(k) => {
                     let (Some(eff), Some(lake)) = (self.eff.clone(), self.lake.as_mut()) else { continue };
@@ -1109,7 +1109,15 @@ impl FieldArea {
                         (lake.mirror.model.object, lake.mirror.edits())
                     });
                     let edits = edits.filter(|_| lake.mirror.st.is_some());
-                    anim_edited(layers, layer, to_screen, (&eff, &lake.play, &rows), root, ee::f(*alpha), edits);
+                    anim_edited(
+                        layers,
+                        layer,
+                        to_screen,
+                        (&eff, &lake.play, &rows),
+                        root,
+                        ee::f(*alpha),
+                        edits.as_ref(),
+                    );
                 }
                 Model::Tobj | Model::TobjRunner(_) => {
                     let Some((file, plays)) = &self.tobj else { continue };
@@ -1157,7 +1165,7 @@ impl FieldArea {
                             morph: Vec::new(),
                             clut_swaps: Vec::new(),
                         };
-                        draw::model(layers, layer, to_screen, d);
+                        draw::model(layers, layer, to_screen, &d);
                     }
                 }
             }
@@ -1420,11 +1428,11 @@ fn anim_edited(
     (file, play, rows): (&SceneFile, &Play, &HashMap<u32, [u8; 2]>),
     root: Mat4,
     alpha: f32,
-    edits: Option<(u32, Arc<VertexEdits>)>,
+    edits: Option<&(u32, Arc<VertexEdits>)>,
 ) {
     for inst in play.instances(file, root) {
         let Some((model, _)) = file.drawn_model(inst.object) else { continue };
-        let e = edits.as_ref().filter(|(m, _)| *m == model).map(|(_, e)| e);
+        let e = edits.filter(|(m, _)| *m == model).map(|(_, e)| e);
         let node_mats = skin_nodes(file, play, root, inst.object, model);
         let d = Draw {
             file,
@@ -1437,7 +1445,7 @@ fn anim_edited(
             morph: Vec::new(),
             clut_swaps: Vec::new(),
         };
-        draw::model_edited(layers, layer, to_screen, d, e, draw::Fogging::None);
+        draw::model_edited(layers, layer, to_screen, &d, e, draw::Fogging::None);
     }
 }
 
@@ -1477,7 +1485,7 @@ fn model_fogged(
     layers: &mut Layers,
     layer: i16,
     to_screen: Mat4,
-    d: Draw,
+    d: &Draw,
     edits: Option<&Arc<VertexEdits>>,
     fog: draw::Fogging,
 ) {

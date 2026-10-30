@@ -6,6 +6,9 @@
 //! sounds comes back as outputs in the game's order. Each function is checked
 //! against the game's code by `tools/test_battle_*_rs.py`. Addresses are gcmn's
 //! unless marked main; docs/engine/battle.md has the rules and the frame order.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod affect;
 pub mod ai_move;

@@ -600,7 +600,7 @@ fn event_25_opens_in_area_23s_shrine() {
         s.take_events();
     }
     if !matches!(&s.stage, Stage::World(_)) {
-        let title = Mode::title(&s).to_string();
+        let title = Mode::title(&s);
         let calls: Vec<String> = match &s.stage {
             Stage::Area(a) => a.calls().iter().rev().take(30).map(|c| c.1.clone()).collect(),
             _ => Vec::new(),

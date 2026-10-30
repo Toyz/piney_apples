@@ -1852,7 +1852,7 @@ mod tests {
         let chosen: Vec<i16> = rows.iter().copied().filter(|&r| r >= 0).collect();
         assert_eq!(chosen.len(), 15);
         assert!(chosen.iter().all(|&r| (30..80).contains(&r)));
-        let mut s = chosen.clone();
+        let mut s = chosen;
         s.sort_unstable();
         s.dedup();
         assert_eq!(s.len(), 15);

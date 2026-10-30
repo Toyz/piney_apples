@@ -324,7 +324,7 @@ impl MotionWorld for ScriptWorld {
             Call::Rule(enemy_ai::Out::Rule(Event::CancelAttack(w))) => {
                 let w = match w {
                     Who::Char(i) => n(i),
-                    _ => me.clone(),
+                    _ => me,
                 };
                 format!("[\"request\",{w},0,0,0]")
             }

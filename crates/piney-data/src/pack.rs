@@ -7,6 +7,9 @@
 //! under [`PORT_DIR`] (at LBA 0xffffffff), made so that play never reads the
 //! executable; a disc image keeps them in [`image_data_dir`].
 
+// A disc or file reader: its data may be any length and any bytes.
+#![deny(clippy::cast_possible_truncation, clippy::unwrap_used, clippy::expect_used)]
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -23,6 +26,13 @@ pub const DISC_MAGIC: &[u8; 8] = b"PINEYDSC";
 pub const VERSION: u32 = 2;
 /// `chunks.pak`'s header: magic, version, a reserved word.
 pub const PAK_HEADER: u64 = 16;
+/// [`PAK_HEADER`] as a length.
+const PAK_HEADER_LEN: usize = 16;
+
+/// A count as a field of type `T` holds it, or an error naming it.
+fn fits<T: TryFrom<usize>>(n: usize, what: &str) -> Result<T> {
+    T::try_from(n).map_err(|_| Error::Format(format!(".disc: {n} {what} do not fit their field")))
+}
 
 /// A volume's `.disc` file name in a build.
 pub fn disc_name(v: Volume) -> &'static str {
@@ -105,14 +115,16 @@ impl Manifest {
         self.index.get(&key.join("/").to_ascii_uppercase()).map(|&i| &self.entries[i])
     }
 
-    pub fn encode(&self) -> Vec<u8> {
+    /// The manifest as a `.disc` file holds it; an error for counts its
+    /// fields cannot hold.
+    pub fn encode(&self) -> Result<Vec<u8>> {
         let refs: usize = self.entries.iter().map(|e| e.chunks.len()).sum();
         let mut out = Vec::new();
         out.extend_from_slice(DISC_MAGIC);
         out.extend_from_slice(&VERSION.to_le_bytes());
         out.extend_from_slice(&(self.volume as u32).to_le_bytes());
-        out.extend_from_slice(&(self.entries.len() as u32).to_le_bytes());
-        out.extend_from_slice(&(refs as u32).to_le_bytes());
+        out.extend_from_slice(&fits::<u32>(self.entries.len(), "entries")?.to_le_bytes());
+        out.extend_from_slice(&fits::<u32>(refs, "chunks")?.to_le_bytes());
         let mut label = [0u8; 32];
         let n = self.label.len().min(32);
         label[..n].copy_from_slice(&self.label.as_bytes()[..n]);
@@ -120,15 +132,16 @@ impl Manifest {
         let mut first = 0u32;
         for e in &self.entries {
             let path = e.entry.path.as_bytes();
-            out.extend_from_slice(&(path.len() as u16).to_le_bytes());
+            out.extend_from_slice(&fits::<u16>(path.len(), "a path's length")?.to_le_bytes());
             out.extend_from_slice(path);
             out.extend_from_slice(&e.entry.lba.to_le_bytes());
             out.extend_from_slice(&e.entry.size.to_le_bytes());
             out.push(u8::from(e.entry.dir));
+            let chunks = fits::<u32>(e.chunks.len(), "an entry's chunks")?;
             out.extend_from_slice(&first.to_le_bytes());
-            out.extend_from_slice(&(e.chunks.len() as u32).to_le_bytes());
+            out.extend_from_slice(&chunks.to_le_bytes());
             out.extend_from_slice(&e.hash);
-            first += e.chunks.len() as u32;
+            first += chunks;
         }
         for e in &self.entries {
             for c in &e.chunks {
@@ -138,7 +151,7 @@ impl Manifest {
                 out.push(if c.zstd { CODEC_ZSTD } else { CODEC_RAW });
             }
         }
-        out
+        Ok(out)
     }
 
     pub fn decode(b: &[u8]) -> Result<Manifest> {
@@ -166,7 +179,7 @@ impl Manifest {
             let dir = r.take(1)?[0] != 0;
             let first = r.u32()? as usize;
             let chunks = r.u32()? as usize;
-            let hash: [u8; 32] = r.take(32)?.try_into().unwrap();
+            let hash = r.array::<32>()?;
             heads.push((Entry { path, lba, size, dir }, first, chunks, hash));
         }
         let mut refs = Vec::with_capacity(nrefs);
@@ -212,14 +225,19 @@ impl<'a> Reader<'a> {
         self.at += n;
         Ok(s)
     }
+    fn array<const N: usize>(&mut self) -> Result<[u8; N]> {
+        let mut a = [0; N];
+        a.copy_from_slice(self.take(N)?);
+        Ok(a)
+    }
     fn u16(&mut self) -> Result<u16> {
-        Ok(u16::from_le_bytes(self.take(2)?.try_into().unwrap()))
+        Ok(u16::from_le_bytes(self.array()?))
     }
     fn u32(&mut self) -> Result<u32> {
-        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+        Ok(u32::from_le_bytes(self.array()?))
     }
     fn u64(&mut self) -> Result<u64> {
-        Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
+        Ok(u64::from_le_bytes(self.array()?))
     }
 }
 
@@ -237,11 +255,12 @@ pub fn manifest(path: &Path) -> Result<Arc<Manifest>> {
     let meta = std::fs::metadata(path)?;
     let key = (std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()), meta.len(), meta.modified().ok());
     let cache = CACHE.get_or_init(Default::default);
-    if let Some(m) = cache.lock().unwrap().get(&key) {
+    let lock = || cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(m) = lock().get(&key) {
         return Ok(m.clone());
     }
     let m = Arc::new(Manifest::decode(&std::fs::read(path)?)?);
-    cache.lock().unwrap().insert(key, m.clone());
+    lock().insert(key, m.clone());
     Ok(m)
 }
 
@@ -260,12 +279,12 @@ impl PackDisc {
         let manifest = manifest(path)?;
         let pak_path = path.parent().unwrap_or(Path::new(".")).join(PAK_NAME);
         let mut pak = File::open(&pak_path).map_err(|e| Error::NotFound(format!("{}: {e}", pak_path.display())))?;
-        let mut head = [0u8; PAK_HEADER as usize];
+        let mut head = [0u8; PAK_HEADER_LEN];
         pak.read_exact(&mut head)?;
         if &head[..8] != PAK_MAGIC {
             return format_err(format!("{}: not a chunks.pak", pak_path.display()));
         }
-        let version = u32::from_le_bytes(head[8..12].try_into().unwrap());
+        let version = u32::from_le_bytes([head[8], head[9], head[10], head[11]]);
         if version != VERSION {
             return format_err(format!(
                 "{}: version {version}; this build of the port reads {VERSION}",
@@ -292,14 +311,15 @@ impl PackDisc {
             }
             self.last = Some((c.offset, bytes));
         }
-        Ok(&self.last.as_ref().unwrap().1)
+        self.last.as_ref().map(|(_, b)| b.as_slice()).ok_or_else(|| Error::Format("chunks.pak: no chunk".into()))
     }
 
     /// `len` bytes of `path`'s file from `ofs` on, fewer where it ends.
     pub fn read_at(&mut self, path: &str, ofs: u64, len: usize) -> Result<Vec<u8>> {
         let manifest = self.manifest.clone();
         let e = manifest.find(path).ok_or_else(|| Error::NotFound(path.to_string()))?;
-        let len = len.min(u64::from(e.entry.size).saturating_sub(ofs) as usize);
+        let left = u64::from(e.entry.size).saturating_sub(ofs);
+        let len = len.min(usize::try_from(left).unwrap_or(usize::MAX));
         let mut out = Vec::with_capacity(len);
         if len == 0 {
             return Ok(out);
@@ -310,8 +330,10 @@ impl PackDisc {
         while (out.len() as u64) < len as u64 && k < e.chunks.len() {
             let c = e.chunks[k];
             let start = e.starts[k];
-            let from = (ofs.max(start) - start) as usize;
-            let to = (end.min(start + u64::from(c.len)) - start) as usize;
+            // Both within the chunk, whose length is a u32.
+            let within =
+                |v: u64| usize::try_from(v - start).map_err(|_| Error::Format("chunks.pak: chunk too long".into()));
+            let (from, to) = (within(ofs.max(start))?, within(end.min(start + u64::from(c.len)))?);
             out.extend_from_slice(&self.chunk(c)?[from..to]);
             k += 1;
         }
@@ -400,7 +422,7 @@ mod tests {
                 ),
             ],
         );
-        let back = Manifest::decode(&m.encode()).unwrap();
+        let back = Manifest::decode(&m.encode().unwrap()).unwrap();
         assert_eq!(back.volume, Volume::Out);
         assert_eq!(back.label, "HACK_VOL3");
         let e = back.find("data\\data.bin").unwrap();
@@ -436,13 +458,13 @@ mod tests {
                 entry("F.BIN", 20, false),
                 [0; 32],
                 vec![
-                    Chunk { offset: 26, stored: z.len() as u32, len: 10, zstd: true },
+                    Chunk { offset: 26, stored: u32::try_from(z.len()).unwrap(), len: 10, zstd: true },
                     Chunk { offset: 16, stored: 10, len: 10, zstd: false },
                 ],
             )],
         );
         let disc = dir.join(disc_name(Volume::Inf));
-        std::fs::write(&disc, m.encode()).unwrap();
+        std::fs::write(&disc, m.encode().unwrap()).unwrap();
         let mut p = PackDisc::open(&disc).unwrap();
         assert_eq!(p.read_at("F.BIN", 0, 100).unwrap(), b"abcdefghij0123456789");
         assert_eq!(p.read_at("f.bin", 8, 4).unwrap(), b"ij01");

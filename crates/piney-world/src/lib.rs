@@ -6,6 +6,9 @@
 //! (50, town_party.rs), `ccThEntryCtrl` (64, gate.rs, merchant.rs,
 //! rtownpc.rs) and `ccThFieldDisp` (96, town*.rs). The event interpreter runs
 //! outside, in `piney-game` (docs/engine/field-game.md).
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod ai;
 pub mod area;

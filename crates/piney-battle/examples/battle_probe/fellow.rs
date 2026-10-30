@@ -933,7 +933,7 @@ impl Case {
         let n = self.scene.chars.len();
         let names: Vec<String> = (0..n).map(|i| format!("c{i}")).collect();
         let me_name = names[me].clone();
-        let nm = Names { me: &me_name, target: "t", chars: names.clone(), ai: true };
+        let nm = Names { me: &me_name, target: "t", chars: names, ai: true };
         let out: Vec<String> = self.out.iter().map(|o| out_json(o, &nm)).collect();
         let ais: Vec<String> = self.crew.ais.iter().map(|(k, a)| format!("\"{k}\":{}", ai_json(a))).collect();
         let spc: Vec<String> =

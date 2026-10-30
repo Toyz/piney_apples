@@ -118,6 +118,9 @@ struct Buffer {
     view: PyBuffer<u8>,
 }
 
+// The machine's memories are Python bytearrays it reads and writes in
+// place: these two views are the crate's only unsafe code.
+#[allow(unsafe_code)]
 impl Buffer {
     fn adopt(v: &Bound<'_, PyAny>, len: usize, what: &str) -> PyResult<Buffer> {
         let b = v.cast::<PyByteArray>().map_err(|_| PyTypeError::new_err(format!("{what} must be a bytearray")))?;
@@ -191,6 +194,7 @@ impl Hooks {
 impl Hooks {
     /// Hooks usually close over objects that hold the machine: the cycle
     /// collector has to see through them.
+    #[allow(clippy::needless_pass_by_value, reason = "pyo3's __traverse__ takes the visitor by value")]
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
         visit.call(&self.dict)
     }
@@ -365,9 +369,8 @@ impl PyMachine {
             let n = data.len()? as isize;
             mem.set_item(PySlice::new(py, base, base + n, 1), data)?;
         }
-        // SAFETY: nothing else touches the new bytearray while it is copied.
-        let pristine = PyBytes::new(py, unsafe { mem.as_bytes() });
         let ram = Buffer::adopt(mem.as_any(), RAM, "mem")?;
+        let pristine = PyBytes::new(py, ram.bytes());
         let vu = Buffer::adopt(PyByteArray::new_with(py, VU_MEM, |_| Ok(()))?.as_any(), VU_MEM, "vumem")?;
         let mut hooks = Hooks::empty(py);
         for (name, f) in e.module.bind(py).getattr("HLE")?.cast::<PyDict>()?.iter() {
@@ -552,6 +555,7 @@ impl PyMachine {
         PyMachine::create(py, program, Features { vu: vu || vi, vi, ee_div, full: false })
     }
 
+    #[allow(clippy::needless_pass_by_value, reason = "pyo3's __traverse__ takes the visitor by value")]
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
         visit.call(&self.hooks)?;
         visit.call(&self.p)?;
@@ -1163,6 +1167,7 @@ impl RegView {
 
 #[pymethods]
 impl RegView {
+    #[allow(clippy::needless_pass_by_value, reason = "pyo3's __traverse__ takes the visitor by value")]
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
         visit.call(&self.m)
     }
@@ -1218,6 +1223,7 @@ pub struct VfView {
 
 #[pymethods]
 impl VfView {
+    #[allow(clippy::needless_pass_by_value, reason = "pyo3's __traverse__ takes the visitor by value")]
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
         visit.call(&self.m)
     }

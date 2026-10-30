@@ -228,7 +228,7 @@ impl Flag {
         };
         let Some((pos, _)) = crate::grunty::dummy(town_file, markers[n]) else { return Ok(None) };
         let file = Rc::new(SceneFile::read(archive, FLAG_FILE)?);
-        let mut model = Model::new(file.clone(), "CMP_trall")?;
+        let mut model = Model::new(file, "CMP_trall")?;
         if let Some(Some(clut)) = t.flag_cluts().get(n) {
             model.change_clut("MAT_clut", clut)?;
         }

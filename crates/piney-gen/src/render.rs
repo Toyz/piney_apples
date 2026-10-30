@@ -644,9 +644,9 @@ pub fn write_or_check(text: &str, out: &Path, check: bool) -> Result<bool, Strin
     if check {
         let same = std::fs::read_to_string(out).map(|t| t == text).unwrap_or(false);
         if same {
-            println!("{} is current", out.display());
+            eprintln!("{} is current", out.display());
         } else {
-            println!("{} is out of date; run without --check", out.display());
+            eprintln!("{} is out of date; run without --check", out.display());
         }
         return Ok(same);
     }

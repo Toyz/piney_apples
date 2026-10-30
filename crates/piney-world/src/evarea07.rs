@@ -423,7 +423,7 @@ impl Giant {
             clut_swaps: Vec::new(),
         };
         let fogging = if fog { draw::Fogging::Depth(self.fog.depth()) } else { draw::Fogging::None };
-        draw::model_edited(layers, layer, to_screen, d, None, fogging);
+        draw::model_edited(layers, layer, to_screen, &d, None, fogging);
     }
 
     /// `EVENTAREA07::Draw` into the field's layers, stepping only when

@@ -458,14 +458,7 @@ impl Ctx<'_> {
 
     /// The end every line shares: unless under manual control and with a
     /// line, `ChatMessageModify(line, a1, a2, a3)` and `chatRequest` 1.
-    fn chat_say(
-        &mut self,
-        me: usize,
-        line: Option<Vec<u8>>,
-        a1: Option<Vec<u8>>,
-        a2: Option<Vec<u8>>,
-        a3: Option<Vec<u8>>,
-    ) {
+    fn chat_say(&mut self, me: usize, line: Option<Vec<u8>>, a1: Option<&[u8]>, a2: Option<&[u8]>, a3: Option<&[u8]>) {
         let Some(line) = line else { return };
         if self.crew.ais.get(&me).is_none_or(|a| a.manual_sw) {
             return;
@@ -473,7 +466,7 @@ impl Ctx<'_> {
         let leader_ch = member(self.party, 0);
         let leader = self.chat_name(leader_ch).unwrap_or_default();
         let none = self.t.chat.none.clone();
-        let text = modify(&line, &leader, a1.as_deref(), a2.as_deref(), a3.as_deref(), &none);
+        let text = modify(&line, &leader, a1, a2, a3, &none);
         if let Some(a) = self.crew.ais.get_mut(&me) {
             a.chat_text = text;
             a.chat_request = true;
@@ -595,14 +588,14 @@ impl Ctx<'_> {
                 if self.chat_gate(me) {
                     let name = self.chat_name(ch);
                     let line = self.chat_row(me, DEAD_OTHER_FELLOW, None);
-                    self.chat_say(me, line, name, None, None);
+                    self.chat_say(me, line, name.as_deref(), None, None);
                 }
             }
             Chat::GratsLevelUp(ch) => {
                 if self.chat_gate(me) {
                     let name = self.chat_name(ch);
                     let line = self.chat_row(me, GRATS_LEVEL_UP, None);
-                    self.chat_say(me, line, name, None, None);
+                    self.chat_say(me, line, name.as_deref(), None, None);
                     self.chat_face(me, ch);
                 }
             }
@@ -625,7 +618,7 @@ impl Ctx<'_> {
                 if listed && self.chat_gate(me) && self.chat_draw() & 1 != 0 {
                     let name = self.chat_name(ch);
                     let line = self.chat_row(me, PRESENT_OTHER_FELLOW, None);
-                    self.chat_say(me, line, name, None, None);
+                    self.chat_say(me, line, name.as_deref(), None, None);
                     let leader = member(self.party, 0);
                     self.chat_face(me, leader);
                 }
@@ -637,7 +630,7 @@ impl Ctx<'_> {
                     let i = self.message_index(me);
                     let v = self.chat_draw() % 3;
                     let line = self.t.chat.line(WALKING_TALK, 3 * i + v).map(<[u8]>::to_vec);
-                    self.chat_say(me, line, name, None, None);
+                    self.chat_say(me, line, name.as_deref(), None, None);
                 }
             }
             Chat::ResurrectPlz => {
@@ -664,7 +657,7 @@ impl Ctx<'_> {
                 if self.chat_gate(me) {
                     let a = self.t.chat.attribute(attr, 0);
                     let line = self.chat_row(me, ATTRIBUTE_GUARD, None);
-                    self.chat_say(me, line, None, Some(a), None);
+                    self.chat_say(me, line, None, Some(&a), None);
                 }
             }
             Chat::AttributeFollow(attr) => {
@@ -672,7 +665,7 @@ impl Ctx<'_> {
                     let b = self.t.chat.attribute(attr, 1);
                     let a = self.t.chat.attribute(attr, 0);
                     let line = self.chat_row(me, ATTRIBUTE_FOLLOW, None);
-                    self.chat_say(me, line, None, Some(a), Some(b));
+                    self.chat_say(me, line, None, Some(&a), Some(&b));
                 }
             }
         }
@@ -689,7 +682,7 @@ impl Ctx<'_> {
         let line = self.t.chat.remark(r, self.message_index(me)).map(<[u8]>::to_vec);
         let item = matches!(r, Remark::UseItem | Remark::UseLastItem)
             .then(|| self.t.item_name(code).unwrap_or_default().to_vec());
-        self.chat_say(me, line, None, item, None);
+        self.chat_say(me, line, None, item.as_deref(), None);
     }
 
     fn chat_template(&mut self, me: usize, at: u32) {
@@ -722,7 +715,7 @@ impl Ctx<'_> {
         if self.chat_gate(me) {
             let name = self.chat_name(from);
             let line = self.chat_row(me, at, None);
-            self.chat_say(me, line, name, None, None);
+            self.chat_say(me, line, name.as_deref(), None, None);
         }
     }
 
@@ -734,7 +727,7 @@ impl Ctx<'_> {
         if self.chat_gate(me) && self.chat_draw() & 7 != 0 {
             let name = self.chat_name(from);
             let line = self.chat_row(me, va::THX_HEAL, None);
-            self.chat_say(me, line, name, None, None);
+            self.chat_say(me, line, name.as_deref(), None, None);
         }
         if i32::from(hp) / 2 < n || self.check_skill_mask(me) & 4 != 0 {
             self.chat_drop_heal_me(me);
@@ -1036,19 +1029,19 @@ impl Ctx<'_> {
                 };
                 let (mine, theirs) = (price(self, Some(body)), price(self, who));
                 if mine < theirs {
-                    self.chat_weapon_line(me, BETTER_WEAPON, 12, name);
+                    self.chat_weapon_line(me, BETTER_WEAPON, 12, name.as_deref());
                     self.chat_face(me, who);
                     return;
                 }
                 if theirs < mine {
-                    self.chat_weapon_line(me, WORSE_WEAPON, 12, name);
+                    self.chat_weapon_line(me, WORSE_WEAPON, 12, name.as_deref());
                     self.chat_face(me, who);
                     return;
                 }
             } else {
                 let lv = |c: Option<usize>| c.map_or(0, |c| i32::from(self.scene.chars[c].level()));
                 if i32::from(self.scene.chars[body].level()) + 1 < lv(who) {
-                    self.chat_weapon_line(me, FELLOW_IS_HIGH_LEVEL, 11, name);
+                    self.chat_weapon_line(me, FELLOW_IS_HIGH_LEVEL, 11, name.as_deref());
                     self.chat_face(me, who);
                     return;
                 }
@@ -1064,7 +1057,7 @@ impl Ctx<'_> {
     /// `ChatMessageFellowIsHighLevel(name)` (0x00592670): for character
     /// `id` only, in the party, one of the table's three lines by
     /// `(rand() >> 3) % 3`, `#1` the name.
-    fn chat_weapon_line(&mut self, me: usize, at: u32, id: i16, name: Option<Vec<u8>>) {
+    fn chat_weapon_line(&mut self, me: usize, at: u32, id: i16, name: Option<&[u8]>) {
         let body = self.chat_body(me);
         if self.scene.chars[body].id() != id || !self.chat_gate(me) {
             return;

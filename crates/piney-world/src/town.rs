@@ -625,7 +625,7 @@ pub(crate) fn water0_draw(
             morph: m,
             clut_swaps: Vec::new(),
         };
-        draw::model_edited(layers, layer, to_screen, d, e, draw::Fogging::None);
+        draw::model_edited(layers, layer, to_screen, &d, e, draw::Fogging::None);
     }
 }
 
@@ -818,7 +818,7 @@ impl Base {
             morph: Vec::new(),
             clut_swaps: Vec::new(),
         };
-        draw::model_edited(layers, layer, to_screen, d, None, fog);
+        draw::model_edited(layers, layer, to_screen, &d, None, fog);
     }
 
     /// A static object as drawn, on `layer`.
@@ -858,7 +858,7 @@ impl Base {
                 morph: Vec::new(),
                 clut_swaps: Vec::new(),
             };
-            draw::model(layers, layer, to_screen, d);
+            draw::model(layers, layer, to_screen, &d);
         }
     }
 }
@@ -1110,7 +1110,7 @@ pub fn anim_draw_blended(
         let lit = file.models.get(&model).is_some_and(|i| i.mtype & 1 != 0);
         let lights = lights.filter(|_| lit).map(|l| l(world));
         let d = Draw { file, model, world, alpha, rows, lights, nodes: &[], morph: m, clut_swaps: Vec::new() };
-        draw::model_blended(layers, layer, to_screen, d, None, fog, &[], blend);
+        draw::model_blended(layers, layer, to_screen, &d, None, fog, &[], blend);
     }
 }
 

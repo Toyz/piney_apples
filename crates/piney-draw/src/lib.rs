@@ -6,6 +6,9 @@
 //! [`TexRef::PreviousFrame`]); [`Frame::cmds`] run first to last. Units are
 //! the GS's: pixels of the 512 x 448 buffer (`ccSystem::Init` 0x0010a900) with
 //! the top-left rule, colours with 0x80 as 1.0, texels, and Z larger nearer.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 /// One frame for the GS.
 #[derive(Clone, Debug, Default, PartialEq)]

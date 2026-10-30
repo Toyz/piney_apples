@@ -210,7 +210,7 @@ impl DungeonArea {
                 morph: Vec::new(),
                 clut_swaps: Vec::new(),
             };
-            draw::model_edited(layers, EFF_LAYER, to_screen, d, None, draw::Fogging::None);
+            draw::model_edited(layers, EFF_LAYER, to_screen, &d, None, draw::Fogging::None);
         }
     }
 
@@ -232,7 +232,7 @@ impl DungeonArea {
                     morph: Vec::new(),
                     clut_swaps: Vec::new(),
                 };
-                draw::model_edited(layers, EFF_LAYER, to_screen, d, None, draw::Fogging::Depth(fog));
+                draw::model_edited(layers, EFF_LAYER, to_screen, &d, None, draw::Fogging::Depth(fog));
             }
         }
     }

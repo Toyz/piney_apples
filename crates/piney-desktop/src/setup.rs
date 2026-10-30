@@ -43,10 +43,10 @@ pub struct SetupScreen {
 
 impl SetupScreen {
     /// The fonts and the window texture (`XWINDOW.CCS` is resident).
-    pub fn new(iso: &mut Iso, archive: Arc<Archive>, state: &SaveState) -> piney_data::Result<Self> {
+    pub fn new(iso: &mut Iso, archive: &Arc<Archive>, state: &SaveState) -> piney_data::Result<Self> {
         Ok(SetupScreen {
-            fonts: read_fonts(iso.volume()?, &archive)?,
-            window: WindowTexture::read(&archive),
+            fonts: read_fonts(iso.volume()?, archive)?,
+            window: WindowTexture::read(archive),
             msg: None,
             tail: None,
             kind: MessageKind::Speech,

@@ -5,6 +5,9 @@
 //! (15 frames' wait) from the last frame's `direct`. Two quirks are kept: a
 //! stick with raw y exactly 128 points down, and the up-right eighth presses
 //! right alone (docs/engine/overview.md, "The pad").
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 use std::ops::{BitAnd, BitOr, BitOrAssign, Not};
 

@@ -600,7 +600,7 @@ pub fn set_dog(
     };
     let Some(row) = tables.row(id).cloned() else { return Ok(None) };
     let body = bodies.stem(archive, &row.stem())?;
-    let mut g = Grunty::new(archive, tables, bodies, town_file, hits, save, town, &row, body, pos, rot, num);
+    let mut g = Grunty::new(archive, tables, bodies, town_file, hits, save, town, &row, &body, pos, rot, num);
     if let Some(g) = g.as_mut() {
         g.home_dummy = spot;
     }
@@ -619,7 +619,7 @@ impl Grunty {
         save: &SaveData,
         town: i32,
         row: &NpcRow,
-        body: Rc<Body>,
+        body: &Rc<Body>,
         pos: V4,
         rot: V4,
         num: u32,

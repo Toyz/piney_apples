@@ -414,7 +414,7 @@ impl Arena {
             morph: Vec::new(),
             clut_swaps: Vec::new(),
         };
-        draw::model(layers, layer, to_screen, d);
+        draw::model(layers, layer, to_screen, &d);
     }
 
     /// `EVENTAREAB0::Draw` into the field's layers, stepping only when

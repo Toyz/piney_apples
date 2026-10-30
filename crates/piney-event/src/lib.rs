@@ -6,6 +6,9 @@
 //! `ccThEvent`, as Infection runs them); [`host`], what it asks of the rest of
 //! the port; [`state`], the save record the scripts use, which the caller owns.
 //! The reference is `docs/engine/events.md` and `docs/engine/event-vm.md`.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod extras;
 pub mod host;

@@ -708,7 +708,7 @@ struct DesktopHost {
 }
 
 impl DesktopHost {
-    fn log(&mut self, s: String) {
+    fn log(&mut self, s: &str) {
         self.calls.push(format!("{} {s}", self.frame));
     }
 }
@@ -724,10 +724,10 @@ impl Host for DesktopHost {
         DesktopMenu { menu_type: -1, request: -1 }
     }
     fn clear_gate_hack(&mut self) {
-        self.log("clear_gate_hack".into());
+        self.log("clear_gate_hack");
     }
     fn set_frame_rate(&mut self, rate: i16) {
-        self.log(format!("frame_rate {rate}"));
+        self.log(&format!("frame_rate {rate}"));
     }
     fn load_overlay(&mut self, which: Overlay) {
         let n = match which {
@@ -736,32 +736,32 @@ impl Host for DesktopHost {
             Overlay::Toppage => 2,
             Overlay::Gcmn => 3,
         };
-        self.log(format!("overlay {n}"));
+        self.log(&format!("overlay {n}"));
     }
     fn stream(&mut self, num: i16) {
-        self.log(format!("stream {num}"));
+        self.log(&format!("stream {num}"));
     }
     fn message_open(&mut self, c: &MessageCall<'_>) {
         let kind = if c.kind == MessageKind::Speech { "message" } else { "info" };
-        self.log(format!("{kind} {} {}", c.event, c.msg));
+        self.log(&format!("{kind} {} {}", c.event, c.msg));
     }
     fn announce(&mut self, _a: Announce) {
-        self.log("info -1 -1".into());
+        self.log("info -1 -1");
     }
     fn name_entry_start(&mut self) {
-        self.log("name_entry".into());
+        self.log("name_entry");
     }
     fn sound_effect(&mut self, se: i32) {
-        self.log(format!("se {se}"));
+        self.log(&format!("se {se}"));
     }
     fn sound(&mut self, cmd: i16, p0: i16, p1: i16, p2: i16) {
-        self.log(format!("sound {cmd} {p0} {p1} {p2}"));
+        self.log(&format!("sound {cmd} {p0} {p1} {p2}"));
     }
     fn menu_ban(&mut self, on: bool) {
-        self.log(format!("menu_ban {}", on as i32));
+        self.log(&format!("menu_ban {}", on as i32));
     }
     fn change_request(&mut self, num: i32, sf: i32) {
-        self.log(format!("change_request {num} {sf}"));
+        self.log(&format!("change_request {num} {sf}"));
     }
 }
 

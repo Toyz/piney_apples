@@ -517,7 +517,7 @@ impl Sequencer {
         if out {
             let mut data = vec![0xf0];
             data.extend_from_slice(self.sq.get(self.ptr..self.ptr + n).unwrap_or(&[]));
-            self.emit(self.exc_port, data);
+            self.emit(self.exc_port, &data);
         }
         self.ptr += n;
     }
@@ -556,18 +556,18 @@ impl Sequencer {
         if !out {
             return;
         }
-        let data = [msg as u8, (msg >> 8) as u8, (msg >> 16) as u8][..n].to_vec();
-        self.emit(self.out_port[ch], data);
+        let bytes = [msg as u8, (msg >> 8) as u8, (msg >> 16) as u8];
+        self.emit(self.out_port[ch], &bytes[..n]);
     }
 
-    fn emit(&mut self, mut mask: u16, data: Vec<u8>) {
+    fn emit(&mut self, mut mask: u16, data: &[u8]) {
         let mut p = 0;
         while mask != 0 {
             if mask & 1 != 0 && p < STREAMS {
                 let used = self.fill[p];
                 if STREAM_BUFFSIZE >= used + data.len() + 8 {
                     self.fill[p] = used + data.len();
-                    self.out.push((p, data.clone()));
+                    self.out.push((p, data.to_owned()));
                 }
             }
             mask >>= 1;

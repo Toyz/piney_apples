@@ -832,7 +832,7 @@ impl LogHost {
     fn note(&mut self, s: impl fmt::Display) {
         let line = s.to_string();
         if self.echo {
-            println!("{line}");
+            eprintln!("{line}");
         }
         self.log.push(line);
     }

@@ -6,6 +6,8 @@
 //! [`machine::Machine`] runs it over memory it owns. With the `python` feature
 //! the crate is also `eemu_rs`, a drop-in for `eemu.Machine` (`README.md`);
 //! `tools/test_eemu_rs.py` runs both in lockstep and fuzzes every instruction.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
 
 pub mod cpu;
 pub mod fpu;

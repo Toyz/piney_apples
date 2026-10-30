@@ -334,18 +334,18 @@ impl J {
     fn new() -> J {
         J(Vec::new())
     }
-    fn raw(&mut self, k: &str, v: String) -> &mut J {
+    fn raw(&mut self, k: &str, v: &str) -> &mut J {
         self.0.push(format!("\"{k}\": {v}"));
         self
     }
     fn i(&mut self, k: &str, v: impl Into<i64>) -> &mut J {
-        self.raw(k, v.into().to_string())
+        self.raw(k, &v.into().to_string())
     }
     fn u(&mut self, k: &str, v: u32) -> &mut J {
-        self.raw(k, v.to_string())
+        self.raw(k, &v.to_string())
     }
     fn v(&mut self, k: &str, v: &[u32]) -> &mut J {
-        self.raw(k, list(v))
+        self.raw(k, &list(v))
     }
     fn s(&self) -> String {
         format!("{{{}}}", self.0.join(", "))
@@ -382,11 +382,11 @@ fn animate(a: &Animate) -> String {
 /// `ccAnimateObject` and `ccEffectElement`'s members.
 fn base(j: &mut J, b: &Base) {
     anim_fields(j, &b.anim);
-    j.raw("m_skillPtr", opt(b.skill)).raw("m_target", opt(b.target)).i("m_level", b.level);
+    j.raw("m_skillPtr", &opt(b.skill)).raw("m_target", &opt(b.target)).i("m_level", b.level);
     j.i("m_endFlag", b.end_flag).i("m_delFlag", b.del_flag).i("m_life", b.life).i("m_attr", b.attr);
-    j.i("m_count", b.count).i("m_proccess", b.proccess).raw("m_status", format!("{:?}", b.status));
+    j.i("m_count", b.count).i("m_proccess", b.proccess).raw("m_status", &format!("{:?}", b.status));
     j.i("m_interval", b.interval).v("m_accel@170", &b.accel);
-    j.raw("m_syncPos", vref(b.sync_pos)).raw("m_syncDirc", vref(b.sync_dirc));
+    j.raw("m_syncPos", &vref(b.sync_pos)).raw("m_syncDirc", &vref(b.sync_dirc));
 }
 
 fn thunder_data(d: &ThunderData) -> String {
@@ -401,14 +401,14 @@ fn bolt(fx: &Effects, t: &ThunderBolt) -> String {
     let mut j = J::new();
     base(&mut j, &t.base);
     let tbl: Vec<String> = t.thunder_tbl.iter().map(|p| format!("[{}, {}]", list(&p.spot), p.break_point)).collect();
-    j.raw("m_thunderTbl", format!("[{}]", tbl.join(", "))).v("CenterPos", &t.center_pos).v("TopPos", &t.top_pos);
-    j.raw("Pos", "null".into()).raw("Scale", "null".into()).u("TopRange", t.top_range);
+    j.raw("m_thunderTbl", &format!("[{}]", tbl.join(", "))).v("CenterPos", &t.center_pos).v("TopPos", &t.top_pos);
+    j.raw("Pos", "null").raw("Scale", "null").u("TopRange", t.top_range);
     j.u("BottomRange", t.bottom_range).i("Thunder_Mode", t.thunder_mode).i("Num", t.num).i("flg", t.flg);
-    j.i("flg2", t.flg2).i("hoge", t.hoge).raw("DefaultData", thunder_data(&t.default_data));
+    j.i("flg2", t.flg2).i("hoge", t.hoge).raw("DefaultData", &thunder_data(&t.default_data));
     j.u("DefaultAngle", t.default_angle).u("RandAngle", t.rand_angle).i("DefaultScale", t.default_scale);
-    j.i("RandScale", t.rand_scale).v("RndPoint", &t.rnd_point).raw("SpMat", m4(&t.sp_mat));
-    j.raw("Effccsc", "\"particle\"".into());
-    j.raw("EffCmp", clump(fx, t.eff_cmp, t.clut)).i("Time", t.time).i("EndFlg", t.end_flg);
+    j.i("RandScale", t.rand_scale).v("RndPoint", &t.rnd_point).raw("SpMat", &m4(&t.sp_mat));
+    j.raw("Effccsc", "\"particle\"");
+    j.raw("EffCmp", &clump(fx, t.eff_cmp, t.clut)).i("Time", t.time).i("EndFlg", t.end_flg);
     format!("[\"ccThunderBoltElement\", {}]", j.s())
 }
 
@@ -442,49 +442,49 @@ fn element(fx: &Effects, e: &Element) -> String {
         Element::Ring(r) => {
             base(&mut j, &r.base);
             j.v("Pos", &r.pos).v("Rot", &r.rot).v("Scale", &r.scale).v("Spoint", &r.spoint);
-            j.raw("CMPSTR", cstr(r.cmp_str)).raw("CLUTSTR", cstr(r.clut_str)).raw("CLUT", cstr(r.clut_name));
-            j.i("EnyFlg", r.eny_flg).i("Flg", r.flg).raw("FlgP", "null".into()).u("Transparency", r.transparency);
-            j.u("Tpoint", r.tpoint).raw("Effccsc", "\"particle\"".into()).raw("EffCmp", clump(fx, r.eff_cmp, r.clut));
+            j.raw("CMPSTR", &cstr(r.cmp_str)).raw("CLUTSTR", &cstr(r.clut_str)).raw("CLUT", &cstr(r.clut_name));
+            j.i("EnyFlg", r.eny_flg).i("Flg", r.flg).raw("FlgP", "null").u("Transparency", r.transparency);
+            j.u("Tpoint", r.tpoint).raw("Effccsc", "\"particle\"").raw("EffCmp", &clump(fx, r.eff_cmp, r.clut));
             "ccRingElement"
         }
         Element::Tornade(t) => {
             base(&mut j, &t.base);
-            j.i("m_skillPtr@190", t.skill).raw("m_offsets", m4(&t.offsets)).i("m_index", t.index);
+            j.i("m_skillPtr@190", t.skill).raw("m_offsets", &m4(&t.offsets)).i("m_index", t.index);
             j.v("m_tPos", &t.t_pos).i("m_skillType", t.skill_type);
             "ccTornadeElement"
         }
         Element::Fall(f) => return fall_elm(fx, f),
         Element::ThunderFall(f) => {
             base(&mut j, &f.base);
-            j.raw("m_drawElmTbl", format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", f.elm_num);
+            j.raw("m_drawElmTbl", &format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", f.elm_num);
             let el: Vec<String> = f
                 .elements
                 .iter()
                 .map(|s| {
                     let mut k = J::new();
-                    k.raw("elm", draw_elm(fx, &s.elm)).i("interval", s.interval).i("status", s.status);
+                    k.raw("elm", &draw_elm(fx, &s.elm)).i("interval", s.interval).i("status", s.status);
                     k.s()
                 })
                 .collect();
-            j.raw("m_elements", format!("[{}]", el.join(", ")));
+            j.raw("m_elements", &format!("[{}]", el.join(", ")));
             j.i("m_skillPtr@5a4", f.skill).v("m_tPos", &f.t_pos);
             "ccThunderFallElement"
         }
         Element::Convergence(c) => {
             base(&mut j, &c.base);
-            j.raw("m_drawElmTbl", format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", c.elm_num);
+            j.raw("m_drawElmTbl", &format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", c.elm_num);
             let el: Vec<String> = c
                 .elements
                 .iter()
                 .map(|s| {
                     let mut k = J::new();
-                    k.raw("elm", draw_elm(fx, &s.elm)).i("interval", s.interval);
-                    k.raw("cp", format!("[{}, {}]", list(&s.cp[0]), list(&s.cp[1]))).u("time", s.time);
+                    k.raw("elm", &draw_elm(fx, &s.elm)).i("interval", s.interval);
+                    k.raw("cp", &format!("[{}, {}]", list(&s.cp[0]), list(&s.cp[1]))).u("time", s.time);
                     k.i("status", s.status).i("life", s.life);
                     k.s()
                 })
                 .collect();
-            j.raw("m_elements", format!("[{}]", el.join(", "))).i("m_skillPtr@5a4", c.skill);
+            j.raw("m_elements", &format!("[{}]", el.join(", "))).i("m_skillPtr@5a4", c.skill);
             j.i("m_generateSEOne", c.generate_se_one).i("m_moveSEOne", c.move_se_one);
             j.i("m_shockSEOne", c.shock_se_one).v("m_tPos", &c.t_pos);
             "ccConvergenceElement"
@@ -492,7 +492,7 @@ fn element(fx: &Effects, e: &Element) -> String {
         Element::Draw(d) => return draw_elm(fx, d),
         Element::Upheaval(u) => {
             base(&mut j, &u.base);
-            j.raw("m_drawElmTbl", format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", 0);
+            j.raw("m_drawElmTbl", &format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", 0);
             j.i("m_skillPtr@5a0", u.skill);
             match &u.kind {
                 MngrKind::Soil | MngrKind::Dark => {}
@@ -505,14 +505,14 @@ fn element(fx: &Effects, e: &Element) -> String {
                             format!("{{\"elm\": {e}, \"status\": {}}}", s.status)
                         })
                         .collect();
-                    j.raw("m_elements", format!("[{}]", el.join(", ")));
-                    j.raw("m_bigIce", p.big_ice.as_ref().map_or("null".into(), |e| draw_elm(fx, e)));
-                    j.raw("m_animateBigIce", animate(&p.animate_big_ice));
+                    j.raw("m_elements", &format!("[{}]", el.join(", ")));
+                    j.raw("m_bigIce", &p.big_ice.as_ref().map_or("null".into(), |e| draw_elm(fx, e)));
+                    j.raw("m_animateBigIce", &animate(&p.animate_big_ice));
                 }
                 MngrKind::Tree(p) => {
-                    j.raw("m_bigTree", clump(fx, p.big_tree, None)).v("m_treeOffset", &p.tree_offset);
-                    j.raw("m_anmRoots", anm(fx, &p.anm_roots)).raw("m_treeAnimate", animate(&p.tree_animate));
-                    j.raw("m_gpLeaf", if p.gp_leaf.is_some() { "\"ptr\"".into() } else { "null".into() });
+                    j.raw("m_bigTree", &clump(fx, p.big_tree, None)).v("m_treeOffset", &p.tree_offset);
+                    j.raw("m_anmRoots", &anm(fx, &p.anm_roots)).raw("m_treeAnimate", &animate(&p.tree_animate));
+                    j.raw("m_gpLeaf", if p.gp_leaf.is_some() { "\"ptr\"" } else { "null" });
                 }
             }
             j.v("m_tPos", &u.t_pos);
@@ -522,21 +522,21 @@ fn element(fx: &Effects, e: &Element) -> String {
             base(&mut j, &u.base);
             match &u.kind {
                 PartKind::Rock { rock } => {
-                    j.raw("m_rock", clump(fx, *rock, None));
+                    j.raw("m_rock", &clump(fx, *rock, None));
                 }
                 PartKind::Tree { tree } => {
-                    j.raw("m_tree", clump(fx, *tree, None));
+                    j.raw("m_tree", &clump(fx, *tree, None));
                 }
                 PartKind::Hand { hand, offset } => {
-                    j.raw("m_hand", anm(fx, hand)).v("m_offset@1a0", offset);
+                    j.raw("m_hand", &anm(fx, hand)).v("m_offset@1a0", offset);
                 }
             }
             u.class()
         }
         Element::Summons(u) => {
             base(&mut j, &u.base);
-            j.raw("m_drawElmTbl", format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", 0);
-            j.raw("m_effCircle", elm_ptr(fx, u.circle)).raw("m_effSummon", summoned(fx, u.summoned()));
+            j.raw("m_drawElmTbl", &format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", 0);
+            j.raw("m_effCircle", &elm_ptr(fx, u.circle)).raw("m_effSummon", &summoned(fx, u.summoned()));
             j.i("m_skillPtr@5a8", u.skill);
             "ccSummonsSystemElement"
         }
@@ -546,12 +546,12 @@ fn element(fx: &Effects, e: &Element) -> String {
                 .anm
                 .as_ref()
                 .map_or("null".into(), |(o, p)| format!("[\"anm\", \"{}\", {}]", fx.assets.name(*o), p.time));
-            j.raw("m_anmShield", a).i("m_targetChar", u.target);
+            j.raw("m_anmShield", &a).i("m_targetChar", u.target);
             "ccResistantShieldElement"
         }
         Element::EnergyGrow(u) => {
             base(&mut j, &u.base);
-            j.raw("m_energy", eff_state(fx, u.energy.as_deref()));
+            j.raw("m_energy", &eff_state(fx, u.energy.as_deref()));
             let t: Vec<String> = u
                 .tbl
                 .iter()
@@ -563,7 +563,7 @@ fn element(fx: &Effects, e: &Element) -> String {
                     k.s()
                 })
                 .collect();
-            j.raw("m_energyTbl", format!("[{}]", t.join(", "))).i("m_tblNum", u.tbl.len() as i64);
+            j.raw("m_energyTbl", &format!("[{}]", t.join(", "))).i("m_tblNum", u.tbl.len() as i64);
             j.i("m_genV", u.gen_v).i("m_genA", u.gen_a).u("m_genRnd", u.gen_rnd);
             j.u("m_movV", u.mov[0]).u("m_movA", u.mov[1]).u("m_movMax", u.mov[2]).u("m_movRnd", u.mov[3]);
             j.u("m_radius", u.rad[0]).u("m_radV", u.rad[1]).u("m_radMax", u.rad[2]).u("m_radRnd", u.rad[3]);
@@ -617,13 +617,13 @@ fn v2(v: &[V4; 2]) -> String {
 fn summoned(fx: &Effects, u: &Summoned) -> String {
     let mut j = J::new();
     base(&mut j, &u.base);
-    j.raw("m_drawElmTbl", format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", u.elm_num);
+    j.raw("m_drawElmTbl", &format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", u.elm_num);
     let arr = |v: Vec<String>| format!("[{}]", v.join(", "));
     match &u.kind {
         SummonKind::Fire { elements } => {
             let el =
                 elements.iter().map(|s| format!("{{\"elm\": {}, \"interval\": {}}}", draw_elm(fx, &s.elm), s.interval));
-            j.raw("m_elements", arr(el.collect()));
+            j.raw("m_elements", &arr(el.collect()));
         }
         SummonKind::Water { elements, ice_fall } => {
             let el = elements.as_ref().map_or("null".into(), |els| {
@@ -632,16 +632,16 @@ fn summoned(fx: &Effects, u: &Summoned) -> String {
                     .map(|s| format!("{{\"elm\": {}, \"interval\": {}}}", draw_members(fx, &s.elm), s.interval))
                     .collect())
             });
-            j.raw("m_elements", el).raw("m_gp", "null".into());
-            j.raw("m_iceFall", ice_fall.as_ref().map_or("null".into(), |f| fall_elm(fx, f)));
+            j.raw("m_elements", &el).raw("m_gp", "null");
+            j.raw("m_iceFall", &ice_fall.as_ref().map_or("null".into(), |f| fall_elm(fx, f)));
         }
         SummonKind::Thunder { bolts, small, base_pos, shock_se_one } => {
             let b =
                 bolts.iter().map(|b| format!("{{\"elm\": {}, \"status\": {}}}", draw_members(fx, &b.elm), b.status));
-            j.raw("m_thunderTbl", arr(b.collect()));
+            j.raw("m_thunderTbl", &arr(b.collect()));
             let s =
                 small.iter().map(|s| format!("{{\"thunder\": {}, \"status\": {}}}", elm_ptr(fx, s.thunder), s.status));
-            j.raw("m_smallThunderTbl", arr(s.collect())).v("m_basePos", base_pos).i("m_shockSEOne", *shock_se_one);
+            j.raw("m_smallThunderTbl", &arr(s.collect())).v("m_basePos", base_pos).i("m_shockSEOne", *shock_se_one);
         }
         SummonKind::Dark { bats, bat_generate_se, bat_shock_se, smoke_generate_se_one, balls, dark_ball } => {
             let el = bats.as_ref().map_or("null".into(), |v| {
@@ -649,20 +649,20 @@ fn summoned(fx: &Effects, u: &Summoned) -> String {
                     .iter()
                     .map(|b| {
                         let mut k = J::new();
-                        k.raw("elm", draw_members(fx, &b.elm)).i("status", b.status).v("spP", &b.sp).v("epP", &b.ep);
-                        k.raw("cpP", v2(&b.cp)).u("splineTime", b.t).i("timeMode", b.time_mode);
+                        k.raw("elm", &draw_members(fx, &b.elm)).i("status", b.status).v("spP", &b.sp).v("epP", &b.ep);
+                        k.raw("cpP", &v2(&b.cp)).u("splineTime", b.t).i("timeMode", b.time_mode);
                         k.s()
                     })
                     .collect())
             });
-            j.raw("m_elements", el).i("m_batGenerateSE", *bat_generate_se).i("m_batShockSE", *bat_shock_se);
+            j.raw("m_elements", &el).i("m_batGenerateSE", *bat_generate_se).i("m_batShockSE", *bat_shock_se);
             j.i("m_smokeGenerateSEOne", *smoke_generate_se_one);
             let bl = balls.as_ref().map_or("null".into(), |v| {
                 arr(v
                     .iter()
                     .map(|b| {
                         let mut k = J::new();
-                        k.raw("elm", draw_members(fx, &b.elm)).v("spP", &b.sp).v("epP", &b.ep).v("cpP", &b.cp[0]);
+                        k.raw("elm", &draw_members(fx, &b.elm)).v("spP", &b.sp).v("epP", &b.ep).v("cpP", &b.cp[0]);
                         k.i("status", b.status)
                             .u("splineTime", b.t)
                             .u("addTime", b.add_time)
@@ -671,7 +671,7 @@ fn summoned(fx: &Effects, u: &Summoned) -> String {
                     })
                     .collect())
             });
-            j.raw("m_ballTbl", bl).raw("m_darkBall", draw_elm(fx, dark_ball));
+            j.raw("m_ballTbl", &bl).raw("m_darkBall", &draw_elm(fx, dark_ball));
         }
         SummonKind::Soil { elements } => {
             let el = elements.iter().map(|s| {
@@ -682,7 +682,7 @@ fn summoned(fx: &Effects, u: &Summoned) -> String {
                     s.interval
                 )
             });
-            j.raw("m_elements", arr(el.collect()));
+            j.raw("m_elements", &arr(el.collect()));
         }
         SummonKind::Tree { needles, roots, gp_leaf, cmp_tree, anm_roots, tree_alpha } => {
             let el = needles.as_ref().map_or("null".into(), |v| {
@@ -690,16 +690,16 @@ fn summoned(fx: &Effects, u: &Summoned) -> String {
                     .iter()
                     .map(|n| {
                         let mut k = J::new();
-                        k.raw("elm", draw_members(fx, &n.elm)).i("interval", n.interval).i("status", n.status);
-                        k.raw("cp", v2(&n.cp)).u("splineTime", n.t);
+                        k.raw("elm", &draw_members(fx, &n.elm)).i("interval", n.interval).i("status", n.status);
+                        k.raw("cp", &v2(&n.cp)).u("splineTime", n.t);
                         k.s()
                     })
                     .collect())
             });
-            j.raw("m_needleTbl", el);
-            j.raw("m_rootsTbl", arr(roots.iter().map(|p| format!("{{\"pos\": {}}}", list(p))).collect()));
-            j.raw("m_gpLeaf", gp(*gp_leaf)).raw("m_cmpTree", clump(fx, *cmp_tree, None));
-            j.raw("m_anmRoots", anm(fx, &anm_roots.as_deref().cloned())).u("m_treeAlpha", *tree_alpha);
+            j.raw("m_needleTbl", &el);
+            j.raw("m_rootsTbl", &arr(roots.iter().map(|p| format!("{{\"pos\": {}}}", list(p))).collect()));
+            j.raw("m_gpLeaf", &gp(*gp_leaf)).raw("m_cmpTree", &clump(fx, *cmp_tree, None));
+            j.raw("m_anmRoots", &anm(fx, &anm_roots.as_deref().cloned())).u("m_treeAlpha", *tree_alpha);
         }
         SummonKind::Goblin { gen_pos, gen_pos_p, elements, stars } => {
             j.v("m_genPos", gen_pos).v("m_genPosP", gen_pos_p);
@@ -708,14 +708,14 @@ fn summoned(fx: &Effects, u: &Summoned) -> String {
                     .iter()
                     .map(|e| {
                         let mut k = J::new();
-                        k.raw("gp", gp(e.gp)).raw("star", draw_members(fx, &e.star)).i("status", e.status);
-                        k.v("pos", &e.pos).u("splineTime", e.t).u("splineSpd", e.spd).raw("cp", v2(&e.cp));
-                        k.raw("cpP", v2(&e.cp_p)).v("ep", &e.ep).v("epP", &e.ep_p);
+                        k.raw("gp", &gp(e.gp)).raw("star", &draw_members(fx, &e.star)).i("status", e.status);
+                        k.v("pos", &e.pos).u("splineTime", e.t).u("splineSpd", e.spd).raw("cp", &v2(&e.cp));
+                        k.raw("cpP", &v2(&e.cp_p)).v("ep", &e.ep).v("epP", &e.ep_p);
                         k.s()
                     })
                     .collect())
             });
-            j.raw("m_elements", el);
+            j.raw("m_elements", &el);
             let st = stars.as_ref().map_or("null".into(), |v| {
                 arr(v
                     .iter()
@@ -729,7 +729,7 @@ fn summoned(fx: &Effects, u: &Summoned) -> String {
                     })
                     .collect())
             });
-            j.raw("m_starTbl", st);
+            j.raw("m_starTbl", &st);
         }
     }
     j.v("m_tPos", &u.t_pos);
@@ -739,7 +739,7 @@ fn summoned(fx: &Effects, u: &Summoned) -> String {
 fn fall_elm(fx: &Effects, f: &piney_effect::fall::FallElement) -> String {
     let mut j = J::new();
     base(&mut j, &f.base);
-    j.raw("m_drawElmTbl", format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", f.elm_num);
+    j.raw("m_drawElmTbl", &format!("[{}]", vec!["null"; 256].join(", "))).i("m_elmNum", f.elm_num);
     j.u("SPIRAL_RADIUS", f.spiral_radius).u("SPIRAL_HEIGHT", f.spiral_height).i("m_hitCheck", f.hit_check);
     j.u("m_velocity", f.velocity).i("m_skillPtr@5b0", f.skill).i("m_iceShockSEOne", f.ice_shock_se_one);
     let el: Vec<String> = f
@@ -747,12 +747,12 @@ fn fall_elm(fx: &Effects, f: &piney_effect::fall::FallElement) -> String {
         .iter()
         .map(|s| {
             let mut k = J::new();
-            k.raw("elm", draw_elm(fx, &s.elm)).u("height", s.height).u("radius", s.radius).u("rad", s.rad);
+            k.raw("elm", &draw_elm(fx, &s.elm)).u("height", s.height).u("radius", s.radius).u("rad", s.rad);
             k.i("interval", s.interval).i("status", s.status).i("seOn", s.se_on);
             k.s()
         })
         .collect();
-    j.raw("m_elements", format!("[{}]", el.join(", ")));
+    j.raw("m_elements", &format!("[{}]", el.join(", ")));
 
     format!("[\"ccFallElement\", {}]", j.s())
 }
@@ -772,64 +772,64 @@ fn draw_members(fx: &Effects, d: &DrawElm) -> String {
     base(&mut j, &d.base);
     match &d.kind {
         DrawKind::Fire { anm: a, kasa, kasa_rot, sync_sw, count } => {
-            j.raw("m_anmFire", anm(fx, a)).raw("m_cmpKasa", clump(fx, *kasa, None)).u("m_kasaRot", *kasa_rot);
+            j.raw("m_anmFire", &anm(fx, a)).raw("m_cmpKasa", &clump(fx, *kasa, None)).u("m_kasaRot", *kasa_rot);
             j.i("m_syncSW", *sync_sw).i("m_count@1a0", *count);
         }
         DrawKind::Rock { cmp } => {
-            j.raw("m_cmpRock", clump(fx, *cmp, None));
+            j.raw("m_cmpRock", &clump(fx, *cmp, None));
         }
         DrawKind::Dark { cmp } => {
-            j.raw("m_cmpDark", clump(fx, *cmp, None));
+            j.raw("m_cmpDark", &clump(fx, *cmp, None));
         }
         DrawKind::Ice { cmp } => {
-            j.raw("m_cmpIce", clump(fx, *cmp, None));
+            j.raw("m_cmpIce", &clump(fx, *cmp, None));
         }
         DrawKind::Thunder { bow, connection, anm_index, b_shock } => {
             let c: Vec<String> =
                 connection.iter().map(|c| format!("{{\"pos\": {}, \"posP\": {}}}", list(&c[0]), list(&c[1]))).collect();
-            j.raw("m_bow", clump(fx, *bow, None)).raw("m_connection", format!("[{}]", c.join(", ")));
+            j.raw("m_bow", &clump(fx, *bow, None)).raw("m_connection", &format!("[{}]", c.join(", ")));
             j.i("m_anmIndex", *anm_index).i("m_bShock", *b_shock);
         }
         DrawKind::FireBall { anm: a } => {
-            j.raw("m_anmBall", anm(fx, a));
+            j.raw("m_anmBall", &anm(fx, a));
         }
         DrawKind::PlasmaBall { anm: a, org_scale } => {
-            j.raw("m_anmBall", anm(fx, a)).u("m_orgScale", *org_scale);
+            j.raw("m_anmBall", &anm(fx, a)).u("m_orgScale", *org_scale);
         }
         DrawKind::DarkBat { anm: a } => {
-            j.raw("m_anmBat", anm(fx, a));
+            j.raw("m_anmBat", &anm(fx, a));
         }
         DrawKind::Blantch { cmp } => {
-            j.raw("m_cmpTree", clump(fx, *cmp, None));
+            j.raw("m_cmpTree", &clump(fx, *cmp, None));
         }
         DrawKind::Explode { anm: a, subst } => {
-            j.raw("m_anm", anm(fx, a));
+            j.raw("m_anm", &anm(fx, a));
             let s: Vec<String> = subst.iter().map(|(o, c)| format!("[\"{o}\", \"{c}\"]")).collect();
-            j.raw("subst", format!("[{}]", s.join(", ")));
+            j.raw("subst", &format!("[{}]", s.join(", ")));
         }
         DrawKind::MagicCircle { cmp, clut, scale_spd, scale_limit, fade_spd, fade_limit } => {
-            j.raw("m_cmpCircle", clump(fx, *cmp, *clut))
+            j.raw("m_cmpCircle", &clump(fx, *cmp, *clut))
                 .u("m_scaleSpd@194", *scale_spd)
                 .u("m_scaleLimit", *scale_limit);
             j.u("m_fadeSpd@19c", *fade_spd).u("m_fadeLimit", *fade_limit);
         }
         DrawKind::Bubble { eff, pat } => {
-            j.raw("m_bubble", eff_state(fx, eff.as_deref())).u("m_pat", *pat);
+            j.raw("m_bubble", &eff_state(fx, eff.as_deref())).u("m_pat", *pat);
         }
         DrawKind::Needle { cmp } => {
-            j.raw("m_needle", clump(fx, *cmp, None));
+            j.raw("m_needle", &clump(fx, *cmp, None));
         }
         DrawKind::Star { eff, gp_sm, gp_tail, gp_tail2 } => {
-            j.raw("m_star", eff_state(fx, eff.as_deref())).raw("m_gpSm", gp(*gp_sm)).raw("m_gpTail", gp(*gp_tail));
-            j.raw("m_gpTail2", gp(*gp_tail2));
+            j.raw("m_star", &eff_state(fx, eff.as_deref())).raw("m_gpSm", &gp(*gp_sm)).raw("m_gpTail", &gp(*gp_tail));
+            j.raw("m_gpTail2", &gp(*gp_tail2));
         }
         DrawKind::DarkBall { gp_star, gp_conv, eff } => {
-            j.raw("m_gpStar", gp(*gp_star))
-                .raw("m_gpConv", gp(*gp_conv))
-                .raw("m_effDark", eff_state(fx, eff.as_deref()));
+            j.raw("m_gpStar", &gp(*gp_star))
+                .raw("m_gpConv", &gp(*gp_conv))
+                .raw("m_effDark", &eff_state(fx, eff.as_deref()));
         }
         DrawKind::LightBall { gp_ball, cmp_ball } => {
-            j.raw("m_gpBall", gp(*gp_ball)).raw("m_cmpBall", clump(fx, *cmp_ball, None));
+            j.raw("m_gpBall", &gp(*gp_ball)).raw("m_cmpBall", &clump(fx, *cmp_ball, None));
         }
     }
     j.s()

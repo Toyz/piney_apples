@@ -214,7 +214,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = Rc::new(SceneFile::read(&archive, piney_demo::names::TITLE_FILE)?);
     // Each volume's title (Infection's archive has all four), and the
     // volume the requests after a `vol N` line run as.
-    let mut files = vec![file.clone()];
+    let mut files = vec![file];
     for v in [piney_data::volume::Volume::Mut, piney_data::volume::Volume::Out, piney_data::volume::Volume::Qua] {
         files.push(Rc::new(SceneFile::read(&archive, piney_demo::names::title_file(v))?));
     }
@@ -783,7 +783,7 @@ fn lit(iso_path: &str, archive: &Arc<Archive>, frames: &[i64]) -> Result<String,
     use piney_gs::convert::{Params, Screen};
 
     let mut iso = Iso::open(iso_path)?;
-    let mut d = Demo::new(&mut iso, archive.clone(), Config::default())?;
+    let mut d = Demo::new(&mut iso, archive, Config::default())?;
     let pad = Pad::default();
     for _ in 0..2000 {
         if d.phase() == Phase::Title && d.opening().main_act == act::NEUTRAL {

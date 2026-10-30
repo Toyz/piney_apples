@@ -8,6 +8,9 @@
 //! write them with the colour), dithering, 8-bit rounding in the pipeline.
 //! The frame's vertices go in kept buffers within the device's size limit;
 //! a lost device stops the drawing until [`Gs::renewed`] (worklog 408).
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod assets;
 pub mod convert;

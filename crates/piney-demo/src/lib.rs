@@ -6,6 +6,9 @@
 //! [`Demo::step`] is one pass between breaths; the movies and the stream are
 //! asked of the runtime ([`Request::Movie`], [`Request::Stream`]). The boot
 //! check ([`card`]) and the load screen ([`dataload`]) share one `ccSaveSys`.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod card;
 pub mod dataload;
@@ -219,12 +222,12 @@ pub struct Demo {
 impl Demo {
     /// `ccSetupDemo` as far as the title goes: the overlay checked, `title1`
     /// read from `DATA.BIN`.
-    pub fn new(iso: &mut Iso, archive: Arc<Archive>, config: Config) -> piney_data::Result<Demo> {
+    pub fn new(iso: &mut Iso, archive: &Arc<Archive>, config: Config) -> piney_data::Result<Demo> {
         let prg = Overlay::parse(iso.read_path(names::PRG_PATH)?)?;
         if prg.name != names::PRG_NAME {
             return Err(piney_data::Error::Format(format!("{} is {}", names::PRG_PATH, prg.name)));
         }
-        let file = Rc::new(SceneFile::read(&archive, names::title_file(iso.volume()?))?);
+        let file = Rc::new(SceneFile::read(archive, names::title_file(iso.volume()?))?);
         let font = Ccs::parse(archive.inflate_named(piney_desktop::assets::FONT_FILE)?)?;
         let (_, cluts) = piney_data::texture::read(&font)?;
         let clut = font
@@ -237,7 +240,7 @@ impl Demo {
         let mut config = config;
         config.volume = iso.volume()?;
         if config.menu.is_none() {
-            config.menu = Some(Box::new(TitleMenu::new(iso.volume()?, &archive)));
+            config.menu = Some(Box::new(TitleMenu::new(iso.volume()?, archive)));
         }
         let mut demo = Self::with_file(file, config);
         // ccSetupDemo: saveData->NewGame(1), before the task starts.

@@ -17,6 +17,9 @@
 //!               file's bytes), cluster +0x10 (relative), name +0x40 (32)
 //! ```
 
+// A disc or file reader: its data may be any length and any bytes.
+#![deny(clippy::cast_possible_truncation, clippy::unwrap_used, clippy::expect_used)]
+
 use crate::{Error, Result};
 
 const MAGIC: &[u8] = b"Sony PS2 Memory Card Format ";
@@ -220,7 +223,7 @@ pub(crate) mod tests {
         let mut fat = vec![0u32; CL / 4];
         let mut next = 0u32;
         let mut put = |bytes: &[u8], cl: &mut Vec<Vec<u8>>, fat: &mut Vec<u32>| -> u32 {
-            let n = bytes.len().div_ceil(CL).max(1) as u32;
+            let n = u32::try_from(bytes.len().div_ceil(CL).max(1)).unwrap();
             let first = next;
             for i in 0..n {
                 let c = first + i;
@@ -243,9 +246,9 @@ pub(crate) mod tests {
         let mut file_entries = Vec::new();
         for (name, bytes) in files {
             let c = if bytes.is_empty() { 0 } else { put(bytes, &mut cl, &mut fat) };
-            file_entries.push(entry(name, EXISTS | FILE | 7, bytes.len() as u32, c));
+            file_entries.push(entry(name, EXISTS | FILE | 7, u32::try_from(bytes.len()).unwrap(), c));
         }
-        let dir_n = file_entries.len() as u32 + 2;
+        let dir_n = u32::try_from(file_entries.len()).unwrap() + 2;
         let mut dir_bytes = entry(".", EXISTS | DIRECTORY | 7, dir_n, 0);
         dir_bytes.extend(entry("..", EXISTS | DIRECTORY | 7, 0, 0));
         for e in &file_entries {
@@ -283,8 +286,8 @@ pub(crate) mod tests {
     /// files' names and bytes, one of them over two clusters and one empty.
     #[test]
     fn a_save_directory_reads_back() {
-        let big: Vec<u8> = (0..0x8530u32).map(|i| (i * 7) as u8).collect();
-        let files = [("icon.sys", vec![1u8; 964]), ("dhdata01", big.clone()), ("dhdata02", Vec::new())];
+        let big: Vec<u8> = (0..0x8530u32).map(|i| (i * 7).to_le_bytes()[0]).collect();
+        let files = [("icon.sys", vec![1u8; 964]), ("dhdata01", big), ("dhdata02", Vec::new())];
         for ecc in [false, true] {
             let card = Card::open(build("BASLUS-20267DOTHACK", &files, ecc)).unwrap();
             let root = card.root().unwrap();

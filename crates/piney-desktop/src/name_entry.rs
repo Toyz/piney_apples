@@ -1285,8 +1285,8 @@ fn texture(archive: &Archive, file: &str, name: &str) -> Result<(TexRef, i32)> {
 impl NameEntry {
     /// `new NameEntry_Control; Init()`: the disc's volume for the fonts,
     /// and the textures (`xwindow`, `xwin_f00`, `xasc00`).
-    pub fn new(iso: &mut Iso, archive: Arc<Archive>, state: &SaveState) -> Result<NameEntry> {
-        NameEntry::of(iso.volume()?, &archive, state)
+    pub fn new(iso: &mut Iso, archive: &Arc<Archive>, state: &SaveState) -> Result<NameEntry> {
+        NameEntry::of(iso.volume()?, archive, state)
     }
 
     /// As [`NameEntry::new`] for a volume.

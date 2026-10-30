@@ -121,11 +121,11 @@ pub fn rust_type_name(name: &str) -> String {
 
 pub type Overrides = Vec<(String, Layout)>;
 
-pub fn ty(name: &str, over: Overrides) -> Layout {
+pub fn ty(name: &str, over: &[(String, Layout)]) -> Layout {
     ty_doc(name, over, None)
 }
 
-pub fn ty_doc(name: &str, over: Overrides, doc: Option<&str>) -> Layout {
+pub fn ty_doc(name: &str, over: &[(String, Layout)], doc: Option<&str>) -> Layout {
     let mut keys: Vec<String> = over.iter().map(|(k, _)| k.clone()).collect();
     keys.sort();
     let key = (name.to_string(), keys);
@@ -136,7 +136,7 @@ pub fn ty_doc(name: &str, over: Overrides, doc: Option<&str>) -> Layout {
     let dw = read_dwarf();
     let Some(&d) = dw.aggregates(name).first() else { panic!("no DWARF type {name}") };
     let d = dw.die(d);
-    let lay = |t: &Ty, path: &str| layout(&dw, name, &over, t, path);
+    let lay = |t: &Ty, path: &str| layout(&dw, name, over, t, path);
     let mut fields = Vec::new();
     for &c in &d.children {
         let c = dw.die(c);
@@ -168,7 +168,7 @@ pub fn ty_doc(name: &str, over: Overrides, doc: Option<&str>) -> Layout {
     Layout::Struct(st)
 }
 
-fn layout(dw: &Dwarf, name: &str, over: &Overrides, t: &Ty, path: &str) -> Layout {
+fn layout(dw: &Dwarf, name: &str, over: &[(String, Layout)], t: &Ty, path: &str) -> Layout {
     if let Some((_, l)) = over.iter().find(|(k, _)| k == path) {
         return l.clone();
     }
@@ -194,7 +194,7 @@ fn layout(dw: &Dwarf, name: &str, over: &Overrides, t: &Ty, path: &str) -> Layou
                 .iter()
                 .filter_map(|(k, v)| k.strip_prefix(&prefix).map(|rest| (rest.to_string(), v.clone())))
                 .collect();
-            ty(sub.name().unwrap_or_default(), inner)
+            ty(sub.name().unwrap_or_default(), &inner)
         }
         Ty::Array(n, inner) => Layout::Fixed {
             inner: Box::new(layout(dw, name, over, inner, path)),

@@ -353,7 +353,7 @@ mod tests {
         assert!(!old.repair_port_save());
         // What the game writes is kept: a save with an item, a moved
         // button, pcTradeCount zero.
-        let mut real = good.clone();
+        let mut real = good;
         real.set_i16(ITEM_LIST, 0);
         real.set_u8(ITEM_LIST + 2, 0);
         real.set_u8(ITEM_LIST + 3, 1);

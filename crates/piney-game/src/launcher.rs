@@ -387,7 +387,7 @@ fn selector(out: &Path, events: &mut Vec<Event>) -> Result<StreamPlayer, String>
     let mut disc = crate::open_disc(out).map_err(|e| format!("{}: {e}", out.display()))?;
     let raw = disc.read_path(STRT).map_err(|e| format!("{STRT}: {e}"))?;
     let entries = piney_stream::load::scan(&raw).map_err(|e| format!("{STRT}: {e}"))?;
-    let stream = piney_stream::load::loose_streams(entries)
+    let stream = piney_stream::load::loose_streams(&entries)
         .into_iter()
         .find(|s| s.iter().any(|e| e.name == SELECTOR))
         .ok_or_else(|| format!("{STRT}: no {SELECTOR}"))?;
@@ -557,8 +557,7 @@ mod tests {
             return;
         }
         let audio = piney_audio::Audio::headless(&out).unwrap();
-        let mut l =
-            LauncherMode::new([Some(out.clone()), Some(out.clone()), Some(out.clone()), None], None, None, None);
+        let mut l = LauncherMode::new([Some(out.clone()), Some(out.clone()), Some(out), None], None, None, None);
         let mut pad = Pad::default();
         let mut buf = vec![0i16; 2 * 800];
         let (mut logo_heard, mut menu_heard) = (0, 0);

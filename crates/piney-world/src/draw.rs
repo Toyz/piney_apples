@@ -86,7 +86,7 @@ pub struct Draw<'a> {
 /// `ccObj::Draw` / `ccModel::Draw` into layer `layer`: the opaque mmats as
 /// one command at the front of the layer, the translucent ones in its
 /// sorted group; each list in reverse mmat order.
-pub fn model(layers: &mut Layers, layer: i16, to_screen: Mat4, d: Draw) {
+pub fn model(layers: &mut Layers, layer: i16, to_screen: Mat4, d: &Draw) {
     model_edited(layers, layer, to_screen, d, None, Fogging::None);
 }
 
@@ -96,7 +96,7 @@ pub fn model_edited(
     layers: &mut Layers,
     layer: i16,
     to_screen: Mat4,
-    d: Draw,
+    d: &Draw,
     edits: Option<&std::sync::Arc<piney_draw::VertexEdits>>,
     fog: Fogging,
 ) {
@@ -109,7 +109,7 @@ pub fn model_swapped(
     layers: &mut Layers,
     layer: i16,
     to_screen: Mat4,
-    d: Draw,
+    d: &Draw,
     edits: Option<&std::sync::Arc<piney_draw::VertexEdits>>,
     fog: Fogging,
     tex_swaps: &[(u32, u32)],
@@ -124,7 +124,7 @@ pub fn model_blended(
     layers: &mut Layers,
     layer: i16,
     to_screen: Mat4,
-    d: Draw,
+    d: &Draw,
     edits: Option<&std::sync::Arc<piney_draw::VertexEdits>>,
     fog: Fogging,
     tex_swaps: &[(u32, u32)],

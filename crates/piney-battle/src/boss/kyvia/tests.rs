@@ -236,7 +236,7 @@ fn the_meteors_fall_on_the_disc() {
     let Some(mut f) = fight() else { return };
     let (pos, t) = f.with_cx(|cx| {
         let m = Meteorite::new(cx, VF0, 0x43fa_0000, 7);
-        (m.end.clone(), m.step.clone())
+        (m.end.clone(), m.step)
     });
     assert_eq!(pos.len(), 7);
     for (p, s) in pos.iter().zip(&t) {

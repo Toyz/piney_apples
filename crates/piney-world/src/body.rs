@@ -338,7 +338,7 @@ impl Body {
             };
             // ChangeTex is the body's clump's: attached models keep theirs.
             let swaps: &[(u32, u32)] = if k.is_some() { &[] } else { &self.tex_swaps };
-            draw::model_blended(layers, layer, to_screen, d, None, fog, swaps, self.blend);
+            draw::model_blended(layers, layer, to_screen, &d, None, fog, swaps, self.blend);
         }
         // The shadow models: the instances', and each attached model's own
         // object's, at the node it rides.

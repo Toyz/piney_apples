@@ -151,7 +151,7 @@ pub fn scan(raw: &[u8]) -> Result<Vec<Entry>> {
 /// setup file (a name ending in `e`: `type` 0, `flag` 16, read whole first,
 /// as the tables' `strNNNNe` records are) with the scene after it whose
 /// name is that stem, or a record alone as its stream's last scene.
-pub fn loose_streams(entries: Vec<Entry>) -> Vec<Vec<Entry>> {
+pub fn loose_streams(entries: &[Entry]) -> Vec<Vec<Entry>> {
     let mut out = Vec::new();
     let mut i = 0;
     while i < entries.len() {
@@ -200,7 +200,7 @@ mod tests {
         let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["title1_st1t", "title1_st1t2", "title2_st1", "str9999e", "str9999", "trial_v2st"]);
         assert_eq!(entries[4].gzip, 7_703_772);
-        let streams = loose_streams(entries);
+        let streams = loose_streams(&entries);
         assert_eq!(streams.len(), 5);
         assert_eq!((streams[3][0].kind, streams[3][0].flag, streams[3][1].kind), (0, crate::table::FLAG_PRELOAD, -1));
     }

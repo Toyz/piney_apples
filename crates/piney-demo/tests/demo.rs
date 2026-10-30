@@ -34,7 +34,7 @@ impl Run {
     fn new(config: Config) -> Option<Run> {
         let mut iso = Iso::open(iso_path()?).unwrap();
         let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        let d = Demo::new(&mut iso, archive, config).unwrap();
+        let d = Demo::new(&mut iso, &archive, config).unwrap();
         Some(Run { d, pad: Pad::default(), requests: Vec::new(), frame: 0 })
     }
 

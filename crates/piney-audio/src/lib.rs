@@ -6,6 +6,9 @@
 //! SNDBASE.IRX's 4,167 us tick and mixed at 48 kHz; BGM.BIN's tracks and the
 //! voice lines ([`seword`]) go to the sound-data input. [`Audio::open`] plays
 //! through the default output (silence when none); [`Audio::headless`] renders.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod driver;
 pub mod hsyn;

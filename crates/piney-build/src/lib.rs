@@ -4,6 +4,9 @@
 //! (`plans/build-data.md`). A build keeps them in each disc's manifest;
 //! a disc image played on its own keeps them in its data folder in the
 //! port's home ([`image_data`]).
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 use std::path::Path;
 

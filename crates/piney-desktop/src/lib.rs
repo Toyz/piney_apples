@@ -6,6 +6,9 @@
 //! `ccTscb::Breath` calls a frame; [`Desktop::step`] is one pass between
 //! breaths. The content is read from the disc image; the game state events
 //! own is [`SaveState`].
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod acces;
 pub mod anm;

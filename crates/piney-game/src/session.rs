@@ -331,7 +331,7 @@ impl Session {
         self.stage = match at {
             Resume::Desktop => self.enter_desktop(state, vm, piney_desktop::FRAME_RATE)?,
             Resume::Board => {
-                Stage::TopPage(Box::new(TopPageMode::enter(self.iso.clone(), self.archive.clone(), state, vm)?))
+                Stage::TopPage(Box::new(TopPageMode::enter(&self.iso.clone(), self.archive.clone(), state, vm)?))
             }
             Resume::World(w) => {
                 let InWorld { scene, world_man, spcs } = *w;
@@ -370,7 +370,7 @@ impl Session {
         if self.scene.area == piney_world::area::kind::TOWN {
             // ccClearGtHack in the town's set-up: the flag goes.
             self.gt_hack = false;
-            let mut w = WorldMode::enter_after(&self.iso, self.archive.clone(), state, vm, self.start_before)?;
+            let mut w = WorldMode::enter_after(&self.iso, &self.archive.clone(), state, vm, self.start_before)?;
             self.start_before = w.world().start();
             w.init_rand(Arrival { frames: self.sys_frames, faded }.rand_count());
             // ccSpcManager and ccPartyManager as the last area left them.
@@ -892,7 +892,7 @@ impl Session {
         };
         let logos_played = if first_boot { self.logos_played } else { 0 };
         let config = Config { save: state.save.clone(), first_boot, card, logos_played, ..Config::default() };
-        let demo = Demo::new(&mut disc, self.archive.clone(), config).map_err(|e| format!("title: {e}"))?;
+        let demo = Demo::new(&mut disc, &self.archive.clone(), config).map_err(|e| format!("title: {e}"))?;
         Ok(Stage::Title(Box::new(Title { demo, state, vm, movie: None, stream: None })))
     }
 
@@ -965,19 +965,19 @@ impl Session {
             }
             (request::TOPPAGE, Stage::Desktop(d)) => {
                 let (state, vm) = d.leave();
-                Stage::TopPage(Box::new(TopPageMode::enter(self.iso.clone(), self.archive.clone(), state, vm)?))
+                Stage::TopPage(Box::new(TopPageMode::enter(&self.iso.clone(), self.archive.clone(), state, vm)?))
             }
             // Log Out: The World's ChangeRequest(4, 7), back to its top
             // page; the field or dungeon is left behind.
             (request::TOPPAGE, Stage::World(w)) => {
                 let (state, vm) = w.leave();
-                Stage::TopPage(Box::new(TopPageMode::enter(self.iso.clone(), self.archive.clone(), state, vm)?))
+                Stage::TopPage(Box::new(TopPageMode::enter(&self.iso.clone(), self.archive.clone(), state, vm)?))
             }
             (request::TOPPAGE, Stage::Area(a)) => {
                 self.blur_statics = a.world().combat().blur_statics;
                 let (state, vm, ..) = a.leave();
                 self.dungeon = None;
-                Stage::TopPage(Box::new(TopPageMode::enter(self.iso.clone(), self.archive.clone(), state, vm)?))
+                Stage::TopPage(Box::new(TopPageMode::enter(&self.iso.clone(), self.archive.clone(), state, vm)?))
             }
             (request::DESKTOP, Stage::TopPage(t)) => {
                 let (state, vm) = t.leave();
@@ -1016,7 +1016,7 @@ impl Session {
                 log_in(&self.iso, &mut state, self.sys_frames);
                 self.scene = piney_world::area::Scene::log_in(&mut state.save);
                 self.restock(&mut state);
-                match WorldMode::enter_after(&self.iso, self.archive.clone(), state.clone(), vm, self.start_before) {
+                match WorldMode::enter_after(&self.iso, &self.archive.clone(), state.clone(), vm, self.start_before) {
                     Ok(mut w) => {
                         self.start_before = w.world().start();
                         w.init_rand(Arrival { frames: self.sys_frames, faded: false }.rand_count());
@@ -1139,7 +1139,7 @@ impl Mode for Session {
                         Request::MainVolume(v) => self.events.push(Event::MainVolume(i32::from(v))),
                         Request::ChangeMode { num, .. } => change = Some(num),
                         // Option's system menu, as on the desktop.
-                        Request::Menu(r) => self.events.extend(desktop::event(r)),
+                        Request::Menu(r) => self.events.extend(desktop::event(&r)),
                         // `LoadGame` ends with `SetSoundEnv`: the loaded
                         // save's volumes. CONVERT's `ConvGame` calls it.
                         Request::LoadGame | Request::ConvGame => {
@@ -8251,7 +8251,7 @@ mod area15 {
         let mut start = crate::start::build(&iso, 11).unwrap();
         start.vm.trace = Some(Vec::new());
         let crate::start::Start { state, vm, at: resume } = start;
-        let mut s = Session::resume(iso.clone(), archive, None, state, vm, resume).unwrap();
+        let mut s = Session::resume(iso, archive, None, state, vm, resume).unwrap();
         hold(&mut s, 128, 128, 300, |s| matches!(&s.stage, Stage::World(_)));
         // Event 11's first line in Mac Anu, closed as a player would (the
         // gate's menu would not open over it).

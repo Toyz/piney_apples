@@ -198,7 +198,7 @@ fn draw_node(ctx: &mut Ctx, view: &View, loaded: &Loaded, scene: &Scene, i: usiz
             .collect()
     });
     let fogged = !scene.fog_off.contains(&i);
-    draw_model(ctx, view, loaded, scene, (g, mdl), tp, &scene.world(i), nodes, morph, fogged, layer);
+    draw_model(ctx, view, loaded, scene, (g, mdl), tp, &scene.world(i), &nodes, &morph, fogged, layer);
 }
 
 /// A rigid model of file `g` drawn at `world` (f32 bits, stored columns)
@@ -213,7 +213,7 @@ pub fn draw_rigid(
     layer: i16,
 ) {
     let view = scene_view(scene);
-    draw_model(ctx, &view, loaded, scene, model, 1.0, world, Vec::new(), Vec::new(), true, layer);
+    draw_model(ctx, &view, loaded, scene, model, 1.0, world, &Vec::new(), &Vec::new(), true, layer);
 }
 
 /// `ccModel::Draw` of `mdl` of file `g` at `world` with transparency `tp`.
@@ -226,8 +226,8 @@ fn draw_model(
     (g, mdl): (usize, u32),
     tp: f32,
     lw: &[[u32; 4]; 4],
-    nodes: Vec<[[f32; 4]; 4]>,
-    morph: Vec<(u32, f32)>,
+    nodes: &[[[f32; 4]; 4]],
+    morph: &[(u32, f32)],
     fogged: bool,
     layer: i16,
 ) {
@@ -280,7 +280,7 @@ fn draw_model(
             file: file.stem.clone(),
             model: mdl,
             to_screen: to_screen.to_cols_array_2d(),
-            nodes: nodes.clone(),
+            nodes: nodes.to_vec(),
             mmats,
             state: state.clone(),
             tex: TexParams { func: TexFunc::Modulate, use_alpha: true, filter: Filter::Linear },
@@ -289,7 +289,7 @@ fn draw_model(
             fog: None,
             depth_fog,
             lights,
-            morph: morph.clone(),
+            morph: morph.to_vec(),
             reject_outside: false,
             div_z: scene.div_z,
             edits: None,

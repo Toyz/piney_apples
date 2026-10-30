@@ -176,7 +176,7 @@ pub struct WorldMode {
 impl WorldMode {
     /// `ccSetupNewGame` and `ccSetupGameCtrl` in town `town` on `state`.
     #[cfg(test)]
-    pub fn enter(iso: &Path, archive: Arc<Archive>, state: SaveState, vm: Option<Vm>) -> Result<WorldMode, String> {
+    pub fn enter(iso: &Path, archive: &Arc<Archive>, state: SaveState, vm: Option<Vm>) -> Result<WorldMode, String> {
         WorldMode::enter_after(iso, archive, state, vm, ([0; 4], [0; 4]))
     }
 
@@ -184,14 +184,14 @@ impl WorldMode {
     /// `before` ([`piney_world::World::enter_after`]).
     pub fn enter_after(
         iso: &Path,
-        archive: Arc<Archive>,
+        archive: &Arc<Archive>,
         mut state: SaveState,
         vm: Option<Vm>,
         before: ([u32; 4], [u32; 4]),
     ) -> Result<WorldMode, String> {
         repair_buttons(&mut state);
         let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
-        let mut ui = FieldUi::new(&mut disc, archive.clone()).map_err(|e| format!("the field's menus: {e}"))?;
+        let mut ui = FieldUi::new(&mut disc, &archive.clone()).map_err(|e| format!("the field's menus: {e}"))?;
         // The constructor's faces (ccCheckMenuFaceNameParty, gcmn
         // 0x0056a930): party slot 0 is member 0, Kite, with the bracelet's
         // colours (saveData+0x6771) or without.
@@ -208,11 +208,11 @@ impl WorldMode {
         let mut world =
             World::enter_after(&mut disc, archive.clone(), state, before).map_err(|e| format!("The World: {e}"))?;
         let t = &world.town().base;
-        let map = piney_world::map::town::TownMap::open(&archive, world.volume(), t.no, &t.file.stem)
+        let map = piney_world::map::town::TownMap::open(archive, world.volume(), t.no, &t.file.stem)
             .map_err(|e| tracing::warn!("the town's map: {e}"))
             .ok()
             .map(Box::new);
-        let town_fx = Some(crate::town_fx::TownFx::new(&archive, disc.volume().map_err(|e| e.to_string())?))
+        let town_fx = Some(crate::town_fx::TownFx::new(archive, disc.volume().map_err(|e| e.to_string())?))
             .and_then(|f| f.map_err(|e| tracing::warn!("the town's effects: {e}")).ok())
             .map(Box::new);
         let map_st = piney_world::map::MapState::new(world.state());
@@ -1632,7 +1632,7 @@ mod tests {
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let (state, vm) = new_game_events(&mut disc).unwrap();
-        let mut mode = WorldMode::enter(&iso, archive, state, Some(vm)).unwrap();
+        let mut mode = WorldMode::enter(&iso, &archive, state, Some(vm)).unwrap();
         let mut pad = Pad::default();
         let (mut f, mut events, mut presses) = (0u64, Vec::new(), Vec::new());
         while mode.scene_change().is_none() {
@@ -1696,7 +1696,7 @@ mod tests {
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let state = new_game_state(&mut disc).unwrap();
-        let mut mode = WorldMode::enter(&iso, archive, state, None).unwrap();
+        let mut mode = WorldMode::enter(&iso, &archive, state, None).unwrap();
         let pad = Pad::default();
         let mut events = Vec::new();
         for _ in 0..40 {
@@ -1722,7 +1722,7 @@ mod tests {
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let state = new_game_state(&mut disc).unwrap();
-        let mut mode = WorldMode::enter(&iso, archive, state, None).unwrap();
+        let mut mode = WorldMode::enter(&iso, &archive, state, None).unwrap();
         let t = piney_battle::tables::Tables::read(&mut disc).unwrap();
         let (now, _) = piney_world::body::weapon_of(&t, &mode.world.state().save, 0).expect("Kite's blades");
         let (i, other) = (0..64)
@@ -1761,7 +1761,7 @@ mod tests {
         let mut k = SpcParam::from_save(&state.save, 0);
         k.equipment[4] = i as i16;
         k.store(&mut state.save, 0);
-        let mut mode = WorldMode::enter(&iso, archive, state, None).unwrap();
+        let mut mode = WorldMode::enter(&iso, &archive, state, None).unwrap();
         for _ in 0..40 {
             mode.step(&Pad::default());
         }
@@ -1969,7 +1969,7 @@ mod tests {
         repair_buttons(&mut old);
         assert_eq!(old.save.bytes()[..], fresh.save.bytes()[..]);
         // A save with its own buttons keeps them.
-        let mut own = fresh.clone();
+        let mut own = fresh;
         own.save.set_i16(at(1), 0x80);
         repair_buttons(&mut own);
         assert_eq!(own.save.i16(at(1)), 0x80);

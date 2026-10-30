@@ -44,7 +44,7 @@ impl Cmp {
         }
     }
     /// `game (cmp) operand`; `None` for [`Cmp::Other`], which never passes.
-    pub fn test<T: PartialOrd>(self, game: T, operand: T) -> Option<bool> {
+    pub fn test<T: PartialOrd + Copy>(self, game: T, operand: T) -> Option<bool> {
         match self {
             Cmp::Eq => Some(game == operand),
             Cmp::Ge => Some(game >= operand),

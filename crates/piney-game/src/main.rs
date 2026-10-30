@@ -6,6 +6,7 @@
 //! `desktop`, `world[:N]`, `field:N[/TYPE,ROW[,HACK[,SEED]]]`, `dungeon:N`,
 //! `story:N`, `test-card[:FILE]`, `loose:PATH`. `--help` lists the options;
 //! the README has the keys and the pad.
+#![forbid(unsafe_code)]
 
 mod area;
 mod area_host;
@@ -420,7 +421,7 @@ impl App {
             let mut live =
                 input::read(&self.keyboard, self.gilrs.as_mut(), &mut self.gamepad, logging.then_some(&mut line));
             for l in logging::take_for_console() {
-                self.console.say(l);
+                self.console.say(&l);
             }
             // The console holds the game's pad neutral while it is open.
             if self.console.open {
@@ -660,7 +661,7 @@ impl ApplicationHandler for App {
                             && let console::Key::Run(line) = self.console.key(code, event.text.as_deref(), self.ctrl)
                         {
                             let answer = self.console_line(&line);
-                            self.console.say(answer);
+                            self.console.say(&answer);
                         }
                         return;
                     }
@@ -1553,10 +1554,10 @@ fn main() {
                 && let Some(lines) = &console_lines
             {
                 for l in lines.split(';') {
-                    console.say(format!("> {l}"));
+                    console.say(&format!("> {l}"));
                     let answer = mode.console(l);
                     println!("console> {l}\n{answer}");
-                    console.say(answer);
+                    console.say(&answer);
                 }
             }
             let analog = presses.iter().any(|p| p.stick.is_some());

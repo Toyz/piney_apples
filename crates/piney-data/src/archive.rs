@@ -7,6 +7,9 @@
 //! finds the same 1,023 members in Infection's archive without it, which
 //! works the same on every volume.
 
+// A disc or file reader: its data may be any length and any bytes.
+#![deny(clippy::cast_possible_truncation, clippy::unwrap_used, clippy::expect_used)]
+
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::io::Read;

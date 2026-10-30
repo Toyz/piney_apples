@@ -151,7 +151,7 @@ impl DungeonArea {
                     morph: Vec::new(),
                     clut_swaps: Vec::new(),
                 };
-                draw::model_edited(layers, layer, to_screen, d, None, draw::Fogging::None);
+                draw::model_edited(layers, layer, to_screen, &d, None, draw::Fogging::None);
             }
         }
     }

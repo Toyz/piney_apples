@@ -185,7 +185,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
     }
     let outs: Vec<String> = out.iter().filter_map(mout).collect();
     blur.apply(&out);
-    lines.push(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
+    lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
         let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false, cc: None };
@@ -300,7 +300,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
             }
         }
         let outs: Vec<String> = all.iter().filter_map(|o| out_of(o, &cam2, &brothers)).collect();
-        lines.push(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
+        lines.push(with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, max_range), &blur));
     }
     format!("[{}]", lines.join(","))
 }

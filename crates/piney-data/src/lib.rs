@@ -6,6 +6,9 @@
 //! ([`dungeon`], [`field`]), town statics ([`statics`]), the save ([`save`])
 //! and which disc it is ([`volume`]). The tables read from each volume's
 //! executable are generated into the build by `piney-gen`.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod anim;
 pub mod archive;

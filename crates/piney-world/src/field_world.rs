@@ -3220,7 +3220,7 @@ impl FieldWorld {
                         clut_swaps: Vec::new(),
                     };
                     let fog = fog.map_or(draw::Fogging::None, draw::Fogging::Const);
-                    draw::model_blended(&mut ctx.layers, draw::CHAR_LAYER, to_screen, d, None, fog, &[], *blend);
+                    draw::model_blended(&mut ctx.layers, draw::CHAR_LAYER, to_screen, &d, None, fog, &[], *blend);
                 }
                 Shown::Anm { eff: false, clip, time, root, alpha, .. } => {
                     anm_draw(ctx, draw::CHAR_LAYER, clip, *time, *root, *alpha, None);
@@ -3301,7 +3301,7 @@ impl FieldWorld {
                         morph: Vec::new(),
                         clut_swaps: Vec::new(),
                     };
-                    draw::model(&mut ctx.layers, draw::OBJ_LAYER, to_screen, d);
+                    draw::model(&mut ctx.layers, draw::OBJ_LAYER, to_screen, &d);
                 }
             }
         }

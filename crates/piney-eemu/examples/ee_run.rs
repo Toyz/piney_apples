@@ -277,7 +277,7 @@ fn main() {
                 Hooked::Ret(p)
             });
         }
-        let f3 = files.clone();
+        let f3 = files;
         if let Some(a) = sym("sceClose") {
             sys.hook(a, move |_, a| {
                 f3.borrow_mut().remove(&a[0]);
@@ -390,7 +390,7 @@ fn main() {
             }
             p.borrow_mut().insert(sys.current_id(), (a[1], a[3], sys.cpu.r[31] as u32, a[0]));
         });
-        let (p, h, l, t, m) = (pending.clone(), heap.clone(), live.clone(), trace.clone(), model.clone());
+        let (p, h, l, t, m) = (pending, heap.clone(), live.clone(), trace.clone(), model.clone());
         // `_ccMalloc`'s `jr ra` (+0x2ac, main 0x0010098c on every volume).
         sys.watch(sym("_ccMalloc__FUiUiUii").unwrap() + 0x2ac, move |sys, _| {
             let v = sys.cpu.r[2] as u32;
@@ -424,7 +424,7 @@ fn main() {
                     .unwrap();
             }
         });
-        let (h, l, t) = (heap.clone(), live.clone(), trace.clone());
+        let (h, l, t) = (heap.clone(), live, trace.clone());
         let dump_freed: Option<(u32, String)> = std::env::var("EE_DUMP_FREED").ok().and_then(|v| {
             let (size, path) = v.split_once(':')?;
             Some((u32::from_str_radix(size.trim_start_matches("0x"), 16).ok()?, path.to_string()))
@@ -468,7 +468,7 @@ fn main() {
     // ccThBossEffect returns 0x0c bytes into it (OUT gcmn 0x00472eac, QUA
     // 0x003657bc).
     if let Some(at) = sym("ccThBossEffect__FPv") {
-        let h = heap.clone();
+        let h = heap;
         sys.watch(at + 0x1c, move |sys, _| {
             let m = sys.cpu.r[2] as u32;
             let exit = sys.r32(m + 0x2c);

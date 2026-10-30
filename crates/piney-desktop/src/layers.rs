@@ -131,7 +131,7 @@ mod tests {
         })
     }
 
-    fn tags(cmds: Vec<Cmd>) -> Vec<usize> {
+    fn tags(cmds: &[Cmd]) -> Vec<usize> {
         cmds.iter()
             .map(|c| match c {
                 Cmd::Prim(p) => p.verts.len(),
@@ -151,7 +151,7 @@ mod tests {
         l.sorted(0, 9.0, tag(7));
         l.older(1, vec![tag(8)]);
         l.older(1, vec![tag(9)]);
-        assert_eq!(tags(l.flatten()), vec![7, 6, 2, 3, 4, 5, 1, 9, 8]);
+        assert_eq!(tags(&l.flatten()), vec![7, 6, 2, 3, 4, 5, 1, 9, 8]);
     }
 
     /// `flatten_with` sees each command with its layer and whether it is
@@ -169,7 +169,7 @@ mod tests {
                 seen.push((pri, older, p.verts.len()));
             }
         });
-        assert_eq!(tags(cmds), vec![3, 4, 1, 2]);
+        assert_eq!(tags(&cmds), vec![3, 4, 1, 2]);
         assert_eq!(seen, vec![(0, false, 3), (0, true, 4), (254, false, 1), (254, true, 2)]);
     }
 }

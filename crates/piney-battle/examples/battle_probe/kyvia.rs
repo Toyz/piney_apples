@@ -416,7 +416,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
     }
     blur.apply(&out);
     let outs: Vec<String> = out.iter().filter_map(kout).collect();
-    lines.push(with_ball(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()), &boss));
+    lines.push(with_ball(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()), &boss));
     for f in 0..frames {
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
         let benv = BossEnv { t: tables, data, clips: &clip, env: &env, game_over: false, cc: None };
@@ -549,7 +549,7 @@ fn run(fight: Fight, tables: &Tables, data: &BossData, clips: &Clips, t: &mut To
         }
         blur.apply(&out[pre..]);
         fade.step();
-        lines.push(with_ball(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()), &boss));
+        lines.push(with_ball(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu, &cam, &blur.json()), &boss));
     }
     format!("[{}]", lines.join(","))
 }
@@ -938,7 +938,7 @@ fn kyvia_json(x: &Kyvia) -> String {
 
 /// The frame's line with the ball's and hell's express's members before
 /// `rand`.
-fn with_ball(line: String, b: &Boss) -> String {
+fn with_ball(line: &str, b: &Boss) -> String {
     line.replacen("\"rand\":", &format!("\"ball\":{},\"hell\":{},\"rand\":", ball_json(b), hell_json(b)), 1)
 }
 

@@ -678,7 +678,7 @@ impl DiscArea {
             morph: Vec::new(),
             clut_swaps: Vec::new(),
         };
-        draw::model(layers, layer, to_screen, d);
+        draw::model(layers, layer, to_screen, &d);
     }
 
     /// The pieces into the field's layers.
@@ -731,7 +731,7 @@ impl DiscArea {
                             morph: Vec::new(),
                             clut_swaps: Vec::new(),
                         };
-                        draw::model(layers, layer::OBJ, to_screen, d);
+                        draw::model(layers, layer::OBJ, to_screen, &d);
                     }
                 }
                 Piece::BodyAnm { .. } => {

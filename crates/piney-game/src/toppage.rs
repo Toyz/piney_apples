@@ -36,7 +36,7 @@ impl TopPageMode {
     /// `ccSetupToppage` on a running game: the event task's passes at phases
     /// 0 and 2 on the save, then the page and phase 4.
     pub fn enter(
-        iso: PathBuf,
+        iso: &PathBuf,
         archive: Arc<Archive>,
         mut state: SaveState,
         mut vm: Option<Vm>,
@@ -69,7 +69,7 @@ impl TopPageMode {
             mode.flush();
             return Ok(mode);
         }
-        let mut disc = crate::open_disc(&iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let page = TopPage::new(&mut disc, archive, state).map_err(|e| format!("top page: {e}"))?;
         if let Some(vm) = &mut vm {
             vm.enable(4);
@@ -168,7 +168,7 @@ impl Mode for TopPageMode {
                     Request::SoundFadeOut => out.push(Event::SoundFadeOut),
                     Request::ChangeMode { num, sf } => out.push(Event::ChangeMode { num, sf }),
                     Request::ChangeArea { area, town } => out.push(Event::ChangeArea { area, town }),
-                    Request::Menu(r) => out.extend(desktop::event(r)),
+                    Request::Menu(r) => out.extend(desktop::event(&r)),
                     // Soft reset is not modelled.
                     Request::EnableReset(_) => {}
                 }
@@ -229,7 +229,7 @@ mod tests {
         let mut disc = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap());
         let start = crate::start::build(&iso, 14).unwrap();
-        let mut mode = TopPageMode::enter(iso, archive, start.state, Some(start.vm)).unwrap();
+        let mut mode = TopPageMode::enter(&iso, archive, start.state, Some(start.vm)).unwrap();
         let areas = mode.st.announcements.clone().expect("the story areas");
         let mut pad = Pad::default();
         let mut step = |mode: &mut TopPageMode, buttons: Buttons| {

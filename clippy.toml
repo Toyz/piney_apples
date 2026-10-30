@@ -1,0 +1,5 @@
+# Tests print what they survey (run with --nocapture); print_stdout is for
+# the port and its libraries.
+allow-print-in-tests = true
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

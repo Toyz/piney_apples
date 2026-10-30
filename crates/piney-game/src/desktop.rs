@@ -388,7 +388,7 @@ impl Host for Bridge<'_> {
         let Some(archive) = self.st.archive.clone() else { return };
         let made = crate::open_disc(&self.st.iso)
             .map_err(|e| e.to_string())
-            .and_then(|mut disc| NameEntry::new(&mut disc, archive, state).map_err(|e| e.to_string()));
+            .and_then(|mut disc| NameEntry::new(&mut disc, &archive, state).map_err(|e| e.to_string()));
         match made {
             Ok(n) => self.st.name_entry = Some(n),
             Err(e) => tracing::warn!("name entry: {e}; keeping the default name"),
@@ -622,7 +622,7 @@ impl DesktopMode {
         mode.stage = if scripts {
             let mut disc = crate::open_disc(&mode.iso).map_err(|e| format!("{}: {e}", mode.iso.display()))?;
             let screen =
-                SetupScreen::new(&mut disc, mode.archive.clone(), &state).map_err(|e| format!("setup: {e}"))?;
+                SetupScreen::new(&mut disc, &mode.archive.clone(), &state).map_err(|e| format!("setup: {e}"))?;
             Stage::Setup { save: Box::new(state), phase: 0, frames: 0, screen: Box::new(screen) }
         } else {
             Stage::Play(Box::new(mode.build(state)?))
@@ -811,8 +811,8 @@ fn movie_sq_slot(bgm: usize) -> i32 {
 }
 
 /// A request of the desktop or its system menu, for the runtime.
-pub fn event(r: Request) -> Option<Event> {
-    match r {
+pub fn event(r: &Request) -> Option<Event> {
+    match *r {
         Request::Se(se) => Some(Event::Se(se.0)),
         Request::Bgm(n) => Some(Event::DesktopBgm(n)),
         Request::SoundFadeOut => Some(Event::SoundFadeOut),
@@ -905,7 +905,7 @@ impl Mode for DesktopMode {
                             Err(e) => tracing::warn!("{e}"),
                         }
                     }
-                    r => out.extend(event(r)),
+                    r => out.extend(event(&r)),
                 }
             }
         }

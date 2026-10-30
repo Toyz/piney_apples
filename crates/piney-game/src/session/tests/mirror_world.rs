@@ -92,7 +92,7 @@ fn in_area_66_dungeon(disc: &str) -> Option<Session> {
     let mut scene = piney_world::area::Scene::log_in(&mut state.save);
     let wm = crate::area::story_world_man(&mut d, 66, false).unwrap();
     scene.change_scene(2, 1, 66, 0, 2, 0, &mut state.save);
-    Some(Session::in_world(iso.clone(), archive, None, state, Some(vm), scene, Some(wm)).unwrap())
+    Some(Session::in_world(iso, archive, None, state, Some(vm), scene, Some(wm)).unwrap())
 }
 
 /// The arena's portal (`entry_mc 0 262` at the event's position 0) on the

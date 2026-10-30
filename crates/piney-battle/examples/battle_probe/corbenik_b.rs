@@ -141,7 +141,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
     cams.apply(&out);
     let outs: Vec<String> = out.iter().filter_map(mout).collect();
     blur.apply(&out);
-    lines.push(with_cam(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur), &cams));
+    lines.push(with_cam(&with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur), &cams));
     for f in 0..frames {
         frame_no.set(f);
         let env = Env { count: count0 + 1 + f as u32, menu_type: menu_at(f), menu_forbid: forbid, ..Env::default() };
@@ -249,7 +249,7 @@ pub(crate) fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks)
             }
         }
         let outs: Vec<String> = all.iter().filter_map(mout).collect();
-        lines.push(with_cam(with_blur(frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur), &cams));
+        lines.push(with_cam(&with_blur(&frame_json(&boss, &scene, me, &outs, &rand, &cc, &menu), &blur), &cams));
     }
     format!("[{}]", lines.join(","))
 }
@@ -307,7 +307,7 @@ fn root_json(scene: &Scene, r: usize) -> String {
 }
 
 /// The boss camera beside the frame, as the harness's `bosscam`.
-fn with_cam(line: String, cams: &Cams) -> String {
+fn with_cam(line: &str, cams: &Cams) -> String {
     line.replacen("\"rand\":", &format!("\"bosscam\":{},\"rand\":", cams.boss.json()), 1)
 }
 

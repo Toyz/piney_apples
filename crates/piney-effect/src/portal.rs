@@ -455,7 +455,7 @@ impl MagicCircle {
                     morph,
                     clut_swaps: self.swaps.clone(),
                 };
-                wdraw::model(layers, *layer, to_screen, draw);
+                wdraw::model(layers, *layer, to_screen, &draw);
             }
         }
     }

@@ -33,7 +33,7 @@ impl LooseMode {
         let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let raw = disc.read_path(path).map_err(|e| format!("{path}: {e}"))?;
         let entries = piney_stream::load::scan(&raw).map_err(|e| format!("{path}: {e}"))?;
-        let streams = piney_stream::load::loose_streams(entries);
+        let streams = piney_stream::load::loose_streams(&entries);
         if streams.is_empty() {
             return Err(format!("{path}: no gzip members"));
         }

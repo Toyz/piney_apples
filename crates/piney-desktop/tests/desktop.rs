@@ -505,7 +505,7 @@ fn setup_line_runs_its_frames() {
     let mut iso = Iso::open(path).unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let state = SaveState::fresh();
-    let mut s = SetupScreen::new(&mut iso, archive, &state).unwrap();
+    let mut s = SetupScreen::new(&mut iso, &archive, &state).unwrap();
     let mut pad = Pad::default();
     // Frame 0: the event's Change, after the frame's step.
     pad.read(&Raw::default());
@@ -587,7 +587,7 @@ fn name_entry_writes_the_names() {
     let mut iso = Iso::open(p).unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
     let mut state = SaveState::fresh();
-    let mut ne = NameEntry::new(&mut iso, archive, &state).unwrap();
+    let mut ne = NameEntry::new(&mut iso, &archive, &state).unwrap();
     let mut pad = Pad::default();
     let mut se = Vec::new();
     let mut drawn = 0;

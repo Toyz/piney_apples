@@ -729,7 +729,7 @@ impl DungeonArea {
                     clut_swaps: self.clut_swaps.clone(),
                 };
                 let edit = e.as_ref().filter(|(m, _)| *m == model).map(|(_, x)| x);
-                draw::model_edited(layers, layer, to_screen, d, edit, draw::Fogging::None);
+                draw::model_edited(layers, layer, to_screen, &d, edit, draw::Fogging::None);
             }
         }
     }
@@ -757,7 +757,7 @@ impl DungeonArea {
                     morph: Vec::new(),
                     clut_swaps: self.clut_swaps.clone(),
                 };
-                draw::model_edited(layers, OBJ_LAYER, to_screen, d, None, draw::Fogging::Depth(fog));
+                draw::model_edited(layers, OBJ_LAYER, to_screen, &d, None, draw::Fogging::Depth(fog));
             }
         }
     }
@@ -785,7 +785,7 @@ impl DungeonArea {
                 morph: Vec::new(),
                 clut_swaps: self.clut_swaps.clone(),
             };
-            draw::model_edited(layers, OBJ_LAYER, to_screen, d, None, draw::Fogging::Depth(fog));
+            draw::model_edited(layers, OBJ_LAYER, to_screen, &d, None, draw::Fogging::Depth(fog));
         }
     }
 

@@ -5,6 +5,9 @@
 //! `mpeg2video` output on all four files; [`idct`]; [`csc`], the IPU's colour
 //! conversion; and [`movie`], the player the runtime drives. The container is
 //! `piney_data::pss`; `docs/formats/pss.md` has the formats and the player.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 mod bits;
 pub mod csc;

@@ -335,6 +335,7 @@ fn radiate(ctrl: &mut EffectCtrl, cx: &mut Cx, p: V4, r: V4, v: F, atr: i32, n: 
 /// draw, the smoke generator 85's `pTexMod` (none for the electric), and
 /// whether it is the leaf's (a random turn of its sprite, fog on, no
 /// spin).
+#[derive(Clone, Copy)]
 struct Smoke {
     id: fn(i32) -> i16,
     tex: Option<i16>,

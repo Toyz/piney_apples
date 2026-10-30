@@ -753,7 +753,7 @@ fn natsume_dungeon(point: i32) -> Option<Session> {
     scene.change_scene(2, 0, 35, 0, 0, 0, &mut start.state.save);
     let wm = crate::area::story_world_man(&mut Iso::open(&iso).unwrap(), 35, false).ok();
     let at = Resume::World(Box::new(InWorld { scene, world_man: wm, spcs: None }));
-    let mut s = Session::resume(iso.clone(), archive, None, start.state, start.vm, at).unwrap();
+    let mut s = Session::resume(iso, archive, None, start.state, start.vm, at).unwrap();
     let mut pad = Pad::default();
     let (mut room, mut away) = (false, false);
     for f in 0..2400u64 {

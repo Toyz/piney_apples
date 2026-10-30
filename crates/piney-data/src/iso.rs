@@ -1,6 +1,9 @@
 //! ISO 9660 images, read directly. PS2 DVDs are plain ISO 9660 (no Joliet,
 //! no Rock Ridge) with 2048-byte sectors (`docs/disc/layout.md`).
 
+// A disc or file reader: its data may be any length and any bytes.
+#![deny(clippy::cast_possible_truncation, clippy::unwrap_used, clippy::expect_used)]
+
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -8,6 +11,8 @@ use std::path::{Path, PathBuf};
 use crate::{Bytes, Error, Result, format_err};
 
 pub const SECTOR: u64 = 2048;
+/// [`SECTOR`] as a length.
+const SECTOR_LEN: usize = 2048;
 
 #[derive(Clone, Debug)]
 pub struct Entry {
@@ -51,7 +56,7 @@ impl Iso {
             return Ok(Iso { source: Source::Pack(pack), data: None, root, volume, deny_executable: false });
         }
         let mut file = File::open(path)?;
-        let mut pvd = vec![0u8; SECTOR as usize];
+        let mut pvd = vec![0u8; SECTOR_LEN];
         file.seek(SeekFrom::Start(16 * SECTOR))?;
         file.read_exact(&mut pvd)?;
         if pvd[0] != 1 || &pvd[1..6] != b"CD001" {
@@ -86,7 +91,7 @@ impl Iso {
         match &mut self.source {
             Source::Pack(p) => Ok(p.manifest.label.clone()),
             Source::Image(f) => {
-                let mut pvd = vec![0u8; SECTOR as usize];
+                let mut pvd = vec![0u8; SECTOR_LEN];
                 f.seek(SeekFrom::Start(16 * SECTOR))?;
                 f.read_exact(&mut pvd)?;
                 Ok(String::from_utf8_lossy(&pvd[40..72]).trim_end().to_string())
@@ -112,7 +117,8 @@ impl Iso {
 
     /// `len` bytes of a file from `ofs` on, fewer where the file ends.
     pub fn read_at(&mut self, entry: &Entry, ofs: u64, len: usize) -> Result<Vec<u8>> {
-        let len = len.min((entry.size as u64).saturating_sub(ofs) as usize);
+        let left = u64::from(entry.size).saturating_sub(ofs);
+        let len = len.min(usize::try_from(left).unwrap_or(usize::MAX));
         match &mut self.source {
             Source::Pack(p) => p.read_at(&entry.path, ofs, len),
             Source::Image(f) => {
@@ -146,7 +152,7 @@ impl Iso {
             let len = data[p] as usize;
             if len == 0 {
                 // Records never cross a sector; the rest of this one is padding.
-                p = (p / SECTOR as usize + 1) * SECTOR as usize;
+                p = (p / SECTOR_LEN + 1) * SECTOR_LEN;
                 continue;
             }
             let rec = data.slice_at(p, len)?;

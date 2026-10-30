@@ -570,7 +570,14 @@ impl EventArea {
             morph: Vec::new(),
             clut_swaps: Vec::new(),
         };
-        draw::model_edited(layers, layer, to_screen, d, None, if fog { self.depth_fog() } else { draw::Fogging::None });
+        draw::model_edited(
+            layers,
+            layer,
+            to_screen,
+            &d,
+            None,
+            if fog { self.depth_fog() } else { draw::Fogging::None },
+        );
     }
 
     /// The blocks' `SetFog` as VU1 fogs the models drawn with it.

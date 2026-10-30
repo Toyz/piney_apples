@@ -302,7 +302,7 @@ fn strukt(name: &str, size: u32, fields: Vec<(&str, u32, Layout)>, doc: &str) ->
 /// The struct Infection's DWARF declares as `name`, a member's layout
 /// overridden by its name (dotted for a nested one).
 fn ty(name: &str, over: Vec<(&str, Layout)>) -> Layout {
-    dtype::ty(name, over.into_iter().map(|(k, l)| (k.to_string(), l)).collect())
+    dtype::ty(name, &over.into_iter().map(|(k, l)| (k.to_string(), l)).collect::<Vec<_>>())
 }
 
 /// A table indexed by one of The World's fixed sets (`crate::world`): one

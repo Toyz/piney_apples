@@ -1962,7 +1962,7 @@ impl DungeonArea {
                         morph: Vec::new(),
                         clut_swaps: if anm.special { Vec::new() } else { self.clut_swaps.clone() },
                     };
-                    draw::model_edited(layers, OBJ_LAYER, to_screen, d, None, draw::Fogging::Depth(depth));
+                    draw::model_edited(layers, OBJ_LAYER, to_screen, &d, None, draw::Fogging::Depth(depth));
                 }
             }
         }

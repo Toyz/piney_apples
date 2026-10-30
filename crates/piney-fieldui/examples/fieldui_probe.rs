@@ -137,7 +137,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path)?;
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN")?)?);
-    let mut ui = FieldUi::new(&mut iso, archive)?;
+    let mut ui = FieldUi::new(&mut iso, &archive)?;
     let mut world = World { boss_entry: -1, party_id: [-1; 3], ..World::default() };
     // The port's fresh save, Init's text from the executable.
     let init_text = piney_desktop::InitText::from_disc(&mut iso)?;

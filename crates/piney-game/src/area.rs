@@ -239,7 +239,7 @@ impl AreaMode {
         spcs: Spcs,
     ) -> Result<AreaMode, String> {
         let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
-        let mut ui = FieldUi::new(&mut disc, archive.clone()).map_err(|e| format!("the field's menus: {e}"))?;
+        let mut ui = FieldUi::new(&mut disc, &archive).map_err(|e| format!("the field's menus: {e}"))?;
         // The menu faces: party slot 0 Kite with the bracelet's colours or
         // without, then the members the party brought.
         let plcol = state.save.u8(offset::PLCOL) != 0;
@@ -309,7 +309,7 @@ impl AreaMode {
             ride: ride::RideSeq::default(),
             map_showing: false,
             fonts,
-            stream: area_host::AreaStream { iso: iso.to_path_buf(), data: Some(archive.clone()), ..Default::default() },
+            stream: area_host::AreaStream { iso: iso.to_path_buf(), data: Some(archive), ..Default::default() },
         })
     }
 

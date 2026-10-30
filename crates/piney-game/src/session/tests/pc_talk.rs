@@ -40,7 +40,7 @@ fn open(volume: Volume) -> Option<(Arc<Archive>, FieldUi, SaveState)> {
     }
     let mut iso = Iso::open(&iso).unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-    let ui = FieldUi::new(&mut iso, archive.clone()).unwrap();
+    let ui = FieldUi::new(&mut iso, &archive).unwrap();
     let save = SaveState::fresh_with(&piney_desktop::InitText::from_disc(&mut iso).unwrap());
     Some((archive, ui, save))
 }

@@ -383,7 +383,7 @@ fn slot_record(bytes: &[u8]) -> Result<[u8; INFO_SIZE], String> {
 /// was is copied to `backup` first.
 fn import_slots(
     card: &Path,
-    slots: Vec<(usize, Vec<u8>)>,
+    slots: &[(usize, Vec<u8>)],
     hint: Option<Volume>,
     backup: &Path,
 ) -> Result<Vec<(String, usize)>, String> {
@@ -452,7 +452,7 @@ pub fn import(src: &Path, card: &Path, hint: Option<Volume>) -> Result<Vec<(Stri
     let found = if src.is_file() && !slots.is_empty() { Vec::new() } else { find_saves(src)? };
     if found.is_empty() {
         if !slots.is_empty() {
-            return import_slots(card, slots, hint, &backup);
+            return import_slots(card, &slots, hint, &backup);
         }
         return Err(format!("{}: no .hack save directory ({})", src.display(), dothack_dirs().join(", ")));
     }

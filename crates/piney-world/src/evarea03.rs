@@ -166,7 +166,7 @@ impl Area43 {
             morph: Vec::new(),
             clut_swaps: Vec::new(),
         };
-        draw::model(layers, layer::OBJ, to_screen, d);
+        draw::model(layers, layer::OBJ, to_screen, &d);
     }
 }
 

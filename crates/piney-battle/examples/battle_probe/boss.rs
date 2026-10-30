@@ -363,7 +363,7 @@ fn blur_main(t: &mut Toks) -> String {
 }
 
 /// A frame's line with the blur's state put in before `"rand"`.
-pub(crate) fn with_blur(line: String, blur: &ProbeBlur) -> String {
+pub(crate) fn with_blur(line: &str, blur: &ProbeBlur) -> String {
     line.replacen("\"rand\":", &format!("\"blur\":{},\"rand\":", blur.json()), 1)
 }
 

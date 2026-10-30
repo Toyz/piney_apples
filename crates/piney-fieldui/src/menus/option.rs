@@ -616,7 +616,7 @@ pub(crate) mod tests {
         }
         let mut iso = piney_data::iso::Iso::open(&path).unwrap();
         let archive = Arc::new(piney_data::archive::Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        let ui = FieldUi::new(&mut iso, archive).unwrap();
+        let ui = FieldUi::new(&mut iso, &archive).unwrap();
         let mut world = World { boss_entry: -1, party_id: [0, -1, -1], ..World::default() };
         world.game.status = 5;
         world.party[0] =

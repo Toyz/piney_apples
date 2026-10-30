@@ -6,6 +6,9 @@
 //! layer (242) comes out, and what the menus do to the rest of the game
 //! comes out as [`Request`]s. The save is [`piney_desktop::SaveState`],
 //! shared with the event engine. See docs/engine/field-ui.md.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod book;
 pub mod chat_msg;
@@ -332,16 +335,16 @@ impl FieldUi {
 
     /// The task's start: `new ccMenuCtrl` (0x0051c140), its textures and
     /// the menu tables.
-    pub fn new(iso: &mut Iso, archive: Arc<Archive>) -> piney_data::Result<FieldUi> {
+    pub fn new(iso: &mut Iso, archive: &Arc<Archive>) -> piney_data::Result<FieldUi> {
         let volume = iso.volume()?;
         let mut texts = Texts::read(volume)?;
         let events = piney_event::official::events(iso)
             .map_err(|e| piney_data::Error::Format(format!("the event scripts: {e}")))?;
         texts.read_tutorial(&events).map_err(piney_data::Error::Format)?;
         texts.hack.scene =
-            piney_desktop::assets::SceneFile::read(&archive, menus::hack::HACK_FILE).ok().map(std::rc::Rc::new);
-        let fonts = piney_desktop::assets::read_fonts(volume, &archive)?;
-        let textures = Textures::read(&archive, &texts);
+            piney_desktop::assets::SceneFile::read(archive, menus::hack::HACK_FILE).ok().map(std::rc::Rc::new);
+        let fonts = piney_desktop::assets::read_fonts(volume, archive)?;
+        let textures = Textures::read(archive, &texts);
         let mut ui = FieldUi::with(texts, textures, fonts);
         ui.ctrl.talk.record.save_sys.volume = volume;
         Ok(ui)

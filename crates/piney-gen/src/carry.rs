@@ -644,13 +644,13 @@ pub fn write(v: Vol, check: bool) -> Result<bool, String> {
     let p = path(v);
     if check {
         let same = std::fs::read_to_string(&p).is_ok_and(|t| t == text);
-        println!("{} {}", p.display(), if same { "is current" } else { "differs" });
+        eprintln!("{} {}", p.display(), if same { "is current" } else { "differs" });
         return Ok(same);
     }
     let fail = |e: std::io::Error| format!("{}: {e}", p.display());
     std::fs::create_dir_all(p.parent().unwrap()).map_err(fail)?;
     std::fs::write(&p, text).map_err(fail)?;
-    println!("{} -> {}", v.tag(), p.display());
+    eprintln!("{} -> {}", v.tag(), p.display());
     Ok(true)
 }
 

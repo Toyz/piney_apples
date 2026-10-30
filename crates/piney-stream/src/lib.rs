@@ -6,6 +6,9 @@
 //! frame, [`Stream::done`] says the call has returned; the files are read when
 //! it is built. A scene's own effect task ([`effect`]) runs inside the step.
 //! [`event::EventStream`] is `ccEventStream(num, 1)`, with the subtitles.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod draw;
 pub mod effect;

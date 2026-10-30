@@ -77,7 +77,7 @@ impl DrawRec {
                         morph: Vec::new(),
                         clut_swaps: clut.iter().copied().collect(),
                     };
-                    wdraw::model_edited(layers, *layer, to_screen, d, None, fogging(*fog));
+                    wdraw::model_edited(layers, *layer, to_screen, &d, None, fogging(*fog));
                 }
             }
             DrawRec::Anm { obj, play, matrix, alpha, layer, clut, fog } => {
@@ -102,7 +102,7 @@ impl DrawRec {
                         morph: m,
                         clut_swaps: clut.clone(),
                     };
-                    wdraw::model_edited(layers, *layer, to_screen, d, None, fogging(*fog));
+                    wdraw::model_edited(layers, *layer, to_screen, &d, None, fogging(*fog));
                 }
             }
             DrawRec::Eff { eff, pat, layer } => eff.render(assets, layers, *layer, *pat, camera),

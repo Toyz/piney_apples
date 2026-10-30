@@ -42,7 +42,7 @@ impl Run {
         }
         let mut iso = Iso::open(&iso).unwrap();
         let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        let mut ui = FieldUi::new(&mut iso, archive.clone()).unwrap();
+        let mut ui = FieldUi::new(&mut iso, &archive).unwrap();
         let mut save = SaveState::fresh_with(&piney_desktop::InitText::from_disc(&mut iso).unwrap());
         piney_fieldui::menus::talk::set_spc_base_msg(&mut save, volume);
         let at = by_id::spc_param(BLACK_ROSE as usize);

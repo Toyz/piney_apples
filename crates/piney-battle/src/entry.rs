@@ -825,7 +825,7 @@ pub(crate) fn delete_cmnd(cmnd_flag: &mut bool, scene: &mut Scene, out: &mut Vec
 /// (2) of `1 / fadeCnt` a frame.
 pub fn routine(
     volume: Volume,
-    o: RoutineRef,
+    o: &mut RoutineRef,
     pos: V4,
     who: usize,
     scene: &mut Scene,
@@ -1914,11 +1914,11 @@ impl EntryCtrl {
         match &mut self.objs[who] {
             Obj::Enemy => {
                 let e = cx.foes[who].as_mut().expect("an enemy's state");
-                routine(cx.t.volume, enemy_routine_ref(e), pos, who, cx.scene, cx.world, cx.out);
+                routine(cx.t.volume, &mut enemy_routine_ref(e), pos, who, cx.scene, cx.world, cx.out);
             }
-            Obj::Circle(c) => routine(cx.t.volume, c.obj.routine_ref(), pos, who, cx.scene, cx.world, cx.out),
+            Obj::Circle(c) => routine(cx.t.volume, &mut c.obj.routine_ref(), pos, who, cx.scene, cx.world, cx.out),
             Obj::Gimmick(o) | Obj::Npc(o) => {
-                routine(cx.t.volume, o.routine_ref(), pos, who, cx.scene, cx.world, cx.out)
+                routine(cx.t.volume, &mut o.routine_ref(), pos, who, cx.scene, cx.world, cx.out)
             }
             Obj::None => {}
         }

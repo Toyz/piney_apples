@@ -303,7 +303,7 @@ impl Model {
                 morph: m,
                 clut_swaps: swaps.clone(),
             };
-            draw::model_edited(layers, layer, to_screen, d, None, fog);
+            draw::model_edited(layers, layer, to_screen, &d, None, fog);
         }
         if self.shadow {
             draw::cast_shadows(layers, file, instances.iter().map(|i| (i.object, i.world)));

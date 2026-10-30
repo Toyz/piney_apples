@@ -179,9 +179,8 @@ pub fn locate(exe: &Executable) -> Result<Layout, Error> {
             tbls.push(t);
         }
     }
-    let event_tbl = match tbls[..] {
-        [one] => one,
-        _ => return Err(Error::Format(format!("{} candidates for eventTbl", tbls.len()))),
+    let [event_tbl] = tbls[..] else {
+        return Err(Error::Format(format!("{} candidates for eventTbl", tbls.len())));
     };
 
     // The message tables, from the message case.

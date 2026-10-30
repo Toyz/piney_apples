@@ -240,7 +240,7 @@ impl Console {
                     self.save_history();
                 }
                 self.back = self.history.len();
-                self.say(format!("> {line}"));
+                self.say(&format!("> {line}"));
                 return Key::Run(line);
             }
             K::Backspace if self.cursor > 0 => {
@@ -373,7 +373,7 @@ impl Console {
             self.line = format!("{head}{common}{end}");
         } else {
             if common.len() == word.len() {
-                self.say(found.join("  "));
+                self.say(&found.join("  "));
             }
             self.line = format!("{head}{common}");
         }
@@ -381,7 +381,7 @@ impl Console {
     }
 
     /// An answer: each of its lines kept, the oldest dropped.
-    pub fn say(&mut self, text: String) {
+    pub fn say(&mut self, text: &str) {
         for l in text.lines() {
             self.log.push(l.to_string());
         }
@@ -629,10 +629,10 @@ mod tests {
         let mut c = Console::new(Some(f));
         c.open = true;
         let long = "import_card: copied 3 saves from C:/Users/someone/Documents/PCSX2/memcards/Mcd001.ps2 into the build's card, the old card kept in backup-1";
-        c.say(long.into());
-        c.say("pad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report".into());
-        c.say("deflicker [on|off]  the console's deflicker".into());
-        c.say("x".repeat(400));
+        c.say(long);
+        c.say("pad_log [FILE|stop]  write this run since power-on (pads, console commands, the card it began with) for a bug report");
+        c.say("deflicker [on|off]  the console's deflicker");
+        c.say(&"x".repeat(400));
         let fonts = c.fonts().unwrap();
         let width = 640;
         let rows = c.wrapped(fonts, width, 1);
@@ -681,7 +681,7 @@ mod tests {
         c.key(winit::keyboard::KeyCode::ArrowUp, None, false);
         assert_eq!(c.line, "where");
         let mut later = Console::new(None);
-        later.keep_history(file.clone());
+        later.keep_history(file);
         later.key(winit::keyboard::KeyCode::ArrowUp, None, false);
         later.key(winit::keyboard::KeyCode::ArrowUp, None, false);
         assert_eq!(later.line, "gold 100");
@@ -747,7 +747,7 @@ mod tests {
         let mut c = Console::new(Some(f));
         c.open = true;
         for i in 0..100 {
-            c.say(format!("line {i}"));
+            c.say(&format!("line {i}"));
         }
         let (w, h) = (640, 480);
         c.overlay(w, h).unwrap();
@@ -795,13 +795,13 @@ mod tests {
         let mut c = Console::new(Some(fonts));
         c.open = true;
         for i in 0..30 {
-            c.say(format!("an earlier answer {i}"));
+            c.say(&format!("an earlier answer {i}"));
         }
-        c.say("help".into());
-        c.say("item CAT ID [N]   an item to Kite (15 key items)\ngod               the party at full HP and SP each frame".into());
-        c.say("> where".into());
-        c.say("The World - area 1 field 27 - play 1138 - Kite at (24600, 24600, 0) act 2".into());
-        c.say("import_card: copied 3 saves from C:/Users/someone/Documents/PCSX2/memcards/Mcd001.ps2 into the build's card; the card it replaced is kept in backup-1 beside it, and the slots' records were rebuilt".into());
+        c.say("help");
+        c.say("item CAT ID [N]   an item to Kite (15 key items)\ngod               the party at full HP and SP each frame");
+        c.say("> where");
+        c.say("The World - area 1 field 27 - play 1138 - Kite at (24600, 24600, 0) act 2");
+        c.say("import_card: copied 3 saves from C:/Users/someone/Documents/PCSX2/memcards/Mcd001.ps2 into the build's card; the card it replaced is kept in backup-1 beside it, and the slots' records were rebuilt");
         c.line = "gold 1000".into();
         c.cursor = 4;
         let o = c.overlay(1280, 960).unwrap();

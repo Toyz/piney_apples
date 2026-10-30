@@ -359,7 +359,7 @@ impl MotionWorld for &SWorld {
             Call::Rule(Out::Rule(Event::CancelAttack(w))) => {
                 let w = match w {
                     piney_battle::event::Who::Char(i) => s.n(i),
-                    _ => n.clone(),
+                    _ => n,
                 };
                 format!("[\"request\",{w},0,0,0]")
             }

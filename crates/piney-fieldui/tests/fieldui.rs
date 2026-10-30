@@ -53,7 +53,7 @@ impl Run {
     fn new() -> Option<Run> {
         let mut iso = Iso::open(iso_path()?).unwrap();
         let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
-        let ui = FieldUi::new(&mut iso, archive).unwrap();
+        let ui = FieldUi::new(&mut iso, &archive).unwrap();
         let mut world = World { boss_entry: -1, party_id: [0, 2, -1], ..World::default() };
         world.game.status = 5;
         world.game.area = 1;

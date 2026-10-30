@@ -6,6 +6,9 @@
 //! 0x004008e0, a [`control`] `Main` a frame). [`TopPage::step`] is one frame;
 //! the save state is [`SaveState`]. The ways out are requests: Log out
 //! `ChangeMode { num: 3, sf: 7 }`, Log in `{ num: 5, sf: 8 }` and `ChangeArea`.
+// A library reports through its caller, never on stdout.
+#![deny(clippy::print_stdout)]
+#![forbid(unsafe_code)]
 
 pub mod assets;
 pub mod bbs;
