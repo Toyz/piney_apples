@@ -114,6 +114,36 @@ game depends only on the cores; which backend runs is a setting.
 7. **Latency.** A small device buffer once the lock is gone, so sound
    effects land on their frame.
 
+## Built on defs and systems: achievements
+
+The maintainer's idea, 2026-10-30. Achievements are a def and a system
+like any other (plans/rust-cleanup.md, "Defs and systems"):
+
+```rust
+pub struct AchievementDef {
+    id: &'static str, name: &'static str, desc: &'static str,
+    when: Condition,     // over the frame's events and the save: Event(..), Flag(saveData + off), Story(n), Count(..)
+    volumes: VolumeSet,
+}
+trait AchievementBackend { fn unlock(&mut self, id: &str); fn progress(&mut self, id: &str, n: u32, of: u32); }
+```
+
+- The `Achievements` system only observes: it reads each frame's events and
+  the save and never writes, so the game is bit-exact with it on or off.
+- Backends behind one trait, interchangeable:
+  - **Local** (default): a file in the port's folder and an in-game list.
+  - **RetroAchievements**: RA's PS2 sets are conditions on the console's
+    memory addresses, the game named by its disc hash. The port already
+    holds the save and many globals at their game addresses, so a virtual
+    memory view mapping those addresses onto the port's state could run
+    RA's own .hack sets through `rcheevos` (MIT). Needs RA to accept a
+    native port as a client: their call, asked before building.
+  - **Steam**: `steamworks-rs` (MIT/Apache) over Valve's redistributable
+    SDK; the port cannot ship on Steam (the games are not ours), so this
+    only serves a non-Steam shortcut. Cheap to add behind the trait.
+- The achievement list itself is data: a table of `AchievementDef`s per
+  volume, written by us (never copied from another project's set).
+
 ## Order
 
 The crate split first (Classic moved into its crates, no behaviour change),
