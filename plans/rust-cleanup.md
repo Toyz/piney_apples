@@ -71,6 +71,17 @@ order; tick items off here as they land, with the worklog entry.
       the 10 class take/put pairs and the 12 copied frames.
 - [ ] `Part<T: PartClass>` / `Parts<T>` for gomoras, leaves, brothers,
       roots, seeds, eyes (keep the placeholder semantics where code indexes).
+- [ ] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
+      `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
+      and `field_world.rs` `draw_boss` match per boss; with the per-boss
+      `Pic` variants on `Out` folded into shared ones (see the particle
+      `GenSpec` below), give the class trait the hooks the world needs
+      (`look`, `parts`, `pictures`) so a new boss adds one impl, not arms in
+      four files.
+- [ ] Bosses, the Python harnesses: `tools/test_battle_*_rs.py` (13 files)
+      repeat set-up, stand-ins and per-frame compares; lift what they share
+      into `test_battle_boss_rs.py`'s helpers (as `draw_case` and the forced
+      cameras were), leaving each file its boss's own cases.
 - [ ] Boss effects: `enum Fx` in place of 10 `Option<Box>` fields, one
       `Effects::pass(PassMode)` (snapshot vs live length, set vs clear-only
       kept per boss), `BossBase::make_fx`; effect side a `Mirrored` trait,
