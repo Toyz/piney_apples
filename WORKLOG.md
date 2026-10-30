@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-521 entries: audio 43, battle 131, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 238, tooling 55, ui 102, video 16, volumes 94, world 148. 126 entries still have open questions - [listed below](#still-open).
+522 entries: audio 43, battle 131, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 149. 126 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -533,6 +533,7 @@ The [reference](docs/README.md) says what is true now.
 | 519 | [The later volumes' harness failures: the camera's and the rebuilt player's square root, evchar's fellow and ccAI, demo's probe as its disc](worklog/0519-the-later-volumes-harness-failures-the-camera-s-and-the.md) | 2026-10-30 | test, world |
 | 520 | [dead_code denied: the last 13 exemptions test-only, used or deleted](worklog/0520-dead-code-denied-the-last-13-exemptions-test-only-used-or.md) | 2026-10-30 | build, tooling |
 | 521 | [piney-world by subsystem: town, story_map, field, dungeon, chara, camera, event, grunty and sky folders, and the story maps and towns as registries](worklog/0521-piney-world-by-subsystem-town-story-map-field-dungeon-chara.md) | 2026-10-30 | world, build |
+| 522 | [test_town02_rs on every volume; from Mutation on Dun Loireag's cloud skies draw on layer 5, and from Outbreak on the water's screen point is held to the frame buffer](worklog/0522-test-town02-rs-on-every-volume-from-mutation-on-dun-loireag.md) | 2026-10-30 | world, test |
 
 ## Still open
 

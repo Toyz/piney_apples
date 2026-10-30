@@ -57,21 +57,90 @@ from test_world_rs import ONE, PLAYER, TCAM, WM, fb, hexs  # noqa: E402
 ROOT = tw.ROOT
 ISO, ELF = tw.ISO, tw.ELF
 EXAMPLE = os.path.join(os.environ.get("CARGO_TARGET_DIR", os.path.join(ROOT, "target")), "release", "examples",
-                       "town02_probe")
+                       "dun_loireag_probe")
 EV = tw.EV
 EVENTMNG = tw.EVENTMNG
 ACTIVE_CAM, CAMID, PLW_PW = inf_va(0x0037896C), inf_va(0x0037897C), inf_va(0x00730300)
 LAYER_ACTIVE = tw.LAYER_ACTIVE
-RT02_VTABLE = inf_va(0x00375FF0)
+from volume import NAME as VOLUME  # noqa: E402
+
+
+def rt_off(off):
+    """A ROOTTOWN02 member's offset on the disc. From Mutation on ROOTTOWN's
+    members from +0x70 to the vtable (+0x1ac) are 4 further, and
+    ROOTTOWN02's own after it 12 (MUT gcmn `DrawBG` 0x00439110 and `Draw`
+    0x0043ab30 read them there)."""
+    if VOLUME == "infection" or off < 0x70:
+        return off
+    return off + (4 if off <= 0x1AC else 12)
+
+
+def gp_globals(prog, fn, op, words):
+    """The globals the `op` accesses through $gp (lb 0x20, lwc1 0x31, swc1
+    0x39) in the first `words` instructions of `fn` name, in order, each
+    once: how a static the carry does not name is found by its code."""
+    out = []
+    for k in range(words):
+        w = prog.u32(fn + 4 * k)
+        if w >> 26 == op and (w >> 21) & 31 == 28:
+            a = prog.gp + ((w & 0xFFFF) ^ 0x8000) - 0x8000
+            if a not in out:
+                out.append(a)
+    return out
+
+
+def rt02_vtable(prog):
+    """ROOTTOWN02's vtable: by name where carried, else the second vtable
+    the constructor stores at +0x1b0 (ROOTTOWN's first), as
+    test_world_rs's `rt_vtable` finds ROOTTOWN01's."""
+    try:
+        return inf_va(0x00375FF0)
+    except KeyError:
+        f = prog.symbol_named("__ct__10ROOTTOWN02Fv").value
+        w = [prog.u32(f + 4 * k) for k in range(24)]
+        stores = [((hi & 0xFFFF) << 16) + ((lo & 0xFFFF) ^ 0x8000) - 0x8000
+                  for hi, lo, st in zip(w, w[1:], w[2:])
+                  if hi >> 26 == 0x0F and lo >> 26 == 0x09 and st >> 26 == 0x2B and st & 0xFFFF == rt_off(0x1AC)]
+        return stores[1]
+
+
+# ROOTTOWN02's functions by their place in its vtable, for the discs whose
+# carry does not name them.
+VT_SLOTS = {"Draw__10ROOTTOWN02Fv": 8, "DrawBG__10ROOTTOWN02Fv": 12, "DrawMap__10ROOTTOWN02Fv": 28}
+
+
+def rt02_fn(prog, name):
+    s = prog.symbol_named(name)
+    return s.value if s is not None else prog.u32(rt02_vtable(prog) + VT_SLOTS[name])
+
+
+def statics(prog):
+    """ROOTTOWN02's statics `u$1777`, `init$1778`, `v$1346` (two floats),
+    `v2$1347` and `init$1348`: by name where carried, else by the code that
+    uses them. `Draw` stores a float to `u` alone; `DrawBG` reads `v`,
+    `v+4` and `v2` first. From Outbreak on the statics are plain globals
+    with no `init` guard (None)."""
+    try:
+        return (inf_va(0x00378B6C), inf_va(0x00378B70), inf_va(0x00378170), inf_va(0x00378B5C),
+                inf_va(0x00378B60))
+    except KeyError:
+        draw, bg = rt02_fn(prog, "Draw__10ROOTTOWN02Fv"), rt02_fn(prog, "DrawBG__10ROOTTOWN02Fv")
+        u = gp_globals(prog, draw, 0x39, 0x200)[0]
+        v = gp_globals(prog, bg, 0x31, 0x100)
+        init1778 = (gp_globals(prog, draw, 0x20, 8) or [None])[0]
+        init1348 = (gp_globals(prog, bg, 0x20, 8) or [None])[0]
+        return u, init1778, v[0], v[2], init1348
+
+
 # WORLD_MAN's layers (+0x494 bgLayer[10], objLayer, obj2Layer, floorLayer,
 # effLayer, charLayer, refLayer) and their priorities as GO makes them.
 LAYERS = [(0x494 + 4 * k, p) for k, p in enumerate((-100, -90, -80, -70, -60, -50, -45, -40, -35, -30))] + [
-    (0x4BC, 0), (0x4C0, -10), (0x4C4, -20), (0x4C8, 20), (0x4CC, 10), (0x4D0, 30)]
+    (0x4BC, 0), (0x4C0, -10), (0x4C4, -20), (0x4C8, 20), (0x4CC, 10), (0x4D0, 30)] + (
+    # From Mutation on GO adds a layer at +0x4d4, priority 5 (MUT main 0x001b51c4).
+    [] if VOLUME == "infection" else [(0x4D4, 5)])
 BOUND = 24000.0
-# The area generator's seed and the ROOTTOWN02 statics.
+# The area generator's seed.
 SEED, RANDCNT = inf_va(0x00377D20), inf_va(0x00378A80)
-U1777, INIT1778 = inf_va(0x00378B6C), inf_va(0x00378B70)
-V1346, V2_1347, INIT1348 = inf_va(0x00378170), inf_va(0x00378B5C), inf_va(0x00378B60)
 
 
 def f32(bits):
@@ -80,7 +149,7 @@ def f32(bits):
 
 def build():
     subprocess.run([shutil.which("cargo"), "build", "--release", "-q", "-p", "piney-world", "--example",
-                    "town02_probe"], cwd=ROOT, check=True)
+                    "dun_loireag_probe"], cwd=ROOT, check=True)
 
 
 def ask(lines):
@@ -186,7 +255,7 @@ class TownGame(tw.Pieces):
             ("setuv", anm, u & 0xFFFF, v & 0xFFFF, mm.r[8] & 0xFFFFFFFF, lay(mm))) or 0
         m.hooks[sym("MakePacketDrawBuffTrans__7ccLayerFP10ccTexChunk")] = lambda mm, layer, tex, *a: d(
             ("copy", self.layer_prio.get(layer))) or 0
-        m.hooks[sym("DrawMap__10ROOTTOWN02Fv")] = lambda mm, *a: d(("map",)) or 0
+        m.hooks[rt02_fn(self.prog, "DrawMap__10ROOTTOWN02Fv")] = lambda mm, *a: d(("map",)) or 0
         # The camera the flare and the clouds read, the player they gather
         # about, the event manager's puppetShow, the town's bounds.
         m.store(ACTIVE_CAM, 4, TCAM)
@@ -199,35 +268,37 @@ class TownGame(tw.Pieces):
         m.store(tw.SAVE + 0x6772, 1, int(crisis))
         m.store(SEED, 4, seed)
         m.store(RANDCNT, 4, 0)
-        for a in (U1777, V1346, V1346 + 4, V2_1347):
+        u1777, init1778, v1346, v2_1347, init1348 = self.statics = statics(self.prog)
+        for a in (u1777, v1346, v1346 + 4, v2_1347):
             m.store(a, 4, 0)
-        for a in (INIT1778, INIT1348):
-            m.store(a, 1, 0)
-        self.obj = self.malloc(m, 0x260)
+        for a in (init1778, init1348):
+            if a is not None:
+                m.store(a, 1, 0)
+        self.obj = self.malloc(m, 0x270)
         self.log.clear()
         self.call("__ct__10ROOTTOWN02Fv", self.obj)
-        assert m.load(self.obj + 0x1AC, 4) == RT02_VTABLE
-        o = self.obj
-        self.water = [m.load(o + 0x1B0 + 4 * k, 4) for k in range(3)]
-        self.model_row = {m.load(m.load(o + 0xA0 + 4 * k, 4) + 4, 4): k for k in range(20)}
-        self.obj_row = {m.load(m.load(o + 0x168 + 4 * k, 4) + 8, 4): k for k in range(9)}
+        assert m.load(self.obj + rt_off(0x1AC), 4) == rt02_vtable(self.prog)
+        o = lambda off: self.obj + rt_off(off)  # noqa: E731
+        self.water = [m.load(o(0x1B0) + 4 * k, 4) for k in range(3)]
+        self.model_row = {m.load(m.load(o(0xA0) + 4 * k, 4) + 4, 4): k for k in range(20)}
+        self.obj_row = {m.load(m.load(o(0x168) + 4 * k, 4) + 8, 4): k for k in range(9)}
         clumps = {0x244: ["sky"], 0x248: ["cloudsky", 0], 0x24C: ["cloudsky", 1], 0x250: ["sun"]}
         clumps.update({0x70 + 4 * k: ["crisis", k] for k in range(3)})
-        self.clumps = {m.load(o + off, 4): v for off, v in clumps.items() if m.load(o + off, 4)}
-        flare = m.load(o + 0x23C, 4)
+        self.clumps = {m.load(o(off), 4): v for off, v in clumps.items() if m.load(o(off), 4)}
+        flare = m.load(o(0x23C), 4)
         self.flares = {m.load(flare + 4 * k, 4): k for k in range(6)}
-        self.cloud_objs = [m.load(o + 0x1D8 + 4 * k, 4) for k in range(25)]
+        self.cloud_objs = [m.load(o(0x1D8) + 4 * k, 4) for k in range(25)]
 
     def state(self):
         """The constructor's work as the probe's `new` reports it."""
         m, o = self.m, self.obj
         models = []
         for k in range(20):
-            sm = m.load(o + 0xA0 + 4 * k, 4)
+            sm = m.load(o + rt_off(0xA0) + 4 * k, 4)
             models.append([k, m.load(sm, 4), self.names[m.load(sm + 4, 4)], self.rvec(sm + 0x10, 3)])
         objects = []
         for k in range(9):
-            so = m.load(o + 0x168 + 4 * k, 4)
+            so = m.load(o + rt_off(0x168) + 4 * k, 4)
             anm = m.load(so + 8, 4)
             objects.append([k, self.rvec(anm + 0x40, 16), self.anm[anm][1]])
         fog = [e[1] for e in self.log if e[0] == "fog"]
@@ -251,7 +322,7 @@ class TownGame(tw.Pieces):
         m, o = self.m, self.obj
         self.vec(PLAYER + 0x40, list(player) + [ONE])
         self.draws.clear()
-        self.call("Draw__10ROOTTOWN02Fv", o)
+        self.call(rt02_fn(self.prog, "Draw__10ROOTTOWN02Fv"), o)
         pieces, extra, uv = [], [], None
         clouds = {m.load(c + 0x30, 4): k for k, c in enumerate(self.cloud_objs)}
         for e in self.draws:
@@ -300,7 +371,8 @@ class TownGame(tw.Pieces):
         if "MAT_sr2dat1_3" in self.mats:
             assert m.load(self.mats["MAT_sr2dat1_3"] + 20, 2) == bg == m.load(self.mats["MAT_sr2dat1_3"] + 22, 2)
         want = {"pieces": pieces, "uv": uv, "clo": clo, "bg": bg, "clouds": cloud_state, "seed": m.load(SEED, 4),
-                "u": m.load(U1777, 4), "scroll": [m.load(V1346, 4), m.load(V1346 + 4, 4), m.load(V2_1347, 4)]}
+                "u": m.load(self.statics[0], 4),
+                "scroll": [m.load(self.statics[2], 4), m.load(self.statics[2] + 4, 4), m.load(self.statics[3], 4)]}
         return want, extra
 
 
@@ -418,7 +490,8 @@ class TownAgainstGame(unittest.TestCase):
             for p, (layer, mat) in zip(want["pieces"], extra):
                 seen[p[0]] = seen.get(p[0], 0) + 1
                 expect = {"water": 20 if p[0] == "water" and p[1] != 0 else 0, "obj": 0, "copy": 0, "sky": -100,
-                          "sun": -90, "cloudsky": 20, "model": 0, "flare": 20, "cloud": 20}
+                          "sun": -90, "cloudsky": 20 if VOLUME == "infection" else 5, "model": 0, "flare": 20,
+                          "cloud": 20}  # the port's layers (dun_loireag::layer; cloud_sky by volume)
                 if p[0] == "crisis":
                     self.assertEqual(layer, (-80, -70, -60)[p[1]], p)
                 elif p[0] in expect:

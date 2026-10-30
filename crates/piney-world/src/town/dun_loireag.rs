@@ -98,6 +98,13 @@ pub mod layer {
     pub const BG1: i16 = -90;
     /// `SetActiveLayer(3)`: effLayer (+0x4c8).
     pub const EFF: i16 = crate::draw::EFF_LAYER;
+
+    /// The layer `DrawBG` draws the cloud skies on: effLayer in Infection;
+    /// from Mutation on `SetActiveLayer(7)`, a layer `GO` adds at +0x4d4
+    /// with priority 5 (MUT main 0x001b51c4, `DrawBG` gcmn 0x00439334).
+    pub fn cloud_sky(volume: piney_data::volume::Volume) -> i16 {
+        if volume == piney_data::volume::Volume::Inf { EFF } else { 5 }
+    }
 }
 
 /// One piece `ROOTTOWN02::Draw` draws, in its order.
@@ -316,7 +323,8 @@ impl DunLoireag {
                 }
                 Piece::CloudSky(k) => {
                     let rows = cloud_rows(&base.file, self.cloud_uv);
-                    base.clump_draw(layers, layer::EFF, to_screen, &self.cloud_sky[k], Mat4::IDENTITY, &rows);
+                    let on = layer::cloud_sky(base.hits.volume);
+                    base.clump_draw(layers, on, to_screen, &self.cloud_sky[k], Mat4::IDENTITY, &rows);
                 }
                 Piece::CrisisSky(k) => {
                     let Some(models) = &self.crisis_sky else { continue };

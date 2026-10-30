@@ -514,7 +514,9 @@ const K256: F = 0x4380_0000;
 /// vertex of the model's first mmat, through the object's world matrix and
 /// `sceVu0RotTransPers`, becomes its screen point as a fraction of the frame
 /// buffer, `fptoui(256 x)`: the water samples the picture behind it where its
-/// unbent vertex would be (docs/engine/town02.md).
+/// unbent vertex would be (docs/engine/town02.md). From Outbreak on the
+/// point is first held to the frame buffer, 0-512 across and 0-448 down
+/// (OUT gcmn 0x005183cc; `waterUVModifi` 0x00517fe4 the same).
 pub fn water_st(
     volume: piney_data::volume::Volume,
     model: &piney_data::model::Model,
@@ -532,6 +534,17 @@ pub fn water_st(
     }
     let scale = ee::div(model.scale.to_bits(), K4096);
     let mm = model.mmats.first()?;
+    let held = matches!(volume, piney_data::volume::Volume::Out | piney_data::volume::Volume::Qua);
+    // `x < 0` to 0, else anything not `<= top` (a NaN too) to `top`.
+    let hold = |x: F, top: F| {
+        if ee::lt(x, 0) {
+            0
+        } else if ee::le(x, top) {
+            x
+        } else {
+            top
+        }
+    };
     Some(
         mm.positions
             .iter()
@@ -540,8 +553,12 @@ pub fn water_st(
                 let q = ee::apply(lw, [v[0], v[1], v[2], ONE]);
                 let r = ee::rot_trans_pers(world_screen, q);
                 let (sx, sy) = (ee::from_int(r[0] / 16), ee::from_int(r[1] / 16));
-                let u = ee::div(ee::sub(sx, SCREEN_X), SCREEN_W);
-                let v = ee::div(ee::sub(sy, SCREEN_Y), SCREEN_H);
+                let (mut u, mut v) = (ee::sub(sx, SCREEN_X), ee::sub(sy, SCREEN_Y));
+                if held {
+                    u = hold(u, SCREEN_W);
+                    v = hold(v, SCREEN_H);
+                }
+                let (u, v) = (ee::div(u, SCREEN_W), ee::div(v, SCREEN_H));
                 let st = |x: F| soft_fptoui(ee::mul(K256, x)) as u16;
                 [st(u), st(v)]
             })

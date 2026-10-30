@@ -114,6 +114,11 @@ objects of their type), between `LockBlt` and `MakePacketLoadData` of their
 effect layer (+0x4c8, priority 20): the two cloud layers, waters 1 and 2,
 the flares and the clouds draw over the characters' layer (10).
 
+From Mutation on `GO` adds a layer at `WORLD_MAN +0x4d4`, priority 5 (MUT
+main 0x001b51c4), and `SetActiveLayer(7)` picks it. `DrawBG` draws the two
+cloud layers there (MUT gcmn 0x00439334), under the characters, and it is
+the only caller of layer 7 on Mutation, Outbreak and Quarantine.
+
 The scrolls are statics: `u$1777` and `v2$1347` start at 0 on their first
 use after power-on, `v$1346` in the data (0), and they carry on across
 visits.
@@ -144,6 +149,14 @@ return 1
 `fptoui` is libgcc's soft-float one (main 0x00129d08): truncation, 0 for a
 negative value, all ones from 2^32. The written coordinates stay in the
 model until the next call within reach.
+
+From Outbreak on (OUT gcmn 0x00518170, and `waterUVModifi` with it):
+
+- the distance is `sqrt.s`;
+- `sx - 1792` is held to 0..512 and `sy - 1824` to 0..448 (a value below 0
+  to 0, anything not at most the top to the top) before the divisions;
+- the ST conversion is the FPU's `cvt.w.s`, the same truncation on
+  values that are never negative now.
 
 `ccLayer::MakePacketDrawBuffTrans(layer, tex)` (main 0x00108e30) queues a
 GS packet at the front of the layer's list, as a model's draw does: context
