@@ -121,6 +121,19 @@ a lift truly cannot work, say exactly why and ask the maintainer.
 - [x] `Part<T: PartClass>` / `Parts<T>` for gomoras, leaves, brothers,
       roots, seeds, eyes (keep the placeholder semantics where code indexes).
       (worklog 527)
+- [ ] Skeith is a boss like the others. He was the first boss ported, so the
+      base grew up as his code and still is: `boss.rs` (2,997 lines) holds
+      `SkeithData`, his acts and skill rows, `BossBase::skeith_main`,
+      `Boss::new` as his constructor, `SkeithPatterns` in `class.rs` and a
+      `skeith` field special-cased in `BossData`. Move him to
+      `boss/skeith.rs` (or `boss/skeith/`) as a `Class` with its own
+      `BossClass` / `Shape` / `Patterns` impls, his data in his module, his
+      constructor `skeith::new`; `BossBase` keeps only `ccBoss`. First
+      settle from the game's code (vtables, DWARF class layouts) which later
+      bosses really derive from `ccBoss01` rather than `ccBoss` (Gorre falls
+      back on Skeith's base patterns today): what `ccBoss01` gives them
+      becomes a shared piece they compose, not Skeith's code left in the
+      base. Checked by the pins and every boss harness against the game.
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss
