@@ -4,7 +4,7 @@
 //! (`ccBossEffRockTower::Draw` 0x004800f0). The rules
 //! (`piney_battle::boss::fidchell::eff`) own each `Draw`'s steps and every
 //! `ccRand`; a picture is drawn from what the last one left, after the
-//! boss's task in the fight ([`crate::boss::BossEffects::sync_spells`]),
+//! boss's task in the fight ([`crate::boss::BossEffects::sync`]),
 //! or in the manager's own run of the rules for the probe ([`Spell::run`]).
 
 use piney_battle::boss::Out;
@@ -381,6 +381,16 @@ impl rules::Host for Run<'_> {
     }
     fn out(&mut self, o: Out) {
         self.outs.push(o);
+    }
+}
+
+impl Spell {
+    /// The spell's rules in a slot's effect, when it holds one.
+    pub(crate) fn rules(fx: &piney_battle::boss::Fx) -> Option<&Fx> {
+        match fx {
+            piney_battle::boss::Fx::Fidchell(f) => Some(f),
+            _ => None,
+        }
     }
 }
 

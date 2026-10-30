@@ -426,11 +426,7 @@ pub(crate) fn ball_damage(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mu
 pub(super) fn create(b: &mut BossBase, x: &Kyvia, cx: &mut Cx) {
     let ball = MagicalBall::new(cx.cc, 0x4220_0000, x.disc_pos);
     let kind = EffKind::MagicalBall;
-    let id = b.effects.create(kind);
-    if let Some(e) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
-        e.ball = Some(Box::new(ball));
-    }
-    cx.out(Out::Effect { id, kind, pos: x.disc_pos, dirc: VF0 });
+    b.make_fx(cx, kind, ball, x.disc_pos, VF0);
 }
 
 /// `MagicBallAtk` (QUA gcmn 0x003d7d40): the core away (state 8) and the

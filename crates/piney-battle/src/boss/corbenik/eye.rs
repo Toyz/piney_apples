@@ -929,7 +929,7 @@ fn on_dead(mb: &mut BossBase, b: &mut BossBase, x: &mut Killer, cx: &mut Cx) {
             // time: it is out before it can be born again).
             let key = KILLER_GEN_KEY + x.slave_id as u32;
             let d = super::eff::Drain::new(pos, key);
-            x.boss_eff = Some(super::make_fx(mb, cx, EffKind::RootDrain, super::eff::Fx::Drain(Box::new(d)), pos));
+            x.boss_eff = Some(mb.make_fx(cx, EffKind::RootDrain, super::eff::Fx::Drain(Box::new(d)), pos, VF0));
             crate::fellow::delete_cmnd(cx.scene, cx.me);
             cx.out(Out::DeleteCmnd);
             b.act_proccess += 1;

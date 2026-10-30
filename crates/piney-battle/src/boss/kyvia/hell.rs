@@ -410,7 +410,7 @@ pub(super) fn create(b: &mut BossBase, cx: &mut Cx, pos: V4, target: Option<usiz
     cx.out(Out::Blur(Set::Scale(0x3f81_47ae)));
     cx.out(Out::CamMode { mode: 5 });
     if let Some(e) = slot.and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
-        e.hell = Some(Box::new(h));
+        e.fx = Some(h.into());
     }
     cx.out(Out::Effect { id, kind, pos, dirc: VF0 });
 }

@@ -17,7 +17,7 @@ use self::leaf::Leaf;
 use super::blur::Set;
 use super::kyvia::fabs;
 use super::{
-    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Fade, LoopOp, Out, Patterns, VF0,
+    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Fade, Fx, LoopOp, Out, PassMode, Patterns, VF0,
     base_exec_pattern_index, word,
 };
 use crate::boss::Part;
@@ -510,24 +510,13 @@ impl Shock {
 /// `ccBossEffManager::Draw`'s pass over Magus's effects: a needle steps
 /// its own life ([`Needle`]), the others theirs.
 fn manager_pass(b: &mut BossBase, cx: &mut Cx) {
-    for k in 0..b.effects.slots.len() {
-        let Some(e) = b.effects.slots[k].as_mut() else { continue };
-        if !e.enabled {
-            b.effects.slots[k] = None;
-            continue;
-        }
-        let EffKind::Needle { .. } = e.kind else {
-            e.draw();
-            continue;
-        };
-        let Some(n) = e.needle.as_mut() else { continue };
+    b.effect_pass(PassMode::ClearOnly, |_, _, _, fx| {
+        let Fx::Needle(n) = fx else { return true };
         if let Some(se) = n.draw() {
             cx.out(Out::Se3d { se, pos: n.pos });
         }
-        if n.done {
-            e.enabled = false;
-        }
-    }
+        !n.done
+    });
 }
 
 /// `ccBoss03LaserShock::Draw`'s beam (0x004a7630): from the shock's
@@ -1106,13 +1095,8 @@ fn on_needle(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
             b.act_count += 1;
             if c >= 21 {
                 let n = Needle::new(cx.cc, at, 0, 0x4248_0000, 0x3e99_999a, 128, 3, 15);
-                let id = b.effects.create(EffKind::Needle { n: 128 });
-                if let Ok(k) = usize::try_from(id)
-                    && let Some(Some(e)) = b.effects.slots.get_mut(k)
-                {
-                    e.needle = Some(Box::new(n));
-                }
-                cx.out(Out::Effect { id, kind: EffKind::Needle { n: 128 }, pos: at, dirc: b.dirc });
+                let dirc = b.dirc;
+                b.make_fx(cx, EffKind::Needle { n: 128 }, n, at, dirc);
                 b.act_proccess += 1;
                 b.act_count = 0;
             }

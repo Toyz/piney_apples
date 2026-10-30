@@ -9,7 +9,7 @@ use piney_data::field::ee;
 
 use super::eff::{self, Fx};
 use super::seed::{self, Seed};
-use super::{Gen, Pic, SEEDS, make_fx, manager_pass, word, wrap_hi};
+use super::{Gen, Pic, SEEDS, manager_pass, word, wrap_hi};
 use crate::boss::Parts;
 use crate::boss::{
     BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_change_next_pattern,
@@ -419,7 +419,7 @@ fn on_wave(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
                 let (pos, dirc) = (cx.pos(), b.dirc);
                 b.effect_at(cx, EffKind::WaveShock, pos, dirc);
                 let w = eff::Wave::new(cx, pos);
-                make_fx(b, cx, EffKind::CorbenikWave, Fx::Wave(Box::new(w)), pos);
+                b.make_fx(cx, EffKind::CorbenikWave, Fx::Wave(Box::new(w)), pos, VF0);
                 b.act_proccess += 1;
             }
             let p = calc_jump_pos(cx, &x.jump);

@@ -18,7 +18,7 @@ use piney_data::field::ee;
 use self::core::Core;
 use self::gomora::Gomora;
 use super::blur::Set;
-use super::{AfterImageParams, Anm, Boss, BossBase, Class, Cx, EffKind, Out, VF0};
+use super::{AfterImageParams, Anm, Boss, BossBase, Class, Cx, EffKind, Fx, Out, PassMode, VF0};
 use crate::boss::Part;
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
@@ -2351,50 +2351,23 @@ impl Meteorite {
 fn meteorite(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) {
     let m = Meteorite::new(cx, x.disc_pos, 0x43fa_0000, 7);
     let kind = EffKind::Meteorite { count: 7 };
-    let id = b.effects.create(kind);
-    if let Some(e) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
-        e.meteorite = Some(Box::new(m));
-    }
-    cx.out(Out::Effect { id, kind, pos: x.disc_pos, dirc: VF0 });
+    b.make_fx(cx, kind, m, x.disc_pos, VF0);
 }
 
 /// `ccBossEffManager::Draw` over the fight's effects: a meteorite's `Draw`
 /// may call the body's `KyviaMagicDamage`, the magical ball's its
 /// `KyviaMagicalBallDamage`; a thunderbolt's draws from `ccRand`.
 fn manager_pass(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
-    for k in 0..b.effects.slots.len() {
-        let Some(e) = b.effects.slots[k].as_mut() else { continue };
-        if !e.enabled {
-            b.effects.slots[k] = None;
-            continue;
-        }
-        let alive = if let Some(mut ball) = e.ball.take() {
-            let alive = ball.draw(&mut magic_ball::FightBall { b, x, t, cx });
-            if let Some(e) = b.effects.slots[k].as_mut() {
-                e.ball = Some(ball);
-            }
-            alive
-        } else if let Some(mut hell) = e.hell.take() {
+    b.effect_pass(PassMode::ClearOnly, |b, k, _, fx| match fx {
+        Fx::Ball(ball) => ball.draw(&mut magic_ball::FightBall { b, x, t, cx }),
+        Fx::Hell(hell) => {
             let (abgr, scale) = (cx.disc.blur_abgr, cx.disc.blur_scale);
-            let alive = hell.draw(&mut hell::FightHell { b, cx, slot: k, abgr, scale });
-            if let Some(e) = b.effects.slots[k].as_mut() {
-                e.hell = Some(hell);
-            }
-            alive
-        } else {
-            match (e.meteorite.as_mut(), e.bolt.as_mut()) {
-                (Some(m), _) => m.draw(x.fight, t, cx),
-                (None, Some(bolt)) => bolt.draw(cx),
-                (None, None) => {
-                    e.draw();
-                    continue;
-                }
-            }
-        };
-        if !alive && let Some(e) = b.effects.slots[k].as_mut() {
-            e.enabled = false;
+            hell.draw(&mut hell::FightHell { b, cx, slot: k, abgr, scale })
         }
-    }
+        Fx::Meteorite(m) => m.draw(x.fight, t, cx),
+        Fx::Bolt(bolt) => bolt.draw(cx),
+        _ => true,
+    });
 }
 
 #[cfg(test)]

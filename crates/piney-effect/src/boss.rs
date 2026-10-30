@@ -220,15 +220,6 @@ impl Tables {
     }
 }
 
-/// Kyvia's effects as the fight's rules hold them, each by its slot there.
-#[derive(Clone, Copy)]
-pub struct KyviaRules<'a> {
-    pub meteors: &'a [(i32, &'a piney_battle::boss::kyvia::Meteorite)],
-    pub bolts: &'a [(i32, &'a piney_battle::boss::kyvia::thunder::Bolt)],
-    pub balls: &'a [(i32, &'a piney_battle::boss::kyvia::magic_ball::MagicalBall)],
-    pub hells: &'a [(i32, &'a piney_battle::boss::kyvia::hell::Hell)],
-}
-
 /// The boss effect manager's effects (`_g_bossEffManager`).
 #[derive(Clone, Debug, Default)]
 pub struct BossEffects {
@@ -770,10 +761,48 @@ impl BossEffects {
             .collect()
     }
 
-    /// Fidchell's spells as the fight's rules left them this frame (their
-    /// slot there and state), drawn: each one's picture made at its first
-    /// sight and dropped once its slot is gone.
-    pub fn sync_spells(&mut self, cx: &mut Cx, spells: &[(i32, &piney_battle::boss::fidchell::eff::Fx)]) {
+    /// The pictures of the effects the fight's rules keep, mirrored on
+    /// what the rules' pass left this frame, in the frame's order:
+    /// Fidchell's spells (a picture made at first sight), Innis's
+    /// missiles, Kyvia's meteors, bolts, ball and hell (its members'
+    /// places first), Magus's needles (its leaves' markers first, the
+    /// bursts after). In each group the pictures whose rules let go are
+    /// dropped first.
+    pub fn sync(&mut self, ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, src: &Source) {
+        let fx = src.fx;
+        self.sync_spells(cx, fx);
+        self.drop_gone(ctrl, fx, &[Mirror::Missile]);
+        // In the rules' order, not the pictures'.
+        for &(id, f) in fx {
+            let Some(f) = crate::innis::Missile::rules(f) else { continue };
+            let at = self.slots.iter_mut().flatten().find_map(|s| match &mut s.eff {
+                BossEff::Missile(m) if m.rules_slot == id => Some(m),
+                _ => None,
+            });
+            if let Some(m) = at {
+                m.mirror(ctrl, cx, t, f);
+            }
+        }
+        for &(f, p) in src.kyvia_members {
+            if let Some(a) = crate::kyvia::anchor(f) {
+                ctrl.anchors.insert(a, p);
+            }
+        }
+        self.mirror_group(ctrl, cx, t, fx, &[Mirror::Meteorite, Mirror::Bolt, Mirror::Ball, Mirror::Hell]);
+        for &(c, p) in src.magus_markers {
+            ctrl.anchors.insert(crate::magus::marker_anchor(c), p);
+        }
+        self.mirror_group(ctrl, cx, t, fx, &[Mirror::Needles]);
+        for b in src.magus_bursts {
+            crate::magus::leaf_explode(cx, b);
+        }
+    }
+
+    /// Fidchell's spells: each one's picture made at its first sight and
+    /// dropped once its slot is gone (or holds another spell).
+    fn sync_spells(&mut self, cx: &mut Cx, src: &[(i32, &BFx)]) {
+        let spells: Vec<(i32, &piney_battle::boss::fidchell::eff::Fx)> =
+            src.iter().filter_map(|&(id, fx)| crate::fidchell::Spell::rules(fx).map(|f| (id, f))).collect();
         for s in self.slots.iter_mut() {
             if let Some(Slot { eff: BossEff::Spell(x), .. }) = s
                 && x.rules_slot.is_some_and(|k| !spells.iter().any(|(id, f)| *id == k && x.fits(f)))
@@ -781,7 +810,7 @@ impl BossEffects {
                 *s = None;
             }
         }
-        for &(id, fx) in spells {
+        for &(id, fx) in &spells {
             let at = self
                 .slots
                 .iter()
@@ -803,116 +832,24 @@ impl BossEffects {
         }
     }
 
-    /// Innis's missiles as the fight's rules left them (their slot there,
-    /// element, number and flight): each one's picture of its last `Draw`
-    /// ([`crate::innis::Missile::draw`]); those the rules let go, gone.
-    pub fn sync_missiles(
-        &mut self,
-        ctrl: &mut EffectCtrl,
-        cx: &mut Cx,
-        t: &Tables,
-        flights: &[(i32, piney_battle::boss::innis::Element, i32, &piney_battle::boss::innis::Missile)],
-    ) {
-        for s in self.slots.iter_mut() {
-            if let Some(Slot { eff: BossEff::Missile(m), .. }) = s
-                && !flights.iter().any(|f| f.0 == m.rules_slot)
-            {
-                for a in m.anchors() {
-                    ctrl.anchors.remove(&a);
-                }
-                *s = None;
-            }
-        }
-        for &(id, _, _, f) in flights {
-            let at = self.slots.iter_mut().flatten().find_map(|s| match &mut s.eff {
-                BossEff::Missile(m) if m.rules_slot == id => Some(m),
-                _ => None,
-            });
-            if let Some(m) = at {
-                m.draw(ctrl, cx, t, f);
+    /// A group's pictures whose rules let go dropped, then the rest drawn
+    /// in slot order.
+    fn mirror_group(&mut self, ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, src: &[(i32, &BFx)], group: &[Mirror]) {
+        self.drop_gone(ctrl, src, group);
+        for s in self.slots.iter_mut().flatten() {
+            if group.contains(&s.eff.mirror()) {
+                s.eff.mirror_draw(ctrl, cx, t, src);
             }
         }
     }
 
-    /// Kyvia's meteors and bolts as the fight's rules left them (their
-    /// slot there and state): each one's picture of its last `Draw`
-    /// ([`crate::kyvia`]); those the rules let go, gone.
-    pub fn sync_kyvia(&mut self, ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, rules: &KyviaRules) {
-        let KyviaRules { meteors, bolts, balls, hells } = *rules;
+    fn drop_gone(&mut self, ctrl: &mut EffectCtrl, src: &[(i32, &BFx)], group: &[Mirror]) {
         for s in self.slots.iter_mut() {
-            match s {
-                Some(Slot { eff: BossEff::Meteorite(m), .. })
-                    if !m.runs_alone() && !meteors.iter().any(|f| f.0 == m.rules_slot) =>
-                {
-                    for a in m.anchors() {
-                        ctrl.anchors.remove(&a);
-                    }
-                    *s = None;
-                }
-                Some(Slot { eff: BossEff::Bolt(b), .. })
-                    if !b.runs_alone() && !bolts.iter().any(|f| f.0 == b.rules_slot) =>
-                {
-                    *s = None;
-                }
-                Some(Slot { eff: BossEff::Ball(b), .. })
-                    if !b.runs_alone() && !balls.iter().any(|f| f.0 == b.rules_slot) =>
-                {
-                    *s = None;
-                }
-                Some(Slot { eff: BossEff::Hell(h), .. })
-                    if !h.runs_alone() && !hells.iter().any(|f| f.0 == h.rules_slot) =>
-                {
-                    *s = None;
-                }
-                _ => {}
-            }
-        }
-        for s in self.slots.iter_mut().flatten() {
-            match &mut s.eff {
-                BossEff::Meteorite(m) => {
-                    if let Some(&(_, f)) = meteors.iter().find(|f| f.0 == m.rules_slot) {
-                        m.draw(ctrl, cx, t, f, false);
-                    }
-                }
-                BossEff::Bolt(b) => {
-                    if let Some(&(_, f)) = bolts.iter().find(|f| f.0 == b.rules_slot) {
-                        b.draw(cx, t, f);
-                    }
-                }
-                BossEff::Ball(b) => {
-                    if let Some(&(_, f)) = balls.iter().find(|f| f.0 == b.rules_slot) {
-                        crate::kyvia::publish(ctrl, f);
-                        b.draw(cx, f);
-                    }
-                }
-                BossEff::Hell(h) => {
-                    if let Some(&(_, f)) = hells.iter().find(|f| f.0 == h.rules_slot) {
-                        crate::kyvia::hell_publish(ctrl, f);
-                        h.draw(cx, f);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-
-    /// Magus's needles as the fight's rules left them (their slot there
-    /// and life): each one's picture of its last `Draw`; those the rules
-    /// let go, gone.
-    pub fn sync_magus(&mut self, cx: &mut Cx, needles: &[(i32, &piney_battle::boss::magus::Needle)]) {
-        for s in self.slots.iter_mut() {
-            if let Some(Slot { eff: BossEff::Needles(n), .. }) = s
-                && !n.runs_alone()
-                && !needles.iter().any(|f| f.0 == n.rules_slot)
+            if let Some(slot) = s
+                && group.contains(&slot.eff.mirror())
+                && slot.eff.mirror_gone(ctrl, src)
             {
                 *s = None;
-            }
-        }
-        for s in self.slots.iter_mut().flatten() {
-            if let BossEff::Needles(n) = &mut s.eff
-                && let Some(&(_, f)) = needles.iter().find(|f| f.0 == n.rules_slot)
-            {
-                n.draw(cx, f);
             }
         }
     }
@@ -1141,10 +1078,10 @@ impl BossEffects {
                 BossEff::IceBreak(i) => i.draw(ctrl, cx),
                 BossEff::Dead(d) => d.draw(cx, t),
                 // The fight's spells are drawn as its rules leave them
-                // ([`BossEffects::sync_spells`]).
+                // ([`BossEffects::sync`]).
                 BossEff::Spell(x) if x.rules_slot.is_some() => continue,
                 // Innis's missiles are drawn as its rules leave them
-                // ([`BossEffects::sync_missiles`]), but those run here.
+                // ([`BossEffects::sync`]), but those run here.
                 BossEff::Missile(m) if m.runs_alone() => {
                     let (on, w) = m.run(ctrl, cx, t);
                     wave = w;
@@ -1152,13 +1089,13 @@ impl BossEffects {
                 }
                 BossEff::Missile(_) => continue,
                 // Kyvia's meteors and bolts likewise
-                // ([`BossEffects::sync_kyvia`]).
+                // ([`BossEffects::sync`]).
                 BossEff::Meteorite(m) if m.runs_alone() => m.run(ctrl, cx, t),
                 BossEff::Bolt(b) if b.runs_alone() => b.run(cx, t),
                 BossEff::Ball(b) if b.runs_alone() => b.run(ctrl, cx, t),
                 BossEff::Hell(h) if h.runs_alone() => h.run(ctrl, cx, t),
                 BossEff::Meteorite(_) | BossEff::Bolt(_) | BossEff::Ball(_) | BossEff::Hell(_) => continue,
-                // Magus's needles likewise ([`BossEffects::sync_magus`]).
+                // Magus's needles likewise ([`BossEffects::sync`]).
                 BossEff::Needles(n) if n.runs_alone() => n.run(cx),
                 BossEff::Needles(_) => continue,
                 BossEff::PhotonFlash(f) => {
@@ -1642,5 +1579,103 @@ mod tests {
         assert_eq!(m(200), Some(("xeffect", "CMP_x038".into(), c("CLT_x003", "CLT_x003c3"))));
         assert_eq!(m(162), Some(("xeffect", "CMP_x030".into(), c("CLT_x030", "CLT_x030c1"))));
         assert!(ring_model(36).is_none() && ring_model(182).is_none() && ring_model(204).is_none());
+    }
+}
+
+use piney_battle::boss::Fx as BFx;
+
+/// What the fight's rules left this frame for the boss effects' pictures
+/// ([`BossEffects::sync`]): each effect with its rules by its slot there,
+/// Kyvia's members' places, Magus's leaves' markers and bursts.
+#[derive(Clone, Copy, Default)]
+pub struct Source<'a> {
+    pub fx: &'a [(i32, &'a BFx)],
+    pub kyvia_members: &'a [(piney_battle::boss::kyvia::Follow, V4)],
+    pub magus_markers: &'a [(usize, V4)],
+    pub magus_bursts: &'a [piney_battle::boss::magus::leaf::Explode],
+}
+
+/// A picture of an effect the fight's rules keep: the rules' state it
+/// mirrors (found in a slot's [`BFx`]), the rules' slot it follows, and
+/// its draw of that state.
+pub trait Mirrored {
+    type Rules;
+    fn rules(fx: &BFx) -> Option<&Self::Rules>;
+    fn rules_slot(&self) -> i32;
+    /// Runs on its own: kept when its rules' slot is gone.
+    fn unmirrored(&self) -> bool;
+    /// What dropping it lets go of (its trails' anchors).
+    fn forget(&self, _ctrl: &mut EffectCtrl) {}
+    fn mirror(&mut self, ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, rules: &Self::Rules);
+}
+
+/// The rules' state for picture `M` in slot `id`: the first entry there
+/// of `M`'s kind.
+fn rules_at<'a, M: Mirrored>(src: &[(i32, &'a BFx)], id: i32) -> Option<&'a M::Rules> {
+    src.iter().filter(|(k, _)| *k == id).find_map(|(_, fx)| M::rules(fx))
+}
+
+/// Dropped, its anchors let go, when its rules' slot is gone.
+fn gone<M: Mirrored>(m: &M, ctrl: &mut EffectCtrl, src: &[(i32, &BFx)]) -> bool {
+    let gone = !m.unmirrored() && rules_at::<M>(src, m.rules_slot()).is_none();
+    if gone {
+        m.forget(ctrl);
+    }
+    gone
+}
+
+fn draw<M: Mirrored>(m: &mut M, ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, src: &[(i32, &BFx)]) {
+    if let Some(f) = rules_at::<M>(src, m.rules_slot()) {
+        m.mirror(ctrl, cx, t, f);
+    }
+}
+
+/// The mirrored pictures' kinds, for [`BossEffects::sync`]'s groups.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Mirror {
+    None,
+    Missile,
+    Meteorite,
+    Bolt,
+    Ball,
+    Hell,
+    Needles,
+}
+
+impl BossEff {
+    fn mirror(&self) -> Mirror {
+        match self {
+            BossEff::Missile(_) => Mirror::Missile,
+            BossEff::Meteorite(_) => Mirror::Meteorite,
+            BossEff::Bolt(_) => Mirror::Bolt,
+            BossEff::Ball(_) => Mirror::Ball,
+            BossEff::Hell(_) => Mirror::Hell,
+            BossEff::Needles(_) => Mirror::Needles,
+            _ => Mirror::None,
+        }
+    }
+
+    fn mirror_gone(&self, ctrl: &mut EffectCtrl, src: &[(i32, &BFx)]) -> bool {
+        match self {
+            BossEff::Missile(m) => gone(&**m, ctrl, src),
+            BossEff::Meteorite(m) => gone(&**m, ctrl, src),
+            BossEff::Bolt(m) => gone(&**m, ctrl, src),
+            BossEff::Ball(m) => gone(&**m, ctrl, src),
+            BossEff::Hell(m) => gone(&**m, ctrl, src),
+            BossEff::Needles(m) => gone(&**m, ctrl, src),
+            _ => false,
+        }
+    }
+
+    fn mirror_draw(&mut self, ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, src: &[(i32, &BFx)]) {
+        match self {
+            BossEff::Missile(m) => draw(&mut **m, ctrl, cx, t, src),
+            BossEff::Meteorite(m) => draw(&mut **m, ctrl, cx, t, src),
+            BossEff::Bolt(m) => draw(&mut **m, ctrl, cx, t, src),
+            BossEff::Ball(m) => draw(&mut **m, ctrl, cx, t, src),
+            BossEff::Hell(m) => draw(&mut **m, ctrl, cx, t, src),
+            BossEff::Needles(m) => draw(&mut **m, ctrl, cx, t, src),
+            _ => {}
+        }
     }
 }

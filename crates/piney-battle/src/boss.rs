@@ -366,26 +366,61 @@ pub struct Eff {
     pub proc: i32,
     /// `ccEffSamonRing.Transparency` (+0x6c) as it bursts.
     pub fade: F,
-    /// A missile's flight ([`innis::Missile`]).
-    pub missile: Option<Box<innis::Missile>>,
-    /// The meteors' flights ([`kyvia::Meteorite`]).
-    pub meteorite: Option<Box<kyvia::Meteorite>>,
-    /// Magus's needles ([`magus::Needle`]).
-    pub needle: Option<Box<magus::Needle>>,
-    /// Fidchell's spells ([`fidchell::eff::Fx`]).
-    pub fidchell: Option<Box<fidchell::eff::Fx>>,
-    /// A thunderbolt of Kyvia's ([`kyvia::thunder::Bolt`]).
-    pub bolt: Option<Box<kyvia::thunder::Bolt>>,
-    /// Kyvia's magical ball ([`kyvia::magic_ball::MagicalBall`]).
-    pub ball: Option<Box<kyvia::magic_ball::MagicalBall>>,
-    /// Kyvia's hell's express ([`kyvia::hell::Hell`]).
-    pub hell: Option<Box<kyvia::hell::Hell>>,
-    /// Macha's lasers and blast ([`macha::eff::Fx`]).
-    pub macha: Option<Box<macha::eff::Fx>>,
-    /// Tarvos's spike rain and phantom ([`tarvos::eff::Fx`]).
-    pub tarvos: Option<Box<tarvos::eff::Fx>>,
-    /// Corbenik's wave and flush ([`corbenik::eff::Fx`]).
-    pub corbenik: Option<Box<corbenik::eff::Fx>>,
+    /// The effect's own rules, where its `Draw` is its class's.
+    pub fx: Option<Fx>,
+}
+
+/// A boss effect whose `Draw` its class runs ([`BossBase::effect_pass`]);
+/// the others are the lives [`Eff::draw`] keeps.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Fx {
+    /// An Innis missile's flight.
+    Missile(Box<innis::Missile>),
+    /// Kyvia's meteors, a thunderbolt, the magical ball, the hell's express.
+    Meteorite(Box<kyvia::Meteorite>),
+    Bolt(Box<kyvia::thunder::Bolt>),
+    Ball(Box<kyvia::magic_ball::MagicalBall>),
+    Hell(Box<kyvia::hell::Hell>),
+    /// Magus's needles.
+    Needle(Box<magus::Needle>),
+    /// Fidchell's spells, Macha's lasers and blast, Tarvos's spike rain and
+    /// phantom, Corbenik's wave, flush and the rest.
+    Fidchell(Box<fidchell::eff::Fx>),
+    Macha(Box<macha::eff::Fx>),
+    Tarvos(Box<tarvos::eff::Fx>),
+    Corbenik(Box<corbenik::eff::Fx>),
+}
+
+/// `Fx`'s variant for each class's effect.
+macro_rules! fx_from {
+    ($($t:ty => $v:ident),* $(,)?) => {$(
+        impl From<$t> for Fx {
+            fn from(x: $t) -> Fx {
+                Fx::$v(Box::new(x))
+            }
+        }
+    )*};
+}
+
+fx_from! {
+    innis::Missile => Missile,
+    kyvia::Meteorite => Meteorite,
+    kyvia::thunder::Bolt => Bolt,
+    kyvia::magic_ball::MagicalBall => Ball,
+    kyvia::hell::Hell => Hell,
+    magus::Needle => Needle,
+    fidchell::eff::Fx => Fidchell,
+    macha::eff::Fx => Macha,
+    tarvos::eff::Fx => Tarvos,
+    corbenik::eff::Fx => Corbenik,
+}
+
+/// How a class's pass writes `m_bEnabled` back after its effect's `Draw`:
+/// set to what the `Draw` answered, or only ever cleared.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PassMode {
+    Set,
+    ClearOnly,
 }
 
 /// The effects the bosses make (`ccBossEff*Create`).
@@ -497,23 +532,7 @@ impl Effects {
         if self.slots.is_empty() {
             self.slots = vec![None; Self::SLOTS];
         }
-        let e = Eff {
-            kind,
-            enabled: true,
-            count: 0,
-            proc: 0,
-            fade: ONE,
-            missile: None,
-            meteorite: None,
-            needle: None,
-            fidchell: None,
-            bolt: None,
-            ball: None,
-            hell: None,
-            macha: None,
-            tarvos: None,
-            corbenik: None,
-        };
+        let e = Eff { kind, enabled: true, count: 0, proc: 0, fade: ONE, fx: None };
         match self.slots.iter().position(Option::is_none) {
             Some(k) => {
                 self.slots[k] = Some(e);
@@ -2396,6 +2415,45 @@ impl BossBase {
     }
 
     // --- attacks -------------------------------------------------------------------------------
+
+    /// An effect with its class's rules made in the first free slot, and
+    /// shown at `pos`.
+    fn make_fx(&mut self, cx: &mut Cx, kind: EffKind, fx: impl Into<Fx>, pos: V4, dirc: V4) -> i32 {
+        let id = self.effects.create(kind);
+        if let Some(e) = usize::try_from(id).ok().and_then(|k| self.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
+            e.fx = Some(fx.into());
+        }
+        cx.out(Out::Effect { id, kind, pos, dirc });
+        id
+    }
+
+    /// `ccBossEffManager::Draw`'s pass: each enabled effect's `Draw` in
+    /// slot order, a disabled one freed. An effect with its class's rules
+    /// runs `draw` (taken out of its slot meanwhile, so the `Draw` reaches
+    /// the manager, and an effect it makes in a later slot is reached in
+    /// the same pass); the others keep their lives ([`Eff::draw`]).
+    fn effect_pass(&mut self, mode: PassMode, mut draw: impl FnMut(&mut BossBase, usize, EffKind, &mut Fx) -> bool) {
+        for k in 0..self.effects.slots.len() {
+            let Some(e) = self.effects.slots[k].as_mut() else { continue };
+            if !e.enabled {
+                self.effects.slots[k] = None;
+                continue;
+            }
+            let Some(mut fx) = e.fx.take() else {
+                e.draw();
+                continue;
+            };
+            let kind = e.kind;
+            let alive = draw(self, k, kind, &mut fx);
+            if let Some(e) = self.effects.slots[k].as_mut() {
+                e.fx = Some(fx);
+                match mode {
+                    PassMode::Set => e.enabled = alive,
+                    PassMode::ClearOnly => e.enabled &= alive,
+                }
+            }
+        }
+    }
 
     fn effect(&mut self, cx: &mut Cx, kind: EffKind) -> i32 {
         let pos = cx.pos();

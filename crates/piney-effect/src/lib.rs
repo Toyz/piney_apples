@@ -528,10 +528,10 @@ impl Effects {
         self.boss.create(&mut cx, &self.assets.boss, make)
     }
 
-    /// Fidchell's spells as the fight's rules left them (their slot there
-    /// and state), drawn after the boss's task: their draws join the
-    /// boss effects' pass's ([`boss::BossEffects::sync_spells`]).
-    pub fn boss_sync(&mut self, host: &mut dyn Host, spells: &[(i32, &piney_battle::boss::fidchell::eff::Fx)]) {
+    /// The pictures of the effects the fight's rules keep, drawn after the
+    /// boss's task as its pass left them: their draws join the boss
+    /// effects' pass's ([`boss::BossEffects::sync`]).
+    pub fn boss_sync(&mut self, host: &mut dyn Host, src: &boss::Source) {
         let mut cx = Cx {
             host,
             assets: &self.assets,
@@ -541,27 +541,7 @@ impl Effects {
             events: &mut self.events,
             draws: &mut self.boss_draws,
         };
-        self.boss.sync_spells(&mut cx, spells);
-    }
-
-    /// Innis's missiles as the fight's rules left them, drawn after the
-    /// boss's task: their draws join the boss effects' pass's
-    /// ([`boss::BossEffects::sync_missiles`]).
-    pub fn innis_sync(
-        &mut self,
-        host: &mut dyn Host,
-        flights: &[(i32, piney_battle::boss::innis::Element, i32, &piney_battle::boss::innis::Missile)],
-    ) {
-        let mut cx = Cx {
-            host,
-            assets: &self.assets,
-            particles: &mut self.particles,
-            hits: &mut self.hits,
-            spells: &mut self.spells,
-            events: &mut self.events,
-            draws: &mut self.boss_draws,
-        };
-        self.boss.sync_missiles(&mut self.ctrl, &mut cx, &self.assets.boss, flights);
+        self.boss.sync(&mut self.ctrl, &mut cx, &self.assets.boss, src);
     }
 
     /// A particle generator Innis or one of its images starts
@@ -570,32 +550,6 @@ impl Effects {
         let (_, mut cx) = self.split(host);
         let assets = cx.assets;
         innis::start(&mut cx, &assets.boss, which, pos);
-    }
-
-    /// Kyvia's meteors and bolts as the fight's rules left them, drawn
-    /// after the boss's task ([`boss::BossEffects::sync_kyvia`]), and the
-    /// places the fight's generators follow, published.
-    pub fn kyvia_sync(
-        &mut self,
-        host: &mut dyn Host,
-        rules: &boss::KyviaRules,
-        members: &[(piney_battle::boss::kyvia::Follow, V4)],
-    ) {
-        for &(f, p) in members {
-            if let Some(a) = kyvia::anchor(f) {
-                self.ctrl.anchors.insert(a, p);
-            }
-        }
-        let mut cx = Cx {
-            host,
-            assets: &self.assets,
-            particles: &mut self.particles,
-            hits: &mut self.hits,
-            spells: &mut self.spells,
-            events: &mut self.events,
-            draws: &mut self.boss_draws,
-        };
-        self.boss.sync_kyvia(&mut self.ctrl, &mut cx, &self.assets.boss, rules);
     }
 
     /// A particle generator of Kyvia's fight started ([`kyvia::start`]).
@@ -635,35 +589,6 @@ impl Effects {
             draws: &mut self.draws,
         };
         kyvia::gen_op(&mut cx, &mut self.boss.kyvia_kept, held, op);
-    }
-
-    /// Magus's pictures this frame, after the boss's task: its needles
-    /// ([`boss::BossEffects::sync_magus`]), each burst of a leaf
-    /// ([`magus::leaf_explode`]), and the leaves' markers' places
-    /// published.
-    pub fn magus_sync(
-        &mut self,
-        host: &mut dyn Host,
-        needles: &[(i32, &piney_battle::boss::magus::Needle)],
-        bursts: &[piney_battle::boss::magus::leaf::Explode],
-        markers: &[(usize, V4)],
-    ) {
-        for &(c, p) in markers {
-            self.ctrl.anchors.insert(magus::marker_anchor(c), p);
-        }
-        let mut cx = Cx {
-            host,
-            assets: &self.assets,
-            particles: &mut self.particles,
-            hits: &mut self.hits,
-            spells: &mut self.spells,
-            events: &mut self.events,
-            draws: &mut self.boss_draws,
-        };
-        self.boss.sync_magus(&mut cx, needles);
-        for b in bursts {
-            magus::leaf_explode(&mut cx, b);
-        }
     }
 
     /// `ccMenu->noiz->SetNoizBs(bs)` from the boss's rules (Tarvos's spell).

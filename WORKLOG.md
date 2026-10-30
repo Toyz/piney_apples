@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-527 entries: audio 43, battle 136, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 149. 126 entries still have open questions - [listed below](#still-open).
+528 entries: audio 43, battle 137, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 149. 126 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -539,6 +539,7 @@ The [reference](docs/README.md) says what is true now.
 | 525 | [Boss split, step three: the base Main as building blocks each class calls in its order, one generic ExecPatternIndex, ChangeNextPattern and ExecPattern](worklog/0525-boss-split-step-three-the-base-main-as-building-blocks-each.md) | 2026-10-30 | battle |
 | 526 | [Boss split, step four: Skeith's own members out of BossBase into Class::Skeith, the brother's and Gorre's borrowed ones their own](worklog/0526-boss-split-step-four-skeith-s-own-members-out-of-bossbase.md) | 2026-10-30 | battle |
 | 527 | [Boss split, step five: Part<T: PartClass> and Parts<T> for every part's take and put](worklog/0527-boss-split-step-five-part-t-partclass-and-parts-t-for-every.md) | 2026-10-30 | battle |
+| 528 | [Boss split, step six: enum Fx, BossBase::make_fx and one effect pass; on the effect side Mirrored pictures and one sync from one Source](worklog/0528-boss-split-step-six-enum-fx-bossbase-make-fx-and-one-effect.md) | 2026-10-30 | battle |
 
 ## Still open
 

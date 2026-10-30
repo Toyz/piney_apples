@@ -22,7 +22,7 @@ use piney_data::volume::Volume;
 
 use piney_data::field::ee;
 
-use super::{BaseActs, BossBase, Cx, EffKind, Out, Tbl, VF0, word};
+use super::{BaseActs, BossBase, Cx, Fx as BossFx, PassMode, Tbl, word};
 use crate::geom::V4;
 
 type F = u32;
@@ -436,37 +436,8 @@ fn manager_pass(b: &mut BossBase, cx: &mut Cx) {
 
 /// The pass with the third form's members at hand (its eyes).
 fn manager_pass_x(b: &mut BossBase, cx: &mut Cx, mut third: Option<&mut third::Third>) {
-    let mut k = 0;
-    while k < b.effects.slots.len() {
-        let Some(e) = b.effects.slots[k].as_mut() else {
-            k += 1;
-            continue;
-        };
-        if !e.enabled {
-            b.effects.slots[k] = None;
-            k += 1;
-            continue;
-        }
-        let Some(mut fx) = e.corbenik.take() else {
-            e.draw();
-            k += 1;
-            continue;
-        };
-        let alive = fx.draw(cx, b, k, third.as_deref_mut());
-        if let Some(e) = b.effects.slots[k].as_mut() {
-            e.corbenik = Some(fx);
-            e.enabled = alive;
-        }
-        k += 1;
-    }
-}
-
-/// An effect of Corbenik's own made in the first free slot.
-fn make_fx(b: &mut BossBase, cx: &mut Cx, kind: EffKind, fx: eff::Fx, pos: V4) -> i32 {
-    let id = b.effects.create(kind);
-    if let Some(e) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
-        e.corbenik = Some(Box::new(fx));
-    }
-    cx.out(Out::Effect { id, kind, pos, dirc: VF0 });
-    id
+    b.effect_pass(PassMode::Set, |b, k, _, fx| {
+        let BossFx::Corbenik(fx) = fx else { return true };
+        fx.draw(cx, b, k, third.as_deref_mut())
+    });
 }

@@ -656,6 +656,13 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   `base_exec_pattern_index` and `base_change_next_pattern`. `BaseActs`
   holds where the classes' copies parted: the neutral's forbid on an
   unknown word and two vectors' w lanes.
+- An effect whose `Draw` its class runs carries its rules in `Eff.fx`
+  (`enum Fx`, made by `BossBase::make_fx`). Each class's
+  `ccBossEffManager::Draw` pass is `BossBase::effect_pass`, its
+  `PassMode` whether the `Draw`'s answer sets `m_bEnabled` or only clears
+  it. On the effect side `BossEffects::sync` mirrors those effects'
+  pictures (the `Mirrored` trait) from one `Source`, in the frame's
+  order.
 - A boss's parts (Kyvia's core and gomoras, Magus's leaves, Gorre's
   brothers, Corbenik's seeds, roots and eyes) are bosses of their own
   characters. The master's frame takes them out as `Part<T>` (`Parts<T>`

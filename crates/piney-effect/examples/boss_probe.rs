@@ -384,7 +384,7 @@ fn main() {
                 for _ in 0..400 {
                     let done = ex.draw();
                     fx.boss_step(&mut host);
-                    fx.magus_sync(&mut host, &[], &[ex], &[]);
+                    fx.boss_sync(&mut host, &piney_effect::boss::Source { magus_bursts: &[ex], ..Default::default() });
                     let draws: Vec<String> = fx.boss_draws().iter().map(|d| draw(&fx, d)).collect();
                     println!("{{\"draws\": [{}], \"done\": {}}}", draws.join(", "), u8::from(done));
                     if done {

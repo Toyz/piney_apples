@@ -9,7 +9,7 @@
 use piney_data::field::ee;
 
 use super::eff::{self, Fx};
-use super::{Pic, make_fx, manager_pass, word, wrap_hi, wrap_lo};
+use super::{Pic, manager_pass, word, wrap_hi, wrap_lo};
 use crate::boss::kyvia::{as_me, plain_boss, set_base_param};
 use crate::boss::{
     AfterImageParams, Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
@@ -713,7 +713,7 @@ fn on_star_dust(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             }
             let tp = b.target_pos;
             let s = super::stardust::StarDust::new(cx, pos, tp);
-            x.eff_star = Some(make_fx(b, cx, EffKind::StarDustFlash, Fx::StarDust(Box::new(s)), pos));
+            x.eff_star = Some(b.make_fx(cx, EffKind::StarDustFlash, Fx::StarDust(Box::new(s)), pos, VF0));
             b.act_proccess += 1;
         }
         2 => {
@@ -1114,7 +1114,7 @@ fn on_setup_barrier(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 let mut p = cx.pos();
                 p[2] = ee::add(p[2], 0x43e1_0000);
                 let t = eff::Transform::new(cx, p);
-                x.boss_eff = Some(make_fx(b, cx, EffKind::Transform, Fx::Transform(Box::new(t)), p));
+                x.boss_eff = Some(b.make_fx(cx, EffKind::Transform, Fx::Transform(Box::new(t)), p, VF0));
                 barrier_stats(cx, me);
                 b.act_count = 0;
                 b.act_proccess += 1;
@@ -1530,7 +1530,7 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 let tp = b.target_pos;
                 x.gen_serial += 1;
                 let d = eff::Drain::new(tp, x.gen_serial);
-                x.boss_eff = Some(make_fx(b, cx, EffKind::RootDrain, Fx::Drain(Box::new(d)), tp));
+                x.boss_eff = Some(b.make_fx(cx, EffKind::RootDrain, Fx::Drain(Box::new(d)), tp, VF0));
                 x.cam_pos = cx.cam.eye;
                 x.cam_view = cx.cam.boss_view;
                 b.act_count = 0;

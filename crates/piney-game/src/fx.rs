@@ -366,28 +366,23 @@ impl FxTasks for AreaFx {
         self.events.extend(self.fx.take_events());
     }
 
-    /// The boss's `ccBossEff*Create`s (among the starters), then
-    /// Fidchell's spells drawn as its rules' pass left them.
+    /// The boss's `ccBossEff*Create`s (among the starters), then the
+    /// pictures of the effects its rules keep, as their pass left them.
     fn boss_shows(&mut self, w: &mut FxWorld) {
         self.start(w);
         // Owned: the host borrows the scene mutably.
-        let owned = boss_spells(w.scene);
-        let spells: Vec<_> = owned.iter().map(|(k, fx)| (*k, fx)).collect();
+        let owned = boss_fx(w.scene);
+        let fx: Vec<_> = owned.iter().map(|(k, f)| (*k, f)).collect();
+        let members = kyvia_members(w.scene);
+        let m = magus_shows(w.scene);
+        let src = piney_effect::boss::Source {
+            fx: &fx,
+            kyvia_members: &members,
+            magus_markers: &m.markers,
+            magus_bursts: &m.bursts,
+        };
         let mut host = BattleHost::of(w);
-        self.fx.boss_sync(&mut host, &spells);
-        let owned = innis_flights(host.w.scene);
-        let flights: Vec<_> = owned.iter().map(|(k, el, no, f)| (*k, *el, *no, f)).collect();
-        self.fx.innis_sync(&mut host, &flights);
-        let k = kyvia_shows(host.w.scene);
-        let meteors: Vec<_> = k.meteors.iter().map(|(s, f)| (*s, f)).collect();
-        let bolts: Vec<_> = k.bolts.iter().map(|(s, b)| (*s, b)).collect();
-        let balls: Vec<_> = k.balls.iter().map(|(s, b)| (*s, b)).collect();
-        let hells: Vec<_> = k.hells.iter().map(|(s, h)| (*s, h)).collect();
-        let rules = piney_effect::boss::KyviaRules { meteors: &meteors, bolts: &bolts, balls: &balls, hells: &hells };
-        self.fx.kyvia_sync(&mut host, &rules, &k.members);
-        let m = magus_shows(host.w.scene);
-        let needles: Vec<_> = m.needles.iter().map(|(s, n)| (*s, n)).collect();
-        self.fx.magus_sync(&mut host, &needles, &m.bursts, &m.markers);
+        self.fx.boss_sync(&mut host, &src);
         self.events.extend(self.fx.take_events());
     }
 }
@@ -633,14 +628,14 @@ fn circle_frame(view: &FxView, mc: &MagicCircle, spark: &Eff) -> CircleFrame {
     frame
 }
 
-/// Fidchell's spells in a boss's effect slots (a boss still in its task):
-/// the slot and the rules' state.
-fn boss_spells(scene: &Scene) -> Vec<(i32, piney_battle::boss::fidchell::eff::Fx)> {
+/// The effects with their rules in the slots of the bosses still in their
+/// task: the slot and the rules' state, by character then slot.
+fn boss_fx(scene: &Scene) -> Vec<(i32, piney_battle::boss::Fx)> {
     let mut out = Vec::new();
     for ch in &scene.chars {
         let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.base.exit == 0) else { continue };
         for (k, e) in b.base.effects.slots.iter().enumerate() {
-            if let Some(fx) = e.as_ref().and_then(|e| e.fidchell.as_deref()) {
+            if let Some(fx) = e.as_ref().and_then(|e| e.fx.as_ref()) {
                 out.push((k as i32, fx.clone()));
             }
         }
@@ -648,78 +643,34 @@ fn boss_spells(scene: &Scene) -> Vec<(i32, piney_battle::boss::fidchell::eff::Fx
     out
 }
 
-/// Innis's missiles in the fight's boss effects: their slot, element,
-/// number and flight as the last `Draw` left it.
-type Flight = (i32, piney_battle::boss::innis::Element, i32, piney_battle::boss::innis::Missile);
-
-fn innis_flights(scene: &Scene) -> Vec<Flight> {
-    let mut out = Vec::new();
-    for ch in &scene.chars {
-        let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.base.exit == 0) else { continue };
-        for (k, e) in b.base.effects.slots.iter().enumerate() {
-            let Some(e) = e.as_ref() else { continue };
-            if let (piney_battle::boss::EffKind::Missile { element, no, .. }, Some(m)) = (e.kind, e.missile.as_deref())
-            {
-                out.push((k as i32, element, no, m.clone()));
-            }
-        }
-    }
-    out
-}
-
-/// What Kyvia's fight left this frame for its pictures: its meteors and
-/// bolts by their slot, and the places its generators follow.
-#[derive(Default)]
-struct KyviaShows {
-    meteors: Vec<(i32, piney_battle::boss::kyvia::Meteorite)>,
-    bolts: Vec<(i32, piney_battle::boss::kyvia::thunder::Bolt)>,
-    balls: Vec<(i32, piney_battle::boss::kyvia::magic_ball::MagicalBall)>,
-    hells: Vec<(i32, piney_battle::boss::kyvia::hell::Hell)>,
-    members: Vec<(piney_battle::boss::kyvia::Follow, V4)>,
-}
-
-fn kyvia_shows(scene: &Scene) -> KyviaShows {
+/// The places Kyvia's fight's generators follow: its body's and its
+/// gomoras' members.
+fn kyvia_members(scene: &Scene) -> Vec<(piney_battle::boss::kyvia::Follow, V4)> {
     use piney_battle::boss::Class;
     use piney_battle::boss::kyvia::Follow;
-    let mut out = KyviaShows::default();
+    let mut out = Vec::new();
     for (c, ch) in scene.chars.iter().enumerate() {
         let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.base.exit == 0) else { continue };
         match &b.class {
             Class::Kyvia(x) => {
-                out.members.push((Follow::DeadSmoke, x.ded_dmg_vec));
+                out.push((Follow::DeadSmoke, x.ded_dmg_vec));
                 for k in 0..3u8 {
-                    out.members.push((Follow::BeamHead(k), x.l_bpos[usize::from(k)]));
-                    out.members.push((Follow::BeamTail(k), x.l_bpos_sub[usize::from(k)]));
+                    out.push((Follow::BeamHead(k), x.l_bpos[usize::from(k)]));
+                    out.push((Follow::BeamTail(k), x.l_bpos_sub[usize::from(k)]));
                 }
             }
-            Class::Gomora(g) => out.members.push((Follow::Aura(c), g.aura_pos)),
+            Class::Gomora(g) => out.push((Follow::Aura(c), g.aura_pos)),
             _ => {}
-        }
-        for (k, e) in b.base.effects.slots.iter().enumerate() {
-            let Some(e) = e.as_ref() else { continue };
-            if let Some(m) = e.meteorite.as_deref() {
-                out.meteors.push((k as i32, m.clone()));
-            }
-            if let Some(bolt) = e.bolt.as_deref() {
-                out.bolts.push((k as i32, bolt.clone()));
-            }
-            if let Some(ball) = e.ball.as_deref() {
-                out.balls.push((k as i32, ball.clone()));
-            }
-            if let Some(h) = e.hell.as_deref() {
-                out.hells.push((k as i32, h.clone()));
-            }
         }
     }
     out
 }
 
-/// What Magus's fight left this frame for its pictures: its needles by
-/// their slot, the bursts of the leaves bursting (act 21, their
-/// `PreDrawAnm`), and each leaf's marker's place.
+/// What Magus's fight left this frame for its pictures: the bursts of
+/// the leaves bursting (act 21, their `PreDrawAnm`), and each leaf's
+/// marker's place.
 #[derive(Default)]
 struct MagusShows {
-    needles: Vec<(i32, piney_battle::boss::magus::Needle)>,
     bursts: Vec<piney_battle::boss::magus::leaf::Explode>,
     markers: Vec<(usize, V4)>,
 }
@@ -729,21 +680,11 @@ fn magus_shows(scene: &Scene) -> MagusShows {
     let mut out = MagusShows::default();
     for (c, ch) in scene.chars.iter().enumerate() {
         let Some(b) = ch.foe_state().and_then(|f| f.boss.as_ref()).filter(|b| b.base.exit == 0) else { continue };
-        match &b.class {
-            Class::MagusLeaf(l) => {
-                out.markers.push((c, l.marker_pos));
-                if b.base.act_num == piney_battle::boss::magus::leaf::act::FIRE {
-                    out.bursts.push(l.exp);
-                }
+        if let Class::MagusLeaf(l) = &b.class {
+            out.markers.push((c, l.marker_pos));
+            if b.base.act_num == piney_battle::boss::magus::leaf::act::FIRE {
+                out.bursts.push(l.exp);
             }
-            Class::Magus(_) => {
-                for (k, e) in b.base.effects.slots.iter().enumerate() {
-                    if let Some(n) = e.as_ref().and_then(|e| e.needle.as_deref()) {
-                        out.needles.push((k as i32, n.clone()));
-                    }
-                }
-            }
-            _ => {}
         }
     }
     out
@@ -968,7 +909,7 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
             fx.innis_particles(h, *which, *pos);
         }
         // Kyvia's fight's generators (the meteors' and bolts' own come with
-        // their pictures, [`kyvia_shows`]), and what it does to those it
+        // their pictures, [`boss_fx`]), and what it does to those it
         // keeps.
         Show::Boss(_, piney_battle::boss::Out::KyviaParticles { which, at, held }) => {
             use piney_battle::boss::kyvia::Gen;
@@ -1028,8 +969,8 @@ fn start(fx: &mut Effects, h: &mut BattleHost, members: &[(i32, usize)], s: &Sho
 /// "Effects"): the rules name the effect, where and which way, in their
 /// slot `id`. Fidchell's meteors, thunders and rock towers, Innis's
 /// missiles, Kyvia's meteors and bolts and Magus's needles are drawn from
-/// their rules' state ([`boss_spells`], [`innis_flights`], [`kyvia_shows`],
-/// [`magus_shows`]); the rest, Gorre's flash among them, run their own.
+/// their rules' state ([`boss_fx`], [`kyvia_members`], [`magus_shows`]);
+/// the rest, Gorre's flash among them, run their own.
 fn boss_make(id: i32, kind: piney_battle::boss::EffKind, pos: V4, dirc: V4) -> Option<piney_effect::boss::Make> {
     use piney_battle::boss::EffKind;
     use piney_effect::boss::Make;

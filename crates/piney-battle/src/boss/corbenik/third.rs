@@ -10,7 +10,7 @@ use piney_data::field::ee;
 use super::eff::Fx;
 use super::eye::{self, Eye, Killer};
 use super::laser::{Refrect, Tera};
-use super::{Gen, Pic, make_fx, manager_pass_x, word};
+use super::{Gen, Pic, manager_pass_x, word};
 use crate::boss::kyvia::{as_me, new_char, plain_boss, set_base_param};
 use crate::boss::{
     Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, blur,
@@ -873,7 +873,7 @@ fn on_tera_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
                 let keys = [x.next_key(), x.next_key()];
                 let scale = [0x40a0_0000, 0x40a0_0000, 0x3fc0_0000, ONE];
                 let t = Tera::new(cx, e, VF0, scale, b.target_pos, keys);
-                x.boss_eff = Some(make_fx(b, cx, EffKind::TeraLaser, Fx::Tera(Box::new(t)), e));
+                x.boss_eff = Some(b.make_fx(cx, EffKind::TeraLaser, Fx::Tera(Box::new(t)), e, VF0));
                 b.dirc = VF0;
                 b.act_count = 0;
                 b.act_proccess += 1;
@@ -1145,7 +1145,7 @@ fn on_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
                     let end = cx.scene.chars[m].pos;
                     let pts: Vec<V4> = eyes.iter().map(|&k| cx.scene.chars[x.eye_me[k]].pos).collect();
                     let r = Refrect::new(cx, from, end, eyes, &pts);
-                    let id = make_fx(b, cx, EffKind::RefrectionLaser, Fx::Refrect(Box::new(r)), from);
+                    let id = b.make_fx(cx, EffKind::RefrectionLaser, Fx::Refrect(Box::new(r)), from, VF0);
                     if let Some(s) = x.eff_laser.get_mut(i) {
                         *s = (id >= 0).then_some(id);
                     }

@@ -333,3 +333,33 @@ pub fn start(cx: &mut Cx, t: &Tables, which: Gen, pos: V4) {
         cx.particles.start(g);
     }
 }
+
+impl crate::boss::Mirrored for Missile {
+    type Rules = Flight;
+
+    fn rules(fx: &piney_battle::boss::Fx) -> Option<&Flight> {
+        match fx {
+            piney_battle::boss::Fx::Missile(m) => Some(m),
+            _ => None,
+        }
+    }
+
+    fn rules_slot(&self) -> i32 {
+        self.rules_slot
+    }
+
+    /// Never: a missile's picture goes with its slot in the rules.
+    fn unmirrored(&self) -> bool {
+        false
+    }
+
+    fn forget(&self, ctrl: &mut EffectCtrl) {
+        for a in self.anchors() {
+            ctrl.anchors.remove(&a);
+        }
+    }
+
+    fn mirror(&mut self, ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, f: &Flight) {
+        self.draw(ctrl, cx, t, f);
+    }
+}

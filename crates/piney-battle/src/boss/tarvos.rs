@@ -16,7 +16,8 @@ use piney_data::volume::Volume;
 
 use self::eff::Fx;
 use super::{
-    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, word,
+    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl, VF0,
+    base_exec_pattern_index, word,
 };
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
@@ -348,29 +349,10 @@ fn frame(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
 /// order, a disabled one freed. The spikes' hits call `_SpikeShotCB`
 /// (0x003ab560) as they land; the phantom makes its ring as it draws.
 fn manager_pass(b: &mut BossBase, cx: &mut Cx) {
-    let mut k = 0;
-    while k < b.effects.slots.len() {
-        let Some(e) = b.effects.slots[k].as_mut() else {
-            k += 1;
-            continue;
-        };
-        if !e.enabled {
-            b.effects.slots[k] = None;
-            k += 1;
-            continue;
-        }
-        let Some(mut fx) = e.tarvos.take() else {
-            e.draw();
-            k += 1;
-            continue;
-        };
-        let alive = fx.draw(cx, b);
-        if let Some(e) = b.effects.slots[k].as_mut() {
-            e.tarvos = Some(fx);
-            e.enabled = alive;
-        }
-        k += 1;
-    }
+    b.effect_pass(PassMode::Set, |b, _, _, fx| {
+        let BossFx::Tarvos(fx) = fx else { return true };
+        fx.draw(cx, b)
+    });
 }
 
 /// `_SpikeShotCB(ch, pos, index)` (0x003ab560): boss skill 24 on a living
@@ -390,16 +372,6 @@ fn spike_hit(b: &mut BossBase, cx: &mut Cx, t: usize, pos: V4, index: i32) {
         cx.out(Out::Effect { id, kind: EffKind::Eruption, pos, dirc: VF0 });
         cx.out(Out::Tarvos(Pic::Eruption { pos }));
     }
-}
-
-/// An effect of Tarvos's own made in the first free slot.
-fn make_fx(b: &mut BossBase, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32 {
-    let id = b.effects.create(kind);
-    if let Some(e) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
-        e.tarvos = Some(Box::new(fx));
-    }
-    cx.out(Out::Effect { id, kind, pos, dirc: VF0 });
-    id
 }
 
 // --- the patterns --------------------------------------------------------------------------------
@@ -917,7 +889,7 @@ fn on_phantom(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             b.erase_cmnd_target(cx);
             cx.cursor(true);
             let fx = Fx::Phantom(Box::new(eff::Phantom::new(cx, pos, b.center_dirc)));
-            x.eff_phantom = Some(make_fx(b, cx, EffKind::Phantom, fx, pos));
+            x.eff_phantom = Some(b.make_fx(cx, EffKind::Phantom, fx, pos, VF0));
             b.act_proccess += 1;
         }
         1 => {
@@ -1002,7 +974,7 @@ fn on_spike_shot(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
                 let Some(t) = cx.scene.chars[me].target_char else { return };
                 let pos = cx.scene.chars[t].pos;
                 let fx = Fx::Spikes(Box::new(eff::SpikeRain::new(cx, t)));
-                x.eff_spike = Some(make_fx(b, cx, EffKind::SpikeRain, fx, pos));
+                x.eff_spike = Some(b.make_fx(cx, EffKind::SpikeRain, fx, pos, VF0));
                 b.act_count = 0;
                 b.act_proccess += 1;
             }

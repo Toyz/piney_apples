@@ -10,7 +10,7 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::blur::Set;
-use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Out, VF0, word};
+use super::{Anm, Boss, BossBase, Class, Cx, EffKind, Fx, Out, PassMode, VF0, word};
 use crate::chara::AffectFunc;
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
@@ -481,25 +481,10 @@ fn mov(b: &mut BossBase, x: &Innis, cx: &mut Cx) {
 /// a missile's `Draw` may call `MagicDamage` and make a WaveShock, which
 /// takes the first free slot (drawn this pass if past this one).
 fn manager_pass(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
-    for k in 0..b.effects.slots.len() {
-        let Some(e) = b.effects.slots[k].as_mut() else { continue };
-        if !e.enabled {
-            b.effects.slots[k] = None;
-            continue;
-        }
-        let EffKind::Missile { element, no, ctrl } = e.kind else {
-            e.draw();
-            continue;
-        };
-        let Some(mut m) = e.missile.take() else { continue };
-        let alive = m.draw(element, no, &ctrl, b, x, cx);
-        if let Some(e) = b.effects.slots[k].as_mut() {
-            e.missile = Some(m);
-            if !alive {
-                e.enabled = false;
-            }
-        }
-    }
+    b.effect_pass(PassMode::ClearOnly, |b, _, kind, fx| match (kind, fx) {
+        (EffKind::Missile { element, no, ctrl }, Fx::Missile(m)) => m.draw(element, no, &ctrl, b, x, cx),
+        _ => true,
+    });
 }
 
 impl Missile {
@@ -1692,11 +1677,7 @@ fn abs_f(n: i32) -> F {
 fn missile(b: &mut BossBase, el: Element, ctrl: [V4; 4], first: bool, cx: &mut Cx) {
     let no = i32::from(first);
     let kind = EffKind::Missile { element: el, no, ctrl };
-    let id = b.effects.create(kind);
-    if let Some(e) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
-        e.missile = Some(Box::new(Missile::new(&ctrl, first)));
-    }
-    cx.out(Out::Effect { id, kind, pos: ctrl[0], dirc: VF0 });
+    b.make_fx(cx, kind, Missile::new(&ctrl, first), ctrl[0], VF0);
 }
 
 /// `ccBoss02::IceAttack` (0x0049afa0).

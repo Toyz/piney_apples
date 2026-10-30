@@ -124,10 +124,12 @@ order; tick items off here as they land, with the worklog entry.
       repeat set-up, stand-ins and per-frame compares; lift what they share
       into `test_battle_boss_rs.py`'s helpers (as `draw_case` and the forced
       cameras were), leaving each file its boss's own cases.
-- [ ] Boss effects: `enum Fx` in place of 10 `Option<Box>` fields, one
+- [x] Boss effects: `enum Fx` in place of 10 `Option<Box>` fields, one
       `Effects::pass(PassMode)` (snapshot vs live length, set vs clear-only
       kept per boss), `BossBase::make_fx`; effect side a `Mirrored` trait,
-      `Source<A>`, one `sync` with an explicit order.
+      `Source<A>`, one `sync` with an explicit order. (worklog 528: the
+      pass is `BossBase::effect_pass`; snapshot and live length read the
+      same, so only set vs clear-only is kept; `Source` is one struct.)
 - [ ] Story maps on the towns' base: `StaticSet` (placed models and
       objects, one loader), `MapCore` with defaulted getters (drop the 8
       `as_any` impls: `StoryMap: Any` upcasts), `party_starts(StartSpread)`,

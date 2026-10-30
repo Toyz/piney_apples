@@ -242,3 +242,26 @@ pub fn shock_burst(ctrl: &mut EffectCtrl, cx: &mut Cx, at: V4, turn: F) {
 pub fn leaf_ref(c: usize) -> CharRef {
     c as CharRef
 }
+
+impl crate::boss::Mirrored for Needles {
+    type Rules = Life;
+
+    fn rules(fx: &piney_battle::boss::Fx) -> Option<&Life> {
+        match fx {
+            piney_battle::boss::Fx::Needle(n) => Some(n),
+            _ => None,
+        }
+    }
+
+    fn rules_slot(&self) -> i32 {
+        self.rules_slot
+    }
+
+    fn unmirrored(&self) -> bool {
+        self.runs_alone()
+    }
+
+    fn mirror(&mut self, _ctrl: &mut EffectCtrl, cx: &mut Cx, _t: &crate::boss::Tables, f: &Life) {
+        self.draw(cx, f);
+    }
+}

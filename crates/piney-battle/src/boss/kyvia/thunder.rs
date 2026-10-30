@@ -252,11 +252,7 @@ fn bolt(b: &mut BossBase, cx: &mut Cx, pos: V4, th: (i32, i32, i16), dat: &BoltD
         e.off_set = o;
     }
     let kind = EffKind::Thunderbolt { num: i32::from(num) };
-    let id = b.effects.create(kind);
-    if let Some(s) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
-        s.bolt = Some(Box::new(e));
-    }
-    cx.out(Out::Effect { id, kind, pos, dirc: VF0 });
+    b.make_fx(cx, kind, e, pos, VF0);
 }
 
 // --- the attack --------------------------------------------------------------------------

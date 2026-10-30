@@ -339,12 +339,7 @@ fn on_fire(mb: &mut BossBase, x: &mut First, p: &mut Part<Seed>, cx: &mut Cx) {
     match b.base.act_proccess {
         0 => {
             let f = super::eff::Flush::new(pos, 0x447a_0000, 0);
-            let id = mb.effects.create(EffKind::Flush);
-            if let Some(e) = usize::try_from(id).ok().and_then(|k| mb.effects.slots.get_mut(k)).and_then(|s| s.as_mut())
-            {
-                e.corbenik = Some(Box::new(super::eff::Fx::Flush(f)));
-            }
-            cx.out(Out::Effect { id, kind: EffKind::Flush, pos, dirc: VF0 });
+            let id = mb.make_fx(cx, EffKind::Flush, super::eff::Fx::Flush(f), pos, VF0);
             p.x.eff_flush = Some(id);
             b.base.act_proccess += 1;
         }

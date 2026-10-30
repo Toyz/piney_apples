@@ -11,7 +11,7 @@ use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::kyvia::core::Core;
 use piney_battle::boss::kyvia::gomora::Gomora;
 use piney_battle::boss::kyvia::{Fight, Follow, Gen, GenOp, Held, Kyvia, Place};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, DiscView, EffKind, FadeView, Out, PartHits};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, DiscView, EffKind, FadeView, Fx, Out, PartHits};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::{Event, Events, Who};
@@ -947,7 +947,12 @@ fn with_ball(line: &str, b: &Boss) -> String {
 /// the target, `BungAnm`'s frame, the spline, the eye, and each soul's
 /// `Pos`, `time` and `ActProccess`.
 fn hell_json(b: &Boss) -> String {
-    let Some(h) = b.base.effects.slots.iter().flatten().find_map(|e| e.hell.as_ref()) else { return "null".into() };
+    let Some(h) = b.base.effects.slots.iter().flatten().find_map(|e| match &e.fx {
+        Some(Fx::Hell(h)) => Some(h),
+        _ => None,
+    }) else {
+        return "null".into();
+    };
     let mut v: Vec<String> = [h.hell_act, h.hell_cou, h.end_count, h.soul_num, i32::from(h.bung_start), h.kyvia_lv]
         .iter()
         .map(|n| n.to_string())
@@ -970,7 +975,12 @@ fn hell_json(b: &Boss) -> String {
 /// each plasma's `time`, `Mode`, `SetT`, `TempT`, three `SBpoint`s,
 /// `PlaPos` and `PlaPos2`.
 fn ball_json(b: &Boss) -> String {
-    let Some(ball) = b.base.effects.slots.iter().flatten().find_map(|e| e.ball.as_ref()) else { return "null".into() };
+    let Some(ball) = b.base.effects.slots.iter().flatten().find_map(|e| match &e.fx {
+        Some(Fx::Ball(b)) => Some(b),
+        _ => None,
+    }) else {
+        return "null".into();
+    };
     let mut v: Vec<String> = [
         ball.eff_mode,
         ball.delay,

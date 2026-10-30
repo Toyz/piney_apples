@@ -16,8 +16,8 @@ use piney_data::volume::Volume;
 use self::eff::Fx;
 use super::blur::{BlurFunc, Set};
 use super::{
-    AfterImageParams, Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
-    base_exec_pattern_index, word,
+    AfterImageParams, Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Fx as BossFx, Out, PassMode,
+    Patterns, Tbl, VF0, base_exec_pattern_index, word,
 };
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
@@ -332,32 +332,10 @@ fn frame(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
 /// order, a disabled one freed. The lasers fly and the shock fades
 /// ([`eff`]); the others are the lives [`super::Eff::draw`] keeps.
 fn manager_pass(b: &mut BossBase, cx: &mut Cx) {
-    for k in 0..b.effects.slots.len() {
-        let Some(e) = b.effects.slots[k].as_mut() else { continue };
-        if !e.enabled {
-            b.effects.slots[k] = None;
-            continue;
-        }
-        let Some(mut fx) = e.macha.take() else {
-            e.draw();
-            continue;
-        };
-        let alive = fx.draw(cx);
-        if let Some(e) = b.effects.slots[k].as_mut() {
-            e.macha = Some(fx);
-            e.enabled = alive;
-        }
-    }
-}
-
-/// An effect of Macha's own made in the first free slot.
-fn make_fx(b: &mut BossBase, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32 {
-    let id = b.effects.create(kind);
-    if let Some(e) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
-        e.macha = Some(Box::new(fx));
-    }
-    cx.out(Out::Effect { id, kind, pos, dirc: VF0 });
-    id
+    b.effect_pass(PassMode::Set, |_, _, _, fx| {
+        let BossFx::Macha(fx) = fx else { return true };
+        fx.draw(cx)
+    });
 }
 
 // --- the patterns --------------------------------------------------------------------------------
@@ -946,7 +924,7 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
                 // first: (0, 2/3, 10), model 180.
                 let param = [0, 0x3f2a_aaab, 0x4120_0000, 0];
                 b.effect_at(cx, EffKind::AutoSamonRingOf { n: 180, param }, pos, [0, 0, 0, ONE]);
-                make_fx(b, cx, EffKind::LightBallShock, Fx::Shock(eff::Shock::new(pos)), pos);
+                b.make_fx(cx, EffKind::LightBallShock, Fx::Shock(eff::Shock::new(pos)), pos, VF0);
                 cx.out(Out::SeNote { se: 35, note: 60 });
                 b.act_count = 0;
             }
@@ -1161,8 +1139,8 @@ fn on_eye_laser(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
         0 => {
             let tp = b.target_pos;
             let [r, l] = x.eyes;
-            let first = make_fx(b, cx, EffKind::LaserShot, Fx::Laser(eff::Laser::new(cx, r, tp, 0x42c8_0000)), r);
-            make_fx(b, cx, EffKind::LaserShot, Fx::Laser(eff::Laser::new(cx, l, tp, 0x42c8_0000)), l);
+            let first = b.make_fx(cx, EffKind::LaserShot, Fx::Laser(eff::Laser::new(cx, r, tp, 0x42c8_0000)), r, VF0);
+            b.make_fx(cx, EffKind::LaserShot, Fx::Laser(eff::Laser::new(cx, l, tp, 0x42c8_0000)), l, VF0);
             x.eff_laser = Some(first);
             b.act_proccess += 1;
         }

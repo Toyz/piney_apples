@@ -125,7 +125,9 @@ fn play(s: &mut Session, frames: u32, mut each: impl FnMut(&Session, &Frame, u32
             if let Class::Kyvia(x) = &b.class {
                 p.stages.insert(x.disc_lv);
             }
-            if b.base.effects.slots.iter().flatten().any(|e| e.ball.is_some()) && census.anchored_generators > 0 {
+            if b.base.effects.slots.iter().flatten().any(|e| matches!(e.fx, Some(piney_battle::boss::Fx::Ball(_))))
+                && census.anchored_generators > 0
+            {
                 p.plasma += 1;
             }
         }
@@ -182,10 +184,9 @@ fn kyvia_third_shots() {
         g.render(frame);
         let ball = match &s.stage {
             Stage::Area(a) => a.world().combat().boss.as_ref().is_some_and(|r| {
-                a.world().combat().scene.chars[r.me]
-                    .foe_state()
-                    .and_then(|f| f.boss.as_ref())
-                    .is_some_and(|b| b.base.effects.slots.iter().flatten().any(|e| e.ball.is_some()))
+                a.world().combat().scene.chars[r.me].foe_state().and_then(|f| f.boss.as_ref()).is_some_and(|b| {
+                    b.base.effects.slots.iter().flatten().any(|e| matches!(e.fx, Some(piney_battle::boss::Fx::Ball(_))))
+                })
             }),
             _ => false,
         };

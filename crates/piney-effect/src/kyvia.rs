@@ -616,3 +616,72 @@ impl HellHost for AloneHell<'_, '_> {
         }
     }
 }
+
+/// `Mirrored` for Kyvia's pictures: the variant of `Fx` each mirrors, and
+/// its draw of the rules' state.
+macro_rules! mirrored {
+    ($t:ty, $rules:ty, $v:ident, |$s:ident, $ctrl:ident, $cx:ident, $tb:ident, $f:ident| $draw:expr) => {
+        impl crate::boss::Mirrored for $t {
+            type Rules = $rules;
+
+            fn rules(fx: &piney_battle::boss::Fx) -> Option<&$rules> {
+                match fx {
+                    piney_battle::boss::Fx::$v(m) => Some(m),
+                    _ => None,
+                }
+            }
+
+            fn rules_slot(&self) -> i32 {
+                self.rules_slot
+            }
+
+            fn unmirrored(&self) -> bool {
+                self.runs_alone()
+            }
+
+            fn mirror(&mut self, $ctrl: &mut EffectCtrl, $cx: &mut Cx, $tb: &Tables, $f: &$rules) {
+                let $s = self;
+                $draw
+            }
+        }
+    };
+}
+
+mirrored!(Bolt, Strokes, Bolt, |b, _ctrl, cx, t, f| b.draw(cx, t, f));
+mirrored!(Ball, MagicalBall, Ball, |b, ctrl, cx, _t, f| {
+    publish(ctrl, f);
+    b.draw(cx, f);
+});
+mirrored!(Hell, HellRules, Hell, |h, ctrl, cx, _t, f| {
+    hell_publish(ctrl, f);
+    h.draw(cx, f);
+});
+
+impl crate::boss::Mirrored for Meteorite {
+    type Rules = Flights;
+
+    fn rules(fx: &piney_battle::boss::Fx) -> Option<&Flights> {
+        match fx {
+            piney_battle::boss::Fx::Meteorite(m) => Some(m),
+            _ => None,
+        }
+    }
+
+    fn rules_slot(&self) -> i32 {
+        self.rules_slot
+    }
+
+    fn unmirrored(&self) -> bool {
+        self.runs_alone()
+    }
+
+    fn forget(&self, ctrl: &mut EffectCtrl) {
+        for a in self.anchors() {
+            ctrl.anchors.remove(&a);
+        }
+    }
+
+    fn mirror(&mut self, ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, f: &Flights) {
+        self.draw(ctrl, cx, t, f, false);
+    }
+}

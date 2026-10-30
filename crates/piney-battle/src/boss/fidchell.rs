@@ -17,7 +17,8 @@ use piney_data::volume::Volume;
 use self::eff::{Fx, MeteoSworm, RockTower, ThunderStorm};
 use super::blur::{BlurFunc, Set};
 use super::{
-    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, word,
+    Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Fx as BossFx, Out, PassMode, Patterns, Tbl, VF0,
+    base_exec_pattern_index, word,
 };
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, V4};
@@ -364,23 +365,9 @@ fn frame(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
 /// order, a disabled one freed. A thunder storm's `Draw` makes a magic
 /// square, which the same pass then reaches if its slot comes later.
 fn manager_pass(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
-    let mut k = 0;
-    while k < b.effects.slots.len() {
-        let Some(e) = b.effects.slots[k].as_mut() else {
-            k += 1;
-            continue;
-        };
-        if !e.enabled {
-            b.effects.slots[k] = None;
-            k += 1;
-            continue;
-        }
-        let Some(mut fx) = e.fidchell.take() else {
-            e.draw();
-            k += 1;
-            continue;
-        };
-        let alive = match fx.as_mut() {
+    b.effect_pass(PassMode::ClearOnly, |b, _, _, fx| {
+        let BossFx::Fidchell(fx) = fx else { return true };
+        match fx.as_mut() {
             // m_syncPos: the boss's m_predInfo.camView.
             Fx::Meteo(m) => {
                 let (alive, sync) = m.draw(cx);
@@ -397,25 +384,8 @@ fn manager_pass(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
                 alive
             }
             Fx::Tower(t) => t.draw(cx),
-        };
-        if let Some(e) = b.effects.slots[k].as_mut() {
-            e.fidchell = Some(fx);
-            if !alive {
-                e.enabled = false;
-            }
         }
-        k += 1;
-    }
-}
-
-/// An effect of Fidchell's own made in the first free slot.
-fn make_fx(b: &mut BossBase, cx: &mut Cx, kind: EffKind, fx: Fx, pos: V4) -> i32 {
-    let id = b.effects.create(kind);
-    if let Some(e) = usize::try_from(id).ok().and_then(|k| b.effects.slots.get_mut(k)).and_then(|s| s.as_mut()) {
-        e.fidchell = Some(Box::new(fx));
-    }
-    cx.out(Out::Effect { id, kind, pos, dirc: VF0 });
-    id
+    });
 }
 
 // --- the patterns --------------------------------------------------------------------------------
@@ -986,7 +956,7 @@ fn on_meteo_sworm(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
             v[2] = ee::add(v[2], 0x4348_0000);
             set_cam3(x, cx, p, v);
             let m = MeteoSworm::new(cx, start, end, 50, 0x43fa_0000, 0x4248_0000);
-            x.eff_magic = Some(make_fx(b, cx, EffKind::MeteoSworm { n: 50 }, Fx::Meteo(m), start));
+            x.eff_magic = Some(b.make_fx(cx, EffKind::MeteoSworm { n: 50 }, Fx::Meteo(m), start, VF0));
             x.act_sub_proccess += 1;
             false
         }
@@ -1134,7 +1104,7 @@ fn on_thunder_storm(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
             }
             let at = b.target_pos;
             let st = ThunderStorm::new(cx, at, 0x4348_0000, 16);
-            x.eff_magic = Some(make_fx(b, cx, EffKind::ThunderStorm { n: 16 }, Fx::Storm(st), at));
+            x.eff_magic = Some(b.make_fx(cx, EffKind::ThunderStorm { n: 16 }, Fx::Storm(st), at, VF0));
             x.act_sub_proccess += 1;
             x.act_sub_count = 0;
             b.draw_sw = 0;
@@ -1163,7 +1133,7 @@ fn on_ground_quake(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) -> bool {
         0 => {
             let at = b.target_pos;
             let t = RockTower::new(cx, at, 128);
-            x.eff_magic = Some(make_fx(b, cx, EffKind::RockTower { n: 128 }, Fx::Tower(t), at));
+            x.eff_magic = Some(b.make_fx(cx, EffKind::RockTower { n: 128 }, Fx::Tower(t), at, VF0));
             b.draw_sw = 0;
             let mut view = b.target_pos;
             view[2] = 0;

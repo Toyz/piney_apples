@@ -11,7 +11,7 @@ use piney_data::field::ee;
 use piney_data::libm;
 
 use super::Pic;
-use crate::boss::{Anm, BossBase, Cx, EffKind, Out, VF0};
+use crate::boss::{Anm, BossBase, Cx, EffKind, Fx as BossFx, Out, VF0};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 
@@ -232,13 +232,7 @@ impl StarDust {
                         s.count = 45;
                         s.state += 1;
                         let t = Thunder::new(Some((slot, k)), s.pos, self.core, ONE, 15);
-                        let id = b.effects.create(EffKind::Thunder3);
-                        if let Some(e) =
-                            usize::try_from(id).ok().and_then(|i| b.effects.slots.get_mut(i)).and_then(|e| e.as_mut())
-                        {
-                            e.corbenik = Some(Box::new(super::eff::Fx::Thunder(Box::new(t))));
-                        }
-                        cx.out(Out::Effect { id, kind: EffKind::Thunder3, pos: self.core, dirc: VF0 });
+                        b.make_fx(cx, EffKind::Thunder3, super::eff::Fx::Thunder(Box::new(t)), self.core, VF0);
                     }
                 }
                 6 => {
@@ -408,7 +402,7 @@ impl Thunder {
     pub(super) fn draw(&mut self, cx: &mut Cx, b: &BossBase) -> bool {
         if let Some((slot, k)) = self.follow
             && let Some(Some(e)) = b.effects.slots.get(slot)
-            && let Some(fx) = &e.corbenik
+            && let Some(BossFx::Corbenik(fx)) = &e.fx
             && let super::eff::Fx::StarDust(s) = fx.as_ref()
             && let Some(star) = s.stars.get(k)
         {
