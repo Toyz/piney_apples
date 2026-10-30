@@ -202,10 +202,10 @@ fn a_drain_on_a_brother_drains_gorre() {
     let Some(mut f) = fight() else { return };
     affect_brother(&mut f, 1, 13, 0);
     f.frame();
+    assert_eq!(f.gorre().pat_mode, 2);
     let b = f.boss();
     assert_eq!(b.base.epitaph, 1);
     assert_eq!(b.base.pat_tbl, Tbl::Epitaph);
-    assert_eq!(b.base.pat_mode, 2);
     assert_eq!(b.base.cheat_hp, 0);
 }
 

@@ -161,7 +161,7 @@ const SKEITH_DEF: BossDef = BossDef {
     part: PartBody::InOrder,
     cam: CamDef::Transfer(CAM_TRANSFER),
     radius: None,
-    make: |cx, s| Boss::new(cx, s.kite_pos, s.kite_dirc, s.center),
+    make: |cx, s| piney_battle::boss::skeith::new(cx, s.kite_pos, s.kite_dirc, s.center),
 };
 
 /// Kyvia's fights: the body in the fight's file (`Fight::file`), and its
@@ -332,7 +332,7 @@ pub struct BossRun {
     /// (on the manager's layer, the manager's task outlasting the boss's).
     pub blur: boss::blur::Blur,
     pub reflex: Option<boss::blur::Reflex>,
-    /// Skeith's cross's trail (`ccLattice(2, 7)`, +0x2935c) and what its
+    /// The class's sword trail (Skeith's `ccLattice(2, 7)`, +0x2935c) and what its
     /// `Disp` sent this frame, with its sort key.
     pub lattice: Lattice,
     pub trail: (Vec<StripVertex>, u32),
@@ -974,16 +974,15 @@ impl Combat {
         let mut body = super::spc::to_body(me, kite, &at, false);
         hits.set_hit_sw(&mut body, at.sw);
         hits.sync(&body);
-        // ccBoss01::DrawCross (0x0047c390), after ccBoss::Main: in the
-        // cross, the sword's two dummies (DMY_xdummy_w01, _w02 of x11) under
-        // OBJ_ex11swd as it was last drawn, a new row of the trail; then
-        // the trail's Disp.
-        let skeith = matches!(b.class, Class::Skeith(_));
-        let cross = (skeith && b.base.act_num == piney_battle::boss::act::CROSS && !exited)
+        // The class's sword trail after its Main: a new row at the sword's
+        // two dummies (DMY_xdummy_w01, _w02 under OBJ_ex11swd as it was
+        // last drawn) when the class adds one, then the trail's Disp.
+        let trail = b.class.shape().sword_trail(&b.base);
+        let cross = (trail == Some(true))
             .then(|| self.cast.actors.get(&me).and_then(|a| sword_points(&a.ch.body, &a.ch.play, a.ch.pos, a.ch.dirc)))
             .flatten();
         if let Some(r) = self.boss.as_mut()
-            && skeith
+            && trail.is_some()
         {
             if let Some([p1, p2]) = cross {
                 r.lattice.next_vertex();

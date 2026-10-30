@@ -1311,19 +1311,16 @@ fn on_escape(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
         let r = rand_f(cx.cc, PI);
         let d = ee::add(b.center_dirc, r);
         b.move_dirc = d;
-        b.m_act_dirc[0] = d;
-        b.m_act_dirc[2] = d;
+        b.act_dirc[0] = d;
+        b.act_dirc[2] = d;
         b.move_dirc = wrap_hi(d);
         x.act_pos = cx.pos();
     }
     if c & 31 == 31 {
         b.act_proccess ^= 1;
-        let f = if b.act_proccess != 0 {
-            ee::add(0x3f06_0a92, b.m_act_dirc[2])
-        } else {
-            ee::sub(b.m_act_dirc[2], 0x3f06_0a92)
-        };
-        b.m_act_dirc[0] = wrap_hi(f);
+        let f =
+            if b.act_proccess != 0 { ee::add(0x3f06_0a92, b.act_dirc[2]) } else { ee::sub(b.act_dirc[2], 0x3f06_0a92) };
+        b.act_dirc[0] = wrap_hi(f);
     }
     b.move_dirc = geom::set_dirc(b.move_dirc, b.dirc[0], 512);
     let pp = cx.scene.chars[cx.me].pos_p;

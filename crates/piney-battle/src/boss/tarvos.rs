@@ -1198,12 +1198,12 @@ fn on_escape(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
         if ee::le(r, PI) && ee::lt(r, NEG_PI) {
             r = ee::add(r, TWO_PI);
         }
-        b.m_act_dirc[2] = r;
+        b.act_dirc[2] = r;
     }
-    b.move_dirc = geom::set_dirc(b.move_dirc, b.m_act_dirc[2], 256);
+    b.move_dirc = geom::set_dirc(b.move_dirc, b.act_dirc[2], 256);
     let pp = cx.scene.chars[me].pos_p;
     if !super::fidchell::valid_area(b, cx, pp) {
-        b.m_act_dirc[2] = b.center_dirc;
+        b.act_dirc[2] = b.center_dirc;
     }
     match b.act_proccess {
         0 => {

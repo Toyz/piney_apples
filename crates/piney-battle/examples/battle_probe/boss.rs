@@ -8,7 +8,8 @@
 
 use piney_battle::affect::{self, AffectCtx};
 use piney_battle::boss::blur::{Blur, BlurFunc, Reflex, Statics};
-use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, Out, Skeith, Tbl};
+use piney_battle::boss::skeith::{self, Skeith};
+use piney_battle::boss::{Boss, BossData, BossEnv, CamView, Class, Cx, EffKind, Out, Tbl};
 use piney_battle::chara::{AffectFunc, Env};
 use piney_battle::enemy_ai::{Genrand, IDENTITY, World};
 use piney_battle::event::Events;
@@ -146,7 +147,7 @@ fn run(tables: &Tables, data: &BossData, clips: &Clips, t: &mut Toks) -> String 
         out: Vec::new(),
         ev: Events::new(),
     };
-    let mut boss = Boss::new(&mut cx, kpos, kdirc, center);
+    let mut boss = skeith::new(&mut cx, kpos, kdirc, center);
     let out = std::mem::take(&mut cx.out);
     drop(cx);
     blur.apply(&out);
@@ -490,7 +491,7 @@ fn frame_json(b: &Boss, scene: &Scene, me: usize, out: &[Out], rand: &Rand, cc: 
         tbl_num(b.base.pat_tbl),
         b.base.pat_index,
         b.base.pat_num,
-        b.base.pat_mode,
+        sk.pat_mode,
         b.base.stop_time,
         b.base.stop_counter,
         b.base.stop,

@@ -271,7 +271,7 @@ fn second_json(b: &Boss, x: &Second) -> String {
         u8::from(x.msg_shown).to_string(),
         u8::from(x.time_up).to_string(),
         v3(&x.act_pos),
-        b.base.m_act_dirc[0].to_string(),
+        b.base.act_dirc[0].to_string(),
         v3(&rd.point),
         rd.dir.to_string(),
         rd.spd.to_string(),
@@ -281,7 +281,7 @@ fn second_json(b: &Boss, x: &Second) -> String {
         b.base.stop_counter.to_string(),
         b.base.pat_index.to_string(),
         b.base.pat_num.to_string(),
-        b.base.m_act_dirc[2].to_string(),
+        b.base.act_dirc[2].to_string(),
     ];
     v.join(",")
 }

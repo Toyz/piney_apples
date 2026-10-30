@@ -544,11 +544,11 @@ fn on_escape(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
         if ee::le(r, PI) && ee::lt(r, 0xc049_0fdb) {
             r = ee::add(r, 0x40c9_0fdb);
         }
-        b.m_act_dirc[2] = r;
+        b.act_dirc[2] = r;
     }
-    b.move_dirc = geom::set_dirc(b.move_dirc, b.m_act_dirc[2], 256);
+    b.move_dirc = geom::set_dirc(b.move_dirc, b.act_dirc[2], 256);
     if !valid_area(b, cx.scene.chars[me].pos_p) {
-        b.m_act_dirc[2] = b.center_dirc;
+        b.act_dirc[2] = b.center_dirc;
     }
     match b.act_proccess {
         0 => {
@@ -1514,7 +1514,7 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 let off = super::out_from(cx, VF0, b.target_dirc, [0x4248_0000, 0, 0, ONE]);
                 let view = p2w(cx, geom::vadd(w2p(cx, cx.cam.boss_view), off));
                 let eye = p2w(cx, geom::vadd(w2p(cx, cx.cam.eye), off));
-                b.m_act_dirc = VF0;
+                b.act_dirc = VF0;
                 cx.out(Out::FreeCam { pos: eye, view });
             }
         }
@@ -1524,14 +1524,14 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                     let e = cx.cam.eye;
                     let pos = cx.pos();
                     x.act_pos = super::out_from(cx, pos, b.target_dirc, [0x4448_0000, 0, e[2], ONE]);
-                    b.m_act_dirc[2] = b.target_dirc;
-                    b.m_act_dirc[0] = crate::boss::dist(cx, w2p(cx, e), w2p(cx, x.act_pos));
+                    b.act_dirc[2] = b.target_dirc;
+                    b.act_dirc[0] = crate::boss::dist(cx, w2p(cx, e), w2p(cx, x.act_pos));
                 }
                 let view = x.act_pos;
-                let a = wrap_hi(ee::add(0x3c8e_fa35, b.m_act_dirc[2]));
-                b.m_act_dirc[2] = a;
-                b.m_act_dirc[0] = ee::add(b.m_act_dirc[0], 0x41ba_aaab);
-                let eye = super::out_from(cx, x.act_pos, a, [b.m_act_dirc[0], 0, 0, ONE]);
+                let a = wrap_hi(ee::add(0x3c8e_fa35, b.act_dirc[2]));
+                b.act_dirc[2] = a;
+                b.act_dirc[0] = ee::add(b.act_dirc[0], 0x41ba_aaab);
+                let eye = super::out_from(cx, x.act_pos, a, [b.act_dirc[0], 0, 0, ONE]);
                 cx.out(Out::FreeCam { pos: eye, view });
             }
             if x.root_anm_status && c == 90 {

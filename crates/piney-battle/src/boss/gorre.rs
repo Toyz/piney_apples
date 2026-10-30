@@ -16,7 +16,7 @@ use piney_data::volume::Volume;
 
 use self::brother::Brother;
 use super::{
-    BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, PI, Patterns, SkeithPatterns, TWO_PI, Tbl, VF0,
+    BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, PI, Patterns, TWO_PI, Tbl, VF0,
     base_exec_pattern_index, word,
 };
 use crate::boss::Part;
@@ -135,6 +135,9 @@ impl GorreData {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Gorre {
     pub brother_me: [usize; 2],
+    /// `m_patMode` (+0x29408): 0 the Normal table, 1 the Super, 2 the
+    /// Epitaph's.
+    pub pat_mode: i32,
     /// `stageEffId`: the stage effect a spell holds.
     pub stage_eff_id: i32,
     pub brothers: [Part<Brother>; 2],
@@ -273,7 +276,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let mut x = Gorre { brother_me, cam_sw: true, ..Gorre::default() };
     b.pat_tbl = Tbl::Normal;
     b.pat_index = 0;
-    b.pat_mode = 0;
+    x.pat_mode = 0;
     let found: [bool; 2] = std::array::from_fn(|k| {
         let (part, found) = Part::take_or_stand_in(cx, brother_me[k]);
         x.brothers[k] = part;
@@ -393,10 +396,11 @@ fn calc_real_ex(b: &mut BossBase, x: &Gorre, cx: &mut Cx) {
 
 // --- the patterns --------------------------------------------------------------------------------
 
-/// Gorre's patterns. The base's run as Skeith's, so `ACTS` is only its
-/// `ChangeNextPattern`'s still vector.
+/// Gorre's patterns: OUT's `ccBoss::ExecPatternIndex` (0x0046dd20): an
+/// unknown word's neutral forbid 1 (0x0046e384), the dash's vector and the
+/// still vector `vf0`, w 1 (0x0046df4c, 0x0046dd68).
 impl Patterns for Gorre {
-    const ACTS: BaseActs = BaseActs { other_forbid: 1, dash_w: 0, still_w: 0x3f80_0000 };
+    const ACTS: BaseActs = BaseActs { other_forbid: 1, dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
     fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
         data.gorre.words(b.pat_tbl)
@@ -407,8 +411,8 @@ impl Patterns for Gorre {
     }
 
     /// `ccBoss05::ExecPatternIndex` (OUT gcmn 0x004a99a0), falling back on
-    /// `ccBoss::ExecPatternIndex` as Skeith runs it ([`SkeithPatterns`]: its acts and
-    /// `ExecPattern`; its act numbers are Gorre's too). Pattern 10 skips its word (the spell is `OnThinkSkill`'s own).
+    /// `ccBoss::ExecPatternIndex` (0x0046dd20). Pattern 10 skips its word
+    /// (the spell is `OnThinkSkill`'s own).
     fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
         let x = self;
         let orig = i;
@@ -483,20 +487,9 @@ impl Patterns for Gorre {
                 }
                 x.exec_pattern(b, cx, 2, 60);
             }
-            _ => {
-                // The base's `ChangeAction` is Gorre's own through the vtable,
-                // which orders both brothers too. Every pattern of the base
-                // Gorre reaches changes the act (forbid 1 or 3, never
-                // refused), leaving `actProccess` 0: -1 before tells.
-                let proccess = std::mem::replace(&mut b.act_proccess, -1);
-                let r = base_exec_pattern_index(&mut SkeithPatterns, b, cx, tbl, orig);
-                if b.act_proccess == -1 {
-                    b.act_proccess = proccess;
-                } else {
-                    order_both(x, cx, b.act_num);
-                }
-                return r;
-            }
+            // The base's, through Gorre's own vtable: its `ChangeAction`
+            // orders both brothers, its `ExecPatternIndex` runs `ExecPattern`.
+            _ => return base_exec_pattern_index(x, b, cx, tbl, orig),
         }
         s
     }
@@ -566,7 +559,7 @@ fn on_dmg(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
 fn on_drain(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     change_action(b, x, cx, act::EPITAPH, 3, true);
     b.set_pattern_tbl(Tbl::Epitaph);
-    b.pat_mode = 2;
+    x.pat_mode = 2;
     let tbl = cx.data.gorre.words(Tbl::Epitaph);
     b.pat_index = x.exec_pattern_index(b, cx, tbl, 0);
 }
@@ -768,12 +761,12 @@ fn on_escape(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     if c & 31 == 0 {
         let off = ee::sub(b.target_dirc, b.center_dirc) & 0x7fff_ffff;
         let r = if ee::lt(off, quarter) { ee::sub(b.target_dirc, quarter) } else { ee::add(quarter, b.target_dirc) };
-        b.m_act_dirc[2] = if ee::le(r, PI) && ee::lt(r, NEG_PI) { ee::add(r, TWO_PI) } else { r };
+        b.act_dirc[2] = if ee::le(r, PI) && ee::lt(r, NEG_PI) { ee::add(r, TWO_PI) } else { r };
     }
     if !valid_area(b, cx, cx.scene.chars[me].pos_p) {
-        b.m_act_dirc[2] = b.center_dirc;
+        b.act_dirc[2] = b.center_dirc;
     }
-    b.move_dirc = geom::set_dirc(b.move_dirc, b.m_act_dirc[2], 256);
+    b.move_dirc = geom::set_dirc(b.move_dirc, b.act_dirc[2], 256);
     match b.act_proccess {
         0 => {
             let t = b.select(cx, 0);
@@ -808,7 +801,7 @@ fn on_wander(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let me = cx.me;
     match b.act_proccess {
         0 => {
-            b.m_act_dirc[2] = crate::enemy_ai::rand_f(cx.cc, PI);
+            b.act_dirc[2] = crate::enemy_ai::rand_f(cx.cc, PI);
             b.act_proccess += 1;
         }
         1 => {
@@ -819,7 +812,7 @@ fn on_wander(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
             if stopped_or_held(b, cx) {
                 b.move_spd = 0;
             } else {
-                b.move_dirc = geom::set_dirc(b.move_dirc, b.m_act_dirc[2], 256);
+                b.move_dirc = geom::set_dirc(b.move_dirc, b.act_dirc[2], 256);
                 b.dirc[2] = b.move_dirc;
             }
             let c = b.act_count;

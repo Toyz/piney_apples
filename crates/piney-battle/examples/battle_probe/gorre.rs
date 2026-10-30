@@ -395,7 +395,8 @@ fn part_json(b: &Boss, scene: &Scene, c: usize, gorre: usize) -> String {
         b.base.anm.speed,
         b.base.pat_index,
         b.base.pat_num,
-        b.base.pat_mode,
+        // `m_patMode`: Gorre's own (a brother has none).
+        if let Class::Gorre(x) = &b.class { x.pat_mode } else { 0 },
         // Whose block `param` points at, and all of it.
         match scene.param_owner(c) {
             o if o == c => "own",

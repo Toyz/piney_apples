@@ -231,6 +231,23 @@ fn a_hit_on_the_core_shows_its_resistance() {
     assert!(ev.contains(&shield), "{ev:?}");
 }
 
+/// Kyvia's vtable's `Affect` is `ccBoss::Affect` (MUT
+/// `__vt__13ccBossKyvia01` +0x24): a drain (21) leaves a tenth of its HP,
+/// not Skeith's 4500, and a hit keeps its own patterns.
+#[test]
+fn a_drain_on_kyvia_runs_the_base_affect() {
+    let Some(mut f) = fight() else { return };
+    f.frame();
+    let me = f.me;
+    let max = f.scene.chars[me].max_hp;
+    f.scene.chars[me].affect.ty = 21;
+    let mut b = f.scene.chars[me].foe_state_mut().unwrap().boss.take().unwrap();
+    let tbl = b.base.pat_tbl;
+    f.with_cx(|cx| b.affect(cx));
+    assert_eq!(f.scene.chars[me].max_hp, (i32::from(max) / 10) as i16);
+    assert_eq!(b.base.pat_tbl, tbl);
+}
+
 #[test]
 fn the_meteors_fall_on_the_disc() {
     let Some(mut f) = fight() else { return };

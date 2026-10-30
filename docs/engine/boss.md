@@ -643,13 +643,21 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   and its class's own, apart, so a class's rules hold both at once.
 - `Boss::main` and `Boss::affect` go through one `match` on the class
   (`Class::with_rules`) to its `BossClass` impl: `Class::Skeith` is
-  `ccBoss01` with its own members (`Skeith`), the effect manager's pass
-  included; `Class::Innis` is
+  `ccBoss01` with its own members (`boss::skeith::Skeith`: `m_patMode`,
+  `m_actDirc` among them), the effect manager's pass included; `Class::Innis` is
   Mutation's `ccBoss02` ([Innis](boss-innis.md)), `Class::Magus`
   ([Magus](boss-magus.md)), `Class::Kyvia` ([Kyvia](boss-kyvia.md)),
   `Class::Fidchell` Outbreak's `ccBoss04` ([Fidchell](boss-fidchell.md)),
   `Class::Macha` Quarantine's `ccBoss06` ([Macha](boss-macha.md)),
   `Class::Tarvos` its `ccBoss07` ([Tarvos](boss-tarvos.md)).
+- Every boss class derives from `ccBoss` itself, none from `ccBoss01`
+  (Infection's DWARF, which carries boss04-08 and Kyvia's classes too):
+  Skeith's code is his alone (`boss::skeith`, his constructor
+  `skeith::new`). A class with no `Affect` of its own runs
+  `ccBoss::Affect` as its vtable does (Kyvia's bodies, Corbenik's eyes and
+  roots, a bare slave; MUT's `__vt__13ccBossKyvia01` +0x24 is
+  `ccBoss::Affect`); Gorre's is empty. Gorre's `ExecPatternIndex` falls back
+  on `ccBoss`'s through its own vtable.
 - `ccBoss::ExecPatternIndex` and `ChangeNextPattern` call back into the
   class (its `ChangeAction`, `ExecPatternIndex`, `ExecPattern`,
   `CheckEpitaph`, its table): the `Patterns` trait, one generic

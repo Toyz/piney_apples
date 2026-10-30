@@ -550,7 +550,7 @@ fn first_json(b: &Boss, x: &First) -> String {
         b.base.stop_counter.to_string(),
         b.base.pat_index.to_string(),
         b.base.pat_num.to_string(),
-        b.base.m_act_dirc[2].to_string(),
+        b.base.act_dirc[2].to_string(),
     ];
     v.join(",")
 }

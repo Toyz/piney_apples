@@ -14,15 +14,16 @@ type F = u32;
 
 /// A class's `Main` and `Affect` on its `ccBoss` members (`b`) and its own
 /// (`self`). A part's frame runs from its master's, so a part leaves
-/// `main` as `ccBoss`'s; a class with no `Affect` of its own keeps
-/// `ccBoss01`'s, as the port has always run it.
+/// `main` as `ccBoss`'s; a class with no `Affect` of its own runs
+/// `ccBoss::Affect`, as its vtable does (Kyvia's bodies, Corbenik's eyes
+/// and roots, a bare slave).
 pub(crate) trait BossClass {
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         b.base_main(cx, &mut |_, _| {});
     }
 
     fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
-        b.skeith_affect(cx);
+        b.base_affect(cx);
     }
 
     /// `ccBossEffManager::Draw`'s pass where the class runs it before the
@@ -34,9 +35,6 @@ pub(crate) trait BossClass {
 struct Bare;
 
 impl BossClass for Bare {}
-
-/// `ccBoss01`'s pattern code, which reads none of Skeith's own members.
-pub(crate) struct SkeithPatterns;
 
 /// What the field draws of a class beside its rules, read after its
 /// frame: the wave `DrawWave` poses (`m_anmw`), the characters drawn as its
@@ -75,6 +73,12 @@ pub trait Shape {
     /// `drawSW` holds.
     fn drawn_at(&self, b: &BossBase, pos: V4) -> (V4, V4, bool) {
         (pos, b.dirc, b.draw_sw != 0)
+    }
+
+    /// A sword trail (`ccLattice`) the field keeps for the class: None for
+    /// none, else whether this frame adds a row (the sword's two dummies).
+    fn sword_trail(&self, _b: &BossBase) -> Option<bool> {
+        None
     }
 
     /// A part's clip matrix as its `PreDrawAnm` sets it, when not the

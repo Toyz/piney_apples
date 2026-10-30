@@ -132,9 +132,9 @@ fn on_report_affect(b: &mut BossBase, x: &mut Gorre, from: usize, cx: &mut Cx) {
             // `GetPP() >= GetMaxPP() / 2`: the Super table, once.
             let gp = cx.scene.param(me).map_or(0, |p| p.pp);
             let max = cx.t.bosses.get(ROW).map_or(0, |r| r.max_pp);
-            if b.pat_mode == 0 && gp >= max >> 1 {
+            if x.pat_mode == 0 && gp >= max >> 1 {
                 b.set_pattern_tbl(Tbl::Super);
-                b.pat_mode = 1;
+                x.pat_mode = 1;
                 let tbl = cx.data.gorre.words(Tbl::Super).to_vec();
                 b.pat_index = x.exec_pattern_index(b, cx, &tbl, 0);
             }

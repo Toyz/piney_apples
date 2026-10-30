@@ -66,8 +66,6 @@ pub struct BattleData {
     pub mt: MotionTables,
     pub st: SpawnTables,
     pub md: MotionData,
-    /// Skeith's tables (`piney_battle::boss`), None if they did not read.
-    pub skeith: Option<piney_battle::boss::SkeithData>,
     /// Every boss's tables (`piney_battle::boss::BossData`).
     pub bosses: Option<piney_battle::boss::BossData>,
 }
@@ -85,7 +83,6 @@ impl BattleData {
             mt: MotionTables::of(volume),
             st,
             md,
-            skeith: Some(piney_battle::boss::SkeithData::of(volume)),
             bosses: Some(piney_battle::boss::BossData::of(volume)),
         })
     }

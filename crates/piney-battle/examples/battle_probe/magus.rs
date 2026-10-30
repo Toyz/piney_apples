@@ -369,7 +369,7 @@ fn magus_json(b: &Boss, x: &Magus) -> String {
         v3(&x.prev_laser),
         v3(&x.prev_dirc),
         v3(&x.act_pos),
-        v3(&b.base.m_act_dirc),
+        v3(&b.base.act_dirc),
         x.animate_chase.transparency.to_string(),
         b.base.stop_time.to_string(),
         b.base.stop_counter.to_string(),

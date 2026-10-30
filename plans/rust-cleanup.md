@@ -128,6 +128,12 @@ trait MapSystem {
 
 ### Defs and systems
 
+**Standing rule** (the maintainer's, 2026-10-30): any step that touches a
+kind of thing (bosses, towns, story maps, fields, dungeons, NPCs, menus,
+desktop apps, effects) builds its `*Def` and its systems in that same
+step. No intermediate shapes to be redone later (the class-per-boss stage
+was that mistake).
+
 The name (the maintainer's, 2026-10-30): a *def* says what a thing is (its
 systems and their order), a *system* is one reusable behaviour. Component
 composition from data, with no ECS scheduler and no queries, so it is not
@@ -257,7 +263,7 @@ Where the code does by hand, per kind, what a system should do once:
 - [x] `Part<T: PartClass>` / `Parts<T>` for gomoras, leaves, brothers,
       roots, seeds, eyes (keep the placeholder semantics where code indexes).
       (worklog 527)
-- [ ] Skeith is a boss like the others. He was the first boss ported, so the
+- [x] Skeith is a boss like the others. He was the first boss ported, so the
       base grew up as his code and still is: `boss.rs` (2,997 lines) holds
       `SkeithData`, his acts and skill rows, `BossBase::skeith_main`,
       `Boss::new` as his constructor, `SkeithPatterns` in `class.rs` and a
@@ -270,6 +276,40 @@ Where the code does by hand, per kind, what a system should do once:
       back on Skeith's base patterns today): what `ccBoss01` gives them
       becomes a shared piece they compose, not Skeith's code left in the
       base. Checked by the pins and every boss harness against the game.
+      (worklog 534: no boss derives from `ccBoss01`; `boss/skeith.rs` holds
+      his data, `new`, `Main`, `Affect`, patterns and acts; `patMode` and
+      `m_actDirc` are his and Gorre's own, the others' heading `actDirc`;
+      a class with no `Affect` runs `ccBoss::Affect`, Gorre's fallback
+      goes through his own vtable; `BattleData.skeith` gone, his sword trail
+      behind `Shape::sword_trail`. Left for the next item: `BossData`'s
+      field per boss, `Class`'s default, the world's `SKEITH_DEF` as the
+      other rows' base and fallback look, `act`, `FAR`, `SKILL_*`.)
+- [ ] **Bosses as defs and systems.** A boss is a `BossDef` naming its
+      systems and their order, like a town:
+      ```rust
+      pub const INNIS: BossDef = BossDef {
+          code: 2, class: "ccBoss02", volumes: MUT_ON, file: "x20",
+          data: InnisData::load,              // its tables through the def, not a central BossData struct
+          acts: BaseActs { .. },              // what really differs in the shared pattern logic
+          systems: &[Patterns(INNIS_PATTERNS), Protect, Hp, Blur, BossCamera, Wave,   // shared boss systems
+                     Images(4), MagicSquare, Missiles],                                // Innis's own
+          order: &[Prologue, Patterns, Think, Action, Move, LockParty, ForwardAndDraw, Images, Effects],
+      };
+      ```
+      - Shared boss systems written once (the base Main's blocks, the
+        pattern runner, parts, Fx, protect/HP, blur, camera, wave,
+        after-images); each boss's real uniqueness becomes its own system
+        (Innis's magic square and missiles, Magus's leaves and laser,
+        Kyvia's gomoras and the disc places, Gorre's brothers and Kerse,
+        Corbenik's seeds, roots and eyes, Skeith's spells).
+      - `order` states exactly the order each boss's Main ran things in
+        (bit-exact); no scheduler.
+      - `BossData`, the `Class` enum match (`each_class!`), the world's
+        `BOSSES` table and per-boss arms fold into the defs; the world
+        reads a boss only through its def and its systems' requests.
+      - Shared helpers for systems live in `piney-battle/src/boss/systems/`.
+      Checked by the pins (byte-identical), every boss harness against the
+      game, the golden boss shots, the suite.
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

@@ -386,7 +386,7 @@ fn tarvos_json(b: &Boss, x: &Tarvos) -> String {
         b.base.pat_num.to_string(),
         b.base.epitaph.to_string(),
         v3(&b.base.dash_pos),
-        b.base.m_act_dirc[2].to_string(),
+        b.base.act_dirc[2].to_string(),
     ];
     v.join(",")
 }
