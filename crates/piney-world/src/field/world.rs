@@ -3132,8 +3132,8 @@ impl FieldWorld {
 
     /// The boss's own pictures besides its body: `DrawAfterImages` (each
     /// image the pose it was entered with in its blend, fading, on
-    /// effLayer), Kyvia's arm and the wave's `DrawParts` (`ANM_xx11wave`'s
-    /// objects at the boss, on objLayer).
+    /// effLayer), its [`combat::boss::Picture`]s and the waves' `DrawParts`
+    /// (`ANM_xx11wave`'s objects, on objLayer).
     fn draw_boss(&self, ctx: &mut Ctx, to_screen: glam::Mat4) {
         // The manager's blur: `SetReflex` and `MakePacket` on its layer, the
         // last frame's picture over the view (the task outlives the boss).
@@ -3203,24 +3203,24 @@ impl FieldWorld {
                 fog,
             );
         }
-        // Corbenik's pictures (x81's and xeffect's): the barrier object at
-        // the body's OBJ_ex8body2 (or its hit clip), the press's images,
-        // the elements, the drain's root, the lasers' segments and heads;
-        // on charLayer, the clips lit.
-        for s in &run.corbenik {
-            use combat::corbenik::Shown;
+        // The boss's pictures: Corbenik's (x81's and xeffect's: the barrier
+        // object at the body's OBJ_ex8body2 or its hit clip, the press's
+        // images, the elements, the drain's root, the lasers' segments and
+        // heads), Kyvia's arm, Macha's light ball, Innis's mirrors' shards.
+        let rows = std::collections::HashMap::new();
+        for s in &run.pictures {
+            use combat::boss::Picture;
             match s {
-                Shown::Obj { eff, name, world, alpha, fog, blend } => {
-                    let file = if *eff { &run.look.eff } else { &run.look.body.file };
+                &Picture::Obj { eff, name, world, alpha, fog, blend } => {
+                    let file = if eff { &run.look.eff } else { &run.look.body.file };
                     let Some(model) = file.ccs.find_object(name).and_then(|o| file.obj_model.get(&o)) else {
                         continue;
                     };
-                    let rows = std::collections::HashMap::new();
                     let d = draw::Draw {
                         file,
                         model: *model,
-                        world: *world,
-                        alpha: *alpha,
+                        world,
+                        alpha,
                         rows: &rows,
                         lights: None,
                         nodes: &[],
@@ -3228,12 +3228,31 @@ impl FieldWorld {
                         clut_swaps: Vec::new(),
                     };
                     let fog = fog.map_or(draw::Fogging::None, draw::Fogging::Const);
-                    draw::model_blended(&mut ctx.layers, draw::CHAR_LAYER, to_screen, &d, None, fog, &[], *blend);
+                    draw::model_blended(&mut ctx.layers, draw::CHAR_LAYER, to_screen, &d, None, fog, &[], blend);
                 }
-                Shown::Anm { eff: false, clip, time, root, alpha, .. } => {
-                    anm_draw(ctx, draw::CHAR_LAYER, clip, *time, *root, *alpha, None);
+                Picture::Anm { eff: false, layer, clip, time, root, alpha, .. } => {
+                    anm_draw(ctx, *layer, clip, *time, *root, *alpha, None);
                 }
-                Shown::Again { who, alpha } => {
+                Picture::Anm { eff: true, layer, clip, time, root, alpha, blend } => {
+                    let Some(mut p) = crate::chara::pose::Play::new(&run.look.eff, clip) else { continue };
+                    (p.time, p.posed) = (*time, *time);
+                    let file = &*run.look.eff;
+                    crate::town::anim_draw_blended(
+                        &mut ctx.layers,
+                        *layer,
+                        to_screen,
+                        file,
+                        &p,
+                        *root,
+                        &[],
+                        *alpha,
+                        None,
+                        None,
+                        draw::Fogging::None,
+                        *blend,
+                    );
+                }
+                Picture::Again { who, alpha } => {
                     let Some(a) = self.combat.cast.actors.get(who) else { continue };
                     let Some(m) = &a.matrix else { continue };
                     a.ch.body.draw(
@@ -3248,30 +3267,25 @@ impl FieldWorld {
                         &a.swaps,
                     );
                 }
-                Shown::Anm { eff: true, clip, time, root, alpha, blend } => {
-                    let Some(mut p) = crate::chara::pose::Play::new(&run.look.eff, clip) else { continue };
-                    (p.time, p.posed) = (*time, *time);
-                    let file = &*run.look.eff;
-                    crate::town::anim_draw_blended(
-                        &mut ctx.layers,
-                        draw::CHAR_LAYER,
-                        to_screen,
-                        file,
-                        &p,
-                        *root,
-                        &[],
-                        *alpha,
-                        None,
-                        None,
-                        draw::Fogging::None,
-                        *blend,
-                    );
+                // `SetMatrix_PosRotZYX`, the clump's models on objLayer.
+                &Picture::Clump { clump, world } => {
+                    let Some((file, clumps)) = run.look.shards.as_ref() else { continue };
+                    for &model in clumps.get(clump).into_iter().flatten() {
+                        let d = draw::Draw {
+                            file,
+                            model,
+                            world,
+                            alpha: 1.0,
+                            rows: &rows,
+                            lights: None,
+                            nodes: &[],
+                            morph: Vec::new(),
+                            clut_swaps: Vec::new(),
+                        };
+                        draw::model(&mut ctx.layers, draw::OBJ_LAYER, to_screen, &d);
+                    }
                 }
             }
-        }
-        // Kyvia's arm: DrawParts(anmw, 0) on objLayer, no blend.
-        if let Some((clip, time, pos, dirc)) = &run.arm {
-            anm_draw(ctx, draw::OBJ_LAYER, clip, *time, crate::chara::body::root(*pos, *dirc), 1.0, None);
         }
         if run.reverse {
             ctx.layers.prepend(REVERSE_LAYER, vec![reverse_packet()]);
@@ -3290,32 +3304,6 @@ impl FieldWorld {
         }
         if let Some(cmd) = trail_packet(&run.trail.0, &self.camera.world_screen) {
             ctx.layers.sorted(draw::EFF_LAYER, f32::from_bits(run.trail.1), cmd);
-        }
-        // Innis's mirrors' shards: each clump's models at its place and
-        // turn (`SetMatrix_PosRotZYX`), on objLayer.
-        if let Some((file, clumps)) = run.look.shards.as_ref() {
-            let rows = std::collections::HashMap::new();
-            for &(k, pos, rot) in &run.shards {
-                let world = crate::chara::body::root(pos, rot);
-                for &model in clumps.get(k).into_iter().flatten() {
-                    let d = draw::Draw {
-                        file,
-                        model,
-                        world,
-                        alpha: 1.0,
-                        rows: &rows,
-                        lights: None,
-                        nodes: &[],
-                        morph: Vec::new(),
-                        clut_swaps: Vec::new(),
-                    };
-                    draw::model(&mut ctx.layers, draw::OBJ_LAYER, to_screen, &d);
-                }
-            }
-        }
-        // Macha's light ball: its ccAnm of the boss's file on effLayer.
-        if let Some((clip, time, pos, dirc)) = &run.ball {
-            anm_draw(ctx, draw::EFF_LAYER, clip, *time, crate::chara::body::root(*pos, *dirc), 1.0, None);
         }
         for &(time, pos, dirc, scale) in &run.waves {
             let Some(mut p) = crate::chara::pose::Play::new(&run.look.eff, combat::boss::ANM_WAVE) else { continue };

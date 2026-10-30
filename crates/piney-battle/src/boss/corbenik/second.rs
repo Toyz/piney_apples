@@ -188,14 +188,6 @@ fn p2w(cx: &Cx, v: V4) -> V4 {
     crate::boss::p2w(cx, v)
 }
 
-/// `P2W(W2P(at) + Rz(-pi/2) Rz(d) v)`: a place `v` out from `at` along
-/// `d` (the matrix turned by `d`, then by -pi/2).
-fn out_from(cx: &Cx, at: V4, d: F, v: V4) -> V4 {
-    let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI), d);
-    let o = geom::apply_matrix(&m, v);
-    p2w(cx, geom::vadd(w2p(cx, at), o))
-}
-
 /// The same with the matrix `Rz(d)` first and `Rz(-pi/2)` after (the
 /// sybly's and star dust's cameras: `RotMatrixX/Y/Z(d)` then `Z(-pi/2)`).
 fn out_from_after(cx: &Cx, at: V4, d: F, v: V4) -> V4 {
@@ -313,6 +305,21 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Second, cx: &mut Cx, m: i32) {
 
 // --- the frame ------------------------------------------------------------------------------------
 
+impl crate::boss::Shape for Second {
+    fn parts(&self, _scene: &crate::scene::Scene) -> Vec<usize> {
+        self.root_me.to_vec()
+    }
+}
+
+/// `ccBoss08Root::PreDrawAnm` (0x003b8fb0, `@1033`): at 1.5x.
+const ROOT_SCALE: F = 0x3fc0_0000;
+
+impl crate::boss::Shape for Root {
+    fn matrix(&self, pos: V4, dirc: V4) -> Option<geom::M4> {
+        Some(super::pos_rot_zyx_scale(pos, dirc, ROOT_SCALE))
+    }
+}
+
 impl crate::boss::BossClass for Root {}
 
 impl crate::boss::BossClass for Second {
@@ -371,7 +378,8 @@ fn pre_draw_anm(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     if x.flash_barrier {
         x.barrier_anm_status = x.anm_barrier.forward();
         if !x.barrier_anm_status {
-            cx.out(Out::Corbenik(Pic::BarrierHit { time: x.anm_barrier.posed }));
+            let (clip, time) = (x.anm_barrier.clip.clone(), x.anm_barrier.posed);
+            cx.out(Out::Corbenik(Pic::BarrierHit { clip, time }));
             return;
         }
         x.flash_barrier = false;
@@ -668,7 +676,7 @@ fn on_wave(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             }
             cx.quake([0x4248_0000; 3]);
             let ended = x.anm_w.forward();
-            cx.out(Out::Corbenik(Pic::Wave { time: x.anm_w.posed, pos }));
+            cx.out(Out::Wave { who: cx.me, time: x.anm_w.posed, pos, dirc: [0, 0, 0, ONE], scale: ONE });
             if ended && b.anm_status != 0 {
                 x.change_next_pattern(b, cx);
             }
@@ -789,7 +797,7 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             cx.cursor(true);
             cx.out(Out::Cinema(Some(29)));
             let d = round_target(b, cx);
-            x.act_pos = out_from(cx, b.target_pos, d, [0x43fa_0000, 0, 0, ONE]);
+            x.act_pos = super::out_from(cx, b.target_pos, d, [0x43fa_0000, 0, 0, ONE]);
             b.act_count = 0;
             b.act_proccess += 1;
         }
@@ -834,7 +842,7 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             if c == 30 {
                 let d = round_target(b, cx);
                 cx.out(Out::CamMode { mode: 5 });
-                let eye = out_from(cx, b.target_pos, d, [0xc42f_0000, 0, 0x428c_0000, ONE]);
+                let eye = super::out_from(cx, b.target_pos, d, [0xc42f_0000, 0, 0x428c_0000, ONE]);
                 let mut view = b.target_pos;
                 view[2] = 0x4348_0000;
                 cx.out(Out::FreeCam { pos: eye, view });
@@ -852,7 +860,7 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             let e = &mut x.ai_elements[0];
             e.dirc = VF0;
             e.dirc[2] = get_dirc(b.center_pos_p, w2p(cx, b.target_pos));
-            e.pos = out_from(cx, b.target_pos, d, [0x43fa_0000, 0, 0, ONE]);
+            e.pos = super::out_from(cx, b.target_pos, d, [0x43fa_0000, 0, 0, ONE]);
             b.anm.forward();
             // The body's clip at the image, at the anm's transparency as the
             // last ccBoss::Draw left it (0x003b5460: none is set here).
@@ -872,7 +880,7 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 }
                 if c == 30 {
                     let vp = b.target_pos;
-                    let eye = out_from(cx, vp, b.center_dirc, [0x451c_4000, 0, 0x451c_4000, ONE]);
+                    let eye = super::out_from(cx, vp, b.center_dirc, [0x451c_4000, 0, 0x451c_4000, ONE]);
                     cx.out(Out::FreeCam { pos: eye, view: vp });
                 }
             } else if c >= 90 {
@@ -885,7 +893,7 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 }
                 if c == 120 {
                     let d = round_target(b, cx);
-                    let eye = out_from(cx, b.target_pos, d, [0x44fa_0000, 0, 0x447a_0000, ONE]);
+                    let eye = super::out_from(cx, b.target_pos, d, [0x44fa_0000, 0, 0x447a_0000, ONE]);
                     if cx.cam.reset == 5 {
                         cx.out(Out::CamEye(eye));
                     }
@@ -896,7 +904,7 @@ fn on_body_press(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             }
             b.anm.forward();
             for e in &mut x.ai_elements {
-                e.pos = out_from(cx, b.target_pos, e.angle, [0x447a_0000, 0, 0, ONE]);
+                e.pos = super::out_from(cx, b.target_pos, e.angle, [0x447a_0000, 0, 0, ONE]);
                 e.dirc[2] = get_dirc(w2p(cx, e.pos), tp);
                 let (pos, dirc, alpha) = (e.pos, e.dirc, e.alpha);
                 cx.out(Out::Corbenik(Pic::PressImage { time: b.anm.posed, pos, dirc, alpha }));
@@ -1038,7 +1046,7 @@ fn on_magic(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             cx.out(Out::SwitchLayer);
             x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 15, 3000]);
             let vp = b.target_pos;
-            let eye = out_from(cx, vp, b.target_dirc, [0x44bb_8000, 0, 0x43fa_0000, ONE]);
+            let eye = super::out_from(cx, vp, b.target_dirc, [0x44bb_8000, 0, 0x43fa_0000, ONE]);
             cx.free_cam(eye, vp);
             b.act_proccess += 1;
         }
@@ -1103,7 +1111,7 @@ fn on_setup_barrier(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 b.erase_cmnd_target(cx);
                 cx.cursor(true);
                 let pos = cx.pos();
-                let eye = out_from(cx, pos, b.dirc[2], [0x44fa_0000, 0, 0x428c_0000, ONE]);
+                let eye = super::out_from(cx, pos, b.dirc[2], [0x44fa_0000, 0, 0x428c_0000, ONE]);
                 let mut view = pos;
                 view[2] = ee::add(view[2], 0x43c8_0000);
                 cx.free_cam(eye, view);
@@ -1416,7 +1424,7 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
             x.root_anm_status = false;
             x.old_pos = cx.pos();
             let d = round_target(b, cx);
-            x.act_pos = out_from(cx, b.target_pos, d, [0x44bb_8000, 0, 0, ONE]);
+            x.act_pos = super::out_from(cx, b.target_pos, d, [0x44bb_8000, 0, 0, ONE]);
             b.act_count = 0;
             b.act_proccess += 1;
         }
@@ -1444,8 +1452,8 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 cx.scene.chars[me].pos_p = w2p(cx, x.act_pos);
                 let pp = cx.scene.chars[me].pos_p;
                 let d = get_dirc(pp, w2p(cx, b.target_pos));
-                let eye = out_from(cx, x.act_pos, d, [0x447a_0000, 0, 0x4248_0000, ONE]);
-                let view = out_from(cx, eye, d, [0xc2c8_0000, 0, 0, ONE]);
+                let eye = super::out_from(cx, x.act_pos, d, [0x447a_0000, 0, 0x4248_0000, ONE]);
+                let view = super::out_from(cx, eye, d, [0xc2c8_0000, 0, 0, ONE]);
                 cx.free_cam(eye, view);
                 b.move_spd = 0;
                 b.dirc[2] = b.center_dirc;
@@ -1503,7 +1511,7 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 if c == 15 {
                     cx.out(Out::Blur(blur::Set::Func(blur::BlurFunc::Boss08B)));
                 }
-                let off = out_from(cx, VF0, b.target_dirc, [0x4248_0000, 0, 0, ONE]);
+                let off = super::out_from(cx, VF0, b.target_dirc, [0x4248_0000, 0, 0, ONE]);
                 let view = p2w(cx, geom::vadd(w2p(cx, cx.cam.boss_view), off));
                 let eye = p2w(cx, geom::vadd(w2p(cx, cx.cam.eye), off));
                 b.m_act_dirc = VF0;
@@ -1515,7 +1523,7 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 if c == 60 {
                     let e = cx.cam.eye;
                     let pos = cx.pos();
-                    x.act_pos = out_from(cx, pos, b.target_dirc, [0x4448_0000, 0, e[2], ONE]);
+                    x.act_pos = super::out_from(cx, pos, b.target_dirc, [0x4448_0000, 0, e[2], ONE]);
                     b.m_act_dirc[2] = b.target_dirc;
                     b.m_act_dirc[0] = crate::boss::dist(cx, w2p(cx, e), w2p(cx, x.act_pos));
                 }
@@ -1523,7 +1531,7 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                 let a = wrap_hi(ee::add(0x3c8e_fa35, b.m_act_dirc[2]));
                 b.m_act_dirc[2] = a;
                 b.m_act_dirc[0] = ee::add(b.m_act_dirc[0], 0x41ba_aaab);
-                let eye = out_from(cx, x.act_pos, a, [b.m_act_dirc[0], 0, 0, ONE]);
+                let eye = super::out_from(cx, x.act_pos, a, [b.m_act_dirc[0], 0, 0, ONE]);
                 cx.out(Out::FreeCam { pos: eye, view });
             }
             if x.root_anm_status && c == 90 {
@@ -1593,8 +1601,8 @@ fn on_root_drain(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
                     b.act_count = 0;
                     b.act_proccess += 1;
                     let pos = cx.pos();
-                    let eye = out_from(cx, pos, b.target_dirc, [0x4496_0000, 0, 0x428c_0000, ONE]);
-                    let view = out_from(cx, pos, b.target_dirc, [0, 0, 0x4348_0000, ONE]);
+                    let eye = super::out_from(cx, pos, b.target_dirc, [0x4496_0000, 0, 0x428c_0000, ONE]);
+                    let view = super::out_from(cx, pos, b.target_dirc, [0, 0, 0x4348_0000, ONE]);
                     cx.out(Out::FreeCam { pos: eye, view });
                 }
                 x.root_transparency = t;

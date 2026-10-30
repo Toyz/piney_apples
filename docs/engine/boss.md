@@ -737,6 +737,15 @@ frame count. Skeith's `ccAnm`s use it with the lengths of `x11`'s and
    boss and runs after its `Main`.
 9. The area host answers `present/absent 7` from the task's exit.
 
+A boss the field starts is one row of `combat::boss::BOSSES` (`BossDef`:
+its file and body, the clumps its images and parts draw with, which body
+an Epitaph's clips move, its camera, its hit's radius, its constructor)
+and one `piney_battle::boss::Shape`: what the field reads of the class
+after its frame (the wave `DrawWave` poses, its parts, Innis's images and
+shards, where Gorre's body stands, Magus's hidden leaves, a part's
+`PreDrawAnm` matrix). What it draws besides its bodies, waves and
+after-images is a list of `combat::boss::Picture`s (worklog 529).
+
 `tools/test_bosscam_rs.py` builds the game's `ccBossCam` in eemu over the
 field's camera and player tasks. Each frame it runs `CamMain` with the
 boss moving, now and then after a `QuakeCam`, over the four control

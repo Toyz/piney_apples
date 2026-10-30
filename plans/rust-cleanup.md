@@ -113,13 +113,15 @@ order; tick items off here as they land, with the worklog entry.
 - [x] `Part<T: PartClass>` / `Parts<T>` for gomoras, leaves, brothers,
       roots, seeds, eyes (keep the placeholder semantics where code indexes).
       (worklog 527)
-- [ ] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
+- [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss
       `Pic` variants on `Out` folded into shared ones (see the particle
       `GenSpec` below), give the class trait the hooks the world needs
       (`look`, `parts`, `pictures`) so a new boss adds one impl, not arms in
-      four files.
+      four files. (worklog 529: a `BossDef` row per code, a `Shape` impl per
+      class, one `Picture` list; `Out::Wave`, `Out::AfterImageAnm` and
+      `Out::DrawAnm` shared; the effects' `Pic`s stay for `GenSpec`.)
 - [ ] Bosses, the Python harnesses: `tools/test_battle_*_rs.py` (13 files)
       repeat set-up, stand-ins and per-frame compares; lift what they share
       into `test_battle_boss_rs.py`'s helpers (as `draw_case` and the forced

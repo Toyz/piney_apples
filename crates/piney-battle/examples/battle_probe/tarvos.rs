@@ -321,8 +321,7 @@ fn mout(o: &Out, cam2: &(V4, V4), cam_sw: &mut bool, max_range: &mut u32) -> Opt
         Out::Tarvos(p) => match p {
             // Drawn: the runtime's; the eruption's particles start in its
             // Create, which runs natively (its slot is seen).
-            Pic::Wave { .. }
-            | Pic::Spike { .. }
+            Pic::Spike { .. }
             | Pic::PhantomSprite { .. }
             | Pic::PhantomStart
             | Pic::PhantomLights(_)

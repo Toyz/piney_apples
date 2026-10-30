@@ -382,7 +382,7 @@ fn strike(b: &mut BossBase, x: &mut Brother, kind: Wave, cx: &mut Cx) {
             let ended = x.anm_w.forward();
             x.anm_w.speed = 512;
             let (who, time, pos, dirc) = (cx.me, x.anm_w.posed, cx.pos(), b.dirc);
-            cx.out(Out::Gorre(super::Pic::Wave { who, time, pos, dirc }));
+            cx.out(Out::Wave { who, time, pos, dirc, scale: ONE });
             if b.anm.frame() == 55 {
                 let pos = cx.pos();
                 b.skill_damage(cx, None, Some(pos), 18);

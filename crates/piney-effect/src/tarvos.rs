@@ -107,7 +107,7 @@ pub fn calls(ctrl: &mut EffectCtrl, cx: &mut Cx, t: &Tables, kept: &mut Kept, me
             }
         }
         // The waves and the fog: the field's.
-        Pic::Wave { .. } | Pic::Fog { .. } => {}
+        Pic::Fog { .. } => {}
     }
 }
 

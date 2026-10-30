@@ -128,17 +128,9 @@ impl MachaData {
 /// What Macha shows beside its body, each frame it is drawn.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Pic {
-    /// `anmBallCharge` (`ANM_ex61efc0`) at the boss 550 up, or `anmBall`
-    /// (`ANM_ex61efc1`) at `m_ballPos`, posed at `time`, turned by the
-    /// boss's heading (`ccAnm::Draw` on effLayer).
-    Ball { charge: bool, time: u32, pos: V4, dirc: V4 },
     /// The light ball's omni light (`ccOmniLight`, colour 0x00ffffff at
     /// 1.0, its range 500 to 250000) at `pos`; `None` once deleted.
     Light(Option<V4>),
-    /// `anmw` (`xeffect`'s `ANM_xx11wave`) posed at `time` at `pos`, turned
-    /// by `dirc`, at `scale` (2 in the Wave by `DrawParts`, 1 in the
-    /// Epitaph's by `ccAnm::Draw`).
-    Wave { time: u32, pos: V4, dirc: V4, scale: F },
     /// `effSmoke(pos, vel, 8, 60, 114, 512, 32)`: the back dash's dust.
     Smoke { pos: V4, vel: V4 },
     /// A laser's bolt (`xeffect`'s `CMP_ex31les0`) drawn at a tenth of its
@@ -190,23 +182,6 @@ pub struct Macha {
 }
 
 // --- small rules ------------------------------------------------------------------------
-
-/// `-pi/2`, then `d`'s x, y and z turns on the unit matrix: where the
-/// action cameras put their eye from what they look at.
-fn cam_matrix(d: V4) -> geom::M4 {
-    let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
-    let m = geom::rot_matrix_x(&m, d[0]);
-    let m = geom::rot_matrix_y(&m, d[1]);
-    geom::rot_matrix_z(&m, d[2])
-}
-
-/// The boss camera's free mode (`SetMode(5)`, `SetFreeCamPosView`): the eye
-/// `off` from `vp` turned by `d`, looking at `vp`.
-fn free_cam(cx: &mut Cx, vp: V4, d: V4, off: V4) {
-    let v = geom::apply_matrix(&cam_matrix(d), off);
-    let eye = super::p2w(cx, geom::vadd(super::w2p(cx, vp), v));
-    cx.free_cam(eye, vp);
-}
 
 /// An angle wrapped once: below -pi a turn on, else above pi a turn off.
 fn wrap(v: F) -> F {
@@ -292,6 +267,12 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Macha, cx: &mut Cx, m: i32) {
 }
 
 // --- the frame --------------------------------------------------------------------------------
+
+impl crate::boss::Shape for Macha {
+    fn wave(&self) -> Option<&crate::boss::Anm> {
+        Some(&self.anm_w)
+    }
+}
 
 impl crate::boss::BossClass for Macha {
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
@@ -629,7 +610,7 @@ fn on_skill(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             x.stage_eff = b.begin_stage_effect(cx, DARK, [15, 15, 30000]);
             let mut vp = b.target_pos;
             vp[2] = 0x4348_0000;
-            free_cam(cx, vp, [0, 0, b.target_dirc, 0], [0x447a_0000, 0, 0, ONE]);
+            cx.free_cam_from(vp, [0, 0, b.target_dirc, 0], [0x447a_0000, 0, 0, ONE]);
             b.erase_cmnd_target(cx);
             cx.cursor(true);
             b.lock_player(cx, true);
@@ -864,7 +845,7 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             let mut vp = cx.pos();
             vp[2] = ee::add(vp[2], 0x4396_0000);
             let d = [b.dirc[0], b.dirc[1], b.target_dirc, b.dirc[3]];
-            free_cam(cx, vp, d, [0x44fa_0000, 0, 0, ONE]);
+            cx.free_cam_from(vp, d, [0x44fa_0000, 0, 0, ONE]);
             b.dirc[2] = b.target_dirc;
             cx.out(Out::Se { se: 242 });
             b.act_proccess += 1;
@@ -876,7 +857,8 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             let done = x.anm_ball_charge.forward();
             let mut p = cx.pos();
             p[2] = 0x4409_8000;
-            cx.out(Out::Macha(Pic::Ball { charge: true, time: x.anm_ball_charge.posed, pos: p, dirc: b.dirc }));
+            let (clip, time) = (BALL_CHARGE.to_string(), x.anm_ball_charge.posed);
+            cx.out(Out::DrawAnm { clip, time, pos: p, dirc: b.dirc, layer: crate::boss::AnmLayer::Eff });
             let mut p = cx.pos();
             p[2] = 0x4396_0000;
             x.light_rot = ee::add(x.light_rot, 0x3e56_7750);
@@ -905,10 +887,11 @@ fn on_light_ball(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             let v = geom::apply_matrix(&m, [x.ball_speed, 0, 0, ONE]);
             x.ball_pos = super::p2w(cx, geom::vadd(super::w2p(cx, x.ball_pos), v));
             x.anm_ball.forward();
-            cx.out(Out::Macha(Pic::Ball { charge: false, time: x.anm_ball.posed, pos: x.ball_pos, dirc: b.dirc }));
+            let (clip, time) = (BALL.to_string(), x.anm_ball.posed);
+            cx.out(Out::DrawAnm { clip, time, pos: x.ball_pos, dirc: b.dirc, layer: crate::boss::AnmLayer::Eff });
             if f == 140 {
                 let vp = b.target_pos;
-                free_cam(cx, vp, b.dirc, [0x44bb_8000, 0, 0x42c8_0000, ONE]);
+                cx.free_cam_from(vp, b.dirc, [0x44bb_8000, 0, 0x42c8_0000, ONE]);
             }
             x.ball_speed = ee::add(x.ball_speed, 0x4020_0000);
             if !ee::le(x.ball_speed, 0x43fa_0000) {
@@ -991,7 +974,7 @@ fn on_wave(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             let done = x.anm_w.forward();
             let mut pos = cx.pos();
             pos[2] = ee::add(pos[2], 0x4248_0000);
-            cx.out(Out::Macha(Pic::Wave { time: x.anm_w.posed, pos, dirc: b.dirc, scale: 0x4000_0000 }));
+            cx.out(Out::Wave { who: cx.me, time: x.anm_w.posed, pos, dirc: b.dirc, scale: 0x4000_0000 });
             if done && b.anm_status != 0 {
                 x.change_next_pattern(b, cx);
             }
@@ -1049,7 +1032,7 @@ fn on_epitaph_wave(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             }
             let done = x.anm_w.forward();
             let pos = cx.pos();
-            cx.out(Out::Macha(Pic::Wave { time: x.anm_w.posed, pos, dirc: b.dirc, scale: ONE }));
+            cx.out(Out::Wave { who: cx.me, time: x.anm_w.posed, pos, dirc: b.dirc, scale: ONE });
             if b.anm_status != 0 && done {
                 b.change_action(cx, act::EPITAPH, 3, true);
             }
@@ -1086,7 +1069,7 @@ fn on_charm(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             b.dirc[2] = b.target_dirc;
             let mut vp = cx.pos();
             vp[2] = ee::add(vp[2], 0x4348_0000);
-            free_cam(cx, vp, [0, 0, b.target_dirc, 0], [0x447a_0000, 0, 0x4316_0000, ONE]);
+            cx.free_cam_from(vp, [0, 0, b.target_dirc, 0], [0x447a_0000, 0, 0x4316_0000, ONE]);
             b.act_proccess += 1;
         }
         1 => {
@@ -1253,7 +1236,7 @@ fn on_magic(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
             cx.out(Out::CinemaSkill(x.skill_id));
             let mut vp = b.target_pos;
             vp[2] = 0x4348_0000;
-            free_cam(cx, vp, [0, 0, b.target_dirc, 0], [0x44fa_0000, 0, 0, ONE]);
+            cx.free_cam_from(vp, [0, 0, b.target_dirc, 0], [0x44fa_0000, 0, 0, ONE]);
             b.act_proccess += 1;
         }
         1 if c == 45 => {

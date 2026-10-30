@@ -328,6 +328,12 @@ fn start_table(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, t: Tbl) {
 
 // --- the frame --------------------------------------------------------------------------------
 
+impl crate::boss::Shape for Fidchell {
+    fn wave(&self) -> Option<&crate::boss::Anm> {
+        Some(&self.anm_w)
+    }
+}
+
 impl crate::boss::BossClass for Fidchell {
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);

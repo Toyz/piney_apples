@@ -375,6 +375,29 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
 
 // --- the frame --------------------------------------------------------------------------------
 
+impl crate::boss::Shape for Magus {
+    fn wave(&self) -> Option<&crate::boss::Anm> {
+        Some(&self.anm_w)
+    }
+
+    fn parts(&self, _scene: &crate::scene::Scene) -> Vec<usize> {
+        self.leaves.clone()
+    }
+
+    /// The leaves dropped (`m_bDrop`), unless in the Epitaph
+    /// (`ccBoss03::PreDrawAnm` 0x004a0a90 and 0x0049e7f0).
+    fn hidden(&self, scene: &crate::scene::Scene) -> Vec<usize> {
+        if self.epitaph != 0 {
+            return Vec::new();
+        }
+        let dropped = |c: usize| match scene.chars[c].foe_state().and_then(|f| f.boss.as_deref()) {
+            Some(Boss { class: Class::MagusLeaf(l), .. }) => l.drop != 0,
+            _ => false,
+        };
+        self.leaves.iter().enumerate().filter(|&(_, &c)| dropped(c)).map(|(k, _)| k).collect()
+    }
+}
+
 impl crate::boss::BossClass for Magus {
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);

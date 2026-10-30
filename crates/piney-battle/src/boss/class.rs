@@ -6,8 +6,9 @@
 
 use piney_data::field::ee;
 
-use super::{BossBase, BossData, Class, Cx, NEG_HALF_PI, Out, act};
-use crate::geom;
+use super::{Anm, BossBase, BossData, Class, Cx, NEG_HALF_PI, Out, act};
+use crate::geom::{self, M4, V4};
+use crate::scene::Scene;
 
 type F = u32;
 
@@ -37,31 +38,111 @@ impl BossClass for Bare {}
 /// `ccBoss01`'s pattern code, which reads none of Skeith's own members.
 pub(crate) struct SkeithPatterns;
 
-impl Class {
-    /// The class's rules, one arm a class.
-    pub(crate) fn with_rules<R>(&mut self, f: impl FnOnce(&mut dyn BossClass) -> R) -> R {
-        match self {
-            Class::Skeith(x) => f(&mut **x),
-            Class::Plain => f(&mut Bare),
-            Class::Innis(x) => f(&mut **x),
-            Class::Magus(x) => f(&mut **x),
-            Class::MagusLeaf(x) => f(&mut **x),
-            Class::Kyvia(x) => f(&mut **x),
-            Class::KyviaCore(x) => f(&mut **x),
-            Class::Gomora(x) => f(&mut **x),
-            Class::Fidchell(x) => f(&mut **x),
-            Class::Gorre(x) => f(&mut **x),
-            Class::GorreBrother(x) => f(&mut **x),
-            Class::Macha(x) => f(&mut **x),
-            Class::Tarvos(x) => f(&mut **x),
-            Class::Corbenik(x) => f(&mut **x),
-            Class::CorbenikSeed(x) => f(&mut **x),
-            Class::CorbenikB(x) => f(&mut **x),
-            Class::CorbenikRoot(x) => f(&mut **x),
-            Class::CorbenikC(x) => f(&mut **x),
-            Class::CorbenikEye(x) => f(&mut **x),
-            Class::CorbenikKiller(x) => f(&mut **x),
+/// What the field draws of a class beside its rules, read after its
+/// frame: the wave `DrawWave` poses (`m_anmw`), the characters drawn as its
+/// images and parts, where its body stands, and what its `PreDrawAnm`
+/// changes in a part's draw. A class with none keeps the defaults.
+pub trait Shape {
+    /// `m_anmw` as [`Out::DrawWave`] poses it.
+    fn wave(&self) -> Option<&Anm> {
+        None
+    }
+
+    /// The characters of its parts, drawn and hit with the boss.
+    fn parts(&self, _scene: &Scene) -> Vec<usize> {
+        Vec::new()
+    }
+
+    /// Its images (Innis's), each drawn while its `drawSW` holds.
+    fn images(&self) -> Vec<Figure<'_>> {
+        Vec::new()
+    }
+
+    /// The shard clumps drawn this frame (`DrawPartsClump`): the clump
+    /// (`ID * 5 + k`), its place and turn.
+    fn shards(&self) -> Vec<(usize, V4, V4)> {
+        Vec::new()
+    }
+
+    /// The parts, by their index in [`Shape::parts`], its body's draw
+    /// hides.
+    fn hidden(&self, _scene: &Scene) -> Vec<usize> {
+        Vec::new()
+    }
+
+    /// Where its body is drawn (`SetMatrix_PosRotZYX`) and whether, its
+    /// character standing at `pos`: by default there, at its heading, while
+    /// `drawSW` holds.
+    fn drawn_at(&self, b: &BossBase, pos: V4) -> (V4, V4, bool) {
+        (pos, b.dirc, b.draw_sw != 0)
+    }
+
+    /// A part's clip matrix as its `PreDrawAnm` sets it, when not the
+    /// base's `SetMatrix_PosRotZYX(pos, dirc)`.
+    fn matrix(&self, _pos: V4, _dirc: V4) -> Option<M4> {
+        None
+    }
+
+    /// Whether a part's `PreDrawAnm` draws its clip once more before its
+    /// `ccBoss::Draw`.
+    fn draws_again(&self) -> bool {
+        false
+    }
+}
+
+/// An image a class keeps inside its own members: its character, its
+/// `ccBoss` and which of the look's images it draws with.
+pub struct Figure<'a> {
+    pub me: usize,
+    pub base: &'a BossBase,
+    pub image: usize,
+}
+
+impl Shape for Bare {}
+impl Shape for super::magus::leaf::Leaf {}
+impl Shape for super::kyvia::core::Core {}
+impl Shape for super::kyvia::gomora::Gomora {}
+impl Shape for super::gorre::brother::Brother {}
+impl Shape for super::corbenik::eye::Killer {}
+
+/// One arm a class: `$x` bound to its boxed members, `$plain` for a bare
+/// `ccBoss`.
+macro_rules! each_class {
+    ($class:expr, $x:ident => $each:expr, $plain:expr) => {
+        match $class {
+            Class::Plain => $plain,
+            Class::Skeith($x) => $each,
+            Class::Innis($x) => $each,
+            Class::Magus($x) => $each,
+            Class::MagusLeaf($x) => $each,
+            Class::Kyvia($x) => $each,
+            Class::KyviaCore($x) => $each,
+            Class::Gomora($x) => $each,
+            Class::Fidchell($x) => $each,
+            Class::Gorre($x) => $each,
+            Class::GorreBrother($x) => $each,
+            Class::Macha($x) => $each,
+            Class::Tarvos($x) => $each,
+            Class::Corbenik($x) => $each,
+            Class::CorbenikSeed($x) => $each,
+            Class::CorbenikB($x) => $each,
+            Class::CorbenikRoot($x) => $each,
+            Class::CorbenikC($x) => $each,
+            Class::CorbenikEye($x) => $each,
+            Class::CorbenikKiller($x) => $each,
         }
+    };
+}
+
+impl Class {
+    /// The class's rules.
+    pub(crate) fn with_rules<R>(&mut self, f: impl FnOnce(&mut dyn BossClass) -> R) -> R {
+        each_class!(self, x => f(&mut **x), f(&mut Bare))
+    }
+
+    /// What the field draws of it.
+    pub fn shape(&self) -> &dyn Shape {
+        each_class!(self, x => &**x as &dyn Shape, &Bare)
     }
 }
 

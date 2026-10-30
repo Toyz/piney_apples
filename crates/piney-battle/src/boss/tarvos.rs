@@ -131,10 +131,6 @@ impl TarvosData {
 /// What Tarvos shows beside its body, and what its effects draw.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Pic {
-    /// `anmw` (`ANM_xx11wave`) posed at `time` at `pos` turned by `dirc`:
-    /// the wave's by `ccAnm::Draw` on layer 3, the Epitaph's by
-    /// `DrawParts(anmw, 1)`.
-    Wave { time: u32, pos: V4, dirc: V4, parts: bool },
     /// `ccDrawEnv::SetFogBlend(rate, colour)` before the body's draw: the
     /// transfer's fog.
     Fog { rate: F, colour: u32 },
@@ -298,6 +294,12 @@ fn set_def_mode(x: &mut Tarvos, cx: &mut Cx, d: i32) {
 }
 
 // --- the frame --------------------------------------------------------------------------------
+
+impl crate::boss::Shape for Tarvos {
+    fn wave(&self) -> Option<&crate::boss::Anm> {
+        Some(&self.anm_w)
+    }
+}
 
 impl crate::boss::BossClass for Tarvos {
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
@@ -667,7 +669,7 @@ fn on_wave(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             cx.quake([0x420c_0000, 0x4170_0000, 0x420c_0000]);
             x.anm_w.forward();
             let pos = cx.pos();
-            cx.out(Out::Tarvos(Pic::Wave { time: x.anm_w.posed, pos, dirc: b.dirc, parts: false }));
+            cx.out(Out::Wave { who: cx.me, time: x.anm_w.posed, pos, dirc: b.dirc, scale: ONE });
             if b.anm_status != 0 {
                 x.change_next_pattern(b, cx);
             }
@@ -1295,7 +1297,7 @@ fn on_epitaph_wave(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
             cx.quake([0x420c_0000, 0x4170_0000, 0x420c_0000]);
             let done = x.anm_w.forward();
             let pos = cx.pos();
-            cx.out(Out::Tarvos(Pic::Wave { time: x.anm_w.posed, pos, dirc: b.dirc, parts: true }));
+            cx.out(Out::Wave { who: cx.me, time: x.anm_w.posed, pos, dirc: b.dirc, scale: ONE });
             if b.anm_status != 0 && done {
                 x.change_next_pattern(b, cx);
             }

@@ -161,15 +161,6 @@ pub enum Pic {
         pos: V4,
         n: i32,
     },
-    /// A seed's after-image (`EntryAfterImageAnm(anm, pos, dirc, eai)`:
-    /// colour 0x005050ff at 100, fading 1/30 a draw, scale 3 to 9 over 30)
-    /// at its clip's `frame`, 50 over it.
-    SeedImage {
-        seed: usize,
-        frame: i32,
-        pos: V4,
-        dirc: V4,
-    },
     /// `effExplode3(pos, spd, scale, kind)`, then `SetScaleAnm(grow)` when
     /// given: a seed bursts (kind 0), a laser lands (-1, a random kind the
     /// effect draws from `ccRand`), the tera laser strikes.
@@ -185,11 +176,6 @@ pub enum Pic {
     SeedShield {
         seed: usize,
     },
-    /// `ANM_xx11wave` posed at `time` at `pos`: the wave's ring.
-    Wave {
-        time: u32,
-        pos: V4,
-    },
     /// `EFF_x000` on `CLT_x000c5`, 0x80e0ffff, `size` each way: a seed's
     /// flush before it bursts.
     Flush {
@@ -201,6 +187,7 @@ pub enum Pic {
     /// `time` while a blow flashes it.
     Barrier,
     BarrierHit {
+        clip: Option<String>,
         time: u32,
     },
     /// The body drawn at a press's image: its clip's pose, the place, the
@@ -440,4 +427,22 @@ fn manager_pass_x(b: &mut BossBase, cx: &mut Cx, mut third: Option<&mut third::T
         let BossFx::Corbenik(fx) = fx else { return true };
         fx.draw(cx, b, k, third.as_deref_mut())
     });
+}
+
+/// `ccCoord::SetMatrix_PosRotZYXScale(pos, rot, (s, s, s))` (main
+/// 0x00136340): the scale on the unit matrix's diagonal, turned, moved.
+fn pos_rot_zyx_scale(pos: V4, rot: V4, s: F) -> crate::geom::M4 {
+    use crate::geom;
+    let mut m = geom::unit_matrix();
+    (m[0][0], m[1][1], m[2][2]) = (s, s, s);
+    geom::trans_matrix(&geom::rot_matrix(&m, rot), pos)
+}
+
+/// `P2W(W2P(at) + Rz(-pi/2) Rz(d) v)`: a place `v` out from `at` along
+/// `d` (the matrix turned by `d`, then by -pi/2).
+fn out_from(cx: &Cx, at: V4, d: F, v: V4) -> V4 {
+    use crate::geom;
+    let m = geom::rot_matrix_z(&geom::rot_matrix_z(&geom::unit_matrix(), crate::boss::NEG_HALF_PI), d);
+    let o = geom::apply_matrix(&m, v);
+    crate::boss::p2w(cx, geom::vadd(crate::boss::w2p(cx, at), o))
 }

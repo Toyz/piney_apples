@@ -315,7 +315,7 @@ fn mout(o: &Out, cam2: &(V4, V4), cam_sw: &mut bool, max_range: &mut u32) -> Opt
     Some(match o {
         Out::Macha(p) => match p {
             // Drawn: the runtime's.
-            Pic::Ball { .. } | Pic::Light(_) | Pic::Wave { .. } | Pic::Laser { .. } | Pic::Blast { .. } => {
+            Pic::Light(_) | Pic::Laser { .. } | Pic::Blast { .. } => {
                 return None;
             }
             Pic::Smoke { .. } => "[\"smoke\"]".into(),

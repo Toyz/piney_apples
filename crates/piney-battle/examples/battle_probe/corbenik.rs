@@ -444,7 +444,6 @@ pub(crate) fn mout(o: &Out) -> Option<String> {
             Pic::Charge { on: true, .. } => "[\"gen\",\"charge\"]".into(),
             Pic::Charge { on: false, .. } => "[\"gen_del\"]".into(),
             Pic::CountDown { n, .. } => format!("[\"count\",{n}]"),
-            Pic::SeedImage { .. } => "[\"afterimage_anm\"]".into(),
             Pic::Burst { kind, .. } => format!("[\"burst\",{kind}]"),
             Pic::SeedShield { .. } => "[\"shield\",1]".into(),
             Pic::Gen { which, .. } => format!("[\"gen\",\"{}\"]", gen_name(*which)),
@@ -454,7 +453,6 @@ pub(crate) fn mout(o: &Out) -> Option<String> {
             | Pic::Element { .. }
             | Pic::TransformLay { .. }
             | Pic::RootL { .. }
-            | Pic::Wave { .. }
             | Pic::Flush { .. } => return None,
             Pic::ElementSmoke { .. } | Pic::Smoke { .. } => "[\"smoke\"]".into(),
             Pic::LaserRadiate { .. } => "[\"radiate2\"]".into(),
@@ -476,6 +474,7 @@ pub(crate) fn mout(o: &Out) -> Option<String> {
             Pic::ArenaClump { on } => format!("[\"clump\",{}]", u8::from(*on)),
             Pic::Explode2 { .. } => "[\"explode2\"]".into(),
         },
+        Out::AfterImageAnm { .. } => "[\"afterimage_anm\"]".into(),
         Out::EntryFade { t, from, to } => format!("[\"fade\",{t},{from},{to}]"),
         Out::CameraChange(n) => format!("[\"cam\",{n}]"),
         Out::CameraPos { cam, pos } => format!("[\"campos\",{cam},{}]", v3(pos)),

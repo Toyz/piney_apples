@@ -57,6 +57,9 @@ pub struct Seed {
     pub charge: bool,
 }
 
+/// A seed's clip (`boss08SeedAnmTbl[0]`), which its after-images pose.
+pub const CLIP: &str = "ANM_ex8aseed";
+
 /// A seed's `ENTRYAFTERIMAGE_T` (+0x29360, its constructor 0x003b0288):
 /// colour 0x005050ff at 100, transparency 1 by -1/30, its scale 3 to 9
 /// over 30 draws.
@@ -326,7 +329,8 @@ fn on_count_down(b: &mut BossBase, x: &mut Seed, paused: bool, cx: &mut Cx) {
     let mut pos = cx.pos();
     pos[2] = ee::add(pos[2], 0x4248_0000);
     let me = cx.me;
-    cx.out(Out::Corbenik(Pic::SeedImage { seed: me, frame: b.anm.frame(), pos, dirc: b.dirc }));
+    let (clip, frame) = (CLIP.to_string(), b.anm.frame());
+    cx.out(Out::AfterImageAnm { who: me, clip, frame, pos, dirc: b.dirc, params: IMAGE });
     x.blink_time = (x.exp_count * 30 / 150).max(10);
 }
 
@@ -395,6 +399,22 @@ fn on_dead(b: &mut BossBase, x: &mut Seed, cx: &mut Cx) {
             b.set_transparency = t;
         }
         _ => {}
+    }
+}
+
+/// A seed's draw (`ccBoss08Seed::PreDrawAnm` 0x003b09f0): 50 up, at 3x,
+/// its clip drawn once more first.
+const DRAW_UP: F = 0x4248_0000;
+const DRAW_SCALE: F = 0x4040_0000;
+
+impl crate::boss::Shape for Seed {
+    fn matrix(&self, pos: V4, dirc: V4) -> Option<geom::M4> {
+        let at = [pos[0], pos[1], ee::add(pos[2], DRAW_UP), ONE];
+        Some(super::pos_rot_zyx_scale(at, dirc, DRAW_SCALE))
+    }
+
+    fn draws_again(&self) -> bool {
+        true
     }
 }
 

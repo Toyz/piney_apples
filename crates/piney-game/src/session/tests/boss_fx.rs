@@ -62,7 +62,9 @@ fn fight(s: &mut Session, frames: u32, mut each: impl FnMut(&mut Combat, usize, 
             effects: census.effects,
             draws: census.boss_draws,
             anchored: census.anchored_generators,
-            shards: c.boss.as_ref().map_or(0, |r| r.shards.len()),
+            shards: c.boss.as_ref().map_or(0, |r| {
+                r.pictures.iter().filter(|p| matches!(p, piney_world::combat::boss::Picture::Clump { .. })).count()
+            }),
         };
         each(c, me, i, &now);
         seen.push(now);

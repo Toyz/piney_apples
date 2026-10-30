@@ -954,6 +954,16 @@ pub(crate) fn on_exit(b: &mut BossBase, _cx: &mut Cx) {
     b.exit = 1;
 }
 
+/// `ccBoss08Eye::PreDrawAnm` (0x003bed70): turned XYZ.
+impl crate::boss::Shape for Eye {
+    fn matrix(&self, pos: V4, dirc: V4) -> Option<geom::M4> {
+        let m = geom::rot_matrix_x(&geom::unit_matrix(), dirc[0]);
+        let m = geom::rot_matrix_y(&m, dirc[1]);
+        let m = geom::rot_matrix_z(&m, dirc[2]);
+        Some(geom::trans_matrix(&m, pos))
+    }
+}
+
 impl crate::boss::BossClass for Eye {}
 
 impl crate::boss::BossClass for Killer {

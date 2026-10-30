@@ -172,6 +172,12 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut First, cx: &mut Cx, m: i32) {
 
 // --- the frame -----------------------------------------------------------------------------
 
+impl crate::boss::Shape for First {
+    fn parts(&self, _scene: &crate::scene::Scene) -> Vec<usize> {
+        self.seed_me.to_vec()
+    }
+}
+
 impl crate::boss::BossClass for First {
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);

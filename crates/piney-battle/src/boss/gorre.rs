@@ -70,23 +70,12 @@ pub mod act {
     pub const MAGIC: i16 = 22;
 }
 
-/// What a brother's `ccBoss::Main` shows beside its body (its `Draw` of
-/// `x51` at its clip, the port's actor): `who` is its scene character.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Pic {
-    /// `EntryAfterImage(0)`: the brother's clip at `frameNow`, at its place
-    /// and turn, in the manager's own params ([`super::AfterImageParams::ENTRY`]).
-    Image { who: usize, clip: String, frame: i32, pos: V4, dirc: V4 },
-    /// `anmw.SetMatrix_PosRotZYX(pos, dirc)` and `DrawParts(anmw, 0)`: the
-    /// wave at the brother, posed at `time`, on objLayer.
-    Wave { who: usize, time: u32, pos: V4, dirc: V4 },
-}
-
 /// `EntryAfterImage(0)` on the brother `who` as it stands.
 fn brother_image(b: &BossBase, who: usize, cx: &mut Cx) {
     let clip = b.anm.clip.clone().unwrap_or_default();
     let pos = cx.scene.chars[who].pos;
-    cx.out(Out::Gorre(Pic::Image { who, clip, frame: b.anm.frame(), pos, dirc: b.dirc }));
+    let params = super::AfterImageParams::ENTRY;
+    cx.out(Out::AfterImageAnm { who, clip, frame: b.anm.frame(), pos, dirc: b.dirc, params });
 }
 
 /// Gorre's tables (`tables::combat`).
@@ -299,6 +288,22 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
 }
 
 // --- the frame --------------------------------------------------------------------------------
+
+impl crate::boss::Shape for Gorre {
+    fn parts(&self, _scene: &crate::scene::Scene) -> Vec<usize> {
+        self.brother_me.to_vec()
+    }
+
+    /// Only in the Kerse's step 2 (`SetMatrix_PosRotZYX(m_talkPos,
+    /// m_talkDirc)`, `ccBoss::Draw`); its `Main` draws nothing else.
+    fn drawn_at(&self, b: &BossBase, pos: V4) -> (V4, V4, bool) {
+        if b.act_num == act::KERSE && b.act_proccess == 2 {
+            (self.talk_pos, [0, 0, self.talk_dirc, ONE], true)
+        } else {
+            (pos, b.dirc, false)
+        }
+    }
+}
 
 impl crate::boss::BossClass for Gorre {
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
@@ -1160,18 +1165,6 @@ fn on_dead(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     b.move_spd = 0;
     b.move_vector = VF0;
     b.act_proccess += 1;
-}
-
-/// Where Gorre's own body is drawn, if anywhere: only in the Kerse's step
-/// 2 (`SetMatrix_PosRotZYX(m_talkPos, m_talkDirc)`, `ccBoss::Draw`); its
-/// `Main` draws nothing else.
-pub fn body(b: &Boss) -> Option<(V4, V4)> {
-    match &b.class {
-        Class::Gorre(x) if b.base.act_num == act::KERSE && b.base.act_proccess == 2 => {
-            Some((x.talk_pos, [0, 0, x.talk_dirc, ONE]))
-        }
-        _ => None,
-    }
 }
 
 // --- Affect ----------------------------------------------------------------------------------

@@ -74,6 +74,6 @@ pub fn calls(ctrl: &mut EffectCtrl, cx: &mut Cx, p: &Pic) {
             dust::eff_smoke(cx, pos, vel, 0x4100_0000, 60, 114, 512, 32);
         }
         // The ball, its light and the wave: the field's (the boss's file).
-        Pic::Ball { .. } | Pic::Light(_) | Pic::Wave { .. } => {}
+        Pic::Light(_) => {}
     }
 }

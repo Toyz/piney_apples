@@ -413,6 +413,29 @@ impl Slave {
 
 // --- the frame ------------------------------------------------------------------------------
 
+impl crate::boss::Shape for Innis {
+    fn wave(&self) -> Option<&crate::boss::Anm> {
+        Some(&self.anm_w)
+    }
+
+    /// The slaves, each its `CMP_ex21monN` by `MonsterID`.
+    fn images(&self) -> Vec<crate::boss::Figure<'_>> {
+        (self.slaves.iter())
+            .map(|s| crate::boss::Figure { me: s.me, base: &s.b, image: s.samon_id.clamp(0, 2) as usize })
+            .collect()
+    }
+
+    /// The mirrors' shards `Mbreak` drew (`BreakMirror::SetStream(x21, ID)`:
+    /// `CMP_ex21ef{ID}1`-`5`).
+    fn shards(&self) -> Vec<(usize, V4, V4)> {
+        (self.slaves.iter())
+            .filter_map(|s| s.mirror.models.map(|id| (id, &s.mirror.drawn)))
+            .filter(|(id, _)| (0..3).contains(id))
+            .flat_map(|(id, drawn)| drawn.iter().map(move |&(k, p, r)| (id as usize * 5 + k, p, r)))
+            .collect()
+    }
+}
+
 impl crate::boss::BossClass for Innis {
     fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
         main(b, self, cx);

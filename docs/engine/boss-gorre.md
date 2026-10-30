@@ -112,7 +112,7 @@ No `PreDrawAnm` and no `Draw`: nothing in Outbreak calls
 `ccBoss05::PreDrawAnm` (nor does its task, `ccThBoss05`: `Main`, then
 `CheckExit`), so Gorre's own body is neither animated nor drawn except in
 the Kerse's step 2, which forwards its clip and draws it at `m_talkPos`
-(`gorre::body`). The two brothers are what is seen of the fight.
+(`Shape::drawn_at`). The two brothers are what is seen of the fight.
 
 ## What is drawn
 
@@ -138,7 +138,8 @@ part actors took a body from `BossLook::images`, which held nothing for
 Gorre, so the brothers had no actor from the port of Gorre (worklog 303)
 on, and their trails and waves were drawn at Gorre's place with Gorre's
 unused anms. `combat::boss::clip_body` now picks the clump the clip
-poses, and `gorre::Pic` carries each brother's trail and wave.
+poses, and each brother's trail and wave are `Out::AfterImageAnm` and
+`Out::Wave` with the brother as `who`.
 
 How the brothers look (worklog 440):
 
@@ -356,7 +357,7 @@ mismatches over `bulk 100` from 9900, 20000 and 40000 (every act but 1,
 checks both show the break and the returns, none on Gorre.
 The pictures (worklog 437): the harness records each `EntryAfterImage`
 and `DrawParts` with the brother, the anm's `frameNow`, the place and
-turn, against `gorre::Pic`. `bulk 100` from 9900, 20000 and 40000 agree
+turn, against `Out::AfterImageAnm` and `Out::Wave`. `bulk 100` from 9900, 20000 and 40000 agree
 (7,085 trails and 29,780 waves a brother), and so do 30 on Quarantine.
 `gorres_brothers_are_drawn_through_the_fight` (`boss_fx`) plays 6,000
 frames of the arena: from Gorre's first `Main` each brother's actor is

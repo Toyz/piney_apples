@@ -709,8 +709,8 @@ fn kout(o: &Out) -> Option<String> {
         Out::FieldBodyHit { n, on } => format!("[\"gate\",{n},{}]", u8::from(*on)),
         Out::CamModeRange { .. } | Out::CamInitLock | Out::CamRotXLimit(_) | Out::CamSway(_) => return None,
         // DrawParts(anmw, 0) at the arm's frame (its place is tesPOS).
-        Out::DrawArm { time, .. } => format!("[\"draw_parts\",{},0]", time >> 8),
-        Out::AfterImageAnm { frame, pos, dirc, params: e } => format!(
+        Out::DrawAnm { time, .. } => format!("[\"draw_parts\",{},0]", time >> 8),
+        Out::AfterImageAnm { frame, pos, dirc, params: e, .. } => format!(
             "[\"afterimage_anm\",{frame},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]",
             v3(pos),
             v3(dirc),

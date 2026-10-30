@@ -47,8 +47,10 @@ pub const BODY_RADIUS: F = 0x43c8_0000;
 /// morpher `MPH_ex01gom1` bends `MDL_ex01gom1` through `MDL_ex01gom2`-`4`
 /// in turn: no gomora picks one of them.
 pub fn stream(lv: i16) -> Option<&'static str> {
-    ["x01", "x02", "x03", "x04"].get(usize::try_from(lv).ok()?.checked_sub(1)?).copied()
+    STREAMS.get(usize::try_from(lv).ok()?.checked_sub(1)?).copied()
 }
+
+const STREAMS: [&str; 4] = ["x01", "x02", "x03", "x04"];
 
 /// Which of Kyvia's fights the body is: its first (`ccBossKyvia01`,
 /// Mutation's field 9), its second (`ccBossKyvia02`, Outbreak's field 10:
@@ -89,7 +91,7 @@ impl Fight {
     }
 
     /// The core's and the gomoras' level (`CoreInit(kLv)`).
-    pub fn level(self) -> i16 {
+    pub const fn level(self) -> i16 {
         match self {
             Fight::First => 1,
             Fight::Second => 2,
@@ -105,8 +107,8 @@ impl Fight {
 
     /// The fight's file: the body's, and the core's and the gomoras'
     /// stream at its level ([`stream`]).
-    pub fn file(self) -> &'static str {
-        stream(self.level()).unwrap_or("x01")
+    pub const fn file(self) -> &'static str {
+        STREAMS[self.level() as usize - 1]
     }
 
     /// The boss skills of the arm, the beams and the meteors
@@ -784,6 +786,19 @@ pub(super) fn effects_pass(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) {
     let mut t = Tree::take(cx, x.core);
     manager_pass(b, x, &mut t, cx);
     t.put(cx);
+}
+
+impl crate::boss::Shape for Kyvia {
+    /// The core, then its gomoras.
+    fn parts(&self, scene: &crate::scene::Scene) -> Vec<usize> {
+        let mut v = vec![self.core];
+        if let Some(Class::KyviaCore(c)) =
+            scene.chars[self.core].foe_state().and_then(|f| f.boss.as_ref()).map(|b| &b.class)
+        {
+            v.extend(c.gomoras.iter().copied());
+        }
+        v
+    }
 }
 
 impl crate::boss::BossClass for Kyvia {
@@ -1653,7 +1668,8 @@ fn hand_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
         5 => {
             if x.af_cou == x.af_timing {
                 let (frame, pos, dirc) = (x.anm_w.frame(), x.tes_pos, x.tes_dirc);
-                cx.out(Out::AfterImageAnm { frame, pos, dirc, params: ARM_AFTERIMAGE });
+                let clip = x.anm_w.clip.clone().unwrap_or_default();
+                cx.out(Out::AfterImageAnm { who: me, clip, frame, pos, dirc, params: ARM_AFTERIMAGE });
             }
             let q = if x.fight.later() && x.disc_lv != x.disc_max_lv {
                 [0x41f0_0000, 0x4220_0000, 0x4270_0000]
@@ -1668,7 +1684,9 @@ fn hand_atk(b: &mut BossBase, x: &mut Kyvia, t: &mut Tree, cx: &mut Cx) {
                 cx.out(Out::Se3dNote { se: 206, pos: x.snd_pos_l, note: 68 });
             }
             let ended = x.anm_w.forward();
-            cx.out(Out::DrawArm { time: x.anm_w.posed, pos: x.tes_pos, dirc: x.tes_dirc });
+            let clip = x.anm_w.clip.clone().unwrap_or_default();
+            let (time, pos, dirc) = (x.anm_w.posed, x.tes_pos, x.tes_dirc);
+            cx.out(Out::DrawAnm { clip, time, pos, dirc, layer: crate::boss::AnmLayer::Obj });
             if x.anm_w.frame() == 48 {
                 core_damage_all(t, cx, x.fight.skills()[0]);
                 cx.out(Out::Se3dNote { se: 56, pos: x.disc_pos, note: 72 });

@@ -75,7 +75,13 @@ impl Wave {
     /// 50).
     fn draw(&mut self, cx: &mut Cx, b: &mut BossBase) -> bool {
         let ended = self.anm.forward();
-        cx.out(Out::Corbenik(Pic::Wave { time: self.anm.posed, pos: self.pos }));
+        cx.out(Out::Wave {
+            who: cx.me,
+            time: self.anm.posed,
+            pos: self.pos,
+            dirc: [0, 0, 0, crate::boss::ONE],
+            scale: crate::boss::ONE,
+        });
         if self.anm.frame() == 8 {
             b.skill_damage(cx, None, Some(self.pos), 27);
             if cx.boss_cam {

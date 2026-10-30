@@ -350,8 +350,8 @@ made there (the rocks' and the dust's `rand()` come after the boss's task,
 not in the manager's pass before it; nothing between draws from `rand()`
 while the missiles fly). `innis::start` starts the generators;
 `ring_model` is `SetModel`; `Out::Shield` is `effResistantShield(this, 1,
--1)`. The mirrors' shards are drawn by the field (`BossRun::shards`,
-x21's `CMP_ex21ef*`). Until worklog 411 none of these was drawn.
+-1)`. The mirrors' shards are drawn by the field (`Shape::shards`
+as `Picture::Clump`, x21's `CMP_ex21ef*`). Until worklog 411 none of these was drawn.
 
 In the field, `FieldWorld::start_boss(code)` reads the event's entry code.
 It loads x21's `CMP_trall` and clips, the images' `CMP_ex21mon1`-`3` and

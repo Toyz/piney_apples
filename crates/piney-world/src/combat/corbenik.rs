@@ -14,9 +14,10 @@ use piney_battle::geom;
 use piney_battle::world::CharHit;
 
 use super::Combat;
-use super::boss::CAM_TRANSFER;
+use super::boss::{CAM_TRANSFER, Picture};
 use crate::camera::Camera;
 use crate::camera::bosscam::BossCam;
+use crate::draw::CHAR_LAYER;
 use crate::ee::{self, F, ONE, V4};
 use piney_battle::geom::M4;
 
@@ -47,23 +48,6 @@ pub const EYE_FLASH: u32 = 0x00ff_ffff;
 /// `EntryFlash(30, 0x80e0ffff)` between the first form and the second.
 const FLASH_T: i32 = 30;
 const FLASH_COLOUR: u32 = 0x80e0_ffff;
-/// A seed's draw (`ccBoss08Seed::PreDrawAnm` 0x003b09f0): 50 up, at 3x.
-const SEED_UP: F = 0x4248_0000;
-const SEED_SCALE: F = 0x4040_0000;
-/// A root's (`ccBoss08Root::PreDrawAnm` 0x003b8fb0, `@1033`): at 1.5x.
-const ROOT_SCALE: F = 0x3fc0_0000;
-
-/// The characters of a form's parts: the first form's seeds, the
-/// second's roots, the third's eyes then killer eyes.
-pub fn parts(class: &Class) -> Vec<usize> {
-    match class {
-        Class::Corbenik(x) => x.seed_me.to_vec(),
-        Class::CorbenikB(x) => x.root_me.to_vec(),
-        Class::CorbenikC(x) => x.eye_me.iter().chain(x.killer_me.iter()).copied().collect(),
-        _ => Vec::new(),
-    }
-}
-
 /// The third form's camera (`ccBoss08_c::ccBoss08_c`, 0x003b95bc):
 /// `InitBossCamera(980, 1500)`, the pitch `atan2f(500, 1000)`, its range
 /// 1000, the eye raised by `1500 tanf(pitch)`, `SetRotXLimit(1.0)`.
@@ -76,34 +60,6 @@ pub fn third_camera(camera: &mut Camera, player: V4) -> BossCam {
     cam.lift = ee::mul(CAM_Y, ee::tanf(pitch));
     cam.set_rot_x_limit(ONE);
     cam
-}
-
-/// How a part's `PreDrawAnm` sets its clip's matrix, when not the base's
-/// `SetMatrix_PosRotZYX(pos, dirc)`: a seed 50 up at 3x, a root at 1.5x,
-/// an eye turned XYZ.
-pub fn part_matrix(class: &Class, pos: V4, dirc: V4) -> Option<M4> {
-    match class {
-        Class::CorbenikSeed(_) => {
-            let at = [pos[0], pos[1], ee::add(pos[2], SEED_UP), ONE];
-            Some(pos_rot_zyx_scale(at, dirc, SEED_SCALE))
-        }
-        Class::CorbenikRoot(_) => Some(pos_rot_zyx_scale(pos, dirc, ROOT_SCALE)),
-        Class::CorbenikEye(_) => {
-            let m = geom::rot_matrix_x(&geom::unit_matrix(), dirc[0]);
-            let m = geom::rot_matrix_y(&m, dirc[1]);
-            let m = geom::rot_matrix_z(&m, dirc[2]);
-            Some(geom::trans_matrix(&m, pos))
-        }
-        _ => None,
-    }
-}
-
-/// `ccCoord::SetMatrix_PosRotZYXScale(pos, rot, (s, s, s))` (main
-/// 0x00136340): the scale on the unit matrix's diagonal, turned, moved.
-fn pos_rot_zyx_scale(pos: V4, rot: V4, s: F) -> M4 {
-    let mut m = geom::unit_matrix();
-    (m[0][0], m[1][1], m[2][2]) = (s, s, s);
-    geom::trans_matrix(&geom::rot_matrix(&m, rot), pos)
 }
 
 impl Combat {
@@ -135,7 +91,7 @@ impl Combat {
         ];
         // The seeds go with the first form: their characters off the
         // lists, their bodies out of the field's.
-        for k in parts(&b.class) {
+        for k in b.class.shape().parts(&self.scene) {
             self.scene.ene_list.retain(|&c| c != k);
             self.cast.actors.remove(&k);
             let id = super::spc::body_id(k, self.kite);
@@ -187,7 +143,7 @@ impl Combat {
         let (h, w, ty) = (base.height, base.width, base.ty as u32);
         let run = self.boss.as_mut()?;
         run.hit = CharHit { pos: self.scene.chars[me].pos, radius: w, height: h, kind: ty, ..CharHit::default() };
-        run.parts = parts(&b.class);
+        run.parts = b.class.shape().parts(&self.scene);
         run.afterimages.clear();
         run.cam = Some(BossCam::new(camera, CAM_TRANSFER, kite_pos));
         run.cam_sw = true;
@@ -200,38 +156,6 @@ impl Combat {
     }
 }
 
-/// A picture a form's code or effects draw beside the bodies, as the field
-/// draws it (lit, in its fog): an object of x81 or xeffect (`eff`) at
-/// its world matrix, or a clip posed at `time` under `root`; each at its
-/// transparency.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Shown {
-    Obj {
-        eff: bool,
-        name: &'static str,
-        world: glam::Mat4,
-        alpha: f32,
-        fog: Option<piney_draw::Fog>,
-        blend: Option<u8>,
-    },
-    Anm {
-        eff: bool,
-        clip: String,
-        time: u32,
-        root: glam::Mat4,
-        alpha: f32,
-        blend: Option<u8>,
-    },
-    /// A seed's clip drawn by its `PreDrawAnm` (0x003b09f0) before its
-    /// `ccBoss::Draw`, at the matrix it set and the anm's last
-    /// transparency, on the layer the body's `Draw` left active (sysLayer:
-    /// priority 0, after objLayer).
-    Again {
-        who: usize,
-        alpha: f32,
-    },
-}
-
 /// The second form's barrier object, and the node it rides.
 const BARRIER: &str = "OBJ_ex8bria";
 const BODY2: &str = "OBJ_ex8body2";
@@ -241,8 +165,6 @@ const BODY2: &str = "OBJ_ex8body2";
 const ELEMENT_CLIP: &str = "ANM_ex8nut2";
 const ELEMENT_TIME: u32 = 256;
 const ROOT_L: &str = "ANM_ex8natc4";
-/// A seed's clip (`boss08SeedAnmTbl[0]`), which its after-images pose.
-const SEED_CLIP: &str = "ANM_ex8aseed";
 /// The lasers' objects and head clip in xeffect, and their fog
 /// (`SetFogBlend(50, 0xff0000)` over the second object).
 const LES0: &str = "OBJ_ex31les0";
@@ -311,34 +233,21 @@ fn way(a: V4, b: V4) -> (F, F, F) {
 }
 
 /// The two objects of a laser segment, the second in the red fog.
-fn laser_pair(v: &mut Vec<Shown>, world: glam::Mat4, alpha: f32, first: &'static str, second: &'static str) {
+fn laser_pair(v: &mut Vec<Picture>, world: glam::Mat4, alpha: f32, first: &'static str, second: &'static str) {
     // OBJ_ex31les1's model is set to `alphaBlendTbl[1]` (and Z unwritten)
     // by both effects' constructors.
     let blend = |n: &str| (n == LES1).then_some(1);
-    v.push(Shown::Obj { eff: true, name: first, world, alpha, fog: None, blend: blend(first) });
-    v.push(Shown::Obj { eff: true, name: second, world, alpha, fog: LASER_FOG.fog(), blend: blend(second) });
+    v.push(Picture::Obj { eff: true, name: first, world, alpha, fog: None, blend: blend(first) });
+    v.push(Picture::Obj { eff: true, name: second, world, alpha, fog: LASER_FOG.fog(), blend: blend(second) });
 }
 
-/// What the frame's outs show this way (`out` the boss's, `barrier_at`
-/// where the barrier rides); a seed's after-image (`EntryAfterImageAnm`
-/// with its own `ENTRYAFTERIMAGE_T`) and the first form's waves join the
-/// field's.
-pub fn shown(
-    b: &Boss,
-    out: &[Out],
-    barrier_at: Option<glam::Mat4>,
-    clips: &super::boss::Clips,
-    afterimages: &mut Vec<super::boss::AfterImage>,
-    waves: &mut Vec<(u32, V4, V4, f32)>,
-) -> Vec<Shown> {
+/// What the frame's outs show of x81 and xeffect (`out` the boss's,
+/// `barrier_at` where the barrier rides), on charLayer.
+pub fn shown(b: &Boss, out: &[Out], barrier_at: Option<glam::Mat4>) -> Vec<Picture> {
     use boss::corbenik::Pic;
     let mut v = Vec::new();
     let body_clip = b.base.anm.clip.clone().unwrap_or_default();
     let alpha = ee::f(b.base.set_transparency);
-    let hit_clip = match &b.class {
-        Class::CorbenikB(x) => x.anm_barrier.clip.clone(),
-        _ => None,
-    };
     for o in out {
         let Out::Corbenik(p) = o else { continue };
         match p {
@@ -346,32 +255,35 @@ pub fn shown(
             // at the node, at `setTransparency`.
             Pic::Barrier => {
                 if let Some(world) = barrier_at {
-                    v.push(Shown::Obj { eff: false, name: BARRIER, world, alpha, fog: None, blend: None });
+                    v.push(Picture::Obj { eff: false, name: BARRIER, world, alpha, fog: None, blend: None });
                 }
             }
-            Pic::BarrierHit { time } => {
-                if let (Some(root), Some(clip)) = (barrier_at, hit_clip.clone()) {
-                    v.push(Shown::Anm { eff: false, clip, time: *time, root, alpha, blend: None });
+            Pic::BarrierHit { clip, time } => {
+                if let (Some(root), Some(clip)) = (barrier_at, clip.clone()) {
+                    v.push(Picture::Anm { eff: false, layer: CHAR_LAYER, clip, time: *time, root, alpha, blend: None });
                 }
             }
-            Pic::PressImage { time, pos, dirc, alpha } => v.push(Shown::Anm {
+            Pic::PressImage { time, pos, dirc, alpha } => v.push(Picture::Anm {
                 eff: false,
+                layer: CHAR_LAYER,
                 clip: body_clip.clone(),
                 time: *time,
                 root: crate::chara::body::root(*pos, *dirc),
                 alpha: ee::f(*alpha),
                 blend: None,
             }),
-            Pic::Element { pos, dirc, alpha } => v.push(Shown::Anm {
+            Pic::Element { pos, dirc, alpha } => v.push(Picture::Anm {
                 eff: false,
+                layer: CHAR_LAYER,
                 clip: ELEMENT_CLIP.into(),
                 time: ELEMENT_TIME,
                 root: mat4(&pos_rot_xyz(*pos, *dirc)),
                 alpha: ee::f(*alpha),
                 blend: None,
             }),
-            Pic::RootL { time, pos, alpha } => v.push(Shown::Anm {
+            Pic::RootL { time, pos, alpha } => v.push(Picture::Anm {
                 eff: false,
+                layer: CHAR_LAYER,
                 clip: ROOT_L.into(),
                 time: *time,
                 root: mat4(&geom::trans_matrix(&geom::unit_matrix(), *pos)),
@@ -386,7 +298,15 @@ pub fn shown(
             }
             Pic::LaserHead { time, pos, pitch, yaw } => {
                 let root = mat4(&head(*pos, *pitch, *yaw));
-                v.push(Shown::Anm { eff: true, clip: LES3.into(), time: *time, root, alpha: 1.0, blend: Some(1) });
+                v.push(Picture::Anm {
+                    eff: true,
+                    layer: CHAR_LAYER,
+                    clip: LES3.into(),
+                    time: *time,
+                    root,
+                    alpha: 1.0,
+                    blend: Some(1),
+                });
             }
             // `ccBossEffRefrectionLaser::Draw` (0x003773d0): les0, then les1
             // in the fog, `ccGetDist3D / 2000` long; the head's clip.
@@ -398,22 +318,15 @@ pub fn shown(
             Pic::RefrectHead { time, from, to } => {
                 let (_, pitch, yaw) = way(*from, *to);
                 let root = mat4(&head(*from, pitch, yaw));
-                v.push(Shown::Anm { eff: true, clip: LES3.into(), time: *time, root, alpha: 1.0, blend: Some(1) });
-            }
-            // `ccBossEffWave::Draw` (0x00377c80): the unit matrix moved to
-            // the place.
-            Pic::Wave { time, pos } => waves.push((*time, *pos, [0, 0, 0, ONE], 1.0)),
-            // ccBossAfterImageEx::Init: its own anm at the frame (frame 0
-            // one step on).
-            Pic::SeedImage { frame, pos, dirc, .. } => {
-                let mut a = piney_battle::boss::Anm::new();
-                a.set(SEED_CLIP, &|c: &str| clips.get(c).copied());
-                (a.time, a.posed) = (*frame as u32 * 256, *frame as u32 * 256);
-                if *frame == 0 {
-                    a.forward();
-                }
-                let p = &boss::corbenik::seed::IMAGE;
-                afterimages.push(super::boss::AfterImage::anm(SEED_CLIP.into(), a.posed, *pos, *dirc, p));
+                v.push(Picture::Anm {
+                    eff: true,
+                    layer: CHAR_LAYER,
+                    clip: LES3.into(),
+                    time: *time,
+                    root,
+                    alpha: 1.0,
+                    blend: Some(1),
+                });
             }
             _ => {}
         }

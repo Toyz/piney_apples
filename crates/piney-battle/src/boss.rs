@@ -36,6 +36,7 @@ use crate::scene::Scene;
 use crate::tables::Tables;
 use crate::world::CharHit;
 use class::{BaseActs, BossClass, Patterns, SkeithPatterns, base_change_next_pattern, base_exec_pattern_index, word};
+pub use class::{Figure, Shape};
 pub use part::{Part, PartClass, Parts};
 
 type F = u32;
@@ -651,14 +652,21 @@ pub enum GenOp {
     Forget,
 }
 
+/// The layer a [`Out::DrawAnm`] goes on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AnmLayer {
+    Obj,
+    Eff,
+}
+
 /// What the rules ask of the rest of the game, in order.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Out {
     /// `EntryAfterImage(&m_eai)`: an after-image of the boss's pose.
     AfterImage,
     /// `m_anmw.SetMatrix_PosRotZYX(pos, dirc)` and `DrawParts(m_anmw, 0)`:
-    /// the wave (`xeffect`'s `ANM_xx11wave`, [`Boss::anm_wave`]) drawn at
-    /// the boss this frame, on objLayer.
+    /// the wave (`xeffect`'s `ANM_xx11wave`, the class's [`Shape::wave`])
+    /// drawn at the boss this frame, on objLayer.
     DrawWave,
     /// `ccSeOn3D(se, pos)`.
     Se3d {
@@ -828,21 +836,39 @@ pub enum Out {
     /// `bossCam` +0x01 `InitLock` set: the next turn goes straight to the
     /// boss.
     CamInitLock,
-    /// Kyvia's arm (`anmw`, `ANM_ex0batc0`) drawn this frame at its pose
-    /// time `time`, at `pos` turned by `dirc` (`DrawParts(anmw, 0)`).
-    DrawArm {
+    /// A `ccAnm` of the boss's file drawn this frame: `clip` posed at
+    /// `time`, at `pos` turned by `dirc`, on `layer`. Kyvia's arm
+    /// (`DrawParts(anmw, 0)`, objLayer), Macha's light ball
+    /// (`anmBallCharge`, `anmBall`: `ccAnm::Draw` on effLayer).
+    DrawAnm {
+        clip: String,
         time: u32,
         pos: V4,
         dirc: V4,
+        layer: AnmLayer,
     },
-    /// `EntryAfterImageAnm(anm, pos, dirc, params)`: an after-image of a
-    /// `ccAnm` of the boss's own (Kyvia's arm) at its frame `frame`
-    /// (`ccBossAfterImageEx::Init`: at frame 0 one step on).
+    /// `EntryAfterImageAnm(anm, pos, dirc, params)` (or `EntryAfterImage`
+    /// on a part's own `ccAnm`): an after-image of character `who`'s
+    /// `clip` at its frame `frame` (`ccBossAfterImageEx::Init`: at frame 0
+    /// one step on). Kyvia's arm, a Gorre brother's trail, a Corbenik seed.
     AfterImageAnm {
+        who: usize,
+        clip: String,
         frame: i32,
         pos: V4,
         dirc: V4,
         params: AfterImageParams,
+    },
+    /// The wave (`xeffect`'s `ANM_xx11wave`) posed at `time` at `pos`,
+    /// turned by `dirc`, at `scale` (`DrawParts(anmw, ..)` or
+    /// `ccAnm::Draw`, objLayer), by character `who`. Macha's, Tarvos's, a
+    /// Gorre brother's, Corbenik's; [`Out::DrawWave`] is the base's.
+    Wave {
+        who: usize,
+        time: u32,
+        pos: V4,
+        dirc: V4,
+        scale: F,
     },
     /// `changeCamera(n)` (main): the active camera (1 the field's, 3 the
     /// event's).
@@ -892,8 +918,6 @@ pub enum Out {
     Magus(magus::Pic),
     /// What Fidchell shows or asks beside ([`fidchell::Pic`]).
     Fidchell(fidchell::Pic),
-    /// What Gorre's brothers show beside their bodies ([`gorre::Pic`]).
-    Gorre(gorre::Pic),
     /// `OnCinemaMode` with a skill's name (OUT gcmn 0x004733b0): the bars
     /// and the name `sid`'s row gives (OUT 0x00472550).
     CinemaSkill(i32),
@@ -1038,6 +1062,12 @@ pub struct Skeith {
     pub animate_dead: Fade,
     pub stage_eff_id: i32,
     pub anm_wave: Anm,
+}
+
+impl Shape for Skeith {
+    fn wave(&self) -> Option<&Anm> {
+        Some(&self.anm_wave)
+    }
 }
 
 impl BossClass for Skeith {
@@ -1270,6 +1300,15 @@ impl Cx<'_> {
     fn free_cam(&mut self, pos: V4, view: V4) {
         self.out(Out::CamMode { mode: 5 });
         self.out(Out::FreeCam { pos, view });
+    }
+
+    /// The camera free looking at `vp`, its eye `off` from it turned by
+    /// `Rz(-pi/2)`, then `d`'s x, y and z turns (Macha's action cameras).
+    fn free_cam_from(&mut self, vp: V4, d: V4, off: V4) {
+        let m = geom::rot_matrix_z(&geom::unit_matrix(), NEG_HALF_PI);
+        let m = geom::rot_matrix_z(&geom::rot_matrix_y(&geom::rot_matrix_x(&m, d[0]), d[1]), d[2]);
+        let eye = p2w(self, geom::vadd(w2p(self, vp), geom::apply_matrix(&m, off)));
+        self.free_cam(eye, vp);
     }
 
     /// `QuakeCam` by `q` on each axis, with the boss's camera made.
