@@ -30,6 +30,33 @@ and replaces what sits behind it with how modern engines render and mix.
   (real shadows, new lighting, post effects, a modern reverb) are opt-in
   extras, never the default (the maintainer's decision, 2026-10-29).
 
+## Crates: a core per system, a crate per backend
+
+Each output system gets a core crate that holds its contract and a crate
+for each way of producing it (the maintainer's decision, 2026-10-29). The
+game depends only on the cores; which backend runs is a setting.
+
+| system | core (the contract) | Classic | Modern |
+| --- | --- | --- | --- |
+| picture | `piney-render`: today's `piney-draw` frame types (what the game asks to draw) plus a `Renderer` trait (`begin`, `submit(&Frame)`, `present`, `read_back`, `set_overlay`, resize and options) and the shared asset ids | `piney-render-classic`: today's `piney-gs`, the GS drawn as the GS did | `piney-render-modern`: retained GPU resources, shader skinning and lighting, the render graph |
+| sound | `piney-sound`: everything checked against the game: the EE sound driver, the MIDI sequencer, the synthesizer's note, envelope and pitch logic, `se3d`, the voice and stream commands; its output is the SPU2 register-write stream plus the stream and voice PCM requests; an `AudioBackend` trait and the device output (cpal) | `piney-sound-classic`: the SPU2 model (24 voices, Gaussian interpolation, the SPU2 reverb) consuming those register writes | `piney-sound-modern`: the same writes read as voice events (key on and off, pitch, ADSR, volume, sample address) into a modern mixer with decoded PCM, buses, resampling and spatial audio |
+
+- The cut lies where the checks against the game already stop: the frame
+  for the picture, the SPU2 register writes for the sound (what
+  `tools/iopemu.py` and `tools/sound_ee.py` compare). So moving to the
+  cores changes no checked behaviour; it is files moving between crates.
+- Backends never depend on each other or on the game; only on their core
+  (and `piney-data` for assets).
+- Shared GPU plumbing both renderers use (the device and surface, the
+  headless device, texture decode from CCS) lives in the core, so the two
+  backends do not grow two copies of it.
+- `piney-game` picks a backend at start-up from the settings and the
+  command line (`--renderer classic|modern`, `--sound classic|modern`),
+  and the console can switch at run time where the backend allows.
+- First step, before any modern work: make the cores and move Classic
+  into its crates with no behaviour change (the suite, the harnesses and
+  the golden shots identical), so Modern starts from a clean seam.
+
 ## Rendering
 
 1. **Measure first.** Frame-time trace on release builds at the slow
@@ -89,6 +116,7 @@ and replaces what sits behind it with how modern engines render and mix.
 
 ## Order
 
-Rendering 1-3 (the largest perf win), sound 1-2 (the glitch risk), then
+The crate split first (Classic moved into its crates, no behaviour change),
+then rendering 1-3 (the largest perf win), sound 1-2 (the glitch risk), then
 rendering 4-6 and sound 3-7, then the optional extras. Each step lands
 with Classic still working and the contract checks unchanged.
