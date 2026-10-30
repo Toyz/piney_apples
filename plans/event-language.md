@@ -51,25 +51,26 @@ and every piece of sugar must keep it.
 
 ## The language
 
-The syntax is our own design (clean-room, like the rest of the port).
-Draft, to be settled with the maintainer (see Decisions):
+The syntax is our own design (clean-room, like the rest of the port):
+braces, a rich language, implicit block numbers (the maintainer's
+decisions, 2026-10-30; see Decisions):
 
 ```
 event 3 "TEACH-F" {
     open { done event 2; game status 5 }
 
-    block 1 when in field 14, phase == 0, repeatable {
+    when in field 14, phase == 0, repeatable {
         operate add 14
         target Orca
     }
 
-    block 3 when phase >= 4, talked to Orca, repeatable {
+    when phase >= 4, talked to Orca, repeatable {
         menu off
         Orca: "Whenever you want me to do / some..."
         menu clear
     }
 
-    block 5 {
+    once {
         menu off
         camera at (2474, 2457, 11) looking (2497, 2413, 21)
         turn Kite 0
@@ -85,6 +86,12 @@ What it gives over the text form:
 - **Structure the game implies.** An event's `open` conditions, its
   blocks, each block's tags and conditions as one `when` clause, and
   `repeatable` as a keyword, not an instruction at the end of the body.
+- **Implicit block numbers.** Blocks are numbered by their order, as the
+  game numbers them; the source writes none. Where something refers to a
+  block (the status ops, the replay's per-block flags), the block gets a
+  name (`block intro { .. }`) and references use it; the compiler numbers
+  and checks them. The lifter names a block only where something refers to
+  it, and keeps empty blocks the bytes need as `empty` placeholders.
 - **Names, not numbers,** resolved from the game's own tables and the
   build: characters (`Kite`, `Orca`, the PCs by name), event numbers and
   labels, areas (by their words: `Δ Bursting Polluted Sea of Sand`),
@@ -199,14 +206,17 @@ rest.
 7. Mods: the folder, the manifest, replace and add, the VM fuzz.
 8. Editor support; a language server later.
 
-## Decisions for the maintainer
+## Decisions
 
-- The syntax style: braces (as drafted) or indentation; the file
-  extension (`.evl` drafted); the language's name.
-- How much sugar: a lean language close to the ops, or a rich one with
-  many built-ins (each costs a lowering rule and a round-trip proof).
-- Block numbers in the source: always written (exact, as drafted), or
-  implicit with the compiler numbering them and the lifter writing them
-  only where they matter.
-- Whether the assembly-level text form stays a public format for modders
-  or becomes internal.
+Made by the maintainer, 2026-10-30:
+
+- **Braces**, as drafted.
+- **A rich language**: many built-ins for the games' common shapes, each
+  with its lowering rule and kept only while the round-trip holds.
+- **Implicit block numbers**: numbered by order, named only where
+  referred to.
+- **The assembly-level text form stays public**: documented beside the
+  language for modders who want exact control; the CLI lifts and builds
+  either form, and both round-trip.
+
+Still open: the language's name and its file extension (`.evl` drafted).
