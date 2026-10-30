@@ -857,6 +857,15 @@ pub(super) fn effects_pass(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) {
     t.put(cx);
 }
 
+impl crate::boss::BossClass for Kyvia {
+    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        main(b, self, cx);
+    }
+    fn effects_pass(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        effects_pass(b, self, cx);
+    }
+}
+
 /// `ccBossKyvia01::Main` (MUT gcmn 0x004d4410).
 pub(super) fn main(b: &mut BossBase, x: &mut Kyvia, cx: &mut Cx) {
     let mut t = Tree::take(cx, x.core);

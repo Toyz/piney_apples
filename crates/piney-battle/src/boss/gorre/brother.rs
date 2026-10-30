@@ -534,19 +534,21 @@ pub(super) fn order(p: &mut Part<Brother>, cx: &mut Cx, on: i16) {
     });
 }
 
+impl crate::boss::BossClass for Brother {
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect_alone(b, self, cx);
+    }
+}
+
 /// `ccBoss05Brother::Affect` (OUT gcmn 0x004b07c0), from an `EntryAffect`
 /// on the brother's own character (never inside Gorre's frame): Gorre and
 /// the other brother taken out of their characters for its span, so the
 /// report ([`Msg::Affect`]) reaches them.
-pub(super) fn affect_alone(b: &mut Boss, cx: &mut Cx) {
+fn affect_alone(b: &mut BossBase, x: &mut Brother, cx: &mut Cx) {
     let me = cx.me;
-    let Class::GorreBrother(x) = std::mem::replace(&mut b.class, Class::Plain) else { return };
     let master = x.master_me;
     let taken = cx.scene.chars.get_mut(master).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take());
-    let Some(mut gb) = taken else {
-        b.class = Class::GorreBrother(x);
-        return;
-    };
+    let Some(mut gb) = taken else { return };
     // Gorre's own members, taken from its character for the span.
     let mut gx = match std::mem::replace(&mut gb.class, Class::Plain) {
         Class::Gorre(x) => x,
@@ -558,7 +560,8 @@ pub(super) fn affect_alone(b: &mut Boss, cx: &mut Cx) {
     let k = usize::from(gx.brother_me[1] == me);
     let (other, found) = super::take_brother(cx, gx.brother_me[1 - k]);
     gx.brothers[1 - k] = other;
-    gx.brothers[k] = Part { b: Box::new(std::mem::take(b)), x, me };
+    let base = std::mem::take(b);
+    gx.brothers[k] = Part { b: Box::new(Boss { base, class: Class::Plain }), x: Box::new(std::mem::take(x)), me };
     // The report first (a drain only before the brother's Epitaph,
     // `CheckEpitaph`); what Gorre makes of it is Gorre's to show.
     let start = cx.out.len();
@@ -568,8 +571,8 @@ pub(super) fn affect_alone(b: &mut Boss, cx: &mut Cx) {
     gb.base.pending.extend(cx.out.split_off(start));
     local_affect(&mut gx.brothers[k].b.base, cx);
     let part = std::mem::take(&mut gx.brothers[k]);
-    *b = *part.b;
-    b.class = Class::GorreBrother(part.x);
+    *b = part.b.base;
+    *x = *part.x;
     super::put_brother(cx, std::mem::take(&mut gx.brothers[1 - k]), found);
     gb.class = Class::Gorre(gx);
     if let Some(f) = cx.scene.chars[master].foe_state_mut() {

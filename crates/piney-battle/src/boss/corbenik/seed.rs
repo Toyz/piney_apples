@@ -444,6 +444,12 @@ fn on_dead(b: &mut BossBase, x: &mut Seed, cx: &mut Cx) {
     }
 }
 
+impl crate::boss::BossClass for Seed {
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, cx);
+    }
+}
+
 /// `ccBoss08Seed::Affect` (0x003b03b0): nothing while held off or locked
 /// (but a drain's 21); a blow (1, 3): its number, the mark and the HP
 /// down (with cheat HP a fifth, never under half), at 0 its conditions

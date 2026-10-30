@@ -9,9 +9,9 @@ use piney_data::field::ee;
 
 use super::eff::{self, Fx};
 use super::seed::{self, Seed};
-use super::{Gen, Pic, SEEDS, make_fx, manager_pass, select, target_ok, word, wrap_hi};
+use super::{Gen, Pic, SEEDS, make_fx, manager_pass, word, wrap_hi};
 use crate::boss::kyvia::Part;
-use crate::boss::{Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0};
+use crate::boss::{BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index};
 use crate::enemy_ai::{get_dirc, rand_f2};
 use crate::geom::{self, V4};
 use crate::item;
@@ -181,10 +181,19 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut First, cx: &mut Cx, m: i32) {
     b.pat_index = 0;
     x.pat_mode = m;
     let tbl = cx.data.corbenik.words(t).to_vec();
-    b.pat_index = exec_pattern_index(b, x, cx, &tbl, 0);
+    b.pat_index = x.exec_pattern_index(b, cx, &tbl, 0);
 }
 
 // --- the frame -----------------------------------------------------------------------------
+
+impl crate::boss::BossClass for First {
+    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        main(b, self, cx);
+    }
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, self, cx);
+    }
+}
 
 /// The effect manager's pass, then `ccBoss08::Main` (0x003ad000):
 /// `ccBoss::Main` (its `Slave` each seed's own `Main`), `hold` cleared.
@@ -272,62 +281,41 @@ fn change_next_pattern(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     } else {
         b.change_action(cx, act::NEUTRAL, 1, true);
     }
-    b.pat_index = exec_pattern_index(b, x, cx, &tbl, b.pat_index);
+    b.pat_index = x.exec_pattern_index(b, cx, &tbl, b.pat_index);
 }
 
-/// `ccBoss::ExecPattern(pat, p0, 0, 0)` (QUA gcmn 0x00360d30).
-fn exec_pattern(b: &mut BossBase, x: &mut First, cx: &mut Cx, pat: i32, p0: i32) {
-    let tbl = [pat, p0, 0, 0, -1];
-    exec_pattern_index(b, x, cx, &tbl, 0);
-}
+impl Patterns for First {
+    const ACTS: BaseActs = super::BASE_ACTS;
 
-/// `ccBoss08::ExecPatternIndex(tbl, i)` (0x003adae0): 1 the wave (6), 14
-/// the magic (20) with the countdowns held, 15 n the seeds (21, `n` kept);
-/// the rest the base's.
-fn exec_pattern_index(b: &mut BossBase, x: &mut First, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    let mut s = i;
-    let mut pat = word(tbl, s);
-    s += 1;
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if pat == -1 {
-        pat = word(tbl, 0);
-        s = 1;
-    }
-    b.pat_num = pat;
-    match pat {
-        15 => {
-            x.entry_seed_num = word(tbl, s);
-            s += 1;
-            b.change_action(cx, act::SEED, 3, true);
+    /// `ccBoss08::ExecPatternIndex(tbl, i)` (0x003adae0): 1 the wave (6), 14
+    /// the magic (20) with the countdowns held, 15 n the seeds (21, `n` kept);
+    /// the rest the base's.
+    fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+        let x = self;
+        let mut s = i;
+        let mut pat = word(tbl, s);
+        s += 1;
+        b.move_spd = 0;
+        b.move_vector = VF0;
+        if pat == -1 {
+            pat = word(tbl, 0);
+            s = 1;
         }
-        14 => {
-            x.pause_cnt_down = true;
-            b.change_action(cx, act::MAGIC, 3, true);
+        b.pat_num = pat;
+        match pat {
+            15 => {
+                x.entry_seed_num = word(tbl, s);
+                s += 1;
+                b.change_action(cx, act::SEED, 3, true);
+            }
+            14 => {
+                x.pause_cnt_down = true;
+                b.change_action(cx, act::MAGIC, 3, true);
+            }
+            1 => b.change_action(cx, act::WAVE, 3, true),
+            _ => return base_exec_pattern_index(x, b, cx, tbl, i),
         }
-        1 => b.change_action(cx, act::WAVE, 3, true),
-        _ => return base_exec_pattern_index(b, x, cx, tbl, i),
-    }
-    s
-}
-
-/// `ccBoss::ExecPatternIndex` through this class's `ChangeAction` and
-/// `ExecPattern` ([`super::base_exec_pattern_index`]).
-fn base_exec_pattern_index(b: &mut BossBase, x: &mut First, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    super::base_exec_pattern_index(b, cx, &mut BaseHost { x }, tbl, i)
-}
-
-struct BaseHost<'a> {
-    x: &'a mut First,
-}
-
-impl super::Host for BaseHost<'_> {
-    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
-        b.change_action(cx, n, forbid, af);
-    }
-
-    fn exec_pattern(&mut self, b: &mut BossBase, cx: &mut Cx, pat: i32, p0: i32) {
-        exec_pattern(b, self.x, cx, pat, p0);
+        s
     }
 }
 
@@ -371,7 +359,7 @@ fn on_neutral(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
         }
         b.stop_time = 0;
     }
-    let t = select(b, cx, 0);
+    let t = b.select(cx, 0);
     if !cx.valid(t) {
         return;
     }
@@ -382,9 +370,9 @@ fn on_neutral(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
 /// The target picked for an act (`SelectTarget(0)`), or the 2-1 wait when
 /// it is gone or down.
 fn pick(b: &mut BossBase, x: &mut First, cx: &mut Cx) -> bool {
-    let t = select(b, cx, 0);
-    if !target_ok(cx, t) {
-        exec_pattern(b, x, cx, 2, -1);
+    let t = b.select(cx, 0);
+    if !cx.target_ok(t) {
+        x.exec_pattern(b, cx, 2, -1);
         return false;
     }
     b.calc_target_info(cx);
@@ -520,9 +508,9 @@ fn on_escape(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
     }
     match b.act_proccess {
         0 => {
-            let t = select(b, cx, 0);
-            if !target_ok(cx, t) {
-                exec_pattern(b, x, cx, 2, -1);
+            let t = b.select(cx, 0);
+            if !cx.target_ok(t) {
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
             b.calc_target_info(cx);

@@ -312,6 +312,15 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Macha, cx: &mut Cx, m: i32) {
 
 // --- the frame --------------------------------------------------------------------------------
 
+impl crate::boss::BossClass for Macha {
+    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        main(b, self, cx);
+    }
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, self, cx);
+    }
+}
+
 /// `ccThBossEffect`'s pass and `ccBoss06::Main` (0x003a4270).
 pub(super) fn main(b: &mut BossBase, x: &mut Macha, cx: &mut Cx) {
     manager_pass(b, cx);

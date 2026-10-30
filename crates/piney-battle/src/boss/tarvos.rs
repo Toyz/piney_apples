@@ -322,6 +322,15 @@ fn set_def_mode(x: &mut Tarvos, cx: &mut Cx, d: i32) {
 
 // --- the frame --------------------------------------------------------------------------------
 
+impl crate::boss::BossClass for Tarvos {
+    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        main(b, self, cx);
+    }
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, self, cx);
+    }
+}
+
 /// `ccThBossEffect`'s pass and `ccBoss07::Main` (0x003a91e0).
 pub(super) fn main(b: &mut BossBase, x: &mut Tarvos, cx: &mut Cx) {
     manager_pass(b, cx);

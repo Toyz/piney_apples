@@ -424,6 +424,15 @@ impl Slave {
 
 // --- the frame ------------------------------------------------------------------------------
 
+impl crate::boss::BossClass for Innis {
+    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        main(b, self, cx);
+    }
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, cx);
+    }
+}
+
 /// `ccThBossEffect`'s pass and `ccBoss02::Main` (0x00495d50).
 pub(super) fn main(b: &mut BossBase, x: &mut Innis, cx: &mut Cx) {
     manager_pass(b, x, cx);

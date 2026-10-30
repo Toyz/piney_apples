@@ -639,13 +639,19 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
 
 `piney_battle::boss` holds the rules:
 
-- `Boss::main` dispatches on `Boss.class`: `Class::Skeith` is
-  `ccBoss01::Main`, the effect manager's pass included; `Class::Innis` is
+- A boss is `Boss { base: BossBase, class: Class }`: `ccBoss`'s members
+  and its class's own, apart, so a class's rules hold both at once.
+- `Boss::main` and `Boss::affect` go through one `match` on the class
+  (`Class::with_rules`) to its `BossClass` impl: `Class::Skeith` is
+  `ccBoss01`, the effect manager's pass included; `Class::Innis` is
   Mutation's `ccBoss02` ([Innis](boss-innis.md)), `Class::Magus`
   ([Magus](boss-magus.md)), `Class::Kyvia` ([Kyvia](boss-kyvia.md)),
   `Class::Fidchell` Outbreak's `ccBoss04` ([Fidchell](boss-fidchell.md)),
   `Class::Macha` Quarantine's `ccBoss06` ([Macha](boss-macha.md)),
   `Class::Tarvos` its `ccBoss07` ([Tarvos](boss-tarvos.md)).
+- `ccBoss::ExecPatternIndex` calls back into the class (its
+  `ChangeAction`, `ExecPattern`): the `Patterns` trait, with the acts
+  the base's words set in that class's numbering (`BaseActs`).
   Each boss's tables come from the build through `BossData`
   (`tables::combat`).
 - `Foe.boss` carries the boss's state.

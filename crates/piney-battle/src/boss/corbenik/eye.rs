@@ -11,7 +11,9 @@ use piney_data::field::ee;
 use super::third::Third;
 use super::{Pic, word};
 use crate::boss::kyvia::{Part, as_me, dp, fabs, fp, head, plain_boss, set_base_param};
-use crate::boss::{AfterImageParams, Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0};
+use crate::boss::{
+    AfterImageParams, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index,
+};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
 use crate::item;
@@ -552,12 +554,7 @@ pub(crate) fn attack(p: &mut Part<Killer>, v: &KillerView, cx: &mut Cx) {
         45 => 14,
         _ => return,
     };
-    as_me(cx, p.me, |cx| exec_pattern(&mut p.b.base, &mut p.x, v, cx, pat, 0));
-}
-
-fn exec_pattern(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx, pat: i32, p0: i32) {
-    let tbl = [pat, p0, 0, 0, -1];
-    exec_pattern_index(b, x, v, cx, &tbl, 0);
+    as_me(cx, p.me, |cx| KillerRules(v).exec_pattern(&mut p.b.base, cx, pat, 0));
 }
 
 fn killer_tbl(cx: &Cx, x: &Killer) -> Vec<i32> {
@@ -569,7 +566,7 @@ fn killer_tbl(cx: &Cx, x: &Killer) -> Vec<i32> {
 fn change_next_pattern(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
     if v.paused {
         x.pause = true;
-        exec_pattern(b, x, v, cx, 2, -1);
+        KillerRules(v).exec_pattern(b, cx, 2, -1);
         return;
     }
     x.pause = false;
@@ -584,75 +581,66 @@ fn change_next_pattern(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mu
     } else {
         b.change_action(cx, killer_act::NEUTRAL, 1, true);
     }
-    b.pat_index = exec_pattern_index(b, x, v, cx, &tbl, b.pat_index);
+    b.pat_index = KillerRules(v).exec_pattern_index(b, cx, &tbl, b.pat_index);
 }
 
-/// `ExecPatternIndex` (0x003bfe90): 7 the wander (act 8, its length the
-/// next word in `actProccess`), 14 a skill of `@2388` by `ccRand() % 13` on
-/// its target, 16 skill 154 on the body, 15 a compelled one of `@2391`, 17
-/// the press (act 4); the rest the base's.
-fn exec_pattern_index(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    let mut s = i + 1;
-    let mut pat = word(tbl, i);
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if pat == -1 {
-        pat = word(tbl, 0);
-        s = 1;
-    }
-    b.pat_num = pat;
-    let me = cx.me;
-    let target = cx.scene.chars[me].target_char;
-    match pat {
-        7 => {
-            b.change_action(cx, killer_act::WANDER, 3, true);
-            b.act_proccess = word(tbl, s) as i16;
-            s += 1;
-        }
-        14 => {
-            let n = cx.cc.rand() % 13;
-            let sid = word(&cx.data.corbenik.killer_skills, n.abs());
-            if let Some(tp) = target
-                && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
-            {
-                cx.out(Out::Skill(tp, k));
-            }
-        }
-        16 => {
-            let m = v.master;
-            if let Some(k) = item::item_skill_request(cx.t, cx.scene, me, m, 154, 0, false, cx.rand) {
-                cx.out(Out::Skill(m, k));
-            }
-        }
-        15 => {
-            let n = cx.cc.rand() % 3;
-            let sid = word(&cx.data.corbenik.killer_compels, n.abs());
-            if let Some(tp) = target
-                && let Some(k) = item::item_skill_compel(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
-            {
-                cx.out(Out::Skill(tp, k));
-            }
-        }
-        17 => b.change_action(cx, killer_act::BODY_PRESS, 3, true),
-        _ => return super::base_exec_pattern_index(b, cx, &mut KillerHost { x, v }, tbl, i),
-    }
-    s
-}
+/// A killer eye's patterns, which read what the body tells it.
+struct KillerRules<'a>(&'a KillerView);
 
-/// A killer eye's own `ChangeAction` (the base's) and `ExecPattern`, for
-/// the base's patterns.
-struct KillerHost<'a> {
-    x: &'a mut Killer,
-    v: &'a KillerView,
-}
+impl Patterns for KillerRules<'_> {
+    const ACTS: BaseActs = super::BASE_ACTS;
 
-impl super::Host for KillerHost<'_> {
-    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
-        b.change_action(cx, n, forbid, af);
-    }
-
-    fn exec_pattern(&mut self, b: &mut BossBase, cx: &mut Cx, pat: i32, p0: i32) {
-        exec_pattern(b, self.x, self.v, cx, pat, p0);
+    /// `ExecPatternIndex` (0x003bfe90): 7 the wander (act 8, its length the
+    /// next word in `actProccess`), 14 a skill of `@2388` by `ccRand() % 13` on
+    /// its target, 16 skill 154 on the body, 15 a compelled one of `@2391`, 17
+    /// the press (act 4); the rest the base's.
+    fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+        let v = self.0;
+        let mut s = i + 1;
+        let mut pat = word(tbl, i);
+        b.move_spd = 0;
+        b.move_vector = VF0;
+        if pat == -1 {
+            pat = word(tbl, 0);
+            s = 1;
+        }
+        b.pat_num = pat;
+        let me = cx.me;
+        let target = cx.scene.chars[me].target_char;
+        match pat {
+            7 => {
+                b.change_action(cx, killer_act::WANDER, 3, true);
+                b.act_proccess = word(tbl, s) as i16;
+                s += 1;
+            }
+            14 => {
+                let n = cx.cc.rand() % 13;
+                let sid = word(&cx.data.corbenik.killer_skills, n.abs());
+                if let Some(tp) = target
+                    && let Some(k) = item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
+                {
+                    cx.out(Out::Skill(tp, k));
+                }
+            }
+            16 => {
+                let m = v.master;
+                if let Some(k) = item::item_skill_request(cx.t, cx.scene, me, m, 154, 0, false, cx.rand) {
+                    cx.out(Out::Skill(m, k));
+                }
+            }
+            15 => {
+                let n = cx.cc.rand() % 3;
+                let sid = word(&cx.data.corbenik.killer_compels, n.abs());
+                if let Some(tp) = target
+                    && let Some(k) = item::item_skill_compel(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
+                {
+                    cx.out(Out::Skill(tp, k));
+                }
+            }
+            17 => b.change_action(cx, killer_act::BODY_PRESS, 3, true),
+            _ => return base_exec_pattern_index(self, b, cx, tbl, i),
+        }
+        s
     }
 }
 
@@ -699,7 +687,7 @@ fn on_wander(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
         return;
     }
     if cx.annihilated() || cx.game_over {
-        exec_pattern(b, x, v, cx, 2, -1);
+        KillerRules(v).exec_pattern(b, cx, 2, -1);
         return;
     }
     let t = cx.scene.chars[me].target_char;
@@ -827,7 +815,7 @@ fn on_generate(b: &mut BossBase, x: &mut Killer, v: &KillerView, cx: &mut Cx) {
             b.pat_tbl = Tbl::Normal;
             b.pat_index = 0;
             let tbl = killer_tbl(cx, x);
-            b.pat_index = exec_pattern_index(b, x, v, cx, &tbl, 0);
+            b.pat_index = KillerRules(v).exec_pattern_index(b, cx, &tbl, 0);
             b.draw_sw = 1;
             b.exit = 0;
             b.body_hit_sw = 1;
@@ -1013,6 +1001,14 @@ fn on_dead(mb: &mut BossBase, b: &mut BossBase, x: &mut Killer, cx: &mut Cx) {
 /// `ccBoss::OnExit` (0x0035fc30): exited (still drawn if it was).
 pub(crate) fn on_exit(b: &mut BossBase, _cx: &mut Cx) {
     b.exit = 1;
+}
+
+impl crate::boss::BossClass for Eye {}
+
+impl crate::boss::BossClass for Killer {
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, cx);
+    }
 }
 
 /// `ccBoss08KillerEye::Affect` (0x003bf650): nothing while held off or

@@ -330,7 +330,8 @@ turn.
 ## In the port
 
 `piney_battle::boss::innis` holds the rules. `Boss.class` is
-`Class::Innis` with the members above, and `Boss::main` sends it there.
+`Class::Innis` with the members above, and `Boss::main` sends it there
+(its `BossClass` impl).
 The tables come from the build (`tables::combat`: `innis_pattern`,
 `innis_epitaph`, `innis_anims`, `innis_various_skills`,
 `innis_downer_skills`, `innis_monster_anims`, `innis_ring_models`,

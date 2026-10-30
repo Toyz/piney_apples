@@ -12,7 +12,7 @@ use super::gomora::{self, Gomora};
 use super::{
     Follow, Gen, GenOp, Held, Part, Place, as_me, dp, fabs, fp, new_char, plain_boss, rand_abs, set_base_param, wrap,
 };
-use crate::boss::{Anm, Boss, Class, Cx, Out, VF0};
+use crate::boss::{Anm, Boss, BossBase, Class, Cx, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
 use crate::param::cond;
@@ -926,17 +926,22 @@ fn char_hold_on(c: &mut Part<Core>, cx: &mut Cx, rx: i32, ry: i32) {
 
 // --- Affect ------------------------------------------------------------------------------
 
+impl crate::boss::BossClass for Core {
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, self, cx);
+    }
+}
+
 /// `kyviaCore::Affect` (MUT gcmn 0x004f99c0): [`super::part_affect`], then
 /// a hit of the kind its attribute resists shows the shield (physical on
 /// attribute 0, magic on 1).
-pub(crate) fn affect(b: &mut Boss, cx: &mut Cx) {
+fn affect(b: &mut BossBase, x: &Core, cx: &mut Cx) {
     let me = cx.me;
     let t = cx.scene.chars[me].affect.ty;
-    if t != 21 && (b.base.act_forbid == 2 || b.base.lock_player != 0) {
+    if t != 21 && (b.act_forbid == 2 || b.lock_player != 0) {
         return;
     }
-    let hit = super::part_affect(&mut b.base, cx);
-    let Class::KyviaCore(x) = &b.class else { return };
+    let hit = super::part_affect(b, cx);
     if !hit || x.ex != 0 {
         return;
     }

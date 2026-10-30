@@ -987,6 +987,12 @@ fn dead(g: &mut Part<Gomora>, cx: &mut Cx) {
     }
 }
 
+impl crate::boss::BossClass for Gomora {
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, cx);
+    }
+}
+
 /// `kyviaGomora::Affect` (MUT gcmn 0x004ff480): [`super::part_affect`].
 pub(crate) fn affect(b: &mut BossBase, cx: &mut Cx) {
     let me = cx.me;

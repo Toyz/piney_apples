@@ -10,9 +10,11 @@ use piney_data::field::ee;
 use super::eff::Fx;
 use super::eye::{self, Eye, Killer};
 use super::laser::{Refrect, Tera};
-use super::{Gen, Host, Pic, make_fx, manager_pass_x, select, target_ok, word};
+use super::{Gen, Pic, make_fx, manager_pass_x, word};
 use crate::boss::kyvia::{Part, as_me, new_char, plain_boss, set_base_param};
-use crate::boss::{Anm, Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0, blur};
+use crate::boss::{
+    Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, blur,
+};
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, M4, V4};
 use crate::param::cond;
@@ -131,7 +133,7 @@ fn arena_clump(cx: &mut Cx, on: bool) {
 
 /// `ccCheckTarget(t)` with `t` not dead (`lh 8`).
 fn alive(cx: &Cx, t: Option<usize>) -> bool {
-    target_ok(cx, t)
+    cx.target_ok(t)
 }
 
 impl Third {
@@ -263,6 +265,15 @@ fn setup_slave(x: &mut Third, cx: &mut Cx) {
 
 // --- the frame ------------------------------------------------------------------------------------
 
+impl crate::boss::BossClass for Third {
+    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        main(b, self, cx);
+    }
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, self, cx);
+    }
+}
+
 /// The effect manager's pass, then `ccBoss08_c::Main` (0x003b99b0, the
 /// base's).
 pub(crate) fn main(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
@@ -388,20 +399,6 @@ pub(crate) fn change_action(b: &mut BossBase, x: &mut Third, cx: &mut Cx, n: i16
     }
 }
 
-struct ThirdHost<'a> {
-    x: &'a mut Third,
-}
-
-impl Host for ThirdHost<'_> {
-    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
-        change_action(b, self.x, cx, n, forbid, af);
-    }
-
-    fn exec_pattern(&mut self, b: &mut BossBase, cx: &mut Cx, pat: i32, p0: i32) {
-        exec_pattern(b, self.x, cx, pat, p0);
-    }
-}
-
 fn words(cx: &Cx, b: &BossBase) -> Vec<i32> {
     cx.data.corbenik.words_c(b.pat_tbl).to_vec()
 }
@@ -417,12 +414,7 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Third, cx: &mut Cx, m: i32) {
     b.pat_index = 0;
     x.pat_mode = m;
     let tbl = words(cx, b);
-    b.pat_index = exec_pattern_index(b, x, cx, &tbl, 0);
-}
-
-fn exec_pattern(b: &mut BossBase, x: &mut Third, cx: &mut Cx, pat: i32, p0: i32) {
-    let tbl = [pat, p0, 0, 0, -1];
-    exec_pattern_index(b, x, cx, &tbl, 0);
+    b.pat_index = x.exec_pattern_index(b, cx, &tbl, 0);
 }
 
 /// `ccBoss::ChangeNextPattern` (QUA gcmn 0x00360da0) through this class.
@@ -438,55 +430,64 @@ fn change_next_pattern(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     } else {
         change_action(b, x, cx, act::NEUTRAL, 1, true);
     }
-    b.pat_index = exec_pattern_index(b, x, cx, &tbl, b.pat_index);
+    b.pat_index = x.exec_pattern_index(b, cx, &tbl, b.pat_index);
 }
 
-/// `ExecPatternIndex` (0x003b9c50), the slaves let go first each word: 1
-/// the wave (6), 14 the laser (3), 15 the drain (4), 16 the tera laser (5)
-/// (those three holding the slaves), 17 the eye entry (20) once every
-/// killer eye is out (else the next word), 18 a slave attack (21) by the
-/// next word's row; the rest the base's, from the word it was called at.
-fn exec_pattern_index(b: &mut BossBase, x: &mut Third, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    let mut s = i;
-    loop {
-        let mut pat = word(tbl, s);
-        s += 1;
-        b.move_spd = 0;
-        b.move_vector = VF0;
-        if pat == -1 {
-            pat = word(tbl, 0);
-            s = 1;
-        }
-        b.pat_num = pat;
-        x.pause = false;
-        match pat {
-            1 => change_action(b, x, cx, act::WAVE, 3, true),
-            17 => {
-                if x.killers.iter().any(|p| p.b.base.exit == 0) {
-                    continue;
+impl Patterns for Third {
+    const ACTS: BaseActs = super::BASE_ACTS;
+
+    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
+        change_action(b, self, cx, n, forbid, af);
+    }
+
+    /// `ExecPatternIndex` (0x003b9c50), the slaves let go first each word: 1
+    /// the wave (6), 14 the laser (3), 15 the drain (4), 16 the tera laser (5)
+    /// (those three holding the slaves), 17 the eye entry (20) once every
+    /// killer eye is out (else the next word), 18 a slave attack (21) by the
+    /// next word's row; the rest the base's, from the word it was called at.
+    fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+        let x = self;
+        let mut s = i;
+        loop {
+            let mut pat = word(tbl, s);
+            s += 1;
+            b.move_spd = 0;
+            b.move_vector = VF0;
+            if pat == -1 {
+                pat = word(tbl, 0);
+                s = 1;
+            }
+            b.pat_num = pat;
+            x.pause = false;
+            match pat {
+                1 => change_action(b, x, cx, act::WAVE, 3, true),
+                17 => {
+                    if x.killers.iter().any(|p| p.b.base.exit == 0) {
+                        continue;
+                    }
+                    change_action(b, x, cx, act::ENTRY_EYE, 3, true);
                 }
-                change_action(b, x, cx, act::ENTRY_EYE, 3, true);
+                15 => {
+                    x.pause = true;
+                    change_action(b, x, cx, act::DATA_DRAIN, 3, true);
+                }
+                14 => {
+                    x.pause = true;
+                    change_action(b, x, cx, act::LASER, 3, true);
+                }
+                16 => {
+                    x.pause = true;
+                    change_action(b, x, cx, act::TERA_LASER, 3, true);
+                }
+                18 => {
+                    x.attack_slave = word(tbl, s);
+                    s += 1;
+                    change_action(b, x, cx, act::SLAVE_ATTACK, 3, true);
+                }
+                _ => return base_exec_pattern_index(x, b, cx, tbl, i),
             }
-            15 => {
-                x.pause = true;
-                change_action(b, x, cx, act::DATA_DRAIN, 3, true);
-            }
-            14 => {
-                x.pause = true;
-                change_action(b, x, cx, act::LASER, 3, true);
-            }
-            16 => {
-                x.pause = true;
-                change_action(b, x, cx, act::TERA_LASER, 3, true);
-            }
-            18 => {
-                x.attack_slave = word(tbl, s);
-                s += 1;
-                change_action(b, x, cx, act::SLAVE_ATTACK, 3, true);
-            }
-            _ => return super::base_exec_pattern_index(b, cx, &mut ThirdHost { x }, tbl, i),
+            return s;
         }
-        return s;
     }
 }
 
@@ -509,9 +510,9 @@ fn think(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
 
 /// `SelectTarget(0)`; none alive, pattern 2 -1.
 fn pick(b: &mut BossBase, x: &mut Third, cx: &mut Cx) -> bool {
-    let t = select(b, cx, 0);
+    let t = b.select(cx, 0);
     if !alive(cx, t) {
-        exec_pattern(b, x, cx, 2, -1);
+        x.exec_pattern(b, cx, 2, -1);
         return false;
     }
     b.calc_target_info(cx);
@@ -536,7 +537,7 @@ fn on_neutral(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     b.move_spd = 0;
     b.move_vector = VF0;
     b.dirc[2] = geom::set_dirc(b.dirc[2], b.target_dirc, 256);
-    select(b, cx, 0);
+    b.select(cx, 0);
     b.calc_target_info(cx);
     if b.stop_time > 0 {
         let c = b.stop_counter;
@@ -1015,7 +1016,7 @@ fn on_slave_attack(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
                 return;
             }
             if cx.annihilated() || cx.game_over {
-                exec_pattern(b, x, cx, 2, -1);
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
             b.act_proccess += 1;
@@ -1063,7 +1064,7 @@ fn on_wander(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
         b.move_vector = VF0;
     }
     if cx.annihilated() || cx.game_over {
-        exec_pattern(b, x, cx, 2, -1);
+        x.exec_pattern(b, cx, 2, -1);
         return;
     }
     let dist = b.center_dist;
@@ -1100,10 +1101,10 @@ fn on_laser(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             if cx.annihilated() || cx.game_over {
-                exec_pattern(b, x, cx, 2, -1);
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
-            select(b, cx, 0);
+            b.select(cx, 0);
             b.calc_target_info(cx);
             x.stage_eff = b.begin_stage_effect(cx, DARK_IN, [15, 3000, 3000]);
             b.lock_player(cx, false);

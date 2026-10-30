@@ -22,15 +22,13 @@ use piney_data::volume::Volume;
 
 use piney_data::field::ee;
 
-use super::{BossBase, Cx, EffKind, Out, Tbl, VF0};
+use super::{BaseActs, BossBase, Cx, EffKind, Out, Tbl, VF0, word};
 use crate::geom::V4;
 
 type F = u32;
 
 const PI: F = 0x4049_0fdb;
 const TWO_PI: F = 0x40c9_0fdb;
-/// `SelectTarget`'s radius: 999999.
-const FAR: F = 0x4974_23f0;
 
 /// `bossFunc`'s code for Corbenik, its first form's `bossTbl` row, a
 /// seed's, and the file.
@@ -403,6 +401,10 @@ pub enum Gen {
     TeraFall,
 }
 
+/// The base's patterns as Corbenik's forms run them: the neutral let go,
+/// the dash's w 1.
+const BASE_ACTS: BaseActs = BaseActs { other_forbid: 1, dash_w: 0x3f80_0000 };
+
 fn bits(v: &[f32]) -> Vec<F> {
     v.iter().map(|f| f.to_bits()).collect()
 }
@@ -414,147 +416,6 @@ fn restart(anm: &mut crate::boss::Anm, cx: &Cx) {
     if let Some(c) = anm.clip.clone() {
         anm.set(&c, cx.clips);
     }
-}
-
-/// A class's own `ChangeAction` and `ExecPattern`, which the base's
-/// `ExecPatternIndex` calls through the vtable.
-pub(crate) trait Host {
-    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool);
-    fn exec_pattern(&mut self, b: &mut BossBase, cx: &mut Cx, pat: i32, p0: i32);
-}
-
-/// The base's acts its patterns set: the neutral, the epitaph's, the
-/// escape (3), chase (4), return home (5), dash home (6) and wander (7).
-mod base_act {
-    pub const NEUTRAL: i16 = 0;
-    pub const RETURN: i16 = 7;
-    pub const WANDER: i16 = 8;
-    pub const EPITAPH: i16 = 12;
-    pub const ESCAPE: i16 = 16;
-    pub const BASE_RETURN: i16 = 17;
-    pub const BASE_CHASE: i16 = 18;
-}
-
-/// `ccBoss::ExecPatternIndex` (QUA gcmn 0x00360630): 2 a wait (-1 with
-/// the party up: 30), 3-7 the base's moves (7 the wander, act 8), 8 the
-/// neutral held (forbid 3), 9 and 11 a skill on the target or on itself,
-/// 12 one on every member; any other word the neutral let go (forbid 1).
-/// `h` is the class's `ChangeAction` and `ExecPattern`.
-pub(crate) fn base_exec_pattern_index(b: &mut BossBase, cx: &mut Cx, h: &mut dyn Host, tbl: &[i32], i: i32) -> i32 {
-    let orig = i;
-    let mut i = i;
-    let mut pat = word(tbl, i);
-    i += 1;
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if pat == -1 {
-        pat = word(tbl, 0);
-        i = 1;
-    }
-    b.pat_num = pat;
-    let me = cx.me;
-    let neutral = |b: &mut BossBase, cx: &mut Cx, h: &mut dyn Host, forbid: i16| {
-        if b.epitaph != 0 {
-            h.change_action(b, cx, base_act::EPITAPH, 3, true);
-        } else {
-            h.change_action(b, cx, base_act::NEUTRAL, forbid, true);
-        }
-    };
-    match pat {
-        2 => {
-            let mut t = word(tbl, i);
-            i += 1;
-            if t == -1 && !cx.annihilated() {
-                t = 30;
-            }
-            b.stop_time = t;
-            b.stop_counter = 0;
-            neutral(b, cx, h, 3);
-        }
-        3 => h.change_action(b, cx, base_act::ESCAPE, 3, true),
-        4 => h.change_action(b, cx, base_act::BASE_CHASE, 3, true),
-        5 => h.change_action(b, cx, base_act::BASE_RETURN, 3, true),
-        7 => h.change_action(b, cx, base_act::WANDER, 3, true),
-        6 => {
-            let d = ee::from_int(word(tbl, i));
-            i += 1;
-            let m = crate::geom::rot_matrix_z(
-                &crate::geom::rot_matrix_z(&crate::geom::unit_matrix(), b.center_dirc),
-                0xbfc9_0fdb,
-            );
-            let v = crate::geom::apply_matrix(&m, [d, 0, 0, 0x3f80_0000]);
-            let p = crate::geom::vadd(v, cx.scene.chars[me].pos_p);
-            b.dash_pos = crate::boss::p2w(cx, p);
-            b.dash_prev_pos = cx.scene.chars[me].pos;
-            h.change_action(b, cx, base_act::RETURN, 3, true);
-        }
-        8 => neutral(b, cx, h, 3),
-        9 | 11 => {
-            let ty = word(tbl, i);
-            i += 1;
-            let sid = word(tbl, i);
-            i += 1;
-            if pat == 9 {
-                let t = select(b, cx, ty);
-                if !target_ok(cx, t) {
-                    h.exec_pattern(b, cx, 2, 30);
-                    return orig;
-                }
-                b.calc_target_info(cx);
-            }
-            let on = if pat == 9 { cx.scene.chars[me].target_char } else { Some(me) };
-            if let Some(tp) = on
-                && let Some(k) = crate::item::item_skill_request(cx.t, cx.scene, me, tp, sid, 0, false, cx.rand)
-            {
-                cx.out(Out::Skill(tp, k));
-            }
-            h.exec_pattern(b, cx, 2, 30);
-        }
-        12 => {
-            let sid = word(tbl, i);
-            i += 1;
-            let members = cx.party.members;
-            let mut last = None;
-            for m in members.into_iter().flatten() {
-                if target_ok(cx, Some(m)) {
-                    last = Some(m);
-                }
-            }
-            for m in members.into_iter().flatten() {
-                if Some(m) != last
-                    && target_ok(cx, Some(m))
-                    && let Some(k) = crate::item::item_skill_request(cx.t, cx.scene, me, m, sid, 0, false, cx.rand)
-                {
-                    cx.out(Out::Skill(m, k));
-                }
-            }
-            if let Some(l) = last
-                && target_ok(cx, Some(l))
-                && let Some(k) = crate::item::item_skill_request(cx.t, cx.scene, me, l, sid, 1, false, cx.rand)
-            {
-                cx.out(Out::Skill(l, k));
-            }
-            h.exec_pattern(b, cx, 2, -2);
-        }
-        _ => neutral(b, cx, h, 1),
-    }
-    i
-}
-
-fn word(tbl: &[i32], i: i32) -> i32 {
-    usize::try_from(i).ok().and_then(|k| tbl.get(k)).copied().unwrap_or(0)
-}
-
-/// `ccCheckTarget(t)` and not dead.
-fn target_ok(cx: &Cx, t: Option<usize>) -> bool {
-    cx.valid(t) && t.is_some_and(|t| !cx.dead(t))
-}
-
-/// `targetChar = SelectTarget(ty, 999999)`.
-fn select(b: &mut BossBase, cx: &mut Cx, ty: i32) -> Option<usize> {
-    let t = b.select_target(cx, ty, FAR);
-    cx.scene.chars[cx.me].target_char = t;
-    t
 }
 
 /// An angle past pi taken a turn back (once).

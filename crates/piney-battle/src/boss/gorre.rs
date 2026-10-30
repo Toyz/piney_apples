@@ -362,6 +362,15 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
 
 // --- the frame --------------------------------------------------------------------------------
 
+impl crate::boss::BossClass for Gorre {
+    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        main(b, self, cx);
+    }
+    /// `ccBoss05::Affect` (OUT gcmn 0x004aa200): empty (and Gorre is never
+    /// listed, so nothing reaches it); the fight is won through its brothers.
+    fn affect(&mut self, _b: &mut BossBase, _cx: &mut Cx) {}
+}
+
 pub(super) fn main(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let found: [bool; 2] = std::array::from_fn(|k| {
         let (part, found) = take_brother(cx, x.brother_me[k]);
@@ -1258,12 +1267,3 @@ pub fn body(b: &Boss) -> Option<(V4, V4)> {
 }
 
 // --- Affect ----------------------------------------------------------------------------------
-
-/// `ccBoss05::Affect` (OUT gcmn 0x004aa200): empty (and Gorre is never
-/// listed, so nothing reaches it); the fight is won through its brothers.
-pub(super) fn affect(_b: &mut BossBase, _cx: &mut Cx) {}
-
-/// `ccBoss05Brother::Affect`, for a `Class::GorreBrother` character.
-pub(super) fn brother_affect(b: &mut Boss, cx: &mut Cx) {
-    brother::affect_alone(b, cx);
-}

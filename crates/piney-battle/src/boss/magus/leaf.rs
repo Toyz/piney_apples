@@ -610,6 +610,12 @@ fn dead_effect(mb: &mut BossBase, dirc: V4, cx: &mut Cx) {
 
 // --- Affect ------------------------------------------------------------------------------------
 
+impl crate::boss::BossClass for Leaf {
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, cx);
+    }
+}
+
 /// `ccBoss03Leaf::Affect` (0x004a52b0): a hit (with no party checks and
 /// no mark) takes HP; at 0 the leaf dies; the rest the base's.
 pub(crate) fn affect(b: &mut BossBase, cx: &mut Cx) {

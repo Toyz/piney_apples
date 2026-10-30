@@ -360,6 +360,15 @@ fn start_table(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx, t: Tbl) {
 
 // --- the frame --------------------------------------------------------------------------------
 
+impl crate::boss::BossClass for Fidchell {
+    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        main(b, self, cx);
+    }
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, self, cx);
+    }
+}
+
 /// `ccThBossEffect`'s pass and `ccBoss::Main` (OUT gcmn 0x0046d490) under
 /// Fidchell's `Think`.
 pub(super) fn main(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {

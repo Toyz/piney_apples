@@ -8,6 +8,7 @@
 //! and boss-innis.md, boss-magus.md, boss-kyvia.md, boss-fidchell.md.
 
 pub mod blur;
+mod class;
 pub mod corbenik;
 pub mod fidchell;
 pub mod gorre;
@@ -33,6 +34,7 @@ use crate::rand::Rng;
 use crate::scene::Scene;
 use crate::tables::Tables;
 use crate::world::CharHit;
+use class::{BaseActs, BossClass, Patterns, base_exec_pattern_index, word};
 
 type F = u32;
 
@@ -1204,6 +1206,11 @@ impl Cx<'_> {
     }
 
     /// `c->EntryAffect(this, kind, p0, 0, 0)`.
+    /// `ccCheckTarget(t)` and not dead.
+    fn target_ok(&self, t: Option<usize>) -> bool {
+        self.valid(t) && t.is_some_and(|t| !self.dead(t))
+    }
+
     fn affect(&mut self, on: usize, kind: i16, p0: i16) {
         let me = self.me;
         let mut ev = Events::new();
@@ -1309,55 +1316,21 @@ impl Boss {
     /// blur's `Main` and the boss's task. The other classes' effects run
     /// in their `main`.
     pub fn effects_pass(&mut self, cx: &mut Cx) {
-        if let Class::Kyvia(x) = &mut self.class {
-            kyvia::effects_pass(&mut self.base, x, cx);
-        }
+        let Boss { base, class } = self;
+        class.with_rules(|r| r.effects_pass(base, cx));
     }
 
+    /// The class's `Main` ([`BossClass::main`]).
     pub fn main(&mut self, cx: &mut Cx) {
-        let b = &mut self.base;
-        match &mut self.class {
-            Class::Innis(x) => innis::main(b, x, cx),
-            Class::Magus(x) => magus::main(b, x, cx),
-            Class::Kyvia(x) => kyvia::main(b, x, cx),
-            Class::Fidchell(x) => fidchell::main(b, x, cx),
-            Class::Macha(x) => macha::main(b, x, cx),
-            Class::Tarvos(x) => tarvos::main(b, x, cx),
-            Class::Corbenik(x) => corbenik::first::main(b, x, cx),
-            Class::CorbenikB(x) => corbenik::second::main(b, x, cx),
-            Class::CorbenikC(x) => corbenik::third::main(b, x, cx),
-            Class::Gorre(x) => gorre::main(b, x, cx),
-            _ => b.skeith_main(cx),
-        }
+        let Boss { base, class } = self;
+        class.with_rules(|r| r.main(base, cx));
     }
 
-    /// `ccBoss01::Affect` (0x0047bdf0): what an `EntryAffect` on the boss
-    /// does at once (`bossAffectFunc`, 0x0045f090): `ccBoss::Affect`, then
-    /// Skeith's own - the drain's 4500 HP, and the Super patterns once a
-    /// hit leaves its protect gauge at half.
+    /// The class's `Affect` ([`BossClass::affect`]): what an `EntryAffect`
+    /// on the boss does at once (`bossAffectFunc`, 0x0045f090).
     pub fn affect(&mut self, cx: &mut Cx) {
-        match self.class {
-            Class::KyviaCore(_) => return kyvia::core::affect(self, cx),
-            Class::GorreBrother(_) => return gorre::brother_affect(self, cx),
-            _ => {}
-        }
-        let b = &mut self.base;
-        match &mut self.class {
-            Class::Innis(_) => innis::affect(b, cx),
-            Class::Magus(x) => magus::affect(b, x, cx),
-            Class::MagusLeaf(_) => magus::leaf::affect(b, cx),
-            Class::Gomora(_) => kyvia::gomora::affect(b, cx),
-            Class::Fidchell(x) => fidchell::affect(b, x, cx),
-            Class::Macha(x) => macha::affect(b, x, cx),
-            Class::Tarvos(x) => tarvos::affect(b, x, cx),
-            Class::Corbenik(x) => corbenik::first::affect(b, x, cx),
-            Class::CorbenikSeed(_) => corbenik::seed::affect(b, cx),
-            Class::CorbenikB(x) => corbenik::second::affect(b, x, cx),
-            Class::CorbenikC(x) => corbenik::third::affect(b, x, cx),
-            Class::CorbenikKiller(_) => corbenik::eye::affect(b, cx),
-            Class::Gorre(_) => gorre::affect(b, cx),
-            _ => b.skeith_affect(cx),
-        }
+        let Boss { base, class } = self;
+        class.with_rules(|r| r.affect(base, cx));
     }
 }
 
@@ -1842,6 +1815,13 @@ impl BossBase {
             }
         }
         Some(pick)
+    }
+
+    /// `targetChar = SelectTarget(ty, 999999)`.
+    fn select(&mut self, cx: &mut Cx, ty: i32) -> Option<usize> {
+        let t = self.select_target(cx, ty, FAR);
+        cx.scene.chars[cx.me].target_char = t;
+        t
     }
 
     /// `ccBoss::CalcTargetInfo` (0x0045ec60).

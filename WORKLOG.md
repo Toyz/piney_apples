@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-523 entries: audio 43, battle 132, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 149. 126 entries still have open questions - [listed below](#still-open).
+524 entries: audio 43, battle 133, build 29, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 239, tooling 55, ui 102, video 16, volumes 94, world 149. 126 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -535,6 +535,7 @@ The [reference](docs/README.md) says what is true now.
 | 521 | [piney-world by subsystem: town, story_map, field, dungeon, chara, camera, event, grunty and sky folders, and the story maps and towns as registries](worklog/0521-piney-world-by-subsystem-town-story-map-field-dungeon-chara.md) | 2026-10-30 | world, build |
 | 522 | [test_town02_rs on every volume; from Mutation on Dun Loireag's cloud skies draw on layer 5, and from Outbreak on the water's screen point is held to the frame buffer](worklog/0522-test-town02-rs-on-every-volume-from-mutation-on-dun-loireag.md) | 2026-10-30 | world, test |
 | 523 | [Boss split, step one: Boss { base: BossBase, class: Class }, each class's rules on both at once, the take/put pairs gone, pinned byte for byte](worklog/0523-boss-split-step-one-boss-base-bossbase-class-class-each.md) | 2026-10-30 | battle |
+| 524 | [Boss split, step two: the BossClass trait and its one dispatch, Patterns with BaseActs in place of corbenik::Host](worklog/0524-boss-split-step-two-the-bossclass-trait-and-its-one.md) | 2026-10-30 | battle |
 
 ## Still open
 

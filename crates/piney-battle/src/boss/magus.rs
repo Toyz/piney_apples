@@ -407,6 +407,15 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
 
 // --- the frame --------------------------------------------------------------------------------
 
+impl crate::boss::BossClass for Magus {
+    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        main(b, self, cx);
+    }
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, self, cx);
+    }
+}
+
 /// `ccThBossEffect`'s pass and `ccBoss03::Main` (0x0049f580).
 pub(super) fn main(b: &mut BossBase, x: &mut Magus, cx: &mut Cx) {
     let mut ls = Leaves::take(cx, &x.leaves);

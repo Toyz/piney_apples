@@ -9,9 +9,12 @@
 use piney_data::field::ee;
 
 use super::eff::{self, Fx};
-use super::{Pic, make_fx, manager_pass, select, target_ok, word, wrap_hi, wrap_lo};
+use super::{Pic, make_fx, manager_pass, word, wrap_hi, wrap_lo};
 use crate::boss::kyvia::{Part, as_me, plain_boss, set_base_param};
-use crate::boss::{AfterImageParams, Anm, Boss, BossBase, Class, Cx, EffKind, Out, Tbl, VF0, blur};
+use crate::boss::{
+    AfterImageParams, Anm, BaseActs, Boss, BossBase, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
+    base_exec_pattern_index, blur,
+};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 use crate::item;
@@ -362,10 +365,21 @@ fn set_pattern_mode(b: &mut BossBase, x: &mut Second, cx: &mut Cx, m: i32) {
     b.pat_index = 0;
     x.pat_mode = m;
     let tbl = cx.data.corbenik.words_b(t).to_vec();
-    b.pat_index = exec_pattern_index(b, x, cx, &tbl, 0);
+    b.pat_index = x.exec_pattern_index(b, cx, &tbl, 0);
 }
 
 // --- the frame ------------------------------------------------------------------------------------
+
+impl crate::boss::BossClass for Root {}
+
+impl crate::boss::BossClass for Second {
+    fn main(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        main(b, self, cx);
+    }
+    fn affect(&mut self, b: &mut BossBase, cx: &mut Cx) {
+        affect(b, self, cx);
+    }
+}
 
 /// The effect manager's pass, then `ccBoss08_b::Main` (0x003b2610).
 pub(crate) fn main(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
@@ -472,7 +486,7 @@ fn slave(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
 fn change_next_pattern(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     if x.reserve_setup_barrier && !x.barrier {
         x.reserve_setup_barrier = false;
-        exec_pattern(b, x, cx, 19, 0);
+        x.exec_pattern(b, cx, 19, 0);
         return;
     }
     if x.barrier && x.time_up {
@@ -491,58 +505,38 @@ fn change_next_pattern(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     } else {
         b.change_action(cx, act::NEUTRAL, 1, true);
     }
-    b.pat_index = exec_pattern_index(b, x, cx, &tbl, b.pat_index);
+    b.pat_index = x.exec_pattern_index(b, cx, &tbl, b.pat_index);
 }
 
-fn exec_pattern(b: &mut BossBase, x: &mut Second, cx: &mut Cx, pat: i32, p0: i32) {
-    let tbl = [pat, p0, 0, 0, -1];
-    exec_pattern_index(b, x, cx, &tbl, 0);
-}
+impl Patterns for Second {
+    const ACTS: BaseActs = super::BASE_ACTS;
 
-/// `ccBoss08_b::ExecPatternIndex` (0x003b33c0): 1 the wave (3), 14 the
-/// magic (6), 15 the star dust (5), 16 the press (4), 17 the sybly (21),
-/// 18 the root drain (22), 19 the barrier (23); the rest the base's.
-fn exec_pattern_index(b: &mut BossBase, x: &mut Second, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    let mut s = i + 1;
-    let mut pat = word(tbl, i);
-    b.move_spd = 0;
-    b.move_vector = VF0;
-    if pat == -1 {
-        pat = word(tbl, 0);
-        s = 1;
-    }
-    b.pat_num = pat;
-    let n = match pat {
-        1 => act::WAVE,
-        14 => act::MAGIC,
-        15 => act::STAR_DUST,
-        16 => act::BODY_PRESS,
-        17 => act::SYBLY,
-        18 => act::ROOT_DRAIN,
-        19 => act::SETUP_BARRIER,
-        _ => return base_exec_pattern_index(b, x, cx, tbl, i),
-    };
-    b.change_action(cx, n, 3, true);
-    s
-}
-
-/// `ccBoss::ExecPatternIndex` through this class's `ChangeAction` and
-/// `ExecPattern` ([`super::base_exec_pattern_index`]).
-fn base_exec_pattern_index(b: &mut BossBase, x: &mut Second, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
-    super::base_exec_pattern_index(b, cx, &mut BaseHost { x }, tbl, i)
-}
-
-struct BaseHost<'a> {
-    x: &'a mut Second,
-}
-
-impl super::Host for BaseHost<'_> {
-    fn change_action(&mut self, b: &mut BossBase, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
-        b.change_action(cx, n, forbid, af);
-    }
-
-    fn exec_pattern(&mut self, b: &mut BossBase, cx: &mut Cx, pat: i32, p0: i32) {
-        exec_pattern(b, self.x, cx, pat, p0);
+    /// `ccBoss08_b::ExecPatternIndex` (0x003b33c0): 1 the wave (3), 14 the
+    /// magic (6), 15 the star dust (5), 16 the press (4), 17 the sybly (21),
+    /// 18 the root drain (22), 19 the barrier (23); the rest the base's.
+    fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
+        let x = self;
+        let mut s = i + 1;
+        let mut pat = word(tbl, i);
+        b.move_spd = 0;
+        b.move_vector = VF0;
+        if pat == -1 {
+            pat = word(tbl, 0);
+            s = 1;
+        }
+        b.pat_num = pat;
+        let n = match pat {
+            1 => act::WAVE,
+            14 => act::MAGIC,
+            15 => act::STAR_DUST,
+            16 => act::BODY_PRESS,
+            17 => act::SYBLY,
+            18 => act::ROOT_DRAIN,
+            19 => act::SETUP_BARRIER,
+            _ => return base_exec_pattern_index(x, b, cx, tbl, i),
+        };
+        b.change_action(cx, n, 3, true);
+        s
     }
 }
 
@@ -570,9 +564,9 @@ fn think(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
 /// The act's target (`SelectTarget(ty)`), or the 2-1 wait when it is gone
 /// or down.
 fn pick(b: &mut BossBase, x: &mut Second, cx: &mut Cx, ty: i32) -> bool {
-    let t = select(b, cx, ty);
-    if !target_ok(cx, t) {
-        exec_pattern(b, x, cx, 2, -1);
+    let t = b.select(cx, ty);
+    if !cx.target_ok(t) {
+        x.exec_pattern(b, cx, 2, -1);
         return false;
     }
     b.calc_target_info(cx);
@@ -601,7 +595,7 @@ fn on_neutral(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
         }
         b.stop_time = 0;
     }
-    let t = select(b, cx, 0);
+    let t = b.select(cx, 0);
     if !cx.valid(t) {
         return;
     }
@@ -1313,7 +1307,7 @@ fn on_barrier_msg(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
     match b.act_proccess {
         0 => {
             if cx.annihilated() || cx.game_over {
-                exec_pattern(b, x, cx, 2, -1);
+                x.exec_pattern(b, cx, 2, -1);
                 return;
             }
             b.lock_player(cx, false);
