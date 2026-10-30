@@ -264,7 +264,7 @@ operand struct. `[flag]` runs at `lv` >= 1, `[split]` differs between 1 and 2,
  144  0x001b1aa4   6  marker_pos             ccEvMarker2Pos       marker posnum                            event position posnum = the marker's position (SetEventPos) [play]
  145  0x001b1c00   6  fade                   ccEvFade             count alpha                              screen fade (ccScFade::EntryFade) over count frames to alpha [play]
  146  0x001b1c60   6  fade_more              ccEvFade             count alpha                              ccScFade::ContinueFade on that fade [play]
- 147  0x001b1ca4   2  staff_roll             -                    -                                        run the desktop staff roll to its end, 30 frames, 30 fps, then (not Parody) desktop menu 8 (OUT: also wallpapers 57-66 with an info box each; QUA: 77-86) [play]
+ 147  0x001b1ca4   2  staff_roll             -                    -                                        run the desktop staff roll to its end, 30 frames, 30 fps, then (not Parody) desktop menu 8 (OUT: also wallpapers 57-66 with an info box each, then 30 frames; QUA: no roll, wallpapers 77-86, 30 frames, menu 8, no ccSndBgmCtrl) [play]
  148  0x001b1dd4   2  clear_count            -                    -                                        saveData.clearFlag += 1 (not in Parody Mode) [play]
  149  0x001b1e20   6  friendship             ccEvExecFriendship   pc num                                   ccSaveData::AddFriendship(pc, num) [flag]
  150  0x001b1e50   4  menu                   ccEvMenuReq          num                                      open menu num and wait for it to close [play]
@@ -415,7 +415,8 @@ run the same code):
   the instruction. INF calls `dtMenu->CheckMenuType` without the test.
 
 OUT's 147 `staff_roll` grants wallpapers 57-66 with an info box each, and
-QUA's 77-86. OUT and QUA compile 6, 8, 9, 60, 71, 72 and 150 differently,
+QUA's 77-86. QUA's starts no desktop roll and calls no `ccSndBgmCtrl`
+([desktop.md](desktop.md#the-staff-roll), worklog 507). OUT and QUA compile 6, 8, 9, 60, 71, 72 and 150 differently,
 with the same behaviour: what INF writes inline, they write through small
 functions in main:
 - `0x001bdd90 (p, a, b)`: `+0x14 = a`, `+0x16 = b`, `+0xf8 = 1`, on

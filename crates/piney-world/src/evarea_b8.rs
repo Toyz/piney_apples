@@ -147,7 +147,6 @@ pub struct DiscArea {
     pub file: Rc<SceneFile>,
     pub body_file: Option<Rc<SceneFile>>,
     pub eff: Rc<SceneFile>,
-    morphers: HashMap<u32, u32>,
     /// `modelArray` (+0x78), `anmArray` (+0x140): `EA_MODELTABLEB8`,
     /// `EA_OBJTABLEB8` (one row each).
     pub models: Vec<StaticModel>,
@@ -340,13 +339,11 @@ impl DiscArea {
         }
         let pat_num = cloud::eff_pat_num(&eff.ccs, cloud::EFF_SMOKE)
             .ok_or_else(|| Error::NotFound(format!("{EFF_FILE}: {}", cloud::EFF_SMOKE)))?;
-        let morphers = piney_data::anim::morphers(c).unwrap_or_default();
         let mut a = DiscArea {
             field,
             file: file.clone(),
             body_file,
             eff,
-            morphers,
             models,
             objects,
             bg,
@@ -706,7 +703,7 @@ impl DiscArea {
                         layers,
                         layer,
                         to_screen,
-                        (file, &self.morphers),
+                        file,
                         &o.play,
                         draw::mat(&o.root),
                         &[],
@@ -739,12 +736,11 @@ impl DiscArea {
                 }
                 Piece::BodyAnm { .. } => {
                     let (Some(p), Some(bf)) = (&self.body_anm, &self.body_file) else { continue };
-                    let morphers = piney_data::anim::morphers(&bf.ccs).unwrap_or_default();
                     crate::town::anim_draw_fog(
                         layers,
                         layer::OBJ,
                         to_screen,
-                        (bf, &morphers),
+                        bf,
                         p,
                         Mat4::IDENTITY,
                         &[],

@@ -138,3 +138,79 @@ fn the_field_staff_roll_plays_alone() {
     assert_eq!((f, streamed), (11_742, 11_742 - 320), "the roll's frames and BGM.BIN's");
     assert!(!audio.bgm_streaming(), "the roll's music past its end");
 }
+
+/// Issue #75: the player's log replayed through the launcher from the
+/// last fight's end: each change of the title's shape, the frame rate,
+/// every music event, the sequencers and the BGM stream every 300 frames,
+/// and shots at `PINEY_SHOT_AT` (frames, comma-separated) or every
+/// `PINEY_EVERY` frames to `$PINEY_SHOTS` (/mnt/data/claude/scratch/i75/
+/// replay). A diagnostic: `PINEY_PADLOG=FILE cargo test --release -p
+/// piney-game issue_75_replay -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn issue_75_replay() {
+    let Some(log) = std::env::var_os("PINEY_PADLOG") else { return };
+    let dir = std::env::var("PINEY_SHOTS").unwrap_or_else(|_| "/mnt/data/claude/scratch/i75/replay".into());
+    std::fs::create_dir_all(&dir).unwrap();
+    let from = std::env::var("PINEY_FROM").ok().and_then(|v| v.parse().ok()).unwrap_or(36_000u32);
+    let shoot_at: Vec<u32> = std::env::var("PINEY_SHOT_AT")
+        .map(|v| v.split(',').filter_map(|n| n.trim().parse().ok()).collect())
+        .unwrap_or_default();
+    let every = std::env::var("PINEY_EVERY").ok().and_then(|v| v.parse::<u32>().ok());
+    let mut gs: Option<piney_gs::Gs> = None;
+    let (mut last, mut buf) = (String::new(), vec![0i16; 2 * 1600]);
+    crate::launcher::replay_pad_log(&log.into_string().unwrap(), |f, mode, events, audio, frame| {
+        let rate = mode.frame_rate();
+        audio.render(&mut buf[..1600 * rate.min(2) as usize]);
+        if f < from {
+            return;
+        }
+        let title = mode.title();
+        let shape: String = title.chars().map(|c| if c.is_ascii_digit() { '#' } else { c }).collect();
+        if shape != last {
+            println!("frame {f}: rate {rate} | {title}");
+            last = shape;
+        }
+        for e in events {
+            if matches!(
+                e,
+                Event::DesktopBgm(_)
+                    | Event::Bgm(_)
+                    | Event::BgmStream(_)
+                    | Event::BgmStreamStop
+                    | Event::SqLoad(_)
+                    | Event::SqPlay(_)
+                    | Event::SqStop(_)
+                    | Event::BgmCtrl(_)
+                    | Event::HoldBgm
+                    | Event::AllSoundOff
+                    | Event::StreamBgm(_)
+            ) {
+                println!("frame {f}: {e:?} | {title}");
+            }
+        }
+        if f.is_multiple_of(300) {
+            let seq = audio.with_engine(|e| e.seq.each_ref().map(|q| q.playing()));
+            let roll = mode.session().and_then(|s| match &s.stage {
+                Stage::Desktop(d) => d.desktop().and_then(|d| d.staff_roll()).map(|r| (r.page, r.status, r.done)),
+                _ => None,
+            });
+            println!(
+                "frame {f}: rate {rate}, sequences {seq:?}, bgm stream {}, roll {roll:?} | {title}",
+                audio.bgm_streaming()
+            );
+        }
+        if shoot_at.contains(&f) || every.is_some_and(|n| f.is_multiple_of(n)) {
+            let overlay = mode.archive();
+            let Some(s) = mode.session() else { return };
+            let archive = s.archive.clone();
+            let gs = gs.get_or_insert_with(|| piney_gs::Gs::headless(piney_gs::Assets::new(archive)).unwrap());
+            gs.set_overlay(overlay);
+            gs.render(frame);
+            let (w, h) = gs.target_size();
+            let path = format!("{dir}/f{f:05}.png");
+            std::fs::write(&path, piney_gs::png::encode(w, h, &gs.read_back())).unwrap();
+            println!("  {path}");
+        }
+    });
+}

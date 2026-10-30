@@ -348,7 +348,8 @@ OPS = {
           "not 0-3)"),
     147: ("staff_roll", "", "", "play",
           "run the desktop staff roll to its end, 30 frames, 30 fps, then (not Parody) desktop menu 8 "
-          "(OUT: also wallpapers 57-66 with an info box each; QUA: 77-86)"),
+          "(OUT: also wallpapers 57-66 with an info box each, then 30 frames; QUA: no roll, "
+          "wallpapers 77-86, 30 frames, menu 8, no ccSndBgmCtrl)"),
     148: ("clear_count", "", "", "play", "saveData.clearFlag += 1 (not in Parody Mode)"),
     149: ("friendship", "ccEvExecFriendship", "pc num", "flag",
           "ccSaveData::AddFriendship(pc, num)"),

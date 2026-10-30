@@ -3,7 +3,7 @@ title: Sound - effects, music and the IOP sound driver
 status: partial
 volumes: INF, MUT, OUT, QUA
 covers: INF SLUS_202.67:0x00179c10 ccSeOn, 0x00179cb0 ccSeOnNote, 0x00179d90 ccSeOn3D, 0x0017a140 ccSeOn3DLoop, 0x0017a620 ccSeOffLoop, 0x001794b0 ccSetMainVol, 0x001794f0 ccSetBgmVol, 0x00179540 ccSetSeVol, 0x00179630 ccSndChangeOption, 0x00181010 ccSoundMain, 0x0017bac0 waterTest, 0x0017c3c0 bgmChurch, 0x0017c6d0 bgmBreed, 0x0017ad70 ccPortVolSet, 0x001798f0 ccSqPlay, 0x00179aa0 ccSqStop, 0x00179b50 ccSqFade, 0x00181250 ccSound::ccFade, 0x001834e0 ccSndChangeData, 0x0017b020 ccSndBgmCtrl, 0x001821d0 ccSndSQLoad, 0x00183380 ccSound::bgmChange, 0x0017de80 ccSndEvRequest, 0x00168960 ccSetupGameCtrl, 0x00167580 ccGame::CheckSceneReplace, 0x00307bc0 sqDataField, 0x00307bf0 playTypeTbl, 0x00309f60 sqVolTblField, 0x00307c20 sqDataDungeon, 0x00307d28 dungeonPlayType, 0x0030a100 sqVolTblDungeon, 0x00307f00 sqDataEvent, 0x00308a90 eventPlayType, 0x0030a3d0 sqVolTblEvent, 0x00307d40 sqDataTown, 0x00309f90 sqVolTblTown, 0x00182050 ccSndCommSeLoad, 0x00181ee0 spuInit, 0x001816f0 ccSound::sdCommand, 0x00182dc0 ccSoundRpc, 0x0017e6e0 wavPlay, 0x00308db0 seData, 0x00181440 ccSound::ccSceneFade, 0x001811f0 ccSound::gameInterrupt, 0x0017ae10 ccAllSoundOff, 0x00183080 initBeforeLoad, 0x0017e810 ccEvVoiceRequest, 0x0017eeb0 ccVoiceRequest, 0x0017e290 ccWordsPlay, 0x0017e350 skillVoicePlay, 0x0017eca0 evVoicePlay, 0x0017ee40 ccEvVoiceStop, 0x001800e0 ccVoicePgFood, 0x00179f50 ccSeOn3DNote, 0x0017a370 calcVel, 0x0017a4c0 calcPan, 0x0017a6b0 ccSeOnPCStep, 0x0017a7f0 seHitAttr, 0x0017aa20 ccSeSetParamSPC, 0x0017aaf0 ccSeSetParamPC, 0x0017abd0 ccSeSetParamEnemy, 0x0017ac70 ccSeSetParamInu, 0x001830c0 initAfterLoad, 0x00183fb0 ccSound::strSeEnd, 0x0017bf20 tobjSeLoopStart, 0x0017c0d0 tobjSeLoop, 0x003789dc looptest; INF gcmn.prg:0x00572860 _ccSkillRequest (its ccWordsPlay), 0x005a17e0 ccSpcShoutOperationName, 0x00493370 ccBoss04::OnThinkPrediction, 0x00639560 spc0SeData, 0x00639d40 spcSeTbl, 0x0063a850 enemySeTbl, 0x0063a8a0 inuSeData; INF SLUS_202.67:0x0017d190 ccSndStreamCtrl, 0x0017caa0 ccSndStreamSE, 0x0017cb20 ccSndStreamBGM, 0x001799b0 ccSqPlayVol, 0x00183f40 ccSound::strSeInit, 0x00183fb0 ccSound::strSeEnd, 0x00180b30 ccSndMoviePlayer, 0x0030b950 strSndTbl; INF desktop.prg:0x004072c0 Audio_control::ChangeWeve, 0x0042b6f0 Wave; INF MODULES/SNDBASE.IRX:0x0a58 ccSoundFunc, 0x031c ccSoundFunc2, 0x07e4 bgmChange, 0x3564 setModuleContext, 0x3860 ATick, 0x27d4 ccSetSq, 0x257c ccSetHdSynth; INF MODULES/MODMIDI.IRX; INF MODULES/MODHSYN.IRX; INF MODULES/SEWORDS.IRX:0x0e24 BgmSetVolumeDirect; MUT SLUS_205.62:0x0017eda0 bgmBreed, 0x00185a10 ccSndSQLoad, 0x0017d6e0 ccSndBgmCtrl, 0x0017c2f0 ccSeOn, 0x00181f80 ccEvVoiceStop, 0x00183410 ccPgBgmInit; OUT SLUS_205.63:0x0017ebd0 bgmBreed, 0x0017bde0 the scenes' crossfade, 0x00181d50 ccEvVoiceStop; QUA SLUS_205.64:0x00181e10 ccEvVoiceStop
-worklog: 42, 327, 332, 370, 371, 398, 407, 438
+worklog: 42, 327, 332, 370, 371, 398, 407, 438, 507
 ---
 
 # Sound - effects, music and the IOP sound driver
@@ -360,8 +360,16 @@ the pass settles. In Outbreak's (event 219) only two `mail_vol` follow it,
 so the pass settles in the frame of `sound 10`. The port once sent the
 desktop's load before the pass's events of that frame. On Outbreak the
 theme then started under the ending and the roll (#73, worklog 438).
-Quarantine's ending (314) holds in its phase-0 pass, `wait 10` and a line
-before its set-up.
+Quarantine's ending (314) holds in block 4's phase-0 pass, back on the
+desktop after field 126, with `wait 10` and a line before its set-up. Its
+`staff_roll` starts no roll and calls no `ccSndBgmCtrl` (QUA main
+0x001c4a88), so the desktop stays silent through the wallpapers' boxes
+and the save menus. The theme starts with `mode 3`'s new desktop, whose
+`ccSetupDesktop` ends in `ccSndBgmCtrl` (#75, worklog 507). Before that,
+314's pass at phase 2 plays streams 89-93, about 12,000 frames at the
+World's rate 2. The port once gave up on a pass after 10,000 frames. It
+then built the desktop under stream 93: the rate went to 1, the picture
+ran ahead of its sound, and the theme started with no hold set.
 
 The jukebox (`Audio_control::ChangeWeve`, desktop.prg 0x004072c0) plays SE
 4 on a selection, starts a thread (`BgmRead`) that calls

@@ -116,6 +116,11 @@ impl Player {
         desktop(&self.s).is_some_and(Desktop::staff_roll_running)
     }
 
+    /// Whether Quarantine's field roll (`STFROLL_VOL4`) runs.
+    fn field_rolling(&self) -> bool {
+        matches!(&self.s.stage, Stage::Area(a) if a.world().fx().ending_running())
+    }
+
     /// The sequencers playing.
     fn sequences(&self) -> [bool; 3] {
         self.audio.as_ref().map_or([false; 3], |a| a.with_engine(|e| e.seq.each_ref().map(|q| q.playing())))
@@ -420,55 +425,71 @@ fn save_menu_shots() {
     let _ = std::fs::remove_dir_all(&card);
 }
 
-/// Issue #73: each ending (Infection's 31, Mutation's 116, Outbreak's 219)
-/// from its first frame to the staff roll's end, under the desktop music
-/// rows a player picks (15 the reporter's, 47, 27): no sequence plays.
-/// Outbreak's `sound 10` comes in the frame its set-up pass settles, so
-/// the hold must reach the sound before the desktop's load. After the
-/// roll, menu 8's cancel starts the theme (sequence 1 for rows 27 and 7,
-/// and 47 from Outbreak on). Every frame's events go to the engine.
+/// Issues #73 and #75: each ending (Infection's 31, Mutation's 116,
+/// Outbreak's 219, Quarantine's 314) from its first frame to menu 8, under
+/// the desktop music rows a player picks (15 the reporter's, 47, 27): no
+/// sequence plays. Outbreak's `sound 10` comes in the frame its set-up
+/// pass settles; Quarantine's pass at phase 2 plays its streams at rate 2
+/// to their end, its roll is the field's, and its `staff_roll` grants
+/// wallpapers 77-86 (Outbreak's after its roll 57-66). After menu 8's
+/// cancel the theme plays: on Quarantine once `mode 3`'s desktop is set up.
 #[test]
 fn every_ending_plays_over_no_desktop_theme() {
     use piney_data::volume::Volume;
-    for (disc, n, volume) in
-        [("infection", 31, Volume::Inf), ("mutation", 116, Volume::Mut), ("outbreak", 219, Volume::Out)]
-    {
+    let endings = [
+        ("infection", 31, Volume::Inf, None),
+        ("mutation", 116, Volume::Mut, None),
+        ("outbreak", 219, Volume::Out, Some(57..=66)),
+        ("quarantine", 314, Volume::Qua, Some(77..=86)),
+    ];
+    for (disc, n, volume, wallpapers) in endings {
         for dt in [15u8, 47, 27] {
             let Some(s) = ending_on(disc, n, empty_card(), Some(dt)) else { continue };
             let mut p = Player::hearing(s);
-            let mut first = None;
-            let mut rolled = false;
-            for i in 0..40_000u32 {
-                let rolling = p.rolling();
-                rolled |= rolling;
-                if rolled && !rolling {
+            let (mut first, mut rolled, mut early) = (None, 0u32, None);
+            for i in 0..60_000u32 {
+                if desktop(&p.s).is_some_and(|d| d.menu().menu == 8) {
                     break;
                 }
-                p.step(if !rolled && i % 30 == 0 { Buttons::CROSS } else { Buttons::NONE });
+                let rolling = p.rolling() || p.field_rolling();
+                rolled += u32::from(rolling);
+                // Quarantine's pass at phase 2 plays its streams to their
+                // end and leaves for field 126: no desktop before the roll.
+                if volume == Volume::Qua && rolled == 0 && early.is_none() && desktop(&p.s).is_some() {
+                    early = Some((p.frames, Mode::title(&p.s)));
+                }
+                p.step(if !rolling && i % 30 == 0 { Buttons::CROSS } else { Buttons::NONE });
                 if first.is_none() && p.sequences() != [false; 3] {
                     first = Some((p.frames, p.sequences(), Mode::title(&p.s)));
                 }
             }
-            println!("{disc} {n} dtBgm {dt}: rolled {rolled}, first sequence {first:?}");
-            assert!(rolled, "{disc}: no staff roll");
+            println!("{disc} {n} dtBgm {dt}: rolled {rolled} frames, first sequence {first:?}");
+            assert!(rolled > 7000, "{disc}: no staff roll");
             assert!(first.is_none(), "{disc} dtBgm {dt}: a sequence under the ending: {first:?}");
-            for _ in 0..600 {
-                if p.desktop().menu().menu == 8 {
-                    break;
-                }
-                p.step(Buttons::NONE);
+            assert!(early.is_none(), "{disc}: the desktop before the roll: {early:?}");
+            assert!(p.desktop().menu().menu == 8, "{disc}: no menu 8: {}", Mode::title(&p.s));
+            assert!(p.desktop().staff_roll().is_none() || volume != Volume::Qua, "Quarantine's desktop rolled");
+            if let Some(ids) = wallpapers.clone() {
+                let save = &p.desktop().state().save;
+                let got: Vec<i16> = ids
+                    .clone()
+                    .filter(|&k| save.dt_wallpaper_list(((k - 1) / 32) as usize) >> ((k - 1) % 32) & 1 != 0)
+                    .collect();
+                assert_eq!(got, ids.collect::<Vec<_>>(), "{disc}: the staff roll's wallpapers");
             }
             p.wait(40);
             p.tap(Buttons::CIRCLE);
-            for _ in 0..120 {
-                if !p.desktop().slept() {
+            let sq = usize::from(piney_audio::driver::desktop_second(volume, i32::from(dt)));
+            let mut after = None;
+            for k in 0..900u32 {
+                if p.sequences()[sq] {
+                    after = Some(k);
                     break;
                 }
                 p.step(Buttons::NONE);
             }
-            p.wait(10);
-            let sq = usize::from(piney_audio::driver::desktop_second(volume, i32::from(dt)));
-            assert!(p.sequences()[sq], "{disc} dtBgm {dt}: the theme after the roll: {:?}", p.sequences());
+            println!("{disc} dtBgm {dt}: the theme {after:?} frames after the cancel");
+            assert!(after.is_some(), "{disc} dtBgm {dt}: the theme after the roll: {:?}", p.sequences());
         }
     }
 }

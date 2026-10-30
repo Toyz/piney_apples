@@ -3137,7 +3137,7 @@ impl FieldWorld {
                 (None, Some(d)) => draw::Fogging::Depth(d),
                 (None, None) => draw::Fogging::None,
             };
-            let fm = (&**file, &run.look.body.morphers);
+            let fm = &**file;
             crate::town::anim_draw_fog(
                 &mut ctx.layers,
                 layer,
@@ -3232,7 +3232,7 @@ impl FieldWorld {
                 Shown::Anm { eff: true, clip, time, root, alpha, blend } => {
                     let Some(mut p) = crate::pose::Play::new(&run.look.eff, clip) else { continue };
                     (p.time, p.posed) = (*time, *time);
-                    let file = (&*run.look.eff, &run.look.eff_morphers);
+                    let file = &*run.look.eff;
                     crate::town::anim_draw_blended(
                         &mut ctx.layers,
                         draw::CHAR_LAYER,
@@ -3302,7 +3302,7 @@ impl FieldWorld {
             let Some(mut p) = crate::pose::Play::new(&run.look.eff, combat::boss::ANM_WAVE) else { continue };
             (p.time, p.posed) = (time, time);
             let root = crate::body::root(pos, dirc) * glam::Mat4::from_scale(glam::Vec3::splat(scale));
-            let file = (&*run.look.eff, &run.look.eff_morphers);
+            let file = &*run.look.eff;
             crate::town::anim_draw_on(
                 &mut ctx.layers,
                 draw::OBJ_LAYER,

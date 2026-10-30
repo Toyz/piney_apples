@@ -91,7 +91,6 @@ pub struct FieldArea {
     pub file: Rc<SceneFile>,
     pub bg: Rc<SceneFile>,
     pub eff: Option<Rc<SceneFile>>,
-    morphers: HashMap<u32, u32>,
     pub scene: field::Scene,
     /// Every object, in `Generate`'s order.
     pub objects: Vec<FieldObject>,
@@ -315,7 +314,6 @@ impl FieldArea {
         let bg = Rc::new(SceneFile::read(archive, &bg_name)?);
         let eff = SceneFile::read(archive, tables.effect_ccs).ok().map(Rc::new);
         let scene = field.scene_of(tables, &file.ccs, &bg.ccs, hacked)?;
-        let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
         let hit_models = crate::hit::HitModel::read(volume, &file.ccs)?;
         let mut model_hits = Vec::new();
 
@@ -576,7 +574,6 @@ impl FieldArea {
             file,
             bg,
             eff,
-            morphers,
             scene,
             objects,
             fobj2,
@@ -851,11 +848,7 @@ impl FieldArea {
                         let Some((model, _)) = file.drawn_model(inst.object) else { continue };
                         let world = inst.world;
                         let node_mats = skin_nodes(&file, p, root, inst.object, model);
-                        let m: Vec<(u32, f32)> = morph
-                            .iter()
-                            .filter(|(mph, _)| self.morphers.get(mph) == Some(&model))
-                            .flat_map(|(_, t)| t.iter().copied())
-                            .collect();
+                        let m = crate::town::object_morph(&file, &morph, inst.entry);
                         let d = Draw {
                             file: &file,
                             model,

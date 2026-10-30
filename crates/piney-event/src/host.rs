@@ -392,9 +392,9 @@ pub enum Wait {
     /// [`Host::piros_colour`] and the line it tells, if any). The first
     /// `busy` is the instruction's own frame.
     PirosColour,
-    /// `staff_roll`: `begin` pauses the game, puts every task to sleep and
-    /// starts the desktop's staff roll task; `busy` while its `param[0]` is
-    /// 0; `end` deletes the task.
+    /// `staff_roll` on Infection to Outbreak: `begin` starts the desktop's
+    /// staff roll task (after [`Host::staff_roll_sleep`]); `busy` while its
+    /// `param[0]` is 0; `end` deletes the task.
     StaffRoll,
     /// `gate_hack_anim`: menus off (`begin`), `ccCheckGtHackAnm()` true
     /// (`busy`), menus back (`end`).
@@ -674,6 +674,11 @@ pub trait Host {
     /// `EntryAffect(cmndTarget, plw, 12, 0, 0, 0)`.
     fn remove_trap_done(&mut self) {
         unported("remove_trap_done");
+    }
+    /// `staff_roll`'s start: `game.pauseFlag` 1, `dtMenu +0x16 = 1` (the
+    /// menus forbidden), `ccSleepAllThread()`, then `pauseFlag` 0 again.
+    fn staff_roll_sleep(&mut self) {
+        unported("staff_roll_sleep");
     }
     /// After the staff roll: ask the desktop menu for menu `num` (`dtMenu
     /// +0x06 = num`); the interpreter then waits for the menu to close.

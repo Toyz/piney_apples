@@ -88,7 +88,6 @@ pub struct Giant {
     pub file: Rc<SceneFile>,
     pub file_2: Rc<SceneFile>,
     pub eff: Rc<SceneFile>,
-    morphers: HashMap<u32, u32>,
     /// `blk` (+0x1e4).
     pub block: i32,
     /// `modelArray` (+0x78), `anmArray` (+0x140).
@@ -150,8 +149,6 @@ impl Giant {
             .and_then(|o| file.scene.dummies.get(&o))
             .map(|d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE])
             .ok_or_else(|| Error::NotFound(format!("{FILE}: {SUN}")))?;
-        let mut morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
-        morphers.extend(piney_data::anim::morphers(&file_2.ccs).unwrap_or_default());
         let hit_models = [HitModel::read(volume, &file.ccs)?, HitModel::read(volume, &file_2.ccs)?];
         let hits =
             Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
@@ -159,7 +156,6 @@ impl Giant {
             file,
             file_2,
             eff,
-            morphers,
             block: 0,
             models: Vec::new(),
             objects: Vec::new(),
@@ -473,7 +469,7 @@ impl Giant {
                         layers,
                         layer,
                         to_screen,
-                        (&file, &self.morphers),
+                        &file,
                         &o.play,
                         draw::mat(&o.root),
                         &[],

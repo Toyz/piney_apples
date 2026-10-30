@@ -21,6 +21,7 @@ pub const CLUMP: u16 = 0x0900;
 pub const EXT_OBJ: u16 = 0x0a00;
 pub const DUMMY_POS: u16 = 0x1300;
 pub const DUMMY_POS_ROT: u16 = 0x1400;
+pub const OBJ2: u16 = 0x2000;
 pub const TOP: u16 = 0xff01;
 pub const F_OBJ: u16 = 0x0101;
 

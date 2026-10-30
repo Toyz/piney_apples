@@ -91,6 +91,10 @@ pub struct Scene {
     /// many times through ExtObj copies (a dungeon room puts one floor tile
     /// 20 times), each under its own parent.
     pub ext_parent: HashMap<u32, u32>,
+    /// Object -> its modifier, the `MPH_` morpher its Obj2 chunk names
+    /// (`ccObj`'s, which `ccModel::Draw` morphs it by). ExtObj copies of one
+    /// model can each have their own.
+    pub modifier: HashMap<u32, u32>,
     /// DMY_ object -> its position.
     pub dummies: HashMap<u32, Dummy>,
     pub animes: Vec<Anime>,
@@ -144,6 +148,12 @@ impl Scene {
                     let obj = d.u32_at(q)?;
                     s.ext.insert(obj, d.u32_at(q + 8)?);
                     s.ext_parent.insert(obj, d.u32_at(q + 4)?);
+                }
+                ccs::OBJ2 => {
+                    let modifier = d.u32_at(q + 8)?;
+                    if modifier != 0 {
+                        s.modifier.insert(d.u32_at(q)?, modifier);
+                    }
                 }
                 ccs::DUMMY_POS | ccs::DUMMY_POS_ROT => {
                     let v3 = |at: usize| -> Result<Vec3> {

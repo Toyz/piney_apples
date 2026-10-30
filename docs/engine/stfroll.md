@@ -3,19 +3,20 @@ title: Quarantine's field staff roll - STFROLL_VOL4
 status: solid
 volumes: QUA
 covers: QUA SLUS_205.64:0x001c52e8 event opcode 169 (ending_kanji); QUA gcmn.prg:0x004f0a30 the roll's start, 0x004f0950 its thread, 0x004f0aa0 the object's constructor, 0x004f0d40 Init, 0x004f1880 main, 0x004f2f40 the scroll, 0x004f2fe0 the logo's fade, 0x004f31b0 the text and logo draw, 0x004f3370 the states, 0x004f1cb0 the animations' transparency, 0x004f2620 the animations' draw, 0x004f1d80 the generators, 0x004f2aa0 the phases, 0x004f1920 the late comets, 0x004f1ae0 the comets' frame, 0x004f12a0 a comet's path, 0x004f3ad0 a comet's step, 0x004f3d50 the Catmull-Rom point, 0x004f3990 a comet's generators ended, 0x004f3710 a line pushed, 0x004f36b0 a line dropped, 0x004f3890 the comet's constructor, 0x004f37f0 a comet's point, 0x005cee00 the generator rows, 0x005cf000 the particle rows, 0x005cf160 0x005cf180 0x005cf1a0 the comets' random ranges, 0x005cf1c0 the credits, 0x005cfc20 the last page; QUA SLUS_205.64:0x002095a0 sqDataEvent row 126, 0x0020a190 eventPlayType
-worklog: 465
+worklog: 465, 507
 ---
 
 # Quarantine's field staff roll - STFROLL_VOL4
 
-Quarantine's ending (event 314 "Ending") runs two staff rolls. The
-first is its own: block 3 in field 126, Kite hidden, runs
+Quarantine's ending (event 314 "Ending") has one staff roll, its own,
+not the desktop's: block 3 in field 126, Kite hidden, runs
 `ending_kanji` (event opcode 169, which only Quarantine's executable
 has). That starts `STFROLL_VOL4`, a thread in gcmn.prg with no symbol.
 It draws the hacking logos, the credits as `ccKanji` lines, the `ending`
 scene's ring and book, and particle comets, over the field's black. The
-desktop's own roll (`staff_roll`, [desktop.md](desktop.md)) follows
-after the event's desktop block.
+event's last block, back on the desktop, runs `staff_roll`, but
+Quarantine's case 147 starts no desktop roll: it grants wallpapers 77-86
+and opens the save menu ([desktop.md](desktop.md#the-staff-roll)).
 
 The port is in four places:
 
@@ -157,6 +158,18 @@ In the port's run of Quarantine's data:
   (`changeCamera(3)`, eye and view).
 - **Lighting.** None of `ending`'s 82 models has `mtype` bit 0, so no
   light touches them.
+- **The pages.** `ANM_book_anm2` draws `MDL_xdhdpag_a0` three times (its
+  own entry and the ExtObj copies `OBJ_xdhdpag_d` and `_e`) and
+  `MDL_xdhdpag_b0` twice (with `_f`).
+  - Each entry's Obj2 chunk names its own morpher (`MPH_xdhdpag_a0`, `_d`,
+    `_e`, `_f`), and `Decode_ExtObj` (INF 0x0014cb80) keeps it on the copy.
+  - So `ccModel::Draw` bends each page by its own weights, and the pages
+    turn one after another.
+  - The port once drew one page per model, morphed by every morpher of
+    that model summed. The page went through the book (#75).
+  - `piney_world::town::object_morph` now takes the entry's modifier.
+    Only `ending` and the `field_i` towers have two morphers on one base
+    model, on every disc.
 
 ## The music
 

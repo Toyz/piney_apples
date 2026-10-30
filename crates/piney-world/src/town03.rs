@@ -419,7 +419,7 @@ impl CarminaGade {
     /// The pieces into the field's layers.
     fn draw_pieces(&self, base: &Base, layers: &mut Layers, to_screen: Mat4, pieces: &[Piece]) {
         let none = HashMap::new();
-        let fm = (&*base.file, &base.morphers);
+        let fm = &*base.file;
         for &piece in pieces {
             match piece {
                 // Water 0: the picture so far (the copy made after it on

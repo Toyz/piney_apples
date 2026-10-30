@@ -339,7 +339,6 @@ pub struct BossLook {
     pub body: Rc<Body>,
     pub clips: Rc<Clips>,
     pub eff: Rc<piney_desktop::assets::SceneFile>,
-    pub eff_morphers: HashMap<u32, u32>,
     /// `_g_cinemaSkillName[n]` of this boss's file (`OnCinemaMode(n)`'s
     /// name), by `n`: on Infection Skeith's 2 (x11's `TEX_ske_skl`, row
     /// 0); on Mutation Innis's 5-8 and 70 (`TEX_ini_skl`, rows 0-4).
@@ -402,7 +401,6 @@ impl BossLook {
             }
         }
         let eff = Rc::new(piney_desktop::assets::SceneFile::read(archive, EFF_FILE)?);
-        let eff_morphers = piney_data::anim::morphers(&eff.ccs).unwrap_or_default();
         // SetupSkillName (MUT gcmn 0x00480540, OUT 0x0047bed0): in fields
         // 9-12 the file is "x01" to "x04" whatever the row says (Kyvia's
         // rows name none).
@@ -467,7 +465,7 @@ impl BossLook {
                 .collect(),
             _ => Vec::new(),
         };
-        Ok(BossLook { code, body, clips: Rc::new(clips), eff, eff_morphers, names, skill_names, images, shards, dummy })
+        Ok(BossLook { code, body, clips: Rc::new(clips), eff, names, skill_names, images, shards, dummy })
     }
 }
 

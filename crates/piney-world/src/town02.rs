@@ -295,7 +295,7 @@ impl DunLoireag {
     /// the clouds) are handed back.
     fn draw_pieces(&self, base: &Base, layers: &mut Layers, to_screen: Mat4, pieces: &[Piece]) -> Vec<TownSprite> {
         let none = HashMap::new();
-        let fm = (&*base.file, &base.morphers);
+        let fm = &*base.file;
         let root = crate::draw::mat(&water_root());
         let mut sprites = Vec::new();
         for &piece in pieces {

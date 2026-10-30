@@ -24,6 +24,48 @@ fn frames(run: &mut OpRun, frames: i32) -> bool {
     false
 }
 
+/// `desktop_item`'s grant: `list + 4 * (k >> 5) |= 1 << (k & 31)` for
+/// k = id - 1 with no bound (0x001b006c): an id past the list's words sets
+/// a bit in what follows it (kept within the save here).
+fn desktop_item<H: Host + ?Sized>(host: &mut H, ty: i16, id: i16) {
+    let k = (i32::from(id) - 1).max(0);
+    let s = host.save();
+    let rest = |base: usize| (piney_data::save::SIZE - base) / 4;
+    match ty {
+        0 => s.set_list_bit(off::DT_WALLPAPER_LIST, rest(off::DT_WALLPAPER_LIST), k),
+        1 => s.set_list_bit(off::DT_BGM_LIST, rest(off::DT_BGM_LIST), k),
+        2 => s.set_list_bit(off::DT_STR_LIST, rest(off::DT_STR_LIST), k),
+        _ => {}
+    }
+}
+
+/// The first step of `staff_roll`'s wallpapers; each takes five.
+const WALLPAPER_STEP: u8 = 10;
+
+/// Case 147 (`staff_roll`) as each volume's executable has it (INF
+/// 0x001b1ca4, MUT 0x001c7070, OUT 0x001bd430, QUA 0x001c4a88).
+struct RollCase {
+    /// `ccThStaffRoll` started and waited for, then 30 frames.
+    roll: bool,
+    /// The wallpapers granted, each with its box, outside Parody Mode.
+    wallpapers: Option<std::ops::RangeInclusive<i16>>,
+    /// `ccSndBgmCtrl` before the tasks wake.
+    bgm_ctrl: bool,
+}
+
+impl RollCase {
+    fn of(volume: piney_data::volume::Volume) -> RollCase {
+        use piney_data::volume::Volume;
+        match volume {
+            Volume::Inf | Volume::Mut => RollCase { roll: true, wallpapers: None, bgm_ctrl: true },
+            Volume::Out => RollCase { roll: true, wallpapers: Some(57..=66), bgm_ctrl: true },
+            // Quarantine's desktop has no roll: its ending's is the field's
+            // (`ending_kanji`), and no ccSndBgmCtrl follows the save.
+            Volume::Qua => RollCase { roll: false, wallpapers: Some(77..=86), bgm_ctrl: false },
+        }
+    }
+}
+
 impl Vm {
     fn place<H: Host + ?Sized>(&self, host: &mut H) -> Place {
         if self.mng.enable_phase < 4 {
@@ -223,18 +265,7 @@ impl Vm {
                 if play && self.announce(host, run, Announce::DesktopItem { ty, id }) == Step::Yield {
                     return Step::Yield;
                 }
-                // `list + 4 * (k >> 5) |= 1 << (k & 31)` with no bound
-                // (0x001b006c): an id past the list's words sets a bit in
-                // what follows it (kept within the save here).
-                let k = (id as i32 - 1).max(0);
-                let s = host.save();
-                let rest = |base: usize| (piney_data::save::SIZE - base) / 4;
-                match ty {
-                    0 => s.set_list_bit(off::DT_WALLPAPER_LIST, rest(off::DT_WALLPAPER_LIST), k),
-                    1 => s.set_list_bit(off::DT_BGM_LIST, rest(off::DT_BGM_LIST), k),
-                    2 => s.set_list_bit(off::DT_STR_LIST, rest(off::DT_STR_LIST), k),
-                    _ => {}
-                }
+                desktop_item(host, ty, id);
             }
             Op::BbsPost { thread, post } | Op::BbsPost7 { thread, post } => {
                 let s = host.save();
@@ -768,13 +799,24 @@ impl Vm {
         Step::Done
     }
 
-    /// `staff_roll` (code 147, `INF 0x001b1ca4`).
+    /// `staff_roll` (code 147) as the volume compiles it ([`RollCase`]):
+    /// the tasks put to sleep, the desktop's staff roll and 30 frames (not
+    /// on Quarantine), 30 frames a second, then unless in Parody Mode the
+    /// wallpapers' boxes (Outbreak, Quarantine), 30 frames after them and
+    /// menu 8 until it closes; `ccSndBgmCtrl` (not on Quarantine), a frame,
+    /// the tasks woken.
     fn staff_roll<H: Host + ?Sized>(&mut self, host: &mut H, run: &mut OpRun) -> Step {
+        let case = RollCase::of(self.lib.volume);
         loop {
             match run.step {
                 0 => {
-                    host.begin(Wait::StaffRoll);
-                    run.step = 1;
+                    host.staff_roll_sleep();
+                    if case.roll {
+                        host.begin(Wait::StaffRoll);
+                        run.step = 1;
+                    } else {
+                        run.step = 3;
+                    }
                 }
                 1 => {
                     if host.busy(Wait::StaffRoll) {
@@ -788,38 +830,70 @@ impl Vm {
                     if frames(run, 30) {
                         return Step::Yield;
                     }
-                    host.set_frame_rate(2);
-                    if host.save().parody_on() {
-                        run.step = 5;
-                    } else {
-                        host.desktop_menu_open(8);
-                        run.step = 3;
-                        run.n = 0;
-                    }
+                    run.step = 3;
                 }
                 3 => {
-                    if frames(run, 1) {
-                        return Step::Yield;
-                    }
-                    run.step = 4;
+                    host.set_frame_rate(2);
+                    (run.step, run.n, run.v) = match case.wallpapers {
+                        _ if host.save().parody_on() => (8, 0, 0),
+                        Some(_) => (WALLPAPER_STEP, 0, 0),
+                        None => (5, 0, 0),
+                    };
                 }
                 4 => {
-                    if host.desktop_menu().menu_type != -1 {
+                    if frames(run, 30) {
                         return Step::Yield;
                     }
                     run.step = 5;
                 }
                 5 => {
-                    host.bgm_control();
+                    host.desktop_menu_open(8);
                     run.step = 6;
                     run.n = 0;
                 }
-                _ => {
+                6 => {
+                    if frames(run, 1) {
+                        return Step::Yield;
+                    }
+                    run.step = 7;
+                }
+                7 => {
+                    if host.desktop_menu().menu_type != -1 {
+                        return Step::Yield;
+                    }
+                    run.step = 8;
+                }
+                8 => {
+                    if case.bgm_ctrl {
+                        host.bgm_control();
+                    }
+                    run.step = 9;
+                    run.n = 0;
+                }
+                9 => {
                     if frames(run, 1) {
                         return Step::Yield;
                     }
                     host.staff_roll_done();
                     return Step::Done;
+                }
+                step => {
+                    // Each wallpaper: sound 74, `DispInfo` of the
+                    // `desktop_item` line, then its bit in the list.
+                    let Some(ids) = case.wallpapers.clone() else { return Step::Done };
+                    let k = (step - WALLPAPER_STEP) / 5;
+                    let base = WALLPAPER_STEP + 5 * k;
+                    let id = ids.start() + i16::from(k);
+                    if step == base {
+                        host.sound_effect(74);
+                        run.step = base + 1;
+                    }
+                    let item = Announce::DesktopItem { ty: 0, id };
+                    if self.announce_from(host, run, base + 1, |h: &mut H| h.announce(item)) == Step::Yield {
+                        return Step::Yield;
+                    }
+                    desktop_item(host, 0, id);
+                    (run.step, run.n, run.v) = if id < *ids.end() { (base + 5, 0, 0) } else { (4, 0, 0) };
                 }
             }
         }

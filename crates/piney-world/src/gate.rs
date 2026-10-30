@@ -7,7 +7,6 @@
 //! 11 opens, 0 closes). `ccChgate::main` (0x00459280) draws within 4500 of
 //! Kite (docs/engine/field-game.md).
 
-use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -123,7 +122,6 @@ const BLACK: Light = Light {
 /// A Root Town's Chaos Gate.
 pub struct Gate {
     pub file: Rc<SceneFile>,
-    morphers: HashMap<u32, u32>,
     /// +0x40 `pos` (DMY_gate's position) and +0x60 `dirc` (0, 0, -pi).
     pub pos: V4,
     pub dirc: V4,
@@ -164,10 +162,8 @@ impl Gate {
         if let Some(n) = RING_ANIMS.iter().find(|n| file.anim(n).is_none()) {
             return Err(Error::NotFound((*n).into()));
         }
-        let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
         Ok(Gate {
             file,
-            morphers,
             pos,
             dirc,
             root,
@@ -285,7 +281,7 @@ impl Gate {
     pub fn draw(&self, layers: &mut Layers, to_screen: Mat4, lights: &TownLights) {
         let root = draw::mat(&self.root);
         let lit = |world: Mat4| light_matrix(lights, world, false);
-        let fm = (&*self.file, &self.morphers);
+        let fm = &*self.file;
         let fog = draw::Fogging::None;
         if self.frame.drawn {
             let alpha = ee::f(self.transparency);

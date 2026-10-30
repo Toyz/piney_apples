@@ -70,7 +70,6 @@ pub struct AreaFx {
 struct Ending {
     roll: piney_effect::stfroll::StfRoll,
     file: piney_desktop::assets::SceneFile,
-    morphers: std::collections::HashMap<u32, u32>,
     fonts: Option<piney_desktop::kanji::Fonts>,
     names: piney_desktop::kanji::Names,
     /// The logo's textures by name, found once each.
@@ -135,7 +134,7 @@ impl Ending {
                         &mut ctx.layers,
                         SYS_LAYER,
                         to_screen,
-                        (&self.file, &self.morphers),
+                        &self.file,
                         &play,
                         piney_world::draw::mat(matrix),
                         &[],
@@ -263,21 +262,12 @@ impl FxTasks for AreaFx {
                     return;
                 }
             };
-            let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
             let t = piney_data::tables::stfroll::of(volume);
             let mut asks = Vec::new();
             let roll = piney_effect::stfroll::StfRoll::new(t, &file, &mut asks);
             let fonts = piney_desktop::assets::read_fonts(volume, &self.archive).ok();
-            let mut e = Ending {
-                roll,
-                file,
-                morphers,
-                fonts,
-                names,
-                logos: Default::default(),
-                draws: Vec::new(),
-                asks: Vec::new(),
-            };
+            let mut e =
+                Ending { roll, file, fonts, names, logos: Default::default(), draws: Vec::new(), asks: Vec::new() };
             e.ask(asks);
             self.ending = Some(Box::new(e));
             return;

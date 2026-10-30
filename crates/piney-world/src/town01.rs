@@ -115,7 +115,6 @@ pub enum Piece {
 /// What `ROOTTOWN01` holds besides the [`Base`].
 pub struct MacAnu {
     pub water_file: Rc<SceneFile>,
-    water_morphers: HashMap<u32, u32>,
     /// The sky clump's models (drawn at the origin, unanimated).
     sky: Vec<u32>,
     /// In crisis, `CRISIS_SKY`'s models; `DrawBG`'s scrolls and what it
@@ -149,11 +148,9 @@ pub fn new(archive: &Arc<Archive>, crisis: bool) -> Result<Town> {
         // One _AnimateForward after SetAnm.
         w.forward(&water_file);
     }
-    let water_morphers = piney_data::anim::morphers(&water_file.ccs).unwrap_or_default();
     let water0 = WaterZero::new(&water_file, WATER_MODEL, WATER_REACH)?;
     let m = MacAnu {
         water_file,
-        water_morphers,
         sky,
         crisis_sky,
         bg_scroll: [0; 2],
@@ -296,7 +293,7 @@ impl MacAnu {
 
     /// The pieces into the field's layers, all on objLayer.
     fn draw_pieces(&self, base: &Base, layers: &mut Layers, to_screen: Mat4, pieces: &[Piece]) {
-        let wf = (&*self.water_file, &self.water_morphers);
+        let wf = &*self.water_file;
         for &piece in pieces {
             match piece {
                 Piece::Object(row) => base.object_draw(layers, OBJ_LAYER, to_screen, row),

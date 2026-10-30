@@ -32,9 +32,6 @@ use crate::stream::{FileList, StreamPlayer};
 /// `game.status` on the desktop.
 const STATUS_DESKTOP: i32 = 2;
 
-/// Frames a setup pass may take before the runtime gives up waiting.
-const SETUP_FRAMES: u32 = 10_000;
-
 /// The boot as `ccThMother` makes it: the scripts read from the disc, the
 /// event manager initialised, and `ccStartEvent(volumeNum, 0)` on the save
 /// (1 on Infection; each later volume counts the earlier ones cleared and
@@ -314,19 +311,23 @@ impl Host for Bridge<'_> {
         }
     }
 
-    /// `staff_roll` (case 147): the menus forbidden and `ccThStaffRoll`
-    /// started; [`Host::busy`] waits for it.
+    /// `staff_roll` (case 147): game.pauseFlag 1, dtMenu's forbid,
+    /// ccSleepAllThread(): what follows runs over nothing.
+    fn staff_roll_sleep(&mut self) {
+        if let Some(d) = self.desktop() {
+            d.set_menu_forbid(true);
+            d.set_slept(true);
+        }
+    }
+
+    /// `staff_roll` (case 147): `ccThStaffRoll` started; [`Host::busy`]
+    /// waits for it.
     fn begin(&mut self, w: Wait) {
         if w == Wait::StaffRoll
             && let Some(d) = self.desktop()
+            && let Err(e) = d.start_staff_roll()
         {
-            // game.pauseFlag 1, dtMenu's forbid, ccSleepAllThread(): the
-            // roll runs over nothing.
-            d.set_menu_forbid(true);
-            d.set_slept(true);
-            if let Err(e) = d.start_staff_roll() {
-                tracing::warn!("the staff roll: {e}");
-            }
+            tracing::warn!("the staff roll: {e}");
         }
     }
 
@@ -698,7 +699,10 @@ impl DesktopMode {
             }
         }
         *frames += 1;
-        if !vm.enable_settled(*phase) && *frames < SETUP_FRAMES {
+        // `ccEnableThEvent` breathes until the pass settles, however long:
+        // event 314's pass at phase 2 plays streams 89-93, about 12,000
+        // frames, at the World's rate 2 (QUA main 0x001c8620).
+        if !vm.enable_settled(*phase) {
             return Ok(frame);
         }
         tracing::debug!("events: the pass at phase {phase} took {frames} frames");

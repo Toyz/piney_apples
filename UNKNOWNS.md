@@ -165,8 +165,8 @@ compared. (GAPS.md "After Infection" tracks the phases.)
 
 ### ui
 
-- [[94]] the later volumes' staff rolls (stfroll2-4) not tried — answered: the desktop's roll plays on every volume (every_ending_plays_over_no_desktop_theme), and Quarantine's own, `STFROLL_VOL4`, by [[465]]
-- [[276]] Mutation's staff roll and what the desktop does after it (the save for Outbreak's carry-over) — not followed
+- [[94]] the later volumes' staff rolls (stfroll2-4) not tried — answered: the desktop's roll plays on Infection, Mutation and Outbreak (every_ending_plays_over_no_desktop_theme); Quarantine's desktop has none ([[507]]: its case 147 grants wallpapers 77-86 and opens the save), its roll is `STFROLL_VOL4` ([[465]])
+- [[276]] Mutation's staff roll and what the desktop does after it (the save for Outbreak's carry-over) — answered by [[507]] (case 147 on each volume: the roll, 30 frames, rate 2, Outbreak's wallpapers 57-66, menu 8's save, `ccSndBgmCtrl`, the tasks woken)
 
 - [[390]] tools/test_fieldui_rs.py on Outbreak and Quarantine: every Ryu Book case matches, but 7 (OUT) and 8 (QUA) of the other menus' cases differ: three of noise, whose Disp block the harness does not find there (`DISP_NOIZ`, `GT_HACK` left empty: test_inter_noiz, test_a_new_scenes_menu, test_gate_hack), and test_gate_refusal, test_chat_member_refusals, test_low_hp (conIcon), test_spring_throw, QUA's test_skill_refusals — not read
 - [[392]] tools/test_fieldui_talk_rs.py on Outbreak and Quarantine: test_admin and test_breeder_about differed in the message window's mode (1 against 4) on a chained record (`Check(1)`) — answered by [[396]]: the later volumes' talk records were cut to Infection's lengths, so the chained record was `errorData`; the whole harness now matches on all four volumes

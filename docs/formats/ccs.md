@@ -3,7 +3,7 @@ title: The CCSF scene file
 status: solid
 volumes: INF
 covers: INF DATA/DATA.BIN::*.cmp, INF STREAM/*.BIN::*.tmp, INF SLUS_202.67:0x00149d20 DecodeHeaderSection, 0x00149ff0 DecodeSetupSection, 0x0014d9a0 Decode_Texture, 0x0014d660 Decode_Clut, 0x0014d3e0 Decode_Camera, 0x0014d440 Decode_Light, 0x0014ce50 Decode_Hit, 0x0014cca0 Decode_Eff, 0x0014a3f0 Decode_FBRect, 0x0014a370 Decode_FBPage, 0x0014c5d0 Decode_Layer, 0x0014c8f0 Decode_Obj2, 0x0014c550 Decode_Morpher, 0x0014d4d0 Decode_DummyPos, 0x0014d570 Decode_DummyPosRot, 0x00136980 ccClutChunk::SetBltData, 0x00136e50 ccTexChunk::SetBltData
-worklog: 3, 7, 8, 10, 27, 244
+worklog: 3, 7, 8, 10, 27, 244, 507
 ---
 
 # The CCSF scene file
@@ -128,7 +128,10 @@ The complete dispatch table of `DecodeSetupSection`. An unknown kind executes
                   flags (ccObj2Chunk.succession): bit 0 transparency
                   inherits the parent's, bit 1 hidden while at the origin;
                   modifier: the MPH_ morpher; layer, slayer: the draw and
-                  shadow layer objects (0 for the default)
+                  shadow layer objects (0 for the default). An ExtObj
+                  copy has its own (Decode_ExtObj 0x0014cb80 takes the
+                  Obj2's words for its entry), so copies of one model
+                  can bend by different morphers (ending's book pages)
 0x1700 Layer      u16 n, pad to 4, n x (u8 kind, pad to 4, u32 object)
                   kind 0 a draw layer, 1 a shadow layer
 0x0b00 Hit        CCSTRM_HIT: u32 object, u32 parent, u16 groups, s16 pad,

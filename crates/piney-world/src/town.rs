@@ -405,8 +405,6 @@ pub struct Base {
     pub no: i32,
     /// `town01` .. `town05`, or a `d` variant in crisis.
     pub file: Rc<SceneFile>,
-    /// The file's morphers (morpher object to the model it bends).
-    pub(crate) morphers: HashMap<u32, u32>,
     pub(crate) table: &'static ModelTable,
     /// By row: where each static model draws.
     pub(crate) models: Vec<Option<PlacedModel>>,
@@ -603,25 +601,18 @@ pub(crate) fn water0_draw(
     layers: &mut Layers,
     layer: i16,
     to_screen: Mat4,
-    (file, morphers): (&SceneFile, &HashMap<u32, u32>),
+    file: &SceneFile,
     play: &Play,
     root: Mat4,
     water: &WaterZero,
 ) {
-    let worlds = play.worlds(file, root, &[]);
     let rows = play.uv_rows(file);
     let morph = play.morph(file);
     let edits = water.edits();
-    let mut objs: Vec<(&u32, &Mat4)> = worlds.iter().collect();
-    objs.sort_by_key(|(o, _)| **o);
-    for (&obj, &world) in objs {
+    for (entry, obj, world) in anm_pieces(file, play, root, &[]) {
         let target = file.scene.ext.get(&obj).copied().unwrap_or(obj);
         let Some(&model) = file.obj_model.get(&target) else { continue };
-        let m: Vec<(u32, f32)> = morph
-            .iter()
-            .filter(|(mph, _)| morphers.get(mph) == Some(&model))
-            .flat_map(|(_, t)| t.iter().copied())
-            .collect();
+        let m = object_morph(file, &morph, entry);
         let e = (model == water.model.object).then_some(&edits);
         let d = Draw {
             file,
@@ -735,11 +726,9 @@ impl Base {
         let light_anim = file.anim(spec.light_anim).ok_or_else(|| Error::NotFound(spec.light_anim.into()))?;
         let lights = read_lights(&file, light_anim, spec.lights)?;
         let hits = Hits::new(volume, HitModel::read(volume, c)?);
-        let morphers = piney_data::anim::morphers(c).unwrap_or_default();
         Ok(Base {
             no: spec.no,
             file,
-            morphers,
             table,
             models,
             objects,
@@ -836,7 +825,7 @@ impl Base {
     pub(crate) fn object_draw(&self, layers: &mut Layers, layer: i16, to_screen: Mat4, row: usize) {
         let Some(o) = self.objects.iter().find(|o| o.row == row) else { return };
         let root = draw::mat(&o.root);
-        let fm = (&*self.file, &self.morphers);
+        let fm = &*self.file;
         anim_draw_fog(layers, layer, to_screen, fm, &o.play, root, &[], 1.0, None, None, self.depth_fog());
     }
 
@@ -1018,21 +1007,45 @@ pub fn pos_rot_zyx(pos: V4, rot: [F; 3]) -> [V4; 4] {
     m
 }
 
+/// `ccModel::Draw`'s morph of an anm's `entry`: the targets and weights
+/// `morph` (this frame's, by morpher) holds for the entry's own modifier,
+/// the morpher its Obj2 chunk names (`Decode_ExtObj` keeps it for a copy,
+/// INF 0x0014cb80). Copies of one model morph each by their own: the
+/// ending's book draws `MDL_xdhdpag_a0` as three pages, each its own flip.
+pub fn object_morph(file: &SceneFile, morph: &[(u32, Vec<(u32, f32)>)], entry: u32) -> Vec<(u32, f32)> {
+    let Some(m) = file.scene.modifier.get(&entry) else { return Vec::new() };
+    morph.iter().find(|(mph, _)| mph == m).map(|(_, t)| t.clone()).unwrap_or_default()
+}
+
+/// What `ccAnm::Draw` draws of `play` under `root`, as (entry, piece,
+/// world): each index entry at its own place (an ExtObj copy draws its
+/// piece again, [`Play::instances`]), then each object of `extra` no entry
+/// names, by piece and in the index's order within one.
+fn anm_pieces(file: &SceneFile, play: &Play, root: Mat4, extra: &[u32]) -> Vec<(u32, u32, Mat4)> {
+    let mut out: Vec<(u32, u32, Mat4)> =
+        play.instances(file, root).into_iter().map(|i| (i.entry, i.object, i.world)).collect();
+    let named: std::collections::HashSet<u32> = out.iter().map(|p| p.1).collect();
+    let rest = play.worlds(file, root, extra).into_iter().filter(|(o, _)| !named.contains(o));
+    out.extend(rest.map(|(o, w)| (o, o, w)));
+    out.sort_by_key(|p| p.1);
+    out
+}
+
 /// `ccAnm::Draw`: every object the animation poses that has a model, under
-/// `root`; `file` with its morphers (`piney_data::anim::morphers`); `rows`
+/// `root`, each morphed by its own modifier ([`object_morph`]); `rows`
 /// overrides the animation's own texture offsets.
 #[allow(clippy::too_many_arguments)]
 pub fn anim_draw(
     layers: &mut Layers,
     to_screen: Mat4,
-    (file, morphers): (&SceneFile, &HashMap<u32, u32>),
+    file: &SceneFile,
     play: &Play,
     root: Mat4,
     extra: &[u32],
     alpha: f32,
     rows: Option<&HashMap<u32, [u8; 2]>>,
 ) {
-    anim_draw_on(layers, OBJ_LAYER, to_screen, (file, morphers), play, root, extra, alpha, rows, None);
+    anim_draw_on(layers, OBJ_LAYER, to_screen, file, play, root, extra, alpha, rows, None);
 }
 
 /// [`anim_draw`] on `layer`, with `lights` for the lit models (mtype bit
@@ -1042,7 +1055,7 @@ pub fn anim_draw_on(
     layers: &mut Layers,
     layer: i16,
     to_screen: Mat4,
-    fm: (&SceneFile, &HashMap<u32, u32>),
+    file: &SceneFile,
     play: &Play,
     root: Mat4,
     extra: &[u32],
@@ -1050,7 +1063,7 @@ pub fn anim_draw_on(
     rows: Option<&HashMap<u32, [u8; 2]>>,
     lights: Option<&dyn Fn(Mat4) -> piney_draw::Lights>,
 ) {
-    anim_draw_fog(layers, layer, to_screen, fm, play, root, extra, alpha, rows, lights, draw::Fogging::None);
+    anim_draw_fog(layers, layer, to_screen, file, play, root, extra, alpha, rows, lights, draw::Fogging::None);
 }
 
 /// [`anim_draw_on`] with the models' fog.
@@ -1059,7 +1072,7 @@ pub fn anim_draw_fog(
     layers: &mut Layers,
     layer: i16,
     to_screen: Mat4,
-    (file, morphers): (&SceneFile, &HashMap<u32, u32>),
+    file: &SceneFile,
     play: &Play,
     root: Mat4,
     extra: &[u32],
@@ -1068,7 +1081,7 @@ pub fn anim_draw_fog(
     lights: Option<&dyn Fn(Mat4) -> piney_draw::Lights>,
     fog: draw::Fogging,
 ) {
-    anim_draw_blended(layers, layer, to_screen, (file, morphers), play, root, extra, alpha, rows, lights, fog, None);
+    anim_draw_blended(layers, layer, to_screen, file, play, root, extra, alpha, rows, lights, fog, None);
 }
 
 /// [`anim_draw_fog`] with the anm's blend (`ccAnm::SetBlendType(t)`).
@@ -1077,7 +1090,7 @@ pub fn anim_draw_blended(
     layers: &mut Layers,
     layer: i16,
     to_screen: Mat4,
-    (file, morphers): (&SceneFile, &HashMap<u32, u32>),
+    file: &SceneFile,
     play: &Play,
     root: Mat4,
     extra: &[u32],
@@ -1087,20 +1100,13 @@ pub fn anim_draw_blended(
     fog: draw::Fogging,
     blend: Option<u8>,
 ) {
-    let worlds = play.worlds(file, root, extra);
     let own = play.uv_rows(file);
     let rows = rows.unwrap_or(&own);
     let morph = play.morph(file);
-    let mut objs: Vec<(&u32, &Mat4)> = worlds.iter().collect();
-    objs.sort_by_key(|(o, _)| **o);
-    for (&obj, &world) in objs {
+    for (entry, obj, world) in anm_pieces(file, play, root, extra) {
         let target = file.scene.ext.get(&obj).copied().unwrap_or(obj);
         let Some(&model) = file.obj_model.get(&target) else { continue };
-        let m: Vec<(u32, f32)> = morph
-            .iter()
-            .filter(|(mph, _)| morphers.get(mph) == Some(&model))
-            .flat_map(|(_, t)| t.iter().copied())
-            .collect();
+        let m = object_morph(file, &morph, entry);
         let lit = file.models.get(&model).is_some_and(|i| i.mtype & 1 != 0);
         let lights = lights.filter(|_| lit).map(|l| l(world));
         let d = Draw { file, model, world, alpha, rows, lights, nodes: &[], morph: m, clut_swaps: Vec::new() };
@@ -1178,5 +1184,42 @@ pub(crate) mod tests {
         assert!((lit(Vec3::new(0.0, 499.0, 0.0)) - full / 2.0).abs() < 1e-3);
         assert_eq!(lit(Vec3::new(501.0, 0.0, 0.0)), 0.0);
         assert_eq!(lit(Vec3::new(0.0, 0.0, 2600.0)), 0.0);
+    }
+
+    /// Issue #75: the ending's book (`ANM_book_anm2`, Quarantine's
+    /// `ending`) draws `MDL_xdhdpag_a0` as three pages (a0 and the ExtObj
+    /// copies d and e) and `MDL_xdhdpag_b0` as two (b0, f). Each page bends
+    /// by its own Obj2 modifier: three pages turning apart, where pairing a
+    /// morpher with its base model summed all three flips into each page.
+    #[test]
+    fn book_pages_morph_by_their_own_morphers() {
+        let Some(archive) = archive_of("quarantine") else { return };
+        let file = SceneFile::read(&archive, "ending").unwrap();
+        let mut play = Play::new(&file, "ANM_book_anm2").unwrap();
+        while play.frame() < 200 {
+            play.forward(&file);
+        }
+        let morph = play.morph(&file);
+        let name = |o: u32| file.ccs.object_name(o).unwrap_or_default().to_string();
+        let draws_a0 = |o: u32| {
+            let target = file.scene.ext.get(&o).copied().unwrap_or(o);
+            file.obj_model.get(&target).is_some_and(|&m| name(m) == "MDL_xdhdpag_a0")
+        };
+        let objs: Vec<(u32, Vec<(u32, f32)>)> = anm_pieces(&file, &play, Mat4::IDENTITY, &[])
+            .into_iter()
+            .filter(|&(_, o, _)| draws_a0(o))
+            .map(|(e, _, _)| (e, object_morph(&file, &morph, e)))
+            .collect();
+        let mut pages: Vec<(String, Vec<(u32, f32)>)> = objs.iter().map(|(o, m)| (name(*o), m.clone())).collect();
+        pages.sort_by(|a, b| a.0.cmp(&b.0));
+        let names: Vec<&str> = pages.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, ["OBJ_xdhdpag_a0", "OBJ_xdhdpag_d", "OBJ_xdhdpag_e"]);
+        for (o, m) in &objs {
+            let mph = file.scene.modifier[o];
+            assert_eq!(name(mph), name(*o).replace("OBJ_", "MPH_"), "its Obj2's modifier");
+            let own = morph.iter().find(|(k, _)| *k == mph).map(|(_, t)| t.clone()).unwrap_or_default();
+            assert!(!own.is_empty() && m == &own, "{}: its own morpher's targets", name(*o));
+        }
+        assert!(pages[0].1 != pages[1].1 && pages[1].1 != pages[2].1, "the three pages turn apart");
     }
 }

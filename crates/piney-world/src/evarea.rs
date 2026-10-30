@@ -230,7 +230,6 @@ pub struct EventArea {
     /// `se1_2` (+0x1a4) and `town_z` (`effccs`, +0x1dc).
     pub file: Rc<SceneFile>,
     pub eff: Rc<SceneFile>,
-    morphers: HashMap<u32, u32>,
     /// `blk` (+0x1e0).
     pub block: i32,
     /// `modelArray` (+0x78), `anmArray` (+0x140).
@@ -290,14 +289,12 @@ impl EventArea {
         for name in FLARES {
             eff.ccs.find_object(name).ok_or_else(|| Error::NotFound(format!("{EFF_FILE}: {name}")))?;
         }
-        let morphers = piney_data::anim::morphers(&file.ccs).unwrap_or_default();
         let hit_models = HitModel::read(volume, &file.ccs)?;
         let hits =
             Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
         let mut a = EventArea {
             file,
             eff,
-            morphers,
             block: 0,
             models: Vec::new(),
             objects: Vec::new(),
@@ -628,7 +625,7 @@ impl EventArea {
                         layers,
                         layer,
                         to_screen,
-                        (&self.file, &self.morphers),
+                        &self.file,
                         &o.play,
                         root,
                         &[],
@@ -645,7 +642,7 @@ impl EventArea {
                         layers,
                         layer,
                         to_screen,
-                        (&self.file, &self.morphers),
+                        &self.file,
                         r,
                         root,
                         &[],

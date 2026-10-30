@@ -56,7 +56,8 @@ impl Setup {
     }
 }
 
-/// Frames a set-up pass may take before the runtime gives up waiting.
+/// Frames [`new_game_events`]' passes, run at once, may take before it
+/// reports them stuck.
 const PASS_FRAMES: u32 = 10_000;
 
 /// A player's New Game as the boot and the title make it: `ccSaveData::Init`,
@@ -142,8 +143,6 @@ pub struct WorldMode {
     /// What the scripts see of the field besides the world and the UI.
     st: FieldState,
     setup: Setup,
-    /// Frames the current set-up pass has taken.
-    pass_frames: u32,
     frames: u64,
     /// `ccSys.count`.
     count: u32,
@@ -231,7 +230,6 @@ impl WorldMode {
             vm,
             st,
             setup,
-            pass_frames: 0,
             frames: 0,
             count: 0,
             events,
@@ -402,17 +400,12 @@ impl WorldMode {
                 vm.start_thread(&mut h);
                 vm.enable(0);
                 self.setup = Setup::Pass(0);
-                self.pass_frames = 0;
             }
             Setup::Pass(p) => {
-                self.pass_frames += 1;
-                if !vm.enable_settled(p) && self.pass_frames < PASS_FRAMES {
-                    return;
-                }
-                // The game would wait on; the port gives up, and says so
-                // (a block that waits inside the pass holds the screen).
+                // `ccEnableThEvent` breathes until the pass settles, however
+                // long its streams and waits run (QUA main 0x001c8620).
                 if !vm.enable_settled(p) {
-                    tracing::warn!("the town's set-up pass at phase {p} did not end in {PASS_FRAMES} frames; going on",);
+                    return;
                 }
                 // A pass that asked for another mode (ChangeRequest's
                 // ccDisableThEvent): ccSetupGameCtrl reads game+4 and
@@ -427,7 +420,6 @@ impl WorldMode {
                     self.world.set_regist_npc_num(vm.mng.register_npcs());
                     vm.enable(2);
                     self.setup = Setup::Pass(2);
-                    self.pass_frames = 0;
                 } else {
                     // ccEntryEventMng, at the entry control's set-up: the
                     // entries the passes registered go to the world before

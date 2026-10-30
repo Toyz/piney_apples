@@ -34,9 +34,6 @@ use crate::world::Setup;
 
 mod ride;
 
-/// Frames a set-up pass may take before the runtime gives up waiting.
-const PASS_FRAMES: u32 = 10_000;
-
 pub struct AreaMode {
     world: Box<FieldWorld>,
     ui: Box<FieldUi>,
@@ -46,7 +43,6 @@ pub struct AreaMode {
     /// call log).
     st: FieldState,
     setup: Setup,
-    pass_frames: u32,
     frames: u64,
     count: u32,
     events: Vec<Event>,
@@ -292,7 +288,6 @@ impl AreaMode {
             vm,
             st,
             setup,
-            pass_frames: 0,
             frames: 0,
             count: 0,
             events,
@@ -645,17 +640,12 @@ impl AreaMode {
                 }
                 vm.enable(0);
                 self.setup = Setup::Pass(0);
-                self.pass_frames = 0;
             }
             Setup::Pass(p) => {
-                self.pass_frames += 1;
-                if !vm.enable_settled(p) && self.pass_frames < PASS_FRAMES {
-                    return;
-                }
-                // The game would wait on; the port gives up, and says so
-                // (a block that waits inside the pass holds the screen).
+                // `ccEnableThEvent` breathes until the pass settles, however
+                // long its streams and waits run (QUA main 0x001c8620).
                 if !vm.enable_settled(p) {
-                    tracing::warn!("the area's set-up pass at phase {p} did not end in {PASS_FRAMES} frames; going on",);
+                    return;
                 }
                 // A pass that asked for another mode (ChangeRequest's
                 // ccDisableThEvent): ccSetupGameCtrl reads game+4 and
@@ -667,7 +657,6 @@ impl AreaMode {
                 if p == 0 {
                     vm.enable(2);
                     self.setup = Setup::Pass(2);
-                    self.pass_frames = 0;
                 } else {
                     // ccEntryEventMng: the entries the passes registered
                     // (party members are the registry's): the magic
