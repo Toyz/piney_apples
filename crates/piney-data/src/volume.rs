@@ -160,6 +160,7 @@ mod tests {
     /// what changed from Infection where it changed.
     #[test]
     fn each_volume_has_its_tables() {
+        use crate::store::Table;
         use crate::{area::AreaTables, dungeon, field, statics};
         let (inf_models, inf_objs, inf_sets) = statics::of(Volume::Inf);
         for v in Volume::ALL {

@@ -1009,7 +1009,7 @@ fn main() {
     let archive = Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap();
     let volume = iso.volume().unwrap();
     let t = piney_data::tables::effect::of(volume);
-    FF_TBL.set(t.force_fields_va()..t.force_fields_va() + 0x20 * t.force_fields().len() as u32).unwrap();
+    FF_TBL.set(t.force_fields_va..t.force_fields_va + 0x20 * t.force_fields.len() as u32).unwrap();
     let mut fx = Effects::new(&archive, volume).unwrap();
     let fresh = fx.spells.clone();
     let mut host = Probe::new(0, 4352, (1, 0, 0));

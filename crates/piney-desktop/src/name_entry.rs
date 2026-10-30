@@ -28,7 +28,7 @@ use crate::save::{SaveState, offset};
 use crate::sprite::Sprite;
 use crate::view::{LayerView, View};
 use crate::{FRAME_RATE, Request, Se};
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 
 /// `ccLayer::Init(131, NULL)`: the entry's layer, framed as the default.
 pub const LAYER: i16 = 131;
@@ -180,21 +180,26 @@ impl Texts {
         let lines = |l: &[&str], k: usize| l.get(k).map_or_else(Vec::new, |s| encode(s));
         let lines4 = |l: &[&str]| [lines(l, 0), lines(l, 1), lines(l, 2), lines(l, 3)];
         Texts {
-            info: ne::INFO.iter().map(|l| [lines(l, 0), lines(l, 1)]).collect(),
-            reset: [e(ne::RESET[0]), e(ne::RESET[1]), e(ne::RESET[2])],
-            str_msg: [lines4(ne::STR_MSG[0]), lines4(ne::STR_MSG[1]), lines4(ne::STR_MSG[2]), lines4(*ne::ERR_NAME)],
-            all_reset: e(*ne::ALL_RESET),
-            enter: e(*ne::ENTER),
-            affirmation: [lines(*ne::AFFIRMATION, 0), lines(*ne::AFFIRMATION, 1)],
-            entry_name: e(*ne::ENTRY_NAME),
-            entry_game_name: e(*ne::ENTRY_GAME_NAME),
-            yes: e(*ne::YES),
-            no: e(*ne::NO),
-            labels: [0, 1, 2].map(|i| [lines(ne::NAME_INFO[i], 1), lines(ne::NAME_INFO[i], 2)]),
-            menu: [0, 1, 2, 3].map(|i| e(ne::MENU[i])),
-            forbidden: ne::FORBIDDEN.iter().map(|s| e(s)).collect(),
-            default_game: e(*ne::DEFAULT_GAME_NAME),
-            dashes: e(*ne::FACE_DASHES),
+            info: ne::shared().info.iter().map(|l| [lines(l, 0), lines(l, 1)]).collect(),
+            reset: [e(ne::shared().reset[0]), e(ne::shared().reset[1]), e(ne::shared().reset[2])],
+            str_msg: [
+                lines4(ne::shared().str_msg[0]),
+                lines4(ne::shared().str_msg[1]),
+                lines4(ne::shared().str_msg[2]),
+                lines4(ne::shared().err_name),
+            ],
+            all_reset: e(ne::shared().all_reset),
+            enter: e(ne::shared().enter),
+            affirmation: [lines(ne::shared().affirmation, 0), lines(ne::shared().affirmation, 1)],
+            entry_name: e(ne::shared().entry_name),
+            entry_game_name: e(ne::shared().entry_game_name),
+            yes: e(ne::shared().yes),
+            no: e(ne::shared().no),
+            labels: [0, 1, 2].map(|i| [lines(ne::shared().name_info[i], 1), lines(ne::shared().name_info[i], 2)]),
+            menu: [0, 1, 2, 3].map(|i| e(ne::shared().menu[i])),
+            forbidden: ne::shared().forbidden.iter().map(|s| e(s)).collect(),
+            default_game: e(ne::shared().default_game_name),
+            dashes: e(ne::shared().face_dashes),
         }
     }
 
@@ -878,11 +883,11 @@ impl Logic {
         let base = match self.main_act {
             3 => {
                 self.no = self.x / 5 + self.y + 5 * (self.x / 5);
-                *ne::HIRA_BLOCK
+                ne::shared().hira_block
             }
             7 => {
                 self.no = self.x / 5 + 3 * self.y;
-                *ne::EIGO_BLOCK
+                ne::shared().eigo_block
             }
             // The kana, symbol and kanji grids are not reached.
             _ => return,
@@ -1294,7 +1299,7 @@ impl NameEntry {
         let fonts = read_fonts(volume, archive)?;
         let texts = Texts::new();
         let win = WindowTexture::read(archive).ok_or_else(|| Error::NotFound("xwindow::TEX_xwindo00".into()))?;
-        let (face_tex, face_h) = texture(archive, FACE_FILE, ne::of(volume).face_tex())?;
+        let (face_tex, face_h) = texture(archive, FACE_FILE, ne::of(volume).face_tex)?;
         let (font_tex, font_h) = texture(archive, FONT_FILE, FONT_TEX)?;
         let logic = Logic::new(&texts.default_game);
         let mut windows = Spr::new("Windows", LAYER, win.tex.clone(), win.tex_h, 300);
@@ -1396,7 +1401,7 @@ impl NameEntry {
         text: &[u8],
     ) {
         let text = cstr(text);
-        let c = SPRITE_COLOR_TABLE[7];
+        let c = kanji::shared().sprite_color_table[7];
         let colour = [c[0], c[1], c[2], alpha as u8];
         let (fx, fy) = (eef::from_int(dx), eef::from_int(dy));
         event(|| {
@@ -1526,7 +1531,7 @@ impl NameEntry {
                     let d = div(4.5, from_int(fr));
                     c.wx[0] = add(c.wx[0], div(sub(tx, c.wx[0]), d));
                     c.wy[0] = add(c.wy[0], div(sub(ty, c.wy[0]), d));
-                    win.rgb(SPRITE_COLOR_TABLE[7]);
+                    win.rgb(kanji::shared().sprite_color_table[7]);
                     win.alpha(alpha);
                 }
                 win.at(c.wx[k], c.wy[k]);
@@ -1604,7 +1609,7 @@ impl NameEntry {
                         };
                         l.blockbuf.clone()
                     } else {
-                        Texts::row_str(if act == 3 { *ne::HIRA_BLOCK } else { *ne::EIGO_BLOCK }, s)
+                        Texts::row_str(if act == 3 { ne::shared().hira_block } else { ne::shared().eigo_block }, s)
                     };
                     self.kanji(ctx, names, name, Some(s), Kt::LargeFixed, alpha, at, &text);
                 }
@@ -1787,7 +1792,7 @@ impl NameEntry {
     fn face_panel(&mut self, ctx: &mut Ctx, x: f32, y: f32, alpha: i32, (hp, sp): (i16, i16)) {
         use eef::{add, from_int, sub};
         let view = self.view;
-        let c7 = SPRITE_COLOR_TABLE[7];
+        let c7 = kanji::shared().sprite_color_table[7];
         let p = &mut self.face1;
         p.rgb(c7);
         p.alpha(alpha);
@@ -1866,7 +1871,7 @@ impl NameEntry {
             p.pkt(0, &view);
             if full < BAR_W {
                 p.size(from_int(BAR_W - full), 8.0);
-                p.rgb(SPRITE_COLOR_TABLE[18]);
+                p.rgb(kanji::shared().sprite_color_table[18]);
                 p.alpha(alpha);
                 p.pkt(0, &view);
             }
@@ -1876,13 +1881,13 @@ impl NameEntry {
         let fnt = &mut self.font;
         fnt.grid(grid::FONT_2);
         fnt.size(10.0, 12.0);
-        fnt.rgb(SPRITE_COLOR_TABLE[22]);
+        fnt.rgb(kanji::shared().sprite_color_table[22]);
         fnt.alpha(alpha);
         let fx = sub(add(16.0, f20), 10.0);
         let dashes = self.texts.dashes.clone();
         fnt.at(fx, add(38.0, y));
         font_str(fnt, &dashes, &view);
-        fnt.rgb(SPRITE_COLOR_TABLE[22]);
+        fnt.rgb(kanji::shared().sprite_color_table[22]);
         fnt.alpha(alpha);
         fnt.at(fx, add(66.0, y));
         font_str(fnt, &dashes, &view);

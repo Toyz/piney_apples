@@ -98,10 +98,10 @@ impl SpawnTables {
         };
         SpawnTables {
             volume,
-            gimmicks: t.gimmicks().iter().map(|g| row(&g.param.base, &g.entry)).collect(),
-            npcs: t.npcs().iter().map(|n| row(&n.param.base, &n.entry)).collect(),
+            gimmicks: t.gimmicks.iter().map(|g| row(&g.param.base, &g.entry)).collect(),
+            npcs: t.npcs.iter().map(|n| row(&n.param.base, &n.entry)).collect(),
             enemy_lists: t
-                .enemy_lists()
+                .enemy_lists
                 .iter()
                 .map(|server| server.iter().map(|l| l.list.map_or_else(Vec::new, <[i32]>::to_vec)).collect())
                 .collect(),

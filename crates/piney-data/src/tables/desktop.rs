@@ -15,31 +15,31 @@ pub struct Desktop {
     pub waves: &'static [WaveData],
     /// `Stream`: the movies the Audio screen plays, up to its row named "NULL".
     pub streams: &'static [StrData],
-    /// `AddStrList`'s bounds: a movie below the first is volume 1's, below the second 2's, below the third 3's.
+    /// `AddStrList`'s bounds: a movie below the first is volume 1's, below the second 2's, below the third 3's. Alike on every volume.
     pub stream_volumes: &'static [i32],
     /// `HtmlTbl`: the news headlines and their pages, up to its row titled "NULL".
     pub news: &'static [HtmlData],
-    /// The mailer's `STR_YES`.
+    /// The mailer's `STR_YES`. Alike on every volume.
     pub mail_yes: &'static str,
-    /// The mailer's `STR_NO`.
+    /// The mailer's `STR_NO`. Alike on every volume.
     pub mail_no: &'static str,
-    /// `STR_NORES`: a mail that takes no reply.
+    /// `STR_NORES`: a mail that takes no reply. Alike on every volume.
     pub mail_nores: &'static str,
-    /// `STR_SEND_COMP`: the reply is sent.
+    /// `STR_SEND_COMP`: the reply is sent. Alike on every volume.
     pub mail_send_comp: &'static str,
-    /// `STR_SEL_REMAIL`: choose a reply.
+    /// `STR_SEL_REMAIL`: choose a reply. Alike on every volume.
     pub mail_sel_remail: &'static str,
-    /// `STR_SEND_MAIL`: send it?
+    /// `STR_SEND_MAIL`: send it? Alike on every volume.
     pub mail_send_mail: &'static str,
-    /// `STR_NEWMAIL`
+    /// `STR_NEWMAIL` Alike on every volume.
     pub mail_newmail: &'static str,
-    /// `STR_MAIL`: the count's words ("You have ", " new mail.", "No new mail.", " new mails.").
+    /// `STR_MAIL`: the count's words ("You have ", " new mail.", "No new mail.", " new mails."). Alike on every volume.
     pub mail_count: &'static [&'static str],
-    /// `STR_STR_MODE`
+    /// `STR_STR_MODE` Alike on every volume.
     pub audio_str_mode: &'static str,
-    /// `STR_SND_MODE`
+    /// `STR_SND_MODE` Alike on every volume.
     pub audio_snd_mode: &'static str,
-    /// `STR_STR_LOCK`: eleven lines.
+    /// `STR_STR_LOCK`: eleven lines. Alike on every volume.
     pub audio_lock: &'static [&'static str],
 }
 
@@ -66,102 +66,16 @@ impl crate::store::Load for Desktop {
     }
 }
 
-impl Desktop {
-    pub fn walls(&self) -> &'static [WallData] {
-        self.walls
-    }
-    pub fn waves(&self) -> &'static [WaveData] {
-        self.waves
-    }
-    pub fn streams(&self) -> &'static [StrData] {
-        self.streams
-    }
-    pub fn stream_volumes(&self) -> &'static [i32] {
-        self.stream_volumes
-    }
-    pub fn news(&self) -> &'static [HtmlData] {
-        self.news
-    }
-    pub fn mail_yes(&self) -> &'static str {
-        self.mail_yes
-    }
-    pub fn mail_no(&self) -> &'static str {
-        self.mail_no
-    }
-    pub fn mail_nores(&self) -> &'static str {
-        self.mail_nores
-    }
-    pub fn mail_send_comp(&self) -> &'static str {
-        self.mail_send_comp
-    }
-    pub fn mail_sel_remail(&self) -> &'static str {
-        self.mail_sel_remail
-    }
-    pub fn mail_send_mail(&self) -> &'static str {
-        self.mail_send_mail
-    }
-    pub fn mail_newmail(&self) -> &'static str {
-        self.mail_newmail
-    }
-    pub fn mail_count(&self) -> &'static [&'static str] {
-        self.mail_count
-    }
-    pub fn audio_str_mode(&self) -> &'static str {
-        self.audio_str_mode
-    }
-    pub fn audio_snd_mode(&self) -> &'static str {
-        self.audio_snd_mode
-    }
-    pub fn audio_lock(&self) -> &'static [&'static str] {
-        self.audio_lock
-    }
+impl crate::store::Table for Desktop {
+    const ID: usize = super::id::DESKTOP;
 }
 
-/// `AddStrList`'s bounds: a movie below the first is volume 1's, below the second 2's, below the third 3's.
-pub static STREAM_VOLUMES: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().stream_volumes);
-
-/// The mailer's `STR_YES`.
-pub static MAIL_YES: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().mail_yes);
-
-/// The mailer's `STR_NO`.
-pub static MAIL_NO: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().mail_no);
-
-/// `STR_NORES`: a mail that takes no reply.
-pub static MAIL_NORES: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().mail_nores);
-
-/// `STR_SEND_COMP`: the reply is sent.
-pub static MAIL_SEND_COMP: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().mail_send_comp);
-
-/// `STR_SEL_REMAIL`: choose a reply.
-pub static MAIL_SEL_REMAIL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().mail_sel_remail);
-
-/// `STR_SEND_MAIL`: send it?
-pub static MAIL_SEND_MAIL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().mail_send_mail);
-
-/// `STR_NEWMAIL`
-pub static MAIL_NEWMAIL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().mail_newmail);
-
-/// `STR_MAIL`: the count's words ("You have ", " new mail.", "No new mail.", " new mails.").
-pub static MAIL_COUNT: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().mail_count);
-
-/// `STR_STR_MODE`
-pub static AUDIO_STR_MODE: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().audio_str_mode);
-
-/// `STR_SND_MODE`
-pub static AUDIO_SND_MODE: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().audio_snd_mode);
-
-/// `STR_STR_LOCK`: eleven lines.
-pub static AUDIO_LOCK: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().audio_lock);
-
-/// The volume's Desktop (read once a run; kept here per volume).
+/// The volume's Desktop (read once a run).
 pub fn of(v: Volume) -> &'static Desktop {
-    static READ: [std::sync::OnceLock<&'static Desktop>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "desktop"))
+    <Desktop as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Desktop {
-    static READ: std::sync::OnceLock<&'static Desktop> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("desktop"))
+pub fn shared() -> &'static Desktop {
+    <Desktop as crate::store::Table>::shared()
 }

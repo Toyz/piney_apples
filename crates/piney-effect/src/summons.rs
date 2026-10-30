@@ -42,7 +42,7 @@ impl SummonsTables {
     /// The volume's (`tables::effect`).
     pub fn read(volume: Volume) -> SummonsTables {
         let t = piney_data::tables::effect::of(volume);
-        SummonsTables { wave: std::array::from_fn(|k| t.summons_wave()[k].map(f32::to_bits)) }
+        SummonsTables { wave: std::array::from_fn(|k| t.summons_wave[k].map(f32::to_bits)) }
     }
 }
 

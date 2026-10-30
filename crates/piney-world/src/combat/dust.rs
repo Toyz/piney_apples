@@ -56,7 +56,7 @@ impl Combat {
     /// eneSmoke)` by the `eet1DustInfo` row `info`; none without the node.
     fn foot_dust(&mut self, who: usize, foot: usize, info: InfoRef, smoke: i16) -> Vec<Show> {
         let volume = self.data.volume;
-        let Some(name) = combat::of(volume).foot_objs().get(foot) else { return Vec::new() };
+        let Some(name) = combat::of(volume).foot_objs.get(foot) else { return Vec::new() };
         let Some(row) = blocks::dust_rows(volume, info).first() else { return Vec::new() };
         let Some(m) = self.node_world(who, name) else { return Vec::new() };
         self.dust_rings += 1;

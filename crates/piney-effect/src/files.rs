@@ -109,8 +109,7 @@ fn rows(v: &[piney_data::tables::effect::EffectRow]) -> Vec<Row> {
 impl Assets {
     pub fn read(archive: &Archive, volume: Volume) -> Result<Assets> {
         let t = piney_data::tables::effect::of(volume);
-        let stems: Vec<String> =
-            t.files().iter().map(|f| f.func.trim_end_matches(".CCS").to_ascii_lowercase()).collect();
+        let stems: Vec<String> = t.files.iter().map(|f| f.func.trim_end_matches(".CCS").to_ascii_lowercase()).collect();
         let mut files = Vec::new();
         let mut morphers = Vec::new();
         let mut effs = Vec::new();
@@ -127,16 +126,16 @@ impl Assets {
             effs.push(e);
             files.push(f);
         }
-        let alpha_blend = crate::spell::first(piney_data::tables::kanji::of(volume).alpha_blend_tbl());
+        let alpha_blend = crate::spell::first(piney_data::tables::kanji::of(volume).alpha_blend_tbl);
         let mut a = Assets {
             files,
             morphers,
             effs,
             eff_tex,
             eff_by_object,
-            tbl: rows(t.rows()),
-            tbl2: rows(t.rows2()),
-            tbl_str: rows(t.str_rows()),
+            tbl: rows(t.rows),
+            tbl2: rows(t.rows2),
+            tbl_str: rows(t.str_rows),
             alpha_blend,
             particle: Default::default(),
             boss: crate::boss::Tables::read(volume),

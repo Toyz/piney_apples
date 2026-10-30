@@ -53,13 +53,13 @@ impl FountainTexts {
         use piney_data::tables::sjis::encode;
         let f = piney_data::tables::fieldui::of(volume);
         FountainTexts {
-            help: f.fountain_help().iter().map(|l| [piece(l, 0), piece(l, 1), piece(l, 2)]).collect(),
-            answers: encode(f.fountain_answers()),
-            names: f.fountain_names().iter().map(|l| encode(l)).collect(),
+            help: f.fountain_help.iter().map(|l| [piece(l, 0), piece(l, 1), piece(l, 2)]).collect(),
+            answers: encode(f.fountain_answers),
+            names: f.fountain_names.iter().map(|l| encode(l)).collect(),
             thrown_head: THROWN_HEAD.to_vec(),
             question: QUESTION.to_vec(),
-            fe: f.fe_tbl().iter().map(|l| l.to_vec()).collect(),
-            f_limit: f.f_limit().try_into().unwrap_or_default(),
+            fe: f.fe_tbl.iter().map(|l| l.to_vec()).collect(),
+            f_limit: f.f_limit.try_into().unwrap_or_default(),
         }
     }
 }

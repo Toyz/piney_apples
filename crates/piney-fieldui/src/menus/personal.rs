@@ -175,21 +175,21 @@ impl PersTexts {
         use piney_data::tables::sjis::encode;
         let f = piney_data::tables::fieldui::of(volume);
         let three = |l: &[&str]| [piece(l, 0), piece(l, 1), piece(l, 2)];
-        let order = f.category_order();
+        let order = f.category_order;
         PersTexts {
-            imp_tags: f.imp_tags().iter().map(|l| encode(l)).collect(),
-            grunty_warn: [piece(f.grunty_warn(), 0), piece(f.grunty_warn(), 1)],
-            shop_str: encode(f.shop_str()),
-            in_battle_warn: encode(f.in_battle_warn()),
-            gateout_info: encode(f.gateout_info()),
-            logout_info: encode(f.logout_info()),
-            status_help: f.status_help().iter().map(|l| three(l)).collect(),
-            beff_help: f.status_beff().iter().map(|l| three(l)).collect(),
-            beff_name: f.status_beff().iter().map(|l| piece(l, 3)).collect(),
+            imp_tags: f.imp_tags.iter().map(|l| encode(l)).collect(),
+            grunty_warn: [piece(f.grunty_warn, 0), piece(f.grunty_warn, 1)],
+            shop_str: encode(f.shop_str),
+            in_battle_warn: encode(f.in_battle_warn),
+            gateout_info: encode(f.gateout_info),
+            logout_info: encode(f.logout_info),
+            status_help: f.status_help.iter().map(|l| three(l)).collect(),
+            beff_help: f.status_beff.iter().map(|l| three(l)).collect(),
+            beff_name: f.status_beff.iter().map(|l| piece(l, 3)).collect(),
             equip_raw: crate::menus::equip::EquipRaw::of(volume, &battle),
             battle,
-            equip_change: f.equip_change().iter().map(|l| encode(l)).collect(),
-            equip_warn: f.equip_warn().iter().map(|l| three(l)).collect(),
+            equip_change: f.equip_change.iter().map(|l| encode(l)).collect(),
+            equip_warn: f.equip_warn.iter().map(|l| three(l)).collect(),
             category_order: std::array::from_fn(|k| (order[k][0], order[k][1])),
             party: crate::menus::party_menus::PartyTexts::of(volume),
         }

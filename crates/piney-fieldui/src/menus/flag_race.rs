@@ -120,7 +120,7 @@ fn prizes(x: &Ctx, rank: i8) -> i8 {
 /// results' table (9 records).
 fn result(m: &mut MenuCtrl, x: &mut Ctx, i: i32) {
     let t = race::of(x.texts.volume);
-    let rec = x.texts.talk.word(t.results_va().wrapping_add((4 * i) as u32));
+    let rec = x.texts.talk.word(t.results_va.wrapping_add((4 * i) as u32));
     let r = x.texts.talk.ev_msg(rec);
     let name = breeder_name(m, x);
     let names = x.save.names();
@@ -147,7 +147,7 @@ fn wake(m: &mut MenuCtrl, x: &mut Ctx, t: Tail) -> Flow {
 /// A wallpaper given: its window (`bookWallPaperAdd` and the number in
 /// three digits, then `bookItemAddMsg`), sound 74 and its desktop bit.
 pub(crate) fn wallpaper(m: &mut MenuCtrl, x: &mut Ctx, wp: i16) {
-    let book = world::of(x.texts.volume).book();
+    let book = world::of(x.texts.volume).book;
     let mut s = encode(book.get(1).copied().unwrap_or(""));
     s.extend(dec2sjis(i32::from(wp), 3, 0));
     let add = encode(book.first().copied().unwrap_or(""));
@@ -163,14 +163,14 @@ pub(crate) fn wallpaper(m: &mut MenuCtrl, x: &mut Ctx, wp: i16) {
 /// `FlagRace` (MUT gcmn 0x0058a4f0, menu 88).
 pub fn flag_race_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     let i = idx(m);
-    let rs = fieldui::of(x.texts.volume).race_str();
+    let rs = fieldui::of(x.texts.volume).race_str;
     let race = x.world.race;
     match m.proccess {
         // The breeder's greeting, then the target dropped.
         0 => {
             m.lists[i].disp = 4;
             m.menu_status = 0;
-            let rec = race::of(x.texts.volume).greet_va();
+            let rec = race::of(x.texts.volume).greet_va;
             let name = talk::target_base(m, x).map(|b| b.name).unwrap_or_default();
             talk::open_record(m, x, rec, &name, -1, -1);
             m.proccess += 1;
@@ -328,7 +328,7 @@ pub fn flag_race_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         // The race (0x005ff820): the kind is the Grunty's row less 145.
         20 => {
             let server = x.world.game.server;
-            let rows = fieldui::of(x.texts.volume).race_grunties();
+            let rows = fieldui::of(x.texts.volume).race_grunties;
             let pick = m.lists[i].page;
             if let Some(g) =
                 usize::try_from(server - 1).ok().and_then(|s| rows.get(s)).and_then(|r| r.get(pick as usize))
@@ -357,7 +357,7 @@ pub fn flag_race_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             l.x = 8;
             l.y = 2;
             l.my = l.y;
-            extract_menu(m, encode(fieldui::of(x.texts.volume).race_pause()));
+            extract_menu(m, encode(fieldui::of(x.texts.volume).race_pause));
             info(m, x, &line(rs.paused, 0), None);
             cursors(m);
             m.proccess += 1;
@@ -497,13 +497,13 @@ pub fn flag_race_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                 let k = usize::try_from(rank).unwrap_or(0);
                 let ranked = (1..4).contains(&rank);
                 let p = if ranked && prizes(x, rank) >= 3 {
-                    t.prizes_gone()[s][k]
+                    t.prizes_gone[s][k]
                 } else {
                     if ranked {
                         let at = prize_at(x, rank);
                         x.save.save.set_u8(at, x.save.save.u8(at).wrapping_add(1));
                     }
-                    t.prizes()[s][k]
+                    t.prizes[s][k]
                 };
                 m.item_num = (i32::from(p.cat) << 16) | i32::from(p.id);
                 m.menu_next = MENU_GET_ITEM;
@@ -519,7 +519,7 @@ pub fn flag_race_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
         // A town's first win: its wallpaper.
         50 => {
             sleep(m, x);
-            let wp = race::of(x.texts.volume).wallpapers()[x.world.game.server.max(0) as usize];
+            let wp = race::of(x.texts.volume).wallpapers[x.world.game.server.max(0) as usize];
             wallpaper(m, x, wp);
             m.proccess += 1;
         }
@@ -557,7 +557,7 @@ pub fn flag_race_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             m.wait_count += 1;
             if w >= 7 {
                 sleep(m, x);
-                let wp = race::of(x.texts.volume).wallpapers()[0];
+                let wp = race::of(x.texts.volume).wallpapers[0];
                 wallpaper(m, x, wp);
                 m.proccess += 1;
             }
@@ -625,7 +625,7 @@ fn grunty_page(m: &mut MenuCtrl, x: &mut Ctx) {
     stars.set_colour(7);
     stars.set_alpha(a);
     set_clm_large(stars, 2, 0, 0, 8);
-    let rows = fieldui::of(x.texts.volume).race_grunties();
+    let rows = fieldui::of(x.texts.volume).race_grunties;
     let server = x.world.game.server;
     let mut text = Vec::new();
     if let Some(rows) = usize::try_from(server - 1).ok().and_then(|s| rows.get(s)) {
@@ -650,7 +650,7 @@ fn grunty_page(m: &mut MenuCtrl, x: &mut Ctx) {
             }
         }
     }
-    let rs = fieldui::of(x.texts.volume).race_str();
+    let rs = fieldui::of(x.texts.volume).race_str;
     text.extend(encode(rs.specs.first().copied().unwrap_or("")));
     m.setting_text[0] = text;
     m.setting_text[1] = encode(rs.stars.first().copied().unwrap_or(""));

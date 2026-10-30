@@ -69,9 +69,8 @@ impl Tables {
     /// The volume's (`tables::stream`): none on Infection.
     pub fn read(volume: piney_data::volume::Volume) -> Tables {
         let t = piney_data::tables::stream::of(volume);
-        let events =
-            crate::ending::Tables { entries: crate::ending::entries_of(t.opening_events()), rock_scale: [0; 3] };
-        let s = |k: usize| t.opening_text()[k].map_or_else(Vec::new, piney_data::tables::sjis::encode);
+        let events = crate::ending::Tables { entries: crate::ending::entries_of(t.opening_events), rock_scale: [0; 3] };
+        let s = |k: usize| t.opening_text[k].map_or_else(Vec::new, piney_data::tables::sjis::encode);
         Tables { events, text: [[s(0), s(1)], [s(2), s(3)]] }
     }
 }

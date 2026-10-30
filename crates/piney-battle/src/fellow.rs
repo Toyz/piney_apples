@@ -71,12 +71,12 @@ impl MotionTables {
     /// main 0x003782a8, 0x003782ac).
     pub fn of(volume: piney_data::volume::Volume) -> MotionTables {
         let t = piney_data::tables::combat::of(volume);
-        let o = t.fp_angle_offset();
+        let o = t.fp_angle_offset;
         MotionTables {
-            anim: t.fellow_anims().iter().map(|r| r.iter().map(|s| s.to_string()).collect()).collect(),
-            fp_angle_offset: [t.fp_angle_before(), o[0], o[1], o[2], o[3]],
-            ok_range: t.fp_ok_range().to_bits(),
-            cfofp: t.cfofp().to_bits(),
+            anim: t.fellow_anims.iter().map(|r| r.iter().map(|s| s.to_string()).collect()).collect(),
+            fp_angle_offset: [t.fp_angle_before, o[0], o[1], o[2], o[3]],
+            ok_range: t.fp_ok_range.to_bits(),
+            cfofp: t.cfofp.to_bits(),
         }
     }
 

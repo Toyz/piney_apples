@@ -331,7 +331,7 @@ fn mutations_flag_race_runs_and_quits() {
     let world = w.world();
     assert!(!world.town_riding(), "still riding");
     assert_eq!(w.ui().ctrl.forbid, 0, "the menu's ban lifted");
-    let end = piney_data::tables::race::of(piney_data::volume::Volume::Mut).end_pos()[1];
+    let end = piney_data::tables::race::of(piney_data::volume::Volume::Mut).end_pos[1];
     let kite = world.player().body.pos.map(f32::from_bits);
     assert!((kite[0] - end[0]).abs() < 1.0 && (kite[1] - end[1]).abs() < 1.0, "Kite at {kite:?}, not {end:?}");
 }
@@ -438,7 +438,7 @@ fn mutations_flag_race_won() {
     let Stage::World(w) = &s.stage else { unreachable!() };
     let save = &w.world().state().save;
     let t = piney_data::tables::race::of(piney_data::volume::Volume::Mut);
-    let wp = i32::from(t.wallpapers()[1]) - 1;
+    let wp = i32::from(t.wallpapers[1]) - 1;
     let bits = save.i32(piney_data::save::offset::DT_WALLPAPER_LIST + 4 * (wp / 32) as usize) as u32;
     assert_ne!(bits & (1 << (wp % 32)), 0, "Dun Loireag's wallpaper");
     assert_eq!(save.u8(piney_world::race::RACE_PRIZES), 1, "the first rank's prize given once");
@@ -460,10 +460,8 @@ fn mutations_flag_race_against_the_towns_racers() {
     assert!(until(&mut s, 900, Buttons::NONE, 0, |s| status(s).0 == (FLAG_RACE, 31)), "no time word: {:?}", status(&s));
     let Stage::World(w) = &s.stage else { unreachable!() };
     let r = w.world().race().expect("the race");
-    let racers: Vec<i16> = piney_data::tables::fieldui::of(piney_data::volume::Volume::Mut).race_ranks()[0]
-        .iter()
-        .map(|k| k.time)
-        .collect();
+    let racers: Vec<i16> =
+        piney_data::tables::fieldui::of(piney_data::volume::Volume::Mut).race_ranks[0].iter().map(|k| k.time).collect();
     let want = match racers.iter().position(|&t| r.time < t) {
         Some(k) => k as i8 + 1,
         None if r.time - 30 < racers[2] => 4,

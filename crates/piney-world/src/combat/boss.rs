@@ -410,7 +410,7 @@ impl BossLook {
         };
         let mut names = HashMap::new();
         let mut textures: HashMap<&str, Option<piney_desktop::message::WindowTexture>> = HashMap::new();
-        for (n, row) in piney_data::tables::combat::of(volume).cinema_skill_names().iter().enumerate() {
+        for (n, row) in piney_data::tables::combat::of(volume).cinema_skill_names.iter().enumerate() {
             let (Some(f), Some(tex)) = (row_file(row.file), row.tex) else { continue };
             if f != file {
                 continue;
@@ -424,7 +424,7 @@ impl BossLook {
         }
         let mut skill_names = HashMap::new();
         let mut skill_tex: HashMap<(String, &str), Option<piney_desktop::message::WindowTexture>> = HashMap::new();
-        for row in piney_data::tables::combat::of(volume).cinema_skill_rows().iter().filter(|r| r.field == field) {
+        for row in piney_data::tables::combat::of(volume).cinema_skill_rows.iter().filter(|r| r.field == field) {
             let (Some(f), Some(tex)) = (row_file(row.file), row.tex) else { continue };
             let w = skill_tex
                 .entry((f.clone(), tex))

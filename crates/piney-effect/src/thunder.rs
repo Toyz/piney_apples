@@ -63,9 +63,9 @@ impl ThunderTables {
     pub fn read(volume: Volume) -> ThunderTables {
         let t = piney_data::tables::effect::of(volume);
         ThunderTables {
-            skill_thunder_eff2: ThunderData::of(&t.thunder_eff2()),
-            tbl: std::array::from_fn(|i| t.thunder_offsets()[i] as u32),
-            lists: t.thunder_times().iter().flat_map(|p| [p.time, p.param]).collect(),
+            skill_thunder_eff2: ThunderData::of(&t.thunder_eff2),
+            tbl: std::array::from_fn(|i| t.thunder_offsets[i] as u32),
+            lists: t.thunder_times.iter().flat_map(|p| [p.time, p.param]).collect(),
         }
     }
 

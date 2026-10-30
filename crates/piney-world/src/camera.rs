@@ -184,7 +184,7 @@ pub fn breeder_view(volume: piney_data::volume::Volume, server: i32) -> Option<M
     let w = piney_data::tables::world::of(volume);
     let row = usize::try_from(server - 1).ok().filter(|&r| r < 4)?;
     let at = |t: [[f32; 4]; 4]| t[row].map(f32::to_bits);
-    Some(MerchantView::Breeder { view: at(w.breeder_cam_view()), pos: at(w.breeder_cam_pos()) })
+    Some(MerchantView::Breeder { view: at(w.breeder_cam_view), pos: at(w.breeder_cam_pos) })
 }
 
 /// camera.cpp's state: `tcam` and the globals beside it.

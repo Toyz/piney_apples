@@ -20,7 +20,7 @@ use crate::save::SaveState;
 use crate::sprite::Sprite;
 use crate::view::LayerView;
 use crate::{Request, Se, fade};
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 
 /// `Numremit`: rows a list shows.
 pub const ROWS: i32 = 10;
@@ -88,9 +88,9 @@ struct Strings {
 impl Strings {
     fn new() -> Self {
         Strings {
-            snd_mode: encode(*desktop::AUDIO_SND_MODE),
-            str_mode: encode(*desktop::AUDIO_STR_MODE),
-            lock: desktop::AUDIO_LOCK.iter().map(|s| encode(s)).collect(),
+            snd_mode: encode(desktop::shared().audio_snd_mode),
+            str_mode: encode(desktop::shared().audio_str_mode),
+            lock: desktop::shared().audio_lock.iter().map(|s| encode(s)).collect(),
         }
     }
 }
@@ -570,7 +570,7 @@ impl Audio {
             } else if playable {
                 x.text(KANJI_LAYER, &view, TEXT_X, y, &strm.name, true);
             } else {
-                x.text_rgb(KANJI_LAYER, &view, TEXT_X, y, &strm.name, SPRITE_COLOR_TABLE[0]);
+                x.text_rgb(KANJI_LAYER, &view, TEXT_X, y, &strm.name, kanji::shared().sprite_color_table[0]);
             }
         }
         self.time_alpha_cur_draw(x, CURSOR_X, cur_y);

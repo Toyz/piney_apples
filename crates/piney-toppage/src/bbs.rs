@@ -10,7 +10,7 @@
 use std::rc::Rc;
 
 use piney_data::save::offset;
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 use piney_desktop::SaveState;
 use piney_desktop::anm::Ctx;
 use piney_desktop::assets::SceneFile;
@@ -387,7 +387,7 @@ pub struct Bbs {
 }
 
 fn colour(k: &mut Text, c: usize) {
-    k.k.colour = SPRITE_COLOR_TABLE[c];
+    k.k.colour = kanji::shared().sprite_color_table[c];
 }
 
 fn texts(prefix: &'static [&'static str]) -> Vec<Text> {

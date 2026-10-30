@@ -355,10 +355,9 @@ pub fn render(g: &Group) -> Result<String, String> {
 }
 
 /// A group whose values are in the build (`crate::data`): its types, a
-/// struct of every entry that `Load` reads from the group's file, each
-/// entry as a method, `of(volume)` from `piney_data::store`, and for the
-/// entries alike on every volume their statics as before (read on first
-/// use) and the keyed entries' enum methods.
+/// struct of every entry that `Load` reads from the group's file, its
+/// `store::Table` impl with `of(volume)` and `shared()` (the entries alike on
+/// every volume say so), and the keyed entries' enum methods.
 fn render_built(g: &Group) -> Result<String, String> {
     let values: Vec<Rc<Vec<Value>>> = VOLUMES.iter().map(|&v| extract(g, v)).collect::<Result<_, _>>()?;
     let n = g.entries.len();
@@ -408,9 +407,14 @@ fn render_built(g: &Group) -> Result<String, String> {
     lines.push(format!("/// The `{}` group's values for a volume, from the build.", g.name));
     lines.push("#[derive(Debug)]".into());
     lines.push(format!("pub struct {} {{", g.rust));
-    for e in &g.entries {
-        if !e.doc.is_empty() {
-            lines.push(format!("    /// {}", e.doc));
+    for (e, &same) in g.entries.iter().zip(&alike) {
+        let doc = match (e.doc.is_empty(), same && !matches!(e.layout, Layout::Keyed { .. })) {
+            (false, true) => format!("{} Alike on every volume.", e.doc),
+            (true, true) => "Alike on every volume.".into(),
+            _ => e.doc.to_string(),
+        };
+        if !doc.is_empty() {
+            lines.push(format!("    /// {doc}"));
         }
         lines.push(format!("    pub {}: {},", e.name, ty(e)));
     }
@@ -422,31 +426,9 @@ fn render_built(g: &Group) -> Result<String, String> {
         lines.push(format!("            {}: crate::store::Load::load(r),", e.name));
     }
     lines.extend(["        }".into(), "    }".into(), "}".into(), String::new()]);
-    lines.push(format!("impl {} {{", g.rust));
-    for e in &g.entries {
-        if matches!(e.layout, Layout::Keyed { .. }) {
-            continue;
-        }
-        lines.push(format!("    pub fn {}(&self) -> {} {{", e.name, e.layout.rust()));
-        lines.push(format!("        self.{}", e.name));
-        lines.push("    }".into());
-    }
+    lines.push(format!("impl crate::store::Table for {} {{", g.rust));
+    lines.push(format!("    const ID: usize = super::id::{};", g.name.to_uppercase()));
     lines.extend(["}".into(), String::new()]);
-    for (e, &same) in g.entries.iter().zip(&alike) {
-        if !same || matches!(e.layout, Layout::Keyed { .. }) {
-            continue;
-        }
-        if !e.doc.is_empty() {
-            lines.push(format!("/// {}", e.doc));
-        }
-        lines.push(format!(
-            "pub static {}: std::sync::LazyLock<{}> = std::sync::LazyLock::new(|| shared().{});",
-            e.name.to_uppercase(),
-            e.layout.rust(),
-            e.name
-        ));
-        lines.push(String::new());
-    }
     for e in &g.entries {
         let Layout::Keyed { enum_, variants, inner } = &e.layout else { continue };
         lines.push(format!("impl {enum_} {{"));
@@ -462,17 +444,13 @@ fn render_built(g: &Group) -> Result<String, String> {
         lines.push(format!("        shared().{}[k]", e.name));
         lines.extend(["    }".into(), "}".into(), String::new()]);
     }
-    lines.push(format!("/// The volume's {} (read once a run; kept here per volume).", g.rust));
+    lines.push(format!("/// The volume's {} (read once a run).", g.rust));
     lines.push(format!("pub fn of(v: Volume) -> &'static {} {{", g.rust));
-    lines.push(format!("    static READ: [std::sync::OnceLock<&'static {}>; 4] =", g.rust));
-    lines.push("        [const { std::sync::OnceLock::new() }; 4];".into());
-    lines.push(format!("    READ[v as usize].get_or_init(|| crate::store::group(v, \"{}\"))", g.name));
+    lines.push(format!("    <{} as crate::store::Table>::of(v)", g.rust));
     lines.extend(["}".into(), String::new()]);
     lines.push("/// The values every volume has alike, from whichever volume's can be had.".into());
-    lines.push("#[allow(dead_code)]".into());
-    lines.push(format!("fn shared() -> &'static {} {{", g.rust));
-    lines.push(format!("    static READ: std::sync::OnceLock<&'static {}> = std::sync::OnceLock::new();", g.rust));
-    lines.push(format!("    READ.get_or_init(|| crate::store::shared(\"{}\"))", g.name));
+    lines.push(format!("pub fn shared() -> &'static {} {{", g.rust));
+    lines.push(format!("    <{} as crate::store::Table>::shared()", g.rust));
     lines.push("}".into());
     Ok(lines.join("\n").trim_end_matches('\n').to_string() + "\n")
 }
@@ -548,6 +526,31 @@ pub fn mod_rs(groups: &[Group]) -> String {
     }
     lines.push("pub mod sjis;".into());
     lines.push("pub mod types;".into());
+    // The store's groups: the built ones, then the placement groups.
+    let names: Vec<&str> = groups
+        .iter()
+        .filter(|g| crate::data::in_build(g))
+        .map(|g| g.name)
+        .chain(crate::placement::GROUPS.iter().map(|(name, _)| *name))
+        .collect();
+    lines.push(String::new());
+    lines.push("/// Each group's place in the store (`store::Table::ID`): the generated".into());
+    lines.push("/// groups, then the hand-written ones, one list so no two share a place.".into());
+    lines.push("pub mod id {".into());
+    for (i, name) in names.iter().enumerate() {
+        lines.push(format!("    pub const {}: usize = {i};", name.to_uppercase()));
+    }
+    lines.push("}".into());
+    lines.push(String::new());
+    lines.push("/// How many groups the store keeps.".into());
+    lines.push(format!("pub const GROUPS: usize = {};", names.len()));
+    lines.push(String::new());
+    lines.push("/// Each group's file, `<name>.bin`, by its place.".into());
+    lines.push("pub const NAMES: [&str; GROUPS] = [".into());
+    for name in &names {
+        lines.push(format!("    \"{name}\","));
+    }
+    lines.push("];".into());
     lines.join("\n") + "\n"
 }
 

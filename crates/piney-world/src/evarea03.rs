@@ -100,7 +100,7 @@ impl Area43 {
         hits.models = models.iter().filter_map(|m| hit_models.iter().find(|h| h.parent == m.model).cloned()).collect();
         let at = piney_data::save::offset::GATE_LIST_MARK + 20 * server.clamp(0, 4) as usize + 4 * MARK_WORD;
         let flag = save.i32(at) as u32 & MARK_BIT != 0;
-        let self_talk = piney_data::tables::fieldui::of(volume).kite_self_talk_va();
+        let self_talk = piney_data::tables::fieldui::of(volume).kite_self_talk_va;
         Ok(Area43 { file, models, lights, cnt: 0, flag, self_talk, hits })
     }
 

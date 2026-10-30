@@ -82,8 +82,10 @@ pub struct PartyChat {
     pub condition_modify_enemy: &'static [Option<&'static str>],
     pub open_treasure_box: &'static [Option<&'static str>],
     pub a_lot_of_enemy: &'static [Option<&'static str>],
+    /// Alike on every volume.
     pub better_weapon: &'static [Option<&'static str>],
     pub worse_weapon: &'static [Option<&'static str>],
+    /// Alike on every volume.
     pub fellow_is_high_level: &'static [Option<&'static str>],
     pub walking_talk: &'static [Option<&'static str>],
     /// From Mutation on, `ChatMessageAttack`'s line for a foe immune to physical attacks.
@@ -98,9 +100,9 @@ pub struct PartyChat {
     pub only_buff: &'static [Option<&'static str>],
     /// The same for `ChatCommandDeBuffPlz` and debuffs.
     pub only_debuff: &'static [Option<&'static str>],
-    /// `attributeStrTbl`: the elements' names.
+    /// `attributeStrTbl`: the elements' names. Alike on every volume.
     pub attribute_str: &'static [&'static str],
-    /// `attributeStrTbl2`
+    /// `attributeStrTbl2` Alike on every volume.
     pub attribute_str2: &'static [&'static str],
 }
 
@@ -197,290 +199,16 @@ impl crate::store::Load for PartyChat {
     }
 }
 
-impl PartyChat {
-    pub fn standby_accept(&self) -> &'static [Option<&'static str>] {
-        self.standby_accept
-    }
-    pub fn accept(&self) -> &'static [Option<&'static str>] {
-        self.accept
-    }
-    pub fn use_all_attack_skill_accept(&self) -> &'static [Option<&'static str>] {
-        self.use_all_attack_skill_accept
-    }
-    pub fn use_physical_skill_accept(&self) -> &'static [Option<&'static str>] {
-        self.use_physical_skill_accept
-    }
-    pub fn use_magic_skill_accept(&self) -> &'static [Option<&'static str>] {
-        self.use_magic_skill_accept
-    }
-    pub fn not_use_skill_accept(&self) -> &'static [Option<&'static str>] {
-        self.not_use_skill_accept
-    }
-    pub fn buff_accept(&self) -> &'static [Option<&'static str>] {
-        self.buff_accept
-    }
-    pub fn debuff_accept(&self) -> &'static [Option<&'static str>] {
-        self.debuff_accept
-    }
-    pub fn heal_start(&self) -> &'static [Option<&'static str>] {
-        self.heal_start
-    }
-    pub fn cure_start(&self) -> &'static [Option<&'static str>] {
-        self.cure_start
-    }
-    pub fn resurrect_start(&self) -> &'static [Option<&'static str>] {
-        self.resurrect_start
-    }
-    pub fn short_of_sp(&self) -> &'static [Option<&'static str>] {
-        self.short_of_sp
-    }
-    pub fn nothing_deny(&self) -> &'static [Option<&'static str>] {
-        self.nothing_deny
-    }
-    pub fn no_battle_mode_deny(&self) -> &'static [Option<&'static str>] {
-        self.no_battle_mode_deny
-    }
-    pub fn ghost_deny(&self) -> &'static [Option<&'static str>] {
-        self.ghost_deny
-    }
-    pub fn condition_red(&self) -> &'static [Option<&'static str>] {
-        self.condition_red
-    }
-    pub fn thx_heal(&self) -> &'static [Option<&'static str>] {
-        self.thx_heal
-    }
-    pub fn thx_resurrect(&self) -> &'static [Option<&'static str>] {
-        self.thx_resurrect
-    }
-    pub fn thx_buff(&self) -> &'static [Option<&'static str>] {
-        self.thx_buff
-    }
-    pub fn use_ocarina(&self) -> &'static [Option<&'static str>] {
-        self.use_ocarina
-    }
-    pub fn no_ocarina_deny(&self) -> &'static [Option<&'static str>] {
-        self.no_ocarina_deny
-    }
-    pub fn disable_ocarina_deny(&self) -> &'static [Option<&'static str>] {
-        self.disable_ocarina_deny
-    }
-    pub fn entered_field(&self) -> &'static [Option<&'static str>] {
-        self.entered_field
-    }
-    pub fn victory(&self) -> &'static [Option<&'static str>] {
-        self.victory
-    }
-    pub fn neutral(&self) -> &'static [Option<&'static str>] {
-        self.neutral
-    }
-    pub fn heal_plz(&self) -> &'static [Option<&'static str>] {
-        self.heal_plz
-    }
-    pub fn treatment_plz(&self) -> &'static [Option<&'static str>] {
-        self.treatment_plz
-    }
-    pub fn resurrect_plz(&self) -> &'static [Option<&'static str>] {
-        self.resurrect_plz
-    }
-    pub fn bull(&self) -> &'static [Option<&'static str>] {
-        self.bull
-    }
-    pub fn dash_for_enemy(&self) -> &'static [Option<&'static str>] {
-        self.dash_for_enemy
-    }
-    pub fn timid(&self) -> &'static [Option<&'static str>] {
-        self.timid
-    }
-    pub fn small_damaged(&self) -> &'static [Option<&'static str>] {
-        self.small_damaged
-    }
-    pub fn damaged(&self) -> &'static [Option<&'static str>] {
-        self.damaged
-    }
-    pub fn fatal_damaged(&self) -> &'static [Option<&'static str>] {
-        self.fatal_damaged
-    }
-    pub fn attack_small_hit(&self) -> &'static [Option<&'static str>] {
-        self.attack_small_hit
-    }
-    pub fn attack_hit(&self) -> &'static [Option<&'static str>] {
-        self.attack_hit
-    }
-    pub fn attack_fatal_hit(&self) -> &'static [Option<&'static str>] {
-        self.attack_fatal_hit
-    }
-    pub fn reencounter(&self) -> &'static [Option<&'static str>] {
-        self.reencounter
-    }
-    pub fn goto_weapon_shop(&self) -> &'static [Option<&'static str>] {
-        self.goto_weapon_shop
-    }
-    pub fn goto_goods_shop(&self) -> &'static [Option<&'static str>] {
-        self.goto_goods_shop
-    }
-    pub fn goto_fairy_shop(&self) -> &'static [Option<&'static str>] {
-        self.goto_fairy_shop
-    }
-    pub fn goto_magic_shop(&self) -> &'static [Option<&'static str>] {
-        self.goto_magic_shop
-    }
-    pub fn goto_etc(&self) -> &'static [Option<&'static str>] {
-        self.goto_etc
-    }
-    pub fn byebye(&self) -> &'static [Option<&'static str>] {
-        self.byebye
-    }
-    pub fn arrive_delta(&self) -> &'static [Option<&'static str>] {
-        self.arrive_delta
-    }
-    pub fn arrive_lambda(&self) -> &'static [Option<&'static str>] {
-        self.arrive_lambda
-    }
-    pub fn arrive_sigma(&self) -> &'static [Option<&'static str>] {
-        self.arrive_sigma
-    }
-    pub fn arrive_omega(&self) -> &'static [Option<&'static str>] {
-        self.arrive_omega
-    }
-    pub fn arrive_theta(&self) -> &'static [Option<&'static str>] {
-        self.arrive_theta
-    }
-    pub fn goto_record_shop(&self) -> &'static [Option<&'static str>] {
-        self.goto_record_shop
-    }
-    pub fn change_equip_ok(&self) -> &'static [Option<&'static str>] {
-        self.change_equip_ok
-    }
-    pub fn change_equip_not_skill(&self) -> &'static [Option<&'static str>] {
-        self.change_equip_not_skill
-    }
-    pub fn change_equip_not_etc(&self) -> &'static [Option<&'static str>] {
-        self.change_equip_not_etc
-    }
-    pub fn attribute_follow(&self) -> &'static [Option<&'static str>] {
-        self.attribute_follow
-    }
-    pub fn attribute_guard(&self) -> &'static [Option<&'static str>] {
-        self.attribute_guard
-    }
-    pub fn attribute_critical(&self) -> &'static [Option<&'static str>] {
-        self.attribute_critical
-    }
-    pub fn heal_plz_accept(&self) -> &'static [Option<&'static str>] {
-        self.heal_plz_accept
-    }
-    pub fn skill_accept(&self) -> &'static [Option<&'static str>] {
-        self.skill_accept
-    }
-    pub fn assign_accept(&self) -> &'static [Option<&'static str>] {
-        self.assign_accept
-    }
-    pub fn poison_curse(&self) -> &'static [Option<&'static str>] {
-        self.poison_curse
-    }
-    pub fn paralysis_sleep(&self) -> &'static [Option<&'static str>] {
-        self.paralysis_sleep
-    }
-    pub fn charm_confusion(&self) -> &'static [Option<&'static str>] {
-        self.charm_confusion
-    }
-    pub fn wait_plz(&self) -> &'static [Option<&'static str>] {
-        self.wait_plz
-    }
-    pub fn ghost_condition(&self) -> &'static [Option<&'static str>] {
-        self.ghost_condition
-    }
-    pub fn level_down(&self) -> &'static [Option<&'static str>] {
-        self.level_down
-    }
-    pub fn level_up(&self) -> &'static [Option<&'static str>] {
-        self.level_up
-    }
-    pub fn present_other_fellow(&self) -> &'static [Option<&'static str>] {
-        self.present_other_fellow
-    }
-    pub fn dead_other_fellow(&self) -> &'static [Option<&'static str>] {
-        self.dead_other_fellow
-    }
-    pub fn open_trap_box(&self) -> &'static [Option<&'static str>] {
-        self.open_trap_box
-    }
-    pub fn quit_pucciguso(&self) -> &'static [Option<&'static str>] {
-        self.quit_pucciguso
-    }
-    pub fn grats_level_up(&self) -> &'static [Option<&'static str>] {
-        self.grats_level_up
-    }
-    pub fn condition_modify_enemy(&self) -> &'static [Option<&'static str>] {
-        self.condition_modify_enemy
-    }
-    pub fn open_treasure_box(&self) -> &'static [Option<&'static str>] {
-        self.open_treasure_box
-    }
-    pub fn a_lot_of_enemy(&self) -> &'static [Option<&'static str>] {
-        self.a_lot_of_enemy
-    }
-    pub fn better_weapon(&self) -> &'static [Option<&'static str>] {
-        self.better_weapon
-    }
-    pub fn worse_weapon(&self) -> &'static [Option<&'static str>] {
-        self.worse_weapon
-    }
-    pub fn fellow_is_high_level(&self) -> &'static [Option<&'static str>] {
-        self.fellow_is_high_level
-    }
-    pub fn walking_talk(&self) -> &'static [Option<&'static str>] {
-        self.walking_talk
-    }
-    pub fn physical_tolerance(&self) -> &'static [Option<&'static str>] {
-        self.physical_tolerance
-    }
-    pub fn magic_tolerance(&self) -> &'static [Option<&'static str>] {
-        self.magic_tolerance
-    }
-    pub fn use_item(&self) -> &'static [Option<&'static str>] {
-        self.use_item
-    }
-    pub fn use_last_item(&self) -> &'static [Option<&'static str>] {
-        self.use_last_item
-    }
-    pub fn only_buff(&self) -> &'static [Option<&'static str>] {
-        self.only_buff
-    }
-    pub fn only_debuff(&self) -> &'static [Option<&'static str>] {
-        self.only_debuff
-    }
-    pub fn attribute_str(&self) -> &'static [&'static str] {
-        self.attribute_str
-    }
-    pub fn attribute_str2(&self) -> &'static [&'static str] {
-        self.attribute_str2
-    }
+impl crate::store::Table for PartyChat {
+    const ID: usize = super::id::PARTY_CHAT;
 }
 
-pub static BETTER_WEAPON: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().better_weapon);
-
-pub static FELLOW_IS_HIGH_LEVEL: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().fellow_is_high_level);
-
-/// `attributeStrTbl`: the elements' names.
-pub static ATTRIBUTE_STR: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().attribute_str);
-
-/// `attributeStrTbl2`
-pub static ATTRIBUTE_STR2: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().attribute_str2);
-
-/// The volume's PartyChat (read once a run; kept here per volume).
+/// The volume's PartyChat (read once a run).
 pub fn of(v: Volume) -> &'static PartyChat {
-    static READ: [std::sync::OnceLock<&'static PartyChat>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "party_chat"))
+    <PartyChat as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static PartyChat {
-    static READ: std::sync::OnceLock<&'static PartyChat> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("party_chat"))
+pub fn shared() -> &'static PartyChat {
+    <PartyChat as crate::store::Table>::shared()
 }

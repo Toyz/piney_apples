@@ -229,12 +229,12 @@ impl AreaItems {
         let t = fieldui::of(volume);
         let lists = |l: &[&[i32]]| l.iter().map(|x| x.to_vec()).collect();
         AreaItems {
-            box_list: lists(t.item_box_list()),
-            danger: lists(t.danger_item_box_list()),
-            area: lists(t.area_item_list()),
-            idol: lists(t.idol_item_list()),
-            suka: lists(t.suka_item_box_list()),
-            idol_sub: lists(t.idol_sub_item_list()),
+            box_list: lists(t.item_box_list),
+            danger: lists(t.danger_item_box_list),
+            area: lists(t.area_item_list),
+            idol: lists(t.idol_item_list),
+            suka: lists(t.suka_item_box_list),
+            idol_sub: lists(t.idol_sub_item_list),
         }
     }
 }
@@ -287,23 +287,23 @@ impl Texts {
     /// The volume's.
     pub fn read(volume: Volume) -> piney_data::Result<Texts> {
         let t = fieldui::of(volume);
-        let dialog = piney_data::tables::dtmenu::of(volume).dialog();
+        let dialog = piney_data::tables::dtmenu::of(volume).dialog;
         let battle = piney_battle::Tables::of(volume);
         Ok(Texts {
             volume,
-            lists: t.elements().iter().map(list).collect(),
-            personal_help: t.personal_help().iter().map(|l| three(l)).collect(),
-            option_help: t.option_help().iter().map(|l| three(l)).collect(),
-            help: t.help().iter().map(|&h| text(h)).collect(),
-            dead_info: encode(t.dead_info()),
-            new_mail: encode(t.new_mail()),
-            kyvia_status: all(t.kyvia_status()),
-            cheat_hp: encode(t.cheat_hp()),
+            lists: t.elements.iter().map(list).collect(),
+            personal_help: t.personal_help.iter().map(|l| three(l)).collect(),
+            option_help: t.option_help.iter().map(|l| three(l)).collect(),
+            help: t.help.iter().map(|&h| text(h)).collect(),
+            dead_info: encode(t.dead_info),
+            new_mail: encode(t.new_mail),
+            kyvia_status: all(t.kyvia_status),
+            cheat_hp: encode(t.cheat_hp),
             slash: SLASH.to_vec(),
             enemy: ENEMY.to_vec(),
-            panel_flash: t.panel_flash().try_into().unwrap_or_default(),
+            panel_flash: t.panel_flash.try_into().unwrap_or_default(),
             faces: t
-                .faces()
+                .faces
                 .iter()
                 .map(|f| (f.file.unwrap_or_default().to_string(), f.texture.unwrap_or_default().to_string()))
                 .collect(),
@@ -313,7 +313,7 @@ impl Texts {
             // `spcParam[i].base.name` (20 bytes at most); row 0 (Kite) is the
             // save's `plName` and left empty here.
             char_names: std::iter::once(Vec::new())
-                .chain(piney_data::tables::newgame::of(volume).chars().iter().skip(1).map(|c| {
+                .chain(piney_data::tables::newgame::of(volume).chars.iter().skip(1).map(|c| {
                     let mut n = c.base.name.map(encode).unwrap_or_default();
                     n.truncate(20);
                     n
@@ -330,47 +330,47 @@ impl Texts {
                 .map(|n| n.param.base.name.map(encode).unwrap_or_default())
                 .collect(),
             tpc_trade: piney_data::tables::newgame::of(volume)
-                .tpc_trade()
+                .tpc_trade
                 .iter()
                 .map(|t| t.map(|l| (l[0].id, l[0].category, l[0].num)))
                 .collect(),
             announce: crate::message::AnnounceTexts {
-                you_now_have: piece(t.get_item_str(), 0),
-                member_tail: piece(t.get_item_str(), 6),
+                you_now_have: piece(t.get_item_str, 0),
+                member_tail: piece(t.get_item_str, 6),
             },
             items: crate::items::ItemTables::of(volume, &battle),
-            skill_tags: all(t.skill_tags()),
-            item_tags: all(t.item_tags()),
-            skill_help: t.skill_help().iter().map(|l| two(l)).collect(),
-            item_help: t.item_help().iter().map(|l| two(l)).collect(),
-            target_info: two(t.target_info()),
-            target_warn: encode(t.target_warn()),
-            target_drain_warn: two(t.target_drain_warn()),
+            skill_tags: all(t.skill_tags),
+            item_tags: all(t.item_tags),
+            skill_help: t.skill_help.iter().map(|l| two(l)).collect(),
+            item_help: t.item_help.iter().map(|l| two(l)).collect(),
+            target_info: two(t.target_info),
+            target_warn: encode(t.target_warn),
+            target_drain_warn: two(t.target_drain_warn),
             dialog_default: piney_desktop::dtmenu::slots(dialog),
-            virus_col: t.virus_col().to_vec(),
-            chat_tags: all(t.chat_tags()),
-            chat_str: all(t.chat_str()),
-            chat_action: all(t.chat_action()),
-            chat_help: t.chat_help().iter().map(|l| three(l)).collect(),
-            chat_warn: t.chat_warn().iter().map(|l| two(l.unwrap_or_default())).collect(),
-            party_warn: t.party_warn().iter().map(|l| two(l)).collect(),
-            bt_chat_act: t.bt_chat_act().to_vec(),
-            town_chat_act: t.town_chat_act().to_vec(),
+            virus_col: t.virus_col.to_vec(),
+            chat_tags: all(t.chat_tags),
+            chat_str: all(t.chat_str),
+            chat_action: all(t.chat_action),
+            chat_help: t.chat_help.iter().map(|l| three(l)).collect(),
+            chat_warn: t.chat_warn.iter().map(|l| two(l.unwrap_or_default())).collect(),
+            party_warn: t.party_warn.iter().map(|l| two(l)).collect(),
+            bt_chat_act: t.bt_chat_act.to_vec(),
+            town_chat_act: t.town_chat_act.to_vec(),
             words: crate::words::Words::of(volume, &battle),
             hack: crate::menus::hack::HackTexts::of(volume),
             drain: crate::menus::drain::DrainTexts::of(volume),
-            gate_help: t.gate_help().iter().map(|l| three(l)).collect(),
-            gt_town_help: t.gt_town_help().iter().map(|l| three(l)).collect(),
-            gt_new_info: t.gt_new_info().iter().map(|l| two(l)).collect(),
-            gt_new_str1: t.gt_new_str1().iter().map(|&s| text(s)).collect(),
-            gt_new_str0: all(t.gt_new_str0()),
-            gt_town_str: all(t.gt_town_str()),
-            server_str: all(t.server_str()),
-            gt_menu_info: encode(t.gt_menu_info()),
-            gt_town_warn: encode(t.gt_town_warn()),
-            gt_list_warn: encode(t.gt_list_warn()),
-            gate_word_list_msg: t.gate_word_list_msg().iter().map(|l| three(l.unwrap_or_default())).collect(),
-            gate_refusal: t.gate_refusal().map(|r| GateRefusal {
+            gate_help: t.gate_help.iter().map(|l| three(l)).collect(),
+            gt_town_help: t.gt_town_help.iter().map(|l| three(l)).collect(),
+            gt_new_info: t.gt_new_info.iter().map(|l| two(l)).collect(),
+            gt_new_str1: t.gt_new_str1.iter().map(|&s| text(s)).collect(),
+            gt_new_str0: all(t.gt_new_str0),
+            gt_town_str: all(t.gt_town_str),
+            server_str: all(t.server_str),
+            gt_menu_info: encode(t.gt_menu_info),
+            gt_town_warn: encode(t.gt_town_warn),
+            gt_list_warn: encode(t.gt_list_warn),
+            gate_word_list_msg: t.gate_word_list_msg.iter().map(|l| three(l.unwrap_or_default())).collect(),
+            gate_refusal: t.gate_refusal.map(|r| GateRefusal {
                 status: r.status as usize,
                 areas: r.areas.to_vec(),
                 mode: r.msg.emode,
@@ -383,16 +383,16 @@ impl Texts {
             gt_spaces16: GT_SPACES16.to_vec(),
             gt_status: GT_STATUS.to_vec(),
             gt_lv: GT_LV.to_vec(),
-            gt_area_info: encode(t.gt_area_info()),
+            gt_area_info: encode(t.gt_area_info),
             gt_dot: GT_DOT.to_vec(),
-            gt_new_colours: t.gt_new_colours().try_into().unwrap_or_default(),
-            status_menu: t.status_menu().iter().map(|s| encode(s)).collect(),
-            status_class: all(t.status_class()),
+            gt_new_colours: t.gt_new_colours.try_into().unwrap_or_default(),
+            status_menu: t.status_menu.iter().map(|s| encode(s)).collect(),
+            status_class: all(t.status_class),
             exp_max: EXP_MAX.to_vec(),
             gp: GP.to_vec(),
-            party_in_info: [two(t.party_in_info()[0]), two(t.party_in_info()[1])],
-            get_item_str: all(t.get_item_str()),
-            trap_menu: all(t.trap_menu()),
+            party_in_info: [two(t.party_in_info[0]), two(t.party_in_info[1])],
+            get_item_str: all(t.get_item_str),
+            trap_menu: all(t.trap_menu),
             use_texts: UseTexts::of(volume),
             gi_green: GI_GREEN.to_vec(),
             gi_bang: GI_BANG.to_vec(),
@@ -428,12 +428,12 @@ impl UseTexts {
     pub fn of(volume: Volume) -> Self {
         let t = fieldui::of(volume);
         UseTexts {
-            trap_discharge: encode(t.trap_discharge()),
-            show_map: encode(t.show_map()),
-            status_up: all(t.status_up()),
+            trap_discharge: encode(t.trap_discharge),
+            show_map: encode(t.show_map),
+            status_up: all(t.status_up),
             status_up_stop: STATUS_UP_STOP.to_vec(),
-            install_warn: three(t.install_warn()),
-            epitaph_unknown: encode(t.epitaph_unknown()),
+            install_warn: three(t.install_warn),
+            epitaph_unknown: encode(t.epitaph_unknown),
             epitaphs: epitaphs(t),
         }
     }
@@ -454,17 +454,17 @@ pub type EpitaphText = (i32, Vec<[Vec<u8>; 3]>, Vec<[Vec<u8>; 3]>);
 fn epitaphs(t: &fieldui::FieldUi) -> Vec<EpitaphText> {
     let pages = |p: &[&[&str]]| p.iter().map(|l| three(l)).collect::<Vec<_>>();
     [
-        (42, t.epitaph_00(), t.epitaph_00p()),
-        (43, t.epitaph_01(), t.epitaph_01p()),
-        (44, t.epitaph_02(), t.epitaph_02p()),
-        (45, t.epitaph_03(), t.epitaph_03p()),
-        (46, t.epitaph_04(), t.epitaph_04p()),
-        (48, t.epitaph_10(), t.epitaph_10p()),
-        (68, t.epitaph_11(), t.epitaph_11p()),
-        (287, t.epitaph_m0(), t.epitaph_m0()),
-        (288, t.epitaph_m1(), t.epitaph_m1()),
-        (289, t.epitaph_m2(), t.epitaph_m2()),
-        (290, t.epitaph_m3(), t.epitaph_m3()),
+        (42, t.epitaph_00, t.epitaph_00p),
+        (43, t.epitaph_01, t.epitaph_01p),
+        (44, t.epitaph_02, t.epitaph_02p),
+        (45, t.epitaph_03, t.epitaph_03p),
+        (46, t.epitaph_04, t.epitaph_04p),
+        (48, t.epitaph_10, t.epitaph_10p),
+        (68, t.epitaph_11, t.epitaph_11p),
+        (287, t.epitaph_m0, t.epitaph_m0),
+        (288, t.epitaph_m1, t.epitaph_m1),
+        (289, t.epitaph_m2, t.epitaph_m2),
+        (290, t.epitaph_m3, t.epitaph_m3),
     ]
     .into_iter()
     .map(|(id, n, p)| (id, pages(n), pages(p)))

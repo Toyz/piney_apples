@@ -122,13 +122,13 @@ impl Tables {
         let t = piney_data::tables::stream::of(volume);
         let bits = |r: [f32; 3]| r.map(f32::to_bits);
         Tables {
-            hit_rot_0120a: t.hit_rot_0120a().iter().map(|&r| bits(r)).collect(),
-            hit_rot_0240: t.hit_rot_0240().iter().map(|&r| bits(r)).collect(),
-            hit_rot_0250: bits(t.hit_rot_0250()),
-            hit_rot_0301: bits(t.hit_rot_0301()),
+            hit_rot_0120a: t.hit_rot_0120a.iter().map(|&r| bits(r)).collect(),
+            hit_rot_0240: t.hit_rot_0240.iter().map(|&r| bits(r)).collect(),
+            hit_rot_0250: bits(t.hit_rot_0250),
+            hit_rot_0301: bits(t.hit_rot_0301),
             skill_names: None,
             ending: crate::ending::Tables::read(volume),
-            hit_rot_0880: t.hit_rot_0880().iter().map(|&r| bits(r)).collect(),
+            hit_rot_0880: t.hit_rot_0880.iter().map(|&r| bits(r)).collect(),
             text_1040: crate::mutation::text_1040(volume),
             parts_1070: crate::mutation::Tables1070::read(volume),
             opening: crate::opening::Tables::read(volume),

@@ -131,7 +131,7 @@ impl crate::store::Load for SkillVoice {
 /// The `voice` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct Voice {
-    /// `evVoiceFile`: the voice files by `voiceFile`, as paths on the disc (`VOICE/EVVOL1.BIN`; the IOP opens `cdrom0:\VOICE\EVVOL1.BIN`).
+    /// `evVoiceFile`: the voice files by `voiceFile`, as paths on the disc (`VOICE/EVVOL1.BIN`; the IOP opens `cdrom0:\VOICE\EVVOL1.BIN`). Alike on every volume.
     pub files: &'static [&'static str],
     /// `evVoiceFileE`: the same in `VOICE_E`; from Mutation on one more, `MIAE.BIN` (20).
     pub files_e: &'static [&'static str],
@@ -139,7 +139,7 @@ pub struct Voice {
     pub events: &'static [VoiceSection],
     /// `ccVoiceRequest`'s groups, the field's voices (the Grunties, the fountain, party members joining and leaving, their talk and presents, the dogs, Fidchell), as the volume's code builds them.
     pub field: &'static [FieldVoice],
-    /// `ccVoicePgFood`'s table: a Grunty food calling out.
+    /// `ccVoicePgFood`'s table: a Grunty food calling out. Alike on every volume.
     pub food: VoiceTable,
     /// `skillVoicePlay`'s tables by `charTbl` row (18 on Infection, 21 from Mutation on).
     pub skill: &'static [SkillVoice],
@@ -161,45 +161,16 @@ impl crate::store::Load for Voice {
     }
 }
 
-impl Voice {
-    pub fn files(&self) -> &'static [&'static str] {
-        self.files
-    }
-    pub fn files_e(&self) -> &'static [&'static str] {
-        self.files_e
-    }
-    pub fn events(&self) -> &'static [VoiceSection] {
-        self.events
-    }
-    pub fn field(&self) -> &'static [FieldVoice] {
-        self.field
-    }
-    pub fn food(&self) -> VoiceTable {
-        self.food
-    }
-    pub fn skill(&self) -> &'static [SkillVoice] {
-        self.skill
-    }
-    pub fn skill_memory(&self) -> &'static [VoiceData] {
-        self.skill_memory
-    }
+impl crate::store::Table for Voice {
+    const ID: usize = super::id::VOICE;
 }
 
-/// `evVoiceFile`: the voice files by `voiceFile`, as paths on the disc (`VOICE/EVVOL1.BIN`; the IOP opens `cdrom0:\VOICE\EVVOL1.BIN`).
-pub static FILES: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().files);
-
-/// `ccVoicePgFood`'s table: a Grunty food calling out.
-pub static FOOD: std::sync::LazyLock<VoiceTable> = std::sync::LazyLock::new(|| shared().food);
-
-/// The volume's Voice (read once a run; kept here per volume).
+/// The volume's Voice (read once a run).
 pub fn of(v: Volume) -> &'static Voice {
-    static READ: [std::sync::OnceLock<&'static Voice>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "voice"))
+    <Voice as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Voice {
-    static READ: std::sync::OnceLock<&'static Voice> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("voice"))
+pub fn shared() -> &'static Voice {
+    <Voice as crate::store::Table>::shared()
 }

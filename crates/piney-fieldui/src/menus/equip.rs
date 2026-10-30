@@ -58,16 +58,16 @@ impl EquipRaw {
         rows.extend(t.armor.iter().map(|a| a.iter().map(row).collect()));
         let b = piney_data::tables::battle::of(volume);
         let before = [
-            b.weapon1_before(),
-            b.weapon2_before(),
-            b.weapon3_before(),
-            b.weapon4_before(),
-            b.weapon5_before(),
-            b.weapon6_before(),
-            b.head_before(),
-            b.body_before(),
-            b.arm_before(),
-            b.leg_before(),
+            b.weapon1_before,
+            b.weapon2_before,
+            b.weapon3_before,
+            b.weapon4_before,
+            b.weapon5_before,
+            b.weapon6_before,
+            b.head_before,
+            b.body_before,
+            b.arm_before,
+            b.leg_before,
         ]
         .iter()
         .map(|r| {

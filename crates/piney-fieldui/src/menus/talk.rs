@@ -51,15 +51,15 @@ impl Texts {
     pub fn of(volume: piney_data::volume::Volume) -> Texts {
         use crate::tables::piece;
         let f = piney_data::tables::fieldui::of(volume);
-        let none = f.trade_help()[6];
+        let none = f.trade_help[6];
         Texts {
-            tpc_talk: [piece(f.tpc_talk(), 0), piece(f.tpc_talk(), 1)],
+            tpc_talk: [piece(f.tpc_talk, 0), piece(f.tpc_talk, 1)],
             trade_none: [piece(none, 0), piece(none, 1), piece(none, 2)],
             green: STR_GREEN.to_vec(),
             end: STR_END.to_vec(),
             comma_space: STR_COMMA_SPACE.to_vec(),
             comma: STR_COMMA.to_vec(),
-            voice_grp: f.voice_groups().to_vec(),
+            voice_grp: f.voice_groups.to_vec(),
         }
     }
 }
@@ -151,7 +151,7 @@ pub fn talk_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
                     && m.pg_adult_num >= 3
                     && x.save.save.mail(breeder::RACE_MAIL) as i8 >= 3;
                 let rec = if race {
-                    piney_data::tables::race::of(x.texts.volume).talk_va()
+                    piney_data::tables::race::of(x.texts.volume).talk_va
                 } else {
                     let server = x.world.game.server;
                     let tbl = tt.word(base.msg.wrapping_add((4 * server) as u32));
@@ -211,7 +211,7 @@ fn trading_pc(m: &mut MenuCtrl, x: &mut Ctx, base: &talk::Base) {
     }
     m.talk.talk_trade_flag = 0;
     // `tpcTradeList[id - 66][talkNum]`: {id, category, num} x 4.
-    let tpc = piney_data::tables::newgame::of(x.texts.volume).tpc_trade();
+    let tpc = piney_data::tables::newgame::of(x.texts.volume).tpc_trade;
     let rec = usize::try_from(id - 66).ok().and_then(|i| tpc.get(i)).and_then(|t| t.get(m.talk.talk_num as usize));
     let entry = |k: u32| rec.map_or((0, 0, 0), |r| (r[k as usize].id, r[k as usize].category, r[k as usize].num));
     let offers = (1..4).filter(|&k| entry(k).1 >= 0).count();
@@ -270,7 +270,7 @@ fn affect_target(x: &mut Ctx, n: i16) {
 /// pointer was there (`charTbl`'s, DEMO.PRG's). `SpcMenu`, `TalkMenu` and
 /// `PresentMenu` read the save's.
 pub fn set_spc_base_msg(save: &mut piney_desktop::SaveState, volume: Volume) {
-    for (k, &v) in fieldui::of(volume).spc_msg_tbl().iter().enumerate().skip(1) {
+    for (k, &v) in fieldui::of(volume).spc_msg_tbl.iter().enumerate().skip(1) {
         save.save.set_i32(by_id::spc_param(k) + 0x20, v as i32);
     }
 }
@@ -436,7 +436,7 @@ fn spc_at(sid: i32) -> usize {
 /// gift, by `AddSpcItem`'s answer: [3] received, [4] equipped, [5] used.
 fn present_help(x: &Ctx, k: u32) -> [Vec<u8>; 3] {
     use crate::tables::piece;
-    let h = piney_data::tables::fieldui::of(x.texts.volume).present_help();
+    let h = piney_data::tables::fieldui::of(x.texts.volume).present_help;
     let l = h.get(k as usize).copied().unwrap_or_default();
     [piece(l, 0), piece(l, 1), piece(l, 2)]
 }
@@ -465,8 +465,8 @@ fn price_of(x: &Ctx, cat: i32, id: i32) -> i32 {
 fn gift_rate(x: &Ctx, sid: i32, cat: i32, id: i32) -> i32 {
     let f = fieldui::of(x.texts.volume);
     let rates = match GiftOrder::of(x.texts.volume) {
-        GiftOrder::GiveThenThank => f.spc_trade_rate(),
-        GiftOrder::ThankThenGive => f.gift_rates(),
+        GiftOrder::GiveThenThank => f.spc_trade_rate,
+        GiftOrder::ThankThenGive => f.gift_rates,
     };
     let row = usize::try_from(sid - 1).ok().and_then(|i| rates.get(i));
     let at = |k: i32| row.and_then(|r| r.get(k as usize)).map_or(10, |&v| i32::from(v));
@@ -486,7 +486,7 @@ fn gift_rate(x: &Ctx, sid: i32, cat: i32, id: i32) -> i32 {
 /// `ccSaveData::AddFriendship(id, n)` (main 0x00177eb0): at least 0, at
 /// most the volume's cap.
 fn add_friendship(x: &mut Ctx, sid: i32, n: i32) {
-    let caps = piney_data::tables::fieldui::of(x.texts.volume).friendship_cap();
+    let caps = piney_data::tables::fieldui::of(x.texts.volume).friendship_cap;
     let vol = x.texts.volume.number() as usize;
     let at = spc_at(sid) + SPC_FRIENDSHIP;
     let s = &mut x.save.save;
@@ -918,7 +918,7 @@ pub fn present_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             // The first band the worth is under, else the last record.
             let k = bands.iter().position(|&b| worth < b).unwrap_or(bands.len());
             let f = fieldui::of(x.texts.volume);
-            let tbl = if talk_num(x, sid) == 0 { f.spc_msg_present10_va() } else { f.spc_msg_present11_va() };
+            let tbl = if talk_num(x, sid) == 0 { f.spc_msg_present10_va } else { f.spc_msg_present11_va };
             let rec = x.texts.talk.word(tbl.wrapping_add((4 * sid) as u32)).wrapping_add(12 * k as u32);
             add_friendship(x, sid, BAND_FRIENDSHIP[k]);
             talk::open_record(m, x, rec, &base.name, -32, 5 * sid + k as i32);
@@ -1065,7 +1065,7 @@ fn weighed_worth(x: &Ctx, sid: i32, cat: i32, id: i32) -> (i32, [i32; 4]) {
     let f = fieldui::of(x.texts.volume);
     let mut worth = price_of(x, cat, id).wrapping_mul(gift_rate(x, sid, cat, id)) / 10;
     let bag = || (0..items::ITEMS).map(|k| items::save_item(x.save, sid.max(0) as usize, k));
-    let wanted = usize::try_from(sid - 1).ok().and_then(|r| f.gift_wants().get(r));
+    let wanted = usize::try_from(sid - 1).ok().and_then(|r| f.gift_wants.get(r));
     let mut kind = Some(cat).filter(|c| (0..10).contains(c));
     if wanted.is_some_and(|w| w.iter().any(|e| i32::from(e.category) == cat && i32::from(e.id) == id)) {
         let had = kind.is_some()
@@ -1075,7 +1075,7 @@ fn weighed_worth(x: &Ctx, sid: i32, cat: i32, id: i32) -> (i32, [i32; 4]) {
             worth = WANTED;
         }
     }
-    let band = |k: usize| f.gift_bands().get(k).copied().unwrap_or_default();
+    let band = |k: usize| f.gift_bands.get(k).copied().unwrap_or_default();
     let Some(mut kind) = kind else { return (worth, band(1)) };
     let job = i32::from(x.save.save.i16(spc_at(sid) + SPC_JOB));
     if kind < 6 && (0..6).contains(&job) {

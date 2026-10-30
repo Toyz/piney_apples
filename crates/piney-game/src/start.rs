@@ -21,6 +21,7 @@ use piney_world::area::Scene;
 use piney_world::party::Spcs;
 
 use crate::session::{InWorld, Resume, Session};
+use piney_data::store::Table;
 
 /// Infection's story in its order, each event opening on the one before
 /// (`event_done` of it; 3 and 4 both on 2), to the ending (31).

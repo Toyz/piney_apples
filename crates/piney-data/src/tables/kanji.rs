@@ -8,17 +8,17 @@ use crate::volume::Volume;
 /// The `kanji` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct Kanji {
-    /// `englishFontOfsS`: each glyph's trim for kt 0 and 1.
+    /// `englishFontOfsS`: each glyph's trim for kt 0 and 1. Alike on every volume.
     pub english_font_ofs_s: &'static [i16],
     /// The three halfwords past `englishFontOfsS`'s end, which %X-%Z read: the volume's next global.
     pub english_font_ofs_s_past: &'static [i16],
-    /// `englishFontOfsL`: the same for kt 2 and 3.
+    /// `englishFontOfsL`: the same for kt 2 and 3. Alike on every volume.
     pub english_font_ofs_l: &'static [i16],
-    /// The three halfwords past `englishFontOfsL`'s end (`englishFontOfsS`'s first three).
+    /// The three halfwords past `englishFontOfsL`'s end (`englishFontOfsS`'s first three). Alike on every volume.
     pub english_font_ofs_l_past: &'static [i16],
-    /// `ccSpriteColorTable`: the 24 RGBA colours the #R #G #B #Y escapes and the sprites index (0x80 = 1.0; each entry 8 bytes, the low four used).
+    /// `ccSpriteColorTable`: the 24 RGBA colours the #R #G #B #Y escapes and the sprites index (0x80 = 1.0; each entry 8 bytes, the low four used). Alike on every volume.
     pub sprite_color_table: &'static [[u8; 4]],
-    /// `alphaBlendTbl`: the nine ALPHA register values.
+    /// `alphaBlendTbl`: the nine ALPHA register values. Alike on every volume.
     pub alpha_blend_tbl: &'static [u64],
 }
 
@@ -35,55 +35,16 @@ impl crate::store::Load for Kanji {
     }
 }
 
-impl Kanji {
-    pub fn english_font_ofs_s(&self) -> &'static [i16] {
-        self.english_font_ofs_s
-    }
-    pub fn english_font_ofs_s_past(&self) -> &'static [i16] {
-        self.english_font_ofs_s_past
-    }
-    pub fn english_font_ofs_l(&self) -> &'static [i16] {
-        self.english_font_ofs_l
-    }
-    pub fn english_font_ofs_l_past(&self) -> &'static [i16] {
-        self.english_font_ofs_l_past
-    }
-    pub fn sprite_color_table(&self) -> &'static [[u8; 4]] {
-        self.sprite_color_table
-    }
-    pub fn alpha_blend_tbl(&self) -> &'static [u64] {
-        self.alpha_blend_tbl
-    }
+impl crate::store::Table for Kanji {
+    const ID: usize = super::id::KANJI;
 }
 
-/// `englishFontOfsS`: each glyph's trim for kt 0 and 1.
-pub static ENGLISH_FONT_OFS_S: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().english_font_ofs_s);
-
-/// `englishFontOfsL`: the same for kt 2 and 3.
-pub static ENGLISH_FONT_OFS_L: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().english_font_ofs_l);
-
-/// The three halfwords past `englishFontOfsL`'s end (`englishFontOfsS`'s first three).
-pub static ENGLISH_FONT_OFS_L_PAST: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().english_font_ofs_l_past);
-
-/// `ccSpriteColorTable`: the 24 RGBA colours the #R #G #B #Y escapes and the sprites index (0x80 = 1.0; each entry 8 bytes, the low four used).
-pub static SPRITE_COLOR_TABLE: std::sync::LazyLock<&'static [[u8; 4]]> =
-    std::sync::LazyLock::new(|| shared().sprite_color_table);
-
-/// `alphaBlendTbl`: the nine ALPHA register values.
-pub static ALPHA_BLEND_TBL: std::sync::LazyLock<&'static [u64]> = std::sync::LazyLock::new(|| shared().alpha_blend_tbl);
-
-/// The volume's Kanji (read once a run; kept here per volume).
+/// The volume's Kanji (read once a run).
 pub fn of(v: Volume) -> &'static Kanji {
-    static READ: [std::sync::OnceLock<&'static Kanji>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "kanji"))
+    <Kanji as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Kanji {
-    static READ: std::sync::OnceLock<&'static Kanji> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("kanji"))
+pub fn shared() -> &'static Kanji {
+    <Kanji as crate::store::Table>::shared()
 }

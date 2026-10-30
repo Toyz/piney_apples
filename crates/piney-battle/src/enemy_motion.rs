@@ -379,7 +379,7 @@ impl MotionData {
     /// The volume's (`piney_data::tables::battle`): the races' sound
     /// categories and the rows' animation names.
     pub fn of(volume: piney_data::volume::Volume, t: &Tables) -> MotionData {
-        let races = piney_data::tables::battle::of(volume).races();
+        let races = piney_data::tables::battle::of(volume).races;
         let se_category = races.iter().map(|r| r.se_category).collect();
         let clips = t
             .enemies

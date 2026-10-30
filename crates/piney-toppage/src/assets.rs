@@ -50,16 +50,19 @@ impl Assets {
         // `sp + 44 + 4 volumeNum`, 4 bytes before the copy: entry
         // `volumeNum - 1`.
         let entry = volume.clamp(1, 4) - 1;
-        let neutral = toppage::NEUTRAL[entry as usize].to_string();
+        let neutral = toppage::shared().neutral[entry as usize].to_string();
         let mask_tex = WindowTexture::read_named(&archive, TOP_FILE, MASK_TEX, None).map(|w| (w.tex, w.tex_h));
-        let labels =
-            Labels { author: encode(*toppage::AUTHOR), time: encode(*toppage::TIME), player: encode(*toppage::PLAYER) };
+        let labels = Labels {
+            author: encode(toppage::shared().author),
+            time: encode(toppage::shared().time),
+            player: encode(toppage::shared().player),
+        };
         let bbs = BbsAssets {
             file,
             tables: [content::threads(disc, false), content::threads(disc, true)],
             mask_tex,
-            new_msg: encode(*toppage::NEW_MSG),
-            no_msg: encode(*toppage::NO_MSG),
+            new_msg: encode(toppage::shared().new_msg),
+            no_msg: encode(toppage::shared().no_msg),
             labels,
         };
         let mut servers = [0; 8];

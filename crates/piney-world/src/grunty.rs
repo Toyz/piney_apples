@@ -503,13 +503,13 @@ impl Tables {
     pub fn of(volume: Volume) -> Result<Tables> {
         let w = world::of(volume);
         let v4s = |t: [[f32; 4]; 4]| t.map(|v| v.map(f32::to_bits));
-        let chat = w.pg_chat().iter().map(|s| piney_data::tables::sjis::encode(s.unwrap_or_default())).collect();
+        let chat = w.pg_chat.iter().map(|s| piney_data::tables::sjis::encode(s.unwrap_or_default())).collect();
         let rows = (ROW_ADULT..=ROW_YOUNG + 3).map(|r| NpcRow::of(volume, r as usize)).collect::<Result<_>>()?;
         Ok(Tables {
-            cam_pos: v4s(w.pg_cam_pos()),
-            cam_view: v4s(w.pg_cam_view()),
-            inu_pos: v4s(w.pg_inu_pos()),
-            player_pos: v4s(w.pg_player_pos()),
+            cam_pos: v4s(w.pg_cam_pos),
+            cam_view: v4s(w.pg_cam_view),
+            inu_pos: v4s(w.pg_inu_pos),
+            player_pos: v4s(w.pg_player_pos),
             chat,
             rows,
         })
@@ -1971,9 +1971,9 @@ impl Grunty {
                     *race.step += 1;
                     self.act_cnt = 0;
                     self.next_pos = if self.local_id != 0 {
-                        t.walk_kind()[self.local_id as usize]
+                        t.walk_kind[self.local_id as usize]
                     } else {
-                        t.walk_server()[race.server.max(0) as usize]
+                        t.walk_server[race.server.max(0) as usize]
                     }
                     .map(f32::to_bits);
                 }

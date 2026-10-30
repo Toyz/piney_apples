@@ -8,7 +8,7 @@
 //! reference, and `tools/test_area_rs.py` holds the port to the game's code.
 
 use crate::dungeon;
-use crate::store::{Load, Reader};
+use crate::store::{Load, Reader, Table};
 use crate::volume::Volume;
 
 /// `sizeof(WORDPARAM)`.
@@ -155,13 +155,6 @@ pub struct AreaTables {
 }
 
 impl AreaTables {
-    /// The volume's tables (the build's `PINEY/TABLES/area.bin`, read once a
-    /// run).
-    pub fn of(v: Volume) -> &'static AreaTables {
-        static READ: [std::sync::OnceLock<&'static AreaTables>; 4] = [const { std::sync::OnceLock::new() }; 4];
-        READ[v as usize].get_or_init(|| crate::store::group(v, "area"))
-    }
-
     /// `WORLD_MAN::GetWordParamPtr(part, slot, id)` (0x001a2340): the word of
     /// `slot` with this ID, groups 1 to 4; `None` where the game returns
     /// NULL.
@@ -318,6 +311,11 @@ impl Load for DungeonInfo {
     fn load(r: &mut Reader) -> Self {
         DungeonInfo { level_max: Load::load(r), room_max: Load::load(r) }
     }
+}
+
+/// The volume's tables: the build's `PINEY/TABLES/area.bin`.
+impl Table for AreaTables {
+    const ID: usize = crate::tables::id::AREA;
 }
 
 impl Load for AreaTables {

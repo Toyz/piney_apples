@@ -104,13 +104,13 @@ impl TarvosData {
         let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
         let pick = |v: &[i32], k: usize| v.get(k).copied().unwrap_or(0);
         TarvosData {
-            normal: t.tarvos_normal().to_vec(),
-            super_: t.tarvos_super().to_vec(),
-            epitaph: t.tarvos_epitaph().to_vec(),
-            anims: s(t.tarvos_anims()),
-            rand_skills: std::array::from_fn(|k| pick(t.tarvos_rand_skills(), k)),
-            skills: std::array::from_fn(|k| pick(t.tarvos_skills(), k)),
-            magic_skill: pick(t.tarvos_magic_skills(), 1),
+            normal: t.tarvos_normal.to_vec(),
+            super_: t.tarvos_super.to_vec(),
+            epitaph: t.tarvos_epitaph.to_vec(),
+            anims: s(t.tarvos_anims),
+            rand_skills: std::array::from_fn(|k| pick(t.tarvos_rand_skills, k)),
+            skills: std::array::from_fn(|k| pick(t.tarvos_skills, k)),
+            magic_skill: pick(t.tarvos_magic_skills, 1),
         }
     }
 

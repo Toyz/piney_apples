@@ -352,7 +352,7 @@ pub struct World {
 /// volume's (`newgame::chars`): each character's name and `ccsname`, the
 /// file its body is in (`ctu1body` Kite, `cbu4body` Orca).
 pub fn load_char_tbl(iso: &mut Iso) -> piney_data::Result<Vec<(Vec<u8>, String)>> {
-    let chars = piney_data::tables::newgame::of(iso.volume()?).chars();
+    let chars = piney_data::tables::newgame::of(iso.volume()?).chars;
     Ok(chars
         .iter()
         .map(|c| {

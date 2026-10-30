@@ -105,8 +105,8 @@ impl ItemTables {
         ItemTables {
             skills,
             items,
-            icons: b.item_icons().try_into().unwrap_or_default(),
-            pages: b.item_pages().try_into().unwrap_or_default(),
+            icons: b.item_icons.try_into().unwrap_or_default(),
+            pages: b.item_pages.try_into().unwrap_or_default(),
         }
     }
 

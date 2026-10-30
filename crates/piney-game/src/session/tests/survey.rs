@@ -3590,7 +3590,7 @@ fn area_cores(iso: &std::path::Path, volume: piney_data::volume::Volume, server:
     };
     let (k, r) = wm.enemy_rank(1, n, 0, 0);
     let t = piney_battle::Tables::of(volume);
-    let lists = piney_data::tables::battle::of(volume).enemy_lists();
+    let lists = piney_data::tables::battle::of(volume).enemy_lists;
     let Some(list) =
         lists.get(server.clamp(0, 4) as usize).and_then(|l| l.get(k.clamp(0, 6) as usize)).and_then(|l| l.list)
     else {
@@ -3645,7 +3645,7 @@ fn shop_weapon(w: &crate::world::WorldMode) -> Option<i16> {
     }
     let (cat, ..) = kite_weapon(state);
     let gold = state.save.i32(piney_fieldui::menus::shop::GOLD);
-    let shop = piney_data::tables::fieldui::of(world.volume()).equip_shop();
+    let shop = piney_data::tables::fieldui::of(world.volume()).equip_shop;
     let stock = shop.get(w.server().clamp(0, 4) as usize)?;
     let sold = stock
         .iter()

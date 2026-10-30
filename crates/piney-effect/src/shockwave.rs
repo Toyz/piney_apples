@@ -51,10 +51,10 @@ impl Tables {
         use crate::spell::{bits, first};
         let t = piney_data::tables::effect::of(volume);
         Tables {
-            wave2: bits(t.wave2()),
-            wave2_turn: first(t.wave2_turn()),
-            wave3: bits(t.wave3()),
-            wave3_turn: first(t.wave3_turn()),
+            wave2: bits(t.wave2),
+            wave2_turn: first(t.wave2_turn),
+            wave3: bits(t.wave3),
+            wave3_turn: first(t.wave3_turn),
         }
     }
 }

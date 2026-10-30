@@ -7,7 +7,7 @@
 //! (`piney_data::tables::staffroll`). [`StaffRoll`] records each frame's draws
 //! ([`Draw`]); [`StaffRoll::render`] turns them into primitives.
 
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 use piney_data::tables::sjis::encode;
 
 use crate::eef::{add, div, from_int, le, lt, mul, sub};
@@ -740,7 +740,7 @@ impl StaffRoll {
                     let mut k = crate::kanji::Kanji::init(3, 16);
                     k.kt = crate::kanji::Kt::LargeFixed;
                     // ccSprite takes an entry's low three bytes.
-                    let c = SPRITE_COLOR_TABLE[if *shadow { SHADOW_COLOUR } else { TEXT_COLOUR }];
+                    let c = kanji::shared().sprite_color_table[if *shadow { SHADOW_COLOUR } else { TEXT_COLOUR }];
                     k.colour = [c[0], c[1], c[2], 0x80];
                     k.transp = f(*alpha);
                     k.dx = f(*x);

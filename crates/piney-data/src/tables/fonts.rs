@@ -8,11 +8,11 @@ use crate::volume::Volume;
 /// The `fonts` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct Fonts {
-    /// `ef8x16`: 8x16 glyphs, 16 a row, 64 bytes a row line.
+    /// `ef8x16`: 8x16 glyphs, 16 a row, 64 bytes a row line. Alike on every volume.
     pub ef8x16: &'static [u8],
     /// The two glyph rows past `ef8x16`'s end, which glyphs 112-130 read: the volume's next globals.
     pub ef8x16_past: &'static [u8],
-    /// `ef12x20`: 12x20 glyphs, 96 bytes a row line.
+    /// `ef12x20`: 12x20 glyphs, 96 bytes a row line. Alike on every volume.
     pub ef12x20: &'static [u8],
 }
 
@@ -26,33 +26,16 @@ impl crate::store::Load for Fonts {
     }
 }
 
-impl Fonts {
-    pub fn ef8x16(&self) -> &'static [u8] {
-        self.ef8x16
-    }
-    pub fn ef8x16_past(&self) -> &'static [u8] {
-        self.ef8x16_past
-    }
-    pub fn ef12x20(&self) -> &'static [u8] {
-        self.ef12x20
-    }
+impl crate::store::Table for Fonts {
+    const ID: usize = super::id::FONTS;
 }
 
-/// `ef8x16`: 8x16 glyphs, 16 a row, 64 bytes a row line.
-pub static EF8X16: std::sync::LazyLock<&'static [u8]> = std::sync::LazyLock::new(|| shared().ef8x16);
-
-/// `ef12x20`: 12x20 glyphs, 96 bytes a row line.
-pub static EF12X20: std::sync::LazyLock<&'static [u8]> = std::sync::LazyLock::new(|| shared().ef12x20);
-
-/// The volume's Fonts (read once a run; kept here per volume).
+/// The volume's Fonts (read once a run).
 pub fn of(v: Volume) -> &'static Fonts {
-    static READ: [std::sync::OnceLock<&'static Fonts>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "fonts"))
+    <Fonts as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Fonts {
-    static READ: std::sync::OnceLock<&'static Fonts> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("fonts"))
+pub fn shared() -> &'static Fonts {
+    <Fonts as crate::store::Table>::shared()
 }

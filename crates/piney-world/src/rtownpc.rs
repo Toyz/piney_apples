@@ -105,19 +105,19 @@ impl Tables {
         let text = |t: &[Option<&'static str>], k: usize| t.get(k).copied().flatten().unwrap_or_default();
         let rows = |t: &'static [&'static [Option<&'static str>]], s: usize| t.get(s).copied().unwrap_or_default();
         Tables {
-            ccs_names: names(w.rtpc_ccs_names()),
-            weapon_names: names(w.rtpc_weapon_names()),
-            tvpc_weapon_names: names(w.tvpc_weapon_names()),
-            sign_weapon_names: names(w.sign_weapon_names()),
-            search_marks: w.search_marks().iter().map(|r| r.map(<[[i8; 4]]>::to_vec)).collect(),
-            search_dummies: names(w.search_dummies()),
-            walk_extra_rows: w.walk_extra_rows().iter().map(|&r| r as i16).collect(),
-            anm_tbls: w.rtpc_anms().iter().map(|r| names(r)).collect(),
-            chat: std::array::from_fn(|k| text(w.rtpc_chat(), k)),
-            chat_shop: std::array::from_fn(|s| std::array::from_fn(|k| text(rows(w.rtpc_chat_shop(), s), k))),
-            chat_mes: std::array::from_fn(|s| std::array::from_fn(|k| text(rows(w.rtpc_chat_mes(), s), k))),
-            mark_pos: std::array::from_fn(|m| w.mark_pos().get(m).copied().unwrap_or_default()),
-            merchan_num: w.merchan_num(),
+            ccs_names: names(w.rtpc_ccs_names),
+            weapon_names: names(w.rtpc_weapon_names),
+            tvpc_weapon_names: names(w.tvpc_weapon_names),
+            sign_weapon_names: names(w.sign_weapon_names),
+            search_marks: w.search_marks.iter().map(|r| r.map(<[[i8; 4]]>::to_vec)).collect(),
+            search_dummies: names(w.search_dummies),
+            walk_extra_rows: w.walk_extra_rows.iter().map(|&r| r as i16).collect(),
+            anm_tbls: w.rtpc_anms.iter().map(|r| names(r)).collect(),
+            chat: std::array::from_fn(|k| text(w.rtpc_chat, k)),
+            chat_shop: std::array::from_fn(|s| std::array::from_fn(|k| text(rows(w.rtpc_chat_shop, s), k))),
+            chat_mes: std::array::from_fn(|s| std::array::from_fn(|k| text(rows(w.rtpc_chat_mes, s), k))),
+            mark_pos: std::array::from_fn(|m| w.mark_pos.get(m).copied().unwrap_or_default()),
+            merchan_num: w.merchan_num,
             later: volume != Volume::Inf,
         }
     }

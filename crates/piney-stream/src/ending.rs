@@ -161,7 +161,7 @@ impl Tables {
     /// The volume's.
     pub fn read(volume: piney_data::volume::Volume) -> Tables {
         let t = piney_data::tables::stream::of(volume);
-        Tables { entries: entries_of(t.event_objs()), rock_scale: t.rock_scale().map(f32::to_bits) }
+        Tables { entries: entries_of(t.event_objs), rock_scale: t.rock_scale.map(f32::to_bits) }
     }
 
     /// Where `eventObjTbl_0581` starts in the run (entry 105 on Infection):

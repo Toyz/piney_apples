@@ -73,7 +73,7 @@ fn hits_on(sid: i32, at: &[i16]) {
 /// on the element's count `n` shows at the run's count `n + 2`.
 fn element_counts(level: i32) -> Vec<i16> {
     let t = piney_data::tables::effect::of(Volume::Inf);
-    let first = if level == 3 { t.tornade_start2()[1] } else { t.tornade_start2b()[3] } + 5;
+    let first = if level == 3 { t.tornade_start2[1] } else { t.tornade_start2b[3] } + 5;
     (0..9).map(|i| (first + 5 * i + 2) as i16).collect()
 }
 

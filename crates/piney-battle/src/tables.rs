@@ -95,7 +95,7 @@ impl Tables {
         let equip = |t: &[gt::EquipmentParam]| t.iter().map(EquipParam::of).collect::<Vec<_>>();
         let lists = |t: &[gt::ItemList]| t.iter().map(ItemList::of).collect::<Vec<_>>();
         let chars = newgame::of(volume)
-            .chars()
+            .chars
             .iter()
             .map(|c| {
                 // The row is ccSpcParam's first 0x48 bytes, then the
@@ -113,7 +113,7 @@ impl Tables {
             })
             .collect();
         let level_up = b
-            .level_up()
+            .level_up
             .iter()
             .map(|l| {
                 let e = gt::CharParamElement {
@@ -127,52 +127,52 @@ impl Tables {
         let area = |l: &[&[i32]]| l.iter().map(|x| x.to_vec()).collect::<Vec<_>>();
         Tables {
             volume,
-            skills: skills(b.skills()),
-            boss_skills: skills(b.boss_skills()),
-            enemies: with_base_forms(b.enemies().iter().map(EnemyTable::of).collect()),
-            bosses: b.bosses().iter().map(FoeRow::of_boss).collect(),
+            skills: skills(b.skills),
+            boss_skills: skills(b.boss_skills),
+            enemies: with_base_forms(b.enemies.iter().map(EnemyTable::of).collect()),
+            bosses: b.bosses.iter().map(FoeRow::of_boss).collect(),
             items: [
-                items(b.item_r()),
-                items(b.item_d()),
-                items(b.item_u()),
-                items(b.item_x()),
-                items(b.item_t()),
-                items(b.item_e()),
+                items(b.item_r),
+                items(b.item_d),
+                items(b.item_u),
+                items(b.item_x),
+                items(b.item_t),
+                items(b.item_e),
             ],
-            armor: [equip(b.head()), equip(b.body()), equip(b.arm()), equip(b.leg())],
+            armor: [equip(b.head), equip(b.body), equip(b.arm), equip(b.leg)],
             weapons: [
-                equip(b.weapon1()),
-                equip(b.weapon2()),
-                equip(b.weapon3()),
-                equip(b.weapon4()),
-                equip(b.weapon5()),
-                equip(b.weapon6()),
+                equip(b.weapon1),
+                equip(b.weapon2),
+                equip(b.weapon3),
+                equip(b.weapon4),
+                equip(b.weapon5),
+                equip(b.weapon6),
             ],
             chars,
             level_up,
-            exp_calc: b.exp_calc().try_into().expect("exp_calc's size"),
-            race_num: b.races().iter().map(|r| r.race_num).collect(),
-            drain_erosion: b.drain_erosion().try_into().expect("drain_erosion's size"),
-            erosion: b.erosion().try_into().expect("erosion's size"),
-            player_default_items: lists(b.player_default_items()),
-            player_default_important: lists(b.player_default_important()),
-            spc_default_items: b.spc_default_items().iter().map(|l| lists(l)).collect(),
-            ai_params: b.ai_params().iter().map(AiParam::of).collect(),
-            debuff_priority: b.debuff_priority().try_into().expect("debuff_priority's size"),
-            buff_priority: b.buff_priority().try_into().expect("buff_priority's size"),
-            debuff_table_index: b.debuff_table_index(),
-            buff_table_index: b.buff_table_index(),
-            debuff_skill_ability: b.debuff_skill_ability().try_into().expect("debuff_skill_ability's size"),
-            debuff_skill_attribute: b.debuff_skill_attribute().try_into().expect("debuff_skill_attribute's size"),
-            buff_skill_ability: b.buff_skill_ability().try_into().expect("buff_skill_ability's size"),
-            buff_skill_attribute: b.buff_skill_attribute().try_into().expect("buff_skill_attribute's size"),
+            exp_calc: b.exp_calc.try_into().expect("exp_calc's size"),
+            race_num: b.races.iter().map(|r| r.race_num).collect(),
+            drain_erosion: b.drain_erosion.try_into().expect("drain_erosion's size"),
+            erosion: b.erosion.try_into().expect("erosion's size"),
+            player_default_items: lists(b.player_default_items),
+            player_default_important: lists(b.player_default_important),
+            spc_default_items: b.spc_default_items.iter().map(|l| lists(l)).collect(),
+            ai_params: b.ai_params.iter().map(AiParam::of).collect(),
+            debuff_priority: b.debuff_priority.try_into().expect("debuff_priority's size"),
+            buff_priority: b.buff_priority.try_into().expect("buff_priority's size"),
+            debuff_table_index: b.debuff_table_index,
+            buff_table_index: b.buff_table_index,
+            debuff_skill_ability: b.debuff_skill_ability.try_into().expect("debuff_skill_ability's size"),
+            debuff_skill_attribute: b.debuff_skill_attribute.try_into().expect("debuff_skill_attribute's size"),
+            buff_skill_ability: b.buff_skill_ability.try_into().expect("buff_skill_ability's size"),
+            buff_skill_attribute: b.buff_skill_attribute.try_into().expect("buff_skill_attribute's size"),
             area_items: [
-                area(f.item_box_list()),
-                area(f.danger_item_box_list()),
-                area(f.suka_item_box_list()),
-                area(f.area_item_list()),
-                area(f.idol_item_list()),
-                area(f.idol_sub_item_list()),
+                area(f.item_box_list),
+                area(f.danger_item_box_list),
+                area(f.suka_item_box_list),
+                area(f.area_item_list),
+                area(f.idol_item_list),
+                area(f.idol_sub_item_list),
             ],
             chat: crate::party_chat::ChatTexts::of(volume),
         }
@@ -274,7 +274,7 @@ mod tests {
         assert_eq!((bug.anm, bug.clut, bug.file), (base.anm, base.clut, base.file));
         assert_eq!(base.file, "EET1");
         let raw = battle::of(Volume::Inf);
-        assert!(raw.enemies()[115].entry.anm.is_none());
+        assert!(raw.enemies[115].entry.anm.is_none());
     }
 
     #[test]

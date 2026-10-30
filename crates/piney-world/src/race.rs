@@ -223,17 +223,17 @@ impl Flag {
         n: usize,
     ) -> piney_data::Result<Option<Flag>> {
         let t = piney_data::tables::race::of(volume);
-        let Some(Some(markers)) = usize::try_from(town).ok().and_then(|k| t.flag_markers().get(k)) else {
+        let Some(Some(markers)) = usize::try_from(town).ok().and_then(|k| t.flag_markers.get(k)) else {
             return Ok(None);
         };
         let Some((pos, _)) = crate::grunty::dummy(town_file, markers[n]) else { return Ok(None) };
         let file = Rc::new(SceneFile::read(archive, FLAG_FILE)?);
         let mut model = Model::new(file, "CMP_trall")?;
-        if let Some(Some(clut)) = t.flag_cluts().get(n) {
+        if let Some(Some(clut)) = t.flag_cluts.get(n) {
             model.change_clut("MAT_clut", clut)?;
         }
         let play = model.play("ANM_xpflnut0");
-        let base = &piney_data::tables::battle::of(volume).gimmicks()[FLAG_GIMMICK].param.base;
+        let base = &piney_data::tables::battle::of(volume).gimmicks[FLAG_GIMMICK].param.base;
         let mut entry = EntryObj::default();
         entry.delete_cmnd(true);
         Ok(Some(Flag {
@@ -843,8 +843,8 @@ impl crate::World {
                         return;
                     }
                     // Kite at the start, paused; the Grunty called.
-                    self.player.body.pos = t.kite_pos()[s].map(f32::to_bits);
-                    self.player.body.dirc = [0, 0, ee::deg2rad(t.kite_rot()[s]), ONE];
+                    self.player.body.pos = t.kite_pos[s].map(f32::to_bits);
+                    self.player.body.dirc = [0, 0, ee::deg2rad(t.kite_rot[s]), ONE];
                     self.player.acts.pause = true;
                     self.ride_start_town(r.kind);
                     r.pc = Pc::IntroTop;
@@ -855,9 +855,9 @@ impl crate::World {
                             self.camera.change_camera(3);
                             let (pos, view) = if r.kind != 0 {
                                 let k = r.kind as usize;
-                                (t.intro_pos_kind()[k], t.intro_view_kind()[k])
+                                (t.intro_pos_kind[k], t.intro_view_kind[k])
                             } else {
-                                (t.intro_pos_server()[s], t.intro_view_server()[s])
+                                (t.intro_pos_server[s], t.intro_view_server[s])
                             };
                             let n = self.camera.cam_id;
                             let c = self.camera.cam_mut(n);
@@ -923,7 +923,7 @@ impl crate::World {
                         f.state = FlagState::Out;
                         f.taken = false;
                     }
-                    let p = if r.kind != 0 { t.ride_kind()[r.kind as usize] } else { t.ride_server()[s] };
+                    let p = if r.kind != 0 { t.ride_kind[r.kind as usize] } else { t.ride_server[s] };
                     let p = p.map(f32::to_bits);
                     r.ride = RaceRide { max: p[0], accel: p[1], ease_on: p[2], ease_off: p[3] };
                     host.continue_fade(r.fade, 30, CLEAR);
@@ -945,7 +945,7 @@ impl crate::World {
                             let old = r.count;
                             r.count += 1;
                             if old < 30 {
-                                self.race_clip(r, Clip::Count, 0xc448_0000, t.count_height()[s].to_bits());
+                                self.race_clip(r, Clip::Count, 0xc448_0000, t.count_height[s].to_bits());
                             }
                             if r.state == 1 {
                                 r.phase += 1;
@@ -970,7 +970,7 @@ impl crate::World {
                         return;
                     }
                     let finish = r.pc == Pc::FinishOut;
-                    let (pos, rot) = (t.ride_end_pos()[s].map(f32::to_bits), t.ride_end_rot()[s].map(f32::to_bits));
+                    let (pos, rot) = (t.ride_end_pos[s].map(f32::to_bits), t.ride_end_rot[s].map(f32::to_bits));
                     self.ride_place(pos, rot);
                     if finish {
                         self.player.body.pos = pos;
@@ -979,8 +979,8 @@ impl crate::World {
                     self.camera.change_camera(3);
                     let n = self.camera.cam_id;
                     let c = self.camera.cam_mut(n);
-                    c.pos = t.finish_cam_pos()[s].map(f32::to_bits);
-                    c.view = t.finish_cam_view()[s].map(f32::to_bits);
+                    c.pos = t.finish_cam_pos[s].map(f32::to_bits);
+                    c.view = t.finish_cam_view[s].map(f32::to_bits);
                     r.ride.ease_off = ONE;
                     if finish {
                         self.race_rank(r);
@@ -1052,7 +1052,7 @@ impl crate::World {
                         f.state = FlagState::Taken;
                     }
                     // Kite by the breeder, facing him.
-                    let at = t.end_pos()[s].map(f32::to_bits);
+                    let at = t.end_pos[s].map(f32::to_bits);
                     self.player.body.pos = at;
                     let breeder = crate::grunty::dummy(&self.town.base.file, "DMY_merchant6").map(|d| d.0);
                     let mut rot = self.player.body.dirc;
@@ -1109,7 +1109,7 @@ impl crate::World {
             self.player.acts.pause = false;
             self.camera.change_camera(1);
         }
-        let h = piney_data::tables::race::of(self.volume).count_height()[s].to_bits();
+        let h = piney_data::tables::race::of(self.volume).count_height[s].to_bits();
         self.race_clip(r, Clip::Count, 0xc448_0000, h);
     }
 
@@ -1134,7 +1134,7 @@ impl crate::World {
     fn race_rank(&mut self, r: &mut Race) {
         let t = piney_data::tables::race::of(self.volume);
         let ranks: [(i16, i16); 3] = piney_data::tables::fieldui::of(self.volume)
-            .race_ranks()
+            .race_ranks
             .get((r.server - 1) as usize)
             .map_or([(0, 0); 3], |rs| rs.map(|x| (x.time, x.row)));
         let row = (r.kind + ROW_KIND0) as i16;
@@ -1142,8 +1142,8 @@ impl crate::World {
         match r.rank {
             1..=3 => {
                 let k = r.rank as usize;
-                r.cup_play = r.files.anm(Clip::Cup, t.cup_anms()[k]);
-                r.place_play = r.files.anm(Clip::Place, t.place_anms()[k]);
+                r.cup_play = r.files.anm(Clip::Cup, t.cup_anms[k]);
+                r.place_play = r.files.anm(Clip::Place, t.place_anms[k]);
             }
             _ => r.out_play = r.files.anm(Clip::Out, "ANM_xp_out_a"),
         }
@@ -1153,7 +1153,7 @@ impl crate::World {
     /// fade's step (true: the task breathes inside it), then the result's
     /// clips until the music after.
     fn race_finish(&mut self, r: &mut Race, host: &mut dyn RaceHost, s: usize) -> bool {
-        let h = piney_data::tables::race::of(self.volume).cup_height()[s].to_bits();
+        let h = piney_data::tables::race::of(self.volume).cup_height[s].to_bits();
         match r.sub {
             0 => {
                 self.player.acts.pause = true;
@@ -1224,7 +1224,7 @@ impl crate::World {
                 return true;
             }
             2 => {
-                let h = piney_data::tables::race::of(self.volume).cup_height()[s].to_bits();
+                let h = piney_data::tables::race::of(self.volume).cup_height[s].to_bits();
                 self.race_clip(r, Clip::Over, 0xc3fa_0000, h);
                 let old = r.cnt;
                 r.cnt += 1;
@@ -1241,7 +1241,7 @@ impl crate::World {
 
     /// 0x005fee10 ([`Race::hud`]) with the volume's timer cells.
     fn race_hud(&mut self, r: &mut Race) {
-        r.hud(piney_data::tables::race::of(self.volume).timer_cells());
+        r.hud(piney_data::tables::race::of(self.volume).timer_cells);
     }
 }
 

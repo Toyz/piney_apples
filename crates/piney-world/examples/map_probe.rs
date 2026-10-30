@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use piney_data::archive::Archive;
 use piney_data::iso::Iso;
+use piney_data::store::Table;
 use piney_world::area::{Scene, WorldMan};
 use piney_world::dungeon_area::DungeonArea;
 use piney_world::ee::ONE;

@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use piney_data::area::AreaTables;
 use piney_data::exe::Image;
 use piney_data::save::SaveData;
+use piney_data::store::Table;
 use piney_event::host::{Announce, StoryArea};
 
 /// Every story area of the volume's tables (`piney_data::area`), by code:
@@ -92,7 +93,7 @@ impl Announcements {
             records.insert(e.code, ([word(0), word(1), word(2)], e.server));
         }
         let volume = piney_data::volume::Volume::from_number(areas.volume).unwrap_or_default();
-        let b = piney_data::tables::world::of(volume).book();
+        let b = piney_data::tables::world::of(volume).book;
         let book = [0, 1, 2, 3].map(|k| b.get(k).map_or_else(Vec::new, |s| piney_data::tables::sjis::encode(s)));
         let image = Image::default().with(demo);
         let tables = piney_demo::newgame::NewGameTables::of(volume);
@@ -148,8 +149,8 @@ impl Announcements {
     fn piece(&self, list: List, k: i32) -> Vec<u8> {
         let t = piney_data::tables::fieldui::of(self.volume);
         let lines = match list {
-            List::Server => t.server_str(),
-            List::GetItem => t.get_item_str(),
+            List::Server => t.server_str,
+            List::GetItem => t.get_item_str,
         };
         lines.get(k.max(0) as usize).map_or_else(Vec::new, |s| piney_data::tables::sjis::encode(s))
     }

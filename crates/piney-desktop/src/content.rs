@@ -119,7 +119,7 @@ pub fn streams(v: Volume) -> Vec<StrData> {
 /// A movie's volume: 1 + the number of `AddStrList`'s bounds it is at or
 /// above.
 pub fn stream_volume(i: usize) -> i32 {
-    1 + desktop::STREAM_VOLUMES.iter().take_while(|&&b| i as i32 >= b).count() as i32
+    1 + desktop::shared().stream_volumes.iter().take_while(|&&b| i as i32 >= b).count() as i32
 }
 
 /// `HtmlData` (0x1c bytes): one news headline and its page.

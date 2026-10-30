@@ -220,17 +220,16 @@ impl RideTables {
         let t = piney_data::tables::combat::of(volume);
         let owned = |v: &[&str]| v.iter().map(|s| s.to_string()).collect();
         let mut angles = [0; SLOTS];
-        angles.copy_from_slice(&t.ride_angles()[..SLOTS]);
+        angles.copy_from_slice(&t.ride_angles[..SLOTS]);
         let seek = (volume != Volume::Inf).then(|| SeekTables {
-            types: t.ride_seek_types().to_vec(),
-            ranges: t.ride_seek_ranges().iter().map(|v| v.to_bits()).collect(),
-            lines: [t.ride_seek_found(), t.ride_seek_none(), t.ride_seek_cancel(), t.ride_seek_near()]
-                .map(<[_]>::to_vec),
+            types: t.ride_seek_types.to_vec(),
+            ranges: t.ride_seek_ranges.iter().map(|v| v.to_bits()).collect(),
+            lines: [t.ride_seek_found, t.ride_seek_none, t.ride_seek_cancel, t.ride_seek_near].map(<[_]>::to_vec),
         });
         RideTables {
-            anims: owned(t.ride_anims()),
-            anims_pg: owned(t.ride_anims_pg()),
-            files: owned(t.ride_files()),
+            anims: owned(t.ride_anims),
+            anims_pg: owned(t.ride_anims_pg),
+            files: owned(t.ride_files),
             angles,
             volume,
             seek,
@@ -1397,7 +1396,7 @@ mod tests {
             let s = t.seek.expect("the search's tables");
             assert_eq!((s.types.len(), s.ranges.len()), (KINDS, 3));
             let longest = piney_data::tables::battle::of(v)
-                .gimmicks()
+                .gimmicks
                 .iter()
                 .filter_map(|g| g.param.base.name)
                 .map(str::len)

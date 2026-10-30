@@ -44,49 +44,49 @@ impl crate::store::Load for MenuElement {
 /// The `dtmenu` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct DtMenu {
-    /// `dtMenuElementData`: the 13 lists.
+    /// `dtMenuElementData`: the 13 lists. Alike on every volume.
     pub elements: &'static [MenuElement],
-    /// `dialogDefault`: the dialog's two answers.
+    /// `dialogDefault`: the dialog's two answers. Alike on every volume.
     pub dialog: &'static [&'static str],
-    /// `resetMenuInfo[0]`
+    /// `resetMenuInfo[0]` Alike on every volume.
     pub reset_info: &'static str,
-    /// `resetMenuInfo[1]`: two lines.
+    /// `resetMenuInfo[1]`: two lines. Alike on every volume.
     pub reset_info2: &'static [&'static str],
-    /// `dialogOnOff`
+    /// `dialogOnOff` Alike on every volume.
     pub on_off: &'static [&'static str],
-    /// `dialogVoice`
+    /// `dialogVoice` Alike on every volume.
     pub voice: &'static [&'static str],
-    /// `soundMenuStr`
+    /// `soundMenuStr` Alike on every volume.
     pub sound: &'static [&'static str],
-    /// `ctrlMenuStr`: the controller types.
+    /// `ctrlMenuStr`: the controller types. Alike on every volume.
     pub ctrl: &'static [&'static str],
-    /// `ctrlMenuStrBtn`: the buttons' actions.
+    /// `ctrlMenuStrBtn`: the buttons' actions. Alike on every volume.
     pub ctrl_btn: &'static [&'static str],
-    /// `ctrlMenuStrCam`: the camera's.
+    /// `ctrlMenuStrCam`: the camera's. Alike on every volume.
     pub ctrl_cam: &'static [&'static str],
-    /// `ctrlMenuStrMov`: the sticks'.
+    /// `ctrlMenuStrMov`: the sticks'. Alike on every volume.
     pub ctrl_mov: &'static [&'static str],
-    /// `vibrationMenuInfo`: on and off, two lines each.
+    /// `vibrationMenuInfo`: on and off, two lines each. Alike on every volume.
     pub vibration_info: &'static [&'static [&'static str]],
-    /// `voiceMenuInfo`: two lines each.
+    /// `voiceMenuInfo`: two lines each. Alike on every volume.
     pub voice_info: &'static [&'static [&'static str]],
-    /// `strwinMenuInfo`: two lines each.
+    /// `strwinMenuInfo`: two lines each. Alike on every volume.
     pub strwin_info: &'static [&'static [&'static str]],
-    /// `ctrlMenuHelp`: two lines each.
+    /// `ctrlMenuHelp`: two lines each. Alike on every volume.
     pub help: &'static [&'static [&'static str]],
-    /// The screen position's first label.
+    /// The screen position's first label. Alike on every volume.
     pub screen_x: &'static str,
-    /// Its second.
+    /// Its second. Alike on every volume.
     pub screen_y: &'static str,
     /// `clearFlagStr[volumeNum - 1]`: the volume's question, three lines.
     pub clear_flag: &'static [&'static str],
-    /// `recordMenuStr`: slot 1, slot 2, Unused, Data, MEMORY CARD.
+    /// `recordMenuStr`: slot 1, slot 2, Unused, Data, MEMORY CARD. Alike on every volume.
     pub record: &'static [&'static str],
-    /// `@3200` ":"
+    /// `@3200` ":" Alike on every volume.
     pub colon: &'static str,
-    /// `@3201` "LV"
+    /// `@3201` "LV" Alike on every volume.
     pub lv: &'static str,
-    /// `@3202` "999:59:59"
+    /// `@3202` "999:59:59" Alike on every volume.
     pub time_max: &'static str,
 }
 
@@ -119,151 +119,16 @@ impl crate::store::Load for DtMenu {
     }
 }
 
-impl DtMenu {
-    pub fn elements(&self) -> &'static [MenuElement] {
-        self.elements
-    }
-    pub fn dialog(&self) -> &'static [&'static str] {
-        self.dialog
-    }
-    pub fn reset_info(&self) -> &'static str {
-        self.reset_info
-    }
-    pub fn reset_info2(&self) -> &'static [&'static str] {
-        self.reset_info2
-    }
-    pub fn on_off(&self) -> &'static [&'static str] {
-        self.on_off
-    }
-    pub fn voice(&self) -> &'static [&'static str] {
-        self.voice
-    }
-    pub fn sound(&self) -> &'static [&'static str] {
-        self.sound
-    }
-    pub fn ctrl(&self) -> &'static [&'static str] {
-        self.ctrl
-    }
-    pub fn ctrl_btn(&self) -> &'static [&'static str] {
-        self.ctrl_btn
-    }
-    pub fn ctrl_cam(&self) -> &'static [&'static str] {
-        self.ctrl_cam
-    }
-    pub fn ctrl_mov(&self) -> &'static [&'static str] {
-        self.ctrl_mov
-    }
-    pub fn vibration_info(&self) -> &'static [&'static [&'static str]] {
-        self.vibration_info
-    }
-    pub fn voice_info(&self) -> &'static [&'static [&'static str]] {
-        self.voice_info
-    }
-    pub fn strwin_info(&self) -> &'static [&'static [&'static str]] {
-        self.strwin_info
-    }
-    pub fn help(&self) -> &'static [&'static [&'static str]] {
-        self.help
-    }
-    pub fn screen_x(&self) -> &'static str {
-        self.screen_x
-    }
-    pub fn screen_y(&self) -> &'static str {
-        self.screen_y
-    }
-    pub fn clear_flag(&self) -> &'static [&'static str] {
-        self.clear_flag
-    }
-    pub fn record(&self) -> &'static [&'static str] {
-        self.record
-    }
-    pub fn colon(&self) -> &'static str {
-        self.colon
-    }
-    pub fn lv(&self) -> &'static str {
-        self.lv
-    }
-    pub fn time_max(&self) -> &'static str {
-        self.time_max
-    }
+impl crate::store::Table for DtMenu {
+    const ID: usize = super::id::DTMENU;
 }
 
-/// `dtMenuElementData`: the 13 lists.
-pub static ELEMENTS: std::sync::LazyLock<&'static [MenuElement]> = std::sync::LazyLock::new(|| shared().elements);
-
-/// `dialogDefault`: the dialog's two answers.
-pub static DIALOG: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().dialog);
-
-/// `resetMenuInfo[0]`
-pub static RESET_INFO: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().reset_info);
-
-/// `resetMenuInfo[1]`: two lines.
-pub static RESET_INFO2: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().reset_info2);
-
-/// `dialogOnOff`
-pub static ON_OFF: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().on_off);
-
-/// `dialogVoice`
-pub static VOICE: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().voice);
-
-/// `soundMenuStr`
-pub static SOUND: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().sound);
-
-/// `ctrlMenuStr`: the controller types.
-pub static CTRL: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().ctrl);
-
-/// `ctrlMenuStrBtn`: the buttons' actions.
-pub static CTRL_BTN: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().ctrl_btn);
-
-/// `ctrlMenuStrCam`: the camera's.
-pub static CTRL_CAM: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().ctrl_cam);
-
-/// `ctrlMenuStrMov`: the sticks'.
-pub static CTRL_MOV: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().ctrl_mov);
-
-/// `vibrationMenuInfo`: on and off, two lines each.
-pub static VIBRATION_INFO: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().vibration_info);
-
-/// `voiceMenuInfo`: two lines each.
-pub static VOICE_INFO: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().voice_info);
-
-/// `strwinMenuInfo`: two lines each.
-pub static STRWIN_INFO: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().strwin_info);
-
-/// `ctrlMenuHelp`: two lines each.
-pub static HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> = std::sync::LazyLock::new(|| shared().help);
-
-/// The screen position's first label.
-pub static SCREEN_X: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().screen_x);
-
-/// Its second.
-pub static SCREEN_Y: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().screen_y);
-
-/// `recordMenuStr`: slot 1, slot 2, Unused, Data, MEMORY CARD.
-pub static RECORD: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().record);
-
-/// `@3200` ":"
-pub static COLON: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().colon);
-
-/// `@3201` "LV"
-pub static LV: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().lv);
-
-/// `@3202` "999:59:59"
-pub static TIME_MAX: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().time_max);
-
-/// The volume's DtMenu (read once a run; kept here per volume).
+/// The volume's DtMenu (read once a run).
 pub fn of(v: Volume) -> &'static DtMenu {
-    static READ: [std::sync::OnceLock<&'static DtMenu>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "dtmenu"))
+    <DtMenu as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static DtMenu {
-    static READ: std::sync::OnceLock<&'static DtMenu> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("dtmenu"))
+pub fn shared() -> &'static DtMenu {
+    <DtMenu as crate::store::Table>::shared()
 }

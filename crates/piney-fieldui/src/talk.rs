@@ -63,7 +63,7 @@ pub struct Base {
 impl Base {
     /// `npcTbl[row].param.base` (`battle::npcs`).
     pub fn npc(volume: Volume, row: i32) -> Option<Base> {
-        let b = &battle::of(volume).npcs().get(usize::try_from(row).ok()?)?.param.base;
+        let b = &battle::of(volume).npcs.get(usize::try_from(row).ok()?)?.param.base;
         Some(Base {
             name: b.name.map(sjis::encode).unwrap_or_default(),
             types: b.kind as u32,
@@ -118,14 +118,14 @@ impl TalkTexts {
     pub fn ev_msg(&self, p: u32) -> EvMsg {
         use crate::tables::piece;
         let t = fieldui::of(self.volume);
-        let error = t.error_data();
+        let error = t.error_data;
         let r = match self.record(p) {
-            Some(r) if p != t.error_data_va() && r.str.is_some() => r,
+            Some(r) if p != t.error_data_va && r.str.is_some() => r,
             Some(_) => &error,
             // A pointer table read as a record (an NPC past the PCs, whose
             // `msg` the talk page takes for its record): `emode` is its first
             // word, `str` its third, and the text what lies there.
-            None if p != 0 && p != t.error_data_va() && self.word(p.wrapping_add(8)) != 0 => {
+            None if p != 0 && p != t.error_data_va && self.word(p.wrapping_add(8)) != 0 => {
                 let raw = self.bytes_at(self.word(p.wrapping_add(8)), 512);
                 return EvMsg { emode: self.word(p) as i32, lines: [0, 1, 2].map(|k| separate(&raw, k)) };
             }
@@ -143,7 +143,7 @@ impl TalkTexts {
         let mut out = Vec::with_capacity(n);
         while out.len() < n {
             let at = va.wrapping_add(out.len() as u32);
-            let arrays = talk.records();
+            let arrays = talk.records;
             let word = match arrays.partition_point(|a| a.va <= at).checked_sub(1).map(|i| &arrays[i]) {
                 Some(a) if ((at - a.va) / 12) < a.records.len() as u32 => {
                     let k = ((at - a.va) / 12) as usize;
@@ -161,7 +161,7 @@ impl TalkTexts {
 
     /// Whether one of the volume's pointer tables holds `p`.
     fn in_table(&self, p: u32) -> bool {
-        let tables = piney_data::tables::talk::of(self.volume).pointers();
+        let tables = piney_data::tables::talk::of(self.volume).pointers;
         tables
             .partition_point(|t| t.va <= p)
             .checked_sub(1)
@@ -170,7 +170,7 @@ impl TalkTexts {
 
     /// The record at `p`, where one of the volume's record arrays holds it.
     pub fn record(&self, p: u32) -> Option<&'static EvMsgData> {
-        let arrays = piney_data::tables::talk::of(self.volume).records();
+        let arrays = piney_data::tables::talk::of(self.volume).records;
         let a = &arrays[arrays.partition_point(|a| a.va <= p).checked_sub(1)?];
         let off = p - a.va;
         if !off.is_multiple_of(12) {
@@ -190,7 +190,7 @@ impl TalkTexts {
     /// The word at `p` in one of the volume's pointer tables, 0 where none
     /// holds it.
     pub fn word(&self, p: u32) -> u32 {
-        let tables = piney_data::tables::talk::of(self.volume).pointers();
+        let tables = piney_data::tables::talk::of(self.volume).pointers;
         let Some(i) = tables.partition_point(|t| t.va <= p).checked_sub(1) else { return 0 };
         let off = p - tables[i].va;
         if !off.is_multiple_of(4) {
@@ -324,7 +324,7 @@ pub fn open_record(m: &mut MenuCtrl, x: &mut Ctx, rec: u32, name: &[u8], grp: i3
     let names = x.save.names();
     let lines: Vec<&[u8]> = r.lines.iter().map(|l| &l[..]).collect();
     m.msg.open_record(r.emode, Some(name), &lines, &names);
-    let err = fieldui::of(x.texts.volume).error_data_va();
+    let err = fieldui::of(x.texts.volume).error_data_va;
     let rec = if rec == 0 || !x.texts.talk.has_text(rec) { err } else { rec };
     m.talk.chain = Some(Chain { rec, name: name.to_vec(), grp, msg });
     m.note(|| format!("[\"msg_record\",{rec}]"));
@@ -353,7 +353,7 @@ pub fn msg_check(m: &mut MenuCtrl, x: &mut Ctx) -> i32 {
         }
         c.rec = c.rec.wrapping_add(12);
         if !x.texts.talk.has_text(c.rec) {
-            c.rec = piney_data::tables::fieldui::of(x.texts.volume).error_data_va();
+            c.rec = piney_data::tables::fieldui::of(x.texts.volume).error_data_va;
         }
         let c = c.clone();
         let r = x.texts.talk.ev_msg(c.rec);

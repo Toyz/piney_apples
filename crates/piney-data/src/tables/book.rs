@@ -22,305 +22,305 @@ impl crate::store::Load for BookMsg {
 /// The `book` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct Book {
-    /// `BookOfs`: each book's window (y, width, height in cells).
+    /// `BookOfs`: each book's window (y, width, height in cells). Alike on every volume.
     pub ofs: &'static [i32],
     /// `bookItemList`: the rewards in the order given (`saveData.hyItem`): 1 a BGM, 2 a wallpaper, 4 a movie.
     pub item_list: &'static [Bookitemdata],
-    /// `bookServer`: the servers' names.
+    /// `bookServer`: the servers' names. Alike on every volume.
     pub server: &'static [Option<&'static str>],
     /// `countStopMsg`: by `volumeNum` - 1; three, four from Outbreak on ("in Vol. 4.").
     pub count_stop: &'static [Option<&'static str>],
-    /// The palette `ccThBook` puts on the cover's `MAT_clut` for each book past the first.
+    /// The palette `ccThBook` puts on the cover's `MAT_clut` for each book past the first. Alike on every volume.
     pub stream_cluts: &'static [&'static str],
     /// `ccThBook`'s stream for the first book's cover (the book's is this + the book): 112 on Infection, 118 from Mutation on.
     pub cover_stream: i32,
-    /// `bookTitle1`
+    /// `bookTitle1` Alike on every volume.
     pub title1: &'static str,
-    /// `bookAreaMsg`
+    /// `bookAreaMsg` Alike on every volume.
     pub area_msg: &'static str,
-    /// `bookTimeMsg`
+    /// `bookTimeMsg` Alike on every volume.
     pub time_msg: &'static str,
-    /// `bookCnt3`
+    /// `bookCnt3` Alike on every volume.
     pub cnt3: &'static str,
-    /// `bookTitle2`
+    /// `bookTitle2` Alike on every volume.
     pub title2: &'static str,
-    /// `bookMagicCircleMsg`
+    /// `bookMagicCircleMsg` Alike on every volume.
     pub magic_circle_msg: &'static str,
-    /// `bookMagicCircleAllOpenMsg`
+    /// `bookMagicCircleAllOpenMsg` Alike on every volume.
     pub magic_circle_all_open_msg: &'static str,
-    /// `bookMagicCircleAllOpenMsg2`
+    /// `bookMagicCircleAllOpenMsg2` Alike on every volume.
     pub magic_circle_all_open_msg2: &'static str,
-    /// `bookTitle3`
+    /// `bookTitle3` Alike on every volume.
     pub title3: &'static str,
-    /// `bookCharList`
+    /// `bookCharList` Alike on every volume.
     pub char_list: &'static str,
-    /// `bookTradeTotal`
+    /// `bookTradeTotal` Alike on every volume.
     pub trade_total: &'static str,
-    /// `bookCharMsg0`
+    /// `bookCharMsg0` Alike on every volume.
     pub char_msg0: &'static str,
-    /// `bookCharMsg1`
+    /// `bookCharMsg1` Alike on every volume.
     pub char_msg1: &'static str,
-    /// `bookTradeMsg0`
+    /// `bookTradeMsg0` Alike on every volume.
     pub trade_msg0: &'static str,
-    /// `bookTradeMsg1`
+    /// `bookTradeMsg1` Alike on every volume.
     pub trade_msg1: &'static str,
-    /// `bookTradeMsg2`
+    /// `bookTradeMsg2` Alike on every volume.
     pub trade_msg2: &'static str,
-    /// `bookTradeMsg3`
+    /// `bookTradeMsg3` Alike on every volume.
     pub trade_msg3: &'static str,
-    /// `bookOnLine`
+    /// `bookOnLine` Alike on every volume.
     pub on_line: &'static str,
-    /// `bookTradeItem`
+    /// `bookTradeItem` Alike on every volume.
     pub trade_item: &'static str,
-    /// `bookCharMsg2`
+    /// `bookCharMsg2` Alike on every volume.
     pub char_msg2: &'static str,
-    /// `bookBackMsg`
+    /// `bookBackMsg` Alike on every volume.
     pub back_msg: &'static str,
-    /// `bookTitle4`
+    /// `bookTitle4` Alike on every volume.
     pub title4: &'static str,
-    /// `bookEnemyList`
+    /// `bookEnemyList` Alike on every volume.
     pub enemy_list: &'static str,
-    /// `bookEnemyListMsg0`
+    /// `bookEnemyListMsg0` Alike on every volume.
     pub enemy_list_msg0: &'static str,
-    /// `bookEnemyListMsg1`
+    /// `bookEnemyListMsg1` Alike on every volume.
     pub enemy_list_msg1: &'static str,
-    /// `bookEnemyListMsg2`
+    /// `bookEnemyListMsg2` Alike on every volume.
     pub enemy_list_msg2: &'static str,
-    /// `bookEnemySlainMsg0`
+    /// `bookEnemySlainMsg0` Alike on every volume.
     pub enemy_slain_msg0: &'static str,
-    /// `bookEnemySlainMsg1`
+    /// `bookEnemySlainMsg1` Alike on every volume.
     pub enemy_slain_msg1: &'static str,
-    /// `bookEnemyName`
+    /// `bookEnemyName` Alike on every volume.
     pub enemy_name: &'static str,
-    /// `bookEnemyData`
+    /// `bookEnemyData` Alike on every volume.
     pub enemy_data: &'static str,
-    /// `bookEnemyLevel`
+    /// `bookEnemyLevel` Alike on every volume.
     pub enemy_level: &'static str,
-    /// `bookEnemyHP`
+    /// `bookEnemyHP` Alike on every volume.
     pub enemy_hp: &'static str,
-    /// `bookEnemySP`
+    /// `bookEnemySP` Alike on every volume.
     pub enemy_sp: &'static str,
-    /// `bookEnemySKILL`
+    /// `bookEnemySKILL` Alike on every volume.
     pub enemy_skill: &'static str,
-    /// `bookEnemyItem`
+    /// `bookEnemyItem` Alike on every volume.
     pub enemy_item: &'static str,
-    /// `bookNothing`
+    /// `bookNothing` Alike on every volume.
     pub nothing: &'static str,
-    /// `bookEnemyWeak0`
+    /// `bookEnemyWeak0` Alike on every volume.
     pub enemy_weak0: &'static str,
-    /// `bookEnemyWeak1`
+    /// `bookEnemyWeak1` Alike on every volume.
     pub enemy_weak1: &'static str,
     /// `bookEnemyWeak2`
     pub enemy_weak2: &'static str,
     /// `bookEnemyEncountMsg0`
     pub enemy_encount_msg0: &'static str,
-    /// `bookTitle5`
+    /// `bookTitle5` Alike on every volume.
     pub title5: &'static str,
-    /// `bookPresentTotal`
+    /// `bookPresentTotal` Alike on every volume.
     pub present_total: &'static str,
-    /// `bookPresentTotal2`
+    /// `bookPresentTotal2` Alike on every volume.
     pub present_total2: &'static str,
-    /// `bookPresent2`
+    /// `bookPresent2` Alike on every volume.
     pub present2: &'static str,
-    /// `bookPlayTime`
+    /// `bookPlayTime` Alike on every volume.
     pub play_time: &'static str,
-    /// `bookTime`
+    /// `bookTime` Alike on every volume.
     pub time: &'static str,
-    /// `bookFriendly`
+    /// `bookFriendly` Alike on every volume.
     pub friendly: &'static str,
-    /// `bookFriendly1`
+    /// `bookFriendly1` Alike on every volume.
     pub friendly1: &'static str,
-    /// `bookGP`
+    /// `bookGP` Alike on every volume.
     pub gp: &'static str,
-    /// `bookTitle6`
+    /// `bookTitle6` Alike on every volume.
     pub title6: &'static str,
-    /// `bookBoxOpen`
+    /// `bookBoxOpen` Alike on every volume.
     pub box_open: &'static str,
-    /// `bookBreakCnt`
+    /// `bookBreakCnt` Alike on every volume.
     pub break_cnt: &'static str,
-    /// `bookIdolCnt`
+    /// `bookIdolCnt` Alike on every volume.
     pub idol_cnt: &'static str,
-    /// `bookTitle7`
+    /// `bookTitle7` Alike on every volume.
     pub title7: &'static str,
-    /// `bookFountain`
+    /// `bookFountain` Alike on every volume.
     pub fountain: &'static str,
-    /// `bookMush`
+    /// `bookMush` Alike on every volume.
     pub mush: &'static str,
-    /// `bookGranpa`
+    /// `bookGranpa` Alike on every volume.
     pub granpa: &'static str,
-    /// `bookSymbl`
+    /// `bookSymbl` Alike on every volume.
     pub symbl: &'static str,
-    /// `bookEncountMsg`
+    /// `bookEncountMsg` Alike on every volume.
     pub encount_msg: &'static str,
-    /// `bookEncountMsg2`
+    /// `bookEncountMsg2` Alike on every volume.
     pub encount_msg2: &'static str,
-    /// `bookTitle8`
+    /// `bookTitle8` Alike on every volume.
     pub title8: &'static str,
-    /// `bookPuchiList`
+    /// `bookPuchiList` Alike on every volume.
     pub puchi_list: &'static str,
-    /// `bookPuchiFoodList`
+    /// `bookPuchiFoodList` Alike on every volume.
     pub puchi_food_list: &'static str,
-    /// `bookPuchiName`
+    /// `bookPuchiName` Alike on every volume.
     pub puchi_name: &'static str,
-    /// `bookPuchiCnt`
+    /// `bookPuchiCnt` Alike on every volume.
     pub puchi_cnt: &'static str,
-    /// `puchiFoodTotal`
+    /// `puchiFoodTotal` Alike on every volume.
     pub puchi_food_total: &'static str,
-    /// `bookPuchiNum`
+    /// `bookPuchiNum` Alike on every volume.
     pub puchi_num: &'static str,
-    /// `puchiFoodTotal2`
+    /// `puchiFoodTotal2` Alike on every volume.
     pub puchi_food_total2: &'static str,
-    /// `bookPuchiFood`
+    /// `bookPuchiFood` Alike on every volume.
     pub puchi_food: &'static str,
-    /// `bookPuchiFoodNum`
+    /// `bookPuchiFoodNum` Alike on every volume.
     pub puchi_food_num: &'static str,
-    /// `bookCnt0`
+    /// `bookCnt0` Alike on every volume.
     pub cnt0: &'static str,
-    /// `bookCnt1`
+    /// `bookCnt1` Alike on every volume.
     pub cnt1: &'static str,
-    /// `bookCnt2`
+    /// `bookCnt2` Alike on every volume.
     pub cnt2: &'static str,
-    /// `hiddenName`
+    /// `hiddenName` Alike on every volume.
     pub hidden_name: &'static str,
-    /// `bookMovieNotice`
+    /// `bookMovieNotice` Alike on every volume.
     pub movie_notice: &'static str,
     /// Book IV's skill for enemies 203-206, from Mutation on (none on Infection).
     pub unknown: &'static str,
-    /// `BookCounterStopHelpMsg`
+    /// `BookCounterStopHelpMsg` Alike on every volume.
     pub counter_stop_help: BookMsg,
-    /// `BookHelp10`
+    /// `BookHelp10` Alike on every volume.
     pub help10: BookMsg,
-    /// `BookHelp11`
+    /// `BookHelp11` Alike on every volume.
     pub help11: BookMsg,
-    /// `BookHelp20`
+    /// `BookHelp20` Alike on every volume.
     pub help20: BookMsg,
-    /// `BookHelp21`
+    /// `BookHelp21` Alike on every volume.
     pub help21: BookMsg,
-    /// `BookHelp22`
+    /// `BookHelp22` Alike on every volume.
     pub help22: BookMsg,
-    /// `BookHelp30`
+    /// `BookHelp30` Alike on every volume.
     pub help30: BookMsg,
-    /// `BookHelp40`
+    /// `BookHelp40` Alike on every volume.
     pub help40: BookMsg,
-    /// `BookHelp50`
+    /// `BookHelp50` Alike on every volume.
     pub help50: BookMsg,
-    /// `BookHelp60`
+    /// `BookHelp60` Alike on every volume.
     pub help60: BookMsg,
-    /// `BookHelp61`
+    /// `BookHelp61` Alike on every volume.
     pub help61: BookMsg,
-    /// `BookHelp62`
+    /// `BookHelp62` Alike on every volume.
     pub help62: BookMsg,
-    /// `BookHelp70`
+    /// `BookHelp70` Alike on every volume.
     pub help70: BookMsg,
-    /// `BookHelp71`
+    /// `BookHelp71` Alike on every volume.
     pub help71: BookMsg,
-    /// `BookHelp72`
+    /// `BookHelp72` Alike on every volume.
     pub help72: BookMsg,
-    /// `BookHelp80`
+    /// `BookHelp80` Alike on every volume.
     pub help80: BookMsg,
     /// `BookHelp81`
     pub help81: BookMsg,
-    /// `BookHelp82`
+    /// `BookHelp82` Alike on every volume.
     pub help82: BookMsg,
-    /// `BookItemMsg1`
+    /// `BookItemMsg1` Alike on every volume.
     pub item_msg1: BookMsg,
-    /// `BookItemMsg10`
+    /// `BookItemMsg10` Alike on every volume.
     pub item_msg10: BookMsg,
-    /// `BookItemMsg11`
+    /// `BookItemMsg11` Alike on every volume.
     pub item_msg11: BookMsg,
-    /// `BookItemMsg2`
+    /// `BookItemMsg2` Alike on every volume.
     pub item_msg2: BookMsg,
-    /// `BookItemMsg20`
+    /// `BookItemMsg20` Alike on every volume.
     pub item_msg20: BookMsg,
-    /// `BookItemMsg21`
+    /// `BookItemMsg21` Alike on every volume.
     pub item_msg21: BookMsg,
-    /// `BookItemMsg22`
+    /// `BookItemMsg22` Alike on every volume.
     pub item_msg22: BookMsg,
-    /// `BookItemMsg3`
+    /// `BookItemMsg3` Alike on every volume.
     pub item_msg3: BookMsg,
-    /// `BookItemMsg30`
+    /// `BookItemMsg30` Alike on every volume.
     pub item_msg30: BookMsg,
-    /// `BookItemMsg31`
+    /// `BookItemMsg31` Alike on every volume.
     pub item_msg31: BookMsg,
-    /// `BookItemMsg30_comp`
+    /// `BookItemMsg30_comp` Alike on every volume.
     pub item_msg30_comp: BookMsg,
-    /// `BookItemMsg31_comp`
+    /// `BookItemMsg31_comp` Alike on every volume.
     pub item_msg31_comp: BookMsg,
-    /// `BookItemMsg4`
+    /// `BookItemMsg4` Alike on every volume.
     pub item_msg4: BookMsg,
-    /// `BookItemMsg40`
+    /// `BookItemMsg40` Alike on every volume.
     pub item_msg40: BookMsg,
-    /// `BookItemMsg40_comp`
+    /// `BookItemMsg40_comp` Alike on every volume.
     pub item_msg40_comp: BookMsg,
-    /// `BookItemMsg5`
+    /// `BookItemMsg5` Alike on every volume.
     pub item_msg5: BookMsg,
-    /// `BookItemMsg50`
+    /// `BookItemMsg50` Alike on every volume.
     pub item_msg50: BookMsg,
-    /// `BookItemMsg6`
+    /// `BookItemMsg6` Alike on every volume.
     pub item_msg6: BookMsg,
-    /// `BookItemMsg60`
+    /// `BookItemMsg60` Alike on every volume.
     pub item_msg60: BookMsg,
-    /// `BookItemMsg61`
+    /// `BookItemMsg61` Alike on every volume.
     pub item_msg61: BookMsg,
-    /// `BookItemMsg62`
+    /// `BookItemMsg62` Alike on every volume.
     pub item_msg62: BookMsg,
-    /// `BookItemMsg7`
+    /// `BookItemMsg7` Alike on every volume.
     pub item_msg7: BookMsg,
-    /// `BookItemMsg70`
+    /// `BookItemMsg70` Alike on every volume.
     pub item_msg70: BookMsg,
-    /// `BookItemMsg71`
+    /// `BookItemMsg71` Alike on every volume.
     pub item_msg71: BookMsg,
-    /// `BookItemMsg72`
+    /// `BookItemMsg72` Alike on every volume.
     pub item_msg72: BookMsg,
-    /// `BookItemMsg8`
+    /// `BookItemMsg8` Alike on every volume.
     pub item_msg8: BookMsg,
-    /// `BookItemMsg80`
+    /// `BookItemMsg80` Alike on every volume.
     pub item_msg80: BookMsg,
-    /// `BookItemMsg81`
+    /// `BookItemMsg81` Alike on every volume.
     pub item_msg81: BookMsg,
-    /// `BookItemMsg81_comp`
+    /// `BookItemMsg81_comp` Alike on every volume.
     pub item_msg81_comp: BookMsg,
-    /// `Book10Item`
+    /// `Book10Item` Alike on every volume.
     pub items_10: &'static [Bookitem],
-    /// `Book11Item`
+    /// `Book11Item` Alike on every volume.
     pub items_11: &'static [Bookitem],
-    /// `Book20Item`
+    /// `Book20Item` Alike on every volume.
     pub items_20: &'static [Bookitem],
-    /// `Book21Item`
+    /// `Book21Item` Alike on every volume.
     pub items_21: &'static [Bookitem],
-    /// `Book22Item`
+    /// `Book22Item` Alike on every volume.
     pub items_22: &'static [Bookitem],
-    /// `Book30Item`
+    /// `Book30Item` Alike on every volume.
     pub items_30: &'static [Bookitem],
-    /// `Book31Item`
+    /// `Book31Item` Alike on every volume.
     pub items_31: &'static [Bookitem],
-    /// `Book32Item`
+    /// `Book32Item` Alike on every volume.
     pub items_32: &'static [Bookitem],
-    /// `Book33Item`
+    /// `Book33Item` Alike on every volume.
     pub items_33: &'static [Bookitem],
-    /// `Book40Item`
+    /// `Book40Item` Alike on every volume.
     pub items_40: &'static [Bookitem],
-    /// `Book41Item`
+    /// `Book41Item` Alike on every volume.
     pub items_41: &'static [Bookitem],
-    /// `Book50Item`
+    /// `Book50Item` Alike on every volume.
     pub items_50: &'static [Bookitem],
-    /// `Book60Item`
+    /// `Book60Item` Alike on every volume.
     pub items_60: &'static [Bookitem],
-    /// `Book61Item`
+    /// `Book61Item` Alike on every volume.
     pub items_61: &'static [Bookitem],
-    /// `Book62Item`
+    /// `Book62Item` Alike on every volume.
     pub items_62: &'static [Bookitem],
-    /// `Book70Item`
+    /// `Book70Item` Alike on every volume.
     pub items_70: &'static [Bookitem],
-    /// `Book71Item`
+    /// `Book71Item` Alike on every volume.
     pub items_71: &'static [Bookitem],
-    /// `Book72Item`
+    /// `Book72Item` Alike on every volume.
     pub items_72: &'static [Bookitem],
-    /// `Book80Item`
+    /// `Book80Item` Alike on every volume.
     pub items_80: &'static [Bookitem],
-    /// `Book81Item`
+    /// `Book81Item` Alike on every volume.
     pub items_81: &'static [Bookitem],
-    /// `Book82Item`
+    /// `Book82Item` Alike on every volume.
     pub items_82: &'static [Bookitem],
     /// `book01CountLimit`
     pub limits_1: &'static [i32],
@@ -505,925 +505,16 @@ impl crate::store::Load for Book {
     }
 }
 
-impl Book {
-    pub fn ofs(&self) -> &'static [i32] {
-        self.ofs
-    }
-    pub fn item_list(&self) -> &'static [Bookitemdata] {
-        self.item_list
-    }
-    pub fn server(&self) -> &'static [Option<&'static str>] {
-        self.server
-    }
-    pub fn count_stop(&self) -> &'static [Option<&'static str>] {
-        self.count_stop
-    }
-    pub fn stream_cluts(&self) -> &'static [&'static str] {
-        self.stream_cluts
-    }
-    pub fn cover_stream(&self) -> i32 {
-        self.cover_stream
-    }
-    pub fn title1(&self) -> &'static str {
-        self.title1
-    }
-    pub fn area_msg(&self) -> &'static str {
-        self.area_msg
-    }
-    pub fn time_msg(&self) -> &'static str {
-        self.time_msg
-    }
-    pub fn cnt3(&self) -> &'static str {
-        self.cnt3
-    }
-    pub fn title2(&self) -> &'static str {
-        self.title2
-    }
-    pub fn magic_circle_msg(&self) -> &'static str {
-        self.magic_circle_msg
-    }
-    pub fn magic_circle_all_open_msg(&self) -> &'static str {
-        self.magic_circle_all_open_msg
-    }
-    pub fn magic_circle_all_open_msg2(&self) -> &'static str {
-        self.magic_circle_all_open_msg2
-    }
-    pub fn title3(&self) -> &'static str {
-        self.title3
-    }
-    pub fn char_list(&self) -> &'static str {
-        self.char_list
-    }
-    pub fn trade_total(&self) -> &'static str {
-        self.trade_total
-    }
-    pub fn char_msg0(&self) -> &'static str {
-        self.char_msg0
-    }
-    pub fn char_msg1(&self) -> &'static str {
-        self.char_msg1
-    }
-    pub fn trade_msg0(&self) -> &'static str {
-        self.trade_msg0
-    }
-    pub fn trade_msg1(&self) -> &'static str {
-        self.trade_msg1
-    }
-    pub fn trade_msg2(&self) -> &'static str {
-        self.trade_msg2
-    }
-    pub fn trade_msg3(&self) -> &'static str {
-        self.trade_msg3
-    }
-    pub fn on_line(&self) -> &'static str {
-        self.on_line
-    }
-    pub fn trade_item(&self) -> &'static str {
-        self.trade_item
-    }
-    pub fn char_msg2(&self) -> &'static str {
-        self.char_msg2
-    }
-    pub fn back_msg(&self) -> &'static str {
-        self.back_msg
-    }
-    pub fn title4(&self) -> &'static str {
-        self.title4
-    }
-    pub fn enemy_list(&self) -> &'static str {
-        self.enemy_list
-    }
-    pub fn enemy_list_msg0(&self) -> &'static str {
-        self.enemy_list_msg0
-    }
-    pub fn enemy_list_msg1(&self) -> &'static str {
-        self.enemy_list_msg1
-    }
-    pub fn enemy_list_msg2(&self) -> &'static str {
-        self.enemy_list_msg2
-    }
-    pub fn enemy_slain_msg0(&self) -> &'static str {
-        self.enemy_slain_msg0
-    }
-    pub fn enemy_slain_msg1(&self) -> &'static str {
-        self.enemy_slain_msg1
-    }
-    pub fn enemy_name(&self) -> &'static str {
-        self.enemy_name
-    }
-    pub fn enemy_data(&self) -> &'static str {
-        self.enemy_data
-    }
-    pub fn enemy_level(&self) -> &'static str {
-        self.enemy_level
-    }
-    pub fn enemy_hp(&self) -> &'static str {
-        self.enemy_hp
-    }
-    pub fn enemy_sp(&self) -> &'static str {
-        self.enemy_sp
-    }
-    pub fn enemy_skill(&self) -> &'static str {
-        self.enemy_skill
-    }
-    pub fn enemy_item(&self) -> &'static str {
-        self.enemy_item
-    }
-    pub fn nothing(&self) -> &'static str {
-        self.nothing
-    }
-    pub fn enemy_weak0(&self) -> &'static str {
-        self.enemy_weak0
-    }
-    pub fn enemy_weak1(&self) -> &'static str {
-        self.enemy_weak1
-    }
-    pub fn enemy_weak2(&self) -> &'static str {
-        self.enemy_weak2
-    }
-    pub fn enemy_encount_msg0(&self) -> &'static str {
-        self.enemy_encount_msg0
-    }
-    pub fn title5(&self) -> &'static str {
-        self.title5
-    }
-    pub fn present_total(&self) -> &'static str {
-        self.present_total
-    }
-    pub fn present_total2(&self) -> &'static str {
-        self.present_total2
-    }
-    pub fn present2(&self) -> &'static str {
-        self.present2
-    }
-    pub fn play_time(&self) -> &'static str {
-        self.play_time
-    }
-    pub fn time(&self) -> &'static str {
-        self.time
-    }
-    pub fn friendly(&self) -> &'static str {
-        self.friendly
-    }
-    pub fn friendly1(&self) -> &'static str {
-        self.friendly1
-    }
-    pub fn gp(&self) -> &'static str {
-        self.gp
-    }
-    pub fn title6(&self) -> &'static str {
-        self.title6
-    }
-    pub fn box_open(&self) -> &'static str {
-        self.box_open
-    }
-    pub fn break_cnt(&self) -> &'static str {
-        self.break_cnt
-    }
-    pub fn idol_cnt(&self) -> &'static str {
-        self.idol_cnt
-    }
-    pub fn title7(&self) -> &'static str {
-        self.title7
-    }
-    pub fn fountain(&self) -> &'static str {
-        self.fountain
-    }
-    pub fn mush(&self) -> &'static str {
-        self.mush
-    }
-    pub fn granpa(&self) -> &'static str {
-        self.granpa
-    }
-    pub fn symbl(&self) -> &'static str {
-        self.symbl
-    }
-    pub fn encount_msg(&self) -> &'static str {
-        self.encount_msg
-    }
-    pub fn encount_msg2(&self) -> &'static str {
-        self.encount_msg2
-    }
-    pub fn title8(&self) -> &'static str {
-        self.title8
-    }
-    pub fn puchi_list(&self) -> &'static str {
-        self.puchi_list
-    }
-    pub fn puchi_food_list(&self) -> &'static str {
-        self.puchi_food_list
-    }
-    pub fn puchi_name(&self) -> &'static str {
-        self.puchi_name
-    }
-    pub fn puchi_cnt(&self) -> &'static str {
-        self.puchi_cnt
-    }
-    pub fn puchi_food_total(&self) -> &'static str {
-        self.puchi_food_total
-    }
-    pub fn puchi_num(&self) -> &'static str {
-        self.puchi_num
-    }
-    pub fn puchi_food_total2(&self) -> &'static str {
-        self.puchi_food_total2
-    }
-    pub fn puchi_food(&self) -> &'static str {
-        self.puchi_food
-    }
-    pub fn puchi_food_num(&self) -> &'static str {
-        self.puchi_food_num
-    }
-    pub fn cnt0(&self) -> &'static str {
-        self.cnt0
-    }
-    pub fn cnt1(&self) -> &'static str {
-        self.cnt1
-    }
-    pub fn cnt2(&self) -> &'static str {
-        self.cnt2
-    }
-    pub fn hidden_name(&self) -> &'static str {
-        self.hidden_name
-    }
-    pub fn movie_notice(&self) -> &'static str {
-        self.movie_notice
-    }
-    pub fn unknown(&self) -> &'static str {
-        self.unknown
-    }
-    pub fn counter_stop_help(&self) -> BookMsg {
-        self.counter_stop_help
-    }
-    pub fn help10(&self) -> BookMsg {
-        self.help10
-    }
-    pub fn help11(&self) -> BookMsg {
-        self.help11
-    }
-    pub fn help20(&self) -> BookMsg {
-        self.help20
-    }
-    pub fn help21(&self) -> BookMsg {
-        self.help21
-    }
-    pub fn help22(&self) -> BookMsg {
-        self.help22
-    }
-    pub fn help30(&self) -> BookMsg {
-        self.help30
-    }
-    pub fn help40(&self) -> BookMsg {
-        self.help40
-    }
-    pub fn help50(&self) -> BookMsg {
-        self.help50
-    }
-    pub fn help60(&self) -> BookMsg {
-        self.help60
-    }
-    pub fn help61(&self) -> BookMsg {
-        self.help61
-    }
-    pub fn help62(&self) -> BookMsg {
-        self.help62
-    }
-    pub fn help70(&self) -> BookMsg {
-        self.help70
-    }
-    pub fn help71(&self) -> BookMsg {
-        self.help71
-    }
-    pub fn help72(&self) -> BookMsg {
-        self.help72
-    }
-    pub fn help80(&self) -> BookMsg {
-        self.help80
-    }
-    pub fn help81(&self) -> BookMsg {
-        self.help81
-    }
-    pub fn help82(&self) -> BookMsg {
-        self.help82
-    }
-    pub fn item_msg1(&self) -> BookMsg {
-        self.item_msg1
-    }
-    pub fn item_msg10(&self) -> BookMsg {
-        self.item_msg10
-    }
-    pub fn item_msg11(&self) -> BookMsg {
-        self.item_msg11
-    }
-    pub fn item_msg2(&self) -> BookMsg {
-        self.item_msg2
-    }
-    pub fn item_msg20(&self) -> BookMsg {
-        self.item_msg20
-    }
-    pub fn item_msg21(&self) -> BookMsg {
-        self.item_msg21
-    }
-    pub fn item_msg22(&self) -> BookMsg {
-        self.item_msg22
-    }
-    pub fn item_msg3(&self) -> BookMsg {
-        self.item_msg3
-    }
-    pub fn item_msg30(&self) -> BookMsg {
-        self.item_msg30
-    }
-    pub fn item_msg31(&self) -> BookMsg {
-        self.item_msg31
-    }
-    pub fn item_msg30_comp(&self) -> BookMsg {
-        self.item_msg30_comp
-    }
-    pub fn item_msg31_comp(&self) -> BookMsg {
-        self.item_msg31_comp
-    }
-    pub fn item_msg4(&self) -> BookMsg {
-        self.item_msg4
-    }
-    pub fn item_msg40(&self) -> BookMsg {
-        self.item_msg40
-    }
-    pub fn item_msg40_comp(&self) -> BookMsg {
-        self.item_msg40_comp
-    }
-    pub fn item_msg5(&self) -> BookMsg {
-        self.item_msg5
-    }
-    pub fn item_msg50(&self) -> BookMsg {
-        self.item_msg50
-    }
-    pub fn item_msg6(&self) -> BookMsg {
-        self.item_msg6
-    }
-    pub fn item_msg60(&self) -> BookMsg {
-        self.item_msg60
-    }
-    pub fn item_msg61(&self) -> BookMsg {
-        self.item_msg61
-    }
-    pub fn item_msg62(&self) -> BookMsg {
-        self.item_msg62
-    }
-    pub fn item_msg7(&self) -> BookMsg {
-        self.item_msg7
-    }
-    pub fn item_msg70(&self) -> BookMsg {
-        self.item_msg70
-    }
-    pub fn item_msg71(&self) -> BookMsg {
-        self.item_msg71
-    }
-    pub fn item_msg72(&self) -> BookMsg {
-        self.item_msg72
-    }
-    pub fn item_msg8(&self) -> BookMsg {
-        self.item_msg8
-    }
-    pub fn item_msg80(&self) -> BookMsg {
-        self.item_msg80
-    }
-    pub fn item_msg81(&self) -> BookMsg {
-        self.item_msg81
-    }
-    pub fn item_msg81_comp(&self) -> BookMsg {
-        self.item_msg81_comp
-    }
-    pub fn items_10(&self) -> &'static [Bookitem] {
-        self.items_10
-    }
-    pub fn items_11(&self) -> &'static [Bookitem] {
-        self.items_11
-    }
-    pub fn items_20(&self) -> &'static [Bookitem] {
-        self.items_20
-    }
-    pub fn items_21(&self) -> &'static [Bookitem] {
-        self.items_21
-    }
-    pub fn items_22(&self) -> &'static [Bookitem] {
-        self.items_22
-    }
-    pub fn items_30(&self) -> &'static [Bookitem] {
-        self.items_30
-    }
-    pub fn items_31(&self) -> &'static [Bookitem] {
-        self.items_31
-    }
-    pub fn items_32(&self) -> &'static [Bookitem] {
-        self.items_32
-    }
-    pub fn items_33(&self) -> &'static [Bookitem] {
-        self.items_33
-    }
-    pub fn items_40(&self) -> &'static [Bookitem] {
-        self.items_40
-    }
-    pub fn items_41(&self) -> &'static [Bookitem] {
-        self.items_41
-    }
-    pub fn items_50(&self) -> &'static [Bookitem] {
-        self.items_50
-    }
-    pub fn items_60(&self) -> &'static [Bookitem] {
-        self.items_60
-    }
-    pub fn items_61(&self) -> &'static [Bookitem] {
-        self.items_61
-    }
-    pub fn items_62(&self) -> &'static [Bookitem] {
-        self.items_62
-    }
-    pub fn items_70(&self) -> &'static [Bookitem] {
-        self.items_70
-    }
-    pub fn items_71(&self) -> &'static [Bookitem] {
-        self.items_71
-    }
-    pub fn items_72(&self) -> &'static [Bookitem] {
-        self.items_72
-    }
-    pub fn items_80(&self) -> &'static [Bookitem] {
-        self.items_80
-    }
-    pub fn items_81(&self) -> &'static [Bookitem] {
-        self.items_81
-    }
-    pub fn items_82(&self) -> &'static [Bookitem] {
-        self.items_82
-    }
-    pub fn limits_1(&self) -> &'static [i32] {
-        self.limits_1
-    }
-    pub fn limits_2(&self) -> &'static [i32] {
-        self.limits_2
-    }
-    pub fn limits_3(&self) -> &'static [i32] {
-        self.limits_3
-    }
-    pub fn limits_4(&self) -> &'static [i32] {
-        self.limits_4
-    }
-    pub fn limits_5(&self) -> &'static [i32] {
-        self.limits_5
-    }
-    pub fn limits_6(&self) -> &'static [i32] {
-        self.limits_6
-    }
-    pub fn limits_7(&self) -> &'static [i32] {
-        self.limits_7
-    }
-    pub fn limits_8(&self) -> &'static [i32] {
-        self.limits_8
-    }
+impl crate::store::Table for Book {
+    const ID: usize = super::id::BOOK;
 }
 
-/// `BookOfs`: each book's window (y, width, height in cells).
-pub static OFS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().ofs);
-
-/// `bookServer`: the servers' names.
-pub static SERVER: std::sync::LazyLock<&'static [Option<&'static str>]> = std::sync::LazyLock::new(|| shared().server);
-
-/// The palette `ccThBook` puts on the cover's `MAT_clut` for each book past the first.
-pub static STREAM_CLUTS: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().stream_cluts);
-
-/// `bookTitle1`
-pub static TITLE1: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().title1);
-
-/// `bookAreaMsg`
-pub static AREA_MSG: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().area_msg);
-
-/// `bookTimeMsg`
-pub static TIME_MSG: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().time_msg);
-
-/// `bookCnt3`
-pub static CNT3: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().cnt3);
-
-/// `bookTitle2`
-pub static TITLE2: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().title2);
-
-/// `bookMagicCircleMsg`
-pub static MAGIC_CIRCLE_MSG: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().magic_circle_msg);
-
-/// `bookMagicCircleAllOpenMsg`
-pub static MAGIC_CIRCLE_ALL_OPEN_MSG: std::sync::LazyLock<&'static str> =
-    std::sync::LazyLock::new(|| shared().magic_circle_all_open_msg);
-
-/// `bookMagicCircleAllOpenMsg2`
-pub static MAGIC_CIRCLE_ALL_OPEN_MSG2: std::sync::LazyLock<&'static str> =
-    std::sync::LazyLock::new(|| shared().magic_circle_all_open_msg2);
-
-/// `bookTitle3`
-pub static TITLE3: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().title3);
-
-/// `bookCharList`
-pub static CHAR_LIST: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().char_list);
-
-/// `bookTradeTotal`
-pub static TRADE_TOTAL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().trade_total);
-
-/// `bookCharMsg0`
-pub static CHAR_MSG0: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().char_msg0);
-
-/// `bookCharMsg1`
-pub static CHAR_MSG1: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().char_msg1);
-
-/// `bookTradeMsg0`
-pub static TRADE_MSG0: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().trade_msg0);
-
-/// `bookTradeMsg1`
-pub static TRADE_MSG1: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().trade_msg1);
-
-/// `bookTradeMsg2`
-pub static TRADE_MSG2: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().trade_msg2);
-
-/// `bookTradeMsg3`
-pub static TRADE_MSG3: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().trade_msg3);
-
-/// `bookOnLine`
-pub static ON_LINE: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().on_line);
-
-/// `bookTradeItem`
-pub static TRADE_ITEM: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().trade_item);
-
-/// `bookCharMsg2`
-pub static CHAR_MSG2: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().char_msg2);
-
-/// `bookBackMsg`
-pub static BACK_MSG: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().back_msg);
-
-/// `bookTitle4`
-pub static TITLE4: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().title4);
-
-/// `bookEnemyList`
-pub static ENEMY_LIST: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_list);
-
-/// `bookEnemyListMsg0`
-pub static ENEMY_LIST_MSG0: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_list_msg0);
-
-/// `bookEnemyListMsg1`
-pub static ENEMY_LIST_MSG1: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_list_msg1);
-
-/// `bookEnemyListMsg2`
-pub static ENEMY_LIST_MSG2: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_list_msg2);
-
-/// `bookEnemySlainMsg0`
-pub static ENEMY_SLAIN_MSG0: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_slain_msg0);
-
-/// `bookEnemySlainMsg1`
-pub static ENEMY_SLAIN_MSG1: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_slain_msg1);
-
-/// `bookEnemyName`
-pub static ENEMY_NAME: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_name);
-
-/// `bookEnemyData`
-pub static ENEMY_DATA: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_data);
-
-/// `bookEnemyLevel`
-pub static ENEMY_LEVEL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_level);
-
-/// `bookEnemyHP`
-pub static ENEMY_HP: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_hp);
-
-/// `bookEnemySP`
-pub static ENEMY_SP: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_sp);
-
-/// `bookEnemySKILL`
-pub static ENEMY_SKILL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_skill);
-
-/// `bookEnemyItem`
-pub static ENEMY_ITEM: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_item);
-
-/// `bookNothing`
-pub static NOTHING: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().nothing);
-
-/// `bookEnemyWeak0`
-pub static ENEMY_WEAK0: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_weak0);
-
-/// `bookEnemyWeak1`
-pub static ENEMY_WEAK1: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enemy_weak1);
-
-/// `bookTitle5`
-pub static TITLE5: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().title5);
-
-/// `bookPresentTotal`
-pub static PRESENT_TOTAL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().present_total);
-
-/// `bookPresentTotal2`
-pub static PRESENT_TOTAL2: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().present_total2);
-
-/// `bookPresent2`
-pub static PRESENT2: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().present2);
-
-/// `bookPlayTime`
-pub static PLAY_TIME: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().play_time);
-
-/// `bookTime`
-pub static TIME: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().time);
-
-/// `bookFriendly`
-pub static FRIENDLY: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().friendly);
-
-/// `bookFriendly1`
-pub static FRIENDLY1: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().friendly1);
-
-/// `bookGP`
-pub static GP: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().gp);
-
-/// `bookTitle6`
-pub static TITLE6: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().title6);
-
-/// `bookBoxOpen`
-pub static BOX_OPEN: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().box_open);
-
-/// `bookBreakCnt`
-pub static BREAK_CNT: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().break_cnt);
-
-/// `bookIdolCnt`
-pub static IDOL_CNT: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().idol_cnt);
-
-/// `bookTitle7`
-pub static TITLE7: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().title7);
-
-/// `bookFountain`
-pub static FOUNTAIN: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().fountain);
-
-/// `bookMush`
-pub static MUSH: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().mush);
-
-/// `bookGranpa`
-pub static GRANPA: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().granpa);
-
-/// `bookSymbl`
-pub static SYMBL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().symbl);
-
-/// `bookEncountMsg`
-pub static ENCOUNT_MSG: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().encount_msg);
-
-/// `bookEncountMsg2`
-pub static ENCOUNT_MSG2: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().encount_msg2);
-
-/// `bookTitle8`
-pub static TITLE8: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().title8);
-
-/// `bookPuchiList`
-pub static PUCHI_LIST: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().puchi_list);
-
-/// `bookPuchiFoodList`
-pub static PUCHI_FOOD_LIST: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().puchi_food_list);
-
-/// `bookPuchiName`
-pub static PUCHI_NAME: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().puchi_name);
-
-/// `bookPuchiCnt`
-pub static PUCHI_CNT: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().puchi_cnt);
-
-/// `puchiFoodTotal`
-pub static PUCHI_FOOD_TOTAL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().puchi_food_total);
-
-/// `bookPuchiNum`
-pub static PUCHI_NUM: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().puchi_num);
-
-/// `puchiFoodTotal2`
-pub static PUCHI_FOOD_TOTAL2: std::sync::LazyLock<&'static str> =
-    std::sync::LazyLock::new(|| shared().puchi_food_total2);
-
-/// `bookPuchiFood`
-pub static PUCHI_FOOD: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().puchi_food);
-
-/// `bookPuchiFoodNum`
-pub static PUCHI_FOOD_NUM: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().puchi_food_num);
-
-/// `bookCnt0`
-pub static CNT0: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().cnt0);
-
-/// `bookCnt1`
-pub static CNT1: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().cnt1);
-
-/// `bookCnt2`
-pub static CNT2: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().cnt2);
-
-/// `hiddenName`
-pub static HIDDEN_NAME: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().hidden_name);
-
-/// `bookMovieNotice`
-pub static MOVIE_NOTICE: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().movie_notice);
-
-/// `BookCounterStopHelpMsg`
-pub static COUNTER_STOP_HELP: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().counter_stop_help);
-
-/// `BookHelp10`
-pub static HELP10: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help10);
-
-/// `BookHelp11`
-pub static HELP11: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help11);
-
-/// `BookHelp20`
-pub static HELP20: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help20);
-
-/// `BookHelp21`
-pub static HELP21: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help21);
-
-/// `BookHelp22`
-pub static HELP22: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help22);
-
-/// `BookHelp30`
-pub static HELP30: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help30);
-
-/// `BookHelp40`
-pub static HELP40: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help40);
-
-/// `BookHelp50`
-pub static HELP50: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help50);
-
-/// `BookHelp60`
-pub static HELP60: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help60);
-
-/// `BookHelp61`
-pub static HELP61: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help61);
-
-/// `BookHelp62`
-pub static HELP62: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help62);
-
-/// `BookHelp70`
-pub static HELP70: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help70);
-
-/// `BookHelp71`
-pub static HELP71: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help71);
-
-/// `BookHelp72`
-pub static HELP72: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help72);
-
-/// `BookHelp80`
-pub static HELP80: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help80);
-
-/// `BookHelp82`
-pub static HELP82: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().help82);
-
-/// `BookItemMsg1`
-pub static ITEM_MSG1: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg1);
-
-/// `BookItemMsg10`
-pub static ITEM_MSG10: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg10);
-
-/// `BookItemMsg11`
-pub static ITEM_MSG11: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg11);
-
-/// `BookItemMsg2`
-pub static ITEM_MSG2: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg2);
-
-/// `BookItemMsg20`
-pub static ITEM_MSG20: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg20);
-
-/// `BookItemMsg21`
-pub static ITEM_MSG21: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg21);
-
-/// `BookItemMsg22`
-pub static ITEM_MSG22: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg22);
-
-/// `BookItemMsg3`
-pub static ITEM_MSG3: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg3);
-
-/// `BookItemMsg30`
-pub static ITEM_MSG30: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg30);
-
-/// `BookItemMsg31`
-pub static ITEM_MSG31: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg31);
-
-/// `BookItemMsg30_comp`
-pub static ITEM_MSG30_COMP: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg30_comp);
-
-/// `BookItemMsg31_comp`
-pub static ITEM_MSG31_COMP: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg31_comp);
-
-/// `BookItemMsg4`
-pub static ITEM_MSG4: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg4);
-
-/// `BookItemMsg40`
-pub static ITEM_MSG40: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg40);
-
-/// `BookItemMsg40_comp`
-pub static ITEM_MSG40_COMP: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg40_comp);
-
-/// `BookItemMsg5`
-pub static ITEM_MSG5: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg5);
-
-/// `BookItemMsg50`
-pub static ITEM_MSG50: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg50);
-
-/// `BookItemMsg6`
-pub static ITEM_MSG6: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg6);
-
-/// `BookItemMsg60`
-pub static ITEM_MSG60: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg60);
-
-/// `BookItemMsg61`
-pub static ITEM_MSG61: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg61);
-
-/// `BookItemMsg62`
-pub static ITEM_MSG62: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg62);
-
-/// `BookItemMsg7`
-pub static ITEM_MSG7: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg7);
-
-/// `BookItemMsg70`
-pub static ITEM_MSG70: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg70);
-
-/// `BookItemMsg71`
-pub static ITEM_MSG71: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg71);
-
-/// `BookItemMsg72`
-pub static ITEM_MSG72: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg72);
-
-/// `BookItemMsg8`
-pub static ITEM_MSG8: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg8);
-
-/// `BookItemMsg80`
-pub static ITEM_MSG80: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg80);
-
-/// `BookItemMsg81`
-pub static ITEM_MSG81: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg81);
-
-/// `BookItemMsg81_comp`
-pub static ITEM_MSG81_COMP: std::sync::LazyLock<BookMsg> = std::sync::LazyLock::new(|| shared().item_msg81_comp);
-
-/// `Book10Item`
-pub static ITEMS_10: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_10);
-
-/// `Book11Item`
-pub static ITEMS_11: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_11);
-
-/// `Book20Item`
-pub static ITEMS_20: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_20);
-
-/// `Book21Item`
-pub static ITEMS_21: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_21);
-
-/// `Book22Item`
-pub static ITEMS_22: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_22);
-
-/// `Book30Item`
-pub static ITEMS_30: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_30);
-
-/// `Book31Item`
-pub static ITEMS_31: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_31);
-
-/// `Book32Item`
-pub static ITEMS_32: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_32);
-
-/// `Book33Item`
-pub static ITEMS_33: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_33);
-
-/// `Book40Item`
-pub static ITEMS_40: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_40);
-
-/// `Book41Item`
-pub static ITEMS_41: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_41);
-
-/// `Book50Item`
-pub static ITEMS_50: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_50);
-
-/// `Book60Item`
-pub static ITEMS_60: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_60);
-
-/// `Book61Item`
-pub static ITEMS_61: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_61);
-
-/// `Book62Item`
-pub static ITEMS_62: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_62);
-
-/// `Book70Item`
-pub static ITEMS_70: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_70);
-
-/// `Book71Item`
-pub static ITEMS_71: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_71);
-
-/// `Book72Item`
-pub static ITEMS_72: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_72);
-
-/// `Book80Item`
-pub static ITEMS_80: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_80);
-
-/// `Book81Item`
-pub static ITEMS_81: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_81);
-
-/// `Book82Item`
-pub static ITEMS_82: std::sync::LazyLock<&'static [Bookitem]> = std::sync::LazyLock::new(|| shared().items_82);
-
-/// The volume's Book (read once a run; kept here per volume).
+/// The volume's Book (read once a run).
 pub fn of(v: Volume) -> &'static Book {
-    static READ: [std::sync::OnceLock<&'static Book>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "book"))
+    <Book as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Book {
-    static READ: std::sync::OnceLock<&'static Book> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("book"))
+pub fn shared() -> &'static Book {
+    <Book as crate::store::Table>::shared()
 }

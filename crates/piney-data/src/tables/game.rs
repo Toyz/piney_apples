@@ -18,21 +18,16 @@ impl crate::store::Load for Game {
     }
 }
 
-impl Game {
-    pub fn town_server(&self) -> &'static [i32] {
-        self.town_server
-    }
+impl crate::store::Table for Game {
+    const ID: usize = super::id::GAME;
 }
 
-/// The volume's Game (read once a run; kept here per volume).
+/// The volume's Game (read once a run).
 pub fn of(v: Volume) -> &'static Game {
-    static READ: [std::sync::OnceLock<&'static Game>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "game"))
+    <Game as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Game {
-    static READ: std::sync::OnceLock<&'static Game> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("game"))
+pub fn shared() -> &'static Game {
+    <Game as crate::store::Table>::shared()
 }

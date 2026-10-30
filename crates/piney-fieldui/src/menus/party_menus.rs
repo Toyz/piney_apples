@@ -54,12 +54,12 @@ impl PartyTexts {
                 PartyMsg { mode: r.emode, lines }
             })
         };
-        let out = f.party_out_info();
+        let out = f.party_out_info;
         PartyTexts {
-            help: f.party_help().iter().map(|l| three(l)).collect(),
-            warn: f.party_warn().iter().map(|l| three(l)).collect(),
+            help: f.party_help.iter().map(|l| three(l)).collect(),
+            warn: f.party_warn.iter().map(|l| three(l)).collect(),
             out_info: [two(out[0]), two(out[1])],
-            msgs: [f.spc_msg0(), f.spc_msg1(), f.spc_msg2(), f.spc_msg3(), f.spc_msg4(), f.spc_msg5()]
+            msgs: [f.spc_msg0, f.spc_msg1, f.spc_msg2, f.spc_msg3, f.spc_msg4, f.spc_msg5]
                 .iter()
                 .map(|t| t.iter().map(record).collect())
                 .collect(),

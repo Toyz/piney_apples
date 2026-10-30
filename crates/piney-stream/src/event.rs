@@ -119,7 +119,7 @@ impl EventStream {
         }
         let mut ctx = Ctx::new(View::default());
         let view = scene.frame.layer();
-        let [r, g, b, _] = piney_data::tables::kanji::SPRITE_COLOR_TABLE[opening::TEXT_COLOUR];
+        let [r, g, b, _] = piney_data::tables::kanji::shared().sprite_color_table[opening::TEXT_COLOUR];
         for l in lines {
             let mut k = Kanji::init(opening::KANJI_L, opening::KANJI_PACKETS);
             k.colour = [r, g, b, l.alpha];

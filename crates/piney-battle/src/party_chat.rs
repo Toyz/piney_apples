@@ -224,99 +224,94 @@ impl ChatTexts {
         let t = piney_data::tables::party_chat::of(volume);
         let conv = |l: &[Option<&str>]| l.iter().map(|x| x.map(encode)).collect::<Vec<_>>();
         let mut lines = BTreeMap::new();
-        lines.insert(va::STANDBY_ACCEPT, conv(t.standby_accept()));
-        lines.insert(va::ACCEPT, conv(t.accept()));
-        lines.insert(va::USE_ALL_ATTACK_SKILL_ACCEPT, conv(t.use_all_attack_skill_accept()));
-        lines.insert(va::USE_PHYSICAL_SKILL_ACCEPT, conv(t.use_physical_skill_accept()));
-        lines.insert(va::USE_MAGIC_SKILL_ACCEPT, conv(t.use_magic_skill_accept()));
-        lines.insert(va::NOT_USE_SKILL_ACCEPT, conv(t.not_use_skill_accept()));
-        lines.insert(va::BUFF_ACCEPT, conv(t.buff_accept()));
-        lines.insert(va::DEBUFF_ACCEPT, conv(t.debuff_accept()));
-        lines.insert(va::HEAL_START, conv(t.heal_start()));
-        lines.insert(va::CURE_START, conv(t.cure_start()));
-        lines.insert(va::RESURRECT_START, conv(t.resurrect_start()));
-        lines.insert(va::SHORT_OF_SP, conv(t.short_of_sp()));
-        lines.insert(va::NOTHING_DENY, conv(t.nothing_deny()));
-        lines.insert(va::NO_BATTLE_MODE_DENY, conv(t.no_battle_mode_deny()));
-        lines.insert(va::GHOST_DENY, conv(t.ghost_deny()));
-        lines.insert(va::CONDITION_RED, conv(t.condition_red()));
-        lines.insert(va::THX_HEAL, conv(t.thx_heal()));
-        lines.insert(va::THX_RESURRECT, conv(t.thx_resurrect()));
-        lines.insert(va::THX_BUFF, conv(t.thx_buff()));
-        lines.insert(va::USE_OCARINA, conv(t.use_ocarina()));
-        lines.insert(va::NO_OCARINA_DENY, conv(t.no_ocarina_deny()));
-        lines.insert(va::DISABLE_OCARINA_DENY, conv(t.disable_ocarina_deny()));
-        lines.insert(va::ENTERED_FIELD, conv(t.entered_field()));
-        lines.insert(va::VICTORY, conv(t.victory()));
-        lines.insert(va::NEUTRAL, conv(t.neutral()));
-        lines.insert(va::HEAL_PLZ, conv(t.heal_plz()));
-        lines.insert(va::TREATMENT_PLZ, conv(t.treatment_plz()));
-        lines.insert(va::RESURRECT_PLZ, conv(t.resurrect_plz()));
-        lines.insert(va::BULL, conv(t.bull()));
-        lines.insert(va::DASH_FOR_ENEMY, conv(t.dash_for_enemy()));
-        lines.insert(va::TIMID, conv(t.timid()));
-        lines.insert(va::SMALL_DAMAGED, conv(t.small_damaged()));
-        lines.insert(va::DAMAGED, conv(t.damaged()));
-        lines.insert(va::FATAL_DAMAGED, conv(t.fatal_damaged()));
-        lines.insert(va::ATTACK_SMALL_HIT, conv(t.attack_small_hit()));
-        lines.insert(va::ATTACK_HIT, conv(t.attack_hit()));
-        lines.insert(va::ATTACK_FATAL_HIT, conv(t.attack_fatal_hit()));
-        lines.insert(va::REENCOUNTER, conv(t.reencounter()));
-        lines.insert(va::GOTO_WEAPON_SHOP, conv(t.goto_weapon_shop()));
-        lines.insert(va::GOTO_GOODS_SHOP, conv(t.goto_goods_shop()));
-        lines.insert(va::GOTO_FAIRY_SHOP, conv(t.goto_fairy_shop()));
-        lines.insert(va::GOTO_MAGIC_SHOP, conv(t.goto_magic_shop()));
-        lines.insert(va::GOTO_ETC, conv(t.goto_etc()));
-        lines.insert(va::BYEBYE, conv(t.byebye()));
-        lines.insert(va::ARRIVE_DELTA, conv(t.arrive_delta()));
-        lines.insert(va::ARRIVE_LAMBDA, conv(t.arrive_lambda()));
-        lines.insert(va::ARRIVE_SIGMA, conv(t.arrive_sigma()));
-        lines.insert(va::ARRIVE_OMEGA, conv(t.arrive_omega()));
-        lines.insert(va::ARRIVE_THETA, conv(t.arrive_theta()));
-        lines.insert(va::GOTO_RECORD_SHOP, conv(t.goto_record_shop()));
-        lines.insert(va::CHANGE_EQUIP_OK, conv(t.change_equip_ok()));
-        lines.insert(va::CHANGE_EQUIP_NOT_SKILL, conv(t.change_equip_not_skill()));
-        lines.insert(va::CHANGE_EQUIP_NOT_ETC, conv(t.change_equip_not_etc()));
-        lines.insert(va::ATTRIBUTE_FOLLOW, conv(t.attribute_follow()));
-        lines.insert(va::ATTRIBUTE_GUARD, conv(t.attribute_guard()));
-        lines.insert(va::ATTRIBUTE_CRITICAL, conv(t.attribute_critical()));
-        lines.insert(va::HEAL_PLZ_ACCEPT, conv(t.heal_plz_accept()));
-        lines.insert(va::SKILL_ACCEPT, conv(t.skill_accept()));
-        lines.insert(va::ASSIGN_ACCEPT, conv(t.assign_accept()));
-        lines.insert(va::POISON_CURSE, conv(t.poison_curse()));
-        lines.insert(va::PARALYSIS_SLEEP, conv(t.paralysis_sleep()));
-        lines.insert(va::CHARM_CONFUSION, conv(t.charm_confusion()));
-        lines.insert(va::WAIT_PLZ, conv(t.wait_plz()));
-        lines.insert(va::GHOST_CONDITION, conv(t.ghost_condition()));
-        lines.insert(va::LEVEL_DOWN, conv(t.level_down()));
-        lines.insert(va::LEVEL_UP, conv(t.level_up()));
-        lines.insert(va::PRESENT_OTHER_FELLOW, conv(t.present_other_fellow()));
-        lines.insert(va::DEAD_OTHER_FELLOW, conv(t.dead_other_fellow()));
-        lines.insert(va::OPEN_TRAP_BOX, conv(t.open_trap_box()));
-        lines.insert(va::QUIT_PUCCIGUSO, conv(t.quit_pucciguso()));
-        lines.insert(va::GRATS_LEVEL_UP, conv(t.grats_level_up()));
-        lines.insert(va::CONDITION_MODIFY_ENEMY, conv(t.condition_modify_enemy()));
-        lines.insert(va::OPEN_TREASURE_BOX, conv(t.open_treasure_box()));
-        lines.insert(va::A_LOT_OF_ENEMY, conv(t.a_lot_of_enemy()));
-        lines.insert(va::BETTER_WEAPON, conv(t.better_weapon()));
-        lines.insert(va::WORSE_WEAPON, conv(t.worse_weapon()));
-        lines.insert(va::FELLOW_IS_HIGH_LEVEL, conv(t.fellow_is_high_level()));
-        lines.insert(va::WALKING_TALK, conv(t.walking_talk()));
+        lines.insert(va::STANDBY_ACCEPT, conv(t.standby_accept));
+        lines.insert(va::ACCEPT, conv(t.accept));
+        lines.insert(va::USE_ALL_ATTACK_SKILL_ACCEPT, conv(t.use_all_attack_skill_accept));
+        lines.insert(va::USE_PHYSICAL_SKILL_ACCEPT, conv(t.use_physical_skill_accept));
+        lines.insert(va::USE_MAGIC_SKILL_ACCEPT, conv(t.use_magic_skill_accept));
+        lines.insert(va::NOT_USE_SKILL_ACCEPT, conv(t.not_use_skill_accept));
+        lines.insert(va::BUFF_ACCEPT, conv(t.buff_accept));
+        lines.insert(va::DEBUFF_ACCEPT, conv(t.debuff_accept));
+        lines.insert(va::HEAL_START, conv(t.heal_start));
+        lines.insert(va::CURE_START, conv(t.cure_start));
+        lines.insert(va::RESURRECT_START, conv(t.resurrect_start));
+        lines.insert(va::SHORT_OF_SP, conv(t.short_of_sp));
+        lines.insert(va::NOTHING_DENY, conv(t.nothing_deny));
+        lines.insert(va::NO_BATTLE_MODE_DENY, conv(t.no_battle_mode_deny));
+        lines.insert(va::GHOST_DENY, conv(t.ghost_deny));
+        lines.insert(va::CONDITION_RED, conv(t.condition_red));
+        lines.insert(va::THX_HEAL, conv(t.thx_heal));
+        lines.insert(va::THX_RESURRECT, conv(t.thx_resurrect));
+        lines.insert(va::THX_BUFF, conv(t.thx_buff));
+        lines.insert(va::USE_OCARINA, conv(t.use_ocarina));
+        lines.insert(va::NO_OCARINA_DENY, conv(t.no_ocarina_deny));
+        lines.insert(va::DISABLE_OCARINA_DENY, conv(t.disable_ocarina_deny));
+        lines.insert(va::ENTERED_FIELD, conv(t.entered_field));
+        lines.insert(va::VICTORY, conv(t.victory));
+        lines.insert(va::NEUTRAL, conv(t.neutral));
+        lines.insert(va::HEAL_PLZ, conv(t.heal_plz));
+        lines.insert(va::TREATMENT_PLZ, conv(t.treatment_plz));
+        lines.insert(va::RESURRECT_PLZ, conv(t.resurrect_plz));
+        lines.insert(va::BULL, conv(t.bull));
+        lines.insert(va::DASH_FOR_ENEMY, conv(t.dash_for_enemy));
+        lines.insert(va::TIMID, conv(t.timid));
+        lines.insert(va::SMALL_DAMAGED, conv(t.small_damaged));
+        lines.insert(va::DAMAGED, conv(t.damaged));
+        lines.insert(va::FATAL_DAMAGED, conv(t.fatal_damaged));
+        lines.insert(va::ATTACK_SMALL_HIT, conv(t.attack_small_hit));
+        lines.insert(va::ATTACK_HIT, conv(t.attack_hit));
+        lines.insert(va::ATTACK_FATAL_HIT, conv(t.attack_fatal_hit));
+        lines.insert(va::REENCOUNTER, conv(t.reencounter));
+        lines.insert(va::GOTO_WEAPON_SHOP, conv(t.goto_weapon_shop));
+        lines.insert(va::GOTO_GOODS_SHOP, conv(t.goto_goods_shop));
+        lines.insert(va::GOTO_FAIRY_SHOP, conv(t.goto_fairy_shop));
+        lines.insert(va::GOTO_MAGIC_SHOP, conv(t.goto_magic_shop));
+        lines.insert(va::GOTO_ETC, conv(t.goto_etc));
+        lines.insert(va::BYEBYE, conv(t.byebye));
+        lines.insert(va::ARRIVE_DELTA, conv(t.arrive_delta));
+        lines.insert(va::ARRIVE_LAMBDA, conv(t.arrive_lambda));
+        lines.insert(va::ARRIVE_SIGMA, conv(t.arrive_sigma));
+        lines.insert(va::ARRIVE_OMEGA, conv(t.arrive_omega));
+        lines.insert(va::ARRIVE_THETA, conv(t.arrive_theta));
+        lines.insert(va::GOTO_RECORD_SHOP, conv(t.goto_record_shop));
+        lines.insert(va::CHANGE_EQUIP_OK, conv(t.change_equip_ok));
+        lines.insert(va::CHANGE_EQUIP_NOT_SKILL, conv(t.change_equip_not_skill));
+        lines.insert(va::CHANGE_EQUIP_NOT_ETC, conv(t.change_equip_not_etc));
+        lines.insert(va::ATTRIBUTE_FOLLOW, conv(t.attribute_follow));
+        lines.insert(va::ATTRIBUTE_GUARD, conv(t.attribute_guard));
+        lines.insert(va::ATTRIBUTE_CRITICAL, conv(t.attribute_critical));
+        lines.insert(va::HEAL_PLZ_ACCEPT, conv(t.heal_plz_accept));
+        lines.insert(va::SKILL_ACCEPT, conv(t.skill_accept));
+        lines.insert(va::ASSIGN_ACCEPT, conv(t.assign_accept));
+        lines.insert(va::POISON_CURSE, conv(t.poison_curse));
+        lines.insert(va::PARALYSIS_SLEEP, conv(t.paralysis_sleep));
+        lines.insert(va::CHARM_CONFUSION, conv(t.charm_confusion));
+        lines.insert(va::WAIT_PLZ, conv(t.wait_plz));
+        lines.insert(va::GHOST_CONDITION, conv(t.ghost_condition));
+        lines.insert(va::LEVEL_DOWN, conv(t.level_down));
+        lines.insert(va::LEVEL_UP, conv(t.level_up));
+        lines.insert(va::PRESENT_OTHER_FELLOW, conv(t.present_other_fellow));
+        lines.insert(va::DEAD_OTHER_FELLOW, conv(t.dead_other_fellow));
+        lines.insert(va::OPEN_TRAP_BOX, conv(t.open_trap_box));
+        lines.insert(va::QUIT_PUCCIGUSO, conv(t.quit_pucciguso));
+        lines.insert(va::GRATS_LEVEL_UP, conv(t.grats_level_up));
+        lines.insert(va::CONDITION_MODIFY_ENEMY, conv(t.condition_modify_enemy));
+        lines.insert(va::OPEN_TREASURE_BOX, conv(t.open_treasure_box));
+        lines.insert(va::A_LOT_OF_ENEMY, conv(t.a_lot_of_enemy));
+        lines.insert(va::BETTER_WEAPON, conv(t.better_weapon));
+        lines.insert(va::WORSE_WEAPON, conv(t.worse_weapon));
+        lines.insert(va::FELLOW_IS_HIGH_LEVEL, conv(t.fellow_is_high_level));
+        lines.insert(va::WALKING_TALK, conv(t.walking_talk));
         let names = |l: &[&str]| l.iter().map(|x| encode(x)).collect::<Vec<_>>();
         let remarks = [
-            conv(t.physical_tolerance()),
-            conv(t.magic_tolerance()),
-            conv(t.use_item()),
-            conv(t.use_last_item()),
-            conv(t.only_buff()),
-            conv(t.only_debuff()),
+            conv(t.physical_tolerance),
+            conv(t.magic_tolerance),
+            conv(t.use_item),
+            conv(t.use_last_item),
+            conv(t.only_buff),
+            conv(t.only_debuff),
         ];
-        ChatTexts {
-            lines,
-            remarks,
-            attribute: [names(t.attribute_str()), names(t.attribute_str2())],
-            none: NONE.to_vec(),
-        }
+        ChatTexts { lines, remarks, attribute: [names(t.attribute_str), names(t.attribute_str2)], none: NONE.to_vec() }
     }
 
     /// Entry `i` of remark table `r`.

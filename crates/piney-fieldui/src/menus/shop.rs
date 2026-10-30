@@ -55,17 +55,17 @@ impl Texts {
         let f = piney_data::tables::fieldui::of(volume);
         let three = |l: &[&str]| [piece(l, 0), piece(l, 1), piece(l, 2)];
         let stock = |l: &[&[i32]]| l.iter().map(|x| x.to_vec()).collect();
-        let order = f.category_order();
+        let order = f.category_order;
         Texts {
-            item_stock: stock(f.item_shop()),
-            equip_stock: stock(f.equip_shop()),
-            magic_stock: stock(f.magic_shop()),
-            buy_help: f.buy_help().iter().map(|l| three(l)).collect(),
-            sell_help: f.sell_help().iter().map(|l| three(l)).collect(),
-            shop_str: piney_data::tables::sjis::encode(f.shop_str()),
-            deposit_help: f.deposit_help().iter().map(|l| three(l)).collect(),
-            draw_help: f.draw_help().iter().map(|l| three(l)).collect(),
-            pl_pages: f.pl_item_pages().try_into().unwrap_or([-1; 5]),
+            item_stock: stock(f.item_shop),
+            equip_stock: stock(f.equip_shop),
+            magic_stock: stock(f.magic_shop),
+            buy_help: f.buy_help.iter().map(|l| three(l)).collect(),
+            sell_help: f.sell_help.iter().map(|l| three(l)).collect(),
+            shop_str: piney_data::tables::sjis::encode(f.shop_str),
+            deposit_help: f.deposit_help.iter().map(|l| three(l)).collect(),
+            draw_help: f.draw_help.iter().map(|l| three(l)).collect(),
+            pl_pages: f.pl_item_pages.try_into().unwrap_or([-1; 5]),
             order: std::array::from_fn(|k| (order[k][0], order[k][1])),
         }
     }

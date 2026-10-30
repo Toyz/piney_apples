@@ -79,8 +79,8 @@ impl HackTexts {
     pub fn of(volume: piney_data::volume::Volume) -> HackTexts {
         let t = piney_data::tables::fieldui::of(volume);
         HackTexts {
-            info: [crate::tables::piece(t.hack_info(), 0), crate::tables::piece(t.hack_info(), 1)],
-            bar: piney_data::tables::sjis::encode(t.hack_bar()),
+            info: [crate::tables::piece(t.hack_info, 0), crate::tables::piece(t.hack_info, 1)],
+            bar: piney_data::tables::sjis::encode(t.hack_bar),
             scene: None,
         }
     }

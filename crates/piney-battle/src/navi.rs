@@ -622,9 +622,9 @@ impl TownMap {
     pub fn of(volume: piney_data::volume::Volume, town: usize) -> TownMap {
         let t = piney_data::tables::world::of(volume);
         TownMap {
-            num: i32::from(t.navi_marks().get(town).copied().unwrap_or(0)),
+            num: i32::from(t.navi_marks.get(town).copied().unwrap_or(0)),
             marks: t
-                .navi_landmarks()
+                .navi_landmarks
                 .get(town)
                 .copied()
                 .unwrap_or_default()

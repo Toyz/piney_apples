@@ -242,7 +242,7 @@ fn main() {
             }
             Some("markerpos") => {
                 let m = n(1);
-                let name = piney_data::tables::world::of(volume).markers()[m as usize];
+                let name = piney_data::tables::world::of(volume).markers[m as usize];
                 let obj = town.ccs.find_object(name).unwrap();
                 let d = &town.scene.dummies[&obj];
                 println!("{}", list(&[d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ee::ONE]));

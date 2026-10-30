@@ -6,7 +6,7 @@
 //! sprite's `SendPacket` in a fixed order. The details are in
 //! docs/engine/field-ui.md (the HUD).
 
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 use piney_desktop::eef::{add, div, from_int, mul, sub, to_int};
 
 use crate::ctrl::{Ctx, Draw, MenuCtrl};
@@ -34,7 +34,7 @@ pub fn now_max_colour(n: i32, m: i32) -> usize {
 
 /// A `ccSpriteColorTable` entry as the 0x00BBGGRR word the code adds to.
 fn table_u32(i: usize) -> u32 {
-    let c = SPRITE_COLOR_TABLE[i];
+    let c = kanji::shared().sprite_color_table[i];
     u32::from(c[0]) | (u32::from(c[1]) << 8) | (u32::from(c[2]) << 16)
 }
 
@@ -423,7 +423,7 @@ fn drain_gauge(m: &mut MenuCtrl, x: &mut Ctx) {
     let a = m.drain_alpha;
     let erosion = i32::from(x.save.save.i16(EROSION));
     let flat = |i: usize| {
-        let c = SPRITE_COLOR_TABLE[i];
+        let c = kanji::shared().sprite_color_table[i];
         Some([[c[0], c[1], c[2]]; 4])
     };
     let d = &mut m.drain;

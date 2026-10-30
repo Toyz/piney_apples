@@ -16,7 +16,7 @@ use piney_data::{Error, Result};
 /// Mutation on, whose six new streams before `str6100` move the later ones
 /// up by six (the gate's 107 to 113, the Ryu Books' covers 112 to 118).
 pub fn count(volume: Volume) -> usize {
-    stream::of(volume).lists_e().len()
+    stream::of(volume).lists_e.len()
 }
 /// `sizeof(STREAMDATA)`.
 pub const RECORD: u32 = 0x14;
@@ -55,7 +55,7 @@ pub const ARCHIVES: [(&str, &str); 6] = [
 /// strbgm}`) has a BGM table; a note's event 4 calls `ccSndStreamBGM` only
 /// when `strbgm` is set.
 pub fn has_stream_bgm(volume: Volume, num: usize) -> bool {
-    stream::of(volume).bgm().get(num).is_some_and(|t| t.strbgm.is_some())
+    stream::of(volume).bgm.get(num).is_some_and(|t| t.strbgm.is_some())
 }
 
 /// One record of a `strSndTbl` BGM table (`strbgm`, 12 bytes: `sq`, `sq2`,
@@ -77,7 +77,7 @@ pub struct StrBgm {
 pub const BGM_END: i16 = 5;
 /// `strSndTbl[num].strbgm` up to and with its end record (empty for none).
 pub fn stream_bgm_table(volume: Volume, num: usize) -> Vec<StrBgm> {
-    let rows = stream::of(volume).bgm().get(num).and_then(|t| t.strbgm).unwrap_or_default();
+    let rows = stream::of(volume).bgm.get(num).and_then(|t| t.strbgm).unwrap_or_default();
     rows.iter()
         .map(|r| StrBgm {
             sq: r.bgm1,
@@ -174,8 +174,8 @@ impl Def {
         // A disc with only `streamTblE` and the `E` archives (Outbreak on,
         // where the voice picks a PCM track instead) reads them whatever
         // the voice.
-        let english = english || t.lists().is_empty();
-        let lists = if english { t.lists_e() } else { t.lists() };
+        let english = english || t.lists.is_empty();
+        let lists = if english { t.lists_e } else { t.lists };
         let list = lists.get(num).copied().flatten().unwrap_or_default();
         let mut rows = list.iter().map(Entry::of);
         let header = rows.next().flatten().ok_or_else(|| Error::Format(format!("stream {num} has no header")))?;
@@ -242,7 +242,7 @@ pub fn gate_stream(volume: Volume) -> usize {
 /// `str7000Out` (INF main 0x0030f1b0: `{field, arrival}` shorts, ended by
 /// a negative field)'s arrival for `field`; 0 when it is not listed.
 pub fn gate_hack_arrival(volume: Volume, field: i32) -> u32 {
-    let rows = stream::of(volume).gate_out();
+    let rows = stream::of(volume).gate_out;
     rows.iter().find(|r| i32::from(r.area_num) == field).map_or(0, |r| r.tbl_num as u32)
 }
 
@@ -255,11 +255,10 @@ pub fn gate_hack_arrival(volume: Volume, field: i32) -> u32 {
 /// in docs/engine/stream.md ("The gate hack's movie").
 pub fn gate_hack_files(volume: Volume, def: &Def, town: i32, field: i32, crisis: bool) -> Result<Files> {
     let t = stream::of(volume);
-    let english = def.english || t.gate_pre().is_empty();
+    let english = def.english || t.gate_pre.is_empty();
     let pick = |e: &'static [[Streamdata; 2]], j: &'static [[Streamdata; 2]]| if english { e } else { j };
-    let towns =
-        if crisis { pick(t.gate_town_crisis_e(), t.gate_town_crisis()) } else { pick(t.gate_town_e(), t.gate_town()) };
-    let afters = pick(t.gate_after_e(), t.gate_after());
+    let towns = if crisis { pick(t.gate_town_crisis_e, t.gate_town_crisis) } else { pick(t.gate_town_e, t.gate_town) };
+    let afters = pick(t.gate_after_e, t.gate_after);
     let row = |rows: &[[Streamdata; 2]], n: u32, k: usize| -> Result<Entry> {
         rows.get(n as usize)
             .and_then(|r| Entry::of(&r[k]))
@@ -267,7 +266,7 @@ pub fn gate_hack_files(volume: Volume, def: &Def, town: i32, field: i32, crisis:
     };
     let town = town.max(0) as u32;
     let after = gate_hack_arrival(volume, field);
-    let pre = if english { t.gate_pre_e() } else { t.gate_pre() };
+    let pre = if english { t.gate_pre_e } else { t.gate_pre };
     let pre = pre.first().and_then(Entry::of).ok_or_else(|| Error::Format("str7000TblPre: empty".into()))?;
     let mut f = Files::default();
     f.preload.push(pre);

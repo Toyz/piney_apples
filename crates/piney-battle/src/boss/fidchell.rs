@@ -97,15 +97,15 @@ impl FidchellData {
         let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
         let pick = |v: &[i32], k: usize| v.get(k).copied().unwrap_or(0);
         FidchellData {
-            normal: t.fidchell_normal().to_vec(),
-            super_: t.fidchell_super().to_vec(),
-            epitaph: t.fidchell_epitaph().to_vec(),
-            anims: s(t.fidchell_anims()),
-            pred_texts: s(t.fidchell_pred_texts()),
-            pred_voices: std::array::from_fn(|k| pick(t.fidchell_pred_voices(), k)),
-            pred_skills: std::array::from_fn(|k| pick(t.fidchell_pred_skills(), k)),
-            skills: std::array::from_fn(|k| pick(t.fidchell_skills(), k)),
-            magic_skills: std::array::from_fn(|k| pick(t.fidchell_magic_skills(), k)),
+            normal: t.fidchell_normal.to_vec(),
+            super_: t.fidchell_super.to_vec(),
+            epitaph: t.fidchell_epitaph.to_vec(),
+            anims: s(t.fidchell_anims),
+            pred_texts: s(t.fidchell_pred_texts),
+            pred_voices: std::array::from_fn(|k| pick(t.fidchell_pred_voices, k)),
+            pred_skills: std::array::from_fn(|k| pick(t.fidchell_pred_skills, k)),
+            skills: std::array::from_fn(|k| pick(t.fidchell_skills, k)),
+            magic_skills: std::array::from_fn(|k| pick(t.fidchell_magic_skills, k)),
         }
     }
 

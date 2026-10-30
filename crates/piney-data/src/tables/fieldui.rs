@@ -172,11 +172,11 @@ impl crate::store::Load for RaceGrunty {
 pub struct FieldUi {
     /// `menuElementData`: the lists `InitMenuList` fills `menuList` from (89; 93 from Mutation on, its loop's bound).
     pub elements: &'static [FieldMenuElement],
-    /// `personalMenuHelp`
+    /// `personalMenuHelp` Alike on every volume.
     pub personal_help: &'static [&'static [&'static str]],
-    /// `optionMenuHelp`
+    /// `optionMenuHelp` Alike on every volume.
     pub option_help: &'static [&'static [&'static str]],
-    /// `helpStr`: ": Talk", ": Attack", ...
+    /// `helpStr`: ": Talk", ": Attack", ... Alike on every volume.
     pub help: &'static [Option<&'static str>],
     /// The Flag Race's texts (MUT main 0x00353d40).
     pub race_str: RaceStr,
@@ -184,103 +184,103 @@ pub struct FieldUi {
     pub item_list_str: ItemListStr,
     /// Item List's page titles by group, a piece a page (MUT main 0x00353d80).
     pub item_list_tags: &'static [&'static [&'static str]],
-    /// `deadInfo`
+    /// `deadInfo` Alike on every volume.
     pub dead_info: &'static str,
-    /// `newMailStr`
+    /// `newMailStr` Alike on every volume.
     pub new_mail: &'static str,
-    /// `kyviaStatusStr`: eight pieces.
+    /// `kyviaStatusStr`: eight pieces. Alike on every volume.
     pub kyvia_status: &'static [&'static str],
     /// The Flag Race's pause: Continue, Quit, in columns of 16.
     pub race_pause: &'static str,
     /// Item List's groups, in columns of 16.
     pub item_list_rows: &'static str,
-    /// `cheatHpStr`: the digits for 5-digit HP.
+    /// `cheatHpStr`: the digits for 5-digit HP. Alike on every volume.
     pub cheat_hp: &'static str,
-    /// `panelFlashTbl`: the panel flash's grey steps.
+    /// `panelFlashTbl`: the panel flash's grey steps. Alike on every volume.
     pub panel_flash: &'static [u32],
     /// `menuFaceCcsList`: per `charTbl` row; row 18 is Kite before the bracelet.
     pub faces: &'static [MenuFace],
-    /// `skillMenuTag`: the pages' tabs.
+    /// `skillMenuTag`: the pages' tabs. Alike on every volume.
     pub skill_tags: &'static [&'static str],
-    /// `itemMenuTag`
+    /// `itemMenuTag` Alike on every volume.
     pub item_tags: &'static [&'static str],
-    /// `skillMenuHelp`
+    /// `skillMenuHelp` Alike on every volume.
     pub skill_help: &'static [&'static [&'static str]],
-    /// `itemMenuHelp`
+    /// `itemMenuHelp` Alike on every volume.
     pub item_help: &'static [&'static [&'static str]],
-    /// `targetMenuInfo`
+    /// `targetMenuInfo` Alike on every volume.
     pub target_info: &'static [&'static str],
-    /// `targetMenuWarn`
+    /// `targetMenuWarn` Alike on every volume.
     pub target_warn: &'static str,
     /// `targetMenuDrainWarn`
     pub target_drain_warn: &'static [&'static str],
-    /// `virusCol`: the bracelet gauge's two colour pairs by `erosion / 17`.
+    /// `virusCol`: the bracelet gauge's two colour pairs by `erosion / 17`. Alike on every volume.
     pub virus_col: &'static [[i32; 12]],
-    /// `chatMenuTag`
+    /// `chatMenuTag` Alike on every volume.
     pub chat_tags: &'static [&'static str],
-    /// `chatMenuStr`: the orders.
+    /// `chatMenuStr`: the orders. Alike on every volume.
     pub chat_str: &'static [&'static str],
-    /// `chatActionStr`'s pieces.
+    /// `chatActionStr`'s pieces. Alike on every volume.
     pub chat_action: &'static [&'static str],
-    /// `chatMenuHelp`
+    /// `chatMenuHelp` Alike on every volume.
     pub chat_help: &'static [&'static [&'static str]],
-    /// `chatMenuWarn`: the orders' refusals.
+    /// `chatMenuWarn`: the orders' refusals. Alike on every volume.
     pub chat_warn: &'static [Option<&'static [&'static str]>],
     /// `partyMenuWarn`
     pub party_warn: &'static [&'static [&'static str]],
-    /// `btInChatAct`: the orders' command numbers.
+    /// `btInChatAct`: the orders' command numbers. Alike on every volume.
     pub bt_chat_act: &'static [i32],
-    /// `townChatAct`
+    /// `townChatAct` Alike on every volume.
     pub town_chat_act: &'static [i32],
-    /// `gateMenuHelp`
+    /// `gateMenuHelp` Alike on every volume.
     pub gate_help: &'static [&'static [&'static str]],
-    /// `gtNewInfo`
+    /// `gtNewInfo` Alike on every volume.
     pub gt_new_info: &'static [&'static [&'static str]],
-    /// `gtNewStr1`: the attributes and parts.
+    /// `gtNewStr1`: the attributes and parts. Alike on every volume.
     pub gt_new_str1: &'static [Option<&'static str>],
     /// `gtTownMenuHelp`
     pub gt_town_help: &'static [&'static [&'static str]],
     /// `gateWordListMsg`: each story area's note in the Word List.
     pub gate_word_list_msg: &'static [Option<&'static [&'static str]>],
-    /// `gtMenuInfo`: "Warp to".
+    /// `gtMenuInfo`: "Warp to". Alike on every volume.
     pub gt_menu_info: &'static str,
-    /// `gtNewStr0`'s pieces.
+    /// `gtNewStr0`'s pieces. Alike on every volume.
     pub gt_new_str0: &'static [&'static str],
-    /// `gtTownMenuStr`: the servers.
+    /// `gtTownMenuStr`: the servers. Alike on every volume.
     pub gt_town_str: &'static [&'static str],
-    /// `serverStr`: the servers' symbols.
+    /// `serverStr`: the servers' symbols. Alike on every volume.
     pub server_str: &'static [&'static str],
-    /// `gtTownMenuWarn`
+    /// `gtTownMenuWarn` Alike on every volume.
     pub gt_town_warn: &'static str,
-    /// `gtListMenuWarn`
+    /// `gtListMenuWarn` Alike on every volume.
     pub gt_list_warn: &'static str,
-    /// The Area Information row.
+    /// The Area Information row. Alike on every volume.
     pub gt_area_info: &'static str,
-    /// `ccGetGtNewColor`'s colours.
+    /// `ccGetGtNewColor`'s colours. Alike on every volume.
     pub gt_new_colours: &'static [i32],
     /// From Mutation on, the story areas the gate refuses while the bracelet is off, and Kite's line (None on Infection).
     pub gate_refusal: Option<GateRefusal>,
-    /// `statusMenuStr`: the Status page's labels.
+    /// `statusMenuStr`: the Status page's labels. Alike on every volume.
     pub status_menu: &'static [&'static str],
-    /// `statusClassStr`: the classes.
+    /// `statusClassStr`: the classes. Alike on every volume.
     pub status_class: &'static [&'static str],
     /// `partyInMenuInfo`
     pub party_in_info: &'static [&'static [&'static str]],
-    /// `getItemMenuStr`'s lines.
+    /// `getItemMenuStr`'s lines. Alike on every volume.
     pub get_item_str: &'static [&'static str],
-    /// `getTrapMenuStr`: TrapBoxMenu's lines.
+    /// `getTrapMenuStr`: TrapBoxMenu's lines. Alike on every volume.
     pub trap_menu: &'static [&'static str],
-    /// `trapDischargeStr`
+    /// `trapDischargeStr` Alike on every volume.
     pub trap_discharge: &'static str,
-    /// `showMapInfo`
+    /// `showMapInfo` Alike on every volume.
     pub show_map: &'static str,
     /// `statusUpStr`: "increased by ", "decreased by ", then the stats' names.
     pub status_up: &'static [&'static str],
-    /// `installWarnStr`
+    /// `installWarnStr` Alike on every volume.
     pub install_warn: &'static [&'static str],
-    /// `epitaphStr0X`'s first piece.
+    /// `epitaphStr0X`'s first piece. Alike on every volume.
     pub epitaph_unknown: &'static str,
-    /// `epitaphStr00`: item 42's pages.
+    /// `epitaphStr00`: item 42's pages. Alike on every volume.
     pub epitaph_00: &'static [&'static [&'static str]],
     /// `epitaphStr00p`
     pub epitaph_00p: &'static [&'static [&'static str]],
@@ -300,7 +300,7 @@ pub struct FieldUi {
     pub epitaph_04: &'static [&'static [&'static str]],
     /// `epitaphStr04p`
     pub epitaph_04p: &'static [&'static [&'static str]],
-    /// `epitaphStr10`: item 48's.
+    /// `epitaphStr10`: item 48's. Alike on every volume.
     pub epitaph_10: &'static [&'static [&'static str]],
     /// `epitaphStr10p`
     pub epitaph_10p: &'static [&'static [&'static str]],
@@ -316,47 +316,47 @@ pub struct FieldUi {
     pub epitaph_m2: &'static [&'static [&'static str]],
     /// `epitaphStrM3`: item 290's.
     pub epitaph_m3: &'static [&'static [&'static str]],
-    /// `ItemBoxList`: 130 item codes by server * 6 + element.
+    /// `ItemBoxList`: 130 item codes by server * 6 + element. Alike on every volume.
     pub item_box_list: &'static [&'static [i32]],
-    /// `DangerItemBoxList`
+    /// `DangerItemBoxList` Alike on every volume.
     pub danger_item_box_list: &'static [&'static [i32]],
-    /// `areaItemList`
+    /// `areaItemList` Alike on every volume.
     pub area_item_list: &'static [&'static [i32]],
     /// `idolItemList`
     pub idol_item_list: &'static [&'static [i32]],
-    /// `SukaItemBoxList` by server.
+    /// `SukaItemBoxList` by server. Alike on every volume.
     pub suka_item_box_list: &'static [&'static [i32]],
     /// `idolSubItemList` by server.
     pub idol_sub_item_list: &'static [&'static [i32]],
-    /// `recordMenuStr`: "slot 1", "slot 2", "Unused", "Data", "MEMORY CARD".
+    /// `recordMenuStr`: "slot 1", "slot 2", "Unused", "Data", "MEMORY CARD". Alike on every volume.
     pub record_str: &'static [&'static str],
-    /// `impItemMenuTag`: Key Items' four tabs.
+    /// `impItemMenuTag`: Key Items' four tabs. Alike on every volume.
     pub imp_tags: &'static [&'static str],
-    /// `puccigusoCallWarnStr`
+    /// `puccigusoCallWarnStr` Alike on every volume.
     pub grunty_warn: &'static [&'static str],
-    /// `shopStr`'s first line: the count window's labels.
+    /// `shopStr`'s first line: the count window's labels. Alike on every volume.
     pub shop_str: &'static str,
-    /// `inBattleMenuWarn`
+    /// `inBattleMenuWarn` Alike on every volume.
     pub in_battle_warn: &'static str,
-    /// `gateoutMenuInfo`
+    /// `gateoutMenuInfo` Alike on every volume.
     pub gateout_info: &'static str,
-    /// `logoutMenuInfo`
+    /// `logoutMenuInfo` Alike on every volume.
     pub logout_info: &'static str,
     /// `statusMenuHelp`: three lines for each cell of the Status grid, 15 rows a column.
     pub status_help: &'static [&'static [&'static str]],
-    /// `statusBeffStr`: each added effect's help (lines 0-2) and name (line 3).
+    /// `statusBeffStr`: each added effect's help (lines 0-2) and name (line 3). Alike on every volume.
     pub status_beff: &'static [&'static [&'static str]],
-    /// `equipChangeStr`: each page's four labels, 16 characters each.
+    /// `equipChangeStr`: each page's four labels, 16 characters each. Alike on every volume.
     pub equip_change: &'static [&'static str],
-    /// `equipMenuWarn`: the refusals.
+    /// `equipMenuWarn`: the refusals. Alike on every volume.
     pub equip_warn: &'static [&'static [&'static str]],
     /// `addItemCategoryTbl`: the order `AddItem` sorts a list in, (category, rows) pairs.
     pub category_order: &'static [[i16; 2]],
     /// `spcMsgTbl`: where each member's line tables are, the pointers `SetSpcBaseMsg` stores in the save.
     pub spc_msg_tbl: &'static [u32],
-    /// `partyMenuHelp`
+    /// `partyMenuHelp` Alike on every volume.
     pub party_help: &'static [&'static [&'static str]],
-    /// `partyOutMenuInfo`
+    /// `partyOutMenuInfo` Alike on every volume.
     pub party_out_info: &'static [&'static [&'static str]],
     /// A party message table, a record a member.
     pub spc_msg0: &'static [Option<EvMsgData>],
@@ -372,43 +372,43 @@ pub struct FieldUi {
     pub spc_msg5: &'static [Option<EvMsgData>],
     /// `datadrainDemoMenuInfo`
     pub drain_demo_info: &'static [&'static [&'static str]],
-    /// The Controller picture's file.
+    /// The Controller picture's file. Alike on every volume.
     pub control_file: &'static str,
-    /// The Controller picture's texture.
+    /// The Controller picture's texture. Alike on every volume.
     pub control_tex: &'static str,
-    /// `timeIdolItem`: the items for the places gained.
+    /// `timeIdolItem`: the items for the places gained. Alike on every volume.
     pub time_idol_item: &'static [i32],
-    /// `getSkillMenuStr`'s first piece.
+    /// `getSkillMenuStr`'s first piece. Alike on every volume.
     pub get_skill: &'static str,
     /// `timeIdolMenuStr`
     pub time_idol_str: &'static [&'static str],
-    /// `timeIdolMenuHelp`
+    /// `timeIdolMenuHelp` Alike on every volume.
     pub time_idol_help: &'static [&'static [&'static str]],
     /// `fountainMenuHelp`
     pub fountain_help: &'static [&'static [&'static str]],
-    /// `fountainMenuStr`
+    /// `fountainMenuStr` Alike on every volume.
     pub fountain_answers: &'static str,
-    /// `fountainNameStr`
+    /// `fountainNameStr` Alike on every volume.
     pub fountain_names: &'static [&'static str],
     /// The fountains' elements: 80 each, by fountain.
     pub fe_tbl: &'static [&'static [i16]],
-    /// `f_limitTbl`: how many count, by server (+ 10 from level 4, + 5 for category 2).
+    /// `f_limitTbl`: how many count, by server (+ 10 from level 4, + 5 for category 2). Alike on every volume.
     pub f_limit: &'static [i16],
-    /// `tpcTalkStr`: the trading PCs' offer's two pieces.
+    /// `tpcTalkStr`: the trading PCs' offer's two pieces. Alike on every volume.
     pub tpc_talk: &'static [&'static str],
     /// `tradeMenuHelp`
     pub trade_help: &'static [&'static [&'static str]],
-    /// `presentMenuHelp`
+    /// `presentMenuHelp` Alike on every volume.
     pub present_help: &'static [&'static [&'static str]],
-    /// `tradeMenuStr`
+    /// `tradeMenuStr` Alike on every volume.
     pub trade_menu_str: &'static str,
     /// `buyMenuHelp`
     pub buy_help: &'static [&'static [&'static str]],
-    /// `sellMenuHelp`: the count's help, the question.
+    /// `sellMenuHelp`: the count's help, the question. Alike on every volume.
     pub sell_help: &'static [&'static [&'static str]],
-    /// `itemDepositMenuHelp`
+    /// `itemDepositMenuHelp` Alike on every volume.
     pub deposit_help: &'static [&'static [&'static str]],
-    /// `itemDrawMenuHelp`
+    /// `itemDrawMenuHelp` Alike on every volume.
     pub draw_help: &'static [&'static [&'static str]],
     /// `ItemShopItemList`: the stock by server.
     pub item_shop: &'static [&'static [i32]],
@@ -416,7 +416,7 @@ pub struct FieldUi {
     pub equip_shop: &'static [&'static [i32]],
     /// `MagicShopItemList`
     pub magic_shop: &'static [&'static [i32]],
-    /// `SetPlItemList`'s page table.
+    /// `SetPlItemList`'s page table. Alike on every volume.
     pub pl_item_pages: &'static [i32],
     /// `breederMenuStr`: the breeder's rows (from Mutation on also Flag Race and Rankings).
     pub breeder_str: &'static [&'static str],
@@ -424,11 +424,11 @@ pub struct FieldUi {
     pub race_ranks: &'static [[RaceRank; 3]],
     /// The three Grunties a town's Flag Race offers, with their stars (MUT gcmn 0x006d8670).
     pub race_grunties: &'static [[RaceGrunty; 3]],
-    /// `breedingMenuStr`: the status rows.
+    /// `breedingMenuStr`: the status rows. Alike on every volume.
     pub breeding_str: &'static str,
-    /// `breedingMenuHelp`: "There is no food.", then the help.
+    /// `breedingMenuHelp`: "There is no food.", then the help. Alike on every volume.
     pub breeding_help: &'static [&'static [&'static str]],
-    /// `foodTbl`: what each food (key items 26-41) does to a Grunty's six stats.
+    /// `foodTbl`: what each food (key items 26-41) does to a Grunty's six stats. Alike on every volume.
     pub food: &'static [FoodParam],
     /// `spcTradeRateTbl`: how much members 1-17 (1-20 from Mutation on) value a kind of item, in tenths.
     pub spc_trade_rate: &'static [[i16; 14]],
@@ -440,7 +440,7 @@ pub struct FieldUi {
     pub gift_bands: &'static [[i32; 4]],
     /// Members 1-20's rates for a gift, as `spcTradeRateTbl`'s (MUT main 0x0035f620; Trade keeps that one).
     pub gift_rates: &'static [[i16; 14]],
-    /// `@3218`: `AddFriendship`'s cap by volume.
+    /// `@3218`: `AddFriendship`'s cap by volume. Alike on every volume.
     pub friendship_cap: &'static [i32],
     /// `spcMsgPresent10`: each member's first thanks record for a gift.
     pub spc_msg_present10: &'static [Option<EvMsgData>],
@@ -462,23 +462,23 @@ pub struct FieldUi {
     pub pg_evo_msg: &'static [EvMsgData],
     /// Where it is.
     pub pg_evo_msg_va: u32,
-    /// `errorData`: the record shown for a missing line.
+    /// `errorData`: the record shown for a missing line. Alike on every volume.
     pub error_data: EvMsgData,
     /// Where `errorData` is, which a chain of records holds.
     pub error_data_va: u32,
-    /// `kiteSelfTalk`: Kite's line as area 43's map sends the party back (`EVENTAREA03::Draw`).
+    /// `kiteSelfTalk`: Kite's line as area 43's map sends the party back (`EVENTAREA03::Draw`). Alike on every volume.
     pub kite_self_talk: EvMsgData,
     /// Where `kiteSelfTalk` is.
     pub kite_self_talk_va: u32,
-    /// `ccCheckVoiceGrp(id)`: ids 141-157's voice groups (its jump table's `li $v0, n`), -1 none.
+    /// `ccCheckVoiceGrp(id)`: ids 141-157's voice groups (its jump table's `li $v0, n`), -1 none. Alike on every volume.
     pub voice_groups: &'static [i32],
-    /// `gtHackInfo`
+    /// `gtHackInfo` Alike on every volume.
     pub hack_info: &'static [&'static str],
-    /// `gtHackStr`
+    /// `gtHackStr` Alike on every volume.
     pub hack_bar: &'static str,
     /// `dataDrainWarn`: 34 pieces.
     pub drain_warn: &'static [&'static str],
-    /// `dataDrainEvolutionStr`
+    /// `dataDrainEvolutionStr` Alike on every volume.
     pub drain_evolution: &'static [&'static [&'static str]],
 }
 
@@ -644,773 +644,16 @@ impl crate::store::Load for FieldUi {
     }
 }
 
-impl FieldUi {
-    pub fn elements(&self) -> &'static [FieldMenuElement] {
-        self.elements
-    }
-    pub fn personal_help(&self) -> &'static [&'static [&'static str]] {
-        self.personal_help
-    }
-    pub fn option_help(&self) -> &'static [&'static [&'static str]] {
-        self.option_help
-    }
-    pub fn help(&self) -> &'static [Option<&'static str>] {
-        self.help
-    }
-    pub fn race_str(&self) -> RaceStr {
-        self.race_str
-    }
-    pub fn item_list_str(&self) -> ItemListStr {
-        self.item_list_str
-    }
-    pub fn item_list_tags(&self) -> &'static [&'static [&'static str]] {
-        self.item_list_tags
-    }
-    pub fn dead_info(&self) -> &'static str {
-        self.dead_info
-    }
-    pub fn new_mail(&self) -> &'static str {
-        self.new_mail
-    }
-    pub fn kyvia_status(&self) -> &'static [&'static str] {
-        self.kyvia_status
-    }
-    pub fn race_pause(&self) -> &'static str {
-        self.race_pause
-    }
-    pub fn item_list_rows(&self) -> &'static str {
-        self.item_list_rows
-    }
-    pub fn cheat_hp(&self) -> &'static str {
-        self.cheat_hp
-    }
-    pub fn panel_flash(&self) -> &'static [u32] {
-        self.panel_flash
-    }
-    pub fn faces(&self) -> &'static [MenuFace] {
-        self.faces
-    }
-    pub fn skill_tags(&self) -> &'static [&'static str] {
-        self.skill_tags
-    }
-    pub fn item_tags(&self) -> &'static [&'static str] {
-        self.item_tags
-    }
-    pub fn skill_help(&self) -> &'static [&'static [&'static str]] {
-        self.skill_help
-    }
-    pub fn item_help(&self) -> &'static [&'static [&'static str]] {
-        self.item_help
-    }
-    pub fn target_info(&self) -> &'static [&'static str] {
-        self.target_info
-    }
-    pub fn target_warn(&self) -> &'static str {
-        self.target_warn
-    }
-    pub fn target_drain_warn(&self) -> &'static [&'static str] {
-        self.target_drain_warn
-    }
-    pub fn virus_col(&self) -> &'static [[i32; 12]] {
-        self.virus_col
-    }
-    pub fn chat_tags(&self) -> &'static [&'static str] {
-        self.chat_tags
-    }
-    pub fn chat_str(&self) -> &'static [&'static str] {
-        self.chat_str
-    }
-    pub fn chat_action(&self) -> &'static [&'static str] {
-        self.chat_action
-    }
-    pub fn chat_help(&self) -> &'static [&'static [&'static str]] {
-        self.chat_help
-    }
-    pub fn chat_warn(&self) -> &'static [Option<&'static [&'static str]>] {
-        self.chat_warn
-    }
-    pub fn party_warn(&self) -> &'static [&'static [&'static str]] {
-        self.party_warn
-    }
-    pub fn bt_chat_act(&self) -> &'static [i32] {
-        self.bt_chat_act
-    }
-    pub fn town_chat_act(&self) -> &'static [i32] {
-        self.town_chat_act
-    }
-    pub fn gate_help(&self) -> &'static [&'static [&'static str]] {
-        self.gate_help
-    }
-    pub fn gt_new_info(&self) -> &'static [&'static [&'static str]] {
-        self.gt_new_info
-    }
-    pub fn gt_new_str1(&self) -> &'static [Option<&'static str>] {
-        self.gt_new_str1
-    }
-    pub fn gt_town_help(&self) -> &'static [&'static [&'static str]] {
-        self.gt_town_help
-    }
-    pub fn gate_word_list_msg(&self) -> &'static [Option<&'static [&'static str]>] {
-        self.gate_word_list_msg
-    }
-    pub fn gt_menu_info(&self) -> &'static str {
-        self.gt_menu_info
-    }
-    pub fn gt_new_str0(&self) -> &'static [&'static str] {
-        self.gt_new_str0
-    }
-    pub fn gt_town_str(&self) -> &'static [&'static str] {
-        self.gt_town_str
-    }
-    pub fn server_str(&self) -> &'static [&'static str] {
-        self.server_str
-    }
-    pub fn gt_town_warn(&self) -> &'static str {
-        self.gt_town_warn
-    }
-    pub fn gt_list_warn(&self) -> &'static str {
-        self.gt_list_warn
-    }
-    pub fn gt_area_info(&self) -> &'static str {
-        self.gt_area_info
-    }
-    pub fn gt_new_colours(&self) -> &'static [i32] {
-        self.gt_new_colours
-    }
-    pub fn gate_refusal(&self) -> Option<GateRefusal> {
-        self.gate_refusal
-    }
-    pub fn status_menu(&self) -> &'static [&'static str] {
-        self.status_menu
-    }
-    pub fn status_class(&self) -> &'static [&'static str] {
-        self.status_class
-    }
-    pub fn party_in_info(&self) -> &'static [&'static [&'static str]] {
-        self.party_in_info
-    }
-    pub fn get_item_str(&self) -> &'static [&'static str] {
-        self.get_item_str
-    }
-    pub fn trap_menu(&self) -> &'static [&'static str] {
-        self.trap_menu
-    }
-    pub fn trap_discharge(&self) -> &'static str {
-        self.trap_discharge
-    }
-    pub fn show_map(&self) -> &'static str {
-        self.show_map
-    }
-    pub fn status_up(&self) -> &'static [&'static str] {
-        self.status_up
-    }
-    pub fn install_warn(&self) -> &'static [&'static str] {
-        self.install_warn
-    }
-    pub fn epitaph_unknown(&self) -> &'static str {
-        self.epitaph_unknown
-    }
-    pub fn epitaph_00(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_00
-    }
-    pub fn epitaph_00p(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_00p
-    }
-    pub fn epitaph_01(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_01
-    }
-    pub fn epitaph_01p(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_01p
-    }
-    pub fn epitaph_02(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_02
-    }
-    pub fn epitaph_02p(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_02p
-    }
-    pub fn epitaph_03(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_03
-    }
-    pub fn epitaph_03p(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_03p
-    }
-    pub fn epitaph_04(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_04
-    }
-    pub fn epitaph_04p(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_04p
-    }
-    pub fn epitaph_10(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_10
-    }
-    pub fn epitaph_10p(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_10p
-    }
-    pub fn epitaph_11(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_11
-    }
-    pub fn epitaph_11p(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_11p
-    }
-    pub fn epitaph_m0(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_m0
-    }
-    pub fn epitaph_m1(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_m1
-    }
-    pub fn epitaph_m2(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_m2
-    }
-    pub fn epitaph_m3(&self) -> &'static [&'static [&'static str]] {
-        self.epitaph_m3
-    }
-    pub fn item_box_list(&self) -> &'static [&'static [i32]] {
-        self.item_box_list
-    }
-    pub fn danger_item_box_list(&self) -> &'static [&'static [i32]] {
-        self.danger_item_box_list
-    }
-    pub fn area_item_list(&self) -> &'static [&'static [i32]] {
-        self.area_item_list
-    }
-    pub fn idol_item_list(&self) -> &'static [&'static [i32]] {
-        self.idol_item_list
-    }
-    pub fn suka_item_box_list(&self) -> &'static [&'static [i32]] {
-        self.suka_item_box_list
-    }
-    pub fn idol_sub_item_list(&self) -> &'static [&'static [i32]] {
-        self.idol_sub_item_list
-    }
-    pub fn record_str(&self) -> &'static [&'static str] {
-        self.record_str
-    }
-    pub fn imp_tags(&self) -> &'static [&'static str] {
-        self.imp_tags
-    }
-    pub fn grunty_warn(&self) -> &'static [&'static str] {
-        self.grunty_warn
-    }
-    pub fn shop_str(&self) -> &'static str {
-        self.shop_str
-    }
-    pub fn in_battle_warn(&self) -> &'static str {
-        self.in_battle_warn
-    }
-    pub fn gateout_info(&self) -> &'static str {
-        self.gateout_info
-    }
-    pub fn logout_info(&self) -> &'static str {
-        self.logout_info
-    }
-    pub fn status_help(&self) -> &'static [&'static [&'static str]] {
-        self.status_help
-    }
-    pub fn status_beff(&self) -> &'static [&'static [&'static str]] {
-        self.status_beff
-    }
-    pub fn equip_change(&self) -> &'static [&'static str] {
-        self.equip_change
-    }
-    pub fn equip_warn(&self) -> &'static [&'static [&'static str]] {
-        self.equip_warn
-    }
-    pub fn category_order(&self) -> &'static [[i16; 2]] {
-        self.category_order
-    }
-    pub fn spc_msg_tbl(&self) -> &'static [u32] {
-        self.spc_msg_tbl
-    }
-    pub fn party_help(&self) -> &'static [&'static [&'static str]] {
-        self.party_help
-    }
-    pub fn party_out_info(&self) -> &'static [&'static [&'static str]] {
-        self.party_out_info
-    }
-    pub fn spc_msg0(&self) -> &'static [Option<EvMsgData>] {
-        self.spc_msg0
-    }
-    pub fn spc_msg1(&self) -> &'static [Option<EvMsgData>] {
-        self.spc_msg1
-    }
-    pub fn spc_msg2(&self) -> &'static [Option<EvMsgData>] {
-        self.spc_msg2
-    }
-    pub fn spc_msg3(&self) -> &'static [Option<EvMsgData>] {
-        self.spc_msg3
-    }
-    pub fn spc_msg4(&self) -> &'static [Option<EvMsgData>] {
-        self.spc_msg4
-    }
-    pub fn spc_msg5(&self) -> &'static [Option<EvMsgData>] {
-        self.spc_msg5
-    }
-    pub fn drain_demo_info(&self) -> &'static [&'static [&'static str]] {
-        self.drain_demo_info
-    }
-    pub fn control_file(&self) -> &'static str {
-        self.control_file
-    }
-    pub fn control_tex(&self) -> &'static str {
-        self.control_tex
-    }
-    pub fn time_idol_item(&self) -> &'static [i32] {
-        self.time_idol_item
-    }
-    pub fn get_skill(&self) -> &'static str {
-        self.get_skill
-    }
-    pub fn time_idol_str(&self) -> &'static [&'static str] {
-        self.time_idol_str
-    }
-    pub fn time_idol_help(&self) -> &'static [&'static [&'static str]] {
-        self.time_idol_help
-    }
-    pub fn fountain_help(&self) -> &'static [&'static [&'static str]] {
-        self.fountain_help
-    }
-    pub fn fountain_answers(&self) -> &'static str {
-        self.fountain_answers
-    }
-    pub fn fountain_names(&self) -> &'static [&'static str] {
-        self.fountain_names
-    }
-    pub fn fe_tbl(&self) -> &'static [&'static [i16]] {
-        self.fe_tbl
-    }
-    pub fn f_limit(&self) -> &'static [i16] {
-        self.f_limit
-    }
-    pub fn tpc_talk(&self) -> &'static [&'static str] {
-        self.tpc_talk
-    }
-    pub fn trade_help(&self) -> &'static [&'static [&'static str]] {
-        self.trade_help
-    }
-    pub fn present_help(&self) -> &'static [&'static [&'static str]] {
-        self.present_help
-    }
-    pub fn trade_menu_str(&self) -> &'static str {
-        self.trade_menu_str
-    }
-    pub fn buy_help(&self) -> &'static [&'static [&'static str]] {
-        self.buy_help
-    }
-    pub fn sell_help(&self) -> &'static [&'static [&'static str]] {
-        self.sell_help
-    }
-    pub fn deposit_help(&self) -> &'static [&'static [&'static str]] {
-        self.deposit_help
-    }
-    pub fn draw_help(&self) -> &'static [&'static [&'static str]] {
-        self.draw_help
-    }
-    pub fn item_shop(&self) -> &'static [&'static [i32]] {
-        self.item_shop
-    }
-    pub fn equip_shop(&self) -> &'static [&'static [i32]] {
-        self.equip_shop
-    }
-    pub fn magic_shop(&self) -> &'static [&'static [i32]] {
-        self.magic_shop
-    }
-    pub fn pl_item_pages(&self) -> &'static [i32] {
-        self.pl_item_pages
-    }
-    pub fn breeder_str(&self) -> &'static [&'static str] {
-        self.breeder_str
-    }
-    pub fn race_ranks(&self) -> &'static [[RaceRank; 3]] {
-        self.race_ranks
-    }
-    pub fn race_grunties(&self) -> &'static [[RaceGrunty; 3]] {
-        self.race_grunties
-    }
-    pub fn breeding_str(&self) -> &'static str {
-        self.breeding_str
-    }
-    pub fn breeding_help(&self) -> &'static [&'static [&'static str]] {
-        self.breeding_help
-    }
-    pub fn food(&self) -> &'static [FoodParam] {
-        self.food
-    }
-    pub fn spc_trade_rate(&self) -> &'static [[i16; 14]] {
-        self.spc_trade_rate
-    }
-    pub fn npc_trade_rate(&self) -> &'static [[i16; 14]] {
-        self.npc_trade_rate
-    }
-    pub fn gift_wants(&self) -> &'static [[ItemList; 16]] {
-        self.gift_wants
-    }
-    pub fn gift_bands(&self) -> &'static [[i32; 4]] {
-        self.gift_bands
-    }
-    pub fn gift_rates(&self) -> &'static [[i16; 14]] {
-        self.gift_rates
-    }
-    pub fn friendship_cap(&self) -> &'static [i32] {
-        self.friendship_cap
-    }
-    pub fn spc_msg_present10(&self) -> &'static [Option<EvMsgData>] {
-        self.spc_msg_present10
-    }
-    pub fn spc_msg_present10_va(&self) -> u32 {
-        self.spc_msg_present10_va
-    }
-    pub fn spc_msg_present11(&self) -> &'static [Option<EvMsgData>] {
-        self.spc_msg_present11
-    }
-    pub fn spc_msg_present11_va(&self) -> u32 {
-        self.spc_msg_present11_va
-    }
-    pub fn breed_teach(&self) -> &'static [Option<EvMsgData>] {
-        self.breed_teach
-    }
-    pub fn breed_teach_va(&self) -> u32 {
-        self.breed_teach_va
-    }
-    pub fn breed_teach2(&self) -> &'static [Option<EvMsgData>] {
-        self.breed_teach2
-    }
-    pub fn breed_teach2_va(&self) -> u32 {
-        self.breed_teach2_va
-    }
-    pub fn pg_evo_msg(&self) -> &'static [EvMsgData] {
-        self.pg_evo_msg
-    }
-    pub fn pg_evo_msg_va(&self) -> u32 {
-        self.pg_evo_msg_va
-    }
-    pub fn error_data(&self) -> EvMsgData {
-        self.error_data
-    }
-    pub fn error_data_va(&self) -> u32 {
-        self.error_data_va
-    }
-    pub fn kite_self_talk(&self) -> EvMsgData {
-        self.kite_self_talk
-    }
-    pub fn kite_self_talk_va(&self) -> u32 {
-        self.kite_self_talk_va
-    }
-    pub fn voice_groups(&self) -> &'static [i32] {
-        self.voice_groups
-    }
-    pub fn hack_info(&self) -> &'static [&'static str] {
-        self.hack_info
-    }
-    pub fn hack_bar(&self) -> &'static str {
-        self.hack_bar
-    }
-    pub fn drain_warn(&self) -> &'static [&'static str] {
-        self.drain_warn
-    }
-    pub fn drain_evolution(&self) -> &'static [&'static [&'static str]] {
-        self.drain_evolution
-    }
+impl crate::store::Table for FieldUi {
+    const ID: usize = super::id::FIELDUI;
 }
 
-/// `personalMenuHelp`
-pub static PERSONAL_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().personal_help);
-
-/// `optionMenuHelp`
-pub static OPTION_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().option_help);
-
-/// `helpStr`: ": Talk", ": Attack", ...
-pub static HELP: std::sync::LazyLock<&'static [Option<&'static str>]> = std::sync::LazyLock::new(|| shared().help);
-
-/// `deadInfo`
-pub static DEAD_INFO: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().dead_info);
-
-/// `newMailStr`
-pub static NEW_MAIL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().new_mail);
-
-/// `kyviaStatusStr`: eight pieces.
-pub static KYVIA_STATUS: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().kyvia_status);
-
-/// `cheatHpStr`: the digits for 5-digit HP.
-pub static CHEAT_HP: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().cheat_hp);
-
-/// `panelFlashTbl`: the panel flash's grey steps.
-pub static PANEL_FLASH: std::sync::LazyLock<&'static [u32]> = std::sync::LazyLock::new(|| shared().panel_flash);
-
-/// `skillMenuTag`: the pages' tabs.
-pub static SKILL_TAGS: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().skill_tags);
-
-/// `itemMenuTag`
-pub static ITEM_TAGS: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().item_tags);
-
-/// `skillMenuHelp`
-pub static SKILL_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().skill_help);
-
-/// `itemMenuHelp`
-pub static ITEM_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().item_help);
-
-/// `targetMenuInfo`
-pub static TARGET_INFO: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().target_info);
-
-/// `targetMenuWarn`
-pub static TARGET_WARN: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().target_warn);
-
-/// `virusCol`: the bracelet gauge's two colour pairs by `erosion / 17`.
-pub static VIRUS_COL: std::sync::LazyLock<&'static [[i32; 12]]> = std::sync::LazyLock::new(|| shared().virus_col);
-
-/// `chatMenuTag`
-pub static CHAT_TAGS: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().chat_tags);
-
-/// `chatMenuStr`: the orders.
-pub static CHAT_STR: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().chat_str);
-
-/// `chatActionStr`'s pieces.
-pub static CHAT_ACTION: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().chat_action);
-
-/// `chatMenuHelp`
-pub static CHAT_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().chat_help);
-
-/// `chatMenuWarn`: the orders' refusals.
-pub static CHAT_WARN: std::sync::LazyLock<&'static [Option<&'static [&'static str]>]> =
-    std::sync::LazyLock::new(|| shared().chat_warn);
-
-/// `btInChatAct`: the orders' command numbers.
-pub static BT_CHAT_ACT: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().bt_chat_act);
-
-/// `townChatAct`
-pub static TOWN_CHAT_ACT: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().town_chat_act);
-
-/// `gateMenuHelp`
-pub static GATE_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().gate_help);
-
-/// `gtNewInfo`
-pub static GT_NEW_INFO: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().gt_new_info);
-
-/// `gtNewStr1`: the attributes and parts.
-pub static GT_NEW_STR1: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().gt_new_str1);
-
-/// `gtMenuInfo`: "Warp to".
-pub static GT_MENU_INFO: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().gt_menu_info);
-
-/// `gtNewStr0`'s pieces.
-pub static GT_NEW_STR0: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().gt_new_str0);
-
-/// `gtTownMenuStr`: the servers.
-pub static GT_TOWN_STR: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().gt_town_str);
-
-/// `serverStr`: the servers' symbols.
-pub static SERVER_STR: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().server_str);
-
-/// `gtTownMenuWarn`
-pub static GT_TOWN_WARN: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().gt_town_warn);
-
-/// `gtListMenuWarn`
-pub static GT_LIST_WARN: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().gt_list_warn);
-
-/// The Area Information row.
-pub static GT_AREA_INFO: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().gt_area_info);
-
-/// `ccGetGtNewColor`'s colours.
-pub static GT_NEW_COLOURS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().gt_new_colours);
-
-/// `statusMenuStr`: the Status page's labels.
-pub static STATUS_MENU: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().status_menu);
-
-/// `statusClassStr`: the classes.
-pub static STATUS_CLASS: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().status_class);
-
-/// `getItemMenuStr`'s lines.
-pub static GET_ITEM_STR: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().get_item_str);
-
-/// `getTrapMenuStr`: TrapBoxMenu's lines.
-pub static TRAP_MENU: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().trap_menu);
-
-/// `trapDischargeStr`
-pub static TRAP_DISCHARGE: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().trap_discharge);
-
-/// `showMapInfo`
-pub static SHOW_MAP: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().show_map);
-
-/// `installWarnStr`
-pub static INSTALL_WARN: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().install_warn);
-
-/// `epitaphStr0X`'s first piece.
-pub static EPITAPH_UNKNOWN: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().epitaph_unknown);
-
-/// `epitaphStr00`: item 42's pages.
-pub static EPITAPH_00: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().epitaph_00);
-
-/// `epitaphStr10`: item 48's.
-pub static EPITAPH_10: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().epitaph_10);
-
-/// `ItemBoxList`: 130 item codes by server * 6 + element.
-pub static ITEM_BOX_LIST: std::sync::LazyLock<&'static [&'static [i32]]> =
-    std::sync::LazyLock::new(|| shared().item_box_list);
-
-/// `DangerItemBoxList`
-pub static DANGER_ITEM_BOX_LIST: std::sync::LazyLock<&'static [&'static [i32]]> =
-    std::sync::LazyLock::new(|| shared().danger_item_box_list);
-
-/// `areaItemList`
-pub static AREA_ITEM_LIST: std::sync::LazyLock<&'static [&'static [i32]]> =
-    std::sync::LazyLock::new(|| shared().area_item_list);
-
-/// `SukaItemBoxList` by server.
-pub static SUKA_ITEM_BOX_LIST: std::sync::LazyLock<&'static [&'static [i32]]> =
-    std::sync::LazyLock::new(|| shared().suka_item_box_list);
-
-/// `recordMenuStr`: "slot 1", "slot 2", "Unused", "Data", "MEMORY CARD".
-pub static RECORD_STR: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().record_str);
-
-/// `impItemMenuTag`: Key Items' four tabs.
-pub static IMP_TAGS: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().imp_tags);
-
-/// `puccigusoCallWarnStr`
-pub static GRUNTY_WARN: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().grunty_warn);
-
-/// `shopStr`'s first line: the count window's labels.
-pub static SHOP_STR: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().shop_str);
-
-/// `inBattleMenuWarn`
-pub static IN_BATTLE_WARN: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().in_battle_warn);
-
-/// `gateoutMenuInfo`
-pub static GATEOUT_INFO: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().gateout_info);
-
-/// `logoutMenuInfo`
-pub static LOGOUT_INFO: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().logout_info);
-
-/// `statusBeffStr`: each added effect's help (lines 0-2) and name (line 3).
-pub static STATUS_BEFF: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().status_beff);
-
-/// `equipChangeStr`: each page's four labels, 16 characters each.
-pub static EQUIP_CHANGE: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().equip_change);
-
-/// `equipMenuWarn`: the refusals.
-pub static EQUIP_WARN: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().equip_warn);
-
-/// `partyMenuHelp`
-pub static PARTY_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().party_help);
-
-/// `partyOutMenuInfo`
-pub static PARTY_OUT_INFO: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().party_out_info);
-
-/// The Controller picture's file.
-pub static CONTROL_FILE: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().control_file);
-
-/// The Controller picture's texture.
-pub static CONTROL_TEX: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().control_tex);
-
-/// `timeIdolItem`: the items for the places gained.
-pub static TIME_IDOL_ITEM: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().time_idol_item);
-
-/// `getSkillMenuStr`'s first piece.
-pub static GET_SKILL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().get_skill);
-
-/// `timeIdolMenuHelp`
-pub static TIME_IDOL_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().time_idol_help);
-
-/// `fountainMenuStr`
-pub static FOUNTAIN_ANSWERS: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().fountain_answers);
-
-/// `fountainNameStr`
-pub static FOUNTAIN_NAMES: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().fountain_names);
-
-/// `f_limitTbl`: how many count, by server (+ 10 from level 4, + 5 for category 2).
-pub static F_LIMIT: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().f_limit);
-
-/// `tpcTalkStr`: the trading PCs' offer's two pieces.
-pub static TPC_TALK: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().tpc_talk);
-
-/// `presentMenuHelp`
-pub static PRESENT_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().present_help);
-
-/// `tradeMenuStr`
-pub static TRADE_MENU_STR: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().trade_menu_str);
-
-/// `sellMenuHelp`: the count's help, the question.
-pub static SELL_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().sell_help);
-
-/// `itemDepositMenuHelp`
-pub static DEPOSIT_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().deposit_help);
-
-/// `itemDrawMenuHelp`
-pub static DRAW_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().draw_help);
-
-/// `SetPlItemList`'s page table.
-pub static PL_ITEM_PAGES: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().pl_item_pages);
-
-/// `breedingMenuStr`: the status rows.
-pub static BREEDING_STR: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().breeding_str);
-
-/// `breedingMenuHelp`: "There is no food.", then the help.
-pub static BREEDING_HELP: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().breeding_help);
-
-/// `foodTbl`: what each food (key items 26-41) does to a Grunty's six stats.
-pub static FOOD: std::sync::LazyLock<&'static [FoodParam]> = std::sync::LazyLock::new(|| shared().food);
-
-/// `@3218`: `AddFriendship`'s cap by volume.
-pub static FRIENDSHIP_CAP: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().friendship_cap);
-
-/// `errorData`: the record shown for a missing line.
-pub static ERROR_DATA: std::sync::LazyLock<EvMsgData> = std::sync::LazyLock::new(|| shared().error_data);
-
-/// `kiteSelfTalk`: Kite's line as area 43's map sends the party back (`EVENTAREA03::Draw`).
-pub static KITE_SELF_TALK: std::sync::LazyLock<EvMsgData> = std::sync::LazyLock::new(|| shared().kite_self_talk);
-
-/// `ccCheckVoiceGrp(id)`: ids 141-157's voice groups (its jump table's `li $v0, n`), -1 none.
-pub static VOICE_GROUPS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().voice_groups);
-
-/// `gtHackInfo`
-pub static HACK_INFO: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().hack_info);
-
-/// `gtHackStr`
-pub static HACK_BAR: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().hack_bar);
-
-/// `dataDrainEvolutionStr`
-pub static DRAIN_EVOLUTION: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().drain_evolution);
-
-/// The volume's FieldUi (read once a run; kept here per volume).
+/// The volume's FieldUi (read once a run).
 pub fn of(v: Volume) -> &'static FieldUi {
-    static READ: [std::sync::OnceLock<&'static FieldUi>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "fieldui"))
+    <FieldUi as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static FieldUi {
-    static READ: std::sync::OnceLock<&'static FieldUi> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("fieldui"))
+pub fn shared() -> &'static FieldUi {
+    <FieldUi as crate::store::Table>::shared()
 }

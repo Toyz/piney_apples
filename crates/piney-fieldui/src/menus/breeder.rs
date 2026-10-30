@@ -66,16 +66,16 @@ impl Texts {
     pub fn of(volume: piney_data::volume::Volume) -> Texts {
         use crate::tables::piece;
         let f = piney_data::tables::fieldui::of(volume);
-        let rows = f.breeder_str();
-        let help = f.breeding_help();
+        let rows = f.breeder_str;
+        let help = f.breeding_help;
         Texts {
             breeder_rows: [piece(rows, 0), piece(rows, 1), piece(rows, 2)],
             race_rows: [piece(rows, 3), piece(rows, 4)],
             race: (volume != piney_data::volume::Volume::Inf).then(|| RaceTexts::of(f)),
-            status_rows: piney_data::tables::sjis::encode(f.breeding_str()),
+            status_rows: piney_data::tables::sjis::encode(f.breeding_str),
             no_food: piece(help[0], 0),
             help: [piece(help[1], 0), piece(help[1], 1), piece(help[1], 2)],
-            get_item: [piece(f.get_item_str(), 0), piece(f.get_item_str(), 8)],
+            get_item: [piece(f.get_item_str, 0), piece(f.get_item_str, 8)],
             status: STR_STATUS.to_vec(),
         }
     }
@@ -96,9 +96,9 @@ impl RaceTexts {
     fn of(f: &piney_data::tables::fieldui::FieldUi) -> RaceTexts {
         use crate::tables::piece;
         RaceTexts {
-            rankings: piece(f.race_str().rankings, 0),
+            rankings: piece(f.race_str.rankings, 0),
             ranks: f
-                .race_ranks()
+                .race_ranks
                 .iter()
                 .map(|t| t.map(|r| (piney_data::tables::sjis::encode(r.name), r.time, r.row)))
                 .collect(),
@@ -286,7 +286,7 @@ pub fn breeder_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             // `breedTeachMsgTbl[3]` in town 1, `breedTeachMsgTbl2[3]`
             // elsewhere: the "About" pages' records.
             let t = fieldui::of(x.texts.volume);
-            let tbl = if x.world.game.town == 1 { t.breed_teach_va() } else { t.breed_teach2_va() };
+            let tbl = if x.world.game.town == 1 { t.breed_teach_va } else { t.breed_teach2_va };
             let sel = i32::from(m.lists[i].select);
             let rec = x.texts.talk.word(tbl.wrapping_add((4 * (sel - 1)) as u32));
             talk::open_record(m, x, rec, &base.name, -1, -1);
@@ -680,8 +680,8 @@ pub fn breeding_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             2 => {
                 match m.wait_count {
                     // `pgEvoMsg[2]`: the two records of a Grunty growing up.
-                    0 => record_nameless(m, x, fieldui::of(x.texts.volume).pg_evo_msg_va(), false),
-                    60 => record_nameless(m, x, fieldui::of(x.texts.volume).pg_evo_msg_va() + 12, true),
+                    0 => record_nameless(m, x, fieldui::of(x.texts.volume).pg_evo_msg_va, false),
+                    60 => record_nameless(m, x, fieldui::of(x.texts.volume).pg_evo_msg_va + 12, true),
                     120 => m.msg.close(),
                     _ => {}
                 }
@@ -895,7 +895,7 @@ pub fn breeding_menu_disp(m: &mut MenuCtrl, x: &mut Ctx) {
     let rows = [52.0, 72.0, 92.0, 112.0, 132.0, 152.0];
     if m.exception_disp == 2 {
         // `foodTbl[food - 26]`: what the food does to the six stats.
-        let f = usize::try_from(food - 26).ok().and_then(|k| fieldui::of(x.texts.volume).food().get(k));
+        let f = usize::try_from(food - 26).ok().and_then(|k| fieldui::of(x.texts.volume).food.get(k));
         for (j, &y) in rows.iter().enumerate() {
             let d = f.map_or(0, |f| i32::from([f.size, f.smell, f.crooked, f.cruel, f.iq, f.pure][j]));
             m.font.set_colour(if d < 0 {

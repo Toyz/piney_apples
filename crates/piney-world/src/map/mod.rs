@@ -144,7 +144,7 @@ pub fn render(
 
 /// `ccSpriteColorTable[i]`'s r, g, b with the alpha word `a`.
 pub fn colour(i: usize, a: u8) -> [u8; 4] {
-    let c = piney_data::tables::kanji::SPRITE_COLOR_TABLE[i];
+    let c = piney_data::tables::kanji::shared().sprite_color_table[i];
     [c[0], c[1], c[2], a]
 }
 

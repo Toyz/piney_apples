@@ -48,48 +48,16 @@ impl crate::store::Load for StaffRoll {
     }
 }
 
-impl StaffRoll {
-    pub fn pages(&self) -> &'static [SRDataGrp] {
-        self.pages
-    }
-    pub fn ccs(&self) -> &'static str {
-        self.ccs
-    }
-    pub fn rnd_fadein(&self) -> i32 {
-        self.rnd_fadein
-    }
-    pub fn rnd_fadeout(&self) -> i32 {
-        self.rnd_fadeout
-    }
-    pub fn bg_fix(&self) -> i32 {
-        self.bg_fix
-    }
-    pub fn bg_fadein(&self) -> i32 {
-        self.bg_fadein
-    }
-    pub fn bg_fadeout(&self) -> i32 {
-        self.bg_fadeout
-    }
-    pub fn onlybg_fadein(&self) -> i32 {
-        self.onlybg_fadein
-    }
-    pub fn onlybg_fadeout(&self) -> i32 {
-        self.onlybg_fadeout
-    }
-    pub fn onlybg_fix(&self) -> i32 {
-        self.onlybg_fix
-    }
+impl crate::store::Table for StaffRoll {
+    const ID: usize = super::id::STAFFROLL;
 }
 
-/// The volume's StaffRoll (read once a run; kept here per volume).
+/// The volume's StaffRoll (read once a run).
 pub fn of(v: Volume) -> &'static StaffRoll {
-    static READ: [std::sync::OnceLock<&'static StaffRoll>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "staffroll"))
+    <StaffRoll as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static StaffRoll {
-    static READ: std::sync::OnceLock<&'static StaffRoll> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("staffroll"))
+pub fn shared() -> &'static StaffRoll {
+    <StaffRoll as crate::store::Table>::shared()
 }

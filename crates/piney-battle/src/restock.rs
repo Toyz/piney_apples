@@ -28,22 +28,22 @@ pub fn item_price(volume: Volume, cat: i32, id: i32) -> i32 {
     let equip = |t: &[piney_data::tables::types::EquipmentParam]| row.and_then(|r| t.get(r)).map_or(0, |e| e.price);
     let item = |t: &[piney_data::tables::types::ItemParam]| row.and_then(|r| t.get(r)).map_or(0, |e| e.price);
     match cat {
-        0 => equip(b.weapon1()),
-        1 => equip(b.weapon2()),
-        2 => equip(b.weapon3()),
-        3 => equip(b.weapon4()),
-        4 => equip(b.weapon5()),
-        5 => equip(b.weapon6()),
-        6 => equip(b.head()),
-        7 => equip(b.body()),
-        8 => equip(b.arm()),
-        9 => equip(b.leg()),
-        10 => item(b.item_r()),
-        11 => item(b.item_d()),
-        12 => item(b.item_u()),
-        13 => item(b.item_x()),
-        14 => item(b.item_t()),
-        15 => item(b.item_e()),
+        0 => equip(b.weapon1),
+        1 => equip(b.weapon2),
+        2 => equip(b.weapon3),
+        3 => equip(b.weapon4),
+        4 => equip(b.weapon5),
+        5 => equip(b.weapon6),
+        6 => equip(b.head),
+        7 => equip(b.body),
+        8 => equip(b.arm),
+        9 => equip(b.leg),
+        10 => item(b.item_r),
+        11 => item(b.item_d),
+        12 => item(b.item_u),
+        13 => item(b.item_x),
+        14 => item(b.item_t),
+        15 => item(b.item_e),
         _ => 0,
     }
 }
@@ -78,7 +78,7 @@ fn kept_for_good(member: i32, e: ItemList) -> bool {
 pub fn set_spc_item_town(save: &mut SaveData, volume: Volume) {
     let order = category_order(volume);
     let known = save.i32(offset::PARTY_MEMBER_FLAG) & save.i32(offset::PARTY_MEMBER_CALL);
-    let rows = battle::of(volume).spc_default_items();
+    let rows = battle::of(volume).spc_default_items;
     for (member, kit) in rows.iter().enumerate().skip(1) {
         let m = member as i32;
         if known & (1 << m) == 0 {
@@ -123,10 +123,10 @@ pub fn set_spc_item_town(save: &mut SaveData, volume: Volume) {
 /// `server` is the scene's (`ccGame` +0x1c); `rand` is newlib's.
 pub fn set_trade_item_town(save: &mut SaveData, volume: Volume, server: i32, rand: &mut impl FnMut() -> i32) {
     let t = newgame::of(volume);
-    for (i, trades) in t.spc_trade().iter().enumerate() {
+    for (i, trades) in t.spc_trade.iter().enumerate() {
         restore(save, by_id::spc_trade_list(i), trades.iter().take(16));
     }
-    for (k, trades) in t.npc_trade().iter().enumerate() {
+    for (k, trades) in t.npc_trade.iter().enumerate() {
         let list = by_id::npc_trade_list(k);
         restore(save, list, trades.iter().take(NPC_TRADES));
         if rand() & 1 == 0 {
@@ -162,7 +162,7 @@ fn restore<'a>(
 /// `feTbl[cat]`'s row there. None when Kite's piece is not counted.
 fn town_pick(save: &SaveData, volume: Volume, server: i32, cat: i32, rand: &mut impl FnMut() -> i32) -> Option<i16> {
     let f = fieldui::of(volume);
-    let (fe, limits) = (f.fe_tbl(), f.f_limit());
+    let (fe, limits) = (f.fe_tbl, f.f_limit);
     let kite = crate::param::SpcParam::from_save(save, 0).equipment;
     let (key, look) = match cat {
         0..=5 => (kite[4], 0),
@@ -200,7 +200,7 @@ mod tests {
     fn a_member_sells_past_twenty_then_buys_his_kit() {
         let v = Volume::Inf;
         let kit: Vec<ItemList> =
-            battle::of(v).spc_default_items()[ORCA].iter().copied().filter(|e| e.category >= 0).collect();
+            battle::of(v).spc_default_items[ORCA].iter().copied().filter(|e| e.category >= 0).collect();
         // 22 stacks: his kit at 1 each, then stacks of category 11.
         let mut items: Vec<ItemList> = kit.iter().map(|e| ItemList { num: 1, ..*e }).collect();
         let extra: Vec<ItemList> =
@@ -243,14 +243,14 @@ mod tests {
         let v = Volume::Inf;
         let t = newgame::of(v);
         let mut save = SaveData::default();
-        for k in 0..t.npc_trade().len() {
+        for k in 0..t.npc_trade.len() {
             for j in 0..16 {
                 put(&mut save, by_id::npc_trade_list(k) + 4 * j, EMPTY);
             }
         }
         // Even draws: no picks.
         set_trade_item_town(&mut save, v, 0, &mut || 0);
-        for (k, l) in t.npc_trade().iter().enumerate() {
+        for (k, l) in t.npc_trade.iter().enumerate() {
             for j in 0..16 {
                 let want = l.get(j).filter(|e| j < NPC_TRADES && e.sw != 0).map_or(EMPTY, |e| e.lst);
                 assert_eq!(entry(&save, by_id::npc_trade_list(k) + 4 * j), want, "npc {k} slot {j}");
@@ -258,7 +258,7 @@ mod tests {
         }
         // Kite's blades at row 3 of feTbl[0]; draws 1 (odd), 4 (category
         // 4), 2 (+1): feTbl[4]'s row 4 in the last slot.
-        let fe = fieldui::of(v).fe_tbl();
+        let fe = fieldui::of(v).fe_tbl;
         let blade = by_id::spc_param(0) + 0xc8 + 8;
         save.set_i16(blade, fe[0][3]);
         let mut draws = [1, 4, 2].into_iter().cycle();
@@ -272,7 +272,7 @@ mod tests {
     #[test]
     fn every_volume_restocks() {
         for v in Volume::ALL {
-            let rows = battle::of(v).spc_default_items();
+            let rows = battle::of(v).spc_default_items;
             let mut save = SaveData::default();
             save.set_i32(offset::PARTY_MEMBER_FLAG, -1);
             save.set_i32(offset::PARTY_MEMBER_CALL, -1);

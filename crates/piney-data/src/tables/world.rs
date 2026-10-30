@@ -27,19 +27,19 @@ impl crate::store::Load for TownIcons {
 /// The `world` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct World {
-    /// `markerEvTbl`: the town's event markers, by the scripts' number (dummy objects of its file).
+    /// `markerEvTbl`: the town's event markers, by the scripts' number (dummy objects of its file). Alike on every volume.
     pub markers: &'static [&'static str],
-    /// `mapmsg`: the field map's two labels ("Overall Map", "Default Map").
+    /// `mapmsg`: the field map's two labels ("Overall Map", "Default Map"). Alike on every volume.
     pub map_labels: &'static [&'static str],
     /// `bookItemAddMsg`, `bookWallPaperAdd`, `bookBgmAdd`, `bookMovieAdd`: the story's announcement of a desktop item.
     pub book: &'static [&'static str],
-    /// `naviMarkTable`: each town's landmarks.
+    /// `naviMarkTable`: each town's landmarks. Alike on every volume.
     pub navi_marks: &'static [i16],
-    /// `naviMapTownTable`: each town's landmarks, one past its last as `ccNaviGetLandmarkPos` reads (the next town's first).
+    /// `naviMapTownTable`: each town's landmarks, one past its last as `ccNaviGetLandmarkPos` reads (the next town's first). Alike on every volume.
     pub navi_landmarks: &'static [&'static [Landmark]],
-    /// `naviMainLinesOfTownTable`: each town's main lines (`unsigned char` runs), by line number.
+    /// `naviMainLinesOfTownTable`: each town's main lines (`unsigned char` runs), by line number. Alike on every volume.
     pub navi_lines: &'static [&'static [Option<&'static [u8]>]],
-    /// `naviPointNameTable`: the dummies of the points the party walks to.
+    /// `naviPointNameTable`: the dummies of the points the party walks to. Alike on every volume.
     pub navi_points: &'static [Option<&'static str>],
     /// `rtpcCcsName`: the files by `ccsType`, up to its null (49; 50 from Mutation on).
     pub rtpc_ccs_names: &'static [Option<&'static str>],
@@ -57,7 +57,7 @@ pub struct World {
     pub walk_extra_rows: &'static [i32],
     /// `rtpcAnmTbl`: by `ccsType`, the clips standing, walking and running (`ctw2`, row 15, four more).
     pub rtpc_anms: &'static [&'static [Option<&'static str>]],
-    /// `rtpcChatTbl`: what a PC says passing Kite.
+    /// `rtpcChatTbl`: what a PC says passing Kite. Alike on every volume.
     pub rtpc_chat: &'static [Option<&'static str>],
     /// `rtpcChatMesShop`: what a PC says leaving a shop, by shop.
     pub rtpc_chat_shop: &'static [&'static [Option<&'static str>]],
@@ -67,35 +67,35 @@ pub struct World {
     pub mark_pos: &'static [[[i8; 4]; 5]],
     /// `merchanNum[town]`: each merchant's landmark.
     pub merchan_num: [[i8; 5]; 5],
-    /// `camPos`: the Grunty's camera by stage.
+    /// `camPos`: the Grunty's camera by stage. Alike on every volume.
     pub pg_cam_pos: [[f32; 4]; 4],
-    /// `camView`: what it looks at.
+    /// `camView`: what it looks at. Alike on every volume.
     pub pg_cam_view: [[f32; 4]; 4],
-    /// `inuPos`: where the Grunty stands.
+    /// `inuPos`: where the Grunty stands. Alike on every volume.
     pub pg_inu_pos: [[f32; 4]; 4],
-    /// `playerPos`: where Kite stands.
+    /// `playerPos`: where Kite stands. Alike on every volume.
     pub pg_player_pos: [[f32; 4]; 4],
     /// `pgChatTbl`: the Grunty's lines.
     pub pg_chat: &'static [Option<&'static str>],
-    /// `breederCamPos`: where the camera stands when a breeder is spoken to, by server.
+    /// `breederCamPos`: where the camera stands when a breeder is spoken to, by server. Alike on every volume.
     pub breeder_cam_pos: [[f32; 4]; 4],
-    /// `breederCamView`: what it looks at, by server.
+    /// `breederCamView`: what it looks at, by server. Alike on every volume.
     pub breeder_cam_view: [[f32; 4]; 4],
     /// `RT01ICONPOS` ..: each town map's signs.
     pub town_icons: &'static [TownIcons],
-    /// `KeyIconTBL`: by field type, the key objects' icons on the field map.
+    /// `KeyIconTBL`: by field type, the key objects' icons on the field map. Alike on every volume.
     pub key_icons: &'static [Option<&'static [Fieldmapicon]>],
-    /// `SubIconTBL`.
+    /// `SubIconTBL`. Alike on every volume.
     pub sub_icons: &'static [Option<&'static [Fieldmapicon]>],
-    /// `BaseIconTBL`.
+    /// `BaseIconTBL`. Alike on every volume.
     pub base_icons: &'static [Option<&'static [Fieldmapicon]>],
-    /// `TreeIconTBL`.
+    /// `TreeIconTBL`. Alike on every volume.
     pub tree_icons: &'static [Option<&'static [Fieldmapicon]>],
-    /// `FP_DUNGEON`: the dungeon's icon.
+    /// `FP_DUNGEON`: the dungeon's icon. Alike on every volume.
     pub fp_dungeon: Fieldmapicon,
-    /// `fieldminimap`: the field map's texture by field type.
+    /// `fieldminimap`: the field map's texture by field type. Alike on every volume.
     pub field_minimap: &'static [Option<&'static str>],
-    /// `levelstr`: the dungeon map's floors.
+    /// `levelstr`: the dungeon map's floors. Alike on every volume.
     pub level_str: &'static [Option<&'static str>],
 }
 
@@ -141,194 +141,16 @@ impl crate::store::Load for World {
     }
 }
 
-impl World {
-    pub fn markers(&self) -> &'static [&'static str] {
-        self.markers
-    }
-    pub fn map_labels(&self) -> &'static [&'static str] {
-        self.map_labels
-    }
-    pub fn book(&self) -> &'static [&'static str] {
-        self.book
-    }
-    pub fn navi_marks(&self) -> &'static [i16] {
-        self.navi_marks
-    }
-    pub fn navi_landmarks(&self) -> &'static [&'static [Landmark]] {
-        self.navi_landmarks
-    }
-    pub fn navi_lines(&self) -> &'static [&'static [Option<&'static [u8]>]] {
-        self.navi_lines
-    }
-    pub fn navi_points(&self) -> &'static [Option<&'static str>] {
-        self.navi_points
-    }
-    pub fn rtpc_ccs_names(&self) -> &'static [Option<&'static str>] {
-        self.rtpc_ccs_names
-    }
-    pub fn rtpc_weapon_names(&self) -> &'static [Option<&'static str>] {
-        self.rtpc_weapon_names
-    }
-    pub fn tvpc_weapon_names(&self) -> &'static [Option<&'static str>] {
-        self.tvpc_weapon_names
-    }
-    pub fn sign_weapon_names(&self) -> &'static [Option<&'static str>] {
-        self.sign_weapon_names
-    }
-    pub fn search_marks(&self) -> &'static [Option<&'static [[i8; 4]]>] {
-        self.search_marks
-    }
-    pub fn search_dummies(&self) -> &'static [Option<&'static str>] {
-        self.search_dummies
-    }
-    pub fn walk_extra_rows(&self) -> &'static [i32] {
-        self.walk_extra_rows
-    }
-    pub fn rtpc_anms(&self) -> &'static [&'static [Option<&'static str>]] {
-        self.rtpc_anms
-    }
-    pub fn rtpc_chat(&self) -> &'static [Option<&'static str>] {
-        self.rtpc_chat
-    }
-    pub fn rtpc_chat_shop(&self) -> &'static [&'static [Option<&'static str>]] {
-        self.rtpc_chat_shop
-    }
-    pub fn rtpc_chat_mes(&self) -> &'static [&'static [Option<&'static str>]] {
-        self.rtpc_chat_mes
-    }
-    pub fn mark_pos(&self) -> &'static [[[i8; 4]; 5]] {
-        self.mark_pos
-    }
-    pub fn merchan_num(&self) -> [[i8; 5]; 5] {
-        self.merchan_num
-    }
-    pub fn pg_cam_pos(&self) -> [[f32; 4]; 4] {
-        self.pg_cam_pos
-    }
-    pub fn pg_cam_view(&self) -> [[f32; 4]; 4] {
-        self.pg_cam_view
-    }
-    pub fn pg_inu_pos(&self) -> [[f32; 4]; 4] {
-        self.pg_inu_pos
-    }
-    pub fn pg_player_pos(&self) -> [[f32; 4]; 4] {
-        self.pg_player_pos
-    }
-    pub fn pg_chat(&self) -> &'static [Option<&'static str>] {
-        self.pg_chat
-    }
-    pub fn breeder_cam_pos(&self) -> [[f32; 4]; 4] {
-        self.breeder_cam_pos
-    }
-    pub fn breeder_cam_view(&self) -> [[f32; 4]; 4] {
-        self.breeder_cam_view
-    }
-    pub fn town_icons(&self) -> &'static [TownIcons] {
-        self.town_icons
-    }
-    pub fn key_icons(&self) -> &'static [Option<&'static [Fieldmapicon]>] {
-        self.key_icons
-    }
-    pub fn sub_icons(&self) -> &'static [Option<&'static [Fieldmapicon]>] {
-        self.sub_icons
-    }
-    pub fn base_icons(&self) -> &'static [Option<&'static [Fieldmapicon]>] {
-        self.base_icons
-    }
-    pub fn tree_icons(&self) -> &'static [Option<&'static [Fieldmapicon]>] {
-        self.tree_icons
-    }
-    pub fn fp_dungeon(&self) -> Fieldmapicon {
-        self.fp_dungeon
-    }
-    pub fn field_minimap(&self) -> &'static [Option<&'static str>] {
-        self.field_minimap
-    }
-    pub fn level_str(&self) -> &'static [Option<&'static str>] {
-        self.level_str
-    }
+impl crate::store::Table for World {
+    const ID: usize = super::id::WORLD;
 }
 
-/// `markerEvTbl`: the town's event markers, by the scripts' number (dummy objects of its file).
-pub static MARKERS: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().markers);
-
-/// `mapmsg`: the field map's two labels ("Overall Map", "Default Map").
-pub static MAP_LABELS: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().map_labels);
-
-/// `naviMarkTable`: each town's landmarks.
-pub static NAVI_MARKS: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().navi_marks);
-
-/// `naviMapTownTable`: each town's landmarks, one past its last as `ccNaviGetLandmarkPos` reads (the next town's first).
-pub static NAVI_LANDMARKS: std::sync::LazyLock<&'static [&'static [Landmark]]> =
-    std::sync::LazyLock::new(|| shared().navi_landmarks);
-
-/// `naviMainLinesOfTownTable`: each town's main lines (`unsigned char` runs), by line number.
-pub static NAVI_LINES: std::sync::LazyLock<&'static [&'static [Option<&'static [u8]>]]> =
-    std::sync::LazyLock::new(|| shared().navi_lines);
-
-/// `naviPointNameTable`: the dummies of the points the party walks to.
-pub static NAVI_POINTS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().navi_points);
-
-/// `rtpcChatTbl`: what a PC says passing Kite.
-pub static RTPC_CHAT: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().rtpc_chat);
-
-/// `camPos`: the Grunty's camera by stage.
-pub static PG_CAM_POS: std::sync::LazyLock<[[f32; 4]; 4]> = std::sync::LazyLock::new(|| shared().pg_cam_pos);
-
-/// `camView`: what it looks at.
-pub static PG_CAM_VIEW: std::sync::LazyLock<[[f32; 4]; 4]> = std::sync::LazyLock::new(|| shared().pg_cam_view);
-
-/// `inuPos`: where the Grunty stands.
-pub static PG_INU_POS: std::sync::LazyLock<[[f32; 4]; 4]> = std::sync::LazyLock::new(|| shared().pg_inu_pos);
-
-/// `playerPos`: where Kite stands.
-pub static PG_PLAYER_POS: std::sync::LazyLock<[[f32; 4]; 4]> = std::sync::LazyLock::new(|| shared().pg_player_pos);
-
-/// `breederCamPos`: where the camera stands when a breeder is spoken to, by server.
-pub static BREEDER_CAM_POS: std::sync::LazyLock<[[f32; 4]; 4]> = std::sync::LazyLock::new(|| shared().breeder_cam_pos);
-
-/// `breederCamView`: what it looks at, by server.
-pub static BREEDER_CAM_VIEW: std::sync::LazyLock<[[f32; 4]; 4]> =
-    std::sync::LazyLock::new(|| shared().breeder_cam_view);
-
-/// `KeyIconTBL`: by field type, the key objects' icons on the field map.
-pub static KEY_ICONS: std::sync::LazyLock<&'static [Option<&'static [Fieldmapicon]>]> =
-    std::sync::LazyLock::new(|| shared().key_icons);
-
-/// `SubIconTBL`.
-pub static SUB_ICONS: std::sync::LazyLock<&'static [Option<&'static [Fieldmapicon]>]> =
-    std::sync::LazyLock::new(|| shared().sub_icons);
-
-/// `BaseIconTBL`.
-pub static BASE_ICONS: std::sync::LazyLock<&'static [Option<&'static [Fieldmapicon]>]> =
-    std::sync::LazyLock::new(|| shared().base_icons);
-
-/// `TreeIconTBL`.
-pub static TREE_ICONS: std::sync::LazyLock<&'static [Option<&'static [Fieldmapicon]>]> =
-    std::sync::LazyLock::new(|| shared().tree_icons);
-
-/// `FP_DUNGEON`: the dungeon's icon.
-pub static FP_DUNGEON: std::sync::LazyLock<Fieldmapicon> = std::sync::LazyLock::new(|| shared().fp_dungeon);
-
-/// `fieldminimap`: the field map's texture by field type.
-pub static FIELD_MINIMAP: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().field_minimap);
-
-/// `levelstr`: the dungeon map's floors.
-pub static LEVEL_STR: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().level_str);
-
-/// The volume's World (read once a run; kept here per volume).
+/// The volume's World (read once a run).
 pub fn of(v: Volume) -> &'static World {
-    static READ: [std::sync::OnceLock<&'static World>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "world"))
+    <World as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static World {
-    static READ: std::sync::OnceLock<&'static World> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("world"))
+pub fn shared() -> &'static World {
+    <World as crate::store::Table>::shared()
 }

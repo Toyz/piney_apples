@@ -51,7 +51,7 @@ pub fn read_table(volume: Volume, num: usize, parody: bool) -> Result<Option<Vec
         return Err(Error::NotFound(format!("stream {num}")));
     }
     let t = stream::of(volume);
-    let tables = if parody { t.subtitles_parody() } else { t.subtitles() };
+    let tables = if parody { t.subtitles_parody } else { t.subtitles };
     let Some(rows) = tables.get(num).copied().flatten() else { return Ok(None) };
     let line = |l: &[&str], k: usize| l.get(k).map_or_else(Vec::new, |s| sjis::encode(s));
     Ok(Some(

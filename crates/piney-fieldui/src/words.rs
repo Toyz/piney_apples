@@ -7,6 +7,8 @@
 //! The tables are the volume's generated ones (`piney_data::area`,
 //! `piney_data::tables::battle`'s enemy lists).
 
+use piney_data::store::Table;
+
 /// "Unset" in a word's fields (`dungeonSize` uses 0).
 pub const UNSET: i32 = 255;
 
@@ -136,7 +138,7 @@ impl Words {
             usize::try_from(*id).ok().and_then(|i| battle.enemies.get(i)).map_or(0, |r| i32::from(r.param.base.level))
         };
         let enemy_levels = piney_data::tables::battle::of(volume)
-            .enemy_lists()
+            .enemy_lists
             .iter()
             .map(|server| server.iter().map(|l| l.list.unwrap_or_default().iter().map(level).collect()).collect())
             .collect();

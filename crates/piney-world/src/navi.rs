@@ -53,9 +53,9 @@ impl NaviMap {
     /// 0x00619440), the volume's (`tables::world`).
     pub fn read(volume: piney_data::volume::Volume, town: usize, file: &SceneFile) -> Result<NaviMap> {
         let t = piney_data::tables::world::of(volume);
-        let num = i32::from(t.navi_marks().get(town).copied().unwrap_or(0));
+        let num = i32::from(t.navi_marks.get(town).copied().unwrap_or(0));
         let mut marks: Vec<Landmark> = t
-            .navi_landmarks()
+            .navi_landmarks
             .get(town)
             .copied()
             .unwrap_or_default()
@@ -69,7 +69,7 @@ impl NaviMap {
             }
         }
         let lines = t
-            .navi_lines()
+            .navi_lines
             .get(town)
             .copied()
             .unwrap_or_default()

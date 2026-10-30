@@ -8,7 +8,7 @@
 //! primitives by [`quad_prim`]. The rules are in docs/engine/effects.md.
 
 use piney_data::Result;
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 use piney_data::volume::Volume;
 use piney_desktop::layers::Layers;
 use piney_desktop::message::MENU_LAYER;
@@ -44,11 +44,11 @@ impl Strings {
         use piney_data::tables::sjis::encode;
         let t = piney_data::tables::effect::of(volume);
         Strings {
-            miss: encode(t.miss()),
-            ff_miss: encode(t.ff_miss()),
-            ff_exp: encode(t.ff_exp()),
-            ff_level_down: encode(t.ff_level_down()),
-            pow10: crate::spell::first(t.pow10()),
+            miss: encode(t.miss),
+            ff_miss: encode(t.ff_miss),
+            ff_exp: encode(t.ff_exp),
+            ff_level_down: encode(t.ff_level_down),
+            pow10: crate::spell::first(t.pow10),
         }
     }
 }
@@ -155,7 +155,7 @@ impl Font {
     /// `color[0]`'s r, g, b from `ccSpriteColorTable[i]` (the alpha word
     /// kept).
     pub fn set_colour(&mut self, i: i32) {
-        let c = SPRITE_COLOR_TABLE[i.clamp(0, 23) as usize];
+        let c = kanji::shared().sprite_color_table[i.clamp(0, 23) as usize];
         self.rgba[0] = u32::from(c[0]);
         self.rgba[1] = u32::from(c[1]);
         self.rgba[2] = u32::from(c[2]);

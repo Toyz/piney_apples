@@ -43,311 +43,311 @@ impl crate::store::Load for TexSwitch {
 /// The `effect` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct Effect {
-    /// `effectCCSTbl`: the effect files, up to the row with no name.
+    /// `effectCCSTbl`: the effect files, up to the row with no name. Alike on every volume.
     pub files: &'static [Filedata],
-    /// `effectTbl`.
+    /// `effectTbl`. Alike on every volume.
     pub rows: &'static [EffectRow],
-    /// `effectTbl2`.
+    /// `effectTbl2`. Alike on every volume.
     pub rows2: &'static [EffectRow],
-    /// `effectStrTbl`.
+    /// `effectStrTbl`. Alike on every volume.
     pub str_rows: &'static [EffectRow],
-    /// `particleGeneratorTbl`.
+    /// `particleGeneratorTbl`. Alike on every volume.
     pub generators: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub generators_va: u32,
-    /// `particleForceFieldTbl`.
+    /// `particleForceFieldTbl`. Alike on every volume.
     pub force_fields: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub force_fields_va: u32,
-    /// `particleTbl` (101 rows), read on to 245 as `Setup` indexes it by texture id (id 237 falls through its switch): rows 101 on are the halfwords that follow.
+    /// `particleTbl` (101 rows), read on to 245 as `Setup` indexes it by texture id (id 237 falls through its switch): rows 101 on are the halfwords that follow. Alike on every volume.
     pub particles: &'static [ParticleParam],
-    /// `particleEffectTbl`: up to four generators about a character.
+    /// `particleEffectTbl`: up to four generators about a character. Alike on every volume.
     pub particle_effects: &'static [ParticleEffectParam],
-    /// `particleCcsAnmTbl`: each particle object's file and name.
+    /// `particleCcsAnmTbl`: each particle object's file and name. Alike on every volume.
     pub ccs_anm: &'static [PCcs],
-    /// `Polyhedron82Table`: 42 points about the origin (w 1), `Generate`'s rType 3.
+    /// `Polyhedron82Table`: 42 points about the origin (w 1), `Generate`'s rType 3. Alike on every volume.
     pub polyhedron: &'static [[f32; 4]],
-    /// `ccpffpSmoke1`: effect.cpp's force field for its static generators.
+    /// `ccpffpSmoke1`: effect.cpp's force field for its static generators. Alike on every volume.
     pub smoke_ff1: ParticleForceFieldParam,
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub smoke_ff1_va: u32,
-    /// `ccpffpSmoke2`.
+    /// `ccpffpSmoke2`. Alike on every volume.
     pub smoke_ff2: ParticleForceFieldParam,
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub smoke_ff2_va: u32,
-    /// `ccpffpSmoke3`.
+    /// `ccpffpSmoke3`. Alike on every volume.
     pub smoke_ff3: ParticleForceFieldParam,
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub smoke_ff3_va: u32,
-    /// `ccpffpSmoke4`.
+    /// `ccpffpSmoke4`. Alike on every volume.
     pub smoke_ff4: ParticleForceFieldParam,
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub smoke_ff4_va: u32,
-    /// `hitPhotonDummyF1`.
+    /// `hitPhotonDummyF1`. Alike on every volume.
     pub hit_photon_ff1: ParticleForceFieldParam,
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub hit_photon_ff1_va: u32,
-    /// `hitPhotonDummyF2`.
+    /// `hitPhotonDummyF2`. Alike on every volume.
     pub hit_photon_ff2: ParticleForceFieldParam,
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub hit_photon_ff2_va: u32,
-    /// `ccParticle::Setup`'s switch on a texture id, decoded from its code.
+    /// `ccParticle::Setup`'s switch on a texture id, decoded from its code. Alike on every volume.
     pub tex_switch: TexSwitch,
-    /// `effElementGeneratorTbl`: the element spells' generator rows.
+    /// `effElementGeneratorTbl`: the element spells' generator rows. Alike on every volume.
     pub element_generators: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub element_generators_va: u32,
-    /// `effElementFFTbl`: their force fields.
+    /// `effElementFFTbl`: their force fields. Alike on every volume.
     pub element_ffs: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub element_ffs_va: u32,
-    /// `panelCamDist`.
+    /// `panelCamDist`. Alike on every volume.
     pub panel_cam_dist: f32,
-    /// `ffMissStr`.
+    /// `ffMissStr`. Alike on every volume.
     pub miss: &'static str,
-    /// `ffstrMISS`.
+    /// `ffstrMISS`. Alike on every volume.
     pub ff_miss: &'static str,
-    /// `ffstrEXP`.
+    /// `ffstrEXP`. Alike on every volume.
     pub ff_exp: &'static str,
-    /// `ffstrLEVELDOWN`.
+    /// `ffstrLEVELDOWN`. Alike on every volume.
     pub ff_level_down: &'static str,
-    /// `Int2StrFF`'s powers of ten.
+    /// `Int2StrFF`'s powers of ten. Alike on every volume.
     pub pow10: &'static [i32],
-    /// `TornadoSystem`'s sound codes.
+    /// `TornadoSystem`'s sound codes. Alike on every volume.
     pub tornado_se: &'static [i32],
-    /// Ring 89's rows.
+    /// Ring 89's rows. Alike on every volume.
     pub ring89: &'static [[f32; 4]],
-    /// Ring 90's rows.
+    /// Ring 90's rows. Alike on every volume.
     pub ring90: &'static [[[f32; 4]; 2]],
-    /// Ring 91's rows.
+    /// Ring 91's rows. Alike on every volume.
     pub ring91: &'static [[[f32; 4]; 4]],
-    /// Ring 90's turns.
+    /// Ring 90's turns. Alike on every volume.
     pub turn90: &'static [i16],
-    /// Ring 91's turns.
+    /// Ring 91's turns. Alike on every volume.
     pub turn91: &'static [i16],
-    /// `skillTornadeSmokePFF1`, by level.
+    /// `skillTornadeSmokePFF1`, by level. Alike on every volume.
     pub tornado_smoke1: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub tornado_smoke1_va: u32,
-    /// `skillTornadeSmokePFF2`.
+    /// `skillTornadeSmokePFF2`. Alike on every volume.
     pub tornado_smoke2: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub tornado_smoke2_va: u32,
-    /// `skillTornadeSmokePFF3`.
+    /// `skillTornadeSmokePFF3`. Alike on every volume.
     pub tornado_smoke3: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub tornado_smoke3_va: u32,
-    /// The tornado's first start frames, by element (fire).
+    /// The tornado's first start frames, by element (fire). Alike on every volume.
     pub tornade_start1: &'static [i32],
-    /// The same, the second table.
+    /// The same, the second table. Alike on every volume.
     pub tornade_start1b: &'static [i32],
-    /// The second start frames.
+    /// The second start frames. Alike on every volume.
     pub tornade_start2: &'static [i32],
-    /// The same, the second table.
+    /// The same, the second table. Alike on every volume.
     pub tornade_start2b: &'static [i32],
-    /// The tornado's sound codes.
+    /// The tornado's sound codes. Alike on every volume.
     pub tornade_sndcode: &'static [i32],
-    /// The same, the second table.
+    /// The same, the second table. Alike on every volume.
     pub tornade_sndcodeb: &'static [i32],
-    /// `skillThunderEff`.
+    /// `skillThunderEff`. Alike on every volume.
     pub thunder_eff: EffThunderData,
-    /// `skillThunderEff2`.
+    /// `skillThunderEff2`. Alike on every volume.
     pub thunder_eff2: EffThunderData,
     /// The lists `tornadeThunderTbl` points into (`ccEffTimeTbl` pairs), read on as an entry's cursor walks.
     pub thunder_times: &'static [EffTimeTbl],
-    /// `tornadeThunderTbl`: where each entry's list starts, in bytes into `thunder_times`.
+    /// `tornadeThunderTbl`: where each entry's list starts, in bytes into `thunder_times`. Alike on every volume.
     pub thunder_offsets: &'static [i32],
-    /// `FallSystemLevelTbl`.
+    /// `FallSystemLevelTbl`. Alike on every volume.
     pub fall_level: &'static [i16],
-    /// `fsDelay`.
+    /// `fsDelay`. Alike on every volume.
     pub fall_delay: &'static [i16],
-    /// The fall's element table, three a level.
+    /// The fall's element table, three a level. Alike on every volume.
     pub fall_et: &'static [i16],
-    /// The fall's elements.
+    /// The fall's elements. Alike on every volume.
     pub fall_elements: &'static [i32],
-    /// The fall's darkness scales.
+    /// The fall's darkness scales. Alike on every volume.
     pub fall_dark_scale: &'static [f32],
-    /// The fall's hits.
+    /// The fall's hits. Alike on every volume.
     pub fall_hits: &'static [i32],
-    /// The fall's bolts.
+    /// The fall's bolts. Alike on every volume.
     pub fall_bolts: &'static [i32],
-    /// The fall's bolts' hits.
+    /// The fall's bolts' hits. Alike on every volume.
     pub fall_bolt_hits: &'static [i32],
-    /// `ConvergenceSystem`'s radiate frames.
+    /// `ConvergenceSystem`'s radiate frames. Alike on every volume.
     pub convergence_radiate: &'static [i32],
-    /// Its smoke frames.
+    /// Its smoke frames. Alike on every volume.
     pub convergence_smoke: &'static [i32],
-    /// Its wait frames.
+    /// Its wait frames. Alike on every volume.
     pub convergence_wait: &'static [i32],
-    /// Its pieces.
+    /// Its pieces. Alike on every volume.
     pub convergence_pieces: &'static [i32],
-    /// `effIV`.
+    /// `effIV`. Alike on every volume.
     pub convergence_iv: f32,
-    /// `effSR`.
+    /// `effSR`. Alike on every volume.
     pub convergence_sr: f32,
-    /// Its elements.
+    /// Its elements. Alike on every volume.
     pub convergence_elements: &'static [i32],
-    /// `pillarDegTbl`.
+    /// `pillarDegTbl`. Alike on every volume.
     pub pillar_deg: &'static [i16],
-    /// The upheaval's hands' angles.
+    /// The upheaval's hands' angles. Alike on every volume.
     pub hand_deg: &'static [i16],
-    /// Its trees' angles.
+    /// Its trees' angles. Alike on every volume.
     pub tree_deg: &'static [i16],
-    /// Its rocks' angles.
+    /// Its rocks' angles. Alike on every volume.
     pub rock_deg: &'static [i16],
-    /// The ice's raise frames.
+    /// The ice's raise frames. Alike on every volume.
     pub ice_raise: &'static [i32],
-    /// The ice's hit frames.
+    /// The ice's hit frames. Alike on every volume.
     pub ice_hit: &'static [i32],
-    /// The upheaval's rock models.
+    /// The upheaval's rock models. Alike on every volume.
     pub upheaval_rocks: &'static [&'static str],
-    /// Its tree models.
+    /// Its tree models. Alike on every volume.
     pub upheaval_trees: &'static [&'static str],
-    /// Shock wave 64's rows.
+    /// Shock wave 64's rows. Alike on every volume.
     pub summons_wave: &'static [[f32; 3]],
-    /// The summoned fire's counts.
+    /// The summoned fire's counts. Alike on every volume.
     pub summoned_fire: &'static [i32],
-    /// The water's.
+    /// The water's. Alike on every volume.
     pub summoned_water: &'static [i32],
-    /// The thunder's rings.
+    /// The thunder's rings. Alike on every volume.
     pub summoned_thunder_rings: &'static [i32],
-    /// The spline's angles.
+    /// The spline's angles. Alike on every volume.
     pub summoned_spline_deg: &'static [f32],
-    /// The soil's.
+    /// The soil's. Alike on every volume.
     pub summoned_soil: &'static [i32],
-    /// The tree's rings.
+    /// The tree's rings. Alike on every volume.
     pub summoned_tree_rings: &'static [i32],
-    /// The goblin's rings.
+    /// The goblin's rings. Alike on every volume.
     pub summoned_goblin_rings: &'static [i32],
-    /// The circle's CLUTs by element.
+    /// The circle's CLUTs by element. Alike on every volume.
     pub summoned_circle_clut: &'static [&'static str],
-    /// The dark star's texture.
+    /// The dark star's texture. Alike on every volume.
     pub summoned_dark_star_tex: i32,
-    /// The needles' models.
+    /// The needles' models. Alike on every volume.
     pub summoned_needles: &'static [&'static str],
-    /// The energy's CLUTs by element.
+    /// The energy's CLUTs by element. Alike on every volume.
     pub summoned_energy_clut: &'static [&'static str],
-    /// The element draw's rocks.
+    /// The element draw's rocks. Alike on every volume.
     pub draw_rock: &'static [&'static str],
-    /// Its ice.
+    /// Its ice. Alike on every volume.
     pub draw_ice: &'static [&'static str],
-    /// Its branches.
+    /// Its branches. Alike on every volume.
     pub draw_blantch: &'static [&'static str],
-    /// Its substitutes.
+    /// Its substitutes. Alike on every volume.
     pub draw_subst: &'static [&'static str],
-    /// Its CLUTs.
+    /// Its CLUTs. Alike on every volume.
     pub draw_clut: &'static [&'static str],
-    /// Its suffixes (`char[6][8]`).
+    /// Its suffixes (`char[6][8]`). Alike on every volume.
     pub draw_suffix: &'static [&'static str],
-    /// Its kinds.
+    /// Its kinds. Alike on every volume.
     pub draw_kinds: &'static [i32],
-    /// The skill start's execution ring.
+    /// The skill start's execution ring. Alike on every volume.
     pub exec_ring: &'static [f32],
-    /// Its force ring.
+    /// Its force ring. Alike on every volume.
     pub force_ring: &'static [f32],
-    /// Its second force ring.
+    /// Its second force ring. Alike on every volume.
     pub force_ring2: &'static [f32],
-    /// Its circle.
+    /// Its circle. Alike on every volume.
     pub circle: &'static [f32],
-    /// Its circle's fade frames.
+    /// Its circle's fade frames. Alike on every volume.
     pub circle_fade: &'static [i32],
-    /// Shock wave 80's rows.
+    /// Shock wave 80's rows. Alike on every volume.
     pub wave2: &'static [f32],
-    /// Its turns.
+    /// Its turns. Alike on every volume.
     pub wave2_turn: &'static [i16],
-    /// Shock wave 81's rows.
+    /// Shock wave 81's rows. Alike on every volume.
     pub wave3: &'static [f32],
-    /// Its turns.
+    /// Its turns. Alike on every volume.
     pub wave3_turn: &'static [i16],
-    /// The cure's rows A-D.
+    /// The cure's rows A-D. Alike on every volume.
     pub cure_a: &'static [i32],
-    /// Row B.
+    /// Row B. Alike on every volume.
     pub cure_b: &'static [i32],
-    /// Row C.
+    /// Row C. Alike on every volume.
     pub cure_c: &'static [i32],
-    /// Row D.
+    /// Row D. Alike on every volume.
     pub cure_d: &'static [i32],
-    /// `tableAbilityUpS1-4`.
+    /// `tableAbilityUpS1-4`. Alike on every volume.
     pub ability_up: &'static [&'static [i32]],
-    /// `tableAbilityDownS1-3`.
+    /// `tableAbilityDownS1-3`. Alike on every volume.
     pub ability_down: &'static [&'static [i32]],
-    /// `g_eruptionGenerator`.
+    /// `g_eruptionGenerator`. Alike on every volume.
     pub boss_eruption: ParticleGeneratorParam,
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_eruption_va: u32,
-    /// `g_eruptionForceField`.
+    /// `g_eruptionForceField`. Alike on every volume.
     pub boss_eruption_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_eruption_ff_va: u32,
-    /// `MagicSquareGenerator`.
+    /// `MagicSquareGenerator`. Alike on every volume.
     pub boss_magic_square: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_magic_square_va: u32,
-    /// `MagicSquareForceField`.
+    /// `MagicSquareForceField`. Alike on every volume.
     pub boss_magic_square_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_magic_square_ff_va: u32,
-    /// `g_energyOutGenerator`.
+    /// `g_energyOutGenerator`. Alike on every volume.
     pub boss_energy_out: ParticleGeneratorParam,
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_energy_out_va: u32,
-    /// `g_energyOutForceField`.
+    /// `g_energyOutForceField`. Alike on every volume.
     pub boss_energy_out_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_energy_out_ff_va: u32,
-    /// `g_IceSmokeGenerator`.
+    /// `g_IceSmokeGenerator`. Alike on every volume.
     pub boss_ice_smoke: ParticleGeneratorParam,
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_ice_smoke_va: u32,
-    /// `g_IceSmokeForceField`.
+    /// `g_IceSmokeForceField`. Alike on every volume.
     pub boss_ice_smoke_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_ice_smoke_ff_va: u32,
-    /// `BossDeadGenerator`.
+    /// `BossDeadGenerator`. Alike on every volume.
     pub boss_dead: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_dead_va: u32,
-    /// `BossDeadForceField`.
+    /// `BossDeadForceField`. Alike on every volume.
     pub boss_dead_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_dead_ff_va: u32,
-    /// `InisFieldGenerator`: Innis's field and its skill's glow.
+    /// `InisFieldGenerator`: Innis's field and its skill's glow. Alike on every volume.
     pub boss_inis_field: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_inis_field_va: u32,
-    /// `InisFieldForceField`.
+    /// `InisFieldForceField`. Alike on every volume.
     pub boss_inis_field_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_inis_field_ff_va: u32,
-    /// `TornadoGenerator`: Innis's escape.
+    /// `TornadoGenerator`: Innis's escape. Alike on every volume.
     pub boss_tornado: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_tornado_va: u32,
-    /// `TornadoForceField`.
+    /// `TornadoForceField`. Alike on every volume.
     pub boss_tornado_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_tornado_ff_va: u32,
-    /// `BurstGenerator`: Innis's fall and its images' bursts.
+    /// `BurstGenerator`: Innis's fall and its images' bursts. Alike on every volume.
     pub boss_burst: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_burst_va: u32,
-    /// `BurstForceField`.
+    /// `BurstForceField`. Alike on every volume.
     pub boss_burst_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_burst_ff_va: u32,
-    /// `MissileSmokeGenerator`: the missiles' trails.
+    /// `MissileSmokeGenerator`: the missiles' trails. Alike on every volume.
     pub boss_missile_smoke: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_missile_smoke_va: u32,
-    /// `MissileSmokeForceField`.
+    /// `MissileSmokeForceField`. Alike on every volume.
     pub boss_missile_smoke_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_missile_smoke_ff_va: u32,
-    /// `BurstSmokeGenerator`: the missiles' landings.
+    /// `BurstSmokeGenerator`: the missiles' landings. Alike on every volume.
     pub boss_burst_smoke: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_burst_smoke_va: u32,
-    /// `BurstSmokeForceField`.
+    /// `BurstSmokeForceField`. Alike on every volume.
     pub boss_burst_smoke_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_burst_smoke_ff_va: u32,
@@ -355,127 +355,127 @@ pub struct Effect {
     pub boss_kyvia: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_kyvia_va: u32,
-    /// `KyviaGeneratorForceField`.
+    /// `KyviaGeneratorForceField`. Alike on every volume.
     pub boss_kyvia_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_kyvia_ff_va: u32,
-    /// `KyviaDmgGenerator`: the body's hurt smoke.
+    /// `KyviaDmgGenerator`: the body's hurt smoke. Alike on every volume.
     pub boss_kyvia_dmg: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_kyvia_dmg_va: u32,
-    /// `KyviaDmgGeneratorForceField`.
+    /// `KyviaDmgGeneratorForceField`. Alike on every volume.
     pub boss_kyvia_dmg_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_kyvia_dmg_ff_va: u32,
-    /// `CoreGenerator`: Kyvia's core, its auras and its death.
+    /// `CoreGenerator`: Kyvia's core, its auras and its death. Alike on every volume.
     pub boss_core: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_core_va: u32,
-    /// `CoreGeneratorForceField`.
+    /// `CoreGeneratorForceField`. Alike on every volume.
     pub boss_core_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_core_ff_va: u32,
-    /// `GomoraGenerator`: a gomora's coming, attacks and death.
+    /// `GomoraGenerator`: a gomora's coming, attacks and death. Alike on every volume.
     pub boss_gomora: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_gomora_va: u32,
-    /// `GomoraGeneratorForceField`.
+    /// `GomoraGeneratorForceField`. Alike on every volume.
     pub boss_gomora_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_gomora_ff_va: u32,
-    /// `GomoraAuraGenerator`: a gomora's aura by level, then its attack's by attribute.
+    /// `GomoraAuraGenerator`: a gomora's aura by level, then its attack's by attribute. Alike on every volume.
     pub boss_gomora_aura: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_gomora_aura_va: u32,
-    /// `GomoraAuraGeneratorForceField`.
+    /// `GomoraAuraGeneratorForceField`. Alike on every volume.
     pub boss_gomora_aura_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_gomora_aura_ff_va: u32,
-    /// `g_thunderGenerator`: Magus's laser's thunder.
+    /// `g_thunderGenerator`: Magus's laser's thunder. Alike on every volume.
     pub boss_thunder: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_thunder_va: u32,
-    /// `g_thunderForceField`.
+    /// `g_thunderForceField`. Alike on every volume.
     pub boss_thunder_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_thunder_ff_va: u32,
-    /// `g_energyChargeGenerator`: the charge of Magus's leaves as they grow.
+    /// `g_energyChargeGenerator`: the charge of Magus's leaves as they grow. Alike on every volume.
     pub boss_energy_charge: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_energy_charge_va: u32,
-    /// `g_energyChargeForceField`.
+    /// `g_energyChargeForceField`. Alike on every volume.
     pub boss_energy_charge_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_energy_charge_ff_va: u32,
-    /// `g_leafMarkerGen`: a leaf's marker.
+    /// `g_leafMarkerGen`: a leaf's marker. Alike on every volume.
     pub boss_leaf_marker: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_leaf_marker_va: u32,
-    /// `g_leafMarkerFF`.
+    /// `g_leafMarkerFF`. Alike on every volume.
     pub boss_leaf_marker_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_leaf_marker_ff_va: u32,
-    /// `g_leafDeadGen`: a dying leaf's smoke.
+    /// `g_leafDeadGen`: a dying leaf's smoke. Alike on every volume.
     pub boss_leaf_dead: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_leaf_dead_va: u32,
-    /// `g_leafDeadFF`.
+    /// `g_leafDeadFF`. Alike on every volume.
     pub boss_leaf_dead_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_leaf_dead_ff_va: u32,
-    /// `g_seedShotSmokeGen`: Corbenik's seeds thrown.
+    /// `g_seedShotSmokeGen`: Corbenik's seeds thrown. Alike on every volume.
     pub boss_seed_shot_smoke: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_seed_shot_smoke_va: u32,
-    /// `g_seedShotSmokeFF`.
+    /// `g_seedShotSmokeFF`. Alike on every volume.
     pub boss_seed_shot_smoke_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_seed_shot_smoke_ff_va: u32,
-    /// `g_transEffGen`: Tarvos's transfer.
+    /// `g_transEffGen`: Tarvos's transfer. Alike on every volume.
     pub boss_trans_eff: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_trans_eff_va: u32,
-    /// `g_transEffFF`.
+    /// `g_transEffFF`. Alike on every volume.
     pub boss_trans_eff_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_trans_eff_ff_va: u32,
-    /// `g_phantomGen`: the phantom's lights, circling then thrown out.
+    /// `g_phantomGen`: the phantom's lights, circling then thrown out. Alike on every volume.
     pub boss_phantom: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_phantom_va: u32,
-    /// `g_phantomFF`.
+    /// `g_phantomFF`. Alike on every volume.
     pub boss_phantom_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_phantom_ff_va: u32,
-    /// `g_seedShotSmokeGen`: Corbenik's seeds thrown.
+    /// `g_seedShotSmokeGen`: Corbenik's seeds thrown. Alike on every volume.
     pub boss_seed_shot: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_seed_shot_va: u32,
-    /// `g_seedShotSmokeFF`.
+    /// `g_seedShotSmokeFF`. Alike on every volume.
     pub boss_seed_shot_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_seed_shot_ff_va: u32,
-    /// `g_rootDrainGen`: the second form's root drain, in four turns.
+    /// `g_rootDrainGen`: the second form's root drain, in four turns. Alike on every volume.
     pub boss_root_drain: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_root_drain_va: u32,
-    /// `g_rootDrainFF`.
+    /// `g_rootDrainFF`. Alike on every volume.
     pub boss_root_drain_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_root_drain_ff_va: u32,
-    /// `g_transformGen`: the barrier's transform.
+    /// `g_transformGen`: the barrier's transform. Alike on every volume.
     pub boss_transform: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_transform_va: u32,
-    /// `g_transformFF`.
+    /// `g_transformFF`. Alike on every volume.
     pub boss_transform_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_transform_ff_va: u32,
-    /// `g_generateEyeGen`: where the killer eyes are born.
+    /// `g_generateEyeGen`: where the killer eyes are born. Alike on every volume.
     pub boss_generate_eye: &'static [ParticleGeneratorParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_generate_eye_va: u32,
-    /// `g_generateEyeFF`.
+    /// `g_generateEyeFF`. Alike on every volume.
     pub boss_generate_eye_ff: &'static [ParticleForceFieldParam],
     /// Where the volume keeps it: its rows' identity, as the game's pointers to them.
     pub boss_generate_eye_ff_va: u32,
@@ -730,1230 +730,16 @@ impl crate::store::Load for Effect {
     }
 }
 
-impl Effect {
-    pub fn files(&self) -> &'static [Filedata] {
-        self.files
-    }
-    pub fn rows(&self) -> &'static [EffectRow] {
-        self.rows
-    }
-    pub fn rows2(&self) -> &'static [EffectRow] {
-        self.rows2
-    }
-    pub fn str_rows(&self) -> &'static [EffectRow] {
-        self.str_rows
-    }
-    pub fn generators(&self) -> &'static [ParticleGeneratorParam] {
-        self.generators
-    }
-    pub fn generators_va(&self) -> u32 {
-        self.generators_va
-    }
-    pub fn force_fields(&self) -> &'static [ParticleForceFieldParam] {
-        self.force_fields
-    }
-    pub fn force_fields_va(&self) -> u32 {
-        self.force_fields_va
-    }
-    pub fn particles(&self) -> &'static [ParticleParam] {
-        self.particles
-    }
-    pub fn particle_effects(&self) -> &'static [ParticleEffectParam] {
-        self.particle_effects
-    }
-    pub fn ccs_anm(&self) -> &'static [PCcs] {
-        self.ccs_anm
-    }
-    pub fn polyhedron(&self) -> &'static [[f32; 4]] {
-        self.polyhedron
-    }
-    pub fn smoke_ff1(&self) -> ParticleForceFieldParam {
-        self.smoke_ff1
-    }
-    pub fn smoke_ff1_va(&self) -> u32 {
-        self.smoke_ff1_va
-    }
-    pub fn smoke_ff2(&self) -> ParticleForceFieldParam {
-        self.smoke_ff2
-    }
-    pub fn smoke_ff2_va(&self) -> u32 {
-        self.smoke_ff2_va
-    }
-    pub fn smoke_ff3(&self) -> ParticleForceFieldParam {
-        self.smoke_ff3
-    }
-    pub fn smoke_ff3_va(&self) -> u32 {
-        self.smoke_ff3_va
-    }
-    pub fn smoke_ff4(&self) -> ParticleForceFieldParam {
-        self.smoke_ff4
-    }
-    pub fn smoke_ff4_va(&self) -> u32 {
-        self.smoke_ff4_va
-    }
-    pub fn hit_photon_ff1(&self) -> ParticleForceFieldParam {
-        self.hit_photon_ff1
-    }
-    pub fn hit_photon_ff1_va(&self) -> u32 {
-        self.hit_photon_ff1_va
-    }
-    pub fn hit_photon_ff2(&self) -> ParticleForceFieldParam {
-        self.hit_photon_ff2
-    }
-    pub fn hit_photon_ff2_va(&self) -> u32 {
-        self.hit_photon_ff2_va
-    }
-    pub fn tex_switch(&self) -> TexSwitch {
-        self.tex_switch
-    }
-    pub fn element_generators(&self) -> &'static [ParticleGeneratorParam] {
-        self.element_generators
-    }
-    pub fn element_generators_va(&self) -> u32 {
-        self.element_generators_va
-    }
-    pub fn element_ffs(&self) -> &'static [ParticleForceFieldParam] {
-        self.element_ffs
-    }
-    pub fn element_ffs_va(&self) -> u32 {
-        self.element_ffs_va
-    }
-    pub fn panel_cam_dist(&self) -> f32 {
-        self.panel_cam_dist
-    }
-    pub fn miss(&self) -> &'static str {
-        self.miss
-    }
-    pub fn ff_miss(&self) -> &'static str {
-        self.ff_miss
-    }
-    pub fn ff_exp(&self) -> &'static str {
-        self.ff_exp
-    }
-    pub fn ff_level_down(&self) -> &'static str {
-        self.ff_level_down
-    }
-    pub fn pow10(&self) -> &'static [i32] {
-        self.pow10
-    }
-    pub fn tornado_se(&self) -> &'static [i32] {
-        self.tornado_se
-    }
-    pub fn ring89(&self) -> &'static [[f32; 4]] {
-        self.ring89
-    }
-    pub fn ring90(&self) -> &'static [[[f32; 4]; 2]] {
-        self.ring90
-    }
-    pub fn ring91(&self) -> &'static [[[f32; 4]; 4]] {
-        self.ring91
-    }
-    pub fn turn90(&self) -> &'static [i16] {
-        self.turn90
-    }
-    pub fn turn91(&self) -> &'static [i16] {
-        self.turn91
-    }
-    pub fn tornado_smoke1(&self) -> &'static [ParticleForceFieldParam] {
-        self.tornado_smoke1
-    }
-    pub fn tornado_smoke1_va(&self) -> u32 {
-        self.tornado_smoke1_va
-    }
-    pub fn tornado_smoke2(&self) -> &'static [ParticleForceFieldParam] {
-        self.tornado_smoke2
-    }
-    pub fn tornado_smoke2_va(&self) -> u32 {
-        self.tornado_smoke2_va
-    }
-    pub fn tornado_smoke3(&self) -> &'static [ParticleForceFieldParam] {
-        self.tornado_smoke3
-    }
-    pub fn tornado_smoke3_va(&self) -> u32 {
-        self.tornado_smoke3_va
-    }
-    pub fn tornade_start1(&self) -> &'static [i32] {
-        self.tornade_start1
-    }
-    pub fn tornade_start1b(&self) -> &'static [i32] {
-        self.tornade_start1b
-    }
-    pub fn tornade_start2(&self) -> &'static [i32] {
-        self.tornade_start2
-    }
-    pub fn tornade_start2b(&self) -> &'static [i32] {
-        self.tornade_start2b
-    }
-    pub fn tornade_sndcode(&self) -> &'static [i32] {
-        self.tornade_sndcode
-    }
-    pub fn tornade_sndcodeb(&self) -> &'static [i32] {
-        self.tornade_sndcodeb
-    }
-    pub fn thunder_eff(&self) -> EffThunderData {
-        self.thunder_eff
-    }
-    pub fn thunder_eff2(&self) -> EffThunderData {
-        self.thunder_eff2
-    }
-    pub fn thunder_times(&self) -> &'static [EffTimeTbl] {
-        self.thunder_times
-    }
-    pub fn thunder_offsets(&self) -> &'static [i32] {
-        self.thunder_offsets
-    }
-    pub fn fall_level(&self) -> &'static [i16] {
-        self.fall_level
-    }
-    pub fn fall_delay(&self) -> &'static [i16] {
-        self.fall_delay
-    }
-    pub fn fall_et(&self) -> &'static [i16] {
-        self.fall_et
-    }
-    pub fn fall_elements(&self) -> &'static [i32] {
-        self.fall_elements
-    }
-    pub fn fall_dark_scale(&self) -> &'static [f32] {
-        self.fall_dark_scale
-    }
-    pub fn fall_hits(&self) -> &'static [i32] {
-        self.fall_hits
-    }
-    pub fn fall_bolts(&self) -> &'static [i32] {
-        self.fall_bolts
-    }
-    pub fn fall_bolt_hits(&self) -> &'static [i32] {
-        self.fall_bolt_hits
-    }
-    pub fn convergence_radiate(&self) -> &'static [i32] {
-        self.convergence_radiate
-    }
-    pub fn convergence_smoke(&self) -> &'static [i32] {
-        self.convergence_smoke
-    }
-    pub fn convergence_wait(&self) -> &'static [i32] {
-        self.convergence_wait
-    }
-    pub fn convergence_pieces(&self) -> &'static [i32] {
-        self.convergence_pieces
-    }
-    pub fn convergence_iv(&self) -> f32 {
-        self.convergence_iv
-    }
-    pub fn convergence_sr(&self) -> f32 {
-        self.convergence_sr
-    }
-    pub fn convergence_elements(&self) -> &'static [i32] {
-        self.convergence_elements
-    }
-    pub fn pillar_deg(&self) -> &'static [i16] {
-        self.pillar_deg
-    }
-    pub fn hand_deg(&self) -> &'static [i16] {
-        self.hand_deg
-    }
-    pub fn tree_deg(&self) -> &'static [i16] {
-        self.tree_deg
-    }
-    pub fn rock_deg(&self) -> &'static [i16] {
-        self.rock_deg
-    }
-    pub fn ice_raise(&self) -> &'static [i32] {
-        self.ice_raise
-    }
-    pub fn ice_hit(&self) -> &'static [i32] {
-        self.ice_hit
-    }
-    pub fn upheaval_rocks(&self) -> &'static [&'static str] {
-        self.upheaval_rocks
-    }
-    pub fn upheaval_trees(&self) -> &'static [&'static str] {
-        self.upheaval_trees
-    }
-    pub fn summons_wave(&self) -> &'static [[f32; 3]] {
-        self.summons_wave
-    }
-    pub fn summoned_fire(&self) -> &'static [i32] {
-        self.summoned_fire
-    }
-    pub fn summoned_water(&self) -> &'static [i32] {
-        self.summoned_water
-    }
-    pub fn summoned_thunder_rings(&self) -> &'static [i32] {
-        self.summoned_thunder_rings
-    }
-    pub fn summoned_spline_deg(&self) -> &'static [f32] {
-        self.summoned_spline_deg
-    }
-    pub fn summoned_soil(&self) -> &'static [i32] {
-        self.summoned_soil
-    }
-    pub fn summoned_tree_rings(&self) -> &'static [i32] {
-        self.summoned_tree_rings
-    }
-    pub fn summoned_goblin_rings(&self) -> &'static [i32] {
-        self.summoned_goblin_rings
-    }
-    pub fn summoned_circle_clut(&self) -> &'static [&'static str] {
-        self.summoned_circle_clut
-    }
-    pub fn summoned_dark_star_tex(&self) -> i32 {
-        self.summoned_dark_star_tex
-    }
-    pub fn summoned_needles(&self) -> &'static [&'static str] {
-        self.summoned_needles
-    }
-    pub fn summoned_energy_clut(&self) -> &'static [&'static str] {
-        self.summoned_energy_clut
-    }
-    pub fn draw_rock(&self) -> &'static [&'static str] {
-        self.draw_rock
-    }
-    pub fn draw_ice(&self) -> &'static [&'static str] {
-        self.draw_ice
-    }
-    pub fn draw_blantch(&self) -> &'static [&'static str] {
-        self.draw_blantch
-    }
-    pub fn draw_subst(&self) -> &'static [&'static str] {
-        self.draw_subst
-    }
-    pub fn draw_clut(&self) -> &'static [&'static str] {
-        self.draw_clut
-    }
-    pub fn draw_suffix(&self) -> &'static [&'static str] {
-        self.draw_suffix
-    }
-    pub fn draw_kinds(&self) -> &'static [i32] {
-        self.draw_kinds
-    }
-    pub fn exec_ring(&self) -> &'static [f32] {
-        self.exec_ring
-    }
-    pub fn force_ring(&self) -> &'static [f32] {
-        self.force_ring
-    }
-    pub fn force_ring2(&self) -> &'static [f32] {
-        self.force_ring2
-    }
-    pub fn circle(&self) -> &'static [f32] {
-        self.circle
-    }
-    pub fn circle_fade(&self) -> &'static [i32] {
-        self.circle_fade
-    }
-    pub fn wave2(&self) -> &'static [f32] {
-        self.wave2
-    }
-    pub fn wave2_turn(&self) -> &'static [i16] {
-        self.wave2_turn
-    }
-    pub fn wave3(&self) -> &'static [f32] {
-        self.wave3
-    }
-    pub fn wave3_turn(&self) -> &'static [i16] {
-        self.wave3_turn
-    }
-    pub fn cure_a(&self) -> &'static [i32] {
-        self.cure_a
-    }
-    pub fn cure_b(&self) -> &'static [i32] {
-        self.cure_b
-    }
-    pub fn cure_c(&self) -> &'static [i32] {
-        self.cure_c
-    }
-    pub fn cure_d(&self) -> &'static [i32] {
-        self.cure_d
-    }
-    pub fn ability_up(&self) -> &'static [&'static [i32]] {
-        self.ability_up
-    }
-    pub fn ability_down(&self) -> &'static [&'static [i32]] {
-        self.ability_down
-    }
-    pub fn boss_eruption(&self) -> ParticleGeneratorParam {
-        self.boss_eruption
-    }
-    pub fn boss_eruption_va(&self) -> u32 {
-        self.boss_eruption_va
-    }
-    pub fn boss_eruption_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_eruption_ff
-    }
-    pub fn boss_eruption_ff_va(&self) -> u32 {
-        self.boss_eruption_ff_va
-    }
-    pub fn boss_magic_square(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_magic_square
-    }
-    pub fn boss_magic_square_va(&self) -> u32 {
-        self.boss_magic_square_va
-    }
-    pub fn boss_magic_square_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_magic_square_ff
-    }
-    pub fn boss_magic_square_ff_va(&self) -> u32 {
-        self.boss_magic_square_ff_va
-    }
-    pub fn boss_energy_out(&self) -> ParticleGeneratorParam {
-        self.boss_energy_out
-    }
-    pub fn boss_energy_out_va(&self) -> u32 {
-        self.boss_energy_out_va
-    }
-    pub fn boss_energy_out_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_energy_out_ff
-    }
-    pub fn boss_energy_out_ff_va(&self) -> u32 {
-        self.boss_energy_out_ff_va
-    }
-    pub fn boss_ice_smoke(&self) -> ParticleGeneratorParam {
-        self.boss_ice_smoke
-    }
-    pub fn boss_ice_smoke_va(&self) -> u32 {
-        self.boss_ice_smoke_va
-    }
-    pub fn boss_ice_smoke_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_ice_smoke_ff
-    }
-    pub fn boss_ice_smoke_ff_va(&self) -> u32 {
-        self.boss_ice_smoke_ff_va
-    }
-    pub fn boss_dead(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_dead
-    }
-    pub fn boss_dead_va(&self) -> u32 {
-        self.boss_dead_va
-    }
-    pub fn boss_dead_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_dead_ff
-    }
-    pub fn boss_dead_ff_va(&self) -> u32 {
-        self.boss_dead_ff_va
-    }
-    pub fn boss_inis_field(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_inis_field
-    }
-    pub fn boss_inis_field_va(&self) -> u32 {
-        self.boss_inis_field_va
-    }
-    pub fn boss_inis_field_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_inis_field_ff
-    }
-    pub fn boss_inis_field_ff_va(&self) -> u32 {
-        self.boss_inis_field_ff_va
-    }
-    pub fn boss_tornado(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_tornado
-    }
-    pub fn boss_tornado_va(&self) -> u32 {
-        self.boss_tornado_va
-    }
-    pub fn boss_tornado_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_tornado_ff
-    }
-    pub fn boss_tornado_ff_va(&self) -> u32 {
-        self.boss_tornado_ff_va
-    }
-    pub fn boss_burst(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_burst
-    }
-    pub fn boss_burst_va(&self) -> u32 {
-        self.boss_burst_va
-    }
-    pub fn boss_burst_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_burst_ff
-    }
-    pub fn boss_burst_ff_va(&self) -> u32 {
-        self.boss_burst_ff_va
-    }
-    pub fn boss_missile_smoke(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_missile_smoke
-    }
-    pub fn boss_missile_smoke_va(&self) -> u32 {
-        self.boss_missile_smoke_va
-    }
-    pub fn boss_missile_smoke_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_missile_smoke_ff
-    }
-    pub fn boss_missile_smoke_ff_va(&self) -> u32 {
-        self.boss_missile_smoke_ff_va
-    }
-    pub fn boss_burst_smoke(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_burst_smoke
-    }
-    pub fn boss_burst_smoke_va(&self) -> u32 {
-        self.boss_burst_smoke_va
-    }
-    pub fn boss_burst_smoke_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_burst_smoke_ff
-    }
-    pub fn boss_burst_smoke_ff_va(&self) -> u32 {
-        self.boss_burst_smoke_ff_va
-    }
-    pub fn boss_kyvia(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_kyvia
-    }
-    pub fn boss_kyvia_va(&self) -> u32 {
-        self.boss_kyvia_va
-    }
-    pub fn boss_kyvia_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_kyvia_ff
-    }
-    pub fn boss_kyvia_ff_va(&self) -> u32 {
-        self.boss_kyvia_ff_va
-    }
-    pub fn boss_kyvia_dmg(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_kyvia_dmg
-    }
-    pub fn boss_kyvia_dmg_va(&self) -> u32 {
-        self.boss_kyvia_dmg_va
-    }
-    pub fn boss_kyvia_dmg_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_kyvia_dmg_ff
-    }
-    pub fn boss_kyvia_dmg_ff_va(&self) -> u32 {
-        self.boss_kyvia_dmg_ff_va
-    }
-    pub fn boss_core(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_core
-    }
-    pub fn boss_core_va(&self) -> u32 {
-        self.boss_core_va
-    }
-    pub fn boss_core_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_core_ff
-    }
-    pub fn boss_core_ff_va(&self) -> u32 {
-        self.boss_core_ff_va
-    }
-    pub fn boss_gomora(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_gomora
-    }
-    pub fn boss_gomora_va(&self) -> u32 {
-        self.boss_gomora_va
-    }
-    pub fn boss_gomora_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_gomora_ff
-    }
-    pub fn boss_gomora_ff_va(&self) -> u32 {
-        self.boss_gomora_ff_va
-    }
-    pub fn boss_gomora_aura(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_gomora_aura
-    }
-    pub fn boss_gomora_aura_va(&self) -> u32 {
-        self.boss_gomora_aura_va
-    }
-    pub fn boss_gomora_aura_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_gomora_aura_ff
-    }
-    pub fn boss_gomora_aura_ff_va(&self) -> u32 {
-        self.boss_gomora_aura_ff_va
-    }
-    pub fn boss_thunder(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_thunder
-    }
-    pub fn boss_thunder_va(&self) -> u32 {
-        self.boss_thunder_va
-    }
-    pub fn boss_thunder_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_thunder_ff
-    }
-    pub fn boss_thunder_ff_va(&self) -> u32 {
-        self.boss_thunder_ff_va
-    }
-    pub fn boss_energy_charge(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_energy_charge
-    }
-    pub fn boss_energy_charge_va(&self) -> u32 {
-        self.boss_energy_charge_va
-    }
-    pub fn boss_energy_charge_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_energy_charge_ff
-    }
-    pub fn boss_energy_charge_ff_va(&self) -> u32 {
-        self.boss_energy_charge_ff_va
-    }
-    pub fn boss_leaf_marker(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_leaf_marker
-    }
-    pub fn boss_leaf_marker_va(&self) -> u32 {
-        self.boss_leaf_marker_va
-    }
-    pub fn boss_leaf_marker_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_leaf_marker_ff
-    }
-    pub fn boss_leaf_marker_ff_va(&self) -> u32 {
-        self.boss_leaf_marker_ff_va
-    }
-    pub fn boss_leaf_dead(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_leaf_dead
-    }
-    pub fn boss_leaf_dead_va(&self) -> u32 {
-        self.boss_leaf_dead_va
-    }
-    pub fn boss_leaf_dead_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_leaf_dead_ff
-    }
-    pub fn boss_leaf_dead_ff_va(&self) -> u32 {
-        self.boss_leaf_dead_ff_va
-    }
-    pub fn boss_seed_shot_smoke(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_seed_shot_smoke
-    }
-    pub fn boss_seed_shot_smoke_va(&self) -> u32 {
-        self.boss_seed_shot_smoke_va
-    }
-    pub fn boss_seed_shot_smoke_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_seed_shot_smoke_ff
-    }
-    pub fn boss_seed_shot_smoke_ff_va(&self) -> u32 {
-        self.boss_seed_shot_smoke_ff_va
-    }
-    pub fn boss_trans_eff(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_trans_eff
-    }
-    pub fn boss_trans_eff_va(&self) -> u32 {
-        self.boss_trans_eff_va
-    }
-    pub fn boss_trans_eff_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_trans_eff_ff
-    }
-    pub fn boss_trans_eff_ff_va(&self) -> u32 {
-        self.boss_trans_eff_ff_va
-    }
-    pub fn boss_phantom(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_phantom
-    }
-    pub fn boss_phantom_va(&self) -> u32 {
-        self.boss_phantom_va
-    }
-    pub fn boss_phantom_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_phantom_ff
-    }
-    pub fn boss_phantom_ff_va(&self) -> u32 {
-        self.boss_phantom_ff_va
-    }
-    pub fn boss_seed_shot(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_seed_shot
-    }
-    pub fn boss_seed_shot_va(&self) -> u32 {
-        self.boss_seed_shot_va
-    }
-    pub fn boss_seed_shot_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_seed_shot_ff
-    }
-    pub fn boss_seed_shot_ff_va(&self) -> u32 {
-        self.boss_seed_shot_ff_va
-    }
-    pub fn boss_root_drain(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_root_drain
-    }
-    pub fn boss_root_drain_va(&self) -> u32 {
-        self.boss_root_drain_va
-    }
-    pub fn boss_root_drain_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_root_drain_ff
-    }
-    pub fn boss_root_drain_ff_va(&self) -> u32 {
-        self.boss_root_drain_ff_va
-    }
-    pub fn boss_transform(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_transform
-    }
-    pub fn boss_transform_va(&self) -> u32 {
-        self.boss_transform_va
-    }
-    pub fn boss_transform_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_transform_ff
-    }
-    pub fn boss_transform_ff_va(&self) -> u32 {
-        self.boss_transform_ff_va
-    }
-    pub fn boss_generate_eye(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_generate_eye
-    }
-    pub fn boss_generate_eye_va(&self) -> u32 {
-        self.boss_generate_eye_va
-    }
-    pub fn boss_generate_eye_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_generate_eye_ff
-    }
-    pub fn boss_generate_eye_ff_va(&self) -> u32 {
-        self.boss_generate_eye_ff_va
-    }
-    pub fn boss_tera_charge(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_tera_charge
-    }
-    pub fn boss_tera_charge_va(&self) -> u32 {
-        self.boss_tera_charge_va
-    }
-    pub fn boss_tera_charge_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_tera_charge_ff
-    }
-    pub fn boss_tera_charge_ff_va(&self) -> u32 {
-        self.boss_tera_charge_ff_va
-    }
-    pub fn boss_tera_fall(&self) -> &'static [ParticleGeneratorParam] {
-        self.boss_tera_fall
-    }
-    pub fn boss_tera_fall_va(&self) -> u32 {
-        self.boss_tera_fall_va
-    }
-    pub fn boss_tera_fall_ff(&self) -> &'static [ParticleForceFieldParam] {
-        self.boss_tera_fall_ff
-    }
-    pub fn boss_tera_fall_ff_va(&self) -> u32 {
-        self.boss_tera_fall_ff_va
-    }
+impl crate::store::Table for Effect {
+    const ID: usize = super::id::EFFECT;
 }
 
-/// `effectCCSTbl`: the effect files, up to the row with no name.
-pub static FILES: std::sync::LazyLock<&'static [Filedata]> = std::sync::LazyLock::new(|| shared().files);
-
-/// `effectTbl`.
-pub static ROWS: std::sync::LazyLock<&'static [EffectRow]> = std::sync::LazyLock::new(|| shared().rows);
-
-/// `effectTbl2`.
-pub static ROWS2: std::sync::LazyLock<&'static [EffectRow]> = std::sync::LazyLock::new(|| shared().rows2);
-
-/// `effectStrTbl`.
-pub static STR_ROWS: std::sync::LazyLock<&'static [EffectRow]> = std::sync::LazyLock::new(|| shared().str_rows);
-
-/// `particleGeneratorTbl`.
-pub static GENERATORS: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().generators);
-
-/// `particleForceFieldTbl`.
-pub static FORCE_FIELDS: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().force_fields);
-
-/// `particleTbl` (101 rows), read on to 245 as `Setup` indexes it by texture id (id 237 falls through its switch): rows 101 on are the halfwords that follow.
-pub static PARTICLES: std::sync::LazyLock<&'static [ParticleParam]> = std::sync::LazyLock::new(|| shared().particles);
-
-/// `particleEffectTbl`: up to four generators about a character.
-pub static PARTICLE_EFFECTS: std::sync::LazyLock<&'static [ParticleEffectParam]> =
-    std::sync::LazyLock::new(|| shared().particle_effects);
-
-/// `particleCcsAnmTbl`: each particle object's file and name.
-pub static CCS_ANM: std::sync::LazyLock<&'static [PCcs]> = std::sync::LazyLock::new(|| shared().ccs_anm);
-
-/// `Polyhedron82Table`: 42 points about the origin (w 1), `Generate`'s rType 3.
-pub static POLYHEDRON: std::sync::LazyLock<&'static [[f32; 4]]> = std::sync::LazyLock::new(|| shared().polyhedron);
-
-/// `ccpffpSmoke1`: effect.cpp's force field for its static generators.
-pub static SMOKE_FF1: std::sync::LazyLock<ParticleForceFieldParam> = std::sync::LazyLock::new(|| shared().smoke_ff1);
-
-/// `ccpffpSmoke2`.
-pub static SMOKE_FF2: std::sync::LazyLock<ParticleForceFieldParam> = std::sync::LazyLock::new(|| shared().smoke_ff2);
-
-/// `ccpffpSmoke3`.
-pub static SMOKE_FF3: std::sync::LazyLock<ParticleForceFieldParam> = std::sync::LazyLock::new(|| shared().smoke_ff3);
-
-/// `ccpffpSmoke4`.
-pub static SMOKE_FF4: std::sync::LazyLock<ParticleForceFieldParam> = std::sync::LazyLock::new(|| shared().smoke_ff4);
-
-/// `hitPhotonDummyF1`.
-pub static HIT_PHOTON_FF1: std::sync::LazyLock<ParticleForceFieldParam> =
-    std::sync::LazyLock::new(|| shared().hit_photon_ff1);
-
-/// `hitPhotonDummyF2`.
-pub static HIT_PHOTON_FF2: std::sync::LazyLock<ParticleForceFieldParam> =
-    std::sync::LazyLock::new(|| shared().hit_photon_ff2);
-
-/// `ccParticle::Setup`'s switch on a texture id, decoded from its code.
-pub static TEX_SWITCH: std::sync::LazyLock<TexSwitch> = std::sync::LazyLock::new(|| shared().tex_switch);
-
-/// `effElementGeneratorTbl`: the element spells' generator rows.
-pub static ELEMENT_GENERATORS: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().element_generators);
-
-/// `effElementFFTbl`: their force fields.
-pub static ELEMENT_FFS: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().element_ffs);
-
-/// `panelCamDist`.
-pub static PANEL_CAM_DIST: std::sync::LazyLock<f32> = std::sync::LazyLock::new(|| shared().panel_cam_dist);
-
-/// `ffMissStr`.
-pub static MISS: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().miss);
-
-/// `ffstrMISS`.
-pub static FF_MISS: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().ff_miss);
-
-/// `ffstrEXP`.
-pub static FF_EXP: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().ff_exp);
-
-/// `ffstrLEVELDOWN`.
-pub static FF_LEVEL_DOWN: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().ff_level_down);
-
-/// `Int2StrFF`'s powers of ten.
-pub static POW10: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().pow10);
-
-/// `TornadoSystem`'s sound codes.
-pub static TORNADO_SE: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tornado_se);
-
-/// Ring 89's rows.
-pub static RING89: std::sync::LazyLock<&'static [[f32; 4]]> = std::sync::LazyLock::new(|| shared().ring89);
-
-/// Ring 90's rows.
-pub static RING90: std::sync::LazyLock<&'static [[[f32; 4]; 2]]> = std::sync::LazyLock::new(|| shared().ring90);
-
-/// Ring 91's rows.
-pub static RING91: std::sync::LazyLock<&'static [[[f32; 4]; 4]]> = std::sync::LazyLock::new(|| shared().ring91);
-
-/// Ring 90's turns.
-pub static TURN90: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().turn90);
-
-/// Ring 91's turns.
-pub static TURN91: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().turn91);
-
-/// `skillTornadeSmokePFF1`, by level.
-pub static TORNADO_SMOKE1: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().tornado_smoke1);
-
-/// `skillTornadeSmokePFF2`.
-pub static TORNADO_SMOKE2: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().tornado_smoke2);
-
-/// `skillTornadeSmokePFF3`.
-pub static TORNADO_SMOKE3: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().tornado_smoke3);
-
-/// The tornado's first start frames, by element (fire).
-pub static TORNADE_START1: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tornade_start1);
-
-/// The same, the second table.
-pub static TORNADE_START1B: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tornade_start1b);
-
-/// The second start frames.
-pub static TORNADE_START2: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tornade_start2);
-
-/// The same, the second table.
-pub static TORNADE_START2B: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tornade_start2b);
-
-/// The tornado's sound codes.
-pub static TORNADE_SNDCODE: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tornade_sndcode);
-
-/// The same, the second table.
-pub static TORNADE_SNDCODEB: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().tornade_sndcodeb);
-
-/// `skillThunderEff`.
-pub static THUNDER_EFF: std::sync::LazyLock<EffThunderData> = std::sync::LazyLock::new(|| shared().thunder_eff);
-
-/// `skillThunderEff2`.
-pub static THUNDER_EFF2: std::sync::LazyLock<EffThunderData> = std::sync::LazyLock::new(|| shared().thunder_eff2);
-
-/// `tornadeThunderTbl`: where each entry's list starts, in bytes into `thunder_times`.
-pub static THUNDER_OFFSETS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().thunder_offsets);
-
-/// `FallSystemLevelTbl`.
-pub static FALL_LEVEL: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().fall_level);
-
-/// `fsDelay`.
-pub static FALL_DELAY: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().fall_delay);
-
-/// The fall's element table, three a level.
-pub static FALL_ET: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().fall_et);
-
-/// The fall's elements.
-pub static FALL_ELEMENTS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().fall_elements);
-
-/// The fall's darkness scales.
-pub static FALL_DARK_SCALE: std::sync::LazyLock<&'static [f32]> = std::sync::LazyLock::new(|| shared().fall_dark_scale);
-
-/// The fall's hits.
-pub static FALL_HITS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().fall_hits);
-
-/// The fall's bolts.
-pub static FALL_BOLTS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().fall_bolts);
-
-/// The fall's bolts' hits.
-pub static FALL_BOLT_HITS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().fall_bolt_hits);
-
-/// `ConvergenceSystem`'s radiate frames.
-pub static CONVERGENCE_RADIATE: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().convergence_radiate);
-
-/// Its smoke frames.
-pub static CONVERGENCE_SMOKE: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().convergence_smoke);
-
-/// Its wait frames.
-pub static CONVERGENCE_WAIT: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().convergence_wait);
-
-/// Its pieces.
-pub static CONVERGENCE_PIECES: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().convergence_pieces);
-
-/// `effIV`.
-pub static CONVERGENCE_IV: std::sync::LazyLock<f32> = std::sync::LazyLock::new(|| shared().convergence_iv);
-
-/// `effSR`.
-pub static CONVERGENCE_SR: std::sync::LazyLock<f32> = std::sync::LazyLock::new(|| shared().convergence_sr);
-
-/// Its elements.
-pub static CONVERGENCE_ELEMENTS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().convergence_elements);
-
-/// `pillarDegTbl`.
-pub static PILLAR_DEG: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().pillar_deg);
-
-/// The upheaval's hands' angles.
-pub static HAND_DEG: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().hand_deg);
-
-/// Its trees' angles.
-pub static TREE_DEG: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().tree_deg);
-
-/// Its rocks' angles.
-pub static ROCK_DEG: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().rock_deg);
-
-/// The ice's raise frames.
-pub static ICE_RAISE: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().ice_raise);
-
-/// The ice's hit frames.
-pub static ICE_HIT: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().ice_hit);
-
-/// The upheaval's rock models.
-pub static UPHEAVAL_ROCKS: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().upheaval_rocks);
-
-/// Its tree models.
-pub static UPHEAVAL_TREES: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().upheaval_trees);
-
-/// Shock wave 64's rows.
-pub static SUMMONS_WAVE: std::sync::LazyLock<&'static [[f32; 3]]> = std::sync::LazyLock::new(|| shared().summons_wave);
-
-/// The summoned fire's counts.
-pub static SUMMONED_FIRE: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().summoned_fire);
-
-/// The water's.
-pub static SUMMONED_WATER: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().summoned_water);
-
-/// The thunder's rings.
-pub static SUMMONED_THUNDER_RINGS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().summoned_thunder_rings);
-
-/// The spline's angles.
-pub static SUMMONED_SPLINE_DEG: std::sync::LazyLock<&'static [f32]> =
-    std::sync::LazyLock::new(|| shared().summoned_spline_deg);
-
-/// The soil's.
-pub static SUMMONED_SOIL: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().summoned_soil);
-
-/// The tree's rings.
-pub static SUMMONED_TREE_RINGS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().summoned_tree_rings);
-
-/// The goblin's rings.
-pub static SUMMONED_GOBLIN_RINGS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().summoned_goblin_rings);
-
-/// The circle's CLUTs by element.
-pub static SUMMONED_CIRCLE_CLUT: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().summoned_circle_clut);
-
-/// The dark star's texture.
-pub static SUMMONED_DARK_STAR_TEX: std::sync::LazyLock<i32> =
-    std::sync::LazyLock::new(|| shared().summoned_dark_star_tex);
-
-/// The needles' models.
-pub static SUMMONED_NEEDLES: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().summoned_needles);
-
-/// The energy's CLUTs by element.
-pub static SUMMONED_ENERGY_CLUT: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().summoned_energy_clut);
-
-/// The element draw's rocks.
-pub static DRAW_ROCK: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().draw_rock);
-
-/// Its ice.
-pub static DRAW_ICE: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().draw_ice);
-
-/// Its branches.
-pub static DRAW_BLANTCH: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().draw_blantch);
-
-/// Its substitutes.
-pub static DRAW_SUBST: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().draw_subst);
-
-/// Its CLUTs.
-pub static DRAW_CLUT: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().draw_clut);
-
-/// Its suffixes (`char[6][8]`).
-pub static DRAW_SUFFIX: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().draw_suffix);
-
-/// Its kinds.
-pub static DRAW_KINDS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().draw_kinds);
-
-/// The skill start's execution ring.
-pub static EXEC_RING: std::sync::LazyLock<&'static [f32]> = std::sync::LazyLock::new(|| shared().exec_ring);
-
-/// Its force ring.
-pub static FORCE_RING: std::sync::LazyLock<&'static [f32]> = std::sync::LazyLock::new(|| shared().force_ring);
-
-/// Its second force ring.
-pub static FORCE_RING2: std::sync::LazyLock<&'static [f32]> = std::sync::LazyLock::new(|| shared().force_ring2);
-
-/// Its circle.
-pub static CIRCLE: std::sync::LazyLock<&'static [f32]> = std::sync::LazyLock::new(|| shared().circle);
-
-/// Its circle's fade frames.
-pub static CIRCLE_FADE: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().circle_fade);
-
-/// Shock wave 80's rows.
-pub static WAVE2: std::sync::LazyLock<&'static [f32]> = std::sync::LazyLock::new(|| shared().wave2);
-
-/// Its turns.
-pub static WAVE2_TURN: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().wave2_turn);
-
-/// Shock wave 81's rows.
-pub static WAVE3: std::sync::LazyLock<&'static [f32]> = std::sync::LazyLock::new(|| shared().wave3);
-
-/// Its turns.
-pub static WAVE3_TURN: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().wave3_turn);
-
-/// The cure's rows A-D.
-pub static CURE_A: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().cure_a);
-
-/// Row B.
-pub static CURE_B: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().cure_b);
-
-/// Row C.
-pub static CURE_C: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().cure_c);
-
-/// Row D.
-pub static CURE_D: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().cure_d);
-
-/// `tableAbilityUpS1-4`.
-pub static ABILITY_UP: std::sync::LazyLock<&'static [&'static [i32]]> =
-    std::sync::LazyLock::new(|| shared().ability_up);
-
-/// `tableAbilityDownS1-3`.
-pub static ABILITY_DOWN: std::sync::LazyLock<&'static [&'static [i32]]> =
-    std::sync::LazyLock::new(|| shared().ability_down);
-
-/// `g_eruptionGenerator`.
-pub static BOSS_ERUPTION: std::sync::LazyLock<ParticleGeneratorParam> =
-    std::sync::LazyLock::new(|| shared().boss_eruption);
-
-/// `g_eruptionForceField`.
-pub static BOSS_ERUPTION_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_eruption_ff);
-
-/// `MagicSquareGenerator`.
-pub static BOSS_MAGIC_SQUARE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_magic_square);
-
-/// `MagicSquareForceField`.
-pub static BOSS_MAGIC_SQUARE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_magic_square_ff);
-
-/// `g_energyOutGenerator`.
-pub static BOSS_ENERGY_OUT: std::sync::LazyLock<ParticleGeneratorParam> =
-    std::sync::LazyLock::new(|| shared().boss_energy_out);
-
-/// `g_energyOutForceField`.
-pub static BOSS_ENERGY_OUT_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_energy_out_ff);
-
-/// `g_IceSmokeGenerator`.
-pub static BOSS_ICE_SMOKE: std::sync::LazyLock<ParticleGeneratorParam> =
-    std::sync::LazyLock::new(|| shared().boss_ice_smoke);
-
-/// `g_IceSmokeForceField`.
-pub static BOSS_ICE_SMOKE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_ice_smoke_ff);
-
-/// `BossDeadGenerator`.
-pub static BOSS_DEAD: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_dead);
-
-/// `BossDeadForceField`.
-pub static BOSS_DEAD_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_dead_ff);
-
-/// `InisFieldGenerator`: Innis's field and its skill's glow.
-pub static BOSS_INIS_FIELD: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_inis_field);
-
-/// `InisFieldForceField`.
-pub static BOSS_INIS_FIELD_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_inis_field_ff);
-
-/// `TornadoGenerator`: Innis's escape.
-pub static BOSS_TORNADO: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_tornado);
-
-/// `TornadoForceField`.
-pub static BOSS_TORNADO_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_tornado_ff);
-
-/// `BurstGenerator`: Innis's fall and its images' bursts.
-pub static BOSS_BURST: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_burst);
-
-/// `BurstForceField`.
-pub static BOSS_BURST_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_burst_ff);
-
-/// `MissileSmokeGenerator`: the missiles' trails.
-pub static BOSS_MISSILE_SMOKE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_missile_smoke);
-
-/// `MissileSmokeForceField`.
-pub static BOSS_MISSILE_SMOKE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_missile_smoke_ff);
-
-/// `BurstSmokeGenerator`: the missiles' landings.
-pub static BOSS_BURST_SMOKE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_burst_smoke);
-
-/// `BurstSmokeForceField`.
-pub static BOSS_BURST_SMOKE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_burst_smoke_ff);
-
-/// `KyviaGeneratorForceField`.
-pub static BOSS_KYVIA_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_kyvia_ff);
-
-/// `KyviaDmgGenerator`: the body's hurt smoke.
-pub static BOSS_KYVIA_DMG: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_kyvia_dmg);
-
-/// `KyviaDmgGeneratorForceField`.
-pub static BOSS_KYVIA_DMG_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_kyvia_dmg_ff);
-
-/// `CoreGenerator`: Kyvia's core, its auras and its death.
-pub static BOSS_CORE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_core);
-
-/// `CoreGeneratorForceField`.
-pub static BOSS_CORE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_core_ff);
-
-/// `GomoraGenerator`: a gomora's coming, attacks and death.
-pub static BOSS_GOMORA: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_gomora);
-
-/// `GomoraGeneratorForceField`.
-pub static BOSS_GOMORA_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_gomora_ff);
-
-/// `GomoraAuraGenerator`: a gomora's aura by level, then its attack's by attribute.
-pub static BOSS_GOMORA_AURA: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_gomora_aura);
-
-/// `GomoraAuraGeneratorForceField`.
-pub static BOSS_GOMORA_AURA_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_gomora_aura_ff);
-
-/// `g_thunderGenerator`: Magus's laser's thunder.
-pub static BOSS_THUNDER: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_thunder);
-
-/// `g_thunderForceField`.
-pub static BOSS_THUNDER_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_thunder_ff);
-
-/// `g_energyChargeGenerator`: the charge of Magus's leaves as they grow.
-pub static BOSS_ENERGY_CHARGE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_energy_charge);
-
-/// `g_energyChargeForceField`.
-pub static BOSS_ENERGY_CHARGE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_energy_charge_ff);
-
-/// `g_leafMarkerGen`: a leaf's marker.
-pub static BOSS_LEAF_MARKER: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_leaf_marker);
-
-/// `g_leafMarkerFF`.
-pub static BOSS_LEAF_MARKER_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_leaf_marker_ff);
-
-/// `g_leafDeadGen`: a dying leaf's smoke.
-pub static BOSS_LEAF_DEAD: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_leaf_dead);
-
-/// `g_leafDeadFF`.
-pub static BOSS_LEAF_DEAD_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_leaf_dead_ff);
-
-/// `g_seedShotSmokeGen`: Corbenik's seeds thrown.
-pub static BOSS_SEED_SHOT_SMOKE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_seed_shot_smoke);
-
-/// `g_seedShotSmokeFF`.
-pub static BOSS_SEED_SHOT_SMOKE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_seed_shot_smoke_ff);
-
-/// `g_transEffGen`: Tarvos's transfer.
-pub static BOSS_TRANS_EFF: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_trans_eff);
-
-/// `g_transEffFF`.
-pub static BOSS_TRANS_EFF_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_trans_eff_ff);
-
-/// `g_phantomGen`: the phantom's lights, circling then thrown out.
-pub static BOSS_PHANTOM: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_phantom);
-
-/// `g_phantomFF`.
-pub static BOSS_PHANTOM_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_phantom_ff);
-
-/// `g_seedShotSmokeGen`: Corbenik's seeds thrown.
-pub static BOSS_SEED_SHOT: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_seed_shot);
-
-/// `g_seedShotSmokeFF`.
-pub static BOSS_SEED_SHOT_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_seed_shot_ff);
-
-/// `g_rootDrainGen`: the second form's root drain, in four turns.
-pub static BOSS_ROOT_DRAIN: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_root_drain);
-
-/// `g_rootDrainFF`.
-pub static BOSS_ROOT_DRAIN_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_root_drain_ff);
-
-/// `g_transformGen`: the barrier's transform.
-pub static BOSS_TRANSFORM: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_transform);
-
-/// `g_transformFF`.
-pub static BOSS_TRANSFORM_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_transform_ff);
-
-/// `g_generateEyeGen`: where the killer eyes are born.
-pub static BOSS_GENERATE_EYE: std::sync::LazyLock<&'static [ParticleGeneratorParam]> =
-    std::sync::LazyLock::new(|| shared().boss_generate_eye);
-
-/// `g_generateEyeFF`.
-pub static BOSS_GENERATE_EYE_FF: std::sync::LazyLock<&'static [ParticleForceFieldParam]> =
-    std::sync::LazyLock::new(|| shared().boss_generate_eye_ff);
-
-/// The volume's Effect (read once a run; kept here per volume).
+/// The volume's Effect (read once a run).
 pub fn of(v: Volume) -> &'static Effect {
-    static READ: [std::sync::OnceLock<&'static Effect>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "effect"))
+    <Effect as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Effect {
-    static READ: std::sync::OnceLock<&'static Effect> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("effect"))
+pub fn shared() -> &'static Effect {
+    <Effect as crate::store::Table>::shared()
 }

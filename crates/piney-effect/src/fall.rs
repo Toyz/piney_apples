@@ -58,21 +58,21 @@ impl FallTables {
     /// The volume's (`tables::effect`).
     pub fn read(volume: Volume) -> FallTables {
         let t = piney_data::tables::effect::of(volume);
-        let e: [i16; 12] = first(t.fall_et());
+        let e: [i16; 12] = first(t.fall_et);
         FallTables {
-            level_tbl: first(t.fall_level()),
-            delay: first(t.fall_delay()),
+            level_tbl: first(t.fall_level),
+            delay: first(t.fall_delay),
             et: [[e[0], e[1], e[2]], [e[3], e[4], e[5]], [e[6], e[7], e[8]], [e[9], e[10], e[11]]],
-            skill_thunder_eff: ThunderData::of(&t.thunder_eff()),
-            elements: first(t.fall_elements()),
-            dark_scale: bits(t.fall_dark_scale()),
-            hits: first(t.fall_hits()),
-            bolts: first(t.fall_bolts()),
-            bolt_hits: first(t.fall_bolt_hits()),
-            thunder_gen: GenParam::other(t.element_generators(), t.element_generators_va(), 2),
+            skill_thunder_eff: ThunderData::of(&t.thunder_eff),
+            elements: first(t.fall_elements),
+            dark_scale: bits(t.fall_dark_scale),
+            hits: first(t.fall_hits),
+            bolts: first(t.fall_bolts),
+            bolt_hits: first(t.fall_bolt_hits),
+            thunder_gen: GenParam::other(t.element_generators, t.element_generators_va, 2),
             thunder_ff: [
-                FfParam::row(t.element_ffs(), t.element_ffs_va(), 9),
-                FfParam::row(t.element_ffs(), t.element_ffs_va(), 8),
+                FfParam::row(t.element_ffs, t.element_ffs_va, 9),
+                FfParam::row(t.element_ffs, t.element_ffs_va, 8),
             ],
         }
     }

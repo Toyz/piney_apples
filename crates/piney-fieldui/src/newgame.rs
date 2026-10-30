@@ -147,7 +147,7 @@ pub fn setup_new_game(state: &mut SaveState, disc: &mut piney_data::iso::Iso) ->
     let volume = disc.volume()?;
     let t = Tables::of(volume);
     let raw = EquipRaw::of(volume, &t);
-    let order = piney_data::tables::fieldui::of(volume).category_order();
+    let order = piney_data::tables::fieldui::of(volume).category_order;
     let order: CategoryOrder = std::array::from_fn(|k| (order[k][0], order[k][1]));
     setup_new_game_with(state, volume, &t, &raw, &order);
     Ok(())

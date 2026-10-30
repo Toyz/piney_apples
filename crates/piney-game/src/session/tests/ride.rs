@@ -421,7 +421,7 @@ fn outbreaks_grunty_leads_kite_to_the_dungeon() {
     let kind = area(&s).world().combat().ride.obj.as_ref().unwrap().ride.kind;
     assert_eq!(kind, 2 * server + 1 - 2);
     let t = piney_data::tables::combat::of(piney_data::volume::Volume::Out);
-    assert_eq!(t.ride_seek_types()[kind as usize], 1, "a dungeon Grunty");
+    assert_eq!(t.ride_seek_types[kind as usize], 1, "a dungeon Grunty");
     let dungeon = match area(&s).world().place() {
         Place::Field(f) => f.dungeon_pos().expect("the entrance").map(f32::from_bits),
         _ => panic!("not a field"),
@@ -432,7 +432,7 @@ fn outbreaks_grunty_leads_kite_to_the_dungeon() {
     let (seek, lead, target, balloon) = seek_look(&s);
     assert!(seek && lead == 40, "{seek} {lead}");
     assert!(dist(target, [dungeon[0], dungeon[1], 0.0]) < 0.01, "{target:?} {dungeon:?}");
-    assert_eq!(balloon.as_deref(), Some(t.ride_seek_found()[kind as usize].as_bytes()));
+    assert_eq!(balloon.as_deref(), Some(t.ride_seek_found[kind as usize].as_bytes()));
     let mut near = None;
     for f in 0..3000 {
         pad.read(&raw(Buttons::NONE, 128));
@@ -447,7 +447,7 @@ fn outbreaks_grunty_leads_kite_to_the_dungeon() {
         }
     }
     let (f, balloon) = near.expect("the Grunty never got there");
-    assert_eq!(balloon.as_deref(), Some(t.ride_seek_near()[kind as usize].as_bytes()), "frame {f}");
+    assert_eq!(balloon.as_deref(), Some(t.ride_seek_near[kind as usize].as_bytes()), "frame {f}");
     let at = look(&s).ride_pos;
     if std::env::var("RIDE_DEBUG").is_ok() {
         eprintln!(

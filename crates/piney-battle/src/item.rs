@@ -856,7 +856,7 @@ pub type CategoryOrder = [(i16, i16); 15];
 
 /// The volume's `addItemCategoryTbl` (`tables::fieldui`).
 pub fn category_order(volume: piney_data::volume::Volume) -> CategoryOrder {
-    let t = piney_data::tables::fieldui::of(volume).category_order();
+    let t = piney_data::tables::fieldui::of(volume).category_order;
     std::array::from_fn(|k| t.get(k).map_or((0, 0), |r| (r[0], r[1])))
 }
 

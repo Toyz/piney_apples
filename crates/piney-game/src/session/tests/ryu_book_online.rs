@@ -83,7 +83,7 @@ fn a_walking_pc_in_town_is_online_in_ryu_book_iii() {
     assert_eq!(b.now as usize, row_of(pc), "the sub-window open on the PC");
     assert_eq!(b.char_data[row_of(pc)].is_online, 1, "the PC ({pc}) in town");
     assert_eq!(b.char_data[row_of(away)].is_online, 0, "the person ({away}) not in town");
-    let on_line = encode(piney_data::tables::book::of(Volume::Inf).on_line());
+    let on_line = encode(piney_data::tables::book::of(Volume::Inf).on_line);
     let drawn = menus(&s)
         .unwrap()
         .draws()

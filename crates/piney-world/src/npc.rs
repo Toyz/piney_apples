@@ -45,7 +45,7 @@ pub struct NpcRow {
 impl NpcRow {
     /// Row `row` of the volume's `npcTbl` (`tables::battle`).
     pub fn of(volume: Volume, row: usize) -> Result<NpcRow> {
-        let t = battle::of(volume).npcs().get(row).ok_or_else(|| Error::NotFound(format!("npcTbl row {row}")))?;
+        let t = battle::of(volume).npcs.get(row).ok_or_else(|| Error::NotFound(format!("npcTbl row {row}")))?;
         let (b, e) = (&t.param.base, &t.entry);
         let text = |s: Option<&str>| s.unwrap_or_default().to_owned();
         Ok(NpcRow {
@@ -69,7 +69,7 @@ impl NpcRow {
 
     /// Every row.
     pub fn all(volume: Volume) -> Result<Vec<NpcRow>> {
-        (0..battle::of(volume).npcs().len()).map(|r| NpcRow::of(volume, r)).collect()
+        (0..battle::of(volume).npcs.len()).map(|r| NpcRow::of(volume, r)).collect()
     }
 
     /// The file's DATA.BIN stem: "CTR1.CCS" -> "ctr1".

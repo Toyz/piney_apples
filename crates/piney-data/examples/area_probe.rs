@@ -10,6 +10,7 @@ use std::io::{BufRead, Write};
 
 use piney_data::area::{self, AreaCode, AreaTables, EvArea};
 use piney_data::iso::Iso;
+use piney_data::store::Table;
 
 fn code_json(t: &AreaTables, r: &AreaCode, crisis: bool) -> String {
     let a = r.attrs;

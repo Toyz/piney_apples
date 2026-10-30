@@ -9,11 +9,10 @@
 
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::OnceLock;
 
 use crate::archive::Archive;
 use crate::ccs::{self, Ccs};
-use crate::store::{Load, Reader};
+use crate::store::{Load, Reader, Table};
 use crate::volume::Volume;
 use crate::{Bytes, Result, format_err};
 
@@ -25,8 +24,11 @@ mod story;
 /// The volume's dungeon tables (the build's `PINEY/TABLES/dungeon.bin`,
 /// read once a run).
 pub fn tables_of(v: Volume) -> &'static Tables {
-    static READ: [OnceLock<&'static Tables>; 4] = [const { OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "dungeon"))
+    Tables::of(v)
+}
+
+impl Table for Tables {
+    const ID: usize = crate::tables::id::DUNGEON;
 }
 
 pub use random::{

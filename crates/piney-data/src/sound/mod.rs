@@ -16,15 +16,18 @@ pub use hd::{Hd, Program, Sample, SampleSet, Split, Vag};
 pub use sq::Sq;
 
 use crate::iso::Iso;
-use crate::store::{Load, Reader};
+use crate::store::{Load, Reader, Table};
 use crate::volume::Volume;
 use crate::{Result, format_err};
 
 /// The volume's sound tables (the build's `PINEY/TABLES/sound.bin`, read
 /// once a run).
 pub fn tables_of(v: Volume) -> &'static Tables {
-    static READ: [std::sync::OnceLock<&'static Tables>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "sound"))
+    Tables::of(v)
+}
+
+impl Table for Tables {
+    const ID: usize = crate::tables::id::SOUND;
 }
 
 // Read from the build's file, field by field (`piney_gen::placement::sound`

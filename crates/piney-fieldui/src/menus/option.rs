@@ -78,25 +78,25 @@ impl OptionTexts {
         let f = piney_data::tables::fieldui::of(volume);
         let two = |l: &[&str]| [piece(l, 0), piece(l, 1)];
         let pair = |l: &[&[&str]]| [two(l[0]), two(l[1])];
-        let help = d.help();
+        let help = d.help;
         OptionTexts {
-            ctrl: slots(d.ctrl()),
-            ctrl_btn: slots(d.ctrl_btn()),
-            ctrl_mov: slots(d.ctrl_mov()),
-            ctrl_cam: slots(d.ctrl_cam()),
+            ctrl: slots(d.ctrl),
+            ctrl_btn: slots(d.ctrl_btn),
+            ctrl_mov: slots(d.ctrl_mov),
+            ctrl_cam: slots(d.ctrl_cam),
             ctrl_help: [two(help[0]), two(help[1]), two(help[2]), two(help[3])],
-            sound: slots(d.sound()),
-            on_off: slots(d.on_off()),
-            voice: slots(d.voice()),
-            vibration_info: pair(d.vibration_info()),
-            drain_demo_info: pair(f.drain_demo_info()),
-            voice_info: pair(d.voice_info()),
-            strwin_info: pair(d.strwin_info()),
-            reset_info: encode(d.reset_info()),
-            reset_confirm: two(d.reset_info2()),
-            screen_labels: [encode(d.screen_x()), encode(d.screen_y())],
-            control_file: f.control_file().to_string(),
-            control_tex: f.control_tex().to_string(),
+            sound: slots(d.sound),
+            on_off: slots(d.on_off),
+            voice: slots(d.voice),
+            vibration_info: pair(d.vibration_info),
+            drain_demo_info: pair(f.drain_demo_info),
+            voice_info: pair(d.voice_info),
+            strwin_info: pair(d.strwin_info),
+            reset_info: encode(d.reset_info),
+            reset_confirm: two(d.reset_info2),
+            screen_labels: [encode(d.screen_x), encode(d.screen_y)],
+            control_file: f.control_file.to_string(),
+            control_tex: f.control_tex.to_string(),
         }
     }
 }

@@ -37,7 +37,7 @@ pub fn marker_dummy_in(
     if !(0..MARKERS).contains(&n) {
         return None;
     }
-    let name = piney_data::tables::world::of(volume).markers().get(n as usize)?.to_string();
+    let name = piney_data::tables::world::of(volume).markers.get(n as usize)?.to_string();
     dummy_in(file, &name)
 }
 
@@ -94,7 +94,7 @@ impl World {
     /// wrote into the dummy this visit if it did.
     pub fn marker_dummy(&self, n: i16) -> Option<(V4, V4)> {
         let (pos, rot) = marker_dummy_in(&self.town.base.file, self.volume, n)?;
-        let name = piney_data::tables::world::of(self.volume).markers().get(n as usize).copied();
+        let name = piney_data::tables::world::of(self.volume).markers.get(n as usize).copied();
         let written = self.town.base.written.iter().find(|(d, _)| Some(d.as_str()) == name).map(|&(_, r)| r);
         Some((pos, written.unwrap_or(rot)))
     }

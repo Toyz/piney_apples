@@ -64,10 +64,10 @@ impl Texts {
         use piney_data::tables::sjis::encode;
         let f = piney_data::tables::fieldui::of(volume);
         Texts {
-            help: f.trade_help().iter().map(|l| [piece(l, 0), piece(l, 1), piece(l, 2)]).collect(),
-            present: f.present_help().iter().map(|l| piece(l, 0)).collect(),
-            menu_str: encode(f.trade_menu_str()),
-            get_item: piece(f.get_item_str(), 0),
+            help: f.trade_help.iter().map(|l| [piece(l, 0), piece(l, 1), piece(l, 2)]).collect(),
+            present: f.present_help.iter().map(|l| piece(l, 0)).collect(),
+            menu_str: encode(f.trade_menu_str),
+            get_item: piece(f.get_item_str, 0),
             green: STR_GREEN.to_vec(),
             bang: STR_BANG.to_vec(),
             dot: STR_DOT.to_vec(),
@@ -186,7 +186,7 @@ fn save_item_at(x: &Ctx, at: i64) -> Item {
 /// Item `slot` of a trading PC's trade `k` (`tpcTradeList[row][k]`: what
 /// it gives, then the three it wants); none past the table.
 fn tpc_item(x: &Ctx, row: usize, k: i32, slot: i32) -> Item {
-    let tpc = piney_data::tables::newgame::of(x.texts.volume).tpc_trade();
+    let tpc = piney_data::tables::newgame::of(x.texts.volume).tpc_trade;
     let it =
         tpc.get(row).and_then(|t| t.get(usize::try_from(k).ok()?)).and_then(|t| t.get(usize::try_from(slot).ok()?));
     it.map_or(Item::NONE, |i| Item { id: i.id, cat: i.category, num: i.num })
@@ -326,7 +326,7 @@ fn values(x: &Ctx, t: &Trader, d: &[i32; 17], n: &[i32; 8]) -> (i32, [i32; 3]) {
     }
     let mut r = [10i32; 4];
     if t.types & 4 != 0 {
-        let rates = piney_data::tables::fieldui::of(x.texts.volume).spc_trade_rate();
+        let rates = piney_data::tables::fieldui::of(x.texts.volume).spc_trade_rate;
         let row = usize::try_from(t.id - 1).ok().and_then(|i| rates.get(i));
         for k in 0..4 {
             r[k] = trade_rate(x, row, d[k]);
@@ -337,7 +337,7 @@ fn values(x: &Ctx, t: &Trader, d: &[i32; 17], n: &[i32; 8]) -> (i32, [i32; 3]) {
             *v += b;
         }
     } else if t.types & 0x0200_0018 != 0 {
-        let rates = piney_data::tables::fieldui::of(x.texts.volume).npc_trade_rate();
+        let rates = piney_data::tables::fieldui::of(x.texts.volume).npc_trade_rate;
         let row = usize::try_from(npc_row(t.id)).ok().and_then(|i| rates.get(i));
         for k in 0..4 {
             r[k] = trade_rate(x, row, d[k]);

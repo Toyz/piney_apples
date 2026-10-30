@@ -26,7 +26,7 @@ pub struct LoadDisp {
     pub card: &'static [TownCard],
     /// `serverNameTbl` (0x00311770): the server's symbol (Shift-JIS).
     pub symbol: &'static [&'static str],
-    /// "Server" (0x00353f98), after the symbol.
+    /// "Server" (0x00353f98), after the symbol. Alike on every volume.
     pub server: &'static str,
 }
 
@@ -40,14 +40,9 @@ impl crate::store::Load for LoadDisp {
     }
 }
 
-impl LoadDisp {
-    pub fn server(&self) -> &'static str {
-        self.server
-    }
+impl crate::store::Table for LoadDisp {
+    const ID: usize = super::id::LOADDISP;
 }
-
-/// "Server" (0x00353f98), after the symbol.
-pub static SERVER: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().server);
 
 impl Town {
     /// `townNameTbl` (main 0x00311730): the town's loading card.
@@ -77,15 +72,12 @@ impl Server {
     }
 }
 
-/// The volume's LoadDisp (read once a run; kept here per volume).
+/// The volume's LoadDisp (read once a run).
 pub fn of(v: Volume) -> &'static LoadDisp {
-    static READ: [std::sync::OnceLock<&'static LoadDisp>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "loaddisp"))
+    <LoadDisp as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static LoadDisp {
-    static READ: std::sync::OnceLock<&'static LoadDisp> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("loaddisp"))
+pub fn shared() -> &'static LoadDisp {
+    <LoadDisp as crate::store::Table>::shared()
 }

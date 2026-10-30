@@ -31,6 +31,7 @@ use crate::area_host::{self, AreaHost};
 use crate::field_host::{FieldState, MENU_LAYER};
 use crate::mode::{Event, Mode};
 use crate::world::Setup;
+use piney_data::store::Table;
 
 mod ride;
 

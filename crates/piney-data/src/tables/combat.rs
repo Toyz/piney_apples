@@ -85,29 +85,29 @@ impl crate::store::Load for DustInfos {
 /// The `combat` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct Combat {
-    /// `playerAnimTbl` (`char[26][21]`): Kite's clip for each act.
+    /// `playerAnimTbl` (`char[26][21]`): Kite's clip for each act. Alike on every volume.
     pub player_anims: &'static [&'static str],
-    /// `DamActuTbl`: the pad's rumble for a light, medium and heavy hit.
+    /// `DamActuTbl`: the pad's rumble for a light, medium and heavy hit. Alike on every volume.
     pub dam_actu: &'static [i16],
-    /// `tsp`: Kite's walking speed a frame.
+    /// `tsp`: Kite's walking speed a frame. Alike on every volume.
     pub tsp: f32,
-    /// `fellowAnimTbl` (one per `fellowNN.cpp`, 0x60 apart): the 22 clips of `charTbl` rows 1-17.
+    /// `fellowAnimTbl` (one per `fellowNN.cpp`, 0x60 apart): the 22 clips of `charTbl` rows 1-17. Alike on every volume.
     pub fellow_anims: &'static [[&'static str; 22]],
-    /// `fpAngleOffset[4]`.
+    /// `fpAngleOffset[4]`. Alike on every volume.
     pub fp_angle_offset: &'static [u16],
     /// The halfword before `fpAngleOffset`, which `checkPartyMenberNum` -1 indexes.
     pub fp_angle_before: u16,
-    /// `fpOkRange`: how near a member keeps.
+    /// `fpOkRange`: how near a member keeps. Alike on every volume.
     pub fp_ok_range: f32,
-    /// `CFOFP`.
+    /// `CFOFP`. Alike on every volume.
     pub cfofp: f32,
-    /// `puccigusoAnimTbl`: Kite's clips on the Grunty.
+    /// `puccigusoAnimTbl`: Kite's clips on the Grunty. Alike on every volume.
     pub ride_anims: &'static [&'static str],
-    /// `puccigusoAnimTblPG`: the Grunty's own.
+    /// `puccigusoAnimTblPG`: the Grunty's own. Alike on every volume.
     pub ride_anims_pg: &'static [&'static str],
-    /// `puccigusoCharTbl`: the Grunty's model file by kind.
+    /// `puccigusoCharTbl`: the Grunty's model file by kind. Alike on every volume.
     pub ride_files: &'static [&'static str],
-    /// `puccigusoAngleTbl`.
+    /// `puccigusoAngleTbl`. Alike on every volume.
     pub ride_angles: &'static [i16],
     /// The ride's search by kind: 0 foods, 1 the dungeon, 2 portals (MUT 0x0061d180).
     pub ride_seek_types: &'static [i32],
@@ -121,49 +121,49 @@ pub struct Combat {
     pub ride_seek_cancel: &'static [&'static str],
     /// When it is there (0x00684be0).
     pub ride_seek_near: &'static [&'static str],
-    /// Skeith's act tables (normal, super, Epitaph): each to its -1 and the word past it.
+    /// Skeith's act tables (normal, super, Epitaph): each to its -1 and the word past it. Alike on every volume.
     pub skeith_acts: &'static [&'static [i32]],
-    /// `Boss01AnmTbl`: Skeith's clip by act, none for some.
+    /// `Boss01AnmTbl`: Skeith's clip by act, none for some. Alike on every volume.
     pub skeith_anims: &'static [Option<&'static str>],
-    /// The skills Skeith picks from at random.
+    /// The skills Skeith picks from at random. Alike on every volume.
     pub skeith_rand_skills: &'static [i32],
-    /// `Pattern`: Innis's action words, three runs by protect gauge, each ended by a 29.
+    /// `Pattern`: Innis's action words, three runs by protect gauge, each ended by a 29. Alike on every volume.
     pub innis_pattern: &'static [i32],
-    /// `EPITAPH_Pattern`: Innis's words once drained.
+    /// `EPITAPH_Pattern`: Innis's words once drained. Alike on every volume.
     pub innis_epitaph: &'static [i32],
-    /// `boss02AnmTbl`: Innis's clip by act.
+    /// `boss02AnmTbl`: Innis's clip by act. Alike on every volume.
     pub innis_anims: &'static [Option<&'static str>],
-    /// `Skill_VARIOUS_INIS`: the skills Innis picks from in its first mode.
+    /// `Skill_VARIOUS_INIS`: the skills Innis picks from in its first mode. Alike on every volume.
     pub innis_various_skills: &'static [i16],
-    /// `Skill_DOWNER_INIS`: the skills Innis picks from in its second.
+    /// `Skill_DOWNER_INIS`: the skills Innis picks from in its second. Alike on every volume.
     pub innis_downer_skills: &'static [i16],
-    /// `Mon1`-`Mon3`: the clips of the three images Innis sends out, by act.
+    /// `Mon1`-`Mon3`: the clips of the three images Innis sends out, by act. Alike on every volume.
     pub innis_monster_anims: &'static [[Option<&'static str>; 15]],
-    /// `EnemyBurst`'s rings' model (`particle` clump) by image.
+    /// `EnemyBurst`'s rings' model (`particle` clump) by image. Alike on every volume.
     pub innis_ring_models: &'static [i32],
-    /// `Kyvia01AnmTbl`: Kyvia's clip by act in its first fight.
+    /// `Kyvia01AnmTbl`: Kyvia's clip by act in its first fight. Alike on every volume.
     pub kyvia01_anims: &'static [Option<&'static str>],
-    /// `Kyvia02AnmTbl`: Kyvia's clip by act in its second fight.
+    /// `Kyvia02AnmTbl`: Kyvia's clip by act in its second fight. Alike on every volume.
     pub kyvia02_anims: &'static [Option<&'static str>],
-    /// `Kyvia03AnmTbl`: Kyvia's clip by act in its third fight.
+    /// `Kyvia03AnmTbl`: Kyvia's clip by act in its third fight. Alike on every volume.
     pub kyvia03_anims: &'static [Option<&'static str>],
     /// `Kyvia04AnmTbl`: Kyvia's clip by act in its fourth fight (25 from Mutation: the rebirth's act 24).
     pub kyvia04_anims: &'static [Option<&'static str>],
     /// `Kyvia04AnmTbl_EX`: those of its EX mode (25 from Mutation: act 24's `ANM_ex04dmg0`).
     pub kyvia04_anims_ex: &'static [Option<&'static str>],
-    /// `Skill_KYVIA_VARIOUS`: the spells Kyvia's fourth fight picks from.
+    /// `Skill_KYVIA_VARIOUS`: the spells Kyvia's fourth fight picks from. Alike on every volume.
     pub kyvia_skills_various: &'static [i16],
-    /// `kyviaCoreAnmTbl`: the core's clip by act.
+    /// `kyviaCoreAnmTbl`: the core's clip by act. Alike on every volume.
     pub kyvia_core_anims: &'static [Option<&'static str>],
-    /// `kyviaGomoraAnmTbl`: a gomora's clip by act.
+    /// `kyviaGomoraAnmTbl`: a gomora's clip by act. Alike on every volume.
     pub kyvia_gomora_anims: &'static [Option<&'static str>],
-    /// `Skill_VARIOUS`: the spells a gomora of attribute 1 picks from.
+    /// `Skill_VARIOUS`: the spells a gomora of attribute 1 picks from. Alike on every volume.
     pub kyvia_various_skills: &'static [i16],
-    /// `Skill_DOWNER`: those of attribute 2.
+    /// `Skill_DOWNER`: those of attribute 2. Alike on every volume.
     pub kyvia_downer_skills: &'static [i16],
-    /// `AllGomoraList_1[0]`: Kyvia 01's gomora lists, each gomora's attribute (4 none) by slave.
+    /// `AllGomoraList_1[0]`: Kyvia 01's gomora lists, each gomora's attribute (4 none) by slave. Alike on every volume.
     pub kyvia_gomora_lists: &'static [&'static [i16]],
-    /// `AllGomoraList_2`: Kyvia 02's gomora lists by the core's deaths, as `kyvia_gomora_lists`.
+    /// `AllGomoraList_2`: Kyvia 02's gomora lists by the core's deaths, as `kyvia_gomora_lists`. Alike on every volume.
     pub kyvia_gomora_lists_2: &'static [&'static [&'static [i16]]],
     /// `ListStepUp`'s third level's lists by the core's deaths (Mutation on; none in Infection).
     pub kyvia_gomora_lists_3: &'static [&'static [&'static [i16]]],
@@ -171,105 +171,105 @@ pub struct Combat {
     pub kyvia_gomora_lists_4: &'static [&'static [&'static [i16]]],
     /// `boss03EpitaphActTbl`: Magus's patterns once drained, up to and with its -1.
     pub magus_epitaph: &'static [i32],
-    /// `Boss03AnmTbl`: Magus's clip by act.
+    /// `Boss03AnmTbl`: Magus's clip by act. Alike on every volume.
     pub magus_anims: &'static [Option<&'static str>],
-    /// `Boss03SlaveAnmTbl`: a leaf's clip by act.
+    /// `Boss03SlaveAnmTbl`: a leaf's clip by act. Alike on every volume.
     pub magus_leaf_anims: &'static [Option<&'static str>],
-    /// `@1538`: pattern 10's skills, one by `ccRand() % 3`.
+    /// `@1538`: pattern 10's skills, one by `ccRand() % 3`. Alike on every volume.
     pub magus_skills: &'static [i32],
-    /// `@2301`: the skills `OnThinkLeafDrop` casts as its sixth leaf falls.
+    /// `@2301`: the skills `OnThinkLeafDrop` casts as its sixth leaf falls. Alike on every volume.
     pub magus_drop_skills: &'static [i32],
     /// `boss04NormalActTbl`: Fidchell's patterns, up to and with its -1.
     pub fidchell_normal: &'static [i32],
     /// `boss04SuperActTbl`: Fidchell's once its gauge is half full.
     pub fidchell_super: &'static [i32],
-    /// `boss04EpitaphActTbl`: Fidchell's once drained.
+    /// `boss04EpitaphActTbl`: Fidchell's once drained. Alike on every volume.
     pub fidchell_epitaph: &'static [i32],
-    /// `boss0xAnmTbl`: Fidchell's clip by act.
+    /// `boss0xAnmTbl`: Fidchell's clip by act. Alike on every volume.
     pub fidchell_anims: &'static [Option<&'static str>],
-    /// `@1038`: the prediction's text clip (x41) by `m_predId`.
+    /// `@1038`: the prediction's text clip (x41) by `m_predId`. Alike on every volume.
     pub fidchell_pred_texts: &'static [Option<&'static str>],
-    /// `@1039`: the prediction's voice (`ccEvVoiceRequest(-40, n)`) by `m_predId`.
+    /// `@1039`: the prediction's voice (`ccEvVoiceRequest(-40, n)`) by `m_predId`. Alike on every volume.
     pub fidchell_pred_voices: &'static [i32],
-    /// `@1272`: pattern 10's skills (read, never used).
+    /// `@1272`: pattern 10's skills (read, never used). Alike on every volume.
     pub fidchell_rand_skills: &'static [i32],
-    /// `@1441`: the skill the prediction lays on each member, by `m_predId`.
+    /// `@1441`: the skill the prediction lays on each member, by `m_predId`. Alike on every volume.
     pub fidchell_pred_skills: &'static [i32],
-    /// `@2048`: `OnThinkSkill`'s skills, one by `ccRand() % 3`.
+    /// `@2048`: `OnThinkSkill`'s skills, one by `ccRand() % 3`. Alike on every volume.
     pub fidchell_skills: &'static [i32],
-    /// `@2081`: `OnThinkMagic`'s spells, by `ccSys.count & 3`.
+    /// `@2081`: `OnThinkMagic`'s spells, by `ccSys.count & 3`. Alike on every volume.
     pub fidchell_magic_skills: &'static [i32],
-    /// `Boss05AnmTbl`: Gorre's clip by act.
+    /// `Boss05AnmTbl`: Gorre's clip by act. Alike on every volume.
     pub gorre_anims: &'static [Option<&'static str>],
-    /// `boss05SlaveAnmTbl1`: the first brother's clip by act.
+    /// `boss05SlaveAnmTbl1`: the first brother's clip by act. Alike on every volume.
     pub gorre_brother_anims: &'static [Option<&'static str>],
-    /// `boss05SlaveAnmTbl2`: the second brother's clip by act.
+    /// `boss05SlaveAnmTbl2`: the second brother's clip by act. Alike on every volume.
     pub gorre_brother2_anims: &'static [Option<&'static str>],
-    /// `boss05NormalActTbl`: Gorre's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too).
+    /// `boss05NormalActTbl`: Gorre's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too). Alike on every volume.
     pub gorre_normal: &'static [i32],
     /// `boss05SuperActTbl`: Gorre's once its gauge is half full, through its closing -1 (Outbreak's runs 4 words past Infection's).
     pub gorre_super: &'static [i32],
-    /// `boss05EpitaphActTbl`: Gorre's once drained, through its closing -1.
+    /// `boss05EpitaphActTbl`: Gorre's once drained, through its closing -1. Alike on every volume.
     pub gorre_epitaph: &'static [i32],
-    /// `@1672`: `OnThinkMagic`'s spells, one by `abs(ccRand()) & 3`, cast by the second brother.
+    /// `@1672`: `OnThinkMagic`'s spells, one by `abs(ccRand()) & 3`, cast by the second brother. Alike on every volume.
     pub gorre_magic_skills: &'static [i32],
-    /// `@1777`: `OnThinkSkill`'s spells, one by `ccRand() & 3` (157 and 158 the first brother's, 159 and 160 the second's).
+    /// `@1777`: `OnThinkSkill`'s spells, one by `ccRand() & 3` (157 and 158 the first brother's, 159 and 160 the second's). Alike on every volume.
     pub gorre_skills: &'static [i32],
-    /// `@2074`: `SendMessage`'s msg 7, the brother's spell in the Tornade, one by `ccRand() & 3`.
+    /// `@2074`: `SendMessage`'s msg 7, the brother's spell in the Tornade, one by `ccRand() & 3`. Alike on every volume.
     pub gorre_tornade_skills: &'static [i32],
-    /// `BOSS06AnmTbl`: Macha's clip by act.
+    /// `BOSS06AnmTbl`: Macha's clip by act. Alike on every volume.
     pub macha_anims: &'static [Option<&'static str>],
-    /// `boss06NormalActTbl`: Macha's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too).
+    /// `boss06NormalActTbl`: Macha's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too). Alike on every volume.
     pub macha_normal: &'static [i32],
-    /// `boss06ExpertActTbl`: Macha's once its gauge is half full, through its closing -1.
+    /// `boss06ExpertActTbl`: Macha's once its gauge is half full, through its closing -1. Alike on every volume.
     pub macha_expert: &'static [i32],
-    /// `boss6EpitaphActTbl`: Macha's once drained, through its closing -1.
+    /// `boss6EpitaphActTbl`: Macha's once drained, through its closing -1. Alike on every volume.
     pub macha_epitaph: &'static [i32],
-    /// `@1198`: pattern 10's skills, one drawn by `ccRand() % 3` and dropped.
+    /// `@1198`: pattern 10's skills, one drawn by `ccRand() % 3` and dropped. Alike on every volume.
     pub macha_rand_skills: &'static [i32],
-    /// `@1913`: `OnThinkMagic`'s spells, by `abs(ccSys.count & 3)`.
+    /// `@1913`: `OnThinkMagic`'s spells, by `abs(ccSys.count & 3)`. Alike on every volume.
     pub macha_magic_skills: &'static [i32],
-    /// `boss0xAnmTbl` (boss07.cpp): Tarvos's clip by act.
+    /// `boss0xAnmTbl` (boss07.cpp): Tarvos's clip by act. Alike on every volume.
     pub tarvos_anims: &'static [Option<&'static str>],
-    /// `boss07NormalActTbl`: Tarvos's patterns, through the -1 that closes it.
+    /// `boss07NormalActTbl`: Tarvos's patterns, through the -1 that closes it. Alike on every volume.
     pub tarvos_normal: &'static [i32],
-    /// `boss07SuperActTbl`: Tarvos's once its gauge is half full, through its closing -1.
+    /// `boss07SuperActTbl`: Tarvos's once its gauge is half full, through its closing -1. Alike on every volume.
     pub tarvos_super: &'static [i32],
-    /// `boss07EpitaphActTbl`: Tarvos's once drained, through its closing -1.
+    /// `boss07EpitaphActTbl`: Tarvos's once drained, through its closing -1. Alike on every volume.
     pub tarvos_epitaph: &'static [i32],
-    /// `@1178`: pattern 10's skills, one drawn by `ccRand() % 3` and dropped.
+    /// `@1178`: pattern 10's skills, one drawn by `ccRand() % 3` and dropped. Alike on every volume.
     pub tarvos_rand_skills: &'static [i32],
-    /// `@1517`: `OnThinkSkill`'s skill, one by `abs(ccRand() % 3)`.
+    /// `@1517`: `OnThinkSkill`'s skill, one by `abs(ccRand() % 3)`. Alike on every volume.
     pub tarvos_skills: &'static [i32],
-    /// `@1568`: the two words `OnThinkMagic` copies; it casts the second.
+    /// `@1568`: the two words `OnThinkMagic` copies; it casts the second. Alike on every volume.
     pub tarvos_magic_skills: &'static [i32],
-    /// `boss08AnmTbl` (boss08.cpp): Corbenik's first form's clip by act.
+    /// `boss08AnmTbl` (boss08.cpp): Corbenik's first form's clip by act. Alike on every volume.
     pub corbenik_anims: &'static [Option<&'static str>],
-    /// `boss08SeedAnmTbl`: a seed's clip by act.
+    /// `boss08SeedAnmTbl`: a seed's clip by act. Alike on every volume.
     pub corbenik_seed_anims: &'static [Option<&'static str>],
-    /// `boss08ActNormalTbl`: the first form's patterns, through the -1 that closes it.
+    /// `boss08ActNormalTbl`: the first form's patterns, through the -1 that closes it. Alike on every volume.
     pub corbenik_normal: &'static [i32],
-    /// `boss08bAnmTbl` (boss08_b.cpp): the second form's clip by act.
+    /// `boss08bAnmTbl` (boss08_b.cpp): the second form's clip by act. Alike on every volume.
     pub corbenik_b_anims: &'static [Option<&'static str>],
-    /// `boss08BNormalActTbl`: the second form's patterns, through the -1 that closes it.
+    /// `boss08BNormalActTbl`: the second form's patterns, through the -1 that closes it. Alike on every volume.
     pub corbenik_b_normal: &'static [i32],
-    /// `boss08BSuperActTbl`: its patterns from half its HP.
+    /// `boss08BSuperActTbl`: its patterns from half its HP. Alike on every volume.
     pub corbenik_b_super: &'static [i32],
-    /// `boss08RootAnmTblA`: a root's clip by act (`ccRand() & 1` set).
+    /// `boss08RootAnmTblA`: a root's clip by act (`ccRand() & 1` set). Alike on every volume.
     pub corbenik_root_anims_a: &'static [Option<&'static str>],
-    /// `boss08RootAnmTblB`: the other root's.
+    /// `boss08RootAnmTblB`: the other root's. Alike on every volume.
     pub corbenik_root_anims_b: &'static [Option<&'static str>],
-    /// `boss08DmgBarriar`: the barrier's clip as a blow lands on it.
+    /// `boss08DmgBarriar`: the barrier's clip as a blow lands on it. Alike on every volume.
     pub corbenik_dmg_barrier: &'static [Option<&'static str>],
-    /// `boss08cAnmTbl` (boss08_c.cpp): the third form's clip by act.
+    /// `boss08cAnmTbl` (boss08_c.cpp): the third form's clip by act. Alike on every volume.
     pub corbenik_c_anims: &'static [Option<&'static str>],
-    /// Infection's `boss08CNormalActTbl`, Quarantine's nameless `SetPatternMode(0)` table: the third form's first patterns.
+    /// Infection's `boss08CNormalActTbl`, Quarantine's nameless `SetPatternMode(0)` table: the third form's first patterns. Alike on every volume.
     pub corbenik_c_first: &'static [i32],
     /// Quarantine's `boss08CNormalActTbl` (`SetPatternMode(1)`'s, built after the first): the third form's patterns from half its HP.
     pub corbenik_c_normal: &'static [i32],
-    /// `boss08KillerEyeAnmTbl`: a killer eye's clip by act.
+    /// `boss08KillerEyeAnmTbl`: a killer eye's clip by act. Alike on every volume.
     pub corbenik_killer_anims: &'static [Option<&'static str>],
-    /// `boss08EyeAnmTbl`: an eye's clip by act.
+    /// `boss08EyeAnmTbl`: an eye's clip by act. Alike on every volume.
     pub corbenik_eye_anims: &'static [Option<&'static str>],
     /// `boss08KillerEyeActTbl`: the first killer eye's patterns.
     pub corbenik_killer_acts: &'static [i32],
@@ -277,17 +277,17 @@ pub struct Combat {
     pub corbenik_downner_acts: &'static [i32],
     /// `boss08RipsEyeActTbl`: the third's.
     pub corbenik_rips_acts: &'static [i32],
-    /// `@2388`: a killer eye's pattern 14 asks one of these, by `abs(ccRand() % 13)`.
+    /// `@2388`: a killer eye's pattern 14 asks one of these, by `abs(ccRand() % 13)`. Alike on every volume.
     pub corbenik_killer_skills: &'static [i32],
-    /// `@2391`: its pattern 15 compels one of these, by `abs(ccRand() % 3)`.
+    /// `@2391`: its pattern 15 compels one of these, by `abs(ccRand() % 3)`. Alike on every volume.
     pub corbenik_killer_compels: &'static [i32],
-    /// `@1714`: the killer eyes' rows a slave attack picks from, by `abs(ccRand() % 3)`.
+    /// `@1714`: the killer eyes' rows a slave attack picks from, by `abs(ccRand() % 3)`. Alike on every volume.
     pub corbenik_slave_ids: &'static [i32],
-    /// `@2448`: each killer eye's throw, in sixths of pi off its heading.
+    /// `@2448`: each killer eye's throw, in sixths of pi off its heading. Alike on every volume.
     pub corbenik_killer_turns: &'static [f32],
-    /// `@2016`: the three rings' radii the eyes take up round the laser's target.
+    /// `@2016`: the three rings' radii the eyes take up round the laser's target. Alike on every volume.
     pub corbenik_refrect_radii: &'static [f32],
-    /// `@2017`: the rings' heights (the first word unread).
+    /// `@2017`: the rings' heights (the first word unread). Alike on every volume.
     pub corbenik_refrect_heights: &'static [f32],
     /// `_g_cinemaSkillName`: `OnCinemaMode(n)`'s name, by `n`.
     pub cinema_skill_names: &'static [CinemaSkillName],
@@ -297,23 +297,23 @@ pub struct Combat {
     pub weapon_infos: &'static [WpInfos],
     /// Every `*DustInfo`: the races' dust blocks, by name.
     pub dust_infos: &'static [DustInfos],
-    /// `ehkBreathInfo`: `ccEnemyH`'s two fire breaths.
+    /// `ehkBreathInfo`: `ccEnemyH`'s two fire breaths. Alike on every volume.
     pub ehk_breath_info: &'static [EnemyBrInfo],
     /// Where the volume keeps it.
     pub ehk_breath_info_va: u32,
-    /// `elBrInfo`: `ccEnemyL`'s breaths.
+    /// `elBrInfo`: `ccEnemyL`'s breaths. Alike on every volume.
     pub el_br_info: &'static [EnemyBrInfo],
     /// Where the volume keeps it.
     pub el_br_info_va: u32,
-    /// `ehkBrParam`: the fire breath's timing and parameters.
+    /// `ehkBrParam`: the fire breath's timing and parameters. Alike on every volume.
     pub ehk_br_param: &'static [EnemyBrParam],
     /// Where the volume keeps it.
     pub ehk_br_param_va: u32,
-    /// `elBrParam`: `ccEnemyL`'s.
+    /// `elBrParam`: `ccEnemyL`'s. Alike on every volume.
     pub el_br_param: &'static [EnemyBrParam],
     /// Where the volume keeps it.
     pub el_br_param_va: u32,
-    /// `footObjTbl` (`char[4][30]`): a turtle's feet, by foot.
+    /// `footObjTbl` (`char[4][30]`): a turtle's feet, by foot. Alike on every volume.
     pub foot_objs: &'static [&'static str],
 }
 
@@ -439,690 +439,16 @@ impl crate::store::Load for Combat {
     }
 }
 
-impl Combat {
-    pub fn player_anims(&self) -> &'static [&'static str] {
-        self.player_anims
-    }
-    pub fn dam_actu(&self) -> &'static [i16] {
-        self.dam_actu
-    }
-    pub fn tsp(&self) -> f32 {
-        self.tsp
-    }
-    pub fn fellow_anims(&self) -> &'static [[&'static str; 22]] {
-        self.fellow_anims
-    }
-    pub fn fp_angle_offset(&self) -> &'static [u16] {
-        self.fp_angle_offset
-    }
-    pub fn fp_angle_before(&self) -> u16 {
-        self.fp_angle_before
-    }
-    pub fn fp_ok_range(&self) -> f32 {
-        self.fp_ok_range
-    }
-    pub fn cfofp(&self) -> f32 {
-        self.cfofp
-    }
-    pub fn ride_anims(&self) -> &'static [&'static str] {
-        self.ride_anims
-    }
-    pub fn ride_anims_pg(&self) -> &'static [&'static str] {
-        self.ride_anims_pg
-    }
-    pub fn ride_files(&self) -> &'static [&'static str] {
-        self.ride_files
-    }
-    pub fn ride_angles(&self) -> &'static [i16] {
-        self.ride_angles
-    }
-    pub fn ride_seek_types(&self) -> &'static [i32] {
-        self.ride_seek_types
-    }
-    pub fn ride_seek_ranges(&self) -> &'static [f32] {
-        self.ride_seek_ranges
-    }
-    pub fn ride_seek_found(&self) -> &'static [&'static str] {
-        self.ride_seek_found
-    }
-    pub fn ride_seek_none(&self) -> &'static [&'static str] {
-        self.ride_seek_none
-    }
-    pub fn ride_seek_cancel(&self) -> &'static [&'static str] {
-        self.ride_seek_cancel
-    }
-    pub fn ride_seek_near(&self) -> &'static [&'static str] {
-        self.ride_seek_near
-    }
-    pub fn skeith_acts(&self) -> &'static [&'static [i32]] {
-        self.skeith_acts
-    }
-    pub fn skeith_anims(&self) -> &'static [Option<&'static str>] {
-        self.skeith_anims
-    }
-    pub fn skeith_rand_skills(&self) -> &'static [i32] {
-        self.skeith_rand_skills
-    }
-    pub fn innis_pattern(&self) -> &'static [i32] {
-        self.innis_pattern
-    }
-    pub fn innis_epitaph(&self) -> &'static [i32] {
-        self.innis_epitaph
-    }
-    pub fn innis_anims(&self) -> &'static [Option<&'static str>] {
-        self.innis_anims
-    }
-    pub fn innis_various_skills(&self) -> &'static [i16] {
-        self.innis_various_skills
-    }
-    pub fn innis_downer_skills(&self) -> &'static [i16] {
-        self.innis_downer_skills
-    }
-    pub fn innis_monster_anims(&self) -> &'static [[Option<&'static str>; 15]] {
-        self.innis_monster_anims
-    }
-    pub fn innis_ring_models(&self) -> &'static [i32] {
-        self.innis_ring_models
-    }
-    pub fn kyvia01_anims(&self) -> &'static [Option<&'static str>] {
-        self.kyvia01_anims
-    }
-    pub fn kyvia02_anims(&self) -> &'static [Option<&'static str>] {
-        self.kyvia02_anims
-    }
-    pub fn kyvia03_anims(&self) -> &'static [Option<&'static str>] {
-        self.kyvia03_anims
-    }
-    pub fn kyvia04_anims(&self) -> &'static [Option<&'static str>] {
-        self.kyvia04_anims
-    }
-    pub fn kyvia04_anims_ex(&self) -> &'static [Option<&'static str>] {
-        self.kyvia04_anims_ex
-    }
-    pub fn kyvia_skills_various(&self) -> &'static [i16] {
-        self.kyvia_skills_various
-    }
-    pub fn kyvia_core_anims(&self) -> &'static [Option<&'static str>] {
-        self.kyvia_core_anims
-    }
-    pub fn kyvia_gomora_anims(&self) -> &'static [Option<&'static str>] {
-        self.kyvia_gomora_anims
-    }
-    pub fn kyvia_various_skills(&self) -> &'static [i16] {
-        self.kyvia_various_skills
-    }
-    pub fn kyvia_downer_skills(&self) -> &'static [i16] {
-        self.kyvia_downer_skills
-    }
-    pub fn kyvia_gomora_lists(&self) -> &'static [&'static [i16]] {
-        self.kyvia_gomora_lists
-    }
-    pub fn kyvia_gomora_lists_2(&self) -> &'static [&'static [&'static [i16]]] {
-        self.kyvia_gomora_lists_2
-    }
-    pub fn kyvia_gomora_lists_3(&self) -> &'static [&'static [&'static [i16]]] {
-        self.kyvia_gomora_lists_3
-    }
-    pub fn kyvia_gomora_lists_4(&self) -> &'static [&'static [&'static [i16]]] {
-        self.kyvia_gomora_lists_4
-    }
-    pub fn magus_epitaph(&self) -> &'static [i32] {
-        self.magus_epitaph
-    }
-    pub fn magus_anims(&self) -> &'static [Option<&'static str>] {
-        self.magus_anims
-    }
-    pub fn magus_leaf_anims(&self) -> &'static [Option<&'static str>] {
-        self.magus_leaf_anims
-    }
-    pub fn magus_skills(&self) -> &'static [i32] {
-        self.magus_skills
-    }
-    pub fn magus_drop_skills(&self) -> &'static [i32] {
-        self.magus_drop_skills
-    }
-    pub fn fidchell_normal(&self) -> &'static [i32] {
-        self.fidchell_normal
-    }
-    pub fn fidchell_super(&self) -> &'static [i32] {
-        self.fidchell_super
-    }
-    pub fn fidchell_epitaph(&self) -> &'static [i32] {
-        self.fidchell_epitaph
-    }
-    pub fn fidchell_anims(&self) -> &'static [Option<&'static str>] {
-        self.fidchell_anims
-    }
-    pub fn fidchell_pred_texts(&self) -> &'static [Option<&'static str>] {
-        self.fidchell_pred_texts
-    }
-    pub fn fidchell_pred_voices(&self) -> &'static [i32] {
-        self.fidchell_pred_voices
-    }
-    pub fn fidchell_rand_skills(&self) -> &'static [i32] {
-        self.fidchell_rand_skills
-    }
-    pub fn fidchell_pred_skills(&self) -> &'static [i32] {
-        self.fidchell_pred_skills
-    }
-    pub fn fidchell_skills(&self) -> &'static [i32] {
-        self.fidchell_skills
-    }
-    pub fn fidchell_magic_skills(&self) -> &'static [i32] {
-        self.fidchell_magic_skills
-    }
-    pub fn gorre_anims(&self) -> &'static [Option<&'static str>] {
-        self.gorre_anims
-    }
-    pub fn gorre_brother_anims(&self) -> &'static [Option<&'static str>] {
-        self.gorre_brother_anims
-    }
-    pub fn gorre_brother2_anims(&self) -> &'static [Option<&'static str>] {
-        self.gorre_brother2_anims
-    }
-    pub fn gorre_normal(&self) -> &'static [i32] {
-        self.gorre_normal
-    }
-    pub fn gorre_super(&self) -> &'static [i32] {
-        self.gorre_super
-    }
-    pub fn gorre_epitaph(&self) -> &'static [i32] {
-        self.gorre_epitaph
-    }
-    pub fn gorre_magic_skills(&self) -> &'static [i32] {
-        self.gorre_magic_skills
-    }
-    pub fn gorre_skills(&self) -> &'static [i32] {
-        self.gorre_skills
-    }
-    pub fn gorre_tornade_skills(&self) -> &'static [i32] {
-        self.gorre_tornade_skills
-    }
-    pub fn macha_anims(&self) -> &'static [Option<&'static str>] {
-        self.macha_anims
-    }
-    pub fn macha_normal(&self) -> &'static [i32] {
-        self.macha_normal
-    }
-    pub fn macha_expert(&self) -> &'static [i32] {
-        self.macha_expert
-    }
-    pub fn macha_epitaph(&self) -> &'static [i32] {
-        self.macha_epitaph
-    }
-    pub fn macha_rand_skills(&self) -> &'static [i32] {
-        self.macha_rand_skills
-    }
-    pub fn macha_magic_skills(&self) -> &'static [i32] {
-        self.macha_magic_skills
-    }
-    pub fn tarvos_anims(&self) -> &'static [Option<&'static str>] {
-        self.tarvos_anims
-    }
-    pub fn tarvos_normal(&self) -> &'static [i32] {
-        self.tarvos_normal
-    }
-    pub fn tarvos_super(&self) -> &'static [i32] {
-        self.tarvos_super
-    }
-    pub fn tarvos_epitaph(&self) -> &'static [i32] {
-        self.tarvos_epitaph
-    }
-    pub fn tarvos_rand_skills(&self) -> &'static [i32] {
-        self.tarvos_rand_skills
-    }
-    pub fn tarvos_skills(&self) -> &'static [i32] {
-        self.tarvos_skills
-    }
-    pub fn tarvos_magic_skills(&self) -> &'static [i32] {
-        self.tarvos_magic_skills
-    }
-    pub fn corbenik_anims(&self) -> &'static [Option<&'static str>] {
-        self.corbenik_anims
-    }
-    pub fn corbenik_seed_anims(&self) -> &'static [Option<&'static str>] {
-        self.corbenik_seed_anims
-    }
-    pub fn corbenik_normal(&self) -> &'static [i32] {
-        self.corbenik_normal
-    }
-    pub fn corbenik_b_anims(&self) -> &'static [Option<&'static str>] {
-        self.corbenik_b_anims
-    }
-    pub fn corbenik_b_normal(&self) -> &'static [i32] {
-        self.corbenik_b_normal
-    }
-    pub fn corbenik_b_super(&self) -> &'static [i32] {
-        self.corbenik_b_super
-    }
-    pub fn corbenik_root_anims_a(&self) -> &'static [Option<&'static str>] {
-        self.corbenik_root_anims_a
-    }
-    pub fn corbenik_root_anims_b(&self) -> &'static [Option<&'static str>] {
-        self.corbenik_root_anims_b
-    }
-    pub fn corbenik_dmg_barrier(&self) -> &'static [Option<&'static str>] {
-        self.corbenik_dmg_barrier
-    }
-    pub fn corbenik_c_anims(&self) -> &'static [Option<&'static str>] {
-        self.corbenik_c_anims
-    }
-    pub fn corbenik_c_first(&self) -> &'static [i32] {
-        self.corbenik_c_first
-    }
-    pub fn corbenik_c_normal(&self) -> &'static [i32] {
-        self.corbenik_c_normal
-    }
-    pub fn corbenik_killer_anims(&self) -> &'static [Option<&'static str>] {
-        self.corbenik_killer_anims
-    }
-    pub fn corbenik_eye_anims(&self) -> &'static [Option<&'static str>] {
-        self.corbenik_eye_anims
-    }
-    pub fn corbenik_killer_acts(&self) -> &'static [i32] {
-        self.corbenik_killer_acts
-    }
-    pub fn corbenik_downner_acts(&self) -> &'static [i32] {
-        self.corbenik_downner_acts
-    }
-    pub fn corbenik_rips_acts(&self) -> &'static [i32] {
-        self.corbenik_rips_acts
-    }
-    pub fn corbenik_killer_skills(&self) -> &'static [i32] {
-        self.corbenik_killer_skills
-    }
-    pub fn corbenik_killer_compels(&self) -> &'static [i32] {
-        self.corbenik_killer_compels
-    }
-    pub fn corbenik_slave_ids(&self) -> &'static [i32] {
-        self.corbenik_slave_ids
-    }
-    pub fn corbenik_killer_turns(&self) -> &'static [f32] {
-        self.corbenik_killer_turns
-    }
-    pub fn corbenik_refrect_radii(&self) -> &'static [f32] {
-        self.corbenik_refrect_radii
-    }
-    pub fn corbenik_refrect_heights(&self) -> &'static [f32] {
-        self.corbenik_refrect_heights
-    }
-    pub fn cinema_skill_names(&self) -> &'static [CinemaSkillName] {
-        self.cinema_skill_names
-    }
-    pub fn cinema_skill_rows(&self) -> &'static [CinemaSkillRow] {
-        self.cinema_skill_rows
-    }
-    pub fn weapon_infos(&self) -> &'static [WpInfos] {
-        self.weapon_infos
-    }
-    pub fn dust_infos(&self) -> &'static [DustInfos] {
-        self.dust_infos
-    }
-    pub fn ehk_breath_info(&self) -> &'static [EnemyBrInfo] {
-        self.ehk_breath_info
-    }
-    pub fn ehk_breath_info_va(&self) -> u32 {
-        self.ehk_breath_info_va
-    }
-    pub fn el_br_info(&self) -> &'static [EnemyBrInfo] {
-        self.el_br_info
-    }
-    pub fn el_br_info_va(&self) -> u32 {
-        self.el_br_info_va
-    }
-    pub fn ehk_br_param(&self) -> &'static [EnemyBrParam] {
-        self.ehk_br_param
-    }
-    pub fn ehk_br_param_va(&self) -> u32 {
-        self.ehk_br_param_va
-    }
-    pub fn el_br_param(&self) -> &'static [EnemyBrParam] {
-        self.el_br_param
-    }
-    pub fn el_br_param_va(&self) -> u32 {
-        self.el_br_param_va
-    }
-    pub fn foot_objs(&self) -> &'static [&'static str] {
-        self.foot_objs
-    }
+impl crate::store::Table for Combat {
+    const ID: usize = super::id::COMBAT;
 }
 
-/// `playerAnimTbl` (`char[26][21]`): Kite's clip for each act.
-pub static PLAYER_ANIMS: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().player_anims);
-
-/// `DamActuTbl`: the pad's rumble for a light, medium and heavy hit.
-pub static DAM_ACTU: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().dam_actu);
-
-/// `tsp`: Kite's walking speed a frame.
-pub static TSP: std::sync::LazyLock<f32> = std::sync::LazyLock::new(|| shared().tsp);
-
-/// `fellowAnimTbl` (one per `fellowNN.cpp`, 0x60 apart): the 22 clips of `charTbl` rows 1-17.
-pub static FELLOW_ANIMS: std::sync::LazyLock<&'static [[&'static str; 22]]> =
-    std::sync::LazyLock::new(|| shared().fellow_anims);
-
-/// `fpAngleOffset[4]`.
-pub static FP_ANGLE_OFFSET: std::sync::LazyLock<&'static [u16]> = std::sync::LazyLock::new(|| shared().fp_angle_offset);
-
-/// `fpOkRange`: how near a member keeps.
-pub static FP_OK_RANGE: std::sync::LazyLock<f32> = std::sync::LazyLock::new(|| shared().fp_ok_range);
-
-/// `CFOFP`.
-pub static CFOFP: std::sync::LazyLock<f32> = std::sync::LazyLock::new(|| shared().cfofp);
-
-/// `puccigusoAnimTbl`: Kite's clips on the Grunty.
-pub static RIDE_ANIMS: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().ride_anims);
-
-/// `puccigusoAnimTblPG`: the Grunty's own.
-pub static RIDE_ANIMS_PG: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().ride_anims_pg);
-
-/// `puccigusoCharTbl`: the Grunty's model file by kind.
-pub static RIDE_FILES: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().ride_files);
-
-/// `puccigusoAngleTbl`.
-pub static RIDE_ANGLES: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().ride_angles);
-
-/// Skeith's act tables (normal, super, Epitaph): each to its -1 and the word past it.
-pub static SKEITH_ACTS: std::sync::LazyLock<&'static [&'static [i32]]> =
-    std::sync::LazyLock::new(|| shared().skeith_acts);
-
-/// `Boss01AnmTbl`: Skeith's clip by act, none for some.
-pub static SKEITH_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().skeith_anims);
-
-/// The skills Skeith picks from at random.
-pub static SKEITH_RAND_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().skeith_rand_skills);
-
-/// `Pattern`: Innis's action words, three runs by protect gauge, each ended by a 29.
-pub static INNIS_PATTERN: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().innis_pattern);
-
-/// `EPITAPH_Pattern`: Innis's words once drained.
-pub static INNIS_EPITAPH: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().innis_epitaph);
-
-/// `boss02AnmTbl`: Innis's clip by act.
-pub static INNIS_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().innis_anims);
-
-/// `Skill_VARIOUS_INIS`: the skills Innis picks from in its first mode.
-pub static INNIS_VARIOUS_SKILLS: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().innis_various_skills);
-
-/// `Skill_DOWNER_INIS`: the skills Innis picks from in its second.
-pub static INNIS_DOWNER_SKILLS: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().innis_downer_skills);
-
-/// `Mon1`-`Mon3`: the clips of the three images Innis sends out, by act.
-pub static INNIS_MONSTER_ANIMS: std::sync::LazyLock<&'static [[Option<&'static str>; 15]]> =
-    std::sync::LazyLock::new(|| shared().innis_monster_anims);
-
-/// `EnemyBurst`'s rings' model (`particle` clump) by image.
-pub static INNIS_RING_MODELS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().innis_ring_models);
-
-/// `Kyvia01AnmTbl`: Kyvia's clip by act in its first fight.
-pub static KYVIA01_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().kyvia01_anims);
-
-/// `Kyvia02AnmTbl`: Kyvia's clip by act in its second fight.
-pub static KYVIA02_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().kyvia02_anims);
-
-/// `Kyvia03AnmTbl`: Kyvia's clip by act in its third fight.
-pub static KYVIA03_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().kyvia03_anims);
-
-/// `Skill_KYVIA_VARIOUS`: the spells Kyvia's fourth fight picks from.
-pub static KYVIA_SKILLS_VARIOUS: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().kyvia_skills_various);
-
-/// `kyviaCoreAnmTbl`: the core's clip by act.
-pub static KYVIA_CORE_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().kyvia_core_anims);
-
-/// `kyviaGomoraAnmTbl`: a gomora's clip by act.
-pub static KYVIA_GOMORA_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().kyvia_gomora_anims);
-
-/// `Skill_VARIOUS`: the spells a gomora of attribute 1 picks from.
-pub static KYVIA_VARIOUS_SKILLS: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().kyvia_various_skills);
-
-/// `Skill_DOWNER`: those of attribute 2.
-pub static KYVIA_DOWNER_SKILLS: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().kyvia_downer_skills);
-
-/// `AllGomoraList_1[0]`: Kyvia 01's gomora lists, each gomora's attribute (4 none) by slave.
-pub static KYVIA_GOMORA_LISTS: std::sync::LazyLock<&'static [&'static [i16]]> =
-    std::sync::LazyLock::new(|| shared().kyvia_gomora_lists);
-
-/// `AllGomoraList_2`: Kyvia 02's gomora lists by the core's deaths, as `kyvia_gomora_lists`.
-pub static KYVIA_GOMORA_LISTS_2: std::sync::LazyLock<&'static [&'static [&'static [i16]]]> =
-    std::sync::LazyLock::new(|| shared().kyvia_gomora_lists_2);
-
-/// `Boss03AnmTbl`: Magus's clip by act.
-pub static MAGUS_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().magus_anims);
-
-/// `Boss03SlaveAnmTbl`: a leaf's clip by act.
-pub static MAGUS_LEAF_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().magus_leaf_anims);
-
-/// `@1538`: pattern 10's skills, one by `ccRand() % 3`.
-pub static MAGUS_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().magus_skills);
-
-/// `@2301`: the skills `OnThinkLeafDrop` casts as its sixth leaf falls.
-pub static MAGUS_DROP_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().magus_drop_skills);
-
-/// `boss04EpitaphActTbl`: Fidchell's once drained.
-pub static FIDCHELL_EPITAPH: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().fidchell_epitaph);
-
-/// `boss0xAnmTbl`: Fidchell's clip by act.
-pub static FIDCHELL_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().fidchell_anims);
-
-/// `@1038`: the prediction's text clip (x41) by `m_predId`.
-pub static FIDCHELL_PRED_TEXTS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().fidchell_pred_texts);
-
-/// `@1039`: the prediction's voice (`ccEvVoiceRequest(-40, n)`) by `m_predId`.
-pub static FIDCHELL_PRED_VOICES: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().fidchell_pred_voices);
-
-/// `@1272`: pattern 10's skills (read, never used).
-pub static FIDCHELL_RAND_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().fidchell_rand_skills);
-
-/// `@1441`: the skill the prediction lays on each member, by `m_predId`.
-pub static FIDCHELL_PRED_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().fidchell_pred_skills);
-
-/// `@2048`: `OnThinkSkill`'s skills, one by `ccRand() % 3`.
-pub static FIDCHELL_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().fidchell_skills);
-
-/// `@2081`: `OnThinkMagic`'s spells, by `ccSys.count & 3`.
-pub static FIDCHELL_MAGIC_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().fidchell_magic_skills);
-
-/// `Boss05AnmTbl`: Gorre's clip by act.
-pub static GORRE_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().gorre_anims);
-
-/// `boss05SlaveAnmTbl1`: the first brother's clip by act.
-pub static GORRE_BROTHER_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().gorre_brother_anims);
-
-/// `boss05SlaveAnmTbl2`: the second brother's clip by act.
-pub static GORRE_BROTHER2_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().gorre_brother2_anims);
-
-/// `boss05NormalActTbl`: Gorre's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too).
-pub static GORRE_NORMAL: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().gorre_normal);
-
-/// `boss05EpitaphActTbl`: Gorre's once drained, through its closing -1.
-pub static GORRE_EPITAPH: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().gorre_epitaph);
-
-/// `@1672`: `OnThinkMagic`'s spells, one by `abs(ccRand()) & 3`, cast by the second brother.
-pub static GORRE_MAGIC_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().gorre_magic_skills);
-
-/// `@1777`: `OnThinkSkill`'s spells, one by `ccRand() & 3` (157 and 158 the first brother's, 159 and 160 the second's).
-pub static GORRE_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().gorre_skills);
-
-/// `@2074`: `SendMessage`'s msg 7, the brother's spell in the Tornade, one by `ccRand() & 3`.
-pub static GORRE_TORNADE_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().gorre_tornade_skills);
-
-/// `BOSS06AnmTbl`: Macha's clip by act.
-pub static MACHA_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().macha_anims);
-
-/// `boss06NormalActTbl`: Macha's patterns, through the -1 that closes it (pattern 10's own operand is a -1 too).
-pub static MACHA_NORMAL: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().macha_normal);
-
-/// `boss06ExpertActTbl`: Macha's once its gauge is half full, through its closing -1.
-pub static MACHA_EXPERT: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().macha_expert);
-
-/// `boss6EpitaphActTbl`: Macha's once drained, through its closing -1.
-pub static MACHA_EPITAPH: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().macha_epitaph);
-
-/// `@1198`: pattern 10's skills, one drawn by `ccRand() % 3` and dropped.
-pub static MACHA_RAND_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().macha_rand_skills);
-
-/// `@1913`: `OnThinkMagic`'s spells, by `abs(ccSys.count & 3)`.
-pub static MACHA_MAGIC_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().macha_magic_skills);
-
-/// `boss0xAnmTbl` (boss07.cpp): Tarvos's clip by act.
-pub static TARVOS_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().tarvos_anims);
-
-/// `boss07NormalActTbl`: Tarvos's patterns, through the -1 that closes it.
-pub static TARVOS_NORMAL: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tarvos_normal);
-
-/// `boss07SuperActTbl`: Tarvos's once its gauge is half full, through its closing -1.
-pub static TARVOS_SUPER: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tarvos_super);
-
-/// `boss07EpitaphActTbl`: Tarvos's once drained, through its closing -1.
-pub static TARVOS_EPITAPH: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tarvos_epitaph);
-
-/// `@1178`: pattern 10's skills, one drawn by `ccRand() % 3` and dropped.
-pub static TARVOS_RAND_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().tarvos_rand_skills);
-
-/// `@1517`: `OnThinkSkill`'s skill, one by `abs(ccRand() % 3)`.
-pub static TARVOS_SKILLS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().tarvos_skills);
-
-/// `@1568`: the two words `OnThinkMagic` copies; it casts the second.
-pub static TARVOS_MAGIC_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().tarvos_magic_skills);
-
-/// `boss08AnmTbl` (boss08.cpp): Corbenik's first form's clip by act.
-pub static CORBENIK_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().corbenik_anims);
-
-/// `boss08SeedAnmTbl`: a seed's clip by act.
-pub static CORBENIK_SEED_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().corbenik_seed_anims);
-
-/// `boss08ActNormalTbl`: the first form's patterns, through the -1 that closes it.
-pub static CORBENIK_NORMAL: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().corbenik_normal);
-
-/// `boss08bAnmTbl` (boss08_b.cpp): the second form's clip by act.
-pub static CORBENIK_B_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().corbenik_b_anims);
-
-/// `boss08BNormalActTbl`: the second form's patterns, through the -1 that closes it.
-pub static CORBENIK_B_NORMAL: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().corbenik_b_normal);
-
-/// `boss08BSuperActTbl`: its patterns from half its HP.
-pub static CORBENIK_B_SUPER: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().corbenik_b_super);
-
-/// `boss08RootAnmTblA`: a root's clip by act (`ccRand() & 1` set).
-pub static CORBENIK_ROOT_ANIMS_A: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().corbenik_root_anims_a);
-
-/// `boss08RootAnmTblB`: the other root's.
-pub static CORBENIK_ROOT_ANIMS_B: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().corbenik_root_anims_b);
-
-/// `boss08DmgBarriar`: the barrier's clip as a blow lands on it.
-pub static CORBENIK_DMG_BARRIER: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().corbenik_dmg_barrier);
-
-/// `boss08cAnmTbl` (boss08_c.cpp): the third form's clip by act.
-pub static CORBENIK_C_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().corbenik_c_anims);
-
-/// Infection's `boss08CNormalActTbl`, Quarantine's nameless `SetPatternMode(0)` table: the third form's first patterns.
-pub static CORBENIK_C_FIRST: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().corbenik_c_first);
-
-/// `boss08KillerEyeAnmTbl`: a killer eye's clip by act.
-pub static CORBENIK_KILLER_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().corbenik_killer_anims);
-
-/// `boss08EyeAnmTbl`: an eye's clip by act.
-pub static CORBENIK_EYE_ANIMS: std::sync::LazyLock<&'static [Option<&'static str>]> =
-    std::sync::LazyLock::new(|| shared().corbenik_eye_anims);
-
-/// `@2388`: a killer eye's pattern 14 asks one of these, by `abs(ccRand() % 13)`.
-pub static CORBENIK_KILLER_SKILLS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().corbenik_killer_skills);
-
-/// `@2391`: its pattern 15 compels one of these, by `abs(ccRand() % 3)`.
-pub static CORBENIK_KILLER_COMPELS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().corbenik_killer_compels);
-
-/// `@1714`: the killer eyes' rows a slave attack picks from, by `abs(ccRand() % 3)`.
-pub static CORBENIK_SLAVE_IDS: std::sync::LazyLock<&'static [i32]> =
-    std::sync::LazyLock::new(|| shared().corbenik_slave_ids);
-
-/// `@2448`: each killer eye's throw, in sixths of pi off its heading.
-pub static CORBENIK_KILLER_TURNS: std::sync::LazyLock<&'static [f32]> =
-    std::sync::LazyLock::new(|| shared().corbenik_killer_turns);
-
-/// `@2016`: the three rings' radii the eyes take up round the laser's target.
-pub static CORBENIK_REFRECT_RADII: std::sync::LazyLock<&'static [f32]> =
-    std::sync::LazyLock::new(|| shared().corbenik_refrect_radii);
-
-/// `@2017`: the rings' heights (the first word unread).
-pub static CORBENIK_REFRECT_HEIGHTS: std::sync::LazyLock<&'static [f32]> =
-    std::sync::LazyLock::new(|| shared().corbenik_refrect_heights);
-
-/// `ehkBreathInfo`: `ccEnemyH`'s two fire breaths.
-pub static EHK_BREATH_INFO: std::sync::LazyLock<&'static [EnemyBrInfo]> =
-    std::sync::LazyLock::new(|| shared().ehk_breath_info);
-
-/// `elBrInfo`: `ccEnemyL`'s breaths.
-pub static EL_BR_INFO: std::sync::LazyLock<&'static [EnemyBrInfo]> = std::sync::LazyLock::new(|| shared().el_br_info);
-
-/// `ehkBrParam`: the fire breath's timing and parameters.
-pub static EHK_BR_PARAM: std::sync::LazyLock<&'static [EnemyBrParam]> =
-    std::sync::LazyLock::new(|| shared().ehk_br_param);
-
-/// `elBrParam`: `ccEnemyL`'s.
-pub static EL_BR_PARAM: std::sync::LazyLock<&'static [EnemyBrParam]> =
-    std::sync::LazyLock::new(|| shared().el_br_param);
-
-/// `footObjTbl` (`char[4][30]`): a turtle's feet, by foot.
-pub static FOOT_OBJS: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().foot_objs);
-
-/// The volume's Combat (read once a run; kept here per volume).
+/// The volume's Combat (read once a run).
 pub fn of(v: Volume) -> &'static Combat {
-    static READ: [std::sync::OnceLock<&'static Combat>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "combat"))
+    <Combat as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Combat {
-    static READ: std::sync::OnceLock<&'static Combat> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("combat"))
+pub fn shared() -> &'static Combat {
+    <Combat as crate::store::Table>::shared()
 }

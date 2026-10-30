@@ -132,9 +132,9 @@ fn blackroses_thanks_for_a_gift_are_hers_on_every_volume() {
         let f = piney_data::tables::fieldui::of(volume);
         let chain = r.ui.ctrl.talk.chain.clone().unwrap_or_else(|| panic!("{volume}: no thanks"));
         assert_eq!(chain.grp, -32, "{volume}: the gift's voice group");
-        assert_ne!(chain.rec, f.error_data_va(), "{volume}: errorData for BlackRose's thanks");
+        assert_ne!(chain.rec, f.error_data_va, "{volume}: errorData for BlackRose's thanks");
         // One of her five thanks, by the drink's worth.
-        let first = r.ui.texts().talk.word(f.spc_msg_present10_va() + 4 * BLACK_ROSE as u32);
+        let first = r.ui.texts().talk.word(f.spc_msg_present10_va + 4 * BLACK_ROSE as u32);
         assert!((0..5).any(|k| chain.rec == first + 12 * k), "{volume}: {:#x} not her thanks ({first:#x})", chain.rec);
         let lines = r.ui.texts().talk.ev_msg(chain.rec).lines;
         assert!(!lines[0].is_empty() && !lines[0].starts_with(b"#R"), "{volume}: {lines:?}");

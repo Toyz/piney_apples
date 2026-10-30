@@ -124,7 +124,7 @@ impl TownMap {
             _ => (MAP_LAYER, MAP_LAYER),
         };
         let rows = piney_data::tables::world::of(volume)
-            .town_icons()
+            .town_icons
             .iter()
             .find(|b| b.name == iconpos)
             .map(|b| b.rows)

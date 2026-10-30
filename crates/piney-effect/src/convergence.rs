@@ -47,13 +47,13 @@ impl ConvergenceTables {
     pub fn read(volume: Volume) -> ConvergenceTables {
         let t = piney_data::tables::effect::of(volume);
         ConvergenceTables {
-            radiate: first(t.convergence_radiate()),
-            smoke: first(t.convergence_smoke()),
-            wait: first(t.convergence_wait()),
-            pieces: first(t.convergence_pieces()),
-            eff_iv: t.convergence_iv().to_bits(),
-            eff_sr: t.convergence_sr().to_bits(),
-            elements: first(t.convergence_elements()),
+            radiate: first(t.convergence_radiate),
+            smoke: first(t.convergence_smoke),
+            wait: first(t.convergence_wait),
+            pieces: first(t.convergence_pieces),
+            eff_iv: t.convergence_iv.to_bits(),
+            eff_sr: t.convergence_sr.to_bits(),
+            elements: first(t.convergence_elements),
         }
     }
 }

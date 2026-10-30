@@ -309,7 +309,7 @@ impl Str0932 {
 pub fn text_1040(volume: piney_data::volume::Volume) -> [[Vec<Vec<u8>>; 2]; 4] {
     let t = piney_data::tables::stream::of(volume);
     let rows = |parody: bool, k: usize| {
-        let table = if parody { t.subtitles_parody() } else { t.subtitles() };
+        let table = if parody { t.subtitles_parody } else { t.subtitles };
         let r = table.get(31).copied().flatten().and_then(|r| r.get(16 + k));
         let l = r.and_then(|r| r.str).unwrap_or_default();
         (0..4).map(|i| l.get(i).map_or_else(Vec::new, |s| piney_data::tables::sjis::encode(s))).collect()
@@ -607,12 +607,12 @@ impl Tables1070 {
     pub fn read(volume: piney_data::volume::Volume) -> Tables1070 {
         let t = piney_data::tables::stream::of(volume);
         let params = t
-            .part_params_1070()
+            .part_params_1070
             .iter()
             .map(|p| Param1070 { f: p.f.map(f32::to_bits), rate: p.rate, rate_rand: p.rate_rand, life: p.life })
             .collect();
-        let models = t.part_models_1070().iter().map(|m| (m.chunk.max(0) as usize, m.scale.to_bits())).collect();
-        let chunks = t.part_chunks_1070().iter().map(|n| n.unwrap_or_default().to_string()).collect();
+        let models = t.part_models_1070.iter().map(|m| (m.chunk.max(0) as usize, m.scale.to_bits())).collect();
+        let chunks = t.part_chunks_1070.iter().map(|n| n.unwrap_or_default().to_string()).collect();
         Tables1070 { params, models, chunks }
     }
 }

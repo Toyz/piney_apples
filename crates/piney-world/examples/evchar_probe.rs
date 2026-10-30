@@ -246,7 +246,7 @@ fn main() {
             }
             Some("marker") => {
                 // markerEvTbl[N] in town01, as World::marker_bits.
-                let name = piney_data::tables::world::of(volume).markers()[n(1) as usize].to_string();
+                let name = piney_data::tables::world::of(volume).markers[n(1) as usize].to_string();
                 let o = dummies.ccs.find_object(&name).unwrap();
                 let d = &dummies.scene.dummies[&o];
                 let pos: V4 = [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ee::ONE];

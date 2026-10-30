@@ -47,11 +47,11 @@ impl ObjTexts {
         use crate::tables::piece;
         let f = piney_data::tables::fieldui::of(volume);
         ObjTexts {
-            get_skill: piney_data::tables::sjis::encode(f.get_skill()),
-            time_help: f.time_idol_help().iter().map(|l| [piece(l, 0), piece(l, 1)]).collect(),
-            time_str: f.time_idol_str().iter().map(|l| piney_data::tables::sjis::encode(l)).collect(),
+            get_skill: piney_data::tables::sjis::encode(f.get_skill),
+            time_help: f.time_idol_help.iter().map(|l| [piece(l, 0), piece(l, 1)]).collect(),
+            time_str: f.time_idol_str.iter().map(|l| piney_data::tables::sjis::encode(l)).collect(),
             colon: COLON.to_vec(),
-            time_items: f.time_idol_item().try_into().unwrap_or_default(),
+            time_items: f.time_idol_item.try_into().unwrap_or_default(),
         }
     }
 }

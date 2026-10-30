@@ -23,7 +23,7 @@ use crate::save::{MAIL_SLOTS, MailState, SaveState};
 use crate::sprite::Sprite;
 use crate::view::LayerView;
 use crate::{Request, Se};
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 
 /// `Numremit`: rows the list and a body show.
 pub const ROWS: i32 = 14;
@@ -88,14 +88,14 @@ impl Strings {
     /// " new mail.", "No new mail.", " new mails.".
     fn new() -> Self {
         Strings {
-            yes: encode(*desktop::MAIL_YES),
-            no: encode(*desktop::MAIL_NO),
-            nores: encode(*desktop::MAIL_NORES),
-            send_comp: encode(*desktop::MAIL_SEND_COMP),
-            sel_remail: encode(*desktop::MAIL_SEL_REMAIL),
-            send_mail: encode(*desktop::MAIL_SEND_MAIL),
-            newmail: encode(*desktop::MAIL_NEWMAIL),
-            mail: desktop::MAIL_COUNT.iter().map(|s| encode(s)).collect(),
+            yes: encode(desktop::shared().mail_yes),
+            no: encode(desktop::shared().mail_no),
+            nores: encode(desktop::shared().mail_nores),
+            send_comp: encode(desktop::shared().mail_send_comp),
+            sel_remail: encode(desktop::shared().mail_sel_remail),
+            send_mail: encode(desktop::shared().mail_send_mail),
+            newmail: encode(desktop::shared().mail_newmail),
+            mail: desktop::shared().mail_count.iter().map(|s| encode(s)).collect(),
         }
     }
 }
@@ -1279,7 +1279,7 @@ impl MailCtx<'_> {
     /// A kanji in `ccSpriteColorTable[7]`, sent at (dx, dy).
     pub(crate) fn text(&mut self, layer: i16, view: &LayerView, dx: f32, dy: f32, s: &[u8], shadow: bool) {
         let mut k = Kanji::init(3, 16);
-        k.colour = SPRITE_COLOR_TABLE[7];
+        k.colour = kanji::shared().sprite_color_table[7];
         k.shadow = shadow;
         k.dx = dx;
         k.dy = dy;
@@ -1298,7 +1298,7 @@ impl MailCtx<'_> {
 
     fn text_a(&mut self, layer: i16, view: &LayerView, dx: f32, dy: f32, s: &[u8], a: u8) {
         let mut k = Kanji::init(3, 16);
-        k.colour = SPRITE_COLOR_TABLE[7];
+        k.colour = kanji::shared().sprite_color_table[7];
         k.colour[3] = a;
         k.dx = dx;
         k.dy = dy;

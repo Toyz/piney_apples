@@ -15,7 +15,7 @@ use crate::kanji::{Fonts, Kanji, Kt, Names, extended_code, str_width};
 use crate::sprite::Sprite;
 use crate::view::LayerView;
 use crate::{Request, Se};
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 
 /// `dtMenu->menuLayer`: `ccLayer::Init(242, 0)`.
 pub const MENU_LAYER: i16 = 242;
@@ -654,9 +654,9 @@ impl MsgWindow {
                     let Some(text) = self.lines[i].clone() else { continue };
                     let dy = (if i == 0 { 6 } else { 14 }) as f32 + (y + (21 * i as i32) as f32);
                     let mut rgba = if self.cursol == 4 && i32::from(self.select) + 2 == i as i32 {
-                        SPRITE_COLOR_TABLE[22]
+                        kanji::shared().sprite_color_table[22]
                     } else {
-                        SPRITE_COLOR_TABLE[7]
+                        kanji::shared().sprite_color_table[7]
                     };
                     rgba[3] = self.kanji_alpha as u8;
                     let margin = if self.narrow && self.emode & 0x1000 != 0 { 4.0 } else { 28.0 };
@@ -677,7 +677,7 @@ impl MsgWindow {
                         continue;
                     }
                     let Some(text) = self.lines[i].clone() else { continue };
-                    let mut rgba = SPRITE_COLOR_TABLE[7];
+                    let mut rgba = kanji::shared().sprite_color_table[7];
                     rgba[3] = self.kanji_alpha as u8;
                     out.push(MsgDraw::Text {
                         line: i,

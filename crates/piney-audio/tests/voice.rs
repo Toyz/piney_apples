@@ -346,7 +346,7 @@ fn event_lines(path: &std::path::Path, volume: piney_data::volume::Volume) -> us
         for (lang, table) in tables.iter().enumerate() {
             let Some(table) = table else { continue };
             let name = if lang == 0 {
-                piney_data::tables::voice::FILES[b.file as usize]
+                piney_data::tables::voice::shared().files[b.file as usize]
             } else {
                 voice.files_e[b.file as usize]
             };
@@ -396,13 +396,13 @@ fn a_mutation_event_line_plays() {
 /// checked against its file: sector aligned, inside the file. The number
 /// of lines.
 fn field_lines(path: &std::path::Path, volume: piney_data::volume::Volume) -> usize {
-    use piney_data::tables::voice::{FILES, FOOD, VoiceData};
+    use piney_data::tables::voice::{VoiceData, shared};
     let mut iso = Iso::open(path).unwrap();
     let voice = piney_data::tables::voice::of(volume);
     let mut tables: Vec<(&str, &[VoiceData])> = Vec::new();
-    for g in voice.field.iter().map(|g| (&g.table, g.alt)).chain([(&*FOOD, None)]) {
+    for g in voice.field.iter().map(|g| (&g.table, g.alt)).chain([(&shared().food, None)]) {
         let (t, alt) = g;
-        tables.push((FILES[t.file as usize], t.jp));
+        tables.push((shared().files[t.file as usize], t.jp));
         tables.push((voice.files_e[t.file as usize], t.en));
         if let Some(a) = alt {
             tables.push((voice.files_e[a.file as usize], a.rows));

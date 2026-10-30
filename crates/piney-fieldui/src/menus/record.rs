@@ -42,7 +42,7 @@ impl Texts {
     /// (`piney_data::tables::title`).
     pub fn of(volume: Volume) -> Texts {
         use crate::tables::piece;
-        let record = piney_data::tables::fieldui::of(volume).record_str();
+        let record = piney_data::tables::fieldui::of(volume).record_str;
         Texts {
             record_str: piney_desktop::dtmenu::slots(record),
             colon: STR_COLON.to_vec(),

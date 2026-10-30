@@ -56,7 +56,7 @@ fn world(s: &Session) -> &piney_world::World {
 
 /// The marker's heading as an event placing someone there reads it.
 fn heading(s: &Session, marker: &str) -> u32 {
-    let n = piney_data::tables::world::of(Volume::Mut).markers().iter().position(|&m| m == marker).unwrap();
+    let n = piney_data::tables::world::of(Volume::Mut).markers.iter().position(|&m| m == marker).unwrap();
     world(s).marker_dummy(n as i16).unwrap().1[2]
 }
 

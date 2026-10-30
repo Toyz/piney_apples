@@ -7,7 +7,7 @@
 //! the save's `assignPADok` / `assignPADcancel`. Layout from
 //! `Data_Control::Init` (0x00402e40) on layer 129 (docs/engine/title.md).
 
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 use piney_data::volume::Volume;
 use piney_desktop::anm::Ctx;
 use piney_desktop::eef::{add, div, from_int, lt, mul, sub, to_int};
@@ -212,7 +212,7 @@ impl DataControl {
             sel_init: false,
             info_state: 0,
             layer,
-            par_colour: SPRITE_COLOR_TABLE[COLOUR_TEXT],
+            par_colour: kanji::shared().sprite_color_table[COLOUR_TEXT],
             cur: None,
             cancel_sound: CancelSound::Main,
         }
@@ -461,7 +461,7 @@ impl DataControl {
         let mut i = 0;
         for line in lines.iter().take(max) {
             let y = self.info_y + self.hi * i;
-            self.disp(d, &format!("info[{i}]"), self.info_x, y, SPRITE_COLOR_TABLE[COLOUR_TEXT], line);
+            self.disp(d, &format!("info[{i}]"), self.info_x, y, kanji::shared().sprite_color_table[COLOUR_TEXT], line);
             i += 1;
         }
         if ack {
@@ -490,7 +490,7 @@ impl DataControl {
             }
             None => (Vec::new(), Vec::new(), if dialog == 0 { no_row } else { yes_row }),
         };
-        let white = SPRITE_COLOR_TABLE[COLOUR_TEXT];
+        let white = kanji::shared().sprite_color_table[COLOUR_TEXT];
         let y = |r: i32| self.info_y + self.hi * r;
         self.disp(d, "dia[1]", self.info_x, y(yes_row), white, &yes);
         self.disp(d, "dia[0]", self.info_x, y(no_row), white, &no);
@@ -667,7 +667,7 @@ impl DataLoad {
             d.sel_init = false;
         }
         let s = sys.result;
-        let white = SPRITE_COLOR_TABLE[COLOUR_TEXT];
+        let white = kanji::shared().sprite_color_table[COLOUR_TEXT];
         for i in 0..2i32 {
             let mut card = Vec::new();
             let mut slot = Vec::new();
@@ -843,7 +843,7 @@ impl DataLoad {
         if matches!(sys.result & code::MESSAGE, 5 | 6) {
             return;
         }
-        let white = SPRITE_COLOR_TABLE[COLOUR_TEXT];
+        let white = kanji::shared().sprite_color_table[COLOUR_TEXT];
         for s in 0..12i32 {
             let mut text = Vec::new();
             if let Some(a) = dr.assets {
@@ -885,17 +885,18 @@ impl DataLoad {
         let clear = || {
             let l =
                 [a.data.as_slice(), &num, b"  ", &a.vol, &dec2sjis(i32::from(r.clear_flag), 1, 0), &a.clear].concat();
-            (l, SPRITE_COLOR_TABLE[COLOUR_CLEAR])
+            (l, kanji::shared().sprite_color_table[COLOUR_CLEAR])
         };
         let vol = sys.volume.number();
         // The first line and its colour; None (the colour left as it was)
         // for CONVERT's save that has not cleared the previous volume.
         let head = match (prev, i32::from(r.clear_flag)) {
             (false, c) if c >= vol => Some(clear()),
-            (false, _) if r.parody_flag != 0 => {
-                Some(([a.data.as_slice(), &num, &WIDE_SPACES, &a.parody].concat(), SPRITE_COLOR_TABLE[COLOUR_PARODY]))
-            }
-            (false, _) => Some(([a.data.as_slice(), &num].concat(), SPRITE_COLOR_TABLE[COLOUR_TEXT])),
+            (false, _) if r.parody_flag != 0 => Some((
+                [a.data.as_slice(), &num, &WIDE_SPACES, &a.parody].concat(),
+                kanji::shared().sprite_color_table[COLOUR_PARODY],
+            )),
+            (false, _) => Some(([a.data.as_slice(), &num].concat(), kanji::shared().sprite_color_table[COLOUR_TEXT])),
             (true, c) if c >= vol - 1 => Some(clear()),
             (true, _) => None,
         };
@@ -919,7 +920,7 @@ impl DataLoad {
             d.disp(dr, "par[1]", d.par_x, d.par_y + 2 * d.hi, colour, name);
             d.disp(dr, "par[2]", d.par_x, d.par_y + 3 * d.hi, colour, &time);
         } else {
-            let white = SPRITE_COLOR_TABLE[COLOUR_TEXT];
+            let white = kanji::shared().sprite_color_table[COLOUR_TEXT];
             d.par_colour = white;
             let text = if prev && r.status != 0 { &a.noflg_deta } else { &a.nodeta };
             d.disp(dr, "par[0]", d.par_x, d.par_y + d.hi, white, text);

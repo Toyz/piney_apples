@@ -579,9 +579,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     "[[{}],[{}],\"{}\",\"{}\",\"{}\"]",
                     msg(0x28),
                     msg(0x29),
-                    hex(*title::YES),
-                    hex(*title::NO),
-                    hex(*title::HIGHLIGHT)
+                    hex(title::shared().yes),
+                    hex(title::shared().no),
+                    hex(title::shared().highlight)
                 );
             }
             "draw" => {

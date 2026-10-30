@@ -49,7 +49,7 @@ impl Tables {
     pub fn read(volume: Volume) -> Tables {
         use crate::spell::first;
         let t = piney_data::tables::effect::of(volume);
-        Tables { a: first(t.cure_a()), b: first(t.cure_b()), c: first(t.cure_c()), d: first(t.cure_d()) }
+        Tables { a: first(t.cure_a), b: first(t.cure_b), c: first(t.cure_c), d: first(t.cure_d) }
     }
 }
 

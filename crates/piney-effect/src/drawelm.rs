@@ -49,13 +49,13 @@ impl DrawTables {
         let t = piney_data::tables::effect::of(volume);
         use crate::spell::{first, strings};
         DrawTables {
-            rock: strings(t.draw_rock()),
-            ice: strings(t.draw_ice()),
-            blantch: strings(t.draw_blantch()),
-            subst: strings(t.draw_subst()),
-            clut: strings(t.draw_clut()),
-            suffix: strings(t.draw_suffix()),
-            kinds: first(t.draw_kinds()),
+            rock: strings(t.draw_rock),
+            ice: strings(t.draw_ice),
+            blantch: strings(t.draw_blantch),
+            subst: strings(t.draw_subst),
+            clut: strings(t.draw_clut),
+            suffix: strings(t.draw_suffix),
+            kinds: first(t.draw_kinds),
         }
     }
 }

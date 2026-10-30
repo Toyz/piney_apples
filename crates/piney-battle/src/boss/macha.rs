@@ -104,12 +104,12 @@ impl MachaData {
         let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
         let pick = |v: &[i32], k: usize| v.get(k).copied().unwrap_or(0);
         MachaData {
-            normal: t.macha_normal().to_vec(),
-            expert: t.macha_expert().to_vec(),
-            epitaph: t.macha_epitaph().to_vec(),
-            anims: s(t.macha_anims()),
-            rand_skills: std::array::from_fn(|k| pick(t.macha_rand_skills(), k)),
-            magic_skills: std::array::from_fn(|k| pick(t.macha_magic_skills(), k)),
+            normal: t.macha_normal.to_vec(),
+            expert: t.macha_expert.to_vec(),
+            epitaph: t.macha_epitaph.to_vec(),
+            anims: s(t.macha_anims),
+            rand_skills: std::array::from_fn(|k| pick(t.macha_rand_skills, k)),
+            magic_skills: std::array::from_fn(|k| pick(t.macha_magic_skills, k)),
         }
     }
 

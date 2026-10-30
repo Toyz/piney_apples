@@ -203,41 +203,41 @@ impl Tables {
     pub fn read(volume: Volume, assets: &Assets) -> Tables {
         let t = effect::of(volume);
         let ccs_anm: Vec<(String, String)> = t
-            .ccs_anm()
+            .ccs_anm
             .iter()
             .map(|r| (r.ccs.unwrap_or("").to_ascii_lowercase(), r.anm.unwrap_or("").to_string()))
             .collect();
         let adrs = ccs_anm.iter().map(|(f, o)| assets.find(f, o)).collect();
-        let sw = t.tex_switch();
+        let sw = t.tex_switch;
         Tables {
-            generators: (0..t.generators().len())
-                .map(|i| GenParam::of(&t.generators()[i], t.generators_va() + 0x38 * i as u32, i))
+            generators: (0..t.generators.len())
+                .map(|i| GenParam::of(&t.generators[i], t.generators_va + 0x38 * i as u32, i))
                 .collect(),
-            force_fields: (0..t.force_fields().len())
-                .map(|i| FfParam::row(t.force_fields(), t.force_fields_va(), i))
+            force_fields: (0..t.force_fields.len())
+                .map(|i| FfParam::row(t.force_fields, t.force_fields_va, i))
                 .collect(),
             particles: t
-                .particles()
+                .particles
                 .iter()
                 .map(|p| PartParam { style: (p.style & 15) as u8, anm: (p.anm & 15) as u8, pat: p.pat as u8 })
                 .collect(),
             effects: t
-                .particle_effects()
+                .particle_effects
                 .iter()
                 .map(|e| EffectParam { sync: e.sync, gene_num: e.gene_num, offset: e.offset.map(f32::to_bits) })
                 .collect(),
             ccs_anm,
             adrs,
-            polyhedron: t.polyhedron().iter().map(|p| p.map(f32::to_bits)).collect(),
+            polyhedron: t.polyhedron.iter().map(|p| p.map(f32::to_bits)).collect(),
             smoke_ff: vec![
-                FfParam::of(&t.smoke_ff1(), t.smoke_ff1_va()),
-                FfParam::of(&t.smoke_ff2(), t.smoke_ff2_va()),
-                FfParam::of(&t.smoke_ff3(), t.smoke_ff3_va()),
-                FfParam::of(&t.smoke_ff4(), t.smoke_ff4_va()),
+                FfParam::of(&t.smoke_ff1, t.smoke_ff1_va),
+                FfParam::of(&t.smoke_ff2, t.smoke_ff2_va),
+                FfParam::of(&t.smoke_ff3, t.smoke_ff3_va),
+                FfParam::of(&t.smoke_ff4, t.smoke_ff4_va),
             ],
             hit_photon_ff: vec![
-                FfParam::of(&t.hit_photon_ff1(), t.hit_photon_ff1_va()),
-                FfParam::of(&t.hit_photon_ff2(), t.hit_photon_ff2_va()),
+                FfParam::of(&t.hit_photon_ff1, t.hit_photon_ff1_va),
+                FfParam::of(&t.hit_photon_ff2, t.hit_photon_ff2_va),
             ],
             tex_first: sw.first,
             tex_map: sw.map.iter().map(|m| (m[0], m[1])).collect(),

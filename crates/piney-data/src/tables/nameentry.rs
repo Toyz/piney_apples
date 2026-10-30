@@ -8,41 +8,41 @@ use crate::volume::Volume;
 /// The `nameentry` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct NameEntry {
-    /// `STR_YES_J`
+    /// `STR_YES_J` Alike on every volume.
     pub yes: &'static str,
-    /// `STR_NO_J`
+    /// `STR_NO_J` Alike on every volume.
     pub no: &'static str,
-    /// `STR_NAME`, `STR_SUR_NAME`, `STR_GAME_NAME` (`StrMsg[0..3]`): four lines each.
+    /// `STR_NAME`, `STR_SUR_NAME`, `STR_GAME_NAME` (`StrMsg[0..3]`): four lines each. Alike on every volume.
     pub str_msg: &'static [&'static [&'static str]],
-    /// `STR_NAME_RESET`, `STR_SURNAME_RESET`, `STR_GAMENAME_RESET` (`ResetMsg`).
+    /// `STR_NAME_RESET`, `STR_SURNAME_RESET`, `STR_GAMENAME_RESET` (`ResetMsg`). Alike on every volume.
     pub reset: &'static [&'static str],
-    /// `STR_ENTER2`
+    /// `STR_ENTER2` Alike on every volume.
     pub enter: &'static str,
-    /// `STR_ALLNAME_RESET`
+    /// `STR_ALLNAME_RESET` Alike on every volume.
     pub all_reset: &'static str,
-    /// `STR_ERR_NAME` (`StrMsg[3]`): the refusals.
+    /// `STR_ERR_NAME` (`StrMsg[3]`): the refusals. Alike on every volume.
     pub err_name: &'static [&'static str],
-    /// `STR_AFFIRMATION2`: the question's two lines.
+    /// `STR_AFFIRMATION2`: the question's two lines. Alike on every volume.
     pub affirmation: &'static [&'static str],
-    /// `STR_ENTRY_NAME`
+    /// `STR_ENTRY_NAME` Alike on every volume.
     pub entry_name: &'static str,
-    /// `STR_ENTRY_GAME_NAME`
+    /// `STR_ENTRY_GAME_NAME` Alike on every volume.
     pub entry_game_name: &'static str,
-    /// `STR_INFO_MSG_0..4` (`InfoMsg`): the pages shown, two lines each.
+    /// `STR_INFO_MSG_0..4` (`InfoMsg`): the pages shown, two lines each. Alike on every volume.
     pub info: &'static [&'static [&'static str]],
-    /// `NameInfoBlock`: per name, lines 1 and 2 are its labels (`#G` on the one being entered).
+    /// `NameInfoBlock`: per name, lines 1 and 2 are its labels (`#G` on the one being entered). Alike on every volume.
     pub name_info: &'static [&'static [&'static str]],
-    /// `MenuBlockE`: the menu row per `CurAct`.
+    /// `MenuBlockE`: the menu row per `CurAct`. Alike on every volume.
     pub menu: &'static [&'static str],
-    /// `@2319`: the character names refused.
+    /// `@2319`: the character names refused. Alike on every volume.
     pub forbidden: &'static [&'static str],
-    /// `HiraBlock` (`char[][14]`): the kana grid, one empty row in the US builds.
+    /// `HiraBlock` (`char[][14]`): the kana grid, one empty row in the US builds. Alike on every volume.
     pub hira_block: &'static [&'static str],
-    /// `EigoBlock` (`char[][14]`): the English grid, 18 rows of five two-byte cells.
+    /// `EigoBlock` (`char[][14]`): the English grid, 18 rows of five two-byte cells. Alike on every volume.
     pub eigo_block: &'static [&'static str],
-    /// `@1389`: the default character name.
+    /// `@1389`: the default character name. Alike on every volume.
     pub default_game_name: &'static str,
-    /// `@2275`: the face panel's HP and SP before a name.
+    /// `@2275`: the face panel's HP and SP before a name. Alike on every volume.
     pub face_dashes: &'static str,
     /// `@2095`: the face panel's picture in `xwin_f00` (`ccFacePanel`): Kite before the bracelet on Infection, with it after.
     pub face_tex: &'static str,
@@ -74,133 +74,16 @@ impl crate::store::Load for NameEntry {
     }
 }
 
-impl NameEntry {
-    pub fn yes(&self) -> &'static str {
-        self.yes
-    }
-    pub fn no(&self) -> &'static str {
-        self.no
-    }
-    pub fn str_msg(&self) -> &'static [&'static [&'static str]] {
-        self.str_msg
-    }
-    pub fn reset(&self) -> &'static [&'static str] {
-        self.reset
-    }
-    pub fn enter(&self) -> &'static str {
-        self.enter
-    }
-    pub fn all_reset(&self) -> &'static str {
-        self.all_reset
-    }
-    pub fn err_name(&self) -> &'static [&'static str] {
-        self.err_name
-    }
-    pub fn affirmation(&self) -> &'static [&'static str] {
-        self.affirmation
-    }
-    pub fn entry_name(&self) -> &'static str {
-        self.entry_name
-    }
-    pub fn entry_game_name(&self) -> &'static str {
-        self.entry_game_name
-    }
-    pub fn info(&self) -> &'static [&'static [&'static str]] {
-        self.info
-    }
-    pub fn name_info(&self) -> &'static [&'static [&'static str]] {
-        self.name_info
-    }
-    pub fn menu(&self) -> &'static [&'static str] {
-        self.menu
-    }
-    pub fn forbidden(&self) -> &'static [&'static str] {
-        self.forbidden
-    }
-    pub fn hira_block(&self) -> &'static [&'static str] {
-        self.hira_block
-    }
-    pub fn eigo_block(&self) -> &'static [&'static str] {
-        self.eigo_block
-    }
-    pub fn default_game_name(&self) -> &'static str {
-        self.default_game_name
-    }
-    pub fn face_dashes(&self) -> &'static str {
-        self.face_dashes
-    }
-    pub fn face_tex(&self) -> &'static str {
-        self.face_tex
-    }
+impl crate::store::Table for NameEntry {
+    const ID: usize = super::id::NAMEENTRY;
 }
 
-/// `STR_YES_J`
-pub static YES: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().yes);
-
-/// `STR_NO_J`
-pub static NO: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().no);
-
-/// `STR_NAME`, `STR_SUR_NAME`, `STR_GAME_NAME` (`StrMsg[0..3]`): four lines each.
-pub static STR_MSG: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().str_msg);
-
-/// `STR_NAME_RESET`, `STR_SURNAME_RESET`, `STR_GAMENAME_RESET` (`ResetMsg`).
-pub static RESET: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().reset);
-
-/// `STR_ENTER2`
-pub static ENTER: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().enter);
-
-/// `STR_ALLNAME_RESET`
-pub static ALL_RESET: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().all_reset);
-
-/// `STR_ERR_NAME` (`StrMsg[3]`): the refusals.
-pub static ERR_NAME: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().err_name);
-
-/// `STR_AFFIRMATION2`: the question's two lines.
-pub static AFFIRMATION: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().affirmation);
-
-/// `STR_ENTRY_NAME`
-pub static ENTRY_NAME: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().entry_name);
-
-/// `STR_ENTRY_GAME_NAME`
-pub static ENTRY_GAME_NAME: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().entry_game_name);
-
-/// `STR_INFO_MSG_0..4` (`InfoMsg`): the pages shown, two lines each.
-pub static INFO: std::sync::LazyLock<&'static [&'static [&'static str]]> = std::sync::LazyLock::new(|| shared().info);
-
-/// `NameInfoBlock`: per name, lines 1 and 2 are its labels (`#G` on the one being entered).
-pub static NAME_INFO: std::sync::LazyLock<&'static [&'static [&'static str]]> =
-    std::sync::LazyLock::new(|| shared().name_info);
-
-/// `MenuBlockE`: the menu row per `CurAct`.
-pub static MENU: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().menu);
-
-/// `@2319`: the character names refused.
-pub static FORBIDDEN: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().forbidden);
-
-/// `HiraBlock` (`char[][14]`): the kana grid, one empty row in the US builds.
-pub static HIRA_BLOCK: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().hira_block);
-
-/// `EigoBlock` (`char[][14]`): the English grid, 18 rows of five two-byte cells.
-pub static EIGO_BLOCK: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().eigo_block);
-
-/// `@1389`: the default character name.
-pub static DEFAULT_GAME_NAME: std::sync::LazyLock<&'static str> =
-    std::sync::LazyLock::new(|| shared().default_game_name);
-
-/// `@2275`: the face panel's HP and SP before a name.
-pub static FACE_DASHES: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().face_dashes);
-
-/// The volume's NameEntry (read once a run; kept here per volume).
+/// The volume's NameEntry (read once a run).
 pub fn of(v: Volume) -> &'static NameEntry {
-    static READ: [std::sync::OnceLock<&'static NameEntry>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "nameentry"))
+    <NameEntry as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static NameEntry {
-    static READ: std::sync::OnceLock<&'static NameEntry> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("nameentry"))
+pub fn shared() -> &'static NameEntry {
+    <NameEntry as crate::store::Table>::shared()
 }

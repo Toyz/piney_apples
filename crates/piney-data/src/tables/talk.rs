@@ -65,24 +65,16 @@ impl crate::store::Load for Talk {
     }
 }
 
-impl Talk {
-    pub fn records(&self) -> &'static [MsgRecords] {
-        self.records
-    }
-    pub fn pointers(&self) -> &'static [MsgPointers] {
-        self.pointers
-    }
+impl crate::store::Table for Talk {
+    const ID: usize = super::id::TALK;
 }
 
-/// The volume's Talk (read once a run; kept here per volume).
+/// The volume's Talk (read once a run).
 pub fn of(v: Volume) -> &'static Talk {
-    static READ: [std::sync::OnceLock<&'static Talk>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "talk"))
+    <Talk as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Talk {
-    static READ: std::sync::OnceLock<&'static Talk> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("talk"))
+pub fn shared() -> &'static Talk {
+    <Talk as crate::store::Table>::shared()
 }

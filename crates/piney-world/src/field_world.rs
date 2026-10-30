@@ -35,6 +35,7 @@ use crate::hit::Hits;
 use crate::player::Player;
 use crate::story_map::StoryMap;
 use crate::{FADE_FRAMES, FRAME_RATE, HOLD_FRAMES, Phase, draw, talk};
+use piney_data::store::Table;
 
 mod ride;
 

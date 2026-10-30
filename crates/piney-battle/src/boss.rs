@@ -94,12 +94,12 @@ impl SkeithData {
     /// The volume's.
     pub fn of(volume: piney_data::volume::Volume) -> SkeithData {
         let t = piney_data::tables::combat::of(volume);
-        let acts = t.skeith_acts();
-        let r = t.skeith_rand_skills();
+        let acts = t.skeith_acts;
+        let r = t.skeith_rand_skills;
         SkeithData {
             act_tbls: [acts[0].to_vec(), acts[1].to_vec(), acts[2].to_vec()],
             rand_skills: [r[0], r[1], r[2]],
-            anm_tbl: t.skeith_anims().iter().map(|a| a.map(str::to_string)).collect(),
+            anm_tbl: t.skeith_anims.iter().map(|a| a.map(str::to_string)).collect(),
         }
     }
 }

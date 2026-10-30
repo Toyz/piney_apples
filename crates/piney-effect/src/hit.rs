@@ -89,11 +89,11 @@ impl Hits {
             flip: HashMap::new(),
             guard: [None; GUARD_ENTRIES],
             particle_ccs: t
-                .ccs_anm()
+                .ccs_anm
                 .iter()
                 .map(|r| (r.ccs.unwrap_or("").to_string(), r.anm.unwrap_or("").to_string()))
                 .collect(),
-            panel_cam_dist: t.panel_cam_dist().to_bits(),
+            panel_cam_dist: t.panel_cam_dist.to_bits(),
         }
     }
 

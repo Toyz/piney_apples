@@ -183,32 +183,32 @@ impl KyviaData {
         let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
         let row = |l: &[i16]| std::array::from_fn(|k| l.get(k).copied().unwrap_or(4));
         KyviaData {
-            anims: s(t.kyvia01_anims()),
-            anims_second: s(t.kyvia02_anims()),
-            anims_third: s(t.kyvia03_anims()),
-            anims_fourth: s(t.kyvia04_anims()),
-            anims_fourth_ex: s(t.kyvia04_anims_ex()),
-            core_anims: s(t.kyvia_core_anims()),
-            gomora_anims: s(t.kyvia_gomora_anims()),
-            gomora_lists: t.kyvia_gomora_lists().iter().map(|l| row(l)).collect(),
+            anims: s(t.kyvia01_anims),
+            anims_second: s(t.kyvia02_anims),
+            anims_third: s(t.kyvia03_anims),
+            anims_fourth: s(t.kyvia04_anims),
+            anims_fourth_ex: s(t.kyvia04_anims_ex),
+            core_anims: s(t.kyvia_core_anims),
+            gomora_anims: s(t.kyvia_gomora_anims),
+            gomora_lists: t.kyvia_gomora_lists.iter().map(|l| row(l)).collect(),
             gomora_lists_second: t
-                .kyvia_gomora_lists_2()
+                .kyvia_gomora_lists_2
                 .iter()
                 .map(|step| step.iter().map(|l| row(l)).collect())
                 .collect(),
             gomora_lists_third: t
-                .kyvia_gomora_lists_3()
+                .kyvia_gomora_lists_3
                 .iter()
                 .map(|step| step.iter().map(|l| row(l)).collect())
                 .collect(),
             gomora_lists_fourth: t
-                .kyvia_gomora_lists_4()
+                .kyvia_gomora_lists_4
                 .iter()
                 .map(|step| step.iter().map(|l| row(l)).collect())
                 .collect(),
-            various: t.kyvia_various_skills().to_vec(),
-            downer: t.kyvia_downer_skills().to_vec(),
-            kyvia_various: t.kyvia_skills_various().to_vec(),
+            various: t.kyvia_various_skills.to_vec(),
+            downer: t.kyvia_downer_skills.to_vec(),
+            kyvia_various: t.kyvia_skills_various.to_vec(),
         }
     }
 

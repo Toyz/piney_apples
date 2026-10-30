@@ -49,13 +49,13 @@ pub struct Battle {
     pub enemy_lists: &'static [[EnemyList; 7]],
     /// `bossTbl`
     pub bosses: &'static [BossParamData],
-    /// `itemTblR`: category 10.
+    /// `itemTblR`: category 10. Alike on every volume.
     pub item_r: &'static [ItemParam],
-    /// `itemTblD`: category 11.
+    /// `itemTblD`: category 11. Alike on every volume.
     pub item_d: &'static [ItemParam],
-    /// `itemTblU`: category 12.
+    /// `itemTblU`: category 12. Alike on every volume.
     pub item_u: &'static [ItemParam],
-    /// `itemTblX`: category 13.
+    /// `itemTblX`: category 13. Alike on every volume.
     pub item_x: &'static [ItemParam],
     /// `itemTblT`: category 14.
     pub item_t: &'static [ItemParam],
@@ -85,11 +85,11 @@ pub struct Battle {
     pub head_before: EquipBefore,
     /// The 0x48 bytes before `body`, as a row.
     pub body_before: EquipBefore,
-    /// The 0x48 bytes before `arm`, as a row.
+    /// The 0x48 bytes before `arm`, as a row. Alike on every volume.
     pub arm_before: EquipBefore,
     /// The 0x48 bytes before `leg`, as a row.
     pub leg_before: EquipBefore,
-    /// The 0x48 bytes before `weapon1`, as a row.
+    /// The 0x48 bytes before `weapon1`, as a row. Alike on every volume.
     pub weapon1_before: EquipBefore,
     /// The 0x48 bytes before `weapon2`, as a row.
     pub weapon2_before: EquipBefore,
@@ -99,45 +99,45 @@ pub struct Battle {
     pub weapon4_before: EquipBefore,
     /// The 0x48 bytes before `weapon5`, as a row.
     pub weapon5_before: EquipBefore,
-    /// The 0x48 bytes before `weapon6`, as a row.
+    /// The 0x48 bytes before `weapon6`, as a row. Alike on every volume.
     pub weapon6_before: EquipBefore,
     /// `LevelUpParamTbl`, by character (21 from Mutation on).
     pub level_up: &'static [LevelUpTbl],
-    /// `expCalcTbl`, by level difference + 10.
+    /// `expCalcTbl`, by level difference + 10. Alike on every volume.
     pub exp_calc: &'static [i16],
-    /// `ccEntryRaceTbl`: `enemyTbl` in groups of `raceNum` rows.
+    /// `ccEntryRaceTbl`: `enemyTbl` in groups of `raceNum` rows. Alike on every volume.
     pub races: &'static [EnemyRace],
-    /// `dataDrainErosionTbl`: a Data Drain's side effect by infection / 25.
+    /// `dataDrainErosionTbl`: a Data Drain's side effect by infection / 25. Alike on every volume.
     pub drain_erosion: &'static [[i32; 16]],
-    /// `ccSaveData::AddLvErosion`'s `erosionTbl`.
+    /// `ccSaveData::AddLvErosion`'s `erosionTbl`. Alike on every volume.
     pub erosion: &'static [i32],
     /// `spcDefaultItemList` (21 from Mutation on)
     pub spc_default_items: &'static [[ItemList; 10]],
     /// `playerDefaultItemList`
     pub player_default_items: &'static [ItemList],
-    /// `playerDefaultImportantItemList`
+    /// `playerDefaultImportantItemList` Alike on every volume.
     pub player_default_important: &'static [ItemList],
     /// `spcAIParam`
     pub ai_params: &'static [AIParam],
-    /// `spcDebuffPriorityType`
+    /// `spcDebuffPriorityType` Alike on every volume.
     pub debuff_priority: &'static [[i16; 9]],
-    /// `spcBuffPriorityType`
+    /// `spcBuffPriorityType` Alike on every volume.
     pub buff_priority: &'static [[i16; 5]],
     /// `debuffTableIndex`
     pub debuff_table_index: &'static [i16],
     /// `buffTableIndex`
     pub buff_table_index: &'static [i16],
-    /// The debuffs' ability skills.
+    /// The debuffs' ability skills. Alike on every volume.
     pub debuff_skill_ability: &'static [i16],
-    /// The debuffs' attribute skills.
+    /// The debuffs' attribute skills. Alike on every volume.
     pub debuff_skill_attribute: &'static [i16],
-    /// The buffs' ability skills.
+    /// The buffs' ability skills. Alike on every volume.
     pub buff_skill_ability: &'static [i16],
-    /// The buffs' attribute skills.
+    /// The buffs' attribute skills. Alike on every volume.
     pub buff_skill_attribute: &'static [i16],
-    /// `ccGetItemIcon(cat, id)` by category: each case of its jump table is `li $v0, icon` (or 0).
+    /// `ccGetItemIcon(cat, id)` by category: each case of its jump table is `li $v0, icon` (or 0). Alike on every volume.
     pub item_icons: &'static [i32],
-    /// `SetItemList`'s page to category: -1 the usable items, -2 the equipment, else the category.
+    /// `SetItemList`'s page to category: -1 the usable items, -2 the equipment, else the category. Alike on every volume.
     pub item_pages: &'static [i32],
 }
 
@@ -200,242 +200,16 @@ impl crate::store::Load for Battle {
     }
 }
 
-impl Battle {
-    pub fn skills(&self) -> &'static [SkillParam] {
-        self.skills
-    }
-    pub fn boss_skills(&self) -> &'static [SkillParam] {
-        self.boss_skills
-    }
-    pub fn enemies(&self) -> &'static [EnemyTable] {
-        self.enemies
-    }
-    pub fn gimmicks(&self) -> &'static [GimmickTable] {
-        self.gimmicks
-    }
-    pub fn npcs(&self) -> &'static [NpcTable] {
-        self.npcs
-    }
-    pub fn enemy_lists(&self) -> &'static [[EnemyList; 7]] {
-        self.enemy_lists
-    }
-    pub fn bosses(&self) -> &'static [BossParamData] {
-        self.bosses
-    }
-    pub fn item_r(&self) -> &'static [ItemParam] {
-        self.item_r
-    }
-    pub fn item_d(&self) -> &'static [ItemParam] {
-        self.item_d
-    }
-    pub fn item_u(&self) -> &'static [ItemParam] {
-        self.item_u
-    }
-    pub fn item_x(&self) -> &'static [ItemParam] {
-        self.item_x
-    }
-    pub fn item_t(&self) -> &'static [ItemParam] {
-        self.item_t
-    }
-    pub fn item_e(&self) -> &'static [ItemParam] {
-        self.item_e
-    }
-    pub fn head(&self) -> &'static [EquipmentParam] {
-        self.head
-    }
-    pub fn body(&self) -> &'static [EquipmentParam] {
-        self.body
-    }
-    pub fn arm(&self) -> &'static [EquipmentParam] {
-        self.arm
-    }
-    pub fn leg(&self) -> &'static [EquipmentParam] {
-        self.leg
-    }
-    pub fn weapon1(&self) -> &'static [EquipmentParam] {
-        self.weapon1
-    }
-    pub fn weapon2(&self) -> &'static [EquipmentParam] {
-        self.weapon2
-    }
-    pub fn weapon3(&self) -> &'static [EquipmentParam] {
-        self.weapon3
-    }
-    pub fn weapon4(&self) -> &'static [EquipmentParam] {
-        self.weapon4
-    }
-    pub fn weapon5(&self) -> &'static [EquipmentParam] {
-        self.weapon5
-    }
-    pub fn weapon6(&self) -> &'static [EquipmentParam] {
-        self.weapon6
-    }
-    pub fn head_before(&self) -> EquipBefore {
-        self.head_before
-    }
-    pub fn body_before(&self) -> EquipBefore {
-        self.body_before
-    }
-    pub fn arm_before(&self) -> EquipBefore {
-        self.arm_before
-    }
-    pub fn leg_before(&self) -> EquipBefore {
-        self.leg_before
-    }
-    pub fn weapon1_before(&self) -> EquipBefore {
-        self.weapon1_before
-    }
-    pub fn weapon2_before(&self) -> EquipBefore {
-        self.weapon2_before
-    }
-    pub fn weapon3_before(&self) -> EquipBefore {
-        self.weapon3_before
-    }
-    pub fn weapon4_before(&self) -> EquipBefore {
-        self.weapon4_before
-    }
-    pub fn weapon5_before(&self) -> EquipBefore {
-        self.weapon5_before
-    }
-    pub fn weapon6_before(&self) -> EquipBefore {
-        self.weapon6_before
-    }
-    pub fn level_up(&self) -> &'static [LevelUpTbl] {
-        self.level_up
-    }
-    pub fn exp_calc(&self) -> &'static [i16] {
-        self.exp_calc
-    }
-    pub fn races(&self) -> &'static [EnemyRace] {
-        self.races
-    }
-    pub fn drain_erosion(&self) -> &'static [[i32; 16]] {
-        self.drain_erosion
-    }
-    pub fn erosion(&self) -> &'static [i32] {
-        self.erosion
-    }
-    pub fn spc_default_items(&self) -> &'static [[ItemList; 10]] {
-        self.spc_default_items
-    }
-    pub fn player_default_items(&self) -> &'static [ItemList] {
-        self.player_default_items
-    }
-    pub fn player_default_important(&self) -> &'static [ItemList] {
-        self.player_default_important
-    }
-    pub fn ai_params(&self) -> &'static [AIParam] {
-        self.ai_params
-    }
-    pub fn debuff_priority(&self) -> &'static [[i16; 9]] {
-        self.debuff_priority
-    }
-    pub fn buff_priority(&self) -> &'static [[i16; 5]] {
-        self.buff_priority
-    }
-    pub fn debuff_table_index(&self) -> &'static [i16] {
-        self.debuff_table_index
-    }
-    pub fn buff_table_index(&self) -> &'static [i16] {
-        self.buff_table_index
-    }
-    pub fn debuff_skill_ability(&self) -> &'static [i16] {
-        self.debuff_skill_ability
-    }
-    pub fn debuff_skill_attribute(&self) -> &'static [i16] {
-        self.debuff_skill_attribute
-    }
-    pub fn buff_skill_ability(&self) -> &'static [i16] {
-        self.buff_skill_ability
-    }
-    pub fn buff_skill_attribute(&self) -> &'static [i16] {
-        self.buff_skill_attribute
-    }
-    pub fn item_icons(&self) -> &'static [i32] {
-        self.item_icons
-    }
-    pub fn item_pages(&self) -> &'static [i32] {
-        self.item_pages
-    }
+impl crate::store::Table for Battle {
+    const ID: usize = super::id::BATTLE;
 }
 
-/// `itemTblR`: category 10.
-pub static ITEM_R: std::sync::LazyLock<&'static [ItemParam]> = std::sync::LazyLock::new(|| shared().item_r);
-
-/// `itemTblD`: category 11.
-pub static ITEM_D: std::sync::LazyLock<&'static [ItemParam]> = std::sync::LazyLock::new(|| shared().item_d);
-
-/// `itemTblU`: category 12.
-pub static ITEM_U: std::sync::LazyLock<&'static [ItemParam]> = std::sync::LazyLock::new(|| shared().item_u);
-
-/// `itemTblX`: category 13.
-pub static ITEM_X: std::sync::LazyLock<&'static [ItemParam]> = std::sync::LazyLock::new(|| shared().item_x);
-
-/// The 0x48 bytes before `arm`, as a row.
-pub static ARM_BEFORE: std::sync::LazyLock<EquipBefore> = std::sync::LazyLock::new(|| shared().arm_before);
-
-/// The 0x48 bytes before `weapon1`, as a row.
-pub static WEAPON1_BEFORE: std::sync::LazyLock<EquipBefore> = std::sync::LazyLock::new(|| shared().weapon1_before);
-
-/// The 0x48 bytes before `weapon6`, as a row.
-pub static WEAPON6_BEFORE: std::sync::LazyLock<EquipBefore> = std::sync::LazyLock::new(|| shared().weapon6_before);
-
-/// `expCalcTbl`, by level difference + 10.
-pub static EXP_CALC: std::sync::LazyLock<&'static [i16]> = std::sync::LazyLock::new(|| shared().exp_calc);
-
-/// `ccEntryRaceTbl`: `enemyTbl` in groups of `raceNum` rows.
-pub static RACES: std::sync::LazyLock<&'static [EnemyRace]> = std::sync::LazyLock::new(|| shared().races);
-
-/// `dataDrainErosionTbl`: a Data Drain's side effect by infection / 25.
-pub static DRAIN_EROSION: std::sync::LazyLock<&'static [[i32; 16]]> =
-    std::sync::LazyLock::new(|| shared().drain_erosion);
-
-/// `ccSaveData::AddLvErosion`'s `erosionTbl`.
-pub static EROSION: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().erosion);
-
-/// `playerDefaultImportantItemList`
-pub static PLAYER_DEFAULT_IMPORTANT: std::sync::LazyLock<&'static [ItemList]> =
-    std::sync::LazyLock::new(|| shared().player_default_important);
-
-/// `spcDebuffPriorityType`
-pub static DEBUFF_PRIORITY: std::sync::LazyLock<&'static [[i16; 9]]> =
-    std::sync::LazyLock::new(|| shared().debuff_priority);
-
-/// `spcBuffPriorityType`
-pub static BUFF_PRIORITY: std::sync::LazyLock<&'static [[i16; 5]]> =
-    std::sync::LazyLock::new(|| shared().buff_priority);
-
-/// The debuffs' ability skills.
-pub static DEBUFF_SKILL_ABILITY: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().debuff_skill_ability);
-
-/// The debuffs' attribute skills.
-pub static DEBUFF_SKILL_ATTRIBUTE: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().debuff_skill_attribute);
-
-/// The buffs' ability skills.
-pub static BUFF_SKILL_ABILITY: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().buff_skill_ability);
-
-/// The buffs' attribute skills.
-pub static BUFF_SKILL_ATTRIBUTE: std::sync::LazyLock<&'static [i16]> =
-    std::sync::LazyLock::new(|| shared().buff_skill_attribute);
-
-/// `ccGetItemIcon(cat, id)` by category: each case of its jump table is `li $v0, icon` (or 0).
-pub static ITEM_ICONS: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().item_icons);
-
-/// `SetItemList`'s page to category: -1 the usable items, -2 the equipment, else the category.
-pub static ITEM_PAGES: std::sync::LazyLock<&'static [i32]> = std::sync::LazyLock::new(|| shared().item_pages);
-
-/// The volume's Battle (read once a run; kept here per volume).
+/// The volume's Battle (read once a run).
 pub fn of(v: Volume) -> &'static Battle {
-    static READ: [std::sync::OnceLock<&'static Battle>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "battle"))
+    <Battle as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Battle {
-    static READ: std::sync::OnceLock<&'static Battle> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("battle"))
+pub fn shared() -> &'static Battle {
+    <Battle as crate::store::Table>::shared()
 }

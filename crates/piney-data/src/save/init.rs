@@ -66,7 +66,7 @@ impl InitText {
     /// every disc).
     pub fn of(volume: Volume) -> Self {
         let time_idol_rank =
-            crate::tables::title::TIME_IDOL_RANK.iter().map(|s| crate::tables::sjis::encode(s)).collect();
+            crate::tables::title::shared().time_idol_rank.iter().map(|s| crate::tables::sjis::encode(s)).collect();
         InitText { time_idol_rank, volume }
     }
 

@@ -36,36 +36,16 @@ impl crate::store::Load for Mail {
     }
 }
 
-impl Mail {
-    pub fn mails(&self) -> &'static [MailData] {
-        self.mails
-    }
-    pub fn replies(&self) -> &'static [[Option<u16>; 2]] {
-        self.replies
-    }
-    pub fn remails(&self) -> &'static [ReMailData] {
-        self.remails
-    }
-    pub fn mails_parody(&self) -> &'static [MailData] {
-        self.mails_parody
-    }
-    pub fn replies_parody(&self) -> &'static [[Option<u16>; 2]] {
-        self.replies_parody
-    }
-    pub fn remails_parody(&self) -> &'static [ReMailData] {
-        self.remails_parody
-    }
+impl crate::store::Table for Mail {
+    const ID: usize = super::id::MAIL;
 }
 
-/// The volume's Mail (read once a run; kept here per volume).
+/// The volume's Mail (read once a run).
 pub fn of(v: Volume) -> &'static Mail {
-    static READ: [std::sync::OnceLock<&'static Mail>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "mail"))
+    <Mail as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Mail {
-    static READ: std::sync::OnceLock<&'static Mail> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("mail"))
+pub fn shared() -> &'static Mail {
+    <Mail as crate::store::Table>::shared()
 }

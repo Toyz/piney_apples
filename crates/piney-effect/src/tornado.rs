@@ -52,15 +52,15 @@ impl RingTables {
     pub fn read(volume: Volume) -> RingTables {
         let t = piney_data::tables::effect::of(volume);
         let b4 = |r: &[f32; 4]| r.map(f32::to_bits);
-        let smoke = [t.tornado_smoke1(), t.tornado_smoke2(), t.tornado_smoke3()];
-        let smoke_va = [t.tornado_smoke1_va(), t.tornado_smoke2_va(), t.tornado_smoke3_va()];
-        let row = |l: usize| t.generators()[192 + l];
+        let smoke = [t.tornado_smoke1, t.tornado_smoke2, t.tornado_smoke3];
+        let smoke_va = [t.tornado_smoke1_va, t.tornado_smoke2_va, t.tornado_smoke3_va];
+        let row = |l: usize| t.generators[192 + l];
         RingTables {
-            a89: std::array::from_fn(|k| b4(&t.ring89()[k])),
-            t90: std::array::from_fn(|k| t.ring90()[k].map(|r| b4(&r))),
-            turn90: first(t.turn90()),
-            t91: std::array::from_fn(|k| t.ring91()[k].map(|r| b4(&r))),
-            turn91: first(t.turn91()),
+            a89: std::array::from_fn(|k| b4(&t.ring89[k])),
+            t90: std::array::from_fn(|k| t.ring90[k].map(|r| b4(&r))),
+            turn90: first(t.turn90),
+            t91: std::array::from_fn(|k| t.ring91[k].map(|r| b4(&r))),
+            turn91: first(t.turn91),
             pff2_04: std::array::from_fn(|l| smoke[1][l].rotate),
             pff1_18: std::array::from_fn(|l| smoke[0][l].force[2].to_bits()),
             g_radius: std::array::from_fn(|l| row(l).g_radius.to_bits()),
@@ -434,9 +434,9 @@ impl TornadeTables {
     pub fn read(volume: Volume) -> TornadeTables {
         let t = piney_data::tables::effect::of(volume);
         TornadeTables {
-            start_1: [first(t.tornade_start1()), first(t.tornade_start1b())],
-            start_2: [first(t.tornade_start2()), first(t.tornade_start2b())],
-            sndcode: [first(t.tornade_sndcode()), first(t.tornade_sndcodeb())],
+            start_1: [first(t.tornade_start1), first(t.tornade_start1b)],
+            start_2: [first(t.tornade_start2), first(t.tornade_start2b)],
+            sndcode: [first(t.tornade_sndcode), first(t.tornade_sndcodeb)],
         }
     }
 }

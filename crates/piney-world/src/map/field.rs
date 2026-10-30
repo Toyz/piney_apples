@@ -164,10 +164,10 @@ impl FieldMap {
         let mut grid: Vec<Option<Obj>> = vec![None; 40 * 40];
         for o in &field.objects {
             let icon = match o.kind {
-                Kind::Key => table(w.key_icons(), o.index)?,
-                Kind::Sub => table(w.sub_icons(), o.index)?,
-                Kind::Base => table(w.base_icons(), o.index)?,
-                Kind::Tree => table(w.tree_icons(), o.index)?,
+                Kind::Key => table(w.key_icons, o.index)?,
+                Kind::Sub => table(w.sub_icons, o.index)?,
+                Kind::Base => table(w.base_icons, o.index)?,
+                Kind::Tree => table(w.tree_icons, o.index)?,
                 Kind::Entrance | Kind::Lake => None,
             };
             let obj = Obj { kind: o.kind.number(), idx: o.index as i32, mx: o.cell[0], my: o.cell[1], wp: o.pos, icon };
@@ -185,7 +185,7 @@ impl FieldMap {
             }
         }
         // fieldminimap: the texture of each field type.
-        let name = w.field_minimap().get(ft as usize).copied().flatten().unwrap_or_default().to_owned();
+        let name = w.field_minimap.get(ft as usize).copied().flatten().unwrap_or_default().to_owned();
         let (textures, cluts) = piney_data::texture::read(&file.ccs)?;
         let obj = file.ccs.find_object(&name).ok_or_else(|| piney_data::Error::NotFound(name.clone()))?;
         let t = textures.iter().find(|t| t.object == obj).ok_or_else(|| piney_data::Error::NotFound(name.clone()))?;
@@ -201,7 +201,7 @@ impl FieldMap {
             Place { layer: MAP_LAYER, view, tex: TexRef::Upload(0), tex_h: 256 },
             Place { layer: MAP_LAYER, view, tex: arrow.tex, tex_h: arrow.tex_h },
         ];
-        let l = piney_data::tables::world::of(volume).map_labels();
+        let l = piney_data::tables::world::of(volume).map_labels;
         let labels = [l[0], l[1]].map(piney_data::tables::sjis::encode);
         Ok(FieldMap {
             spr: [Spr::mask(MINIMAP, 512, 64), Spr::mask(ARROW, 16, 16)],
@@ -212,7 +212,7 @@ impl FieldMap {
             fobj: grid.into_iter().flatten().collect(),
             water,
             dungeon,
-            fp_dungeon: Icon::of(&w.fp_dungeon()),
+            fp_dungeon: Icon::of(&w.fp_dungeon),
             labels,
             pixels,
             clut,

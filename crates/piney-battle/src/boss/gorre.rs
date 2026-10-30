@@ -117,14 +117,14 @@ impl GorreData {
         let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
         let pick = |v: &[i32], k: usize| v.get(k).copied().unwrap_or(0);
         GorreData {
-            normal: t.gorre_normal().to_vec(),
-            super_: t.gorre_super().to_vec(),
-            epitaph: t.gorre_epitaph().to_vec(),
-            anims: s(t.gorre_anims()),
-            brother_anims: [s(t.gorre_brother_anims()), s(t.gorre_brother2_anims())],
-            skills: std::array::from_fn(|k| pick(t.gorre_skills(), k)),
-            magic_skills: std::array::from_fn(|k| pick(t.gorre_magic_skills(), k)),
-            tornade_skills: std::array::from_fn(|k| pick(t.gorre_tornade_skills(), k)),
+            normal: t.gorre_normal.to_vec(),
+            super_: t.gorre_super.to_vec(),
+            epitaph: t.gorre_epitaph.to_vec(),
+            anims: s(t.gorre_anims),
+            brother_anims: [s(t.gorre_brother_anims), s(t.gorre_brother2_anims)],
+            skills: std::array::from_fn(|k| pick(t.gorre_skills, k)),
+            magic_skills: std::array::from_fn(|k| pick(t.gorre_magic_skills, k)),
+            tornade_skills: std::array::from_fn(|k| pick(t.gorre_tornade_skills, k)),
         }
     }
 

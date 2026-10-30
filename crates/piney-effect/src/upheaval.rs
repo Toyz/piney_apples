@@ -58,18 +58,18 @@ impl UpheavalTables {
     pub fn read(volume: Volume) -> UpheavalTables {
         let t = piney_data::tables::effect::of(volume);
         UpheavalTables {
-            pillar_deg: first(t.pillar_deg()),
-            hand_deg: first(t.hand_deg()),
-            tree_deg: first(t.tree_deg()),
-            rock_deg: first(t.rock_deg()),
-            ice_raise: first(t.ice_raise()),
-            ice_hit: first(t.ice_hit()),
-            rocks: strings(t.upheaval_rocks()),
-            trees: strings(t.upheaval_trees()),
-            leaf_gen: GenParam::other(t.element_generators(), t.element_generators_va(), 7),
-            leaf_ff: FfParam::row(t.element_ffs(), t.element_ffs_va(), 15),
-            ice_gen: GenParam::other(t.element_generators(), t.element_generators_va(), 10),
-            ice_ff: FfParam::row(t.element_ffs(), t.element_ffs_va(), 18),
+            pillar_deg: first(t.pillar_deg),
+            hand_deg: first(t.hand_deg),
+            tree_deg: first(t.tree_deg),
+            rock_deg: first(t.rock_deg),
+            ice_raise: first(t.ice_raise),
+            ice_hit: first(t.ice_hit),
+            rocks: strings(t.upheaval_rocks),
+            trees: strings(t.upheaval_trees),
+            leaf_gen: GenParam::other(t.element_generators, t.element_generators_va, 7),
+            leaf_ff: FfParam::row(t.element_ffs, t.element_ffs_va, 15),
+            ice_gen: GenParam::other(t.element_generators, t.element_generators_va, 10),
+            ice_ff: FfParam::row(t.element_ffs, t.element_ffs_va, 18),
         }
     }
 }

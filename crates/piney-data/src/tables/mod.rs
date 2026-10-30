@@ -36,3 +36,73 @@ pub mod toppage;
 pub mod types;
 pub mod voice;
 pub mod world;
+
+/// Each group's place in the store (`store::Table::ID`): the generated
+/// groups, then the hand-written ones, one list so no two share a place.
+pub mod id {
+    pub const TITLE: usize = 0;
+    pub const FONTS: usize = 1;
+    pub const LOADDISP: usize = 2;
+    pub const NEWGAME: usize = 3;
+    pub const DTMENU: usize = 4;
+    pub const DESKTOP: usize = 5;
+    pub const MAIL: usize = 6;
+    pub const KANJI: usize = 7;
+    pub const STAFFROLL: usize = 8;
+    pub const NAMEENTRY: usize = 9;
+    pub const TOPPAGE: usize = 10;
+    pub const GAME: usize = 11;
+    pub const FIELDUI: usize = 12;
+    pub const BATTLE: usize = 13;
+    pub const COMBAT: usize = 14;
+    pub const STREAM: usize = 15;
+    pub const EFFECT: usize = 16;
+    pub const WORLD: usize = 17;
+    pub const PARTY_CHAT: usize = 18;
+    pub const TALK: usize = 19;
+    pub const VOICE: usize = 20;
+    pub const BOOK: usize = 21;
+    pub const RACE: usize = 22;
+    pub const AREA: usize = 23;
+    pub const DUNGEON: usize = 24;
+    pub const FIELD: usize = 25;
+    pub const SETBL: usize = 26;
+    pub const SOUND: usize = 27;
+    pub const STATICS: usize = 28;
+}
+
+/// How many groups the store keeps.
+pub const GROUPS: usize = 29;
+
+/// Each group's file, `<name>.bin`, by its place.
+pub const NAMES: [&str; GROUPS] = [
+    "title",
+    "fonts",
+    "loaddisp",
+    "newgame",
+    "dtmenu",
+    "desktop",
+    "mail",
+    "kanji",
+    "staffroll",
+    "nameentry",
+    "toppage",
+    "game",
+    "fieldui",
+    "battle",
+    "combat",
+    "stream",
+    "effect",
+    "world",
+    "party_chat",
+    "talk",
+    "voice",
+    "book",
+    "race",
+    "area",
+    "dungeon",
+    "field",
+    "setbl",
+    "sound",
+    "statics",
+];

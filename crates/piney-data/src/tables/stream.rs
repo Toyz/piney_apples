@@ -86,7 +86,7 @@ pub struct Stream {
     pub gate_town_crisis_e: &'static [[Streamdata; 2]],
     /// `str7000TblAfterE`.
     pub gate_after_e: &'static [[Streamdata; 2]],
-    /// `str7000Out`: a field's arrival row, up to a negative field.
+    /// `str7000Out`: a field's arrival row, up to a negative field. Alike on every volume.
     pub gate_out: &'static [GateHackOut],
     /// `evStrMsgTbl`: each stream's subtitles, read on past its own records as the game's pointer walks (none for a stream without).
     pub subtitles: &'static [Option<&'static [EvMsgData]>],
@@ -94,15 +94,15 @@ pub struct Stream {
     pub subtitles_parody: &'static [Option<&'static [EvMsgData]>],
     /// `hitRot0120a` (x, y, z degrees; three), read on to eight as the cues 610-614 do (the next data, the jump table's denormal floats, which the EE takes as 0).
     pub hit_rot_0120a: &'static [[f32; 3]],
-    /// `hitRot0240` (seven), its eighth mark reading on into the next data.
+    /// `hitRot0240` (seven), its eighth mark reading on into the next data. Alike on every volume.
     pub hit_rot_0240: &'static [[f32; 3]],
-    /// `hitRot0250`: `Func_str0250`'s rotation.
+    /// `hitRot0250`: `Func_str0250`'s rotation. Alike on every volume.
     pub hit_rot_0250: [f32; 3],
-    /// `hitRot0301`: `Func_str0301`'s rotation.
+    /// `hitRot0301`: `Func_str0301`'s rotation. Alike on every volume.
     pub hit_rot_0301: [f32; 3],
-    /// `eventObjTbl_0580` read on through `eventObjTbl_0581`: the ending's cues.
+    /// `eventObjTbl_0580` read on through `eventObjTbl_0581`: the ending's cues. Alike on every volume.
     pub event_objs: &'static [EventObj],
-    /// `rockScaleTbl`: a rock's scale by its model.
+    /// `rockScaleTbl`: a rock's scale by its model. Alike on every volume.
     pub rock_scale: [f32; 3],
     /// `eventObjTbl_0710` (MUT main 0x00366e30): the opening's (`Func_str0710`) cues, up to its end row; none on Infection.
     pub opening_events: &'static [EventObj],
@@ -151,114 +151,16 @@ impl crate::store::Load for Stream {
     }
 }
 
-impl Stream {
-    pub fn lists(&self) -> &'static [Option<&'static [Streamdata]>] {
-        self.lists
-    }
-    pub fn lists_e(&self) -> &'static [Option<&'static [Streamdata]>] {
-        self.lists_e
-    }
-    pub fn bgm(&self) -> &'static [SndStrTbl] {
-        self.bgm
-    }
-    pub fn gate_pre(&self) -> &'static [Streamdata] {
-        self.gate_pre
-    }
-    pub fn gate_town(&self) -> &'static [[Streamdata; 2]] {
-        self.gate_town
-    }
-    pub fn gate_town_crisis(&self) -> &'static [[Streamdata; 2]] {
-        self.gate_town_crisis
-    }
-    pub fn gate_after(&self) -> &'static [[Streamdata; 2]] {
-        self.gate_after
-    }
-    pub fn gate_pre_e(&self) -> &'static [Streamdata] {
-        self.gate_pre_e
-    }
-    pub fn gate_town_e(&self) -> &'static [[Streamdata; 2]] {
-        self.gate_town_e
-    }
-    pub fn gate_town_crisis_e(&self) -> &'static [[Streamdata; 2]] {
-        self.gate_town_crisis_e
-    }
-    pub fn gate_after_e(&self) -> &'static [[Streamdata; 2]] {
-        self.gate_after_e
-    }
-    pub fn gate_out(&self) -> &'static [GateHackOut] {
-        self.gate_out
-    }
-    pub fn subtitles(&self) -> &'static [Option<&'static [EvMsgData]>] {
-        self.subtitles
-    }
-    pub fn subtitles_parody(&self) -> &'static [Option<&'static [EvMsgData]>] {
-        self.subtitles_parody
-    }
-    pub fn hit_rot_0120a(&self) -> &'static [[f32; 3]] {
-        self.hit_rot_0120a
-    }
-    pub fn hit_rot_0240(&self) -> &'static [[f32; 3]] {
-        self.hit_rot_0240
-    }
-    pub fn hit_rot_0250(&self) -> [f32; 3] {
-        self.hit_rot_0250
-    }
-    pub fn hit_rot_0301(&self) -> [f32; 3] {
-        self.hit_rot_0301
-    }
-    pub fn event_objs(&self) -> &'static [EventObj] {
-        self.event_objs
-    }
-    pub fn rock_scale(&self) -> [f32; 3] {
-        self.rock_scale
-    }
-    pub fn opening_events(&self) -> &'static [EventObj] {
-        self.opening_events
-    }
-    pub fn opening_text(&self) -> [Option<&'static str>; 4] {
-        self.opening_text
-    }
-    pub fn part_params_1070(&self) -> &'static [PartParam1070] {
-        self.part_params_1070
-    }
-    pub fn part_models_1070(&self) -> &'static [PartModel1070] {
-        self.part_models_1070
-    }
-    pub fn part_chunks_1070(&self) -> [Option<&'static str>; 6] {
-        self.part_chunks_1070
-    }
-    pub fn hit_rot_0880(&self) -> &'static [[f32; 3]] {
-        self.hit_rot_0880
-    }
+impl crate::store::Table for Stream {
+    const ID: usize = super::id::STREAM;
 }
 
-/// `str7000Out`: a field's arrival row, up to a negative field.
-pub static GATE_OUT: std::sync::LazyLock<&'static [GateHackOut]> = std::sync::LazyLock::new(|| shared().gate_out);
-
-/// `hitRot0240` (seven), its eighth mark reading on into the next data.
-pub static HIT_ROT_0240: std::sync::LazyLock<&'static [[f32; 3]]> = std::sync::LazyLock::new(|| shared().hit_rot_0240);
-
-/// `hitRot0250`: `Func_str0250`'s rotation.
-pub static HIT_ROT_0250: std::sync::LazyLock<[f32; 3]> = std::sync::LazyLock::new(|| shared().hit_rot_0250);
-
-/// `hitRot0301`: `Func_str0301`'s rotation.
-pub static HIT_ROT_0301: std::sync::LazyLock<[f32; 3]> = std::sync::LazyLock::new(|| shared().hit_rot_0301);
-
-/// `eventObjTbl_0580` read on through `eventObjTbl_0581`: the ending's cues.
-pub static EVENT_OBJS: std::sync::LazyLock<&'static [EventObj]> = std::sync::LazyLock::new(|| shared().event_objs);
-
-/// `rockScaleTbl`: a rock's scale by its model.
-pub static ROCK_SCALE: std::sync::LazyLock<[f32; 3]> = std::sync::LazyLock::new(|| shared().rock_scale);
-
-/// The volume's Stream (read once a run; kept here per volume).
+/// The volume's Stream (read once a run).
 pub fn of(v: Volume) -> &'static Stream {
-    static READ: [std::sync::OnceLock<&'static Stream>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "stream"))
+    <Stream as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Stream {
-    static READ: std::sync::OnceLock<&'static Stream> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("stream"))
+pub fn shared() -> &'static Stream {
+    <Stream as crate::store::Table>::shared()
 }

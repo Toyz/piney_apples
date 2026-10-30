@@ -66,30 +66,30 @@ impl SummonedTables {
     /// The volume's (`tables::effect`).
     pub fn read(volume: Volume) -> SummonedTables {
         let t = piney_data::tables::effect::of(volume);
-        let (g, f) = (t.element_generators(), t.element_ffs());
+        let (g, f) = (t.element_generators, t.element_ffs);
         SummonedTables {
-            fire: first(t.summoned_fire()),
-            water: first(t.summoned_water()),
-            thunder_rings: first(t.summoned_thunder_rings()),
-            soil: first(t.summoned_soil()),
-            tree_rings: first(t.summoned_tree_rings()),
-            goblin_rings: first(t.summoned_goblin_rings()),
-            spline_deg: bits(t.summoned_spline_deg()),
-            circle_clut: strings(t.summoned_circle_clut()),
-            needles: strings(t.summoned_needles()),
-            energy_clut: strings(t.summoned_energy_clut()),
-            dark_star_tex: t.summoned_dark_star_tex() as i16,
-            conv_gen: GenParam::other(g, t.element_generators_va(), 4),
-            conv_ff: FfParam::row(f, t.element_ffs_va(), 12),
-            dark_star_gen: GenParam::other(g, t.element_generators_va(), 5),
-            ball_gen: GenParam::other(g, t.element_generators_va(), 12),
-            ball_ff: FfParam::row(f, t.element_ffs_va(), 14),
-            star_gen: GenParam::other(g, t.element_generators_va(), 8),
-            star_ff: FfParam::row(f, t.element_ffs_va(), 16),
-            trail_gen: GenParam::other(g, t.element_generators_va(), 9),
-            trail_ff: FfParam::row(f, t.element_ffs_va(), 17),
-            leaf_gen: GenParam::other(g, t.element_generators_va(), 7),
-            leaf_ff: FfParam::row(f, t.element_ffs_va(), 15),
+            fire: first(t.summoned_fire),
+            water: first(t.summoned_water),
+            thunder_rings: first(t.summoned_thunder_rings),
+            soil: first(t.summoned_soil),
+            tree_rings: first(t.summoned_tree_rings),
+            goblin_rings: first(t.summoned_goblin_rings),
+            spline_deg: bits(t.summoned_spline_deg),
+            circle_clut: strings(t.summoned_circle_clut),
+            needles: strings(t.summoned_needles),
+            energy_clut: strings(t.summoned_energy_clut),
+            dark_star_tex: t.summoned_dark_star_tex as i16,
+            conv_gen: GenParam::other(g, t.element_generators_va, 4),
+            conv_ff: FfParam::row(f, t.element_ffs_va, 12),
+            dark_star_gen: GenParam::other(g, t.element_generators_va, 5),
+            ball_gen: GenParam::other(g, t.element_generators_va, 12),
+            ball_ff: FfParam::row(f, t.element_ffs_va, 14),
+            star_gen: GenParam::other(g, t.element_generators_va, 8),
+            star_ff: FfParam::row(f, t.element_ffs_va, 16),
+            trail_gen: GenParam::other(g, t.element_generators_va, 9),
+            trail_ff: FfParam::row(f, t.element_ffs_va, 17),
+            leaf_gen: GenParam::other(g, t.element_generators_va, 7),
+            leaf_ff: FfParam::row(f, t.element_ffs_va, 15),
         }
     }
 }

@@ -28,6 +28,7 @@ use piney_world::{Phase, Request, World};
 
 use crate::field_host::{FieldHost, FieldState, MENU_LAYER, SceneChange};
 use crate::mode::{Event, Mode};
+use piney_data::store::Table;
 
 /// Where `ccSetupGameCtrl` is with the event task.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -558,7 +559,7 @@ impl WorldMode {
                 E::Voice { grp, n } => {
                     let grp = if grp >= 141 {
                         piney_data::tables::fieldui::of(self.ui.texts().volume)
-                            .voice_groups()
+                            .voice_groups
                             .get((grp - 141) as usize)
                             .copied()
                             .unwrap_or(-1)

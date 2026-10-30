@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let volume = iso.volume()?;
     let archive = Archive::new(iso.read_path("DATA/DATA.BIN")?)?;
     let files = Rc::new(RaceFiles::read(&archive)?);
-    let cells = piney_data::tables::race::of(volume).timer_cells();
+    let cells = piney_data::tables::race::of(volume).timer_cells;
     let stdin = std::io::stdin();
     let mut out = std::io::stdout().lock();
     for line in stdin.lock().lines() {
@@ -68,7 +68,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     save.set_i16(at + 2 * k, t.int() as i16);
                 }
                 let ranks: [(i16, i16); 3] = piney_data::tables::fieldui::of(volume)
-                    .race_ranks()
+                    .race_ranks
                     .get((server - 1) as usize)
                     .map_or([(0, 0); 3], |r| r.map(|x| (x.time, x.row)));
                 let rank = race::enter_time(&mut save, &ranks, server, time, row);

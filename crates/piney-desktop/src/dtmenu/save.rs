@@ -65,11 +65,11 @@ impl SaveTexts {
         let q = dtmenu::of(volume).clear_flag;
         SaveTexts {
             clear_flag: [0, 1, 2].map(|k| encode(q[k])),
-            record: super::slots(*dtmenu::RECORD),
-            unused: super::slots(&dtmenu::RECORD[2..]),
-            colon: encode(*dtmenu::COLON),
-            lv: encode(*dtmenu::LV),
-            time_max: encode(*dtmenu::TIME_MAX),
+            record: super::slots(dtmenu::shared().record),
+            unused: super::slots(&dtmenu::shared().record[2..]),
+            colon: encode(dtmenu::shared().colon),
+            lv: encode(dtmenu::shared().lv),
+            time_max: encode(dtmenu::shared().time_max),
             messages,
         }
     }

@@ -36,8 +36,8 @@ impl Tables {
         let t = piney_data::tables::effect::of(volume);
         let row = |r: &[i32]| -> [i16; 8] { std::array::from_fn(|i| r.get(i).map_or(0, |&v| v as i16)) };
         Tables {
-            up: std::array::from_fn(|k| row(t.ability_up()[k])),
-            down: std::array::from_fn(|k| row(t.ability_down()[k])),
+            up: std::array::from_fn(|k| row(t.ability_up[k])),
+            down: std::array::from_fn(|k| row(t.ability_down[k])),
         }
     }
 }

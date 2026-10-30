@@ -94,11 +94,11 @@ impl MagusData {
         let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
         let three = |v: &[i32]| std::array::from_fn(|k| v.get(k).copied().unwrap_or(0));
         MagusData {
-            epitaph: t.magus_epitaph().to_vec(),
-            anims: s(t.magus_anims()),
-            leaf_anims: s(t.magus_leaf_anims()),
-            skills: three(t.magus_skills()),
-            drop_skills: three(t.magus_drop_skills()),
+            epitaph: t.magus_epitaph.to_vec(),
+            anims: s(t.magus_anims),
+            leaf_anims: s(t.magus_leaf_anims),
+            skills: three(t.magus_skills),
+            drop_skills: three(t.magus_drop_skills),
         }
     }
 }

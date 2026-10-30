@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-517 entries: audio 43, battle 131, build 26, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 237, tooling 53, ui 102, video 16, volumes 94, world 146. 124 entries still have open questions - [listed below](#still-open).
+518 entries: audio 43, battle 131, build 27, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 237, tooling 54, ui 102, video 16, volumes 94, world 146. 125 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -529,9 +529,11 @@ The [reference](docs/README.md) says what is true now.
 | 515 | [A licence allowlist: deny.toml lets no copyleft crate in, and CI checks it with a pinned cargo-deny](worklog/0515-a-licence-allowlist-deny-toml-lets-no-copyleft-crate-in-and.md) | 2026-10-29 | build, tooling |
 | 516 | [Clean-up section 1: the workspace lints at deny in every crate, what they flagged fixed, the readers' own lints, and unsafe kept to eemu's Python buffers](worklog/0516-clean-up-section-1-the-workspace-lints-at-deny-in-every.md) | 2026-10-29 | build, tooling, test |
 | 517 | [cargo-deny's advisories on: zstd 0.14.3, and winit without the font parser](worklog/0517-cargo-deny-s-advisories-on-zstd-0-14-3-and-winit-without.md) | 2026-10-29 | build, tooling |
+| 518 | [Clean-up lift: the Table trait, one table cache indexed by generated IDs, and no accessors or LazyLock statics](worklog/0518-clean-up-lift-the-table-trait-one-table-cache-indexed-by.md) | 2026-10-30 | build, tooling |
 
 ## Still open
 
+- [518. Clean-up lift: the Table trait, one table cache indexed by generated IDs, and no accessors or LazyLock statics](worklog/0518-clean-up-lift-the-table-trait-one-table-cache-indexed-by.md) - whether the Outbreak failures of test_evcam_rs, test_evchar_rs and test_demo_rs (the same before this lift) are the...
 - [510. Clean-up section 0, item 6: piney-gen's library returns errors instead of ending the process; the manifest's own mistakes panic](worklog/0510-clean-up-section-0-item-6-piney-gen-s-library-returns.md) - Why work/analysis/carry/out.json and qua.json no longer match what piney-gen carry makes (they differ at 21d97e2 too)...
 - [508. Clean-up section 0, items 1-3: every caller names its volume's tables (the later volumes' thunder is sound 235), one guarded ccGetDircChg, and the bosses' HP kept in a short as the game keeps it](worklog/0508-clean-up-section-0-items-1-3-every-caller-names-its-volume.md) - Why test_field_rt.py's game side returns an arms key that field_probe never prints (it errors before any frame, at HEAD...
 - [481. The water's picture is the game's 128 x 128 point-sampled copy: towns' water 0, the field's haze and lake mirror](worklog/0481-the-water-s-picture-is-the-game-s-128-x-128-point-sampled.md) - whether the GS samples a sprite's texels at each pixel's corner or its centre (half a copy texel; research, hardware)

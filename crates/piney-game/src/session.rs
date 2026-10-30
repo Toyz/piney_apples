@@ -25,6 +25,7 @@ use crate::mode::{Event, Mode};
 use crate::stream::StreamPlayer;
 use crate::toppage::TopPageMode;
 use crate::world::WorldMode;
+use piney_data::store::Table;
 
 /// `ccGame::ChangeRequest` numbers.
 mod request {
@@ -2866,9 +2867,9 @@ mod tests {
         // `VenderMenu`'s three (0x100 the weapons, 0x400 the items, 0x800
         // the magic); the Recorder (0x1000) and the Elf (0x200) sell none.
         let lists = match ty {
-            t if t & 0x100 != 0 => f.equip_shop(),
-            t if t & 0x800 != 0 => f.magic_shop(),
-            t if t & 0x400 != 0 => f.item_shop(),
+            t if t & 0x100 != 0 => f.equip_shop,
+            t if t & 0x800 != 0 => f.magic_shop,
+            t if t & 0x400 != 0 => f.item_shop,
             _ => return None,
         };
         let stock = lists.get(w.server().clamp(0, 4) as usize)?;

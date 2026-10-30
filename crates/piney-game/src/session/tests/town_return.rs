@@ -309,7 +309,7 @@ fn the_status_portraits_follow_the_slots() {
 
 /// Orca's `spcDefaultItemList` row: (category, id, count).
 fn kit(v: Volume) -> Vec<(i32, i32, i32)> {
-    let rows = piney_data::tables::battle::of(v).spc_default_items();
+    let rows = piney_data::tables::battle::of(v).spc_default_items;
     rows[ORCA as usize]
         .iter()
         .filter(|e| e.category >= 0)
@@ -363,10 +363,10 @@ fn trades_come_back_each_scene() {
     let mut s = start(&iso, &archive, Some(14));
     hold(&mut s, 128, 128, 900, |s| playing(s).is_some());
     let t = piney_data::tables::newgame::of(Volume::Inf);
-    let charm = t.spc_trade()[ORCA as usize - 1][0];
+    let charm = t.spc_trade[ORCA as usize - 1][0];
     assert_ne!(charm.sw, 0, "Orca's first trade restocks");
     let (npc, slot, trade) = t
-        .npc_trade()
+        .npc_trade
         .iter()
         .enumerate()
         .find_map(|(k, l)| l.iter().take(15).position(|e| e.sw != 0).map(|j| (k, j, l[j].lst)))
@@ -400,7 +400,7 @@ fn trades_come_back_each_scene() {
 fn the_town_restocks_from_the_rand_the_field_left() {
     use piney_data::save::by_id::npc_trade_list;
     let Some((iso, archive)) = disc() else { return };
-    let npcs = piney_data::tables::newgame::of(Volume::Inf).npc_trade().len();
+    let npcs = piney_data::tables::newgame::of(Volume::Inf).npc_trade.len();
     // Each NPC's last slot back in Mac Anu, the field's rand() at `seed`
     // as Kite leaves.
     let offers = |seed: u64| -> Vec<(i16, u8)> {

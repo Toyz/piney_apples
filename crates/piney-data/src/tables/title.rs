@@ -8,35 +8,35 @@ use crate::volume::Volume;
 /// The `title` group's values for a volume, from the build.
 #[derive(Debug)]
 pub struct Title {
-    /// `timeIdolRankDefStr`: a name then a time for each of the five ranks.
+    /// `timeIdolRankDefStr`: a name then a time for each of the five ranks. Alike on every volume.
     pub time_idol_rank: &'static [&'static str],
-    /// `STR_YES`
+    /// `STR_YES` Alike on every volume.
     pub yes: &'static str,
-    /// `STR_NO`
+    /// `STR_NO` Alike on every volume.
     pub no: &'static str,
-    /// `STR_LV`
+    /// `STR_LV` Alike on every volume.
     pub lv: &'static str,
-    /// `STR_ALLTIME`
+    /// `STR_ALLTIME` Alike on every volume.
     pub alltime: &'static str,
-    /// `STR_NODETA`
+    /// `STR_NODETA` Alike on every volume.
     pub nodeta: &'static str,
-    /// `STR_MEMORYCARD`
+    /// `STR_MEMORYCARD` Alike on every volume.
     pub memorycard: &'static str,
-    /// `STR_SLOT1`
+    /// `STR_SLOT1` Alike on every volume.
     pub slot1: &'static str,
-    /// `STR_SLOT2`
+    /// `STR_SLOT2` Alike on every volume.
     pub slot2: &'static str,
-    /// `STR_DATA`
+    /// `STR_DATA` Alike on every volume.
     pub data: &'static str,
-    /// `STR_CLEAR`
+    /// `STR_CLEAR` Alike on every volume.
     pub clear: &'static str,
-    /// `STR_PARODY`
+    /// `STR_PARODY` Alike on every volume.
     pub parody: &'static str,
-    /// `STR_NOFLG_DETA`
+    /// `STR_NOFLG_DETA` Alike on every volume.
     pub noflg_deta: &'static str,
-    /// demo.prg's highlight escape
+    /// demo.prg's highlight escape Alike on every volume.
     pub highlight: &'static str,
-    /// demo.prg's volume label
+    /// demo.prg's volume label Alike on every volume.
     pub vol: &'static str,
     /// `saveSysMsg` by `result & 0xfff`: each message's first five pieces, None for none.
     pub save_sys_msg: &'static [Option<&'static [&'static str]>],
@@ -68,115 +68,16 @@ impl crate::store::Load for Title {
     }
 }
 
-impl Title {
-    pub fn time_idol_rank(&self) -> &'static [&'static str] {
-        self.time_idol_rank
-    }
-    pub fn yes(&self) -> &'static str {
-        self.yes
-    }
-    pub fn no(&self) -> &'static str {
-        self.no
-    }
-    pub fn lv(&self) -> &'static str {
-        self.lv
-    }
-    pub fn alltime(&self) -> &'static str {
-        self.alltime
-    }
-    pub fn nodeta(&self) -> &'static str {
-        self.nodeta
-    }
-    pub fn memorycard(&self) -> &'static str {
-        self.memorycard
-    }
-    pub fn slot1(&self) -> &'static str {
-        self.slot1
-    }
-    pub fn slot2(&self) -> &'static str {
-        self.slot2
-    }
-    pub fn data(&self) -> &'static str {
-        self.data
-    }
-    pub fn clear(&self) -> &'static str {
-        self.clear
-    }
-    pub fn parody(&self) -> &'static str {
-        self.parody
-    }
-    pub fn noflg_deta(&self) -> &'static str {
-        self.noflg_deta
-    }
-    pub fn highlight(&self) -> &'static str {
-        self.highlight
-    }
-    pub fn vol(&self) -> &'static str {
-        self.vol
-    }
-    pub fn save_sys_msg(&self) -> &'static [Option<&'static [&'static str]>] {
-        self.save_sys_msg
-    }
-    pub fn mc_dir_names(&self) -> &'static [&'static str] {
-        self.mc_dir_names
-    }
+impl crate::store::Table for Title {
+    const ID: usize = super::id::TITLE;
 }
 
-/// `timeIdolRankDefStr`: a name then a time for each of the five ranks.
-pub static TIME_IDOL_RANK: std::sync::LazyLock<&'static [&'static str]> =
-    std::sync::LazyLock::new(|| shared().time_idol_rank);
-
-/// `STR_YES`
-pub static YES: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().yes);
-
-/// `STR_NO`
-pub static NO: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().no);
-
-/// `STR_LV`
-pub static LV: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().lv);
-
-/// `STR_ALLTIME`
-pub static ALLTIME: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().alltime);
-
-/// `STR_NODETA`
-pub static NODETA: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().nodeta);
-
-/// `STR_MEMORYCARD`
-pub static MEMORYCARD: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().memorycard);
-
-/// `STR_SLOT1`
-pub static SLOT1: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().slot1);
-
-/// `STR_SLOT2`
-pub static SLOT2: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().slot2);
-
-/// `STR_DATA`
-pub static DATA: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().data);
-
-/// `STR_CLEAR`
-pub static CLEAR: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().clear);
-
-/// `STR_PARODY`
-pub static PARODY: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().parody);
-
-/// `STR_NOFLG_DETA`
-pub static NOFLG_DETA: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().noflg_deta);
-
-/// demo.prg's highlight escape
-pub static HIGHLIGHT: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().highlight);
-
-/// demo.prg's volume label
-pub static VOL: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().vol);
-
-/// The volume's Title (read once a run; kept here per volume).
+/// The volume's Title (read once a run).
 pub fn of(v: Volume) -> &'static Title {
-    static READ: [std::sync::OnceLock<&'static Title>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "title"))
+    <Title as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Title {
-    static READ: std::sync::OnceLock<&'static Title> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("title"))
+pub fn shared() -> &'static Title {
+    <Title as crate::store::Table>::shared()
 }

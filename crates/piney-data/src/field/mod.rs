@@ -8,9 +8,8 @@
 //! 40 x 40 grid. What the game draws is [`Field::scene`]'s and [`Light`]'s.
 
 use std::fmt;
-use std::sync::OnceLock;
 
-use crate::store::{Load, Reader};
+use crate::store::{Load, Reader, Table};
 use crate::volume::Volume;
 
 pub mod ee;
@@ -24,8 +23,11 @@ pub use generate::generate;
 /// once a run). Mutation's equal Infection's; Outbreak and Quarantine take
 /// their square roots from the FPU (`sqrt.s`).
 pub fn tables_of(v: Volume) -> &'static Tables {
-    static READ: [OnceLock<&'static Tables>; 4] = [const { OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "field"))
+    Tables::of(v)
+}
+
+impl Table for Tables {
+    const ID: usize = crate::tables::id::FIELD;
 }
 
 pub use render::{

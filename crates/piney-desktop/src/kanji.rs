@@ -9,7 +9,7 @@
 use piney_draw::{Blend, DrawState, Prim, PrimKind, Rgba, TexRef, TexState, Upload, UploadFormat, Vertex};
 
 use crate::view::{CULL_X1, CULL_Y1, LayerView, XYOFFSET_X, XYOFFSET_Y};
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 use piney_data::volume::Volume;
 
 /// Bytes a row of a ccKanji texture: 128 texels at 4 bits.
@@ -90,10 +90,10 @@ impl Fonts {
     /// glyph rows each.
     pub fn of(volume: Volume, palette: Vec<Rgba>) -> Self {
         use piney_data::tables::{fonts, kanji};
-        let small = [*fonts::EF8X16, fonts::of(volume).ef8x16_past].concat();
-        let large = fonts::EF12X20.to_vec();
-        let trims_s = [*kanji::ENGLISH_FONT_OFS_S, kanji::of(volume).english_font_ofs_s_past].concat();
-        let trims_l = [*kanji::ENGLISH_FONT_OFS_L, *kanji::ENGLISH_FONT_OFS_L_PAST].concat();
+        let small = [fonts::shared().ef8x16, fonts::of(volume).ef8x16_past].concat();
+        let large = fonts::shared().ef12x20.to_vec();
+        let trims_s = [kanji::shared().english_font_ofs_s, kanji::of(volume).english_font_ofs_s_past].concat();
+        let trims_l = [kanji::shared().english_font_ofs_l, kanji::shared().english_font_ofs_l_past].concat();
         debug_assert_eq!(small.len(), BITMAP_GLYPH_ROWS * SMALL.ch * SMALL.stride);
         debug_assert_eq!(large.len(), BITMAP_GLYPH_ROWS * LARGE.ch * LARGE.stride);
         Fonts { small, large, trims_s, trims_l, palette }
@@ -680,10 +680,10 @@ impl Kanji {
                 let alpha = self.colour[3];
                 let colour = match pending {
                     b'W' => Some(start),
-                    b'R' => Some(SPRITE_COLOR_TABLE[18]),
-                    b'G' => Some(SPRITE_COLOR_TABLE[20]),
-                    b'B' => Some(SPRITE_COLOR_TABLE[17]),
-                    b'Y' => Some(SPRITE_COLOR_TABLE[6]),
+                    b'R' => Some(kanji::shared().sprite_color_table[18]),
+                    b'G' => Some(kanji::shared().sprite_color_table[20]),
+                    b'B' => Some(kanji::shared().sprite_color_table[17]),
+                    b'Y' => Some(kanji::shared().sprite_color_table[6]),
                     _ => None,
                 };
                 if let Some(col) = colour {

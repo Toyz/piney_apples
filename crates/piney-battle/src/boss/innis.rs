@@ -95,13 +95,13 @@ impl InnisData {
         let t = piney_data::tables::combat::of(volume);
         let s = |v: &[Option<&str>]| v.iter().map(|a| a.map(str::to_string)).collect::<Vec<_>>();
         InnisData {
-            pattern: t.innis_pattern().to_vec(),
-            epitaph: t.innis_epitaph().to_vec(),
-            anm_tbl: s(t.innis_anims()),
-            various: t.innis_various_skills().to_vec(),
-            downer: t.innis_downer_skills().to_vec(),
-            monsters: t.innis_monster_anims().iter().map(|m| s(m)).collect(),
-            ring_models: t.innis_ring_models().to_vec(),
+            pattern: t.innis_pattern.to_vec(),
+            epitaph: t.innis_epitaph.to_vec(),
+            anm_tbl: s(t.innis_anims),
+            various: t.innis_various_skills.to_vec(),
+            downer: t.innis_downer_skills.to_vec(),
+            monsters: t.innis_monster_anims.iter().map(|m| s(m)).collect(),
+            ring_models: t.innis_ring_models.to_vec(),
         }
     }
 }

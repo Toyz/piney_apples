@@ -801,7 +801,7 @@ impl GimLook {
 
 /// `gimmickTbl[row]` of the volume.
 fn gimmick_row(volume: Volume, row: i32) -> Result<&'static GimmickTable> {
-    let rows = piney_data::tables::battle::of(volume).gimmicks();
+    let rows = piney_data::tables::battle::of(volume).gimmicks;
     usize::try_from(row).ok().and_then(|r| rows.get(r)).ok_or_else(|| Error::NotFound(format!("gimmick row {row}")))
 }
 

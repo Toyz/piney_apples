@@ -195,7 +195,7 @@ impl DungeonMap {
             Place { layer: MAP_LAYER, view, tex: arrow.tex, tex_h: arrow.tex_h },
         ];
         // levelstr: "B 1" .. "B 10".
-        let level_str = piney_data::tables::world::of(volume).level_str();
+        let level_str = piney_data::tables::world::of(volume).level_str;
         let labels = (0..FLOORS)
             .map(|i| piney_data::tables::sjis::encode(level_str.get(i).copied().flatten().unwrap_or_default()))
             .collect();

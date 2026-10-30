@@ -11,7 +11,7 @@ use glam::{Mat4, Vec3};
 
 use crate::ccs::Ccs;
 use crate::scene::{Dummy, Scene};
-use crate::store::{Load, Reader};
+use crate::store::{Load, Reader, Table};
 use crate::volume::Volume;
 
 /// The clip distance nearly every row uses (210 of 222): farther than any
@@ -195,17 +195,20 @@ pub fn obj_tables() -> &'static [ObjTable] {
 }
 
 /// A volume's statics as the build keeps them (`PINEY/TABLES/statics.bin`).
-struct Statics {
+pub(crate) struct Statics {
     models: &'static [ModelTable],
     objs: &'static [ObjTable],
     sets: &'static [SceneSet],
 }
 
+impl Table for Statics {
+    const ID: usize = crate::tables::id::STATICS;
+}
+
 /// A volume's model tables, object tables and the scene files each class
 /// loads (read once a run).
 pub fn of(v: Volume) -> (&'static [ModelTable], &'static [ObjTable], &'static [SceneSet]) {
-    static READ: [std::sync::OnceLock<&'static Statics>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    let s = READ[v as usize].get_or_init(|| crate::store::group(v, "statics"));
+    let s = Statics::of(v);
     (s.models, s.objs, s.sets)
 }
 

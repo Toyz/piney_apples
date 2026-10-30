@@ -114,102 +114,16 @@ impl crate::store::Load for Race {
     }
 }
 
-impl Race {
-    pub fn kite_pos(&self) -> &'static [[f32; 4]] {
-        self.kite_pos
-    }
-    pub fn kite_rot(&self) -> &'static [i16] {
-        self.kite_rot
-    }
-    pub fn ride_kind(&self) -> &'static [[f32; 4]] {
-        self.ride_kind
-    }
-    pub fn ride_server(&self) -> &'static [[f32; 4]] {
-        self.ride_server
-    }
-    pub fn intro_pos_kind(&self) -> &'static [[f32; 4]] {
-        self.intro_pos_kind
-    }
-    pub fn intro_view_kind(&self) -> &'static [[f32; 4]] {
-        self.intro_view_kind
-    }
-    pub fn intro_pos_server(&self) -> &'static [[f32; 4]] {
-        self.intro_pos_server
-    }
-    pub fn intro_view_server(&self) -> &'static [[f32; 4]] {
-        self.intro_view_server
-    }
-    pub fn count_height(&self) -> &'static [f32] {
-        self.count_height
-    }
-    pub fn end_pos(&self) -> &'static [[f32; 4]] {
-        self.end_pos
-    }
-    pub fn ride_end_pos(&self) -> &'static [[f32; 4]] {
-        self.ride_end_pos
-    }
-    pub fn ride_end_rot(&self) -> &'static [[f32; 4]] {
-        self.ride_end_rot
-    }
-    pub fn finish_cam_pos(&self) -> &'static [[f32; 4]] {
-        self.finish_cam_pos
-    }
-    pub fn finish_cam_view(&self) -> &'static [[f32; 4]] {
-        self.finish_cam_view
-    }
-    pub fn cup_height(&self) -> &'static [f32] {
-        self.cup_height
-    }
-    pub fn cup_anms(&self) -> &'static [&'static str] {
-        self.cup_anms
-    }
-    pub fn place_anms(&self) -> &'static [&'static str] {
-        self.place_anms
-    }
-    pub fn timer_cells(&self) -> &'static [[i32; 2]] {
-        self.timer_cells
-    }
-    pub fn flag_markers(&self) -> &'static [Option<[&'static str; 3]>] {
-        self.flag_markers
-    }
-    pub fn flag_cluts(&self) -> &'static [Option<&'static str>] {
-        self.flag_cluts
-    }
-    pub fn walk_kind(&self) -> &'static [[f32; 4]] {
-        self.walk_kind
-    }
-    pub fn walk_server(&self) -> &'static [[f32; 4]] {
-        self.walk_server
-    }
-    pub fn prizes(&self) -> &'static [[RacePrize; 5]] {
-        self.prizes
-    }
-    pub fn prizes_gone(&self) -> &'static [[RacePrize; 5]] {
-        self.prizes_gone
-    }
-    pub fn wallpapers(&self) -> &'static [i16] {
-        self.wallpapers
-    }
-    pub fn greet_va(&self) -> u32 {
-        self.greet_va
-    }
-    pub fn results_va(&self) -> u32 {
-        self.results_va
-    }
-    pub fn talk_va(&self) -> u32 {
-        self.talk_va
-    }
+impl crate::store::Table for Race {
+    const ID: usize = super::id::RACE;
 }
 
-/// The volume's Race (read once a run; kept here per volume).
+/// The volume's Race (read once a run).
 pub fn of(v: Volume) -> &'static Race {
-    static READ: [std::sync::OnceLock<&'static Race>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "race"))
+    <Race as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static Race {
-    static READ: std::sync::OnceLock<&'static Race> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("race"))
+pub fn shared() -> &'static Race {
+    <Race as crate::store::Table>::shared()
 }

@@ -6,7 +6,7 @@
 //! call, so the port can be compared call for call with the game and drawn
 //! afterwards by [`crate::render`].
 
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 
 /// Which of `ccMenuCtrl`'s sprites (and the globals it draws with).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -236,7 +236,7 @@ impl Spr {
 
     /// `color = ccSpriteColorTable[i]` (r, g, b; the alpha kept).
     pub fn set_colour(&mut self, i: usize) {
-        let c = SPRITE_COLOR_TABLE[i];
+        let c = kanji::shared().sprite_color_table[i];
         self.rgb = [c[0], c[1], c[2]];
     }
 

@@ -254,8 +254,8 @@ impl SpellData {
     pub fn read(volume: Volume) -> SpellData {
         let t = piney_data::tables::effect::of(volume);
         SpellData {
-            skill_types: piney_data::tables::battle::of(volume).skills().iter().map(|s| s.kind).collect(),
-            tornado_se: first(t.tornado_se()),
+            skill_types: piney_data::tables::battle::of(volume).skills.iter().map(|s| s.kind).collect(),
+            tornado_se: first(t.tornado_se),
             rings: tornado::RingTables::read(volume),
             thunder: thunder::ThunderTables::read(volume),
             tornade: tornado::TornadeTables::read(volume),
@@ -266,7 +266,7 @@ impl SpellData {
             summoned: summoned::SummonedTables::read(volume),
             draw: drawelm::DrawTables::read(volume),
             particle_ccs_anm: t
-                .ccs_anm()
+                .ccs_anm
                 .iter()
                 .map(|r| (r.ccs.unwrap_or("").to_string(), r.anm.unwrap_or("").to_string()))
                 .collect(),

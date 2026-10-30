@@ -26,12 +26,12 @@ impl InfoRef {
     pub fn va(self, volume: Volume) -> Option<u32> {
         let t = combat::of(volume);
         let (base, size) = match self.table {
-            "ehkBreathInfo" => (t.ehk_breath_info_va(), 0x1c),
-            "elBrInfo" => (t.el_br_info_va(), 0x1c),
-            "ehkBrParam" => (t.ehk_br_param_va(), 0x40),
-            "elBrParam" => (t.el_br_param_va(), 0x40),
-            name if name.ends_with("WpInfo") => (find(t.weapon_infos(), name, |b| (b.name, b.va))?, 0x60),
-            name if name.ends_with("DustInfo") => (find(t.dust_infos(), name, |b| (b.name, b.va))?, 0x20),
+            "ehkBreathInfo" => (t.ehk_breath_info_va, 0x1c),
+            "elBrInfo" => (t.el_br_info_va, 0x1c),
+            "ehkBrParam" => (t.ehk_br_param_va, 0x40),
+            "elBrParam" => (t.el_br_param_va, 0x40),
+            name if name.ends_with("WpInfo") => (find(t.weapon_infos, name, |b| (b.name, b.va))?, 0x60),
+            name if name.ends_with("DustInfo") => (find(t.dust_infos, name, |b| (b.name, b.va))?, 0x20),
             _ => return None,
         };
         Some(base + size * self.row as u32)
@@ -45,13 +45,13 @@ fn find<B, T>(blocks: &[B], name: &str, key: impl Fn(&B) -> (&str, T)) -> Option
 
 /// A weapon block's rows from `info`'s row on.
 pub fn weapon_rows(volume: Volume, info: InfoRef) -> &'static [EnemyWpInfo] {
-    let t = combat::of(volume).weapon_infos();
+    let t = combat::of(volume).weapon_infos;
     find(t, info.table, |b| (b.name, b.rows)).and_then(|r| r.get(info.row..)).unwrap_or_default()
 }
 
 /// A dust block's rows from `info`'s row on.
 pub fn dust_rows(volume: Volume, info: InfoRef) -> &'static [EnemyDustInfo] {
-    let t = combat::of(volume).dust_infos();
+    let t = combat::of(volume).dust_infos;
     find(t, info.table, |b| (b.name, b.rows)).and_then(|r| r.get(info.row..)).unwrap_or_default()
 }
 
@@ -59,8 +59,8 @@ pub fn dust_rows(volume: Volume, info: InfoRef) -> &'static [EnemyDustInfo] {
 pub fn breath_info(volume: Volume, info: InfoRef) -> Option<&'static EnemyBrInfo> {
     let t = combat::of(volume);
     match info.table {
-        "ehkBreathInfo" => t.ehk_breath_info().get(info.row),
-        "elBrInfo" => t.el_br_info().get(info.row),
+        "ehkBreathInfo" => t.ehk_breath_info.get(info.row),
+        "elBrInfo" => t.el_br_info.get(info.row),
         _ => None,
     }
 }
@@ -69,8 +69,8 @@ pub fn breath_info(volume: Volume, info: InfoRef) -> Option<&'static EnemyBrInfo
 pub fn breath_param(volume: Volume, info: InfoRef) -> Option<&'static EnemyBrParam> {
     let t = combat::of(volume);
     match info.table {
-        "ehkBrParam" => t.ehk_br_param().get(info.row),
-        "elBrParam" => t.el_br_param().get(info.row),
+        "ehkBrParam" => t.ehk_br_param.get(info.row),
+        "elBrParam" => t.el_br_param.get(info.row),
         _ => None,
     }
 }

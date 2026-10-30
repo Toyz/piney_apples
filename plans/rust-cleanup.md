@@ -69,7 +69,9 @@ order; tick items off here as they land, with the worklog entry.
 - [ ] `#[allow(dead_code)]` (36): 26 are the generated unused `shared()`
       (go with the `Table` trait); the test-only accessors in `piney-game`
       (`area.rs`, `world.rs`, `stream.rs`) become `#[cfg(test)]`; the rest
-      used or deleted. Then deny it.
+      used or deleted. Then deny it. (worklog 518: the generated 23 are
+      gone with the generator's template line, which a grep counted as a
+      37th; 13 remain, one a `cfg_attr` in `dtmenu.rs`.)
 - [ ] `#[allow(clippy::too_many_arguments)]` (152): parameter and context
       structs (below), then a threshold and deny.
 - [x] A licence allowlist (`deny.toml`) so no copyleft crate can enter: MIT,
@@ -87,11 +89,14 @@ order; tick items off here as they land, with the worklog entry.
 
 ## 2. Lifts
 
-- [ ] `Table` trait (`const NAME`, default `of(v)` / `shared()`) and one
+- [x] `Table` trait (`const NAME`, default `of(v)` / `shared()`) and one
       keyed cache with a per-key `OnceLock` in `store.rs`; piney-gen emits
       `impl Table` and a one-line `of`; drop the 1,017 field accessors and
       the 598 `LazyLock` statics. The hand-written tables (`dungeon`,
       `field`, `sound`, `area`, `statics`, `audio/setbl`) implement it too.
+      (worklog 518: keyed by a generated `const ID`, the cache a fixed
+      array of `OnceLock`s; `registry` and `stfroll`, still Rust literals,
+      keep their 12 accessors until they are in the build.)
 - [ ] Bosses: `Boss { base: BossBase, class: Class }` and a `BossClass`
       trait (from `corbenik::Host`) with `BaseActs` data (neutral forbid,
       the dash's w, act ids); the base `Main` as ordered building blocks

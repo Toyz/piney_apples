@@ -308,7 +308,7 @@ fn info(m: &mut MenuCtrl, x: &Ctx, lines: [Option<&[u8]>; 4]) {
 /// A desktop item's window kept open (`ChangeInfo`): `add`'s word and the
 /// number in three digits, then `bookItemAddMsg`.
 fn desktop_item(m: &mut MenuCtrl, x: &mut Ctx, add: usize, n: i32) {
-    let book = world::of(x.texts.volume).book();
+    let book = world::of(x.texts.volume).book;
     let mut s = encode(book.get(add).copied().unwrap_or(""));
     s.extend(dec2sjis(n, 3, 0));
     let msg = encode(book.first().copied().unwrap_or(""));
@@ -359,7 +359,7 @@ fn listed(cat: i32) -> i16 {
 /// `ItemListMenu` (MUT gcmn 0x0058d9f0, menu 91).
 pub fn item_list_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
     let i = idx(m);
-    let s = fieldui::of(x.texts.volume).item_list_str();
+    let s = fieldui::of(x.texts.volume).item_list_str;
     match m.proccess {
         // Everything held, worn and kept at Elf's Haven registered.
         0 => {
@@ -541,7 +541,7 @@ pub fn item_list_menu(m: &mut MenuCtrl, x: &mut Ctx) -> Flow {
             l.y = 4;
             l.select = l.index;
             m.menu_status = 1;
-            let rows = encode(fieldui::of(x.texts.volume).item_list_rows());
+            let rows = encode(fieldui::of(x.texts.volume).item_list_rows);
             extract_menu(m, rows);
             cursors(m);
             m.proccess += 1;
@@ -671,7 +671,7 @@ pub fn item_list_menu_disp(m: &mut MenuCtrl, x: &mut Ctx) {
         set_clm(&mut m.kanji, 16, 0, 0, 1);
         (m.kanji.dx, m.kanji.dy) = (from_int((i32::from(l.page) + 2) * 14 + 39), 84.0);
         m.kanji.make_packet(0);
-        let tags = fieldui::of(x.texts.volume).item_list_tags();
+        let tags = fieldui::of(x.texts.volume).item_list_tags;
         let tag = usize::try_from(l.index).ok().and_then(|g| tags.get(g)).copied().unwrap_or(&[]);
         let t = crate::tables::piece(tag, l.page.max(0) as usize);
         extract_menu(m, t);

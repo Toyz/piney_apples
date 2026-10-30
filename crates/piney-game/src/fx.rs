@@ -109,7 +109,7 @@ impl Ending {
                     let Some(fonts) = &self.fonts else { continue };
                     let mut k = piney_desktop::kanji::Kanji::init(3, 16);
                     k.kt = piney_desktop::kanji::Kt::LargeFixed;
-                    let c = piney_data::tables::kanji::SPRITE_COLOR_TABLE[7];
+                    let c = piney_data::tables::kanji::shared().sprite_color_table[7];
                     k.colour = [c[0], c[1], c[2], 0x80];
                     k.dx = f32::from_bits(*x);
                     k.dy = f32::from_bits(*y);

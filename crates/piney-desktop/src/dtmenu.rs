@@ -19,7 +19,7 @@ use crate::save::{SaveState, offset};
 use crate::savesys::{INFO_COUNT, SaveDataInfo, SaveSys};
 use crate::sprite::Sprite;
 use crate::{Request, Se};
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 
 mod save;
 
@@ -511,7 +511,8 @@ impl DtMenu {
     pub fn new(volume: Volume, window: Option<WindowTexture>, control: Option<WindowTexture>) -> Self {
         use piney_data::tables::dtmenu as t;
         let text = |s: Option<&str>| s.map(encode).unwrap_or_default();
-        let mut lists: Vec<MenuList> = t::ELEMENTS
+        let mut lists: Vec<MenuList> = t::shared()
+            .elements
             .iter()
             .map(|e| {
                 let (disp, width, items) = e.data.map_or((0, 0, Vec::new()), |d| (d.disp, d.width, d.items.to_vec()));
@@ -529,19 +530,20 @@ impl DtMenu {
             .collect();
         lists.resize(LISTS, MenuList { prev: -1, ..MenuList::default() });
         let texts = Texts {
-            on_off: slots(*t::ON_OFF),
-            voice: slots(*t::VOICE),
-            sound: slots(*t::SOUND),
-            ctrl: slots(*t::CTRL),
-            ctrl_btn: slots(*t::CTRL_BTN),
-            ctrl_mov: slots(*t::CTRL_MOV),
-            ctrl_cam: slots(*t::CTRL_CAM),
+            on_off: slots(t::shared().on_off),
+            voice: slots(t::shared().voice),
+            sound: slots(t::shared().sound),
+            ctrl: slots(t::shared().ctrl),
+            ctrl_btn: slots(t::shared().ctrl_btn),
+            ctrl_mov: slots(t::shared().ctrl_mov),
+            ctrl_cam: slots(t::shared().ctrl_cam),
             // The desktop's window shows each setting's first line.
-            info: [*t::VIBRATION_INFO, *t::VOICE_INFO, *t::STRWIN_INFO].map(|i| [encode(i[0][0]), encode(i[1][0])]),
-            help: [0, 1, 2, 3].map(|k| [encode(t::HELP[k][0]), encode(t::HELP[k][1])]),
-            screen: [encode(*t::SCREEN_X), encode(*t::SCREEN_Y)],
+            info: [t::shared().vibration_info, t::shared().voice_info, t::shared().strwin_info]
+                .map(|i| [encode(i[0][0]), encode(i[1][0])]),
+            help: [0, 1, 2, 3].map(|k| [encode(t::shared().help[k][0]), encode(t::shared().help[k][1])]),
+            screen: [encode(t::shared().screen_x), encode(t::shared().screen_y)],
         };
-        let dialog = slots(*t::DIALOG);
+        let dialog = slots(t::shared().dialog);
         DtMenu {
             menu: -1,
             menu_next: -1,
@@ -565,7 +567,11 @@ impl DtMenu {
             lists,
             rows: None,
             dialog,
-            reset_info: [encode(*t::RESET_INFO), encode(t::RESET_INFO2[0]), encode(t::RESET_INFO2[1])],
+            reset_info: [
+                encode(t::shared().reset_info),
+                encode(t::shared().reset_info2[0]),
+                encode(t::shared().reset_info2[1]),
+            ],
             quit: false,
             quit_ok: false,
             texts,
@@ -1479,7 +1485,7 @@ impl DtMenu {
             let mut s = Sprite::mask(MENU_LAYER, TexRef::Upload(id), k.th as i32, 24);
             (s.wu, s.wv, s.wi, s.su, s.sv, s.sx, s.sy) = (0, 0, 1, 128, 16, 128.0, 16.0);
             for &(row, x, y, c) in &f.rows {
-                let t = SPRITE_COLOR_TABLE[c];
+                let t = kanji::shared().sprite_color_table[c];
                 s.colour = [t[0], t[1], t[2], a];
                 s.dx = x;
                 s.dy = y;
@@ -1504,7 +1510,7 @@ impl DtMenu {
             let mut s = Sprite::mask(MENU_LAYER, TexRef::Upload(id), k.th as i32, 32);
             (s.wu, s.wv, s.wi, s.su, s.sv, s.sx, s.sy) = (0, 0, 1, 128, 16, 128.0, 16.0);
             for &&(_, row, x, y, c) in &mine {
-                let t = SPRITE_COLOR_TABLE[c];
+                let t = kanji::shared().sprite_color_table[c];
                 s.colour = [t[0], t[1], t[2], a];
                 s.dx = x;
                 s.dy = y;
@@ -1518,7 +1524,7 @@ impl DtMenu {
         // large fixed font).
         #[cfg(feature = "trace")]
         for (text, x, y, c) in &f.font {
-            let t = SPRITE_COLOR_TABLE[*c];
+            let t = kanji::shared().sprite_color_table[*c];
             self.trace.push(format!(
                 "[\"str\",\"{}\",{x},{y},[{},{},{},{a}]]",
                 String::from_utf8_lossy(text),
@@ -1530,7 +1536,7 @@ impl DtMenu {
         for (text, x, y, c) in &f.font {
             let mut k = Kanji::init(3, 16);
             k.kt = Kt::LargeFixed;
-            let t = SPRITE_COLOR_TABLE[*c];
+            let t = kanji::shared().sprite_color_table[*c];
             k.colour = [t[0], t[1], t[2], a];
             k.dx = *x;
             k.dy = *y;
@@ -1542,7 +1548,11 @@ impl DtMenu {
         {
             for (c, colour) in list {
                 let rgb = colour.map_or([c.grey; 3], |i| {
-                    [SPRITE_COLOR_TABLE[i][0], SPRITE_COLOR_TABLE[i][1], SPRITE_COLOR_TABLE[i][2]]
+                    [
+                        kanji::shared().sprite_color_table[i][0],
+                        kanji::shared().sprite_color_table[i][1],
+                        kanji::shared().sprite_color_table[i][2],
+                    ]
                 });
                 self.trace.push(pk(
                     name,
@@ -1568,7 +1578,7 @@ impl DtMenu {
                 (s.wu, s.wv, s.su, s.sv, s.wi) = (wu, wv, su, sv, wi);
                 (s.sx, s.sy, s.dx, s.dy) = (c.w, c.h, c.x, c.y);
                 let rgb = colour.map_or([c.grey; 3], |i| {
-                    let t = SPRITE_COLOR_TABLE[i];
+                    let t = kanji::shared().sprite_color_table[i];
                     [t[0], t[1], t[2]]
                 });
                 s.colour = [rgb[0], rgb[1], rgb[2], c.alpha.clamp(0, 255) as u8];

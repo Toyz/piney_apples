@@ -146,7 +146,7 @@ impl ChatMsg {
             let (x, y, n) = (s.scope[0], s.scope[1], i32::from(s.cn));
             let text = s.text.clone();
             self.draw_window(x, y, n, col, a);
-            let c = piney_data::tables::kanji::SPRITE_COLOR_TABLE[COL_TEXT];
+            let c = piney_data::tables::kanji::shared().sprite_color_table[COL_TEXT];
             let rgba = [c[0], c[1], c[2], (a * 128 / 72) as u8];
             draws.push(Draw::Text {
                 obj: Obj::ChatKanji(i as u8),

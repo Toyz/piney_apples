@@ -26,7 +26,7 @@ use crate::savesys::{INFO_SIZE, OPERATE_DESKTOP, SaveDataInfo, SaveSys, code};
 use crate::sprite::Sprite;
 use crate::view::LayerView;
 use crate::{Request, Se};
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 
 /// `laysize` (x, y, hi, wid): the slot list; its x and y place the cursors.
 pub const LAYSIZE: [f32; 4] = [114.0, 125.0, 175.0, 285.0];
@@ -98,15 +98,15 @@ impl Strings {
             .map(|m| m.map(|lines| lines.iter().take(4).take_while(|l| !l.is_empty()).map(|l| encode(l)).collect()))
             .collect();
         Strings {
-            yes: encode(*title::YES),
-            no: encode(*title::NO),
-            lv: encode(*title::LV),
-            alltime: encode(*title::ALLTIME),
-            nodeta: encode(*title::NODETA),
-            data: encode(*title::DATA),
-            clear: encode(*title::CLEAR),
-            parody: encode(*title::PARODY),
-            vol: encode(*title::VOL),
+            yes: encode(title::shared().yes),
+            no: encode(title::shared().no),
+            lv: encode(title::shared().lv),
+            alltime: encode(title::shared().alltime),
+            nodeta: encode(title::shared().nodeta),
+            data: encode(title::shared().data),
+            clear: encode(title::shared().clear),
+            parody: encode(title::shared().parody),
+            vol: encode(title::shared().vol),
             messages,
         }
     }
@@ -718,7 +718,7 @@ impl Data {
         if self.dialog < 0 {
             self.dialog = 1;
         }
-        let mut rgba = SPRITE_COLOR_TABLE[7];
+        let mut rgba = kanji::shared().sprite_color_table[7];
         rgba[3] = a;
         let view = self.cur_view;
         let (yes_y, no_y) = (add(16.0, YNPOS[1]), add(32.0, YNPOS[1]));
@@ -868,7 +868,16 @@ impl Data {
         let lines = msg.and_then(|m| self.strings.messages[m].clone()).unwrap_or_default();
         for (i, l) in lines.iter().enumerate() {
             let dy = add(INFO_MOJIPOS[1], from_int(16 * i as i32));
-            disp(x, &format!("infokanji[{i}]"), INFO_LAYER, &view, INFO_MOJIPOS[0], dy, SPRITE_COLOR_TABLE[7], l);
+            disp(
+                x,
+                &format!("infokanji[{i}]"),
+                INFO_LAYER,
+                &view,
+                INFO_MOJIPOS[0],
+                dy,
+                kanji::shared().sprite_color_table[7],
+                l,
+            );
         }
         let n = lines.len() as i32;
         if pn & (code::ACK | code::ERROR) != 0 {
@@ -896,11 +905,14 @@ impl Data {
         let st = &self.strings;
         let par = [st.data.as_slice(), &dec2sjis(no + 1, 2, 2)].concat();
         let (line, colour) = if i32::from(r.clear_flag) >= self.save_sys.volume.number() {
-            ([st.vol.as_slice(), &dec2sjis(i32::from(r.clear_flag), 1, 0), &st.clear].concat(), SPRITE_COLOR_TABLE[6])
+            (
+                [st.vol.as_slice(), &dec2sjis(i32::from(r.clear_flag), 1, 0), &st.clear].concat(),
+                kanji::shared().sprite_color_table[6],
+            )
         } else if r.parody_flag != 0 {
-            (st.parody.clone(), SPRITE_COLOR_TABLE[18])
+            (st.parody.clone(), kanji::shared().sprite_color_table[18])
         } else {
-            (Vec::new(), SPRITE_COLOR_TABLE[7])
+            (Vec::new(), kanji::shared().sprite_color_table[7])
         };
         let view = self.info_view;
         let (mx, my) = (MOJIPOS[0], MOJIPOS[1]);
@@ -923,7 +935,7 @@ impl Data {
             disp(x, "kanji[2]", INFO_LAYER, &view, mx, add(64.0, my), colour, &time);
         } else {
             let nodeta = st.nodeta.clone();
-            disp(x, "kanji[2]", INFO_LAYER, &view, mx, add(16.0, my), SPRITE_COLOR_TABLE[7], &nodeta);
+            disp(x, "kanji[2]", INFO_LAYER, &view, mx, add(16.0, my), kanji::shared().sprite_color_table[7], &nodeta);
         }
     }
 

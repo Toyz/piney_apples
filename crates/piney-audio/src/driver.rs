@@ -1292,7 +1292,7 @@ impl Driver {
     /// battle): row `food` of `voiceFoodTbl` (the English table with
     /// `saveData.voice`), `voiceFile` 18, a slot claimed.
     pub fn food_voice_request(&mut self, food: i32) -> bool {
-        self.field_voice(&piney_data::tables::voice::FOOD, food)
+        self.field_voice(&piney_data::tables::voice::shared().food, food)
     }
 
     /// A row of a field voice table as the request.
@@ -1403,7 +1403,8 @@ impl Driver {
                 VoiceSlot::Free => continue,
                 VoiceSlot::Stop => out.push(Command::VoiceStop),
                 VoiceSlot::Play => {
-                    let names = if self.voice_english { self.voice.files_e } else { *piney_data::tables::voice::FILES };
+                    let names =
+                        if self.voice_english { self.voice.files_e } else { piney_data::tables::voice::shared().files };
                     // A NULL request would send what lies at address 0.
                     if let (Some(vd), Some(&file)) = (self.vd_request, names.get(self.voice_file)) {
                         out.push(Command::Voice(VoiceCmd { file, ofs: vd.ofs, size: vd.siz, vol: VOICE_VOL }));

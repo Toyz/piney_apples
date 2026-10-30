@@ -13,17 +13,17 @@ pub struct TopPage {
     pub threads: &'static [BBSThreadList],
     /// `bbsThreadTblP`: Parody Mode's.
     pub threads_parody: &'static [BBSThreadList],
-    /// `@1088`: the idle animation by volume; `_ChangeMode` reads entry `volumeNum - 1`.
+    /// `@1088`: the idle animation by volume; `_ChangeMode` reads entry `volumeNum - 1`. Alike on every volume.
     pub neutral: &'static [&'static str],
-    /// The writing page's label.
+    /// The writing page's label. Alike on every volume.
     pub new_msg: &'static str,
-    /// The empty thread's line.
+    /// The empty thread's line. Alike on every volume.
     pub no_msg: &'static str,
-    /// A post's author label.
+    /// A post's author label. Alike on every volume.
     pub author: &'static str,
-    /// A post's time label.
+    /// A post's time label. Alike on every volume.
     pub time: &'static str,
-    /// The player's label.
+    /// The player's label. Alike on every volume.
     pub player: &'static str,
 }
 
@@ -42,60 +42,16 @@ impl crate::store::Load for TopPage {
     }
 }
 
-impl TopPage {
-    pub fn threads(&self) -> &'static [BBSThreadList] {
-        self.threads
-    }
-    pub fn threads_parody(&self) -> &'static [BBSThreadList] {
-        self.threads_parody
-    }
-    pub fn neutral(&self) -> &'static [&'static str] {
-        self.neutral
-    }
-    pub fn new_msg(&self) -> &'static str {
-        self.new_msg
-    }
-    pub fn no_msg(&self) -> &'static str {
-        self.no_msg
-    }
-    pub fn author(&self) -> &'static str {
-        self.author
-    }
-    pub fn time(&self) -> &'static str {
-        self.time
-    }
-    pub fn player(&self) -> &'static str {
-        self.player
-    }
+impl crate::store::Table for TopPage {
+    const ID: usize = super::id::TOPPAGE;
 }
 
-/// `@1088`: the idle animation by volume; `_ChangeMode` reads entry `volumeNum - 1`.
-pub static NEUTRAL: std::sync::LazyLock<&'static [&'static str]> = std::sync::LazyLock::new(|| shared().neutral);
-
-/// The writing page's label.
-pub static NEW_MSG: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().new_msg);
-
-/// The empty thread's line.
-pub static NO_MSG: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().no_msg);
-
-/// A post's author label.
-pub static AUTHOR: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().author);
-
-/// A post's time label.
-pub static TIME: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().time);
-
-/// The player's label.
-pub static PLAYER: std::sync::LazyLock<&'static str> = std::sync::LazyLock::new(|| shared().player);
-
-/// The volume's TopPage (read once a run; kept here per volume).
+/// The volume's TopPage (read once a run).
 pub fn of(v: Volume) -> &'static TopPage {
-    static READ: [std::sync::OnceLock<&'static TopPage>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "toppage"))
+    <TopPage as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static TopPage {
-    static READ: std::sync::OnceLock<&'static TopPage> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("toppage"))
+pub fn shared() -> &'static TopPage {
+    <TopPage as crate::store::Table>::shared()
 }

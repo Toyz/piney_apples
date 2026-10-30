@@ -60,7 +60,7 @@ impl Run {
     /// opened as `ccThGameCtrl` opens it.
     fn speak(&mut self, volume: Volume, row: i32, story: u8) {
         self.save.save.set_u8(by_id::talk_num(0), story);
-        let name = battle::of(volume).npcs()[row as usize].param.base.name.map(sjis::encode).unwrap_or_default();
+        let name = battle::of(volume).npcs[row as usize].param.base.name.map(sjis::encode).unwrap_or_default();
         self.world.target =
             Some(CharInfo { handle: HANDLE, types: 8, id: row as i16, name, in_view: true, ..CharInfo::default() });
         self.ui.talk_to(Some(TalkTarget { handle: HANDLE, who: Speaker::Npc(row) }));
@@ -119,7 +119,7 @@ impl Run {
 /// Whether the record at `rec` is a line of the PC's, not `errorData` (Sieg,
 /// Kaz and the sign PCs have lines of empty text, as on the disc).
 fn is_line(ui: &FieldUi, volume: Volume, rec: u32) -> bool {
-    rec != fieldui::of(volume).error_data_va() && !ui.texts().talk.ev_msg(rec).lines[0].starts_with(b"#R")
+    rec != fieldui::of(volume).error_data_va && !ui.texts().talk.ev_msg(rec).lines[0].starts_with(b"#R")
 }
 
 /// Every walking PC's Talk at every story stage, three times round its
@@ -131,7 +131,7 @@ fn every_walking_pcs_every_box_is_a_line_on_every_volume() {
         let Some(disc) = open(volume) else { continue };
         let mut r = Run::new(disc);
         let rows: Vec<i32> = battle::of(volume)
-            .npcs()
+            .npcs
             .iter()
             .enumerate()
             .filter(|(_, n)| n.param.base.kind & 8 != 0 && n.param.base.msg != 0)

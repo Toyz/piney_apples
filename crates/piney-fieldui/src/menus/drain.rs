@@ -32,9 +32,9 @@ impl DrainTexts {
     pub fn of(volume: piney_data::volume::Volume) -> DrainTexts {
         let t = piney_data::tables::fieldui::of(volume);
         DrainTexts {
-            warn: t.drain_warn().iter().map(|l| piney_data::tables::sjis::encode(l)).collect(),
+            warn: t.drain_warn.iter().map(|l| piney_data::tables::sjis::encode(l)).collect(),
             evolution: t
-                .drain_evolution()
+                .drain_evolution
                 .iter()
                 .map(|l| [crate::tables::piece(l, 0), crate::tables::piece(l, 1)])
                 .collect(),

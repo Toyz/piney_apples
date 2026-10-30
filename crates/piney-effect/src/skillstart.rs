@@ -66,11 +66,11 @@ impl Tables {
         use crate::spell::{bits, first};
         let t = piney_data::tables::effect::of(volume);
         Tables {
-            exec_ring: bits(t.exec_ring()),
-            force_ring: bits(t.force_ring()),
-            force_ring2: bits(t.force_ring2()),
-            circle: bits(t.circle()),
-            circle_fade: first(t.circle_fade()),
+            exec_ring: bits(t.exec_ring),
+            force_ring: bits(t.force_ring),
+            force_ring2: bits(t.force_ring2),
+            circle: bits(t.circle),
+            circle_fade: first(t.circle_fade),
         }
     }
 }

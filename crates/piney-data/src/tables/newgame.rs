@@ -38,36 +38,16 @@ impl crate::store::Load for NewGame {
     }
 }
 
-impl NewGame {
-    pub fn chars(&self) -> &'static [SpcParamData] {
-        self.chars
-    }
-    pub fn spc_trade(&self) -> &'static [&'static [TradeList]] {
-        self.spc_trade
-    }
-    pub fn npc_trade(&self) -> &'static [&'static [TradeList]] {
-        self.npc_trade
-    }
-    pub fn tpc_trade(&self) -> &'static [[[ItemList; 4]; 3]] {
-        self.tpc_trade
-    }
-    pub fn spc_name_list(&self) -> u32 {
-        self.spc_name_list
-    }
-    pub fn ccs_name_list(&self) -> u32 {
-        self.ccs_name_list
-    }
+impl crate::store::Table for NewGame {
+    const ID: usize = super::id::NEWGAME;
 }
 
-/// The volume's NewGame (read once a run; kept here per volume).
+/// The volume's NewGame (read once a run).
 pub fn of(v: Volume) -> &'static NewGame {
-    static READ: [std::sync::OnceLock<&'static NewGame>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| crate::store::group(v, "newgame"))
+    <NewGame as crate::store::Table>::of(v)
 }
 
 /// The values every volume has alike, from whichever volume's can be had.
-#[allow(dead_code)]
-fn shared() -> &'static NewGame {
-    static READ: std::sync::OnceLock<&'static NewGame> = std::sync::OnceLock::new();
-    READ.get_or_init(|| crate::store::shared("newgame"))
+pub fn shared() -> &'static NewGame {
+    <NewGame as crate::store::Table>::shared()
 }

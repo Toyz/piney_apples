@@ -99,7 +99,7 @@ impl TownParty {
         };
         let mut points = vec![ee::VF0; NAVI_POINTS as usize];
         for (k, p) in points.iter_mut().enumerate().skip(1) {
-            let Some(name) = piney_data::tables::world::of(volume).navi_points().get(k).copied().flatten() else {
+            let Some(name) = piney_data::tables::world::of(volume).navi_points.get(k).copied().flatten() else {
                 continue;
             };
             if let Some(d) = file.ccs.find_object(name).and_then(|o| file.scene.dummies.get(&o)) {

@@ -104,11 +104,11 @@ impl KiteTables {
     /// The volume's.
     pub fn of(volume: Volume) -> KiteTables {
         let t = piney_data::tables::combat::of(volume);
-        let d = t.dam_actu();
+        let d = t.dam_actu;
         KiteTables {
-            anims: t.player_anims().iter().map(|s| s.to_string()).collect(),
+            anims: t.player_anims.iter().map(|s| s.to_string()).collect(),
             dam_actu: [d[0], d[1], d[2]],
-            tsp: t.tsp().to_bits(),
+            tsp: t.tsp.to_bits(),
         }
     }
 

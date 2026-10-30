@@ -10,7 +10,7 @@
 use std::rc::Rc;
 
 use piney_data::archive::Archive;
-use piney_data::tables::kanji::SPRITE_COLOR_TABLE;
+use piney_data::tables::kanji;
 use piney_data::tables::loaddisp;
 use piney_data::tables::sjis::encode;
 use piney_data::volume::Volume;
@@ -153,7 +153,7 @@ impl LoadDisp {
             };
             let server = Server::from_index(scene.server.clamp(0, 4)).unwrap_or(Server::Delta);
             lines.push(Line { text: encode(server.symbol()), x: 364.0, y: 40.0, colour });
-            lines.push(Line { text: encode(*loaddisp::SERVER), x: 388.0, y: 40.0, colour });
+            lines.push(Line { text: encode(loaddisp::shared().server), x: 388.0, y: 40.0, colour });
         }
         LoadDisp { kind, alpha: 0, after: None, anm, title, lines, fonts }
     }
@@ -216,7 +216,8 @@ impl LoadDisp {
                 for l in &self.lines {
                     let mut k = Kanji::init(3, 10);
                     k.kt = Kt::LargeProportional;
-                    let c = SPRITE_COLOR_TABLE[l.colour.min(SPRITE_COLOR_TABLE.len() - 1)];
+                    let c =
+                        kanji::shared().sprite_color_table[l.colour.min(kanji::shared().sprite_color_table.len() - 1)];
                     k.colour = [c[0], c[1], c[2], a];
                     k.dx = l.x;
                     k.dy = l.y;

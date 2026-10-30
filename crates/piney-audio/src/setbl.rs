@@ -6,7 +6,7 @@
 //! `piney-gen`'s `placement::sound::setbl`, `plans/build-data.md`), one
 //! file per volume.
 
-use piney_data::store::{Load, Reader};
+use piney_data::store::{Load, Reader, Table};
 use piney_data::volume::Volume;
 
 use crate::se3d::SeNt;
@@ -40,8 +40,11 @@ impl Load for Setbl {
 
 /// Volume `v`'s tables, read once a run.
 fn of(v: Volume) -> &'static Setbl {
-    static READ: [std::sync::OnceLock<&'static Setbl>; 4] = [const { std::sync::OnceLock::new() }; 4];
-    READ[v as usize].get_or_init(|| piney_data::store::group(v, "setbl"))
+    Setbl::of(v)
+}
+
+impl Table for Setbl {
+    const ID: usize = piney_data::tables::id::SETBL;
 }
 
 /// gcmn's address of the first row, `spc0SeData`.
