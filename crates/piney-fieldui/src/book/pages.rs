@@ -10,8 +10,6 @@ use super::{Book, Env, PAD_DOWN, PAD_UP, SE_MOVE, SE_REWARD, Step, itoa_ns, save
 use crate::ctrl::{Ctx, Draw, MenuCtrl};
 
 /// A `BOOKITEM` table (`BookNNItem`): a counter's thresholds.
-// Books 4-8's pages, which read T40 on, are not ported yet (worklog 317).
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Table {
     T10,

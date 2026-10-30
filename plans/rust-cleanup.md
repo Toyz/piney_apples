@@ -66,12 +66,13 @@ order; tick items off here as they land, with the worklog entry.
 - [x] `unsafe`: `eemu/python.rs:369` goes (reuse the `Buffer`); 138 and 145
       stay, sound and documented, under an allow on `impl Buffer` alone.
       `#![forbid(unsafe_code)]` in every other crate root. (worklog 516)
-- [ ] `#[allow(dead_code)]` (36): 26 are the generated unused `shared()`
+- [x] `#[allow(dead_code)]` (36): 26 are the generated unused `shared()`
       (go with the `Table` trait); the test-only accessors in `piney-game`
       (`area.rs`, `world.rs`, `stream.rs`) become `#[cfg(test)]`; the rest
       used or deleted. Then deny it. (worklog 518: the generated 23 are
       gone with the generator's template line, which a grep counted as a
-      37th; 13 remain, one a `cfg_attr` in `dtmenu.rs`.)
+      37th; 13 remain, one a `cfg_attr` in `dtmenu.rs`. Worklog 520: the
+      13 gone, `dead_code` denied workspace-wide.)
 - [ ] `#[allow(clippy::too_many_arguments)]` (152): parameter and context
       structs (below), then a threshold and deny.
 - [x] A licence allowlist (`deny.toml`) so no copyleft crate can enter: MIT,

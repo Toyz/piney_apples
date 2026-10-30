@@ -298,7 +298,7 @@ impl StreamPlayer {
     }
 
     /// The name of the scene playing (or next).
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn entry_name(&self) -> Option<String> {
         self.stream.stream().entry().map(|e| e.name.clone())
     }

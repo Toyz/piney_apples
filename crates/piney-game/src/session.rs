@@ -260,7 +260,7 @@ impl Session {
     }
 
     /// Power on: the boot, then the title with its logos.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn new(
         iso: PathBuf,
         archive: Arc<Archive>,
@@ -861,10 +861,6 @@ impl Session {
                 Event::ChangeMode { num: 6, .. } => {}
                 // Log Out (4) and OPTION's Title Screen (1).
                 Event::ChangeMode { num, .. } => change = Some(num),
-                Event::WorldMan(wm) => {
-                    self.world_man = Some(wm);
-                    self.dungeon = None;
-                }
                 e => self.events.push(e),
             }
         }

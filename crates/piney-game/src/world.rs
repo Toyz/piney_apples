@@ -253,7 +253,7 @@ impl WorldMode {
     }
 
     /// Every host call the scripts made, with its frame.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn calls(&self) -> &[(u64, String)] {
         &self.st.calls
     }
@@ -298,13 +298,12 @@ impl WorldMode {
     }
 
     /// The event task, for tests.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn vm(&self) -> Option<&Vm> {
         self.vm.as_ref()
     }
 
-    /// The world, for tests.
-    #[allow(dead_code)]
+    /// The world.
     pub fn world(&self) -> &World {
         &self.world
     }

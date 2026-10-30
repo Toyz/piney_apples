@@ -256,11 +256,6 @@ pub enum Event {
     /// area the three word IDs make, and the change of scene to its field
     /// or dungeon.
     GoToArea([i32; 3]),
-    /// `WORLD_MAN::SimGenerateCode`'s area (the event instruction `area`,
-    /// `piney_data::area::ev_area`): what the next field and dungeon are
-    /// made from. The event host raises it once it runs in The World.
-    #[allow(dead_code)]
-    WorldMan(piney_world::area::WorldMan),
 }
 
 pub trait Mode {

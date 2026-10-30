@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-519 entries: audio 43, battle 131, build 27, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 238, tooling 54, ui 102, video 16, volumes 94, world 147. 125 entries still have open questions - [listed below](#still-open).
+520 entries: audio 43, battle 131, build 28, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 238, tooling 55, ui 102, video 16, volumes 94, world 147. 125 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -531,6 +531,7 @@ The [reference](docs/README.md) says what is true now.
 | 517 | [cargo-deny's advisories on: zstd 0.14.3, and winit without the font parser](worklog/0517-cargo-deny-s-advisories-on-zstd-0-14-3-and-winit-without.md) | 2026-10-29 | build, tooling |
 | 518 | [Clean-up lift: the Table trait, one table cache indexed by generated IDs, and no accessors or LazyLock statics](worklog/0518-clean-up-lift-the-table-trait-one-table-cache-indexed-by.md) | 2026-10-30 | build, tooling |
 | 519 | [The later volumes' harness failures: the camera's and the rebuilt player's square root, evchar's fellow and ccAI, demo's probe as its disc](worklog/0519-the-later-volumes-harness-failures-the-camera-s-and-the.md) | 2026-10-30 | test, world |
+| 520 | [dead_code denied: the last 13 exemptions test-only, used or deleted](worklog/0520-dead-code-denied-the-last-13-exemptions-test-only-used-or.md) | 2026-10-30 | build, tooling |
 
 ## Still open
 

@@ -1645,7 +1645,6 @@ fn pk(obj: &str, code: u8, x: f32, y: f32, w: f32, h: f32, rgba: [u8; 4]) -> Str
 }
 
 /// Up to four lines as a JSON list, null for none.
-#[cfg_attr(not(feature = "trace"), allow(dead_code))]
 fn json_lines(lines: &[Option<&[u8]>; 4]) -> String {
     let v: Vec<String> = lines
         .iter()

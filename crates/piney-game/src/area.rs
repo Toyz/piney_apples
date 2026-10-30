@@ -341,8 +341,7 @@ impl AreaMode {
         &self.ui
     }
 
-    /// The world, for tests.
-    #[allow(dead_code)]
+    /// The world.
     pub fn world(&self) -> &FieldWorld {
         &self.world
     }
@@ -511,7 +510,7 @@ impl AreaMode {
 
     /// What `WORLD_MAN` keeps of the minimap and the frame last drawn, for
     /// tests.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn map_state(&self) -> &piney_world::map::MapState {
         &self.map_st
     }
@@ -529,7 +528,7 @@ impl AreaMode {
     }
 
     /// Every host call the scripts made here, with its frame.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn calls(&self) -> &[(u64, String)] {
         &self.st.calls
     }
@@ -540,13 +539,13 @@ impl AreaMode {
     }
 
     /// Whether the scripts play a stream.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn streaming(&self) -> bool {
         self.stream.player.is_some()
     }
 
     /// The scene a stream playing here plays (or is about to), for tests.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn stream_scene(&self) -> Option<String> {
         self.stream.player.as_ref().and_then(crate::stream::StreamPlayer::entry_name)
     }

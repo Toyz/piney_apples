@@ -44,6 +44,8 @@ unsafe_op_in_unsafe_fn = "deny"
 rust_2018_idioms = { level = "deny", priority = -1 }
 # Noise: the compiler checks every lifetime whether `<'_>` is written or not.
 elided_lifetimes_in_paths = "allow"
+# Code nothing reaches is deleted, or test-only under `#[cfg(test)]`.
+dead_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
