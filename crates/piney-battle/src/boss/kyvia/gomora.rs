@@ -9,9 +9,9 @@
 use piney_data::field::ee;
 
 use super::{
-    Follow, Gen, GenOp, Held, KyviaData, Part, Place, as_me, catmull, dp, fp, plain_boss, rand_abs, set_base_param,
-    wrap,
+    Follow, Gen, GenOp, Held, KyviaData, Place, as_me, catmull, dp, fp, plain_boss, rand_abs, set_base_param, wrap,
 };
+use crate::boss::Part;
 use crate::boss::{Anm, Boss, BossBase, Class, Cx, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};

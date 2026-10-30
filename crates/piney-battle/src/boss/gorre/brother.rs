@@ -8,9 +8,10 @@
 use piney_data::field::ee;
 use piney_data::libm;
 
-use super::super::kyvia::{self, Part};
+use super::super::kyvia::{self};
 use super::super::{ANM_WAVE, Anm, Boss, BossBase, Class, Cx, EffKind, F, ONE, Out, PI, TWO_PI, VF0};
 use super::Gorre;
+use crate::boss::Part;
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, V4};
 use crate::param::cond;
@@ -557,7 +558,7 @@ fn affect_alone(b: &mut BossBase, x: &mut Brother, cx: &mut Cx) {
         }
     };
     let k = usize::from(gx.brother_me[1] == me);
-    let (other, found) = super::take_brother(cx, gx.brother_me[1 - k]);
+    let (other, found) = Part::take_or_stand_in(cx, gx.brother_me[1 - k]);
     gx.brothers[1 - k] = other;
     let base = std::mem::take(b);
     gx.brothers[k] = Part { b: Box::new(Boss { base, class: Class::Plain }), x: Box::new(std::mem::take(x)), me };
@@ -572,7 +573,7 @@ fn affect_alone(b: &mut BossBase, x: &mut Brother, cx: &mut Cx) {
     let part = std::mem::take(&mut gx.brothers[k]);
     *b = part.b.base;
     *x = *part.x;
-    super::put_brother(cx, std::mem::take(&mut gx.brothers[1 - k]), found);
+    std::mem::take(&mut gx.brothers[1 - k]).put_back(cx, found);
     gb.class = Class::Gorre(gx);
     if let Some(f) = cx.scene.chars[master].foe_state_mut() {
         f.boss = Some(gb);

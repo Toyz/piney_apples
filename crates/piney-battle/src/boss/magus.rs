@@ -20,6 +20,7 @@ use super::{
     Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Fade, LoopOp, Out, Patterns, VF0,
     base_exec_pattern_index, word,
 };
+use crate::boss::Part;
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 use crate::item;
@@ -260,45 +261,18 @@ pub struct Magus {
 
 /// The leaves out of their characters for the body's frame.
 #[derive(Debug, Default)]
-pub struct Leaves(pub Vec<LeafPart>);
-
-/// A leaf as the body's frame holds it.
-#[derive(Debug)]
-pub struct LeafPart {
-    pub b: Box<Boss>,
-    pub x: Box<Leaf>,
-    pub me: usize,
-}
+pub struct Leaves(pub Vec<Part<Leaf>>);
 
 impl Leaves {
     /// The leaves taken out of their characters.
     pub fn take(cx: &mut Cx, leaves: &[usize]) -> Leaves {
-        let mut out = Vec::new();
-        for &me in leaves {
-            let Some(mut b) = cx.scene.chars.get_mut(me).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take())
-            else {
-                continue;
-            };
-            match std::mem::replace(&mut b.class, Class::Plain) {
-                Class::MagusLeaf(x) => out.push(LeafPart { b, x, me }),
-                other => {
-                    b.class = other;
-                    if let Some(f) = cx.scene.chars[me].foe_state_mut() {
-                        f.boss = Some(b);
-                    }
-                }
-            }
-        }
-        Leaves(out)
+        Leaves(leaves.iter().filter_map(|&me| Part::take(cx, me)).collect())
     }
 
     /// Everything put back.
     pub fn put(self, cx: &mut Cx) {
-        for mut p in self.0 {
-            p.b.class = Class::MagusLeaf(p.x);
-            if let Some(f) = cx.scene.chars[p.me].foe_state_mut() {
-                f.boss = Some(p.b);
-            }
+        for p in self.0 {
+            p.put(cx);
         }
     }
 

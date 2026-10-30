@@ -16,6 +16,7 @@ pub mod innis;
 pub mod kyvia;
 pub mod macha;
 pub mod magus;
+mod part;
 pub mod tarvos;
 
 use piney_data::field::ee;
@@ -35,6 +36,7 @@ use crate::scene::Scene;
 use crate::tables::Tables;
 use crate::world::CharHit;
 use class::{BaseActs, BossClass, Patterns, SkeithPatterns, base_change_next_pattern, base_exec_pattern_index, word};
+pub use part::{Part, PartClass, Parts};
 
 type F = u32;
 

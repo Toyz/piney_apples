@@ -10,7 +10,7 @@ use piney_data::field::ee;
 use super::eff::{self, Fx};
 use super::seed::{self, Seed};
 use super::{Gen, Pic, SEEDS, make_fx, manager_pass, word, wrap_hi};
-use crate::boss::kyvia::Part;
+use crate::boss::Parts;
 use crate::boss::{
     BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_change_next_pattern,
     base_exec_pattern_index,
@@ -74,7 +74,7 @@ pub struct First {
     pub seed_me: [usize; SEEDS],
     /// Scratch for the span of [`main`] (or of an `Affect`): the seeds out
     /// of their characters.
-    pub seeds: Vec<Part<Seed>>,
+    pub seeds: Parts<Seed>,
     /// `m_bossEff`: the dead effect; `m_stageEff`.
     pub boss_eff: Option<i32>,
     pub stage_eff: i32,
@@ -91,23 +91,6 @@ pub struct First {
     pub entry_seed_num: i32,
     /// `ccBoss::actPos` (+0x1b0): the magic's camera shake.
     pub act_pos: V4,
-}
-
-/// The seeds taken out of their characters (`Class::CorbenikSeed`),
-/// whether each was there.
-fn take_seeds(cx: &mut Cx, x: &mut First) -> [bool; SEEDS] {
-    x.seeds.clear();
-    std::array::from_fn(|k| {
-        let (part, found) = seed::take(cx, x.seed_me[k]);
-        x.seeds.push(part);
-        found
-    })
-}
-
-fn put_seeds(cx: &mut Cx, x: &mut First, found: [bool; SEEDS]) {
-    for (k, part) in std::mem::take(&mut x.seeds).into_iter().enumerate() {
-        seed::put(cx, part, found[k]);
-    }
 }
 
 /// `seed->Method()` with `cx.me` the seed's character.
@@ -159,7 +142,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     let seed_me = std::array::from_fn(|k| {
         let sm = crate::boss::kyvia::new_char(cx, super::SEED_ROW);
         let part = seed::new(cx, sm, me, k as i32);
-        seed::put(cx, part, true);
+        part.put(cx);
         sm
     });
     let mut x = Box::new(First {
@@ -170,9 +153,9 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
         entry_seed_num: 1,
         ..First::default()
     });
-    let found = take_seeds(cx, &mut x);
+    x.seeds = Parts::take(cx, &x.seed_me);
     set_pattern_mode(&mut b, &mut x, cx, 0);
-    put_seeds(cx, &mut x, found);
+    x.seeds.put(cx);
     Boss { base: b, class: Class::Corbenik(x) }
 }
 
@@ -201,10 +184,10 @@ impl crate::boss::BossClass for First {
 /// The effect manager's pass, then `ccBoss08::Main` (0x003ad000):
 /// `ccBoss::Main` (its `Slave` each seed's own `Main`), `hold` cleared.
 pub(crate) fn main(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
-    let found = take_seeds(cx, x);
+    x.seeds = Parts::take(cx, &x.seed_me);
     manager_pass(b, cx);
     frame(b, x, cx);
-    put_seeds(cx, x, found);
+    x.seeds.put(cx);
     cx.scene.chars[cx.me].cond[cond::HOLD] = 0;
 }
 
@@ -709,9 +692,9 @@ fn on_magic(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
 /// mark and the HP down; at 0 the death (each seed's too); else a type-1
 /// blow the damage act. No cheat, no drain.
 pub(crate) fn affect(b: &mut BossBase, x: &mut First, cx: &mut Cx) {
-    let found = take_seeds(cx, x);
+    x.seeds = Parts::take(cx, &x.seed_me);
     affect_of(b, x, cx);
-    put_seeds(cx, x, found);
+    x.seeds.put(cx);
 }
 
 fn affect_of(b: &mut BossBase, x: &mut First, cx: &mut Cx) {

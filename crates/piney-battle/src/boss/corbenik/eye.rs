@@ -10,7 +10,8 @@ use piney_data::field::ee;
 
 use super::third::Third;
 use super::{Pic, word};
-use crate::boss::kyvia::{Part, as_me, dp, fabs, fp, head, plain_boss, set_base_param};
+use crate::boss::Part;
+use crate::boss::kyvia::{as_me, dp, fabs, fp, head, plain_boss, set_base_param};
 use crate::boss::{
     AfterImageParams, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
     base_exec_pattern_index,
@@ -126,33 +127,6 @@ pub struct MasterView {
     /// `ApplyMatrix(anm, dmyEye->pos)`: the dummy in the world, by the
     /// body's last drawn pose.
     pub dummy: V4,
-}
-
-/// An eye out of its character (`Class::CorbenikEye`), and whether one was
-/// there.
-pub(crate) fn take_eye(cx: &mut Cx, me: usize) -> (Part<Eye>, bool) {
-    let taken = cx.scene.chars.get_mut(me).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take());
-    let Some(mut eb) = taken else { return (Part { me, ..Part::default() }, false) };
-    match std::mem::replace(&mut eb.class, Class::Plain) {
-        Class::CorbenikEye(x) => (Part { b: eb, x, me }, true),
-        other => {
-            eb.class = other;
-            if let Some(f) = cx.scene.chars[me].foe_state_mut() {
-                f.boss = Some(eb);
-            }
-            (Part { me, ..Part::default() }, false)
-        }
-    }
-}
-
-pub(crate) fn put_eye(cx: &mut Cx, mut part: Part<Eye>, found: bool) {
-    if !found {
-        return;
-    }
-    part.b.class = Class::CorbenikEye(part.x);
-    if let Some(f) = cx.scene.chars[part.me].foe_state_mut() {
-        f.boss = Some(part.b);
-    }
 }
 
 /// `ccBoss08Eye::ccBoss08Eye` (0x003be920): row 9, its clips, on and
@@ -364,31 +338,6 @@ pub struct Killer {
     pub press_start: V4,
     /// `ccBoss::actPos` (+0x1b0): its throw, then the press's end.
     pub act_pos: V4,
-}
-
-pub(crate) fn take_killer(cx: &mut Cx, me: usize) -> (Part<Killer>, bool) {
-    let taken = cx.scene.chars.get_mut(me).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take());
-    let Some(mut kb) = taken else { return (Part { me, ..Part::default() }, false) };
-    match std::mem::replace(&mut kb.class, Class::Plain) {
-        Class::CorbenikKiller(x) => (Part { b: kb, x, me }, true),
-        other => {
-            kb.class = other;
-            if let Some(f) = cx.scene.chars[me].foe_state_mut() {
-                f.boss = Some(kb);
-            }
-            (Part { me, ..Part::default() }, false)
-        }
-    }
-}
-
-pub(crate) fn put_killer(cx: &mut Cx, mut part: Part<Killer>, found: bool) {
-    if !found {
-        return;
-    }
-    part.b.class = Class::CorbenikKiller(part.x);
-    if let Some(f) = cx.scene.chars[part.me].foe_state_mut() {
-        f.boss = Some(part.b);
-    }
 }
 
 /// `ccBoss08KillerEye::ccBoss08KillerEye` (0x003bf360): row 9, its clips,

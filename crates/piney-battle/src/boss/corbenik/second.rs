@@ -10,11 +10,12 @@ use piney_data::field::ee;
 
 use super::eff::{self, Fx};
 use super::{Pic, make_fx, manager_pass, word, wrap_hi, wrap_lo};
-use crate::boss::kyvia::{Part, as_me, plain_boss, set_base_param};
+use crate::boss::kyvia::{as_me, plain_boss, set_base_param};
 use crate::boss::{
     AfterImageParams, Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0,
     base_change_next_pattern, base_exec_pattern_index, blur,
 };
+use crate::boss::{Part, Parts};
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, V4};
 use crate::item;
@@ -111,7 +112,7 @@ pub struct Root {
 pub struct Second {
     pub root_me: [usize; ROOTS],
     /// Scratch for [`main`]'s span: the roots out of their characters.
-    pub roots: Vec<Part<Root>>,
+    pub roots: Parts<Root>,
     /// +0x29350 `anmw` (the wave), +0x29354 the barrier's, +0xf75a0 the
     /// root drain's (`m_anmRootL`).
     pub anm_w: Anm,
@@ -173,48 +174,6 @@ pub const EAI_RD: AfterImageParams = AfterImageParams {
     scale_time: 0,
 };
 
-/// A root out of its character (`Class::CorbenikRoot`), and whether one
-/// was there.
-fn take_root(cx: &mut Cx, me: usize) -> (Part<Root>, bool) {
-    let taken = cx.scene.chars.get_mut(me).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take());
-    let Some(mut rb) = taken else { return (Part { me, ..Part::default() }, false) };
-    match std::mem::replace(&mut rb.class, Class::Plain) {
-        Class::CorbenikRoot(x) => (Part { b: rb, x, me }, true),
-        other => {
-            rb.class = other;
-            if let Some(f) = cx.scene.chars[me].foe_state_mut() {
-                f.boss = Some(rb);
-            }
-            (Part { me, ..Part::default() }, false)
-        }
-    }
-}
-
-fn put_root(cx: &mut Cx, mut part: Part<Root>, found: bool) {
-    if !found {
-        return;
-    }
-    part.b.class = Class::CorbenikRoot(part.x);
-    if let Some(f) = cx.scene.chars[part.me].foe_state_mut() {
-        f.boss = Some(part.b);
-    }
-}
-
-fn take_roots(cx: &mut Cx, x: &mut Second) -> [bool; ROOTS] {
-    x.roots.clear();
-    std::array::from_fn(|k| {
-        let (part, found) = take_root(cx, x.root_me[k]);
-        x.roots.push(part);
-        found
-    })
-}
-
-fn put_roots(cx: &mut Cx, x: &mut Second, found: [bool; ROOTS]) {
-    for (k, part) in std::mem::take(&mut x.roots).into_iter().enumerate() {
-        put_root(cx, part, found[k]);
-    }
-}
-
 /// `cx.me` set to root `k`'s character for `f`.
 fn with_root<R>(x: &mut Second, k: usize, cx: &mut Cx, f: impl FnOnce(&mut BossBase, &mut Root, &mut Cx) -> R) -> R {
     let p = &mut x.roots[k];
@@ -263,7 +222,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, effects: crate:
     let root_me = std::array::from_fn(|k| {
         let rm = crate::boss::kyvia::new_char(cx, ROW);
         let part = new_root(cx, rm, k);
-        put_root(cx, part, true);
+        part.put(cx);
         rm
     });
     let mut b = plain_boss();
@@ -367,10 +326,10 @@ impl crate::boss::BossClass for Second {
 
 /// The effect manager's pass, then `ccBoss08_b::Main` (0x003b2610).
 pub(crate) fn main(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {
-    let found = take_roots(cx, x);
+    x.roots = Parts::take(cx, &x.root_me);
     manager_pass(b, cx);
     frame(b, x, cx);
-    put_roots(cx, x, found);
+    x.roots.put(cx);
 }
 
 fn frame(b: &mut BossBase, x: &mut Second, cx: &mut Cx) {

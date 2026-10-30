@@ -19,6 +19,7 @@ use self::core::Core;
 use self::gomora::Gomora;
 use super::blur::Set;
 use super::{AfterImageParams, Anm, Boss, BossBase, Class, Cx, EffKind, Out, VF0};
+use crate::boss::Part;
 use crate::enemy_ai::{get_dirc, rand_f};
 use crate::geom::{self, M4, V4};
 use crate::param::cond;
@@ -496,15 +497,6 @@ pub struct Kyvia {
     pub row15_hp: Option<i16>,
 }
 
-/// One of the fight's parts as the body's frame holds it: its `ccBoss`, its
-/// own members and its character.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Part<T> {
-    pub b: Box<Boss>,
-    pub x: Box<T>,
-    pub me: usize,
-}
-
 /// The core and its gomoras, out of their characters for the frame.
 #[derive(Debug, Default)]
 pub struct Tree {
@@ -554,49 +546,18 @@ pub(crate) fn wrap(mut v: F) -> F {
 impl Tree {
     /// The core and its gomoras taken out of their characters.
     pub fn take(cx: &mut Cx, core_me: usize) -> Tree {
-        let mut t = Tree::default();
-        let Some(mut cb) = cx.scene.chars.get_mut(core_me).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take())
-        else {
-            return t;
-        };
-        let Class::KyviaCore(cxs) = std::mem::replace(&mut cb.class, Class::Plain) else {
-            if let Some(f) = cx.scene.chars[core_me].foe_state_mut() {
-                f.boss = Some(cb);
-            }
-            return t;
-        };
-        for &g in &cxs.gomoras {
-            let Some(mut gb) = cx.scene.chars.get_mut(g).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take())
-            else {
-                continue;
-            };
-            match std::mem::replace(&mut gb.class, Class::Plain) {
-                Class::Gomora(gx) => t.gomoras.push(Part { b: gb, x: gx, me: g }),
-                other => {
-                    gb.class = other;
-                    if let Some(f) = cx.scene.chars[g].foe_state_mut() {
-                        f.boss = Some(gb);
-                    }
-                }
-            }
-        }
-        t.core = Some(Part { b: cb, x: cxs, me: core_me });
-        t
+        let Some(core) = Part::<Core>::take(cx, core_me) else { return Tree::default() };
+        let gomoras = core.x.gomoras.iter().filter_map(|&g| Part::take(cx, g)).collect();
+        Tree { core: Some(core), gomoras }
     }
 
     /// Everything put back.
     pub fn put(self, cx: &mut Cx) {
-        for mut g in self.gomoras {
-            g.b.class = Class::Gomora(g.x);
-            if let Some(f) = cx.scene.chars[g.me].foe_state_mut() {
-                f.boss = Some(g.b);
-            }
+        for g in self.gomoras {
+            g.put(cx);
         }
-        if let Some(mut c) = self.core {
-            c.b.class = Class::KyviaCore(c.x);
-            if let Some(f) = cx.scene.chars[c.me].foe_state_mut() {
-                f.boss = Some(c.b);
-            }
+        if let Some(c) = self.core {
+            c.put(cx);
         }
     }
 }

@@ -110,8 +110,9 @@ order; tick items off here as they land, with the worklog entry.
       `corbenik::Host`; 525: the building blocks, one generic
       `base_exec_pattern_index` and `base_change_next_pattern`; 526:
       Skeith's own members in `Class::Skeith`.)
-- [ ] `Part<T: PartClass>` / `Parts<T>` for gomoras, leaves, brothers,
+- [x] `Part<T: PartClass>` / `Parts<T>` for gomoras, leaves, brothers,
       roots, seeds, eyes (keep the placeholder semantics where code indexes).
+      (worklog 527)
 - [ ] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

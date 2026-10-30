@@ -11,10 +11,11 @@ use super::eff::Fx;
 use super::eye::{self, Eye, Killer};
 use super::laser::{Refrect, Tera};
 use super::{Gen, Pic, make_fx, manager_pass_x, word};
-use crate::boss::kyvia::{Part, as_me, new_char, plain_boss, set_base_param};
+use crate::boss::kyvia::{as_me, new_char, plain_boss, set_base_param};
 use crate::boss::{
     Anm, BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, Patterns, Tbl, VF0, base_exec_pattern_index, blur,
 };
+use crate::boss::{Part, Parts};
 use crate::enemy_ai::get_dirc;
 use crate::geom::{self, M4, V4};
 use crate::param::cond;
@@ -65,8 +66,8 @@ pub struct Third {
     /// the parts out of them.
     pub eye_me: [usize; EYES],
     pub killer_me: [usize; KILLERS],
-    pub eyes: Vec<Part<Eye>>,
-    pub killers: Vec<Part<Killer>>,
+    pub eyes: Parts<Eye>,
+    pub killers: Parts<Killer>,
     /// +0x29350 `anmw` (the wave).
     pub anm_w: Anm,
     /// +0x29354 `dmyEye`: `DMY_dummy1`'s place in the body's file (w 1).
@@ -141,32 +142,6 @@ impl Third {
     }
 }
 
-/// The parts out of their characters for the frame.
-fn take_parts(cx: &mut Cx, x: &mut Third) -> ([bool; EYES], [bool; KILLERS]) {
-    x.eyes.clear();
-    x.killers.clear();
-    let e = std::array::from_fn(|k| {
-        let (p, f) = eye::take_eye(cx, x.eye_me[k]);
-        x.eyes.push(p);
-        f
-    });
-    let k = std::array::from_fn(|k| {
-        let (p, f) = eye::take_killer(cx, x.killer_me[k]);
-        x.killers.push(p);
-        f
-    });
-    (e, k)
-}
-
-fn put_parts(cx: &mut Cx, x: &mut Third, found: ([bool; EYES], [bool; KILLERS])) {
-    for (k, p) in std::mem::take(&mut x.eyes).into_iter().enumerate() {
-        eye::put_eye(cx, p, found.0[k]);
-    }
-    for (k, p) in std::mem::take(&mut x.killers).into_iter().enumerate() {
-        eye::put_killer(cx, p, found.1[k]);
-    }
-}
-
 // --- the constructor ------------------------------------------------------------------------------
 
 /// `ccBoss08_c::ccBoss08_c` (0x003b9250): the three killer eyes made first
@@ -180,7 +155,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, dummy: V4) -> B
     let killer_me: [usize; KILLERS] = std::array::from_fn(|_| {
         let km = new_char(cx, eye::ROW);
         let part = eye::new_killer(cx, km, kite_pos, kite_dirc);
-        eye::put_killer(cx, part, true);
+        part.put(cx);
         km
     });
     let mut b = plain_boss();
@@ -214,7 +189,8 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, dummy: V4) -> B
     b.center_pos = [center[0], center[1], center[2], ONE];
     b.center_pos_p = w2p(cx, b.center_pos);
     b.use_stage_eff = true;
-    let found = take_parts(cx, &mut x);
+    x.eyes = Parts::take(cx, &x.eye_me);
+    x.killers = Parts::take(cx, &x.killer_me);
     change_action(&mut b, &mut x, cx, act::NEUTRAL, 0, true);
     b.cheat_hp = 0;
     set_pattern_mode(&mut b, &mut x, cx, 0);
@@ -229,7 +205,8 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4, dummy: V4) -> B
     for (k, p) in x.killers.iter_mut().enumerate() {
         eye::set_master(&mut p.x, me, k as i32);
     }
-    put_parts(cx, &mut x, found);
+    x.eyes.put(cx);
+    x.killers.put(cx);
     Boss { base: b, class: Class::CorbenikC(x) }
 }
 
@@ -250,7 +227,7 @@ fn setup_slave(x: &mut Third, cx: &mut Cx) {
         x.eye_me[k] = p.me;
     }
     for p in parts {
-        eye::put_eye(cx, p, true);
+        p.put(cx);
     }
 }
 
@@ -268,10 +245,12 @@ impl crate::boss::BossClass for Third {
 /// The effect manager's pass, then `ccBoss08_c::Main` (0x003b99b0, the
 /// base's).
 pub(crate) fn main(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
-    let found = take_parts(cx, x);
+    x.eyes = Parts::take(cx, &x.eye_me);
+    x.killers = Parts::take(cx, &x.killer_me);
     manager_pass_x(b, cx, Some(x));
     frame(b, x, cx);
-    put_parts(cx, x, found);
+    x.eyes.put(cx);
+    x.killers.put(cx);
 }
 
 fn frame(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
@@ -1338,7 +1317,8 @@ fn calc_laser_turning_points(cx: &mut Cx) -> Vec<usize> {
 /// stream 88 and the normal table; at 0 the death (14); a hit's note
 /// (`ccSeOn3DNote(195, pos, abs(ccRand() % 5) + 60)`).
 pub(crate) fn affect(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
-    let found = take_parts(cx, x);
+    x.eyes = Parts::take(cx, &x.eye_me);
+    x.killers = Parts::take(cx, &x.killer_me);
     b.base_affect_with(cx, &mut |b, cx, n, forbid, af| change_action(b, x, cx, n, forbid, af));
     let me = cx.me;
     let t = cx.scene.chars[me].affect.ty;
@@ -1359,5 +1339,6 @@ pub(crate) fn affect(b: &mut BossBase, x: &mut Third, cx: &mut Cx) {
             cx.out(Out::Se3dNote { se: 195, pos, note: n as u8 });
         }
     }
-    put_parts(cx, x, found);
+    x.eyes.put(cx);
+    x.killers.put(cx);
 }

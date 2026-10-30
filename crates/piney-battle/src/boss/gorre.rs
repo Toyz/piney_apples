@@ -15,11 +15,11 @@ use piney_data::field::ee;
 use piney_data::volume::Volume;
 
 use self::brother::Brother;
-use super::kyvia::Part;
 use super::{
     BaseActs, Boss, BossBase, BossData, Class, Cx, EffKind, Out, PI, Patterns, SkeithPatterns, TWO_PI, Tbl, VF0,
     base_exec_pattern_index, word,
 };
+use crate::boss::Part;
 use crate::enemy_ai::get_dirc;
 use crate::event::{Event, Who};
 use crate::geom::{self, V4};
@@ -166,37 +166,6 @@ pub struct Gorre {
     pub skill_start: Option<i32>,
 }
 
-/// A brother taken out of its own character (`Class::GorreBrother`,
-/// `super::kyvia::Tree::take`'s way): the part, and whether one was there
-/// to take (a wrongly-typed or missing slot is left alone and this is
-/// `false`, so [`put_brother`] knows not to write a placeholder over it).
-fn take_brother(cx: &mut Cx, me: usize) -> (Part<Brother>, bool) {
-    let taken = cx.scene.chars.get_mut(me).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take());
-    let Some(mut gb) = taken else { return (Part { me, ..Part::default() }, false) };
-    match std::mem::replace(&mut gb.class, Class::Plain) {
-        Class::GorreBrother(x) => (Part { b: gb, x, me }, true),
-        other => {
-            gb.class = other;
-            if let Some(f) = cx.scene.chars[me].foe_state_mut() {
-                f.boss = Some(gb);
-            }
-            (Part { me, ..Part::default() }, false)
-        }
-    }
-}
-
-/// A brother put back into its own character, unless [`take_brother`]
-/// found nothing there to begin with.
-fn put_brother(cx: &mut Cx, mut part: Part<Brother>, found: bool) {
-    if !found {
-        return;
-    }
-    part.b.class = Class::GorreBrother(part.x);
-    if let Some(f) = cx.scene.chars[part.me].foe_state_mut() {
-        f.boss = Some(part.b);
-    }
-}
-
 // --- small rules ------------------------------------------------------------------------
 
 /// `this->br0->Order(on)` / `br1->Order(on)`.
@@ -308,7 +277,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
         crate::fellow::entry_cmnd(cx.scene, bm);
         let sign = if k == 0 { BROTHER_OFFSET } else { BROTHER_OFFSET ^ 0x8000_0000 };
         let part = brother::new(cx, bm, me, [sign, 0, 0, ONE], kite_dirc, k as i32);
-        put_brother(cx, part, true);
+        part.put(cx);
         *slot = bm;
     }
 
@@ -317,14 +286,14 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
     b.pat_index = 0;
     b.pat_mode = 0;
     let found: [bool; 2] = std::array::from_fn(|k| {
-        let (part, found) = take_brother(cx, brother_me[k]);
+        let (part, found) = Part::take_or_stand_in(cx, brother_me[k]);
         x.brothers[k] = part;
         found
     });
     let tbl = cx.data.gorre.words(Tbl::Normal);
     b.pat_index = x.exec_pattern_index(&mut b, cx, tbl, 0);
     for (k, ok) in found.into_iter().enumerate() {
-        put_brother(cx, std::mem::take(&mut x.brothers[k]), ok);
+        std::mem::take(&mut x.brothers[k]).put_back(cx, ok);
     }
     Boss { base: b, class: Class::Gorre(Box::new(x)) }
 }
@@ -342,7 +311,7 @@ impl crate::boss::BossClass for Gorre {
 
 pub(super) fn main(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
     let found: [bool; 2] = std::array::from_fn(|k| {
-        let (part, found) = take_brother(cx, x.brother_me[k]);
+        let (part, found) = Part::take_or_stand_in(cx, x.brother_me[k]);
         x.brothers[k] = part;
         found
     });
@@ -360,7 +329,7 @@ pub(super) fn main(b: &mut BossBase, x: &mut Gorre, cx: &mut Cx) {
         cx.scene.chars[cx.me].cond[crate::param::cond::HOLD] = 0;
     }
     for (k, ok) in found.into_iter().enumerate() {
-        put_brother(cx, std::mem::take(&mut x.brothers[k]), ok);
+        std::mem::take(&mut x.brothers[k]).put_back(cx, ok);
     }
 }
 

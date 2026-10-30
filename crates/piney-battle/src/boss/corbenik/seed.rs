@@ -9,7 +9,8 @@ use piney_data::field::ee;
 
 use super::first::{self, First};
 use super::{Pic, SEED_ROW};
-use crate::boss::kyvia::{Part, as_me, plain_boss, set_base_param};
+use crate::boss::Part;
+use crate::boss::kyvia::{as_me, plain_boss, set_base_param};
 use crate::boss::{Boss, BossBase, Class, Cx, EffKind, Out, VF0};
 use crate::enemy_ai::rand_f;
 use crate::geom::{self, V4};
@@ -70,34 +71,6 @@ pub const IMAGE: crate::boss::AfterImageParams = crate::boss::AfterImageParams {
     es: [0x4110_0000, 0x4110_0000, 0x4110_0000, 0x3f80_0000],
     scale_time: 0x41f0_0000,
 };
-
-/// A seed out of its character (`Class::CorbenikSeed`), and whether one
-/// was there.
-pub(crate) fn take(cx: &mut Cx, me: usize) -> (Part<Seed>, bool) {
-    let taken = cx.scene.chars.get_mut(me).and_then(|c| c.foe_state_mut()).and_then(|f| f.boss.take());
-    let Some(mut sb) = taken else { return (Part { me, ..Part::default() }, false) };
-    match std::mem::replace(&mut sb.class, Class::Plain) {
-        Class::CorbenikSeed(x) => (Part { b: sb, x, me }, true),
-        other => {
-            sb.class = other;
-            if let Some(f) = cx.scene.chars[me].foe_state_mut() {
-                f.boss = Some(sb);
-            }
-            (Part { me, ..Part::default() }, false)
-        }
-    }
-}
-
-/// A seed put back into its character, unless [`take`] found none.
-pub(crate) fn put(cx: &mut Cx, mut part: Part<Seed>, found: bool) {
-    if !found {
-        return;
-    }
-    part.b.class = Class::CorbenikSeed(part.x);
-    if let Some(f) = cx.scene.chars[part.me].foe_state_mut() {
-        f.boss = Some(part.b);
-    }
-}
 
 /// `ccBoss08Seed::ccBoss08Seed` (0x003b00b0) and `SetMaster(body, k)`:
 /// row 44's stats, its body hit by the row (off), at the origin, exited,

@@ -7,8 +7,9 @@
 use piney_data::field::ee;
 use piney_data::libm;
 
-use super::{Gen, Held, LEAF_ROW, LeafPart, Leaves, Magus, Pic, Place};
+use super::{Gen, Held, LEAF_ROW, Leaves, Magus, Pic, Place};
 use crate::boss::GenOp;
+use crate::boss::Part;
 use crate::boss::blur::Set;
 use crate::boss::kyvia::{as_me, new_char, plain_boss, set_base_param};
 use crate::boss::{Anm, Boss, BossBase, Class, Cx, EffKind, Out};
@@ -173,7 +174,7 @@ pub(super) fn main(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus,
 
 /// `ccBoss03Leaf::PreDrawAnm` (0x004a5080): the clip forward; bursting,
 /// the burst's picture instead; fading, the leaf's fade.
-fn pre_draw_anm(p: &mut LeafPart, _cx: &mut Cx) {
+fn pre_draw_anm(p: &mut Part<Leaf>, _cx: &mut Cx) {
     let (b, x) = (&mut p.b, &mut p.x);
     match b.base.act_num {
         act::FIRE => {
@@ -229,7 +230,7 @@ fn think(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mut 
 
 /// `ccBoss03Leaf::ChangeAction` (0x004a6e00): the base's; bursting, the
 /// burst's clip (`xeffect`'s `ANM_ex31exp1`); `anmStatus` 0.
-fn change_action(p: &mut LeafPart, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
+fn change_action(p: &mut Part<Leaf>, cx: &mut Cx, n: i16, forbid: i16, af: bool) {
     p.b.base.change_action(cx, n, forbid, af);
     if af && p.b.base.act_num == act::FIRE {
         p.b.base.anm.set("ANM_ex31exp1", cx.clips);
@@ -271,7 +272,7 @@ fn count_start(x: &mut Leaf) {
 
 /// `Init` (0x004a5920): at the body's leaf `slaveID` on the ground, the
 /// body's heading, its fall clip, full HP, fallen.
-fn init(p: &mut LeafPart, mb: &BossBase, mx: &Magus, cx: &mut Cx) {
+fn init(p: &mut Part<Leaf>, mb: &BossBase, mx: &Magus, cx: &mut Cx) {
     let me = p.me;
     let k = usize::try_from(p.x.slave_id).unwrap_or(0).min(super::LEAVES - 1);
     let mut pos = mx.leaf_pos[k];
@@ -289,7 +290,7 @@ fn init(p: &mut LeafPart, mb: &BossBase, mx: &Magus, cx: &mut Cx) {
 }
 
 /// `PrepareExplode` (0x004a6620): off the lists, the burst readied.
-fn prepare_explode(p: &mut LeafPart, cx: &mut Cx) {
+fn prepare_explode(p: &mut Part<Leaf>, cx: &mut Cx) {
     p.x.prepare_explode = 1;
     crate::fellow::delete_cmnd(cx.scene, p.me);
     p.x.shock_scale = ONE;
@@ -411,7 +412,7 @@ fn on_exit(ls: &mut Leaves, k: usize, mb: &mut BossBase, mx: &mut Magus, cx: &mu
 
 /// `OnThinkDrop` (0x004a5ab0): once the fall's clip ends, the countdown
 /// begins and the leaf lands 137.6 to its side, on the lists.
-fn on_drop(p: &mut LeafPart, cx: &mut Cx) {
+fn on_drop(p: &mut Part<Leaf>, cx: &mut Cx) {
     let me = p.me;
     if p.b.base.anm_status == 0 {
         return;

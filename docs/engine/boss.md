@@ -656,6 +656,10 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   `base_exec_pattern_index` and `base_change_next_pattern`. `BaseActs`
   holds where the classes' copies parted: the neutral's forbid on an
   unknown word and two vectors' w lanes.
+- A boss's parts (Kyvia's core and gomoras, Magus's leaves, Gorre's
+  brothers, Corbenik's seeds, roots and eyes) are bosses of their own
+  characters. The master's frame takes them out as `Part<T>` (`Parts<T>`
+  where it indexes them) and puts them back after.
 - `ccBoss::Main` is building blocks on `BossBase` (`prologue`,
   `tick_stop`, `lock_party`, `move_`, `forward_and_draw`, and
   `Cx::pp_count_tick`); each class's `Main` calls them in its own order.
