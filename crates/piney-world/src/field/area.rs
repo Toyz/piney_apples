@@ -237,11 +237,9 @@ impl crate::hit::Heights for Heights {
     }
 }
 
-/// `sqrt` of x x + y y in double, as `FOBJECT(2)::Draw` measure (`mula`,
-/// `madd` in singles, then `fptodp`, `sqrt`, `dptofp`); `sqrt.s` from
-/// Outbreak on ([`ee::dsqrt_on`], OUT gcmn 0x005db030 `FOBJECT::Draw`).
+/// The ground distance of `d` (`FOBJECT::Draw`, OUT gcmn 0x005db030).
 pub(crate) fn ground_dist(volume: Volume, d: V4) -> F {
-    ee::dsqrt_on(volume, ee::add(ee::mul(d[0], d[0]), ee::mul(d[1], d[1])))
+    ee::ground_dist(volume, d[0], d[1])
 }
 
 /// The fade both object kinds use: 1 to `near`, then `(far - d) / len`.

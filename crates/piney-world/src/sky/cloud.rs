@@ -12,6 +12,7 @@ use piney_data::volume::Volume;
 
 use crate::chara::char::{p2w, w2p};
 use crate::ee::{self, F, ONE, V4};
+use crate::field::area::ground_dist;
 
 /// The Eff chunk's kind.
 const EFF_CHUNK: u16 = 0x0e00;
@@ -86,12 +87,6 @@ fn rotate_of(angle: F) -> F {
 /// `(float)(n)` of a `fieldrand` result taken as a signed int.
 fn fl(n: u32) -> F {
     ee::from_int(n as i32)
-}
-
-/// `sqrt(x x + y y)` in double, as `Move` and `Draw` measure (`sqrt.s`
-/// from Outbreak on, [`ee::dsqrt_on`], OUT gcmn 0x0051a7b0 `CLOUD::Move`).
-fn ground_dist(volume: Volume, p: V4) -> F {
-    ee::dsqrt_on(volume, ee::add(ee::mul(p[0], p[0]), ee::mul(p[1], p[1])))
 }
 
 impl Cloud {

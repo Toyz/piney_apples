@@ -10,6 +10,13 @@ pub use piney_data::libm::{atan2f, cosf, dsqrt_on, fabsf, fmodf, neg, sinf, sqrt
 
 /// A float as bits.
 pub type F = u32;
+
+/// `sqrt(dx dx + dy dy)` in double (`mula`, `madd` in singles, then
+/// `fptodp`, `sqrt`, `dptofp`): the ground distance the statics, objects,
+/// clouds and fireflies measure; `sqrt.s` from Outbreak on ([`dsqrt_on`]).
+pub fn ground_dist(volume: piney_data::volume::Volume, dx: F, dy: F) -> F {
+    dsqrt_on(volume, add(mul(dx, dx), mul(dy, dy)))
+}
 /// A `sceVu0FVECTOR`: x, y, z, w as bits.
 pub type V4 = [F; 4];
 

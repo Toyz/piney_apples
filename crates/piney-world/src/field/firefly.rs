@@ -256,8 +256,8 @@ impl FieldFirefly {
             self.pattern = 0;
         }
         let d = env.w2p(self.pos);
-        // fptodp, sqrt, dptofp; sqrt.s from Outbreak on (OUT gcmn 0x005dd2a0).
-        let dist = ee::dsqrt_on(env.volume, ee::add(ee::mul(d[0], d[0]), ee::mul(d[1], d[1])));
+        // OUT gcmn 0x005dd2a0.
+        let dist = ee::ground_dist(env.volume, d[0], d[1]);
         if !ee::le(dist, 0x453b_8000) {
             self.transparency = 0;
             self.base[0] = ee::sub(ee::from_int(rng.below(5000) as i32), 0x451c_4000);

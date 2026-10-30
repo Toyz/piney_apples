@@ -7,14 +7,13 @@
 //! slots are the base's. Event 314's block 3 then hides Kite (`pc_act 0
 //! 6`) and runs the staff roll over it. docs/engine/evarea.md.
 
-use std::any::Any;
-
 use glam::{Mat4, Vec3};
 use piney_desktop::layers::Layers;
 
-use crate::ee::{self, F, ONE, V4};
+use crate::ee::V4;
 use crate::hit::Hits;
-use crate::story_map::holy_ground::{BOUNDS, StorySprite};
+use crate::story_map::event_hits;
+use crate::story_map::holy_ground::StorySprite;
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{StoryFrame, StoryMap, StoryRequest};
 use crate::town::{TownLights, TownView};
@@ -34,8 +33,7 @@ impl EndArea {
     /// `GO(1)`'s `new` and constructor: an event area with nothing in it.
     /// `start` is `WORLD_MAN.eventStartPos`, which it does not set.
     pub fn new(volume: piney_data::volume::Volume, def_se: u32, start: V4) -> EndArea {
-        let hits =
-            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
+        let hits = event_hits(volume, def_se, Vec::new());
         EndArea { hits, lights: TownLights { ambient: Vec3::ZERO, lights: Vec::new(), fog: None }, start }
     }
 }
@@ -52,14 +50,8 @@ impl StoryMap for EndArea {
     }
     /// `SetCharPosition`'s "any other" map: the leader at `eventStartPos`,
     /// the others at (+300, +150), (-300, +150) and (0, +300).
-    fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        let [x, y, z, dirc] = self.start;
-        let starts = [
-            [ee::add(0x4396_0000, x), ee::add(0x4316_0000, y), z, ONE],
-            [ee::sub(x, 0x4396_0000), ee::add(0x4316_0000, y), z, ONE],
-            [x, ee::add(0x4396_0000, y), z, ONE],
-        ];
-        ([x, y, z, ONE], dirc, starts)
+    fn start(&self) -> V4 {
+        self.start
     }
     /// `ccSys.bgColor` is not touched: the desktop's set-up left it black,
     /// and event 314 comes from the desktop.
@@ -72,15 +64,6 @@ impl StoryMap for EndArea {
     }
     fn draw(&mut self, _layers: &mut Layers, _to_screen: Mat4, _v: &TownView, _step: bool) -> Vec<StorySprite> {
         Vec::new()
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-    fn into_any(self: Box<Self>) -> Box<dyn Any> {
-        self
     }
 }
 

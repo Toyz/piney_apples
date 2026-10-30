@@ -13,7 +13,7 @@ use glam::{Mat4, Vec3};
 use piney_battle::rand::Rng as CcRand;
 use piney_data::archive::Archive;
 use piney_data::dungeon::Rng;
-use piney_data::statics::{DrawPass, Position};
+use piney_data::statics::DrawPass;
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
@@ -24,10 +24,12 @@ use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::{HitModel, Hits};
 use crate::sky::cloud::{self, Cloud};
-use crate::story_map::StoryMap;
-use crate::story_map::holy_ground::{BOUNDS, StaticModel, StaticObject, StorySprite, clump_models, layer};
+use crate::story_map::holy_ground::Placing;
+use crate::story_map::holy_ground::{StaticModel, StaticObject, StorySprite, clump_models, layer};
 use crate::story_map::{Made, MapDef};
-use crate::town::{FogParams, Light, TownLights, TownView};
+use crate::story_map::{StartSpread, StoryMap, party_starts};
+use crate::story_map::{event_hits, light_group};
+use crate::town::{FogParams, TownLights, TownView};
 
 /// `game.field` 9-12.
 pub fn is_disc(field: i32) -> bool {
@@ -279,27 +281,12 @@ impl DiscArea {
             .iter()
             .find(|t| t.name == "EA_MODELTABLEB8")
             .ok_or_else(|| Error::NotFound("EA_MODELTABLEB8".into()))?;
-        let mut models = Vec::new();
-        for (row, r) in table.rows.iter().enumerate() {
-            let model = c.find_object(r.model).ok_or_else(|| Error::NotFound(format!("{FILE}: {}", r.model)))?;
-            let pos = match r.position {
-                Position::None => [0; 4],
-                _ => crate::town::dummy_bits(&r.position, c, sc).0,
-            };
-            models.push(StaticModel { row, pass: r.pass, model, pos, clip: r.clip.to_bits() });
-        }
+        let models = StaticModel::load(&file, table, Placing::Dummy, str::to_string)?;
         let otable = objs_of
             .iter()
             .find(|t| t.name == "EA_OBJTABLEB8")
             .ok_or_else(|| Error::NotFound("EA_OBJTABLEB8".into()))?;
-        let mut objects = Vec::new();
-        for (row, r) in otable.rows.iter().enumerate() {
-            let name = r.anime.ok_or_else(|| Error::NotFound(format!("EA_OBJTABLEB8: row {row}")))?;
-            let play = Play::new(&file, name).ok_or_else(|| Error::NotFound(name.into()))?;
-            let (pos, rot) = crate::town::dummy_bits(&r.position, c, sc);
-            let root = crate::town::pos_rot_zyx(pos, rot);
-            objects.push(StaticObject { row, pass: r.pass, play, root, pos, clip: r.clip.to_bits() });
-        }
+        let objects = StaticObject::load(&file, otable, usize::MAX, Placing::Dummy)?;
         let mut bg: [Option<(u32, Vec<u32>)>; 4] = Default::default();
         for (k, (name, _)) in BG.iter().enumerate() {
             bg[k] = Some(clump_models(&file, name).ok_or_else(|| Error::NotFound(format!("{FILE}: {name}")))?);
@@ -314,26 +301,15 @@ impl DiscArea {
             None => (None, 0, None, None),
         };
         // lgtAnm: its light at frame 1 and the ambient.
-        let ai = file.anim(LIGHT_ANIM).ok_or_else(|| Error::NotFound(LIGHT_ANIM.into()))?;
-        let (ambient, records) = crate::town::anim_lights(&file, ai)?;
-        let mut group: Vec<Light> = Vec::new();
-        let mut light_objects = Vec::new();
-        for (_, name) in LIGHTS {
-            let obj = c.find_object(name).ok_or_else(|| Error::NotFound(name.into()))?;
-            light_objects.push(obj);
-            if let Some(l) = records.iter().find(|l| l.object == obj) {
-                group.push(l.at(256));
-            }
-        }
-        let lights = TownLights { ambient: ambient.unwrap_or(Vec3::ZERO), lights: group, fog: Some(FOG) };
+        let (ambient, group, light_objects) = light_group(&file, LIGHT_ANIM, LIGHTS.map(|(_, n)| n), false)?;
+        let lights = TownLights { ambient, lights: group, fog: Some(FOG) };
         let marker = c.find_object(MARKER).ok_or_else(|| Error::NotFound(format!("{FILE}: {MARKER}")))?;
         let disc_pos = sc
             .dummies
             .get(&marker)
             .map_or([0, 0, 0, ONE], |d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE]);
         let hit_models = HitModel::read(volume, c)?;
-        let hits =
-            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
+        let hits = event_hits(volume, def_se, Vec::new());
         let mut rock_models = Vec::new();
         for name in ROCKS {
             rock_models.push(clump_models(&file, name).ok_or_else(|| Error::NotFound(name.into()))?.1);
@@ -643,8 +619,7 @@ impl DiscArea {
                 continue;
             }
             let (dx, dy) = (ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
-            // STATICOBJECT::Draw's double root; sqrt.s from Outbreak on.
-            let d = ee::dsqrt_on(volume, ee::add(ee::mul(dx, dx), ee::mul(dy, dy)));
+            let d = ee::ground_dist(volume, dx, dy);
             if o.clip == 0 || ee::lt(d, o.clip) {
                 o.play.forward(&self.file);
                 out.push(Piece::Object { k, layer, time: o.play.time });
@@ -792,23 +767,20 @@ impl StoryMap for DiscArea {
     /// `WORLD_MAN::SetCharPosition` for fields 9-11 (the default): the
     /// leader at the start facing its w, the others at (+300, +150),
     /// (-300, +150) and (0, +300); field 12's own places.
+    fn start(&self) -> V4 {
+        self.start
+    }
+    /// Field 12's: the two at their own places, everyone at its height.
     fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        let [x, y, z, dirc] = self.start;
-        if self.field == 12 {
-            let z = 0x4463_8000;
-            let starts = [
-                [0xc258_0000, 0xc634_1400, z, ONE],
-                [0x4380_0000, 0xc633_fc00, z, ONE],
-                [x, ee::add(0x4396_0000, y), z, ONE],
-            ];
-            return ([x, y, z, ONE], dirc, starts);
+        let (leader, dirc, mut others) = party_starts(self.start, StartSpread::BEHIND);
+        if self.field != 12 {
+            return (leader, dirc, others);
         }
-        let starts = [
-            [ee::add(0x4396_0000, x), ee::add(0x4316_0000, y), z, ONE],
-            [ee::sub(x, 0x4396_0000), ee::add(0x4316_0000, y), z, ONE],
-            [x, ee::add(0x4396_0000, y), z, ONE],
-        ];
-        ([x, y, z, ONE], dirc, starts)
+        let z = 0x4463_8000;
+        others[0] = [0xc258_0000, 0xc634_1400, z, ONE];
+        others[1] = [0x4380_0000, 0xc633_fc00, z, ONE];
+        others[2][2] = z;
+        ([leader[0], leader[1], z, ONE], dirc, others)
     }
     fn clear(&self) -> [u8; 3] {
         BG_COLOR
@@ -841,15 +813,6 @@ impl StoryMap for DiscArea {
     }
     fn trans_center(&self) -> Option<V4> {
         self.hits.trans
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-    fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
-        self
     }
 }
 

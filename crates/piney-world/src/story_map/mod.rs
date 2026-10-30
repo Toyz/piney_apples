@@ -35,7 +35,7 @@ use piney_desktop::layers::Layers;
 
 use crate::camera::Camera;
 use crate::ee::{F, V4};
-use crate::hit::Hits;
+use crate::hit::{HitModel, Hits};
 use crate::story_map::holy_ground::{Kept, StorySprite};
 use crate::town::{TownLights, TownView};
 
@@ -79,9 +79,18 @@ pub trait StoryMap: Any {
     fn hits(&self) -> &Hits;
     fn hits_mut(&mut self) -> &mut Hits;
     fn lights(&self) -> &TownLights;
+    /// `eventStartPos` as the map's `SetStartPos` left it: the place, the
+    /// facing in w.
+    fn start(&self) -> V4;
+    /// How the others stand about the leader.
+    fn spread(&self) -> StartSpread {
+        StartSpread::BEHIND
+    }
     /// `WORLD_MAN::SetCharPosition` in a story map: the leader, his facing,
     /// the others.
-    fn start_positions(&self) -> (V4, F, [V4; 3]);
+    fn start_positions(&self) -> (V4, F, [V4; 3]) {
+        party_starts(self.start(), self.spread())
+    }
     /// `ccSys.bgColor` as the map leaves it.
     fn clear(&self) -> [u8; 3];
     /// `WORLD_MAN::Enter` from `block`.
@@ -132,9 +141,75 @@ pub trait StoryMap: Any {
     /// (`town::scroll_statics`), taken and handed back.
     fn take_statics(&mut self, _s: &[u32; SCROLL_STATICS]) {}
     fn put_statics(&self, _s: &mut [u32; SCROLL_STATICS]) {}
-    fn as_any(&self) -> &dyn Any;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn into_any(self: Box<Self>) -> Box<dyn Any>;
+}
+
+/// Where `WORLD_MAN::SetCharPosition`'s event area branches put the two
+/// others beside the leader: `side` to either side, `back` along y (the
+/// third is always 300 along y).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StartSpread {
+    pub side: F,
+    pub back: F,
+}
+
+impl StartSpread {
+    /// (+-300, +150): main 0x001a1414, most maps.
+    pub const BEHIND: StartSpread = StartSpread { side: 0x4396_0000, back: 0x4316_0000 };
+    /// (+-200, -150): main 0x001a1190, fields 16 and 66, the mirror.
+    pub const AHEAD: StartSpread = StartSpread { side: 0x4348_0000, back: 0xc316_0000 };
+}
+
+/// The leader at `start` facing its w; the others at `spread` and (0, +300)
+/// from him, facing as he does.
+pub fn party_starts(start: V4, spread: StartSpread) -> (V4, F, [V4; 3]) {
+    use crate::ee::{ONE, add, sub};
+    let [x, y, z, dirc] = start;
+    let StartSpread { side, back } = spread;
+    let others =
+        [[add(x, side), add(y, back), z, ONE], [sub(x, side), add(y, back), z, ONE], [x, add(y, 0x4396_0000), z, ONE]];
+    ([x, y, z, ONE], dirc, others)
+}
+
+/// A story map's collision as `GO(1)` sets it: `game.area` 1, the event
+/// area's flag and bounds, no height map, `defSE`; the models' Hit chunks
+/// are each map's.
+pub fn event_hits(volume: Volume, def_se: u32, models: Vec<HitModel>) -> Hits {
+    let bounds = Some(holy_ground::BOUNDS);
+    Hits { volume, area: 1, bounds, heights: None, def_se, event_area: true, models, ..Hits::default() }
+}
+
+/// The Hit chunks `STATICMODEL` enables: each model's own (`parent`), in
+/// the order the models were built.
+pub fn model_hits(models: impl IntoIterator<Item = u32>, hit_models: &[HitModel]) -> Vec<HitModel> {
+    models.into_iter().filter_map(|m| hit_models.iter().find(|h| h.parent == m).cloned()).collect()
+}
+
+/// The lights a story map puts in the group: its light animation `anim`'s
+/// ambient and each light of `names` at frame 1 (one `_AnimateForward`),
+/// with their objects. A name the file lacks is an error, or skipped with
+/// `skip_missing` (`eventareaB0Light`'s omni lights).
+pub fn light_group<S: AsRef<str>>(
+    file: &piney_desktop::assets::SceneFile,
+    anim: &str,
+    names: impl IntoIterator<Item = S>,
+    skip_missing: bool,
+) -> Result<(glam::Vec3, Vec<crate::town::Light>, Vec<u32>)> {
+    use piney_data::Error;
+    let ai = file.anim(anim).ok_or_else(|| Error::NotFound(anim.into()))?;
+    let (ambient, records) = crate::town::anim_lights(file, ai)?;
+    let (mut group, mut objects) = (Vec::new(), Vec::new());
+    for name in names {
+        let name = name.as_ref();
+        let Some(obj) = file.ccs.find_object(name) else {
+            if skip_missing {
+                continue;
+            }
+            return Err(Error::NotFound(name.into()));
+        };
+        objects.push(obj);
+        group.extend(records.iter().find(|l| l.object == obj).map(|l| l.at(256)));
+    }
+    Ok((ambient.unwrap_or(glam::Vec3::ZERO), group, objects))
 }
 
 /// What `GO(1)` makes a map from: the disc, `game.field`, `game.areaPrev`,

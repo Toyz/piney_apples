@@ -527,8 +527,8 @@ pub fn water_st(
     world_screen: &[V4; 4],
 ) -> Option<Vec<[u16; 2]>> {
     let (dx, dy) = (ee::sub(eye[0], at[0]), ee::sub(eye[1], at[1]));
-    // fptodp, sqrt, dptofp; sqrt.s from Outbreak on (OUT gcmn 0x00518170).
-    let d = ee::dsqrt_on(volume, ee::add(ee::mul(dx, dx), ee::mul(dy, dy)));
+    // OUT gcmn 0x00518170.
+    let d = ee::ground_dist(volume, dx, dy);
     if !ee::le(d, reach) {
         return None;
     }
@@ -821,7 +821,7 @@ impl Base {
         let volume = self.hits.volume;
         let o = &mut self.objects[i];
         let (dx, dy) = (ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
-        let d = ee::dsqrt_on(volume, ee::add(ee::mul(dx, dx), ee::mul(dy, dy)));
+        let d = ee::ground_dist(volume, dx, dy);
         if !(ee::lt(d, o.clip) || ee::eq(o.clip, 0)) {
             return false;
         }

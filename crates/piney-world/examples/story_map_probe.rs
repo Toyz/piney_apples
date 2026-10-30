@@ -18,6 +18,7 @@ use piney_world::chara::motion::PLAYER_ANIM_TBL;
 use piney_world::chara::player::Player;
 use piney_world::ee::{self, V4};
 use piney_world::hit;
+use piney_world::story_map::StoryMap;
 use piney_world::story_map::boss_arena::{self, Arena};
 use piney_world::story_map::holy_ground::{EventArea, FlareCamera, Piece};
 use piney_world::{Rand, tasks};

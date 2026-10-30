@@ -11,7 +11,7 @@ use std::sync::Arc;
 use glam::Mat4;
 use piney_data::archive::Archive;
 use piney_data::save::SaveData;
-use piney_data::statics::{self, DrawPass, Position};
+use piney_data::statics::{self, DrawPass};
 use piney_data::volume::Volume;
 use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
@@ -21,9 +21,11 @@ use crate::camera::{Camera, id};
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::{HitModel, Hits};
-use crate::story_map::holy_ground::{BOUNDS, StaticModel, StorySprite, layer};
+use crate::story_map::holy_ground::Placing;
+use crate::story_map::holy_ground::{StaticModel, StorySprite, layer};
 use crate::story_map::{Made, MapDef};
 use crate::story_map::{StoryFrame, StoryMap, StoryRequest};
+use crate::story_map::{event_hits, model_hits};
 use crate::town::{FogParams, Light, TownLights, TownView};
 
 /// `game.field` of this map.
@@ -74,21 +76,13 @@ impl Area43 {
     /// `EVENTAREA03::EVENTAREA03` on `server`, with `save`'s marks.
     pub fn new(archive: &Arc<Archive>, volume: Volume, save: &SaveData, server: i32, def_se: u32) -> Result<Area43> {
         let file = Rc::new(SceneFile::read(archive, FILE)?);
-        let (c, sc) = (&file.ccs, &file.scene);
+        let (c, _sc) = (&file.ccs, &file.scene);
         let table = statics::of(volume)
             .0
             .iter()
             .find(|t| t.name == MODEL_TABLE)
             .ok_or_else(|| Error::NotFound(MODEL_TABLE.into()))?;
-        let mut models = Vec::new();
-        for (row, r) in table.rows.iter().enumerate() {
-            let model = c.find_object(r.model).ok_or_else(|| Error::NotFound(format!("{FILE}: {}", r.model)))?;
-            let pos = match r.position {
-                Position::None => [0; 4],
-                _ => crate::town::dummy_bits(&r.position, c, sc).0,
-            };
-            models.push(StaticModel { row, pass: r.pass, model, pos, clip: r.clip.to_bits() });
-        }
+        let models = StaticModel::load(&file, table, Placing::Dummy, str::to_string)?;
         // The light animation at frame 1, its ambient and the one light.
         let ai = file.anim(ANIM).ok_or_else(|| Error::NotFound(ANIM.into()))?;
         let (ambient, records) = crate::town::anim_lights(&file, ai)?;
@@ -96,9 +90,7 @@ impl Area43 {
         let group: Vec<Light> = records.iter().filter(|l| l.object == light).map(|l| l.at(256)).collect();
         let lights = TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG) };
         let hit_models = HitModel::read(volume, c)?;
-        let mut hits =
-            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
-        hits.models = models.iter().filter_map(|m| hit_models.iter().find(|h| h.parent == m.model).cloned()).collect();
+        let hits = event_hits(volume, def_se, model_hits(models.iter().map(|m| m.model), &hit_models));
         let at = piney_data::save::offset::GATE_LIST_MARK + 20 * server.clamp(0, 4) as usize + 4 * MARK_WORD;
         let flag = save.i32(at) as u32 & MARK_BIT != 0;
         let self_talk = piney_data::tables::fieldui::of(volume).kite_self_talk_va;
@@ -187,14 +179,8 @@ impl StoryMap for Area43 {
     }
     /// `WORLD_MAN::SetCharPosition` in a story map: the leader at the
     /// start, the others at (+300, +150), (-300, +150), (0, +300).
-    fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        let [x, y, z, dirc] = START;
-        let starts = [
-            [ee::add(0x4396_0000, x), ee::add(0x4316_0000, y), z, ONE],
-            [ee::sub(x, 0x4396_0000), ee::add(0x4316_0000, y), z, ONE],
-            [x, ee::add(0x4396_0000, y), z, ONE],
-        ];
-        ([x, y, z, ONE], dirc, starts)
+    fn start(&self) -> V4 {
+        START
     }
     fn clear(&self) -> [u8; 3] {
         BG_COLOR
@@ -212,15 +198,6 @@ impl StoryMap for Area43 {
             self.model_draw(layers, to_screen, m);
         }
         Vec::new()
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-    fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
-        self
     }
 }
 

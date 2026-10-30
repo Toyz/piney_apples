@@ -132,11 +132,14 @@ order; tick items off here as they land, with the worklog entry.
       `Source<A>`, one `sync` with an explicit order. (worklog 528: the
       pass is `BossBase::effect_pass`; snapshot and live length read the
       same, so only set vs clear-only is kept; `Source` is one struct.)
-- [ ] Story maps on the towns' base: `StaticSet` (placed models and
+- [x] Story maps on the towns' base: `StaticSet` (placed models and
       objects, one loader), `MapCore` with defaulted getters (drop the 8
       `as_any` impls: `StoryMap: Any` upcasts), `party_starts(StartSpread)`,
       `event_hits()`, `light_group`, one `ground_dist`. Keep each map's
       `statics::tables()` vs `statics::of(volume)` choice and its quirks.
+      (worklog 531: the loader is `StaticModel::load` and
+      `StaticObject::load` with `Placing`; `start_positions` defaulted
+      from `start` and `spread`; `hits` and `lights` stay one-liners.)
 - [ ] Module trees and dispatch registries. The crates' `src/` roots are
       flooded (piney-world 60 files and 4 folders, piney-effect 51,
       piney-battle 39, piney-desktop 30, piney-game 28), and per-kind

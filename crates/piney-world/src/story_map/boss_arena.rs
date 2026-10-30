@@ -24,12 +24,13 @@ use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::{HitModel, Hits};
 use crate::sky::firefly::{Firefly, FireflyDraw};
-use crate::story_map::holy_ground::{BOUNDS, StaticModel, StorySprite, clump_models, layer};
+use crate::story_map::holy_ground::Placing;
+use crate::story_map::holy_ground::{StaticModel, StorySprite, clump_models, layer};
 use crate::story_map::{Made, MapDef, StoryMap};
+use crate::story_map::{event_hits, light_group, model_hits};
 use crate::town::TownView;
-use crate::town::{FogParams, Light, TownLights};
+use crate::town::{FogParams, TownLights};
 use piney_desktop::SCROLL_STATICS;
-use std::any::Any;
 
 /// Each field's stage (`game.field` 1-8; the constructor's jump table at
 /// 0x006a3d60). Field 8 also loads `se4_8`, `NextStage`'s last stage.
@@ -194,16 +195,7 @@ impl Arena {
             .iter()
             .find(|t| t.name == "EA_MODELTABLEB0")
             .ok_or_else(|| Error::NotFound("EA_MODELTABLEB0".into()))?;
-        let mut models = Vec::new();
-        for (row, r) in table.rows.iter().enumerate() {
-            let name = staged(r.model, stage);
-            let model = c.find_object(&name).ok_or_else(|| Error::NotFound(format!("{stage}: {name}")))?;
-            let pos = match r.position {
-                Position::None => [0; 4],
-                _ => crate::town::dummy_bits(&r.position, c, sc).0,
-            };
-            models.push(StaticModel { row, pass: r.pass, model, pos, clip: r.clip.to_bits() });
-        }
+        let models = StaticModel::load(&file, table, Placing::Dummy, |n| staged(n, stage))?;
         let mut bg: [Option<(u32, Vec<u32>)>; 3] = Default::default();
         for (k, part) in ["bac1", "clo1", "clo2"].into_iter().enumerate() {
             let name = format!("CMP_{stage}{part}");
@@ -211,28 +203,15 @@ impl Arena {
         }
         // eventareaB0Light: the distant light, then the 19 omni lights, at
         // the light animation's frame 1 (one _AnimateForward).
-        let anim = format!("ANM_{stage}bac1a");
-        let ai = file.anim(&anim).ok_or_else(|| Error::NotFound(anim.clone()))?;
-        let (ambient, records) = crate::town::anim_lights(&file, ai)?;
-        let mut group: Vec<Light> = Vec::new();
-        let mut light_objects = Vec::new();
-        for k in 0..20 {
-            let name = if k == 0 { format!("LGT_{stage}lig1") } else { format!("LGT_{stage}omn{k:02}") };
-            let Some(obj) = c.find_object(&name) else { continue };
-            light_objects.push(obj);
-            if let Some(l) = records.iter().find(|l| l.object == obj) {
-                group.push(l.at(256));
-            }
-        }
-        let lights = TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG) };
+        let names = (0..20).map(|k| if k == 0 { format!("LGT_{stage}lig1") } else { format!("LGT_{stage}omn{k:02}") });
+        let (ambient, group, light_objects) = light_group(&file, &format!("ANM_{stage}bac1a"), names, true)?;
+        let lights = TownLights { ambient, lights: group, fog: Some(FOG) };
         let (pos, rot) = crate::town::dummy_bits(&Position::DummyRot("DMY_center01"), c, sc);
         if c.find_object("DMY_center01").is_none() {
             return Err(Error::NotFound(format!("{stage}: DMY_center01")));
         }
         let hit_models = HitModel::read(volume, c)?;
-        let mut hits =
-            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
-        hits.models = models.iter().filter_map(|m| hit_models.iter().find(|h| h.parent == m.model).cloned()).collect();
+        let hits = event_hits(volume, def_se, model_hits(models.iter().map(|m| m.model), &hit_models));
         // The fireflies, each over its marker.
         let mut rng = rng;
         let mut fireflies = Vec::with_capacity(FIREFLIES);
@@ -302,19 +281,6 @@ impl Arena {
     /// `SwitchLayer` (gcmn 0x004095b0).
     pub fn switch_layer(&mut self) {
         self.layer_sw = !self.layer_sw;
-    }
-
-    /// `WORLD_MAN::SetCharPosition` in a story map (main 0x001a1414): the
-    /// leader at `eventStartPos` facing its w, the others at (+300, +150),
-    /// (-300, +150) and (0, +300) from him.
-    pub fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        let [x, y, z, dirc] = self.start;
-        let starts = [
-            [ee::add(0x4396_0000, x), ee::add(0x4316_0000, y), z, ONE],
-            [ee::sub(x, 0x4396_0000), ee::add(0x4316_0000, y), z, ONE],
-            [x, ee::add(0x4396_0000, y), z, ONE],
-        ];
-        ([x, y, z, ONE], dirc, starts)
     }
 
     /// `EVENTAREA::SetCenter(x, y)`.
@@ -529,23 +495,14 @@ impl StoryMap for Arena {
     fn lights(&self) -> &TownLights {
         &self.lights
     }
-    fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        Arena::start_positions(self)
+    fn start(&self) -> V4 {
+        self.start
     }
     fn clear(&self) -> [u8; 3] {
         crate::story_map::boss_arena::BG_COLOR
     }
     fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite> {
         Arena::draw(self, layers, to_screen, v.player, step)
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-    fn into_any(self: Box<Self>) -> Box<dyn Any> {
-        self
     }
 }
 

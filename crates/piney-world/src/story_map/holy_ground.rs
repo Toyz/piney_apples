@@ -25,10 +25,10 @@ use crate::ee::{self, F, ONE, V4};
 use crate::hit::{HitModel, Hits};
 use crate::story_map::{Enter, StoryMap};
 use crate::story_map::{Made, MapDef};
+use crate::story_map::{event_hits, light_group, model_hits};
 use crate::town::TownView;
-use crate::town::{FogParams, Light, TownLights};
+use crate::town::{FogParams, TownLights};
 use piney_desktop::MOVE_TEX_ROWS;
-use std::any::Any;
 
 /// The story area `EVENTAREA02` is, and its scene files.
 pub const AREA: i32 = 15;
@@ -160,6 +160,61 @@ pub struct StaticObject {
     pub clip: F,
 }
 
+/// Where a map's `SetPos` puts its statics: at each row's dummy (zeros
+/// without one), or nowhere (`EVENTAREA07::ChangeBlock` calls none).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Placing {
+    Dummy,
+    Origin,
+}
+
+impl StaticModel {
+    /// `table`'s rows over `file`: each row's `MDL_` object (its name
+    /// through `name`), placed.
+    pub fn load(
+        file: &SceneFile,
+        table: &statics::ModelTable,
+        placing: Placing,
+        name: impl Fn(&str) -> String,
+    ) -> Result<Vec<StaticModel>> {
+        let (c, sc) = (&file.ccs, &file.scene);
+        let model = |(row, r): (usize, &statics::StaticModel)| {
+            let n = name(r.model);
+            let model = c.find_object(&n).ok_or_else(|| Error::NotFound(format!("{}: {n}", file.stem)))?;
+            let pos = match placing {
+                Placing::Dummy => crate::town::dummy_bits(&r.position, c, sc).0,
+                Placing::Origin => [0; 4],
+            };
+            Ok(StaticModel { row, pass: r.pass, model, pos, clip: r.clip.to_bits() })
+        };
+        table.rows.iter().enumerate().map(model).collect()
+    }
+}
+
+impl StaticObject {
+    /// `table`'s first `rows` rows over `file`: each row's animation, placed
+    /// (`SetMatrix_PosRotZYX` of its dummy's place and turn).
+    pub fn load(
+        file: &SceneFile,
+        table: &statics::ObjTable,
+        rows: usize,
+        placing: Placing,
+    ) -> Result<Vec<StaticObject>> {
+        let (c, sc) = (&file.ccs, &file.scene);
+        let object = |(row, r): (usize, &statics::StaticObj)| {
+            let name = r.anime.ok_or_else(|| Error::NotFound(format!("{}: row {row} has no animation", table.name)))?;
+            let play = Play::new(file, name).ok_or_else(|| Error::NotFound(name.into()))?;
+            let (pos, rot) = match placing {
+                Placing::Dummy => crate::town::dummy_bits(&r.position, c, sc),
+                Placing::Origin => ([0; 4], [0; 3]),
+            };
+            let root = crate::town::pos_rot_zyx(pos, rot);
+            Ok(StaticObject { row, pass: r.pass, play, root, pos, clip: r.clip.to_bits() })
+        };
+        table.rows.iter().enumerate().take(rows).map(object).collect()
+    }
+}
+
 /// One piece `EVENTAREA02::Draw` draws, in its order, on its layer.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Piece {
@@ -271,14 +326,6 @@ pub(crate) fn clump_models(file: &SceneFile, name: &str) -> Option<(u32, Vec<u32
     Some((c, m))
 }
 
-/// `sqrt` of x x + y y in double (`mula`, `madd` in singles, `fptodp`,
-/// `sqrt`, `dptofp`), as `STATICMODEL::DrawWithOutFog` and
-/// `STATICOBJECT::Draw` measure; `sqrt.s` from Outbreak on
-/// ([`ee::dsqrt_on`], OUT gcmn 0x005f7fb8).
-fn ground_dist(volume: Volume, dx: F, dy: F) -> F {
-    ee::dsqrt_on(volume, ee::add(ee::mul(dx, dx), ee::mul(dy, dy)))
-}
-
 /// `d < clip` or `clip == 0`.
 fn within(d: F, clip: F) -> bool {
     ee::lt(d, clip) || ee::eq(0, clip)
@@ -295,8 +342,7 @@ impl EventArea {
             eff.ccs.find_object(name).ok_or_else(|| Error::NotFound(format!("{EFF_FILE}: {name}")))?;
         }
         let hit_models = HitModel::read(volume, &file.ccs)?;
-        let hits =
-            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
+        let hits = event_hits(volume, def_se, Vec::new());
         let mut a = EventArea {
             file,
             eff,
@@ -350,7 +396,7 @@ impl EventArea {
     pub fn change_block(&mut self, block: i32) -> Result<()> {
         self.block = block;
         let b = usize::from(block != 0);
-        let (c, sc) = (&self.file.ccs, &self.file.scene);
+        let (_c, _sc) = (&self.file.ccs, &self.file.scene);
         let names = [("EA_MODELTABLE02", "EA_OBJTABLE02"), ("EA_MODELTABLE0202", "EA_OBJTABLE0202")][b];
         let table =
             statics::tables().iter().find(|t| t.name == names.0).ok_or_else(|| Error::NotFound(names.0.into()))?;
@@ -359,32 +405,11 @@ impl EventArea {
         // modelNum 4 and anmNum 0, or 7 and 1: the whole tables but for the
         // first's one placeholder object row.
         let anm_num = [0, 1][b];
-        self.models.clear();
-        for (row, r) in table.rows.iter().enumerate() {
-            let model = c.find_object(r.model).ok_or_else(|| Error::NotFound(format!("{FILE}: {}", r.model)))?;
-            let (pos, _) = crate::town::dummy_bits(&r.position, c, sc);
-            let pos = match r.position {
-                Position::None => [0; 4],
-                _ => pos,
-            };
-            self.models.push(StaticModel { row, pass: r.pass, model, pos, clip: r.clip.to_bits() });
-        }
-        self.objects.clear();
-        for (row, r) in obj_table.rows.iter().enumerate().take(anm_num) {
-            let name = r.anime.ok_or_else(|| Error::NotFound(format!("{}: row {row} has no animation", names.1)))?;
-            let play = Play::new(&self.file, name).ok_or_else(|| Error::NotFound(name.into()))?;
-            let (pos, rot) = crate::town::dummy_bits(&r.position, c, sc);
-            let pos = match r.position {
-                Position::None => [0; 4],
-                _ => pos,
-            };
-            let root = crate::town::pos_rot_zyx(pos, rot);
-            self.objects.push(StaticObject { row, pass: r.pass, play, root, pos, clip: r.clip.to_bits() });
-        }
+        self.models = StaticModel::load(&self.file, table, Placing::Dummy, str::to_string)?;
+        self.objects = StaticObject::load(&self.file, obj_table, anm_num, Placing::Dummy)?;
         // The collision: the block's models' Hit chunks, in the order the
         // STATICMODELs were built.
-        self.hits.models =
-            self.models.iter().filter_map(|m| self.hit_models.iter().find(|h| h.parent == m.model).cloned()).collect();
+        self.hits.models = model_hits(self.models.iter().map(|m| m.model), &self.hit_models);
         let bg: &[(usize, &str)] = if b == 0 {
             &[(3, "CMP_se1_2bg1_1"), (2, "CMP_se1_2wa1_1"), (1, "CMP_se1_2cl1_1"), (0, "CMP_se1_2cl2_1")]
         } else {
@@ -401,18 +426,9 @@ impl EventArea {
         } else {
             ("ANM_se1_2bac2a", &["LGT_se1_2lig2", "LGT_omni01", "LGT_omni02", "LGT_omni03", "LGT_omni13"])
         };
-        let ai = self.file.anim(anim).ok_or_else(|| Error::NotFound(anim.into()))?;
-        let (ambient, records) = crate::town::anim_lights(&self.file, ai)?;
-        let mut group: Vec<Light> = Vec::new();
-        self.light_objects.clear();
-        for name in lights {
-            let obj = c.find_object(name).ok_or_else(|| Error::NotFound((*name).into()))?;
-            self.light_objects.push(obj);
-            if let Some(l) = records.iter().find(|l| l.object == obj) {
-                group.push(l.at(256));
-            }
-        }
-        self.lights = TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG[b]) };
+        let (ambient, group, objects) = light_group(&self.file, anim, lights, false)?;
+        self.light_objects = objects;
+        self.lights = TownLights { ambient, lights: group, fog: Some(FOG[b]) };
         self.fog = FOG[b];
         self.start = self.marker(["DMY_marker02", "DMY_marker01_2"][b])?;
         self.rev = if b == 1 {
@@ -430,19 +446,6 @@ impl EventArea {
         let to = if scene_block == 0 || scene_block == -1 { 1 } else { 0 };
         self.change_block(to)?;
         Ok(to)
-    }
-
-    /// `WORLD_MAN::SetCharPosition` in area 15's map (main 0x001a1414): the
-    /// leader at `eventStartPos` facing its w; the three others at (+300,
-    /// +150), (-300, +150) and (0, +300) from him, facing as he does.
-    pub fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        let [x, y, z, dirc] = self.start;
-        let starts = [
-            [ee::add(0x4396_0000, x), ee::add(0x4316_0000, y), z, ONE],
-            [ee::sub(x, 0x4396_0000), ee::add(0x4316_0000, y), z, ONE],
-            [x, ee::add(0x4396_0000, y), z, ONE],
-        ];
-        ([x, y, z, ONE], dirc, starts)
     }
 
     /// `EVENTAREA::SetCenter(x, y)`: `cx`, `cy` (+0x08), which
@@ -500,7 +503,7 @@ impl EventArea {
             }
             if k == 2 {
                 let d = crate::field::area::w2p(m.pos, player, BOUNDS);
-                if within(ground_dist(volume, d[0], d[1]), m.clip) {
+                if within(ee::ground_dist(volume, d[0], d[1]), m.clip) {
                     out.push(Piece::Model { k, layer: layer::OBJ2, fog: false });
                 }
             } else {
@@ -519,7 +522,7 @@ impl EventArea {
             if o.pass != DrawPass::Obj {
                 continue;
             }
-            let d = ground_dist(volume, ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
+            let d = ee::ground_dist(volume, ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
             if within(d, o.clip) {
                 o.play.forward(&self.file);
                 out.push(Piece::Object { k, layer: layer::OBJ2, time: o.play.time });
@@ -728,8 +731,8 @@ impl StoryMap for EventArea {
     fn lights(&self) -> &TownLights {
         &self.lights
     }
-    fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        EventArea::start_positions(self)
+    fn start(&self) -> V4 {
+        self.start
     }
     fn clear(&self) -> [u8; 3] {
         EventArea::clear(self)
@@ -740,15 +743,6 @@ impl StoryMap for EventArea {
     }
     fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite> {
         EventArea::draw(self, layers, to_screen, v.eye, v.player, &v.flare, v.puppet_show, step)
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-    fn into_any(self: Box<Self>) -> Box<dyn Any> {
-        self
     }
 }
 

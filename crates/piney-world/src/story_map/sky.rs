@@ -19,13 +19,14 @@ use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
 use crate::draw::{self, Draw};
-use crate::ee::{self, F, ONE, V4};
+use crate::ee::{F, ONE, V4};
 use crate::hit::{HitModel, Hits};
 use crate::sky::cloud::{self, Cloud};
 use crate::sky::lensflare::{self, FLARES};
-use crate::story_map::holy_ground::{BOUNDS, MoveTex, StorySprite, layer};
-use crate::story_map::{Enter, StoryMap};
+use crate::story_map::holy_ground::{MoveTex, StorySprite, layer};
+use crate::story_map::{Enter, StartSpread, StoryMap};
 use crate::story_map::{Made, MapDef};
+use crate::story_map::{event_hits, model_hits};
 use crate::town::{Base, FogParams, Spec, TownLights, TownView};
 
 /// `effccs` (+0x254, 06's +0x268): the clouds' and the flares' file.
@@ -272,15 +273,7 @@ impl SkyMap {
         // STATICMODEL enables its own model's Hit chunk: 04 and 05 share
         // se2_6, so only this class's models collide.
         let hit_models = HitModel::read(volume, &file.ccs)?;
-        let mut hits =
-            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
-        hits.models = base
-            .models
-            .iter()
-            .flatten()
-            .filter_map(|m| hit_models.iter().find(|h| h.parent == m.model).cloned())
-            .collect();
-        base.hits = hits;
+        base.hits = event_hits(volume, def_se, model_hits(base.models.iter().flatten().map(|m| m.model), &hit_models));
         let bg = k.bg.iter().map(|(name, _)| crate::story_map::holy_ground::clump_models(&file, name)).collect();
         let eff = SceneFile::read(archive, EFF_FILE)?;
         let pat_num = cloud::eff_pat_num(&eff.ccs, cloud::EFF_SMOKE)
@@ -469,18 +462,14 @@ impl StoryMap for SkyMap {
     /// `eventStartPos`; field 66's others at (+200, -150), (-200, -150),
     /// (0, +300) as field 16's, 67's and 91's at (+300, +150), (-300,
     /// +150), (0, +300).
-    fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        let [x, y, z, dirc] = self.start;
-        let (dx, dy) = match self.class {
-            Class::Mirror => (0x4348_0000, 0xc316_0000),
-            Class::Arena | Class::Whale => (0x4396_0000, 0x4316_0000),
-        };
-        let starts = [
-            [ee::add(x, dx), ee::add(y, dy), z, ONE],
-            [ee::sub(x, dx), ee::add(y, dy), z, ONE],
-            [x, ee::add(y, 0x4396_0000), z, ONE],
-        ];
-        ([x, y, z, ONE], dirc, starts)
+    fn start(&self) -> V4 {
+        self.start
+    }
+    fn spread(&self) -> StartSpread {
+        match self.class {
+            Class::Mirror => StartSpread::AHEAD,
+            Class::Arena | Class::Whale => StartSpread::BEHIND,
+        }
     }
     fn clear(&self) -> [u8; 3] {
         self.class.kind().spec.clear.unwrap_or_default()
@@ -510,15 +499,6 @@ impl StoryMap for SkyMap {
         (self.move_tex, self.base.objects, self.started, self.clouds, self.rng, self.flares) = saved;
         sprites
     }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-    fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
-        self
-    }
 }
 
 /// `GO(1)`'s sky maps, by `eventAreaNumber`.
@@ -534,6 +514,7 @@ pub const DEF: MapDef = MapDef {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ee;
 
     /// Each class on each volume: every row of its tables in the file, its
     /// clumps, one light, the collision of its own models only, the

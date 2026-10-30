@@ -19,18 +19,18 @@ use piney_data::{Error, Result};
 use piney_desktop::assets::SceneFile;
 use piney_desktop::layers::Layers;
 
-use crate::chara::pose::Play;
 use crate::draw::{self, Draw};
 use crate::ee::{self, F, ONE, V4};
 use crate::hit::{HitModel, Hits, UNIT};
 use crate::sky::cloud::{self, Cloud};
 use crate::sky::lensflare::{self, FLARES};
-use crate::story_map::holy_ground::{BOUNDS, MoveTex, StaticModel, StaticObject, StorySprite, clump_models, layer};
-use crate::story_map::{Enter, StoryMap};
+use crate::story_map::holy_ground::Placing;
+use crate::story_map::holy_ground::{MoveTex, StaticModel, StaticObject, StorySprite, clump_models, layer};
+use crate::story_map::{Enter, StartSpread, StoryMap};
 use crate::story_map::{Made, MapDef};
-use crate::town::{FogParams, Light, TownLights, TownView};
+use crate::story_map::{event_hits, light_group};
+use crate::town::{FogParams, TownLights, TownView};
 use piney_desktop::MOVE_TEX_ROWS;
-use std::any::Any;
 
 /// `eventAreaNumber` 16.
 pub const AREA: i32 = 16;
@@ -154,8 +154,7 @@ impl Giant {
             .map(|d| [d.pos.x.to_bits(), d.pos.y.to_bits(), d.pos.z.to_bits(), ONE])
             .ok_or_else(|| Error::NotFound(format!("{FILE}: {SUN}")))?;
         let hit_models = [HitModel::read(volume, &file.ccs)?, HitModel::read(volume, &file_2.ccs)?];
-        let hits =
-            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
+        let hits = event_hits(volume, def_se, Vec::new());
         let mut g = Giant {
             file,
             file_2,
@@ -194,14 +193,10 @@ impl Giant {
         self.block = block;
         let b = usize::from(block != 0);
         let file = self.block_file(block).clone();
-        let c = &file.ccs;
+        let _c = &file.ccs;
         let tname = ["EA_MODELTABLE07", "EA_MODELTABLE0702"][b];
         let table = statics::tables().iter().find(|t| t.name == tname).ok_or_else(|| Error::NotFound(tname.into()))?;
-        self.models.clear();
-        for (row, r) in table.rows.iter().enumerate() {
-            let model = c.find_object(r.model).ok_or_else(|| Error::NotFound(format!("{}: {}", file.stem, r.model)))?;
-            self.models.push(StaticModel { row, pass: r.pass, model, pos: [0; 4], clip: r.clip.to_bits() });
-        }
+        self.models = StaticModel::load(&file, table, Placing::Origin, str::to_string)?;
         self.objects.clear();
         self.bg = Default::default();
         self.clouds.clear();
@@ -210,12 +205,7 @@ impl Giant {
                 .iter()
                 .find(|t| t.name == "EA_OBJTABLE07")
                 .ok_or_else(|| Error::NotFound("EA_OBJTABLE07".into()))?;
-            for (row, r) in otable.rows.iter().enumerate() {
-                let name = r.anime.ok_or_else(|| Error::NotFound(format!("EA_OBJTABLE07: row {row}")))?;
-                let play = Play::new(&file, name).ok_or_else(|| Error::NotFound(name.into()))?;
-                let root = crate::town::pos_rot_zyx([0; 4], [0; 3]);
-                self.objects.push(StaticObject { row, pass: r.pass, play, root, pos: [0; 4], clip: r.clip.to_bits() });
-            }
+            self.objects = StaticObject::load(&file, otable, usize::MAX, Placing::Origin)?;
             for (k, (name, _)) in BG.iter().enumerate() {
                 self.bg[k] = Some(clump_models(&file, name).ok_or_else(|| Error::NotFound((*name).into()))?);
             }
@@ -227,18 +217,9 @@ impl Giant {
         } else {
             ("ANM_se1_7bg2a", &["LGT_se1_7lig2", "LGT_omn01", "LGT_omn02"])
         };
-        let ai = file.anim(anim).ok_or_else(|| Error::NotFound(anim.into()))?;
-        let (ambient, records) = crate::town::anim_lights(&file, ai)?;
-        let mut group: Vec<Light> = Vec::new();
-        self.light_objects.clear();
-        for name in lights {
-            let obj = c.find_object(name).ok_or_else(|| Error::NotFound((*name).into()))?;
-            self.light_objects.push(obj);
-            if let Some(l) = records.iter().find(|l| l.object == obj) {
-                group.push(l.at(256));
-            }
-        }
-        self.lights = TownLights { ambient: ambient.unwrap_or(glam::Vec3::ZERO), lights: group, fog: Some(FOG[b]) };
+        let (ambient, group, objects) = light_group(&file, anim, lights, false)?;
+        self.light_objects = objects;
+        self.lights = TownLights { ambient, lights: group, fog: Some(FOG[b]) };
         self.fog = FOG[b];
         match (b, area_prev) {
             (0, 2) => self.start = marker(&file, "DMY_marker02")?,
@@ -298,19 +279,6 @@ impl Giant {
         }
         self.change_block(0, area_prev)?;
         Ok(Some(0))
-    }
-
-    /// `WORLD_MAN::SetCharPosition` for fields 16 and 66 (main 0x001a1190):
-    /// the leader at `eventStartPos` facing its w; the others at (+200,
-    /// -150), (-200, -150) and (0, +300) from him, facing as he does.
-    pub fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        let [x, y, z, dirc] = self.start;
-        let starts = [
-            [ee::add(0x4348_0000, x), ee::sub(y, 0x4316_0000), z, ONE],
-            [ee::sub(x, 0x4348_0000), ee::sub(y, 0x4316_0000), z, ONE],
-            [x, ee::add(0x4396_0000, y), z, ONE],
-        ];
-        ([x, y, z, ONE], dirc, starts)
     }
 
     /// `EVENTAREA::SetCenter(x, y)`.
@@ -392,7 +360,7 @@ impl Giant {
             if o.pass != pass {
                 continue;
             }
-            let d = ground_dist(volume, ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
+            let d = ee::ground_dist(volume, ee::sub(eye[0], o.pos[0]), ee::sub(eye[1], o.pos[1]));
             if o.clip == 0 || ee::lt(d, o.clip) {
                 o.play.forward(&file);
                 out.push(Piece::Object { k, layer, time: o.play.time });
@@ -516,12 +484,6 @@ impl Giant {
     }
 }
 
-/// `sqrt(x x + y y)` in double, as `STATICOBJECT::Draw` measures
-/// (`sqrt.s` from Outbreak on, [`ee::dsqrt_on`]).
-fn ground_dist(volume: Volume, dx: F, dy: F) -> F {
-    ee::dsqrt_on(volume, ee::add(ee::mul(dx, dx), ee::mul(dy, dy)))
-}
-
 /// `GO(1)`'s area 16, started by `game.areaPrev`.
 pub const DEF: MapDef = MapDef {
     class: "EVENTAREA07",
@@ -559,8 +521,12 @@ impl StoryMap for Giant {
     fn lights(&self) -> &TownLights {
         &self.lights
     }
-    fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        Giant::start_positions(self)
+    fn start(&self) -> V4 {
+        self.start
+    }
+    /// Main 0x001a1190's (+-200, -150).
+    fn spread(&self) -> StartSpread {
+        StartSpread::AHEAD
     }
     fn clear(&self) -> [u8; 3] {
         Giant::clear(self)
@@ -574,15 +540,6 @@ impl StoryMap for Giant {
     }
     fn draw(&mut self, layers: &mut Layers, to_screen: Mat4, v: &TownView, step: bool) -> Vec<StorySprite> {
         Giant::draw(self, layers, to_screen, v, step)
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-    fn into_any(self: Box<Self>) -> Box<dyn Any> {
-        self
     }
 }
 

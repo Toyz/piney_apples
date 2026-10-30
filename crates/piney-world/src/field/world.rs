@@ -84,7 +84,7 @@ impl Place {
     /// The story map, if it is a `T`.
     pub fn story<T: StoryMap>(&self) -> Option<&T> {
         match self {
-            Place::Story(m) => m.as_any().downcast_ref::<T>(),
+            Place::Story(m) => (&**m as &dyn std::any::Any).downcast_ref::<T>(),
             _ => None,
         }
     }
@@ -92,7 +92,7 @@ impl Place {
     /// The story map, if it is a `T`, to change.
     pub fn story_mut<T: StoryMap>(&mut self) -> Option<&mut T> {
         match self {
-            Place::Story(m) => m.as_any_mut().downcast_mut::<T>(),
+            Place::Story(m) => (&mut **m as &mut dyn std::any::Any).downcast_mut::<T>(),
             _ => None,
         }
     }
@@ -1449,7 +1449,7 @@ impl FieldWorld {
                 Some(Kept::Dungeon(Box::new(all)))
             }
             // WORLD_MAN::Quit deletes any story map but area 15's.
-            Place::Story(m) => m.into_any().downcast::<EventArea>().ok().map(Kept::Event),
+            Place::Story(m) => (m as Box<dyn std::any::Any>).downcast::<EventArea>().ok().map(Kept::Event),
             Place::Field(_) => None,
         }
     }

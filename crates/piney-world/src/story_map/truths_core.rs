@@ -15,11 +15,12 @@ use piney_data::{Error, Result};
 use piney_desktop::layers::Layers;
 
 use crate::draw::{self, Draw};
-use crate::ee::{F, ONE, V4};
+use crate::ee::{ONE, V4};
 use crate::hit::{HitModel, Hits};
 use crate::story_map::StoryMap;
-use crate::story_map::holy_ground::{BOUNDS, StorySprite, layer};
+use crate::story_map::holy_ground::{StorySprite, layer};
 use crate::story_map::{Made, MapDef};
+use crate::story_map::{event_hits, model_hits};
 use crate::town::{Base, FogParams, Spec, TownLights, TownView};
 
 /// `game.field` of this map.
@@ -101,14 +102,7 @@ impl Area13 {
         // The collision: the models' Hit chunks, in the order the
         // STATICMODELs were built, over GO's bounds.
         let hit_models = HitModel::read(volume, c)?;
-        let mut hits =
-            Hits { volume, area: 1, bounds: Some(BOUNDS), heights: None, def_se, event_area: true, ..Hits::default() };
-        hits.models = base
-            .models
-            .iter()
-            .flatten()
-            .filter_map(|m| hit_models.iter().find(|h| h.parent == m.model).cloned())
-            .collect();
+        let hits = event_hits(volume, def_se, model_hits(base.models.iter().flatten().map(|m| m.model), &hit_models));
         let bg = crate::story_map::holy_ground::clump_models(&base.file, BG);
         let (pos, rot) = crate::town::dummy_bits(&Position::DummyRot(START), c, sc);
         if c.find_object(START).is_none() {
@@ -199,15 +193,8 @@ impl StoryMap for Area13 {
     }
     /// `WORLD_MAN::SetCharPosition` in a story map: the leader at the
     /// start, the others at (+300, +150), (-300, +150), (0, +300).
-    fn start_positions(&self) -> (V4, F, [V4; 3]) {
-        use crate::ee::{add, sub};
-        let [x, y, z, dirc] = self.start;
-        let starts = [
-            [add(0x4396_0000, x), add(0x4316_0000, y), z, ONE],
-            [sub(x, 0x4396_0000), add(0x4316_0000, y), z, ONE],
-            [x, add(0x4396_0000, y), z, ONE],
-        ];
-        ([x, y, z, ONE], dirc, starts)
+    fn start(&self) -> V4 {
+        self.start
     }
     fn clear(&self) -> [u8; 3] {
         BG_COLOR
@@ -259,15 +246,6 @@ impl StoryMap for Area13 {
                 fog: false,
             })
             .collect()
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
-    fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
-        self
     }
 }
 
