@@ -150,14 +150,14 @@ impl Class {
     }
 }
 
-/// Where the classes' ports of `ccBoss::ExecPatternIndex` part: the
-/// neutral's forbid on a word the base does not know (1 lets it go, 3
-/// holds it), and the w lanes of the dash's offset and of the still
-/// `moveVector` a pattern starts from (0 or 1, as each class's code builds
-/// them). The acts it sets are `ccBoss`'s ([`act`]) in every class.
+/// Where the classes' ports of `ccBoss::ExecPatternIndex` part: the w
+/// lanes of the dash's offset and of the still `moveVector` a pattern
+/// starts from (0 or 1, as each volume's code builds them). The acts it
+/// sets are `ccBoss`'s ([`act`]) in every class, and a word it does not
+/// know lets the neutral go (forbid 1) on every volume (INF gcmn
+/// 0x0045d10c, OUT 0x0046e384, QUA 0x00360c94).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BaseActs {
-    pub other_forbid: i16,
     pub dash_w: F,
     pub still_w: F,
 }
@@ -306,7 +306,7 @@ pub(crate) fn base_exec_pattern_index<C: Patterns + ?Sized>(
             }
             c.exec_pattern(b, cx, 2, -2);
         }
-        _ => neutral(c, b, cx, a.other_forbid),
+        _ => neutral(c, b, cx, 1),
     }
     i
 }

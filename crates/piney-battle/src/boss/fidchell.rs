@@ -397,14 +397,16 @@ fn manager_pass(b: &mut BossBase, x: &mut Fidchell, cx: &mut Cx) {
 // --- the patterns --------------------------------------------------------------------------------
 
 impl Patterns for Fidchell {
-    const ACTS: BaseActs = BaseActs { other_forbid: 3, dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
+    const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
     fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
         data.fidchell.words(b.pat_tbl)
     }
 
     /// `ccBoss04::ExecPatternIndex(tbl, i)` (OUT gcmn 0x004a40b0), falling back
-    /// on `ccBoss::ExecPatternIndex` (0x0046dd20): the next index.
+    /// on `ccBoss::ExecPatternIndex` (0x0046dd20, from 0x004a4664): the next
+    /// index. An unknown word there lets the neutral go (forbid 1,
+    /// 0x0046e384), where the port held it (3) until worklog 536.
     fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
         let x = self;
         let orig = i;

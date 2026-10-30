@@ -330,7 +330,8 @@ Where the code does by hand, per kind, what a system should do once:
       pass: no boss derives its def from anything but `BASE_BOSS` or
       `BASE_PART`; Fidchell's, Macha's and Tarvos's unknown pattern word
       lets the neutral go (forbid 1: OUT 0x004a4664 to 0x0046e384, QUA
-      0x003a4228 and 0x003a8db0 to 0x00360c94), not 3 as ported.)
+      0x003a4228 and 0x003a8db0 to 0x00360c94), not 3 as ported; worklog
+      536 fixed it.)
 - [x] Bosses, world side: `piney-world` `combat/boss.rs` (start by code,
       `BossLook` images, part actors, clip-to-clump picks), `combat/corbenik.rs`
       and `field_world.rs` `draw_boss` match per boss; with the per-boss

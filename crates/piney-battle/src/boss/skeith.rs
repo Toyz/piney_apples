@@ -139,7 +139,7 @@ pub fn new(cx: &mut Cx, kite_pos: V4, kite_dirc: V4, center: V4) -> Boss {
 /// Skeith's patterns: `ccBoss01::ExecPatternIndex` over the base's, the
 /// neutral let go, both w lanes 0.
 impl Patterns for Skeith {
-    const ACTS: BaseActs = BaseActs { other_forbid: 1, dash_w: 0, still_w: 0 };
+    const ACTS: BaseActs = BaseActs { dash_w: 0, still_w: 0 };
 
     fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
         data.skeith.words(b.pat_tbl)

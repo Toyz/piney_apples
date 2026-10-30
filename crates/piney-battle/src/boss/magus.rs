@@ -684,7 +684,7 @@ fn change_action(b: &mut BossBase, x: &mut Magus, cx: &mut Cx, n: i16, forbid: i
 }
 
 impl Patterns for Magus {
-    const ACTS: BaseActs = BaseActs { other_forbid: 1, dash_w: 0, still_w: 0x3f80_0000 };
+    const ACTS: BaseActs = BaseActs { dash_w: 0, still_w: 0x3f80_0000 };
 
     fn words<'d>(&self, _b: &BossBase, data: &'d BossData) -> &'d [i32] {
         &data.magus.epitaph

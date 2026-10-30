@@ -322,14 +322,15 @@ fn manager_pass(b: &mut BossBase, cx: &mut Cx) {
 // --- the patterns --------------------------------------------------------------------------------
 
 impl Patterns for Macha {
-    const ACTS: BaseActs = BaseActs { other_forbid: 3, dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
+    const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
     fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
         data.macha.words(b.pat_tbl)
     }
 
     /// `ccBoss06::ExecPatternIndex(tbl, i)` (0x003a3bb0), falling back on
-    /// `ccBoss::ExecPatternIndex`: the next index. The pattern is `tbl`'s word,
+    /// `ccBoss::ExecPatternIndex` (from 0x003a4228; its unknown word's neutral
+    /// let go, forbid 1 at 0x00360c94): the next index. The pattern is `tbl`'s word,
     /// but every operand of its own patterns (2, 9, 10, 11) is read from
     /// `patTbl` at the running index, whatever `tbl` is: `ExecPattern(2, 30)`
     /// waits for `patTbl[1]`.

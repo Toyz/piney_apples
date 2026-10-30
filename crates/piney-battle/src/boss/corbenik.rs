@@ -388,9 +388,8 @@ pub enum Gen {
     TeraFall,
 }
 
-/// The base's patterns as Corbenik's forms run them: the neutral let go,
-/// both w lanes 1.
-const BASE_ACTS: BaseActs = BaseActs { other_forbid: 1, dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
+/// The base's patterns as Corbenik's forms run them: both w lanes 1.
+const BASE_ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
 fn bits(v: &[f32]) -> Vec<F> {
     v.iter().map(|f| f.to_bits()).collect()

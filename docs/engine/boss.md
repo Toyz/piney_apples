@@ -662,8 +662,11 @@ the top one. The boss asks for it with `OnCinemaMode(n)` and
   class (its `ChangeAction`, `ExecPatternIndex`, `ExecPattern`,
   `CheckEpitaph`, its table): the `Patterns` trait, one generic
   `base_exec_pattern_index` and `base_change_next_pattern`. `BaseActs`
-  holds where the classes' copies parted: the neutral's forbid on an
-  unknown word and two vectors' w lanes.
+  holds where the classes' copies parted: two vectors' w lanes. A word
+  no class knows lets the neutral go (forbid 1) on every volume (INF
+  gcmn 0x0045d10c, OUT 0x0046e384, QUA 0x00360c94); Fidchell, Macha and
+  Tarvos fall back on it (OUT 0x004a4664, QUA 0x003a4228, 0x003a8db0),
+  where the port held it (3) until worklog 536.
 - An effect whose `Draw` its class runs carries its rules in `Eff.fx`
   (`enum Fx`, made by `BossBase::make_fx`). Each class's
   `ccBossEffManager::Draw` pass is `BossBase::effect_pass`, its

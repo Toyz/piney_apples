@@ -379,14 +379,15 @@ fn spike_hit(b: &mut BossBase, cx: &mut Cx, t: usize, pos: V4, index: i32) {
 // --- the patterns --------------------------------------------------------------------------------
 
 impl Patterns for Tarvos {
-    const ACTS: BaseActs = BaseActs { other_forbid: 3, dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
+    const ACTS: BaseActs = BaseActs { dash_w: 0x3f80_0000, still_w: 0x3f80_0000 };
 
     fn words<'d>(&self, b: &BossBase, data: &'d BossData) -> &'d [i32] {
         data.tarvos.words(b.pat_tbl)
     }
 
     /// `ccBoss07::ExecPatternIndex(tbl, i)` (0x003a8700), falling back on
-    /// `ccBoss::ExecPatternIndex`: the next index. As Macha's, every operand
+    /// `ccBoss::ExecPatternIndex` (from 0x003a8db0; its unknown word's neutral
+    /// let go, forbid 1 at 0x00360c94): the next index. As Macha's, every operand
     /// of its own patterns (2, 9, 10, 11) is read from `patTbl` at the running
     /// index, whatever `tbl` is.
     fn exec_pattern_index(&mut self, b: &mut BossBase, cx: &mut Cx, tbl: &[i32], i: i32) -> i32 {
