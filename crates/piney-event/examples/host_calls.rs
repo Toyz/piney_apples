@@ -27,8 +27,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let iso = std::env::args().nth(1).map(PathBuf::from).unwrap_or_else(|| root.join("work/infection/infection.iso"));
     let mut disc = Iso::open(&iso)?;
     let events = official::events(&mut disc)?;
-    let lib = Arc::new(Library::new(disc.volume()?, events.clone()));
-    for e in &events {
+    let lib = Arc::new(Library::new(disc.volume()?, events.iter().cloned()));
+    for e in events.iter() {
         let n = i32::from(e.number);
         let open: Vec<String> = e.script.open.iter().map(text::print_cond).collect();
         println!("{n} open | ; {} |", open.join(" & "));

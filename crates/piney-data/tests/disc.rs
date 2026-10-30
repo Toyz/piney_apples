@@ -174,3 +174,14 @@ fn mac_anu_is_placed() {
         }
     }
 }
+
+/// A disc opened for the game fails a read of its boot executable; one
+/// opened as it is (the tools, the checks) still reads it.
+#[test]
+fn a_disc_without_its_executable() {
+    let Some(path) = iso_path() else { return };
+    assert!(Iso::open(&path).unwrap().read_path("SLUS_202.67").is_ok());
+    let mut game = Iso::open(&path).unwrap().without_executable();
+    assert!(game.read_path("SLUS_202.67").is_err());
+    assert!(game.read_path("SYSTEM.CNF").is_ok());
+}

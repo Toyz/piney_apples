@@ -8,7 +8,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use piney_data::archive::Archive;
-use piney_data::iso::Iso;
 use piney_desktop::SaveState;
 use piney_draw::Frame;
 use piney_event::vm::Vm;
@@ -70,7 +69,7 @@ impl TopPageMode {
             mode.flush();
             return Ok(mode);
         }
-        let mut disc = Iso::open(&iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(&iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let page = TopPage::new(&mut disc, archive, state).map_err(|e| format!("top page: {e}"))?;
         if let Some(vm) = &mut vm {
             vm.enable(4);
@@ -204,6 +203,7 @@ impl Mode for TopPageMode {
 
 #[cfg(test)]
 mod tests {
+    use piney_data::iso::Iso;
     use piney_data::save::offset;
     use piney_event::state::ScriptSave as _;
     use piney_input::{Buttons, Raw};

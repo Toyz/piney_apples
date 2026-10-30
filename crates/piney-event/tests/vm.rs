@@ -24,7 +24,7 @@ fn library() -> Option<Arc<Library>> {
     static LIB: OnceLock<Option<Arc<Library>>> = OnceLock::new();
     LIB.get_or_init(|| {
         let mut iso = Iso::open(iso_path()?).unwrap();
-        Some(Arc::new(Library::new(iso.volume().unwrap(), official::events(&mut iso).unwrap())))
+        Some(Arc::new(Library::new(iso.volume().unwrap(), official::events(&mut iso).unwrap().iter().cloned())))
     })
     .clone()
 }
@@ -973,7 +973,7 @@ fn mutation_s_setup_opens_its_own_story() {
     let v = piney_data::volume::Volume::Mut;
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../work/mutation/mutation.iso");
     let Ok(mut iso) = piney_data::iso::Iso::open(&path) else { return };
-    let lib = Arc::new(Library::new(v, official::events(&mut iso).unwrap()));
+    let lib = Arc::new(Library::new(v, official::events(&mut iso).unwrap().iter().cloned()));
     let mut host = TestHost { save: boot_save() };
     let mut vm = Vm::new(lib);
     vm.trace = Some(Vec::new());

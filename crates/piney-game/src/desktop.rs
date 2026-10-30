@@ -39,7 +39,7 @@ const STATUS_DESKTOP: i32 = 2;
 /// Quarantine).
 pub fn boot(iso: &mut Iso, state: &mut SaveState) -> Result<Vm, String> {
     let volume = iso.volume().map_err(|e| e.to_string())?;
-    let mut events = piney_event::official::events(iso).map_err(|e| format!("event scripts: {e}"))?;
+    let mut events = piney_event::official::events(iso).map_err(|e| format!("event scripts: {e}"))?.to_vec();
     // The port's own additions (piney_event::extras: Helba's mail).
     piney_event::extras::apply(&mut events, volume);
     let mut vm = Vm::new(Arc::new(Library::new(volume, events)));
@@ -117,7 +117,8 @@ pub(crate) fn announcements(iso: &std::path::Path) -> Option<Arc<Announcements>>
     if let Some(a) = read.get(iso) {
         return Some(a.clone());
     }
-    let made = Iso::open(iso).map_err(|e| e.to_string()).and_then(|mut disc| Announcements::from_disc(&mut disc));
+    let made =
+        crate::open_disc(iso).map_err(|e| e.to_string()).and_then(|mut disc| Announcements::from_disc(&mut disc));
     match made {
         Ok(a) => {
             let a = Arc::new(a);
@@ -385,7 +386,7 @@ impl Host for Bridge<'_> {
         }
         let Target::Setup(state, _) = &mut self.target else { return };
         let Some(archive) = self.st.archive.clone() else { return };
-        let made = Iso::open(&self.st.iso)
+        let made = crate::open_disc(&self.st.iso)
             .map_err(|e| e.to_string())
             .and_then(|mut disc| NameEntry::new(&mut disc, archive, state).map_err(|e| e.to_string()));
         match made {
@@ -572,7 +573,7 @@ impl DesktopMode {
     ) -> Result<Self, String> {
         // The boot's ccStartEvent writes the save whether or not the task
         // is kept.
-        let mut disc = Iso::open(&iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(&iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let vm = boot(&mut disc, &mut state)?;
         let vm = scripts.then_some(vm);
         DesktopMode::enter(iso, archive, state, vm, card, name_entry)
@@ -619,7 +620,7 @@ impl DesktopMode {
             sys_frames: None,
         };
         mode.stage = if scripts {
-            let mut disc = Iso::open(&mode.iso).map_err(|e| format!("{}: {e}", mode.iso.display()))?;
+            let mut disc = crate::open_disc(&mode.iso).map_err(|e| format!("{}: {e}", mode.iso.display()))?;
             let screen =
                 SetupScreen::new(&mut disc, mode.archive.clone(), &state).map_err(|e| format!("setup: {e}"))?;
             Stage::Setup { save: Box::new(state), phase: 0, frames: 0, screen: Box::new(screen) }
@@ -632,7 +633,7 @@ impl DesktopMode {
 
     /// The desktop itself, on `state`.
     fn build(&self, state: SaveState) -> Result<Desktop, String> {
-        let mut disc = Iso::open(&self.iso).map_err(|e| format!("{}: {e}", self.iso.display()))?;
+        let mut disc = crate::open_disc(&self.iso).map_err(|e| format!("{}: {e}", self.iso.display()))?;
         let mut desktop = Desktop::new(&mut disc, self.archive.clone(), state).map_err(|e| format!("desktop: {e}"))?;
         if let Some(dir) = &self.card {
             let volume = disc.volume().map_err(|e| e.to_string())?;

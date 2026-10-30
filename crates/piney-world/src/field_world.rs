@@ -399,7 +399,15 @@ impl FieldWorld {
                 params.event = scene.field.max(0);
                 let ft = params.field_type as usize;
                 let def_se = crate::field_area::DEF_SE.get(ft).copied().unwrap_or(0xc000);
-                let mut field = FieldArea::with_world(&archive, volume, params, def_se, world_man.hack, scene.server)?;
+                let mut field = FieldArea::with_world(
+                    &archive,
+                    volume,
+                    params,
+                    def_se,
+                    world_man.hack,
+                    scene.server,
+                    save.field_ambient.as_ref(),
+                )?;
                 field.take_statics(&save.scroll_statics);
                 let (pos, rot) =
                     field_start(scene.area_prev, params.field_type, field.start_pos(), field.dungeon_pos());
@@ -1141,7 +1149,10 @@ impl FieldWorld {
                 m.put_statics(&mut out.scroll_statics);
             }
             Place::Dungeon(d) => d.put_statics(&mut out.scroll_statics),
-            Place::Field(f) => f.put_statics(&mut out.scroll_statics),
+            Place::Field(f) => {
+                f.put_statics(&mut out.scroll_statics);
+                out.field_ambient = Some(f.ambient_words());
+            }
         }
         out
     }

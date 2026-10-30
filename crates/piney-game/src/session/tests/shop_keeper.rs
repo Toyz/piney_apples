@@ -111,7 +111,7 @@ fn npc_entries() -> Vec<(Volume, u16, usize, Area, i16, i16)> {
             continue;
         }
         let events = piney_event::official::events(&mut Iso::open(&iso).unwrap()).unwrap();
-        for e in &events {
+        for e in events.iter() {
             let mut area = Area::Unset;
             for (b, block) in e.script.blocks.iter().enumerate() {
                 for t in &block.tags {

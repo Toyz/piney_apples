@@ -190,7 +190,7 @@ impl WorldMode {
         before: ([u32; 4], [u32; 4]),
     ) -> Result<WorldMode, String> {
         repair_buttons(&mut state);
-        let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let mut ui = FieldUi::new(&mut disc, archive.clone()).map_err(|e| format!("the field's menus: {e}"))?;
         // The constructor's faces (ccCheckMenuFaceNameParty, gcmn
         // 0x0056a930): party slot 0 is member 0, Kite, with the bracelet's

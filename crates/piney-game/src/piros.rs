@@ -251,8 +251,10 @@ mod tests {
             return;
         }
         let mut disc = piney_data::iso::Iso::open(&iso).unwrap();
-        let lib =
-            piney_event::vm::Library::new(disc.volume().unwrap(), piney_event::official::events(&mut disc).unwrap());
+        let lib = piney_event::vm::Library::new(
+            disc.volume().unwrap(),
+            piney_event::official::events(&mut disc).unwrap().iter().cloned(),
+        );
         for l in FIXTURE.lines().filter(|l| l.starts_with("piros 3 ")) {
             let (head, body) = l.split_once(" | ").unwrap();
             let h: Vec<&str> = head.split(' ').collect();

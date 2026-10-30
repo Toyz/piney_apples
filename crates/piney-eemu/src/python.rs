@@ -390,7 +390,7 @@ impl PyMachine {
     }
 
     fn parts(&mut self) -> (&mut Cpu, Mem<'_>) {
-        (&mut self.cpu, Mem { ram: self.ram.bytes_mut(), vu: self.vu.bytes_mut() })
+        (&mut self.cpu, Mem { ram: self.ram.bytes_mut(), vu: self.vu.bytes_mut(), bus: None })
     }
 }
 
@@ -614,8 +614,8 @@ impl PyMachine {
         if n <= 16 {
             let v = low128(value)?;
             if n > 0 {
-                let (cpu, mem) = self.parts();
-                cpu.store(mem.ram, addr, n as u32, v).map_err(|f| stop(py, f.to_string()))?;
+                let (cpu, mut mem) = self.parts();
+                cpu.store(&mut mem, addr, n as u32, v).map_err(|f| stop(py, f.to_string()))?;
             }
             return Ok(());
         }

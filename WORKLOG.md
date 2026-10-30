@@ -8,7 +8,7 @@ starting with .hack//Infection. One file per entry under
 Code says what; the worklog says *how we found out* and *why it is that way*.
 The [reference](docs/README.md) says what is true now.
 
-508 entries: audio 43, battle 130, build 21, content 3, decomp 28, disc 5, engine 24, format 17, iop 3, render 128, save 16, script 61, test 233, tooling 47, ui 102, video 16, volumes 91, world 144. 123 entries still have open questions - [listed below](#still-open).
+509 entries: audio 43, battle 130, build 21, content 3, decomp 28, disc 5, engine 25, format 17, iop 3, render 128, save 16, script 62, test 234, tooling 48, ui 102, video 16, volumes 91, world 145. 123 entries still have open questions - [listed below](#still-open).
 
 | # | Entry | Date | Area |
 | ---: | --- | --- | --- |
@@ -520,6 +520,7 @@ The [reference](docs/README.md) says what is true now.
 | 506 | [Drained forms are the game's: an ordinary foe's is its race's 50-HP head, a Data Bug's its whole base form, three barring blows](worklog/0506-drained-forms-are-the-game-s-an-ordinary-foe-s-is-its-race.md) | 2026-10-26 | battle |
 | 507 | [Quarantine's ending is the game's: the desktop set-up waits out event 314's streams at rate 2, its staff_roll grants wallpapers instead of a roll, and the book's pages bend by their own morphers](worklog/0507-quarantine-s-ending-is-the-game-s-the-desktop-set-up-waits.md) | 2026-10-29 | script, audio, render, volumes, test |
 | 508 | [Clean-up section 0, items 1-3: every caller names its volume's tables (the later volumes' thunder is sound 235), one guarded ccGetDircChg, and the bosses' HP kept in a short as the game keeps it](worklog/0508-clean-up-section-0-items-1-3-every-caller-names-its-volume.md) | 2026-10-29 | world, battle, volumes, test |
+| 509 | [Clean-up section 0, items 4, 5, 7, 8 and 9: the story sprites keyed by file, store groups read once, eemu's bus owned by its system, the field ambient statics carried in the save, the executable guard per disc, the events shared](worklog/0509-clean-up-section-0-items-4-5-7-8-and-9-the-story-sprites.md) | 2026-10-29 | engine, world, script, tooling, test |
 
 ## Still open
 

@@ -7,6 +7,7 @@
 //! (docs/engine/field.md, "Weather and ambient pictures").
 
 use piney_data::dungeon::Rng;
+use piney_desktop::FIELD_AMBIENT;
 
 use crate::ee::{self, F, ONE, V4};
 use crate::field_area::{p2w, w2p};
@@ -681,21 +682,48 @@ impl Statics {
     }
 }
 
-/// The statics as the last field left them (the game's live as long as
-/// it runs).
-static KEPT: std::sync::Mutex<Option<(Statics, Cloth)>> = std::sync::Mutex::new(None);
-
-/// The drawing's statics for a new field: the last field's, or the
-/// executable's own the first time.
-pub fn take_statics() -> (Statics, Cloth) {
-    KEPT.lock().ok().and_then(|mut k| k.take()).unwrap_or((Statics::new(), Cloth::default()))
+/// The drawing's statics for a new field from `SaveState::field_ambient`:
+/// the last field's ([`kept_words`]), or the executable's own before any.
+pub fn kept_statics(words: Option<&[u32; FIELD_AMBIENT]>) -> (Statics, Cloth) {
+    let Some(w) = words else { return (Statics::new(), Cloth::default()) };
+    let i = |k: usize| w[k] as i32;
+    let statics = Statics {
+        tcnt: (w[0] != 0).then(|| i(1)),
+        tcnt2: i(2),
+        secnt: i(3),
+        seflag: w[4] != 0,
+        steam_life: i(5),
+        steam_sleep: i(6),
+        steam_step: w[7],
+        steam_num: i(8),
+        steam_pos: [w[9], w[10], w[11], w[12]],
+    };
+    (statics, Cloth { u: w[13], v: w[14], shown: [i(15), i(16)] })
 }
 
-/// A field's statics kept for the next.
-pub fn keep_statics(s: Statics, c: Cloth) {
-    if let Ok(mut k) = KEPT.lock() {
-        *k = Some((s, c));
-    }
+/// A field's statics as `SaveState::field_ambient` keeps them for the next
+/// ([`kept_statics`] reads them back).
+pub fn kept_words(s: &Statics, c: &Cloth) -> [u32; FIELD_AMBIENT] {
+    let [p0, p1, p2, p3] = s.steam_pos;
+    [
+        u32::from(s.tcnt.is_some()),
+        s.tcnt.unwrap_or(0) as u32,
+        s.tcnt2 as u32,
+        s.secnt as u32,
+        u32::from(s.seflag),
+        s.steam_life as u32,
+        s.steam_sleep as u32,
+        s.steam_step,
+        s.steam_num as u32,
+        p0,
+        p1,
+        p2,
+        p3,
+        c.u,
+        c.v,
+        c.shown[0] as u32,
+        c.shown[1] as u32,
+    ]
 }
 
 /// One of the fifty rain drops (`WORLD` +0x5400, 64 bytes each).
@@ -1582,5 +1610,32 @@ impl Ambient {
             bg.frame([env.centre[0], env.centre[1]], &mut out);
         }
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The statics come back from `SaveState::field_ambient` as they went
+    /// in; before any field, the executable's own.
+    #[test]
+    fn kept_statics_round_trip() {
+        assert_eq!(kept_statics(None), (Statics::new(), Cloth::default()));
+        let s = Statics {
+            tcnt: Some(-3),
+            tcnt2: 751,
+            secnt: 4,
+            seflag: true,
+            steam_life: 5,
+            steam_sleep: -6,
+            steam_step: 0x3f80_0000,
+            steam_num: 7,
+            steam_pos: [1, 2, 3, ONE],
+        };
+        let c = Cloth { u: 8, v: 9, shown: [10, -11] };
+        assert_eq!(kept_statics(Some(&kept_words(&s, &c))), (s, c));
+        let none = Statics { tcnt: None, ..s };
+        assert_eq!(kept_statics(Some(&kept_words(&none, &c))).0, none);
     }
 }

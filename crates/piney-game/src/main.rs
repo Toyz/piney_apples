@@ -53,6 +53,15 @@ use winit::window::{Window, WindowId};
 
 use crate::mode::{Event, Mode, TestCard};
 
+/// A disc as the game opens it: its data files, never its boot executable
+/// ([`Iso::without_executable`]). The suite plays the check images, some
+/// without port data, whose events are read from the executable: there
+/// the disc opens as it is.
+pub(crate) fn open_disc(path: impl AsRef<std::path::Path>) -> piney_data::Result<Iso> {
+    let disc = Iso::open(path)?;
+    Ok(if cfg!(test) { disc } else { disc.without_executable() })
+}
+
 /// NTSC vertical blanks a second.
 const VBLANK_HZ: f64 = 59.94;
 /// Game frames caught up at most per redraw, so a stall does not run the
@@ -849,7 +858,7 @@ const HOOKS: [&str; 2] = ["gateout", "gofield"];
 /// The console's font: the game's own bitmap fonts with `xasc00`'s
 /// palette; None (no console text) when they cannot be read.
 fn console_fonts(iso: &std::path::Path, archive: &Archive) -> Option<piney_desktop::kanji::Fonts> {
-    let volume = Iso::open(iso).ok()?.volume().ok()?;
+    let volume = crate::open_disc(iso).ok()?.volume().ok()?;
     piney_desktop::assets::read_fonts(volume, archive).map_err(|e| tracing::warn!("the console's font: {e}")).ok()
 }
 
@@ -941,7 +950,7 @@ struct Booted {
 }
 
 fn boot(o: &Options) -> Result<Booted, String> {
-    let mut disc = Iso::open(&o.iso).map_err(|e| e.to_string())?;
+    let mut disc = crate::open_disc(&o.iso).map_err(|e| e.to_string())?;
     let volume = piney_data::volume::of_disc(&mut disc).map_err(|e| e.to_string())?;
     let data = disc.read_path("DATA/DATA.BIN").map_err(|e| e.to_string())?;
     let archive = Arc::new(Archive::new(data).map_err(|e| e.to_string())?);
@@ -988,7 +997,7 @@ fn make_mode(name: &str, assets: &mut Assets, o: &Options) -> Result<Box<dyn Mod
         "desktop" => {
             // The boot's save (ccSaveData::Init, its text from the disc),
             // the player named Kite.
-            let mut disc = Iso::open(&o.iso).map_err(|e| format!("{}: {e}", o.iso.display()))?;
+            let mut disc = crate::open_disc(&o.iso).map_err(|e| format!("{}: {e}", o.iso.display()))?;
             let text = piney_desktop::InitText::from_disc(&mut disc).map_err(|e| format!("ccSaveData::Init: {e}"))?;
             let mut state = piney_desktop::SaveState::fresh_with(&text);
             // Until the event scripts run: mail delivered as `NewMail` does.
@@ -1009,7 +1018,7 @@ fn make_mode(name: &str, assets: &mut Assets, o: &Options) -> Result<Box<dyn Mod
         // event 2's `area` and `scene` leave it for 14); `field:N/TYPE,ROW[,HACK
         // [,SEED]]` with another field's type, weather row, hack flag and seed.
         "world" | "field" | "dungeon" => {
-            let mut disc = Iso::open(&o.iso).map_err(|e| format!("{}: {e}", o.iso.display()))?;
+            let mut disc = crate::open_disc(&o.iso).map_err(|e| format!("{}: {e}", o.iso.display()))?;
             // The event task as a new game brings it here (the boot, the
             // desktop's event 1 with the first mails read, the board), so
             // that event 2 opens; `--no-events` leaves it out. The fields
@@ -1327,7 +1336,7 @@ fn main() {
     // Every disc named first: a later volume's data is made with
     // Infection's beside it, whichever comes first or has its data.
     for path in &playing {
-        if let Ok(v) = Iso::open(path).and_then(|mut d| d.volume()) {
+        if let Ok(v) = crate::open_disc(path).and_then(|mut d| d.volume()) {
             piney_build::use_disc(v, path);
         }
     }
@@ -1340,7 +1349,7 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        let ready = Iso::open(path).map(|mut d| piney_data::pack::has_port_data(&mut d)).unwrap_or(false);
+        let ready = crate::open_disc(path).map(|mut d| piney_data::pack::has_port_data(&mut d)).unwrap_or(false);
         if !ready {
             tracing::error!(
                 "{}: no port data of version {} (a build made before it): run piney-build again",
@@ -1352,13 +1361,11 @@ fn main() {
     }
     // Each volume's tables come from its disc's port data.
     for path in &playing {
-        if let Ok(v) = Iso::open(path).and_then(|mut d| d.volume()) {
+        if let Ok(v) = crate::open_disc(path).and_then(|mut d| d.volume()) {
             piney_data::store::use_disc(v, path.clone());
         }
     }
-    // The port reads the disc's data files, never its boot executable.
-    piney_data::iso::deny_executable();
-    let mut disc = match Iso::open(&iso) {
+    let mut disc = match crate::open_disc(&iso) {
         Ok(d) => d,
         Err(e) => {
             tracing::error!("{}: {e}", iso.display());

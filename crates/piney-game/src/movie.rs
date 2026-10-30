@@ -3,7 +3,6 @@
 
 use std::path::Path;
 
-use piney_data::iso::Iso;
 use piney_data::save::SaveData;
 use piney_draw::Frame;
 use piney_input::{Buttons, Pad};
@@ -30,7 +29,7 @@ pub enum Played {
 
 impl Playing {
     pub fn open(iso: &Path, path: &str, audio: bool, events: &mut Vec<Event>) -> Result<Playing, String> {
-        let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let mut movie = Movie::open(&mut disc, path).map_err(|e| format!("{path}: {e}"))?;
         let first = movie.next_frame().map_err(|e| format!("{path}: {e}"))?.unwrap_or_else(Frame::new);
         if let Some(a) = movie.take_audio().filter(|_| audio) {

@@ -180,14 +180,6 @@ impl FieldArea {
     }
 }
 
-impl Drop for FieldArea {
-    /// The ambient drawing's function statics outlive `WORLD`: kept for
-    /// the next field.
-    fn drop(&mut self) {
-        crate::field_ambient::keep_statics(self.statics, self.cloth);
-    }
-}
-
 /// `ccTransPosW2P` / `ccPlayer::W2PPos` (gcmn 0x0059b5a0) in a field: `pos`
 /// less the player's, wrapped into -24000..24000 (the bounds' half each
 /// way); z kept; w 1.
@@ -258,14 +250,22 @@ fn fade(d: F, near: F, far: F, len: F) -> F {
 }
 
 impl FieldArea {
-    /// [`FieldArea::with_world`] on server 0, not hacked.
+    /// [`FieldArea::with_world`] on server 0, not hacked, the ambient
+    /// statics as the executable starts them.
     pub fn new(archive: &Archive, params: field::Params, def_se: u32) -> Result<FieldArea> {
-        FieldArea::with_world(archive, Volume::Inf, params, def_se, 2, 0)
+        FieldArea::with_world(archive, Volume::Inf, params, def_se, 2, 0, None)
+    }
+
+    /// The ambient drawing's function statics, which outlive `WORLD`: kept
+    /// in `SaveState::field_ambient` for the next field.
+    pub fn ambient_words(&self) -> [u32; piney_desktop::FIELD_AMBIENT] {
+        crate::field_ambient::kept_words(&self.statics, &self.cloth)
     }
 
     /// `WORLD::WORLD`, `Init` and `Generate` for `params` (a story area's
     /// `event` and `protect` set), reading the field's files. `hack` is
-    /// `WORLD_MAN` +0xf0 (`SetHackFlag`), `server` `ccGame.server`.
+    /// `WORLD_MAN` +0xf0 (`SetHackFlag`), `server` `ccGame.server`, `kept`
+    /// the last field's ambient statics (`SaveState::field_ambient`).
     pub fn with_world(
         archive: &Archive,
         volume: Volume,
@@ -273,6 +273,7 @@ impl FieldArea {
         def_se: u32,
         hack: u32,
         server: i32,
+        kept: Option<&[u32; piney_desktop::FIELD_AMBIENT]>,
     ) -> Result<FieldArea> {
         let tables = field::tables_of(volume);
         let generated = field::generate(tables, &params).map_err(|e| Error::Format(e.to_string()))?;
@@ -282,7 +283,7 @@ impl FieldArea {
         // the last area's, taken as the start: the flakes are wrapped
         // about the player on the first frame either way.
         let weather = Weather { field_type: params.field_type, b: params.weather, hack: hack as i32 };
-        let (mut statics, cloth) = crate::field_ambient::take_statics();
+        let (mut statics, cloth) = crate::field_ambient::kept_statics(kept);
         let start = [field.start_pos[0], field.start_pos[1], field.start_pos[2], ONE];
         let blank = |x: F, y: F| field::blank_height(x, y);
         let env = Env {
@@ -1609,7 +1610,7 @@ mod tests {
             protect: false,
             skip_init: false,
         };
-        let mut f = FieldArea::with_world(&archive, Volume::Inf, params, DEF_SE[10], 2, 0).unwrap();
+        let mut f = FieldArea::with_world(&archive, Volume::Inf, params, DEF_SE[10], 2, 0, None).unwrap();
         assert_eq!(f.ambient.tobj.as_ref().map(|t| t.server), Some(0));
         assert!(f.ambient.tobj_se_start);
         let player = [24000f32.to_bits(), 24000f32.to_bits(), 0, 1f32.to_bits()];

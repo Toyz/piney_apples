@@ -12,7 +12,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use piney_data::archive::Archive;
-use piney_data::iso::Iso;
 use piney_data::volume::Volume;
 use piney_desktop::anm::{Anm, Ctx};
 use piney_desktop::assets::SceneFile;
@@ -385,7 +384,7 @@ impl LauncherMode {
 /// The selector's stream, from Outbreak's disc at `out`: held on its last
 /// frame.
 fn selector(out: &Path, events: &mut Vec<Event>) -> Result<StreamPlayer, String> {
-    let mut disc = Iso::open(out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let mut disc = crate::open_disc(out).map_err(|e| format!("{}: {e}", out.display()))?;
     let raw = disc.read_path(STRT).map_err(|e| format!("{STRT}: {e}"))?;
     let entries = piney_stream::load::scan(&raw).map_err(|e| format!("{STRT}: {e}"))?;
     let stream = piney_stream::load::loose_streams(entries)
@@ -522,7 +521,7 @@ pub(crate) fn replay_pad_log(
         audio.frame();
         each(line, mode.as_mut(), &events, &audio, &frame);
         if let Some(path) = boot {
-            let data = Iso::open(&path).unwrap().read_path("DATA/DATA.BIN").unwrap();
+            let data = crate::open_disc(&path).unwrap().read_path("DATA/DATA.BIN").unwrap();
             let archive = Arc::new(Archive::new(data).unwrap());
             let played = LOGOS.len() as i32;
             let s = crate::session::Session::after_logos(
@@ -543,6 +542,8 @@ pub(crate) fn replay_pad_log(
 
 #[cfg(test)]
 mod tests {
+    use piney_data::iso::Iso;
+
     use super::*;
 
     /// The logos are silent; once they are over (a push stops them) the

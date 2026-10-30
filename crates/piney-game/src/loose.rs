@@ -8,7 +8,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use piney_data::archive::Archive;
-use piney_data::iso::Iso;
 use piney_draw::Frame;
 use piney_input::{Buttons, Pad};
 use piney_stream::table::Entry;
@@ -31,7 +30,7 @@ pub struct LooseMode {
 impl LooseMode {
     /// The archive at `path` on the disc at `iso`, from its stream `n`.
     pub fn new(iso: &Path, path: &str, n: usize) -> Result<LooseMode, String> {
-        let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let raw = disc.read_path(path).map_err(|e| format!("{path}: {e}"))?;
         let entries = piney_stream::load::scan(&raw).map_err(|e| format!("{path}: {e}"))?;
         let streams = piney_stream::load::loose_streams(entries);

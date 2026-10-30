@@ -120,7 +120,7 @@ impl StreamPlayer {
         title_after_desktop: bool,
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
-        let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let opts = options(&save.save, title_after_desktop);
         let stream =
             Stream::with_rand(&mut disc, num, opts, rand_of(save)).map_err(|e| format!("stream {num}: {e}"))?;
@@ -141,7 +141,7 @@ impl StreamPlayer {
         opts: Options,
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
-        let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let err = |e: piney_data::Error| format!("stream {num}: {e}");
         let mut stream = Stream::with_resident(&mut disc, num, opts, rand_of(state), resident).map_err(err)?;
         if let Some(fx) = stream_effects(&mut disc, data) {
@@ -224,7 +224,7 @@ impl StreamPlayer {
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
         let save = &state.save;
-        let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let err = |e: piney_data::Error| format!("stream {num}: {e}");
 
         let opts = Options { skill_names: data.and_then(skill_names), ..options(save, false) };
@@ -260,7 +260,7 @@ impl StreamPlayer {
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
         let save = &state.save;
-        let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let volume = disc.volume().map_err(|e| format!("{}: {e}", iso.display()))?;
         let num = piney_stream::table::gate_stream(volume);
         let err = |e: piney_data::Error| format!("stream {num} (the gate hack): {e}");
@@ -279,7 +279,7 @@ impl StreamPlayer {
         entries: Vec<piney_stream::table::Entry>,
         events: &mut Vec<Event>,
     ) -> Result<StreamPlayer, String> {
-        let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let opts = Options { english: true, ..Options::default() };
         let stream = Stream::loose(&mut disc, path, entries, opts).map_err(|e| format!("{path}: {e}"))?;
         events.extend([Event::VoiceStop, Event::MovieAudioStop]);
@@ -435,7 +435,7 @@ pub(crate) mod tests {
     fn every_hash_object_resolves_where_its_stream_plays() {
         for v in Volume::ALL {
             let Some(iso) = work_iso(v) else { continue };
-            let mut disc = Iso::open(&iso).unwrap();
+            let mut disc = crate::open_disc(&iso).unwrap();
             let data = Archive::new(disc.read_path("DATA/DATA.BIN").unwrap()).unwrap();
             let mut on_disc = |n: usize| {
                 let def = piney_stream::table::Def::read(v, n, false).unwrap();

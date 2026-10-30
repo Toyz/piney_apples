@@ -10,7 +10,6 @@ use std::sync::Arc;
 
 use crate::movie::{Played, Playing};
 use piney_data::archive::Archive;
-use piney_data::iso::Iso;
 use piney_data::save::{SaveData, offset};
 use piney_demo::{Config, Demo, Request};
 use piney_desktop::card::{FilesCard, MemoryCard, NoCard};
@@ -154,7 +153,7 @@ pub struct Session {
 /// from `ccSys.count`, `frames` at the request plus [`NEW_GAME_FRAMES`].
 pub(crate) fn log_in(iso: &std::path::Path, state: &mut SaveState, frames: u32) {
     state.move_tex = Default::default();
-    let done = Iso::open(iso).map_err(|e| e.to_string()).and_then(|mut disc| {
+    let done = crate::open_disc(iso).map_err(|e| e.to_string()).and_then(|mut disc| {
         let v = disc.volume().map_err(|e| e.to_string())?;
         let town = usize::from(state.save.u8(offset::LAST_TOWN)).min(7);
         let server = piney_world::area::SERVER_OF_TOWN[town];
@@ -400,7 +399,7 @@ impl Session {
     /// scene being set up ([`piney_world::area::Scene::restock`]), drawing
     /// from the game's one `rand()` as the last mode left it.
     fn restock(&mut self, state: &mut SaveState) {
-        match Iso::open(&self.iso).and_then(|mut d| d.volume()) {
+        match crate::open_disc(&self.iso).and_then(|mut d| d.volume()) {
             Ok(v) => {
                 let mut rand = piney_world::Rand(state.rand);
                 self.scene.restock().apply(&mut state.save, v, self.scene.server, &mut rand);
@@ -418,7 +417,7 @@ impl Session {
         let field_type = self.world_man.map_or(0, |w| w.field_type as i32);
         (self.at_load, self.load_started) = (false, false);
         self.load_disp = kind(&self.scene, field_type, self.setup_mode).map(|k| {
-            let mut disc = Iso::open(&self.iso).ok();
+            let mut disc = crate::open_disc(&self.iso).ok();
             let v = disc.as_mut().and_then(|d| d.volume().ok()).unwrap_or(piney_data::volume::Volume::Inf);
             let tables = piney_data::area::AreaTables::of(v);
             let word = |id: i32| tables.word_by_id(id).map_or("", |w| w.text);
@@ -874,7 +873,7 @@ impl Session {
     /// The boot and the title: a fresh save, the event task started, and
     /// `ccSetupDemo`'s title - with its logos on the first boot only.
     fn boot_title(&self, first_boot: bool) -> Result<Stage, String> {
-        let mut disc = Iso::open(&self.iso).map_err(|e| format!("{}: {e}", self.iso.display()))?;
+        let mut disc = crate::open_disc(&self.iso).map_err(|e| format!("{}: {e}", self.iso.display()))?;
         let text = InitText::from_disc(&mut disc).map_err(|e| format!("ccSaveData::Init: {e}"))?;
         let mut state = SaveState::fresh_with(&text);
         // The options kept across the parts, over the new save's.
@@ -1366,6 +1365,7 @@ impl Mode for Session {
 mod tests {
     use std::path::PathBuf;
 
+    use piney_data::iso::Iso;
     use piney_demo::Phase;
     use piney_demo::opening::act;
     use piney_input::{Buttons, Raw};
@@ -7829,6 +7829,7 @@ mod tests {
 mod area15 {
     use std::path::{Path, PathBuf};
 
+    use piney_data::iso::Iso;
     use piney_input::{Buttons, Raw};
 
     use super::*;

@@ -122,11 +122,43 @@ impl From<HleError> for Fault {
     }
 }
 
-/// The memories an instruction can touch: RAM ([`RAM`] bytes) and VU0's
-/// data memory ([`VU_MEM`] bytes, only the Vu0Machine's instructions).
+/// The memories an instruction can touch: RAM ([`RAM`] bytes), VU0's
+/// data memory ([`VU_MEM`] bytes, only the Vu0Machine's instructions) and
+/// what answers outside RAM when a whole system runs ([`Bus`]; None in
+/// every harness, where such an access faults).
 pub struct Mem<'a> {
     pub ram: &'a mut [u8],
     pub vu: &'a mut [u8],
+    pub bus: Option<&'a mut dyn Bus>,
+}
+
+impl Mem<'_> {
+    /// `load(addr, n)` for n <= 16, little-endian: RAM, else the bus.
+    #[inline]
+    pub fn load(&mut self, addr: u32, n: u32) -> Result<u128, Fault> {
+        if fits(addr, n) { load(self.ram, addr, n) } else { self.bus_read(addr, n) }
+    }
+
+    #[inline]
+    fn load32(&mut self, addr: u32) -> Result<u32, Fault> {
+        if fits(addr, 4) { load32(self.ram, addr) } else { self.bus_read(addr, 4).map(|v| v as u32) }
+    }
+
+    #[cold]
+    fn bus_read(&mut self, addr: u32, n: u32) -> Result<u128, Fault> {
+        let Mem { ram, bus, .. } = self;
+        bus.as_deref_mut().and_then(|b| b.read(ram, addr, n)).ok_or(Fault::Read { addr, n })
+    }
+
+    #[cold]
+    fn bus_write(&mut self, addr: u32, n: u32, v: u128) -> Result<(), Fault> {
+        let Mem { ram, bus, .. } = self;
+        if bus.as_deref_mut().is_some_and(|b| b.write(ram, addr, n, v)) {
+            Ok(())
+        } else {
+            Err(Fault::Write { addr, n })
+        }
+    }
 }
 
 /// The hooked addresses: eemu's `hooks` dict as far as the run loop needs
@@ -297,34 +329,12 @@ pub trait Bus {
     fn write(&mut self, ram: &mut [u8], addr: u32, n: u32, v: u128) -> bool;
 }
 
-thread_local! {
-    static BUS: std::cell::RefCell<Option<Box<dyn Bus>>> = const { std::cell::RefCell::new(None) };
-}
-
-/// Puts `bus` behind every access outside RAM on this thread.
-pub fn set_bus(bus: Option<Box<dyn Bus>>) {
-    BUS.with(|b| *b.borrow_mut() = bus);
-}
-
-#[cold]
-fn bus_read(ram: &[u8], addr: u32, n: u32) -> Result<u128, Fault> {
-    BUS.with(|b| b.borrow_mut().as_mut().and_then(|b| b.read(ram, addr, n))).ok_or(Fault::Read { addr, n })
-}
-
-#[cold]
-fn bus_write(ram: &mut [u8], addr: u32, n: u32, v: u128) -> Result<(), Fault> {
-    if BUS.with(|b| b.borrow_mut().as_mut().is_some_and(|b| b.write(ram, addr, n, v))) {
-        Ok(())
-    } else {
-        Err(Fault::Write { addr, n })
-    }
-}
-
-/// `load(addr, n)` for n <= 16, little-endian.
+/// `load(addr, n)` for n <= 16, little-endian, from RAM alone
+/// ([`Mem::load`] asks the bus outside it).
 #[inline]
 pub fn load(ram: &[u8], addr: u32, n: u32) -> Result<u128, Fault> {
     if !fits(addr, n) {
-        return bus_read(ram, addr, n);
+        return Err(Fault::Read { addr, n });
     }
     let a = addr as usize;
     Ok(match n {
@@ -340,7 +350,7 @@ pub fn load(ram: &[u8], addr: u32, n: u32) -> Result<u128, Fault> {
 #[inline]
 fn load32(ram: &[u8], addr: u32) -> Result<u32, Fault> {
     if !fits(addr, 4) {
-        return bus_read(ram, addr, 4).map(|v| v as u32);
+        return Err(Fault::Read { addr, n: 4 });
     }
     let a = addr as usize;
     Ok(u32::from_le_bytes(ram[a..a + 4].try_into().unwrap()))
@@ -494,14 +504,14 @@ impl Cpu {
 
     // memory -------------------------------------------------------------------
 
-    /// `store(addr, n, v)` for n <= 16.
+    /// `store(addr, n, v)` for n <= 16: RAM, else the bus.
     #[inline]
-    pub fn store(&mut self, ram: &mut [u8], addr: u32, n: u32, v: u128) -> Result<(), Fault> {
+    pub fn store(&mut self, m: &mut Mem, addr: u32, n: u32, v: u128) -> Result<(), Fault> {
         if !fits(addr, n) {
-            return bus_write(ram, addr, n, v);
+            return m.bus_write(addr, n, v);
         }
         let a = addr as usize;
-        ram[a..a + n as usize].copy_from_slice(&v.to_le_bytes()[..n as usize]);
+        m.ram[a..a + n as usize].copy_from_slice(&v.to_le_bytes()[..n as usize]);
         if let Some(w) = &mut self.writes {
             w.push((addr, n));
         }
@@ -531,7 +541,7 @@ impl Cpu {
                     None
                 }
                 None => {
-                    let w = load32(m.ram, pc as u32)?;
+                    let w = m.load32(pc as u32)?;
                     if opts.exec_trap {
                         return Ok(Event::Exec(w));
                     }
@@ -590,19 +600,19 @@ impl Cpu {
                     return if traps.cop2 { Err(Fault::Trap(Trap::Cop2)) } else { self.cop2(m, pc, w) };
                 }
                 0x36 => {
-                    let v = load(m.ram, self.ea(w) & !15, 16)?;
+                    let v = m.load(self.ea(w) & !15, 16)?;
                     self.vset(((w >> 16) & 31) as usize, 0xf, words(v));
                     return Ok(Flow::Next);
                 }
                 0x3e => {
                     let v = from_words(self.vf[((w >> 16) & 31) as usize]);
-                    self.store(m.ram, self.ea(w) & !15, 16, v)?;
+                    self.store(m, self.ea(w) & !15, 16, v)?;
                     return Ok(Flow::Next);
                 }
                 0x1a | 0x1b => {
                     let (rt, ea) = (((w >> 16) & 31) as usize, self.ea(w));
                     let k = ea & 7;
-                    let dw = load(m.ram, ea & !7, 8)? as u64;
+                    let dw = m.load(ea & !7, 8)? as u64;
                     let old = self.m64(rt);
                     let v = if op == 0x1a {
                         let sh = 8 * (7 - k);
@@ -620,7 +630,7 @@ impl Cpu {
                 _ => {}
             }
         }
-        self.exec_ee(m.ram, pc, w)
+        self.exec_ee(m, pc, w)
     }
 
     /// lwl, lwr, swl, swr, sdl, sdr: a word or doubleword's part at an
@@ -630,7 +640,7 @@ impl Cpu {
         match op {
             0x22 | 0x26 => {
                 let k = ea & 3;
-                let word = load32(m.ram, ea & !3)?;
+                let word = m.load32(ea & !3)?;
                 let old = self.u32r(rt);
                 let v = if op == 0x22 {
                     let sh = 8 * (3 - k);
@@ -648,7 +658,7 @@ impl Cpu {
             }
             0x2a | 0x2e => {
                 let k = ea & 3;
-                let word = load32(m.ram, ea & !3)?;
+                let word = m.load32(ea & !3)?;
                 let r = self.u32r(rt);
                 let v = if op == 0x2a {
                     let sh = 8 * (3 - k);
@@ -657,11 +667,11 @@ impl Cpu {
                     let sh = 8 * k;
                     (r << sh) | (word & ((1u32 << sh) - 1))
                 };
-                self.store(m.ram, ea & !3, 4, u128::from(v))?;
+                self.store(m, ea & !3, 4, u128::from(v))?;
             }
             _ => {
                 let k = ea & 7;
-                let dw = load(m.ram, ea & !7, 8)? as u64;
+                let dw = m.load(ea & !7, 8)? as u64;
                 let r = self.m64(rt);
                 let v = if op == 0x2c {
                     let sh = 8 * (7 - k);
@@ -670,7 +680,7 @@ impl Cpu {
                     let sh = 8 * k;
                     (r << sh) | (dw & ((1u64 << sh) - 1))
                 };
-                self.store(m.ram, ea & !7, 8, u128::from(v))?;
+                self.store(m, ea & !7, 8, u128::from(v))?;
             }
         }
         Ok(Flow::Next)
@@ -721,7 +731,7 @@ impl Cpu {
     }
 
     /// The base Machine's `exec`.
-    fn exec_ee(&mut self, ram: &mut [u8], pc: u64, w: u32) -> Result<Flow, Fault> {
+    fn exec_ee(&mut self, m: &mut Mem, pc: u64, w: u32) -> Result<Flow, Fault> {
         let op = w >> 26;
         let rs = ((w >> 21) & 31) as usize;
         let rt = ((w >> 16) & 31) as usize;
@@ -905,49 +915,49 @@ impl Cpu {
                 Ok(Flow::Next)
             }
             0x20 => {
-                let v = load(ram, ea, 1)? as u8 as i8;
+                let v = m.load(ea, 1)? as u8 as i8;
                 self.set(rt, i64::from(v) as u64);
                 Ok(Flow::Next)
             }
             0x24 => {
-                self.set(rt, load(ram, ea, 1)? as u64);
+                self.set(rt, m.load(ea, 1)? as u64);
                 Ok(Flow::Next)
             }
             0x21 => {
-                let v = load(ram, ea, 2)? as u16 as i16;
+                let v = m.load(ea, 2)? as u16 as i16;
                 self.set(rt, i64::from(v) as u64);
                 Ok(Flow::Next)
             }
             0x25 => {
-                self.set(rt, load(ram, ea, 2)? as u64);
+                self.set(rt, m.load(ea, 2)? as u64);
                 Ok(Flow::Next)
             }
             0x23 => {
-                self.set32(rt, load32(ram, ea)?);
+                self.set32(rt, m.load32(ea)?);
                 Ok(Flow::Next)
             }
             0x27 => {
-                self.set(rt, u64::from(load32(ram, ea)?));
+                self.set(rt, u64::from(m.load32(ea)?));
                 Ok(Flow::Next)
             }
             0x37 => {
-                self.set(rt, load(ram, ea, 8)? as u64);
+                self.set(rt, m.load(ea, 8)? as u64);
                 Ok(Flow::Next)
             }
             0x1e => {
-                self.set128(rt, load(ram, ea & !15, 16)?);
+                self.set128(rt, m.load(ea & !15, 16)?);
                 Ok(Flow::Next)
             }
-            0x28 => self.store(ram, ea, 1, self.r[rt]).map(|_| Flow::Next),
-            0x29 => self.store(ram, ea, 2, self.r[rt]).map(|_| Flow::Next),
-            0x2b => self.store(ram, ea, 4, self.r[rt]).map(|_| Flow::Next),
-            0x3f => self.store(ram, ea, 8, self.r[rt]).map(|_| Flow::Next),
-            0x1f => self.store(ram, ea & !15, 16, self.r[rt]).map(|_| Flow::Next),
+            0x28 => self.store(m, ea, 1, self.r[rt]).map(|_| Flow::Next),
+            0x29 => self.store(m, ea, 2, self.r[rt]).map(|_| Flow::Next),
+            0x2b => self.store(m, ea, 4, self.r[rt]).map(|_| Flow::Next),
+            0x3f => self.store(m, ea, 8, self.r[rt]).map(|_| Flow::Next),
+            0x1f => self.store(m, ea & !15, 16, self.r[rt]).map(|_| Flow::Next),
             0x31 => {
-                self.f[rt] = load32(ram, ea)?;
+                self.f[rt] = m.load32(ea)?;
                 Ok(Flow::Next)
             }
-            0x39 => self.store(ram, ea, 4, u128::from(self.f[rt])).map(|_| Flow::Next),
+            0x39 => self.store(m, ea, 4, u128::from(self.f[rt])).map(|_| Flow::Next),
             0x2f | 0x33 => Ok(Flow::Next), // cache, pref
             _ => bad,
         }
@@ -1313,7 +1323,7 @@ mod tests {
 
     fn exec(cpu: &mut Cpu, ram: &mut [u8], w: u32) -> Result<Flow, Fault> {
         let mut vu = vec![0; VU_MEM];
-        cpu.exec(&mut Mem { ram, vu: &mut vu }, 0x1000, w, Traps::default())
+        cpu.exec(&mut Mem { ram, vu: &mut vu, bus: None }, 0x1000, w, Traps::default())
     }
 
     #[test]

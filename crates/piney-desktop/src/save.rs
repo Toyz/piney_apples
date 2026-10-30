@@ -96,11 +96,19 @@ pub struct SaveState {
     /// and `WORLD`'s): 0 at power-on and never set again, so each carries
     /// on across visits, log ins and soft resets ([`SCROLL_STATICS`]).
     pub scroll_statics: [u32; SCROLL_STATICS],
+    /// `WORLD`'s ambient drawing's function statics (rain, thunder, steam,
+    /// the balloon's cloth) as the last field left them: None until a field
+    /// has drawn, when the executable's own start values hold. piney-world's
+    /// `field_ambient::kept_words` lays them out ([`FIELD_AMBIENT`]).
+    pub field_ambient: Option<[u32; FIELD_AMBIENT]>,
 }
 
 /// The scroll statics the port keeps (piney-world's `town::statics` names
 /// them).
 pub const SCROLL_STATICS: usize = 26;
+
+/// The words of a field's ambient statics ([`SaveState::field_ambient`]).
+pub const FIELD_AMBIENT: usize = 17;
 
 /// The `EA_moveTex` rows gcmn holds: `EA_moveTex02`'s two, `04`, `05`,
 /// `06`, and `07`'s two (piney-world's `evarea::scroll` names them).
@@ -109,12 +117,13 @@ pub const MOVE_TEX_ROWS: usize = 7;
 impl SaveState {
     /// What memory holds across `ccThMother`'s soft reset, which boots
     /// nothing again: `rand()`, `fieldrand`, gcmn's scrolls (until the
-    /// next log in loads GCMN.PRG) and the executable's scroll statics.
+    /// next log in loads GCMN.PRG) and the executable's statics.
     pub fn carry_memory(&mut self, from: &SaveState) {
         self.rand = from.rand;
         self.field_rand = from.field_rand;
         self.move_tex = from.move_tex;
         self.scroll_statics = from.scroll_statics;
+        self.field_ambient = from.field_ambient;
     }
 
     pub fn new(save: SaveData) -> Self {
@@ -128,6 +137,7 @@ impl SaveState {
             field_rand: piney_data::dungeon::Rng::POWER_ON,
             move_tex: [[0; 2]; MOVE_TEX_ROWS],
             scroll_statics: [0; SCROLL_STATICS],
+            field_ambient: None,
         }
     }
 

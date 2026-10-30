@@ -12,6 +12,7 @@ pub mod locate;
 
 use std::collections::BTreeSet;
 use std::fmt;
+use std::sync::{Arc, OnceLock};
 
 use crate::ir::{Block, Cond, CondKind, Event, GameText, MAX_BLOCKS, Message, OpKind, Script, TagKind};
 pub use elf::Executable;
@@ -633,34 +634,32 @@ pub fn events_text(v: piney_data::volume::Volume, events: &[Event]) -> String {
     s
 }
 
-/// Each volume's events once read ([`events`]).
-static PARSED: [std::sync::OnceLock<Result<Vec<Event>, String>>; 4] =
-    [std::sync::OnceLock::new(), std::sync::OnceLock::new(), std::sync::OnceLock::new(), std::sync::OnceLock::new()];
+/// Each volume's events once read ([`events`]); a read that failed is not
+/// kept, so the next call tries again.
+static PARSED: [OnceLock<Arc<[Event]>>; 4] = [const { OnceLock::new() }; 4];
 
 /// Every event of the disc's volume, from its port data ([`EVENTS_FILE`]);
 /// a disc without it (a tool's or a check's image) from its executable.
-/// Read once a run; later calls copy it.
-pub fn events(iso: &mut piney_data::iso::Iso) -> Result<Vec<Event>, Error> {
+/// Read once a run; later calls share it.
+pub fn events(iso: &mut piney_data::iso::Iso) -> Result<Arc<[Event]>, Error> {
     let v = iso.volume()?;
-    PARSED[v as usize]
-        .get_or_init(|| match iso.read_path(EVENTS_FILE) {
-            Ok(bytes) => String::from_utf8(bytes)
-                .map_err(|e| e.to_string())
-                .and_then(|t| crate::text::parse_events(&t).map_err(|e| e.to_string()))
-                .map_err(|e| format!("{v}'s {EVENTS_FILE}: {e}")),
-            Err(_) => load_iso(iso).map(|o| o.events).map_err(|e| format!("{v}'s scripts: {e}")),
-        })
-        .clone()
-        .map_err(Error::Format)
+    let slot = &PARSED[v as usize];
+    if let Some(read) = slot.get() {
+        return Ok(read.clone());
+    }
+    let read: Vec<Event> = match iso.read_path(EVENTS_FILE) {
+        Ok(bytes) => String::from_utf8(bytes)
+            .map_err(|e| e.to_string())
+            .and_then(|t| crate::text::parse_events(&t).map_err(|e| e.to_string()))
+            .map_err(|e| Error::Format(format!("{v}'s {EVENTS_FILE}: {e}")))?,
+        Err(_) => load_iso(iso).map_err(|e| Error::Format(format!("{v}'s scripts: {e}")))?.events,
+    };
+    Ok(slot.get_or_init(|| read.into()).clone())
 }
 
 /// A volume's events as [`events`] read them earlier this run.
-pub fn events_of(v: piney_data::volume::Volume) -> Result<Vec<Event>, Error> {
-    PARSED[v as usize]
-        .get()
-        .cloned()
-        .unwrap_or_else(|| Err(format!("{v}'s scripts are not read yet")))
-        .map_err(Error::Format)
+pub fn events_of(v: piney_data::volume::Volume) -> Result<Arc<[Event]>, Error> {
+    PARSED[v as usize].get().cloned().ok_or_else(|| Error::Format(format!("{v}'s scripts are not read yet")))
 }
 
 #[cfg(test)]

@@ -24,19 +24,21 @@ order; tick items off here as they land, with the worklog entry.
       others use `wrapping_*`. One `hit_hp` computing in `i32` as the game's
       `int` promotion does, checked against the code. (worklog 508: the
       code keeps the sum in a `short`, so `i16` wrapping it is.)
-- [ ] `piney-game` `fx.rs:201` sprite cache key leaves out the file
+- [x] `piney-game` `fx.rs:201` sprite cache key leaves out the file
       (`town_fx.rs:210` has it): two maps' same-named effects collide.
-- [ ] `piney-data` `store::group` races: two threads can load and leak one
-      group twice and get different `&'static` pointers.
+      (worklog 509; latent: no two cached names collide today.)
+- [x] `piney-data` `store::group` races: two threads can load and leak one
+      group twice and get different `&'static` pointers. (worklog 509)
 - [ ] `piney-gen` `die()` calls `process::exit` from library code that the
       game reaches through `piney_build::image_data` (43 sites): `Result`.
-- [ ] `piney-eemu` thread-local `BUS` is never uninstalled: a second `Sys` on
+- [x] `piney-eemu` thread-local `BUS` is never uninstalled: a second `Sys` on
       a thread silently routes through a dead one. Put the bus in `Mem`.
-- [ ] Process-wide state shared between tests: `field_ambient` `static KEPT:
+      (worklog 509)
+- [x] Process-wide state shared between tests: `field_ambient` `static KEPT:
       Mutex` (carry it in `SaveState` like the scroll statics) and `iso`
-      `DENY_EXECUTABLE` (an option on the `Iso`).
-- [ ] `piney-event` `PARSED` caches an `Err` forever and clones every event
-      per call: `OnceLock<Arc<[Event]>>`, retry on error.
+      `DENY_EXECUTABLE` (an option on the `Iso`). (worklog 509)
+- [x] `piney-event` `PARSED` caches an `Err` forever and clones every event
+      per call: `OnceLock<Arc<[Event]>>`, retry on error. (worklog 509)
 
 ## 1. Guardrails
 

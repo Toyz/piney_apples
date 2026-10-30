@@ -34,7 +34,7 @@ mod tests {
     fn events(dir: &str) -> Option<Vec<crate::ir::Event>> {
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!("../../work/{dir}/{dir}.iso"));
         let mut iso = piney_data::iso::Iso::open(path).ok()?;
-        Some(crate::official::events(&mut iso).unwrap())
+        Some(crate::official::events(&mut iso).unwrap().to_vec())
     }
 
     #[test]

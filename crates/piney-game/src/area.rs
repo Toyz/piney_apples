@@ -238,7 +238,7 @@ impl AreaMode {
         at: piney_world::Arrival,
         spcs: Spcs,
     ) -> Result<AreaMode, String> {
-        let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+        let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
         let mut ui = FieldUi::new(&mut disc, archive.clone()).map_err(|e| format!("the field's menus: {e}"))?;
         // The menu faces: party slot 0 Kite with the bracelet's colours or
         // without, then the members the party brought.
@@ -1994,7 +1994,7 @@ pub fn ev_area_world_man(
     save: &piney_data::save::SaveData,
 ) -> Result<Option<WorldMan>, String> {
     use piney_data::area::EvArea;
-    let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+    let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
     let tables = area_tables(&mut disc)?;
     let crisis = save.u8(offset::CRISIS) != 0;
     match piney_data::area::ev_area(tables, n, server, piney_data::area::flag71(save)) {
@@ -2015,7 +2015,7 @@ pub fn ev_area_number(
     wm: &WorldMan,
     save: &piney_data::save::SaveData,
 ) -> Result<WorldMan, String> {
-    let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+    let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
     let tables = area_tables(&mut disc)?;
     let crisis = save.u8(offset::CRISIS) != 0;
     Ok(wm.with_event_number(tables, n, piney_data::area::flag71(save), crisis))
@@ -2026,7 +2026,9 @@ pub fn ev_area_number(
 /// instruction 118 `area n` makes it; `n` 1-13 make nothing. On `server`.
 pub fn sim_field_rand(iso: &Path, words: Option<[i32; 3]>, n: i32, server: i32, state: &mut SaveState) {
     use piney_data::area::{EvArea, ev_area, flag71, sim_generate_code};
-    let Ok(tables) = Iso::open(iso).map_err(|e| e.to_string()).and_then(|mut d| area_tables(&mut d)) else { return };
+    let Ok(tables) = crate::open_disc(iso).map_err(|e| e.to_string()).and_then(|mut d| area_tables(&mut d)) else {
+        return;
+    };
     let f71 = flag71(&state.save);
     let code = match words {
         Some([a, b, c]) => sim_generate_code(tables, a, b, c, server, f71),
@@ -2048,7 +2050,7 @@ pub fn set_generate_code(
     server: i32,
     save: &piney_data::save::SaveData,
 ) -> Result<(WorldMan, piney_data::area::Go), String> {
-    let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+    let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
     let tables = area_tables(&mut disc)?;
     WorldMan::set_generate_code(tables, words, server, save)
         .ok_or(format!("the words {words:?} are not all in their tables"))

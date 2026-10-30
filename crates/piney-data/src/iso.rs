@@ -18,17 +18,6 @@ pub struct Entry {
     pub dir: bool,
 }
 
-/// Set by [`deny_executable`].
-static DENY_EXECUTABLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// From here on, a read of the boot executable (`SLUS_*`) fails: the game
-/// calls it at start, so a reader that still wants the executable fails
-/// loudly (`plans/volumes.md`). The tools and the checks, which compare with
-/// the executable, do not.
-pub fn deny_executable() {
-    DENY_EXECUTABLE.store(true, std::sync::atomic::Ordering::Relaxed);
-}
-
 /// Where a disc's files come from.
 enum Source {
     /// A disc image.
@@ -46,6 +35,8 @@ pub struct Iso {
     root: Entry,
     /// Which volume the disc is, once asked ([`Iso::volume`]).
     volume: Option<crate::volume::Volume>,
+    /// Whether a read of the boot executable fails ([`Iso::without_executable`]).
+    deny_executable: bool,
 }
 
 impl Iso {
@@ -57,7 +48,7 @@ impl Iso {
             let pack = crate::pack::PackDisc::open(path)?;
             let volume = Some(pack.manifest.volume);
             let root = Entry { path: String::new(), lba: 0, size: 0, dir: true };
-            return Ok(Iso { source: Source::Pack(pack), data: None, root, volume });
+            return Ok(Iso { source: Source::Pack(pack), data: None, root, volume, deny_executable: false });
         }
         let mut file = File::open(path)?;
         let mut pvd = vec![0u8; SECTOR as usize];
@@ -67,7 +58,22 @@ impl Iso {
             return format_err("no primary volume descriptor at sector 16");
         }
         let root = record(&pvd[156..190], "")?.ok_or_else(|| Error::Format("empty root record".into()))?;
-        Ok(Iso { source: Source::Image(file), data: crate::pack::image_data_dir(path), root, volume: None })
+        Ok(Iso {
+            source: Source::Image(file),
+            data: crate::pack::image_data_dir(path),
+            root,
+            volume: None,
+            deny_executable: false,
+        })
+    }
+
+    /// The disc with every read of its boot executable (`SLUS_*`) failing:
+    /// the game opens its discs so, so a reader that still wants the
+    /// executable fails loudly (`plans/volumes.md`). The tools and the
+    /// checks, which compare with the executable, open them as they are.
+    pub fn without_executable(mut self) -> Iso {
+        self.deny_executable = true;
+        self
     }
 
     /// Whether the disc is one of a build rather than an image.
@@ -189,8 +195,7 @@ impl Iso {
     }
 
     pub fn read_path(&mut self, path: &str) -> Result<Vec<u8>> {
-        if DENY_EXECUTABLE.load(std::sync::atomic::Ordering::Relaxed) && path.to_ascii_uppercase().starts_with("SLUS_")
-        {
+        if self.deny_executable && path.to_ascii_uppercase().starts_with("SLUS_") {
             return Err(Error::NotFound(format!("{path}: the port does not read the boot executable")));
         }
         // A disc image's port files come from its data folder.

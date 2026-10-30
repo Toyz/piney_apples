@@ -135,6 +135,17 @@ impl Io {
 
 impl Bus for IoBus {
     fn read(&mut self, ram: &[u8], addr: u32, n: u32) -> Option<u128> {
+        self.get(ram, addr, n)
+    }
+
+    fn write(&mut self, ram: &mut [u8], addr: u32, n: u32, v: u128) -> bool {
+        self.put(ram, addr, n, v)
+    }
+}
+
+impl IoBus {
+    /// [`Bus::read`]: the registers and the scratchpad sit behind the cell.
+    fn get(&self, ram: &[u8], addr: u32, n: u32) -> Option<u128> {
         let mut io = self.0.borrow_mut();
         match addr {
             0x2000_0000..0x2200_0000
@@ -160,7 +171,7 @@ impl Bus for IoBus {
         }
     }
 
-    fn write(&mut self, ram: &mut [u8], addr: u32, n: u32, v: u128) -> bool {
+    fn put(&self, ram: &mut [u8], addr: u32, n: u32, v: u128) -> bool {
         let mut io = self.0.borrow_mut();
         match addr {
             0x2000_0000..0x2200_0000
@@ -295,6 +306,8 @@ pub struct Sys {
     pub ram: Vec<u8>,
     pub vu: Vec<u8>,
     pub io: Rc<RefCell<Io>>,
+    /// [`Io`] as the CPU's bus, behind every access outside RAM.
+    bus: IoBus,
     pub threads: Vec<Thread>,
     /// The running thread's index in `threads`, if any.
     pub cur: Option<usize>,
@@ -338,13 +351,13 @@ pub struct Sys {
 impl Sys {
     pub fn new() -> Sys {
         let io = Rc::new(RefCell::new(Io { spr: vec![0; 0x4000], ..Io::default() }));
-        cpu::set_bus(Some(Box::new(IoBus(io.clone()))));
         let features = Features { vu: true, vi: true, ee_div: true, full: true };
         Sys {
             cpu: Cpu::new(features),
             run: Run::new(0, SLICE),
             ram: vec![0; RAM],
             vu: vec![0; VU_MEM],
+            bus: IoBus(io.clone()),
             io,
             threads: Vec::new(),
             cur: None,
@@ -378,16 +391,27 @@ impl Sys {
 
     // memory -------------------------------------------------------------------
 
+    /// `n` bytes at `a`, through the bus outside RAM.
+    fn peek(&self, a: u32, n: u32) -> Option<u128> {
+        cpu::load(&self.ram, a, n).ok().or_else(|| self.bus.get(&self.ram, a, n))
+    }
+
+    /// `v`'s low `n` bytes to `a`, through the bus outside RAM.
+    fn poke(&mut self, a: u32, n: u32, v: u128) {
+        let mut mem = Mem { ram: &mut self.ram, vu: &mut self.vu, bus: Some(&mut self.bus) };
+        let _ = self.cpu.store(&mut mem, a, n, v);
+    }
+
     pub fn r32(&self, a: u32) -> u32 {
-        cpu::load(&self.ram, a, 4).map_or(0, |v| v as u32)
+        self.peek(a, 4).map_or(0, |v| v as u32)
     }
 
     pub fn w32(&mut self, a: u32, v: u32) {
-        let _ = self.cpu.store(&mut self.ram, a, 4, u128::from(v));
+        self.poke(a, 4, u128::from(v));
     }
 
     pub fn r8(&self, a: u32) -> u8 {
-        cpu::load(&self.ram, a, 1).map_or(0, |v| v as u8)
+        self.peek(a, 1).map_or(0, |v| v as u8)
     }
 
     /// `bytes` at `a`, through the bus (the scratchpad and the mirrors too).
@@ -397,7 +421,7 @@ impl Sys {
             return;
         }
         for (k, &b) in bytes.iter().enumerate() {
-            let _ = self.cpu.store(&mut self.ram, a + k as u32, 1, u128::from(b));
+            self.poke(a + k as u32, 1, u128::from(b));
         }
     }
 
@@ -1085,7 +1109,7 @@ impl Sys {
         if self.log && self.cpu.steps.is_multiple_of(1 << 24) {
             eprintln!("step {} thread {} isr {} pc {:#x}", self.cpu.steps, self.current_id(), self.in_isr, self.run.pc);
         }
-        let mut mem = Mem { ram: &mut self.ram, vu: &mut self.vu };
+        let mut mem = Mem { ram: &mut self.ram, vu: &mut self.vu, bus: Some(&mut self.bus) };
         self.run.limit = self.cpu.steps + SLICE;
         let ev = self.cpu.run(&mut mem, &self.hookset, &mut self.run, RunOpts::default());
         match ev {
@@ -1106,7 +1130,7 @@ impl Sys {
                 let args = self.cpu.args();
                 let _ = (f.borrow_mut())(self, args);
                 self.hookset.remove(pc);
-                let mut mem = Mem { ram: &mut self.ram, vu: &mut self.vu };
+                let mut mem = Mem { ram: &mut self.ram, vu: &mut self.vu, bus: Some(&mut self.bus) };
                 let r =
                     self.cpu.run(&mut mem, &self.hookset, &mut self.run, RunOpts { trace: true, ..RunOpts::default() });
                 self.hookset.insert(pc, HookKind::Foreign);
@@ -1122,7 +1146,7 @@ impl Sys {
                 // Another overlay's code at the address: run it.
                 let pc = self.run.pc;
                 self.hookset.remove(pc);
-                let mut mem = Mem { ram: &mut self.ram, vu: &mut self.vu };
+                let mut mem = Mem { ram: &mut self.ram, vu: &mut self.vu, bus: Some(&mut self.bus) };
                 let r =
                     self.cpu.run(&mut mem, &self.hookset, &mut self.run, RunOpts { trace: true, ..RunOpts::default() });
                 self.hookset.insert(pc, HookKind::Foreign);
@@ -1246,4 +1270,23 @@ enum Step {
     Go,
     Switch,
     Done,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Each system answers outside RAM through its own bus: two on one
+    /// thread keep their own scratchpads.
+    #[test]
+    fn each_system_has_its_own_bus() {
+        let (mut a, mut b) = (Sys::new(), Sys::new());
+        a.w32(0x7000_0010, 0x1234_5678);
+        b.w32(0x7000_0010, 0x9abc_def0);
+        assert_eq!(a.r32(0x7000_0010), 0x1234_5678);
+        assert_eq!(b.r32(0x7000_0010), 0x9abc_def0);
+        drop(a);
+        b.w32(0x7000_0014, 7);
+        assert_eq!(b.r32(0x7000_0014), 7);
+    }
 }

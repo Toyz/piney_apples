@@ -92,7 +92,7 @@ fn the_builds_scripts_are_the_executables() {
         for (r, e) in read.iter().zip(&off.events) {
             assert_eq!(r, e, "{vol} event {}", e.number);
         }
-        assert_eq!(official::events(&mut iso).unwrap(), off.events, "{vol}");
-        assert_eq!(official::events_of(v).unwrap(), off.events, "{vol}");
+        assert_eq!(*official::events(&mut iso).unwrap(), *off.events, "{vol}");
+        assert_eq!(*official::events_of(v).unwrap(), *off.events, "{vol}");
     }
 }

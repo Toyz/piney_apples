@@ -10,7 +10,7 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use crate::volume::Volume;
 
@@ -110,9 +110,13 @@ impl<T: Load> Load for Option<T> {
 /// Where each volume's port data comes from, once the game says.
 static DISCS: Mutex<[Option<PathBuf>; 4]> = Mutex::new([None, None, None, None]);
 
-/// Each group read so far, by volume and name.
-type Loaded = HashMap<(usize, &'static str), &'static (dyn Any + Send + Sync)>;
-static LOADED: Mutex<Option<Loaded>> = Mutex::new(None);
+/// A group's values, read once by whichever thread asks first.
+type Slot = OnceLock<&'static (dyn Any + Send + Sync)>;
+
+/// Each group's slot, by volume and name. The lock is held only to find
+/// the slot; the read runs under the slot's own, so one group is read once
+/// and every caller gets the same values.
+static LOADED: Mutex<Option<HashMap<(Volume, &'static str), &'static Slot>>> = Mutex::new(None);
 
 /// The disc (an image or a build's `.disc`) whose port data is volume
 /// `v`'s tables from here on.
@@ -149,17 +153,20 @@ fn bytes(v: Volume, name: &str) -> Vec<u8> {
 
 /// Volume `v`'s values of group `name`, read once a run.
 pub fn group<T: Load + Send + Sync + 'static>(v: Volume, name: &'static str) -> &'static T {
-    let key = (v as usize, name);
-    if let Some(x) = LOADED.lock().unwrap().get_or_insert_with(HashMap::new).get(&key) {
-        return x.downcast_ref::<T>().expect("a group read as another type");
-    }
-    let buf: &'static [u8] = Box::leak(bytes(v, name).into_boxed_slice());
-    let mut r = Reader::new(buf, format!("{v}'s {name}"));
-    let value = T::load(&mut r);
-    assert!(r.done(), "{v}'s {name}: {} bytes left over", buf.len() - r.at);
-    let leaked: &'static T = Box::leak(Box::new(value));
-    LOADED.lock().unwrap().get_or_insert_with(HashMap::new).entry(key).or_insert(leaked);
-    leaked
+    let slot: &'static Slot = LOADED
+        .lock()
+        .unwrap()
+        .get_or_insert_with(HashMap::new)
+        .entry((v, name))
+        .or_insert_with(|| Box::leak(Box::default()));
+    let values = slot.get_or_init(|| {
+        let buf: &'static [u8] = Box::leak(bytes(v, name).into_boxed_slice());
+        let mut r = Reader::new(buf, format!("{v}'s {name}"));
+        let value = T::load(&mut r);
+        assert!(r.done(), "{v}'s {name}: {} bytes left over", buf.len() - r.at);
+        Box::leak(Box::new(value))
+    });
+    values.downcast_ref::<T>().expect("a group read as another type")
 }
 
 /// A group's values that are the same on every volume: from whichever
@@ -175,4 +182,27 @@ pub fn shared<T: Load + Send + Sync + 'static>(name: &'static str) -> &'static T
         .or_else(|| Volume::ALL.into_iter().find(|&v| work_tables(v).join(format!("{name}.bin")).is_file()))
         .unwrap_or(Volume::Inf);
     group(v, name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Threads that ask for one group at once all get the one read.
+    #[test]
+    fn a_group_is_read_once() {
+        let barrier = std::sync::Barrier::new(8);
+        let got: Vec<usize> = std::thread::scope(|s| {
+            let asks: Vec<_> = (0..8)
+                .map(|_| {
+                    s.spawn(|| {
+                        barrier.wait();
+                        std::ptr::from_ref(group::<crate::field::Tables>(Volume::Mut, "field")) as usize
+                    })
+                })
+                .collect();
+            asks.into_iter().map(|t| t.join().unwrap()).collect()
+        });
+        assert!(got.iter().all(|&p| p == got[0]), "{got:x?}");
+    }
 }

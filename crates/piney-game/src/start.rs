@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use piney_data::archive::Archive;
-use piney_data::iso::Iso;
 use piney_data::save::SaveData;
 use piney_data::volume::Volume;
 use piney_desktop::SaveState;
@@ -293,7 +292,7 @@ fn add_member(spcs: &mut Spcs, pc: i32) {
 
 /// The save and the event task at event `n`'s start, and where it is.
 pub fn build(iso: &Path, n: i32) -> Result<Start, String> {
-    let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+    let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
     let volume = disc.volume().map_err(|e| e.to_string())?;
     let story = story(volume);
     let place = place(n).filter(|_| story.contains(&n)).ok_or(format!(
@@ -330,7 +329,7 @@ pub fn build(iso: &Path, n: i32) -> Result<Start, String> {
 /// of the disc's volume: each event before it replayed, its fights won.
 /// [`build`]'s, for any event of the story, a start point or not.
 pub fn state_at(iso: &Path, n: i32) -> Result<(SaveState, Vm), String> {
-    let mut disc = Iso::open(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
+    let mut disc = crate::open_disc(iso).map_err(|e| format!("{}: {e}", iso.display()))?;
     let volume = disc.volume().map_err(|e| e.to_string())?;
     let story = story(volume);
     let areas = crate::story::from_tables(piney_data::area::AreaTables::of(volume));

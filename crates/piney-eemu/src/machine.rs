@@ -55,7 +55,7 @@ impl Machine {
         self.cpu.begin(u128::from(self.gp), args);
         let mut run = Run::new(u64::from(addr), limit);
         loop {
-            let mut mem = Mem { ram: &mut self.ram, vu: &mut self.vu };
+            let mut mem = Mem { ram: &mut self.ram, vu: &mut self.vu, bus: None };
             match self.cpu.run(&mut mem, &self.set, &mut run, RunOpts::default())? {
                 Event::Done => return Ok(self.cpu.r[2] as u32),
                 Event::Hook => {

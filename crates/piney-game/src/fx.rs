@@ -41,10 +41,11 @@ pub struct AreaFx {
     /// The effects' calls into the rest of the game since the runtime
     /// last took them (sounds, shakes, noise).
     pub events: Vec<piney_effect::Event>,
-    /// A story map's `ccEff`s by name as its constructor made them (area
-    /// 15's lens flare, an arena's fireflies; a flare's render state is its
-    /// own), and the disc their file is read from.
-    story: std::collections::HashMap<(&'static str, bool, bool), Option<Eff>>,
+    /// A story map's `ccEff`s by file and name as its constructor made them
+    /// (area 15's lens flare, an arena's fireflies, whose file is the
+    /// stage's; a flare's render state is its own), and the disc their
+    /// file is read from.
+    story: std::collections::HashMap<(&'static str, &'static str, bool, bool), Option<Eff>>,
     /// A field's weather's `ccEff`s (and a dungeon's sparks and glows) by
     /// file, name, fog bit, depth test and palette change, and its smoke
     /// puffs waiting for the next effect task ([`ambient`]).
@@ -197,7 +198,7 @@ impl AreaFx {
         let assets = &mut self.fx.assets;
         let archive = &self.archive;
         self.story
-            .entry((s.eff, s.flare, s.fog))
+            .entry((s.file, s.eff, s.flare, s.fog))
             .or_insert_with(|| {
                 assets.add_file(archive, s.file).ok()?;
                 let o = assets.find(s.file, s.eff)?;
