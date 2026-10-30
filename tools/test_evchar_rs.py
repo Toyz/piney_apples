@@ -66,6 +66,25 @@ ELF = volume.ELF
 
 SPCMNG, PARTYMNG, AISYS_P = inf_va(0x00730340), inf_va(0x00730310), inf_va(0x00378CA0)
 HITTOP = inf_va(0x0037890C)
+
+
+def fellow02_ct(prog):
+    """`ccFellow02::ccFellow02(int)`: by name in Infection; from Mutation on,
+    where it has none, the first unnamed call of ccSpcStart[2]
+    (ccFellow02Start, INF 0x00654078), after its operator new."""
+    import struct
+    named = prog.symbol_named("__ct__10ccFellow02Fi")
+    if named is not None:
+        return named.value
+    start = struct.unpack("<I", prog.read(inf_va(0x00654078), 4))[0]
+    for a in range(start, start + 0x78, 4):
+        w = struct.unpack("<I", prog.read(a, 4))[0]
+        if w >> 26 == 3:
+            t = (w & 0x03FFFFFF) << 2
+            hit = prog.symbol_at(t, 0)
+            if not (hit and hit[1] == 0):
+                return t
+    raise KeyError("ccFellow02Start at 0x%08x calls no unnamed function" % start)
 EVBUF, EVCELL = SCRATCH + 0xA000, SCRATCH + 0xA100
 # ccEvent::Execute opcodes (docs/engine/events.md).
 OPS = {"act": 0x3C, "mode": 0x41, "turn": 0x47, "face": 0x48, "add": 0x4D, "remove": 0x4E}
@@ -189,7 +208,7 @@ class EvChar(Field):
         self.call("__ct__4ccAIFi", ai, code)
         m.store(body + 0x128, 4, ai)
         m.store(ai + 0x18, 4, body)
-        m.store(ai + 0xB6, 2, m.load(m.load(body, 4) + 0xE, 2))
+        m.store(ai + volume.ai_at(0xB6), 2, m.load(m.load(body, 4) + 0xE, 2))
         self.call("ChangeMode__4ccAIFii", ai, 1, 1)
         if boot & 4:
             self.call("ManualMode__4ccAIFv", ai)
@@ -261,7 +280,7 @@ class EvChar(Field):
         self.script = [0, 0, lag // 5, 0, 0]
         obj = self.malloc(m, 0x250)
         m.mem[obj:obj + 0x250] = bytes(0x250)
-        self.call("__ct__10ccFellow02Fi", obj, i)
+        self.call(fellow02_ct(self.prog), obj, i)
         m.store(reg + 0x1C, 4, obj)
         self.make_ai(obj, code, boot)
         self.script = []
@@ -282,7 +301,7 @@ class EvChar(Field):
             body = PLAYER if args[0] == 0 else self.fellows[0]
             ai = m.load(body + 0x128, 4)
             m.store(ai, 1, (m.load(ai, 1) & ~4) | (4 if args[1] else 0))
-            m.store(ai + 0x9A, 2, args[2])
+            m.store(ai + volume.ai_at(0x9A), 2, args[2])
             return
         code = ([0x12] if args[0] else [0x13]) if op == "ban" else [OPS[op], *args]
         for k, v in enumerate(code + [0]):
@@ -326,12 +345,13 @@ class EvChar(Field):
             return None
         b0, b1 = m.load(ai, 1), m.load(ai + 1, 1)
         bf = b1 & 3
+        at = lambda off: ai + volume.ai_at(off)  # noqa: E731  # ccAI grew from Mutation on
         return {"manual": b0 & 1, "talk": b0 >> 2 & 1, "remote_flag": b0 >> 4 & 1,
-                "remote_cmd": m.load(ai + 0x74, 2, True), "g_deg": m.load(ai + 0x9A, 2),
-                "g_rot_sp": m.load(ai + 0x9C, 2, True), "mode": m.load(ai + 8, 4, True),
-                "mode_old": m.load(ai + 0xC, 4, True), "battle_flag": bf - 4 if bf & 2 else bf,
-                "arrival": m.load(ai + 0x80, 2, True), "skill_mask": m.load(ai + 3, 1),
-                "invite": b0 >> 6 & 1, "detour": m.load(ai + 0xB4, 2, True)}
+                "remote_cmd": m.load(at(0x74), 2, True), "g_deg": m.load(at(0x9A), 2),
+                "g_rot_sp": m.load(at(0x9C), 2, True), "mode": m.load(at(8), 4, True),
+                "mode_old": m.load(at(0xC), 4, True), "battle_flag": bf - 4 if bf & 2 else bf,
+                "arrival": m.load(at(0x80), 2, True), "skill_mask": m.load(ai + 3, 1),
+                "invite": b0 >> 6 & 1, "detour": m.load(at(0xB4), 2, True)}
 
     def spc_state(self, o):
         m = self.m
