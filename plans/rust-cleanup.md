@@ -126,6 +126,43 @@ trait MapSystem {
 - A new town or map is its definition (systems and order); a new kind of
   thing is one new system.
 
+### Definitions: what a thing is, as data
+
+The maintainer's shape, 2026-10-30 ("this works for basically everything"):
+a thing is a definition naming its systems, not a struct that does
+everything. Three layers, for a town:
+
+```rust
+struct AreaCore { file, hits, lights, carry, cameras, rng, statics }  // every area (WORLD_MAN)
+const TOWN_SYSTEMS: &[SystemKind] = &[Npcs, Merchants, Gate, Minimap, Party, StaticObjects, Scrolls];
+pub const MAC_ANU: TownDef = TownDef {                                 // this town
+    no: 0, class: "ROOTTOWN01", volumes: ALL, file: "town01", crisis_file: "town01d",
+    systems: &[Water(MAC_ANU_WATER), Sky(MAC_ANU_SKY), CrisisSky(..), Ships],
+    order: &[Objects(Other), Sky, CrisisSky, Obj2, Water, Models, Map],  // its Draw's order
+};
+```
+
+Building one makes the core, adds its kind's systems, adds its own, and
+runs them in its `order` each frame. A town file shrinks to its definition
+and what is truly its own (Mac Anu's ships, Dun Loireag's ranch). The same
+shape for everything that comes in kinds:
+
+| thing | kind's shared systems | definition |
+| --- | --- | --- |
+| town | NPCs, merchants, gate, minimap, party, statics | `TownDef` |
+| field | ambient (rain, thunder, steam), fireflies, lake, portals, NPCs | `FieldDef` (by field type) |
+| dungeon | dress, lake, leaves, portals, gimmicks | `DungeonDef` (by dungeon type) |
+| story map | whatever each has | `MapDef` |
+| boss | base Main blocks, parts, `Fx`, wave, cameras | `BossDef` (started, worklog 529) |
+| NPC | row, char, entry, acts, hit, fade, motion | `NpcDef` per game class |
+| menu | cursor, list, message check, info, tail | `MenuDef` |
+| desktop app | input repeat, window, cursor | `AppDef` |
+| effect | generators, elements, draw requests | `EffectDef` |
+
+Not an ECS: no scheduler, no queries; each definition states its order,
+which keeps it bit-exact and readable. New towns, maps, bosses, menus, and
+fragment's later, are definitions; a new kind of behaviour is one system.
+
 ### The systems audit (2026-10-30, at 1863a74)
 
 Where the code does by hand, per kind, what a system should do once:
