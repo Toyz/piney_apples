@@ -51,6 +51,9 @@ fn main() {
     let iso_path = std::env::args().nth(1).unwrap_or_else(|| "work/infection/infection.iso".into());
     let mut iso = Iso::open(&iso_path).unwrap();
     let archive = Arc::new(Archive::new(iso.read_path("DATA/DATA.BIN").unwrap()).unwrap());
+    // The disc's own code: Outbreak's and Quarantine's square roots are
+    // `sqrt.s` (worklog 474 found the same in evarea_probe).
+    let volume = iso.volume().unwrap();
     let kite = SceneFile::read(&archive, "ctu1body").unwrap();
     let anims: Vec<&piney_data::anim::Animation> =
         PLAYER_ANIM_TBL.iter().map(|n| &kite.anims[kite.anim(n).unwrap()]).collect();
@@ -73,7 +76,8 @@ fn main() {
                     protect: false,
                     skip_init: false,
                 };
-                let f = FieldArea::new(&archive, params, DEF_SE[params.field_type as usize]).unwrap();
+                let def_se = DEF_SE[params.field_type as usize];
+                let f = FieldArea::with_world(&archive, volume, params, def_se, 2, 0, None).unwrap();
                 let objects = list(f.objects.iter().map(|o| {
                     format!(
                         "[{}, {}, {}, {}, {}, {}, {}]",
@@ -169,8 +173,8 @@ fn main() {
                 f.set_center(pos[0], pos[1]);
                 f.hits.center = [pos[0], pos[1]];
                 run = Some(Run {
-                    player: Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000),
-                    camera: Camera::new(pos, dirc, mode, scheme),
+                    player: Player { volume, ..Player::new(pos, dirc, 0x41dc_0000, 0x4234_0000, 0x4320_0000) },
+                    camera: Camera { volume, ..Camera::new(pos, dirc, mode, scheme) },
                     rand: Rand(u64::from(n(7))),
                     mode,
                 });
@@ -208,7 +212,7 @@ fn main() {
                         "\"act\": {}, \"act_old\": {}, \"act_cnt\": {}, \"anm_flag\": {}, \"react_cnt\": {}, ",
                         "\"transfer_lag\": {}, \"walk_run_cnt\": {}, \"cloak\": {}, \"transparency\": {}, ",
                         "\"frame_spd\": {}, \"time\": {}, \"attribute\": {}, \"stop_cnt\": {}, \"drawn\": {}, ",
-                        "\"target_count\": {}, \"angle\": {}, ",
+                        "\"arms\": {:?}, \"target_count\": {}, \"angle\": {}, ",
                         "\"cam_pos\": {}, \"cam_view\": {}, \"cam_rot\": {}, \"cam_rot2\": {}, \"cam_rot3\": {}, ",
                         "\"cam_dist\": {}, \"cam_deg\": [{}, {}], \"cam_type\": {}, \"cam_reset_flag\": {}, ",
                         "\"cam_reset_dirc\": {}, \"resetting\": {}, \"mem_dirc_z\": {}, \"mode\": {}, ",
@@ -238,6 +242,13 @@ fn main() {
                     p.hit_attribute,
                     p.stop_cnt,
                     u8::from(p.drawn),
+                    // ArmsEffect / ClearArmsEffect from ccPlayer::Main, as
+                    // the world harness reports them (worklog 378).
+                    match p.arms {
+                        Some(piney_world::arms::ArmsCall::Effect) => "effect",
+                        Some(piney_world::arms::ArmsCall::Clear) => "clear",
+                        None => "none",
+                    },
                     b.target_count,
                     list(p.angle),
                     list(t.pos),
