@@ -126,6 +126,70 @@ trait MapSystem {
 - A new town or map is its definition (systems and order); a new kind of
   thing is one new system.
 
+### The systems audit (2026-10-30, at 1863a74)
+
+Where the code does by hand, per kind, what a system should do once:
+
+- [ ] **One world, one area system.** The game has one `WORLD_MAN` whose
+      `GO(0/1/2)` makes a town, a story map, a field or a dungeon. The port
+      has two worlds: `piney_world::World` (towns, `lib.rs`) and
+      `FieldWorld` (fields, dungeons, story maps, `field/world.rs`, 4,311
+      lines), carrying the same state twice (save, volume, kite, player,
+      camera, phase, requests, targeting, talks, menu view, event targets,
+      spcs and their entries, char files and names, asleep, ctrl_done,
+      rebooted), and piney-game mirrors the split: `WorldMode` (`world.rs`)
+      vs `AreaMode` (`area.rs`) share 24 method names, `FieldHost` vs
+      `AreaHost` 51, `town_fx.rs` vs `fx.rs` two effect hosts. Make one
+      `World` holding the shared core and one current `Area` (town, story
+      map, field, dungeon behind the `AreaMap` trait, made by the registries
+      as `WORLD_MAN::GO` does), one mode, one host, one effect host. The
+      `AreaMap` and `EvHost` items below are steps toward this.
+- [ ] **An NPC system.** Walking PCs (`town/pc.rs` `RtownPc`), merchants
+      (`town/merchant.rs`), dogs (`town/dog.rs`), Grunties (`grunty/`),
+      event NPCs (`event/entry.rs`, `Box<dyn entry::Npc>`) and field NPCs
+      (`field/npcs.rs`) each carry the same parts by hand: an `NpcRow` and a
+      `Char`, an `EntryObj`, the act state machine (`act_num`,
+      `act_process`, `act_cnt`), the body hit (`body_hit_flag`,
+      `body_hit_cnt`), `affect_type`, a fade (`transrate`), next and old
+      positions; the town world keeps a vector and an event vector per kind
+      (`merchants`/`merchant_events`, `dogs`/`dog_events`,
+      `grunties`/`grunty_events`, `pcs`/`pc_events`, `npcs`). The heading
+      helpers are written three times (`get_dirc`, `set_dirc`, `dirc_chg`,
+      `check_camera_deg` in `town/pc.rs`, `town/merchant.rs`, `chara/ai.rs`,
+      `combat/stage.rs`, besides battle's `geom`). One `Npc` core (row,
+      char, entry, acts, hit, fade, motion) with a per-kind behaviour (the
+      game's own class: `ccRtownPC`, the merchant, `ccDog`, `ccPGuso`, the
+      event NPCs), one list, one event channel, the shared helpers once.
+- [ ] **A camera system.** The game keeps `cameraList[camID]` with one
+      active camera; the port has `camera/mod.rs`, `evcam`, `bosscam`,
+      `cinema`, the merchant camera, and `CamView.active` threaded by hand
+      (worklog 512). One camera list with the active id, each camera kind a
+      member, every reader asking the list.
+- [ ] **A sprite and effect-request system.** Four sprite types do one job
+      (`TownSprite`, `StorySprite`, `breath::Flame`, `field::ambient::Sprite`)
+      with two Eff caches (`town_fx.rs`, `fx.rs`, one of them keyed without
+      the file, worklog 509); one `EffSprite` request and one cache.
+- [ ] **A carry system.** What outlives a scene is scattered over
+      `SaveState` and the session: the scroll statics, `move_tex`,
+      `field_rand`, the field ambient's kept state, the kept dummies, the
+      story maps' kept area-15 map, the dungeons kept. One `Carry` owned by
+      the world, each system declaring what it carries (`take`/`put`
+      statics in `MapSystem` are its first form).
+- [ ] **A placement (entry) system.** Who stands where for an event is
+      decided in several places (`event/entry.rs`, the town's
+      `place_entries`, `field/npcs.rs` `FieldNpcs::build`, the merchants'
+      `dummy_of`, the registry count `regist_npc_num`); one entry system
+      that resolves markers and dummies for any area.
+- [ ] **The map's own systems** (the contract above): water, sky, clouds,
+      lens flare, fireflies (`FIREFLY` and `FIREFLY2` are two real game
+      classes; keep both, as systems), static objects and models, scrolls,
+      lights, the minimap (`map/` already one folder), in fields the
+      ambient (rain, thunder, steam), in dungeons dress, lake, leaves.
+- [ ] **Scene transitions.** The session's `change`, `leave`, `enter_world`
+      and the modes' `change_area` / `scene_change` / `leave` repeat the
+      same request handling (worklog 503 had the console's `town` skip it);
+      one transition path every change goes through.
+
 - [x] `Table` trait (`const NAME`, default `of(v)` / `shared()`) and one
       keyed cache with a per-key `OnceLock` in `store.rs`; piney-gen emits
       `impl Table` and a one-line `of`; drop the 1,017 field accessors and
