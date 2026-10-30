@@ -23,9 +23,12 @@ and replaces what sits behind it with how modern engines render and mix.
   stay compared with the game's code; pictures and audio are checked by
   their own tests (golden shots per mode, signal tests).
 - A Classic mode stays: today's GS and SPU2 paths, kept as the reference
-  and as an option for players who want the original look and sound.
-  (Decision for the maintainer: keep it, or drop it once the modern path
-  is trusted.)
+  and as an option for players who want the original look and sound
+  (the maintainer's decision, 2026-10-29).
+- The modern path aims at the faithful look and sound at modern quality:
+  the same art, lighting and mix, sharper and smoother. Enhancements
+  (real shadows, new lighting, post effects, a modern reverb) are opt-in
+  extras, never the default (the maintainer's decision, 2026-10-29).
 
 ## Rendering
 
