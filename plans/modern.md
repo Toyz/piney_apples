@@ -138,11 +138,35 @@ trait AchievementBackend { fn unlock(&mut self, id: &str); fn progress(&mut self
     memory view mapping those addresses onto the port's state could run
     RA's own .hack sets through `rcheevos` (MIT). Needs RA to accept a
     native port as a client: their call, asked before building.
-  - **Steam**: `steamworks-rs` (MIT/Apache) over Valve's redistributable
-    SDK; the port cannot ship on Steam (the games are not ours), so this
-    only serves a non-Steam shortcut. Cheap to add behind the trait.
+  - **Steam**, and the consoles' trophies and achievements: the slot an
+    official release would fill. We cannot publish the games, so we do not
+    ship these; the trait is there so a rights holder can.
 - The achievement list itself is data: a table of `AchievementDef`s per
   volume, written by us (never copied from another project's set).
+
+## A platform layer a rights holder can use
+
+The maintainer's aim (2026-10-30): if CyberConnect2 or Bandai Namco ever
+wanted this port, they should find fair ground to build on. Everything the
+port asks of "the platform" goes through a trait with a local default, so
+a publisher plugs their platform in without touching the game:
+
+| service | local default | what a release would plug in |
+| --- | --- | --- |
+| achievements | a file and an in-game list | Steam, PlayStation trophies, Xbox, Switch |
+| saves | the port's memory-card folder | cloud saves, the platform's save API |
+| presence | none | rich presence ("Δ Server, fighting Skeith") |
+| input prompts | keyboard and pad glyphs | the platform's button glyphs |
+| paths and settings | the port's folder | the platform's sandbox |
+| overlay and suspend | none | the platform overlay pausing the game |
+
+- One `piney-platform` core crate holds the traits and the local backends;
+  other backends are crates of their own, as Classic and Modern are.
+- The game never names a platform: it reports events and reads services,
+  and the systems (achievements, presence) turn events into calls.
+- The MIT / Apache-2.0 licence is part of this: permissive code is code a
+  company can ship; a copyleft base would have shut that door. Hence the
+  clean-room rule and the dependency allowlist (deny.toml).
 
 ## Order
 
